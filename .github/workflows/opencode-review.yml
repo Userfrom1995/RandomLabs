@@ -81,11 +81,16 @@ jobs:
           # --hard origin/<branch>` fast-forward it onto someone else's commit
           # without ever pushing. A pre-push hook records the real event, so the
           # restore gate below needs the push itself, not a proxy that a plain
-          # fetch/pull can fake. The marker lives in RUNNER_TEMP because the
-          # reviewer's clean-tree step would delete anything inside the checkout.
+          # fetch/pull can fake. The hook appends one line per pushed ref in
+          # git's own stdin format (<local ref> <local sha> <remote ref>
+          # <remote sha>), so the marker records WHICH commit this workspace
+          # pushed, not merely THAT it pushed once - an existence-only marker
+          # survives a later external push and would still rewind it. The
+          # marker lives in RUNNER_TEMP because the reviewer's clean-tree step
+          # would delete anything inside the checkout.
           hooks="$(git rev-parse --git-path hooks)"
           mkdir -p "$hooks"
-          printf '#!/bin/sh\ntouch "${RUNNER_TEMP:-/tmp}/review-workspace-pushed"\nexit 0\n' > "$hooks/pre-push"
+          printf '#!/bin/sh\ncat >> "${RUNNER_TEMP:-/tmp}/review-workspace-pushed"\nexit 0\n' > "$hooks/pre-push"
           chmod +x "$hooks/pre-push"
           echo "pre-push detector armed at $hooks/pre-push"
 
@@ -208,20 +213,32 @@ jobs:
           # review was still running (Fixer, Builder, owner) was silently
           # reverted at run end. The Reviewer is contractually read-only, so the
           # only head movement this step may undo is one made from THIS
-          # workspace. Two independent signals are required, both of them:
-          #   1. this workspace actually pushed (the pre-push hook marker), and
-          #   2. the live head IS that push (local ref advanced past the
-          #      checked-out OID up to the live head).
-          # The local ref alone is a false-positive proxy: a plain
-          # `git pull --ff-only` or `git reset --hard origin/<branch>` advances
-          # it onto someone else's commit without pushing, and rewinding on that
-          # basis would delete exactly the external work this gate exists to
-          # protect.
+          # workspace. Three independent signals are required, all of them:
+          #   1. this workspace pushed at all (the pre-push marker exists), and
+          #   2. the live head IS that push: the marker records the pushed
+          #      commit, so the last pushed SHA must still equal the live head
+          #      (a marker that only proved "a push happened" would survive a
+          #      later external push and rewind it), and
+          #   3. the local ref agrees (it advanced past the checked-out OID up
+          #      to the live head).
+          # The local ref alone is a false-positive proxy: a plain `git pull
+          # --ff-only` or `git reset --hard origin/<branch>` advances it onto
+          # someone else's commit without pushing, and rewinding on that basis
+          # would delete exactly the external work this gate exists to protect.
           marker="${RUNNER_TEMP:-/tmp}/review-workspace-pushed"
+          marker_sha=""
+          if [ -f "$marker" ]; then
+            marker_sha=$(awk -v r="refs/heads/$branch" '$3 == r { h = $2 } END { print h }' "$marker" 2>/dev/null || echo "")
+          fi
           local_head=$(git rev-parse --verify "refs/heads/$branch" 2>/dev/null || git rev-parse HEAD 2>/dev/null || echo "")
 
-          if [ ! -f "$marker" ]; then
+          if [ -z "$marker_sha" ]; then
             echo "::notice::PR #$pr head moved outside this run (no push from this workspace; start snapshot ${recorded:-?}, checkout $checkout_oid, live $actual, local ${local_head:-?}); leaving the head untouched."
+            exit 0
+          fi
+
+          if [ "$marker_sha" != "$actual" ]; then
+            echo "::notice::PR #$pr head no longer equals this workspace's own last push (marker $marker_sha, start snapshot ${recorded:-?}, checkout $checkout_oid, live $actual, local ${local_head:-?}); leaving the head untouched."
             exit 0
           fi
 
