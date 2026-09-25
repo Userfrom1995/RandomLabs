@@ -621,7 +621,7 @@ torshim run -- firefox</pre>
         <div class="os-row">
           <span class="os full">Linux</span>
           <span class="os partial">macOS: proxy env</span>
-          <span class="os partial">Windows: proxy env</span>
+          <span class="os partial">Windows: proxy env (needs $SHELL)</span>
         </div>
       </div>
 
@@ -775,7 +775,7 @@ sudo torshim disconnect  <span class="c"># restore</span></pre>
             <th scope="row"><code>torshim shell</code></th>
             <td><span class="verdict yes">Full</span></td>
             <td><span class="verdict limited">Proxy env</span></td>
-            <td><span class="verdict limited">Proxy env</span></td>
+            <td><span class="verdict limited">Needs $SHELL</span><br>child resolved from $SHELL, else /bin/sh (absent on stock Windows)</td>
           </tr>
           <tr>
             <th scope="row"><code>sudo torshim connect</code> system-wide</th>
