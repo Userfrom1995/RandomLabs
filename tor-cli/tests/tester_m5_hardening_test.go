@@ -152,8 +152,8 @@ func TestM5CLIBlackBoxHonesty(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("version exit=%d", code)
 	}
-	if !strings.Contains(so, "0.4.0") {
-		t.Fatalf("version must report 0.4.0:\n%s", so)
+	if !strings.Contains(so, "0.5.0") {
+		t.Fatalf("version must report 0.5.0:\n%s", so)
 	}
 	if strings.Contains(so, "—") {
 		t.Fatalf("version contains em dash")
