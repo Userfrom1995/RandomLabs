@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -95,8 +96,16 @@ func TestCollectHealthy(t *testing.T) {
 		if rep.Checks[i].Name != n {
 			t.Fatalf("check %d = %q, want %q", i, rep.Checks[i].Name, n)
 		}
-		if rep.Checks[i].Status != StatusPass {
-			t.Errorf("check %q = %s, want pass (%s)", n, rep.Checks[i].Status, rep.Checks[i].Detail)
+		wantStatus := StatusPass
+		if n == "ipv6-blocked" && runtime.GOOS != "linux" {
+			// IPv6 confinement is a Linux connect-mode property: off-Linux
+			// there is no backend, so the check honestly skips (see
+			// docs/platforms.md). Skips never fail the verdict, so the
+			// rep.Healthy assertion above still holds on every OS.
+			wantStatus = StatusSkip
+		}
+		if rep.Checks[i].Status != wantStatus {
+			t.Errorf("check %q = %s, want %s (%s)", n, rep.Checks[i].Status, wantStatus, rep.Checks[i].Detail)
 		}
 	}
 }
