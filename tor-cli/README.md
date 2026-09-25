@@ -23,6 +23,8 @@ torshim run -- curl --socks5-hostname 127.0.0.1:9050 https://check.torproject.or
 torshim curl https://example.com     # bare form = run
 torshim shell                        # child shell routed through Tor
 torshim run -v -- curl https://example.com   # endpoints, circuit, notices tail
+torshim run --detach -- firefox      # GUI browsers release the prompt at once (pid reported)
+torshim run -- firefox --headless --screenshot https://example.com/  # headless stays on the wait path
 torshim newnym                       # rotate circuits without restarting
 torshim doctor [--json]              # full health check, exit 0 healthy / 3 not
 sudo torshim connect [--backend auto|iptables|nft] [--tor-user USER]
@@ -63,10 +65,21 @@ stays an honest exit-4 refusal (no tun2socks backend shipped; per-app + shell wo
   fail-closed profile (`IsolatePID 1`, `AllowInbound 0`,
   `AllowOutboundLocalhost 0`). Static binaries, non-ELF executables, and
   setuid/setgid files are refused: they would silently bypass the shim.
+  Supervision splits by target: CLI tools run on the wait path (block to
+  exit, signals forwarded to the child process group, exit code passed
+  through); GUI browsers (firefox, falkon, chromium, chrome) must take
+  the detach path (`run --detach`, optional `--log-file`): the child is
+  released into a new session, a bounded alive poll rejects fast
+  failures, and the parent prints the PID plus endpoints and exits 0.
+  A bare GUI run is refused with detach guidance instead of hanging;
+  headless browser runs stay on the wait path like CLI tools.
 - Per-app (macOS/Windows, M4): exec with `socks5h://` proxy environment
   (all six `*_PROXY` keys, parent duplicates scrubbed). Only apps honoring
   proxy env are covered; every launch prints the coverage note. No DYLD
-  shim by decision (SIP would strip it silently).
+  shim by decision (SIP would strip it silently). GUI launches need
+  `--detach` plus `--acknowledge-gui-risks` (explicit opt-in to the
+  partial proxy contract); detached proxy children carry the same PID
+  report and GUI coverage note.
 - Shell: child `$SHELL` (else `/bin/sh`) with the shim env, `TORSHIM_ACTIVE=1`,
   `[torshim]` prompt prefix, and a coverage banner. Parent shell untouched.
 
@@ -97,7 +110,10 @@ Man page: `man ./torshim.1` (or `man torshim` after install).
   M3 adds fixed TransPort, RunAs setuid, TempParent scoping, and per-OS
   spawn/signal shims (linux/darwin/windows all compile).
 - `internal/perapp/` - torsocks conf/exec + static-binary guard (Linux);
-  socks5h proxy-env backend with coverage note (macOS/Windows, M4).
+  socks5h proxy-env backend with coverage note (macOS/Windows, M4);
+  GUI-aware tier (firefox, falkon, chromium, chrome with headless
+  bypass) plus the wait/detach supervision split with signal
+  forwarding, log-file capture, and bounded alive poll.
 - `internal/shell/` - child shell + coverage banner (shim on Linux,
   proxy env elsewhere).
 - `internal/syswide/` - M3 system-wide: iptables + nft backends, state,
