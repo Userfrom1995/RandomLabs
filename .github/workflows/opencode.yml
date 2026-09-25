@@ -704,10 +704,34 @@ jobs:
           fi
 
           if [ "$pushed" = "yes" ]; then
-            echo "pushed=true" >> "$GITHUB_OUTPUT"
-            exit 0
+            # PR-existence gate (issue #436): a push without an open PR leaves
+            # work with no review target, so /oc review answers "no linked pull
+            # request found". A BUILD run is only accepted when an open PR for
+            # this issue exists after the push. When the trigger itself is a PR,
+            # that PR is the target; otherwise resolve via the issue branch
+            # pattern, server-side (never local checkout state).
+            pr_check=""
+            if [ "$is_pr" = "true" ]; then
+              pr_state_check=$(gh pr view "$issue" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
+              if [ "$pr_state_check" = "OPEN" ]; then
+                pr_check="$issue"
+              fi
+            else
+              pr_check=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
+                --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null || echo "")
+            fi
+            if [ -n "$pr_check" ] && [ "$pr_check" != "null" ]; then
+              echo "pushed=true" >> "$GITHUB_OUTPUT"
+              echo "Open PR #$pr_check present for issue #$issue; build accepted."
+              exit 0
+            fi
+            echo "::warning::Build pushed branch state but no open PR exists for issue #$issue; treating as incomplete so the run auto-retries instead of forwarding a review with no target."
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            # Fall through to the bounded auto-retry below with the same
+            # counter the no-push path uses.
+          else
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
           fi
-          echo "pushed=false" >> "$GITHUB_OUTPUT"
 
           # Robust retry counter: never fall back to 0 on an API/rate-limit
           # failure, which would make the cap never trip and loop forever. Only
