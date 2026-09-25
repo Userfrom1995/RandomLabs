@@ -86,6 +86,11 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          # Env indirection (issue #422 residual, audit R10): a ${{ inputs.* }}
+          # expanded inside the run block below executes as SHELL with this
+          # step's owner PAT in env, so a value like 0"; touch /tmp/PWNED; echo "
+          # would inject. In an env: mapping the same expression is inert data.
+          SELFHEAL_RETRY: ${{ inputs.selfheal_retry }}
         run: |
           outcome="${{ steps.curator.outcome }}"
           event_name="${{ github.event_name }}"
@@ -125,7 +130,7 @@ jobs:
           # escalates to the Maintainer on the lab-health board at the cap.
           # Regression-guarded by rule R9 in silent-stall-audit.sh.
           if [ "$event_name" = "schedule" ] || [ "$event_name" = "workflow_dispatch" ]; then
-            if bash .github/scripts/schedule-selfheal.sh curator.yml "${{ inputs.selfheal_retry }}"; then
+            if bash .github/scripts/schedule-selfheal.sh curator.yml "${SELFHEAL_RETRY}"; then
               echo "Self-heal re-dispatch queued; run concludes green (the retry run carries the work)."
               exit 0
             fi

@@ -69,6 +69,11 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          # Env indirection (issue #422 residual, audit R10): never expand
+          # ${{ inputs.selfheal_retry }} inside the run block below - inline
+          # expansion is SHELL against this step's owner PAT env. The env
+          # mapping is inert data even when the value carries shell metachars.
+          SELFHEAL_RETRY: ${{ inputs.selfheal_retry }}
         run: |
           outcome="${{ steps.ideate.outcome }}"
           event_name="${{ github.event_name }}"
@@ -87,7 +92,7 @@ jobs:
           # Dispatch/schedule arms: bounded self-heal instead of a silently
           # lost dispatch. Regression-guarded by audit rule R9.
           if [ "$event_name" = "schedule" ] || [ "$event_name" = "workflow_dispatch" ]; then
-            if bash .github/scripts/schedule-selfheal.sh ideate.yml "${{ inputs.selfheal_retry }}"; then
+            if bash .github/scripts/schedule-selfheal.sh ideate.yml "${SELFHEAL_RETRY}"; then
               echo "Self-heal re-dispatch queued; run concludes green (the retry run carries the work)."
               exit 0
             fi
