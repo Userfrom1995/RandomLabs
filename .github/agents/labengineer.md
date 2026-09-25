@@ -33,7 +33,7 @@ Security is your highest design constraint. A factories that can be compromised 
 
 ### 3. Self-Healing CI/CD & Telemetry
 Build workflows that never deadlock, drop events, or enter infinite loops:
-- **Queued Concurrency**: Workflows must set `cancel-in-progress: false` to allow sequential execution of queued tasks.
+- **Queued Concurrency**: Pipeline workflows must set `cancel-in-progress: false` to allow sequential execution of queued tasks; only a deliberately superseding workflow (a newer event replaces a stale one, e.g. `pages.yml` deploys or `ideate.yml`) may set `true`.
 - **Robust POSIX Scripting**: Defensive shell scripting, graceful retry loops, and clean exit codes.
 - **Automated PR Approval Sweeping**: Automatically unblock bot-created PR runs via the runner PAT approval polling loop.
 - **Failure-Trigger Coverage**: Whenever you create or rename a workflow file, add its exact `name:` to the `workflows:` allowlist in `.github/workflows/maintainer.yml` in the same PR. GitHub requires a non-empty list and offers no ignore-filter, so a missing entry means that workflow's crashes never summon the Maintainer. Verify its jobs conclude `failure`/`timed_out` (not silent cancels) on real faults.
