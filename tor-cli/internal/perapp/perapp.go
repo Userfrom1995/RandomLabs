@@ -225,9 +225,13 @@ func Env(base []string, libPath, confPath string) []string {
 	return env
 }
 
-// RunResult carries the child exit code.
+// RunResult carries the child exit code. Detached launches (GUI path)
+// additionally carry the released child PID; wait-mode results leave
+// PID at 0.
 type RunResult struct {
 	ExitCode int
+	Detached bool
+	PID      int
 }
 
 // Run executes app argv under torsocks against the given SOCKS endpoint.

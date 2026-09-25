@@ -51,6 +51,22 @@ means the same. On Linux this uses the torsocks LD_PRELOAD shim
 (fail-closed: static binaries, non-ELF files, and setuid/setgid
 targets are refused). On macOS and Windows it uses proxy environment
 (socks5h); only applications honoring proxy env are covered.
+.PP
+Supervision splits by target. CLI tools take the wait path: the
+wrapper blocks until the child exits, forwards SIGINT/SIGTERM to the
+child process group, and passes the exit code through. GUI browsers
+(firefox, falkon, chromium, chrome) are long-lived and must take the
+detach path
+.B (run --detach -- browser):
+the child is released into a new session with stdio detached
+(--log-file PATH captures it, otherwise it is discarded), a bounded
+alive poll rejects fast failures, and the parent prints the PID plus
+endpoints and exits 0. A bare GUI run is refused with detach guidance
+(exit 2) instead of hanging; headless browser runs (--headless,
+--screenshot, --dump-dom) stay on the wait path. Detached GUI launches
+on macOS/Windows additionally require --acknowledge-gui-risks, an
+explicit opt-in to the partial proxy coverage (GPU/D-Bus/single-instance
+IPC bypass Tor there).
 .TP
 .B shell
 Spawn a child shell routed through Tor; the parent shell is
@@ -117,6 +133,23 @@ backend, notices tail (run/shell); diagnostics (status/version);
 session ports (connect) or session dir (disconnect/repair); endpoint
 resolution (doctor); pre-rotation diagnostics (newnym). To stderr,
 never changes the exit code.
+.TP
+.B --detach
+run: GUI path. Release the child into a new session, return the
+prompt at once with its PID. Refused children (fast failures) report
+their exit instead of a PID.
+.TP
+.B --wait
+run: CLI path. Block until the child exits (the default); mutually
+exclusive with --detach.
+.TP
+.BI "--log-file " PATH
+run with --detach: detached child stdout/stderr target (default:
+discarded). Rejected without --detach.
+.TP
+.B --acknowledge-gui-risks
+run with --detach on macOS/Windows: accept the partial proxy coverage
+for GUI apps (required there, ignored on Linux).
 .TP
 .BI "--control " ADDR
 newnym/doctor/status: control endpoint (default: TORSHIM_CONTROL

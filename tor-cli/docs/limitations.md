@@ -12,6 +12,25 @@ control-protocol parsers are fuzzed (`internal/control/fuzz_test.go`)
 and the syswide edge cases (corrupt/stale state, lock contention) are
 pinned by `internal/syswide/edge_test.go`.
 
+## GUI launches (all OSes)
+
+- Interactive browsers (firefox, falkon, chromium, chrome) run
+  detached: `torshim run --detach -- <browser>` (plus
+  `--acknowledge-gui-risks` on macOS/Windows). The parent prints the
+  PID plus endpoints and exits 0 after a bounded alive poll; stdio is
+  discarded unless `--log-file PATH` captures it. A bare GUI run exits
+  2 with detach guidance instead of hanging: the pre-fix wrapper
+  blocked in `cmd.Run` until the never-exiting browser quit.
+- Headless browser runs (`--headless`, `--screenshot`, `--dump-dom`,
+  `--print-to-pdf`) stay on the wait path with terminal stdio and
+  exit-code passthrough, like CLI tools.
+- Coverage honesty carries over: on Linux the detached browser keeps
+  the torsocks shim profile (multiprocess children inherit
+  `LD_PRELOAD`; GPU/D-Bus/single-instance IPC channels still bypass
+  Tor). On macOS/Windows only honoring connections are routed, which
+  is why the ack flag is mandatory there. Prefer Tor Browser for
+  fingerprint-sensitive browsing on every OS.
+
 ## Linux (M3 fully implemented)
 
 - Requires root for `connect` / `disconnect` / `repair`, plus a stock
