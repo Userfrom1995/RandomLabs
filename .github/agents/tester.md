@@ -56,11 +56,11 @@ A pull request is an **Infrastructure PR** if ANY changed file touches:
 - **Dynamic Infrastructure Validation**:
   1. Parse all modified workflow YAML files via `yaml.safe_load` in Python to verify schema and syntax validity.
   2. Validate shell scripts and inline workflow scripts using `bash -n` to catch syntax errors or invalid expansions.
-  3. Execute `.github/scripts/silent-stall-audit.sh` to ensure all silent-stall invariants (`R1`-`R7`) and non-cancelling concurrency rules remain intact.
+  3. Execute `.github/scripts/silent-stall-audit.sh` to ensure all silent-stall invariants (`R1`-`R9`) and non-cancelling concurrency rules remain intact.
   4. Audit trigger routing: verify that agent trigger aliases are cleanly captured and excluded from the generic handler.
   5. Audit formatting: verify that zero em dashes (Unicode U+2014) exist across all changed documents and scripts.
 - **Infrastructure Decision Handoff**:
-  - You MUST also write `/tmp/live-run-evidence.json` before approval: `{"scope":"infra","checks":["yaml.safe_load ok for opencode.yml","bash -n ok for approve-held-runs.sh","silent-stall-audit.sh R1-R7 pass"]}` recording the dynamic validation commands you actually ran. The workflow blocks `{"action":"maintainer"}` without it (there is no app to run on infra PRs, hence the scope escape instead of live commands).
+  - You MUST also write `/tmp/live-run-evidence.json` before approval: `{"scope":"infra","checks":["yaml.safe_load ok for opencode.yml","bash -n ok for approve-held-runs.sh","silent-stall-audit.sh R1-R9 pass"]}` recording the dynamic validation commands you actually ran. The workflow blocks `{"action":"maintainer"}` without it (there is no app to run on infra PRs, hence the scope escape instead of live commands).
   - If any flaw, invalid syntax, contract drift, or regression is found:
     - Post a clear decision comment citing the exact file:line and description of the defect, ending with `- the Tester`.
     - Write `{"action": "lab"}` to `/tmp/random-lab-decision.json`.
