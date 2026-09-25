@@ -32,7 +32,7 @@ WORKFLOWS=(
   "auditor.yml"
   "opencode.yml"
   "opencode-review.yml"
-  "opencode-review-trigger.yml"
+  "opencode-pr-trigger.yml"
 )
 REMOVE_PATHS=(
   ".github/agents"
