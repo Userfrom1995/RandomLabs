@@ -446,8 +446,9 @@ catches up in seconds.
 - Nothing merges without Reviewer approval (except the documented Maintainer
   handover, which requires that same approval).
 - The Reviewer is read-only by construction (prompt + workflow restore-head). That
-  step reverts a head movement only when this workspace's own push made it (pre-push
-  marker plus local ref equal to the live head) and pushes with a lease, so a
+  step reverts a head movement only when this workspace's own push made it (the
+  pre-push marker records the pushed commit, and the gate requires that commit to
+  be the live head, with the local ref matching) and pushes with a lease, so a
   concurrent Fixer/Builder push is never rewound (PR #412).
 - PAT is only ever in hardcoded steps (§7); agents never see it.
 - The Maintainer cannot land infra/model/workflow changes herself: routine
