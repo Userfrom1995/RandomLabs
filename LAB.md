@@ -412,6 +412,24 @@ Maintainer. `opencode-recover.yml`'s schedule arm is the fully scripted
 schedule arm does not re-dispatch (its own recurring schedule and `workflow_run`
 failure triage cover the next tick).
 
+Every `/oc`-gated agent job also fails closed behind the shared actor-write
+gate (`.github/scripts/actor-write-gate.sh`, issue #428): immediately after
+checkout, before any comment or notification, a gate step resolves the
+triggering actor's permission level with the `github.token` and sets
+`run=true` only for actors that hold write permission (`admin`/`write`) plus
+the `schedule`/`workflow_dispatch` arms. A denied comment stops before the
+agent, before every comment-posting / push / held-CI-approval step, and
+before every owner-PAT step that runs after the gate (the read-only head-ref
+probes ahead of the gate still run so the checkout can resolve its ref) - the
+auto-retry arms would otherwise re-post the trigger as the owner (admin) and
+launder the unprivileged actor past the CLI's write-permission assert - and
+the denial is reported as a clean skip instead of a crash (no fail-closed red,
+no self-heal re-dispatch, no `/oc maintainer` escalation). `maintainer.yml` is
+deliberately out of the shared-gate cohort: its own inline actor permission
+preflight is still pending in issue #427 / PR #429, so until it lands the
+maintainer arm still relies on the CLI assert alone. R12 regression-guards the
+coverage across every workflow that runs the composite action.
+
 ## 20. File map
 
 ```
@@ -423,7 +441,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R11), CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R12), CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
@@ -516,6 +534,12 @@ catches up in seconds.
   (so no external commit lies in between), with the local ref matching, and pushes
   with a lease: a concurrent Fixer/Builder push is never rewound (PR #412).
 - PAT is only ever in hardcoded steps (§7); agents never see it.
+- `/oc`-gated agent jobs share the actor-write gate
+  (`.github/scripts/actor-write-gate.sh`): an unprivileged comment can launch
+  neither an agent nor an owner-PAT auto-retry, which would otherwise re-post
+  the trigger as the owner (admin) and launder the actor past the CLI's
+  write-permission assert (issue #428). A denial skips cleanly; schedule and
+  dispatch arms always pass, so crash parity is untouched.
 - Agent runs go through the vendored runner (`.github/actions/opencode-run/`),
   whose version lookup is authenticated and non-fatal: one rate-limited API
   call degrades to the `latest` cache key instead of killing the run before
