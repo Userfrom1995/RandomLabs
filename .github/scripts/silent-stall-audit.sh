@@ -4,16 +4,18 @@
 # hardening invariants (S1/S2/L1/L2), the R6 model free-tier guard, the R7
 # review-restore ownership guard (PR #412 head rewind), the R8 vendored
 # hardened runner guard, the R9 schedule/dispatch retry-parity guard
-# (issue #422), the R10 PAT-step input-indirection guard, and the R11
-# post-agent PAT gate guard (both issue #422 residual hardening).
-# Wired into auditor.yml as the R1-R11 matrix.
+# (issue #422), the R10 PAT-step input-indirection guard, the R11
+# post-agent PAT gate guard (both issue #422 residual hardening), and the
+# R12 actor-write gate guard (issue #428).
+# Wired into auditor.yml as the R1-R12 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R11 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R12 audit the whole tree
 # (the review-restore guard, the vendored runner, every schedule/dispatch
-# agent arm, dispatch-input indirection, and the lab post-agent PAT gates),
-# so they trip on a bad curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml
-# no matter which file the audit was pointed at.
+# agent arm, dispatch-input indirection, the lab post-agent PAT gates, and
+# the shared actor-write gate), so they trip on a bad
+# curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml no matter which
+# file the audit was pointed at.
 # Exit code is always 0 so it never breaks the auditor run; failures are reported
 # on stdout and (when a health issue number is supplied and GITHUB_TOKEN is set)
 # posted as a comment to the lab-health board.
@@ -40,12 +42,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
- [R1-R11 PASS] $name: $desc"
+ [R1-R12 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
- [R1-R11 FAIL] $name: $desc"
+ [R1-R12 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -343,16 +345,58 @@ else
   check "R11" "post-agent PAT gate missing:${r11_bad} (issue #422 residual: an ungated always() push ships partial state from crashed runs)" "bad"
 fi
 
-summary="Silent-stall regression audit (R1-R11) on ${WF}: ${pass} passed, ${fail} failed."
+# [R12] Actor write gate (issue #428): every /oc-gated agent workflow (any
+# workflow that runs the in-repo opencode-run composite action) must fail
+# closed behind the shared actor-write gate BEFORE its agent step, so an
+# unprivileged issue_comment / PR comment can never launch an agent and never
+# reaches an owner-PAT auto-retry arm - the auto-retry re-posts the trigger as
+# the owner (admin), which LAUNDERS the unprivileged actor past the CLI's
+# write-permission assert and burns a noise comment on the first attempt.
+# Per-file, two properties: the gate script is invoked, and every agent step
+# is wired to its `steps.actor_gate.outputs.run` output; the gate-step count
+# must also cover the agent-step count so a newly added agent job without its
+# own gate trips the rule. maintainer.yml is deliberately out of cohort: it
+# invokes `opencode github run` directly (not the composite action), and its
+# own inline actor permission preflight is still pending in issue #427 /
+# PR #429 - until it lands the maintainer arm relies on the CLI assert alone.
+r12_bad=""
+for r12_path in .github/workflows/*.yml; do
+  [ -f "$r12_path" ] || continue
+  r12_name=$(basename "$r12_path")
+  # Anchored to a real `uses:` line so #430's restore-step comment (which
+  # quotes `uses: ./.github/actions/opencode-run` in prose) never counts as
+  # an agent step and double-inflates the agent side of the comparison.
+  r12_agents=$(grep -c '^[[:space:]]*uses: \./\.github/actions/opencode-run' "$r12_path" || true)
+  [ "$r12_agents" -gt 0 ] || continue
+  if ! grep -q 'actor-write-gate\.sh' "$r12_path"; then
+    r12_bad="${r12_bad} ${r12_name}(no-gate-script)"
+    continue
+  fi
+  if ! grep -q "steps\.actor_gate\.outputs\.run" "$r12_path"; then
+    r12_bad="${r12_bad} ${r12_name}(no-gate-wiring)"
+    continue
+  fi
+  r12_gates=$(grep -c 'bash \.github/scripts/actor-write-gate\.sh' "$r12_path" || true)
+  if [ "$r12_gates" -lt "$r12_agents" ]; then
+    r12_bad="${r12_bad} ${r12_name}(gates=${r12_gates}<agents=${r12_agents})"
+  fi
+done
+if [ -z "$r12_bad" ]; then
+  check "R12" "every opencode-run agent workflow invokes the shared actor-write gate and wires its agent steps to the gate output" "ok"
+else
+  check "R12" "actor-write gate coverage missing:${r12_bad} (issue #428: an unprivileged comment can launch an agent and its owner-PAT retry launders the actor)" "bad"
+fi
+
+summary="Silent-stall regression audit (R1-R12) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R11)
+  body="## Silent-stall regression audit FAILED (R1-R12)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 two-knob free tier, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, or R11 post-agent PAT gates). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 two-knob free tier, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, or R12 actor-write gate). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
