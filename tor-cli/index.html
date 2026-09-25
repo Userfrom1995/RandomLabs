@@ -637,10 +637,10 @@ curl ifconfig.me</pre>
         </p>
         <div class="codeblock">
           <header><span>system-wide</span><button class="copy-btn" type="button" data-copy="sudo torshim connect
-torshim status --json
+sudo torshim status --json
 sudo torshim disconnect  # restore">Copy</button></header>
 <pre>sudo torshim connect
-torshim status --json
+sudo torshim status --json
 sudo torshim disconnect  <span class="c"># restore</span></pre>
         </div>
         <div class="os-row">
@@ -852,7 +852,7 @@ torshim shell
 
 # 3. the whole machine (Linux, root)
 sudo torshim connect
-torshim status
+sudo torshim status
 sudo torshim disconnect   # restore, byte-exact">Copy</button></header>
 <pre><span class="c"># 1. one app through Tor</span>
 torshim curl https://check.torproject.org/api/ip
@@ -862,7 +862,7 @@ torshim shell
 
 <span class="c"># 3. the whole machine (Linux, root)</span>
 sudo torshim connect
-torshim status
+sudo torshim status
 sudo torshim disconnect   <span class="c"># restore, byte-exact</span></pre>
         </div>
         <div class="codeblock">
