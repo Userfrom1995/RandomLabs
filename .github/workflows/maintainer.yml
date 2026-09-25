@@ -815,13 +815,17 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          # Env indirection (issue #422 residual, audit R10): run blocks must
+          # never expand ${{ inputs.* }} inline against a step carrying the
+          # owner PAT; the env mapping is inert data.
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number || '' }}
         run: |
           set +e
           # Ensure repository scripts exist even if working tree was on maintainer/logs
           if [ ! -f ".github/scripts/approve-held-runs.sh" ]; then
             git checkout --force origin/main --quiet 2>/dev/null || true
           fi
-          pr="${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number || '' }}"
+          pr="${PR_NUMBER}"
           # Shared self-healing logic (issue #137): head-scoped polling when a
           # PR context resolves, then ALWAYS a terminal repo-wide sweep that
           # also clears runs held on intermediate head SHAs, which head-scoped
