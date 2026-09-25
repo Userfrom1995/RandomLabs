@@ -191,7 +191,11 @@ fi
 # (anonymous releases-API rate limit under `bash -e -o pipefail`) before the
 # agent ever starts. The vendored step must keep all four hardening markers.
 ACTION_FILE=".github/actions/opencode-run/action.yml"
-upstream_refs=$(grep -rn 'uses:.*anomalyco/opencode' .github/workflows 2>/dev/null || true)
+# Scan all of .github/ (not just .github/workflows): a reintroduction under
+# .github/actions/ or .github/agents/ must trip this rule just the same.
+# The pattern requires whitespace after `uses:` so this script's own
+# documentation of the pattern cannot match itself.
+upstream_refs=$(grep -rnE 'uses:[[:space:]]+.*anomalyco/opencode' .github 2>/dev/null || true)
 if [ -n "$upstream_refs" ]; then
   check "R8" "external anomalyco/opencode action still referenced -> $(echo "$upstream_refs" | head -3 | tr '\n' ' ') (issue #422 A: version step can abort the run before the agent starts)" "bad"
 elif [ ! -f "$ACTION_FILE" ]; then
@@ -235,6 +239,12 @@ if [ ! -f "$SELFHEAL_SCRIPT" ]; then
   r9_bad="${r9_bad} schedule-selfheal.sh(missing)"
 else
   grep -qE '^MAX_RETRIES=[0-9]+' "$SELFHEAL_SCRIPT" || r9_bad="${r9_bad} script(no-bounded-cap)"
+  # The cap must also be SMALL: `MAX_RETRIES=999` is a "bounded" infinite
+  # loop, so keep the hard ceiling at 3.
+  r9_cap=$(grep -oE '^MAX_RETRIES=[0-9]+' "$SELFHEAL_SCRIPT" | head -1 | cut -d= -f2)
+  if [ -n "$r9_cap" ] && [ "$r9_cap" -gt 3 ] 2>/dev/null; then
+    r9_bad="${r9_bad} script(cap-${r9_cap}-exceeds-3)"
+  fi
   grep -q '/oc maintainer' "$SELFHEAL_SCRIPT" || r9_bad="${r9_bad} script(no-maintainer-escalation)"
   grep -q 'refusing to fall back to 0' "$SELFHEAL_SCRIPT" || r9_bad="${r9_bad} script(no-phantom-zero-guard)"
 fi
@@ -256,7 +266,7 @@ fi
 run_input_hits=$(awk '
   function gi(s) { match(s, /^[ \t]*/); return RLENGTH }
   FNR == 1 { cap = 0 }
-  $0 ~ /^[ \t]*run:[ \t]*\|/ { indent = gi($0); cap = 1; next }
+  $0 ~ /^[ \t]*(-[ \t]+)?run:[ \t]*\|/ { indent = gi($0); cap = 1; next }
   cap {
     if ($0 ~ /^[ \t]*$/) next
     ind = gi($0)
@@ -266,7 +276,7 @@ run_input_hits=$(awk '
     }
     cap = 0
   }
-  $0 ~ /^[ \t]*run:/ && $0 ~ /\$\{\{[^}]*inputs\./ { print FILENAME ":" FNR ": " $0 }
+  $0 ~ /^[ \t]*(-[ \t]+)?run:/ && $0 ~ /\$\{\{[^}]*inputs\./ { print FILENAME ":" FNR ": " $0 }
 ' .github/workflows/*.yml 2>/dev/null || true)
 r10_bad=""
 if [ -n "$run_input_hits" ]; then
