@@ -53,13 +53,16 @@ if [ ! -f "$WF" ]; then
   exit 0
 fi
 
-# [R1] Concurrency assertion: NO concurrency group may cancel in progress.
-# Scan every `concurrency:` block and assert `cancel-in-progress: false`.
+# [R1] Concurrency assertion, scoped to the file under audit ($WF): NO
+# concurrency group IN THAT FILE may cancel in progress. This rule scans one
+# file and claims nothing repo-wide; the deliberate repo-wide exemptions
+# (pages.yml, ideate.yml, tor-cli.yml) are named in AGENTS.md "Queued
+# Execution". Failures below therefore name the file they were found in.
 cancel_true=$(grep -nE 'cancel-in-progress:\s*true' "$WF" || true)
 if [ -z "$cancel_true" ]; then
-  check "R1" "no concurrency group sets cancel-in-progress: true (S2 non-cancellation)" "ok"
+  check "R1" "scan scope ${WF} only: no concurrency group sets cancel-in-progress: true (S2 non-cancellation)" "ok"
 else
-  check "R1" "found cancel-in-progress: true -> ${cancel_true} (violates S2)" "bad"
+  check "R1" "scan scope ${WF}: cancel-in-progress: true found -> ${cancel_true} (violates S2)" "bad"
 fi
 
 # [R2] Self-heal cap: bounded K (must be a finite numeric cap, currently 2).
