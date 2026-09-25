@@ -20,6 +20,13 @@ pass=0
 fail=0
 report=""
 
+# Bare-filename invocation (silent-stall-audit.sh opencode.yml) resolves to the
+# real workflow, so R7's sibling lookup below finds opencode-review.yml too
+# instead of false-failing on a path that never existed.
+if [ ! -f "$WF" ] && [ -f ".github/workflows/$WF" ]; then
+  WF=".github/workflows/$WF"
+fi
+
 check() {
   local name="$1" desc="$2" ok="$3"
   if [ "$ok" = "ok" ]; then
@@ -123,11 +130,17 @@ fi
 # snapshot captured at run START, so any push that landed while a review was
 # still running (Fixer, Builder, owner) was silently reverted when the run
 # ended - that is exactly how PR #412 lost 13 Fixer commits.
-# The gate needs THREE properties: a local-ref ownership test, a lease, and the
-# pre-push marker. The marker is what closes the proxy hole - a local ref alone
-# is advanced by a plain `git pull --ff-only` / `git reset --hard origin/<b>`
-# that never pushed, so ref movement by itself still rewinds external work.
+# The gate needs FOUR properties: a local-ref ownership test, a lease, the
+# pre-push marker, and a marker that records the PUSHED COMMIT (marker_sha)
+# which must equal the live head - an existence-only marker survives a later
+# external push and still rewinds it. A bare force push is banned outright.
+# The marker closes the proxy hole: a local ref alone is advanced by a plain
+# `git pull --ff-only` / `git reset --hard origin/<b>` that never pushed, so
+# ref movement by itself still rewinds external work.
 REVIEW_WF="$(dirname "$WF")/opencode-review.yml"
+if [ ! -f "$REVIEW_WF" ] && [ -f ".github/workflows/opencode-review.yml" ]; then
+  REVIEW_WF=".github/workflows/opencode-review.yml"
+fi
 restore_block=""
 if [ -f "$REVIEW_WF" ]; then
   restore_block=$(sed -n '/- name: Restore PR head/,/^      - name: /p' "$REVIEW_WF" 2>/dev/null || true)
@@ -136,15 +149,19 @@ if [ -z "$restore_block" ]; then
   check "R7" "restore step missing or renamed in ${REVIEW_WF} (head-rewind guard lost)" "bad"
 else
   owns_local=$(printf '%s\n' "$restore_block" | grep -c 'rev-parse --verify "refs/heads/' || true)
-  leased=$(printf '%s\n' "$restore_block" | grep -c -- '--force-with-lease' || true)
+  # Explicit lease form: `--force-with-lease=refs/heads/<branch>:<expected>`.
+  # A bare `--force-with-lease` fails safe but would never restore, so it does
+  # not satisfy the rule.
+  leased=$(printf '%s\n' "$restore_block" | grep -cE -- '--force-with-lease="?refs/heads/' || true)
   marker=$(printf '%s\n' "$restore_block" | grep -c 'review-workspace-pushed' || true)
+  marker_sha=$(printf '%s\n' "$restore_block" | grep -c 'marker_sha' || true)
   # Bare force push in any argument order: `git push --force origin`,
   # `git push origin --force`, or a trailing bare `git push --force`.
   bare_force=$(printf '%s\n' "$restore_block" | grep -cE 'git push[^|&;]*--force([^-]|$)' || true)
-  if [ "$owns_local" -gt 0 ] && [ "$leased" -gt 0 ] && [ "$marker" -gt 0 ] && [ "$bare_force" -eq 0 ]; then
-    check "R7" "review restore gates on this workspace's own push (marker + local ref) and pushes with a lease (PR #412 rewind guard)" "ok"
+  if [ "$owns_local" -gt 0 ] && [ "$leased" -gt 0 ] && [ "$marker" -gt 0 ] && [ "$marker_sha" -gt 0 ] && [ "$bare_force" -eq 0 ]; then
+    check "R7" "review restore gates on this workspace's own push (marker commit == live head + local ref) and pushes with an explicit lease (PR #412 rewind guard)" "ok"
   else
-    check "R7" "restore step in ${REVIEW_WF} missing local-ref ownership test (=${owns_local}), lease (=${leased}), push marker (=${marker}), or force-pushes bare (=${bare_force})" "bad"
+    check "R7" "restore step in ${REVIEW_WF} missing local-ref ownership test (=${owns_local}), lease (=${leased}), push marker (=${marker}), marker commit check (=${marker_sha}), or force-pushes bare (=${bare_force})" "bad"
   fi
 fi
 
