@@ -539,7 +539,9 @@ catches up in seconds.
   neither an agent nor an owner-PAT auto-retry, which would otherwise re-post
   the trigger as the owner (admin) and launder the actor past the CLI's
   write-permission assert (issue #428). A denial skips cleanly; schedule and
-  dispatch arms always pass, so crash parity is untouched.
+  dispatch arms always pass, so crash parity is untouched. Coverage across
+  every workflow running the composite action is regression-guarded by audit
+  rule R12 in `.github/scripts/silent-stall-audit.sh`.
 - Agent runs go through the vendored runner (`.github/actions/opencode-run/`),
   whose version lookup is authenticated and non-fatal: one rate-limited API
   call degrades to the `latest` cache key instead of killing the run before
