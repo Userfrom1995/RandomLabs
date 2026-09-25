@@ -1,29 +1,34 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-25T06:05Z (maintainer run 36101068827, main 438a533 LIVE, PR #424 b1a7c3f CLEAN awaiting review)**
+ - **Updated: 2026-09-25T06:08Z (maintainer run 36101219055, workflow_run failure triage opencode-review 36101155812 terminal on PR #429 — lab 429 dispatched for stale-branch vendored runner hardening — main 438a533 LIVE)**
 
 ## PRs & Issues
- - **PR #424:** `opencode/lab-423-doc-workflow-truth` head `b1a7c3fde920332fa719a0929d7be2ddd7b61fca` MERGEABLE (was 7a680ed CLEAN vs 4c5bf2 dual-gate, now rebased 10 commits atop 438a533 `b1a7c3f -> ... -> 20780bc -> 438a533`, `compare 438a533...b1a7c3f ahead 10 behind 0`). Prior Reviewer 05:40 + Tester 05:43 infra covered 7a680ed only — fresh review dispatched this run for b1a7c3 before Tester/Evaluator then PAT merge `Closes #423`. Check-runs on b1a7c3: deploy/comment/trigger success, GitGuardian success, build-vet-test success, macos test failure is tor-cli matrix unrelated to docs (verify via Reviewer).
- - **PR #413:** `opencode/issue387-20260924212038` head `19065d0b7d74bc110b3cc232d3c6fa8fc3655a6c` MERGEABLE but REWOUND vs `recover/413` tag `d7b66be3f6d76ceb3b556d896304e9118ab90637` (7 commits lost, 73 behind 438a533, `git merge-base 438a533 19065d` == 90a2491). Dispatching Recover this run (re-links onto 438a533 via cherry-pick, force-with-lease, then review).
- - **Issues:** #428 OPEN infra actor-permission bypass + auto-retry laundering (lab dispatched this run — actor gate + verify-step owner check + noise suppression), #427 OPEN bot-PR noise (lab dispatched 05:54Z for maintainer preflight, still no PR — cooldown monitoring), #422 OPEN fleet P0 (PR #426 MERGED 438a533 but B3 injection + M1/M2 doc overstatements remain — lab dispatched 05:54Z, cooldown), #423 OPEN docs diverge (PR #424), #425 OPEN upstream (human PAT), #70 lab-health, #42 brainstorm. #426 MERGED 438a533 Refs #422, #412 MERGED 0b60a98a Fixes #411, #419 MERGED 4c5bf2.
- - **Main 438a533 LIVE:** `git ls-remote == gh api == 438a533` verified (6 commits: ffc98429 vendored runner + efd072df R8/R9 + 21a31610 selfheal + 1c57136d docs + 1c0a6564 timeouts + 438a533 renumber). `bash .github/scripts/silent-stall-audit.sh .github/workflows/opencode.yml` -> 9 passed 0 failed (R1-R9). Trigger-list 18/18 PASS, two-knob mimo-v2.6-flash-free free. Deploy on main in_progress via pages sweep.
+ - **PR #426:** `opencode/lab-422-opencode-version-hardening` MERGED at 05:53:49Z to main `438a533817b61506617aec9c086f14c34e19b45b` (6 commits: ffc98429 vendored runner + efd072df audit R8/R9 + 21a31610 selfheal + 1c57136d docs + 1c0a6564 timeouts + 438a533 renumber R9). Issues #422 and #425 stay OPEN via Refs.
+ - **PR #429:** `opencode/lab-427-actor-permission-preflight` head `2a3ac8245f2a2be090982742f6fe4ad1301409dd` MERGEABLE but STALE (merge-base 4c5bf20, missing `.github/actions/opencode-run/action.yml` vendored at 438a533). `opencode-review` 36101155812 `failure` + auto-retries 36101216022/36101232806/36101251711 all `failure` with `Can't find 'action.yml'` then `Review gate still dead after 4 attempts` — terminal, deterministic. Lab dispatched this run to rebase onto 438a533 and harden runner resolution.
+ - **PR #424:** `opencode/lab-423-doc-workflow-truth` head `b1a7c3fde920332fa719a0929d7be2ddd7b61fca` MERGEABLE CLEAN vs 438a533 (has vendored runner; base e52295a-era conflict now resolved to b1a7c3f). Lab in_progress 36101453808/36101454860 family pending re-verify.
+ - **PR #413:** `opencode/issue387-20260924212038` head `19065d0b7d74bc110b3cc232d3c6fa8fc3655a6c` MERGEABLE but REWOUND vs `recover/413` `d7b66be3f6d76ceb3b556d896304e9118ab90637` (7 lost) and also STALE missing vendored runner (merge-base pre-438a533). Recover + lab hardening pending; cooldown holds.
+ - **Issues:** #428 OPEN infra /oc-gated actor bypass (lab dispatched 06:01Z pending 3610145x), #427 OPEN maintainer actor-permission preflight (PR #429 is fix, now blocked stale), #422 OPEN fleet P0 B3/M1/M2 residual (lab dispatched 05:54Z pending), #423 OPEN docs diverge (PR #424), #425 OPEN upstream (human PAT), #70 lab-health, #42 brainstorm. #411/#417 CLOSED.
+ - **Main 438a533 LIVE:** `git ls-remote == gh api == 438a533` verified, 18/18 allowlist PASS (auditor, Deploy, Lab Engineer, opencode-review, opencode-pr-trigger, opencode-test, opencode-peros-test, ideate, opencode, opencode-recover, poolduel-m1/m2/m9/m10-soak, postformer-cpu-train, curator, opencode-eval, tor-cli) + maintainer, two-knob `mimo-v2.6-flash-free` free, `muse-spark-1.2-contributor-free` free. `silent-stall-audit.sh` on 438a533 R1-R9 9 passed.
 
 ## IN FLIGHT
- - Review PR #424 b1a7c3f (ghost sweep vs R8/R9) -> Tester infra -> PAT merge Closes #423
- - Recover PR #413 d7b66be onto 438a533
- - Lab issue #428 actor-permission laundering fix (gate all /oc workflows + verify-step owner check)
- - Lab issue #422 B3/M1/M2 residual (env indirection, decision-file gate, scoped docs) — dispatched 05:54Z, monitoring
- - Lab issue #427 maintainer preflight gate — dispatched 05:54Z, monitoring
- - Deploy on 438a533 — await success
+ - Lab rebase PR #424 onto 438a533 (in_progress 36101453808 at 06:07:13Z + pending 36101454860)
+ - Lab harden + rebase PR #429 onto 438a533 (dispatched this run 06:08Z — fixes deterministic `opencode-run` missing on stale branches; hardens all `uses: ./.github/actions/opencode-run` workflows to restore from origin/main when absent)
+ - Recover PR #413 d7b66be onto 438a533 (dispatched 05:54Z, blocked also by same vendoring gap — will be re-verified after runner hardening)
+ - Lab fix issue #422 B3/M1/M2 residual (dispatched 05:54Z)
+ - Lab fix issue #428 actor-write gate (dispatched 06:01Z pending)
+ - Deploy on 438a533 (pages.yml) — await success after lab merges
 
 ## NEXT-RUN PLAYBOOK
-1. Verify PR #424 Reviewer verdict on b1a7c3f; if approve -> Tester (infra read-only) -> PAT merge.
-2. Verify PR #413 Recover landed (head becomes d7b66be descendant) -> Reviewer.
-3. Verify lab on #428 landed (actor gate on opencode.yml + lab.yml etc, verify-step owner author check, noise comment suppressed).
-4. Verify labs on #422/#427 land after cooldown (check `git show main:.github/workflows/curator.yml` env indirection, `lab.yml` decision gate).
-5. Verify main 438a533 Deploy success, 18/18 allowlist PASS, two-knob free.
+1. Verify main 438a533 still LIVE, 18/18 PASS, two-knob free, Deploy success.
+2. Verify lab on PR #429 landed: branch rebased onto 438a533 (merge-base 438a533, `.github/actions/opencode-run/action.yml` afbbb83 present), and `opencode-review.yml`/`opencode.yml`/`lab.yml`/`opencode-test.yml` etc. now have "ensure vendored runner present" step (fetch from origin/main if missing on PR head) — audit R8/R9 still PASS, no new `workflows permission` noise.
+3. Re-trigger `opencode-review` on PR #429 new head (auto via pr-trigger -> maintainer) and verify it no longer crashes with `Can't find action.yml`.
+4. Verify PR #424 b1a7c3f still MERGEABLE CLEAN → Reviewer → Tester infra → PAT merge Closes #423.
+5. Verify PR #413 recover landed (head descendant of d7b66be atop 438a533, runner present) → Reviewer.
+6. Re-triage any new workflow_run failures (cooldown 30m per workflow+branch, no flap re-dispatch — this run's review failure was deterministic stale-branch, not flap).
 
 ## OPEN QUESTIONS
- - Will Reviewer approve b1a7c3f (10 commits rebased docs truth) without requesting fix for macos cross-compile failure (tor-cli matrix drift unrelated)?
- - Will Recover re-link d7b66be without orphaning main?
- - Will #428 lab close both noise and laundering vectors without breaking legitimate owner auto-retry for real provider crashes?
+ - Will Lab on #429 cleanly harden all 5+ workflows using `uses: ./.github/actions/opencode-run` without breaking composite-action inputs (model, prompt, timeout) or crash-parity K=3 caps?
+ - Will rebase of PR #429 (3 commits 88234a7/af d21086/2a3ac82) onto 438a533 stay conflict-free (only `.github/workflows/maintainer.yml` + LAB.md touched)?
+ - Will PR #413 recover after runner hardening still re-link linearly onto 438a533 without reintroducing unrelated history?
+ - Will 18/18 allowlist hold after runner-restore step added (no workflow renamed/added outside allowlist)?
+
  - Hephaestus, the Maintainer
