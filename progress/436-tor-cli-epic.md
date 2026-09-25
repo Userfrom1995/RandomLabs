@@ -1,20 +1,20 @@
 # Progress - Tor CLI Epic (diagnostics, GUI reliability, showcase site)
 
 - **Issue:** #436
-- **Branch:** opencode/issue436-tor-cli-epic-phase-3
+- **Branch:** opencode/issue436-tor-cli-epic-phase-5
 - **Status:** in-progress
-- **Updated:** 2026-09-25T13:30:00Z
+- **Updated:** 2026-09-25T18:00:00Z
 - **Blueprint:** `ideas/2026-09-25-tor-cli-epic.md`
 - **Product:** `tor-cli/` (torshim 0.4.0 baseline, Go stdlib-only)
 
 ## Phase roadmap (semantic names, sequential vertical slices)
 
-- **Active Phase:** Phase 3: GUI Launch Reliability (Complete, ready for review)
+- **Active Phase:** Phase 5: Tor CLI Showcase and Visual Evaluation (in progress)
 - **Phase 1: Safe Forward Reset and Lab Hygiene:** [x] verify stray cleanup (0 open PRs, only #436 plus boards #70/#42 open) [x] verify model pins `opencode/muse-spark-1.3-contributor-free` in opencode.json plus every workflow [x] verify Pages deploy health (root index, tor-cli site, docs) [x] selective forward cleanup only, no force-push, no orphan rewrite, no literal checkout of 2429c52e onto main (PR 1 target, Refs #436)
 - **Phase 2: CLI Diagnostics and Control Plane:** [x] `--verbose` on every verb (endpoints, mode, circuit, backend, notices tail) [x] `newnym` with rate-limit honesty [x] `doctor` health check (bootstrap, circuit, SOCKS, DNSPort, exit IP, firewall, IPv6) [x] cross-platform research notes in docs (PR 2 target, Refs #436)
 - **Phase 3: GUI Launch Reliability:** [x] `run --detach/--wait --log-file` split with process-group isolation and signal forwarding [x] GUI-aware classification tier (firefox, falkon, chromium, chrome; headless bypass; explicit-ack gate on proxy backends) [x] real Firefox gate proof on Linux plus hermetic detach/wait contracts (PR 3 target, Refs #436)
-- **Phase 4: Website Invariant Lock-In:** [ ] architect prompt gains explicit index.html hub clause (via Lab Engineer) [ ] re-verify builder/reviewer/curator/tester wording [ ] audit all ten project sites return 200 with zero 404s (PR 4 target, Refs #436)
-- **Phase 5: Tor CLI Showcase and Visual Evaluation:** [ ] refresh tor-cli/index.html with every new flag, recipe, and exit code [ ] Tester visual pass plus Evaluator approve-eval with live-run evidence, no HTML unit suites (Final PR, Closes #436)
+- **Phase 4: Website Invariant Lock-In:** [x] architect prompt gains explicit index.html hub clause (Lab Engineer, merged) [x] builder/reviewer/curator/tester/fixer/maintainer wording re-verified [x] all ten project sites audited with zero dead local refs
+- **Phase 5: Tor CLI Showcase and Visual Evaluation:** [x] refresh tor-cli/index.html with every new flag, recipe, and exit code [ ] Tester visual pass plus Evaluator approve-eval with live-run evidence, no HTML unit suites (Final PR, Closes #436)
 
 ## Checklist
 
@@ -27,16 +27,19 @@
 
 ## Current step
 
-Phase 3 complete, ready for review. Active Phase: Phase 4: Website Invariant Lock-In
+Phase 5 site refresh complete, ready for review. Tester visual pass plus
+Evaluator approve-eval still pending (they own the visual gate; no HTML unit
+suites per the static-site carve-out).
 
 ## Next steps
 
-- Reviewer audits the Phase 3 branch, Tester runs the suite plus live
-  stub-verified verbs and the real-Firefox gate proof, per-OS
-  specialists cover macOS/Windows detached launches, then Phase 4:
-  Website Invariant Lock-In
+- Builder finishes the site refresh, pushes, opens the Phase 5 PR
+  (Refs #436; Closes #436 only when the Tester visual pass plus the
+  Evaluator approve-eval gate both land with live-run evidence)
 
 ## Agent log
+
+- 2026-09-25 Builder Phase 5 (site refresh complete, all green): `tor-cli/index.html` now documents the full 0.5.0 surface - new `#diagnostics` section (verbose/newnym/doctor with recipes), ten-verb command reference, GUI detach guidance in the per-app card, verified exit-code nuances (stale line pointer dropped), newnym/doctor platform row, doctor in quickstart and source card. Flag and exit claims verified against `main.go`/`internal/doctor`. Structural validation: tags balanced, all anchors resolve, 7 local refs 200, zero milestone markers, 10 copy buttons non-empty, served 200 locally; `go build` + full `go test ./...` green. Real visual/functional pass stays with Tester + Evaluator (no display browser on this runner). Ideas entry `2026-09-25-tor-cli-showcase-refresh.md`. Main `9fbc2bd5` verified (Phase 3 GUI detach plus Tester hardening, Fixer repairs, and Phase 4 website-invariant lock-in all merged; zero open PRs). Branch `opencode/issue436-tor-cli-epic-phase-5` cut from main. tor-cli/README.md already documents the control plane and detach launch; only `tor-cli/index.html` needs the refresh (newnym/doctor verbs, --verbose everywhere, run --detach/--wait/--log-file/--acknowledge-gui-risks, GUI recipes, exit-code nuances, platform rows).
 
 - 2026-09-25 Builder resume: prior run finished Phase 3 code on `opencode/issue436-tor-cli-epic-phase-3` but never opened the PR, so `/oc review` found no target. Resumed from that branch, rebased cleanly onto latest main `d4b067f8` (prior diff noise in archive/README.md and index.html dropped, 14 Phase 3 files intact), re-verified `go build`, `go vet` (linux/darwin/windows), `go test ./...` (all packages ok), and `make cross` (5 targets) green, then opened the Phase 3 PR (Refs #436). No code changes, resume only. Refs #436.
 
