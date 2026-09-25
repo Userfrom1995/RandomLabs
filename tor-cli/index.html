@@ -672,14 +672,14 @@ sudo torshim disconnect  <span class="c"># restore</span></pre>
     </div>
 
     <h3 style="margin-top:26px">Exit codes</h3>
-    <p class="sub" style="margin-bottom:14px">Stable across every platform, so scripts can branch on them. <code>run</code> and <code>shell</code> pass the wrapped application's own exit status through unchanged (any code 0-255), so the app's code is what your script observes; <code>connect</code> returns 3 only when the verify gate fails and 1 when tor cannot launch (<code>main.go:411-414</code>).</p>
+    <p class="sub" style="margin-bottom:14px">Stable across every platform, so scripts can branch on them. <code>run</code> and <code>shell</code> pass the wrapped application's own exit status through unchanged (Unix 0-255; a signal-killed app reads as 255, Windows passes its native exit code), so the app's code is what your script observes; <code>connect</code> returns 3 only when the verify gate fails and 1 when tor cannot launch (<code>main.go:411-414</code>).</p>
     <div class="exits">
       <div class="exit"><b>0</b><span>success</span></div>
       <div class="exit"><b>1</b><span>runtime or app failure</span></div>
       <div class="exit"><b>2</b><span>usage error</span></div>
       <div class="exit"><b>3</b><span>tor not ready (fail closed)</span></div>
       <div class="exit"><b>4</b><span>unavailable on this platform</span></div>
-      <div class="exit"><b>130</b><span>interrupted (SIGINT/SIGTERM during run/shell)</span></div>
+      <div class="exit"><b>130</b><span>interrupted (SIGINT/SIGTERM while an owned tor is running)</span></div>
     </div>
   </section>
 
