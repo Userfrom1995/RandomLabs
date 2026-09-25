@@ -118,7 +118,9 @@ func TestTesterPhase3DetachClearsGateAnyEnv(t *testing.T) {
 	// --detach clears the usage gate in every environment: tor-absent
 	// fails closed at ensureTor (3), tor-present launches (0/1). The
 	// gate contract is "not refused", never a tor-dependent pin.
-	_, _, code := runBin(bin, "run", "--detach", "--", app)
+	// --acknowledge-gui-risks is harmless on Linux (ack branch is
+	// NeedsProxy-gated) and required on macOS/Windows proxy backends.
+	_, _, code := runBin(bin, "run", "--detach", "--acknowledge-gui-risks", "--", app)
 	if code == 2 {
 		t.Fatalf("detached GUI run refused with exit 2: --detach must clear the gate in any environment (got tor-dependent code %d)", code)
 	}
@@ -154,7 +156,9 @@ func TestTesterPhase3DetachUnderLiveTor(t *testing.T) {
 	// long-lived GUI child survives. Driven live before pinning
 	// (parent exited 0, child confirmed alive, then reaped).
 	start := time.Now()
-	so, se, code := runBin(bin, "run", "--timeout", "60s", "--detach", "--", app, "120")
+	// --acknowledge-gui-risks is harmless on Linux (ack branch is
+	// NeedsProxy-gated) and required on macOS/Windows proxy backends.
+	so, se, code := runBin(bin, "run", "--timeout", "60s", "--detach", "--acknowledge-gui-risks", "--", app, "120")
 	elapsed := time.Since(start)
 	if code != 0 {
 		t.Fatalf("detached GUI under live tor exit=%d, want 0:\nstdout:\n%s\nstderr:\n%s", code, so, se)

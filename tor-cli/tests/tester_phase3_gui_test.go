@@ -73,7 +73,9 @@ func TestTesterPhase3DetachClearsGate(t *testing.T) {
 	app := fakeGUIBin(t)
 	// Gate passes; ensureTor then fails closed without tor (exit 3).
 	// The assertion is the exit code class, not tor itself.
-	_, _, code := runBin(bin, "run", "--detach", "--", app)
+	// --acknowledge-gui-risks is harmless on Linux (the ack branch is
+	// NeedsProxy-gated) and required on macOS/Windows proxy backends.
+	_, _, code := runBin(bin, "run", "--detach", "--acknowledge-gui-risks", "--", app)
 	if code != 3 {
 		t.Fatalf("detached GUI run without tor exit=%d, want 3 (gate passed, tor absent)", code)
 	}
