@@ -17,7 +17,7 @@ breaker" halt. Two distinct defects caused this.
 
 The `build` job declared its own concurrency group
 `opencode-build-<issue>` with `cancel-in-progress: true`. This contradicted the
-lab-wide mandate (AGENTS.md: all workflows use `cancel-in-progress: false`). A
+lab-wide mandate (AGENTS.md: the lab's pipeline workflows all use `cancel-in-progress: false`). A
 duplicate `/oc continue` could cancel an in-flight build, leaving zero builds running
 and no queued continuation. The loop had no live run and no scheduled run: a stall.
 
