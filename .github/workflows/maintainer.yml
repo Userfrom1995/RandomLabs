@@ -75,6 +75,60 @@ jobs:
           git config --global user.name "Hephaestus (Maintainer)"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
+      # Actor-permission preflight (issue #427): the opencode CLI asserts that
+      # the TRIGGER ACTOR holds admin|write for user events (issue_comment,
+      # pull_request_review_comment, issues, pull_request) before its session
+      # starts. On failure it posts the raw error as a PR/issue comment and
+      # exits 1, while the agent step's `continue-on-error: true` keeps this
+      # job green: every bot-authored PR open got a noise comment plus a
+      # green-but-no-op run. Preflight the identical check HERE so an
+      # unprivileged actor skips the agent cleanly (no comment, visible
+      # notice) instead of crashing into one, while the redundant wake paths
+      # (opencode-pr-trigger.yml posts /oc maintainer as owner on every
+      # non-draft same-repo PR open, the workflow_run failure summon, and the
+      # 20-minute schedule) keep coverage.
+      - name: Actor permission preflight
+        id: actor_gate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_EVENT: ${{ github.event_name }}
+          GATE_ACTOR: ${{ github.actor }}
+        run: |
+          case "$GATE_EVENT" in
+            schedule|workflow_dispatch|workflow_run)
+              # No trigger-actor assert on these events: the CLI only asserts
+              # on issue_comment/pull_request_review_comment/issues/pull_request,
+              # and the agent step below presents workflow_run to the CLI as
+              # workflow_dispatch.
+              echo "run=true" >> "$GITHUB_OUTPUT"
+              echo "preflight: '$GATE_EVENT' carries no trigger-actor assert; agent allowed."
+              exit 0
+              ;;
+          esac
+          # URL-encode the actor: 'github-actions[bot]' contains brackets.
+          enc=$(printf '%s' "$GATE_ACTOR" | jq -sRr @uri)
+          perm=$(gh api "repos/${GITHUB_REPOSITORY}/collaborators/${enc}/permission" --jq '.permission' 2>/dev/null) || perm=""
+          case "$perm" in
+            admin|write)
+              # Mirror of the CLI's own allow-list (["admin","write"]).
+              echo "run=true" >> "$GITHUB_OUTPUT"
+              echo "preflight: actor '$GATE_ACTOR' holds '$perm'; agent allowed."
+              ;;
+            "")
+              # Unresolvable permission (API failure/404): skipping silently
+              # would recreate the green-but-no-op class this lab hunts, and
+              # running blind would crash into a noise comment for exactly the
+              # actors that need gating. Fail red and loud instead.
+              echo "::error::Could not resolve the repository permission of actor '$GATE_ACTOR'; refusing to run the Maintainer agent blind (issue #427 preflight)."
+              exit 1
+              ;;
+            *)
+              echo "run=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::Actor '$GATE_ACTOR' holds '$perm' (not admin|write); skipping the Maintainer agent to avoid the opencode permission-assert crash and its noise comment (issue #427). Redundant wake paths (opencode-pr-trigger, workflow_run summons, the schedule) keep coverage."
+              ;;
+          esac
+
       - name: Load Maintainer memory (maintainer/logs)
         run: |
           mkdir -p .maintainer/memory/logs
@@ -175,6 +229,11 @@ jobs:
 
       - name: Run Maintainer agent
         id: maintainer_run
+        # Gated by the actor-permission preflight (issue #427): an unprivileged
+        # trigger actor skips this step cleanly (annotated notice above), which
+        # kills the noise-comment crash while keeping the run's downstream
+        # maintenance steps (sweeps, memory, approvals) intact.
+        if: steps.actor_gate.outputs.run == 'true'
         continue-on-error: true
         timeout-minutes: 60
         shell: bash
@@ -317,6 +376,8 @@ jobs:
 
       - name: Commit Maintainer memory (maintainer/logs)
         if: always()
+        env:
+          AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
         run: |
           git fetch origin maintainer/logs:refs/remotes/origin/logs --quiet || true
           if git rev-parse --verify refs/remotes/origin/logs >/dev/null 2>&1; then
@@ -332,8 +393,16 @@ jobs:
           if [ -s ".maintainer/log-entry.md" ]; then
             cp ".maintainer/log-entry.md" "logs/$today.md"
           elif [ ! -f "logs/$today.md" ]; then
-            printf '# %s - auto entry (agent produced no log)\n\nRun: https://github.com/%s/actions/runs/%s (%s)\n> [!WARNING]\n> Agent Output Missing\n\nNote: the agent finished without writing a log entry; this stub keeps instances in sync. See the run logs for details.\n' \
-              "$today" "${{ github.repository }}" "${{ github.run_id }}" "${{ github.event_name }}" > "logs/$today.md"
+            if [ "$AGENT_GATE" = "false" ]; then
+              # Deliberate preflight skip (issue #427): the agent never started,
+              # so record the truth instead of the "Agent Output Missing"
+              # crash stub - a skip must not read as a mid-run crash downstream.
+              printf '# %s - auto entry (agent skipped by actor-permission preflight)\n\nRun: https://github.com/%s/actions/runs/%s (%s)\n> Note: the trigger actor did not hold admin/write, so the issue #427 preflight skipped the Maintainer agent cleanly (no decision file, no noise comment). Redundant wake paths (opencode-pr-trigger, workflow_run summons, the schedule) cover this trigger.\n' \
+                "$today" "${{ github.repository }}" "${{ github.run_id }}" "${{ github.event_name }}" > "logs/$today.md"
+            else
+              printf '# %s - auto entry (agent produced no log)\n\nRun: https://github.com/%s/actions/runs/%s (%s)\n> [!WARNING]\n> Agent Output Missing\n\nNote: the agent finished without writing a log entry; this stub keeps instances in sync. See the run logs for details.\n' \
+                "$today" "${{ github.repository }}" "${{ github.run_id }}" "${{ github.event_name }}" > "logs/$today.md"
+            fi
           fi
           echo "<!-- run: ${{ github.run_id }} -->" >> "logs/$today.md"
           if git cat-file -e "origin/main:.github/agents/REGISTRY.md" 2>/dev/null; then
@@ -427,6 +496,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           BOT_TOKEN: ${{ github.token }}
+          AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
         run: |
           python3 - <<'PY'
           import json, os, subprocess, time
@@ -464,10 +534,18 @@ jobs:
               decisions = []
 
           if not decisions:
-              print("::warning::Maintainer produced no decisions (missing or empty decision.json). "
-                    "Check the 'Run Maintainer agent' step log: a step timeout, a model/billing error, "
-                    "or an earlier setup step failure (Get opencode version, Cache opencode, Install opencode) "
-                    "may have stopped the agent before it wrote its output files. No /oc triggers were posted.")
+            if os.environ.get("AGENT_GATE") == "false":
+                # Deliberate preflight skip (issue #427): an empty decision
+                # list is the expected outcome, not a crash - keep the log
+                # honest instead of pointing triage at a failure that is not there.
+                print("Maintainer agent was skipped by the actor-permission preflight (issue #427): "
+                      "the trigger actor does not hold admin/write, so no decision.json is expected "
+                      "and no /oc triggers were posted.")
+            else:
+                print("::warning::Maintainer produced no decisions (missing or empty decision.json). "
+                      "Check the 'Run Maintainer agent' step log: a step timeout, a model/billing error, "
+                      "or an earlier setup step failure (Get opencode version, Cache opencode, Install opencode) "
+                      "may have stopped the agent before it wrote its output files. No /oc triggers were posted.")
 
           posted = set()
           sweep_failed = False
