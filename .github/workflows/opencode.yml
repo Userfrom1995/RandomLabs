@@ -38,11 +38,13 @@ concurrency:
 #   - Keep K = 2 (finite). Changing K must still preserve the L1 termination proof.
 #   - NEVER assume a zero counter on an API/rate-limit failure; escalate to
 #     /oc maintainer instead (prevents the phantom-zero infinite loop).
-# These are statically audited by R1-R9 in auditor.yml (.github/scripts/silent-stall-audit.sh):
+# These are statically audited by R1-R11 in auditor.yml (.github/scripts/silent-stall-audit.sh):
 # R1-R6 cover the invariants above plus the free-tier model guard, R7 guards the
 # review-restore ownership gate (PR #412 head rewind), R8 guards the vendored
-# hardened runner (.github/actions/opencode-run, issue #422 A), and R9 guards
-# schedule/dispatch self-heal parity (issue #422 B).
+# hardened runner (.github/actions/opencode-run, issue #422 A), R9 guards
+# schedule/dispatch self-heal parity (issue #422 B), R10 guards dispatch-input
+# env indirection in PAT steps (issue #422 residual), and R11 guards the lab
+# post-agent strip/push decision gate.
 # =============================================================================
 
 jobs:
