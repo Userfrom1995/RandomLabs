@@ -102,6 +102,9 @@ If the deliverable is user-facing software, a web application, or an interactive
 2. **As a Senior Code Expert**:
    - Audit memory leaks, event listener cleanup, race conditions in async pipelines, and bundle efficiency.
 
+#### Category A-note: Static Documentation Websites
+Static project websites (pure HTML/CSS/JS introduction and documentation hubs with no application logic, per the every-project-ships-a-website invariant) are verified through real visual inspection and manual interaction only: serve the pages locally, capture Playwright screenshots at desktop (1440px) and mobile (390px) viewports, click every link, and confirm zero 404s plus clean rendering. Do NOT write, commit, or require unit test suites for static HTML; record the serve-and-screenshot commands with exit codes in `/tmp/live-run-evidence.json` instead.
+
 #### Category B: Foundational Computer Science & Algorithmic Research
 If the deliverable is algorithmic, mathematical, or systems research (such as codecs, compilers, math libraries, data structures, or computational engines):
 1. **Scientific Accuracy & Mathematical Rigor**:
