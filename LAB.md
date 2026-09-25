@@ -338,7 +338,7 @@ personality, CHANGELOG) is direct-commit.
 | `maintainer.yml` | The brain: triggers, per-PR concurrency, memory-branch handling, decision list → hardcoded PAT step, 60-min timeout |
 | `opencode-review-trigger.yml` | The single automatic exception: PR push → if bot PR + progress complete (or human same-repo PR) → `/oc review (head <sha>)` (PAT, head-deduped) |
 | `opencode.yml` | Build / Fix / General modes (prompts from files; `/oc continue`; per-issue concurrency; clean-tree + sanitize; extended approve-CI with stable-head polling; no end-of-run dispatches) |
-| `opencode-review.yml` | Reviewer (prompts from file); human-vs-bot fix behavior; `/oc approve` → dispatch Maintainer (fallback: merge as bot); restore-head; short `/oc fix` trigger |
+| `opencode-review.yml` | Reviewer (prompts from file); human-vs-bot fix behavior; `/oc approve` → dispatch Maintainer (fallback: merge as bot); ownership-gated restore-head; short `/oc fix` trigger |
 | `opencode-recover.yml` | Recovery: `detect` job (schedule + PR-close auto-detect) resurrects closed/orphaned build PRs via `recover.sh`; `recover` job runs the Recover Agent on `/oc recover`. Tags `recover/<pr>` and re-links orphans onto `main` (never rewriting `main`) |
 | `ideate.yml` | On-demand Ideator - posts candidates on the Brainstorm Board and notifies Maintainer; no PAT in agent env |
 | `curator.yml` | Public surface & README custodian: scheduled (6h) / dispatch / /oc curate audits and surgical PRs |
@@ -445,7 +445,9 @@ catches up in seconds.
 
 - Nothing merges without Reviewer approval (except the documented Maintainer
   handover, which requires that same approval).
-- The Reviewer is read-only by construction (prompt + workflow restore-head).
+- The Reviewer is read-only by construction (prompt + workflow restore-head). That
+  step only reverts a head movement made from its own workspace and pushes with a
+  lease, so a concurrent Fixer/Builder push can never be rewound (PR #412).
 - PAT is only ever in hardcoded steps (§7); agents never see it.
 - The Maintainer cannot land infra/model/workflow changes herself: routine
   changes route to the Lab Engineer (`{"action":"lab"}`), and the direct-to-main
