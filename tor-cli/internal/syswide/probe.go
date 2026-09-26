@@ -48,6 +48,9 @@ func Probe(stateDir string, r Runner) ProbeResult {
 	case s != nil && backendFor(s.Backend, r).Present():
 		return ProbeResult{Mode: "system", Detail: s.Backend + " session since " + s.CreatedAt, State: s}
 	case s != nil:
+		if os.Geteuid() != 0 && pidAlive(s.TorPid) {
+			return ProbeResult{Mode: "system", Detail: s.Backend + " session since " + s.CreatedAt, State: s}
+		}
 		return ProbeResult{Mode: "stale", Detail: "session record without matching rules (crashed run? reboot? run repair)", State: s}
 	default:
 		return ProbeResult{Mode: "stale", Detail: "torshim rules without a session record (foreign or crashed run? run repair)"}
