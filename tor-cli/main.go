@@ -400,6 +400,9 @@ func cmdRun(args []string) int {
 	if code, ok := checkICMPRefusal(rest[0]); !ok {
 		return code
 	}
+	if code, ok := checkBinaryExists(rest[0]); !ok {
+		return code
+	}
 	if code, ok := gateGUILaunch(rest, lf); !ok {
 		return code
 	}
@@ -550,6 +553,87 @@ func checkICMPRefusal(bin string) (int, bool) {
 			"  • To diagnose your Tor daemon and circuits, run:\n"+
 			"      torshim doctor\n", base, base)
 		return exitUsage, false
+	}
+	return exitOK, true
+}
+
+var knownSubcommands = []string{
+	"run", "shell", "status", "newnym", "doctor",
+	"version", "connect", "disconnect", "repair", "help",
+}
+
+func levenshtein(a, b string) int {
+	aLen := len(a)
+	bLen := len(b)
+	if aLen == 0 {
+		return bLen
+	}
+	if bLen == 0 {
+		return aLen
+	}
+	v0 := make([]int, bLen+1)
+	v1 := make([]int, bLen+1)
+	for i := 0; i <= bLen; i++ {
+		v0[i] = i
+	}
+	for i := 0; i < aLen; i++ {
+		v1[0] = i + 1
+		for j := 0; j < bLen; j++ {
+			cost := 0
+			if a[i] != b[j] {
+				cost = 1
+			}
+			min := v1[j] + 1
+			if v0[j+1]+1 < min {
+				min = v0[j+1] + 1
+			}
+			if v0[j]+cost < min {
+				min = v0[j] + cost
+			}
+			v1[j+1] = min
+		}
+		for j := 0; j <= bLen; j++ {
+			v0[j] = v1[j]
+		}
+	}
+	return v1[bLen]
+}
+
+func findSubcommandSuggestion(s string) string {
+	s = strings.ToLower(s)
+	bestDist := 999
+	bestMatch := ""
+	for _, cmd := range knownSubcommands {
+		maxAllowed := 1
+		if len(cmd) > 8 {
+			maxAllowed = 3
+		} else if len(cmd) > 4 {
+			maxAllowed = 2
+		}
+		d := levenshtein(s, cmd)
+		if d <= maxAllowed && d < bestDist {
+			bestDist = d
+			bestMatch = cmd
+		}
+	}
+	return bestMatch
+}
+
+func checkBinaryExists(bin string) (int, bool) {
+	if strings.Contains(bin, string(os.PathSeparator)) {
+		if _, err := os.Stat(bin); err != nil {
+			fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+			return exitError, false
+		}
+		return exitOK, true
+	}
+	if _, err := lookPath(bin); err != nil {
+		if sugg := findSubcommandSuggestion(bin); sugg != "" {
+			fmt.Fprintf(os.Stderr, "torshim: unknown command %q (did you mean %q?)\n\nRun 'torshim --help' for usage.\n", bin, sugg)
+			return exitUsage, false
+		}
+		fmt.Fprintf(os.Stderr, "torshim: perapp: %q not found on PATH: %v\n", bin, err)
+		return exitError, false
 	}
 	return exitOK, true
 }
