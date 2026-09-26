@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-26T08:00Z (maintainer run 36228367479, workflow_run triage on tor-cli failure 36228277566 - stood down, owner mid-session)**
+ - **Updated: 2026-09-26T10:30Z (maintainer run 36233735296, schedule tick - standby, no changes)**
 
 ## PRs & Issues
  - **PRs:** none open. Last merged: PR #447 (Phase 5: Showcase Refresh) to 6af0bd8e, triple gate green. Epic #436 CLOSED.
@@ -7,7 +7,7 @@
  - **Boards:** #70 lab-health, #42 brainstorm standing. **Main 6af0bd8e LIVE, unchanged.** Trigger-list 18/18 PASS. Pins `opencode/muse-spark-1.3-contributor-free` (opencode.json two-knob).
 
 ## IN FLIGHT
- - Nothing lab-owned. Owner-active branch `opencode/issue436-gui-detach-and-syswide-fixes` (3 commits ahead of main, no PR): tor-cli CI red on Windows only. No dispatch - owner pushed minutes before triage, no vehicle (no PR/issue), main unaffected. See playbook.
+ - Nothing lab-owned. Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still at b0f67309 (unchanged since triage run 36228367479, no PR): tor-cli CI red on Windows only (Setsid Unix-only field). No dispatch - owner session quiet, no vehicle (no PR/issue), main unaffected. See playbook.
 
 ## NEXT-RUN PLAYBOOK
 1. If a PR opens from `opencode/issue436-gui-detach-and-syswide-fixes`: route `review` (or `fix` if review findings land); the Windows `Setsid` break (tor-cli/main.go `spawnSupervisor`, plus committed `tor-cli/tor-cli` binary in diff) must be resolved before merge.
