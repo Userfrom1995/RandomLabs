@@ -21,7 +21,7 @@ import (
 // DefaultTorUsers is the lookup order for the unprivileged tor identity.
 // The firewall owner-UID exemption covers exactly this UID, so tor must
 // not run as root (exempting root would exempt everything).
-var DefaultTorUsers = []string{"tor", "debian-tor", "_tor", "nobody"}
+var DefaultTorUsers = []string{"tor", "debian-tor", "_tor", "toranon", "nobody"}
 
 // Options tunes connect/disconnect/repair. Zero value is usable on Linux
 // as root; tests override StateDir, Runner, and the hook fields.
@@ -393,6 +393,9 @@ func Connect(o Options) (*ConnectReport, error) {
 	if err := requireRoot(po, "route"); err != nil {
 		return nil, err
 	}
+	if err := os.MkdirAll(po.StateDir, 0o755); err == nil {
+		_ = os.Chmod(po.StateDir, 0o755)
+	}
 	// Serialize with concurrent connect/disconnect/repair runs sharing
 	// this state dir: without the lock two connects would both snapshot,
 	// both launch tor, and both write active.json (orphaned tor + half
@@ -604,6 +607,9 @@ func Repair(o Options) (*RepairReport, error) {
 	}
 	if err := requireRoot(po, "repair"); err != nil {
 		return nil, err
+	}
+	if err := os.MkdirAll(po.StateDir, 0o755); err == nil {
+		_ = os.Chmod(po.StateDir, 0o755)
 	}
 	lk, err := AcquireSessionLock(po.StateDir, po.PidAlive, po.LockWait)
 	if err != nil {

@@ -152,11 +152,12 @@ func LoadState(stateDir string) (*ActiveState, error) {
 	return &s, nil
 }
 
-// SaveState persists the session record (root-only permissions).
+// SaveState persists the session record.
 func SaveState(stateDir string, s *ActiveState) error {
-	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		return fmt.Errorf("syswide: create state dir: %w", err)
 	}
+	_ = os.Chmod(stateDir, 0o755)
 	raw, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return err
@@ -165,7 +166,7 @@ func SaveState(stateDir string, s *ActiveState) error {
 		s.CreatedAt = time.Now().UTC().Format(time.RFC3339)
 		raw, _ = json.MarshalIndent(s, "", "  ")
 	}
-	if err := os.WriteFile(activePath(stateDir), append(raw, '\n'), 0o600); err != nil {
+	if err := os.WriteFile(activePath(stateDir), append(raw, '\n'), 0o644); err != nil {
 		return fmt.Errorf("syswide: write state: %w", err)
 	}
 	return nil

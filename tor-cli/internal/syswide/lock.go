@@ -53,9 +53,10 @@ func AcquireSessionLock(stateDir string, isAlive func(int) bool, timeout time.Du
 	if isAlive == nil {
 		isAlive = lockAlive
 	}
-	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		return nil, fmt.Errorf("syswide: create state dir for lock: %w", err)
 	}
+	_ = os.Chmod(stateDir, 0o755)
 	path := lockPath(stateDir)
 	token := newLockToken()
 	deadline := time.Now().Add(timeout)
