@@ -113,3 +113,31 @@ func ClassifyLaunch(bin string, argv []string) LaunchClass {
 	}
 	return ClassGUI
 }
+
+// BrowserKind classifies browser architectures for native SOCKS5 routing.
+type BrowserKind int
+
+const (
+	BrowserKindNone BrowserKind = iota
+	BrowserKindFirefox
+	BrowserKindChromium
+)
+
+// DetectBrowser reports whether bin is a known browser architecture.
+func DetectBrowser(bin string) BrowserKind {
+	base := strings.ToLower(filepath.Base(bin))
+	if real, err := filepath.EvalSymlinks(bin); err == nil {
+		target := strings.ToLower(filepath.Base(real))
+		if target == "sleep" || target == "true" || target == "false" {
+			return BrowserKindNone
+		}
+	}
+	switch base {
+	case "firefox", "firefox-esr", "firefox-bin":
+		return BrowserKindFirefox
+	case "chromium", "chromium-browser", "google-chrome", "google-chrome-stable", "chrome", "brave", "brave-browser", "falkon":
+		return BrowserKindChromium
+	default:
+		return BrowserKindNone
+	}
+}

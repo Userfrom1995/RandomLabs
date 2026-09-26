@@ -17,6 +17,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -47,17 +48,35 @@ func main() {
 	os.Exit(run(os.Args[1:]))
 }
 
+func parseGlobalSubcommand(argv []string) (string, []string) {
+	var flags []string
+	for i, arg := range argv {
+		if !strings.HasPrefix(arg, "-") {
+			if isCommand(arg) {
+				sub := arg
+				subArgs := append(flags, argv[i+1:]...)
+				return sub, subArgs
+			}
+			return "", argv
+		}
+		flags = append(flags, arg)
+	}
+	return "", argv
+}
+
 func run(argv []string) int {
 	if len(argv) == 0 {
 		usage()
 		return exitUsage
 	}
-	cmd, rest := argv[0], argv[1:]
+	cmd, rest := parseGlobalSubcommand(argv)
 	// Bare `torshim <app> [args]`: everything is the app.
-	if !isCommand(cmd) {
+	if cmd == "" {
 		return cmdRun(argv)
 	}
 	switch cmd {
+	case "__supervise":
+		return cmdSupervise(rest)
 	case "run":
 		return cmdRun(rest)
 	case "shell":
@@ -90,7 +109,7 @@ func isCommand(s string) bool {
 	switch s {
 	case "run", "shell", "status", "newnym", "doctor",
 		"version", "--version", "-V",
-		"connect", "disconnect", "repair", "help", "--help", "-h":
+		"connect", "disconnect", "repair", "help", "--help", "-h", "__supervise":
 		return true
 	}
 	return false
@@ -151,6 +170,7 @@ type launchFlags struct {
 	wait    bool
 	logFile string
 	ackGUI  bool
+	quiet   bool
 }
 
 func parseLaunch(fs *flag.FlagSet, args []string) (launchFlags, []string, error) {
@@ -160,6 +180,8 @@ func parseLaunch(fs *flag.FlagSet, args []string) (launchFlags, []string, error)
 	fs.BoolVar(&lf.reuse, "reuse", false, "reuse a foreign tor if verifiable (default: private instance)")
 	fs.BoolVar(&lf.verbose, "verbose", false, "show endpoints, mode, circuit, backend, notices tail")
 	fs.BoolVar(&lf.verbose, "v", false, "same as --verbose")
+	fs.BoolVar(&lf.quiet, "quiet", false, "suppress bootstrap and informational progress messages")
+	fs.BoolVar(&lf.quiet, "q", false, "same as --quiet")
 	fs.BoolVar(&lf.detach, "detach", false, "GUI path: release the child, return the prompt at once with its PID")
 	fs.BoolVar(&lf.wait, "wait", false, "CLI path: block until the child exits (default)")
 	fs.StringVar(&lf.logFile, "log-file", "", "detached child stdout/stderr target (detach mode only)")
@@ -178,13 +200,18 @@ func parseLaunch(fs *flag.FlagSet, args []string) (launchFlags, []string, error)
 // Default is a private owned instance; --reuse attaches to a verifiable
 // foreign tor (no notices log, never stopped by us).
 type torSession struct {
-	socksAddr   string
-	controlAddr string
-	cookiePath  string
-	noticesPath string
-	backend     string
-	mode        string
-	cleanup     func()
+	socksAddr      string
+	controlAddr    string
+	httpTunnelAddr string
+	cookiePath     string
+	noticesPath    string
+	backend        string
+	mode           string
+	isOwned        bool
+	disarmed       bool
+	pid            int
+	dataDir        string
+	cleanup        func()
 }
 
 // ensureTor returns a ready SOCKS endpoint plus a cleanup func. Default is a
@@ -201,30 +228,58 @@ func ensureTor(lf launchFlags) (*torSession, error) {
 			return sess, nil
 		}
 	}
-	in, err := lifecycle.Launch(lifecycle.Options{TorBinary: lf.torBin, Timeout: lf.timeout})
+	var onProgress func(control.BootstrapState)
+	if !lf.quiet {
+		onProgress = func(st control.BootstrapState) {
+			summary := st.Summary
+			if summary == "" {
+				summary = st.Tag
+			}
+			if st.Ready() {
+				fmt.Fprintf(os.Stderr, "[torshim] bootstrapping: %d%% (%s) - circuit established, ready\n", st.Progress, summary)
+			} else {
+				fmt.Fprintf(os.Stderr, "[torshim] bootstrapping: %d%% (%s)\n", st.Progress, summary)
+			}
+		}
+	}
+	in, err := lifecycle.Launch(lifecycle.Options{
+		TorBinary:  lf.torBin,
+		Timeout:    lf.timeout,
+		Detached:   lf.detach,
+		OnProgress: onProgress,
+	})
 	if err != nil {
 		return nil, err
+	}
+	sess := &torSession{
+		socksAddr:      in.SocksAddr(),
+		controlAddr:    in.ControlAddr(),
+		httpTunnelAddr: in.HTTPTunnelAddr(),
+		cookiePath:     in.CookiePath,
+		noticesPath:    in.NoticesPath(),
+		backend:        backend,
+		mode:           "private owned instance (launched by torshim, stopped on exit)",
+		isOwned:        true,
+		pid:            in.Pid,
+		dataDir:        in.DataDir,
 	}
 	// Ctrl-C/SIGTERM during the app run must not orphan the owned tor.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigCh
-		in.Stop()
+		if !sess.disarmed {
+			in.Stop()
+		}
 		os.Exit(130)
 	}()
-	return &torSession{
-		socksAddr:   in.SocksAddr(),
-		controlAddr: in.ControlAddr(),
-		cookiePath:  in.CookiePath,
-		noticesPath: in.NoticesPath(),
-		backend:     backend,
-		mode:        "private owned instance (launched by torshim, stopped on exit)",
-		cleanup: func() {
-			signal.Stop(sigCh)
+	sess.cleanup = func() {
+		signal.Stop(sigCh)
+		if !sess.disarmed {
 			in.Stop()
-		},
-	}, nil
+		}
+	}
+	return sess, nil
 }
 
 // printVerboseSession reports the session behind a command to stderr:
@@ -294,10 +349,26 @@ func tryReuse(lf launchFlags, backend string) (*torSession, bool, error) {
 	}
 	defer ctl.Close()
 	deadline := time.Now().Add(lf.timeout)
-	if err := lifecycle.WaitReady(ctl, deadline, 500*time.Millisecond); err != nil {
+	var onProgress func(control.BootstrapState)
+	if !lf.quiet {
+		onProgress = func(st control.BootstrapState) {
+			summary := st.Summary
+			if summary == "" {
+				summary = st.Tag
+			}
+			if st.Ready() {
+				fmt.Fprintf(os.Stderr, "[torshim] bootstrapping: %d%% (%s) - circuit established, ready\n", st.Progress, summary)
+			} else {
+				fmt.Fprintf(os.Stderr, "[torshim] bootstrapping: %d%% (%s)\n", st.Progress, summary)
+			}
+		}
+	}
+	if err := lifecycle.WaitReadyWithProgress(ctl, deadline, 500*time.Millisecond, onProgress); err != nil {
 		return nil, false, err
 	}
-	fmt.Fprintf(os.Stderr, "torshim: reusing foreign tor at %s (will not stop it)\n", f.SocksAddr)
+	if !lf.quiet {
+		fmt.Fprintf(os.Stderr, "torshim: reusing foreign tor at %s (will not stop it)\n", f.SocksAddr)
+	}
 	return &torSession{
 		socksAddr:   f.SocksAddr,
 		controlAddr: f.ControlAddr,
@@ -326,6 +397,9 @@ func cmdRun(args []string) int {
 		fmt.Fprintln(os.Stderr, "torshim run: --log-file needs --detach (wait-mode output streams to the terminal)")
 		return exitUsage
 	}
+	if code, ok := checkICMPRefusal(rest[0]); !ok {
+		return code
+	}
 	if code, ok := gateGUILaunch(rest, lf); !ok {
 		return code
 	}
@@ -334,11 +408,17 @@ func cmdRun(args []string) int {
 		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
 		return exitNotReady
 	}
-	defer sess.cleanup()
+	defer func() {
+		sess.cleanup()
+	}()
 	if lf.verbose {
 		printVerboseSession(sess)
 	}
-	opts := perapp.LaunchOptions{Detach: lf.detach, LogFile: lf.logFile}
+	opts := perapp.LaunchOptions{
+		Detach:         lf.detach,
+		LogFile:        lf.logFile,
+		HTTPTunnelAddr: sess.httpTunnelAddr,
+	}
 	if perapp.NeedsProxy() {
 		// macOS/Windows (M4): proxy-environment backend, no torsocks
 		// conf dir needed. Run prints the honest coverage note.
@@ -349,6 +429,10 @@ func cmdRun(args []string) int {
 		}
 		if res.Detached {
 			printDetached(sess, rest[0], res.PID, lf.logFile)
+			if sess.isOwned {
+				sess.disarmed = true
+				spawnSupervisor(res.PID, sess.pid, sess.controlAddr, sess.cookiePath, []string{sess.dataDir})
+			}
 		}
 		return res.ExitCode
 	}
@@ -357,7 +441,12 @@ func cmdRun(args []string) int {
 		fmt.Fprintf(os.Stderr, "torshim: mkdtemp: %v\n", err)
 		return exitError
 	}
-	defer os.RemoveAll(confDir)
+	cleanConf := true
+	defer func() {
+		if cleanConf {
+			_ = os.RemoveAll(confDir)
+		}
+	}()
 	res, err := perapp.RunWithOptions(sess.socksAddr, rest, nil, confDir, opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
@@ -365,6 +454,12 @@ func cmdRun(args []string) int {
 	}
 	if res.Detached {
 		printDetached(sess, rest[0], res.PID, lf.logFile)
+		if sess.isOwned {
+			cleanConf = false
+			sess.disarmed = true
+			spawnSupervisor(res.PID, sess.pid, sess.controlAddr, sess.cookiePath, []string{confDir, sess.dataDir})
+		}
+		return 0
 	}
 	return res.ExitCode
 }
@@ -424,6 +519,137 @@ func printDetached(sess *torSession, app string, pid int, logFile string) {
 	}
 	fmt.Printf("launched %s (pid %d) detached via %s; prompt returned; SOCKS %s; output: %s\n",
 		app, pid, sess.backend, sess.socksAddr, target)
+}
+
+var icmpBinaries = map[string]bool{
+	"ping":          true,
+	"ping6":         true,
+	"traceroute":    true,
+	"traceroute6":   true,
+	"tracepath":     true,
+	"tracepath6":    true,
+	"mtr":           true,
+	"mtr-packet":    true,
+	"tcptraceroute": true,
+	"fping":         true,
+	"nping":         true,
+	"hping":         true,
+	"hping2":        true,
+	"hping3":        true,
+}
+
+func checkICMPRefusal(bin string) (int, bool) {
+	base := strings.ToLower(filepath.Base(bin))
+	if icmpBinaries[base] {
+		fmt.Fprintf(os.Stderr, "torshim: refusing '%s': %s uses ICMP or raw IP packets, which cannot be routed through Tor.\n"+
+			"Tor is a stream-based onion proxy that routes TCP only (no ICMP or raw UDP).\n"+
+			"The torsocks shim blocks ICMP sockets (returning ENOSYS) to prevent cleartext packets from leaking your real IP.\n\n"+
+			"Suggestions:\n"+
+			"  • To test Tor connectivity, use HTTP/HTTPS over TCP:\n"+
+			"      torshim curl -s https://check.torproject.org/api/ip\n"+
+			"  • To diagnose your Tor daemon and circuits, run:\n"+
+			"      torshim doctor\n", base, base)
+		return exitUsage, false
+	}
+	return exitOK, true
+}
+
+func spawnSupervisor(childPid, torPid int, controlAddr, cookiePath string, cleanupDirs []string) {
+	self, err := os.Executable()
+	if err != nil {
+		return
+	}
+	args := []string{"__supervise", strconv.Itoa(childPid), strconv.Itoa(torPid), controlAddr, cookiePath}
+	args = append(args, cleanupDirs...)
+	cmd := exec.Command(self, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	cmd.Stdin = nil
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	_ = cmd.Start()
+	if cmd.Process != nil {
+		_ = cmd.Process.Release()
+	}
+}
+
+func cmdSupervise(args []string) int {
+	if len(args) < 4 {
+		return exitUsage
+	}
+	childPid, err1 := strconv.Atoi(args[0])
+	torPid, err2 := strconv.Atoi(args[1])
+	if err1 != nil || err2 != nil {
+		return exitUsage
+	}
+	controlAddr := args[2]
+	cookiePath := args[3]
+	cleanupDirs := args[4:]
+
+	var ctl *control.Client
+	if controlAddr != "" && cookiePath != "" {
+		if c, err := control.Dial(controlAddr, 5*time.Second); err == nil {
+			if aerr := c.AuthCookie(cookiePath); aerr == nil {
+				_ = c.TakeOwnership()
+				ctl = c
+			} else {
+				c.Close()
+			}
+		}
+	}
+	if ctl != nil {
+		defer ctl.Close()
+	}
+
+	for {
+		time.Sleep(1 * time.Second)
+		if !isPidAlive(childPid) {
+			break
+		}
+	}
+	if ctl != nil {
+		_ = ctl.Close()
+		ctl = nil
+	}
+	if torPid > 0 && isPidAlive(torPid) {
+		p, err := os.FindProcess(torPid)
+		if err == nil {
+			_ = p.Signal(syscall.SIGTERM)
+			deadline := time.Now().Add(3 * time.Second)
+			for time.Now().Before(deadline) {
+				time.Sleep(200 * time.Millisecond)
+				if !isPidAlive(torPid) {
+					break
+				}
+			}
+			if isPidAlive(torPid) {
+				_ = p.Kill()
+			}
+		}
+	}
+	for _, dir := range cleanupDirs {
+		if dir != "" {
+			_ = os.RemoveAll(dir)
+		}
+	}
+	return exitOK
+}
+
+func isPidAlive(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	err = process.Signal(syscall.Signal(0))
+	if err == nil {
+		return true
+	}
+	if errors.Is(err, syscall.EPERM) {
+		return true
+	}
+	return false
 }
 
 func cmdShell(args []string) int {
