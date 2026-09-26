@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-26T20:05Z (maintainer run 36267847851, workflow_run triage on tor-cli branch failure - stood down, owner mid-session)**
+ - **Updated: 2026-09-26T20:50Z (maintainer run 36270895555, schedule tick - standby, no changes)**
 
 ## PRs & Issues
  - **PRs:** none open. Last merged: PR #447 (Phase 5: Showcase Refresh) to 6af0bd8e, triple gate green. Epic #436 CLOSED.
@@ -7,10 +7,10 @@
  - **Boards:** #70 lab-health, #42 brainstorm standing. **Main 6af0bd8e LIVE, unchanged.** Trigger-list 18/18 PASS. Pins `opencode/muse-spark-1.3-contributor-free` (opencode.json two-knob).
 
 ## IN FLIGHT
- - Nothing lab-owned. Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` advanced b0f67309 -> d905397a (fresh push ~19:55Z, triaged this run, no PR): tor-cli CI still red, now Windows `Setsid` break (main.go:649, same root cause, line moved) PLUS a new macOS hermetic failure (TestRunFailClosedWithoutTor / TestM4DisconnectIdempotentAndRunFailClosed: exit=1, want 3 fail-closed not-ready). No dispatch - owner session active, no vehicle (no PR/issue), main unaffected. See playbook.
+ - Nothing lab-owned. Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still at d905397a (unchanged since ~19:55Z push, triaged in run 36267847851, no PR): tor-cli CI still red branch-scoped (Windows `Setsid` break at main.go:649 + macOS fail-closed exit-code regression). No dispatch - owner session active, no vehicle (no PR/issue), main unaffected. See playbook.
 
 ## NEXT-RUN PLAYBOOK
-1. If a PR opens from `opencode/issue436-gui-detach-and-syswide-fixes`: route `review` (or `fix` if review findings land); the Windows `Setsid` break (tor-cli/main.go `spawnSupervisor`, plus committed `tor-cli/tor-cli` binary in diff) AND the new macOS fail-closed exit-code regression must be resolved before merge.
+1. If a PR opens from `opencode/issue436-gui-detach-and-syswide-fixes`: route `review` (or `fix` if review findings land); the Windows `Setsid` break (tor-cli/main.go `spawnSupervisor`, plus committed `tor-cli/tor-cli` binary in diff) AND the macOS fail-closed exit-code regression must be resolved before merge.
 2. If the branch keeps advancing with no PR and CI stays red >3 days (bot-work stall lens does not apply to owner work; evaluate, do not seize): consider a `ping` on the eventual PR/issue, never on closed #436 uninvited.
 3. Verify Deploy health on main only if main advances (still 6af0bd8e).
 4. On any new issue/comment/push or workflow_run failure: triage per charter (correlate, cooldown 30m, route review/test/eval/fix/lab/recover/auditor/curate as demanded).
