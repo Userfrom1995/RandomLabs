@@ -21,18 +21,23 @@
   screenplay background, camera grammar covers every declared move, rig
   poses stay in eased bounds with the scripted acting beats, ink boil is
   deterministic, capture is reproducible, the gallery is wired.
+- `node film/tests/performance.mjs` - performance gates: 24 fps frame
+  lock, frame-exact scrubbing, weather determinism with reduced-motion
+  freeze, full-shot acting beats, eased camera pinned behaviorally, a
+  240-frame no-throw sweep, capture with frame indices.
 
 ## Reproducibility contract
 
 1. One committed seed (`20260927` in screenplay.json) drives all jitter,
    grain, and ornament. No wall-clock, no network, no `Math.random` in any
    render path.
-2. The renderer is a pure function of (timeline, time). Scrubbing to the
-   same second draws the same pixels.
+2. The renderer is a pure function of (timeline, time), locked to the
+   24 fps grid: same frame index draws the same pixels, from playback,
+   seek, or capture alike.
 3. No binary artifacts without committed generators; the audit fails the
    build if any appear.
 4. The player clock is the timeline: play advances it by rAF delta, pause
-  and seek set it exactly.
+  and seek set it exactly, and every seek snaps to its frame boundary.
 5. The storyboard wall on the theatre page is painted live by the same
   engine at each act midpoint: zero image binaries, zero drift between the
   film and its stills.
