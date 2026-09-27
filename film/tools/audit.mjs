@@ -257,5 +257,37 @@ for (const s of tl.shots) {
 }
 check('dialogue lattice (speaker/emotion/timing per line)', latticeOk, latticeWhy.join(',') || 'all lines on the lattice');
 
+// human character craft (rebuild Phase 2): proportion bodies, face engine,
+// acting beats, face-safe boil, and full cast staging.
+const humanMods = ['engine/humans.js', 'engine/faces.js', 'engine/acting.js'];
+check('human modules committed', humanMods.every((f) => existsSync(join(root, f))), humanMods.join(','));
+const { HUMAN_MODELS } = await import('../engine/humans.js');
+const { EMOTIONS: FACE_EMOTIONS, FACE_CARDS } = await import('../engine/faces.js');
+const { actFor: auditActFor } = await import('../engine/acting.js');
+const rigsSrc = readFileSync(join(root, 'engine/rigs.js'), 'utf8');
+const animSrc = readFileSync(join(root, 'engine/animatic.js'), 'utf8');
+const inkSrc = readFileSync(join(root, 'engine/ink.js'), 'utf8');
+const usedCast = [...new Set(tl.shots.flatMap((s) => s.cast))];
+check('every cast member has a renderer',
+  usedCast.every((c) => c === 'ruel' ? rigsSrc.includes('drawRuel') : HUMAN_MODELS[c]),
+  usedCast.join(','));
+check('tam/lumi rigs exported', rigsSrc.includes('drawTam') && rigsSrc.includes('drawLumi'));
+check('stage draws the full party',
+  animSrc.includes('drawTam(') && animSrc.includes('drawLumi(') && animSrc.includes('actFor('));
+check('face-safe boil wired',
+  inkSrc.includes('boilJitterFace') && animSrc.includes('boilJitterFace'));
+const latticeEmotions = [...new Set(tl.shots.flatMap((s) => (s.captions || []).map((c) => c.emotion)))];
+check('face engine covers lattice emotions',
+  latticeEmotions.every((e) => FACE_EMOTIONS.includes(e)), latticeEmotions.join(','));
+const cardTotal = Object.values(FACE_CARDS).reduce((n, l) => n + l.length, 0);
+check('face cards cover bible sheets', cardTotal >= 16, cardTotal + ' cards');
+let actOk = true;
+for (const s of tl.shots) {
+  const a = auditActFor(s, 0.5, s.dur / 2);
+  if (!a || a.exertion < 0 || a.exertion > 1 || !a.secondary) actOk = false;
+}
+check('acting state on all shots', actOk);
+check('human craft suite committed', existsSync(join(root, 'tests/craft-humans.mjs')));
+
 if (failures.length) { console.error('AUDIT RED: ' + failures.join(', ')); process.exit(1); }
 console.log('AUDIT GREEN');
