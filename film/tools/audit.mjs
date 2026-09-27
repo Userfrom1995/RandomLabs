@@ -112,5 +112,51 @@ check('weather covers screenplay bgs',
 check('player seeks on the frame grid', playerJs.includes('frameTime('));
 check('performance suite committed', existsSync(join(root, 'tests/performance.mjs')));
 
+// original score and sound world: orchestra, voices, sfx, mix, stems
+const scoreMods = ['score/orchestra.js', 'score/voices.js', 'score/sfx.js', 'score/mix.js',
+  'score/score-events.json', 'score/sfx-events.json', 'tools/render-audio.mjs', 'tests/score.mjs'];
+check('score modules committed', scoreMods.every((f) => existsSync(join(root, f))), scoreMods.join(','));
+const { buildScoreEvents, ORCHESTRA_VERSION } = await import('../score/orchestra.js');
+const { buildSfxEvents, SFX_VERSION } = await import('../score/sfx.js');
+const { renderMix, analyze, MIX_SAMPLE_RATE } = await import('../score/mix.js');
+const scoreEvents = buildScoreEvents(tl);
+const sfxEvents = buildSfxEvents(tl);
+const scoredIds = new Set(scoreEvents.map((e) => e.shot));
+check('every shot scored', tl.shots.every((s) => scoredIds.has(s.id)), scoreEvents.length + ' events');
+const foleyIds = new Set(sfxEvents.map((e) => e.shot));
+check('every tagged shot foleyed',
+  tl.shots.filter((s) => (s.sfx || []).length > 0).every((s) => foleyIds.has(s.id)), sfxEvents.length + ' events');
+const { frameTime } = await import('../engine/frames.js');
+let drift = 0;
+for (const e of [...scoreEvents, ...sfxEvents]) drift = Math.max(drift, Math.abs(e.t - frameTime(e.t)));
+check('A/V sync drift zero (frame grid)', drift === 0, String(drift));
+const committedScore = readFileSync(join(root, 'score/score-events.json'), 'utf8');
+const committedSfx = readFileSync(join(root, 'score/sfx-events.json'), 'utf8');
+const canonScore = JSON.stringify({
+  format: 'hearthlight-score-events/1',
+  orchestra: ORCHESTRA_VERSION,
+  seed: sp.seed,
+  total: tl.total,
+  events: scoreEvents,
+}, null, 2) + '\n';
+const canonSfx = JSON.stringify({
+  format: 'hearthlight-sfx-events/1',
+  sfx: SFX_VERSION,
+  seed: sp.seed,
+  total: tl.total,
+  events: sfxEvents,
+}, null, 2) + '\n';
+check('committed score stem matches rebuild', committedScore === canonScore, scoreEvents.length + ' events');
+check('committed sfx stem matches rebuild', committedSfx === canonSfx, sfxEvents.length + ' events');
+const audioJs = readFileSync(join(root, 'score/animatic-audio.js'), 'utf8');
+check('live performer uses orchestra spec',
+  audioJs.includes('orchestrate(') && audioJs.includes('noteFreq('));
+check('player passes full shot to performer', playerJs.includes('setCue(shot.music, shot)'));
+const { master } = renderMix(tl, scoreEvents, sfxEvents, MIX_SAMPLE_RATE);
+const mStats = analyze(master);
+check('master exact length', master.length === Math.ceil(tl.total * MIX_SAMPLE_RATE), master.length + ' samples');
+check('master peak bounded', mStats.peak <= 0.89 + 1e-6 && mStats.peak > 0.5, mStats.peak.toFixed(3));
+check('master finite', mStats.bad === 0, 'rms ' + mStats.rms.toFixed(3));
+
 if (failures.length) { console.error('AUDIT RED: ' + failures.join(', ')); process.exit(1); }
 console.log('AUDIT GREEN');
