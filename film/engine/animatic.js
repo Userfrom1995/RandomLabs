@@ -2,6 +2,7 @@
 // Storyboard-sketch look: ink-glyph cast, wash backgrounds, paper grain,
 // 2s line boil (12 fps quantization). Scrub-exact: same t => same pixels.
 import { substream } from './rng.js';
+import { shotAt as shotInfo } from './timeline.js';
 
 function hex(h) {
   const n = parseInt(h.slice(1), 16);
@@ -333,5 +334,3 @@ export function renderAnimatic(ctx, tl, t, opts) {
   }
   return found;
 }
-
-import { shotAt as shotInfo } from './timeline.js';

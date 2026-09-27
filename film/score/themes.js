@@ -9,7 +9,7 @@ export const MOTIFS = {
 
 const FAMILY = {
   'nia': 'nia', 'nia+cairn': 'nia', 'nia+ruel': 'nia', 'wind+nia': 'wind',
-  'ruel+nia': 'ruel', 'all': 'cairn', 'cairn': 'cairn',
+  'ruel+nia': 'ruel', 'all': 'cairn', 'cairn': 'cairn', 'cairn+nia': 'cairn',
   'nia (frag.)': 'nia', 'nia (lullaby)': 'nia', 'nia (thread)': 'cairn',
   'cairn (hint)': 'cairn', 'ruel (hint)': 'ruel', 'cairn (thread)': 'cairn',
   'cairn (gathering)': 'cairn', 'cairn (cadence)': 'cairn',
@@ -17,9 +17,13 @@ const FAMILY = {
 };
 
 export function motifFor(music) {
-  const key = (music.motif || 'nia').toLowerCase();
+  if (!music || typeof music.motif !== 'string' || !music.motif) {
+    throw new Error('music.motif must be a non-empty string');
+  }
+  const key = music.motif.toLowerCase();
   if (MOTIFS[key]) return { name: key, row: MOTIFS[key] };
-  const fam = FAMILY[music.motif] || FAMILY[key] || 'nia';
+  const fam = FAMILY[music.motif] || FAMILY[key];
+  if (!fam || !MOTIFS[fam]) throw new Error('unknown motif: ' + music.motif);
   return { name: fam, row: MOTIFS[fam] };
 }
 
