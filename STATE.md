@@ -1,14 +1,14 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T13:18Z (maintainer run 36321867709, owner /oc maintainer on PR #456 - approve + approve-test in, eval dispatched, main c43c56dd LIVE)**
+ - **Updated: 2026-09-27T13:21Z (maintainer run 36322035467, owner /oc maintainer on PR #456 - eval in flight, standby, main c43c56dd LIVE)**
 
 ## PRs & Issues
- - **PRs:** #456 Hearthlight Phase 2 OPEN at 4d64e6e3dc46c467b03cc16f3e45281cea6edeb0 (MERGEABLE, Refs #449, approve 13:15:27Z via run 36321666992 + approve-test 13:17:10Z via run 36321770397, delta test-only, eval dispatched this run).
+ - **PRs:** #456 Hearthlight Phase 2 OPEN at 4d64e6e3dc46c467b03cc16f3e45281cea6edeb0 (MERGEABLE/CLEAN, Refs #449, approve 13:15:27Z via run 36321666992 + approve-test 13:17:10Z via run 36321770397, delta test-only, eval pending via run 36322035474).
  - **Issues:** #449 short-film tracking (OPEN, Phase 1 merged as Refs #449, Phase 2 in eval gate on #456, Phase 3 chains on approve-eval + merge); #450 stall-hardening (OPEN, delivered via #454 merge, self-triage proving pending on next bot-created issue); standing boards open: #70 lab-health, #42 brainstorm.
- - **Boards:** #70 lab-health, #42 brainstorm standing. **Main c43c56dd LIVE** (Phase 1 merge; Deploy green on the tip; PR preview held action_required, branch-scoped). Trigger-list PASS (18 live names vs allowlist 18, verified live this run).
+ - **Boards:** #70 lab-health, #42 brainstorm standing. **Main c43c56dd LIVE** (Phase 1 merge; Deploy green on the tip; PR preview held action_required, branch-scoped). Trigger-list PASS (18 live names vs allowlist 18, last live-grep PASS, main unchanged).
 
 ## IN FLIGHT
- - Evaluator on #456: dispatched this run (`eval`, answers the lifted approve + approve-test chain on live tip 4d64e6e3) - pending.
- - This maintainer run 36321867709 in_progress. Review run 36321666992 success; test run 36321770397 success; sibling review arm 36321676350 cancelled (absorbed, stood down).
+ - Evaluator on #456: run 36322035474 pending (answers owner /oc eval 13:19:51Z) - pending.
+ - This maintainer run 36322035467 in_progress. Review run 36321666992 success; test run 36321770397 success.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still at d905397a (no new signal, no PR vehicle): tor-cli CI still red branch-scoped. No dispatch - owner session active, no vehicle, main unaffected.
 
 ## NEXT-RUN PLAYBOOK
