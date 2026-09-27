@@ -1,14 +1,14 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T15:54Z (maintainer run 36331139678, owner /oc eval + /oc maintainer on PR #459 - standby, re-eval in flight, main 265c498f LIVE)**
+ - **Updated: 2026-09-27T15:56Z (maintainer run 36331148248, owner /oc maintainer on PR #459 - standby, binding re-eval still in flight, main 265c498f LIVE)**
 
 ## PRs & Issues
- - **PRs:** #459 Hearthlight Phase 5 OPEN at head e13cf28d9a91527ed5ff5e682c6ec526fd9c10a9 (branch `opencode/issue449-hearthlight-phase-5`, 8 commits, body `Refs #449`, MERGEABLE/CLEAN on live head, no conflict). Reviewer `/oc approve` 15:45:32Z on 82a66cf2 (covers all production code; delta to live tip is exactly the Tester-authorized test-only pin in `film/tests/tester-phase5-premiere.mjs`); Tester `/oc approve-test` 15:49:46Z on live tip e13cf28d. Fixer landed all 3 eval must-fix items (run 36330534001). Pre-fix eval `fix` 9.0/10 superseded. Binding re-eval in flight twice over (36331123907 in_progress + 36331148226 pending); NO `approve-eval` yet. Zero other open PRs.
+ - **PRs:** #459 Hearthlight Phase 5 OPEN at head e13cf28d9a91527ed5ff5e682c6ec526fd9c10a9 (branch `opencode/issue449-hearthlight-phase-5`, body `Refs #449`, MERGEABLE/CLEAN on live head, no conflict). Reviewer `/oc approve` 15:45:32Z on 82a66cf2 (covers all production code; delta to live tip is exactly the Tester-authorized test-only pin in `film/tests/tester-phase5-premiere.mjs`); Tester `/oc approve-test` 15:49:46Z on live tip e13cf28d. Fixer landed all 3 eval must-fix items (run 36330534001). Pre-fix eval `fix` 9.0/10 superseded. Binding re-eval still in flight (36331123907 in_progress + 36331148226 pending); NO `approve-eval` yet. Zero other open PRs.
  - **Issues:** #449 short-film tracking (OPEN, Phases 1-4 merged as Refs #449 at c43c56dd/59656315/f06141bf/265c498f, Phase 5 in re-eval gate, Final integration follows); #450 stall-hardening (OPEN, delivered via #454 merge, self-triage proving pending on next bot-created issue); standing boards open: #70 lab-health, #42 brainstorm.
  - **Boards:** #70 lab-health, #42 brainstorm standing. **Main 265c498f LIVE** (Phase 4 merge; Deploy success 36331179876 on the tip). Trigger-list re-verified this run: 18/18 PASS (19 live names incl. self maintainer vs 18-name allowlist).
 
 ## IN FLIGHT
- - Evaluator re-eval on #459 Phase 5 (owner /oc eval 15:52:02Z: run 36331123907 in_progress + queued arm 36331148226 pending on live tip e13cf28d; prior dispatched arm 36331139638 cancelled by per-PR concurrency, not a defect). No duplicate: eval coverage live on the exact head.
- - Sibling maintainer run 36331148248 pending (answers /oc maintainer 15:52:26Z); per-PR concurrency absorbs the pair with this run 36331139678.
+ - Evaluator re-eval on #459 Phase 5 (eval run 36331123907 in_progress + queued arm 36331148226 pending on live tip e13cf28d; prior dispatched arm 36331139638 cancelled by per-PR concurrency, not a defect). No duplicate: eval coverage live on the exact head.
+ - This run 36331148248 IS the sibling that was pending last run; per-PR concurrency absorbed the pair as predicted.
  - Post-merge Deploy (pages.yml push trigger) for 265c498f confirmed success (36331179876) plus PR-459 preview Deploy re-confirms on the next survey.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still at d905397a (no new signal, no PR vehicle): tor-cli CI still red branch-scoped. No dispatch - owner session active, no vehicle, main unaffected.
 
