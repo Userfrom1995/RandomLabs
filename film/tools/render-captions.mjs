@@ -6,33 +6,11 @@
 // fixed line endings, no timestamps), so the audit can pin the committed
 // file against a rebuild exactly like the score stems.
 import { readFileSync, writeFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildTimeline } from '../engine/timeline.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-
-const cliArgs = process.argv.slice(2);
-if (cliArgs.includes('--help') || cliArgs.includes('-h')) {
-  console.log('Usage: node film/tools/render-captions.mjs [--help]');
-  console.log('Exports committed film/captions.vtt from story/screenplay.json.');
-  console.log('Takes no flags; exits 2 on unknown flags.');
-  process.exit(0);
-}
-const unknownFlag = cliArgs.find((a) => a.startsWith('-'));
-if (unknownFlag) {
-  console.error('Unknown flag: ' + unknownFlag + ' (usage: node film/tools/render-captions.mjs [--help])');
-  process.exit(2);
-}
-
-function loadJson(path, label) {
-  try {
-    return JSON.parse(readFileSync(path, 'utf8'));
-  } catch (err) {
-    console.error(label + ' is corrupt (' + path + '): ' + err.message);
-    process.exit(1);
-  }
-}
 
 // Absolute seconds -> WebVTT timestamp (MM:SS.mmm, film is under an hour).
 export function vttStamp(t) {
@@ -72,8 +50,34 @@ export function buildVtt(tl) {
   return { vtt: out, cues };
 }
 
-const sp = loadJson(join(root, 'story/screenplay.json'), 'story/screenplay.json');
-const tl = buildTimeline(sp);
-const { vtt, cues } = buildVtt(tl);
-writeFileSync(join(root, 'captions.vtt'), vtt);
-console.log('captions ok: ' + cues.length + ' cues in film/captions.vtt');
+function loadJson(path, label) {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch (err) {
+    console.error(label + ' is corrupt (' + path + '): ' + err.message);
+    process.exit(1);
+  }
+}
+
+// CLI entry: importing this module (for buildVtt/vttStamp in tests) must
+// never write files or parse argv, so the main body runs only when the
+// module itself is executed.
+if (resolve(process.argv[1] || '') === fileURLToPath(import.meta.url)) {
+  const cliArgs = process.argv.slice(2);
+  if (cliArgs.includes('--help') || cliArgs.includes('-h')) {
+    console.log('Usage: node film/tools/render-captions.mjs [--help]');
+    console.log('Exports committed film/captions.vtt from story/screenplay.json.');
+    console.log('Takes no flags; exits 2 on unknown flags.');
+    process.exit(0);
+  }
+  const unknownFlag = cliArgs.find((a) => a.startsWith('-'));
+  if (unknownFlag) {
+    console.error('Unknown flag: ' + unknownFlag + ' (usage: node film/tools/render-captions.mjs [--help])');
+    process.exit(2);
+  }
+  const sp = loadJson(join(root, 'story/screenplay.json'), 'story/screenplay.json');
+  const tl = buildTimeline(sp);
+  const { cues } = buildVtt(tl);
+  writeFileSync(join(root, 'captions.vtt'), buildVtt(tl).vtt);
+  console.log('captions ok: ' + cues.length + ' cues in film/captions.vtt');
+}

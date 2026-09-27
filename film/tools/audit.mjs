@@ -158,5 +158,52 @@ check('master exact length', master.length === Math.ceil(tl.total * MIX_SAMPLE_R
 check('master peak bounded', mStats.peak <= 0.89 + 1e-6 && mStats.peak > 0.5, mStats.peak.toFixed(3));
 check('master finite', mStats.bad === 0, 'rms ' + mStats.rms.toFixed(3));
 
+// premiere cut: trailer, caption export, poster set, end card, fallbacks
+const trailerSpec = loadJson(join(root, 'story/trailer.json'), 'story/trailer.json');
+const { buildTrailer, trailerToFilmTime } = await import('../engine/trailer.js');
+let trailer = null;
+try {
+  trailer = buildTrailer(sp, trailerSpec);
+  check('trailer builds', true, trailer.segments.length + ' segments');
+} catch (err) {
+  check('trailer builds', false, err.message);
+}
+if (trailer) {
+  check('trailer runtime 25-35s', trailer.total >= 25 && trailer.total <= 35, trailer.total + 's');
+  let parity = true;
+  for (const seg of trailer.segments) {
+    for (let k = 0; k < seg.dur * 24; k++) {
+      const ft = frameTime(trailerToFilmTime(trailer, seg.start + k / 24));
+      if (shotAt(tl, ft).shot.id !== seg.shot) { parity = false; break; }
+    }
+    if (!parity) break;
+  }
+  check('trailer frames are film frames', parity);
+}
+const { buildVtt } = await import('../tools/render-captions.mjs');
+const rebuiltVtt = buildVtt(tl).vtt;
+check('committed captions.vtt matches rebuild',
+  readFileSync(join(root, 'captions.vtt'), 'utf8') === rebuiltVtt);
+const cuedShots = new Set();
+for (const shot of tl.shots) {
+  for (const c of shot.captions || []) {
+    if (c.t >= 0 && c.t + 4.5 <= shot.dur + 1e-9) cuedShots.add(shot.id);
+  }
+}
+check('every shot captioned', tl.shots.every((s) => cuedShots.has(s.id)), cuedShots.size + ' shots');
+check('both posters on the wall',
+  html.includes('posters/poster-v1.svg') && html.includes('posters/poster-v2.svg') &&
+  existsSync(join(root, 'posters/poster-v2.svg')));
+for (const id of ['endCard', 'btnReplay', 'btnModeSwap', 'btnDismiss', 'trailerCall', 'btnTrailer', 'btnFilm']) {
+  check('premiere control present: ' + id, html.includes('id="' + id + '"'));
+}
+check('noscript fallback', html.includes('<noscript>'));
+check('premiere player wiring',
+  playerJs.includes('filmTimeOf(') && playerJs.includes('setMode(') &&
+  playerJs.includes('showEndCard()') && playerJs.includes('trailerToFilmTime('));
+check('canvas 2d guard', playerJs.includes('cannot paint the film'));
+const css = readFileSync(join(root, 'player/player.css'), 'utf8');
+check('focus visible styled', css.includes(':focus-visible'));
+
 if (failures.length) { console.error('AUDIT RED: ' + failures.join(', ')); process.exit(1); }
 console.log('AUDIT GREEN');

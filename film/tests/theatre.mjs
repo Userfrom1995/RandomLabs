@@ -67,13 +67,15 @@ ok('formatTime', formatTime(270) === '4:30' && formatTime(0) === '0:00');
 
 // theatre surface: every promised control exists and is wired
 const html = readFileSync(join(root, 'index.html'), 'utf8');
-for (const id of ['btnPlay', 'btnRestart', 'btnCaption', 'btnMute', 'btnFull', 'seek', 'vol', 'chapterList', 'captionLine', 'loadingVeil', 'stageOverlay', 'bigPlay']) {
+for (const id of ['btnPlay', 'btnRestart', 'btnCaption', 'btnMute', 'btnFull', 'seek', 'vol', 'chapterList', 'captionLine', 'loadingVeil', 'stageOverlay', 'bigPlay', 'endCard', 'endTitle', 'endCredits', 'btnReplay', 'btnModeSwap', 'btnDismiss', 'trailerCall', 'btnTrailer', 'btnFilm']) {
   ok('theatre control present: ' + id, html.includes('id="' + id + '"'));
 }
 const js = readFileSync(join(root, 'player/player.js'), 'utf8');
-for (const token of ['setPlaying', 'seekTo', 'requestFullscreen', 'createPerformer', 'matchMedia', 'captionAt', 'overlayRetry', 'keydown']) {
+for (const token of ['setPlaying', 'seekTo', 'requestFullscreen', 'createPerformer', 'matchMedia', 'captionAt', 'overlayRetry', 'keydown', 'setMode', 'filmTimeOf', 'showEndCard', 'trailerToFilmTime']) {
   ok('player wiring: ' + token, js.includes(token));
 }
+ok('trailer shortcut', js.includes("'t'") && js.includes('setMode'));
+ok('noscript fallback', html.includes('<noscript>'));
 ok('captions use textContent (no injection)', js.includes('textContent') && !js.includes('capEl.innerHTML = cap'));
 ok('reduced-motion respected', js.includes('prefers-reduced-motion'));
 const css = readFileSync(join(root, 'player/player.css'), 'utf8');
@@ -83,7 +85,7 @@ ok('poster v1 exists', existsSync(join(root, 'posters/poster-v1.svg')));
 ok('docs hub exists', existsSync(join(root, 'README.md')) && existsSync(join(root, 'docs')));
 
 // no em dashes in shipped film sources
-const sources = ['index.html', 'player/player.js', 'player/player.css', 'engine/animatic.js', 'engine/rng.js', 'engine/timeline.js', 'tests/theatre.mjs', 'tests/smoke.mjs', 'tests/determinism.mjs', 'tools/audit.mjs', 'tools/render.mjs'];
+const sources = ['index.html', 'player/player.js', 'player/player.css', 'engine/animatic.js', 'engine/rng.js', 'engine/timeline.js', 'engine/trailer.js', 'tools/render-captions.mjs', 'tests/theatre.mjs', 'tests/smoke.mjs', 'tests/determinism.mjs', 'tests/premiere.mjs', 'tools/audit.mjs', 'tools/render.mjs'];
 const dashy = sources.filter((f) => readFileSync(join(root, f), 'utf8').includes('\u2014'));
 ok('no em dashes', dashy.length === 0, dashy.join(','));
 
