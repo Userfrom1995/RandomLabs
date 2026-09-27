@@ -84,6 +84,10 @@ if (trailer) {
   const last = trailer.segments[trailer.segments.length - 1];
   ok('trailer hostile clamp (overshoot)', Math.abs(trailerToFilmTime(trailer, 1e9) - (last.filmEnd - 1e-6)) < 1e-9);
   ok('trailer hostile NaN to start', trailerToFilmTime(trailer, NaN) === trailer.segments[0].filmStart);
+  ok('trailer hostile null to start', trailerToFilmTime(trailer, null) === trailer.segments[0].filmStart);
+  ok('trailer hostile undefined to start', trailerToFilmTime(trailer, undefined) === trailer.segments[0].filmStart);
+  ok('trailer hostile +Infinity holds final frame',
+    Math.abs(trailerToFilmTime(trailer, Infinity) - (last.filmEnd - 1e-6)) < 1e-9);
   // frame parity: every mapped trailer frame quantizes into its named shot,
   // so each trailer frame IS the same film frame a film seek would paint.
   let parity = true;

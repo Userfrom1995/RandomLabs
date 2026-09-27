@@ -48,7 +48,11 @@ export function trailerToFilmTime(trailer, t) {
   if (!trailer || !Array.isArray(trailer.segments) || trailer.segments.length === 0) {
     throw new Error('trailer.segments must be a non-empty array');
   }
-  if (!Number.isFinite(t)) t = 0;
+  // Non-finite inputs: +Infinity holds the final frame like overshoot;
+  // every other non-finite value (NaN, -Infinity, null, undefined)
+  // restarts at the opening frame.
+  if (t === Infinity) t = trailer.total;
+  else if (!Number.isFinite(t)) t = 0;
   const tc = Math.min(Math.max(t, 0), Math.max(trailer.total - 1e-6, 0));
   for (const seg of trailer.segments) {
     if (tc >= seg.start && tc < seg.end) return seg.filmStart + (tc - seg.start);
