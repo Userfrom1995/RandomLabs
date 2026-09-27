@@ -80,8 +80,8 @@ function renderFrame() {
   if (document.activeElement !== seek) seek.value = String(state.time);
   seek.setAttribute('aria-valuetext', formatTime(state.time) + ' of ' + formatTime(state.tl.total));
   $('tCur').textContent = formatTime(state.time);
-  // score follows picture
-  state.performer.setCue(shot.music);
+  // score follows picture (full shot: orchestration lines + wind-bed SFX)
+  state.performer.setCue(shot.music, shot);
   } catch (err) {
     state.playing = false;
     showError('The reels are damaged', 'A damaged shot stopped playback (' + err.message + '). Reload to try again.');
