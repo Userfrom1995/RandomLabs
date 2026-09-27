@@ -1,4 +1,4 @@
-// Hearthlight Phase 3 craft tests (Builder): painted world and motion.
+// Hearthlight Phase 3 craft tests (Builder), Final insert pass included.
 // Run: node film/tests/craft-world.mjs - exit non-zero on any failure.
 // Gates: composition sketch covers every location, three wash layers own
 // distinct streams, detail pass is present per plate and scales down
@@ -19,6 +19,10 @@ import {
   washLayersFor, detailCountFor, paintBackground,
 } from '../engine/backgrounds.js';
 import { footPlant, gaitFor, drawHuman } from '../engine/humans.js';
+import {
+  chartInsertFor, attemptAt, traceAt, chartMarks, polyPoint,
+  handGeometry, insertActors,
+} from '../engine/inserts.js';
 import { speechNod, drawFace } from '../engine/faces.js';
 import { secondaryFor } from '../engine/acting.js';
 import { faceFor } from '../engine/rigs.js';
@@ -294,10 +298,111 @@ ok('plates byte-identical run to run', first === second);
     ids.every((id) => plates.plates[id].strokes390 < plates.plates[id].strokes));
 }
 
-// no em dashes in Phase 3 sources
+// Chart-insert close-ups (Final Phase): the overhead chart shots stage
+// acted hands with beat props, never the old sliding disc. Spec, acting
+// beats, shared geography, and fingertip precision are pinned pure; the
+// stage proves the frames rich, finite, and deterministic.
+{
+  const s03 = chartInsertFor('s03');
+  const s07 = chartInsertFor('s07');
+  ok('insert specs arm the right shots',
+    s03.hands.join('+') === 'nia' && s03.striker && s03.lanternDark &&
+    s03.attempts.length === 2 && !s03.trace &&
+    s07.hands.join('+') === 'nia+yara' && s07.trace &&
+    !s07.striker && !s07.lanternDark && s07.attempts.length === 0);
+  ok('non-insert shots carry no insert', chartInsertFor('s01') === null && chartInsertFor('s12') === null);
+  let insertThrows = false;
+  try { chartInsertFor(''); } catch (e) { insertThrows = /garbage/.test(e.message); }
+  ok('insert spec throws guarded on garbage', insertThrows);
+  // Two striker attempts with idle between and after: fails, tries again,
+  // then stops (s04 runs to Yara because the striker never works).
+  ok('attempt windows idle-try-idle-try-idle',
+    attemptAt(s03, 0) === null && attemptAt(s03, 0.2).index === 0 &&
+    attemptAt(s03, 0.45) === null && attemptAt(s03, 0.6).index === 1 &&
+    attemptAt(s03, 0.9) === null);
+  ok('attempt phases span lift and strike',
+    attemptAt(s03, 0.13).phase < 0.5 && attemptAt(s03, 0.32).phase > 0.5);
+  // Trace reveal: lands with Yara's entry, done before the hold.
+  let mono = true; let prev = -1;
+  for (let p = 0; p <= 1.001; p += 0.01) {
+    const f = traceAt(p);
+    if (f < prev - 1e-9) mono = false;
+    prev = f;
+  }
+  ok('trace reveal monotone 0 to 1', mono && traceAt(0) === 0 && traceAt(1) === 1);
+  ok('trace starts with the entry, ends in the hold',
+    traceAt(0.2) === 0 && traceAt(0.5) > 0 && traceAt(0.5) < 1 && traceAt(0.85) === 1);
+  // Shared geography: normalized, bounded, story-complete.
+  const marks = chartMarks();
+  const inUnit = (v) => v >= 0 && v <= 1;
+  const ptsOk = (pts) => pts.length >= 4 && pts.every(([x, y]) => inUnit(x) && inUnit(y));
+  ok('chart geography bounded and story-complete',
+    ptsOk(marks.gorge) && ptsOk(marks.cliffPath) &&
+    inUnit(marks.bridge.x) && inUnit(marks.bridge.y) && marks.bridge.label.length > 0 &&
+    inUnit(marks.station.x) && inUnit(marks.station.y) && marks.station.r > 0 &&
+    marks.station.children.length === 2 && marks.twoMarks.length === 2);
+  ok('polyline endpoints exact',
+    JSON.stringify(polyPoint(marks.cliffPath, 0)) === JSON.stringify(marks.cliffPath[0]) &&
+    JSON.stringify(polyPoint(marks.cliffPath, 1)) ===
+      JSON.stringify(marks.cliffPath[marks.cliffPath.length - 1]));
+  // Hands: four fingers plus a thumb, all finite and distinct; the
+  // pointing index reaches furthest.
+  const geo = handGeometry(100, 100, 90, -1.1, 'point');
+  const tips = geo.slice(0, 4).map((g) => g.tip);
+  const finite = tips.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+  const distinct = new Set(tips.map(([x, y]) => x.toFixed(3) + ',' + y.toFixed(3))).size === 4;
+  const reach = tips.map(([x, y]) => Math.hypot(x - 100, y - 100));
+  ok('close-up hands fingered and finite', finite && distinct && reach[0] > reach[1] &&
+    reach[0] > reach[2] && reach[0] > reach[3]);
+  // Blocking: Yara off-frame before entry, fingertip on the trace after;
+  // Nia's striker lifts only inside attempts, sparks only at the seam.
+  const W = 960; const H = 540;
+  const early = insertActors('s07', W, H, 0.02, 1);
+  const landed = insertActors('s07', W, H, 0.5, 5);
+  ok('yara enters from off-frame', early.yara.x > W && landed.yara.x < W);
+  {
+    const f = landed.traceF;
+    const path = marks.cliffPath;
+    const cxy = (nx, ny) => [W * (0.14 + nx * 0.72), H * (0.10 + ny * 0.80)];
+    const [tx, ty] = cxy(...polyPoint(path, Math.max(f, 0.001)));
+    const got = handGeometry(landed.yara.x, landed.yara.y, landed.yara.size, -1.1, 'point')[0].tip;
+    ok('yara fingertip lands on the trace tip',
+      Math.hypot(got[0] - tx, got[1] - ty) < 1e-6, Math.hypot(got[0] - tx, got[1] - ty).toExponential(1));
+  }
+  const idle = insertActors('s03', W, H, 0.05, 1);
+  const striking = insertActors('s03', W, H, 0.23, 3);
+  ok('striker lifts and sparks only on the beat',
+    !idle.strikerGripped && idle.sparkAt === null &&
+    striking.strikerGripped && striking.sparkAt !== null &&
+    striking.nia.y < idle.nia.y - 1);
+  ok('insert blocking null off insert shots', insertActors('s01', W, H, 0.5, 5) === null);
+  // Stage: insert frames paint rich (hands, props, marks), finite, and
+  // byte-identical rerun to rerun at both widths; 390 px keeps the same
+  // acted composition with honestly fewer strokes.
+  for (const id of ['s03', 's07']) {
+    const shot = tl.shots.find((s) => s.id === id);
+    const counts = {};
+    for (const WW of [960, 390]) {
+      const r1 = makeRecorder(); const r2 = makeRecorder();
+      const t = shot.start + shot.dur / 2;
+      const o = { width: WW, height: Math.round(WW * 9 / 16), reducedMotion: false };
+      renderAnimatic(r1.ctx, tl, t, o);
+      renderAnimatic(r2.ctx, tl, t, o);
+      const strokes = r1.log.filter((e) => e[0] === 'stroke' || e[0] === 'beginPath').length;
+      const bad = r1.log.some((e) => e.some((v) => typeof v === 'number' && Number.isNaN(v)));
+      counts[WW] = strokes;
+      ok(id + ' insert paints acted hands at ' + WW + 'px', strokes > 180 && !bad, strokes + ' paths');
+      ok(id + ' insert deterministic at ' + WW + 'px', JSON.stringify(r1.log) === JSON.stringify(r2.log));
+    }
+    ok(id + ' insert keeps its composition at 390px',
+      counts[390] >= counts[960] * 0.8, counts[390] + ' vs ' + counts[960]);
+  }
+}
+
+// no em dashes in Phase 3 and Final sources
 const sources = ['engine/backgrounds.js', 'engine/humans.js', 'engine/faces.js',
   'engine/rigs.js', 'engine/animatic.js', 'engine/particles.js',
-  'tools/capture.mjs', 'tests/craft-world.mjs'];
+  'engine/inserts.js', 'tools/capture.mjs', 'tests/craft-world.mjs'];
 const dashy = sources.filter((f) => readFileSync(join(root, f), 'utf8').includes('\u2014'));
 ok('no em dashes', dashy.length === 0, dashy.join(','));
 

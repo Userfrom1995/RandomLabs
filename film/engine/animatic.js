@@ -18,6 +18,7 @@ import { paintBackground } from './backgrounds.js';
 import { poseFor, drawNiaAtWalk, drawYara, drawTam, drawLumi, drawRuel, easeInOut } from './rigs.js';
 import { actFor } from './acting.js';
 import { drawParticles } from './particles.js';
+import { drawChartInsert } from './inserts.js';
 
 // Camera: normalized progress 0..1 => view transform over a 960x540 stage.
 // Directed moves (push, pull, pan, track, sweep, rise, crane, tilt, bloom)
@@ -107,13 +108,9 @@ export function renderAnimatic(ctx, tl, t, opts) {
       drawNiaAtWalk(ctx, s.palette, W * 0.5 - 90, H * 0.86, H * 0.13, pose.nia, 0.15, boilF, local, extra, s);
     }
   } else {
-    // Overhead chart: Nia's hand plots the wind road.
-    const hx = W * (0.18 + p * 0.44);
-    const hyy = H * (0.5 - Math.sin(p * Math.PI) * 0.14);
-    ctx.fillStyle = '#e8b98a';
-    ctx.beginPath(); ctx.arc(hx, hyy, 7, 0, 7); ctx.fill();
-    ctx.strokeStyle = s.palette.ink; ctx.lineWidth = 1.6;
-    ctx.beginPath(); ctx.arc(hx, hyy, 7, 0, 7); ctx.stroke();
+    // Overhead chart inserts: the hands ARE the acting (Nia's striker
+    // attempts in s03, Yara's trace with Nia's charcoal in s07).
+    drawChartInsert(ctx, seed, s, s.palette, W, H, ft, p, local, boil);
   }
   ctx.restore();
 

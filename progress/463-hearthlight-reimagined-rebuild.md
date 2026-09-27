@@ -1,7 +1,7 @@
 # Progress: Hearthlight Reimagined Rebuild (#463)
 
 - **Issue:** #463
-- **Branch:** opencode/issue463-20260927170115
+- **Branch:** opencode/issue463-20260927200050
 - **Status:** in-progress
 - **Architect:** the Architect (blueprint `ideas/2026-09-27-hearthlight-reimagined-rebuild.md`)
 - **Builder:** the Builder (phases chain autonomously; Refs #463 until the final acceptance lands)
@@ -13,7 +13,7 @@ Full story-and-animation rebuild of Hearthlight at `/film/` under the same Pages
 
 ## Phase Roadmap
 
-- **Active Phase:** Final Phase: Integration and End-to-end Audit (Phase 5 complete, ready for review)
+- **Active Phase:** Final Phase: Integration and End-to-end Audit (Complete, ready for review)
 
 ### Phase 1: Story Rebuild and Character Design Foundation (PR 1 target, Refs #463)
 
@@ -56,17 +56,50 @@ Full story-and-animation rebuild of Hearthlight at `/film/` under the same Pages
 
 ### Final Phase: Integration and End-to-end Audit (Final PR, Closes #463)
 
-- [ ] Full watch-through on desktop + 390 px, all controls green; Builder self-review of frames/stills closed out
-- [ ] Reviewer + Tester + Evaluator gates green (Evaluator weighs story legibility, character craft, continuity, emotional impact)
-- [ ] Unified docs final pass (`film/README.md`, `film/docs/` as one product view), reproducibility verified from clean checkout
+- [x] Full watch-through on desktop + 390 px, all controls green; Builder self-review of frames/stills closed out
+- [x] Chart-insert close-up craft (Final self-review finding, fixed in this phase; gates green)
+- [ ] Reviewer + Tester + Evaluator gates green (runs on the final PR after review handoff)
+- [x] Unified docs final pass (`film/README.md`, `film/docs/` as one product view), reproducibility verified from clean checkout
 
 ## Current step
 
-Phase 5 complete: the trailer is re-cut on the real caption lattice with
-labels matching their shots, the poster wall carries the new ensemble on
-a third original poster, and the theatre is verified act by act on
-desktop and 390 px with reduced motion on and off. Pipeline green (repro
-+ 23 suites, Tester pins untouched). Ready for review.
+Final Phase complete on `opencode/issue463-20260927200050`: full
+watch-through on desktop and 390 px with one real self-review defect
+found and fixed (chart-insert close-ups), unified docs final pass,
+reproducibility verified (stills manifest plus all three capture loops
+byte-identical rerun to rerun), full battery green (repro plus all 25
+suites, Tester pins untouched). Ready for review; this PR uses
+Closes #463 so merge closes the rebuild once review, test, and eval
+gates are green.
+
+## Final Phase watch-through notes (Builder self-review, 2026-09-27)
+
+- Per-act sampling probe (5 act mids plus gorge peak s12 and choice
+  peak s14, 960 px plus 390 px): every frame paints rich (1600-3050
+  ops at 960 px), no throws, no NaN, no empty frames. Peak captions
+  land inside acted frames (Ruel's rope line over the traverse,
+  Lumi's choice line over the halved flame).
+- Self-review catch: s03/s07 rendered 500 ops with identical profiles
+  across a one-character and a two-character shot. Root cause: the
+  chart-table branch skipped the cast and drew a 7 px disc hand, and
+  s07's scripted Yara finger trace had no finger at all. Fixed in
+  `film/engine/inserts.js` (fingered close-up hands with costume
+  cuffs, s03 two-attempt striker with dead lantern and dying sparks,
+  s07 Yara entry plus progressive trace with fingertip error 5.7e-14
+  px, shared paint/finger geography, single-sheet boil). Post-fix:
+  s03 734 ops, s07 820 ops at 960 px; 390 px keeps composition
+  (within 20 percent of desktop stroke counts, never blurred).
+- Considered and deferred: dialogue-reactive hand motion in the
+  inserts. Both shots are dialogue-free by script (no caption lines),
+  so time-driven attempt/trace beats are the honest acting; no face
+  rigs are staged or implied.
+- Full suite green: repro (audit with Final insert gates, smoke,
+  premiere, captions 43 cues) plus all 25 suites (craft,
+  craft-humans, craft-world with 15 new insert gates, dialogue-voice,
+  performance, smoke, tester phase1/3/4/5, theatre, score,
+  determinism, final-audit, regression eval3/4, phase2-live/polish,
+  phase2 hostile suites). Tester hostile pins pass unmodified
+  (602 score events, 50 sfx events intact).
 
 ## Phase 5 watch-through notes (Builder self-review, 2026-09-27)
 

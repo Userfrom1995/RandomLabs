@@ -355,5 +355,25 @@ check('silence tags honestly empty',
   auditTagRecipe('grove-silence') === null && auditTagRecipe('title-hush') === null);
 check('dialogue-voice suite committed', existsSync(join(root, 'tests/dialogue-voice.mjs')));
 
+// chart-insert close-ups (Final integration): the overhead chart shots
+// stage acted hands with beat props, the chart geography is shared
+// between paint and finger, and the renderer calls the insert path.
+const { chartInsertFor: auditInsertFor, attemptAt: auditAttemptAt, traceAt: auditTraceAt } =
+  await import('../engine/inserts.js');
+const auditS03 = tl.shots.find((s) => s.id === 's03');
+const auditS07 = tl.shots.find((s) => s.id === 's07');
+check('inserts arm s03 and s07 only',
+  auditInsertFor('s03').hands.join('+') === 'nia' && auditInsertFor('s07').hands.join('+') === 'nia+yara' &&
+  auditInsertFor('s01') === null);
+check('striker tries twice then stops',
+  auditAttemptAt(auditInsertFor('s03'), 0.2).index === 0 &&
+  auditAttemptAt(auditInsertFor('s03'), 0.6).index === 1 &&
+  auditAttemptAt(auditInsertFor('s03'), 0.9) === null);
+check('trace reveals across s07',
+  auditTraceAt(0.1) === 0 && auditTraceAt(0.9) === 1);
+check('stage routes chart-table through the insert close-up',
+  animSrc.includes('drawChartInsert') && auditS03.bg === 'chart-table' && auditS07.bg === 'chart-table');
+check('insert craft suite committed', existsSync(join(root, 'engine/inserts.js')));
+
 if (failures.length) { console.error('AUDIT RED: ' + failures.join(', ')); process.exit(1); }
 console.log('AUDIT GREEN');

@@ -23,6 +23,7 @@
 import { substream } from './rng.js';
 import { inkStroke } from './ink.js';
 import { boilSlot } from './ink.js';
+import { chartMarks } from './inserts.js';
 import { paintSky, drawFibres, washPass } from './paper.js';
 
 function hex(h) {
@@ -268,6 +269,10 @@ function paintChartTable(ctx, seed, shot, pal, W, H, boil, detail) {
   ctx.fillRect(0, 0, W, H);
   ctx.strokeStyle = pal.ink; ctx.lineWidth = 2;
   ctx.strokeRect(W * 0.14, H * 0.1, W * 0.72, H * 0.8);
+  // One boil offset for the whole chart: every mark shimmers together, so
+  // the close-up reads as a single hand-inked sheet, not sliding layers.
+  ctx.save();
+  ctx.translate(boil.x * 0.5, boil.y * 0.5);
   const crng = substream(seed, 'chart|' + shot.id, 1);
   for (let i = 0; i < 11; i++) {
     const y0 = H * (0.16 + crng() * 0.68);
@@ -303,7 +308,60 @@ function paintChartTable(ctx, seed, shot, pal, W, H, boil, detail) {
   ctx.globalAlpha = 0.25;
   ctx.beginPath(); ctx.arc(W * 0.78, H * 0.68, H * 0.09, 0, 7); ctx.stroke();
   ctx.globalAlpha = 1;
-  void boil;
+  // Chart geography (shared with the insert close-ups in inserts.js, so
+  // the paint and the tracing finger can never drift apart): the gorge
+  // cleft, the washed-out bridge crossed in the mother's hand, the dashed
+  // cliff path to the station circle with its two waiting children, and
+  // Nia's two charcoal marks. Old ink throughout: faint, never the focus
+  // until Yara's finger re-traces the path solid in s07.
+  const cxy = (nx, ny) => [W * (0.14 + nx * 0.72), H * (0.10 + ny * 0.80)];
+  const marks = chartMarks();
+  ctx.strokeStyle = mix(pal.ink, '#101018', 0.2);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  marks.gorge.forEach(([gx, gy], i) => {
+    const [qx, qy] = cxy(gx, gy);
+    if (i === 0) ctx.moveTo(qx, qy); else ctx.lineTo(qx, qy);
+  });
+  ctx.stroke();
+  const [bgx, bgy] = cxy(marks.bridge.x, marks.bridge.y);
+  const cross = Math.max(5, H * 0.022);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(bgx - cross, bgy - cross); ctx.lineTo(bgx + cross, bgy + cross);
+  ctx.moveTo(bgx + cross, bgy - cross); ctx.lineTo(bgx - cross, bgy + cross);
+  ctx.stroke();
+  ctx.fillStyle = mix(pal.ink, '#101018', 0.2);
+  ctx.font = 'italic ' + (H * 0.038) + 'px serif';
+  ctx.fillText(marks.bridge.label, bgx + cross + 4, bgy + 4);
+  ctx.lineWidth = 1.2;
+  ctx.setLineDash([6, 5]);
+  ctx.beginPath();
+  marks.cliffPath.forEach(([qx, qy], i) => {
+    const [px2, py2] = cxy(qx, qy);
+    if (i === 0) ctx.moveTo(px2, py2); else ctx.lineTo(px2, py2);
+  });
+  ctx.stroke();
+  ctx.setLineDash([]);
+  const [stx, sty] = cxy(marks.station.x, marks.station.y);
+  const str = H * 0.055;
+  ctx.beginPath(); ctx.arc(stx, sty, str, 0, 7); ctx.stroke();
+  ctx.fillStyle = mix(pal.ink, '#101018', 0.1);
+  for (const [cx, cy] of marks.station.children) {
+    const [dx2, dy2] = cxy(cx, cy);
+    ctx.beginPath(); ctx.arc(dx2, dy2, Math.max(1.5, H * 0.008), 0, 7); ctx.fill();
+  }
+  ctx.strokeStyle = '#100c08';
+  ctx.lineWidth = Math.max(1.5, H * 0.006);
+  for (const [mx2, my2] of marks.twoMarks) {
+    const [qx, qy] = cxy(mx2, my2);
+    const m = Math.max(5, H * 0.02);
+    ctx.beginPath();
+    ctx.moveTo(qx - m, qy - m); ctx.lineTo(qx + m, qy + m);
+    ctx.moveTo(qx + m, qy - m); ctx.lineTo(qx - m, qy + m);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function paintGorgeWater(ctx, seed, shot, pal, W, H, t, boil, detail) {
