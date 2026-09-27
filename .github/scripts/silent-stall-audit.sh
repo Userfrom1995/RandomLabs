@@ -5,12 +5,13 @@
 # review-restore ownership guard (PR #412 head rewind), the R8 vendored
 # hardened runner guard, the R9 schedule/dispatch retry-parity guard
 # (issue #422), the R10 PAT-step input-indirection guard, the R11
-# post-agent PAT gate guard (both issue #422 residual hardening), and the
-# R12 actor-write gate guard (issue #428).
-# Wired into auditor.yml as the R1-R12 matrix.
+# post-agent PAT gate guard (both issue #422 residual hardening), the
+# R12 actor-write gate guard (issue #428), and the R13 bot-created triage
+# parity guard (issue #450).
+# Wired into auditor.yml as the R1-R13 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R12 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R13 audit the whole tree
 # (the review-restore guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, and
 # the shared actor-write gate), so they trip on a bad
@@ -42,12 +43,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
- [R1-R12 PASS] $name: $desc"
+  [R1-R13 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
- [R1-R12 FAIL] $name: $desc"
+  [R1-R13 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -387,16 +388,44 @@ else
   check "R12" "actor-write gate coverage missing:${r12_bad} (issue #428: an unprivileged comment can launch an agent and its owner-PAT retry launders the actor)" "bad"
 fi
 
-summary="Silent-stall regression audit (R1-R12) on ${WF}: ${pass} passed, ${fail} failed."
+# [R13] Bot-created triage parity (issue #450): content created with
+# GITHUB_TOKEN never emits issues/pull_request opened events, so a
+# bot-created issue sat untriaged for ~3h until a human pinged it (#449).
+# Two properties: maintainer.yml's create_issue path must self-dispatch a
+# workflow_dispatch maintainer run carrying the new issue number (PAT-backed,
+# since the bot token's own runs complete silently), and the Maintainer prompt
+# must carry the UNTRIAGED sweep rule so any later run routes stragglers even
+# if the self-dispatch misfires.
+r13_bad=""
+MAIN_WF=".github/workflows/maintainer.yml"
+MAINT_PROMPT=".github/agents/maintainer.md"
+if [ ! -f "$MAIN_WF" ]; then
+  r13_bad=" maintainer.yml(missing)"
+else
+  grep -q 'SELF-TRIAGE (issue #450)' "$MAIN_WF" || r13_bad="${r13_bad} maintainer.yml(no-self-triage-marker)"
+  grep -q 'gh.*workflow.*run.*maintainer.yml' "$MAIN_WF" || r13_bad="${r13_bad} maintainer.yml(no-maintainer-redispatch)"
+fi
+if [ ! -f "$MAINT_PROMPT" ]; then
+  r13_bad="${r13_bad} maintainer.md(missing)"
+elif ! grep -q 'UNTRIAGED' "$MAINT_PROMPT"; then
+  r13_bad="${r13_bad} maintainer.md(no-UNTRIAGED-sweep-rule)"
+fi
+if [ -z "$r13_bad" ]; then
+  check "R13" "bot-created issues/PRs self-dispatch maintainer triage and the prompt sweeps UNTRIAGED stragglers" "ok"
+else
+  check "R13" "bot-created triage parity missing:${r13_bad} (issue #450: a bot-created issue idles with no opened event until a human pings it)" "bad"
+fi
+
+summary="Silent-stall regression audit (R1-R13) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R12)
+  body="## Silent-stall regression audit FAILED (R1-R13)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 two-knob free tier, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, or R12 actor-write gate). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 two-knob free tier, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, or R13 bot-created triage parity). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
