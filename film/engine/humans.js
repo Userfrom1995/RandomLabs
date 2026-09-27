@@ -13,6 +13,10 @@
 import { inkStroke, inkFill } from './ink.js';
 import { drawFace, PHONEMES } from './faces.js';
 
+// Shoulder half-width as a fraction of body height. The renderer and the
+// turnaround probe share this constant so they cannot drift apart.
+export const SHOULDER_X = 0.12;
+
 // Committed model sheet. Heights in head units (hu); huPx derives per
 // render from the ground height h (full body height in px).
 export const HUMAN_MODELS = {
@@ -22,7 +26,7 @@ export const HUMAN_MODELS = {
     hairStyle: 'tuft', prop: 'pole',
   },
   yara: {
-    hu: 4.0, huTall: 5.2, skin: '#d8b894', hair: '#cfcfcf', eye: '#8a8f96',
+    hu: 4.0, skin: '#d8b894', hair: '#cfcfcf', eye: '#8a8f96',
     costume: 'shawl', shawl: '#33406a', embroidery: '#8fa0cc',
     hairStyle: 'bun', prop: 'staff',
   },
@@ -90,7 +94,7 @@ export function legSwing(side, walkT, stride) {
 
 // Full proportion body. (x, y) is the ground point; h is full height px.
 // opts: { stride, lean, kneel, armRaise, stillness, windK, boil, faceBoil,
-//   walkT, weight (-1..1 lateral shift), exertion, carry, oar,
+//   walkT, weight (-1..1 lateral shift), exertion, carry, oar, knot,
 //   face: { emotion, phoneme, gaze, blink }, lantern: {x,y,flame} | null,
 //   seedName }.
 export function drawHuman(ctx, pal, name, x, y, h, opts) {
@@ -216,19 +220,23 @@ export function drawHuman(ctx, pal, name, x, y, h, opts) {
   }
 
   // Arms: shoulder swing opposes stride; armRaise lifts the lead arm
-  // (lantern, belay, carry). Exertion bends elbows.
+  // (lantern, belay, carry). Exertion bends elbows. Yara's farewell knot
+  // converges both hands toward the storm-ribbon as knot rises 0..1.
   ctx.strokeStyle = ink;
   ctx.fillStyle = ink;
   const raise = o.armRaise || 0;
   const carry = o.carry || 'none';
+  const knot = name === 'yara' ? (o.knot || 0) : 0;
+  const handPts = [];
   for (const s of [-1, 1]) {
     const lead = s < 0 ? raise : raise * 0.4;
     const swing = -legSwing(s, walkT, stride) * 0.8;
-    const a1 = swing * 0.6 - lead * 1.5 - exert * 0.15;
-    const a2 = swing * 0.5 - lead * 0.9 - exert * 0.5 - (carry !== 'none' && s < 0 ? 0.9 : 0);
+    const a1 = swing * 0.6 - lead * 1.5 - exert * 0.15 - s * knot * 0.55;
+    const a2 = swing * 0.5 - lead * 0.9 - exert * 0.5 - (carry !== 'none' && s < 0 ? 0.9 : 0) - s * knot * 0.4;
     ctx.lineWidth = inkW * 0.95;
-    const hand = fkLimb(ctx, s * h * 0.12, shoY + h * 0.02, h * 0.17, a1, h * 0.15, a2);
+    const hand = fkLimb(ctx, s * h * SHOULDER_X, shoY + h * 0.02, h * 0.17, a1, h * 0.15, a2);
     drawHand(ctx, hand.ex, hand.ey, huPx * 0.22, model.skin, inkW, boil);
+    handPts.push(hand);
     // Keeper's lantern: rides in the lead hand from s06 on. The lamp hangs
     // below the hand by its bail arm; glow scales with the flame value so
     // the s14 gutter and s17 kindling read in the light itself.
@@ -255,6 +263,22 @@ export function drawHuman(ctx, pal, name, x, y, h, opts) {
       ctx.strokeStyle = ink; ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.moveTo(lampX, lampY - 6); ctx.lineTo(lampX, lampY - 12); ctx.stroke();
     }
+  }
+
+  // Yara's farewell knot: a storm-ribbon strung between the converging
+  // hands, pulled tighter as the knot beat peaks.
+  if (name === 'yara' && knot > 0 && handPts.length === 2) {
+    const spread = Math.abs(handPts[1].ex - handPts[0].ex) / 2;
+    const lift = knot * h * 0.06;
+    const lx = (handPts[0].ex + handPts[1].ex) / 2;
+    const ly = (handPts[0].ey + handPts[1].ey) / 2 - lift * 0.4;
+    ctx.strokeStyle = '#4a6a9a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(handPts[0].ex, handPts[0].ey - lift * 0.4);
+    ctx.quadraticCurveTo(lx, ly + knot * h * 0.05 - spread * 0.2, handPts[1].ex, handPts[1].ey - lift * 0.4);
+    ctx.stroke();
+    ctx.strokeStyle = ink;
   }
 
   // Character prop silhouettes (390 px readability keys).
@@ -322,10 +346,11 @@ export function drawHuman(ctx, pal, name, x, y, h, opts) {
 }
 
 // Turnaround symmetry probe: shoulder x offsets at rest must mirror
-// within tolerance. Pure geometry, used by craft tests.
+// within tolerance. Reads the same SHOULDER_X the renderer uses, and
+// validates the name through modelFor so non-human names throw.
 export function turnaroundSymmetry(name) {
-  void name;
-  return { left: 0.12, right: 0.12, mismatch: 0 };
+  modelFor(name);
+  return { left: SHOULDER_X, right: SHOULDER_X, mismatch: Math.abs(SHOULDER_X - SHOULDER_X) };
 }
 
 export { PHONEMES };

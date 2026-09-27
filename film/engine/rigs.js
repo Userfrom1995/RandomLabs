@@ -190,6 +190,7 @@ function humanDelegate(ctx, pal, name, x, y, h, P, extra, windK, boil, faceBoil,
     exertion: (extra && extra.exertion) || 0,
     carry: P.carry || (extra && extra.carry) || 'none',
     oar: P.oar !== undefined ? P.oar : (extra && extra.oar),
+    knot: (P && P.knot) || (extra && extra.knot) || 0,
     lantern: (extra && extra.lantern) || null,
     face: { emotion: face.emotion, phoneme: face.phoneme, blink: P.blink },
   });
@@ -212,6 +213,7 @@ export function drawYara(ctx, pal, x, y, h, pose, boil, walkT = 0, extra = null,
   const t = typeof walkT === 'number' ? walkT : 0;
   humanDelegate(ctx, pal, 'yara', x, y, h, {
     stride: 0, lean: 0, kneel: 0, armRaise: 0, stillness: 0, blink: pose && pose.blink,
+    knot: (pose && pose.knot) || 0,
   }, { weight: 0, exertion: 0 }, 0.15, boil, faceBoil, t, t, shot || extraShot(extra, walkT));
 }
 
