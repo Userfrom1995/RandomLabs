@@ -7,6 +7,9 @@ import { renderAnimatic } from '../engine/animatic.js';
 import { createPerformer } from '../score/animatic-audio.js';
 
 const $ = (id) => document.getElementById(id);
+function cueDisplay(cue) {
+  return String(cue || '').split('-').map((w) => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ');
+}
 const canvas = $('stage');
 const ctx = canvas.getContext('2d');
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -53,7 +56,7 @@ function renderFrame() {
   // now-playing + chapters
   const act = actAt(state.tl, state.time);
   $('npShot').textContent = shot.id.toUpperCase() + ' - ' + shot.title;
-  $('npAct').textContent = 'Act ' + act.n + ': ' + act.title + '  ·  cue ' + shot.music.cue;
+  $('npAct').textContent = 'Act ' + act.n + ': ' + act.title + '  -  Theme: ' + cueDisplay(shot.music.cue);
   document.querySelectorAll('#chapterList button').forEach((b) => {
     b.setAttribute('aria-current', String(Number(b.dataset.act) === act.n));
   });
@@ -145,8 +148,11 @@ async function init() {
     title.textContent = a.n + '. ' + a.title;
     const time = document.createElement('span');
     time.className = 't';
-    time.textContent = formatTime(a.start) + ' - ' + a.synopsis;
-    b.append(title, time);
+    time.textContent = formatTime(a.start);
+    const syn = document.createElement('span');
+    syn.className = 's';
+    syn.textContent = a.synopsis;
+    b.append(title, time, syn);
     b.addEventListener('click', () => { seekTo(a.start + 0.01); setPlaying(true); });
     li.append(b);
     list.append(li);

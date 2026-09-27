@@ -4,7 +4,7 @@
   --night: #14121e;
   --gold: #ffcf7a;
   --rust: #a03a2a;
-  --muted: #8a8172;
+  --muted: #b3a893;
 }
 * { box-sizing: border-box; }
 body {
@@ -98,6 +98,8 @@ main { max-width: 1020px; margin: 0 auto; padding: 0 16px 48px; }
 }
 .chapters button[aria-current="true"] { border-color: var(--gold); }
 .chapters .t { display: block; font-size: 0.8rem; color: var(--muted); }
+.chapters .s { display: block; font-size: 0.85rem; color: var(--parchment); }
+.logline { max-width: 68ch; margin: 18px auto 4px; font-size: 1.02rem; color: var(--parchment); }
 .now-playing, .poster-wall, .story-links { margin-top: 28px; }
 h2 { font-size: 1.25rem; letter-spacing: 0.06em; color: var(--gold); }
 .poster-wall figure { margin: 0; }

@@ -12,11 +12,12 @@
   <div class="masthead-inner">
     <p class="kicker">The Random Lab presents</p>
     <h1>Hearthlight</h1>
-    <p class="tagline">An original hand-drawn-style animated short &middot; 4 min 30 s &middot; living animatic (Phase 1)</p>
+    <p class="tagline">An original hand-drawn-style animated short &middot; 4 min 30 s &middot; sketched live in your browser</p>
   </div>
 </header>
 
 <main>
+  <p class="logline">Twelve-year-old wind-cartographer Nia carries a dying keeper's lantern across Ember Hollow to the high cairn before the town's light fails. With mapmaker Yara's charts, ferryman Ruel's crossing, and the mountain wind itself testing her, one hasty girl must learn the steady keeper's pace.</p>
   <section class="theatre" aria-label="Film theatre">
     <div class="stage-wrap" id="stageWrap">
       <canvas id="stage" width="960" height="540" aria-label="Hearthlight animatic stage"></canvas>
@@ -46,7 +47,7 @@
       <button id="btnCaption" type="button" aria-pressed="true" aria-label="Toggle captions (C)">CC</button>
       <button id="btnMute" type="button" aria-label="Mute or unmute (M)">&#128266;</button>
       <input id="vol" type="range" min="0" max="100" value="80" aria-label="Volume">
-      <button id="btnFull" type="button" aria-label="Fullscreen (F)">&#9974;</button>
+      <button id="btnFull" type="button" aria-label="Fullscreen (F)"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M1 6V1h5M10 1h5v5M15 10v5h-5M6 15H1v-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
 
     <nav class="chapters" aria-label="Chapters">
@@ -76,7 +77,7 @@
       <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/film/story/music-direction.md">Music direction and cue map</a></li>
       <li><a href="docs/">Craft and pipeline docs</a></li>
     </ul>
-    <p class="provenance">Every pixel and every note is generated in-repo from committed sources. Rebuild it: <code>node film/tools/render.mjs</code>, verify it: <code>node film/tools/audit.mjs</code>.</p>
+    <p class="provenance">Every pixel and every note is generated in-repo from committed sources. <a href="docs/">Reproducibility notes</a></p>
   </section>
 </main>
 
