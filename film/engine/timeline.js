@@ -17,6 +17,7 @@ export function shotAt(tl, t) {
   if (!tl || !Array.isArray(tl.shots) || tl.shots.length === 0) {
     throw new Error('screenplay.shots must be a non-empty array');
   }
+  // Deliberate clamp: non-finite t (NaN and Infinity alike) maps to film start.
   if (!Number.isFinite(t)) t = 0;
   const tc = Math.min(Math.max(t, 0), Math.max(tl.total - 1e-6, 0));
   for (const s of tl.shots) {
