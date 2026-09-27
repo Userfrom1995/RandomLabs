@@ -56,7 +56,8 @@ driven by the dialogue, and eased acting beats with weight and exertion.
   orchestra (woodwind, violin, strings, cello, bass, brass, bells, pad,
   timpani, shaker) plus a twenty-generator procedural SFX bed (wind, water,
   fire, footsteps, creaks, birds, the rekindling wave), mixed to a
-  soft-limited 270 s master. The theatre plays it live in WebAudio; the
+  soft-limited 270 s master with dialogue-first ducking (score dips under
+  every spoken line, Yara's half-silence as the release). The theatre plays it live in WebAudio; the
   identical event lists render offline to WAV stems. Volume and mute are
   real controls on a real audio path.
 
@@ -112,12 +113,12 @@ npx serve .
 - `captions.vtt` - committed caption export (43 dialogue-timed cues, rebuilt by tools/render-captions.mjs)
 - `score/` - themes.js (motif rows), orchestra.js (cue-to-events spec),
   voices.js (offline synth voices), sfx.js (procedural foley bed), mix.js
-  (mixer + WAV writer), animatic-audio.js (live WebAudio performer),
+  (mixer + WAV writer), duck.js (dialogue-first envelope shared offline/live), animatic-audio.js (live WebAudio performer),
   score-events.json + sfx-events.json (committed stems, byte-reproducible)
 - `player/` - theatre transport (player.js, gallery.js, player.css)
 - `tools/` - render.mjs (stills + manifest), render-audio.mjs (WAV mix +
   stems + audio manifest), render-captions.mjs (VTT export), capture.mjs (hero-frame review loop), audit.mjs (binding gates)
-- `tests/` - smoke.mjs (determinism + timeline invariants), craft.mjs (paint/camera/rig/capture/gallery gates), performance.mjs (frame lock, weather, acting, eased camera gates), score.mjs (orchestration, sync, mix, live performer gates), premiere.mjs (trailer, captions, posters, end card, fallback gates), final-audit.mjs (trailer lattice exactness, shortcut guard, binding counts, watch-through sweep)
+- `tests/` - smoke.mjs (determinism + timeline invariants), craft.mjs (paint/camera/rig/capture/gallery gates), performance.mjs (frame lock, weather, acting, eased camera gates), score.mjs (orchestration, sync, mix, live performer gates), dialogue-voice.mjs (duck envelope, score continuity, delivery coverage, SFX anchor gates), premiere.mjs (trailer, captions, posters, end card, fallback gates), final-audit.mjs (trailer lattice exactness, shortcut guard, binding counts, watch-through sweep)
 - `docs/` - craft, story, and pipeline documentation (unified product view)
 - `posters/` - poster-v1.svg (hill above the Hollow), poster-v2.svg (the rekindling); both deterministic, original art
 - `dist/` - generated stills + manifest (rebuilt by render.mjs)

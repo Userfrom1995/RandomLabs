@@ -50,6 +50,30 @@ seconds), optional `dur` (out-point = `t + dur`, default 4.5 s), and
 - s19: No Yara line by design. The narrator's "three keepers" line must not
   explain; Lumi's knot line closes the film's argument in eight words.
 
+## Phase 4 delivery pass (mix and performance)
+
+- **Dialogue-first ducking** (`score/duck.js`, shared by the WAV master and
+  the live theatre performer): every caption window dips the score bus to
+  0.45 and the SFX bed to 0.7, with a 0.25 s attack and a 0.5 s release.
+  The release is Yara's scripted half-silence made structural: her lines
+  land, the valley stays hushed for exactly one release, then the score
+  breathes back in. Stacked lines (s05) merge into one hold, never pumping.
+  Measured on the master: RMS under dialogue 0.075 against 0.133 outside.
+- **Score continuity**: every voice line joins legato to the next note and
+  the closing note of every line rings exactly to the shot edge on a
+  resolved motif root. Zero dead seconds across the 270 s (the earlier
+  master dropped the tails of s16/s17). Event count unchanged at 602.
+- **Per-line delivery coverage**: all 33 human lines drive their speaker's
+  face rig mid-line (emotion plus viseme plus nod); Ruel's single s12 line
+  plays in the body (head lift, ear perk, widened ember eyes with 0.3 s
+  edges, silent off-line); the narrator's 9 lines duck the mix but never
+  move a staged mouth (REST viseme, zero nod pinned).
+- **SFX re-anchor** (50 events, same tags): gorge white-water leads at 0.7
+  with six spray gusts, the storm carry runs nine crunching boots under a
+  0.7 howl, the rekindling whoom leads at 0.7, ten hard footfalls under
+  Nia's s04 sprint, eight dawn-bird calls behind the s18 homecoming.
+  Silence stays honest: grove-silence and title-hush render nothing.
+
 ## Caption-only read (Phase 1 self-review)
 
 Strip the picture: read `captions.vtt` top to bottom. A first-time viewer
