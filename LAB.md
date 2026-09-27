@@ -115,12 +115,20 @@ Public Surface / Web Track:                                              │
   [opened, synchronize, ready_for_review, reopened] · `issue_comment`
   [created] (no-op when the comment is a `/oc` trigger - opencode.yml already
   dispatched - or authored by the bot) · `issues` [opened] ·
-  `workflow_run` [completed] (explicit allowlist - GitHub rejects an empty
-  list and offers no ignore-filter, so every workflow except `maintainer`
-  itself is named; the list self-heals via the Maintainer's per-run audit
-  plus a Reviewer checklist block on infra PRs that add/rename workflows
-  without updating it. Conclusions filtered to failure/timed_out in the job
-  gate, so a crashed run with no comment still summons triage).
+   `workflow_run` [completed] (explicit allowlist - GitHub rejects an empty
+   list and offers no ignore-filter, so every workflow except `maintainer`
+   itself is named; the list self-heals via the Maintainer's per-run audit
+   plus a Reviewer checklist block on infra PRs that add/rename workflows
+   without updating it. Conclusions filtered to failure/timed_out in the job
+   gate, so a crashed run with no comment still summons triage).
+- **Bot-created content never emits `opened` (issue #450):** GitHub starts no
+  workflow run for issues/PRs created with `GITHUB_TOKEN`, so the hardcoded
+  `create_issue` / `create_pr` step parses the new number from the `gh`
+  output and self-dispatches a PAT-backed `workflow_dispatch` maintainer run
+  (`issue_number` / `pr_number`) for triage within one schedule interval.
+  Belt and suspenders: the Maintainer prompt sweeps untriaged issues every run
+  and flags `create_issue`-only runs as UNTRIAGED in STATE.md; audit rule R13
+  regression-guards both halves.
 - Concurrency - per-PR groups, queued execution:
 
 ```yaml
@@ -441,7 +449,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R12), CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R13), CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
