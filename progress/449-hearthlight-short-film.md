@@ -17,7 +17,7 @@ test + eval green, unified docs.
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 5: Premiere Cut, Trailer and Theatre Polish (in build)
+- **Active Phase:** Phase 5: Premiere Cut, Trailer and Theatre Polish (Complete, ready for review)
 
 ### Phase 1: Story Package and Living Animatic (merged as PR #451, Refs #449)
 
@@ -55,9 +55,9 @@ test + eval green, unified docs.
 ### Phase 5: Premiere Cut, Trailer and Theatre Polish (PR 5 target, Refs #449)
 
 - [x] Final 240-300 s cut locked (270 s), 30 s trailer (`story/trailer.json` + `engine/trailer.js` pure cut, trailer mode on the same stage), poster stills (poster-v1 + original poster-v2)
-- [ ] Subtitles/captions full pass (`captions.vtt` export + download), chapter menu
-- [ ] Loading/error/empty states (end card + credits, noscript, canvas-2d guard), reduced-motion respect, 390 px mobile pass
-- [ ] Root landing-page entry + Pages verification
+- [x] Subtitles/captions full pass (committed `captions.vtt`, 22 cues, download link, audit-pinned rebuild), chapter menu (chapters return from trailer to the full film)
+- [x] Loading/error/empty states (end card + credits with Replay/Trailer/Dismiss, noscript note, canvas-2d guard, trailer section hides honestly on spec failure), reduced-motion respect, 390 px mobile pass
+- [x] Root landing-page entry + Pages verification (landing + README point at the premiere cut; all href targets exist in-repo)
 
 ### Final Phase: Integration and End-to-end Audit (Final PR, Closes #449)
 
@@ -67,14 +67,25 @@ test + eval green, unified docs.
 
 ## Current step
 
-Phase 5 in build on `opencode/issue449-hearthlight-phase-5`: trailer cut
-spec plus pure trailer-to-film mapping landed, theatre plays the trailer on
-the same stage with the same renderer/performer/captions, end card with
-credits and working Replay/Trailer/Dismiss actions, committed
-`captions.vtt` exporter, second original poster, noscript and canvas-2d
-fallbacks, focus-visible styling. Remaining: premiere gates
-(`tests/premiere.mjs` + audit), unified docs, root landing wording, Pages
-verification.
+Phase 5 complete on `opencode/issue449-hearthlight-phase-5`: the premiere
+cut (270 s film + 30 s trailer on one stage), end card with credits,
+committed caption export, second poster, theatre fallbacks, unified docs,
+root landing pointing at the premiere. Audit plus all 14 suites green
+(smoke, theatre, determinism, craft, performance, score, premiere, live,
+polish, both eval regressions, both hostile suites, render, capture,
+render-audio). Ready for review.
+
+## Builder log
+
+- 2026-09-27 (Builder): Phase 5 milestones 2-3 (gates, docs, landing).
+  New `tests/premiere.mjs` (48 gates green); `audit.mjs` extended with
+  premiere binding gates (trailer build/runtime/frame-parity, vtt rebuild
+  match, full shot captioning, poster pair, end card + trailer controls,
+  noscript, canvas guard, focus styling); `theatre.mjs` extended with the
+  premiere surface. Unified docs updated (README state/layout/quickstart,
+  story trailer section, pipeline tools); root landing + README point at
+  the premiere cut. Verified: node --check on all touched JS, all 31 DOM
+  ids referenced by the player exist in the page, full battery green.
 
 ## Builder log
 

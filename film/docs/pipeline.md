@@ -35,6 +35,17 @@
   determinism (events, samples, WAV bytes), mix bounds (exact length,
   0.89 ceiling, no NaN), committed stems matching the rebuild, and the
   live performer under an AudioContext stub.
+- `node film/tools/render-captions.mjs` - exports the committed
+  `film/captions.vtt` (one WebVTT cue per screenplay caption line, at
+  absolute film times with speaker voice tags). Same inputs yield
+  byte-identical bytes; the audit pins the committed file against a
+  rebuild, and the theatre page offers it as a download.
+- `node film/tests/premiere.mjs` - premiere gates: the trailer cut builds
+  at exactly 30 s with every segment inside its shot, the trailer map is
+  monotonic and frame-identical with the full film, the cut paints at 960
+  and 390 px with reduced motion on and off, every shot has a caption cue
+  in bounds, both posters hang on the wall, and the end card, trailer
+  buttons, noscript note, canvas guard, and focus styling are all wired.
 
 ## Reproducibility contract
 

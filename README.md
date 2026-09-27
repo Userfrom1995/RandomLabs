@@ -52,7 +52,7 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Active projects are software or research builds currently in progress under open tracking issues (meta tasks such as lab health audits or workflow maintenance are not listed here):
 
-- **Hearthlight (`film/`)** - Original 4.5-minute hand-drawn-style animated short film with an original orchestral score, in flight under [#449](https://github.com/Userfrom1995/RandomLabs/issues/449): living animatic now playing with deterministic sketch renderer, motif-score sketch, and full story package. [Website](https://userfrom1995.github.io/RandomLabs/film/) · [README](film/README.md)
+- **Hearthlight (`film/`)** - Original 4.5-minute hand-drawn-style animated short film with an original orchestral score, in flight under [#449](https://github.com/Userfrom1995/RandomLabs/issues/449): premiere cut now playing with the full 270 s film plus a 30 s trailer, deterministic render craft, motif-score sound world, caption export, and poster set. [Website](https://userfrom1995.github.io/RandomLabs/film/) · [README](film/README.md)
 
 ## Previous Projects (Latest 10)
 
