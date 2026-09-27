@@ -52,7 +52,7 @@ let latticeOk = true; let latticeWhy = '';
 for (const s of sp.shots) {
   const lines = s.captions || [];
   const sorted = [...lines].sort((a, b) => a.t - b.t);
-  lines.forEach((c, i) => {
+  sorted.forEach((c, i) => {
     const dur = c.dur || 4.5;
     if (!SPEAKERS.has(c.who)) { latticeOk = false; latticeWhy = s.id + ':speaker'; }
     if (typeof c.emotion !== 'string' || !c.emotion) { latticeOk = false; latticeWhy = s.id + ':emotion'; }
