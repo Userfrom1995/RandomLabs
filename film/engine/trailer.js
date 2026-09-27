@@ -55,7 +55,15 @@ export function trailerToFilmTime(trailer, t) {
   else if (!Number.isFinite(t)) t = 0;
   const tc = Math.min(Math.max(t, 0), Math.max(trailer.total - 1e-6, 0));
   for (const seg of trailer.segments) {
-    if (tc >= seg.start && tc < seg.end) return seg.filmStart + (tc - seg.start);
+    if (tc >= seg.start && tc < seg.end) {
+      const raw = seg.filmStart + (tc - seg.start);
+      // Binary float error can leave an on-lattice instant ~1ulp below its
+      // frame boundary, flooring one frame early: lift exactly those cases
+      // back onto the 24 fps lattice. Every other value stays bit-identical,
+      // in particular the overshoot hold just below filmEnd.
+      const lifted = frameTime(raw + 1e-9);
+      return lifted !== frameTime(raw) ? lifted : raw;
+    }
   }
   const last = trailer.segments[trailer.segments.length - 1];
   return last.filmEnd - 1e-6;

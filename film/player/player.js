@@ -350,7 +350,12 @@ async function init() {
   });
   document.addEventListener('keydown', (e) => {
     if (e.target.matches('input, textarea')) return;
-    if (e.code === 'Space') { e.preventDefault(); setPlaying(!state.playing); }
+    if (e.code === 'Space') {
+      // A focused button already fires natively on Space: running the
+      // global toggle as well would cancel it out and look stuck.
+      if (e.target.matches('button')) return;
+      e.preventDefault(); setPlaying(!state.playing);
+    }
     else if (e.key === 'ArrowRight') seekTo(state.time + 5);
     else if (e.key === 'ArrowLeft') seekTo(state.time - 5);
     else if (e.key === 'm' || e.key === 'M') $('btnMute').click();
