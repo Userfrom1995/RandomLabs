@@ -54,7 +54,8 @@ for (const s of tl.shots) {
     try { motifFor(s.music); } catch { coverage = false; covWhy.push(s.id + ':motif'); }
   }
   for (const c of s.captions || []) {
-    if (c.t < 0 || c.t + 4.5 > s.dur + 1e-9) { coverage = false; covWhy.push(s.id + ':caption-overflow'); }
+    const cdur = c.dur || 4.5;
+    if (c.t < 0 || c.t + cdur > s.dur + 1e-9) { coverage = false; covWhy.push(s.id + ':caption-overflow'); }
     if (!c.who || !c.line) { coverage = false; covWhy.push(s.id + ':caption-empty'); }
   }
 }
@@ -187,7 +188,7 @@ check('committed captions.vtt matches rebuild',
 const cuedShots = new Set();
 for (const shot of tl.shots) {
   for (const c of shot.captions || []) {
-    if (c.t >= 0 && c.t + 4.5 <= shot.dur + 1e-9) cuedShots.add(shot.id);
+    if (c.t >= 0 && c.t + (c.dur || 4.5) <= shot.dur + 1e-9) cuedShots.add(shot.id);
   }
 }
 check('every shot captioned', tl.shots.every((s) => cuedShots.has(s.id)), cuedShots.size + ' shots');
@@ -204,6 +205,57 @@ check('premiere player wiring',
 check('canvas 2d guard', playerJs.includes('cannot paint the film'));
 const css = readFileSync(join(root, 'player/player.css'), 'utf8');
 check('focus visible styled', css.includes(':focus-visible'));
+
+// continuity ledger (rebuild Phase 1): every shot declares entry/exit state,
+// a cause link naming the previous shot, and a flame pair from a controlled
+// vocabulary whose chain must be unbroken across the cut.
+const FLAMES = ['full', 'faltering', 'dark', 'kindled', 'guarded', 'half', 'stub', 'cairn-lit', 'many'];
+let ledgerOk = true; const ledgerWhy = [];
+tl.shots.forEach((s, i) => {
+  const c = s.continuity;
+  if (!c || !c.entry || !c.exit || !c.cause || !c.flameIn || !c.flameOut) {
+    ledgerOk = false; ledgerWhy.push(s.id + ':fields');
+  } else {
+    if (!FLAMES.includes(c.flameIn) || !FLAMES.includes(c.flameOut)) {
+      ledgerOk = false; ledgerWhy.push(s.id + ':flame-vocab');
+    }
+    if (i > 0) {
+      if (tl.shots[i - 1].continuity.flameOut !== c.flameIn) {
+        ledgerOk = false; ledgerWhy.push(s.id + ':flame-chain');
+      }
+      if (!c.cause.toLowerCase().includes(tl.shots[i - 1].id)) {
+        ledgerOk = false; ledgerWhy.push(s.id + ':cause-link');
+      }
+    }
+  }
+});
+check('continuity ledger (entry/exit/cause/flame chain)', ledgerOk, ledgerWhy.join(',') || tl.shots.length + ' shots chained');
+
+// dialogue lattice (rebuild Phase 1): per-line speaker, in/out on the 24 fps
+// lattice, closed emotion set, sorted non-overlapping lines within each shot.
+const { frameTime: latticeTime } = await import('../engine/frames.js');
+const SPEAKERS = ['NARRATOR', 'NIA', 'YARA', 'TAM', 'LUMI', 'RUEL'];
+const EMOTIONS = ['awe', 'anger', 'calm', 'fear', 'grief', 'guilt', 'hope', 'joy',
+  'resolve', 'shame', 'sorrow', 'tenderness', 'wonder', 'exhaustion',
+  'determination', 'relief', 'neutral'];
+let latticeOk = true; const latticeWhy = [];
+for (const s of tl.shots) {
+  const lines = s.captions || [];
+  const sorted = [...lines].sort((a, b) => a.t - b.t);
+  sorted.forEach((c, i) => {
+    const dur = c.dur || 4.5;
+    if (!SPEAKERS.includes(c.who)) { latticeOk = false; latticeWhy.push(s.id + ':speaker'); }
+    if (!EMOTIONS.includes(c.emotion)) { latticeOk = false; latticeWhy.push(s.id + ':emotion'); }
+    if (Math.abs(latticeTime(c.t) - c.t) > 1e-9 || Math.abs(latticeTime(dur) - dur) > 1e-9) {
+      latticeOk = false; latticeWhy.push(s.id + ':lattice');
+    }
+    if (c.t < 0 || c.t + dur > s.dur + 1e-9) { latticeOk = false; latticeWhy.push(s.id + ':bounds'); }
+    if (i > 0 && c.t < sorted[i - 1].t + (sorted[i - 1].dur || 4.5) - 1e-9) {
+      latticeOk = false; latticeWhy.push(s.id + ':overlap');
+    }
+  });
+}
+check('dialogue lattice (speaker/emotion/timing per line)', latticeOk, latticeWhy.join(',') || 'all lines on the lattice');
 
 if (failures.length) { console.error('AUDIT RED: ' + failures.join(', ')); process.exit(1); }
 console.log('AUDIT GREEN');

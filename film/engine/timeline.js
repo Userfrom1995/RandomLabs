@@ -39,13 +39,14 @@ export function actAt(tl, t) {
   return tl.acts[tl.acts.length - 1];
 }
 
-// Active caption line at time t within a shot (each line shows 4.5 s).
+// Active caption line at time t within a shot (each line shows c.dur || 4.5 s).
 export function captionAt(shot, local) {
   if (!shot || !Array.isArray(shot.captions)) return null;
   let active = null;
   for (const c of shot.captions) {
     if (!c) continue;
-    if (local >= c.t && local < c.t + 4.5) active = c;
+    const dur = c.dur || 4.5;
+    if (local >= c.t && local < c.t + dur) active = c;
   }
   return active;
 }
