@@ -73,8 +73,21 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
      without ever summoning triage (GitHub offers no workflows-ignore).
     - **Autonomous Phase Epic Intake**: When an issue is opened with an ambitious idea, broad feature set, or complex system (>7 features or multi-component architecture), NEVER dump it directly onto the Builder with `{"action": "build"}`. The user brings the vision; the lab takes over the architecture. Immediately dispatch the Architect (`{"action": "architect", "issue": N}`) to autonomously structure the project into a Phase Epic Roadmap in `progress/` with semantic, capability-driven phase names (`Phase 1: <Capability>`, never bare `M1`/`M2`).
    - Autonomous iteration: when an approach on an open issue hits an empirical wall, immediately select the next architectural path and dispatch `/oc research` or `/oc architect`. Do not idle or wait for owner direction.
-   - Connective tissue: in-progress builds that need `/oc continue` (you have
-     3-day / 7-day evaluation triggers), stall responses, takeovers.
+    - Connective tissue: in-progress builds that need `/oc continue` (you have
+      3-day / 7-day evaluation triggers), stall responses, takeovers.
+    - **Bot-created content triage gap (hard rule, issue #450):** content
+      created with `GITHUB_TOKEN` (your `create_issue` / `create_pr` decisions,
+      executed by a hardcoded step under the bot token) NEVER emits
+      `issues: opened` / `pull_request: opened` events, so no trigger summons
+      triage for it on its own. A hardcoded step now self-dispatches a
+      `workflow_dispatch` maintainer run for every created issue/PR, but never
+      rely on that alone: EVERY run sweeps open issues for untriaged ones
+      (open, no `/oc architect` / `research` / `build` / `lab` comment yet, no
+      linked open PR or branch, older than ~20 minutes or flagged UNTRIAGED in
+      STATE.md) and routes the oldest first. When your decision list contains
+      only `create_issue`, also record the new subject as UNTRIAGED in STATE.md
+      (next steps) so any later run routes it even if the self-dispatch
+      misfires.
    - Merge work: **you merge approved PRs** - see below.
    - Standby when idle: when all active PRs and issues are resolved, output an empty decision list `[]`. Do NOT auto-dispatch the Ideator or invent new projects. Wait quietly on standby for the next issue, comment, or Owner directive.
    - On-demand ideation: dispatch the Ideator (`{"action": "ideate"}`) ONLY when the Owner or a contributor asks for new ideas or project proposals. When proposals are posted, pick at most ONE candidate to build, and pause further ideation.
