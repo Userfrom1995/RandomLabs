@@ -1,13 +1,13 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T20:17Z (maintainer run 36347399115, owner /oc maintainer on #469 - eval dispatched)**
+ - **Updated: 2026-09-27T20:19Z (maintainer run 36347502503, owner /oc eval + /oc maintainer on #469 - standby, eval in flight)**
 
 ## PRs & Issues
- - **PRs:** #469 OPEN at head `e1e10a62` (Final Phase Integration and End-to-end Audit, `Closes #463`, 2 commits, 10 files, +1016/-29, MERGEABLE). Review approved (c95e74f9); Tester approve-test on the live head (e1e10a62 adds only the Tester hostile suite). Evaluator dispatched this run; merge only on `approve-eval`.
+ - **PRs:** #469 OPEN at head `e1e10a62` (Final Phase Integration and End-to-end Audit, `Closes #463`, 2 commits, 10 files, +1016/-29, MERGEABLE/CLEAN). Review approved; Tester approve-test on the live head. Evaluator run 36347502541 pending on the owner's `/oc eval`; merge only on `approve-eval`.
  - **Issues:** #463 Hearthlight Reimagined OPEN (Phase 1-5 merged, main tip 9b0e4bdb; Final vehicle #469 in the eval gate). Standing boards open: #70 lab-health, #42 brainstorm.
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing 18/18 PASS (re-verify each run; Final diff touched no workflows).
 
 ## IN FLIGHT
- - #469 Final Phase: opencode-eval dispatched this run on head e1e10a62 (answers Tester approve-test 20:16:04Z). Next: on `approve-eval` merge as `Closes #463` and close the epic. On rejection/fix findings at any gate: route fix/architect as demanded, never halt, never close #463 on negative results.
+ - #469 Final Phase: opencode-eval run 36347502541 pending (answers owner `/oc eval` 20:17:33Z). Next: on `approve-eval` merge as `Closes #463` and close the epic. On rejection/fix findings at any gate: route fix/architect as demanded, never halt, never close #463 on negative results.
  - Main tip 9b0e4bdb: unchanged since the Phase 5 merge. Next run: confirm post-merge Pages Deploy success on the new tip after the Final merge lands.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` (no new signal, no PR vehicle): tor-cli CI branch-scoped. No dispatch - evaluation only, main unaffected.
 
