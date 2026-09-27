@@ -9,7 +9,7 @@ never imitation.
 The renderer plays the full timeline as a pure function of (timeline,
 time): scrubbable, pausable, testable, locked to a 24 fps frame grid
 (`engine/frames.js`) so playback, seeks, and the capture loop all land on
-identical instants. Nine craft modules do the work:
+identical instants. Ten craft modules do the work:
 
 - **Ink** (`engine/ink.js`): the 2s line-boil offset (jitter re-seeds at
   12 fps from the shot substream, freezing identically when scrubbed) plus
@@ -67,10 +67,21 @@ identical instants. Nine craft modules do the work:
   line plays on the speaker's face; between lines the bible beat for the
   shot holds.
 - **Acting** (`engine/acting.js`): anticipation, action, reaction, and hold
-  phases per shot, eased weight shifts, exertion curves that peak on the
-  action (the gorge traverse and storm carry work hardest), and
-  secondary-motion drivers shaped from the shot's own wind with analytic
-  lag: cloth belly, shawl drift, topknot bounce.
+phases per shot, eased weight shifts, exertion curves that peak on the
+action (the gorge traverse and storm carry work hardest), and
+secondary-motion drivers shaped from the shot's own wind with analytic
+lag: cloth belly, shawl drift, topknot bounce.
+- **Chart inserts** (`engine/inserts.js`): the two overhead chart shots
+are close-up acting, not cutaways. Nia's blackened hand works the
+spark-striker beside the dead lantern in two failing attempts (lift,
+strike, dying sparks), then stops: she runs to Yara because the striker
+never works. Yara's older hand enters from frame right and her index
+traces the cliff path from the washed-out bridge to the station circle
+while Nia's charcoal follows, the path revealing solid under the finger.
+Hands are drawn finger by finger with costume cuffs (rust cloak, blue
+shawl, ribbon thread at Nia's wrist); the chart geography (gorge, bridge
+cross, cliff path, station children, two charcoal marks) is one shared
+spec between the paint and the finger, so they can never drift apart.
 - **Face-safe boil**: facial lines re-seed on the same 12 fps lattice as
   the body (scrub-exact) at roughly one-third amplitude, so brows, lids,
   and mouths hold still enough to act while the silhouette keeps its

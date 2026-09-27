@@ -34,8 +34,12 @@ house sparks from the painted hearth, storm slant on the shot wind. The
 four human leads act all 20 shots from proportion bodies with expressive
 faces: ground-contact gait with stance plant and swing step, exertion-run
 climbs, carry rock, cloth and hair on the acting secondary drivers,
-dialogue emphasis nod on live lines, gaze and blink, phoneme mouths
-driven by the dialogue, and eased acting beats with weight and exertion.
+ dialogue emphasis nod on live lines, gaze and blink, phoneme mouths
+ driven by the dialogue, and eased acting beats with weight and exertion.
+ The two chart-insert close-ups act at finger scale: Nia's blackened hand
+ failing the spark-striker twice beside the dead lantern, then Yara's
+ older finger tracing the cliff path to the station circle while Nia's
+ charcoal follows.
 
 ## How it works
 
@@ -109,7 +113,7 @@ npx serve .
 ## Layout
 
 - `story/` - screenplay.json, trailer.json (30 s cut), characters.md, continuity.md, dialogue.md, storyboard.json, music-direction.md
-- `engine/` - rng.js, timeline.js, frames.js (24 fps lock), trailer.js (trailer-to-film map), animatic.js (renderer) + ink.js, paper.js, backgrounds.js, rigs.js, humans.js, faces.js, acting.js, particles.js (craft modules)
+- `engine/` - rng.js, timeline.js, frames.js (24 fps lock), trailer.js (trailer-to-film map), animatic.js (renderer) + ink.js, paper.js, backgrounds.js, rigs.js, humans.js, faces.js, acting.js, inserts.js (chart-insert close-up hands and props), particles.js (craft modules)
 - `captions.vtt` - committed caption export (43 dialogue-timed cues, rebuilt by tools/render-captions.mjs)
 - `score/` - themes.js (motif rows), orchestra.js (cue-to-events spec),
   voices.js (offline synth voices), sfx.js (procedural foley bed), mix.js
