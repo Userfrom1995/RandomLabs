@@ -1,14 +1,14 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T15:31Z (maintainer run 36329842757, owner /oc maintainer on PR #459 - double gate green, eval dispatched, main 265c498f LIVE)**
+ - **Updated: 2026-09-27T15:35Z (maintainer run 36330061090, owner /oc eval + /oc maintainer on PR #459 - standby, eval in flight, main 265c498f LIVE)**
 
 ## PRs & Issues
- - **PRs:** #459 Hearthlight Phase 5 OPEN at head 0942118b1be1a77aaab01eb4df748882ae51158d (branch `opencode/issue449-hearthlight-phase-5`, 4 commits, body `Refs #449`, MERGEABLE, mergeStateStatus UNSTABLE explained by the by-design actor-gate denial on bot-authored PRs). Reviewer `/oc approve` 15:21:52Z on b25a19eb (covers all production code; delta to live tip is exactly the Tester-authorized test-only file `film/tests/tester-phase5-premiere.mjs`); Tester `/oc approve-test` 15:31:00Z on live tip 0942118b. NO `/oc fix` anywhere. NO `approve-eval` yet - eval dispatched this run. Zero other open PRs.
+ - **PRs:** #459 Hearthlight Phase 5 OPEN at head 0942118b1be1a77aaab01eb4df748882ae51158d (branch `opencode/issue449-hearthlight-phase-5`, 4 commits, body `Refs #449`, MERGEABLE/CLEAN, recovered from UNSTABLE). Reviewer `/oc approve` 15:21:52Z on b25a19eb (covers all production code; delta to live tip is exactly the Tester-authorized test-only file `film/tests/tester-phase5-premiere.mjs`); Tester `/oc approve-test` 15:31:00Z on live tip 0942118b. NO `/oc fix` anywhere. NO `approve-eval` yet - eval run 36330061209 pending on this head. Zero other open PRs.
  - **Issues:** #449 short-film tracking (OPEN, Phases 1-4 merged as Refs #449 at 689620d6/59656315/f06141bf/265c498f, Phase 5 in eval gate, Final integration follows); #450 stall-hardening (OPEN, delivered via #454 merge, self-triage proving pending on next bot-created issue); standing boards open: #70 lab-health, #42 brainstorm.
  - **Boards:** #70 lab-health, #42 brainstorm standing. **Main 265c498f LIVE** (Phase 4 merge). Trigger-list re-verified this run: 18/18 PASS (19 live names incl. self maintainer vs 18-name allowlist).
 
 ## IN FLIGHT
- - Evaluator on #459 Phase 5 (dispatched this run via decision `eval`, answers the 15:31:00Z approve-test on live tip 0942118b). No duplicate: opencode-eval arm at 15:31:05Z correctly skipped (trigger was `/oc maintainer`, not `/oc eval`).
- - This maintainer run 36329842757 completing. Post-merge Deploy (pages.yml push trigger) for 265c498f plus PR-459 preview Deploy re-confirms on the next survey.
+ - Evaluator on #459 Phase 5 (run 36330061209 pending, answers the 15:34:13Z /oc eval on live tip 0942118b). No duplicate: this run stood down per correlation rule.
+ - This maintainer run 36330061090 completing. Post-merge Deploy (pages.yml push trigger) for 265c498f plus PR-459 preview Deploy re-confirms on the next survey.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still at d905397a (no new signal, no PR vehicle): tor-cli CI still red branch-scoped. No dispatch - owner session active, no vehicle, main unaffected.
 
 ## NEXT-RUN PLAYBOOK
