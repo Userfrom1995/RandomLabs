@@ -20,7 +20,7 @@ const canvas = $('stage');
 const ctx = canvas ? canvas.getContext('2d') : null;
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const END_CREDITS = 'Nia the wind-cartographer, Yara the last keeper, Ruel the mossback, and the mountain wind itself. Original story, pictures, and orchestral score by the Random Lab, drawn and mixed in code from committed sources.';
+const END_CREDITS = 'Nia the keeper-in-training, Yara the old keeper, Tam the ferryman's son, little Lumi, and the mountain wind itself. Original story, pictures, and orchestral score by the Random Lab, drawn and mixed in code from committed sources.';
 
 const state = {
   tl: null,

@@ -5,9 +5,9 @@
   {
    "shot": "s01",
    "act": 1,
-   "title": "Lanterns going out",
+   "title": "The untended lantern",
    "keyPoses": [
-    "Wide valley vista at dusk. Rows of small lantern dots along the hollow; three near ones visibly dark. Nia's hill silhouette at frame right with her wind-ribbon pole. Slow push in."
+    "Wide valley vista at dusk. Rows of small lantern dots along the hollow; the near hill-road lantern burns low, unattended. Nia's hill silhouette at frame right, head bent over her sounding ribbons instead of the wick. Slow push in."
    ],
    "comp": "wide / push-in",
    "palette": {
@@ -16,14 +16,14 @@
     "sky": "#3a3f66",
     "wash": "#8a7ba8"
    },
-   "heroTime": 6.0
+   "heroTime": 6
   },
   {
    "shot": "s02",
    "act": 1,
-   "title": "The wind-cartographer",
+   "title": "The hillside extinguishing",
    "keyPoses": [
-    "Nia on the hilltop, cloak lifting in gusts. She ties paper ribbons to her survey pole; each ribbon streams a different way, mapping the unseen wind. Medium shot, gentle pan following ribbons."
+    "Nia on the hilltop, cloak lifting in gusts. A cross-gust takes the low flame sideways off the wick; the lantern goes dark against the wind. She grabs too late. Medium shot, gentle pan following the smoke."
    ],
    "comp": "medium / pan-right",
    "palette": {
@@ -32,14 +32,14 @@
     "sky": "#4a4a78",
     "wash": "#9a8ab8"
    },
-   "heroTime": 6.0
+   "heroTime": 6
   },
   {
    "shot": "s03",
    "act": 1,
-   "title": "The chart will not close",
+   "title": "Sparks that will not catch",
    "keyPoses": [
-    "Close on Nia's charcoal wind-chart: swirling arrows that refuse to settle, all bending away from the high cairn. Her hand stills. Match-cut framing to her eyes."
+    "Close on Nia's charcoal wind-chart beside the dead lantern: swirling arrows that all bent away from the hill road, warnings she never read. Her blackened hand tries a spark-striker, fails, tries again. Match-cut framing to her eyes."
    ],
    "comp": "close-up / hold",
    "palette": {
@@ -53,9 +53,9 @@
   {
    "shot": "s04",
    "act": 1,
-   "title": "Run down to Yara",
+   "title": "Down to Yara",
    "keyPoses": [
-    "Night falls fast. Two more lanterns gutter out along the hollow road in a visual beat, one, then another. Nia runs downhill toward grandmother's house, lantern-light shrinking behind her."
+    "Night falls fast. Two more lanterns gutter out along the hollow road in a visual beat, one, then another. Nia runs downhill toward grandmother's house with the dead lantern clutched to her chest, lantern-light shrinking behind her."
    ],
    "comp": "wide / track-left",
    "palette": {
@@ -71,14 +71,14 @@
    "act": 2,
    "title": "What the valley is owed",
    "keyPoses": [
-    "Inside Yara's lamplit house: walls of charts, a keeper's lantern burning blue-gold on the mantel. Yara, old and steady, studies Nia's chart and nods slowly. Warm interior, push in to the lantern."
+    "Inside Yara's lamplit house: walls of charts, a cold hearth, the old keeper listening without moving. Nia sets the dead lantern down between them like an accusation against herself."
    ],
    "comp": "medium / push-in",
    "palette": {
-    "ink": "#2e2114",
-    "lantern": "#ffd27a",
-    "sky": "#4a3826",
-    "wash": "#b08a5a"
+    "ink": "#2b2118",
+    "lantern": "#ffc46b",
+    "sky": "#3a2f52",
+    "wash": "#8a6a8a"
    },
    "heroTime": 7.5
   },
@@ -87,30 +87,30 @@
    "act": 2,
    "title": "The keeper's lantern",
    "keyPoses": [
-    "Yara lifts the keeper's lantern down and sets it in Nia's hands. The flame leans toward Nia, then steadies. Two-shot, slow orbit feel via drifting camera."
+    "Close on Yara's large steady hands kindling the keeper's lantern from the hearth coal, then holding it out. Nia's small hands hover, pull back, then close around the handle. The flame leans but holds."
    ],
-   "comp": "two-shot / drift",
+   "comp": "close-up / drift",
    "palette": {
-    "ink": "#2e2114",
-    "lantern": "#ffdf8e",
-    "sky": "#4a3826",
-    "wash": "#b89460"
+    "ink": "#2b2118",
+    "lantern": "#ffd27a",
+    "sky": "#3a2f52",
+    "wash": "#9a7a8a"
    },
    "heroTime": 7.5
   },
   {
    "shot": "s07",
    "act": 2,
-   "title": "The forbidden chart",
+   "title": "Two marks on the chart",
    "keyPoses": [
-    "Yara unrolls the forbidden high chart: the gorge, the washed bridge, the cairn path marked in faded red. Her finger traces it; Nia copies the turns into her own small book. Overhead map shot."
+    "The forbidden chart unrolled: the gorge, the washed-out bridge marked in Yara's mother's hand, the cliff path, and the station circle where two small figures wait. Yara's finger traces the path Nia must walk with children in tow."
    ],
-   "comp": "overhead / hold",
+   "comp": "close-up / hold",
    "palette": {
-    "ink": "#241a0e",
-    "lantern": "#e8a94e",
-    "sky": "#3a2c1c",
-    "wash": "#96714a"
+    "ink": "#241c12",
+    "lantern": "#ff9e3d",
+    "sky": "#33385c",
+    "wash": "#7a6a98"
    },
    "heroTime": 7.5
   },
@@ -119,62 +119,62 @@
    "act": 2,
    "title": "Threshold farewell",
    "keyPoses": [
-    "Threshold farewell at the door: Yara knots a storm-ribbon into Nia's scarf. The valley behind them is nearly dark now, a handful of lights. Nia steps out with the lantern. Wide, hold, then rise."
+    "Threshold farewell at first light. Yara knots the storm-ribbon into Nia's scarf, slowly, the whole goodbye played in the hands. Nia steps out with lantern, pole, and chart; the door light stays lit behind her."
    ],
-   "comp": "wide / rise",
+   "comp": "medium / pull-back",
    "palette": {
-    "ink": "#201812",
+    "ink": "#2b2118",
     "lantern": "#ffc46b",
-    "sky": "#2a2444",
-    "wash": "#6a5a86"
+    "sky": "#4a3a5c",
+    "wash": "#9a7a98"
    },
    "heroTime": 7.5
   },
   {
    "shot": "s09",
    "act": 3,
-   "title": "The low valley",
+   "title": "The shepherd's hearth",
    "keyPoses": [
-    "Nia picks through the misty low valley, lantern high, ribbons streaming sideways in crosswinds. Reeds bend in waves. Tracking shot beside her, leaves tumbling past."
+    "The low valley under a pushing sky. At the shepherd's hut Nia leaves half her bread and a lit spill from her own tinderbox, kindling the old woman's cold hearth. Small kindness, played wide: the hut window warms as she walks on."
    ],
-   "comp": "tracking / track-right",
+   "comp": "wide / track-right",
    "palette": {
-    "ink": "#22301e",
+    "ink": "#2b2118",
     "lantern": "#ffb54d",
-    "sky": "#3c4a44",
-    "wash": "#7a8a72"
+    "sky": "#3a4a6a",
+    "wash": "#7a7a9a"
    },
    "heroTime": 7.5
   },
   {
    "shot": "s10",
    "act": 3,
-   "title": "The mossback wakes",
+   "title": "The station children",
    "keyPoses": [
-    "The moss grove: ancient stones furred green, breath-mist hanging. Two ember eyes open in the dark between roots. Ruel the mossback boar rises, huge, patient, antlered with lichen. Nia freezes. Slow push in."
+    "The gorge station: a beached ferry-boat, a boy with an oar he cannot use on cliffs, and a small girl with a bound ankle sitting very straight. Nia steps into the clearing with the lit lantern, and all three stare at the flame."
    ],
-   "comp": "wide / push-in",
+   "comp": "medium / hold",
    "palette": {
-    "ink": "#1c2416",
-    "lantern": "#ff9e3d",
-    "sky": "#2c3a2c",
-    "wash": "#5a7048"
+    "ink": "#2b2118",
+    "lantern": "#ffc46b",
+    "sky": "#2f4a44",
+    "wash": "#6a7a62"
    },
    "heroTime": 7.5
   },
   {
    "shot": "s11",
    "act": 3,
-   "title": "Tested and trusted",
+   "title": "Count the rope",
    "keyPoses": [
-    "The testing: Ruel circles Nia, snuffling the lantern, the charts, her trembling hands. She holds the lantern steady and shows him her wind-chart instead of running. The great head lowers. Intimate circling camera."
+    "Tested and trusted, inverted: Lumi quizzes Nia on the cliff path while Tam paces. The little girl corrects Nia's count of the rope coils, twice, and Tam's glare softens into the first almost-smile of the crossing."
    ],
-   "comp": "close-up / orbit",
+   "comp": "medium / orbit",
    "palette": {
-    "ink": "#1c2416",
+    "ink": "#2b2118",
     "lantern": "#ffc46b",
-    "sky": "#2c3a2c",
-    "wash": "#647a50"
+    "sky": "#2f4a44",
+    "wash": "#6a7a62"
    },
    "heroTime": 7.5
   },
@@ -183,46 +183,46 @@
    "act": 3,
    "title": "Across the gorge",
    "keyPoses": [
-    "The gorge crossing: broken bridge timbers jutting over black water far below. Ruel wades the ford with Nia on his back, lantern held high, spray bursting around his legs. Grand lateral sweep."
+    "The rope traverse over white water: Nia mid-rope with the lantern hung at her chest, Tam belaying, Lumi calling the count, and below on the far bank old Ruel the mossback hauling the spare rope with his teeth. Midway the rockfall hits, the rope jerks, and Lumi's small hands catch Nia's wrist first."
    ],
-   "comp": "epic-wide / sweep",
+   "comp": "wide / track-left",
    "palette": {
-    "ink": "#18202a",
-    "lantern": "#ffd27a",
-    "sky": "#2e3a4e",
-    "wash": "#5a6a84"
+    "ink": "#241c12",
+    "lantern": "#ff9e3d",
+    "sky": "#2f3a52",
+    "wash": "#5a6a82"
    },
    "heroTime": 7.5
   },
   {
    "shot": "s13",
    "act": 4,
-   "title": "What the storm takes",
+   "title": "The fever",
    "keyPoses": [
-    "The storm slope: sleet slanting, Nia leading Ruel up switchbacks, lantern glass frosting. Her ribbons tear loose one by one and fly upward, toward the cairn. Diagonal upward tilt."
+    "Storm slope in driving sleet. Tam half-carries Lumi, whose bound ankle has gone hot with fever; her head lolls against his shoulder. Nia shields the lantern with her own cloak, and the flame leans hard away from the child."
    ],
-   "comp": "medium / tilt-up",
+   "comp": "medium / rise",
    "palette": {
-    "ink": "#1a2028",
-    "lantern": "#ffb54d",
-    "sky": "#2a3442",
-    "wash": "#6a7a8e"
+    "ink": "#1c150e",
+    "lantern": "#ff8f2e",
+    "sky": "#23264a",
+    "wash": "#4a4a6a"
    },
-   "heroTime": 6.0
+   "heroTime": 6
   },
   {
    "shot": "s14",
    "act": 4,
-   "title": "A blue thread",
+   "title": "The choice",
    "keyPoses": [
-    "The flame nearly dies: a brutal gust flattens the lantern flame to a blue thread. Nia cups it with both hands and her own breath, shielding it with her body. Extreme close-up on hands and flame."
+    "Close-up dialogue peak in the lee of a boulder: Nia opens the keeper's lantern and feeds half its flame into Lumi's shivering hands, cupped like a bird. The cairn flame gutters to a stub. Snow spirals down between their faces."
    ],
-   "comp": "extreme-close-up / hold",
+   "comp": "close-up / hold",
    "palette": {
-    "ink": "#141820",
-    "lantern": "#7ab8ff",
-    "sky": "#1e242e",
-    "wash": "#4a5462"
+    "ink": "#1c150e",
+    "lantern": "#ffb54d",
+    "sky": "#23264a",
+    "wash": "#4a4a6a"
    },
    "heroTime": 6.5
   },
@@ -231,78 +231,78 @@
    "act": 4,
    "title": "The wind changes its mind",
    "keyPoses": [
-    "The turn: the wind drops all at once and begins to push at Nia's back, uphill, toward the cairn. Snow lifts in guiding spirals. Ruel looks up the path and understands. Slow crane up."
+    "The wind changes its mind. Snow that drove into their faces all night now spirals up the slope ahead of them, marking the buried steps. Nia stares, Tam laughs once in disbelief, and they climb inside the wind's hand."
    ],
    "comp": "wide / crane-up",
    "palette": {
-    "ink": "#20242e",
+    "ink": "#2b2118",
     "lantern": "#ffc46b",
-    "sky": "#3a4258",
-    "wash": "#8a90a8"
+    "sky": "#3a3f66",
+    "wash": "#7a6a98"
    },
-   "heroTime": 6.0
+   "heroTime": 6
   },
   {
    "shot": "s16",
    "act": 4,
    "title": "The last steps",
    "keyPoses": [
-    "Final steps to the cairn stones: a dark ring of unlit braziers around a tall empty cairn. Nia climbs the last steps alone, Ruel waiting below, lantern flame standing tall now. Processional push in."
+    "The last steps to the cairn: Tam carrying Lumi, Nia ahead with the stub cupped in both hands, all three bent double. The old brazier rim appears through the murk, black and cold, far too big for the little flame."
    ],
-   "comp": "processional / push-in",
+   "comp": "medium / rise",
    "palette": {
-    "ink": "#1e1c26",
-    "lantern": "#ffd27a",
-    "sky": "#33304a",
-    "wash": "#7a7494"
+    "ink": "#2b2118",
+    "lantern": "#ffb54d",
+    "sky": "#3a3f66",
+    "wash": "#7a6a98"
    },
    "heroTime": 6.5
   },
   {
    "shot": "s17",
    "act": 5,
-   "title": "She returned one",
+   "title": "Many flames",
    "keyPoses": [
-    "The lighting: Nia touches the keeper's flame to the cairn bowl. Light blooms outward in a slow ring, braziers catching one by one around her. Her face, lit gold. Radiant slow bloom."
+    "The cairn-top at the edge of night: Nia tips the stub into the great brazier and it nearly dies. Then below, one by one, the valley's kept sparks rise: the shepherd's window, the station lamp, door after door. The cairn takes every one and blooms."
    ],
-   "comp": "close-up / bloom",
+   "comp": "wide / bloom",
    "palette": {
-    "ink": "#2a2016",
-    "lantern": "#ffe29a",
-    "sky": "#4a3a2a",
-    "wash": "#c09a62"
+    "ink": "#2b2118",
+    "lantern": "#ffd27a",
+    "sky": "#3a3f66",
+    "wash": "#8a7ba8"
    },
-   "heroTime": 6.0
+   "heroTime": 6
   },
   {
    "shot": "s18",
    "act": 5,
    "title": "The valley remembers",
    "keyPoses": [
-    "The rekindling wave: aerial view of Ember Hollow as lanterns relight in a rolling wave from the high cairn down to the last house. Tiny figures come to doors. Majestic pull-back."
+    "Dawn wave over Ember Hollow: window after window rekindling down the hill road in a slow bloom of gold. No figures, only light answering light, the beat coming back."
    ],
-   "comp": "aerial / pull-back",
+   "comp": "wide / sweep",
    "palette": {
     "ink": "#2b2118",
     "lantern": "#ffd27a",
-    "sky": "#5a4a5a",
-    "wash": "#b08a7a"
+    "sky": "#5a5a8a",
+    "wash": "#aa8ab0"
    },
-   "heroTime": 6.0
+   "heroTime": 6
   },
   {
    "shot": "s19",
    "act": 5,
-   "title": "The keeper comes home",
+   "title": "The keeper's knot",
    "keyPoses": [
-    "Coda at Yara's door at dawn: the old keeper watches the cairn light on the horizon and smiles. Nia's small figure descends the far path, new ribbons flying straight and true. Quiet two-plane parting shot."
+    "The keeper comes home at dawn: Yara waiting in the open door with the knotted cord, Tam steady beside the litter where Lumi sits up, awake. Yara holds out the keeper's knot without a word, and Lumi ties the final ribbon."
    ],
-   "comp": "wide / hold",
+   "comp": "medium / pull-back",
    "palette": {
-    "ink": "#2e2418",
-    "lantern": "#ffcf7a",
-    "sky": "#7a6a7a",
-    "wash": "#c0a08a"
+    "ink": "#2b2118",
+    "lantern": "#ffc46b",
+    "sky": "#5a5a8a",
+    "wash": "#aa8ab0"
    },
    "heroTime": 6.5
   },
@@ -311,14 +311,14 @@
    "act": 5,
    "title": "Hearthlight",
    "keyPoses": [
-    "Final frame: Nia on her hill at sunrise, keeper's lantern beside her, charting the morning wind with fresh ribbons. The valley glows below. Title card: HEARTHLIGHT. Slow fade to gold, hold, end."
+    "Coda on the hilltop at sunrise: Nia tending the hill-road lantern, flame high and steady, ribbons streaming true for once. Below, Tam mends the ferry-boat and Lumi charts the spring winds in charcoal. End title."
    ],
    "comp": "wide / fade-gold",
    "palette": {
     "ink": "#2b2118",
-    "lantern": "#ffe29a",
-    "sky": "#8a7a8a",
-    "wash": "#d0b090"
+    "lantern": "#ffd27a",
+    "sky": "#6a6a9a",
+    "wash": "#ba9ab8"
    },
    "heroTime": 6.5
   }
