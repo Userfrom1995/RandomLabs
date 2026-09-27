@@ -7,7 +7,7 @@ grandmother's last lantern flame to the high cairn before the final night
 of the dark month falls.
 
 **Watch it:** [theatre page](https://userfrom1995.github.io/RandomLabs/film/)
-(plays the current cut; this phase premieres the living animatic).
+(plays the premiere cut: the full 270 s film plus a 30 s trailer).
 
 ## What this is
 
@@ -17,14 +17,16 @@ reproducible render pipeline. Every pixel and every note is generated from
 committed sources under `film/`: no unlicensed assets, no copied work,
 nothing evoking any existing studio's characters, music, or designs.
 
-Current state is the **full performance cut**: the full 270-second timeline
-played by a deterministic renderer locked to a 24 fps frame grid, with a
+Current state is the **premiere cut**: the full 270-second timeline played
+by a deterministic renderer locked to a 24 fps frame grid, with a
 synthesized motif-score sketch, working transport (play/pause, frame-exact
-seek, chapters, captions, fullscreen, volume/mute), a live-painted
-storyboard wall, the complete story package, and the pipeline with its
-self-review capture loop. Ink lines boil on 2s with double-pass stroke
-weight, skies are stacked watercolor washes over paper grain, the valley
-paint set dresses all 14 backgrounds, deterministic weather (embers,
+seek, chapters, captions, fullscreen, volume/mute), a 30-second trailer
+cut from the same frames on the same stage, an end card with credits and
+replay, a committed WebVTT caption file, two original posters, a
+live-painted storyboard wall, the complete story package, and the pipeline
+with its self-review capture loop. Ink lines boil on 2s with double-pass
+stroke weight, skies are stacked watercolor washes over paper grain, the
+valley paint set dresses all 14 backgrounds, deterministic weather (embers,
 leaves, spray, storm, cairn sparks, the rekindling wave) plays over every
 shot, and the character rigs act all 20 shots from eased poses with a
 deterministic blink.
@@ -38,9 +40,11 @@ deterministic blink.
   shot list (5 acts, 20 shots, 270 s). The renderer is a pure function of
   (timeline, time): scrubbable, pausable, testable.
 - **Theatre.** `index.html` + `player/` is the cinema surface: 16:9 stage,
-  transport, 5-act chapters, caption track, storyboard wall of live-painted
-  act stills, poster wall, honest loading/error states, reduced-motion
-  respect, responsive to 390 px.
+  transport, 5-act chapters, caption track (plus a downloadable `.vtt`),
+  a 30 s trailer on the same stage, an end card with credits, storyboard
+  wall of live-painted act stills, two posters, honest loading/error
+  states with noscript and canvas fallbacks, reduced-motion respect,
+  responsive to 390 px.
 - **Score.** `score/` performs the leitmotif cue map (Nia, wind,
   Ruel, cairn hymn) twice from one orchestration spec: a ten-voice synth
   orchestra (woodwind, violin, strings, cello, bass, brass, bells, pad,
@@ -71,6 +75,12 @@ node film/tools/render-audio.mjs
 # score gates (coverage, sync, determinism, mix bounds, live performer)
 node film/tests/score.mjs
 
+# caption export (committed captions.vtt, byte-pinned by the audit)
+node film/tools/render-captions.mjs
+
+# premiere gates (trailer cut, caption coverage, posters, end card, fallbacks)
+node film/tests/premiere.mjs
+
 # craft gates (paint set, camera grammar, rig poses, capture, gallery)
 node film/tests/craft.mjs
 
@@ -84,18 +94,19 @@ npx serve .
 
 ## Layout
 
-- `story/` - screenplay.json, characters.md, storyboard.json, music-direction.md
-- `engine/` - rng.js, timeline.js, frames.js (24 fps lock), animatic.js (renderer) + ink.js, paper.js, backgrounds.js, rigs.js, particles.js (craft modules)
+- `story/` - screenplay.json, trailer.json (30 s cut), characters.md, storyboard.json, music-direction.md
+- `engine/` - rng.js, timeline.js, frames.js (24 fps lock), trailer.js (trailer-to-film map), animatic.js (renderer) + ink.js, paper.js, backgrounds.js, rigs.js, particles.js (craft modules)
+- `captions.vtt` - committed caption export (22 cues, rebuilt by tools/render-captions.mjs)
 - `score/` - themes.js (motif rows), orchestra.js (cue-to-events spec),
   voices.js (offline synth voices), sfx.js (procedural foley bed), mix.js
   (mixer + WAV writer), animatic-audio.js (live WebAudio performer),
   score-events.json + sfx-events.json (committed stems, byte-reproducible)
 - `player/` - theatre transport (player.js, gallery.js, player.css)
 - `tools/` - render.mjs (stills + manifest), render-audio.mjs (WAV mix +
-  stems + audio manifest), capture.mjs (hero-frame review loop), audit.mjs (binding gates)
-- `tests/` - smoke.mjs (determinism + timeline invariants), craft.mjs (paint/camera/rig/capture/gallery gates), performance.mjs (frame lock, weather, acting, eased camera gates), score.mjs (orchestration, sync, mix, live performer gates)
+  stems + audio manifest), render-captions.mjs (VTT export), capture.mjs (hero-frame review loop), audit.mjs (binding gates)
+- `tests/` - smoke.mjs (determinism + timeline invariants), craft.mjs (paint/camera/rig/capture/gallery gates), performance.mjs (frame lock, weather, acting, eased camera gates), score.mjs (orchestration, sync, mix, live performer gates), premiere.mjs (trailer, captions, posters, end card, fallback gates)
 - `docs/` - craft, story, and pipeline documentation (unified product view)
-- `posters/` - poster-v1.svg (deterministic, original art)
+- `posters/` - poster-v1.svg (hill above the Hollow), poster-v2.svg (the rekindling); both deterministic, original art
 - `dist/` - generated stills + manifest (rebuilt by render.mjs)
 
 ## Provenance

@@ -24,3 +24,15 @@ of the dark month falls.
 Full bible with model-sheet parameters: `film/story/characters.md`.
 Full timed shot list: `film/story/screenplay.json`. Cue map:
 `film/story/music-direction.md`.
+
+## The trailer (30 s)
+
+Six moments cut from the same timeline, played on the same stage through
+the same renderer, score, and captions: the dimming (S01), the entrusting
+(S06), Ruel (S10), the gorge ford (S12), the blue thread (S14), the
+hearthlight (S17). The cut is data (`film/story/trailer.json`: shot plus
+local in-point and duration per segment); the mapping
+(`film/engine/trailer.js`) sends every trailer instant to exactly one film
+instant on the 24 fps lattice, so each trailer frame is the same film
+frame a full-film seek would paint. When the trailer ends, the end card
+offers the full film; when the film ends, it offers the trailer.
