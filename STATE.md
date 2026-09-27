@@ -1,27 +1,29 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T18:34Z (maintainer run 36341079889, owner /oc eval plus /oc maintainer on #465 - eval in flight, standby)**
+ - **Updated: 2026-09-27T18:37Z (maintainer run 36341252158, owner /oc maintainer on #465 - approve-eval in, Phase 2 MERGED c49fce45, Phase 3 chained)**
 
 ## PRs & Issues
- - **PRs:** #465 OPEN (Hearthlight rebuild Phase 2, head 0eb96c02, branch `opencode/issue463-20260927174232`, body Refs #463, MERGEABLE/CLEAN). Reviewer approved 84668a23 (clamp01 fix verified live); Tester approved live tip 0eb96c02 (test-only delta, live entrypoints plus hostile flows green). Eval run 36341079981 pending on live head - merge gated on `approve-eval`.
- - **Issues:** #463 Hearthlight Reimagined OPEN (Phase 1 merged, Phase 2 PR #465 in eval gate on 0eb96c02 after clamp01 fix). Standing boards open: #70 lab-health, #42 brainstorm.
+ - **PRs:** none open (PR #465 MERGED 18:36:58Z as c49fce45, branch `opencode/issue463-20260927174232` kept intact). Phase 3 build dispatched on #463 - new phase PR expected within ~15 min.
+ - **Issues:** #463 Hearthlight Reimagined OPEN (Phase 1 merged 93e1464b, Phase 2 merged c49fce45, Phase 3 Painted World and Hand-Drawn Motion chaining now). Standing boards open: #70 lab-health, #42 brainstorm.
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing 18/18 PASS (re-verified this run: 19 live workflow names incl. self vs allowlist 18 excl. self, zero missing).
 
 ## IN FLIGHT
- - #463 Phase 2 eval gate: Fixer landed the 9.4-round `clamp01` NaN defect (0939af87, 84668a23), Reviewer approved 84668a23, Tester added durable stage-hostile suite and approved live tip 0eb96c02 (capture/render/serve live plus hostile, all suites green). Owner `/oc eval` (18:33:04Z) fired opencode-eval run 36341079981, pending on the live head; owner `/oc maintainer` (18:33:15Z) is this run. No duplicate dispatch. Merge gated on `approve-eval`, then merge as Refs #463 and chain Phase 3 (Painted World and Hand-Drawn Motion) immediately, never idle.
- - Main tip 93e1464b: Deploy verified green (prior run). Deploy workflow_dispatch run 36341080208 completed success this batch; no pending Deploy verification.
+ - #463 Phase 3 chain: decision `build` on #463 dispatched this run (never halt on an intermediate Refs merge). Next run: confirm the Phase 3 PR opened, route `review` (or stand down if owner-triggered review already in flight).
+ - Main tip c49fce45: push-triggered Deploy run had not appeared ~1 min after merge (same pattern as prior merges); next run must confirm a Deploy success on the new main tip.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` (no new signal, no PR vehicle): tor-cli CI branch-scoped. No dispatch - evaluation only, main unaffected.
 
 ## NEXT-RUN PLAYBOOK
-1. If eval returns `approve-eval` on 0eb96c02: merge #465 as Refs #463 (rebase, keep branch) and chain Phase 3 immediately via build on #463, never idle.
-2. If eval returns `fix`: route `fix` on #465, then fresh review plus test plus eval re-gate.
-3. Never merge on review/test alone - `approve-eval` is the binding unlock.
-4. If a PR opens from `opencode/issue436-gui-detach-and-syswide-fixes`: route `review` (or `fix` if findings land).
-5. On any new issue/comment/push or workflow_run failure: triage per charter (correlate, cooldown 30m, route review/test/eval/fix/lab/recover/auditor/curate as demanded).
-6. Trigger-list re-verify each run.
-7. Standing rule unchanged: UNTRIAGED sweep every run.
+1. Confirm Deploy success on main c49fce45; if missing/failed, investigate and trigger via dispatch.
+2. If Phase 3 PR is open with no review yet and none in flight: route `review` on the fresh head.
+3. If Phase 3 PR carries owner-triggered review/test/eval runs: stand down per correlation rule, route only on verdicts (approve -> test -> eval -> merge as Refs #463, chain Phase 4).
+4. Never merge on review/test alone - `approve-eval` is the binding unlock.
+5. If a PR opens from `opencode/issue436-gui-detach-and-syswide-fixes`: route `review` (or `fix` if findings land).
+6. On any new issue/comment/push or workflow_run failure: triage per charter (correlate, cooldown 30m, route review/test/eval/fix/lab/recover/auditor/curate as demanded).
+7. Trigger-list re-verify each run.
+8. Standing rule unchanged: UNTRIAGED sweep every run.
 
 ## OPEN QUESTIONS
- - Will the clamp01 fix round plus fresh eval lift Phase 2 above the 9.8 bar?
+ - Will Phase 3 (Painted World and Hand-Drawn Motion) land cleanly and pass the higher craft bar?
+ - Will Deploy succeed on c49fce45 (verify next run)?
  - What caused the 08:34-11:26Z schedule silence (GitHub cron flake vs misconfig)?
  - Will the Owner open a PR from the `gui-detach-and-syswide-fixes` branch, or land it another way?
  - Probe source of the 2026-09-25 PWNED selfheal payloads (red-team test vs unknown actor) - Auditor flagged for owner-level awareness; no code change needed.
