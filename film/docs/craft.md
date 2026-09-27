@@ -52,12 +52,27 @@ animation, freezes the weather at each shot's first frame (storm streaks
 fall back to faint static ticks), and holds eyelids open; the film still
 plays every frame exactly.
 
-## The score sketch
+## The score and sound world
 
 Four original leitmotifs (rows in `film/score/themes.js`): Nia's rising
 pentatonic line, the wind's rocking minor second, Ruel's dotted low tread,
-the cairn stepwise hymn. The animatic performer voices them on triangle
-lead plus detuned pad, following each shot's tempo and mood, resetting its
-phrase on motif changes. Full orchestration with separate synth voices,
-SFX bed, mix, and WAV stem export arrives in its own phase; the cue map it
-must satisfy is already binding and audit-covered.
+the cairn stepwise hymn. The orchestration spec (`film/score/orchestra.js`)
+turns each shot's cue into voice lines for a ten-voice synth orchestra
+(woodwind lead, violin thread, string chorale, cello, bass drone, brass,
+bells, pad, timpani, shaker): Ruel rides a low ostinato, the cairn hymn
+blooms from chorale strings to full brass and bells at the arrival, the
+storm screams on timpani and shaker, the blue thread is a single violin
+line in near silence. A twenty-generator procedural foley bed
+(`film/score/sfx.js`) covers every screenplay sound tag: wind and water
+beds, fire crackle, footsteps, creaks, birds, the rising cairn-row shimmer
+of the rekindling wave. Honest stylization throughout: distant cheers are a
+warm hymn swell, never a fake crowd; silence tags stay silent.
+
+One event list drives both performances: the offline mixer
+(`film/score/mix.js`) renders the 270 s soft-limited master plus per-bus
+stems to `dist/audio/` (byte-reproducible; the JSON stems are committed
+under `score/`), while the theatre performer (`score/animatic-audio.js`)
+plays the same lines live in WebAudio with a looping wind bed, resetting
+its phrase on every cue change. Every event start sits exactly on the
+24 fps frame grid, so A/V sync drift is zero by construction and enforced
+by the audit.
