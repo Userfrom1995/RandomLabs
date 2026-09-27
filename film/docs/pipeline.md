@@ -46,6 +46,12 @@
   and 390 px with reduced motion on and off, every shot has a caption cue
   in bounds, both posters hang on the wall, and the end card, trailer
   buttons, noscript note, canvas guard, and focus styling are all wired.
+- `node film/tests/final-audit.mjs` - final integration gates: every one of
+  the 720 trailer frames lands on its intended film frame (integer-exact
+  frame index parity), the Space shortcut yields to a focused button, the
+  binding counts hold (270 s, 6480 frames, 20 shots, 5 acts, 30 s trailer,
+  22 cues, 602 score + 50 SFX events), and a full 240-frame watch-through
+  sweep paints with no throws, no empty frames, and no NaN coordinates.
 
 ## Reproducibility contract
 

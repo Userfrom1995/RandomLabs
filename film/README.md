@@ -87,6 +87,10 @@ node film/tests/craft.mjs
 # performance gates (frame lock, weather, acting beats, eased camera)
 node film/tests/performance.mjs
 
+# final integration audit (trailer lattice exactness, Space shortcut guard,
+# binding counts, full 240-frame watch-through sweep)
+node film/tests/final-audit.mjs
+
 # watch it (any static server; e.g.)
 npx serve .
 # then open /film/
@@ -104,7 +108,7 @@ npx serve .
 - `player/` - theatre transport (player.js, gallery.js, player.css)
 - `tools/` - render.mjs (stills + manifest), render-audio.mjs (WAV mix +
   stems + audio manifest), render-captions.mjs (VTT export), capture.mjs (hero-frame review loop), audit.mjs (binding gates)
-- `tests/` - smoke.mjs (determinism + timeline invariants), craft.mjs (paint/camera/rig/capture/gallery gates), performance.mjs (frame lock, weather, acting, eased camera gates), score.mjs (orchestration, sync, mix, live performer gates), premiere.mjs (trailer, captions, posters, end card, fallback gates)
+- `tests/` - smoke.mjs (determinism + timeline invariants), craft.mjs (paint/camera/rig/capture/gallery gates), performance.mjs (frame lock, weather, acting, eased camera gates), score.mjs (orchestration, sync, mix, live performer gates), premiere.mjs (trailer, captions, posters, end card, fallback gates), final-audit.mjs (trailer lattice exactness, shortcut guard, binding counts, watch-through sweep)
 - `docs/` - craft, story, and pipeline documentation (unified product view)
 - `posters/` - poster-v1.svg (hill above the Hollow), poster-v2.svg (the rekindling); both deterministic, original art
 - `dist/` - generated stills + manifest (rebuilt by render.mjs)
