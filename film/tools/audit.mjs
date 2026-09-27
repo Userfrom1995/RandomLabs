@@ -102,5 +102,15 @@ check('stills gallery wired', html.includes('id="galleryGrid"') && existsSync(jo
 const playerJs = readFileSync(join(root, 'player/player.js'), 'utf8');
 check('player paints gallery', playerJs.includes('paintGallery(state.tl'));
 
+// full animation performance: frame lock, weather, eased acting
+check('frame lock module committed', existsSync(join(root, 'engine/frames.js')));
+check('particles module committed', existsSync(join(root, 'engine/particles.js')));
+const { PARTICLE_FIELDS } = await import('../engine/particles.js');
+const perfUsedBgs = [...new Set(tl.shots.map((s) => s.bg))];
+check('weather covers screenplay bgs',
+  perfUsedBgs.every((b) => b in PARTICLE_FIELDS), perfUsedBgs.join(','));
+check('player seeks on the frame grid', playerJs.includes('frameTime('));
+check('performance suite committed', existsSync(join(root, 'tests/performance.mjs')));
+
 if (failures.length) { console.error('AUDIT RED: ' + failures.join(', ')); process.exit(1); }
 console.log('AUDIT GREEN');
