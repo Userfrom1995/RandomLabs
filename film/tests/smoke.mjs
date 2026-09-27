@@ -1,5 +1,5 @@
 // Hearthlight smoke test (Phase 1): deterministic core invariants.
-// Run: node film/tests/smoke.mjs — exit non-zero on any failure.
+// Run: node film/tests/smoke.mjs - exit non-zero on any failure.
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
