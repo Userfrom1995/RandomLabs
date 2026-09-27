@@ -49,7 +49,8 @@ throws('tester hostile Infinity duration rejected', () =>
 // 2. trailerToFilmTime hostile inputs: clamp or throw, never NaN out.
 const first = trailer.segments[0].filmStart;
 ok('tester hostile -Infinity clamps to start', trailerToFilmTime(trailer, -Infinity) === first);
-ok('tester hostile Infinity clamps to end', Number.isFinite(trailerToFilmTime(trailer, Infinity)));
+ok('tester hostile Infinity holds final frame', trailerToFilmTime(trailer, Infinity) === trailer.segments[trailer.segments.length - 1].filmEnd - 1e-6);
+ok('tester hostile NaN/null/undefined restart at opening', trailerToFilmTime(trailer, NaN) === first && trailerToFilmTime(trailer, null) === first && trailerToFilmTime(trailer, undefined) === first);
 throws('tester hostile null trailer throws', () => trailerToFilmTime(null, 3));
 throws('tester hostile empty trailer throws', () => trailerToFilmTime({ segments: [], total: 0 }, 3));
 for (const t of [-1e6, -0.001, 0, 15.333, 29.999, 30, 1e6]) {
