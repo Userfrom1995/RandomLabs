@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hearthlight - an original animated short film</title>
+<meta name="description" content="Hearthlight: an original 4.5-minute hand-drawn-style animated short film with an original orchestral score, rendered deterministically in your browser.">
+<link rel="stylesheet" href="player/player.css">
+</head>
+<body>
+<header class="masthead">
+  <div class="masthead-inner">
+    <p class="kicker">The Random Lab presents</p>
+    <h1>Hearthlight</h1>
+    <p class="tagline">An original hand-drawn-style animated short &middot; 4 min 30 s &middot; living animatic (Phase 1)</p>
+  </div>
+</header>
+
+<main>
+  <section class="theatre" aria-label="Film theatre">
+    <div class="stage-wrap" id="stageWrap">
+      <canvas id="stage" width="960" height="540" aria-label="Hearthlight animatic stage"></canvas>
+      <div class="caption-line" id="captionLine" aria-live="polite"></div>
+      <div class="stage-overlay" id="stageOverlay" hidden>
+        <div class="card" role="alert">
+          <h2 id="overlayTitle">Something went wrong</h2>
+          <p id="overlayMsg"></p>
+          <button id="overlayRetry" type="button">Try again</button>
+        </div>
+      </div>
+      <div class="loading-veil" id="loadingVeil" aria-hidden="true">
+        <div class="lantern-pulse" aria-hidden="true"></div>
+        <p>Lighting the lanterns&hellip;</p>
+      </div>
+      <button class="big-play" id="bigPlay" type="button" aria-label="Play the film" hidden>&#9654;</button>
+    </div>
+
+    <div class="transport" role="group" aria-label="Transport controls">
+      <button id="btnPlay" type="button" aria-label="Play or pause (Space)">&#9654;</button>
+      <button id="btnRestart" type="button" aria-label="Restart from beginning">|&#9664;</button>
+      <div class="scrub">
+        <label class="visually-hidden" for="seek">Seek</label>
+        <input id="seek" type="range" min="0" max="270" step="0.1" value="0" aria-valuetext="0:00 of 4:30">
+        <div class="times"><span id="tCur">0:00</span><span id="tDur">4:30</span></div>
+      </div>
+      <button id="btnCaption" type="button" aria-pressed="true" aria-label="Toggle captions (C)">CC</button>
+      <button id="btnMute" type="button" aria-label="Mute or unmute (M)">&#128266;</button>
+      <input id="vol" type="range" min="0" max="100" value="80" aria-label="Volume">
+      <button id="btnFull" type="button" aria-label="Fullscreen (F)">&#9974;</button>
+    </div>
+
+    <nav class="chapters" aria-label="Chapters">
+      <h2>Chapters</h2>
+      <ol id="chapterList"></ol>
+    </nav>
+
+    <section class="now-playing" aria-live="polite">
+      <h2>Now playing</h2>
+      <p><strong id="npShot">Loading&hellip;</strong><br><span id="npAct"></span></p>
+    </section>
+  </section>
+
+  <section class="poster-wall">
+    <h2>Poster</h2>
+    <figure>
+      <img src="posters/poster-v1.svg" alt="Hearthlight poster: Nia holding the keeper's lantern on the hill above Ember Hollow" width="480">
+      <figcaption>Poster v1, generated deterministically by the render pipeline. No stock, no traces.</figcaption>
+    </figure>
+  </section>
+
+  <section class="story-links">
+    <h2>Story package</h2>
+    <ul>
+      <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/film/story/screenplay.json">Screenplay with timed shot list</a></li>
+      <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/film/story/characters.md">Character bible</a></li>
+      <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/film/story/music-direction.md">Music direction and cue map</a></li>
+      <li><a href="docs/">Craft and pipeline docs</a></li>
+    </ul>
+    <p class="provenance">Every pixel and every note is generated in-repo from committed sources. Rebuild it: <code>node film/tools/render.mjs</code>, verify it: <code>node film/tools/audit.mjs</code>.</p>
+  </section>
+</main>
+
+<footer>
+  <p>Hearthlight is an original work of the Random Lab. Built deterministically: same seed, same film. <a href="https://github.com/Userfrom1995/RandomLabs/tree/main/film">Source</a></p>
+</footer>
+
+<script type="module" src="player/player.js"></script>
+</body>
+</html>

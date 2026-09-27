@@ -1,0 +1,114 @@
+:root {
+  --ink: #241c12;
+  --parchment: #f4ead6;
+  --night: #14121e;
+  --gold: #ffcf7a;
+  --rust: #a03a2a;
+  --muted: #8a8172;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--night);
+  color: var(--parchment);
+  font-family: Georgia, 'Times New Roman', serif;
+  line-height: 1.5;
+}
+.masthead {
+  text-align: center;
+  padding: 40px 16px 20px;
+  background: radial-gradient(ellipse 70% 90% at 50% 110%, #4a3a2a 0%, var(--night) 70%);
+}
+.masthead-inner { max-width: 760px; margin: 0 auto; }
+.kicker { letter-spacing: 0.28em; text-transform: uppercase; font-size: 0.75rem; color: var(--gold); margin: 0 0 8px; }
+h1 { font-size: clamp(2.6rem, 8vw, 4.4rem); margin: 0; letter-spacing: 0.04em; }
+.tagline { color: var(--muted); margin: 8px 0 0; }
+main { max-width: 1020px; margin: 0 auto; padding: 0 16px 48px; }
+.theatre { margin-top: 12px; }
+.stage-wrap {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border: 1px solid #3a3244;
+  border-radius: 10px;
+  overflow: hidden;
+}
+#stage { width: 100%; height: 100%; display: block; }
+.caption-line {
+  position: absolute;
+  left: 6%; right: 6%; bottom: 9%;
+  text-align: center;
+  font-size: clamp(0.95rem, 2.6vw, 1.35rem);
+  text-shadow: 0 2px 6px #000, 0 0 2px #000;
+}
+.caption-line .who { color: var(--gold); font-size: 0.8em; letter-spacing: 0.12em; }
+.caption-line.off { display: none; }
+.stage-overlay, .loading-veil {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(10, 8, 16, 0.82);
+}
+.stage-overlay[hidden], .loading-veil[hidden] { display: none; }
+.stage-overlay .card {
+  background: #221c30; border: 1px solid #5a4f7e; border-radius: 10px;
+  padding: 24px 28px; max-width: 420px; text-align: center;
+}
+.stage-overlay button, .transport button {
+  font-family: inherit; cursor: pointer;
+}
+.stage-overlay button {
+  background: var(--gold); color: var(--ink); border: 0; border-radius: 6px;
+  padding: 10px 22px; font-size: 1rem; margin-top: 8px;
+}
+.lantern-pulse {
+  width: 26px; height: 34px; border-radius: 13px 13px 16px 16px;
+  background: var(--gold); margin: 0 auto 12px;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse { 50% { opacity: 0.45; transform: scale(0.92); } }
+@media (prefers-reduced-motion: reduce) { .lantern-pulse { animation: none; } }
+.big-play {
+  position: absolute; inset: 0; margin: auto;
+  width: 84px; height: 84px; border-radius: 50%;
+  border: 2px solid var(--gold); background: rgba(0,0,0,0.55);
+  color: var(--gold); font-size: 2rem;
+}
+.big-play[hidden] { display: none; }
+.transport {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 10px; padding: 10px 12px;
+  background: #1e1a2a; border: 1px solid #3a3244; border-radius: 10px;
+  flex-wrap: wrap;
+}
+.transport button {
+  background: #2c2640; color: var(--parchment);
+  border: 1px solid #4a4266; border-radius: 6px;
+  min-width: 44px; min-height: 40px; font-size: 1.05rem;
+}
+.transport button[aria-pressed="true"] { outline: 2px solid var(--gold); }
+.scrub { flex: 1 1 220px; }
+.scrub input[type="range"] { width: 100%; accent-color: var(--gold); }
+.times { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+#vol { width: 110px; accent-color: var(--gold); }
+.chapters ol { list-style: none; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.chapters button {
+  width: 100%; text-align: left; font-family: inherit;
+  background: #221c30; color: var(--parchment);
+  border: 1px solid #4a4266; border-radius: 8px; padding: 10px 12px; cursor: pointer;
+}
+.chapters button[aria-current="true"] { border-color: var(--gold); }
+.chapters .t { display: block; font-size: 0.8rem; color: var(--muted); }
+.now-playing, .poster-wall, .story-links { margin-top: 28px; }
+h2 { font-size: 1.25rem; letter-spacing: 0.06em; color: var(--gold); }
+.poster-wall figure { margin: 0; }
+.poster-wall img { max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #3a3244; }
+figcaption, .provenance { color: var(--muted); font-size: 0.92rem; }
+.story-links a { color: var(--gold); }
+code { background: #2c2640; padding: 1px 6px; border-radius: 4px; }
+footer { text-align: center; color: var(--muted); padding: 24px 16px 40px; font-size: 0.9rem; }
+footer a { color: var(--gold); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+@media (max-width: 480px) {
+  #vol { width: 76px; }
+  .transport { gap: 6px; }
+}
