@@ -1,33 +1,32 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T11:43Z (maintainer run 36316460342, owner /oc maintainer on PR #453 - merged #453, lab retry on #450)**
+ - **Updated: 2026-09-27T11:45Z (maintainer run 36316612935, owner /oc maintainer on PR #454 - standby, both PRs approved, tests in flight)**
 
 ## PRs & Issues
- - **PRs:** #453 MERGED (`689620d6`, Curator README Active Projects fix, 1 commit `18488f1e`); #451 OPEN (retitled `Hearthlight (Phase 1: Story Package and Living Animatic)`, head now `b48635da`, 3 commits: `81cd7829` blueprint + `5fb96000` story package + `53a1001d` animatic engine + follow-up; Reviewer `/oc fix` with 4 blockers outstanding, no approval).
- - **Issues:** #450 stall-hardening (OPEN, Lab Engineer session push rejected with `workflows` permission error - retry dispatched this run); #449 short film (OPEN, Phase 1 build producing on the #451 branch); #452 CLOSED (fixed by #453 merge); standing boards open: #70 lab-health, #42 brainstorm.
- - **Boards:** #70 lab-health, #42 brainstorm standing. **Main 689620d6 LIVE.** Trigger-list 18/18 PASS.
+ - **PRs:** #454 OPEN (stall-hardening infra for #450, head 11c317b7, branch `opencode/issue450-20260927113703`, 3 commits, MERGEABLE/CLEAN, Reviewer `/oc approve` 11:43:53Z, Tester runs in flight). #451 OPEN (Hearthlight Phase 1 for #449, head b48635da, branch `opencode/issue449-20260927113051`, Reviewer `/oc approve` 11:43:50Z on b48635da with `Refs #449` trailer, Tester runs in flight, BUT live state CONFLICTING/DIRTY vs main - needs Fixer rebase before merge).
+ - **Issues:** #450 stall-hardening (OPEN, Lab Engineer run 36316294238 completed success, PR #454 carries the fix); #449 short-film tracking (OPEN, Phase 1 built on PR #451 branch); standing boards open: #70 lab-health, #42 brainstorm.
+ - **Boards:** #70 lab-health, #42 brainstorm standing. **Main 689620d6 LIVE** (advanced 78f3b333 -> 689620d6 via Curator merge `curate: list in-flight short-film #449 in README Active Projects (Fixes #452)`). Trigger-list 18/18 PASS.
 
 ## IN FLIGHT
- - PR #453 merged: `gh pr merge 453 --rebase` exit 0 at 11:43:01Z, merge commit `689620d6`; `git ls-remote origin main` = `689620d6` (advanced from `78f3b333`); #452 auto-closed via `Fixes #452`. Double gate was green (approve 11:40:49Z + approve-test 11:42:07Z, no later fix); orphan-main check PASS (merge-base = `78f3b333`).
- - PR #451 build: Builder actively addressing the Reviewer's 4 blockers (trailer, theatre shell, docs hub, pipeline skeleton) - branch advanced twice since the verdict (`53a1001d`, `b48635da`) and PR retitled to Phase 1. Sibling maintainer run 36316461570 (in_progress, owner `/oc maintainer` on #451) owns #451 triage - no duplicate `fix` dispatched from here.
- - Stall-hardening #450: Lab Engineer run 36316294238 completed success BUT its session push failed (`remote rejected ... auditor.yml without workflows permission` - agent direct-push of workflow files, hard-blocked by GitHub). Retry dispatched this run (`lab` on 450); the new session must use the PAT-backed runner push path. Never repeat the direct-push strategy.
- - Sibling maintainer run 36316517435 pending (owner `/oc maintainer` 11:42:09Z on #453): will observe the merged state; must confirm Deploy on `689620d6`.
+ - PR #454 review: opencode-review run 36316612956 in_progress (owner's `/oc review` 11:42:01Z) - verdict already landed as `/oc approve` 11:43:53Z; run still open, left alone.
+ - PR #454 test: owner's `/oc test` 11:44:00Z; opencode-test runs in the 11:43:55/11:44:03 batches in_progress/queued. No duplicate dispatched.
+ - PR #451 test: owner's `/oc test` 11:43:52Z; test runs in flight. No duplicate dispatched.
+ - 11:44:03 batch also shows a Lab Engineer run in_progress of unclear parentage (no matching owner `/oc lab` comment seen on either PR tail) - left alone, noted for next-run correlation.
+ - Build run 36316101056 completed success; lab run 36316294238 completed success (produced PR #454).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still at d905397a (no new signal, no PR vehicle): tor-cli CI still red branch-scoped. No dispatch - owner session active, no vehicle, main unaffected.
- - Post-merge pages verification PENDING: no Deploy run on `689620d6` existed at merge time; next run must confirm a Deploy success on the new tip.
 
 ## NEXT-RUN PLAYBOOK
-1. Confirm Deploy success on main `689620d6`; if missing/failed, investigate and trigger via `gh workflow run` if necessary.
-2. On #451: when the Builder lands the 4 blockers and a review is (re-)requested on the new head, route `review`; on `/oc approve` (as `Refs #449`) merge with `--rebase` and IMMEDIATELY chain Phase 1 (`build` on 449) - never halt on an intermediate PR; on `/oc fix` route `fix` (same-repo bot PR, no infra files - `fix` is safe, not `lab`).
-3. On #450: when the Lab Engineer opens a PR, route `review` (infra PR - never `fix`/`continue` per the routing guard); if the retry fails again on direct push, enforce the PAT-backed path before any further retry.
-4. If a PR opens from `opencode/issue436-gui-detach-and-syswide-fixes`: route `review` (or `fix` if findings land); Windows Setsid break plus committed binary plus macOS exit-code regression must be resolved before merge.
-5. If the branch keeps advancing with no PR and CI stays red: evaluate only, never seize owner work; ping only on the eventual PR/issue, never on closed #436 uninvited.
-6. On any new issue/comment/push or workflow_run failure: triage per charter (correlate, cooldown 30m, route review/test/eval/fix/lab/recover/auditor/curate as demanded).
-7. Trigger-list re-verify each run.
-8. NEVER assume an `issues: opened` run will follow a `create_issue` decision (bot-created content suppresses it). After creating an issue, either chain the next dispatch via a dispatched follow-up or mark it UNTRIAGED in STATE.md until routed.
+1. When Tester posts `/oc approve-test` on #454 (no later `/oc fix`): merge with `--rebase` (keep branch, #450 stays open per `Refs #450` note - acceptance needs post-merge observation), verify main advanced, confirm Deploy success on the new tip.
+2. When Tester posts `/oc approve-test` on #451 (no later `/oc fix`): do NOT merge while CONFLICTING - route `fix` on 451 first (rebase onto new main + re-verify; non-infra PR so `fix` is safe, not `lab`), then merge with `--rebase` (trailer already `Refs #449`, keep #449 open), verify main, confirm Deploy, then IMMEDIATELY chain Phase 2 (`build`/`continue` on 449) - never halt on an intermediate PR.
+3. When the Tester posts `/oc fix` findings on either PR: route `fix` on 451 (safe, non-infra) or `lab` on 454 (infra routing guard - never `fix`/`continue` on infra PRs), provided no same-branch run is in flight.
+4. If the 11:44:03 Lab Engineer run posts on an unexpected target: correlate before routing (cooldown 30m, no duplicate dispatch into a flap).
+5. On any new issue/comment/push or workflow_run failure: triage per charter (correlate, cooldown 30m, route review/test/eval/fix/lab/recover/auditor/curate as demanded).
+6. Trigger-list re-verify each run.
+7. NEVER assume an `issues: opened` run will follow a `create_issue` decision (bot-created content suppresses it). After creating an issue, either chain the next dispatch via a dispatched follow-up or mark it UNTRIAGED in STATE.md until routed.
 
 ## OPEN QUESTIONS
- - Will Deploy succeed on the new main tip `689620d6`?
- - Will the Builder satisfy all 4 Reviewer blockers on #451 and earn an approve (as `Refs #449`)?
- - Will the Lab Engineer retry land the stall-hardening without another push rejection?
+ - Will the Tester approve #454, and will the post-merge observation confirm Architect/Builder routing within one schedule interval on the next bot-created issue (the #450 acceptance bar)?
+ - Will the Tester approve #451, and will the Fixer rebase resolve the DIRTY state cleanly for merge?
+ - After #451 merges, will Phase 2 (Hand-Drawn Render Craft) chain cleanly via build/continue on #449?
  - What caused the 08:34-11:26Z schedule silence (GitHub cron flake vs misconfig)?
  - Will the Owner open a PR from the `gui-detach-and-syswide-fixes` branch, or land it another way?
  - Probe source of the 2026-09-25 PWNED selfheal payloads (red-team test vs unknown actor) - Auditor flagged for owner-level awareness; no code change needed.
