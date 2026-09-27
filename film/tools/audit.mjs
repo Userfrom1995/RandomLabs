@@ -316,5 +316,37 @@ check('plates captured per location',
   readFileSync(join(root, 'tools/capture.mjs'), 'utf8').includes('plates.json'));
 check('world craft suite committed', existsSync(join(root, 'tests/craft-world.mjs')));
 
+// dialogue voice and sound continuity (rebuild Phase 4): dialogue-first
+// ducking shared by the offline master and the live performer, legato
+// score with no dead air and resolving closing notes, per-line delivery
+// coverage (faces for humans, body acting for Ruel's single line), and the
+// SFX re-anchor to the new action beats at pinned event counts.
+const { dialogueWindows, duckLevelAt, SCORE_FLOOR, SFX_FLOOR, DUCK_VERSION } =
+  await import('../score/duck.js');
+const { buildScoreEvents: auditScoreEvents } = await import('../score/orchestra.js');
+const { buildSfxEvents: auditSfxEvents, tagRecipe: auditTagRecipe } = await import('../score/sfx.js');
+const auditScore = auditScoreEvents(tl);
+const auditSfx = auditSfxEvents(tl);
+const auditWindows = dialogueWindows(tl);
+check('duck module version pinned', DUCK_VERSION === 'hearthlight-duck/1');
+check('duck floors favor words', SCORE_FLOOR < SFX_FLOOR && SFX_FLOOR < 1);
+check('duck holds under lines, rests outside',
+  duckLevelAt(3, auditWindows, SCORE_FLOOR) === SCORE_FLOOR &&
+  duckLevelAt(0.5, auditWindows, SCORE_FLOOR) === 1);
+let auditDead = 0;
+for (let t = 0; t < tl.total; t++) {
+  if (!auditScore.some((e) => t >= e.t && t < e.t + e.dur)) auditDead++;
+}
+check('score covers every second', auditDead === 0, auditDead + ' dead');
+check('event counts pinned (602/50)', auditScore.length === 602 && auditSfx.length === 50,
+  auditScore.length + '/' + auditSfx.length);
+const { faceFor: auditFaceFor, speakFor: auditSpeakFor } = await import('../engine/rigs.js');
+const auditS12 = tl.shots.find((s) => s.id === 's12');
+check('ruel delivers his line in the body',
+  auditSpeakFor(auditS12, 'RUEL', 4) === 1 && auditSpeakFor(auditS12, 'RUEL', 0) === 0);
+check('silence tags honestly empty',
+  auditTagRecipe('grove-silence') === null && auditTagRecipe('title-hush') === null);
+check('dialogue-voice suite committed', existsSync(join(root, 'tests/dialogue-voice.mjs')));
+
 if (failures.length) { console.error('AUDIT RED: ' + failures.join(', ')); process.exit(1); }
 console.log('AUDIT GREEN');
