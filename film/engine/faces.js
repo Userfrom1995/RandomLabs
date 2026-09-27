@@ -44,10 +44,14 @@ export function expressionFor(emotion) {
 }
 
 // Blend two expressions by k (0 => a, 1 => b). Gaze blends componentwise.
+// Off-contract k clamps to the nearest endpoint: lows (including
+// -Infinity) read as a, highs (including +Infinity) as b, and NaN reads
+// as a so every input still yields a finite face.
 export function blendExpression(aName, bName, k) {
   const a = expressionFor(aName);
   const b = expressionFor(bName);
-  const c = Math.min(1, Math.max(0, k));
+  const n = Number(k);
+  const c = Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : (n > 0 ? 1 : 0);
   return {
     brow: a.brow + (b.brow - a.brow) * c,
     pinch: a.pinch + (b.pinch - a.pinch) * c,
