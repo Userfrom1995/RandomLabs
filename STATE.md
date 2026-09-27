@@ -1,18 +1,18 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T15:21Z (maintainer run 36329205114, owner /oc review + /oc maintainer on PR #459 - standby, review queued, main 265c498f LIVE)**
+ - **Updated: 2026-09-27T15:31Z (maintainer run 36329842757, owner /oc maintainer on PR #459 - double gate green, eval dispatched, main 265c498f LIVE)**
 
 ## PRs & Issues
- - **PRs:** #459 Hearthlight Phase 5 OPEN at head b25a19eb69dedfda6693e3fa8b2932327f994c89 (branch `opencode/issue449-hearthlight-phase-5`, 3 commits, body `Refs #449`, MERGEABLE). Owner `/oc review` 15:20:33Z answered by queued opencode-review run 36329205171 (pending); NO verdict yet, NO `/oc fix` anywhere. Zero other open PRs (#458 merged as 265c498f).
- - **Issues:** #449 short-film tracking (OPEN, Phases 1-4 merged as Refs #449 at 689620d6/59656315/f06141bf/265c498f, Phase 5 in review gate, Final integration follows); #450 stall-hardening (OPEN, delivered via #454 merge, self-triage proving pending on next bot-created issue); standing boards open: #70 lab-health, #42 brainstorm.
+ - **PRs:** #459 Hearthlight Phase 5 OPEN at head 0942118b1be1a77aaab01eb4df748882ae51158d (branch `opencode/issue449-hearthlight-phase-5`, 4 commits, body `Refs #449`, MERGEABLE, mergeStateStatus UNSTABLE explained by the by-design actor-gate denial on bot-authored PRs). Reviewer `/oc approve` 15:21:52Z on b25a19eb (covers all production code; delta to live tip is exactly the Tester-authorized test-only file `film/tests/tester-phase5-premiere.mjs`); Tester `/oc approve-test` 15:31:00Z on live tip 0942118b. NO `/oc fix` anywhere. NO `approve-eval` yet - eval dispatched this run. Zero other open PRs.
+ - **Issues:** #449 short-film tracking (OPEN, Phases 1-4 merged as Refs #449 at 689620d6/59656315/f06141bf/265c498f, Phase 5 in eval gate, Final integration follows); #450 stall-hardening (OPEN, delivered via #454 merge, self-triage proving pending on next bot-created issue); standing boards open: #70 lab-health, #42 brainstorm.
  - **Boards:** #70 lab-health, #42 brainstorm standing. **Main 265c498f LIVE** (Phase 4 merge). Trigger-list re-verified this run: 18/18 PASS (19 live names incl. self maintainer vs 18-name allowlist).
 
 ## IN FLIGHT
- - Reviewer on #459 Phase 5 (opencode-review run 36329205171 pending, answers owner `/oc review` 15:20:33Z on head b25a19eb). No duplicate dispatched this run per correlation rule.
- - This maintainer run 36329205114 completing. Post-merge Deploy (pages.yml push trigger) for 265c498f plus PR-459 preview Deploy (workflow_dispatch 36329206143 success) re-confirms on the next survey.
+ - Evaluator on #459 Phase 5 (dispatched this run via decision `eval`, answers the 15:31:00Z approve-test on live tip 0942118b). No duplicate: opencode-eval arm at 15:31:05Z correctly skipped (trigger was `/oc maintainer`, not `/oc eval`).
+ - This maintainer run 36329842757 completing. Post-merge Deploy (pages.yml push trigger) for 265c498f plus PR-459 preview Deploy re-confirms on the next survey.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still at d905397a (no new signal, no PR vehicle): tor-cli CI still red branch-scoped. No dispatch - owner session active, no vehicle, main unaffected.
 
 ## NEXT-RUN PLAYBOOK
-1. When the Reviewer verdict lands on #459: if `/oc approve` on live head b25a19eb with no `/oc fix`, route `test`; if `/oc fix` findings, route `fix`. Never merge without the full triple gate (approve + approve-test + approve-eval, no intervening fix).
+1. When the Evaluator verdict lands on #459: if `/oc approve-eval` on live head 0942118b with no `/oc fix`, MERGE with `--rebase` as `Refs #449` (keep #449 open, keep branch intact) after orphan-main check, then IMMEDIATELY chain Final integration via `build` on 449. If eval findings, route `fix`. Never merge without the full triple gate (approve + approve-test + approve-eval, no intervening fix).
 2. Never close #449 on an intermediate phase (hard rule); close only on the Final integration phase with `Closes #449`.
 3. Confirm Deploy success after the Phase 4 merge (main 265c498f); if missing/failed, investigate and trigger via dispatch.
 4. On #450: close only when the self-triage proves itself (a bot-created issue summons triage within one interval via the landed b549c00a/2ea7882a/0dec3653 machinery). #455's closure as superseded is not that proof.
@@ -23,8 +23,8 @@
 9. NEVER assume an `issues: opened` run will follow a `create_issue` decision (bot-created content suppresses it). After creating an issue, either chain the next dispatch via a dispatched follow-up or mark it UNTRIAGED in STATE.md until routed.
 
 ## OPEN QUESTIONS
- - Will the Reviewer approve #459 (as Refs #449) or return findings to the Fixer?
- - Will the Tester approve-test #459 (14-suite sweep, trailer paints, caption export) and the Evaluator approve-eval so Phase 5 merges and Final integration chains?
+ - Will the Evaluator approve-eval #459 (as Refs #449) or return findings to the Fixer?
+ - On approve-eval: will Phase 5 merge cleanly and will Final integration chain immediately?
  - Will the #450 self-triage prove itself on the next bot-created issue so #450 can close?
  - What caused the 08:34-11:26Z schedule silence (GitHub cron flake vs misconfig)?
  - Will the Owner open a PR from the `gui-detach-and-syswide-fixes` branch, or land it another way?
