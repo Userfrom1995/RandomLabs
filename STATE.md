@@ -1,14 +1,14 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T14:26Z (maintainer run 36325841855, owner /oc maintainer on PR #457 - eval dispatched, main 59656315 LIVE)**
+ - **Updated: 2026-09-27T14:29Z (maintainer run 36326020095, owner /oc eval on PR #457 - standby, evaluator in flight, main 59656315 LIVE)**
 
 ## PRs & Issues
- - **PRs:** #457 Hearthlight Phase 3 OPEN at bafe4edd (branch `opencode/issue449-hearthlight-phase-3`, 4 commits: 3 builder + 1 tester hostile suite, body `Refs #449`, MERGEABLE/UNSTABLE where UNSTABLE is the by-design held PR-branch Deploy + pr-trigger runs, branch-scoped, not a merge defect). Reviewer `/oc approve` 14:21:11Z on a60df451 (covers all production code; delta to live tip verified test-only: exactly one file `film/tests/tester-phase3-hostile.mjs`). Tester `/oc approve-test` 14:25:08Z on live tip bafe4edd. No other open PRs.
- - **Issues:** #449 short-film tracking (OPEN, Phase 1 merged as Refs #449 at c43c56dd, Phase 2 merged as Refs #449 at 59656315, Phase 3 in gate); #450 stall-hardening (OPEN, delivered via #454 merge, self-triage proving pending on next bot-created issue); standing boards open: #70 lab-health, #42 brainstorm.
+ - **PRs:** #457 Hearthlight Phase 3 OPEN at bafe4edd (branch `opencode/issue449-hearthlight-phase-3`, 4 commits: 3 builder + 1 tester hostile suite, body `Refs #449`, MERGEABLE; UNSTABLE is the by-design held PR-branch Deploy + pr-trigger runs, branch-scoped, not a merge defect). Reviewer `/oc approve` 14:21:11Z on a60df451 (covers all production code; delta to live tip verified test-only: exactly one file `film/tests/tester-phase3-hostile.mjs`). Tester `/oc approve-test` 14:25:08Z on live tip bafe4edd. Evaluator in flight (opencode-eval in_progress 14:27:54Z + pending 14:28:08Z duplicate from the /oc maintainer batch - left alone, no third dispatch). No other open PRs.
+ - **Issues:** #449 short-film tracking (OPEN, Phase 1 merged as Refs #449 at c43c56dd, Phase 2 merged as Refs #449 at 59656315, Phase 3 in eval gate, Phase 4 Original Score and Sound World chains on approve-eval + merge); #450 stall-hardening (OPEN, delivered via #454 merge, self-triage proving pending on next bot-created issue); standing boards open: #70 lab-health, #42 brainstorm.
  - **Boards:** #70 lab-health, #42 brainstorm standing. **Main 59656315 LIVE** (Phase 2 merge). Trigger-list PASS (18 allowlist vs 19 live names incl. self, verified live-grep this run).
 
 ## IN FLIGHT
- - Evaluator on PR #457 (dispatched this run 36325841855): frame lock, weather determinism, 240-frame sweep, hostile resilience gates.
- - This maintainer run 36325841855 in_progress.
+ - Evaluator on PR #457 (in_progress since 14:27:54Z, plus a queued pending duplicate from the 14:28:08Z batch): frame lock, weather determinism, 240-frame sweep, hostile resilience gates.
+ - This maintainer run 36326020095 in_progress. A follow-up owner `/oc maintainer` (14:28:06Z) will summon the next run - it must also stand down unless eval delivered a verdict.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still at d905397a (no new signal, no PR vehicle): tor-cli CI still red branch-scoped. No dispatch - owner session active, no vehicle, main unaffected.
 
 ## NEXT-RUN PLAYBOOK
