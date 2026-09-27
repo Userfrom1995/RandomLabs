@@ -43,7 +43,8 @@ export function paintGallery(tl, reducedMotion) {
         // button's label is the honest playing-state signal.
         const play = document.getElementById('btnPlay');
         if (play && String(play.getAttribute('aria-label') || '').startsWith('Play')) play.click();
-        document.getElementById('stageWrap').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const stage = document.getElementById('stageWrap');
+        if (stage && typeof stage.scrollIntoView === 'function') stage.scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
       cap.append(title, document.createElement('br'), meta, document.createElement('br'), jump);
       fig.append(canvas, cap);
