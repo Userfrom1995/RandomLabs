@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-26T23:26Z (maintainer run 36279420340, schedule tick - standby, no changes)**
+ - **Updated: 2026-09-27T01:46Z (maintainer run 36286543960, schedule tick - standby, no changes)**
 
 ## PRs & Issues
  - **PRs:** none open. Last merged: PR #447 (Phase 5: Showcase Refresh) to 6af0bd8e, triple gate green. Epic #436 CLOSED.
@@ -7,7 +7,7 @@
  - **Boards:** #70 lab-health, #42 brainstorm standing. **Main 6af0bd8e LIVE, unchanged.** Trigger-list 18/18 PASS. Pins `opencode/muse-spark-1.3-contributor-free` (opencode.json two-knob).
 
 ## IN FLIGHT
- - Nothing lab-owned. Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still at d905397a (unchanged since ~19:55Z push, triaged in run 36267847851, no PR): tor-cli CI still red branch-scoped (Windows `Setsid` break at main.go:649 + macOS fail-closed exit-code regression). No dispatch - owner session active, no vehicle (no PR/issue), main unaffected. See playbook.
+ - Nothing lab-owned. Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still at d905397a (unchanged since ~19:55Z 2026-09-26 push, triaged in run 36267847851, no PR): tor-cli CI still red branch-scoped (Windows `Setsid` break at main.go:649 + macOS fail-closed exit-code regression). No dispatch - owner session active, no vehicle (no PR/issue), main unaffected. See playbook.
 
 ## NEXT-RUN PLAYBOOK
 1. If a PR opens from `opencode/issue436-gui-detach-and-syswide-fixes`: route `review` (or `fix` if review findings land); the Windows `Setsid` break (tor-cli/main.go `spawnSupervisor`, plus committed `tor-cli/tor-cli` binary in diff) AND the macOS fail-closed exit-code regression must be resolved before merge.
