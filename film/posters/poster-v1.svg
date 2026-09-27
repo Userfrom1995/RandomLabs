@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="1440" viewBox="0 0 960 1440">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#23264a"/>
+      <stop offset="0.6" stop-color="#4a3a5a"/>
+      <stop offset="1" stop-color="#8a5a4a"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffd27a"/>
+      <stop offset="1" stop-color="#ffd27a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="960" height="1440" fill="url(#sky)"/>
+  <circle cx="760" cy="330" r="150" fill="url(#glow)" opacity="0.8"/>
+  <!-- valley lantern dots -->
+  <g fill="#ffb54d">
+    <circle cx="120" cy="1050" r="7"/><circle cx="210" cy="1080" r="7"/><circle cx="300" cy="1060" r="7"/>
+    <circle cx="390" cy="1095" r="7"/><circle cx="480" cy="1070" r="7"/><circle cx="570" cy="1100" r="7"/>
+    <circle cx="660" cy="1075" r="7"/><circle cx="750" cy="1090" r="7"/><circle cx="840" cy="1060" r="7"/>
+    <circle cx="165" cy="1150" r="6" opacity="0.5"/><circle cx="480" cy="1160" r="6" opacity="0.5"/><circle cx="795" cy="1150" r="6" opacity="0.5"/>
+  </g>
+  <!-- hill -->
+  <path d="M0,1250 Q240,950 480,1150 T960,1100 L960,1440 L0,1440 Z" fill="#1c2416"/>
+  <!-- Nia: cloak triangle, head, survey pole with ribbons -->
+  <g stroke="#0e0a06" stroke-width="5">
+    <path d="M430,1150 L370,890 L500,890 Z" fill="#a03a2a"/>
+    <circle cx="435" cy="850" r="32" fill="#e8b98a"/>
+    <path d="M410,835 L350,810 M415,825 L360,790" fill="none"/>
+    <line x1="520" y1="1150" x2="520" y2="700"/>
+    <path d="M520,730 Q600,710 660,730 M520,770 Q590,755 640,770 M520,810 Q580,800 620,810" fill="none" stroke="#d8d2c0"/>
+  </g>
+  <!-- keeper's lantern in her hand -->
+  <circle cx="350" cy="980" r="70" fill="url(#glow)" opacity="0.9"/>
+  <rect x="332" y="950" width="36" height="52" rx="8" fill="none" stroke="#0e0a06" stroke-width="5"/>
+  <circle cx="350" cy="976" r="12" fill="#ffe29a"/>
+  <!-- title -->
+  <text x="480" y="220" text-anchor="middle" font-family="Georgia,serif" font-size="96" letter-spacing="8" fill="#f2e8d5">HEARTHLIGHT</text>
+  <text x="480" y="270" text-anchor="middle" font-family="Georgia,serif" font-size="30" font-style="italic" fill="#ffcf7a">an original animated short</text>
+  <!-- Ruel silhouette, small, at the valley edge -->
+  <g fill="#101010" opacity="0.9">
+    <ellipse cx="180" cy="1210" rx="90" ry="42"/>
+    <ellipse cx="250" cy="1195" rx="26" ry="20"/>
+    <circle cx="258" cy="1190" r="4" fill="#ffb54d"/>
+  </g>
+</svg>
