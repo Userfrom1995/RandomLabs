@@ -14,11 +14,20 @@
 - `node film/tools/capture.mjs` - the watch-and-iterate loop: renders the
   hero frame (shot midpoint) of all 20 shots through the real engine,
   writing `dist/capture/heroes.json` (sha256 of each frame's exact
-  draw-call log) plus one SVG review card per shot, and one face close-up
-  card per lead per bible emotion into `dist/capture/faces.json`. Re-run
+  draw-call log) plus one SVG review card per shot, one face close-up
+  card per lead per bible emotion into `dist/capture/faces.json`, and one
+  background plate per painted location into `dist/capture/plates.json`
+  (pure paint hashed at 960 px with stroke counts, re-rendered at 390 px
+  to pin the honest density scale-down). Re-run
   after any craft tweak and diff the hashes: every moved hash names a shot
-  (or a lead's expression) whose look changed. Byte-identical across
-  repeat runs.
+  (or a lead's expression, or a location plate) whose look changed.
+  Byte-identical across repeat runs.
+- `node film/tests/craft-world.mjs` - world and motion craft gates:
+  composition sketch per location, three wash layers on distinct streams,
+  detail budgets that scale down honestly at 390 px, stance-planting gait
+  with exertion-run climbs, dialogue nod on live lines, cloth answering
+  the acting drivers, spray inside the painted water band, plates
+  reproducible and sensitive.
 - `node film/tests/craft.mjs` - craft gates: paint set covers every
   screenplay background, camera grammar covers every declared move, rig
   poses stay in eased bounds with the scripted acting beats, ink boil is

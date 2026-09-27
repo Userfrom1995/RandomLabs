@@ -13,7 +13,7 @@ Full story-and-animation rebuild of Hearthlight at `/film/` under the same Pages
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 2: Human Character Animation Craft (Complete, ready for review)
+- **Active Phase:** Phase 3: Painted World and Hand-Drawn Motion (Complete, ready for review)
 
 ### Phase 1: Story Rebuild and Character Design Foundation (PR 1 target, Refs #463)
 
@@ -32,9 +32,10 @@ Full story-and-animation rebuild of Hearthlight at `/film/` under the same Pages
 
 ### Phase 3: Painted World and Hand-Drawn Motion (PR 3 target, Refs #463)
 
-- [ ] `backgrounds.js` rebuilt location by location: composition sketch, three wash layers, detail pass (foliage/rock/water/props), atmosphere pass; 390 px density scaling without blur
-- [ ] Motion pass: walk/run/carry cycles with ground contact, dialogue face timing, cloth/hair secondary motion, re-anchored weather/particles; 24 fps grid and scrub-exact renderer preserved
-- [ ] Capture loop extended (background plates per location); craft/performance tests pin wash layering, detail presence, weight/grounding, secondary motion, boil presence
+- [x] `backgrounds.js` rebuilt location by location: composition sketch table (horizon/focal/light/atmo per location, width-independent), three wash layers on distinct streams plus fore wash, detail pass (foliage/rock/water/ferns/props/gate/chart/path/birds), atmosphere pass per location; `detailCountFor` scales stroke budgets down honestly at 390 px (fewer strokes, same ridge skeleton, never blurred)
+- [x] Motion pass: `footPlant` ground-contact gait (stance plants lift-0, swing humps over, knees absorb plant, contact shadows fade with lift), `gaitFor` exertion-run climbs (cadence/lift/rock up), `speechNod` dialogue heads (open visemes nod, silence 0), cloth/hair on the acting secondary drivers end to end, weather re-anchored to painted water/hearth with honest fallbacks; 24 fps grid and scrub-exact renderer preserved
+- [x] Capture loop extended (14 background plates per location in `plates.json` + SVG review cards with composition values); new `tests/craft-world.mjs` pins washes, honest budgets, plate detail/scale, gait plant/swing/run, nod timing, wind-answered cloth, contact shadows, anchored spray, stage at both widths, plate reproducibility; audit carries Phase 3 gates
+- [x] Builder self-review: gait measured, not eyeballed (stance float <= 3 px at h=120, swing apex ~11 px); plate table reviewed (all 14 locations distinct hashes, 390 px strictly fewer strokes); hostile-width and NaN-foot regressions from the rewrite caught by older suites and fixed at the source
 
 ### Phase 4: Dialogue Voice and Sound Continuity (PR 4 target, Refs #463)
 
@@ -56,8 +57,40 @@ Full story-and-animation rebuild of Hearthlight at `/film/` under the same Pages
 
 ## Current step
 
-Phase 2 complete: four human leads walk the frame with expressive faces
-and eased acting; pipeline green. Ready for review.
+Phase 3 complete: fourteen locations repainted in four passes with
+width-honest detail, the cast walks with planted feet and nods its lines,
+cloth and weather belong to their paintings; pipeline green. Ready for
+review.
+
+## Phase 3 watch-through notes (Builder self-review, 2026-09-27)
+
+- Paint: all 14 plates hash distinct (14/14 unique); every plate carries
+  60+ strokes and wash gradients at 960 px (chart plate honestly flat, no
+  sky gradients on paper); every plate paints strictly fewer strokes at
+  390 px while the ridge-skeleton op structure matches across widths.
+  Gorge spray fills only the painted water band (18/18 marks inside);
+  house sparks rise from the painted hearth; ground lines sit exactly on
+  the composition horizons.
+- Motion: stance feet plant (lift exactly 0 through the stance share,
+  fore travelling backward under the body, sides opposed); measured boot
+  contact floats at most 3 px on a 120 px body with full contact shadows,
+  sub-pixel at mobile widths; swing feet apex near 11 px, a visible step.
+  Exertion 1.0 runs (cadence 1.35, step 1.6x); open visemes nod ~45x
+  harder than closed mouths; silence reads exactly 0; cloth renders
+  different bellies at wind 0.1 vs 0.9.
+- Self-review catch: the first leg rewrite shuffled through cosine
+  flatness (swing lift ~2 px) and bobbed planted feet off the ground;
+  retuned to thigh-swing plus knee-fold with shallow bob, re-measured
+  above. Regression catch: a dropped `l2` argument (NaN feet) and hostile
+  widths throwing in the strict budget fn, both fixed at the source with
+  the older suites holding the line.
+- Full suite green: repro (audit with Phase 3 gates, smoke, premiere,
+  captions 43 cues), craft, craft-humans, craft-world, performance,
+  smoke, tester phase1/3/4/5, theatre, score, determinism, final-audit,
+  regression eval3/4, phase2-live/polish, phase2 hostile suites.
+- Known stand-ins for Phase 4: SFX still sit on the conservative Phase 1
+  cue map; dialogue-first ducking not yet in the mix; score re-cue keeps
+  Phase 1 timings.
 
 ## Phase 2 watch-through notes (Builder self-review, 2026-09-27)
 
@@ -112,9 +145,10 @@ and eased acting; pipeline green. Ready for review.
 
 ## Next steps
 
-Reviewer (`/oc review`) on Phase 2, then Builder Phase 3: Painted World
-and Hand-Drawn Motion (`backgrounds.js` location repaint, motion pass with
-grounded cycles and anchored weather, background-plate capture).
+Reviewer (`/oc review`) on Phase 3, then Builder Phase 4: Dialogue Voice
+and Sound Continuity (VTT rebuild byte-pinned, SFX re-anchored to the new
+action beats, dialogue-first ducking, score re-cue with continuous
+coverage).
 
 ## Team Note
 
