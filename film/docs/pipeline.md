@@ -11,6 +11,16 @@
 - `node film/tools/render.mjs` - validates the screenplay, exports one SVG
   still per act plus `dist/manifest.json` with sha256 checksums of every
   committed source. Same inputs yield byte-identical outputs.
+- `node film/tools/capture.mjs` - the watch-and-iterate loop: renders the
+  hero frame (shot midpoint) of all 20 shots through the real engine,
+  writing `dist/capture/heroes.json` (sha256 of each frame's exact
+  draw-call log) plus one SVG review card per shot. Re-run after any craft
+  tweak and diff the hashes: every moved hash names a shot whose look
+  changed. Byte-identical across repeat runs.
+- `node film/tests/craft.mjs` - craft gates: paint set covers every
+  screenplay background, camera grammar covers every declared move, rig
+  poses stay in eased bounds with the scripted acting beats, ink boil is
+  deterministic, capture is reproducible, the gallery is wired.
 
 ## Reproducibility contract
 
@@ -22,11 +32,14 @@
 3. No binary artifacts without committed generators; the audit fails the
    build if any appear.
 4. The player clock is the timeline: play advances it by rAF delta, pause
-   and seek set it exactly.
+  and seek set it exactly.
+5. The storyboard wall on the theatre page is painted live by the same
+  engine at each act midpoint: zero image binaries, zero drift between the
+  film and its stills.
 
-## Roadmap hooks
+## Self-review discipline
 
-Later phases extend this skeleton: PNG hero-frame export with hash
-verification (determinism harness), WAV stem export (score audit), review
-stills capture, and the A/V sync audit. Each lands on the phase branch
-that needs it, behind the same gate discipline.
+After any craft change: run `capture.mjs`, diff `dist/capture/heroes.json`
+against the previous run, and open the changed shots' review cards in
+`dist/capture/stills/`. A craft pass is done when every moved hash is a
+shot the pass intended to touch.

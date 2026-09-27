@@ -4,6 +4,7 @@
 // the renderer stays a pure function of time.
 import { buildTimeline, shotAt, actAt, captionAt, formatTime } from '../engine/timeline.js';
 import { renderAnimatic } from '../engine/animatic.js';
+import { paintGallery } from './gallery.js';
 import { createPerformer } from '../score/animatic-audio.js';
 
 const $ = (id) => document.getElementById(id);
@@ -182,6 +183,7 @@ async function init() {
   $('loadingVeil').hidden = true;
   renderFrame();
   $('bigPlay').hidden = false;
+  paintGallery(state.tl, reducedMotion);
 
   // transport wiring
   $('btnPlay').addEventListener('click', () => setPlaying(!state.playing));

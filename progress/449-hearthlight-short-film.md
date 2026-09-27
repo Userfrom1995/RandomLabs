@@ -4,7 +4,7 @@
 - **Branch:** opencode/issue449-hearthlight-phase-2
 - **Status:** in-progress
 - **Architect:** the Architect (blueprint `ideas/2026-09-27-hearthlight-animated-short-film.md`)
-- **Builder:** the Builder (Phase 1 merged as PR #451, Phase 2 in build)
+- **Builder:** the Builder (Phase 1 merged as PR #451, Phase 2 complete, ready for review)
 
 ## Goal
 
@@ -17,9 +17,9 @@ test + eval green, unified docs.
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 2: Hand-Drawn Render Craft (in build)
+- **Active Phase:** Phase 2: Hand-Drawn Render Craft (Complete, ready for review)
 
-### Phase 1: Story Package and Living Animatic (PR 1 target, Refs #449)
+### Phase 1: Story Package and Living Animatic (merged as PR #451, Refs #449)
 
 - [x] Full screenplay with timed shot list (`film/story/screenplay.json`, 5 acts, 240-300 s total)
 - [x] Character bible with model-sheet parameters (Nia, Yara, Ruel, the wind)
@@ -30,13 +30,13 @@ test + eval green, unified docs.
 
 ### Phase 2: Hand-Drawn Render Craft (PR 2 target, Refs #449)
 
-- [ ] Ink engine module (2s line boil + double-pass hand-inked stroke weight)
-- [ ] Paper module (grain, fibre, vignette, layered wash stacking)
-- [ ] Keyframed vector rigs with eased inbetweening (walk/idle/act poses, Yara half-rate stillness)
-- [ ] Valley background paint set covering all 14 screenplay backgrounds
-- [ ] Camera grammar completed (drift, orbit joins the existing moves)
-- [ ] Stills gallery on the theatre page (live engine-painted, zero binaries) + capture tool for self-review
-- [ ] Determinism harness extended (craft pin green, repeat-capture byte-identical)
+- [x] Ink engine module (2s line boil + double-pass hand-inked stroke weight)
+- [x] Paper module (grain, fibre, vignette, layered wash stacking)
+- [x] Keyframed vector rigs with eased inbetweening (walk/idle/act poses, Yara half-rate stillness)
+- [x] Valley background paint set covering all 14 screenplay backgrounds
+- [x] Camera grammar completed (drift, hold, orbit join the existing moves)
+- [x] Stills gallery on the theatre page (live engine-painted, zero binaries) + capture tool for self-review
+- [x] Determinism harness extended (craft pin green, repeat-capture byte-identical)
 
 ### Phase 3: Full Animation Performance (PR 3 target, Refs #449)
 
@@ -67,18 +67,33 @@ test + eval green, unified docs.
 
 ## Current step
 
-Phase 2 in build on `opencode/issue449-hearthlight-phase-2`: extracting the
-inline sketch craft of Phase 1 into real engine modules (ink, paper,
-backgrounds, rigs) with eased keyframe acting, a painted valley set, and a
-self-review stills loop. Timeline contract unchanged.
+Phase 2 complete on `opencode/issue449-hearthlight-phase-2`: the inline
+sketch craft is now real engine modules (ink, paper, backgrounds, rigs)
+with eased keyframe acting, a 14-background painted valley set, full
+camera grammar, a live-painted storyboard wall, and the capture
+self-review loop. Timeline contract unchanged (270 s, 20 shots, 5 acts).
+Smoke, determinism, theatre, craft, and audit suites green. Ready for
+review.
 
 ## Builder log
+
+- 2026-09-27 (Builder): Phase 2 built and verified. New modules:
+  `engine/ink.js` (2s boil + double-pass stroke), `engine/paper.js`
+  (stacked washes, grain, fibres, vignette), `engine/backgrounds.js`
+  (14-background paint set), `engine/rigs.js` (eased poseFor + Nia/Yara/
+  Ruel rigs with walk/kneel/wag/wake beats); `animatic.js` rewired as
+  pure composition plus hold/drift/orbit moves. New `tools/capture.mjs`
+  (20 hero-frame hashes + review cards, byte-identical reruns) and
+  `player/gallery.js` storyboard wall (5 live-painted act stills with
+  watch-from-here jumps, honest failure path). New `tests/craft.mjs`
+  (25 gates green); `audit.mjs` extended with craft coverage gates.
+  Verified: 140 engine frames across all shots (start/mid/end,
+  reduced-motion on/off, 390 px width) with no throws; gallery runtime
+  verified under a DOM stub (paint, jump-seek, error card).
 
 - 2026-09-27 (Builder): Phase 1 merged as PR #451 (story package, living
   animatic theatre, pipeline skeleton, unified docs). Branched Phase 2
   from latest main for the hand-drawn render craft pass.
-
-## Builder log
 
 - 2026-09-27 (Builder): story package committed (screenplay 20 shots /
   270 s continuous, bible, storyboard, cue map). Engine committed
@@ -91,9 +106,8 @@ self-review stills loop. Timeline contract unchanged.
 
 ## Next steps
 
-Builder to implement Phase 1: Story Package and Living Animatic with real
-code and zero stubs - every player control shipped in Phase 1 must work
-against the animatic cut; no placeholder buttons for later-phase features.
+Phase 3: Full Animation Performance (weather/particles, emotion beats,
+24 fps timeline lock) on a fresh phase branch after this PR merges.
 
 ## Team Note
 
