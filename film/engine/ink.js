@@ -46,12 +46,14 @@ export function inkStroke(ctx, ink, width, boil, dragAlpha = 0.35) {
   ctx.lineJoin = 'round';
   ctx.stroke();
   ctx.restore();
+  ctx.save();
   ctx.strokeStyle = ink;
   ctx.globalAlpha = 1;
   ctx.lineWidth = width;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.stroke();
+  ctx.restore();
 }
 
 // Filled ink shape with a hand-inked rim: fill first, then the double-pass
