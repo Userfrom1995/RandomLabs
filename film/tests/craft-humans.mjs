@@ -78,6 +78,11 @@ ok('all 153 emotion x phoneme faces render', facesOk);
 const bl = blendExpression('fear', 'joy', 0);
 ok('blend endpoints exact',
   bl.brow === expressionFor('fear').brow && blendExpression('fear', 'joy', 1).lid === expressionFor('joy').lid);
+ok('blend NaN reads endpoint a (finite face)',
+  JSON.stringify(blendExpression('fear', 'joy', NaN)) === JSON.stringify(bl));
+ok('blend infinities clamp to endpoints',
+  JSON.stringify(blendExpression('fear', 'joy', Infinity)) === JSON.stringify(blendExpression('fear', 'joy', 1)) &&
+  JSON.stringify(blendExpression('fear', 'joy', -Infinity)) === JSON.stringify(bl));
 ok('mouth M/B/F closed, A open',
   mouthShapeFor('M').open < 0.1 && mouthShapeFor('B').open < 0.1 &&
   mouthShapeFor('F').open < 0.2 && mouthShapeFor('A').open > 0.7);
@@ -92,15 +97,22 @@ ok('caption visemes stay in set', phonOk);
 ok('phoneme REST on empty', phonemeFor('', 1) === 'REST' && phonemeFor(null, 1) === 'REST');
 ok('phoneme deterministic', phonemeFor('Do not spend it', 2.0) === phonemeFor('Do not spend it', 2.0));
 
-// turnaround symmetry within the 2% bible tolerance: the probe reads the
-// same shoulder constant the renderer uses, and rejects non-human names
-// so the gate cannot pass on garbage input.
+// turnaround symmetry within the 2% bible tolerance: the probe renders a
+// rest pose and measures the shoulder anchors the renderer actually draws
+// (not the constant), and rejects non-human names so the gate cannot pass
+// on garbage input.
 for (const name of Object.keys(HUMAN_MODELS)) {
   const sym = turnaroundSymmetry(name);
   ok('turnaround symmetric: ' + name, sym.mismatch === 0 && sym.left === sym.right);
 }
-ok('turnaround probe reads body constant',
-  turnaroundSymmetry('nia').left === SHOULDER_X);
+ok('turnaround probe measures the render, not the constant',
+  Math.abs(turnaroundSymmetry('nia').left - SHOULDER_X) < 1e-9 &&
+  Math.abs(turnaroundSymmetry('tam').right - SHOULDER_X) < 1e-9);
+{
+  const sym = turnaroundSymmetry('yara');
+  ok('turnaround mismatch derived from measured anchors',
+    sym.mismatch === Math.abs(sym.left - sym.right) && Number.isFinite(sym.mismatch));
+}
 let symThrows = false;
 try { turnaroundSymmetry('ruel'); } catch { symThrows = true; }
 ok('turnaround rejects non-humans', symThrows);

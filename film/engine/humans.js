@@ -51,7 +51,13 @@ export function modelFor(name) {
 // Two-segment FK limb: upper from (x1,y1) at ang1 len l1, fore at ang2 len
 // l2, joint dot, end point returned for hands/feet placement. Angles in
 // radians from straight-down (positive swings forward).
+//
+// Limb anchor probe: when an array, fkLimb records its start point so the
+// turnaround probe can measure the geometry the renderer actually draws
+// instead of re-reading the constant.
+let limbProbe = null;
 export function fkLimb(ctx, x1, y1, l1, a1, l2, a2) {
+  if (limbProbe) limbProbe.push({ x: x1, y: y1 });
   const jx = x1 + Math.sin(a1) * l1;
   const jy = y1 + Math.cos(a1) * l1;
   const ex = jx + Math.sin(a2) * l2;
@@ -345,12 +351,41 @@ export function drawHuman(ctx, pal, name, x, y, h, opts) {
   ctx.restore();
 }
 
-// Turnaround symmetry probe: shoulder x offsets at rest must mirror
-// within tolerance. Reads the same SHOULDER_X the renderer uses, and
-// validates the name through modelFor so non-human names throw.
+// Turnaround symmetry probe: renders a rest pose through a stub context,
+// captures the shoulder anchors the renderer actually passes to fkLimb
+// (legs first, then arms), and compares their magnitudes. A one-shoulder
+// render regression shows up as a nonzero mismatch. Validates the name
+// through modelFor so non-human names throw.
+const PROBE_H = 120;
+function stubCtx() {
+  const grad = { addColorStop() {} };
+  return new Proxy({}, {
+    get(t, prop) {
+      if (typeof prop !== 'string') return undefined;
+      if (prop === 'createLinearGradient' || prop === 'createRadialGradient') return () => grad;
+      return () => undefined;
+    },
+    set() { return true; },
+  });
+}
 export function turnaroundSymmetry(name) {
   modelFor(name);
-  return { left: SHOULDER_X, right: SHOULDER_X, mismatch: Math.abs(SHOULDER_X - SHOULDER_X) };
+  limbProbe = [];
+  try {
+    drawHuman(stubCtx(), {}, name, 0, 0, PROBE_H, {
+      boil: { x: 0, y: 0 }, faceBoil: { x: 0, y: 0 }, walkT: 0,
+      face: { emotion: 'neutral', phoneme: 'REST', blink: 1 },
+    });
+  } finally {
+    const pts = limbProbe;
+    limbProbe = null;
+    if (!pts || pts.length < 4) throw new Error('symmetry probe captured no arm anchors for ' + name);
+    const armL = pts[pts.length - 2];
+    const armR = pts[pts.length - 1];
+    const left = Math.abs(armL.x) / PROBE_H;
+    const right = Math.abs(armR.x) / PROBE_H;
+    return { left, right, mismatch: Math.abs(left - right) };
+  }
 }
 
 export { PHONEMES };

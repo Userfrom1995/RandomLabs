@@ -122,6 +122,12 @@ const b0 = blendExpression('fear', 'joy', 0);
 const b1 = blendExpression('fear', 'joy', 1);
 ok('blend clamps low k', JSON.stringify(blendExpression('fear', 'joy', -2)) === JSON.stringify(b0));
 ok('blend clamps high k', JSON.stringify(blendExpression('fear', 'joy', 5)) === JSON.stringify(b1));
+ok('blend NaN reads endpoint a (finite face)',
+  JSON.stringify(blendExpression('fear', 'joy', NaN)) === JSON.stringify(b0) &&
+  Number.isFinite(blendExpression('joy', 'fear', NaN).brow));
+ok('blend infinities clamp to endpoints',
+  JSON.stringify(blendExpression('fear', 'joy', Infinity)) === JSON.stringify(b1) &&
+  JSON.stringify(blendExpression('fear', 'joy', -Infinity)) === JSON.stringify(b0));
 ok('blend midpoint interpolates',
   Math.abs(blendExpression('fear', 'joy', 0.5).brow - (b0.brow + b1.brow) / 2) < 1e-12);
 ok('phoneme hostile seeks read REST',
@@ -158,11 +164,13 @@ ok('face boil frozen under reduced motion',
   ok('s06 pose carries nonzero knot', (mid.yara.knot || 0) > 0, String(mid.yara.knot));
 }
 
-// 5. symmetry probe reads the renderer's own constant
-ok('probe reads SHOULDER_X', turnaroundSymmetry('nia').left === SHOULDER_X);
+// 5. symmetry probe measures the rendered shoulder anchors
+ok('probe measures SHOULDER_X from the render',
+  Math.abs(turnaroundSymmetry('nia').left - SHOULDER_X) < 1e-9);
 for (const n of names) {
   const sym = turnaroundSymmetry(n);
-  ok('probe symmetric: ' + n, sym.mismatch === 0 && sym.left === sym.right);
+  ok('probe symmetric: ' + n, sym.mismatch === 0 && sym.left === sym.right &&
+    sym.mismatch === Math.abs(sym.left - sym.right));
 }
 
 // 6. lantern flame hostile: missing/zero/negative flame never crashes nia
