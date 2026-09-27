@@ -125,7 +125,10 @@ function seekTo(t) {
 async function init() {
   let sp;
   try {
-    const res = await fetch('../story/screenplay.json', { cache: 'no-store' });
+    // Relative to the document (/film/index.html), not the module: fetch()
+    // resolves against the document URL, so '../story/...' would 404 as
+    // /story/... on Pages. 'story/...' resolves to /film/story/... .
+    const res = await fetch('story/screenplay.json', { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     sp = await res.json();
   } catch (err) {
