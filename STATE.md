@@ -1,13 +1,13 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T17:25Z (maintainer run 36336758205, owner /oc review + /oc maintainer on PR #464 - standby, fixer landed, fresh review in flight)**
+ - **Updated: 2026-09-27T17:26Z (maintainer run 36336802296, owner /oc maintainer on PR #464 - standby, fresh review in flight)**
 
 ## PRs & Issues
- - **PRs:** #464 OPEN (Hearthlight rebuild Phase 1, head 56e9ca16761563275e70b90967a54860527b76fb, branch `opencode/issue463-20260927170115`, 20 files, body Refs #463, mergeable MERGEABLE / CLEAN, base 9f45cf91 = main tip, direct child) - Fresh Reviewer run 36336758336 pending (owner /oc review 17:23:20Z). Zero other open PRs. Main `9f45cf91` LIVE.
+ - **PRs:** #464 OPEN (Hearthlight rebuild Phase 1, head 56e9ca16761563275e70b90967a54860527b76fb, branch `opencode/issue463-20260927170115`, body Refs #463, mergeable MERGEABLE / CLEAN, base = main tip 9f45cf91) - Fresh Reviewer run 36336802277 pending (17:24:13Z batch on head 56e9ca16; prior run 36336758336 cancelled by concurrency). Zero other open PRs. Main `9f45cf91` LIVE.
  - **Issues:** #463 Hearthlight Reimagined OPEN (Phase 1 built on #464, fixer landed, awaiting fresh review gate). Standing boards open: #70 lab-health, #42 brainstorm.
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing 18/18 PASS (re-verified this run: allowlist 18 excl. self vs 19 live workflow names incl. self).
 
 ## IN FLIGHT
- - #464 Phase 1 review: opencode-review run 36336758336 pending (17:23:2x batch on head 56e9ca16) - expect approve or findings. Prior approve (1a57a9e9) stale; Tester blocking SyntaxError finding + Fixer re-quote landed in between.
+ - #464 Phase 1 review: opencode-review run 36336802277 pending (17:24:13Z batch on head 56e9ca16) - expect approve or findings. Prior approve (1a57a9e9) stale; Tester blocking SyntaxError finding + Fixer re-quote landed in between.
  - Post-merge Deploy verification for main tip 9f45cf91: DONE (prior runs).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` (no new signal, no PR vehicle): tor-cli CI branch-scoped. No dispatch - evaluation only, main unaffected.
 
