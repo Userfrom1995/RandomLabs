@@ -9,7 +9,7 @@ never imitation.
 The renderer plays the full timeline as a pure function of (timeline,
 time): scrubbable, pausable, testable, locked to a 24 fps frame grid
 (`engine/frames.js`) so playback, seeks, and the capture loop all land on
-identical instants. Six craft modules do the work:
+identical instants. Nine craft modules do the work:
 
 - **Ink** (`engine/ink.js`): the 2s line-boil offset (jitter re-seeds at
   12 fps from the shot substream, freezing identically when scrubbed) plus
@@ -24,14 +24,40 @@ identical instants. Six craft modules do the work:
   Yara's glowing doorway, grove trunks with hanging moss, the gorge rope
   bridge over sprayed water, slanted storm streaks, the switchback path,
   and the cairn stones with the lighting bloom.
-- **Character rigs** (`engine/rigs.js`): Nia, Yara, and Ruel drawn from the
-  character bible proportions and acted from eased poses. Every one of the
-  20 shots carries a deliberate beat: Nia walks, runs, climbs, kneels,
-  receives the lantern, and raises it at the cairn; fear in the storm plays
-  as stillness, not shaking. Yara boils at half rate and knots the
-  storm-ribbon on a farewell beat. Ruel wakes, treads the gorge and the
-  climb, flicks one ear, and wags his short tail exactly once. Eyelids ride
-  a deterministic blink every few seconds, offset per character.
+- **Character rigs** (`engine/rigs.js`): staging for the four human
+  leads from the character bible, acted from eased poses with the face
+  state of the dialogue lattice. Every one of the 20 shots carries a
+  deliberate beat: Nia walks, runs, climbs, kneels, receives the lantern,
+  and raises it at the cairn; fear in the storm plays as stillness, not
+  shaking. Tam belays the traverse with the oar yoked, carries Lumi up the
+  storm slope, and leaves the oar at the gorge. Lumi is back-carried,
+  arm-carried, then walks the coda with her souvenir stick. Yara knots the
+  storm-ribbon on a farewell beat. Ruel is a demoted supporting appearance
+  in a single shot. Eyelids ride a deterministic blink every few seconds,
+  offset per character.
+- **Human bodies** (`engine/humans.js`): proportion builds from the
+  model-sheet head units (Nia 4.5, Yara 4.0, Tam 5.5, Lumi 3.5) with
+  two-segment FK arms and legs, knees, elbows, simple hands, and costume
+  overlays that double as secondary-motion surfaces: Nia's wind-bellied
+  cloak with its patched elbow, Yara's embroidered shawl, Tam's rope-burned
+  oilskin vest over darned wool, Lumi's tunic with the white ankle binding.
+  Each lead carries a silhouette key readable at 390 px: survey pole and
+  ribbons, keeper's staff, shoulder-yoked oar, topknots and ankle wrap.
+- **Faces** (`engine/faces.js`): heads with gaze and blink, expressive
+  brows, and a nine-viseme phoneme mouth set driven deterministically from
+  the caption text, blended with the seventeen-expression sheet so the
+  mouth never breaks while the face finishes the line. The active dialogue
+  line plays on the speaker's face; between lines the bible beat for the
+  shot holds.
+- **Acting** (`engine/acting.js`): anticipation, action, reaction, and hold
+  phases per shot, eased weight shifts, exertion curves that peak on the
+  action (the gorge traverse and storm carry work hardest), and
+  secondary-motion drivers shaped from the shot's own wind with analytic
+  lag: cloth belly, shawl drift, topknot bounce.
+- **Face-safe boil**: facial lines re-seed on the same 12 fps lattice as
+  the body (scrub-exact) at roughly one-third amplitude, so brows, lids,
+  and mouths hold still enough to act while the silhouette keeps its
+  hand-drawn shimmer.
 - **Weather** (`engine/particles.js`): one deterministic particle field per
   background, drawn over the cast like a multiplane layer. Lantern embers
   over the hollow, wind-driven leaves in the low valley, hearth sparks at
