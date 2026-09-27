@@ -18,6 +18,7 @@
 
 <main>
   <p class="logline">Twelve-year-old wind-cartographer Nia carries a dying keeper's lantern across Ember Hollow to the high cairn before the town's light fails. With mapmaker Yara's charts, ferryman Ruel's crossing, and the mountain wind itself testing her, one hasty girl must learn the steady keeper's pace.</p>
+  <noscript><p class="noscript-note">Hearthlight plays in your browser with JavaScript: the stage above needs it to paint the film. Everything else on this page (story, posters, captions) reads fine without it.</p></noscript>
   <section class="theatre" aria-label="Film theatre">
     <div class="stage-wrap" id="stageWrap">
       <canvas id="stage" width="960" height="540" aria-label="Hearthlight film stage"></canvas>
@@ -27,6 +28,18 @@
           <h2 id="overlayTitle">Something went wrong</h2>
           <p id="overlayMsg"></p>
           <button id="overlayRetry" type="button">Try again</button>
+        </div>
+      </div>
+      <div class="end-card" id="endCard" hidden>
+        <div class="card" role="status">
+          <h2 id="endTitle">The End</h2>
+          <p id="endMsg"></p>
+          <p class="credits" id="endCredits"></p>
+          <div class="end-actions">
+            <button id="btnReplay" type="button">Replay</button>
+            <button id="btnModeSwap" type="button">Replay the trailer</button>
+            <button id="btnDismiss" type="button">Stay on the last frame</button>
+          </div>
         </div>
       </div>
       <div class="loading-veil" id="loadingVeil" aria-hidden="true">
@@ -59,14 +72,29 @@
       <h2>Now playing</h2>
       <p><strong id="npShot">Loading&hellip;</strong><br><span id="npAct"></span></p>
     </section>
+
+    <section class="trailer-call" id="trailerCall" aria-label="Trailer" hidden>
+      <h2>Trailer</h2>
+      <p>Thirty seconds, six moments: the dimming, the entrusting, Ruel, the gorge, the blue thread, the hearthlight. Same stage, same score, same frames as the full film.</p>
+      <div class="trailer-actions">
+        <button id="btnTrailer" type="button">Watch the 30-second trailer (T)</button>
+        <button id="btnFilm" type="button" hidden>Back to the full film</button>
+      </div>
+    </section>
   </section>
 
   <section class="poster-wall">
-    <h2>Poster</h2>
+    <h2>Posters</h2>
+    <div class="poster-grid">
     <figure>
       <img src="posters/poster-v1.svg" alt="Hearthlight poster: Nia holding the keeper's lantern on the hill above Ember Hollow" width="480">
-      <figcaption>Original poster for Hearthlight, drawn in code for this film.</figcaption>
+      <figcaption>First poster: the hill above Ember Hollow. Drawn in code for this film.</figcaption>
     </figure>
+    <figure>
+      <img src="posters/poster-v2.svg" alt="Hearthlight poster: dawn breaks as lanterns rekindle across the valley below the lit high cairn" width="480">
+      <figcaption>Second poster: the rekindling. Drawn in code for this film.</figcaption>
+    </figure>
+    </div>
   </section>
 
   <section class="stills-wall" aria-label="Storyboard wall">
@@ -80,8 +108,10 @@
     <h2>Story package</h2>
     <ul>
       <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/film/story/screenplay.json">Screenplay with timed shot list</a></li>
+      <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/film/story/trailer.json">Trailer cut (30 s, six moments)</a></li>
       <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/film/story/characters.md">Character bible</a></li>
       <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/film/story/music-direction.md">Music direction and cue map</a></li>
+      <li><a href="captions.vtt" download>Captions file (.vtt, 22 cues)</a></li>
       <li><a href="docs/">How it was made</a></li>
     </ul>
     <p class="provenance">Every pixel and every note is generated in-repo from committed sources. <a href="docs/">Reproducibility notes</a></p>
