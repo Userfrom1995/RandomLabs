@@ -1,10 +1,10 @@
 # Progress: Hearthlight Animated Short Film (#449)
 
 - **Issue:** #449
-- **Branch:** opencode/issue449-hearthlight-phase-3
+- **Branch:** opencode/issue449-hearthlight-phase-4
 - **Status:** in-progress
 - **Architect:** the Architect (blueprint `ideas/2026-09-27-hearthlight-animated-short-film.md`)
-- **Builder:** the Builder (Phase 1 merged as PR #451, Phase 2 merged as PR #456, Phase 3 complete, ready for review)
+- **Builder:** the Builder (Phase 1 merged as PR #451, Phase 2 merged as PR #456, Phase 3 merged as PR #457, Phase 4 complete, ready for review)
 
 ## Goal
 
@@ -17,7 +17,7 @@ test + eval green, unified docs.
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 3: Full Animation Performance (Complete, ready for review)
+- **Active Phase:** Phase 4: Original Score and Sound World (Complete, ready for review)
 
 ### Phase 1: Story Package and Living Animatic (merged as PR #451, Refs #449)
 
@@ -47,10 +47,10 @@ test + eval green, unified docs.
 
 ### Phase 4: Original Score and Sound World (PR 4 target, Refs #449)
 
-- [ ] Leitmotif score performed by synth orchestra, cued to picture
-- [ ] SFX design (wind, flame, footsteps, bridge, storm, cairn)
-- [ ] Mix + A/V sync audit (drift bounds enforced)
-- [ ] WAV stems export committed alongside sources
+- [x] Leitmotif score performed by synth orchestra, cued to picture (ten voices, 602 note events)
+- [x] SFX design (twenty procedural generators covering all 50 screenplay tags, honest stylization)
+- [x] Mix + A/V sync audit (270 s master, 0.89 ceiling, zero frame-grid drift enforced)
+- [x] WAV stems export committed alongside sources (JSON stems in score/, WAVs regenerable into dist/audio/)
 
 ### Phase 5: Premiere Cut, Trailer and Theatre Polish (PR 5 target, Refs #449)
 
@@ -67,15 +67,29 @@ test + eval green, unified docs.
 
 ## Current step
 
-Phase 3 complete on `opencode/issue449-hearthlight-phase-3`: the renderer
-is locked to a 24 fps frame grid, all 20 shots carry deliberate acting
-beats with a deterministic blink, directed camera moves ease in and
-settle, and a 14-field deterministic weather layer (embers through the
-rekindling wave) plays over the cast. Seeks snap to frame boundaries and
-capture cards record frame indices. Audit, smoke, determinism, theatre,
-craft, performance, and all regression suites green. Ready for review.
+Phase 4 complete on `opencode/issue449-hearthlight-phase-4`: one
+orchestration spec drives both a ten-voice live WebAudio performer and a
+deterministic offline mixer rendering the 270 s master plus seven stems.
+All 20 shots scored (602 events) and foleyed (50 events, 20 generators),
+every event on the 24 fps grid (sync drift zero), master peak exactly
+0.89, byte-identical reruns. Audit, smoke, determinism, theatre, craft,
+performance, score, and all regression suites green. Ready for review.
 
 ## Builder log
+
+- 2026-09-27 (Builder): Phase 4 built and verified. New modules:
+  `score/orchestra.js` (cue-to-events spec, 10 voices, frame-quantized),
+  `score/voices.js` (8 offline synth renderers), `score/sfx.js` (20
+  procedural foley generators over all 50 screenplay tags),
+  `score/mix.js` (mixer, 0.89 soft-limited master, 7 stems, WAV writer);
+  new `tools/render-audio.mjs` (committed JSON stems + dist WAVs +
+  manifest); `animatic-audio.js` upgraded to the full orchestra with a
+  wind bed (phrase reset per cue, live/opening pitches match the master);
+  `player.js` passes the full shot. New `tests/score.mjs` (50+ gates
+  green); `audit.mjs` extended with score/sync/master gates. Verified:
+  full 270 s mix in ~2.4 s, peak 0.89, RMS 0.144, storm region 2.4x the
+  blue-thread region; all prior suites still green. Unified docs updated
+  (README, craft, pipeline); zero stubs, zero facade controls.
 
 - 2026-09-27 (Builder): Phase 3 built and verified. New modules:
   `engine/frames.js` (24 fps grid: frameTime/frameIndex/frameCount) and
@@ -119,9 +133,10 @@ craft, performance, and all regression suites green. Ready for review.
 
 ## Next steps
 
-Phase 4: Original Score and Sound World (leitmotif synth orchestra, SFX
-bed, mix + A/V sync audit, WAV stems) on a fresh phase branch after this
-PR merges.
+Phase 5: Premiere Cut, Trailer and Theatre Polish (final 240-300 s cut,
+30 s trailer, poster stills, captions pass, loading/error states,
+390 px pass, root landing entry) on a fresh phase branch after this PR
+merges.
 
 ## Team Note
 

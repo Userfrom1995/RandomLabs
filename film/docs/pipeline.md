@@ -25,6 +25,16 @@
   lock, frame-exact scrubbing, weather determinism with reduced-motion
   freeze, full-shot acting beats, eased camera pinned behaviorally, a
   240-frame no-throw sweep, capture with frame indices.
+- `node film/tools/render-audio.mjs` - validates the screenplay, builds the
+  note-event score and SFX bed into committed JSON stems under `score/`,
+  and renders the 270 s master plus per-bus stems into `dist/audio/*.wav`
+  with a checksum manifest. Same inputs yield byte-identical outputs
+  (WAVs live in gitignored `dist/`; `*.wav` is never committed).
+- `node film/tests/score.mjs` - score gates: every shot scored and foleyed,
+  every voice and generator used, zero A/V sync drift, offline
+  determinism (events, samples, WAV bytes), mix bounds (exact length,
+  0.89 ceiling, no NaN), committed stems matching the rebuild, and the
+  live performer under an AudioContext stub.
 
 ## Reproducibility contract
 
@@ -33,7 +43,9 @@
    render path.
 2. The renderer is a pure function of (timeline, time), locked to the
    24 fps grid: same frame index draws the same pixels, from playback,
-   seek, or capture alike.
+   seek, or capture alike. The score obeys the same lattice: every note
+   and foley event starts exactly on a frame boundary, so audio sync
+   drift is zero by construction.
 3. No binary artifacts without committed generators; the audit fails the
    build if any appear.
 4. The player clock is the timeline: play advances it by rAF delta, pause

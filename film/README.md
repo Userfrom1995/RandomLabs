@@ -41,8 +41,13 @@ deterministic blink.
   transport, 5-act chapters, caption track, storyboard wall of live-painted
   act stills, poster wall, honest loading/error states, reduced-motion
   respect, responsive to 390 px.
-- **Score sketch.** `score/` performs the leitmotif cue map (Nia, wind,
-  Ruel, cairn hymn) with synthesized WebAudio voices; volume and mute are
+- **Score.** `score/` performs the leitmotif cue map (Nia, wind,
+  Ruel, cairn hymn) twice from one orchestration spec: a ten-voice synth
+  orchestra (woodwind, violin, strings, cello, bass, brass, bells, pad,
+  timpani, shaker) plus a twenty-generator procedural SFX bed (wind, water,
+  fire, footsteps, creaks, birds, the rekindling wave), mixed to a
+  soft-limited 270 s master. The theatre plays it live in WebAudio; the
+  identical event lists render offline to WAV stems. Volume and mute are
   real controls on a real audio path.
 
 ## Quickstart
@@ -60,6 +65,12 @@ node film/tools/render.mjs
 # capture all 20 hero frames + review cards for the self-review loop
 node film/tools/capture.mjs
 
+# render the deterministic score + SFX mix (WAV stems into dist/audio)
+node film/tools/render-audio.mjs
+
+# score gates (coverage, sync, determinism, mix bounds, live performer)
+node film/tests/score.mjs
+
 # craft gates (paint set, camera grammar, rig poses, capture, gallery)
 node film/tests/craft.mjs
 
@@ -75,10 +86,14 @@ npx serve .
 
 - `story/` - screenplay.json, characters.md, storyboard.json, music-direction.md
 - `engine/` - rng.js, timeline.js, frames.js (24 fps lock), animatic.js (renderer) + ink.js, paper.js, backgrounds.js, rigs.js, particles.js (craft modules)
-- `score/` - themes.js (motif rows), animatic-audio.js (WebAudio performer)
+- `score/` - themes.js (motif rows), orchestra.js (cue-to-events spec),
+  voices.js (offline synth voices), sfx.js (procedural foley bed), mix.js
+  (mixer + WAV writer), animatic-audio.js (live WebAudio performer),
+  score-events.json + sfx-events.json (committed stems, byte-reproducible)
 - `player/` - theatre transport (player.js, gallery.js, player.css)
-- `tools/` - render.mjs (stills + manifest), capture.mjs (hero-frame review loop), audit.mjs (binding gates)
-- `tests/` - smoke.mjs (determinism + timeline invariants), craft.mjs (paint/camera/rig/capture/gallery gates), performance.mjs (frame lock, weather, acting, eased camera gates)
+- `tools/` - render.mjs (stills + manifest), render-audio.mjs (WAV mix +
+  stems + audio manifest), capture.mjs (hero-frame review loop), audit.mjs (binding gates)
+- `tests/` - smoke.mjs (determinism + timeline invariants), craft.mjs (paint/camera/rig/capture/gallery gates), performance.mjs (frame lock, weather, acting, eased camera gates), score.mjs (orchestration, sync, mix, live performer gates)
 - `docs/` - craft, story, and pipeline documentation (unified product view)
 - `posters/` - poster-v1.svg (deterministic, original art)
 - `dist/` - generated stills + manifest (rebuilt by render.mjs)
