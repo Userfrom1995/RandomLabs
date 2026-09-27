@@ -1,10 +1,10 @@
 # Progress: Hearthlight Animated Short Film (#449)
 
 - **Issue:** #449
-- **Branch:** opencode/issue449-hearthlight-phase-5
-- **Status:** in-progress
+- **Branch:** opencode/issue449-hearthlight-phase-6
+- **Status:** complete
 - **Architect:** the Architect (blueprint `ideas/2026-09-27-hearthlight-animated-short-film.md`)
-- **Builder:** the Builder (Phase 1 merged as PR #451, Phase 2 merged as PR #456, Phase 3 merged as PR #457, Phase 4 merged as PR #458, Phase 5 in build)
+- **Builder:** the Builder (Phase 1 merged as PR #451, Phase 2 merged as PR #456, Phase 3 merged as PR #457, Phase 4 merged as PR #458, Phase 5 merged as PR #459, Final Phase in review)
 
 ## Goal
 
@@ -17,7 +17,7 @@ test + eval green, unified docs.
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 5: Premiere Cut, Trailer and Theatre Polish (Complete, ready for review)
+- **Active Phase:** Final Phase: Integration and End-to-end Audit (Complete, ready for review)
 
 ### Phase 1: Story Package and Living Animatic (merged as PR #451, Refs #449)
 
@@ -52,7 +52,7 @@ test + eval green, unified docs.
 - [x] Mix + A/V sync audit (270 s master, 0.89 ceiling, zero frame-grid drift enforced)
 - [x] WAV stems export committed alongside sources (JSON stems in score/, WAVs regenerable into dist/audio/)
 
-### Phase 5: Premiere Cut, Trailer and Theatre Polish (PR 5 target, Refs #449)
+### Phase 5: Premiere Cut, Trailer and Theatre Polish (merged as PR #459, Refs #449)
 
 - [x] Final 240-300 s cut locked (270 s), 30 s trailer (`story/trailer.json` + `engine/trailer.js` pure cut, trailer mode on the same stage), poster stills (poster-v1 + original poster-v2)
 - [x] Subtitles/captions full pass (committed `captions.vtt`, 22 cues, download link, audit-pinned rebuild), chapter menu (chapters return from trailer to the full film)
@@ -61,21 +61,34 @@ test + eval green, unified docs.
 
 ### Final Phase: Integration and End-to-end Audit (Final PR, Closes #449)
 
-- [ ] Full watch-through on desktop + 390 px, all controls green
-- [ ] Reviewer + Tester + Evaluator gates green
-- [ ] Unified docs final pass, reproducibility verified from clean checkout
+- [x] Full watch-through on desktop + 390 px, all controls green
+- [ ] Reviewer + Tester + Evaluator gates green (runs on the final PR after review handoff)
+- [x] Unified docs final pass, reproducibility verified from clean checkout
 
 ## Current step
 
-Phase 5 complete on `opencode/issue449-hearthlight-phase-5`: the premiere
-cut (270 s film + 30 s trailer on one stage), end card with credits,
-committed caption export, second poster, theatre fallbacks, unified docs,
-root landing pointing at the premiere. Audit plus all 14 suites green
+Final Phase complete on `opencode/issue449-hearthlight-phase-6`: full
+end-to-end audit with two real defects found and fixed (trailer map
+float-error flooring 11/720 trailer frames one frame early; Space shortcut
+double-firing on focused buttons), a new `tests/final-audit.mjs` gate suite
+pinning both fixes plus the binding counts and a 240-frame watch-through
+sweep, and unified docs updated. Audit (47 gates) plus all 15 suites green
 (smoke, theatre, determinism, craft, performance, score, premiere, live,
-polish, both eval regressions, both hostile suites, render, capture,
-render-audio). Ready for review.
+polish, both eval regressions, all three hostile suites, render, capture,
+render-audio, final-audit); capture/stems/captions rebuilds byte-identical;
+56 tracked files, zero binaries. Ready for review; this PR uses Closes #449
+so merge closes the epic once review, test, and eval gates are green.
 
 ## Builder log
+
+- 2026-09-27 (Builder): Final Phase built and verified. Fixed
+  `engine/trailer.js` (lift float-noise cases back onto the 24 fps
+  lattice; all other values bit-identical, overshoot hold preserved) and
+  `player/player.js` (Space yields to focused buttons). New
+  `tests/final-audit.mjs` (16 gates green; proven load-bearing by failing
+  11/720 without the trailer fix). Verified: audit 47/47, 15/15 suites,
+  repro.sh green, node --check clean, em-dash scan clean, all href targets
+  resolve, root landing + README entries present.
 
 - 2026-09-27 (Builder): Phase 5 milestones 2-3 (gates, docs, landing).
   New `tests/premiere.mjs` (48 gates green); `audit.mjs` extended with
@@ -99,8 +112,6 @@ render-audio). Ready for review.
   full film), end card with credits and three working buttons, noscript
   note, canvas-2d guard that fails honest instead of blank, trailer
   section that hides itself if the trailer spec fails to load.
-
-## Builder log
 
 - 2026-09-27 (Builder): Phase 4 built and verified. New modules:
   `score/orchestra.js` (cue-to-events spec, 10 voices, frame-quantized),
@@ -158,10 +169,9 @@ render-audio). Ready for review.
 
 ## Next steps
 
-Phase 5: Premiere Cut, Trailer and Theatre Polish (final 240-300 s cut,
-30 s trailer, poster stills, captions pass, loading/error states,
-390 px pass, root landing entry) on a fresh phase branch after this PR
-merges.
+Final PR review path: Reviewer (`/oc review`) then Tester (`/oc test`)
+then Evaluator (`/oc eval`); Maintainer merges with `Closes #449` once all
+three gates are green. No further build phases remain.
 
 ## Team Note
 
