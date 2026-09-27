@@ -206,7 +206,11 @@ async function init() {
       $('stageOverlay').hidden = false;
       const retry = $('overlayRetry');
       retry.textContent = 'Keep watching';
-      retry.onclick = () => { $('stageOverlay').hidden = true; };
+      retry.onclick = () => {
+        $('stageOverlay').hidden = true;
+        // The film kept playing underneath: show bigPlay only when idle.
+        $('bigPlay').hidden = state.playing;
+      };
     }
   });
   document.addEventListener('keydown', (e) => {
@@ -218,8 +222,6 @@ async function init() {
     else if (e.key === 'c' || e.key === 'C') $('btnCaption').click();
     else if (e.key === 'f' || e.key === 'F') $('btnFull').click();
   });
-  $('overlayRetry').addEventListener('click', () => window.location.reload());
-
   requestAnimationFrame((n) => { state.lastFrame = n; requestAnimationFrame(tick); });
 }
 
