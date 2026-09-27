@@ -40,6 +40,7 @@ function showError(title, msg) {
 
 function renderFrame() {
   if (!state.tl) return;
+  try {
   const W = canvas.width; const H = canvas.height;
   const { shot, local } = renderAnimatic(ctx, state.tl, state.time, {
     width: W, height: H, reducedMotion,
@@ -79,6 +80,10 @@ function renderFrame() {
   $('tCur').textContent = formatTime(state.time);
   // score follows picture
   state.performer.setCue(shot.music);
+  } catch (err) {
+    state.playing = false;
+    showError('The reels are damaged', 'A damaged shot stopped playback (' + err.message + '). Reload to try again.');
+  }
 }
 
 function tick(now) {
