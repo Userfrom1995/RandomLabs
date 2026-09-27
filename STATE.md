@@ -1,13 +1,13 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T12:35Z (maintainer run 36319469843, owner /oc maintainer on PR #451 - eval dispatched, re-approved review+test on live tip, main 0dec3653 LIVE)**
+ - **Updated: 2026-09-27T12:38Z (maintainer run 36319644926, owner /oc maintainer on PR #451 - standby, third re-eval in flight, main 0dec3653 LIVE)**
 
 ## PRs & Issues
- - **PRs:** #451 OPEN (Hearthlight Phase 1 for #449, head e7c97269 = live branch tip, MERGEABLE, body `Refs #449`; Reviewer approve on 8385ae62 covers all production code, Tester approve-test on e7c97269 with test-only delta `film/tests/regression-eval3.mjs`, re-eval dispatched - no merge until approve-eval). No other open PRs.
+ - **PRs:** #451 OPEN (Hearthlight Phase 1 for #449, head e7c97269 = live branch tip, MERGEABLE, body `Refs #449`; Reviewer approve on 8385ae62 covers all production code, Tester approve-test on e7c97269 with test-only delta `film/tests/regression-eval3.mjs`, third re-eval run 36319644974 pending on owner /oc eval - no merge until approve-eval). No other open PRs.
  - **Issues:** #450 stall-hardening (OPEN, delivered via #454 merge, self-triage proving pending on next bot-created issue); #449 short-film tracking (OPEN, Phase 1 in final eval gate after production-404 + fullscreen-reload fix); standing boards open: #70 lab-health, #42 brainstorm.
  - **Boards:** #70 lab-health, #42 brainstorm standing. **Main 0dec3653 LIVE** (infra stall-hardening merge #454). Trigger-list 18/18 PASS.
 
 ## IN FLIGHT
- - PR #451 eval: re-eval dispatched this run on head e7c97269 (no eval run existed on the new head; 12:35:02Z batch correctly skipped eval on `/oc maintainer` text).
+ - PR #451 eval: third re-eval run 36319644974 pending (answers owner /oc eval 12:37:22Z); this run dispatched nothing (correlation rule).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still at d905397a (no new signal, no PR vehicle): tor-cli CI still red branch-scoped. No dispatch - owner session active, no vehicle, main unaffected.
 
 ## NEXT-RUN PLAYBOOK
