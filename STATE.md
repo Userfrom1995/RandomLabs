@@ -1,13 +1,13 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T17:15Z (maintainer run 36336157045, owner /oc review + /oc maintainer on PR #464 - standby, review in flight)**
+ - **Updated: 2026-09-27T17:16Z (maintainer run 36336206049, owner /oc maintainer on PR #464 - standby, fresh review in flight)**
 
 ## PRs & Issues
- - **PRs:** #464 OPEN (Hearthlight rebuild Phase 1, head 1a57a9e923e7223bff4a24d5cd60d082ae94213b, 5 commits, 19 files, body Refs #463, mergeable MERGEABLE / CLEAN) - Reviewer run 36336157110 pending on owner /oc review 17:13:43Z. Zero other open PRs. Main `9f45cf91` LIVE.
+ - **PRs:** #464 OPEN (Hearthlight rebuild Phase 1, head 1a57a9e923e7223bff4a24d5cd60d082ae94213b, 5 commits, 19 files, body Refs #463, mergeable MERGEABLE / CLEAN) - Fresh Reviewer run 36336206247 pending (prior run 36336157110 superseded/cancelled). Zero other open PRs. Main `9f45cf91` LIVE.
  - **Issues:** #463 Hearthlight Reimagined OPEN (Phase 1 built on #464, awaiting review gate). Standing boards open: #70 lab-health, #42 brainstorm.
- - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing 18/18 PASS (re-verified this run against maintainer.yml: allowlist 18 incl. opencode-recover; live names incl. self).
+ - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing 18/18 PASS (re-verified this run: allowlist 18 excl. self vs 19 live workflow names incl. self).
 
 ## IN FLIGHT
- - #464 Phase 1 review: opencode-review run 36336157110 pending (owner /oc review 17:13:43Z on head 1a57a9e9) - expect approve or findings. Prior fix round (Closes-to-Refs on fa11c532) resolved live.
+ - #464 Phase 1 review: opencode-review run 36336206247 pending (17:14:42Z batch on head 1a57a9e9) - expect approve or findings. Prior fix round (Closes-to-Refs on fa11c532) resolved live.
  - Post-merge Deploy verification for main tip 9f45cf91: DONE (prior runs).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` (no new signal, no PR vehicle): tor-cli CI branch-scoped. No dispatch - evaluation only, main unaffected.
 
