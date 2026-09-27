@@ -21,7 +21,7 @@ by a deterministic renderer locked to a 24 fps frame grid, with a
 synthesized motif-score sketch, working transport (play/pause, frame-exact
 seek, chapters, captions, fullscreen, volume/mute), a 30-second trailer
 cut from the same frames on the same stage, an end card with credits and
-replay, a committed WebVTT caption file, two original posters, a
+replay, a committed WebVTT caption file, three original posters, a
 live-painted storyboard wall, the complete story package, and the pipeline
 with its self-review capture loop (hero frames, face close-up cards, and
 one background plate per painted location). Ink lines boil on 2s with
@@ -48,7 +48,7 @@ driven by the dialogue, and eased acting beats with weight and exertion.
 - **Theatre.** `index.html` + `player/` is the cinema surface: 16:9 stage,
   transport, 5-act chapters, caption track (plus a downloadable `.vtt`),
   a 30 s trailer on the same stage, an end card with credits, storyboard
-  wall of live-painted act stills, two posters, honest loading/error
+  wall of live-painted act stills, three posters, honest loading/error
   states with noscript and canvas fallbacks, reduced-motion respect,
   responsive to 390 px.
 - **Score.** `score/` performs the leitmotif cue map (Nia, wind,
@@ -120,7 +120,7 @@ npx serve .
   stems + audio manifest), render-captions.mjs (VTT export), capture.mjs (hero-frame review loop), audit.mjs (binding gates)
 - `tests/` - smoke.mjs (determinism + timeline invariants), craft.mjs (paint/camera/rig/capture/gallery gates), performance.mjs (frame lock, weather, acting, eased camera gates), score.mjs (orchestration, sync, mix, live performer gates), dialogue-voice.mjs (duck envelope, score continuity, delivery coverage, SFX anchor gates), premiere.mjs (trailer, captions, posters, end card, fallback gates), final-audit.mjs (trailer lattice exactness, shortcut guard, binding counts, watch-through sweep)
 - `docs/` - craft, story, and pipeline documentation (unified product view)
-- `posters/` - poster-v1.svg (hill above the Hollow), poster-v2.svg (the rekindling); both deterministic, original art
+- `posters/` - poster-v1.svg (hill above the Hollow), poster-v2.svg (the rekindling), poster-v3.svg (three lights, one rope: the gorge traverse ensemble); all deterministic, original art
 - `dist/` - generated stills + manifest (rebuilt by render.mjs)
 
 ## Provenance

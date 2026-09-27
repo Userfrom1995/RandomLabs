@@ -61,7 +61,8 @@
   at exactly 30 s with every segment inside its shot, the trailer map is
   monotonic and frame-identical with the full film, the cut paints at 960
   and 390 px with reduced motion on and off, every shot has a caption cue
-  in bounds, both posters hang on the wall, and the end card, trailer
+  in bounds, all three posters hang on the wall, trailer labels match their
+  shot titles, and the end card, trailer
   buttons, noscript note, canvas guard, and focus styling are all wired.
 - `node film/tests/final-audit.mjs` - final integration gates: every one of
   the 720 trailer frames lands on its intended film frame (integer-exact
