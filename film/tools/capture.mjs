@@ -20,6 +20,28 @@ import { renderAnimatic } from '../engine/animatic.js';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const sha = (s) => createHash('sha256').update(s).digest('hex');
 
+const cliArgs = process.argv.slice(2);
+if (cliArgs.includes('--help') || cliArgs.includes('-h')) {
+  console.log('Usage: node film/tools/capture.mjs [--help]');
+  console.log('Captures one hero frame per shot into dist/capture/ (heroes.json + stills/*.svg).');
+  console.log('Takes no flags; exits 2 on unknown flags.');
+  process.exit(0);
+}
+const unknownCaptureFlag = cliArgs.find((a) => a.startsWith('-'));
+if (unknownCaptureFlag) {
+  console.error('Unknown flag: ' + unknownCaptureFlag + ' (usage: node film/tools/capture.mjs [--help])');
+  process.exit(2);
+}
+
+function loadJson(path, label) {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch (err) {
+    console.error(label + ' is corrupt (' + path + '): ' + err.message);
+    process.exit(1);
+  }
+}
+
 function makeRecorder() {
   const log = [];
   const norm = (a) => (typeof a === 'number' ? Number(a.toFixed(6)) : String(a));
@@ -63,7 +85,7 @@ function reviewCard(shot, heroT, hash) {
     capLines + '\n</svg>\n';
 }
 
-const sp = JSON.parse(readFileSync(join(root, 'story/screenplay.json'), 'utf8'));
+const sp = loadJson(join(root, 'story/screenplay.json'), 'story/screenplay.json');
 const tl = buildTimeline(sp);
 
 const out = join(root, 'dist', 'capture');

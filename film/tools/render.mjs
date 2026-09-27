@@ -12,6 +12,28 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const storyDir = join(root, 'story');
 
+const cliArgs = process.argv.slice(2);
+if (cliArgs.includes('--help') || cliArgs.includes('-h')) {
+  console.log('Usage: node film/tools/render.mjs [--help]');
+  console.log('Validates the screenplay and writes deterministic stills + manifest into dist/.');
+  console.log('Takes no flags; exits 2 on unknown flags.');
+  process.exit(0);
+}
+const unknownRenderFlag = cliArgs.find((a) => a.startsWith('-'));
+if (unknownRenderFlag) {
+  console.error('Unknown flag: ' + unknownRenderFlag + ' (usage: node film/tools/render.mjs [--help])');
+  process.exit(2);
+}
+
+function loadJson(path, label) {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch (err) {
+    console.error(label + ' is corrupt (' + path + '): ' + err.message);
+    process.exit(1);
+  }
+}
+
 function sha256(bytes) { return createHash('sha256').update(bytes).digest('hex'); }
 
 function collectSources(dir, out = []) {
@@ -39,7 +61,7 @@ function actStill(act, shots) {
     rows + '\n</svg>\n';
 }
 
-const sp = JSON.parse(readFileSync(join(storyDir, 'screenplay.json'), 'utf8'));
+const sp = loadJson(join(storyDir, 'screenplay.json'), 'story/screenplay.json');
 // continuity + runtime gate
 let prev = 0;
 for (const s of sp.shots) {

@@ -14,7 +14,29 @@ const check = (name, ok, detail = '') => {
   if (!ok) failures.push(name);
 };
 
-const sp = JSON.parse(readFileSync(join(root, 'story/screenplay.json'), 'utf8'));
+const cliArgs = process.argv.slice(2);
+if (cliArgs.includes('--help') || cliArgs.includes('-h')) {
+  console.log('Usage: node film/tools/audit.mjs [--help]');
+  console.log('Enforces the binding gates on committed sources; exits 0 green, 1 on gate failure.');
+  console.log('Takes no flags; exits 2 on unknown flags.');
+  process.exit(0);
+}
+const unknownAuditFlag = cliArgs.find((a) => a.startsWith('-'));
+if (unknownAuditFlag) {
+  console.error('Unknown flag: ' + unknownAuditFlag + ' (usage: node film/tools/audit.mjs [--help])');
+  process.exit(2);
+}
+
+function loadJson(path, label) {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch (err) {
+    console.error(label + ' is corrupt (' + path + '): ' + err.message);
+    process.exit(1);
+  }
+};
+
+const sp = loadJson(join(root, 'story/screenplay.json'), 'story/screenplay.json');
 const tl = buildTimeline(sp);
 check('runtime 240-300s', tl.total >= 240 && tl.total <= 300, tl.total + 's');
 check('five acts', tl.acts.length === 5);
@@ -61,7 +83,7 @@ const bins = [];
 check('provenance (no binary blobs)', bins.length === 0, bins.join(','));
 
 // storyboard parity
-const board = JSON.parse(readFileSync(join(root, 'story/storyboard.json'), 'utf8'));
+const board = loadJson(join(root, 'story/storyboard.json'), 'story/storyboard.json');
 check('storyboard covers all shots', board.panels.length === tl.shots.length, board.panels.length + ' panels');
 
 // hand-drawn craft engine: modules present, paint set covers the screenplay
