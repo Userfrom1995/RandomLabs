@@ -1,27 +1,27 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T19:31Z (maintainer run 36344554689, owner /oc review + /oc maintainer on #467 - standby, fixer landed, fresh review in flight)**
+ - **Updated: 2026-09-27T19:35Z (maintainer run 36344867570, owner /oc maintainer on #467 - eval dispatched, test gate passed)**
 
 ## PRs & Issues
- - **PRs:** #467 OPEN at `b1d10e9f` (Phase 4 Dialogue Voice and Sound Continuity, branch `opencode/issue463-20260927191316`, 5 commits, body `Refs #463`, MERGEABLE/CLEAN). Zero other open PRs.
- - **Issues:** #463 Hearthlight Reimagined OPEN (Phase 1-3 merged, Phase 3 tip 23fb65a4; Phase 4 vehicle #467 in re-review gate, roadmap: Phase 5 Rebuilt Premiere Cut, Final Integration Closes #463). Standing boards open: #70 lab-health, #42 brainstorm.
- - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing 18/18 PASS (re-verified live via grep this run).
+ - **PRs:** #467 OPEN at `65d9fb57` (Phase 4 Dialogue Voice and Sound Continuity, branch `opencode/issue463-20260927191316`, 6 commits, body `Refs #463`, MERGEABLE/UNSTABLE - UNSTABLE is the by-design actor-gate/pr-trigger hold, not a merge blocker). Zero other open PRs.
+ - **Issues:** #463 Hearthlight Reimagined OPEN (Phase 1-3 merged, Phase 3 tip 23fb65a4; Phase 4 vehicle #467 in eval gate, roadmap: Phase 5 Rebuilt Premiere Cut, Final Integration Closes #463). Standing boards open: #70 lab-health, #42 brainstorm.
+ - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing 18/18 PASS (re-verified live via grep this run: 19 workflow names vs allowlist 18 ex-self).
 
 ## IN FLIGHT
- - #467 Phase 4 re-review: opencode-review run 36344554653 pending on the owner 19:29:42Z `/oc review` (live head b1d10e9f). History this cycle: Reviewer `/oc fix` with 3 blocking live-parity findings (run 36344116066) → owner `/oc fix` → Fixer landed (run 36344377683: wind-duck with SFX_FLOOR, `livePhrasesForStep` single source, 31 parity gates). Next run: route test/eval as gates land; never merge without approve-eval.
- - Main tip 23fb65a4: Deploy green confirmed (runs 36343535062, 36344123740, plus dispatch success 36344554988).
+ - #467 Phase 4 eval: Reviewer `/oc approve` on b1d10e9f (run 36344547700, all 3 live-parity findings verified fixed) -> Tester `/oc approve-test` on 65d9fb57 (run 36344377683 fix + run 36344672511 test; head matches live tip, test-only delta, no /oc fix after). Evaluator dispatched this run; no eval run in flight yet. Never merge without approve-eval.
+ - Main tip 23fb65a4: Deploy green confirmed (runs 36343535062, 36344123740). Standing by for eval verdict.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` (no new signal, no PR vehicle): tor-cli CI branch-scoped. No dispatch - evaluation only, main unaffected.
 
 ## NEXT-RUN PLAYBOOK
-1. If fresh review approves #467 on b1d10e9f with no findings: route `test` on the live head (dedupe against existing head comments); then eval on approve-test. Never merge without `approve-eval`.
-2. If review returns new `fix` findings on #467: route `fix` once (correlate against in-flight runs first).
-3. If gates still pending: stand by (decision `[]`), no duplicate dispatch.
+1. If Evaluator returns approve-eval on #467: merge via --rebase (Refs #463, keep #463 open), verify Deploy on new tip, then IMMEDIATELY chain Phase 5 via build on #463. Never halt on an intermediate PR.
+2. If Evaluator returns fix findings on #467: route `fix` once (correlate against in-flight runs first).
+3. If eval still pending: stand by (decision `[]`), no duplicate dispatch.
 4. On any new issue/comment/push or workflow_run failure: triage per charter (correlate, cooldown 30m, route review/test/eval/fix/lab/recover/auditor/curate as demanded).
 5. Trigger-list re-verify each run.
 6. Standing rule unchanged: UNTRIAGED sweep every run.
 
 ## OPEN QUESTIONS
- - Will the fresh Reviewer verdict on b1d10e9f approve #467 (as Refs #463) or return new findings?
- - After review, will test + eval gates pass so Phase 4 merges and Phase 5 (Rebuilt Premiere Cut) chains?
+ - Will the Evaluator approve-eval #467 (as Refs #463) or return findings?
+ - After merge, will Phase 5 (Rebuilt Premiere Cut) chain cleanly via build on #463?
  - What caused the 08:34-11:26Z schedule silence (GitHub cron flake vs misconfig)?
  - Will the Owner open a PR from the `gui-detach-and-syswide-fixes` branch, or land it another way?
  - Probe source of the 2026-09-25 PWNED selfheal payloads (red-team test vs unknown actor) - Auditor flagged for owner-level awareness; no code change needed.
