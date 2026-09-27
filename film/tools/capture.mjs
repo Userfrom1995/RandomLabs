@@ -15,6 +15,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildTimeline } from '../engine/timeline.js';
+import { frameIndex } from '../engine/frames.js';
 import { renderAnimatic } from '../engine/animatic.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -66,7 +67,7 @@ function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 }
 
-function reviewCard(shot, heroT, hash) {
+function reviewCard(shot, heroT, hash, frame) {
   const pal = shot.palette;
   const capLines = (shot.captions || []).map((c, i) =>
     '<text x="40" y="' + (400 + i * 30) + '" font-size="20" font-family="Georgia,serif" fill="' + pal.ink + '">' +
@@ -81,7 +82,7 @@ function reviewCard(shot, heroT, hash) {
     'Act ' + shot.act + ' | bg ' + esc(shot.bg) + ' | cast ' + esc(shot.cast.join('+') || 'none') +
     ' | cam ' + esc(shot.camera.move) + ' | cue ' + esc(shot.music.cue) + ' ' + shot.music.tempo + 'bpm</text>\n' +
     '<text x="40" y="152" font-size="18" font-family="Georgia,serif" fill="' + pal.ink + '">' +
-    'hero t=' + heroT.toFixed(2) + 's of ' + shot.dur + 's | draw ' + hash.slice(0, 12) + '</text>\n' +
+    'hero t=' + heroT.toFixed(2) + 's (frame ' + frame + ') of ' + shot.dur + 's | draw ' + hash.slice(0, 12) + '</text>\n' +
     capLines + '\n</svg>\n';
 }
 
@@ -97,8 +98,8 @@ for (const s of tl.shots) {
   const { ctx, log } = makeRecorder();
   renderAnimatic(ctx, tl, heroT, { width: 960, height: 540, reducedMotion: false });
   const hash = sha(JSON.stringify(log));
-  frames[s.id] = { t: Number(heroT.toFixed(3)), hash };
-  writeFileSync(join(out, 'stills', s.id + '.svg'), reviewCard(s, heroT, hash));
+  frames[s.id] = { t: Number(heroT.toFixed(3)), frame: frameIndex(heroT), hash };
+  writeFileSync(join(out, 'stills', s.id + '.svg'), reviewCard(s, heroT, hash, frameIndex(heroT)));
 }
 
 const heroes = { format: 'hearthlight-heroes/1', seed: sp.seed, frames };

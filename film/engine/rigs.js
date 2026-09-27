@@ -26,32 +26,72 @@ export function beat(p, c, w) {
   return Math.exp(-d * d);
 }
 
+// Eyelid blink: a 0.12 s dip every 3.7 s of shot-local time, offset per
+// shot so the cast never blinks in creepy unison. Deterministic, scrub
+// exact, frozen open under reduced motion (callers pass local pinned).
+// Non-finite local (hostile seek) reads as eyes open.
+export function blinkAt(local) {
+  if (!Number.isFinite(local) || local < 0) return 1;
+  const cyc = (local + 1.3) % 3.7;
+  return cyc < 0.12 ? 0.15 : 1;
+}
+
 // Acting pose for a shot: which keyframes are live and how far between
-// them the performance sits. Shot ids are the screenplay's own.
+// them the performance sits. Every shot of the screenplay carries a
+// deliberate beat here (travel energy, kneel, gesture, stillness, flame),
+// keyed by the screenplay's own shot ids. Shot ids are the screenplay's own.
 export function poseFor(shot, p, local) {
   const id = shot.id;
-  const travel = { s04: 1.0, s09: 0.6, s12: 0.0, s13: 0.5, s15: 0.8, s16: 0.85 };
+  const travel = {
+    s02: 0.35, s04: 1.0, s05: 0.1, s08: 0.25, s09: 0.6, s10: 0.2,
+    s12: 0.0, s13: 0.5, s15: 0.8, s16: 0.85, s19: 0.25, s20: 0.15,
+  };
   const stride = travel[id] || 0;
   const kneel = id === 's17' ? easeInOut((p - 0.35) / 0.4)
+    : id === 's06' ? 0.55 * easeInOut(p * 2)
+    : id === 's11' ? 0.4
     : id === 's14' ? 0.55
+    : id === 's19' ? 0.15 * Math.sin(p * Math.PI)
     : 0;
   const armRaise = id === 's17' ? easeInOut((p - 0.3) / 0.45)
+    : id === 's02' ? 0.5 + 0.2 * Math.sin(local * 1.2)
     : id === 's05' ? 0.4 + 0.25 * Math.sin(local * 1.4)
     : id === 's03' ? 0.25 + 0.2 * Math.sin(local * 1.1)
+    : id === 's06' ? 0.55 * easeInOut(p * 2)
+    : id === 's07' ? 0.45
+    : id === 's08' ? 0.35 + 0.15 * Math.sin(local * 2)
+    : id === 's10' ? 0.25
+    : id === 's13' ? 0.5
     : id === 's14' ? 0.3
+    : id === 's19' ? 0.5
+    : id === 's20' ? 0.12
     : 0.12;
-  const stillness = id === 's14' ? 1 : id === 's13' ? 0.4 : 0;
+  const stillness = id === 's14' ? 1
+    : id === 's13' ? 0.4
+    : id === 's03' ? 0.3
+    : id === 's07' ? 0.2
+    : 0;
   const hasLantern = shot.act >= 2 && shot.cast.includes('nia');
   const flame = id === 's14' ? 0.12 + 0.08 * Math.sin(local * 9)
     : id === 's17' ? 0.3 + 0.7 * easeInOut((p - 0.4) / 0.4)
+    : id === 's06' ? 0.2 + 0.6 * easeInOut((p - 0.3) / 0.4)
     : id === 's13' ? 0.55 + 0.15 * Math.sin(local * 7)
+    : id === 's15' ? 0.5 + 0.3 * Math.sin(local * 3)
+    : id === 's19' ? 1.0
+    : id === 's20' ? 1.0
     : hasLantern ? 0.85 + 0.15 * Math.sin(local * 3)
     : 0;
+  const knot = (id === 's06' || id === 's08') ? Math.sin(p * Math.PI)
+    : id === 's07' ? 0.5
+    : id === 's05' ? 0.3 * Math.sin(p * Math.PI)
+    : id === 's19' ? 0.4 * Math.sin(p * Math.PI)
+    : 0;
+  const tread = id === 's12' ? 1 : id === 's16' ? 0.7 : id === 's15' ? 0.6 : id === 's13' ? 0.4 : 0;
   return {
-    nia: { stride, lean: stride * 0.12, kneel, armRaise, stillness, hasLantern, flame },
-    yara: { knot: (id === 's06' || id === 's08') ? Math.sin(p * Math.PI) : 0 },
+    nia: { stride, lean: stride * 0.12, kneel, armRaise, stillness, hasLantern, flame, blink: blinkAt(local) },
+    yara: { knot, blink: blinkAt(local + 1.9) },
     ruel: {
-      tread: id === 's12' ? 1 : 0,
+      tread,
       wag: id === 's11' ? beat(p, 0.65, 0.09) : 0,
       ear: id === 's11' ? beat(p, 0.3, 0.05) : 0,
       wake: id === 's10' ? easeInOut(p * 2.5) : 1,
@@ -103,7 +143,8 @@ export function drawNiaAtWalk(ctx, pal, x, y, h, P, windK, boil, walkT = 0) {
   inkStroke(ctx, pal.ink, inkW * 0.9, boil, 0.3);
   // amber eyes: single upper-lid line + glint (flame reflected in s14).
   // Fear shows in stillness: the lid line opens wider, never shaking.
-  const lidOpen = 1 + 0.35 * (P.stillness || 0);
+  // The lid rides the blink beat: a quick dip every few seconds.
+  const lidOpen = (1 + 0.35 * (P.stillness || 0)) * (P.blink === undefined ? 1 : P.blink);
   ctx.strokeStyle = pal.ink; ctx.lineWidth = Math.max(1, h / 110);
   ctx.beginPath(); ctx.arc(h * 0.02 + sway, -h * 1.12, h * 0.055 * lidOpen, Math.PI * 1.08, Math.PI * 1.92); ctx.stroke();
   if ((P.flame || 0) > 0.05) {
@@ -177,9 +218,10 @@ export function drawYara(ctx, pal, x, y, h, pose, boil, walkT = 0) {
   ctx.beginPath(); ctx.arc(-h * 0.05, -h * 0.95, h * 0.1, 0, 7); ctx.fill();
   ctx.beginPath(); ctx.arc(-h * 0.05, -h * 0.95, h * 0.1, 0, 7);
   inkStroke(ctx, pal.ink, inkW * 0.9, boil, 0.3);
-  // calm grey eyes under heavy lids
+  // calm grey eyes under heavy lids, riding the same blink beat
+  const yLid = (pose && pose.blink === undefined ? 1 : (pose && pose.blink) || 1);
   ctx.strokeStyle = pal.ink; ctx.lineWidth = Math.max(1, h / 110);
-  ctx.beginPath(); ctx.arc(-h * 0.05, -h * 0.94, h * 0.05, Math.PI * 0.1, Math.PI * 0.9); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-h * 0.05, -h * 0.94, h * 0.05 * yLid, Math.PI * 0.1, Math.PI * 0.9); ctx.stroke();
   // silver bun with lacquer sticks
   ctx.fillStyle = '#cfcfcf';
   ctx.beginPath(); ctx.arc(-h * 0.14, -h * 1.04, h * 0.045, 0, 7); ctx.fill();

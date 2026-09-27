@@ -3,6 +3,7 @@
 // time advances by rAF delta while playing, so pause/scrub are exact and
 // the renderer stays a pure function of time.
 import { buildTimeline, shotAt, actAt, captionAt, formatTime } from '../engine/timeline.js';
+import { frameTime } from '../engine/frames.js';
 import { renderAnimatic } from '../engine/animatic.js';
 import { paintGallery } from './gallery.js';
 import { createPerformer } from '../score/animatic-audio.js';
@@ -129,7 +130,9 @@ function setPlaying(on) {
 
 function seekTo(t) {
   if (!state.tl) return;
-  state.time = Math.min(Math.max(t, 0), state.tl.total);
+  // Snap to the 24 fps grid: every seek lands on the exact frame the
+  // renderer will paint, so scrubbing is frame-exact, never between.
+  state.time = frameTime(Math.min(Math.max(t, 0), state.tl.total));
   renderFrame();
 }
 
