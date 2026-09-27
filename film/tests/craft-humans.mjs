@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { buildTimeline } from '../engine/timeline.js';
 import { renderAnimatic } from '../engine/animatic.js';
 import { boilJitter, boilJitterFace, FACE_BOIL_RATIO } from '../engine/ink.js';
-import { HUMAN_MODELS, modelFor, drawHuman, turnaroundSymmetry } from '../engine/humans.js';
+import { HUMAN_MODELS, modelFor, drawHuman, turnaroundSymmetry, SHOULDER_X } from '../engine/humans.js';
 import { EMOTIONS, PHONEMES, FACE_CARDS, expressionFor, blendExpression, mouthShapeFor, phonemeFor, drawFace } from '../engine/faces.js';
 import { PHASES, actFor, beatFor, phaseAt, secondaryFor } from '../engine/acting.js';
 import { poseFor, faceFor, drawTam, drawLumi } from '../engine/rigs.js';
@@ -92,10 +92,33 @@ ok('caption visemes stay in set', phonOk);
 ok('phoneme REST on empty', phonemeFor('', 1) === 'REST' && phonemeFor(null, 1) === 'REST');
 ok('phoneme deterministic', phonemeFor('Do not spend it', 2.0) === phonemeFor('Do not spend it', 2.0));
 
-// turnaround symmetry within the 2% bible tolerance
+// turnaround symmetry within the 2% bible tolerance: the probe reads the
+// same shoulder constant the renderer uses, and rejects non-human names
+// so the gate cannot pass on garbage input.
 for (const name of Object.keys(HUMAN_MODELS)) {
   const sym = turnaroundSymmetry(name);
   ok('turnaround symmetric: ' + name, sym.mismatch === 0 && sym.left === sym.right);
+}
+ok('turnaround probe reads body constant',
+  turnaroundSymmetry('nia').left === SHOULDER_X);
+let symThrows = false;
+try { turnaroundSymmetry('ruel'); } catch { symThrows = true; }
+ok('turnaround rejects non-humans', symThrows);
+let symGarbage = false;
+try { turnaroundSymmetry('garbage'); } catch { symGarbage = true; }
+ok('turnaround rejects garbage names', symGarbage);
+
+// yara farewell knot: the beat value reaches the stage (hands converge,
+// storm-ribbon tightens) instead of dropping on the floor.
+{
+  const P = { stride: 0, lean: 0, kneel: 0, armRaise: 0, stillness: 0, blink: 1 };
+  const base = { ...P, windK: 0.15, boil: { x: 0, y: 0 }, faceBoil: { x: 0, y: 0 }, walkT: 1.2, face: { emotion: 'tenderness', phoneme: 'REST', blink: 1 } };
+  const { ctx: c0, log: l0 } = makeRecorder();
+  drawHuman(c0, {}, 'yara', 100, 200, 120, { ...base, knot: 0 });
+  const { ctx: c1, log: l1 } = makeRecorder();
+  drawHuman(c1, {}, 'yara', 100, 200, 120, { ...base, knot: 1 });
+  ok('yara knot beat renders (hands converge, ribbon drawn)',
+    JSON.stringify(l0) !== JSON.stringify(l1) && JSON.stringify(l1).includes('#4a6a9a'));
 }
 
 // 390 px silhouettes: distinct bodies and costume keys per lead
