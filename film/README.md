@@ -17,12 +17,14 @@ reproducible render pipeline. Every pixel and every note is generated from
 committed sources under `film/`: no unlicensed assets, no copied work,
 nothing evoking any existing studio's characters, music, or designs.
 
-Current state is the **living animatic**: the full 270-second timeline
-played by a deterministic sketch renderer with a synthesized motif-score
-sketch, working transport (play/pause, seek, chapters, captions,
-fullscreen, volume/mute), the complete story package, and the pipeline
-skeleton. Later phases add the hand-drawn render craft, full animation
-performance, the orchestrated score, and the premiere cut with trailer.
+Current state is the **hand-drawn craft cut**: the full 270-second timeline
+played by a deterministic renderer with a synthesized motif-score sketch,
+working transport (play/pause, seek, chapters, captions, fullscreen,
+volume/mute), a live-painted storyboard wall, the complete story package,
+and the pipeline with its self-review capture loop. Ink lines boil on 2s
+with double-pass stroke weight, skies are stacked watercolor washes over
+paper grain, the valley paint set dresses all 14 backgrounds, and the
+character rigs act each shot from eased poses.
 
 ## How it works
 
@@ -33,8 +35,9 @@ performance, the orchestrated score, and the premiere cut with trailer.
   shot list (5 acts, 20 shots, 270 s). The renderer is a pure function of
   (timeline, time): scrubbable, pausable, testable.
 - **Theatre.** `index.html` + `player/` is the cinema surface: 16:9 stage,
-  transport, 5-act chapters, caption track, poster wall, honest
-  loading/error states, reduced-motion respect, responsive to 390 px.
+  transport, 5-act chapters, caption track, storyboard wall of live-painted
+  act stills, poster wall, honest loading/error states, reduced-motion
+  respect, responsive to 390 px.
 - **Score sketch.** `score/` performs the leitmotif cue map (Nia, wind,
   Ruel, cairn hymn) with synthesized WebAudio voices; volume and mute are
   real controls on a real audio path.
@@ -51,6 +54,12 @@ node film/tests/smoke.mjs
 # export act stills + checksum manifest from committed sources only
 node film/tools/render.mjs
 
+# capture all 20 hero frames + review cards for the self-review loop
+node film/tools/capture.mjs
+
+# craft gates (paint set, camera grammar, rig poses, capture, gallery)
+node film/tests/craft.mjs
+
 # watch it (any static server; e.g.)
 npx serve .
 # then open /film/
@@ -59,11 +68,11 @@ npx serve .
 ## Layout
 
 - `story/` - screenplay.json, characters.md, storyboard.json, music-direction.md
-- `engine/` - rng.js, timeline.js, animatic.js (sketch renderer)
+- `engine/` - rng.js, timeline.js, animatic.js (renderer) + ink.js, paper.js, backgrounds.js, rigs.js (craft modules)
 - `score/` - themes.js (motif rows), animatic-audio.js (WebAudio performer)
-- `player/` - theatre transport (player.js, player.css)
-- `tools/` - render.mjs (stills + manifest), audit.mjs (binding gates)
-- `tests/` - smoke.mjs (determinism + timeline invariants)
+- `player/` - theatre transport (player.js, gallery.js, player.css)
+- `tools/` - render.mjs (stills + manifest), capture.mjs (hero-frame review loop), audit.mjs (binding gates)
+- `tests/` - smoke.mjs (determinism + timeline invariants), craft.mjs (paint/camera/rig/capture/gallery gates)
 - `docs/` - craft, story, and pipeline documentation (unified product view)
 - `posters/` - poster-v1.svg (deterministic, original art)
 - `dist/` - generated stills + manifest (rebuilt by render.mjs)

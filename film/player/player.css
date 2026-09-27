@@ -101,10 +101,23 @@ main { max-width: 1020px; margin: 0 auto; padding: 0 16px 48px; }
 .chapters .t { display: block; font-size: 0.8rem; color: var(--muted); }
 .chapters .s { display: block; font-size: 0.85rem; color: var(--parchment); }
 .logline { max-width: 68ch; margin: 18px auto 4px; font-size: 1.02rem; color: var(--parchment); }
-.now-playing, .poster-wall, .story-links { margin-top: 28px; }
+.now-playing, .poster-wall, .stills-wall, .story-links { margin-top: 28px; }
 h2 { font-size: 1.25rem; letter-spacing: 0.06em; color: var(--gold); }
 .poster-wall figure { margin: 0; }
 .poster-wall img { max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #3a3244; }
+.gallery-note { color: var(--muted); }
+.gallery-note[hidden] { display: none; }
+.gallery-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.gallery-grid figure { margin: 0; background: #1e1a2a; border: 1px solid #3a3244; border-radius: 8px; overflow: hidden; }
+.gallery-grid canvas { width: 100%; height: auto; display: block; aspect-ratio: 16 / 9; }
+.gallery-grid figcaption { padding: 8px 12px 12px; }
+.gallery-grid figcaption strong { color: var(--parchment); font-size: 0.95rem; }
+.gallery-grid figcaption span { color: var(--muted); font-size: 0.82rem; }
+.gallery-grid figcaption button {
+  margin-top: 8px; font-family: inherit; cursor: pointer;
+  background: #2c2640; color: var(--gold);
+  border: 1px solid #4a4266; border-radius: 6px; padding: 6px 12px; font-size: 0.85rem;
+}
 figcaption, .provenance { color: var(--muted); font-size: 0.92rem; }
 .story-links a { color: var(--gold); }
 code { background: #2c2640; padding: 1px 6px; border-radius: 4px; }

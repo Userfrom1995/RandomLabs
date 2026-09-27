@@ -1,10 +1,11 @@
-// Hearthlight audit (Phase 1): enforces the binding gates on committed
-// sources. Exit 0 = green, non-zero = gate failure with a reason.
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+// Hearthlight audit: enforces the binding gates on committed sources.
+// Exit 0 = green, non-zero = gate failure with a reason.
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildTimeline, shotAt } from '../engine/timeline.js';
 import { motifFor } from '../score/themes.js';
+import { PAINTED_BACKGROUNDS } from '../engine/backgrounds.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const failures = [];
@@ -62,6 +63,22 @@ check('provenance (no binary blobs)', bins.length === 0, bins.join(','));
 // storyboard parity
 const board = JSON.parse(readFileSync(join(root, 'story/storyboard.json'), 'utf8'));
 check('storyboard covers all shots', board.panels.length === tl.shots.length, board.panels.length + ' panels');
+
+// hand-drawn craft engine: modules present, paint set covers the screenplay
+const craftMods = ['engine/ink.js', 'engine/paper.js', 'engine/backgrounds.js', 'engine/rigs.js'];
+check('craft modules committed', craftMods.every((f) => existsSync(join(root, f))), craftMods.join(','));
+const usedBgs = [...new Set(tl.shots.map((s) => s.bg))];
+check('paint set covers screenplay bgs', usedBgs.every((b) => PAINTED_BACKGROUNDS.includes(b)), usedBgs.join(','));
+const usedMoves = [...new Set(tl.shots.map((s) => s.camera.move))];
+const knownMoves = ['push-in', 'pull-back', 'pan-right', 'track-left', 'track-right', 'sweep', 'rise', 'crane-up', 'tilt-up', 'bloom', 'fade-gold', 'hold', 'drift', 'orbit'];
+check('camera moves all known', usedMoves.every((m) => knownMoves.includes(m)), usedMoves.join(','));
+
+// self-review loop: capture tool + gallery wall wired, no binaries shipped
+check('capture tool committed', existsSync(join(root, 'tools/capture.mjs')));
+const html = readFileSync(join(root, 'index.html'), 'utf8');
+check('stills gallery wired', html.includes('id="galleryGrid"') && existsSync(join(root, 'player/gallery.js')));
+const playerJs = readFileSync(join(root, 'player/player.js'), 'utf8');
+check('player paints gallery', playerJs.includes('paintGallery(state.tl'));
 
 if (failures.length) { console.error('AUDIT RED: ' + failures.join(', ')); process.exit(1); }
 console.log('AUDIT GREEN');
