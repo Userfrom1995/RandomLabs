@@ -1,10 +1,10 @@
 # Progress: Hearthlight Animated Short Film (#449)
 
 - **Issue:** #449
-- **Branch:** opencode/issue449-20260927113051
+- **Branch:** opencode/issue449-hearthlight-phase-2
 - **Status:** in-progress
 - **Architect:** the Architect (blueprint `ideas/2026-09-27-hearthlight-animated-short-film.md`)
-- **Builder:** the Builder (Phase 1 complete, ready for review)
+- **Builder:** the Builder (Phase 1 merged as PR #451, Phase 2 in build)
 
 ## Goal
 
@@ -17,7 +17,7 @@ test + eval green, unified docs.
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 1: Story Package and Living Animatic (Complete, ready for review)
+- **Active Phase:** Phase 2: Hand-Drawn Render Craft (in build)
 
 ### Phase 1: Story Package and Living Animatic (PR 1 target, Refs #449)
 
@@ -30,11 +30,13 @@ test + eval green, unified docs.
 
 ### Phase 2: Hand-Drawn Render Craft (PR 2 target, Refs #449)
 
-- [ ] Ink engine (2s line boil), paper grain, watercolor wash backgrounds
-- [ ] Keyframed vector rigs: Nia, Yara, Ruel with eased inbetweening
-- [ ] Valley background paint set covering all 5 acts
-- [ ] Stills gallery + capture tool for self-review
-- [ ] Determinism harness (hero-frame hashes green)
+- [ ] Ink engine module (2s line boil + double-pass hand-inked stroke weight)
+- [ ] Paper module (grain, fibre, vignette, layered wash stacking)
+- [ ] Keyframed vector rigs with eased inbetweening (walk/idle/act poses, Yara half-rate stillness)
+- [ ] Valley background paint set covering all 14 screenplay backgrounds
+- [ ] Camera grammar completed (drift, orbit joins the existing moves)
+- [ ] Stills gallery on the theatre page (live engine-painted, zero binaries) + capture tool for self-review
+- [ ] Determinism harness extended (craft pin green, repeat-capture byte-identical)
 
 ### Phase 3: Full Animation Performance (PR 3 target, Refs #449)
 
@@ -65,8 +67,16 @@ test + eval green, unified docs.
 
 ## Current step
 
-Phase 1 complete: 270 s animatic plays end to end with working transport,
-audit + smoke green, render manifest written. Ready for review.
+Phase 2 in build on `opencode/issue449-hearthlight-phase-2`: extracting the
+inline sketch craft of Phase 1 into real engine modules (ink, paper,
+backgrounds, rigs) with eased keyframe acting, a painted valley set, and a
+self-review stills loop. Timeline contract unchanged.
+
+## Builder log
+
+- 2026-09-27 (Builder): Phase 1 merged as PR #451 (story package, living
+  animatic theatre, pipeline skeleton, unified docs). Branched Phase 2
+  from latest main for the hand-drawn render craft pass.
 
 ## Builder log
 
