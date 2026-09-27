@@ -13,7 +13,8 @@ import { frameTime } from '../engine/frames.js';
 import { faceFor, poseFor, speakFor, lineWindow } from '../engine/rigs.js';
 import { EMOTIONS, FACE_CARDS } from '../engine/faces.js';
 import { motifFor } from '../score/themes.js';
-import { buildScoreEvents } from '../score/orchestra.js';
+import { buildScoreEvents, orchestrate } from '../score/orchestra.js';
+import { livePhrasesForStep } from '../score/animatic-audio.js';
 import { buildSfxEvents, tagRecipe } from '../score/sfx.js';
 import {
   dialogueWindows, duckLevelAt, shotWindows, livePeakFor,
@@ -168,6 +169,52 @@ ok('live windows match the offline windows for the shot', s05w.length === offW.l
 ok('live peaks duck to the offline floor on lines',
   livePeakFor(s05w, 4, SCORE_FLOOR) === SCORE_FLOOR && livePeakFor(s05w, 0.5, SCORE_FLOOR) === 1);
 ok('live sfx floor matches the offline bed', livePeakFor(s05w, 4, SFX_FLOOR) === SFX_FLOOR);
+// wind bed ducks with the same SFX floor the WAV master renders per-sample:
+// full-strength wind under a line would contradict the shared duck promise.
+ok('live wind bed ducks to the offline sfx floor',
+  livePeakFor(s05w, 4, SFX_FLOOR) === SFX_FLOOR &&
+  livePeakFor(s05w, 4, SFX_FLOOR) === duckLevelAt(s05.start + 4, W, SFX_FLOOR) &&
+  livePeakFor(s05w, 0.5, SFX_FLOOR) === 1);
+// sub-beat parity: the shaker (bpn 0.5) fires twice per beat, matching the
+// offline floor(span/0.5) count on a real tempo>=90 cue (s12).
+{
+  const s12 = tl.shots.find((s) => s.id === 's12');
+  const spec = orchestrate(s12);
+  const shaker = spec.lines.find((l) => l.voice === 'shaker');
+  const offN = s12 && shaker
+    ? score.filter((e) => e.shot === 's12' && e.voice === 'shaker').length
+    : 0;
+  let liveN = 0;
+  let liveLast = -1;
+  for (let s = 0; s < shaker.toBeat; s++) {
+    for (const tr of livePhrasesForStep(shaker, s)) {
+      liveN++;
+      if (tr.isLast) liveLast = tr.phrase;
+    }
+  }
+  const expectN = Math.floor((shaker.toBeat - shaker.fromBeat) / shaker.beatsPerNote);
+  ok('live shaker matches the offline trigger count', liveN === offN && liveN === expectN,
+    'live ' + liveN + ' vs offline ' + offN + ' vs expect ' + expectN);
+  ok('live shaker resolves on its true last trigger', liveLast === expectN - 1,
+    'last ' + liveLast);
+}
+// non-divisible grid: 13 beats at bpn 2 renders 6 offline notes, so the
+// live grid must suppress the surplus beat-12 trigger and resolve on beat 10.
+{
+  const ln = { voice: 'strings', beatsPerNote: 2, gain: 0.3, fromBeat: 0, toBeat: 13, degreeOffset: 0 };
+  let liveN = 0;
+  let liveLast = -1;
+  let liveLastStep = -1;
+  for (let s = 0; s < 13; s++) {
+    for (const tr of livePhrasesForStep(ln, s)) {
+      liveN++;
+      if (tr.isLast) { liveLast = tr.phrase; liveLastStep = s; }
+    }
+  }
+  ok('live suppresses the surplus grid note', liveN === 6, 'live ' + liveN);
+  ok('live resolves on the true last trigger', liveLast === 5 && liveLastStep === 10,
+    'phrase ' + liveLast + ' at step ' + liveLastStep);
+}
 
 // 6. VTT byte-pin: 43 cues rebuilt verbatim
 const { vtt } = buildVtt(tl);
