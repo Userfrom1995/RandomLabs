@@ -83,7 +83,7 @@ ok('poster v1 exists', existsSync(join(root, 'posters/poster-v1.svg')));
 ok('docs hub exists', existsSync(join(root, 'README.md')) && existsSync(join(root, 'docs')));
 
 // no em dashes in shipped film sources
-const sources = ['index.html', 'player/player.js', 'player/player.css', 'engine/animatic.js', 'engine/rng.js', 'engine/timeline.js', 'tests/theatre.mjs', 'tests/smoke.mjs', 'tools/audit.mjs', 'tools/render.mjs'];
+const sources = ['index.html', 'player/player.js', 'player/player.css', 'engine/animatic.js', 'engine/rng.js', 'engine/timeline.js', 'tests/theatre.mjs', 'tests/smoke.mjs', 'tests/determinism.mjs', 'tools/audit.mjs', 'tools/render.mjs'];
 const dashy = sources.filter((f) => readFileSync(join(root, f), 'utf8').includes('\u2014'));
 ok('no em dashes', dashy.length === 0, dashy.join(','));
 
