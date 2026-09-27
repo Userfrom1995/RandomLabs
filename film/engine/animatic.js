@@ -2,30 +2,40 @@
 //
 // Hand-drawn craft cut: the ink engine draws every line (2s boil +
 // double-pass stroke weight), the paper module lays washes and grain, the
-// valley paint set dresses all 14 backgrounds, and the keyframed rigs act
-// each shot from eased poses. Scrub-exact: same t => same pixels.
+// valley paint set dresses all 14 backgrounds, the keyframed rigs act
+// each shot from eased poses, and the particle layer plays the weather
+// (embers, leaves, spray, storm, cairn sparks, the rekindling wave).
+// Scrub-exact: time is locked to the 24 fps grid first, so same frame
+// index => same pixels, whether the call comes from playback, a seek, or
+// the capture loop.
 //
 // No wall-clock, no network, no Math.random anywhere in this path.
 import { shotAt as shotInfo } from './timeline.js';
+import { frameTime } from './frames.js';
 import { boilJitter, boilJitterSlow } from './ink.js';
 import { drawGrain, drawVignette } from './paper.js';
 import { paintBackground } from './backgrounds.js';
-import { poseFor, drawNiaAtWalk, drawYara, drawRuel } from './rigs.js';
+import { poseFor, drawNiaAtWalk, drawYara, drawRuel, easeInOut } from './rigs.js';
+import { drawParticles } from './particles.js';
 
 // Camera: normalized progress 0..1 => view transform over a 960x540 stage.
+// Directed moves (push, pull, pan, track, sweep, rise, crane, tilt, bloom)
+// ease in and settle like a human operator; ambient moves (hold, drift,
+// orbit) stay linear so the frame keeps breathing.
 function cameraTransform(move, p, W, H) {
   const s = W / 960;
+  const e = easeInOut(p);
   switch (move) {
-    case 'push-in': { const z = 1 + p * 0.12; return { dx: 0, dy: 0, z }; }
-    case 'pull-back': { const z = 1.12 - p * 0.12; return { dx: 0, dy: 0, z }; }
-    case 'pan-right': return { dx: -p * 60 * s, dy: 0, z: 1 };
-    case 'track-left': return { dx: -p * 80 * s, dy: 0, z: 1 };
-    case 'track-right': return { dx: p * 80 * s, dy: 0, z: 1 };
-    case 'sweep': return { dx: (0.5 - p) * 120 * s, dy: 0, z: 1.05 };
-    case 'rise': return { dx: 0, dy: p * 50 * s, z: 1 };
-    case 'crane-up': return { dx: 0, dy: p * 70 * s, z: 1 + p * 0.06 };
-    case 'tilt-up': return { dx: 0, dy: p * 60 * s, z: 1 };
-    case 'bloom': { const z = 1 + p * 0.08; return { dx: 0, dy: 0, z }; }
+    case 'push-in': { const z = 1 + e * 0.12; return { dx: 0, dy: 0, z }; }
+    case 'pull-back': { const z = 1.12 - e * 0.12; return { dx: 0, dy: 0, z }; }
+    case 'pan-right': return { dx: -e * 60 * s, dy: 0, z: 1 };
+    case 'track-left': return { dx: -e * 80 * s, dy: 0, z: 1 };
+    case 'track-right': return { dx: e * 80 * s, dy: 0, z: 1 };
+    case 'sweep': return { dx: (0.5 - e) * 120 * s, dy: 0, z: 1.05 };
+    case 'rise': return { dx: 0, dy: e * 50 * s, z: 1 };
+    case 'crane-up': return { dx: 0, dy: e * 70 * s, z: 1 + e * 0.06 };
+    case 'tilt-up': return { dx: 0, dy: e * 60 * s, z: 1 };
+    case 'bloom': { const z = 1 + e * 0.08; return { dx: 0, dy: 0, z }; }
     case 'fade-gold': return { dx: 0, dy: 0, z: 1 };
     case 'hold': return { dx: Math.sin(p * Math.PI) * 6 * s, dy: 0, z: 1.01 };
     case 'drift': return { dx: -p * 30 * s, dy: p * 18 * s, z: 1.02 };
@@ -39,18 +49,19 @@ export function renderAnimatic(ctx, tl, t, opts) {
   const W = opts.width || 960; const H = opts.height || 540;
   const reduced = !!opts.reducedMotion;
   const seed = String(tl.seed);
-  const found = shotInfo(tl, t);
+  const ft = frameTime(t);
+  const found = shotInfo(tl, ft);
   const s = found.shot; const p = found.progress; const local = found.local;
 
-  const boil = boilJitter(seed, s.id, t, reduced, W / 480);
-  const slowBoil = boilJitterSlow(seed, s.id, t, reduced, W / 520);
+  const boil = boilJitter(seed, s.id, ft, reduced, W / 480);
+  const slowBoil = boilJitterSlow(seed, s.id, ft, reduced, W / 520);
   const pose = poseFor(s, p, local);
 
   ctx.save();
   const cam = cameraTransform(s.camera.move, p, W, H);
   ctx.translate(W / 2, H / 2); ctx.scale(cam.z, cam.z); ctx.translate(-W / 2 + cam.dx, -H / 2 + cam.dy);
 
-  const painted = paintBackground(ctx, seed, s, W, H, t, p, boil);
+  const painted = paintBackground(ctx, seed, s, W, H, ft, p, boil);
   const windK = painted.windK;
   const gy = painted.groundY + H * 0.06;
 
@@ -85,6 +96,9 @@ export function renderAnimatic(ctx, tl, t, opts) {
   }
   ctx.restore();
 
+  // weather in front of the cast, under the letterbox
+  drawParticles(ctx, seed, s, W, H, ft, p, windK, boil, reduced);
+
   // letterbox + act/shot slate (first 2.2 s of each shot)
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, W, H * 0.07); ctx.fillRect(0, H * 0.93, W, H * 0.07);
@@ -102,7 +116,7 @@ export function renderAnimatic(ctx, tl, t, opts) {
   }
 
   // paper tooth + warm vignette close every frame
-  drawGrain(ctx, seed, t, reduced, W, H);
+  drawGrain(ctx, seed, ft, reduced, W, H);
   drawVignette(ctx, W, H);
 
   // gold fade on the final frame
