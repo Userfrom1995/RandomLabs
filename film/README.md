@@ -17,14 +17,17 @@ reproducible render pipeline. Every pixel and every note is generated from
 committed sources under `film/`: no unlicensed assets, no copied work,
 nothing evoking any existing studio's characters, music, or designs.
 
-Current state is the **hand-drawn craft cut**: the full 270-second timeline
-played by a deterministic renderer with a synthesized motif-score sketch,
-working transport (play/pause, seek, chapters, captions, fullscreen,
-volume/mute), a live-painted storyboard wall, the complete story package,
-and the pipeline with its self-review capture loop. Ink lines boil on 2s
-with double-pass stroke weight, skies are stacked watercolor washes over
-paper grain, the valley paint set dresses all 14 backgrounds, and the
-character rigs act each shot from eased poses.
+Current state is the **full performance cut**: the full 270-second timeline
+played by a deterministic renderer locked to a 24 fps frame grid, with a
+synthesized motif-score sketch, working transport (play/pause, frame-exact
+seek, chapters, captions, fullscreen, volume/mute), a live-painted
+storyboard wall, the complete story package, and the pipeline with its
+self-review capture loop. Ink lines boil on 2s with double-pass stroke
+weight, skies are stacked watercolor washes over paper grain, the valley
+paint set dresses all 14 backgrounds, deterministic weather (embers,
+leaves, spray, storm, cairn sparks, the rekindling wave) plays over every
+shot, and the character rigs act all 20 shots from eased poses with a
+deterministic blink.
 
 ## How it works
 
@@ -60,6 +63,9 @@ node film/tools/capture.mjs
 # craft gates (paint set, camera grammar, rig poses, capture, gallery)
 node film/tests/craft.mjs
 
+# performance gates (frame lock, weather, acting beats, eased camera)
+node film/tests/performance.mjs
+
 # watch it (any static server; e.g.)
 npx serve .
 # then open /film/
@@ -68,11 +74,11 @@ npx serve .
 ## Layout
 
 - `story/` - screenplay.json, characters.md, storyboard.json, music-direction.md
-- `engine/` - rng.js, timeline.js, animatic.js (renderer) + ink.js, paper.js, backgrounds.js, rigs.js (craft modules)
+- `engine/` - rng.js, timeline.js, frames.js (24 fps lock), animatic.js (renderer) + ink.js, paper.js, backgrounds.js, rigs.js, particles.js (craft modules)
 - `score/` - themes.js (motif rows), animatic-audio.js (WebAudio performer)
 - `player/` - theatre transport (player.js, gallery.js, player.css)
 - `tools/` - render.mjs (stills + manifest), capture.mjs (hero-frame review loop), audit.mjs (binding gates)
-- `tests/` - smoke.mjs (determinism + timeline invariants), craft.mjs (paint/camera/rig/capture/gallery gates)
+- `tests/` - smoke.mjs (determinism + timeline invariants), craft.mjs (paint/camera/rig/capture/gallery gates), performance.mjs (frame lock, weather, acting, eased camera gates)
 - `docs/` - craft, story, and pipeline documentation (unified product view)
 - `posters/` - poster-v1.svg (deterministic, original art)
 - `dist/` - generated stills + manifest (rebuilt by render.mjs)

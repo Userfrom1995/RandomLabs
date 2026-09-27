@@ -1,10 +1,10 @@
 # Progress: Hearthlight Animated Short Film (#449)
 
 - **Issue:** #449
-- **Branch:** opencode/issue449-hearthlight-phase-2
+- **Branch:** opencode/issue449-hearthlight-phase-3
 - **Status:** in-progress
 - **Architect:** the Architect (blueprint `ideas/2026-09-27-hearthlight-animated-short-film.md`)
-- **Builder:** the Builder (Phase 1 merged as PR #451, Phase 2 complete, ready for review)
+- **Builder:** the Builder (Phase 1 merged as PR #451, Phase 2 merged as PR #456, Phase 3 complete, ready for review)
 
 ## Goal
 
@@ -17,7 +17,7 @@ test + eval green, unified docs.
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 2: Hand-Drawn Render Craft (Complete, ready for review)
+- **Active Phase:** Phase 3: Full Animation Performance (Complete, ready for review)
 
 ### Phase 1: Story Package and Living Animatic (merged as PR #451, Refs #449)
 
@@ -40,10 +40,10 @@ test + eval green, unified docs.
 
 ### Phase 3: Full Animation Performance (PR 3 target, Refs #449)
 
-- [ ] All shots keyframed and acted (emotion beats per screenplay)
-- [ ] Camera direction (pans, pushes, holds) across the timeline
-- [ ] Weather/particles (embers, leaves, storm, rekindling wave)
-- [ ] 24 fps timeline lock, scrub-exact renderer
+- [x] All shots keyframed and acted (full 20-shot beat map in `poseFor` + deterministic blink)
+- [x] Camera direction (directed moves eased in/out, ambient moves breathing linear)
+- [x] Weather/particles (embers, leaves, hearth, spores, spray, 30-pellet storm, seeds, sparks, rekindling wave, dust)
+- [x] 24 fps timeline lock, scrub-exact renderer (frame grid + frame-snapped seeks + capture frame indices)
 
 ### Phase 4: Original Score and Sound World (PR 4 target, Refs #449)
 
@@ -67,15 +67,28 @@ test + eval green, unified docs.
 
 ## Current step
 
-Phase 2 complete on `opencode/issue449-hearthlight-phase-2`: the inline
-sketch craft is now real engine modules (ink, paper, backgrounds, rigs)
-with eased keyframe acting, a 14-background painted valley set, full
-camera grammar, a live-painted storyboard wall, and the capture
-self-review loop. Timeline contract unchanged (270 s, 20 shots, 5 acts).
-Smoke, determinism, theatre, craft, and audit suites green. Ready for
-review.
+Phase 3 complete on `opencode/issue449-hearthlight-phase-3`: the renderer
+is locked to a 24 fps frame grid, all 20 shots carry deliberate acting
+beats with a deterministic blink, directed camera moves ease in and
+settle, and a 14-field deterministic weather layer (embers through the
+rekindling wave) plays over the cast. Seeks snap to frame boundaries and
+capture cards record frame indices. Audit, smoke, determinism, theatre,
+craft, performance, and all regression suites green. Ready for review.
 
 ## Builder log
+
+- 2026-09-27 (Builder): Phase 3 built and verified. New modules:
+  `engine/frames.js` (24 fps grid: frameTime/frameIndex/frameCount) and
+  `engine/particles.js` (14 background weather fields, analytic
+  scrub-exact motion, reduced-motion freeze with storm ticks); `rigs.js`
+  extended to a full 20-shot acting map plus `blinkAt`; `animatic.js`
+  quantizes to frame, eases directed camera moves, and draws the weather
+  layer; `player.js` seeks snap to frames; `capture.mjs` records frame
+  indices. New `tests/performance.mjs` (33 gates green); `audit.mjs`
+  extended with frame/weather coverage gates. Verified: 240-frame sweep
+  (all shots x start/mid/end x reduced on/off x 960/390 px) with no
+  throws; all prior suites still green. Unified docs updated (README,
+  craft, pipeline); zero stubs, zero facade controls.
 
 - 2026-09-27 (Builder): Phase 2 built and verified. New modules:
   `engine/ink.js` (2s boil + double-pass stroke), `engine/paper.js`
@@ -106,8 +119,9 @@ review.
 
 ## Next steps
 
-Phase 3: Full Animation Performance (weather/particles, emotion beats,
-24 fps timeline lock) on a fresh phase branch after this PR merges.
+Phase 4: Original Score and Sound World (leitmotif synth orchestra, SFX
+bed, mix + A/V sync audit, WAV stems) on a fresh phase branch after this
+PR merges.
 
 ## Team Note
 
