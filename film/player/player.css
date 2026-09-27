@@ -48,6 +48,7 @@ main { max-width: 1020px; margin: 0 auto; padding: 0 16px 48px; }
   display: flex; align-items: center; justify-content: center;
   background: rgba(10, 8, 16, 0.82);
 }
+.loading-veil { flex-direction: column; gap: 12px; text-align: center; }
 .stage-overlay[hidden], .loading-veil[hidden] { display: none; }
 .stage-overlay .card {
   background: #221c30; border: 1px solid #5a4f7e; border-radius: 10px;
