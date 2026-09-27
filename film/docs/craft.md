@@ -55,11 +55,11 @@ plays every frame exactly.
 ## The score and sound world
 
 Four original leitmotifs (rows in `film/score/themes.js`): Nia's rising
-pentatonic line, the wind's rocking minor second, Ruel's dotted low tread,
-the cairn stepwise hymn. The orchestration spec (`film/score/orchestra.js`)
+pentatonic line, the wind's rocking minor second, the station's dotted low
+tread, the cairn stepwise hymn. The orchestration spec (`film/score/orchestra.js`)
 turns each shot's cue into voice lines for a ten-voice synth orchestra
 (woodwind lead, violin thread, string chorale, cello, bass drone, brass,
-bells, pad, timpani, shaker): Ruel rides a low ostinato, the cairn hymn
+bells, pad, timpani, shaker): the station row rides a low ostinato, the cairn hymn
 blooms from chorale strings to full brass and bells at the arrival, the
 storm screams on timpani and shaker, the blue thread is a single violin
 line in near silence. A twenty-generator procedural foley bed

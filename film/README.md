@@ -1,10 +1,9 @@
 # Hearthlight - an original animated short film
 
-When the lanterns of Ember Hollow begin to go out one by one,
-twelve-year-old apprentice wind-cartographer Nia must chart the unseen
-valley wind, befriend the ancient mossback boar Ruel, and carry her
-grandmother's last lantern flame to the high cairn before the final night
-of the dark month falls.
+When keeper-in-training Nia lets the valley's last lantern fail on her
+watch, she must guide a stranded young ferryman and his injured sister
+through a storm-wracked gorge to relight the high cairn - and choose whose
+light to spend when one flame cannot save them all.
 
 **Watch it:** [theatre page](https://userfrom1995.github.io/RandomLabs/film/)
 (plays the premiere cut: the full 270 s film plus a 30 s trailer).
@@ -98,9 +97,9 @@ npx serve .
 
 ## Layout
 
-- `story/` - screenplay.json, trailer.json (30 s cut), characters.md, storyboard.json, music-direction.md
+- `story/` - screenplay.json, trailer.json (30 s cut), characters.md, continuity.md, dialogue.md, storyboard.json, music-direction.md
 - `engine/` - rng.js, timeline.js, frames.js (24 fps lock), trailer.js (trailer-to-film map), animatic.js (renderer) + ink.js, paper.js, backgrounds.js, rigs.js, particles.js (craft modules)
-- `captions.vtt` - committed caption export (22 cues, rebuilt by tools/render-captions.mjs)
+- `captions.vtt` - committed caption export (43 dialogue-timed cues, rebuilt by tools/render-captions.mjs)
 - `score/` - themes.js (motif rows), orchestra.js (cue-to-events spec),
   voices.js (offline synth voices), sfx.js (procedural foley bed), mix.js
   (mixer + WAV writer), animatic-audio.js (live WebAudio performer),
