@@ -66,7 +66,7 @@ export function actFor(shot, p, local) {
   return {
     phase,
     weight,
-    exertion: Math.min(1, Math.max(0, exertion)),
+    exertion: clamp01(exertion),
     secondary: secondaryFor(windK, lt, exertion),
   };
 }
@@ -74,12 +74,18 @@ export function actFor(shot, p, local) {
 // Secondary-motion drivers: cloth belly, shawl drift, hair/topknot lag.
 // Lag is an analytic function of (local - delay): smooth in playback,
 // exact on scrub, frozen under reduced motion by the caller.
+// Off-contract numerics clamp to safe defaults (windK to 0.5, exertion to
+// 0) so every input still yields finite drivers, like blendExpression.
 export function secondaryFor(windK, local, exertion) {
+  const w = Number(windK);
+  const wk = Number.isFinite(w) ? w : 0.5;
+  const e = Number(exertion);
+  const ex = Number.isFinite(e) ? e : 0;
   const lt = Number.isFinite(local) ? Math.max(0, local) : 0;
   const lag = (d) => Math.max(0, lt - d);
   return {
-    cloth: windK * (0.6 + 0.4 * Math.sin(lag(0.08) * 3.1)) + exertion * 0.15,
-    drift: windK * 0.5 * (0.6 + 0.4 * Math.sin(lag(0.16) * 2.2)),
+    cloth: wk * (0.6 + 0.4 * Math.sin(lag(0.08) * 3.1)) + ex * 0.15,
+    drift: wk * 0.5 * (0.6 + 0.4 * Math.sin(lag(0.16) * 2.2)),
     bounce: 0.5 + 0.5 * Math.sin(lag(0.1) * 5.2),
   };
 }

@@ -17,7 +17,9 @@ import { drawHuman } from './humans.js';
 import { phonemeFor } from './faces.js';
 
 export function clamp01(k) {
-  return Math.min(1, Math.max(0, k));
+  const n = Number(k);
+  if (Number.isNaN(n)) return 0;
+  return Math.min(1, Math.max(0, n));
 }
 
 export function easeInOut(k) {
