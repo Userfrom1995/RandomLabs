@@ -32,6 +32,15 @@ export function boilJitterSlow(masterSeed, shotId, t, reducedMotion, amt) {
   return { x: (r() - 0.5) * 2 * amt, y: (r() - 0.5) * 2 * amt };
 }
 
+// Face-safe line boil: facial lines re-seed on the same 12 fps lattice
+// (scrub-exact with the body) but at roughly one-third amplitude, so
+// brows, lids, and mouths hold still enough to act while the silhouette
+// keeps its hand-drawn shimmer. Amplitude ratio is pinned by craft tests.
+export const FACE_BOIL_RATIO = 0.35;
+
+export function boilJitterFace(masterSeed, shotId, t, reducedMotion, amt) {
+  return boilJitter(masterSeed, shotId, t, reducedMotion, amt * FACE_BOIL_RATIO);
+}
 // Trace the current path twice: bristle-drag under-stroke, then the line.
 // Caller builds the path (or passes a trace fn that rebuilds it, since a
 // path is consumed by stroke on some backends); we stroke the already-built
