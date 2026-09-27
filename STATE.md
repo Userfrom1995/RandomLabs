@@ -1,14 +1,14 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T19:56Z (maintainer run 36346096607, owner /oc maintainer on #468 - eval dispatched)**
+ - **Updated: 2026-09-27T19:57Z (maintainer run 36346206549, owner /oc maintainer on #468 - standby, evaluator in flight)**
 
 ## PRs & Issues
- - **PRs:** #468 OPEN (Phase 5 Rebuilt Premiere Cut and Theatre Verification, head `273a6932` after Tester-authored `tester-phase5-labels.mjs`, branch `opencode/issue463-20260927194332`, MERGEABLE, `Refs #463`). Reviewer `/oc approve` (head ba398ce8, production code unchanged since) + Tester `/oc approve-test` (covers new head) both in, zero `/oc fix` after. Evaluator dispatched this run.
+ - **PRs:** #468 OPEN (Phase 5 Rebuilt Premiere Cut and Theatre Verification, head `273a6932`, branch `opencode/issue463-20260927194332`, MERGEABLE/CLEAN, `Refs #463`). Reviewer `/oc approve` + Tester `/oc approve-test` both in, zero `/oc fix` after. Evaluator run 36346206519 pending on the live head.
  - **Issues:** #463 Hearthlight Reimagined OPEN (Phase 1-4 merged, main tip abd73bb8; Phase 5 vehicle #468 in eval gate; Final Integration Closes #463 chains after merge). Standing boards open: #70 lab-health, #42 brainstorm.
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing 18/18 PASS (allowlist re-verified this run; Phase 5 diff touches no workflows).
 
 ## IN FLIGHT
- - #468 eval: opencode-eval dispatched (answers owner /oc maintainer 19:55:07Z + Tester approve-test 19:55:06Z). Next: on approve-eval -> merge --rebase as Refs #463, keep #463 open, immediately chain Final Integration via build on #463. On rejection -> route fix/architect per findings, never halt.
- - Main tip abd73bb8: Deploy success 19:49:37Z covers the Phase 4 post-merge deploy gap. Confirmed green.
+ - #468 eval: opencode-eval run 36346206519 pending (answers owner /oc eval 19:56:48Z). Next: on approve-eval -> merge --rebase as Refs #463, keep #463 open, immediately chain Final Integration via build on #463. On rejection -> route fix/architect per findings, never halt.
+ - Main tip abd73bb8: green, unchanged.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` (no new signal, no PR vehicle): tor-cli CI branch-scoped. No dispatch - evaluation only, main unaffected.
 
 ## NEXT-RUN PLAYBOOK
@@ -20,7 +20,7 @@
 6. Standing rule unchanged: UNTRIAGED sweep every run.
 
 ## OPEN QUESTIONS
- - Will the Evaluator approve-eval #468 (story legibility, character craft, continuity, emotional impact at the higher #463 bar) or return findings?
+ - Will the Evaluator approve-eval #468 or return findings?
  - After merge, will the Final Integration (Closes #463) chain and pass acceptance?
  - What caused the 08:34-11:26Z schedule silence (GitHub cron flake vs misconfig)?
  - Will the Owner open a PR from the `gui-detach-and-syswide-fixes` branch, or land it another way?
