@@ -12,10 +12,11 @@
 // No wall-clock, no network, no Math.random anywhere in this path.
 import { shotAt as shotInfo } from './timeline.js';
 import { frameTime } from './frames.js';
-import { boilJitter, boilJitterSlow } from './ink.js';
+import { boilJitter, boilJitterSlow, boilJitterFace } from './ink.js';
 import { drawGrain, drawVignette } from './paper.js';
 import { paintBackground } from './backgrounds.js';
-import { poseFor, drawNiaAtWalk, drawYara, drawRuel, easeInOut } from './rigs.js';
+import { poseFor, drawNiaAtWalk, drawYara, drawTam, drawLumi, drawRuel, easeInOut } from './rigs.js';
+import { actFor } from './acting.js';
 import { drawParticles } from './particles.js';
 
 // Camera: normalized progress 0..1 => view transform over a 960x540 stage.
@@ -55,6 +56,8 @@ export function renderAnimatic(ctx, tl, t, opts) {
 
   const boil = boilJitter(seed, s.id, ft, reduced, W / 480);
   const slowBoil = boilJitterSlow(seed, s.id, ft, reduced, W / 520);
+  const faceBoil = boilJitterFace(seed, s.id, ft, reduced, W / 480);
+  const boilF = { x: boil.x, y: boil.y, face: faceBoil };
   const pose = poseFor(s, p, local);
 
   ctx.save();
@@ -64,26 +67,42 @@ export function renderAnimatic(ctx, tl, t, opts) {
   const painted = paintBackground(ctx, seed, s, W, H, ft, p, boil);
   const windK = painted.windK;
   const gy = painted.groundY + H * 0.06;
+  // Acting state for the instant, fed by the shot's own wind so cloth,
+  // hair, and weight shift with the weather on screen.
+  const act = actFor({ ...s, windK }, p, local);
+  const extra = { weight: act.weight, exertion: act.exertion, shot: s };
 
-  // Cast staging: riding pairs, solo Ruel, or Nia/Yara marks.
+  // Cast staging: the human party walks the frame; Ruel is a demoted
+  // supporting appearance (one shot, background, half scale). Lumi is
+  // carried where the story says so: on Tam's back (s13), in Nia's arms
+  // (s14), otherwise walking small beside the party with her stick coda.
   if (s.bg !== 'chart-table') {
-    if (s.cast.includes('nia') && s.cast.includes('ruel')) {
-      const ride = { ...pose.nia, stride: Math.max(pose.nia.stride, pose.ruel.tread * 0.6) };
-      drawRuel(ctx, s.palette, W * 0.42, gy, H * 0.1, pose.ruel, boil, s.act >= 3 ? local : null, local);
-      drawNiaAtWalk(ctx, s.palette, W * 0.42, gy - H * 0.19, H * 0.13, ride, windK, boil, local);
-    } else if (s.cast.includes('ruel')) {
-      drawRuel(ctx, s.palette, W * 0.55, gy, H * 0.11, pose.ruel, boil, local, local);
-    } else {
-      if (s.cast.includes('nia')) {
-        drawNiaAtWalk(ctx, s.palette, W * (s.cast.includes('yara') ? 0.38 : 0.5), gy, H * 0.16, pose.nia, windK, boil, local);
-      }
-      if (s.cast.includes('yara')) {
-        drawYara(ctx, s.palette, W * 0.62, gy, H * 0.17, pose.yara, slowBoil, local);
+    const party = s.cast.includes('tam') || s.cast.includes('lumi');
+    const niaX = W * (party ? 0.32 : s.cast.includes('yara') ? 0.38 : 0.5);
+    if (s.cast.includes('ruel')) {
+      drawRuel(ctx, s.palette, W * 0.72, gy, H * 0.07, pose.ruel, boil, local, local);
+    }
+    if (s.cast.includes('nia')) {
+      drawNiaAtWalk(ctx, s.palette, niaX, gy, H * 0.16, pose.nia, windK, boilF, local, extra, s);
+    }
+    if (s.cast.includes('yara')) {
+      drawYara(ctx, s.palette, W * (party ? 0.66 : 0.62), gy, H * 0.17, pose.yara, { ...slowBoil, face: faceBoil }, local, extra, s);
+    }
+    if (s.cast.includes('tam')) {
+      drawTam(ctx, s.palette, W * 0.5, gy, H * 0.19, pose.tam, windK, boilF, local, extra, s);
+    }
+    if (s.cast.includes('lumi')) {
+      if (s.id === 's13') {
+        drawLumi(ctx, s.palette, W * 0.5 + H * 0.015, gy - H * 0.22, H * 0.075, pose.lumi, windK, boilF, local, extra, s);
+      } else if (s.id === 's14') {
+        drawLumi(ctx, s.palette, niaX + H * 0.06, gy - H * 0.13, H * 0.075, pose.lumi, windK, boilF, local, extra, s);
+      } else {
+        drawLumi(ctx, s.palette, W * 0.62, gy, H * 0.09, pose.lumi, windK, boilF, local, extra, s);
       }
     }
     // Nia returns to the cairn alone in the finale lighting.
     if (s.bg === 'cairn-top') {
-      drawNiaAtWalk(ctx, s.palette, W * 0.5 - 90, H * 0.86, H * 0.13, pose.nia, 0.15, boil, local);
+      drawNiaAtWalk(ctx, s.palette, W * 0.5 - 90, H * 0.86, H * 0.13, pose.nia, 0.15, boilF, local, extra, s);
     }
   } else {
     // Overhead chart: Nia's hand plots the wind road.

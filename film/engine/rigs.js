@@ -1,14 +1,20 @@
-// Hearthlight keyframed vector rigs: Nia, Yara, Ruel.
+// Hearthlight keyframed vector rigs: Nia, Yara, Tam, Lumi (human leads).
 //
-// Model-sheet parameters live in film/story/characters.md; this module is
-// their executable form. Each rig is drawn from a pose object produced by
-// poseFor(shot, p, local): stride energy, lean, bob, kneel, arm raise,
-// lantern flame, tail wag, wake beats. Inbetweening is eased (easeInOut),
-// never linear, so motion arrives and settles like hand-drawn animation.
+// Model-sheet parameters live in film/story/characters.md; bodies are the
+// executable form in humans.js (proportion FK limbs, hands, costume) and
+// faces.js (gaze/blink, brows, phoneme mouths, expression blender). Each
+// rig here is staging: acting pose per shot plus face state from the
+// dialogue lattice, delegated to the human engine. Ruel's creature rig is
+// retained as a demoted supporting appearance (one shot); the placeholder
+// cloak-blob bodies are retired: every lead now stands on two jointed
+// legs with weight, exertion, and secondary motion from acting.js.
 //
-// All outlines go through the ink engine (double-pass hand-inked stroke).
+// Inbetweening is eased (easeInOut), never linear. All outlines go through
+// the ink engine (double-pass hand-inked stroke, face-safe boil on heads).
 // Pure functions of their arguments: same pose renders identical marks.
-import { inkStroke, inkFill } from './ink.js';
+import { inkStroke } from './ink.js';
+import { drawHuman } from './humans.js';
+import { phonemeFor } from './faces.js';
 
 export function clamp01(k) {
   return Math.min(1, Math.max(0, k));
@@ -87,9 +93,35 @@ export function poseFor(shot, p, local) {
     : id === 's19' ? 0.4 * Math.sin(p * Math.PI)
     : 0;
   const tread = id === 's12' ? 1 : id === 's16' ? 0.7 : id === 's15' ? 0.6 : id === 's13' ? 0.4 : 0;
+  // Tam: the ferryman's son. Strides with the party, oar yoked until the
+  // gorge; belays the traverse in s12 (arm high, stride planted), carries
+  // Lumi up the storm slope (s13 back-carry, arms loaded, stride halved).
+  const tamTravel = { s09: 0.6, s10: 0.2, s11: 0.15, s12: 0.3, s13: 0.45, s15: 0.8, s16: 0.85, s19: 0.25, s20: 0.15 };
+  const tamStride = tamTravel[id] || 0;
+  const tamArm = id === 's12' ? 0.85
+    : id === 's13' ? 0.6
+    : id === 's17' ? 0.5
+    : id === 's19' ? 0.5
+    : id === 's10' ? 0.3
+    : 0.12;
+  const tamCarry = id === 's13' || id === 's14' ? 'arms' : 'none';
+  const tamOar = id === 's10' || id === 's11' || id === 's12';
+  // Lumi: the truth-teller, 8, bound ankle. Carried for half the crossing
+  // (no stride of her own), walking with a souvenir stick in the coda.
+  const lumiStride = id === 's19' ? 0.25 : id === 's10' || id === 's11' ? 0.15 : 0;
+  const lumiCarry = id === 's13' ? 'back' : id === 's14' ? 'arms' : id === 's19' ? 'stick' : 'none';
+  const lumiStill = id === 's14' ? 0.8 : 0;
   return {
     nia: { stride, lean: stride * 0.12, kneel, armRaise, stillness, hasLantern, flame, blink: blinkAt(local) },
     yara: { knot, blink: blinkAt(local + 1.9) },
+    tam: {
+      stride: tamStride, lean: tamStride * 0.12, kneel: 0, armRaise: tamArm,
+      stillness: 0, carry: tamCarry, oar: tamOar, blink: blinkAt(local + 0.7),
+    },
+    lumi: {
+      stride: lumiStride, lean: lumiStride * 0.1, kneel: 0, armRaise: 0.2,
+      stillness: lumiStill, carry: lumiCarry, oar: false, blink: blinkAt(local + 2.6),
+    },
     ruel: {
       tread,
       wag: id === 's11' ? beat(p, 0.65, 0.09) : 0,
@@ -99,156 +131,117 @@ export function poseFor(shot, p, local) {
   };
 }
 
-function cloakPath(ctx, h, belly, sway) {
-  ctx.beginPath();
-  ctx.moveTo(sway, -h);
-  ctx.quadraticCurveTo(-h * 0.34 - belly, -h * 0.45, -h * 0.3 - belly, 0);
-  ctx.lineTo(h * 0.3, 0);
-  ctx.quadraticCurveTo(h * 0.2, -h * 0.5, sway, -h);
-  ctx.closePath();
+// Face state for a lead at a shot instant: the active dialogue line drives
+// emotion and viseme when the speaker matches; otherwise the bible beat
+// for the shot plays. Speaker tags are the screenplay's own (NIA, YARA,
+// TAM, LUMI; NARRATOR is a caption voice, never staged).
+const WHO = { NIA: 'nia', YARA: 'yara', TAM: 'tam', LUMI: 'lumi' };
+
+const BEAT_FACE = {
+  s01: { nia: 'guilt', yara: 'calm', tam: 'fear', lumi: 'wonder' },
+  s02: { nia: 'fear', yara: 'grief', tam: 'fear', lumi: 'fear' },
+  s03: { nia: 'determination', yara: 'calm', tam: 'neutral', lumi: 'neutral' },
+  s04: { nia: 'grief', yara: 'grief', tam: 'fear', lumi: 'fear' },
+  s05: { nia: 'shame', yara: 'resolve', tam: 'neutral', lumi: 'neutral' },
+  s06: { nia: 'hope', yara: 'tenderness', tam: 'neutral', lumi: 'neutral' },
+  s07: { nia: 'resolve', yara: 'calm', tam: 'neutral', lumi: 'neutral' },
+  s08: { nia: 'resolve', yara: 'tenderness', tam: 'neutral', lumi: 'neutral' },
+  s09: { nia: 'joy', yara: 'calm', tam: 'hope', lumi: 'wonder' },
+  s10: { nia: 'hope', yara: 'calm', tam: 'fear', lumi: 'wonder' },
+  s11: { nia: 'resolve', yara: 'calm', tam: 'shame', lumi: 'resolve' },
+  s12: { nia: 'determination', yara: 'calm', tam: 'fear', lumi: 'resolve' },
+  s13: { nia: 'determination', yara: 'calm', tam: 'grief', lumi: 'exhaustion' },
+  s14: { nia: 'grief', yara: 'calm', tam: 'grief', lumi: 'exhaustion' },
+  s15: { nia: 'hope', yara: 'calm', tam: 'wonder', lumi: 'wonder' },
+  s16: { nia: 'exhaustion', yara: 'calm', tam: 'fear', lumi: 'exhaustion' },
+  s17: { nia: 'awe', yara: 'calm', tam: 'awe', lumi: 'joy' },
+  s18: { nia: 'joy', yara: 'tenderness', tam: 'joy', lumi: 'joy' },
+  s19: { nia: 'relief', yara: 'tenderness', tam: 'relief', lumi: 'joy' },
+  s20: { nia: 'calm', yara: 'calm', tam: 'calm', lumi: 'joy' },
+};
+
+export function faceFor(shot, who, local) {
+  const lines = (shot && Array.isArray(shot.captions)) ? shot.captions : [];
+  for (const c of lines) {
+    const dur = c.dur || 4.5;
+    if (local >= c.t && local < c.t + dur && WHO[c.who] === who) {
+      return { emotion: c.emotion || 'neutral', phoneme: phonemeFor(c.line, local - c.t) };
+    }
+  }
+  const beat = BEAT_FACE[shot ? shot.id : ''] || {};
+  return { emotion: beat[who] || 'neutral', phoneme: 'REST' };
 }
 
-export function drawNiaAtWalk(ctx, pal, x, y, h, P, windK, boil, walkT = 0) {
-  const still = 1 - 0.75 * (P.stillness || 0);
-  const stride = (P.stride || 0) * still;
-  const bob = Math.abs(Math.sin(walkT * 5.2)) * h * 0.05 * stride;
-  const kneelDrop = (P.kneel || 0) * h * 0.32;
-  const lean = (P.lean || 0) * h + stride * h * 0.04;
-  const sway = lean + Math.sin(walkT * 2.6) * h * 0.02 * still;
-  const belly = (windK * h * 0.22 + Math.sin(walkT * 5.2 + 1) * h * 0.03 * stride) * still
-    + (P.kneel || 0) * h * 0.12;
+// Shared delegate: pose P plus acting A onto a proportion body. Face-safe
+// boil keeps the head still enough to act; the body keeps full boil.
+function humanDelegate(ctx, pal, name, x, y, h, P, extra, windK, boil, faceBoil, walkT, local, shot) {
+  const face = faceFor(shot, name, local);
+  drawHuman(ctx, pal, name, x, y, h, {
+    stride: P.stride || 0,
+    lean: P.lean || 0,
+    kneel: P.kneel || 0,
+    armRaise: P.armRaise || 0,
+    stillness: P.stillness || 0,
+    windK,
+    boil,
+    faceBoil: faceBoil || boil,
+    walkT,
+    weight: (extra && extra.weight) || 0,
+    exertion: (extra && extra.exertion) || 0,
+    carry: P.carry || (extra && extra.carry) || 'none',
+    oar: P.oar !== undefined ? P.oar : (extra && extra.oar),
+    lantern: (extra && extra.lantern) || null,
+    face: { emotion: face.emotion, phoneme: face.phoneme, blink: P.blink },
+  });
+}
 
-  ctx.save();
-  ctx.translate(x + boil.x, y + boil.y - bob - kneelDrop);
-  const inkW = Math.max(1.2, h / 90);
-  // boots: alternating stride nubs under the hem
-  ctx.fillStyle = '#2c2118';
-  for (const s of [-1, 1]) {
-    const step = Math.sin(walkT * 5.2 + (s > 0 ? Math.PI : 0)) * h * 0.14 * stride;
-    ctx.beginPath();
-    ctx.ellipse(s * h * 0.12 + step + sway * 0.4, -h * 0.02, h * 0.09, h * 0.06, 0, 0, 7);
-    ctx.fill();
-  }
-  // cloak with wind belly and kneel spread
-  ctx.fillStyle = '#a03a2a';
-  cloakPath(ctx, h, belly, sway);
-  inkFill(ctx, pal.ink, inkW, boil);
-  // patched elbow square (bible detail)
-  ctx.fillStyle = '#7c2c1e';
-  ctx.fillRect(-h * 0.24 - belly * 0.4 + sway, -h * 0.52, h * 0.12, h * 0.12);
-  // head + windswept tuft, always leeward
-  ctx.fillStyle = '#e8b98a';
-  ctx.beginPath(); ctx.arc(h * 0.02 + sway, -h * 1.12, h * 0.11, 0, 7); ctx.fill();
-  ctx.beginPath(); ctx.arc(h * 0.02 + sway, -h * 1.12, h * 0.11, 0, 7);
-  inkStroke(ctx, pal.ink, inkW * 0.9, boil, 0.3);
-  // amber eyes: single upper-lid line + glint (flame reflected in s14).
-  // Fear shows in stillness: the lid line opens wider, never shaking.
-  // The lid rides the blink beat: a quick dip every few seconds.
-  const lidOpen = (1 + 0.35 * (P.stillness || 0)) * (P.blink === undefined ? 1 : P.blink);
-  ctx.strokeStyle = pal.ink; ctx.lineWidth = Math.max(1, h / 110);
-  ctx.beginPath(); ctx.arc(h * 0.02 + sway, -h * 1.12, h * 0.055 * lidOpen, Math.PI * 1.08, Math.PI * 1.92); ctx.stroke();
-  if ((P.flame || 0) > 0.05) {
-    ctx.fillStyle = '#ffb84d';
-    ctx.beginPath(); ctx.arc(h * 0.045 + sway, -h * 1.13, h * 0.014 * (0.5 + P.flame), 0, 7); ctx.fill();
-  }
-  ctx.strokeStyle = pal.ink; ctx.lineWidth = inkW * 0.8;
-  ctx.beginPath();
-  ctx.moveTo(-h * 0.06 + sway, -h * 1.2);
-  ctx.lineTo(-h * 0.22 - windK * h * 0.2 * still, -h * 1.3);
-  ctx.moveTo(-h * 0.02 + sway, -h * 1.23);
-  ctx.lineTo(-h * 0.16 - windK * h * 0.2 * still, -h * 1.38);
-  ctx.stroke();
-  // survey pole with ribbons flying leeward
-  ctx.strokeStyle = pal.ink; ctx.lineWidth = inkW;
-  ctx.beginPath(); ctx.moveTo(h * 0.42 + sway, 0); ctx.lineTo(h * 0.42 + sway, -h * 1.7); ctx.stroke();
-  ctx.strokeStyle = '#d8d2c0'; ctx.lineWidth = Math.max(1, inkW * 0.7);
-  for (let i = 0; i < 3; i++) {
-    const ry = -h * (1.55 - i * 0.12);
-    ctx.beginPath(); ctx.moveTo(h * 0.42 + sway, ry);
-    ctx.quadraticCurveTo(h * 0.42 + sway + windK * h * 0.5 * still, ry - h * 0.08, h * 0.42 + sway + windK * h * 0.7 * still, ry);
-    ctx.stroke();
-  }
-  // lantern arm: raised to the cairn in the finale, cupped low in the storm
-  if (P.hasLantern) {
-    const raise = P.armRaise || 0;
-    const lx = -h * 0.45 + sway * 0.5;
-    const ly = -h * (0.55 + raise * 0.75);
-    ctx.strokeStyle = pal.ink; ctx.lineWidth = inkW * 0.9;
-    ctx.beginPath(); ctx.moveTo(-h * 0.1 + sway, -h * 0.7); ctx.lineTo(lx, ly); ctx.stroke();
-    const fl = Math.max(0.03, P.flame || 0);
-    const flick = 0.85 + 0.15 * Math.sin(walkT * 9 + h);
-    const g = ctx.createRadialGradient(lx, ly, 0, lx, ly, 30 * fl + 8);
-    g.addColorStop(0, pal.lantern);
-    g.addColorStop(1, 'rgba(255,180,77,0)');
-    ctx.globalAlpha = 0.65 * flick * Math.min(1, fl + 0.25);
-    ctx.fillStyle = g;
-    ctx.fillRect(lx - 40, ly - 40, 80, 80);
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = pal.lantern;
-    ctx.beginPath(); ctx.arc(lx, ly, 3.4 * Math.min(1.4, fl + 0.6), 0, 7); ctx.fill();
-    ctx.strokeStyle = pal.ink; ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.moveTo(lx, ly - 6); ctx.lineTo(lx, ly - 12); ctx.stroke();
-  }
-  ctx.restore();
+export function drawNiaAtWalk(ctx, pal, x, y, h, P, windK, boil, walkT = 0, extra = null, shot = null) {
+  const faceBoil = boil && boil.face ? boil.face : boil;
+  const t = typeof walkT === 'number' ? walkT : 0;
+  humanDelegate(ctx, pal, 'nia', x, y, h, P, {
+    weight: (extra && extra.weight) || 0,
+    exertion: (extra && extra.exertion) || 0,
+    lantern: P.hasLantern ? { flame: P.flame || 0 } : null,
+  }, windK, boil, faceBoil, t, t, shot || extraShot(extra, walkT));
 }
 
 // Yara boils slow: her lines re-seed at half rate, so she reads calmer
 // than Nia in the same frame. The caller passes the slow boil offset.
+export function drawYara(ctx, pal, x, y, h, pose, boil, walkT = 0, extra = null, shot = null) {
+  const faceBoil = boil && boil.face ? boil.face : boil;
+  const t = typeof walkT === 'number' ? walkT : 0;
+  humanDelegate(ctx, pal, 'yara', x, y, h, {
+    stride: 0, lean: 0, kneel: 0, armRaise: 0, stillness: 0, blink: pose && pose.blink,
+  }, { weight: 0, exertion: 0 }, 0.15, boil, faceBoil, t, t, shot || extraShot(extra, walkT));
+}
 
-export function drawYara(ctx, pal, x, y, h, pose, boil, walkT = 0) {
-  const knot = (pose && pose.knot) || 0;
-  void walkT;
-  ctx.save();
-  ctx.translate(x + boil.x, y + boil.y);
-  const inkW = Math.max(1.2, h / 90);
-  ctx.fillStyle = '#33406a';
-  ctx.beginPath();
-  ctx.moveTo(-h * 0.3, 0); ctx.lineTo(h * 0.3, 0);
-  ctx.lineTo(h * 0.12, -h * 0.9); ctx.quadraticCurveTo(0, -h * 1.05, -h * 0.12, -h * 0.82);
-  ctx.closePath();
-  inkFill(ctx, pal.ink, inkW, boil);
-  // embroidered wind-rose at the back hem (bible detail)
-  ctx.strokeStyle = '#8fa0cc'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.arc(-h * 0.14, -h * 0.18, h * 0.05, 0, 7); ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(-h * 0.19, -h * 0.18); ctx.lineTo(-h * 0.09, -h * 0.18);
-  ctx.moveTo(-h * 0.14, -h * 0.23); ctx.lineTo(-h * 0.14, -h * 0.13);
-  ctx.stroke();
-  ctx.fillStyle = '#d8b894';
-  ctx.beginPath(); ctx.arc(-h * 0.05, -h * 0.95, h * 0.1, 0, 7); ctx.fill();
-  ctx.beginPath(); ctx.arc(-h * 0.05, -h * 0.95, h * 0.1, 0, 7);
-  inkStroke(ctx, pal.ink, inkW * 0.9, boil, 0.3);
-  // calm grey eyes under heavy lids, riding the same blink beat
-  const yLid = (pose && pose.blink === undefined ? 1 : (pose && pose.blink) || 1);
-  ctx.strokeStyle = pal.ink; ctx.lineWidth = Math.max(1, h / 110);
-  ctx.beginPath(); ctx.arc(-h * 0.05, -h * 0.94, h * 0.05 * yLid, Math.PI * 0.1, Math.PI * 0.9); ctx.stroke();
-  // silver bun with lacquer sticks
-  ctx.fillStyle = '#cfcfcf';
-  ctx.beginPath(); ctx.arc(-h * 0.14, -h * 1.04, h * 0.045, 0, 7); ctx.fill();
-  ctx.strokeStyle = '#8a2a1a'; ctx.lineWidth = 1.4;
-  ctx.beginPath();
-  ctx.moveTo(-h * 0.17, -h * 1.07); ctx.lineTo(-h * 0.1, -h * 0.99);
-  ctx.moveTo(-h * 0.12, -h * 1.08); ctx.lineTo(-h * 0.06, -h * 1.0);
-  ctx.stroke();
-  // knotting hands: converge and part with the farewell beat
-  const spread = h * 0.1 * (1 - 0.55 * knot);
-  ctx.strokeStyle = pal.ink; ctx.lineWidth = inkW * 0.85;
-  for (const s of [-1, 1]) {
-    ctx.beginPath();
-    ctx.moveTo(s * h * 0.16, -h * 0.55);
-    ctx.quadraticCurveTo(s * spread, -h * 0.62, s * spread * 0.4, -h * 0.5 - knot * h * 0.06);
-    ctx.stroke();
-  }
-  // storm-ribbon between the hands, knotted tighter as the beat peaks
-  ctx.strokeStyle = '#4a6a9a'; ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(-spread * 0.4, -h * 0.5 - knot * h * 0.06);
-  ctx.quadraticCurveTo(0, -h * 0.44 + knot * h * 0.05, spread * 0.4, -h * 0.5 - knot * h * 0.06);
-  ctx.stroke();
-  // staff by the door side
-  ctx.strokeStyle = pal.ink; ctx.lineWidth = inkW;
-  ctx.beginPath(); ctx.moveTo(h * 0.45, 0); ctx.lineTo(h * 0.45, -h * 1.5); ctx.stroke();
-  ctx.restore();
+// Tam, the ferryman's son: long-limbed, oar yoked until the gorge.
+export function drawTam(ctx, pal, x, y, h, P, windK, boil, walkT = 0, extra = null, shot = null) {
+  const faceBoil = boil && boil.face ? boil.face : boil;
+  const t = typeof walkT === 'number' ? walkT : 0;
+  humanDelegate(ctx, pal, 'tam', x, y, h, P, {
+    weight: (extra && extra.weight) || 0,
+    exertion: (extra && extra.exertion) || 0,
+  }, windK, boil, faceBoil, t, t, shot || extraShot(extra, walkT));
+}
+
+// Lumi, the truth-teller: smallest of the party, carried half the crossing.
+export function drawLumi(ctx, pal, x, y, h, P, windK, boil, walkT = 0, extra = null, shot = null) {
+  const faceBoil = boil && boil.face ? boil.face : boil;
+  const t = typeof walkT === 'number' ? walkT : 0;
+  humanDelegate(ctx, pal, 'lumi', x, y, h, P, {
+    weight: (extra && extra.weight) || 0,
+    exertion: (extra && extra.exertion) || 0,
+  }, windK, boil, faceBoil, t, t, shot || extraShot(extra, walkT));
+}
+
+// The draw wrappers accept (walkT, extra, shot): older callers pass only
+// walkT, newer staging passes the acting state and the shot. When the shot
+// arrives inside `extra` (staging shorthand), unwrap it here.
+function extraShot(extra, walkT) {
+  if (extra && extra.shot) return extra.shot;
+  if (walkT && typeof walkT === 'object' && walkT.shot) return walkT.shot;
+  return null;
 }
 
 export function drawRuel(ctx, pal, x, y, h, pose, boil, breathT, walkT = 0) {
