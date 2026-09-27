@@ -43,6 +43,7 @@ export function captionAt(shot, local) {
   if (!shot || !Array.isArray(shot.captions)) return null;
   let active = null;
   for (const c of shot.captions) {
+    if (!c) continue;
     if (local >= c.t && local < c.t + 4.5) active = c;
   }
   return active;
