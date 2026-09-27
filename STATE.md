@@ -1,14 +1,14 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T13:50Z (maintainer run 36323725760, owner /oc maintainer on PR #456 - approve-eval stale on new head, fresh review dispatched, main c43c56dd LIVE)**
+ - **Updated: 2026-09-27T13:53Z (maintainer run 36323902147, owner /oc maintainer on PR #456 - standby, fresh review in flight on live tip, main c43c56dd LIVE)**
 
 ## PRs & Issues
- - **PRs:** #456 Hearthlight Phase 2 OPEN at c3f41a1ea69bd24f944f726fecd8d91d0d5a4c1d (MERGEABLE, Refs #449, 11 commits: 4 builder + 2 tester + 4 fixer + 1 eval; approve 13:34:17Z on 842c5881 + approve-test 13:39:12Z on cdfd5496 + approve-eval 9.9/10 13:49:19Z on cdfd5496 ALL STALE against c3f41a1e; tip commit adds root package.json/package-lock.json, unreviewed harness leakage; fresh review dispatched this run).
+ - **PRs:** #456 Hearthlight Phase 2 OPEN at c3f41a1ea69bd24f944f726fecd8d91d0d5a4c1d (MERGEABLE/CLEAN, Refs #449, 11 commits: 4 builder + 2 tester + 4 fixer + 1 eval; approve 13:34:17Z on 842c5881 + approve-test 13:39:12Z on cdfd5496 + approve-eval 9.9/10 13:49:19Z on cdfd5496 ALL STALE against c3f41a1e; tip commit adds root package.json/package-lock.json, unreviewed harness leakage; fresh review pending on the live tip).
  - **Issues:** #449 short-film tracking (OPEN, Phase 1 merged as Refs #449, Phase 2 in re-gate on #456, Phase 3 Full Animation Performance chains on approve-eval + merge); #450 stall-hardening (OPEN, delivered via #454 merge, self-triage proving pending on next bot-created issue); standing boards open: #70 lab-health, #42 brainstorm.
  - **Boards:** #70 lab-health, #42 brainstorm standing. **Main c43c56dd LIVE** (Phase 1 merge; Deploy green on main + PR preview). Trigger-list PASS (18 allowlist vs 19 live names incl. self, verified live-grep this run, main unchanged).
 
 ## IN FLIGHT
- - Reviewer (fresh review) on #456 dispatched this run on live tip c3f41a1e (answers the post-approve-eval head move; no gate run was in flight on the new head). Re-gate order: review, then test, then re-eval; merge as Refs #449 + chain Phase 3 only on approve-eval.
- - This maintainer run 36323725760 in_progress. Prior gates all success but stale: review (approve 13:34:17Z), test run 36322863489 (approve-test 13:39:12Z, pushed cdfd5496), eval run 36323285820 (approve-eval 9.9/10 13:49:19Z on cdfd5496), fix run 36322624108 (5/5 items).
+ - Reviewer (fresh review) on #456 pending on live tip c3f41a1e (answers owner /oc review 13:52:10Z + prior maintainer review dispatch 13:52:05Z; per-PR concurrency absorbs the duplicate arm). Re-gate order: review, then test, then re-eval; merge as Refs #449 + chain Phase 3 only on approve-eval.
+ - This maintainer run 36323902147 in_progress. Prior gates all success but stale: review (approve 13:34:17Z), test run 36322863489 (approve-test 13:39:12Z, pushed cdfd5496), eval run 36323285820 (approve-eval 9.9/10 13:49:19Z on cdfd5496), fix run 36322624108 (5/5 items).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still at d905397a (no new signal, no PR vehicle): tor-cli CI still red branch-scoped. No dispatch - owner session active, no vehicle, main unaffected.
 
 ## NEXT-RUN PLAYBOOK
