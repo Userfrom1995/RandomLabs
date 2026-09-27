@@ -14,7 +14,7 @@
 // Pure functions of their arguments: same pose renders identical marks.
 import { inkStroke } from './ink.js';
 import { drawHuman } from './humans.js';
-import { phonemeFor } from './faces.js';
+import { phonemeFor, speechNod } from './faces.js';
 
 export function clamp01(k) {
   const n = Number(k);
@@ -167,11 +167,11 @@ export function faceFor(shot, who, local) {
   for (const c of lines) {
     const dur = c.dur || 4.5;
     if (local >= c.t && local < c.t + dur && WHO[c.who] === who) {
-      return { emotion: c.emotion || 'neutral', phoneme: phonemeFor(c.line, local - c.t) };
+      return { emotion: c.emotion || 'neutral', phoneme: phonemeFor(c.line, local - c.t), nod: speechNod(c.line, local - c.t) };
     }
   }
   const beat = BEAT_FACE[shot ? shot.id : ''] || {};
-  return { emotion: beat[who] || 'neutral', phoneme: 'REST' };
+  return { emotion: beat[who] || 'neutral', phoneme: 'REST', nod: 0 };
 }
 
 // Shared delegate: pose P plus acting A onto a proportion body. Face-safe
@@ -190,11 +190,12 @@ function humanDelegate(ctx, pal, name, x, y, h, P, extra, windK, boil, faceBoil,
     walkT,
     weight: (extra && extra.weight) || 0,
     exertion: (extra && extra.exertion) || 0,
+    secondary: (extra && extra.secondary) || null,
     carry: P.carry || (extra && extra.carry) || 'none',
     oar: P.oar !== undefined ? P.oar : (extra && extra.oar),
     knot: (P && P.knot) || (extra && extra.knot) || 0,
     lantern: (extra && extra.lantern) || null,
-    face: { emotion: face.emotion, phoneme: face.phoneme, blink: P.blink },
+    face: { emotion: face.emotion, phoneme: face.phoneme, blink: P.blink, nod: face.nod },
   });
 }
 
@@ -204,6 +205,7 @@ export function drawNiaAtWalk(ctx, pal, x, y, h, P, windK, boil, walkT = 0, extr
   humanDelegate(ctx, pal, 'nia', x, y, h, P, {
     weight: (extra && extra.weight) || 0,
     exertion: (extra && extra.exertion) || 0,
+    secondary: (extra && extra.secondary) || null,
     lantern: P.hasLantern ? { flame: P.flame || 0 } : null,
   }, windK, boil, faceBoil, t, t, shot || extraShot(extra, walkT));
 }
@@ -216,7 +218,7 @@ export function drawYara(ctx, pal, x, y, h, pose, boil, walkT = 0, extra = null,
   humanDelegate(ctx, pal, 'yara', x, y, h, {
     stride: 0, lean: 0, kneel: 0, armRaise: 0, stillness: 0, blink: pose && pose.blink,
     knot: (pose && pose.knot) || 0,
-  }, { weight: 0, exertion: 0 }, 0.15, boil, faceBoil, t, t, shot || extraShot(extra, walkT));
+  }, { weight: 0, exertion: 0, secondary: (extra && extra.secondary) || null }, 0.15, boil, faceBoil, t, t, shot || extraShot(extra, walkT));
 }
 
 // Tam, the ferryman's son: long-limbed, oar yoked until the gorge.
@@ -226,6 +228,7 @@ export function drawTam(ctx, pal, x, y, h, P, windK, boil, walkT = 0, extra = nu
   humanDelegate(ctx, pal, 'tam', x, y, h, P, {
     weight: (extra && extra.weight) || 0,
     exertion: (extra && extra.exertion) || 0,
+    secondary: (extra && extra.secondary) || null,
   }, windK, boil, faceBoil, t, t, shot || extraShot(extra, walkT));
 }
 
@@ -236,6 +239,7 @@ export function drawLumi(ctx, pal, x, y, h, P, windK, boil, walkT = 0, extra = n
   humanDelegate(ctx, pal, 'lumi', x, y, h, P, {
     weight: (extra && extra.weight) || 0,
     exertion: (extra && extra.exertion) || 0,
+    secondary: (extra && extra.secondary) || null,
   }, windK, boil, faceBoil, t, t, shot || extraShot(extra, walkT));
 }
 

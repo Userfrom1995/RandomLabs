@@ -12,6 +12,7 @@
 // same pose renders identical marks. No Math.random, no wall clock.
 import { inkStroke, inkFill } from './ink.js';
 import { drawFace, PHONEMES } from './faces.js';
+import { secondaryFor } from './acting.js';
 
 // Shoulder half-width as a fraction of body height. The renderer and the
 // turnaround probe share this constant so they cannot drift apart.
@@ -98,6 +99,39 @@ export function legSwing(side, walkT, stride) {
   return Math.sin(walkT * 5.2 + (side > 0 ? Math.PI : 0)) * 0.5 * stride;
 }
 
+// Ground-contact gait: each foot plants through a stance share of its
+// cycle (fore travelling back under the body at constant speed, lift 0)
+// then swings through (lifting over a sine hump back to the front).
+// fore is in fractions of body height h (positive is forward), lift in
+// fractions of h. Zero stride reads as a planted stand. Pure function of
+// (side, walkT, stride): same instant, same feet, scrub-exact.
+export const GAIT_STANCE = 0.6;
+export const GAIT_FREQ = 5.2 / (Math.PI * 2);
+
+export function footPlant(side, walkT, stride) {
+  const s = Number(stride);
+  const st = Number.isFinite(s) ? Math.max(0, s) : 0;
+  const wt = Number.isFinite(walkT) ? walkT : 0;
+  let u = (wt * GAIT_FREQ + (side > 0 ? 0.5 : 0)) % 1;
+  if (u < 0) u += 1;
+  if (st <= 0) return { fore: 0, lift: 0, planted: true };
+  if (u < GAIT_STANCE) {
+    const k = u / GAIT_STANCE;
+    return { fore: (0.5 - k) * 0.5 * st, lift: 0, planted: true };
+  }
+  const k = (u - GAIT_STANCE) / (1 - GAIT_STANCE);
+  return { fore: (-0.5 + k) * 0.5 * st, lift: Math.sin(k * Math.PI) * 0.12, planted: false };
+}
+
+// Gait shaping by exertion: the storm climb runs (faster cadence, higher
+// step, harder torso rock) while the coda walks. Off-contract exertion
+// (NaN, infinities) clamps to rest so garbage never sprints the cast.
+export function gaitFor(exertion) {
+  const e = Number(exertion);
+  const ex = Number.isFinite(e) ? Math.min(1, Math.max(0, e)) : 0;
+  return { cadence: 1 + ex * 0.35, lift: 1 + ex * 0.6, rock: ex };
+}
+
 // Full proportion body. (x, y) is the ground point; h is full height px.
 // opts: { stride, lean, kneel, armRaise, stillness, windK, boil, faceBoil,
 //   walkT, weight (-1..1 lateral shift), exertion, carry, oar, knot,
@@ -116,10 +150,18 @@ export function drawHuman(ctx, pal, name, x, y, h, opts) {
   const inkW = Math.max(1.2, h / 90);
   const weight = o.weight || 0;
   const exert = o.exertion || 0;
+  const gait = gaitFor(exert);
+  const wT = walkT * gait.cadence;
+  const sec = o.secondary || secondaryFor(windK, walkT, exert);
   const kneelDrop = (o.kneel || 0) * h * 0.3;
-  const bob = Math.abs(Math.sin(walkT * 5.2)) * h * 0.035 * stride;
+  // Walk bob stays shallow so planted feet keep their ground contact.
+  const bob = Math.abs(Math.sin(wT * 5.2)) * h * 0.02 * stride;
   const lean = ((o.lean || 0) + stride * 0.05 + exert * 0.06) * h;
-  const sway = lean + weight * h * 0.06 + Math.sin(walkT * 2.6) * h * 0.014 * still;
+  // Carry rock: a loaded carrier (Tam's back-carry, Nia's armful) rolls
+  // the torso over the stride; the rock scales with exertion.
+  const carryRock = (o.carry && o.carry !== 'none')
+    ? Math.sin(wT * 5.2) * h * 0.02 * (0.3 + gait.rock) : 0;
+  const sway = lean + weight * h * 0.06 + Math.sin(wT * 2.6) * h * 0.014 * still + carryRock;
   const huPx = h / model.hu;
 
   ctx.save();
@@ -130,27 +172,49 @@ export function drawHuman(ctx, pal, name, x, y, h, opts) {
   const hipY = -legL;
   const shoY = hipY - torsoL;
 
-  // Legs: opposed FK swing with knee lift; kneel folds both.
+  // Legs: ground-contact gait. The stance foot plants (lift 0, fore
+  // travelling back under the body); the swing foot lifts over a hump.
+  // The knee bends to absorb the plant offset so the stance foot stays on
+  // the ground line instead of floating on cosine loss; a contact shadow
+  // under each foot fades as the foot leaves the ground.
   ctx.strokeStyle = ink;
   ctx.lineWidth = inkW;
   ctx.fillStyle = ink;
   const legCol = name === 'lumi' ? model.leggings : name === 'tam' ? '#5a5248' : '#2c2118';
   for (const s of [-1, 1]) {
-    const swing = legSwing(s, walkT, stride);
+    const plant = footPlant(s, wT, stride);
+    const lift = plant.lift * gait.lift;
+    // Normalized step height (0 planted .. ~1.6 sprint apex): the thigh
+    // swings forward while the knee folds, so the swing foot visibly
+    // leaves the ground instead of shuffling through cosine flatness.
+    const liftN = lift / 0.12;
     const fold = (o.kneel || 0) * 0.9;
+    const bend = Math.abs(plant.fore) * 1.6;
     ctx.strokeStyle = legCol;
     ctx.lineWidth = inkW * 1.15;
-    const foot = fkLimb(ctx, s * h * 0.07, hipY, legL * 0.52, swing * 0.7 + fold * 0.5, legL * 0.5, swing * 0.9 + fold * 1.1);
+    const foot = fkLimb(ctx, s * h * 0.07, hipY, legL * 0.52,
+      plant.fore * 2.2 + fold * 0.5 - liftN * 0.25, legL * 0.5,
+      plant.fore * 1.2 + fold * 1.1 + bend * 0.5 + liftN * 0.75);
     // boots or wrapped feet
     ctx.fillStyle = name === 'tam' ? '#c8b898' : '#2c2118';
     ctx.beginPath();
     ctx.ellipse(foot.ex, foot.ey - h * 0.015, h * 0.075, h * 0.045, 0, 0, 7);
     ctx.fill();
+    const grip = plant.planted ? 1 : Math.max(0, 1 - lift * 6);
+    ctx.globalAlpha = 0.22 * grip * (stride > 0 ? 1 : 0.4);
+    ctx.fillStyle = '#101018';
+    ctx.beginPath();
+    ctx.ellipse(foot.ex, -h * 0.005, h * 0.07, h * 0.018, 0, 0, 7);
+    ctx.fill();
+    ctx.globalAlpha = 1;
   }
 
-  // Torso per costume.
+  // Torso per costume. The cloak belly rides the acting secondary cloth
+  // driver (lagged against the shot wind) instead of raw wind so cloth
+  // follows weather with weight; callers without a secondary fall back to
+  // the wind-shaped driver built above.
   if (model.costume === 'cloak') {
-    const belly = (windK * h * 0.2 + Math.sin(walkT * 5.2 + 1) * h * 0.025 * stride) * still
+    const belly = (sec.cloth * h * 0.18 + Math.sin(wT * 5.2 + 1) * h * 0.025 * stride) * still
       + (o.kneel || 0) * h * 0.1 + exert * h * 0.02;
     ctx.fillStyle = model.cloak;
     ctx.beginPath();
@@ -236,7 +300,7 @@ export function drawHuman(ctx, pal, name, x, y, h, opts) {
   const handPts = [];
   for (const s of [-1, 1]) {
     const lead = s < 0 ? raise : raise * 0.4;
-    const swing = -legSwing(s, walkT, stride) * 0.8;
+    const swing = -legSwing(s, wT, stride) * 0.8;
     const a1 = swing * 0.6 - lead * 1.5 - exert * 0.15 - s * knot * 0.55;
     const a2 = swing * 0.5 - lead * 0.9 - exert * 0.5 - (carry !== 'none' && s < 0 ? 0.9 : 0) - s * knot * 0.4;
     ctx.lineWidth = inkW * 0.95;
@@ -256,7 +320,7 @@ export function drawHuman(ctx, pal, name, x, y, h, opts) {
       ctx.moveTo(hand.ex, hand.ey);
       ctx.lineTo(lampX, lampY - h * 0.02);
       ctx.stroke();
-      const flick = 0.85 + 0.15 * Math.sin(walkT * 9 + h);
+      const flick = 0.85 + 0.15 * Math.sin(wT * 9 + h);
       const g = ctx.createRadialGradient(lampX, lampY, 0, lampX, lampY, 30 * fl + 8);
       g.addColorStop(0, (pal && pal.lantern) || '#ffb84d');
       g.addColorStop(1, 'rgba(255,180,77,0)');
@@ -328,7 +392,8 @@ export function drawHuman(ctx, pal, name, x, y, h, opts) {
     }
   }
 
-  // Head: neck joint at shoY, delegated to the face engine.
+  // Head: neck joint at shoY, delegated to the face engine. The nod
+  // carries the dialogue emphasis beat; the secondary shapes hair lag.
   const face = o.face || {};
   drawFace(ctx, {
     cx: sway * 0.4,
@@ -342,6 +407,8 @@ export function drawHuman(ctx, pal, name, x, y, h, opts) {
     phoneme: face.phoneme || 'REST',
     gaze: face.gaze || { x: 0, y: 0 },
     blink: face.blink === undefined ? 1 : face.blink,
+    nod: face.nod || 0,
+    secondary: sec,
     boil: faceBoil,
     inkW,
     windK,

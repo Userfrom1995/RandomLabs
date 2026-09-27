@@ -68,9 +68,11 @@ export function renderAnimatic(ctx, tl, t, opts) {
   const windK = painted.windK;
   const gy = painted.groundY + H * 0.06;
   // Acting state for the instant, fed by the shot's own wind so cloth,
-  // hair, and weight shift with the weather on screen.
+  // hair, and weight shift with the weather on screen. The secondary
+  // drivers ride along into every human rig; the painted anchors (water,
+  // hearth) re-anchor the weather to the new paint.
   const act = actFor({ ...s, windK }, p, local);
-  const extra = { weight: act.weight, exertion: act.exertion, shot: s };
+  const extra = { weight: act.weight, exertion: act.exertion, secondary: act.secondary, shot: s };
 
   // Cast staging: the human party walks the frame; Ruel is a demoted
   // supporting appearance (one shot, background, half scale). Lumi is
@@ -116,7 +118,7 @@ export function renderAnimatic(ctx, tl, t, opts) {
   ctx.restore();
 
   // weather in front of the cast, under the letterbox
-  drawParticles(ctx, seed, s, W, H, ft, p, windK, boil, reduced);
+  drawParticles(ctx, seed, s, W, H, ft, p, windK, boil, reduced, painted);
 
   // letterbox + act/shot slate (first 2.2 s of each shot)
   ctx.fillStyle = '#000';
