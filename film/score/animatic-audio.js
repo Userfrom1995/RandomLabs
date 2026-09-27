@@ -11,7 +11,7 @@ export function createPerformer() {
   let master = null;
   let timer = null;
   let step = 0;
-  let current = { motif: 'nia', tempo: 60, mood: '' };
+  let current = { motif: 'nia', raw: 'nia', tempo: 60, mood: '' };
   let volume = 0.8;
   let muted = false;
   let playing = false;
@@ -31,7 +31,9 @@ export function createPerformer() {
     const { row } = motifFor({ motif: motifName });
     const semi = row[degree % row.length] + 12 * Math.floor(degree / row.length);
     let f = semitoneToFreq(ROOTS[motifName] || 392, semi);
-    if (current.motif.includes('major')) f = semitoneToFreq(ROOTS.wind || 329.63, semi + 4);
+    // Keyed off the raw cue string ('wind+nia (major)'): motifFor stores the
+    // resolved family name, which never contains 'major'.
+    if ((current.raw || '').includes('major')) f = semitoneToFreq(ROOTS.wind || 329.63, semi + 4);
     return f;
   }
 
@@ -74,7 +76,7 @@ export function createPerformer() {
     unlock() { if (ensure() && ctx.state === 'suspended') ctx.resume(); },
     setCue(music) {
       const m = motifFor(music);
-      const next = { motif: m.name, tempo: music.tempo || 60, mood: music.mood || '' };
+      const next = { motif: m.name, raw: music.motif || '', tempo: music.tempo || 60, mood: music.mood || '' };
       if (next.motif !== current.motif) step = 0;
       current = next;
     },
