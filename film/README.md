@@ -23,14 +23,19 @@ seek, chapters, captions, fullscreen, volume/mute), a 30-second trailer
 cut from the same frames on the same stage, an end card with credits and
 replay, a committed WebVTT caption file, two original posters, a
 live-painted storyboard wall, the complete story package, and the pipeline
-with its self-review capture loop. Ink lines boil on 2s with double-pass
-stroke weight, skies are stacked watercolor washes over paper grain, the
-valley paint set dresses all 14 backgrounds, deterministic weather (embers,
-leaves, spray, storm, cairn sparks, the rekindling wave) plays over every
-shot, and the four human leads act all 20 shots from proportion bodies with
-expressive faces: FK limbs, costume, gaze and blink, phoneme mouths driven
-by the dialogue, and eased acting beats with weight, exertion, and
-secondary motion.
+with its self-review capture loop (hero frames, face close-up cards, and
+one background plate per painted location). Ink lines boil on 2s with
+double-pass stroke weight, skies are three stacked watercolor wash layers
+over paper grain, and every one of the 14 backgrounds is painted in four
+passes (composition sketch, washes, detail, atmosphere) with detail that
+scales down honestly at 390 px. Deterministic weather plays over every
+shot, re-anchored to the paint: gorge spray inside the painted water band,
+house sparks from the painted hearth, storm slant on the shot wind. The
+four human leads act all 20 shots from proportion bodies with expressive
+faces: ground-contact gait with stance plant and swing step, exertion-run
+climbs, carry rock, cloth and hair on the acting secondary drivers,
+dialogue emphasis nod on live lines, gaze and blink, phoneme mouths
+driven by the dialogue, and eased acting beats with weight and exertion.
 
 ## How it works
 

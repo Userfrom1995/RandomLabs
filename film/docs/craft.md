@@ -19,11 +19,18 @@ identical instants. Nine craft modules do the work:
   passes (deep, body, lift) over a base gradient, closed with paper grain,
   sparse laid fibres, and a warm edge vignette.
 - **Valley paint set** (`engine/backgrounds.js`): one painter per
-  screenplay background (all 14): layered ridge silhouettes, mist bands,
-  lantern rows that gutter and rekindle with the story, the hill cairn,
-  Yara's glowing doorway, grove trunks with hanging moss, the gorge rope
-  bridge over sprayed water, slanted storm streaks, the switchback path,
-  and the cairn stones with the lighting bloom.
+  screenplay background (all 14), each in four passes. A composition table
+  fixes the horizon, focal mass, and key light per location (identical at
+  960 px and 390 px); three wash layers (deep, body, lift, each on its own
+  seeded stream) grade the sky with a fore wash over the ground; a detail
+  pass paints foliage clusters, rock facets, water reflections, fern
+  fronds, interior props (Yara's hearth arch, kettle, blanket folds, jar
+  shelf, hanging herbs), gate posts with storm-ribbons, chart instruments,
+  path stones, and dawn birds; an atmosphere pass lays ember-light
+  falloff, storm murk, dawn bloom, night hush, grove gloom, or hearth
+  glow. Detail stroke counts scale down honestly at narrow widths (fewer
+  strokes, same composition, never blurred). The paint reports anchors
+  the weather re-attaches to: the gorge water line, the house hearth.
 - **Character rigs** (`engine/rigs.js`): staging for the four human
   leads from the character bible, acted from eased poses with the face
   state of the dialogue lattice. Every one of the 20 shots carries a
@@ -34,15 +41,25 @@ identical instants. Nine craft modules do the work:
   arm-carried, then walks the coda with her souvenir stick. Yara knots the
   storm-ribbon on a farewell beat. Ruel is a demoted supporting appearance
   in a single shot. Eyelids ride a deterministic blink every few seconds,
-  offset per character.
+  offset per character. Live dialogue lines also carry an emphasis nod to
+  the head, scaled by the viseme openness, so spoken beats land with
+  weight; silent beats hold the head at rest.
 - **Human bodies** (`engine/humans.js`): proportion builds from the
   model-sheet head units (Nia 4.5, Yara 4.0, Tam 5.5, Lumi 3.5) with
-  two-segment FK arms and legs, knees, elbows, simple hands, and costume
-  overlays that double as secondary-motion surfaces: Nia's wind-bellied
-  cloak with its patched elbow, Yara's embroidered shawl, Tam's rope-burned
-  oilskin vest over darned wool, Lumi's tunic with the white ankle binding.
-  Each lead carries a silhouette key readable at 390 px: survey pole and
-  ribbons, keeper's staff, shoulder-yoked oar, topknots and ankle wrap.
+  ground-contact gait: each foot plants through a stance share of its
+  cycle (fore travelling back under the body, zero lift) then swings
+  through over a sine hump, with knees bending to absorb the plant and a
+  contact shadow under each foot that fades as the foot leaves the
+  ground. Exertion shapes the gait (the storm climb runs: faster cadence,
+  higher step, harder torso rock), loaded carriers roll over the stride,
+  and two-segment FK arms swing against the stride with elbows bending
+  under effort. Costume overlays double as secondary-motion surfaces,
+  now driven by the acting secondary drivers: Nia's wind-bellied cloak
+  with its patched elbow, Yara's embroidered shawl, Tam's rope-burned
+  oilskin vest over darned wool, Lumi's tunic with the white ankle
+  binding. Each lead carries a silhouette key readable at 390 px: survey
+  pole and ribbons, keeper's staff, shoulder-yoked oar, topknots and
+  ankle wrap.
 - **Faces** (`engine/faces.js`): heads with gaze and blink, expressive
   brows, and a nine-viseme phoneme mouth set driven deterministically from
   the caption text, blended with the seventeen-expression sheet so the
@@ -59,13 +76,14 @@ identical instants. Nine craft modules do the work:
   and mouths hold still enough to act while the silhouette keeps its
   hand-drawn shimmer.
 - **Weather** (`engine/particles.js`): one deterministic particle field per
-  background, drawn over the cast like a multiplane layer. Lantern embers
-  over the hollow, wind-driven leaves in the low valley, hearth sparks at
-  Yara's door, grove spores, gorge spray, a 30-pellet driven storm on the
-  slope, grass seed on the approach, cairn sparks that build with the
-  lighting, and the rekindling wave of rising motes over the dawn valley.
-  Every mote follows an analytic path from shot-local time: smooth in
-  motion, pinned when scrubbed.
+  background, drawn over the cast like a multiplane layer and re-anchored
+  to the painted world: gorge spray rises only inside the painted water
+  band, house sparks rise from the painted hearth, storm slant follows the
+  shot wind. Lantern embers over the hollow, wind-driven leaves in the low
+  valley, grove spores, grass seed on the approach, cairn sparks that build
+  with the lighting, and the rekindling wave of rising motes over the dawn
+  valley. Every mote follows an analytic path from shot-local time: smooth
+  in motion, pinned when scrubbed.
 
 Camera grammar: push, pull, pan, track, sweep, rise, crane, tilt, bloom,
 fade, plus hold (breathing micro-drift), drift (slow diagonal), and orbit
