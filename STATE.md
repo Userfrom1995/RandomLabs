@@ -1,13 +1,13 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T12:50Z (maintainer run 36320201950, owner /oc maintainer on PR #451 - re-approved review+test on live tip, re-eval dispatched, main 0dec3653 LIVE)**
+ - **Updated: 2026-09-27T12:52Z (maintainer run 36320318764, owner /oc maintainer on PR #451 - standby, fourth re-eval in flight, main 0dec3653 LIVE)**
 
 ## PRs & Issues
- - **PRs:** #451 OPEN (Hearthlight Phase 1 for #449, head 534598f3 = live branch tip, MERGEABLE, body `Refs #449`; Reviewer approve 12:46:15Z on ec29a073 covers all production code, Tester approve-test 12:48:07Z on live tip 534598f3 with test-only delta `film/tests/regression-eval4.mjs`; fourth re-eval dispatched this run). No other open PRs.
- - **Issues:** #450 stall-hardening (OPEN, delivered via #454 merge, self-triage proving pending on next bot-created issue); #449 short-film tracking (OPEN, Phase 1 in final eval gate after slate + resilience fixes); standing boards open: #70 lab-health, #42 brainstorm.
+ - **PRs:** #451 OPEN (Hearthlight Phase 1 for #449, head 534598f3 = live branch tip, MERGEABLE/CLEAN, body `Refs #449`; Reviewer approve 12:46:15Z on ec29a073 covers all production code, Tester approve-test 12:48:07Z on live tip 534598f3 with test-only delta `film/tests/regression-eval4.mjs`; fourth re-eval run 36320318796 pending on owner /oc eval). No other open PRs.
+ - **Issues:** #450 stall-hardening (OPEN, delivered via #454 merge, self-triage proving pending on next bot-created issue); #449 short-film tracking (OPEN, Phase 1 in final eval gate after slate + resilience fixes + regression-eval4 pin); standing boards open: #70 lab-health, #42 brainstorm.
  - **Boards:** #70 lab-health, #42 brainstorm standing. **Main 0dec3653 LIVE** (infra stall-hardening merge #454). Trigger-list PASS (live names unchanged this window).
 
 ## IN FLIGHT
- - PR #451 eval: dispatched this run (no eval run on the new head yet; 12:48:11 batch correctly skipped). No other agent runs in flight (this maintainer run 36320201950 in_progress; workflow_run maintainer arms skipped/cancelled as expected).
+ - PR #451 eval: run 36320318796 pending (answers owner /oc eval 12:50:03Z on the live tip; no duplicate dispatched this run). No other agent runs in flight (this maintainer run 36320318764 in_progress; sibling issue_comment arms for the trigger batch correctly skipped; workflow_run maintainer arms skipped/cancelled as expected).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still at d905397a (no new signal, no PR vehicle): tor-cli CI still red branch-scoped. No dispatch - owner session active, no vehicle, main unaffected.
 
 ## NEXT-RUN PLAYBOOK
