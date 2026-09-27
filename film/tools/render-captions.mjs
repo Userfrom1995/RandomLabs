@@ -30,8 +30,9 @@ export function buildVtt(tl) {
   const cues = [];
   for (const shot of tl.shots) {
     for (const c of shot.captions || []) {
+      const dur = c.dur || 4.5;
       const start = shot.start + c.t;
-      const end = Math.min(start + 4.5, shot.end);
+      const end = Math.min(start + dur, shot.end);
       cues.push({
         start,
         end,

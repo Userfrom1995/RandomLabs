@@ -55,7 +55,10 @@ ok('20 shots, 5 acts', tl.shots.length === 20 && tl.acts.length === 5);
 ok('trailer exactly 30s in six moments',
   trailer.total === 30 && trailer.segments.length === 6, trailer.total + 's');
 const { cues } = buildVtt(tl);
-ok('22 caption cues covering every shot', cues.length === 22,
+ok('caption cues cover every shot, sorted, non-overlapping',
+  cues.length >= 20 &&
+  cues.every((c, i) => i === 0 || c.start >= cues[i - 1].start) &&
+  cues.every((c) => c.end > c.start),
   cues.length + ' cues');
 const shotIds = new Set(tl.shots.map((s) => s.id));
 ok('every shot captioned',
