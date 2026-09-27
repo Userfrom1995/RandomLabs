@@ -17,6 +17,8 @@ import { fileURLToPath } from 'node:url';
 import { buildTimeline } from '../engine/timeline.js';
 import { frameIndex } from '../engine/frames.js';
 import { renderAnimatic } from '../engine/animatic.js';
+import { drawFace, FACE_CARDS, expressionFor, mouthShapeFor } from '../engine/faces.js';
+import { modelFor } from '../engine/humans.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const sha = (s) => createHash('sha256').update(s).digest('hex');
@@ -107,3 +109,43 @@ const sorted = { format: heroes.format, seed: heroes.seed, frames: {} };
 for (const k of Object.keys(frames).sort()) sorted.frames[k] = frames[k];
 writeFileSync(join(out, 'heroes.json'), JSON.stringify(sorted, null, 1) + '\n');
 console.log('capture ok: ' + Object.keys(frames).length + ' hero frames in dist/capture/');
+
+// Face close-up cards: one per lead per bible emotion. Each card hashes
+// the exact face-engine draw log at a fixed head radius, so an expression
+// regression names its (lead, emotion) pair. SVG review cards carry the
+// expression parameters for human self-review.
+function faceCard(name, emotion) {
+  const model = modelFor(name);
+  const exp = expressionFor(emotion);
+  const mouth = mouthShapeFor('A');
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="480" height="480" viewBox="0 0 480 480">\n' +
+    '<rect width="480" height="480" fill="#1a1410"/>\n' +
+    '<circle cx="240" cy="230" r="120" fill="' + model.skin + '"/>\n' +
+    '<text x="40" y="60" font-size="34" font-family="Georgia,serif" fill="#f2e8d5">' +
+    esc(name.toUpperCase()) + ' - ' + esc(emotion) + '</text>\n' +
+    '<text x="40" y="420" font-size="18" font-family="Georgia,serif" fill="#f2e8d5">' +
+    'brow ' + exp.brow.toFixed(2) + ' pinch ' + exp.pinch.toFixed(2) + ' lid ' + exp.lid.toFixed(2) +
+    ' mouth A open ' + mouth.open.toFixed(2) + '</text>\n</svg>\n';
+}
+
+const faceFrames = {};
+for (const name of Object.keys(FACE_CARDS).sort()) {
+  const model = modelFor(name);
+  for (const emotion of FACE_CARDS[name]) {
+    const { ctx, log } = makeRecorder();
+    drawFace(ctx, {
+      cx: 240, cy: 230, r: 120, skin: model.skin, hair: model.hair, eye: model.eye,
+      hairStyle: model.hairStyle, emotion, phoneme: 'A',
+      gaze: expressionFor(emotion).gaze, blink: 1,
+      boil: { x: 0, y: 0 }, inkW: 2, windK: 0.5, still: 1,
+    });
+    const hash = sha(JSON.stringify(log));
+    faceFrames[name + '|' + emotion] = { hash };
+    writeFileSync(join(out, 'stills', 'face-' + name + '-' + emotion + '.svg'), faceCard(name, emotion));
+  }
+}
+const faces = { format: 'hearthlight-faces/1', seed: sp.seed, frames: faceFrames };
+const facesSorted = { format: faces.format, seed: faces.seed, frames: {} };
+for (const k of Object.keys(faceFrames).sort()) facesSorted.frames[k] = faceFrames[k];
+writeFileSync(join(out, 'faces.json'), JSON.stringify(facesSorted, null, 1) + '\n');
+console.log('capture ok: ' + Object.keys(faceFrames).length + ' face cards in dist/capture/');
