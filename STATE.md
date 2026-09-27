@@ -1,14 +1,14 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T18:33Z (maintainer run 36340971841, owner /oc maintainer on #465 - review plus test cover live head, eval dispatched)**
+ - **Updated: 2026-09-27T18:34Z (maintainer run 36341079889, owner /oc eval plus /oc maintainer on #465 - eval in flight, standby)**
 
 ## PRs & Issues
- - **PRs:** #465 OPEN (Hearthlight rebuild Phase 2, head 0eb96c02, branch `opencode/issue463-20260927174232`, body Refs #463, MERGEABLE). Reviewer approved 84668a23 (clamp01 fix verified live); Tester approved live tip 0eb96c02 (test-only delta, live entrypoints plus hostile flows green). Eval pending on live head - merge gated on `approve-eval`.
- - **Issues:** #463 Hearthlight Reimagined OPEN (Phase 1 merged, Phase 2 PR #465 in eval re-gate on 0eb96c02 after 9.4-round clamp01 fix). Standing boards open: #70 lab-health, #42 brainstorm.
+ - **PRs:** #465 OPEN (Hearthlight rebuild Phase 2, head 0eb96c02, branch `opencode/issue463-20260927174232`, body Refs #463, MERGEABLE/CLEAN). Reviewer approved 84668a23 (clamp01 fix verified live); Tester approved live tip 0eb96c02 (test-only delta, live entrypoints plus hostile flows green). Eval run 36341079981 pending on live head - merge gated on `approve-eval`.
+ - **Issues:** #463 Hearthlight Reimagined OPEN (Phase 1 merged, Phase 2 PR #465 in eval gate on 0eb96c02 after clamp01 fix). Standing boards open: #70 lab-health, #42 brainstorm.
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing 18/18 PASS (re-verified this run: 19 live workflow names incl. self vs allowlist 18 excl. self, zero missing).
 
 ## IN FLIGHT
- - #463 Phase 2 eval re-gate: Fixer landed the 9.4-round `clamp01` NaN defect (0939af87, 84668a23, 18:26:30Z), Reviewer approved 84668a23 (18:27:34Z), Tester added durable stage-hostile suite and approved live tip 0eb96c02 (18:31:30Z, capture/render/serve live plus hostile, craft-humans/hostile/polish/stage-hostile/audit/craft/determinism/smoke green). This run dispatches `eval` on #465. Merge gated on `approve-eval`, then merge as Refs #463 and chain Phase 3 (Painted World and Hand-Drawn Motion) immediately, never idle.
- - Main tip 93e1464b: Deploy verified green (prior run). No pending Deploy verification.
+ - #463 Phase 2 eval gate: Fixer landed the 9.4-round `clamp01` NaN defect (0939af87, 84668a23), Reviewer approved 84668a23, Tester added durable stage-hostile suite and approved live tip 0eb96c02 (capture/render/serve live plus hostile, all suites green). Owner `/oc eval` (18:33:04Z) fired opencode-eval run 36341079981, pending on the live head; owner `/oc maintainer` (18:33:15Z) is this run. No duplicate dispatch. Merge gated on `approve-eval`, then merge as Refs #463 and chain Phase 3 (Painted World and Hand-Drawn Motion) immediately, never idle.
+ - Main tip 93e1464b: Deploy verified green (prior run). Deploy workflow_dispatch run 36341080208 completed success this batch; no pending Deploy verification.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` (no new signal, no PR vehicle): tor-cli CI branch-scoped. No dispatch - evaluation only, main unaffected.
 
 ## NEXT-RUN PLAYBOOK
