@@ -93,6 +93,16 @@ export function phonemeFor(line, local) {
   return seq[Math.floor(local * 6) % seq.length];
 }
 
+// Dialogue emphasis nod: the head rides the mouth openness of the live
+// viseme with a small scrub-exact bob, so spoken lines land with weight
+// instead of sitting on a frozen neck. Silence (no line, bad local) reads
+// exactly 0. Returns a fraction of head radius; the caller scales by r.
+export function speechNod(line, local) {
+  if (!line || !Number.isFinite(local) || local < 0) return 0;
+  const m = MOUTH[phonemeFor(line, local)] || MOUTH.REST;
+  return m.open * 0.06 * Math.sin(local * 9);
+}
+
 // Face close-up cards for the capture loop: per lead, the emotions from
 // their bible expression sheet.
 export const FACE_CARDS = {
@@ -103,7 +113,9 @@ export const FACE_CARDS = {
 };
 
 // Draw a head at (cx, cy) with radius r. spec: { skin, hair, eye,
-// hairStyle, emotion, phoneme, gaze {x,y}, blink (0..1 openness), boil
+// hairStyle, emotion, phoneme, gaze {x,y}, blink (0..1 openness), nod
+// (dialogue emphasis as a fraction of r), secondary (acting cloth/drift/
+// bounce drivers for hair lag; absent falls back to raw wind), boil
 // (face-safe offset), inkW, windK, still }.
 export function drawFace(ctx, spec) {
   const cx = spec.cx; const cy = spec.cy; const r = spec.r;
@@ -116,9 +128,11 @@ export function drawFace(ctx, spec) {
   const gaze = spec.gaze || exp.gaze;
   const windK = spec.windK || 0;
   const still = spec.still === undefined ? 1 : spec.still;
+  const sec = spec.secondary || null;
+  const nod = Number.isFinite(spec.nod) ? spec.nod : 0;
 
   ctx.save();
-  ctx.translate(cx + boil.x, cy + boil.y);
+  ctx.translate(cx + boil.x, cy + boil.y + nod * r);
 
   // hair back mass per style
   ctx.fillStyle = spec.hair || '#2e2620';
@@ -135,7 +149,9 @@ export function drawFace(ctx, spec) {
     ctx.fillRect(-r * 0.15, -r * 0.5, r * 0.3, r * 1.1);
   } else if (hs === 'knots') {
     ctx.beginPath(); ctx.arc(0, -r * 0.3, r * 0.68, Math.PI * 0.9, Math.PI * 2.1); ctx.fill();
-    const bounce = Math.sin((spec.windK || 0) * 9) * r * 0.06;
+    // Lumi's topknots lag the weather: the acting bounce driver when the
+    // stage feeds one, raw wind wobble otherwise (face-card path).
+    const bounce = sec ? (sec.bounce - 0.5) * 2 * r * 0.07 : Math.sin((spec.windK || 0) * 9) * r * 0.06;
     for (const s of [-1, 1]) {
       ctx.beginPath(); ctx.arc(s * r * 0.55, -r * 0.95 + bounce * s, r * 0.26, 0, 7); ctx.fill();
     }

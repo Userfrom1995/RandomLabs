@@ -39,6 +39,22 @@ export function particleFieldFor(shot) {
   return f;
 }
 
+// Painted anchor resolution: the gorge spray rises from the painted water
+// line and the house sparks from the painted hearth, never from mid-air.
+// Missing anchors fall back to the historic fractions so unit callers
+// without a painted frame still render.
+export function waterYFor(anchors, H) {
+  if (anchors && Number.isFinite(anchors.waterY)) return anchors.waterY;
+  return H * 0.8;
+}
+
+export function hearthFor(anchors) {
+  if (anchors && anchors.hearth && Number.isFinite(anchors.hearth.x) && Number.isFinite(anchors.hearth.y)) {
+    return anchors.hearth;
+  }
+  return null;
+}
+
 // Static per-particle parameters from a stable substream.
 function params(seed, shotId, i) {
   const rng = substream(seed, 'particle|' + shotId + '|' + i, 1);
@@ -62,14 +78,16 @@ function glowDot(ctx, pal, x, y, r, alpha) {
 // Rising motes: embers, hearth sparks, grove spores, grass seed, cairn
 // sparks, rekindling wave. Intensity ramps with shot progress p for kinds
 // tied to the story's lighting beats (sparks, rekindle).
-function drawRiser(ctx, seed, shot, pal, W, H, teff, p, q, i, reduced) {
+function drawRiser(ctx, seed, shot, pal, W, H, teff, p, q, i, reduced, anchors) {
   const field = PARTICLE_FIELDS[shot.bg];
   const pr = params(seed, shot.id, i);
   const cycle = 6 + pr.speed * 6;
   const u = (((teff - shot.start) * (0.6 + pr.speed * 0.8)) / cycle + pr.phase) % 1;
   const uu = u < 0 ? u + 1 : u;
   let base = H * (0.55 + pr.y0 * 0.35);
-  if (shot.bg === 'yara-house') base = H * (0.72 - pr.y0 * 0.1);
+  const hearth = hearthFor(anchors);
+  if (hearth) base = hearth.y - pr.y0 * H * 0.05;
+  else if (shot.bg === 'yara-house') base = H * (0.72 - pr.y0 * 0.1);
   if (shot.bg === 'moss-grove') base = H * (0.3 + pr.y0 * 0.55);
   const riseK = field.kind === 'sparks' ? 0.62 : field.kind === 'rekindle' ? 0.5 : 0.42;
   const y = base - uu * H * riseK;
@@ -120,12 +138,12 @@ function drawLeaf(ctx, seed, shot, pal, W, H, teff, q, i, windK, boil, reduced) 
   ctx.globalAlpha = 1;
 }
 
-function drawSpray(ctx, seed, shot, W, H, teff, i, reduced) {
+function drawSpray(ctx, seed, shot, W, H, teff, i, reduced, waterY) {
   const pr = params(seed, shot.id, i);
   const x = pr.x0 * W;
-  const waterY = H * 0.8;
+  const wy = Number.isFinite(waterY) ? waterY : H * 0.8;
   const bob = Math.abs(Math.sin((teff - shot.start) * (0.8 + pr.speed) + pr.phase * tau()));
-  const y = waterY - bob * H * 0.07;
+  const y = wy - bob * H * 0.07;
   const alpha = (0.1 + 0.3 * bob) * (reduced ? 0.7 : 1);
   ctx.globalAlpha = alpha;
   ctx.fillStyle = '#dce8f2';
@@ -168,10 +186,11 @@ function drawDust(ctx, seed, shot, W, H, teff, i, reduced) {
   ctx.globalAlpha = 1;
 }
 
-export function drawParticles(ctx, seed, shot, W, H, t, p, windK, boil, reducedMotion) {
+export function drawParticles(ctx, seed, shot, W, H, t, p, windK, boil, reducedMotion, anchors) {
   const field = particleFieldFor(shot);
   const teff = reducedMotion ? shot.start : frameTime(t);
   const b = boil || { x: 0, y: 0 };
+  const waterY = waterYFor(anchors, H);
   for (let i = 0; i < field.count; i++) {
     switch (field.kind) {
       case 'embers':
@@ -180,13 +199,13 @@ export function drawParticles(ctx, seed, shot, W, H, t, p, windK, boil, reducedM
       case 'seeds':
       case 'sparks':
       case 'rekindle':
-        drawRiser(ctx, seed, shot, shot.palette, W, H, teff, p, windK, i, reducedMotion);
+        drawRiser(ctx, seed, shot, shot.palette, W, H, teff, p, windK, i, reducedMotion, anchors);
         break;
       case 'leaves':
         drawLeaf(ctx, seed, shot, shot.palette, W, H, teff, windK, i, windK, b, reducedMotion);
         break;
       case 'spray':
-        drawSpray(ctx, seed, shot, W, H, teff, i, reducedMotion);
+        drawSpray(ctx, seed, shot, W, H, teff, i, reducedMotion, waterY);
         break;
       case 'storm':
         drawStorm(ctx, seed, shot, W, H, teff, i, windK, reducedMotion);
