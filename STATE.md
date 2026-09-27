@@ -1,13 +1,13 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T19:35Z (maintainer run 36344867570, owner /oc maintainer on #467 - eval dispatched, test gate passed)**
+ - **Updated: 2026-09-27T19:36Z (maintainer run 36344964199, owner /oc eval + /oc maintainer on #467 - standby, eval in flight)**
 
 ## PRs & Issues
- - **PRs:** #467 OPEN at `65d9fb57` (Phase 4 Dialogue Voice and Sound Continuity, branch `opencode/issue463-20260927191316`, 6 commits, body `Refs #463`, MERGEABLE/UNSTABLE - UNSTABLE is the by-design actor-gate/pr-trigger hold, not a merge blocker). Zero other open PRs.
+ - **PRs:** #467 OPEN at `65d9fb57` (Phase 4 Dialogue Voice and Sound Continuity, branch `opencode/issue463-20260927191316`, body `Refs #463`, MERGEABLE/CLEAN). Zero other open PRs.
  - **Issues:** #463 Hearthlight Reimagined OPEN (Phase 1-3 merged, Phase 3 tip 23fb65a4; Phase 4 vehicle #467 in eval gate, roadmap: Phase 5 Rebuilt Premiere Cut, Final Integration Closes #463). Standing boards open: #70 lab-health, #42 brainstorm.
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing 18/18 PASS (re-verified live via grep this run: 19 workflow names vs allowlist 18 ex-self).
 
 ## IN FLIGHT
- - #467 Phase 4 eval: Reviewer `/oc approve` on b1d10e9f (run 36344547700, all 3 live-parity findings verified fixed) -> Tester `/oc approve-test` on 65d9fb57 (run 36344377683 fix + run 36344672511 test; head matches live tip, test-only delta, no /oc fix after). Evaluator dispatched this run; no eval run in flight yet. Never merge without approve-eval.
+ - #467 Phase 4 eval: Reviewer `/oc approve` on b1d10e9f (run 36344547700, all 3 live-parity findings verified fixed) -> Tester `/oc approve-test` on 65d9fb57 (run 36344672511; test-only delta, no /oc fix after) -> Evaluator run 36344964322 pending on the live head (answers owner's /oc eval 19:35:59Z; supersedes prior run's eval dispatch). Never merge without approve-eval.
  - Main tip 23fb65a4: Deploy green confirmed (runs 36343535062, 36344123740). Standing by for eval verdict.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` (no new signal, no PR vehicle): tor-cli CI branch-scoped. No dispatch - evaluation only, main unaffected.
 
