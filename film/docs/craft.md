@@ -117,6 +117,11 @@ One event list drives both performances: the offline mixer
 stems to `dist/audio/` (byte-reproducible; the JSON stems are committed
 under `score/`), while the theatre performer (`score/animatic-audio.js`)
 plays the same lines live in WebAudio with a looping wind bed, resetting
-its phrase on every cue change. Every event start sits exactly on the
+its phrase on every cue change. Both duck dialogue-first from one shared
+envelope (`score/duck.js`): the score bus dips to 0.45 and the SFX bed to
+0.7 under every caption window, with Yara's half-silence as the release.
+Notes join legato with no dead air, and every line's closing note resolves
+to its motif root; Ruel's single line plays in the body (head, ears, ember
+eyes). Every event start sits exactly on the
 24 fps frame grid, so A/V sync drift is zero by construction and enforced
 by the audit.

@@ -13,7 +13,7 @@ Full story-and-animation rebuild of Hearthlight at `/film/` under the same Pages
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 3: Painted World and Hand-Drawn Motion (Complete, ready for review)
+- **Active Phase:** Phase 4: Dialogue Voice and Sound Continuity (Complete, ready for review)
 
 ### Phase 1: Story Rebuild and Character Design Foundation (PR 1 target, Refs #463)
 
@@ -39,9 +39,12 @@ Full story-and-animation rebuild of Hearthlight at `/film/` under the same Pages
 
 ### Phase 4: Dialogue Voice and Sound Continuity (PR 4 target, Refs #463)
 
-- [ ] Dialogue timing final: VTT rebuild byte-pinned, lattice alignment, per-line face coverage, dialogue-first ducking in the mix
-- [ ] SFX re-anchored to the new cut (footsteps, cloth, fire, water, storm, beds); score re-cued events regenerated (same motif rows, continuous coverage, resolving voices); stems + WAVs rebuilt deterministically
-- [ ] Score/SFX tests pin cue coverage, ducking bounds, dynamic range, stem determinism; live WebAudio performer matches the master
+- [x] Dialogue-first ducking (`film/score/duck.js`, shared offline/live): 43 caption lines to 25 merged windows; score bus to 0.45, SFX bed to 0.7, 0.25 s attack, 0.5 s release (Yara's half-silence made structural); per-sample application in `mix.js` (mix v2); measured RMS 0.075 under dialogue vs 0.133 outside
+- [x] Score continuity at pinned 602 events: legato joins, closing notes ring to the shot edge on resolved motif roots; dead-air seconds 2 to 0; bounds and zero drift hold; live performer ducks by cue position with the same floors and resolves closing degrees
+- [x] Delivery coverage: 33 human lines drive face rigs mid-line; Ruel's s12 line plays in the body (`lineWindow`/`speakFor`, head/ears/eyes, silent off-line); 9 narrator lines duck but never lip-sync (REST/zero-nod pinned)
+- [x] SFX re-anchored at pinned 50 events: gorge/storm/rekindling set-piece gains, action-matched footfalls (10/9/8/6), honest silence tags; stems + WAVs rebuilt deterministically (render 10.5 s, peak at ceiling, all stems audible)
+- [x] New `tests/dialogue-voice.mjs` (27 gates) + Phase 4 audit gates; `dialogue.md` delivery section; unified docs (`README.md`, `docs/craft.md`); ideas entry committed
+- [x] Builder self-review: envelope sampled (floor exact, unity outside, monotone attack - caught and fixed an inverted ramp before review); Ruel probed on/off/edge/hostile; full suite green (23/23 incl. Tester's pinned 602/50 suite untouched)
 
 ### Phase 5: Rebuilt Premiere Cut and Theatre Verification (PR 5 target, Refs #463)
 
@@ -57,10 +60,40 @@ Full story-and-animation rebuild of Hearthlight at `/film/` under the same Pages
 
 ## Current step
 
-Phase 3 complete: fourteen locations repainted in four passes with
-width-honest detail, the cast walks with planted feet and nods its lines,
-cloth and weather belong to their paintings; pipeline green. Ready for
-review.
+Phase 4 complete: the mix is voiced around the words (duck 0.45/0.7 with
+Yara's half-silence as the release), the score runs legato edge to edge
+with resolving closes and zero dead air, Ruel acts his one line in the
+body, the SFX bed is re-anchored to the set-pieces, and the theatre ducks
+where the record ducks. Pipeline green (repro + 23 suites, Tester pins
+untouched). Ready for review.
+
+## Phase 4 watch-through notes (Builder self-review, 2026-09-27)
+
+- Envelope: sampled mid-line (floor exactly 0.45), pre-film (exactly 1),
+  attack monotone into the hold, stacked s05 lines holding without pumping
+  across the 0.5 s gap, 25 merged windows from 43 lines, none overlapping.
+  Self-review catch: the first attack formula was inverted (swelled toward
+  the line then snapped to the floor, with a hard drop at the onset);
+  the new-suite gate caught it pre-review and the curve is now C0
+  continuous (1 at onset, floor at line start, release back to 1).
+- Master: full 270 s render in 10.5 s, peak at the 0.89 ceiling, RMS 0.075
+  under dialogue vs 0.133 outside (was 0.415 vs 0.455 pre-duck at event
+  gain level: coexistence, not delivery). Storm outweighs the blue thread
+  2x; all seven stems audible (bells thinnest at 0.0065, above the 0.001
+  gate). VTT byte-identical (43 cues).
+- Delivery: all 33 human lines reach their speaker's face mid-line with
+  the scripted emotion; Ruel reads speak 1 on his line, 0 fore and aft,
+  fractional on the 0.3 s edges, 0 on NaN/null seeks; narrator lines move
+  no staged mouth. SFX: gorge 0.7/0.45, storm 0.7/0.6, whoom 0.7,
+  footfalls 10/9/8/6, silences empty.
+- Full suite green: repro (audit with Phase 4 gates, smoke, premiere,
+  captions 43 cues) plus all 23 suites (craft, craft-humans, craft-world,
+  dialogue-voice, performance, smoke, tester phase1/3/4/5, theatre, score,
+  determinism, final-audit, regression eval3/4, phase2-live/polish, phase2
+  hostile suites). The Tester's hostile audio suite passes unmodified with
+  its 602/50 pins intact.
+- Known stand-ins for Phase 5: trailer still cuts the Phase 1 map; poster
+  refresh pending the new-sound verdict; end card/credits unchanged.
 
 ## Phase 3 watch-through notes (Builder self-review, 2026-09-27)
 
@@ -145,10 +178,10 @@ review.
 
 ## Next steps
 
-Reviewer (`/oc review`) on Phase 3, then Builder Phase 4: Dialogue Voice
-and Sound Continuity (VTT rebuild byte-pinned, SFX re-anchored to the new
-action beats, dialogue-first ducking, score re-cue with continuous
-coverage).
+Reviewer (`/oc review`) on Phase 4, then Builder Phase 5: Rebuilt Premiere
+Cut and Theatre Verification (trailer re-cut from the new timeline, poster
+refresh where the new story demands it, theatre verification with new
+chapters, 390 px mobile pass).
 
 ## Team Note
 
