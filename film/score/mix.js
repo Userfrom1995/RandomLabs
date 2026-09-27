@@ -1,13 +1,16 @@
 // Hearthlight mix (Phase 4): places score + SFX events onto the 270 s
-// master timeline, rides per-act levels, and writes a soft-limited mono
-// master plus per-bus stems. WAV encoding is plain 16-bit PCM with a
-// deterministic header (no timestamps, no metadata chunks).
+// master timeline, rides per-act levels, ducks both buses under dialogue
+// (score/duck.js: words first, music second, air third), and writes a
+// soft-limited mono master plus per-bus stems. WAV encoding is plain 16-bit
+// PCM with a deterministic header (no timestamps, no metadata chunks).
 import { actRideAt } from './orchestra.js';
 import { renderVoice, voiceSeed } from './voices.js';
 import { renderSfxEvent } from './sfx.js';
+import { dialogueWindows, duckLevelAt, SCORE_FLOOR, SFX_FLOOR, DUCK_VERSION } from './duck.js';
 
 export const MIX_SAMPLE_RATE = 22050;
-export const MIX_VERSION = 'hearthlight-mix/1';
+export const MIX_VERSION = 'hearthlight-mix/2';
+export const MIX_DUCK = DUCK_VERSION;
 
 // Bus levels: the score carries the film, the bed stays underneath.
 const SCORE_BUS = 0.8;
@@ -17,10 +20,19 @@ export function mixDurationSec(totalSec) {
   return Math.ceil(totalSec * MIX_SAMPLE_RATE);
 }
 
-function placeInto(master, samples, startSec, gain) {
+function placeInto(master, samples, startSec, gain, duckFn) {
   const at = Math.floor(startSec * MIX_SAMPLE_RATE);
   const n = Math.min(samples.length, master.length - at);
-  for (let i = 0; i < n; i++) master[at + i] += samples[i] * gain;
+  if (!duckFn) {
+    for (let i = 0; i < n; i++) master[at + i] += samples[i] * gain;
+    return;
+  }
+  // Dialogue-first duck: per-sample envelope so a note that starts under a
+  // line but rings past it breathes back in instead of staying buried.
+  for (let i = 0; i < n; i++) {
+    const t = (at + i) / MIX_SAMPLE_RATE;
+    master[at + i] += samples[i] * gain * duckFn(t);
+  }
 }
 
 // Render the full mix. Returns { master, stems } where stems maps bus name
@@ -28,6 +40,7 @@ function placeInto(master, samples, startSec, gain) {
 export function renderMix(tl, scoreEvents, sfxEvents, sr = MIX_SAMPLE_RATE) {
   const N = Math.ceil(tl.total * sr);
   const master = new Float32Array(N);
+  const windows = dialogueWindows(tl);
   const stems = {
     score: new Float32Array(N),
     sfx: new Float32Array(N),
@@ -45,14 +58,16 @@ export function renderMix(tl, scoreEvents, sfxEvents, sr = MIX_SAMPLE_RATE) {
   for (const ev of scoreEvents) {
     const samples = renderVoice(ev.voice, ev.f, ev.dur, sr, voiceSeed(ev.shot, ev.voice, ev.deg, ev.f));
     const ride = actRideAt(tl, ev.t);
-    placeInto(stems.score, samples, ev.t, ev.g * SCORE_BUS * ride);
+    const duck = (t) => duckLevelAt(t, windows, SCORE_FLOOR);
+    placeInto(stems.score, samples, ev.t, ev.g * SCORE_BUS * ride, duck);
     const stem = stems[STEM_OF[ev.voice]];
-    if (stem) placeInto(stem, samples, ev.t, ev.g * SCORE_BUS * ride);
+    if (stem) placeInto(stem, samples, ev.t, ev.g * SCORE_BUS * ride, duck);
   }
   for (const ev of sfxEvents) {
     const samples = renderSfxEvent(ev, sr);
     const ride = actRideAt(tl, ev.t);
-    placeInto(stems.sfx, samples, ev.t, ev.gain * SFX_BUS * ride);
+    const duck = (t) => duckLevelAt(t, windows, SFX_FLOOR);
+    placeInto(stems.sfx, samples, ev.t, ev.gain * SFX_BUS * ride, duck);
   }
   for (let i = 0; i < N; i++) {
     master[i] = stems.score[i] + stems.sfx[i];

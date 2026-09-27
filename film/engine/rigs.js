@@ -129,8 +129,32 @@ export function poseFor(shot, p, local) {
       wag: id === 's11' ? beat(p, 0.65, 0.09) : 0,
       ear: id === 's11' ? beat(p, 0.3, 0.05) : 0,
       wake: id === 's10' ? easeInOut(p * 2.5) : 1,
+      // Ruel's single line (s12) plays in the body: head up, ears perked.
+      speak: speakFor(shot, 'RUEL', local),
     },
   };
+}
+
+// Creature line delivery: Ruel speaks exactly one captioned line (s12) and
+// has no human face rig, so his delivery plays in the body. speakFor
+// returns 0..1 across a caption window with 0.3 s attack/release: the head
+// lifts, the ears perk, the ember eyes widen on his words, then settle.
+export function lineWindow(shot, who) {
+  const lines = (shot && Array.isArray(shot.captions)) ? shot.captions : [];
+  for (const c of lines) {
+    if (c.who === who) return [c.t, c.t + (c.dur || 4.5)];
+  }
+  return null;
+}
+
+export function speakFor(shot, who, local) {
+  const w = lineWindow(shot, who);
+  if (!w || !Number.isFinite(local)) return 0;
+  const edge = 0.3;
+  if (local < w[0] - edge || local > w[1] + edge) return 0;
+  if (local < w[0]) return (local - (w[0] - edge)) / edge;
+  if (local > w[1]) return 1 - (local - w[1]) / edge;
+  return 1;
 }
 
 // Face state for a lead at a shot instant: the active dialogue line drives
@@ -277,8 +301,9 @@ export function drawRuel(ctx, pal, x, y, h, pose, boil, breathT, walkT = 0) {
   ctx.fillStyle = '#5a7048';
   ctx.beginPath();
   ctx.ellipse(-L * 0.1, -h * 1.15, L * 0.28, h * 0.34, 0, Math.PI, 0); ctx.fill();
-  // head, low and heavy, lifting as he wakes
-  const lift = wake * h * 0.1;
+  // head, low and heavy, lifting as he wakes - and lifting further to speak
+  const speak = P.speak || 0;
+  const lift = wake * h * 0.1 + speak * h * 0.08;
   ctx.fillStyle = '#4a4038';
   ctx.beginPath(); ctx.ellipse(L * 0.52, -h * 0.55 - lift, h * 0.42, h * 0.34, 0.2, 0, 7); ctx.fill();
   ctx.beginPath(); ctx.ellipse(L * 0.52, -h * 0.55 - lift, h * 0.42, h * 0.34, 0.2, 0, 7);
@@ -289,17 +314,18 @@ export function drawRuel(ctx, pal, x, y, h, pose, boil, breathT, walkT = 0) {
   ctx.moveTo(L * 0.52 + h * 0.3, -h * 0.38 - lift);
   ctx.quadraticCurveTo(L * 0.52 + h * 0.42, -h * 0.42 - lift, L * 0.52 + h * 0.44, -h * 0.52 - lift);
   ctx.stroke();
-  // ember eyes, opening with the wake beat
+  // ember eyes, opening with the wake beat - wider on his spoken line
   ctx.fillStyle = pal.lantern;
-  ctx.beginPath(); ctx.arc(L * 0.58, -h * 0.62 - lift, h * 0.045 * (0.2 + 0.8 * wake), 0, 7); ctx.fill();
-  // ears: all emotion lives here; one flick in s11
+  ctx.beginPath(); ctx.arc(L * 0.58, -h * 0.62 - lift, h * 0.045 * (0.2 + 0.8 * wake) * (1 + speak * 0.5), 0, 7); ctx.fill();
+  // ears: all emotion lives here; one flick in s11, perked through his s12 line
   const flick = (P.ear || 0) * 0.7;
   for (const s of [-1, 1]) {
     const ex = L * 0.34 + s * h * 0.1;
     const tw = s > 0 ? flick : flick * 0.4;
     ctx.fillStyle = '#4a4038';
+    // speak perks the ears upright: the silhouette answers his line.
     ctx.beginPath();
-    ctx.ellipse(ex, -h * 0.95 - lift - tw * h * 0.2, h * 0.09, h * 0.16, s * 0.4 - tw, 0, 7);
+    ctx.ellipse(ex, -h * 0.95 - lift - tw * h * 0.2 - speak * h * 0.06, h * 0.09, h * 0.16, s * 0.4 - tw, 0, 7);
     ctx.fill(); ctx.strokeStyle = pal.ink; ctx.lineWidth = 1.4; ctx.stroke();
   }
   // lichen antlers: 5 tines a side, asymmetrical

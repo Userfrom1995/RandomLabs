@@ -131,12 +131,29 @@ export function buildScoreEvents(tl) {
       if (!voice) throw new Error('unknown voice: ' + ln.voice);
       const stepBeats = ln.beatsPerNote;
       const n = Math.max(1, Math.floor((ln.toBeat - ln.fromBeat) / stepBeats));
+      const rowLen = (motifFor({ motif: spec.family }).row || []).length || 8;
       for (let k = 0; k < n; k++) {
-        const deg = ln.degreeOffset + ((si * 3 + k) % 48);
+        // The closing note of every line resolves: its degree snaps down to
+        // the nearest motif-row root so no shot ends on a leaning tone, and
+        // its tail extends exactly to the shot edge so the score never drops
+        // out early (the Phase 1-3 master left up to a second of dead air at
+        // s16/s17). Mid-line notes join legato: each rings to the next
+        // note's start instead of choking at 95%, so coverage is continuous
+        // without adding or removing a single event (count stays pinned).
+        const last = k === n - 1;
+        let deg = ln.degreeOffset + ((si * 3 + k) % 48);
+        if (last) deg -= ((deg % rowLen) + rowLen) % rowLen;
         const f = noteFreq(spec.family, deg, ln.voice, majorLift);
         const tRaw = shot.start + (ln.fromBeat + k * stepBeats) * spec.beat;
         const t = frameTime(Math.min(tRaw, shot.start + shot.dur - 0.001));
-        const dur = Math.min(stepBeats * spec.beat * 0.95, shot.start + shot.dur - t);
+        const nextStart = shot.start + (ln.fromBeat + (k + 1) * stepBeats) * spec.beat;
+        // Mid-line notes join legato at the next note; the closing note
+        // always rings to the shot edge even when the beat grid undershoots
+        // it (e.g. s16: six 2-beat notes cover beats 0-12 of 13, so the
+        // sixth must stretch one extra beat to the cut, never drop early).
+        const dur = last
+          ? shot.start + shot.dur - t
+          : Math.min(nextStart - tRaw, shot.start + shot.dur - t);
         if (dur <= 0.01) continue;
         events.push({
           shot: shot.id,

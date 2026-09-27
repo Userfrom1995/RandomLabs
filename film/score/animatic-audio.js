@@ -13,6 +13,7 @@
 // setCue now optionally takes the full shot for orchestration + SFX.
 import { motifFor } from './themes.js';
 import { orchestrate, noteFreq, VOICES } from './orchestra.js';
+import { shotWindows, livePeakFor, SCORE_FLOOR } from './duck.js';
 
 const FALLBACK_LINE = { voice: 'woodwind', beatsPerNote: 1, gain: 0.5, fromBeat: 0, toBeat: 1e9, degreeOffset: 0 };
 
@@ -31,7 +32,7 @@ export function createPerformer() {
   let noiseBuf = null;
   let timer = null;
   let step = 0;
-  let current = { motif: 'nia', family: 'nia', raw: 'nia', shotId: '', si: 0, tempo: 60, mood: '', lines: [FALLBACK_LINE], beat: 1, wind: 0 };
+  let current = { motif: 'nia', family: 'nia', raw: 'nia', shotId: '', si: 0, tempo: 60, mood: '', lines: [FALLBACK_LINE], beat: 1, wind: 0, duck: [] };
   let volume = 0.8;
   let muted = false;
   let playing = false;
@@ -163,18 +164,29 @@ export function createPerformer() {
     if (!playing || !ctx) return;
     const beat = current.beat;
     const bright = /full|blaz|arrival|surge|scream|bells/.test(current.mood || '');
+    // Wall-clock position inside the cue, for dialogue-first ducking: notes
+    // that start on a spoken line play at the same floor the WAV master
+    // ducks to (duck.js), so the theatre breathes where the record breathes.
+    const inShot = step * beat;
+    const duck = livePeakFor(current.duck, inShot, SCORE_FLOOR);
     for (const ln of current.lines) {
       if (step < ln.fromBeat || step >= ln.toBeat) continue;
       if ((step - ln.fromBeat) % ln.beatsPerNote !== 0) continue;
       const phrase = Math.floor((step - ln.fromBeat) / ln.beatsPerNote);
-      // Same degree formula as the offline master (orchestra.js): the cue
-      // opening plays identical pitches live and on the WAV render.
-      const deg = ln.degreeOffset + ((current.si * 3 + phrase) % 48);
+      // Same degree formula as the offline master (orchestra.js), including
+      // the resolving snap on each line's closing note: the cue opening
+      // plays identical pitches live and on the WAV render.
+      const span = Math.max(1, Math.floor(((ln.toBeat ?? 1e9) - (ln.fromBeat ?? 0)) / ln.beatsPerNote));
+      let deg = ln.degreeOffset + ((current.si * 3 + phrase) % 48);
+      if (phrase === span - 1) {
+        const rowLen = (motifFor({ motif: current.family }).row || []).length || 8;
+        deg -= ((deg % rowLen) + rowLen) % rowLen;
+      }
       // Keyed off the raw cue string ('wind+nia (major)'): the resolved
       // family name never contains 'major'.
       const f = noteFreq(current.family, deg, ln.voice, (current.raw || '').includes('major'));
       const voice = VOICES[ln.voice];
-      const peak = ln.gain * voice.baseGain * (bright && ln.voice === 'woodwind' ? 1.4 : 1);
+      const peak = ln.gain * voice.baseGain * (bright && ln.voice === 'woodwind' ? 1.4 : 1) * duck;
       playVoice(ln.voice, f, ln.beatsPerNote * beat * 0.95, Math.min(0.6, peak));
     }
     step++;
@@ -202,6 +214,7 @@ export function createPerformer() {
         tempo: music.tempo || 60, mood: music.mood || '',
         lines, beat,
         wind: windLevelFor(shot),
+        duck: shot ? shotWindows(shot) : [],
       };
       // Lines are per-cue bounded ([fromBeat, toBeat)), so the beat counter
       // resets on every cue change, not just on motif-family changes.

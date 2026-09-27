@@ -28,7 +28,10 @@ const TAG_MAP = {
   'charcoal-scratch': { gen: 'scratch', gain: 0.4, place: [0.1, 0.8], count: 6 },
   'paper-rustle': { gen: 'rustle', gain: 0.35, place: [0.2, 0.9], count: 3 },
   'lantern-gutter': { gen: 'gutter', gain: 0.5, place: [0.3, 0.7] },
-  'running-steps': { gen: 'steps', gain: 0.5, place: [0.2, 0.9], count: 8, hard: true },
+  // s04: Nia sprints downhill shouting. Ten hard footfalls under the run;
+  // the run starts before her first line and carries through it (action
+  // over words), so the bed stays wide and the mix duck keeps her audible.
+  'running-steps': { gen: 'steps', gain: 0.55, place: [0.15, 0.9], count: 10, hard: true },
   'fire-crackle': { gen: 'crackle', gain: 0.5, place: [0, 1] },
   'kettle-tick': { gen: 'ping', gain: 0.22, place: [0.1, 0.9], f: 2093, count: 4 },
   'lantern-latch': { gen: 'knock', gain: 0.55, place: [0.4, 0.6], f: 320, count: 2 },
@@ -46,30 +49,41 @@ const TAG_MAP = {
   'snuffle': { gen: 'chuff', gain: 0.5, place: [0.3, 0.8], count: 2 },
   'chart-paper': { gen: 'rustle', gain: 0.35, place: [0.4, 0.8], count: 2 },
   'small-laugh': { gen: 'laughBlip', gain: 0.4, place: [0.5, 0.8], count: 3 },
-  'white-water': { gen: 'water', gain: 0.6, place: [0, 1] },
+  // s12 gorge ford (the crossing set-piece): the party of four wades the
+  // white water while Tam shouts holds and Lumi answers. Water leads at a
+  // set-piece gain; spray thickens to six gusts against the painted fall.
+  'white-water': { gen: 'water', gain: 0.7, place: [0, 1] },
   'timber-groan': { gen: 'creak', gain: 0.5, place: [0.2, 0.8], low: true },
-  'spray': { gen: 'rustle', gain: 0.4, place: [0, 1], count: 4, airy: true },
-  'sleet': { gen: 'windBed', gain: 0.55, place: [0, 1], cutoff: 2400, lfo: 0.35 },
-  'wind-howling': { gen: 'windBed', gain: 0.65, place: [0, 1], cutoff: 1400, lfo: 0.3 },
-  'boots-snow': { gen: 'steps', gain: 0.5, place: [0.1, 0.9], count: 7, crunch: true },
+  'spray': { gen: 'rustle', gain: 0.45, place: [0, 1], count: 6, airy: true },
+  // s13 the storm takes (carry set-piece): sleet and howl at full menace,
+  // nine crunching boots for the staggering carry; breath-steady answers.
+  'sleet': { gen: 'windBed', gain: 0.6, place: [0, 1], cutoff: 2400, lfo: 0.35 },
+  'wind-howling': { gen: 'windBed', gain: 0.7, place: [0, 1], cutoff: 1400, lfo: 0.3 },
+  'boots-snow': { gen: 'steps', gain: 0.55, place: [0.1, 0.9], count: 9, crunch: true },
   'gust-hit': { gen: 'windBed', gain: 0.6, place: [0.1, 0.5], cutoff: 1800, lfo: 0.5 },
   'breath-steady': { gen: 'breath', gain: 0.4, place: [0.2, 0.9], count: 4 },
   'flame-catch': { gen: 'rustle', gain: 0.45, place: [0.5, 0.9], count: 2, airy: true },
   'wind-drop': { gen: 'windBed', gain: 0.4, place: [0, 0.6], cutoff: 800, lfo: 0.12 },
   'snow-spiral': { gen: 'rustle', gain: 0.3, place: [0.2, 0.8], count: 3, airy: true },
   'deep-chuff': { gen: 'chuff', gain: 0.55, place: [0.5, 0.9], count: 2 },
-  'stone-steps': { gen: 'steps', gain: 0.5, place: [0.1, 0.9], count: 7 },
+  'stone-steps': { gen: 'steps', gain: 0.5, place: [0.1, 0.9], count: 8 },
   'cloak-wind': { gen: 'flutter', gain: 0.35, place: [0.2, 0.9], count: 4 },
   'brazier-iron': { gen: 'ironClank', gain: 0.45, place: [0.3, 0.8], count: 2 },
-  'ignition-whoom': { gen: 'whoom', gain: 0.65, place: [0.3, 0.6] },
+  // s17 rekindling (climax): the ignition whoom leads the whole valley
+  // answering; the brazier catches under it through the back half.
+  'ignition-whoom': { gen: 'whoom', gain: 0.7, place: [0.25, 0.6] },
   'brazier-catch': { gen: 'crackle', gain: 0.55, place: [0.4, 1] },
   'wind-choir': { gen: 'windBed', gain: 0.4, place: [0, 1], cutoff: 1000, lfo: 0.08 },
   'lantern-wave': { gen: 'waveShimmer', gain: 0.5, place: [0.1, 0.9] },
-  'distant-cheers': { gen: 'cheerSwell', gain: 0.4, place: [0.3, 0.9] },
-  'dawn-birds': { gen: 'birds', gain: 0.4, place: [0.2, 1], count: 6 },
+  // s18 the valley answers: cheers swell warmer and the dawn chorus
+  // thickens to eight calls behind the narrator's homecoming beat.
+  'distant-cheers': { gen: 'cheerSwell', gain: 0.45, place: [0.3, 0.9] },
+  'dawn-birds': { gen: 'birds', gain: 0.45, place: [0.2, 1], count: 8 },
   'morning-wind': { gen: 'windBed', gain: 0.4, place: [0, 1], cutoff: 900, lfo: 0.12 },
   'door-open': { gen: 'creak', gain: 0.35, place: [0.2, 0.5] },
-  'soft-steps': { gen: 'steps', gain: 0.3, place: [0.3, 0.9], count: 5 },
+  // s19 homecoming: three keepers walk the bright path, six soft footfalls
+  // under the narrator and Lumi's knot line; the door opens before them.
+  'soft-steps': { gen: 'steps', gain: 0.3, place: [0.3, 0.9], count: 6 },
   'sunrise-wind': { gen: 'windBed', gain: 0.35, place: [0, 1], cutoff: 800, lfo: 0.1 },
   'paper-fresh': { gen: 'rustle', gain: 0.3, place: [0.4, 0.8], count: 2 },
   'title-hush': null,
