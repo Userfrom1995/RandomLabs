@@ -310,8 +310,6 @@ export function renderAnimatic(ctx, tl, t, opts) {
     ctx.textAlign = 'center';
     ctx.font = '600 ' + (H * 0.05) + 'px serif';
     ctx.fillText('Act ' + s.act + ' - ' + s.title, W / 2, H * 0.175);
-    ctx.font = (H * 0.032) + 'px serif';
-    ctx.fillText(s.id.toUpperCase() + '  ·  living animatic', W / 2, H * 0.215);
     ctx.textAlign = 'left';
     ctx.globalAlpha = 1;
   }
