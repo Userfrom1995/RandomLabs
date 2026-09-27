@@ -13,15 +13,15 @@ Full story-and-animation rebuild of Hearthlight at `/film/` under the same Pages
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 1: Story Rebuild and Character Design Foundation
+- **Active Phase:** Phase 1: Story Rebuild and Character Design Foundation (Complete, ready for review)
 
 ### Phase 1: Story Rebuild and Character Design Foundation (PR 1 target, Refs #463)
 
-- [ ] Rewritten screenplay (`film/story/screenplay.json`): 5 acts, 240-300 s, per-shot continuity fields (entry/exit state, cause link), per-line dialogue timing (speaker, in/out on frame lattice, emotion tag)
-- [ ] Character bible (`film/story/characters.md`) with new human leads: model sheets (head-unit proportions), turnarounds, expression sheets, costume/secondary-motion notes; original identity only
-- [ ] Continuity ledger + dialogue notes (`film/story/continuity.md`, `film/story/dialogue.md`), regenerated `storyboard.json`, re-cued `music-direction.md` (motif rows retained, cue map rewritten, no dead air)
-- [ ] Pipeline stays green: audit extended with continuity-ledger and dialogue-lattice gates; `captions.vtt` rebuilt byte-exact; `bash film/repro.sh` green; theatre plays the new story (existing craft visuals permitted as stand-ins; no stub controls)
-- [ ] Builder self-review: caption-only read follows the plot; first watch-through notes committed to the PR
+- [x] Rewritten screenplay (`film/story/screenplay.json`): 5 acts, 270 s, per-shot continuity fields (entry/exit state, cause link, flameIn/flameOut chain), per-line dialogue timing (speaker, lattice in-point, dur out-point, emotion tag)
+- [x] Character bible (`film/story/characters.md`) with new human leads Tam (17, ferryman's son) and Lumi (8, truth-teller): model sheets (head-unit proportions), turnarounds, expression sheets, costume/secondary-motion notes; Ruel demoted to one supporting appearance (s12); original identity only
+- [x] Continuity ledger + dialogue notes (`film/story/continuity.md`, `film/story/dialogue.md`), regenerated `storyboard.json`, re-cued `music-direction.md` (motif rows retained, cue map rewritten, no dead air)
+- [x] Pipeline stays green: audit extended with continuity-ledger and dialogue-lattice gates; `captions.vtt` rebuilt byte-exact (43 cues); `bash film/repro.sh` green; all 15 film test suites green; theatre plays the new story (existing craft visuals as stand-ins; no stub controls)
+- [x] Builder self-review: caption-only read follows the plot; first watch-through notes committed below
 
 ### Phase 2: Human Character Animation Craft (PR 2 target, Refs #463)
 
@@ -56,11 +56,38 @@ Full story-and-animation rebuild of Hearthlight at `/film/` under the same Pages
 
 ## Current step
 
-Ready for initial build (Phase 1: Story Rebuild and Character Design Foundation)
+Phase 1 complete: story package rebuilt and pipeline green. Ready for review.
+
+## Phase 1 watch-through notes (Builder self-review, 2026-09-27)
+
+- Caption-only read of `film/captions.vtt` (43 cues) follows the plot with
+  no picture: failure (s01-s04), debt (s05-s08), gorge party (s09-s12),
+  choice (s13-s14), wind turn (s15-s16), many flames (s17-s18), knot
+  (s19-s20). No line needs the picture to make sense.
+- Chain verified by machine: 20/20 continuity ledgers chained
+  (flameIn equals previous flameOut: full > faltering > dark > kindled >
+  guarded > half > stub > cairn-lit > many), 20/20 cause links naming the
+  previous shot, 43/43 dialogue lines on the 24 fps lattice with closed
+  speaker/emotion sets, sorted and non-overlapping.
+- Capture + render loops paint all 20 hero frames and 55 manifest files
+  with no throws; final-audit 240/240 watch-through sweep green on desktop
+  and 390 px widths.
+- Score/SFX stems byte-identical to the #449 cut (602/602 score events,
+  50/50 sfx events): same cue keys, motifs, tempos, timings; only mood
+  prose changed. The re-cue is intentionally conservative in Phase 1; Phase
+  4 re-anchors SFX to the new action beats and adds dialogue-first ducking.
+- Known stand-ins (not stubs, no disabled controls): the stage still draws
+  the #449 rigs, so Tam/Lumi have no bodies yet and Ruel still walks shots
+  the new story gives to humans. Phase 2 replaces the rigs; nothing in the
+  theatre pretends otherwise.
+- Trailer labels re-cut to the new beats; timing untouched, lattice parity
+  holds (720/720 frames).
 
 ## Next steps
 
-Builder to implement Phase 1: Story Rebuild and Character Design Foundation with real code and zero stubs
+Reviewer (`/oc review`) on Phase 1, then Builder Phase 2: Human Character
+Animation Craft (`humans.js`, `faces.js`, `acting.js`, re-rig, face-safe
+boil, close-up capture cards).
 
 ## Team Note
 
