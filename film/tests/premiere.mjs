@@ -142,11 +142,19 @@ ok('cue times inside shot bounds', cueBounds);
 ok('cues sorted, no overlaps', cueOrder);
 ok('vttStamp', vttStamp(0) === '00:00.000' && vttStamp(270) === '04:30.000' && vttStamp(65.25) === '01:05.250');
 
-// poster set: two original posters, both on the wall
+// poster set: three original posters, all on the wall
 ok('poster v1 exists', existsSync(join(root, 'posters/poster-v1.svg')));
 ok('poster v2 exists', existsSync(join(root, 'posters/poster-v2.svg')));
+ok('poster v3 exists', existsSync(join(root, 'posters/poster-v3.svg')));
 const html = readFileSync(join(root, 'index.html'), 'utf8');
-ok('poster wall shows both', html.includes('posters/poster-v1.svg') && html.includes('posters/poster-v2.svg'));
+ok('poster wall shows all three', html.includes('posters/poster-v1.svg') && html.includes('posters/poster-v2.svg') && html.includes('posters/poster-v3.svg'));
+if (trailer) {
+  ok('trailer labels match shot titles',
+    trailer.segments.every((seg) => {
+      const shot = tl.shots.find((s) => s.id === seg.shot);
+      return !!shot && seg.label === shot.title;
+    }), trailer.segments.map((s) => s.shot + '=' + JSON.stringify(s.label)).join(' '));
+}
 
 // premiere theatre surface: end card, trailer cut, fallbacks
 for (const id of ['endCard', 'endTitle', 'endMsg', 'endCredits', 'btnReplay', 'btnModeSwap', 'btnDismiss', 'trailerCall', 'btnTrailer', 'btnFilm']) {
