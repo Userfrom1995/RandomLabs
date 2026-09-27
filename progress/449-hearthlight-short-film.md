@@ -1,10 +1,10 @@
 # Progress: Hearthlight Animated Short Film (#449)
 
 - **Issue:** #449
-- **Branch:** opencode/issue449-hearthlight-phase-4
+- **Branch:** opencode/issue449-hearthlight-phase-5
 - **Status:** in-progress
 - **Architect:** the Architect (blueprint `ideas/2026-09-27-hearthlight-animated-short-film.md`)
-- **Builder:** the Builder (Phase 1 merged as PR #451, Phase 2 merged as PR #456, Phase 3 merged as PR #457, Phase 4 complete, ready for review)
+- **Builder:** the Builder (Phase 1 merged as PR #451, Phase 2 merged as PR #456, Phase 3 merged as PR #457, Phase 4 merged as PR #458, Phase 5 in build)
 
 ## Goal
 
@@ -17,7 +17,7 @@ test + eval green, unified docs.
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 4: Original Score and Sound World (Complete, ready for review)
+- **Active Phase:** Phase 5: Premiere Cut, Trailer and Theatre Polish (in build)
 
 ### Phase 1: Story Package and Living Animatic (merged as PR #451, Refs #449)
 
@@ -54,9 +54,9 @@ test + eval green, unified docs.
 
 ### Phase 5: Premiere Cut, Trailer and Theatre Polish (PR 5 target, Refs #449)
 
-- [ ] Final 240-300 s cut, 30 s trailer, poster stills
-- [ ] Subtitles/captions full pass, chapter menu
-- [ ] Loading/error/empty states, reduced-motion respect, 390 px mobile pass
+- [x] Final 240-300 s cut locked (270 s), 30 s trailer (`story/trailer.json` + `engine/trailer.js` pure cut, trailer mode on the same stage), poster stills (poster-v1 + original poster-v2)
+- [ ] Subtitles/captions full pass (`captions.vtt` export + download), chapter menu
+- [ ] Loading/error/empty states (end card + credits, noscript, canvas-2d guard), reduced-motion respect, 390 px mobile pass
 - [ ] Root landing-page entry + Pages verification
 
 ### Final Phase: Integration and End-to-end Audit (Final PR, Closes #449)
@@ -67,13 +67,27 @@ test + eval green, unified docs.
 
 ## Current step
 
-Phase 4 complete on `opencode/issue449-hearthlight-phase-4`: one
-orchestration spec drives both a ten-voice live WebAudio performer and a
-deterministic offline mixer rendering the 270 s master plus seven stems.
-All 20 shots scored (602 events) and foleyed (50 events, 20 generators),
-every event on the 24 fps grid (sync drift zero), master peak exactly
-0.89, byte-identical reruns. Audit, smoke, determinism, theatre, craft,
-performance, score, and all regression suites green. Ready for review.
+Phase 5 in build on `opencode/issue449-hearthlight-phase-5`: trailer cut
+spec plus pure trailer-to-film mapping landed, theatre plays the trailer on
+the same stage with the same renderer/performer/captions, end card with
+credits and working Replay/Trailer/Dismiss actions, committed
+`captions.vtt` exporter, second original poster, noscript and canvas-2d
+fallbacks, focus-visible styling. Remaining: premiere gates
+(`tests/premiere.mjs` + audit), unified docs, root landing wording, Pages
+verification.
+
+## Builder log
+
+- 2026-09-27 (Builder): Phase 5 milestone 1 (cut, trailer, posters,
+  theatre). New: `story/trailer.json` (six moments, 30 s),
+  `engine/trailer.js` (pure cut builder + trailer-to-film map on the 24
+  fps lattice), `tools/render-captions.mjs` + committed `captions.vtt`
+  (22 cues), `posters/poster-v2.svg` (original rekindling panorama).
+  Theatre: trailer mode on the same stage (seek/chapters/captions/score
+  follow the mapped film time, T shortcut, chapter clicks return to the
+  full film), end card with credits and three working buttons, noscript
+  note, canvas-2d guard that fails honest instead of blank, trailer
+  section that hides itself if the trailer spec fails to load.
 
 ## Builder log
 

@@ -4,6 +4,7 @@
 // the renderer stays a pure function of time.
 import { buildTimeline, shotAt, actAt, captionAt, formatTime } from '../engine/timeline.js';
 import { frameTime } from '../engine/frames.js';
+import { buildTrailer, trailerToFilmTime } from '../engine/trailer.js';
 import { renderAnimatic } from '../engine/animatic.js';
 import { paintGallery } from './gallery.js';
 import { createPerformer } from '../score/animatic-audio.js';
@@ -16,8 +17,10 @@ function cueDisplay(cue) {
   return String(cue || '').split('-').map((w) => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ');
 }
 const canvas = $('stage');
-const ctx = canvas.getContext('2d');
+const ctx = canvas ? canvas.getContext('2d') : null;
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const END_CREDITS = 'Nia the wind-cartographer, Yara the last keeper, Ruel the mossback, and the mountain wind itself. Original story, pictures, and orchestral score by the Random Lab, drawn and mixed in code from committed sources.';
 
 const state = {
   tl: null,
@@ -28,7 +31,31 @@ const state = {
   performer: createPerformer(),
   audioUnlocked: false,
   silentNote: false,
+  mode: 'film',
+  trailer: null,
+  trailerFailed: false,
 };
+
+// Length of the current cut in seconds (full film or 30 s trailer).
+function modeTotal() {
+  if (!state.tl) return 0;
+  if (state.mode === 'trailer' && state.trailer) return state.trailer.total;
+  return state.tl.total;
+}
+
+// Trailer time -> absolute film time. In film mode this is the identity.
+function filmTimeOf(t) {
+  if (state.mode === 'trailer' && state.trailer) return trailerToFilmTime(state.trailer, t);
+  return t;
+}
+
+function trailerSegAt(t) {
+  if (!state.trailer) return null;
+  for (const seg of state.trailer.segments) {
+    if (t >= seg.start && t < seg.end) return seg;
+  }
+  return state.trailer.segments[state.trailer.segments.length - 1];
+}
 
 function showError(title, msg) {
   $('overlayTitle').textContent = title;
@@ -44,7 +71,8 @@ function renderFrame() {
   if (!state.tl) return;
   try {
   const W = canvas.width; const H = canvas.height;
-  const { shot, local } = renderAnimatic(ctx, state.tl, state.time, {
+  const ft = filmTimeOf(state.time);
+  const { shot, local } = renderAnimatic(ctx, state.tl, ft, {
     width: W, height: H, reducedMotion,
   });
   // captions
@@ -64,8 +92,13 @@ function renderFrame() {
     capEl.innerHTML = '';
   }
   // now-playing + chapters
-  const act = actAt(state.tl, state.time);
-  $('npShot').textContent = shot.id.toUpperCase() + ' - ' + shot.title;
+  const act = actAt(state.tl, ft);
+  if (state.mode === 'trailer' && state.trailer) {
+    const seg = trailerSegAt(state.time);
+    $('npShot').textContent = 'TRAILER - ' + seg.label + ' (from ' + shot.id.toUpperCase() + ' - ' + shot.title + ')';
+  } else {
+    $('npShot').textContent = shot.id.toUpperCase() + ' - ' + shot.title;
+  }
   $('npAct').textContent = 'Act ' + act.n + ': ' + act.title + '  -  Theme: ' + cueDisplay(shot.music.cue);
   // Re-applied every frame: renderFrame rewrites npAct, so a one-time
   // append in setPlaying would be wiped on the next frame.
@@ -78,7 +111,7 @@ function renderFrame() {
   // scrub position (unless dragged)
   const seek = $('seek');
   if (document.activeElement !== seek) seek.value = String(state.time);
-  seek.setAttribute('aria-valuetext', formatTime(state.time) + ' of ' + formatTime(state.tl.total));
+  seek.setAttribute('aria-valuetext', formatTime(state.time) + ' of ' + formatTime(modeTotal()));
   $('tCur').textContent = formatTime(state.time);
   // score follows picture (full shot: orchestration lines + wind-bed SFX)
   state.performer.setCue(shot.music, shot);
@@ -88,13 +121,40 @@ function renderFrame() {
   }
 }
 
+function showEndCard() {
+  const card = $('endCard');
+  if (!card) return;
+  if (state.mode === 'trailer') {
+    $('endTitle').textContent = 'Hearthlight - the full film';
+    $('endMsg').textContent = 'That was the 30-second trailer. The full 4 minute 30 second film plays on the same stage.';
+    $('btnModeSwap').textContent = 'Watch the full film';
+  } else {
+    $('endTitle').textContent = 'The End - Hearthlight';
+    $('endMsg').textContent = 'Ember Hollow keeps its light. Thank you for watching the premiere cut.';
+    $('btnModeSwap').textContent = 'Replay the trailer';
+  }
+  $('endCredits').textContent = END_CREDITS;
+  card.hidden = false;
+  $('bigPlay').hidden = true;
+  const replay = $('btnReplay');
+  if (replay && document.activeElement && document.activeElement.blur) {
+    try { replay.focus({ preventScroll: true }); } catch { /* focus is a courtesy, never a crash */ }
+  }
+}
+
+function hideEndCard() {
+  const card = $('endCard');
+  if (card) card.hidden = true;
+}
+
 function tick(now) {
   if (state.playing && state.tl) {
     const dt = (now - state.lastFrame) / 1000;
     state.time += dt;
-    if (state.time >= state.tl.total) {
-      state.time = state.tl.total;
+    if (state.time >= modeTotal()) {
+      state.time = modeTotal();
       setPlaying(false);
+      showEndCard();
     }
     renderFrame();
   }
@@ -104,8 +164,9 @@ function tick(now) {
 
 function setPlaying(on) {
   if (!state.tl) return;
-  if (on && state.time >= state.tl.total) state.time = 0;
+  if (on && state.time >= modeTotal()) state.time = 0;
   if (on) {
+    hideEndCard();
     state.performer.unlock();
     state.audioUnlocked = true;
     if (!state.performer.audioAvailable()) {
@@ -132,11 +193,31 @@ function seekTo(t) {
   if (!state.tl) return;
   // Snap to the 24 fps grid: every seek lands on the exact frame the
   // renderer will paint, so scrubbing is frame-exact, never between.
-  state.time = frameTime(Math.min(Math.max(t, 0), state.tl.total));
+  state.time = frameTime(Math.min(Math.max(t, 0), modeTotal()));
+  hideEndCard();
+  renderFrame();
+}
+
+function setMode(mode) {
+  if (!state.tl || (mode === 'trailer' && !state.trailer)) return;
+  state.mode = mode;
+  state.time = 0;
+  setPlaying(false);
+  hideEndCard();
+  $('seek').max = String(modeTotal());
+  $('tDur').textContent = formatTime(modeTotal());
+  $('btnTrailer').hidden = mode !== 'film' || !state.trailer;
+  $('btnFilm').hidden = mode !== 'trailer';
   renderFrame();
 }
 
 async function init() {
+  if (!canvas || !ctx) {
+    const veil = $('loadingVeil');
+    if (veil) veil.hidden = true;
+    showError('This browser cannot paint the film', 'The Hearthlight stage needs canvas 2D support, which this browser did not provide. Try a recent desktop or mobile browser.');
+    return;
+  }
   let sp;
   try {
     // Relative to the document (/film/index.html), not the module: fetch()
@@ -157,6 +238,20 @@ async function init() {
     showError('The reels are damaged', 'The screenplay failed validation: ' + err.message);
     return;
   }
+  // Trailer spec loads beside the screenplay. A failed trailer load never
+  // breaks the film: the trailer buttons hide and the premiere cut plays on.
+  try {
+    const tres = await fetch('story/trailer.json', { cache: 'no-store' });
+    if (!tres.ok) throw new Error('HTTP ' + tres.status);
+    state.trailer = buildTrailer(sp, await tres.json());
+  } catch (err) {
+    state.trailer = null;
+    state.trailerFailed = true;
+  }
+  const trailerSection = $('trailerCall');
+  if (trailerSection) trailerSection.hidden = !state.trailer;
+  $('btnTrailer').hidden = !state.trailer;
+  $('btnFilm').hidden = true;
   $('tDur').textContent = formatTime(state.tl.total);
   $('seek').max = String(state.tl.total);
 
@@ -178,7 +273,10 @@ async function init() {
     syn.className = 's';
     syn.textContent = a.synopsis;
     b.append(title, time, syn);
-    b.addEventListener('click', () => { seekTo(a.start + 0.01); setPlaying(true); });
+    b.addEventListener('click', () => {
+      if (state.mode === 'trailer') setMode('film');
+      seekTo(a.start + 0.01); setPlaying(true);
+    });
     li.append(b);
     list.append(li);
   }
@@ -192,6 +290,28 @@ async function init() {
   $('btnPlay').addEventListener('click', () => setPlaying(!state.playing));
   $('bigPlay').addEventListener('click', () => setPlaying(true));
   $('btnRestart').addEventListener('click', () => { seekTo(0); setPlaying(true); });
+  $('btnTrailer').addEventListener('click', () => {
+    if (!state.trailer) {
+      showError('The trailer reels did not arrive', 'Could not load the trailer cut. The full film above plays on: press Keep watching.');
+      const retry = $('overlayRetry');
+      retry.textContent = 'Keep watching';
+      retry.onclick = () => { $('stageOverlay').hidden = true; $('bigPlay').hidden = state.playing; };
+      return;
+    }
+    setMode('trailer');
+    setPlaying(true);
+  });
+  $('btnFilm').addEventListener('click', () => { setMode('film'); });
+  $('btnReplay').addEventListener('click', () => { seekTo(0); setPlaying(true); });
+  $('btnModeSwap').addEventListener('click', () => {
+    if (state.mode === 'trailer') { setMode('film'); setPlaying(true); }
+    else if (state.trailer) { setMode('trailer'); setPlaying(true); }
+    else { hideEndCard(); seekTo(0); setPlaying(true); }
+  });
+  $('btnDismiss').addEventListener('click', () => {
+    hideEndCard();
+    $('bigPlay').hidden = state.playing;
+  });
   $('seek').addEventListener('input', (e) => { seekTo(Number(e.target.value)); });
   $('btnCaption').addEventListener('click', () => {
     state.captionsOn = !state.captionsOn;
@@ -236,6 +356,9 @@ async function init() {
     else if (e.key === 'm' || e.key === 'M') $('btnMute').click();
     else if (e.key === 'c' || e.key === 'C') $('btnCaption').click();
     else if (e.key === 'f' || e.key === 'F') $('btnFull').click();
+    else if ((e.key === 't' || e.key === 'T') && state.trailer) {
+      if (state.mode === 'trailer') { setMode('film'); } else { setMode('trailer'); setPlaying(true); }
+    }
   });
   requestAnimationFrame((n) => { state.lastFrame = n; requestAnimationFrame(tick); });
 }
