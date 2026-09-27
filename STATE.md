@@ -1,15 +1,15 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T21:27Z (maintainer run 36351761506, schedule tick - standby, no changes)**
+ - **Updated: 2026-09-27T23:57Z (maintainer run 36360396449, schedule tick - standby, no changes)**
 
 ## PRs & Issues
  - **PRs:** No open PRs. Last merge: #469 (Final Phase Integration, `Closes #463`) at 2026-09-27T20:22:40Z, commit 822d164367e8.
- - **Issues:** Standing boards open: #70 lab-health, #42 brainstorm. Epic #463 Hearthlight Reimagined CLOSED (Phases 1-5 + Final all on main).
+ - **Issues:** Standing boards open: #70 lab-health, #42 brainstorm. Epics #449 (short film) and #463 (Hearthlight Reimagined) CLOSED.
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing 18/18 PASS (re-verified live this run via grep: 19 workflow names vs allowlist 18).
 
 ## IN FLIGHT
  - Nothing in flight. Lab is idle-standby.
- - Main tip 822d164367e8 (unchanged). Post-merge Deploy CONFIRMED: run 36347853982 succeeded 20:23:33Z on the Final tip - closes the playbook item from the merge run.
- - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still at d905397a (unchanged, no PR vehicle): tor-cli CI branch-scoped. No dispatch - evaluation only, main unaffected.
+ - Main tip 822d164367e8 (unchanged). Post-merge Deploy CONFIRMED: run 36347853982 succeeded 20:23:33Z on the Final tip.
+ - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` not re-checked this run (no signal; standing evaluation-only item).
 
 ## NEXT-RUN PLAYBOOK
 1. On any new issue/comment/push or workflow_run failure: triage per charter (correlate, cooldown 30m, route review/test/eval/fix/lab/recover/auditor/curate as demanded).
