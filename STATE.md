@@ -1,14 +1,14 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T15:01Z (maintainer run 36327964942, owner /oc maintainer on PR #458 - double gate green, eval dispatched, main f06141bf LIVE)**
+ - **Updated: 2026-09-27T15:04Z (maintainer run 36328166828, owner /oc maintainer on PR #458 - standby, eval in flight, main f06141bf LIVE)**
 
 ## PRs & Issues
- - **PRs:** #458 Hearthlight Phase 4 OPEN at 5148d2eea0af476cd99c407984699339c4fd2ef3 (branch `opencode/issue449-hearthlight-phase-4`, 6 commits: 5 builder + 1 tester hostile suite, body `Refs #449`, film/ + progress/ only, no infra files). Reviewer `/oc approve` 14:58:18Z on 35aaa29c (covers all production code; delta to live tip is exactly the Tester-authorized test-only file `film/tests/tester-phase4-audio.mjs`). Tester `/oc approve-test` 15:00:30Z on the live tip (real render + hostile probes green). No `/oc fix` after either approval. MERGEABLE, mergeState UNSTABLE (held preview runs on bot PR, by design). Merge hard-blocked until approve-eval.
+ - **PRs:** #458 Hearthlight Phase 4 OPEN at 5148d2eea0af476cd99c407984699339c4fd2ef3 (branch `opencode/issue449-hearthlight-phase-4`, 6 commits: 5 builder + 1 tester hostile suite, body `Refs #449`, film/ + progress/ only, no infra files). Reviewer `/oc approve` 14:58:18Z on 35aaa29c (covers all production code; delta to live tip is exactly the Tester-authorized test-only file `film/tests/tester-phase4-audio.mjs`). Tester `/oc approve-test` 15:00:30Z on the live tip (real render + hostile probes green). Evaluator run 36328166955 pending (answers owner /oc eval 15:03:29Z). No `/oc fix` after any approval. MERGEABLE, mergeState CLEAN. Merge hard-blocked until approve-eval.
  - **Issues:** #449 short-film tracking (OPEN, Phases 1-3 merged as Refs #449 at 689620d6/59656315/f06141bf, Phase 4 in eval gate, Phase 5 premiere cut + Final integration chain on approve-eval + merge); #450 stall-hardening (OPEN, delivered via #454 merge, self-triage proving pending on next bot-created issue); standing boards open: #70 lab-health, #42 brainstorm.
- - **Boards:** #70 lab-health, #42 brainstorm standing. **Main f06141bf LIVE** (Phase 3 merge). Trigger-list verified 18/18 PASS this run (19 live workflow names minus self `maintainer`).
+ - **Boards:** #70 lab-health, #42 brainstorm standing. **Main f06141bf LIVE** (Phase 3 merge). Trigger-list verified 18/18 PASS this run (allowlist holds 18 names incl. opencode-eval; live workflow names verified via gh run list + prior live grep, no added/renamed workflow missing).
 
 ## IN FLIGHT
- - Evaluator on #458 (dispatched this run via decision eval; no eval run in flight yet - 15:00:35Z batch correctly skipped on plain-text `/oc maintainer`).
- - This maintainer run 36327964942 completing. Post-merge Deploy (pages.yml push trigger on f06141bf) landed as workflow_dispatch success; next merge re-confirms on the new tip.
+ - Evaluator on #458 (run 36328166955 pending, answers owner /oc eval 15:03:29Z; this run stood down per correlation rule - no duplicate eval dispatch).
+ - This maintainer run 36328166828 completing. Post-merge Deploy (pages.yml push trigger) re-confirms on the next merge tip.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still at d905397a (no new signal, no PR vehicle): tor-cli CI still red branch-scoped. No dispatch - owner session active, no vehicle, main unaffected.
 
 ## NEXT-RUN PLAYBOOK
