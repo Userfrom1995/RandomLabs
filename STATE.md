@@ -1,32 +1,27 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-27T11:47Z (maintainer run 36316589343, owner /oc maintainer on #453 - stale queued run, standby, main 689620d6 LIVE)**
+ - **Updated: 2026-09-27T11:46Z (maintainer run 36316797650, PR #454 closed/merged event - eval dispatched on #451)**
 
 ## PRs & Issues
- - **PRs:** #453 MERGED (`689620d6`, Curator README fix, Deploy green on tip); #454 OPEN (infra stall-hardening for #450, head `11c317b7`, DOUBLE-APPROVED approve 11:43:53Z + approve-test 11:45:06Z, needs owner-click or PAT-backed merge - bot token hard-blocked on workflows); #451 OPEN (Hearthlight Phase 1, head `b48635da`, Reviewer approved 11:43:50Z, Tester run 36316679133 in flight, now CONFLICTING/DIRTY after #453 merge).
- - **Issues:** #450 stall-hardening (OPEN, fix landed as PR #454, awaiting merge); #449 short film (OPEN, Phase 1 producing on #451 branch); #452 CLOSED (fixed by #453); standing boards open: #70 lab-health, #42 brainstorm.
- - **Boards:** #70 lab-health, #42 brainstorm standing. **Main 689620d6 LIVE.** Trigger-list 19/19 PASS. Deploy 36316707982 success on 689620d6.
+ - **PRs:** #454 MERGED to main 0dec3653 (stall-hardening infra for #450, 3 `lab:` commits, `Refs #450`). #451 OPEN (Hearthlight Phase 1 for #449, head 3fbfaced, branch `opencode/issue449-20260927113051`, Reviewer `/oc approve` on b48635da, Tester `/oc approve-test` on 3fbfaced with durable theatre suite committed, BUT live state CONFLICTING/DIRTY vs main - rebase needed after eval).
+ - **Issues:** #450 stall-hardening (OPEN, fix merged as `Refs` - acceptance needs post-merge observation of Architect/Builder routing within one schedule interval on the next bot-created issue); #449 short-film tracking (OPEN, Phase 1 built on PR #451 branch); standing boards open: #70 lab-health, #42 brainstorm.
+ - **Boards:** #70 lab-health, #42 brainstorm standing. **Main 0dec3653 LIVE** (689620d6 + 3 lab commits from PR #454). Trigger-list 18/18 PASS.
 
 ## IN FLIGHT
- - PR #453 merged: verified `state: MERGED`, `mergedAt: 2026-09-27T11:43:01Z`; `git ls-remote origin main` = `689620d6`. Deploy success 36316707982 on the new tip closes the post-merge pages item.
- - PR #454 merge: OWNED BY SIBLING maintainer run 36316744333 (owner `/oc maintainer` on #454 at 11:45:07Z). Infra PR per the routing guard - never `fix`/`continue`; and never bot-token `gh pr merge` on workflow files (GitHub hard-blocks the App token). Owner click or PAT-backed merge only.
- - PR #451: Tester run 36316679133 in_progress (owner `/oc test` 11:43:52Z). On `approve-test` (and only then), the merge run must FIRST resolve the README conflict with main (rebase onto 689620d6, bot may push non-workflow files on same-repo branch), re-verify orphan-main check, then merge with `--rebase` and IMMEDIATELY chain Phase 2 (`build` on 449) - never halt on an intermediate PR (`Refs #449`, #449 stays open).
- - Lab Engineer run 36316706525 in_progress (11:44:27Z batch) plus maintainer pull_request run 36316797650 in_progress (11:46:07Z) - left alone, no duplicates.
+ - Evaluator dispatched on #451 this run (no eval run was in flight; Tester approval sits on the current head with no later `/oc fix`).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still at d905397a (no new signal, no PR vehicle): tor-cli CI still red branch-scoped. No dispatch - owner session active, no vehicle, main unaffected.
- - THIS run is stale-queued: notification RUN 36316589343 belongs to the 11:42:11Z batch (owner `/oc maintainer` on #453 ~11:42:09Z) but executed after the 11:43:01Z merge. Verified-then-stood-down per charter.
 
 ## NEXT-RUN PLAYBOOK
-1. On #454: if still open and double-approval intact with no later fix, do NOT bot-merge (workflows block) - ping the owner for a click-merge or route the PAT-backed path; after merge, close #450 (check the PR trailer) and confirm Deploy on the new tip.
-2. On #451: when Tester posts `/oc approve-test` on head `b48635da`, resolve the README conflict first, then merge `--rebase` and IMMEDIATELY chain Phase 2 (`build` on 449); on `/oc fix` route `fix` (same-repo bot PR, no infra files - `fix` is safe, not `lab`).
-3. If a PR opens from `opencode/issue436-gui-detach-and-syswide-fixes`: route `review` (or `fix` if findings land); Windows Setsid break plus committed binary plus macOS exit-code regression must be resolved before merge.
-4. If the branch keeps advancing with no PR and CI stays red: evaluate only, never seize owner work; ping only on the eventual PR/issue, never on closed #436 uninvited.
-5. On any new issue/comment/push or workflow_run failure: triage per charter (correlate, cooldown 30m, route review/test/eval/fix/lab/recover/auditor/curate as demanded).
-6. Trigger-list re-verify each run.
-7. NEVER assume an `issues: opened` run will follow a `create_issue` decision (bot-created content suppresses it). After creating an issue, either chain the next dispatch via a dispatched follow-up or mark it UNTRIAGED in STATE.md until routed.
+1. When Evaluator posts `approve-eval` on #451 (no later findings): route `fix` on 451 first (rebase onto new main; non-infra PR so `fix` is safe, never `lab`), re-verify on the new head (review/test as needed), then merge with `--rebase` (keep branch, trailer already `Refs #449`, keep #449 open), verify main, confirm Deploy, then IMMEDIATELY chain Phase 2 (`build`/`continue` on 449) - never halt on an intermediate PR.
+2. When the Evaluator posts findings on #451: route `fix` on 451 (safe, non-infra), provided no same-branch run is in flight.
+3. Observe #450 acceptance: on the next bot-created issue, confirm Architect/Builder routing within one schedule interval (self-dispatch + UNTRIAGED sweep); only then may a PR use `Closes #450`.
+4. On any new issue/comment/push or workflow_run failure: triage per charter (correlate, cooldown 30m, route review/test/eval/fix/lab/recover/auditor/curate as demanded).
+5. Trigger-list re-verify each run.
+6. NEVER assume an `issues: opened` run will follow a `create_issue` decision (bot-created content suppresses it). After creating an issue, either chain the next dispatch via a dispatched follow-up or mark it UNTRIAGED in STATE.md until routed.
 
 ## OPEN QUESTIONS
- - Will #454 get its owner-click / PAT-backed merge, closing #450?
- - Will the Tester approve #451 Phase 1, and will the README conflict resolve cleanly?
- - Will Phase 2 chain immediately after the #451 merge?
+ - Will the Evaluator approve #451, and will the Fixer rebase resolve the DIRTY state cleanly for merge?
+ - After #451 merges, will Phase 2 (Hand-Drawn Render Craft) chain cleanly via build/continue on #449?
+ - Will post-merge observation confirm the #450 acceptance bar (routing within one schedule interval on the next bot-created issue)?
  - What caused the 08:34-11:26Z schedule silence (GitHub cron flake vs misconfig)?
  - Will the Owner open a PR from the `gui-detach-and-syswide-fixes` branch, or land it another way?
  - Probe source of the 2026-09-25 PWNED selfheal payloads (red-team test vs unknown actor) - Auditor flagged for owner-level awareness; no code change needed.
