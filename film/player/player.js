@@ -7,6 +7,9 @@ import { renderAnimatic } from '../engine/animatic.js';
 import { createPerformer } from '../score/animatic-audio.js';
 
 const $ = (id) => document.getElementById(id);
+const SVG_SOUND_ON = '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 7v4h3l4 3V4L5 7H2z" fill="currentColor"/><path d="M12 6c1.2 1.5 1.2 4.5 0 6M14 4c2 2.5 2 7.5 0 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+const SVG_SOUND_OFF = '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 7v4h3l4 3V4L5 7H2z" fill="currentColor"/><path d="M12 7l5 5M17 7l-5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+const SILENT_NOTE = '  -  (this browser has no WebAudio: silent playback)';
 function cueDisplay(cue) {
   return String(cue || '').split('-').map((w) => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ');
 }
@@ -29,6 +32,9 @@ function showError(title, msg) {
   $('overlayMsg').textContent = msg;
   $('stageOverlay').hidden = false;
   $('bigPlay').hidden = true;
+  const retry = $('overlayRetry');
+  retry.textContent = 'Try again';
+  retry.onclick = () => window.location.reload();
 }
 
 function renderFrame() {
@@ -91,7 +97,9 @@ function setPlaying(on) {
     state.audioUnlocked = true;
     if (!state.performer.audioAvailable()) {
       // Honest degradation: film plays, transport notes the missing audio.
-      $('npAct').textContent += '  ·  (this browser has no WebAudio: silent playback)';
+      if (!$('npAct').textContent.includes('silent playback')) {
+        $('npAct').textContent += SILENT_NOTE;
+      }
     }
     state.performer.start();
     $('btnPlay').innerHTML = '&#10074;&#10074;';
@@ -175,14 +183,14 @@ async function init() {
   $('btnMute').addEventListener('click', () => {
     state.performer.unlock();
     state.performer.setMuted(!state.performer.isMuted());
-    $('btnMute').innerHTML = state.performer.isMuted() ? '&#128263;' : '&#128266;';
+    $('btnMute').innerHTML = state.performer.isMuted() ? SVG_SOUND_OFF : SVG_SOUND_ON;
   });
   $('vol').addEventListener('input', (e) => {
     state.performer.unlock();
     state.performer.setVolume(Number(e.target.value) / 100);
     if (Number(e.target.value) > 0 && state.performer.isMuted()) {
       state.performer.setMuted(false);
-      $('btnMute').innerHTML = '&#128266;';
+      $('btnMute').innerHTML = SVG_SOUND_ON;
     }
   });
   $('btnFull').addEventListener('click', async () => {
