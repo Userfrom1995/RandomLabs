@@ -2,8 +2,8 @@
 
 Original characters created for this film. No reference to, or derivation
 from, any existing studio's characters. All proportions below are the
-committed model-sheet parameters the vector rigs in `film/engine/rigs/`
-are built from (head-unit system: 1 hu = height of the character's head).
+committed model-sheet parameters that the Phase 2 vector rigs in `film/engine/rigs/`
+will be built from (head-unit system: 1 hu = height of the character's head).
 
 ## Nia - apprentice wind-cartographer, 12
 
