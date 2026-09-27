@@ -1,4 +1,4 @@
-// Hearthlight capture tool (Phase 2): the watch-and-iterate loop.
+// Hearthlight capture tool (Phase 3): the watch-and-iterate loop.
 //
 // For every shot it captures the hero frame (shot midpoint) two ways:
 //   1. dist/capture/heroes.json: sha256 of the exact canvas draw-call log
@@ -7,6 +7,11 @@
 //   2. dist/capture/stills/<shot>.svg: a deterministic review card (shot
 //      id, title, act, background, cast, camera move, music cue, caption
 //      lines, hero time, draw hash) for human self-review.
+//
+// Plus face close-up cards per lead per bible emotion (faces.json) and
+// background plates per painted location (plates.json +
+// stills/plate-<bg>.svg): the pure background paint at 960 px hashed with
+// op counts, re-rendered at 390 px to pin honest density scaling.
 //
 // Same inputs => byte-identical outputs (sorted keys, no timestamps).
 // Outputs live under dist/ (gitignored build artifact, like render.mjs).
@@ -19,6 +24,7 @@ import { frameIndex } from '../engine/frames.js';
 import { renderAnimatic } from '../engine/animatic.js';
 import { drawFace, FACE_CARDS, expressionFor, mouthShapeFor } from '../engine/faces.js';
 import { modelFor } from '../engine/humans.js';
+import { paintBackground, PAINTED_BACKGROUNDS, compositionFor, detailCountFor } from '../engine/backgrounds.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const sha = (s) => createHash('sha256').update(s).digest('hex');
@@ -149,3 +155,49 @@ const facesSorted = { format: faces.format, seed: faces.seed, frames: {} };
 for (const k of Object.keys(faceFrames).sort()) facesSorted.frames[k] = faceFrames[k];
 writeFileSync(join(out, 'faces.json'), JSON.stringify(facesSorted, null, 1) + '\n');
 console.log('capture ok: ' + Object.keys(faceFrames).length + ' face cards in dist/capture/');
+
+// Background plates: one per painted location, from the first shot that
+// stages it. The pure paint (no cast, no weather, dead-still boil) is
+// hashed at 960 px with stroke/gradient counts, then re-rendered at 390 px
+// to pin the honest density scale-down. SVG review cards carry the
+// composition sketch values for human self-review.
+function plateCard(bg, shot, hash, strokes, strokes390) {
+  const comp = compositionFor(bg);
+  const pal = shot.palette;
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540">\n' +
+    '<rect width="960" height="540" fill="' + pal.sky + '"/>\n' +
+    '<rect y="360" width="960" height="180" fill="' + pal.wash + '" opacity="0.55"/>\n' +
+    '<text x="40" y="80" font-size="40" font-family="Georgia,serif" fill="' + pal.ink + '">' +
+    'PLATE - ' + esc(bg) + '</text>\n' +
+    '<text x="40" y="118" font-size="20" font-family="Georgia,serif" fill="' + pal.ink + '">' +
+    'from ' + esc(shot.id) + ' | horizon ' + comp.horizon + ' | focal ' + comp.focal +
+    ' | light ' + comp.light + ' | atmo ' + esc(comp.atmo) + '</text>\n' +
+    '<text x="40" y="152" font-size="18" font-family="Georgia,serif" fill="' + pal.ink + '">' +
+    'draw ' + hash.slice(0, 12) + ' | strokes 960/390: ' + strokes + '/' + strokes390 +
+    ' | detail budget 960/390: ' + detailCountFor(bg, 960) + '/' + detailCountFor(bg, 390) + '</text>\n</svg>\n';
+}
+
+const plateFrames = {};
+for (const bg of PAINTED_BACKGROUNDS) {
+  const shot = tl.shots.find((s) => s.bg === bg);
+  if (!shot) { console.error('no shot stages background ' + bg); process.exit(1); }
+  const heroT = shot.start + shot.dur / 2;
+  const p = 0.5;
+  const paint = (W) => {
+    const { ctx, log } = makeRecorder();
+    paintBackground(ctx, String(tl.seed), shot, W, Math.round(W * 9 / 16), heroT, p, { x: 0, y: 0 });
+    return log;
+  };
+  const log960 = paint(960);
+  const log390 = paint(390);
+  const hash = sha(JSON.stringify(log960));
+  const strokes = log960.filter((e) => e[0] === 'stroke').length;
+  const gradients = log960.filter((e) => e[0] === 'createRadialGradient' || e[0] === 'createLinearGradient').length;
+  const strokes390 = log390.filter((e) => e[0] === 'stroke').length;
+  plateFrames[bg] = { shot: shot.id, t: Number(heroT.toFixed(3)), hash, strokes, gradients, strokes390 };
+  writeFileSync(join(out, 'stills', 'plate-' + bg + '.svg'), plateCard(bg, shot, hash, strokes, strokes390));
+}
+const plates = { format: 'hearthlight-plates/1', seed: sp.seed, plates: {} };
+for (const k of Object.keys(plateFrames).sort()) plates.plates[k] = plateFrames[k];
+writeFileSync(join(out, 'plates.json'), JSON.stringify(plates, null, 1) + '\n');
+console.log('capture ok: ' + Object.keys(plateFrames).length + ' background plates in dist/capture/');
