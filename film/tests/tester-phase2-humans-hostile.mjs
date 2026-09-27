@@ -67,9 +67,10 @@ ok('drawFace hostile emotion throws', faceThrow);
 
 // 2. hostile numerics never crash the body, the stage, or acting.
 // Contract: out-of-contract NaN/Infinity inputs must never throw, hang, or
-// corrupt state (NaN may propagate through pure arithmetic, but the call
-// must return and repeat deterministically); every finite in-contract input
-// must yield finite outputs; Infinity progress clamps to an end phase.
+// corrupt state; acting and secondary drivers clamp to safe finite defaults
+// (same contract as the blend path), so every off-contract call still yields
+// finite weight/exertion/cloth/drift; every finite in-contract input must
+// yield finite outputs; Infinity progress clamps to an end phase.
 let nanOk = true;
 for (const bad of [NaN, Infinity, -Infinity, -5, 1e9]) {
   try {
@@ -85,9 +86,16 @@ for (const bad of [NaN, Infinity, -Infinity, -5, 1e9]) {
     const a1 = actFor({ id: 's12', windK: 0.5, dur: 10 }, bad, bad);
     const a2 = actFor({ id: 's12', windK: 0.5, dur: 10 }, bad, bad);
     if (!PHASES.includes(a1.phase)) nanOk = false;
+    // off-contract acting still yields finite drivers (clamped, never NaN)
+    for (const v of [a1.weight, a1.exertion, a1.secondary.cloth, a1.secondary.drift, a1.secondary.bounce]) {
+      if (!Number.isFinite(v)) nanOk = false;
+    }
     // deterministic even off-contract: same garbage in, same result out
     if (JSON.stringify(a1) !== JSON.stringify(a2)) nanOk = false;
-    secondaryFor(bad, bad, bad);
+    const sec = secondaryFor(bad, bad, bad);
+    for (const v of [sec.cloth, sec.drift, sec.bounce]) {
+      if (!Number.isFinite(v)) nanOk = false;
+    }
   } catch { nanOk = false; }
 }
 ok('hostile numerics never crash body/acting', nanOk);

@@ -15,7 +15,7 @@ import { boilJitter, boilJitterFace, FACE_BOIL_RATIO } from '../engine/ink.js';
 import { HUMAN_MODELS, modelFor, drawHuman, turnaroundSymmetry, SHOULDER_X } from '../engine/humans.js';
 import { EMOTIONS, PHONEMES, FACE_CARDS, expressionFor, blendExpression, mouthShapeFor, phonemeFor, drawFace } from '../engine/faces.js';
 import { PHASES, actFor, beatFor, phaseAt, secondaryFor } from '../engine/acting.js';
-import { poseFor, faceFor, drawTam, drawLumi } from '../engine/rigs.js';
+import { poseFor, faceFor, drawTam, drawLumi, clamp01 } from '../engine/rigs.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 let failures = 0;
@@ -183,6 +183,24 @@ ok('acting bounded on all shots', actsOk);
 ok('acting safe on unknown shots', actFor({ id: 's99' }, 0.5, 1).phase === 'action');
 ok('beat table covers all shots', tl.shots.every((s) => beatFor(s.id) !== undefined));
 ok('phase order sane', phaseAt(0.01, beatFor('s12')) === 'anticipation' && phaseAt(0.99, beatFor('s12')) === 'hold');
+
+// off-contract numerics clamp to safe finite defaults (same class as blend)
+ok('clamp01 NaN reads 0', clamp01(NaN) === 0);
+ok('clamp01 infinities clamp to ends', clamp01(Infinity) === 1 && clamp01(-Infinity) === 0);
+let nanActOk = true;
+for (const bad of [NaN, Infinity, -Infinity]) {
+  const a = actFor({ id: 's12', windK: 0.5, dur: 10 }, bad, bad);
+  for (const v of [a.weight, a.exertion, a.secondary.cloth, a.secondary.drift, a.secondary.bounce]) {
+    if (!Number.isFinite(v)) nanActOk = false;
+  }
+  const sec = secondaryFor(bad, bad, bad);
+  for (const v of [sec.cloth, sec.drift, sec.bounce]) {
+    if (!Number.isFinite(v)) nanActOk = false;
+  }
+}
+ok('acting NaN/Infinity yields finite outputs', nanActOk);
+ok('secondary NaN windK defaults to 0.5',
+  JSON.stringify(secondaryFor(NaN, 1, 0)) === JSON.stringify(secondaryFor(0.5, 1, 0)));
 
 // Tam and Lumi poses: bounded, story beats where the screenplay needs them
 let posesOk = true;
