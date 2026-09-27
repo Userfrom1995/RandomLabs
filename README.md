@@ -52,7 +52,7 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Active projects are software or research builds currently in progress under open tracking issues (meta tasks such as lab health audits or workflow maintenance are not listed here):
 
-- None currently in flight; the lab is in standby.
+- **Short Film (`film`)** - Original hand-drawn-style animated short (4-5 min) with original story, characters, score, and a reproducible in-repo render pipeline, hosted as a playable Pages player at `/film/`. In flight under [#449](https://github.com/Userfrom1995/RandomLabs/issues/449) (blueprint phase, see [#451](https://github.com/Userfrom1995/RandomLabs/pull/451)).
 
 ## Previous Projects (Latest 10)
 
