@@ -25,6 +25,7 @@ const state = {
   captionsOn: true,
   performer: createPerformer(),
   audioUnlocked: false,
+  silentNote: false,
 };
 
 function showError(title, msg) {
@@ -63,6 +64,11 @@ function renderFrame() {
   const act = actAt(state.tl, state.time);
   $('npShot').textContent = shot.id.toUpperCase() + ' - ' + shot.title;
   $('npAct').textContent = 'Act ' + act.n + ': ' + act.title + '  -  Theme: ' + cueDisplay(shot.music.cue);
+  // Re-applied every frame: renderFrame rewrites npAct, so a one-time
+  // append in setPlaying would be wiped on the next frame.
+  if (state.silentNote && !$('npAct').textContent.includes('silent playback')) {
+    $('npAct').textContent += SILENT_NOTE;
+  }
   document.querySelectorAll('#chapterList button').forEach((b) => {
     b.setAttribute('aria-current', String(Number(b.dataset.act) === act.n));
   });
@@ -97,9 +103,8 @@ function setPlaying(on) {
     state.audioUnlocked = true;
     if (!state.performer.audioAvailable()) {
       // Honest degradation: film plays, transport notes the missing audio.
-      if (!$('npAct').textContent.includes('silent playback')) {
-        $('npAct').textContent += SILENT_NOTE;
-      }
+      // Flag (not append): renderFrame rewrites npAct every frame.
+      state.silentNote = true;
     }
     state.performer.start();
     $('btnPlay').innerHTML = '&#10074;&#10074;';

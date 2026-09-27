@@ -17,6 +17,7 @@ export function shotAt(tl, t) {
   if (!tl || !Array.isArray(tl.shots) || tl.shots.length === 0) {
     throw new Error('screenplay.shots must be a non-empty array');
   }
+  if (!Number.isFinite(t)) t = 0;
   const tc = Math.min(Math.max(t, 0), Math.max(tl.total - 1e-6, 0));
   for (const s of tl.shots) {
     if (tc >= s.start && tc < s.end) return { shot: s, local: tc - s.start, progress: (tc - s.start) / s.dur };
@@ -29,6 +30,7 @@ export function actAt(tl, t) {
   if (!tl || !Array.isArray(tl.acts) || tl.acts.length === 0) {
     throw new Error('screenplay.acts must be a non-empty array');
   }
+  if (!Number.isFinite(t)) t = 0;
   const tc = Math.min(Math.max(t, 0), Math.max(tl.total - 1e-6, 0));
   for (const a of tl.acts) {
     if (tc >= a.start && tc < a.start + a.dur) return a;
