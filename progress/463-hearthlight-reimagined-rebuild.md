@@ -13,7 +13,7 @@ Full story-and-animation rebuild of Hearthlight at `/film/` under the same Pages
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 1: Story Rebuild and Character Design Foundation (Complete, ready for review)
+- **Active Phase:** Phase 2: Human Character Animation Craft (Complete, ready for review)
 
 ### Phase 1: Story Rebuild and Character Design Foundation (PR 1 target, Refs #463)
 
@@ -25,10 +25,10 @@ Full story-and-animation rebuild of Hearthlight at `/film/` under the same Pages
 
 ### Phase 2: Human Character Animation Craft (PR 2 target, Refs #463)
 
-- [ ] New `film/engine/humans.js` (proportion bodies, FK limbs, hands, costume) + `film/engine/faces.js` (heads, gaze/blink, brows, phoneme mouth set, expression blender)
-- [ ] New `film/engine/acting.js` (anticipation/action/reaction/hold beats, weight shifts, exertion, secondary-motion drivers fed by per-shot wind)
-- [ ] `rigs.js` re-rigged onto human leads (placeholder figures retired; creature rigs demoted to support); face-safe line boil in `ink.js`
-- [ ] Capture loop extended (face close-up cards per lead per emotion); craft tests pin proportions, expression coverage, turnaround symmetry, 390 px silhouette readability
+- [x] New `film/engine/humans.js` (proportion bodies, FK limbs, hands, costume) + `film/engine/faces.js` (heads, gaze/blink, brows, phoneme mouth set, expression blender)
+- [x] New `film/engine/acting.js` (anticipation/action/reaction/hold beats, weight shifts, exertion, secondary-motion drivers fed by per-shot wind)
+- [x] `rigs.js` re-rigged onto human leads (placeholder figures retired; creature rigs demoted to support); face-safe line boil in `ink.js`
+- [x] Capture loop extended (face close-up cards per lead per emotion); craft tests pin proportions, expression coverage, turnaround symmetry, 390 px silhouette readability
 
 ### Phase 3: Painted World and Hand-Drawn Motion (PR 3 target, Refs #463)
 
@@ -56,7 +56,33 @@ Full story-and-animation rebuild of Hearthlight at `/film/` under the same Pages
 
 ## Current step
 
-Phase 1 complete: story package rebuilt and pipeline green. Ready for review.
+Phase 2 complete: four human leads walk the frame with expressive faces
+and eased acting; pipeline green. Ready for review.
+
+## Phase 2 watch-through notes (Builder self-review, 2026-09-27)
+
+- Staging probe: draw-call logs of s05/s12/s13/s19 contain every staged
+  lead's costume key (Nia cloak, Yara shawl, Tam vest, Lumi tunic, Ruel
+  hide in s12 only) at both 960 and 390 px widths. The party walks: Tam
+  belays s12 with the oar yoked, carries Lumi on his back in s13 and she
+  rides Nia's arms in s14, then walks the coda with her stick in s19.
+- Faces: the active dialogue line plays on its speaker (probe: s14 first
+  line emotion reaches the rig with a valid viseme); between lines the
+  bible beat holds. All 153 emotion-by-phoneme combinations render without
+  throwing; M/B/F close the lips, A opens tall.
+- Craft deltas: 18 face cards hashed (5 Nia, 4 Yara, 5 Tam, 4 Lumi), all
+  distinct, byte-identical rerun. Face boil is lattice-locked at 0.35x body
+  amplitude. Acting reaches all four phases across the cut; exertion peaks
+  on the gorge traverse and storm carry.
+- Full suite green: repro (audit, smoke, premiere, captions 43 cues),
+  craft, craft-humans, performance, smoke, tester phase1/3/4/5, theatre,
+  score, determinism, final-audit, regression eval3/4, phase2-live/polish.
+- Known stand-ins for Phase 3: backgrounds are still the earlier paint set
+  (repaint location by location next); walk cycles have ground contact but
+  no location-specific weight pass yet; cloth/hair secondary motion is
+  driver-level, full location-anchored pass next.
+
+## Team Note
 
 ## Phase 1 watch-through notes (Builder self-review, 2026-09-27)
 
@@ -76,18 +102,19 @@ Phase 1 complete: story package rebuilt and pipeline green. Ready for review.
   50/50 sfx events): same cue keys, motifs, tempos, timings; only mood
   prose changed. The re-cue is intentionally conservative in Phase 1; Phase
   4 re-anchors SFX to the new action beats and adds dialogue-first ducking.
-- Known stand-ins (not stubs, no disabled controls): the stage still draws
-  the #449 rigs, so Tam/Lumi have no bodies yet and Ruel still walks shots
-  the new story gives to humans. Phase 2 replaces the rigs; nothing in the
-  theatre pretends otherwise.
+- Known stand-ins at Phase 1 close (resolved in Phase 2 unless noted):
+  the stage drew the earlier rigs, so Tam/Lumi had no bodies yet and Ruel
+  still walked shots the new story gives to humans. Phase 2 replaced the
+  rigs (this file's Phase 2 notes above); nothing in the theatre pretends
+  otherwise.
 - Trailer labels re-cut to the new beats; timing untouched, lattice parity
   holds (720/720 frames).
 
 ## Next steps
 
-Reviewer (`/oc review`) on Phase 1, then Builder Phase 2: Human Character
-Animation Craft (`humans.js`, `faces.js`, `acting.js`, re-rig, face-safe
-boil, close-up capture cards).
+Reviewer (`/oc review`) on Phase 2, then Builder Phase 3: Painted World
+and Hand-Drawn Motion (`backgrounds.js` location repaint, motion pass with
+grounded cycles and anchored weather, background-plate capture).
 
 ## Team Note
 
