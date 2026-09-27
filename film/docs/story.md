@@ -44,7 +44,7 @@ Cause-effect ledger: `film/story/continuity.md`. Voice and timing notes:
 
 Six moments cut from the same timeline, played on the same stage through
 the same renderer, score, and captions: the untended lantern (S01), the
-entrusting (S06), the station children (S10), the gorge traverse (S12), the
+keeper's lantern (S06), the station children (S10), the gorge traverse (S12), the
 choice (S14), the many flames (S17). The cut is data
 (`film/story/trailer.json`: shot plus local in-point and duration per
 segment); the mapping (`film/engine/trailer.js`) sends every trailer

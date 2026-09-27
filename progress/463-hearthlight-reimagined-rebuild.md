@@ -13,7 +13,7 @@ Full story-and-animation rebuild of Hearthlight at `/film/` under the same Pages
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 4: Dialogue Voice and Sound Continuity (Complete, ready for review)
+- **Active Phase:** Final Phase: Integration and End-to-end Audit (Phase 5 complete, ready for review)
 
 ### Phase 1: Story Rebuild and Character Design Foundation (PR 1 target, Refs #463)
 
@@ -48,9 +48,11 @@ Full story-and-animation rebuild of Hearthlight at `/film/` under the same Pages
 
 ### Phase 5: Rebuilt Premiere Cut and Theatre Verification (PR 5 target, Refs #463)
 
-- [ ] 30 s trailer re-cut from the new timeline (`story/trailer.json` + `engine/trailer.js` map on the 24 fps lattice); poster refresh only where the new story demands it
-- [ ] Theatre verification: new chapters, trailer mode follows the new map, end card/credits, storyboard wall with new plates, loading/error/empty states, reduced-motion stills, 390 px mobile pass
-- [ ] Premiere tests pin trailer build/runtime/frame-parity, caption coverage, posters, end card, fallbacks; root landing + README point at the rebuilt cut
+- [x] 30 s trailer re-cut from the new timeline: S06 label aligned to its shot title (`The keeper's lantern`; five others already matched); every window verified against the rebuilt caption spans (each carries live dialogue delivery, one moment per act); `engine/trailer.js` map untouched, lattice/frame-parity re-verified
+- [x] Poster refresh where the new story demands it: new `posters/poster-v3.svg` ensemble poster (Nia, Tam, Lumi on the gorge rope, "three lights, one rope"); v1/v2 untouched; wall shows all three; audit + premiere gates pin v3 and label-title match
+- [x] Theatre verification: chapters from the new 5 acts, trailer mode on the new map, end card/credits naming the new leads, storyboard wall painting the new plates, loading/error/noscript/canvas states, reduced-motion stills, 390 px mobile pass (91-render Builder probe green)
+- [x] Premiere tests pin trailer build/runtime/frame-parity, caption coverage, posters, end card, fallbacks; root landing + README point at the rebuilt cut (ensemble logline, three posters)
+- [x] Builder self-review: beat-by-beat cue-overlap table, hostile-time renderer probe, full suite green (23/23 incl. Tester pins untouched); ideas entry committed
 
 ### Final Phase: Integration and End-to-end Audit (Final PR, Closes #463)
 
@@ -60,12 +62,40 @@ Full story-and-animation rebuild of Hearthlight at `/film/` under the same Pages
 
 ## Current step
 
-Phase 4 complete: the mix is voiced around the words (duck 0.45/0.7 with
-Yara's half-silence as the release), the score runs legato edge to edge
-with resolving closes and zero dead air, Ruel acts his one line in the
-body, the SFX bed is re-anchored to the set-pieces, and the theatre ducks
-where the record ducks. Pipeline green (repro + 23 suites, Tester pins
-untouched). Ready for review.
+Phase 5 complete: the trailer is re-cut on the real caption lattice with
+labels matching their shots, the poster wall carries the new ensemble on
+a third original poster, and the theatre is verified act by act on
+desktop and 390 px with reduced motion on and off. Pipeline green (repro
++ 23 suites, Tester pins untouched). Ready for review.
+
+## Phase 5 watch-through notes (Builder self-review, 2026-09-27)
+
+- Trailer beats (window vs real cue spans): s01 2.0-7.0 carries NARRATOR
+  2.0-6.5 full plus NIA at the edge; s06 67.0-72.0 carries YARA 67-71.5;
+  s10 130-135 carries TAM's tail (130-131.5) and LUMI's head (133-135):
+  both station children speak inside one window; s12 160-165 carries
+  RUEL's tail into TAM's "Hold!" peak; s14 184-189 carries LUMI 184-188.5
+  with NIA's answer at the edge; s17 224-229 carries NIA's grief into
+  TAM's "Look down the valley". Every window drives face acting; one
+  moment per act; set-piece plus both emotional peaks present.
+- Poster: v3 valid SVG (67 elements, no em dashes), v1/v2 byte-untouched;
+  wall alt text names all three leads; audit + premiere pin all three.
+- Theatre: 91-render probe (5 act starts, end-card instant, full trailer
+  at 390 px reduced-motion, hostile times) paints with no throws;
+  final-audit 720/720 frame parity and 240/240 sweep hold; chapters,
+  end card credits (Nia, Yara, Tam, Lumi, the wind), gallery, noscript,
+  canvas guard, and trailer-failure honest-hide all verified by suite or
+  probe.
+- Considered and deferred: editing v1's small Ruel silhouette out.
+  Ruel keeps one supporting appearance (s12 rope haul) and mossbacks live
+  in the valley, so the silhouette reads as world, not billing; v3
+  carries the ensemble instead of rewriting the shipped poster.
+- Full suite green: repro (audit with Phase 5 gates, smoke, premiere,
+  captions 43 cues) plus all 23 suites (craft, craft-humans, craft-world,
+  dialogue-voice, performance, smoke, tester phase1/3/4/5, theatre, score,
+  determinism, final-audit, regression eval3/4, phase2-live/polish, phase2
+  hostile suites). The Tester's hostile audio suite passes unmodified with
+  its 602/50 pins intact.
 
 ## Phase 4 watch-through notes (Builder self-review, 2026-09-27)
 
@@ -178,10 +208,10 @@ untouched). Ready for review.
 
 ## Next steps
 
-Reviewer (`/oc review`) on Phase 4, then Builder Phase 5: Rebuilt Premiere
-Cut and Theatre Verification (trailer re-cut from the new timeline, poster
-refresh where the new story demands it, theatre verification with new
-chapters, 390 px mobile pass).
+Reviewer (`/oc review`) on Phase 5, then Builder Final Phase:
+Integration and End-to-end Audit (full watch-through on desktop + 390 px,
+all controls green, unified docs final pass, reproducibility from clean
+checkout, review plus test plus eval gates green).
 
 ## Team Note
 
