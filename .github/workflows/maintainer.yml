@@ -429,11 +429,11 @@ jobs:
           BOT_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
-          import json, os, subprocess, time
+          import json, os, re, subprocess, time
 
           repo = os.environ["GITHUB_REPOSITORY"]
           owner = os.environ["GITHUB_REPOSITORY_OWNER"]
-          
+
           # Strip GITHUB_TOKEN from env so gh CLI authenticates exclusively via GH_TOKEN (OPENCODE_PAT as owner)
           os.environ.pop("GITHUB_TOKEN", None)
 
@@ -471,6 +471,18 @@ jobs:
 
           posted = set()
           sweep_failed = False
+          # SELF-TRIAGE (issue #450): content created with GITHUB_TOKEN never
+          # emits issues/pull_request opened events, so without a follow-up
+          # nothing summons triage for the new item. Dispatch a
+          # workflow_dispatch maintainer run (owner PAT, the default credential
+          # in this step) carrying the new number, so triage lands within one
+          # schedule interval with no human ping.
+          def _self_triage(kind, num):
+              rr = subprocess.run(["gh", "workflow", "run", "maintainer.yml", "--repo", repo, "--ref", "main", "-f", f"{kind}={num}", "-f", f"reason=self-triage bot-created {kind} #{num}"], capture_output=True, text=True, check=False)
+              if rr.returncode == 0:
+                  print(f"self-triage dispatched for {kind} #{num}")
+              else:
+                  print(f"::error::Failed to self-dispatch triage for {kind} #{num}: {rr.stderr.strip()}")
           for d in decisions:
               if not isinstance(d, dict):
                   continue
@@ -484,6 +496,11 @@ jobs:
                       r = subprocess.run(["gh", "issue", "create", "--repo", repo, "--title", title, "--body", body_text], capture_output=True, text=True, check=False, env=bot_env)
                       if r.returncode == 0:
                           print(f"Created new issue: {title}")
+                          m = re.search(r"/issues/(\d+)", r.stdout or "")
+                          if m:
+                              _self_triage("issue_number", m.group(1))
+                          else:
+                              print(f"::error::Could not parse new issue number from: {(r.stdout or '').strip()[:200]} (triage falls back to schedule plus the UNTRIAGED sweep rule)")
                       else:
                           print(f"::error::Failed to create issue '{title}': {r.stderr.strip()}")
                   else:
@@ -492,6 +509,11 @@ jobs:
                           r = subprocess.run(["gh", "pr", "create", "--repo", repo, "--head", head, "--base", "main", "--title", title, "--body", body_text], capture_output=True, text=True, check=False, env=bot_env)
                           if r.returncode == 0:
                               print(f"Created new PR for branch: {head}")
+                              m = re.search(r"/pull/(\d+)", r.stdout or "")
+                              if m:
+                                  _self_triage("pr_number", m.group(1))
+                              else:
+                                  print(f"::error::Could not parse new PR number from: {(r.stdout or '').strip()[:200]} (triage falls back to schedule plus the UNTRIAGED sweep rule)")
                           else:
                               print(f"::error::Failed to create PR for '{head}': {r.stderr.strip()}")
                   continue
