@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="1440" viewBox="0 0 960 1440">
+  <defs>
+    <linearGradient id="stormdawn" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#141a33"/>
+      <stop offset="0.5" stop-color="#3a3f5e"/>
+      <stop offset="0.75" stop-color="#8a5a3c"/>
+      <stop offset="1" stop-color="#e0a04a"/>
+    </linearGradient>
+    <radialGradient id="ropeg" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffe29a"/>
+      <stop offset="1" stop-color="#ffe29a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="960" height="1440" fill="url(#stormdawn)"/>
+  <!-- breaking cloud band -->
+  <path d="M0,420 Q240,360 480,400 T960,380 L960,470 Q720,520 480,480 T0,500 Z" fill="#232842" opacity="0.85"/>
+  <path d="M0,500 Q300,460 600,495 T960,485 L960,540 Q700,575 400,550 T0,560 Z" fill="#4a3a50" opacity="0.7"/>
+  <!-- gorge cliffs left and right -->
+  <g stroke="#0e0a06" stroke-width="5">
+    <path d="M0,560 L260,600 L210,900 L240,1150 L0,1200 Z" fill="#1a1c22"/>
+    <path d="M960,560 L700,600 L750,900 L720,1150 L960,1200 Z" fill="#1a1c22"/>
+  </g>
+  <!-- the rope traverse: two lines with plank ticks -->
+  <line x1="40" y1="830" x2="920" y2="790" stroke="#8a6a42" stroke-width="7"/>
+  <line x1="40" y1="890" x2="920" y2="850" stroke="#8a6a42" stroke-width="7"/>
+  <g stroke="#5a4226" stroke-width="4">
+    <line x1="180" y1="823" x2="180" y2="883"/><line x1="330" y1="817" x2="330" y2="877"/>
+    <line x1="480" y1="810" x2="480" y2="870"/><line x1="630" y1="803" x2="630" y2="863"/>
+    <line x1="780" y1="797" x2="780" y2="857"/>
+  </g>
+  <!-- white water far below -->
+  <g stroke="#cfd8dc" stroke-width="5" fill="none" opacity="0.9">
+    <path d="M330,1180 Q420,1150 480,1180 T660,1170"/>
+    <path d="M300,1220 Q420,1190 540,1220 T700,1210"/>
+    <path d="M380,1260 Q480,1240 580,1260"/>
+  </g>
+  <g fill="#ffffff" opacity="0.75">
+    <circle cx="420" cy="1195" r="6"/><circle cx="520" cy="1215" r="5"/><circle cx="600" cy="1190" r="6"/>
+    <circle cx="460" cy="1240" r="5"/><circle cx="560" cy="1245" r="4"/>
+  </g>
+  <!-- lantern glow over the rope -->
+  <circle cx="257" cy="727" r="130" fill="url(#ropeg)" opacity="0.6"/>
+  <!-- Nia leads with the keeper's lantern -->
+  <g stroke="#0e0a06" stroke-width="5">
+    <path d="M300,830 L250,640 L400,640 Z" fill="#a03a2a"/>
+    <circle cx="325" cy="600" r="30" fill="#e8b98a"/>
+    <path d="M295,590 Q325,560 355,590 L352,575 Q325,550 298,575 Z" fill="#3a2418"/>
+    <line x1="300" y1="660" x2="262" y2="700"/>
+    <rect x="238" y="700" width="38" height="54" rx="8" fill="none"/>
+  </g>
+  <circle cx="257" cy="727" r="12" fill="#ffe29a"/>
+  <!-- Tam belays behind her, oar yoked across his shoulders -->
+  <g stroke="#0e0a06" stroke-width="5">
+    <line x1="470" y1="640" x2="650" y2="610" stroke="#6a4a26" stroke-width="9"/>
+    <path d="M650,610 l36,-8 l-6,30 Z" fill="#6a4a26" stroke="none"/>
+    <path d="M500,830 L470,650 L590,650 L570,830 Z" fill="#2a6a6a"/>
+    <circle cx="530" cy="612" r="28" fill="#d8a878"/>
+    <path d="M502,602 Q530,574 558,602 L555,588 Q530,564 505,588 Z" fill="#241812"/>
+  </g>
+  <!-- small Lumi last, lantern-light cupped in her hands -->
+  <g stroke="#0e0a06" stroke-width="5">
+    <path d="M680,830 L655,700 L745,700 L730,830 Z" fill="#c9862a"/>
+    <circle cx="700" cy="668" r="24" fill="#e8b98a"/>
+    <path d="M676,660 Q700,636 724,660 L721,648 Q700,628 679,648 Z" fill="#4a2c14"/>
+    <line x1="745" y1="830" x2="760" y2="700"/>
+  </g>
+  <circle cx="700" cy="740" r="10" fill="#ffe29a"/>
+  <!-- the valley answers below: kept sparks rising -->
+  <g fill="#ffdf9a">
+    <circle cx="480" cy="1330" r="10"/>
+    <circle cx="380" cy="1355" r="8"/><circle cx="580" cy="1355" r="8"/>
+    <circle cx="280" cy="1380" r="7"/><circle cx="480" cy="1380" r="7"/><circle cx="680" cy="1380" r="7"/>
+    <circle cx="180" cy="1410" r="6" opacity="0.7"/><circle cx="380" cy="1410" r="6" opacity="0.7"/>
+    <circle cx="580" cy="1410" r="6" opacity="0.7"/><circle cx="780" cy="1410" r="6" opacity="0.7"/>
+  </g>
+  <!-- title -->
+  <text x="480" y="220" text-anchor="middle" font-family="Georgia,serif" font-size="96" letter-spacing="8" fill="#f2e8d5">HEARTHLIGHT</text>
+  <text x="480" y="270" text-anchor="middle" font-family="Georgia,serif" font-size="30" font-style="italic" fill="#ffcf7a">three lights, one rope</text>
+</svg>

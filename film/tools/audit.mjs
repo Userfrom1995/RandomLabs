@@ -192,9 +192,16 @@ for (const shot of tl.shots) {
   }
 }
 check('every shot captioned', tl.shots.every((s) => cuedShots.has(s.id)), cuedShots.size + ' shots');
-check('both posters on the wall',
+check('all three posters on the wall',
   html.includes('posters/poster-v1.svg') && html.includes('posters/poster-v2.svg') &&
-  existsSync(join(root, 'posters/poster-v2.svg')));
+  html.includes('posters/poster-v3.svg') &&
+  existsSync(join(root, 'posters/poster-v2.svg')) &&
+  existsSync(join(root, 'posters/poster-v3.svg')));
+check('trailer labels match shot titles',
+  trailer.segments.every((seg) => {
+    const shot = tl.shots.find((s) => s.id === seg.shot);
+    return !!shot && seg.label === shot.title;
+  }), trailer.segments.map((s) => s.shot + '=' + JSON.stringify(s.label)).join(' '));
 for (const id of ['endCard', 'btnReplay', 'btnModeSwap', 'btnDismiss', 'trailerCall', 'btnTrailer', 'btnFilm']) {
   check('premiere control present: ' + id, html.includes('id="' + id + '"'));
 }
