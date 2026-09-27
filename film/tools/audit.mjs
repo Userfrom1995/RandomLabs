@@ -289,5 +289,32 @@ for (const s of tl.shots) {
 check('acting state on all shots', actOk);
 check('human craft suite committed', existsSync(join(root, 'tests/craft-humans.mjs')));
 
+// painted world and hand-drawn motion (rebuild Phase 3): composition per
+// location, three wash layers, width-honest detail budgets, ground-contact
+// gait, dialogue nod, secondary-driven cloth, anchored weather, and the
+// background-plate capture loop with its craft suite.
+const { COMPOSITION, WASH_LAYERS, compositionFor, washLayersFor, detailCountFor } =
+  await import('../engine/backgrounds.js');
+const { footPlant, gaitFor } = await import('../engine/humans.js');
+const { speechNod } = await import('../engine/faces.js');
+const { waterYFor, hearthFor } = await import('../engine/particles.js');
+const phase3Bgs = [...new Set(tl.shots.map((s) => s.bg))];
+check('composition covers screenplay locations',
+  phase3Bgs.every((b) => COMPOSITION[b] !== undefined), phase3Bgs.join(','));
+check('three wash layers with distinct streams',
+  WASH_LAYERS.length === 3 &&
+  new Set(washLayersFor(phase3Bgs[0]).map((l) => l.stream)).size === 3);
+check('detail budgets scale honestly',
+  phase3Bgs.every((b) => detailCountFor(b, 390) < detailCountFor(b, 960)));
+check('gait plants stance feet', footPlant(-1, 0.05, 0.5).lift === 0 && footPlant(-1, 0.05, 0.5).planted);
+check('gait runs on exertion', gaitFor(1).cadence > gaitFor(0).cadence);
+check('dialogue nod silent off-line', speechNod('', 1) === 0);
+check('anchors fall back honestly', waterYFor(undefined, 540) === 432 && hearthFor(undefined) === null);
+check('stage feeds secondary and anchors',
+  animSrc.includes('secondary: act.secondary') && animSrc.includes('painted)'));
+check('plates captured per location',
+  readFileSync(join(root, 'tools/capture.mjs'), 'utf8').includes('plates.json'));
+check('world craft suite committed', existsSync(join(root, 'tests/craft-world.mjs')));
+
 if (failures.length) { console.error('AUDIT RED: ' + failures.join(', ')); process.exit(1); }
 console.log('AUDIT GREEN');
