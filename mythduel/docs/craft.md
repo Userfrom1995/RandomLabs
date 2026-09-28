@@ -28,8 +28,12 @@ that works today.
 Boards are beat-by-beat: eight hero panels with entry/exit staging that
 mirrors the continuity ledger, cause links identical to the duel spine, and
 two to four lattice-aligned shots per beat, one anchored on the hero frame.
-The trailer skeleton selects seven cuts (30 s) from the final timeline in
-story order; the cut itself is built by the premiere.
+The trailer cut selects seven windows (30 s) from the final timeline in story
+order and plays them back through the same stage paint, so trailer frames and
+duel frames agree pixel for pixel; each cut carries its own caption note and
+the cut closes on the end card with credits. The premiere posters are painted
+by the same seeded hand: key art plus both fighter sheets, committed as SVG
+and rebuilt byte-identically by the poster tool.
 
 Sound is scored like the fight is choreographed: four original motif rows
 (the northern horn-call, the bright bronze answer, the grinding half-step

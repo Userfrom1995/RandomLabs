@@ -16,12 +16,16 @@ functions the node tools use, so canvas, audit, and capture cards agree.
 
 Boards live in `story/storyboard.json`: eight hero panels with shots,
 entry/exit staging, and cause links that must mirror `duel.json` exactly.
-`story/trailer.json` holds the trailer skeleton (cuts with in/out times on the
-lattice, inside their beats). `tools/capture.mjs` exports hero cards, arena
-plates (facet checksums pin the geography headless), and fighter close-up
+`story/trailer.json` holds the trailer cut map (7 windows, 30 s total, every
+edge on the lattice inside its beat); `engine/trailer.js` maps the trailer
+clock back onto duel time, so trailer mode paints through the same
+`paintStage` and every trailer frame is pixel-identical to its duel frame.
+`tools/capture.mjs` exports hero cards, arena plates (facet checksums pin the geography headless), and fighter close-up
 cards (pose names, foot contacts, silhouette reads, impact lists);
 `tools/render.mjs`
-prints the stills manifest with plate and trailer totals.
+prints the stills manifest with plate and trailer totals, and
+`tools/render-posters.mjs` paints the three deterministic premiere posters
+(`designs/posters/`: key art plus both fighter sheets) from the duel seed.
 
 Reproduction: `bash mythduel/repro.sh` runs the binding audit
 (`tools/audit.mjs`: runtime, contiguity, chapter coverage, continuity ledger,
@@ -33,8 +37,10 @@ turnaround symmetry, silhouette reads, contact honesty, impact timing, combat
 poses, fighter determinism and paint budgets, score coverage and dead-air
 check, SFX tag map with the honest hush, voice/generator coverage, audio
 sync and bounds, stem rebuild match, duck floors, master bounds, live/offline
-phrase parity, captions rebuild, theatre wiring), the smoke suite, the
-animatic suite, the combat suite, the sound suite, the audio render pipeline,
+ phrase parity, captions rebuild, theatre wiring, trailer plan and
+ frame parity, trailer caption coverage, poster rebuild match, premiere
+ markup and player hooks, behind-the-scenes surface, root landing), the smoke suite, the
+ animatic suite, the combat suite, the sound suite, the premiere suite, the audio render pipeline,
 the capture and render tools,
 and a byte-exact captions rebuild check.
 

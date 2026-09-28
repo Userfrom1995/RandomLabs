@@ -47,16 +47,47 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 
 ### Phase 5: Premiere Theatre and Behind-the-Scenes (PR 5 target, Refs #470)
 
-- [ ] Premiere theatre verification (transport, beat chapters, trailer mode on the final map, end card/credits, storyboard wall, posters, loading/error/noscript/canvas states, reduced-motion stills, 390 px mobile pass)
-- [ ] 25-35 s trailer cut from the final timeline plus original poster set
-- [ ] Behind-the-scenes surface (designs, boards, pipeline docs linked from the entrypoint; unified `README.md` plus `docs/` final content pass)
-- [ ] Premiere tests (trailer build/runtime/frame-parity, caption coverage, posters, end card, fallbacks); root landing points at the duel; Builder self-review notes committed below
+- [x] Premiere theatre verification (transport, beat chapters, trailer mode on the final map, end card/credits, storyboard wall, posters, loading/error/noscript/canvas states, reduced-motion stills, 390 px mobile pass)
+- [x] 25-35 s trailer cut from the final timeline plus original poster set
+- [x] Behind-the-scenes surface (designs, boards, pipeline docs linked from the entrypoint; unified `README.md` plus `docs/` final content pass)
+- [x] Premiere tests (trailer build/runtime/frame-parity, caption coverage, posters, end card, fallbacks); root landing points at the duel; Builder self-review notes committed below
 
 ## Build log (Phase 5, 2026-09-28)
 
 - Scaffold pushed: `engine/trailer.js` (pure trailer-clock to duel-time map,
   30 s plan over 7 cuts), `tools/render-posters.mjs` plus three committed
   deterministic posters (`designs/posters/`).
+- Theatre pushed: trailer mode in the player (same `paintStage`, re-ranged
+  seek, cut-following score cues, cut notes in the caption band), end card
+  with credits and replay/trailer actions, poster wall and trailer-map links
+  on the entrypoint, canvas-null guard, reduced-motion stills, 390 px CSS.
+- Gates pushed: audit 48 to 56 (trailer plan, trailer/duel frame parity,
+  trailer caption coverage, posters committed plus rebuild match, premiere
+  markup, player hooks, behind-the-scenes links, root landing),
+  `tests/phase5-premiere.mjs` (46 probes green), `repro.sh` extended.
+- Docs pushed: unified `README.md` plus `docs/` premiere pass, ideas entry,
+  root landing card plus Active Projects entry.
+
+## Builder self-review (Phase 5, 2026-09-28)
+
+- Watched the contract, not pixels: the trailer plan builds to exactly 30 s
+  over 7 ordered cuts with lattice edges inside beats; 61 trailer-clock
+  samples (every 0.5 s plus the end clamp) map onto lattice-exact duel
+  instants inside their own cut beats, and the end clamps onto the final
+  cut's last frame; all 7 cut notes non-empty; all 3 posters rebuild
+  byte-identically (POSTERS GREEN).
+- Full `bash mythduel/repro.sh` green: audit 56 gates, smoke, animatic,
+  combat, sound, premiere suites, audio render, poster check, capture,
+  render, captions rebuild match (17 cues). No em dashes, IP guardrail
+  scan green.
+- Craft gap closed in-run: the first audit edit dropped the pre-existing
+  capture-tool gate line while inserting the premiere block; restored in
+  the same pass and re-verified green.
+- Named stand-ins for this phase: none. Every control rendered works
+  (trailer, end-card replay, chapters, transport, volume/mute); no stubs.
+- IP: trailer and posters derive from in-repo seeded sources only; no
+  third-party likeness, assets, or tracks; guardrail scan covers the new
+  sources.
 
 ### Final Phase: Integration and End-to-end Audit (Final PR, Closes #470)
 
@@ -66,11 +97,9 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 
 ## Current step
 
-Phase 4 complete: original score and battle sound synthesized in-repo,
-performed live in the theatre (volume/mute real), rendered offline to a
-deterministic WAV master with stems, 48-gate audit plus 60-probe sound suite
-green. Ready for review (Refs #470); Phase 5 (premiere theatre and
-behind-the-scenes) is next after merge.
+Phase 5 complete: premiere theatre (trailer mode, end card, posters,
+fallbacks) with 56-gate audit plus 46-probe premiere suite green. Ready for
+review (Refs #470); final integration and end-to-end audit next after merge.
 
 ## Builder self-review (Phase 4, 2026-09-28)
 
@@ -196,8 +225,8 @@ behind-the-scenes) is next after merge.
 
 ## Next steps
 
-Reviewer review of Phase 4; then Builder Phase 5: Premiere Theatre and
-Behind-the-Scenes on a new phase branch after merge.
+Reviewer review of Phase 5; then final integration and end-to-end audit
+(final PR, Closes #470).
 
 ## Team Note
 
