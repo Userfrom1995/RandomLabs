@@ -14,6 +14,7 @@ import { frameTime } from '../engine/frames.js';
 import { motifFor } from '../score/themes.js';
 import { buildScoreEvents, orchestrate, noteFreq, VOICES, ORCHESTRA_VERSION, BEAT_RIDES } from '../score/orchestra.js';
 import { buildSfxEvents, renderSfxEvent, tagRecipe, SFX_VERSION, SFX_NAMES } from '../score/sfx.js';
+import { liveDrumFreq } from '../score/live-audio.js';
 import { renderVoice, resolveVoice, VOICE_NAMES } from '../score/voices.js';
 import { renderMix, analyze, encodeWav, MIX_SAMPLE_RATE } from '../score/mix.js';
 import { dialogueWindows, duckLevelAt, SCORE_FLOOR, SFX_FLOOR } from '../score/duck.js';
@@ -94,6 +95,23 @@ const x0 = sfx[0];
 const xa = renderSfxEvent(x0, MIX_SAMPLE_RATE);
 const xb = renderSfxEvent(x0, MIX_SAMPLE_RATE);
 ok('sfx samples reproducible', xa.length === xb.length && xa.every((v, i) => v === xb[i]));
+// Duplicate tags within one beat carry distinct occurrence seeds: the two
+// b02 footfall-gravel events must not render identical buffers (no
+// coherent +6 dB doubling).
+const gravel = sfx.filter((e) => e.beat === 'b02' && e.tag === 'footfall-gravel').sort((p, q) => p.n - q.n);
+ok('duplicate sfx tags carry occurrence seeds', gravel.length === 2 && gravel[0].n === 0 && gravel[1].n === 1);
+const g0 = renderSfxEvent(gravel[0], MIX_SAMPLE_RATE);
+const g1 = renderSfxEvent(gravel[1], MIX_SAMPLE_RATE);
+ok('duplicate sfx tags render independently', g0.length === g1.length && g0.some((v, i) => v !== g1[i]));
+// Live drum head matches the offline master (voices.js renderDrum:
+// freq/2 clamped to [45, 140]).
+const drumEv = score.find((e) => e.voice === 'drum');
+ok('live drum head matches offline master',
+  drumEv && Math.abs(liveDrumFreq(drumEv.f) - Math.max(45, Math.min(140, drumEv.f / 2))) < 1e-12);
+// Malformed beat durations fail loud instead of an empty silent score.
+let badDur = false;
+try { orchestrate({ ...tl.beats[0], dur: NaN }); } catch { badDur = true; }
+ok('malformed beat.dur throws', badDur);
 const wavA = encodeWav(a, MIX_SAMPLE_RATE);
 const wavB = encodeWav(b, MIX_SAMPLE_RATE);
 ok('wav bytes reproducible', wavA.equals(wavB));
