@@ -15,6 +15,8 @@ import { buildTimeline, beatAt, captionAt } from '../engine/timeline.js';
 import { frameTime, frameIndex } from '../engine/frames.js';
 import { boilSlot } from '../engine/ink.js';
 import { arenaGrade, compositionFor, facetTable } from '../engine/arena.js';
+import { poseFor, IMPACTS } from '../engine/acting.js';
+import { contactAt, silhouetteAt } from '../engine/fighters.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -97,6 +99,38 @@ export function capturePlates() {
   });
 }
 
+// Fighter close-up cards: per-beat pose names, foot contact honesty, and
+// silhouette reads at the hero frame. Headless: the same poseFor() the stage
+// paints, so cards and canvas agree by construction.
+export function captureFighterCards() {
+  const duel = loadFixture(join(root, 'story/duel.json'), 'story/duel.json');
+  const board = loadFixture(join(root, 'story/storyboard.json'), 'story/storyboard.json');
+  const tl = buildTimeline(duel);
+  return board.panels.map((p) => {
+    const beat = tl.beats.find((b) => b.id === p.beat);
+    const t = frameTime(p.heroTime);
+    const local = t - beat.start;
+    const pose = poseFor(beat, local);
+    const comp = compositionFor(p.beat);
+    const thorContact = contactAt('thor', pose.thor, comp.ground);
+    const zeusContact = contactAt('zeus', pose.zeus, comp.ground);
+    return {
+      beat: p.beat,
+      title: p.title,
+      heroTime: p.heroTime,
+      frameIndex: frameIndex(t),
+      pose: pose.name,
+      thorPose: pose.thor.name,
+      zeusPose: pose.zeus.name,
+      thorContact,
+      zeusContact,
+      thorSilhouette: silhouetteAt('thor').ratio,
+      zeusSilhouette: silhouetteAt('zeus').ratio,
+      impacts: (IMPACTS[p.beat] || []).map((m) => m.kind + '@' + m.t + 's'),
+    };
+  });
+}
+
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 if (isMain) {
   const cliArgs = process.argv.slice(2);
@@ -115,5 +149,8 @@ if (isMain) {
   }
   for (const p of capturePlates()) {
     console.log(p.plate + ' ' + p.beat + ' t=' + p.heroTime + 's ground=' + p.ground + ' horizon=' + p.horizon + ' #' + p.checksum);
+  }
+  for (const f of captureFighterCards()) {
+    console.log(f.beat + ' ' + f.pose + ' thor:' + f.thorPose + ' zeus:' + f.zeusPose + ' contact=' + f.thorContact.left + '/' + f.thorContact.right + '|' + f.zeusContact.left + '/' + f.zeusContact.right);
   }
 }

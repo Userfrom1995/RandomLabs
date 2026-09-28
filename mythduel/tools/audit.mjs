@@ -1,4 +1,4 @@
-// Mythduel audit: enforces the 32 binding gates on committed sources.
+// Mythduel audit: enforces the 40 binding gates on committed sources.
 // Exit 0 = green, non-zero = gate failure with a reason.
 //
 // Import-safe: importing this module has no side effects (no argv parsing,
@@ -12,7 +12,11 @@ import { frameTime } from '../engine/frames.js';
 import { substream } from '../engine/rng.js';
 import { buildVtt } from './render-captions.mjs';
 import { arenaGrade, compositionFor, washPalette, facetTable, skyFork, ARENA_GRADES, ARENA_BUDGETS } from '../engine/arena.js';
-import { capturePlates, facetChecksum, ARENA_PLATE_BEATS } from './capture.mjs';
+import { capturePlates, facetChecksum, ARENA_PLATE_BEATS, captureFighterCards } from './capture.mjs';
+import { proportionDrift, silhouetteMetrics, jointPositions, mirrorJoints } from '../engine/rigs.js';
+import { poseFor, impactAt, IMPACTS, clothSway, impactParticles, PARTICLE_BUDGET } from '../engine/acting.js';
+import { faceState, effortForBeat } from '../engine/faces.js';
+import { contactAt, silhouetteAt, tremorAmp, weaponFlight, paintFighterRig, paintWeaponFlight, paintImpactParticles } from '../engine/fighters.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -312,6 +316,138 @@ export function runAudit() {
     plates.map((p) => p.plate).join(','));
   check('arena plate checksums stable', sumsStable, plates.map((p) => '#' + p.checksum).join(','));
 
+  // Phase 3: FK rigs honour the model sheets (limb ratios within 5 percent),
+  // turnarounds mirror exactly, silhouettes stay distinct at phone widths.
+  const thorDrift = proportionDrift('thor');
+  const zeusDrift = proportionDrift('zeus');
+  check('rig proportions within 5pct', thorDrift.ok && zeusDrift.ok,
+    'thor ' + (thorDrift.worst * 100).toFixed(2) + '% zeus ' + (zeusDrift.worst * 100).toFixed(2) + '%');
+  let mirrorOk = true;
+  try {
+    for (const rig of ['thor', 'zeus']) {
+      const pose = poseFor(tl.beats[2], 6).thor;
+      const j = jointPositions(rig, { ...pose, facing: 1 }, 480, 440);
+      const m = mirrorJoints(j, 480);
+      const back = mirrorJoints(m, 480);
+      for (const k of ['root', 'hips', 'chest', 'head']) {
+        if (Math.abs(back[k].x - j[k].x) > 1e-9 || Math.abs(back[k].y - j[k].y) > 1e-9) mirrorOk = false;
+      }
+      if (m.facing !== -j.facing) mirrorOk = false;
+    }
+  } catch { mirrorOk = false; }
+  check('turnaround symmetry mirrors', mirrorOk, 'double-mirror returns joints');
+  const thorSil = silhouetteMetrics('thor');
+  const zeusSil = silhouetteMetrics('zeus');
+  const phoneScale = 390 / 960;
+  const widthGap = Math.abs(thorSil.shoulderWidth - zeusSil.shoulderWidth) * phoneScale;
+  check('silhouettes distinct at 390px', thorSil.ratio === 1.35 && zeusSil.ratio === 1.15 && widthGap >= 2,
+    'thor ' + thorSil.ratio + ' zeus ' + zeusSil.ratio + ' gap ' + widthGap.toFixed(1) + 'px');
+
+  // Phase 3: contact honesty at every hero frame (soles on the ground line),
+  // impact frames on the lattice inside their beats, combat poses resolving
+  // per beat with continuity-honest weapon states.
+  const fighterCards = captureFighterCards();
+  let contactOk = true;
+  const contactWhy = [];
+  for (const c of fighterCards) {
+    for (const [who, cc] of [['thor', c.thorContact], ['zeus', c.zeusContact]]) {
+      for (const foot of [cc.left, cc.right]) {
+        if (!Number.isFinite(foot) || Math.abs(foot) > 1.5) { contactOk = false; contactWhy.push(c.beat + ':' + who); }
+      }
+    }
+  }
+  check('feet plant on the ground line', contactOk, contactWhy.join(',') || '8 hero frames honest');
+  let impactsOk = true;
+  const impactsWhy = [];
+  for (const [bid, marks] of Object.entries(IMPACTS)) {
+    const beat = tl.beats.find((b) => b.id === bid);
+    for (const m of marks) {
+      if (Math.abs(m.t * 24 - Math.round(m.t * 24)) > 1e-9) { impactsOk = false; impactsWhy.push(bid + ':off-lattice'); }
+      if (!(m.t >= 0 && m.t < beat.dur)) { impactsOk = false; impactsWhy.push(bid + ':outside-beat'); }
+      if (impactAt(bid, m.t) !== m.kind) { impactsOk = false; impactsWhy.push(bid + ':lookup-miss'); }
+    }
+  }
+  check('impact frames lattice-exact', impactsOk, impactsWhy.join(',') || '6 impacts pinned');
+  let posesOk = true;
+  const posesWhy = [];
+  for (const b of tl.beats) {
+    try {
+      for (const lt of [0, b.dur / 2, b.dur - 0.05]) {
+        const p = poseFor(b, lt);
+        if (!p.name || !p.thor.name || !p.zeus.name) { posesOk = false; posesWhy.push(b.id + ':pose-unnamed'); }
+      }
+      const end = poseFor(b, b.dur - 0.05);
+      if (b.id === 'b05' && !end.zeusDropped) { posesOk = false; posesWhy.push('b05:shaft-not-dropped'); }
+      if (b.id === 'b04' && !(poseFor(b, 9).thorThrown && poseFor(b, 9).zeusThrown)) { posesOk = false; posesWhy.push('b04:crossing-not-airborne'); }
+      if (b.id === 'b08' && !poseFor(b, 8).openHanded) { posesOk = false; posesWhy.push('b08:loosing-not-open'); }
+    } catch { posesOk = false; posesWhy.push(b.id + ':pose-threw'); }
+  }
+  check('combat poses resolve, weapons honest', posesOk, posesWhy.join(',') || '8 beats choreographed');
+
+  // Phase 3: fighter determinism (pose, face, sway, particles stable) and the
+  // full paint path executing headless inside bounded call counts.
+  let fightDet = true;
+  try {
+    const b = tl.beats[2];
+    const p1 = JSON.stringify(poseFor(b, 6));
+    const p2 = JSON.stringify(poseFor(b, 6));
+    const f1 = JSON.stringify(faceState(tl.seed, 'thor', b.start + 6, effortForBeat(b, 6), 1));
+    const f2 = JSON.stringify(faceState(tl.seed, 'thor', b.start + 6, effortForBeat(b, 6), 1));
+    const s1 = JSON.stringify(clothSway(tl.seed, 'thor', b.start + 6, b.wind));
+    const s2 = JSON.stringify(clothSway(tl.seed, 'thor', b.start + 6, b.wind));
+    const g1 = JSON.stringify(impactParticles(tl.seed, 'b03', 6.5, { crossX: 480, crossY: 330, ground: 440 }));
+    const g2 = JSON.stringify(impactParticles(tl.seed, 'b03', 6.5, { crossX: 480, crossY: 330, ground: 440 }));
+    if (p1 !== p2 || f1 !== f2 || s1 !== s2 || g1 !== g2) fightDet = false;
+    if (tremorAmp(0) !== 0 || !(tremorAmp(7) > tremorAmp(3))) fightDet = false;
+    if (Math.max(...impactParticles(tl.seed, 'b06', 10, { crossX: 480, crossY: 300, ground: 458 }).map(() => 1), 0) > PARTICLE_BUDGET) fightDet = false;
+    if (silhouetteAt('thor').ratio !== 1.35 || silhouetteAt('zeus').ratio !== 1.15) fightDet = false;
+  } catch { fightDet = false; }
+  check('fighter systems deterministic', fightDet, 'pose/face/sway/particles pinned');
+  // Phase 3: the full combat paint path (rigs plus flights plus particles)
+  // executes headless on a stub context for every beat, with stable call
+  // counts inside the primitive budgets.
+  let fightPaintOk = true;
+  let fightWorst = 0;
+  try {
+    const stubCtx = () => {
+      const calls = { count: 0 };
+      const grad = { addColorStop() { calls.count++; } };
+      return new Proxy({ calls }, {
+        get(t, k) {
+          if (k === 'calls') return t.calls;
+          if (k === 'createLinearGradient' || k === 'createRadialGradient') return () => grad;
+          if (k === 'measureText') return () => ({ width: 0 });
+          if (k === 'canvas') return undefined;
+          if (typeof k === 'string') return (...a) => { t.calls.count++; };
+          return undefined;
+        },
+        set(t, k, v) { t[k] = v; return true; },
+      });
+    };
+    for (const b of tl.beats) {
+      const comp = compositionFor(b.id);
+      for (const lt of [0.5, b.dur / 2, b.dur - 0.05]) {
+        const t = b.start + lt;
+        const ctx = stubCtx();
+        paintFighterRig(ctx, tl.seed, t, b, 'thor', 0.44, comp.ground, b.wind, b.continuity.exit.thor.fatigue);
+        paintFighterRig(ctx, tl.seed, t, b, 'zeus', 0.56, comp.ground, b.wind, b.continuity.exit.zeus.fatigue);
+        const fl = weaponFlight(b, lt, 'thor', 0.44 * 960, 0.56 * 960, comp.ground);
+        if (fl) paintWeaponFlight(ctx, tl.seed, t, b, lt, 'thor', fl.x, fl.y);
+        paintImpactParticles(ctx, tl.seed, t, b, { crossX: 480, crossY: comp.ground - 110, ground: comp.ground });
+        const n1 = ctx.calls.count;
+        fightWorst = Math.max(fightWorst, n1);
+        const ctx2 = stubCtx();
+        paintFighterRig(ctx2, tl.seed, t, b, 'thor', 0.44, comp.ground, b.wind, b.continuity.exit.thor.fatigue);
+        paintFighterRig(ctx2, tl.seed, t, b, 'zeus', 0.56, comp.ground, b.wind, b.continuity.exit.zeus.fatigue);
+        const fl2 = weaponFlight(b, lt, 'thor', 0.44 * 960, 0.56 * 960, comp.ground);
+        if (fl2) paintWeaponFlight(ctx2, tl.seed, t, b, lt, 'thor', fl2.x, fl2.y);
+        paintImpactParticles(ctx2, tl.seed, t, b, { crossX: 480, crossY: comp.ground - 110, ground: comp.ground });
+        if (ctx2.calls.count !== n1) fightPaintOk = false;
+      }
+    }
+    if (!(fightWorst > 0 && fightWorst < 6000)) fightPaintOk = false;
+  } catch { fightPaintOk = false; }
+  check('fighter paint runs headless, bounded', fightPaintOk, String(fightWorst) + ' calls worst');
   // Theatre shell wired.
   const html = readFileSync(join(root, 'index.html'), 'utf8');
   check('theatre shell committed', html.includes('id="stage"') && html.includes('id="beatMenu"'), 'stage+beats');

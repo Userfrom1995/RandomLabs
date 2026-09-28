@@ -73,7 +73,7 @@ for (const tool of ['mythduel/tools/capture.mjs', 'mythduel/tools/render.mjs']) 
 // 7. Audit header states the true gate count.
 {
   const audit = readFileSync(join(root, 'tools/audit.mjs'), 'utf8');
-  check('audit header states 32 gates', audit.includes('32'), 'header gate count');
+  check('audit header states 40 gates', audit.includes('40'), 'header gate count');
 }
 
 console.log(failed === 0 ? 'TESTER FIXER-REMEDIES GREEN' : 'TESTER FIXER-REMEDIES RED: ' + failed + ' failures');
