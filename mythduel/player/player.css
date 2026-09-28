@@ -38,6 +38,9 @@ canvas#stage { display: block; width: 100%; aspect-ratio: 16 / 9; height: auto; 
 .transport button.active { border-color: var(--accent); }
 .scrub { flex: 1 1 220px; }
 .scrub input[type="range"] { width: 100%; }
+.vol { display: flex; gap: 8px; align-items: center; }
+.vol input[type="range"] { width: 110px; }
+.vol button:disabled, .transport button:disabled { opacity: 0.45; cursor: default; }
 .times { display: flex; justify-content: space-between; color: var(--muted); font-size: 0.82rem; }
 .beat-title { color: var(--muted); margin: 10px 2px 0; font-size: 0.95rem; }
 .beats { margin-top: 14px; }
