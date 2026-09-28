@@ -34,7 +34,7 @@ const tl = buildTimeline(duel);
   check('manifest covers 8 panels', m.stills.length === 8, String(m.stills.length));
   check('manifest heroTimes match storyboard', m.stills.every((s, i) => s.heroTime === board.panels[i].heroTime));
   check('manifest trailer total is 30s', m.trailerTotal === 30, String(m.trailerTotal));
-  check('manifest plates cover 3 grades', m.plates.length === 3);
+  check('manifest plates cover 5 grades', m.plates.length === 5);
 }
 
 // 2. Capture cards: hero frames lattice-bound, inside their beats, captioned.
@@ -135,7 +135,7 @@ function recordingCtx(log) {
   const p1 = capturePlates();
   const p2 = capturePlates();
   check('plate checksums stable', JSON.stringify(p1) === JSON.stringify(p2));
-  check('plate checksums distinct', new Set(p1.map((p) => p.checksum)).size === 3);
+  check('plate checksums distinct', new Set(p1.map((p) => p.checksum)).size === 5);
   check('plate checksum helper stable', facetChecksum(tl.seed, 'b01') === facetChecksum(tl.seed, 'b01'));
 }
 

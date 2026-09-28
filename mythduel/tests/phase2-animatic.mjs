@@ -132,15 +132,15 @@ check('beats span all grades', ARENA_GRADES.every((g) => tl.beats.some((b) => ar
   check('trailer cuts ordered and inside beats', ok);
 }
 
-// 9. Plates: 3 distinct grades, stable checksums, manifest agrees.
+// 9. Plates: 5 grades pinned, stable checksums, manifest agrees.
 {
   const plates = capturePlates();
-  check('3 plates, distinct grades', plates.length === 3 && new Set(plates.map((p) => p.grade)).size === 3);
+  check('5 plates, distinct grades', plates.length === 5 && new Set(plates.map((p) => p.grade)).size === 5);
   check('plate checksums stable', plates.every((p) => p.checksum === facetChecksum(tl.seed, p.beat)));
   const cards = captureCards();
   check('8 hero cards monotonic', cards.length === 8 && cards.every((c, i, a) => i === 0 || c.frameIndex > a[i - 1].frameIndex));
   const m = stillsManifest();
-  check('manifest stills+plates+trailer', m.stills.length === 8 && m.plates.length === 3 && Math.abs(m.trailerTotal - 30) < 1e-9);
+  check('manifest stills+plates+trailer', m.stills.length === 8 && m.plates.length === 5 && Math.abs(m.trailerTotal - 30) < 1e-9);
 }
 
 // 10. Paint path executes headless: a stub 2d context proves paintArena runs
