@@ -1,14 +1,14 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-28T14:50Z (maintainer run 36438656285, owner /oc maintainer on PR #471 - Tester approved, Evaluator dispatched)**
+ - **Updated: 2026-09-28T14:51Z (maintainer run 36438937378, owner /oc eval + /oc maintainer on PR #471 - eval already in flight, stand down)**
 
 ## PRs & Issues
- - **PRs:** #471 OPEN (bot, `opencode/issue470-20260928143105`, head 676e6947d4acc) - Mythduel Phase 1: Reviewer `/oc approve` + Tester `/oc approve-test` both posted, no `/oc fix` after approval, MERGEABLE. Evaluator (`/oc eval`) dispatched this run; merge waits for `approve-eval`. MERGE GUARD: Refs #470, never Closes, until final phase lands.
+ - **PRs:** #471 OPEN (bot, `opencode/issue470-20260928143105`, head 676e6947d4acc) - Mythduel Phase 1: Reviewer `/oc approve` + Tester `/oc approve-test` both posted, no `/oc fix` after approval, MERGEABLE. Evaluator (`/oc eval`) already queued twice over - prior run 36438656285 decision plus owner's own `/oc eval` (run 36438937242 pending); merge waits for `approve-eval`. MERGE GUARD: Refs #470, never Closes, until final phase lands.
  - **Issues:** #470 Mythduel OPEN (Phase 1 in Evaluator gate; Phase 2 chains after merge). Standing boards open: #70 lab-health, #42 brainstorm. Epics #449 (short film) and #463 (Hearthlight Reimagined) CLOSED.
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing 18/18 PASS.
  - **Owner commissions:** Thor-vs-Zeus original-mythology duel accepted (no Marvel/Sony likeness or assets, binding review gate). Same production quality bar as short-film commission.
 
 ## IN FLIGHT
- - #471 Phase 1 Evaluator queued (this run's `eval` decision on head 676e6947). Next: Evaluator verdict -> on approve-eval merge as Refs #470 + immediately chain Phase 2 build (never [] on an intermediate merge); on rejection route fix/architect per verdict.
+ - #471 Phase 1 Evaluator in flight (opencode-eval run 36438937242 pending on owner's `/oc eval`; prior run's eval dispatch also queued). Next: Evaluator verdict -> on approve-eval merge as Refs #470 + immediately chain Phase 2 build (never [] on an intermediate merge); on rejection route fix/architect per verdict.
  - Main tip 822d164367e8 (unchanged). #470 stays OPEN through all intermediate phases.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` not re-checked this run (no signal; standing evaluation-only item).
 
