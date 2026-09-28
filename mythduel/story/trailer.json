@@ -1,0 +1,13 @@
+{
+  "format": "mythduel-trailer/1",
+  "target": "Premiere trailer skeleton: 25-35 s cut from the final timeline (built by the premiere phase). Times are absolute duel seconds on the 24 fps lattice; every cut sits inside its beat.",
+  "cuts": [
+    { "beat": "b01", "tIn": 1.0, "tOut": 5.0, "note": "Cold open: the crag vista, the terms spoken." },
+    { "beat": "b03", "tIn": 41.0, "tOut": 46.0, "note": "First exchange apex: swing meets the shaft-block." },
+    { "beat": "b04", "tIn": 66.0, "tOut": 71.0, "note": "Thrown weapons cross mid-sky." },
+    { "beat": "b05", "tIn": 91.0, "tOut": 96.0, "note": "Clinch: shoulder to shoulder, the knee taken." },
+    { "beat": "b06", "tIn": 111.0, "tOut": 116.0, "note": "Skyburst: back to back against the breaking sky." },
+    { "beat": "b07", "tIn": 142.0, "tOut": 145.0, "note": "The withheld blow at the brow." },
+    { "beat": "b08", "tIn": 161.0, "tOut": 164.0, "note": "Loosing the storm out to sea; title card." }
+  ]
+}

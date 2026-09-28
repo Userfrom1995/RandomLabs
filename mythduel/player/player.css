@@ -51,6 +51,8 @@ canvas#stage { display: block; width: 100%; aspect-ratio: 16 / 9; height: auto; 
 .board-swatch { height: 120px; }
 .board-card figcaption { padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; font-size: 0.86rem; color: var(--muted); }
 .board-card figcaption strong { color: var(--text); font-size: 0.92rem; }
+.board-pose { font-style: italic; }
+.board-shot { border-left: 2px solid var(--border); padding-left: 8px; }
 .docs-list a { color: var(--accent-2); }
 .noscript-note { background: #231a12; border: 1px solid #6b4a2e; border-radius: 8px; padding: 10px 14px; }
 .design-row { display: flex; gap: 16px; flex-wrap: wrap; }
