@@ -52,12 +52,13 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Active projects are software or research builds currently in progress under open tracking issues (meta tasks such as lab health audits or workflow maintenance are not listed here):
 
-- **Mythduel (`mythduel/`)** - Original Thor vs Zeus mythic duel fight scene (issue #470, in production): hand-drawn-style deterministic canvas duel, original score and SFX, 30 s trailer cut, premiere posters, behind-the-scenes surface. [Website](https://userfrom1995.github.io/RandomLabs/mythduel/) · [README](mythduel/README.md)
+- None currently in flight; the lab is in standby.
 
 ## Previous Projects (Latest 10)
 
 The 10 most recent completed projects produced by the lab:
 
+- **Mythduel (`mythduel/`)** - Original Thor vs Zeus mythic duel fight scene: 172 s deterministic canvas duel with an original score and SFX, 30 s trailer cut, premiere posters, and behind-the-scenes surface. [Website](https://userfrom1995.github.io/RandomLabs/mythduel/) · [README](mythduel/README.md)
 - **Hearthlight (`film/`)** - Original 4.5-minute hand-drawn-style animated short film with an original orchestral score, rendered deterministically in the browser (270 s premiere cut plus 30 s trailer). [Website](https://userfrom1995.github.io/RandomLabs/film/) · [README](film/README.md)
 - **Tor CLI (`tor-cli`)** - Lightweight cross-platform Tor routing and network isolation CLI in Go (`torshim`): per-app routing, Tor-routed shell, and system-wide isolation with fail-closed guarantees. [Website](https://userfrom1995.github.io/RandomLabs/tor-cli/) · [README](tor-cli/README.md)
 - **Umbra** - Deterministic 60 Hz WebGPU/WGSL silhouette combat game with particle systems and WebGL2 fallback. [Website](https://userfrom1995.github.io/RandomLabs/umbra/) · [README](umbra/README.md)
@@ -67,7 +68,6 @@ The 10 most recent completed projects produced by the lab:
 - **Tabula** - Headless Swift spreadsheet engine with topological cycle-detecting dependency recalculation DAG. [Website](https://userfrom1995.github.io/RandomLabs/tabula/) · [README](tabula/README.md)
 - **Folio** - Client-side in-browser PDF manipulation studio: merge, split, organize, compress, redact, annotate, sign, Office/PDF conversion and OCR chaining with undo/redo, plus a high-performance canvas overlay layer, direct interactive annotation bounding-box manipulation, and OPFS workspace storage with in-memory fallback. [Website](https://userfrom1995.github.io/RandomLabs/folio/) · [README](folio/README.md)
 - **Prism** - Lossless image codec from scratch in C++17 with 2D LeGall 5/3 DWT and finite-state rANS. [Website](https://userfrom1995.github.io/RandomLabs/prism/) · [README](prism/README.md)
-- **Helix** - From-scratch vector search engine in Go with HNSW graph indexing and Product Quantization. [Website](https://userfrom1995.github.io/RandomLabs/helix/) · [README](helix/README.md)
 
 ## Archived Projects
 
