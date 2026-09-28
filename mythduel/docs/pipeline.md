@@ -30,6 +30,24 @@ resolution, RNG determinism, provenance, IP token scan, designs, storyboard
 hero times, board/duel agreement, shot lattice and hero anchoring, trailer
 resolution, arena grades/determinism/budgets/plates, rig proportions,
 turnaround symmetry, silhouette reads, contact honesty, impact timing, combat
-poses, fighter determinism and paint budgets, captions rebuild, theatre
-wiring), the smoke suite, the animatic suite, the combat suite, the capture and render tools,
+poses, fighter determinism and paint budgets, score coverage and dead-air
+check, SFX tag map with the honest hush, voice/generator coverage, audio
+sync and bounds, stem rebuild match, duck floors, master bounds, live/offline
+phrase parity, captions rebuild, theatre wiring), the smoke suite, the
+animatic suite, the combat suite, the sound suite, the audio render pipeline,
+the capture and render tools,
 and a byte-exact captions rebuild check.
+
+Sound is generated, never recorded: `score/themes.js` holds the four original
+motif rows, `score/orchestra.js` turns the beat cue map into a deterministic
+note-event list (march tempi, storm-graded beat rides, resolving closing
+notes that ring to each beat edge), `score/voices.js` renders six original
+synth voices offline, `score/sfx.js` maps every choreography tag to one of
+eighteen procedural foley generators, `score/duck.js` holds the voiced-line
+duck envelope shared by both buses, `score/mix.js` places everything on the
+master timeline and writes the soft-limited master plus per-bus stems, and
+`score/live-audio.js` performs the same event lists live in the theatre
+through WebAudio. `tools/render-audio.mjs` refreshes the committed JSON stems
+(`score/score-events.json`, `score/sfx-events.json`) and renders the WAV
+master plus stems with a checksum manifest into `dist/audio/` (gitignored
+build artifacts: WAVs are never committed).

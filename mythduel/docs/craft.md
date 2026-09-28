@@ -20,9 +20,9 @@ clean catches, the clinch with traded body blows and the honest knee and rise
 (the dropped shaft lies on the rock, never teleported), back-to-back
 weathering under the skyburst, the earned opening held at the brow through
 silence, and the open-handed loosing. Impact frames land on the lattice; SFX
-and score accents share the same event clock as the build advances. Named
-stand-ins at this stage: the stage is silent until the score and battle-sound
-work lands. No fake controls are presented: the theatre renders only transport
+and score accents share the same event clock. The theatre performs the
+original score live (volume and mute are real controls); the stage is never
+silent. No fake controls are presented: the theatre renders only transport
 that works today.
 
 Boards are beat-by-beat: eight hero panels with entry/exit staging that
@@ -30,3 +30,11 @@ mirrors the continuity ledger, cause links identical to the duel spine, and
 two to four lattice-aligned shots per beat, one anchored on the hero frame.
 The trailer skeleton selects seven cuts (30 s) from the final timeline in
 story order; the cut itself is built by the premiere.
+
+Sound is scored like the fight is choreographed: four original motif rows
+(the northern horn-call, the bright bronze answer, the grinding half-step
+clash, the unison resolution) voiced by frame drum, horn, plucked string,
+struck bronze, war shaker, and deep storm pad, with eighteen procedural foley
+beds under every footfall, swing, block, throw, and weather break. The score
+never drops out mid-beat, the held blow keeps its scripted hush, and both
+buses yield under every spoken line so the words always land first.

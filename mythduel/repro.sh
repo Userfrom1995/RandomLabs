@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Mythduel one-command reproduction (duel animation and combat craft).
+# Mythduel one-command reproduction (original score and battle sound).
 #
 # Runs the binding audit, the smoke suite, the animatic suite, the combat
-# suite, and a byte-exact captions rebuild check. Exit non-zero on any failure.
+# suite, the sound suite, the audio render (refreshing the committed stems
+# byte-identically), and a byte-exact captions rebuild check. Exit non-zero
+# on any failure.
 # Usage: bash mythduel/repro.sh (from the repo root)
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -10,6 +12,8 @@ node mythduel/tools/audit.mjs
 node mythduel/tests/smoke.mjs
 node mythduel/tests/phase2-animatic.mjs
 node mythduel/tests/phase3-combat.mjs
+node mythduel/tests/phase4-sound.mjs
+node mythduel/tools/render-audio.mjs > /dev/null
 node mythduel/tools/capture.mjs > /dev/null
 node mythduel/tools/render.mjs > /dev/null
 node --input-type=module -e "

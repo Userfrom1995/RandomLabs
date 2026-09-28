@@ -1,4 +1,4 @@
-// Mythduel audit: enforces the 40 binding gates on committed sources.
+// Mythduel audit: enforces the 48 binding gates on committed sources.
 // Exit 0 = green, non-zero = gate failure with a reason.
 //
 // Import-safe: importing this module has no side effects (no argv parsing,
@@ -17,6 +17,11 @@ import { proportionDrift, silhouetteMetrics, jointPositions, mirrorJoints } from
 import { poseFor, impactAt, IMPACTS, clothSway, impactParticles, PARTICLE_BUDGET } from '../engine/acting.js';
 import { faceState, effortForBeat } from '../engine/faces.js';
 import { contactAt, silhouetteAt, tremorAmp, weaponFlight, paintFighterRig, paintWeaponFlight, paintImpactParticles } from '../engine/fighters.js';
+import { buildScoreEvents, orchestrate, BEAT_RIDES } from '../score/orchestra.js';
+import { buildSfxEvents, tagRecipe, SFX_NAMES } from '../score/sfx.js';
+import { dialogueWindows, duckLevelAt, SCORE_FLOOR, SFX_FLOOR } from '../score/duck.js';
+import { renderMix, analyze, MIX_SAMPLE_RATE } from '../score/mix.js';
+import { livePhrasesForStep } from '../score/live-audio.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -448,6 +453,92 @@ export function runAudit() {
     if (!(fightWorst > 0 && fightWorst < 6000)) fightPaintOk = false;
   } catch { fightPaintOk = false; }
   check('fighter paint runs headless, bounded', fightPaintOk, String(fightWorst) + ' calls worst');
+  // Phase 4: the original score covers every beat edge to edge (closing
+  // notes ring to the beat end, so no dead air), every cue orchestrates.
+  const scoreEvents = buildScoreEvents(tl);
+  let scoreCoverOk = true;
+  const scoreCoverWhy = [];
+  for (const b of tl.beats) {
+    const ev = scoreEvents.filter((e) => e.beat === b.id);
+    if (!ev.length) { scoreCoverOk = false; scoreCoverWhy.push(b.id + ':unscored'); continue; }
+    try { orchestrate(b); } catch { scoreCoverOk = false; scoreCoverWhy.push(b.id + ':cue-broken'); }
+    const first = Math.min(...ev.map((e) => e.t));
+    const last = Math.max(...ev.map((e) => e.t + e.dur));
+    if (Math.abs(first - b.start) > 1e-9 || Math.abs(last - (b.start + b.dur)) > 1e-6) {
+      scoreCoverOk = false; scoreCoverWhy.push(b.id + ':dead-air');
+    }
+    if (!Number.isFinite(BEAT_RIDES[b.id])) { scoreCoverOk = false; scoreCoverWhy.push(b.id + ':no-ride'); }
+  }
+  check('score covers every beat, no dead air', scoreCoverOk, scoreCoverWhy.join(',') || scoreEvents.length + ' events');
+  // Phase 4: every duel sfx tag maps to a generator, the b07 hush stays
+  // honestly empty, and every beat carrying real tags is foleyed.
+  const sfxEvents = buildSfxEvents(tl);
+  let sfxMapOk = true;
+  const sfxMapWhy = [];
+  for (const b of tl.beats) {
+    for (const tag of b.sfx || []) {
+      try {
+        if (tagRecipe(tag) === null && tag !== 'silence-hold') { sfxMapOk = false; sfxMapWhy.push(b.id + ':' + tag + ':null'); }
+      } catch { sfxMapOk = false; sfxMapWhy.push(b.id + ':' + tag + ':unknown'); }
+    }
+    const real = (b.sfx || []).filter((t) => { try { return tagRecipe(t) !== null; } catch { return false; } });
+    if (real.length && !sfxEvents.some((e) => e.beat === b.id)) { sfxMapOk = false; sfxMapWhy.push(b.id + ':unfoleyed'); }
+  }
+  if (tagRecipe('silence-hold') !== null) { sfxMapOk = false; sfxMapWhy.push('silence-hold:not-null'); }
+  check('sfx tags map, hush honest', sfxMapOk, sfxMapWhy.join(',') || sfxEvents.length + ' events');
+  // Phase 4: every score voice and every sfx generator sounds somewhere.
+  const usedVoices = new Set(scoreEvents.map((e) => e.voice));
+  const usedGens = new Set(sfxEvents.map((e) => e.gen));
+  const voicesOk = ['drum', 'horn', 'pluck', 'bronze', 'shaker', 'deeppad'].every((v) => usedVoices.has(v));
+  const gensOk = SFX_NAMES.every((g) => usedGens.has(g)) && [...usedGens].every((g) => SFX_NAMES.includes(g));
+  check('all voices and generators sound', voicesOk && gensOk,
+    [...usedVoices].join(',') + ' + ' + usedGens.size + '/' + SFX_NAMES.length + ' gens');
+  // Phase 4: every audio event sits exactly on the 24 fps lattice inside
+  // its own beat: A/V sync drift is exactly zero by construction.
+  let audioDrift = 0;
+  let audioBoundsOk = true;
+  for (const e of [...scoreEvents, ...sfxEvents]) {
+    audioDrift = Math.max(audioDrift, Math.abs(e.t - frameTime(e.t)));
+    const beat = tl.beats.find((b) => b.id === e.beat);
+    if (!beat || e.t < beat.start - 1e-6 || e.t + e.dur > beat.start + beat.dur + 1e-6) audioBoundsOk = false;
+  }
+  check('audio sync exact, events inside beats', audioDrift === 0 && audioBoundsOk,
+    'drift ' + audioDrift + ', ' + (scoreEvents.length + sfxEvents.length) + ' events');
+  // Phase 4: committed JSON stems match the rebuild byte-for-byte.
+  const canon = (events) => JSON.stringify(events);
+  const committedScore = loadJson(join(root, 'score/score-events.json'), 'score/score-events.json');
+  const committedSfx = loadJson(join(root, 'score/sfx-events.json'), 'score/sfx-events.json');
+  check('audio stems match rebuild', canon(committedScore.events) === canon(scoreEvents) &&
+    canon(committedSfx.events) === canon(sfxEvents), scoreEvents.length + '+' + sfxEvents.length);
+  // Phase 4: the full offline master renders bounded (exact length, fixed
+  // peak ceiling, finite, audible) with the voiced-line duck floors holding.
+  const windows = dialogueWindows(tl);
+  const duckOk = windows.length > 0 &&
+    Math.abs(duckLevelAt(tl.beats[0].start + tl.beats[0].captions[0].t + 0.5, windows, SCORE_FLOOR) - SCORE_FLOOR) < 1e-9 &&
+    SCORE_FLOOR < SFX_FLOOR && duckLevelAt(0, windows, SCORE_FLOOR) === 1;
+  check('voiced-line duck floors hold', duckOk, windows.length + ' windows');
+  const { master } = renderMix(tl, scoreEvents, sfxEvents, MIX_SAMPLE_RATE);
+  const mstats = analyze(master);
+  check('master renders bounded', master.length === Math.ceil(tl.total * MIX_SAMPLE_RATE) &&
+    mstats.peak <= 0.89 + 1e-6 && mstats.peak > 0.5 && mstats.bad === 0 && mstats.rms > 0.02,
+    'peak ' + mstats.peak.toFixed(3) + ' rms ' + mstats.rms.toFixed(3));
+  // Phase 4: the live performer enumerates exactly the offline phrases per
+  // line, so the theatre opens every cue on the master's pitches.
+  let liveParityOk = true;
+  try {
+    for (const b of tl.beats) {
+      const spec = orchestrate(b);
+      for (const ln of spec.lines) {
+        const offline = Math.max(1, Math.floor((ln.toBeat - ln.fromBeat) / ln.beatsPerNote));
+        let live = 0;
+        for (let step = 0; step <= Math.ceil(ln.toBeat) + 1; step++) {
+          live += livePhrasesForStep(ln, step).length;
+        }
+        if (live !== offline) liveParityOk = false;
+      }
+    }
+  } catch { liveParityOk = false; }
+  check('live phrases match offline events', liveParityOk, '8 cues enumerated');
   // Theatre shell wired.
   const html = readFileSync(join(root, 'index.html'), 'utf8');
   check('theatre shell committed', html.includes('id="stage"') && html.includes('id="beatMenu"'), 'stage+beats');

@@ -41,10 +41,10 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 
 ### Phase 4: Original Score and Battle Sound (PR 4 target, Refs #470)
 
-- [x] Original score (`score/themes.js`, `score/orchestra.js`): four original motif rows (thor-row, zeus-row, clash-ostinato, resolution-hymn), per-cue orchestration with march tempi and beat rides, 842-event deterministic list, continuous beat coverage with resolving closing notes, no dead air
-- [ ] Original SFX (`score/sfx.js`, `mix.js`): footfalls, cloth, swings, impacts, storm beds matched to the choreography tags; voiced-beat ducking with measured floors
-- [ ] Caption rebuild byte-exact (`render-captions.mjs`, VTT match, lattice alignment, per-beat face/impact coverage)
-- [ ] New sound suites plus audit gates (cue coverage, ducking bounds, stem determinism, peak/dynamic-range bounds); Builder self-review notes committed below
+- [x] Original score (`score/themes.js`, `score/orchestra.js`, `score/voices.js`, `score/live-audio.js`): four original motif rows (thor-row, zeus-row, clash-ostinato, resolution-hymn), per-cue orchestration with march tempi and beat rides, 842-event deterministic list, six original synth voices, continuous beat coverage with resolving closing notes, no dead air; live WebAudio performer plays the same event lists (phrase parity proven)
+- [x] Original SFX (`score/sfx.js`, `score/duck.js`, `score/mix.js`): eighteen procedural foley generators voicing every choreography tag, held-beat hush honestly null; voiced-line-first ducking (score floor 0.45, bed floor 0.70) shared by the offline master and the live performer; deterministic WAV master at the 0.89 ceiling plus seven stems
+- [x] Caption rebuild byte-exact (`render-captions.mjs`, VTT match, lattice alignment, per-beat face/impact coverage)
+- [x] New sound suites plus audit gates (`tests/phase4-sound.mjs`: 60 probes; audit 40 to 48 gates: score coverage, SFX map, voice/generator coverage, audio sync/bounds, stem rebuild match, duck floors, master bounds, live parity); Builder self-review notes committed below
 
 ### Phase 5: Premiere Theatre and Behind-the-Scenes (PR 5 target, Refs #470)
 
@@ -61,11 +61,37 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 
 ## Current step
 
-Phase 3 complete: FK fighter rigs with full combat choreography wired into
-the theatre, faces with gaze/blink/brows/effort mouths, wind-driven cloth and
-hair, geography-anchored impact particles, fighter close-up cards, 8 new
-audit gates (40 total), full suite green. Ready for review (Refs #470);
-Phase 4 (original score and battle sound) is next after merge.
+Phase 4 complete: original score and battle sound synthesized in-repo,
+performed live in the theatre (volume/mute real), rendered offline to a
+deterministic WAV master with stems, 48-gate audit plus 60-probe sound suite
+green. Ready for review (Refs #470); Phase 5 (premiere theatre and
+behind-the-scenes) is next after merge.
+
+## Builder self-review (Phase 4, 2026-09-28)
+
+- Watched the contract, not waveforms: all 874 audio events sit exactly on
+  the 24 fps lattice (drift 0.0) inside their own beats; every beat is scored
+  from its first frame to its last (closing notes snap to the motif root and
+  ring to the beat edge, counts pinned); live performer enumerates exactly
+  the offline phrases per line, and the cue-opening pitch matches the master
+  to 0.002 Hz.
+- Measured mix: full 172 s master renders in about 20 s at 22050 Hz, peak at
+  the 0.89 ceiling, rms 0.096, zero non-finite samples; skyburst region
+  (0.124) runs more than twice as hot as the loosing (0.055); every stem
+  audible (perc lowest at 0.0052, above the 0.001 floor); ducking sits
+  exactly on its floors inside voiced lines and fully open outside them.
+- Craft gap closed in-run: the WAV header writer first emitted its fields
+  out of narrative order (offsets correct, bytes correct); reordered to the
+  canonical layout for readability. The fixer-remedies pin moved 40 to 48
+  gates with the 8 sound gates.
+- Named stand-ins for this phase: trailer cut is still data only, no trailer
+  control rendered (premiere work). No fake controls rendered: volume and
+  mute arrived with the working performer, disabled only when no
+  AudioContext exists.
+- IP: all timbres synthesized from seeded oscillators and noise, no samples,
+  no quoted rows (all four motif rows differ from every existing lab row);
+  no binaries committed (WAVs only in gitignored dist/); guardrail scan
+  covers the new sources.
 
 ## Builder self-review (Phase 3, 2026-09-28)
 
@@ -148,8 +174,8 @@ Phase 4 (original score and battle sound) is next after merge.
 
 ## Next steps
 
-Reviewer review of Phase 3; then Builder Phase 4: Original Score and Battle
-Sound on a new phase branch after merge.
+Reviewer review of Phase 4; then Builder Phase 5: Premiere Theatre and
+Behind-the-Scenes on a new phase branch after merge.
 
 ## Team Note
 
