@@ -1,7 +1,7 @@
 # Progress: Mythduel - Original Thor vs Zeus Mythic Duel (#470)
 
 - **Issue:** #470
-- **Branch:** opencode/issue470-mythduel-phase-5
+- **Branch:** opencode/issue470-mythduel-phase-6
 - **Status:** in-progress
 - **Architect:** the Architect (blueprint `ideas/2026-09-28-mythduel-thor-zeus-duel.md`)
 - **Builder:** the Builder (phases chain autonomously; Refs #470 until the final acceptance lands)
@@ -13,7 +13,7 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 5: Premiere Theatre and Behind-the-Scenes (in progress, branch `opencode/issue470-mythduel-phase-5`)
+- **Active Phase:** Phase 6: Integration and End-to-end Audit (in progress, branch `opencode/issue470-mythduel-phase-6`)
 
 ### Phase 1: Original Story and Character Design Foundation (PR 1 target, Refs #470)
 
@@ -94,6 +94,11 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 - [ ] Full watch-through on desktop plus 390 px, all controls green; Builder self-review of frames/stills closed out
 - [ ] Reviewer plus Tester plus Evaluator gates green (run on the final PR after review handoff)
 - [ ] Unified docs final pass (`mythduel/README.md`, `mythduel/docs/` as one product view), reproducibility verified from clean checkout
+
+## Build log (Phase 6, 2026-09-28)
+
+- Scaffold: branched `opencode/issue470-mythduel-phase-6` from green main; repro green on arrival (audit 56 gates plus all suites); em-dash scan clean; public-docs milestone-marker scan clean; duel grid 4128 frames over 172 s, trailer 30 s over 7 cuts.
+- Watch-through plan: headless full-timeline stage sweep (every beat at entry/mid/near-exit plus all 61 trailer samples through the same paint path), 390 px CSS pass, keyboard/transport matrix, clean-checkout repro clone; one craft uplift (frame-step transport plus full keyboard map plus keyboard-accessible storyboard cards) before the final gates.
 
 ## Current step
 
