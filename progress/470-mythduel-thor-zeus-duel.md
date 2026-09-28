@@ -13,15 +13,15 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 1: Original Story and Character Design Foundation
+- **Active Phase:** Phase 1: Original Story and Character Design Foundation (Complete, ready for review)
 
 ### Phase 1: Original Story and Character Design Foundation (PR 1 target, Refs #470)
 
-- [ ] Original cause-of-clash story plus choreography spine (`mythduel/story/`: duel outline, beat list, continuity fields, caption timing skeleton; `choreography.md` exchange spine)
-- [ ] Original fighter designs (`mythduel/designs/`: model sheets, turnarounds, effort sheets, palettes, silhouettes, original weapon sheets; `story/characters.md` bible; IP declaration committed)
-- [ ] `mythduel/` scaffold: `index.html` theatre shell under the stable player contract, `repro.sh` plus `tools/` skeleton (render, capture, audit with IP/provenance gates), first green deterministic build
-- [ ] Unified docs seed (`mythduel/README.md` plus `mythduel/docs/` as one product view) and Builder self-review notes committed below
-- [ ] `bash mythduel/repro.sh` green; no stub frames presented as finished craft; named stand-ins (if any) listed below
+- [x] Original cause-of-clash story plus choreography spine (`mythduel/story/`: duel outline, beat list, continuity fields, caption timing skeleton; `choreography.md` exchange spine)
+- [x] Original fighter designs (`mythduel/designs/`: model sheets, turnarounds, effort sheets, palettes, silhouettes, original weapon sheets; `story/characters.md` bible; IP declaration committed)
+- [x] `mythduel/` scaffold: `index.html` theatre shell under the stable player contract, `repro.sh` plus `tools/` skeleton (render, capture, audit with IP/provenance gates), first green deterministic build
+- [x] Unified docs seed (`mythduel/README.md` plus `mythduel/docs/` as one product view) and Builder self-review notes committed below
+- [x] `bash mythduel/repro.sh` green; no stub frames presented as finished craft; named stand-ins (if any) listed below
 
 ### Phase 2: Boards, Arena and Animatic Cut (PR 2 target, Refs #470)
 
@@ -59,11 +59,34 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 
 ## Current step
 
-Ready for initial build (Phase 1: Original Story and Character Design Foundation)
+Phase 1 complete: 8-beat 172 s duel timeline, original fighter bible and SVG
+design sheets, working animatic theatre, green repro. Ready for review
+(Refs #470); Phase 2 (boards, arena, animatic cut) is next after merge.
+
+## Builder self-review (Phase 1, 2026-09-28)
+
+- Watched the contract, not pixels: verified every storyboard heroTime lands
+  inside its beat on the 24 fps lattice via `tools/capture.mjs` (8 cards,
+  monotonic frame indices); capture cards and the canvas paint path share
+  `frameTime`, so stills and stage agree by construction.
+- Continuity ledger hand-checked against the cause-effect table: shaft dropped
+  in b05 is grounded in b06 entry (never teleported); split brow and bruised
+  ribs persist b05-b08; fatigue 0-7 monotonic; storm 1-2-2-3-3-4-2-0 with the
+  only reset being the on-screen loosing in b08.
+- Craft gap closed in-run: the first audit draft flagged its own token list
+  and the guardrail declarations; the scan now exempts guardrail sentences
+  ("No ..." naming a work to forbid it) and the audit tool itself, and the
+  negative probe (a stray non-guardrail token) was confirmed to fail the gate
+  before removal.
+- Named stand-ins for this phase: simplified animatic fighter markers stand in
+  for the full FK rigs (Phase 3); wash-layer crag stands in for the painted
+  arena (Phase 2); silent stage stands in for score/SFX (Phase 4). No fake
+  controls rendered: volume/trailer arrive with their phases.
 
 ## Next steps
 
-Builder to implement Phase 1: Original Story and Character Design Foundation with real code and zero stubs
+Reviewer review of Phase 1; then Builder Phase 2: Boards, Arena and Animatic
+Cut on a new phase branch after merge.
 
 ## Team Note
 

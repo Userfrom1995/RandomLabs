@@ -1,0 +1,64 @@
+:root {
+  --bg: #0e1118;
+  --panel: #151a26;
+  --border: #2a3348;
+  --text: #dde3f0;
+  --muted: #8f98ae;
+  --accent: #c86a4a;
+  --accent-2: #7aa2f7;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+  line-height: 1.65;
+}
+.masthead { padding: 48px 24px 28px; text-align: center; border-bottom: 1px solid var(--border); }
+.masthead .kicker { color: var(--muted); text-transform: uppercase; letter-spacing: 0.18em; font-size: 0.78rem; margin: 0 0 8px; }
+.masthead h1 { margin: 0 0 8px; font-size: 2.4rem; letter-spacing: -0.02em; }
+.masthead .tagline { color: var(--muted); margin: 0 auto; max-width: 640px; }
+main { max-width: 1020px; margin: 0 auto; padding: 24px 20px 72px; }
+.logline { color: var(--muted); max-width: 720px; }
+.theatre { margin-top: 20px; }
+.stage-wrap { position: relative; background: #000; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+canvas#stage { display: block; width: 100%; aspect-ratio: 16 / 9; height: auto; }
+.caption-line { min-height: 2.2em; padding: 10px 14px; background: rgba(0,0,0,0.72); color: #fff; font-size: 1.02rem; }
+.stage-overlay, .end-card { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(5,7,12,0.72); }
+.stage-overlay[hidden], .end-card[hidden] { display: none; }
+.stage-overlay .card, .end-card .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 22px 26px; max-width: 420px; text-align: center; }
+.loading-veil { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: center; background: #0a0d14; color: var(--muted); }
+.loading-veil[hidden] { display: none; }
+.big-play { position: absolute; inset: 0; margin: auto; width: 84px; height: 84px; border-radius: 50%; border: 2px solid var(--accent); background: rgba(10,13,20,0.7); color: var(--text); font-size: 2rem; cursor: pointer; }
+.big-play[hidden] { display: none; }
+.transport { display: flex; gap: 10px; align-items: center; margin-top: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; flex-wrap: wrap; }
+.transport button { background: #1c2333; color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; cursor: pointer; font-size: 0.95rem; }
+.transport button:hover { border-color: var(--accent-2); }
+.transport button.active { border-color: var(--accent); }
+.scrub { flex: 1 1 220px; }
+.scrub input[type="range"] { width: 100%; }
+.times { display: flex; justify-content: space-between; color: var(--muted); font-size: 0.82rem; }
+.beat-title { color: var(--muted); margin: 10px 2px 0; font-size: 0.95rem; }
+.beats { margin-top: 14px; }
+.chapter-group { margin-bottom: 12px; }
+.chapter-group h4 { margin: 0 0 6px; color: var(--accent); font-size: 0.95rem; }
+.chapter-group button { margin: 0 8px 8px 0; background: #1c2333; color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+.chapter-group button.active { border-color: var(--accent); }
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 12px; }
+.board-card { margin: 0; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; cursor: pointer; }
+.board-card:hover { border-color: var(--accent-2); }
+.board-swatch { height: 120px; }
+.board-card figcaption { padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; font-size: 0.86rem; color: var(--muted); }
+.board-card figcaption strong { color: var(--text); font-size: 0.92rem; }
+.docs-list a { color: var(--accent-2); }
+.noscript-note { background: #231a12; border: 1px solid #6b4a2e; border-radius: 8px; padding: 10px 14px; }
+.design-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.design-row figure { flex: 1 1 300px; margin: 0; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.design-row img { display: block; width: 100%; height: auto; background: #f2ecdc; }
+.design-row figcaption { padding: 8px 12px; color: var(--muted); font-size: 0.86rem; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+@media (max-width: 480px) {
+  .masthead h1 { font-size: 1.7rem; }
+  .transport { gap: 6px; }
+}
