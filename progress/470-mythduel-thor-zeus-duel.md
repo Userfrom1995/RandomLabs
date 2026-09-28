@@ -13,7 +13,7 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 6: Integration and End-to-end Audit (in progress, branch `opencode/issue470-mythduel-phase-6`)
+- **Active Phase:** Phase 6: Integration and End-to-end Audit (complete, ready for review, branch `opencode/issue470-mythduel-phase-6`)
 
 ### Phase 1: Original Story and Character Design Foundation (PR 1 target, Refs #470)
 
@@ -91,9 +91,9 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 
 ### Final Phase: Integration and End-to-end Audit (Final PR, Closes #470)
 
-- [ ] Full watch-through on desktop plus 390 px, all controls green; Builder self-review of frames/stills closed out
+- [x] Full watch-through on desktop plus 390 px, all controls green; Builder self-review of frames/stills closed out
 - [ ] Reviewer plus Tester plus Evaluator gates green (run on the final PR after review handoff)
-- [ ] Unified docs final pass (`mythduel/README.md`, `mythduel/docs/` as one product view), reproducibility verified from clean checkout
+- [x] Unified docs final pass (`mythduel/README.md`, `mythduel/docs/` as one product view), reproducibility verified from clean checkout
 
 ## Build log (Phase 6, 2026-09-28)
 
@@ -101,12 +101,34 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 - Watch-through plan: headless full-timeline stage sweep (every beat at entry/mid/near-exit plus all 61 trailer samples through the same paint path), 390 px CSS pass, keyboard/transport matrix, clean-checkout repro clone; one craft uplift (frame-step transport plus full keyboard map plus keyboard-accessible storyboard cards) before the final gates.
 - Craft uplift landed: step-back/step-forward transport buttons (single 24 fps frame on the live clock in both duel and trailer modes), ArrowLeft/ArrowRight stepping, Home/End jumps, F fullscreen toggle, storyboard cards focusable with role button plus Enter/Space activation, focus-visible rings on transport/chapter/end-card/board controls; README Watch section documents the map.
 - Gates landed: audit 56 to 60 (frame-step/keyboard wiring, card keyboard access plus focus styles, full 24-paint stage sweep headless bounded with trailer-sample agreement, public-docs unity with em-dash scan and Watch documentation); `tests/phase6-final.mjs` (23 probes green); `repro.sh` runs the final suite; stale 48-gate header pin in the Phase 2 fixer-remedies suite updated to the true 60; full repro plus every regression suite green.
+- Docs landed: behind-the-scenes HTML rewritten as one product view with poster/trailer/caption links, README Watch documents the step and keyboard map, ideas entry `2026-09-28-mythduel-final-integration-audit.md`; clean depth-1 clone repro green.
+- Craft bug caught in-run: the new audit sweep gate failed red on arrival (`paintArena is not defined`, the audit had never imported it); import added and the gate verified green with a loud-throw discipline intact. The stale 48-gate pin (red since the Phase 5 header move to 56) now pins the true 60.
+
+## Builder self-review (Phase 6, 2026-09-28)
+
+- Watched the contract, not pixels: all 4128 duel frames sit on the 24 fps
+  lattice across 8 contiguous beats (172 s); the full stage sweeps headless
+  at 24 instants (3 per beat: entry, mid, near-exit) with stable call counts
+  (worst 1221, inside the 12000 budget); every 0.5 s trailer sample maps
+  onto a lattice-exact duel instant inside its own cut beat over the 30 s,
+  7-cut plan; step math verified both directions on both clocks.
+- Every control rendered works: play, restart, step-back, step-forward,
+  trailer, seek, chapters, captions, fullscreen (button and F), volume and
+  mute (real performer), end-card replay and trailer actions,
+  keyboard-operable storyboard cards. No stubs, no fake controls.
+- Named stand-ins for this phase: none. The film is the final acceptance
+  candidate; only the post-handoff Reviewer, Tester, and Evaluator gates
+  remain.
+- IP: new sources are original wiring over the seeded engine only; no
+  third-party likeness, assets, or tracks; forbidden-token scan green.
 
 ## Current step
 
-Phase 5 complete: premiere theatre (trailer mode, end card, posters,
-fallbacks) with 56-gate audit plus 46-probe premiere suite green. Ready for
-review (Refs #470); final integration and end-to-end audit next after merge.
+Phase 6 complete: final integration and end-to-end audit (frame-step
+transport plus keyboard map, card keyboard access, 60-gate audit plus
+23-probe final suite green, clean-checkout repro green, docs unified).
+Ready for review (Refs #470); Reviewer plus Tester plus Evaluator gates run
+on the final PR after handoff.
 
 ## Builder self-review (Phase 4, 2026-09-28)
 
