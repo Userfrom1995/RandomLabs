@@ -13,7 +13,7 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 3: Duel Animation and Combat Craft (Complete, ready for review)
+- **Active Phase:** Phase 4: Original Score and Battle Sound (in progress, branch `opencode/issue470-mythduel-phase-4`)
 
 ### Phase 1: Original Story and Character Design Foundation (PR 1 target, Refs #470)
 
@@ -41,7 +41,7 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 
 ### Phase 4: Original Score and Battle Sound (PR 4 target, Refs #470)
 
-- [ ] Original score (`score/orchestra.js`, `voices.js`): fighter motifs plus clash ostinato plus resolution material, continuous beat coverage, no dead air; live performer plus offline stems from the same event lists
+- [x] Original score (`score/themes.js`, `score/orchestra.js`): four original motif rows (thor-row, zeus-row, clash-ostinato, resolution-hymn), per-cue orchestration with march tempi and beat rides, 842-event deterministic list, continuous beat coverage with resolving closing notes, no dead air
 - [ ] Original SFX (`score/sfx.js`, `mix.js`): footfalls, cloth, swings, impacts, storm beds matched to the choreography tags; voiced-beat ducking with measured floors
 - [ ] Caption rebuild byte-exact (`render-captions.mjs`, VTT match, lattice alignment, per-beat face/impact coverage)
 - [ ] New sound suites plus audit gates (cue coverage, ducking bounds, stem determinism, peak/dynamic-range bounds); Builder self-review notes committed below
