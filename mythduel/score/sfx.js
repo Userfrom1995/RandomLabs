@@ -1,16 +1,15 @@
 // Mythduel SFX bed (Phase 4): procedural foley, no samples.
 // Maps every duel.json sfx tag to a deterministic generator event, then
 // renders each event to samples offline. All randomness comes from the
-// per-event seeded rng (score seed + beat + tag), so the bed is
+// per-event seeded rng (score seed + beat + tag + occurrence index), so the
 // byte-reproducible and scrub-exact. Stylized where honest: the skyburst is
 // layered weather, never a quoted thunder sample; the b07 held beat keeps
 // its scripted hush (silence-hold maps to null, honestly empty).
 import { mulberry32, hashSeed } from '../engine/rng.js';
 import { frameTime } from '../engine/frames.js';
 
-export const SFX_VERSION = 'mythduel-sfx/1';
+export const SFX_VERSION = 'mythduel-sfx/2';
 export const SFX_SEED = 'mythduel-470-phase4';
-export const SFX_SAMPLE_RATE = 22050;
 
 export const SFX_NAMES = [
   'surfWash', 'clothFlutter', 'gravelSteps', 'haftSwing', 'shaftBlock',
@@ -50,9 +49,15 @@ export function tagRecipe(tag) {
 }
 
 // Build the deterministic SFX event list for a timeline.
-// Event: { beat, tag, gen, t, dur, gain, f, count, cutoff, lfo }.
+// Event: { beat, tag, gen, t, dur, gain, count, n } where n is the
+// zero-based occurrence index of this (beat, tag) pair. Duel beats repeat
+// tags within a beat (b02 footfall-gravel x2, b04 throw-whoosh x2 and
+// catch-thud x2, b05 impact-body x2); without n the two events would share
+// one RNG seed and render identical noise summed coherently (+6 dB).
+// count carries the generator recipe (impulses/footfalls per event).
 export function buildSfxEvents(tl) {
   const events = [];
+  const seen = new Map();
   for (const beat of tl.beats) {
     for (const tag of beat.sfx || []) {
       const recipe = tagRecipe(tag);
@@ -60,6 +65,9 @@ export function buildSfxEvents(tl) {
       const dur = (recipe.place[1] - recipe.place[0]) * beat.dur;
       if (dur <= 0.05) continue;
       const t = frameTime(beat.start + recipe.place[0] * beat.dur);
+      const key = beat.id + '|' + tag;
+      const n = seen.get(key) || 0;
+      seen.set(key, n + 1);
       events.push({
         beat: beat.id,
         tag,
@@ -67,19 +75,17 @@ export function buildSfxEvents(tl) {
         t, // frameTime output verbatim (see orchestra.js): never re-round.
         dur: Math.round(dur * 1000000) / 1000000,
         gain: recipe.gain,
-        f: recipe.f || 0,
         count: recipe.count || 0,
-        cutoff: recipe.cutoff || 0,
-        lfo: recipe.lfo || 0,
+        n,
       });
     }
   }
-  events.sort((a, b) => (a.t - b.t) || (a.tag < b.tag ? -1 : 1));
+  events.sort((a, b) => (a.t - b.t) || (a.tag < b.tag ? -1 : 1) || (a.n - b.n));
   return events;
 }
 
 function sfxRng(ev) {
-  return mulberry32(hashSeed(SFX_SEED + '|sfx|' + ev.beat + '|' + ev.tag));
+  return mulberry32(hashSeed(SFX_SEED + '|sfx|' + ev.beat + '|' + ev.tag + '|' + (ev.n || 0)));
 }
 
 function noiseBuf(rng, n) {
