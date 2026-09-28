@@ -1,4 +1,4 @@
-// Mythduel player: deterministic duel stage (Phase 3: combat craft).
+// Mythduel player: deterministic duel stage (Phase 4: original score).
 //
 // Plays story/duel.json as a scrub-exact canvas duel: every rendered instant
 // is quantized through frameTime() first, so pause, seek, chapters, and the
@@ -7,14 +7,18 @@
 // acting.js, faces.js: proportion bodies, gripping hands, gaze/blink/brows,
 // effort mouths, exertion tremor, wound marks, wind-driven cloth/hair,
 // impact particles anchored to the geography) with feet on the arena ground
-// line, ink-boil jitter and paper grain from the seeded RNG. Real controls
-// only: play/pause, seek, chapters, captions toggle, fullscreen. Volume and
-// trailer arrive with the score and premiere phases; no dead controls.
+// line, ink-boil jitter and paper grain from the seeded RNG. The original
+// score performs live (score/live-audio.js: same rows, lines, and
+// cue-opening phrases as the offline WAV master) with volume and mute.
+// Real controls only: play/pause, seek, chapters, captions toggle,
+// fullscreen, volume, mute. Trailer arrives with the premiere phase;
+// no dead controls.
 import { buildTimeline, beatAt, chapterAt, captionAt, formatTime } from '../engine/timeline.js';
 import { frameTime } from '../engine/frames.js';
 import { grainFlecks } from '../engine/paper.js';
 import { paintArena, STAGE_W, STAGE_H } from '../engine/arena.js';
 import { paintFighterRig, paintWeaponFlight, weaponFlight, paintImpactParticles } from '../engine/fighters.js';
+import { createPerformer } from '../score/live-audio.js';
 import { paintGallery } from './gallery.js';
 
 function lerp(a, b, t) {
@@ -79,12 +83,15 @@ export async function bootPlayer() {
     const state = {
       tl, board, playing: false, lastWall: 0, t: 0,
       captionsOn: true, reduced: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+      audio: createPerformer(), cueBeat: null,
     };
     const seek = document.getElementById('seek');
     const btnPlay = document.getElementById('btnPlay');
     const btnRestart = document.getElementById('btnRestart');
     const btnCaption = document.getElementById('btnCaption');
     const btnFull = document.getElementById('btnFull');
+    const vol = document.getElementById('vol');
+    const btnMute = document.getElementById('btnMute');
     const tCur = document.getElementById('tCur');
     const tDur = document.getElementById('tDur');
     const beatMenu = document.getElementById('beatMenu');
@@ -125,6 +132,11 @@ export async function bootPlayer() {
       const { beat, local } = paintStage(ctx, tl, board, q);
       const beatPos = tl.beats.findIndex((x) => x.id === beat.id) + 1;
       beatTitle.textContent = 'Beat ' + beatPos + ' of ' + tl.beats.length + ' - ' + beat.title;
+      // The live score follows the stage beat: same cue map as the WAV master.
+      if (state.cueBeat !== beat.id) {
+        state.cueBeat = beat.id;
+        try { state.audio.setCue(beat.music, beat, beatPos - 1); } catch { /* silent stage without audio */ }
+      }
       const cap = captionAt(beat, local);
       // The caption band is never empty while captions are on: silent action
       // gaps name the beat so the first paint (t=0) already carries a line.
@@ -147,6 +159,7 @@ export async function bootPlayer() {
             state.t = tl.total - 0.001;
             state.playing = false;
             btnPlay.textContent = '▶';
+            state.audio.stop();
             if (bigPlay) bigPlay.hidden = false;
           }
         } else if (!state.tickLogged) {
@@ -163,6 +176,10 @@ export async function bootPlayer() {
       state.lastWall = 0;
       btnPlay.textContent = state.playing ? '⏸' : '▶';
       if (bigPlay) bigPlay.hidden = state.playing;
+      try {
+        if (state.playing) { state.audio.unlock(); state.audio.start(); }
+        else state.audio.stop();
+      } catch { /* silent stage without audio */ }
     });
     if (bigPlay) bigPlay.addEventListener('click', () => btnPlay.click());
     btnRestart.addEventListener('click', () => setT(0));
@@ -176,6 +193,22 @@ export async function bootPlayer() {
       const wrap = document.getElementById('stageWrap');
       if (document.fullscreenElement) document.exitFullscreen();
       else if (wrap.requestFullscreen) wrap.requestFullscreen();
+    });
+    // Volume and mute drive the live score performer for real.
+    if (!state.audio.audioAvailable()) {
+      if (vol) vol.disabled = true;
+      if (btnMute) btnMute.disabled = true;
+    }
+    if (vol) vol.addEventListener('input', () => {
+      try { state.audio.unlock(); state.audio.setVolume(parseFloat(vol.value)); } catch { /* no audio */ }
+    });
+    if (btnMute) btnMute.addEventListener('click', () => {
+      try {
+        state.audio.unlock();
+        state.audio.setMuted(!state.audio.isMuted());
+        btnMute.setAttribute('aria-pressed', String(state.audio.isMuted()));
+        btnMute.textContent = state.audio.isMuted() ? '🔇' : '🔊';
+      } catch { /* no audio */ }
     });
     document.addEventListener('keydown', (e) => {
       if (e.target.matches('input,textarea')) return;
