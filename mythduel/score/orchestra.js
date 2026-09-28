@@ -63,6 +63,9 @@ export function orchestrate(beat) {
   if (!beat || !beat.music || typeof beat.music.cue !== 'string') {
     throw new Error('beat.music.cue must be a non-empty string');
   }
+  if (!Number.isFinite(beat.dur) || beat.dur <= 0) {
+    throw new Error('beat.dur must be a positive finite number');
+  }
   const m = motifFor(beat.music);
   const tempo = TEMPO[beat.music.cue] || 72;
   const beatSec = 60 / Math.max(30, tempo);
