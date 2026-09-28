@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" role="img" aria-label="Thor original model sheet">
+<title>THOR - original model sheet (7.0 heads)</title>
+<rect width="900" height="520" fill="#f2ecdc"/>
+<g font-family="sans-serif" font-size="16" fill="#232a36">
+<text x="20" y="30">THOR, storm-bringer of the north - original design - 7.0 heads</text>
+</g>
+<!-- head-unit grid left -->
+<g stroke="#b9b2a0" stroke-width="1">
+<line x1="40" y1="60" x2="240" y2="60"/><line x1="40" y1="110" x2="240" y2="110"/><line x1="40" y1="160" x2="240" y2="160"/><line x1="40" y1="210" x2="240" y2="210"/><line x1="40" y1="260" x2="240" y2="260"/><line x1="40" y1="310" x2="240" y2="310"/><line x1="40" y1="360" x2="240" y2="360"/><line x1="40" y1="410" x2="240" y2="410"/>
+</g>
+<!-- front figure: broad brawler -->
+<g>
+<ellipse cx="140" cy="85" rx="26" ry="25" fill="#e4d7bd" stroke="#232a36" stroke-width="3"/>
+<rect x="118" y="100" width="44" height="30" rx="8" fill="#8a5a3c" stroke="#232a36" stroke-width="3"/>
+<rect x="80" y="130" width="120" height="90" rx="14" fill="#3d4c63" stroke="#232a36" stroke-width="3"/>
+<rect x="70" y="135" width="26" height="80" rx="10" fill="#3d4c63" stroke="#232a36" stroke-width="3"/>
+<rect x="174" y="135" width="26" height="80" rx="10" fill="#3d4c63" stroke="#232a36" stroke-width="3"/>
+<rect x="60" y="140" width="160" height="46" rx="8" fill="#a03c2e" stroke="#232a36" stroke-width="3"/>
+<rect x="95" y="220" width="34" height="150" rx="10" fill="#2a2f38" stroke="#232a36" stroke-width="3"/>
+<rect x="151" y="220" width="34" height="150" rx="10" fill="#2a2f38" stroke="#232a36" stroke-width="3"/>
+<rect x="150" y="120" width="14" height="120" fill="#8a5a3c" stroke="#232a36" stroke-width="2"/>
+<circle cx="157" cy="245" r="6" fill="none" stroke="#232a36" stroke-width="2"/>
+<rect x="88" y="370" width="48" height="22" rx="6" fill="#2a2f38" stroke="#232a36" stroke-width="3"/>
+<rect x="144" y="370" width="48" height="22" rx="6" fill="#2a2f38" stroke="#232a36" stroke-width="3"/>
+</g>
+<!-- side figure -->
+<g>
+<ellipse cx="360" cy="85" rx="24" ry="25" fill="#e4d7bd" stroke="#232a36" stroke-width="3"/>
+<path d="M372 95 Q 400 160 392 240" stroke="#8a5a3c" stroke-width="16" fill="none" stroke-linecap="round"/>
+<circle cx="392" cy="245" r="8" fill="none" stroke="#232a36" stroke-width="3"/>
+<rect x="320" y="130" width="80" height="90" rx="14" fill="#3d4c63" stroke="#232a36" stroke-width="3"/>
+<rect x="300" y="140" width="120" height="44" rx="8" fill="#a03c2e" stroke="#232a36" stroke-width="3"/>
+<rect x="330" y="220" width="34" height="150" rx="10" fill="#2a2f38" stroke="#232a36" stroke-width="3"/>
+<rect x="323" y="370" width="48" height="22" rx="6" fill="#2a2f38" stroke="#232a36" stroke-width="3"/>
+</g>
+<!-- haft weapon + effort faces -->
+<g>
+<rect x="500" y="90" width="14" height="230" fill="#6b4a2e" stroke="#232a36" stroke-width="3"/>
+<rect x="478" y="70" width="58" height="34" rx="6" fill="#4a4f59" stroke="#232a36" stroke-width="3"/>
+<text x="500" y="350" font-family="sans-serif" font-size="15" fill="#232a36">hafra haft 3.2 heads</text>
+<circle cx="620" cy="110" r="24" fill="#e4d7bd" stroke="#232a36" stroke-width="3"/>
+<path d="M608 104 L632 104" stroke="#232a36" stroke-width="3"/>
+<path d="M610 122 Q620 128 630 122" stroke="#232a36" stroke-width="3" fill="none"/>
+<circle cx="690" cy="110" r="24" fill="#e4d7bd" stroke="#232a36" stroke-width="3"/>
+<path d="M678 100 L702 100" stroke="#232a36" stroke-width="4"/>
+<path d="M682 122 L698 122" stroke="#232a36" stroke-width="4"/>
+<text x="600" y="160" font-family="sans-serif" font-size="15" fill="#232a36">set gaze / effort grimace</text>
+<text x="500" y="420" font-family="sans-serif" font-size="15" fill="#232a36">palette: slate #3d4c63 rust #a03c2e bone #e4d7bd iron #2a2f38</text>
+<text x="500" y="450" font-family="sans-serif" font-size="15" fill="#232a36">shoulders 2.1 heads - braid 2.4 heads w/ iron ring - beard 1.2 heads</text>
+</g>
+</svg>
