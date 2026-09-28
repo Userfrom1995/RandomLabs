@@ -58,11 +58,19 @@ export function livePhrasesForStep(ln, step) {
   return [{ phrase, span, delayBeats: 0, isLast: phrase === span - 1 }];
 }
 
+// Live head frequency for the frame drum: mirrors voices.js renderDrum
+// (freq/2 clamped to [45, 140]). Exported for the regression suite so the
+// live-vs-offline parity is asserted without an AudioContext.
+export function liveDrumFreq(freq) {
+  return Math.max(45, Math.min(140, freq / 2));
+}
+
 export function createPerformer() {
   let ctx = null;
   let master = null;
   let windGain = null;
   let noiseBuf = null;
+  let stormSrc = null;
   let timer = null;
   let step = 0;
   let current = { motif: 'thor-row', family: 'thor-row', beatId: '', bi: 0, tempo: 60, cue: '', lines: [FALLBACK_LINE], beat: 1, wind: 0, duck: [] };
@@ -72,6 +80,7 @@ export function createPerformer() {
 
   function ensure() {
     if (ctx) return true;
+    if (typeof window === 'undefined') return false;
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return false;
     ctx = new AC();
@@ -90,6 +99,7 @@ export function createPerformer() {
     const src = ctx.createBufferSource();
     src.buffer = noiseBuf;
     src.loop = true;
+    stormSrc = src;
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';
     lp.frequency.value = 900;
@@ -107,6 +117,21 @@ export function createPerformer() {
     g.gain.exponentialRampToValueAtTime(Math.max(0.001, peak * 0.6), t0 + attack + decay);
     g.gain.exponentialRampToValueAtTime(0.001, t0 + Math.max(attack + decay + 0.02, dur));
     return g;
+  }
+
+  // Release per-note nodes once they finish: prevents unbounded growth of
+  // live AudioNode graphs over a full watch-through. Safe under stubs.
+  function release(src, ...rest) {
+    const all = [src, ...rest];
+    try {
+      src.onended = () => {
+        for (const n of all) {
+          try {
+            if (n && typeof n.disconnect === 'function') n.disconnect();
+          } catch { /* already collected */ }
+        }
+      };
+    } catch { /* stub contexts without onended */ }
   }
 
   function playVoice(voice, freq, dur, peak, delaySec = 0) {
@@ -129,8 +154,10 @@ export function createPerformer() {
         const g2 = adsrGain(t0, peak * 0.6, 0.4, dur * 0.4, dur);
         osc2.connect(g2); g2.connect(master);
         osc2.start(t0); osc2.stop(t0 + dur + 0.1);
+        release(osc2, g2);
       }
       osc.start(t0); osc.stop(t0 + dur + 0.1);
+      release(osc, g);
     } else if (voice === 'pluck') {
       const osc = ctx.createOscillator();
       osc.type = 'triangle';
@@ -140,6 +167,7 @@ export function createPerformer() {
       g.gain.exponentialRampToValueAtTime(0.001, t0 + Math.max(0.4, dur));
       osc.connect(g); g.connect(master);
       osc.start(t0); osc.stop(t0 + Math.max(0.5, dur));
+      release(osc, g);
     } else if (voice === 'bronze') {
       for (const [ratio, amp] of [[1, 1], [2.71, 0.35]]) {
         const osc = ctx.createOscillator();
@@ -150,17 +178,23 @@ export function createPerformer() {
         g.gain.exponentialRampToValueAtTime(0.001, t0 + Math.max(0.8, dur * 2));
         osc.connect(g); g.connect(master);
         osc.start(t0); osc.stop(t0 + Math.max(0.9, dur * 2));
+        release(osc, g);
       }
     } else if (voice === 'drum') {
       const osc = ctx.createOscillator();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(Math.max(45, freq), t0);
-      osc.frequency.exponentialRampToValueAtTime(Math.max(40, freq * 0.6), t0 + 0.25);
+      // Same octave/clamp as the offline master (voices.js renderDrum):
+      // the event pitch arrives an octave high and the head sounds at
+      // freq/2 clamped to [45, 140].
+      const f0 = Math.max(45, Math.min(140, freq / 2));
+      osc.frequency.setValueAtTime(f0, t0);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(40, f0 * 0.6), t0 + 0.25);
       const g = ctx.createGain();
       g.gain.setValueAtTime(peak, t0);
       g.gain.exponentialRampToValueAtTime(0.001, t0 + Math.max(0.3, dur));
       osc.connect(g); g.connect(master);
       osc.start(t0); osc.stop(t0 + Math.max(0.4, dur));
+      release(osc, g);
     } else if (voice === 'shaker') {
       const src = ctx.createBufferSource();
       src.buffer = noiseBuf;
@@ -171,12 +205,22 @@ export function createPerformer() {
       const g = adsrGain(t0, peak * 0.7, 0.005, 0.04, 0.09);
       src.connect(hp); hp.connect(g); g.connect(master);
       src.start(t0); src.stop(t0 + 0.15);
+      release(src, hp, g);
     }
   }
 
   function scheduleStep() {
     if (!playing || !ctx) return;
     const beat = current.beat;
+    // Live-room presence lift for the weapon-beat horn calls
+    // (storm-answers, thrown-sky, first-clash): small speakers need the
+    // extra bite. Intentionally live-only: the offline WAV master carries
+    // the exact mix with no bright boost, so the committed master is the
+    // fixed record and the theatre is the louder room.
+    // Live bus balance note: the offline master applies SCORE_BUS/SFX_BUS
+    // plus per-beat BEAT_RIDES at mix time (mix.js). The live performer
+    // balances through the same duck envelopes and the master volume
+    // instead, so rides are not re-applied per note here.
     const bright = /storm-answers|thrown-sky|first-clash/.test(current.cue || '');
     // Wall-clock position inside the cue, for voiced-line-first ducking:
     // notes that start on a spoken line play at the same floor the WAV
@@ -225,7 +269,7 @@ export function createPerformer() {
           const spec = orchestrate({ ...beat, music });
           lines = spec.lines;
           beatSec = spec.beat;
-        } catch { lines = [FALLBACK_LINE]; }
+        } catch (err) { console.warn('mythduel: orchestrate failed, fallback line', err); lines = [FALLBACK_LINE]; }
       }
       const next = {
         motif: m.name, family: m.name,
@@ -258,11 +302,33 @@ export function createPerformer() {
       if (timer) { clearTimeout(timer); timer = null; }
       if (ctx && windGain) windGain.gain.setTargetAtTime(0, ctx.currentTime, 0.2);
     },
+    // Full teardown: stops the looping storm-bed source and closes the
+    // context. stop() pauses scheduling and ducks the bed; dispose()
+    // releases the shared graph (call on page hide/unmount).
+    dispose() {
+      playing = false;
+      if (timer) { clearTimeout(timer); timer = null; }
+      try {
+        if (stormSrc && typeof stormSrc.stop === 'function') stormSrc.stop();
+      } catch { /* already stopped */ }
+      try {
+        if (stormSrc && typeof stormSrc.disconnect === 'function') stormSrc.disconnect();
+      } catch { /* already collected */ }
+      stormSrc = null;
+      const c = ctx;
+      ctx = null; master = null; windGain = null; noiseBuf = null;
+      try {
+        if (c && typeof c.close === 'function') c.close();
+      } catch { /* stub contexts without close */ }
+    },
     setVolume(v) { volume = Math.min(1, Math.max(0, v)); if (master && !muted) master.gain.value = volume; },
     setMuted(m) { muted = !!m; if (master) master.gain.value = muted ? 0 : volume; },
     getVolume() { return volume; },
     isMuted() { return muted; },
     isPlaying() { return playing; },
-    audioAvailable() { return !!(window.AudioContext || window.webkitAudioContext); },
+    audioAvailable() {
+      if (typeof window === 'undefined') return false;
+      return !!(window.AudioContext || window.webkitAudioContext);
+    },
   };
 }

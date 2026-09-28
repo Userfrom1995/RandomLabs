@@ -135,7 +135,7 @@ export async function bootPlayer() {
       // The live score follows the stage beat: same cue map as the WAV master.
       if (state.cueBeat !== beat.id) {
         state.cueBeat = beat.id;
-        try { state.audio.setCue(beat.music, beat, beatPos - 1); } catch { /* silent stage without audio */ }
+        try { state.audio.setCue(beat.music, beat, beatPos - 1); } catch (err) { console.warn('mythduel: setCue failed, silent stage', err); }
       }
       const cap = captionAt(beat, local);
       // The caption band is never empty while captions are on: silent action
@@ -179,7 +179,7 @@ export async function bootPlayer() {
       try {
         if (state.playing) { state.audio.unlock(); state.audio.start(); }
         else state.audio.stop();
-      } catch { /* silent stage without audio */ }
+      } catch (err) { console.warn('mythduel: audio transport failed', err); }
     });
     if (bigPlay) bigPlay.addEventListener('click', () => btnPlay.click());
     btnRestart.addEventListener('click', () => setT(0));
@@ -200,7 +200,7 @@ export async function bootPlayer() {
       if (btnMute) btnMute.disabled = true;
     }
     if (vol) vol.addEventListener('input', () => {
-      try { state.audio.unlock(); state.audio.setVolume(parseFloat(vol.value)); } catch { /* no audio */ }
+      try { state.audio.unlock(); state.audio.setVolume(parseFloat(vol.value)); } catch (err) { console.warn('mythduel: volume failed', err); }
     });
     if (btnMute) btnMute.addEventListener('click', () => {
       try {
@@ -208,7 +208,7 @@ export async function bootPlayer() {
         state.audio.setMuted(!state.audio.isMuted());
         btnMute.setAttribute('aria-pressed', String(state.audio.isMuted()));
         btnMute.textContent = state.audio.isMuted() ? '🔇' : '🔊';
-      } catch { /* no audio */ }
+      } catch (err) { console.warn('mythduel: mute failed', err); }
     });
     document.addEventListener('keydown', (e) => {
       if (e.target.matches('input,textarea')) return;
