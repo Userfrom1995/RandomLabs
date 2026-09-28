@@ -1,1 +1,486 @@
-{"format": "mythduel-storyboard/1", "seed": "mythduel-470-phase1", "panels": [{"beat": "b01", "title": "Terms Spoken", "keyPoses": ["Wide storm-crag vista: sea-cliffs west, pale marble east, two small figures at opposite marks. Slow push in as Thor plants the haft."], "comp": "wide / slow-push", "palette": {"ink": "#232a36", "thor": "#a03c2e", "zeus": "#2e5f8a", "sky": "#4a5468", "wash": "#8a93a8"}, "heroTime": 8}, {"beat": "b02", "title": "Ranging Wind", "keyPoses": ["Medium wide: both fighters circling, cloaks lifting in cross-gust. Lateral track keeps both in frame."], "comp": "medium-wide / lateral-track", "palette": {"ink": "#232a36", "thor": "#a03c2e", "zeus": "#2e5f8a", "sky": "#3f4a5e", "wash": "#8a93a8"}, "heroTime": 28}, {"beat": "b03", "title": "First Exchange", "keyPoses": ["Medium: Thor overhead swing at apex; Zeus shaft high-block; spark-spray at the crossing point."], "comp": "medium / push-in", "palette": {"ink": "#1f2530", "thor": "#a03c2e", "zeus": "#a8762e", "sky": "#39424f", "wash": "#7d8496"}, "heroTime": 46}, {"beat": "b04", "title": "Thrown Weapons", "keyPoses": ["Wide: haft and shaft crossing mid-sky over the crag, both fighters bare-handed below, sky-crack forking."], "comp": "wide / whip-pan", "palette": {"ink": "#1f2530", "thor": "#e4d7bd", "zeus": "#ece7da", "sky": "#2f3a4c", "wash": "#6f7a8f"}, "heroTime": 69}, {"beat": "b05", "title": "Body Blows", "keyPoses": ["Medium-close clinch: shoulder to shoulder, Zeus taking a knee, dropped shaft on the rock."], "comp": "medium-close / handheld-tight", "palette": {"ink": "#241f18", "thor": "#a03c2e", "zeus": "#565b66", "sky": "#33302a", "wash": "#6f6a5e"}, "heroTime": 94}, {"beat": "b06", "title": "The Storm's Answer", "keyPoses": ["Extreme wide crane-up: skyburst over the crag, two figures back to back at center, rain walls."], "comp": "extreme-wide / crane-up", "palette": {"ink": "#1a1e28", "thor": "#3d4c63", "zeus": "#565b66", "sky": "#232936", "wash": "#5b6878"}, "heroTime": 116}, {"beat": "b07", "title": "The Final Exchange", "keyPoses": ["Close two-shot: shaft held at Thor's brow, unstriking; four-second held silence."], "comp": "close-two-shot / slow-push", "palette": {"ink": "#201d18", "thor": "#e4d7bd", "zeus": "#ece7da", "sky": "#3a3630", "wash": "#7a7466"}, "heroTime": 142}, {"beat": "b08", "title": "Loosing the Storm", "keyPoses": ["Vast wide pull-back: both fighters open-handed, storm streaming east out to sea, first clear light."], "comp": "vast-wide / pull-back", "palette": {"ink": "#232a36", "thor": "#3d4c63", "zeus": "#2e5f8a", "sky": "#5e7089", "wash": "#a8b2c2"}, "heroTime": 161}]}
+{
+ "format": "mythduel-storyboard/1",
+ "seed": "mythduel-470-phase1",
+ "panels": [
+  {
+   "beat": "b01",
+   "title": "Terms Spoken",
+   "keyPoses": [
+    "Wide storm-crag vista: sea-cliffs west, pale marble east, two small figures at opposite marks. Slow push in as Thor plants the haft."
+   ],
+   "comp": "wide / slow-push",
+   "palette": {
+    "ink": "#232a36",
+    "thor": "#a03c2e",
+    "zeus": "#2e5f8a",
+    "sky": "#4a5468",
+    "wash": "#8a93a8"
+   },
+   "heroTime": 8,
+   "shot": "b01-hero",
+   "hero": true,
+   "heroLocal": 8,
+   "shots": [
+    {
+     "id": "b01-establish",
+     "t": 1.0,
+     "framing": "wide",
+     "action": "Storm-crag vista: sea-cliffs west, pale marble east, two small figures at opposite marks.",
+     "camera": "slow-push",
+     "voiced": "THOR"
+    },
+    {
+     "id": "b01-terms",
+     "t": 8.0,
+     "framing": "wide",
+     "action": "Thor plants the haft and speaks the terms; Zeus answers across the crag.",
+     "camera": "slow-push",
+     "voiced": "ZEUS"
+    },
+    {
+     "id": "b01-marks",
+     "t": 14.0,
+     "framing": "medium two-shot",
+     "action": "Both fighters settle to their marks, weapons grounded, storm gathering.",
+     "camera": "hold",
+     "voiced": "THOR"
+    }
+   ],
+   "entry": {
+    "thorPos": "west-mark",
+    "thorWeapon": "haft-grounded",
+    "zeusPos": "east-mark",
+    "zeusWeapon": "shaft-grounded",
+    "storm": 1
+   },
+   "exit": {
+    "thorPos": "west-mark",
+    "thorWeapon": "haft-grounded",
+    "zeusPos": "east-mark",
+    "zeusWeapon": "shaft-grounded",
+    "storm": 1
+   },
+   "cause": "opening: the free storm gathers; both storm-lords meet by challenged consent"
+  },
+  {
+   "beat": "b02",
+   "title": "Ranging Wind",
+   "keyPoses": [
+    "Medium wide: both fighters circling, cloaks lifting in cross-gust. Lateral track keeps both in frame."
+   ],
+   "comp": "medium-wide / lateral-track",
+   "palette": {
+    "ink": "#232a36",
+    "thor": "#a03c2e",
+    "zeus": "#2e5f8a",
+    "sky": "#3f4a5e",
+    "wash": "#8a93a8"
+   },
+   "heroTime": 28,
+   "shot": "b02-hero",
+   "hero": true,
+   "heroLocal": 10,
+   "shots": [
+    {
+     "id": "b02-circle",
+     "t": 2.0,
+     "framing": "medium wide",
+     "action": "Both fighters circle, cloaks lifting in the cross-gust.",
+     "camera": "lateral-track",
+     "voiced": "ZEUS"
+    },
+    {
+     "id": "b02-feint",
+     "t": 10.0,
+     "framing": "medium wide",
+     "action": "Feint and answer: Thor tests with the shoulder, Zeus reads the lead foot.",
+     "camera": "lateral-track",
+     "voiced": null
+    },
+    {
+     "id": "b02-read",
+     "t": 17.0,
+     "framing": "medium",
+     "action": "Weapons rise; each has read the other and the ranging ends.",
+     "camera": "push-in",
+     "voiced": "THOR"
+    }
+   ],
+   "entry": {
+    "thorPos": "west-mark",
+    "thorWeapon": "haft-grounded",
+    "zeusPos": "east-mark",
+    "zeusWeapon": "shaft-grounded",
+    "storm": 1
+   },
+   "exit": {
+    "thorPos": "center-west",
+    "thorWeapon": "haft-raised",
+    "zeusPos": "center-east",
+    "zeusWeapon": "shaft-raised",
+    "storm": 2
+   },
+   "cause": "b01 exit: weapons rise as circling begins"
+  },
+  {
+   "beat": "b03",
+   "title": "First Exchange",
+   "keyPoses": [
+    "Medium: Thor overhead swing at apex; Zeus shaft high-block; spark-spray at the crossing point."
+   ],
+   "comp": "medium / push-in",
+   "palette": {
+    "ink": "#1f2530",
+    "thor": "#a03c2e",
+    "zeus": "#a8762e",
+    "sky": "#39424f",
+    "wash": "#7d8496"
+   },
+   "heroTime": 46,
+   "shot": "b03-hero",
+   "hero": true,
+   "heroLocal": 6,
+   "shots": [
+    {
+     "id": "b03-advance",
+     "t": 1.0,
+     "framing": "medium",
+     "action": "Thor advances from circling range, haft rising overhead.",
+     "camera": "push-in",
+     "voiced": "THOR"
+    },
+    {
+     "id": "b03-apex",
+     "t": 6.0,
+     "framing": "medium",
+     "action": "Apex: Thor overhead swing meets the raised shaft-block; spark-spray at the crossing.",
+     "camera": "push-in",
+     "voiced": null
+    },
+    {
+     "id": "b03-cost",
+     "t": 14.0,
+     "framing": "medium",
+     "action": "Thor overextends half a step; Zeus names the honest swing.",
+     "camera": "hold",
+     "voiced": "ZEUS"
+    }
+   ],
+   "entry": {
+    "thorPos": "center-west",
+    "thorWeapon": "haft-raised",
+    "zeusPos": "center-east",
+    "zeusWeapon": "shaft-raised",
+    "storm": 2
+   },
+   "exit": {
+    "thorPos": "center",
+    "thorWeapon": "haft-low",
+    "zeusPos": "center-east",
+    "zeusWeapon": "shaft-high",
+    "storm": 2
+   },
+   "cause": "b02 exit: Thor commits first from circling range"
+  },
+  {
+   "beat": "b04",
+   "title": "Thrown Weapons",
+   "keyPoses": [
+    "Wide: haft and shaft crossing mid-sky over the crag, both fighters bare-handed below, sky-crack forking."
+   ],
+   "comp": "wide / whip-pan",
+   "palette": {
+    "ink": "#1f2530",
+    "thor": "#e4d7bd",
+    "zeus": "#ece7da",
+    "sky": "#2f3a4c",
+    "wash": "#6f7a8f"
+   },
+   "heroTime": 69,
+   "shot": "b04-hero",
+   "hero": true,
+   "heroLocal": 9,
+   "shots": [
+    {
+     "id": "b04-wager",
+     "t": 1.0,
+     "framing": "wide",
+     "action": "The throwing wager spoken: both fighters heft their weapons to the sky.",
+     "camera": "whip-pan",
+     "voiced": "ZEUS"
+    },
+    {
+     "id": "b04-crossing",
+     "t": 9.0,
+     "framing": "wide",
+     "action": "Haft and shaft cross mid-sky over the crag, sky-crack forking between them.",
+     "camera": "whip-pan",
+     "voiced": null
+    },
+    {
+     "id": "b04-catch",
+     "t": 16.0,
+     "framing": "medium wide",
+     "action": "Both catch clean; neither strikes the bare-handed foe.",
+     "camera": "settle",
+     "voiced": "THOR"
+    }
+   ],
+   "entry": {
+    "thorPos": "center",
+    "thorWeapon": "haft-low",
+    "zeusPos": "center-east",
+    "zeusWeapon": "shaft-high",
+    "storm": 2
+   },
+   "exit": {
+    "thorPos": "center-west",
+    "thorWeapon": "haft-gripped",
+    "zeusPos": "center-east",
+    "zeusWeapon": "shaft-gripped",
+    "storm": 3
+   },
+   "cause": "b03 exit: mutual respect after the blocked swing escalates to the throwing wager"
+  },
+  {
+   "beat": "b05",
+   "title": "Body Blows",
+   "keyPoses": [
+    "Medium-close clinch: shoulder to shoulder, Zeus taking a knee, dropped shaft on the rock."
+   ],
+   "comp": "medium-close / handheld-tight",
+   "palette": {
+    "ink": "#241f18",
+    "thor": "#a03c2e",
+    "zeus": "#565b66",
+    "sky": "#33302a",
+    "wash": "#6f6a5e"
+   },
+   "heroTime": 94,
+   "shot": "b05-hero",
+   "hero": true,
+   "heroLocal": 12,
+   "shots": [
+    {
+     "id": "b05-clinch",
+     "t": 3.0,
+     "framing": "medium-close",
+     "action": "Shoulder to shoulder: the clinch closes, traded body blows.",
+     "camera": "handheld-tight",
+     "voiced": "THOR"
+    },
+    {
+     "id": "b05-knee",
+     "t": 12.0,
+     "framing": "medium-close",
+     "action": "Zeus takes a knee, the dropped shaft on the rock; Thor split brow, both marked.",
+     "camera": "handheld-tight",
+     "voiced": null
+    },
+    {
+     "id": "b05-rise",
+     "t": 19.0,
+     "framing": "medium",
+     "action": "Zeus rises; the cost is carried, nothing yielded.",
+     "camera": "hold",
+     "voiced": "ZEUS"
+    }
+   ],
+   "entry": {
+    "thorPos": "center-west",
+    "thorWeapon": "haft-gripped",
+    "zeusPos": "center-east",
+    "zeusWeapon": "shaft-gripped",
+    "storm": 3
+   },
+   "exit": {
+    "thorPos": "center",
+    "thorWeapon": "haft-gripped",
+    "zeusPos": "center",
+    "zeusWeapon": "shaft-dropped",
+    "storm": 3
+   },
+   "cause": "b04 exit: weapons recalled, fighters close to clinch range"
+  },
+  {
+   "beat": "b06",
+   "title": "The Storm's Answer",
+   "keyPoses": [
+    "Extreme wide crane-up: skyburst over the crag, two figures back to back at center, rain walls."
+   ],
+   "comp": "extreme-wide / crane-up",
+   "palette": {
+    "ink": "#1a1e28",
+    "thor": "#3d4c63",
+    "zeus": "#565b66",
+    "sky": "#232936",
+    "wash": "#5b6878"
+   },
+   "heroTime": 116,
+   "shot": "b06-hero",
+   "hero": true,
+   "heroLocal": 10,
+   "shots": [
+    {
+     "id": "b06-turn",
+     "t": 1.0,
+     "framing": "extreme wide",
+     "action": "The contested storm breaks over the crag mid-clinch; both turn skyward.",
+     "camera": "crane-up",
+     "voiced": "ZEUS"
+    },
+    {
+     "id": "b06-skyburst",
+     "t": 10.0,
+     "framing": "extreme wide",
+     "action": "Skyburst: rain walls and rockfall, two figures back to back at center.",
+     "camera": "crane-up",
+     "voiced": null
+    },
+    {
+     "id": "b06-brace",
+     "t": 15.0,
+     "framing": "wide",
+     "action": "Braced together, weapons set down; the storm answers no master.",
+     "camera": "hold",
+     "voiced": "THOR"
+    }
+   ],
+   "entry": {
+    "thorPos": "center",
+    "thorWeapon": "haft-gripped",
+    "zeusPos": "center",
+    "zeusWeapon": "shaft-dropped",
+    "storm": 3
+   },
+   "exit": {
+    "thorPos": "center-west",
+    "thorWeapon": "haft-grounded",
+    "zeusPos": "center-east",
+    "zeusWeapon": "shaft-grounded",
+    "storm": 4
+   },
+   "cause": "b05 exit: the contested storm breaks over the crag mid-clinch"
+  },
+  {
+   "beat": "b07",
+   "title": "The Final Exchange",
+   "keyPoses": [
+    "Close two-shot: shaft held at Thor's brow, unstriking; four-second held silence."
+   ],
+   "comp": "close-two-shot / slow-push",
+   "palette": {
+    "ink": "#201d18",
+    "thor": "#e4d7bd",
+    "zeus": "#ece7da",
+    "sky": "#3a3630",
+    "wash": "#7a7466"
+   },
+   "heroTime": 142,
+   "shot": "b07-hero",
+   "hero": true,
+   "heroLocal": 16,
+   "shots": [
+    {
+     "id": "b07-opening",
+     "t": 6.0,
+     "framing": "close two-shot",
+     "action": "Zeus reads the opening at the ribs and earns it cleanly.",
+     "camera": "slow-push",
+     "voiced": "ZEUS"
+    },
+    {
+     "id": "b07-withheld",
+     "t": 16.0,
+     "framing": "close two-shot",
+     "action": "The shaft held at the brow, unstriking: a four-second held silence.",
+     "camera": "slow-push",
+     "voiced": "THOR"
+    },
+    {
+     "id": "b07-debt",
+     "t": 21.0,
+     "framing": "close two-shot",
+     "action": "The withheld blow becomes a debt of mercy neither names aloud.",
+     "camera": "hold",
+     "voiced": null
+    }
+   ],
+   "entry": {
+    "thorPos": "center-west",
+    "thorWeapon": "haft-grounded",
+    "zeusPos": "center-east",
+    "zeusWeapon": "shaft-grounded",
+    "storm": 4
+   },
+   "exit": {
+    "thorPos": "center",
+    "thorWeapon": "haft-lowered",
+    "zeusPos": "center",
+    "zeusWeapon": "shaft-lowered",
+    "storm": 2
+   },
+   "cause": "b06 exit: storm spent, weapons lifted for one last honourable exchange"
+  },
+  {
+   "beat": "b08",
+   "title": "Loosing the Storm",
+   "keyPoses": [
+    "Vast wide pull-back: both fighters open-handed, storm streaming east out to sea, first clear light."
+   ],
+   "comp": "vast-wide / pull-back",
+   "palette": {
+    "ink": "#232a36",
+    "thor": "#3d4c63",
+    "zeus": "#2e5f8a",
+    "sky": "#5e7089",
+    "wash": "#a8b2c2"
+   },
+   "heroTime": 161,
+   "shot": "b08-hero",
+   "hero": true,
+   "heroLocal": 11,
+   "shots": [
+    {
+     "id": "b08-mercy",
+     "t": 1.5,
+     "framing": "vast wide",
+     "action": "The opening spent on mercy: both fighters lower their weapons.",
+     "camera": "pull-back",
+     "voiced": "ZEUS"
+    },
+    {
+     "id": "b08-loosing",
+     "t": 11.0,
+     "framing": "vast wide",
+     "action": "Together they loose the storm east out to sea, open-handed.",
+     "camera": "pull-back",
+     "voiced": null
+    },
+    {
+     "id": "b08-light",
+     "t": 17.0,
+     "framing": "vast wide",
+     "action": "First clear light: both walk to their marks, the sky free.",
+     "camera": "hold",
+     "voiced": "THOR"
+    }
+   ],
+   "entry": {
+    "thorPos": "center",
+    "thorWeapon": "haft-lowered",
+    "zeusPos": "center",
+    "zeusWeapon": "shaft-lowered",
+    "storm": 2
+   },
+   "exit": {
+    "thorPos": "west-mark",
+    "thorWeapon": "haft-grounded",
+    "zeusPos": "east-mark",
+    "zeusWeapon": "shaft-grounded",
+    "storm": 0
+   },
+   "cause": "b07 exit: the withheld blow becomes the resolution"
+  }
+ ]
+}

@@ -24,6 +24,12 @@ export function paintGallery(tl, board) {
     cap.appendChild(title);
     cap.appendChild(meta);
     cap.appendChild(pose);
+    for (const s of p.shots || []) {
+      const shot = document.createElement('span');
+      shot.className = 'board-shot';
+      shot.textContent = formatTime((beat ? beat.start : 0) + s.t) + ' - ' + s.framing + ': ' + s.action;
+      cap.appendChild(shot);
+    }
     card.appendChild(swatch);
     card.appendChild(cap);
     card.addEventListener('click', () => {
