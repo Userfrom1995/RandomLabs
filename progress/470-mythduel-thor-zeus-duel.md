@@ -13,7 +13,7 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 2: Boards, Arena and Animatic Cut (Complete, ready for review)
+- **Active Phase:** Phase 3: Duel Animation and Combat Craft (Complete, ready for review)
 
 ### Phase 1: Original Story and Character Design Foundation (PR 1 target, Refs #470)
 
@@ -34,10 +34,10 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 
 ### Phase 3: Duel Animation and Combat Craft (PR 3 target, Refs #470)
 
-- [ ] Fighter rigs (`engine/fighters.js`, `faces.js`, `acting.js`, `rigs.js`): proportion bodies, FK limbs, gripping hands, gaze/blink/brows/effort mouths, combat beats (advance, strike, block, impact reaction, knockdown, clinch), exertion and weight with ground contact
-- [ ] Hand-drawn motion pass (line boil on inks, cloth/hair secondary motion per beat wind vector, impact particles anchored to painted geography, 24 fps scrub-exact grid preserved)
-- [ ] Fighter close-up cards plus craft tests (model-sheet proportions, effort coverage, turnaround symmetry, 390 px silhouette readability, impact timing, contact honesty)
-- [ ] Builder self-review (measured, not eyeballed: contact float, swing apex, impact-frame alignment) committed below; full suite green
+- [x] Fighter rigs (`engine/rigs.js`, `engine/faces.js`, `engine/acting.js`, `engine/fighters.js`): proportion bodies (Thor 7.0 heads, Zeus 7.4 heads, drift 0.00 percent), FK limbs, gripping hands with per-grip weapon states, gaze/blink/brows/effort mouths, combat beats (advance, strike, block, impact reaction, clinch, knee and rise, weathering, withheld opening, loosing), exertion tremor scaled by fatigue 0-7 with ground contact honest (0.00 px float at hero frames)
+- [x] Hand-drawn motion pass (line boil on every ink segment, cloth/hair secondary motion per beat wind vector, impact particles anchored to painted geography: spark-spray, sky-crossing, body-blow dust, skyburst crown, withheld touch; 24 fps scrub-exact grid preserved, particle budget 24)
+- [x] Fighter close-up cards plus craft tests (`captureFighterCards()` in `tools/capture.mjs`: pose names, contacts, silhouette reads, impact lists; `tests/phase3-combat.mjs`: 41 probes green; model-sheet proportions, effort coverage, turnaround symmetry, 390 px silhouette readability with 3.2 px shoulder gap, impact timing, contact honesty)
+- [x] Builder self-review (measured, not eyeballed: contact float, swing apex, impact-frame alignment) committed below; full suite green
 
 ### Phase 4: Original Score and Battle Sound (PR 4 target, Refs #470)
 
@@ -61,11 +61,35 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 
 ## Current step
 
-Phase 2 complete: four-pass painted arena wired into the theatre, 8 hero
-panels with 24 lattice-aligned shots chained to the duel continuity, 30 s
-trailer skeleton, plates plus new audit gates, full suite green. Ready for
-review (Refs #470); Phase 3 (duel animation and combat craft) is next after
-merge.
+Phase 3 complete: FK fighter rigs with full combat choreography wired into
+the theatre, faces with gaze/blink/brows/effort mouths, wind-driven cloth and
+hair, geography-anchored impact particles, fighter close-up cards, 8 new
+audit gates (40 total), full suite green. Ready for review (Refs #470);
+Phase 4 (original score and battle sound) is next after merge.
+
+## Builder self-review (Phase 3, 2026-09-28)
+
+- Watched the contract, not pixels: contact float measured 0.00 px worst
+  across all 8 hero frames and mid-beat samples (soles on the ground line,
+  lifts only where authored); swing apex at b03 local 6.0 with the impact
+  reaction keyed exactly on 6.5 (lattice-exact, lookup-verified); all 6
+  impacts on the 24 fps lattice and inside their beats; fighter paint headless
+  worst case 306 stub calls with stable reruns (control-flow determinism).
+- Proportions machine-checked: 0.00 percent drift on both sheets (7.0 vs 7.4
+  heads, shoulders 2.1 vs 1.8); turnaround double-mirror exact with hand swap;
+  silhouettes distinct at 390 px (hip ratios 1.35 vs 1.15, 3.2 px shoulder
+  gap); effort curve calm in verse (b01 0.12) and hot at every impact (b03
+  apex 1.0, b06 weathering 0.75); skyburst is the biggest burst (24/24
+  budget); b05 shaft lies on the rock, b04 flights airborne only at the
+  crossing window, b08 loosing open-handed.
+- Craft gap closed in-run: the first fighters.js draft shipped two
+  unterminated color strings (caught by the combat suite import, fixed and
+  re-verified); weaponFlight lived in the wrong module for the test import
+  (moved reference to fighters.js); audit header and fixer-remedies pin
+  updated 32 to 40 gates with the 8 combat gates.
+- Named stand-ins for this phase: silent stage stands in for score/SFX
+  (Phase 4); trailer skeleton is data only, no trailer control rendered
+  (premiere work). No fake controls rendered.
 
 ## Fixer response (Phase 2 Quality Council remedies, 2026-09-28)
 
@@ -124,8 +148,8 @@ merge.
 
 ## Next steps
 
-Reviewer review of Phase 2; then Builder Phase 3: Duel Animation and Combat
-Craft on a new phase branch after merge.
+Reviewer review of Phase 3; then Builder Phase 4: Original Score and Battle
+Sound on a new phase branch after merge.
 
 ## Team Note
 
