@@ -59,6 +59,20 @@ canvas#stage { display: block; width: 100%; aspect-ratio: 16 / 9; height: auto; 
 .design-row figcaption { padding: 8px 12px; color: var(--muted); font-size: 0.86rem; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 @media (max-width: 480px) {
+  .masthead { padding: 32px 16px 20px; }
   .masthead h1 { font-size: 1.7rem; }
-  .transport { gap: 6px; }
+  .transport { gap: 8px; flex-direction: column; align-items: stretch; }
+  .scrub { flex-basis: auto; }
+  .big-play { width: 56px; height: 56px; font-size: 1.4rem; }
+  .chapter-group button { margin: 0 6px 6px 0; padding: 8px 10px; }
+  .caption-line { font-size: 0.92rem; }
+  main { padding: 16px 12px 56px; }
+}
+@media (max-width: 390px) {
+  .masthead h1 { font-size: 1.45rem; }
+  .transport { gap: 6px; padding: 8px 10px; }
+  .transport button { padding: 8px 10px; font-size: 0.88rem; }
+  .big-play { width: 48px; height: 48px; font-size: 1.2rem; }
+  .beat-title { font-size: 0.88rem; }
+  .gallery-grid { grid-template-columns: 1fr; }
 }
