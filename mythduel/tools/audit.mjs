@@ -1,4 +1,4 @@
-// Mythduel audit: enforces the 56 binding gates on committed sources.
+// Mythduel audit: enforces the 60 binding gates on committed sources.
 // Exit 0 = green, non-zero = gate failure with a reason.
 //
 // Import-safe: importing this module has no side effects (no argv parsing,
@@ -11,7 +11,7 @@ import { buildTimeline, beatAt, captionAt } from '../engine/timeline.js';
 import { frameTime } from '../engine/frames.js';
 import { substream } from '../engine/rng.js';
 import { buildVtt } from './render-captions.mjs';
-import { arenaGrade, compositionFor, washPalette, facetTable, skyFork, ARENA_GRADES, ARENA_BUDGETS } from '../engine/arena.js';
+import { arenaGrade, compositionFor, washPalette, facetTable, skyFork, paintArena, ARENA_GRADES, ARENA_BUDGETS } from '../engine/arena.js';
 import { capturePlates, facetChecksum, ARENA_PLATE_BEATS, captureFighterCards } from './capture.mjs';
 import { proportionDrift, silhouetteMetrics, jointPositions, mirrorJoints } from '../engine/rigs.js';
 import { poseFor, impactAt, IMPACTS, clothSway, impactParticles, PARTICLE_BUDGET } from '../engine/acting.js';
@@ -632,6 +632,107 @@ export function runAudit() {
   const landingOk = landing.includes('/mythduel/') && landingReadme.includes('mythduel/');
   check('behind-the-scenes links premiere', docsOk, 'posters+trailer map');
   check('root landing points at the duel', landingOk, 'index.html+README.md');
+
+  // Final Phase: frame-step transport plus the full keyboard map are
+  // committed and wired (single-frame step on both clocks, arrows, Home/End,
+  // fullscreen key).
+  const stepMarks = ['id="btnStepBack"', 'id="btnStepFwd"', 'Step back one frame', 'Step forward one frame'];
+  const stepMissing = stepMarks.filter((m) => !html.includes(m));
+  const keyMarks = ['stepFrame', 'ArrowLeft', 'ArrowRight', "'Home'", "'End'", 'toggleFullscreen'];
+  const keyMissing = keyMarks.filter((m) => !playerJs.includes(m));
+  check('frame-step transport and keyboard map wired', stepMissing.length === 0 && keyMissing.length === 0,
+    [...stepMissing, ...keyMissing].join(',') || 'step+arrows+home/end+F');
+
+  // Final Phase: storyboard cards are keyboard operable (focusable buttons
+  // with named hero jumps) and focus rings are styled.
+  const galleryJs = readFileSync(join(root, 'player/gallery.js'), 'utf8');
+  const css = readFileSync(join(root, 'player/player.css'), 'utf8');
+  const cardOk = galleryJs.includes('tabIndex') && galleryJs.includes("role', 'button'") &&
+    galleryJs.includes('Jump the stage') && galleryJs.includes('Enter');
+  const focusOk = css.includes(':focus-visible') && css.includes('390px');
+  check('storyboard cards keyboard operable', cardOk && focusOk, cardOk && focusOk ? 'tab+enter+focus' : 'card-a11y-drift');
+
+  // Final Phase: the full stage (arena plus both rigs plus particles) paints
+  // headless at three instants per beat with stable call counts inside
+  // budget, and every 0.5 s trailer sample sits on the lattice in its cut beat.
+  let sweepOk = true;
+  let sweepWorst = 0;
+  let sweepN = 0;
+  try {
+    const stubCtx = () => {
+      const calls = { count: 0 };
+      const grad = { addColorStop() { calls.count++; } };
+      return new Proxy({ calls }, {
+        get(t, k) {
+          if (k === 'calls') return t.calls;
+          if (k === 'createLinearGradient' || k === 'createRadialGradient') return () => grad;
+          if (k === 'measureText') return () => ({ width: 0 });
+          if (k === 'canvas') return undefined;
+          if (typeof k === 'string') return (...a) => { t.calls.count++; };
+          return undefined;
+        },
+        set(t, k, v) { t[k] = v; return true; },
+      });
+    };
+    for (const b of tl.beats) {
+      const panel = board.panels.find((p) => p.beat === b.id) || board.panels[0];
+      for (const lt of [0.05, b.dur / 2, b.dur - 0.05]) {
+        const q = frameTime(b.start + lt);
+        const once = () => {
+          const ctx = stubCtx();
+          const arena = paintArena(ctx, tl.seed, q, b, panel.palette);
+          paintFighterRig(ctx, tl.seed, q, b, 'thor', 0.44, arena.ground, b.wind, b.continuity.exit.thor.fatigue);
+          paintFighterRig(ctx, tl.seed, q, b, 'zeus', 0.56, arena.ground, b.wind, b.continuity.exit.zeus.fatigue);
+          paintImpactParticles(ctx, tl.seed, q, b, { crossX: 480, crossY: arena.ground - 110, ground: arena.ground });
+          return ctx.calls.count;
+        };
+        const n1 = once();
+        sweepN++;
+        sweepWorst = Math.max(sweepWorst, n1);
+        if (once() !== n1 || n1 <= 0) sweepOk = false;
+      }
+    }
+    if (!(sweepWorst > 0 && sweepWorst < 12000)) sweepOk = false;
+    if (plan) {
+      for (let t = 0; t < plan.total; t += 0.5) {
+        const m = trailerCutAt(plan, frameTime(t));
+        if (Math.abs(m.duelTime * 24 - Math.round(m.duelTime * 24)) > 1e-9) sweepOk = false;
+        if (beatAt(tl, m.duelTime).beat.id !== m.cut.beat) sweepOk = false;
+      }
+    } else {
+      sweepOk = false;
+    }
+  } catch {
+    sweepOk = false;
+  }
+  check('full stage sweep paints headless, bounded', sweepOk, sweepN + ' paints worst ' + sweepWorst);
+
+  // Final Phase: public docs stay one unified product view (no internal
+  // milestone markers) and carry no em dashes; the Watch section documents
+  // the step and keyboard controls.
+  const markerRe = /\bM[1-7]\b|milestone|this milestone|sprint|changelog|Phase [0-9]\b/i;
+  const pubDocs = ['README.md', 'docs/pipeline.md', 'docs/craft.md', 'docs/story.md', 'docs/index.md'];
+  const markerHits = [];
+  for (const f of pubDocs) {
+    readFileSync(join(root, f), 'utf8').split('\n').forEach((ln, i) => {
+      if (markerRe.test(ln)) markerHits.push(f + ':' + (i + 1));
+    });
+  }
+  const dash = String.fromCharCode(8212);
+  const dashHits = [];
+  (function dashWalk(dir) {
+    for (const n of readdirSync(dir)) {
+      if (n === 'dist' || n === 'node_modules') continue;
+      const p = join(dir, n);
+      if (statSync(p).isDirectory()) { dashWalk(p); continue; }
+      if (!/\.(json|md|js|mjs|html|css|svg)$/i.test(n)) continue;
+      if (readFileSync(p, 'utf8').includes(dash)) dashHits.push(p.slice(root.length + 1));
+    }
+  })(root);
+  const readme = readFileSync(join(root, 'README.md'), 'utf8');
+  const watchOk = readme.includes('single-frame step') && readme.includes('(button or F)') && readme.includes('Enter to jump');
+  check('public docs unified, clean, step-documented', markerHits.length === 0 && dashHits.length === 0 && watchOk,
+    [...markerHits, ...dashHits].join(',') || (watchOk ? 'unified' : 'watch-undocumented'));
 
   return failures;
 }

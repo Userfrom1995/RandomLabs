@@ -100,6 +100,7 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 - Scaffold: branched `opencode/issue470-mythduel-phase-6` from green main; repro green on arrival (audit 56 gates plus all suites); em-dash scan clean; public-docs milestone-marker scan clean; duel grid 4128 frames over 172 s, trailer 30 s over 7 cuts.
 - Watch-through plan: headless full-timeline stage sweep (every beat at entry/mid/near-exit plus all 61 trailer samples through the same paint path), 390 px CSS pass, keyboard/transport matrix, clean-checkout repro clone; one craft uplift (frame-step transport plus full keyboard map plus keyboard-accessible storyboard cards) before the final gates.
 - Craft uplift landed: step-back/step-forward transport buttons (single 24 fps frame on the live clock in both duel and trailer modes), ArrowLeft/ArrowRight stepping, Home/End jumps, F fullscreen toggle, storyboard cards focusable with role button plus Enter/Space activation, focus-visible rings on transport/chapter/end-card/board controls; README Watch section documents the map.
+- Gates landed: audit 56 to 60 (frame-step/keyboard wiring, card keyboard access plus focus styles, full 24-paint stage sweep headless bounded with trailer-sample agreement, public-docs unity with em-dash scan and Watch documentation); `tests/phase6-final.mjs` (23 probes green); `repro.sh` runs the final suite; stale 48-gate header pin in the Phase 2 fixer-remedies suite updated to the true 60; full repro plus every regression suite green.
 
 ## Current step
 
