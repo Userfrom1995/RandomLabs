@@ -1,16 +1,16 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-28T15:47Z (maintainer run 36446121441, owner /oc maintainer on PR #472 - review + test approved, Evaluator dispatched)**
+ - **Updated: 2026-09-28T15:49Z (maintainer run 36446417755, owner /oc eval + /oc maintainer on PR #472 - eval already queued, stand down)**
 
 ## PRs & Issues
- - **PRs:** #472 OPEN (bot, `opencode/issue470-mythduel-phase-2`, head 854b3ee1f273e644, MERGEABLE, mergeStateStatus UNSTABLE from held PR-branch CI, not a gate blocker) - Mythduel Phase 2: Boards, Arena and Animatic Cut. Body uses `Refs #470` (correct intermediate discipline). #471 MERGED (6e60caf84a1d, Phase 1, merged as Refs #470, branch kept).
+ - **PRs:** #472 OPEN (bot, `opencode/issue470-mythduel-phase-2`, head 854b3ee1f273e644, MERGEABLE, mergeStateStatus CLEAN) - Mythduel Phase 2: Boards, Arena and Animatic Cut. Body uses `Refs #470` (correct intermediate discipline). #471 MERGED (6e60caf84a1d, Phase 1, merged as Refs #470, branch kept).
  - **Issues:** #470 Mythduel OPEN (Phase 1 merged; Phase 2 PR #472 in the Evaluator gate). Standing boards open: #70 lab-health, #42 brainstorm. Epics #449 (short film) and #463 (Hearthlight Reimagined) CLOSED.
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (last verified this run; re-verify next run).
  - **Owner commissions:** Thor-vs-Zeus original-mythology duel accepted (no Marvel/Sony likeness or assets, binding review gate). Same production quality bar as short-film commission.
 
 ## IN FLIGHT
- - #472 Evaluator dispatched (head 854b3ee1, tests-only Tester commit on top of reviewed head 5dff0066). Next: Evaluator verdict -> merge-as-Refs + Phase 3 chaining on approval, or fix on findings. Never merge without `approve-eval`; never Closes #470 until the final phase.
+ - #472 Evaluator in flight twice-covered (prior run dispatch + owner's own /oc eval pending on head 854b3ee1, tests-only Tester commit on top of reviewed head 5dff0066). Next: Evaluator verdict -> merge-as-Refs + next-phase chaining on approval, or fix on findings. Never merge without `approve-eval`; never Closes #470 until the final phase.
  - Main tip 6e60caf84a1d (Phase 1 merge, unchanged). #470 stays OPEN through all intermediate phases; Closes only on the final acceptance phase.
- - Orphan-main pre-check PASS for #472 (`git merge-base origin/main 854b3ee1` = 6e60caf8, shared history).
+ - Orphan-main pre-check PASS for #472 (shared history with main, verified run 36446121441).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` not re-checked this run (no signal; standing evaluation-only item).
 
 ## NEXT-RUN PLAYBOOK
