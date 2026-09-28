@@ -13,7 +13,7 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 1: Original Story and Character Design Foundation (Complete, ready for review)
+- **Active Phase:** Phase 2: Boards, Arena and Animatic Cut (Complete, ready for review)
 
 ### Phase 1: Original Story and Character Design Foundation (PR 1 target, Refs #470)
 
@@ -29,8 +29,8 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 - [x] Trailer map skeleton (`story/trailer.json`: 30 s across 7 cuts, lattice-aligned, inside beats; cut built by the premiere phase)
 - [x] Painted storm-crag arena (`engine/arena.js`: authored per-beat composition, storm-graded wash layers, seeded detail pass, rain/mist/skyburst atmosphere; capped 390 px budgets; wired into the theatre with feet on the ground line)
 - [ ] Painted storm-crag arena (`engine/arena.js`: composition sketch values, wash layers, detail pass, atmosphere pass; honest 390 px budgets)
-- [ ] Animatic cut playable in the theatre (chapters/beats from the beat map, captions, trailer map skeleton; transport green)
-- [ ] Capture loop (per-beat hero frames plus arena plates) plus audit gates (continuity ledger, lattice, arena coverage, IP/provenance); Builder self-review notes committed below
+- [x] Animatic cut playable in the theatre (chapters/beats from the beat map, shot lists on the storyboard wall, captions, trailer skeleton in-repo; transport green)
+- [x] Capture loop (per-beat hero frames plus arena plates) plus audit gates (board/duel agreement, shot lattice and hero anchoring, trailer resolution, arena grades/determinism/budgets/plates, continuity ledger, IP/provenance); Builder self-review notes committed below
 
 ### Phase 3: Duel Animation and Combat Craft (PR 3 target, Refs #470)
 
@@ -61,9 +61,34 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 
 ## Current step
 
-Phase 1 complete: 8-beat 172 s duel timeline, original fighter bible and SVG
-design sheets, working animatic theatre, green repro. Ready for review
-(Refs #470); Phase 2 (boards, arena, animatic cut) is next after merge.
+Phase 2 complete: four-pass painted arena wired into the theatre, 8 hero
+panels with 24 lattice-aligned shots chained to the duel continuity, 30 s
+trailer skeleton, plates plus new audit gates, full suite green. Ready for
+review (Refs #470); Phase 3 (duel animation and combat craft) is next after
+merge.
+
+## Builder self-review (Phase 2, 2026-09-28)
+
+- Watched the contract, not pixels: the stub-canvas exercise runs paintArena
+  across all 8 beats at 3 instants each (24 paints, worst case 915 canvas
+  calls, call counts stable across reruns, all returns grade/ground-correct);
+  capture cards and the canvas paint path share frameTime, so stills and stage
+  agree by construction, and plate checksums pin the geography headless.
+- Board/duel agreement is machine-checked both directions: panel entry/exit
+  pos+weapon+storm must equal the beat continuity fields exactly, cause
+  strings must match byte-for-byte, one shot per panel must sit on its hero
+  frame, voiced lines must name a committed caption speaker.
+- Craft gap closed in-run: the render-path purity probe first matched its own
+  comments ("no Math.random" prose tripping the scan); the probe now strips
+  comments before scanning, so it checks code, not prose.
+- Grades 0-4 all present across the duel (calm only after the on-screen
+  loosing in b08); the skyburst fork is the sole grade-gated effect.
+  Ranging-to-breaking rain scales 40-160 drops, slanted by the beat wind
+  vector; mist and vignette deepen with storm.
+- Named stand-ins for this phase: simplified animatic fighter markers stand in
+  for the full FK rigs (Phase 3); silent stage stands in for score/SFX
+  (Phase 4); the trailer skeleton is data only, no trailer control rendered
+  (premiere work). No fake controls rendered.
 
 ## Builder self-review (Phase 1, 2026-09-28)
 
@@ -87,8 +112,8 @@ design sheets, working animatic theatre, green repro. Ready for review
 
 ## Next steps
 
-Reviewer review of Phase 1; then Builder Phase 2: Boards, Arena and Animatic
-Cut on a new phase branch after merge.
+Reviewer review of Phase 2; then Builder Phase 3: Duel Animation and Combat
+Craft on a new phase branch after merge.
 
 ## Team Note
 

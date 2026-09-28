@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# Mythduel one-command reproduction (Phase 1: story and design foundation).
+# Mythduel one-command reproduction (Phase 2: boards, arena, animatic cut).
 #
-# Runs the binding audit, the smoke suite, and a byte-exact captions rebuild
-# check. Exit non-zero on any failure.
+# Runs the binding audit, the smoke suite, the Phase 2 animatic suite, and a
+# byte-exact captions rebuild check. Exit non-zero on any failure.
 # Usage: bash mythduel/repro.sh (from the repo root)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 node mythduel/tools/audit.mjs
 node mythduel/tests/smoke.mjs
+node mythduel/tests/phase2-animatic.mjs
 node mythduel/tools/capture.mjs > /dev/null
 node mythduel/tools/render.mjs > /dev/null
 node --input-type=module -e "
