@@ -58,12 +58,14 @@ export function buildTrailerPlan(tl, trailer) {
 
 // Map a trailer-clock instant onto duel time: which cut is playing, the
 // exact duel second to paint, and the cut progress for the caption band.
-// Clamps past the end onto the final cut's last frame.
+// Clamps past the end onto the final cut's last frame; non-finite positive
+// time (+Infinity) also end-clamps so the contract is a consistent total
+// order, while NaN and other garbage pin to clock zero.
 export function trailerCutAt(plan, trailerT) {
   if (!plan || !Array.isArray(plan.cuts) || plan.cuts.length === 0) {
     throw new Error('trailerCutAt needs a built plan');
   }
-  const t = Number.isFinite(trailerT) ? Math.max(trailerT, 0) : 0;
+  const t = Number.isFinite(trailerT) ? Math.max(trailerT, 0) : (trailerT === Infinity ? plan.total : 0);
   const last = plan.cuts[plan.cuts.length - 1];
   if (t >= plan.total) {
     return { cut: last, cutIndex: last.index, duelTime: frameTime(last.tOut - 0.001), progress: 1 };
