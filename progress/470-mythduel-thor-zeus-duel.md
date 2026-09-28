@@ -67,6 +67,18 @@ trailer skeleton, plates plus new audit gates, full suite green. Ready for
 review (Refs #470); Phase 3 (duel animation and combat craft) is next after
 merge.
 
+## Fixer response (Phase 2 Quality Council remedies, 2026-09-28)
+
+- Painted the hero duel image past flat rectangles: `player.js` fighters are
+  now proportion-blocked figures in design colors (beard/haft-hammer vs
+  cloak/shaft-bolt), no debug labels; gallery cards carry a palette-and-staging
+  mini-scene SVG; the caption band never paints empty (beat-titled fallback,
+  non-empty initial HTML).
+- Resilience: `capture.mjs`/`render.mjs` fixture loads fail with one-line
+  actionable errors via `loadFixture`; `paintArena` throws a typed error on a
+  missing context; arena plates now pin all 5 storm grades; audit header states
+  the true 32-gate count. Full suite re-verified green.
+
 ## Builder self-review (Phase 2, 2026-09-28)
 
 - Watched the contract, not pixels: the stub-canvas exercise runs paintArena
