@@ -326,7 +326,7 @@ export async function bootPlayer() {
     });
     document.addEventListener('keydown', (e) => {
       if (e.target.matches('input,textarea')) return;
-      if (e.code === 'Space') { e.preventDefault(); btnPlay.click(); }
+      if (e.code === 'Space' && !(e.target.closest && e.target.closest('button,.board-card'))) { e.preventDefault(); btnPlay.click(); }
       if (e.key === 'c' || e.key === 'C') btnCaption.click();
       if ((e.key === 't' || e.key === 'T') && btnTrailer) btnTrailer.click();
       if (e.key === 'ArrowLeft') { e.preventDefault(); stepFrame(-1); }

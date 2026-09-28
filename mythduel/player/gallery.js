@@ -91,7 +91,7 @@ export function paintGallery(tl, board) {
     };
     card.addEventListener('click', jumpToHero);
     card.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); jumpToHero(); }
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); jumpToHero(); }
     });
     grid.appendChild(card);
   }
