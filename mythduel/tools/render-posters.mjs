@@ -144,17 +144,19 @@ export function buildPoster(kind, seed, pal) {
       titleBlock('THOR', 'storm-bringer of the north - the haft-hammer hafra') +
       '</svg>';
   }
-  // zeus
-  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 960" role="img" aria-label="Mythduel poster: Zeus, storm-lord of Olympus">' +
-    bg +
-    '<path d="' + forkPath(seed, W, 320, 480) + '" stroke="#f4e9c8" stroke-width="4" fill="none" opacity="0.85"/>' +
-    rainLines(seed, 'zeus|rain', W, H, 70, 5) +
-    ridge(seed, 'zeus|far', W, 660, 80, '#e8e2d2', 0.5) +
-    ridge(seed, 'zeus|near', W, 750, 60, ink, 1) +
-    fighterMark('zeus', 320, 720, 3.2, zeusFill, ink) +
-    grain(seed, 'zeus|grain', W, H, 110) +
-    titleBlock('ZEUS', 'storm-lord of Olympus - the shaft-bolt keraunos-rod') +
-    '</svg>';
+  if (kind === 'zeus') {
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 960" role="img" aria-label="Mythduel poster: Zeus, storm-lord of Olympus">' +
+      bg +
+      '<path d="' + forkPath(seed, W, 320, 480) + '" stroke="#f4e9c8" stroke-width="4" fill="none" opacity="0.85"/>' +
+      rainLines(seed, 'zeus|rain', W, H, 70, 5) +
+      ridge(seed, 'zeus|far', W, 660, 80, '#e8e2d2', 0.5) +
+      ridge(seed, 'zeus|near', W, 750, 60, ink, 1) +
+      fighterMark('zeus', 320, 720, 3.2, zeusFill, ink) +
+      grain(seed, 'zeus|grain', W, H, 110) +
+      titleBlock('ZEUS', 'storm-lord of Olympus - the shaft-bolt keraunos-rod') +
+      '</svg>';
+  }
+  throw new Error('unknown poster kind: ' + kind);
 }
 
 export const POSTER_KINDS = ['duel', 'thor', 'zeus'];
