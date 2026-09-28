@@ -1,7 +1,7 @@
 # Progress: Mythduel - Original Thor vs Zeus Mythic Duel (#470)
 
 - **Issue:** #470
-- **Branch:** opencode/issue470-mythduel-phase-4
+- **Branch:** opencode/issue470-mythduel-phase-5
 - **Status:** in-progress
 - **Architect:** the Architect (blueprint `ideas/2026-09-28-mythduel-thor-zeus-duel.md`)
 - **Builder:** the Builder (phases chain autonomously; Refs #470 until the final acceptance lands)
@@ -13,7 +13,7 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 4: Original Score and Battle Sound (in progress, branch `opencode/issue470-mythduel-phase-4`)
+- **Active Phase:** Phase 5: Premiere Theatre and Behind-the-Scenes (in progress, branch `opencode/issue470-mythduel-phase-5`)
 
 ### Phase 1: Original Story and Character Design Foundation (PR 1 target, Refs #470)
 
@@ -51,6 +51,12 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 - [ ] 25-35 s trailer cut from the final timeline plus original poster set
 - [ ] Behind-the-scenes surface (designs, boards, pipeline docs linked from the entrypoint; unified `README.md` plus `docs/` final content pass)
 - [ ] Premiere tests (trailer build/runtime/frame-parity, caption coverage, posters, end card, fallbacks); root landing points at the duel; Builder self-review notes committed below
+
+## Build log (Phase 5, 2026-09-28)
+
+- Scaffold pushed: `engine/trailer.js` (pure trailer-clock to duel-time map,
+  30 s plan over 7 cuts), `tools/render-posters.mjs` plus three committed
+  deterministic posters (`designs/posters/`).
 
 ### Final Phase: Integration and End-to-end Audit (Final PR, Closes #470)
 
