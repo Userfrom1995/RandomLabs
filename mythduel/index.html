@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mythduel - an original Thor vs Zeus mythic duel</title>
+<meta name="description" content="Mythduel: an original 172-second hand-drawn-style mythic duel between Thor and Zeus, painted live in your browser from deterministic sources.">
+<link rel="stylesheet" href="player/player.css">
+</head>
+<body>
+<header class="masthead">
+  <div class="masthead-inner">
+    <p class="kicker">The Random Lab presents</p>
+    <h1>Mythduel</h1>
+    <p class="tagline">An original Thor vs Zeus mythic duel &middot; 2 min 52 s &middot; painted live in your browser</p>
+  </div>
+</header>
+
+<main>
+  <p class="logline">A free-roaming storm gathers over the strait between two far shores, and two storm-lords each claim the right to loose it. They meet by challenged consent on the storm-crag: first blood honourably taken ends it. What follows is an original duel about mercy as strength, rendered deterministically from in-repo sources.</p>
+  <p class="logline">All designs, story, choreography, and music direction are original interpretations of public-domain myth. No third-party likeness or assets. See <a href="docs/">behind the scenes</a>.</p>
+  <noscript><p class="noscript-note">Mythduel plays in your browser with JavaScript: the stage below needs it to paint the duel. Everything else on this page (story, boards, captions) reads fine without it.</p></noscript>
+
+  <section class="theatre" aria-label="Duel theatre">
+    <div class="stage-wrap" id="stageWrap">
+      <canvas id="stage" width="960" height="540" aria-label="Mythduel duel stage"></canvas>
+      <div class="caption-line" id="captionLine" aria-live="polite"></div>
+      <div class="stage-overlay" id="stageOverlay" hidden>
+        <div class="card" role="alert">
+          <h2>Something went wrong</h2>
+          <p id="overlayMsg"></p>
+          <button type="button" onclick="location.reload()">Try again</button>
+        </div>
+      </div>
+      <div class="loading-veil" id="loadingVeil" aria-hidden="true">
+        <p>Gathering the storm&hellip;</p>
+      </div>
+      <button class="big-play" id="bigPlay" type="button" aria-label="Play the duel" hidden>&#9654;</button>
+    </div>
+
+    <div class="transport" role="group" aria-label="Transport controls">
+      <button id="btnPlay" type="button" aria-label="Play or pause (Space)">&#9654;</button>
+      <button id="btnRestart" type="button" aria-label="Restart from beginning">|&#9664;</button>
+      <div class="scrub">
+        <label class="visually-hidden" for="seek">Seek</label>
+        <input id="seek" type="range" min="0" max="172" step="0.0417" value="0" aria-valuetext="0:00 of 2:52">
+        <div class="times"><span id="tCur">0:00</span><span id="tDur">2:52</span></div>
+      </div>
+      <button id="btnCaption" type="button" aria-pressed="true" aria-label="Toggle captions (C)">CC</button>
+      <button id="btnFull" type="button" aria-label="Toggle fullscreen">⛶</button>
+    </div>
+    <p class="beat-title" id="beatTitle">Terms Spoken</p>
+
+    <div class="beats" id="beatMenu" aria-label="Chapters and beats"></div>
+  </section>
+
+  <section aria-label="Storyboard">
+    <h2>Storyboard wall</h2>
+    <p class="logline">Eight beats, one readable exchange each. Select any card to jump the stage to its hero frame.</p>
+    <div class="gallery-grid" id="galleryGrid"></div>
+  </section>
+
+  <section aria-label="Designs">
+    <h2>Fighter designs</h2>
+    <div class="design-row">
+      <figure><img src="designs/thor-model.svg" alt="Thor original model sheet"><figcaption>Thor, storm-bringer of the north: original 7.0-head model sheet.</figcaption></figure>
+      <figure><img src="designs/zeus-model.svg" alt="Zeus original model sheet"><figcaption>Zeus, storm-lord of Olympus: original 7.4-head model sheet.</figcaption></figure>
+    </div>
+    <div class="design-row">
+      <figure><img src="designs/weapons.svg" alt="Original weapon design sheets"><figcaption>Original weapons: the haft-hammer hafra and the shaft-bolt keraunos-rod.</figcaption></figure>
+      <figure><img src="designs/palettes.svg" alt="Mythduel palette plate"><figcaption>Palette plate shared by fighters and arena.</figcaption></figure>
+    </div>
+  </section>
+
+  <section aria-label="Behind the scenes">
+    <h2>Behind the scenes</h2>
+    <ul class="docs-list">
+      <li><a href="docs/">Pipeline and craft notes</a></li>
+      <li><a href="story/characters.md">Fighter bible</a></li>
+      <li><a href="story/choreography.md">Choreography spine</a></li>
+      <li><a href="story/continuity.md">Continuity ledger</a></li>
+      <li><a href="story/music-direction.md">Music direction</a></li>
+      <li><a href="story/IP-DECLARATION.md">IP declaration</a></li>
+      <li><a href="captions.vtt">Caption track (WebVTT)</a></li>
+    </ul>
+  </section>
+</main>
+
+<script type="module" src="player/player.js"></script>
+</body>
+</html>
