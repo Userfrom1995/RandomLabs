@@ -1,7 +1,7 @@
 # Progress: Mythduel - Original Thor vs Zeus Mythic Duel (#470)
 
 - **Issue:** #470
-- **Branch:** opencode/issue470-20260928143105
+- **Branch:** opencode/issue470-mythduel-phase-4
 - **Status:** in-progress
 - **Architect:** the Architect (blueprint `ideas/2026-09-28-mythduel-thor-zeus-duel.md`)
 - **Builder:** the Builder (phases chain autonomously; Refs #470 until the final acceptance lands)
@@ -28,7 +28,6 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 - [x] Beat-by-beat boards and animatic (`storyboard.json` panels, `duel.json` timed beats with entry/exit continuity, cause links, caption lattice)
 - [x] Trailer map skeleton (`story/trailer.json`: 30 s across 7 cuts, lattice-aligned, inside beats; cut built by the premiere phase)
 - [x] Painted storm-crag arena (`engine/arena.js`: authored per-beat composition, storm-graded wash layers, seeded detail pass, rain/mist/skyburst atmosphere; capped 390 px budgets; wired into the theatre with feet on the ground line)
-- [ ] Painted storm-crag arena (`engine/arena.js`: composition sketch values, wash layers, detail pass, atmosphere pass; honest 390 px budgets)
 - [x] Animatic cut playable in the theatre (chapters/beats from the beat map, shot lists on the storyboard wall, captions, trailer skeleton in-repo; transport green)
 - [x] Capture loop (per-beat hero frames plus arena plates) plus audit gates (board/duel agreement, shot lattice and hero anchoring, trailer resolution, arena grades/determinism/budgets/plates, continuity ledger, IP/provenance); Builder self-review notes committed below
 
@@ -92,6 +91,23 @@ behind-the-scenes) is next after merge.
   no quoted rows (all four motif rows differ from every existing lab row);
   no binaries committed (WAVs only in gitignored dist/); guardrail scan
   covers the new sources.
+
+## Fixer response (Phase 4 review remedies, 2026-09-28)
+
+- Duplicate-tag SFX seeds: `buildSfxEvents` now stamps a per-(beat,tag)
+  occurrence index `n` and the RNG mixes it in, so repeated tags in one
+  beat render independent hits; dead `f/cutoff/lfo` fields dropped
+  (`count` kept, it drives the generators); stems regenerated.
+- Live drum parity: the performer sounds the head at `freq/2` clamped to
+  [45, 140] exactly like the offline master; exported `liveDrumFreq` pins
+  the parity in the sound suite.
+- Loud validation: `orchestrate` throws on non-finite or non-positive
+  `beat.dur` instead of emitting an empty silent score.
+- Hygiene: `window` guarded for non-DOM runtimes, `dispose()` stops the
+  storm-bed loop and closes the context with per-note `disconnect` on end,
+  silent catches warn, dead `MIX_DUCK`/`mixDurationSec`/`SFX_SAMPLE_RATE`
+  exports removed, live bright-lift and bus/ride balance documented,
+  stale progress lines and sign-off corrected.
 
 ## Builder self-review (Phase 3, 2026-09-28)
 
@@ -181,4 +197,4 @@ Behind-the-Scenes on a new phase branch after merge.
 
 No specialist film agents yet. If review/eval flags a craft gap needing dedicated story/art/animation/score roles, the Lab Engineer hires per `.github/agents/CREATING_AGENTS.md` via reviewed PR.
 
-- the Architect
+- the Builder
