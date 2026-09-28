@@ -38,14 +38,18 @@ chapters. Works at 390 px mobile widths.
   music direction, storyboard, IP declaration.
 - `designs/`: original SVG model sheets, weapon sheets, palette plate.
 - `engine/`: deterministic RNG, timeline, 24 fps frame grid, ink boil, paper
-  grain, four-pass storm-crag arena paint. Fighter rigs and particles arrive
-  with their phases.
+  grain, four-pass storm-crag arena paint, FK fighter rigs with combat
+  choreography (poses, faces, exertion, wounds, wind-driven cloth and hair,
+  impact particles anchored to the geography).
 - `player/`: theatre transport, storyboard gallery with per-beat shot lists, styles.
 - `tools/`: stills manifest with arena plates and trailer totals, headless
-  capture cards and plates, caption export, binding audit (continuity ledger,
+  capture cards, arena plates, and fighter close-up cards (poses, contacts,
+  silhouette reads), caption export, binding audit (continuity ledger,
   lattice, motif coverage, board/duel agreement, shot and trailer resolution,
-  arena grades/determinism/budgets, IP/provenance gates).
-- `tests/`: smoke suite, animatic suite, hostile and QC regression pins.
+  arena grades/determinism/budgets, rig proportions, turnaround symmetry,
+  contact honesty, impact timing, fighter determinism and paint budgets,
+  IP/provenance gates).
+- `tests/`: smoke suite, animatic suite, combat suite, hostile and QC regression pins.
   `captions.vtt`: committed caption track. `story/trailer.json`: trailer cut skeleton.
 - `docs/`: pipeline and craft notes. `repro.sh`: one-command green build.
 
