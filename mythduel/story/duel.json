@@ -1,0 +1,199 @@
+{
+  "format": "mythduel-duel/1",
+  "title": "Mythduel - Thor vs Zeus",
+  "seed": "mythduel-470-phase1",
+  "fps": 24,
+  "chapters": [
+    { "id": "ch1", "title": "The Challenge", "beats": ["b01", "b02"] },
+    { "id": "ch2", "title": "Champions' Exchanges", "beats": ["b03", "b04", "b05"] },
+    { "id": "ch3", "title": "The Storm's Answer", "beats": ["b06"] },
+    { "id": "ch4", "title": "Mercy as Strength", "beats": ["b07", "b08"] }
+  ],
+  "beats": [
+    {
+      "id": "b01",
+      "title": "Terms Spoken",
+      "start": 0,
+      "dur": 18,
+      "camera": { "move": "slow-push", "framing": "wide two-shot" },
+      "arena": "storm-crag",
+      "wind": { "dir": 250, "force": 0.25 },
+      "storm": 1,
+      "staging": { "thor": { "x": 0.32, "stance": "grounded-open" }, "zeus": { "x": 0.68, "stance": "grounded-open" } },
+      "captions": [
+        { "t": 1.0, "dur": 4.0, "who": "THOR", "line": "This storm answered neither horn nor hymn. I claim the right to loose it." },
+        { "t": 6.0, "dur": 4.0, "who": "ZEUS", "line": "No sky above any sea is yours alone, northman. Name your terms." },
+        { "t": 11.0, "dur": 5.0, "who": "THOR", "line": "First blood honourably taken ends it. The sky goes free, whatever falls." }
+      ],
+      "music": { "cue": "terms", "motif": "thor-row" },
+      "sfx": ["surf-bed", "cloak-gust"],
+      "exchange": "none: terms spoken, weapons lowered",
+      "continuity": {
+        "entry": { "thor": { "pos": "west-mark", "weapon": "haft-grounded", "wounds": "none", "fatigue": 0 }, "zeus": { "pos": "east-mark", "weapon": "shaft-grounded", "wounds": "none", "fatigue": 0 }, "storm": 1, "knows": "both know the terms" },
+        "exit": { "thor": { "pos": "west-mark", "weapon": "haft-grounded", "wounds": "none", "fatigue": 0 }, "zeus": { "pos": "east-mark", "weapon": "shaft-grounded", "wounds": "none", "fatigue": 0 }, "storm": 1, "knows": "both know the terms" }
+      },
+      "cause": "opening: the free storm gathers; both storm-lords meet by challenged consent"
+    },
+    {
+      "id": "b02",
+      "title": "Ranging Wind",
+      "start": 18,
+      "dur": 22,
+      "camera": { "move": "lateral-track", "framing": "medium wide" },
+      "arena": "storm-crag",
+      "wind": { "dir": 265, "force": 0.45 },
+      "storm": 2,
+      "staging": { "thor": { "x": 0.38, "stance": "circling" }, "zeus": { "x": 0.62, "stance": "circling" } },
+      "captions": [
+        { "t": 1.5, "dur": 4.0, "who": "ZEUS", "line": "You circle like a bear around a fire. Come and test the weather." },
+        { "t": 12.0, "dur": 4.5, "who": "THOR", "line": "Wind first, then iron. I read you by your footfalls, Olympian." }
+      ],
+      "music": { "cue": "ranging", "motif": "zeus-row" },
+      "sfx": ["footfall-gravel", "footfall-gravel", "cloak-gust", "surf-bed"],
+      "exchange": "footwork ranging: circle, feint, no contact",
+      "continuity": {
+        "entry": { "thor": { "pos": "west-mark", "weapon": "haft-grounded", "wounds": "none", "fatigue": 0 }, "zeus": { "pos": "east-mark", "weapon": "shaft-grounded", "wounds": "none", "fatigue": 0 }, "storm": 1, "knows": "both know the terms" },
+        "exit": { "thor": { "pos": "center-west", "weapon": "haft-raised", "wounds": "none", "fatigue": 1 }, "zeus": { "pos": "center-east", "weapon": "shaft-raised", "wounds": "none", "fatigue": 1 }, "storm": 2, "knows": "each has read the other's lead foot" }
+      },
+      "cause": "b01 exit: weapons rise as circling begins"
+    },
+    {
+      "id": "b03",
+      "title": "First Exchange",
+      "start": 40,
+      "dur": 20,
+      "camera": { "move": "push-in", "framing": "medium" },
+      "arena": "storm-crag",
+      "wind": { "dir": 280, "force": 0.5 },
+      "storm": 2,
+      "staging": { "thor": { "x": 0.46, "stance": "advancing" }, "zeus": { "x": 0.56, "stance": "braced" } },
+      "captions": [
+        { "t": 2.0, "dur": 3.5, "who": "THOR", "line": "Now!" },
+        { "t": 9.0, "dur": 4.5, "who": "ZEUS", "line": "A good swing. Too honest. I felt it coming off your shoulder." }
+      ],
+      "music": { "cue": "first-clash", "motif": "clash-ostinato" },
+      "sfx": ["swing-haft", "impact-shaft-block", "footfall-gravel", "spark-spray"],
+      "exchange": "Thor advances with an overhead haft swing; Zeus shaft-blocks; cost: Thor overextends half a step",
+      "continuity": {
+        "entry": { "thor": { "pos": "center-west", "weapon": "haft-raised", "wounds": "none", "fatigue": 1 }, "zeus": { "pos": "center-east", "weapon": "shaft-raised", "wounds": "none", "fatigue": 1 }, "storm": 2, "knows": "each has read the other's lead foot" },
+        "exit": { "thor": { "pos": "center", "weapon": "haft-low", "wounds": "none", "fatigue": 2 }, "zeus": { "pos": "center-east", "weapon": "shaft-high", "wounds": "none", "fatigue": 2 }, "storm": 2, "knows": "Zeus knows Thor leads with the shoulder" }
+      },
+      "cause": "b02 exit: Thor commits first from circling range"
+    },
+    {
+      "id": "b04",
+      "title": "Thrown Weapons",
+      "start": 60,
+      "dur": 22,
+      "camera": { "move": "whip-pan", "framing": "wide" },
+      "arena": "storm-crag",
+      "wind": { "dir": 300, "force": 0.6 },
+      "storm": 3,
+      "staging": { "thor": { "x": 0.4, "stance": "throwing" }, "zeus": { "x": 0.6, "stance": "throwing" } },
+      "captions": [
+        { "t": 1.0, "dur": 4.0, "who": "ZEUS", "line": "Let the sky choose between us. Throw, and call it back." },
+        { "t": 14.0, "dur": 4.5, "who": "THOR", "line": "Mine returns to my hand. Pray yours remembers your name." }
+      ],
+      "music": { "cue": "thrown-sky", "motif": "clash-ostinato" },
+      "sfx": ["throw-whoosh", "throw-whoosh", "sky-crack", "catch-thud", "catch-thud"],
+      "exchange": "both throw and recall: weapons cross mid-sky, each catches clean; cost: both exposed mid-recall, neither exploits it",
+      "continuity": {
+        "entry": { "thor": { "pos": "center", "weapon": "haft-low", "wounds": "none", "fatigue": 2 }, "zeus": { "pos": "center-east", "weapon": "shaft-high", "wounds": "none", "fatigue": 2 }, "storm": 2, "knows": "Zeus knows Thor leads with the shoulder" },
+        "exit": { "thor": { "pos": "center-west", "weapon": "haft-gripped", "wounds": "none", "fatigue": 3 }, "zeus": { "pos": "center-east", "weapon": "shaft-gripped", "wounds": "none", "fatigue": 3 }, "storm": 3, "knows": "both know neither will strike a bare-handed foe" }
+      },
+      "cause": "b03 exit: mutual respect after the blocked swing escalates to the throwing wager"
+    },
+    {
+      "id": "b05",
+      "title": "Body Blows",
+      "start": 82,
+      "dur": 24,
+      "camera": { "move": "handheld-tight", "framing": "medium-close" },
+      "arena": "storm-crag",
+      "wind": { "dir": 290, "force": 0.55 },
+      "storm": 3,
+      "staging": { "thor": { "x": 0.48, "stance": "grappling" }, "zeus": { "x": 0.54, "stance": "grappling" } },
+      "captions": [
+        { "t": 3.0, "dur": 4.0, "who": "THOR", "line": "Stand and take it, then. Shoulder to shoulder." },
+        { "t": 15.0, "dur": 4.5, "who": "ZEUS", "line": "You hit like a falling mast. I yield you that, and nothing else." }
+      ],
+      "music": { "cue": "body-blows", "motif": "thor-row" },
+      "sfx": ["impact-body", "footfall-gravel", "impact-body", "knockdown-skid", "exhale-hit"],
+      "exchange": "clinch: traded body blows, Zeus takes a knee then rises; cost: Thor's split brow, Zeus's bruised ribs",
+      "continuity": {
+        "entry": { "thor": { "pos": "center-west", "weapon": "haft-gripped", "wounds": "none", "fatigue": 3 }, "zeus": { "pos": "center-east", "weapon": "shaft-gripped", "wounds": "none", "fatigue": 3 }, "storm": 3, "knows": "both know neither will strike a bare-handed foe" },
+        "exit": { "thor": { "pos": "center", "weapon": "haft-gripped", "wounds": "split-brow", "fatigue": 5 }, "zeus": { "pos": "center", "weapon": "shaft-dropped", "wounds": "bruised-ribs", "fatigue": 5 }, "storm": 3, "knows": "Thor knows Zeus drops the shaft when hurt" }
+      },
+      "cause": "b04 exit: weapons recalled, fighters close to clinch range"
+    },
+    {
+      "id": "b06",
+      "title": "The Storm's Answer",
+      "start": 106,
+      "dur": 20,
+      "camera": { "move": "crane-up", "framing": "extreme wide" },
+      "arena": "storm-crag",
+      "wind": { "dir": 180, "force": 1.0 },
+      "storm": 4,
+      "staging": { "thor": { "x": 0.44, "stance": "weathering" }, "zeus": { "x": 0.56, "stance": "weathering" } },
+      "captions": [
+        { "t": 1.0, "dur": 4.5, "who": "ZEUS", "line": "It turns on us both. Together, northman, or we feed the sea." },
+        { "t": 11.0, "dur": 4.5, "who": "THOR", "line": "Back to back, then. The sky can wait its turn." }
+      ],
+      "music": { "cue": "storm-answers", "motif": "resolution-hymn" },
+      "sfx": ["sky-crack", "rain-wall", "rockfall", "surf-bed", "shield-brace"],
+      "exchange": "no duel: both weather the skyburst back to back; cost: shared exhaustion, weapons set down",
+      "continuity": {
+        "entry": { "thor": { "pos": "center", "weapon": "haft-gripped", "wounds": "split-brow", "fatigue": 5 }, "zeus": { "pos": "center", "weapon": "shaft-dropped", "wounds": "bruised-ribs", "fatigue": 5 }, "storm": 3, "knows": "Thor knows Zeus drops the shaft when hurt" },
+        "exit": { "thor": { "pos": "center-west", "weapon": "haft-grounded", "wounds": "split-brow", "fatigue": 6 }, "zeus": { "pos": "center-east", "weapon": "shaft-grounded", "wounds": "bruised-ribs", "fatigue": 6 }, "storm": 4, "knows": "both know the storm answers no master" }
+      },
+      "cause": "b05 exit: the contested storm breaks over the crag mid-clinch"
+    },
+    {
+      "id": "b07",
+      "title": "The Final Exchange",
+      "start": 126,
+      "dur": 24,
+      "camera": { "move": "slow-push", "framing": "close two-shot" },
+      "arena": "storm-crag",
+      "wind": { "dir": 270, "force": 0.35 },
+      "storm": 2,
+      "staging": { "thor": { "x": 0.47, "stance": "lunging" }, "zeus": { "x": 0.53, "stance": "open" } },
+      "captions": [
+        { "t": 6.0, "dur": 4.0, "who": "ZEUS", "line": "Your ribs betray you, old lion. I see the opening." },
+        { "t": 16.0, "dur": 4.5, "who": "THOR", "line": "Aye. And I see that you see it. Strike, if honour lets you." }
+      ],
+      "music": { "cue": "final-exchange", "motif": "clash-ostinato" },
+      "sfx": ["footfall-gravel", "swing-haft", "impact-body", "silence-hold"],
+      "exchange": "Zeus earns one clean opening on Thor's guard and stays the killing blow at the brow",
+      "continuity": {
+        "entry": { "thor": { "pos": "center-west", "weapon": "haft-grounded", "wounds": "split-brow", "fatigue": 6 }, "zeus": { "pos": "center-east", "weapon": "shaft-grounded", "wounds": "bruised-ribs", "fatigue": 6 }, "storm": 4, "knows": "both know the storm answers no master" },
+        "exit": { "thor": { "pos": "center", "weapon": "haft-lowered", "wounds": "split-brow", "fatigue": 7 }, "zeus": { "pos": "center", "weapon": "shaft-lowered", "wounds": "bruised-ribs", "fatigue": 7 }, "storm": 2, "knows": "Thor knows Zeus stayed the blow; Zeus knows Thor offered no defence" }
+      },
+      "cause": "b06 exit: storm spent, weapons lifted for one last honourable exchange"
+    },
+    {
+      "id": "b08",
+      "title": "Loosing the Storm",
+      "start": 150,
+      "dur": 22,
+      "camera": { "move": "pull-back", "framing": "vast wide" },
+      "arena": "storm-crag",
+      "wind": { "dir": 90, "force": 0.3 },
+      "storm": 0,
+      "staging": { "thor": { "x": 0.4, "stance": "open-raised" }, "zeus": { "x": 0.6, "stance": "open-raised" } },
+      "captions": [
+        { "t": 1.5, "dur": 4.5, "who": "ZEUS", "line": "The opening was mine, and I spend it on mercy. Loose it with me." },
+        { "t": 12.0, "dur": 5.0, "who": "THOR", "line": "Together, then. Out to sea, where no roof burns and no sail breaks." }
+      ],
+      "music": { "cue": "loosing", "motif": "resolution-hymn" },
+      "sfx": ["wind-release", "surf-bed", "distant-thunder", "quiet-wash"],
+      "exchange": "no duel: both loose the storm out to sea together; weapons lowered",
+      "continuity": {
+        "entry": { "thor": { "pos": "center", "weapon": "haft-lowered", "wounds": "split-brow", "fatigue": 7 }, "zeus": { "pos": "center", "weapon": "shaft-lowered", "wounds": "bruised-ribs", "fatigue": 7 }, "storm": 2, "knows": "Thor knows Zeus stayed the blow; Zeus knows Thor offered no defence" },
+        "exit": { "thor": { "pos": "west-mark", "weapon": "haft-grounded", "wounds": "split-brow", "fatigue": 7 }, "zeus": { "pos": "east-mark", "weapon": "shaft-grounded", "wounds": "bruised-ribs", "fatigue": 7 }, "storm": 0, "knows": "both know the sky is free and the debt is mercy" }
+      },
+      "cause": "b07 exit: the withheld blow becomes the resolution"
+    }
+  ]
+}

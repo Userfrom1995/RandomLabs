@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300" role="img" aria-label="Mythduel palette plate">
+<title>Mythduel palette plate</title>
+<rect width="900" height="300" fill="#f2ecdc"/>
+<text x="20" y="30" font-family="sans-serif" font-size="16" fill="#232a36">Palette plate - original (storm-crag belongs to neither myth)</text>
+<g font-family="sans-serif" font-size="13" fill="#232a36">
+<rect x="40" y="60" width="90" height="60" fill="#3d4c63" stroke="#232a36" stroke-width="2"/><text x="40" y="140">slate blue</text>
+<rect x="150" y="60" width="90" height="60" fill="#a03c2e" stroke="#232a36" stroke-width="2"/><text x="150" y="140">rust red</text>
+<rect x="260" y="60" width="90" height="60" fill="#e4d7bd" stroke="#232a36" stroke-width="2"/><text x="260" y="140">bone</text>
+<rect x="370" y="60" width="90" height="60" fill="#2a2f38" stroke="#232a36" stroke-width="2"/><text x="370" y="140">iron</text>
+<rect x="480" y="60" width="90" height="60" fill="#ece7da" stroke="#232a36" stroke-width="2"/><text x="480" y="140">marble</text>
+<rect x="590" y="60" width="90" height="60" fill="#2e5f8a" stroke="#232a36" stroke-width="2"/><text x="590" y="140">aegean</text>
+<rect x="700" y="60" width="90" height="60" fill="#a8762e" stroke="#232a36" stroke-width="2"/><text x="700" y="140">bronze</text>
+<rect x="40" y="170" width="90" height="60" fill="#565b66" stroke="#232a36" stroke-width="2"/><text x="40" y="250">storm grey</text>
+<rect x="150" y="170" width="90" height="60" fill="#4a5468" stroke="#232a36" stroke-width="2"/><text x="150" y="250">crag sky</text>
+<rect x="260" y="170" width="90" height="60" fill="#8a93a8" stroke="#232a36" stroke-width="2"/><text x="260" y="250">sea wash</text>
+</g>
+</svg>

@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" role="img" aria-label="Zeus original model sheet">
+<title>ZEUS - original model sheet (7.4 heads)</title>
+<rect width="900" height="520" fill="#f4f1e8"/>
+<g font-family="sans-serif" font-size="16" fill="#232a36">
+<text x="20" y="30">ZEUS, storm-lord of Olympus - original design - 7.4 heads</text>
+</g>
+<g stroke="#c4c0b2" stroke-width="1">
+<line x1="40" y1="60" x2="240" y2="60"/><line x1="40" y1="108" x2="240" y2="108"/><line x1="40" y1="156" x2="240" y2="156"/><line x1="40" y1="204" x2="240" y2="204"/><line x1="40" y1="252" x2="240" y2="252"/><line x1="40" y1="300" x2="240" y2="300"/><line x1="40" y1="348" x2="240" y2="348"/><line x1="40" y1="396" x2="240" y2="396"/>
+</g>
+<g>
+<ellipse cx="140" cy="82" rx="23" ry="24" fill="#dfc9a8" stroke="#232a36" stroke-width="3"/>
+<path d="M118 78 Q140 62 162 78 L160 70 Q140 56 120 70 Z" fill="#cfd2d6" stroke="#232a36" stroke-width="2"/>
+<rect x="124" y="98" width="32" height="18" rx="6" fill="#b9a888" stroke="#232a36" stroke-width="2"/>
+<rect x="92" y="118" width="96" height="70" rx="12" fill="#ece7da" stroke="#232a36" stroke-width="3"/>
+<rect x="150" y="118" width="42" height="70" rx="8" fill="#a8762e" stroke="#232a36" stroke-width="2"/>
+<rect x="84" y="122" width="22" height="66" rx="9" fill="#ece7da" stroke="#232a36" stroke-width="3"/>
+<rect x="174" y="122" width="22" height="66" rx="9" fill="#ece7da" stroke="#232a36" stroke-width="3"/>
+<path d="M92 188 L70 300 L110 300 L120 188 Z" fill="#2e5f8a" stroke="#232a36" stroke-width="2"/>
+<path d="M188 188 L210 300 L170 300 L160 188 Z" fill="#2e5f8a" stroke="#232a36" stroke-width="2"/>
+<rect x="102" y="300" width="30" height="92" rx="9" fill="#dfc9a8" stroke="#232a36" stroke-width="3"/>
+<rect x="148" y="300" width="30" height="92" rx="9" fill="#dfc9a8" stroke="#232a36" stroke-width="3"/>
+<rect x="94" y="392" width="46" height="18" rx="6" fill="#565b66" stroke="#232a36" stroke-width="3"/>
+<rect x="140" y="392" width="46" height="18" rx="6" fill="#565b66" stroke="#232a36" stroke-width="3"/>
+</g>
+<g>
+<ellipse cx="360" cy="82" rx="21" ry="24" fill="#dfc9a8" stroke="#232a36" stroke-width="3"/>
+<rect x="322" y="118" width="70" height="70" rx="12" fill="#ece7da" stroke="#232a36" stroke-width="3"/>
+<path d="M330 188 L312 300 L348 300 L358 188 Z" fill="#2e5f8a" stroke="#232a36" stroke-width="2"/>
+<rect x="322" y="300" width="28" height="92" rx="9" fill="#dfc9a8" stroke="#232a36" stroke-width="3"/>
+<rect x="314" y="392" width="44" height="18" rx="6" fill="#565b66" stroke="#232a36" stroke-width="3"/>
+</g>
+<g>
+<rect x="500" y="100" width="12" height="220" fill="#7a5a2e" stroke="#232a36" stroke-width="3"/>
+<polygon points="506,60 528,96 484,96" fill="#b98d3e" stroke="#232a36" stroke-width="3"/>
+<text x="500" y="350" font-family="sans-serif" font-size="15" fill="#232a36">keraunos-rod shaft 3.0 heads</text>
+<circle cx="620" cy="110" r="24" fill="#dfc9a8" stroke="#232a36" stroke-width="3"/>
+<path d="M608 104 L632 104" stroke="#232a36" stroke-width="3"/>
+<path d="M612 124 L628 124" stroke="#232a36" stroke-width="3"/>
+<circle cx="690" cy="110" r="24" fill="#dfc9a8" stroke="#232a36" stroke-width="3"/>
+<path d="M676 98 L704 104" stroke="#232a36" stroke-width="4"/>
+<path d="M680 124 L700 118" stroke="#232a36" stroke-width="4"/>
+<text x="600" y="160" font-family="sans-serif" font-size="15" fill="#232a36">level gaze / effort snarl</text>
+<text x="500" y="420" font-family="sans-serif" font-size="15" fill="#232a36">palette: marble #ece7da aegean #2e5f8a bronze #a8762e grey #565b66</text>
+<text x="500" y="450" font-family="sans-serif" font-size="15" fill="#232a36">shoulders 1.8 heads - himation drape 2.0 heads - narrow high stance</text>
+</g>
+</svg>
