@@ -39,8 +39,11 @@ check, SFX tag map with the honest hush, voice/generator coverage, audio
 sync and bounds, stem rebuild match, duck floors, master bounds, live/offline
  phrase parity, captions rebuild, theatre wiring, trailer plan and
  frame parity, trailer caption coverage, poster rebuild match, premiere
- markup and player hooks, behind-the-scenes surface, root landing), the smoke suite, the
- animatic suite, the combat suite, the sound suite, the premiere suite, the audio render pipeline,
+ markup and player hooks, behind-the-scenes surface, root landing,
+ frame-step transport and keyboard map, card keyboard access, full stage
+ sweep, public-docs unity), the smoke suite, the
+animatic suite, the combat suite, the sound suite, the premiere suite, the final
+integration suite, the audio render pipeline,
 the capture and render tools,
 and a byte-exact captions rebuild check.
 
