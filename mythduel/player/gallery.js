@@ -7,6 +7,7 @@ export function paintGallery(tl, board) {
   grid.innerHTML = '';
   for (const p of board.panels) {
     const beat = tl.beats.find((b) => b.id === p.beat);
+    const pos = board.panels.indexOf(p) + 1;
     const card = document.createElement('figure');
     card.className = 'board-card';
     const swatch = document.createElement('div');
@@ -14,7 +15,7 @@ export function paintGallery(tl, board) {
     swatch.style.background = 'linear-gradient(180deg,' + p.palette.sky + ',' + p.palette.wash + ')';
     const cap = document.createElement('figcaption');
     const title = document.createElement('strong');
-    title.textContent = p.beat + ' - ' + p.title;
+    title.textContent = 'Beat ' + pos + ' of ' + board.panels.length + ' - ' + p.title;
     const meta = document.createElement('span');
     meta.textContent = formatTime(p.heroTime) + ' of ' + formatTime(tl.total) + ' - ' + p.comp + ' - ' + (beat ? beat.exchange : '');
     const pose = document.createElement('span');
@@ -31,7 +32,12 @@ export function paintGallery(tl, board) {
         seek.value = p.heroTime;
         seek.dispatchEvent(new Event('input', { bubbles: true }));
       }
-      document.getElementById('stageWrap').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const wrap = document.getElementById('stageWrap');
+      if (wrap) {
+        const reduced = typeof window !== 'undefined' && window.matchMedia &&
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        wrap.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
+      }
     });
     grid.appendChild(card);
   }

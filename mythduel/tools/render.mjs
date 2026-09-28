@@ -23,6 +23,17 @@ export function stillsManifest() {
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 if (isMain) {
+  const cliArgs = process.argv.slice(2);
+  if (cliArgs.includes('--help') || cliArgs.includes('-h')) {
+    console.log('Usage: node mythduel/tools/render.mjs [--help]');
+    console.log('Prints the deterministic stills manifest; exits 0 green, 2 on unknown flag.');
+    process.exit(0);
+  }
+  const unknownFlag = cliArgs.find((a) => a.startsWith('-'));
+  if (unknownFlag) {
+    console.error('Unknown flag: ' + unknownFlag);
+    process.exit(2);
+  }
   const m = stillsManifest();
   console.log('mythduel stills manifest: seed=' + m.seed + ' total=' + m.total + 's');
   for (const s of m.stills) console.log('  ' + s.beat + ' t=' + s.heroTime + 's :: ' + s.title);

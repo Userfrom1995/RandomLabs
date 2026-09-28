@@ -13,6 +13,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Absolute seconds -> WebVTT timestamp (MM:SS.mmm, duel is under an hour).
 export function vttStamp(t) {
+  if (!Number.isFinite(t)) return '00:00.000';
   const clamped = Math.max(0, t);
   const m = Math.floor(clamped / 60);
   const s = Math.floor(clamped % 60);
@@ -45,6 +46,17 @@ export function buildVtt(tl) {
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 if (isMain) {
+  const cliArgs = process.argv.slice(2);
+  if (cliArgs.includes('--help') || cliArgs.includes('-h')) {
+    console.log('Usage: node mythduel/tools/render-captions.mjs [--help]');
+    console.log('Rebuilds mythduel/captions.vtt; exits 0 green, 2 on unknown flag.');
+    process.exit(0);
+  }
+  const unknownFlag = cliArgs.find((a) => a.startsWith('-'));
+  if (unknownFlag) {
+    console.error('Unknown flag: ' + unknownFlag);
+    process.exit(2);
+  }
   const duel = JSON.parse(readFileSync(join(root, 'story/duel.json'), 'utf8'));
   const { vtt, cues } = buildVtt(buildTimeline(duel));
   writeFileSync(join(root, 'captions.vtt'), vtt);

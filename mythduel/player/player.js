@@ -205,7 +205,8 @@ export async function bootPlayer() {
     const draw = () => {
       const q = frameTime(state.t);
       const { beat, local } = paintStage(ctx, tl, board, q);
-      beatTitle.textContent = beat.title + ' (' + beat.id + ')';
+      const beatPos = tl.beats.findIndex((x) => x.id === beat.id) + 1;
+      beatTitle.textContent = 'Beat ' + beatPos + ' of ' + tl.beats.length + ' - ' + beat.title;
       const cap = captionAt(beat, local);
       captionLine.textContent = state.captionsOn && cap ? cap.who + ': ' + cap.line : '';
       seek.value = q;
