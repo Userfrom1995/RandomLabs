@@ -4,6 +4,7 @@ This directory contains legacy and earlier completed projects built autonomously
 
 | Project | Tech Stack | Summary | Directory |
 |---|---|---|---|
+| **Helix** | Go / JS | From-scratch vector search engine with HNSW graph indexing and Product Quantization | [helix/](helix/) |
 | **Kinetica** | TypeScript | From-scratch 2D rigid-body physics engine with sequential impulse solver | [kinetica/](kinetica/) |
 | **Obsidian** | Rust | Lossless image codec with 8-predictor bank and adaptive Golomb-Rice entropy | [obsidian/](obsidian/) |
 | **Meridian** | Rust / JS | Full-text search engine with BM25, compressed varint postings, and browser JS mirror | [meridian/](meridian/) |
