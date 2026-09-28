@@ -6,19 +6,14 @@
 import { beatRideAt } from './orchestra.js';
 import { renderVoice, voiceSeed } from './voices.js';
 import { renderSfxEvent } from './sfx.js';
-import { dialogueWindows, duckLevelAt, SCORE_FLOOR, SFX_FLOOR, DUCK_VERSION } from './duck.js';
+import { dialogueWindows, duckLevelAt, SCORE_FLOOR, SFX_FLOOR } from './duck.js';
 
 export const MIX_SAMPLE_RATE = 22050;
 export const MIX_VERSION = 'mythduel-mix/1';
-export const MIX_DUCK = DUCK_VERSION;
 
 // Bus levels: the score carries the duel, the bed stays underneath.
 const SCORE_BUS = 0.8;
 const SFX_BUS = 0.5;
-
-export function mixDurationSec(totalSec) {
-  return Math.ceil(totalSec * MIX_SAMPLE_RATE);
-}
 
 function placeInto(master, samples, startSec, gain, duckFn) {
   const at = Math.floor(startSec * MIX_SAMPLE_RATE);
