@@ -98,6 +98,8 @@ export async function bootPlayer() {
     const seek = document.getElementById('seek');
     const btnPlay = document.getElementById('btnPlay');
     const btnRestart = document.getElementById('btnRestart');
+    const btnStepBack = document.getElementById('btnStepBack');
+    const btnStepFwd = document.getElementById('btnStepFwd');
     const btnTrailer = document.getElementById('btnTrailer');
     const btnCaption = document.getElementById('btnCaption');
     const btnFull = document.getElementById('btnFull');
@@ -145,6 +147,21 @@ export async function bootPlayer() {
         if (!Number.isFinite(state.t)) state.t = 0;
       }
       draw();
+    };
+
+    // Frame-step: move exactly one 24 fps frame on the current clock, so
+    // stepping paints the same pixels as scrubbing or playing through.
+    const stepFrame = (dir) => {
+      if (state.mode === 'trailer') {
+        setT(frameTime(state.trailerT) + dir / 24);
+      } else {
+        setT(frameTime(state.t) + dir / 24);
+      }
+    };
+    const toggleFullscreen = () => {
+      const wrap = document.getElementById('stageWrap');
+      if (document.fullscreenElement) document.exitFullscreen();
+      else if (wrap && wrap.requestFullscreen) wrap.requestFullscreen();
     };
 
     const showEndCard = (title, sub) => {
@@ -275,6 +292,8 @@ export async function bootPlayer() {
     });
     if (bigPlay) bigPlay.addEventListener('click', () => btnPlay.click());
     btnRestart.addEventListener('click', () => { if (state.mode === 'trailer') setMode('duel'); setT(0); });
+    if (btnStepBack) btnStepBack.addEventListener('click', () => stepFrame(-1));
+    if (btnStepFwd) btnStepFwd.addEventListener('click', () => stepFrame(1));
     if (btnTrailer) btnTrailer.addEventListener('click', () => {
       setMode(state.mode === 'trailer' ? 'duel' : 'trailer');
     });
@@ -287,9 +306,7 @@ export async function bootPlayer() {
       draw();
     });
     btnFull.addEventListener('click', () => {
-      const wrap = document.getElementById('stageWrap');
-      if (document.fullscreenElement) document.exitFullscreen();
-      else if (wrap.requestFullscreen) wrap.requestFullscreen();
+      toggleFullscreen();
     });
     // Volume and mute drive the live score performer for real.
     if (!state.audio.audioAvailable()) {
@@ -312,6 +329,15 @@ export async function bootPlayer() {
       if (e.code === 'Space') { e.preventDefault(); btnPlay.click(); }
       if (e.key === 'c' || e.key === 'C') btnCaption.click();
       if ((e.key === 't' || e.key === 'T') && btnTrailer) btnTrailer.click();
+      if (e.key === 'ArrowLeft') { e.preventDefault(); stepFrame(-1); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); stepFrame(1); }
+      if (e.key === 'Home') { e.preventDefault(); if (state.mode === 'trailer') setMode('duel'); setT(0); }
+      if (e.key === 'End') {
+        e.preventDefault();
+        if (state.mode === 'trailer') setT(plan.total - 0.001);
+        else setT(tl.total - 0.001);
+      }
+      if ((e.key === 'f' || e.key === 'F') && !e.metaKey && !e.ctrlKey) toggleFullscreen();
     });
     if (veil) veil.hidden = true;
     if (bigPlay) bigPlay.hidden = false;

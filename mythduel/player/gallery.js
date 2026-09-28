@@ -51,6 +51,9 @@ export function paintGallery(tl, board) {
     const pos = board.panels.indexOf(p) + 1;
     const card = document.createElement('figure');
     card.className = 'board-card';
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+    card.setAttribute('aria-label', 'Jump the stage to ' + p.title + ' at ' + formatTime(p.heroTime));
     const swatch = document.createElement('div');
     swatch.className = 'board-swatch';
     swatch.innerHTML = miniScene(p, beat);
@@ -73,7 +76,7 @@ export function paintGallery(tl, board) {
     }
     card.appendChild(swatch);
     card.appendChild(cap);
-    card.addEventListener('click', () => {
+    const jumpToHero = () => {
       const seek = document.getElementById('seek');
       if (seek) {
         seek.value = p.heroTime;
@@ -85,6 +88,10 @@ export function paintGallery(tl, board) {
           window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         wrap.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
       }
+    };
+    card.addEventListener('click', jumpToHero);
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); jumpToHero(); }
     });
     grid.appendChild(card);
   }

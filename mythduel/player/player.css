@@ -57,6 +57,8 @@ canvas#stage { display: block; width: 100%; aspect-ratio: 16 / 9; height: auto; 
 .gallery-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 12px; }
 .board-card { margin: 0; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; cursor: pointer; }
 .board-card:hover { border-color: var(--accent-2); }
+.board-card:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; border-color: var(--accent-2); }
+.transport button:focus-visible, .chapter-group button:focus-visible, .end-actions button:focus-visible, .big-play:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
 .board-swatch { height: 120px; }
 .board-swatch svg { display: block; width: 100%; height: 100%; }
 .board-card figcaption { padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; font-size: 0.86rem; color: var(--muted); }
