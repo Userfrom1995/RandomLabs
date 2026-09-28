@@ -87,12 +87,16 @@ for (const big of [plan.total, plan.total + 0.5, plan.total + 1e9]) {
     m.cutIndex === plan.cuts.length - 1 && m.progress === 1 &&
     Math.abs(m.duelTime - frameTime(plan.cuts[plan.cuts.length - 1].tOut - 0.001)) < 1e-9);
 }
-// Infinity is unreachable from the player (rAF deltas and seek are bounded):
-// the guard coerces it to zero instead of crashing. Lock in no-crash + lattice.
-ok('Infinity clock never crashes', (() => {
+// Infinity end-clamps onto the final frame (consistent total order with
+// overflow clocks); NaN and garbage pin to clock zero without crashing.
+ok('Infinity clock end-clamps', (() => {
   const m = trailerCutAt(plan, Infinity);
-  return Math.abs(m.duelTime * 24 - Math.round(m.duelTime * 24)) < 1e-9;
-})(), 'coerced, pinned');
+  const last = plan.cuts[plan.cuts.length - 1];
+  return m.cutIndex === last.index && m.progress === 1 &&
+    Math.abs(m.duelTime - frameTime(last.tOut - 0.001)) < 1e-9 &&
+    Math.abs(m.duelTime * 24 - Math.round(m.duelTime * 24)) < 1e-9;
+})(), 'end-clamped, pinned');
+ok('-Infinity clock pins to zero', trailerCutAt(plan, -Infinity).cutIndex === 0, 'clamped');
 throws('trailerCutAt needs a plan', () => trailerCutAt(null, 1));
 throws('trailerCutAt rejects empty cuts', () => trailerCutAt({ cuts: [], total: 0 }, 1));
 
@@ -116,13 +120,9 @@ ok('cut starts map exactly onto duel time',
 ok('30s total claim holds', Math.abs(plan.total - 30) < 1e-9, plan.total + 's');
 
 // H5: poster renderer hostility.
-// Unknown kinds fall through to the zeus branch today (only POSTER_KINDS is
-// ever passed by renderPosters, so the path is unreachable from any UI or
-// CLI). Lock in no-crash plus valid SVG rather than a throw contract.
-ok('unknown poster kind never crashes', (() => {
-  const svg = buildPoster('villain', tl.seed, {});
-  return typeof svg === 'string' && svg.startsWith('<svg');
-})(), 'fallthrough, valid svg');
+// Unknown kinds throw loud (only POSTER_KINDS ever reaches buildPoster from
+// renderPosters, so the path stays unreachable from any UI or CLI).
+throws('unknown poster kind throws', () => buildPoster('villain', tl.seed, {}));
 const pal = (board.panels.find((p) => p.beat === 'b06') || board.panels[0]).palette || {};
 const hostilePal = { ...pal, sky: '"><script>alert(1)</script>' };
 const hostileSvg = buildPoster('duel', tl.seed, hostilePal);
