@@ -25,6 +25,7 @@ An original Thor-vs-Zeus mythic duel fight scene at production quality (same bar
 
 ### Phase 2: Boards, Arena and Animatic Cut (PR 2 target, Refs #470)
 
+- [x] Painted storm-crag arena (`engine/arena.js`: authored per-beat composition, storm-graded wash layers, seeded detail pass, rain/mist/skyburst atmosphere; capped 390 px budgets; wired into the theatre with feet on the ground line)
 - [ ] Beat-by-beat boards and animatic (`storyboard.json` panels, `duel.json` timed beats with entry/exit continuity, cause links, caption lattice)
 - [ ] Painted storm-crag arena (`engine/arena.js`: composition sketch values, wash layers, detail pass, atmosphere pass; honest 390 px budgets)
 - [ ] Animatic cut playable in the theatre (chapters/beats from the beat map, captions, trailer map skeleton; transport green)
