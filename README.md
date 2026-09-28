@@ -52,7 +52,7 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Active projects are software or research builds currently in progress under open tracking issues (meta tasks such as lab health audits or workflow maintenance are not listed here):
 
-- None currently in flight; the lab is in standby.
+- **Mythduel (`mythduel/`)** - Original Thor vs Zeus mythic duel fight scene (issue #470, in production): hand-drawn-style deterministic canvas duel, original score and SFX, 30 s trailer cut, premiere posters, behind-the-scenes surface. [Website](https://userfrom1995.github.io/RandomLabs/mythduel/) · [README](mythduel/README.md)
 
 ## Previous Projects (Latest 10)
 

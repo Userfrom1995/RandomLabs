@@ -13,9 +13,12 @@ phase keeps `bash mythduel/repro.sh` green.
 ## Watch
 
 Open `mythduel/index.html` (served at `/mythduel/`): play/pause (Space),
-scrub/seek on the 24 fps frame grid, beat/chapter menu, captions toggle (C),
-fullscreen, volume and mute for the live original score. Reduced-motion viewers
-get held stills stepped by seek and chapters. Works at 390 px mobile widths.
+scrub/seek on the 24 fps frame grid, beat/chapter menu, the 30 s trailer cut
+(Trailer button or T, played through the same stage paint so trailer frames
+match duel frames pixel for pixel), captions toggle (C), fullscreen, volume
+and mute for the live original score. Both cuts close on an end card with
+credits and replay. Reduced-motion viewers get held stills stepped by seek
+and chapters. Works at 390 px mobile widths.
 
 ## How it works
 
@@ -42,7 +45,12 @@ get held stills stepped by seek and chapters. Works at 390 px mobile widths.
   grain, four-pass storm-crag arena paint, FK fighter rigs with combat
   choreography (poses, faces, exertion, wounds, wind-driven cloth and hair,
   impact particles anchored to the geography).
-- `player/`: theatre transport (including live-score volume/mute), storyboard gallery with per-beat shot lists, styles.
+- `player/`: theatre transport (including live-score volume/mute, trailer
+  mode, end card with credits), storyboard gallery with per-beat shot lists,
+  premiere poster wall, styles.
+- `designs/posters/`: three deterministic premiere posters (key art plus both
+  fighter sheets) painted from the duel seed by `tools/render-posters.mjs`.
+- `engine/trailer.js`: trailer-clock to duel-time map for the 30 s cut.
 - `score/`: original leitmotif rows and per-cue orchestration, six offline
   synth voices, eighteen-generator procedural SFX bed, voiced-line-first
   ducking, deterministic mix to WAV master plus per-bus stems, live WebAudio
@@ -57,8 +65,9 @@ get held stills stepped by seek and chapters. Works at 390 px mobile widths.
   score coverage and dead-air check, SFX tag map, voice/generator coverage,
   audio sync and bounds, stem rebuild match, duck floors, master bounds,
   live/offline phrase parity, IP/provenance gates).
-- `tests/`: smoke suite, animatic suite, combat suite, sound suite, hostile and QC regression pins.
-  `captions.vtt`: committed caption track. `story/trailer.json`: trailer cut skeleton.
+- `tests/`: smoke suite, animatic suite, combat suite, sound suite, premiere
+  suite, hostile and QC regression pins.
+  `captions.vtt`: committed caption track. `story/trailer.json`: trailer cut map (7 windows, 30 s).
 - `docs/`: pipeline and craft notes. `repro.sh`: one-command green build.
 
 ## Sound
@@ -77,9 +86,9 @@ live through WebAudio.
 
 ## Reproduce
 
-`bash mythduel/repro.sh` runs the audit, the smoke, animatic, combat, and sound
-suites, the audio render, the capture and render tools, and a byte-exact
-captions rebuild check.
+`bash mythduel/repro.sh` runs the audit, the smoke, animatic, combat, sound,
+and premiere suites, the audio render, the poster render check, the capture
+and render tools, and a byte-exact captions rebuild check.
 
 ## Originality
 

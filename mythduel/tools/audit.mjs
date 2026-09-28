@@ -1,4 +1,4 @@
-// Mythduel audit: enforces the 48 binding gates on committed sources.
+// Mythduel audit: enforces the 56 binding gates on committed sources.
 // Exit 0 = green, non-zero = gate failure with a reason.
 //
 // Import-safe: importing this module has no side effects (no argv parsing,
@@ -18,6 +18,8 @@ import { poseFor, impactAt, IMPACTS, clothSway, impactParticles, PARTICLE_BUDGET
 import { faceState, effortForBeat } from '../engine/faces.js';
 import { contactAt, silhouetteAt, tremorAmp, weaponFlight, paintFighterRig, paintWeaponFlight, paintImpactParticles } from '../engine/fighters.js';
 import { buildScoreEvents, orchestrate, BEAT_RIDES } from '../score/orchestra.js';
+import { buildTrailerPlan, trailerCutAt, TRAILER_MIN, TRAILER_MAX } from '../engine/trailer.js';
+import { renderPosters, POSTER_KINDS } from './render-posters.mjs';
 import { buildSfxEvents, tagRecipe, SFX_NAMES } from '../score/sfx.js';
 import { dialogueWindows, duckLevelAt, SCORE_FLOOR, SFX_FLOOR } from '../score/duck.js';
 import { renderMix, analyze, MIX_SAMPLE_RATE } from '../score/mix.js';
@@ -546,6 +548,90 @@ export function runAudit() {
   check('render tool committed', existsSync(join(root, 'tools/render.mjs')));
   const playerJs = readFileSync(join(root, 'player/player.js'), 'utf8');
   check('player seeks on the frame grid', playerJs.includes('frameTime('), 'frameTime in player');
+  // Phase 5: the trailer plan builds from committed sources and totals
+  // inside the 25-35 s window.
+  let plan = null;
+  let planOk = false;
+  let planWhy = '';
+  try {
+    plan = buildTrailerPlan(tl, trailer);
+    planOk = plan.total >= TRAILER_MIN && plan.total <= TRAILER_MAX &&
+      plan.cuts.length === trailer.cuts.length;
+    planWhy = plan.total + 's over ' + plan.cuts.length + ' cuts';
+  } catch (err) {
+    planWhy = err.message;
+  }
+  check('trailer plan builds, 25-35s', planOk, planWhy);
+  // Phase 5: every trailer-clock sample maps onto a lattice-exact duel
+  // instant inside the cut's own beat (trailer/duel frame parity).
+  let parityOk = !!plan;
+  const parityWhy = [];
+  if (plan) {
+    for (const cut of plan.cuts) {
+      for (let tt = cut.trailerStart; tt < cut.trailerEnd; tt += 1) {
+        const mapped = trailerCutAt(plan, frameTime(tt));
+        const onLattice = Math.abs(mapped.duelTime * 24 - Math.round(mapped.duelTime * 24)) < 1e-9;
+        const inBeat = beatAt(tl, mapped.duelTime).beat.id === cut.beat;
+        const inWindow = mapped.duelTime >= cut.tIn - 1e-9 && mapped.duelTime < cut.tOut + 1e-9;
+        if (!onLattice || !inBeat || !inWindow) {
+          parityOk = false;
+          parityWhy.push(cut.beat + '@' + tt.toFixed(2));
+        }
+      }
+      const edge = trailerCutAt(plan, cut.trailerEnd - 0.001);
+      if (beatAt(tl, edge.duelTime).beat.id !== cut.beat) {
+        parityOk = false;
+        parityWhy.push(cut.beat + ':edge-drift');
+      }
+    }
+    const endMap = trailerCutAt(plan, plan.total + 5);
+    if (Math.abs(endMap.duelTime - frameTime(plan.cuts[plan.cuts.length - 1].tOut - 0.001)) > 1e-9) {
+      parityOk = false;
+      parityWhy.push('end-clamp-drift');
+    }
+  }
+  check('trailer frames match duel frames', parityOk, parityWhy.join(',') || '7 cuts sampled');
+  // Phase 5: every trailer cut carries a caption note so the cut reads silent.
+  const trailerCapsOk = !!plan && plan.cuts.every((c) => c.note && c.note.length > 0);
+  check('trailer captions cover every cut', trailerCapsOk, plan ? plan.cuts.length + ' notes' : 'no plan');
+  // Phase 5: the three premiere posters are committed and match the
+  // deterministic rebuild byte for byte.
+  const posterFiles = POSTER_KINDS.map((k) => 'designs/posters/' + k + '.svg');
+  const postersExist = posterFiles.every((f) => existsSync(join(root, f)));
+  let postersMatch = false;
+  let postersWhy = '';
+  try {
+    const bad = renderPosters(true);
+    postersMatch = bad.length === 0;
+    postersWhy = bad.length ? bad.join(',') : '3 posters match';
+  } catch (err) {
+    postersWhy = err.message;
+  }
+  check('posters committed', postersExist, posterFiles.join(','));
+  check('posters match deterministic rebuild', postersMatch, postersWhy);
+  // Phase 5: premiere markup in the entrypoint (trailer transport, end card
+  // with replay, poster wall, trailer map link, noscript fallback).
+  const premiereMarks = ['id="btnTrailer"', 'id="endCard"', 'id="endReplay"', 'id="endTrailer"',
+    'designs/posters/duel.svg', 'designs/posters/thor.svg', 'designs/posters/zeus.svg',
+    'story/trailer.json', '<noscript>'];
+  const marksMissing = premiereMarks.filter((m) => !html.includes(m));
+  check('premiere markup committed', marksMissing.length === 0, marksMissing.join(',') || 'trailer+endcard+posters');
+  // Phase 5: the player wires trailer mode, the end card, the canvas
+  // fallback, reduced-motion stills, and the trailer shortcut for real.
+  const playerMarks = ['trailerCutAt', 'buildTrailerPlan', 'setMode', 'showEndCard',
+    "getContext('2d')", 'prefers-reduced-motion', "'t'"];
+  const playerMissing = playerMarks.filter((m) => !playerJs.includes(m));
+  check('player premiere hooks wired', playerMissing.length === 0, playerMissing.join(',') || 'trailer+endcard+fallbacks');
+  // Phase 5: behind-the-scenes surface links the premiere (posters, trailer
+  // map), and the root landing points at the duel.
+  const docsIndex = readFileSync(join(root, 'docs/index.md'), 'utf8');
+  const docsOk = docsIndex.includes('designs/posters') && docsIndex.includes('story/trailer.json');
+  const repoRoot = join(root, '..');
+  const landing = readFileSync(join(repoRoot, 'index.html'), 'utf8');
+  const landingReadme = readFileSync(join(repoRoot, 'README.md'), 'utf8');
+  const landingOk = landing.includes('/mythduel/') && landingReadme.includes('mythduel/');
+  check('behind-the-scenes links premiere', docsOk, 'posters+trailer map');
+  check('root landing points at the duel', landingOk, 'index.html+README.md');
 
   return failures;
 }
