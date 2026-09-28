@@ -13,10 +13,12 @@ phase keeps `bash mythduel/repro.sh` green.
 ## Watch
 
 Open `mythduel/index.html` (served at `/mythduel/`): play/pause (Space),
-scrub/seek on the 24 fps frame grid, beat/chapter menu, the 30 s trailer cut
+scrub/seek on the 24 fps frame grid, single-frame step (‹ › buttons or Left
+and Right arrows), Home to restart and End to jump to the close, beat/chapter menu, the 30 s trailer cut
 (Trailer button or T, played through the same stage paint so trailer frames
-match duel frames pixel for pixel), captions toggle (C), fullscreen, volume
-and mute for the live original score. Both cuts close on an end card with
+match duel frames pixel for pixel), captions toggle (C), fullscreen (button or F), volume
+and mute for the live original score. Storyboard cards are keyboard
+operable (Tab to a card, Enter to jump the stage to its hero frame). Both cuts close on an end card with
 credits and replay. Reduced-motion viewers get held stills stepped by seek
 and chapters. Works at 390 px mobile widths.
 
