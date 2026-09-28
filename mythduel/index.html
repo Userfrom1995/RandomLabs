@@ -35,12 +35,24 @@
       <div class="loading-veil" id="loadingVeil" aria-hidden="true">
         <p>Gathering the storm&hellip;</p>
       </div>
+      <div class="end-card" id="endCard" hidden>
+        <div class="card" role="status">
+          <h2>Mythduel</h2>
+          <p class="end-sub">Both fighters loose the storm out to sea together. Mercy as strength.</p>
+          <p class="credits">An original duel: story, designs, choreography, score, and SFX created for this film. Thor and Zeus are original interpretations of public-domain myth. No third-party likeness or assets.</p>
+          <div class="end-actions">
+            <button type="button" id="endReplay">Watch again</button>
+            <button type="button" id="endTrailer">Watch trailer</button>
+          </div>
+        </div>
+      </div>
       <button class="big-play" id="bigPlay" type="button" aria-label="Play the duel" hidden>&#9654;</button>
     </div>
 
     <div class="transport" role="group" aria-label="Transport controls">
       <button id="btnPlay" type="button" aria-label="Play or pause (Space)">&#9654;</button>
       <button id="btnRestart" type="button" aria-label="Restart from beginning">|&#9664;</button>
+      <button id="btnTrailer" type="button" aria-pressed="false" aria-label="Play the 30 second trailer (T)">Trailer</button>
       <div class="scrub">
         <label class="visually-hidden" for="seek">Seek</label>
         <input id="seek" type="range" min="0" max="172" step="0.0417" value="0" aria-valuetext="0:00 of 2:52">
@@ -57,6 +69,16 @@
     <p class="beat-title" id="beatTitle">Terms Spoken</p>
 
     <div class="beats" id="beatMenu" aria-label="Chapters and beats"></div>
+  </section>
+
+  <section aria-label="Trailer and posters">
+    <h2>Trailer and posters</h2>
+    <p class="logline">A 30-second cut across seven windows of the duel, playable in the theatre with the Trailer button (T). The key art below is rendered deterministically from the duel seed by <code>tools/render-posters.mjs</code>.</p>
+    <div class="design-row">
+      <figure><img src="designs/posters/duel.svg" alt="Mythduel key art poster"><figcaption>Key art: the storm-crag under the splitting sky.</figcaption></figure>
+      <figure><img src="designs/posters/thor.svg" alt="Mythduel Thor poster"><figcaption>Thor, storm-bringer of the north.</figcaption></figure>
+      <figure><img src="designs/posters/zeus.svg" alt="Mythduel Zeus poster"><figcaption>Zeus, storm-lord of Olympus.</figcaption></figure>
+    </div>
   </section>
 
   <section aria-label="Storyboard">
@@ -86,6 +108,7 @@
       <li><a href="story/continuity.md">Continuity ledger</a></li>
       <li><a href="story/music-direction.md">Music direction</a></li>
       <li><a href="story/IP-DECLARATION.md">IP declaration</a></li>
+      <li><a href="story/trailer.json">Trailer cut map (7 cuts, 30 s)</a></li>
       <li><a href="captions.vtt">Caption track (WebVTT)</a></li>
     </ul>
   </section>

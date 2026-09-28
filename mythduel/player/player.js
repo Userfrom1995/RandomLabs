@@ -1,20 +1,23 @@
-// Mythduel player: deterministic duel stage (Phase 4: original score).
+// Mythduel player: deterministic duel stage (Phase 5: premiere theatre).
 //
 // Plays story/duel.json as a scrub-exact canvas duel: every rendered instant
-// is quantized through frameTime() first, so pause, seek, chapters, and the
-// capture loop all paint identical pixels. Paints the storm-crag through
+// is quantized through frameTime() first, so pause, seek, chapters, trailer
+// cuts, and the capture loop all paint identical pixels. Paints the storm-crag through
 // engine/arena.js, the fighters as FK rigs (engine/fighters.js over rigs.js,
 // acting.js, faces.js: proportion bodies, gripping hands, gaze/blink/brows,
 // effort mouths, exertion tremor, wound marks, wind-driven cloth/hair,
 // impact particles anchored to the geography) with feet on the arena ground
 // line, ink-boil jitter and paper grain from the seeded RNG. The original
 // score performs live (score/live-audio.js: same rows, lines, and
-// cue-opening phrases as the offline WAV master) with volume and mute.
-// Real controls only: play/pause, seek, chapters, captions toggle,
-// fullscreen, volume, mute. Trailer arrives with the premiere phase;
-// no dead controls.
+// cue-opening phrases as the offline WAV master) with volume and mute,
+// following duel beats and trailer cuts alike. Trailer mode replays the
+// story/trailer.json cut windows on a trailer clock through the same
+// paintStage, and the end card closes both cuts with credits and replay.
+// Real controls only: play/pause, restart, trailer, seek, chapters,
+// captions toggle, fullscreen, volume, mute.
 import { buildTimeline, beatAt, chapterAt, captionAt, formatTime } from '../engine/timeline.js';
 import { frameTime } from '../engine/frames.js';
+import { buildTrailerPlan, trailerCutAt } from '../engine/trailer.js';
 import { grainFlecks } from '../engine/paper.js';
 import { paintArena, STAGE_W, STAGE_H } from '../engine/arena.js';
 import { paintFighterRig, paintWeaponFlight, weaponFlight, paintImpactParticles } from '../engine/fighters.js';
@@ -65,7 +68,6 @@ async function loadJson(url) {
 }
 
 export async function bootPlayer() {
-  const canvas = document.getElementById('stage');
   const overlay = document.getElementById('stageOverlay');
   const overlayMsg = document.getElementById('overlayMsg');
   const captionLine = document.getElementById('captionLine');
@@ -74,20 +76,29 @@ export async function bootPlayer() {
     if (overlay) overlay.hidden = false;
   };
   try {
-    const [duel, board] = await Promise.all([
+    const [duel, board, trailer] = await Promise.all([
       loadJson('story/duel.json'),
       loadJson('story/storyboard.json'),
+      loadJson('story/trailer.json'),
     ]);
     const tl = buildTimeline(duel);
+    const plan = buildTrailerPlan(tl, trailer);
+    const canvas = document.getElementById('stage');
     const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      fail('This browser could not provide a 2D canvas context, so the duel cannot paint. Try a recent desktop or mobile browser; the story, boards, and captions above remain readable.');
+      return;
+    }
     const state = {
-      tl, board, playing: false, lastWall: 0, t: 0,
+      tl, board, plan, playing: false, lastWall: 0, t: 0,
+      mode: 'duel', trailerT: 0,
       captionsOn: true, reduced: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
       audio: createPerformer(), cueBeat: null,
     };
     const seek = document.getElementById('seek');
     const btnPlay = document.getElementById('btnPlay');
     const btnRestart = document.getElementById('btnRestart');
+    const btnTrailer = document.getElementById('btnTrailer');
     const btnCaption = document.getElementById('btnCaption');
     const btnFull = document.getElementById('btnFull');
     const vol = document.getElementById('vol');
@@ -98,6 +109,9 @@ export async function bootPlayer() {
     const beatTitle = document.getElementById('beatTitle');
     const veil = document.getElementById('loadingVeil');
     const bigPlay = document.getElementById('bigPlay');
+    const endCard = document.getElementById('endCard');
+    const endReplay = document.getElementById('endReplay');
+    const endTrailer = document.getElementById('endTrailer');
     seek.max = tl.total;
     tDur.textContent = formatTime(tl.total);
     // Beat/chapter menu from the beat map.
@@ -114,7 +128,7 @@ export async function bootPlayer() {
         btn.type = 'button';
         btn.textContent = b.title;
         btn.dataset.beat = bid;
-        btn.addEventListener('click', () => { setT(b.start + 0.01); });
+        btn.addEventListener('click', () => { if (state.mode === 'trailer') setMode('duel'); setT(b.start + 0.01); });
         group.appendChild(btn);
       });
       beatMenu.appendChild(group);
@@ -122,12 +136,77 @@ export async function bootPlayer() {
     paintGallery(state.tl, state.board);
 
     const setT = (v) => {
-      state.t = Math.min(Math.max(v, 0), tl.total - 0.001);
-      if (!Number.isFinite(state.t)) state.t = 0;
+      hideEndCard();
+      if (state.mode === 'trailer') {
+        state.trailerT = Math.min(Math.max(v, 0), plan.total - 0.001);
+        if (!Number.isFinite(state.trailerT)) state.trailerT = 0;
+      } else {
+        state.t = Math.min(Math.max(v, 0), tl.total - 0.001);
+        if (!Number.isFinite(state.t)) state.t = 0;
+      }
       draw();
     };
 
+    const showEndCard = (title, sub) => {
+      if (!endCard) return;
+      const h = endCard.querySelector('h2');
+      const p = endCard.querySelector('p.end-sub');
+      if (h && title) h.textContent = title;
+      if (p && sub) p.textContent = sub;
+      endCard.hidden = false;
+    };
+    const hideEndCard = () => {
+      if (endCard) endCard.hidden = true;
+    };
+
+    const setMode = (mode) => {
+      state.mode = mode;
+      state.playing = false;
+      state.lastWall = 0;
+      state.cueBeat = null;
+      btnPlay.textContent = '▶';
+      try { state.audio.stop(); } catch (err) { console.warn('mythduel: audio stop failed', err); }
+      hideEndCard();
+      if (mode === 'trailer') {
+        state.trailerT = 0;
+        seek.max = plan.total;
+        tDur.textContent = formatTime(plan.total);
+        if (btnTrailer) { btnTrailer.classList.add('active'); btnTrailer.setAttribute('aria-pressed', 'true'); }
+      } else {
+        seek.max = tl.total;
+        tDur.textContent = formatTime(tl.total);
+        if (btnTrailer) { btnTrailer.classList.remove('active'); btnTrailer.setAttribute('aria-pressed', 'false'); }
+      }
+      if (bigPlay) bigPlay.hidden = false;
+      draw();
+    };
+
+    const drawTrailer = () => {
+      const mapped = trailerCutAt(plan, frameTime(state.trailerT));
+      const { beat, local } = paintStage(ctx, tl, board, mapped.duelTime);
+      const beatPos = tl.beats.findIndex((x) => x.id === beat.id) + 1;
+      beatTitle.textContent = 'Trailer ' + (mapped.cutIndex + 1) + ' of ' + plan.cuts.length +
+        ' - Beat ' + beatPos + ' of ' + tl.beats.length + ' - ' + beat.title;
+      // The live score follows the trailer cut: same cue map as the master.
+      if (state.cueBeat !== beat.id) {
+        state.cueBeat = beat.id;
+        try { state.audio.setCue(beat.music, beat, beatPos - 1); } catch (err) { console.warn('mythduel: setCue failed, silent stage', err); }
+      }
+      // Trailer captions name the cut note so the 30 s cut reads silent.
+      captionLine.textContent = !state.captionsOn ? '' : (mapped.cut.note || beat.title);
+      seek.value = frameTime(state.trailerT);
+      tCur.textContent = formatTime(state.trailerT);
+      seek.setAttribute('aria-valuetext', formatTime(state.trailerT) + ' of ' + formatTime(plan.total) + ' trailer');
+      beatMenu.querySelectorAll('button').forEach((el) => {
+        el.classList.toggle('active', el.dataset.beat === beat.id);
+      });
+    };
+
     const draw = () => {
+      if (state.mode === 'trailer') {
+        drawTrailer();
+        return;
+      }
       const q = frameTime(state.t);
       const { beat, local } = paintStage(ctx, tl, board, q);
       const beatPos = tl.beats.findIndex((x) => x.id === beat.id) + 1;
@@ -154,13 +233,26 @@ export async function bootPlayer() {
         const dt = state.lastWall ? (wall - state.lastWall) / 1000 : 0;
         state.lastWall = wall;
         if (!state.reduced) {
-          state.t += dt;
-          if (state.t >= tl.total) {
-            state.t = tl.total - 0.001;
-            state.playing = false;
-            btnPlay.textContent = '▶';
-            state.audio.stop();
-            if (bigPlay) bigPlay.hidden = false;
+          if (state.mode === 'trailer') {
+            state.trailerT += dt;
+            if (state.trailerT >= plan.total) {
+              state.trailerT = plan.total - 0.001;
+              state.playing = false;
+              btnPlay.textContent = '▶';
+              state.audio.stop();
+              if (bigPlay) bigPlay.hidden = true;
+              showEndCard('Mythduel - trailer', 'The 30 s cut ends here; the full 2 min 52 s duel waits above.');
+            }
+          } else {
+            state.t += dt;
+            if (state.t >= tl.total) {
+              state.t = tl.total - 0.001;
+              state.playing = false;
+              btnPlay.textContent = '▶';
+              state.audio.stop();
+              if (bigPlay) bigPlay.hidden = true;
+              showEndCard('Mythduel', 'Both fighters loose the storm out to sea together. Mercy as strength.');
+            }
           }
         } else if (!state.tickLogged) {
           // Reduced motion: hold stills; the viewer steps by seek/chapters.
@@ -182,7 +274,12 @@ export async function bootPlayer() {
       } catch (err) { console.warn('mythduel: audio transport failed', err); }
     });
     if (bigPlay) bigPlay.addEventListener('click', () => btnPlay.click());
-    btnRestart.addEventListener('click', () => setT(0));
+    btnRestart.addEventListener('click', () => { if (state.mode === 'trailer') setMode('duel'); setT(0); });
+    if (btnTrailer) btnTrailer.addEventListener('click', () => {
+      setMode(state.mode === 'trailer' ? 'duel' : 'trailer');
+    });
+    if (endReplay) endReplay.addEventListener('click', () => { setMode('duel'); setT(0); btnPlay.click(); });
+    if (endTrailer) endTrailer.addEventListener('click', () => { setMode('trailer'); btnPlay.click(); });
     seek.addEventListener('input', () => setT(parseFloat(seek.value)));
     btnCaption.addEventListener('click', () => {
       state.captionsOn = !state.captionsOn;
@@ -214,6 +311,7 @@ export async function bootPlayer() {
       if (e.target.matches('input,textarea')) return;
       if (e.code === 'Space') { e.preventDefault(); btnPlay.click(); }
       if (e.key === 'c' || e.key === 'C') btnCaption.click();
+      if ((e.key === 't' || e.key === 'T') && btnTrailer) btnTrailer.click();
     });
     if (veil) veil.hidden = true;
     if (bigPlay) bigPlay.hidden = false;
