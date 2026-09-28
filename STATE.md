@@ -1,27 +1,28 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-28T15:40Z (maintainer run 36445249192, owner /oc review + /oc maintainer on PR #472 - review already queued, stand down)**
+ - **Updated: 2026-09-28T15:47Z (maintainer run 36446121441, owner /oc maintainer on PR #472 - review + test approved, Evaluator dispatched)**
 
 ## PRs & Issues
- - **PRs:** #472 OPEN (bot, `opencode/issue470-mythduel-phase-2`, head 5dff006612bb094f, MERGEABLE CLEAN) - Mythduel Phase 2: Boards, Arena and Animatic Cut. Body uses `Refs #470` (correct intermediate discipline). #471 MERGED (6e60caf84a1d, Phase 1, merged as Refs #470, branch kept).
- - **Issues:** #470 Mythduel OPEN (Phase 1 merged; Phase 2 PR #472 in review gate). Standing boards open: #70 lab-health, #42 brainstorm. Epics #449 (short film) and #463 (Hearthlight Reimagined) CLOSED.
+ - **PRs:** #472 OPEN (bot, `opencode/issue470-mythduel-phase-2`, head 854b3ee1f273e644, MERGEABLE, mergeStateStatus UNSTABLE from held PR-branch CI, not a gate blocker) - Mythduel Phase 2: Boards, Arena and Animatic Cut. Body uses `Refs #470` (correct intermediate discipline). #471 MERGED (6e60caf84a1d, Phase 1, merged as Refs #470, branch kept).
+ - **Issues:** #470 Mythduel OPEN (Phase 1 merged; Phase 2 PR #472 in the Evaluator gate). Standing boards open: #70 lab-health, #42 brainstorm. Epics #449 (short film) and #463 (Hearthlight Reimagined) CLOSED.
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (last verified this run; re-verify next run).
  - **Owner commissions:** Thor-vs-Zeus original-mythology duel accepted (no Marvel/Sony likeness or assets, binding review gate). Same production quality bar as short-film commission.
 
 ## IN FLIGHT
- - #472 Phase 2 review queued via owner's own `/oc review` (opencode-review run 36445249167 pending on head 5dff0066). Next: Reviewer verdict -> Tester (`test`) -> Evaluator (`eval`) -> merge-as-Refs + Phase 3 chaining. Never merge without `approve-eval`; never Closes #470 until the final phase.
+ - #472 Evaluator dispatched (head 854b3ee1, tests-only Tester commit on top of reviewed head 5dff0066). Next: Evaluator verdict -> merge-as-Refs + Phase 3 chaining on approval, or fix on findings. Never merge without `approve-eval`; never Closes #470 until the final phase.
  - Main tip 6e60caf84a1d (Phase 1 merge, unchanged). #470 stays OPEN through all intermediate phases; Closes only on the final acceptance phase.
+ - Orphan-main pre-check PASS for #472 (`git merge-base origin/main 854b3ee1` = 6e60caf8, shared history).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` not re-checked this run (no signal; standing evaluation-only item).
 
 ## NEXT-RUN PLAYBOOK
-1. Check the Reviewer verdict on #472 head 5dff0066; route test -> eval in sequence on approval, or fix on findings. Never merge without `approve-eval`; never Closes #470 until the final phase.
-2. On merge of an intermediate phase, immediately chain the next phase (never [] on an intermediate merge).
+1. Check the Evaluator verdict on #472 head 854b3ee1; merge-as-Refs + immediately chain the next phase on `approve-eval` (never [] on an intermediate merge), or route fix on findings.
+2. PRs after this one must keep Refs #470, never Closes, until the final phase lands.
 3. On any other new issue/comment/push or workflow_run failure: triage per charter (correlate, cooldown 30m, route review/test/eval/fix/lab/recover/auditor/curate as demanded).
 4. Trigger-list re-verify each run.
 5. Standing rule unchanged: UNTRIAGED sweep every run.
 6. Standby when idle otherwise: do NOT auto-dispatch ideate or invent work.
 
 ## OPEN QUESTIONS
- - What does the Reviewer verdict on Phase 2 (head 5dff0066) say?
+ - What does the Evaluator verdict on Phase 2 (head 854b3ee1) say?
  - PRs after this one must keep Refs #470, never Closes, until the final phase lands.
  - What caused the 08:34-11:26Z schedule silence (GitHub cron flake vs misconfig)?
  - Will the Owner open a PR from the `gui-detach-and-syswide-fixes` branch, or land it another way?
