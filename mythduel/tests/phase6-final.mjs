@@ -138,16 +138,13 @@ ok('public docs carry no milestone markers', pubDocs.every((f) => {
 ok('mythduel sources carry no em dashes', (() => {
   const bad = [];
   const dash = String.fromCharCode(8212);
-  const skip = new Set(['tests/phase6-final.mjs']);
   const walk = (dir) => {
     for (const n of readdirSync(dir)) {
       if (n === 'dist' || n === 'node_modules') continue;
       const p = join(dir, n);
       if (statSync(p).isDirectory()) { walk(p); continue; }
       if (!/\.(json|md|js|mjs|html|css|svg)$/i.test(n)) continue;
-      const rel = p.slice(root.length + 1);
-      if (skip.has(rel)) continue;
-      if (readFileSync(p, 'utf8').includes(dash)) bad.push(rel);
+      if (readFileSync(p, 'utf8').includes(dash)) bad.push(p.slice(root.length + 1));
     }
   };
   walk(root);
