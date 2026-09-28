@@ -1,4 +1,4 @@
-// Mythduel audit: enforces the binding gates on committed sources.
+// Mythduel audit: enforces the 32 binding gates on committed sources.
 // Exit 0 = green, non-zero = gate failure with a reason.
 //
 // Import-safe: importing this module has no side effects (no argv parsing,
@@ -303,8 +303,8 @@ export function runAudit() {
     ARENA_BUDGETS.ridges <= 3 && ARENA_BUDGETS.mistBands <= 3,
     'facets<=30 rain<=160 ridges<=3 mist<=3');
 
-  // Phase 2: arena plates committed via the capture loop: one per sampled
-  // grade, distinct grades, stable checksums.
+  // Phase 2: arena plates committed via the capture loop: one per storm
+  // grade 0-4, distinct grades, stable checksums.
   const plates = capturePlates();
   const plateGrades = new Set(plates.map((p) => p.grade));
   const sumsStable = plates.every((p) => p.checksum === facetChecksum(tl.seed, p.beat));

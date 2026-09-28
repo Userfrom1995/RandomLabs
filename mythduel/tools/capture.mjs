@@ -18,9 +18,29 @@ import { arenaGrade, compositionFor, facetTable } from '../engine/arena.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
+// Fixture loader with one-line actionable errors: a missing file names the
+// expected committed path, a corrupt file names the parse error. Never a raw
+// stack.
+export function loadFixture(path, label) {
+  let raw;
+  try {
+    raw = readFileSync(path, 'utf8');
+  } catch (err) {
+    console.error(label + ' missing (' + path + '): ' + err.message);
+    console.error('Hint: run from the repo root; ' + label + ' is committed under mythduel/story/.');
+    process.exit(1);
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error(label + ' corrupt (' + path + '): ' + err.message);
+    process.exit(1);
+  }
+}
+
 export function captureCards() {
-  const duel = JSON.parse(readFileSync(join(root, 'story/duel.json'), 'utf8'));
-  const board = JSON.parse(readFileSync(join(root, 'story/storyboard.json'), 'utf8'));
+  const duel = loadFixture(join(root, 'story/duel.json'), 'story/duel.json');
+  const board = loadFixture(join(root, 'story/storyboard.json'), 'story/storyboard.json');
   const tl = buildTimeline(duel);
   return board.panels.map((p) => {
     const t = frameTime(p.heroTime);
@@ -40,10 +60,10 @@ export function captureCards() {
   });
 }
 
-// Arena plates: one per sampled storm grade, pinning the painted geography
+// Arena plates: one per storm grade 0-4, pinning the painted geography
 // headless. The facet checksum folds every ridge table into one number, so
 // any drift in the seeded geography fails the audit without needing a canvas.
-export const ARENA_PLATE_BEATS = ['b01', 'b05', 'b06'];
+export const ARENA_PLATE_BEATS = ['b08', 'b01', 'b02', 'b04', 'b06'];
 
 export function facetChecksum(seed, beatId) {
   let h = 2166136261 >>> 0;
@@ -57,7 +77,7 @@ export function facetChecksum(seed, beatId) {
 }
 
 export function capturePlates() {
-  const duel = JSON.parse(readFileSync(join(root, 'story/duel.json'), 'utf8'));
+  const duel = loadFixture(join(root, 'story/duel.json'), 'story/duel.json');
   const tl = buildTimeline(duel);
   return ARENA_PLATE_BEATS.map((bid) => {
     const beat = tl.beats.find((b) => b.id === bid);

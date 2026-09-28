@@ -3,18 +3,17 @@
 // Lists the per-beat hero frames plus arena plates the capture loop exports.
 // No pixels are painted here: the manifest is the contract the capture tool
 // and the Builder self-review cards share. Usage: node mythduel/tools/render.mjs
-import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildTimeline } from '../engine/timeline.js';
-import { capturePlates } from './capture.mjs';
+import { capturePlates, loadFixture } from './capture.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 export function stillsManifest() {
-  const duel = JSON.parse(readFileSync(join(root, 'story/duel.json'), 'utf8'));
-  const board = JSON.parse(readFileSync(join(root, 'story/storyboard.json'), 'utf8'));
-  const trailer = JSON.parse(readFileSync(join(root, 'story/trailer.json'), 'utf8'));
+  const duel = loadFixture(join(root, 'story/duel.json'), 'story/duel.json');
+  const board = loadFixture(join(root, 'story/storyboard.json'), 'story/storyboard.json');
+  const trailer = loadFixture(join(root, 'story/trailer.json'), 'story/trailer.json');
   const tl = buildTimeline(duel);
   const stills = board.panels.map((p) => {
     const beat = tl.beats.find((b) => b.id === p.beat);

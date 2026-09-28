@@ -126,6 +126,9 @@ function ridgePath(ctx, facets, yBase, step) {
 // already be frame-quantized; motion shimmer keys on the boil slot so equal t
 // paints equal pixels.
 export function paintArena(ctx, seed, t, beat, palette) {
+  if (!ctx || typeof ctx.createLinearGradient !== 'function' || typeof ctx.fillRect !== 'function') {
+    throw new Error('paintArena needs a canvas 2d context');
+  }
   const comp = compositionFor(beat.id);
   const washes = washPalette(palette, beat.storm);
   const g = arenaGrade(beat.storm);
