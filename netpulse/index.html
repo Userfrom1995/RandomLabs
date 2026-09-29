@@ -14,7 +14,7 @@
 <header class="np-header">
   <h1>Net<span class="pulse">pulse</span></h1>
   <p class="np-lede">An honest in-browser network diagnostics tool. Every number carries a source badge; anything the browser sandbox forbids fails closed with an empty state instead of a fabricated gauge.</p>
-  <p class="np-scope">Scope in this build: connection profile and device context (Overview tab), active quality probes (Quality tab: latency, download, and upload timing over HTTP with probe history), the DNS toolkit plus opt-in egress identity plus WebRTC inspector (DNS and Identity tab), own-traffic observation with per-origin aggregation and waterfall (Traffic tab), and the live session monitor dashboard (Monitor tab). Export ships in the final phase and no panel pretends otherwise. No backend, no CDN, no auto phone-home.</p>
+  <p class="np-scope">Scope in this build: connection profile and device context (Overview tab), active quality probes (Quality tab: latency, download, and upload timing over HTTP with probe history), the DNS toolkit plus opt-in egress identity plus WebRTC inspector (DNS and Identity tab), own-traffic observation with per-origin aggregation and waterfall (Traffic tab), the live session monitor dashboard (Monitor tab), and JSON plus CSV export with a printable source-stamped report (Reports tab). No backend, no CDN, no auto phone-home.</p>
 </header>
 
 <nav class="np-tabs" aria-label="Netpulse sections">
@@ -24,6 +24,7 @@
     <button class="np-tab" role="tab" id="tab-dns" aria-controls="tabpanel-dns" aria-selected="false" data-tab="dns" tabindex="-1">DNS and Identity</button>
     <button class="np-tab" role="tab" id="tab-traffic" aria-controls="tabpanel-traffic" aria-selected="false" data-tab="traffic" tabindex="-1">Traffic</button>
     <button class="np-tab" role="tab" id="tab-monitor" aria-controls="tabpanel-monitor" aria-selected="false" data-tab="monitor" tabindex="-1">Monitor</button>
+    <button class="np-tab" role="tab" id="tab-reports" aria-controls="tabpanel-reports" aria-selected="false" data-tab="reports" tabindex="-1">Reports</button>
   </div>
 </nav>
 
@@ -276,6 +277,37 @@
       </div>
     </div>
   </section>
+
+  <section id="tabpanel-reports" role="tabpanel" aria-labelledby="tab-reports" tabindex="0" hidden>
+    <div class="np-grid">
+      <div class="np-panel wide">
+        <h2>Export session data</h2>
+        <p class="np-sub">Downloads hold only what this session actually measured: probe runs, observed transfers, and the session event log. Exports are generated locally in your browser; nothing is uploaded.</p>
+        <div class="np-row np-actions">
+          <button class="np-btn primary" id="btn-export-json" type="button">Download full report (JSON)</button>
+          <button class="np-btn" id="btn-export-probes" type="button">Probe runs (CSV)</button>
+          <button class="np-btn" id="btn-export-traffic" type="button">Observed transfers (CSV)</button>
+          <button class="np-btn" id="btn-export-events" type="button">Session events (CSV)</button>
+          <button class="np-btn" id="btn-report-print" type="button">Print report</button>
+        </div>
+        <p class="np-status" id="status-report" role="status"></p>
+        <div id="result-export-summary"></div>
+      </div>
+      <div class="np-panel wide">
+        <h2>Printable report</h2>
+        <p class="np-sub">Source-stamped preview of the same data the JSON holds. Every section names its source; empty sessions render empty sections, never invented rows.</p>
+        <div class="np-report" id="result-report-preview"></div>
+      </div>
+      <div class="np-panel wide">
+        <h2>Session persistence</h2>
+        <p class="np-sub">Probe history and the event log persist in this browser's localStorage under <code>netpulse.v1</code>. Clearing removes both; exports you already downloaded are unaffected.</p>
+        <div id="result-session-persist"></div>
+        <div class="np-row np-actions">
+          <button class="np-btn" id="btn-report-clear" type="button">Clear saved session</button>
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
 
 <footer class="np-footer">
@@ -292,6 +324,7 @@
 <script src="js/webrtc.js"></script>
 <script src="js/traffic.js"></script>
 <script src="js/monitor.js"></script>
+<script src="js/export.js"></script>
 <script src="js/netinfo.js"></script>
 <script src="js/app.js"></script>
 </body>

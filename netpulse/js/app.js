@@ -263,6 +263,67 @@
             window.NetpulseCapabilities.supportLevel(caps, "monitor")) !== -1,
           "level=" + window.NetpulseCapabilities.supportLevel(caps, "monitor"));
       }
+      var EXP = window.NetpulseExport;
+      check("export-module-present", !!EXP, "export wired");
+      if (EXP) {
+        var xrep = EXP.buildReport({
+          capabilities: caps,
+          events: [{ t: "2026-01-01T00:00:00Z", type: "probe-complete", detail: "latency" }],
+          history: [{ t: "2026-01-01T00:00:00Z", kind: "latency", endpoint: "probe.bin",
+            summary: { attempts: 3, succeeded: 3, failed: 0, median: 20, p95: 30,
+              min: 10, max: 30, jitter: 5 } }],
+          trafficRows: [{ name: "https://a.example/1.js", initiator: "script",
+            durationMs: 10, startMs: 1, transferBytes: 1000,
+            encodedBytes: 900, decodedBytes: 900, protocol: "h2", sizesHidden: false }],
+          sessionSummary: { probeRuns: 1, probeAttempts: 3, probeFailed: 0,
+            observedEntries: 1, observedBytes: 1000, hiddenSizes: 0 },
+          generatedAt: "2026-01-01T00:00:00Z",
+          userAgent: "selftest"
+        });
+        check("export-report",
+          xrep.probeRuns.length === 1 && xrep.probeRuns[0].source === "HTTP timing (fetch)" &&
+          xrep.transfers.length === 1 && xrep.transfers[0].source === "Resource Timing" &&
+          xrep.events.length === 1 && xrep.sources.traffic === "Resource Timing",
+          "runs=1 transfers=1 events=1 sourced");
+        check("export-report-guards",
+          EXP.buildReport({}).probeRuns.length === 0 &&
+          EXP.buildReport({}).transfers.length === 0 &&
+          EXP.buildReport(null).events.length === 0,
+          "empty inputs fail closed");
+        check("export-csv-quote",
+          EXP.csvCell('a"b,c') === '"a""b,c"' && EXP.csvCell(null) === "" &&
+          EXP.csvCell("plain") === "plain",
+          "RFC 4180 quoting");
+        var xcsv = EXP.probesToCsv([{
+          t: "2026-01-01T00:00:00Z", kind: 'down,load', endpoint: "probe.bin",
+          summary: { attempts: 2, succeeded: 1, failed: 1 },
+          totalBytes: 100
+        }]);
+        check("export-probes-csv",
+          xcsv.indexOf("timestamp,kind") === 0 && xcsv.indexOf('"down,load"') !== -1,
+          "header plus quoted kind");
+        check("export-events-csv",
+          EXP.eventsToCsv([{ t: "t", type: "y", detail: null }]).split("\n").length === 3,
+          "header plus 1 row");
+        check("export-traffic-csv",
+          EXP.trafficToCsv([{ name: "u", initiator: null, sizesHidden: true }])
+            .indexOf("true,Resource Timing") !== -1,
+          "hidden flag plus source");
+        var fixedDate = new Date(Date.UTC(2026, 0, 2, 3, 4, 5));
+        check("export-stamp",
+          EXP.stampFilename("report", fixedDate) === "netpulse-report-20260102-030405" &&
+          EXP.stampFilename("", fixedDate) === "netpulse-session-20260102-030405",
+          "stamped plus fallback");
+        check("export-support-flag",
+          typeof EXP.isDownloadSupported(window) === "boolean",
+          "boolean, never throws");
+        check("export-tab-present", !!document.getElementById("tabpanel-reports"), "reports tab wired");
+        check("export-capability",
+          ["live", "unsupported"].indexOf(
+            window.NetpulseCapabilities.supportLevel(caps, "export")) !== -1 &&
+          window.NetpulseCapabilities.supportLevel(caps, "report") === "live",
+          "levels honest");
+      }
     } catch (e) {
       results.push("FAIL harness-exception - " + (e && e.message));
     }
@@ -1322,6 +1383,216 @@
     render();
   }
 
+  function bootReports(store) {
+    var EXP = window.NetpulseExport;
+    var MON = window.NetpulseMonitor;
+    var T = window.NetpulseTraffic;
+    var P = window.NetpulseProbes;
+    var UI = window.NetpulseUI;
+    if (!EXP || !UI) return;
+    if (!document.getElementById("tabpanel-reports")) return;
+    var caps = window.NetpulseCapabilities.detectCapabilities(window.navigator, window);
+
+    function currentReport() {
+      var hist = P ? P.loadHistory(store) : [];
+      var trafficRows = T ? T.snapshot(window) : [];
+      var activity = MON ? MON.transferActivity(trafficRows) : null;
+      var sum = MON ? MON.sessionSummary(hist, activity) : null;
+      return EXP.buildReport({
+        capabilities: caps,
+        events: store.getEvents(),
+        history: hist,
+        trafficRows: trafficRows,
+        sessionSummary: sum,
+        userAgent: window.navigator ? window.navigator.userAgent : null
+      });
+    }
+
+    function renderAll() {
+      var report = currentReport();
+      var summaryRoot = document.getElementById("result-export-summary");
+      resultTable(summaryRoot, [
+        ["Probe runs in this session", String(report.probeRuns.length)],
+        ["Observed transfers (this page)", String(report.transfers.length)],
+        ["Session events logged", String(report.events.length)],
+        ["File download path", EXP.isDownloadSupported(window)
+          ? "available (Blob download)"
+          : "not available in this browser"]
+      ], "session probe history + Resource Timing + session store",
+        EXP.isDownloadSupported(window) ? "live" : "missing");
+
+      var preview = document.getElementById("result-report-preview");
+      if (preview) {
+        preview.innerHTML = "";
+        var meta = document.createElement("p");
+        meta.className = "np-report-meta";
+        meta.textContent = "Generated " + report.generatedAt +
+          " in your browser from live session data. Nothing below was uploaded or invented.";
+        preview.appendChild(meta);
+        function section(title, sourceLabel, rows, headers, emptyTitle, emptyBody) {
+          var h = document.createElement("h3");
+          h.textContent = title;
+          preview.appendChild(h);
+          if (!rows.length) {
+            preview.appendChild(UI.emptyState(emptyTitle, emptyBody, "source: " + sourceLabel));
+            return;
+          }
+          var wrap = document.createElement("div");
+          wrap.className = "np-table-wrap";
+          var table = document.createElement("table");
+          table.className = "np-table";
+          var thead = document.createElement("thead");
+          var hr = document.createElement("tr");
+          headers.forEach(function (c) {
+            var th = document.createElement("th");
+            th.textContent = c;
+            hr.appendChild(th);
+          });
+          thead.appendChild(hr);
+          table.appendChild(thead);
+          var tbody = document.createElement("tbody");
+          rows.forEach(function (cells) {
+            var tr = document.createElement("tr");
+            cells.forEach(function (c) {
+              var td = document.createElement("td");
+              td.textContent = c;
+              tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+          });
+          table.appendChild(tbody);
+          wrap.appendChild(table);
+          preview.appendChild(wrap);
+          var badge = UI.badge("source: " + sourceLabel, "live");
+          preview.appendChild(badge);
+        }
+        var sum = report.sessionSummary;
+        if (sum) {
+          section("Session rollup", "session probe history + Resource Timing",
+            [[String(sum.probeRuns), String(sum.probeAttempts) + " (" + String(sum.probeFailed) + " failed)",
+              String(sum.observedEntries), String(sum.observedBytes), String(sum.hiddenSizes)]],
+            ["Probe runs", "Attempts", "Observed entries", "Visible bytes", "Hidden sizes"],
+            "No measurements yet",
+            "Run a probe or load resources, then return here. The rollup counts only what was actually recorded.");
+        }
+        section("Probe runs (latest 20)", "HTTP timing (fetch)",
+          report.probeRuns.slice(-20).reverse().map(function (r) {
+            var result = r.kind === "latency" || r.medianMs === null
+              ? (r.medianMs === null ? "no data" : r.medianMs + " ms median")
+              : (r.throughputKBps === null ? "no data" : r.throughputKBps + " KB/s");
+            return [r.t || "?", r.kind || "?", r.endpoint || "?",
+              (r.succeeded === null ? "?" : r.succeeded + "/" + r.attempts) + " ok", result];
+          }),
+          ["Time", "Kind", "Endpoint", "Ok/Attempts", "Result"],
+          "No probe runs in this session",
+          "Run a latency, download, or upload probe on the Quality tab. Every attempt lands here with its endpoint.");
+        section("Observed transfers (latest 20)", "Resource Timing",
+          report.transfers.slice(-20).reverse().map(function (r) {
+            return [shortName(r.name, 56), r.initiator || "not exposed",
+              r.durationMs === null ? "no data" : r.durationMs + " ms",
+              r.sizesHidden ? "hidden by headers or served from cache"
+                : (r.transferBytes === null ? "no data" : r.transferBytes + " B"),
+              r.protocol || "(hidden)"];
+          }),
+          ["Resource", "Initiator", "Duration", "Bytes", "Protocol"],
+          "No transfers recorded",
+          "Refresh the Traffic tab snapshot after the page loads resources. Only this page's own entries can appear.");
+        section("Session events (latest 20)", "session store",
+          report.events.slice(-20).reverse().map(function (e) {
+            return [e.t || "?", e.type || "?", (e.detail === null || e.detail === undefined) ? "" : String(e.detail).slice(0, 120)];
+          }),
+          ["Time", "Type", "Detail"],
+          "No session events yet",
+          "Connectivity changes, probe completions, and exports will appear here.");
+      }
+
+      var persistRoot = document.getElementById("result-session-persist");
+      if (persistRoot) {
+        var hist = P ? P.loadHistory(store) : [];
+        var byteLen = null;
+        try {
+          var raw = window.localStorage
+            ? window.localStorage.getItem(window.NetpulseStore.STORAGE_KEY) : null;
+          byteLen = raw === null || raw === undefined ? 0 : raw.length;
+        } catch (e) {
+          byteLen = null;
+        }
+        resultTable(persistRoot, [
+          ["Storage key", window.NetpulseStore.STORAGE_KEY],
+          ["Events stored", String(store.getEvents().length)],
+          ["Probe runs stored", String(hist.length)],
+          ["Approximate stored size", byteLen === null ? "not exposed" : byteLen + " characters"]
+        ], "localStorage", caps.localStorage ? "live" : "missing");
+      }
+    }
+
+    function exportGuard() {
+      if (EXP.isDownloadSupported(window)) return true;
+      resultError(document.getElementById("result-export-summary"),
+        "File downloads are not supported by this browser",
+        "Export needs Blob object URLs. This browser exposes none, so " +
+        "Netpulse refuses to pretend a file was saved. The printable " +
+        "report preview below still works.",
+        "missing: Blob / URL.createObjectURL");
+      setStatus("status-report", "Download unavailable; print preview still works.", "error");
+      return false;
+    }
+
+    function save(kind, filename, mime, content) {
+      if (!exportGuard()) return;
+      var ok = EXP.download(window, filename, mime, content);
+      if (ok) {
+        setStatus("status-report", "Saved " + filename + " locally. Logged with timestamp.", "ok");
+        store.logEvent("report-export", kind + " " + filename);
+      } else {
+        setStatus("status-report", "The browser refused the download.", "error");
+        store.logEvent("report-export", kind + " refused by browser");
+      }
+    }
+
+    var reportBtn = document.getElementById("btn-export-json");
+    if (reportBtn) reportBtn.addEventListener("click", function () {
+      var report = currentReport();
+      save("full-json", EXP.stampFilename("report", new Date(report.generatedAt)) + ".json",
+        "application/json", EXP.reportToJson(report));
+    });
+    var probesBtn = document.getElementById("btn-export-probes");
+    if (probesBtn) probesBtn.addEventListener("click", function () {
+      save("probe-runs-csv", EXP.stampFilename("probe-runs") + ".csv",
+        "text/csv", EXP.probesToCsv(P ? P.loadHistory(store) : []));
+    });
+    var trafficBtn = document.getElementById("btn-export-traffic");
+    if (trafficBtn) trafficBtn.addEventListener("click", function () {
+      save("transfers-csv", EXP.stampFilename("transfers") + ".csv",
+        "text/csv", EXP.trafficToCsv(T ? T.snapshot(window) : []));
+    });
+    var eventsBtn = document.getElementById("btn-export-events");
+    if (eventsBtn) eventsBtn.addEventListener("click", function () {
+      save("events-csv", EXP.stampFilename("events") + ".csv",
+        "text/csv", EXP.eventsToCsv(store.getEvents()));
+    });
+    var printBtn = document.getElementById("btn-report-print");
+    if (printBtn) printBtn.addEventListener("click", function () {
+      if (EXP.printReport(window)) {
+        setStatus("status-report", "Print dialog opened for the source-stamped report.", "ok");
+        store.logEvent("report-print", "window.print from Reports tab");
+      } else {
+        setStatus("status-report", "Printing is not available in this browser.", "error");
+      }
+    });
+    var clearBtn = document.getElementById("btn-report-clear");
+    if (clearBtn) clearBtn.addEventListener("click", function () {
+      store.clear();
+      store.logEvent("session-clear", "saved session cleared from Reports tab");
+      renderAll();
+    });
+
+    store.onEvent(function () {
+      try { renderAll(); } catch (e) { /* report refresh never breaks logging */ }
+    });
+    renderAll();
+  }
+
   function boot() {
     var caps = window.NetpulseCapabilities.detectCapabilities(window.navigator, window);
     var store = window.NetpulseStore.createStore(window);
@@ -1371,6 +1642,7 @@
     bootDnsIdentity(store);
     bootTraffic(store);
     bootMonitor(store);
+    bootReports(store);
 
     store.logEvent("session-start", window.navigator.userAgent || "unknown agent");
 

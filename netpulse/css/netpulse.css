@@ -296,6 +296,9 @@ table.np-table th { color: var(--np-muted); font-weight: 600; }
 .np-fall-ms { color: var(--np-muted); white-space: nowrap; }
 .np-fall-row:focus-visible { outline: 2px solid var(--np-accent-2); outline-offset: 2px; }
 
+.np-report h3 { margin: 14px 0 6px; font-size: 0.98rem; color: var(--np-accent); }
+.np-report .np-report-meta { margin: 0 0 10px; color: var(--np-muted); font-size: 0.88rem; }
+
 @media (max-width: 480px) {
 /* Single-column layout covers the 390 px mobile target with no scroll. */
   .np-header { padding: 24px 16px 8px; }
@@ -310,4 +313,8 @@ table.np-table th { color: var(--np-muted); font-weight: 600; }
   body.np-body { background: #fff; color: #111; }
   .np-tabs, .np-banner, .np-footer, .np-actions { display: none; }
   .np-panel { background: #fff; border-color: #999; break-inside: avoid; }
+  /* The printable report lives on the Reports tab: unhide every tabpanel
+   * so window.print captures the report preview alongside the session. */
+  [role="tabpanel"][hidden] { display: block !important; }
+  .np-empty, .np-sub { color: #333; }
 }
