@@ -129,6 +129,23 @@ class RenderGate(unittest.TestCase):
         dc = total / len(self.master) / 32767.0
         self.assertLess(abs(dc), 0.01, "master DC offset: %r" % dc)
 
+    def test_edge_fades_no_start_click(self):
+        fade_in_n = int(self.sr * self.mix["fadeInSec"])
+        fade_out_n = int(self.sr * self.mix["fadeOutSec"])
+        self.assertGreater(fade_in_n, 0)
+        self.assertGreater(fade_out_n, 0)
+        self.assertEqual(self.master[0], 0, "master must start at zero")
+        self.assertEqual(self.master[-1], 0, "master must end at zero")
+        edge_in = max(abs(v) for v in self.master[:fade_in_n]) / 32767.0
+        edge_out = max(abs(v) for v in self.master[-fade_out_n:]) / 32767.0
+        self.assertLess(edge_in, 0.3, "fade-in region too hot: %r" % edge_in)
+        self.assertLess(edge_out, 0.3, "fade-out region too hot: %r" % edge_out)
+        for stem in ("vocals", "guitars", "bass", "drums"):
+            _, data = read_mono16(os.path.join(self.out, "stems",
+                                               stem + ".wav"))
+            self.assertEqual(data[0], 0, "%s stem must start at zero" % stem)
+            self.assertEqual(data[-1], 0, "%s stem must end at zero" % stem)
+
     def test_no_dead_air_final_lift(self):
         energy = {}
         for section, a, b in section_bounds(self.song, self.sr):

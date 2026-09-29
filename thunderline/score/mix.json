@@ -3,6 +3,8 @@
   "bitDepth": 16,
   "channels": 1,
   "masterCeiling": 0.89,
+  "fadeInSec": 0.02,
+  "fadeOutSec": 0.25,
   "buses": {
     "vocals": {"gain": 0.9, "eqHighpassHz": 120, "eqPresenceHz": 2500, "eqPresenceDb": 2.0},
     "guitars": {"gain": 0.7, "eqHighpassHz": 90, "eqPresenceHz": 3200, "eqPresenceDb": 1.5},
