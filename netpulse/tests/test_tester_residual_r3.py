@@ -57,8 +57,10 @@ def main():
     if m2:
         dd_block = m2.group(1)
     check("kv-dd-word-bounds",
-          "flex-wrap" in dd_block and "anywhere" not in dd_block,
-          "kv dd must wrap badges as units, got: %s" % dd_block.strip()[:120])
+          (("flex-wrap" in dd_block) or ("display: contents" in dd_block)
+           or ("display:contents" in dd_block))
+          and "anywhere" not in dd_block,
+          "kv dd must wrap badges as units or place them on their own full row, got: %s" % dd_block.strip()[:120])
 
     md = (ROOT / "docs" / "index.md").read_text(encoding="utf-8")
     steps = re.findall(r"^\s*(\d+)\.", md, re.M)
