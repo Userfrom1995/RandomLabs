@@ -1,0 +1,3236 @@
+{
+ "arrangement": [
+  {
+   "bar": 0,
+   "bass": "walking",
+   "drums": "breakDown",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "intro"
+  },
+  {
+   "bar": 1,
+   "bass": "walking",
+   "drums": "breakDown",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "intro"
+  },
+  {
+   "bar": 2,
+   "bass": "walking",
+   "drums": "breakDown",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "intro"
+  },
+  {
+   "bar": 3,
+   "bass": "walking",
+   "drums": "breakDown",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "intro"
+  },
+  {
+   "bar": 4,
+   "bass": "walking",
+   "drums": "breakDown",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "intro"
+  },
+  {
+   "bar": 5,
+   "bass": "walking",
+   "drums": "breakDown",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "intro"
+  },
+  {
+   "bar": 6,
+   "bass": "walking",
+   "drums": "breakDown",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "intro"
+  },
+  {
+   "bar": 7,
+   "bass": "walking",
+   "drums": "breakDown",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "intro"
+  },
+  {
+   "bar": 8,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse1"
+  },
+  {
+   "bar": 9,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse1"
+  },
+  {
+   "bar": 10,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse1"
+  },
+  {
+   "bar": 11,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse1"
+  },
+  {
+   "bar": 12,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse1"
+  },
+  {
+   "bar": 13,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse1"
+  },
+  {
+   "bar": 14,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse1"
+  },
+  {
+   "bar": 15,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse1"
+  },
+  {
+   "bar": 16,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse1"
+  },
+  {
+   "bar": 17,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse1"
+  },
+  {
+   "bar": 18,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse1"
+  },
+  {
+   "bar": 19,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse1"
+  },
+  {
+   "bar": 20,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus1"
+  },
+  {
+   "bar": 21,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus1"
+  },
+  {
+   "bar": 22,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus1"
+  },
+  {
+   "bar": 23,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus1"
+  },
+  {
+   "bar": 24,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus1"
+  },
+  {
+   "bar": 25,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus1"
+  },
+  {
+   "bar": 26,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus1"
+  },
+  {
+   "bar": 27,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus1"
+  },
+  {
+   "bar": 28,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus1"
+  },
+  {
+   "bar": 29,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus1"
+  },
+  {
+   "bar": 30,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus1"
+  },
+  {
+   "bar": 31,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus1"
+  },
+  {
+   "bar": 32,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse2"
+  },
+  {
+   "bar": 33,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse2"
+  },
+  {
+   "bar": 34,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse2"
+  },
+  {
+   "bar": 35,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse2"
+  },
+  {
+   "bar": 36,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse2"
+  },
+  {
+   "bar": 37,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse2"
+  },
+  {
+   "bar": 38,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse2"
+  },
+  {
+   "bar": 39,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse2"
+  },
+  {
+   "bar": 40,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse2"
+  },
+  {
+   "bar": 41,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse2"
+  },
+  {
+   "bar": 42,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse2"
+  },
+  {
+   "bar": 43,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse2"
+  },
+  {
+   "bar": 44,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus2"
+  },
+  {
+   "bar": 45,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus2"
+  },
+  {
+   "bar": 46,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus2"
+  },
+  {
+   "bar": 47,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus2"
+  },
+  {
+   "bar": 48,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus2"
+  },
+  {
+   "bar": 49,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus2"
+  },
+  {
+   "bar": 50,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus2"
+  },
+  {
+   "bar": 51,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus2"
+  },
+  {
+   "bar": 52,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus2"
+  },
+  {
+   "bar": 53,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus2"
+  },
+  {
+   "bar": 54,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus2"
+  },
+  {
+   "bar": 55,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "chorus2"
+  },
+  {
+   "bar": 56,
+   "bass": "walking",
+   "drums": "halfTime",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 57,
+   "bass": "walking",
+   "drums": "halfTime",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 58,
+   "bass": "walking",
+   "drums": "halfTime",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 59,
+   "bass": "walking",
+   "drums": "halfTime",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 60,
+   "bass": "walking",
+   "drums": "halfTime",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 61,
+   "bass": "walking",
+   "drums": "halfTime",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 62,
+   "bass": "walking",
+   "drums": "halfTime",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 63,
+   "bass": "walking",
+   "drums": "halfTime",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 64,
+   "bass": "walking",
+   "drums": "halfTime",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 65,
+   "bass": "walking",
+   "drums": "halfTime",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 66,
+   "bass": "walking",
+   "drums": "halfTime",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 67,
+   "bass": "walking",
+   "drums": "halfTime",
+   "dynamics": 1.0,
+   "front": "leadGuitar",
+   "rhythm": "powerChords",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 68,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse3"
+  },
+  {
+   "bar": 69,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse3"
+  },
+  {
+   "bar": 70,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse3"
+  },
+  {
+   "bar": 71,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse3"
+  },
+  {
+   "bar": 72,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse3"
+  },
+  {
+   "bar": 73,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse3"
+  },
+  {
+   "bar": 74,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse3"
+  },
+  {
+   "bar": 75,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse3"
+  },
+  {
+   "bar": 76,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse3"
+  },
+  {
+   "bar": 77,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse3"
+  },
+  {
+   "bar": 78,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse3"
+  },
+  {
+   "bar": 79,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "verse3"
+  },
+  {
+   "bar": 80,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.15,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 81,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.15,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 82,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.15,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 83,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.15,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 84,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.15,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 85,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.15,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 86,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.15,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 87,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.15,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 88,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.15,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 89,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.15,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 90,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.15,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 91,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.15,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 92,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.15,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 93,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.15,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 94,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.15,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 95,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.15,
+   "front": "leadVocal",
+   "rhythm": "powerChords",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 96,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal+leadGuitar",
+   "rhythm": "powerChords",
+   "section": "outro"
+  },
+  {
+   "bar": 97,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal+leadGuitar",
+   "rhythm": "powerChords",
+   "section": "outro"
+  },
+  {
+   "bar": 98,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal+leadGuitar",
+   "rhythm": "powerChords",
+   "section": "outro"
+  },
+  {
+   "bar": 99,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal+leadGuitar",
+   "rhythm": "powerChords",
+   "section": "outro"
+  },
+  {
+   "bar": 100,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal+leadGuitar",
+   "rhythm": "powerChords",
+   "section": "outro"
+  },
+  {
+   "bar": 101,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal+leadGuitar",
+   "rhythm": "powerChords",
+   "section": "outro"
+  },
+  {
+   "bar": 102,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal+leadGuitar",
+   "rhythm": "powerChords",
+   "section": "outro"
+  },
+  {
+   "bar": 103,
+   "bass": "walking",
+   "drums": "backbeat",
+   "dynamics": 1.0,
+   "front": "leadVocal+leadGuitar",
+   "rhythm": "powerChords",
+   "section": "outro"
+  }
+ ],
+ "chords": [
+  {
+   "bar": 0,
+   "chord": "E7",
+   "section": "intro"
+  },
+  {
+   "bar": 1,
+   "chord": "E7",
+   "section": "intro"
+  },
+  {
+   "bar": 2,
+   "chord": "E7",
+   "section": "intro"
+  },
+  {
+   "bar": 3,
+   "chord": "E7",
+   "section": "intro"
+  },
+  {
+   "bar": 4,
+   "chord": "E7",
+   "section": "intro"
+  },
+  {
+   "bar": 5,
+   "chord": "E7",
+   "section": "intro"
+  },
+  {
+   "bar": 6,
+   "chord": "A7",
+   "section": "intro"
+  },
+  {
+   "bar": 7,
+   "chord": "B7",
+   "section": "intro"
+  },
+  {
+   "bar": 8,
+   "chord": "E7",
+   "section": "verse1"
+  },
+  {
+   "bar": 9,
+   "chord": "A7",
+   "section": "verse1"
+  },
+  {
+   "bar": 10,
+   "chord": "E7",
+   "section": "verse1"
+  },
+  {
+   "bar": 11,
+   "chord": "E7",
+   "section": "verse1"
+  },
+  {
+   "bar": 12,
+   "chord": "A7",
+   "section": "verse1"
+  },
+  {
+   "bar": 13,
+   "chord": "A7",
+   "section": "verse1"
+  },
+  {
+   "bar": 14,
+   "chord": "E7",
+   "section": "verse1"
+  },
+  {
+   "bar": 15,
+   "chord": "E7",
+   "section": "verse1"
+  },
+  {
+   "bar": 16,
+   "chord": "B7",
+   "section": "verse1"
+  },
+  {
+   "bar": 17,
+   "chord": "A7",
+   "section": "verse1"
+  },
+  {
+   "bar": 18,
+   "chord": "E7",
+   "section": "verse1"
+  },
+  {
+   "bar": 19,
+   "chord": "B7",
+   "section": "verse1"
+  },
+  {
+   "bar": 20,
+   "chord": "A7",
+   "section": "chorus1"
+  },
+  {
+   "bar": 21,
+   "chord": "A7",
+   "section": "chorus1"
+  },
+  {
+   "bar": 22,
+   "chord": "A7",
+   "section": "chorus1"
+  },
+  {
+   "bar": 23,
+   "chord": "A7",
+   "section": "chorus1"
+  },
+  {
+   "bar": 24,
+   "chord": "E7",
+   "section": "chorus1"
+  },
+  {
+   "bar": 25,
+   "chord": "E7",
+   "section": "chorus1"
+  },
+  {
+   "bar": 26,
+   "chord": "E7",
+   "section": "chorus1"
+  },
+  {
+   "bar": 27,
+   "chord": "E7",
+   "section": "chorus1"
+  },
+  {
+   "bar": 28,
+   "chord": "B7",
+   "section": "chorus1"
+  },
+  {
+   "bar": 29,
+   "chord": "B7",
+   "section": "chorus1"
+  },
+  {
+   "bar": 30,
+   "chord": "A7",
+   "section": "chorus1"
+  },
+  {
+   "bar": 31,
+   "chord": "B7",
+   "section": "chorus1"
+  },
+  {
+   "bar": 32,
+   "chord": "E7",
+   "section": "verse2"
+  },
+  {
+   "bar": 33,
+   "chord": "A7",
+   "section": "verse2"
+  },
+  {
+   "bar": 34,
+   "chord": "E7",
+   "section": "verse2"
+  },
+  {
+   "bar": 35,
+   "chord": "E7",
+   "section": "verse2"
+  },
+  {
+   "bar": 36,
+   "chord": "A7",
+   "section": "verse2"
+  },
+  {
+   "bar": 37,
+   "chord": "A7",
+   "section": "verse2"
+  },
+  {
+   "bar": 38,
+   "chord": "E7",
+   "section": "verse2"
+  },
+  {
+   "bar": 39,
+   "chord": "E7",
+   "section": "verse2"
+  },
+  {
+   "bar": 40,
+   "chord": "B7",
+   "section": "verse2"
+  },
+  {
+   "bar": 41,
+   "chord": "A7",
+   "section": "verse2"
+  },
+  {
+   "bar": 42,
+   "chord": "E7",
+   "section": "verse2"
+  },
+  {
+   "bar": 43,
+   "chord": "B7",
+   "section": "verse2"
+  },
+  {
+   "bar": 44,
+   "chord": "A7",
+   "section": "chorus2"
+  },
+  {
+   "bar": 45,
+   "chord": "A7",
+   "section": "chorus2"
+  },
+  {
+   "bar": 46,
+   "chord": "A7",
+   "section": "chorus2"
+  },
+  {
+   "bar": 47,
+   "chord": "A7",
+   "section": "chorus2"
+  },
+  {
+   "bar": 48,
+   "chord": "E7",
+   "section": "chorus2"
+  },
+  {
+   "bar": 49,
+   "chord": "E7",
+   "section": "chorus2"
+  },
+  {
+   "bar": 50,
+   "chord": "E7",
+   "section": "chorus2"
+  },
+  {
+   "bar": 51,
+   "chord": "E7",
+   "section": "chorus2"
+  },
+  {
+   "bar": 52,
+   "chord": "B7",
+   "section": "chorus2"
+  },
+  {
+   "bar": 53,
+   "chord": "B7",
+   "section": "chorus2"
+  },
+  {
+   "bar": 54,
+   "chord": "A7",
+   "section": "chorus2"
+  },
+  {
+   "bar": 55,
+   "chord": "B7",
+   "section": "chorus2"
+  },
+  {
+   "bar": 56,
+   "chord": "E7",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 57,
+   "chord": "A7",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 58,
+   "chord": "E7",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 59,
+   "chord": "E7",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 60,
+   "chord": "A7",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 61,
+   "chord": "A7",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 62,
+   "chord": "E7",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 63,
+   "chord": "E7",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 64,
+   "chord": "B7",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 65,
+   "chord": "A7",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 66,
+   "chord": "E7",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 67,
+   "chord": "B7",
+   "section": "leadbreak"
+  },
+  {
+   "bar": 68,
+   "chord": "E7",
+   "section": "verse3"
+  },
+  {
+   "bar": 69,
+   "chord": "A7",
+   "section": "verse3"
+  },
+  {
+   "bar": 70,
+   "chord": "E7",
+   "section": "verse3"
+  },
+  {
+   "bar": 71,
+   "chord": "E7",
+   "section": "verse3"
+  },
+  {
+   "bar": 72,
+   "chord": "A7",
+   "section": "verse3"
+  },
+  {
+   "bar": 73,
+   "chord": "A7",
+   "section": "verse3"
+  },
+  {
+   "bar": 74,
+   "chord": "E7",
+   "section": "verse3"
+  },
+  {
+   "bar": 75,
+   "chord": "E7",
+   "section": "verse3"
+  },
+  {
+   "bar": 76,
+   "chord": "B7",
+   "section": "verse3"
+  },
+  {
+   "bar": 77,
+   "chord": "A7",
+   "section": "verse3"
+  },
+  {
+   "bar": 78,
+   "chord": "E7",
+   "section": "verse3"
+  },
+  {
+   "bar": 79,
+   "chord": "B7",
+   "section": "verse3"
+  },
+  {
+   "bar": 80,
+   "chord": "A7",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 81,
+   "chord": "A7",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 82,
+   "chord": "A7",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 83,
+   "chord": "A7",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 84,
+   "chord": "E7",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 85,
+   "chord": "E7",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 86,
+   "chord": "E7",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 87,
+   "chord": "E7",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 88,
+   "chord": "A7",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 89,
+   "chord": "A7",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 90,
+   "chord": "E7",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 91,
+   "chord": "E7",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 92,
+   "chord": "B7",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 93,
+   "chord": "A7",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 94,
+   "chord": "E7",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 95,
+   "chord": "B7",
+   "section": "finalchorus"
+  },
+  {
+   "bar": 96,
+   "chord": "E7",
+   "section": "outro"
+  },
+  {
+   "bar": 97,
+   "chord": "E7",
+   "section": "outro"
+  },
+  {
+   "bar": 98,
+   "chord": "E7",
+   "section": "outro"
+  },
+  {
+   "bar": 99,
+   "chord": "E7",
+   "section": "outro"
+  },
+  {
+   "bar": 100,
+   "chord": "A7",
+   "section": "outro"
+  },
+  {
+   "bar": 101,
+   "chord": "B7",
+   "section": "outro"
+  },
+  {
+   "bar": 102,
+   "chord": "E7",
+   "section": "outro"
+  },
+  {
+   "bar": 103,
+   "chord": "E7",
+   "section": "outro"
+  }
+ ],
+ "durationSec": 156.0,
+ "form": [
+  {
+   "bars": 8,
+   "section": "intro",
+   "startBar": 0
+  },
+  {
+   "bars": 12,
+   "section": "verse1",
+   "startBar": 8
+  },
+  {
+   "bars": 12,
+   "section": "chorus1",
+   "startBar": 20
+  },
+  {
+   "bars": 12,
+   "section": "verse2",
+   "startBar": 32
+  },
+  {
+   "bars": 12,
+   "section": "chorus2",
+   "startBar": 44
+  },
+  {
+   "bars": 12,
+   "section": "leadbreak",
+   "startBar": 56
+  },
+  {
+   "bars": 12,
+   "section": "verse3",
+   "startBar": 68
+  },
+  {
+   "bars": 16,
+   "section": "finalchorus",
+   "startBar": 80
+  },
+  {
+   "bars": 8,
+   "section": "outro",
+   "startBar": 96
+  }
+ ],
+ "key": "E major",
+ "leadGuitar": [
+  {
+   "durBeats": 2.5,
+   "midi": 64,
+   "role": "riff",
+   "section": "intro",
+   "startBeat": 0
+  },
+  {
+   "durBeats": 2.5,
+   "midi": 64,
+   "role": "riff",
+   "section": "intro",
+   "startBeat": 4
+  },
+  {
+   "durBeats": 2.5,
+   "midi": 66,
+   "role": "riff",
+   "section": "intro",
+   "startBeat": 8
+  },
+  {
+   "durBeats": 2.5,
+   "midi": 68,
+   "role": "riff",
+   "section": "intro",
+   "startBeat": 12
+  },
+  {
+   "durBeats": 2.5,
+   "midi": 68,
+   "role": "riff",
+   "section": "intro",
+   "startBeat": 16
+  },
+  {
+   "durBeats": 2.5,
+   "midi": 66,
+   "role": "riff",
+   "section": "intro",
+   "startBeat": 20
+  },
+  {
+   "durBeats": 2.5,
+   "midi": 64,
+   "role": "riff",
+   "section": "intro",
+   "startBeat": 24
+  },
+  {
+   "durBeats": 2.5,
+   "midi": 59,
+   "role": "riff",
+   "section": "intro",
+   "startBeat": 28
+  },
+  {
+   "durBeats": 1.0,
+   "midi": 76,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 224
+  },
+  {
+   "durBeats": 0.75,
+   "midi": 68,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 225.5
+  },
+  {
+   "durBeats": 1.0,
+   "midi": 68,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 226.75
+  },
+  {
+   "durBeats": 1.0,
+   "midi": 68,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 228.25
+  },
+  {
+   "durBeats": 0.75,
+   "midi": 69,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 229.75
+  },
+  {
+   "durBeats": 1.0,
+   "midi": 68,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 231.0
+  },
+  {
+   "durBeats": 0.75,
+   "midi": 71,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 232.5
+  },
+  {
+   "durBeats": 1.0,
+   "midi": 71,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 233.75
+  },
+  {
+   "durBeats": 1.0,
+   "midi": 69,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 235.25
+  },
+  {
+   "durBeats": 1.5,
+   "midi": 68,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 236.75
+  },
+  {
+   "durBeats": 1.5,
+   "midi": 74,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 238.75
+  },
+  {
+   "durBeats": 1.5,
+   "midi": 68,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 240.75
+  },
+  {
+   "durBeats": 1.0,
+   "midi": 74,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 242.75
+  },
+  {
+   "durBeats": 0.75,
+   "midi": 68,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 244.25
+  },
+  {
+   "durBeats": 1.5,
+   "midi": 71,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 245.5
+  },
+  {
+   "durBeats": 1.5,
+   "midi": 73,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 247.5
+  },
+  {
+   "durBeats": 1.0,
+   "midi": 74,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 249.5
+  },
+  {
+   "durBeats": 0.75,
+   "midi": 71,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 251.0
+  },
+  {
+   "durBeats": 1.0,
+   "midi": 71,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 252.25
+  },
+  {
+   "durBeats": 0.75,
+   "midi": 74,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 253.75
+  },
+  {
+   "durBeats": 1.0,
+   "midi": 68,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 255.0
+  },
+  {
+   "durBeats": 1.5,
+   "midi": 73,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 256.5
+  },
+  {
+   "durBeats": 0.75,
+   "midi": 71,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 258.5
+  },
+  {
+   "durBeats": 1.0,
+   "midi": 71,
+   "role": "solo",
+   "section": "leadbreak",
+   "startBeat": 259.75
+  },
+  {
+   "durBeats": 2.0,
+   "midi": 68,
+   "role": "tag",
+   "section": "outro",
+   "startBeat": 400
+  },
+  {
+   "durBeats": 2.0,
+   "midi": 66,
+   "role": "tag",
+   "section": "outro",
+   "startBeat": 404
+  },
+  {
+   "durBeats": 2.0,
+   "midi": 64,
+   "role": "tag",
+   "section": "outro",
+   "startBeat": 408
+  },
+  {
+   "durBeats": 2.0,
+   "midi": 64,
+   "role": "tag",
+   "section": "outro",
+   "startBeat": 412
+  }
+ ],
+ "lyrics": [
+  {
+   "endBeat": 39.5,
+   "line": "Headlights hummin' on the midnight line",
+   "section": "verse1",
+   "startBeat": 32
+  },
+  {
+   "endBeat": 47.5,
+   "line": "Rainbow spill where the oil signs shine",
+   "section": "verse1",
+   "startBeat": 40
+  },
+  {
+   "endBeat": 55.5,
+   "line": "Engine knockin' out a four-four time",
+   "section": "verse1",
+   "startBeat": 48
+  },
+  {
+   "endBeat": 63.5,
+   "line": "Static cracklin' on the old dash dial",
+   "section": "verse1",
+   "startBeat": 56
+  },
+  {
+   "endBeat": 71.5,
+   "line": "Thunder grumblin' for a country mile",
+   "section": "verse1",
+   "startBeat": 64
+  },
+  {
+   "endBeat": 79.5,
+   "line": "Wheels keep turnin' down the endless mile",
+   "section": "verse1",
+   "startBeat": 72
+  },
+  {
+   "endBeat": 87.5,
+   "line": "Ridin' on the thunderline",
+   "section": "chorus1",
+   "startBeat": 80
+  },
+  {
+   "endBeat": 95.5,
+   "line": "Steel and thunder runnin' down the line",
+   "section": "chorus1",
+   "startBeat": 88
+  },
+  {
+   "endBeat": 103.5,
+   "line": "Ridin' on the thunderline",
+   "section": "chorus1",
+   "startBeat": 96
+  },
+  {
+   "endBeat": 111.5,
+   "line": "Hear that engine ring the midnight chime",
+   "section": "chorus1",
+   "startBeat": 104
+  },
+  {
+   "endBeat": 119.5,
+   "line": "Ridin' on the thunderline",
+   "section": "chorus1",
+   "startBeat": 112
+  },
+  {
+   "endBeat": 127.5,
+   "line": "Every heartbeat keepin' perfect time",
+   "section": "chorus1",
+   "startBeat": 120
+  },
+  {
+   "endBeat": 135.5,
+   "line": "Diner coffee in a paper cup",
+   "section": "verse2",
+   "startBeat": 128
+  },
+  {
+   "endBeat": 143.5,
+   "line": "Jukebox kickin' when the needle drops up",
+   "section": "verse2",
+   "startBeat": 136
+  },
+  {
+   "endBeat": 151.5,
+   "line": "Penny loafers and a buttoned-up dress",
+   "section": "verse2",
+   "startBeat": 144
+  },
+  {
+   "endBeat": 159.5,
+   "line": "Highway callin' and I must confess",
+   "section": "verse2",
+   "startBeat": 152
+  },
+  {
+   "endBeat": 167.5,
+   "line": "Every red light is a second guess",
+   "section": "verse2",
+   "startBeat": 160
+  },
+  {
+   "endBeat": 175.5,
+   "line": "Green light hits and we're heaven-blessed",
+   "section": "verse2",
+   "startBeat": 168
+  },
+  {
+   "endBeat": 183.5,
+   "line": "Ridin' on the thunderline",
+   "section": "chorus2",
+   "startBeat": 176
+  },
+  {
+   "endBeat": 191.5,
+   "line": "Steel and thunder runnin' down the line",
+   "section": "chorus2",
+   "startBeat": 184
+  },
+  {
+   "endBeat": 199.5,
+   "line": "Ridin' on the thunderline",
+   "section": "chorus2",
+   "startBeat": 192
+  },
+  {
+   "endBeat": 207.5,
+   "line": "Hear that engine ring the midnight chime",
+   "section": "chorus2",
+   "startBeat": 200
+  },
+  {
+   "endBeat": 215.5,
+   "line": "Ridin' on the thunderline",
+   "section": "chorus2",
+   "startBeat": 208
+  },
+  {
+   "endBeat": 223.5,
+   "line": "Every heartbeat keepin' perfect time",
+   "section": "chorus2",
+   "startBeat": 216
+  },
+  {
+   "endBeat": 279.5,
+   "line": "Sun comes crawlin' over cedar pines",
+   "section": "verse3",
+   "startBeat": 272
+  },
+  {
+   "endBeat": 287.5,
+   "line": "Morning paper with the cutoff lines",
+   "section": "verse3",
+   "startBeat": 280
+  },
+  {
+   "endBeat": 295.5,
+   "line": "Coffee steam in the pale daylight",
+   "section": "verse3",
+   "startBeat": 288
+  },
+  {
+   "endBeat": 303.5,
+   "line": "We drove steady through the Saturday night",
+   "section": "verse3",
+   "startBeat": 296
+  },
+  {
+   "endBeat": 311.5,
+   "line": "Radio hums and it treats us right",
+   "section": "verse3",
+   "startBeat": 304
+  },
+  {
+   "endBeat": 319.5,
+   "line": "Home lights glow and the time is right",
+   "section": "verse3",
+   "startBeat": 312
+  },
+  {
+   "endBeat": 327.5,
+   "line": "Ridin' on the thunderline",
+   "section": "finalchorus",
+   "startBeat": 320
+  },
+  {
+   "endBeat": 335.5,
+   "line": "Steel and thunder runnin' down the line",
+   "section": "finalchorus",
+   "startBeat": 328
+  },
+  {
+   "endBeat": 343.5,
+   "line": "Ridin' on the thunderline",
+   "section": "finalchorus",
+   "startBeat": 336
+  },
+  {
+   "endBeat": 351.5,
+   "line": "Hear that engine ring the midnight chime",
+   "section": "finalchorus",
+   "startBeat": 344
+  },
+  {
+   "endBeat": 359.5,
+   "line": "Ridin' on the thunderline",
+   "section": "finalchorus",
+   "startBeat": 352
+  },
+  {
+   "endBeat": 367.5,
+   "line": "Every heartbeat keepin' perfect time",
+   "section": "finalchorus",
+   "startBeat": 360
+  },
+  {
+   "endBeat": 375.5,
+   "line": "Hold that throttle 'til the morning light",
+   "section": "finalchorus",
+   "startBeat": 368
+  },
+  {
+   "endBeat": 383.5,
+   "line": "Thunderline rollin' and it feels so right",
+   "section": "finalchorus",
+   "startBeat": 376
+  },
+  {
+   "endBeat": 391.0,
+   "line": "Thunderline rollin' home",
+   "section": "outro",
+   "startBeat": 384
+  },
+  {
+   "endBeat": 399.0,
+   "line": "Thunderline rollin' home",
+   "section": "outro",
+   "startBeat": 392
+  }
+ ],
+ "masterSeed": 48151623,
+ "melody": [
+  {
+   "durBeats": 1.0,
+   "line": "Headlights hummin' on the midnight line",
+   "midi": 54,
+   "section": "verse1",
+   "sectionLine": 0,
+   "startBeat": 32.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Headlights hummin' on the midnight line",
+   "midi": 56,
+   "section": "verse1",
+   "sectionLine": 0,
+   "startBeat": 34.0
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Headlights hummin' on the midnight line",
+   "midi": 59,
+   "section": "verse1",
+   "sectionLine": 0,
+   "startBeat": 35.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Headlights hummin' on the midnight line",
+   "midi": 52,
+   "section": "verse1",
+   "sectionLine": 0,
+   "startBeat": 37.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Rainbow spill where the oil signs shine",
+   "midi": 59,
+   "section": "verse1",
+   "sectionLine": 1,
+   "startBeat": 40.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Rainbow spill where the oil signs shine",
+   "midi": 56,
+   "section": "verse1",
+   "sectionLine": 1,
+   "startBeat": 42.0
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Rainbow spill where the oil signs shine",
+   "midi": 54,
+   "section": "verse1",
+   "sectionLine": 1,
+   "startBeat": 43.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Rainbow spill where the oil signs shine",
+   "midi": 52,
+   "section": "verse1",
+   "sectionLine": 1,
+   "startBeat": 45.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Engine knockin' out a four-four time",
+   "midi": 56,
+   "section": "verse1",
+   "sectionLine": 2,
+   "startBeat": 48.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Engine knockin' out a four-four time",
+   "midi": 59,
+   "section": "verse1",
+   "sectionLine": 2,
+   "startBeat": 50.0
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Engine knockin' out a four-four time",
+   "midi": 61,
+   "section": "verse1",
+   "sectionLine": 2,
+   "startBeat": 51.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Engine knockin' out a four-four time",
+   "midi": 54,
+   "section": "verse1",
+   "sectionLine": 2,
+   "startBeat": 53.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Static cracklin' on the old dash dial",
+   "midi": 66,
+   "section": "verse1",
+   "sectionLine": 3,
+   "startBeat": 56.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Static cracklin' on the old dash dial",
+   "midi": 64,
+   "section": "verse1",
+   "sectionLine": 3,
+   "startBeat": 58.0
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Static cracklin' on the old dash dial",
+   "midi": 61,
+   "section": "verse1",
+   "sectionLine": 3,
+   "startBeat": 59.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Static cracklin' on the old dash dial",
+   "midi": 59,
+   "section": "verse1",
+   "sectionLine": 3,
+   "startBeat": 61.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Thunder grumblin' for a country mile",
+   "midi": 61,
+   "section": "verse1",
+   "sectionLine": 4,
+   "startBeat": 64.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Thunder grumblin' for a country mile",
+   "midi": 64,
+   "section": "verse1",
+   "sectionLine": 4,
+   "startBeat": 66.0
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Thunder grumblin' for a country mile",
+   "midi": 66,
+   "section": "verse1",
+   "sectionLine": 4,
+   "startBeat": 67.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Thunder grumblin' for a country mile",
+   "midi": 59,
+   "section": "verse1",
+   "sectionLine": 4,
+   "startBeat": 69.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Wheels keep turnin' down the endless mile",
+   "midi": 64,
+   "section": "verse1",
+   "sectionLine": 5,
+   "startBeat": 72.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Wheels keep turnin' down the endless mile",
+   "midi": 61,
+   "section": "verse1",
+   "sectionLine": 5,
+   "startBeat": 74.0
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Wheels keep turnin' down the endless mile",
+   "midi": 59,
+   "section": "verse1",
+   "sectionLine": 5,
+   "startBeat": 75.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Wheels keep turnin' down the endless mile",
+   "midi": 56,
+   "section": "verse1",
+   "sectionLine": 5,
+   "startBeat": 77.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Diner coffee in a paper cup",
+   "midi": 56,
+   "section": "verse2",
+   "sectionLine": 0,
+   "startBeat": 128.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Diner coffee in a paper cup",
+   "midi": 59,
+   "section": "verse2",
+   "sectionLine": 0,
+   "startBeat": 130.0
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Diner coffee in a paper cup",
+   "midi": 61,
+   "section": "verse2",
+   "sectionLine": 0,
+   "startBeat": 131.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Diner coffee in a paper cup",
+   "midi": 54,
+   "section": "verse2",
+   "sectionLine": 0,
+   "startBeat": 133.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Jukebox kickin' when the needle drops up",
+   "midi": 59,
+   "section": "verse2",
+   "sectionLine": 1,
+   "startBeat": 136.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Jukebox kickin' when the needle drops up",
+   "midi": 56,
+   "section": "verse2",
+   "sectionLine": 1,
+   "startBeat": 138.0
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Jukebox kickin' when the needle drops up",
+   "midi": 54,
+   "section": "verse2",
+   "sectionLine": 1,
+   "startBeat": 139.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Jukebox kickin' when the needle drops up",
+   "midi": 52,
+   "section": "verse2",
+   "sectionLine": 1,
+   "startBeat": 141.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Penny loafers and a buttoned-up dress",
+   "midi": 54,
+   "section": "verse2",
+   "sectionLine": 2,
+   "startBeat": 144.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Penny loafers and a buttoned-up dress",
+   "midi": 56,
+   "section": "verse2",
+   "sectionLine": 2,
+   "startBeat": 146.0
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Penny loafers and a buttoned-up dress",
+   "midi": 59,
+   "section": "verse2",
+   "sectionLine": 2,
+   "startBeat": 147.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Penny loafers and a buttoned-up dress",
+   "midi": 52,
+   "section": "verse2",
+   "sectionLine": 2,
+   "startBeat": 149.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Highway callin' and I must confess",
+   "midi": 61,
+   "section": "verse2",
+   "sectionLine": 3,
+   "startBeat": 152.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Highway callin' and I must confess",
+   "midi": 59,
+   "section": "verse2",
+   "sectionLine": 3,
+   "startBeat": 154.0
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Highway callin' and I must confess",
+   "midi": 56,
+   "section": "verse2",
+   "sectionLine": 3,
+   "startBeat": 155.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Highway callin' and I must confess",
+   "midi": 54,
+   "section": "verse2",
+   "sectionLine": 3,
+   "startBeat": 157.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Every red light is a second guess",
+   "midi": 61,
+   "section": "verse2",
+   "sectionLine": 4,
+   "startBeat": 160.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Every red light is a second guess",
+   "midi": 64,
+   "section": "verse2",
+   "sectionLine": 4,
+   "startBeat": 162.0
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Every red light is a second guess",
+   "midi": 66,
+   "section": "verse2",
+   "sectionLine": 4,
+   "startBeat": 163.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Every red light is a second guess",
+   "midi": 59,
+   "section": "verse2",
+   "sectionLine": 4,
+   "startBeat": 165.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Green light hits and we're heaven-blessed",
+   "midi": 66,
+   "section": "verse2",
+   "sectionLine": 5,
+   "startBeat": 168.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Green light hits and we're heaven-blessed",
+   "midi": 64,
+   "section": "verse2",
+   "sectionLine": 5,
+   "startBeat": 170.0
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Green light hits and we're heaven-blessed",
+   "midi": 61,
+   "section": "verse2",
+   "sectionLine": 5,
+   "startBeat": 171.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Green light hits and we're heaven-blessed",
+   "midi": 59,
+   "section": "verse2",
+   "sectionLine": 5,
+   "startBeat": 173.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Sun comes crawlin' over cedar pines",
+   "midi": 61,
+   "section": "verse3",
+   "sectionLine": 0,
+   "startBeat": 272.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Sun comes crawlin' over cedar pines",
+   "midi": 64,
+   "section": "verse3",
+   "sectionLine": 0,
+   "startBeat": 274.0
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Sun comes crawlin' over cedar pines",
+   "midi": 66,
+   "section": "verse3",
+   "sectionLine": 0,
+   "startBeat": 275.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Sun comes crawlin' over cedar pines",
+   "midi": 59,
+   "section": "verse3",
+   "sectionLine": 0,
+   "startBeat": 277.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Morning paper with the cutoff lines",
+   "midi": 64,
+   "section": "verse3",
+   "sectionLine": 1,
+   "startBeat": 280.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Morning paper with the cutoff lines",
+   "midi": 61,
+   "section": "verse3",
+   "sectionLine": 1,
+   "startBeat": 282.0
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Morning paper with the cutoff lines",
+   "midi": 59,
+   "section": "verse3",
+   "sectionLine": 1,
+   "startBeat": 283.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Morning paper with the cutoff lines",
+   "midi": 56,
+   "section": "verse3",
+   "sectionLine": 1,
+   "startBeat": 285.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Coffee steam in the pale daylight",
+   "midi": 54,
+   "section": "verse3",
+   "sectionLine": 2,
+   "startBeat": 288.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Coffee steam in the pale daylight",
+   "midi": 56,
+   "section": "verse3",
+   "sectionLine": 2,
+   "startBeat": 290.0
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Coffee steam in the pale daylight",
+   "midi": 59,
+   "section": "verse3",
+   "sectionLine": 2,
+   "startBeat": 291.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Coffee steam in the pale daylight",
+   "midi": 52,
+   "section": "verse3",
+   "sectionLine": 2,
+   "startBeat": 293.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "We drove steady through the Saturday night",
+   "midi": 66,
+   "section": "verse3",
+   "sectionLine": 3,
+   "startBeat": 296.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "We drove steady through the Saturday night",
+   "midi": 64,
+   "section": "verse3",
+   "sectionLine": 3,
+   "startBeat": 298.0
+  },
+  {
+   "durBeats": 1.5,
+   "line": "We drove steady through the Saturday night",
+   "midi": 61,
+   "section": "verse3",
+   "sectionLine": 3,
+   "startBeat": 299.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "We drove steady through the Saturday night",
+   "midi": 59,
+   "section": "verse3",
+   "sectionLine": 3,
+   "startBeat": 301.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Radio hums and it treats us right",
+   "midi": 59,
+   "section": "verse3",
+   "sectionLine": 4,
+   "startBeat": 304.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Radio hums and it treats us right",
+   "midi": 61,
+   "section": "verse3",
+   "sectionLine": 4,
+   "startBeat": 306.0
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Radio hums and it treats us right",
+   "midi": 64,
+   "section": "verse3",
+   "sectionLine": 4,
+   "startBeat": 307.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Radio hums and it treats us right",
+   "midi": 56,
+   "section": "verse3",
+   "sectionLine": 4,
+   "startBeat": 309.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Home lights glow and the time is right",
+   "midi": 59,
+   "section": "verse3",
+   "sectionLine": 5,
+   "startBeat": 312.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Home lights glow and the time is right",
+   "midi": 56,
+   "section": "verse3",
+   "sectionLine": 5,
+   "startBeat": 314.0
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Home lights glow and the time is right",
+   "midi": 54,
+   "section": "verse3",
+   "sectionLine": 5,
+   "startBeat": 315.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Home lights glow and the time is right",
+   "midi": 52,
+   "section": "verse3",
+   "sectionLine": 5,
+   "startBeat": 317.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 64,
+   "section": "chorus1",
+   "sectionLine": 0,
+   "startBeat": 80.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 66,
+   "section": "chorus1",
+   "sectionLine": 0,
+   "startBeat": 81.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Ridin' on the thunderline",
+   "midi": 68,
+   "section": "chorus1",
+   "sectionLine": 0,
+   "startBeat": 82.5
+  },
+  {
+   "durBeats": 3.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 64,
+   "section": "chorus1",
+   "sectionLine": 0,
+   "startBeat": 84.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Steel and thunder runnin' down the line",
+   "midi": 66,
+   "section": "chorus1",
+   "sectionLine": 1,
+   "startBeat": 88.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Steel and thunder runnin' down the line",
+   "midi": 64,
+   "section": "chorus1",
+   "sectionLine": 1,
+   "startBeat": 89.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Steel and thunder runnin' down the line",
+   "midi": 61,
+   "section": "chorus1",
+   "sectionLine": 1,
+   "startBeat": 90.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Steel and thunder runnin' down the line",
+   "midi": 59,
+   "section": "chorus1",
+   "sectionLine": 1,
+   "startBeat": 92.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 64,
+   "section": "chorus1",
+   "sectionLine": 2,
+   "startBeat": 96.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 66,
+   "section": "chorus1",
+   "sectionLine": 2,
+   "startBeat": 97.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Ridin' on the thunderline",
+   "midi": 68,
+   "section": "chorus1",
+   "sectionLine": 2,
+   "startBeat": 98.5
+  },
+  {
+   "durBeats": 3.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 64,
+   "section": "chorus1",
+   "sectionLine": 2,
+   "startBeat": 100.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Hear that engine ring the midnight chime",
+   "midi": 66,
+   "section": "chorus1",
+   "sectionLine": 3,
+   "startBeat": 104.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Hear that engine ring the midnight chime",
+   "midi": 64,
+   "section": "chorus1",
+   "sectionLine": 3,
+   "startBeat": 105.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Hear that engine ring the midnight chime",
+   "midi": 61,
+   "section": "chorus1",
+   "sectionLine": 3,
+   "startBeat": 106.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Hear that engine ring the midnight chime",
+   "midi": 59,
+   "section": "chorus1",
+   "sectionLine": 3,
+   "startBeat": 108.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 64,
+   "section": "chorus1",
+   "sectionLine": 4,
+   "startBeat": 112.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 66,
+   "section": "chorus1",
+   "sectionLine": 4,
+   "startBeat": 113.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Ridin' on the thunderline",
+   "midi": 68,
+   "section": "chorus1",
+   "sectionLine": 4,
+   "startBeat": 114.5
+  },
+  {
+   "durBeats": 3.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 64,
+   "section": "chorus1",
+   "sectionLine": 4,
+   "startBeat": 116.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Every heartbeat keepin' perfect time",
+   "midi": 66,
+   "section": "chorus1",
+   "sectionLine": 5,
+   "startBeat": 120.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Every heartbeat keepin' perfect time",
+   "midi": 64,
+   "section": "chorus1",
+   "sectionLine": 5,
+   "startBeat": 121.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Every heartbeat keepin' perfect time",
+   "midi": 61,
+   "section": "chorus1",
+   "sectionLine": 5,
+   "startBeat": 122.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Every heartbeat keepin' perfect time",
+   "midi": 59,
+   "section": "chorus1",
+   "sectionLine": 5,
+   "startBeat": 124.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 64,
+   "section": "chorus2",
+   "sectionLine": 0,
+   "startBeat": 176.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 66,
+   "section": "chorus2",
+   "sectionLine": 0,
+   "startBeat": 177.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Ridin' on the thunderline",
+   "midi": 68,
+   "section": "chorus2",
+   "sectionLine": 0,
+   "startBeat": 178.5
+  },
+  {
+   "durBeats": 3.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 64,
+   "section": "chorus2",
+   "sectionLine": 0,
+   "startBeat": 180.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Steel and thunder runnin' down the line",
+   "midi": 66,
+   "section": "chorus2",
+   "sectionLine": 1,
+   "startBeat": 184.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Steel and thunder runnin' down the line",
+   "midi": 64,
+   "section": "chorus2",
+   "sectionLine": 1,
+   "startBeat": 185.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Steel and thunder runnin' down the line",
+   "midi": 61,
+   "section": "chorus2",
+   "sectionLine": 1,
+   "startBeat": 186.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Steel and thunder runnin' down the line",
+   "midi": 59,
+   "section": "chorus2",
+   "sectionLine": 1,
+   "startBeat": 188.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 64,
+   "section": "chorus2",
+   "sectionLine": 2,
+   "startBeat": 192.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 66,
+   "section": "chorus2",
+   "sectionLine": 2,
+   "startBeat": 193.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Ridin' on the thunderline",
+   "midi": 68,
+   "section": "chorus2",
+   "sectionLine": 2,
+   "startBeat": 194.5
+  },
+  {
+   "durBeats": 3.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 64,
+   "section": "chorus2",
+   "sectionLine": 2,
+   "startBeat": 196.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Hear that engine ring the midnight chime",
+   "midi": 66,
+   "section": "chorus2",
+   "sectionLine": 3,
+   "startBeat": 200.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Hear that engine ring the midnight chime",
+   "midi": 64,
+   "section": "chorus2",
+   "sectionLine": 3,
+   "startBeat": 201.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Hear that engine ring the midnight chime",
+   "midi": 61,
+   "section": "chorus2",
+   "sectionLine": 3,
+   "startBeat": 202.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Hear that engine ring the midnight chime",
+   "midi": 59,
+   "section": "chorus2",
+   "sectionLine": 3,
+   "startBeat": 204.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 64,
+   "section": "chorus2",
+   "sectionLine": 4,
+   "startBeat": 208.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 66,
+   "section": "chorus2",
+   "sectionLine": 4,
+   "startBeat": 209.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Ridin' on the thunderline",
+   "midi": 68,
+   "section": "chorus2",
+   "sectionLine": 4,
+   "startBeat": 210.5
+  },
+  {
+   "durBeats": 3.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 64,
+   "section": "chorus2",
+   "sectionLine": 4,
+   "startBeat": 212.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Every heartbeat keepin' perfect time",
+   "midi": 66,
+   "section": "chorus2",
+   "sectionLine": 5,
+   "startBeat": 216.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Every heartbeat keepin' perfect time",
+   "midi": 64,
+   "section": "chorus2",
+   "sectionLine": 5,
+   "startBeat": 217.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Every heartbeat keepin' perfect time",
+   "midi": 61,
+   "section": "chorus2",
+   "sectionLine": 5,
+   "startBeat": 218.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Every heartbeat keepin' perfect time",
+   "midi": 59,
+   "section": "chorus2",
+   "sectionLine": 5,
+   "startBeat": 220.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 64,
+   "section": "finalchorus",
+   "sectionLine": 0,
+   "startBeat": 320.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 66,
+   "section": "finalchorus",
+   "sectionLine": 0,
+   "startBeat": 321.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Ridin' on the thunderline",
+   "midi": 68,
+   "section": "finalchorus",
+   "sectionLine": 0,
+   "startBeat": 322.5
+  },
+  {
+   "durBeats": 3.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 64,
+   "section": "finalchorus",
+   "sectionLine": 0,
+   "startBeat": 324.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Steel and thunder runnin' down the line",
+   "midi": 66,
+   "section": "finalchorus",
+   "sectionLine": 1,
+   "startBeat": 328.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Steel and thunder runnin' down the line",
+   "midi": 64,
+   "section": "finalchorus",
+   "sectionLine": 1,
+   "startBeat": 329.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Steel and thunder runnin' down the line",
+   "midi": 61,
+   "section": "finalchorus",
+   "sectionLine": 1,
+   "startBeat": 330.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Steel and thunder runnin' down the line",
+   "midi": 59,
+   "section": "finalchorus",
+   "sectionLine": 1,
+   "startBeat": 332.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 64,
+   "section": "finalchorus",
+   "sectionLine": 2,
+   "startBeat": 336.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 66,
+   "section": "finalchorus",
+   "sectionLine": 2,
+   "startBeat": 337.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Ridin' on the thunderline",
+   "midi": 68,
+   "section": "finalchorus",
+   "sectionLine": 2,
+   "startBeat": 338.5
+  },
+  {
+   "durBeats": 3.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 64,
+   "section": "finalchorus",
+   "sectionLine": 2,
+   "startBeat": 340.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Hear that engine ring the midnight chime",
+   "midi": 66,
+   "section": "finalchorus",
+   "sectionLine": 3,
+   "startBeat": 344.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Hear that engine ring the midnight chime",
+   "midi": 64,
+   "section": "finalchorus",
+   "sectionLine": 3,
+   "startBeat": 345.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Hear that engine ring the midnight chime",
+   "midi": 61,
+   "section": "finalchorus",
+   "sectionLine": 3,
+   "startBeat": 346.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Hear that engine ring the midnight chime",
+   "midi": 59,
+   "section": "finalchorus",
+   "sectionLine": 3,
+   "startBeat": 348.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 64,
+   "section": "finalchorus",
+   "sectionLine": 4,
+   "startBeat": 352.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 66,
+   "section": "finalchorus",
+   "sectionLine": 4,
+   "startBeat": 353.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Ridin' on the thunderline",
+   "midi": 68,
+   "section": "finalchorus",
+   "sectionLine": 4,
+   "startBeat": 354.5
+  },
+  {
+   "durBeats": 3.0,
+   "line": "Ridin' on the thunderline",
+   "midi": 64,
+   "section": "finalchorus",
+   "sectionLine": 4,
+   "startBeat": 356.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Every heartbeat keepin' perfect time",
+   "midi": 66,
+   "section": "finalchorus",
+   "sectionLine": 5,
+   "startBeat": 360.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Every heartbeat keepin' perfect time",
+   "midi": 64,
+   "section": "finalchorus",
+   "sectionLine": 5,
+   "startBeat": 361.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Every heartbeat keepin' perfect time",
+   "midi": 61,
+   "section": "finalchorus",
+   "sectionLine": 5,
+   "startBeat": 362.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Every heartbeat keepin' perfect time",
+   "midi": 59,
+   "section": "finalchorus",
+   "sectionLine": 5,
+   "startBeat": 364.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Hold that throttle 'til the morning light",
+   "midi": 66,
+   "section": "finalchorus",
+   "sectionLine": 6,
+   "startBeat": 368.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Hold that throttle 'til the morning light",
+   "midi": 64,
+   "section": "finalchorus",
+   "sectionLine": 6,
+   "startBeat": 369.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Hold that throttle 'til the morning light",
+   "midi": 61,
+   "section": "finalchorus",
+   "sectionLine": 6,
+   "startBeat": 370.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Hold that throttle 'til the morning light",
+   "midi": 59,
+   "section": "finalchorus",
+   "sectionLine": 6,
+   "startBeat": 372.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Thunderline rollin' and it feels so right",
+   "midi": 66,
+   "section": "finalchorus",
+   "sectionLine": 7,
+   "startBeat": 376.5
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Thunderline rollin' and it feels so right",
+   "midi": 64,
+   "section": "finalchorus",
+   "sectionLine": 7,
+   "startBeat": 377.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Thunderline rollin' and it feels so right",
+   "midi": 61,
+   "section": "finalchorus",
+   "sectionLine": 7,
+   "startBeat": 378.5
+  },
+  {
+   "durBeats": 2.0,
+   "line": "Thunderline rollin' and it feels so right",
+   "midi": 59,
+   "section": "finalchorus",
+   "sectionLine": 7,
+   "startBeat": 380.5
+  }
+ ],
+ "meter": "4/4",
+ "notes": "104-bar extension of the 12-bar E-major skeleton (all skeleton sections present at required lengths; choruses extended to 12, final to 16, plus verse3 and 8-bar intro/outro) so the 160 BPM cut lands at 156 s inside the 150-210 s gate.",
+ "tempo": {
+  "beatsPerBar": 4,
+  "bpm": 160,
+  "events": []
+ },
+ "title": "Thunderline",
+ "totalBars": 104,
+ "totalBeats": 416
+}

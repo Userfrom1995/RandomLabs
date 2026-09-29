@@ -1,0 +1,46 @@
+# Forbidden lyric fragments for the Thunderline IP scan (one per line, lowercase).
+# Any song.json lyric line containing one of these fragments fails the audit.
+# These are famous rock-and-roll lyric fragments; our lyrics must not reuse them.
+hound dog
+blue suede shoes
+johnny b. goode
+roll over beethoven
+great balls of fire
+tutti frutti
+shake, rattle and roll
+rock around the clock
+stairway to heaven
+smoke on the water
+born to run
+dancing in the street
+sweet home alabama
+free bird
+bohemian rhapsody
+satisfaction
+hey jude
+let it be
+purple haze
+whole lotta love
+back in black
+highway to hell
+sweet child o' mine
+livin' on a prayer
+eye of the tiger
+we will rock you
+we are the champions
+another brick in the wall
+hotel california
+take the money and run
+peggy sue
+that'll be the day
+maybellene
+blueberry hill
+ain't that a shame
+good golly miss molly
+long tall sally
+be-bop-a-lula
+heartbreak hotel
+hounddog
+cant buy me love
+twist and shout
+i wanna hold your hand
