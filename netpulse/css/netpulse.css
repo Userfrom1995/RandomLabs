@@ -152,6 +152,7 @@ body.np-body {
 
 .np-badge {
   display: inline-block;
+  flex: none;
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.07em;
