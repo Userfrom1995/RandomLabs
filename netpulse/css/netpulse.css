@@ -243,6 +243,30 @@ table.np-table th { color: var(--np-muted); font-weight: 600; }
   white-space: pre-wrap;
 }
 
+.np-field { margin: 10px 0; display: flex; flex-direction: column; gap: 4px; }
+.np-field label { font-size: 0.85rem; color: var(--np-muted); font-weight: 600; }
+.np-input {
+  background: #10141f;
+  color: var(--np-text);
+  border: 1px solid var(--np-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  width: 100%;
+}
+.np-input.np-narrow { max-width: 160px; }
+.np-input:focus-visible { outline: 2px solid var(--np-accent-2); outline-offset: 2px; }
+
+.np-status { font-size: 0.88rem; color: var(--np-muted); min-height: 1.4em; margin: 8px 0; }
+.np-status.running { color: var(--np-accent-2); }
+.np-status.ok { color: var(--np-ok); }
+.np-status.warn { color: var(--np-warn); }
+.np-status.error { color: var(--np-bad); }
+
+.np-chart { margin: 8px 0 4px; }
+.np-chart-svg { width: 100%; height: auto; display: block; }
+.np-chart-axis { fill: var(--np-muted); font-size: 11px; }
+
 @media (max-width: 480px) {
 /* Single-column layout covers the 390 px mobile target with no scroll. */
   .np-header { padding: 24px 16px 8px; }

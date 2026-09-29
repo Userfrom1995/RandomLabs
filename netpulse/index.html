@@ -14,12 +14,13 @@
 <header class="np-header">
   <h1>Net<span class="pulse">pulse</span></h1>
   <p class="np-lede">An honest in-browser network diagnostics tool. Every number carries a source badge; anything the browser sandbox forbids fails closed with an empty state instead of a fabricated gauge.</p>
-  <p class="np-scope">Scope in this build: connection profile and device context (Overview tab). Active probes, DNS toolkit, traffic observer, and export arrive as later phases add their own tabs. No backend, no CDN, no auto phone-home.</p>
+  <p class="np-scope">Scope in this build: connection profile and device context (Overview tab) plus active quality probes (Quality tab): latency, download, and upload timing over HTTP with probe history. DNS toolkit, traffic observer, and export are not present yet and no panel pretends otherwise. No backend, no CDN, no auto phone-home.</p>
 </header>
 
 <nav class="np-tabs" aria-label="Netpulse sections">
   <div role="tablist" aria-label="Netpulse tabs" id="np-tabs">
     <button class="np-tab" role="tab" id="tab-overview" aria-controls="tabpanel-overview" aria-selected="true" data-tab="overview">Overview</button>
+    <button class="np-tab" role="tab" id="tab-quality" aria-controls="tabpanel-quality" aria-selected="false" data-tab="quality" tabindex="-1">Quality</button>
   </div>
 </nav>
 
@@ -59,6 +60,83 @@
       </div>
     </div>
   </section>
+
+  <section id="tabpanel-quality" role="tabpanel" aria-labelledby="tab-quality" tabindex="0" hidden>
+    <div class="np-grid">
+      <div class="np-panel">
+        <h2>Latency</h2>
+        <p class="np-sub">Repeated timed HTTP GETs against a cache-busted endpoint. This measures application-layer request timing, not ICMP ping.</p>
+        <div class="np-field">
+          <label for="lat-endpoint">Probe endpoint</label>
+          <input id="lat-endpoint" class="np-input" type="url" inputmode="url" spellcheck="false" />
+        </div>
+        <div class="np-field">
+          <label for="lat-samples">Samples (1-50)</label>
+          <input id="lat-samples" class="np-input np-narrow" type="number" min="1" max="50" value="10" />
+        </div>
+        <div class="np-row np-actions">
+          <button class="np-btn primary" id="btn-latency" type="button">Run latency probe</button>
+        </div>
+        <p class="np-status" id="status-latency" role="status"></p>
+        <div id="result-latency"></div>
+      </div>
+      <div class="np-panel">
+        <h2>Download throughput</h2>
+        <p class="np-sub">Sequential cache-busted GETs; real bytes received divided by real elapsed time. Small same-origin files yield small honest numbers.</p>
+        <div class="np-field">
+          <label for="dl-endpoint">Probe endpoint</label>
+          <input id="dl-endpoint" class="np-input" type="url" inputmode="url" spellcheck="false" />
+        </div>
+        <div class="np-field">
+          <label for="dl-requests">Requests (1-20)</label>
+          <input id="dl-requests" class="np-input np-narrow" type="number" min="1" max="20" value="5" />
+        </div>
+        <div class="np-row np-actions">
+          <button class="np-btn primary" id="btn-download" type="button">Run download probe</button>
+        </div>
+        <p class="np-status" id="status-download" role="status"></p>
+        <div id="result-download"></div>
+      </div>
+      <div class="np-panel">
+        <h2>Upload throughput</h2>
+        <p class="np-sub">POSTs a generated random payload to an endpoint you choose and times it. Static file hosts (including this site) reject POST, so leave the field empty only to read why; point it at an echo endpoint you trust to measure.</p>
+        <div class="np-field">
+          <label for="ul-endpoint">Echo endpoint (https URL)</label>
+          <input id="ul-endpoint" class="np-input" type="url" inputmode="url" spellcheck="false" placeholder="https://echo.example/post" />
+        </div>
+        <div class="np-field">
+          <label for="ul-size">Payload size</label>
+          <select id="ul-size" class="np-input np-narrow">
+            <option value="16384">16 KB</option>
+            <option value="65536" selected>64 KB</option>
+            <option value="262144">256 KB</option>
+          </select>
+        </div>
+        <div class="np-row np-actions">
+          <button class="np-btn primary" id="btn-upload" type="button">Run upload probe</button>
+        </div>
+        <p class="np-status" id="status-upload" role="status"></p>
+        <div id="result-upload"></div>
+      </div>
+      <div class="np-panel wide">
+        <h2>Loss approximation and probe history</h2>
+        <p class="np-sub">Share of this session's probe attempts that failed at the HTTP layer, plus per-run history. This is not ICMP packet loss: browsers cannot send ICMP.</p>
+        <div id="result-loss"></div>
+        <h3>Latency medians per run (ms)</h3>
+        <div class="np-chart" id="chart-latency"></div>
+        <h3>Download throughput per run (KB/s)</h3>
+        <div class="np-chart" id="chart-download"></div>
+        <h3>Run history</h3>
+        <div class="np-table-wrap"><table class="np-table" aria-label="Probe run history">
+          <thead><tr><th>Time</th><th>Kind</th><th>Samples</th><th>Result</th><th>Failed</th></tr></thead>
+          <tbody id="history-body"></tbody>
+        </table></div>
+        <div class="np-row np-actions">
+          <button class="np-btn" id="btn-history-clear" type="button">Clear probe history</button>
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
 
 <footer class="np-footer">
@@ -68,6 +146,8 @@
 <script src="js/capabilities.js"></script>
 <script src="js/store.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/probes.js"></script>
 <script src="js/netinfo.js"></script>
 <script src="js/app.js"></script>
 </body>

@@ -19,6 +19,7 @@
       resourceTiming: !!(win.performance && typeof win.performance.getEntriesByType === "function"),
       rtcPeerConnection: typeof win.RTCPeerConnection === "function",
       fetch: typeof win.fetch === "function",
+      highResTime: !!(win.performance && typeof win.performance.now === "function"),
       localStorage: false,
       serviceWorker: !!(nav.serviceWorker && win.isSecureContext !== false)
     };
@@ -30,6 +31,7 @@
     } catch (e) {
       caps.localStorage = false;
     }
+    caps.probes = !!(caps.fetch && caps.highResTime);
     return caps;
   }
 
@@ -39,7 +41,11 @@
       online: caps.onlineState ? "live" : "unsupported",
       device: "hint",
       capabilities: "live",
-      events: "live"
+      events: "live",
+      latency: caps.probes ? "live" : "unsupported",
+      download: caps.probes ? "live" : "unsupported",
+      upload: caps.probes ? "live" : "unsupported",
+      history: caps.localStorage || caps.probes ? "live" : "unsupported"
     };
     return table[panel] || "unsupported";
   }
