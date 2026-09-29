@@ -44,6 +44,9 @@ def main():
           "white-space: nowrap" in badge and "text-overflow: ellipsis" in badge
           and "max-width: 100%" in badge and "overflow: hidden" in badge,
           "got: %s" % badge.strip()[:140])
+    check("r4-badge-no-crush",
+          "flex: none" in badge or "flex-shrink: 0" in badge,
+          "badge must not shrink inside flex dd, got: %s" % badge.strip()[:140])
     check("r4-badge-no-anywhere", "anywhere" not in badge,
           "badge must never fragment per character")
     dd = re.search(r"\.np-kv dd\s*\{([^}]*)\}", css)
