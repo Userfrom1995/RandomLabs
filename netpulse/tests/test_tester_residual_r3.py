@@ -48,8 +48,8 @@ def main():
     if m:
         badge_block = m.group(1)
     check("badge-word-bounds",
-          "overflow-wrap: break-word" in badge_block and "word-break: normal" in badge_block,
-          "badge must wrap at word bounds, got: %s" % badge_block.strip()[:120])
+          "white-space: nowrap" in badge_block and "text-overflow: ellipsis" in badge_block,
+          "badge must stay one-line with ellipsis, got: %s" % badge_block.strip()[:120])
     check("badge-no-anywhere", "anywhere" not in badge_block,
           "badge must never fragment per character")
     dd_block = ""
@@ -57,8 +57,8 @@ def main():
     if m2:
         dd_block = m2.group(1)
     check("kv-dd-word-bounds",
-          "overflow-wrap: break-word" in dd_block and "anywhere" not in dd_block,
-          "kv dd must wrap at word bounds, got: %s" % dd_block.strip()[:120])
+          "flex-wrap" in dd_block and "anywhere" not in dd_block,
+          "kv dd must wrap badges as units, got: %s" % dd_block.strip()[:120])
 
     md = (ROOT / "docs" / "index.md").read_text(encoding="utf-8")
     steps = re.findall(r"^\s*(\d+)\.", md, re.M)
