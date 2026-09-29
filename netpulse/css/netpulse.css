@@ -83,6 +83,7 @@ body.np-body {
   margin: 0 auto;
   padding: 0 20px;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   border-bottom: 1px solid var(--np-border);
 }
@@ -122,15 +123,19 @@ body.np-body {
   gap: 16px;
 }
 
+.np-grid > * { min-width: 0; }
+
 .np-panel {
   background: var(--np-panel);
   border: 1px solid var(--np-border);
   border-radius: var(--np-radius);
   padding: 16px 18px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .np-panel.wide { grid-column: 1 / -1; }
-.np-panel h2 { margin: 0 0 4px; font-size: 1.12rem; }
+.np-panel h2 { margin: 0 0 4px; font-size: 1.12rem; overflow-wrap: anywhere; }
 .np-panel h3 { margin: 14px 0 6px; font-size: 0.98rem; color: var(--np-accent); }
 .np-sub { margin: 0 0 10px; color: var(--np-muted); font-size: 0.9rem; }
 
@@ -156,7 +161,9 @@ body.np-body {
   padding: 1px 9px;
   margin-left: 8px;
   vertical-align: middle;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 100%;
 }
 
 .np-badge.live { border-color: var(--np-ok); color: var(--np-ok); }
