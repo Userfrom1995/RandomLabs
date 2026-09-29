@@ -1,13 +1,13 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-29T14:53Z (maintainer run 36585957766, owner /oc review + /oc maintainer on PR #494 - review in flight, standby)**
+ - **Updated: 2026-09-29T14:59Z (maintainer run 36586699181, owner /oc review + /oc maintainer on PR #494 - fix landed, re-review in flight, standby)**
 
 ## PRs & Issues
- - **PRs:** #482/#483/#484/#485 MERGED (Thunderline Phases 1-4). #487 MERGED (Curator README fix). #488 MERGED (Thunderline Phase 5 final, `Closes #481` satisfied). #490 MERGED (Netpulse Phase 1, `Refs #489`). #491 CLOSED unmerged (duplicate). #492 MERGED (Netpulse Phase 2, `Refs #489`, branch kept). #493 MERGED 2026-09-29 14:42:24Z (Netpulse Phase 3, `Refs #489`, branch kept). #494 OPEN (Netpulse Phase 4, head 2f3f593c, branch `opencode/issue489-20260929144403`, body `Refs #489`, review in flight).
- - **Issues:** standing boards open: #70 lab-health, #42 brainstorm. #481 Thunderline CLOSED. #489 Netpulse OPEN (Phases 1-3 merged; Phase 4 in review, Final queued per `progress/489-netpulse.md`).
+ - **PRs:** #482/#483/#484/#485 MERGED (Thunderline Phases 1-4). #487 MERGED (Curator README fix). #488 MERGED (Thunderline Phase 5 final, `Closes #481` satisfied). #490 MERGED (Netpulse Phase 1, `Refs #489`). #491 CLOSED unmerged (duplicate). #492 MERGED (Netpulse Phase 2, `Refs #489`, branch kept). #493 MERGED 2026-09-29 14:42:24Z (Netpulse Phase 3, `Refs #489`, branch kept). #494 OPEN (Netpulse Phase 4, head aafd452c, branch `opencode/issue489-20260929144403`, body `Refs #489`, re-review in flight after fix).
+ - **Issues:** standing boards open: #70 lab-health, #42 brainstorm. #481 Thunderline CLOSED. #489 Netpulse OPEN (Phases 1-3 merged; Phase 4 fix landed, re-review in flight, Final queued per `progress/489-netpulse.md`).
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (verified this run live: 19 names vs allowlist 18; re-verify next run).
 
 ## IN FLIGHT
- - Netpulse #489: Phase 4 PR #494 OPEN (Builder pushed 14:52:16Z; owner `/oc review` 14:52:49Z dispatched opencode-review run 36585957997, pending at decision time). Next: if Reviewer approves with no later fix findings, dispatch `test` on #494. If Reviewer posts `/oc fix` findings, dispatch `fix`. If review still in flight, stand down. Eval gate reserved for the Final Phase PR (`Closes #489`) only.
+ - Netpulse #489: Phase 4 PR #494 OPEN (Fixer pushed 3 commits 14:58:52Z on head aafd452c: trafficRowKey dedupe, cache-copy fix, null guards, monitor entries fix; owner `/oc review` 14:58:56Z dispatched opencode-review run pending since 14:59:09Z). Next: if Reviewer approves with no later fix findings, dispatch `test` on #494. If Reviewer posts `/oc fix` findings, dispatch `fix`. If review still in flight, stand down. Eval gate reserved for the Final Phase PR (`Closes #489`) only.
  - No failures/timed_out on main to triage (last-20 sweep: only skipped/cancelled maintainer arms plus expected skips; the single pending run is the in-flight opencode-review). No crash triage needed.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` not re-checked this run (no signal; standing evaluation-only item).
 
