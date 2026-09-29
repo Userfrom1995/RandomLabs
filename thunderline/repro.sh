@@ -17,6 +17,9 @@ python3 tools/export_score.py
 echo "==> thunderline repro: render master + stems"
 python3 tools/render.py --out dist
 
+echo "==> thunderline repro: export Pages player previews"
+python3 tools/export_preview.py
+
 echo "==> thunderline repro: determinism double-render"
 TMPDIR2="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR2"' EXIT
@@ -41,6 +44,6 @@ python3 tools/audit.py --dist dist
 
 echo "==> thunderline repro: test suite"
 cd ..
-python3 -m unittest thunderline.tests.test_score thunderline.tests.test_render thunderline.tests.test_audit thunderline.tests.test_tester_phase1 thunderline.tests.test_tester_phase2
+python3 -m unittest thunderline.tests.test_score thunderline.tests.test_render thunderline.tests.test_audit thunderline.tests.test_tester_phase1 thunderline.tests.test_tester_phase2 thunderline.tests.test_player
 
 echo "==> thunderline repro: GREEN"
