@@ -287,6 +287,7 @@
   }
 
   function resultTable(root, rows, sourceLabel, sourceLevel) {
+    if (!root) return;
     var UI = window.NetpulseUI;
     root.innerHTML = "";
     var dl = document.createElement("dl");
@@ -298,6 +299,7 @@
   }
 
   function resultError(root, title, body, missingLabel) {
+    if (!root) return;
     var UI = window.NetpulseUI;
     root.innerHTML = "";
     root.appendChild(UI.emptyState(title, body, missingLabel));
@@ -950,6 +952,15 @@
     return "..." + s.slice(s.length - (maxLen || 60) + 3);
   }
 
+  /* Stable key for one normalized traffic row: the buffered replay from
+   * PerformanceObserver re-delivers the snapshot entries on subscribe, so
+   * the live-stream merge dedupes against this key instead of concat. */
+  function trafficRowKey(r) {
+    if (!r || typeof r !== "object") return "null-row";
+    return [r.name, r.startMs, r.durationMs, r.transferBytes,
+      r.initiator, r.protocol].join("|");
+  }
+
   function trafficGuard(caps, summaryId, statusId) {
     if (window.NetpulseTraffic.isSupported(window)) return true;
     resultError(document.getElementById(summaryId),
@@ -963,6 +974,7 @@
   }
 
   function renderTrafficWaterfall(root, rows) {
+    if (!root) return;
     root.innerHTML = "";
     var timed = (rows || []).filter(function (r) {
       return r && typeof r.startMs === "number" && typeof r.durationMs === "number";
@@ -1073,18 +1085,20 @@
       resultTable(summaryRoot, [
         ["Observed entries (this page)", String(rows.length)],
         ["Visible transfer bytes", T.formatBytes(totalBytes)],
-        ["Entries with sizes hidden by headers", String(hidden)],
+        ["Entries with sizes hidden by headers or served from cache", String(hidden)],
         ["Live stream", observing ? "streaming" : "paused"]
       ], "Resource Timing", "live");
       if (hidden) {
         var note = document.createElement("p");
         note.className = "np-sub";
         note.textContent = "Hidden sizes are cross-origin entries without Timing-Allow-Origin " +
-          "headers: the spec zeroes their sizes. They are counted, never counted as zero-byte transfers.";
-        summaryRoot.appendChild(note);
+          "headers, or same-origin entries served from cache: the reported transfer size " +
+          "is zero while decoded bytes stay positive. They are counted, never counted as zero-byte transfers.";
+        if (summaryRoot) summaryRoot.appendChild(note);
       }
 
       var originBody = document.getElementById("traffic-origin-body");
+      if (originBody) {
       originBody.innerHTML = "";
       var origins = T.aggregateByOrigin(rows);
       if (!origins.length) {
@@ -1097,6 +1111,7 @@
             o.meanDurationMs === null ? "no data" : T.formatMs(o.meanDurationMs)
           ]));
         });
+      }
       }
 
       var protoRoot = document.getElementById("result-traffic-protocol");
@@ -1115,6 +1130,7 @@
       }
 
       var body = document.getElementById("traffic-body");
+      if (body) {
       body.innerHTML = "";
       if (!visible.length) {
         var tr = document.createElement("tr");
@@ -1131,10 +1147,11 @@
             shortName(r.name, 64),
             r.initiator || "not exposed",
             T.formatMs(r.durationMs),
-            r.sizesHidden ? "hidden by headers" : T.formatBytes(r.transferBytes),
+            r.sizesHidden ? "hidden by headers or served from cache" : T.formatBytes(r.transferBytes),
             r.protocol || "(hidden)"
           ]));
         });
+      }
       }
 
       renderTrafficWaterfall(document.getElementById("traffic-waterfall"), visible);
@@ -1151,14 +1168,18 @@
       render();
     }
 
-    document.getElementById("btn-traffic-refresh").addEventListener("click", function () {
+    var btnRefresh = document.getElementById("btn-traffic-refresh");
+    if (btnRefresh) btnRefresh.addEventListener("click", function () {
       refresh("traffic-refresh");
     });
-    document.getElementById("traffic-filter").addEventListener("input", function () {
+    var filterInput = document.getElementById("traffic-filter");
+    if (filterInput) filterInput.addEventListener("input", function () {
       render();
     });
-    document.getElementById("btn-traffic-observe").addEventListener("click", function () {
+    var btnObserve = document.getElementById("btn-traffic-observe");
+    if (btnObserve) btnObserve.addEventListener("click", function () {
       var btn = document.getElementById("btn-traffic-observe");
+      if (!btn) return;
       if (observing) {
         if (disconnect) disconnect();
         disconnect = null;
@@ -1172,7 +1193,15 @@
       }
       if (!trafficGuard(caps, "result-traffic-summary", "status-traffic")) return;
       var stop = T.observe(window, function (incoming) {
-        rows = rows.concat(incoming);
+        var seen = {};
+        rows.forEach(function (r) {
+          seen[trafficRowKey(r)] = true;
+        });
+        (incoming || []).forEach(function (r) {
+          if (!r) return;
+          var k = trafficRowKey(r);
+          if (!seen[k]) { seen[k] = true; rows.push(r); }
+        });
         if (rows.length > 1000) rows = rows.slice(-1000);
         render();
       });
@@ -1260,7 +1289,7 @@
         ["Probe attempts (failed)", String(sum.probeAttempts) + " (" + String(sum.probeFailed) + ")"],
         ["Observed transfers (this page)", String(sum.observedEntries)],
         ["Observed bytes (visible)", T ? T.formatBytes(sum.observedBytes) : String(sum.observedBytes)],
-        ["Sizes hidden by headers", String(sum.hiddenSizes)]
+        ["Sizes hidden by headers or served from cache", String(sum.hiddenSizes)]
       ], "session probe history + Resource Timing", "live");
 
       Charts.lineChart(document.getElementById("chart-monitor-latency"), {
