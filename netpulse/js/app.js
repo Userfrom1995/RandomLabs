@@ -78,8 +78,12 @@
           "rate=80");
         check("loss-empty", P.lossApproximation([]).successRate === null, "empty=null");
         check("format-rate",
-          P.formatRate(2048) === "2 Mb/s" && P.formatRate(512) === "512 KB/s",
+          P.formatRate(2048) === "2 MB/s" && P.formatRate(512) === "512 KB/s",
           "units scale");
+        check("format-rate-guards",
+          P.formatRate(NaN) === "no data" && P.formatRate(Infinity) === "no data" &&
+          P.formatMs(NaN) === "no data" && P.formatMs(Infinity) === "no data",
+          "NaN/Infinity fail closed");
         check("quality-tab-present", !!document.getElementById("tabpanel-quality"), "quality tab wired");
       }
       if (Charts) {
@@ -181,12 +185,17 @@
       lossRoot.appendChild(note);
     }
 
+    function runRate(r) {
+      if (!r) return null;
+      if (typeof r.throughputKBps === "number") return r.throughputKBps;
+      return typeof r.throughputKbps === "number" ? r.throughputKbps : null;
+    }
     var latSeries = hist.filter(function (r) { return r.kind === "latency"; })
       .map(function (r) { return r.summary ? r.summary.median : null; })
-      .filter(function (v) { return typeof v === "number"; });
+      .filter(function (v) { return typeof v === "number" && isFinite(v); });
     var dlSeries = hist.filter(function (r) { return r.kind === "download"; })
-      .map(function (r) { return r.throughputKbps; })
-      .filter(function (v) { return typeof v === "number"; });
+      .map(runRate)
+      .filter(function (v) { return typeof v === "number" && isFinite(v); });
     Charts.lineChart(document.getElementById("chart-latency"), {
       label: "Latency medians per run in milliseconds",
       yLabel: "ms / run",
@@ -218,7 +227,7 @@
         run.kind,
         String(run.summary ? run.summary.attempts : run.samples.length),
         run.kind === "download" || run.kind === "upload"
-          ? P.formatRate(run.throughputKbps)
+          ? P.formatRate(run.throughputKBps !== undefined ? run.throughputKBps : run.throughputKbps)
           : P.formatMs(run.summary ? run.summary.median : null),
         String(run.summary ? run.summary.failed : 0)
       ];
@@ -296,6 +305,9 @@
             ["Max", P.formatMs(run.summary.max)],
             ["Jitter (mean abs successive diff)", P.formatMs(run.summary.jitter)]
           ]);
+        }).catch(function () {
+          done();
+          setStatus("status-latency", "Probe failed unexpectedly.", "error");
         });
       });
     });
@@ -315,10 +327,13 @@
             ["Endpoint", run.endpoint],
             ["Requests (ok/attempts)", run.summary.succeeded + "/" + run.summary.attempts],
             ["Total bytes received", String(run.totalBytes)],
-            ["Throughput (bytes over elapsed time)", P.formatRate(run.throughputKbps)],
+            ["Throughput (bytes over elapsed time)", P.formatRate(run.throughputKBps !== undefined ? run.throughputKBps : run.throughputKbps)],
             ["Median request time", P.formatMs(run.summary.median)],
             ["p95 request time", P.formatMs(run.summary.p95)]
           ]);
+        }).catch(function () {
+          done();
+          setStatus("status-download", "Probe failed unexpectedly.", "error");
         });
       });
     });
@@ -365,9 +380,12 @@
             ["Endpoint", run.endpoint],
             ["Payload per request (bytes)", String(run.payloadBytes)],
             ["Uploads (ok/attempts)", run.summary.succeeded + "/" + run.summary.attempts],
-            ["Throughput (bytes over elapsed time)", P.formatRate(run.throughputKbps)],
+            ["Throughput (bytes over elapsed time)", P.formatRate(run.throughputKBps !== undefined ? run.throughputKBps : run.throughputKbps)],
             ["Median request time", P.formatMs(run.summary.median)]
           ]);
+        }).catch(function () {
+          done();
+          setStatus("status-upload", "Probe failed unexpectedly.", "error");
         });
       });
     });
