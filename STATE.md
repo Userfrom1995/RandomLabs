@@ -1,24 +1,24 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-29T13:44Z (maintainer run 36577040699, owner net-tool commission on #42 - Netpulse issue created, queued)**
+ - **Updated: 2026-09-29T13:47Z (maintainer run 36577334020, self-triage of bot-created Netpulse issue #489 - Thunderline DONE, architect dispatched)**
 
 ## PRs & Issues
- - **PRs:** #482 MERGED Phase 1. #483 MERGED Phase 2. #484 MERGED Phase 3. #487 MERGED (Curator README fix, main 4405e763). #485 MERGED 2026-09-29 12:44:29Z (merge commit 06af3607, Thunderline Phase 4, branch kept). #488 OPEN (Thunderline Phase 5 final, head 4c3cc1e9, branch `opencode/issue481-thunderline-phase-5`, MERGEABLE, body carries `Closes #481`; Reviewer `/oc approve` 13:25:06Z + Tester `/oc approve-test` 13:33:01Z, no later fix findings; Evaluator in flight: opencode-eval run 36576170062 in_progress + run 36576203971 pending).
- - **Issues:** standing boards open: #70 lab-health, #42 brainstorm. Active: #481 Thunderline OPEN (Refs #481 on phase PRs 1-4, Closes #481 on final #488, stays open until approve-eval + merge). NEW (UNTRIAGED, QUEUED-BEHIND-#481): Netpulse browser network diagnostics tool (created this run from owner 13:42:03Z commission on #42; route `architect` only after #481 closes, even if the create-issue self-dispatch fires earlier).
+ - **PRs:** #482 MERGED Phase 1. #483 MERGED Phase 2. #484 MERGED Phase 3. #487 MERGED (Curator README fix, main 4405e763). #485 MERGED (Thunderline Phase 4, main 06af3607, branch kept). #488 MERGED 2026-09-29 13:45:56Z (Thunderline Phase 5 final, head 4c3cc1e9, main now 7b048236; merged by sibling run 36577400983 one minute before this run's own merge attempt, which returned already-merged; branch kept per rule).
+ - **Issues:** standing boards open: #70 lab-health, #42 brainstorm. #481 Thunderline CLOSED via the `Closes #481` link on #488 merge (verified CLOSED this run after a seconds-long close lag). #489 Netpulse OPEN (bot-created 13:44:24Z, zero comments, untriaged at decision time; UNBLOCKED now that #481 is closed - `architect` dispatched this run).
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (verified this run live: 19 names vs allowlist 18; re-verify next run).
 
 ## IN FLIGHT
- - Thunderline #481: Phases 1-4 merged (main 06af3607 LIVE). Phase 5 PR #488 open; review plus test green; `eval` in flight (runs 36576170062 in_progress + 36576203971 pending). Merge ONLY on Evaluator `approve-eval`, then close #481 via the `Closes #481` link.
- - Netpulse: tracking issue created this run; held until #481 merges per owner sequencing. Next: `architect` on the new issue after #481 closes (Phase Epic in `progress/`, browser-API capability survey first).
- - No failures/timed_out on main to triage (recent runs clean; maintainer workflow_run arms skipped/cancelled as expected).
+ - Thunderline #481: COMPLETE. All 5 phases merged, Evaluator approve-eval 9.8/10 (two non-blocking cosmetic nits on record), #481 closed. No further action.
+ - Netpulse #489: `architect` dispatched this run (Phase Epic in `progress/` with semantic capability-driven phase names, browser-API capability survey first, browser-honesty binding from the issue body). Next: `build` once the epic lands.
+ - Pages deploy follow-up: no Deploy run yet for merge-push 7b048236 at decision time (latest green 36576207675 at 13:35:25Z predates the merge). Next run verifies green on 7b048236.
+ - No failures/timed_out on main to triage (sibling maintainer workflow_run arms skipped/cancelled as expected).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` not re-checked this run (no signal; standing evaluation-only item).
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run.
-2. On #488: if Evaluator posts `approve-eval` with no later fix findings, merge via rebase (branch kept, orphan-main check first), verify Pages deploy green, close #481 via the merge link. If Evaluator posts findings/rejection, dispatch `fix` (or `architect`/`lab` as the verdict demands). If eval still in flight, stand down.
-3. Netpulse: if the new issue exists and #481 is closed, route `architect` on it (oldest-first). While #481 is open, hold even if self-triage fires.
-4. Never close #481 until the final phase (Phase 5) passes review, test, AND eval.
-5. Standing rule unchanged: UNTRIAGED sweep every run (only standing boards #70/#42 expected open besides active #481 plus queued Netpulse).
-6. Standby otherwise: do NOT auto-dispatch ideate or invent work.
+2. Netpulse #489: if Architect epic landed in `progress/`, dispatch `build` on #489 (do NOT re-dispatch architect). If architect still in flight, stand down.
+3. Confirm Pages deploy ran green on 7b048236; trigger via `gh workflow run` if missing/failed.
+4. Standing rule unchanged: UNTRIAGED sweep every run (only standing boards #70/#42 expected open besides active #489).
+5. Standby otherwise: do NOT auto-dispatch ideate or invent work.
 
 ## OPEN QUESTIONS
  - Which step emits the write-permissions note (9 occurrences incl. #488 open run 36573875615), and does it need a lab fix? Zero production impact observed; watch next PR-open run. No lab escalation (ladder requires demonstrable blocking failure).
