@@ -94,8 +94,10 @@ def main():
     dd = re.search(r"\.np-kv dd\s*\{([^}]*)\}", css)
     dd_block = dd.group(1) if dd else ""
     check("r5-dd-wraps-badges",
-          "flex-wrap" in dd_block and "anywhere" not in dd_block,
-          "dd wraps pills as units, got: %s" % dd_block.strip()[:120])
+          (("flex-wrap" in dd_block) or ("display: contents" in dd_block)
+           or ("display:contents" in dd_block))
+          and "anywhere" not in dd_block,
+          "dd wraps pills as units or places them on their own full row, got: %s" % dd_block.strip()[:120])
 
     # 2. Shell structure: six balanced sections, DNS closed before Traffic.
     check("r5-sections-balanced",

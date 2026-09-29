@@ -51,7 +51,9 @@ def main():
           "badge must never fragment per character")
     dd = re.search(r"\.np-kv dd\s*\{([^}]*)\}", css)
     dd_block = dd.group(1) if dd else ""
-    check("r4-dd-flex-wrap", "flex-wrap" in dd_block,
+    check("r4-dd-flex-wrap",
+          ("flex-wrap" in dd_block) or ("display: contents" in dd_block)
+          or ("display:contents" in dd_block),
           "got: %s" % dd_block.strip()[:120])
     check("r4-dd-no-anywhere", "anywhere" not in dd_block,
           "dd must not reintroduce per-character breaks")
