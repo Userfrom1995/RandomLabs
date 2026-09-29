@@ -53,6 +53,7 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 Active projects are software or research builds currently in progress under open tracking issues (meta tasks such as lab health audits or workflow maintenance are not listed here):
 
 - **Thunderline (`thunderline/`)** - Original rock-and-roll song composed, arranged, and produced by a deterministic in-repo synthesis pipeline (score as source of truth, reproducible master plus stems, Pages player). In flight under [#481](https://github.com/Userfrom1995/RandomLabs/issues/481). [README](thunderline/README.md)
+- **Netpulse (`netpulse/`)** - Honest in-browser network diagnostics and monitoring tool: connection profile, HTTP quality probes, DNS-over-HTTPS toolkit, opt-in egress identity, WebRTC inspector, own-traffic observer, live monitor dashboard, and JSON plus CSV export with a printable source-stamped report. In flight under [#489](https://github.com/Userfrom1995/RandomLabs/issues/489). [README](netpulse/README.md)
 
 ## Previous Projects (Latest 10)
 
