@@ -319,8 +319,19 @@
           "invalid date falls back to now");
         check("export-formula-guard",
           EXP.csvCell("=1+1") === "'=1+1" && EXP.csvCell("@x") === "'@x" &&
-          EXP.csvCell("plain") === "plain",
-          "formula cells neutralized");
+          EXP.csvCell("plain") === "plain" && EXP.csvCell(-5) === "-5",
+          "formula cells neutralized, numerics untouched");
+        check("export-csv-junk-parity",
+          EXP.probesToCsv([{}]).split("\n").length === 2 &&
+          EXP.trafficToCsv([{}]).split("\n").length === 2 &&
+          EXP.eventsToCsv([{}]).split("\n").length === 2 &&
+          EXP.buildReport({ history: [{}] }).probeRuns.length === 0,
+          "junk rows dropped in JSON and CSV");
+        check("export-csv-scalar",
+          EXP.probesToCsv(42).split("\n").length === 2 &&
+          EXP.trafficToCsv("s").split("\n").length === 2 &&
+          EXP.eventsToCsv(true).split("\n").length === 2,
+          "scalar inputs yield header only");
         check("export-junk-rows",
           EXP.buildReport({ history: [{}] }).probeRuns.length === 0 &&
           EXP.buildReport({ history: [{ kind: "latency",

@@ -101,6 +101,16 @@ ok('junk-row-signal', B.buildReport({ history: [{ kind: 'latency',
 ok('formula-prefix', B.csvCell('=1+1') === "'=1+1"
   && B.csvCell('@x') === "'@x" && B.csvCell('+1') === "'+1"
   && B.csvCell('-1') === "'-1" && B.csvCell('plain') === 'plain');
+ok('formula-numeric', B.csvCell(-5) === '-5' && B.csvCell(5) === '5'
+  && B.csvCell(0) === '0' && B.csvCell('-5') === "'-5");
+ok('csv-junk-parity', B.probesToCsv([{}]).split('\n').length === 2
+  && B.trafficToCsv([{}]).split('\n').length === 2
+  && B.eventsToCsv([{}]).split('\n').length === 2
+  && B.buildReport({ history: [{}] }).probeRuns.length === 0);
+ok('csv-scalar', B.probesToCsv(42).split('\n').length === 2
+  && B.trafficToCsv('s').split('\n').length === 2
+  && B.eventsToCsv(true).split('\n').length === 2
+  && B.probesToCsv(null).split('\n').length === 2);
 ok('stamp-fallback', /^netpulse-s-\d{8}-\d{6}$/.test(B.stampFilename('s', 'not-a-date')));
 ok('text-nonfinite', B.buildReport({ history: [{ kind: 'x',
   t: NaN, summary: { attempts: 1 } }] }).probeRuns[0].t === null);
