@@ -181,9 +181,17 @@
     });
   }
 
-  function throughputKbps(bytes, ms) {
+  /* Throughput in kibibytes per second (KiB/s, labeled KB/s): bytes
+   * received divided by elapsed seconds, divided by 1024. Binary (1024)
+   * convention throughout; scaled display uses MB/s (mebibytes/s). This is
+   * bytes-based, never bits: do not label it Mb/s (megabits/s, 8x smaller). */
+  function throughputKBps(bytes, ms) {
     if (!bytes || !ms || ms <= 0) return null;
     return (bytes / (ms / 1000)) / 1024;
+  }
+  /* Deprecated alias kept for persisted history and older callers. */
+  function throughputKbps(bytes, ms) {
+    return throughputKBps(bytes, ms);
   }
 
   function defaultEndpoint() {
@@ -196,6 +204,9 @@
     }
   }
 
+  /* Sequential series; a throwing/rejecting step is coerced into an
+   * honest failed sample so the chain never rejects and callers always
+   * resolve with a full sample list. */
   function runSeries(step, count, onProgress) {
     var samples = [];
     var chain = Promise.resolve();
@@ -205,8 +216,20 @@
           if (onProgress) {
             try { onProgress(index + 1, count); } catch (e) { /* ignore */ }
           }
-          return step().then(function (s) {
+          var settled;
+          try {
+            settled = step();
+          } catch (err) {
+            samples.push({ ok: false, ms: null, bytes: 0,
+              error: "probe step threw (" + (err && err.message ? err.message : "unknown error") + ")" });
+            return null;
+          }
+          return Promise.resolve(settled).then(function (s) {
             samples.push(s);
+            return null;
+          }, function (err) {
+            samples.push({ ok: false, ms: null, bytes: 0,
+              error: "probe step failed (" + (err && err.message ? err.message : "unknown error") + ")" });
             return null;
           });
         });
@@ -234,7 +257,8 @@
       summary: summary,
       totalBytes: bytes,
       totalMs: Math.round(wallMs * 100) / 100,
-      throughputKbps: throughputKbps(bytes, wallMs)
+      throughputKBps: throughputKBps(bytes, wallMs),
+      throughputKbps: throughputKBps(bytes, wallMs)
     };
     if (extra) {
       Object.keys(extra).forEach(function (k) { run[k] = extra[k]; });
@@ -305,14 +329,16 @@
   }
 
   function formatMs(v) {
-    if (v === null || v === undefined) return "no data";
+    if (typeof v !== "number" || !isFinite(v)) return "no data";
     return (Math.round(v * 100) / 100) + " ms";
   }
 
-  function formatRate(kbps) {
-    if (kbps === null || kbps === undefined) return "no data";
-    if (kbps >= 1024) return (Math.round((kbps / 1024) * 100) / 100) + " Mb/s";
-    return (Math.round(kbps * 100) / 100) + " KB/s";
+  /* Binary convention: input is KiB/s, output is "KB/s" below 1024 and
+   * "MB/s" (MiB/s) at or above. Never "Mb/s": that unit is megabits. */
+  function formatRate(kBps) {
+    if (typeof kBps !== "number" || !isFinite(kBps) || kBps < 0) return "no data";
+    if (kBps >= 1024) return (Math.round((kBps / 1024) * 100) / 100) + " MB/s";
+    return (Math.round(kBps * 100) / 100) + " KB/s";
   }
 
   global.NetpulseProbes = {
@@ -332,6 +358,7 @@
     lossApproximation: lossApproximation,
     formatMs: formatMs,
     formatRate: formatRate,
+    throughputKBps: throughputKBps,
     throughputKbps: throughputKbps,
     defaultEndpoint: defaultEndpoint
   };
