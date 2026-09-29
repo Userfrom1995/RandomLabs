@@ -26,10 +26,26 @@ in `score/song.json`.
 ## Reproduce
 
 ```bash
+bash thunderline/repro.sh
+```
+
+That one command exports the score, renders the master plus stems,
+re-renders to a temp dir and asserts bit identity, runs the 12-check
+audit (`python3 thunderline/tools/audit.py --dist thunderline/dist`),
+and runs the full test suite. Individual steps:
+
+```bash
 python3 thunderline/tools/export_score.py
 python3 thunderline/tools/render.py --out thunderline/dist
-python3 -m unittest thunderline.tests.test_score thunderline.tests.test_render
+python3 thunderline/tools/audit.py --dist thunderline/dist
+python3 -m unittest thunderline.tests.test_score thunderline.tests.test_render thunderline.tests.test_audit thunderline.tests.test_tester_phase1 thunderline.tests.test_tester_phase2
 ```
+
+The audit is a pure function of the rendered tree: it re-derives lyric
+timings from the score, proves the shipped stems sum through the
+documented limiter back to the shipped master (stem-null check against
+`stemNullToleranceRms`), verifies manifest hashes, and scans lyrics
+against the blocklist. No wall clock, no network, no randomness.
 
 The exporter is standard library only and deterministic: two consecutive
 exports produce byte-identical `song.mid`, `sheet.html`, and `lyrics.json`.
