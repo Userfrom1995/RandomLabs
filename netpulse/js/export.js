@@ -12,6 +12,12 @@
     return (typeof v === "number" && isFinite(v)) ? v : null;
   }
 
+  /* CSV numeric parity with buildReport: non-finite numbers render as
+   * empty cells, matching the nulls JSON emits, never "NaN"/"Infinity". */
+  function csvNum(v) {
+    return (typeof v === "number" && isFinite(v)) ? v : "";
+  }
+
   function text(v) {
     if (v === null || v === undefined) return null;
     return String(v);
@@ -106,8 +112,7 @@
    * string "null", so a sparse session stays visibly sparse. */
   function csvCell(v) {
     if (v === null || v === undefined) return "";
-    var s = String(v);
-    if (s.indexOf(",") !== -1 || s.indexOf('"') !== -1 ||
+    var s = String(v);    if (s.indexOf(",") !== -1 || s.indexOf('"') !== -1 ||
         s.indexOf("\n") !== -1 || s.indexOf("\r") !== -1) {
       return '"' + s.replace(/"/g, '""') + '"';
     }
@@ -136,8 +141,10 @@
       var s = run.summary || {};
       var rate = run.throughputKBps !== undefined ? run.throughputKBps : run.throughputKbps;
       lines.push(csvRow([run.t, run.kind, run.endpoint,
-        s.attempts, s.succeeded, s.failed, s.median, s.p95, s.min, s.max,
-        s.jitter, rate, run.totalBytes, run.payloadBytes, "HTTP timing (fetch)"]));
+        csvNum(s.attempts), csvNum(s.succeeded), csvNum(s.failed),
+        csvNum(s.median), csvNum(s.p95), csvNum(s.min), csvNum(s.max),
+        csvNum(s.jitter), csvNum(rate), csvNum(run.totalBytes),
+        csvNum(run.payloadBytes), "HTTP timing (fetch)"]));
     });
     return lines.join("\n") + "\n";
   }
@@ -148,8 +155,9 @@
       "sizesHidden", "source"])];
     (rows || []).forEach(function (r) {
       if (!r || typeof r !== "object") return;
-      lines.push(csvRow([r.name, r.initiator, r.durationMs, r.startMs,
-        r.transferBytes, r.encodedBytes, r.decodedBytes, r.protocol,
+      lines.push(csvRow([r.name, r.initiator, csvNum(r.durationMs),
+        csvNum(r.startMs), csvNum(r.transferBytes), csvNum(r.encodedBytes),
+        csvNum(r.decodedBytes), r.protocol,
         r.sizesHidden ? "true" : "false", "Resource Timing"]));
     });
     return lines.join("\n") + "\n";
