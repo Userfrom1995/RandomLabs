@@ -1,13 +1,13 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-28T23:56Z (maintainer run 36500538259, schedule tick standby, main b4ec7ce4 LIVE, Pages Deploy green)**
+ - **Updated: 2026-09-29T04:47Z (maintainer run 36523061077, owner /oc maintainer on #70 standby, main b4ec7ce4 LIVE)**
 
 ## PRs & Issues
- - **PRs:** none open. #478 MERGED 2026-09-28T23:13:11Z via rebase (branch opencode/issue477-curate-mythduel-graduation kept). #476/#475/#474/#473/#472/#471 all MERGED (branches kept).
- - **Issues:** #477 CLOSED (auto-closed by Fixes #477 on the #478 merge; verified CLOSED via API). #470 Mythduel CLOSED (all 6 phases merged, QC 9.8/10). Standing boards open: #70 lab-health, #42 brainstorm. Epics #449 and #463 CLOSED.
+ - **PRs:** none open.
+ - **Issues:** standing boards open: #70 lab-health, #42 brainstorm. All delivery epics CLOSED.
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (verified this run live: 19 names vs allowlist 18; re-verify next run).
 
 ## IN FLIGHT
- - Nothing in flight. Post-merge Pages Deploy on b4ec7ce4 CONFIRMED GREEN (run 36496941769, success 23:14:40Z).
+ - Nothing in flight. Main b4ec7ce4 unchanged since 2026-09-28T23:13Z (#478 merge); Pages Deploy on b4ec7ce4 CONFIRMED GREEN (run 36496941769).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` not re-checked this run (no signal; standing evaluation-only item).
 
 ## NEXT-RUN PLAYBOOK
