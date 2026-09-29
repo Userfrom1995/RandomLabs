@@ -90,7 +90,7 @@ Open `index.html` in any modern browser. No install, no flags.
 
 ## Files
 
-- `index.html` - tab shell, all five tab layouts, banner, log.
+- `index.html` - tab shell, all six tab layouts, banner, log.
 - `css/netpulse.css` - tokens, responsive grid (390 px single column),
   focus-visible rings, form, chart, and waterfall styles, print rules.
 - `js/capabilities.js` - feature-detection map, the honest-render source.
