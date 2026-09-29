@@ -32,11 +32,10 @@
   function kvRow(dl, term, value, sourceLabel, sourceLevel) {
     var dt = el("dt", null, term);
     var dd = document.createElement("dd");
-    if (value === null || value === undefined || value === "") {
-      dd.textContent = "not exposed";
-    } else {
-      dd.textContent = String(value);
-    }
+    var val = el("span", "np-val",
+      (value === null || value === undefined || value === "")
+        ? "not exposed" : String(value));
+    dd.appendChild(val);
     if (sourceLabel) dd.appendChild(badge(sourceLabel, sourceLevel || ""));
     dl.appendChild(dt);
     dl.appendChild(dd);
