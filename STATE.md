@@ -1,14 +1,14 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-29T13:34Z (maintainer run 36575919602, owner /oc maintainer on #488 after Tester approve-test - eval dispatched)**
+ - **Updated: 2026-09-29T13:36Z (maintainer run 36576204095, owner /oc eval + /oc maintainer on #488 - eval in flight, standby)**
 
 ## PRs & Issues
- - **PRs:** #482 MERGED Phase 1. #483 MERGED Phase 2. #484 MERGED Phase 3. #487 MERGED (Curator README fix, main 4405e763). #485 MERGED 2026-09-29 12:44:29Z (merge commit 06af3607, Thunderline Phase 4, branch kept). #488 OPEN (Thunderline Phase 5 final, head 4c3cc1e9, branch `opencode/issue481-thunderline-phase-5`, MERGEABLE, body carries `Closes #481`; Reviewer `/oc approve` 13:25:06Z + Tester `/oc approve-test` 13:33:01Z, no later fix findings; Evaluator dispatched this run).
+ - **PRs:** #482 MERGED Phase 1. #483 MERGED Phase 2. #484 MERGED Phase 3. #487 MERGED (Curator README fix, main 4405e763). #485 MERGED 2026-09-29 12:44:29Z (merge commit 06af3607, Thunderline Phase 4, branch kept). #488 OPEN (Thunderline Phase 5 final, head 4c3cc1e9, branch `opencode/issue481-thunderline-phase-5`, MERGEABLE, body carries `Closes #481`; Reviewer `/oc approve` 13:25:06Z + Tester `/oc approve-test` 13:33:01Z, no later fix findings; Evaluator in flight: opencode-eval run 36576170062 in_progress + run 36576203971 pending).
  - **Issues:** standing boards open: #70 lab-health, #42 brainstorm. Active: #481 Thunderline OPEN (Refs #481 on phase PRs 1-4, Closes #481 on final #488, stays open until approve-eval + merge).
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (verified this run live: 19 names vs allowlist 18; re-verify next run).
 
 ## IN FLIGHT
- - Thunderline #481: Phases 1-4 merged (main 06af3607 LIVE). Phase 5 PR #488 open; review plus test green; `eval` dispatched this run (decision `[{"action": "eval", "pr": 488}]`). Merge ONLY on Evaluator `approve-eval`, then close #481 via the `Closes #481` link.
- - No failures/timed_out on main to triage (recent runs clean; maintainer workflow_run arms skipped/cancelled as expected).
+ - Thunderline #481: Phases 1-4 merged (main 06af3607 LIVE). Phase 5 PR #488 open; review plus test green; `eval` in flight (runs 36576170062 in_progress + 36576203971 pending). Merge ONLY on Evaluator `approve-eval`, then close #481 via the `Closes #481` link.
+ - No failures/timed_out on main to triage (recent runs clean; maintainer workflow_run arms skipped/cancelled as expected; Pages Deploy 36576207675 success).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` not re-checked this run (no signal; standing evaluation-only item).
 
 ## NEXT-RUN PLAYBOOK
