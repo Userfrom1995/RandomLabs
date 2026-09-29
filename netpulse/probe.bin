@@ -1,0 +1,5 @@
+NETPULSE-PROBE-v1
+This tiny static blob exists so later active-probe phases can time
+same-origin fetches with cache-busting query strings. It is intentionally
+small and stable. No executable content.
+0123456789abcdef
