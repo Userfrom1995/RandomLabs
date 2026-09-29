@@ -2,7 +2,7 @@
 
 - **Issue:** #481
 - **Branch:** opencode/issue481-thunderline-phase-5
-- **Status:** in-progress
+- **Status:** complete
 - **Blueprint:** `ideas/2026-09-29-thunderline-rock-and-roll-song.md`
 
 ## Phase Roadmap
@@ -14,7 +14,7 @@
 - **Phase 4: Pages Player and Lyric Sync:** [x] `thunderline/index.html` plus `player/player.js` plus `player/player.css`, [x] play/pause/seek, synced lyric display, stem mute/solo, volume, downloads, [x] 390 px usable, accessible controls, empty/loading/error states, [x] `tools/export_preview.py` deterministic committed preview audio (`player/audio/`, provenance in `preview.json`) so Pages serves real rendered files while full-rate `dist/` stays local, [x] headless end-to-end play test green (PR 4 target, Refs #481)
 - **Phase 5: Song Story Docs and Final Integration:** [x] `thunderline/docs/` (story, chord/arrangement notes, mix notes, reproduction steps, original-work license) as one unified product view plus browsable `docs/index.html`, [x] listen-and-iterate edge-fade fix (track started mid-waveform and clicked; 20 ms in / 250 ms out linear ramps on every stem bus pre-limiter, constants in `score/mix.json`, stem-null still 0.0014), [x] `tests/test_docs.py` 7-test docs gate, [x] full `repro.sh` green, [ ] root landing integration, [ ] final review (Final PR, Closes #481)
 
-- **Current step:** Phase 5 in progress: edge-fade fix rendered and audited green (12/12, stem-null 0.00141), docs surface written, docs gate green, landing card plus close-out ideas entry added. Remaining: full repro green, final PR with Closes #481.
+- **Current step:** Phase 5 complete: docs surface shipped with 7-test docs gate green, edge-fade listen fix shipped with onset/offset probes green, landing card plus close-out ideas entry added, full `repro.sh` GREEN (91 tests OK, 12/12 audit, double-render bit-identical). All issue acceptance gates met: original score source, deterministic master plus stems, real-audio Pages player with synced lyrics and stem mix, unified docs with original-work license, reproducible from any checkout. Ready for review as the final PR (Closes #481).
 
 - **Current step:** Phase 4 complete: dependency-free Pages player mixes four committed stem previews through one WebAudio clock (sample-accurate mute/solo), lyrics highlight in sync with click-to-seek, overview canvas drawn from decoded master peaks, master-only fallback with honest notice, empty/loading/error cards, 390 px single-column layout with focus-visible controls, `?selftest=1` in-page suite (17 checks: decode, duration, 8 lyric probes, gain math, graph start/pause/seek, sections). `tools/export_preview.py` derives `player/audio/` deterministically from `dist/` (22.05 kHz mono; 16-bit master, 8-bit stems; `preview.json` pins dist hashes) with a scoped `.gitignore` negation so Pages serves real rendered files. `tests/test_player.py` (13 tests: double-export identity, WAV validity, provenance, static wiring, CSS, node syntax, 3 headless Chromium runs) green; full suite green. Ready for review.
 - **Next steps:** Review Phase 4, then Builder implements Phase 5: Song Story Docs and Final Integration on the next run.
