@@ -23,6 +23,26 @@ in `score/song.json`.
 - **Originality guard:** `score/blocklist.txt` lists famous rock lyric
   fragments; the test suite fails if any lyric line reuses one.
 
+## Listen
+
+Open `thunderline/index.html` (served over HTTP, e.g.
+`python3 -m http.server` from the repo root, then
+`/thunderline/index.html`): a dependency-free player mixes the four
+committed stem previews live through one WebAudio clock, so mute and
+solo stay sample-accurate. Lyrics highlight in sync (select any line to
+seek), the overview canvas is drawn from the decoded master peaks
+(select to seek), and the arrangement map plus downloads (preview
+master, score JSON/MIDI, lead sheet, lyric timings) ship beside it.
+The committed audio under `player/audio/` is preview quality
+(22.05 kHz mono); `player/audio/preview.json` pins the SHA-256 of the
+full-rate `dist/` sources it was downsampled from. Missing data shows
+an honest empty card with build instructions; undecodable audio fails
+closed to a named error card (or to the preview master with the stem
+toggles disabled when only the master survives). The page is usable at
+390 px, keyboard operable with visible focus, and carries a
+`?selftest=1` in-page suite (17 checks) that headless Chromium runs in
+`tests/test_player.py`.
+
 ## Reproduce
 
 ```bash
@@ -37,8 +57,9 @@ and runs the full test suite. Individual steps:
 ```bash
 python3 thunderline/tools/export_score.py
 python3 thunderline/tools/render.py --out thunderline/dist
+python3 thunderline/tools/export_preview.py
 python3 thunderline/tools/audit.py --dist thunderline/dist
-python3 -m unittest thunderline.tests.test_score thunderline.tests.test_render thunderline.tests.test_audit thunderline.tests.test_tester_phase1 thunderline.tests.test_tester_phase2
+python3 -m unittest thunderline.tests.test_score thunderline.tests.test_render thunderline.tests.test_audit thunderline.tests.test_tester_phase1 thunderline.tests.test_tester_phase2 thunderline.tests.test_player
 ```
 
 The audit is a pure function of the rendered tree: it re-derives lyric
