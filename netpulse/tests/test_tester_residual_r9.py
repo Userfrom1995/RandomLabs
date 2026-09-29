@@ -34,7 +34,8 @@ val = re.search(r"\.np-kv dd > \.np-val\s*\{([^}]*)\}", css, re.S)
 check("r9-val-block-found", val is not None)
 vbody = val.group(1) if val else ""
 check("r9-val-wraps-independently",
-      "overflow-wrap: anywhere" in vbody and "max-width: 100%" in vbody,
+      "overflow-wrap: break-word" in vbody and "word-break: normal" in vbody
+      and "max-width: 100%" in vbody and "anywhere" not in vbody,
       vbody[:200])
 
 check("r9-ui-val-wrapper", 'el("span", "np-val"' in ui)
