@@ -11,8 +11,8 @@ and verification steps.
 | Connection hints | `navigator.connection` | exposed | not exposed | not exposed | Live values with source badges; honest empty card where absent |
 | Online state | `navigator.onLine` + events | exposed | exposed | exposed | Live indicator plus persistent offline banner |
 | Device hints | `hardwareConcurrency`, `deviceMemory`, UA | partial | partial | partial | Labeled hints, never network state |
-| Own-traffic timing | Resource Timing | exposed | exposed | partial | Reserved for the traffic observer |
-| Live resource stream | `PerformanceObserver` | exposed | exposed | partial | Reserved for the traffic observer |
+| Own-traffic timing | Resource Timing | exposed | exposed | partial | Live Traffic tab: snapshot, filter, per-origin rollup, waterfall |
+| Live resource stream | `PerformanceObserver` | exposed | exposed | partial | Opt-in live stream on the Traffic tab; snapshots always work |
 | Connection analysis | `RTCPeerConnection` + `getStats` | exposed | exposed | exposed | Loopback ICE inspector with candidate table and stats; teardown always |
 | Real DNS answers | DNS over HTTPS via `fetch` | reachable | reachable | reachable | Live DoH toolkit with selectable resolvers, timing, and raw replies |
 | Egress IP / ASN / geo | third-party echo over `fetch` | reachable | reachable | reachable | Opt-in only, provider-labeled, session-cached; nothing auto-fetches |
@@ -86,6 +86,26 @@ and verification steps.
   run. Host addresses ending in `.local` are the browser masking real IPs
   with mDNS and are labeled as such. This exercises the local ICE/DTLS
   stack, not a call to a remote peer, and the panel says so.
+- **Traffic observer:** own-page traffic only, via Resource Timing
+  (`js/traffic.js`). A point-in-time snapshot lists every subresource entry
+  the browser retained (URL, initiator, duration, transfer sizes,
+  `nextHopProtocol`), with a case-insensitive filter, a per-origin rollup
+  (entries, visible bytes, mean duration), a protocol breakdown, and a load
+  waterfall scaled to the slowest entry. An opt-in live stream
+  (`PerformanceObserver` with buffered replay) appends entries as they
+  load; snapshots keep working where the observer is absent. Cross-origin
+  entries without `Timing-Allow-Origin` headers report zeroed sizes by
+  spec: Netpulse flags them as hidden by headers and counts them, never as
+  zero-byte transfers. A dedicated panel states what cannot be observed
+  (packet capture, other tabs, LAN scans, ICMP): the sandbox boundary,
+  documented, not crossed.
+- **Monitor dashboard:** a live session view (`js/monitor.js`) charting the
+  real measurement stream: per-run probe medians, per-run probe throughput,
+  and cumulative observed-transfer bytes, plus a session rollup and a
+  timestamped monitor event log (connectivity, probes, DNS, identity,
+  WebRTC, traffic). With no runs and no transfers every chart renders its
+  honest empty state. The dashboard re-renders on every logged session
+  event and on explicit refresh.
 
 ## Verification
 
@@ -102,7 +122,16 @@ and verification steps.
    egress IP once: the provider-labeled table appears and a second Reveal
    serves the session cache without re-fetching. Run the ICE inspection:
    candidates list with mDNS notes and the connection is torn down.
-6. In Firefox or Safari: the connection panel shows the honest empty card
+6. Open the Traffic tab: the boot snapshot lists this page's own
+   subresources with per-origin totals and a waterfall; typing in the
+   filter narrows the table; starting the live stream appends entries as
+   they load. The impossible-capability panel names packet capture and
+   LAN scans as out of reach.
+7. Open the Monitor tab after running a probe: median and throughput
+   charts carry per-run points, the transfer chart climbs with observed
+   bytes, and the event log lists the session's measurements newest
+   first. With a cleared session every chart shows its empty state.
+8. In Firefox or Safari: the connection panel shows the honest empty card
    naming the missing API.
-7. At 390 px width: single column, no horizontal scroll, tabs reachable by
+9. At 390 px width: single column, no horizontal scroll, tabs reachable by
    keyboard (arrow keys move between tabs).

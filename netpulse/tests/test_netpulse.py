@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Static gate for Netpulse Phase 3: app shell, connection profile, active
-quality probes, DNS toolkit, egress identity, and WebRTC inspector.
+"""Static gate for Netpulse Phase 4: app shell, connection profile, active
+quality probes, DNS toolkit, egress identity, WebRTC inspector, traffic
+observer, and monitor dashboard.
 
 Checks file wiring, the no-CDN rule, honest-render markers, responsive CSS,
 probe-engine hygiene, and docs unity. Dependency-free, stdlib only.
@@ -40,8 +41,11 @@ def main():
         "js/dns.js",
         "js/identity.js",
         "js/webrtc.js",
+        "js/traffic.js",
+        "js/monitor.js",
         "js/app.js",
         "tests/test_dns_identity.py",
+        "tests/test_traffic_monitor.py",
         "docs/index.md",
         "docs/index.html",
     ]
@@ -68,12 +72,23 @@ def main():
                       "btn-identity", "btn-identity-recheck", "status-identity",
                       "result-identity", "result-identity-raw",
                       "btn-webrtc", "status-webrtc",
-                      "result-webrtc", "webrtc-body"]:
+                      "result-webrtc", "webrtc-body",
+                      "tab-traffic", "tabpanel-traffic",
+                      "btn-traffic-refresh", "btn-traffic-observe",
+                      "status-traffic", "result-traffic-summary",
+                      "traffic-origin-body", "result-traffic-protocol",
+                      "traffic-filter", "traffic-body",
+                      "traffic-waterfall", "result-traffic-impossible",
+                      "tab-monitor", "tabpanel-monitor",
+                      "btn-monitor-refresh", "result-monitor-summary",
+                      "chart-monitor-latency", "chart-monitor-rate",
+                      "chart-monitor-traffic", "monitor-log"]:
             if token not in html:
                 fail("index.html missing token: " + token)
         for script in ["js/capabilities.js", "js/store.js", "js/ui.js",
                         "js/charts.js", "js/probes.js", "js/dns.js",
                         "js/identity.js", "js/webrtc.js",
+                        "js/traffic.js", "js/monitor.js",
                         "js/netinfo.js", "js/app.js"]:
             if script not in html:
                 fail("index.html missing script wiring: " + script)
@@ -103,7 +118,8 @@ def main():
 
     for rel in ["js/capabilities.js", "js/netinfo.js", "js/store.js",
                 "js/ui.js", "js/charts.js", "js/probes.js", "js/dns.js",
-                "js/identity.js", "js/webrtc.js", "js/app.js"]:
+                "js/identity.js", "js/webrtc.js", "js/traffic.js",
+                "js/monitor.js", "js/app.js"]:
         p = ROOT / rel
         if not p.is_file():
             continue
@@ -132,6 +148,7 @@ def main():
     for rel in ["index.html", "js/capabilities.js", "js/netinfo.js",
                 "js/store.js", "js/ui.js", "js/charts.js", "js/probes.js",
                 "js/dns.js", "js/identity.js", "js/webrtc.js",
+                "js/traffic.js", "js/monitor.js",
                 "js/app.js"]:
         p = ROOT / rel
         if p.is_file() and facade.search(p.read_text(encoding="utf-8", errors="replace")):
@@ -172,7 +189,12 @@ def main():
                       "stats-median-odd", "loss-math", "chart-plots-points",
                       "bootDnsIdentity", "tabpanel-dns",
                       "dns-clean-valid", "dns-parse", "identity-normalize",
-                      "webrtc-stats-fixture", "webrtc-address-kind"]:
+                      "webrtc-stats-fixture", "webrtc-address-kind",
+                      "bootTraffic", "tabpanel-traffic",
+                      "bootMonitor", "tabpanel-monitor",
+                      "traffic-normalize", "traffic-aggregate",
+                      "traffic-filter", "monitor-series",
+                      "monitor-activity", "monitor-events"]:
             if token not in src:
                 fail("app.js missing quality/dns wiring token: " + token)
 
@@ -212,13 +234,51 @@ def main():
         if "simulat" in src.lower():
             fail("webrtc.js must not simulate candidates")
 
+    traf = ROOT / "js/traffic.js"
+    if traf.is_file():
+        src = traf.read_text(encoding="utf-8", errors="replace")
+        for token in ["isSupported", "normalizeEntry", "snapshot",
+                      "observe", "originOf", "aggregateByOrigin",
+                      "protocolBreakdown", "filterRows", "formatBytes",
+                      "getEntriesByType", "PerformanceObserver",
+                      "sizesHidden", "Timing-Allow-Origin"]:
+            if token not in src:
+                fail("traffic.js missing engine token: " + token)
+        if "TODO" in src or "FIXME" in src:
+            fail("traffic.js contains stub markers")
+        sim_lines = [ln for ln in src.lower().splitlines() if "simulat" in ln]
+        if sim_lines and not all("never" in ln or "not " in ln for ln in sim_lines):
+            fail("traffic.js must not simulate traffic")
+        if "promiscuous" not in src.lower():
+            fail("traffic.js must document the no-capture boundary")
+
+    mon = ROOT / "js/monitor.js"
+    if mon.is_file():
+        src = mon.read_text(encoding="utf-8", errors="replace")
+        for token in ["probeSeries", "transferActivity", "monitorEvents",
+                      "sessionSummary", "MONITOR_TYPES"]:
+            if token not in src:
+                fail("monitor.js missing engine token: " + token)
+        if "TODO" in src or "FIXME" in src:
+            fail("monitor.js contains stub markers")
+        if "simulat" in src.lower():
+            fail("monitor.js must not simulate traffic")
+
+    css_p2 = ROOT / "css/netpulse.css"
+    if css_p2.is_file():
+        css2 = css_p2.read_text(encoding="utf-8", errors="replace")
+        for token in ["np-fall", "np-fall-bar", "np-fall-row"]:
+            if token not in css2:
+                fail("css missing waterfall token: " + token)
+
     docs = check_exists("docs/index.md")
     if docs is not None:
         text = docs.read_text(encoding="utf-8", errors="replace")
         if "navigator.connection" not in text:
             fail("docs must document the capability matrix")
         for token in ["median", "p95", "cache-bust", "loss",
-                      "DNS-over-HTTPS", "egress", "ICE"]:
+                      "DNS-over-HTTPS", "egress", "ICE",
+                      "Resource Timing", "waterfall", "monitor"]:
             if token not in text:
                 fail("docs must document probe/dns methods: missing " + token)
         for marker in ["M1", "M2", "M3", "this milestone", "sprint"]:
