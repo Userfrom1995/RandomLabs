@@ -140,7 +140,9 @@
      * via csvNum; this guards the raw-text path. */
     if (typeof v === "number" && !isFinite(v)) return "";
     var s = String(v);
-    if (/^[=+\-@]/.test(s)) s = "'" + s;
+    /* Formula prefix applies to strings only: a finite negative number
+     * such as -5 must stay "-5" to match the JSON numeric, never "'-5". */
+    if (typeof v === "string" && /^[=+\-@]/.test(s)) s = "'" + s;
     if (s.indexOf(",") !== -1 || s.indexOf('"') !== -1 ||
         s.indexOf("\n") !== -1 || s.indexOf("\r") !== -1) {
       return '"' + s.replace(/"/g, '""') + '"';
@@ -154,8 +156,11 @@
 
   function eventsToCsv(events) {
     var lines = [csvRow(["timestamp", "type", "detail", "source"])];
-    (events || []).forEach(function (e) {
-      if (!e || typeof e !== "object") return;
+    var evts = Array.isArray(events) ? events : [];
+    evts.forEach(function (e) {
+      /* Parity with buildReport: keep only rows with a string type, so a
+       * bare {} emits no data row in either JSON or CSV. */
+      if (!e || typeof e !== "object" || typeof e.type !== "string") return;
       lines.push(csvRow([e.t, e.type, e.detail, "session store"]));
     });
     return lines.join("\n") + "\n";
@@ -165,9 +170,24 @@
     var lines = [csvRow(["timestamp", "kind", "endpoint", "attempts",
       "succeeded", "failed", "medianMs", "p95Ms", "minMs", "maxMs",
       "jitterMs", "throughputKBps", "totalBytes", "payloadBytes", "source"])];
-    (history || []).forEach(function (run) {
+    var runs = Array.isArray(history) ? history : [];
+    runs.forEach(function (run) {
       if (!run || typeof run !== "object") return;
       var s = run.summary || {};
+      /* Parity with buildReport: drop fully-null junk rows (e.g. a bare
+       * {}) so JSON and CSV agree that the row carries no signal. */
+      if (text(run.t) === null && text(run.kind) === null &&
+          text(run.endpoint) === null &&
+          finiteOrNull(s.attempts) === null &&
+          finiteOrNull(s.succeeded) === null &&
+          finiteOrNull(s.failed) === null &&
+          finiteOrNull(s.median) === null && finiteOrNull(s.p95) === null &&
+          finiteOrNull(s.min) === null && finiteOrNull(s.max) === null &&
+          finiteOrNull(s.jitter) === null &&
+          finiteOrNull(run.throughputKBps !== undefined ?
+            run.throughputKBps : run.throughputKbps) === null &&
+          finiteOrNull(run.totalBytes) === null &&
+          finiteOrNull(run.payloadBytes) === null) return;
       var rate = run.throughputKBps !== undefined ? run.throughputKBps : run.throughputKbps;
       lines.push(csvRow([run.t, run.kind, run.endpoint,
         csvNum(s.attempts), csvNum(s.succeeded), csvNum(s.failed),
@@ -182,8 +202,17 @@
     var lines = [csvRow(["name", "initiator", "durationMs", "startMs",
       "transferBytes", "encodedBytes", "decodedBytes", "protocol",
       "sizesHidden", "source"])];
-    (rows || []).forEach(function (r) {
+    var arr = Array.isArray(rows) ? rows : [];
+    arr.forEach(function (r) {
       if (!r || typeof r !== "object") return;
+      /* Parity with buildReport: drop fully-null junk rows. */
+      if (text(r.name) === null && text(r.initiator) === null &&
+          text(r.protocol) === null &&
+          finiteOrNull(r.durationMs) === null &&
+          finiteOrNull(r.startMs) === null &&
+          finiteOrNull(r.transferBytes) === null &&
+          finiteOrNull(r.encodedBytes) === null &&
+          finiteOrNull(r.decodedBytes) === null) return;
       lines.push(csvRow([r.name, r.initiator, csvNum(r.durationMs),
         csvNum(r.startMs), csvNum(r.transferBytes), csvNum(r.encodedBytes),
         csvNum(r.decodedBytes), r.protocol,
