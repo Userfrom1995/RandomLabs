@@ -3,8 +3,11 @@
 
 Reads ``score/song.json`` + ``score/mix.json`` and renders::
 
-    dist/master.wav               - 44.1 kHz 16-bit mono master, soft-limited
-    dist/stems/vocals.wav         - isolated vocal bus (post gain+EQ, pre limiter)
+    dist/master.wav               - 44.1 kHz 16-bit mono master, soft-limited,
+                                    with short linear edge fades (no start click)
+    dist/stems/vocals.wav         - isolated vocal bus (post gain+EQ, pre limiter;
+                                    carries the same edge fades so stems still
+                                    null against the master through the limiter)
     dist/stems/guitars.wav        - isolated guitar bus (rhythm + lead)
     dist/stems/bass.wav           - isolated bass bus
     dist/stems/drums.wav          - isolated drum bus
@@ -436,6 +439,21 @@ def render_song(song, mix, out_dir):
             hp_xp = b
             out[i] = hp_y * gain
         stems[name] = out
+
+    # --- edge fades: short linear ramps at both ends of every stem bus,
+    # applied pre-limiter so the stem-null invariant stays exact (the audit
+    # re-sums the shipped stems through the documented limiter). Without
+    # these the track starts mid-waveform, which clicks on playback.
+    fade_in_n = int(sr * mix["fadeInSec"])
+    fade_out_n = int(sr * mix["fadeOutSec"])
+    if fade_in_n + fade_out_n >= n_total:
+        raise ValueError("edge fades exceed track length")
+    for name in STEMS:
+        buf = stems[name]
+        for i in range(fade_in_n):
+            buf[i] *= i / fade_in_n
+        for j in range(fade_out_n):
+            buf[n_total - 1 - j] *= j / fade_out_n
 
     # --- master: sum buses, soft knee at threshold, normalize to ceiling ---
     threshold = mix["limiter"]["threshold"]
