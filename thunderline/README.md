@@ -43,6 +43,15 @@ toggles disabled when only the master survives). The page is usable at
 `?selftest=1` in-page suite (17 checks) that headless Chromium runs in
 `tests/test_player.py`.
 
+## Behind the scenes
+
+`docs/` tells the whole story as one product view: the
+[story of the song](docs/story.md), [chord and arrangement
+notes](docs/chords-arrangement.md), [mix notes](docs/mix.md),
+[reproduction steps](docs/repro.md), and the [original-work
+license](docs/license.md), plus a browsable [docs hub](docs/index.html)
+linked from the player footer.
+
 ## Reproduce
 
 ```bash
@@ -59,7 +68,7 @@ python3 thunderline/tools/export_score.py
 python3 thunderline/tools/render.py --out thunderline/dist
 python3 thunderline/tools/export_preview.py
 python3 thunderline/tools/audit.py --dist thunderline/dist
-python3 -m unittest thunderline.tests.test_score thunderline.tests.test_render thunderline.tests.test_audit thunderline.tests.test_tester_phase1 thunderline.tests.test_tester_phase2 thunderline.tests.test_player
+python3 -m unittest discover -s thunderline/tests -t .
 ```
 
 The audit is a pure function of the rendered tree: it re-derives lyric
@@ -78,7 +87,9 @@ is a deterministic 22.05 kHz downsample (`preview.wav`); with `ffmpeg` the
 pipeline writes `preview.ogg` instead. Rendered audio under `dist/` is
 gitignored build output; stems are post-gain/EQ, pre-limiter buses, and the
 master is their sum through the documented soft-knee limiter normalized to
-the mix ceiling.
+the mix ceiling, with short linear edge fades (20 ms in, 250 ms out, pinned
+in `score/mix.json`) applied to every stem bus pre-limiter so the track
+opens and closes at zero instead of clicking.
 
 ## License
 
