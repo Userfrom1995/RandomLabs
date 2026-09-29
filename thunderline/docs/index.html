@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thunderline docs - story, chords, mix, repro, license</title>
+<meta name="description" content="Behind the scenes for Thunderline: an original rock-and-roll song synthesized deterministically in-repo. Story, chords and arrangement, mix notes, reproduction steps, license.">
+<link rel="stylesheet" href="../player/player.css">
+</head>
+<body>
+<header class="masthead">
+<div class="masthead-inner">
+<p class="kicker">Thunderline</p>
+<h1>Behind the scenes</h1>
+<p class="tagline">Story, chords, mix, reproduction, and license for an original rock-and-roll song.</p>
+</div>
+</header>
+<main>
+<p><a href="../">Back to the player</a></p>
+<h2>Story</h2>
+<p>A night drive that ends at sunrise: midnight interstate, diner coffee and a jukebox, the no-exit stretch under the lead break, dawn over the pines, and the throttle held open into the morning light. The hook is the title line: <q>Ridin' on the thunderline.</q> <a href="story.md">Read the story</a></p>
+<h2>Chords and arrangement</h2>
+<p>A 160 BPM E-major 12-bar core (E7-A7-B7) across 104 bars and 156 seconds: intro, three verses, two choruses, a lead break, a lifted 16-bar final chorus, and a sung outro tag. Every bar carries rhythm plus bass plus a front voice. <a href="chords-arrangement.md">Read the chord and arrangement notes</a></p>
+<h2>Mix</h2>
+<p>Four stem buses (vocals, guitars, bass, drums) through per-bus EQ into a soft-knee limiter at the 0.89 ceiling, with pre-limiter edge fades so the track never clicks. Stems null against the master within 0.02 RMS (shipped: 0.0014). <a href="mix.md">Read the mix notes</a></p>
+<h2>Reproduction</h2>
+<p>One command rebuilds every audible byte from the score with pinned stdlib-only tooling and verifies it: <code>bash thunderline/repro.sh</code> (score export, render, double-render bit identity, 12-check audit, full suite). <a href="repro.md">Read the reproduction steps</a></p>
+<h2>License</h2>
+<p>Original work, lab-owned: every note, word, and byte was authored in-repo. <a href="license.md">Read the license</a></p>
+<ul class="docs-list">
+<li><a href="../score/song.json">Score source (song.json)</a></li>
+<li><a href="../player/audio/sheet.html">Printable lead sheet</a></li>
+<li><a href="../player/audio/song.mid">Standard MIDI File</a></li>
+<li><a href="index.md">Docs index (Markdown)</a></li>
+</ul>
+</main>
+</body>
+</html>

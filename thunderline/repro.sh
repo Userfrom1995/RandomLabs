@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Thunderline end-to-end reproduction (Phase 3).
+# Thunderline end-to-end reproduction.
 # Rebuilds every derived artifact from score source with pinned tooling
 # (python3 stdlib only, plus ffmpeg when present for the preview) and
 # verifies the result: double-render bit identity, audit gate, test suite.
@@ -44,6 +44,6 @@ python3 tools/audit.py --dist dist
 
 echo "==> thunderline repro: test suite"
 cd ..
-python3 -m unittest thunderline.tests.test_score thunderline.tests.test_render thunderline.tests.test_audit thunderline.tests.test_tester_phase1 thunderline.tests.test_tester_phase2 thunderline.tests.test_player
+python3 -m unittest thunderline.tests.test_score thunderline.tests.test_render thunderline.tests.test_audit thunderline.tests.test_tester_phase1 thunderline.tests.test_tester_phase2 thunderline.tests.test_tester_phase3 thunderline.tests.test_player thunderline.tests.test_tester_phase4 thunderline.tests.test_docs
 
 echo "==> thunderline repro: GREEN"

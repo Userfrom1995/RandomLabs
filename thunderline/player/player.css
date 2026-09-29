@@ -249,6 +249,10 @@ output { font-variant-numeric: tabular-nums; white-space: nowrap; }
   white-space: pre-wrap;
 }
 
+.docs-list { padding-left: 1.25rem; margin: 0 0 1rem; }
+.docs-list li { margin: 0.2rem 0; font-size: 0.95rem; }
+.docs-list a { color: var(--accent); }
+
 footer {
   max-width: 60rem;
   margin: 0 auto;
