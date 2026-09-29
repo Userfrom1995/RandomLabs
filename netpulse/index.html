@@ -14,13 +14,14 @@
 <header class="np-header">
   <h1>Net<span class="pulse">pulse</span></h1>
   <p class="np-lede">An honest in-browser network diagnostics tool. Every number carries a source badge; anything the browser sandbox forbids fails closed with an empty state instead of a fabricated gauge.</p>
-  <p class="np-scope">Scope in this build: connection profile and device context (Overview tab) plus active quality probes (Quality tab): latency, download, and upload timing over HTTP with probe history. DNS toolkit, traffic observer, and export are not present yet and no panel pretends otherwise. No backend, no CDN, no auto phone-home.</p>
+  <p class="np-scope">Scope in this build: connection profile and device context (Overview tab), active quality probes (Quality tab: latency, download, and upload timing over HTTP with probe history), and the DNS toolkit plus opt-in egress identity plus WebRTC inspector (DNS and Identity tab). Traffic observer, monitor dashboard, and export ship in later phases and no panel pretends otherwise. No backend, no CDN, no auto phone-home.</p>
 </header>
 
 <nav class="np-tabs" aria-label="Netpulse sections">
   <div role="tablist" aria-label="Netpulse tabs" id="np-tabs">
     <button class="np-tab" role="tab" id="tab-overview" aria-controls="tabpanel-overview" aria-selected="true" data-tab="overview">Overview</button>
     <button class="np-tab" role="tab" id="tab-quality" aria-controls="tabpanel-quality" aria-selected="false" data-tab="quality" tabindex="-1">Quality</button>
+    <button class="np-tab" role="tab" id="tab-dns" aria-controls="tabpanel-dns" aria-selected="false" data-tab="dns" tabindex="-1">DNS and Identity</button>
   </div>
 </nav>
 
@@ -137,6 +138,73 @@
       </div>
     </div>
   </section>
+
+  <section id="tabpanel-dns" role="tabpanel" aria-labelledby="tab-dns" tabindex="0" hidden>
+    <div class="np-grid">
+      <div class="np-panel">
+        <h2>DNS lookup</h2>
+        <p class="np-sub">Real DNS answers over DNS-over-HTTPS. Browsers cannot send raw DNS packets, so Netpulse asks a resolver over HTTPS and shows exactly which resolver answered.</p>
+        <div class="np-field">
+          <label for="dns-name">Hostname</label>
+          <input id="dns-name" class="np-input" type="text" inputmode="url" spellcheck="false" autocomplete="off" value="example.com" />
+        </div>
+        <div class="np-row">
+          <div class="np-field">
+            <label for="dns-type">Record type</label>
+            <select id="dns-type" class="np-input np-narrow"></select>
+          </div>
+          <div class="np-field">
+            <label for="dns-resolver">Resolver</label>
+            <select id="dns-resolver" class="np-input np-narrow"></select>
+          </div>
+        </div>
+        <div class="np-field">
+          <label for="dns-endpoint">Custom DoH JSON endpoint (optional)</label>
+          <input id="dns-endpoint" class="np-input" type="url" inputmode="url" spellcheck="false" placeholder="https://your-resolver/dns-query" />
+        </div>
+        <div class="np-row np-actions">
+          <button class="np-btn primary" id="btn-dns" type="button">Look up</button>
+          <button class="np-btn" id="btn-dns-compare" type="button">Compare resolvers</button>
+        </div>
+        <p class="np-status" id="status-dns" role="status"></p>
+        <div id="result-dns"></div>
+        <div id="result-dns-raw"></div>
+      </div>
+      <div class="np-panel">
+        <h2>Egress identity</h2>
+        <p class="np-sub">Opt-in only: nothing is fetched until you click. Asks a third-party echo endpoint for the public IP it sees, labeled with the provider. Useful for VPN and egress checks.</p>
+        <div class="np-field">
+          <label for="id-provider">Provider</label>
+          <select id="id-provider" class="np-input np-narrow"></select>
+        </div>
+        <div class="np-field">
+          <label for="id-endpoint">Echo endpoint (https URL)</label>
+          <input id="id-endpoint" class="np-input" type="url" inputmode="url" spellcheck="false" />
+        </div>
+        <div class="np-row np-actions">
+          <button class="np-btn primary" id="btn-identity" type="button">Reveal my egress IP</button>
+          <button class="np-btn" id="btn-identity-recheck" type="button">Re-check</button>
+        </div>
+        <p class="np-status" id="status-identity" role="status"></p>
+        <div id="result-identity"></div>
+        <div id="result-identity-raw"></div>
+      </div>
+      <div class="np-panel wide">
+        <h2>WebRTC connection inspector</h2>
+        <p class="np-sub">The closest the sandbox offers to connection analysis: gathers ICE candidates through a public STUN server on a loopback peer connection, then tears it down. Host IPs stay masked as mDNS names by design.</p>
+        <div class="np-row np-actions">
+          <button class="np-btn primary" id="btn-webrtc" type="button">Run ICE inspection</button>
+        </div>
+        <p class="np-status" id="status-webrtc" role="status"></p>
+        <div id="result-webrtc"></div>
+        <h3>Gathered candidates</h3>
+        <div class="np-table-wrap"><table class="np-table" aria-label="ICE candidates">
+          <thead><tr><th>Type</th><th>Protocol</th><th>Address</th><th>Port</th><th>Note</th></tr></thead>
+          <tbody id="webrtc-body"></tbody>
+        </table></div>
+      </div>
+    </div>
+  </section>
 </main>
 
 <footer class="np-footer">
@@ -148,6 +216,9 @@
 <script src="js/ui.js"></script>
 <script src="js/charts.js"></script>
 <script src="js/probes.js"></script>
+<script src="js/dns.js"></script>
+<script src="js/identity.js"></script>
+<script src="js/webrtc.js"></script>
 <script src="js/netinfo.js"></script>
 <script src="js/app.js"></script>
 </body>

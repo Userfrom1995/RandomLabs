@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Static gate for Netpulse Phase 2: app shell, connection profile, and
-active quality probes.
+"""Static gate for Netpulse Phase 3: app shell, connection profile, active
+quality probes, DNS toolkit, egress identity, and WebRTC inspector.
 
 Checks file wiring, the no-CDN rule, honest-render markers, responsive CSS,
 probe-engine hygiene, and docs unity. Dependency-free, stdlib only.
@@ -37,7 +37,11 @@ def main():
         "js/ui.js",
         "js/charts.js",
         "js/probes.js",
+        "js/dns.js",
+        "js/identity.js",
+        "js/webrtc.js",
         "js/app.js",
+        "tests/test_dns_identity.py",
         "docs/index.md",
         "docs/index.html",
     ]
@@ -55,12 +59,22 @@ def main():
                       "result-loss", "chart-latency", "chart-download",
                       "history-body", "btn-latency", "btn-download",
                       "btn-upload", "btn-history-clear",
-                      "status-latency", "status-download", "status-upload"]:
+                      "status-latency", "status-download", "status-upload",
+                      "tab-dns", "tabpanel-dns",
+                      "dns-name", "dns-type", "dns-resolver", "dns-endpoint",
+                      "btn-dns", "btn-dns-compare", "status-dns",
+                      "result-dns", "result-dns-raw",
+                      "id-provider", "id-endpoint",
+                      "btn-identity", "btn-identity-recheck", "status-identity",
+                      "result-identity", "result-identity-raw",
+                      "btn-webrtc", "status-webrtc",
+                      "result-webrtc", "webrtc-body"]:
             if token not in html:
                 fail("index.html missing token: " + token)
         for script in ["js/capabilities.js", "js/store.js", "js/ui.js",
-                       "js/charts.js", "js/probes.js",
-                       "js/netinfo.js", "js/app.js"]:
+                        "js/charts.js", "js/probes.js", "js/dns.js",
+                        "js/identity.js", "js/webrtc.js",
+                        "js/netinfo.js", "js/app.js"]:
             if script not in html:
                 fail("index.html missing script wiring: " + script)
         # No-CDN rule: no external script/link/img URLs.
@@ -81,14 +95,15 @@ def main():
     if css_p is not None:
         css = css_p.read_text(encoding="utf-8", errors="replace")
         for token in ["390", "focus-visible", "@media print", ".np-badge", ".np-empty",
-                      ".np-field", ".np-input", ".np-status", ".np-chart-svg"]:
+                      ".np-field", ".np-input", ".np-status", ".np-chart-svg", ".np-raw"]:
             if token not in css:
                 fail("css missing token: " + token)
         if "http://" in css or "https://" in css:
             fail("css must not reference external URLs (no-CDN rule)")
 
     for rel in ["js/capabilities.js", "js/netinfo.js", "js/store.js",
-                "js/ui.js", "js/charts.js", "js/probes.js", "js/app.js"]:
+                "js/ui.js", "js/charts.js", "js/probes.js", "js/dns.js",
+                "js/identity.js", "js/webrtc.js", "js/app.js"]:
         p = ROOT / rel
         if not p.is_file():
             continue
@@ -116,6 +131,7 @@ def main():
     facade = re.compile(r"\b\d+\.\d+\s*Mbps\b|\bsimulated packets?\b|\bplaceholder gauge\b", re.IGNORECASE)
     for rel in ["index.html", "js/capabilities.js", "js/netinfo.js",
                 "js/store.js", "js/ui.js", "js/charts.js", "js/probes.js",
+                "js/dns.js", "js/identity.js", "js/webrtc.js",
                 "js/app.js"]:
         p = ROOT / rel
         if p.is_file() and facade.search(p.read_text(encoding="utf-8", errors="replace")):
@@ -153,18 +169,58 @@ def main():
     if app.is_file():
         src = app.read_text(encoding="utf-8", errors="replace")
         for token in ["bootQuality", "renderHistory", "tabpanel-quality",
-                      "stats-median-odd", "loss-math", "chart-plots-points"]:
+                      "stats-median-odd", "loss-math", "chart-plots-points",
+                      "bootDnsIdentity", "tabpanel-dns",
+                      "dns-clean-valid", "dns-parse", "identity-normalize",
+                      "webrtc-stats-fixture", "webrtc-address-kind"]:
             if token not in src:
-                fail("app.js missing quality wiring token: " + token)
+                fail("app.js missing quality/dns wiring token: " + token)
+
+    dns = ROOT / "js/dns.js"
+    if dns.is_file():
+        src = dns.read_text(encoding="utf-8", errors="replace")
+        for token in ["cleanName", "parseAnswers", "RESOLVERS", "RECORD_TYPES",
+                      "cloudflare-dns", "dns.google", "application/dns-json",
+                      "no-store", "performance"]:
+            if token not in src:
+                fail("dns.js missing engine token: " + token)
+        if "TODO" in src or "FIXME" in src:
+            fail("dns.js contains stub markers")
+        if "simulat" in src.lower():
+            fail("dns.js must not simulate answers")
+
+    ident = ROOT / "js/identity.js"
+    if ident.is_file():
+        src = ident.read_text(encoding="utf-8", errors="replace")
+        for token in ["PROVIDERS", "cleanUrl", "normalizeEcho", "reveal",
+                      "clearCache", "cached", "no-store"]:
+            if token not in src:
+                fail("identity.js missing engine token: " + token)
+        if "phone-home" not in src.lower() and "opt-in" not in src.lower():
+            fail("identity.js must document its opt-in contract")
+
+    wrtc = ROOT / "js/webrtc.js"
+    if wrtc.is_file():
+        src = wrtc.read_text(encoding="utf-8", errors="replace")
+        for token in ["isSupported", "addressKind", "summarizeStats",
+                      "inspect", "RTCPeerConnection", "getStats",
+                      "mdns", "close()"]:
+            if token not in src:
+                fail("webrtc.js missing engine token: " + token)
+        if "TODO" in src or "FIXME" in src:
+            fail("webrtc.js contains stub markers")
+        if "simulat" in src.lower():
+            fail("webrtc.js must not simulate candidates")
 
     docs = check_exists("docs/index.md")
     if docs is not None:
         text = docs.read_text(encoding="utf-8", errors="replace")
         if "navigator.connection" not in text:
             fail("docs must document the capability matrix")
-        for token in ["median", "p95", "cache-bust", "loss"]:
+        for token in ["median", "p95", "cache-bust", "loss",
+                      "DNS-over-HTTPS", "egress", "ICE"]:
             if token not in text:
-                fail("docs must document probe methods: missing " + token)
+                fail("docs must document probe/dns methods: missing " + token)
         for marker in ["M1", "M2", "M3", "this milestone", "sprint"]:
             if marker in text:
                 fail("docs leak internal milestone markers: " + marker)

@@ -32,6 +32,7 @@
       caps.localStorage = false;
     }
     caps.probes = !!(caps.fetch && caps.highResTime);
+    caps.doh = !!caps.fetch;
     return caps;
   }
 
@@ -45,7 +46,10 @@
       latency: caps.probes ? "live" : "unsupported",
       download: caps.probes ? "live" : "unsupported",
       upload: caps.probes ? "live" : "unsupported",
-      history: caps.localStorage || caps.probes ? "live" : "unsupported"
+      history: caps.localStorage || caps.probes ? "live" : "unsupported",
+      dns: caps.doh ? "live" : "unsupported",
+      identity: caps.fetch ? "live" : "unsupported",
+      webrtc: caps.rtcPeerConnection ? "live" : "unsupported"
     };
     return table[panel] || "unsupported";
   }
