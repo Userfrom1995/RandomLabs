@@ -33,8 +33,9 @@ def main():
     check("css-tabs-wrap", "flex-wrap" in css and ".np-tabs" in css,
           "tablist must wrap")
     check("css-badge-wrap",
-          ".np-badge" in css and "overflow-wrap: anywhere" in css,
-          "badge must wrap/clamp")
+          ".np-badge" in css and "overflow-wrap: break-word" in css
+          and "word-break: normal" in css,
+          "badge must wrap at word bounds, never per-character")
     check("css-grid-minwidth", "min-width: 0" in css,
           "grid/panel need min-width:0 hardening")
 
