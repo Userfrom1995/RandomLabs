@@ -20,6 +20,7 @@
 
   function text(v) {
     if (v === null || v === undefined) return null;
+    if (typeof v === "number" && !isFinite(v)) return null;
     return String(v);
   }
 
@@ -57,7 +58,17 @@
         payloadBytes: finiteOrNull(run.payloadBytes),
         source: "HTTP timing (fetch)"
       };
-    }).filter(function (r) { return r !== null; });
+    }).filter(function (r) {
+      if (r === null) return false;
+      /* Drop fully-null junk rows (e.g. a bare {} in history): every
+       * identifier and every measurement is null, so the row carries
+       * no signal and would export as an empty line. */
+      return (r.t !== null || r.kind !== null || r.endpoint !== null ||
+        r.attempts !== null || r.succeeded !== null || r.failed !== null ||
+        r.medianMs !== null || r.p95Ms !== null || r.minMs !== null ||
+        r.maxMs !== null || r.jitterMs !== null || r.throughputKBps !== null ||
+        r.totalBytes !== null || r.payloadBytes !== null);
+    });
 
     var transfers = traffic.map(function (r) {
       if (!r || typeof r !== "object") return null;
@@ -73,7 +84,14 @@
         sizesHidden: !!r.sizesHidden,
         source: "Resource Timing"
       };
-    }).filter(function (r) { return r !== null; });
+    }).filter(function (r) {
+      if (r === null) return false;
+      /* Drop fully-null junk rows the same way as probe runs. */
+      return (r.name !== null || r.initiator !== null || r.protocol !== null ||
+        r.durationMs !== null || r.startMs !== null ||
+        r.transferBytes !== null || r.encodedBytes !== null ||
+        r.decodedBytes !== null);
+    });
 
     var log = events.filter(function (e) {
       return e && typeof e === "object" && typeof e.type === "string";
@@ -109,10 +127,15 @@
 
   /* RFC 4180 quoting: quote fields holding commas, quotes, or newlines,
    * doubling embedded quotes. Nulls render as empty cells, never as the
-   * string "null", so a sparse session stays visibly sparse. */
+   * string "null", so a sparse session stays visibly sparse. Leading
+   * =,+,-,@ cells are single-quote prefixed so spreadsheet formula
+   * injection cannot go live on CSV import; the quote is part of the
+   * cell text and survives RFC 4180 quoting below. */
   function csvCell(v) {
     if (v === null || v === undefined) return "";
-    var s = String(v);    if (s.indexOf(",") !== -1 || s.indexOf('"') !== -1 ||
+    var s = String(v);
+    if (/^[=+\-@]/.test(s)) s = "'" + s;
+    if (s.indexOf(",") !== -1 || s.indexOf('"') !== -1 ||
         s.indexOf("\n") !== -1 || s.indexOf("\r") !== -1) {
       return '"' + s.replace(/"/g, '""') + '"';
     }
@@ -170,6 +193,9 @@
     var safe = String(base === null || base === undefined ? "session" : base)
       .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "session";
     var d = when instanceof Date ? when : new Date(when || Date.now());
+    /* Invalid-date fallback: a garbage `when` string yields NaN fields
+     * without this guard, stamping "NaN" into the filename. */
+    if (isNaN(d.getTime())) d = new Date();
     function pad(n) { return (n < 10 ? "0" : "") + n; }
     var stamp = d.getUTCFullYear() + pad(d.getUTCMonth() + 1) + pad(d.getUTCDate()) +
       "-" + pad(d.getUTCHours()) + pad(d.getUTCMinutes()) + pad(d.getUTCSeconds());
