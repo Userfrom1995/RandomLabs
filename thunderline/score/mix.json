@@ -1,0 +1,15 @@
+{
+  "sampleRate": 44100,
+  "bitDepth": 16,
+  "channels": 1,
+  "masterCeiling": 0.89,
+  "buses": {
+    "vocals": {"gain": 0.9, "eqHighpassHz": 120, "eqPresenceHz": 2500, "eqPresenceDb": 2.0},
+    "guitars": {"gain": 0.7, "eqHighpassHz": 90, "eqPresenceHz": 3200, "eqPresenceDb": 1.5},
+    "bass": {"gain": 0.8, "eqHighpassHz": 40, "eqPresenceHz": 800, "eqPresenceDb": 0.5},
+    "drums": {"gain": 0.85, "eqHighpassHz": 50, "eqPresenceHz": 5000, "eqPresenceDb": 1.0}
+  },
+  "limiter": {"threshold": 0.89, "releaseSec": 0.05},
+  "stemNullToleranceRms": 0.02,
+  "previewFallback": "render preview.ogg with pinned ffmpeg when available; otherwise ship master.wav only and report honestly"
+}
