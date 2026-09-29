@@ -1,14 +1,14 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-29T11:01Z (maintainer run 36559115259, owner /oc review + /oc maintainer on PR #482 - review in flight, standby)**
+ - **Updated: 2026-09-29T11:03Z (maintainer run 36559370900, owner /oc review + /oc maintainer on PR #482 - re-review in flight, standby)**
 
 ## PRs & Issues
- - **PRs:** #482 OPEN (Thunderline Phase 1: blueprint + `thunderline/score/song.json` 104-bar E-major score, export tools, 14 tests, head 4566fd26, branch `opencode/issue481-20260929105322`). Reviewer in flight via owner `/oc review` (opencode-review run 36559115401 pending at decision time).
- - **Issues:** standing boards open: #70 lab-health, #42 brainstorm. Active: #481 Thunderline (original rock-and-roll song) - Phase 1 pushed, review underway. #481 MUST stay open until the final phase lands (PR body says Closes #481 but it covers blueprint + Phase 1 only).
+ - **PRs:** #482 OPEN (Thunderline Phase 1: blueprint + `thunderline/score/song.json` 104-bar E-major score, export tools, 14 tests, head 034fcc59, branch `opencode/issue481-20260929105322`). Re-review in flight via owner `/oc review` (opencode-review run 36559370913 pending at decision time). Fixer applied the prior `/oc fix` finding (PR body `Closes #481` -> `Refs #481`, verified live).
+ - **Issues:** standing boards open: #70 lab-health, #42 brainstorm. Active: #481 Thunderline (original rock-and-roll song) - Phase 1 pushed, re-review underway. #481 MUST stay open until the final phase lands (PR body now correctly says `Refs #481`).
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (verified this run live: 19 names vs allowlist 18; re-verify next run).
 
 ## IN FLIGHT
- - Thunderline #481 / PR #482: Builder Phase 1 landed (head 4566fd26, 3 modular commits). Owner dispatched Reviewer directly (`/oc review` 11:00:44Z); opencode-review run 36559115401 pending at decision time. Next: Reviewer verdict -> Tester -> Eval to Pages. Do NOT re-dispatch review while the run is pending/in_progress (duplicate/spam).
- - Main 6112f48 LIVE; no merges since 6112f48, Pages Deploy 36523944588 already green on it (plus deploy 36559117472 success 11:00:56Z).
+ - Thunderline #481 / PR #482: Fixer trailer fix landed (head 034fcc59). Owner dispatched Reviewer directly (`/oc review` 11:03:13Z); opencode-review run 36559370913 pending at decision time. Next: Reviewer verdict -> Tester -> Eval to Pages. Do NOT re-dispatch review while the run is pending/in_progress (duplicate/spam).
+ - Main 6112f48 LIVE; no merges since 6112f48, Pages Deploy 36559369771 success 11:03:23Z.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` not re-checked this run (no signal; standing evaluation-only item).
 
 ## NEXT-RUN PLAYBOOK
