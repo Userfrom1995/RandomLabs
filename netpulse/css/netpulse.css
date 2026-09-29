@@ -288,6 +288,14 @@ table.np-table th { color: var(--np-muted); font-weight: 600; }
   overflow-y: auto;
 }
 
+.np-fall { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 4px; }
+.np-fall-row { display: grid; grid-template-columns: minmax(140px, 220px) 1fr auto; gap: 8px; align-items: center; font-size: 0.8rem; }
+.np-fall-name { color: var(--np-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.np-fall-track { position: relative; height: 12px; background: #10141f; border: 1px solid var(--np-border); border-radius: 6px; overflow: hidden; }
+.np-fall-bar { position: absolute; top: 0; bottom: 0; background: var(--np-accent); border-radius: 6px; min-width: 2px; }
+.np-fall-ms { color: var(--np-muted); white-space: nowrap; }
+.np-fall-row:focus-visible { outline: 2px solid var(--np-accent-2); outline-offset: 2px; }
+
 @media (max-width: 480px) {
 /* Single-column layout covers the 390 px mobile target with no scroll. */
   .np-header { padding: 24px 16px 8px; }

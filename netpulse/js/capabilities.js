@@ -49,7 +49,9 @@
       history: caps.localStorage || caps.probes ? "live" : "unsupported",
       dns: caps.doh ? "live" : "unsupported",
       identity: caps.fetch ? "live" : "unsupported",
-      webrtc: caps.rtcPeerConnection ? "live" : "unsupported"
+      webrtc: caps.rtcPeerConnection ? "live" : "unsupported",
+      traffic: (caps.resourceTiming || caps.performanceObserver) ? "live" : "unsupported",
+      monitor: (caps.probes || caps.resourceTiming || caps.performanceObserver) ? "live" : "unsupported"
     };
     return table[panel] || "unsupported";
   }

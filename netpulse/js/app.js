@@ -164,6 +164,105 @@
           (typeof window.RTCPeerConnection === "function" ? "live" : "unsupported"),
           "level honest");
       }
+      var TRAF = window.NetpulseTraffic;
+      var MON = window.NetpulseMonitor;
+      check("traffic-module-present", !!TRAF && !!MON, "traffic+monitor wired");
+      if (TRAF) {
+        var tnorm = TRAF.normalizeEntry({
+          name: "https://cdn.example/img.png", initiatorType: "img",
+          duration: 40, startTime: 20, transferSize: 0,
+          encodedBodySize: 0, decodedBodySize: 5000, nextHopProtocol: ""
+        });
+        check("traffic-normalize",
+          tnorm.sizesHidden === true && tnorm.protocol === null && tnorm.durationMs === 40,
+          "hidden sizes flagged, not zeroed");
+        check("traffic-normalize-guards",
+          TRAF.normalizeEntry(null).durationMs === null &&
+          TRAF.normalizeEntry(null).name === "(unparseable entry)",
+          "null fails closed");
+        check("traffic-origin",
+          TRAF.originOf("https://a.example:8443/x.js") === "https://a.example:8443" &&
+          TRAF.originOf("data:image/png;base64,xx") === "(inline)" &&
+          TRAF.originOf("bogus") === "(unparseable)",
+          "origin, inline, unparseable");
+        var tagg = TRAF.aggregateByOrigin([
+          { name: "https://a.example/1.js", durationMs: 10, transferBytes: 1000, sizesHidden: false },
+          { name: "https://a.example/2.js", durationMs: 30, transferBytes: 3000, sizesHidden: false },
+          { name: "https://b.example/i.png", durationMs: 5, transferBytes: 0, sizesHidden: true }
+        ]);
+        check("traffic-aggregate",
+          tagg.length === 2 && tagg[0].origin === "https://a.example" &&
+          tagg[0].bytes === 4000 && tagg[0].meanDurationMs === 20 &&
+          tagg[1].hiddenSizes === 1,
+          "origins=2 bytes=4000 hidden=1");
+        var tflt = TRAF.filterRows([
+          { name: "https://a.example/app.js", initiator: "script", protocol: "h2" },
+          { name: "https://b.example/i.png", initiator: "img", protocol: null }
+        ], "APP");
+        check("traffic-filter",
+          tflt.length === 1 && TRAF.filterRows([
+            { name: "x", initiator: null, protocol: null }
+          ], "").length === 1,
+          "case-insensitive, empty passes through");
+        var tproto = TRAF.protocolBreakdown([
+          { protocol: "h2" }, { protocol: "h2" }, { protocol: null }
+        ]);
+        check("traffic-protocol",
+          tproto.length === 2 && tproto[0].protocol === "h2" && tproto[0].entries === 2 &&
+          tproto[1].protocol === "(hidden)",
+          "h2=2 hidden=1");
+        check("traffic-format",
+          TRAF.formatBytes(1536) === "1.5 KB" && TRAF.formatBytes(NaN) === "no data" &&
+          TRAF.formatMs(12.345) === "12.35 ms" && TRAF.formatMs(Infinity) === "no data",
+          "KB scale plus guards");
+        check("traffic-support-flag",
+          TRAF.isSupported(window) === !!(
+            (window.performance && typeof window.performance.getEntriesByType === "function") ||
+            typeof window.PerformanceObserver === "function"),
+          "matches browser");
+        check("traffic-tab-present", !!document.getElementById("tabpanel-traffic"), "traffic tab wired");
+        check("traffic-capability",
+          window.NetpulseCapabilities.supportLevel(caps, "traffic") ===
+          (TRAF.isSupported(window) ? "live" : "unsupported"),
+          "level honest");
+      }
+      if (MON) {
+        var mhist = [
+          { kind: "latency", summary: { median: 20, attempts: 5, failed: 0 } },
+          { kind: "download", summary: { median: 9, attempts: 3, failed: 1 }, throughputKBps: 512 }
+        ];
+        var mseries = MON.probeSeries(mhist);
+        check("monitor-series",
+          mseries.latencyMedians.length === 1 && mseries.latencyMedians[0] === 20 &&
+          mseries.throughputRates.length === 1 && mseries.throughputRates[0] === 512,
+          "lat=1 rate=1 from history");
+        var mact = MON.transferActivity([
+          { transferBytes: 1000, sizesHidden: false },
+          { transferBytes: 0, sizesHidden: true }
+        ]);
+        check("monitor-activity",
+          mact.totalBytes === 1000 && mact.hiddenSizes === 1 &&
+          mact.cumulativeBytes.length === 2 && mact.cumulativeBytes[1] === 1000,
+          "cumulative=1000 hidden=1");
+        var mevs = MON.monitorEvents([
+          { t: "2026-01-01T00:00:00Z", type: "selftest-probe", detail: "fixture" },
+          { t: "2026-01-01T00:00:01Z", type: "probe-complete", detail: "latency" },
+          { t: "2026-01-01T00:00:02Z", type: "dns-complete", detail: "example.com" }
+        ]);
+        check("monitor-events",
+          mevs.length === 2 && mevs[0].type === "dns-complete" && mevs[1].type === "probe-complete",
+          "fixtures excluded, newest first");
+        var msum = MON.sessionSummary(mhist, mact);
+        check("monitor-summary",
+          msum.probeRuns === 2 && msum.probeAttempts === 8 && msum.probeFailed === 1 &&
+          msum.observedBytes === 1000,
+          "runs=2 attempts=8 bytes=1000");
+        check("monitor-tab-present", !!document.getElementById("tabpanel-monitor"), "monitor tab wired");
+        check("monitor-capability",
+          ["live", "unsupported"].indexOf(
+            window.NetpulseCapabilities.supportLevel(caps, "monitor")) !== -1,
+          "level=" + window.NetpulseCapabilities.supportLevel(caps, "monitor"));
+      }
     } catch (e) {
       results.push("FAIL harness-exception - " + (e && e.message));
     }
@@ -845,6 +944,355 @@
     });
   }
 
+  function shortName(url, maxLen) {
+    var s = String(url === null || url === undefined ? "" : url);
+    if (s.length <= (maxLen || 60)) return s;
+    return "..." + s.slice(s.length - (maxLen || 60) + 3);
+  }
+
+  function trafficGuard(caps, summaryId, statusId) {
+    if (window.NetpulseTraffic.isSupported(window)) return true;
+    resultError(document.getElementById(summaryId),
+      "Traffic observation is not supported by this browser",
+      "Own-traffic timing needs Resource Timing or PerformanceObserver. " +
+      "This browser exposes neither, so there is no transfer table to show " +
+      "and nothing is estimated in its place.",
+      "missing: performance.getEntriesByType / PerformanceObserver");
+    setStatus(statusId, "Unsupported in this browser.", "error");
+    return false;
+  }
+
+  function renderTrafficWaterfall(root, rows) {
+    root.innerHTML = "";
+    var timed = (rows || []).filter(function (r) {
+      return r && typeof r.startMs === "number" && typeof r.durationMs === "number";
+    }).slice(-40);
+    if (!timed.length) {
+      var UI = window.NetpulseUI;
+      root.appendChild(UI.emptyState(
+        "No timed entries to draw",
+        "The waterfall needs entries with start times and durations. " +
+        "Refresh the snapshot after the page loads more resources.",
+        "source: Resource Timing"));
+      return;
+    }
+    timed.sort(function (a, b) { return a.startMs - b.startMs; });
+    var maxEnd = 0;
+    timed.forEach(function (r) {
+      maxEnd = Math.max(maxEnd, r.startMs + r.durationMs);
+    });
+    if (!(maxEnd > 0)) maxEnd = 1;
+    timed.forEach(function (r) {
+      var row = document.createElement("div");
+      row.className = "np-fall-row";
+      row.tabIndex = 0;
+      row.setAttribute("aria-label",
+        shortName(r.name, 80) + ", " +
+        window.NetpulseTraffic.formatMs(r.durationMs));
+      row.title = r.name || "";
+      var name = document.createElement("span");
+      name.className = "np-fall-name";
+      name.textContent = shortName(r.name, 48);
+      row.appendChild(name);
+      var track = document.createElement("span");
+      track.className = "np-fall-track";
+      track.setAttribute("aria-hidden", "true");
+      var bar = document.createElement("span");
+      bar.className = "np-fall-bar";
+      bar.style.left = (Math.max(0, r.startMs) / maxEnd * 100).toFixed(2) + "%";
+      bar.style.width = Math.max(0.6, (Math.max(0, r.durationMs) / maxEnd * 100)).toFixed(2) + "%";
+      track.appendChild(bar);
+      row.appendChild(track);
+      var ms = document.createElement("span");
+      ms.className = "np-fall-ms";
+      ms.textContent = window.NetpulseTraffic.formatMs(r.durationMs);
+      row.appendChild(ms);
+      root.appendChild(row);
+    });
+  }
+
+  function renderImpossiblePanel() {
+    var root = document.getElementById("result-traffic-impossible");
+    if (!root || root.dataset.rendered) return;
+    root.dataset.rendered = "1";
+    var UI = window.NetpulseUI;
+    root.innerHTML = "";
+    var list = document.createElement("ul");
+    list.className = "np-log";
+    [
+      "Promiscuous packet capture: no browser API exposes raw packets. Netpulse never shows a packet table.",
+      "Other tabs, other apps, other devices: Resource Timing is scoped to this page only.",
+      "LAN discovery and port scans: impossible from the sandbox; there is no scan button because a real one cannot exist here.",
+      "ICMP ping and traceroute: browsers cannot emit ICMP; latency probes measure HTTP timing and say so.",
+      "Real host IPs behind mDNS: the WebRTC inspector labels masked addresses instead of de-obfuscating them."
+    ].forEach(function (text) {
+      var li = document.createElement("li");
+      li.textContent = text;
+      list.appendChild(li);
+    });
+    root.appendChild(list);
+    var badge = UI.badge("source: browser sandbox boundary (documented, not measured)", "missing");
+    root.appendChild(badge);
+  }
+
+  function bootTraffic(store) {
+    var T = window.NetpulseTraffic;
+    var UI = window.NetpulseUI;
+    if (!T || !UI) return;
+    if (!document.getElementById("tabpanel-traffic")) return;
+    var caps = window.NetpulseCapabilities.detectCapabilities(window.navigator, window);
+    renderImpossiblePanel();
+
+    var rows = [];
+    var observing = false;
+    var disconnect = null;
+
+    function tableRow(cells) {
+      var tr = document.createElement("tr");
+      cells.forEach(function (c) {
+        var td = document.createElement("td");
+        td.textContent = c;
+        tr.appendChild(td);
+      });
+      return tr;
+    }
+
+    function render() {
+      var query = "";
+      var filterEl = document.getElementById("traffic-filter");
+      if (filterEl) query = filterEl.value;
+      var visible = T.filterRows(rows, query);
+
+      var summaryRoot = document.getElementById("result-traffic-summary");
+      var totalBytes = 0;
+      var hidden = 0;
+      rows.forEach(function (r) {
+        if (r.sizesHidden) { hidden += 1; }
+        else if (typeof r.transferBytes === "number") { totalBytes += r.transferBytes; }
+      });
+      resultTable(summaryRoot, [
+        ["Observed entries (this page)", String(rows.length)],
+        ["Visible transfer bytes", T.formatBytes(totalBytes)],
+        ["Entries with sizes hidden by headers", String(hidden)],
+        ["Live stream", observing ? "streaming" : "paused"]
+      ], "Resource Timing", "live");
+      if (hidden) {
+        var note = document.createElement("p");
+        note.className = "np-sub";
+        note.textContent = "Hidden sizes are cross-origin entries without Timing-Allow-Origin " +
+          "headers: the spec zeroes their sizes. They are counted, never counted as zero-byte transfers.";
+        summaryRoot.appendChild(note);
+      }
+
+      var originBody = document.getElementById("traffic-origin-body");
+      originBody.innerHTML = "";
+      var origins = T.aggregateByOrigin(rows);
+      if (!origins.length) {
+        originBody.appendChild(tableRow(["No entries yet.", "", "", "", ""]));
+      } else {
+        origins.slice(0, 20).forEach(function (o) {
+          originBody.appendChild(tableRow([
+            o.origin, String(o.entries), T.formatBytes(o.bytes),
+            String(o.hiddenSizes),
+            o.meanDurationMs === null ? "no data" : T.formatMs(o.meanDurationMs)
+          ]));
+        });
+      }
+
+      var protoRoot = document.getElementById("result-traffic-protocol");
+      var breakdown = T.protocolBreakdown(rows);
+      if (!breakdown.length) {
+        resultError(protoRoot,
+          "No protocol data yet",
+          "Refresh the snapshot. Protocols come from nextHopProtocol " +
+          "(h1, h2, h3 insight) where the browser exposes them.",
+          "source: Resource Timing");
+      } else {
+        resultTable(protoRoot, breakdown.map(function (b) {
+          return ["Protocol " + b.protocol, String(b.entries) + " entr" +
+            (b.entries === 1 ? "y" : "ies")];
+        }), "Resource Timing nextHopProtocol", "live");
+      }
+
+      var body = document.getElementById("traffic-body");
+      body.innerHTML = "";
+      if (!visible.length) {
+        var tr = document.createElement("tr");
+        var td = document.createElement("td");
+        td.setAttribute("colspan", "5");
+        td.textContent = rows.length
+          ? "No transfers match this filter."
+          : "No transfers recorded yet. Refresh the snapshot after the page loads resources.";
+        tr.appendChild(td);
+        body.appendChild(tr);
+      } else {
+        visible.slice(-100).reverse().forEach(function (r) {
+          body.appendChild(tableRow([
+            shortName(r.name, 64),
+            r.initiator || "not exposed",
+            T.formatMs(r.durationMs),
+            r.sizesHidden ? "hidden by headers" : T.formatBytes(r.transferBytes),
+            r.protocol || "(hidden)"
+          ]));
+        });
+      }
+
+      renderTrafficWaterfall(document.getElementById("traffic-waterfall"), visible);
+    }
+
+    function refresh(reason) {
+      if (!trafficGuard(caps, "result-traffic-summary", "status-traffic")) return;
+      rows = T.snapshot(window);
+      setStatus("status-traffic",
+        "Snapshot: " + rows.length + " entr" + (rows.length === 1 ? "y" : "ies") +
+        " recorded for this page.",
+        "ok");
+      if (reason) store.logEvent(reason, "entries=" + rows.length);
+      render();
+    }
+
+    document.getElementById("btn-traffic-refresh").addEventListener("click", function () {
+      refresh("traffic-refresh");
+    });
+    document.getElementById("traffic-filter").addEventListener("input", function () {
+      render();
+    });
+    document.getElementById("btn-traffic-observe").addEventListener("click", function () {
+      var btn = document.getElementById("btn-traffic-observe");
+      if (observing) {
+        if (disconnect) disconnect();
+        disconnect = null;
+        observing = false;
+        btn.textContent = "Start live stream";
+        btn.setAttribute("aria-pressed", "false");
+        setStatus("status-traffic", "Live stream stopped. Snapshot retained.", "ok");
+        store.logEvent("traffic-observe-stop", "entries=" + rows.length);
+        render();
+        return;
+      }
+      if (!trafficGuard(caps, "result-traffic-summary", "status-traffic")) return;
+      var stop = T.observe(window, function (incoming) {
+        rows = rows.concat(incoming);
+        if (rows.length > 1000) rows = rows.slice(-1000);
+        render();
+      });
+      if (!stop) {
+        resultError(document.getElementById("result-traffic-summary"),
+          "Live streaming needs PerformanceObserver",
+          "Snapshots still work above; only the push stream is unavailable.",
+          "missing: PerformanceObserver");
+        setStatus("status-traffic", "Stream unavailable; snapshots work.", "error");
+        return;
+      }
+      disconnect = stop;
+      observing = true;
+      btn.textContent = "Stop live stream";
+      btn.setAttribute("aria-pressed", "true");
+      setStatus("status-traffic", "Streaming new entries as they load ...", "running");
+      store.logEvent("traffic-observe-start", "buffered replay plus live entries");
+      render();
+    });
+
+    rows = T.snapshot(window);
+    if (!T.isSupported(window)) {
+      trafficGuard(caps, "result-traffic-summary", "status-traffic");
+    } else {
+      setStatus("status-traffic",
+        rows.length
+          ? "Snapshot: " + rows.length + " entries at boot. Refresh or stream for more."
+          : "No entries at boot yet. Load resources, then refresh.",
+        "ok");
+    }
+    render();
+  }
+
+  function renderMonitorLog() {
+    var MON = window.NetpulseMonitor;
+    var log = document.getElementById("monitor-log");
+    if (!log || !MON) return;
+    var store = window.__netpulseStore || null;
+    var events = store ? store.getEvents() : [];
+    var kept = MON.monitorEvents(events, 40);
+    log.innerHTML = "";
+    if (!kept.length) {
+      var li = document.createElement("li");
+      li.textContent = "No measurement events yet. Run a probe, a DNS lookup, or an ICE inspection.";
+      log.appendChild(li);
+      return;
+    }
+    kept.forEach(function (evt) {
+      var item = document.createElement("li");
+      var time = document.createElement("time");
+      try {
+        time.textContent = new Date(evt.t).toLocaleTimeString();
+      } catch (e) {
+        time.textContent = evt.t;
+      }
+      item.appendChild(time);
+      var b = document.createElement("b");
+      b.textContent = evt.type + " ";
+      item.appendChild(b);
+      var span = document.createElement("span");
+      span.textContent = evt.detail === null || evt.detail === undefined ? "" : String(evt.detail);
+      item.appendChild(span);
+      log.appendChild(item);
+    });
+  }
+
+  function bootMonitor(store) {
+    var MON = window.NetpulseMonitor;
+    var T = window.NetpulseTraffic;
+    var P = window.NetpulseProbes;
+    var Charts = window.NetpulseCharts;
+    if (!MON || !Charts) return;
+    if (!document.getElementById("tabpanel-monitor")) return;
+    window.__netpulseStore = store;
+
+    function render() {
+      var hist = P ? P.loadHistory(store) : [];
+      var trafficRows = T ? T.snapshot(window) : [];
+      var series = MON.probeSeries(hist);
+      var activity = MON.transferActivity(trafficRows);
+      var sum = MON.sessionSummary(hist, activity);
+
+      resultTable(document.getElementById("result-monitor-summary"), [
+        ["Probe runs this session", String(sum.probeRuns)],
+        ["Probe attempts (failed)", String(sum.probeAttempts) + " (" + String(sum.probeFailed) + ")"],
+        ["Observed transfers (this page)", String(sum.observedEntries)],
+        ["Observed bytes (visible)", T ? T.formatBytes(sum.observedBytes) : String(sum.observedBytes)],
+        ["Sizes hidden by headers", String(sum.hiddenSizes)]
+      ], "session probe history + Resource Timing", "live");
+
+      Charts.lineChart(document.getElementById("chart-monitor-latency"), {
+        label: "Probe medians per run in milliseconds",
+        yLabel: "ms / run",
+        xLabel: "run",
+        series: [{ label: "median ms", values: series.latencyMedians }]
+      });
+      Charts.lineChart(document.getElementById("chart-monitor-rate"), {
+        label: "Probe throughput per run in kilobytes per second",
+        yLabel: "KB/s / run",
+        xLabel: "run",
+        series: [{ label: "KB/s", values: series.throughputRates, color: "#7aa2f7" }]
+      });
+      Charts.lineChart(document.getElementById("chart-monitor-traffic"), {
+        label: "Cumulative observed transfer bytes",
+        yLabel: "bytes",
+        xLabel: "entry",
+        series: [{ label: "cumulative bytes", values: activity.cumulativeBytes, color: "#e0a44f" }]
+      });
+      renderMonitorLog();
+    }
+
+    document.getElementById("btn-monitor-refresh").addEventListener("click", function () {
+      render();
+    });
+    store.onEvent(function () {
+      try { render(); } catch (e) { /* monitor refresh never breaks logging */ }
+    });
+    render();
+  }
+
   function boot() {
     var caps = window.NetpulseCapabilities.detectCapabilities(window.navigator, window);
     var store = window.NetpulseStore.createStore(window);
@@ -892,6 +1340,8 @@
 
     bootQuality(store);
     bootDnsIdentity(store);
+    bootTraffic(store);
+    bootMonitor(store);
 
     store.logEvent("session-start", window.navigator.userAgent || "unknown agent");
 
