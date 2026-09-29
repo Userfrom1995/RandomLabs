@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Random - a repo of agent-built projects</title>
-<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Live now: Mythduel (Thor vs Zeus duel), Hearthlight (animated short film), Folio (client-side PDF studio), Tabula (Swift spreadsheet engine), Sextant (Blazor WASM GIS engine), Doom (web engine), Umbra (WebGPU combat game), Poolduel (Postgres pooler shootout), and torshim (Tor CLI)." />
+<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Live now: Netpulse (browser network diagnostics), Thunderline (original rock song), Mythduel (Thor vs Zeus duel), Hearthlight (animated short film), Tabula (Swift spreadsheet engine), Sextant (Blazor WASM GIS engine), Doom (web engine), Umbra (WebGPU combat game), Poolduel (Postgres pooler shootout), and torshim (Tor CLI)." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -121,27 +121,15 @@
   <h2>Live Projects</h2>
   <div class="cards">
     <div class="card current">
-      <span class="tag">In progress</span>
+      <span class="tag">Shipped</span>
       <h4>Thunderline</h4>
-      <p>An original rock-and-roll song at /thunderline/ (issue #481 open): a 156-second E-major night drive ("Ridin' on the thunderline") composed, performed, mixed, and mastered entirely by deterministic in-repo synthesis from a machine-readable lead sheet. Real rendered stems play through a single-clock WebAudio mixer with synced lyrics, stem mute/solo, and downloads; one command rebuilds bit-identical audio from source. No samples, no covers, no artist likeness.</p>
+      <p>An original rock-and-roll song at /thunderline/ (issue #481 closed 2026-09-29): a 156-second E-major night drive ("Ridin' on the thunderline") composed, performed, mixed, and mastered entirely by deterministic in-repo synthesis from a machine-readable lead sheet. Real rendered stems play through a single-clock WebAudio mixer with synced lyrics, stem mute/solo, and downloads; one command rebuilds bit-identical audio from source. No samples, no covers, no artist likeness.</p>
       <div class="links">
         <a href="https://userfrom1995.github.io/RandomLabs/thunderline/">Play Thunderline</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/thunderline/README.md">Run it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-29-thunderline-shipped-song-and-production.md">Writeup</a>
         <a href="https://userfrom1995.github.io/RandomLabs/thunderline/docs/">Documentation</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/issues/481">Issue #481</a>
-      </div>
-    </div>
-    <div class="card current">
-      <span class="tag">Shipped</span>
-      <h4>Folio</h4>
-      <p>A fully client-side PDF studio (issue #277 closed): merge, split, organize, compress, redact (true burn-in), annotate, sign, convert Office and PDF both directions, OCR invisible layers, and chain ops with undo/redo - plus a modern UX layer: high-performance canvas overlay, direct interactive annotation bounding-box manipulation (crop bbox, click/drag placement committed through the core ops), form overlays over AcroForm geometry with live create/describe/fill roundtrip, bookmark outline tree, studio shell layout, hardened ingestion with OPFS workspace plus in-memory fallback, and accessibility coordinate fallbacks. Entirely in the browser, no uploads, offline after first load. Vendored pdf-lib + pdf.js, consent-gated Office pack, binding parity matrix of 70+ rows.</p>
-      <div class="links">
-        <a href="https://userfrom1995.github.io/RandomLabs/folio/">Open studio</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/folio/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-03-folio-client-side-pdf-studio.md">Writeup</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/folio/docs/">Documentation</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/issues/277">Issue #277</a>
       </div>
     </div>
     <div class="card current">
@@ -178,18 +166,6 @@
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-11-poolduel-shootout-report.md">Writeup</a>
         <a href="https://userfrom1995.github.io/RandomLabs/poolduel/docs/test-matrix.md">Documentation</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/issues/302">Issue #302</a>
-      </div>
-    </div>
-    <div class="card current">
-      <span class="tag">Finished at ceiling</span>
-      <h4>Prism</h4>
-      <p>A lossless image codec written from scratch in C++17, accepted by the Owner as finished-at-ceiling at <code>9bd6d10</code> (2026-09-03, issue #130 closed, gates FAIL, never gate-passed). Shipped scope: 5-level LeGall 5/3 DWT, reversible YCoCg-R, MA decision trees, multi-cluster rANS, 100% byte-exact round-trips. Accepted ceiling on Kodak-24: X6b 3.2175/sample / 9.6525 summed (repro 3.21843/9.65529) - misses WebP by ~1.6%, misses JPEG XL by ~11.5%; oracle bounds 3.161/9.483. 49+ mechanisms measured; full negative ledger on main; all branches retained.</p>
-      <div class="links">
-        <a href="https://userfrom1995.github.io/RandomLabs/prism/">Website</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-21-prism-lossless-image-codec.md">Writeup</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/docs/">Documentation</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/issues/130">Issue #130</a>
       </div>
     </div>
     <div class="card current">
@@ -251,9 +227,9 @@
       </div>
     </div>
     <div class="card">
-      <span class="tag">In progress</span>
+      <span class="tag">Shipped</span>
       <h4>Netpulse</h4>
-      <p>An honest in-browser network diagnostics tool at /netpulse/ (issue #489 open): connection profile, HTTP quality probes, DNS-over-HTTPS toolkit, opt-in egress identity, WebRTC inspector, own-traffic observer with waterfall, live monitor dashboard, and JSON plus CSV export with a printable source-stamped report. Every number carries a source badge; anything the sandbox forbids fails closed instead of being simulated.</p>
+      <p>An honest in-browser network diagnostics tool at /netpulse/ (issue #489 closed 2026-09-29): connection profile, HTTP quality probes, DNS-over-HTTPS toolkit, opt-in egress identity, WebRTC inspector, own-traffic observer with waterfall, live monitor dashboard, and JSON plus CSV export with a printable source-stamped report. Every number carries a source badge; anything the sandbox forbids fails closed instead of being simulated.</p>
       <div class="links">
         <a href="https://userfrom1995.github.io/RandomLabs/netpulse/">Open Netpulse</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/netpulse/README.md">Run it</a>
@@ -266,6 +242,24 @@
 
   <h2>Previous Projects</h2>
   <ul class="projects">
+    <li>
+      <h4>Netpulse</h4>
+      <p>Honest in-browser network diagnostics and monitoring tool: connection profile, HTTP quality probes, DNS-over-HTTPS toolkit, opt-in egress identity, WebRTC inspector, own-traffic observer, live monitor dashboard, and JSON plus CSV export with a printable source-stamped report.</p>
+      <div class="links">
+        <a href="https://userfrom1995.github.io/RandomLabs/netpulse/">Website</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/netpulse/README.md">About</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-29-netpulse-browser-network-diagnostics.md">Writeup</a>
+      </div>
+    </li>
+    <li>
+      <h4>Thunderline</h4>
+      <p>Original rock-and-roll song composed, arranged, and produced by a deterministic in-repo synthesis pipeline (score as source of truth, reproducible master plus stems, Pages player).</p>
+      <div class="links">
+        <a href="https://userfrom1995.github.io/RandomLabs/thunderline/">Website</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/thunderline/README.md">About</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-29-thunderline-shipped-song-and-production.md">Writeup</a>
+      </div>
+    </li>
     <li>
       <h4>Mythduel</h4>
       <p>An original Thor vs Zeus mythic duel fight scene: 172 s deterministic canvas duel with an original score and SFX, 30 s trailer cut, premiere posters, and behind-the-scenes surface.</p>
@@ -338,24 +332,6 @@
         <a href="https://userfrom1995.github.io/RandomLabs/tabula/">Website</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/tabula/README.md">About</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-03-tabula-spreadsheet-engine.md">Writeup</a>
-      </div>
-    </li>
-    <li>
-      <h4>Folio</h4>
-      <p>Client-side in-browser PDF manipulation studio: merge, split, organize, compress, redact, annotate, sign, Office/PDF conversion and OCR chaining with undo/redo and OPFS workspace storage.</p>
-      <div class="links">
-        <a href="https://userfrom1995.github.io/RandomLabs/folio/">Website</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/folio/README.md">About</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-03-folio-client-side-pdf-studio.md">Writeup</a>
-      </div>
-    </li>
-    <li>
-      <h4>Prism</h4>
-      <p>Lossless image codec from scratch in C++17 with 2D LeGall 5/3 DWT and finite-state rANS.</p>
-      <div class="links">
-        <a href="https://userfrom1995.github.io/RandomLabs/prism/">Website</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/README.md">About</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-21-prism-lossless-image-codec.md">Writeup</a>
       </div>
     </li>
   </ul>

@@ -4,6 +4,8 @@ This directory contains legacy and earlier completed projects built autonomously
 
 | Project | Tech Stack | Summary | Directory |
 |---|---|---|---|
+| **Folio** | JS / Browser | Fully client-side PDF studio with merge, split, organize, compress, redact, annotate, sign, Office/PDF conversion, and OCR chaining | [folio/](folio/) |
+| **Prism** | C++17 | Lossless image codec with 2D LeGall 5/3 DWT and finite-state rANS | [prism/](prism/) |
 | **Helix** | Go / JS | From-scratch vector search engine with HNSW graph indexing and Product Quantization | [helix/](helix/) |
 | **Kinetica** | TypeScript | From-scratch 2D rigid-body physics engine with sequential impulse solver | [kinetica/](kinetica/) |
 | **Obsidian** | Rust | Lossless image codec with 8-predictor bank and adaptive Golomb-Rice entropy | [obsidian/](obsidian/) |
