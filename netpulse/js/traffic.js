@@ -3,9 +3,10 @@
  * A page can legally see its own subresource timings (URL, initiator,
  * sizes, durations, nextHopProtocol) and nothing else: no promiscuous
  * capture, no cross-site sniffing, no LAN scan. Anything beyond that is
- * documented as impossible, never simulated. Cross-origin entries without
- * Timing-Allow-Origin headers report zeroed sizes by spec; those render as
- * "hidden by the page's headers", never as zero-byte transfers. */
+  * documented as impossible, never simulated. Cross-origin entries without
+  * Timing-Allow-Origin headers report zeroed sizes by spec, and same-origin
+  * cache hits can also report zero transfer sizes; those render as
+  * "hidden by headers or served from cache", never as zero-byte transfers. */
 (function (global) {
   function isSupported(win) {
     var w = win || global;
@@ -39,10 +40,12 @@
     var transfer = numOrNull(e.transferSize);
     var encoded = numOrNull(e.encodedBodySize);
     var decoded = numOrNull(e.decodedBodySize);
-    /* Spec rule: transferSize 0 with a positive decodedBodySize means the
-     * sizes were hidden (cross-origin, no Timing-Allow-Origin), not that
-     * the transfer was free. decode-only positives still count as hidden. */
-    var hidden = transfer === 0 && (decoded || 0) > 0;
+  /* Spec rule: transferSize 0 with a positive decodedBodySize means the
+   * sizes were hidden (cross-origin, no Timing-Allow-Origin) or served from
+   * cache, not that the transfer was free. Decode-only positives still
+   * count as hidden; the page copy says "hidden by headers or served from
+   * cache" so cache hits are never mislabeled. */
+  var hidden = transfer === 0 && (decoded || 0) > 0;
     return {
       name: strOrNull(e.name) || "(unparseable entry)",
       initiator: strOrNull(e.initiatorType),
