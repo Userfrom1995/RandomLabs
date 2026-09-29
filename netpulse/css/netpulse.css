@@ -148,11 +148,13 @@ body.np-body {
 }
 
 .np-kv dt { color: var(--np-muted); }
-.np-kv dd { margin: 0; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; overflow-wrap: break-word; }
+.np-kv dd { margin: 0; min-width: 0; display: contents; }
 
 .np-badge {
   display: inline-block;
   flex: none;
+  grid-column: 1 / -1;
+  justify-self: start;
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -173,6 +175,9 @@ body.np-body {
 .np-badge.live { border-color: var(--np-ok); color: var(--np-ok); }
 .np-badge.hint { border-color: var(--np-warn); color: var(--np-warn); }
 .np-badge.missing { border-color: var(--np-bad); color: var(--np-bad); }
+
+/* Source badges sit on their own full kv-grid row at natural width. */
+.np-kv dd > .np-badge { grid-column: 1 / -1; justify-self: start; max-width: 100%; }
 
 .np-empty {
   border: 1px dashed var(--np-border);
