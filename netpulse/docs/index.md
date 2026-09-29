@@ -139,16 +139,16 @@ and verification steps.
    filter narrows the table; starting the live stream appends entries as
    they load. The impossible-capability panel names packet capture and
    LAN scans as out of reach.
-  7. Open the Monitor tab after running a probe: median and throughput
-    charts carry per-run points, the transfer chart climbs with observed
-    bytes, and the event log lists the session's measurements newest
-    first. With a cleared session every chart shows its empty state.
-  8. Open the Reports tab: the export summary counts the session, the
-    preview shows source-stamped sections (empty sections where nothing
-    was measured), downloading the JSON and each CSV saves a stamped file
-    locally, and printing opens the dialog for the same report. Clearing
-    the saved session empties the panels without touching downloaded files.
-8. In Firefox or Safari: the connection panel shows the honest empty card
+7. Open the Monitor tab after running a probe: median and throughput
+   charts carry per-run points, the transfer chart climbs with observed
+   bytes, and the event log lists the session's measurements newest
+   first. With a cleared session every chart shows its empty state.
+8. Open the Reports tab: the export summary counts the session, the
+   preview shows source-stamped sections (empty sections where nothing
+   was measured), downloading the JSON and each CSV saves a stamped file
+   locally, and printing opens the dialog for the same report. Clearing
+   the saved session empties the panels without touching downloaded files.
+9. In Firefox or Safari: the connection panel shows the honest empty card
    naming the missing API.
-9. At 390 px width: single column, no horizontal scroll, tabs reachable by
-   keyboard (arrow keys move between tabs).
+10. At 390 px width: single column, no horizontal scroll, tabs reachable by
+    keyboard (arrow keys move between tabs).
