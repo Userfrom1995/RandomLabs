@@ -43,9 +43,11 @@ def main():
         "js/webrtc.js",
         "js/traffic.js",
         "js/monitor.js",
+        "js/export.js",
         "js/app.js",
         "tests/test_dns_identity.py",
         "tests/test_traffic_monitor.py",
+        "tests/test_export_report.py",
         "docs/index.md",
         "docs/index.html",
     ]
@@ -79,16 +81,22 @@ def main():
                       "traffic-origin-body", "result-traffic-protocol",
                       "traffic-filter", "traffic-body",
                       "traffic-waterfall", "result-traffic-impossible",
-                      "tab-monitor", "tabpanel-monitor",
-                      "btn-monitor-refresh", "result-monitor-summary",
-                      "chart-monitor-latency", "chart-monitor-rate",
-                      "chart-monitor-traffic", "monitor-log"]:
+                       "tab-monitor", "tabpanel-monitor",
+                       "btn-monitor-refresh", "result-monitor-summary",
+                       "chart-monitor-latency", "chart-monitor-rate",
+                       "chart-monitor-traffic", "monitor-log",
+                       "tab-reports", "tabpanel-reports",
+                       "btn-export-json", "btn-export-probes",
+                       "btn-export-traffic", "btn-export-events",
+                       "btn-report-print", "btn-report-clear",
+                       "status-report", "result-export-summary",
+                       "result-report-preview", "result-session-persist"]:
             if token not in html:
                 fail("index.html missing token: " + token)
         for script in ["js/capabilities.js", "js/store.js", "js/ui.js",
                         "js/charts.js", "js/probes.js", "js/dns.js",
                         "js/identity.js", "js/webrtc.js",
-                        "js/traffic.js", "js/monitor.js",
+                        "js/traffic.js", "js/monitor.js", "js/export.js",
                         "js/netinfo.js", "js/app.js"]:
             if script not in html:
                 fail("index.html missing script wiring: " + script)
@@ -119,7 +127,7 @@ def main():
     for rel in ["js/capabilities.js", "js/netinfo.js", "js/store.js",
                 "js/ui.js", "js/charts.js", "js/probes.js", "js/dns.js",
                 "js/identity.js", "js/webrtc.js", "js/traffic.js",
-                "js/monitor.js", "js/app.js"]:
+                "js/monitor.js", "js/export.js", "js/app.js"]:
         p = ROOT / rel
         if not p.is_file():
             continue
@@ -148,7 +156,7 @@ def main():
     for rel in ["index.html", "js/capabilities.js", "js/netinfo.js",
                 "js/store.js", "js/ui.js", "js/charts.js", "js/probes.js",
                 "js/dns.js", "js/identity.js", "js/webrtc.js",
-                "js/traffic.js", "js/monitor.js",
+                "js/traffic.js", "js/monitor.js", "js/export.js",
                 "js/app.js"]:
         p = ROOT / rel
         if p.is_file() and facade.search(p.read_text(encoding="utf-8", errors="replace")):
@@ -191,10 +199,13 @@ def main():
                       "dns-clean-valid", "dns-parse", "identity-normalize",
                       "webrtc-stats-fixture", "webrtc-address-kind",
                       "bootTraffic", "tabpanel-traffic",
-                      "bootMonitor", "tabpanel-monitor",
-                      "traffic-normalize", "traffic-aggregate",
-                      "traffic-filter", "monitor-series",
-                      "monitor-activity", "monitor-events"]:
+                       "bootMonitor", "tabpanel-monitor",
+                       "traffic-normalize", "traffic-aggregate",
+                       "traffic-filter", "monitor-series",
+                       "monitor-activity", "monitor-events",
+                       "bootReports", "tabpanel-reports",
+                       "export-report", "export-probes-csv",
+                       "export-stamp", "export-tab-present"]:
             if token not in src:
                 fail("app.js missing quality/dns wiring token: " + token)
 
@@ -263,13 +274,36 @@ def main():
             fail("monitor.js contains stub markers")
         if "simulat" in src.lower():
             fail("monitor.js must not simulate traffic")
+        for evt in ["report-export", "report-print", "session-clear"]:
+            if evt not in src:
+                fail("monitor.js must track report lifecycle event: " + evt)
+
+    exp = ROOT / "js/export.js"
+    if exp.is_file():
+        src = exp.read_text(encoding="utf-8", errors="replace")
+        for token in ["buildReport", "reportToJson", "csvCell",
+                      "eventsToCsv", "probesToCsv", "trafficToCsv",
+                      "stampFilename", "isDownloadSupported",
+                      "download", "printReport", "Resource Timing",
+                      "HTTP timing (fetch)", "session store"]:
+            if token not in src:
+                fail("export.js missing engine token: " + token)
+        if "TODO" in src or "FIXME" in src:
+            fail("export.js contains stub markers")
+        if "\u2014" in src:
+            fail("export.js contains em dash")
+        sim_lines = [ln for ln in src.lower().splitlines() if "simulat" in ln]
+        if sim_lines and not all("never" in ln or "not " in ln for ln in sim_lines):
+            fail("export.js must not simulate data")
+        if "invented rows" not in src and "never invented" not in src:
+            fail("export.js must document the no-invention contract")
 
     css_p2 = ROOT / "css/netpulse.css"
     if css_p2.is_file():
         css2 = css_p2.read_text(encoding="utf-8", errors="replace")
-        for token in ["np-fall", "np-fall-bar", "np-fall-row"]:
+        for token in ["np-fall", "np-fall-bar", "np-fall-row", "np-report"]:
             if token not in css2:
-                fail("css missing waterfall token: " + token)
+                fail("css missing waterfall/report token: " + token)
 
     docs = check_exists("docs/index.md")
     if docs is not None:
@@ -278,7 +312,8 @@ def main():
             fail("docs must document the capability matrix")
         for token in ["median", "p95", "cache-bust", "loss",
                       "DNS-over-HTTPS", "egress", "ICE",
-                      "Resource Timing", "waterfall", "monitor"]:
+                      "Resource Timing", "waterfall", "monitor",
+                      "export", "CSV", "print"]:
             if token not in text:
                 fail("docs must document probe/dns methods: missing " + token)
         for marker in ["M1", "M2", "M3", "this milestone", "sprint"]:

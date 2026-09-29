@@ -57,12 +57,21 @@ connectivity). Zero dependencies, no CDN, no build step, no backend.
   (`js/monitor.js`): per-run probe medians, per-run throughput, cumulative
   observed bytes, a session rollup, and a timestamped monitor event log.
   Empty until you measure; nothing invented.
+- **Reports and export (Reports tab):** the session as portable data
+  (`js/export.js`): a full source-stamped JSON report, per-section CSV
+  downloads (probe runs, observed transfers, session events), and a
+  printable report preview with the same source labels. Generated locally
+  in the browser; nothing is uploaded. Empty sessions export empty
+  sections, never invented rows.
+- **Session persistence:** probe history and the event log persist in
+  `localStorage` under `netpulse.v1` (50-run and 500-event caps), with an
+  explicit Clear control on both the Overview and Reports tabs.
 
 ## What it deliberately does not do
 
 Raw sockets, ICMP ping, promiscuous packet capture, LAN scans, and real
 host-IP discovery do not exist inside the browser sandbox and are not
-simulated here. Export is not present yet and no panel pretends otherwise.
+simulated here.
 A modern browser masks real host IPs with mDNS, and Netpulse says so where
 relevant.
 
@@ -73,7 +82,8 @@ Open `index.html` in any modern browser. No install, no flags.
 - `?selftest=1` runs the built-in harness (capability map, store math,
   probe percentile math on fixtures, chart point counts, DNS/identity/
   WebRTC fixtures, traffic normalization plus aggregation plus filter,
-  monitor series plus events, panel render, tab order, no-CDN check) and
+  monitor series plus events, export report plus CSV plus filename
+  fixtures, panel render, tab order, no-CDN check) and
   prints PASS/FAIL lines into the page.
 - Works offline: panels show last known state or honest empty states, and
   probes refuse to start with an explanatory state.
@@ -94,6 +104,8 @@ Open `index.html` in any modern browser. No install, no flags.
   rollup, protocol breakdown, filter, waterfall data.
 - `js/monitor.js` - session series builders: probe medians, throughput,
   transfer activity, monitor event slice, session rollup.
+- `js/export.js` - report snapshot, JSON plus CSV converters, stamped
+  filenames, Blob download, print helper.
 - `js/charts.js` - dependency-free SVG line charts with honest empty states.
 - `js/ui.js` - tabs (arrow-key paths), source badges, empty states, banner.
 - `js/app.js` - boot, live event wiring, quality plus DNS plus traffic
@@ -112,6 +124,8 @@ Open `index.html` in any modern browser. No install, no flags.
   local stub DoH plus echo endpoints, dependency-free).
 - `python3 netpulse/tests/test_traffic_monitor.py` (live engine tests with
   fixture resource timings plus observer stream, dependency-free).
+- `python3 netpulse/tests/test_export_report.py` (report snapshot, CSV
+  quoting, filename stamps, download guard, print path, hostile shapes).
 - Open `index.html?selftest=1` in Chromium, Firefox, and Safari if
   available; confirm Network Information fails closed honestly where
   absent and the banner reacts to offline mode.

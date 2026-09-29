@@ -16,6 +16,7 @@ and verification steps.
 | Connection analysis | `RTCPeerConnection` + `getStats` | exposed | exposed | exposed | Loopback ICE inspector with candidate table and stats; teardown always |
 | Real DNS answers | DNS over HTTPS via `fetch` | reachable | reachable | reachable | Live DoH toolkit with selectable resolvers, timing, and raw replies |
 | Egress IP / ASN / geo | third-party echo over `fetch` | reachable | reachable | reachable | Opt-in only, provider-labeled, session-cached; nothing auto-fetches |
+| Export and printable report | `Blob` download + `window.print` | exposed | exposed | exposed | Local JSON plus CSV of measured session data; print preview source-stamped |
 | Raw sockets / ICMP / capture | none in sandbox | impossible | impossible | impossible | Never simulated; documented as impossible |
 
 ## Method notes
@@ -103,9 +104,20 @@ and verification steps.
   real measurement stream: per-run probe medians, per-run probe throughput,
   and cumulative observed-transfer bytes, plus a session rollup and a
   timestamped monitor event log (connectivity, probes, DNS, identity,
-  WebRTC, traffic). With no runs and no transfers every chart renders its
+  WebRTC, traffic, reports, session clears). With no runs and no transfers every chart renders its
   honest empty state. The dashboard re-renders on every logged session
   event and on explicit refresh.
+- **Reports and export:** the session as portable data (`js/export.js`).
+  One click builds a source-stamped report object (capability map, session
+  rollup, probe runs with per-run sources, observed transfers with
+  Resource Timing sources, session events) and saves it as pretty JSON;
+  per-section CSV downloads cover probe runs, transfers, and events with
+  RFC 4180 quoting and empty cells for nulls. Filenames carry a UTC stamp
+  (`netpulse-report-YYYYMMDD-HHMMSS`). The Reports tab also renders a
+  printable preview of the same data and a persistence panel showing the
+  `netpulse.v1` key, stored counts, and approximate size, with an explicit
+  clear. Where the browser offers no Blob download path, exports fail
+  closed with an explanatory state while the print preview keeps working.
 
 ## Verification
 
@@ -127,10 +139,15 @@ and verification steps.
    filter narrows the table; starting the live stream appends entries as
    they load. The impossible-capability panel names packet capture and
    LAN scans as out of reach.
-7. Open the Monitor tab after running a probe: median and throughput
-   charts carry per-run points, the transfer chart climbs with observed
-   bytes, and the event log lists the session's measurements newest
-   first. With a cleared session every chart shows its empty state.
+  7. Open the Monitor tab after running a probe: median and throughput
+    charts carry per-run points, the transfer chart climbs with observed
+    bytes, and the event log lists the session's measurements newest
+    first. With a cleared session every chart shows its empty state.
+  8. Open the Reports tab: the export summary counts the session, the
+    preview shows source-stamped sections (empty sections where nothing
+    was measured), downloading the JSON and each CSV saves a stamped file
+    locally, and printing opens the dialog for the same report. Clearing
+    the saved session empties the panels without touching downloaded files.
 8. In Firefox or Safari: the connection panel shows the honest empty card
    naming the missing API.
 9. At 390 px width: single column, no horizontal scroll, tabs reachable by
