@@ -267,6 +267,27 @@ table.np-table th { color: var(--np-muted); font-weight: 600; }
 .np-chart-svg { width: 100%; height: auto; display: block; }
 .np-chart-axis { fill: var(--np-muted); font-size: 11px; }
 
+.np-raw { margin: 10px 0; }
+.np-raw summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--np-accent-2);
+  font-weight: 600;
+}
+.np-raw summary:focus-visible { outline: 2px solid var(--np-accent-2); outline-offset: 2px; }
+.np-raw pre {
+  background: #10141f;
+  border: 1px solid var(--np-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
 @media (max-width: 480px) {
 /* Single-column layout covers the 390 px mobile target with no scroll. */
   .np-header { padding: 24px 16px 8px; }
