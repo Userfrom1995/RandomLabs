@@ -1,20 +1,20 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-29T15:56Z (maintainer run 36593886757, owner /oc maintainer on PR #495 post re-eval rejection)**
+ - **Updated: 2026-09-29T16:00Z (maintainer run 36594343273, owner /oc maintainer on PR #495 post residual-fix push)**
 
 ## PRs & Issues
- - **PRs:** #482/#483/#484/#485 MERGED (Thunderline Phases 1-4). #487 MERGED (Curator README fix). #488 MERGED (Thunderline Phase 5 final, `Closes #481` satisfied). #490 MERGED (Netpulse Phase 1, `Refs #489`). #491 CLOSED unmerged (duplicate). #492 MERGED (Netpulse Phase 2, `Refs #489`, branch kept). #493 MERGED (Netpulse Phase 3, `Refs #489`, branch kept). #494 MERGED 2026-09-29 15:06:25Z (Netpulse Phase 4, head 86fccbdf, body `Refs #489`, branch kept, main 8203e01b). #495 OPEN (Netpulse Final Phase: Reports, Export, Final Integration, head cf5fb3a2, branch `opencode/issue489-20260929150827`, MERGEABLE, mergeStateStatus CLEAN, reviewDecision empty, body `Closes #489`).
- - **Issues:** standing boards open: #70 lab-health, #42 brainstorm. #481 Thunderline CLOSED. #489 Netpulse OPEN (Phases 1-4 merged; Final Phase PR #495 through eval-fix round, re-review + re-test green, re-eval rejected 7.6/10 with two residual defects, fix dispatched).
+ - **PRs:** #482/#483/#484/#485 MERGED (Thunderline Phases 1-4). #487 MERGED (Curator README fix). #488 MERGED (Thunderline Phase 5 final, `Closes #481` satisfied). #490 MERGED (Netpulse Phase 1, `Refs #489`). #491 CLOSED unmerged (duplicate). #492 MERGED (Netpulse Phase 2, `Refs #489`, branch kept). #493 MERGED (Netpulse Phase 3, `Refs #489`, branch kept). #494 MERGED 2026-09-29 15:06:25Z (Netpulse Phase 4, head 86fccbdf, body `Refs #489`, branch kept, main 8203e01b). #495 OPEN (Netpulse Final Phase: Reports, Export, Final Integration, head 768a3cf5, branch `opencode/issue489-20260929150827`, MERGEABLE, mergeStateStatus CLEAN, reviewDecision empty, body `Closes #489`).
+ - **Issues:** standing boards open: #70 lab-health, #42 brainstorm. #481 Thunderline CLOSED. #489 Netpulse OPEN (Phases 1-4 merged; Final Phase PR #495 through re-eval rejection round, Fixer pushed both residual defects, re-review pending).
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (19 live names incl maintainer vs 18-entry non-self allowlist; no drift).
 
 ## IN FLIGHT
- - Netpulse #489: Final Phase PR #495 OPEN. Re-eval verdict fix 15:55:22Z/15:55:23Z (opencode-eval run 36593463033 success): aggregate 7.6/10 (empirical 8.0, baseline 6.0, visual 7.5, resilience 8.5, reproducibility 8.0), below 9.8 gate. Two residual defects: (1) CSV text-column parity leak (export.js csvCell, text fields raw); (2) desktop badge letter-stacking (netpulse.css overflow-wrap:anywhere). Harness correctly out of scope (accepted). Fix dispatched this run; no merge until approve-eval lands.
- - No failures/timed_out on main to triage (run sweep: only skipped/cancelled maintainer workflow_run arms plus expected skips for non-trigger comments; current maintainer run in_progress). No crash triage needed.
+ - Netpulse #489: Final Phase PR #495 OPEN. Fixer applied both residual Evaluator defects 15:58:51Z (opencode fix run 36594066939 success, 2 modular commits on `opencode/issue489-20260929150827`, rebased onto latest main, tree clean): (1) csvCell non-finite guard in export.js with csv-text-parity locks in test_export_report.py + export-text-parity selftest in app.js; (2) badge word-bound wrap (break-word/normal + dd min-width:0) in netpulse.css with updated css-badge-wrap assertion. Owner re-triggered review 15:58:54Z; opencode-review run 36594343391 pending on the current head. No merge until approve + approve-test + approve-eval all land.
+ - No failures/timed_out on main to triage (run sweep: only skipped/cancelled maintainer workflow_run arms plus expected skips for non-trigger comments; current maintainer run plus pending review and in-progress pages deploy). No crash triage needed.
  - UNTRIAGED sweep: nothing new (only #489 active plus standing boards #70/#42).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` not re-checked this run (no signal; standing evaluation-only item).
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run.
-2. On #495: Fixer push -> review -> test -> eval; approve-eval (clean) -> merge via rebase (fallback merge), verify pages, close #489. Rejection/fix -> fix (or architect/lab per verdict). Still in flight -> stand down.
+2. On #495: Reviewer approve (clean) -> test; `/oc fix` findings -> fix; still in flight -> stand down. Then test green -> eval; approve-eval (clean) -> merge via rebase (fallback merge), verify pages, close #489.
 3. Keep #489 open until the Final Phase passes eval and merges.
 4. Standing rule unchanged: UNTRIAGED sweep every run; standby otherwise (no auto-ideate).
 
