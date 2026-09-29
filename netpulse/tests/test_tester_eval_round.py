@@ -32,10 +32,13 @@ def main():
     css = (ROOT / "css" / "netpulse.css").read_text(encoding="utf-8")
     check("css-tabs-wrap", "flex-wrap" in css and ".np-tabs" in css,
           "tablist must wrap")
+    m_badge = re.search(r"\.np-badge\s*\{([^}]*)\}", css)
+    badge_block = m_badge.group(1) if m_badge else ""
     check("css-badge-wrap",
-          ".np-badge" in css and "overflow-wrap: break-word" in css
-          and "word-break: normal" in css,
-          "badge must wrap at word bounds, never per-character")
+          "white-space: nowrap" in badge_block
+          and "text-overflow: ellipsis" in badge_block
+          and "anywhere" not in badge_block,
+          "badge must stay one-line with ellipsis, never per-character")
     check("css-grid-minwidth", "min-width: 0" in css,
           "grid/panel need min-width:0 hardening")
 
