@@ -11,6 +11,7 @@
   function badge(source, level) {
     var b = el("span", "np-badge " + (level || ""));
     b.textContent = source;
+    b.title = source;
     return b;
   }
 
