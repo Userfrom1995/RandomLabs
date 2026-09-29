@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Random - a repo of agent-built projects</title>
-<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Live now: Folio (client-side PDF studio), Tabula (Swift spreadsheet engine), Sextant (Blazor WASM GIS engine), Doom (web engine), Umbra (WebGPU combat game), Poolduel (Postgres pooler shootout), and torshim (Tor CLI)." />
+<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Live now: Mythduel (Thor vs Zeus duel), Hearthlight (animated short film), Folio (client-side PDF studio), Tabula (Swift spreadsheet engine), Sextant (Blazor WASM GIS engine), Doom (web engine), Umbra (WebGPU combat game), Poolduel (Postgres pooler shootout), and torshim (Tor CLI)." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -227,6 +227,17 @@
         <a href="https://github.com/Userfrom1995/RandomLabs/issues/470">Issue #470</a>
       </div>
     </div>
+    <div class="card">
+      <span class="tag">Shipped</span>
+      <h4>Hearthlight</h4>
+      <p>An original 4.5-minute hand-drawn-style animated short film with an original orchestral score, rendered deterministically in the browser: keeper-in-training Nia must guide a stranded young ferryman and his injured sister through a storm-wracked gorge to relight the high cairn. Premiere cut now playing (full 270 s film plus a 30 s trailer, working transport, chapters, captions, three posters).</p>
+      <div class="links">
+        <a href="https://userfrom1995.github.io/RandomLabs/film/">Watch the film</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/film/README.md">About</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-27-hearthlight-animated-short-film.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/film/docs/">Documentation</a>
+      </div>
+    </div>
   </div>
 
   <h2>Previous Projects</h2>
@@ -252,182 +263,75 @@
       </div>
     </li>
     <li>
-      <h4>Helix</h4>
-      <p>A from-scratch vector search engine in Go: HNSW graph (probabilistic skip-list layers, best-first beam search with ef, diversity neighbor heuristic, lazy deletion) plus Product Quantization / OPQ with ADC and exact-rerank. Deterministic Build/Search API, REST index/query/projection endpoints, helix CLI (build/search/serve/bench), and a static dashboard where nearest neighbors light up on a 2D projection as you drag the recall dial.</p>
+      <h4>Tor CLI</h4>
+      <p>Lightweight cross-platform Tor routing and network isolation CLI in Go (torshim): per-app routing, Tor-routed shell, and system-wide isolation with fail-closed guarantees.</p>
       <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/helix/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-23-helix-vector-search.md">Writeup</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/docs/research/issue-128-helix-vector-search.md">Research spec</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/helix/docs/">Documentation</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/tor-cli/">Website</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/tor-cli/README.md">About</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-23-torshim-m5-hardening-final.md">Writeup</a>
       </div>
     </li>
     <li>
-      <h4>Kinetica</h4>
-      <p>A from-scratch 2D rigid-body physics engine in TypeScript: impulse-based sequential-impulse solver with SAT + reference/incident face clipping for 2-point manifolds, Coulomb friction, Baumgarte stabilization, revolute/distance/prismatic joints, island sleeping, and a deterministic headless core with seeded checksums. Interactive browser sandbox with boxes, circles, and polygons.</p>
+      <h4>Umbra</h4>
+      <p>Deterministic 60 Hz WebGPU/WGSL silhouette combat game with particle systems and WebGL2 fallback.</p>
       <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/kinetica/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-23-kinetica-physics-build.md">Writeup</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/kinetica/docs/">Documentation</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/umbra/">Website</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/umbra/README.md">About</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-22-umbra-shadow-fight-webgpu-combat.md">Writeup</a>
       </div>
     </li>
     <li>
-      <h4>Obsidian</h4>
-      <p>A lossless image codec written from scratch in Rust: reversible YCoCg-R transform, 8-predictor bank with per-context selection, gradient+activity context model, and a per-context adaptive Golomb-Rice entropy backend (ENTROPY_GR) that replaced the rANS path to kill the 27.82 bpp expansion. 53 lib tests, bit-exact round trips at every effort, fuzz gate, corruption rejection.</p>
+      <h4>Doom</h4>
+      <p>Client-side web Doom engine with checked WAD parser and FM music synthesis.</p>
       <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/obsidian/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-17-obsidian-lossless-image-codec.md">Writeup</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/obsidian/docs/">Documentation</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/doom/">Website</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/doom/README.md">About</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-17-doom-client-side-web-engine.md">Writeup</a>
       </div>
     </li>
     <li>
-      <h4>Meridian</h4>
-      <p>A full-text search engine built from scratch in Rust: a corpus crawler, an inverted index with a compressed varint postings codec (the shipped index is 5.5x smaller than raw), BM25 and TF-IDF ranking, Porter stemming, fuzzy typo-tolerant retrieval, CJK segmentation, ranking signals, a boolean query parser with phrases and NOT, and relevance snippets with byte-exact highlights. The entire engine is mirrored one-to-one in dependency-free JavaScript, so a static web page searches a 112-document corpus of the lab's own docs live in the browser. 21,226 cross-language consistency checks, 126 tests.</p>
+      <h4>Poolduel</h4>
+      <p>Exhaustive PostgreSQL connection pooler shootout harness, statistical audit, and report.</p>
       <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/meridian/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-16-meridian-fulltext-search-engine-rust.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/poolduel/">Website</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/poolduel/README.md">About</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-11-poolduel-shootout-report.md">Writeup</a>
       </div>
     </li>
     <li>
-      <h4>Kestrel</h4>
-      <p>A neural-network library built from scratch in Julia: reverse-mode automatic differentiation on a tape, dense layers, activations, softmax + cross-entropy, and mini-batch SGD with momentum, all on the Julia standard library only. Gradients are verified against finite differences; an MLP trains on real MNIST to 98.6% accuracy. The trained model runs through a dependency-free JavaScript inference mirror, so a static browser playground classifies your drawn digit live. 32 tests.</p>
+      <h4>Sextant</h4>
+      <p>Offline GIS mapping engine in C# Blazor WASM with R*-tree spatial indexing and turn-penalized A* routing.</p>
       <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/kestrel/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-16-kestrel-neural-network-library-julia.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/sextant/">Website</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/sextant/README.md">About</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-04-sextant-gis-engine.md">Writeup</a>
       </div>
     </li>
     <li>
-      <h4>Halcyon</h4>
-      <p>A functional language written from scratch in Haskell: lexer, recursive-descent parser, full Hindley-Milner type inference with let-polymorphism and let-rec, algebraic data types and pattern matching, nominal records, type classes with dictionaries, chars and string builtins, tail-call optimization, a deterministic optimizer, a tree-walking interpreter, a real bytecode VM with closures, upvalue cells, and an instruction profiler. The entire language is mirrored one-to-one in dependency-free JavaScript, so a static web playground runs it in the browser with a single-stepping VM debugger, an optimizer toggle, and a profiler panel. A differential corpus (plain and optimized) plus a cross-language check prove the interpreter, VM, and JS mirror agree byte-for-byte, and the stdlib is written in Halcyon itself. Zero dependencies, 684 tests.</p>
+      <h4>Tabula</h4>
+      <p>Headless Swift spreadsheet engine with topological cycle-detecting dependency recalculation DAG.</p>
       <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/halcyon/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-15-halcyon-functional-language-vm.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/tabula/">Website</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/tabula/README.md">About</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-03-tabula-spreadsheet-engine.md">Writeup</a>
       </div>
     </li>
     <li>
-      <h4>Glyphforge</h4>
-      <p>A bitmap font designer and glyph-to-code tool written in Kotlin: draw a pixel font in a terminal grid, autotrace it to a compact run-length .gff raster font file, and export embeddable glyph maps (Kotlin, Java, C header, or text). Kerning pairs, a headless renderer that proofs any string at any scale, and a self-contained HTML specimen page that previews fonts live in the browser. The lab's first Kotlin project, zero dependencies, 135 tests.</p>
+      <h4>Folio</h4>
+      <p>Client-side in-browser PDF manipulation studio: merge, split, organize, compress, redact, annotate, sign, Office/PDF conversion and OCR chaining with undo/redo and OPFS workspace storage.</p>
       <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/glyphforge/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-15-glyphforge-bitmap-font-designer.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/folio/">Website</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/folio/README.md">About</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-03-folio-client-side-pdf-studio.md">Writeup</a>
       </div>
     </li>
     <li>
-      <h4>Beambus</h4>
-      <p>A retro arcade shoot 'em up written from scratch in Zig: a deterministic, headless-testable game core, scripted .beam level files, eight enemy movement patterns, configurable enemy shot volleys, boss enrage phases and dive patterns, power-up tiers, shields, and timed rapid-fire boosts, bomb refills, smart bombs, combo scoring, bonus lives, near-miss grazes, homing enemy shots, a focus mode with a hitbox reticle, a performance-scaled rank difficulty meter, a procedural pixel-art renderer, and a tiny subtractive audio synth, all on an SDL2 platform layer. Same seed, same run - 92 headless tests.</p>
+      <h4>Prism</h4>
+      <p>Lossless image codec from scratch in C++17 with 2D LeGall 5/3 DWT and finite-state rANS.</p>
       <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/beambus/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-14-beambus-retro-arcade-shooter.md">Writeup</a>
-      </div>
-    </li>
-    <li>
-      <h4>Aftershock</h4>
-      <p>A seismic network simulator written in Rust: model an earthquake on a fault grid, propagate P-, S-, and surface waves to stations at physically-motivated travel times, and read the P-to-S gap straight off a terminal seismogram. Wells &amp; Coppersmith rupture scaling, 1/distance attenuation, wide and long CSV waveform export, seeded determinism, zero dependencies, 41 tests.</p>
-      <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/aftershock/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-14-aftershock-seismic-network-simulator.md">Writeup</a>
-      </div>
-    </li>
-    <li>
-      <h4>Gambit</h4>
-      <p>A UCI chess engine written from scratch in C++17: bitboard board representation, perft-verified legal move generation (start position to depth 5, kiwipete, and more), and a negamax alpha-beta search with iterative deepening, quiescence, and a transposition table. Plays a full game in the terminal or speaks the UCI protocol to any chess GUI. No dependencies, with a built-in test suite.</p>
-      <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/gambit/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-14-gambit-uci-chess-engine.md">Writeup</a>
-      </div>
-    </li>
-    <li>
-      <h4>Granite</h4>
-      <p>A SQL database engine built from scratch in Go: a lexer and recursive-descent parser, a query planner and executor, and a paged B-tree storage engine that persists real .db files. Create tables, insert, update, delete, and query with joins, WHERE, ORDER BY, LIMIT, DISTINCT, and indexes, wrapped in BEGIN/COMMIT transactions, all from a terminal CLI. Standard library only, with 81 tests.</p>
-      <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/granite/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-13-granite-sql-database-engine.md">Writeup</a>
-      </div>
-    </li>
-    <li>
-      <h4>Orrery</h4>
-      <p>An interactive 3D solar system in the browser - hand-rolled WebGL + TypeScript, no external engine. Real Keplerian orbital mechanics (true periods, distances, and orbital planes), procedurally textured planets with diffuse/specular lighting, a free-fly camera with pause and time-warp, and click-to-fly to any planet.</p>
-      <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/orrery/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-13-orrery-webgl-solar-system.md">Writeup</a>
-      </div>
-    </li>
-    <li>
-      <h4>Cadence</h4>
-      <p>A terminal sorting-algorithm visualizer with audio sonification - animates nine classic sorts as ASCII bars while every comparison and swap rings out as a pitch-mapped tone. Python standard library only.</p>
-      <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/cadence/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-12-cadence-sorting-visualizer-with-sound.md">Writeup</a>
-      </div>
-    </li>
-    <li>
-      <h4>Regexplorer</h4>
-      <p>A visual regex engine - parses a pattern into an AST, builds the Thompson NFA, draws the state machine in the terminal, and animates a string stepping through it frame-by-frame. Watch transitions fire, greedy backtracking give input back, and catastrophic patterns like (a+)+b blow up. Python standard library only.</p>
-      <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/regexplorer/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-11-regexplorer-visual-regex-engine.md">Writeup</a>
-      </div>
-    </li>
-    <li>
-      <h4>Fernwald</h4>
-      <p>A terminal L-system fractal garden - grows procedural plants, trees, and fractals from grammar rules and renders them as ASCII art or SVG. Seven presets, custom grammars, seeded stochastic gardens, and growth animation - Python standard library only.</p>
-      <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/fernwald/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-10-fernwald-terminal-lsystem-garden.md">Writeup</a>
-      </div>
-    </li>
-    <li>
-      <h4>Shaftcast</h4>
-      <p>A first-person raycasting engine that renders a pseudo-3D, Wolfenstein-style view straight into your terminal. DDA ray casting, ASCII depth shading, per-tile textures, a minimap overlay, and first-person WASD movement - Python standard library only.</p>
-      <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/shaftcast/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-09-shaftcast-terminal-raycasting.md">Writeup</a>
-      </div>
-    </li>
-    <li>
-      <h4>Redline Rush</h4>
-      <p>A top-down arcade car racing game - steer a four-lane highway at ever-increasing speed, dodge oncoming traffic, and grab fuel cans before the tank runs dry. Canvas 2D + Web Audio, zero assets, works offline.</p>
-      <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/rush/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-08-redline-rush-top-down-arcade-racer.md">Writeup</a>
-      </div>
-    </li>
-    <li>
-      <h4>Rotoria</h4>
-      <p>A terminal Enigma machine cipher simulator - configurable rotors, ring settings, plugboard, and reflector, with encryption, decryption, and internal wiring visualization. Nothing but the Python standard library.</p>
-      <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/roteria/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-08-rotoria-terminal-enigma-simulator.md">Writeup</a>
-      </div>
-    </li>
-    <li>
-      <h4>Homunculus</h4>
-      <p>A genetic-algorithm CLI that evolves a population of random strings into an exact target phrase - selection, crossover, and mutation, nothing but the Python standard library.</p>
-      <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/homunculus/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-08-homunculus-genetic-algorithm.md">Writeup</a>
-      </div>
-    </li>
-    <li>
-      <h4>Arpeggio</h4>
-      <p>A Markov-chain melody composer that renders original tunes to WAV from the terminal.</p>
-      <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/arpeggio/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-08-arpeggio-markov-melody-composer.md">Writeup</a>
-      </div>
-    </li>
-    <li>
-      <h4>Automatarium</h4>
-      <p>A dependency-free Python CLI that renders classic cellular automata (Rule 30, Conway's Game of Life, Langton's Ant) live in the terminal.</p>
-      <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/automatarium/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-08-automatarium-cellular-automata.md">Writeup</a>
-      </div>
-    </li>
-    <li>
-      <h4>Tic-Tac-Toe</h4>
-      <p>A browser game with PvP, vs-Computer modes, and an unbeatable minimax AI.</p>
-      <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-08-tic-tac-toe-minimax-ai.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/prism/">Website</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/README.md">About</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-21-prism-lossless-image-codec.md">Writeup</a>
       </div>
     </li>
   </ul>
