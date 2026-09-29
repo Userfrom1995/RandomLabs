@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Static gate for Netpulse Phase 1: app shell and connection profile.
+"""Static gate for Netpulse Phase 2: app shell, connection profile, and
+active quality probes.
 
 Checks file wiring, the no-CDN rule, honest-render markers, responsive CSS,
-and docs unity. Dependency-free, stdlib only.
+probe-engine hygiene, and docs unity. Dependency-free, stdlib only.
 """
 import re
 import sys
@@ -34,6 +35,8 @@ def main():
         "js/store.js",
         "js/netinfo.js",
         "js/ui.js",
+        "js/charts.js",
+        "js/probes.js",
         "js/app.js",
         "docs/index.md",
         "docs/index.html",
@@ -46,10 +49,17 @@ def main():
         html = idx.read_text(encoding="utf-8", errors="replace")
         for token in ["np-tabs", "panel-connection", "panel-online",
                       "panel-device", "panel-capabilities", "event-log",
-                      "np-banner", 'role="tablist"', "selftest-box"]:
+                      "np-banner", 'role="tablist"', "selftest-box",
+                      "tab-quality", "tabpanel-quality",
+                      "result-latency", "result-download", "result-upload",
+                      "result-loss", "chart-latency", "chart-download",
+                      "history-body", "btn-latency", "btn-download",
+                      "btn-upload", "btn-history-clear",
+                      "status-latency", "status-download", "status-upload"]:
             if token not in html:
                 fail("index.html missing token: " + token)
         for script in ["js/capabilities.js", "js/store.js", "js/ui.js",
+                       "js/charts.js", "js/probes.js",
                        "js/netinfo.js", "js/app.js"]:
             if script not in html:
                 fail("index.html missing script wiring: " + script)
@@ -70,13 +80,15 @@ def main():
     css_p = check_exists("css/netpulse.css")
     if css_p is not None:
         css = css_p.read_text(encoding="utf-8", errors="replace")
-        for token in ["390", "focus-visible", "@media print", ".np-badge", ".np-empty"]:
+        for token in ["390", "focus-visible", "@media print", ".np-badge", ".np-empty",
+                      ".np-field", ".np-input", ".np-status", ".np-chart-svg"]:
             if token not in css:
                 fail("css missing token: " + token)
         if "http://" in css or "https://" in css:
             fail("css must not reference external URLs (no-CDN rule)")
 
-    for rel in ["js/capabilities.js", "js/netinfo.js", "js/store.js", "js/ui.js", "js/app.js"]:
+    for rel in ["js/capabilities.js", "js/netinfo.js", "js/store.js",
+                "js/ui.js", "js/charts.js", "js/probes.js", "js/app.js"]:
         p = ROOT / rel
         if not p.is_file():
             continue
@@ -103,16 +115,56 @@ def main():
     # Facade guard: no fabricated-throughput literals in app code.
     facade = re.compile(r"\b\d+\.\d+\s*Mbps\b|\bsimulated packets?\b|\bplaceholder gauge\b", re.IGNORECASE)
     for rel in ["index.html", "js/capabilities.js", "js/netinfo.js",
-                "js/store.js", "js/ui.js", "js/app.js"]:
+                "js/store.js", "js/ui.js", "js/charts.js", "js/probes.js",
+                "js/app.js"]:
         p = ROOT / rel
         if p.is_file() and facade.search(p.read_text(encoding="utf-8", errors="replace")):
             fail(rel + " contains facade markers (fabricated numbers or simulated traffic)")
+
+    probes = ROOT / "js/probes.js"
+    if probes.is_file():
+        src = probes.read_text(encoding="utf-8", errors="replace")
+        for token in ["median", "percentile", "jitter", "runLatency",
+                      "runDownload", "runUpload", "lossApproximation",
+                      "loadHistory", "saveRun", "no-store", "arrayBuffer",
+                      "performance"]:
+            if token not in src:
+                fail("probes.js missing engine token: " + token)
+        if "ICMP" in src:
+            # Every ICMP mention must sit inside an honest denial.
+            lines = [ln for ln in src.splitlines() if "ICMP" in ln]
+            honest = ("no invented" in src.lower() or "never labeled" in src.lower()
+                      or "not ICMP" in src or "cannot send ICMP" in src
+                      or "No ICMP" in src)
+            if not honest or not lines:
+                fail("probes.js must never claim ICMP capability")
+        if "clamp" in src.lower() or "simulat" in src.lower():
+            fail("probes.js must not simulate measurements")
+
+    charts = ROOT / "js/charts.js"
+    if charts.is_file():
+        src = charts.read_text(encoding="utf-8", errors="replace")
+        for token in ["lineChart", "createElementNS", "emptyState",
+                      "No samples yet"]:
+            if token not in src:
+                fail("charts.js missing token: " + token)
+
+    app = ROOT / "js/app.js"
+    if app.is_file():
+        src = app.read_text(encoding="utf-8", errors="replace")
+        for token in ["bootQuality", "renderHistory", "tabpanel-quality",
+                      "stats-median-odd", "loss-math", "chart-plots-points"]:
+            if token not in src:
+                fail("app.js missing quality wiring token: " + token)
 
     docs = check_exists("docs/index.md")
     if docs is not None:
         text = docs.read_text(encoding="utf-8", errors="replace")
         if "navigator.connection" not in text:
             fail("docs must document the capability matrix")
+        for token in ["median", "p95", "cache-bust", "loss"]:
+            if token not in text:
+                fail("docs must document probe methods: missing " + token)
         for marker in ["M1", "M2", "M3", "this milestone", "sprint"]:
             if marker in text:
                 fail("docs leak internal milestone markers: " + marker)
