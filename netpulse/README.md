@@ -26,38 +26,47 @@ connectivity). Zero dependencies, no CDN, no build step, no backend.
   fetch, persistence), which is the single source of truth every panel
   renders from.
 - **Session events:** timestamped log of connectivity changes, refreshes,
-  and session starts, persisted in `localStorage` under `netpulse.v1` with
-  an explicit Clear button. Nothing auto-phones-home.
+  probe completions, and session starts, persisted in `localStorage` under
+  `netpulse.v1` with an explicit Clear button. Nothing auto-phones-home.
+- **Active quality probes (Quality tab):** user-triggered latency, download,
+  and upload measurements over HTTP (`js/probes.js`), each reporting
+  median/p95/jitter over real samples with endpoint and timestamp. Loss is
+  approximated honestly as the failed share of session probe attempts, with
+  per-run history charts (`js/charts.js` SVG) and a run table. Offline,
+  blocked, or POST-rejecting endpoints fail closed with explanatory states.
 
 ## What it deliberately does not do
 
 Raw sockets, ICMP ping, promiscuous packet capture, LAN scans, and real
 host-IP discovery do not exist inside the browser sandbox and are not
-simulated here. Features that need them (active quality probes, DNS over
-HTTPS, WebRTC inspection, traffic observation, export) arrive as later
-phases with their own tabs and honest capability gates. A modern browser
-masks real host IPs with mDNS, and Netpulse will say so where relevant.
+simulated here. Features that need them (DNS over HTTPS, WebRTC
+inspection, traffic observation, export) are not present yet and no panel
+pretends otherwise. A modern browser masks real host IPs with mDNS, and
+Netpulse will say so where relevant.
 
 ## Use
 
 Open `index.html` in any modern browser. No install, no flags.
 
 - `?selftest=1` runs the built-in harness (capability map, store math,
-  panel render, tab order, no-CDN check) and prints PASS/FAIL lines into
-  the page.
-- Works offline: panels show last known state or honest empty states.
+  probe percentile math on fixtures, chart point counts, panel render, tab
+  order, no-CDN check) and prints PASS/FAIL lines into the page.
+- Works offline: panels show last known state or honest empty states, and
+  probes refuse to start with an explanatory state.
 
 ## Files
 
-- `index.html` - tab shell, overview layout, banner, log.
+- `index.html` - tab shell, overview and quality layouts, banner, log.
 - `css/netpulse.css` - tokens, responsive grid (390 px single column),
-  focus-visible rings, print rules.
+  focus-visible rings, form and chart styles, print rules.
 - `js/capabilities.js` - feature-detection map, the honest-render source.
 - `js/store.js` - append-only session store with `localStorage` persistence.
 - `js/netinfo.js` - connection, online, device, and capability rendering.
+- `js/probes.js` - latency/download/upload engines, percentile math, history.
+- `js/charts.js` - dependency-free SVG line charts with honest empty states.
 - `js/ui.js` - tabs (arrow-key paths), source badges, empty states, banner.
-- `js/app.js` - boot, live event wiring, self-test harness.
-- `probe.bin` - tiny static blob reserved for later same-origin timing.
+- `js/app.js` - boot, live event wiring, quality tab wiring, self-test harness.
+- `probe.bin` - tiny static blob for same-origin timing.
 - `docs/` - capability matrix and method notes.
 - `tests/test_netpulse.py` - static gate (wiring, no-CDN, honest-render).
 
