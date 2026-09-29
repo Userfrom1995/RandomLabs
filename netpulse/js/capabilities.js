@@ -21,7 +21,8 @@
       fetch: typeof win.fetch === "function",
       highResTime: !!(win.performance && typeof win.performance.now === "function"),
       localStorage: false,
-      serviceWorker: !!(nav.serviceWorker && win.isSecureContext !== false)
+      serviceWorker: !!(nav.serviceWorker && win.isSecureContext !== false),
+      exportDownload: false
     };
     try {
       var k = "__netpulse_probe__";
@@ -30,6 +31,12 @@
       caps.localStorage = true;
     } catch (e) {
       caps.localStorage = false;
+    }
+    try {
+      caps.exportDownload = !!(win.Blob && win.URL &&
+        typeof win.URL.createObjectURL === "function");
+    } catch (e) {
+      caps.exportDownload = false;
     }
     caps.probes = !!(caps.fetch && caps.highResTime);
     caps.doh = !!caps.fetch;
@@ -51,7 +58,9 @@
       identity: caps.fetch ? "live" : "unsupported",
       webrtc: caps.rtcPeerConnection ? "live" : "unsupported",
       traffic: (caps.resourceTiming || caps.performanceObserver) ? "live" : "unsupported",
-      monitor: (caps.probes || caps.resourceTiming || caps.performanceObserver) ? "live" : "unsupported"
+      monitor: (caps.probes || caps.resourceTiming || caps.performanceObserver) ? "live" : "unsupported",
+      export: caps.exportDownload ? "live" : "unsupported",
+      report: "live"
     };
     return table[panel] || "unsupported";
   }

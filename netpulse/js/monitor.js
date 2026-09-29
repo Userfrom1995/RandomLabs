@@ -57,7 +57,8 @@
     "probe-error", "history-clear", "dns-complete", "dns-error",
     "dns-compare", "identity-complete", "identity-error",
     "webrtc-complete", "webrtc-error", "traffic-refresh",
-    "traffic-observe-start", "traffic-observe-stop"
+    "traffic-observe-start", "traffic-observe-stop",
+    "report-export", "report-print", "session-clear"
   ];
 
   function monitorEvents(events, limit) {
