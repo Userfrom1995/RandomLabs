@@ -27,13 +27,21 @@ in `score/song.json`.
 
 ```bash
 python3 thunderline/tools/export_score.py
-python3 -m unittest thunderline.tests.test_score
+python3 thunderline/tools/render.py --out thunderline/dist
+python3 -m unittest thunderline.tests.test_score thunderline.tests.test_render
 ```
 
 The exporter is standard library only and deterministic: two consecutive
 exports produce byte-identical `song.mid`, `sheet.html`, and `lyrics.json`.
-The full audio render (`tools/render.py`, master WAV plus four stems) and the
-Pages player arrive through the same score-first pipeline.
+The renderer is likewise standard library only (WAV headers are
+hand-written fixed bytes with no timestamps; every noise source draws from a seeded stream):
+two consecutive renders produce bit-identical `master.wav`, all four stems,
+and the preview, verified by hash test. Without `ffmpeg` on PATH the preview
+is a deterministic 22.05 kHz downsample (`preview.wav`); with `ffmpeg` the
+pipeline writes `preview.ogg` instead. Rendered audio under `dist/` is
+gitignored build output; stems are post-gain/EQ, pre-limiter buses, and the
+master is their sum through the documented soft-knee limiter normalized to
+the mix ceiling.
 
 ## License
 
