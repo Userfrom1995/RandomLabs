@@ -1,21 +1,21 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-29T11:27Z (maintainer run 36561779630, schedule tick - Tester in flight on #483, standby)**
+ - **Updated: 2026-09-29T11:30Z (maintainer run 36561962852, owner /oc maintainer on #483 - MERGED Phase 2, Phase 3 dispatched)**
 
 ## PRs & Issues
- - **PRs:** #482 MERGED 2026-09-29T11:08:12Z (merge commit 988e870b, rebase, branch kept). Phase 1 slice live on main. #483 OPEN (head 26d7c8f9631e, branch `opencode/issue481-thunderline-phase-2`, MERGEABLE): Phase 2 slice - stdlib deterministic render engine + master audio, `Refs #481`. Reviewer APPROVED (run 36561302055, 18/18 checks, 9/9 render tests verified live); Tester IN FLIGHT (run 36561580745, started 11:24:49Z via owner's direct `/oc test`).
- - **Issues:** standing boards open: #70 lab-health, #42 brainstorm. Active: #481 Thunderline OPEN (Refs #481, never closed on intermediate PR). Phases 3-5 pending after #483 lands.
+ - **PRs:** #482 MERGED 2026-09-29T11:08:12Z (merge commit 988e870b, rebase, branch kept). #483 MERGED 2026-09-29T11:29:40Z (rebase, branch `opencode/issue481-thunderline-phase-2` kept). Phase 2 slice live on main at 6d1b439a.
+ - **Issues:** standing boards open: #70 lab-health, #42 brainstorm. Active: #481 Thunderline OPEN (Refs #481, never closed on intermediate PR). Phases 3-5 pending; Phase 3 build dispatched this run.
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (verified this run live: 19 names vs allowlist 18; re-verify next run).
 
 ## IN FLIGHT
- - Thunderline #481 / PR #483 branch: Phase 2 pushed. Reviewer approved with one non-blocking note (unused `dur` param in `add_tone`, deferred to a later phase). Tester running on head 26d7c8f9 - no duplicate dispatch this run.
- - Main 988e870b LIVE (Phase 1 merged); Pages deploy for new SHA to be confirmed after #483 merges.
+ - Thunderline #481: Phase 2 merged (stdlib render engine + master audio, 6 files +996/-7). Phase 3 (Stems and Reproducibility Audit: four stem buses, tools/audit.py, repro.sh green) dispatched via `build` on #481 this run.
+ - Main 6d1b439a LIVE (Phase 2 merged); Pages deploy for new SHA to be confirmed next run.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` not re-checked this run (no signal; standing evaluation-only item).
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run.
-2. If Tester posted `/oc approve-test` on #483 with no later fix findings, MERGE #483 (rebase, keep branch), verify #481 stays open, then immediately chain Phase 3 via `build` on #481. If Tester posted `/oc fix` findings, dispatch `fix`. If test still in flight, stand down.
+2. If Builder pushed Phase 3 on a new PR and no `/oc review (head <sha>)` covers the current head, dispatch `review`. If build still in flight, stand down.
 3. Never close #481 until the final phase (Phase 5) passes acceptance testing and a PR carrying `Closes #481` is approved through review, test, and eval.
-4. After #483 merges (Refs #481), immediately chain Phase 3 via `build` on #481 (never halt on intermediate PRs).
+4. After each intermediate merge (Refs #481), immediately chain the next phase via `build` on #481 (never halt on intermediate PRs).
 5. Standing rule unchanged: UNTRIAGED sweep every run (only standing boards #70/#42 expected open besides active #481).
 6. Standby otherwise: do NOT auto-dispatch ideate or invent work.
 
