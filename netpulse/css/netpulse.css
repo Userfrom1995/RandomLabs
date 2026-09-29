@@ -151,13 +151,15 @@ body.np-body {
 .np-kv dd { margin: 0; min-width: 0; display: contents; }
 
 /* Value wrapper inside display:contents dd: dedicated wrapping box for long
- * device-context values (e.g. the 160-char user-agent slice). Keeps the
+ * device-context values (e.g. the 160-char user-agent slice). Wraps at word
+ * bounds so short values like "not exposed" never fragment mid-word; the
+ * spaceless UA slice still breaks on overflow via break-word. Keeps the
  * .np-badge overflow contract untouched (no anywhere in the badge path). */
 .np-kv dd > .np-val {
   min-width: 0;
   max-width: 100%;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .np-badge {
