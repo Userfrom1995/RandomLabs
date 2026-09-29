@@ -134,17 +134,21 @@ class RenderGate(unittest.TestCase):
         fade_out_n = int(self.sr * self.mix["fadeOutSec"])
         self.assertGreater(fade_in_n, 0)
         self.assertGreater(fade_out_n, 0)
-        self.assertEqual(self.master[0], 0, "master must start at zero")
-        self.assertEqual(self.master[-1], 0, "master must end at zero")
-        edge_in = max(abs(v) for v in self.master[:fade_in_n]) / 32767.0
-        edge_out = max(abs(v) for v in self.master[-fade_out_n:]) / 32767.0
-        self.assertLess(edge_in, 0.3, "fade-in region too hot: %r" % edge_in)
-        self.assertLess(edge_out, 0.3, "fade-out region too hot: %r" % edge_out)
-        for stem in ("vocals", "guitars", "bass", "drums"):
-            _, data = read_mono16(os.path.join(self.out, "stems",
-                                               stem + ".wav"))
-            self.assertEqual(data[0], 0, "%s stem must start at zero" % stem)
-            self.assertEqual(data[-1], 0, "%s stem must end at zero" % stem)
+        # 2 ms probe windows: the ramps rise from / fall to digital silence,
+        # so a probe at either edge must stay near zero (no discontinuity).
+        probe = int(self.sr * 0.002)
+        for label, data in [("master", self.master)] + [
+                (s, read_mono16(os.path.join(
+                    self.out, "stems", s + ".wav"))[1])
+                for s in ("vocals", "guitars", "bass", "drums")]:
+            self.assertEqual(data[0], 0, "%s must start at zero" % label)
+            self.assertEqual(data[-1], 0, "%s must end at zero" % label)
+            onset = max(abs(v) for v in data[:probe]) / 32767.0
+            offset = max(abs(v) for v in data[-probe:]) / 32767.0
+            self.assertLess(onset, 0.15, "%s onset too hot: %r" % (label,
+                                                                  onset))
+            self.assertLess(offset, 0.05, "%s offset too hot: %r" % (label,
+                                                                    offset))
 
     def test_no_dead_air_final_lift(self):
         energy = {}
