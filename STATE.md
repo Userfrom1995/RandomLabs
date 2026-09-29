@@ -1,20 +1,22 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-29T14:59Z (maintainer run 36586699181, owner /oc review + /oc maintainer on PR #494 - fix landed, re-review in flight, standby)**
+ - **Updated: 2026-09-29T15:07Z (maintainer run 36587457752, owner /oc maintainer on PR #494 - MERGED Phase 4, Final Phase dispatched)**
 
 ## PRs & Issues
- - **PRs:** #482/#483/#484/#485 MERGED (Thunderline Phases 1-4). #487 MERGED (Curator README fix). #488 MERGED (Thunderline Phase 5 final, `Closes #481` satisfied). #490 MERGED (Netpulse Phase 1, `Refs #489`). #491 CLOSED unmerged (duplicate). #492 MERGED (Netpulse Phase 2, `Refs #489`, branch kept). #493 MERGED 2026-09-29 14:42:24Z (Netpulse Phase 3, `Refs #489`, branch kept). #494 OPEN (Netpulse Phase 4, head aafd452c, branch `opencode/issue489-20260929144403`, body `Refs #489`, re-review in flight after fix).
- - **Issues:** standing boards open: #70 lab-health, #42 brainstorm. #481 Thunderline CLOSED. #489 Netpulse OPEN (Phases 1-3 merged; Phase 4 fix landed, re-review in flight, Final queued per `progress/489-netpulse.md`).
- - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (verified this run live: 19 names vs allowlist 18; re-verify next run).
+ - **PRs:** #482/#483/#484/#485 MERGED (Thunderline Phases 1-4). #487 MERGED (Curator README fix). #488 MERGED (Thunderline Phase 5 final, `Closes #481` satisfied). #490 MERGED (Netpulse Phase 1, `Refs #489`). #491 CLOSED unmerged (duplicate). #492 MERGED (Netpulse Phase 2, `Refs #489`, branch kept). #493 MERGED 2026-09-29 14:42:24Z (Netpulse Phase 3, `Refs #489`, branch kept). #494 MERGED 2026-09-29 15:06:25Z (Netpulse Phase 4, head 86fccbdf, body `Refs #489`, branch kept, main now 8203e01b).
+ - **Issues:** standing boards open: #70 lab-health, #42 brainstorm. #481 Thunderline CLOSED. #489 Netpulse OPEN (Phases 1-4 merged; Final Phase build dispatched per `progress/489-netpulse.md`).
+ - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (no workflow drift; PR #494 diff touches no `.github/` paths).
 
 ## IN FLIGHT
- - Netpulse #489: Phase 4 PR #494 OPEN (Fixer pushed 3 commits 14:58:52Z on head aafd452c: trafficRowKey dedupe, cache-copy fix, null guards, monitor entries fix; owner `/oc review` 14:58:56Z dispatched opencode-review run pending since 14:59:09Z). Next: if Reviewer approves with no later fix findings, dispatch `test` on #494. If Reviewer posts `/oc fix` findings, dispatch `fix`. If review still in flight, stand down. Eval gate reserved for the Final Phase PR (`Closes #489`) only.
- - No failures/timed_out on main to triage (last-20 sweep: only skipped/cancelled maintainer arms plus expected skips; the single pending run is the in-flight opencode-review). No crash triage needed.
+ - Netpulse #489: Phase 4 PR #494 MERGED (Reviewer approve 15:00:09Z + Tester approve-test 15:02:43Z on head 86fccbdf, no later fix findings; merged via `gh pr merge --rebase` 15:06:25Z, main 8203e01bf639). `build` dispatched on #489 for the Final Phase (Reports, Export, and Final Integration; Final PR must carry `Closes #489` and pass review + test + eval).
+ - One maintainer run crashed with `APIError: Rate limit exceeded` (run 36587173480, 15:04:35Z, on PR #494 after Tester approval); owner re-triggered `/oc maintainer` 15:04:56Z and this run completed the merge. No retry of the dead run needed.
+ - No failures/timed_out on main to triage (last-15 sweep: only skipped/cancelled maintainer arms plus expected skips). No crash triage needed.
+ - Pages deploy on 8203e01b not yet visible ~1min after merge; confirm green next run, trigger via `gh workflow run` if missing/failed.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` not re-checked this run (no signal; standing evaluation-only item).
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run.
-2. Confirm Pages deploy status on d3f9b529 (Netpulse Phase 3 merge) plus PR #494 preview; trigger via `gh workflow run` if missing/failed.
-3. On #494: if Reviewer approved with no later fix findings, dispatch `test`; if fix findings, dispatch `fix`; if still in flight, stand down.
+2. Confirm Pages deploy status on 8203e01b (Netpulse Phase 4 merge) plus any new Final Phase PR preview; trigger via `gh workflow run` if missing/failed.
+3. On #489 Final Phase PR: dispatch `review` once the head lacks a covering `/oc review (head <sha>)`, else stand down; eval gate is REQUIRED on the Final PR (`Closes #489`).
 4. Standing rule unchanged: UNTRIAGED sweep every run (only standing boards #70/#42 expected open besides active #489).
 5. Standby otherwise: do NOT auto-dispatch ideate or invent work.
 
