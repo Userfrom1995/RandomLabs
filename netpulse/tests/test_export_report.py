@@ -94,8 +94,16 @@ ok('empty-closed', empty.probeRuns.length === 0 && empty.transfers.length === 0
   && empty.events.length === 0 && empty.capabilities === null);
 const bad = B.buildReport({ events: [null, 'x', {}], history: [null, 7, {}],
   trafficRows: [null, 'x'] });
-ok('malformed-dropped', bad.events.length === 0 && bad.probeRuns.length === 1
+ok('malformed-dropped', bad.events.length === 0 && bad.probeRuns.length === 0
   && bad.transfers.length === 0);
+ok('junk-row-signal', B.buildReport({ history: [{ kind: 'latency',
+  summary: { attempts: 1 } }] }).probeRuns.length === 1);
+ok('formula-prefix', B.csvCell('=1+1') === "'=1+1"
+  && B.csvCell('@x') === "'@x" && B.csvCell('+1') === "'+1"
+  && B.csvCell('-1') === "'-1" && B.csvCell('plain') === 'plain');
+ok('stamp-fallback', /^netpulse-s-\d{8}-\d{6}$/.test(B.stampFilename('s', 'not-a-date')));
+ok('text-nonfinite', B.buildReport({ history: [{ kind: 'x',
+  t: NaN, summary: { attempts: 1 } }] }).probeRuns[0].t === null);
 const nonfin = B.buildReport({
   history: [{ kind: 'latency', summary: { attempts: 1, median: NaN, p95: Infinity } }],
   trafficRows: [{ name: 'u', transferBytes: -5, durationMs: NaN, sizesHidden: false }],

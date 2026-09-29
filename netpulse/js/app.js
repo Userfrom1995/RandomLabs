@@ -314,6 +314,18 @@
           EXP.stampFilename("report", fixedDate) === "netpulse-report-20260102-030405" &&
           EXP.stampFilename("", fixedDate) === "netpulse-session-20260102-030405",
           "stamped plus fallback");
+        check("export-stamp-guards",
+          /^netpulse-s-\d{8}-\d{6}$/.test(EXP.stampFilename("s", "not-a-date")),
+          "invalid date falls back to now");
+        check("export-formula-guard",
+          EXP.csvCell("=1+1") === "'=1+1" && EXP.csvCell("@x") === "'@x" &&
+          EXP.csvCell("plain") === "plain",
+          "formula cells neutralized");
+        check("export-junk-rows",
+          EXP.buildReport({ history: [{}] }).probeRuns.length === 0 &&
+          EXP.buildReport({ history: [{ kind: "latency",
+            summary: { attempts: 1 } }] }).probeRuns.length === 1,
+          "fully-null rows dropped, signal rows kept");
         check("export-support-flag",
           typeof EXP.isDownloadSupported(window) === "boolean",
           "boolean, never throws");
