@@ -14,7 +14,7 @@
 <header class="np-header">
   <h1>Net<span class="pulse">pulse</span></h1>
   <p class="np-lede">An honest in-browser network diagnostics tool. Every number carries a source badge; anything the browser sandbox forbids fails closed with an empty state instead of a fabricated gauge.</p>
-  <p class="np-scope">Scope in this build: connection profile and device context (Overview tab), active quality probes (Quality tab: latency, download, and upload timing over HTTP with probe history), and the DNS toolkit plus opt-in egress identity plus WebRTC inspector (DNS and Identity tab). Traffic observer, monitor dashboard, and export ship in later phases and no panel pretends otherwise. No backend, no CDN, no auto phone-home.</p>
+  <p class="np-scope">Scope in this build: connection profile and device context (Overview tab), active quality probes (Quality tab: latency, download, and upload timing over HTTP with probe history), the DNS toolkit plus opt-in egress identity plus WebRTC inspector (DNS and Identity tab), own-traffic observation with per-origin aggregation and waterfall (Traffic tab), and the live session monitor dashboard (Monitor tab). Export ships in the final phase and no panel pretends otherwise. No backend, no CDN, no auto phone-home.</p>
 </header>
 
 <nav class="np-tabs" aria-label="Netpulse sections">
@@ -22,6 +22,8 @@
     <button class="np-tab" role="tab" id="tab-overview" aria-controls="tabpanel-overview" aria-selected="true" data-tab="overview">Overview</button>
     <button class="np-tab" role="tab" id="tab-quality" aria-controls="tabpanel-quality" aria-selected="false" data-tab="quality" tabindex="-1">Quality</button>
     <button class="np-tab" role="tab" id="tab-dns" aria-controls="tabpanel-dns" aria-selected="false" data-tab="dns" tabindex="-1">DNS and Identity</button>
+    <button class="np-tab" role="tab" id="tab-traffic" aria-controls="tabpanel-traffic" aria-selected="false" data-tab="traffic" tabindex="-1">Traffic</button>
+    <button class="np-tab" role="tab" id="tab-monitor" aria-controls="tabpanel-monitor" aria-selected="false" data-tab="monitor" tabindex="-1">Monitor</button>
   </div>
 </nav>
 
@@ -204,6 +206,75 @@
         </table></div>
       </div>
     </div>
+  <section id="tabpanel-traffic" role="tabpanel" aria-labelledby="tab-traffic" tabindex="0" hidden>
+    <div class="np-grid">
+      <div class="np-panel wide">
+        <h2>Own-traffic observer</h2>
+        <p class="np-sub">This page's own subresource timings via Resource Timing: URL, initiator, sizes, durations, and protocol. Netpulse cannot see other tabs, other devices, or the LAN; that boundary is documented below, never crossed.</p>
+        <div class="np-row np-actions">
+          <button class="np-btn primary" id="btn-traffic-refresh" type="button">Refresh snapshot</button>
+          <button class="np-btn" id="btn-traffic-observe" type="button" aria-pressed="false">Start live stream</button>
+        </div>
+        <p class="np-status" id="status-traffic" role="status"></p>
+        <div id="result-traffic-summary"></div>
+      </div>
+      <div class="np-panel wide">
+        <h2>Per-origin aggregation</h2>
+        <p class="np-sub">Entry counts, visible transfer bytes, and mean durations grouped by origin. Rows whose sizes are hidden by the serving page's headers contribute zero bytes and are counted separately.</p>
+        <div class="np-table-wrap"><table class="np-table" aria-label="Traffic by origin">
+          <thead><tr><th>Origin</th><th>Entries</th><th>Bytes</th><th>Hidden sizes</th><th>Mean duration</th></tr></thead>
+          <tbody id="traffic-origin-body"></tbody>
+        </table></div>
+        <h3>Protocol breakdown</h3>
+        <div id="result-traffic-protocol"></div>
+      </div>
+      <div class="np-panel wide">
+        <h2>Observed transfers</h2>
+        <p class="np-sub">Every resource entry this page recorded, newest first. Filter narrows by URL, initiator, or protocol.</p>
+        <div class="np-field">
+          <label for="traffic-filter">Filter transfers</label>
+          <input id="traffic-filter" class="np-input" type="search" autocomplete="off" spellcheck="false" placeholder="e.g. probe.bin, script, h2" />
+        </div>
+        <div class="np-table-wrap"><table class="np-table" aria-label="Observed transfers">
+          <thead><tr><th>Resource</th><th>Initiator</th><th>Duration</th><th>Bytes</th><th>Protocol</th></tr></thead>
+          <tbody id="traffic-body"></tbody>
+        </table></div>
+        <h3>Load waterfall</h3>
+        <p class="np-sub">Start offset and duration per entry, scaled to the slowest entry. Bars are illustrative layout of real timings, not packet detail.</p>
+        <div class="np-fall" id="traffic-waterfall"></div>
+      </div>
+      <div class="np-panel wide">
+        <h2>What cannot be observed</h2>
+        <p class="np-sub">The sandbox boundary, stated plainly.</p>
+        <div id="result-traffic-impossible"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tabpanel-monitor" role="tabpanel" aria-labelledby="tab-monitor" tabindex="0" hidden>
+    <div class="np-grid">
+      <div class="np-panel wide">
+        <h2>Session monitor</h2>
+        <p class="np-sub">Charts of this session's real measurement stream: probe medians, probe throughput, and observed-transfer bytes. Empty until you measure; nothing is invented to fill them.</p>
+        <div class="np-row np-actions">
+          <button class="np-btn primary" id="btn-monitor-refresh" type="button">Refresh dashboard</button>
+        </div>
+        <div id="result-monitor-summary"></div>
+      </div>
+      <div class="np-panel wide">
+        <h2>Probe medians per run (ms)</h2>
+        <div class="np-chart" id="chart-monitor-latency"></div>
+        <h2>Probe throughput per run (KB/s)</h2>
+        <div class="np-chart" id="chart-monitor-rate"></div>
+        <h2>Observed transfer bytes, cumulative</h2>
+        <div class="np-chart" id="chart-monitor-traffic"></div>
+      </div>
+      <div class="np-panel wide">
+        <h2>Monitor event log</h2>
+        <p class="np-sub">Timestamped measurement and connectivity events from this session, newest first.</p>
+        <ul class="np-log" id="monitor-log" aria-live="polite"></ul>
+      </div>
+    </div>
   </section>
 </main>
 
@@ -219,6 +290,8 @@
 <script src="js/dns.js"></script>
 <script src="js/identity.js"></script>
 <script src="js/webrtc.js"></script>
+<script src="js/traffic.js"></script>
+<script src="js/monitor.js"></script>
 <script src="js/netinfo.js"></script>
 <script src="js/app.js"></script>
 </body>
