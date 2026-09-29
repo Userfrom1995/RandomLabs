@@ -34,15 +34,27 @@ connectivity). Zero dependencies, no CDN, no build step, no backend.
   approximated honestly as the failed share of session probe attempts, with
   per-run history charts (`js/charts.js` SVG) and a run table. Offline,
   blocked, or POST-rejecting endpoints fail closed with explanatory states.
+- **DNS toolkit (DNS and Identity tab):** real answers over DNS-over-HTTPS
+  (`js/dns.js`) from Cloudflare, Google, or a custom DoH JSON endpoint you
+  paste. Types A/AAAA/CNAME/MX/NS/TXT/SOA with per-query timing, resolver
+  comparison, hostname validation, and raw-reply inspection. Browsers
+  cannot emit raw DNS packets; the panel says so and names the resolver
+  behind every answer.
+- **Egress identity (opt-in):** one click fetches one provider-labeled echo
+  (`js/identity.js`) showing the public IP the internet sees, cached per
+  session with Re-check for a fresh read. Nothing fetches on load.
+- **WebRTC inspector:** loopback ICE gathering through a public STUN server
+  (`js/webrtc.js`) with candidate table, selected-pair RTT, jitter, and
+  packet counters, always torn down afterwards. mDNS-masked host addresses
+  are labeled, never de-obfuscated.
 
 ## What it deliberately does not do
 
 Raw sockets, ICMP ping, promiscuous packet capture, LAN scans, and real
 host-IP discovery do not exist inside the browser sandbox and are not
-simulated here. Features that need them (DNS over HTTPS, WebRTC
-inspection, traffic observation, export) are not present yet and no panel
-pretends otherwise. A modern browser masks real host IPs with mDNS, and
-Netpulse will say so where relevant.
+simulated here. Traffic observation, the monitor dashboard, and export
+are not present yet and no panel pretends otherwise. A modern browser masks
+real host IPs with mDNS, and Netpulse says so where relevant.
 
 ## Use
 
@@ -63,16 +75,22 @@ Open `index.html` in any modern browser. No install, no flags.
 - `js/store.js` - append-only session store with `localStorage` persistence.
 - `js/netinfo.js` - connection, online, device, and capability rendering.
 - `js/probes.js` - latency/download/upload engines, percentile math, history.
+- `js/dns.js` - DoH client, hostname validation, resolver comparison.
+- `js/identity.js` - opt-in egress echo with provider labels, session cache.
+- `js/webrtc.js` - loopback ICE inspector with getStats summary, teardown.
 - `js/charts.js` - dependency-free SVG line charts with honest empty states.
 - `js/ui.js` - tabs (arrow-key paths), source badges, empty states, banner.
-- `js/app.js` - boot, live event wiring, quality tab wiring, self-test harness.
+- `js/app.js` - boot, live event wiring, quality plus DNS wiring, self-test harness.
 - `probe.bin` - tiny static blob for same-origin timing.
 - `docs/` - capability matrix and method notes.
 - `tests/test_netpulse.py` - static gate (wiring, no-CDN, honest-render).
+- `tests/test_dns_identity.py` - live engine tests (stub DoH plus echo).
 
 ## Verification
 
 - `python3 netpulse/tests/test_netpulse.py` (static gate, dependency-free).
+- `python3 netpulse/tests/test_dns_identity.py` (live engine tests against
+  local stub DoH plus echo endpoints, dependency-free).
 - Open `index.html?selftest=1` in Chromium, Firefox, and Safari if
   available; confirm Network Information fails closed honestly where
   absent and the banner reacts to offline mode.
