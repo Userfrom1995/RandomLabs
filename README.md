@@ -52,13 +52,14 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Active projects are software or research builds currently in progress under open tracking issues (meta tasks such as lab health audits or workflow maintenance are not listed here):
 
-- **Thunderline (`thunderline/`)** - Original rock-and-roll song composed, arranged, and produced by a deterministic in-repo synthesis pipeline (score as source of truth, reproducible master plus stems, Pages player). In flight under [#481](https://github.com/Userfrom1995/RandomLabs/issues/481). [README](thunderline/README.md)
-- **Netpulse (`netpulse/`)** - Honest in-browser network diagnostics and monitoring tool: connection profile, HTTP quality probes, DNS-over-HTTPS toolkit, opt-in egress identity, WebRTC inspector, own-traffic observer, live monitor dashboard, and JSON plus CSV export with a printable source-stamped report. In flight under [#489](https://github.com/Userfrom1995/RandomLabs/issues/489). [README](netpulse/README.md)
+No active builds right now: the lab is in standby. Thunderline (#481) and Netpulse (#489) both shipped on 2026-09-29 and their tracking issues are closed. The Maintainer picks the next build from the Brainstorm Board when summoned.
 
 ## Previous Projects (Latest 10)
 
 The 10 most recent completed projects produced by the lab:
 
+- **Netpulse (`netpulse/`)** - Honest in-browser network diagnostics and monitoring tool: connection profile, HTTP quality probes, DNS-over-HTTPS toolkit, opt-in egress identity, WebRTC inspector, own-traffic observer, live monitor dashboard, and JSON plus CSV export with a printable source-stamped report. [Website](https://userfrom1995.github.io/RandomLabs/netpulse/) · [README](netpulse/README.md)
+- **Thunderline (`thunderline/`)** - Original rock-and-roll song composed, arranged, and produced by a deterministic in-repo synthesis pipeline (score as source of truth, reproducible master plus stems, Pages player). [Website](https://userfrom1995.github.io/RandomLabs/thunderline/) · [README](thunderline/README.md)
 - **Mythduel (`mythduel/`)** - Original Thor vs Zeus mythic duel fight scene: 172 s deterministic canvas duel with an original score and SFX, 30 s trailer cut, premiere posters, and behind-the-scenes surface. [Website](https://userfrom1995.github.io/RandomLabs/mythduel/) · [README](mythduel/README.md)
 - **Hearthlight (`film/`)** - Original 4.5-minute hand-drawn-style animated short film with an original orchestral score, rendered deterministically in the browser (270 s premiere cut plus 30 s trailer). [Website](https://userfrom1995.github.io/RandomLabs/film/) · [README](film/README.md)
 - **Tor CLI (`tor-cli`)** - Lightweight cross-platform Tor routing and network isolation CLI in Go (`torshim`): per-app routing, Tor-routed shell, and system-wide isolation with fail-closed guarantees. [Website](https://userfrom1995.github.io/RandomLabs/tor-cli/) · [README](tor-cli/README.md)
@@ -67,8 +68,6 @@ The 10 most recent completed projects produced by the lab:
 - **Poolduel** - Exhaustive PostgreSQL connection pooler shootout harness, statistical audit, and report. [Website](https://userfrom1995.github.io/RandomLabs/poolduel/) · [README](poolduel/README.md)
 - **Sextant** - Offline GIS mapping engine in C# Blazor WASM with R*-tree spatial indexing and turn-penalized A* routing. [Website](https://userfrom1995.github.io/RandomLabs/sextant/) · [README](sextant/README.md)
 - **Tabula** - Headless Swift spreadsheet engine with topological cycle-detecting dependency recalculation DAG. [Website](https://userfrom1995.github.io/RandomLabs/tabula/) · [README](tabula/README.md)
-- **Folio** - Client-side in-browser PDF manipulation studio: merge, split, organize, compress, redact, annotate, sign, Office/PDF conversion and OCR chaining with undo/redo, plus a high-performance canvas overlay layer, direct interactive annotation bounding-box manipulation, and OPFS workspace storage with in-memory fallback. [Website](https://userfrom1995.github.io/RandomLabs/folio/) · [README](folio/README.md)
-- **Prism** - Lossless image codec from scratch in C++17 with 2D LeGall 5/3 DWT and finite-state rANS. [Website](https://userfrom1995.github.io/RandomLabs/prism/) · [README](prism/README.md)
 
 ## Archived Projects
 
