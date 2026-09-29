@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Netpulse - browser network diagnostics</title>
+<meta name="description" content="Netpulse: an honest in-browser network diagnostics tool. Shows only what the browser can actually observe, with every datum labeled by source." />
+<link rel="stylesheet" href="css/netpulse.css" />
+</head>
+<body class="np-body">
+<a class="np-skip" href="#np-main">Skip to diagnostics</a>
+<div class="np-banner" id="np-banner" role="alert" hidden></div>
+
+<header class="np-header">
+  <h1>Net<span class="pulse">pulse</span></h1>
+  <p class="np-lede">An honest in-browser network diagnostics tool. Every number carries a source badge; anything the browser sandbox forbids fails closed with an empty state instead of a fabricated gauge.</p>
+  <p class="np-scope">Scope in this build: connection profile and device context (Overview tab). Active probes, DNS toolkit, traffic observer, and export arrive as later phases add their own tabs. No backend, no CDN, no auto phone-home.</p>
+</header>
+
+<nav class="np-tabs" aria-label="Netpulse sections">
+  <div role="tablist" aria-label="Netpulse tabs" id="np-tabs">
+    <button class="np-tab" role="tab" id="tab-overview" aria-controls="tabpanel-overview" aria-selected="true" data-tab="overview">Overview</button>
+  </div>
+</nav>
+
+<main class="np-main" id="np-main">
+  <div class="np-selftest" id="selftest-box" hidden></div>
+
+  <section id="tabpanel-overview" role="tabpanel" aria-labelledby="tab-overview" tabindex="0">
+    <div class="np-grid">
+      <div class="np-panel">
+        <h2>Connection profile</h2>
+        <p class="np-sub">From the Network Information API where the browser exposes it.</p>
+        <div id="panel-connection"></div>
+      </div>
+      <div class="np-panel">
+        <h2>Online state</h2>
+        <p class="np-sub">Browser connectivity view with live banner.</p>
+        <div id="panel-online"></div>
+      </div>
+      <div class="np-panel">
+        <h2>Device context</h2>
+        <p class="np-sub">Device hints for interpreting results. Not network state.</p>
+        <div id="panel-device"></div>
+      </div>
+      <div class="np-panel wide">
+        <h2>Capability map</h2>
+        <p class="np-sub">What this browser actually exposes. Panels render from this map.</p>
+        <div id="panel-capabilities"></div>
+      </div>
+      <div class="np-panel wide">
+        <h2>Session events</h2>
+        <p class="np-sub">Timestamped log: connectivity changes, refreshes, session starts. Persisted locally.</p>
+        <div class="np-row np-actions">
+          <button class="np-btn" id="btn-refresh" type="button">Refresh readings</button>
+          <button class="np-btn" id="btn-clear" type="button">Clear session</button>
+        </div>
+        <ul class="np-log" id="event-log" aria-live="polite"></ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="np-footer">
+  <p>Netpulse runs entirely in your browser. Nothing is uploaded. <a href="docs/">Capability and method docs</a> - <a href="README.md">README</a></p>
+</footer>
+
+<script src="js/capabilities.js"></script>
+<script src="js/store.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/netinfo.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
