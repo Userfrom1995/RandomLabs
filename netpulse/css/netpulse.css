@@ -150,6 +150,16 @@ body.np-body {
 .np-kv dt { color: var(--np-muted); }
 .np-kv dd { margin: 0; min-width: 0; display: contents; }
 
+/* Value wrapper inside display:contents dd: dedicated wrapping box for long
+ * device-context values (e.g. the 160-char user-agent slice). Keeps the
+ * .np-badge overflow contract untouched (no anywhere in the badge path). */
+.np-kv dd > .np-val {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .np-badge {
   display: inline-block;
   flex: none;
