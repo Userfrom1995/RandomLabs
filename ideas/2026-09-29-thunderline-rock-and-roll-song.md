@@ -1,0 +1,61 @@
+# Thunderline - Original Rock-and-Roll Song with Reproducible In-Repo Production
+
+One original rock-and-roll song, composed, arranged, performed, mixed, and mastered entirely by deterministic in-repo synthesis at `/thunderline/`: original title, original lyrics, original melody, original chord progression and arrangement. No reproduction of any existing copyrighted song, melody, lyric, or recording; no artist likeness; no game or film assets. Any checkout rebuilds bit-identical audio from pinned tooling, and the Pages player plays the real rendered files with synced lyrics, stem mute/solo, and honest loading/error states.
+
+Working title is **Thunderline** (kept unless it collides with an existing cataloged work; the composition source carries a `title` field so a rename is a one-line source change plus re-render).
+
+## IP guardrail (binding through every gate)
+
+Everything in `/thunderline/` is original and lab-owned. No third-party melodies, lyrics, samples, loops, presets copied from commercial packs, or artist vocal likenesses. The composition source is authored note-by-note and word-by-word in-repo; the audit tool carries an IP gate (forbidden-phrase scan over lyrics against a committed blocklist of famous rock-and-roll lyric fragments, plus a provenance check that every audio binary has a committed generator). Any PR introducing third-party musical or lyrical material fails review.
+
+## Deliverables
+
+- **The song** - one original rock-and-roll number, roughly 2:30-3:30 at roughly 150-170 BPM, 12-bar-rooted E-major rock-and-roll (I-IV-V with a turnaround), verse/chorus/lead-break/final-chorus/outro arc, with a singable chorus hook authored in the lead sheet. Continuous coverage: no dead air, no unmotivated entrances, every section carries rhythm plus bass plus a front voice (lead vocal or lead guitar).
+- **Score/composition source** - machine-readable lead sheet (`thunderline/score/song.json`): tempo map, key/meter, chord grid, melody as explicit MIDI pitches with durations, full lyrics with per-line timing derived from the melody rhythm, and an arrangement map (who plays what, bar by bar). Plus deterministic exports from the same source: a printable chord/lyric sheet and a Standard MIDI File, both byte-stable.
+- **Deterministic render script** - `thunderline/tools/render.py` using Python 3 standard library only (`wave`, `struct`, `math`, no numpy, no network, no wall-clock) that renders `dist/master.wav` (44.1 kHz 16-bit PCM, fixed header, soft-limited peak) plus a compressed preview (`dist/preview.ogg` via pinned ffmpeg when available, with a documented fallback), plus four stems (`dist/stems/{vocals,guitars,bass,drums}.wav`). Same source plus same script equals bit-identical master, verified by hash test.
+- **Stems for review** - vocals (synthesized sung line, honestly labeled), guitars (rhythm chops plus lead break), bass (walking line), drums (kick/snare/hats with backbeat). Each stem is the isolated bus of the same mix, so soloing any stem plus unmuting all stems nulls against the master within documented mix-bus tolerance.
+- **Pages player** - `thunderline/index.html`: real audio over the real rendered files, play/pause/seek, lyric display in sync with the song position, per-stem mute/solo, volume, download of master plus score, 390 px mobile usable, keyboard-accessible controls, and honest empty/loading/error states (missing-file card, decode-failure card, no fake waveform).
+- **Unified docs** - `thunderline/README.md` plus `thunderline/docs/` as one product view: story of the song, chord/arrangement notes, mix notes, reproduction steps, license (original work, lab-owned). No milestone chapters, no internal phase numbers in public docs.
+
+## Why
+
+The owner commission from Brainstorm Board #42 asks for a rock-and-roll song with the same craft bar as the lab's film and duel builds: real artifact, real pipeline, no facades. The honest engineering path is full synthesis from an explicit score: the song exists first as data (notes, chords, words, arrangement), and every audible byte is traceable to that data through a deterministic renderer. That gives three things a recorded jam cannot: bit-exact reproducibility on any checkout, machine-verifiable originality (the score is diffable text), and a player whose lyric sync and stem mix are derived from the same timing map as the audio itself, so nothing can drift out of sync.
+
+## How It Works
+
+- **Score as single source of truth.** `song.json` declares tempo (with any committed tempo events), key, chord grid per bar, melody (MIDI pitch, start beat, duration beats), lyric lines bound to melody phrases with per-line start beats, and the arrangement map (section boundaries, which voices are active per bar, drum pattern IDs, dynamics curve). The lyric timing file the player consumes (`dist/lyrics.json`, line start/end in seconds) is computed from the score by the render script, never hand-edited, so words cannot drift from notes.
+- **Deterministic synthesis, stdlib only.** The renderer pins sample rate (44100), bit depth (16), and a seeded RNG (committed master seed) for every noise source (snare/hat noise, pick jitter, vocal breath). No `random` without seed, no `time`, no platform FFT. The WAV writer emits a fixed header (no timestamps, no extra chunks) so rebuilds are byte-identical. Voices are honest subtractive/FM-style synthesis: kick (sine pitch drop), snare (tone plus seeded noise burst), hats (seeded highpassed noise ticks), bass (triangle/saw with pluck envelope playing the walking line from chord roots), rhythm guitar (sawtooth power-chord chops with fast decay envelope and palm-mute pattern), lead guitar (sawtooth with vibrato playing the authored solo phrase), lead vocal (band-limited sawtooth stack through two time-varying formant resonances articulating the lyric vowels per syllable timing, honestly documented as a synthesized voice, not a human impersonation).
+- **Mix as code.** `tools/mix.py` (or a mix stage inside `render.py`) applies per-bus gain, simple one-pole EQ, and a soft limiter with documented ceilings; every constant lives in `score/mix.json`, committed. The master is the sum of the four stem buses through the documented chain, so stems-plus-master consistency is a testable invariant.
+- **Reproducibility contract.** `bash thunderline/repro.sh` renders from scratch into a temp dir, renders twice, diffs hashes (master plus stems plus lyrics plus MIDI plus sheet must match), checks the master peak and duration bounds, runs the lyric-coverage check (every lyric line has a timing entry inside the track bounds), and runs the IP scan. Green on every phase PR; no phase lands with a known-red audit.
+- **Player over real files.** The player loads the real `dist/` audio with WebAudio buffer sources started on one clock for sample-accurate stem sync (master-only fallback if stems fail to decode, with an honest notice). Lyric sync reads `dist/lyrics.json` and highlights the current line; mute/solo toggles per-stem gains; downloads link the real master WAV/preview plus the score JSON/MIDI/sheet. Missing or corrupt files produce named error cards, never a silent freeze.
+- **Listen-and-iterate loop (binding).** `tools/capture.mjs` (or a small Python companion) exports per-section mix snapshots (waveform peaks, spectral centroid per bar, stem levels) plus a section audition playlist; the Builder listens to the render every phase and tightens arrangement, voicing, and mix before pushing. The Tester plays the track end to end headlessly on desktop and 390 px widths; the Evaluator gates on craft (hook singability, arrangement arc, mix balance, lyric timing accuracy) before merge.
+
+## Module Breakdown
+
+- `thunderline/score/` - `song.json` (tempo map, key/meter, chord grid, melody pitches plus rhythm, lyrics bound to phrases, arrangement map, master seed), `mix.json` (bus gains, EQ constants, limiter ceiling), `blocklist.txt` (forbidden lyric fragments for the IP scan).
+- `thunderline/tools/` - `render.py` (stdlib-only synth voices, stem buses, master, lyrics timing export, MIDI export, printable sheet export), `audit.py` (determinism double-render hash check, peak/duration bounds, lyric coverage, stem-null consistency, IP scan), `capture.py` (per-section mix snapshots plus audition playlist for the listen-and-iterate loop). None removed once added.
+- `thunderline/dist/` - rendered artifacts only (`master.wav`, `preview.ogg`, `stems/*.wav`, `lyrics.json`, `song.mid`, `sheet.html`); every file has a committed generator; binaries are never hand-placed.
+- `thunderline/player/` - `player.js` (transport, lyric sync, stem mute/solo, volume, error cards), `player.css` (desktop plus 390 px rules, focus-visible states), served by `thunderline/index.html`.
+- `thunderline/tests/` - suites for determinism (double-render hashes identical), audio validity (WAV headers parse, duration within 2:30-3:30 window, peak within ceiling, no clipping, no DC offset), musical integrity (chord grid parses, melody pitches in singable range, every section has active rhythm plus bass plus front voice, solo phrase differs from verse melody), lyric sync (every line timed within track bounds, player highlights the correct line at probed positions), player (play/pause/seek/mute/solo/volume/downloads live on desktop and 390 px, missing-file and corrupt-file error cards), provenance/IP (no binary without generator, blocklist scan clean).
+- `thunderline/docs/` - `story.md` (story of the song), `chords-arrangement.md` (chord and arrangement notes), `mix.md` (mix notes), `repro.md` (reproduction steps), `license.md` (original work, lab-owned), unified with `thunderline/README.md` as one product view.
+
+## Composition Skeleton (binding; Builder finalizes notes and words, keeps this shape)
+
+- Form: intro (4 bars, band hits plus guitar riff) / verse 1 (12 bars) / chorus (8 bars, hook) / verse 2 (12 bars) / chorus (8 bars) / lead break (12 bars, lead guitar over verse changes) / final chorus (8 bars, lifted dynamics) / outro (4-8 bars, turnaround plus tag ending). All lyrics original; the chorus hook is a short repeatable title-line phrase.
+- Harmony: E-major 12-bar rock-and-roll core (E7-A7-B7 with quick-change option and a I-VI-II-V or iii-VI-ii-V turnaround), chorus lifting to the IV with a held V into each return. No borrowed progressions from existing songs beyond the public-domain 12-bar form itself.
+- Melody: verse in E major pentatonic with blues passing tone, chorus hook arcing to the tonic with a held payoff note; lead break a distinct authored phrase, not a copy of the verse.
+
+## Test Matrix
+
+- Determinism: two consecutive full renders produce identical SHA-256 for master, every stem, lyrics, MIDI, and sheet; header bytes fixed.
+- Audio validity: master is 44.1 kHz 16-bit PCM, duration 150-210 s, peak at or below the documented ceiling with no clipped runs, no DC offset; preview decodes and matches master duration within tolerance.
+- Musical integrity: score parses against schema; melody within singable MIDI bounds; arrangement covers every bar with rhythm plus bass plus a front voice; lead-break phrase is note-distinct from verse melody; dynamics lift into the final chorus.
+- Lyric sync: every lyric line has start/end inside track bounds in order; headless player probe at sampled positions highlights the correct line.
+- Player: play reaches end without stall; seek lands within tolerance; stem solo isolates the stem bus; mute/solo/volume/downloads operate on desktop and 390 px; forced missing-file and corrupt-file states show named error cards.
+- Provenance/IP: every binary in `dist/` traces to a committed generator via manifest; lyric blocklist scan clean; docs carry the original-work license.
+
+## Team Note
+
+No dedicated music-production agents are created up front. The Builder executes this blueprint through the standard pipeline; the listen-and-iterate loop (Builder audition, Tester end-to-end play, Evaluator craft gate) is binding on every phase. If the Reviewer or Evaluator flags a craft gap that genuinely needs specialist roles (songwriting, mix engineering), the Lab Engineer creates them per `.github/agents/CREATING_AGENTS.md` through a reviewed PR. Hiring flows through that path only, never by ad-hoc prompt edits.
+
+- the Architect
