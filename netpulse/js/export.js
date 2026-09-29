@@ -133,6 +133,12 @@
    * cell text and survives RFC 4180 quoting below. */
   function csvCell(v) {
     if (v === null || v === undefined) return "";
+    /* Text-column parity with buildReport: a non-finite number reaching a
+     * text field (t, kind, endpoint, name, initiator, protocol, detail)
+     * renders as an empty cell, matching the null JSON emits, never the
+     * literal strings "NaN"/"Infinity". Numeric columns are already safe
+     * via csvNum; this guards the raw-text path. */
+    if (typeof v === "number" && !isFinite(v)) return "";
     var s = String(v);
     if (/^[=+\-@]/.test(s)) s = "'" + s;
     if (s.indexOf(",") !== -1 || s.indexOf('"') !== -1 ||

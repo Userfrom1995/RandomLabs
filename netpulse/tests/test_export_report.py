@@ -104,6 +104,12 @@ ok('formula-prefix', B.csvCell('=1+1') === "'=1+1"
 ok('stamp-fallback', /^netpulse-s-\d{8}-\d{6}$/.test(B.stampFilename('s', 'not-a-date')));
 ok('text-nonfinite', B.buildReport({ history: [{ kind: 'x',
   t: NaN, summary: { attempts: 1 } }] }).probeRuns[0].t === null);
+ok('csv-text-parity', B.csvCell(NaN) === '' && B.csvCell(Infinity) === ''
+  && B.csvCell(-Infinity) === ''
+  && B.probesToCsv([{ t: NaN, kind: Infinity, endpoint: 'e' }]).indexOf('NaN') === -1
+  && B.probesToCsv([{ t: NaN, kind: Infinity, endpoint: 'e' }]).indexOf('Infinity') === -1
+  && B.trafficToCsv([{ name: NaN, initiator: Infinity, sizesHidden: false }]).indexOf('NaN') === -1
+  && B.eventsToCsv([{ t: NaN, type: Infinity, detail: 'x' }]).indexOf('NaN') === -1);
 const nonfin = B.buildReport({
   history: [{ kind: 'latency', summary: { attempts: 1, median: NaN, p95: Infinity } }],
   trafficRows: [{ name: 'u', transferBytes: -5, durationMs: NaN, sizesHidden: false }],

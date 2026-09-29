@@ -326,6 +326,11 @@
           EXP.buildReport({ history: [{ kind: "latency",
             summary: { attempts: 1 } }] }).probeRuns.length === 1,
           "fully-null rows dropped, signal rows kept");
+        check("export-text-parity",
+          EXP.csvCell(NaN) === "" && EXP.csvCell(Infinity) === "" &&
+          EXP.probesToCsv([{ t: NaN, kind: Infinity }]).indexOf("NaN") === -1 &&
+          EXP.probesToCsv([{ t: NaN, kind: Infinity }]).indexOf("Infinity") === -1,
+          "text columns match JSON nulls");
         check("export-support-flag",
           typeof EXP.isDownloadSupported(window) === "boolean",
           "boolean, never throws");
