@@ -1,0 +1,28 @@
+{
+ "files": {
+  "lyrics.json": "525f362d32088c65cb02aec1467aecb4994e11b20c3341e672e6a9081ef6dc31",
+  "master.wav": "6aef41c5cded402cd011e1c9531599e23124b22dcfbd3d8020e118089fa01a95",
+  "sheet.html": "9d20a274e29b6b5492a8860a28c83fd68ad7b15f4d80a0a70e2fa963da4b7e06",
+  "song.json": "f0ac8f45464eb0c76c57119224d4f4330e7b88a14e33fda70c8abbea18900b3f",
+  "song.mid": "118c551adf866258ef29fb54d7ad1247b38a326e55841f63cdf2a81877b647b5",
+  "stems/bass.wav": "6b83425e9a63073b2d4e2ce3f516b9a8b625f3f5c1cbb6d09faba28530dc0554",
+  "stems/drums.wav": "e51af7b7a2ef5e9339dfd926173ee4312ee94b334fc38ee0e9971bca852da1cb",
+  "stems/guitars.wav": "628824bdef010f3ac1f9a9b393e51bd1a4140ba84b2030379b62099d4b20db22",
+  "stems/vocals.wav": "4dfc2f8ab0f7f8010f7bb4b9d716779f42fc051522f8b35bffa54bf3c25adf87"
+ },
+ "generator": "tools/export_preview.py (stdlib only)",
+ "masterBits": 16,
+ "masterRate": 22050,
+ "note": "Preview-quality audio for the Pages player: 22.05 kHz mono downsamples of the full-rate dist/ render. Run bash thunderline/repro.sh for bit-identical masters.",
+ "scoreSha256": "f0ac8f45464eb0c76c57119224d4f4330e7b88a14e33fda70c8abbea18900b3f",
+ "sources": {
+  "master.wav": "cb17a207551811f4026f624198cafc2d09c622eba22cc6424b940ad771d64c0e",
+  "stems/bass.wav": "efbed14c6cb5de5e7565db2a1be59d025ca376f9d02d1af0d0d946e0ffde0ea6",
+  "stems/drums.wav": "c2ade45c60280d90cb4e2d7b9404743e541cd8a34a4fb22c241e089a2a388dcb",
+  "stems/guitars.wav": "68799741e76cac4df4b58a46759021016d62af8090bec487ab78589e6fe93198",
+  "stems/vocals.wav": "9886c3e31c417c637f241283fd0ec806870d245cd7e60b59d31c85a0a167d241"
+ },
+ "stemBits": 8,
+ "stemRate": 22050,
+ "title": "Thunderline"
+}

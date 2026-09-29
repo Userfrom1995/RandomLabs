@@ -1,0 +1,242 @@
+[
+ {
+  "endSec": 14.812,
+  "line": "Headlights hummin' on the midnight line",
+  "section": "verse1",
+  "startSec": 12.0
+ },
+ {
+  "endSec": 17.812,
+  "line": "Rainbow spill where the oil signs shine",
+  "section": "verse1",
+  "startSec": 15.0
+ },
+ {
+  "endSec": 20.812,
+  "line": "Engine knockin' out a four-four time",
+  "section": "verse1",
+  "startSec": 18.0
+ },
+ {
+  "endSec": 23.812,
+  "line": "Static cracklin' on the old dash dial",
+  "section": "verse1",
+  "startSec": 21.0
+ },
+ {
+  "endSec": 26.812,
+  "line": "Thunder grumblin' for a country mile",
+  "section": "verse1",
+  "startSec": 24.0
+ },
+ {
+  "endSec": 29.812,
+  "line": "Wheels keep turnin' down the endless mile",
+  "section": "verse1",
+  "startSec": 27.0
+ },
+ {
+  "endSec": 32.812,
+  "line": "Ridin' on the thunderline",
+  "section": "chorus1",
+  "startSec": 30.0
+ },
+ {
+  "endSec": 35.812,
+  "line": "Steel and thunder runnin' down the line",
+  "section": "chorus1",
+  "startSec": 33.0
+ },
+ {
+  "endSec": 38.812,
+  "line": "Ridin' on the thunderline",
+  "section": "chorus1",
+  "startSec": 36.0
+ },
+ {
+  "endSec": 41.812,
+  "line": "Hear that engine ring the midnight chime",
+  "section": "chorus1",
+  "startSec": 39.0
+ },
+ {
+  "endSec": 44.812,
+  "line": "Ridin' on the thunderline",
+  "section": "chorus1",
+  "startSec": 42.0
+ },
+ {
+  "endSec": 47.812,
+  "line": "Every heartbeat keepin' perfect time",
+  "section": "chorus1",
+  "startSec": 45.0
+ },
+ {
+  "endSec": 50.812,
+  "line": "Diner coffee in a paper cup",
+  "section": "verse2",
+  "startSec": 48.0
+ },
+ {
+  "endSec": 53.812,
+  "line": "Jukebox kickin' when the needle drops up",
+  "section": "verse2",
+  "startSec": 51.0
+ },
+ {
+  "endSec": 56.812,
+  "line": "Penny loafers and a buttoned-up dress",
+  "section": "verse2",
+  "startSec": 54.0
+ },
+ {
+  "endSec": 59.812,
+  "line": "Highway callin' and I must confess",
+  "section": "verse2",
+  "startSec": 57.0
+ },
+ {
+  "endSec": 62.812,
+  "line": "Every red light is a second guess",
+  "section": "verse2",
+  "startSec": 60.0
+ },
+ {
+  "endSec": 65.812,
+  "line": "Green light hits and we're heaven-blessed",
+  "section": "verse2",
+  "startSec": 63.0
+ },
+ {
+  "endSec": 68.812,
+  "line": "Ridin' on the thunderline",
+  "section": "chorus2",
+  "startSec": 66.0
+ },
+ {
+  "endSec": 71.812,
+  "line": "Steel and thunder runnin' down the line",
+  "section": "chorus2",
+  "startSec": 69.0
+ },
+ {
+  "endSec": 74.812,
+  "line": "Ridin' on the thunderline",
+  "section": "chorus2",
+  "startSec": 72.0
+ },
+ {
+  "endSec": 77.812,
+  "line": "Hear that engine ring the midnight chime",
+  "section": "chorus2",
+  "startSec": 75.0
+ },
+ {
+  "endSec": 80.812,
+  "line": "Ridin' on the thunderline",
+  "section": "chorus2",
+  "startSec": 78.0
+ },
+ {
+  "endSec": 83.812,
+  "line": "Every heartbeat keepin' perfect time",
+  "section": "chorus2",
+  "startSec": 81.0
+ },
+ {
+  "endSec": 104.812,
+  "line": "Sun comes crawlin' over cedar pines",
+  "section": "verse3",
+  "startSec": 102.0
+ },
+ {
+  "endSec": 107.812,
+  "line": "Morning paper with the cutoff lines",
+  "section": "verse3",
+  "startSec": 105.0
+ },
+ {
+  "endSec": 110.812,
+  "line": "Coffee steam in the pale daylight",
+  "section": "verse3",
+  "startSec": 108.0
+ },
+ {
+  "endSec": 113.812,
+  "line": "We drove steady through the Saturday night",
+  "section": "verse3",
+  "startSec": 111.0
+ },
+ {
+  "endSec": 116.812,
+  "line": "Radio hums and it treats us right",
+  "section": "verse3",
+  "startSec": 114.0
+ },
+ {
+  "endSec": 119.812,
+  "line": "Home lights glow and the time is right",
+  "section": "verse3",
+  "startSec": 117.0
+ },
+ {
+  "endSec": 122.812,
+  "line": "Ridin' on the thunderline",
+  "section": "finalchorus",
+  "startSec": 120.0
+ },
+ {
+  "endSec": 125.812,
+  "line": "Steel and thunder runnin' down the line",
+  "section": "finalchorus",
+  "startSec": 123.0
+ },
+ {
+  "endSec": 128.812,
+  "line": "Ridin' on the thunderline",
+  "section": "finalchorus",
+  "startSec": 126.0
+ },
+ {
+  "endSec": 131.812,
+  "line": "Hear that engine ring the midnight chime",
+  "section": "finalchorus",
+  "startSec": 129.0
+ },
+ {
+  "endSec": 134.812,
+  "line": "Ridin' on the thunderline",
+  "section": "finalchorus",
+  "startSec": 132.0
+ },
+ {
+  "endSec": 137.812,
+  "line": "Every heartbeat keepin' perfect time",
+  "section": "finalchorus",
+  "startSec": 135.0
+ },
+ {
+  "endSec": 140.812,
+  "line": "Hold that throttle 'til the morning light",
+  "section": "finalchorus",
+  "startSec": 138.0
+ },
+ {
+  "endSec": 143.812,
+  "line": "Thunderline rollin' and it feels so right",
+  "section": "finalchorus",
+  "startSec": 141.0
+ },
+ {
+  "endSec": 146.625,
+  "line": "Thunderline rollin' home",
+  "section": "outro",
+  "startSec": 144.0
+ },
+ {
+  "endSec": 149.625,
+  "line": "Thunderline rollin' home",
+  "section": "outro",
+  "startSec": 147.0
+ }
+]
