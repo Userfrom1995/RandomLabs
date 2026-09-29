@@ -40,8 +40,9 @@ and verification steps.
   timing; Netpulse never labels it ping.
 - **Download throughput:** sequential cache-busted GETs; the real received
   bytes (from the response body length) divided by the real elapsed time.
-  Small same-origin files produce small honest numbers in KB/s; the panel
-  scales to Mb/s only when the bytes justify it.
+   Small same-origin files produce small honest numbers in KB/s; the panel
+   scales to MB/s only when the bytes justify it. Units are binary and
+   byte-based throughout (KB/s = KiB/s, MB/s = MiB/s), never megabits.
 - **Upload throughput:** POSTs a generated random payload (16/64/256 KB) to
   an echo endpoint you choose, timing bytes handed to the stack over elapsed
   time. Static file hosts reject POST, so an empty field fails closed with
