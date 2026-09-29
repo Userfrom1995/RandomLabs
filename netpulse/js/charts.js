@@ -123,7 +123,6 @@
     axisLabel(padL - 6, padT + 8, String(Math.round(max * 100) / 100), "end");
     axisLabel(padL - 6, padT + innerH, String(Math.round(min * 100) / 100), "end");
     axisLabel(padL, height - 8, opts.xLabel || "sample");
-    axisLabel(padL, height - 8, "", "middle");
     var unit = make("text", {
       x: padL, y: padT - 2,
       class: "np-chart-axis"
