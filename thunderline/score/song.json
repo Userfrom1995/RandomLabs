@@ -3221,6 +3221,70 @@
    "section": "finalchorus",
    "sectionLine": 7,
    "startBeat": 380.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Thunderline rollin' home",
+   "midi": 64,
+   "section": "outro",
+   "sectionLine": 0,
+   "startBeat": 384.0
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Thunderline rollin' home",
+   "midi": 66,
+   "section": "outro",
+   "sectionLine": 0,
+   "startBeat": 385.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Thunderline rollin' home",
+   "midi": 64,
+   "section": "outro",
+   "sectionLine": 0,
+   "startBeat": 386.5
+  },
+  {
+   "durBeats": 2.5,
+   "line": "Thunderline rollin' home",
+   "midi": 61,
+   "section": "outro",
+   "sectionLine": 0,
+   "startBeat": 388.0
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Thunderline rollin' home",
+   "midi": 62,
+   "section": "outro",
+   "sectionLine": 1,
+   "startBeat": 392.0
+  },
+  {
+   "durBeats": 1.0,
+   "line": "Thunderline rollin' home",
+   "midi": 61,
+   "section": "outro",
+   "sectionLine": 1,
+   "startBeat": 393.5
+  },
+  {
+   "durBeats": 1.5,
+   "line": "Thunderline rollin' home",
+   "midi": 59,
+   "section": "outro",
+   "sectionLine": 1,
+   "startBeat": 394.5
+  },
+  {
+   "durBeats": 2.5,
+   "line": "Thunderline rollin' home",
+   "midi": 52,
+   "section": "outro",
+   "sectionLine": 1,
+   "startBeat": 396.0
   }
  ],
  "meter": "4/4",
