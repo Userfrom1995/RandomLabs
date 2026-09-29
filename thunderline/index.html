@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thunderline - an original rock-and-roll song</title>
+<meta name="description" content="Thunderline: an original 156-second E-major rock-and-roll song, synthesized deterministically in-repo. Play the stems, follow the lyrics, download the score.">
+<link rel="stylesheet" href="player/player.css">
+</head>
+<body>
+<header class="masthead">
+  <div class="masthead-inner">
+    <p class="kicker">The Random Lab presents</p>
+    <h1>Thunderline</h1>
+    <p class="tagline">An original rock-and-roll song &middot; 2 min 36 s &middot; synthesized live from an in-repo score</p>
+    <p class="facts" id="songFacts">Loading the score&hellip;</p>
+  </div>
+</header>
+
+<main>
+  <noscript><p class="noscript-note">Thunderline plays in your browser with JavaScript: the mixer below needs it to start the song. Everything else on this page reads fine without it.</p></noscript>
+
+  <section class="player" aria-label="Thunderline player">
+    <div class="state state-loading" id="state-loading" role="status">
+      <div class="pulse" aria-hidden="true"></div>
+      <p>Tuning up&hellip; fetching stems and lyrics.</p>
+    </div>
+
+    <div class="state state-empty" id="state-empty" hidden>
+      <div class="card" role="status">
+        <h2>No audio here yet</h2>
+        <p id="emptyMsg">The player data is not here yet.</p>
+        <p>Build it locally:</p>
+        <pre><code>bash thunderline/repro.sh
+python3 thunderline/tools/export_preview.py</code></pre>
+      </div>
+    </div>
+
+    <div class="state state-error" id="state-error" hidden>
+      <div class="card" role="alert">
+        <h2 id="errorTitle">Something went wrong</h2>
+        <p id="errorMsg"></p>
+        <button id="btnRetry" type="button" onclick="window.location.reload()">Try again</button>
+      </div>
+    </div>
+
+    <div id="transport" hidden>
+      <p class="src-note" id="srcNote" role="note"></p>
+      <p class="fallback-notice" id="fallbackNotice" hidden role="status">Stem files did not all load, so this is the preview master. The mute and solo toggles are disabled.</p>
+
+      <div class="transport-row">
+        <button id="playBtn" type="button" class="play" disabled aria-label="Play Thunderline">Play</button>
+        <label class="seek-label" for="seek">Seek</label>
+        <input id="seek" type="range" min="0" max="156" step="0.1" value="0" disabled aria-describedby="timeLabel">
+        <output id="timeLabel" for="seek">0:00 / 2:36</output>
+      </div>
+
+      <canvas id="overview" class="overview" height="72" aria-label="Song overview, select to seek" role="slider" aria-valuemin="0" aria-valuemax="156" tabindex="0"></canvas>
+
+      <div class="mixer-row">
+        <div class="volume">
+          <label for="volume">Volume</label>
+          <input id="volume" type="range" min="0" max="1" step="0.01" value="0.9">
+        </div>
+        <fieldset class="stems">
+          <legend>Stems</legend>
+          <div class="stem">
+            <span class="stem-name" id="name-vocals">Vocals</span>
+            <button id="mute-vocals" type="button" aria-pressed="false" aria-describedby="name-vocals">Mute</button>
+            <button id="solo-vocals" type="button" aria-pressed="false" aria-describedby="name-vocals">Solo</button>
+          </div>
+          <div class="stem">
+            <span class="stem-name" id="name-guitars">Guitars</span>
+            <button id="mute-guitars" type="button" aria-pressed="false" aria-describedby="name-guitars">Mute</button>
+            <button id="solo-guitars" type="button" aria-pressed="false" aria-describedby="name-guitars">Solo</button>
+          </div>
+          <div class="stem">
+            <span class="stem-name" id="name-bass">Bass</span>
+            <button id="mute-bass" type="button" aria-pressed="false" aria-describedby="name-bass">Mute</button>
+            <button id="solo-bass" type="button" aria-pressed="false" aria-describedby="name-bass">Solo</button>
+          </div>
+          <div class="stem">
+            <span class="stem-name" id="name-drums">Drums</span>
+            <button id="mute-drums" type="button" aria-pressed="false" aria-describedby="name-drums">Mute</button>
+            <button id="solo-drums" type="button" aria-pressed="false" aria-describedby="name-drums">Solo</button>
+          </div>
+        </fieldset>
+      </div>
+
+      <div class="panes">
+        <div class="lyrics-pane">
+          <h2>Lyrics <span class="now-section" id="sectionLabel" aria-live="polite"></span></h2>
+          <ol id="lyricList" class="lyrics" aria-label="Song lyrics in sync"></ol>
+        </div>
+        <div class="side-pane">
+          <h2>Arrangement</h2>
+          <ol id="sectionList" class="sections"></ol>
+          <h2>Take it with you</h2>
+          <ul class="downloads">
+            <li><a href="player/audio/master.wav" download>Preview master (WAV)</a></li>
+            <li><a href="player/audio/song.json" download>Score (JSON lead sheet)</a></li>
+            <li><a href="player/audio/song.mid" download>Score (MIDI)</a></li>
+            <li><a href="player/audio/sheet.html" download>Printable lead sheet</a></li>
+            <li><a href="player/audio/lyrics.json" download>Lyric timings (JSON)</a></li>
+          </ul>
+          <p class="license-note">Original work, lab-owned. Words, melody, chords, and arrangement were authored in-repo for this project. Rebuild everything bit-identically with <code>bash thunderline/repro.sh</code>.</p>
+        </div>
+      </div>
+    </div>
+
+    <pre class="selftest" id="selftest" hidden></pre>
+  </section>
+</main>
+
+<footer>
+  <p>Thunderline is an original song by the Random Lab. No samples, no covers, no artist likeness: every audible byte traces back to <a href="player/audio/song.json">the machine-readable lead sheet</a>.</p>
+</footer>
+
+<script src="player/player.js"></script>
+</body>
+</html>
