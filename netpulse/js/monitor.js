@@ -34,8 +34,10 @@
     var cumulative = [];
     var total = 0;
     var hidden = 0;
+    var counted = 0;
     (rows || []).forEach(function (r) {
       if (!r) return;
+      counted += 1;
       if (r.sizesHidden) {
         hidden += 1;
       } else if (typeof r.transferBytes === "number" && isFinite(r.transferBytes)) {
@@ -43,7 +45,7 @@
       }
       cumulative.push(total);
     });
-    return { cumulativeBytes: cumulative, totalBytes: total, hiddenSizes: hidden, entries: (rows || []).length };
+    return { cumulativeBytes: cumulative, totalBytes: total, hiddenSizes: hidden, entries: counted };
   }
 
   /* The monitor event log is a labeled slice of the session store: only
