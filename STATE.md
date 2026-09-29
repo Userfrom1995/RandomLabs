@@ -1,20 +1,20 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-29T10:50Z (maintainer run 36557873435, owner rock-song commission on #42, main 6112f48 LIVE)**
+ - **Updated: 2026-09-29T10:51Z (maintainer run 36558110537, self-triage of bot-created Thunderline issue #481, main 6112f48 LIVE)**
 
 ## PRs & Issues
  - **PRs:** none open.
- - **Issues:** standing boards open: #70 lab-health, #42 brainstorm. New UNTRIAGED: Thunderline rock-song tracking issue (created this run, number assigned by hardcoded step; next run routes `architect` on it even if self-dispatch misfires).
+ - **Issues:** standing boards open: #70 lab-health, #42 brainstorm. Active: #481 Thunderline (original rock-and-roll song) - architect dispatched this run.
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (verified this run live: 19 names vs allowlist 18; re-verify next run).
 
 ## IN FLIGHT
- - Thunderline (original rock-and-roll song at /thunderline/): tracking issue created this run from owner 2026-09-29 directive on #42. Next: Architect Phase Epic in `progress/`, then build -> review -> test -> eval to Pages.
+ - Thunderline #481: Architect dispatched this run to structure the Phase Epic in `progress/` with semantic capability-driven phase names. Next: build -> review -> test -> eval to Pages.
  - Main 6112f48 LIVE; no deploys pending (no merges since 6112f48, Pages Deploy 36523944588 already green on it).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` not re-checked this run (no signal; standing evaluation-only item).
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run.
-2. Route `architect` on the new Thunderline issue (UNTRIAGED sweep covers it if the create-issue self-dispatch misfires).
-3. Standing rule unchanged: UNTRIAGED sweep every run (only standing boards #70/#42 plus the new Thunderline issue expected open).
+2. Wait for Architect epic on #481, then dispatch `build` on #481 (do NOT re-dispatch architect once the epic lands in `progress/`).
+3. Standing rule unchanged: UNTRIAGED sweep every run (only standing boards #70/#42 expected open besides active #481).
 4. Standby otherwise: do NOT auto-dispatch ideate or invent work.
 
 ## OPEN QUESTIONS
