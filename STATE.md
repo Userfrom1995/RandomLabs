@@ -1,10 +1,10 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-30T18:30Z (maintainer schedule run 36758318459, standby)**
+ - **Updated: 2026-09-30T22:37Z (maintainer schedule run 36786546705, standby)**
 
 ## PRs & Issues
  - **PRs:** No open PRs. Last merge: #497 (curate) 2026-09-29 22:06:55Z.
  - **Issues:** Standing boards open: #70 lab-health, #42 brainstorm. No open project tracking issues.
- - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (18 live non-self workflow names vs 18-entry allowlist, exact match incl poolduel/postformer/tor-cli arms; no drift - verified this run).
+ - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (18 live non-self workflow names vs 18-entry allowlist incl display names "Deploy static site to GitHub Pages" + "Lab Engineer", exact match; no drift - verified this run).
  - **Orphan flag RESOLVED:** historic note only; main verified linear.
 
 ## IN FLIGHT
