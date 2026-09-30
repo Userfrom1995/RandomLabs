@@ -1,16 +1,16 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-30T04:33Z (maintainer issue_comment run 36669298228, standby)**
+ - **Updated: 2026-09-30T06:30Z (maintainer schedule run 36678220858, standby)**
 
 ## PRs & Issues
  - **PRs:** No open PRs. Last merge: #497 (curate) 2026-09-29 22:06:55Z.
  - **Issues:** Standing boards open: #70 lab-health, #42 brainstorm. No open project tracking issues.
- - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (19 live non-self workflow names vs 18-entry allowlist, exact match incl poolduel/postformer/tor-cli arms; no drift - verified this run).
+ - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (18 live non-self workflow names vs 18-entry allowlist, exact match incl poolduel/postformer/tor-cli arms; no drift - verified this run).
  - **Orphan flag RESOLVED:** historic note only; main verified linear.
 
 ## IN FLIGHT
  - Nothing in flight. Lab on standby (no auto-ideate).
  - Main tip 6ac65e2e (verified via git ls-remote this run, unchanged).
- - No failure/timed_out runs on main to triage (last-40 sweep: zero failures; only completed maintainer skips/cancelled arms + successes).
+ - No failure/timed_out runs on main to triage (last-40 sweep: zero failures; curator schedule 04:35Z SUCCESS).
  - UNTRIAGED sweep: nothing new (only standing boards open).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` not re-checked this run (no signal; standing evaluation-only item).
 
