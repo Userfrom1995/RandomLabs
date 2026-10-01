@@ -202,6 +202,15 @@ def parse_setting_value(field: str, raw: str) -> object:
             return False
         raise ValueError("%s must be on/off or true/false, got %r" % (
             field, raw))
+    if field in ("bedtime", "wake"):
+        try:
+            return parse_clock(raw)
+        except ValueError:
+            pass
+        try:
+            return float(raw) % 24.0
+        except (TypeError, ValueError):
+            raise ValueError("%s must look like HH:MM or a number, got %r" % (field, raw))
     try:
         return float(raw)
     except (TypeError, ValueError):

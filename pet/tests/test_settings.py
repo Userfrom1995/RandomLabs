@@ -149,6 +149,16 @@ class TestSettingValues(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_clock("")
 
+    def test_parse_bedtime_accepts_clock_format(self):
+        self.assertAlmostEqual(
+            parse_setting_value("bedtime", "22:00"), 22.0)
+        self.assertAlmostEqual(
+            parse_setting_value("wake", "6"), 6.0)
+        self.assertAlmostEqual(
+            parse_setting_value("bedtime", "7:30"), 7.5)
+        with self.assertRaises(ValueError):
+            parse_setting_value("bedtime", "24:00")
+
 
 class TestBrainToggles(unittest.TestCase):
     def test_wander_off_never_walks(self):
