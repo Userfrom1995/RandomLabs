@@ -1,24 +1,25 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-01T15:16Z (maintainer schedule tick 36882784008, quiet standby)**
+ - **Updated: 2026-10-01T17:15Z (maintainer issue_comment triage 36897776708, desktop-pet commission)**
 
 ## PRs & Issues
  - **PRs:** No open PRs.
- - **Issues:** Standing boards open: #70 lab-health, #42 brainstorm. No open project tracking issues.
+ - **Issues:** Standing boards open: #70 lab-health, #42 brainstorm. New: desktop-pet tracking issue created this run (UNTRIAGED - next run routes Architect via issues-opened self-dispatch or sweep).
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (19 live top-level workflow names vs 18-entry allowlist excl self `maintainer`, exact match; no drift - verified this run).
  - **Orphan flag RESOLVED:** historic note only; main verified linear.
 
 ## IN FLIGHT
- - Nothing in flight. Lab on standby (no auto-ideate).
- - Main tip 6cbc9f3 ("Change runners to mac-os", 2026-10-01T14:55:25Z; unchanged since last run). Pages deploy 36880204189 SUCCESS on this tip.
- - **WATCH ITEM (carried):** branch `opencode/tor-cli-fixes` @ 43d37b5 (bot-authored Builder commit "improve tor-cli syswide routing, browser detachment, and preflight validation (Refs #436)", 14:47Z; #436 is CLOSED). No open PR, no open tracking issue. tor-cli push CI 36881312048 FAILED 15:03Z (Setsid windows break; already triaged in run 36881585792 ~10 min prior). No re-push, no PR this run. Cooldown applies (same workflow+branch signature within 30 min). Next run: if branch still has no PR and failure unaddressed for 3 days (bot-work evaluation trigger), consider opening a tracking issue or pinging; if a PR appears, route fix/review normally.
- - No new failure/timed_out runs to triage (only in-progress self + prior tor-cli failure already handled + expected skips + successes; curator schedule SUCCESS 36863259680, recover schedule SUCCESS).
- - UNTRIAGED sweep: nothing new (only standing boards open).
+ - Desktop Pet (owner 2026-10-01T17:13:16Z on #42): cross-platform interactive companion (Win/Mac/Linux, personality, animations). This run: create_issue dispatched. Next: Architect Phase Epic, then build -> review -> test (3 OS) -> eval.
+ - Main tip 6cbc9f3 (unchanged; verified via git ls-remote this run).
+ - **WATCH ITEM (carried):** branch `opencode/tor-cli-fixes` (bot Builder commit, #436 CLOSED). No open PR, no open tracker. tor-cli push CI 36881312048 FAILED, already triaged in run 36881585792. No re-push, no PR this run. Next run: if still PR-less and unaddressed, age accrues toward the 3-day bot-work evaluation trigger.
+ - No new failure/timed_out runs to triage (only in-progress self + expected skips + successes; curator schedule SUCCESS, recover schedule SUCCESS).
+ - UNTRIAGED sweep: new desktop-pet issue recorded above; nothing else new.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` (d905397) still present, no signal this run; standing evaluation-only item.
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run.
-2. Standing rule unchanged: UNTRIAGED sweep every run; standby otherwise (no auto-ideate).
+2. Sweep UNTRIAGED: route desktop-pet issue to Architect (if self-dispatch already did, verify; if not, dispatch).
 3. Re-check `opencode/tor-cli-fixes`: PR opened? CI green on re-push? Age since 43d37b5.
+4. Standing rule unchanged: standby otherwise (no auto-ideate).
 
 ## OPEN QUESTIONS
  - Will `opencode/tor-cli-fixes` gain a PR, or is it owner-local WIP? Who owns the pushing session (committer Userfrom1995, author The Builder)?
