@@ -52,7 +52,7 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Active projects are software or research builds currently in progress under open tracking issues (meta tasks such as lab health audits or workflow maintenance are not listed here):
 
-No active builds right now: the lab is in standby. Thunderline (#481) and Netpulse (#489) both shipped on 2026-09-29 and their tracking issues are closed. The Maintainer picks the next build from the Brainstorm Board when summoned.
+- **Desktop Pet (`pet/`)** - Cross-platform interactive companion (issue #498, in progress): stdlib-only Python companion with a headless behavior brain (needs-driven tick machine, seeded personality dialogue, atomic persistence) plus a Pages hub. The behavior brain layer is built and tested; the native window, interaction layer, settings, per-OS shells, and packaging follow. [Website](https://userfrom1995.github.io/RandomLabs/pet/) · [README](pet/README.md)
 
 ## Previous Projects (Latest 10)
 
