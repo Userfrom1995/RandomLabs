@@ -38,6 +38,8 @@ REQUIRED_APP = [
     "shell_win.py",
     "shell_macos.py",
     "shell_linux.py",
+    "tray.py",
+    "service.py",
 ]
 REQUIRED_TOP = ["__init__.py", "__main__.py", "README.md", "index.html"]
 REQUIRED_DOCS = ["index.md", "index.html"]
@@ -46,7 +48,8 @@ FORBIDDEN_IMPORTS = ("tkinter", "pygame", "numpy", "PIL", "requests", "plyer")
 THIRD_PARTY_IMPORTS = ("pygame", "numpy", "PIL", "requests", "plyer")
 GUI_FREE_APP_MODULES = ("sprite.py", "platform.py", "controller.py",
                           "settings.py", "shells.py", "shell_win.py",
-                          "shell_macos.py", "shell_linux.py")
+                          "shell_macos.py", "shell_linux.py", "tray.py",
+                          "service.py")
 FACADE_MARKERS = (
     "coming soon",
     "coming-soon",
