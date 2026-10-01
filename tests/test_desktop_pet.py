@@ -33,13 +33,20 @@ REQUIRED_APP = [
     "platform.py",
     "controller.py",
     "window.py",
+    "settings.py",
+    "shells.py",
+    "shell_win.py",
+    "shell_macos.py",
+    "shell_linux.py",
 ]
 REQUIRED_TOP = ["__init__.py", "__main__.py", "README.md", "index.html"]
 REQUIRED_DOCS = ["index.md", "index.html"]
 
 FORBIDDEN_IMPORTS = ("tkinter", "pygame", "numpy", "PIL", "requests", "plyer")
 THIRD_PARTY_IMPORTS = ("pygame", "numpy", "PIL", "requests", "plyer")
-GUI_FREE_APP_MODULES = ("sprite.py", "platform.py", "controller.py")
+GUI_FREE_APP_MODULES = ("sprite.py", "platform.py", "controller.py",
+                          "settings.py", "shells.py", "shell_win.py",
+                          "shell_macos.py", "shell_linux.py")
 FACADE_MARKERS = (
     "coming soon",
     "coming-soon",
@@ -69,7 +76,8 @@ class TestDesktopPetWiring(unittest.TestCase):
             self.assertTrue((PET / "docs" / name).is_file(),
                             "missing pet/docs/%s" % name)
         self.assertTrue((PET / "tests" / "__init__.py").is_file())
-        for name in ("test_sprite.py", "test_window.py"):
+        for name in ("test_sprite.py", "test_window.py", "test_settings.py",
+                     "test_shells.py", "test_interact.py"):
             self.assertTrue((PET / "tests" / name).is_file(),
                             "missing pet/tests/%s" % name)
 
