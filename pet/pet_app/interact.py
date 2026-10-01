@@ -316,7 +316,8 @@ class SleepSchedule:
         state = "on" if self.enabled else "off"
 
         def clock(hour: float) -> str:
-            return "%02d:%02d" % (int(hour) % 24, int(round((hour % 1.0) * 60.0)) % 60)
+            total = int(round((hour % 24.0) * 60.0)) % (24 * 60)
+            return "%02d:%02d" % (total // 60, total % 60)
 
         return "Sleep schedule %s (bedtime %s, up at %s)." % (
             state, clock(self.bedtime), clock(self.wake))
