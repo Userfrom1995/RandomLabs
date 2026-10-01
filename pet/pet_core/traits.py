@@ -92,6 +92,75 @@ TRAITS: dict[str, dict[str, float]] = {
 
 FALLBACK_ID = "pip"
 
+# Per-character interaction modifiers (data, never branches). Fields:
+#   stroke_gain: affection per gentle click (controller streak nudge).
+#   stroke_full_gain: affection for a full stroke celebration (brain).
+#   catch_gain: affection per ball catch (controller rally reward).
+#   catch_radius_mult: multiplier on the ball catch radius (Bramble's
+#       eager leap scores faster, Mochi's slow wobble scores slower).
+#   munch_sec: feed munch animation length (Mochi purrs longer).
+#   feed_mult: multiplier on fed hunger restoration (Rusty runs on oil,
+#       snacks barely register; Mochi savours every crumb).
+#   antic_interval_sec: idle seconds before the event bus improvises an
+#       antic (Kiki chatters constantly, Rusty rarely volunteers).
+# Pip values exactly match the shipped interaction constants.
+INTERACTIONS: dict[str, dict[str, float]] = {
+    "pip": {
+        "stroke_gain": 2.0,
+        "stroke_full_gain": 8.0,
+        "catch_gain": 3.0,
+        "catch_radius_mult": 1.0,
+        "munch_sec": 3.0,
+        "feed_mult": 1.0,
+        "antic_interval_sec": 90.0,
+    },
+    "bramble": {
+        "stroke_gain": 2.5,
+        "stroke_full_gain": 9.0,
+        "catch_gain": 4.0,
+        "catch_radius_mult": 1.3,
+        "munch_sec": 2.5,
+        "feed_mult": 1.0,
+        "antic_interval_sec": 60.0,
+    },
+    "mochi": {
+        "stroke_gain": 3.0,
+        "stroke_full_gain": 10.0,
+        "catch_gain": 3.5,
+        "catch_radius_mult": 0.85,
+        "munch_sec": 4.5,
+        "feed_mult": 1.25,
+        "antic_interval_sec": 150.0,
+    },
+    "kiki": {
+        "stroke_gain": 2.0,
+        "stroke_full_gain": 8.0,
+        "catch_gain": 3.0,
+        "catch_radius_mult": 1.1,
+        "munch_sec": 2.5,
+        "feed_mult": 1.0,
+        "antic_interval_sec": 45.0,
+    },
+    "rusty": {
+        "stroke_gain": 1.0,
+        "stroke_full_gain": 6.0,
+        "catch_gain": 1.5,
+        "catch_radius_mult": 1.0,
+        "munch_sec": 3.0,
+        "feed_mult": 0.8,
+        "antic_interval_sec": 180.0,
+    },
+    "luna": {
+        "stroke_gain": 2.0,
+        "stroke_full_gain": 8.0,
+        "catch_gain": 2.5,
+        "catch_radius_mult": 1.0,
+        "munch_sec": 3.5,
+        "feed_mult": 1.1,
+        "antic_interval_sec": 120.0,
+    },
+}
+
 
 def known_ids() -> tuple[str, ...]:
     """Return the built-in character ids in registry order."""
@@ -113,3 +182,8 @@ def rates_for(character_id: object) -> dict[str, float]:
 def walk_speed_for(character_id: object) -> float:
     """Return the walk speed px/sec for a character id."""
     return float(TRAITS[normalize_id(character_id)]["walk_speed"])
+
+
+def interaction_for(character_id: object) -> dict[str, float]:
+    """Return a copy of the interaction-modifier record for a character."""
+    return dict(INTERACTIONS[normalize_id(character_id)])

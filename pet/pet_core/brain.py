@@ -262,8 +262,16 @@ class Brain:
                           mood=st.mood, activity=st.activity)
 
     def feed_pet(self, amount: float = 35.0) -> BrainEvent:
-        restored = needs_mod.feed(self.state, amount)
         st = self.state
+        try:
+            base = float(amount)
+        except (TypeError, ValueError):
+            base = 0.0
+        if base != base:
+            base = 0.0
+        mult = traits_mod.interaction_for(
+            getattr(st, "character_id", "pip"))["feed_mult"]
+        restored = needs_mod.feed(st, base * mult)
         st.mood = mood_for(st)
         text = self.personality.line_for_event("feed")
         if restored <= 0.0:
@@ -272,8 +280,10 @@ class Brain:
                           activity=st.activity)
 
     def stroke(self) -> BrainEvent:
-        gained = needs_mod.add_affection(self.state, 8.0)
         st = self.state
+        full_gain = traits_mod.interaction_for(
+            getattr(st, "character_id", "pip"))["stroke_full_gain"]
+        gained = needs_mod.add_affection(st, full_gain)
         st.mood = mood_for(st)
         if st.activity == Activity.SLEEP:
             text = "%s purrs in dreams." % st.name

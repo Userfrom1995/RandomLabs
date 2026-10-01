@@ -6,6 +6,7 @@ Usage:
   python -m pet gui [--scale F] [--alpha A] [--no-topmost] [--name NAME]
       [--character ID]
   python -m pet characters (list|show ID|switch ID)
+  python -m pet talk "hello there" [--character ID] [--seed S]
   python -m pet settings [--set field=value ...]
   python -m pet startup (on|off|status)
   python -m pet notify --message TEXT [--title TEXT]
@@ -36,7 +37,8 @@ def cmd_help() -> int:
     print("The `gui` command opens the on-screen companion window: a")
     print("borderless always-on-top pet with drag-carry, speech bubble,")
     print("and right-click menu. `run` drives the same behavior brain")
-    print("headlessly in your terminal, and `selftest` verifies state,")
+    print("headlessly in your terminal, `talk` chats with it offline,")
+    print("and `selftest` verifies state,")
     print("needs, dialogue, persistence, sprite poses, and brain.")
     return 0
 
@@ -109,6 +111,18 @@ def _build_parser() -> argparse.ArgumentParser:
                          help="character id for show/switch")
     chars_p.add_argument("--save", type=str, default=None,
                          help="save file path (default: platform user-data dir)")
+    talk_p = sub.add_parser("talk", aliases=["converse"],
+                            help="chat with the pet (offline conversation)")
+    talk_p.add_argument("text", nargs="?", default=None,
+                        help="what to say to the pet")
+    talk_p.add_argument("--character", type=str, default=None,
+                        help="answer in this character voice (saved)")
+    talk_p.add_argument("--save", type=str, default=None,
+                        help="save file path (default: platform user-data dir)")
+    talk_p.add_argument("--no-save", action="store_true",
+                        help="do not write the save file")
+    talk_p.add_argument("--seed", type=int, default=None,
+                        help="RNG seed for a deterministic reply")
     return parser
 
 
@@ -303,6 +317,39 @@ def cmd_characters(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_talk(args: argparse.Namespace) -> int:
+    from .pet_core import catalog as catalog_mod
+    from .pet_core.converse import Converser
+
+    if args.text is None or not str(args.text).strip():
+        print("error: talk needs something to say, e.g. "
+              'python -m pet talk "hello"', file=sys.stderr)
+        return 2
+    save_path = args.save or default_save_path()
+    state, notice = load(save_path)
+    if notice:
+        print("[pet] %s" % notice)
+    if args.character is not None:
+        record, char_notice = catalog_mod.get(args.character)
+        if char_notice:
+            print("[pet] %s" % char_notice)
+        state.character_id = record["id"]
+    talker = Converser(character_id=state.character_id, name=state.name,
+                       seed=args.seed)
+    reply, _hint = talker.reply(
+        args.text, mood=state.mood, hunger=state.hunger,
+        energy=state.energy)
+    print("%s: %s" % (state.name, reply))
+    if args.character is not None and not args.no_save:
+        try:
+            save(state, save_path)
+        except OSError as exc:
+            print("error: could not save character (%s)" % exc,
+                  file=sys.stderr)
+            return 1
+    return 0
+
+
 def cmd_selftest() -> int:
     """Run the headless suite plus wiring checks without unittest CLI."""
     import unittest
@@ -345,6 +392,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_notify(args)
     if args.command == "characters":
         return cmd_characters(args)
+    if args.command in ("talk", "converse"):
+        return cmd_talk(args)
     if args.command == "selftest":
         return cmd_selftest()
     if args.command == "version":

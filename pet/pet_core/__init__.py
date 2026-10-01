@@ -22,6 +22,8 @@ from .brain import Brain, BrainEvent, EVENT_KINDS
 from . import traits as _traits_mod
 from . import catalog as _catalog_mod
 from .personality import CHARACTER_VOICES
+from .converse import Converser, INTENT_IDS, parse_intent
+from .events import LifeEvents, LifeEvent, EVENT_KINDS as LIFE_EVENT_KINDS
 
 __all__ = [
     "Activity",
@@ -48,4 +50,10 @@ __all__ = [
     "EVENT_KINDS",
     "KNOWN_CHARACTERS",
     "CHARACTER_VOICES",
+    "Converser",
+    "INTENT_IDS",
+    "parse_intent",
+    "LifeEvents",
+    "LifeEvent",
+    "LIFE_EVENT_KINDS",
 ]

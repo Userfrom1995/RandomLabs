@@ -139,6 +139,16 @@ CHARACTER_VOICES: dict[str, dict[str, list[str]]] = {
             "Throw it! Bramble will catch it mid-air!",
             "Again! Again! Bramble never gets tired!",
         ],
+        "event:feed": [
+            "Nom nom nom! Bramble inhales the snack at top speed!",
+            "Crunch crunch crunch! Gone! {name} demands a rematch!",
+            "Munching at maximum velocity. More, maybe? Now?",
+        ],
+        "event:catch": [
+            "Snagged it mid-sprint! Bramble is the champion!",
+            "Got it! Did you see that leap? Throw it farther!",
+            "Caught! Bramble barely even had to try!",
+        ],
         "event:greet": [
             "Oh! You are here! Play with Bramble!",
             "{name} saved you a spot AND a ball.",
@@ -216,6 +226,16 @@ CHARACTER_VOICES: dict[str, dict[str, list[str]]] = {
             "Systems online. Greetings, human.",
             "Stretching every actuator at once.",
         ],
+        "event:catch": [
+            "Catch registered. Trajectory: adequate. Beep.",
+            "Ball secured in manipulator zone. Logging victory. Beep.",
+            "Interception complete. {name} calculates a 100 percent good catch.",
+        ],
+        "event:feed": [
+            "Snack accepted. Nutritional value: negligible. Morale: improved.",
+            "Consuming organic matter. Crunch efficiency: satisfactory. Beep.",
+            "Fuel intake logged. {name} feels 2 percent more alive.",
+        ],
     },
     "luna": {
         "mood:sleepy": [
@@ -239,6 +259,11 @@ CHARACTER_VOICES: dict[str, dict[str, list[str]]] = {
             "Nom nom. Moon-moth snacks. Thank you!",
             "Crunch crunch. {name} glows a little brighter.",
             "Munching stardust. More, maybe?",
+        ],
+        "event:stroke": [
+            "{name} glows softly under the pats. Moonlit and content.",
+            "Gentle pats. Luna's wings shimmer faintly.",
+            "Mmm. Pats under starlight. {name} drifts closer.",
         ],
     },
 }
