@@ -10,8 +10,10 @@ def suite() -> unittest.TestSuite:
     import pet.tests.test_persistence as tpe
     import pet.tests.test_brain as tb
 
+    import pet.tests.test_tester_adversarial as tta
+
     loader = unittest.TestLoader()
     combined = unittest.TestSuite()
-    for module in (ts, tn, tp, tpe, tb):
+    for module in (ts, tn, tp, tpe, tb, tta):
         combined.addTests(loader.loadTestsFromModule(module))
     return combined
