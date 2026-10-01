@@ -57,9 +57,14 @@
     <li><code>python -m pet selftest</code>: headless suite plus a seeded soak proving all five activities are reachable.</li>
     <li><code>python -m pet help</code> / <code>python -m pet version</code>: usage and version.</li>
   </ul>
+  <p>Set <code>DESKTOP_PET_NO_DISPLAY=1</code> to force the honest headless path for <code>gui</code> on any OS (used by CI and automated tests so GUI behavior stays deterministic on machines that do have a display).</p>
+
+  <h2>Packaging</h2>
+  <p>Run-from-source is the primary install path; the optional one-file binaries are built from documented recipes, never downloaded blind: <code>packaging/build.sh</code> (Linux/macOS) and <code>packaging/build-windows.ps1</code> (Windows) wrap <code>packaging/desktop-pet.spec</code> (PyInstaller, console build, zero assets), write <code>dist/SHA256SUMS.txt</code>, and run <code>selftest</code> on the finished bundle. Artifacts: <code>dist/desktop-pet</code> (Linux/macOS), <code>dist/desktop-pet.exe</code> (Windows). The full matrix and checksum commands live in <code>packaging/README.md</code>.</p>
 
   <h2>Troubleshooting</h2>
   <ul>
+    <li><strong>No window on a machine with a screen</strong>: Linux needs a display (<code>DISPLAY</code> or Wayland) plus tkinter (<code>python3-tk</code> on Debian/Ubuntu). Set <code>DESKTOP_PET_NO_DISPLAY=1</code> to force the honest headless path anywhere, e.g. in CI.</li>
     <li><strong>Save file corrupt</strong>: the pet starts fresh and the old file is kept next to it with a <code>.bak</code> suffix. Nothing is deleted silently.</li>
     <li><strong>Pet always sleepy</strong>: energy drains while awake and restores only in SLEEP. Send it to sleep (or let the brain decide) and it wakes rested.</li>
     <li><strong>Pet always hungry</strong>: hunger fills over about 10 minutes of pet time. Feed it through the event API or the window Feed menu item.</li>

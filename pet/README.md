@@ -53,7 +53,8 @@ score line).
 Window options: `--scale 0.5..3.0` (multiplied by display DPI),
 `--alpha 0.3..1.0` (opacity), `--no-topmost`, `--save PATH`,
 `--no-save`. Without tkinter or a display it exits with an honest note
-instead of a traceback.
+instead of a traceback. Set `DESKTOP_PET_NO_DISPLAY=1` to force that
+honest headless path on any OS (used by CI and automated tests).
 
 `run` drives the brain headlessly in your terminal: it loads the saved
 pet (or starts fresh), prints activity changes and dialogue lines, and
@@ -92,6 +93,22 @@ shows the notice in its speech bubble instead. Windows has no bundled
 toast path, so it always uses the bubble and says so. The settings
 dialog surfaces the same startup toggle with the platform note beside
 it, so a denied capability reads as an explanation, never an error.
+
+## Packaging
+
+Run-from-source is the primary install path. For a double-clickable
+app, build the optional one-file binary from the documented recipes:
+
+```sh
+sh pet/packaging/build.sh                                # Linux/macOS
+powershell -ExecutionPolicy Bypass -File pet\packaging\build-windows.ps1  # Windows
+```
+
+Each recipe wraps `packaging/desktop-pet.spec` (PyInstaller, console
+build so `run`, `settings`, and `selftest` keep working), writes
+`dist/SHA256SUMS.txt`, and runs `selftest` on the finished bundle.
+No binaries are checked in; the per-OS matrix and checksum commands
+live in `packaging/README.md`.
 
 ## How it works
 
@@ -173,7 +190,7 @@ save(brain.state)
 | Companion window (`gui`) | yes | yes | yes |
 | Start at login (`startup`, dialog toggle) | yes (Run key) | yes (LaunchAgent) | yes (autostart) |
 | OS notifications (`notify`) | bubble note | yes (osascript) | yes (notify-send) |
-| PyInstaller recipe | planned | planned | planned |
+| One-file binary (recipe) | yes (`packaging/build-windows.ps1`) | yes (`packaging/build.sh`) | yes (`packaging/build.sh`) |
 
 The window needs tkinter plus a display; where either is missing the
 `gui` command exits with an honest note pointing at headless `run`.
@@ -199,10 +216,14 @@ failing silently.
   `notify`, `selftest`, `help`, `version`).
 - `tests/` - headless suite: state, needs, personality, persistence,
   brain, sprite, window controller, interaction play layer, settings
-  and brain toggles, per-OS shells (218 tests, seeded and
+  and brain toggles, per-OS shells (242 tests, seeded and
   deterministic).
+- `packaging/` - one-file PyInstaller recipes: `desktop-pet.spec`,
+  `build.sh` (Linux/macOS), `build-windows.ps1` (Windows), build
+  README with the per-OS download matrix.
 - `docs/` - unified product documentation.
-- `index.html` - Pages hub for this project.
+- `index.html` - Pages hub for this project, with a live canvas
+  showcase mirroring the real sprite math.
 
 ## Verification
 

@@ -51,6 +51,45 @@
   th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
   th { background: var(--panel); }
   nav.breadcrumb { font-size: 0.88rem; color: var(--muted); margin-bottom: 20px; }
+  .showcase {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 16px;
+    align-items: start;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+  }
+  @media (max-width: 640px) { .showcase { grid-template-columns: 1fr; } }
+  #petCanvas {
+    width: 268px;
+    height: 268px;
+    background: #10141f;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    display: block;
+  }
+  .activity-btns { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
+  .activity-btns button {
+    background: #10141f;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 0.88rem;
+    cursor: pointer;
+  }
+  .activity-btns button[aria-pressed="true"] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0b0e14;
+    font-weight: 600;
+  }
+  #activityCaption { color: var(--muted); font-size: 0.92rem; min-height: 3.2em; }
+  #activityCaption strong { color: var(--text); }
+  .note { color: var(--muted); font-size: 0.88rem; }
 </style>
 </head>
 <body>
@@ -58,6 +97,25 @@
   <nav class="breadcrumb"><a href="../">Random</a> / Desktop Pet</nav>
   <h1>Desktop Pet</h1>
   <p class="sub">A cross-platform interactive companion: stdlib-only Python, offline by default, honest about platform limits.</p>
+
+  <h2>Live showcase</h2>
+  <p>This is the real pet, drawn with the same pose math as the desktop app (<code>pose_for</code> plus <code>shapes</code> in <code>pet_app/sprite.py</code>, mirrored here in canvas calls). Pick an activity and watch it move:</p>
+  <div class="showcase">
+    <canvas id="petCanvas" width="536" height="536" role="img" aria-label="Animated desktop pet preview"></canvas>
+    <div>
+      <div class="activity-btns" role="group" aria-label="Activity switcher">
+        <button data-activity="idle" aria-pressed="true">Idle</button>
+        <button data-activity="walk" aria-pressed="false">Walk</button>
+        <button data-activity="play" aria-pressed="false">Play</button>
+        <button data-activity="sleep" aria-pressed="false">Sleep</button>
+        <button data-activity="react" aria-pressed="false">React</button>
+        <button data-activity="munch" aria-pressed="false">Munch</button>
+        <button data-activity="carried" aria-pressed="false">Carried</button>
+      </div>
+      <p id="activityCaption"></p>
+      <p class="note">Poses blend with the same smootherstep easing as the app, so switches glide instead of snapping. The desktop window redraws every 50 ms from the same functions.</p>
+    </div>
+  </div>
 
   <h2>What it is</h2>
   <p>A lightweight, always-on-top desktop companion that feels alive: it idles, wanders, plays, sleeps, and reacts to you, with a nameable personality (Pip by default) and procedural animation drawn from canvas primitives. The behavior brain runs headlessly and the on-screen window renders it; gentle clicks stroke it into affection streaks, feeding opens a munch animation, Play starts a scored ball-toss mini-game, and a bedtime schedule tucks it in at night.</p>
@@ -70,14 +128,58 @@
     <div class="card"><h4>Settings</h4><p>Name, behavior toggles, transparency, size, bedtime hours, and start-at-login, all restored on restart.</p></div>
   </div>
 
-  <h2>Quickstart</h2>
-  <p>Requires Python 3.10 or newer. No third-party packages.</p>
+  <h2>Behavior guide</h2>
+  <table>
+    <tr><th>Activity</th><th>What you see</th><th>What brings it on</th></tr>
+    <tr><td>Idle</td><td>Breathing sides, blinking eyes, swaying tail</td><td>The resting state between whims; try the Idle button above</td></tr>
+    <tr><td>Walk</td><td>Bobbing stride, forward gaze, high tail sway; the window itself drifts across the screen</td><td>Rested curiosity; disable with the wander toggle in Settings</td></tr>
+    <tr><td>Play</td><td>Happy jumps, open mouth, full blush, bouncing ball chase in the Play mini-game</td><td>Neglect invites it; start a rally any time from the Play menu item</td></tr>
+    <tr><td>Sleep</td><td>Closed eyes, settled body, floating Z markers; energy restores</td><td>Exhaustion or the 22:00 bedtime routine; Wake grants a 2-minute grace window</td></tr>
+    <tr><td>React</td><td>Startled squash, wide eyes, popped tail</td><td>Transient: a double-click poke, then it settles back</td></tr>
+    <tr><td>Munch</td><td>Chomping cheeks and happy blush for about 3 seconds</td><td>The Feed menu item, whenever hunger calls</td></tr>
+    <tr><td>Carried</td><td>Dangling pose with upward gaze while held</td><td>Press-drag the pet; movement suspends until you drop it</td></tr>
+  </table>
+
+  <h2>Quickstart per OS</h2>
+  <p>Requires Python 3.10 or newer. No third-party packages for run-from-source.</p>
   <pre>python -m pet selftest
 python -m pet gui
 python -m pet gui --scale 1.5 --alpha 0.9
 python -m pet run --ticks 300 --seed 7
 python -m pet settings --set wander=off --set alpha=0.8
 python -m pet startup status</pre>
+  <table>
+    <tr><th>OS</th><th>tkinter</th><th>Start command</th></tr>
+    <tr><td>Windows 10/11</td><td>Bundled with python.org installers</td><td><code>python -m pet gui</code></td></tr>
+    <tr><td>macOS 13+</td><td>Bundled with python.org installers</td><td><code>python3 -m pet gui</code></td></tr>
+    <tr><td>Linux (X11/Wayland)</td><td>Install your distro package, e.g. <code>sudo apt install python3-tk</code>; needs a display</td><td><code>python3 -m pet gui</code></td></tr>
+  </table>
+  <p class="note">Without tkinter or a display, <code>gui</code> exits with an honest note pointing at headless <code>run</code>. CI and automated tests can force that path anywhere with <code>DESKTOP_PET_NO_DISPLAY=1</code>.</p>
+
+  <h2>Interactions</h2>
+  <ul>
+    <li><strong>Single click</strong>: stroke. Repeat gentle clicks for an affection streak and a purring celebration.</li>
+    <li><strong>Double click</strong>: poke. Startle reaction plus a context line.</li>
+    <li><strong>Press-drag</strong>: pick up and carry. The pet dangles; dropping shows a relieved line.</li>
+    <li><strong>Right click</strong>: menu with Feed, Play, Sleep/Wake, Sleep schedule toggle, Settings, About, Quit.</li>
+    <li><strong>Speech bubble</strong>: mood-labeled chatter above the pet; toggle it in Settings without muting system notices.</li>
+  </ul>
+
+  <h2>Settings tour</h2>
+  <p>Settings on the menu (or <code>python -m pet settings</code>) manages the persisted configuration: pet name, wander toggle, play-invitation toggle, bedtime routine toggle plus bedtime and wake hours (<code>HH:MM</code>), speech-bubble chatter toggle, always-on-top toggle, transparency (<code>0.3..1.0</code>), size (<code>0.5..3.0</code>, multiplied by display DPI), and start-at-login. The dialog applies changes live; restart restores name, stats, settings, and window position.</p>
+
+  <h2>Downloads</h2>
+  <p>No binaries are hosted here: the pet is source-first, and the hub links the recipes so downloads can never drift from the code.</p>
+  <ul>
+    <li><a href="https://github.com/Userfrom1995/RandomLabs">Source tree</a>: run with <code>python -m pet gui</code>, zero install.</li>
+    <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/pet/packaging/README.md">Packaging recipes</a>: one-file PyInstaller builds per OS with checksums and a bundle selftest (<code>packaging/build.sh</code> for Linux/macOS, <code>packaging/build-windows.ps1</code> for Windows).</li>
+  </ul>
+  <table>
+    <tr><th>OS</th><th>Recipe</th><th>Artifact</th></tr>
+    <tr><td>Windows 10/11</td><td><code>packaging/build-windows.ps1</code></td><td><code>dist/desktop-pet.exe</code></td></tr>
+    <tr><td>macOS 13+</td><td><code>packaging/build.sh</code></td><td><code>dist/desktop-pet</code></td></tr>
+    <tr><td>Linux (X11/Wayland)</td><td><code>packaging/build.sh</code></td><td><code>dist/desktop-pet</code></td></tr>
+  </table>
 
   <h2>Support matrix</h2>
   <table>
@@ -87,14 +189,266 @@ python -m pet startup status</pre>
     <tr><td>Companion window (<code>gui</code>)</td><td>yes</td><td>yes</td><td>yes</td></tr>
     <tr><td>Start at login (<code>startup</code>, dialog toggle)</td><td>yes (Run key)</td><td>yes (LaunchAgent)</td><td>yes (autostart)</td></tr>
     <tr><td>OS notifications (<code>notify</code>)</td><td>bubble note</td><td>yes (osascript)</td><td>yes (notify-send)</td></tr>
+    <tr><td>One-file binary (recipe)</td><td>yes (<code>build-windows.ps1</code>)</td><td>yes (<code>build.sh</code>)</td><td>yes (<code>build.sh</code>)</td></tr>
   </table>
+
+  <h2>Troubleshooting</h2>
+  <ul>
+    <li><strong>No window today, no display found</strong>: start a graphical session first, or use <code>python -m pet run</code> headlessly. Force this path anywhere with <code>DESKTOP_PET_NO_DISPLAY=1</code>.</li>
+    <li><strong>tkinter is missing</strong> (Linux): install <code>python3-tk</code> from your distro, or stay headless.</li>
+    <li><strong>Save file corrupt</strong>: the pet starts fresh and keeps the old file with a <code>.bak</code> suffix. Nothing is deleted silently.</li>
+    <li><strong>Pet always sleepy</strong>: energy restores only in SLEEP. Send it to sleep and it wakes rested.</li>
+    <li><strong>Pet falls asleep at night</strong>: the 22:00 to 7:00 routine tucks it in. Wake it for a 2-minute grace window, or switch the routine off.</li>
+    <li><strong>Deterministic replay</strong>: pass <code>--seed</code> to <code>run</code> for a reproducible session.</li>
+  </ul>
 
   <h2>Documentation</h2>
   <ul>
     <li><a href="docs/">Product documentation</a></li>
     <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/pet/README.md">README and core API</a></li>
+    <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/pet/packaging/README.md">Packaging recipes</a></li>
     <li><a href="https://github.com/Userfrom1995/RandomLabs/issues/498">Tracking issue #498</a></li>
   </ul>
+</main>
+<script>
+(function () {
+  "use strict";
+  var TAU = Math.PI * 2;
+  var BOX = 160;
+
+  function clamp(v, lo, hi) {
+    v = Number(v);
+    if (!isFinite(v)) return lo;
+    if (v < lo) return lo;
+    if (v > hi) return hi;
+    return v;
+  }
+
+  function smootherstep(t) {
+    t = clamp(t, 0, 1);
+    return t * t * t * (t * (t * 6 - 15) + 10);
+  }
+
+  // Faithful mirror of pet_app/sprite.py pose_for (phase in radians).
+  function poseFor(activity, phase) {
+    var wave = ((Number(phase) % TAU) + TAU) % TAU;
+    if (!isFinite(wave)) wave = 0;
+    var breath = Math.cos(wave), sway = Math.sin(wave);
+    switch (activity) {
+      case "walk": {
+        var bob = Math.abs(Math.sin(wave * 2));
+        return { sx: 1 - 0.03 * bob, sy: 1 + 0.04 * bob, eye: 1,
+          pdx: 0.45, pdy: 0, tilt: 0.12, tail: 0.4 + 0.55 * sway,
+          hop: 0.10 * bob, blush: 0.15, mouth: "smile", breath: breath };
+      }
+      case "play": {
+        var jump = Math.max(0, Math.sin(wave * 2));
+        return { sx: 1 - 0.06 * jump, sy: 1 + 0.10 * jump, eye: 1,
+          pdx: 0.2 * sway, pdy: -0.2 * jump, tilt: -0.15,
+          tail: 0.4 + 0.8 * sway, hop: 0.35 * jump, blush: 0.8,
+          mouth: "open", breath: breath };
+      }
+      case "sleep": {
+        var drift = Math.sin(wave * 0.5);
+        return { sx: 1 + 0.06 * breath, sy: 0.82 - 0.03 * breath, eye: 0,
+          pdx: 0, pdy: 0, tilt: 0.25, tail: 0.1 + 0.1 * drift,
+          hop: 0, blush: 0.35, mouth: "sleep", breath: breath };
+      }
+      case "react": {
+        var startle = Math.max(0, Math.cos(wave * 3));
+        return { sx: 1 - 0.10 * startle, sy: 1 + 0.12 * startle, eye: 1,
+          pdx: 0, pdy: -0.1, tilt: -0.3 * startle, tail: 1.1,
+          hop: 0.12 * startle, blush: 0.6, mouth: "oh", breath: breath };
+      }
+      case "munch": {
+        var chomp = Math.max(0, Math.sin(wave * 4));
+        return { sx: 1 + 0.05 * chomp, sy: 1 - 0.04 * chomp, eye: 0.75,
+          pdx: 0, pdy: 0.15, tilt: 0.08 * sway, tail: 0.5 + 0.3 * sway,
+          hop: 0.03 * chomp, blush: 0.85,
+          mouth: chomp > 0.4 ? "open" : "smile", breath: breath };
+      }
+      case "carried":
+        return { sx: 1 + 0.02 * breath, sy: 1.12, eye: 1,
+          pdx: 0, pdy: 0.25, tilt: 0.1 * sway, tail: 0.15 * sway,
+          hop: 0, blush: 0.5, mouth: "smile", breath: breath };
+      default: { // idle
+        var blink = 1;
+        if (wave > 5.6) blink = Math.max(0.05, 1 - (wave - 5.6) * 2.5);
+        return { sx: 1 + 0.02 * breath, sy: 1 - 0.025 * breath, eye: blink,
+          pdx: 0.15 * sway, pdy: 0, tilt: 0.05 * sway,
+          tail: 0.4 + 0.25 * sway, hop: 0, blush: 0.25,
+          mouth: "smile", breath: breath };
+      }
+    }
+  }
+
+  function blendPose(a, b, t) {
+    var m = smootherstep(t);
+    function L(x, y) { return x + (y - x) * m; }
+    return { sx: L(a.sx, b.sx), sy: L(a.sy, b.sy), eye: L(a.eye, b.eye),
+      pdx: L(a.pdx, b.pdx), pdy: L(a.pdy, b.pdy), tilt: L(a.tilt, b.tilt),
+      tail: L(a.tail, b.tail), hop: L(a.hop, b.hop), blush: L(a.blush, b.blush),
+      mouth: m >= 0.5 ? b.mouth : a.mouth, breath: L(a.breath, b.breath) };
+  }
+
+  // Faithful mirror of pet_app/sprite.py shapes (size x size box).
+  function shapesFor(pose, size) {
+    var box = Number(size);
+    if (!isFinite(box) || box <= 0) box = BOX;
+    var unit = box / BOX, cx = box / 2;
+    var bodyR = 52 * unit;
+    var rx = bodyR * clamp(pose.sx, 0.5, 1.6);
+    var ry = bodyR * clamp(pose.sy, 0.5, 1.6);
+    var cy = box * 0.58 - clamp(pose.hop, -1, 1.5) * bodyR;
+    var eyeOpen = clamp(pose.eye, 0, 1);
+    var tilt = clamp(pose.tilt, -0.6, 0.6);
+    var tailA = clamp(pose.tail, -1.5, 1.5);
+    var blush = clamp(pose.blush, 0, 1);
+    var pdx = clamp(pose.pdx, -1, 1), pdy = clamp(pose.pdy, -1, 1);
+    var out = [];
+    var tLen = 44 * unit;
+    var tx0 = cx + rx * 0.85, ty0 = cy + ry * 0.35;
+    var tx1 = tx0 + Math.cos(tailA) * tLen, ty1 = ty0 - Math.sin(tailA) * tLen - 12 * unit;
+    out.push({ kind: "line", coords: [tx0, ty0, tx1, ty1], fill: "#e8b64c", width: 9 * unit });
+    out.push({ kind: "circle", coords: [tx1 - 6 * unit, ty1 - 6 * unit, tx1 + 6 * unit, ty1 + 6 * unit], fill: "#f6d789" });
+    var ear = 26 * unit, tiltPx = tilt * 30 * unit;
+    out.push({ kind: "polygon", coords: [cx - rx * 0.62 + tiltPx, cy - ry * 0.72, cx - rx * 0.30 + tiltPx, cy - ry * 1.28, cx - rx * 0.10 + tiltPx, cy - ry * 0.66], fill: "#f2a65a" });
+    out.push({ kind: "polygon", coords: [cx + rx * 0.62 + tiltPx, cy - ry * 0.72, cx + rx * 0.30 + tiltPx, cy - ry * 1.28, cx + rx * 0.10 + tiltPx, cy - ry * 0.66], fill: "#f2a65a" });
+    out.push({ kind: "oval", coords: [cx - rx, cy - ry, cx + rx, cy + ry], fill: "#f6c453" });
+    out.push({ kind: "oval", coords: [cx - rx * 0.45, cy - ry * 0.1, cx + rx * 0.45, cy + ry * 0.72], fill: "#fde9b8" });
+    var eyeDx = rx * 0.34, eyeY = cy - ry * 0.18;
+    var eyeRx = 9 * unit, eyeRy = Math.max(1.2 * unit, 10 * unit * eyeOpen);
+    [-1, 1].forEach(function (side) {
+      var ex = cx + side * eyeDx;
+      out.push({ kind: "oval", coords: [ex - eyeRx, eyeY - eyeRy, ex + eyeRx, eyeY + eyeRy], fill: "#23232b" });
+      if (eyeOpen > 0.4) {
+        var sp = 2.5 * unit;
+        out.push({ kind: "circle", coords: [ex - sp, eyeY - eyeRy * 0.5 - sp, ex + sp, eyeY - eyeRy * 0.5 + sp], fill: "#ffffff" });
+        out.push({ kind: "circle", coords: [ex + pdx * 4 * unit - 3.5 * unit, eyeY + pdy * 4 * unit - 3.5 * unit, ex + pdx * 4 * unit + 3.5 * unit, eyeY + pdy * 4 * unit + 3.5 * unit], fill: "#23232b" });
+      }
+    });
+    if (blush > 0.02) {
+      var br = (4 + 5 * blush) * unit;
+      [-1, 1].forEach(function (side) {
+        var bx = cx + side * rx * 0.58, by = cy + ry * 0.22;
+        out.push({ kind: "circle", coords: [bx - br, by - br, bx + br, by + br], fill: "#f1948a" });
+      });
+    }
+    var my = cy + ry * 0.38;
+    if (pose.mouth === "open") {
+      out.push({ kind: "oval", coords: [cx - 8 * unit, my - 6 * unit, cx + 8 * unit, my + 9 * unit], fill: "#7b3f2a" });
+    } else if (pose.mouth === "oh") {
+      out.push({ kind: "oval", coords: [cx - 6 * unit, my - 8 * unit, cx + 6 * unit, my + 8 * unit], fill: "#7b3f2a" });
+    } else if (pose.mouth === "sleep") {
+      out.push({ kind: "line", coords: [cx - 10 * unit, my, cx + 10 * unit, my], fill: "#7b3f2a", width: 2.5 * unit });
+    } else {
+      out.push({ kind: "arc", coords: [cx - 12 * unit, my - 8 * unit, cx + 12 * unit, my + 8 * unit], fill: "#7b3f2a", width: 2.5 * unit });
+    }
+    if (pose.mouth === "sleep") {
+      out.push({ kind: "text", coords: [cx + 34 * unit, cy - 62 * unit], text: "z", fontSize: 16, fill: "#7aa2f7" });
+      out.push({ kind: "text", coords: [cx + 48 * unit, cy - 84 * unit], text: "z", fontSize: 22, fill: "#7aa2f7" });
+    }
+    return out;
+  }
+
+  var canvas = document.getElementById("petCanvas");
+  var caption = document.getElementById("activityCaption");
+  var ctx = canvas.getContext("2d");
+  var CAPTIONS = {
+    idle: "<strong>Idle.</strong> Breathing sides, blinking eyes, swaying tail. The resting state between whims.",
+    walk: "<strong>Walk.</strong> Bobbing stride with a forward gaze. On the desktop the window itself drifts across the screen.",
+    play: "<strong>Play.</strong> Happy jumps with an open mouth and full blush. The Play menu item starts a scored ball-toss rally.",
+    sleep: "<strong>Sleep.</strong> Closed eyes and a settled body with floating Z markers. Energy restores here.",
+    react: "<strong>React.</strong> Startled squash with wide eyes and a popped tail. Double-click the pet to see it.",
+    munch: "<strong>Munch.</strong> Chomping cheeks after feeding, about three seconds of crunching.",
+    carried: "<strong>Carried.</strong> Dangling pose with an upward gaze. Press-drag the pet to pick it up."
+  };
+  var SPEEDS = { idle: 1.6, walk: 3.2, play: 3.6, sleep: 1.1, react: 4.0, munch: 4.5, carried: 1.6 };
+
+  var state = { activity: "idle", phase: 0, from: null, blendT: 1, last: 0 };
+
+  function drawShape(item, scale) {
+    var c = item.coords.map(function (v) { return v * scale; });
+    ctx.fillStyle = item.fill || "#fff";
+    ctx.strokeStyle = item.fill || "#fff";
+    if (item.kind === "oval" || item.kind === "circle") {
+      var cx = (c[0] + c[2]) / 2, cy = (c[1] + c[3]) / 2;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, Math.max(0.5, (c[2] - c[0]) / 2), Math.max(0.5, (c[3] - c[1]) / 2), 0, 0, TAU);
+      ctx.fill();
+    } else if (item.kind === "polygon") {
+      ctx.beginPath();
+      ctx.moveTo(c[0], c[1]);
+      for (var i = 2; i < c.length; i += 2) ctx.lineTo(c[i], c[i + 1]);
+      ctx.closePath();
+      ctx.fill();
+    } else if (item.kind === "line") {
+      ctx.lineWidth = (item.width || 2) * scale;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(c[0], c[1]);
+      ctx.lineTo(c[2], c[3]);
+      ctx.stroke();
+    } else if (item.kind === "arc") {
+      // Smile curve across the bbox (canvas twin of the tkinter arc).
+      ctx.lineWidth = (item.width || 2) * scale;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(c[0], (c[1] + c[3]) / 2);
+      ctx.quadraticCurveTo((c[0] + c[2]) / 2, c[3] + 6 * scale, c[2], (c[1] + c[3]) / 2);
+      ctx.stroke();
+    } else if (item.kind === "text") {
+      ctx.font = "bold " + Math.round((item.fontSize || 14) * scale) + "px Helvetica, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(item.text || "", c[0], c[1]);
+    }
+  }
+
+  function frame(now) {
+    var dt = Math.min(0.1, (now - state.last) / 1000 || 0.016);
+    state.last = now;
+    state.phase = (state.phase + dt * (SPEEDS[state.activity] || 1.6)) % TAU;
+    var target = poseFor(state.activity, state.phase);
+    var shown = target;
+    if (state.blendT < 1) {
+      state.blendT = Math.min(1, state.blendT + dt / 0.35);
+      shown = blendPose(state.from, target, state.blendT);
+    }
+    var w = canvas.width, scale = w / BOX;
+    ctx.clearRect(0, 0, w, w);
+    // Soft floor shadow (showcase staging only, not part of the sprite).
+    ctx.fillStyle = "rgba(0,0,0,0.30)";
+    ctx.beginPath();
+    ctx.ellipse(w / 2, w * 0.92, 52 * scale, 10 * scale, 0, 0, TAU);
+    ctx.fill();
+    shapesFor(shown, BOX).forEach(function (item) { drawShape(item, scale); });
+    requestAnimationFrame(frame);
+  }
+
+  var buttons = document.querySelectorAll(".activity-btns button");
+  function select(name) {
+    var current = poseFor(state.activity, state.phase);
+    state.from = current;
+    state.blendT = 0;
+    state.activity = name;
+    buttons.forEach(function (b) {
+      b.setAttribute("aria-pressed", b.dataset.activity === name ? "true" : "false");
+    });
+    caption.innerHTML = CAPTIONS[name] || CAPTIONS.idle;
+  }
+  buttons.forEach(function (b) {
+    b.addEventListener("click", function () { select(b.dataset.activity); });
+  });
+  caption.innerHTML = CAPTIONS.idle;
+  try {
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = 268 * dpr;
+    canvas.height = 268 * dpr;
+  } catch (e) { /* keep the markup size */ }
+  requestAnimationFrame(function (t) { state.last = t; requestAnimationFrame(frame); });
+})();
+</script>
 </main>
 </body>
 </html>

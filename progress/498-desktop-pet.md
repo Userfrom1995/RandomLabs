@@ -12,10 +12,10 @@
 - **Phase 2: Native Window and Procedural Animation:** [x] borderless always-on-top tkinter window with drag-carry, [x] procedural sprite pose engine with eased activity poses, [x] DPI-aware scaling plus transparency control, [x] speech bubble and right-click menu shell (PR 2 target, Refs #498)
 - **Phase 3: Interaction and Play Layer:** [x] click strokes plus affection streaks with purring milestones, [x] feed flow with munch pose session, [x] ball-toss mini-game with scored catches, [x] bedtime schedule with menu toggle and manual-choice grace (PR 3 target, Refs #498)
 - **Phase 4: Settings and Platform Integration:** [x] settings dialog (name, behavior toggles, transparency, topmost, scale, bedtime hours, startup), [x] per-OS startup plus notification shells (win/macos/linux) behind one contract, [x] restart state and position restore, [x] honest capability notes where denied (PR 4 target, Refs #498)
-- **Final Phase: Hub Showcase, Packaging, and End-to-End Audit:** [ ] Pages hub at /pet/ with live canvas replica and per-OS quickstart, [ ] PyInstaller recipes plus download matrix, [ ] unified docs and README, [ ] full static plus headless gates green on all three OS families (Final PR, Refs #498; Closes only after test and eval gates pass)
+- **Final Phase: Hub Showcase, Packaging, and End-to-End Audit:** [x] Pages hub at /pet/ with live canvas replica and per-OS quickstart, [x] PyInstaller recipes plus download matrix, [x] unified docs and README, [ ] full static plus headless gates green on all three OS families (Final PR, Refs #498; Closes only after test and eval gates pass)
 
-- **Current step:** Phase 4 complete: settings model plus per-OS shells, brain gating, controller and dialog wiring, CLI settings/startup/notify, 72 new headless tests (218 total), selftest plus static gate green
-- **Next steps:** Reviewer loop on this PR, then Final Phase: Hub Showcase, Packaging, and End-to-End Audit on the next phase PR
+- **Current step:** Final Phase built: live canvas hub, per-OS packaging recipes, unified docs refresh, new headless tests for the override and the settings menu action
+- **Next steps:** Full gates (headless suite, selftest, static gates), then Reviewer loop on the final PR
 
 ## Agent Log
 
