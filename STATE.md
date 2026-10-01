@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-01T04:45Z (maintainer issue_comment run 36816338988, standby)**
+ - **Updated: 2026-10-01T07:47Z (maintainer schedule run 36832350065, standby)**
 
 ## PRs & Issues
  - **PRs:** No open PRs. Last merge: #497 (curate) 2026-09-29 22:06:55Z.
@@ -10,7 +10,7 @@
 ## IN FLIGHT
  - Nothing in flight. Lab on standby (no auto-ideate).
  - Main tip 6ac65e2e (verified via git ls-remote this run, unchanged).
- - No failure/timed_out runs to triage (sweep: zero failures; only in-progress self, skipped/cancelled maintainer workflow_run arms + expected skips + successes; auditor schedule SUCCESS).
+ - No failure/timed_out runs to triage (sweep: zero failures; only in-progress self, skipped/cancelled maintainer workflow_run arms + expected skips + successes; curator schedule SUCCESS 36816652699, auditor schedule SUCCESS).
  - UNTRIAGED sweep: nothing new (only standing boards open).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` not re-checked this run (no signal; standing evaluation-only item).
 
