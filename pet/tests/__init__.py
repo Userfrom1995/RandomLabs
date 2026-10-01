@@ -23,6 +23,7 @@ def suite() -> unittest.TestSuite:
     import pet.tests.test_tester_phase1_catalog_adversarial as ttp1
     import pet.tests.test_tester_phase1_eval_repair as ttp1er
     import pet.tests.test_tester_phase3_adversarial as ttp3
+    import pet.tests.test_tester_phase3_converse_adversarial as ttp3c
     import pet.tests.test_tester_phase4_adversarial as ttp4
     import pet.tests.test_tester_phase4_nonfinite_cli as ttp4nf
     import pet.tests.test_tester_final_phase as ttfin
@@ -31,6 +32,6 @@ def suite() -> unittest.TestSuite:
     combined = unittest.TestSuite()
     for module in (ts, tn, tp, tpe, tb, tsp, tsc, tw, ti, tset, tsh, tcat,
                      tconv, tevt,
-                      tta, ttp1, ttp1er, ttp3, ttp4, ttp4nf, ttfin):
+                       tta, ttp1, ttp1er, ttp3, ttp3c, ttp4, ttp4nf, ttfin):
         combined.addTests(loader.loadTestsFromModule(module))
     return combined
