@@ -14,9 +14,10 @@ def suite() -> unittest.TestSuite:
     import pet.tests.test_interact as ti
 
     import pet.tests.test_tester_adversarial as tta
+    import pet.tests.test_tester_phase3_adversarial as ttp3
 
     loader = unittest.TestLoader()
     combined = unittest.TestSuite()
-    for module in (ts, tn, tp, tpe, tb, tsp, tw, ti, tta):
+    for module in (ts, tn, tp, tpe, tb, tsp, tw, ti, tta, ttp3):
         combined.addTests(loader.loadTestsFromModule(module))
     return combined
