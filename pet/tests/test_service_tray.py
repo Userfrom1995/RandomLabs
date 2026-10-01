@@ -325,6 +325,75 @@ class TestWindowClamp(unittest.TestCase):
         self.assertIsInstance(x, int)
         self.assertIsInstance(y, int)
 
+    def test_hostile_origins_fail_closed_to_origin(self):
+        for bad_x, bad_y in (("abc", 0), (None, 10), (float("nan"), 5),
+                             (0, "xyz"), (10, None)):
+            with self.subTest(bad=(bad_x, bad_y)):
+                self.assertEqual(
+                    clamp_to_screen(bad_x, bad_y, 160, 224, 1280, 800),
+                    (0, 0))
+
+    def test_nonfinite_origins_fail_closed(self):
+        self.assertEqual(
+            clamp_to_screen(float("inf"), 0, 160, 224, 1280, 800), (0, 0))
+        self.assertEqual(
+            clamp_to_screen(0, float("-inf"), 160, 224, 1280, 800), (0, 0))
+
+
+class TestCorruptTickCount(unittest.TestCase):
+    """Evaluator F2: tick_count null/list/dict must fail closed, never raise."""
+
+    def _write_save(self, directory, payload):
+        import json
+
+        target = os.path.join(directory, "pet.json")
+        with open(target, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle)
+        return target
+
+    def test_load_null_tick_count_starts_fresh(self):
+        from pet.pet_core.persistence import load
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = self._write_save(
+                tmp, {"schema_version": 2, "tick_count": None})
+            state, notice = load(target)
+            self.assertEqual(state.tick_count, 0)
+            self.assertIsNotNone(notice)
+            self.assertTrue(os.path.exists(target + ".bak"))
+
+    def test_load_list_and_dict_tick_count_start_fresh(self):
+        from pet.pet_core.persistence import load
+
+        for bad in ([1, 2], {"n": 3}):
+            with tempfile.TemporaryDirectory() as tmp, self.subTest(bad=bad):
+                target = self._write_save(
+                    tmp, {"schema_version": 2, "tick_count": bad})
+                state, notice = load(target)
+                self.assertEqual(state.tick_count, 0)
+                self.assertIsNotNone(notice)
+
+    def test_service_loop_survives_null_tick_count(self):
+        import json
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = os.path.join(tmp, "pet.json")
+            with open(target, "w", encoding="utf-8") as handle:
+                json.dump({"schema_version": 2, "tick_count": None}, handle)
+            code = service_mod.run_loop(max_ticks=2, save_every=1,
+                                        data=tmp, tick_sec=60.0)
+            self.assertEqual(code, 0)
+
+    def test_service_switch_survives_null_tick_count(self):
+        import json
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = os.path.join(tmp, "pet.json")
+            with open(target, "w", encoding="utf-8") as handle:
+                json.dump({"schema_version": 2, "tick_count": None}, handle)
+            ok, _note = service_mod.switch_character("bramble", data=tmp)
+            self.assertTrue(ok)
+
 
 if __name__ == "__main__":
     unittest.main()
