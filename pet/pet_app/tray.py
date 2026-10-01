@@ -119,6 +119,7 @@ class TrayController:
         from . import platform as platform_mod
 
         self.platform = platform or platform_mod.platform_id()
+        self._finder = _finder
         self.backend, self.backend_note = pick_backend(self.platform,
                                                        _finder)
         self.visible = False
@@ -160,10 +161,10 @@ class TrayController:
 
     def show(self) -> tuple[bool, str]:
         """Mark the icon shown. Returns (ok, note)."""
-        info = probe(self.platform)
+        info = probe(self.platform, getattr(self, "_finder", None))
         if not info["can_show_icon"]:
             self.visible = False
-            note = honest_note(self.platform)
+            note = honest_note(self.platform, getattr(self, "_finder", None))
             return (False, note or "tray unavailable; mini-controller active.")
         self.visible = True
         return (True, "tray icon shown (%s)." % self.backend)
