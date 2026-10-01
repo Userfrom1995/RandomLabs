@@ -111,9 +111,9 @@ including window position. The same file is manageable headlessly:
 
 ## Command reference
 
-- `python -m pet run [--ticks N] [--seed S] [--name NAME] [--realtime]
+- `python -m pet run [--ticks N] [--seed S] [--name NAME] [--character ID] [--realtime]
   [--dt SEC] [--save PATH] [--no-save]`: run the brain headlessly.
-- `python -m pet gui [--scale F] [--alpha A] [--no-topmost] [--name NAME]
+- `python -m pet gui [--scale F] [--alpha A] [--no-topmost] [--name NAME] [--character ID]
   [--save PATH] [--no-save] [--seed S]`: open the on-screen companion.
 - `python -m pet settings [--set field=value ...]`: show or change
   saved settings.
