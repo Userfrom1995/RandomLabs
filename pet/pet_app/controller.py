@@ -29,7 +29,7 @@ from .interact import (
     SleepSchedule,
     StrokeTracker,
 )
-from .sprite import Pose, blend, pose_for
+from .sprite import Pose, blend, normalize_character, pose_for
 
 CLICK_MAX_SEC = 0.4
 DOUBLE_CLICK_MAX_SEC = 0.45
@@ -346,11 +346,28 @@ class WindowController:
         current = self._activity_name(moment)
         if current != self._shown_activity:
             self._note_activity_change(moment)
-        fresh = pose_for(self._shown_activity, self.phase)
+        character = normalize_character(
+            getattr(self.brain.state, "character_id", "pip"))
+        fresh = pose_for(self._shown_activity, self.phase, character)
         if self._blend_t >= 1.0:
             return fresh
-        older = pose_for(self._previous_activity, self.phase)
+        older = pose_for(self._previous_activity, self.phase, character)
         return blend(older, fresh, self._blend_t)
+
+    def switch_character(self, character_id: object,
+                         now: object = None) -> tuple[str, str | None]:
+        """Hot-swap the active character and re-render on the next frame.
+
+        Persists nothing itself (the shell/CLI saves); returns the
+        (bubble text, catalog notice) so callers can surface fallbacks.
+        """
+        from ..pet_core import catalog as catalog_mod
+
+        record, notice = catalog_mod.get(character_id)
+        event = self.brain.set_character(record["id"])
+        self._note_activity_change(self._now(now))
+        self._say(event.text)
+        return event.text, notice
 
     def handle_gesture(self, gesture: str | None, now: object = None) -> str | None:
         """React to a classified gesture. Returns the bubble text shown."""

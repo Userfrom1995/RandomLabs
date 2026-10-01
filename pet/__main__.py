@@ -2,7 +2,9 @@
 
 Usage:
   python -m pet run [--ticks N] [--seed S] [--name NAME] [--realtime]
+      [--character ID]
   python -m pet gui [--scale F] [--alpha A] [--no-topmost] [--name NAME]
+      [--character ID]
   python -m pet characters (list|show ID|switch ID)
   python -m pet settings [--set field=value ...]
   python -m pet startup (on|off|status)
@@ -60,6 +62,8 @@ def _build_parser() -> argparse.ArgumentParser:
                        help="sleep 0.1 s per tick like the live window does")
     run_p.add_argument("--dt", type=float, default=0.1,
                        help="simulated seconds per tick")
+    run_p.add_argument("--character", type=str, default=None,
+                       help="run as this character (persisted to the save)")
     sub.add_parser("selftest", help="run the headless verification suite")
     gui_p = sub.add_parser("gui", help="open the on-screen companion window")
     gui_p.add_argument("--scale", type=float, default=1.0,
@@ -76,6 +80,8 @@ def _build_parser() -> argparse.ArgumentParser:
                        help="do not write the save file (window still loads it)")
     gui_p.add_argument("--seed", type=int, default=None,
                        help="RNG seed for a deterministic run")
+    gui_p.add_argument("--character", type=str, default=None,
+                       help="open the window as this character (persisted)")
     set_p = sub.add_parser("settings", help="show or change saved settings")
     set_p.add_argument("--set", action="append", default=[],
                        metavar="field=value",
@@ -126,8 +132,16 @@ def cmd_run(args: argparse.Namespace) -> int:
     state, notice = load(save_path)
     if notice:
         print("[pet] %s" % notice)
+    if args.character is not None:
+        from .pet_core import catalog as catalog_mod
+
+        record, char_notice = catalog_mod.get(args.character)
+        if char_notice:
+            print("[pet] %s" % char_notice)
+        state.character_id = record["id"]
     personality = Personality(name=args.name or state.name,
-                              seed=args.seed)
+                              seed=args.seed,
+                              character_id=state.character_id)
     if args.name:
         state.name = personality.name
     brain = Brain(state=state, personality=personality, seed=args.seed)
@@ -177,10 +191,12 @@ def cmd_gui(args: argparse.Namespace) -> int:
         return open_window(alpha=alpha, scale=scale,
                            topmost=not args.no_topmost, save_path=unused,
                            seed=args.seed, name=args.name,
+                           character_id=args.character,
                            settings_path=os.path.join(
                                os.path.dirname(unused), "settings.json"))
     return open_window(alpha=alpha, scale=scale, topmost=not args.no_topmost,
-                       save_path=args.save, seed=args.seed, name=args.name)
+                       save_path=args.save, seed=args.seed, name=args.name,
+                       character_id=args.character)
 
 
 def cmd_settings(args: argparse.Namespace) -> int:

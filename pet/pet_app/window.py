@@ -19,13 +19,14 @@ from . import settings as settings_mod
 from . import shells as shells_mod
 from .controller import WindowController
 from .interact import wall_hour
-from .sprite import CANVAS_BOX, draw_on, shapes
+from .sprite import CANVAS_BOX, draw_on, normalize_character, shapes
 
 
 def launch(alpha: float = 1.0, scale: float = 1.0, topmost: bool = True,
            save_path: str | None = None, seed: int | None = None,
            name: str | None = None, settings_path: str | None = None,
-           settings_overrides: dict | None = None) -> int:
+           settings_overrides: dict | None = None,
+           character_id: str | None = None) -> int:
     """Open the companion window. Returns a process exit code."""
     note = platform_mod.honest_note()
     if note is not None:
@@ -57,9 +58,18 @@ def launch(alpha: float = 1.0, scale: float = 1.0, topmost: bool = True,
         if scale != 1.0 else settings
     if not topmost:
         settings = settings_mod.with_field(settings, "topmost", False)
-    personality = Personality(name=name or state.name, seed=seed)
+    personality = Personality(name=name or state.name, seed=seed,
+                              character_id=state.character_id)
     if name:
         state.name = personality.name
+    if character_id is not None:
+        from ..pet_core import catalog as catalog_mod
+
+        record, char_notice = catalog_mod.get(character_id)
+        state.character_id = record["id"]
+        personality.set_character(record["id"])
+        if char_notice:
+            print("[pet] %s" % char_notice)
     brain = Brain(state=state, personality=personality, seed=seed)
     controller = WindowController(brain=brain, settings=settings,
                                   clock=wall_hour)
@@ -218,7 +228,9 @@ class PetWindow:
         box = CANVAS_BOX * factor
         self._draw_bubble(canvas, bubble_h)
         pose = self.controller.current_pose()
-        drawing = shapes(pose, size=box)
+        character = normalize_character(
+            getattr(self.controller.brain.state, "character_id", "pip"))
+        drawing = shapes(pose, size=box, character_id=character)
         draw_on(canvas, drawing, dx=0.0, dy=bubble_h * 0.55)
         ball = self.controller.ball_shape(box)
         if ball is not None:
@@ -319,6 +331,22 @@ class PetWindow:
             return
         self._apply_topmost()
         self._apply_alpha()
+
+    # -- character hot-swap --
+
+    def switch_character(self, character_id: object) -> str:
+        """Swap characters live: no window reopen, next frame re-renders.
+
+        The pose blend restarts from the current pose so the swap reads
+        as a smooth morph rather than a pop, and the save records the
+        selection so restarts restore it (DPI scaling is untouched: all
+        coordinates still scale linearly from the same box).
+        """
+        text, notice = self.controller.switch_character(character_id)
+        if notice:
+            self.controller.bubble.show("%s %s" % (notice, text))
+        self._save_quietly()
+        return text
 
     # -- settings dialog --
 
