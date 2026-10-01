@@ -253,7 +253,7 @@ class BallGame:
                 return events
             self.toss(moment)
 
-        if moment - (self._started_at or moment) >= GAME_SEC:
+        if moment - (self._started_at if self._started_at is not None else moment) >= GAME_SEC:
             self.active = False
             events.append("finish")
         return events
