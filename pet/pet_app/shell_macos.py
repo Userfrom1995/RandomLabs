@@ -26,12 +26,20 @@ def agent_path(home: str | None = None) -> str:
     return os.path.join(agent_dir(home), AGENT_FILENAME)
 
 
-def _program_arguments() -> list[str]:
+def _program_arguments(service: bool = False) -> list[str]:
     exe = sys.executable or "python3"
+    if service:
+        return [exe, "-m", "pet", "service", "start"]
     return [exe, "-m", "pet", "gui"]
 
 
-def set_startup(enabled: bool, home: str | None = None) -> tuple[bool, str]:
+def service_command() -> list[str]:
+    """Autostart arguments that launch the background service entrypoint."""
+    return _program_arguments(service=True)
+
+
+def set_startup(enabled: bool, home: str | None = None,
+                service: bool = False) -> tuple[bool, str]:
     """Enable or disable launch at login. Returns (ok, note)."""
     target = agent_path(home)
     try:
@@ -39,7 +47,7 @@ def set_startup(enabled: bool, home: str | None = None) -> tuple[bool, str]:
             os.makedirs(os.path.dirname(target), exist_ok=True)
             payload = {
                 "Label": AGENT_LABEL,
-                "ProgramArguments": _program_arguments(),
+                "ProgramArguments": _program_arguments(service=service),
                 "RunAtLoad": True,
             }
             with open(target, "wb") as handle:

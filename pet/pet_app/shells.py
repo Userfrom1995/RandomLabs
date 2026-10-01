@@ -33,14 +33,28 @@ def _shell(platform: str | None = None):
 
 
 def set_startup(enabled: bool,
-                platform: str | None = None) -> tuple[bool, str]:
-    """Enable or disable launch at login on this platform."""
+                platform: str | None = None,
+                service: bool = False) -> tuple[bool, str]:
+    """Enable or disable launch at login on this platform.
+
+    ``service=True`` points the autostart entry at the background
+    service entrypoint (``python -m pet service start``) instead of
+    the window, so the pet survives reboots with no window open; the
+    window attaches to the same save when launched.
+    """
     shell = _shell(platform)
     if shell is None:
         return (False, "startup shortcuts are not supported on this "
                 "platform; the pet must be started by hand.")
     try:
-        return shell.set_startup(bool(enabled))
+        return shell.set_startup(bool(enabled), service=bool(service))
+    except TypeError:
+        # A shell without the service keyword predates Phase 4; fall
+        # back to the window entrypoint rather than failing.
+        try:
+            return shell.set_startup(bool(enabled))
+        except Exception as exc:
+            return (False, "startup could not be updated (%s)" % exc)
     except Exception as exc:
         return (False, "startup could not be updated (%s)" % exc)
 
@@ -69,6 +83,20 @@ def notify(title: str, message: str,
         return (False, "the notification service errored (%s); "
                 "the pet shows notices in its speech bubble "
                 "instead." % exc)
+
+
+def service_entrypoint(platform: str | None = None) -> str:
+    """Autostart command for the background service on this platform."""
+    shell = _shell(platform)
+    if shell is None:
+        return "python -m pet service start"
+    try:
+        command = shell.service_command()
+    except Exception:
+        return "python -m pet service start"
+    if isinstance(command, (list, tuple)):
+        return " ".join(str(part) for part in command)
+    return str(command)
 
 
 def platform_notes(platform: str | None = None) -> str:
