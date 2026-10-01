@@ -14,9 +14,12 @@ and the tick state machine, all driven through `python -m pet`. The
 on-screen companion window is built on top of the same brain: a
 borderless always-on-top tkinter window with a procedural sprite,
 drag-carry, speech bubble, and right-click menu. Open it with
-`python -m pet gui`. The interaction play layer, settings dialog,
-per-OS startup shells, and packaging recipes build on these same two
-layers without changing them.
+`python -m pet gui`. The play layer is part of the same build: gentle
+clicks stroke the pet into affection streaks, feeding opens a munch
+animation, Play starts a ball-toss mini-game with a live score, and a
+bedtime schedule tucks the pet in at night and wakes it in the
+morning. The settings dialog, per-OS startup shells, and packaging
+recipes build on these same layers without changing them.
 
 ## Quickstart
 
@@ -34,8 +37,13 @@ python -m pet version
 
 `gui` opens the on-screen companion: it stays on top, wanders the
 screen while walking, and answers back in a speech bubble. Single click
-chats, double click pokes, press-drag picks the pet up and carries it,
-right click opens the menu (Feed, Play, Sleep/Wake, About, Quit).
+strokes (repeat gentle clicks for an affection streak and a purring
+celebration), double click pokes, press-drag picks the pet up and
+carries it, right click opens the menu (Feed, Play, Sleep/Wake, Sleep
+schedule toggle, About, Quit). Feed opens a munch animation; Play
+starts a ball-toss mini-game where the pet chases a bouncing ball and
+scores each catch (first to 5, or 30 seconds, ends the rally with a
+score line).
 Window options: `--scale 0.5..3.0` (multiplied by display DPI),
 `--alpha 0.3..1.0` (opacity), `--no-topmost`, `--save PATH`,
 `--no-save`. Without tkinter or a display it exits with an honest note
@@ -80,11 +88,21 @@ through that same API.
   teleports the pet to starvation.
 - **Personality.** Curated offline line pools per mood (happy, curious,
   sleepy, grumpy, hungry, affectionate) and per event (poke, feed, play,
-  wake, sleep, greet). No network, no telemetry: drawing is seeded and
+  wake, sleep, greet, stroke, catch). No network, no telemetry: drawing is seeded and
   no-repeat-until-exhausted, and `{name}` slots carry the pet's name.
+- **Play layer.** `pet_app/interact.py` holds the headless interaction
+  models with no GUI imports: stroke streaks (debounced passes inside a
+  2.5 s window, celebration every few passes), munch sessions (a 3 s
+  chew pose after feeding), the ball-toss game (seeded gravity and
+  bounce physics in unit-box coordinates, pet marker chases the ball,
+  catch on low meetings, rally ends at 5 catches or 30 s), and the
+  bedtime schedule (asleep 22:00 to 7:00 by default, midnight-wrap
+  correct, manual sleep/wake choices hold for 2 minutes before the
+  schedule re-asserts). The controller wires these into gestures, menu
+  actions, and ticks; the shell only renders.
 - **Persistence.** Debounced atomic write (tmp file plus rename). Load
-  validates the schema version, clamps ranges, backs corrupt files up to
-  `.bak`, and starts fresh with a logged notice.
+  validates the schema version, clamps ranges, backs corrupt files up
+  to `.bak`, and starts fresh with a logged notice.
 
 ## Core API
 
@@ -127,13 +145,15 @@ failing silently.
   `personality.py`, `persistence.py`. No GUI imports, no dependencies.
 - `pet_app/` - on-screen companion: `sprite.py` (pure pose engine plus
   shape lists), `controller.py` (bubble, gestures, menu model, carry,
-  blending; no GUI imports), `platform.py` (capability probe, alpha and
+  blending; no GUI imports), `interact.py` (stroke streaks, munch
+  sessions, ball-toss game, sleep schedule; no GUI imports),
+  `platform.py` (capability probe, alpha and
   scale clamps), `window.py` (borderless tkinter shell).
 - `__main__.py` - CLI dispatch (`run`, `gui`, `selftest`, `help`,
   `version`).
 - `tests/` - headless suite: state, needs, personality, persistence,
-  brain, sprite, window controller (108 tests, seeded and
-  deterministic).
+  brain, sprite, window controller, interaction play layer (146 tests,
+  seeded and deterministic).
 - `docs/` - unified product documentation.
 - `index.html` - Pages hub for this project.
 

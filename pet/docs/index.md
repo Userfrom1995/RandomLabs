@@ -12,12 +12,16 @@ every frontend and every test drives the same code:
   affection, position, tick counters, with JSON round-trip. Hunger 0 means
   full and 100 means starving; energy 0 is exhausted and 100 is rested;
   affection 0 is neglected and 100 is adored.
+- **Play layer** (`pet_app/interact.py`): stroke streaks, munch
+  sessions, the ball-toss mini-game, and the bedtime sleep schedule,
+  all headless with no GUI imports so tests drive the same code as the
+  window.
 - **Needs** (`pet_core/needs.py`): hunger fills over 10 minutes, awake
   energy drains over 15 minutes, sleep restores over 5 minutes, affection
   fades over 20 minutes. Time-delta correct, dt clamped to 5 s.
 - **Personality** (`pet_core/personality.py`): offline line pools per mood
   (happy, curious, sleepy, grumpy, hungry, affectionate) and per event
-  (poke, feed, play, wake, sleep, greet). Seeded, no repeats until each
+  (poke, feed, play, wake, sleep, greet, stroke, catch). Seeded, no repeats until each
   pool is exhausted, renameable.
 - **Brain** (`pet_core/brain.py`): `tick(dt)` at 10 Hz nominal advances
   needs, drifts position while walking, rolls one needs-weighted activity
@@ -33,11 +37,17 @@ every frontend and every test drives the same code:
 
 `python -m pet gui` opens the borderless always-on-top window: a
 procedurally drawn pet on a tkinter canvas, no image assets. The window
-is a thin shell over the same brain: single click chats, double click
-pokes, press-drag picks the pet up and carries it (movement suspends,
-drop shows a relieved line), right click opens the menu (Feed, Play,
-Sleep/Wake, About, Quit). While walking the window itself drifts across
-the screen inside display bounds.
+is a thin shell over the same brain: single click strokes (repeat
+gentle clicks for an affection streak and a purring celebration),
+double click pokes, press-drag picks the pet up and carries it
+(movement suspends, drop shows a relieved line), right click opens the
+menu (Feed, Play, Sleep/Wake, Sleep schedule toggle, About, Quit).
+Feeding opens a munch animation; Play starts a ball-toss mini-game
+where the pet chases a bouncing ball and scores each catch, ending at
+5 catches or 30 seconds with a score line. A bedtime schedule
+(22:00 to 7:00 local by default) tucks the pet in and wakes it up;
+manual sleep/wake choices hold for 2 minutes first. While walking the
+window itself drifts across the screen inside display bounds.
 
 Window options: `--scale 0.5..3.0` (multiplied by probed display DPI),
 `--alpha 0.3..1.0` (opacity), `--no-topmost`, `--save PATH`,
@@ -64,5 +74,9 @@ honest note pointing at headless `run`.
   SLEEP. Send it to sleep (or let the brain decide) and it wakes rested.
 - **Pet always hungry**: hunger fills over about 10 minutes of pet time.
   Feed it through the event API or the window Feed menu item.
+- **Pet falls asleep at night**: the bedtime schedule (22:00 to 7:00
+  local) tucks it in automatically. Wake it from the menu for a
+  2-minute grace window, or turn the routine off with the Sleep
+  schedule toggle.
 - **Deterministic replay**: pass `--seed` to `run` for a reproducible
   session, useful when reporting odd behavior.

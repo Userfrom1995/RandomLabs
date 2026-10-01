@@ -36,13 +36,13 @@
   <ul>
     <li><strong>State</strong> (<code>state.py</code>): name, activity, mood, energy, hunger, affection, position, tick counters, with JSON round-trip. Hunger 0 means full and 100 means starving; energy 0 is exhausted and 100 is rested; affection 0 is neglected and 100 is adored.</li>
     <li><strong>Needs</strong> (<code>needs.py</code>): hunger fills over 10 minutes, awake energy drains over 15 minutes, sleep restores over 5 minutes, affection fades over 20 minutes. Time-delta correct, dt clamped to 5 s.</li>
-    <li><strong>Personality</strong> (<code>personality.py</code>): offline line pools per mood (happy, curious, sleepy, grumpy, hungry, affectionate) and per event (poke, feed, play, wake, sleep, greet). Seeded, no repeats until each pool is exhausted, renameable.</li>
+    <li><strong>Personality</strong> (<code>personality.py</code>): offline line pools per mood (happy, curious, sleepy, grumpy, hungry, affectionate) and per event (poke, feed, play, wake, sleep, greet, stroke, catch). Seeded, no repeats until each pool is exhausted, renameable.</li>
     <li><strong>Brain</strong> (<code>brain.py</code>): <code>tick(dt)</code> at 10 Hz nominal advances needs, drifts position while walking, rolls one needs-weighted activity transition, and emits at most one event. REACT is transient, SLEEP auto-wakes once rested.</li>
     <li><strong>Persistence</strong> (<code>persistence.py</code>): atomic tmp-plus-rename JSON in the platform user-data dir, schema-checked, corrupt files backed up to <code>.bak</code> with a fresh start and a logged notice.</li>
   </ul>
 
   <h2>On-screen companion</h2>
-  <p><code>python -m pet gui</code> opens the borderless always-on-top window: a procedurally drawn pet on a tkinter canvas, no image assets. Single click chats, double click pokes, press-drag picks the pet up and carries it, right click opens the menu (Feed, Play, Sleep/Wake, About, Quit). While walking the window itself drifts across the screen inside display bounds. Options: <code>--scale 0.5..3.0</code>, <code>--alpha 0.3..1.0</code>, <code>--no-topmost</code>, <code>--save PATH</code>, <code>--no-save</code>, <code>--seed N</code>, <code>--name NAME</code>. Where tkinter or a display is missing, <code>gui</code> exits with an honest note pointing at headless <code>run</code>.</p>
+  <p><code>python -m pet gui</code> opens the borderless always-on-top window: a procedurally drawn pet on a tkinter canvas, no image assets. Single click strokes (repeat gentle clicks for an affection streak and a purring celebration), double click pokes, press-drag picks the pet up and carries it, right click opens the menu (Feed, Play, Sleep/Wake, Sleep schedule toggle, About, Quit). Feeding opens a munch animation; Play starts a ball-toss mini-game where the pet chases a bouncing ball and scores each catch, ending at 5 catches or 30 seconds with a score line. A bedtime schedule (22:00 to 7:00 local by default) tucks the pet in and wakes it up; manual sleep/wake choices hold for 2 minutes first. While walking the window itself drifts across the screen inside display bounds. Options: <code>--scale 0.5..3.0</code>, <code>--alpha 0.3..1.0</code>, <code>--no-topmost</code>, <code>--save PATH</code>, <code>--no-save</code>, <code>--seed N</code>, <code>--name NAME</code>. Where tkinter or a display is missing, <code>gui</code> exits with an honest note pointing at headless <code>run</code>.</p>
 
   <h2>Command reference</h2>
   <ul>
@@ -57,6 +57,7 @@
     <li><strong>Save file corrupt</strong>: the pet starts fresh and the old file is kept next to it with a <code>.bak</code> suffix. Nothing is deleted silently.</li>
     <li><strong>Pet always sleepy</strong>: energy drains while awake and restores only in SLEEP. Send it to sleep (or let the brain decide) and it wakes rested.</li>
     <li><strong>Pet always hungry</strong>: hunger fills over about 10 minutes of pet time. Feed it through the event API or the window Feed menu item.</li>
+    <li><strong>Pet falls asleep at night</strong>: the bedtime schedule (22:00 to 7:00 local) tucks it in automatically. Wake it from the menu for a 2-minute grace window, or turn the routine off with the Sleep schedule toggle.</li>
     <li><strong>Deterministic replay</strong>: pass <code>--seed</code> to <code>run</code> for a reproducible session, useful when reporting odd behavior.</li>
   </ul>
 
