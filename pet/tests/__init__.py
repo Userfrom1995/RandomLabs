@@ -10,6 +10,7 @@ def suite() -> unittest.TestSuite:
     import pet.tests.test_persistence as tpe
     import pet.tests.test_brain as tb
     import pet.tests.test_sprite as tsp
+    import pet.tests.test_sprite_cast as tsc
     import pet.tests.test_window as tw
     import pet.tests.test_interact as ti
     import pet.tests.test_settings as tset
@@ -26,7 +27,7 @@ def suite() -> unittest.TestSuite:
 
     loader = unittest.TestLoader()
     combined = unittest.TestSuite()
-    for module in (ts, tn, tp, tpe, tb, tsp, tw, ti, tset, tsh, tcat,
+    for module in (ts, tn, tp, tpe, tb, tsp, tsc, tw, ti, tset, tsh, tcat,
                      tta, ttp1, ttp1er, ttp3, ttp4, ttp4nf, ttfin):
         combined.addTests(loader.loadTestsFromModule(module))
     return combined
