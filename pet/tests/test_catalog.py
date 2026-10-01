@@ -151,19 +151,24 @@ class TestMigration(unittest.TestCase):
 
 class TestVoices(unittest.TestCase):
     def test_each_character_has_own_voice(self):
-        from pet.pet_core.personality import CHARACTER_VOICES, Personality
+        from pet.pet_core.personality import CHARACTER_VOICES, EVENT_LINES, Personality
         self.assertEqual(set(CHARACTER_VOICES),
                          {"pip", "bramble", "mochi", "kiki", "rusty", "luna"})
         for cid in ("bramble", "mochi", "kiki", "rusty", "luna"):
             self.assertTrue(CHARACTER_VOICES[cid],
                             "%s should ship voice overrides" % cid)
-        # Distinct signature lines per character.
-        seen = set()
-        for cid in ("pip", "bramble", "mochi", "kiki", "rusty", "luna"):
+        # Distinct signature lines per character: each non-Pip voice must
+        # ship at least one pool whose lines differ from the shared Pip pool.
+        pip_voice = Personality(name="Test", seed=7, character_id="pip")
+        pip_greet = {pip_voice.line_for_event("greet") for _ in range(3)}
+        self.assertTrue(pip_greet)
+        for cid in ("bramble", "mochi", "kiki", "rusty", "luna"):
             voice = Personality(name="Test", seed=7, character_id=cid)
-            line = voice.line_for_event("greet") if cid == "pip" else None
-            seen.add(cid)
-        self.assertEqual(len(seen), 6)
+            self.assertTrue(CHARACTER_VOICES[cid])
+            own = voice._pool_for("event", "greet") if "event:greet" in CHARACTER_VOICES[cid] else None
+            if own is not None:
+                self.assertNotEqual(set(own), set(EVENT_LINES["greet"]),
+                                    "%s greet pool should differ from Pip" % cid)
 
     def test_missing_keys_fall_back_to_shared_pool(self):
         from pet.pet_core.personality import Personality
