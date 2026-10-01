@@ -141,7 +141,23 @@ including window position. The same file is manageable headlessly:
   note via osascript (macOS) or notify-send (Linux); where the path is
   missing it fails closed with an honest note and the pet shows the
   notice in its speech bubble instead. Windows always uses the bubble
-  and says so.
+  and says so. Pass `--service` to `startup on` to launch the
+  background service at login instead of the window; the window
+  attaches to the same save when opened later.
+
+## Background service and tray
+
+The background service keeps one pet ticking with no window open: a
+PID-locked daemon (`service.pid` under the user-data dir) runs the
+headless brain at 10 Hz with atomic saves every 300 ticks. Second
+starts report the live pid instead of forking; stale locks are
+reclaimed with a notice; `stop` ends the process gracefully
+(SIGTERM saves and exits, with a forceful fallback). The tray layer
+tries `pystray` where installed, then a native shim, then the stdlib
+mini-controller where the window doubles as the controller; every
+denied path renders an honest note. The overlay window stays out of
+the taskbar, clamps onto the visible screen on multi-monitor setups,
+and hides/re-shows without losing the pet.
 
 ## Command reference
 
@@ -157,6 +173,12 @@ including window position. The same file is manageable headlessly:
 - `python -m pet talk TEXT [--character ID] [--seed S] [--no-save]`
   (`converse` is an alias): chat with the pet offline.
 - `python -m pet startup (on|off|status)`: launch-at-login entry.
+- `python -m pet service (start|stop|status|logs|show|hide|switch ID)`:
+  background service lifecycle: spawn the always-on pet, report the
+  live pid plus character and uptime, tail the log, switch the shared
+  pet, or route window show/hide against the same save.
+- `python -m pet tray (status|show|hide)`: system-tray state, with an
+  honest note where no tray host answers.
 - `python -m pet notify --message TEXT [--title TEXT]`: OS note with
   honest bubble fallback.
 - `python -m pet selftest`: headless suite plus a seeded soak proving all

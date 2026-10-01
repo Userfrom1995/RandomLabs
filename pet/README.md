@@ -126,6 +126,44 @@ shows the notice in its speech bubble instead. Windows has no bundled
 toast path, so it always uses the bubble and says so. The settings
 dialog surfaces the same startup toggle with the platform note beside
 it, so a denied capability reads as an explanation, never an error.
+Pass `--service` (`python -m pet startup on --service`) to point the
+autostart entry at the background service instead of the window, so
+the pet survives reboots with no window open.
+
+## Background service and tray
+
+The pet stays alive with no window open through the background
+service, which ticks the same headless brain at 10 Hz with debounced
+atomic saves in the shared user-data dir:
+
+```sh
+python -m pet service start    # spawn the background pet (detached)
+python -m pet service status   # live pid, active character, uptime
+python -m pet service logs     # tail the service log
+python -m pet service switch bramble  # switch the shared pet
+python -m pet service show     # how to reopen the window on the same save
+python -m pet service hide     # close the window; the pet keeps ticking
+python -m pet service stop     # stop the background pet
+```
+
+Starts are single-instance behind a PID lockfile: a second `start`
+reports the live pid instead of forking the pet, and a stale lock
+from a dead process is reclaimed with a notice. `stop` ends the
+process (SIGTERM with a graceful save-and-exit, forceful fallback)
+and clears the lock. The window attaches to the same save dir, so
+service and GUI never fork state: open `python -m pet gui` any time
+and the same pet is there.
+
+`python -m pet tray (status|show|hide)` reports the system-tray
+state. The tray abstraction tries backends in order: the optional
+`pystray` extra where installed, a thin native shim (Windows notify
+icon, macOS menu bar, Linux status notifier), and finally the stdlib
+mini-controller where the window itself doubles as the controller.
+Every denied path renders an honest note instead of an exception. The
+overlay window stays out of the taskbar, clamps itself onto the
+visible screen on multi-monitor setups (spawn, walk drift, and
+drag-carry all clamp), and can be hidden and re-shown without losing
+the pet.
 
 ## Packaging
 
