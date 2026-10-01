@@ -29,10 +29,29 @@ every frontend and every test drives the same code:
   in the platform user-data dir, schema-checked, corrupt files backed up
   to `.bak` with a fresh start and a logged notice.
 
+## On-screen companion
+
+`python -m pet gui` opens the borderless always-on-top window: a
+procedurally drawn pet on a tkinter canvas, no image assets. The window
+is a thin shell over the same brain: single click chats, double click
+pokes, press-drag picks the pet up and carries it (movement suspends,
+drop shows a relieved line), right click opens the menu (Feed, Play,
+Sleep/Wake, About, Quit). While walking the window itself drifts across
+the screen inside display bounds.
+
+Window options: `--scale 0.5..3.0` (multiplied by probed display DPI),
+`--alpha 0.3..1.0` (opacity), `--no-topmost`, `--save PATH`,
+`--no-save`, `--seed N`, `--name NAME`. Window position, stats,
+settings, and name persist across restarts through the same atomic
+save file. Where tkinter or a display is missing, `gui` exits with an
+honest note pointing at headless `run`.
+
 ## Command reference
 
 - `python -m pet run [--ticks N] [--seed S] [--name NAME] [--realtime]
   [--dt SEC] [--save PATH] [--no-save]`: run the brain headlessly.
+- `python -m pet gui [--scale F] [--alpha A] [--no-topmost] [--name NAME]
+  [--save PATH] [--no-save] [--seed S]`: open the on-screen companion.
 - `python -m pet selftest`: headless suite plus a seeded soak proving all
   five activities are reachable.
 - `python -m pet help` / `python -m pet version`: usage and version.
@@ -44,7 +63,6 @@ every frontend and every test drives the same code:
 - **Pet always sleepy**: energy drains while awake and restores only in
   SLEEP. Send it to sleep (or let the brain decide) and it wakes rested.
 - **Pet always hungry**: hunger fills over about 10 minutes of pet time.
-  Feed it through the event API (or the window feed control once the
-  window layer lands).
+  Feed it through the event API or the window Feed menu item.
 - **Deterministic replay**: pass `--seed` to `run` for a reproducible
   session, useful when reporting odd behavior.
