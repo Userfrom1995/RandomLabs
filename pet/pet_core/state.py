@@ -5,10 +5,12 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 MIN_STAT = 0.0
 MAX_STAT = 100.0
+
+KNOWN_CHARACTERS = ("pip", "bramble", "mochi", "kiki", "rusty", "luna")
 
 
 class Activity(str, Enum):
@@ -58,6 +60,7 @@ class PetState:
     """
 
     name: str = "Pip"
+    character_id: str = "pip"
     activity: Activity = Activity.IDLE
     mood: str = "curious"
     energy: float = 80.0
@@ -75,6 +78,11 @@ class PetState:
             self.name = "Pip"
         else:
             self.name = self.name.strip()[:24]
+        if not isinstance(self.character_id, str):
+            self.character_id = "pip"
+        else:
+            slug = self.character_id.strip().lower()
+            self.character_id = slug if slug in KNOWN_CHARACTERS else "pip"
         if isinstance(self.activity, str):
             try:
                 self.activity = Activity(self.activity)
@@ -101,13 +109,15 @@ class PetState:
     def from_dict(cls, data: dict) -> "PetState":
         """Build a state from parsed JSON, validating and clamping.
 
+        Accepts schema v1 (no character_id, migrates to Pip) and v2.
         Raises ValueError on wrong types or unknown schema versions so
         the persistence layer can fail closed to defaults with a backup.
+        Unknown character ids fall back to Pip (never a traceback).
         """
         if not isinstance(data, dict):
             raise ValueError("save data must be a JSON object")
-        version = data.get("schema_version", SCHEMA_VERSION)
-        if version != SCHEMA_VERSION:
+        version = data.get("schema_version", 1)
+        if version not in (1, 2):
             raise ValueError("unsupported schema version: %r" % (version,))
         name = data.get("name", "Pip")
         if not isinstance(name, str):
@@ -122,6 +132,7 @@ class PetState:
             raise ValueError("unknown mood: %r" % (mood,))
         state = cls(
             name=name,
+            character_id=data.get("character_id", "pip"),
             activity=Activity(activity),
             mood=mood,
             energy=clamp_stat(data.get("energy", 80.0)),

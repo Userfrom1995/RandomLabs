@@ -29,19 +29,40 @@ def _clamp_dt(dt: float) -> float:
     return step
 
 
-def tick_needs(state: PetState, dt: float) -> PetState:
-    """Advance hunger/energy/affection by dt seconds (mutates, returns state)."""
+def tick_needs(state: PetState, dt: float,
+               character_id: str | None = None) -> PetState:
+    """Advance hunger/energy/affection by dt seconds (mutates, returns state).
+
+    Rates come from the active character trait record; Pip matches the
+    module constants exactly so legacy callers see no behavior change.
+    """
     step = _clamp_dt(dt)
     if step <= 0.0:
         return state
-    state.hunger = min(MAX_STAT, state.hunger + HUNGER_RATE_PER_SEC * step)
+    rates = _rates_for(getattr(state, "character_id", None)
+                       if character_id is None else character_id)
+    state.hunger = min(MAX_STAT, state.hunger + rates["hunger_rate"] * step)
     if state.activity == Activity.SLEEP:
-        state.energy = min(MAX_STAT, state.energy + ENERGY_RESTORE_PER_SEC * step)
+        state.energy = min(MAX_STAT, state.energy + rates["energy_restore"] * step)
     else:
-        state.energy = max(MIN_STAT, state.energy - ENERGY_DRAIN_PER_SEC * step)
+        state.energy = max(MIN_STAT, state.energy - rates["energy_drain"] * step)
         state.time_awake_sec += step
-    state.affection = max(MIN_STAT, state.affection - AFFECTION_DECAY_PER_SEC * step)
+    state.affection = max(MIN_STAT, state.affection - rates["affection_decay"] * step)
     return state
+
+
+def _rates_for(character_id: object) -> dict[str, float]:
+    """Resolve trait rates without importing traits at module top eagerly."""
+    try:
+        from . import traits as traits_mod
+        return traits_mod.rates_for(character_id)
+    except ImportError:
+        return {
+            "hunger_rate": HUNGER_RATE_PER_SEC,
+            "energy_drain": ENERGY_DRAIN_PER_SEC,
+            "energy_restore": ENERGY_RESTORE_PER_SEC,
+            "affection_decay": AFFECTION_DECAY_PER_SEC,
+        }
 
 
 def feed(state: PetState, amount: float = 35.0) -> float:

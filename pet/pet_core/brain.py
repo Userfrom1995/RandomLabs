@@ -13,6 +13,7 @@ import random
 from dataclasses import dataclass
 
 from . import needs as needs_mod
+from . import traits as traits_mod
 from .personality import Personality, mood_for
 from .state import Activity, PetState
 
@@ -108,14 +109,18 @@ class Brain:
         self.state = state or PetState()
         # A default personality inherits the brain seed so seeded runs are
         # fully deterministic (an explicitly passed personality keeps its
-        # own stream).
+        # own stream). The voice follows the state's character id.
         self.personality = personality or Personality(
-            name=self.state.name, seed=seed)
+            name=self.state.name, seed=seed,
+            character_id=getattr(self.state, "character_id", "pip"))
         # Keep the two names in sync at construction.
         if self.state.name != self.personality.name and state is not None:
             self.personality.set_name(self.state.name)
         elif state is None:
             self.state.name = self.personality.name
+        if personality is not None:
+            self.personality.set_character(
+                getattr(self.state, "character_id", "pip"))
         self._rng = random.Random(seed)
         self._wander_angle = self._rng.uniform(0.0, 2.0 * math.pi)
         # Behavior toggles from the settings layer: when wander or play
@@ -125,8 +130,22 @@ class Brain:
         self.allow_play = bool(allow_play)
 
     def _weights(self) -> dict[Activity, float]:
-        """Copy the base row for the current activity, modulated by needs."""
+        """Copy the base row for the current activity, modulated by needs.
+
+        Character trait bonuses apply as additive weights before
+        normalisation, so personality is parameters, never branches.
+        """
         row = dict(_BASE_TABLE[self.state.activity])
+        st = self.state
+        char = traits_mod.normalize_id(getattr(st, "character_id", "pip"))
+        bonus = traits_mod.rates_for(char)
+        if char != "pip":
+            row[Activity.PLAY] = row.get(Activity.PLAY, 0.0) + bonus["play_bonus"]
+            row[Activity.SLEEP] = row.get(Activity.SLEEP, 0.0) + bonus["sleep_bonus"]
+            row[Activity.REACT] = row.get(Activity.REACT, 0.0) + bonus["react_bonus"]
+            for key in (Activity.PLAY, Activity.SLEEP, Activity.REACT):
+                if row[key] < 0.0:
+                    row[key] = 0.0
         st = self.state
         if st.activity != Activity.SLEEP:
             if st.energy <= 20.0:
@@ -196,10 +215,13 @@ class Brain:
 
         if st.activity == Activity.WALK and step > 0.0:
             # Gentle random walk: mostly straight with occasional turns.
+            # Speed comes from the active character trait record.
             if self._rng.random() < 0.06:
                 self._wander_angle += self._rng.uniform(-1.2, 1.2)
-            st.x += math.cos(self._wander_angle) * WALK_SPEED_PX_PER_SEC * step
-            st.y += math.sin(self._wander_angle) * WALK_SPEED_PX_PER_SEC * 0.4 * step
+            speed = traits_mod.walk_speed_for(
+                getattr(st, "character_id", "pip"))
+            st.x += math.cos(self._wander_angle) * speed * step
+            st.y += math.sin(self._wander_angle) * speed * 0.4 * step
 
         events: list[BrainEvent] = []
         if st.activity == Activity.SLEEP:
@@ -303,4 +325,16 @@ class Brain:
         st = self.state
         return BrainEvent(kind="rename",
                           text="From now on, call me %s!" % final,
+                          mood=st.mood, activity=st.activity)
+
+    def set_character(self, character_id: str) -> BrainEvent:
+        """Switch the active character (unknown ids fall back to Pip)."""
+        normalized = traits_mod.normalize_id(character_id)
+        st = self.state
+        st.character_id = normalized
+        self.personality.set_character(normalized)
+        st.mood = mood_for(st)
+        return BrainEvent(kind="rename",
+                          text="%s bounds in! Say hi to %s!" % (
+                              st.name, normalized.title()),
                           mood=st.mood, activity=st.activity)

@@ -14,6 +14,7 @@ def suite() -> unittest.TestSuite:
     import pet.tests.test_interact as ti
     import pet.tests.test_settings as tset
     import pet.tests.test_shells as tsh
+    import pet.tests.test_catalog as tcat
 
     import pet.tests.test_tester_adversarial as tta
     import pet.tests.test_tester_phase3_adversarial as ttp3
@@ -23,7 +24,7 @@ def suite() -> unittest.TestSuite:
 
     loader = unittest.TestLoader()
     combined = unittest.TestSuite()
-    for module in (ts, tn, tp, tpe, tb, tsp, tw, ti, tset, tsh,
+    for module in (ts, tn, tp, tpe, tb, tsp, tw, ti, tset, tsh, tcat,
                      tta, ttp3, ttp4, ttp4nf, ttfin):
         combined.addTests(loader.loadTestsFromModule(module))
     return combined

@@ -6,7 +6,7 @@ and the behavior tick machine. The GUI in pet_app (a later layer) is a
 thin renderer over this API.
 """
 
-from .state import Activity, PetState, SCHEMA_VERSION
+from .state import Activity, PetState, SCHEMA_VERSION, KNOWN_CHARACTERS
 from .needs import (
     AFFECTION_DECAY_PER_SEC,
     ENERGY_DRAIN_PER_SEC,
@@ -19,6 +19,9 @@ from .needs import (
 from .personality import DEFAULT_NAME, EVENT_KEYS, MOODS, Personality, mood_for
 from .persistence import backup_path_for, default_save_path, load, save
 from .brain import Brain, BrainEvent, EVENT_KINDS
+from . import traits as _traits_mod
+from . import catalog as _catalog_mod
+from .personality import CHARACTER_VOICES
 
 __all__ = [
     "Activity",
@@ -43,4 +46,6 @@ __all__ = [
     "Brain",
     "BrainEvent",
     "EVENT_KINDS",
+    "KNOWN_CHARACTERS",
+    "CHARACTER_VOICES",
 ]

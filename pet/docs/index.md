@@ -18,20 +18,31 @@ every frontend and every test drives the same code:
   window.
 - **Needs** (`pet_core/needs.py`): hunger fills over 10 minutes, awake
   energy drains over 15 minutes, sleep restores over 5 minutes, affection
-  fades over 20 minutes. Time-delta correct, dt clamped to 5 s.
+  fades over 20 minutes. Time-delta correct, dt clamped to 5 s. Rates are
+  resolved per active character through the trait tables (Pip matches the
+  base rates exactly).
+- **Catalog** (`pet_core/catalog.py`, `pet_core/traits.py`): six originals
+  (Pip, Bramble, Mochi, Kiki, Rusty, Luna) with distinct body plans,
+  palettes, temperaments, stat rates, walk speeds, and transition biases.
+  Every stat difference is data in the trait tables, never a branch in the
+  brain. Third-party pack entries merge in by slug with built-ins winning
+  collisions and unknown ids falling back to Pip.
 - **Personality** (`pet_core/personality.py`): offline line pools per mood
   (happy, curious, sleepy, grumpy, hungry, affectionate) and per event
   (poke, feed, play, wake, sleep, greet, stroke, catch). Seeded, no repeats until each
-  pool is exhausted, renameable.
+  pool is exhausted, renameable. Each character ships its own voice with a
+  shared Pip fallback for missing keys; draw bags are keyed per character.
 - **Brain** (`pet_core/brain.py`): `tick(dt)` at 10 Hz nominal advances
   needs, drifts position while walking, rolls one needs-weighted activity
   transition, and emits at most one event. REACT is transient, SLEEP
   auto-wakes once rested. Interactions (`poke`, `feed_pet`, `stroke`,
-  `invite_play`, `send_to_sleep`, `wake`, `rename`) are the same calls the
-  window and the tests use.
+  `invite_play`, `send_to_sleep`, `wake`, `rename`, `set_character`) are the same calls the
+  window and the tests use. `python -m pet characters (list|show|switch)`
+  mirrors switching in the CLI with atomic persistence.
 - **Persistence** (`pet_core/persistence.py`): atomic tmp-plus-rename JSON
   in the platform user-data dir, schema-checked, corrupt files backed up
-  to `.bak` with a fresh start and a logged notice.
+  to `.bak` with a fresh start and a logged notice. Schema v2 adds
+  `character_id`; v1 saves migrate automatically with Pip selected.
 
 ## On-screen companion
 
