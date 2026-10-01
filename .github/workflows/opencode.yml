@@ -53,7 +53,7 @@ jobs:
     if: |
       startsWith(github.event.comment.body, '/oc research') ||
       startsWith(github.event.comment.body, '/opencode research')
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 75
     steps:
       - name: Checkout repository
@@ -229,7 +229,7 @@ jobs:
       startsWith(github.event.comment.body, '/oc plan') ||
       startsWith(github.event.comment.body, '/opencode architect') ||
       startsWith(github.event.comment.body, '/opencode plan')
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 75
     steps:
       - name: Checkout repository
@@ -466,7 +466,7 @@ jobs:
     concurrency:
       group: opencode-build-${{ github.event.issue.number }}
       cancel-in-progress: false
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 120
     steps:
       - name: Checkout repository
@@ -942,7 +942,7 @@ jobs:
     if: |
       startsWith(github.event.comment.body, '/oc fix') &&
       github.event.issue.pull_request != null
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 120
     steps:
       - name: Checkout repository
@@ -1184,7 +1184,7 @@ jobs:
        startsWith(github.event.comment.body, '/oc') ||
        contains(github.event.comment.body, ' /opencode') ||
        startsWith(github.event.comment.body, '/opencode'))
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 75
     steps:
       - name: Checkout repository

@@ -28,7 +28,7 @@ jobs:
     if: |
       github.event_name != 'issue_comment' &&
       (github.event_name != 'pull_request' || github.event.pull_request.merged == false)
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 30
     steps:
       - name: Checkout repository
@@ -72,7 +72,7 @@ jobs:
   # recover.sh for the actual git/PR surgery and then reports.
   recover:
     if: startsWith(github.event.comment.body, '/oc recover') || startsWith(github.event.comment.body, '/opencode recover')
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 60
     steps:
       - name: Checkout repository

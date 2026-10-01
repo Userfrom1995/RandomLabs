@@ -16,7 +16,7 @@ permissions:
 jobs:
   trigger:
     if: github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - name: Post /oc maintainer as owner to wake up Maintainer
         env:
