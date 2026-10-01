@@ -3,7 +3,11 @@
 
 package syswide
 
-import "runtime"
+import (
+	"errors"
+	"os"
+	"runtime"
+)
 
 // ProbeResult is the outside view of a system-wide session.
 type ProbeResult struct {
@@ -32,6 +36,9 @@ func Probe(stateDir string, r Runner) ProbeResult {
 	}
 	s, err := LoadState(stateDir)
 	if err != nil {
+		if errors.Is(err, os.ErrPermission) || os.IsPermission(err) {
+			return ProbeResult{Mode: "none", Detail: "system state unreadable by non-root user (run with sudo to inspect)"}
+		}
 		return ProbeResult{Mode: "stale", Detail: "system state unreadable (run repair): " + err.Error()}
 	}
 	anyRules := (IptablesBackend{Run: r}.Present()) || (NftBackend{Run: r}.Present())
@@ -41,6 +48,9 @@ func Probe(stateDir string, r Runner) ProbeResult {
 	case s != nil && backendFor(s.Backend, r).Present():
 		return ProbeResult{Mode: "system", Detail: s.Backend + " session since " + s.CreatedAt, State: s}
 	case s != nil:
+		if os.Geteuid() != 0 && pidAlive(s.TorPid) {
+			return ProbeResult{Mode: "system", Detail: s.Backend + " session since " + s.CreatedAt, State: s}
+		}
 		return ProbeResult{Mode: "stale", Detail: "session record without matching rules (crashed run? reboot? run repair)", State: s}
 	default:
 		return ProbeResult{Mode: "stale", Detail: "torshim rules without a session record (foreign or crashed run? run repair)"}

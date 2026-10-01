@@ -4,10 +4,12 @@
 package doctor
 
 import (
+	"crypto/tls"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -94,8 +96,13 @@ const maxExitBody = 64 * 1024
 // FetchExitIP GETs path from host:port through the SOCKS endpoint and
 // extracts the client IP tor egressed with. The CONNECT uses domain-name
 // address type when host is a name, so tor resolves it exit-side (no local
-// DNS involved, hence no leak in the probe itself).
+// DNS involved, hence no leak in the probe itself). It supports TLS on
+// port 443 and follows HTTP 301/302 redirects.
 func FetchExitIP(socksAddr, host string, port int, path string, timeout time.Duration) (string, error) {
+	return fetchExitIPWithRedirect(socksAddr, host, port, path, timeout, 3)
+}
+
+func fetchExitIPWithRedirect(socksAddr, host string, port int, path string, timeout time.Duration, redirectsLeft int) (string, error) {
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}
@@ -119,15 +126,70 @@ func FetchExitIP(socksAddr, host string, port int, path string, timeout time.Dur
 	if err := socksConnect(conn, host, port); err != nil {
 		return "", err
 	}
+
+	var rw io.ReadWriter = conn
+	if port == 443 {
+		tlsConn := tls.Client(conn, &tls.Config{
+			ServerName: host,
+		})
+		if err := tlsConn.Handshake(); err != nil {
+			return "", fmt.Errorf("doctor: tls handshake to %s: %w", host, err)
+		}
+		defer tlsConn.Close()
+		rw = tlsConn
+	}
+
 	req := fmt.Sprintf("GET %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n", path, host)
-	if _, err := io.WriteString(conn, req); err != nil {
+	if _, err := io.WriteString(rw, req); err != nil {
 		return "", fmt.Errorf("doctor: egress request write: %w", err)
 	}
-	raw, err := io.ReadAll(io.LimitReader(conn, maxExitBody))
+	raw, err := io.ReadAll(io.LimitReader(rw, maxExitBody))
 	if err != nil {
 		return "", fmt.Errorf("doctor: egress response read: %w", err)
 	}
-	return parseExitIP(string(raw))
+
+	rawStr := string(raw)
+	head, _, found := strings.Cut(rawStr, "\r\n\r\n")
+	if found {
+		status := head
+		if i := strings.Index(status, "\r\n"); i >= 0 {
+			status = status[:i]
+		}
+		if (strings.Contains(status, " 301 ") || strings.Contains(status, " 302 ")) && redirectsLeft > 0 {
+			loc := parseRedirectLocation(head)
+			if loc != "" {
+				u, err := url.Parse(loc)
+				if err == nil {
+					nextHost := u.Hostname()
+					if nextHost == "" {
+						nextHost = host
+					}
+					nextPort := port
+					if u.Scheme == "https" {
+						nextPort = 443
+					} else if u.Scheme == "http" {
+						nextPort = 80
+					}
+					nextPath := u.RequestURI()
+					if nextPath == "" {
+						nextPath = "/"
+					}
+					return fetchExitIPWithRedirect(socksAddr, nextHost, nextPort, nextPath, timeout, redirectsLeft-1)
+				}
+			}
+		}
+	}
+
+	return parseExitIP(rawStr)
+}
+
+func parseRedirectLocation(head string) string {
+	for _, ln := range strings.Split(head, "\r\n") {
+		if strings.HasPrefix(strings.ToLower(ln), "location:") {
+			return strings.TrimSpace(ln[len("location:"):])
+		}
+	}
+	return ""
 }
 
 // socksHello performs the no-auth SOCKS5 greeting.

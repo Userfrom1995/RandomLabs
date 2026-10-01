@@ -18,6 +18,12 @@ type NftBackend struct {
 // the session state so rules always match the running tor instance.
 func NftScript(torUID uint32, transPort, dnsPort int) string {
 	return fmt.Sprintf(`table inet %s {
+	chain v6block {
+		type filter hook output priority -150; policy accept;
+		skuid %d return
+		oifname "lo" return
+		meta nfproto ipv6 reject
+	}
 	chain out_nat {
 		type nat hook output priority dstnat; policy accept;
 		skuid %d return
@@ -28,19 +34,14 @@ func NftScript(torUID uint32, transPort, dnsPort int) string {
 	}
 	chain out_filter {
 		type filter hook output priority 0; policy accept;
-		oifname "lo" return
 		skuid %d return
+		oifname "lo" return
+		ct status dnat accept
 		ip daddr 127.0.0.1 return
 		reject
 	}
-	chain v6block {
-		type filter hook output priority 1; policy accept;
-		meta nfproto ipv6 oifname "lo" return
-		meta nfproto ipv6 skuid %d return
-		meta nfproto ipv6 reject
-	}
 }
-`, NftTable, torUID, dnsPort, transPort, torUID, torUID)
+`, NftTable, torUID, torUID, dnsPort, transPort, torUID)
 }
 
 // Ensure syntax-checks then loads the table (idempotent: loading twice

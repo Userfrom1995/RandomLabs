@@ -62,6 +62,7 @@ func FilterRules(torUID uint32) [][]string {
 	return [][]string{
 		{"-o", "lo", "-j", "RETURN"},
 		append(append([]string{}, u...), "-j", "RETURN"),
+		{"-m", "conntrack", "--ctstate", "DNAT", "-j", "RETURN"},
 		{"-d", "127.0.0.1", "-j", "RETURN"},
 		{"-j", "REJECT"},
 	}
