@@ -1,5 +1,6 @@
 """Headless tests for the window controller, menu, bubble, and platform probe."""
 
+import os
 import unittest
 
 from pet.pet_app import controller as ctrl_mod
@@ -143,6 +144,14 @@ class TestWindowController(unittest.TestCase):
         self.assertTrue(quit_flag)
         self.assertIsNone(text)
 
+    def test_menu_settings_returns_live_summary(self):
+        app = self.make()
+        text, quit_flag = app.run_menu_action("settings")
+        self.assertFalse(quit_flag)
+        self.assertTrue(text)
+        self.assertIn("wander=", text)
+        self.assertIn(app.settings.describe().splitlines()[0], text)
+
     def test_unknown_action(self):
         text, quit_flag = self.make().run_menu_action("dance")
         self.assertEqual((text, quit_flag), (None, False))
@@ -228,6 +237,22 @@ class TestPlatform(unittest.TestCase):
     def test_honest_note_type(self):
         note = platform_mod.honest_note()
         self.assertTrue(note is None or isinstance(note, str))
+
+    def test_no_display_override_forces_headless(self):
+        old = os.environ.get("DESKTOP_PET_NO_DISPLAY")
+        try:
+            os.environ["DESKTOP_PET_NO_DISPLAY"] = "1"
+            self.assertFalse(platform_mod.has_display())
+            caps = platform_mod.capabilities()
+            self.assertFalse(caps["can_show_window"])
+            note = platform_mod.honest_note()
+            self.assertTrue(note)
+            self.assertIn("no window today", note.lower())
+        finally:
+            if old is None:
+                os.environ.pop("DESKTOP_PET_NO_DISPLAY", None)
+            else:
+                os.environ["DESKTOP_PET_NO_DISPLAY"] = old
 
     def test_controller_module_has_no_gui_import(self):
         import ast

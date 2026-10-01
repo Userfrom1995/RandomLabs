@@ -91,8 +91,29 @@ including window position. The same file is manageable headlessly:
   five activities are reachable.
 - `python -m pet help` / `python -m pet version`: usage and version.
 
+Set `DESKTOP_PET_NO_DISPLAY=1` to force the honest headless path for
+`gui` on any OS (used by CI and automated tests so GUI behavior stays
+deterministic on machines that do have a display).
+
+## Packaging
+
+Run-from-source is the primary install path; the optional one-file
+binaries are built from documented recipes, never downloaded blind:
+
+- `packaging/build.sh` (Linux/macOS) and
+  `packaging/build-windows.ps1` (Windows) wrap
+  `packaging/desktop-pet.spec` (PyInstaller, console build, zero
+  assets), write `dist/SHA256SUMS.txt`, and run `selftest` on the
+  finished bundle. Artifacts: `dist/desktop-pet` (Linux/macOS),
+  `dist/desktop-pet.exe` (Windows). Full matrix and checksum commands
+  live in `packaging/README.md`.
+
 ## Troubleshooting
 
+- **No window on a machine with a screen**: Linux needs a display
+  (`DISPLAY` or Wayland) plus tkinter (`python3-tk` on Debian/Ubuntu).
+  Set `DESKTOP_PET_NO_DISPLAY=1` to force the honest headless path
+  anywhere, e.g. in CI.
 - **Save file corrupt**: the pet starts fresh and the old file is kept
   next to it with a `.bak` suffix. Nothing is deleted silently.
 - **Pet always sleepy**: energy drains while awake and restores only in
