@@ -72,7 +72,8 @@ class TestMenuModel(unittest.TestCase):
     def test_awake_menu(self):
         items = menu_model(Activity.IDLE)
         ids = [item[0] for item in items]
-        self.assertEqual(ids, ["feed", "play", "sleep", "routine", "about", "quit"])
+        self.assertEqual(ids, ["feed", "play", "sleep", "routine",
+                               "settings", "about", "quit"])
 
     def test_sleep_menu_offers_wake(self):
         items = menu_model(Activity.SLEEP)

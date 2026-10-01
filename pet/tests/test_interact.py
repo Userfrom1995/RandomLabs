@@ -269,7 +269,8 @@ class TestControllerPlayLayer(unittest.TestCase):
     def test_menu_model_routine_label(self):
         awake = menu_model(Activity.IDLE, True)
         self.assertEqual([item[0] for item in awake],
-                         ["feed", "play", "sleep", "routine", "about", "quit"])
+                         ["feed", "play", "sleep", "routine", "settings",
+                          "about", "quit"])
         self.assertIn("on", dict(awake)["routine"])
         sleeping = menu_model(Activity.SLEEP, False)
         self.assertEqual(sleeping[2][0], "wake")
