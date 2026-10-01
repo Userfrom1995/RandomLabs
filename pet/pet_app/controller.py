@@ -13,7 +13,10 @@ from __future__ import annotations
 import time
 
 from ..pet_core import needs as needs_mod
+from ..pet_core import traits as traits_mod
 from ..pet_core.brain import Brain
+from ..pet_core.converse import Converser
+from ..pet_core.events import LifeEvents
 from ..pet_core.personality import mood_for
 from ..pet_core.state import Activity
 from . import platform as platform_mod
@@ -23,7 +26,6 @@ from .interact import (
     ROUTINE_HOLD_SEC,
     STROKE_COMBO_AT,
     STROKE_COMBO_EVERY,
-    STROKE_NUDGE,
     BallGame,
     MunchSession,
     SleepSchedule,
@@ -188,6 +190,12 @@ class WindowController:
         self.munch = MunchSession()
         self.game = BallGame(seed=seed)
         self.routine = SleepSchedule()
+        self.talker = Converser(
+            character_id=getattr(self.brain.state, "character_id", "pip"),
+            name=self.brain.state.name, seed=seed)
+        self.moments = LifeEvents(
+            character_id=getattr(self.brain.state, "character_id", "pip"),
+            name=self.brain.state.name, seed=seed)
         self._apply_settings_to_layers()
         # clock() returns the wall-clock hour 0..24 for the sleep
         # schedule, or None to disable schedule checks (headless/tests).
@@ -286,6 +294,23 @@ class WindowController:
             self.brain.state.mood = mood_for(self.brain.state)
         self._tick_game(step, moment)
         self._tick_routine(moment)
+        self._tick_moments(moment)
+
+    def _tick_moments(self, moment: float) -> None:
+        """Poll the living-moments bus and voice due moments."""
+        state = self.brain.state
+        try:
+            self.talker.set_name(state.name)
+            self.moments.set_name(state.name)
+        except Exception:
+            pass
+        for happened in self.moments.poll(
+                mood=state.mood, hunger=state.hunger, energy=state.energy,
+                affection=state.affection,
+                activity=self._activity_name(moment),
+                hour=self._hour(), now=moment):
+            if happened.text:
+                self._say(happened.text)
 
     def _tick_game(self, step: float, moment: float) -> None:
         if not self.game.active:
@@ -296,7 +321,10 @@ class WindowController:
             return
         for outcome in self.game.tick(step, moment):
             if outcome == "catch":
-                gained = needs_mod.add_affection(self.brain.state, 3.0)
+                gain = traits_mod.interaction_for(
+                    getattr(self.brain.state, "character_id",
+                            "pip"))["catch_gain"]
+                gained = needs_mod.add_affection(self.brain.state, gain)
                 self.brain.state.mood = mood_for(self.brain.state)
                 if gained > 0.0:
                     self._say(
@@ -360,6 +388,32 @@ class WindowController:
         older = pose_for(self._previous_activity, self.phase, character)
         return blend(older, fresh, self._blend_t)
 
+    def _interaction_mods(self) -> dict:
+        """Per-character stroke/catch/munch/ball modifiers (data, not branches)."""
+        try:
+            return traits_mod.interaction_for(
+                getattr(self.brain.state, "character_id", "pip"))
+        except Exception:
+            return traits_mod.interaction_for("pip")
+
+    def talk(self, text: object, now: object = None) -> str:
+        """Answer a typed line out loud in the speech bubble.
+
+        Runs the offline conversation heart with the live needs context
+        and returns the reply shown (empty string when dialogue is off).
+        """
+        state = self.brain.state
+        moment = self._now(now)
+        self.talker.set_character(
+            getattr(state, "character_id", "pip"))
+        self.talker.set_name(state.name)
+        reply, _hint = self.talker.reply(
+            text, mood=state.mood, hunger=state.hunger,
+            energy=state.energy, hour=self._hour())
+        self.moments.notify_interaction(moment)
+        self._say(reply, now=now)
+        return reply if self.settings.dialogue else ""
+
     def switch_character(self, character_id: object,
                          now: object = None) -> tuple[str, str | None]:
         """Hot-swap the active character and re-render on the next frame.
@@ -374,6 +428,10 @@ class WindowController:
         old_pose = pose_for(self._shown_activity, self.phase, old_character)
         record, notice = catalog_mod.get(character_id)
         event = self.brain.set_character(record["id"])
+        self.talker.set_character(record["id"])
+        self.talker.set_name(self.brain.state.name)
+        self.moments.set_character(record["id"])
+        self.moments.set_name(self.brain.state.name)
         self._blend_from = old_pose
         self._blend_t = 0.0
         self._previous_activity = self._shown_activity
@@ -386,9 +444,13 @@ class WindowController:
         if gesture == "click":
             # A gentle click is a stroke: a small affection nudge plus
             # chat, escalating to a full purring celebration on streaks.
+            # The nudge size is a per-character trait (Mochi melts
+            # faster, Rusty barely notices).
             moment = self._now(now)
             streak = self.strokes.register(moment)
-            needs_mod.add_affection(state, STROKE_NUDGE)
+            self.moments.notify_interaction(moment)
+            needs_mod.add_affection(
+                state, self._interaction_mods()["stroke_gain"])
             state.mood = mood_for(state)
             if (streak >= STROKE_COMBO_AT
                     and (streak - STROKE_COMBO_AT) % STROKE_COMBO_EVERY == 0):
@@ -403,6 +465,7 @@ class WindowController:
         if gesture == "double-click":
             event = self.brain.poke()
             self.strokes.reset()
+            self.moments.notify_interaction(self._now(now))
             self._note_activity_change(self._now(now))
             self._say(event.text)
             return event.text
@@ -428,7 +491,13 @@ class WindowController:
         moment = self._now(now)
         if action == "feed":
             event = self.brain.feed_pet()
+            try:
+                self.munch.duration = max(
+                    0.5, float(self._interaction_mods()["munch_sec"]))
+            except (TypeError, ValueError):
+                pass
             self.munch.start(moment)
+            self.moments.notify_fed(moment)
             self._note_activity_change(moment)
             self._say(event.text)
             return (event.text, False)
@@ -436,24 +505,30 @@ class WindowController:
             event = self.brain.invite_play()
             self._note_activity_change(moment)
             if event.activity == Activity.PLAY:
+                self.game.set_catch_radius(
+                    self._interaction_mods()["catch_radius_mult"])
                 self.game.start(moment)
+            self.moments.notify_interaction(moment)
             self._say(event.text)
             return (event.text, False)
         if action == "sleep":
             event = self.brain.send_to_sleep()
             self._routine_hold_until = moment + ROUTINE_HOLD_SEC
+            self.moments.notify_interaction(moment)
             self._note_activity_change(moment)
             self._say(event.text)
             return (event.text, False)
         if action == "wake":
             event = self.brain.wake()
             self._routine_hold_until = moment + ROUTINE_HOLD_SEC
+            self.moments.notify_interaction(moment)
             self._note_activity_change(moment)
             self._say(event.text)
             return (event.text, False)
         if action == "routine":
             enabled = self.routine.set_enabled(not self.routine.enabled)
             self.settings.sleep_schedule = enabled
+            self.moments.notify_interaction(moment)
             text = self.routine.describe()
             if enabled:
                 text = "%s %s" % (text, self.brain.personality.line_for("sleepy"))

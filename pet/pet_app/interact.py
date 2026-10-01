@@ -170,6 +170,21 @@ class BallGame:
         self.ball_vy = 0.0
         self.pet_x = 0.5
         self._started_at: float | None = None
+        # Per-character catch generosity (Bramble's eager leap scores
+        # faster, Mochi's slow wobble scores slower). Multiplier on
+        # BALL_CATCH_RADIUS; 1.0 replays the shipped physics exactly.
+        self.catch_radius = BALL_CATCH_RADIUS
+
+    def set_catch_radius(self, value: object) -> float:
+        """Scale the catch radius (bad values fail closed to default)."""
+        try:
+            mult = float(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            mult = 1.0
+        if mult != mult or mult <= 0.0:
+            mult = 1.0
+        self.catch_radius = BALL_CATCH_RADIUS * max(0.5, min(2.0, mult))
+        return self.catch_radius
 
     def start(self, now: object = None) -> bool:
         """Open a new game and toss the first ball. Returns active."""
@@ -243,7 +258,7 @@ class BallGame:
         self.pet_x += stride
 
         if (self.ball_y >= BALL_CATCH_ZONE_Y
-                and abs(self.pet_x - self.ball_x) <= BALL_CATCH_RADIUS):
+                and abs(self.pet_x - self.ball_x) <= self.catch_radius):
             self.catches += 1
             self.score += 1
             events.append("catch")
