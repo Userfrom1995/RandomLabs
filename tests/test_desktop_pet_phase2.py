@@ -156,6 +156,10 @@ class TestPhase2Platform(unittest.TestCase):
 class TestPhase2CLI(unittest.TestCase):
     def _run(self, argv, env_extra=None):
         env = dict(os.environ)
+        # Force the headless answer so GUI tests stay deterministic on
+        # machines that do have a display (DESKTOP_PET_NO_DISPLAY is
+        # honored by pet.pet_app.platform.has_display).
+        env["DESKTOP_PET_NO_DISPLAY"] = "1"
         if env_extra:
             env.update(env_extra)
         return subprocess.run(

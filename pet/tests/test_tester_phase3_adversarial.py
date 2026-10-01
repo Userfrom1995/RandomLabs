@@ -306,11 +306,15 @@ class TestCliLivePaths(unittest.TestCase):
         self.assertIn("wakes up", outputs[0])
 
     def test_gui_without_display_exits_honestly(self):
+        env = dict(os.environ)
+        env["DESKTOP_PET_NO_DISPLAY"] = "1"
         proc = subprocess.run(
             [sys.executable, "-m", "pet", "gui"],
-            cwd=ROOT, capture_output=True, text=True, timeout=60)
+            cwd=ROOT, capture_output=True, text=True, timeout=60,
+            env=env)
         combined = (proc.stdout or "") + (proc.stderr or "")
-        self.assertIn("tkinter", combined.lower())
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("no window today", combined.lower())
 
 
 if __name__ == "__main__":
