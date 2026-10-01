@@ -62,10 +62,32 @@ window itself drifts across the screen inside display bounds.
 
 Window options: `--scale 0.5..3.0` (multiplied by probed display DPI),
 `--alpha 0.3..1.0` (opacity), `--no-topmost`, `--save PATH`,
-`--no-save`, `--seed N`, `--name NAME`. Window position, stats, settings, and name persist across restarts:
+`--no-save`, `--seed N`, `--name NAME`, `--character ID`. Window position, stats, settings, and name persist across restarts:
 the pet state (`pet.json`) and the dialog settings (`settings.json`)
 save atomically beside each other. Where tkinter or a display is
 missing, `gui` exits with an honest note pointing at headless `run`.
+
+## Character cast and animation
+
+One parametric engine draws all six characters (`pet_app/sprite.py`):
+shared activity keyframes (blink cycle, breathing squash, walk bob,
+play jumps, sleep Z-float, startle squash, carried dangle) layered with
+per-character motion style (Bramble jumps highest, Mochi barely leaves
+the floor, Kiki darts its gaze, Rusty moves stiffly, Luna hovers), then
+rendered through body-plan geometry (blob, quadruped, slime, avian,
+robot, winged) painted with each character's catalog palette plus its
+own accessories (fox tail tip and legs, slime shine and puddle, crest
+and beak, antenna and visor, wings and moon mark). Every pose is a pure
+function of `(character, activity, phase)` and every coordinate scales
+linearly with size, so DPI scaling stays crisp and the Pages showcase
+mirrors the same math value-for-value in canvas calls.
+
+Switching is live and safe: `python -m pet characters switch bramble`
+persists the selection atomically, `python -m pet gui --character kiki`
+opens as that character, and the desktop window can hot-swap without
+reopening (the pose blend restarts from the current pose so the swap
+morphs instead of popping). Stats carry across switches; unknown ids
+fall back to Pip with a notice, never a traceback.
 
 ## Settings, startup, notifications
 
