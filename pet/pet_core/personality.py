@@ -313,8 +313,6 @@ class Personality:
         """Switch the active voice (unknown ids fall back to Pip)."""
         if isinstance(character_id, str) and character_id.strip().lower() in CHARACTER_VOICES:
             self._character_id = character_id.strip().lower()
-        elif isinstance(character_id, str) and character_id.strip().lower() in _BUILTIN_IDS:
-            self._character_id = character_id.strip().lower()
         else:
             self._character_id = "pip"
         return self._character_id
@@ -343,6 +341,6 @@ class Personality:
 
     def pool_sizes(self) -> dict[str, int]:
         """Report pool sizes (useful for tests and the selftest gate)."""
-        sizes = {m: len(MOOD_LINES[m]) for m in MOODS}
-        sizes.update({"event:" + e: len(EVENT_LINES[e]) for e in EVENT_KEYS})
+        sizes = {m: len(self._pool_for("mood", m)) for m in MOODS}
+        sizes.update({"event:" + e: len(self._pool_for("event", e)) for e in EVENT_KEYS})
         return sizes
