@@ -17,10 +17,11 @@ def suite() -> unittest.TestSuite:
 
     import pet.tests.test_tester_adversarial as tta
     import pet.tests.test_tester_phase3_adversarial as ttp3
+    import pet.tests.test_tester_phase4_adversarial as ttp4
 
     loader = unittest.TestLoader()
     combined = unittest.TestSuite()
     for module in (ts, tn, tp, tpe, tb, tsp, tw, ti, tset, tsh,
-                     tta, ttp3):
+                     tta, ttp3, ttp4):
         combined.addTests(loader.loadTestsFromModule(module))
     return combined
