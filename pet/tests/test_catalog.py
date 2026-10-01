@@ -82,12 +82,19 @@ class TestTraits(unittest.TestCase):
         self.assertEqual(pip["affection_decay"], needs_mod.AFFECTION_DECAY_PER_SEC)
         self.assertEqual(pip["walk_speed"], 36.0)
 
-    def test_walk_speeds_differ_by_fixture_amounts(self):
+    def test_walk_speeds_match_trait_table(self):
         from pet.pet_core import traits as traits_mod
-        self.assertGreater(traits_mod.walk_speed_for("bramble"),
-                           traits_mod.walk_speed_for("mochi") * 2.0)
-        self.assertGreater(traits_mod.walk_speed_for("kiki"),
-                           traits_mod.walk_speed_for("mochi"))
+        expected = {
+            "pip": 36.0,
+            "bramble": 36.0 * 1.6,
+            "mochi": 36.0 * 0.5,
+            "kiki": 36.0 * 1.4,
+            "rusty": 36.0 * 0.9,
+            "luna": 36.0 * 1.1,
+        }
+        for cid, speed in expected.items():
+            self.assertAlmostEqual(traits_mod.walk_speed_for(cid), speed,
+                                   msg="%s walk speed" % cid)
 
     def test_trait_rates_are_data_not_branches(self):
         from pet.pet_core import traits as traits_mod
@@ -151,24 +158,27 @@ class TestMigration(unittest.TestCase):
 
 class TestVoices(unittest.TestCase):
     def test_each_character_has_own_voice(self):
-        from pet.pet_core.personality import CHARACTER_VOICES, EVENT_LINES, Personality
+        from pet.pet_core.personality import CHARACTER_VOICES
         self.assertEqual(set(CHARACTER_VOICES),
                          {"pip", "bramble", "mochi", "kiki", "rusty", "luna"})
+        # Distinct signature lines per character: every pool a non-Pip
+        # voice ships must differ from the shared Pip pool it overrides.
+        from pet.pet_core.personality import EVENT_LINES, MOOD_LINES
+        shared = {}
+        for key in MOOD_LINES:
+            shared["mood:" + key] = set(MOOD_LINES[key])
+        for key in EVENT_LINES:
+            shared["event:" + key] = set(EVENT_LINES[key])
         for cid in ("bramble", "mochi", "kiki", "rusty", "luna"):
-            self.assertTrue(CHARACTER_VOICES[cid],
+            overrides = CHARACTER_VOICES[cid]
+            self.assertTrue(overrides,
                             "%s should ship voice overrides" % cid)
-        # Distinct signature lines per character: each non-Pip voice must
-        # ship at least one pool whose lines differ from the shared Pip pool.
-        pip_voice = Personality(name="Test", seed=7, character_id="pip")
-        pip_greet = {pip_voice.line_for_event("greet") for _ in range(3)}
-        self.assertTrue(pip_greet)
-        for cid in ("bramble", "mochi", "kiki", "rusty", "luna"):
-            voice = Personality(name="Test", seed=7, character_id=cid)
-            self.assertTrue(CHARACTER_VOICES[cid])
-            own = voice._pool_for("event", "greet") if "event:greet" in CHARACTER_VOICES[cid] else None
-            if own is not None:
-                self.assertNotEqual(set(own), set(EVENT_LINES["greet"]),
-                                    "%s greet pool should differ from Pip" % cid)
+            for key, own in sorted(overrides.items()):
+                self.assertIn(key, shared, "%s ships unknown key %s" % (cid, key))
+                self.assertTrue(len(own) >= 3,
+                                "%s %s pool too small" % (cid, key))
+                self.assertNotEqual(set(own), shared[key],
+                                    "%s %s pool should differ from Pip" % (cid, key))
 
     def test_missing_keys_fall_back_to_shared_pool(self):
         from pet.pet_core.personality import Personality
