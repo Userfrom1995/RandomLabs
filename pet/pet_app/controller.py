@@ -198,6 +198,7 @@ class WindowController:
         self.phase = 0.0
         self._shown_activity = self._activity_name()
         self._blend_t = 1.0
+        self._blend_from: Pose | None = None
         self._previous_activity = self._shown_activity
         self._routine_hold_until = 0.0
 
@@ -349,6 +350,11 @@ class WindowController:
         character = normalize_character(
             getattr(self.brain.state, "character_id", "pip"))
         fresh = pose_for(self._shown_activity, self.phase, character)
+        if self._blend_from is not None:
+            if self._blend_t >= 1.0:
+                self._blend_from = None
+                return fresh
+            return blend(self._blend_from, fresh, self._blend_t)
         if self._blend_t >= 1.0:
             return fresh
         older = pose_for(self._previous_activity, self.phase, character)
@@ -363,9 +369,14 @@ class WindowController:
         """
         from ..pet_core import catalog as catalog_mod
 
+        old_character = normalize_character(
+            getattr(self.brain.state, "character_id", "pip"))
+        old_pose = pose_for(self._shown_activity, self.phase, old_character)
         record, notice = catalog_mod.get(character_id)
         event = self.brain.set_character(record["id"])
-        self._note_activity_change(self._now(now))
+        self._blend_from = old_pose
+        self._blend_t = 0.0
+        self._previous_activity = self._shown_activity
         self._say(event.text)
         return event.text, notice
 
