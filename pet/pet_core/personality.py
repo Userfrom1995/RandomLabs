@@ -23,7 +23,8 @@ MOODS = (
     "affectionate",
 )
 
-EVENT_KEYS = ("poke", "feed", "play", "wake", "sleep", "greet")
+EVENT_KEYS = ("poke", "feed", "play", "wake", "sleep", "greet",
+                "stroke", "catch")
 
 MOOD_LINES: dict[str, list[str]] = {
     "happy": [
@@ -100,6 +101,16 @@ EVENT_LINES: dict[str, list[str]] = {
         "Oh! You are here! Hi!",
         "{name} was just thinking about you.",
         "Welcome back! {name} saved you a spot.",
+    ],
+    "stroke": [
+        "Purring louder. That is the spot!",
+        "{name} melts into a warm puddle.",
+        "More pats! {name} is collecting them.",
+    ],
+    "catch": [
+        "Got it! {name} is the champion!",
+        "Caught! Did you see that?",
+        "Snagged mid-bounce. Again!",
     ],
 }
 

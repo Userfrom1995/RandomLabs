@@ -20,7 +20,8 @@ from dataclasses import dataclass
 
 CANVAS_BOX = 160.0
 
-VALID_ACTIVITIES = ("idle", "walk", "play", "sleep", "react", "carried")
+VALID_ACTIVITIES = ("idle", "walk", "play", "sleep", "react", "carried",
+                    "munch")
 
 
 @dataclass
@@ -179,6 +180,20 @@ def pose_for(activity: object, phase: object = 0.0) -> Pose:
             hop=0.12 * startle,
             blush=0.6,
             mouth="oh",
+            breath=breath,
+        )
+    if name == "munch":
+        chomp = max(0.0, math.sin(wave * 4.0))
+        return Pose(
+            squash_x=1.0 + 0.05 * chomp,
+            squash_y=1.0 - 0.04 * chomp,
+            eye_open=0.75,
+            pupil_dy=0.15,
+            ear_tilt=0.08 * sway,
+            tail_angle=0.5 + 0.3 * sway,
+            hop=0.03 * chomp,
+            blush=0.85,
+            mouth="open" if chomp > 0.4 else "smile",
             breath=breath,
         )
     # carried: dangling pose while the user holds the pet.
