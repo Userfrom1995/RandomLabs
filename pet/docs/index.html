@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Desktop Pet - Documentation</title>
+<meta name="description" content="Desktop Pet product documentation: behavior brain, command reference, troubleshooting." />
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #141822;
+    --border: #263042;
+    --text: #d7dce8;
+    --muted: #8a93a8;
+    --accent: #4fc1a0;
+    --accent-2: #7aa2f7;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter", "Segoe UI", system-ui, sans-serif; line-height: 1.65; }
+  main { max-width: 860px; margin: 0 auto; padding: 40px 24px 72px; }
+  h1 { font-size: 2rem; margin: 0 0 8px; }
+  h2 { color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-top: 36px; }
+  a { color: var(--accent-2); }
+  code { font-family: "JetBrains Mono", Consolas, monospace; background: #10141f; border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 0.9em; }
+  ul { padding-left: 22px; }
+  nav.breadcrumb { font-size: 0.88rem; color: var(--muted); margin-bottom: 20px; }
+</style>
+</head>
+<body>
+<main>
+  <nav class="breadcrumb"><a href="../../">Random</a> / <a href="../">Desktop Pet</a> / Docs</nav>
+  <h1>Desktop Pet Documentation</h1>
+
+  <h2>Behavior brain</h2>
+  <p>The whole companion personality lives in <code>pet_core</code>, with no GUI imports, so every frontend and every test drives the same code:</p>
+  <ul>
+    <li><strong>State</strong> (<code>state.py</code>): name, activity, mood, energy, hunger, affection, position, tick counters, with JSON round-trip. Hunger 0 means full and 100 means starving; energy 0 is exhausted and 100 is rested; affection 0 is neglected and 100 is adored.</li>
+    <li><strong>Needs</strong> (<code>needs.py</code>): hunger fills over 10 minutes, awake energy drains over 15 minutes, sleep restores over 5 minutes, affection fades over 20 minutes. Time-delta correct, dt clamped to 5 s.</li>
+    <li><strong>Personality</strong> (<code>personality.py</code>): offline line pools per mood (happy, curious, sleepy, grumpy, hungry, affectionate) and per event (poke, feed, play, wake, sleep, greet). Seeded, no repeats until each pool is exhausted, renameable.</li>
+    <li><strong>Brain</strong> (<code>brain.py</code>): <code>tick(dt)</code> at 10 Hz nominal advances needs, drifts position while walking, rolls one needs-weighted activity transition, and emits at most one event. REACT is transient, SLEEP auto-wakes once rested.</li>
+    <li><strong>Persistence</strong> (<code>persistence.py</code>): atomic tmp-plus-rename JSON in the platform user-data dir, schema-checked, corrupt files backed up to <code>.bak</code> with a fresh start and a logged notice.</li>
+  </ul>
+
+  <h2>Command reference</h2>
+  <ul>
+    <li><code>python -m pet run [--ticks N] [--seed S] [--name NAME] [--realtime] [--dt SEC] [--save PATH] [--no-save]</code>: run the brain headlessly.</li>
+    <li><code>python -m pet selftest</code>: headless suite plus a seeded soak proving all five activities are reachable.</li>
+    <li><code>python -m pet help</code> / <code>python -m pet version</code>: usage and version.</li>
+  </ul>
+
+  <h2>Troubleshooting</h2>
+  <ul>
+    <li><strong>Save file corrupt</strong>: the pet starts fresh and the old file is kept next to it with a <code>.bak</code> suffix. Nothing is deleted silently.</li>
+    <li><strong>Pet always sleepy</strong>: energy drains while awake and restores only in SLEEP. Send it to sleep (or let the brain decide) and it wakes rested.</li>
+    <li><strong>Pet always hungry</strong>: hunger fills over about 10 minutes of pet time. Feed it through the event API (or the window feed control once the window layer lands).</li>
+    <li><strong>Deterministic replay</strong>: pass <code>--seed</code> to <code>run</code> for a reproducible session, useful when reporting odd behavior.</li>
+  </ul>
+
+  <p><a href="../">Back to the Desktop Pet hub</a></p>
+</main>
+</body>
+</html>

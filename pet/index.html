@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Desktop Pet - Cross-Platform Interactive Companion</title>
+<meta name="description" content="Desktop Pet: a stdlib-only Python desktop companion with a headless behavior brain, procedural animation, and per-OS native integration." />
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #141822;
+    --border: #263042;
+    --text: #d7dce8;
+    --muted: #8a93a8;
+    --accent: #4fc1a0;
+    --accent-2: #7aa2f7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.65;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 40px 24px 72px; }
+  h1 { font-size: 2.2rem; letter-spacing: -0.02em; margin: 0 0 8px; }
+  h2 { color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-top: 40px; }
+  a { color: var(--accent-2); }
+  code {
+    font-family: "JetBrains Mono", Consolas, monospace;
+    background: #10141f;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.9em;
+  }
+  pre {
+    background: #10141f;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+  }
+  .sub { color: var(--muted); margin-top: 0; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 16px 0; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .card h4 { margin: 0 0 4px; }
+  .card p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+  th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+  th { background: var(--panel); }
+  nav.breadcrumb { font-size: 0.88rem; color: var(--muted); margin-bottom: 20px; }
+</style>
+</head>
+<body>
+<main>
+  <nav class="breadcrumb"><a href="../">Random</a> / Desktop Pet</nav>
+  <h1>Desktop Pet</h1>
+  <p class="sub">A cross-platform interactive companion: stdlib-only Python, offline by default, honest about platform limits.</p>
+
+  <h2>What it is</h2>
+  <p>A lightweight, always-on-top desktop companion that feels alive: it idles, wanders, plays, sleeps, and reacts to you, with a nameable personality (Pip by default) and procedural animation drawn from canvas primitives. The behavior brain is built and runnable today; the on-screen window, interaction layer, settings, per-OS shells, and packaging land on top of the same brain.</p>
+  <div class="cards">
+    <div class="card"><h4>Behavior brain</h4><p>Tick state machine over needs: idle, walk, play, sleep, react. O(1) per tick at 10 Hz.</p></div>
+    <div class="card"><h4>Personality</h4><p>Seeded offline dialogue pools per mood and event, no repeats until exhausted.</p></div>
+    <div class="card"><h4>Persistence</h4><p>Atomic JSON saves in the platform user-data dir, corrupt files backed up.</p></div>
+  </div>
+
+  <h2>Quickstart</h2>
+  <p>Requires Python 3.10 or newer. No third-party packages.</p>
+  <pre>python -m pet selftest
+python -m pet run --ticks 300 --seed 7
+python -m pet run --ticks 600 --name Mochi --realtime</pre>
+
+  <h2>Support matrix</h2>
+  <table>
+    <tr><th>Layer</th><th>Windows</th><th>macOS</th><th>Linux</th></tr>
+    <tr><td>Behavior brain (<code>python -m pet</code>)</td><td>yes</td><td>yes</td><td>yes</td></tr>
+    <tr><td>Headless tests (<code>selftest</code>)</td><td>yes</td><td>yes</td><td>yes</td></tr>
+    <tr><td>Companion window</td><td>planned</td><td>planned</td><td>planned</td></tr>
+    <tr><td>Startup entry + notifications</td><td>planned</td><td>planned</td><td>planned</td></tr>
+  </table>
+
+  <h2>Documentation</h2>
+  <ul>
+    <li><a href="docs/">Product documentation</a></li>
+    <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/pet/README.md">README and core API</a></li>
+    <li><a href="https://github.com/Userfrom1995/RandomLabs/issues/498">Tracking issue #498</a></li>
+  </ul>
+</main>
+</body>
+</html>
