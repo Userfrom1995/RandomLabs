@@ -41,9 +41,13 @@
     <li><strong>Persistence</strong> (<code>persistence.py</code>): atomic tmp-plus-rename JSON in the platform user-data dir, schema-checked, corrupt files backed up to <code>.bak</code> with a fresh start and a logged notice.</li>
   </ul>
 
+  <h2>On-screen companion</h2>
+  <p><code>python -m pet gui</code> opens the borderless always-on-top window: a procedurally drawn pet on a tkinter canvas, no image assets. Single click chats, double click pokes, press-drag picks the pet up and carries it, right click opens the menu (Feed, Play, Sleep/Wake, About, Quit). While walking the window itself drifts across the screen inside display bounds. Options: <code>--scale 0.5..3.0</code>, <code>--alpha 0.3..1.0</code>, <code>--no-topmost</code>, <code>--save PATH</code>, <code>--no-save</code>, <code>--seed N</code>, <code>--name NAME</code>. Where tkinter or a display is missing, <code>gui</code> exits with an honest note pointing at headless <code>run</code>.</p>
+
   <h2>Command reference</h2>
   <ul>
     <li><code>python -m pet run [--ticks N] [--seed S] [--name NAME] [--realtime] [--dt SEC] [--save PATH] [--no-save]</code>: run the brain headlessly.</li>
+    <li><code>python -m pet gui [--scale F] [--alpha A] [--no-topmost] [--name NAME] [--save PATH] [--no-save] [--seed S]</code>: open the on-screen companion.</li>
     <li><code>python -m pet selftest</code>: headless suite plus a seeded soak proving all five activities are reachable.</li>
     <li><code>python -m pet help</code> / <code>python -m pet version</code>: usage and version.</li>
   </ul>
@@ -52,7 +56,7 @@
   <ul>
     <li><strong>Save file corrupt</strong>: the pet starts fresh and the old file is kept next to it with a <code>.bak</code> suffix. Nothing is deleted silently.</li>
     <li><strong>Pet always sleepy</strong>: energy drains while awake and restores only in SLEEP. Send it to sleep (or let the brain decide) and it wakes rested.</li>
-    <li><strong>Pet always hungry</strong>: hunger fills over about 10 minutes of pet time. Feed it through the event API (or the window feed control once the window layer lands).</li>
+    <li><strong>Pet always hungry</strong>: hunger fills over about 10 minutes of pet time. Feed it through the event API or the window Feed menu item.</li>
     <li><strong>Deterministic replay</strong>: pass <code>--seed</code> to <code>run</code> for a reproducible session, useful when reporting odd behavior.</li>
   </ul>
 

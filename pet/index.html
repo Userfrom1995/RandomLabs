@@ -60,9 +60,10 @@
   <p class="sub">A cross-platform interactive companion: stdlib-only Python, offline by default, honest about platform limits.</p>
 
   <h2>What it is</h2>
-  <p>A lightweight, always-on-top desktop companion that feels alive: it idles, wanders, plays, sleeps, and reacts to you, with a nameable personality (Pip by default) and procedural animation drawn from canvas primitives. The behavior brain is built and runnable today; the on-screen window, interaction layer, settings, per-OS shells, and packaging land on top of the same brain.</p>
+  <p>A lightweight, always-on-top desktop companion that feels alive: it idles, wanders, plays, sleeps, and reacts to you, with a nameable personality (Pip by default) and procedural animation drawn from canvas primitives. The behavior brain runs headlessly and the on-screen window renders it; the interaction play layer, settings, per-OS shells, and packaging build on the same two layers.</p>
   <div class="cards">
     <div class="card"><h4>Behavior brain</h4><p>Tick state machine over needs: idle, walk, play, sleep, react. O(1) per tick at 10 Hz.</p></div>
+    <div class="card"><h4>Companion window</h4><p>Borderless topmost window with drag-carry, speech bubble, and right-click menu. Open it with <code>python -m pet gui</code>.</p></div>
     <div class="card"><h4>Personality</h4><p>Seeded offline dialogue pools per mood and event, no repeats until exhausted.</p></div>
     <div class="card"><h4>Persistence</h4><p>Atomic JSON saves in the platform user-data dir, corrupt files backed up.</p></div>
   </div>
@@ -70,6 +71,8 @@
   <h2>Quickstart</h2>
   <p>Requires Python 3.10 or newer. No third-party packages.</p>
   <pre>python -m pet selftest
+python -m pet gui
+python -m pet gui --scale 1.5 --alpha 0.9
 python -m pet run --ticks 300 --seed 7
 python -m pet run --ticks 600 --name Mochi --realtime</pre>
 
@@ -78,7 +81,7 @@ python -m pet run --ticks 600 --name Mochi --realtime</pre>
     <tr><th>Layer</th><th>Windows</th><th>macOS</th><th>Linux</th></tr>
     <tr><td>Behavior brain (<code>python -m pet</code>)</td><td>yes</td><td>yes</td><td>yes</td></tr>
     <tr><td>Headless tests (<code>selftest</code>)</td><td>yes</td><td>yes</td><td>yes</td></tr>
-    <tr><td>Companion window</td><td>planned</td><td>planned</td><td>planned</td></tr>
+    <tr><td>Companion window (<code>gui</code>)</td><td>yes</td><td>yes</td><td>yes</td></tr>
     <tr><td>Startup entry + notifications</td><td>planned</td><td>planned</td><td>planned</td></tr>
   </table>
 

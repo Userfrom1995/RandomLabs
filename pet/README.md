@@ -11,8 +11,12 @@ offline by default, and honest about platform limits.
 The behavior brain is fully built, tested, and runnable headlessly: state
 model, needs decay math, seeded personality dialogue, atomic persistence,
 and the tick state machine, all driven through `python -m pet`. The
-on-screen companion window, interaction layer, settings, per-OS shells,
-and packaging recipes land on top of this same brain without changing it.
+on-screen companion window is built on top of the same brain: a
+borderless always-on-top tkinter window with a procedural sprite,
+drag-carry, speech bubble, and right-click menu. Open it with
+`python -m pet gui`. The interaction play layer, settings dialog,
+per-OS startup shells, and packaging recipes build on these same two
+layers without changing them.
 
 ## Quickstart
 
@@ -20,11 +24,22 @@ Requires Python 3.10 or newer. No third-party packages.
 
 ```sh
 python -m pet selftest
+python -m pet gui
+python -m pet gui --scale 1.5 --alpha 0.9
 python -m pet run --ticks 300 --seed 7
 python -m pet run --ticks 600 --name Mochi --realtime
 python -m pet help
 python -m pet version
 ```
+
+`gui` opens the on-screen companion: it stays on top, wanders the
+screen while walking, and answers back in a speech bubble. Single click
+chats, double click pokes, press-drag picks the pet up and carries it,
+right click opens the menu (Feed, Play, Sleep/Wake, About, Quit).
+Window options: `--scale 0.5..3.0` (multiplied by display DPI),
+`--alpha 0.3..1.0` (opacity), `--no-topmost`, `--save PATH`,
+`--no-save`. Without tkinter or a display it exits with an honest note
+instead of a traceback.
 
 `run` drives the brain headlessly in your terminal: it loads the saved
 pet (or starts fresh), prints activity changes and dialogue lines, and
@@ -37,15 +52,23 @@ saves on exit. Saves live in the platform user-data dir
 ## How it works
 
 Strict core/presentation split: `pet_core` never imports `tkinter` or any
-OS shell module. The window (when it lands) is a thin renderer that
-translates core state into canvas poses and forwards pointer events into
-the core event API below. The Tester drives the entire behavior loop
-headlessly through that same API.
+OS shell module. The window is a thin renderer that translates core
+state into canvas poses and forwards pointer events into the core event
+API below. The Tester drives the entire behavior loop headlessly
+through that same API.
 
-- **Tick loop.** `Brain.tick(dt)` advances needs, rolls activity
-  transitions from a needs-weighted table, emits at most one event per
-  tick, and stays O(1). The GUI schedules it at 10 Hz; rendering
-  interpolates at display rate from the latest state.
+- **Companion window.** `pet_app/window.py` is a borderless topmost
+  shell over `pet_app/controller.py` (bubble timing, click/drag/double
+  click classification, menu model, carry sessions, pose blending, all
+  headless-tested). The brain ticks at 10 Hz; the canvas redraws every
+  50 ms from eased poses. While walking the window itself drifts across
+  the screen; while carried it dangles and waits.
+- **Procedural sprite.** `pet_app/sprite.py` draws a blob-cat from
+  canvas primitives with parametric poses per activity plus eased
+  blends between them (blink cycle, breathing squash, walk bob, play
+  jumps, sleep Z-float, startle squash, carried dangle). Poses are pure
+  functions of `(activity, phase)` and scale linearly, so DPI scaling
+  and the Pages showcase mirror them exactly.
 - **Activities.** IDLE, WALK, PLAY, SLEEP, REACT. A tired pet seeks sleep,
   a starving pet begs for attention, a neglected pet invites play.
   REACT is transient (never lingers), SLEEP restores energy and
@@ -88,9 +111,12 @@ save(brain.state)
 | --- | --- | --- | --- |
 | Behavior brain (`python -m pet`) | yes | yes | yes |
 | Headless tests (`selftest`) | yes | yes | yes |
-| Companion window | planned | planned | planned |
+| Companion window (`gui`) | yes | yes | yes |
 | Startup entry + notifications | planned | planned | planned |
 | PyInstaller recipe | planned | planned | planned |
+
+The window needs tkinter plus a display; where either is missing the
+`gui` command exits with an honest note pointing at headless `run`.
 
 Where a platform denies a capability, the pet says so in-app instead of
 failing silently.
@@ -99,9 +125,15 @@ failing silently.
 
 - `pet_core/` - headless brain: `state.py`, `brain.py`, `needs.py`,
   `personality.py`, `persistence.py`. No GUI imports, no dependencies.
-- `__main__.py` - CLI dispatch (`run`, `selftest`, `help`, `version`).
+- `pet_app/` - on-screen companion: `sprite.py` (pure pose engine plus
+  shape lists), `controller.py` (bubble, gestures, menu model, carry,
+  blending; no GUI imports), `platform.py` (capability probe, alpha and
+  scale clamps), `window.py` (borderless tkinter shell).
+- `__main__.py` - CLI dispatch (`run`, `gui`, `selftest`, `help`,
+  `version`).
 - `tests/` - headless suite: state, needs, personality, persistence,
-  brain (43 tests, seeded and deterministic).
+  brain, sprite, window controller (108 tests, seeded and
+  deterministic).
 - `docs/` - unified product documentation.
 - `index.html` - Pages hub for this project.
 
