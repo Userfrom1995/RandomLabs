@@ -1,18 +1,18 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-01T~18:05Z (maintainer issue_comment run 36904101725, owner /oc maintainer on PR #500 after Tester approve-test - EVAL DISPATCH)**
+ - **Updated: 2026-10-01T~18:08Z (maintainer issue_comment run 36904496792, owner /oc maintainer on PR #500 after /oc eval - STANDBY, eval in flight)**
 
 ## PRs & Issues
- - **PRs:** Open: #500 Phase 2 (Native Window and Procedural Animation, Refs #498) - head d2a2995 on `opencode/issue498-20261001174253`, MERGEABLE / UNSTABLE (checks pending, same pattern as Phase 1), REVIEWER-APPROVED (bot `/oc approve` 18:00:18Z) + TESTER APPROVE-TEST (bot `/oc approve-test` 18:04:21Z, live entrypoint evidence + 21-test Phase 2 regression suite committed test-only, production code untouched). No `/oc fix` after approvals. Closed today: #499 Phase 1 (merged 17:40:43Z, main 6cbc9f3 -> 37c476b).
+ - **PRs:** Open: #500 Phase 2 (Native Window and Procedural Animation, Refs #498) - head d2a2995 on `opencode/issue498-20261001174253`, MERGEABLE. REVIEWER-APPROVED (bot `/oc approve` 18:00:18Z) + TESTER APPROVE-TEST (bot `/oc approve-test` 18:04:21Z, live entrypoint evidence + 21-test Phase 2 regression suite committed test-only). No `/oc fix` after approvals. Closed: #499 Phase 1 (merged 17:40:43Z, main 6cbc9f3 -> 37c476b).
  - **Issues:** Open: #498 Desktop Pet (Phase 2 in eval flight), #70 lab-health, #42 brainstorm standing.
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (19 live `name:` fields in .github/workflows/*.yml vs 18-entry allowlist excl self `maintainer`, exact match; no drift - verified this run).
- - **Orphan flag RESOLVED:** historic note only; post-#499-merge main tip 37c476b verified via fetch (unchanged this run); PR #500 shares history (merge-base exists).
+ - **Orphan flag RESOLVED:** post-#499-merge main tip 37c476b; PR #500 shares history (merge-base exists).
 
 ## IN FLIGHT
- - Desktop Pet #498: Phase 1 DONE and merged. Phase 2 PR #500 cleared review + test gates on head d2a2995 (Tester pushed `tests/test_desktop_pet_phase2.py`, 21/21 new + 12/12 static gate + 108/108 selftest green). Evaluator dispatched this run - DO NOT duplicate-dispatch. Next maintainer step on approve-eval: merge (Refs, keep #498 OPEN) -> chain Phase 3 build per progress roadmap. On rejection: Fixer with verdict details.
+ - Desktop Pet #498: Phase 1 DONE and merged. Phase 2 PR #500 cleared review + test gates on head d2a2995. Evaluator IN FLIGHT (opencode-eval run 36904496564 pending for the 18:07:37Z issue_comment event covering owner's /oc eval 18:07:05Z + maintainer eval dispatch) - DO NOT duplicate-dispatch. Next maintainer step on approve-eval: merge (Refs, keep #498 OPEN) -> chain Phase 3 build per progress roadmap. On rejection: Fixer with verdict details.
  - Carried non-blocking notes for Phase 2 docs/UI pass: Reviewer dt-clamp sentence; Evaluator visual nits from Phase 1 (table mobile scroll wrapper, docs lede line, card h4 size rule, README/hub matrix row drift); fragile seed-3 assertion (`9999.0 dt` expecting `[]`, suggest `len <= 1`).
  - Main tip 37c476b (unchanged this run). No merges today besides #499 plus maintainer/logs memory commits - shipping limit untouched (intermediate Refs PRs exempt anyway).
  - **WATCH ITEM (carried):** branch `opencode/tor-cli-fixes` @ 43d37b5 (bot Builder commit, #436 CLOSED). No open PR, no open tracker, no re-push this run. Age accrues toward the 3-day bot-work evaluation trigger.
- - No new failure/timed_out runs to triage (sweep last 30: zero failure/timed_out; only in-progress self + action_required pr-trigger hold on #500 + skipped/cancelled maintainer workflow_run arms + expected skips + successes).
+ - No new failure/timed_out runs to triage (sweep last 30: zero failure/timed_out; only pending opencode-eval self + in-progress self + skipped/cancelled maintainer workflow_run arms + expected skips + successes).
  - UNTRIAGED sweep: clear (#498 triaged with linked PR #500 in eval flight; #70 + #42 standing).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` (d905397) still present, no signal this run; standing evaluation-only item.
 
