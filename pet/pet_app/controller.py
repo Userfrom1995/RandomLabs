@@ -433,6 +433,13 @@ class WindowController:
             return (text, False)
         if action == "about":
             return (self.about_text(), False)
+        if action == "settings":
+            # The tkinter shell intercepts this action and opens the
+            # settings dialog; headless callers get the live summary
+            # instead so the action always answers with real state.
+            text = self.settings.describe()
+            self._say(text)
+            return (text, False)
         if action == "quit":
             return (None, True)
         return (None, False)

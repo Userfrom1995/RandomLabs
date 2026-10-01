@@ -39,7 +39,16 @@ def tk_available() -> bool:
 
 
 def has_display() -> bool:
-    """Best-effort display check without opening a window."""
+    """Best-effort display check without opening a window.
+
+    The DESKTOP_PET_NO_DISPLAY escape hatch (1/true/yes) forces a
+    headless answer on any OS. It exists for CI runners, screenshots,
+    and automated tests so GUI tests stay deterministic on machines
+    that do have a display.
+    """
+    forced = os.environ.get("DESKTOP_PET_NO_DISPLAY", "").strip().lower()
+    if forced in ("1", "true", "yes", "on"):
+        return False
     plat = platform_id()
     if plat in ("windows", "macos"):
         return True
