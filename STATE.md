@@ -1,35 +1,35 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-01T22:04Z (maintainer issue_comment run 36932637584, owner /oc maintainer on PR #505 after approve-eval - MERGED Phase 1, Phase 2 chained)**
+ - **Updated: 2026-10-01T22:19Z (maintainer issue_comment run 36934283142, owner /oc review + /oc maintainer on PR #506, standby - review already queued)**
 
 ## PRs & Issues
- - **PRs:** Open: none (surveyed `gh pr list --state open` - empty after merge). Closed/merged: #505 Phase 1 (merged 22:04:19Z with Refs #504, approve-eval 9.86/10 on head 3b55fcf5), #503 Final Phase (merged 20:23:21Z with Closes #498, approve-eval 9.96/10), #502 Phase 4, #501 Phase 3, #500 Phase 2, #499 Phase 1.
- - **Issues:** Open: #504 Desktop Pet Platform (triaged, Architect epic LANDED in progress/504-desktop-pet-platform.md, Phase 1 merged as #505 Refs, Phase 2 Builder dispatched this run), #70 lab-health, #42 brainstorm standing. Closed: #498 Desktop Pet (closed 20:23:34Z on #503 merge - full 5-phase epic shipped).
+ - **PRs:** Open: #506 Phase 2 Procedural Cast (head 57d562b8 on `opencode/issue504-20261001220609`, Refs #504, review pending run 36934283270). Closed/merged: #505 Phase 1 (merged 22:04:19Z with Refs #504, approve-eval 9.86/10 on head 3b55fcf5), #503 Final Phase (merged 20:23:21Z with Closes #498, approve-eval 9.96/10), #502 Phase 4, #501 Phase 3, #500 Phase 2, #499 Phase 1.
+ - **Issues:** Open: #504 Desktop Pet Platform (triaged, Architect epic LANDED in progress/504-desktop-pet-platform.md, Phase 1 merged as #505 Refs, Phase 2 PR #506 in review flight), #70 lab-health, #42 brainstorm standing. Closed: #498 Desktop Pet (closed 20:23:34Z on #503 merge - full 5-phase epic shipped).
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (18-entry allowlist vs 19 live workflow `name:` fields excl self `maintainer`, exact match; no drift - verified this run).
  - **Desktop Pet final record:** Phase 1 (core+brain) + Phase 2 (window+animation) + Phase 3 (interaction+play) + Phase 4 (settings+platform) + Final (hub showcase, packaging, end-to-end audit) all merged. Final head 6a752e7e cleared re-review approve + re-approve-test + Evaluator approve-eval 9.96/10. 249 tests green, fail-closed packaging, 7-activity hub.
- - **Desktop Pet Platform record:** Phase 1 (Catalog Core and Character Engine) merged as #505 head 3b55fcf5 (six originals Pip/Bramble/Mochi/Kiki/Rusty/Luna, trait tables, schema v2 with v1 migration, trait-parameterised brain, per-character voices, characters CLI, 298-test suite). Remaining: Phase 2 Procedural Cast, Phase 3 Living Behaviors, Phase 4 Tray/Service Shell, Phase 5 Packs/Picker/Installers, Final Hub plus Native Matrix (Closes #504 only after 3-OS native plus eval gates).
+ - **Desktop Pet Platform record:** Phase 1 (Catalog Core and Character Engine) merged as #505 head 3b55fcf5 (six originals Pip/Bramble/Mochi/Kiki/Rusty/Luna, trait tables, schema v2 with v1 migration, trait-parameterised brain, per-character voices, characters CLI, 298-test suite). Remaining: Phase 2 Procedural Cast (PR #506 in review), Phase 3 Living Behaviors, Phase 4 Tray/Service Shell, Phase 5 Packs/Picker/Installers, Final Hub plus Native Matrix (Closes #504 only after 3-OS native plus eval gates).
 
 ## IN FLIGHT
- - Phase 2 Builder on #504 (dispatched this run via `{"action": "build", "issue": 504}` after #505 merge; epic branch `opencode/issue504-20261001212124` kept intact per no-delete-branch rule).
+ - Phase 2 Reviewer on PR #506 (owner /oc review summoned opencode-review run 36934283270, pending at survey; maintainer stands down per duplicate-trigger rule).
  - Main tip 6055f54f (post-#505 merge; prior 9e1bf241).
  - Carried non-blocking notes for future docs/UI passes: Evaluator visual nits from #498 Phase 1/2 (docs/index.html missing top lede, card h4 heading skip, no sprite showcase on hub, theoretical unguarded float() on toolkit-sourced paths, .bak sidecar under --no-save); fragile seed-3 assertion (`9999.0 dt` expecting `[]`, suggest `len <= 1`); Phase 1 visual nits (table mobile scroll wrapper, README/hub matrix row drift); Phase 3 progress-file bold-marker nit (doubled `\*\*\*\*` in Phase 4 header); Phase 3 Evaluator visual nit (pet/docs/index.html missing the Play-layer bullet that index.md has); Phase 4 Reviewer nit (Linux `Exec=` unquoted if python path has spaces); Phase 4 Evaluator nits (docs HTML missing top lede pet/docs/index.html:32-34, 150-word wall paragraph docs/index.html:44, stackable settings dialog no transient()/Escape guard window.py:329, display-only settings after corruption prints notice but does not persist repair settings.py:265-288); Phase 4 re-review nits (OverflowError gap on giant JSON ints in _clean_hour/_clock_parts float() guards, Linux Exec= quoting, settings-corrupt notice print-only vs save-corrupt bubble); Phase 4 final-eval polish (docs HTML lede/merged paragraphs/stale bullet, settings dialog non-modal/no-Escape/multi-instance, format_clock non-numeric raise unreachable via validated paths); Phase 4 Final first-review non-blocking note (controller.py:437-438 comment says "opens the dialog first" while window.py:306-309 returns after open_settings_dialog without emitting summary - comment wording only, behavior real on both paths). All resolved or superseded by the Final approve-eval except where carried above for opportunistic future passes. #505 Phase 1 Evaluator repair nits carried for Phase 2 (README count 290 vs 298 after tester added 8, hub quickstart omits characters line, no noscript fallback).
  - **WATCH ITEM (carried):** branch `opencode/tor-cli-fixes` @ 43d37b5 (bot Builder commit, #436 CLOSED). No open PR, no open tracker, no re-push this run. Age accrues toward the 3-day bot-work evaluation trigger.
- - No new failure/timed_out runs to triage (sweep: zero failure/timed_out; only skipped/cancelled maintainer workflow_run arms + expected skips + successes).
- - UNTRIAGED sweep: clear after this run (#504 triaged with Phase 2 Builder dispatched; only standing #70 + #42 otherwise).
+ - No new failure/timed_out runs to triage (sweep: zero failure/timed_out; only pending review 36934283270 + skipped/cancelled maintainer workflow_run arms + expected skips + successes).
+ - UNTRIAGED sweep: clear after this run (#504 triaged with linked PR #506 in review flight; only standing #70 + #42 otherwise).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` (d905397) still present, no signal this run; standing evaluation-only item.
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run.
-2. Check Phase 2 Builder start on #504 (new branch/push? run concluded?); route review when Phase 2 work looks complete and no build/fix in flight (dedupe on `/oc review (head <sha>)` comments).
+2. Check Reviewer verdict on #506 head 57d562b8 (approved -> Tester with 3-OS per-OS coverage; findings -> Fixer, dedupe on `/oc review (head <sha>)` comments).
 3. Verify pages.yml deploy health for the #505 merge (post-merge deploy watch; push-trigger gap history).
 4. Re-check `opencode/tor-cli-fixes`: PR opened? CI green on re-push? Age since 43d37b5.
 5. Standing rule unchanged: standby otherwise (no auto-ideate).
 
 ## OPEN QUESTIONS
- - Will the Phase 2 Builder land the parametric sprite engine for all six characters with DPI-aware hot-swap plus Pages parity?
+ - Will the Reviewer approve Phase 2 head 57d562b8 (parametric sprite engine for all six characters with DPI-aware hot-swap plus Pages parity)?
  - Will the `Refs #504` trailer hold until the final verified phase?
  - Will pages.yml deploy fire for bot-merged main pushes (push-trigger gap history)?
  - Will `opencode/tor-cli-fixes` gain a PR, or is it owner-local WIP? Who owns the pushing session (committer Userfrom1995, author The Builder)?
- - Which step emits the write-permissions note (repeats on #505 PR-open run 36928396336 lineage, same as #499/#500/#501/#502/#503 lineage), and does it need a lab fix? Zero production impact observed; watch next PR-open run. No lab escalation.
+ - Which step emits the write-permissions note (repeats on #506 PR-open run 36934139734, same as #505/#503/#502/#501/#500/#499 lineage), and does it need a lab fix? Zero production impact observed; watch next PR-open run. No lab escalation.
  - What caused the 08:34-11:26Z schedule silence on 2026-09-29 (GitHub cron flake vs misconfig)?
  - Will the Owner open a PR from the `gui-detach-and-syswide-fixes` branch, or land it another way?
  - Probe source of the 2026-09-25 PWNED selfheal payloads (red-team test vs unknown actor) - Auditor flagged; no code change needed.
