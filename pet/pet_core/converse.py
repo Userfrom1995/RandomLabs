@@ -203,6 +203,8 @@ CHARACTER_REPLIES: dict[str, dict[str, list[str]]] = {
         ],
         "energy": [
             "{energy_sentence} Mochi understands naps better than anyone.",
+            "{energy_sentence} Mochi prescribes immediate floor-melting.",
+            "{energy_sentence} Even Mochi's yawns are sleepy. Squish.",
         ],
     },
     "kiki": {
@@ -213,6 +215,8 @@ CHARACTER_REPLIES: dict[str, dict[str, list[str]]] = {
         ],
         "time": [
             "{time_sentence} Kiki loves every hour, but dawn is the shiniest!",
+            "{time_sentence} Kiki checked twice! Chirp! Definitely that hour!",
+            "{time_sentence} Perfect time for snacks, says Kiki. Always is!",
         ],
         "help": [
             ("Chirp! Ask about feelings, snacks, naps, jokes, games! "
@@ -243,6 +247,8 @@ CHARACTER_REPLIES: dict[str, dict[str, list[str]]] = {
     "luna": {
         "time": [
             "{time_sentence} The night hours are Luna's favourite, obviously.",
+            "{time_sentence} Luna counted the stars twice to be sure.",
+            "{time_sentence} Any hour glows a little, if you look sideways.",
         ],
         "comfort": [
             "The moon is up and so is Luna. Rest your eyes a while.",

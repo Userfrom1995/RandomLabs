@@ -89,6 +89,40 @@ reopening (the pose blend restarts from the current pose so the swap
 morphs instead of popping). Stats carry across switches; unknown ids
 fall back to Pip with a notice, never a traceback.
 
+## Conversation and living moments
+
+The pet chats offline (`pet_core/converse.py`): no network, no model,
+just an intent parser over fourteen intents (greetings, name, mood,
+hunger, energy, affection, jokes, comfort, feed, sleep, wake, play,
+time, help) answered in the active character's voice with a shared
+fallback for anything a character does not override. Answers are
+stat-aware ("are you hungry" reads the real hunger meter, "what time
+is it" reads the clock) and cycle with no-repeat-until-exhausted bags
+per character, so Kiki chirps, Rusty beeps, and Luna moons over every
+answer differently. Unknown lines earn a curious deflection, never
+silence. Chat from the terminal or from the window:
+
+- `python -m pet talk "tell me a joke" [--character ID] [--seed S]`:
+  one offline reply in the saved (or flagged) character voice.
+  `converse` is an alias for `talk`.
+- In the window, typed lines are answered out loud in the speech
+  bubble with the live needs context behind them.
+
+The pet also volunteers moments on its own (`pet_core/events.py`): a
+morning greeting when the day starts, a drowsy line late at night,
+idle antics when nobody has interacted for a while (Kiki chatters
+every 45 seconds of silence, Rusty holds out for 3 minutes),
+affection milestones when the bond crosses upward, and a contented
+note shortly after meals. Every moment is drawn from the active
+character voice and paced by its trait record.
+
+Interaction itself is per-character too: Mochi gains affection faster
+from gentle clicks and purrs through a longer munch animation,
+Bramble's eager leap catches the ball in a wider radius, Rusty barely
+notices snacks and narrates catches literally, and Luna savours meals
+a little more. Every difference is a number in the trait tables, never
+a branch in the brain, and Pip matches the original constants exactly.
+
 ## Settings, startup, notifications
 
 The Settings menu entry opens a form for name, behavior toggles
@@ -120,6 +154,8 @@ including window position. The same file is manageable headlessly:
 - `python -m pet characters (list|show ID|switch ID)`: list the
   six-character catalog, show one character's details, or switch the
   active character with atomic persistence.
+- `python -m pet talk TEXT [--character ID] [--seed S] [--no-save]`
+  (`converse` is an alias): chat with the pet offline.
 - `python -m pet startup (on|off|status)`: launch-at-login entry.
 - `python -m pet notify --message TEXT [--title TEXT]`: OS note with
   honest bubble fallback.
