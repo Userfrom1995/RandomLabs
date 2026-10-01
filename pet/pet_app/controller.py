@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import time
 
+from ..pet_core import needs as needs_mod
 from ..pet_core.brain import Brain
+from ..pet_core.personality import mood_for
 from ..pet_core.state import Activity
 from . import platform as platform_mod
 from .sprite import Pose, blend, pose_for
@@ -196,7 +198,10 @@ class WindowController:
         else:
             # While carried the pet still gets hungry and tired, but it
             # does not wander or change activities mid-air.
+            step = min(step, 1.0)
+            needs_mod.tick_needs(self.brain.state, step)
             self.brain.state.tick_count += 1
+            self.brain.state.mood = mood_for(self.brain.state)
 
     def _note_activity_change(self) -> None:
         current = self._activity_name()
