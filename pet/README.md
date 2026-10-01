@@ -137,12 +137,16 @@ through that same API.
   headless-tested). The brain ticks at 10 Hz; the canvas redraws every
   50 ms from eased poses. While walking the window itself drifts across
   the screen; while carried it dangles and waits.
-- **Procedural sprite.** `pet_app/sprite.py` draws a blob-cat from
-  canvas primitives with parametric poses per activity plus eased
-  blends between them (blink cycle, breathing squash, walk bob, play
-  jumps, sleep Z-float, startle squash, carried dangle). Poses are pure
-  functions of `(activity, phase)` and scale linearly, so DPI scaling
-  and the Pages showcase mirror them exactly.
+- **Procedural sprite cast.** `pet_app/sprite.py` draws all six
+  characters from canvas primitives through one parametric engine:
+  shared activity keyframes plus per-character motion style, dispatched
+  by body plan (blob, quadruped, slime, avian, robot, winged) and
+  painted with each character's catalog palette and accessories.
+  Poses are pure functions of `(character, activity, phase)` and scale
+  linearly, so DPI scaling and the Pages showcase mirror them
+  value-for-value. `controller.switch_character()` plus
+  `window.switch_character()` hot-swap live with a smooth pose morph;
+  `run`/`gui` take `--character ID` with persisted selection.
 - **Activities.** IDLE, WALK, PLAY, SLEEP, REACT. A tired pet seeks sleep,
   a starving pet begs for attention, a neglected pet invites play.
   REACT is transient (never lingers), SLEEP restores energy and
