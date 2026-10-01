@@ -102,6 +102,8 @@ class Brain:
         state: PetState | None = None,
         personality: Personality | None = None,
         seed: int | None = None,
+        allow_walk: bool = True,
+        allow_play: bool = True,
     ) -> None:
         self.state = state or PetState()
         # A default personality inherits the brain seed so seeded runs are
@@ -116,6 +118,11 @@ class Brain:
             self.state.name = self.personality.name
         self._rng = random.Random(seed)
         self._wander_angle = self._rng.uniform(0.0, 2.0 * math.pi)
+        # Behavior toggles from the settings layer: when wander or play
+        # invites are off, spontaneous transitions into WALK or PLAY are
+        # gated out (manual menu actions bypass the table and still work).
+        self.allow_walk = bool(allow_walk)
+        self.allow_play = bool(allow_play)
 
     def _weights(self) -> dict[Activity, float]:
         """Copy the base row for the current activity, modulated by needs."""
@@ -132,6 +139,12 @@ class Brain:
                 row[Activity.PLAY] = row.get(Activity.PLAY, 0.0) + 0.10
             if st.time_awake_sec > 60.0 and st.activity == Activity.IDLE:
                 row[Activity.WALK] = row.get(Activity.WALK, 0.0) + 0.05
+        # Settings gates apply after needs modulation so a low-affection
+        # bonus can never re-open a disabled PLAY transition.
+        if not self.allow_walk:
+            row[Activity.WALK] = 0.0
+        if not self.allow_play:
+            row[Activity.PLAY] = 0.0
         total = sum(row.values())
         if total <= 0.0:
             return {Activity.IDLE: 1.0}
