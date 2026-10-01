@@ -42,6 +42,10 @@ else
   echo "[pet] no shasum/sha256sum found, skipping checksums"
 fi
 
-"$BIN" selftest >/dev/null && echo "[pet] selftest passed on the bundle"
+if ! "$BIN" selftest >/dev/null; then
+  echo "error: bundle selftest failed" >&2
+  exit 1
+fi
+echo "[pet] selftest passed on the bundle"
 echo "[pet] built $BIN"
 ls -la dist/
