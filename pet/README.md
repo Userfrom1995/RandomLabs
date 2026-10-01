@@ -216,7 +216,7 @@ failing silently.
   `notify`, `selftest`, `help`, `version`).
 - `tests/` - headless suite: state, needs, personality, persistence,
   brain, sprite, window controller, interaction play layer, settings
-  and brain toggles, per-OS shells (244 tests, seeded and
+  and brain toggles, per-OS shells (249 tests, seeded and
   deterministic).
 - `packaging/` - one-file PyInstaller recipes: `desktop-pet.spec`,
   `build.sh` (Linux/macOS), `build-windows.ps1` (Windows), build
