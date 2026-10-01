@@ -15,6 +15,8 @@ from pet.pet_app import platform as platform_mod
 from pet.pet_app.controller import WindowController
 from pet.pet_core.brain import Brain
 
+ROOT = Path(__file__).resolve().parent.parent.parent
+
 
 class TestHeadlessOverride(unittest.TestCase):
     def test_all_truthy_spellings_force_headless(self):
@@ -42,24 +44,23 @@ class TestSettingsActionSummary(unittest.TestCase):
 
 class TestPackagingFailClosed(unittest.TestCase):
     def test_build_sh_fails_closed(self):
-        text = Path("pet/packaging/build.sh").read_text(encoding="utf-8")
+        text = (ROOT / "pet" / "packaging" / "build.sh").read_text(encoding="utf-8")
         self.assertIn("bundle selftest failed", text)
         self.assertIn("exit 1", text)
         self.assertNotIn("selftest >/dev/null && echo", text)
 
     def test_build_ps1_checks_lastexitcode(self):
-        text = Path("pet/packaging/build-windows.ps1").read_text(
+        text = (ROOT / "pet" / "packaging" / "build-windows.ps1").read_text(
             encoding="utf-8")
         self.assertIn("$LASTEXITCODE", text)
         self.assertIn("exit 1", text)
 
     def test_spec_entry_resolves(self):
-        from pathlib import Path as _P  # noqa: F401
-        spec = Path("pet/packaging/desktop-pet.spec").read_text(
+        spec = (ROOT / "pet" / "packaging" / "desktop-pet.spec").read_text(
             encoding="utf-8")
         self.assertIn("__main__.py", spec)
         self.assertIn("console=True", spec)
-        self.assertTrue(Path("pet/__main__.py").exists())
+        self.assertTrue((ROOT / "pet" / "__main__.py").exists())
 
 
 if __name__ == "__main__":
