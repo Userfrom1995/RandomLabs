@@ -45,7 +45,7 @@
   .sub { color: var(--muted); margin-top: 0; }
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 16px 0; }
   .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
-  .card h4 { margin: 0 0 4px; }
+  .card h3 { margin: 0 0 4px; font-size: 1rem; }
   .card p { margin: 0; color: var(--muted); font-size: 0.9rem; }
   table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
   th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
@@ -87,6 +87,7 @@
     color: #0b0e14;
     font-weight: 600;
   }
+  .table-scroll { overflow-x: auto; margin: 16px 0; }
   #activityCaption { color: var(--muted); font-size: 0.92rem; min-height: 3.2em; }
   #activityCaption strong { color: var(--text); }
   .note { color: var(--muted); font-size: 0.88rem; }
@@ -120,15 +121,16 @@
   <h2>What it is</h2>
   <p>A lightweight, always-on-top desktop companion that feels alive: it idles, wanders, plays, sleeps, and reacts to you, with a nameable personality (Pip by default) and procedural animation drawn from canvas primitives. The behavior brain runs headlessly and the on-screen window renders it; gentle clicks stroke it into affection streaks, feeding opens a munch animation, Play starts a scored ball-toss mini-game, and a bedtime schedule tucks it in at night.</p>
   <div class="cards">
-    <div class="card"><h4>Behavior brain</h4><p>Tick state machine over needs: idle, walk, play, sleep, react. O(1) per tick at 10 Hz.</p></div>
-    <div class="card"><h4>Companion window</h4><p>Borderless topmost window with drag-carry, speech bubble, and right-click menu. Open it with <code>python -m pet gui</code>.</p></div>
-    <div class="card"><h4>Play layer</h4><p>Stroke streaks, feed-to-munch, a scored ball-toss rally (first to 5 catches), and a 22:00 to 7:00 bedtime routine with a menu toggle.</p></div>
-    <div class="card"><h4>Personality</h4><p>Seeded offline dialogue pools per mood and event, no repeats until exhausted.</p></div>
-    <div class="card"><h4>Persistence</h4><p>Atomic JSON saves in the platform user-data dir, corrupt files backed up.</p></div>
-    <div class="card"><h4>Settings</h4><p>Name, behavior toggles, transparency, size, bedtime hours, and start-at-login, all restored on restart.</p></div>
+    <div class="card"><h3>Behavior brain</h3><p>Tick state machine over needs: idle, walk, play, sleep, react. O(1) per tick at 10 Hz.</p></div>
+    <div class="card"><h3>Companion window</h3><p>Borderless topmost window with drag-carry, speech bubble, and right-click menu. Open it with <code>python -m pet gui</code>.</p></div>
+    <div class="card"><h3>Play layer</h3><p>Stroke streaks, feed-to-munch, a scored ball-toss rally (first to 5 catches), and a 22:00 to 7:00 bedtime routine with a menu toggle.</p></div>
+    <div class="card"><h3>Personality</h3><p>Seeded offline dialogue pools per mood and event, no repeats until exhausted.</p></div>
+    <div class="card"><h3>Persistence</h3><p>Atomic JSON saves in the platform user-data dir, corrupt files backed up.</p></div>
+    <div class="card"><h3>Settings</h3><p>Name, behavior toggles, transparency, size, bedtime hours, and start-at-login, all restored on restart.</p></div>
   </div>
 
   <h2>Behavior guide</h2>
+  <div class="table-scroll">
   <table>
     <tr><th>Activity</th><th>What you see</th><th>What brings it on</th></tr>
     <tr><td>Idle</td><td>Breathing sides, blinking eyes, swaying tail</td><td>The resting state between whims; try the Idle button above</td></tr>
@@ -139,6 +141,7 @@
     <tr><td>Munch</td><td>Chomping cheeks and happy blush for about 3 seconds</td><td>The Feed menu item, whenever hunger calls</td></tr>
     <tr><td>Carried</td><td>Dangling pose with upward gaze while held</td><td>Press-drag the pet; movement suspends until you drop it</td></tr>
   </table>
+  </div>
 
   <h2>Quickstart per OS</h2>
   <p>Requires Python 3.10 or newer. No third-party packages for run-from-source.</p>
@@ -148,12 +151,14 @@ python -m pet gui --scale 1.5 --alpha 0.9
 python -m pet run --ticks 300 --seed 7
 python -m pet settings --set wander=off --set alpha=0.8
 python -m pet startup status</pre>
+  <div class="table-scroll">
   <table>
     <tr><th>OS</th><th>tkinter</th><th>Start command</th></tr>
     <tr><td>Windows 10/11</td><td>Bundled with python.org installers</td><td><code>python -m pet gui</code></td></tr>
     <tr><td>macOS 13+</td><td>Bundled with python.org installers</td><td><code>python3 -m pet gui</code></td></tr>
     <tr><td>Linux (X11/Wayland)</td><td>Install your distro package, e.g. <code>sudo apt install python3-tk</code>; needs a display</td><td><code>python3 -m pet gui</code></td></tr>
   </table>
+  </div>
   <p class="note">Without tkinter or a display, <code>gui</code> exits with an honest note pointing at headless <code>run</code>. CI and automated tests can force that path anywhere with <code>DESKTOP_PET_NO_DISPLAY=1</code>.</p>
 
   <h2>Interactions</h2>
@@ -174,14 +179,17 @@ python -m pet startup status</pre>
     <li><a href="https://github.com/Userfrom1995/RandomLabs">Source tree</a>: run with <code>python -m pet gui</code>, zero install.</li>
     <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/pet/packaging/README.md">Packaging recipes</a>: one-file PyInstaller builds per OS with checksums and a bundle selftest (<code>packaging/build.sh</code> for Linux/macOS, <code>packaging/build-windows.ps1</code> for Windows).</li>
   </ul>
+  <div class="table-scroll">
   <table>
     <tr><th>OS</th><th>Recipe</th><th>Artifact</th></tr>
     <tr><td>Windows 10/11</td><td><code>packaging/build-windows.ps1</code></td><td><code>dist/desktop-pet.exe</code></td></tr>
     <tr><td>macOS 13+</td><td><code>packaging/build.sh</code></td><td><code>dist/desktop-pet</code></td></tr>
     <tr><td>Linux (X11/Wayland)</td><td><code>packaging/build.sh</code></td><td><code>dist/desktop-pet</code></td></tr>
   </table>
+  </div>
 
   <h2>Support matrix</h2>
+  <div class="table-scroll">
   <table>
     <tr><th>Layer</th><th>Windows</th><th>macOS</th><th>Linux</th></tr>
     <tr><td>Behavior brain (<code>python -m pet</code>)</td><td>yes</td><td>yes</td><td>yes</td></tr>
@@ -191,6 +199,7 @@ python -m pet startup status</pre>
     <tr><td>OS notifications (<code>notify</code>)</td><td>bubble note</td><td>yes (osascript)</td><td>yes (notify-send)</td></tr>
     <tr><td>One-file binary (recipe)</td><td>yes (<code>build-windows.ps1</code>)</td><td>yes (<code>build.sh</code>)</td><td>yes (<code>build.sh</code>)</td></tr>
   </table>
+  </div>
 
   <h2>Troubleshooting</h2>
   <ul>
