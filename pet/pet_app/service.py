@@ -162,10 +162,10 @@ def _terminate_process(pid: int) -> bool:
     return not _is_alive(number)
 
 
-def _spawn_detached() -> int | None:
+def _spawn_detached(data: str | None = None) -> int | None:
     """Spawn ``python -m pet service loop`` detached. Returns pid or None."""
     cmd = [sys.executable or "python3", "-m", "pet", "service", "loop"]
-    log = log_path()
+    log = log_path(data)
     os.makedirs(os.path.dirname(os.path.abspath(log)), exist_ok=True)
     try:
         outfile = open(log, "a", encoding="utf-8")
@@ -218,7 +218,13 @@ def start(detach: bool = True, data: str | None = None,
     stale = _read_pid(data)
     spawn = _spawn or _spawn_detached
     try:
-        child = spawn() if detach else None  # type: ignore[operator]
+        if detach:
+            try:
+                child = spawn(data)  # type: ignore[operator]
+            except TypeError:
+                child = spawn()  # type: ignore[operator]
+        else:
+            child = None
     except Exception as exc:
         return (False, "the background service did not start (%s)." % exc)
     if detach:
@@ -323,8 +329,10 @@ def logs(lines: int = 30, data: str | None = None) -> tuple[bool, str]:
     count = max(1, min(count, 500))
     target = log_path(data)
     try:
+        from collections import deque
+
         with open(target, "r", encoding="utf-8") as handle:
-            tail = handle.read().splitlines()[-count:]
+            tail = [line.rstrip("\n") for line in deque(handle, maxlen=count)]
     except FileNotFoundError:
         return (False, "no service log yet; start the service first.")
     except OSError as exc:
@@ -361,7 +369,12 @@ def run_loop(max_ticks: int | None = None, save_every: int = SAVE_EVERY_TICKS,
     save_target = default_save_path()
     if data is not None:
         save_target = os.path.join(data, "pet.json")
-    state, _notice = load(save_target)
+    try:
+        state, _notice = load(save_target)
+    except Exception:
+        from ..pet_core.state import PetState
+
+        state, _notice = PetState(), "save file was corrupt; started fresh"
     personality = Personality(name=state.name, seed=None,
                               character_id=state.character_id)
     brain = Brain(state=state, personality=personality)
@@ -432,7 +445,12 @@ def switch_character(character_id: object,
     save_target = default_save_path()
     if data is not None:
         save_target = os.path.join(data, "pet.json")
-    state, load_notice = load(save_target)
+    try:
+        state, load_notice = load(save_target)
+    except Exception:
+        from ..pet_core.state import PetState
+
+        state, load_notice = PetState(), "save file was corrupt; started fresh"
     if load_notice and "starting fresh" not in load_notice \
             and "migrated" not in load_notice:
         pass

@@ -81,7 +81,7 @@ def load(path: str | None = None) -> tuple[PetState, str | None]:
         if not isinstance(raw, str) or raw.strip().lower() not in known:
             if isinstance(data, dict) and "character_id" in data:
                 return state, "unknown character %r; using Pip" % (raw,)
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, TypeError) as exc:
         backup = backup_path_for(target)
         try:
             with open(target, "rb") as src, open(backup, "wb") as dst:

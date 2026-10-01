@@ -34,8 +34,8 @@ def clamp_to_screen(x: int, y: int, width: int, height: int,
         x, y = int(x), int(y)
         width, height = max(1, int(width)), max(1, int(height))
         screen_w, screen_h = int(screen_w), int(screen_h)
-    except (TypeError, ValueError):
-        return (int(x), int(y))
+    except (TypeError, ValueError, OverflowError):
+        return (0, 0)
     if screen_w <= 0 or screen_h <= 0:
         return (x, y)
     x = max(0, min(x, max(0, screen_w - width)))
