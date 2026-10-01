@@ -8,7 +8,9 @@ Usage:
   python -m pet characters (list|show ID|switch ID)
   python -m pet talk "hello there" [--character ID] [--seed S]
   python -m pet settings [--set field=value ...]
-  python -m pet startup (on|off|status)
+  python -m pet startup (on|off|status) [--service]
+  python -m pet service (start|stop|status|logs|show|hide|switch ID)
+  python -m pet tray (status|show|hide)
   python -m pet notify --message TEXT [--title TEXT]
   python -m pet selftest
   python -m pet help
@@ -38,7 +40,8 @@ def cmd_help() -> int:
     print("borderless always-on-top pet with drag-carry, speech bubble,")
     print("and right-click menu. `run` drives the same behavior brain")
     print("headlessly in your terminal, `talk` chats with it offline,")
-    print("and `selftest` verifies state,")
+    print("`service` runs the always-on background pet, `tray` reports")
+    print("the system-tray state, and `selftest` verifies state,")
     print("needs, dialogue, persistence, sprite poses, and brain.")
     return 0
 
@@ -96,6 +99,25 @@ def _build_parser() -> argparse.ArgumentParser:
     start_p.add_argument("mode", nargs="?", default="status",
                          choices=("on", "off", "status"),
                          help="on, off, or status (default)")
+    start_p.add_argument("--service", action="store_true",
+                         help="point autostart at the background service "
+                              "instead of the window")
+    svc_p = sub.add_parser("service", help="background service lifecycle")
+    svc_p.add_argument("action", nargs="?", default="status",
+                       choices=("start", "stop", "status", "logs", "loop",
+                                "show", "hide", "switch"),
+                       help="start, stop, status, logs, show, hide, "
+                            "switch (default: status)")
+    svc_p.add_argument("character_id", nargs="?", default=None,
+                       help="character id for switch")
+    svc_p.add_argument("--lines", type=int, default=30,
+                       help="log lines for the logs action")
+    svc_p.add_argument("--no-detach", action="store_true",
+                       help="run the loop in the foreground (for launchers)")
+    tray_p = sub.add_parser("tray", help="system-tray state")
+    tray_p.add_argument("action", nargs="?", default="status",
+                        choices=("status", "show", "hide"),
+                        help="status, show, or hide (default: status)")
     notify_p = sub.add_parser("notify", help="post an OS notification")
     notify_p.add_argument("--message", type=str, required=True,
                           help="notification body text")
@@ -251,8 +273,77 @@ def cmd_startup(args: argparse.Namespace) -> int:
         state = "on" if shells_mod.is_startup_enabled() else "off"
         print("[pet] start at login: %s" % state)
         print("[pet] %s" % shells_mod.platform_notes())
+        print("[pet] service entrypoint: %s" % shells_mod.service_entrypoint())
         return 0
-    ok, note = shells_mod.set_startup(args.mode == "on")
+    ok, note = shells_mod.set_startup(args.mode == "on",
+                                      service=bool(getattr(args, "service",
+                                                           False)))
+    print("[pet] %s" % note)
+    return 0 if ok else 1
+
+
+def cmd_service(args: argparse.Namespace) -> int:
+    from .pet_app import service as service_mod
+
+    action = args.action or "status"
+    if action == "start":
+        if getattr(args, "no_detach", False):
+            ok, note = service_mod.start(detach=False)
+            print("[pet] %s" % note)
+            if not ok:
+                return 1
+            return service_mod.run_loop()
+        ok, note = service_mod.start(detach=True)
+        print("[pet] %s" % note)
+        return 0 if ok else 1
+    if action == "stop":
+        ok, note = service_mod.stop()
+        print("[pet] %s" % note)
+        return 0 if ok else 1
+    if action == "logs":
+        ok, text = service_mod.logs(lines=args.lines)
+        print(text)
+        return 0 if ok else 1
+    if action == "loop":
+        # Daemon child entrypoint: never detach again.
+        return service_mod.run_loop()
+    if action == "show":
+        _ok, note = service_mod.show_window()
+        print("[pet] %s" % note)
+        return 0
+    if action == "hide":
+        _ok, note = service_mod.hide_window()
+        print("[pet] %s" % note)
+        return 0
+    if action == "switch":
+        if args.character_id is None:
+            print("error: service switch needs a character id",
+                  file=sys.stderr)
+            return 2
+        ok, note = service_mod.switch_character(args.character_id)
+        print("[pet] %s" % note)
+        return 0 if ok else 1
+    running, note = service_mod.status()
+    print("[pet] %s" % note)
+    return 0
+
+
+def cmd_tray(args: argparse.Namespace) -> int:
+    from .pet_app import tray as tray_mod
+
+    action = args.action or "status"
+    controller = tray_mod.TrayController()
+    if action == "status":
+        print("[pet] %s" % controller.describe())
+        note = tray_mod.honest_note()
+        if note is not None:
+            print("[pet] %s" % note)
+        return 0
+    if action == "show":
+        ok, note = controller.show()
+        print("[pet] %s" % note)
+        return 0 if ok else 1
+    ok, note = controller.hide()
     print("[pet] %s" % note)
     return 0 if ok else 1
 
@@ -388,6 +479,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_settings(args)
     if args.command == "startup":
         return cmd_startup(args)
+    if args.command == "service":
+        return cmd_service(args)
+    if args.command == "tray":
+        return cmd_tray(args)
     if args.command == "notify":
         return cmd_notify(args)
     if args.command == "characters":

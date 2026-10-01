@@ -13,9 +13,16 @@ import sys
 RUN_VALUE_NAME = "DesktopPet"
 
 
-def _command() -> str:
+def _command(service: bool = False) -> str:
     exe = sys.executable or "python"
+    if service:
+        return '"%s" -m pet service start' % exe
     return '"%s" -m pet gui' % exe
+
+
+def service_command() -> str:
+    """Autostart command that launches the background service entrypoint."""
+    return _command(service=True)
 
 
 def _winreg():
@@ -30,7 +37,8 @@ def _key_path() -> str:
     return r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 
-def set_startup(enabled: bool, _winreg: object = "auto") -> tuple[bool, str]:
+def set_startup(enabled: bool, _winreg: object = "auto",
+                service: bool = False) -> tuple[bool, str]:
     """Enable or disable launch at login. Returns (ok, note)."""
     winreg = _winreg if _winreg != "auto" else _winreg_module()
     if winreg is None:
@@ -39,9 +47,9 @@ def set_startup(enabled: bool, _winreg: object = "auto") -> tuple[bool, str]:
     try:
         if enabled:
             with winreg.CreateKey(winreg.HKEY_CURRENT_USER,
-                                  _key_path()) as key:
+                                   _key_path()) as key:
                 winreg.SetValueEx(key, RUN_VALUE_NAME, 0,
-                                  winreg.REG_SZ, _command())
+                                   winreg.REG_SZ, _command(service=service))
             return (True, "Desktop Pet will start when you sign in.")
         try:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _key_path(),

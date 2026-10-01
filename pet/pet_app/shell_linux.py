@@ -27,31 +27,39 @@ def autostart_path(config_home: str | None = None) -> str:
     return os.path.join(autostart_dir(config_home), AUTOSTART_FILENAME)
 
 
-def _exec_line() -> str:
+def _exec_line(service: bool = False) -> str:
     exe = sys.executable or "python3"
+    if service:
+        return "%s -m pet service start" % exe
     return "%s -m pet gui" % exe
 
 
-def _desktop_entry() -> str:
+def service_command() -> str:
+    """Autostart command that launches the background service entrypoint."""
+    return _exec_line(service=True)
+
+
+def _desktop_entry(service: bool = False) -> str:
     return (
         "[Desktop Entry]\n"
         "Type=Application\n"
         "Name=Desktop Pet\n"
         "Comment=Cross-platform interactive desktop companion\n"
         "Exec=%s\n"
-        "X-GNOME-Autostart-enabled=true\n" % _exec_line()
+        "X-GNOME-Autostart-enabled=true\n" % _exec_line(service=service)
     )
 
 
 def set_startup(enabled: bool,
-                config_home: str | None = None) -> tuple[bool, str]:
+                config_home: str | None = None,
+                service: bool = False) -> tuple[bool, str]:
     """Enable or disable launch at login. Returns (ok, note)."""
     target = autostart_path(config_home)
     try:
         if enabled:
             os.makedirs(os.path.dirname(target), exist_ok=True)
             with open(target, "w", encoding="utf-8") as handle:
-                handle.write(_desktop_entry())
+                handle.write(_desktop_entry(service=service))
             return (True, "Desktop Pet will start when you log in.")
         try:
             os.unlink(target)
