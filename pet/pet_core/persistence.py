@@ -75,7 +75,7 @@ def load(path: str | None = None) -> tuple[PetState, str | None]:
             data = json.load(handle)
         state = PetState.from_dict(data)
         if isinstance(data, dict) and data.get("schema_version", 1) == 1:
-            return state, "migrated save schema v1 to v2 (character: pip)"
+            return state, "migrated save schema v1 to v2 (character: %s)" % state.character_id
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         backup = backup_path_for(target)
         try:
