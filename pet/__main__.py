@@ -273,8 +273,8 @@ def cmd_characters(args: argparse.Namespace) -> int:
     state, load_notice = load(save_path)
     if load_notice and "starting fresh" not in load_notice and "migrated" not in load_notice:
         print("[pet] %s" % load_notice)
-    if record["id"] not in catalog_mod.CHARACTERS and args.character_id.strip().lower() not in catalog_mod.CHARACTERS:
-        print("[pet] unknown character %r; using Pip" % (args.character_id,))
+    if notice:
+        print("[pet] %s" % notice)
     state.character_id = record["id"]
     try:
         save(state, save_path)
