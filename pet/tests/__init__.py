@@ -19,10 +19,11 @@ def suite() -> unittest.TestSuite:
     import pet.tests.test_tester_phase3_adversarial as ttp3
     import pet.tests.test_tester_phase4_adversarial as ttp4
     import pet.tests.test_tester_phase4_nonfinite_cli as ttp4nf
+    import pet.tests.test_tester_final_phase as ttfin
 
     loader = unittest.TestLoader()
     combined = unittest.TestSuite()
     for module in (ts, tn, tp, tpe, tb, tsp, tw, ti, tset, tsh,
-                     tta, ttp3, ttp4, ttp4nf):
+                     tta, ttp3, ttp4, ttp4nf, ttfin):
         combined.addTests(loader.loadTestsFromModule(module))
     return combined
