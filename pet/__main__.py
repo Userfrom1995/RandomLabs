@@ -63,7 +63,7 @@ def _build_parser() -> argparse.ArgumentParser:
     run_p.add_argument("--dt", type=float, default=0.1,
                        help="simulated seconds per tick")
     run_p.add_argument("--character", type=str, default=None,
-                       help="run as this character (persisted to the save)")
+                       help="run as this character (saved unless --no-save)")
     sub.add_parser("selftest", help="run the headless verification suite")
     gui_p = sub.add_parser("gui", help="open the on-screen companion window")
     gui_p.add_argument("--scale", type=float, default=1.0,
@@ -81,7 +81,7 @@ def _build_parser() -> argparse.ArgumentParser:
     gui_p.add_argument("--seed", type=int, default=None,
                        help="RNG seed for a deterministic run")
     gui_p.add_argument("--character", type=str, default=None,
-                       help="open the window as this character (persisted)")
+                       help="open the window as this character (saved unless --no-save)")
     set_p = sub.add_parser("settings", help="show or change saved settings")
     set_p.add_argument("--set", action="append", default=[],
                        metavar="field=value",
