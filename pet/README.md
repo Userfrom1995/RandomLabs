@@ -18,8 +18,10 @@ drag-carry, speech bubble, and right-click menu. Open it with
 clicks stroke the pet into affection streaks, feeding opens a munch
 animation, Play starts a ball-toss mini-game with a live score, and a
 bedtime schedule tucks the pet in at night and wakes it in the
-morning. The settings dialog, per-OS startup shells, and packaging
-recipes build on these same layers without changing them.
+morning. The settings dialog and per-OS startup shells are part of
+the same build: Settings on the menu opens a form for name, behavior
+toggles, transparency, size, bedtime hours, and start-at-login, all
+restored on restart.
 
 ## Quickstart
 
@@ -31,6 +33,10 @@ python -m pet gui
 python -m pet gui --scale 1.5 --alpha 0.9
 python -m pet run --ticks 300 --seed 7
 python -m pet run --ticks 600 --name Mochi --realtime
+python -m pet settings
+python -m pet settings --set wander=off --set alpha=0.8
+python -m pet startup status
+python -m pet notify --message "Time for a stretch"
 python -m pet help
 python -m pet version
 ```
@@ -40,7 +46,7 @@ screen while walking, and answers back in a speech bubble. Single click
 strokes (repeat gentle clicks for an affection streak and a purring
 celebration), double click pokes, press-drag picks the pet up and
 carries it, right click opens the menu (Feed, Play, Sleep/Wake, Sleep
-schedule toggle, About, Quit). Feed opens a munch animation; Play
+schedule toggle, Settings, About, Quit). Feed opens a munch animation; Play
 starts a ball-toss mini-game where the pet chases a bouncing ball and
 scores each catch (first to 5, or 30 seconds, ends the rally with a
 score line).
@@ -55,7 +61,37 @@ saves on exit. Saves live in the platform user-data dir
 (`~/.local/share/desktop-pet` on Linux,
 `~/Library/Application Support/DesktopPet` on macOS,
 `%APPDATA%/DesktopPet` on Windows), overridable with
-`DESKTOP_PET_DATA_DIR` for tests and portable setups.
+`DESKTOP_PET_DATA_DIR` for tests and portable setups. The pet state
+(`pet.json`) holds stats and window position; `settings.json` beside
+it holds the settings dialog values. Both restore on restart.
+
+## Settings
+
+The Settings menu entry (or `python -m pet settings`) manages the
+persisted configuration: pet name, wander toggle (the pet stays put
+but still chats and plays), play-invitation toggle (spontaneous play
+offers stop; the Play menu action still works), bedtime routine toggle
+plus bedtime and wake hours (`HH:MM`), speech-bubble chatter toggle,
+always-on-top toggle, transparency (`0.3..1.0`), and size
+(`0.5..3.0`, multiplied by display DPI). The dialog applies changes
+live (the window re-renders, resizes, and re-layers immediately) and
+saves them; restart restores name, stats, settings, and window
+position. A corrupt settings file is backed up to `.bak` and replaced
+with defaults, with a notice, never a traceback.
+
+## Startup and notifications
+
+`python -m pet startup (on|off|status)` manages launch at login
+through the per-OS shell behind one contract (`set_startup`,
+`is_startup_enabled`, `notify`, `platform_notes`): a per-user
+Registry Run entry on Windows, a LaunchAgent plist on macOS, an XDG
+autostart `.desktop` file on Linux. Notifications (`python -m pet
+notify`) try `osascript` on macOS and `notify-send` on Linux; where a
+path is missing the call fails closed with an honest note and the pet
+shows the notice in its speech bubble instead. Windows has no bundled
+toast path, so it always uses the bubble and says so. The settings
+dialog surfaces the same startup toggle with the platform note beside
+it, so a denied capability reads as an explanation, never an error.
 
 ## How it works
 
@@ -102,7 +138,12 @@ through that same API.
   actions, and ticks; the shell only renders.
 - **Persistence.** Debounced atomic write (tmp file plus rename). Load
   validates the schema version, clamps ranges, backs corrupt files up
-  to `.bak`, and starts fresh with a logged notice.
+  to `.bak`, and starts fresh with a logged notice. Settings persist
+  separately (`settings.json`) with the same atomicity and recovery.
+- **Behavior toggles.** `Brain(allow_walk=..., allow_play=...)` gates
+  spontaneous WALK and PLAY transitions at the weight table (manual
+  menu actions bypass the gate), so the settings toggles reshape the
+  personality without touching the state machine.
 
 ## Core API
 
@@ -130,7 +171,8 @@ save(brain.state)
 | Behavior brain (`python -m pet`) | yes | yes | yes |
 | Headless tests (`selftest`) | yes | yes | yes |
 | Companion window (`gui`) | yes | yes | yes |
-| Startup entry + notifications | planned | planned | planned |
+| Start at login (`startup`, dialog toggle) | yes (Run key) | yes (LaunchAgent) | yes (autostart) |
+| OS notifications (`notify`) | bubble note | yes (osascript) | yes (notify-send) |
 | PyInstaller recipe | planned | planned | planned |
 
 The window needs tkinter plus a display; where either is missing the
@@ -145,15 +187,20 @@ failing silently.
   `personality.py`, `persistence.py`. No GUI imports, no dependencies.
 - `pet_app/` - on-screen companion: `sprite.py` (pure pose engine plus
   shape lists), `controller.py` (bubble, gestures, menu model, carry,
-  blending; no GUI imports), `interact.py` (stroke streaks, munch
-  sessions, ball-toss game, sleep schedule; no GUI imports),
-  `platform.py` (capability probe, alpha and
-  scale clamps), `window.py` (borderless tkinter shell).
-- `__main__.py` - CLI dispatch (`run`, `gui`, `selftest`, `help`,
-  `version`).
+  blending, settings application; no GUI imports), `interact.py` (stroke
+  streaks, munch sessions, ball-toss game, sleep schedule; no GUI
+  imports), `settings.py` (validated settings model plus atomic
+  persistence; no GUI imports), `shells.py` plus `shell_win.py`,
+  `shell_macos.py`, `shell_linux.py` (startup and notifications behind
+  one contract; no GUI imports), `platform.py` (capability probe,
+  alpha and scale clamps), `window.py` (borderless tkinter shell plus
+  settings dialog).
+- `__main__.py` - CLI dispatch (`run`, `gui`, `settings`, `startup`,
+  `notify`, `selftest`, `help`, `version`).
 - `tests/` - headless suite: state, needs, personality, persistence,
-  brain, sprite, window controller, interaction play layer (146 tests,
-  seeded and deterministic).
+  brain, sprite, window controller, interaction play layer, settings
+  and brain toggles, per-OS shells (218 tests, seeded and
+  deterministic).
 - `docs/` - unified product documentation.
 - `index.html` - Pages hub for this project.
 

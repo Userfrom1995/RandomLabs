@@ -67,6 +67,7 @@
     <div class="card"><h4>Play layer</h4><p>Stroke streaks, feed-to-munch, a scored ball-toss rally (first to 5 catches), and a 22:00 to 7:00 bedtime routine with a menu toggle.</p></div>
     <div class="card"><h4>Personality</h4><p>Seeded offline dialogue pools per mood and event, no repeats until exhausted.</p></div>
     <div class="card"><h4>Persistence</h4><p>Atomic JSON saves in the platform user-data dir, corrupt files backed up.</p></div>
+    <div class="card"><h4>Settings</h4><p>Name, behavior toggles, transparency, size, bedtime hours, and start-at-login, all restored on restart.</p></div>
   </div>
 
   <h2>Quickstart</h2>
@@ -75,7 +76,8 @@
 python -m pet gui
 python -m pet gui --scale 1.5 --alpha 0.9
 python -m pet run --ticks 300 --seed 7
-python -m pet run --ticks 600 --name Mochi --realtime</pre>
+python -m pet settings --set wander=off --set alpha=0.8
+python -m pet startup status</pre>
 
   <h2>Support matrix</h2>
   <table>
@@ -83,7 +85,8 @@ python -m pet run --ticks 600 --name Mochi --realtime</pre>
     <tr><td>Behavior brain (<code>python -m pet</code>)</td><td>yes</td><td>yes</td><td>yes</td></tr>
     <tr><td>Headless tests (<code>selftest</code>)</td><td>yes</td><td>yes</td><td>yes</td></tr>
     <tr><td>Companion window (<code>gui</code>)</td><td>yes</td><td>yes</td><td>yes</td></tr>
-    <tr><td>Startup entry + notifications</td><td>planned</td><td>planned</td><td>planned</td></tr>
+    <tr><td>Start at login (<code>startup</code>, dialog toggle)</td><td>yes (Run key)</td><td>yes (LaunchAgent)</td><td>yes (autostart)</td></tr>
+    <tr><td>OS notifications (<code>notify</code>)</td><td>bubble note</td><td>yes (osascript)</td><td>yes (notify-send)</td></tr>
   </table>
 
   <h2>Documentation</h2>

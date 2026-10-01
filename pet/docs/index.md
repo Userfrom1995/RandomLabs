@@ -41,8 +41,8 @@ is a thin shell over the same brain: single click strokes (repeat
 gentle clicks for an affection streak and a purring celebration),
 double click pokes, press-drag picks the pet up and carries it
 (movement suspends, drop shows a relieved line), right click opens the
-menu (Feed, Play, Sleep/Wake, Sleep schedule toggle, About, Quit).
-Feeding opens a munch animation; Play starts a ball-toss mini-game
+menu (Feed, Play, Sleep/Wake, Sleep schedule toggle, Settings, About,
+Quit). Feeding opens a munch animation; Play starts a ball-toss mini-game
 where the pet chases a bouncing ball and scores each catch, ending at
 5 catches or 30 seconds with a score line. A bedtime schedule
 (22:00 to 7:00 local by default) tucks the pet in and wakes it up;
@@ -51,10 +51,30 @@ window itself drifts across the screen inside display bounds.
 
 Window options: `--scale 0.5..3.0` (multiplied by probed display DPI),
 `--alpha 0.3..1.0` (opacity), `--no-topmost`, `--save PATH`,
-`--no-save`, `--seed N`, `--name NAME`. Window position, stats,
-settings, and name persist across restarts through the same atomic
-save file. Where tkinter or a display is missing, `gui` exits with an
-honest note pointing at headless `run`.
+`--no-save`, `--seed N`, `--name NAME`. Window position, stats, settings, and name persist across restarts:
+the pet state (`pet.json`) and the dialog settings (`settings.json`)
+save atomically beside each other. Where tkinter or a display is
+missing, `gui` exits with an honest note pointing at headless `run`.
+
+## Settings, startup, notifications
+
+The Settings menu entry opens a form for name, behavior toggles
+(wander, play invitations, bedtime routine, speech-bubble chatter),
+transparency, size, bedtime and wake hours, always-on-top, and start
+at login. Changes apply live and persist; restart restores everything
+including window position. The same file is manageable headlessly:
+
+- `python -m pet settings [--set field=value ...]`: show or change
+  saved settings (wander, play_invites, sleep_schedule, dialogue,
+  topmost, alpha, scale, bedtime, wake).
+- `python -m pet startup (on|off|status)`: launch-at-login entry per
+  OS (Registry Run key on Windows, LaunchAgent plist on macOS, XDG
+  autostart file on Linux).
+- `python -m pet notify --message TEXT [--title TEXT]`: best-effort OS
+  note via osascript (macOS) or notify-send (Linux); where the path is
+  missing it fails closed with an honest note and the pet shows the
+  notice in its speech bubble instead. Windows always uses the bubble
+  and says so.
 
 ## Command reference
 
@@ -62,6 +82,11 @@ honest note pointing at headless `run`.
   [--dt SEC] [--save PATH] [--no-save]`: run the brain headlessly.
 - `python -m pet gui [--scale F] [--alpha A] [--no-topmost] [--name NAME]
   [--save PATH] [--no-save] [--seed S]`: open the on-screen companion.
+- `python -m pet settings [--set field=value ...]`: show or change
+  saved settings.
+- `python -m pet startup (on|off|status)`: launch-at-login entry.
+- `python -m pet notify --message TEXT [--title TEXT]`: OS note with
+  honest bubble fallback.
 - `python -m pet selftest`: headless suite plus a seeded soak proving all
   five activities are reachable.
 - `python -m pet help` / `python -m pet version`: usage and version.
