@@ -148,7 +148,7 @@ def palette_for(character_id: object) -> dict[str, str]:
         from ..pet_core import catalog as _catalog
         record, _ = _catalog.get(slug)
         palette = record.get("palette")
-        if isinstance(palette, dict) and palette.get("body"):
+        if isinstance(palette, dict) and all(palette.get(k) for k in ("body", "belly", "accent")):
             return {str(k): str(v) for k, v in palette.items()}
     except Exception:
         pass
@@ -283,9 +283,14 @@ def _apply_style(pose: Pose, character_id: str, sway: float) -> Pose:
     scales amplitudes the way its temperament suggests (Bramble jumps
     higher, Mochi barely leaves the floor, Kiki darts its gaze, Rusty
     moves stiffly, Luna hovers).
+
+    The input pose is never mutated: callers may reuse or cache base
+    poses, so every branch works on a copy.
     """
+    import dataclasses
     if character_id == "pip":
-        return pose
+        return dataclasses.replace(pose)
+    pose = dataclasses.replace(pose)
     if character_id == "bramble":
         pose.hop *= 1.5
         pose.tail_angle = 0.4 + (pose.tail_angle - 0.4) * 1.4
@@ -333,14 +338,19 @@ def _resolve_args(activity: object, phase: object,
     a known activity name, treat the call as character-first so both
     spellings work without breaking old callers.
     """
-    first = str(getattr(activity, "value", activity)).lower()
+    first = str(getattr(activity, "value", activity)).strip().lower()
     try:
-        second_text = str(getattr(phase, "value", phase)).lower()
+        second_text = str(getattr(phase, "value", phase)).strip().lower()
     except Exception:
         second_text = ""
-    if (first in CHARACTER_IDS and second_text in VALID_ACTIVITIES
-            and isinstance(character_id, (int, float))
-            and not isinstance(character_id, bool)):
+    if first in CHARACTER_IDS and second_text in VALID_ACTIVITIES:
+        if isinstance(character_id, bool):
+            return activity, phase, normalize_character(character_id)
+        try:
+            float(character_id)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            # Two-argument character-first spelling: phase defaults to 0.
+            return phase, 0.0, first
         return phase, character_id, first
     return activity, phase, normalize_character(character_id)
 
@@ -352,8 +362,10 @@ def pose_for(activity: object, phase: object = 0.0,
     Phase is in radians and wraps every 2*pi. Unknown activities fall
     back to idle; unparsable phases fall back to 0; unknown characters
     fall back to Pip. A character-first call ``pose_for(character,
-    activity, phase)`` with an explicit numeric phase is accepted and
-    means the same thing.
+    activity, phase)`` is accepted and means the same thing: the phase
+    may be a number or a numeric string, and ``pose_for(character,
+    activity)`` defaults the phase to 0. Surrounding whitespace on
+    character and activity names is ignored.
     """
     activity, phase, slug = _resolve_args(activity, phase, character_id)
     name = _normalize_activity(activity)
@@ -515,7 +527,7 @@ def shapes(pose: Pose, size: float = CANVAS_BOX,
         box = float(size)
     except (TypeError, ValueError):
         box = CANVAS_BOX
-    if box != box or box <= 0.0:  # NaN or non-positive
+    if box != box or not math.isfinite(box) or box <= 0.0:
         box = CANVAS_BOX
     slug = normalize_character(character_id)
     plan = body_plan_for(slug)
