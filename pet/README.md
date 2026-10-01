@@ -186,7 +186,7 @@ live in `packaging/README.md`.
 Strict core/presentation split: `pet_core` never imports `tkinter` or any
 OS shell module. The window is a thin renderer that translates core
 state into canvas poses and forwards pointer events into the core event
-API below. The Tester drives the entire behavior loop headlessly
+API below. The test suite drives the entire behavior loop headlessly
 through that same API.
 
 - **Companion window.** `pet_app/window.py` is a borderless topmost
@@ -263,6 +263,8 @@ save(brain.state)
 | Behavior brain (`python -m pet`) | yes | yes | yes |
 | Headless tests (`selftest`) | yes | yes | yes |
 | Companion window (`gui`) | yes | yes | yes |
+| Background service (`service`) | yes | yes | yes |
+| System tray (`tray`) | yes (notify icon shim) | yes (menu-bar best-effort) | yes (status-notifier best-effort) |
 | Start at login (`startup`, dialog toggle) | yes (Run key) | yes (LaunchAgent) | yes (autostart) |
 | OS notifications (`notify`) | bubble note | yes (osascript) | yes (notify-send) |
 | One-file binary (recipe) | yes (`packaging/build-windows.ps1`) | yes (`packaging/build.sh`) | yes (`packaging/build.sh`) |
@@ -287,14 +289,16 @@ failing silently.
   `shell_macos.py`, `shell_linux.py` (startup and notifications behind
   one contract; no GUI imports), `platform.py` (capability probe,
   alpha and scale clamps), `window.py` (borderless tkinter shell plus
-  settings dialog).
+  settings dialog), `service.py` (PID-locked background daemon ticking
+  the headless brain with shared-save routing), `tray.py` (ordered
+  pystray/native/mini-controller backends plus headless controller).
 - `__main__.py` - CLI dispatch (`run`, `gui`, `characters`, `talk`/`converse`, `settings`, `startup`,
-  `notify`, `selftest`, `help`, `version`).
+  `notify`, `service`, `tray`, `selftest`, `help`, `version`).
 - `tests/` - headless suite: state, needs, personality, persistence,
   brain, sprite, window controller, interaction play layer, settings
   and brain toggles, per-OS shells, character catalog, conversation,
-  living moments (395 tests, seeded and
-  deterministic).
+   living moments (478 tests, seeded and
+   deterministic).
 - `packaging/` - one-file PyInstaller recipes: `desktop-pet.spec`,
   `build.sh` (Linux/macOS), `build-windows.ps1` (Windows), build
   README with the per-OS download matrix.
