@@ -41,6 +41,10 @@ $hash = (Get-FileHash $bin -Algorithm SHA256).Hash.ToLower()
 "$hash  desktop-pet.exe" | Out-File -Encoding ascii (Join-Path $root "dist\SHA256SUMS.txt")
 
 & $bin selftest | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  Write-Error "bundle selftest failed"
+  exit 1
+}
 Write-Host "[pet] selftest passed on the bundle"
 Write-Host "[pet] built $bin"
 Get-ChildItem (Join-Path $root "dist")
