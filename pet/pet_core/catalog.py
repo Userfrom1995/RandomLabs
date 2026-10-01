@@ -1,7 +1,7 @@
 """Character catalog registry (stdlib only, no GUI imports).
 
 Built-in cast of six originals plus a merge hook for third-party
-creator packs (Phase 5): built-ins always win on slug collision, with a
+creator packs: built-ins always win on slug collision, with a
 notice, and unknown ids fall back to Pip with a notice, never a
 traceback. Every record is plain data so the sprite engine, voices, and
 docs can all render the same source of truth.

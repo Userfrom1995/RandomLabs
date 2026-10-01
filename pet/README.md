@@ -214,7 +214,7 @@ failing silently.
 ## Layout
 
 - `pet_core/` - headless brain: `state.py`, `brain.py`, `needs.py`,
-  `personality.py`, `persistence.py`. No GUI imports, no dependencies.
+  `personality.py`, `persistence.py`, `catalog.py`, `traits.py`. No GUI imports, no dependencies.
 - `pet_app/` - on-screen companion: `sprite.py` (pure pose engine plus
   shape lists), `controller.py` (bubble, gestures, menu model, carry,
   blending, settings application; no GUI imports), `interact.py` (stroke
@@ -225,11 +225,11 @@ failing silently.
   one contract; no GUI imports), `platform.py` (capability probe,
   alpha and scale clamps), `window.py` (borderless tkinter shell plus
   settings dialog).
-- `__main__.py` - CLI dispatch (`run`, `gui`, `settings`, `startup`,
+- `__main__.py` - CLI dispatch (`run`, `gui`, `characters`, `settings`, `startup`,
   `notify`, `selftest`, `help`, `version`).
 - `tests/` - headless suite: state, needs, personality, persistence,
   brain, sprite, window controller, interaction play layer, settings
-  and brain toggles, per-OS shells (249 tests, seeded and
+  and brain toggles, per-OS shells, character catalog (290 tests, seeded and
   deterministic).
 - `packaging/` - one-file PyInstaller recipes: `desktop-pet.spec`,
   `build.sh` (Linux/macOS), `build-windows.ps1` (Windows), build

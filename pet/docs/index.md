@@ -95,6 +95,9 @@ including window position. The same file is manageable headlessly:
   [--save PATH] [--no-save] [--seed S]`: open the on-screen companion.
 - `python -m pet settings [--set field=value ...]`: show or change
   saved settings.
+- `python -m pet characters (list|show ID|switch ID)`: list the
+  six-character catalog, show one character's details, or switch the
+  active character with atomic persistence.
 - `python -m pet startup (on|off|status)`: launch-at-login entry.
 - `python -m pet notify --message TEXT [--title TEXT]`: OS note with
   honest bubble fallback.
