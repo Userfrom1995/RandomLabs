@@ -11,11 +11,12 @@ def suite() -> unittest.TestSuite:
     import pet.tests.test_brain as tb
     import pet.tests.test_sprite as tsp
     import pet.tests.test_window as tw
+    import pet.tests.test_interact as ti
 
     import pet.tests.test_tester_adversarial as tta
 
     loader = unittest.TestLoader()
     combined = unittest.TestSuite()
-    for module in (ts, tn, tp, tpe, tb, tsp, tw, tta):
+    for module in (ts, tn, tp, tpe, tb, tsp, tw, ti, tta):
         combined.addTests(loader.loadTestsFromModule(module))
     return combined
