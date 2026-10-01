@@ -256,6 +256,7 @@ class PetWindow:
         self.controller.handle_gesture(gesture)
 
     def _on_menu(self, event: object) -> None:
+        menu = None
         try:
             menu = self._tk.Menu(self.root, tearoff=0)
             for action, label in self.controller.menu():
@@ -266,10 +267,11 @@ class PetWindow:
         except Exception:
             pass
         finally:
-            try:
-                menu.grab_release()
-            except Exception:
-                pass
+            if menu is not None:
+                try:
+                    menu.grab_release()
+                except Exception:
+                    pass
 
     def _menu_chosen(self, action: str) -> None:
         text, quit_flag = self.controller.run_menu_action(action)
