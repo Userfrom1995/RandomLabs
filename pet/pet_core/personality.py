@@ -115,8 +115,6 @@ EVENT_LINES: dict[str, list[str]] = {
 }
 
 
-_BUILTIN_IDS = ("pip", "bramble", "mochi", "kiki", "rusty", "luna")
-
 # Per-character voice overrides. Any missing "mood:<m>" or "event:<e>"
 # key falls back to the shared MOOD_LINES / EVENT_LINES pools above
 # (which are Pip's voice). Every pool holds at least 3 lines so the
