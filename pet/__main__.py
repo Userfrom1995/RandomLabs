@@ -3,6 +3,7 @@
 Usage:
   python -m pet run [--ticks N] [--seed S] [--name NAME] [--realtime]
   python -m pet gui [--scale F] [--alpha A] [--no-topmost] [--name NAME]
+  python -m pet characters (list|show ID|switch ID)
   python -m pet settings [--set field=value ...]
   python -m pet startup (on|off|status)
   python -m pet notify --message TEXT [--title TEXT]
@@ -94,6 +95,14 @@ def _build_parser() -> argparse.ArgumentParser:
                           help="notification title")
     sub.add_parser("help", help="print usage")
     sub.add_parser("version", help="print version")
+    chars_p = sub.add_parser("characters", help="list, show, or switch pet characters")
+    chars_p.add_argument("action", nargs="?", default="list",
+                         choices=("list", "show", "switch"),
+                         help="list, show, or switch (default: list)")
+    chars_p.add_argument("character_id", nargs="?", default=None,
+                         help="character id for show/switch")
+    chars_p.add_argument("--save", type=str, default=None,
+                         help="save file path (default: platform user-data dir)")
     return parser
 
 
@@ -229,6 +238,53 @@ def cmd_notify(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def cmd_characters(args: argparse.Namespace) -> int:
+    from .pet_core import catalog as catalog_mod
+
+    save_path = args.save or default_save_path()
+    if args.action == "list":
+        for record in catalog_mod.list_characters():
+            marker = ""
+            try:
+                state, _ = load(save_path)
+                if state.character_id == record["id"]:
+                    marker = " (active)"
+            except OSError:
+                pass
+            print("%-10s %-12s [%s] %s%s" % (
+                record["id"], record["name"], record["body_plan"],
+                record["tagline"], marker))
+        return 0
+    if args.character_id is None:
+        print("error: characters %s needs a character id" % args.action,
+              file=sys.stderr)
+        return 2
+    record, notice = catalog_mod.get(args.character_id)
+    if notice and args.action == "show":
+        print("[pet] %s" % notice)
+    if args.action == "show":
+        print("%s (%s, %s)" % (record["name"], record["species"],
+                               record["body_plan"]))
+        print(record["tagline"])
+        print("signature: %s" % record["signature"])
+        print("walk speed: %.1f px/s" % record["traits"]["walk_speed"])
+        return 0
+    # switch: persist the selection atomically beside pet.json.
+    state, load_notice = load(save_path)
+    if load_notice and "starting fresh" not in load_notice and "migrated" not in load_notice:
+        print("[pet] %s" % load_notice)
+    if record["id"] not in catalog_mod.CHARACTERS and args.character_id.strip().lower() not in catalog_mod.CHARACTERS:
+        print("[pet] unknown character %r; using Pip" % (args.character_id,))
+    state.character_id = record["id"]
+    try:
+        save(state, save_path)
+    except OSError as exc:
+        print("error: could not save character (%s)" % exc, file=sys.stderr)
+        return 1
+    print("[pet] switched to %s (%s)" % (record["name"], record["id"]))
+    return 0
+
+
 def cmd_selftest() -> int:
     """Run the headless suite plus wiring checks without unittest CLI."""
     import unittest
@@ -269,6 +325,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_startup(args)
     if args.command == "notify":
         return cmd_notify(args)
+    if args.command == "characters":
+        return cmd_characters(args)
     if args.command == "selftest":
         return cmd_selftest()
     if args.command == "version":

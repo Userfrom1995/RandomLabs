@@ -10,7 +10,8 @@ class TestState(unittest.TestCase):
         st = PetState()
         self.assertEqual(st.name, "Pip")
         self.assertEqual(st.activity, Activity.IDLE)
-        self.assertEqual(st.schema_version, 1)
+        self.assertEqual(st.schema_version, 2)
+        self.assertEqual(st.character_id, "pip")
 
     def test_clamps_stats(self):
         st = PetState(energy=999.0, hunger=-5.0, affection=50.0)
@@ -29,7 +30,7 @@ class TestState(unittest.TestCase):
 
     def test_rejects_unknown_activity(self):
         with self.assertRaises(ValueError):
-            PetState.from_dict({"activity": "fly", "schema_version": 1})
+            PetState.from_dict({"activity": "fly", "schema_version": 2})
 
     def test_rejects_unknown_schema(self):
         with self.assertRaises(ValueError):

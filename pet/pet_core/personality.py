@@ -115,6 +115,137 @@ EVENT_LINES: dict[str, list[str]] = {
 }
 
 
+_BUILTIN_IDS = ("pip", "bramble", "mochi", "kiki", "rusty", "luna")
+
+# Per-character voice overrides. Any missing "mood:<m>" or "event:<e>"
+# key falls back to the shared MOOD_LINES / EVENT_LINES pools above
+# (which are Pip's voice). Every pool holds at least 3 lines so the
+# no-repeat bag cycling stays meaningful.
+CHARACTER_VOICES: dict[str, dict[str, list[str]]] = {
+    "pip": {},
+    "bramble": {
+        "mood:happy": [
+            "Bramble is doing ZOOMIES of joy! Wheee!",
+            "Best day ever! {name} says, already running.",
+            "Tail wagging at maximum velocity!",
+            "The sun is out and so is {name}. Race you!",
+        ],
+        "mood:affectionate": [
+            "{name} leans hard into the cursor. More pats!",
+            "Bramble loves you a whole forestful.",
+            "Nose-booping the edge of the screen!",
+            "Stay and play? {name} saved you the good ball.",
+        ],
+        "event:play": [
+            "Ball! BALL! {name} is READY!",
+            "Throw it! Bramble will catch it mid-air!",
+            "Again! Again! Bramble never gets tired!",
+        ],
+        "event:greet": [
+            "Oh! You are here! Play with Bramble!",
+            "{name} saved you a spot AND a ball.",
+            "Welcome back! Bramble waited by wagging.",
+        ],
+    },
+    "mochi": {
+        "mood:sleepy": [
+            "Mmm... five more minutes, {name} mumbles...",
+            "Melting into the floor. It is nap-shaped.",
+            "Blinking... slowly... squishily...",
+            "Eyelids at half mast. Squish.",
+        ],
+        "mood:affectionate": [
+            "{name} melts into a warm puddle.",
+            "Mochi purrs, long and wobbly.",
+            "Squishing gently against the cursor. Warm.",
+            "Stay a while? {name} is extra soft today.",
+        ],
+        "event:sleep": [
+            "Squishing down flat. Goodnight...",
+            "{name} jiggles once, then stills. Zzz.",
+            "Powering down the wobbles.",
+        ],
+        "event:stroke": [
+            "Mmm, pats. Mochi jiggles happily.",
+            "{name} melts into a warm puddle.",
+            "More pats! Mochi is collecting them softly.",
+        ],
+    },
+    "kiki": {
+        "mood:curious": [
+            "What is THAT? {name} must investigate immediately!",
+            "Chirping at the pixels. What ARE they?",
+            "{name} wonders what is behind EVERY window.",
+            "Ooh, a cursor! Suspicious! Fascinating! Chirp!",
+        ],
+        "mood:happy": [
+            "Chirping a bright zigzag tune!",
+            "Kiki hops in a tiny circle of joy!",
+            "Everything sparkles today, says {name}.",
+            "Wings fluttering! Good day! Good day!",
+        ],
+        "event:greet": [
+            "Chirp! You are here! Did you see anything new?",
+            "{name} was just watching the whole world for you.",
+            "Welcome back! Kiki saved you a shiny spot.",
+        ],
+        "event:catch": [
+            "Snagged it mid-dive! Did you see that?",
+            "Got it! Kiki rules the sky-ball!",
+            "Caught! Chirping triumphantly!",
+        ],
+    },
+    "rusty": {
+        "mood:grumpy": [
+            "Hmph. {name} did not schedule being perceived.",
+            "Grumble. Low battery on patience. Beep.",
+            "Personal space protocol engaged.",
+            "Somebody needs oil and it is {name}.",
+        ],
+        "mood:happy": [
+            "All systems nominal. {name} approves. Beep.",
+            "Humming a square little servo tune.",
+            "Efficiency at 100%. Joy subroutine: running.",
+            "The sun recharges {name}. Adequate.",
+        ],
+        "event:poke": [
+            "Poke registered. Logging complaint. Beep.",
+            "Hey! Careful with the chassis!",
+            "Startle subroutine: executed. Beep.",
+        ],
+        "event:wake": [
+            "Booting cuteness... {name} is UP. Mostly.",
+            "Systems online. Greetings, human.",
+            "Stretching every actuator at once.",
+        ],
+    },
+    "luna": {
+        "mood:sleepy": [
+            "The moon is up... {name} is just waking...",
+            "Daylight naps hit different, Luna mumbles.",
+            "Wings folding. Paper-moon dreams incoming.",
+            "Yawning a tiny crescent yawn...",
+        ],
+        "mood:happy": [
+            "Moonlight looks good on {name} tonight.",
+            "Gliding a slow glowing circle of joy.",
+            "The night hums and Luna hums back.",
+            "Starlight snacks. Delicious, probably.",
+        ],
+        "event:sleep": [
+            "Curling wings around. Goodnight, sun...",
+            "{name} drifts off under a paper moon. Zzz.",
+            "Dimming the glow. Sleep mode: lunar.",
+        ],
+        "event:feed": [
+            "Nom nom. Moon-moth snacks. Thank you!",
+            "Crunch crunch. {name} glows a little brighter.",
+            "Munching stardust. More, maybe?",
+        ],
+    },
+}
+
+
 def mood_for(state: PetState) -> str:
     """Derive the display mood from current needs (pure function)."""
     if state.hunger >= 75.0:
@@ -131,11 +262,21 @@ def mood_for(state: PetState) -> str:
 
 
 class Personality:
-    """Seeded dialogue picker with per-key no-repeat bags."""
+    """Seeded dialogue picker with per-key no-repeat bags.
 
-    def __init__(self, name: str = DEFAULT_NAME, seed: int | None = None) -> None:
+    Voices are per character: each character ships its own line pools
+    with a shared Pip fallback for any missing key, keeping the
+    no-repeat-until-exhausted bag cycling and {name} insertion. Bags
+    are keyed per (character, key) so switching voices never leaks
+    draw order between characters.
+    """
+
+    def __init__(self, name: str = DEFAULT_NAME, seed: int | None = None,
+                 character_id: str = "pip") -> None:
         self._rng = random.Random(seed)
         self._bags: dict[str, list[str]] = {}
+        self._character_id = "pip"
+        self.set_character(character_id)
         self.set_name(name)
 
     @property
@@ -156,24 +297,49 @@ class Personality:
         self._bags[key] = bag
 
     def _draw(self, key: str, pool: list[str]) -> str:
-        bag = self._bags.get(key)
+        bag_key = self._character_id + ":" + key
+        bag = self._bags.get(bag_key)
         if not bag:
-            self._refill(key, pool)
-            bag = self._bags[key]
+            self._refill(bag_key, pool)
+            bag = self._bags[bag_key]
         line = bag.pop()
         return line.replace("{name}", self._name)
+
+    @property
+    def character_id(self) -> str:
+        return self._character_id
+
+    def set_character(self, character_id: object) -> str:
+        """Switch the active voice (unknown ids fall back to Pip)."""
+        if isinstance(character_id, str) and character_id.strip().lower() in CHARACTER_VOICES:
+            self._character_id = character_id.strip().lower()
+        elif isinstance(character_id, str) and character_id.strip().lower() in _BUILTIN_IDS:
+            self._character_id = character_id.strip().lower()
+        else:
+            self._character_id = "pip"
+        return self._character_id
+
+    def _pool_for(self, kind: str, key: str) -> list[str]:
+        """Resolve the active voice pool with shared Pip fallback."""
+        voice = CHARACTER_VOICES.get(self._character_id, {})
+        pool = voice.get(kind + ":" + key)
+        if pool:
+            return pool
+        if kind == "mood":
+            return MOOD_LINES[key]
+        return EVENT_LINES[key]
 
     def line_for(self, mood: str) -> str:
         """Draw a mood line (unknown moods fall back to curious)."""
         if mood not in MOOD_LINES:
             mood = "curious"
-        return self._draw("mood:" + mood, MOOD_LINES[mood])
+        return self._draw("mood:" + mood, self._pool_for("mood", mood))
 
     def line_for_event(self, event: str) -> str:
         """Draw an event line (unknown events fall back to greet)."""
         if event not in EVENT_LINES:
             event = "greet"
-        return self._draw("event:" + event, EVENT_LINES[event])
+        return self._draw("event:" + event, self._pool_for("event", event))
 
     def pool_sizes(self) -> dict[str, int]:
         """Report pool sizes (useful for tests and the selftest gate)."""

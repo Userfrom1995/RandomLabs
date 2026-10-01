@@ -37,9 +37,22 @@ python -m pet settings
 python -m pet settings --set wander=off --set alpha=0.8
 python -m pet startup status
 python -m pet notify --message "Time for a stretch"
+python -m pet characters list
+python -m pet characters show mochi
+python -m pet characters switch bramble
 python -m pet help
 python -m pet version
 ```
+
+Choose your companion from the six-character catalog: Pip the blob-cat
+(balanced baseline), Bramble the fox (playful, fast, affection-hungry),
+Mochi the slime (sleepy, slow, cuddle-positive), Kiki the sparrow
+(curious darting walker), Rusty the robot (literal, grumpy-cute), and
+Luna the moth-dragon (nocturnal drifter). Each character has its own
+stat rates (hunger, energy, affection, walk speed), its own dialogue
+voice with a shared fallback, and its own body plan. Switching persists
+atomically beside the save file and keeps stats intact. Old saves from
+before the catalog migrate automatically with Pip selected.
 
 `gui` opens the on-screen companion: it stays on top, wanders the
 screen while walking, and answers back in a speech bubble. Single click
