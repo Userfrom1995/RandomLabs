@@ -40,6 +40,8 @@ python -m pet notify --message "Time for a stretch"
 python -m pet characters list
 python -m pet characters show mochi
 python -m pet characters switch bramble
+python -m pet talk "tell me a joke"
+python -m pet talk "how are you?" --character luna
 python -m pet help
 python -m pet version
 ```
@@ -78,6 +80,24 @@ saves on exit. Saves live in the platform user-data dir
 `DESKTOP_PET_DATA_DIR` for tests and portable setups. The pet state
 (`pet.json`) holds stats and window position; `settings.json` beside
 it holds the settings dialog values. Both restore on restart.
+
+## Conversation and living moments
+
+`python -m pet talk "tell me a joke"` chats with the pet offline: an
+intent parser over greetings, feelings, hunger, naps, jokes, comfort,
+snacks, sleep, play, and the hour, answered in the active character's
+voice (`converse` is an alias for `talk`). Answers read the live
+meters, cycle without repeats per character, and degrade to a curious
+deflection on unknown lines, never silence. The window answers typed
+lines out loud in the speech bubble the same way.
+
+Left alone, the pet volunteers moments: a morning greeting, a drowsy
+line late at night, idle antics paced per character (Kiki chatters,
+Rusty holds out), affection milestones, and a contented note after
+meals. Touches differ per character too: Mochi melts faster and purrs
+longer, Bramble catches the ball in a wider radius, Rusty snacks
+lightly and narrates catches literally. All data in the trait tables;
+Pip matches the original constants exactly.
 
 ## Settings
 
@@ -218,7 +238,8 @@ failing silently.
 ## Layout
 
 - `pet_core/` - headless brain: `state.py`, `brain.py`, `needs.py`,
-  `personality.py`, `persistence.py`, `catalog.py`, `traits.py`. No GUI imports, no dependencies.
+  `personality.py`, `persistence.py`, `catalog.py`, `traits.py`,
+  `converse.py` (offline chat), `events.py` (living moments). No GUI imports, no dependencies.
 - `pet_app/` - on-screen companion: `sprite.py` (pure pose engine plus
   shape lists), `controller.py` (bubble, gestures, menu model, carry,
   blending, settings application; no GUI imports), `interact.py` (stroke
@@ -229,11 +250,12 @@ failing silently.
   one contract; no GUI imports), `platform.py` (capability probe,
   alpha and scale clamps), `window.py` (borderless tkinter shell plus
   settings dialog).
-- `__main__.py` - CLI dispatch (`run`, `gui`, `characters`, `settings`, `startup`,
+- `__main__.py` - CLI dispatch (`run`, `gui`, `characters`, `talk`/`converse`, `settings`, `startup`,
   `notify`, `selftest`, `help`, `version`).
 - `tests/` - headless suite: state, needs, personality, persistence,
   brain, sprite, window controller, interaction play layer, settings
-  and brain toggles, per-OS shells, character catalog (290 tests, seeded and
+  and brain toggles, per-OS shells, character catalog, conversation,
+  living moments (395 tests, seeded and
   deterministic).
 - `packaging/` - one-file PyInstaller recipes: `desktop-pet.spec`,
   `build.sh` (Linux/macOS), `build-windows.ps1` (Windows), build
