@@ -1,33 +1,32 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-01T~18:39Z (maintainer issue_comment run 36908439415, owner /oc maintainer on PR #501 seconds after /oc eval - STANDBY, eval already queued)**
+ - **Updated: 2026-10-01T~18:44Z (maintainer issue_comment run 36908806880, owner /oc maintainer on PR #501 after Evaluator approve-eval - MERGED #501, Phase 4 chained)**
 
 ## PRs & Issues
- - **PRs:** Open: #501 Phase 3 (head f20ec9dd on `opencode/issue498-20261001181455`, body `Refs #498`, MERGEABLE / CLEAN). Closed: #500 Phase 2 (merged 18:13:24Z), #499 Phase 1 (merged 17:40:43Z).
- - **Issues:** Open: #498 Desktop Pet (Phase 1+2 merged, Phase 3 PR #501 in eval flight), #70 lab-health, #42 brainstorm standing.
- - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (allowlist 18 entries excl self `maintainer` vs 19 live workflow files, exact match; no drift - verified this run).
- - **Reviewer state on #501:** APPROVED head 08e839f2 (`/oc approve` re-review 18:32Z, run 36907444445 SUCCESS: both blocking findings verified fixed - rally `is not None` timeout, total-minutes `describe()` rounding; 146 tests OK; trivial non-blocking nit only: doubled bold marker in progress Phase 4 header, deferred).
+ - **PRs:** Open: none (was #501 Phase 3, MERGED 18:43:54Z as 4017dcc6). Closed: #501 Phase 3 (merged), #500 Phase 2 (merged 18:13:24Z), #499 Phase 1 (merged 17:40:43Z).
+ - **Issues:** Open: #498 Desktop Pet (Phase 1+2+3 merged, Phase 4 build chained), #70 lab-health, #42 brainstorm standing.
+ - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (allowlist 18 entries excl self `maintainer` vs 19 live workflow `name:` fields, exact match; no drift - verified this run).
+ - **Reviewer state on #501:** RE-APPROVED fixed head 08e839f2 (`/oc approve` re-review 18:32Z, run 36907444445 SUCCESS: both blocking findings verified fixed - rally `is not None` timeout, total-minutes `describe()` rounding; 146 tests OK; trivial non-blocking nit only: doubled bold marker in progress Phase 4 header, deferred).
  - **Tester state on #501:** APPROVE-TEST head f20ec9dd (18:36:03Z, run 36907611758 SUCCESS: live entrypoint runs, hostile probes, reviewer regressions confirmed live, 22-test Phase 3 adversarial suite committed test-only with 168/168 green; production code untouched since reviewed head).
- - **Evaluator state on #501:** QUEUED - opencode-eval run 36908439367 pending on owner's `/oc eval` 18:38:53Z (covers prior maintainer eval dispatch from run 36908046096 plus owner's own trigger).
+ - **Evaluator state on #501:** APPROVE-EVAL 9.86/10 head f20ec9dd (18:42:09Z, run 36908390182 SUCCESS with live evidence + Quality Council pass 18:42:12Z; duplicate eval run 36908439367 cancelled by concurrency, expected).
 
 ## IN FLIGHT
- - Desktop Pet #498: Phase 1 DONE and merged. Phase 2 DONE and merged (review approve + approve-test + approve-eval 9.8/10). Phase 3 (Interaction and Play Layer) under binding Evaluator gate: opencode-eval run 36908439367 pending on head f20ec9dd (test-only delta over reviewed head 08e839f2, same precedent as Phase 1/2 tester pushes - no re-review needed).
- - Carried non-blocking notes for future docs/UI passes: Evaluator visual nits from Phase 1/2 (docs/index.html missing top lede, card h4 heading skip, no sprite showcase on hub, theoretical unguarded float() on toolkit-sourced paths, .bak sidecar under --no-save); fragile seed-3 assertion (`9999.0 dt` expecting `[]`, suggest `len <= 1`); Phase 1 visual nits (table mobile scroll wrapper, README/hub matrix row drift); Phase 3 progress-file bold-marker nit.
- - Main tip 4607745 (post-#500-merge). No merges today besides #499, #500 plus maintainer/logs memory commits - shipping limit untouched (intermediate Refs PRs exempt anyway).
+ - Desktop Pet #498: Phase 1 DONE and merged. Phase 2 DONE and merged (approve-eval 9.8/10). Phase 3 DONE and merged (approve-eval 9.86/10, main 4607745 -> 4017dcc6 via `gh pr merge 501 --rebase`, no --delete-branch; #498 verified still OPEN). Phase 4 (Settings and Platform Integration) build dispatched this run per the auto-chain rule (never halt on intermediate Refs PRs).
+ - Carried non-blocking notes for future docs/UI passes: Evaluator visual nits from Phase 1/2 (docs/index.html missing top lede, card h4 heading skip, no sprite showcase on hub, theoretical unguarded float() on toolkit-sourced paths, .bak sidecar under --no-save); fragile seed-3 assertion (`9999.0 dt` expecting `[]`, suggest `len <= 1`); Phase 1 visual nits (table mobile scroll wrapper, README/hub matrix row drift); Phase 3 progress-file bold-marker nit (doubled `****` in Phase 4 header); Phase 3 Evaluator visual nit (pet/docs/index.html missing the Play-layer bullet that index.md has).
+ - Main tip 4017dcc6 (post-#501-merge). No shipping-limit pressure (3 phase PRs merged today, all intermediate Refs PRs exempt from the 2-new-projects/day cap; zero new-project PRs shipped).
  - **WATCH ITEM (carried):** branch `opencode/tor-cli-fixes` @ 43d37b5 (bot Builder commit, #436 CLOSED). No open PR, no open tracker, no re-push this run. Age accrues toward the 3-day bot-work evaluation trigger.
- - No new failure/timed_out runs to triage (sweep: zero failure/timed_out; only in-progress self + pending eval 36908439367 + skipped/cancelled maintainer workflow_run arms + expected skips + successes; opencode-test/lab/review/recover/curator/peros-test/auditor/ideate skipped on the /oc maintainer event as expected).
- - UNTRIAGED sweep: clear (#498 triaged with linked PR #501 in eval flight; #70 + #42 standing).
+ - No new failure/timed_out runs to triage (sweep last 40: zero failure/timed_out; only in-progress self + skipped/cancelled maintainer workflow_run arms + expected skips + eval SUCCESS 36908390182 + duplicate eval cancel 36908439367).
+ - UNTRIAGED sweep: clear (#498 triaged with Phase 4 build chained; #70 + #42 standing).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` (d905397) still present, no signal this run; standing evaluation-only item.
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run.
-2. Check Evaluator verdict on #501 head f20ec9dd (approve-eval -> merge Refs #498, keep #498 OPEN, chain next phase per progress/498-desktop-pet.md; rejection -> Fixer with verdict details, dedupe on head-sha comments).
-3. On approve-eval only: merge Refs #498 (verify merge-base first; never --delete-branch), keep #498 OPEN, chain next phase immediately (never halt on intermediate Refs PRs; never close #498 until final phase passes eval).
-4. Verify pages.yml deploy health for the #500 merge (post-merge deploy watch).
-5. Re-check `opencode/tor-cli-fixes`: PR opened? CI green on re-push? Age since 43d37b5.
-6. Standing rule unchanged: standby otherwise (no auto-ideate).
+2. Check Phase 4 Builder start on #498 (branch/PR opened? groundwork landing?); dispatch review when Phase 4 work looks complete and branch quiet.
+3. Verify pages.yml deploy health for the #501 merge (post-merge deploy watch; push-trigger gap history).
+4. Re-check `opencode/tor-cli-fixes`: PR opened? CI green on re-push? Age since 43d37b5.
+5. Standing rule unchanged: standby otherwise (no auto-ideate).
 
 ## OPEN QUESTIONS
- - What is the Evaluator verdict on Phase 3 head f20ec9dd (168-test claim, live entrypoint runs, 5-dimension rubric)?
+ - Will the Phase 4 Builder session start cleanly on the post-#501 tree?
  - Will pages.yml deploy fire for bot-merged main pushes (push-trigger gap history)?
  - Will `opencode/tor-cli-fixes` gain a PR, or is it owner-local WIP? Who owns the pushing session (committer Userfrom1995, author The Builder)?
  - Why does no push-triggered Pages run fire for bot-API merges (token-merge loop guard vs API-merge suppression)? workflow_dispatch deploy works; watch next merge.
