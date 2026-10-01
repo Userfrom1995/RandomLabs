@@ -117,6 +117,10 @@ def get(character_id: object,
         try:
             validate_record(extra[slug])
             rec = dict(extra[slug])
+            rec.setdefault("species", rec.get("name", slug))
+            rec.setdefault("tagline", "")
+            rec.setdefault("signature", "")
+            rec.setdefault("traits", traits_mod.rates_for(FALLBACK_ID))
             return rec, None
         except ValueError as exc:
             return _record(FALLBACK_ID), (
@@ -136,7 +140,12 @@ def list_characters(extra: dict[str, dict] | None = None) -> list[dict]:
                 validate_record(extra[slug])
             except ValueError:
                 continue
-            records.append(dict(extra[slug]))
+            rec = dict(extra[slug])
+            rec.setdefault("species", rec.get("name", slug))
+            rec.setdefault("tagline", "")
+            rec.setdefault("signature", "")
+            rec.setdefault("traits", traits_mod.rates_for(FALLBACK_ID))
+            records.append(rec)
     return records
 
 

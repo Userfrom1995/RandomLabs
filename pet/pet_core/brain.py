@@ -139,14 +139,13 @@ class Brain:
         st = self.state
         char = traits_mod.normalize_id(getattr(st, "character_id", "pip"))
         bonus = traits_mod.rates_for(char)
-        if char != "pip":
-            row[Activity.PLAY] = row.get(Activity.PLAY, 0.0) + bonus["play_bonus"]
-            row[Activity.SLEEP] = row.get(Activity.SLEEP, 0.0) + bonus["sleep_bonus"]
-            row[Activity.REACT] = row.get(Activity.REACT, 0.0) + bonus["react_bonus"]
-            for key in (Activity.PLAY, Activity.SLEEP, Activity.REACT):
-                if row[key] < 0.0:
-                    row[key] = 0.0
-        st = self.state
+        # Pip bonuses are 0.0, so this stays parameters-never-branches.
+        row[Activity.PLAY] = row.get(Activity.PLAY, 0.0) + bonus["play_bonus"]
+        row[Activity.SLEEP] = row.get(Activity.SLEEP, 0.0) + bonus["sleep_bonus"]
+        row[Activity.REACT] = row.get(Activity.REACT, 0.0) + bonus["react_bonus"]
+        for key in (Activity.PLAY, Activity.SLEEP, Activity.REACT):
+            if row[key] < 0.0:
+                row[key] = 0.0
         if st.activity != Activity.SLEEP:
             if st.energy <= 20.0:
                 row[Activity.SLEEP] = row.get(Activity.SLEEP, 0.0) + 0.30
