@@ -1,30 +1,27 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-01T~20:23Z (maintainer issue_comment run 36921042441, owner /oc maintainer 20:22:00Z on PR #503 after Evaluator approve-eval - MERGED FINAL, EPIC CLOSED)**
+ - **Updated: 2026-10-01T~20:24Z (maintainer schedule run 36921142385, standby - Desktop Pet epic complete)**
 
 ## PRs & Issues
- - **PRs:** Open: none. Merged: #503 Final Phase (merged 20:23:21Z, main ac77376b -> 9e1bf241), #502 Phase 4 (merged 19:30:23Z), #501 Phase 3, #500 Phase 2, #499 Phase 1. Branch `opencode/issue498-20261001193216` kept intact (no --delete-branch).
- - **Issues:** Open: #70 lab-health, #42 brainstorm standing. CLOSED: #498 Desktop Pet epic (completed 20:23Z: all 5 roadmap phases + Final merged, binding eval 9.96/10 on the final head).
+ - **PRs:** Open: none. Closed/merged: #503 Final Phase (merged 20:23:21Z with Closes #498, approve-eval 9.96/10), #502 Phase 4, #501 Phase 3, #500 Phase 2, #499 Phase 1.
+ - **Issues:** Open: #70 lab-health, #42 brainstorm standing. Closed: #498 Desktop Pet (closed 20:23:34Z on #503 merge - full 5-phase epic shipped).
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (18-entry allowlist vs 19 live workflow `name:` fields excl self `maintainer`, exact match; no drift - verified this run).
- - **Reviewer state on #503:** APPROVED repaired head 6a752e7e (`/oc approve` 20:13:30Z: build.sh fail-closed, ps1 LASTEXITCODE guard, 249 counts, all Evaluator polish nits verified fixed).
- - **Tester state on #503:** APPROVE-TEST same head 6a752e7e (`/oc approve-test` 20:16:09Z: live shipped-entrypoint runs, hostile probes exit 2, 249 headless + 33 phase suites + selftest PASS, tree clean).
- - **Evaluator state on #503:** APPROVE-EVAL 9.96/10 on head 6a752e7e (eval verdict 20:21:56Z + Quality Council pass 20:21:59Z; dimensions 10.0/10.0/9.8/10.0/10.0).
+ - **Desktop Pet final record:** Phase 1 (core+brain) + Phase 2 (window+animation) + Phase 3 (interaction+play) + Phase 4 (settings+platform) + Final (hub showcase, packaging, end-to-end audit) all merged. Final head 6a752e7e cleared re-review approve + re-approve-test + Evaluator approve-eval 9.96/10 (empirical 10.0, baseline 10.0, visual 9.8, resilience 10.0, reproducibility 10.0). 249 tests green, fail-closed packaging, 7-activity hub.
 
 ## IN FLIGHT
- - Desktop Pet #498: COMPLETE and closed. Phase 1 DONE, Phase 2 DONE (9.8/10), Phase 3 DONE (9.86/10), Phase 4 DONE (9.82/10), Final DONE and merged (9.96/10, main 9e1bf241). No chaining - terminal phase, no next build.
- - Lab idle: zero open PRs, zero triaged active issues. Standby mode (no auto-ideate).
- - Carried non-blocking notes (no owner, for future passes if ever revisited): controller.py:437-438 comment wording ("opens the dialog first" vs window.py early return - behavior real on both paths); older phase visual nits logged in prior entries.
- - Main tip 9e1bf241 (after #503 merge). No shipping-limit pressure (all merged PRs are phase/final epic PRs, exempt from the 2-new-projects/day cap; zero new-project PRs shipped).
+ - Nothing. Lab idle.
+ - Main tip 9e1bf241 (after #503 merge; prior checkpoint ac77376b).
+ - Carried non-blocking notes for future docs/UI passes: Evaluator visual nits from Phase 1/2 (docs/index.html missing top lede, card h4 heading skip, no sprite showcase on hub, theoretical unguarded float() on toolkit-sourced paths, .bak sidecar under --no-save); fragile seed-3 assertion (`9999.0 dt` expecting `[]`, suggest `len <= 1`); Phase 1 visual nits (table mobile scroll wrapper, README/hub matrix row drift); Phase 3 progress-file bold-marker nit (doubled `\*\*\*\*` in Phase 4 header); Phase 3 Evaluator visual nit (pet/docs/index.html missing the Play-layer bullet that index.md has); Phase 4 Reviewer nit (Linux `Exec=` unquoted if python path has spaces); Phase 4 Evaluator nits (docs HTML missing top lede pet/docs/index.html:32-34, 150-word wall paragraph docs/index.html:44, stackable settings dialog no transient()/Escape guard window.py:329, display-only settings after corruption prints notice but does not persist repair settings.py:265-288); Phase 4 re-review nits (OverflowError gap on giant JSON ints in _clean_hour/_clock_parts float() guards, Linux Exec= quoting, settings-corrupt notice print-only vs save-corrupt bubble); Phase 4 final-eval polish (docs HTML lede/merged paragraphs/stale bullet, settings dialog non-modal/no-Escape/multi-instance, format_clock non-numeric raise unreachable via validated paths); Phase Final first-review non-blocking note (controller.py:437-438 comment says "opens the dialog first" while window.py:306-309 returns after open_settings_dialog without emitting summary - comment wording only, behavior real on both paths). All resolved or superseded by the Final approve-eval except where carried above for opportunistic future passes.
  - **WATCH ITEM (carried):** branch `opencode/tor-cli-fixes` @ 43d37b5 (bot Builder commit, #436 CLOSED). No open PR, no open tracker, no re-push this run. Age accrues toward the 3-day bot-work evaluation trigger.
- - No new failure/timed_out runs to triage (sweep last 25: zero failure/timed_out; only in-progress self/schedule + skipped/cancelled maintainer workflow_run arms + expected skips).
- - UNTRIAGED sweep: clear (#498 closed completed; #70 + #42 standing).
+ - No new failure/timed_out runs to triage (sweep last 40: zero failure/timed_out).
+ - UNTRIAGED sweep: clear (only standing #70 + #42 open).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` (d905397) still present, no signal this run; standing evaluation-only item.
+ - Concurrent maintainer issue_comment run 36921042441 was in_progress at survey (likely performed the #503 merge + #498 close); this schedule run stands down to avoid duplication.
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run.
-2. UNTRIAGED sweep (self-dispatch backup for bot-created content).
-3. Verify pages.yml deploy health for the #503 merge (post-merge deploy watch; push-trigger gap history - bot-API merges historically fire no push-triggered Pages run).
-4. Re-check `opencode/tor-cli-fixes`: PR opened? CI green on re-push? Age since 43d37b5.
-5. Standing rule unchanged: standby otherwise (no auto-ideate).
+2. Verify pages.yml deploy health for the #503 merge (post-merge deploy watch; push-trigger gap history).
+3. Re-check `opencode/tor-cli-fixes`: PR opened? CI green on re-push? Age since 43d37b5.
+4. Standing rule unchanged: standby otherwise (no auto-ideate).
 
 ## OPEN QUESTIONS
  - Will pages.yml deploy fire for bot-merged main pushes (push-trigger gap history)?
