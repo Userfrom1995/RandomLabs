@@ -48,8 +48,9 @@ def launch(alpha: float = 1.0, scale: float = 1.0, topmost: bool = True,
         print("error: no window today (%s)" % exc, file=sys.stderr)
         return 2
     if notice:
-        controller.bubble.show(notice)
-    controller.bubble.show(personality.line_for_event("greet"))
+        controller.bubble.show("%s %s" % (notice, personality.line_for_event("greet")))
+    else:
+        controller.bubble.show(personality.line_for_event("greet"))
     app.run()
     return 0
 
