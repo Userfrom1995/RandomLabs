@@ -93,6 +93,12 @@ class TestPoseCharacter(unittest.TestCase):
                          pose_for("walk", 1.0, "bramble"))
         self.assertEqual(pose_for("luna", "sleep", 0.5),
                          pose_for("sleep", 0.5, "luna"))
+        self.assertEqual(pose_for("bramble", "walk", "1.0"),
+                         pose_for("walk", 1.0, "bramble"))
+        self.assertEqual(pose_for("bramble", "walk"),
+                         pose_for("walk", 0.0, "bramble"))
+        self.assertEqual(pose_for("  pip  ", "idle", 0.5),
+                         pose_for("idle", 0.5, "pip"))
 
     def test_non_pip_styles_differ_from_pip(self):
         for cid in ("bramble", "mochi", "kiki", "rusty", "luna"):
@@ -141,8 +147,13 @@ class TestPoseCharacter(unittest.TestCase):
     def test_blend_across_characters(self):
         first = pose_for("idle", 0.0, "mochi")
         second = pose_for("react", 0.0, "bramble")
+        self.assertEqual(blend(first, second, 0.0), first)
+        self.assertEqual(blend(first, second, 1.0), second)
         mid = blend(first, second, 0.5)
         self.assertIsInstance(mid, Pose)
+        # Mouth flips at the smootherstep midpoint, not before.
+        self.assertEqual(blend(first, second, 0.49).mouth, first.mouth)
+        self.assertEqual(blend(first, second, 0.5).mouth, second.mouth)
 
 
 class TestShapesCast(unittest.TestCase):
@@ -261,6 +272,38 @@ class TestHotSwap(unittest.TestCase):
         for cid in CHARACTER_IDS:
             app.switch_character(cid)
             self.assertEqual(app.brain.state.character_id, cid, cid)
+
+    def test_switch_starts_morph_from_old_pose(self):
+        from pet.pet_app.controller import WindowController
+
+        app = WindowController(seed=11)
+        old_pose = pose_for(app._shown_activity, app.phase, "pip")
+        app.switch_character("bramble")
+        self.assertEqual(app._blend_t, 0.0)
+        self.assertEqual(app.current_pose(), old_pose)
+        # A full blend window settles on the new character's pose.
+        app.tick(1.0)
+        self.assertEqual(app.current_pose(),
+                         pose_for(app._shown_activity, app.phase,
+                                  "bramble"))
+
+    def test_style_does_not_mutate_input_pose(self):
+        from pet.pet_app.sprite import _apply_style
+
+        base = pose_for("play", 1.0, "pip")
+        snapshot = Pose(**base.__dict__)
+        sway = math.sin(1.0)
+        once = _apply_style(base, "bramble", sway)
+        self.assertEqual(base, snapshot)
+        twice = _apply_style(base, "bramble", sway)
+        self.assertEqual(once, twice)
+        self.assertEqual(pose_for("play", 1.0, "bramble"),
+                         pose_for("play", 1.0, "bramble"))
+
+    def test_inf_size_falls_back_to_canvas_box(self):
+        pose = pose_for("idle", 0.4)
+        self.assertEqual(shapes(pose, size=float("inf")),
+                         shapes(pose, size=CANVAS_BOX))
 
 
 class TestPagesMirrorContract(unittest.TestCase):
