@@ -159,6 +159,26 @@ class TestSettingValues(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_setting_value("bedtime", "24:00")
 
+    def test_nonfinite_hours_fall_back_or_raise(self):
+        import math
+        for bad in (float("inf"), float("-inf"), float("nan"),
+                    "inf", "-inf", "nan", "Infinity"):
+            settings = AppSettings(bedtime=bad, wake=bad)
+            self.assertTrue(math.isfinite(settings.bedtime))
+            self.assertTrue(math.isfinite(settings.wake))
+            # describe() must never raise on sanitized values.
+            settings.describe()
+        for bad in ("inf", "-inf", "nan", "Infinity"):
+            with self.assertRaises(ValueError):
+                parse_setting_value("bedtime", bad)
+            with self.assertRaises(ValueError):
+                parse_setting_value("wake", bad)
+        # Directly poisoned attributes still render safely.
+        settings = AppSettings()
+        settings.bedtime = float("nan")
+        settings.wake = float("inf")
+        settings.describe()
+
 
 class TestBrainToggles(unittest.TestCase):
     def test_wander_off_never_walks(self):

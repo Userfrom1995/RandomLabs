@@ -12,6 +12,7 @@ applies half a configuration.
 from __future__ import annotations
 
 import json
+import math
 import os
 import tempfile
 
@@ -37,9 +38,14 @@ def _clean_hour(value: object, fallback: float) -> float:
         number = float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return fallback
-    if number != number:  # NaN
+    try:
+        result = number % 24.0
+    except (TypeError, ValueError, OverflowError):
         return fallback
-    return number % 24.0
+    if not math.isfinite(result):
+        # Catches NaN input and inf % 24.0 which is NaN (guard-before-modulo misses it).
+        return fallback
+    return result
 
 
 class AppSettings:
@@ -132,7 +138,13 @@ class AppSettings:
 
 
 def _clock_parts(hour: float) -> tuple[int, int]:
-    total = int(round((hour % 24.0) * 60.0)) % (24 * 60)
+    try:
+        number = float(hour)
+    except (TypeError, ValueError):
+        return (0, 0)
+    if not math.isfinite(number):
+        return (0, 0)
+    total = int(round((number % 24.0) * 60.0)) % (24 * 60)
     return (total // 60, total % 60)
 
 
@@ -208,9 +220,12 @@ def parse_setting_value(field: str, raw: str) -> object:
         except ValueError:
             pass
         try:
-            return float(raw) % 24.0
-        except (TypeError, ValueError):
+            result = float(raw) % 24.0
+        except (TypeError, ValueError, OverflowError):
             raise ValueError("%s must look like HH:MM or a number, got %r" % (field, raw))
+        if not math.isfinite(result):
+            raise ValueError("%s must look like HH:MM or a number, got %r" % (field, raw))
+        return result
     try:
         return float(raw)
     except (TypeError, ValueError):
