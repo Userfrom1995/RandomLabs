@@ -243,14 +243,16 @@ def cmd_characters(args: argparse.Namespace) -> int:
 
     save_path = args.save or default_save_path()
     if args.action == "list":
+        try:
+            current_state, list_notice = load(save_path)
+        except Exception:
+            current_state, list_notice = None, None
+        if list_notice and "starting fresh" not in list_notice and "migrated" not in list_notice:
+            print("[pet] %s" % list_notice)
         for record in catalog_mod.list_characters():
             marker = ""
-            try:
-                state, _ = load(save_path)
-                if state.character_id == record["id"]:
-                    marker = " (active)"
-            except OSError:
-                pass
+            if current_state is not None and current_state.character_id == record["id"]:
+                marker = " (active)"
             print("%-10s %-12s [%s] %s%s" % (
                 record["id"], record["name"], record["body_plan"],
                 record["tagline"], marker))
