@@ -16,6 +16,7 @@ from ..pet_core.brain import Brain
 from ..pet_core.personality import Personality
 from . import platform as platform_mod
 from .controller import WindowController
+from .interact import wall_hour
 from .sprite import CANVAS_BOX, draw_on, shapes
 
 
@@ -41,7 +42,7 @@ def launch(alpha: float = 1.0, scale: float = 1.0, topmost: bool = True,
         state.name = personality.name
     brain = Brain(state=state, personality=personality, seed=seed)
     controller = WindowController(brain=brain, alpha=alpha, scale=scale,
-                                  topmost=topmost)
+                                  topmost=topmost, clock=wall_hour)
     try:
         app = PetWindow(tk, messagebox, controller, target)
     except Exception as exc:
@@ -193,6 +194,9 @@ class PetWindow:
         pose = self.controller.current_pose()
         drawing = shapes(pose, size=box)
         draw_on(canvas, drawing, dx=0.0, dy=bubble_h * 0.55)
+        ball = self.controller.ball_shape(box)
+        if ball is not None:
+            draw_on(canvas, [ball], dx=0.0, dy=bubble_h * 0.55)
         label = self.controller.activity_label()
         canvas.create_text(8 * factor, self._height - 8 * factor, anchor="sw",
                            text=label, fill="#8a93a8",

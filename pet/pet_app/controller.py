@@ -17,6 +17,17 @@ from ..pet_core.brain import Brain
 from ..pet_core.personality import mood_for
 from ..pet_core.state import Activity
 from . import platform as platform_mod
+from .interact import (
+    CATCHES_TO_FINISH,
+    ROUTINE_HOLD_SEC,
+    STROKE_COMBO_AT,
+    STROKE_COMBO_EVERY,
+    STROKE_NUDGE,
+    BallGame,
+    MunchSession,
+    SleepSchedule,
+    StrokeTracker,
+)
 from .sprite import Pose, blend, pose_for
 
 CLICK_MAX_SEC = 0.4
@@ -119,16 +130,18 @@ class ClickTracker:
         self._moved = False
 
 
-def menu_model(activity: object) -> list[tuple[str, str]]:
+def menu_model(activity: object, schedule_on: bool = True) -> list[tuple[str, str]]:
     """Right-click menu model: (action id, label) pairs, no toolkit."""
     name = getattr(activity, "value", activity)
     text = str(name).lower()
     sleep_label = "Wake up" if text == "sleep" else "Send to sleep"
     sleep_action = "wake" if text == "sleep" else "sleep"
+    routine_label = "Sleep schedule: on" if schedule_on else "Sleep schedule: off"
     return [
         ("feed", "Feed"),
         ("play", "Play"),
         (sleep_action, sleep_label),
+        ("routine", routine_label),
         ("about", "About"),
         ("quit", "Quit"),
     ]
@@ -158,11 +171,18 @@ class WindowController:
 
     def __init__(self, brain: Brain | None = None, seed: int | None = None,
                  alpha: float = 1.0, scale: float = 1.0,
-                 topmost: bool = True) -> None:
+                 topmost: bool = True, clock: object = None) -> None:
         self.brain = brain or Brain(seed=seed)
         self.bubble = Bubble()
         self.clicks = ClickTracker()
         self.carry = CarrySession()
+        self.strokes = StrokeTracker()
+        self.munch = MunchSession()
+        self.game = BallGame(seed=seed)
+        self.routine = SleepSchedule()
+        # clock() returns the wall-clock hour 0..24 for the sleep
+        # schedule, or None to disable schedule checks (headless/tests).
+        self.clock = clock
         self.alpha = platform_mod.clamp_alpha(alpha)
         self.scale = platform_mod.clamp_scale(scale)
         self.topmost = bool(topmost)
@@ -170,20 +190,46 @@ class WindowController:
         self._shown_activity = self._activity_name()
         self._blend_t = 1.0
         self._previous_activity = self._shown_activity
+        self._routine_hold_until = 0.0
 
-    def _activity_name(self) -> str:
+    def _activity_name(self, now: float | None = None) -> str:
         if self.carry.active:
             return "carried"
+        if self.munch.is_active(now):
+            return "munch"
         return self.brain.state.activity.value
 
-    def tick(self, dt: float) -> None:
-        """Advance animation phase and the behavior brain (10 Hz ticks)."""
+    def _now(self, now: object) -> float:
+        if now is None:
+            return time.monotonic()
+        try:
+            moment = float(now)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return time.monotonic()
+        if moment != moment:
+            return time.monotonic()
+        return moment
+
+    def _hour(self) -> float | None:
+        if self.clock is None:
+            return None
+        try:
+            hour = float(self.clock())  # type: ignore[operator]
+        except (TypeError, ValueError):
+            return None
+        if hour != hour:
+            return None
+        return hour % 24.0
+
+    def tick(self, dt: float, now: object = None) -> None:
+        """Advance animation phase, the behavior brain, and play state."""
         try:
             step = float(dt)
         except (TypeError, ValueError):
             step = 0.0
         if step != step or step < 0.0:
             step = 0.0
+        moment = self._now(now)
         self.phase = (self.phase + step * 4.0) % (2.0 * 3.141592653589793)
         if step > 0.0 and self._blend_t < 1.0:
             self._blend_t = min(1.0, self._blend_t + step / POSE_BLEND_SEC)
@@ -192,7 +238,7 @@ class WindowController:
         if not self.carry.active:
             for event in self.brain.tick(min(step, 1.0)):
                 if event.kind in ("activity", "wake"):
-                    self._note_activity_change()
+                    self._note_activity_change(moment)
                 if event.text:
                     self.bubble.show(event.text)
         else:
@@ -202,35 +248,99 @@ class WindowController:
             needs_mod.tick_needs(self.brain.state, step)
             self.brain.state.tick_count += 1
             self.brain.state.mood = mood_for(self.brain.state)
+        self._tick_game(step, moment)
+        self._tick_routine(moment)
 
-    def _note_activity_change(self) -> None:
-        current = self._activity_name()
+    def _tick_game(self, step: float, moment: float) -> None:
+        if not self.game.active:
+            return
+        if self.brain.state.activity == Activity.SLEEP:
+            self.game.stop()
+            self.bubble.show(self.brain.personality.line_for("sleepy"))
+            return
+        for outcome in self.game.tick(step, moment):
+            if outcome == "catch":
+                gained = needs_mod.add_affection(self.brain.state, 3.0)
+                self.brain.state.mood = mood_for(self.brain.state)
+                if gained > 0.0:
+                    self.bubble.show(
+                        self.brain.personality.line_for_event("catch"))
+            elif outcome == "finish":
+                self.bubble.show(
+                    "%s caught the ball %d time%s! %s" % (
+                        self.brain.state.name, self.game.catches,
+                        "" if self.game.catches == 1 else "s",
+                        self.brain.personality.line_for_event("play")))
+
+    def _tick_routine(self, moment: float) -> None:
+        hour = self._hour()
+        if hour is None or self.carry.active:
+            return
+        state = self.brain.state
+        want_asleep = self.routine.should_be_asleep(hour)
+        is_asleep = state.activity == Activity.SLEEP
+        if want_asleep == is_asleep:
+            return
+        if moment < self._routine_hold_until:
+            # A recent manual sleep/wake wins for a grace period so the
+            # schedule never reverts the user's choice on the next tick.
+            return
+        if want_asleep:
+            event = self.brain.send_to_sleep()
+            self._note_activity_change(moment)
+            self.bubble.show(event.text)
+        else:
+            event = self.brain.wake()
+            self._note_activity_change(moment)
+            self.bubble.show(event.text)
+
+    def _note_activity_change(self, now: float | None = None) -> None:
+        current = self._activity_name(now)
         if current != self._shown_activity:
             self._previous_activity = self._shown_activity
             self._shown_activity = current
             self._blend_t = 0.0
 
-    def current_pose(self) -> Pose:
+    def current_pose(self, now: object = None) -> Pose:
         """Blended sprite pose for the current animation phase."""
-        current = self._activity_name()
+        moment: float | None
+        try:
+            moment = self._now(now) if now is not None else None
+        except Exception:
+            moment = None
+        current = self._activity_name(moment)
         if current != self._shown_activity:
-            self._note_activity_change()
+            self._note_activity_change(moment)
         fresh = pose_for(self._shown_activity, self.phase)
         if self._blend_t >= 1.0:
             return fresh
         older = pose_for(self._previous_activity, self.phase)
         return blend(older, fresh, self._blend_t)
 
-    def handle_gesture(self, gesture: str | None) -> str | None:
+    def handle_gesture(self, gesture: str | None, now: object = None) -> str | None:
         """React to a classified gesture. Returns the bubble text shown."""
         state = self.brain.state
         if gesture == "click":
+            # A gentle click is a stroke: a small affection nudge plus
+            # chat, escalating to a full purring celebration on streaks.
+            moment = self._now(now)
+            streak = self.strokes.register(moment)
+            needs_mod.add_affection(state, STROKE_NUDGE)
+            state.mood = mood_for(state)
+            if (streak >= STROKE_COMBO_AT
+                    and (streak - STROKE_COMBO_AT) % STROKE_COMBO_EVERY == 0):
+                event = self.brain.stroke()
+                self.bubble.show(event.text)
+                return event.text
             text = self.brain.personality.line_for(state.mood)
+            if streak > 1:
+                text = "%s (warm x%d)" % (text, streak)
             self.bubble.show(text)
             return text
         if gesture == "double-click":
             event = self.brain.poke()
-            self._note_activity_change()
+            self.strokes.reset()
+            self._note_activity_change(self._now(now))
             self.bubble.show(event.text)
             return event.text
         if gesture == "drag":
@@ -246,31 +356,45 @@ class WindowController:
         self.bubble.show(text)
         return text
 
-    def run_menu_action(self, action: str) -> tuple[str | None, bool]:
+    def run_menu_action(self, action: str, now: object = None) -> tuple[str | None, bool]:
         """Run a menu action. Returns (bubble text or about text, quit flag).
 
         The about entry returns multi-line app info instead of bubble
         text; the shell shows it in a dialog. Quit returns (None, True).
         """
+        moment = self._now(now)
         if action == "feed":
             event = self.brain.feed_pet()
+            self.munch.start(moment)
+            self._note_activity_change(moment)
             self.bubble.show(event.text)
             return (event.text, False)
         if action == "play":
             event = self.brain.invite_play()
-            self._note_activity_change()
+            self._note_activity_change(moment)
+            if event.activity == Activity.PLAY:
+                self.game.start(moment)
             self.bubble.show(event.text)
             return (event.text, False)
         if action == "sleep":
             event = self.brain.send_to_sleep()
-            self._note_activity_change()
+            self._routine_hold_until = moment + ROUTINE_HOLD_SEC
+            self._note_activity_change(moment)
             self.bubble.show(event.text)
             return (event.text, False)
         if action == "wake":
             event = self.brain.wake()
-            self._note_activity_change()
+            self._routine_hold_until = moment + ROUTINE_HOLD_SEC
+            self._note_activity_change(moment)
             self.bubble.show(event.text)
             return (event.text, False)
+        if action == "routine":
+            enabled = self.routine.set_enabled(not self.routine.enabled)
+            text = self.routine.describe()
+            if enabled:
+                text = "%s %s" % (text, self.brain.personality.line_for("sleepy"))
+            self.bubble.show(text)
+            return (text, False)
         if action == "about":
             return (self.about_text(), False)
         if action == "quit":
@@ -303,12 +427,22 @@ class WindowController:
         return self.topmost
 
     def menu(self) -> list[tuple[str, str]]:
-        return menu_model(self.brain.state.activity)
+        return menu_model(self.brain.state.activity, self.routine.enabled)
+
+    def ball_shape(self, box: float = 160.0) -> dict | None:
+        """Ball primitive for the shell to paint, or None when idle."""
+        if not self.game.active:
+            return None
+        return self.game.ball_shape(box)
 
     def activity_label(self) -> str:
         state = self.brain.state
         if self.carry.active:
             return "%s (carried)" % state.name
+        if self.game.active:
+            return "%s (%s, %s) ball %d/%d" % (
+                state.name, state.activity.value, state.mood,
+                self.game.score, CATCHES_TO_FINISH)
         return "%s (%s, %s)" % (state.name, state.activity.value, state.mood)
 
     def about_hint(self) -> str:
