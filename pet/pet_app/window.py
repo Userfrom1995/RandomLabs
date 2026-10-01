@@ -22,6 +22,27 @@ from .interact import wall_hour
 from .sprite import CANVAS_BOX, draw_on, normalize_character, shapes
 
 
+def clamp_to_screen(x: int, y: int, width: int, height: int,
+                    screen_w: int, screen_h: int) -> tuple[int, int]:
+    """Clamp a window origin so the whole window stays on screen.
+
+    Pure helper (no toolkit): negative origins pin to zero, oversized
+    windows pin to the far edge, and zero-size screens leave the origin
+    untouched instead of dividing by nothing.
+    """
+    try:
+        x, y = int(x), int(y)
+        width, height = max(1, int(width)), max(1, int(height))
+        screen_w, screen_h = int(screen_w), int(screen_h)
+    except (TypeError, ValueError):
+        return (int(x), int(y))
+    if screen_w <= 0 or screen_h <= 0:
+        return (x, y)
+    x = max(0, min(x, max(0, screen_w - width)))
+    y = max(0, min(y, max(0, screen_h - height)))
+    return (x, y)
+
+
 def launch(alpha: float = 1.0, scale: float = 1.0, topmost: bool = True,
            save_path: str | None = None, seed: int | None = None,
            name: str | None = None, settings_path: str | None = None,
@@ -163,11 +184,14 @@ class PetWindow:
         except Exception:
             screen_w, screen_h = (1280, 800)
         if state.x or state.y:
-            x = int(max(0, min(state.x, max(0, screen_w - self._width))))
-            y = int(max(0, min(state.y, max(0, screen_h - self._height))))
+            x, y = clamp_to_screen(int(state.x), int(state.y),
+                                   self._width, self._height,
+                                   screen_w, screen_h)
         else:
-            x = max(0, screen_w - self._width - 40)
-            y = max(0, screen_h - self._height - 80)
+            x, y = clamp_to_screen(screen_w - self._width - 40,
+                                   screen_h - self._height - 80,
+                                   self._width, self._height,
+                                   screen_w, screen_h)
         self.root.geometry("%dx%d+%d+%d" % (self._width, self._height, x, y))
 
     # -- main loop --
@@ -210,8 +234,8 @@ class PetWindow:
             screen_h = int(self.root.winfo_screenheight())
             x = int(self.root.winfo_x() + dx)
             y = int(self.root.winfo_y() + dy)
-            x = max(0, min(x, max(0, screen_w - self._width)))
-            y = max(0, min(y, max(0, screen_h - self._height)))
+            x, y = clamp_to_screen(x, y, self._width, self._height,
+                                   screen_w, screen_h)
             state.x = float(x)
             state.y = float(y)
             self.root.geometry("+%d+%d" % (x, y))
@@ -278,8 +302,8 @@ class PetWindow:
             y = int(base_y - self.controller.carry.offset_y)
             screen_w = int(self.root.winfo_screenwidth())
             screen_h = int(self.root.winfo_screenheight())
-            x = max(0, min(x, max(0, screen_w - self._width)))
-            y = max(0, min(y, max(0, screen_h - self._height)))
+            x, y = clamp_to_screen(x, y, self._width, self._height,
+                                   screen_w, screen_h)
             self.root.geometry("+%d+%d" % (x, y))
             state = self.controller.brain.state
             state.x = float(x)
@@ -347,6 +371,44 @@ class PetWindow:
             self.controller.bubble.show("%s %s" % (notice, text))
         self._save_quietly()
         return text
+
+    # -- visibility (service routing) --
+
+    def show(self) -> str:
+        """Show the window (service ``show`` routing target)."""
+        try:
+            self.root.deiconify()
+            self.root.lift()
+        except Exception:
+            pass
+        self.ensure_on_screen()
+        return "pet window shown."
+
+    def hide(self) -> str:
+        """Hide the window; the background service keeps ticking."""
+        self._save_quietly()
+        try:
+            self.root.withdraw()
+        except Exception:
+            pass
+        return "pet window hidden; the background service keeps the pet alive."
+
+    def ensure_on_screen(self) -> tuple[int, int]:
+        """Re-clamp the window onto the current screen; returns (x, y)."""
+        try:
+            screen_w = int(self.root.winfo_screenwidth())
+            screen_h = int(self.root.winfo_screenheight())
+            x = int(self.root.winfo_x())
+            y = int(self.root.winfo_y())
+        except Exception:
+            return (0, 0)
+        x, y = clamp_to_screen(x, y, self._width, self._height,
+                               screen_w, screen_h)
+        try:
+            self.root.geometry("+%d+%d" % (x, y))
+        except Exception:
+            pass
+        return (x, y)
 
     # -- settings dialog --
 
