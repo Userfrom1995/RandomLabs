@@ -161,7 +161,10 @@ python -m pet characters list
 python -m pet characters switch mochi
 python -m pet run --ticks 300 --seed 7
 python -m pet settings --set wander=off --set alpha=0.8
-python -m pet startup status</pre>
+python -m pet startup status
+python -m pet service start
+python -m pet service status
+python -m pet tray status</pre>
   <div class="table-scroll">
   <table>
     <tr><th>OS</th><th>tkinter</th><th>Start command</th></tr>
@@ -183,6 +186,15 @@ python -m pet startup status</pre>
 
   <h2>Settings tour</h2>
   <p>Settings on the menu (or <code>python -m pet settings</code>) manages the persisted configuration: pet name, wander toggle, play-invitation toggle, bedtime routine toggle plus bedtime and wake hours (<code>HH:MM</code>), speech-bubble chatter toggle, always-on-top toggle, transparency (<code>0.3..1.0</code>), size (<code>0.5..3.0</code>, multiplied by display DPI), and start-at-login. The dialog applies changes live; restart restores name, stats, settings, and window position.</p>
+
+  <h2>Always on: background service and tray</h2>
+  <p>The pet stays alive with no window open through the background service, which ticks the same headless brain at 10 Hz with debounced atomic saves in the shared user-data dir. Starts are single-instance behind a PID lockfile (a second <code>start</code> reports the live pid; stale locks are reclaimed with a notice), and <code>stop</code> ends the process with a graceful save-and-exit. The tray abstraction tries the optional <code>pystray</code> extra where installed, then a thin native shim, then the stdlib mini-controller where the window itself doubles as the controller; every denied path renders an honest note instead of an exception.</p>
+  <pre>python -m pet service start
+python -m pet service status
+python -m pet service logs
+python -m pet service switch bramble
+python -m pet service show
+python -m pet tray status</pre>
 
   <h2>Downloads</h2>
   <p>No binaries are hosted here: the pet is source-first, and the hub links the recipes so downloads can never drift from the code.</p>
@@ -206,11 +218,24 @@ python -m pet startup status</pre>
     <tr><td>Behavior brain (<code>python -m pet</code>)</td><td>yes</td><td>yes</td><td>yes</td></tr>
     <tr><td>Headless tests (<code>selftest</code>)</td><td>yes</td><td>yes</td><td>yes</td></tr>
     <tr><td>Companion window (<code>gui</code>)</td><td>yes</td><td>yes</td><td>yes</td></tr>
+    <tr><td>Background service (<code>service</code>)</td><td>yes</td><td>yes</td><td>yes</td></tr>
+    <tr><td>System tray (<code>tray</code>)</td><td>yes (notify icon shim)</td><td>yes (menu-bar best-effort)</td><td>yes (status-notifier best-effort)</td></tr>
     <tr><td>Start at login (<code>startup</code>, dialog toggle)</td><td>yes (Run key)</td><td>yes (LaunchAgent)</td><td>yes (autostart)</td></tr>
     <tr><td>OS notifications (<code>notify</code>)</td><td>bubble note</td><td>yes (osascript)</td><td>yes (notify-send)</td></tr>
     <tr><td>One-file binary (recipe)</td><td>yes (<code>build-windows.ps1</code>)</td><td>yes (<code>build.sh</code>)</td><td>yes (<code>build.sh</code>)</td></tr>
   </table>
   </div>
+
+  <h2>Command reference</h2>
+  <ul>
+    <li><code>python -m pet run [--ticks N] [--seed S]</code>: run the brain headlessly.</li>
+    <li><code>python -m pet gui [--scale F] [--alpha A]</code>: open the on-screen companion.</li>
+    <li><code>python -m pet characters (list|show ID|switch ID)</code>: the six-character catalog and live switching.</li>
+    <li><code>python -m pet talk TEXT</code>: chat with the pet offline (<code>converse</code> is an alias).</li>
+    <li><code>python -m pet service (start|stop|status|logs|show|hide|switch ID)</code>: background service lifecycle on the shared save.</li>
+    <li><code>python -m pet tray (status|show|hide)</code>: system-tray state, with an honest note where no tray host answers.</li>
+    <li><code>python -m pet settings / startup / notify / selftest</code>: persisted settings, launch-at-login, OS notes, headless selftest.</li>
+  </ul>
 
   <h2>Troubleshooting</h2>
   <ul>

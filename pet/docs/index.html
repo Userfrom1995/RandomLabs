@@ -48,6 +48,12 @@
   <h2>Character cast and animation</h2>
   <p>One parametric engine draws all six characters (<code>pet_app/sprite.py</code>): shared activity keyframes layered with per-character motion style (Bramble jumps highest, Mochi barely leaves the floor, Kiki darts its gaze, Rusty moves stiffly, Luna hovers), rendered through body-plan geometry (blob, quadruped, slime, avian, robot, winged) with each character's catalog palette and accessories. Poses are pure functions of <code>(character, activity, phase)</code> with linear DPI scaling, mirrored value-for-value by the hub showcase. Switching is live: <code>python -m pet characters switch bramble</code> persists atomically, the window hot-swaps without reopening, stats carry across, and unknown ids fall back to Pip with a notice.</p>
 
+  <h2>Conversation and living moments</h2>
+  <p>The pet chats offline (<code>pet_core/converse.py</code>): no network, no model, just an intent parser over fourteen intents (greetings, name, mood, hunger, energy, affection, jokes, comfort, feed, sleep, wake, play, time, help) answered in the active character's voice with a shared fallback. Answers read the live meters and cycle with no-repeat-until-exhausted bags per character. Chat with <code>python -m pet talk "tell me a joke"</code> (<code>converse</code> is an alias) or by typing in the window speech bubble. Left alone, the pet volunteers moments on its own (<code>pet_core/events.py</code>): morning greetings, late-night drowsiness, idle antics paced per character, affection milestones, and a contented note after meals.</p>
+
+  <h2>Background service and tray</h2>
+  <p>The background service keeps one pet ticking with no window open: a PID-locked daemon (<code>service.pid</code> under the user-data dir) runs the headless brain at 10 Hz with atomic saves every 300 ticks. Second starts report the live pid instead of forking; stale locks are reclaimed with a notice; <code>stop</code> ends the process gracefully (SIGTERM saves and exits, with a forceful fallback). The tray layer tries <code>pystray</code> where installed, then a native shim, then the stdlib mini-controller where the window doubles as the controller; every denied path renders an honest note. The overlay window stays out of the taskbar, clamps onto the visible screen on multi-monitor setups, and hides/re-shows without losing the pet. Pass <code>--service</code> to <code>startup on</code> to launch the background service at login instead of the window.</p>
+
   <h2>Settings, startup, notifications</h2>
   <p>The Settings menu entry opens a form for name, behavior toggles (wander, play invitations, bedtime routine, speech-bubble chatter), transparency, size, bedtime and wake hours, always-on-top, and start at login. Changes apply live and persist; restart restores everything including window position. Headless equivalents: <code>python -m pet settings [--set field=value ...]</code>, <code>python -m pet startup (on|off|status)</code> (Registry Run key on Windows, LaunchAgent plist on macOS, XDG autostart file on Linux), and <code>python -m pet notify --message TEXT</code> (osascript on macOS, notify-send on Linux, honest bubble fallback elsewhere).</p>
 
@@ -56,8 +62,11 @@
     <li><code>python -m pet run [--ticks N] [--seed S] [--name NAME] [--character ID] [--realtime] [--dt SEC] [--save PATH] [--no-save]</code>: run the brain headlessly.</li>
     <li><code>python -m pet gui [--scale F] [--alpha A] [--no-topmost] [--name NAME] [--character ID] [--save PATH] [--no-save] [--seed S]</code>: open the on-screen companion.</li>
     <li><code>python -m pet characters (list|show ID|switch ID)</code>: the six-character catalog and live switching.</li>
+    <li><code>python -m pet talk TEXT [--character ID] [--seed S]</code> (<code>converse</code> is an alias): chat with the pet offline.</li>
     <li><code>python -m pet settings [--set field=value ...]</code>: show or change saved settings.</li>
     <li><code>python -m pet startup (on|off|status)</code>: launch-at-login entry.</li>
+    <li><code>python -m pet service (start|stop|status|logs|show|hide|switch ID)</code>: background service lifecycle: live pid plus character and uptime, log tail, shared-pet switch, window routing.</li>
+    <li><code>python -m pet tray (status|show|hide)</code>: system-tray state, with an honest note where no tray host answers.</li>
     <li><code>python -m pet notify --message TEXT [--title TEXT]</code>: OS note with honest bubble fallback.</li>
     <li><code>python -m pet selftest</code>: headless suite plus a seeded soak proving all five activities are reachable.</li>
     <li><code>python -m pet help</code> / <code>python -m pet version</code>: usage and version.</li>
