@@ -15,6 +15,8 @@ from ..pet_core import default_save_path, load, save
 from ..pet_core.brain import Brain
 from ..pet_core.personality import Personality
 from . import platform as platform_mod
+from . import settings as settings_mod
+from . import shells as shells_mod
 from .controller import WindowController
 from .interact import wall_hour
 from .sprite import CANVAS_BOX, draw_on, shapes
@@ -22,7 +24,8 @@ from .sprite import CANVAS_BOX, draw_on, shapes
 
 def launch(alpha: float = 1.0, scale: float = 1.0, topmost: bool = True,
            save_path: str | None = None, seed: int | None = None,
-           name: str | None = None) -> int:
+           name: str | None = None, settings_path: str | None = None,
+           settings_overrides: dict | None = None) -> int:
     """Open the companion window. Returns a process exit code."""
     note = platform_mod.honest_note()
     if note is not None:
@@ -37,21 +40,41 @@ def launch(alpha: float = 1.0, scale: float = 1.0, topmost: bool = True,
 
     target = save_path or default_save_path()
     state, notice = load(target)
+    settings, settings_note = settings_mod.load_settings(settings_path)
+    if notice:
+        print("[pet] %s" % notice)
+    if settings_note and "no settings file yet" not in settings_note:
+        print("[pet] %s" % settings_note)
+    for field, value in (settings_overrides or {}).items():
+        try:
+            settings = settings_mod.with_field(settings, field, value)
+        except ValueError as exc:
+            print("error: %s" % exc, file=sys.stderr)
+            return 2
+    settings = settings_mod.with_field(settings, "alpha", alpha) \
+        if alpha != 1.0 else settings
+    settings = settings_mod.with_field(settings, "scale", scale) \
+        if scale != 1.0 else settings
+    if not topmost:
+        settings = settings_mod.with_field(settings, "topmost", False)
     personality = Personality(name=name or state.name, seed=seed)
     if name:
         state.name = personality.name
     brain = Brain(state=state, personality=personality, seed=seed)
-    controller = WindowController(brain=brain, alpha=alpha, scale=scale,
-                                  topmost=topmost, clock=wall_hour)
+    controller = WindowController(brain=brain, settings=settings,
+                                  clock=wall_hour)
     try:
-        app = PetWindow(tk, messagebox, controller, target)
+        app = PetWindow(tk, messagebox, controller, target,
+                        settings_path or settings_mod.default_settings_path())
     except Exception as exc:
         print("error: no window today (%s)" % exc, file=sys.stderr)
         return 2
     if notice:
+        # A corrupt-save notice is a system message: it bypasses the
+        # dialogue toggle so data loss is never silent.
         controller.bubble.show("%s %s" % (notice, personality.line_for_event("greet")))
     else:
-        controller.bubble.show(personality.line_for_event("greet"))
+        controller._say(personality.line_for_event("greet"))
     app.run()
     return 0
 
@@ -64,11 +87,13 @@ class PetWindow:
     SAVE_EVERY_SEC = 30.0
 
     def __init__(self, tk: object, messagebox: object,
-                 controller: WindowController, save_path: str) -> None:
+                 controller: WindowController, save_path: str,
+                 settings_path: str | None = None) -> None:
         self._tk = tk
         self._messagebox = messagebox
         self.controller = controller
         self.save_path = save_path
+        self.settings_path = settings_path
         self.root = tk.Tk()
         self.root.title("Desktop Pet")
         self.root.overrideredirect(True)
@@ -83,6 +108,7 @@ class PetWindow:
         except Exception:
             pass
         display_scale = platform_mod.probe_tk_scaling(self.root)
+        self._base_display_scale = display_scale
         combined = platform_mod.clamp_scale(display_scale * controller.scale)
         self._pixels_per_unit = combined
         width, height = platform_mod.window_size(combined)
@@ -278,6 +304,9 @@ class PetWindow:
                     pass
 
     def _menu_chosen(self, action: str) -> None:
+        if action == "settings":
+            self.open_settings_dialog()
+            return
         text, quit_flag = self.controller.run_menu_action(action)
         if quit_flag:
             self.quit_and_save()
@@ -291,7 +320,208 @@ class PetWindow:
         self._apply_topmost()
         self._apply_alpha()
 
+    # -- settings dialog --
+
+    def open_settings_dialog(self) -> None:
+        """Settings form: name, toggles, transparency, scale, startup."""
+        tk = self._tk
+        try:
+            dialog = tk.Toplevel(self.root)
+        except Exception:
+            return
+        try:
+            dialog.title("Pet Settings")
+            dialog.resizable(False, False)
+        except Exception:
+            pass
+        current = self.controller.settings
+        state = self.controller.brain.state
+        fields: dict[str, object] = {}
+        try:
+            fields["name_var"] = tk.StringVar(value=state.name)
+            toggles = (
+                ("wander", "Wander around", current.wander),
+                ("play_invites", "Play invitations", current.play_invites),
+                ("sleep_schedule", "Bedtime routine", current.sleep_schedule),
+                ("dialogue", "Speech bubble chatter", current.dialogue),
+                ("topmost", "Always on top", current.topmost),
+                ("startup", "Start at login", shells_mod.is_startup_enabled()),
+            )
+            for key, _label, value in toggles:
+                fields[key] = tk.BooleanVar(value=bool(value))
+            fields["alpha_var"] = tk.DoubleVar(value=float(current.alpha))
+            fields["scale_var"] = tk.DoubleVar(value=float(current.scale))
+            fields["bedtime_var"] = tk.StringVar(
+                value=settings_mod.format_clock(current.bedtime))
+            fields["wake_var"] = tk.StringVar(
+                value=settings_mod.format_clock(current.wake))
+            fields["status_var"] = tk.StringVar(value=shells_mod.platform_notes())
+        except Exception:
+            try:
+                dialog.destroy()
+            except Exception:
+                pass
+            return
+        row = 0
+        try:
+            tk.Label(dialog, text="Name:").grid(row=row, column=0, sticky="e")
+            tk.Entry(dialog, textvariable=fields["name_var"],
+                     width=18).grid(row=row, column=1, sticky="w")
+            row += 1
+            for key, label, _value in toggles:
+                tk.Checkbutton(dialog, text=label,
+                               variable=fields[key]).grid(
+                    row=row, column=0, columnspan=2, sticky="w")
+                row += 1
+            tk.Label(dialog, text="Transparency:").grid(row=row, column=0,
+                                                         sticky="e")
+            tk.Scale(dialog, from_=0.3, to=1.0, resolution=0.05,
+                     orient="horizontal",
+                     variable=fields["alpha_var"]).grid(row=row, column=1,
+                                                        sticky="w")
+            row += 1
+            tk.Label(dialog, text="Size:").grid(row=row, column=0, sticky="e")
+            tk.Scale(dialog, from_=0.5, to=3.0, resolution=0.1,
+                     orient="horizontal",
+                     variable=fields["scale_var"]).grid(row=row, column=1,
+                                                        sticky="w")
+            row += 1
+            tk.Label(dialog, text="Bedtime (HH:MM):").grid(row=row, column=0,
+                                                            sticky="e")
+            tk.Entry(dialog, textvariable=fields["bedtime_var"],
+                     width=8).grid(row=row, column=1, sticky="w")
+            row += 1
+            tk.Label(dialog, text="Wake up (HH:MM):").grid(row=row, column=0,
+                                                            sticky="e")
+            tk.Entry(dialog, textvariable=fields["wake_var"],
+                     width=8).grid(row=row, column=1, sticky="w")
+            row += 1
+            tk.Label(dialog, textvariable=fields["status_var"],
+                     wraplength=320, justify="left").grid(
+                row=row, column=0, columnspan=2, sticky="w")
+            row += 1
+            buttons = tk.Frame(dialog)
+            buttons.grid(row=row, column=0, columnspan=2)
+            tk.Button(buttons, text="Save",
+                      command=lambda: self._save_settings_dialog(
+                          dialog, fields)).pack(side="left")
+            tk.Button(buttons, text="Cancel",
+                      command=dialog.destroy).pack(side="left")
+        except Exception:
+            try:
+                dialog.destroy()
+            except Exception:
+                pass
+
+    def _save_settings_dialog(self, dialog: object, fields: dict) -> None:
+        """Validate the dialog form, apply live, and persist."""
+        status_var = fields.get("status_var")
+        def complain(text: str) -> None:
+            try:
+                if status_var is not None:
+                    status_var.set(text)
+            except Exception:
+                pass
+        try:
+            data = self.controller.settings.to_dict()
+            for key in ("wander", "play_invites", "sleep_schedule",
+                        "dialogue", "topmost"):
+                var = fields.get(key)
+                data[key] = bool(var.get()) if var is not None else data[key]
+            alpha_var = fields.get("alpha_var")
+            scale_var = fields.get("scale_var")
+            try:
+                data["alpha"] = float(alpha_var.get()) if alpha_var else 1.0
+                data["scale"] = float(scale_var.get()) if scale_var else 1.0
+            except (TypeError, ValueError):
+                complain("Transparency and size must be numbers.")
+                return
+            bedtime_var = fields.get("bedtime_var")
+            wake_var = fields.get("wake_var")
+            try:
+                data["bedtime"] = settings_mod.parse_clock(
+                    bedtime_var.get() if bedtime_var else "22:00")
+                data["wake"] = settings_mod.parse_clock(
+                    wake_var.get() if wake_var else "07:00")
+            except ValueError as exc:
+                complain(str(exc))
+                return
+            new_settings = settings_mod.AppSettings.from_dict(data)
+        except ValueError as exc:
+            complain("Settings not saved (%s)." % exc)
+            return
+        name_var = fields.get("name_var")
+        try:
+            wanted = name_var.get().strip() if name_var is not None else ""
+        except Exception:
+            wanted = ""
+        if wanted and wanted != self.controller.brain.state.name:
+            self.controller.brain.rename(wanted)
+        try:
+            self.controller.apply_settings(new_settings)
+        except ValueError as exc:
+            complain("Settings not saved (%s)." % exc)
+            return
+        self._apply_topmost()
+        self._apply_alpha()
+        self._apply_scale_live()
+        self._save_settings_quietly()
+        startup_var = fields.get("startup")
+        if startup_var is not None:
+            try:
+                want_startup = bool(startup_var.get())
+            except Exception:
+                want_startup = shells_mod.is_startup_enabled()
+            if want_startup != shells_mod.is_startup_enabled():
+                ok, note = shells_mod.set_startup(want_startup)
+                if not ok:
+                    self.controller._say(note)
+        self._save_quietly()
+        try:
+            dialog.destroy()
+        except Exception:
+            pass
+
+    def _apply_scale_live(self) -> None:
+        """Resize the window when the scale setting changes."""
+        try:
+            combined = platform_mod.clamp_scale(
+                self._display_scale() * self.controller.scale)
+        except Exception:
+            return
+        self._pixels_per_unit = combined
+        width, height = platform_mod.window_size(combined)
+        self._width = width
+        self._height = height
+        try:
+            self.canvas.config(width=width, height=height)
+        except Exception:
+            pass
+        try:
+            x = int(self.root.winfo_x())
+            y = int(self.root.winfo_y())
+            self.root.geometry("%dx%d+%d+%d" % (width, height, x, y))
+        except Exception:
+            pass
+
+    def _display_scale(self) -> float:
+        try:
+            return float(self._base_display_scale)
+        except AttributeError:
+            return 1.0
+        except (TypeError, ValueError):
+            return 1.0
+
     # -- persistence --
+
+    def _save_settings_quietly(self) -> None:
+        if not self.settings_path:
+            return
+        try:
+            settings_mod.save_settings(self.controller.settings,
+                                       self.settings_path)
+        except Exception:
+            pass
 
     def _save_quietly(self) -> None:
         try:
@@ -304,6 +534,7 @@ class PetWindow:
             save(state, self.save_path)
         except Exception:
             pass
+        self._save_settings_quietly()
 
     def quit_and_save(self) -> None:
         self._save_quietly()

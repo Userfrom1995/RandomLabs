@@ -3,6 +3,9 @@
 Usage:
   python -m pet run [--ticks N] [--seed S] [--name NAME] [--realtime]
   python -m pet gui [--scale F] [--alpha A] [--no-topmost] [--name NAME]
+  python -m pet settings [--set field=value ...]
+  python -m pet startup (on|off|status)
+  python -m pet notify --message TEXT [--title TEXT]
   python -m pet selftest
   python -m pet help
   python -m pet version
@@ -72,6 +75,23 @@ def _build_parser() -> argparse.ArgumentParser:
                        help="do not write the save file (window still loads it)")
     gui_p.add_argument("--seed", type=int, default=None,
                        help="RNG seed for a deterministic run")
+    set_p = sub.add_parser("settings", help="show or change saved settings")
+    set_p.add_argument("--set", action="append", default=[],
+                       metavar="field=value",
+                       help="change a setting (repeatable): wander, "
+                            "play_invites, sleep_schedule, dialogue, "
+                            "topmost, alpha, scale, bedtime, wake")
+    set_p.add_argument("--save", type=str, default=None,
+                       help="settings file path (default: user-data dir)")
+    start_p = sub.add_parser("startup", help="launch-at-login integration")
+    start_p.add_argument("mode", nargs="?", default="status",
+                         choices=("on", "off", "status"),
+                         help="on, off, or status (default)")
+    notify_p = sub.add_parser("notify", help="post an OS notification")
+    notify_p.add_argument("--message", type=str, required=True,
+                          help="notification body text")
+    notify_p.add_argument("--title", type=str, default="Desktop Pet",
+                          help="notification title")
     sub.add_parser("help", help="print usage")
     sub.add_parser("version", help="print version")
     return parser
@@ -147,9 +167,66 @@ def cmd_gui(args: argparse.Namespace) -> int:
         unused = os.path.join(tempfile.mkdtemp(prefix="desktop-pet-"), "pet.json")
         return open_window(alpha=alpha, scale=scale,
                            topmost=not args.no_topmost, save_path=unused,
-                           seed=args.seed, name=args.name)
+                           seed=args.seed, name=args.name,
+                           settings_path=os.path.join(
+                               os.path.dirname(unused), "settings.json"))
     return open_window(alpha=alpha, scale=scale, topmost=not args.no_topmost,
                        save_path=args.save, seed=args.seed, name=args.name)
+
+
+def cmd_settings(args: argparse.Namespace) -> int:
+    from .pet_app import settings as settings_mod
+
+    current, notice = settings_mod.load_settings(args.save)
+    if notice and "no settings file yet" not in notice:
+        print("[pet] %s" % notice)
+    updated = current
+    for raw in args.set or []:
+        if "=" not in raw:
+            print("error: --set needs field=value, got %r" % raw,
+                  file=sys.stderr)
+            return 2
+        field, _, value = raw.partition("=")
+        try:
+            parsed = settings_mod.parse_setting_value(field.strip(),
+                                                      value.strip())
+            updated = settings_mod.with_field(updated, field.strip(), parsed)
+        except ValueError as exc:
+            print("error: %s" % exc, file=sys.stderr)
+            return 2
+    if args.set:
+        try:
+            settings_mod.save_settings(updated, args.save)
+        except OSError as exc:
+            print("error: could not save settings (%s)" % exc, file=sys.stderr)
+            return 1
+        print("[pet] settings saved")
+    print(updated.describe())
+    return 0
+
+
+def cmd_startup(args: argparse.Namespace) -> int:
+    from .pet_app import shells as shells_mod
+
+    if args.mode == "status":
+        state = "on" if shells_mod.is_startup_enabled() else "off"
+        print("[pet] start at login: %s" % state)
+        print("[pet] %s" % shells_mod.platform_notes())
+        return 0
+    ok, note = shells_mod.set_startup(args.mode == "on")
+    print("[pet] %s" % note)
+    return 0 if ok else 1
+
+
+def cmd_notify(args: argparse.Namespace) -> int:
+    from .pet_app import shells as shells_mod
+
+    if not args.message.strip():
+        print("error: --message must not be empty", file=sys.stderr)
+        return 2
+    ok, note = shells_mod.notify(args.title, args.message)
+    print("[pet] %s" % note)
+    return 0 if ok else 1
 
 
 def cmd_selftest() -> int:
@@ -186,6 +263,12 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_run(args)
     if args.command == "gui":
         return cmd_gui(args)
+    if args.command == "settings":
+        return cmd_settings(args)
+    if args.command == "startup":
+        return cmd_startup(args)
+    if args.command == "notify":
+        return cmd_notify(args)
     if args.command == "selftest":
         return cmd_selftest()
     if args.command == "version":

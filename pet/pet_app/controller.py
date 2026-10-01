@@ -17,6 +17,7 @@ from ..pet_core.brain import Brain
 from ..pet_core.personality import mood_for
 from ..pet_core.state import Activity
 from . import platform as platform_mod
+from . import settings as settings_mod
 from .interact import (
     CATCHES_TO_FINISH,
     ROUTINE_HOLD_SEC,
@@ -142,6 +143,7 @@ def menu_model(activity: object, schedule_on: bool = True) -> list[tuple[str, st
         ("play", "Play"),
         (sleep_action, sleep_label),
         ("routine", routine_label),
+        ("settings", "Settings..."),
         ("about", "About"),
         ("quit", "Quit"),
     ]
@@ -171,8 +173,14 @@ class WindowController:
 
     def __init__(self, brain: Brain | None = None, seed: int | None = None,
                  alpha: float = 1.0, scale: float = 1.0,
-                 topmost: bool = True, clock: object = None) -> None:
+                 topmost: bool = True, clock: object = None,
+                 settings: settings_mod.AppSettings | None = None) -> None:
         self.brain = brain or Brain(seed=seed)
+        self.settings = settings or settings_mod.AppSettings()
+        if settings is not None:
+            alpha = self.settings.alpha
+            scale = self.settings.scale
+            topmost = self.settings.topmost
         self.bubble = Bubble()
         self.clicks = ClickTracker()
         self.carry = CarrySession()
@@ -180,6 +188,7 @@ class WindowController:
         self.munch = MunchSession()
         self.game = BallGame(seed=seed)
         self.routine = SleepSchedule()
+        self._apply_settings_to_layers()
         # clock() returns the wall-clock hour 0..24 for the sleep
         # schedule, or None to disable schedule checks (headless/tests).
         self.clock = clock
@@ -191,6 +200,32 @@ class WindowController:
         self._blend_t = 1.0
         self._previous_activity = self._shown_activity
         self._routine_hold_until = 0.0
+
+    def _apply_settings_to_layers(self) -> None:
+        """Sync behavior toggles into the brain and the sleep routine."""
+        self.brain.allow_walk = bool(self.settings.wander)
+        self.brain.allow_play = bool(self.settings.play_invites)
+        self.routine.set_enabled(self.settings.sleep_schedule)
+        self.routine.bedtime = self.settings.bedtime % 24.0
+        self.routine.wake = self.settings.wake % 24.0
+
+    def apply_settings(self, new: settings_mod.AppSettings) -> str:
+        """Adopt new settings and push them into every layer."""
+        if not isinstance(new, settings_mod.AppSettings):
+            raise ValueError("apply_settings needs an AppSettings")
+        self.settings = new
+        self._apply_settings_to_layers()
+        self.alpha = platform_mod.clamp_alpha(new.alpha)
+        self.scale = platform_mod.clamp_scale(new.scale)
+        self.topmost = bool(new.topmost)
+        return "Settings applied."
+
+    def _say(self, text: str, duration: float = BUBBLE_DEFAULT_SEC,
+            now: float | None = None) -> None:
+        """Show bubble speech unless the dialogue toggle is off."""
+        if not self.settings.dialogue:
+            return
+        self.bubble.show(text, duration=duration, now=now)
 
     def _activity_name(self, now: float | None = None) -> str:
         if self.carry.active:
@@ -240,7 +275,7 @@ class WindowController:
                 if event.kind in ("activity", "wake"):
                     self._note_activity_change(moment)
                 if event.text:
-                    self.bubble.show(event.text)
+                    self._say(event.text)
         else:
             # While carried the pet still gets hungry and tired, but it
             # does not wander or change activities mid-air.
@@ -256,17 +291,17 @@ class WindowController:
             return
         if self.brain.state.activity == Activity.SLEEP:
             self.game.stop()
-            self.bubble.show(self.brain.personality.line_for("sleepy"))
+            self._say(self.brain.personality.line_for("sleepy"))
             return
         for outcome in self.game.tick(step, moment):
             if outcome == "catch":
                 gained = needs_mod.add_affection(self.brain.state, 3.0)
                 self.brain.state.mood = mood_for(self.brain.state)
                 if gained > 0.0:
-                    self.bubble.show(
+                    self._say(
                         self.brain.personality.line_for_event("catch"))
             elif outcome == "finish":
-                self.bubble.show(
+                self._say(
                     "%s caught the ball %d time%s! %s" % (
                         self.brain.state.name, self.game.catches,
                         "" if self.game.catches == 1 else "s",
@@ -288,11 +323,11 @@ class WindowController:
         if want_asleep:
             event = self.brain.send_to_sleep()
             self._note_activity_change(moment)
-            self.bubble.show(event.text)
+            self._say(event.text)
         else:
             event = self.brain.wake()
             self._note_activity_change(moment)
-            self.bubble.show(event.text)
+            self._say(event.text)
 
     def _note_activity_change(self, now: float | None = None) -> None:
         current = self._activity_name(now)
@@ -330,18 +365,18 @@ class WindowController:
             if (streak >= STROKE_COMBO_AT
                     and (streak - STROKE_COMBO_AT) % STROKE_COMBO_EVERY == 0):
                 event = self.brain.stroke()
-                self.bubble.show(event.text)
+                self._say(event.text)
                 return event.text
             text = self.brain.personality.line_for(state.mood)
             if streak > 1:
                 text = "%s (warm x%d)" % (text, streak)
-            self.bubble.show(text)
+            self._say(text)
             return text
         if gesture == "double-click":
             event = self.brain.poke()
             self.strokes.reset()
             self._note_activity_change(self._now(now))
-            self.bubble.show(event.text)
+            self._say(event.text)
             return event.text
         if gesture == "drag":
             return None
@@ -353,7 +388,7 @@ class WindowController:
         self._note_activity_change()
         state = self.brain.state
         text = self.brain.personality.line_for(state.mood)
-        self.bubble.show(text)
+        self._say(text)
         return text
 
     def run_menu_action(self, action: str, now: object = None) -> tuple[str | None, bool]:
@@ -367,33 +402,34 @@ class WindowController:
             event = self.brain.feed_pet()
             self.munch.start(moment)
             self._note_activity_change(moment)
-            self.bubble.show(event.text)
+            self._say(event.text)
             return (event.text, False)
         if action == "play":
             event = self.brain.invite_play()
             self._note_activity_change(moment)
             if event.activity == Activity.PLAY:
                 self.game.start(moment)
-            self.bubble.show(event.text)
+            self._say(event.text)
             return (event.text, False)
         if action == "sleep":
             event = self.brain.send_to_sleep()
             self._routine_hold_until = moment + ROUTINE_HOLD_SEC
             self._note_activity_change(moment)
-            self.bubble.show(event.text)
+            self._say(event.text)
             return (event.text, False)
         if action == "wake":
             event = self.brain.wake()
             self._routine_hold_until = moment + ROUTINE_HOLD_SEC
             self._note_activity_change(moment)
-            self.bubble.show(event.text)
+            self._say(event.text)
             return (event.text, False)
         if action == "routine":
             enabled = self.routine.set_enabled(not self.routine.enabled)
+            self.settings.sleep_schedule = enabled
             text = self.routine.describe()
             if enabled:
                 text = "%s %s" % (text, self.brain.personality.line_for("sleepy"))
-            self.bubble.show(text)
+            self._say(text)
             return (text, False)
         if action == "about":
             return (self.about_text(), False)
