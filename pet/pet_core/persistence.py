@@ -77,8 +77,9 @@ def load(path: str | None = None) -> tuple[PetState, str | None]:
         if isinstance(data, dict) and data.get("schema_version", 1) == 1:
             return state, "migrated save schema v1 to v2 (character: %s)" % state.character_id
         raw = data.get("character_id", "pip") if isinstance(data, dict) else "pip"
-        known = ("pip", "bramble", "mochi", "kiki", "rusty", "luna")
-        if not isinstance(raw, str) or raw.strip().lower() not in known:
+        from .state import is_known_character
+
+        if not is_known_character(raw):
             if isinstance(data, dict) and "character_id" in data:
                 return state, "unknown character %r; using Pip" % (raw,)
     except (OSError, ValueError, TypeError) as exc:

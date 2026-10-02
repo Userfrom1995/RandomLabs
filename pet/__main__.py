@@ -6,6 +6,7 @@ Usage:
   python -m pet gui [--scale F] [--alpha A] [--no-topmost] [--name NAME]
       [--character ID]
   python -m pet characters (list|show ID|switch ID)
+  python -m pet pack (validate SRC|install SRC|list|remove SLUG|show SLUG)
   python -m pet talk "hello there" [--character ID] [--seed S]
   python -m pet settings [--set field=value ...]
   python -m pet startup (on|off|status) [--service]
@@ -133,6 +134,14 @@ def _build_parser() -> argparse.ArgumentParser:
                          help="character id for show/switch")
     chars_p.add_argument("--save", type=str, default=None,
                          help="save file path (default: platform user-data dir)")
+    pack_p = sub.add_parser("pack", help="creator packs: add third-party characters")
+    pack_p.add_argument("action", nargs="?", default="list",
+                        choices=("validate", "install", "list",
+                                 "remove", "show"),
+                        help="validate, install, list, remove, show (default: list)")
+    pack_p.add_argument("target", nargs="?", default=None,
+                        help="pack directory or zip for validate/install, "
+                             "pack slug for remove/show")
     talk_p = sub.add_parser("talk", aliases=["converse"],
                             help="chat with the pet (offline conversation)")
     talk_p.add_argument("text", nargs="?", default=None,
@@ -165,6 +174,12 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 2
 
     save_path = args.save or default_save_path()
+    try:
+        from .pet_core.packs import ensure_active as _ensure_packs
+        for note in _ensure_packs():
+            print("[pet] %s" % note)
+    except Exception:
+        pass
     state, notice = load(save_path)
     if notice:
         print("[pet] %s" % notice)
@@ -365,6 +380,13 @@ def cmd_characters(args: argparse.Namespace) -> int:
     save_path = args.save or default_save_path()
     if args.action == "list":
         try:
+            from .pet_core import packs as packs_mod
+            _extra, pack_notices = packs_mod.active_extra()
+            for note in pack_notices:
+                print("[pet] %s" % note)
+        except Exception:
+            pass
+        try:
             current_state, list_notice = load(save_path)
         except Exception:
             current_state, list_notice = None, None
@@ -408,6 +430,77 @@ def cmd_characters(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_pack(args: argparse.Namespace) -> int:
+    from .pet_core import packs as packs_mod
+
+    action = args.action or "list"
+    if action == "validate":
+        if not args.target:
+            print("error: pack validate needs a pack directory or zip",
+                  file=sys.stderr)
+            return 2
+        try:
+            manifest, characters = packs_mod.validate(args.target)
+        except (OSError, ValueError) as exc:
+            import json as _json
+            if isinstance(exc, _json.JSONDecodeError):
+                print("error: pack is not valid JSON (%s)" % exc,
+                      file=sys.stderr)
+            else:
+                print("error: invalid pack (%s)" % exc, file=sys.stderr)
+            return 1
+        print("[pet] pack %r is valid (%s, %d character%s)" % (
+            manifest["slug"], manifest["name"], len(characters),
+            "" if len(characters) == 1 else "s"))
+        for record in characters:
+            print("  - %s (%s, %s)" % (record["id"], record["name"],
+                                       record["body_plan"]))
+        return 0
+    if action == "install":
+        if not args.target:
+            print("error: pack install needs a pack directory or zip",
+                  file=sys.stderr)
+            return 2
+        ok, note = packs_mod.install(args.target)
+        print("[pet] %s" % note)
+        return 0 if ok else 1
+    if action == "remove":
+        if not args.target:
+            print("error: pack remove needs an installed pack slug",
+                  file=sys.stderr)
+            return 2
+        ok, note = packs_mod.remove(args.target)
+        print("[pet] %s" % note)
+        return 0 if ok else 1
+    if action == "show":
+        if not args.target:
+            print("error: pack show needs an installed pack slug",
+                  file=sys.stderr)
+            return 2
+        detail, note = packs_mod.show(args.target)
+        print("[pet] %s" % note)
+        if detail is None:
+            return 1
+        print("version: %s" % detail.get("version", "?"))
+        if detail.get("author"):
+            print("author: %s" % detail["author"])
+        if detail.get("description"):
+            print(detail["description"])
+        for cid in detail.get("characters", []):
+            print("  - %s" % cid)
+        return 0
+    packs = packs_mod.list_installed()
+    if not packs:
+        print("[pet] no creator packs installed "
+              "(try: python -m pet pack install pet/packs/examples/sunny-pack)")
+        return 0
+    for entry in packs:
+        print("%-14s %-20s %s [%s]" % (
+            entry.get("slug", "?"), entry.get("name", "?"),
+            entry.get("version", "?"), entry.get("status", "ok")))
+    return 0
+
+
 def cmd_talk(args: argparse.Namespace) -> int:
     from .pet_core import catalog as catalog_mod
     from .pet_core.converse import Converser
@@ -417,6 +510,13 @@ def cmd_talk(args: argparse.Namespace) -> int:
               'python -m pet talk "hello"', file=sys.stderr)
         return 2
     save_path = args.save or default_save_path()
+    try:
+        from .pet_core import packs as packs_mod
+        _extra, pack_notices = packs_mod.active_extra()
+        for note in pack_notices:
+            print("[pet] %s" % note)
+    except Exception:
+        pass
     state, notice = load(save_path)
     if notice:
         print("[pet] %s" % notice)
@@ -487,6 +587,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_notify(args)
     if args.command == "characters":
         return cmd_characters(args)
+    if args.command == "pack":
+        return cmd_pack(args)
     if args.command in ("talk", "converse"):
         return cmd_talk(args)
     if args.command == "selftest":

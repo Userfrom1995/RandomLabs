@@ -61,6 +61,12 @@ def launch(alpha: float = 1.0, scale: float = 1.0, topmost: bool = True,
         return 2
 
     target = save_path or default_save_path()
+    try:
+        from ..pet_core import packs as packs_mod
+        for note in packs_mod.ensure_active():
+            print("[pet] %s" % note)
+    except Exception:
+        pass
     state, notice = load(target)
     settings, settings_note = settings_mod.load_settings(settings_path)
     if notice:

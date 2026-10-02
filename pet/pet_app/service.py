@@ -297,6 +297,11 @@ def _status_detail(data: str | None = None) -> str:
     """Append active character and uptime to a running status line."""
     detail = ""
     try:
+        from ..pet_core.packs import ensure_active as _ensure_packs
+        _ensure_packs(data)
+    except Exception:
+        pass
+    try:
         from ..pet_core.persistence import default_save_path, load
 
         save_target = default_save_path()
@@ -354,6 +359,11 @@ def run_loop(max_ticks: int | None = None, save_every: int = SAVE_EVERY_TICKS,
     from ..pet_core.persistence import default_save_path, load, save
     from ..pet_core.personality import Personality
 
+    try:
+        from ..pet_core.packs import ensure_active as _ensure_packs
+        _ensure_packs(data)
+    except Exception:
+        pass
     if tick_sec is None or not 0.05 <= float(tick_sec) <= 60.0:
         tick_hz = TICK_HZ
     else:

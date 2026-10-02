@@ -465,16 +465,10 @@ def show(slug: str, data_dir: str | None = None) -> tuple[dict | None, str]:
     return detail, "pack %r: %s" % (clean, manifest["name"])
 
 
-def load_installed(data_dir: str | None = None) -> tuple[dict, list[str]]:
-    """Load all valid installed packs. Returns (records, notices).
-
-    Invalid packs are skipped with a notice (fail-closed with backup:
-    the offender is renamed to ``<slug>.broken`` so one corrupt pack
-    never blocks the catalog).
-    """
+def _load_from_root(root: str) -> tuple[dict, list[str]]:
+    """Load all valid installed packs from a packs root directory."""
     from . import catalog as catalog_mod
 
-    root = packs_dir(data_dir)
     records: dict[str, dict] = {}
     notices: list[str] = []
     if not os.path.isdir(root):
@@ -533,16 +527,39 @@ def load_installed(data_dir: str | None = None) -> tuple[dict, list[str]]:
     return records, notices
 
 
+def load_installed(data_dir: str | None = None) -> tuple[dict, list[str]]:
+    """Load all valid installed packs. Returns (records, notices).
+
+    Invalid packs are skipped with a notice (fail-closed with backup:
+    the offender is renamed to ``<slug>.broken`` so one corrupt pack
+    never blocks the catalog).
+    """
+    return _load_from_root(packs_dir(data_dir))
+
+
 def active_extra(data_dir: str | None = None) -> tuple[dict, list[str]]:
     """Cached load of installed packs for the catalog merge path."""
     root = os.path.abspath(packs_dir(data_dir))
     cached = _active_cache.get(root)
     if cached is not None:
         return cached[0], list(cached[1])
-    records, notices = load_installed(root)
+    records, notices = _load_from_root(root)
     _active_cache[root] = (records, list(notices))
     return records, notices
 
 
 def clear_cache() -> None:
     _active_cache.clear()
+
+
+def ensure_active(data_dir: str | None = None) -> list[str]:
+    """Load installed packs into the live registries (never raises).
+
+    Call before loading a save so pack character ids survive the
+    round trip. Returns any notices for the caller to display.
+    """
+    try:
+        _records, notices = active_extra(data_dir)
+        return notices
+    except Exception:
+        return []
