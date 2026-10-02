@@ -364,10 +364,12 @@ def run_loop(max_ticks: int | None = None, save_every: int = SAVE_EVERY_TICKS,
         _ensure_packs(data)
     except Exception:
         pass
-    if tick_sec is None or not 0.05 <= float(tick_sec) <= 60.0:
+    try:
+        tick_hz = float(tick_sec) if tick_sec is not None else TICK_HZ
+    except (TypeError, ValueError):
         tick_hz = TICK_HZ
-    else:
-        tick_hz = float(tick_sec)
+    if not 0.05 <= tick_hz <= 60.0:
+        tick_hz = TICK_HZ
     try:
         cap = None if max_ticks is None else max(1, int(max_ticks))
     except (TypeError, ValueError):
@@ -402,7 +404,7 @@ def run_loop(max_ticks: int | None = None, save_every: int = SAVE_EVERY_TICKS,
     ticks = 0
     try:
         while (cap is None or ticks < cap) and not halt:
-            brain.tick(1.0 / TICK_HZ)
+            brain.tick(1.0 / tick_hz)
             ticks += 1
             if ticks % every == 0:
                 try:
