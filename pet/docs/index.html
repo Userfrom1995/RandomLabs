@@ -61,7 +61,8 @@
   <ul>
     <li><code>python -m pet run [--ticks N] [--seed S] [--name NAME] [--character ID] [--realtime] [--dt SEC] [--save PATH] [--no-save]</code>: run the brain headlessly.</li>
     <li><code>python -m pet gui [--scale F] [--alpha A] [--no-topmost] [--name NAME] [--character ID] [--save PATH] [--no-save] [--seed S]</code>: open the on-screen companion.</li>
-    <li><code>python -m pet characters (list|show ID|switch ID)</code>: the six-character catalog and live switching.</li>
+    <li><code>python -m pet characters (list|show ID|switch ID)</code>: the character catalog (built-ins plus installed creator packs) and live switching.</li>
+    <li><code>python -m pet pack (validate SRC|install SRC|list|remove SLUG|show SLUG)</code>: creator packs: validate, install, list, show, or remove third-party character packs.</li>
     <li><code>python -m pet talk TEXT [--character ID] [--seed S]</code> (<code>converse</code> is an alias): chat with the pet offline.</li>
     <li><code>python -m pet settings [--set field=value ...]</code>: show or change saved settings.</li>
     <li><code>python -m pet startup (on|off|status)</code>: launch-at-login entry.</li>
@@ -74,7 +75,9 @@
   <p>Set <code>DESKTOP_PET_NO_DISPLAY=1</code> to force the honest headless path for <code>gui</code> on any OS (used by CI and automated tests so GUI behavior stays deterministic on machines that do have a display).</p>
 
   <h2>Packaging</h2>
-  <p>Run-from-source is the primary install path; the optional one-file binaries are built from documented recipes, never downloaded blind: <code>packaging/build.sh</code> (Linux/macOS) and <code>packaging/build-windows.ps1</code> (Windows) wrap <code>packaging/desktop-pet.spec</code> (PyInstaller, console build, zero assets), write <code>dist/SHA256SUMS.txt</code>, and run <code>selftest</code> on the finished bundle. Artifacts: <code>dist/desktop-pet</code> (Linux/macOS), <code>dist/desktop-pet.exe</code> (Windows). The full matrix and checksum commands live in <code>packaging/README.md</code>.</p>
+  <p>Run-from-source is the primary install path; the optional one-file binaries are built from documented recipes, never downloaded blind: <code>packaging/build.sh</code> (Linux/macOS) and <code>packaging/build-windows.ps1</code> (Windows) wrap <code>packaging/desktop-pet.spec</code> (PyInstaller, console build, zero assets), write <code>dist/SHA256SUMS.txt</code>, and run <code>selftest</code> on the finished bundle. True installers wrap the binary per OS: <code>packaging/desktop-pet.iss</code> (Windows setup), <code>packaging/build-macos.sh</code> (app plus pkg plus dmg), <code>packaging/build-linux.sh</code> (deb plus AppImage). Shortcut scripts <code>packaging/install.sh</code> / <code>uninstall.sh</code> (plus <code>.ps1</code> on Windows) cover the no-binary path. The full matrix and checksum commands live in <code>packaging/README.md</code>.</p>
+  <h2>Creator packs</h2>
+  <p>Anyone can ship new characters as data: a pack directory (or zip) with a <code>pack.json</code> manifest plus one file per character under <code>characters/</code>, validated against <code>pet/packs/schema.json</code>. Installs merge into the live catalog with trait rates, dialogue voices, converse replies, palettes, and sprite hints; built-ins win slug collisions with a notice. The worked example at <code>pet/packs/examples/sunny-pack</code> adds Sunny and Ember through the same path third parties use.</p>
 
   <h2>Troubleshooting</h2>
   <ul>

@@ -97,6 +97,10 @@ def normalize_id(character_id: object) -> str:
         slug = character_id.strip().lower()
         if slug in CHARACTERS:
             return slug
+        if slug:
+            merged, _notices = _installed_extra()
+            if slug in merged:
+                return slug
     return FALLBACK_ID
 
 
