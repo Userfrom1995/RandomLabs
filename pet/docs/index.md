@@ -166,10 +166,18 @@ and hides/re-shows without losing the pet.
 - `python -m pet gui [--scale F] [--alpha A] [--no-topmost] [--name NAME] [--character ID]
   [--save PATH] [--no-save] [--seed S]`: open the on-screen companion.
 - `python -m pet settings [--set field=value ...]`: show or change
-  saved settings.
+  saved settings (wander, play_invites, sleep_schedule, dialogue,
+  topmost, alpha, scale, bedtime, wake, character_id). The dialog
+  version adds a character picker with a live rendered preview.
 - `python -m pet characters (list|show ID|switch ID)`: list the
-  six-character catalog, show one character's details, or switch the
-  active character with atomic persistence.
+  character catalog (built-ins plus installed creator packs), show one
+  character's details, or switch the active character with atomic
+  persistence.
+- `python -m pet pack (validate SRC|install SRC|list|remove SLUG|show SLUG)`:
+  creator-pack framework: validate a pack directory or zip, install it
+  into the user-data dir, list installed packs, show one manifest, or
+  remove it. Invalid packs are rejected before anything is copied;
+  corrupt installed packs are moved aside with a notice.
 - `python -m pet talk TEXT [--character ID] [--seed S] [--no-save]`
   (`converse` is an alias): chat with the pet offline.
 - `python -m pet startup (on|off|status)`: launch-at-login entry.
@@ -201,6 +209,28 @@ binaries are built from documented recipes, never downloaded blind:
   finished bundle. Artifacts: `dist/desktop-pet` (Linux/macOS),
   `dist/desktop-pet.exe` (Windows). Full matrix and checksum commands
   live in `packaging/README.md`.
+- True installers wrap the binary per OS:
+  `packaging/desktop-pet.iss` (Windows setup via Inno Setup 6),
+  `packaging/build-macos.sh` (app bundle plus `.pkg` plus `.dmg`),
+  `packaging/build-linux.sh` (`.deb` plus AppImage).
+- Run-from-source shortcut scripts: `packaging/install.sh` and
+  `packaging/uninstall.sh` (Linux/macOS), `packaging/install.ps1`
+  and `packaging/uninstall.ps1` (Windows). Install verifies the
+  interpreter, runs `selftest`, and enables launch-at-login;
+  uninstall stops the service, removes autostart, and keeps saves
+  unless asked to purge.
+
+## Creator packs
+
+Anyone can ship new characters as data: a pack directory (or zip)
+with a `pack.json` manifest plus one file per character under
+`characters/`, validated against `pet/packs/schema.json`. Installs
+merge into the live catalog with trait rates, dialogue voices,
+converse replies, palettes, and sprite hints; built-ins win slug
+collisions with a notice, and unknown character ids in saves fall
+back to Pip with a notice, never a traceback. The worked example at
+`pet/packs/examples/sunny-pack` adds Sunny and Ember and proves the
+third-party path end to end.
 
 ## Troubleshooting
 

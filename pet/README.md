@@ -107,11 +107,15 @@ but still chats and plays), play-invitation toggle (spontaneous play
 offers stop; the Play menu action still works), bedtime routine toggle
 plus bedtime and wake hours (`HH:MM`), speech-bubble chatter toggle,
 always-on-top toggle, transparency (`0.3..1.0`), and size
-(`0.5..3.0`, multiplied by display DPI). The dialog applies changes
+(`0.5..3.0`, multiplied by display DPI). The dialog also carries a
+character picker: a keyboard-navigable list of every installed
+character with a live rendered preview and the character's tagline, so
+switching is point, preview, save. The dialog applies changes
 live (the window re-renders, resizes, and re-layers immediately) and
 saves them; restart restores name, stats, settings, and window
 position. A corrupt settings file is backed up to `.bak` and replaced
-with defaults, with a notice, never a traceback.
+with defaults, with a notice, never a traceback. The same settings
+are scriptable: `python -m pet settings --set character_id=mochi`.
 
 ## Startup and notifications
 
@@ -178,8 +182,42 @@ powershell -ExecutionPolicy Bypass -File pet\packaging\build-windows.ps1  # Wind
 Each recipe wraps `packaging/desktop-pet.spec` (PyInstaller, console
 build so `run`, `settings`, and `selftest` keep working), writes
 `dist/SHA256SUMS.txt`, and runs `selftest` on the finished bundle.
+True native installers wrap the binary per OS: an Inno Setup installer
+on Windows (per-user install, Start Menu entries, optional login task,
+clean uninstaller), an app bundle plus `.pkg` plus `.dmg` on macOS
+(tray-friendly with no dock icon, LaunchAgent service at login), and a
+`.deb` plus AppImage on Linux (desktop entry, installable autostart).
+Run-from-source shortcut scripts cover the no-binary path
+(`install.sh`/`uninstall.sh`, `install.ps1`/`uninstall.ps1`).
 No binaries are checked in; the per-OS matrix and checksum commands
 live in `packaging/README.md`.
+
+## Creator packs
+
+Third parties add characters with JSON alone, never touching core.
+A pack is a directory (or zip) with a `pack.json` manifest plus one
+character file per character under `characters/`; the checked-in
+schema at `pet/packs/schema.json` documents every field (slug, semver,
+engine range, body plan allowlist, clamped trait ranges, dialogue
+pools of at least 3 lines, render hints). Installs are validated
+before anything is copied, zips are unpacked with traversal and size
+caps, and corrupt packs are moved aside with a notice instead of
+blocking the catalog. Built-ins win slug collisions with a notice.
+
+```sh
+python -m pet pack validate ./my-pack     # check a pack before sharing
+python -m pet pack install ./my-pack      # install into the user-data dir
+python -m pet pack list                   # installed packs and status
+python -m pet pack show sunny-pack        # manifest plus character ids
+python -m pet pack remove my-pack         # clean removal
+python -m pet characters switch sunny     # play as the new character
+```
+
+`pet/packs/examples/sunny-pack` is the worked example: two sun-themed
+friends (Sunny the sun-sprite, Ember the ember-fox) with custom trait
+rates, dialogue voices, converse replies, and palettes that render
+through the same parametric sprite engine. Installed pack characters
+switch, persist, tick, talk, and render exactly like built-ins.
 
 ## How it works
 
