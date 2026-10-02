@@ -178,6 +178,24 @@ class TestRpmRecipe(unittest.TestCase):
             self.assertIn(marker, script)
         self.assertIn("X-GNOME-Autostart-enabled=false", script)
 
+    def test_rpm_sources_layout_matches_spec(self):
+        # Regression for pet-release run 37076887677 (issue #515):
+        # the spec reads payloads as %{_sourcedir}/<name>, so the
+        # script must stage them flat under SOURCES/, never under a
+        # versioned SOURCES/desktop-pet-$VERSION subdirectory.
+        script = (PKG / "build-rpm.sh").read_text(encoding="utf-8")
+        spec = (PKG / "desktop-pet.rpm.spec").read_text(encoding="utf-8")
+        for name in ("desktop-pet", "desktop-pet.desktop",
+                     "desktop-pet.svg", "desktop-pet-autostart.desktop"):
+            self.assertIn("%%{_sourcedir}/%s" % name, spec,
+                          "spec no longer reads %r from SOURCES" % name)
+        self.assertNotIn("SOURCES/desktop-pet-$VERSION", script,
+                         "script stages under a versioned SOURCES subdir")
+        self.assertRegex(
+            script,
+            r'(?m)^SRCDIR="\$STAGE/rpmbuild/SOURCES"$',
+            "script must stage payloads flat under SOURCES/")
+
 
 class TestSmokeScripts(unittest.TestCase):
     def test_smoke_files_exist_and_fail_closed(self):
