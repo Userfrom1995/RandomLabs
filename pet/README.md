@@ -186,11 +186,18 @@ True native installers wrap the binary per OS: an Inno Setup installer
 on Windows (per-user install, Start Menu entries, optional login task,
 clean uninstaller), an app bundle plus `.pkg` plus `.dmg` on macOS
 (tray-friendly with no dock icon, LaunchAgent service at login), and a
-`.deb` plus AppImage on Linux (desktop entry, installable autostart).
+`.deb` plus AppImage plus `.rpm` on Linux (desktop entry, installable
+autostart). Every recipe derives its version from `pet/__init__.py`
+(`python -m pet version --porcelain`), never a copied literal.
 Run-from-source shortcut scripts cover the no-binary path
 (`install.sh`/`uninstall.sh`, `install.ps1`/`uninstall.ps1`).
-No binaries are checked in; the per-OS matrix and checksum commands
-live in `packaging/README.md`.
+Versioned artifacts ship on GitHub Releases (`desktop-pet-vX.Y.Z`)
+via `.github/workflows/pet-release.yml`, which builds all three OS
+families natively and smokes each artifact (install, selftest,
+service cycle, uninstall-clean) before publish; release binaries are
+unsigned, so SmartScreen/Gatekeeper/`chmod +x` notes apply.
+No binaries are checked in; the per-OS matrix, release notes, and
+checksum commands live in `packaging/README.md`.
 
 ## Creator packs
 
@@ -306,7 +313,7 @@ save(brain.state)
 | Start at login (`startup`, dialog toggle) | yes (Run key) | yes (LaunchAgent) | yes (autostart) |
 | OS notifications (`notify`) | bubble note | yes (osascript) | yes (notify-send) |
 | One-file binary (recipe) | yes (`packaging/build-windows.ps1`) | yes (`packaging/build.sh`) | yes (`packaging/build.sh`) |
-| Native installer (recipe) | yes (`packaging/desktop-pet.iss` via Inno Setup 6) | yes (`packaging/build-macos.sh`: app plus pkg plus dmg) | yes (`packaging/build-linux.sh`: deb plus AppImage) |
+| Native installer (recipe) | yes (`packaging/desktop-pet.iss` via Inno Setup 6) | yes (`packaging/build-macos.sh`: app plus pkg plus dmg) | yes (`packaging/build-linux.sh`: deb plus AppImage; `packaging/build-rpm.sh`: rpm) |
 
 The window needs tkinter plus a display; where either is missing the
 `gui` command exits with an honest note pointing at headless `run`.
@@ -336,11 +343,14 @@ failing silently.
 - `tests/` - headless suite: state, needs, personality, persistence,
   brain, sprite, window controller, interaction play layer, settings
   and brain toggles, per-OS shells, character catalog, conversation,
-   living moments (536 tests, seeded and
-   deterministic).
+  living moments, creator packs, service plus tray, and the release
+  track (572 tests, seeded and
+    deterministic).
 - `packaging/` - one-file PyInstaller recipes: `desktop-pet.spec`,
-  `build.sh` (Linux/macOS), `build-windows.ps1` (Windows), build
-  README with the per-OS download matrix.
+  `build.sh` (Linux/macOS), `build-windows.ps1` (Windows), native
+  installers (`desktop-pet.iss`, `build-macos.sh`, `build-linux.sh`,
+  `build-rpm.sh`), per-OS smoke scripts, and the build README with
+  the per-OS download matrix.
 - `docs/` - unified product documentation.
 - `index.html` - Pages hub for this project, with a live canvas
   showcase mirroring the real sprite math.

@@ -241,7 +241,17 @@ binaries are built from documented recipes, never downloaded blind:
   pkg installs the app only, then `desktop-pet startup on --service`
   enables the login service),
   `packaging/build-linux.sh` (`.deb` plus AppImage, desktop entry plus
-  disabled-by-default XDG autostart).
+  disabled-by-default XDG autostart) plus `packaging/build-rpm.sh`
+  (`.rpm` with the same payload for rpm-based distros).
+  Every recipe derives its version from `pet/__init__.py`
+  (`python -m pet version --porcelain`), never a copied literal.
+- Versioned artifacts ship on GitHub Releases
+  (`desktop-pet-vX.Y.Z`) via `.github/workflows/pet-release.yml`,
+  which builds all three OS families natively and smokes each
+  artifact (install, selftest, service cycle, uninstall-clean)
+  before publish. Release binaries are unsigned
+  (SmartScreen/Gatekeeper/`chmod +x` notes in `packaging/README.md`);
+  always verify against the release `SHA256SUMS.txt`.
 - Run-from-source shortcut scripts: `packaging/install.sh` and
   `packaging/uninstall.sh` (Linux/macOS), `packaging/install.ps1`
   and `packaging/uninstall.ps1` (Windows). Install verifies the
