@@ -8,7 +8,7 @@
 
 ## Phase Roadmap
 
-- **Active Phase:** Final Phase: Hub Expansion, Native Matrix, and End-to-End Audit (ready to build)
+- **Active Phase:** Release Track: Published Artifacts and Release Pipeline
 - **Phase 1: Catalog Core and Character Engine:** [x] trait tables plus six-original catalog registry merged over third-party packs, [x] state schema v2 with character_id plus v1 migration, [x] brain parameterised by traits with seeded determinism intact, [x] per-character voice packs with shared fallback, [x] characters CLI list/show/switch with persisted selection, [x] headless suite for catalog/traits/voices/migration (PR 1 target, Refs #504)
 - **Phase 2: Procedural Cast and Animation System:** [x] body-plan-dispatched parametric sprite engine for all six characters, [x] palettes plus accessory geometry per character, [x] live hot-swap re-render with DPI-aware scaling, [x] Pages canvas mirror extended value-for-value, [x] sprite headless tests plus pose parity fixtures (PR 2 target, Refs #504)
 - **Phase 3: Living Behaviors and Conversation Heart:** [x] offline converse intent parser with per-character voices, [x] time-based event bus (greetings, idle antics, milestones), [x] per-character interaction modifiers over stroke/feed/ball/sleep, [x] talk/converse CLI plus bubble wiring, [x] headless intent plus event tests (PR 3 target, Refs #504)
@@ -17,8 +17,9 @@
 - **Final Phase: Hub Expansion, Native Matrix, and End-to-End Audit:** [x] catalog gallery plus service plus installer plus creator-pack docs beside /pet/, [x] download matrix with verification commands, [x] full static plus headless gates green, [ ] per-OS native passes on Windows, macOS, Linux (window, tray, service, autostart, install/uninstall), [x] unified docs and README refresh (Final PR, Closes #504 only after test on all three OS families plus eval gate pass)
 - **2026-10-02, Builder (Final Phase):** Hub catalog gallery (six originals with trait-backed personalities plus pack extension note), Creator packs section with validation rules and worked example, full native installer matrix (Inno setup, macOS pkg/dmg, deb/AppImage, run-from-source scripts) with checksum verification commands, pack CLI in hub command reference; mirrored cast table plus installer detail into docs/index.md and docs/index.html; README native-installer matrix row plus corrected test count (536) plus pack in CLI dispatch list; version bumped to 1.5.0 to match installer recipes. Gates green: discover 536 OK, selftest PASS, root suites 12 plus 21 OK, bash -n on all packaging scripts, HTML parses, hub JS mirror untouched. Refs #504 (per-OS native passes plus eval gate pending).
 
-- **Current step:** Final Phase built, ready for review (Refs #504; per-OS native passes plus eval gate still pending before Closes)
-- **Next steps:** Reviewer audit, then Tester plus per-OS testers (test-linux/test-macos/test-windows) natively, then Evaluator craft gate; Maintainer merges and closes on clean passes
+- **Release Track: Published Artifacts and Release Pipeline (owner spec 2026-10-02):** [ ] single-source version from `pet/__init__.py`, [ ] Linux rpm recipe alongside deb/AppImage, [ ] `pet-release.yml` native build plus publish pipeline, [ ] per-OS smoke scripts (install/selftest/service/uninstall-clean), [ ] hub Downloads section pointing at GitHub Releases with checksums plus unsigned-binary notes (PR target, Refs #504; Closes only after published artifacts plus native smoke on all three OS families plus eval gate pass)
+- **Current step:** Release Track blueprinted by Architect, ready for build (Refs #504; Final Phase code merged, Linux native PASS, Windows native plus published-artifact gates pending)
+- **Next steps:** Builder implements Release Track with real code and zero stubs, then Reviewer audit, then Tester plus per-OS testers (test-linux/test-macos/test-windows) natively on the artifacts, then Evaluator craft gate; Maintainer merges and closes on clean passes
 
 ## Agent Log
 
