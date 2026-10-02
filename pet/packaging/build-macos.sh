@@ -1,7 +1,7 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Build macOS artifacts for Desktop Pet: .app bundle, .pkg installer,
 # and .dmg image. Uses only macOS system tools (pkgbuild, hdiutil).
-# Usage: sh pet/packaging/build-macos.sh
+# Usage: bash pet/packaging/build-macos.sh
 # Output: dist/DesktopPet.app, dist/DesktopPet-1.5.0.pkg,
 #         dist/DesktopPet-1.5.0.dmg, dist/SHA256SUMS.txt
 set -euo pipefail
@@ -58,8 +58,11 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-# LaunchAgent: runs the background service loop at login (foreground
-# under launchd, which is the correct launchd pattern).
+# LaunchAgent: runs the background service loop at login. The pkg
+# installs the app bundle only (per-user LaunchAgents cannot be owned
+# by a system pkg payload), so this plist ships beside the pkg in
+# dist/ and `python -m pet startup on --service` installs it into
+# ~/Library/LaunchAgents for the current user.
 mkdir -p "$STAGE/launchagent"
 cat > "$STAGE/launchagent/com.desktoppet.service.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -79,21 +82,30 @@ cat > "$STAGE/launchagent/com.desktoppet.service.plist" <<PLIST
 </plist>
 PLIST
 
-# .pkg: app bundle plus a postinstall that loads the LaunchAgent.
+# .pkg: app bundle only. The postinstall verifies the install and
+# points at `startup on --service` for the login service (a pkg
+# payload cannot own a per-user ~/Library/LaunchAgents entry).
 PKGROOT="$STAGE/pkgroot"
 mkdir -p "$PKGROOT/Applications"
 cp -R "$APP" "$PKGROOT/Applications/"
 mkdir -p "$STAGE/scripts"
 cat > "$STAGE/scripts/postinstall" <<'POST'
-#!/bin/sh
+#!/usr/bin/env bash
 set -euo pipefail
-AGENT="$HOME/Library/LaunchAgents/com.desktoppet.service.plist"
-if [ -f "/Applications/DesktopPet.app/Contents/MacOS/desktop-pet" ]; then
-  :
+if [ ! -f "/Applications/DesktopPet.app/Contents/MacOS/desktop-pet" ]; then
+  echo "error: DesktopPet.app missing after install" >&2
+  exit 1
 fi
+# Login service is per-user: each user opts in with
+#   /Applications/DesktopPet.app/Contents/MacOS/desktop-pet startup on --service
 exit 0
 POST
 chmod +x "$STAGE/scripts/postinstall"
+
+# Ship the LaunchAgent plist beside the pkg so users (and
+# `startup on --service`) have a ready-made login entry.
+cp "$STAGE/launchagent/com.desktoppet.service.plist" \
+  "dist/com.desktoppet.service.plist"
 
 pkgbuild --root "$PKGROOT" --scripts "$STAGE/scripts" \
   --identifier "$IDENT" --version "$VERSION" \
@@ -111,6 +123,6 @@ trap - EXIT INT TERM
 rm -rf "$STAGE"
 
 (cd dist && shasum -a 256 "DesktopPet-$VERSION.pkg" "DesktopPet-$VERSION.dmg" \
-  >> SHA256SUMS.txt)
+  com.desktoppet.service.plist > SHA256SUMS.txt)
 echo "[pet] built dist/DesktopPet-$VERSION.pkg and dist/DesktopPet-$VERSION.dmg"
 ls -la dist/

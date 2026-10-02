@@ -175,11 +175,16 @@ def register_extra_traits(character_id: str, rates: dict,
                            interactions: dict | None = None) -> str:
     """Register a third-party trait record (pack activation path).
 
-    Returns the normalized slug. Unknown ids still fall back to Pip
-    until registered here.
+    Rates go through the pack validator so side registries cannot
+    bypass the pool minimums and numeric bounds. Raises ValueError
+    on invalid input. Returns the normalized slug. Unknown ids
+    still fall back to Pip until registered here.
     """
+    from . import packs as packs_mod
+
+    cleaned = packs_mod.validate_traits(rates)
     slug = str(character_id or "").strip().lower()
-    EXTRA_TRAITS[slug] = dict(rates)
+    EXTRA_TRAITS[slug] = dict(cleaned)
     if interactions is not None:
         EXTRA_INTERACTIONS[slug] = dict(interactions)
     return slug

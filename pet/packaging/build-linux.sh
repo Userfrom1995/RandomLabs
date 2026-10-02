@@ -1,6 +1,6 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Build Linux artifacts for Desktop Pet: a .deb package plus an AppImage.
-# Usage: sh pet/packaging/build-linux.sh
+# Usage: bash pet/packaging/build-linux.sh
 # Output: dist/desktop-pet_1.5.0_amd64.deb,
 #         dist/DesktopPet-1.5.0-x86_64.AppImage (when appimagetool exists),
 #         dist/SHA256SUMS.txt
@@ -105,8 +105,10 @@ trap - EXIT INT TERM
 rm -rf "$STAGE"
 
 if command -v sha256sum >/dev/null 2>&1; then
-  (cd dist && sha256sum "desktop-pet_${VERSION}_${ARCH}.deb" \
-    DesktopPet-*-x86_64.AppImage 2>/dev/null >> SHA256SUMS.txt || true)
+  (cd dist && sha256sum "desktop-pet_${VERSION}_${ARCH}.deb" > SHA256SUMS.txt)
+  if ls "dist"/DesktopPet-*-x86_64.AppImage >/dev/null 2>&1; then
+    (cd dist && sha256sum DesktopPet-*-x86_64.AppImage >> SHA256SUMS.txt)
+  fi
 fi
 echo "[pet] built dist/desktop-pet_${VERSION}_${ARCH}.deb"
 ls -la dist/

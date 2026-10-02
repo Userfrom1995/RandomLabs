@@ -17,6 +17,7 @@ AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\DesktopPet
 PrivilegesRequired=lowest
+OutputDir=..\..\dist
 OutputBaseFilename=desktop-pet-setup-{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes

@@ -1,8 +1,8 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Install Desktop Pet from source on Linux or macOS (run-from-source path).
 # Verifies Python 3.10+ (plus tkinter for the window), then optionally
 # enables launch-at-login through the pet's own startup command.
-# Usage: sh pet/packaging/install.sh [--service] [--character ID]
+# Usage: bash pet/packaging/install.sh [--service] [--character ID]
 #   --service       point autostart at the background service
 #   --character ID  select a starting character
 set -euo pipefail
@@ -12,7 +12,11 @@ CHARACTER=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --service) SERVICE="1"; shift ;;
-    --character) CHARACTER="${2:-}"; shift 2 ;;
+    --character)
+      if [ "$#" -lt 2 ] || [ -z "${2:-}" ]; then
+        echo "error: --character needs a character id" >&2; exit 1
+      fi
+      CHARACTER="$2"; shift 2 ;;
     *) echo "error: unknown flag $1 (see pet/packaging/README.md)" >&2; exit 1 ;;
   esac
 done

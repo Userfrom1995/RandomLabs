@@ -362,9 +362,17 @@ EXTRA_REPLIES: dict[str, dict[str, list[str]]] = {}
 
 def register_extra_replies(character_id: str,
                             pools: dict[str, list[str]]) -> str:
-    """Register third-party converse overrides (pack activation path)."""
+    """Register third-party converse overrides (pack activation path).
+
+    Pools go through the pack replies validator so side registries
+    cannot bypass the pool minimums. Raises ValueError on invalid
+    input.
+    """
+    from . import packs as packs_mod
+
+    cleaned = packs_mod.validate_replies(pools)
     slug = str(character_id or "").strip().lower()
-    EXTRA_REPLIES[slug] = {k: list(v) for k, v in pools.items()}
+    EXTRA_REPLIES[slug] = {k: list(v) for k, v in cleaned.items()}
     return slug
 
 

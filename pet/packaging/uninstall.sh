@@ -1,8 +1,8 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Remove Desktop Pet integration on Linux or macOS.
 # Stops the background service, disables launch-at-login, and leaves
 # saves in place unless --purge is given (a reinstall then keeps the pet).
-# Usage: sh pet/packaging/uninstall.sh [--purge]
+# Usage: bash pet/packaging/uninstall.sh [--purge]
 set -euo pipefail
 
 PURGE="0"
