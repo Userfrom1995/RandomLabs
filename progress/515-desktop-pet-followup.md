@@ -1,13 +1,12 @@
 # Progress - Desktop Pet Follow-up: Windows Harness Repair plus Eval Fixes
 
 - **Issue:** #515 (follow-up to #504 closed by owner merge of #514 as caf91470)
-- **Branch:** opencode/issue515-20261002143022
+- **Branch:** opencode/issue515-20261002152607 (continuation after #516 merged as Windows harness follow-up)
 - **Status:** complete (ready for review)
-- **Scope:** project-code only (pet/ plus progress/). No `.github/workflows/` touches:
-  the eval's CI-side ask (PSScriptAnalyzer/pwsh parse inside pet-release.yml)
-  and the release pipeline maiden run are routed to the Lab Engineer per
-  the infra guard. The Windows re-run (test-windows) and the release
-  pipeline maiden run follow after review/test/eval pass.
+- **Scope:** project-code only (pet/tests plus progress/). No `.github/workflows/` touches:
+  the release pipeline maiden run is gated on Windows green per the issue
+  and routes to the Lab Engineer per the infra guard. The Windows re-run
+  (test-windows) follows after review/test/eval pass.
 
 ## Checklist
 
@@ -50,8 +49,17 @@
       work per the infra guard. Minimal-image honest-skip matrix is now
       documented exactly in `packaging/README.md`.
 - [x] Gates green on Linux/macOS runner: pet discover 576 OK, selftest
-      PASS, bash -n on all packaging sh scripts, hub plus docs HTML parse
-      balanced, zero em dashes in the diff
+  PASS, bash -n on all packaging sh scripts, hub plus docs HTML parse
+  balanced, zero em dashes in the diff
+- [x] Windows harness follow-up (7 plain-bash sites, per Windows Tester
+  verdict 15:22:56Z run 37025506969): `test_tester_eval515_regression.py`
+  (3 sites: linux/macos bare-value plus unknown-flag) and
+  `test_tester_release_track.py` (4 sites: rpm parse, smoke parse loop,
+  linux live smoke, missing-payload smoke) now resolve bash via the
+  proven `_find_bash()` helper (Git Bash first, WSL System32 stub
+  rejected, honest skip when only the stub exists), mirroring
+  `test_tester_phase5_adversarial.py`. Linux discover still 588 OK,
+  zero em dashes in the diff
 
 ## Agent Log
 
@@ -66,3 +74,11 @@
   Refs #504, Refs #514. Handing to the Reviewer; after review plus test
   plus eval pass, the Windows re-run and the release pipeline maiden run
   follow (Lab Engineer owns the workflow-side pieces).
+- **2026-10-02, Builder (issue #515 continuation branch
+  opencode/issue515-20261002152607, after #516 merged):** Routed the 7
+  plain-bash call sites through `_find_bash()` in
+  `test_tester_eval515_regression.py` (helper added plus 3 call sites)
+  and `test_tester_release_track.py` (helper added plus 4 call sites),
+  exactly as the Windows Tester prescribed. Verified: targeted 37 OK,
+  full discover 588 OK, zero em dashes in the diff. Refs #515. Handing
+  to the Reviewer; Windows re-run then release maiden run follow.

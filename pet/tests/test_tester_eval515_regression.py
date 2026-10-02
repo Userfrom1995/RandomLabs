@@ -6,6 +6,7 @@ example-version disclaimers, and the honest-skip matrix in the
 packaging README. Authored by the Tester, stdlib only.
 """
 
+import os
 import re
 import subprocess
 import unittest
@@ -19,6 +20,60 @@ README = PET / "packaging" / "README.md"
 SMOKE_LINUX = PET / "packaging" / "smoke-linux.sh"
 SMOKE_MACOS = PET / "packaging" / "smoke-macos.sh"
 SMOKE_WIN = PET / "packaging" / "smoke-windows.ps1"
+
+
+def _find_bash():
+    """Locate a real script-capable bash, or return None.
+
+    On Windows ``bash`` on PATH often resolves to the WSL stub at
+    ``<SystemRoot>\\System32\\bash.exe`` (a WSL launcher, not a shell
+    that can run ``bash script.sh``), while the real shell ships
+    with Git for Windows. Prefer any non-System32 bash, then the
+    well-known Git install locations; return None when only the stub
+    (or nothing) exists so callers skip instead of testing the stub.
+    Mirrors pet/tests/test_tester_phase5_adversarial.py.
+    """
+    import shutil
+
+    probes = []
+    if os.name == "nt":
+        probes.extend([
+            r"C:\Program Files\Git\bin\bash.exe",
+            r"C:\Program Files (x86)\Git\bin\bash.exe",
+        ])
+    for directory in os.environ.get("PATH", "").split(os.pathsep):
+        if directory:
+            name = "bash.exe" if os.name == "nt" else "bash"
+            probes.append(os.path.join(directory, name))
+    system_root = os.path.normcase(
+        os.path.abspath(os.environ.get("SystemRoot", r"C:\Windows")))
+    real, fallback = [], []
+    for probe in probes:
+        if not os.path.isfile(probe):
+            continue
+        if (os.name == "nt" and os.path.normcase(
+                os.path.abspath(probe)).startswith(system_root)):
+            fallback.append(probe)
+        else:
+            real.append(probe)
+    if real:
+        return real[0]
+    if fallback:
+        return None
+    found = shutil.which("bash")
+    if found and os.name == "nt" and os.path.normcase(
+            os.path.abspath(found)).startswith(system_root):
+        return None
+    return found
+
+
+def _require_bash(test):
+    """Return a bash path or skip the calling test when only the WSL stub exists."""
+    bash = _find_bash()
+    if bash is None:
+        test.skipTest("no script-capable bash found "
+                      "(only the Windows WSL stub or nothing on PATH)")
+    return bash
 
 
 class _BalanceCheck(HTMLParser):
@@ -87,16 +142,18 @@ class TestEval515HtmlStructure(unittest.TestCase):
 
 class TestEval515SmokeHardening(unittest.TestCase):
     def test_linux_bare_value_flag_fails_closed(self):
+        bash = _require_bash(self)
         proc = subprocess.run(
-            ["bash", str(SMOKE_LINUX), "--binary"],
+            [bash, str(SMOKE_LINUX), "--binary"],
             capture_output=True, text=True, timeout=60,
         )
         self.assertNotEqual(proc.returncode, 0)
         self.assertIn("needs a value", proc.stderr)
 
     def test_macos_bare_value_flag_fails_closed(self):
+        bash = _require_bash(self)
         proc = subprocess.run(
-            ["bash", str(SMOKE_MACOS), "--pkg"],
+            [bash, str(SMOKE_MACOS), "--pkg"],
             capture_output=True, text=True, timeout=60,
         )
         self.assertNotEqual(proc.returncode, 0)
@@ -116,8 +173,9 @@ class TestEval515SmokeHardening(unittest.TestCase):
         self.assertIn("ExitCode", text)
 
     def test_unknown_flag_still_rejected(self):
+        bash = _require_bash(self)
         proc = subprocess.run(
-            ["bash", str(SMOKE_LINUX), "--bogus-flag"],
+            [bash, str(SMOKE_LINUX), "--bogus-flag"],
             capture_output=True, text=True, timeout=60,
         )
         self.assertNotEqual(proc.returncode, 0)
