@@ -209,7 +209,11 @@ python -m pet service show
 python -m pet tray status</pre>
 
   <h2>Downloads and native installers</h2>
-  <p>No binaries are hosted here: the pet is source-first, and the hub links the recipes so downloads can never drift from the code. Build the one-file binary first, then wrap it per OS. Every recipe is fail-closed, writes checksums, and runs a bundle <code>selftest</code> before declaring success.</p>
+  <p>Versioned installers are published on <a href="https://github.com/Userfrom1995/RandomLabs/releases">GitHub Releases</a> (tag <code>desktop-pet-vX.Y.Z</code>) by the native <code>pet-release.yml</code> pipeline: Windows exe plus setup, macOS app plus pkg plus dmg, Linux deb plus AppImage plus rpm, every artifact smoked (install, selftest, service cycle, uninstall-clean) before publish. Each release ships <code>SHA256SUMS.txt</code>; verify before running:</p>
+  <pre>shasum -a 256 DesktopPet-*.pkg
+Get-FileHash .\dist\desktop-pet.exe -Algorithm SHA256</pre>
+  <p class="note">Honest note: release binaries are unsigned. Windows SmartScreen may warn on first launch (choose More info plus Run anyway); on macOS right-click plus Open the app once to clear Gatekeeper; on Linux run <code>chmod +x</code> on the AppImage. Prefer run-from-source (<code>python -m pet</code>, stdlib only, nothing to trust) if that worries you.</p>
+  <p>Prefer to build it yourself? The pet is source-first, and every recipe below reproduces the release artifacts bit-for-behavior. Build the one-file binary first, then wrap it per OS. Every recipe is fail-closed, writes checksums, and runs a bundle <code>selftest</code> before declaring success; the version comes from <code>pet/__init__.py</code> in every script, never a copied literal.</p>
   <div class="table-scroll">
   <table>
     <tr><th>OS</th><th>Recipe</th><th>Artifact</th><th>Notes</th></tr>
@@ -217,6 +221,7 @@ python -m pet tray status</pre>
     <tr><td>Windows 10/11</td><td><code>packaging/build-windows.ps1</code></td><td><code>dist/desktop-pet.exe</code></td><td>One-file binary; Registry Run key for start at login</td></tr>
     <tr><td>macOS 13+</td><td><code>packaging/build-macos.sh</code></td><td><code>dist/DesktopPet-1.5.0.pkg</code>, <code>dist/DesktopPet-1.5.0.dmg</code></td><td>App bundle plus pkg plus dmg; pkg installs the app only, then enable the login service with <code>desktop-pet startup on --service</code></td></tr>
     <tr><td>Linux (X11/Wayland)</td><td><code>packaging/build-linux.sh</code></td><td><code>dist/desktop-pet_1.5.0_amd64.deb</code>, <code>dist/DesktopPet-1.5.0-x86_64.AppImage</code></td><td>Desktop entry plus disabled-by-default XDG autostart (AppImage needs appimagetool)</td></tr>
+    <tr><td>Linux (Fedora/RHEL/openSUSE)</td><td><code>packaging/build-rpm.sh</code></td><td><code>dist/desktop-pet-1.5.0-1.*.rpm</code></td><td>Same payload as the deb (binary, desktop entry, icon, disabled-by-default autostart); needs rpmbuild</td></tr>
   </table>
   </div>
   <p>No binary needed to run from source (stdlib-only, nothing to install):</p>
