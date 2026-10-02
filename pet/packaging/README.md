@@ -32,7 +32,10 @@ window-only build (no terminal) is available on Linux/macOS with
 
 ## Native installers
 
-Build the one-file binary first (above), then wrap it per OS:
+Build the one-file binary first (above), then wrap it per OS
+(version numbers in the examples below show the current release as
+an example; every recipe stamps its own version from
+`pet/__init__.py`, never a copied literal):
 
 ```sh
 # Windows installer (needs Inno Setup 6: iscc on PATH, on Windows)
@@ -108,7 +111,13 @@ powershell -ExecutionPolicy Bypass -File pet\packaging\smoke-windows.ps1 `
 All three are fail-closed and headless by construction (no window is
 ever opened; installers are payload-inspected unless `--install` /
 `-Install` is passed on CI). Where an installer tool is absent they
-say so instead of passing silently.
+say so instead of passing silently. The honest-skip matrix is
+exact: off macOS the pkg gets a name check only (`pkgutil`, `xar`,
+and `hdiutil` are macOS-only); without `dpkg-deb` the deb gets a
+name check only; without `rpm` the rpm gets a name check only; a
+non-executable AppImage gets an existence check only. On the release
+runners (`windows-latest`, `macos-latest`, `ubuntu-latest`) every
+tool is present, so every check runs for real.
 
 Every recipe is fail-closed (`set -euo pipefail` or
 `$ErrorActionPreference = Stop`), writes checksums, and runs the
@@ -138,7 +147,8 @@ place unless `--purge` (or `-Purge`) is given.
 Versioned installers are published on GitHub Releases
 (`desktop-pet-vX.Y.Z`) by `.github/workflows/pet-release.yml`; no
 binaries are checked into the repo. Build from the recipe above
-for your OS, or run from source. Expected results:
+for your OS, or run from source. Expected results (artifact names
+show the current version as an example):
 
 | OS | Recipe | Artifact | Notes |
 | --- | --- | --- | --- |
