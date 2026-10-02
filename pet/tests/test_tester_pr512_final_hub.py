@@ -23,14 +23,29 @@ README = ROOT / "pet" / "README.md"
 
 class TestVersionRecipeParity(unittest.TestCase):
     def test_version_matches_installer_pins(self):
+        # Release Track rule (supersedes the old pin-literal rule):
+        # pet/__init__.py is the only version literal. Every recipe
+        # derives VERSION from `python -m pet version --porcelain`
+        # (the iss takes /DMyAppVersion on the iscc command line).
         version = pet.__version__
         self.assertRegex(version, r"^\d+\.\d+\.\d+$")
-        for recipe in ("pet/packaging/desktop-pet.iss",
-                       "pet/packaging/build-macos.sh",
-                       "pet/packaging/build-linux.sh"):
+        for recipe in ("pet/packaging/build-macos.sh",
+                       "pet/packaging/build-linux.sh",
+                       "pet/packaging/build-rpm.sh",
+                       "pet/packaging/build-windows.ps1",
+                       "pet/packaging/desktop-pet.iss",
+                       "pet/packaging/desktop-pet.rpm.spec"):
             src = (ROOT / recipe).read_text()
-            self.assertIn(version, src,
-                          "%s should pin version %s" % (recipe, version))
+            self.assertNotIn(version, src,
+                             "%s must not carry its own %s literal"
+                             % (recipe, version))
+        for recipe in ("pet/packaging/build-macos.sh",
+                       "pet/packaging/build-linux.sh",
+                       "pet/packaging/build-rpm.sh",
+                       "pet/packaging/build-windows.ps1"):
+            src = (ROOT / recipe).read_text()
+            self.assertIn("version --porcelain", src,
+                          "%s should derive VERSION from pet" % recipe)
 
     def test_hub_artifact_names_carry_version(self):
         hub = HUB.read_text()
@@ -89,8 +104,8 @@ class TestInstallerMatrixParity(unittest.TestCase):
     def test_recipes_referenced_by_hub_exist(self):
         hub = HUB.read_text()
         for recipe in ("desktop-pet.iss", "build-macos.sh", "build-linux.sh",
-                       "build-windows.ps1", "install.sh", "uninstall.sh",
-                       "install.ps1", "uninstall.ps1"):
+                       "build-rpm.sh", "build-windows.ps1", "install.sh",
+                       "uninstall.sh", "install.ps1", "uninstall.ps1"):
             self.assertIn(recipe, hub)
             self.assertTrue((ROOT / "pet" / "packaging" / recipe).exists(),
                             "recipe %s must exist on disk" % recipe)
@@ -100,9 +115,9 @@ class TestInstallerMatrixParity(unittest.TestCase):
         live = loader.discover(str(ROOT / "pet" / "tests")).countTestCases()
         text = README.read_text()
         # This suite itself grows the count, so assert the shipped floor
-        # (536 at PR time) is present and live meets or exceeds it.
-        self.assertIn("536", text)
-        self.assertGreaterEqual(live, 536)
+        # (572 at Release Track time) is present and live meets or exceeds it.
+        self.assertIn("572", text)
+        self.assertGreaterEqual(live, 572)
 
     def test_no_em_dashes_in_touched_docs(self):
         for f in (HUB, DOCS_MD, README):
