@@ -89,6 +89,30 @@ reopening (the pose blend restarts from the current pose so the swap
 morphs instead of popping). Stats carry across switches; unknown ids
 fall back to Pip with a notice, never a traceback.
 
+Meet the cast (every number below is a trait-table entry, shared by the
+brain, the sprite engine, and the Pages showcase):
+
+- **Pip the blob-cat (balanced)**: baseline rates, 90-second antic
+  rhythm, the warm shared voice behind every pack character.
+- **Bramble the fox (playful)**: hunger 1.25x, affection fade 1.4x,
+  1.6x walk speed, play-biased brain, 1.3x ball-catch radius,
+  60-second antics in exclamation-heavy bursts.
+- **Mochi the slime (sleepy)**: half-speed waddle, sleep-biased brain,
+  0.6x affection fade, 3.0 stroke gain, 1.25x feed restore, 4.5-second
+  munch, drowsy puddle voice.
+- **Kiki the sparrow (curious)**: 1.4x darting walk, startle-prone
+  brain, 45-second antics (fastest in the cast), chirpy chatter.
+- **Rusty the robot (grumpy-cute)**: damped startle, 0.8x feed
+  restore (runs on oil), 180-second antics, dry beep-studded voice.
+- **Luna the moth-dragon (nocturnal)**: hovering motion, 1.1x feed
+  restore with a 3.5-second munch, 120-second night antics, dreamy
+  moonlit voice.
+
+Installed creator packs join the same list: the `sunny-pack` example
+adds Sunny the sun-sprite and Ember the ember-fox, and
+`python -m pet characters switch sunny` plays as the new character
+with persisted selection.
+
 ## Conversation and living moments
 
 The pet chats offline (`pet_core/converse.py`): no network, no model,
@@ -210,15 +234,30 @@ binaries are built from documented recipes, never downloaded blind:
   `dist/desktop-pet.exe` (Windows). Full matrix and checksum commands
   live in `packaging/README.md`.
 - True installers wrap the binary per OS:
-  `packaging/desktop-pet.iss` (Windows setup via Inno Setup 6),
-  `packaging/build-macos.sh` (app bundle plus `.pkg` plus `.dmg`),
-  `packaging/build-linux.sh` (`.deb` plus AppImage).
+  `packaging/desktop-pet.iss` (Windows setup via Inno Setup 6, per-user
+  install with Start Menu entries, optional login task, clean
+  uninstall that keeps saves),
+  `packaging/build-macos.sh` (app bundle plus `.pkg` plus `.dmg`; the
+  pkg installs the app only, then `desktop-pet startup on --service`
+  enables the login service),
+  `packaging/build-linux.sh` (`.deb` plus AppImage, desktop entry plus
+  disabled-by-default XDG autostart).
 - Run-from-source shortcut scripts: `packaging/install.sh` and
   `packaging/uninstall.sh` (Linux/macOS), `packaging/install.ps1`
   and `packaging/uninstall.ps1` (Windows). Install verifies the
   interpreter, runs `selftest`, and enables launch-at-login;
   uninstall stops the service, removes autostart, and keeps saves
   unless asked to purge.
+
+Verify any binary you build or receive against `dist/SHA256SUMS.txt`
+written by your own build:
+
+```sh
+# Linux/macOS
+shasum -a 256 dist/desktop-pet
+# Windows (PowerShell)
+Get-FileHash .\dist\desktop-pet.exe -Algorithm SHA256
+```
 
 ## Creator packs
 

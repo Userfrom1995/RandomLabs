@@ -306,6 +306,7 @@ save(brain.state)
 | Start at login (`startup`, dialog toggle) | yes (Run key) | yes (LaunchAgent) | yes (autostart) |
 | OS notifications (`notify`) | bubble note | yes (osascript) | yes (notify-send) |
 | One-file binary (recipe) | yes (`packaging/build-windows.ps1`) | yes (`packaging/build.sh`) | yes (`packaging/build.sh`) |
+| Native installer (recipe) | yes (`packaging/desktop-pet.iss` via Inno Setup 6) | yes (`packaging/build-macos.sh`: app plus pkg plus dmg) | yes (`packaging/build-linux.sh`: deb plus AppImage) |
 
 The window needs tkinter plus a display; where either is missing the
 `gui` command exits with an honest note pointing at headless `run`.
@@ -330,12 +331,12 @@ failing silently.
   settings dialog), `service.py` (PID-locked background daemon ticking
   the headless brain with shared-save routing), `tray.py` (ordered
   pystray/native/mini-controller backends plus headless controller).
-- `__main__.py` - CLI dispatch (`run`, `gui`, `characters`, `talk`/`converse`, `settings`, `startup`,
+- `__main__.py` - CLI dispatch (`run`, `gui`, `characters`, `pack`, `talk`/`converse`, `settings`, `startup`,
   `notify`, `service`, `tray`, `selftest`, `help`, `version`).
 - `tests/` - headless suite: state, needs, personality, persistence,
   brain, sprite, window controller, interaction play layer, settings
   and brain toggles, per-OS shells, character catalog, conversation,
-   living moments (478 tests, seeded and
+   living moments (536 tests, seeded and
    deterministic).
 - `packaging/` - one-file PyInstaller recipes: `desktop-pet.spec`,
   `build.sh` (Linux/macOS), `build-windows.ps1` (Windows), build
