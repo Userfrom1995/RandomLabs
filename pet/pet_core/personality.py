@@ -274,9 +274,17 @@ EXTRA_VOICES: dict[str, dict[str, list[str]]] = {}
 
 def register_extra_voice(character_id: str,
                           pools: dict[str, list[str]]) -> str:
-    """Register a third-party voice pack (pack activation path)."""
+    """Register a third-party voice pack (pack activation path).
+
+    Pools go through the pack dialogue validator so side registries
+    cannot bypass the pool minimums. Raises ValueError on invalid
+    input.
+    """
+    from . import packs as packs_mod
+
+    cleaned = packs_mod.validate_dialogue(pools)
     slug = str(character_id or "").strip().lower()
-    EXTRA_VOICES[slug] = {k: list(v) for k, v in pools.items()}
+    EXTRA_VOICES[slug] = {k: list(v) for k, v in cleaned.items()}
     return slug
 
 
