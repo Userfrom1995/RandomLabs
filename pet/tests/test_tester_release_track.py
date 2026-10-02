@@ -29,6 +29,11 @@ WORKFLOWS = ROOT / ".github" / "workflows"
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 
 
+def _ps_quote(path: str) -> str:
+    """Single-quote a filesystem path for PowerShell ('' escape)."""
+    return "'" + path.replace("'", "''") + "'"
+
+
 def pet_version() -> str:
     from pet import __version__
     return __version__
@@ -142,6 +147,33 @@ class TestSmokeScripts(unittest.TestCase):
                 self.assertIn(marker, text,
                               "%s misses lifecycle step %r" % (name, marker))
 
+    def test_windows_smoke_surfaces_installer_exit_codes(self):
+        ps1 = (PKG / "smoke-windows.ps1").read_text(encoding="utf-8")
+        self.assertEqual(ps1.count("Start-Process"), 2)
+        self.assertEqual(ps1.count("-PassThru"), 2,
+                         "every Start-Process must capture -PassThru")
+        self.assertIn("ExitCode", ps1)
+
+    def test_windows_smoke_parses_when_pwsh_present(self):
+        import shutil
+        pwsh = shutil.which("pwsh") or shutil.which("powershell")
+        if pwsh is None:
+            self.skipTest("no PowerShell on PATH to parse the ps1 scripts")
+        for name in ("smoke-windows.ps1", "build-windows.ps1"):
+            script = str(PKG / name)
+            probe = (
+                "$errors = $null; $tokens = $null; "
+                "[void][System.Management.Automation.PSParser]::Tokenize("
+                "(Get-Content -Raw %s), [ref]$errors); "
+                "if ($errors.Count -ne 0) { $errors | ForEach-Object { "
+                "Write-Output $_.Message }; exit 1 }" % _ps_quote(script))
+            proc = subprocess.run(
+                [pwsh, "-NoProfile", "-Command", probe],
+                capture_output=True, text=True, timeout=60)
+            self.assertEqual(proc.returncode, 0,
+                             "%s has PowerShell syntax errors: %s"
+                             % (name, proc.stdout[-1000:]))
+
     def test_linux_logic_smoke_passes_live(self):
         with tempfile.TemporaryDirectory() as tmp:
             env = {"DESKTOP_PET_DATA_DIR": os.path.join(tmp, "data")}
@@ -207,6 +239,49 @@ class TestReleasePipeline(unittest.TestCase):
         self.assertIn("version --porcelain", text)
         self.assertIn("GITHUB_REF_NAME", text)
         self.assertIn("SHA256SUMS", text)
+
+    def test_workflow_parses_as_yaml_with_expected_jobs(self):
+        path = WORKFLOWS / "pet-release.yml"
+        text = path.read_text(encoding="utf-8")
+        self.assertNotIn("\t", text, "workflow contains tab indentation")
+        try:
+            import yaml
+        except ImportError:
+            yaml = None
+        if yaml is not None:
+            doc = yaml.safe_load(text)
+            self.assertIsInstance(doc, dict)
+            self.assertIn("on", doc)
+            self.assertIn("jobs", doc)
+            triggers = doc["on"]
+            self.assertIn("workflow_dispatch", triggers)
+            tags = triggers.get("push", {}).get("tags", [])
+            self.assertTrue(any("desktop-pet-v*" in t for t in tags),
+                            "tag trigger missing: %r" % (tags,))
+            jobs = doc["jobs"]
+            for job in ("build-windows", "build-macos", "build-linux",
+                        "publish"):
+                self.assertIn(job, jobs, "job %r missing" % job)
+                self.assertIn("runs-on", jobs[job],
+                              "job %r has no runner" % job)
+        else:
+            # PyYAML is not a runtime dependency of the pet, so without
+            # it this gate asserts structure: top-level `on:`/`jobs:`
+            # keys plus each expected job as a two-space job header.
+            for key in ("^on:", "^jobs:"):
+                self.assertRegex(text, r"(?m)" + key, "missing %s" % key)
+            for job in ("build-windows", "build-macos", "build-linux",
+                        "publish"):
+                self.assertRegex(text, r"(?m)^  %s:\s*$" % job,
+                                 "job header %r missing" % job)
+
+    def test_workflow_cannot_break_review_loop(self):
+        text = self._workflow()
+        for trigger in ("issue_comment", "pull_request_target"):
+            self.assertNotIn(trigger, text,
+                             "workflow must never trigger on %s" % trigger)
+        self.assertNotIn("\n  pull_request:", text,
+                         "workflow must never trigger on pull_request")
 
 
 class TestHubDownloads(unittest.TestCase):
