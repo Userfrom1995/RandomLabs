@@ -182,6 +182,17 @@ matrix can never drift from the recipes.
 ## Layout
 
 - `desktop-pet.spec` - PyInstaller one-file recipe (console build, zero assets).
+  The frozen entry is `entry.py`, not `pet/__main__.py`: a frozen
+  top-level `__main__` has no parent package, so relative imports raise
+  `ImportError` at startup. The spec also bundles the `pet/` tree as
+  data (same relative layout) so the bundle selftest, which reads repo
+  files through `__file__`-derived paths, resolves them inside the
+  extracted bundle exactly as run-from-source does.
+- `entry.py` - frozen-bundle entry shim (absolute imports only, calls
+  `pet.__main__.main`). The bundle additionally tolerates a `-m pet`
+  prefix (`desktop-pet -m pet version` works), because the test harness
+  and the background service spawn `[sys.executable, "-m", "pet", ...]`
+  and under PyInstaller `sys.executable` is the bundle itself.
 - `desktop-pet.iss` - Windows Inno Setup installer (per-user, login task, clean uninstall).
 - `desktop-pet.svg` - Pet icon for the Linux desktop entry, deb, and AppImage.
 - `build.sh` - Linux/macOS build, checksum, and bundle selftest.

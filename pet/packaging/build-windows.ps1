@@ -27,8 +27,19 @@ if ($LASTEXITCODE -ne 0) {
   exit 1
 }
 
-python -c "import PyInstaller" 2>$null
-if ($LASTEXITCODE -ne 0) {
+$probeEap = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+try {
+  python -c "import PyInstaller" 2>$null
+  $probeCode = $LASTEXITCODE
+} catch {
+  $probeCode = 1
+}
+$ErrorActionPreference = $probeEap
+if ($probeCode -ne 0) {
+  # NOTE: the probe above must stay Stop-safe ($ErrorActionPreference is
+  # "Stop" in this script, and PowerShell 7.4+ throws on a nonzero native
+  # exit under Stop, which would skip this fallback entirely).
   Write-Host "[pet] installing pyinstaller into this Python..."
   python -m pip install --quiet pyinstaller
 }

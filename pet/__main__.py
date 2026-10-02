@@ -26,9 +26,23 @@ import sys
 import time
 
 import zipfile
-from . import __version__
-from .pet_core import Personality, PetState, default_save_path, load, save
-from .pet_core.brain import TICK_HZ, Brain
+
+if __package__ in (None, ""):
+    # Direct-script run (`python pet/__main__.py`) or a frozen bundle
+    # that embedded this file as top-level __main__: there is no parent
+    # package, so relative imports would raise ImportError. Put the repo
+    # root on sys.path so the absolute imports below resolve.
+    import os as _os
+    import sys as _sys
+
+    _ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+    if _ROOT not in _sys.path:
+        _sys.path.insert(0, _ROOT)
+    del _os, _sys, _ROOT
+
+from pet import __version__
+from pet.pet_core import Personality, PetState, default_save_path, load, save
+from pet.pet_core.brain import TICK_HZ, Brain
 
 
 def cmd_version(args=None) -> int:
@@ -184,7 +198,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     save_path = args.save or default_save_path()
     try:
-        from .pet_core.packs import ensure_active as _ensure_packs
+        from pet.pet_core.packs import ensure_active as _ensure_packs
         for note in _ensure_packs():
             print("[pet] %s" % note)
     except Exception:
@@ -193,7 +207,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     if notice:
         print("[pet] %s" % notice)
     if args.character is not None:
-        from .pet_core import catalog as catalog_mod
+        from pet.pet_core import catalog as catalog_mod
 
         record, char_notice = catalog_mod.get(args.character)
         if char_notice:
@@ -232,8 +246,8 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def cmd_gui(args: argparse.Namespace) -> int:
-    from .pet_app import clamp_alpha, clamp_scale
-    from .pet_app import launch as open_window
+    from pet.pet_app import clamp_alpha, clamp_scale
+    from pet.pet_app import launch as open_window
 
     try:
         scale = clamp_scale(args.scale)
@@ -261,10 +275,10 @@ def cmd_gui(args: argparse.Namespace) -> int:
 
 
 def cmd_settings(args: argparse.Namespace) -> int:
-    from .pet_app import settings as settings_mod
+    from pet.pet_app import settings as settings_mod
 
     try:
-        from .pet_core.packs import ensure_active as _ensure_packs
+        from pet.pet_core.packs import ensure_active as _ensure_packs
         for note in _ensure_packs():
             print("[pet] %s" % note)
     except Exception:
@@ -298,7 +312,7 @@ def cmd_settings(args: argparse.Namespace) -> int:
 
 
 def cmd_startup(args: argparse.Namespace) -> int:
-    from .pet_app import shells as shells_mod
+    from pet.pet_app import shells as shells_mod
 
     if args.mode == "status":
         state = "on" if shells_mod.is_startup_enabled() else "off"
@@ -314,7 +328,7 @@ def cmd_startup(args: argparse.Namespace) -> int:
 
 
 def cmd_service(args: argparse.Namespace) -> int:
-    from .pet_app import service as service_mod
+    from pet.pet_app import service as service_mod
 
     action = args.action or "status"
     if action == "start":
@@ -360,7 +374,7 @@ def cmd_service(args: argparse.Namespace) -> int:
 
 
 def cmd_tray(args: argparse.Namespace) -> int:
-    from .pet_app import tray as tray_mod
+    from pet.pet_app import tray as tray_mod
 
     action = args.action or "status"
     controller = tray_mod.TrayController()
@@ -380,7 +394,7 @@ def cmd_tray(args: argparse.Namespace) -> int:
 
 
 def cmd_notify(args: argparse.Namespace) -> int:
-    from .pet_app import shells as shells_mod
+    from pet.pet_app import shells as shells_mod
 
     if not args.message.strip():
         print("error: --message must not be empty", file=sys.stderr)
@@ -391,12 +405,12 @@ def cmd_notify(args: argparse.Namespace) -> int:
 
 
 def cmd_characters(args: argparse.Namespace) -> int:
-    from .pet_core import catalog as catalog_mod
+    from pet.pet_core import catalog as catalog_mod
 
     save_path = args.save or default_save_path()
     if args.action == "list":
         try:
-            from .pet_core import packs as packs_mod
+            from pet.pet_core import packs as packs_mod
             _extra, pack_notices = packs_mod.active_extra()
             for note in pack_notices:
                 print("[pet] %s" % note)
@@ -449,7 +463,7 @@ def cmd_characters(args: argparse.Namespace) -> int:
 
 
 def cmd_pack(args: argparse.Namespace) -> int:
-    from .pet_core import packs as packs_mod
+    from pet.pet_core import packs as packs_mod
 
     action = args.action or "list"
     if action == "validate":
@@ -521,8 +535,8 @@ def cmd_pack(args: argparse.Namespace) -> int:
 
 
 def cmd_talk(args: argparse.Namespace) -> int:
-    from .pet_core import catalog as catalog_mod
-    from .pet_core.converse import Converser
+    from pet.pet_core import catalog as catalog_mod
+    from pet.pet_core.converse import Converser
 
     if args.text is None or not str(args.text).strip():
         print("error: talk needs something to say, e.g. "
@@ -530,7 +544,7 @@ def cmd_talk(args: argparse.Namespace) -> int:
         return 2
     save_path = args.save or default_save_path()
     try:
-        from .pet_core import packs as packs_mod
+        from pet.pet_core import packs as packs_mod
         _extra, pack_notices = packs_mod.active_extra()
         for note in pack_notices:
             print("[pet] %s" % note)
@@ -565,7 +579,7 @@ def cmd_selftest() -> int:
     """Run the headless suite plus wiring checks without unittest CLI."""
     import unittest
 
-    from .tests import suite as make_suite
+    from pet.tests import suite as make_suite
 
     runner = unittest.TextTestRunner(verbosity=1)
     result = runner.run(make_suite())
@@ -589,6 +603,17 @@ def cmd_selftest() -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    else:
+        argv = list(argv)
+    if getattr(sys, "frozen", False) and argv[:2] == ["-m", "pet"]:
+        # Frozen one-file bundle re-invoked the way run-from-source is
+        # spawned (`python -m pet ...`): the test harness and the
+        # background service both build `[sys.executable, "-m", "pet",
+        # ...]`, and under PyInstaller sys.executable is the bundle
+        # itself. Drop the interpreter prefix and run the subcommand.
+        argv = argv[2:]
     parser = _build_parser()
     args = parser.parse_args(argv)
     if args.command == "run":
