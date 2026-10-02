@@ -17,12 +17,15 @@ APP=""
 PKG=""
 DMG=""
 INSTALL="0"
+# Bundle identifier stamped by build-macos.sh (IDENT there); the smoke
+# uses it only to forget the pkg receipt after an --install run.
+PKG_ID="com.desktoppet.app"
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --binary) BINARY="$2"; shift 2 ;;
-    --app) APP="$2"; shift 2 ;;
-    --pkg) PKG="$2"; shift 2 ;;
-    --dmg) DMG="$2"; shift 2 ;;
+    --binary) BINARY="${2:-}"; [ -n "$BINARY" ] || { echo "error: --binary needs a value" >&2; exit 1; }; shift 2 ;;
+    --app) APP="${2:-}"; [ -n "$APP" ] || { echo "error: --app needs a value" >&2; exit 1; }; shift 2 ;;
+    --pkg) PKG="${2:-}"; [ -n "$PKG" ] || { echo "error: --pkg needs a value" >&2; exit 1; }; shift 2 ;;
+    --dmg) DMG="${2:-}"; [ -n "$DMG" ] || { echo "error: --dmg needs a value" >&2; exit 1; }; shift 2 ;;
     --install) INSTALL="1"; shift ;;
     *) echo "error: unknown flag $1" >&2; exit 1 ;;
   esac
@@ -109,6 +112,9 @@ if [ -n "$PKG" ]; then
   if [ "$(uname)" = "Darwin" ]; then
     pkgutil --check-signature "$PKG" >/dev/null 2>&1 \
       || echo "[smoke] pkg is unsigned (expected: honest unsigned-binary note in hub)"
+    xar -tf "$PKG" | grep -qi "payload" \
+      || fail "pkg payload check failed: no Payload archive in $PKG"
+    echo "[smoke] pkg signature plus payload OK"
   else
     echo "[smoke] not on macOS, name check only (honest skip)"
   fi
@@ -138,7 +144,11 @@ if [ "$INSTALL" = "1" ]; then
   sudo rm -rf "/Applications/DesktopPet.app"
   [ ! -e "/Applications/DesktopPet.app" ] \
     || fail "uninstall left /Applications/DesktopPet.app behind"
-  echo "[smoke] pkg install plus uninstall-clean OK"
+  sudo pkgutil --forget "$PKG_ID" >/dev/null \
+    || fail "pkgutil --forget $PKG_ID failed"
+  pkgutil --pkg-info "$PKG_ID" >/dev/null 2>&1 \
+    && fail "pkg receipt $PKG_ID survived uninstall"
+  echo "[smoke] pkg install plus uninstall-clean OK (receipt forgotten)"
 fi
 
 if [ -e "$TMP/data" ]; then

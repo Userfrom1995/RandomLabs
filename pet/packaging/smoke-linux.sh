@@ -22,10 +22,10 @@ APPIMAGE=""
 INSTALL="0"
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --binary) BINARY="$2"; shift 2 ;;
-    --deb) DEB="$2"; shift 2 ;;
-    --rpm) RPM="$2"; shift 2 ;;
-    --appimage) APPIMAGE="$2"; shift 2 ;;
+    --binary) BINARY="${2:-}"; [ -n "$BINARY" ] || { echo "error: --binary needs a value" >&2; exit 1; }; shift 2 ;;
+    --deb) DEB="${2:-}"; [ -n "$DEB" ] || { echo "error: --deb needs a value" >&2; exit 1; }; shift 2 ;;
+    --rpm) RPM="${2:-}"; [ -n "$RPM" ] || { echo "error: --rpm needs a value" >&2; exit 1; }; shift 2 ;;
+    --appimage) APPIMAGE="${2:-}"; [ -n "$APPIMAGE" ] || { echo "error: --appimage needs a value" >&2; exit 1; }; shift 2 ;;
     --install) INSTALL="1"; shift ;;
     *) echo "error: unknown flag $1" >&2; exit 1 ;;
   esac
