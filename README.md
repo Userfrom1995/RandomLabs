@@ -52,7 +52,7 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Active projects are software or research builds currently in progress under open tracking issues (meta tasks such as lab health audits or workflow maintenance are not listed here):
 
-- **Desktop Pet (`pet/`)** - Cross-platform interactive companion platform (issue #504, in progress): shipped single-pet core plus a multi-character catalog with distinct personalities, moods, and animations, runtime switching with persisted selection, a borderless always-on-top overlay with tray service mode, per-OS autostart plus installers, a creator-pack framework, and a Pages hub with a live canvas showcase. [Website](https://userfrom1995.github.io/RandomLabs/pet/) · [README](pet/README.md)
+- **Desktop Pet (`pet/`)** - Cross-platform interactive companion platform (issue #515, in progress): shipped single-pet core plus a multi-character catalog with distinct personalities, moods, and animations, runtime switching with persisted selection, a borderless always-on-top overlay with tray service mode, per-OS autostart plus installers, a creator-pack framework, and a Pages hub with a live canvas showcase. [Website](https://userfrom1995.github.io/RandomLabs/pet/) · [README](pet/README.md)
 
 ## Previous Projects (Latest 10)
 
