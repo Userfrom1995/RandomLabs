@@ -213,7 +213,7 @@ python -m pet tray status</pre>
   <pre>shasum -a 256 DesktopPet-*.pkg
 Get-FileHash .\dist\desktop-pet.exe -Algorithm SHA256</pre>
   <p class="note">Honest note: release binaries are unsigned. Windows SmartScreen may warn on first launch (choose More info plus Run anyway); on macOS right-click plus Open the app once to clear Gatekeeper; on Linux run <code>chmod +x</code> on the AppImage. Prefer run-from-source (<code>python -m pet</code>, stdlib only, nothing to trust) if that worries you.</p>
-  <p>Prefer to build it yourself? The pet is source-first, and every recipe below reproduces the release artifacts bit-for-behavior. Build the one-file binary first, then wrap it per OS. Every recipe is fail-closed, writes checksums, and runs a bundle <code>selftest</code> before declaring success; the version comes from <code>pet/__init__.py</code> in every script, never a copied literal.</p>
+  <p>Prefer to build it yourself? The pet is source-first, and every recipe below reproduces the release artifacts bit-for-behavior. Build the one-file binary first, then wrap it per OS. Every recipe is fail-closed, writes checksums, and runs a bundle <code>selftest</code> before declaring success; the version comes from <code>pet/__init__.py</code> in every script, never a copied literal. Artifact names below show the current version as an example; your build stamps its own version the same way.</p>
   <div class="table-scroll">
   <table>
     <tr><th>OS</th><th>Recipe</th><th>Artifact</th><th>Notes</th></tr>
@@ -693,6 +693,5 @@ python -m pet characters switch sunny</pre>
   requestAnimationFrame(function (t) { state.last = t; requestAnimationFrame(frame); });
 })();
 </script>
-</main>
 </body>
 </html>
