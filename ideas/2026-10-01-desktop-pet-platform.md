@@ -269,3 +269,53 @@ craft verdict already earned.
   desktop and 390 px widths with no horizontal scroll; installer
   commands copy-paste correct per OS; creator-pack schema example
   validates with the checked-in validator.
+
+## Release-Track Extension (2026-10-02, published ready-to-use packages)
+
+Owner follow-up on #504 (2026-10-02): recipes exist in
+`pet/packaging/` but zero published artifacts exist, so users must
+still clone and build. This extension closes that gap with real
+downloadable releases, still extending the shipped core (no rewrite,
+no new runtime dependency).
+
+What gets added (one Builder increment, `Refs #504` until its native
+gates pass):
+
+- **Single-source version.** `pet/__init__.py:__version__` becomes the
+  only version literal. Every packaging script (`build.sh`,
+  `build-windows.ps1`, `build-macos.sh`, `build-linux.sh`,
+  `desktop-pet.iss`) derives `VERSION` from `python -m pet version`
+  (porcelain) at build time instead of carrying its own `1.5.0`
+  literal. The static gate asserts no second literal remains.
+- **Linux rpm recipe.** New `pet/packaging/build-rpm.sh` plus an rpm
+  spec template producing `dist/desktop-pet_<version>_amd64.rpm`
+  (rpmbuild native path; fail-closed `set -euo pipefail`, bundle
+  selftest before packaging, checksum appended to `SHA256SUMS.txt`).
+  deb and AppImage recipes stay as-is; rpm reuses the same staged
+  desktop entry, icon, and disabled-by-default autostart payload.
+- **Release pipeline.** New `pet-release.yml` workflow (tag push
+  `desktop-pet-v*` plus manual dispatch): three native build jobs
+  (windows-latest builds exe plus Inno setup exe; macos-latest builds
+  app plus pkg plus dmg; ubuntu-latest builds deb plus AppImage plus
+  rpm), each running the bundle selftest and a per-OS smoke script
+  (below) natively before upload; one publish job creates a versioned
+  GitHub Release with all artifacts plus `SHA256SUMS.txt` and
+  copy-paste verification commands. No binaries are ever checked in.
+- **Per-OS smoke scripts.** New `pet/packaging/smoke-<os>.sh/ps1`
+  used by both the release workflow and the per-OS testers: install
+  the just-built artifact, run `selftest`, `version`,
+  `characters list`, a service start/status/stop cycle, and a clean
+  uninstall, asserting no autostart or tray residue. Fail-closed,
+  isolated data dirs, honest skips where a GUI session is absent.
+- **Hub download matrix.** `pet/index.html` plus `pet/docs/installers.md`
+  gain a Downloads section pointing at the latest GitHub Release
+  (per-OS artifact names, checksums, verification commands) with
+  honest unsigned-binary notes (Windows SmartScreen, macOS Gatekeeper
+  right-click open, Linux `chmod +x`), while keeping the run-from-source
+  and recipe docs intact.
+
+Test additions: static gate checks single-source version, rpm files
+exist, smoke scripts carry fail-closed headers; headless smoke runs
+without a display; release workflow YAML validates; per-OS testers
+run the smoke scripts natively on Windows, macOS, and Linux before
+any `Closes`.
