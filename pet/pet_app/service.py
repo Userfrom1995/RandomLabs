@@ -466,6 +466,19 @@ def switch_character(character_id: object,
     if load_notice and "starting fresh" not in load_notice \
             and "migrated" not in load_notice:
         pass
+    if notice:
+        # Unknown id: preserve the active character like the
+        # `characters switch` path does; never clobber the save on a typo.
+        try:
+            current, _current_notice = catalog_mod.get(state.character_id)
+        except Exception:
+            current = record
+        try:
+            save(state, save_target)
+        except OSError as exc:
+            return (False, "could not save the character (%s)." % exc)
+        return (True, "%s; still %s (%s)." % (
+            notice, current["name"], current["id"]))
     state.character_id = record["id"]
     try:
         save(state, save_target)
@@ -473,6 +486,4 @@ def switch_character(character_id: object,
         return (False, "could not save the character (%s)." % exc)
     text = "switched the shared pet to %s (%s)." % (record["name"],
                                                     record["id"])
-    if notice:
-        text = "%s %s" % (notice, text)
     return (True, text)

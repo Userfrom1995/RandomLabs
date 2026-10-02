@@ -43,8 +43,11 @@ fi
 echo "[pet] selftest passed"
 
 if [ -n "$CHARACTER" ]; then
+  if ! python3 -c "import sys; from pet.pet_core import catalog; _r, _n = catalog.get(sys.argv[1]); raise SystemExit(1 if _n else 0)" "$CHARACTER"; then
+    echo "error: unknown character '$CHARACTER'" >&2; exit 1
+  fi
   python3 -m pet characters switch "$CHARACTER" || {
-    echo "error: unknown character '$CHARACTER'" >&2; exit 1; }
+    echo "error: could not select character '$CHARACTER'" >&2; exit 1; }
 fi
 
 if [ "$SERVICE" = "1" ]; then
