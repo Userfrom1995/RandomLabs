@@ -1,0 +1,313 @@
+# Desktop Pet release pipeline: native per-OS builds plus smoke plus published artifacts.
+#
+# Triggers: version tags (desktop-pet-v*) plus manual dispatch.
+# Jobs: three native builders (windows-latest builds exe plus Inno Setup
+# setup exe; macos-latest builds app plus .pkg plus .dmg; ubuntu-latest
+# builds .deb plus AppImage plus .rpm), each running the bundle selftest
+# and its per-OS smoke script natively BEFORE upload; one publish job
+# merges SHA256SUMS.txt and creates the versioned GitHub Release.
+# No binaries are ever checked in; the Pages hub download matrix points
+# at the Release assets. Tag/version parity is fail-closed: the tag must
+# match `python -m pet version --porcelain` (GITHUB_REF_NAME check).
+#
+# Merges of PRs touching .github/workflows/* need an owner click or PAT
+# merge (see LAB.md "Merge capability").
+
+name: pet-release
+
+on:
+  push:
+    tags:
+      - "desktop-pet-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pet-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-windows:
+    name: build plus smoke (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Version parity (tag must match pet version)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $version = (python -m pet version --porcelain).Trim()
+          if (-not $version) { Write-Error "could not derive VERSION via python -m pet version --porcelain"; exit 1 }
+          Write-Host "[pet-release] package version $version"
+          $ref = "$env:GITHUB_REF_NAME"
+          if ($ref -ne "") {
+            $want = $ref -replace '^desktop-pet-v', ''
+            if ($want -ne $version) { Write-Error "tag/version parity failed: tag '$ref' wants '$want', package is '$version'"; exit 1 }
+            Write-Host "[pet-release] tag parity OK ($ref)"
+          } else {
+            Write-Host "[pet-release] no tag ref (dispatch run), package version $version"
+          }
+
+      - name: Build exe plus Inno Setup installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          # Inno Setup 6 provides iscc for the setup exe; install it when missing.
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) {
+            choco install innosetup -y --no-progress
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+          }
+          iscc /? | Select-Object -First 2
+          powershell -ExecutionPolicy Bypass -File pet\packaging\build-windows.ps1
+        # Uses pet/packaging/build-windows.ps1 plus Inno Setup (iscc /DMyAppVersion)
+        # to produce dist/desktop-pet.exe plus dist/desktop-pet-setup-<version>.exe
+        # plus dist/SHA256SUMS.txt. The bundle selftest runs inside the script.
+
+      - name: Smoke Windows artifact
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          # Headless logic smoke always runs; when the setup exe exists its
+          # payload is verified too (install path runs on CI with -Install).
+          powershell -ExecutionPolicy Bypass -File pet\packaging\smoke-windows.ps1
+          $setup = Get-ChildItem dist/desktop-pet-setup-*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($setup) {
+            powershell -ExecutionPolicy Bypass -File pet\packaging\smoke-windows.ps1 -Setup $setup.FullName
+          } else {
+            Write-Host "[pet-release] no setup exe (iscc unavailable), logic smoke only"
+          }
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-pet-windows
+          path: |
+            dist/desktop-pet.exe
+            dist/desktop-pet-setup-*.exe
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+  build-macos:
+    name: build plus smoke (macos-latest)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Version parity (tag must match pet version)
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(python3 -m pet version --porcelain | tr -d '[:space:]')"
+          if [ -z "$VERSION" ]; then echo "error: version --porcelain empty" >&2; exit 1; fi
+          echo "[pet-release] package version $VERSION"
+          if [ -n "${GITHUB_REF_NAME:-}" ]; then
+            WANT="${GITHUB_REF_NAME#desktop-pet-v}"
+            if [ "$WANT" != "$VERSION" ]; then
+              echo "error: tag/version parity failed: tag '$GITHUB_REF_NAME' wants '$WANT', package is '$VERSION'" >&2
+              exit 1
+            fi
+            echo "[pet-release] tag parity OK ($GITHUB_REF_NAME)"
+          else
+            echo "[pet-release] no tag ref (dispatch run), package version $VERSION"
+          fi
+
+      - name: Build app plus pkg plus dmg
+        shell: bash
+        run: |
+          set -euo pipefail
+          # pet/packaging/build-macos.sh builds DesktopPet.app plus the .pkg
+          # installer plus the .dmg image, running the bundle selftest first.
+          bash pet/packaging/build-macos.sh
+
+      - name: Smoke macOS artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(python3 -m pet version --porcelain | tr -d '[:space:]')"
+          # Logic smoke always runs (headless, isolated data dir); payload
+          # flags verify the .pkg plus .dmg names and bundle Info.plist.
+          bash pet/packaging/smoke-macos.sh
+          bash pet/packaging/smoke-macos.sh \
+            --pkg "dist/DesktopPet-$VERSION.pkg" \
+            --dmg "dist/DesktopPet-$VERSION.dmg"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-pet-macos
+          path: |
+            dist/DesktopPet-*.pkg
+            dist/DesktopPet-*.dmg
+            dist/com.desktoppet.service.plist
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+  build-linux:
+    name: build plus smoke (ubuntu-latest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install packaging tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq dpkg-dev rpm || sudo apt-get install -y -qq dpkg rpm
+
+      - name: Version parity (tag must match pet version)
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(python3 -m pet version --porcelain | tr -d '[:space:]')"
+          if [ -z "$VERSION" ]; then echo "error: version --porcelain empty" >&2; exit 1; fi
+          echo "[pet-release] package version $VERSION"
+          if [ -n "${GITHUB_REF_NAME:-}" ]; then
+            WANT="${GITHUB_REF_NAME#desktop-pet-v}"
+            if [ "$WANT" != "$VERSION" ]; then
+              echo "error: tag/version parity failed: tag '$GITHUB_REF_NAME' wants '$WANT', package is '$VERSION'" >&2
+              exit 1
+            fi
+            echo "[pet-release] tag parity OK ($GITHUB_REF_NAME)"
+          else
+            echo "[pet-release] no tag ref (dispatch run), package version $VERSION"
+          fi
+
+      - name: Build deb plus AppImage plus rpm
+        shell: bash
+        run: |
+          set -euo pipefail
+          # pet/packaging/build-linux.sh builds the .deb plus the AppImage
+          # fallback (skipped honestly when appimagetool is absent);
+          # pet/packaging/build-rpm.sh builds the .rpm from the same payload.
+          # Both run the bundle selftest before packaging.
+          bash pet/packaging/build-linux.sh
+          if command -v rpmbuild >/dev/null 2>&1; then
+            bash pet/packaging/build-rpm.sh
+          else
+            echo "[pet-release] rpmbuild absent, skipping .rpm (honest skip)"
+          fi
+
+      - name: Smoke Linux artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(python3 -m pet version --porcelain | tr -d '[:space:]')"
+          DEB="dist/desktop-pet_${VERSION}_amd64.deb"
+          RPM="$(ls dist/desktop-pet-*.rpm 2>/dev/null | head -n 1 || true)"
+          APPIMAGE="$(ls dist/DesktopPet-*-x86_64.AppImage 2>/dev/null | head -n 1 || true)"
+          # Logic smoke always runs (headless, isolated data dir); payload
+          # flags verify the .deb plus .rpm plus AppImage when present.
+          bash pet/packaging/smoke-linux.sh
+          ARGS=()
+          [ -f "$DEB" ] && ARGS+=(--deb "$DEB")
+          [ -n "$RPM" ] && [ -f "$RPM" ] && ARGS+=(--rpm "$RPM")
+          [ -n "$APPIMAGE" ] && [ -f "$APPIMAGE" ] && ARGS+=(--appimage "$APPIMAGE")
+          bash pet/packaging/smoke-linux.sh "${ARGS[@]}"
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-pet-linux
+          path: |
+            dist/desktop-pet_*_amd64.deb
+            dist/desktop-pet-*.rpm
+            dist/DesktopPet-*-x86_64.AppImage
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+  publish:
+    name: publish GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [build-windows, build-macos, build-linux]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Version parity plus merged checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(python3 -m pet version --porcelain | tr -d '[:space:]')"
+          echo "[pet-release] package version $VERSION (python -m pet version --porcelain)"
+          if [ -n "${GITHUB_REF_NAME:-}" ]; then
+            WANT="${GITHUB_REF_NAME#desktop-pet-v}"
+            if [ "$WANT" != "$VERSION" ]; then
+              echo "error: tag/version parity failed: tag '$GITHUB_REF_NAME' wants '$WANT', package is '$VERSION'" >&2
+              exit 1
+            fi
+          fi
+          ls -la release-assets/
+          # Merge per-job SHA256SUMS.txt files into one release checksum file.
+          : > release-assets/SHA256SUMS.txt
+          for f in release-assets/SHA256SUMS.txt release-assets/*/SHA256SUMS.txt; do
+            [ -f "$f" ] || continue
+            grep -v '^SHA256SUMS' "$f" >> release-assets/SHA256SUMS.txt || true
+          done
+          # Re-hash the actual payloads so SHA256SUMS.txt always matches bytes.
+          (cd release-assets && rm -f SHA256SUMS.txt && sha256sum desktop-pet.exe desktop-pet-setup-*.exe DesktopPet-*.pkg DesktopPet-*.dmg desktop-pet_*_amd64.deb desktop-pet-*.rpm DesktopPet-*-x86_64.AppImage com.desktoppet.service.plist 2>/dev/null >> SHA256SUMS.txt || true)
+          cat release-assets/SHA256SUMS.txt
+          test -s release-assets/SHA256SUMS.txt || { echo "error: empty SHA256SUMS.txt" >&2; exit 1; }
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Create versioned GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME:-desktop-pet-v${VERSION}-manual}"
+          NOTES="$(mktemp)"
+          cat > "$NOTES" <<EOF
+          Desktop Pet $VERSION - ready-to-use installers plus run-from-source.
+
+          Artifacts:
+          - Windows: desktop-pet.exe, desktop-pet-setup-$VERSION.exe (unsigned: SmartScreen may warn, choose More info plus Run anyway)
+          - macOS: DesktopPet-$VERSION.pkg, DesktopPet-$VERSION.dmg (unsigned: Gatekeeper may block, right-click plus Open)
+          - Linux: desktop-pet_${VERSION}_amd64.deb, desktop-pet-*.rpm, DesktopPet-$VERSION-x86_64.AppImage (chmod +x the AppImage)
+
+          Verify downloads:
+          \`\`\`
+          sha256sum -c SHA256SUMS.txt
+          \`\`\`
+          Then run \`desktop-pet selftest\` (SELFTEST PASS), \`desktop-pet version\`,
+          and \`desktop-pet characters list\` before installing.
+          EOF
+          gh release create "$TAG" --title "Desktop Pet $VERSION" --notes-file "$NOTES" release-assets/*
+          echo "[pet-release] published $TAG"
