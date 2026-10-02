@@ -41,8 +41,39 @@ def read_pid(data_dir):
 
 
 def pid_alive(pid):
+    """True when a process id is currently running. Never raises.
+
+    POSIX uses ``os.kill(pid, 0)``; on Windows that raises
+    ``OSError: [WinError 87]`` (the parameter is invalid), so Windows
+    uses the same OpenProcess plus GetExitCodeProcess(STILL_ACTIVE)
+    probe as the shipped ``pet.pet_app.service._is_alive`` helper.
+    """
     try:
-        os.kill(int(pid), 0)
+        number = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if number <= 0:
+        return False
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            handle = ctypes.windll.kernel32.OpenProcess(
+                0x1000, False, number)
+            if not handle:
+                return False
+            try:
+                code = ctypes.c_ulong()
+                ok = ctypes.windll.kernel32.GetExitCodeProcess(
+                    handle, ctypes.byref(code))
+                # STILL_ACTIVE (259) means the process is alive.
+                return bool(ok) and int(code.value) == 259
+            finally:
+                ctypes.windll.kernel32.CloseHandle(handle)
+        except Exception:
+            return False
+    try:
+        os.kill(number, 0)
     except ProcessLookupError:
         return False
     except PermissionError:
@@ -82,6 +113,11 @@ class TestServiceDaemonLifecycle(unittest.TestCase):
             self.assertIn("stopped", status.stdout)
 
     def test_sigterm_saves_and_exits_gracefully(self):
+        if sys.platform == "win32":
+            self.skipTest(
+                "Windows has no POSIX SIGTERM delivery: os.kill(pid, "
+                "SIGTERM) is TerminateProcess, which cannot run the "
+                "daemon's graceful save-and-exit handler")
         with tempfile.TemporaryDirectory() as data:
             proc = run_pet("service", "start", data_dir=data)
             self.assertEqual(proc.returncode, 0, proc.stderr)
