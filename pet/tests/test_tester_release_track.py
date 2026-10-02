@@ -34,6 +34,60 @@ def _ps_quote(path: str) -> str:
     return "'" + path.replace("'", "''") + "'"
 
 
+def _find_bash():
+    """Locate a real script-capable bash, or return None.
+
+    On Windows ``bash`` on PATH often resolves to the WSL stub at
+    ``<SystemRoot>\\System32\\bash.exe`` (a WSL launcher, not a shell
+    that can run ``bash script.sh``), while the real shell ships
+    with Git for Windows. Prefer any non-System32 bash, then the
+    well-known Git install locations; return None when only the stub
+    (or nothing) exists so callers skip instead of testing the stub.
+    Mirrors pet/tests/test_tester_phase5_adversarial.py.
+    """
+    import shutil
+
+    probes = []
+    if os.name == "nt":
+        probes.extend([
+            r"C:\Program Files\Git\bin\bash.exe",
+            r"C:\Program Files (x86)\Git\bin\bash.exe",
+        ])
+    for directory in os.environ.get("PATH", "").split(os.pathsep):
+        if directory:
+            name = "bash.exe" if os.name == "nt" else "bash"
+            probes.append(os.path.join(directory, name))
+    system_root = os.path.normcase(
+        os.path.abspath(os.environ.get("SystemRoot", r"C:\Windows")))
+    real, fallback = [], []
+    for probe in probes:
+        if not os.path.isfile(probe):
+            continue
+        if (os.name == "nt" and os.path.normcase(
+                os.path.abspath(probe)).startswith(system_root)):
+            fallback.append(probe)
+        else:
+            real.append(probe)
+    if real:
+        return real[0]
+    if fallback:
+        return None
+    found = shutil.which("bash")
+    if found and os.name == "nt" and os.path.normcase(
+            os.path.abspath(found)).startswith(system_root):
+        return None
+    return found
+
+
+def _require_bash(test):
+    """Return a bash path or skip the calling test when only the WSL stub exists."""
+    bash = _find_bash()
+    if bash is None:
+        test.skipTest("no script-capable bash found "
+                      "(only the Windows WSL stub or nothing on PATH)")
+    return bash
+
+
 def pet_version() -> str:
     from pet import __version__
     return __version__
@@ -108,7 +162,8 @@ class TestRpmRecipe(unittest.TestCase):
         self.assertIn("SHA256SUMS", text)
 
     def test_rpm_script_parses(self):
-        proc = subprocess.run(["bash", "-n", str(PKG / "build-rpm.sh")],
+        bash = _require_bash(self)
+        proc = subprocess.run([bash, "-n", str(PKG / "build-rpm.sh")],
                               capture_output=True, text=True, timeout=30)
         self.assertEqual(proc.returncode, 0, proc.stderr[-1000:])
 
@@ -133,8 +188,9 @@ class TestSmokeScripts(unittest.TestCase):
         self.assertIn('$ErrorActionPreference = "Stop"', ps1)
 
     def test_smoke_shell_scripts_parse(self):
+        bash = _require_bash(self)
         for name in ("smoke-linux.sh", "smoke-macos.sh"):
-            proc = subprocess.run(["bash", "-n", str(PKG / name)],
+            proc = subprocess.run([bash, "-n", str(PKG / name)],
                                   capture_output=True, text=True, timeout=30)
             self.assertEqual(proc.returncode, 0,
                              "%s: %s" % (name, proc.stderr[-1000:]))
@@ -175,10 +231,11 @@ class TestSmokeScripts(unittest.TestCase):
                              % (name, proc.stdout[-1000:]))
 
     def test_linux_logic_smoke_passes_live(self):
+        bash = _require_bash(self)
         with tempfile.TemporaryDirectory() as tmp:
             env = {"DESKTOP_PET_DATA_DIR": os.path.join(tmp, "data")}
             proc = subprocess.run(
-                ["bash", str(PKG / "smoke-linux.sh")],
+                [bash, str(PKG / "smoke-linux.sh")],
                 cwd=str(ROOT), capture_output=True, text=True, env={
                     **os.environ, **env},
                 timeout=180)
@@ -187,9 +244,10 @@ class TestSmokeScripts(unittest.TestCase):
         self.assertIn("smoke PASS", proc.stdout)
 
     def test_linux_smoke_rejects_missing_payload(self):
+        bash = _require_bash(self)
         with tempfile.TemporaryDirectory() as tmp:
             proc = subprocess.run(
-                ["bash", str(PKG / "smoke-linux.sh"),
+                [bash, str(PKG / "smoke-linux.sh"),
                  "--deb", os.path.join(tmp, "no-such.deb")],
                 cwd=str(ROOT), capture_output=True, text=True, env={
                     **os.environ,
