@@ -1,0 +1,4 @@
+# Keep POSIX shell scripts LF everywhere. Windows checkouts with
+# core.autocrlf=true would otherwise land CRLF in .sh files, which breaks
+# bash -n gates and Git Bash execution (Windows tester note on issue #515).
+*.sh text eol=lf
