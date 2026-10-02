@@ -19,11 +19,13 @@ Usage:
 """
 
 from __future__ import annotations
-
 import argparse
+
 import sys
+
 import time
 
+import zipfile
 from . import __version__
 from .pet_core import Personality, PetState, default_save_path, load, save
 from .pet_core.brain import TICK_HZ, Brain
@@ -190,7 +192,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         record, char_notice = catalog_mod.get(args.character)
         if char_notice:
             print("[pet] %s" % char_notice)
-        state.character_id = record["id"]
+        else:
+            state.character_id = record["id"]
     personality = Personality(name=args.name or state.name,
                               seed=args.seed,
                               character_id=state.character_id)
@@ -427,13 +430,15 @@ def cmd_characters(args: argparse.Namespace) -> int:
         print("[pet] %s" % load_notice)
     if notice:
         print("[pet] %s" % notice)
-    state.character_id = record["id"]
+    else:
+        state.character_id = record["id"]
     try:
         save(state, save_path)
     except OSError as exc:
         print("error: could not save character (%s)" % exc, file=sys.stderr)
         return 1
-    print("[pet] switched to %s (%s)" % (record["name"], record["id"]))
+    current, _current_notice = catalog_mod.get(state.character_id)
+    print("[pet] switched to %s (%s)" % (current["name"], current["id"]))
     return 0
 
 
@@ -448,7 +453,8 @@ def cmd_pack(args: argparse.Namespace) -> int:
             return 2
         try:
             manifest, characters = packs_mod.validate(args.target)
-        except (OSError, ValueError) as exc:
+        except (OSError, ValueError, zipfile.BadZipFile,
+                UnicodeDecodeError) as exc:
             import json as _json
             if isinstance(exc, _json.JSONDecodeError):
                 print("error: pack is not valid JSON (%s)" % exc,
@@ -531,7 +537,8 @@ def cmd_talk(args: argparse.Namespace) -> int:
         record, char_notice = catalog_mod.get(args.character)
         if char_notice:
             print("[pet] %s" % char_notice)
-        state.character_id = record["id"]
+        else:
+            state.character_id = record["id"]
     talker = Converser(character_id=state.character_id, name=state.name,
                        seed=args.seed)
     reply, _hint = talker.reply(
