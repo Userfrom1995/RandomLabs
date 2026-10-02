@@ -43,7 +43,10 @@ import shutil
 import tempfile
 import zipfile
 
-ENGINE_VERSION = "1.5.0"
+try:
+    from pet import __version__ as ENGINE_VERSION
+except Exception:
+    ENGINE_VERSION = "0.0.0-dev"
 
 PACKS_DIRNAME = "packs"
 

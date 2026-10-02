@@ -2,11 +2,16 @@
 ; Per-user install: Start Menu entry, optional launch-at-login task,
 ; clean uninstaller. Saves live in %APPDATA%\DesktopPet and are left
 ; in place on uninstall (see the uninstall notes below).
+; Version is single-sourced from pet/__init__.py: the release pipeline
+; and build-windows.ps1 pass /DMyAppVersion=<version> on the iscc
+; command line. Do not literal a version here.
 ; Build the binary first: powershell -File pet\packaging\build-windows.ps1
-; Compile: iscc pet\packaging\desktop-pet.iss
+; Compile: iscc /DMyAppVersion=<version> pet\packaging\desktop-pet.iss
 
+#ifndef MyAppVersion
+#define MyAppVersion "0.0.0-dev"
+#endif
 #define MyAppName "Desktop Pet"
-#define MyAppVersion "1.5.0"
 #define MyAppPublisher "RandomLabs"
 #define MyAppExe "desktop-pet.exe"
 
