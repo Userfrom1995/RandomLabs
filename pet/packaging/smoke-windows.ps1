@@ -79,7 +79,8 @@ try {
     Write-Host "[smoke] setup exe is unsigned (expected: honest unsigned-binary note in hub)"
     if ($Install) {
       Write-Host "[smoke] installing $Setup silently..."
-      Start-Process -FilePath (Resolve-Path $Setup).Path -ArgumentList "/SILENT" -Wait
+      $setupProc = Start-Process -FilePath (Resolve-Path $Setup).Path -ArgumentList "/SILENT" -Wait -PassThru
+      if ($setupProc.ExitCode -ne 0) { Fail "setup exited with code $($setupProc.ExitCode)" }
       $installed = Join-Path $env:LOCALAPPDATA "Programs\DesktopPet\desktop-pet.exe"
       if (-not (Test-Path $installed)) {
         $installed = Join-Path ${env:ProgramFiles} "DesktopPet\desktop-pet.exe"
@@ -89,7 +90,8 @@ try {
       if ($ist -notmatch "SELFTEST PASS") { Fail "installed binary selftest failed" }
       $unins = Join-Path (Split-Path $installed) "unins000.exe"
       if (Test-Path $unins) {
-        Start-Process -FilePath $unins -ArgumentList "/SILENT" -Wait
+        $uninsProc = Start-Process -FilePath $unins -ArgumentList "/SILENT" -Wait -PassThru
+        if ($uninsProc.ExitCode -ne 0) { Fail "uninstaller exited with code $($uninsProc.ExitCode)" }
       } else {
         Fail "uninstaller missing beside $installed"
       }
