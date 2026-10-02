@@ -392,7 +392,7 @@ def install(source: str, data_dir: str | None = None) -> tuple[bool, str]:
     """Validate then copy a pack into the user-data packs namespace."""
     try:
         manifest, _characters = validate(source)
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, zipfile.BadZipFile, json.JSONDecodeError) as exc:
         return False, "invalid pack (%s)" % exc
     target_root = packs_dir(data_dir)
     target = os.path.join(target_root, manifest["slug"])
