@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
 # Build Linux artifacts for Desktop Pet: a .deb package plus an AppImage.
 # Usage: bash pet/packaging/build-linux.sh
-# Output: dist/desktop-pet_1.5.0_amd64.deb,
-#         dist/DesktopPet-1.5.0-x86_64.AppImage (when appimagetool exists),
+# Version is single-sourced from pet/__init__.py: do not literal it here.
+# Output: dist/desktop-pet_<version>_amd64.deb,
+#         dist/DesktopPet-<version>-x86_64.AppImage (when appimagetool exists),
 #         dist/SHA256SUMS.txt
 set -euo pipefail
 
 HERE=$(dirname "$0")
 ROOT=$(cd "$HERE/../.." && pwd)
 cd "$ROOT"
-VERSION="1.5.0"
+VERSION="$(python3 -m pet version --porcelain | tr -d '[:space:]')"
+if [ -z "$VERSION" ]; then
+  echo "error: could not derive VERSION from pet/__init__.py" >&2
+  exit 1
+fi
 ARCH="amd64"
 
 if [ "$(uname)" != "Linux" ]; then

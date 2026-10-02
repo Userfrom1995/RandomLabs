@@ -2,14 +2,19 @@
 # Build macOS artifacts for Desktop Pet: .app bundle, .pkg installer,
 # and .dmg image. Uses only macOS system tools (pkgbuild, hdiutil).
 # Usage: bash pet/packaging/build-macos.sh
-# Output: dist/DesktopPet.app, dist/DesktopPet-1.5.0.pkg,
-#         dist/DesktopPet-1.5.0.dmg, dist/SHA256SUMS.txt
+# Version is single-sourced from pet/__init__.py: do not literal it here.
+# Output: dist/DesktopPet.app, dist/DesktopPet-<version>.pkg,
+#         dist/DesktopPet-<version>.dmg, dist/SHA256SUMS.txt
 set -euo pipefail
 
 HERE=$(dirname "$0")
 ROOT=$(cd "$HERE/../.." && pwd)
 cd "$ROOT"
-VERSION="1.5.0"
+VERSION="$(python3 -m pet version --porcelain | tr -d '[:space:]')"
+if [ -z "$VERSION" ]; then
+  echo "error: could not derive VERSION from pet/__init__.py" >&2
+  exit 1
+fi
 IDENT="com.desktoppet.app"
 
 if [ "$(uname)" != "Darwin" ]; then
@@ -41,15 +46,15 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/desktop-pet"
 chmod +x "$APP/Contents/MacOS/desktop-pet"
 
-cat > "$APP/Contents/Info.plist" <<'PLIST'
+cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>CFBundleName</key><string>Desktop Pet</string>
   <key>CFBundleIdentifier</key><string>com.desktoppet.app</string>
-  <key>CFBundleVersion</key><string>1.5.0</string>
-  <key>CFBundleShortVersionString</key><string>1.5.0</string>
+  <key>CFBundleVersion</key><string>$VERSION</string>
+  <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleExecutable</key><string>desktop-pet</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSUIElement</key><true/>

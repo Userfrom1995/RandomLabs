@@ -31,8 +31,12 @@ from .pet_core import Personality, PetState, default_save_path, load, save
 from .pet_core.brain import TICK_HZ, Brain
 
 
-def cmd_version() -> int:
-    print("desktop-pet %s" % __version__)
+def cmd_version(args=None) -> int:
+    show_bare = bool(getattr(args, "porcelain", False))
+    if show_bare:
+        print(__version__)
+    else:
+        print("desktop-pet %s" % __version__)
     return 0
 
 
@@ -128,7 +132,9 @@ def _build_parser() -> argparse.ArgumentParser:
     notify_p.add_argument("--title", type=str, default="Desktop Pet",
                           help="notification title")
     sub.add_parser("help", help="print usage")
-    sub.add_parser("version", help="print version")
+    version_p = sub.add_parser("version", help="print version")
+    version_p.add_argument("--porcelain", action="store_true",
+                           help="print only the version number (for scripts)")
     chars_p = sub.add_parser("characters", help="list, show, or switch pet characters")
     chars_p.add_argument("action", nargs="?", default="list",
                          choices=("list", "show", "switch"),
@@ -608,7 +614,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "selftest":
         return cmd_selftest()
     if args.command == "version":
-        return cmd_version()
+        return cmd_version(args)
     return cmd_help()
 
 
