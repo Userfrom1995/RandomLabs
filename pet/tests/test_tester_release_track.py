@@ -274,6 +274,58 @@ class TestSmokeScripts(unittest.TestCase):
         self.assertNotEqual(proc.returncode, 0)
         self.assertIn("error", proc.stderr.lower() + proc.stdout.lower())
 
+    def test_deb_payload_check_is_sigpipe_safe(self):
+        text = (PKG / "smoke-linux.sh").read_text(encoding="utf-8")
+        self.assertNotIn("tar -t | grep", text,
+                         "deb payload check must not pipe a streaming tar "
+                         "listing into grep -q: under pipefail grep exits on "
+                         "the first match while tar still streams, tar dies "
+                         "with 'stdout: write error', and the check "
+                         "false-negatives on a present payload "
+                         "(pet-release run 37078577617)")
+        self.assertIn("DEB_LIST=", text,
+                      "deb payload listing must be captured before matching")
+        self.assertIn('[[ "$DEB_LIST" == *"usr/bin/desktop-pet"* ]]', text,
+                      "captured deb listing must be matched with [[ ]]")
+
+    def test_captured_listing_match_passes_live(self):
+        bash = _require_bash(self)
+        with tempfile.TemporaryDirectory() as tmp:
+            pkg = os.path.join(tmp, "pkg")
+            os.makedirs(os.path.join(pkg, "usr", "bin"))
+            os.makedirs(os.path.join(pkg, "usr", "share", "doc"))
+            with open(os.path.join(pkg, "usr", "bin", "desktop-pet"),
+                      "w", encoding="utf-8") as fh:
+                fh.write("binary")
+            for i in range(3000):
+                with open(os.path.join(
+                        pkg, "usr", "share", "doc",
+                        "file-%04d.txt" % i), "w",
+                        encoding="utf-8") as fh:
+                    fh.write("doc %d" % i)
+            archive = os.path.join(tmp, "data.tar")
+            proc = subprocess.run(
+                ["tar", "-cf", archive, "-C", pkg, "usr"],
+                capture_output=True, text=True, timeout=60)
+            self.assertEqual(proc.returncode, 0, proc.stderr[-1000:])
+            check = ('set -o pipefail; LIST="$(tar -tf %s)"; '
+                     '[[ "$LIST" == *"usr/bin/desktop-pet"* ]]'
+                     % archive)
+            proc = subprocess.run([bash, "-c", check],
+                                  capture_output=True, text=True,
+                                  timeout=60)
+            self.assertEqual(proc.returncode, 0,
+                             "captured-listing match must pass: " +
+                             proc.stderr[-1000:])
+            miss = ('set -o pipefail; LIST="$(tar -tf %s)"; '
+                    '[[ "$LIST" == *"usr/bin/no-such-binary"* ]]'
+                    % archive)
+            proc = subprocess.run([bash, "-c", miss],
+                                  capture_output=True, text=True,
+                                  timeout=60)
+            self.assertNotEqual(proc.returncode, 0,
+                               "captured-listing match must miss honestly")
+
 
 class TestReleasePipeline(unittest.TestCase):
     def _workflow(self) -> str:
