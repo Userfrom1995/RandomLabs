@@ -1,17 +1,17 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-02T12:29Z (maintainer run 37006728710, fix landed on #513 as b91ea5b3, review queued)**
+ - **Updated: 2026-10-02T12:33Z (maintainer run 37006915365, review approved #513 b91ea5b3, Tester run in flight)**
 
 ## PRs & Issues
- - **PRs:** Open: #513 (Linux-tester regression PR + Fixer app fix, 3 files, review queued on fixed head b91ea5b3). Closed/merged: #512 Final Phase, #511 Phase 5, #510 Phase 4, #509 Phase 3, #506 Phase 2, #508 Curator sync, #505 Phase 1, #503 Final, #502 Phase 4, #501 Phase 3, #500 Phase 2, #499 Phase 1.
- - **Issues:** Open: #504 Desktop Pet Platform (triaged, all 6 phases merged as Refs, linux found 1 app bug - fix landed on #513, review in flight; eval gate 9.84/10 cleared 01:39:47Z, Tester covered macOS darwin), #70 lab-health, #42 brainstorm standing. Closed: #507, #498.
+ - **PRs:** Open: #513 (Linux-tester regression PR + Fixer app fix, 3 files, Reviewer APPROVED 12:30:50Z, Tester run in flight). Closed/merged: #512 Final Phase, #511 Phase 5, #510 Phase 4, #509 Phase 3, #506 Phase 2, #508 Curator sync, #505 Phase 1, #503 Final, #502 Phase 4, #501 Phase 3, #500 Phase 2, #499 Phase 1.
+ - **Issues:** Open: #504 Desktop Pet Platform (triaged, all 6 phases merged as Refs, linux found 1 app bug - fix landed on #513, review APPROVED, Tester run in flight; eval gate 9.84/10 cleared 01:39:47Z, Tester covered macOS darwin), #70 lab-health, #42 brainstorm standing. Closed: #507, #498.
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (18-entry allowlist in maintainer.yml `workflows:` vs 19 live workflow `name:` fields minus self maintainer - exact match, verified no drift this run).
- - **Desktop Pet Platform record:** Phase 1 merged as #505 head 3b55fcf5. Phase 2 merged as #506 head be349195. Phase 3 merged as #509 head efcf9d39. Phase 4 merged as #510 head 8d8dd1b3 (approve-eval 9.9/10). Phase 5 merged as #511 head 0b6f2184 -> main 1a0d1ecb (approve-eval 9.8/10; 523 selftest green). Final Phase merged as #512 -> main b51b5d9e (approve-eval 9.84/10; 546 green). Remaining: review of #513 fix + per-OS native re-runs (Windows + Linux) against fixed code.
+ - **Desktop Pet Platform record:** Phase 1 merged as #505 head 3b55fcf5. Phase 2 merged as #506 head be349195. Phase 3 merged as #509 head efcf9d39. Phase 4 merged as #510 head 8d8dd1b3 (approve-eval 9.9/10). Phase 5 merged as #511 head 0b6f2184 -> main 1a0d1ecb (approve-eval 9.8/10; 523 selftest green). Final Phase merged as #512 -> main b51b5d9e (approve-eval 9.84/10; 546 green). Remaining: Tester verdict on #513 + per-OS native re-runs (Windows + Linux) against fixed code.
  - **Curator 2026-10-02:** schedule successes 04:37Z + 12:04Z, no new issues opened. Pages green on b51b5d9e.
  - **Per-OS status (this run):** Linux run 37005422892 SUCCEEDED with a genuine product finding (service switch unknown-id clobbered persisted character + garbled message; regression tests committed on #513). Windows run 37005424980 CANCELLED with no verdict (concurrency is cancel-in-progress:false, so not a self-cancel; cause undetermined, no triage summons on cancelled). Both gates must re-run against fixed code after #513 lands.
 
 ## IN FLIGHT
- - #513 fix round: Fixer completed 12:28:26Z on head b91ea5b3 (service.py preserve-on-notice + install.sh upfront validation, 548 green claimed). Reviewer run 37006914978 pending on the fixed head at survey - no maintainer redispatch (duplicate-trigger rule). Then: per-OS re-runs (test-linux + test-windows on #504).
- - #504 stays OPEN: PR #513 body says Closes #504 - treat as Refs #504. Close #504 only on fix merged + review + clean Windows + Linux native passes (macOS already green, eval 9.84/10 in hand).
+ - #513 test round: Reviewer APPROVED 12:30:50Z on head b91ea5b3 (live verification of preserve-on-notice + install.sh validation, 548 green, MERGEABLE/CLEAN). Owner `/oc test` 12:30:53Z queued opencode-test run 37007134698 (in_progress at survey) - no maintainer redispatch (duplicate-trigger rule). Then: per-OS re-runs (test-linux + test-windows on #504).
+ - #504 stays OPEN: PR #513 body says Closes #504 - treat as Refs #504. Close #504 only on fix merged + test + eval + clean Windows + Linux native passes (macOS already green, eval 9.84/10 in hand).
  - Main tip b51b5d9e (PR branches kept intact per no-delete-branch rule).
  - Pages health: green on main b51b5d9e (workflow_dispatch successes 01:42:37Z + 01:43:48Z + 01:30:58Z, plus Deploy success 12:26:41Z).
  - Carried non-blocking notes for the platform: Evaluator visual nits on #512 (pre-existing stray `</main>` at pet/index.html:691 outside the diff, docs page prose detail instead of matrix table, fixed-pixel canvas without max-width:100%, no focus-visible style; Mochi 150s antic undocumented but not misclaimed); Evaluator visual nits (empty no-JS caption, issue-number links on hub, docs-page responsive parity); residual GUI-only window.launch persist and enshrined service-fallback divergence; re-reviewer service.switch_character fallback semantics note (intentional, test-enshrined); reviewer one Phase 4 nit (run_loop `tick_sec` param holding a Hz value - behavior correct, 10 Hz); Evaluator non-blocking notes from #509 (unused LifeEvents._rng field, shared single-key deflection bag vs per-character docstring claim, one comment overstates hunger/mood ordering); Evaluator inf-phase isfinite-guard follow-up from #506; pet/index.html:219 stale-498 follow-up curator pass; plus earlier #498 lineage (docs/index.html missing top lede, card h4 heading skip, no sprite showcase on hub, theoretical unguarded float() on toolkit-sourced paths, .bak sidecar under --no-save; fragile seed-3 assertion; Phase 1 table mobile scroll wrapper, README/hub matrix row drift; Phase 3 progress-file bold-marker nit; Phase 3 Evaluator visual nit pet/docs/index.html missing Play-layer bullet; Phase 4 settings dialog no transient()/Escape guard, display-only settings after corruption prints notice but does not persist repair; Final controller.py:437-438 comment wording). #505 Phase 1 Evaluator repair nits carried (README count drift after tester additions, hub quickstart omits characters line, no noscript fallback).
@@ -22,14 +22,14 @@
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run.
 2. Confirm pages.yml stays green on main b51b5d9e; re-dispatch if failed.
-3. Check #513 review verdict on b91ea5b3 -> approve routes to per-OS re-runs (test-linux + test-windows on #504 against fixed code). Clean on both plus review means close #504.
-4. Close #504 only after fix merged + review + clean Windows + Linux native passes (macOS already green, eval 9.84/10 in hand).
+3. Check #513 Tester verdict on b91ea5b3 -> approve-test routes to eval, findings route to fix. Then per-OS re-runs (test-linux + test-windows on #504 against fixed code). Clean on both plus eval means merge + close #504.
+4. Close #504 only after fix merged + test + eval + clean Windows + Linux native passes (macOS already green, eval 9.84/10 in hand).
 5. Re-check `opencode/tor-cli-fixes`: PR opened? CI green on re-push? Age since 43d37b5.
 6. Standing rule unchanged: standby otherwise (no auto-ideate).
 
 ## OPEN QUESTIONS
- - Will review pass on fixed head b91ea5b3 without further rounds?
- - Will the per-OS re-runs (post-fix) clear on Windows + Linux?
+ - Will the Tester pass #513 without further fix rounds?
+ - Will the Evaluator clear the fixed head, and will per-OS re-runs (post-fix) clear on Windows + Linux?
  - What cancelled Windows run 37005424980 (owner-cancel, runner preemption, or infra flake)?
  - Will `opencode/tor-cli-fixes` gain a PR, or is it owner-local WIP? Who owns the pushing session (committer Userfrom1995, author The Builder)?
  - Will the Owner open a PR from the `gui-detach-and-syswide-fixes` branch, or land it another way?
