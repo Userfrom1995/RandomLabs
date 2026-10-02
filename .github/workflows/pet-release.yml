@@ -49,13 +49,18 @@ jobs:
           $version = (python -m pet version --porcelain).Trim()
           if (-not $version) { Write-Error "could not derive VERSION via python -m pet version --porcelain"; exit 1 }
           Write-Host "[pet-release] package version $version"
+          # Tag parity applies to tag events only. On workflow_dispatch or
+          # branch runs GITHUB_REF_NAME is a branch (e.g. "main"), so it must
+          # not be compared against the package version (issue #515: the
+          # maiden dispatch run failed here before any build started).
+          $refType = "$env:GITHUB_REF_TYPE"
           $ref = "$env:GITHUB_REF_NAME"
-          if ($ref -ne "") {
+          if ($refType -eq "tag" -and $ref -like "desktop-pet-v*") {
             $want = $ref -replace '^desktop-pet-v', ''
             if ($want -ne $version) { Write-Error "tag/version parity failed: tag '$ref' wants '$want', package is '$version'"; exit 1 }
             Write-Host "[pet-release] tag parity OK ($ref)"
           } else {
-            Write-Host "[pet-release] no tag ref (dispatch run), package version $version"
+            Write-Host "[pet-release] no version tag (ref '$ref'), package version $version"
           }
 
       - name: Build exe plus Inno Setup installer
@@ -117,15 +122,22 @@ jobs:
           VERSION="$(python3 -m pet version --porcelain | tr -d '[:space:]')"
           if [ -z "$VERSION" ]; then echo "error: version --porcelain empty" >&2; exit 1; fi
           echo "[pet-release] package version $VERSION"
-          if [ -n "${GITHUB_REF_NAME:-}" ]; then
-            WANT="${GITHUB_REF_NAME#desktop-pet-v}"
-            if [ "$WANT" != "$VERSION" ]; then
-              echo "error: tag/version parity failed: tag '$GITHUB_REF_NAME' wants '$WANT', package is '$VERSION'" >&2
-              exit 1
-            fi
-            echo "[pet-release] tag parity OK ($GITHUB_REF_NAME)"
+          # Tag parity applies to tag events only (see the windows job note
+          # on issue #515: dispatch runs carry a branch ref, not a version).
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ] && [ -n "${GITHUB_REF_NAME:-}" ]; then
+            case "$GITHUB_REF_NAME" in
+              desktop-pet-v*)
+                WANT="${GITHUB_REF_NAME#desktop-pet-v}"
+                if [ "$WANT" != "$VERSION" ]; then
+                  echo "error: tag/version parity failed: tag '$GITHUB_REF_NAME' wants '$WANT', package is '$VERSION'" >&2
+                  exit 1
+                fi
+                echo "[pet-release] tag parity OK ($GITHUB_REF_NAME)";;
+              *)
+                echo "[pet-release] tag '$GITHUB_REF_NAME' is not a desktop-pet tag, package version $VERSION";;
+            esac
           else
-            echo "[pet-release] no tag ref (dispatch run), package version $VERSION"
+            echo "[pet-release] no tag ref (dispatch or branch run), package version $VERSION"
           fi
 
       - name: Build app plus pkg plus dmg
@@ -186,15 +198,22 @@ jobs:
           VERSION="$(python3 -m pet version --porcelain | tr -d '[:space:]')"
           if [ -z "$VERSION" ]; then echo "error: version --porcelain empty" >&2; exit 1; fi
           echo "[pet-release] package version $VERSION"
-          if [ -n "${GITHUB_REF_NAME:-}" ]; then
-            WANT="${GITHUB_REF_NAME#desktop-pet-v}"
-            if [ "$WANT" != "$VERSION" ]; then
-              echo "error: tag/version parity failed: tag '$GITHUB_REF_NAME' wants '$WANT', package is '$VERSION'" >&2
-              exit 1
-            fi
-            echo "[pet-release] tag parity OK ($GITHUB_REF_NAME)"
+          # Tag parity applies to tag events only (see the windows job note
+          # on issue #515: dispatch runs carry a branch ref, not a version).
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ] && [ -n "${GITHUB_REF_NAME:-}" ]; then
+            case "$GITHUB_REF_NAME" in
+              desktop-pet-v*)
+                WANT="${GITHUB_REF_NAME#desktop-pet-v}"
+                if [ "$WANT" != "$VERSION" ]; then
+                  echo "error: tag/version parity failed: tag '$GITHUB_REF_NAME' wants '$WANT', package is '$VERSION'" >&2
+                  exit 1
+                fi
+                echo "[pet-release] tag parity OK ($GITHUB_REF_NAME)";;
+              *)
+                echo "[pet-release] tag '$GITHUB_REF_NAME' is not a desktop-pet tag, package version $VERSION";;
+            esac
           else
-            echo "[pet-release] no tag ref (dispatch run), package version $VERSION"
+            echo "[pet-release] no tag ref (dispatch or branch run), package version $VERSION"
           fi
 
       - name: Build deb plus AppImage plus rpm
@@ -266,22 +285,25 @@ jobs:
           set -euo pipefail
           VERSION="$(python3 -m pet version --porcelain | tr -d '[:space:]')"
           echo "[pet-release] package version $VERSION (python -m pet version --porcelain)"
-          if [ -n "${GITHUB_REF_NAME:-}" ]; then
-            WANT="${GITHUB_REF_NAME#desktop-pet-v}"
-            if [ "$WANT" != "$VERSION" ]; then
-              echo "error: tag/version parity failed: tag '$GITHUB_REF_NAME' wants '$WANT', package is '$VERSION'" >&2
-              exit 1
-            fi
+          # Tag parity applies to tag events only (same dispatch rule as the
+          # build jobs: a dispatch ref is a branch name, not a version).
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ] && [ -n "${GITHUB_REF_NAME:-}" ]; then
+            case "$GITHUB_REF_NAME" in
+              desktop-pet-v*)
+                WANT="${GITHUB_REF_NAME#desktop-pet-v}"
+                if [ "$WANT" != "$VERSION" ]; then
+                  echo "error: tag/version parity failed: tag '$GITHUB_REF_NAME' wants '$WANT', package is '$VERSION'" >&2
+                  exit 1
+                fi;;
+            esac
           fi
           ls -la release-assets/
-          # Merge per-job SHA256SUMS.txt files into one release checksum file.
-          : > release-assets/SHA256SUMS.txt
-          for f in release-assets/SHA256SUMS.txt release-assets/*/SHA256SUMS.txt; do
-            [ -f "$f" ] || continue
-            grep -v '^SHA256SUMS' "$f" >> release-assets/SHA256SUMS.txt || true
-          done
-          # Re-hash the actual payloads so SHA256SUMS.txt always matches bytes.
-          (cd release-assets && rm -f SHA256SUMS.txt && sha256sum desktop-pet.exe desktop-pet-setup-*.exe DesktopPet-*.pkg DesktopPet-*.dmg desktop-pet_*_amd64.deb desktop-pet-*.rpm DesktopPet-*-x86_64.AppImage com.desktoppet.service.plist 2>/dev/null >> SHA256SUMS.txt || true)
+          # Re-hash the actual payloads so SHA256SUMS.txt always matches
+          # bytes. Per-job checksum files are ignored on purpose: with
+          # merge-multiple the three dist/SHA256SUMS.txt uploads flatten
+          # into one path, so only a fresh hash over the payloads is sound.
+          rm -f release-assets/SHA256SUMS.txt
+          (cd release-assets && sha256sum desktop-pet.exe desktop-pet-setup-*.exe DesktopPet-*.pkg DesktopPet-*.dmg desktop-pet_*_amd64.deb desktop-pet-*.rpm DesktopPet-*-x86_64.AppImage com.desktoppet.service.plist 2>/dev/null > SHA256SUMS.txt || true)
           cat release-assets/SHA256SUMS.txt
           test -s release-assets/SHA256SUMS.txt || { echo "error: empty SHA256SUMS.txt" >&2; exit 1; }
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
@@ -292,7 +314,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME:-desktop-pet-v${VERSION}-manual}"
+          # On tag events the tag names the release. On dispatch or branch
+          # runs there is no version tag (GITHUB_REF_NAME is a branch), so
+          # the maiden dispatch run publishes the versioned tag directly
+          # instead of a branch-named release (issue #515).
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ] && [ -n "${GITHUB_REF_NAME:-}" ]; then
+            TAG="$GITHUB_REF_NAME"
+          else
+            TAG="desktop-pet-v${VERSION}"
+          fi
           NOTES="$(mktemp)"
           cat > "$NOTES" <<EOF
           Desktop Pet $VERSION - ready-to-use installers plus run-from-source.
@@ -309,5 +339,12 @@ jobs:
           Then run \`desktop-pet selftest\` (SELFTEST PASS), \`desktop-pet version\`,
           and \`desktop-pet characters list\` before installing.
           EOF
-          gh release create "$TAG" --title "Desktop Pet $VERSION" --notes-file "$NOTES" release-assets/*
-          echo "[pet-release] published $TAG"
+          # Idempotent publish: a re-run refreshes assets instead of failing
+          # on the existing tag.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" --clobber release-assets/*
+            echo "[pet-release] refreshed existing release $TAG"
+          else
+            gh release create "$TAG" --title "Desktop Pet $VERSION" --notes-file "$NOTES" release-assets/*
+            echo "[pet-release] published $TAG"
+          fi
