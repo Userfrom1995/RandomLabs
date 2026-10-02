@@ -98,7 +98,14 @@ if [ -n "$DEB" ]; then
   if command -v dpkg-deb >/dev/null 2>&1; then
     dpkg-deb --info "$DEB" | grep -q "$VERSION" \
       || fail "deb control misses version $VERSION"
-    dpkg-deb --fsys-tarfile "$DEB" | tar -t | grep -q "usr/bin/desktop-pet" \
+    # NB: never pipe the fsys tarball listing into grep -q here. Under
+    # `set -o pipefail` grep -q exits on the first match while tar is
+    # still streaming the 27MB listing, tar dies with "stdout: write
+    # error" (SIGPIPE), and the pipeline fails even though the payload
+    # is present (pet-release run 37078577617). Capture, then match.
+    DEB_LIST="$(dpkg-deb --fsys-tarfile "$DEB" | tar -t)" \
+      || fail "could not list deb payload of $DEB"
+    [[ "$DEB_LIST" == *"usr/bin/desktop-pet"* ]] \
       || fail "deb payload misses usr/bin/desktop-pet"
     echo "[smoke] deb control plus payload OK"
   else
