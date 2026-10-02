@@ -48,6 +48,17 @@ def _clean_hour(value: object, fallback: float) -> float:
     return result
 
 
+def _clean_character(value: object) -> str:
+    """Normalize a character id, falling back to Pip on anything unknown."""
+    try:
+        from ..pet_core import catalog as catalog_mod
+        return catalog_mod.normalize_id(value)
+    except Exception:
+        if isinstance(value, str) and value.strip():
+            return value.strip().lower()[:32]
+        return "pip"
+
+
 class AppSettings:
     """Persisted companion configuration with validated fields."""
 
@@ -62,6 +73,7 @@ class AppSettings:
         scale: object = 1.0,
         bedtime: object = DEFAULT_BEDTIME_HOUR,
         wake: object = DEFAULT_WAKE_HOUR,
+        character_id: object = "pip",
     ) -> None:
         self.wander = _clean_bool(wander, "wander")
         self.play_invites = _clean_bool(play_invites, "play_invites")
@@ -72,6 +84,7 @@ class AppSettings:
         self.scale = platform_mod.clamp_scale(scale)
         self.bedtime = _clean_hour(bedtime, DEFAULT_BEDTIME_HOUR)
         self.wake = _clean_hour(wake, DEFAULT_WAKE_HOUR)
+        self.character_id = _clean_character(character_id)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, AppSettings):
@@ -93,6 +106,7 @@ class AppSettings:
             "scale": self.scale,
             "bedtime": self.bedtime,
             "wake": self.wake,
+            "character_id": self.character_id,
         }
 
     @classmethod
@@ -119,11 +133,13 @@ class AppSettings:
             scale=data.get("scale", 1.0),
             bedtime=data.get("bedtime", DEFAULT_BEDTIME_HOUR),
             wake=data.get("wake", DEFAULT_WAKE_HOUR),
+            character_id=data.get("character_id", "pip"),
         )
 
     def describe(self) -> str:
         """One screen of human-readable settings for the CLI and dialog."""
         lines = [
+            "character=%s" % self.character_id,
             "wander=%s" % ("on" if self.wander else "off"),
             "play_invites=%s" % ("on" if self.play_invites else "off"),
             "sleep_schedule=%s" % ("on" if self.sleep_schedule else "off"),
@@ -194,6 +210,7 @@ SETTABLE_FIELDS = (
     "scale",
     "bedtime",
     "wake",
+    "character_id",
 )
 
 
@@ -226,6 +243,12 @@ def parse_setting_value(field: str, raw: str) -> object:
         if not math.isfinite(result):
             raise ValueError("%s must look like HH:MM or a number, got %r" % (field, raw))
         return result
+    if field == "character_id":
+        try:
+            from ..pet_core import catalog as catalog_mod
+            return catalog_mod.normalize_id(raw)
+        except Exception:
+            raise ValueError("character_id must be a known character id, got %r" % (raw,))
     try:
         return float(raw)
     except (TypeError, ValueError):
