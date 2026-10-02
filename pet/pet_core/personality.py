@@ -269,6 +269,17 @@ CHARACTER_VOICES: dict[str, dict[str, list[str]]] = {
 }
 
 
+EXTRA_VOICES: dict[str, dict[str, list[str]]] = {}
+
+
+def register_extra_voice(character_id: str,
+                          pools: dict[str, list[str]]) -> str:
+    """Register a third-party voice pack (pack activation path)."""
+    slug = str(character_id or "").strip().lower()
+    EXTRA_VOICES[slug] = {k: list(v) for k, v in pools.items()}
+    return slug
+
+
 def mood_for(state: PetState) -> str:
     """Derive the display mood from current needs (pure function)."""
     if state.hunger >= 75.0:
@@ -334,15 +345,19 @@ class Personality:
 
     def set_character(self, character_id: object) -> str:
         """Switch the active voice (unknown ids fall back to Pip)."""
-        if isinstance(character_id, str) and character_id.strip().lower() in CHARACTER_VOICES:
-            self._character_id = character_id.strip().lower()
-        else:
-            self._character_id = "pip"
+        if isinstance(character_id, str):
+            slug = character_id.strip().lower()
+            if slug in CHARACTER_VOICES or slug in EXTRA_VOICES:
+                self._character_id = slug
+                return self._character_id
+        self._character_id = "pip"
         return self._character_id
 
     def _pool_for(self, kind: str, key: str) -> list[str]:
         """Resolve the active voice pool with shared Pip fallback."""
         voice = CHARACTER_VOICES.get(self._character_id, {})
+        if not voice and self._character_id in EXTRA_VOICES:
+            voice = EXTRA_VOICES[self._character_id]
         pool = voice.get(kind + ":" + key)
         if pool:
             return pool

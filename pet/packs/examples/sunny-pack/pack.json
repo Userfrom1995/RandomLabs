@@ -1,0 +1,10 @@
+{
+  "slug": "sunny-pack",
+  "name": "Sunny Pack",
+  "version": "1.0.0",
+  "author": "Desktop Pet team (first-party example)",
+  "description": "Example creator pack: two sun-themed friends proving third parties can add characters with JSON alone.",
+  "engine_min": "1.0.0",
+  "engine_max": "1.99.99",
+  "characters": ["characters/sunny.json", "characters/ember.json"]
+}

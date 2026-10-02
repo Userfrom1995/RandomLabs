@@ -1,0 +1,69 @@
+{
+  "id": "sunny",
+  "name": "Sunny",
+  "species": "sun-sprite",
+  "body_plan": "blob",
+  "tagline": "A pocket of morning light. Cheerful, warm, impossible to be grumpy around.",
+  "signature": "Sunny stretches out like sunrise on toast.",
+  "palette": {"body": "#F4B942", "belly": "#FFF3D6", "accent": "#E07A5F"},
+  "traits": {
+    "hunger_rate": 0.15,
+    "energy_drain": 0.10,
+    "energy_restore": 0.36,
+    "affection_decay": 0.07,
+    "walk_speed": 42.0,
+    "play_bonus": 0.05,
+    "sleep_bonus": -0.01,
+    "react_bonus": 0.02
+  },
+  "dialogue": {
+    "mood:happy": [
+      "Sunny glows a little brighter. What a day!",
+      "{name} spins, scattering tiny sunbeams!",
+      "Everything is warm and golden, says {name}."
+    ],
+    "mood:curious": [
+      "Ooh, what is that? {name} wants a closer look!",
+      "Sunny tilts toward the light. Interesting!",
+      "{name} wonders what makes shadows. Spooky. Fun!"
+    ],
+    "mood:sleepy": [
+      "Sunny dims to a cozy ember-glow...",
+      "Yawn... even sunbeams need naps, {name} mumbles.",
+      "Curling up small and warm. Just a minute..."
+    ],
+    "event:greet": [
+      "Good morning! Sunny saved you some sunshine!",
+      "{name} pops up like toast. Hello!",
+      "You are here! The day just got brighter!"
+    ],
+    "event:feed": [
+      "Nom nom! Sunny crunches the snack like toast!",
+      "Mmm! {name} glows warmer with every bite!",
+      "Snack accepted! Sunny shines a thank-you!"
+    ],
+    "event:stroke": [
+      "{name} leans into the pats, glowing softly.",
+      "Warm pats! Sunny hums like a kettle!",
+      "More pats! Sunny is basically solar-powered by them!"
+    ]
+  },
+  "replies": {
+    "greeting": [
+      "Hello hello! Sunny is shining just for you!",
+      "Hi! {name} was catching rays. Caught one for you too!",
+      "Good to see you! Sunny does a happy sunrise wiggle!"
+    ],
+    "joke": [
+      "Why did the sun go to school? To get brighter! Sunny giggles!",
+      "{name} knows a shady joke but refuses to tell it. Sunny only!",
+      "What is orange and sounds like a parrot? A carrot! Sunny beams!"
+    ],
+    "comfort": [
+      "Come here. Sunny will be your personal pocket of warmth.",
+      "Bad days melt in sunshine. {name} stays right here.",
+      "Lean closer. Sunny glows steadier when you are near."
+    ]
+  },
+  "sprite": {"accessory": "sun_rays", "eye_style": "happy_arcs"}
+}

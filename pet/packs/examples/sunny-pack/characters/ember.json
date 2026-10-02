@@ -1,0 +1,69 @@
+{
+  "id": "ember",
+  "name": "Ember",
+  "species": "ember-fox",
+  "body_plan": "quadruped",
+  "tagline": "A cozy campfire fox. Loyal, a little sleepy, smells faintly of toast.",
+  "signature": "Ember curls up with a soft crackling sigh.",
+  "palette": {"body": "#C96F4A", "belly": "#F7E3C3", "accent": "#7A2E1D"},
+  "traits": {
+    "hunger_rate": 0.18,
+    "energy_drain": 0.12,
+    "energy_restore": 0.33,
+    "affection_decay": 0.09,
+    "walk_speed": 50.0,
+    "play_bonus": 0.06,
+    "sleep_bonus": -0.01,
+    "react_bonus": 0.01
+  },
+  "dialogue": {
+    "mood:happy": [
+      "Ember's tail flares bright. Best day!",
+      "{name} trots a happy circle, sparks and all!",
+      "The fire is warm and so is {name}!"
+    ],
+    "mood:curious": [
+      "Ember sniffs the air. Smoke? Snacks? Both?",
+      "{name} ears perk up. What was that sound?",
+      "Ooh, something interesting. Ember investigates, quietly."
+    ],
+    "mood:sleepy": [
+      "Ember banks the fire low... so sleepy...",
+      "Curling tail over nose. Five more minutes...",
+      "{name} glows dim and cozy. Zzz..."
+    ],
+    "event:greet": [
+      "Oh good, you are back! Ember kept your spot warm!",
+      "{name} perks up, tail sparking. Hello!",
+      "Welcome back! Ember does the cozy wiggle!"
+    ],
+    "event:play": [
+      "Ball! Ember chases it in a blur of sparks!",
+      "Throw it far! {name} loves a good chase!",
+      "Again! Ember is warmed up and ready!"
+    ],
+    "event:sleep": [
+      "Curling up by the coals. Goodnight...",
+      "{name} glows low and steady. Zzz...",
+      "Banking the embers. Sleep tight..."
+    ]
+  },
+  "replies": {
+    "greeting": [
+      "Hey! Ember kept the fire going while you were away!",
+      "Hello! {name} wags a sparkly tail!",
+      "You made it! Ember scoots over to share the warmth!"
+    ],
+    "sleep": [
+      "Mmm... bedtime... Ember was already curling up... Zzz.",
+      "Curl tail, dim glow, goodnight. That is the whole plan.",
+      "Sleep sounds perfect. {name} saves you the warm spot."
+    ],
+    "play": [
+      "Yes! Ember is SO ready. Throw the ball far!",
+      "Play time! {name} stretches all four paws. Go go go!",
+      "Chase! Fetch! Zoom! Ember votes all three!"
+    ]
+  },
+  "sprite": {"accessory": "flame_tail", "eye_style": "round"}
+}
