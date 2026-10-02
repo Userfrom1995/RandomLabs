@@ -19,7 +19,7 @@ from . import settings as settings_mod
 from . import shells as shells_mod
 from .controller import WindowController
 from .interact import wall_hour
-from .sprite import CANVAS_BOX, draw_on, normalize_character, shapes
+from .sprite import CANVAS_BOX, draw_on, normalize_character, pose_for, shapes
 
 
 def clamp_to_screen(x: int, y: int, width: int, height: int,
@@ -492,6 +492,53 @@ class PetWindow:
             tk.Entry(dialog, textvariable=fields["wake_var"],
                      width=8).grid(row=row, column=1, sticky="w")
             row += 1
+            try:
+                from ..pet_core import catalog as catalog_mod
+                picker_records = catalog_mod.list_characters()
+            except Exception:
+                picker_records = []
+            try:
+                active_id = normalize_character(
+                    getattr(self.controller.brain.state, "character_id", "pip"))
+            except Exception:
+                active_id = "pip"
+            try:
+                tk.Label(dialog, text="Character:").grid(row=row, column=0,
+                                                          sticky="ne")
+                picker_frame = tk.Frame(dialog)
+                picker_frame.grid(row=row, column=1, sticky="w")
+                row += 1
+                picker_ids = [r.get("id", "pip") for r in picker_records]
+                picker_box = tk.Listbox(picker_frame, height=6,
+                                        exportselection=False)
+                for record in picker_records:
+                    picker_box.insert(
+                        "end", "%s (%s)" % (record.get("name", "?"),
+                                            record.get("species", "?")))
+                if active_id in picker_ids:
+                    picker_box.select_set(picker_ids.index(active_id))
+                    picker_box.see(picker_ids.index(active_id))
+                elif picker_ids:
+                    picker_box.select_set(0)
+                picker_box.pack(side="left")
+                preview = tk.Canvas(picker_frame, width=96, height=96,
+                                    highlightthickness=1,
+                                    highlightbackground="#888888")
+                preview.pack(side="left", padx=(8, 0))
+                fields["picker_ids"] = picker_ids
+                fields["picker_box"] = picker_box
+                fields["picker_preview"] = preview
+                tagline_var = tk.StringVar(value="")
+                fields["picker_tagline"] = tagline_var
+                tk.Label(dialog, textvariable=tagline_var,
+                         wraplength=320, justify="left").grid(
+                    row=row, column=0, columnspan=2, sticky="w")
+                row += 1
+                self._redraw_picker_preview(fields)
+                picker_box.bind("<<ListboxSelect>>",
+                                lambda _e: self._redraw_picker_preview(fields))
+            except Exception:
+                pass
             tk.Label(dialog, textvariable=fields["status_var"],
                      wraplength=320, justify="left").grid(
                 row=row, column=0, columnspan=2, sticky="w")
@@ -506,6 +553,55 @@ class PetWindow:
         except Exception:
             try:
                 dialog.destroy()
+            except Exception:
+                pass
+
+    def _picker_selection(self, fields: dict) -> str | None:
+        """Return the picker character id, or None when there is no picker."""
+        ids = fields.get("picker_ids")
+        box = fields.get("picker_box")
+        if not ids or box is None:
+            return None
+        try:
+            chosen = box.curselection()
+        except Exception:
+            return None
+        if not chosen:
+            return None
+        try:
+            return ids[int(chosen[0])]
+        except (TypeError, ValueError, IndexError):
+            return None
+
+    def _redraw_picker_preview(self, fields: dict) -> None:
+        """Repaint the picker preview canvas for the selected character."""
+        canvas = fields.get("picker_preview")
+        tagline_var = fields.get("picker_tagline")
+        if canvas is None:
+            return
+        wanted = self._picker_selection(fields)
+        if wanted is None:
+            try:
+                wanted = normalize_character(
+                    getattr(self.controller.brain.state, "character_id", "pip"))
+            except Exception:
+                wanted = "pip"
+        try:
+            from ..pet_core import catalog as catalog_mod
+            record, _notice = catalog_mod.get(wanted)
+        except Exception:
+            return
+        try:
+            canvas.delete("all")
+            pose = pose_for("idle", 0.35, record.get("id", "pip"))
+            drawing = shapes(pose, size=96, character_id=record.get("id", "pip"))
+            draw_on(canvas, drawing)
+        except Exception:
+            pass
+        if tagline_var is not None:
+            try:
+                tagline_var.set("%s: %s" % (record.get("name", "?"),
+                                            record.get("tagline", "")))
             except Exception:
                 pass
 
@@ -542,6 +638,15 @@ class PetWindow:
             except ValueError as exc:
                 complain(str(exc))
                 return
+            new_settings = None
+            picked = self._picker_selection(fields)
+            if picked is not None:
+                try:
+                    from ..pet_core import catalog as catalog_mod
+                    record, _note = catalog_mod.get(picked)
+                    data["character_id"] = record["id"]
+                except Exception:
+                    pass
             new_settings = settings_mod.AppSettings.from_dict(data)
         except ValueError as exc:
             complain("Settings not saved (%s)." % exc)
@@ -558,6 +663,15 @@ class PetWindow:
         except ValueError as exc:
             complain("Settings not saved (%s)." % exc)
             return
+        if new_settings.character_id != self.controller.brain.state.character_id:
+            try:
+                _text, char_notice = self.controller.switch_character(
+                    new_settings.character_id)
+                if char_notice:
+                    complain(char_notice)
+            except Exception as exc:
+                complain("Character not switched (%s)." % exc)
+                return
         self._apply_topmost()
         self._apply_alpha()
         self._apply_scale_live()

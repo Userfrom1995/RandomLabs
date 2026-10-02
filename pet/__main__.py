@@ -93,7 +93,8 @@ def _build_parser() -> argparse.ArgumentParser:
                        metavar="field=value",
                        help="change a setting (repeatable): wander, "
                             "play_invites, sleep_schedule, dialogue, "
-                            "topmost, alpha, scale, bedtime, wake")
+                            "topmost, alpha, scale, bedtime, wake, "
+                            "character_id")
     set_p.add_argument("--save", type=str, default=None,
                        help="settings file path (default: user-data dir)")
     start_p = sub.add_parser("startup", help="launch-at-login integration")
@@ -253,6 +254,12 @@ def cmd_gui(args: argparse.Namespace) -> int:
 def cmd_settings(args: argparse.Namespace) -> int:
     from .pet_app import settings as settings_mod
 
+    try:
+        from .pet_core.packs import ensure_active as _ensure_packs
+        for note in _ensure_packs():
+            print("[pet] %s" % note)
+    except Exception:
+        pass
     current, notice = settings_mod.load_settings(args.save)
     if notice and "no settings file yet" not in notice:
         print("[pet] %s" % notice)
