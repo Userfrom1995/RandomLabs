@@ -138,6 +138,18 @@
     <div class="card"><h3>Settings</h3><p>Name, behavior toggles, transparency, size, bedtime hours, and start-at-login, all restored on restart.</p></div>
   </div>
 
+  <h2>Character catalog</h2>
+  <p>Six originals share one behavior brain, and every stat difference is data in the trait tables, never a branch in the code. Stats carry across switches, and installed creator packs join the same switcher. Try each one with the buttons above, with <code>python -m pet characters switch ID</code>, or live in the desktop window:</p>
+  <div class="cards">
+    <div class="card"><h3>Pip the blob-cat (balanced)</h3><p>The baseline every other character scales from. Standard hunger, energy, and affection rates, a 90-second antic rhythm, and the warm shared voice that backs every pack character. Try: <code>characters switch pip</code>.</p></div>
+    <div class="card"><h3>Bramble the fox (playful)</h3><p>Affection-hungry zoomies: hunger builds 1.25x, affection fades 1.4x, walks at 1.6x speed with a play-biased brain, and catches the ball in a 1.3x radius. Chatters every 60 idle seconds in exclamation-heavy bursts.</p></div>
+    <div class="card"><h3>Mochi the slime (sleepy)</h3><p>Cuddle-positive puddle: half-speed waddle, sleep-biased brain, affection that lingers (0.6x fade). Gentle clicks grant extra affection, snacks restore 1.25x hunger, and the munch animation purrs on for 4.5 seconds.</p></div>
+    <div class="card"><h3>Kiki the sparrow (curious)</h3><p>Darting walker at 1.4x speed with a startle-prone brain. Improvises chatter every 45 idle seconds, the fastest antic rhythm in the cast, in a chirpy voice that narrates everything it notices.</p></div>
+    <div class="card"><h3>Rusty the robot (grumpy-cute)</h3><p>Poke-tolerant and literal: damped startle response, snacks that barely register (0.8x, it runs on oil), and a 180-second antic rhythm. Answers in dry beep-studded lines. Beep.</p></div>
+    <div class="card"><h3>Luna the moth-dragon (nocturnal)</h3><p>Night drifter with hovering motion and winged geometry. Savours meals a little more (1.1x, 3.5-second munch) and answers in dreamy moonlit lines, with night antics paced at 120 idle seconds.</p></div>
+  </div>
+  <p class="note">Creator packs extend this gallery without touching the core: the bundled Sunny Pack example adds Sunny the sun-sprite and Ember the ember-fox through the same JSON path third parties use (see Creator packs below).</p>
+
   <h2>Behavior guide</h2>
   <div class="table-scroll">
   <table>
@@ -196,20 +208,38 @@ python -m pet service switch bramble
 python -m pet service show
 python -m pet tray status</pre>
 
-  <h2>Downloads</h2>
-  <p>No binaries are hosted here: the pet is source-first, and the hub links the recipes so downloads can never drift from the code.</p>
-  <ul>
-    <li><a href="https://github.com/Userfrom1995/RandomLabs">Source tree</a>: run with <code>python -m pet gui</code>, zero install.</li>
-    <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/pet/packaging/README.md">Packaging recipes</a>: one-file PyInstaller builds per OS with checksums and a bundle selftest (<code>packaging/build.sh</code> for Linux/macOS, <code>packaging/build-windows.ps1</code> for Windows).</li>
-  </ul>
+  <h2>Downloads and native installers</h2>
+  <p>No binaries are hosted here: the pet is source-first, and the hub links the recipes so downloads can never drift from the code. Build the one-file binary first, then wrap it per OS. Every recipe is fail-closed, writes checksums, and runs a bundle <code>selftest</code> before declaring success.</p>
   <div class="table-scroll">
   <table>
-    <tr><th>OS</th><th>Recipe</th><th>Artifact</th></tr>
-    <tr><td>Windows 10/11</td><td><code>packaging/build-windows.ps1</code></td><td><code>dist/desktop-pet.exe</code></td></tr>
-    <tr><td>macOS 13+</td><td><code>packaging/build.sh</code></td><td><code>dist/desktop-pet</code></td></tr>
-    <tr><td>Linux (X11/Wayland)</td><td><code>packaging/build.sh</code></td><td><code>dist/desktop-pet</code></td></tr>
+    <tr><th>OS</th><th>Recipe</th><th>Artifact</th><th>Notes</th></tr>
+    <tr><td>Windows 10/11</td><td><code>packaging/desktop-pet.iss</code> (Inno Setup 6)</td><td><code>dist/desktop-pet-setup-1.5.0.exe</code></td><td>Per-user install, Start Menu entries, optional login task; uninstaller removes app plus autostart, keeps saves</td></tr>
+    <tr><td>Windows 10/11</td><td><code>packaging/build-windows.ps1</code></td><td><code>dist/desktop-pet.exe</code></td><td>One-file binary; Registry Run key for start at login</td></tr>
+    <tr><td>macOS 13+</td><td><code>packaging/build-macos.sh</code></td><td><code>dist/DesktopPet-1.5.0.pkg</code>, <code>dist/DesktopPet-1.5.0.dmg</code></td><td>App bundle plus pkg plus dmg; pkg installs the app only, then enable the login service with <code>desktop-pet startup on --service</code></td></tr>
+    <tr><td>Linux (X11/Wayland)</td><td><code>packaging/build-linux.sh</code></td><td><code>dist/desktop-pet_1.5.0_amd64.deb</code>, <code>dist/DesktopPet-1.5.0-x86_64.AppImage</code></td><td>Desktop entry plus disabled-by-default XDG autostart (AppImage needs appimagetool)</td></tr>
   </table>
   </div>
+  <p>No binary needed to run from source (stdlib-only, nothing to install):</p>
+  <pre>bash pet/packaging/install.sh [--service] [--character ID]
+bash pet/packaging/uninstall.sh [--purge]</pre>
+  <p>On Windows (PowerShell): <code>install.ps1 [-Service] [-Character ID]</code> and <code>uninstall.ps1 [-Purge]</code>. Install verifies the interpreter, runs <code>selftest</code>, and enables launch-at-login (<code>--service</code> points it at the background service). Uninstall stops the service and removes autostart, leaving saves unless purged.</p>
+  <p>Verify any binary you build or receive, and compare against <code>dist/SHA256SUMS.txt</code> written by your own build:</p>
+  <pre>shasum -a 256 dist/desktop-pet
+Get-FileHash .\dist\desktop-pet.exe -Algorithm SHA256</pre>
+  <ul>
+    <li><a href="https://github.com/Userfrom1995/RandomLabs">Source tree</a>: run with <code>python -m pet gui</code>, zero install.</li>
+    <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/pet/packaging/README.md">Packaging recipes</a>: full matrix, checksums, and bundle selftest per OS.</li>
+  </ul>
+
+  <h2>Creator packs</h2>
+  <p>Anyone can ship new characters as data, no core changes needed: a pack directory (or zip) with a <code>pack.json</code> manifest plus one file per character under <code>characters/</code>, validated against <code>pet/packs/schema.json</code>. Installs merge into the live catalog with trait rates, dialogue voices, converse replies, palettes, and sprite hints; built-ins win slug collisions with a notice, and unknown character ids in saves fall back to Pip with a notice.</p>
+  <pre>python -m pet pack validate ./my-pack
+python -m pet pack install ./my-pack
+python -m pet pack list
+python -m pet pack show sunny-pack
+python -m pet pack remove my-pack
+python -m pet characters switch sunny</pre>
+  <p class="note">Validation is strict before anything is copied: slug shape, semver plus engine range, body-plan allowlist, clamped trait ranges, dialogue pools of at least 3 lines, zip traversal plus size caps. Corrupt installed packs are moved aside with a notice instead of blocking the catalog. The worked example at <code>pet/packs/examples/sunny-pack</code> adds Sunny and Ember and proves the third-party path end to end.</p>
 
   <h2>Support matrix</h2>
   <div class="table-scroll">
@@ -231,6 +261,7 @@ python -m pet tray status</pre>
     <li><code>python -m pet run [--ticks N] [--seed S]</code>: run the brain headlessly.</li>
     <li><code>python -m pet gui [--scale F] [--alpha A]</code>: open the on-screen companion.</li>
     <li><code>python -m pet characters (list|show ID|switch ID)</code>: the six-character catalog and live switching.</li>
+    <li><code>python -m pet pack (validate SRC|install SRC|list|remove SLUG|show SLUG)</code>: creator packs: validate, install, list, show, or remove third-party character packs.</li>
     <li><code>python -m pet talk TEXT</code>: chat with the pet offline (<code>converse</code> is an alias).</li>
     <li><code>python -m pet service (start|stop|status|logs|show|hide|switch ID)</code>: background service lifecycle on the shared save.</li>
     <li><code>python -m pet tray (status|show|hide)</code>: system-tray state, with an honest note where no tray host answers.</li>
