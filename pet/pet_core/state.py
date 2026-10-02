@@ -12,6 +12,22 @@ MAX_STAT = 100.0
 
 KNOWN_CHARACTERS = ("pip", "bramble", "mochi", "kiki", "rusty", "luna")
 
+EXTRA_CHARACTERS: set[str] = set()
+
+
+def register_extra_character(character_id: str) -> str:
+    """Register a third-party character slug so saves keep it (pack path)."""
+    slug = str(character_id or "").strip().lower()
+    EXTRA_CHARACTERS.add(slug)
+    return slug
+
+
+def is_known_character(character_id: object) -> bool:
+    if isinstance(character_id, str):
+        slug = character_id.strip().lower()
+        return slug in KNOWN_CHARACTERS or slug in EXTRA_CHARACTERS
+    return False
+
 
 class Activity(str, Enum):
     """Behavior activities driven by the brain tick machine."""
@@ -82,7 +98,7 @@ class PetState:
             self.character_id = "pip"
         else:
             slug = self.character_id.strip().lower()
-            self.character_id = slug if slug in KNOWN_CHARACTERS else "pip"
+            self.character_id = slug if is_known_character(slug) else "pip"
         if isinstance(self.activity, str):
             try:
                 self.activity = Activity(self.activity)

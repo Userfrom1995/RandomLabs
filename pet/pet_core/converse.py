@@ -357,6 +357,17 @@ def _clean_stat(value: object, fallback: float) -> float:
     return max(0.0, min(100.0, number))
 
 
+EXTRA_REPLIES: dict[str, dict[str, list[str]]] = {}
+
+
+def register_extra_replies(character_id: str,
+                            pools: dict[str, list[str]]) -> str:
+    """Register third-party converse overrides (pack activation path)."""
+    slug = str(character_id or "").strip().lower()
+    EXTRA_REPLIES[slug] = {k: list(v) for k, v in pools.items()}
+    return slug
+
+
 class Converser:
     """Seeded offline reply engine with per-character voices.
 
@@ -389,15 +400,18 @@ class Converser:
         return self._name
 
     def set_character(self, character_id: object) -> str:
-        if (isinstance(character_id, str)
-                and character_id.strip().lower() in CHARACTER_REPLIES):
-            self._character_id = character_id.strip().lower()
-        else:
-            self._character_id = "pip"
+        if isinstance(character_id, str):
+            slug = character_id.strip().lower()
+            if slug in CHARACTER_REPLIES or slug in EXTRA_REPLIES:
+                self._character_id = slug
+                return self._character_id
+        self._character_id = "pip"
         return self._character_id
 
     def _pool_for(self, intent: str) -> list[str]:
         voice = CHARACTER_REPLIES.get(self._character_id, {})
+        if not voice and self._character_id in EXTRA_REPLIES:
+            voice = EXTRA_REPLIES[self._character_id]
         pool = voice.get(intent)
         if pool:
             return pool

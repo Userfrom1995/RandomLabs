@@ -167,23 +167,53 @@ def known_ids() -> tuple[str, ...]:
     return tuple(TRAITS)
 
 
+EXTRA_TRAITS: dict[str, dict[str, float]] = {}
+EXTRA_INTERACTIONS: dict[str, dict[str, float]] = {}
+
+
+def register_extra_traits(character_id: str, rates: dict,
+                           interactions: dict | None = None) -> str:
+    """Register a third-party trait record (pack activation path).
+
+    Returns the normalized slug. Unknown ids still fall back to Pip
+    until registered here.
+    """
+    slug = str(character_id or "").strip().lower()
+    EXTRA_TRAITS[slug] = dict(rates)
+    if interactions is not None:
+        EXTRA_INTERACTIONS[slug] = dict(interactions)
+    return slug
+
+
 def normalize_id(character_id: object) -> str:
     """Map any value to a known trait id, falling back to Pip."""
-    if isinstance(character_id, str) and character_id.strip().lower() in TRAITS:
-        return character_id.strip().lower()
+    if isinstance(character_id, str):
+        slug = character_id.strip().lower()
+        if slug in TRAITS or slug in EXTRA_TRAITS:
+            return slug
     return FALLBACK_ID
 
 
 def rates_for(character_id: object) -> dict[str, float]:
     """Return a copy of the numeric trait record for a character id."""
-    return dict(TRAITS[normalize_id(character_id)])
+    slug = normalize_id(character_id)
+    if slug in EXTRA_TRAITS:
+        merged = dict(TRAITS[FALLBACK_ID])
+        merged.update(EXTRA_TRAITS[slug])
+        return merged
+    return dict(TRAITS[slug])
 
 
 def walk_speed_for(character_id: object) -> float:
     """Return the walk speed px/sec for a character id."""
-    return float(TRAITS[normalize_id(character_id)]["walk_speed"])
+    return float(rates_for(character_id)["walk_speed"])
 
 
 def interaction_for(character_id: object) -> dict[str, float]:
     """Return a copy of the interaction-modifier record for a character."""
-    return dict(INTERACTIONS[normalize_id(character_id)])
+    slug = normalize_id(character_id)
+    if slug in EXTRA_INTERACTIONS:
+        return dict(EXTRA_INTERACTIONS[slug])
+    if slug in EXTRA_TRAITS:
+        return dict(INTERACTIONS[FALLBACK_ID])
+    return dict(INTERACTIONS[slug])

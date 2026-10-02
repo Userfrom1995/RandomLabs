@@ -100,6 +100,15 @@ def normalize_id(character_id: object) -> str:
     return FALLBACK_ID
 
 
+def _installed_extra() -> tuple[dict[str, dict], list[str]]:
+    """Load installed creator packs (cached); never raises."""
+    try:
+        from . import packs as packs_mod
+        return packs_mod.active_extra()
+    except Exception:
+        return {}, []
+
+
 def get(character_id: object,
         extra: dict[str, dict] | None = None) -> tuple[dict, str | None]:
     """Return (record, notice) for an id, merging optional pack entries.
@@ -113,10 +122,13 @@ def get(character_id: object,
         slug = ""
     if slug in CHARACTERS:
         return _record(slug), None
-    if extra and slug and slug in extra:
+    merged = extra
+    if merged is None:
+        merged, _notices = _installed_extra()
+    if merged and slug and slug in merged:
         try:
-            validate_record(extra[slug])
-            rec = dict(extra[slug])
+            validate_record(merged[slug])
+            rec = dict(merged[slug])
             rec.setdefault("species", rec.get("name", slug))
             rec.setdefault("tagline", "")
             rec.setdefault("signature", "")
@@ -132,15 +144,18 @@ def get(character_id: object,
 def list_characters(extra: dict[str, dict] | None = None) -> list[dict]:
     """List built-in records merged with optional pack records by slug."""
     records = [_record(cid) for cid in CHARACTERS]
-    if extra:
-        for slug in sorted(extra):
+    merged = extra
+    if merged is None:
+        merged, _notices = _installed_extra()
+    if merged:
+        for slug in sorted(merged):
             if slug in CHARACTERS:
                 continue
             try:
-                validate_record(extra[slug])
+                validate_record(merged[slug])
             except ValueError:
                 continue
-            rec = dict(extra[slug])
+            rec = dict(merged[slug])
             rec.setdefault("species", rec.get("name", slug))
             rec.setdefault("tagline", "")
             rec.setdefault("signature", "")
