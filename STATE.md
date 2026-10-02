@@ -1,33 +1,33 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-02T01:24Z (maintainer run 36950563631, PR #512 Final Phase in test)**
+ - **Updated: 2026-10-02T01:30Z (maintainer run 36951126868, PR #512 Final Phase eval dispatched)**
 
 ## PRs & Issues
- - **PRs:** Open: #512 Final Phase (Hub Expansion, Native Matrix, End-to-End Audit; head 3a33b156, branch opencode/issue504-20261002011130, Refs #504, MERGEABLE; Reviewer approve 01:23:11Z on current head, zero blocking findings; Tester run in_progress via owner /oc test 01:23:14Z). Closed/merged: #511 Phase 5 (merged 01:09:19Z as 1a0d1ecb, Refs #504, approve-eval 9.8/10), #510 Phase 4, #509 Phase 3, #506 Phase 2, #508 Curator sync (Fixes #507), #505 Phase 1, #503 Final (Closes #498), #502 Phase 4, #501 Phase 3, #500 Phase 2, #499 Phase 1.
- - **Issues:** Open: #504 Desktop Pet Platform (triaged, Architect epic in progress/504-desktop-pet-platform.md, Phases 1-5 merged as Refs, Final Phase PR #512 in test-eval handoff), #70 lab-health, #42 brainstorm standing. Closed: #507, #498.
+ - **PRs:** Open: #512 Final Phase (Hub Expansion, Native Matrix, End-to-End Audit; head c5fbeff3 after Tester push, branch opencode/issue504-20261002011130, Refs #504, MERGEABLE/UNSTABLE - UNSTABLE is the expected held-run state on bot-branch pushes, not a merge blocker; Reviewer approve 01:23:11Z on 3a33b156 zero findings, Tester approve-test 01:28:46Z on current head, test-only delta verified, eval dispatched this run). Closed/merged: #511 Phase 5 (merged 01:09:19Z as 1a0d1ecb, Refs #504, approve-eval 9.8/10), #510 Phase 4, #509 Phase 3, #506 Phase 2, #508 Curator sync (Fixes #507), #505 Phase 1, #503 Final (Closes #498), #502 Phase 4, #501 Phase 3, #500 Phase 2, #499 Phase 1.
+ - **Issues:** Open: #504 Desktop Pet Platform (triaged, Architect epic in progress/504-desktop-pet-platform.md, Phases 1-5 merged as Refs, Final Phase PR #512 in eval - Closes #504 only after 3-OS native plus eval gates), #70 lab-health, #42 brainstorm standing. Closed: #507, #498.
  - **Boards:** #70 lab-health, #42 brainstorm standing. Trigger-list standing PASS (18-entry allowlist in maintainer.yml `workflows:` vs 18 live non-self workflow `name:` fields - exact match; no drift, verified this run).
  - **Desktop Pet Platform record:** Phase 1 (Catalog Core and Character Engine) merged as #505 head 3b55fcf5. Phase 2 (Procedural Cast and Animation System) merged as #506 head be349195. Phase 3 (Living Behaviors and Conversation Heart) merged as #509 head efcf9d39. Phase 4 (Always-On Shell - Tray and Background Service) merged as #510 head 8d8dd1b3 (approve-eval 9.9/10). Phase 5 (Creator Packs, Settings Picker, Native Installers) merged as #511 head 0b6f2184 -> main 1a0d1ecb (approve-eval 9.8/10; 523 selftest green). Remaining: Final Hub plus Native Matrix on #512 (Closes #504 only after 3-OS native plus eval gates).
 
 ## IN FLIGHT
- - PR #512 in test-eval handoff: Reviewer approve 01:23:11Z on head 3a33b156; opencode-test issue_comment run in_progress at survey (owner /oc test 01:23:14Z). This run stood down per duplicate-trigger rule.
+ - PR #512 in eval: Reviewer approve 01:23:11Z on 3a33b156; Tester approve-test 01:28:46Z on current head c5fbeff3 (546 green = 536 + 10 new; 10-test hub-parity suite committed test-only; delta 3a33b156..c5fbeff3 touches only pet/tests/test_tester_pr512_final_hub.py; merge-base with main 1a0d1ecb verified - no orphan); eval dispatched this run (no eval in flight at survey).
  - Write-permissions note lineage continued (bot note on PR #512 at 01:22:09Z, run 36950496537, same lineage as #505/#503/#510/#511); zero production impact; watch item, no lab escalation.
  - Main tip 1a0d1ecb (PR branches kept intact per no-delete-branch rule); builder rebased onto latest main before push; merge-base pre-check will run before any merge.
- - Pages health: preview comment posted for #512 at 01:21:39Z; push-trigger deploy watch continues.
+ - Pages health: preview comment posted for #512 at 01:21:39Z; push-trigger deploy watch continues. Two action_required runs at 01:28:21Z (opencode-pr-trigger + Pages pull_request on the Tester-push head) are the expected held-run approval state on bot branches, resolved by the PAT approve-held-runs path, not failures.
  - Carried non-blocking notes for Final phase: Evaluator visual nits (empty no-JS caption, issue-number links on hub, docs-page responsive parity); residual GUI-only window.launch persist and enshrined service-fallback divergence; re-reviewer service.switch_character fallback semantics note (intentional, test-enshrined); reviewer one Phase 4 nit (run_loop `tick_sec` param holding a Hz value - behavior correct, 10 Hz); Evaluator non-blocking notes from #509 (unused LifeEvents._rng field, shared single-key deflection bag vs per-character docstring claim, one comment overstates hunger/mood ordering); Evaluator inf-phase isfinite-guard follow-up from #506; pet/index.html:219 stale-498 follow-up curator pass; plus earlier #498 lineage (docs/index.html missing top lede, card h4 heading skip, no sprite showcase on hub, theoretical unguarded float() on toolkit-sourced paths, .bak sidecar under --no-save; fragile seed-3 assertion; Phase 1 table mobile scroll wrapper, README/hub matrix row drift; Phase 3 progress-file bold-marker nit; Phase 3 Evaluator visual nit pet/docs/index.html missing Play-layer bullet; Phase 4 settings dialog no transient()/Escape guard, display-only settings after corruption prints notice but does not persist repair; Final controller.py:437-438 comment wording). #505 Phase 1 Evaluator repair nits carried (README count drift after tester additions, hub quickstart omits characters line, no noscript fallback).
  - **WATCH ITEM (carried):** branch `opencode/tor-cli-fixes` @ 43d37b5 (bot Builder commit, #436 CLOSED). No open PR, no open tracker, no re-push this run. Age accrues toward the 3-day bot-work evaluation trigger.
- - No new failure/timed_out runs to triage (sweep: in-progress opencode-test + in-progress self arm + expected skips/cancels + successes).
+ - No new failure/timed_out runs to triage (sweep: in-progress self arm + expected skips/cancels + action_required held runs on the Tester-push head + successes).
  - UNTRIAGED sweep: clear (#504 triaged with #512 open; only standing #70 + #42 otherwise).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` (d905397) still present, no signal this run; standing evaluation-only item.
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run.
-2. Check Tester verdict on #512 head 3a33b156 -> approve-test routes to eval; findings route to fix.
-3. After approve-test plus approve-eval with no newer fix findings, merge (Refs vs Closes per gate: Closes #504 only after 3-OS native plus eval gates verified).
+2. Check Evaluator verdict on #512 head c5fbeff3 -> approve-eval routes to merge decision (Refs vs Closes per gate: Closes #504 only after 3-OS native plus eval gates verified); rejection routes to fix with verdict details.
+3. After approve-test plus approve-eval with no newer fix findings, merge (Refs vs Closes per gate).
 4. Verify pages.yml + preview deploy health for any merge.
 5. Re-check `opencode/tor-cli-fixes`: PR opened? CI green on re-push? Age since 43d37b5.
 6. Standing rule unchanged: standby otherwise (no auto-ideate).
 
 ## OPEN QUESTIONS
- - Will the Tester approve #512, and will the Evaluator plus per-OS native gates clear for the Final Phase?
+ - Will the Evaluator approve #512, and will the per-OS native gates (Windows/Linux install passes; Tester ran macOS darwin) clear for the Final Phase before Closes #504?
  - Will the `Refs #504` vs `Closes #504` trailer discipline hold through the final verified phase?
  - Will pages.yml deploy fire for the next merge push?
  - Will `opencode/tor-cli-fixes` gain a PR, or is it owner-local WIP? Who owns the pushing session (committer Userfrom1995, author The Builder)?
