@@ -281,6 +281,8 @@ def _iter_pack_files(root: str) -> list[str]:
     for dirpath, _dirnames, filenames in os.walk(root):
         for name in sorted(filenames):
             path = os.path.join(dirpath, name)
+            if os.path.islink(path):
+                raise ValueError("pack must not contain symlinks: %r" % (name,))
             if not name.endswith(".json"):
                 raise ValueError("pack files must be JSON: %r" % (name,))
             size = os.path.getsize(path)
@@ -295,18 +297,27 @@ def _iter_pack_files(root: str) -> list[str]:
     return found
 
 
+def _reject_escape(name: str, kind: str) -> str:
+    """Normalize a zip/rel path and reject escapes. Returns posix form."""
+    norm = name.replace("\\", "/")
+    if (norm.startswith("/") or ".." in norm.split("/")
+            or re.match(r"^[A-Za-z]:", norm)):
+        raise ValueError("%s escapes the pack: %r" % (kind, name))
+    return norm
+
+
 def _unpack_zip(source: str, dest: str) -> str:
     with zipfile.ZipFile(source, "r") as archive:
         for info in archive.infolist():
             if info.is_dir():
                 continue
             name = info.filename
-            if name.startswith("/") or ".." in name.split("/"):
-                raise ValueError("zip entry escapes the pack: %r" % (name,))
+            _reject_escape(name, "zip entry")
             if info.file_size > MAX_FILE_BYTES:
                 raise ValueError("zip entry too large: %r" % (name,))
             target = os.path.join(dest, name)
-            if not os.path.abspath(target).startswith(os.path.abspath(dest)):
+            if not os.path.abspath(target).startswith(
+                    os.path.abspath(dest) + os.sep):
                 raise ValueError("zip entry escapes the pack: %r" % (name,))
             os.makedirs(os.path.dirname(target), exist_ok=True)
             with archive.open(info, "r") as src, open(target, "wb") as dst:
@@ -352,9 +363,16 @@ def validate(source: str) -> tuple[dict, list[dict]]:
         characters: list[dict] = []
         seen: set[str] = set()
         for rel in rels:
-            if rel.startswith("/") or ".." in rel.split("/"):
-                raise ValueError("character path escapes the pack: %r" % (rel,))
+            norm = _reject_escape(rel, "character path")
+            if not (norm.startswith("characters/") and norm.endswith(".json")):
+                raise ValueError(
+                    "character path must live under characters/: %r" % (rel,))
             path = os.path.join(root, rel)
+            if not os.path.abspath(path).startswith(
+                    os.path.abspath(root) + os.sep):
+                raise ValueError("character path escapes the pack: %r" % (rel,))
+            if os.path.islink(path):
+                raise ValueError("character file must not be a symlink: %r" % (rel,))
             if not os.path.isfile(path):
                 raise ValueError("missing character file: %r" % (rel,))
             record = validate_character(_read_json_file(path))
@@ -396,14 +414,45 @@ def install(source: str, data_dir: str | None = None) -> tuple[bool, str]:
                     return False, "pack must be a directory or .zip file"
             if os.path.isdir(target):
                 shutil.rmtree(target)
-            if staged == work or staged.startswith(work + os.sep):
-                shutil.copytree(staged, target)
-            else:
-                shutil.copytree(staged, target)
+            # Copy only the validated payload (pack.json plus the
+            # manifest's character rels), never stray files, symlinks,
+            # or a re-unpacked tree that was never re-validated.
+            staged_manifest, _staged_chars = validate(staged)
+            staged_rels = staged_manifest["characters"]
+            if staged_rels is None:
+                chars_dir = os.path.join(staged, "characters")
+                staged_rels = sorted("characters/" + n
+                                     for n in os.listdir(chars_dir)
+                                     if n.endswith(".json"))
+            wanted = ["pack.json"] + list(staged_rels)
+            os.makedirs(target, exist_ok=True)
+            for rel in wanted:
+                norm = _reject_escape(rel, "character path")
+                if rel != "pack.json" and not (
+                        norm.startswith("characters/")
+                        and norm.endswith(".json")):
+                    raise ValueError(
+                        "character path must live under characters/: %r"
+                        % (rel,))
+                src_path = os.path.join(staged, rel)
+                if not os.path.abspath(src_path).startswith(
+                        os.path.abspath(staged) + os.sep):
+                    raise ValueError(
+                        "character path escapes the pack: %r" % (rel,))
+                if os.path.islink(src_path) or not os.path.isfile(src_path):
+                    raise ValueError(
+                        "missing character file: %r" % (rel,))
+                dst_path = os.path.join(target, rel)
+                os.makedirs(os.path.dirname(dst_path), exist_ok=True)
+                with open(src_path, "rb") as src_handle, open(
+                        dst_path, "wb") as dst_handle:
+                    shutil.copyfileobj(src_handle, dst_handle,
+                                       length=65536)
         finally:
             if os.path.isdir(work):
                 shutil.rmtree(work, ignore_errors=True)
-    except OSError as exc:
+    except (OSError, ValueError, zipfile.BadZipFile,
+            json.JSONDecodeError) as exc:
         return False, "could not install pack (%s)" % exc
     _active_cache.pop(os.path.abspath(target_root), None)
     return True, "installed pack %r (%s)" % (manifest["slug"], manifest["name"])
@@ -417,7 +466,7 @@ def list_installed(data_dir: str | None = None) -> list[dict]:
         return found
     for slug in sorted(os.listdir(root)):
         path = os.path.join(root, slug)
-        if not os.path.isdir(path):
+        if os.path.islink(path) or not os.path.isdir(path):
             continue
         manifest_path = os.path.join(path, "pack.json")
         try:
@@ -431,11 +480,21 @@ def list_installed(data_dir: str | None = None) -> list[dict]:
     return found
 
 
+def _clean_slug(slug: object) -> str | None:
+    """Normalize an installed-pack slug; None when it is not slug-shaped."""
+    if not isinstance(slug, str) or not slug.strip():
+        return None
+    clean = slug.strip().lower()
+    if not _SLUG_RE.match(clean) or len(clean) > 32:
+        return None
+    return clean
+
+
 def remove(slug: str, data_dir: str | None = None) -> tuple[bool, str]:
     """Remove an installed pack by slug."""
-    if not isinstance(slug, str) or not slug.strip():
-        return False, "pack slug must not be empty"
-    clean = slug.strip().lower()
+    clean = _clean_slug(slug)
+    if clean is None:
+        return False, "invalid pack slug %r" % (slug,)
     target = os.path.join(packs_dir(data_dir), clean)
     if not os.path.isdir(target):
         return False, "no installed pack %r" % (clean,)
@@ -449,9 +508,9 @@ def remove(slug: str, data_dir: str | None = None) -> tuple[bool, str]:
 
 def show(slug: str, data_dir: str | None = None) -> tuple[dict | None, str]:
     """Show one installed pack manifest plus its character ids."""
-    if not isinstance(slug, str) or not slug.strip():
-        return None, "pack slug must not be empty"
-    clean = slug.strip().lower()
+    clean = _clean_slug(slug)
+    if clean is None:
+        return None, "invalid pack slug %r" % (slug,)
     target = os.path.join(packs_dir(data_dir), clean)
     if not os.path.isdir(target):
         return None, "no installed pack %r" % (clean,)
@@ -477,6 +536,9 @@ def _load_from_root(root: str) -> tuple[dict, list[str]]:
         if slug.endswith(".broken"):
             continue
         path = os.path.join(root, slug)
+        if os.path.islink(path):
+            notices.append("pack %r is a symlink; skipped" % (slug,))
+            continue
         if not os.path.isdir(path):
             continue
         try:
