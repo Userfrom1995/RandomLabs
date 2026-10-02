@@ -23,6 +23,11 @@
   a { color: var(--accent-2); }
   code { font-family: "JetBrains Mono", Consolas, monospace; background: #10141f; border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 0.9em; }
   ul { padding-left: 22px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 8px 10px; border: 1px solid var(--border); }
+  th { background: var(--panel); }
+  div.table-scroll { overflow-x: auto; }
+  pre { background: #10141f; border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; overflow-x: auto; font-size: 0.88rem; }
   nav.breadcrumb { font-size: 0.88rem; color: var(--muted); margin-bottom: 20px; }
 </style>
 </head>
@@ -84,7 +89,24 @@
   <p>Set <code>DESKTOP_PET_NO_DISPLAY=1</code> to force the honest headless path for <code>gui</code> on any OS (used by CI and automated tests so GUI behavior stays deterministic on machines that do have a display).</p>
 
   <h2>Packaging</h2>
-  <p>Run-from-source is the primary install path; versioned artifacts ship on GitHub Releases (<code>desktop-pet-vX.Y.Z</code>) via <code>pet-release.yml</code>, which builds all three OS families natively and smokes each artifact before publish. The optional one-file binaries are built from documented recipes, never downloaded blind: <code>packaging/build.sh</code> (Linux/macOS) and <code>packaging/build-windows.ps1</code> (Windows) wrap <code>packaging/desktop-pet.spec</code> (PyInstaller, console build, zero assets), write <code>dist/SHA256SUMS.txt</code>, and run <code>selftest</code> on the finished bundle. True installers wrap the binary per OS: <code>packaging/desktop-pet.iss</code> (Windows setup: per-user install, Start Menu entries, optional login task, clean uninstall that keeps saves), <code>packaging/build-macos.sh</code> (app plus pkg plus dmg; the pkg installs the app only, then <code>desktop-pet startup on --service</code> enables the login service), <code>packaging/build-linux.sh</code> (deb plus AppImage, desktop entry plus disabled-by-default autostart) plus <code>packaging/build-rpm.sh</code> (rpm with the same payload). Every recipe derives its version from <code>pet/__init__.py</code>, never a copied literal. Shortcut scripts <code>packaging/install.sh</code> / <code>uninstall.sh</code> (plus <code>.ps1</code> on Windows) cover the no-binary path. Release binaries are unsigned (SmartScreen, Gatekeeper, and <code>chmod +x</code> notes in <code>packaging/README.md</code>); always verify against the release <code>SHA256SUMS.txt</code>.
+  <p>Run-from-source is the primary install path; versioned artifacts ship on GitHub Releases (<code>desktop-pet-vX.Y.Z</code>) via <code>pet-release.yml</code>, which builds all three OS families natively and smokes each artifact before publish. Every recipe derives its version from <code>pet/__init__.py</code>, never a copied literal (artifact names below show the current version as an example).</p>
+  <div class="table-scroll">
+  <table>
+    <tr><th>OS</th><th>Recipe</th><th>Artifact</th><th>Notes</th></tr>
+    <tr><td>Windows 10/11</td><td><code>packaging/desktop-pet.iss</code> (Inno Setup 6)</td><td><code>dist/desktop-pet-setup-1.5.0.exe</code></td><td>Per-user install, Start Menu entries, optional login task; uninstaller removes app plus autostart, keeps saves</td></tr>
+    <tr><td>Windows 10/11</td><td><code>packaging/build-windows.ps1</code></td><td><code>dist/desktop-pet.exe</code></td><td>One-file binary; Registry Run key for start at login</td></tr>
+    <tr><td>macOS 13+</td><td><code>packaging/build-macos.sh</code></td><td><code>dist/DesktopPet-1.5.0.pkg</code>, <code>dist/DesktopPet-1.5.0.dmg</code></td><td>App bundle plus pkg plus dmg; pkg installs the app only, then enable the login service with <code>desktop-pet startup on --service</code></td></tr>
+    <tr><td>Linux (X11/Wayland)</td><td><code>packaging/build-linux.sh</code></td><td><code>dist/desktop-pet_1.5.0_amd64.deb</code>, <code>dist/DesktopPet-1.5.0-x86_64.AppImage</code></td><td>Desktop entry plus disabled-by-default XDG autostart (AppImage needs appimagetool)</td></tr>
+    <tr><td>Linux (Fedora/RHEL/openSUSE)</td><td><code>packaging/build-rpm.sh</code></td><td><code>dist/desktop-pet-1.5.0-1.*.rpm</code></td><td>Same payload as the deb (binary, desktop entry, icon, disabled-by-default autostart); needs rpmbuild</td></tr>
+  </table>
+  </div>
+  <p>No binary needed to run from source (stdlib-only, nothing to install):</p>
+  <pre>bash pet/packaging/install.sh [--service] [--character ID]
+bash pet/packaging/uninstall.sh [--purge]</pre>
+  <p>On Windows (PowerShell): <code>install.ps1 [-Service] [-Character ID]</code> and <code>uninstall.ps1 [-Purge]</code>. Install verifies the interpreter, runs <code>selftest</code>, and enables launch-at-login. Verify any binary you build or receive against <code>dist/SHA256SUMS.txt</code>:</p>
+  <pre>shasum -a 256 dist/desktop-pet
+Get-FileHash .\dist\desktop-pet.exe -Algorithm SHA256</pre>
+  <p>Shortcut scripts <code>packaging/install.sh</code> / <code>uninstall.sh</code> (plus <code>.ps1</code> on Windows) cover the no-binary path. Release binaries are unsigned (SmartScreen, Gatekeeper, and <code>chmod +x</code> notes in <code>packaging/README.md</code>); always verify against the release <code>SHA256SUMS.txt</code>.</p>
   <h2>Creator packs</h2>
   <p>Anyone can ship new characters as data: a pack directory (or zip) with a <code>pack.json</code> manifest plus one file per character under <code>characters/</code>, validated against <code>pet/packs/schema.json</code>. Installs merge into the live catalog with trait rates, dialogue voices, converse replies, palettes, and sprite hints; built-ins win slug collisions with a notice. The worked example at <code>pet/packs/examples/sunny-pack</code> adds Sunny and Ember through the same path third parties use.</p>
 
