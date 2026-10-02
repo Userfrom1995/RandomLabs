@@ -39,7 +39,10 @@ trap 'rm -rf "$STAGE"' EXIT INT TERM
 mkdir -p "$STAGE/rpmbuild"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
 
 # rpmbuild needs a plain directory tree: binary, desktop entries, icon.
-SRCDIR="$STAGE/rpmbuild/SOURCES/desktop-pet-$VERSION"
+# These land flat under SOURCES/ because desktop-pet.rpm.spec reads
+# them as %{_sourcedir}/<name> (a versioned subdirectory would miss:
+# release run 37076887677 failed with "cannot stat SOURCES/desktop-pet").
+SRCDIR="$STAGE/rpmbuild/SOURCES"
 mkdir -p "$SRCDIR"
 cp "$BIN" "$SRCDIR/desktop-pet"
 chmod 755 "$SRCDIR/desktop-pet"
