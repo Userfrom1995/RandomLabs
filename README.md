@@ -52,12 +52,13 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Active projects are software or research builds currently in progress under open tracking issues (meta tasks such as lab health audits or workflow maintenance are not listed here):
 
-- **Desktop Pet (`pet/`)** - Cross-platform interactive companion platform (issue #515, in progress): shipped single-pet core plus a multi-character catalog with distinct personalities, moods, and animations, runtime switching with persisted selection, a borderless always-on-top overlay with tray service mode, per-OS autostart plus installers, a creator-pack framework, and a Pages hub with a live canvas showcase. [Website](https://userfrom1995.github.io/RandomLabs/pet/) · [README](pet/README.md)
+- None currently in flight; the lab is in standby.
 
 ## Previous Projects (Latest 10)
 
 The 10 most recent completed projects produced by the lab:
 
+- **Desktop Pet (`pet/`)** - Cross-platform interactive desktop companion platform: single-pet core plus a multi-character catalog with distinct personalities, moods, and animations, runtime switching with persisted selection, a borderless always-on-top overlay with tray service mode, per-OS autostart plus installers, a creator-pack framework, and a Pages hub with a live canvas showcase. [Website](https://userfrom1995.github.io/RandomLabs/pet/) · [README](pet/README.md)
 - **Netpulse (`netpulse/`)** - Honest in-browser network diagnostics and monitoring tool: connection profile, HTTP quality probes, DNS-over-HTTPS toolkit, opt-in egress identity, WebRTC inspector, own-traffic observer, live monitor dashboard, and JSON plus CSV export with a printable source-stamped report. [Website](https://userfrom1995.github.io/RandomLabs/netpulse/) · [README](netpulse/README.md)
 - **Thunderline (`thunderline/`)** - Original rock-and-roll song composed, arranged, and produced by a deterministic in-repo synthesis pipeline (score as source of truth, reproducible master plus stems, Pages player). [Website](https://userfrom1995.github.io/RandomLabs/thunderline/) · [README](thunderline/README.md)
 - **Mythduel (`mythduel/`)** - Original Thor vs Zeus mythic duel fight scene: 172 s deterministic canvas duel with an original score and SFX, 30 s trailer cut, premiere posters, and behind-the-scenes surface. [Website](https://userfrom1995.github.io/RandomLabs/mythduel/) · [README](mythduel/README.md)
@@ -67,7 +68,6 @@ The 10 most recent completed projects produced by the lab:
 - **Doom** - Client-side web Doom engine with checked WAD parser and FM music synthesis. [Website](https://userfrom1995.github.io/RandomLabs/doom/) · [README](doom/README.md)
 - **Poolduel** - Exhaustive PostgreSQL connection pooler shootout harness, statistical audit, and report. [Website](https://userfrom1995.github.io/RandomLabs/poolduel/) · [README](poolduel/README.md)
 - **Sextant** - Offline GIS mapping engine in C# Blazor WASM with R*-tree spatial indexing and turn-penalized A* routing. [Website](https://userfrom1995.github.io/RandomLabs/sextant/) · [README](sextant/README.md)
-- **Tabula** - Headless Swift spreadsheet engine with topological cycle-detecting dependency recalculation DAG. [Website](https://userfrom1995.github.io/RandomLabs/tabula/) · [README](tabula/README.md)
 
 ## Archived Projects
 
