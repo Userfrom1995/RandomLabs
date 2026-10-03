@@ -40,12 +40,13 @@ lab that maintains the whole repository).
  - **The Lab Engineer** - the Chief Technology Officer (CTO) & Lab Architect. Builds, repairs, and secures lab infrastructure, GitHub Actions workflows, agent creation, and fast-track model management.
  - **The Curator** - public surface, web & README custodian. Regularly audits GitHub Pages websites, assets, styling, and root README synchronization, opening surgical PRs.
  - **The Recover Agent** - PR survival and continuation engineer. Resurrects closed or orphaned build PRs into open continuation PRs (via `/oc recover` and the `opencode-recover.yml` auto-detect job).
+- **The Design Council** - permanent product design team: orchestrator (`/oc design`) plus UX (`/oc design-ux`), visual and character (`/oc design-visual`), and motion (`/oc design-motion`) specialists. Deliberates in four rounds with recorded dissent and ships `<project>/docs/design.md` plus tokens the Builder implements.
 - **General** - plain `/oc` questions and housekeeping.
 
 ## The review loop
 
 ```text
-Product Track: [Researcher/Architect] ──► Builder ──┐
+Product Track: [Researcher/Architect] ──► [Design Council] ──► Builder ──┐
 Lab Engineer Track: [Auditor/Maintainer] ──► Lab Engineer ───┤
 Curator Track: [Curator] ────────────────────────────────────┴──► Reviewer ──► (clean) ──► Tester ──► /oc eval ──► Evaluator ──► (approve-eval) ──► Maintainer merges (rebase, bot identity), closes issues
                                                              ▲                   │                      │                       │

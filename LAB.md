@@ -37,6 +37,7 @@ honestly with evidence, then complies when overruled.
 | Auditor | Pipeline inspector & health monitor | Highly skilled, creative problem solver, expert in agent workflows |
 | Lab Engineer | Chief Technology Officer (CTO) & Lab Architect | Master DevOps architect, workflow engineer, and systems designer |
 | Curator | Public surface, web & README custodian | Meticulous web craftsperson, aesthetic guardian, and public surface custodian |
+| Design Council | Permanent product design team (orchestrator + UX, visual, motion) | Four-round deliberation with recorded dissent; ships design specs plus tokens |
 | General | Chat/assistant/answers | Helpful |
 
 - Every comment is signed with the role so it is always clear who said what.
@@ -50,7 +51,7 @@ Prompt files live in `.github/agents/` (see §17). The roster is `REGISTRY.md`.
 
 ```text
 Product Track:
-[Ideator] ──► Maintainer ──► [Researcher] ──► [Architect] ──► Builder ──┐
+[Ideator] ──► Maintainer ──► [Researcher] ──► [Architect] ──► [Design Council] ──► Builder ──┐
                                                                          │
 Lab Engineer / Infra Track:                                              │
 [Auditor] ──► Maintainer ──► [Researcher] ──► [Architect] ──► Lab Engineer ──┤
@@ -82,6 +83,7 @@ Public Surface / Web Track:                                              │
 
 - **Flexible Pipeline Routing**: In both tracks, `[Researcher]` (algorithmic/mathematical research) and `[Architect]` (system architecture blueprints) are invoked whenever Hephaestus determines that research or design planning is warranted before implementation by the Builder or Lab Engineer.
 - **The Curator Track**: The Curator operates on a recurring 6-hour schedule, dispatch, or via `/oc curate`. It audits the entire GitHub Pages website and root `README.md`. When defects are found, it opens a tracking issue, creates a dedicated branch (`opencode/issue<issue>-curate-...`), commits surgical fixes with prefix `curate:`, opens a PR referencing `Fixes #<issue>`, and hands off directly to the Reviewer (`/oc review`). If structural maintainer escalation is required, it notifies Hephaestus (`/oc maintainer`).
+- **The Design Council Track**: The Design Council joins every product project early (design before build). The Architect reserves the design pass in product blueprints; the Maintainer dispatches `/oc design` (or a focused `/oc design-ux`, `/oc design-visual`, `/oc design-motion` pass) before `/oc build this`. The council deliberates in four mandatory rounds (propose, critique, revise, converge with unanimity-minus-one plus recorded dissent) and ships `<project>/docs/design.md` plus `<project>/docs/design-tokens.json`; the Builder implements the chosen direction with real logic, the Reviewer enforces the craft gate, and the Evaluator scores visual craft as binding. Protocol mirror: `docs/design-council-protocol.md`.
 - **Peer Handoffs**: Each agent knows its role in the pipeline and hands off work directly to its teammates via the workflow decision forwarder.
 - **Queued Execution**: The lab's pipeline workflows (`opencode*.yml`,
   `maintainer.yml`, `lab.yml`, `curator.yml`, `auditor.yml`, `ideate.yml`)
@@ -323,6 +325,10 @@ New folder `.github/agents/`:
   tester-windows.md  # the Windows Tester - per-OS real-user QA on Windows
   auditor.md         # the Auditor - pipeline inspector
   curator.md         # the Curator - public surface, web & README custodian
+  design-council.md  # the Design Council orchestrator - product design deliberation
+  design-ux.md       # the Product Designer (UX) - flows, usability
+  design-visual.md   # the Visual Designer - identity, character, tokens
+  design-motion.md   # the Interaction Designer - motion, feedback, polish
   labengineer.md # the Lab Engineer (CTO) - lab infrastructure & DevOps specialist
   general.md         # the General agent - chat/assistant
   decisions/
@@ -356,7 +362,7 @@ personality, CHANGELOG) is direct-commit.
 |---|---|
 | `maintainer.yml` | The brain: triggers, per-PR concurrency, memory-branch handling, decision list → hardcoded PAT step, 60-min timeout |
 | `opencode-pr-trigger.yml` | PR opened/synchronize → posts `/oc maintainer` as owner (PAT) on every non-draft same-repo PR (fork PRs get no secrets, so the section 12 guidance-only path applies), waking the Maintainer, which then decides review/continue/merge (the `/oc review (head <sha>)` comment is posted by `maintainer.yml`) |
-| `opencode.yml` | Build / Fix / General modes (prompts from files; `/oc continue`; per-issue concurrency; clean-tree + sanitize; extended approve-CI with stable-head polling; no end-of-run dispatches) |
+| `opencode.yml` | Build / Fix / Design Council / General modes (prompts from files; `/oc continue`; per-issue concurrency; clean-tree + sanitize; extended approve-CI with stable-head polling; no end-of-run dispatches) |
 | `opencode-review.yml` | Reviewer (prompts from file); human-vs-bot fix behavior; `/oc approve` → dispatch Maintainer (fallback: merge as bot); ownership-gated restore-head; short `/oc fix` trigger |
 | `opencode-test.yml` | Tester gate: `/oc test` (the per-OS `/oc test-linux`, `/oc test-macos`, `/oc test-windows` aliases route to `opencode-peros-test.yml`) → dynamic real-user and code-expert testing of the PR head, durable test commits as `tester:`, `/oc approve-test` → notifies the Maintainer; infrastructure PRs run strictly read-only |
 | `opencode-recover.yml` | Recovery: `detect` job (schedule + PR-close auto-detect) resurrects closed/orphaned build PRs via `recover.sh`; `recover` job runs the Recover Agent on `/oc recover`. Tags `recover/<pr>` and re-links orphans onto `main` (never rewriting `main`) |

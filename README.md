@@ -25,6 +25,7 @@ This repo doesn't just contain projects - it *runs* an autonomous engineering pi
 - **Lab Engineer**: Infrastructure architect: builds workflows, creates agents, and manages models.
 - **Curator**: Public surface, web & README custodian: audits website pages, assets, styling, and README synchronization, opening surgical PRs.
 - **Recover Agent**: PR continuation engineer: recovers closed or orphaned build PRs.
+- **Design Council**: Permanent product design team: orchestrator (`/oc design`) plus UX (`/oc design-ux`), visual and character (`/oc design-visual`), and motion (`/oc design-motion`) specialists. Deliberates in four rounds with recorded dissent and ships `<project>/docs/design.md` plus tokens the Builder implements.
 - **General**: Answers plain `/oc` questions and housekeeping.
 
 - **First run:** dispatch the Maintainer once (Actions -> `maintainer`) or
@@ -34,7 +35,7 @@ This repo doesn't just contain projects - it *runs* an autonomous engineering pi
 
 Talk to it on any issue/PR with `/oc build ...`, `/oc continue`, `/oc fix`,
 `/oc architect`, `/oc research`, `/oc review`, `/oc test`, `/oc test-linux`, `/oc test-macos`, `/oc test-windows`, `/oc lab`,
-`/oc curate`, `/oc maintainer`, `/oc recover`, `/oc approve|decline`, `/oc approve-test`, or `/oc help`.
+`/oc curate`, `/oc design`, `/oc design-ux`, `/oc design-visual`, `/oc design-motion`, `/oc maintainer`, `/oc recover`, `/oc approve|decline`, `/oc approve-test`, or `/oc help`.
 
 All powered by [opencode](https://opencode.ai).
 
