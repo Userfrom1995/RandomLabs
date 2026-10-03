@@ -13,6 +13,7 @@ Seed identity: **The Lab Engineer (CTO)** - a world-class software architect, se
 - **The Linux/macOS/Windows Testers**: per-OS real-user QA specialists (`/oc test-linux` on ubuntu, `/oc test-macos` on macos, `/oc test-windows` on windows); they test every command/flag/workflow natively and feed per-platform reports to the Tester.
 - **The Curator**: Public surface, web & README custodian; audits website pages, assets, styling, and README synchronization.
 - **The Recover Agent**: PR survival and continuation engineer; resurrects closed or orphaned build PRs into open continuation PRs (via `/oc recover` and the `opencode-recover.yml` auto-detect job).
+- **The Design Council**: Permanent product design team (orchestrator `/oc design` plus UX `/oc design-ux`, visual `/oc design-visual`, motion `/oc design-motion` specialists); deliberates in four rounds with recorded dissent and ships `<project>/docs/design.md` plus tokens the Builder implements.
 
 ---
 

@@ -23,6 +23,10 @@ reviewed PRs (see LAB.md §21).
 | The Recover Agent | PR survival & continuation engineer | worker | bootstrap | 2026-08-21 | `/oc recover` · `auto-detect` | `.github/agents/recover.md` |
 | The Curator | Public surface, web & README custodian | worker | user-directive | 2026-09-13 | `/oc curate` · `schedule (6h)` | `.github/agents/curator.md` |
 | The Evaluator | Autonomous Quality Council / Program Committee | worker | user-directive | 2026-09-22 | `/oc eval` | `.github/agents/evaluator.md` |
+| The Design Council | Product design orchestrator (UX, visual, motion deliberation) | worker | lab-engineer | 2026-10-03 | `/oc design` | `.github/agents/design-council.md` |
+| The Product Designer (UX) | UX research, user flows, usability | worker | lab-engineer | 2026-10-03 | `/oc design-ux` | `.github/agents/design-ux.md` |
+| The Visual Designer | Visual identity, character art, token system | worker | lab-engineer | 2026-10-03 | `/oc design-visual` | `.github/agents/design-visual.md` |
+| The Interaction Designer | Motion language, feedback, transitions, polish | worker | lab-engineer | 2026-10-03 | `/oc design-motion` | `.github/agents/design-motion.md` |
 | General | Chat/assistant/housekeeping | worker | bootstrap | 2026-08-12 | any other `/oc` | `.github/agents/general.md` |
 
 ## Team Spirit & Peer Calling Model
@@ -40,6 +44,7 @@ The lab operates as a collaborative, highly cohesive agent squad. Agents trust e
 - **Auditor** monitors pipeline and model health; reports to the universal health board and escalates bugs and model updates directly to the **Maintainer** (`/oc maintainer`).
 - **Curator** audits public surface, website pages, and root README.md; opens PRs with surgical fixes and hands off to **Reviewer** (`/oc review`), or notifies **Maintainer** (`/oc maintainer`) if structural escalation is needed.
 - **The Recover Agent** automatically restores closed-or-orphaned build PRs into open continuation PRs (`/oc recover` or the `opencode-recover.yml` auto-detect job), so finished work is never stranded when a PR is closed instead of merged. The Maintainer may also self-trigger recovery for in-flight work (`{"action": "recover", "pr": N}`) as its only self-initiated branch/PR action.
+- **The Design Council** deliberates product design in four rounds with recorded dissent and ships `<project>/docs/design.md` plus tokens; **Architect** reserves a design pass, **Maintainer** dispatches `/oc design` before Builder starts, **Builder** implements the spec, **Reviewer** enforces the craft gate, **Evaluator** scores visual craft as binding.
 - **Hephaestus (Maintainer)** orchestrates the lab, triages issues/PRs, coordinates team priorities, triggers the **Architect** (`/oc architect`) or **Lab Engineer** (`/oc lab`), and merges tested, approved projects. (Hephaestus succeeded founding Maintainer Mae on 2026-08-27; past logs and decisions referencing Mae remain valid history).
 
 ## Mandates (co-maintainers)
