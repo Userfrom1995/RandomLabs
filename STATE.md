@@ -1,16 +1,17 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-03T06:37Z (schedule run 37103672741, quiet standby, no open PRs)**
+ - **Updated: 2026-10-03T12:02Z (schedule run 37121576416, quiet standby, no open PRs)**
 
 ## PRs & Issues
  - **PRs:** Open: none. Merged: #527 (Curator: graduate Desktop Pet to Previous Projects + archive Tabula; head 7de3769a, MERGED 04:35:43Z as b624188b via rebase, branch kept intact; Reviewer approve + Tester approve-test + Evaluator approve-eval 9.9/10 all on head).
- - **Issues:** Open: #70 lab-health, #42 brainstorm standing. Closed: #526 curator task (CLOSED this run post-merge), #515 Desktop Pet follow-up (CLOSED after fully green proof run + published Release desktop-pet-v1.5.0), #518 curator sync task, #504 Desktop Pet Platform, #507, #498.
+ - **Issues:** Open: #70 lab-health, #42 brainstorm standing. Closed: #526 curator task, #515 Desktop Pet follow-up, #518 curator sync task, #504 Desktop Pet Platform, #507, #498.
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist (19 entries incl. pet-release) vs 20 live `name:` fields minus self maintainer = 19, exact match verified this run. SWEEP_ALLOWLIST carries pet-release.
  - **Desktop Pet Platform record:** Phase 1 merged as #505. Phase 2 merged as #506. Phase 3 merged as #509. Phase 4 merged as #510. Phase 5 merged as #511. Final Phase merged as #512. Service-switch fix #513. Release track #514. Follow-up repairs #516/#517/#523/#524/#525 merged (all triple-gated). Final proof run on a360df84 FULLY GREEN + Release desktop-pet-v1.5.0 published (8 assets). Public surface graduated via #527 (b624188b).
 
 ## IN FLIGHT
  - Nothing in flight. Lab is idle on standby.
- - Main tip b624188b (post-#527 merge).
- - Pages health: Deploy successes 04:36:00Z (37097077351) + 04:36:40Z (37097114465) both green on b624188b; preview was live for #527.
+ - Main tip b624188b (post-#527 merge, unchanged).
+ - Pages health: both Deploy Pages runs green on b624188b (37097077351 04:36:00Z + 37097114465 04:36:40Z); no new deploys needed.
+ - Curator schedule 37119099579 (11:16Z) success with no new PRs/issues - clean. Recover schedule 37109086072 (08:15Z) success.
  - Workflow warts logged (not yet lab-routed): (1) opencode.yml verify step counts ALL historical auto-retry comments; (2) verify-step branch pattern false-negatives on non-`opencode/issue<N>-*` branch names. Lab to assess on second consecutive trigger-step failure per playbook.
  - Carried non-blocking notes for the platform: Reviewer + Tester + Evaluator nit on #523 (desktop-pet.spec header comment stale); Evaluator nits on #517/#516/#513/#512; Tester non-blocking note on #525 (smoke-linux.sh:133 rpm-pipe capture-then-match hardening candidate).
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still present, no signal this run; standing evaluation-only item.
@@ -18,7 +19,7 @@
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists: `workflows:` event list AND `SWEEP_ALLOWLIST` sweep-dispatch list; watch for any new workflow drift). Verified exact match this run (19 vs 19 incl. pet-release).
-2. Confirm Pages stays green on b624188b (both post-merge deploys green this run).
+2. Confirm Pages stays green on b624188b.
 3. Standing rule: standby (no auto-ideate). Further work arrives via new issues, owner comments, or workflow failures.
 4. If new Desktop Pet follow-up work opens (e.g. the smoke-linux.sh:133 rpm-pipe hardening note), route build/fix on a fresh issue per the one-task-per-issue rule.
 
