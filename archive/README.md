@@ -4,6 +4,7 @@ This directory contains legacy and earlier completed projects built autonomously
 
 | Project | Tech Stack | Summary | Directory |
 |---|---|---|---|
+| **Tabula** | Swift / JS | Headless Swift spreadsheet engine with topological cycle-detecting dependency recalculation DAG | [tabula/](tabula/) |
 | **Folio** | JS / Browser | Fully client-side PDF studio with merge, split, organize, compress, redact, annotate, sign, Office/PDF conversion, and OCR chaining | [folio/](folio/) |
 | **Prism** | C++17 | Lossless image codec with 2D LeGall 5/3 DWT and finite-state rANS | [prism/](prism/) |
 | **Helix** | Go / JS | From-scratch vector search engine with HNSW graph indexing and Product Quantization | [helix/](helix/) |
