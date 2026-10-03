@@ -9,7 +9,7 @@
 - [x] Architect blueprint (ideas/2026-10-03-design-council.md)
 - [x] Progress tracker scaffold
 - [x] Council prompts: 4 prompt files (design-council, design-ux, design-visual, design-motion) plus docs/design-council-protocol.md mirror
-- [x] opencode.yml wiring: 4 jobs (design with prefix-collision guard, design-ux, design-visual, design-motion) plus 8 general-job exclusions, per-issue queued concurrency, bounded auto-retry with Maintainer escalation
+- [x] opencode.yml wiring WRITTEN and VALIDATED (4 jobs plus 8 general exclusions, collision guard, queued concurrency, bounded retry), staged as appliable patch: PENDING PAT-backed application by Lab Engineer (see Workflows-permission note below)
 - [x] Council registered in REGISTRY.md (4 rows plus Team Spirit bullet)
 - [x] Squad awareness in all 17 existing agent prompts
 - [x] Universal docs sync (README, index.html, docs/index.html, docs/index.md, LAB, AGENTS)
@@ -18,7 +18,10 @@
 - [ ] Maintainer merges; calibration starts (Desktop Pet advisory audit, then day-one engagement)
 
 ## Current step
-Council implementation complete on this branch. Ready for review (`{"action":"review"}`).
+Council implementation written. Blocked on push of the workflow file (see note). Handing to Maintainer to dispatch the Lab Engineer (`{"action":"maintainer"}`).
+
+## Workflows-permission note (binding constraint, AGENTS.md Merge capability)
+PRs touching `.github/workflows/*` cannot be pushed with the agent token (no `workflows` scope; pushes are rejected server-side). The validated wiring lives as `infra-patches/opencode-design-jobs.patch` (format-patch of the dropped wiring commit; verified with `git apply --check`). Lab Engineer path: check out this branch, `git am infra-patches/opencode-design-jobs.patch`, delete the `infra-patches/` staging file, and let the PAT-backed runner step push (it owns `workflows` scope). Then continue the pipeline (review, test, eval, merge, calibration).
 
 ## Next steps
 - Reviewer: enforce agent-creation compliance (CREATING_AGENTS.md) plus craft-gate block spec.
