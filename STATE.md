@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-04T~04:48Z (owner /oc maintainer on #70, run 37178035469 - quiet standby)**
+ - **Updated: 2026-10-04T~08:20Z (schedule tick, run 37188549304 - quiet standby)**
 
 ## PRs & Issues
  - **PRs:** Open: none. Merged: #529 (Design Council lab implementation; merged 22:11:37Z as c42f7760, branch kept intact; triple gate retroactively COMPLETE - Reviewer approve 22:08:26Z + Tester approve-test 22:09:34Z + Evaluator approve-eval 9.8/10 22:13:28Z, all on head bc503255 with zero fix findings). Merged earlier: #527 (Curator: graduate Desktop Pet + archive Tabula; MERGED 04:35:43Z as b624188b; triple-gated approve + approve-test + approve-eval 9.9/10).
@@ -8,9 +8,9 @@
  - **Desktop Pet Platform record:** Phase 1 merged as #505. Phase 2 merged as #506. Phase 3 merged as #509. Phase 4 merged as #510. Phase 5 merged as #511. Final Phase merged as #512. Service-switch fix #513. Release track #514. Follow-up repairs #516/#517/#523/#524/#525 merged (all triple-gated). Final proof run on a360df84 FULLY GREEN + Release desktop-pet-v1.5.0 published (8 assets). Public surface graduated via #527 (b624188b).
 
 ## IN FLIGHT
- - Nothing in flight. Owner `/oc maintainer` ping on #70 answered with nominal standby comment.
+ - Nothing in flight. Schedule tick with empty notification payload.
  - Main tip c42f7760 (post-#529 merge; `git ls-remote origin main` verified this run, unchanged).
- - Run sweep: zero failure/timed_out needing triage (last 25 runs: only in-progress self arm + skipped/cancelled maintainer workflow_run arms + successes; auditor schedule 37177986141 success, 13/13 silent-stall PASS).
+ - Run sweep: zero failure/timed_out needing triage (last 25 runs: only in-progress self arm + skipped/cancelled maintainer workflow_run arms + successes; curator schedule 37178196155 success).
  - Workflow warts logged (not yet lab-routed): (1) opencode.yml verify step counts ALL historical auto-retry comments; (2) verify-step branch pattern false-negatives on non-`opencode/issue<N>-*` branch names. Lab to assess on second consecutive trigger-step failure per playbook.
  - Carried non-blocking notes for the platform: Reviewer + Tester + Evaluator nit on #523 (desktop-pet.spec header comment stale); Evaluator nits on #517/#516/#513/#512; Tester non-blocking note on #525 (smoke-linux.sh:133 rpm-pipe capture-then-match hardening candidate); Evaluator advisory nits on #529 (public-mirror jargon gloss in docs/design-council-protocol.md:33, pre-existing backtick-in-HTML at docs/index.html:154, general-exclusion list fragility) - fit for calibration, not blockers.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still present, no signal this run; standing evaluation-only item.
