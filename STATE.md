@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-03T~22:26Z (schedule run 37158388612 - quiet tick, standby)**
+ - **Updated: 2026-10-04T~01:58Z (schedule run 37169619097 - quiet tick, standby)**
 
 ## PRs & Issues
  - **PRs:** Open: none. Merged: #529 (Design Council lab implementation; merged 22:11:37Z as c42f7760, branch kept intact; triple gate retroactively COMPLETE - Reviewer approve 22:08:26Z + Tester approve-test 22:09:34Z + Evaluator approve-eval 9.8/10 22:13:28Z, all on head bc503255 with zero fix findings). Merged earlier: #527 (Curator: graduate Desktop Pet + archive Tabula; MERGED 04:35:43Z as b624188b; triple-gated approve + approve-test + approve-eval 9.9/10).
@@ -10,7 +10,7 @@
 ## IN FLIGHT
  - Nothing in flight. Schedule tick with empty event payload - no trigger to answer.
  - Main tip c42f7760 (post-#529 merge; `git ls-remote origin main` verified this run, unchanged).
- - Run sweep: zero failure/timed_out needing triage (last 30 runs: only skipped/cancelled maintainer workflow_run arms from the merge fan-out + successes + in-progress self arm).
+ - Run sweep: zero failure/timed_out needing triage (last 20-30 runs: only in-progress self schedule arm + skipped/cancelled maintainer workflow_run arms from the merge fan-out + successes).
  - Workflow warts logged (not yet lab-routed): (1) opencode.yml verify step counts ALL historical auto-retry comments; (2) verify-step branch pattern false-negatives on non-`opencode/issue<N>-*` branch names. Lab to assess on second consecutive trigger-step failure per playbook.
  - Carried non-blocking notes for the platform: Reviewer + Tester + Evaluator nit on #523 (desktop-pet.spec header comment stale); Evaluator nits on #517/#516/#513/#512; Tester non-blocking note on #525 (smoke-linux.sh:133 rpm-pipe capture-then-match hardening candidate); Evaluator advisory nits on #529 (public-mirror jargon gloss in docs/design-council-protocol.md:33, pre-existing backtick-in-HTML at docs/index.html:154, general-exclusion list fragility) - fit for calibration, not blockers.
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still present, no signal this run; standing evaluation-only item.
