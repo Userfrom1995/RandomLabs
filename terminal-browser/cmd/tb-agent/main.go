@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"randomlabs/terminal-browser/internal/demo"
 	"randomlabs/terminal-browser/internal/gfx"
@@ -67,12 +68,14 @@ func renderCmd(args []string) {
 			emit(false, nil, "", "bad_tier")
 			os.Exit(1)
 		}
-		caps.Tier = t
-		caps.TierName = t.String()
-		caps.ForcedBlock = false
+		term.ApplyTierOverride(&caps, t)
 	}
 
-	page := demo.Lookup("fixture://" + *fixture)
+	addr := *fixture
+	if *fixture != "not-found" && !strings.Contains(*fixture, "://") {
+		addr = "fixture://" + *fixture
+	}
+	page := demo.Lookup(addr)
 	frame := term.NewFrame(caps.Width, caps.Height)
 	shell := tui.NewShell()
 	shell.Open(page.Address)
@@ -87,7 +90,18 @@ func renderCmd(args []string) {
 	painters := map[string]gfx.Painter{"block": block, "sixel": gfx.Sixel{}, "iterm2": gfx.NewIterm2(), "kitty": gfx.NewKitty()}
 	chain := gfx.Select(caps, painters)
 	painter := "block"
-	if len(chain) > 0 {
+	if hs := demo.HeroSurface(page, len(page.Rows)+tui.ChromeRows+1, frame.W); hs != nil {
+		hs.CellY = tui.ChromeRows + len(page.Rows) + 1
+		if hs.CellY+hs.CellH < frame.H-1 && len(chain) > 0 {
+			if name, err := gfx.PaintChain(counter, chain, *hs, caps); err == nil && name != "" {
+				painter = name
+			} else if len(chain) > 0 {
+				painter = chain[0].Name()
+			}
+		} else if len(chain) > 0 {
+			painter = chain[0].Name()
+		}
+	} else if len(chain) > 0 {
 		painter = chain[0].Name()
 	}
 	comp.CloseFrame(counter)
