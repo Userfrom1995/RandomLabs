@@ -2,7 +2,7 @@
 
 Council run: four rounds (Propose, Critique, Revise, Converge) via specialist swarms.
 Unanimity-minus-one. Dissent recorded verbatim in the log at the end.
-Scope: TUI shell plus hub for Phase 2 and beyond. The Builder implements
+Scope: TUI shell plus hub for Phase 2: Web Engine Fetch and Text Render Path and beyond. The Builder implements
 this direction; deliberate deviation needs a rebuttal plus Maintainer approval.
 
 ## User summary
