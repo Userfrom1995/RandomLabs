@@ -857,7 +857,19 @@ func checkArgs(name string, args map[string]interface{}) error {
 			return fmt.Errorf("scroll needs dx or dy")
 		}
 	case "screenshot", "pdf", "trace":
-		return need("out")
+		if err := need("out"); err != nil {
+			return err
+		}
+		if name == "screenshot" {
+			switch argStr(args, "kind") {
+			case "", "viewport", "full", "element":
+			default:
+				return fmt.Errorf("bad screenshot kind %q", argStr(args, "kind"))
+			}
+			if argStr(args, "kind") == "element" && strings.TrimSpace(argStr(args, "ref")) == "" {
+				return fmt.Errorf("element screenshot needs ref")
+			}
+		}
 	case "wait_for", "assert":
 		return checkCondArgs(args)
 	case "evaluate":

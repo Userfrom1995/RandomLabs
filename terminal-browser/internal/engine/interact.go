@@ -346,6 +346,11 @@ func (b *Browser) URL() string {
 // Profile reports the sanitized profile name.
 func (b *Browser) Profile() string { return b.profile }
 
+// Endpoint reports the sidecar CDP endpoint URL. The CLI records it
+// in the session registry so `tb-agent sessions` can probe liveness
+// without owning the process.
+func (b *Browser) Endpoint() string { return b.proc.Endpoint() }
+
 // Close stops the watchers, closes the session, and kills the sidecar.
 // It is safe to call twice; the TUI defers it on shell exit.
 func (b *Browser) Close() error {
