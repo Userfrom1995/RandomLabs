@@ -384,8 +384,12 @@ func (s *Shell) Handle(ev term.Event) bool {
 			s.Message = "Ref: e" + s.RefBuf + " (Enter acts, Esc cancels)"
 			return true
 		}
-		// Any other key cancels the entry and processes normally.
-		s.RefEntry, s.RefBuf = false, ""
+		// While ref entry is open, non-digit keys stay inside the
+		// entry: typos must never fall through to the main key switch
+		// (where x closes a tab and q quits). Keep the entry open with
+		// a hint so the user can correct or Esc out.
+		s.Message = "Bad ref key: type digits, Enter acts, Esc cancels (Ref: e" + s.RefBuf + ")"
+		return true
 	}
 	key := ev.Key
 	if ev.Ctrl && len(key) == 1 {
