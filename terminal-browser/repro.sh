@@ -68,4 +68,15 @@ go run ./cmd/tb-agent history --profile repro | grep -q '"success":true' || fail
 go run ./cmd/tb-agent session --profile repro | grep -q '"success":true' || fail "session status"
 pass "session round-trip green"
 
+echo "== interact validation (hermetic, no Chrome) =="
+go run ./cmd/tb-agent interact --url "https://example.com/" --profile "../escape" --do '{"op":"snapshot"}' >/tmp/tb-repro-interact.json 2>&1 && fail "traversal profile must exit 1" || true
+grep -q '"code":"bad_profile"' /tmp/tb-repro-interact.json || fail "interact traversal code bad_profile"
+go run ./cmd/tb-agent interact --profile repro --do '{"op":"snapshot"}' >/tmp/tb-repro-interact.json 2>&1 && fail "missing url must exit 1" || true
+grep -q '"code":"bad_url"' /tmp/tb-repro-interact.json || fail "interact missing url code bad_url"
+go run ./cmd/tb-agent interact --url "https://example.com/" --do '{"op":"teleport","ref":"e1"}' >/tmp/tb-repro-interact.json 2>&1 && fail "unknown op must exit 1" || true
+grep -q '"code":"bad_step"' /tmp/tb-repro-interact.json || fail "interact unknown op code bad_step"
+go run ./cmd/tb-agent interact --url "https://example.com/" --do '{"op":"click"}' >/tmp/tb-repro-interact.json 2>&1 && fail "missing ref must exit 1" || true
+grep -q '"code":"bad_step"' /tmp/tb-repro-interact.json || fail "interact missing ref code bad_step"
+pass "interact validation green"
+
 echo "ALL GREEN: repro.sh PASS"
