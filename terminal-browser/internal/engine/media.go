@@ -133,7 +133,7 @@ func (b *Browser) CaptureClipPNG(x, y, w, h float64) ([]byte, error) {
 
 // PNGToImage decodes PNG bytes into a paint-ready surface.
 func PNGToImage(raw []byte) (gfx.Image, error) {
-	img, err := image.Decode(bytes.NewReader(raw))
+	img, _, err := image.Decode(bytes.NewReader(raw))
 	if err != nil {
 		return gfx.Image{}, fmt.Errorf("decode media png: %w", err)
 	}
