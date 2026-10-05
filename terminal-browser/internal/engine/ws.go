@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -47,7 +48,15 @@ func waitEndpoint(port int, timeout time.Duration) error {
 type conn struct {
 	rw *bufio.ReadWriter
 	c  net.Conn
+	// wmu serializes wire writes: Call frames from concurrent Sessions
+	// and the read loop's pong replies share one socket and must never
+	// interleave bytes.
+	wmu sync.Mutex
 }
+
+// maxFrame caps one inbound WebSocket frame (32 MiB). CDP messages are
+// kilobytes; an uncapped u64 length from a malicious target would OOM.
+const maxFrame = 32 << 20
 
 func wsDial(raw string) (*conn, error) {
 	u, err := url.Parse(raw)
@@ -67,11 +76,12 @@ func wsDial(raw string) (*conn, error) {
 		c.Close()
 		return nil, err
 	}
-	accept := wsAccept(base64.StdEncoding.EncodeToString(key))
+	keyStr := base64.StdEncoding.EncodeToString(key)
+	wantAccept := wsAccept(keyStr)
 	path := u.RequestURI()
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "GET %s HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n\r\n",
-		path, u.Host, base64.StdEncoding.EncodeToString(key))
+		path, u.Host, keyStr)
 	if _, err := c.Write([]byte(sb.String())); err != nil {
 		c.Close()
 		return nil, err
@@ -82,10 +92,12 @@ func wsDial(raw string) (*conn, error) {
 		c.Close()
 		return nil, err
 	}
-	if !strings.Contains(line, "101") {
+	trimmed := strings.TrimSpace(line)
+	if !strings.HasPrefix(trimmed, "HTTP/1.1 101 ") && !strings.HasPrefix(trimmed, "HTTP/1.0 101 ") {
 		c.Close()
-		return nil, fmt.Errorf("websocket handshake: %s", strings.TrimSpace(line))
+		return nil, fmt.Errorf("websocket handshake: %s", trimmed)
 	}
+	gotAccept := ""
 	for {
 		h, err := br.ReadString('\n')
 		if err != nil {
@@ -95,8 +107,17 @@ func wsDial(raw string) (*conn, error) {
 		if h == "\r\n" || h == "\n" {
 			break
 		}
+		if i := strings.Index(h, ":"); i > 0 {
+			name := strings.TrimSpace(strings.ToLower(h[:i]))
+			if name == "sec-websocket-accept" {
+				gotAccept = strings.TrimSpace(h[i+1:])
+			}
+		}
 	}
-	_ = accept
+	if gotAccept != wantAccept {
+		c.Close()
+		return nil, fmt.Errorf("ws: bad Sec-WebSocket-Accept (handshake hijack or MITM)")
+	}
 	return &conn{rw: bufio.NewReadWriter(br, bufio.NewWriter(c)), c: c}, nil
 }
 
@@ -106,8 +127,12 @@ func wsAccept(key string) string {
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
 
-// writeText sends one masked text frame.
+// writeText sends one masked text frame. Writes hold wmu so two
+// concurrent Calls (or a Call plus a pong reply) never interleave, and
+// the header plus masked body go out under one lock.
 func (w *conn) writeText(p []byte) error {
+	w.wmu.Lock()
+	defer w.wmu.Unlock()
 	var hdr [14]byte
 	n := 2
 	hdr[0] = 0x81
@@ -166,6 +191,9 @@ func (w *conn) readText() ([]byte, error) {
 			}
 			length = int64(binary.BigEndian.Uint64(ext[:]))
 		}
+		if length < 0 || length > maxFrame {
+			return nil, fmt.Errorf("ws: frame too large (%d bytes, cap %d)", length, maxFrame)
+		}
 		var key [4]byte
 		if masked {
 			if _, err := io.ReadFull(w.rw, key[:]); err != nil {
@@ -204,12 +232,44 @@ func (w *conn) readText() ([]byte, error) {
 	}
 }
 
+// writePong answers a ping with a masked pong (client frames are
+// always masked per RFC 6455) with full extended-length support.
+// overlong payloads are truncated to the 125-byte control limit.
 func (w *conn) writePong(p []byte) error {
-	hdr := []byte{0x8A, byte(len(p))}
-	if _, err := w.c.Write(hdr); err != nil {
+	w.wmu.Lock()
+	defer w.wmu.Unlock()
+	if len(p) > 125 {
+		p = p[:125]
+	}
+	var hdr [14]byte
+	n := 2
+	hdr[0] = 0x8A
+	mask := make([]byte, 4)
+	if _, err := rand.Read(mask); err != nil {
 		return err
 	}
-	_, err := w.c.Write(p)
+	switch {
+	case len(p) < 126:
+		hdr[1] = byte(len(p)) | 0x80
+	case len(p) < 65536:
+		hdr[1] = 126 | 0x80
+		binary.BigEndian.PutUint16(hdr[2:4], uint16(len(p)))
+		n = 4
+	default:
+		hdr[1] = 127 | 0x80
+		binary.BigEndian.PutUint64(hdr[2:10], uint64(len(p)))
+		n = 10
+	}
+	copy(hdr[n:n+4], mask)
+	n += 4
+	if _, err := w.c.Write(hdr[:n]); err != nil {
+		return err
+	}
+	masked := make([]byte, len(p))
+	for i, b := range p {
+		masked[i] = b ^ mask[i%4]
+	}
+	_, err := w.c.Write(masked)
 	return err
 }
 

@@ -24,9 +24,12 @@ type cdpMsg struct {
 
 // Session is one CDP connection to a page target. Calls are serialized
 // with incrementing ids; events fan out to subscribers by method name.
+// mu guards next/pend; wmu serializes wire writes (Call frames plus the
+// loop's pong replies) so concurrent Calls never interleave frames.
 type Session struct {
 	conn   *conn
 	mu     sync.Mutex
+	wmu    sync.Mutex
 	next   int
 	pend   map[int]chan cdpMsg
 	subsMu sync.Mutex
@@ -79,6 +82,19 @@ func PageTarget(endpoint string) (string, error) {
 }
 
 func (s *Session) loop() {
+	// On transport death, wake every pending Call with a connection
+	// error instead of leaving it hung until its own timeout.
+	defer func() {
+		s.mu.Lock()
+		for id, ch := range s.pend {
+			ch <- cdpMsg{ID: &id, Error: &struct {
+				Message string `json:"message"`
+				Code    int    `json:"code"`
+			}{Message: "debugger connection closed"}}
+			delete(s.pend, id)
+		}
+		s.mu.Unlock()
+	}()
 	for {
 		raw, err := s.conn.readText()
 		if err != nil {
@@ -122,12 +138,35 @@ func (s *Session) Close() error {
 }
 
 // Subscribe returns a buffered channel fed with event params for method.
-func (s *Session) Subscribe(method string) <-chan json.RawMessage {
+// Callers must defer Unsubscribe: every Navigate subscribes for its own
+// load event, and leaked subscriptions grow subs unboundedly on warm
+// reuse while stale buffered events fire the next Navigate as a
+// wrong-load success.
+func (s *Session) Subscribe(method string) chan json.RawMessage {
 	ch := make(chan json.RawMessage, 16)
 	s.subsMu.Lock()
 	s.subs[method] = append(s.subs[method], ch)
 	s.subsMu.Unlock()
 	return ch
+}
+
+// Unsubscribe removes a channel added by Subscribe.
+func (s *Session) Unsubscribe(ch chan json.RawMessage) {
+	s.subsMu.Lock()
+	defer s.subsMu.Unlock()
+	for method, list := range s.subs {
+		kept := list[:0]
+		for _, c := range list {
+			if c != ch {
+				kept = append(kept, c)
+			}
+		}
+		if len(kept) == 0 {
+			delete(s.subs, method)
+		} else {
+			s.subs[method] = kept
+		}
+	}
 }
 
 // Call sends one CDP command and waits for its response.
@@ -142,6 +181,9 @@ func (s *Session) Call(method string, params interface{}, timeout time.Duration)
 	if params != nil {
 		b, err := json.Marshal(params)
 		if err != nil {
+			s.mu.Lock()
+			delete(s.pend, id)
+			s.mu.Unlock()
 			return nil, err
 		}
 		rawParams = b
@@ -149,8 +191,14 @@ func (s *Session) Call(method string, params interface{}, timeout time.Duration)
 		rawParams = json.RawMessage(`{}`)
 	}
 	wire, _ := json.Marshal(map[string]interface{}{"id": id, "method": method, "params": json.RawMessage(rawParams)})
-	if err := s.conn.writeText(wire); err != nil {
-		return nil, fmt.Errorf("cdp %s: %w", method, err)
+	s.wmu.Lock()
+	werr := s.conn.writeText(wire)
+	s.wmu.Unlock()
+	if werr != nil {
+		s.mu.Lock()
+		delete(s.pend, id)
+		s.mu.Unlock()
+		return nil, fmt.Errorf("cdp %s: %w", method, werr)
 	}
 	if timeout == 0 {
 		timeout = 15 * time.Second
@@ -206,9 +254,22 @@ func (s *Session) SetLite(lite bool) error {
 
 // Navigate loads url and waits for the load event or timeout. It
 // returns the loader id for diagnostics and maps CDP error text into
-// fail-closed codes via ClassifyError.
+// fail-closed codes via ClassifyError. The load subscription is
+// released on return and events are correlated by loaderId so a stale
+// buffered event never completes the next Navigate as a wrong-load
+// success.
 func (s *Session) Navigate(target string, timeout time.Duration) (string, error) {
 	loads := s.Subscribe("Page.loadEventFired")
+	defer s.Unsubscribe(loads)
+	// Drain any events buffered before this navigation started.
+drain:
+	for {
+		select {
+		case <-loads:
+		default:
+			break drain
+		}
+	}
 	res, err := s.Call("Page.navigate", map[string]interface{}{"url": target}, 15*time.Second)
 	if err != nil {
 		return "", err
@@ -224,11 +285,21 @@ func (s *Session) Navigate(target string, timeout time.Duration) (string, error)
 	if timeout == 0 {
 		timeout = 15 * time.Second
 	}
-	select {
-	case <-loads:
-		return nav.LoaderID, nil
-	case <-time.After(timeout):
-		return nav.LoaderID, fmt.Errorf("navigate: load timeout after %s (page may still render; retry with a longer timeout)", timeout)
+	deadline := time.After(timeout)
+	for {
+		select {
+		case raw := <-loads:
+			var ev struct {
+				LoaderID string `json:"loaderId"`
+			}
+			if json.Unmarshal(raw, &ev) == nil && ev.LoaderID != "" && nav.LoaderID != "" && ev.LoaderID != nav.LoaderID {
+				// Stale event from a previous load: keep waiting.
+				continue
+			}
+			return nav.LoaderID, nil
+		case <-deadline:
+			return nav.LoaderID, fmt.Errorf("navigate: load timeout after %s (page may still render; retry with a longer timeout)", timeout)
+		}
 	}
 }
 
