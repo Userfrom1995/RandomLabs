@@ -7,9 +7,11 @@ Hermetic source and CLI contracts (no Chrome needed):
 1. ParseSteps fails closed on trailing garbage: `[{...}] {...}` exits 1
    with bad_step (never silently drops steps), and a corrupt NDJSON
    second line errors instead of breaking the loop silently.
-2. The capabilities tool reports only live caps: TB_CAPS=extension_trigger
-   yields caps:[] while the deferred list still names extension_trigger
-   and webmcp.
+2. The capabilities tool reports only live caps. Phase 6 (issue #532)
+   promoted extension_trigger and webmcp to live capabilities
+   (internal/agent/agent.go LiveCaps), so TB_CAPS=extension_trigger now
+   yields caps:["extension_trigger"] with an empty deferred list (every
+   known cap is live, so known-but-not-live is always empty).
 3. The press_key schema advertises only ctrl, alt, or shift (never cmd),
    matching the engine, and mod=cmd is rejected hermetically.
 4. Manager.Open honors defaultLite (lite = lite || m.defaultLite) and
@@ -156,6 +158,9 @@ class Phase5ControlContracts(unittest.TestCase):
         self.assertNotIn("dec.More()", src)
 
     def test_capabilities_reports_only_live_caps(self):
+        # Phase 6 contract: extension_trigger is a live cap, so enabling
+        # it reports it in caps; deferred (known-but-not-live) is empty
+        # because every known cap is live now.
         code, msgs = mcp_session(
             [
                 {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
@@ -168,9 +173,9 @@ class Phase5ControlContracts(unittest.TestCase):
         caps_msg = [m for m in msgs if m.get("id") == 2][0]
         payload = json.loads(caps_msg["result"]["content"][0]["text"])
         self.assertTrue(payload["success"])
-        self.assertEqual(payload["data"]["caps"], [])
-        self.assertIn("extension_trigger", payload["data"]["deferred"])
-        self.assertIn("webmcp", payload["data"]["deferred"])
+        self.assertEqual(payload["data"]["caps"], ["extension_trigger"])
+        self.assertEqual(payload["data"]["deferred"], [])
+        self.assertIn("extension_trigger", payload["data"]["tools"])
 
     def test_capabilities_source_contract(self):
         with open(AGENT_GO) as f:
