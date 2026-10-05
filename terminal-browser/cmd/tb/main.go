@@ -78,7 +78,9 @@ func runURL(w io.Writer, caps term.Capabilities, target, profile string, lite, d
 
 // runFixture renders one fixture page through the full pipeline:
 // frame, dirty rows, tier painter, byte counting. Used by demos,
-// the agent CLI twin, and the success-gate harness.
+// the agent CLI twin, and the success-gate harness. Unknown fixture
+// names paint the honest not-found page and exit non-zero: never a
+// fail-open zero exit on a miss.
 func runFixture(w io.Writer, caps term.Capabilities, name string, dump bool) {
 	addr := name
 	if name != "not-found" && !strings.Contains(name, "://") {
@@ -86,6 +88,10 @@ func runFixture(w io.Writer, caps term.Capabilities, name string, dump bool) {
 	}
 	page := demo.Lookup(addr)
 	paintPage(w, caps, page, dump)
+	if name != "not-found" && page.Name == "not-found" {
+		fmt.Fprintf(os.Stderr, "unknown fixture: %s\n", name)
+		os.Exit(1)
+	}
 }
 
 // paintPage renders any demo page through the full pipeline. The page
