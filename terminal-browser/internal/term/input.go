@@ -97,7 +97,13 @@ func ctrlKey(b byte) Event {
 		ev.Ctrl = false
 		ev.Special = "backspace"
 	default:
-		ev.Key = string(rune('a' + b - 1))
+		if b >= 1 && b <= 26 {
+			ev.Key = string(rune('a' + b - 1))
+		} else {
+			ev.Key = ""
+			ev.Special = "unknown"
+			ev.Ctrl = false
+		}
 	}
 	return ev
 }
@@ -134,6 +140,7 @@ func decodeCSI(s string) (Event, string, bool) {
 			}
 		}
 		ev := Event{Kind: "key"}
+		mods--
 		ev.Shift = mods&1 != 0
 		ev.Alt = mods&2 != 0
 		ev.Ctrl = mods&4 != 0
@@ -149,9 +156,11 @@ func decodeCSI(s string) (Event, string, bool) {
 		default:
 			if code >= 32 {
 				ev.Key = string(rune(code))
-			} else {
+			} else if code >= 1 && code <= 26 {
 				ev.Key = string(rune('a' + code - 1))
 				ev.Ctrl = true
+			} else {
+				ev.Special = "unknown"
 			}
 		}
 		return ev, rest, true
@@ -241,7 +250,7 @@ func decodeSGRMouse(s string) (Event, string, bool) {
 	}
 	return Event{
 		Kind:        "mouse",
-		MouseButton: b & 67,
+		MouseButton: b,
 		MouseX:      x,
 		MouseY:      y,
 		MouseDown:   press,
