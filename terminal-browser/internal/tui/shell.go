@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	"randomlabs/terminal-browser/internal/demo"
 	"randomlabs/terminal-browser/internal/term"
@@ -80,6 +81,12 @@ func (s *Shell) CloseTab() {
 	if len(s.Tabs) <= 1 {
 		s.Message = "Last tab stays open."
 		return
+	}
+	if s.Active < 0 {
+		s.Active = 0
+	}
+	if s.Active >= len(s.Tabs) {
+		s.Active = len(s.Tabs) - 1
 	}
 	s.Tabs = append(s.Tabs[:s.Active], s.Tabs[s.Active+1:]...)
 	if s.Active >= len(s.Tabs) {
@@ -197,8 +204,17 @@ func (s *Shell) handleAddrKey(ev term.Event) bool {
 		return true
 	case "backspace":
 		if len(s.AddrBuf) > 0 {
-			s.AddrBuf = s.AddrBuf[:len(s.AddrBuf)-1]
+			_, size := utf8.DecodeLastRuneInString(s.AddrBuf)
+			if size <= 0 {
+				size = 1
+			}
+			s.AddrBuf = s.AddrBuf[:len(s.AddrBuf)-size]
 		}
+		return true
+	}
+	if ev.Ctrl {
+		// Control chords never enter the address literally; Ctrl+C
+		// above already cancelled the edit.
 		return true
 	}
 	if ev.Ctrl && ev.Key == "c" {
@@ -212,11 +228,19 @@ func (s *Shell) handleAddrKey(ev term.Event) bool {
 }
 
 func (s *Shell) handleMouse(ev term.Event) bool {
-	switch ev.MouseButton {
+	btn := ev.MouseButton & 67
+	switch btn {
 	case 64:
 		s.scroll(-3)
 	case 65:
 		s.scroll(3)
+	case 0:
+		// Left click: the address bar (terminal row 2) enters edit
+		// mode; other rows keep focus where it is.
+		if ev.MouseDown && ev.MouseY == 2 {
+			s.AddrEdit = true
+			s.AddrBuf = s.Current().Address
+		}
 	}
 	return true
 }
@@ -227,8 +251,12 @@ func (s *Shell) scroll(d int) {
 	if t.Scroll < 0 {
 		t.Scroll = 0
 	}
-	if t.Scroll > len(t.Page.Rows) {
-		t.Scroll = len(t.Page.Rows)
+	max := len(t.Page.Rows) - 1
+	if max < 0 {
+		max = 0
+	}
+	if t.Scroll > max {
+		t.Scroll = max
 	}
 }
 
@@ -330,8 +358,9 @@ func renderHelp(_ *Shell, f *term.Frame) {
 }
 
 func (t *Tab) shortTitle() string {
-	if len(t.Title) > 28 {
-		return t.Title[:27] + ".."
+	r := []rune(t.Title)
+	if len(r) > 28 {
+		return string(r[:27]) + ".."
 	}
 	return t.Title
 }
@@ -413,9 +442,11 @@ func loadProfiles() []string {
 }
 
 // EnterAlt switches to the alternate screen with kitty-keyboard and
-// SGR mouse reporting where probed.
+// SGR mouse reporting where probed. The cursor hides once here for the
+// whole session; per-frame hiding would flicker, so the compositor
+// stays out of cursor management.
 func EnterAlt(w io.Writer, caps term.Capabilities) {
-	io.WriteString(w, "\x1b[?1049h\x1b[H")
+	io.WriteString(w, "\x1b[?1049h\x1b[H\x1b[?25l")
 	if caps.KittyKeyboard {
 		io.WriteString(w, "\x1b[>1u")
 	}
@@ -424,7 +455,8 @@ func EnterAlt(w io.Writer, caps term.Capabilities) {
 	}
 }
 
-// ExitAlt restores the main screen and input modes.
+// ExitAlt restores the main screen and input modes, always bringing
+// the cursor back even if entry never hid it.
 func ExitAlt(w io.Writer, caps term.Capabilities) {
 	if caps.MouseSGR {
 		io.WriteString(w, term.MouseDisable())
@@ -432,5 +464,5 @@ func ExitAlt(w io.Writer, caps term.Capabilities) {
 	if caps.KittyKeyboard {
 		io.WriteString(w, "\x1b[<u")
 	}
-	io.WriteString(w, "\x1b[?1049l")
+	io.WriteString(w, "\x1b[?25h\x1b[?1049l")
 }

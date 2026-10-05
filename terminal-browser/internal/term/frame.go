@@ -124,8 +124,11 @@ func (c *Counter) Write(p []byte) (int, error) {
 	return n, err
 }
 
-// Compositor emits frames with synchronized output where probed,
-// cursor-hide fallback elsewhere, and dirty-row-only output.
+// Compositor emits frames with synchronized output where probed.
+// Cursor visibility is owned by the alt-screen lifecycle (hidden once
+// on entry, restored on exit), never toggled per frame: hiding and
+// reshowing around every frame flickers and risks stranding a hidden
+// cursor if the epilogue is ever skipped.
 type Compositor struct {
 	caps Capabilities
 	prev *Frame
@@ -140,8 +143,6 @@ func NewCompositor(caps Capabilities) *Compositor {
 func (c *Compositor) OpenFrame(w io.Writer) {
 	if c.caps.SyncOutput {
 		io.WriteString(w, "\x1b[?2026h")
-	} else {
-		io.WriteString(w, "\x1b[?25l")
 	}
 }
 
@@ -149,8 +150,6 @@ func (c *Compositor) OpenFrame(w io.Writer) {
 func (c *Compositor) CloseFrame(w io.Writer) {
 	if c.caps.SyncOutput {
 		io.WriteString(w, "\x1b[?2026l")
-	} else {
-		io.WriteString(w, "\x1b[?25h")
 	}
 }
 
