@@ -133,7 +133,9 @@ func ProfileDir(profile string) string {
 	if err != nil {
 		safe = "default"
 	}
-	return filepath.Join(ProfilesRoot(), safe)
+	// Windows extended-length prefix past the legacy limit; a no-op
+	// everywhere else (see LongPath).
+	return LongPath(filepath.Join(ProfilesRoot(), safe))
 }
 
 // instanceDir returns a fresh per-launch user-data directory under

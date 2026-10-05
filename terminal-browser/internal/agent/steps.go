@@ -13,7 +13,8 @@ import (
 // Step is one script instruction for the CLI runner. Tool-mapped ops
 // use the MCP vocabulary (navigate, snapshot, click, type, press_key,
 // scroll, screenshot, wait_for, assert, evaluate, console,
-// dialog_handle, plus session and tap utilities); the legacy aliases
+// dialog_handle, session and tap utilities, plus the gated pdf,
+// trace, extension_trigger, and webmcp tools); the legacy aliases
 // fill, press, wait, and dialog still parse to their canonical tools
 // so Phase 4 scripts keep running. Extended ops (hover, select,
 // check, drag, upload, cursor) are CLI-only until a later phase
@@ -59,6 +60,9 @@ type Step struct {
 	Profile     string   `json:"profile"`
 	Lite        bool     `json:"lite"`
 	Width       int      `json:"width"`
+	Extension   string   `json:"extension"`
+	Args        string   `json:"args"`
+	MCPTool     string   `json:"tool"`
 }
 
 // StepResult is one executed step for the envelope.
@@ -82,7 +86,7 @@ var aliases = map[string]string{
 // fullCaps recognizes every implemented tool for step validation,
 // including gated ones: validation passes and the capability gate
 // fails closed at execution time with capability_disabled.
-var fullCaps = Caps{"pdf": true, "trace": true}
+var fullCaps = Caps{"pdf": true, "trace": true, "extension_trigger": true, "webmcp": true}
 
 // CanonicalOp resolves aliases to the tool name, or "" when the op
 // is an extended CLI-only op rather than a registered tool.
@@ -160,6 +164,13 @@ func ToolArgs(st Step) (string, map[string]interface{}) {
 	case "dialog_handle":
 		set("action", st.Action)
 		set("prompt", st.Prompt)
+	case "extension_trigger":
+		set("extension", st.Extension)
+		set("action", st.Action)
+		set("args", st.Args)
+	case "webmcp":
+		set("tool", st.MCPTool)
+		set("args", st.Args)
 	}
 	return name, args
 }

@@ -9,12 +9,14 @@
 // dialog_handle. Session/tab utilities (session_open, session_list,
 // session_use, session_close, back, forward, reload, hints, network,
 // capabilities) ride the same dispatch. Gated capabilities (pdf,
-// trace) register only when enabled via --caps or TB_CAPS; the Phase
-// 6 extension surface (extension_trigger, webmcp) is deliberately not
-// registered until its engine exists (see docs/parity.md).
+// trace, extension_trigger, webmcp) register only when enabled via
+// --caps or TB_CAPS; the extension surface runs the installed
+// content-script engine (see docs/extensions.md), so every gated tool
+// executes real logic.
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -28,13 +30,14 @@ import (
 // Caps is the enabled capability set. Empty means core only.
 type Caps map[string]bool
 
-// KnownCaps lists every gateable capability. pdf and trace execute
-// real logic (PDF export, CDP tracing); extension_trigger and webmcp
-// name the Phase 6 surface and stay unregistered until then.
+// KnownCaps lists every gateable capability. All four execute real
+// logic behind their gate: pdf (Page.printToPDF), trace (CDP
+// tracing), extension_trigger (installed content-script page
+// actions), webmcp (page-exposed window.__tbWebMCP tools).
 var KnownCaps = []string{"pdf", "trace", "extension_trigger", "webmcp"}
 
 // LiveCaps are capabilities with a working engine behind the gate.
-var LiveCaps = []string{"pdf", "trace"}
+var LiveCaps = []string{"pdf", "trace", "extension_trigger", "webmcp"}
 
 // ParseCaps splits a comma list (flag or env) into a set. Unknown
 // names fail closed: a typo must never silently narrow the surface.
@@ -67,8 +70,8 @@ func CapsFromEnv() (Caps, error) {
 }
 
 // Has reports whether a capability is enabled. Only live
-// capabilities can be enabled: extension_trigger and webmcp parse
-// (so scripts do not typo them) but never gate anything on yet.
+// capabilities can be enabled; unknown names never parse (see
+// ParseCaps), so a typo fails closed instead of silently narrowing.
 func (c Caps) Has(name string) bool {
 	if c == nil {
 		return false
@@ -392,6 +395,19 @@ func Registry(caps Caps) []Tool {
 			"out":     prop("output trace JSON path (required)", "string"),
 		}, "out"), "trace"})
 	}
+	if caps.Has("extension_trigger") {
+		tools = append(tools, Tool{"extension_trigger", "Run an installed content-script page action in its isolated world and return its JSON value; empty extension lists installed extensions plus the current-page actions (capability-gated: extension_trigger).", schema(map[string]interface{}{
+			"extension": prop("installed extension id (empty lists)", "string"),
+			"action":    prop("page action id (required unless listing)", "string"),
+			"args":      prop("JSON object string passed to the action", "string"),
+		}), "extension_trigger"})
+	}
+	if caps.Has("webmcp") {
+		tools = append(tools, Tool{"webmcp", "Call a page-exposed window.__tbWebMCP tool and return its JSON value; empty tool lists the page surface (capability-gated: webmcp).", schema(map[string]interface{}{
+			"tool": prop("page tool name (empty lists)", "string"),
+			"args": prop("JSON object string passed to the page tool", "string"),
+		}), "webmcp"})
+	}
 	return tools
 }
 
@@ -461,6 +477,33 @@ func argBool(args map[string]interface{}, key string) bool {
 		return b
 	}
 	return false
+}
+
+// extArgJSON normalizes the args field of extension_trigger and
+// webmcp: callers may pass a JSON object string or a structured
+// value, and both reach the page as a JSON object string. The engine
+// re-validates before evaluating, so this stays a faithful carrier.
+func extArgJSON(args map[string]interface{}) interface{} {
+	v, ok := args["args"]
+	if !ok || v == nil {
+		return "{}"
+	}
+	if s, ok := v.(string); ok {
+		if strings.TrimSpace(s) == "" {
+			return "{}"
+		}
+		return s
+	}
+	return v
+}
+
+// truncValue caps page-returned JSON like evaluate does: agents get
+// the head plus an explicit truncation marker, never a silent cut.
+func truncValue(s string) string {
+	if len(s) > 4000 {
+		return s[:4000] + "…[truncated]"
+	}
+	return s
 }
 
 // Resettle refreshes the URL, records a renderer-side navigation
@@ -809,6 +852,72 @@ func Execute(m *Manager, name string, args map[string]interface{}) (interface{},
 			return fail(err)
 		}
 		return res, "", ""
+	case "extension_trigger":
+		if !m.CapsOf().Has("extension_trigger") {
+			return nil, "extension_trigger is capability-gated: relaunch with --caps extension_trigger (or TB_CAPS=extension_trigger)", "capability_disabled"
+		}
+		b, data, warn, code := needActive()
+		if code != "" {
+			return data, warn, code
+		}
+		ext := strings.TrimSpace(argStr(args, "extension"))
+		if ext == "" {
+			listed, acts, warnings, err := b.ExtensionList()
+			if err != nil {
+				return fail(err)
+			}
+			if listed == nil {
+				listed = []engine.ListedExtension{}
+			}
+			if acts == nil {
+				acts = []engine.ExtAction{}
+			}
+			if warnings == nil {
+				warnings = []string{}
+			}
+			return map[string]interface{}{
+				"extensions": listed, "actions": acts, "warnings": warnings,
+				"count": len(acts),
+			}, "", ""
+		}
+		prev := b.URL()
+		val, err := b.TriggerExtension(ext, strings.TrimSpace(argStr(args, "action")), extArgJSON(args))
+		if err != nil {
+			return fail(err)
+		}
+		d := settled(b, prev)
+		d["extension"] = ext
+		d["action"] = strings.TrimSpace(argStr(args, "action"))
+		d["value"] = truncValue(string(val))
+		return d, "", ""
+	case "webmcp":
+		if !m.CapsOf().Has("webmcp") {
+			return nil, "webmcp is capability-gated: relaunch with --caps webmcp (or TB_CAPS=webmcp)", "capability_disabled"
+		}
+		b, data, warn, code := needActive()
+		if code != "" {
+			return data, warn, code
+		}
+		tool := strings.TrimSpace(argStr(args, "tool"))
+		if tool == "" {
+			tools, err := b.WebMCPList()
+			if err != nil {
+				return fail(err)
+			}
+			if tools == nil {
+				tools = []engine.WebMCPTool{}
+			}
+			return map[string]interface{}{"tools": tools, "count": len(tools)}, "", ""
+		}
+		prev := b.URL()
+		val, err := b.CallWebMCP(tool, extArgJSON(args))
+		if err != nil {
+			return fail(err)
+		}
+		d := settled(b, prev)
+		d["tool"] = tool
+		d["value"] = truncValue(string(val))
+		return d, "", ""
 	case "capabilities":
 		names := []string{}
 		for _, t := range Registry(m.CapsOf()) {
@@ -823,12 +932,12 @@ func Execute(m *Manager, name string, args map[string]interface{}) (interface{},
 		sort.Strings(enabled)
 		return map[string]interface{}{
 			"caps": enabled, "tools": names,
-			"deferred": []string{"extension_trigger", "webmcp"},
+			"deferred": []string{},
 		}, "", ""
 	default:
 		if Lookup(m.CapsOf(), name) == nil {
 			// Unknown or disabled-gated tool: say which.
-			for _, t := range Registry(Caps{"pdf": true, "trace": true}) {
+			for _, t := range Registry(Caps{"pdf": true, "trace": true, "extension_trigger": true, "webmcp": true}) {
 				if t.Name == name {
 					return nil, fmt.Sprintf("%s is capability-gated: relaunch with --caps %s (or TB_CAPS=%s)", name, t.Cap, t.Cap), "capability_disabled"
 				}
@@ -888,6 +997,22 @@ func checkArgs(name string, args map[string]interface{}) error {
 		}
 	case "session_use", "session_close":
 		return need("handle")
+	case "extension_trigger":
+		// Empty extension lists the inventory: no browser needed
+		// beyond the session check at execution time.
+		if strings.TrimSpace(argStr(args, "extension")) == "" {
+			return nil
+		}
+		if err := need("action"); err != nil {
+			return err
+		}
+		return checkExtArgsJSON(args)
+	case "webmcp":
+		// Empty tool lists the page surface.
+		if strings.TrimSpace(argStr(args, "tool")) == "" {
+			return nil
+		}
+		return checkExtArgsJSON(args)
 	}
 	// type with no text/clear/submit is a no-op: fail instead of
 	// shipping an empty fill that reads as success.
@@ -895,6 +1020,31 @@ func checkArgs(name string, args map[string]interface{}) error {
 		if argStr(args, "text") == "" && !argBool(args, "clear") && !argBool(args, "submit") {
 			return fmt.Errorf("type needs text, clear, or submit: nothing to do")
 		}
+	}
+	return nil
+}
+
+// checkExtArgsJSON validates the args payload of extension_trigger
+// and webmcp: empty is fine, strings must parse as JSON, structured
+// values marshal. Validation here mirrors the engine gate so scripts
+// fail fast with bad_step before launching a browser.
+func checkExtArgsJSON(args map[string]interface{}) error {
+	v, ok := args["args"]
+	if !ok || v == nil {
+		return nil
+	}
+	if s, ok := v.(string); ok {
+		if strings.TrimSpace(s) == "" {
+			return nil
+		}
+		var probe interface{}
+		if err := json.Unmarshal([]byte(s), &probe); err != nil {
+			return fmt.Errorf("args is not valid JSON: %w", err)
+		}
+		return nil
+	}
+	if _, err := json.Marshal(v); err != nil {
+		return fmt.Errorf("encode args: %w", err)
 	}
 	return nil
 }
