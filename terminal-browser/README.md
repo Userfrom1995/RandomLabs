@@ -50,6 +50,16 @@ the MCP server can do identically.
   pre-load, merge post-load), durable history with search, bookmarks,
   persisted back/forward stack with `H`/`L` and `r` reload,
   restore-on-restart, portable state files, `p` profile cycling.
+- Motion and shell states: Signal Ledger v2 ticks (33/50/100 ms),
+  dirty-rows-only repaint, anchored viewport cuts with strobe
+  grouping, and a reduced-motion path (`--reduced-motion`,
+  `REDUCED_MOTION=1`); empty new-tab card, honest error card with
+  retry actions, blocked-scheme card for refused schemes, `<` `>`
+  address windowing, dialog trap with `Esc` break plus `M` mute.
+- Verification harness: `tb-verify` runs the five-page live corpus
+  with 3-attempt retry, Chrome 140 floor check, hermetic goldens,
+  offline-fixture fallback that never reports live, and an
+  agent-as-user end-to-end pass; see `docs/verification.md`.
 - Built-in fixture pages (`fixture://home`, `fixture://article`,
   `fixture://table`) plus an honest error page for unknown addresses.
 
@@ -64,6 +74,7 @@ go build ./...
 TB_TIER=sixel ./tb-agent render --fixture article
 TB_HOME=/tmp/tb-demo ./tb-agent cookies-set --profile work --name sid --value abc --domain example.com
 TB_HOME=/tmp/tb-demo ./tb-agent cookies --profile work
+go run ./cmd/tb-verify --hermetic
 go test ./...
 ```
 
@@ -98,6 +109,8 @@ extensions and platform support live in `docs/extensions.md` and
   isolated worlds, page tool surface, media sampler, per-OS paths.
 - `internal/agent/` - shared control-plane dispatch (12-tool core,
   session manager, capability gates, step runner, session registry).
+- `cmd/tb-verify/` - live corpus runner with retry, goldens,
+  offline fallback, and the agent-as-user end-to-end pass.
 - `examples/` - runnable sample extension with manifest and script.
 - `docs/` - architecture, engine policy, sessions, interaction loop,
   agent control, parity matrix, extensions, platform support,

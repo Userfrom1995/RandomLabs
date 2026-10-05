@@ -43,6 +43,7 @@ go build ./...
 ./tb --fixture home --tier block --dump-stats
 ./tb --url https://news.ycombinator.com/ --tier block --dump-stats
 ./tb-agent fetch --url https://news.ycombinator.com/ --lite
+go run ./cmd/tb-verify --hermetic
 go test ./...</code></pre>
     <p>Run the interactive shell with <code>go run ./cmd/tb</code> in a real terminal. <code>q</code> quits, <code>/</code> edits the address (http(s) URLs fetch live, <code>fixture://</code> stays local), <code>H</code>/<code>L</code> step back/forward, <code>r</code> reloads, <code>p</code> switches profile, <code>?</code> shows all keys.</p>
   </section>
@@ -69,6 +70,7 @@ go test ./...</code></pre>
       <tr><td><code>tb-agent extensions [--check DIR] [--url URL]</code></td><td>Lists installed content-script extensions, validates a manifest, scopes page actions to a live page.</td></tr>
       <tr><td><code>tb-agent media --url URL [--seconds N]</code></td><td>Samples a page media region on the governor tick and logs bandwidth (frames, bytes, fps).</td></tr>
       <tr><td><code>tb-mcp [--caps pdf,trace,extension_trigger,webmcp]</code></td><td>Stdio MCP server: the 12-tool core plus session handles and gated capabilities, same results as the CLI by construction.</td></tr>
+      <tr><td><code>tb-verify [--hermetic] [--e2e] [--strict-live]</code></td><td>Runs the five-page live corpus with 3-attempt retry, Chrome 140 floor check, hermetic goldens, offline fallback, and the agent-as-user pass.</td></tr>
     </table>
     </div>
   </section>
@@ -103,6 +105,7 @@ go test ./...</code></pre>
       <div class="card"><h3><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/docs/support.md">Support</a></h3><p>Per-OS matrix: Linux, macOS, Windows ConPTY, tmux and screen.</p></div>
       <div class="card"><h3><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/docs/agent-control.md">Agent control</a></h3><p>MCP server, CLI reference, sessions, capability gates.</p></div>
       <div class="card"><h3><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/docs/parity.md">Parity</a></h3><p>Tool matrix, canonicalization rules, conformance harness.</p></div>
+      <div class="card"><h3><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/docs/verification.md">Verification</a></h3><p>Live corpus, retry policy, Chrome floor, goldens, agent-as-user pass, per-OS reports.</p></div>
       <div class="card"><h3><a href="https://github.com/Userfrom1995/RandomLabs/tree/main/terminal-browser">Source</a></h3><p>Go module, fixture router, verification harness, build instructions.</p></div>
     </div>
   </section>

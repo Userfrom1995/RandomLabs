@@ -18,6 +18,8 @@ reference, sessions, and capability gates. Then read
 [parity](parity.md): the tool matrix, canonicalization rules, and the
 conformance harness. Then read [extensions](extensions.md):
 extension manifests, sandboxed page actions, the webmcp page contract,
-and media region sampling. Then read [support](support.md): the
-per-OS matrix with Windows ConPTY hardening and multiplexer
-fallback.
+ and media region sampling. Then read [support](support.md): the
+ per-OS matrix with Windows ConPTY hardening and multiplexer
+ fallback. Then read [verification](verification.md): the live
+ corpus, retry policy, Chrome floor, offline fallback, fixture
+ goldens, the agent-as-user end-to-end run, and per-OS reports.
