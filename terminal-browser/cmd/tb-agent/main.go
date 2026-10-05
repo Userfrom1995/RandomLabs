@@ -140,14 +140,15 @@ func fetchCmd(args []string) {
 	for _, r := range res.Rows {
 		lines = append(lines, r.Text)
 	}
-	if len(lines) > 200 {
-		lines = lines[:200]
-	}
+	// Ship every row: truncating lines while emitting the full RowCount
+	// breaks the rows == len(lines) contract on pages over the cap
+	// (Wikipedia and SPA probes exceed 200 rows).
 	emit(!res.Offline, map[string]interface{}{
 		"address":       res.URL,
 		"title":         res.Title,
 		"rows":          res.RowCount,
 		"lines":         lines,
+		"lines_returned": len(lines),
 		"cold_ms":       res.ColdMs,
 		"js_executed":   res.JS.Executed,
 		"js_nodes":      res.JS.Nodes,
