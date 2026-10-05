@@ -21,7 +21,9 @@ var (
 	linkBG  = term.RGB{R: 20, G: 30, B: 48}
 )
 
-// Row is one styled text line of a fixture page.
+// Row is one styled text line of a fixture page. NoWrap marks
+// pre-aligned rows (table grids): Rewrap must pass them through
+// untouched instead of re-wrapping them into misaligned prose.
 type Row struct {
 	Text      string
 	FG        term.RGB
@@ -29,6 +31,7 @@ type Row struct {
 	Bold      bool
 	Underline bool
 	Link      bool
+	NoWrap    bool
 }
 
 // Page is a named fixture document with an optional image surface.

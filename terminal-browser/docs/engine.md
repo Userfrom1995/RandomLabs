@@ -13,13 +13,19 @@ PATH, then the well-known install paths per OS, then
 below-floor binaries fail closed with an upgrade message, and every run
 records the exact `chrome --version` string.
 
-`Launch` starts headless Chromium with a remote-debugging port and a
+`Launch` starts headless Chromium with a loopback-bound
+remote-debugging port (`--remote-debugging-address=127.0.0.1`) and a
 per-profile user-data directory (`~/.terminal-browser/profiles/<name>`),
 then polls `/json/version` until the DevTools endpoint answers. Flags:
 `--headless=new`, `--disable-gpu`, `--no-first-run`,
 `--no-default-browser-check`, `--disable-extensions`. Profile isolation
 is real from day one; cookie and history sync arrive in the session
-phase.
+phase. Profile names allow only `[a-zA-Z0-9_-]` (anything else fails
+closed so `../../.ssh` can never escape isolation), directories are
+created `0700` (cookies/history never world-readable), and `Extra`
+flags containing `user-data-dir`, `remote-debugging-`,
+`renderer-cmd-prefix`, `gpu-launcher`, or `utility-cmd-prefix` are
+rejected as flag injection.
 
 Windows note: ConPTY swallows APC sequences, so the engine uses the
 same TCP loopback transport everywhere and documents pipe transport as
@@ -30,9 +36,18 @@ prefers iTerm2 stills and Sixel over Kitty; see `architecture.md`.
 
 `cdp.go` is a dependency-free client: the standard library has no
 WebSocket client, so `ws.go` implements masked text-frame send plus
-fragmented text-frame receive with ping answers. `Session.Call` maps
-one incrementing id to one response channel with per-call timeouts;
-events fan out to subscribers by method name.
+fragmented text-frame receive with masked pong answers. `Session.Call`
+maps one incrementing id to one response channel with per-call
+timeouts; wire writes hold a dedicated mutex (plus a conn-level write
+mutex covering pong replies) so concurrent Calls never interleave
+frames, and write errors clean up the pending entry. Transport death
+wakes every pending Call with a connection error. Events fan out to
+subscribers by method name; `Subscribe` must be paired with
+`Unsubscribe`, and `Navigate` drains plus correlates `loaderId` so a
+stale buffered event never completes the next navigation. The
+handshake validates the status line as `101 Switching Protocols` plus
+the `Sec-WebSocket-Accept` key per RFC 6455, and inbound frames are
+capped at 32 MiB.
 
 Domains enabled per session: Page, Network, Runtime, Accessibility.
 DOMSnapshot enable is best-effort. Calls used in this phase:
@@ -63,7 +78,9 @@ warm and bold with `#` prefixes, links are accent and underlined with
 metadata are dim. `Wrap` word-wraps on rune boundaries with hard breaks
 for overlong words (URLs, CJK strings). `LayoutTable` fits equal
 columns with truncation marks and a header separator. `Rewrap`
-reflows styled rows when the frame is narrower than the fetch width.
+reflows styled rows when the frame is narrower than the fetch width;
+table rows are marked `NoWrap` at style time and pass through untouched
+so column alignment survives.
 
 ## Navigation and timing
 
@@ -78,13 +95,24 @@ Binding budgets: cold navigate at most 10 s, warm navigate at most 3 s.
 Any miss fails the gate. The warm path reuses a live CDP session for a
 second load.
 
+Results carry `cold_ms` as real integer milliseconds (never encoded
+nanoseconds), the JS evidence, the Chrome version on every path
+including AX failures, and `RowCount` always equal to `len(Rows)`.
+The warm diagnostic lives in `warm_title` / `warm_over_budget` (the
+user-visible title is never mutated) and warm runs exceeding the 3 s
+budget are flagged in `warning`. `Options.Timeout` tunes the sidecar
+launch wait; the cold navigate itself enforces the 10 s binding budget.
+
 ## JS render probe
 
-The probe evaluates a small expression reporting node count,
+The probe evaluates a small expression that first sets a JS canary
+(`window.__tbProbe = 1`), then reports node count,
 `document.readyState`, app-root presence (`#root`, `#__next`, `#app`,
-`main`, `article`), and the user agent. `executed` is true when the
-page holds real nodes. Server-rendered pages (Hacker News, Wikipedia)
-pass on node count and readiness; client-rendered SPAs (TodoMVC React)
+`main`, `article`), and the user agent; a second evaluate reads the
+canary back. `executed` is true only when the canary reads back true
+AND the page holds real nodes, so static HTML with JS disabled reports
+false. Server-rendered pages (Hacker News, Wikipedia) pass on canary
+plus node count and readiness; client-rendered SPAs (TodoMVC React)
 pass on rendered headings plus app presence.
 
 ## Offline fail-closed
@@ -93,6 +121,7 @@ Every failure returns an honest result: `offline` with a machine code
 (`offline`, `no_chrome`, `load_timeout`, `bad_url`, `error`) and an
 actionable warning, plus an error document that names the address, the
 reason, and the next steps. Nothing ever claims content it did not
-fetch. When the live network is unreachable, runs fall back to the
-bundled snapshots under `tests/fixtures/` and report
-`offline-fallback` instead of passing as live.
+fetch. Unreachable hosts fail closed with the code and exit 1; the
+only bundled snapshots are the clearly-labeled corpus files under
+`tests/fixtures/` exercised by hermetic unit tests, never presented
+as live renders.

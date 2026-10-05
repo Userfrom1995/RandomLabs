@@ -63,7 +63,7 @@ func Style(blocks []Block, width int) []demo.Row {
 			}
 		case "table":
 			for _, ln := range LayoutTable(b.Head, b.Cells, textW) {
-				rows = append(rows, demo.Row{Text: ln, FG: ink})
+				rows = append(rows, demo.Row{Text: ln, FG: ink, NoWrap: true})
 			}
 			rows = append(rows, demo.Row{})
 		default:
@@ -193,8 +193,10 @@ func trimTrailingBlanks(rows []demo.Row) []demo.Row {
 }
 
 // Rewrap reflows already-styled rows to a new grid width, one row at
-// a time so style flags and link affordances survive. The shell uses
-// this when the frame is narrower than the fetch width.
+// a time so style flags and link affordances survive. Table rows carry
+// NoWrap from Style and pass through untouched: re-wrapping column
+// grids as prose destroys their alignment. The shell uses this when
+// the frame is narrower than the fetch width.
 func Rewrap(rows []demo.Row, width int) []demo.Row {
 	if width < 20 {
 		width = 20
@@ -206,10 +208,15 @@ func Rewrap(rows []demo.Row, width int) []demo.Row {
 			out = append(out, demo.Row{})
 			continue
 		}
+		if r.NoWrap {
+			out = append(out, r)
+			continue
+		}
 		for _, ln := range Wrap(r.Text, textW) {
 			out = append(out, demo.Row{
 				Text: ln, FG: r.FG, BG: r.BG,
 				Bold: r.Bold, Underline: r.Underline, Link: r.Link,
+				NoWrap: r.NoWrap,
 			})
 		}
 	}
