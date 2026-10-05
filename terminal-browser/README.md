@@ -36,10 +36,16 @@ the MCP server can do identically.
 - Agent control plane: `tb-mcp` stdio server with the 12-tool core
   (`navigate`, `snapshot`, `click`, `type`, `press_key`, `scroll`,
   `screenshot`, `wait_for`, `assert`, `evaluate`, `console`,
-  `dialog_handle`), session handles, and gated `pdf`/`trace`
-  capabilities; `tb-agent interact` runs the same tools from scripts,
-  `--stdin` pipes, and `--out` offload, with parity conformance
-  proving both surfaces identical.
+  `dialog_handle`), session handles, and gated `pdf`/`trace`/
+  `extension_trigger`/`webmcp` capabilities; `tb-agent interact`
+  runs the same tools from scripts, `--stdin` pipes, and `--out`
+  offload, with parity conformance proving both surfaces identical.
+- Extensions and page tools: installed content-script extensions
+  running in sandboxed isolated worlds with a shell palette (`X`)
+  and agent triggers, page-exposed `window.__tbWebMCP` tools, media
+  region sampling (`tb-agent media`, `V` in the shell) with a
+  bandwidth ledger, and per-OS hardening (Windows ConPTY chain,
+  long-path roots, multiplexer fallback).
 - Sessions: per-profile cookie jar synced from CDP Storage (push
   pre-load, merge post-load), durable history with search, bookmarks,
   persisted back/forward stack with `H`/`L` and `r` reload,
@@ -65,10 +71,13 @@ Run the interactive shell with `go run ./cmd/tb` inside a real terminal.
 `q` quits, `/` edits the address (http(s) URLs fetch live, `fixture://`
 stays local), `H`/`L` step back/forward, `r` reloads, `p` switches
 profile, `:` opens the ref drawer on live pages (`eN` plus `Enter` acts,
-`f` fills, `R` remaps stale refs), `?` shows keys. Full session detail
+`f` fills, `R` remaps stale refs), `X` opens the extension palette,
+`V` watches page video, `?` shows keys. Full session detail
 lives in `docs/sessions.md`; the interaction loop lives in
 `docs/interact.md`; the MCP server and CLI reference lives in
-`docs/agent-control.md` with the parity matrix in `docs/parity.md`.
+`docs/agent-control.md` with the parity matrix in `docs/parity.md`;
+extensions and platform support live in `docs/extensions.md` and
+`docs/support.md`.
 
 ## Layout
 
@@ -78,15 +87,19 @@ lives in `docs/sessions.md`; the interaction loop lives in
 - `internal/term/` - probe, frame compositor, FPS governor, input codecs.
 - `internal/gfx/` - Kitty, Sixel, iTerm2, and block painters plus tier order.
 - `internal/tui/` - tab strip, address bar, status line, profile picker,
-  Harbor hint chips plus ref drawer with live act bindings.
+  Harbor hint chips plus ref drawer with live act bindings, extension
+  palette, background media watch.
 - `internal/demo/` - fixture pages and the local router.
 - `internal/engine/` - Chrome locator plus launcher, CDP session, AX style
   plus reflow, navigation with lite blocklists and offline fail-closed,
   session stores (cookies, history, bookmarks, stack, state files),
   persistent interaction browser (settled refs, acts, waits, taps,
-  screenshots, PDF, CDP tracing).
+  screenshots, PDF, CDP tracing), content-script extensions with
+  isolated worlds, page tool surface, media sampler, per-OS paths.
 - `internal/agent/` - shared control-plane dispatch (12-tool core,
   session manager, capability gates, step runner, session registry).
+- `examples/` - runnable sample extension with manifest and script.
 - `docs/` - architecture, engine policy, sessions, interaction loop,
-  agent control, parity matrix, verification notes.
+  agent control, parity matrix, extensions, platform support,
+  verification notes.
 - `tests/` - static gate (`test_terminal_browser.py`), offline fixtures.

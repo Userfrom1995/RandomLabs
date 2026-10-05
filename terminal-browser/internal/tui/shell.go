@@ -86,6 +86,7 @@ type Shell struct {
 	mediaStop     chan struct{}
 	mediaSurf     *gfx.Surface
 	mediaStat     string
+	mediaSummary  string
 	mediaW        int
 	mediaH        int
 }

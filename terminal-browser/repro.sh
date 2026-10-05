@@ -85,8 +85,14 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' '{"js
 grep -q '"protocolVersion":"2024-11-05"' /tmp/tb-repro-mcp.json || fail "mcp initialize protocol"
 grep -q '"name":"navigate"' /tmp/tb-repro-mcp.json || fail "mcp tools/list core"
 grep -q 'capability_disabled' /tmp/tb-repro-mcp.json || fail "mcp pdf gate without caps"
-grep -q 'extension_trigger' /tmp/tb-repro-mcp.json || fail "mcp capabilities deferral lists extension_trigger"
-grep -q 'webmcp' /tmp/tb-repro-mcp.json || fail "mcp capabilities deferral lists webmcp"
+grep -q '"deferred":\[\]' /tmp/tb-repro-mcp.json || fail "mcp capabilities has no deferred tools"
+if grep -q '"name":"extension_trigger"' /tmp/tb-repro-mcp.json; then
+  fail "mcp extension_trigger must not list without caps"
+fi
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"extension_trigger","arguments":{}}}' | /tmp/tb-repro-mcp --caps extension_trigger,webmcp >/tmp/tb-repro-mcp-ext.json 2>/dev/null || fail "tb-mcp gated stdio run"
+grep -q '"name":"extension_trigger"' /tmp/tb-repro-mcp-ext.json || fail "mcp extension_trigger lists with caps"
+grep -q '"name":"webmcp"' /tmp/tb-repro-mcp-ext.json || fail "mcp webmcp lists with caps"
+grep -q '"code":"no_session"' /tmp/tb-repro-mcp-ext.json || fail "mcp extension list without session"
 pass "mcp framing green"
 
 echo "== sessions registry plus stdin mode (hermetic, no Chrome) =="
@@ -99,5 +105,20 @@ go run ./cmd/tb-agent interact --url "https://example.com/" --do '{"op":"telepor
 grep -q '"code":"bad_step"' /tmp/tb-repro-tee.json || fail "stdout failure envelope code bad_step"
 grep -q '"code":"bad_step"' /tmp/tb-repro-out.json || fail "--out offload captures the failure envelope"
 pass "sessions plus stdin plus offload green"
+
+echo "== extensions plus media validation (hermetic, no Chrome) =="
+export TB_HOME=/tmp/tb-repro-ext
+rm -rf "$TB_HOME"
+go run ./cmd/tb-agent extensions --check examples/minimal-reader | grep -q '"valid":true' || fail "extensions check sample"
+go run ./cmd/tb-agent extensions --check /nonexistent-dir >/tmp/tb-repro-ext.json 2>&1 && fail "bad extension dir must exit 1" || true
+grep -q '"code":"bad_ext"' /tmp/tb-repro-ext.json || fail "extensions check code bad_ext"
+go run ./cmd/tb-agent extensions | grep -q '"count":0' || fail "extensions empty inventory"
+go run ./cmd/tb-agent media --url "https://example.com/" --index -5 >/tmp/tb-repro-media.json 2>&1 && fail "bad media index must exit 1" || true
+grep -q '"code":"bad_step"' /tmp/tb-repro-media.json || fail "media bad index code bad_step"
+go run ./cmd/tb-agent media >/tmp/tb-repro-media.json 2>&1 && fail "missing media url must exit 1" || true
+grep -q '"code":"bad_url"' /tmp/tb-repro-media.json || fail "media missing url code bad_url"
+go run ./cmd/tb-agent interact --url "https://example.com/" --caps extension_trigger --do '{"op":"extension_trigger","extension":"x","action":"y","args":"{oops"}' >/tmp/tb-repro-extstep.json 2>&1 && fail "broken ext args must exit 1" || true
+grep -q '"code":"bad_step"' /tmp/tb-repro-extstep.json || fail "interact broken ext args code bad_step"
+pass "extensions plus media validation green"
 
 echo "ALL GREEN: repro.sh PASS"
