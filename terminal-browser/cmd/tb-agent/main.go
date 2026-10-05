@@ -207,16 +207,31 @@ func failClosed(warning, code string) {
 	os.Exit(1)
 }
 
+// resolveProfile gates --profile once for every session command.
+// SanitizeProfile rejects traversal and shell metacharacters; without
+// this gate the store layer would silently map invalid names to
+// "default" while the envelope still reported the requested name.
+// Fail-closed with bad_profile keeps the envelope honest, consistent
+// with Launch and tb --profile.
+func resolveProfile(profile string) string {
+	safe, err := engine.SanitizeProfile(profile)
+	if err != nil {
+		failClosed(err.Error(), "bad_profile")
+	}
+	return safe
+}
+
 // cookiesCmd lists the persisted jar for a profile.
 func cookiesCmd(args []string) {
 	fs := flag.NewFlagSet("cookies", flag.ExitOnError)
 	profile := profileFlag(fs)
 	_ = fs.Parse(args)
-	jar, err := engine.LoadJar(*profile)
+	p := resolveProfile(*profile)
+	jar, err := engine.LoadJar(p)
 	if err != nil {
 		failClosed(err.Error(), "bad_profile")
 	}
-	emit(true, map[string]interface{}{"profile": *profile, "cookies": jar, "count": len(jar)}, "", "")
+	emit(true, map[string]interface{}{"profile": p, "cookies": jar, "count": len(jar)}, "", "")
 }
 
 // cookiesSetCmd inserts or replaces one jar row. The row persists
@@ -237,14 +252,15 @@ func cookiesSetCmd(args []string) {
 	if strings.TrimSpace(*name) == "" {
 		failClosed("missing required --name", "bad_cookie")
 	}
-	jar, err := engine.SetJarCookie(*profile, engine.Cookie{
+	p := resolveProfile(*profile)
+	jar, err := engine.SetJarCookie(p, engine.Cookie{
 		Name: *name, Value: *value, Domain: *domain, Path: *path,
 		Expires: *expires, Secure: *secure, HTTPOnly: *httpOnly, SameSite: *sameSite,
 	})
 	if err != nil {
 		failClosed(err.Error(), "bad_cookie")
 	}
-	emit(true, map[string]interface{}{"profile": *profile, "cookies": jar, "count": len(jar)}, "", "")
+	emit(true, map[string]interface{}{"profile": p, "cookies": jar, "count": len(jar)}, "", "")
 }
 
 // cookiesClearCmd drops the whole persisted jar.
@@ -252,11 +268,12 @@ func cookiesClearCmd(args []string) {
 	fs := flag.NewFlagSet("cookies-clear", flag.ExitOnError)
 	profile := profileFlag(fs)
 	_ = fs.Parse(args)
-	n, err := engine.ClearJar(*profile)
+	p := resolveProfile(*profile)
+	n, err := engine.ClearJar(p)
 	if err != nil {
 		failClosed(err.Error(), "bad_profile")
 	}
-	emit(true, map[string]interface{}{"profile": *profile, "cleared": n}, "", "")
+	emit(true, map[string]interface{}{"profile": p, "cleared": n}, "", "")
 }
 
 // historyCmd queries visits newest-first with optional substring
@@ -267,11 +284,12 @@ func historyCmd(args []string) {
 	query := fs.String("query", "", "substring filter over URL and title")
 	limit := fs.Int("limit", 50, "max entries (newest first)")
 	_ = fs.Parse(args)
-	visits, err := engine.QueryHistory(*profile, *query, *limit)
+	p := resolveProfile(*profile)
+	visits, err := engine.QueryHistory(p, *query, *limit)
 	if err != nil {
 		failClosed(err.Error(), "bad_profile")
 	}
-	emit(true, map[string]interface{}{"profile": *profile, "visits": visits, "count": len(visits)}, "", "")
+	emit(true, map[string]interface{}{"profile": p, "visits": visits, "count": len(visits)}, "", "")
 }
 
 // historyClearCmd drops every visit for the profile.
@@ -279,11 +297,12 @@ func historyClearCmd(args []string) {
 	fs := flag.NewFlagSet("history-clear", flag.ExitOnError)
 	profile := profileFlag(fs)
 	_ = fs.Parse(args)
-	n, err := engine.ClearHistory(*profile)
+	p := resolveProfile(*profile)
+	n, err := engine.ClearHistory(p)
 	if err != nil {
 		failClosed(err.Error(), "bad_profile")
 	}
-	emit(true, map[string]interface{}{"profile": *profile, "cleared": n}, "", "")
+	emit(true, map[string]interface{}{"profile": p, "cleared": n}, "", "")
 }
 
 // bookmarkAddCmd saves a page; re-adding updates its title.
@@ -296,14 +315,15 @@ func bookmarkAddCmd(args []string) {
 	if strings.TrimSpace(*urlFlag) == "" {
 		failClosed("missing required --url", "bad_url")
 	}
-	if err := engine.AddBookmark(*profile, *urlFlag, *title); err != nil {
+	p := resolveProfile(*profile)
+	if err := engine.AddBookmark(p, *urlFlag, *title); err != nil {
 		failClosed(err.Error(), "bad_url")
 	}
-	marks, err := engine.ListBookmarks(*profile)
+	marks, err := engine.ListBookmarks(p)
 	if err != nil {
 		failClosed(err.Error(), "bad_profile")
 	}
-	emit(true, map[string]interface{}{"profile": *profile, "bookmarks": marks, "count": len(marks)}, "", "")
+	emit(true, map[string]interface{}{"profile": p, "bookmarks": marks, "count": len(marks)}, "", "")
 }
 
 // bookmarksCmd lists bookmarks in creation order.
@@ -311,11 +331,12 @@ func bookmarksCmd(args []string) {
 	fs := flag.NewFlagSet("bookmarks", flag.ExitOnError)
 	profile := profileFlag(fs)
 	_ = fs.Parse(args)
-	marks, err := engine.ListBookmarks(*profile)
+	p := resolveProfile(*profile)
+	marks, err := engine.ListBookmarks(p)
 	if err != nil {
 		failClosed(err.Error(), "bad_profile")
 	}
-	emit(true, map[string]interface{}{"profile": *profile, "bookmarks": marks, "count": len(marks)}, "", "")
+	emit(true, map[string]interface{}{"profile": p, "bookmarks": marks, "count": len(marks)}, "", "")
 }
 
 // bookmarkRemoveCmd deletes one bookmark by URL.
@@ -327,14 +348,15 @@ func bookmarkRemoveCmd(args []string) {
 	if strings.TrimSpace(*urlFlag) == "" {
 		failClosed("missing required --url", "bad_url")
 	}
-	found, err := engine.RemoveBookmark(*profile, *urlFlag)
+	p := resolveProfile(*profile)
+	found, err := engine.RemoveBookmark(p, *urlFlag)
 	if err != nil {
 		failClosed(err.Error(), "bad_profile")
 	}
 	if !found {
 		failClosed("bookmark not found: "+*urlFlag, "not_found")
 	}
-	emit(true, map[string]interface{}{"profile": *profile, "removed": *urlFlag}, "", "")
+	emit(true, map[string]interface{}{"profile": p, "removed": *urlFlag}, "", "")
 }
 
 // sessionCmd reports the persisted back/forward stack: entry count,
@@ -343,7 +365,8 @@ func sessionCmd(args []string) {
 	fs := flag.NewFlagSet("session", flag.ExitOnError)
 	profile := profileFlag(fs)
 	_ = fs.Parse(args)
-	st, err := engine.LoadStack(*profile)
+	p := resolveProfile(*profile)
+	st, err := engine.LoadStack(p)
 	if err != nil {
 		failClosed(err.Error(), "bad_profile")
 	}
@@ -352,7 +375,7 @@ func sessionCmd(args []string) {
 		current = st.Entries[st.Index]
 	}
 	emit(true, map[string]interface{}{
-		"profile": *profile, "entries": st.Entries, "count": len(st.Entries),
+		"profile": p, "entries": st.Entries, "count": len(st.Entries),
 		"index": st.Index, "current": current,
 	}, "", "")
 }
@@ -361,6 +384,7 @@ func sessionCmd(args []string) {
 // (oldest/newest edge) is success with a null target, not an error:
 // the edge is a normal boundary, and the exit code must not punish it.
 func sessionMove(profile string, back bool) {
+	profile = resolveProfile(profile)
 	if back {
 		v, ok, err := engine.Back(profile)
 		if err != nil {
@@ -404,11 +428,12 @@ func sessionReloadCmd(args []string) {
 	fs := flag.NewFlagSet("session-reload", flag.ExitOnError)
 	profile := profileFlag(fs)
 	_ = fs.Parse(args)
-	v, ok, err := engine.CurrentStackEntry(*profile)
+	p := resolveProfile(*profile)
+	v, ok, err := engine.CurrentStackEntry(p)
 	if err != nil {
 		failClosed(err.Error(), "bad_profile")
 	}
-	emit(true, map[string]interface{}{"profile": *profile, "restored": ok, "target": visitOrNull(v, ok)}, "", "")
+	emit(true, map[string]interface{}{"profile": p, "restored": ok, "target": visitOrNull(v, ok)}, "", "")
 }
 
 // stateSaveCmd exports cookies, bookmarks, and the stack to a file.
@@ -420,12 +445,13 @@ func stateSaveCmd(args []string) {
 	if strings.TrimSpace(*file) == "" {
 		failClosed("missing required --file", "bad_path")
 	}
-	st, err := engine.SaveStateFile(*profile, *file)
+	p := resolveProfile(*profile)
+	st, err := engine.SaveStateFile(p, *file)
 	if err != nil {
 		failClosed(err.Error(), "bad_path")
 	}
 	emit(true, map[string]interface{}{
-		"profile": *profile, "file": *file, "cookies": len(st.Cookies),
+		"profile": p, "file": *file, "cookies": len(st.Cookies),
 		"bookmarks": len(st.Marks), "entries": len(st.Stack.Entries),
 	}, "", "")
 }
@@ -439,12 +465,13 @@ func stateLoadCmd(args []string) {
 	if strings.TrimSpace(*file) == "" {
 		failClosed("missing required --file", "bad_path")
 	}
-	cookies, marks, entries, err := engine.LoadStateFile(*profile, *file)
+	p := resolveProfile(*profile)
+	cookies, marks, entries, err := engine.LoadStateFile(p, *file)
 	if err != nil {
 		failClosed(err.Error(), "bad_path")
 	}
 	emit(true, map[string]interface{}{
-		"profile": *profile, "file": *file, "cookies": cookies,
+		"profile": p, "file": *file, "cookies": cookies,
 		"bookmarks": marks, "entries": entries,
 	}, "", "")
 }
