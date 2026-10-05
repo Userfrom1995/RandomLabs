@@ -1,7 +1,7 @@
 // Command tb-agent is the agent CLI twin of tb: every command emits the
 // JSON envelope {success, data, warning?, code?} shared with the MCP
-// control plane. Phase scope covers probe and fixture rendering; the
-// matrix grows with later phases.
+// control plane. Phase scope covers probe, fixture rendering, and live
+// fetch; the matrix grows with later phases.
 package main
 
 import (
@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"randomlabs/terminal-browser/internal/demo"
+	"randomlabs/terminal-browser/internal/engine"
 	"randomlabs/terminal-browser/internal/gfx"
 	"randomlabs/terminal-browser/internal/term"
 	"randomlabs/terminal-browser/internal/tui"
@@ -34,7 +35,7 @@ func emit(ok bool, data interface{}, warning, code string) {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: tb-agent <probe|render> [flags]")
+		fmt.Fprintln(os.Stderr, "usage: tb-agent <probe|render|fetch> [flags]")
 		os.Exit(2)
 	}
 	switch os.Args[1] {
@@ -42,6 +43,8 @@ func main() {
 		probeCmd(os.Args[2:])
 	case "render":
 		renderCmd(os.Args[2:])
+	case "fetch":
+		fetchCmd(os.Args[2:])
 	default:
 		fmt.Fprintln(os.Stderr, "unknown command: "+os.Args[1])
 		os.Exit(2)
@@ -116,4 +119,42 @@ func renderCmd(args []string) {
 		"tier":    caps.Tier.String(),
 		"painter": painter,
 	}, "", "")
+}
+
+// fetchCmd loads one live http(s) page through the engine and emits the
+// shared envelope. Offline failures emit success=false with the
+// fail-closed code, never a faux-success snapshot.
+func fetchCmd(args []string) {
+	fs := flag.NewFlagSet("fetch", flag.ExitOnError)
+	urlFlag := fs.String("url", "", "live http(s) page to fetch (required)")
+	profile := fs.String("profile", "default", "browser profile")
+	lite := fs.Bool("lite", false, "block images, media, and trackers")
+	width := fs.Int("width", 80, "grid width for the text render")
+	_ = fs.Parse(args)
+	if strings.TrimSpace(*urlFlag) == "" {
+		emit(false, nil, "missing required --url", "bad_url")
+		os.Exit(1)
+	}
+	res := engine.Navigate(*urlFlag, engine.Options{Profile: *profile, Lite: *lite, Width: *width})
+	lines := make([]string, 0, len(res.Rows))
+	for _, r := range res.Rows {
+		lines = append(lines, r.Text)
+	}
+	if len(lines) > 200 {
+		lines = lines[:200]
+	}
+	emit(!res.Offline, map[string]interface{}{
+		"address":       res.URL,
+		"title":         res.Title,
+		"rows":          res.RowCount,
+		"lines":         lines,
+		"cold_ms":       res.Cold.Milliseconds(),
+		"js_executed":   res.JS.Executed,
+		"js_nodes":      res.JS.Nodes,
+		"js_ready":      res.JS.Ready,
+		"chrome_version": res.Version,
+	}, res.Warning, res.Code)
+	if res.Offline {
+		os.Exit(1)
+	}
 }

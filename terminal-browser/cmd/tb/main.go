@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"randomlabs/terminal-browser/internal/demo"
+	"randomlabs/terminal-browser/internal/engine"
 	"randomlabs/terminal-browser/internal/gfx"
 	"randomlabs/terminal-browser/internal/term"
 	"randomlabs/terminal-browser/internal/tui"
@@ -19,6 +20,9 @@ import (
 
 func main() {
 	fixture := flag.String("fixture", "", "render one fixture page offscreen (home, article, table) and exit")
+	urlFlag := flag.String("url", "", "fetch one live http(s) page offscreen and exit")
+	profile := flag.String("profile", "default", "browser profile for live fetch")
+	lite := flag.Bool("lite", false, "block images, media, and trackers on live fetch")
 	tierFlag := flag.String("tier", "", "force graphics tier (kitty, sixel, iterm2, block)")
 	dumpStats := flag.Bool("dump-stats", false, "print per-frame byte stats for the fixture render")
 	flag.Parse()
@@ -39,9 +43,31 @@ func main() {
 		runFixture(os.Stdout, caps, *fixture, *dumpStats)
 		return
 	}
+	if *urlFlag != "" {
+		runURL(os.Stdout, caps, *urlFlag, *profile, *lite, *dumpStats)
+		return
+	}
 	if err := runInteractive(caps, tierOverride); err != nil {
 		fmt.Fprintln(os.Stderr, "tb: "+err.Error())
 		os.Exit(1)
+	}
+}
+
+// runURL fetches one live page through the engine, then paints it
+// through the same frame pipeline as fixtures. Offline failures print
+// the honest error page with a non-zero exit, never a faux success.
+func runURL(w io.Writer, caps term.Capabilities, target, profile string, lite, dump bool) {
+	res := engine.Navigate(target, engine.Options{Profile: profile, Lite: lite, Width: caps.Width})
+	page := res.ToDemoPage()
+	if res.Offline {
+		paintPage(w, caps, page, dump)
+		fmt.Fprintf(os.Stderr, "offline: %s\n", res.Warning)
+		os.Exit(1)
+	}
+	paintPage(w, caps, page, dump)
+	if dump {
+		fmt.Fprintf(os.Stderr, "live=%s title=%q rows=%d cold=%s js_nodes=%d chrome=%s\n",
+			res.URL, res.Title, len(page.Rows), res.Cold.Round(time.Millisecond), res.JS.Nodes, res.Version)
 	}
 }
 
@@ -54,9 +80,17 @@ func runFixture(w io.Writer, caps term.Capabilities, name string, dump bool) {
 		addr = "fixture://" + name
 	}
 	page := demo.Lookup(addr)
+	paintPage(w, caps, page, dump)
+}
+
+// paintPage renders any demo page through the full pipeline. The page
+// is placed directly on the tab: no second lookup or refetch happens
+// here, so live pages paint exactly what the engine returned.
+func paintPage(w io.Writer, caps term.Capabilities, page demo.Page, dump bool) {
 	frame := term.NewFrame(caps.Width, caps.Height)
 	shell := tui.NewShell()
-	shell.Open(page.Address)
+	cur := shell.Current()
+	cur.Address, cur.Title, cur.Page, cur.Scroll = page.Address, page.Title, page, 0
 	shell.Render(frame)
 
 	counter := &term.Counter{W: w}
