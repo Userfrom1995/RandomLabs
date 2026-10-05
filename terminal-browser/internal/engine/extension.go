@@ -462,7 +462,7 @@ func (b *Browser) TriggerExtension(extID, actionID string, args interface{}) (js
 		return nil, fmt.Errorf("extension %q: %w", extID, err)
 	}
 	expr := `(function(){var a=(window.__tbActions||{})[` + jsStr(run) +
-		`];if(typeof a!=="function"){throw new Error("action ` + run + ` missing")};return a(` + argStr + `)})()`
+		`];if(typeof a!=="function"){throw new Error("action "+` + jsStr(run) + `+" missing")};return a(` + argStr + `)})()`
 	val, err := b.sess.EvaluateInContext(expr, rt.world, true, actTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("extension %q action %q: %w", extID, actionID, err)
