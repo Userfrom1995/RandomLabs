@@ -412,7 +412,7 @@ func (b *Browser) Verify(c Condition) (bool, string, error) {
 		if err != nil {
 			return false, "gone", nil
 		}
-		v, err := b.sess.callOn(oid, `function(el) { return ('value' in el) ? el.value : (el.textContent || ""); }`, nil, actTimeout)
+		v, err := b.sess.callOn(oid, `function() { const el = this; return ('value' in el) ? el.value : (el.textContent || ""); }`, nil, actTimeout)
 		if err != nil {
 			return false, "", err
 		}
