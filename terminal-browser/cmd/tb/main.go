@@ -157,6 +157,7 @@ func runInteractive(caps term.Capabilities, tierOverride *term.GraphicsTier, pro
 	}
 	shell := tui.NewShell()
 	defer shell.CloseLive()
+	shell.SetMediaAnimated(caps.Tier == term.TierKitty)
 	if strings.TrimSpace(profile) != "" && profile != "default" {
 		safe, err := engine.SanitizeProfile(profile)
 		if err != nil {
@@ -234,6 +235,13 @@ func runInteractive(caps term.Capabilities, tierOverride *term.GraphicsTier, pro
 				chain := gfx.Select(caps, painters)
 				_, _ = gfx.PaintChain(counter, chain, *hs, caps)
 			}
+		}
+		// The media watch composes its latest sampled frame over the
+		// grid through the same degrade chain: animation on Kitty,
+		// stills everywhere else.
+		if ms := shell.MediaSurface(); ms != nil {
+			chain := gfx.Select(caps, painters)
+			_, _ = gfx.PaintChain(counter, chain, *ms, caps)
 		}
 		comp.CloseFrame(counter)
 		frame.Bytes = counter.N
