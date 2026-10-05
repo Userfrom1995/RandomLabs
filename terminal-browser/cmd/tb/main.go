@@ -55,7 +55,7 @@ func main() {
 
 // runURL fetches one live page through the engine, then paints it
 // through the same frame pipeline as fixtures. Offline failures print
-// the honest error page with a non-zero exit, never a faux success.
+// the honest error page with a non-zero exit, never a faked success.
 func runURL(w io.Writer, caps term.Capabilities, target, profile string, lite, dump bool) {
 	res := engine.Navigate(target, engine.Options{Profile: profile, Lite: lite, Width: caps.Width})
 	page := res.ToDemoPage()

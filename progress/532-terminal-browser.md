@@ -36,7 +36,7 @@
     live fetch with JS-executed SPA probe passing; cold navigate at most
     10 s, warm navigate at most 3 s; offline run shows actionable error
     with no fake success.
-  - Status: [ ] in progress on this branch.
+  - Status: [x] complete, verified, ready for review.
 - **Phase 3: Session Persistence with Cookies History and Profiles:**
   - Scope: profile isolation with persistent user-data dirs; cookie jar
     synced from CDP Storage with inspect, set, clear, and storage-state
@@ -102,9 +102,10 @@
     real pages.
   - Status: [ ] not started.
 
-- **Current step:** Phase 2 scaffold (progress tracking the tightened roadmap; engine package next)
-- **Next steps:** Implement `internal/engine` (chrome locator plus launcher, stdlib CDP client, AX style plus reflow, navigate with lite blocklists and offline fail-closed); wire live fetch into `tb --url` plus `tb-agent fetch` plus TUI shell address bar; add `docs/engine.md`, engine tests, offline fixtures; update hub, README, static gate; verify builds plus gate
+- **Current step:** Phase 2 built and verified, phase PR ready for review
+- **Next steps:** Reviewer audits the phase PR; on approval Tester runs live plus per-OS passes; then Builder starts Phase 3 (Session Persistence with Cookies History and Profiles) on a new phase branch from main
 
 ## Agent Log
 
 - **2026-10-05, Builder (Phase 2):** Branched `opencode/issue532-terminal-browser-phase-2` from main tip (Phase 1 merged as PR #534). Adopted the tightened epic roadmap (binding fps plus byte plus timing thresholds, exact 12-tool core with canonicalization, pinned live corpus with Chrome 140 floor plus retry plus offline fallback). Scaffolded Phase 2 progress tracking; engine implementation next.
+- **2026-10-05, Builder (Phase 2 complete):** Implemented Web Engine Fetch and Text Render Path: `internal/engine` (stdlib-only Chrome locator plus launcher with 140 floor and per-profile contexts, minimal WS plus CDP session for Page/Network/Runtime/Accessibility, AX parse plus flatten with ignored-container recursion, role stylesheet plus Wrap plus LayoutTable plus Rewrap, Navigate with lite blocklists and offline fail-closed codes); wired live fetch into TUI address bar (http(s) via engine, rewrap at render), `tb --url` offscreen painter, `tb-agent fetch` JSON twin; added `docs/engine.md`, offline fixtures (`tests/fixtures/hn.json`, `wiki.json` with Style-path test), hub plus README updates, static gate extended. Verified: `go build` on darwin plus linux plus windows, `go vet` clean, `go test ./...` green, static gate 7/7, tester live suite 11/11, live HN (116 rows, cold 244 ms, JS 821 nodes), Wikipedia (234 rows, cold 1075 ms), TodoMVC React SPA (44 rows, JS executed), offline paths fail closed with codes and exit 1. Success gate met: HN plus Wikipedia render live with JS probe passing, cold well under 10 s, offline shows actionable errors with no faked success.

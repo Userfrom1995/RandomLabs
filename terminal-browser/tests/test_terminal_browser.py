@@ -14,6 +14,7 @@ REQUIRED = [
     "index.html",
     "docs/index.md",
     "docs/architecture.md",
+    "docs/engine.md",
     "cmd/tb/main.go",
     "cmd/tb-agent/main.go",
     "internal/term/probe.go",
@@ -26,6 +27,15 @@ REQUIRED = [
     "internal/gfx/block.go",
     "internal/tui/shell.go",
     "internal/demo/fixture.go",
+    "internal/engine/chrome.go",
+    "internal/engine/cdp.go",
+    "internal/engine/ws.go",
+    "internal/engine/ax.go",
+    "internal/engine/style.go",
+    "internal/engine/navigate.go",
+    "internal/engine/fallback.go",
+    "tests/fixtures/hn.json",
+    "tests/fixtures/wiki.json",
 ]
 
 FACADE = re.compile(
@@ -84,7 +94,7 @@ class StaticGate(unittest.TestCase):
 
     def test_docs_unified(self):
         hits = []
-        for name in ("README.md", "docs/index.md", "docs/architecture.md", "index.html"):
+        for name in ("README.md", "docs/index.md", "docs/architecture.md", "docs/engine.md", "index.html"):
             path = os.path.join(ROOT, name)
             with open(path, encoding="utf-8") as fh:
                 for i, line in enumerate(fh, 1):

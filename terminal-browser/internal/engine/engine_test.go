@@ -2,6 +2,8 @@ package engine
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -178,6 +180,62 @@ func TestLocateChrome(t *testing.T) {
 	t.Logf("chrome: %s (%s), major %d, floor %d", bin, full, major, ChromeFloor)
 	if major < ChromeFloor {
 		t.Fatalf("chrome %d below floor %d", major, ChromeFloor)
+	}
+}
+
+// TestOfflineFixtures proves the bundled snapshots under
+// tests/fixtures render real rows through the production Style path.
+// Runs use these only when the live network is unreachable and report
+// offline-fallback, never live.
+func TestOfflineFixtures(t *testing.T) {
+	for _, name := range []string{"hn.json", "wiki.json"} {
+		path := filepath.Join("..", "..", "tests", "fixtures", name)
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("fixture %s: %v", name, err)
+		}
+		var snap struct {
+			URL    string `json:"url"`
+			Title  string `json:"title"`
+			Blocks []Block `json:"blocks"`
+		}
+		// Block carries Cells/Head as [][]string plus Head []string;
+		// decode leniently through a shadow struct.
+		var raw struct {
+			URL    string `json:"url"`
+			Title  string `json:"title"`
+			Blocks []struct {
+				Kind  string     `json:"kind"`
+				Text  string     `json:"text"`
+				Href  string     `json:"href"`
+				Level int        `json:"level"`
+				Head  []string   `json:"head"`
+				Cells [][]string `json:"cells"`
+			} `json:"blocks"`
+		}
+		if err := json.Unmarshal(body, &raw); err != nil {
+			t.Fatalf("fixture %s: %v", name, err)
+		}
+		for _, b := range raw.Blocks {
+			snap.Blocks = append(snap.Blocks, Block{
+				Kind: b.Kind, Text: b.Text, Href: b.Href,
+				Level: b.Level, Head: b.Head, Cells: b.Cells,
+			})
+		}
+		_ = snap.URL
+		_ = snap.Title
+		rows := Style(snap.Blocks, 80)
+		if len(rows) == 0 {
+			t.Fatalf("fixture %s styled to zero rows", name)
+		}
+		joined := ""
+		for _, r := range rows {
+			joined += r.Text + "\n"
+		}
+		marker := map[string]string{"hn.json": "Hacker News", "wiki.json": "Terminal pager"}[name]
+		if !strings.Contains(joined, marker) {
+			t.Fatalf("fixture %s missing marker %q:\n%s", name, marker, joined)
+		}
 	}
 }
 

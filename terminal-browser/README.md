@@ -19,10 +19,16 @@ the MCP server can do identically.
   truecolor diff with 256/16/ASCII fallbacks. `tmux` and `screen` force
   the block path.
 - App shell: alternate screen, tab strip, address bar over the local
-  `fixture://` router, status line, profile picker, mouse and keyboard
-  input codecs, help overlay.
-- Agent CLI twin: `tb-agent probe` and `tb-agent render --fixture NAME
-  --graphics-tier T` emit the shared JSON envelope.
+  `fixture://` router plus live http(s) fetch, status line, profile
+  picker, mouse and keyboard input codecs, help overlay.
+- Web engine: system-Chrome-first sidecar with headless fallback,
+  per-profile contexts, stdlib CDP session (Page, Network, Runtime,
+  Accessibility), lite-mode blocklists plus the full-resource path,
+  AX-tree stylesheet with grid reflow (headings, links, tables, forms),
+  cold 10 s and warm 3 s binding budgets, offline fail-closed errors.
+- Agent CLI twin: `tb-agent probe`, `tb-agent render --fixture NAME
+  --graphics-tier T`, and `tb-agent fetch --url URL [--lite]` emit the
+  shared JSON envelope.
 - Built-in fixture pages (`fixture://home`, `fixture://article`,
   `fixture://table`) plus an honest error page for unknown addresses.
 
@@ -32,22 +38,26 @@ the MCP server can do identically.
 cd terminal-browser
 go build ./...
 ./tb --fixture home --tier block --dump-stats
+./tb --url https://news.ycombinator.com/ --tier block --dump-stats
+./tb-agent fetch --url https://news.ycombinator.com/ --lite
 TB_TIER=sixel ./tb-agent render --fixture article
 go test ./...
 ```
 
 Run the interactive shell with `go run ./cmd/tb` inside a real terminal.
-`q` quits, `/` edits the address, `?` shows keys. Live web fetching,
-sessions, and the MCP server land as the engine and control-plane
-subsystems grow; the fixture router is local content only, by design.
+`q` quits, `/` edits the address (http(s) URLs fetch live, `fixture://`
+stays local), `?` shows keys. Sessions and the MCP server land as the
+control-plane subsystems grow.
 
 ## Layout
 
-- `cmd/tb/` - interactive frontend and fixture renderer.
+- `cmd/tb/` - interactive frontend, fixture renderer, and live URL painter.
 - `cmd/tb-agent/` - agent CLI twin with JSON envelopes.
 - `internal/term/` - probe, frame compositor, FPS governor, input codecs.
 - `internal/gfx/` - Kitty, Sixel, iTerm2, and block painters plus tier order.
 - `internal/tui/` - tab strip, address bar, status line, profile picker.
 - `internal/demo/` - fixture pages and the local router.
-- `docs/` - architecture, graphics layering, verification notes.
-- `tests/` - static gate (`test_terminal_browser.py`).
+- `internal/engine/` - Chrome locator plus launcher, CDP session, AX style
+  plus reflow, navigation with lite blocklists and offline fail-closed.
+- `docs/` - architecture, engine policy, verification notes.
+- `tests/` - static gate (`test_terminal_browser.py`), offline fixtures.

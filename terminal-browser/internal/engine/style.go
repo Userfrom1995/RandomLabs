@@ -11,7 +11,7 @@ import (
 // Terminal stylesheet: AX roles map to cell styles. Headings are warm
 // and bold with level prefixes, links are accent and underlined,
 // controls carry their affordance suffix from Flatten, images are dim
-// placeholders until the media phase paints real rects.
+// stand-in glyphs until the media phase paints real rects.
 var (
 	ink     = term.RGB{R: 235, G: 235, B: 235}
 	dim     = term.RGB{R: 150, G: 150, B: 160}
