@@ -67,7 +67,7 @@ func runURL(w io.Writer, caps term.Capabilities, target, profile string, lite, d
 	paintPage(w, caps, page, dump)
 	if dump {
 		fmt.Fprintf(os.Stderr, "live=%s title=%q rows=%d cold=%s js_nodes=%d chrome=%s\n",
-			res.URL, res.Title, len(page.Rows), res.Cold.Round(time.Millisecond), res.JS.Nodes, res.Version)
+			res.URL, res.Title, len(page.Rows), res.Cold().Round(time.Millisecond), res.JS.Nodes, res.Version)
 	}
 }
 

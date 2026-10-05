@@ -31,18 +31,30 @@ type JSProbe struct {
 // Result is one navigation outcome: styled rows plus timing, probe,
 // and fail-closed error fields. Offline results carry Code and Warning
 // with an honest error page in Rows, never a faked snapshot.
+// ColdMs carries real milliseconds under the cold_ms name so corpus
+// logs and the tb-agent JSON twin never mislabel units.
 type Result struct {
-	URL      string    `json:"url"`
-	Title    string    `json:"title"`
-	Rows     []demo.Row `json:"-"`
-	RowCount int       `json:"rows"`
-	Cold     time.Duration `json:"cold_ms"`
-	Warm     time.Duration `json:"-"`
-	JS       JSProbe   `json:"js"`
-	Offline  bool      `json:"offline"`
-	Code     string    `json:"code,omitempty"`
-	Warning  string    `json:"warning,omitempty"`
-	Version  string    `json:"chrome_version"`
+	URL       string     `json:"url"`
+	Title     string     `json:"title"`
+	Rows      []demo.Row `json:"-"`
+	RowCount  int        `json:"rows"`
+	ColdMs    int64      `json:"cold_ms"`
+	Warm      time.Duration `json:"-"`
+	WarmTitle string     `json:"warm_title,omitempty"`
+	WarmOver  bool       `json:"warm_over_budget,omitempty"`
+	JS        JSProbe    `json:"js"`
+	Offline   bool       `json:"offline"`
+	Code      string     `json:"code,omitempty"`
+	Warning   string     `json:"warning,omitempty"`
+	Version   string     `json:"chrome_version"`
+}
+
+// Cold reports the cold navigation cost as a duration.
+func (r *Result) Cold() time.Duration {
+	if r == nil {
+		return 0
+	}
+	return time.Duration(r.ColdMs) * time.Millisecond
 }
 
 // Options tunes one navigation.
@@ -126,7 +138,7 @@ func Navigate(target string, o Options) *Result {
 		r.Version = ver
 		return r
 	}
-	proc, err := Launch(LaunchOpts{Binary: bin, Profile: o.Profile, Timeout: 20 * time.Second})
+	proc, err := Launch(LaunchOpts{Binary: bin, Profile: o.Profile, Timeout: timeout})
 	if err != nil {
 		return OfflineResult(target, ClassifyError(err), err.Error())
 	}
@@ -155,24 +167,36 @@ func Navigate(target string, o Options) *Result {
 		r.Version = proc.Version
 		return r
 	}
+	// Clock starts before Navigate so the cold cost covers the full
+	// load wait (sidecar spawn stays outside: Launch already waited for
+	// the DevTools endpoint and reports its own timeout separately).
 	start := time.Now()
 	if _, err := sess.Navigate(target, ColdBudget); err != nil {
 		r := OfflineResult(target, ClassifyError(err), err.Error())
 		r.Version = proc.Version
-		r.Cold = time.Since(start)
+		r.ColdMs = time.Since(start).Milliseconds()
 		return r
 	}
 	cold := time.Since(start)
 	res := buildResult(sess, target, proc.Version, width)
-	res.Cold = cold
+	res.ColdMs = cold.Milliseconds()
 	if o.WarmURL != "" {
 		w0 := time.Now()
 		if _, err := sess.Navigate(o.WarmURL, WarmBudget); err == nil {
 			warm := buildResult(sess, o.WarmURL, proc.Version, width)
 			res.Warm = time.Since(w0)
-			res.Title += " (+warm " + warm.Title + ")"
+			// Keep the user-visible title clean: warm diagnostics live
+			// in dedicated fields, never appended to Title.
+			res.WarmTitle = warm.Title
+			if res.Warm > WarmBudget {
+				res.WarmOver = true
+				if res.Warning == "" {
+					res.Warning = fmt.Sprintf("warm load %s exceeded budget %s", res.Warm.Round(time.Millisecond), WarmBudget)
+				}
+			}
 		} else {
 			res.Warm = time.Since(w0)
+			res.WarmOver = res.Warm > WarmBudget
 		}
 	}
 	return res
@@ -195,16 +219,22 @@ func buildResult(sess *Session, target, version string, width int) *Result {
 	js := probeJS(sess)
 	axRaw, err := sess.AXTree(15 * time.Second)
 	if err != nil {
-		return OfflineResult(target, ClassifyError(err), "AX snapshot failed: "+err.Error())
+		r := OfflineResult(target, ClassifyError(err), "AX snapshot failed: "+err.Error())
+		r.Version = version
+		return r
 	}
 	nodes, order, err := ParseAX(axRaw)
 	if err != nil || len(nodes) == 0 {
-		return OfflineResult(target, "error", "empty accessibility tree; page may need longer to render")
+		r := OfflineResult(target, "error", "empty accessibility tree; page may need longer to render")
+		r.Version = version
+		return r
 	}
 	blocks := Flatten(nodes, order)
 	rows := Style(blocks, width)
 	if len(rows) == 0 {
-		return OfflineResult(target, "error", "page rendered no text blocks; refusing an empty win")
+		r := OfflineResult(target, "error", "page rendered no text blocks; refusing an empty win")
+		r.Version = version
+		return r
 	}
 	return &Result{
 		URL: target, Title: title, Rows: rows,
@@ -214,7 +244,10 @@ func buildResult(sess *Session, target, version string, width int) *Result {
 
 // probeJSProbeExpr asks the page for render evidence: node count,
 // readiness, app roots (React/Next/Vue markers), and the user agent.
+// It sets a JS canary (window.__tbProbe = 1) so Executed proves JS ran:
+// static HTML with JS disabled never sets the canary.
 const probeJSProbeExpr = `(() => { try {
+  window.__tbProbe = 1;
   const nodes = document.querySelectorAll('*').length;
   const ready = document.readyState;
   const app = !!document.querySelector('#root,#__next,#app,[data-reactroot],main,article');
@@ -235,8 +268,14 @@ func probeJS(sess *Session) JSProbe {
 	if err := json.Unmarshal(v, &p); err != nil {
 		return JSProbe{}
 	}
+	// Second step: read the canary back. A static page with JS disabled
+	// yields nodes > 0 but no canary, so canaryBool gates Executed.
+	var canaryBool bool
+	if cv, canaryErr := sess.Evaluate(`window.__tbProbe === 1`, false, 10*time.Second); canaryErr == nil {
+		_ = json.Unmarshal(cv, &canaryBool)
+	}
 	return JSProbe{
-		Executed: p.Nodes > 0, Nodes: p.Nodes, Ready: p.Ready,
+		Executed: canaryBool && p.Nodes > 0, Nodes: p.Nodes, Ready: p.Ready,
 		HasApp: p.App, UserAgent: p.UA,
 	}
 }
@@ -266,9 +305,10 @@ func OfflineResult(target, code, reason string) *Result {
 		msg = "navigation failed"
 	}
 	msg += " (offline fail-closed: check network and Chrome, then retry; fixture://home works offline)"
+	rows := OfflinePage(target, msg).Rows
 	return &Result{
 		URL: target, Title: "Navigation failed",
-		Rows: OfflinePage(target, msg).Rows,
-		RowCount: 0, Offline: true, Code: code, Warning: msg,
+		Rows: rows,
+		RowCount: len(rows), Offline: true, Code: code, Warning: msg,
 	}
 }

@@ -148,7 +148,7 @@ func fetchCmd(args []string) {
 		"title":         res.Title,
 		"rows":          res.RowCount,
 		"lines":         lines,
-		"cold_ms":       res.Cold.Milliseconds(),
+		"cold_ms":       res.ColdMs,
 		"js_executed":   res.JS.Executed,
 		"js_nodes":      res.JS.Nodes,
 		"js_ready":      res.JS.Ready,
