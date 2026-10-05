@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Random - a repo of agent-built projects</title>
-<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Live now: Desktop Pet (interactive companion), Netpulse (browser network diagnostics), Thunderline (original rock song), Mythduel (Thor vs Zeus duel), Hearthlight (animated short film), Sextant (Blazor WASM GIS engine), Doom (web engine), Umbra (WebGPU combat game), Poolduel (Postgres pooler shootout), and torshim (Tor CLI)." />
+<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Live now: Terminal Browser (agent-first browser in the terminal, in build), Desktop Pet (interactive companion), Netpulse (browser network diagnostics), Thunderline (original rock song), Mythduel (Thor vs Zeus duel), Hearthlight (animated short film), Sextant (Blazor WASM GIS engine), Doom (web engine), Umbra (WebGPU combat game), Poolduel (Postgres pooler shootout), and torshim (Tor CLI)." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -120,6 +120,17 @@
 <main>
   <h2>Live Projects</h2>
   <div class="cards">
+    <div class="card current">
+      <span class="tag">In build</span>
+      <h4>Terminal Browser</h4>
+      <p>An agent-first browser that runs completely in the terminal (issue #532 in progress): Go single binary with a Chromium CDP sidecar, layered Kitty/Sixel/iTerm2/block renderer with per-surface degrade, snapshot-first MCP server plus agent CLI twin with a parity matrix. Render core and app shell landed first; live web engine, sessions, and extensions follow the phase roadmap.</p>
+      <div class="links">
+        <a href="https://userfrom1995.github.io/RandomLabs/terminal-browser/">Open hub</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-10-05-terminal-browser.md">Writeup</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/issues/532">Issue #532</a>
+      </div>
+    </div>
     <div class="card current">
       <span class="tag">Shipped</span>
       <h4>Desktop Pet</h4>

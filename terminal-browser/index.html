@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terminal Browser - an agent-first browser for the terminal</title>
+<style>
+:root { color-scheme: dark; --bg:#0c0e14; --panel:#161a26; --ink:#ececf1; --dim:#9aa0b2; --accent:#78c8ff; --warm:#ffd178; }
+* { box-sizing: border-box; }
+body { margin:0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background:var(--bg); color:var(--ink); line-height:1.6; }
+.wrap { max-width: 860px; margin: 0 auto; padding: 32px 20px 64px; }
+.hero { border:1px solid #2a3042; background:var(--panel); border-radius:12px; padding:28px; }
+h1 { margin:0 0 8px; font-size: clamp(24px, 4vw, 36px); }
+.sub { color:var(--dim); margin:0 0 16px; }
+.badges span { display:inline-block; border:1px solid #2a3042; border-radius:999px; padding:2px 12px; margin:0 8px 8px 0; color:var(--accent); font-size:13px; }
+pre { background:#0a0c11; border:1px solid #2a3042; border-radius:8px; padding:14px; overflow-x:auto; }
+code { color:var(--warm); }
+section { margin-top: 28px; }
+h2 { font-size:20px; border-bottom:1px solid #2a3042; padding-bottom:6px; }
+table { width:100%; border-collapse:collapse; font-size:14px; }
+th, td { text-align:left; border-bottom:1px solid #2a3042; padding:8px 6px; }
+a { color:var(--accent); }
+.grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; }
+.card { border:1px solid #2a3042; background:var(--panel); border-radius:10px; padding:14px; }
+.card h3 { margin:0 0 6px; font-size:15px; }
+.card p { margin:0; color:var(--dim); font-size:13px; }
+@media (max-width: 480px) { .wrap { padding: 20px 14px 48px; } table { font-size:12px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <h1>Terminal Browser</h1>
+    <p class="sub">An agent-first browser that runs completely in the terminal: real pages, real sessions, real graphics in the grid. Humans and AI agents hold identical capabilities through a shared control plane.</p>
+    <div class="badges"><span>Go single binary</span><span>Chromium CDP sidecar</span><span>Kitty / Sixel / iTerm2 / block</span><span>MCP + CLI parity</span></div>
+  </div>
+
+  <section>
+    <h2>Quickstart</h2>
+    <pre><code>cd terminal-browser
+go build ./...
+./tb --fixture home --tier block --dump-stats
+TB_TIER=sixel ./tb-agent render --fixture article
+go test ./...</code></pre>
+    <p>Run the interactive shell with <code>go run ./cmd/tb</code> in a real terminal. <code>q</code> quits, <code>/</code> edits the address, <code>?</code> shows all keys.</p>
+  </section>
+
+  <section>
+    <h2>Command reference</h2>
+    <table>
+      <tr><th>Command</th><th>What it does</th></tr>
+      <tr><td><code>tb</code></td><td>Interactive terminal browser shell (tabs, address bar, status line).</td></tr>
+      <tr><td><code>tb --fixture NAME --tier T</code></td><td>Renders one fixture page offscreen through the full paint pipeline.</td></tr>
+      <tr><td><code>tb-agent probe</code></td><td>Reports terminal capabilities as a JSON envelope.</td></tr>
+      <tr><td><code>tb-agent render --fixture NAME --graphics-tier T</code></td><td>Renders a fixture page and reports bytes, cells, painter, tier.</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>Agent protocol</h2>
+    <p>Every agent command returns the shared envelope <code>{success, data, warning?, code?}</code>. Snapshot-first discipline: observe with refs, act by ref, re-snapshot on <code>ref_stale</code>. Full tool matrix and conformance rules live in <a href="docs/architecture.md">docs/architecture</a>.</p>
+  </section>
+
+  <section>
+    <h2>Support matrix</h2>
+    <table>
+      <tr><th>Platform</th><th>Graphics chain</th><th>Status</th></tr>
+      <tr><td>Linux</td><td>Kitty, Sixel, iTerm2, block</td><td>Full path</td></tr>
+      <tr><td>macOS</td><td>Kitty, Sixel, iTerm2, block</td><td>Full path</td></tr>
+      <tr><td>Windows (ConPTY)</td><td>iTerm2 stills, Sixel, block preferred</td><td>Hardened degraded chain</td></tr>
+      <tr><td>tmux / screen</td><td>Block only</td><td>Forced fallback</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>Docs</h2>
+    <div class="grid">
+      <div class="card"><h3><a href="docs/architecture.md">Architecture</a></h3><p>Process model, render path, graphics layering, state, control plane.</p></div>
+      <div class="card"><h3><a href="https://github.com/Userfrom1995/RandomLabs/tree/main/terminal-browser">Source</a></h3><p>Go module, fixture router, verification harness, build instructions.</p></div>
+    </div>
+  </section>
+</div>
+</body>
+</html>
