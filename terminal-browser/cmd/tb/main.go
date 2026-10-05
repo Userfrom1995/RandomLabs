@@ -156,6 +156,7 @@ func runInteractive(caps term.Capabilities, tierOverride *term.GraphicsTier, pro
 		term.ApplyTierOverride(&caps, *tierOverride)
 	}
 	shell := tui.NewShell()
+	defer shell.CloseLive()
 	if strings.TrimSpace(profile) != "" && profile != "default" {
 		safe, err := engine.SanitizeProfile(profile)
 		if err != nil {

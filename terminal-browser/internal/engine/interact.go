@@ -72,6 +72,7 @@ type Browser struct {
 	closed       bool
 	gen          int
 	snaps        map[int]*Snapshot
+	lastRows     []demo.Row
 	currentURL   string
 	currentTitle string
 	loaderID     string
@@ -256,10 +257,17 @@ func (b *Browser) Navigate(target string) (*Snapshot, error) {
 	return b.Snapshot()
 }
 
-// Snapshot fetches a fresh AX tree and archives it as gen+1. Refs run
-// in DOM order with stable eN assignment: the same page yields the
-// same eN across gens, so agents can reason about refs textually.
+// Snapshot fetches a fresh AX tree and archives it as gen+1, with the
+// full styled rows alongside the refs. Refs run in DOM order with
+// stable eN assignment: the same page yields the same eN across gens,
+// so agents can reason about refs textually. One AX fetch serves both
+// the ref list and the grid rows; a second fetch would double the
+// settle cost on every navigation.
 func (b *Browser) Snapshot() (*Snapshot, error) {
+	return b.refresh()
+}
+
+func (b *Browser) refresh() (*Snapshot, error) {
 	raw, err := b.sess.AXTree(15 * time.Second)
 	if err != nil {
 		return nil, err
@@ -293,6 +301,7 @@ func (b *Browser) Snapshot() (*Snapshot, error) {
 		URL: b.currentURL, Title: b.currentTitle, Refs: refs,
 	}
 	b.snaps[b.gen] = snap
+	b.lastRows = Style(Flatten(nodes, order), b.width)
 	return snap, nil
 }
 
@@ -507,28 +516,46 @@ func CodeOf(err error) string {
 	return ClassifyError(err)
 }
 
-// Rows renders the latest snapshot through the shared Style path so
-// the TUI paints live pages exactly like fetched ones.
-func (b *Browser) Rows() []demo.Row {
-	b.mu.Lock()
-	snap := b.snaps[b.gen]
-	width := b.width
-	b.mu.Unlock()
-	if snap == nil {
-		return nil
+// RefreshURL re-reads document URL and title after an act that may
+// have navigated (link clicks, submits). It never bumps the gen: the
+// caller snapshots next, and the snapshot carries the fresh address.
+func (b *Browser) RefreshURL() {
+	v, err := b.sess.Evaluate(`document.URL || ""`, false, 10*time.Second)
+	if err != nil {
+		return
 	}
-	return refsToRows(snap, width)
+	var u string
+	if json.Unmarshal(v, &u) != nil || strings.TrimSpace(u) == "" {
+		return
+	}
+	t := u
+	if tv, terr := b.sess.Evaluate(`document.title || ""`, false, 10*time.Second); terr == nil {
+		var tt string
+		if json.Unmarshal(tv, &tt) == nil && strings.TrimSpace(tt) != "" {
+			t = tt
+		}
+	}
+	b.mu.Lock()
+	b.currentURL, b.currentTitle = u, t
+	b.mu.Unlock()
 }
 
-// refsToRows lists refs as text rows for the grid. The TUI overlay
-// chips carry the same eN ids, so reading rows and chip ids agree.
-func refsToRows(snap *Snapshot, width int) []demo.Row {
-	if width < 20 {
-		width = 20
-	}
-	blocks := make([]Block, 0, len(snap.Refs))
-	for _, r := range snap.Refs {
-		blocks = append(blocks, Block{Kind: "control", Text: r.ID + " " + r.Name + " [" + r.Role + "]"})
-	}
-	return Style(blocks, width)
+// SetRecord toggles history and stack persistence for later
+// navigations. The TUI flips it around back/forward/refresh loads so
+// repeat visits never fork the stack.
+func (b *Browser) SetRecord(record bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.record = record
+}
+
+// Rows returns the last styled grid rows: the same Style path the
+// one-shot fetch paints, so live tabs read exactly like fetched
+// pages. The TUI rewraps them to the frame like before.
+func (b *Browser) Rows() []demo.Row {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	out := make([]demo.Row, len(b.lastRows))
+	copy(out, b.lastRows)
+	return out
 }

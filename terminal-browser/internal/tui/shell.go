@@ -16,7 +16,8 @@ import (
 )
 
 // Tab is one open document with its own scroll position. Live tabs
-// remember their fetch width so Render can rewrap to the frame.
+// remember their fetch width so Render can rewrap to the frame, plus
+// the settled snapshot refs (eN) with their gen for the overlay.
 type Tab struct {
 	Title      string
 	Address    string
@@ -24,11 +25,17 @@ type Tab struct {
 	Scroll     int
 	Live       bool
 	FetchWidth int
+	Refs       []engine.Ref
+	Gen        int
+	Stable     bool
 }
 
 // Shell is the full TUI state machine. Record gates history and
 // stack persistence: the interactive shell records every visit,
 // offscreen render paths disable it so probes never pollute history.
+// Live holds the persistent interaction-loop browser shared by human
+// input and agent acts; overlay fields drive the Harbor hint chips,
+// drawer, and ref entry line.
 type Shell struct {
 	Tabs     []Tab
 	Active   int
@@ -39,6 +46,25 @@ type Shell struct {
 	Profile  string
 	ShowHelp bool
 	Record   bool
+
+	live     *engine.Browser
+	liveFor  string
+	ShowHints bool
+	ShowDrawer bool
+	HintFocus  int
+	DrawerTop  int
+	RefEntry   bool
+	RefBuf     string
+	FillEntry  bool
+	FillBuf    string
+	FillRef    string
+	LastW      int
+	LastH      int
+	chips      []chipHit
+	StaleWant  string
+	StaleGen   int
+	StaleReason string
+	StaleRemap *string
 }
 
 // NewShell opens with the fixture home page on the default tab.
@@ -49,9 +75,23 @@ func NewShell() *Shell {
 		Profiles: loadProfiles(),
 		Profile:  "default",
 		Record:   true,
+		ShowHints: true,
 		Message:  "Type / then an http(s) URL for live fetch; fixture://home works offline. Press ? for keys.",
 	}
 }
+
+// CloseLive shuts the persistent live browser down. The tb frontend
+// defers it on interactive exit; profile switches call it so the next
+// navigation relaunches isolated under the new profile.
+func (s *Shell) CloseLive() {
+	if s.live != nil {
+		_ = s.live.Close()
+		s.live = nil
+		s.liveFor = ""
+	}
+}
+
+func (s *Shell) closeLive() { s.CloseLive() }
 
 // RestoreSession reopens the persisted current entry after a restart.
 // Fixture entries repaint instantly; live entries restore the address
@@ -134,6 +174,7 @@ func (s *Shell) CycleProfile() {
 		}
 	}
 	s.Profile = s.Profiles[(at+1)%len(s.Profiles)]
+	s.closeLive()
 	s.Message = "Profile: " + s.Profile + " (new navigations use it)"
 }
 
@@ -188,22 +229,70 @@ func (s *Shell) Reload() {
 	}
 }
 
-// openLive fetches a live page synchronously with the cold budget. The
-// address bar blocks during load by design in this phase; async loads
-// arrive with the interaction loop.
+// openLive loads a live page through the persistent interaction
+// browser: the first navigation launches the sidecar, later ones
+// reuse it warm in place. Tabs adopt the settled snapshot refs so
+// human chips and agent acts share the same gen. Launch failures
+// paint the honest offline page exactly like the one-shot path did.
 func (s *Shell) openLive(addr string) {
-	res := engine.Navigate(addr, engine.Options{Profile: s.Profile, Lite: false, Width: 100, NoRecord: !s.Record})
-	page := res.ToDemoPage()
-	t := s.Current()
-	t.Address, t.Title, t.Page, t.Scroll = page.Address, page.Title, page, 0
-	t.Live, t.FetchWidth = true, 100
-	if res.Offline {
+	b, err := s.ensureLive(addr)
+	off := func(err error) {
+		res := engine.OfflineResult(addr, engine.ClassifyError(err), err.Error())
+		page := res.ToDemoPage()
+		t := s.Current()
+		t.Address, t.Title, t.Page, t.Scroll = page.Address, page.Title, page, 0
+		t.Live, t.FetchWidth, t.Refs, t.Gen, t.Stable = false, 0, nil, 0, false
 		s.Message = "Offline: " + firstLine(res.Warning)
+	}
+	if err != nil {
+		off(err)
 		return
 	}
-	s.Message = "Opened " + page.Address + " live in " + res.Cold().Round(0).String() +
-		" (" + itoa(len(page.Rows)) + " rows, JS nodes " + itoa(res.JS.Nodes) + ")"
+	snap := b.Current()
+	if snap == nil {
+		offStr := "snapshot missing after open"
+		off(errText(offStr))
+		return
+	}
+	t := s.Current()
+	t.Address, t.Title, t.Scroll = snap.URL, snap.Title, 0
+	t.Page = demo.Page{Name: "live", Title: snap.Title, Address: snap.URL, Rows: b.Rows()}
+	t.Live, t.FetchWidth = true, 100
+	t.Refs, t.Gen, t.Stable = snap.Refs, snap.Gen, snap.Stable
+	s.HintFocus, s.DrawerTop = 0, 0
+	s.clearStale()
+	s.Message = "Opened " + snap.URL + " live (gen" + itoa(snap.Gen) + ", " +
+		itoa(len(snap.Refs)) + " refs; : drawer, eN act, ? keys)"
 }
+
+// ensureLive returns the persistent browser, navigating it in place
+// when the address changed. Profile switches relaunch isolated.
+func (s *Shell) ensureLive(addr string) (*engine.Browser, error) {
+	if s.live == nil || s.live.Closed() || s.liveFor != s.Profile {
+		s.closeLive()
+		b, err := engine.Open(addr, engine.OpenOptions{
+			Profile: s.Profile, Lite: false, Width: 100, NoRecord: !s.Record,
+		})
+		if err != nil {
+			return nil, err
+		}
+		s.live, s.liveFor = b, s.Profile
+		return b, nil
+	}
+	s.live.SetRecord(s.Record)
+	if s.live.URL() != addr {
+		snap, err := s.live.Navigate(addr)
+		if err != nil {
+			return nil, err
+		}
+		_ = snap
+	}
+	return s.live, nil
+}
+
+type errText string
+
+func (e errText) Error() string { return string(e) }
 
 // isLiveAddr reports whether the address wants the live engine path.
 func isLiveAddr(a string) bool {
@@ -256,6 +345,48 @@ func (s *Shell) Handle(ev term.Event) bool {
 	if s.AddrEdit {
 		return s.handleAddrKey(ev)
 	}
+	if s.FillEntry {
+		return s.handleFillKey(ev)
+	}
+	if ev.Special == "esc" {
+		if s.RefEntry {
+			s.RefEntry, s.RefBuf = false, ""
+			s.Message = "Ref entry cancelled."
+			return true
+		}
+		if s.ShowDrawer {
+			s.ShowDrawer = false
+			s.Message = "Drawer closed."
+			return true
+		}
+		return true
+	}
+	if s.RefEntry {
+		if ev.Special == "backspace" {
+			if len(s.RefBuf) > 0 {
+				s.RefBuf = s.RefBuf[:len(s.RefBuf)-1]
+			}
+			s.Message = "Ref: e" + s.RefBuf + " (Enter acts, Esc cancels)"
+			return true
+		}
+		if ev.Special == "enter" {
+			id := "e" + s.RefBuf
+			s.RefEntry, s.RefBuf = false, ""
+			if id == "e" {
+				s.Message = "Empty ref: type e plus digits, like e3."
+				return true
+			}
+			s.actLiveClick(id)
+			return true
+		}
+		if ev.Special == "" && len(ev.Key) == 1 && ev.Key[0] >= '0' && ev.Key[0] <= '9' {
+			s.RefBuf += ev.Key
+			s.Message = "Ref: e" + s.RefBuf + " (Enter acts, Esc cancels)"
+			return true
+		}
+		// Any other key cancels the entry and processes normally.
+		s.RefEntry, s.RefBuf = false, ""
+	}
 	key := ev.Key
 	if ev.Ctrl && len(key) == 1 {
 		switch key {
@@ -296,12 +427,104 @@ func (s *Shell) Handle(ev term.Event) bool {
 	case "pgdn":
 		s.scroll(10)
 		return true
+	case "enter":
+		if s.ShowDrawer {
+			id := s.focusedRef()
+			s.ShowDrawer = false
+			s.actLiveClick(id)
+			return true
+		}
+		return true
 	}
 	switch key {
 	case "q":
+		if s.ShowDrawer {
+			s.ShowDrawer = false
+			s.Message = "Drawer closed."
+			return true
+		}
 		return false
 	case "?":
 		s.ShowHelp = !s.ShowHelp
+		return true
+	case ":":
+		t := s.Current()
+		if !t.Live || len(t.Refs) == 0 {
+			s.Message = "No refs: open a live page first."
+			return true
+		}
+		s.ShowDrawer = !s.ShowDrawer
+		s.clampHint()
+		if s.ShowDrawer {
+			s.Message = "Drawer: j/k move, Enter acts, [ ] page, Esc closes."
+		} else {
+			s.Message = "Drawer closed."
+		}
+		return true
+	case ".":
+		s.ShowHints = !s.ShowHints
+		if s.ShowHints {
+			s.Message = "Hint chips on."
+		} else {
+			s.Message = "Hint chips hidden (audit layer); refs still in drawer."
+		}
+		return true
+	case "R":
+		s.applyRemap()
+		return true
+	case " ":
+		t := s.Current()
+		if !t.Live || len(t.Refs) == 0 {
+			return true
+		}
+		id := s.focusedRef()
+		if s.ShowDrawer {
+			s.ShowDrawer = false
+		}
+		s.actLiveClick(id)
+		return true
+	case "e":
+		t := s.Current()
+		if !t.Live || len(t.Refs) == 0 {
+			s.Message = "No refs: open a live page first."
+			return true
+		}
+		s.RefEntry, s.RefBuf = true, ""
+		s.Message = "Ref: e (type digits, Enter acts, Esc cancels)"
+		return true
+	case "f":
+		t := s.Current()
+		if !t.Live || len(t.Refs) == 0 {
+			s.Message = "No refs: open a live page first."
+			return true
+		}
+		id := s.focusedRef()
+		var role string
+		for _, r := range t.Refs {
+			if r.ID == id {
+				role = r.Role
+			}
+		}
+		switch role {
+		case "textbox", "searchbox", "combobox":
+		default:
+			s.Message = "Ref " + id + " is " + role + ", not a text field."
+			return true
+		}
+		s.FillEntry, s.FillRef, s.FillBuf = true, id, ""
+		s.Message = "Fill " + id + ": type text, Enter fills, Esc cancels."
+		return true
+	case "j":
+		if s.ShowDrawer {
+			s.drawerMove(1)
+			return true
+		}
+		return true
+	case "k":
+		if s.ShowDrawer {
+			s.drawerMove(-1)
+			return true
+		}
 		return true
 	case "/":
 		s.AddrEdit = true
@@ -326,11 +549,23 @@ func (s *Shell) Handle(ev term.Event) bool {
 		s.CycleProfile()
 		return true
 	case "[":
+		if s.ShowDrawer {
+			s.DrawerTop -= 2
+			s.HintFocus = s.DrawerTop
+			s.clampHint()
+			return true
+		}
 		if s.Active > 0 {
 			s.Active--
 		}
 		return true
 	case "]":
+		if s.ShowDrawer {
+			s.DrawerTop += 2
+			s.HintFocus = s.DrawerTop
+			s.clampHint()
+			return true
+		}
 		if s.Active < len(s.Tabs)-1 {
 			s.Active++
 		}
@@ -391,6 +626,45 @@ func (s *Shell) handleAddrKey(ev term.Event) bool {
 	return true
 }
 
+func (s *Shell) handleFillKey(ev term.Event) bool {
+	switch ev.Special {
+	case "enter":
+		s.FillEntry = false
+		id, text := s.FillRef, s.FillBuf
+		s.FillRef, s.FillBuf = "", ""
+		if strings.TrimSpace(text) == "" {
+			s.Message = "Empty fill: nothing typed for " + id + "."
+			return true
+		}
+		s.actLiveFill(id, text)
+		return true
+	case "esc":
+		s.FillEntry, s.FillRef, s.FillBuf = false, "", ""
+		s.Message = "Fill cancelled."
+		return true
+	case "backspace":
+		if len(s.FillBuf) > 0 {
+			_, size := utf8.DecodeLastRuneInString(s.FillBuf)
+			if size <= 0 {
+				size = 1
+			}
+			s.FillBuf = s.FillBuf[:len(s.FillBuf)-size]
+		}
+		return true
+	}
+	if ev.Ctrl {
+		if ev.Key == "c" {
+			s.FillEntry, s.FillRef, s.FillBuf = false, "", ""
+			s.Message = "Fill cancelled."
+		}
+		return true
+	}
+	if ev.Key != "" && ev.Special == "" {
+		s.FillBuf += ev.Key
+	}
+	return true
+}
+
 func (s *Shell) handleMouse(ev term.Event) bool {
 	btn := ev.MouseButton & 67
 	switch btn {
@@ -399,14 +673,36 @@ func (s *Shell) handleMouse(ev term.Event) bool {
 	case 65:
 		s.scroll(3)
 	case 0:
-		// Left click: the address bar (terminal row 2) enters edit
-		// mode; other rows keep focus where it is.
+		// Left click: the address bar (1-based terminal row 2) enters
+		// edit mode; the chip row (1-based row LastH-1) fires the
+		// clicked chip or opens the drawer on +NN more.
 		if ev.MouseDown && ev.MouseY == 2 {
 			s.AddrEdit = true
 			s.AddrBuf = s.Current().Address
+		} else if ev.MouseDown && s.LastH > 0 && ev.MouseY == s.LastH-1 {
+			if hit := s.chipAt(ev.MouseX); hit != nil {
+				if hit.More {
+					s.ShowDrawer = true
+					s.clampHint()
+					s.Message = "Drawer: j/k move, Enter acts, [ ] page, Esc closes."
+				} else {
+					s.HintFocus = refIndex(s.Current().Refs, hit.Ref)
+					s.actLiveClick(hit.Ref)
+				}
+			}
 		}
 	}
 	return true
+}
+
+// refIndex finds a ref id position for focus sync after mouse picks.
+func refIndex(refs []engine.Ref, id string) int {
+	for i, r := range refs {
+		if r.ID == id {
+			return i
+		}
+	}
+	return 0
 }
 
 func (s *Shell) scroll(d int) {
@@ -435,8 +731,11 @@ var (
 )
 
 // Render draws chrome plus the active page into the frame. Live pages
-// rewrap to the frame width when it differs from the fetch width.
+// rewrap to the frame width when it differs from the fetch width. The
+// Harbor overlay paints last: hint chips on the bottom content row and
+// the drawer above them, both pure overdraw that vanishes on dismiss.
 func (s *Shell) Render(f *term.Frame) int {
+	s.LastW, s.LastH = f.W, f.H
 	f.Fill(0, 0, f.W, f.H, term.Cell{Ch: ' ', FG: chromeFG, BG: term.RGB{R: 12, G: 14, B: 20}})
 	renderTabStrip(s, f)
 	renderAddrBar(s, f)
@@ -448,6 +747,12 @@ func (s *Shell) Render(f *term.Frame) int {
 		page = cp
 	}
 	n := demo.RenderToFrame(page, f, ChromeRows, cur.Scroll)
+	if s.ShowDrawer && cur.Live && len(cur.Refs) > 0 {
+		s.clampHint()
+		s.drawDrawer(f)
+	} else if f.H >= 8 {
+		s.drawChips(f, f.H-2)
+	}
 	if s.ShowHelp {
 		renderHelp(s, f)
 	}
@@ -485,6 +790,10 @@ func renderAddrBar(s *Shell, f *term.Frame) {
 	text := s.Current().Address
 	if s.AddrEdit {
 		text = "Go: " + s.AddrBuf + "_"
+	} else if s.RefEntry {
+		text = "Ref: e" + s.RefBuf + "_ (Enter acts, Esc cancels)"
+	} else if s.FillEntry {
+		text = "Fill " + s.FillRef + ": " + s.FillBuf + "_"
 	}
 	f.WriteText(0, 1, truncate(" "+text, f.W), chromeFG, chromeBG)
 	for x := 0; x < f.W && x < len([]rune(text))+1; x++ {
@@ -497,6 +806,16 @@ func renderAddrBar(s *Shell, f *term.Frame) {
 func renderStatus(s *Shell, f *term.Frame) {
 	msg := s.Message + "  |  tabs:" + itoa(len(s.Tabs)) +
 		"  scroll:" + itoa(s.Current().Scroll) + "/" + itoa(len(s.Current().Page.Rows))
+	if t := s.Current(); t.Live && t.Gen > 0 {
+		stable := "settled"
+		if !t.Stable {
+			stable = "wait-settled"
+		}
+		msg += "  gen" + itoa(t.Gen) + " " + stable + " refs:" + itoa(len(t.Refs))
+	}
+	if s.StaleWant != "" {
+		msg += "  STALE:" + s.StaleWant + " (R remaps)"
+	}
 	f.WriteText(0, f.H-1, truncate(" "+msg, f.W), chromeFG, statusBG)
 	for x := 0; x < f.W; x++ {
 		c := f.At(x, f.H-1)
@@ -511,6 +830,8 @@ func renderHelp(_ *Shell, f *term.Frame) {
 		"t new tab, x close tab, 1-9 jump, g/G top/bottom,",
 		"H/L back/forward, r reload, p profile, Ctrl+T/W/L/Q twins,",
 		"wheel scrolls, ? toggles help.",
+		"Live refs: : drawer, Space act focused, eN+Enter act,",
+		"f fill text field, . chips, R stale remap, Esc closes.",
 	}
 	y := f.H - len(lines) - 2
 	if y < ChromeRows {
