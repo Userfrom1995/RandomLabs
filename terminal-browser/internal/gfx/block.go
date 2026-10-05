@@ -48,6 +48,7 @@ func (b *Block) PaintCells(w io.Writer, cur, prev *term.Frame, caps term.Capabil
 	var sb strings.Builder
 	repainted := 0
 	var lastFG, lastBG term.RGB
+	var lastBold, lastUnderline bool
 	styled := false
 	for y := 0; y < cur.H; y++ {
 		if !rows[y] {
@@ -56,9 +57,9 @@ func (b *Block) PaintCells(w io.Writer, cur, prev *term.Frame, caps term.Capabil
 		sb.WriteString("\x1b[" + strconv.Itoa(y+1) + ";1H")
 		for x := 0; x < cur.W; x++ {
 			c := cur.Cells[y*cur.W+x]
-			if !styled || c.FG != lastFG || c.BG != lastBG {
-				writeCellStyle(&sb, c, caps)
-				lastFG, lastBG, styled = c.FG, c.BG, true
+			if !styled || c.FG != lastFG || c.BG != lastBG || c.Bold != lastBold || c.Underline != lastUnderline {
+				writeCellStyle(&sb, c, caps, lastBold, lastUnderline)
+				lastFG, lastBG, lastBold, lastUnderline, styled = c.FG, c.BG, c.Bold, c.Underline, true
 			}
 			if c.Ch == 0 {
 				sb.WriteByte(' ')
@@ -76,6 +77,9 @@ func (b *Block) PaintCells(w io.Writer, cur, prev *term.Frame, caps term.Capabil
 // Paint renders an image surface as half-block rows: each text row shows
 // two pixel rows through the upper half block with fg=top bg=bottom.
 func (b *Block) Paint(w io.Writer, s Surface, caps term.Capabilities) error {
+	if s.CellW < 1 || s.CellH < 1 || s.Img.W < 1 || s.Img.H < 1 || len(s.Img.Pix) == 0 {
+		return nil
+	}
 	var sb strings.Builder
 	for r := 0; r < s.CellH; r++ {
 		CupString(&sb, s.CellX+1, s.CellY+1+r)
@@ -90,17 +94,21 @@ func (b *Block) Paint(w io.Writer, s Surface, caps term.Capabilities) error {
 	return nil
 }
 
-func writeCellStyle(sb *strings.Builder, c term.Cell, caps term.Capabilities) {
+func writeCellStyle(sb *strings.Builder, c term.Cell, caps term.Capabilities, lastBold, lastUnderline bool) {
 	if c.Reverse {
 		c.FG, c.BG = c.BG, c.FG
 	}
 	writeFG(sb, c.FG, caps)
 	writeBG(sb, c.BG, caps)
-	if c.Bold {
+	if c.Bold && !lastBold {
 		sb.WriteString("\x1b[1m")
+	} else if !c.Bold && lastBold {
+		sb.WriteString("\x1b[22m")
 	}
-	if c.Underline {
+	if c.Underline && !lastUnderline {
 		sb.WriteString("\x1b[4m")
+	} else if !c.Underline && lastUnderline {
+		sb.WriteString("\x1b[24m")
 	}
 }
 
@@ -117,7 +125,12 @@ func writeHalfBlock(sb *strings.Builder, top, bottom term.RGB, caps term.Capabil
 func writeFG(sb *strings.Builder, c term.RGB, caps term.Capabilities) {
 	if !caps.TrueColor {
 		if isBasic(c) {
-			sb.WriteString("\x1b[" + strconv.Itoa(30+c.To16()%8) + "m")
+			v := c.To16()
+			if v >= 8 {
+				sb.WriteString("\x1b[" + strconv.Itoa(90+(v-8)) + "m")
+			} else {
+				sb.WriteString("\x1b[" + strconv.Itoa(30+v) + "m")
+			}
 		} else {
 			sb.WriteString("\x1b[38;5;" + strconv.Itoa(c.To256()) + "m")
 		}
@@ -129,6 +142,15 @@ func writeFG(sb *strings.Builder, c term.RGB, caps term.Capabilities) {
 
 func writeBG(sb *strings.Builder, c term.RGB, caps term.Capabilities) {
 	if !caps.TrueColor {
+		if isBasic(c) {
+			v := c.To16()
+			if v >= 8 {
+				sb.WriteString("\x1b[" + strconv.Itoa(100+(v-8)) + "m")
+			} else {
+				sb.WriteString("\x1b[" + strconv.Itoa(40+v) + "m")
+			}
+			return
+		}
 		sb.WriteString("\x1b[48;5;" + strconv.Itoa(c.To256()) + "m")
 		return
 	}
