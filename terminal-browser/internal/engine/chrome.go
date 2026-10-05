@@ -126,16 +126,14 @@ func SanitizeProfile(profile string) (string, error) {
 // Phase 2 uses it for per-profile contexts; cookie and history sync
 // land in Phase 3, but the directory isolation is real from day one.
 // Unsanitized input never escapes: invalid names map to "default".
+// TB_HOME (see BaseDir) redirects the whole tree for tests and
+// portable installs.
 func ProfileDir(profile string) string {
 	safe, err := SanitizeProfile(profile)
 	if err != nil {
 		safe = "default"
 	}
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
-		return filepath.Join(os.TempDir(), "terminal-browser", "profiles", safe)
-	}
-	return filepath.Join(home, ".terminal-browser", "profiles", safe)
+	return filepath.Join(ProfilesRoot(), safe)
 }
 
 // FreePort binds :0 to discover an open loopback port for the

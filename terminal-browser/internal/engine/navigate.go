@@ -33,21 +33,25 @@ type JSProbe struct {
 // with an honest error page in Rows, never a faked snapshot.
 // ColdMs carries real milliseconds under the cold_ms name so corpus
 // logs and the tb-agent JSON twin never mislabel units.
+// JarApplied counts jar cookies installed pre-load; JarSynced counts
+// live cookies copied back post-load.
 type Result struct {
-	URL       string     `json:"url"`
-	Title     string     `json:"title"`
-	Rows      []demo.Row `json:"-"`
-	RowCount  int        `json:"rows"`
-	ColdMs    int64      `json:"cold_ms"`
-	TotalMs   int64      `json:"total_ms,omitempty"`
-	Warm      time.Duration `json:"-"`
-	WarmTitle string     `json:"warm_title,omitempty"`
-	WarmOver  bool       `json:"warm_over_budget,omitempty"`
-	JS        JSProbe    `json:"js"`
-	Offline   bool       `json:"offline"`
-	Code      string     `json:"code,omitempty"`
-	Warning   string     `json:"warning,omitempty"`
-	Version   string     `json:"chrome_version"`
+	URL        string        `json:"url"`
+	Title      string        `json:"title"`
+	Rows       []demo.Row    `json:"-"`
+	RowCount   int           `json:"rows"`
+	ColdMs     int64         `json:"cold_ms"`
+	TotalMs    int64         `json:"total_ms,omitempty"`
+	JarApplied int           `json:"jar_applied,omitempty"`
+	JarSynced  int           `json:"jar_synced,omitempty"`
+	Warm       time.Duration `json:"-"`
+	WarmTitle  string        `json:"warm_title,omitempty"`
+	WarmOver   bool          `json:"warm_over_budget,omitempty"`
+	JS         JSProbe       `json:"js"`
+	Offline    bool          `json:"offline"`
+	Code       string        `json:"code,omitempty"`
+	Warning    string        `json:"warning,omitempty"`
+	Version    string        `json:"chrome_version"`
 }
 
 // Cold reports the cold navigation cost as a duration.
@@ -75,6 +79,10 @@ type Options struct {
 	Timeout time.Duration
 	Width   int
 	WarmURL string
+	// NoRecord skips history and stack persistence. Back/forward and
+	// reload reuse Navigate without appending a fresh entry: the
+	// stack index already moved and a second append would fork it.
+	NoRecord bool
 }
 
 // ClassifyError maps Chrome/CDP/network error text to fail-closed
@@ -189,6 +197,11 @@ func Navigate(target string, o Options) *Result {
 		r.Version = proc.Version
 		return stamp(r)
 	}
+	// Session continuity: install the persisted jar into the fresh
+	// context before the load (resumed logins), then copy the live
+	// cookies back after it. Both are best-effort: a refused cookie
+	// never fails a navigation, it only skips.
+	jarApplied, _ := PushJar(sess, o.Profile, target, 10*time.Second)
 	// Clock starts before Navigate so the cold cost covers the full
 	// load wait (sidecar spawn stays outside: Launch already waited for
 	// the DevTools endpoint and reports its own timeout separately).
@@ -203,6 +216,18 @@ func Navigate(target string, o Options) *Result {
 	cold := time.Since(start)
 	res := buildResult(sess, target, proc.Version, width)
 	res.ColdMs = cold.Milliseconds()
+	res.JarApplied = jarApplied
+	if !res.Offline && !o.NoRecord {
+		// Successful loads persist: live cookies merge into the jar
+		// and the visit lands in history plus the back/forward
+		// stack. Sync failures stay silent here (navigation won);
+		// the CLI surfaces them on demand via cookies/history.
+		if _, n, serr := SyncJar(sess, o.Profile, 10*time.Second); serr == nil {
+			res.JarSynced = n
+		}
+		_ = RecordVisit(o.Profile, target, res.Title)
+		_, _ = VisitStack(o.Profile, target, res.Title)
+	}
 	if o.WarmURL != "" {
 		w0 := time.Now()
 		if _, err := sess.Navigate(o.WarmURL, WarmBudget); err == nil {
@@ -331,7 +356,7 @@ func OfflineResult(target, code, reason string) *Result {
 	rows := OfflinePage(target, msg).Rows
 	return &Result{
 		URL: target, Title: "Navigation failed",
-		Rows: rows,
+		Rows:     rows,
 		RowCount: len(rows), Offline: true, Code: code, Warning: msg,
 	}
 }
