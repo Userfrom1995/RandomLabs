@@ -5,6 +5,8 @@
 package gfx
 
 import (
+	"bytes"
+	"encoding/binary"
 	"hash/fnv"
 	"io"
 
@@ -30,6 +32,9 @@ func NewImage(w, h int) Image {
 
 // At reads a pixel with clamping.
 func (im Image) At(x, y int) term.RGB {
+	if len(im.Pix) == 0 || im.W < 1 || im.H < 1 {
+		return term.RGB{}
+	}
 	if x < 0 {
 		x = 0
 	}
@@ -48,6 +53,10 @@ func (im Image) At(x, y int) term.RGB {
 // Hash identifies identical surfaces for transmit-once reuse.
 func (im Image) Hash() uint64 {
 	h := fnv.New64a()
+	var dims [8]byte
+	binary.LittleEndian.PutUint32(dims[0:4], uint32(im.W))
+	binary.LittleEndian.PutUint32(dims[4:8], uint32(im.H))
+	h.Write(dims[:])
 	for _, p := range im.Pix {
 		h.Write([]byte{p.R, p.G, p.B})
 	}
@@ -86,6 +95,32 @@ func Select(caps term.Capabilities, painters map[string]Painter) []Painter {
 		}
 	}
 	return out
+}
+
+// PaintChain tries each painter in order until one succeeds, so a
+// failing preferred tier falls back to the next tier instead of
+// dropping the surface. Painting happens into a buffer and only the
+// winning attempt reaches w, so a failed tier leaves no partial
+// bytes behind. It returns the name of the painter that won.
+func PaintChain(w io.Writer, chain []Painter, s Surface, caps term.Capabilities) (string, error) {
+	var firstErr error
+	for _, p := range chain {
+		var buf bytes.Buffer
+		if err := p.Paint(&buf, s, caps); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if _, err := io.Copy(w, &buf); err != nil {
+			return "", err
+		}
+		return p.Name(), nil
+	}
+	if firstErr != nil {
+		return "", firstErr
+	}
+	return "", nil
 }
 
 // Cup positions the cursor (1-based) for region painters.

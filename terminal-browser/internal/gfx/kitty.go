@@ -11,10 +11,16 @@ import (
 // Kitty paints through the Kitty graphics protocol: transmit once per
 // unique surface (id reuse keyed by content hash with server-side deltas
 // via repeated placement), then place per frame over reserved cells.
+// The transmit cache is LRU-capped so long sessions cannot grow server
+// memory without bound; evicted ids are explicitly deleted (a=d).
 type Kitty struct {
-	seen map[uint64]uint32
-	next uint32
+	seen  map[uint64]uint32
+	order []uint64
+	next  uint32
 }
+
+// maxKittyCached caps transmitted surfaces held on the server.
+const maxKittyCached = 32
 
 // NewKitty builds a stateful Kitty painter holding the transmit cache.
 func NewKitty() *Kitty { return &Kitty{seen: map[uint64]uint32{}} }
@@ -24,18 +30,43 @@ func (k *Kitty) Name() string { return "kitty" }
 
 // Paint transmits new surfaces once and places every surface per frame.
 func (k *Kitty) Paint(w io.Writer, s Surface, caps term.Capabilities) error {
+	if s.CellW < 1 || s.CellH < 1 || s.Img.W < 1 || s.Img.H < 1 || len(s.Img.Pix) == 0 {
+		return nil
+	}
 	h := s.Img.Hash()
 	id, known := k.seen[h]
 	if !known {
 		k.next++
 		id = k.next
 		k.seen[h] = id
+		k.order = append(k.order, h)
+		for len(k.order) > maxKittyCached {
+			victim := k.order[0]
+			k.order = k.order[1:]
+			deleteID(w, k.seen[victim])
+			delete(k.seen, victim)
+		}
 		if err := transmit(w, s.Img, id); err != nil {
 			return err
 		}
 	}
 	place(w, id, s.CellX+1, s.CellY+1, s.CellW, s.CellH)
 	return nil
+}
+
+// Delete frees one cached surface on the server (a=d) and forgets it.
+func (k *Kitty) Delete(w io.Writer, im Image) {
+	h := im.Hash()
+	if id, ok := k.seen[h]; ok {
+		deleteID(w, id)
+		delete(k.seen, h)
+		for i, v := range k.order {
+			if v == h {
+				k.order = append(k.order[:i], k.order[i+1:]...)
+				break
+			}
+		}
+	}
 }
 
 // Cached reports how many unique surfaces were transmitted so far.
@@ -61,4 +92,9 @@ func transmit(w io.Writer, im Image, id uint32) error {
 func place(w io.Writer, id uint32, col, row, cw, ch int) {
 	Cup(w, col, row)
 	fmt.Fprintf(w, "\x1b_Ga=p,i=%d,c=%d,r=%d\x1b\\", id, cw, ch)
+}
+
+// deleteID frees one server-side image id (a=d).
+func deleteID(w io.Writer, id uint32) {
+	fmt.Fprintf(w, "\x1b_Ga=d,i=%d\x1b\\", id)
 }
