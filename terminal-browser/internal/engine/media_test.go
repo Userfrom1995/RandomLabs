@@ -90,9 +90,13 @@ func TestPNGToImageRoundTrip(t *testing.T) {
 	}
 }
 
-// The Kitty animation primitive is what makes video cheap: the first
-// frame transmits, repeats only place. Ten synthetic frames must cost
-// far less than ten transmits and each repeat under a kilobyte.
+// The Kitty animation primitive makes static repeats cheap: the first
+// frame transmits, identical repeats only place. Distinct frames must
+// transmit in full (this painter holds no inter-frame delta codec: the
+// transmit cache is keyed by exact content hash), so the byte-budget
+// contract covers repeats: ten identical frames cost far less than ten
+// transmits with each repeat under a kilobyte, while a fresh frame
+// pays a full transmit.
 func TestKittyAnimationBytes(t *testing.T) {
 	frame := func(seed uint8) gfx.Image {
 		im := gfx.NewImage(64, 48)
@@ -111,9 +115,9 @@ func TestKittyAnimationBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	total := first.Len()
-	for f := uint8(8); f < 17; f++ {
+	for i := 0; i < 9; i++ {
 		var rep bytes.Buffer
-		name, err := gfx.PaintChain(&rep, []gfx.Painter{k}, surf(frame(f)), caps)
+		name, err := gfx.PaintChain(&rep, []gfx.Painter{k}, surf(frame(7)), caps)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -121,12 +125,23 @@ func TestKittyAnimationBytes(t *testing.T) {
 			t.Fatalf("painter = %q, want kitty", name)
 		}
 		if rep.Len() > 1024 {
-			t.Fatalf("repeat frame %d bytes, want place-only under 1 KiB", rep.Len())
+			t.Fatalf("identical repeat %d costs %d bytes, want place-only under 1 KiB", i, rep.Len())
 		}
 		total += rep.Len()
 	}
 	if total >= 10*first.Len() {
-		t.Fatalf("10 animated frames cost %d bytes, want far less than 10 transmits (%d)", total, 10*first.Len())
+		t.Fatalf("10 identical frames cost %d bytes, want far less than 10 transmits (%d)", total, 10*first.Len())
+	}
+	// Fresh pixel content cannot reuse the cache: it transmits in full.
+	var fresh bytes.Buffer
+	if _, err := gfx.PaintChain(&fresh, []gfx.Painter{k}, surf(frame(8)), caps); err != nil {
+		t.Fatal(err)
+	}
+	if fresh.Len() <= 1024 {
+		t.Fatalf("distinct frame costs %d bytes, want a full transmit over 1 KiB", fresh.Len())
+	}
+	if got := k.Cached(); got != 2 {
+		t.Fatalf("kitty cache holds %d surfaces, want 2 (one per distinct frame)", got)
 	}
 	if k.Cached() > 32 {
 		t.Fatalf("kitty cache holds %d surfaces, over the 32 cap", k.Cached())

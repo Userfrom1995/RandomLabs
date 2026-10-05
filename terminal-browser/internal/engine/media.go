@@ -1,8 +1,9 @@
 // Package engine media surface: discovery of page media elements,
 // governor-paced frame sampling, and bandwidth logging. Video in the
 // terminal is element screenshots re-captured on a tier-paced tick:
-// the Kitty tier composes frames through transmit-once id reuse plus
-// per-frame placement (cheap enough for animation), while every other
+// the Kitty tier reuses transmitted ids for identical repeats plus
+// per-frame placement (static repeats stay cheap; distinct frames
+// transmit in full each tick), while every other
 // tier repaints stills no more often than the still interval. A tick
 // whose capture plus encode overruns its interval is skipped and
 // counted, never queued: the sampler degrades frame rate instead of
