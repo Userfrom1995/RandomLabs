@@ -44,19 +44,17 @@ optional pinned `gen`. Stale gens fail closed with `ref_stale` plus
 
 ## Gated capabilities
 
-`pdf` and `trace` register only when enabled via `--caps` or
-`TB_CAPS`. Disabled calls fail closed with `capability_disabled` on
-both surfaces; `tools/list` omits them so agents never plan around
-tools they cannot call.
+`pdf`, `trace`, `extension_trigger`, and `webmcp` register only when
+enabled via `--caps` or `TB_CAPS`. Disabled calls fail closed with
+`capability_disabled` on both surfaces; `tools/list` omits them so
+agents never plan around tools they cannot call.
 
 | Tool | CLI twin | Envelope data |
 |---|---|---|
 | `pdf` | `interact` op `pdf` (needs `--caps pdf`) | `{path, bytes}` |
 | `trace` | `interact` op `trace` (needs `--caps trace`) | `{path, bytes, events}` |
-
-`extension_trigger` and `webmcp` parse as known capability names
-(so scripts cannot typo them) but register no tool until the Phase 6
-extension engine exists. No facade controls ship in the meantime.
+| `extension_trigger` | `interact` op `extension_trigger` (needs `--caps extension_trigger`) | `{extension, action, value}` after re-settle; empty `extension` lists `{extensions, actions, warnings, count}` |
+| `webmcp` | `interact` op `webmcp` (needs `--caps webmcp`) | `{tool, value}` after re-settle; empty `tool` lists `{tools, count}` |
 
 ## CLI-only extended ops
 
@@ -78,8 +76,11 @@ script through both surfaces and compares per-step data after:
 - dropping `started_unix`, endpoint URLs, and probe errors from
   session listings;
 - comparing PDF rows on `success`/`code` only (byte counts embed
-  timestamps).
-
+  timestamps);
+- comparing `extension_trigger` and `webmcp` values fully: page
+  actions and page tools return deterministic JSON against the same
+  fixture page, so any drift is a real defect (only `gen` maps to
+  `G`, like every other row).
 Everything else (refs, roles, names, counts, conditions, actuals,
 codes, warnings) must be identical. Any drift fails the matrix.
 
