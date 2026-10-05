@@ -47,7 +47,9 @@ a published parity matrix as the conformance contract.
 - Pages hub `terminal-browser/index.html`: intro, quickstart, command and
   agent-protocol reference, support matrix, links into `docs/`.
 - Unified docs `terminal-browser/docs/`: architecture, graphics layering,
-  engine policy, agent protocol, parity matrix, verification playbook.
+  engine policy, agent protocol, parity matrix, verification playbook,
+  `design.md` (Design Council tokens plus four-round record, deliberated
+  day-one before Phase 2 build, implemented in the Final Phase pass).
 - Verification harness: static gate, headless engine fixtures, live
   real-site corpus runs, per-OS native reports, agent parity conformance.
 
@@ -61,8 +63,9 @@ fail the honesty invariant on the modern web (no JS, subset CSS), while pixel
 streamers burn bandwidth and require rare terminal features. The engineering
 depth lives in three places: a disciplined terminal graphics layer that always
 paints (best fidelity where probed, half-block text where not), a real engine
-sidecar so every page is genuinely browsed, and a control plane where CLI JSON
-and MCP results are byte-comparable for the same action.
+  sidecar so every page is genuinely browsed, and a control plane where CLI JSON
+  and MCP results are comparable per action after the documented
+  canonicalization (screenshot bytes to sha256, timestamps stripped).
 
 ## How It Works
 
@@ -82,8 +85,12 @@ and MCP results are byte-comparable for the same action.
   (preferred on WezTerm for Windows and iTerm2), else half-block truecolor
   diff as the always-live baseline. Every frame opens with synchronized output
   (`CSI ? 2026 h`) where probed, else cursor-hide, and closes atomically.
-  Dirty rectangles plus adaptive FPS (10 to 30 fps targets, 10 fps floor on
-  Sixel and block paths) keep PTY bytes bounded. `tmux` and `screen` force
+  Dirty rectangles plus adaptive FPS keep PTY bytes bounded: 10 to 30 fps
+  target band, with a binding 10 fps floor on Sixel and block paths (fail
+  if a fixture render sustains below 10 fps). Per-frame byte budgets are
+  binding fail thresholds: Kitty full frames at most 200 KB, Sixel frames
+  at most 100 KB, block frames at most 32 KB on the reference fixture
+  corpus; over-budget frames fail the gate. `tmux` and `screen` force
   the block path with no shared-memory shortcuts.
 - **Probe once, degrade per surface.** At startup and on resize or suspend the
   shell sends DA1 plus Kitty query, DA1 Sixel check, `OSC 1337;Capabilities`
@@ -108,10 +115,22 @@ and MCP results are byte-comparable for the same action.
 - **Control plane.** The same engine package serves three heads: the human TUI
   keymap, the `tb-agent` CLI (`--json` envelope `{success, data, warning?,
   code?}` on every command), and the MCP server over stdio (12 core tools
-  plus gated `pdf`, `trace`, `extension`, and `webmcp` caps). The parity
+  plus gated `pdf`, `trace`, `extension`, and `webmcp` caps). The 12-tool
+  core is exactly: `navigate`, `snapshot`, `click`, `type`, `press_key`,
+  `scroll`, `screenshot`, `wait_for`, `assert`, `evaluate`, `console`
+  (console plus network taps with HAR capture), `dialog_handle`.
+  Finer gestures (`hover`, `drag`, `form_set`, `select`, `check`, `upload`)
+  are option variants of `click`, `type`, and `scroll`, not separate
+  top-level tools. Session and tab helpers (`session_open`, `tab_list`)
+  are utility tools outside the 12; `pdf`, `trace`, `extension_trigger`,
+  and `webmcp` are gated caps behind capability flags. The parity
   matrix (`docs/parity.md`) lists every capability across four columns
   (human key, CLI JSON, MCP tool, CDP equivalent); conformance tests assert
-  CLI JSON equals MCP result per row.
+  CLI JSON equals MCP result per row after canonicalization: screenshot
+  byte payloads are replaced by their sha256 before compare, timestamps
+  and durations are stripped, and run-scoped ids (target, session, task)
+  are mapped to stable placeholders. Raw uncanonicalized byte equality is
+  explicitly not claimed.
 - **Extensions.** A minimal manifest loader runs content scripts in an
   isolated world via `Runtime` plus `Page` script injection, with page actions
   invokable from the TUI command palette and from `extension_trigger`. No
@@ -153,7 +172,9 @@ and MCP results are byte-comparable for the same action.
   (launch flags, ConPTY guards, AV and signing notes).
 - `terminal-browser/docs/` - unified product view: `architecture.md`,
   `graphics.md` (layering plus fallback table), `engine.md`, `agent.md`,
-  `parity.md`, `verification.md`. No milestone chapters.
+  `parity.md`, `verification.md`, `design.md` (Design Council tokens plus
+  four-round deliberation record with dissent; deliberated day-one before
+  Phase 2 build, implemented in the Final Phase pass). No milestone chapters.
 - `terminal-browser/index.html` - Pages hub: intro, quickstart, command and
   agent reference, support matrix, links into `docs/`.
 - `terminal-browser/tests/` - static gate (`test_terminal_browser.py`),
@@ -186,14 +207,25 @@ and MCP results are byte-comparable for the same action.
   links resolve.
 - Engine fixtures: AX snapshot golden files, reflow width cases, cookie jar
   round-trip, history SQLite round-trip, probe fallback table unit tests.
-- Headless corpus: cold and warm navigate timings, session survive-restart,
-  offline fail-closed message, dialog pending path, stale-ref recovery.
-- Live real-site corpus (minimum): Hacker News, Wikipedia article, GitHub
-  login wall (honest auth boundary), one React SPA, one bot-walled page
-  (honest block message, never fake success).
+- Headless corpus: cold navigate at most 10 s and warm navigate at most
+  3 s (binding fail thresholds, instrumented per run), session
+  survive-restart, offline fail-closed message, dialog pending path,
+  stale-ref recovery.
+- Live real-site corpus (minimum, pinned): Hacker News front page
+  (`https://news.ycombinator.com/`), Wikipedia article (a stable featured
+  article revision, URL recorded per run), GitHub login wall (honest auth
+  boundary, `https://github.com/login`), TodoMVC React SPA
+  (`https://todomvc.com/examples/react/dist/`), bot-walled page
+  (`https://bot.sannysoft.com/`, honest block message, never fake
+  success). Engine floor: system Chrome or `chrome-headless-shell` stable
+  140 or newer, exact `chrome --version` recorded per run. Flake policy:
+  3 attempts with backoff per URL, failures quarantined with logs; if the
+  live network is unreachable, runs fall back to offline fixtures under
+  `terminal-browser/tests/fixtures/` and report `offline-fallback` rather
+  than passing as live.
 - Agent parity conformance: per parity-matrix row, CLI `--json` output equals
-  MCP tool result for identical action; screenshot `--if-changed` dedup
-  verified; long-op task polling verified.
+  MCP tool result for identical action after canonicalization; screenshot
+  `--if-changed` dedup verified; long-op task polling verified.
 - Per-OS native: Linux and macOS full runs, Windows ConPTY run with
   degraded-chain expectations documented; `tmux` and `screen` forced-fallback
   runs.
