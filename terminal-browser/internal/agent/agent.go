@@ -152,11 +152,15 @@ func (m *Manager) CapsOf() Caps {
 
 // Open launches a browser on target, archives it under a fresh
 // handle (s1, s2, ...), and makes it active. The returned snapshot
-// is the gen-1 settled snapshot, identical to a bare open.
+// is the gen-1 settled snapshot, identical to a bare open. The
+// manager defaultLite applies unless the call passes lite=true:
+// an explicit per-call lite=false cannot clear a --lite default
+// (bool args cannot distinguish omitted from false).
 func (m *Manager) Open(target, profile string, lite bool, width int, dialogPolicy string) (string, *engine.Snapshot, error) {
 	if strings.TrimSpace(profile) == "" {
 		profile = m.defaultProfile
 	}
+	lite = lite || m.defaultLite
 	if width <= 0 {
 		width = m.defaultWidth
 	}
