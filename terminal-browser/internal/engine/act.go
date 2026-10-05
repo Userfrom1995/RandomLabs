@@ -286,15 +286,27 @@ func (b *Browser) withRef(id string, gen int, fn func(objectID string) error) er
 	if err != nil {
 		return err
 	}
-	oid, err := b.sess.resolve(r.BackendID, actTimeout)
+	return b.resolveLive(r.ID, gen, r.BackendID, fn)
+}
+
+// resolveLive resolves a backend node id and runs fn on the live
+// object. Resolve failure re-snapshots and fails closed with the
+// stale error plus remap suggestion. Snapshot-map reads copy under
+// b.mu: Snapshot writes b.snaps under the same lock, so a bare
+// b.snaps[gen] read here would race concurrent Snapshot plus
+// stale-recovery under -race.
+func (b *Browser) resolveLive(id string, gen int, backendID int64, fn func(objectID string) error) error {
+	oid, err := b.sess.resolve(backendID, actTimeout)
 	if err != nil {
 		fresh, serr := b.Snapshot()
 		if serr != nil {
-			return fmt.Errorf("node %s gone and re-snapshot failed: %v", id, err)
+			return fmt.Errorf("node %s gone and re-snapshot failed: %v (resolve: %v)", id, serr, err)
 		}
-		remap, reason := remapRef(b.snaps[gen], fresh, r.ID)
-		_ = remap
-		return &StaleError{Want: r.ID, Gen: gen, Current: fresh.Gen, Reason: "node no longer resolves: " + reason, Remap: remap}
+		b.mu.Lock()
+		old := b.snaps[gen]
+		b.mu.Unlock()
+		remap, reason := remapRef(old, fresh, id)
+		return &StaleError{Want: id, Gen: gen, Current: fresh.Gen, Reason: "node no longer resolves: " + reason, Remap: remap}
 	}
 	return fn(oid)
 }
@@ -463,30 +475,42 @@ func (b *Browser) SetChecked(id string, gen int, want bool) error {
 
 // Drag drags from one ref to another (or to explicit viewport coords)
 // with trusted press, stepped moves, and release. Steps default to 5.
+// Both endpoints resolve through the same re-snapshot plus StaleError
+// path as withRef: a dead BackendID fails closed with ref_stale plus
+// the remap suggestion, never a raw CDP error.
 func (b *Browser) Drag(fromID string, fromGen int, toID string, toGen int, toX, toY *float64, steps int) error {
 	from, err := b.Lookup(fromID, fromGen)
 	if err != nil {
 		return err
 	}
-	oid, err := b.sess.resolve(from.BackendID, actTimeout)
+	var startOID string
+	if err := b.resolveLive(from.ID, fromGen, from.BackendID, func(oid string) error {
+		startOID = oid
+		return nil
+	}); err != nil {
+		return fmt.Errorf("drag source: %w", err)
+	}
+	start, err := b.sess.boxOf(startOID, actTimeout)
 	if err != nil {
 		return fmt.Errorf("drag source: %w", err)
 	}
-	start, err := b.sess.boxOf(oid, actTimeout)
-	if err != nil {
-		return fmt.Errorf("drag source: %w", err)
-	}
-	end := point{X: float64(b.viewW) / 2, Y: float64(b.viewH) / 2}
+	b.mu.Lock()
+	vw, vh := b.viewW, b.viewH
+	b.mu.Unlock()
+	end := point{X: float64(vw) / 2, Y: float64(vh) / 2}
 	if toID != "" {
 		to, terr := b.Lookup(toID, toGen)
 		if terr != nil {
 			return terr
 		}
-		toid, terr := b.sess.resolve(to.BackendID, actTimeout)
-		if terr != nil {
+		var targetOID string
+		if terr := b.resolveLive(to.ID, toGen, to.BackendID, func(oid string) error {
+			targetOID = oid
+			return nil
+		}); terr != nil {
 			return fmt.Errorf("drag target: %w", terr)
 		}
-		p, terr := b.sess.boxOf(toid, actTimeout)
+		p, terr := b.sess.boxOf(targetOID, actTimeout)
 		if terr != nil {
 			return fmt.Errorf("drag target: %w", terr)
 		}
@@ -585,11 +609,13 @@ type DialogEvent struct {
 
 // HandleDialog answers the pending JavaScript dialog: accept (with
 // optional prompt text) or dismiss. No pending dialog fails closed
-// with no_dialog instead of blocking on a timer.
+// with no_dialog instead of blocking on a timer. The pending slot
+// clears only after the CDP call succeeds: on transport or timeout
+// failure the dialog is still open in Chrome, so pending stays for a
+// retry instead of a lost no_dialog.
 func (b *Browser) HandleDialog(accept bool, promptText string) (*DialogEvent, error) {
 	b.mu.Lock()
 	pending := b.pending
-	b.pending = nil
 	policy := b.dialogPolicy
 	b.mu.Unlock()
 	if pending == nil {
@@ -608,6 +634,9 @@ func (b *Browser) HandleDialog(accept bool, promptText string) (*DialogEvent, er
 		handled.Handled = "dismiss:" + policy
 	}
 	b.mu.Lock()
+	if b.pending == pending {
+		b.pending = nil
+	}
 	b.handled = append(b.handled, handled)
 	if len(b.handled) > 50 {
 		b.handled = b.handled[len(b.handled)-50:]
