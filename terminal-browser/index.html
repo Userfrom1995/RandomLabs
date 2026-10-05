@@ -40,9 +40,10 @@ a { color:var(--accent); }
     <pre><code>cd terminal-browser
 go build ./...
 ./tb --fixture home --tier block --dump-stats
-TB_TIER=sixel ./tb-agent render --fixture article
+./tb --url https://news.ycombinator.com/ --tier block --dump-stats
+./tb-agent fetch --url https://news.ycombinator.com/ --lite
 go test ./...</code></pre>
-    <p>Run the interactive shell with <code>go run ./cmd/tb</code> in a real terminal. <code>q</code> quits, <code>/</code> edits the address, <code>?</code> shows all keys.</p>
+    <p>Run the interactive shell with <code>go run ./cmd/tb</code> in a real terminal. <code>q</code> quits, <code>/</code> edits the address (http(s) URLs fetch live, <code>fixture://</code> stays local), <code>?</code> shows all keys.</p>
   </section>
 
   <section>
@@ -51,8 +52,10 @@ go test ./...</code></pre>
       <tr><th>Command</th><th>What it does</th></tr>
       <tr><td><code>tb</code></td><td>Interactive terminal browser shell (tabs, address bar, status line).</td></tr>
       <tr><td><code>tb --fixture NAME --tier T</code></td><td>Renders one fixture page offscreen through the full paint pipeline.</td></tr>
+      <tr><td><code>tb --url URL [--profile P] [--lite]</code></td><td>Fetches one live page through the engine and paints it through the full pipeline.</td></tr>
       <tr><td><code>tb-agent probe</code></td><td>Reports terminal capabilities as a JSON envelope.</td></tr>
       <tr><td><code>tb-agent render --fixture NAME --graphics-tier T</code></td><td>Renders a fixture page and reports bytes, cells, painter, tier.</td></tr>
+      <tr><td><code>tb-agent fetch --url URL [--lite] [--width W]</code></td><td>Fetches a live page and reports rows, cold timing, JS probe, Chrome version.</td></tr>
     </table>
   </section>
 
@@ -77,6 +80,7 @@ go test ./...</code></pre>
     <div class="grid">
       <div class="card"><h3><a href="docs/architecture.md">Architecture</a></h3><p>Process model, render path, graphics layering, state, control plane.</p></div>
       <div class="card"><h3><a href="docs/design.md">Design</a></h3><p>Harbor Overlay System: chips, drawer, settled snapshots, tokens, motion.</p></div>
+      <div class="card"><h3><a href="docs/engine.md">Engine</a></h3><p>Chromium sidecar, CDP session, lite mode, AX stylesheet, reflow, timing budgets.</p></div>
       <div class="card"><h3><a href="https://github.com/Userfrom1995/RandomLabs/tree/main/terminal-browser">Source</a></h3><p>Go module, fixture router, verification harness, build instructions.</p></div>
     </div>
   </section>

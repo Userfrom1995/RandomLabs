@@ -30,7 +30,7 @@ type JSProbe struct {
 
 // Result is one navigation outcome: styled rows plus timing, probe,
 // and fail-closed error fields. Offline results carry Code and Warning
-// with an honest error page in Rows, never a faux-success snapshot.
+// with an honest error page in Rows, never a faked snapshot.
 type Result struct {
 	URL      string    `json:"url"`
 	Title    string    `json:"title"`
@@ -204,7 +204,7 @@ func buildResult(sess *Session, target, version string, width int) *Result {
 	blocks := Flatten(nodes, order)
 	rows := Style(blocks, width)
 	if len(rows) == 0 {
-		return OfflineResult(target, "error", "page rendered no text blocks; refusing faux-success")
+		return OfflineResult(target, "error", "page rendered no text blocks; refusing an empty win")
 	}
 	return &Result{
 		URL: target, Title: title, Rows: rows,
