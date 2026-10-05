@@ -64,6 +64,19 @@ REQUIRED = [
     "docs/parity.md",
     "docs/agent-control.md",
     "tests/test_agent_parity.py",
+    "internal/engine/extension.go",
+    "internal/engine/extension_test.go",
+    "internal/engine/media.go",
+    "internal/engine/media_test.go",
+    "internal/engine/oscompat.go",
+    "internal/engine/oscompat_test.go",
+    "internal/tui/extensions.go",
+    "internal/tui/extensions_test.go",
+    "cmd/tb-agent/phase6.go",
+    "docs/extensions.md",
+    "docs/support.md",
+    "examples/minimal-reader/manifest.json",
+    "examples/minimal-reader/reader.js",
 ]
 
 FACADE = re.compile(
@@ -122,7 +135,7 @@ class StaticGate(unittest.TestCase):
 
     def test_docs_unified(self):
         hits = []
-        for name in ("README.md", "docs/index.md", "docs/architecture.md", "docs/engine.md", "docs/interact.md", "docs/parity.md", "docs/agent-control.md", "index.html"):
+        for name in ("README.md", "docs/index.md", "docs/architecture.md", "docs/engine.md", "docs/interact.md", "docs/parity.md", "docs/agent-control.md", "docs/extensions.md", "docs/support.md", "index.html"):
             path = os.path.join(ROOT, name)
             with open(path, encoding="utf-8") as fh:
                 for i, line in enumerate(fh, 1):

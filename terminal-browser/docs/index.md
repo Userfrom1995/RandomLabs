@@ -16,4 +16,8 @@ screenshots and PDF export, the shell overlay, and the script runner.
 Then read [agent-control](agent-control.md): the MCP server, the CLI
 reference, sessions, and capability gates. Then read
 [parity](parity.md): the tool matrix, canonicalization rules, and the
-conformance harness.
+conformance harness. Then read [extensions](extensions.md):
+extension manifests, sandboxed page actions, the webmcp page contract,
+and media region sampling. Then read [support](support.md): the
+per-OS matrix with Windows ConPTY hardening and multiplexer
+fallback.

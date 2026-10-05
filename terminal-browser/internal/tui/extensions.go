@@ -235,8 +235,9 @@ func (s *Shell) startMediaWatch(b *engine.Browser, el engine.MediaElement) {
 }
 
 // stopMediaWatch signals the sampler and waits for the in-flight
-// frame: only the main goroutine calls it (keys and CloseLive), so
-// the channel never double-closes.
+// frame, then reports the logged summary on the main goroutine. Only
+// the main goroutine calls it (keys and CloseLive), so the channel
+// never double-closes and the status write never races Render.
 func (s *Shell) stopMediaWatch() {
 	s.mediaMu.Lock()
 	watching := s.mediaWatching
@@ -247,6 +248,15 @@ func (s *Shell) stopMediaWatch() {
 	}
 	close(stop)
 	s.mediaWG.Wait()
+	s.mediaMu.Lock()
+	summary := s.mediaSummary
+	s.mediaSummary = ""
+	s.mediaMu.Unlock()
+	if summary != "" {
+		s.Message = summary
+	} else {
+		s.Message = "Media watch stopped."
+	}
 }
 
 // runMediaWatch samples in 2-second slices until stopped, following
@@ -338,7 +348,8 @@ func (s *Shell) runMediaWatch(b *engine.Browser, first engine.MediaElement, anim
 
 // finishMediaWatch logs the accumulated bandwidth report and clears
 // the overlay state. It runs on the sampler goroutine at most once
-// per watch.
+// per watch and never touches the status message directly: the main
+// goroutine reports the summary after the wait.
 func (s *Shell) finishMediaWatch(total *engine.MediaReport, started time.Time) {
 	total.Millis = time.Since(started).Milliseconds()
 	if d := time.Since(started).Seconds(); d > 0 {
@@ -352,9 +363,9 @@ func (s *Shell) finishMediaWatch(total *engine.MediaReport, started time.Time) {
 	s.mediaWatching = false
 	s.mediaStat = ""
 	s.mediaSurf = nil
-	s.mediaMu.Unlock()
-	s.Message = "Media watch stopped: " + itoa(total.Frames) + " frames, " +
+	s.mediaSummary = "Media watch stopped: " + itoa(total.Frames) + " frames, " +
 		itoa(total.Bytes) + " bytes, " + itoa(total.Skipped) + " skipped (logged)."
+	s.mediaMu.Unlock()
 }
 
 // setMediaStat updates the status fragment while the watch runs.

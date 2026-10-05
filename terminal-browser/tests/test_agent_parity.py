@@ -20,13 +20,17 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MCP_BIN = os.path.join(tempfile.gettempdir(), "parity-tb-mcp")
 CLI_BIN = os.path.join(tempfile.gettempdir(), "parity-tb-agent")
+EXAMPLE_EXT = os.path.join(ROOT, "examples", "minimal-reader")
 
+WEBMCP = """<script>window.__tbWebMCP={tools:[{name:"echo",
+description:"Return the args back"}],call:function(n,a){
+if(n!=="echo"){throw new Error("unknown tool "+n)}return {got:a}}};</script>"""
 INDEX = """<!doctype html><html><head><title>Index</title></head>
-<body><h1>Directory</h1><a href="/form">Open form</a></body></html>"""
+<body><h1>Directory</h1><a href="/form">Open form</a>""" + WEBMCP + """</body></html>"""
 FORM = """<!doctype html><html><head><title>Form</title></head>
 <body><h1>Signup</h1><form action="/done" method="GET">
 <label>Name <input id="name" name="name" type="text"></label>
-<button id="go" type="submit">Sign up</button></form></body></html>"""
+<button id="go" type="submit">Sign up</button></form>""" + WEBMCP + """</body></html>"""
 DONE = """<!doctype html><html><head><title>Done</title></head>
 <body><h1>Welcome aboard</h1><p>task complete</p></body></html>"""
 
@@ -103,9 +107,9 @@ def canon(value):
 
 
 class MCP:
-    def __init__(self, env):
+    def __init__(self, env, args=()):
         self.proc = subprocess.Popen(
-            [MCP_BIN], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            [MCP_BIN] + list(args), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL, text=True, bufsize=1, env=env)
         self.next_id = 0
 
@@ -136,6 +140,14 @@ class MCP:
         except BrokenPipeError:
             pass
         self.proc.wait(timeout=60)
+
+
+def install_sample_extension(home):
+    """Stage the sample extension into a parity TB_HOME so both
+    surfaces auto-load the identical install."""
+    dest = os.path.join(home, ".terminal-browser", "extensions",
+                         "minimal-reader")
+    shutil.copytree(EXAMPLE_EXT, dest)
 
 
 class ParityMatrix(unittest.TestCase):
@@ -169,8 +181,10 @@ class ParityMatrix(unittest.TestCase):
 
     def run_mcp(self):
         home = tempfile.mkdtemp(prefix="tb-parity-mcp-")
+        install_sample_extension(home)
         shot = os.path.join(home, "mcp.png")
-        mcp = MCP(dict(os.environ, TB_HOME=home))
+        mcp = MCP(dict(os.environ, TB_HOME=home),
+                  ["--caps", "extension_trigger,webmcp"])
         rows = []
         try:
             mcp.call("initialize", {})
@@ -191,6 +205,13 @@ class ParityMatrix(unittest.TestCase):
             rows.append(("screenshot", mcp.tool("screenshot", {
                 "kind": "viewport", "out": shot})))
             rows.append(("console", mcp.tool("console")))
+            rows.append(("extension_trigger(list)", mcp.tool("extension_trigger", {})))
+            rows.append(("extension_trigger", mcp.tool("extension_trigger", {
+                "extension": "minimal-reader", "action": "summarize",
+                "args": '{"max": 5}'})))
+            rows.append(("webmcp(list)", mcp.tool("webmcp", {})))
+            rows.append(("webmcp", mcp.tool("webmcp", {
+                "tool": "echo", "args": {"text": "hi"}})))
             rows.append(("back", mcp.tool("back")))
             rows.append(("forward", mcp.tool("forward")))
             rows.append(("session_close", mcp.tool("session_close", {"handle": "s1"})))
@@ -200,6 +221,7 @@ class ParityMatrix(unittest.TestCase):
 
     def run_cli(self, link, box):
         home = tempfile.mkdtemp(prefix="tb-parity-cli-")
+        install_sample_extension(home)
         shot = os.path.join(home, "cli.png")
         steps = [
             {"op": "snapshot"},
@@ -211,6 +233,11 @@ class ParityMatrix(unittest.TestCase):
             {"op": "evaluate", "expr": "document.title"},
             {"op": "screenshot", "kind": "viewport", "out": shot},
             {"op": "console"},
+            {"op": "extension_trigger"},
+            {"op": "extension_trigger", "extension": "minimal-reader",
+             "action": "summarize", "args": '{"max": 5}'},
+            {"op": "webmcp"},
+            {"op": "webmcp", "tool": "echo", "args": '{"text": "hi"}'},
             {"op": "back"},
             {"op": "forward"},
         ]
@@ -218,7 +245,8 @@ class ParityMatrix(unittest.TestCase):
         with open(script, "w") as fh:
             json.dump(steps, fh)
         p = subprocess.run(
-            [CLI_BIN, "interact", "--url", self.base, "--script", script],
+            [CLI_BIN, "interact", "--url", self.base, "--script", script,
+             "--caps", "extension_trigger,webmcp"],
             cwd=ROOT, capture_output=True, text=True, timeout=300,
             env=dict(os.environ, TB_HOME=home))
         self.assertEqual(p.returncode, 0, f"cli interact: {p.stdout[-500:]}")
@@ -249,8 +277,12 @@ class ParityMatrix(unittest.TestCase):
             ("evaluate", mcp_rows[7][1], cli_steps[6][1]),
             ("screenshot", mcp_rows[8][1], cli_steps[7][1]),
             ("console", mcp_rows[9][1], cli_steps[8][1]),
-            ("back", mcp_rows[10][1], cli_steps[9][1]),
-            ("forward", mcp_rows[11][1], cli_steps[10][1]),
+            ("extension_trigger(list)", mcp_rows[10][1], cli_steps[9][1]),
+            ("extension_trigger", mcp_rows[11][1], cli_steps[10][1]),
+            ("webmcp(list)", mcp_rows[12][1], cli_steps[11][1]),
+            ("webmcp", mcp_rows[13][1], cli_steps[12][1]),
+            ("back", mcp_rows[14][1], cli_steps[13][1]),
+            ("forward", mcp_rows[15][1], cli_steps[14][1]),
         ]
         failures = []
         for name, mcp_env, cli_env in pairs:

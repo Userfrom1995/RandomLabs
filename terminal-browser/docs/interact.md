@@ -37,10 +37,10 @@ Each `--do` is one step; `--script` holds a JSON array of steps
 jq-style producers). `--out FILE` tees the full envelope to a 0600
 file for large transcripts; `--session NAME` names the run and
 registers it for `tb-agent sessions`; `--caps` enables the gated
-`pdf`/`trace` ops. Legacy spellings (`fill`, `press`, `wait`,
-`dialog`) parse to their canonical tools, and session ops
-(`session_open`, `back`, `forward`, `reload`, `hints`, `network`)
-run in scripts too. Every
+`pdf`/`trace`/`extension_trigger`/`webmcp` ops. Legacy spellings
+(`fill`, `press`, `wait`, `dialog`) parse to their canonical tools,
+and session ops (`session_open`, `back`, `forward`, `reload`,
+`hints`, `network`) run in scripts too. Every
 step reports `{op, success, data, code, warning, ms}` in the shared
 envelope; any failure exits 1. Stale, missing, or node-less refs halt
 the script (later ref steps would only stack confusion); timeouts,
@@ -66,6 +66,8 @@ matrix lives in [parity](parity.md).
 | `cursor` | Move the cursor to viewport `x`/`y` without clicking. |
 | `dialog` | Answer the pending JavaScript dialog: `action` of `accept` (optional `prompt` text) or `dismiss`. No open dialog fails closed with `no_dialog`. |
 | `navigate` | Warm in-place navigation with jar sync, history, and a fresh snapshot. |
+| `extension_trigger` | Run an installed page action (`extension`, `action`, optional JSON `args`) with re-settle; empty `extension` lists the inventory. Needs `--caps extension_trigger`. |
+| `webmcp` | Call a page-exposed tool (`tool`, optional JSON `args`) with re-settle; empty `tool` lists the page surface. Needs `--caps webmcp`. |
 
 Clicks tolerate the modal hang: a confirm raised mid-click blocks
 the renderer, so a release timeout with a dialog now pending counts
@@ -116,7 +118,10 @@ on `:` listing refs in DOM order with the stale flag. Keys: `Space`
 acts on the focused chip, `e` plus digits plus `Enter` acts by id,
 `f` fills the focused text field, `j`/`k` move, `[`/`]` page the
 drawer, `.` hides chips for reading, `R` applies the stale remap,
-`Esc` closes. Chip clicks fire; `+NN more` opens the drawer. The
+`X` opens the extension palette (same page actions the agent
+triggers, `Enter` runs), `V` watches the largest page video (status
+line shows fps and bytes, `V` again stops and logs), `Esc` closes.
+Chip clicks fire; `+NN more` opens the drawer. The
 status line leads with `genN settled Krefs` (or `wait-settled`,
 or the `STALE:eN` flag) so the generation survives narrow widths.
 Shell acts click and fill through the same persistent browser the
@@ -139,7 +144,8 @@ The script ops are the CLI twins of the agent control-plane tools:
 `navigate`, `snapshot`, `click`, `type` (spelled `fill` here),
 `press_key` (spelled `press`), `scroll`, `screenshot`, `wait_for`
 (spelled `wait`), `assert`, `evaluate`, `console`, `dialog_handle`
-(spelled `dialog`), with `hover`, `select`, `check`, `drag`,
-`upload`, `cursor`, `network`, `pdf`, and `hints` rounding out the
-loop. Envelopes stay byte-comparable per row after the usual
-canonicalization (screenshot bytes to sha256, timings stripped).
+(spelled `dialog`), `extension_trigger`, `webmcp`, with `hover`,
+`select`, `check`, `drag`, `upload`, `cursor`, `network`, `pdf`, and
+`hints` rounding out the loop. Envelopes stay byte-comparable per
+row after the usual canonicalization (screenshot bytes to sha256,
+timings stripped).

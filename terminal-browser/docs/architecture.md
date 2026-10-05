@@ -68,12 +68,15 @@ taps, screenshots, shell overlay, script runner) lives in
 The same engine package serves three heads: the human TUI keymap, the
 `tb-agent` CLI (envelope `{success, data, warning?, code?}` on every
 command), and the `tb-mcp` server over stdio (the exact 12-tool core
-plus session handles and the gated `pdf`/`trace` capabilities). All
+plus session handles and the gated `pdf`/`trace`/
+`extension_trigger`/`webmcp` capabilities). All
 three execute through one shared dispatch in `internal/agent`, so CLI
 JSON equals MCP results by construction; the parity matrix in
 [parity](parity.md) canonicalizes run-scoped ids, timings, and paths
-and asserts the rest identical. `extension_trigger` and `webmcp`
-register no tool until the extension engine exists. Server and CLI
+and asserts the rest identical. The extension tools run installed
+content-script page actions from sandboxed isolated worlds, and
+`webmcp` calls page-exposed tools; detail lives in
+[extensions](extensions.md). Server and CLI
 reference lives in [agent-control](agent-control.md).
 
 ## Per-OS shells
@@ -82,7 +85,8 @@ Linux and macOS take the full Kitty plus Sixel plus block chains with local
 acceleration. Windows goes through ConPTY hardening: iTerm2 stills and
 Sixel preferred over Kitty graphics, block path forced inside multiplexers,
 keyboard remap limits documented, pipe transport with AV and path handling
-notes.
+notes, plus extended-length profile roots past the legacy path limit.
+Full matrix and environment overrides live in [support](support.md).
 
 ## Verification
 
