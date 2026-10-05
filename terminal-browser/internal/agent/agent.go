@@ -459,11 +459,13 @@ func argBool(args map[string]interface{}, key string) bool {
 	return false
 }
 
-// Resettle refreshes the URL and takes a fresh snapshot after a
-// mutating act, so the next call sees the new gen. Both the MCP
-// tools and the CLI script runner settle through here.
-func Resettle(b *engine.Browser) map[string]interface{} {
+// Resettle refreshes the URL, records a renderer-side navigation
+// when the URL changed under the act, and takes a fresh snapshot, so
+// the next call sees the new gen. Both the MCP tools and the CLI
+// script runner settle through here.
+func Resettle(b *engine.Browser, prevURL string) map[string]interface{} {
 	b.RefreshURL()
+	b.NoteNavigation(prevURL)
 	snap, err := b.Snapshot()
 	if err != nil {
 		return map[string]interface{}{"resnapshot": FirstWarn(err)}
@@ -518,13 +520,8 @@ func Execute(m *Manager, name string, args map[string]interface{}) (interface{},
 		}
 		return b, nil, "", ""
 	}
-	settled := func(b *engine.Browser) map[string]interface{} {
-		b.RefreshURL()
-		snap, err := b.Snapshot()
-		if err != nil {
-			return map[string]interface{}{"resnapshot": FirstWarn(err)}
-		}
-		return map[string]interface{}{"gen": snap.Gen, "refs": len(snap.Refs), "url": snap.URL}
+	settled := func(b *engine.Browser, prev string) map[string]interface{} {
+		return Resettle(b, prev)
 	}
 	snapData := func(snap *engine.Snapshot) map[string]interface{} {
 		return map[string]interface{}{
@@ -616,19 +613,21 @@ func Execute(m *Manager, name string, args map[string]interface{}) (interface{},
 		if code != "" {
 			return data, warn, code
 		}
+		prev := b.URL()
 		if err := b.Click(argStr(args, "ref"), argInt(args, "gen")); err != nil {
 			return fail(err)
 		}
-		return settled(b), "", ""
+		return settled(b, prev), "", ""
 	case "type":
 		b, data, warn, code := needActive()
 		if code != "" {
 			return data, warn, code
 		}
+		prev := b.URL()
 		if err := b.Fill(argStr(args, "ref"), argInt(args, "gen"), argStr(args, "text"), argBool(args, "clear"), argBool(args, "submit")); err != nil {
 			return fail(err)
 		}
-		d := settled(b)
+		d := settled(b, prev)
 		d["typed"] = argStr(args, "ref")
 		return d, "", ""
 	case "press_key":
@@ -636,10 +635,11 @@ func Execute(m *Manager, name string, args map[string]interface{}) (interface{},
 		if code != "" {
 			return data, warn, code
 		}
+		prev := b.URL()
 		if err := b.Press(argStr(args, "key"), argStr(args, "mod")); err != nil {
 			return fail(err)
 		}
-		d := settled(b)
+		d := settled(b, prev)
 		d["pressed"] = argStr(args, "key")
 		return d, "", ""
 	case "scroll":
@@ -731,11 +731,12 @@ func Execute(m *Manager, name string, args map[string]interface{}) (interface{},
 		if code != "" {
 			return data, warn, code
 		}
+		prev := b.URL()
 		ev, err := b.HandleDialog(argStr(args, "action") == "accept", argStr(args, "prompt"))
 		if err != nil {
 			return fail(err)
 		}
-		d := settled(b)
+		d := settled(b, prev)
 		d["dialog"] = ev
 		return d, "", ""
 	case "back", "forward", "reload":

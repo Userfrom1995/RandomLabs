@@ -133,10 +133,10 @@ func Open(target string, o OpenOptions) (*Browser, error) {
 	b := &Browser{
 		proc: proc, sess: sess, profile: safe, lite: o.Lite,
 		width: width, record: !o.NoRecord,
-		snaps:   map[int]*Snapshot{},
-		stopCh:  make(chan struct{}),
-		viewW:   800,
-		viewH:   600,
+		snaps:        map[int]*Snapshot{},
+		stopCh:       make(chan struct{}),
+		viewW:        800,
+		viewH:        600,
 		dialogPolicy: strings.ToLower(strings.TrimSpace(o.DialogPolicy)),
 	}
 	if b.dialogPolicy == "" {
@@ -567,6 +567,35 @@ func (b *Browser) RefreshURL() {
 	b.mu.Lock()
 	b.currentURL, b.currentTitle = u, t
 	b.mu.Unlock()
+}
+
+// NoteNavigation records a renderer-side navigation (link click,
+// form submit, dialog-driven hop) the same way Navigate does: jar
+// sync, history visit, and stack entry. Callers pass the URL from
+// before the act; an unchanged URL records nothing, so pure
+// in-page acts never duplicate history. Recording honors the record
+// flag, so back/forward/refresh loads never fork the stack.
+func (b *Browser) NoteNavigation(prevURL string) {
+	if strings.TrimSpace(prevURL) == "" {
+		prevURL = "\x00"
+	}
+	b.mu.Lock()
+	cur := b.currentURL
+	title := b.currentTitle
+	record := b.record
+	profile := b.profile
+	b.mu.Unlock()
+	if cur == prevURL || strings.TrimSpace(cur) == "" {
+		return
+	}
+	if !record {
+		return
+	}
+	if _, _, serr := SyncJar(b.sess, profile, 10*time.Second); serr != nil {
+		_ = serr
+	}
+	_ = RecordVisit(profile, cur, title)
+	_, _ = VisitStack(profile, cur, title)
 }
 
 // SetRecord toggles history and stack persistence for later

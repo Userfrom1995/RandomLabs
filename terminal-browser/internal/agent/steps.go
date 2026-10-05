@@ -240,29 +240,33 @@ func RunStep(m *Manager, st Step) (interface{}, string, string) {
 		}
 		return map[string]interface{}{"hovered": st.Ref}, "", ""
 	case "select":
+		prev := b.URL()
 		if err := b.Select(st.Ref, st.Gen, st.Value); err != nil {
 			return fail(err)
 		}
-		d := Resettle(b)
+		d := Resettle(b, prev)
 		d["selected"] = st.Value
 		return d, "", ""
 	case "check":
+		prev := b.URL()
 		if err := b.SetChecked(st.Ref, st.Gen, st.Checked); err != nil {
 			return fail(err)
 		}
-		d := Resettle(b)
+		d := Resettle(b, prev)
 		d["checked"] = st.Checked
 		return d, "", ""
 	case "drag":
+		prev := b.URL()
 		if err := b.Drag(st.From, st.FromGen, st.To, st.ToGen, st.X, st.Y, st.Steps); err != nil {
 			return fail(err)
 		}
-		return Resettle(b), "", ""
+		return Resettle(b, prev), "", ""
 	case "upload":
+		prev := b.URL()
 		if err := b.Upload(st.Ref, st.Gen, st.File); err != nil {
 			return fail(err)
 		}
-		d := Resettle(b)
+		d := Resettle(b, prev)
 		d["uploaded"] = st.File
 		return d, "", ""
 	case "cursor":
