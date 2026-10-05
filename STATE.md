@@ -1,17 +1,17 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-05T run 37339077786 - #535 MERGED (9893797c, design-poster fix live); design re-dispatched on #532; #533 in Evaluator-fix; #534 in Fixer pass**
+ - **Updated: 2026-10-05T run 37339634254 - #534 APPROVED by Reviewer, Tester in flight; #533 eval-fix applied, re-review queued; design re-dispatched (2nd retry) on #532**
 
 ## PRs & Issues
- - **PRs:** MERGED: #535 (design-poster mapping, 5188d0f, merged 16:15:24Z as 9893797c, Refs #70 stays open). Open: #534 (Terminal Browser Phase 1: Terminal Render Core and App Shell, head b7d89de, branch `opencode/issue532-terminal-browser-phase-1`, Refs #532) - Fixer run 37338121733 in_progress (owner /oc fix 16:05:39Z, no push yet). Open: #533 (Browser epic blueprint, head ac058d39, branch `opencode/issue532-20261005154527`, body Refs #532) - Evaluator REJECTED fix 8.3/10 (gate 9.8, 5 surgical doc findings, no implementation rework); owner /oc maintainer 16:14:08Z owned by sibling run 37339249428 (in_progress, do not duplicate). Merged earlier: #531 (Curator blob-directory docs links, d35730ba), #529 (Design Council lab implementation, c42f7760), #527 (Desktop Pet graduation, b624188b).
- - **Issues:** Open: #532 Terminal Browser epic (Phase 1 #534 in fix, blueprint #533 in eval-fix, design RE-DISPATCHED this run now that poster is live on main; stays open until final phase), #70 lab-health (design-mapping fix LANDED via #535; error-dump wart still open), #42 brainstorm standing. Closed: #530, #528, #526, #515, #518, #504, #507, #498.
- - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist (19 entries) vs 20 live `name:` fields minus self maintainer = 19, exact match verified this run (post-merge tree). Poster mapping verified LIVE on main: all four design branches (lines 631-638) + contract line (199).
+ - **PRs:** Open: #534 (Terminal Browser Phase 1, head 6ecf55db, branch `opencode/issue532-terminal-browser-phase-1`, MERGEABLE/CLEAN, Refs #532) - Reviewer `/oc approve` 16:18:20Z (all 15 findings verified fixed, 7 modular fixer commits); Tester run 37339809271 in_progress (owner /oc test 16:18:23Z). Open: #533 (Browser epic blueprint, head ac058d39, branch `opencode/issue532-20261005154527`, body Refs #532) - Fixer applied all 5 Evaluator findings + rebased 16:18:47Z; owner /oc review 16:18:51Z; opencode-review pending 37339906603; sibling maintainer run 37339906401 in_progress owns #533 triage (do not duplicate). Merged: #535 (design-poster fix, 9893797c), #531, #529, #527 earlier.
+ - **Issues:** Open: #532 Terminal Browser epic (Phase 1 #534 in test, blueprint #533 in re-review, design re-dispatched this run; stays open until final phase), #70 lab-health (design-mapping fix LANDED via #535; error-dump wart still open), #42 brainstorm standing. Closed: #530, #528, #526, #515, #518, #504, #507, #498.
+ - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist (19 entries) vs 20 live `name:` fields minus self maintainer = 19, exact match verified this run. SWEEP_ALLOWLIST 7 verified. Poster design mapping (lines 631-638 + contract 199) verified live in this run's checkout.
  - **Desktop Pet Platform record:** Phase 1 merged as #505. Phase 2 merged as #506. Phase 3 merged as #509. Phase 4 merged as #510. Phase 5 merged as #511. Final Phase merged as #512. Service-switch fix #513. Release track #514. Follow-up repairs #516/#517/#523/#524/#525 merged (all triple-gated). Final proof run on a360df84 FULLY GREEN + Release desktop-pet-v1.5.0 published (8 assets). Public surface graduated via #527 (b624188b).
 
 ## IN FLIGHT
- - Terminal Browser #532: design re-dispatched this run (poster now live, will post); epic blueprint #533 in eval-fix (sibling run owns fix dispatch); Phase 1 #534 in Fixer pass (run 37338121733 in_progress, head unchanged). Merge order once approved: #534 then #533. #532 stays open; Phase 2 starts only after both merge.
- - Main tip 9893797c (post-#535 merge).
- - Pages: all recent deploys success; merge-triggered deploy for 9893797c not yet visible at decision time - next run to confirm a fresh pages success covers the new tip.
- - Run sweep: zero failure/timed_out needing triage (in-progress self + fixer/eval-owning arms + queued sibling maintainer run 37339249428 + skipped non-matching triggers + successes).
+ - Terminal Browser #532: design re-dispatched this run (2nd attempt; 1st attempt in run 37339077786 silently dropped because that run's checkout predated the poster merge 16:15:24Z - stale poster had no design branch, body=None, no post, no warning). No `/oc design` ever on #532 (verified via API); mapping live now so this post will land. Merge order once approved: #534 then #533. #532 stays open; Phase 2 starts only after both merge.
+ - Main tip 9893797c (post-#535 merge, unchanged).
+ - Pages: deploy 37339890718 success 16:19:04Z (post-merge tree) - next run to confirm it covers tip 9893797c.
+ - Run sweep: zero failure/timed_out needing triage (in-progress self + tester/review arms + queued sibling maintainer run 37339906401 + skipped non-matching triggers + successes).
  - Maintainer error-dump wart (lab-seen): PR-triggered maintainer runs 37336172303 (#533) and 37336984111 (#534) posted raw write-permission errors as bot comments; plus #535 run 37338770862 same dump. Lab Engineer sweep on #70 completed 16:04:33Z with no code change warranted. If dumps recur, re-route with fresh evidence.
  - Eval-gate calibration note (for future self): #531 and #535 merged on Reviewer approve + Tester approve-test WITHOUT an Evaluator round. Justification: surgical infra/docs fixes with zero functional product surface, Reviewer and Tester both explicitly routed onward. The Evaluator binding gate stays mandatory for product/research/phase deliverables (as with #527 triple gate and #533 eval rejection). If the Owner or a future audit disagrees, say so and this note records the dissent surface.
  - Workflow warts logged (not yet lab-routed): (1) opencode.yml verify step counts ALL historical auto-retry comments; (2) verify-step branch pattern false-negatives on non-`opencode/issue<N>-*` branch names. Lab to assess on second consecutive trigger-step failure per playbook.
@@ -19,16 +19,16 @@
  - Owner branch `opencode/issue436-gui-detach-and-syswide-fixes` still present, no signal this run; standing evaluation-only item.
 
 ## NEXT-RUN PLAYBOOK
-1. Trigger-list re-verify each run (BOTH allowlists: `workflows:` event list AND `SWEEP_ALLOWLIST` sweep-dispatch list; watch for any new workflow drift). Verified exact match this run post-merge (19 vs 19).
-2. Terminal Browser #532: confirm /oc design posted + deliberation started; merge #534 then #533 once each triple-clears (never merge without approvals); then chain Phase 2 build per the epic roadmap + council design tokens. Issue stays open until final phase passes acceptance.
-3. Pages: confirm a fresh deploy success covers tip 9893797c; trigger via `gh workflow run` only if missing/failed.
+1. Trigger-list re-verify each run (BOTH allowlists: `workflows:` event list AND `SWEEP_ALLOWLIST` sweep-dispatch list; watch for any new workflow drift). Verified exact match this run (19 vs 19).
+2. Terminal Browser #532: confirm `/oc design` posted + deliberation started (this run's re-dispatch should have landed); merge #534 then #533 once each triple-clears (never merge without approvals); then chain Phase 2 build per the epic roadmap + council design tokens. Issue stays open until final phase passes acceptance.
+3. Pages: confirm deploy 37339890718 (or a fresher success) covers tip 9893797c; trigger via `gh workflow run` only if missing/failed.
 4. Council calibration: advisory Desktop Pet audit still pending.
 5. Standing rule: standby on all other fronts (no auto-ideate). Further work arrives via new issues, owner comments, or workflow failures.
 6. If new Desktop Pet follow-up work opens (e.g. the smoke-linux.sh:133 rpm-pipe hardening note), route build/fix on a fresh issue per the one-task-per-issue rule.
 
 ## OPEN QUESTIONS
- - Will the Design Council engagement post + deliberate on #532 now that the poster is fixed?
- - Will the Fixer clear #534 and will the Architect/Builder clear the 5 Evaluator doc findings on #533?
+ - Will the Design Council engagement post + deliberate on #532 now that this run's checkout carries the live poster mapping?
+ - Will the Tester clear #534 (then Evaluator) and will re-review clear #533's applied eval-fix?
  - Lab finding on the maintainer error-dump wart (merge-attempt vs comment-attempt, prompt vs permissions hardening)? Now seen on three PRs (#533/#534/#535).
  - Opencode verify-step warts: (1) should the auto-retry counter be per-attempt-window instead of all-time? (2) should the branch pattern accept `opencode/<issue>-*` alongside `opencode/issue<issue>-*`, or should the builder prompt pin the naming? (Lab assessment pending; routes on second consecutive trigger-step failure.)
  - What shape will the release pipeline take at publish time going forward (tag-triggered vs manual, signing/notarization stance)?
