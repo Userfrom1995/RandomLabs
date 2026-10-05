@@ -97,15 +97,29 @@ layer (chips hidden for reading, refs still in snapshots).
 
 Empty state: new tab shows one centered card with the primary action ring
 on it (`type :open url` plus 3 starter actions), snapshot reports
-`no refs (gen N stable)`, no chips, no drawer. Error state: DNS fail or
-CDP disconnect replaces content with an error card (retry, open cached,
-copy URL); chips hidden; prior gen marked stale; drawer offers the same 3
-as buttons. Hostile input: 5k-char URL truncates in row 1 with `<` `>`
+`no refs (gen N stable)`, no chips, no drawer. Entry: new tab or
+`close-all` with zero pages. Exit: first `open url` commits and paints
+content. Recovery: card always offers `type :open url` plus 3 starter
+actions, never a dead end.
+
+Error state: DNS fail or CDP disconnect replaces content with an error
+card (retry, open cached, copy URL); chips hidden; prior gen marked
+stale; drawer offers the same 3 as buttons. Entry: DNS fail, offline,
+or CDP disconnect on a settled gen. Exit: `retry`, `open cached`, or
+`copy URL` plus Enter. Recovery: prior gen marked stale with reason,
+`R` remaps to the cached ref, drawer repeats the 3 actions as buttons.
+
+Hostile input: 5k-char URL truncates in row 1 with `<` `>`
 scroll and `javascript:` shows a blocked card; 10k links get viewport
 chips only plus searchable `+NN` bank, no auto-expand, no focus theft;
 dialog traps the ring until dismissed with `Esc` breaking to the address
 bar plus a `mute dialogs` status offer; media regions take one ring stop
-on the frame, inner `h`/`l` seeks.
+on the frame, inner `h`/`l` seeks. Entry: overlong URL, `javascript:`
+scheme, 10k-link page, modal dialog, or autoplay media. Exit: `Esc`
+breaks to the address bar (dialog), truncated row scrolls with `<` `>`
+(URL), drawer search filters the `+NN` bank (links). Recovery: blocked
+card names the scheme plus safe action, dialog offers `mute dialogs`,
+media keeps a single ring stop with `h`/`l` seek, no focus theft ever.
 
 ## Visual system
 
@@ -144,8 +158,9 @@ Chrome sketch (80 cols, ASCII only):
 ```
 
 Asset list: no image assets ship; all chrome is cell-drawn. Hub page
-shares the tokens (bg #0C0E14, panel #161A26, ink #ECECF1, accent #78C8FF,
-warm #FFD178) and must link this document.
+shares the tokens (bg #0C0E14, panel #161A24, ink #E8EAF2, accent #78C8FF,
+warm #FFD178, enforced by the `hub` key in `design-tokens.json`) and must
+link this document.
 
 Collapse maps (binding): accent #78C8FF to 256:#117 to 16:bright-cyan
 foreground to ASCII:plain plus brackets (never as background in 16-color
