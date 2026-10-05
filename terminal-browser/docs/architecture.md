@@ -60,10 +60,9 @@ an explicit `dialog_handle` tool.
 The same engine package serves three heads: the human TUI keymap, the
 `tb-agent` CLI (`--json` envelope `{success, data, warning?, code?}` on
 every command), and the MCP server over stdio (core tools plus gated caps
-for pdf, trace, extensions, and webmcp passthrough). The parity matrix in
-`docs/parity.md` lists every capability across human key, CLI JSON, MCP
-tool, and CDP equivalent; conformance tests assert CLI JSON equals the MCP
-result per row.
+for pdf, trace, extensions, and webmcp passthrough). Conformance tests
+assert CLI JSON equals the MCP result per row as capabilities land in
+later phases.
 
 ## Per-OS shells
 
