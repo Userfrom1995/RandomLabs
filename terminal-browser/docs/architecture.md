@@ -31,7 +31,7 @@ with a Sixel region and block text under one synchronized frame.
 
 | Tier | Paint path | Motion | Cost control |
 | ---- | ---------- | ------ | ------------ |
-| kitty | transmit-once by content hash, place per frame | animated regions | id reuse plus deltas |
+| kitty | transmit-once by content hash, place per frame | animated regions | id reuse keeps repeats cheap; distinct frames transmit per tick |
 | sixel | 3-3-2 quantized regions with RLE | stills, 10 fps floor | downscale to 2x2 px per cell |
 | iterm2 | inline PNG stills via OSC 1337 | stills, re-send on change | hash dedup cache |
 | block | half-block diff of changed cell pairs | always live | dirty rows only, 256/16/ASCII fallbacks |
