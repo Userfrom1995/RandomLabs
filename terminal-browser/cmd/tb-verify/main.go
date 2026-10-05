@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -125,7 +126,12 @@ func main() {
 	e2e := flag.Bool("e2e", false, "run the agent-as-user persistent-browser pass")
 	e2eURL := flag.String("e2e-url", "https://news.ycombinator.com/", "target for the e2e run")
 	strict := flag.Bool("strict-live", false, "fail when any live entry or the e2e run misses")
+	reducedMotion := flag.Bool("reduced-motion", false, "force the reduced-motion path for this run")
 	flag.Parse()
+
+	if *reducedMotion {
+		term.SetReduced(true)
+	}
 
 	if *attempts < 1 || *attempts > 10 {
 		fmt.Fprintln(os.Stderr, "tb-verify: --attempts must be 1..10")
@@ -147,7 +153,7 @@ func main() {
 
 	goldPass := true
 	for _, g := range loadGoldens(*goldens) {
-		gr := checkGolden(g, *goldens, *fixtures, *width)
+		gr := checkGolden(g, *fixtures, *width)
 		rep.Goldens = append(rep.Goldens, gr)
 		if !gr.Pass {
 			goldPass = false
@@ -277,6 +283,7 @@ func loadGoldens(dir string) []Golden {
 		}
 		out = append(out, g)
 	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
 }
 
@@ -284,9 +291,8 @@ func loadGoldens(dir string) []Golden {
 // through engine.Style and require the marker plus the row floor;
 // live-only entries pin the row floor for live runs and pass
 // hermetically by definition (nothing to render offline).
-func checkGolden(g Golden, dir, fixtureDir string, width int) GoldenResult {
+func checkGolden(g Golden, fixtureDir string, width int) GoldenResult {
 	r := GoldenResult{Name: g.Name}
-	_ = dir
 	if g.Fixture == "" {
 		r.Pass, r.Note = true, "live-only golden: row floor applies to live runs"
 		return r
