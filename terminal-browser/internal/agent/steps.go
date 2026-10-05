@@ -78,6 +78,11 @@ var aliases = map[string]string{
 	"dialog": "dialog_handle",
 }
 
+// fullCaps recognizes every implemented tool for step validation,
+// including gated ones: validation passes and the capability gate
+// fails closed at execution time with capability_disabled.
+var fullCaps = Caps{"pdf": true, "trace": true}
+
 // CanonicalOp resolves aliases to the tool name, or "" when the op
 // is an extended CLI-only op rather than a registered tool.
 func CanonicalOp(op string) string {
@@ -88,7 +93,7 @@ func CanonicalOp(op string) string {
 	if Canon, ok := aliases[op]; ok {
 		return Canon
 	}
-	if Lookup(Caps{}, op) != nil {
+	if Lookup(fullCaps, op) != nil {
 		return op
 	}
 	return ""
