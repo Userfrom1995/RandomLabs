@@ -397,7 +397,8 @@ func ParseRef(raw string) (string, error) {
 
 // Lookup resolves a ref id against a gen: exact-gen hits return the
 // ref; older gens fail closed with a *StaleError carrying the remap
-// suggestion, never the neighbor element. Gen 0 means latest.
+// suggestion, never the neighbor element. Gen 0 means latest;
+// negative gens fail closed with ref_not_found.
 func (b *Browser) Lookup(id string, gen int) (Ref, error) {
 	id, err := ParseRef(id)
 	if err != nil {
@@ -405,8 +406,10 @@ func (b *Browser) Lookup(id string, gen int) (Ref, error) {
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if gen <= 0 {
+	if gen == 0 {
 		gen = b.gen
+	} else if gen < 0 {
+		return Ref{}, &RefError{Code: "ref_not_found", Message: fmt.Sprintf("bad gen %d: want 0 (latest) or a positive snapshot gen", gen)}
 	}
 	if gen != b.gen {
 		snap := b.snaps[b.gen]
