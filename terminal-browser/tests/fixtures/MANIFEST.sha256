@@ -1,0 +1,5 @@
+# SHA-256 manifest for the offline corpus snapshots.
+# Format: "<sha256>  <relative path from terminal-browser/>".
+# The static gate and TestFixtureManifest fail closed on mismatch.
+1a7b16ac7a463e49d04bc5c5334d7ccac83ffc31c3e46a7628bc9572120c3158  tests/fixtures/hn.json
+a97111909069e7408812445d062afb4322fd8ec4c5496b641d27be814c803461  tests/fixtures/wiki.json

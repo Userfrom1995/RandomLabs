@@ -12,6 +12,7 @@ REQUIRED = [
     "go.mod",
     "README.md",
     "index.html",
+    "repro.sh",
     "docs/index.md",
     "docs/architecture.md",
     "docs/engine.md",
@@ -33,9 +34,11 @@ REQUIRED = [
     "internal/engine/ax.go",
     "internal/engine/style.go",
     "internal/engine/navigate.go",
+    "internal/engine/baseline.go",
     "internal/engine/fallback.go",
     "tests/fixtures/hn.json",
     "tests/fixtures/wiki.json",
+    "tests/fixtures/MANIFEST.sha256",
 ]
 
 FACADE = re.compile(
@@ -111,6 +114,20 @@ class StaticGate(unittest.TestCase):
                 continue
             target = os.path.normpath(os.path.join(ROOT, href))
             self.assertTrue(os.path.isfile(target), f"dead hub link: {href}")
+
+    def test_fixture_manifest(self):
+        import hashlib
+        manifest = os.path.join(ROOT, "tests", "fixtures", "MANIFEST.sha256")
+        with open(manifest, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                want, rel = line.split()
+                path = os.path.join(ROOT, rel)
+                with open(path, "rb") as bf:
+                    got = hashlib.sha256(bf.read()).hexdigest()
+                self.assertEqual(got, want, f"manifest drift: {rel}")
 
 
 if __name__ == "__main__":
