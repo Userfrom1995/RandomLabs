@@ -133,7 +133,8 @@ class Phase4InteractContract(unittest.TestCase):
                    "scroll", "select", "check", "drag", "upload", "cursor",
                    "dialog", "wait_for", "assert", "console", "network",
                    "screenshot", "pdf", "evaluate", "navigate", "hints",
-                   "ref_stale"):
+                   "back", "forward", "reload", "session_open", "trace",
+                   "stdin", "ref_stale"):
             self.assertIn(op, docs, f"docs/interact.md must cover {op}")
 
 

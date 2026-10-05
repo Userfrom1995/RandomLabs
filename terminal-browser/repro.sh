@@ -79,4 +79,25 @@ go run ./cmd/tb-agent interact --url "https://example.com/" --do '{"op":"click"}
 grep -q '"code":"bad_step"' /tmp/tb-repro-interact.json || fail "interact missing ref code bad_step"
 pass "interact validation green"
 
+echo "== mcp framing (hermetic, no Chrome) =="
+go build -o /tmp/tb-repro-mcp ./cmd/tb-mcp || fail "build tb-mcp"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"pdf","arguments":{"out":"/tmp/x.pdf"}}}' '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"capabilities","arguments":{}}}' | /tmp/tb-repro-mcp >/tmp/tb-repro-mcp.json 2>/dev/null || fail "tb-mcp stdio run"
+grep -q '"protocolVersion":"2024-11-05"' /tmp/tb-repro-mcp.json || fail "mcp initialize protocol"
+grep -q '"name":"navigate"' /tmp/tb-repro-mcp.json || fail "mcp tools/list core"
+grep -q 'capability_disabled' /tmp/tb-repro-mcp.json || fail "mcp pdf gate without caps"
+grep -q 'extension_trigger' /tmp/tb-repro-mcp.json || fail "mcp capabilities deferral lists extension_trigger"
+grep -q 'webmcp' /tmp/tb-repro-mcp.json || fail "mcp capabilities deferral lists webmcp"
+pass "mcp framing green"
+
+echo "== sessions registry plus stdin mode (hermetic, no Chrome) =="
+export TB_HOME=/tmp/tb-repro-sessions
+rm -rf "$TB_HOME"
+go run ./cmd/tb-agent sessions | grep -q '"count":0' || fail "sessions empty registry"
+echo '{"op":"teleport"}' | go run ./cmd/tb-agent interact --url "https://example.com/" --stdin >/tmp/tb-repro-stdin.json 2>&1 && fail "stdin unknown op must exit 1" || true
+grep -q '"code":"bad_step"' /tmp/tb-repro-stdin.json || fail "stdin validation code bad_step"
+go run ./cmd/tb-agent interact --url "https://example.com/" --do '{"op":"teleport"}' --out /tmp/tb-repro-out.json >/tmp/tb-repro-tee.json 2>&1 && fail "bad op must exit 1" || true
+grep -q '"code":"bad_step"' /tmp/tb-repro-tee.json || fail "stdout failure envelope code bad_step"
+grep -q '"code":"bad_step"' /tmp/tb-repro-out.json || fail "--out offload captures the failure envelope"
+pass "sessions plus stdin plus offload green"
+
 echo "ALL GREEN: repro.sh PASS"

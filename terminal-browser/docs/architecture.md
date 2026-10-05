@@ -66,11 +66,15 @@ taps, screenshots, shell overlay, script runner) lives in
 ## Control plane
 
 The same engine package serves three heads: the human TUI keymap, the
-`tb-agent` CLI (`--json` envelope `{success, data, warning?, code?}` on
-every command), and the MCP server over stdio (core tools plus gated caps
-for pdf, trace, extensions, and webmcp passthrough). Conformance tests
-assert CLI JSON equals the MCP result per row as capabilities land in
-later phases.
+`tb-agent` CLI (envelope `{success, data, warning?, code?}` on every
+command), and the `tb-mcp` server over stdio (the exact 12-tool core
+plus session handles and the gated `pdf`/`trace` capabilities). All
+three execute through one shared dispatch in `internal/agent`, so CLI
+JSON equals MCP results by construction; the parity matrix in
+[parity](parity.md) canonicalizes run-scoped ids, timings, and paths
+and asserts the rest identical. `extension_trigger` and `webmcp`
+register no tool until the extension engine exists. Server and CLI
+reference lives in [agent-control](agent-control.md).
 
 ## Per-OS shells
 

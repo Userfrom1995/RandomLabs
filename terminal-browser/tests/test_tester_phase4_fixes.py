@@ -158,6 +158,7 @@ class Phase4LiveLoop(unittest.TestCase):
         for url in self.base():
             p = self.agent(
                 "interact", "--url", url, "--profile", "livehappy",
+                "--caps", "pdf",
                 "--do", '{"op":"snapshot"}',
                 "--do", '{"op":"fill","ref":"e1","text":"Ada Lovelace","clear":true}',
                 "--do", '{"op":"assert","cond":"value","ref":"e1","value":"Ada Lovelace"}',
