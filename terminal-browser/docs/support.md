@@ -68,6 +68,8 @@ still interval.
 | `TB_CAPS` | Merges capability gates with `--caps` |
 | `TB_CHROME` | Pins the Chromium binary (checked before PATH and well-known paths) |
 | `TB_TIER` | Forces a graphics tier for the probe |
+| `REDUCED_MOTION=1` | Forces the reduced-motion path (zero-frame cuts, static loading text) |
+| `TB_MOTION=reduced` | Same reduced-motion path via config-style variable |
 
 ## Verification per platform
 
@@ -77,3 +79,7 @@ proven by native reports: Linux and macOS exercise the full chain
 plus the animated media tick, Windows proves the degraded chain
 renders correctly (stills inside the refresh ceiling, byte budgets
 holding), and a multiplexer session proves the forced block fallback.
+`tb-verify --out report.json` writes one report per platform (OS,
+arch, Chrome floor verdict, tier, reduced-motion state, per-entry
+rows, goldens, e2e); keep one report per platform next to the
+release notes. Harness detail lives in [verification](verification.md).

@@ -94,4 +94,22 @@ Static gate (required files, module build, no facade markers, unified docs,
 hub links), engine fixture goldens, live real-site corpus (news, wiki,
 login wall, React SPA, bot-walled page with honest block messages), agent
 parity conformance per matrix row, per-OS native reports, and terminal
-screenshots per graphics tier.
+screenshots per graphics tier. The corpus runner is `tb-verify`: 3
+attempts per entry with backoff, Chrome 140 floor check, hermetic
+goldens through the production Style path, offline-fixture fallback
+that never reports live, and an agent-as-user end-to-end pass through
+the persistent Browser. Full harness detail lives in
+[verification](verification.md).
+
+## Motion and shell states
+
+Motion follows the Signal Ledger v2 tick table (33/50/100 ms) with
+dirty-rows-only caps, zero-frame content replacement, one anchored
+cut for viewport displacement, 150 ms strobe grouping, and a
+reduced-motion path (`--reduced-motion`, `REDUCED_MOTION=1`,
+`TB_MOTION=reduced`) that zeroes every duration. The shell paints
+the empty new-tab card, the honest error card with retry actions,
+and the blocked-scheme card for refused schemes; overlong addresses
+window with `<` `>` markers; dialogs trap the ring until dismissed
+with `Esc` breaking to the address bar and `M` muting. Tokens and
+the full flow inventory live in [design](design.md).
