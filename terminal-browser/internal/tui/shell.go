@@ -379,11 +379,10 @@ func (s *Shell) handleAddrKey(ev term.Event) bool {
 	}
 	if ev.Ctrl {
 		// Control chords never enter the address literally; Ctrl+C
-		// above already cancelled the edit.
-		return true
-	}
-	if ev.Ctrl && ev.Key == "c" {
-		s.AddrEdit = false
+		// cancels the edit.
+		if ev.Key == "c" {
+			s.AddrEdit = false
+		}
 		return true
 	}
 	if ev.Key != "" && ev.Special == "" {
