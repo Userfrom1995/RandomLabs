@@ -258,6 +258,7 @@ func (s *Shell) actLiveClick(id string) {
 	t.Refs, t.Gen, t.Stable = snap.Refs, snap.Gen, snap.Stable
 	s.HintFocus = 0
 	s.DrawerTop = 0
+	s.refreshExt()
 }
 
 // actLiveFill fills a text ref on the live browser and re-settles
@@ -287,6 +288,7 @@ func (s *Shell) actLiveFill(id, text string) {
 	t.Refs, t.Gen, t.Stable = snap.Refs, snap.Gen, snap.Stable
 	s.HintFocus = 0
 	s.DrawerTop = 0
+	s.refreshExt()
 	s.Message = "Filled " + norm + " (gen" + itoa(snap.Gen) + ")"
 }
 
