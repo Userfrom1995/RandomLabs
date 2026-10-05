@@ -189,13 +189,16 @@ func walk(nodes map[string]*AXNode, id string, out *[]Block) {
 		return
 	}
 	text := firstNonEmpty(n.Name, n.Value, n.Description)
-	switch n.Role {
-	case "StaticText", "text", "InlineTextBox":
+	// Normalized once: roles arrive in mixed capitalizations
+	// ("Button" vs "button", "SearchBox" vs "searchbox", stray
+	// whitespace), and every affordance must survive all of them.
+	switch strings.ToLower(strings.TrimSpace(n.Role)) {
+	case "statictext", "text", "inlinetextbox":
 		if strings.TrimSpace(text) != "" {
 			*out = append(*out, Block{Kind: "text", Text: text})
 		}
 		return
-	case "heading", "Heading":
+	case "heading":
 		if text == "" {
 			text = collectText(nodes, n)
 		}
@@ -203,7 +206,7 @@ func walk(nodes map[string]*AXNode, id string, out *[]Block) {
 			*out = append(*out, Block{Kind: "heading", Text: text, Level: n.Level})
 		}
 		return
-	case "link", "Link":
+	case "link":
 		if text == "" {
 			text = collectText(nodes, n)
 		}
@@ -215,11 +218,11 @@ func walk(nodes map[string]*AXNode, id string, out *[]Block) {
 			}
 		}
 		return
-	case "button", "Button", "textbox", " textbox", "SearchBox", "searchbox", "combobox", "checkbox", "radio", "switch":
+	case "button", "textbox", "searchbox", "combobox", "checkbox", "radio", "switch":
 		label := firstNonEmpty(text, collectText(nodes, n))
 		*out = append(*out, Block{Kind: "control", Text: label + controlSuffix(n.Role)})
 		return
-	case "image", "Image", "img":
+	case "image", "img":
 		if text != "" {
 			*out = append(*out, Block{Kind: "image", Text: "[image: " + text + "]"})
 		} else {
@@ -289,7 +292,7 @@ func collectTable(nodes map[string]*AXNode, t *AXNode) ([]string, [][]string) {
 		if !ok {
 			return
 		}
-		switch c.Role {
+		switch strings.ToLower(strings.TrimSpace(c.Role)) {
 		case "columnheader", "rowheader":
 			if t := firstNonEmpty(c.Name, collectText(nodes, c)); t != "" {
 				head = append(head, t)

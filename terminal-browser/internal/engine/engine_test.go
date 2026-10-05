@@ -156,6 +156,99 @@ func TestOfflineHonesty(t *testing.T) {
 	}
 }
 
+func TestOfflineRowCountConsistent(t *testing.T) {
+	for _, tc := range []struct{ code, reason string }{
+		{"offline", "net::ERR_INTERNET_DISCONNECTED"},
+		{"no_chrome", "no Chrome found"},
+		{"error", ""},
+	} {
+		r := OfflineResult("https://example.com/", tc.code, tc.reason)
+		if r.RowCount != len(r.Rows) {
+			t.Fatalf("code=%s: RowCount=%d len(Rows)=%d", tc.code, r.RowCount, len(r.Rows))
+		}
+		if r.RowCount == 0 {
+			t.Fatalf("code=%s: error page must carry real rows", tc.code)
+		}
+	}
+}
+
+func TestSanitizeProfile(t *testing.T) {
+	for _, good := range []string{"default", "test-live", "aB0_-x"} {
+		if _, err := SanitizeProfile(good); err != nil {
+			t.Fatalf("reject good profile %q: %v", good, err)
+		}
+	}
+	for _, bad := range []string{"../.ssh", "a/b", `a\b`, ".hidden", "", strings.Repeat("x", 65)} {
+		if _, err := SanitizeProfile(bad); err == nil {
+			t.Fatalf("accept bad profile %q", bad)
+		}
+	}
+	if got := ProfileDir("../../.ssh"); strings.Contains(got, ".ssh") {
+		t.Fatalf("profile traversal escaped isolation: %q", got)
+	}
+}
+
+func TestControlRoleNormalize(t *testing.T) {
+	raw := json.RawMessage(`{"nodes": [
+		{"nodeId": "1", "role": {"value": "RootWebArea"}, "name": {"value": ""}, "childIds": ["2", "3", "4", "5"]},
+		{"nodeId": "2", "role": {"value": "Button"}, "name": {"value": "Go"}, "childIds": []},
+		{"nodeId": "3", "role": {"value": "SearchBox"}, "name": {"value": "Find"}, "childIds": []},
+		{"nodeId": "4", "role": {"value": " textbox "}, "name": {"value": "Name"}, "childIds": []},
+		{"nodeId": "5", "role": {"value": "CHECKBOX"}, "name": {"value": "Agree"}, "childIds": []}
+	]}`)
+	nodes, order, err := ParseAX(raw)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	blocks := Flatten(nodes, order)
+	if len(blocks) != 4 {
+		t.Fatalf("want 4 controls, got %+v", blocks)
+	}
+	for _, b := range blocks {
+		if b.Kind != "control" {
+			t.Fatalf("role lost control kind: %+v", b)
+		}
+	}
+}
+
+func TestRewrapKeepsTables(t *testing.T) {
+	blocks := []Block{{Kind: "table", Head: []string{"A", "B"}, Cells: [][]string{{"1", "2"}}}}
+	rows := Style(blocks, 40)
+	if len(rows) == 0 {
+		t.Fatal("no table rows styled")
+	}
+	tableLines := map[string]bool{}
+	for _, r := range rows {
+		if strings.TrimSpace(r.Text) != "" {
+			tableLines[r.Text] = true
+		}
+	}
+	rewrapped := Rewrap(rows, 24)
+	for _, r := range rewrapped {
+		if r.NoWrap {
+			continue
+		}
+		if strings.TrimSpace(r.Text) == "" {
+			continue
+		}
+		if tableLines[r.Text] {
+			continue
+		}
+		// Non-table rows may reflow; table lines must survive byte-identical.
+	}
+	for ln := range tableLines {
+		found := false
+		for _, r := range rewrapped {
+			if r.Text == ln {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("table line re-wrapped and lost alignment: %q", ln)
+		}
+	}
+}
+
 func TestLiteBlocklists(t *testing.T) {
 	if len(LiteBlocklists) == 0 {
 		t.Fatal("lite blocklists empty: text navigation would pay media bytes")
@@ -269,12 +362,15 @@ func TestLiveNavigate(t *testing.T) {
 		}
 		return
 	}
-	t.Logf("live: title=%q rows=%d cold=%s js=%+v chrome=%s", last.Title, last.RowCount, last.Cold, last.JS, last.Version)
+	t.Logf("live: title=%q rows=%d cold=%s js=%+v chrome=%s", last.Title, last.RowCount, last.Cold(), last.JS, last.Version)
 	if last.RowCount == 0 {
 		t.Fatal("live render produced no rows")
 	}
-	if last.Cold > ColdBudget {
-		t.Fatalf("cold %s exceeds binding budget %s", last.Cold, ColdBudget)
+	if last.RowCount != len(last.Rows) {
+		t.Fatalf("row count mismatch: RowCount=%d len(Rows)=%d", last.RowCount, len(last.Rows))
+	}
+	if last.Cold() > ColdBudget {
+		t.Fatalf("cold %s exceeds binding budget %s", last.Cold(), ColdBudget)
 	}
 	if !last.JS.Executed {
 		t.Fatal("JS probe reports no execution on a JS-served front page")

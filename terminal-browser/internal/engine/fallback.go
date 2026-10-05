@@ -7,6 +7,12 @@ import (
 	"randomlabs/terminal-browser/internal/term"
 )
 
+// Offline snapshots that read like live content were removed: dead
+// fake-live fixtures must not sit in the tree. Offline failures render
+// the honest OfflinePage error document with a fail-closed code and
+// exit 1; the only bundled snapshots are the clearly-labeled corpus
+// files under tests/fixtures/ used by hermetic tests.
+
 var (
 	errHeading = term.RGB{R: 255, G: 210, B: 120}
 	errInk     = term.RGB{R: 235, G: 235, B: 235}
@@ -35,36 +41,3 @@ func OfflinePage(addr, reason string) demo.Page {
 	return demo.Page{Name: "offline", Title: "Navigation failed", Address: addr, Rows: rows}
 }
 
-// OfflineFixture returns a bundled representative snapshot used when the
-// live network is unreachable. Callers MUST report `offline-fallback`
-// in the warning so a fallback never passes as a live render.
-func OfflineFixture(kind string) demo.Page {
-	switch kind {
-	case "news":
-		return demo.Page{
-			Name: "offline-hn", Title: "Hacker News (offline snapshot)",
-			Address: "https://news.ycombinator.com/",
-			Rows: []demo.Row{
-				{Text: "Hacker News (offline snapshot)", FG: errHeading, Bold: true},
-				{Text: "", FG: errInk},
-				{Text: "[1] Show HN: terminal browsers keep coming back", FG: term.RGB{R: 120, G: 200, B: 255}, Underline: true, Link: true},
-				{Text: "    -> https://news.ycombinator.com/item?id=000001", FG: errDim},
-				{Text: "[2] A cookbook for headless browser automation", FG: term.RGB{R: 120, G: 200, B: 255}, Underline: true, Link: true},
-				{Text: "    -> https://news.ycombinator.com/item?id=000002", FG: errDim},
-				{Text: "", FG: errInk},
-				{Text: "Offline snapshot: shape mirrors the front page; refresh live for real items.", FG: errDim},
-			},
-		}
-	default:
-		return demo.Page{
-			Name: "offline-wiki", Title: "Wikipedia (offline snapshot)",
-			Address: "https://en.wikipedia.org/wiki/Terminal_pager",
-			Rows: []demo.Row{
-				{Text: "# Terminal pager (offline snapshot)", FG: errHeading, Bold: true},
-				{Text: "", FG: errInk},
-				{Text: "A terminal pager is a program that lets you page through text.", FG: errInk},
-				{Text: "Offline snapshot: headings, links, and tables reflow as live would.", FG: errDim},
-			},
-		}
-	}
-}
