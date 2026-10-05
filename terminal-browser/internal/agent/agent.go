@@ -309,7 +309,7 @@ func Registry(caps Caps) []Tool {
 		}, "ref"), ""},
 		{"press_key", "Press a key (Enter, Tab, Escape, arrows, a-z) with optional modifier, then re-settle.", schema(map[string]interface{}{
 			"key": prop("key name (required)", "string"),
-			"mod": prop("modifier: ctrl, alt, shift, or cmd", "string"),
+			"mod": prop("modifier: ctrl, alt, or shift", "string"),
 		}, "key"), ""},
 		{"scroll", "Scroll the page by CSS pixels.", schema(map[string]interface{}{
 			"dx": prop("horizontal pixels", "number"),
