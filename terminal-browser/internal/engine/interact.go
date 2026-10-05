@@ -91,6 +91,13 @@ type Browser struct {
 	viewW int
 	viewH int
 
+	// extMu guards the installed-extension registry: manifests load
+	// at open, isolated worlds inject lazily per navigation, and
+	// warnings accumulate for broken installs.
+	extMu   sync.Mutex
+	exts    map[string]*extRuntime
+	extWarn []string
+
 	stopCh chan struct{}
 	wg     sync.WaitGroup
 }
@@ -151,6 +158,7 @@ func Open(target string, o OpenOptions) (*Browser, error) {
 		return nil, err
 	}
 	b.watch()
+	b.loadInstalled()
 	PushJar(sess, safe, target, 10*time.Second)
 	if err := b.load(target, ColdBudget); err != nil {
 		_ = b.Close()

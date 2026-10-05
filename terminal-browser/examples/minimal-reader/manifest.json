@@ -1,0 +1,10 @@
+{
+  "id": "minimal-reader",
+  "name": "Minimal Reader",
+  "version": "1.0.0",
+  "matches": ["*"],
+  "scripts": ["reader.js"],
+  "actions": [
+    {"id": "summarize", "title": "Summarize page headings and links"}
+  ]
+}
