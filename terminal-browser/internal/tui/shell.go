@@ -8,10 +8,12 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"randomlabs/terminal-browser/internal/demo"
 	"randomlabs/terminal-browser/internal/engine"
+	"randomlabs/terminal-browser/internal/gfx"
 	"randomlabs/terminal-browser/internal/term"
 )
 
@@ -65,6 +67,27 @@ type Shell struct {
 	StaleGen   int
 	StaleReason string
 	StaleRemap *string
+	// ShowExt toggles the extension action palette: page actions in
+	// scope for the live URL with focus plus paging mirroring the
+	// drawer. ExtActions refreshes on every settled navigation.
+	ShowExt    bool
+	ExtFocus   int
+	ExtTop     int
+	ExtActions []engine.ExtAction
+	ExtErr     string
+	// MediaAnimated selects the watch tick: Kitty paces animation,
+	// every other tier repaints stills. The tb loop sets it from the
+	// probed tier; the media fields below serialize the background
+	// watch goroutine against Render.
+	MediaAnimated bool
+	mediaMu       sync.Mutex
+	mediaWG       sync.WaitGroup
+	mediaWatching bool
+	mediaStop     chan struct{}
+	mediaSurf     *gfx.Surface
+	mediaStat     string
+	mediaW        int
+	mediaH        int
 }
 
 // NewShell opens with the fixture home page on the default tab.
@@ -82,8 +105,10 @@ func NewShell() *Shell {
 
 // CloseLive shuts the persistent live browser down. The tb frontend
 // defers it on interactive exit; profile switches call it so the next
-// navigation relaunches isolated under the new profile.
+// navigation relaunches isolated under the new profile. A running
+// media watch stops first: its sampler holds the same browser.
 func (s *Shell) CloseLive() {
+	s.stopMediaWatch()
 	if s.live != nil {
 		_ = s.live.Close()
 		s.live = nil
@@ -261,6 +286,7 @@ func (s *Shell) openLive(addr string) {
 	t.Refs, t.Gen, t.Stable = snap.Refs, snap.Gen, snap.Stable
 	s.HintFocus, s.DrawerTop = 0, 0
 	s.clearStale()
+	s.refreshExt()
 	s.Message = "Opened " + snap.URL + " live (gen" + itoa(snap.Gen) + ", " +
 		itoa(len(snap.Refs)) + " refs; : drawer, eN act, ? keys)"
 }
@@ -354,6 +380,11 @@ func (s *Shell) Handle(ev term.Event) bool {
 			s.Message = "Ref entry cancelled."
 			return true
 		}
+		if s.ShowExt {
+			s.ShowExt = false
+			s.Message = "Extensions closed."
+			return true
+		}
 		if s.ShowDrawer {
 			s.ShowDrawer = false
 			s.Message = "Drawer closed."
@@ -432,6 +463,15 @@ func (s *Shell) Handle(ev term.Event) bool {
 		s.scroll(10)
 		return true
 	case "enter":
+		if s.ShowExt {
+			ext, action, ok := s.focusedExt()
+			if !ok {
+				s.Message = "No page actions: install an extension or open a matching page."
+				return true
+			}
+			s.actLiveExt(ext, action)
+			return true
+		}
 		if s.ShowDrawer {
 			id := s.focusedRef()
 			s.ShowDrawer = false
@@ -458,6 +498,9 @@ func (s *Shell) Handle(ev term.Event) bool {
 			return true
 		}
 		s.ShowDrawer = !s.ShowDrawer
+		if s.ShowDrawer {
+			s.ShowExt = false
+		}
 		s.clampHint()
 		if s.ShowDrawer {
 			s.Message = "Drawer: j/k move, Enter acts, [ ] page, Esc closes."
@@ -523,10 +566,18 @@ func (s *Shell) Handle(ev term.Event) bool {
 			s.drawerMove(1)
 			return true
 		}
+		if s.ShowExt {
+			s.extMove(1)
+			return true
+		}
 		return true
 	case "k":
 		if s.ShowDrawer {
 			s.drawerMove(-1)
+			return true
+		}
+		if s.ShowExt {
+			s.extMove(-1)
 			return true
 		}
 		return true
@@ -553,6 +604,12 @@ func (s *Shell) Handle(ev term.Event) bool {
 		s.CycleProfile()
 		return true
 	case "[":
+		if s.ShowExt {
+			s.ExtTop -= 2
+			s.ExtFocus = s.ExtTop
+			s.clampExt()
+			return true
+		}
 		if s.ShowDrawer {
 			s.DrawerTop -= 2
 			s.HintFocus = s.DrawerTop
@@ -564,6 +621,12 @@ func (s *Shell) Handle(ev term.Event) bool {
 		}
 		return true
 	case "]":
+		if s.ShowExt {
+			s.ExtTop += 2
+			s.ExtFocus = s.ExtTop
+			s.clampExt()
+			return true
+		}
 		if s.ShowDrawer {
 			s.DrawerTop += 2
 			s.HintFocus = s.DrawerTop
@@ -576,6 +639,25 @@ func (s *Shell) Handle(ev term.Event) bool {
 		return true
 	case "t":
 		s.NewTab("fixture://home")
+		return true
+	case "X":
+		t := s.Current()
+		if !t.Live {
+			s.Message = "No extensions: open a live page first."
+			return true
+		}
+		s.ShowExt = !s.ShowExt
+		if s.ShowExt {
+			s.ShowDrawer = false
+			s.refreshExt()
+			s.clampExt()
+			s.Message = "Extensions: j/k move, Enter runs, [ ] page, Esc closes."
+		} else {
+			s.Message = "Extensions closed."
+		}
+		return true
+	case "V":
+		s.toggleMedia()
 		return true
 	case "x", "w":
 		if ev.Ctrl {
@@ -740,6 +822,9 @@ var (
 // the drawer above them, both pure overdraw that vanishes on dismiss.
 func (s *Shell) Render(f *term.Frame) int {
 	s.LastW, s.LastH = f.W, f.H
+	s.mediaMu.Lock()
+	s.mediaW, s.mediaH = f.W, f.H
+	s.mediaMu.Unlock()
 	f.Fill(0, 0, f.W, f.H, term.Cell{Ch: ' ', FG: chromeFG, BG: term.RGB{R: 12, G: 14, B: 20}})
 	renderTabStrip(s, f)
 	renderAddrBar(s, f)
@@ -754,6 +839,9 @@ func (s *Shell) Render(f *term.Frame) int {
 	if s.ShowDrawer && cur.Live && len(cur.Refs) > 0 {
 		s.clampHint()
 		s.drawDrawer(f)
+	} else if s.ShowExt && cur.Live {
+		s.clampExt()
+		s.drawExt(f)
 	} else if f.H >= 8 {
 		s.drawChips(f, f.H-2)
 	}
@@ -823,6 +911,12 @@ func renderStatus(s *Shell, f *term.Frame) {
 	if s.StaleWant != "" {
 		msg += "  STALE:" + s.StaleWant + " (R remaps)"
 	}
+	if len(s.ExtActions) > 0 {
+		msg += "  ext:" + itoa(len(s.ExtActions))
+	}
+	if line := s.MediaStatLine(); line != "" {
+		msg += "  " + line
+	}
 	f.WriteText(0, f.H-1, truncate(" "+msg, f.W), chromeFG, statusBG)
 	for x := 0; x < f.W; x++ {
 		c := f.At(x, f.H-1)
@@ -839,6 +933,7 @@ func renderHelp(_ *Shell, f *term.Frame) {
 		"wheel scrolls, ? toggles help.",
 		"Live refs: : drawer, Space act focused, eN+Enter act,",
 		"f fill text field, . chips, R stale remap, Esc closes.",
+		"X page actions, V media watch, Enter runs focused action.",
 	}
 	y := f.H - len(lines) - 2
 	if y < ChromeRows {
