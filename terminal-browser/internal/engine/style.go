@@ -192,6 +192,30 @@ func trimTrailingBlanks(rows []demo.Row) []demo.Row {
 	return rows
 }
 
+// Rewrap reflows already-styled rows to a new grid width, one row at
+// a time so style flags and link affordances survive. The shell uses
+// this when the frame is narrower than the fetch width.
+func Rewrap(rows []demo.Row, width int) []demo.Row {
+	if width < 20 {
+		width = 20
+	}
+	textW := width - 3
+	var out []demo.Row
+	for _, r := range rows {
+		if strings.TrimSpace(r.Text) == "" {
+			out = append(out, demo.Row{})
+			continue
+		}
+		for _, ln := range Wrap(r.Text, textW) {
+			out = append(out, demo.Row{
+				Text: ln, FG: r.FG, BG: r.BG,
+				Bold: r.Bold, Underline: r.Underline, Link: r.Link,
+			})
+		}
+	}
+	return out
+}
+
 func clamp(n, lo, hi int) int {
 	if n < lo {
 		return lo

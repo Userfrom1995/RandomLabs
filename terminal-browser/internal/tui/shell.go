@@ -1,6 +1,7 @@
 // Package tui owns the terminal app shell: alternate screen lifecycle,
 // tab strip, address bar, status line, profile picker, and the key map.
-// Content comes from the local fixture router until the engine phase.
+// Fixture addresses resolve locally; http(s) addresses fetch live
+// through the engine sidecar with offline fail-closed errors.
 package tui
 
 import (
@@ -11,15 +12,19 @@ import (
 	"unicode/utf8"
 
 	"randomlabs/terminal-browser/internal/demo"
+	"randomlabs/terminal-browser/internal/engine"
 	"randomlabs/terminal-browser/internal/term"
 )
 
-// Tab is one open document with its own scroll position.
+// Tab is one open document with its own scroll position. Live tabs
+// remember their fetch width so Render can rewrap to the frame.
 type Tab struct {
-	Title   string
-	Address string
-	Page    demo.Page
-	Scroll  int
+	Title      string
+	Address    string
+	Page       demo.Page
+	Scroll     int
+	Live       bool
+	FetchWidth int
 }
 
 // Shell is the full TUI state machine.
@@ -41,7 +46,7 @@ func NewShell() *Shell {
 		Tabs:     []Tab{{Title: page.Title, Address: page.Address, Page: page}},
 		Profiles: loadProfiles(),
 		Profile:  "default",
-		Message:  "Fixture build: local pages only. Press ? for keys.",
+		Message:  "Type / then an http(s) URL for live fetch; fixture://home works offline. Press ? for keys.",
 	}
 }
 
@@ -60,12 +65,56 @@ func (s *Shell) Current() *Tab {
 	return &s.Tabs[s.Active]
 }
 
-// Open navigates the active tab through the local router.
+// Open navigates the active tab: fixture addresses resolve through the
+// local router, http(s) addresses fetch live through the engine sidecar
+// with offline fail-closed errors. Live pages rewrap to the frame at
+// render time, so Open fetches at a generous width.
 func (s *Shell) Open(addr string) {
-	page := demo.Lookup(addr)
+	a := strings.TrimSpace(addr)
+	if a == "" {
+		a = "fixture://home"
+	}
+	if isLiveAddr(a) {
+		s.openLive(a)
+		return
+	}
+	page := demo.Lookup(a)
 	t := s.Current()
 	t.Address, t.Title, t.Page, t.Scroll = page.Address, page.Title, page, 0
 	s.Message = "Opened " + page.Address
+}
+
+// openLive fetches a live page synchronously with the cold budget. The
+// address bar blocks during load by design in this phase; async loads
+// arrive with the interaction loop.
+func (s *Shell) openLive(addr string) {
+	res := engine.NavigateQuick(addr, s.Profile, false, 100)
+	page := res.ToDemoPage()
+	t := s.Current()
+	t.Address, t.Title, t.Page, t.Scroll = page.Address, page.Title, page, 0
+	t.Live, t.FetchWidth = true, 100
+	if res.Offline {
+		s.Message = "Offline: " + firstLine(res.Warning)
+		return
+	}
+	s.Message = "Opened " + page.Address + " live in " + res.Cold.Round(0).String() +
+		" (" + itoa(len(page.Rows)) + " rows, JS nodes " + itoa(res.JS.Nodes) + ")"
+}
+
+// isLiveAddr reports whether the address wants the live engine path.
+func isLiveAddr(a string) bool {
+	l := strings.ToLower(a)
+	return strings.HasPrefix(l, "http://") || strings.HasPrefix(l, "https://")
+}
+
+func firstLine(s string) string {
+	if i := strings.Index(s, " (offline fail-closed"); i > 0 {
+		return s[:i]
+	}
+	if len(s) > 120 {
+		return s[:120]
+	}
+	return s
 }
 
 // NewTab opens a tab on the given address.
@@ -270,12 +319,20 @@ var (
 	statusBG = term.RGB{R: 22, G: 26, B: 36}
 )
 
-// Render draws chrome plus the active page into the frame.
+// Render draws chrome plus the active page into the frame. Live pages
+// rewrap to the frame width when it differs from the fetch width.
 func (s *Shell) Render(f *term.Frame) int {
 	f.Fill(0, 0, f.W, f.H, term.Cell{Ch: ' ', FG: chromeFG, BG: term.RGB{R: 12, G: 14, B: 20}})
 	renderTabStrip(s, f)
 	renderAddrBar(s, f)
-	n := demo.RenderToFrame(s.Current().Page, f, ChromeRows, s.Current().Scroll)
+	cur := s.Current()
+	page := cur.Page
+	if cur.Live && cur.FetchWidth > 0 && cur.FetchWidth != f.W {
+		cp := page
+		cp.Rows = engine.Rewrap(page.Rows, f.W)
+		page = cp
+	}
+	n := demo.RenderToFrame(page, f, ChromeRows, cur.Scroll)
 	if s.ShowHelp {
 		renderHelp(s, f)
 	}
