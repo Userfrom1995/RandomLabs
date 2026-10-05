@@ -53,7 +53,7 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Active projects are software or research builds currently in progress under open tracking issues (meta tasks such as lab health audits or workflow maintenance are not listed here):
 
-- None currently in flight; the lab is in standby.
+- **Terminal Browser (`terminal-browser/`)** - Agent-first browser that runs completely in the terminal: Go single binary with Chromium CDP sidecar, layered Kitty/Sixel/iTerm2/block renderer, snapshot-first MCP server plus agent CLI twin. Tracking issue #532; render core and app shell landed first. [Website](https://userfrom1995.github.io/RandomLabs/terminal-browser/) · [README](terminal-browser/README.md)
 
 ## Previous Projects (Latest 10)
 

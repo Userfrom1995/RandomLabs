@@ -10,7 +10,7 @@ import (
 
 // Kitty paints through the Kitty graphics protocol: transmit once per
 // unique surface (id reuse keyed by content hash with server-side deltas
-// via repeated placement), then place per frame over placeholder cells.
+// via repeated placement), then place per frame over reserved cells.
 type Kitty struct {
 	seen map[uint64]uint32
 	next uint32
