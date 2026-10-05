@@ -3,3 +3,8 @@
 # The static gate and TestFixtureManifest fail closed on mismatch.
 1a7b16ac7a463e49d04bc5c5334d7ccac83ffc31c3e46a7628bc9572120c3158  tests/fixtures/hn.json
 a97111909069e7408812445d062afb4322fd8ec4c5496b641d27be814c803461  tests/fixtures/wiki.json
+2ba6aed35ec1356c2edfe4da24e8bc20359d23da282a66abe5b773901612dec4  tests/fixtures/goldens/botwall.json
+eb9f921c8c855446f78d30a12e297594ee97d9a20ce2ddb421892d68aabede29  tests/fixtures/goldens/github-login.json
+eff5c0c8d6b829e7d86cf35643aa3ecef4266574098c22abf7b462427823a51f  tests/fixtures/goldens/hn.json
+862023a1db2b20e9d3577c59dfb381c302d1778b582d6cc4a5a379f05d26e6b5  tests/fixtures/goldens/todomvc.json
+d07e2fbf07bc72c43ca238b1ca63276ae677a7c8c86d0d620cdfcb5cdd6ba5b7  tests/fixtures/goldens/wiki.json

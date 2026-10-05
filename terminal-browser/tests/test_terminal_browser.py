@@ -77,6 +77,16 @@ REQUIRED = [
     "docs/support.md",
     "examples/minimal-reader/manifest.json",
     "examples/minimal-reader/reader.js",
+    "internal/term/motion.go",
+    "internal/term/motion_test.go",
+    "cmd/tb-verify/main.go",
+    "docs/verification.md",
+    "tests/test_verify_harness.py",
+    "tests/fixtures/goldens/hn.json",
+    "tests/fixtures/goldens/wiki.json",
+    "tests/fixtures/goldens/todomvc.json",
+    "tests/fixtures/goldens/botwall.json",
+    "tests/fixtures/goldens/github-login.json",
 ]
 
 FACADE = re.compile(
@@ -135,7 +145,7 @@ class StaticGate(unittest.TestCase):
 
     def test_docs_unified(self):
         hits = []
-        for name in ("README.md", "docs/index.md", "docs/architecture.md", "docs/engine.md", "docs/interact.md", "docs/parity.md", "docs/agent-control.md", "docs/extensions.md", "docs/support.md", "index.html"):
+        for name in ("README.md", "docs/index.md", "docs/architecture.md", "docs/engine.md", "docs/interact.md", "docs/parity.md", "docs/agent-control.md", "docs/extensions.md", "docs/support.md", "docs/verification.md", "index.html"):
             path = os.path.join(ROOT, name)
             with open(path, encoding="utf-8") as fh:
                 for i, line in enumerate(fh, 1):

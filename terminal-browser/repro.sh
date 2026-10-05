@@ -121,4 +121,8 @@ go run ./cmd/tb-agent interact --url "https://example.com/" --caps extension_tri
 grep -q '"code":"bad_step"' /tmp/tb-repro-extstep.json || fail "interact broken ext args code bad_step"
 pass "extensions plus media validation green"
 
+echo "== verify harness (hermetic, no Chrome) =="
+go run ./cmd/tb-verify --hermetic --goldens tests/fixtures/goldens --fixtures tests/fixtures | grep -q '"pass": true' || fail "tb-verify hermetic"
+pass "tb-verify hermetic green"
+
 echo "ALL GREEN: repro.sh PASS"
