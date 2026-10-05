@@ -1,13 +1,13 @@
 # Progress - Terminal Browser (agent-first full browser in the terminal)
 
 - **Issue:** #532
-- **Branch:** opencode/issue532-terminal-browser-phase-6
+- **Branch:** opencode/issue532-terminal-browser-phase-7-ux-verification
 - **Status:** in-progress
 - **Blueprint:** `ideas/2026-10-05-terminal-browser.md`
 
 ## Phase Roadmap
 
-- **Active Phase:** Phase 6: Extensions Media and Per-OS Shell Hardening (complete on `opencode/issue532-terminal-browser-phase-6`, ready for review)
+- **Active Phase:** Final Phase: UX Design Pass and Real-World Verification Harness (building on `opencode/issue532-terminal-browser-phase-7-ux-verification`, Closes #532)
 - **Phase 1: Terminal Render Core and App Shell:**
   - Scope: probe cache plus capability detection (Kitty query, Sixel DA1,
     iTerm2 capabilities, DEC 2026, Kitty keyboard, SGR mouse) with re-probe
@@ -95,8 +95,8 @@
     pass, Pages deploy verified, every advertised capability proven against
     real pages.
 
-- **Current step:** Phase 6 implemented on `opencode/issue532-terminal-browser-phase-6`: content-script extension engine with isolated worlds plus page-action registry, live extension_trigger/webmcp gates on the shared dispatch, TUI palette plus background media watch, per-OS support doc plus Windows long-path hardening (see Agent Log)
-- **Next steps:** Reviewer reviews this Phase 6 PR; Final Phase (UX sweep plus verification harness) builds from main after merge
+- **Current step:** Final Phase building: motion policy plus hostile/empty/error states landed (term/motion.go, governor reduced path, demo blocked/empty pages, shell anchor/mute/windowing); verification harness plus docs sweep plus gates next
+- **Next steps:** Land tb-verify corpus runner with goldens plus docs/verification.md; sweep unified docs plus hub; extend static gate plus repro.sh; push; hand to Reviewer (Closes #532)
 
 ## Agent Log
 

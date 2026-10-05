@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"randomlabs/terminal-browser/internal/demo"
@@ -89,6 +90,25 @@ type Shell struct {
 	mediaSummary  string
 	mediaW        int
 	mediaH        int
+	// LoadElapsed carries the last live-fetch cost for the status
+	// spinner line: elapsed label plus stepped bar, static text on
+	// the reduced path.
+	LoadElapsed time.Duration
+	// AnchorTag plus AnchorUntil implement the anchored cut for
+	// viewport displacement: one pinned row plus a gutter tag held
+	// for 1x T2, then settle. AnchorStatic marks the reduced-motion
+	// overlap: painted once with no hold.
+	AnchorTag    string
+	AnchorUntil  time.Time
+	AnchorStatic bool
+	// DialogMuted auto-dismisses JavaScript dialogs after acts; Esc
+	// with a pending dialog breaks to the address bar with a mute
+	// offer when muting is off.
+	DialogMuted bool
+	// lastDrawerToggle plus lastResolve feed the 150 ms strobe
+	// window: gestures inside one window paint only the final state.
+	lastDrawerToggle time.Time
+	lastResolve      time.Time
 }
 
 // NewShell opens with the fixture home page on the default tab.
@@ -159,15 +179,25 @@ func (s *Shell) Current() *Tab {
 	return &s.Tabs[s.Active]
 }
 
-// Open navigates the active tab: fixture addresses resolve through the
-// local router, http(s) addresses fetch live through the engine sidecar
-// with offline fail-closed errors. Live pages rewrap to the frame at
-// render time, so Open fetches at a generous width. Successful visits
-// persist to history and the back/forward stack unless Record is off.
+// Open navigates the active tab: blocked script schemes paint the
+// hostile-input card (nothing executes), fixture addresses resolve
+// through the local router, http(s) addresses fetch live through the
+// engine sidecar with offline fail-closed errors. Live pages rewrap
+// to the frame at render time, so Open fetches at a generous width.
+// Successful visits persist to history and the back/forward stack
+// unless Record is off.
 func (s *Shell) Open(addr string) {
 	a := strings.TrimSpace(addr)
 	if a == "" {
 		a = "fixture://home"
+	}
+	if scheme, blocked := demo.BlockedScheme(a); blocked {
+		page := demo.BlockedPage(a, scheme)
+		t := s.Current()
+		t.Address, t.Title, t.Page, t.Scroll = page.Address, page.Title, page, 0
+		t.Live, t.FetchWidth, t.Refs, t.Gen, t.Stable = false, 0, nil, 0, true
+		s.Message = "Blocked " + scheme + ": scheme cannot run here; open http(s) or fixture:// instead."
+		return
 	}
 	if isLiveAddr(a) {
 		s.openLive(a)
@@ -260,7 +290,10 @@ func (s *Shell) Reload() {
 // reuse it warm in place. Tabs adopt the settled snapshot refs so
 // human chips and agent acts share the same gen. Launch failures
 // paint the honest offline page exactly like the one-shot path did.
+// The fetch cost lands in LoadElapsed and the status message so the
+// spinner line always names real milliseconds.
 func (s *Shell) openLive(addr string) {
+	start := time.Now()
 	b, err := s.ensureLive(addr)
 	off := func(err error) {
 		res := engine.OfflineResult(addr, engine.ClassifyError(err), err.Error())
@@ -288,8 +321,22 @@ func (s *Shell) openLive(addr string) {
 	s.HintFocus, s.DrawerTop = 0, 0
 	s.clearStale()
 	s.refreshExt()
-	s.Message = "Opened " + snap.URL + " live (gen" + itoa(snap.Gen) + ", " +
-		itoa(len(snap.Refs)) + " refs; : drawer, eN act, ? keys)"
+	s.LoadElapsed = time.Since(start)
+	s.lastResolve = time.Now()
+	msg := "Opened " + snap.URL + " live (gen" + itoa(snap.Gen) + ", " +
+		itoa(len(snap.Refs)) + " refs, " + itoa(int(s.LoadElapsed/time.Millisecond)) + "ms; : drawer, eN act, ? keys)"
+	if dlg := b.PendingDialog(); dlg != nil {
+		if s.DialogMuted {
+			if _, derr := b.HandleDialog(false, ""); derr == nil {
+				msg += " dialog auto-dismissed (muted)."
+			} else {
+				msg += " dialog open (" + dlg.Type + "): dismiss failed, M mutes."
+			}
+		} else {
+			msg += " dialog open (" + dlg.Type + "): Esc address bar, M mutes."
+		}
+	}
+	s.Message = msg
 }
 
 // ensureLive returns the persistent browser, navigating it in place
@@ -345,6 +392,17 @@ func (s *Shell) NewTab(addr string) {
 	s.Message = "Opened " + page.Address
 }
 
+// NewEmptyTab opens the empty starter card: one centered card with
+// the primary open action plus three starter destinations. The tab
+// reports a stable gen with no refs, so chips and the drawer stay
+// hidden until the first open commits.
+func (s *Shell) NewEmptyTab() {
+	page := demo.EmptyPage()
+	s.Tabs = append(s.Tabs, Tab{Title: page.Title, Address: page.Address, Page: page, Stable: true})
+	s.Active = len(s.Tabs) - 1
+	s.Message = "New tab: type / then an address to open a page."
+}
+
 // CloseTab closes the active tab unless it is the last one.
 func (s *Shell) CloseTab() {
 	if len(s.Tabs) <= 1 {
@@ -391,6 +449,14 @@ func (s *Shell) Handle(ev term.Event) bool {
 			s.Message = "Drawer closed."
 			return true
 		}
+		if s.live != nil && !s.live.Closed() && !s.DialogMuted {
+			if dlg := s.live.PendingDialog(); dlg != nil {
+				s.AddrEdit = true
+				s.AddrBuf = s.Current().Address
+				s.Message = "Dialog (" + dlg.Type + ") open: broke to address bar; M mutes dialogs."
+				return true
+			}
+		}
 		return true
 	}
 	if s.RefEntry {
@@ -433,7 +499,7 @@ func (s *Shell) Handle(ev term.Event) bool {
 			s.AddrBuf = s.Current().Address
 			return true
 		case "t":
-			s.NewTab("fixture://home")
+			s.NewEmptyTab()
 			return true
 		case "w":
 			s.CloseTab()
@@ -498,13 +564,21 @@ func (s *Shell) Handle(ev term.Event) bool {
 			s.Message = "No refs: open a live page first."
 			return true
 		}
+		now := time.Now()
+		collapsed := term.StrobeCollapse(s.lastResolve, now) ||
+			term.StrobeCollapse(s.lastDrawerToggle, now)
+		s.lastDrawerToggle = now
 		s.ShowDrawer = !s.ShowDrawer
 		if s.ShowDrawer {
 			s.ShowExt = false
 		}
 		s.clampHint()
 		if s.ShowDrawer {
-			s.Message = "Drawer: j/k move, Enter acts, [ ] page, Esc closes."
+			if collapsed {
+				s.Message = "Drawer (settled): j/k move, Enter acts, [ ] page, Esc closes."
+			} else {
+				s.Message = "Drawer: j/k move, Enter acts, [ ] page, Esc closes."
+			}
 		} else {
 			s.Message = "Drawer closed."
 		}
@@ -519,6 +593,14 @@ func (s *Shell) Handle(ev term.Event) bool {
 		return true
 	case "R":
 		s.applyRemap()
+		return true
+	case "M":
+		s.DialogMuted = !s.DialogMuted
+		if s.DialogMuted {
+			s.Message = "Dialogs muted: popups auto-dismiss after acts."
+		} else {
+			s.Message = "Dialogs unmuted: popups trap the ring until dismissed."
+		}
 		return true
 	case " ":
 		t := s.Current()
@@ -639,7 +721,7 @@ func (s *Shell) Handle(ev term.Event) bool {
 		}
 		return true
 	case "t":
-		s.NewTab("fixture://home")
+		s.NewEmptyTab()
 		return true
 	case "X":
 		t := s.Current()
@@ -805,6 +887,32 @@ func (s *Shell) scroll(d int) {
 	if t.Scroll > max {
 		t.Scroll = max
 	}
+	// Viewport displacement pins the continuity anchor: one prior
+	// row plus a gutter tag for 1x T2, then settle. Small moves and
+	// tab switches take the zero-frame cut (no anchor).
+	if d >= 10 || d <= -10 {
+		a := term.AnchorFor(true, itoa(d)+" rows")
+		s.AnchorTag, s.AnchorStatic = a.Tag, a.Static
+		if !a.Static {
+			s.AnchorUntil = time.Now().Add(a.Hold)
+		}
+	}
+}
+
+// anchorSuffix renders the displacement anchor tag for the status
+// line: the live 1x T2 hold, or the static overlap marker on the
+// reduced path. Expired holds report nothing.
+func (s *Shell) anchorSuffix() string {
+	if s.AnchorTag == "" {
+		return ""
+	}
+	if s.AnchorStatic {
+		return "anchor:" + s.AnchorTag + " (static)"
+	}
+	if time.Now().Before(s.AnchorUntil) {
+		return "anchor:" + s.AnchorTag
+	}
+	return ""
 }
 
 // ChromeRows reserves the tab strip plus address bar.
@@ -823,6 +931,9 @@ var (
 // the drawer above them, both pure overdraw that vanishes on dismiss.
 func (s *Shell) Render(f *term.Frame) int {
 	s.LastW, s.LastH = f.W, f.H
+	if !s.AnchorStatic && s.AnchorTag != "" && time.Now().After(s.AnchorUntil) {
+		s.AnchorTag = ""
+	}
 	s.mediaMu.Lock()
 	s.mediaW, s.mediaH = f.W, f.H
 	s.mediaMu.Unlock()
@@ -888,12 +999,32 @@ func renderAddrBar(s *Shell, f *term.Frame) {
 	} else if s.FillEntry {
 		text = "Fill " + s.FillRef + ": " + s.FillBuf + "_"
 	}
-	f.WriteText(0, 1, truncate(" "+text, f.W), chromeFG, chromeBG)
-	for x := 0; x < f.W && x < len([]rune(text))+1; x++ {
+	shown := addrWindow(text, f.W)
+	f.WriteText(0, 1, shown, chromeFG, chromeBG)
+	for x := 0; x < f.W && x < len([]rune(shown)); x++ {
 		c := f.At(x, 1)
 		c.BG = chromeBG
 		f.Set(x, 1, c)
 	}
+}
+
+// addrWindow fits overlong addresses into row width w with `<` `>`
+// scroll markers: the tail stays visible (host plus path end keep
+// context) and the markers show the row scrolls. Rows at or under w
+// pass through with the leading pad.
+func addrWindow(text string, w int) string {
+	r := []rune(" " + text)
+	if len(r) <= w {
+		return string(r)
+	}
+	if w <= 4 {
+		return string(r[:w])
+	}
+	inner := w - 2
+	tail := r[len(r)-inner:]
+	out := append([]rune{'<'}, tail...)
+	out[len(out)-1] = '>'
+	return string(out)
 }
 
 func renderStatus(s *Shell, f *term.Frame) {
@@ -912,6 +1043,12 @@ func renderStatus(s *Shell, f *term.Frame) {
 	if s.StaleWant != "" {
 		msg += "  STALE:" + s.StaleWant + " (R remaps)"
 	}
+	if tag := s.anchorSuffix(); tag != "" {
+		msg += "  " + tag
+	}
+	if s.DialogMuted {
+		msg += "  dlg:muted"
+	}
 	if len(s.ExtActions) > 0 {
 		msg += "  ext:" + itoa(len(s.ExtActions))
 	}
@@ -929,12 +1066,13 @@ func renderStatus(s *Shell, f *term.Frame) {
 func renderHelp(_ *Shell, f *term.Frame) {
 	lines := []string{
 		"Keys: q quit, / address, arrows scroll, [/] tabs,",
-		"t new tab, x close tab, 1-9 jump, g/G top/bottom,",
+		"t new tab (empty card), x close tab, 1-9 jump, g/G top/bottom,",
 		"H/L back/forward, r reload, p profile, Ctrl+T/W/L/Q twins,",
 		"wheel scrolls, ? toggles help.",
 		"Live refs: : drawer, Space act focused, eN+Enter act,",
 		"f fill text field, . chips, R stale remap, Esc closes.",
-		"X page actions, V media watch, Enter runs focused action.",
+		"X page actions, V media watch, M mute dialogs,",
+		"Enter runs focused action. REDUCED_MOTION=1 stills motion.",
 	}
 	y := f.H - len(lines) - 2
 	if y < ChromeRows {

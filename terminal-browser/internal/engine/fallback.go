@@ -37,6 +37,8 @@ func OfflinePage(addr, reason string) demo.Page {
 		{Text: "  1. Check the network, then retry the address.", FG: errDim},
 		{Text: "  2. Confirm Chrome is installed (chrome --version, floor 140).", FG: errDim},
 		{Text: "  3. Browse offline fixtures: fixture://home, fixture://article.", FG: errDim},
+		{Text: ""},
+		{Text: "Actions: r retries, / opens a new address, fixture://home works offline.", FG: errDim},
 	}
 	return demo.Page{Name: "offline", Title: "Navigation failed", Address: addr, Rows: rows}
 }

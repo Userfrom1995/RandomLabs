@@ -182,16 +182,30 @@ func (c *Compositor) Commit(f *Frame) {
 }
 
 // Governor paces frames between 10 and 30 fps with a 10 fps floor on
-// Sixel and block paths, where PTY bytes cost the most.
+// Sixel and block paths, where PTY bytes cost the most. Reduced motion
+// parks the governor: every duration is zero, cuts are zero-frame, and
+// Wait never sleeps so input is never paced by animation.
 type Governor struct {
 	minInterval time.Duration
 	maxInterval time.Duration
 	last        time.Time
 	lastCost    time.Duration
+	// Reduced marks the reduced-motion path: all durations zero.
+	Reduced bool
 }
 
-// NewGovernor builds a governor for the active tier.
+// NewGovernor builds a governor for the active tier, honoring the
+// reduced-motion path (flag, REDUCED_MOTION=1, TB_MOTION=reduced).
 func NewGovernor(tier GraphicsTier) *Governor {
+	return NewGovernorFor(tier, Reduced())
+}
+
+// NewGovernorFor builds a governor with an explicit reduced choice.
+// Tests pin the policy through here without touching the environment.
+func NewGovernorFor(tier GraphicsTier, reduced bool) *Governor {
+	if reduced {
+		return &Governor{Reduced: true}
+	}
 	g := &Governor{minInterval: 33 * time.Millisecond, maxInterval: 100 * time.Millisecond}
 	if tier == TierSixel || tier == TierBlock {
 		g.minInterval = 66 * time.Millisecond
@@ -204,7 +218,12 @@ func NewGovernor(tier GraphicsTier) *Governor {
 }
 
 // Wait blocks until the next frame slot, adapting to measured paint cost.
+// Reduced motion never waits: motion never blocks input.
 func (g *Governor) Wait() {
+	if g.Reduced {
+		g.last = time.Now()
+		return
+	}
 	now := time.Now()
 	target := g.minInterval + g.lastCost/2
 	if target > g.maxInterval {
@@ -220,7 +239,11 @@ func (g *Governor) Wait() {
 func (g *Governor) Observe(cost time.Duration) { g.lastCost = cost }
 
 // TargetFPS reports the current frame-rate target for status display.
+// Reduced motion reports 0: nothing animates, so no rate applies.
 func (g *Governor) TargetFPS() int {
+	if g.Reduced {
+		return 0
+	}
 	target := g.minInterval + g.lastCost/2
 	if target > g.maxInterval {
 		target = g.maxInterval
