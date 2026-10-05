@@ -44,7 +44,7 @@ go build ./...
 ./tb --url https://news.ycombinator.com/ --tier block --dump-stats
 ./tb-agent fetch --url https://news.ycombinator.com/ --lite
 go test ./...</code></pre>
-    <p>Run the interactive shell with <code>go run ./cmd/tb</code> in a real terminal. <code>q</code> quits, <code>/</code> edits the address (http(s) URLs fetch live, <code>fixture://</code> stays local), <code>?</code> shows all keys.</p>
+    <p>Run the interactive shell with <code>go run ./cmd/tb</code> in a real terminal. <code>q</code> quits, <code>/</code> edits the address (http(s) URLs fetch live, <code>fixture://</code> stays local), <code>H</code>/<code>L</code> step back/forward, <code>r</code> reloads, <code>p</code> switches profile, <code>?</code> shows all keys.</p>
   </section>
 
   <section>
@@ -57,7 +57,13 @@ go test ./...</code></pre>
       <tr><td><code>tb --url URL [--profile P] [--lite]</code></td><td>Fetches one live page through the engine and paints it through the full pipeline.</td></tr>
       <tr><td><code>tb-agent probe</code></td><td>Reports terminal capabilities as a JSON envelope.</td></tr>
       <tr><td><code>tb-agent render --fixture NAME --graphics-tier T</code></td><td>Renders a fixture page and reports bytes, cells, painter, tier.</td></tr>
-      <tr><td><code>tb-agent fetch --url URL [--lite] [--width W]</code></td><td>Fetches a live page and reports rows, cold timing, JS probe, Chrome version.</td></tr>
+      <tr><td><code>tb-agent fetch --url URL [--lite] [--width W]</code></td><td>Fetches a live page and reports rows, cold timing, jar sync counts, JS probe, Chrome version.</td></tr>
+      <tr><td><code>tb-agent cookies [--profile P]</code></td><td>Lists the persisted cookie jar for a profile.</td></tr>
+      <tr><td><code>tb-agent cookies-set --name N --value V --domain D [--profile P]</code></td><td>Inserts a jar row; installs into the next live navigation.</td></tr>
+      <tr><td><code>tb-agent history [--query Q] [--limit N] [--profile P]</code></td><td>Queries visits newest-first with substring filter.</td></tr>
+      <tr><td><code>tb-agent bookmark-add --url U [--title T] [--profile P]</code></td><td>Saves a bookmark; <code>bookmarks</code> lists, <code>bookmark-remove</code> deletes.</td></tr>
+      <tr><td><code>tb-agent session [--profile P]</code></td><td>Reports the back/forward stack; <code>session-back</code>, <code>session-forward</code>, <code>session-reload</code> step it.</td></tr>
+      <tr><td><code>tb-agent state-save --file F [--profile P]</code></td><td>Exports cookies, bookmarks, and stack; <code>state-load</code> imports them back.</td></tr>
     </table>
     </div>
   </section>
@@ -86,6 +92,7 @@ go test ./...</code></pre>
       <div class="card"><h3><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/docs/architecture.md">Architecture</a></h3><p>Process model, render path, graphics layering, state, control plane.</p></div>
       <div class="card"><h3><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/docs/design.md">Design</a></h3><p>Harbor Overlay System: chips, drawer, settled snapshots, tokens, motion.</p></div>
       <div class="card"><h3><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/docs/engine.md">Engine</a></h3><p>Chromium sidecar, CDP session, lite mode, AX stylesheet, reflow, timing budgets.</p></div>
+      <div class="card"><h3><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/docs/sessions.md">Sessions</a></h3><p>Profiles, cookie jar sync, history, bookmarks, back/forward and restore, state files.</p></div>
       <div class="card"><h3><a href="https://github.com/Userfrom1995/RandomLabs/tree/main/terminal-browser">Source</a></h3><p>Go module, fixture router, verification harness, build instructions.</p></div>
     </div>
   </section>

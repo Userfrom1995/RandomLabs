@@ -42,9 +42,11 @@ ReGIS and Tektronix are explicitly out of scope.
 
 Each profile maps to one persistent browser context backed by a user data
 directory. Cookies sync from CDP storage into a local jar for inspection
-and offline audit; history and bookmarks live in SQLite; sessions save and
-load via storage-state files. Closing and reopening a profile restores tabs,
-cookies, and history position.
+and offline audit; history, bookmarks, and the back/forward stack live
+in atomic JSON documents under the profile (0700 dirs, 0600 files);
+sessions save and load via portable state files. Closing and reopening
+a profile restores tabs, cookies, and history position. Full detail in
+[sessions](sessions.md).
 
 ## Interaction model
 

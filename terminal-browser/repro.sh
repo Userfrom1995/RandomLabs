@@ -1,8 +1,9 @@
 #!/bin/sh
-# repro.sh: one-command reproduction for the terminal-browser Phase 2 gate.
-# Builds, probes, renders, verifies the fixture manifest, and runs the
-# hermetic suites. Live checks run only when Chrome plus network exist
-# and never fail the hermetic gate when offline.
+# repro.sh: one-command reproduction for the terminal-browser gates.
+# Builds, probes, renders, verifies the fixture manifest, replays the
+# cookie/bookmark/state session round-trip under an isolated TB_HOME,
+# and runs the hermetic suites. Live checks run only when Chrome plus
+# network exist and never fail the hermetic gate when offline.
 # Usage: ./repro.sh  (exit 0 prints PASS, nonzero prints FAIL plus step)
 set -eu
 cd "$(dirname "$0")"
@@ -52,5 +53,19 @@ else
   grep -q '"success":false' /tmp/tb-repro-fetch.json || fail "offline envelope success=false"
   pass "offline fail-closed success=false exit 1"
 fi
+
+echo "== session round-trip (isolated TB_HOME) =="
+export TB_HOME=/tmp/tb-repro-home
+rm -rf "$TB_HOME"
+go run ./cmd/tb-agent cookies-set --profile repro --name sid --value abc --domain example.com | grep -q '"success":true' || fail "cookies-set"
+go run ./cmd/tb-agent cookies --profile repro | grep -q '"sid"' || fail "cookies list shows sid"
+go run ./cmd/tb-agent bookmark-add --profile repro --url "https://example.com/" --title Example | grep -q '"success":true' || fail "bookmark-add"
+go run ./cmd/tb-agent bookmarks --profile repro | grep -q 'example.com' || fail "bookmarks list"
+go run ./cmd/tb-agent state-save --profile repro --file /tmp/tb-repro-state.json | grep -q '"success":true' || fail "state-save"
+go run ./cmd/tb-agent cookies-clear --profile repro | grep -q '"cleared":1' || fail "cookies-clear count"
+go run ./cmd/tb-agent state-load --profile repro --file /tmp/tb-repro-state.json | grep -q '"cookies":1' || fail "state-load restores jar"
+go run ./cmd/tb-agent history --profile repro | grep -q '"success":true' || fail "history query"
+go run ./cmd/tb-agent session --profile repro | grep -q '"success":true' || fail "session status"
+pass "session round-trip green"
 
 echo "ALL GREEN: repro.sh PASS"
