@@ -105,18 +105,37 @@ func CheckFloor(bin string) (string, error) {
 	return full, nil
 }
 
+// profileRe allows only safe profile names: traversal (.., /, \),
+// hidden dirs (.), and shell metacharacters are rejected.
+var profileRe = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
+
+// SanitizeProfile validates a profile name. Anything outside
+// [a-zA-Z0-9_-] (including "..", "/", "\", ".", and empty) fails
+// closed instead of escaping the profiles directory.
+func SanitizeProfile(profile string) (string, error) {
+	if profile == "" {
+		return "default", nil
+	}
+	if !profileRe.MatchString(profile) {
+		return "", fmt.Errorf("invalid profile %q: want [a-zA-Z0-9_-], max 64 chars", profile)
+	}
+	return profile, nil
+}
+
 // ProfileDir returns the persistent user-data directory for a profile.
 // Phase 2 uses it for per-profile contexts; cookie and history sync
 // land in Phase 3, but the directory isolation is real from day one.
+// Unsanitized input never escapes: invalid names map to "default".
 func ProfileDir(profile string) string {
-	if profile == "" {
-		profile = "default"
+	safe, err := SanitizeProfile(profile)
+	if err != nil {
+		safe = "default"
 	}
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
-		return filepath.Join(os.TempDir(), "terminal-browser", "profiles", profile)
+		return filepath.Join(os.TempDir(), "terminal-browser", "profiles", safe)
 	}
-	return filepath.Join(home, ".terminal-browser", "profiles", profile)
+	return filepath.Join(home, ".terminal-browser", "profiles", safe)
 }
 
 // FreePort binds :0 to discover an open loopback port for the
@@ -173,9 +192,24 @@ func Launch(o LaunchOpts) (*Process, error) {
 			return nil, err
 		}
 	}
-	dir := ProfileDir(o.Profile)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	safe, err := SanitizeProfile(o.Profile)
+	if err != nil {
+		return nil, err
+	}
+	dir := ProfileDir(safe)
+	// 0700: profiles hold cookies and history, never world-readable.
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("profile dir: %w", err)
+	}
+	for _, f := range o.Extra {
+		fl := strings.ToLower(strings.TrimSpace(f))
+		if strings.Contains(fl, "user-data-dir") ||
+			strings.Contains(fl, "remote-debugging-") ||
+			strings.Contains(fl, "renderer-cmd-prefix") ||
+			strings.Contains(fl, "gpu-launcher") ||
+			strings.Contains(fl, "utility-cmd-prefix") {
+			return nil, fmt.Errorf("rejected extra chrome flag %q: flag injection into sidecar transport denied", f)
+		}
 	}
 	timeout := o.Timeout
 	if timeout == 0 {
@@ -188,6 +222,7 @@ func Launch(o LaunchOpts) (*Process, error) {
 		"--no-default-browser-check",
 		"--disable-extensions",
 		"--disable-background-timer-throttling",
+		"--remote-debugging-address=127.0.0.1",
 		fmt.Sprintf("--remote-debugging-port=%d", port),
 		fmt.Sprintf("--user-data-dir=%s", dir),
 		"about:blank",
