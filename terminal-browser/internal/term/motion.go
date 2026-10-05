@@ -3,7 +3,7 @@
 // Ticks pace cursor/focus (T1), drawer and pane cuts (T2), and spinners
 // plus fetch progress (T3). Reduced motion forces every duration to
 // zero: zero-frame cuts, a static anchor overlap with no hold, and
-// static loading text at most 1 Hz.
+// static loading text with no animation.
 package term
 
 import (
@@ -25,8 +25,6 @@ const (
 	// SpinnerMaxFrames caps the loading spinner before it parks on a
 	// static elapsed label.
 	SpinnerMaxFrames = 6
-	// MotionCellCap caps repainted cells per tick on every tier.
-	MotionCellCap = 20
 )
 
 // T1 returns the cursor and focus tick.
@@ -80,8 +78,9 @@ func SpinnerFrame(n int) string {
 }
 
 // SteppedBar renders the 10-cell stepped progress bar: 1 cell per T3
-// tick. Counts past total clamp full; the reduced path returns a
-// static bracket with no fill animation.
+// tick. Counts past total clamp full; the fill is a static snapshot
+// on the reduced path (painted once, no tick animation), so the bar
+// stays honest without motion.
 func SteppedBar(step, total int) string {
 	const cells = 10
 	if total <= 0 {
