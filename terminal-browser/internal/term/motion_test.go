@@ -138,3 +138,58 @@ func TestStrobeCollapse(t *testing.T) {
 		t.Fatalf("zero times must never collapse")
 	}
 }
+
+func TestMotionBoundaries(t *testing.T) {
+	old := forcedReduced
+	forcedReduced = false
+	defer func() { forcedReduced = old }()
+	// Spinner clamps: negative parks on frame 0, far-past parks on
+	// the final frame so a stuck load never spins forever.
+	if got := SpinnerFrame(-3); got != spinnerFrames[0] {
+		t.Fatalf("negative spinner must park on frame 0, got %q", got)
+	}
+	if got := SpinnerFrame(SpinnerMaxFrames*len(spinnerFrames) + 40); got != spinnerFrames[len(spinnerFrames)-1] {
+		t.Fatalf("over-cap spinner must park on the final frame, got %q", got)
+	}
+	// SteppedBar clamps: negative steps empty, past-total full,
+	// zero total treated as a single cell.
+	if got := SteppedBar(-5, 10); got != "[----------]" {
+		t.Fatalf("negative step must clamp empty, got %q", got)
+	}
+	if got := SteppedBar(99, 10); got != "[##########]" {
+		t.Fatalf("past-total step must clamp full, got %q", got)
+	}
+	if got := SteppedBar(0, 0); got != "[----------]" {
+		t.Fatalf("zero total must render empty, got %q", got)
+	}
+	if got := SteppedBar(1, 0); got != "[##########]" {
+		t.Fatalf("zero total with progress must render full, got %q", got)
+	}
+	// FetchLine clamps negative elapsed to zero.
+	if line := FetchLine(-250*time.Millisecond, 2, 10); !strings.Contains(line, "fetch 0ms") {
+		t.Fatalf("negative elapsed must clamp to 0ms: %q", line)
+	}
+	// Strobe edges: exact-150 ms collapses, reversed order uses the
+	// absolute gap so argument order never matters.
+	now := time.Now()
+	if !StrobeCollapse(now, now.Add(150*time.Millisecond)) {
+		t.Fatalf("exact-150ms gestures must collapse")
+	}
+	if !StrobeCollapse(now.Add(100*time.Millisecond), now) {
+		t.Fatalf("reversed-order gestures 100ms apart must collapse")
+	}
+	// Reduced plus zero displacement stays a zero-frame cut: the
+	// stable-viewport path never gains a static anchor.
+	forcedReduced = true
+	if a := AnchorFor(false, "3 new"); a.Hold != 0 || a.Static || a.Tag != "" {
+		t.Fatalf("reduced stable-viewport replace must stay a zero-frame cut: %+v", a)
+	}
+	// Reduced stepped bar is a static snapshot: same fill, painted
+	// once, with no spinner frames.
+	forcedReduced = false
+	plain := SteppedBar(5, 10)
+	forcedReduced = true
+	if got := SteppedBar(5, 10); got != plain {
+		t.Fatalf("reduced bar must match the static snapshot %q, got %q", plain, got)
+	}
+}
