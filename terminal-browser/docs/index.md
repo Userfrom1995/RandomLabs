@@ -7,4 +7,6 @@ and verification. Then read [design](design.md): the Harbor Overlay
 System (chips, drawer, settled snapshots, tokens, motion) with tokens in
 [design-tokens.json](design-tokens.json). Then read [engine](engine.md):
 Chromium sidecar, CDP session, lite mode, AX stylesheet, reflow, timing
-budgets, and offline fail-closed behavior.
+budgets, and offline fail-closed behavior. Then read
+[sessions](sessions.md): profiles, cookie jar sync, history, bookmarks,
+back/forward and restore, portable state files, and the session CLI.

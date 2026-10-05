@@ -28,7 +28,15 @@ the MCP server can do identically.
   cold 10 s and warm 3 s binding budgets, offline fail-closed errors.
 - Agent CLI twin: `tb-agent probe`, `tb-agent render --fixture NAME
   --graphics-tier T`, and `tb-agent fetch --url URL [--lite]` emit the
-  shared JSON envelope.
+  shared JSON envelope, plus the full session surface (`cookies`,
+  `cookies-set`, `cookies-clear`, `history`, `history-clear`,
+  `bookmark-add`, `bookmarks`, `bookmark-remove`, `session`,
+  `session-back`, `session-forward`, `session-reload`, `state-save`,
+  `state-load`) with `--profile` isolation.
+- Sessions: per-profile cookie jar synced from CDP Storage (push
+  pre-load, merge post-load), durable history with search, bookmarks,
+  persisted back/forward stack with `H`/`L` and `r` reload,
+  restore-on-restart, portable state files, `p` profile cycling.
 - Built-in fixture pages (`fixture://home`, `fixture://article`,
   `fixture://table`) plus an honest error page for unknown addresses.
 
@@ -41,13 +49,16 @@ go build ./...
 ./tb --url https://news.ycombinator.com/ --tier block --dump-stats
 ./tb-agent fetch --url https://news.ycombinator.com/ --lite
 TB_TIER=sixel ./tb-agent render --fixture article
+TB_HOME=/tmp/tb-demo ./tb-agent cookies-set --profile work --name sid --value abc --domain example.com
+TB_HOME=/tmp/tb-demo ./tb-agent cookies --profile work
 go test ./...
 ```
 
 Run the interactive shell with `go run ./cmd/tb` inside a real terminal.
 `q` quits, `/` edits the address (http(s) URLs fetch live, `fixture://`
-stays local), `?` shows keys. Sessions and the MCP server land as the
-control-plane subsystems grow.
+stays local), `H`/`L` step back/forward, `r` reloads, `p` switches
+profile, `?` shows keys. Full session detail lives in
+`docs/sessions.md`. The MCP server lands with the control plane next.
 
 ## Layout
 
@@ -58,6 +69,7 @@ control-plane subsystems grow.
 - `internal/tui/` - tab strip, address bar, status line, profile picker.
 - `internal/demo/` - fixture pages and the local router.
 - `internal/engine/` - Chrome locator plus launcher, CDP session, AX style
-  plus reflow, navigation with lite blocklists and offline fail-closed.
-- `docs/` - architecture, engine policy, verification notes.
+  plus reflow, navigation with lite blocklists and offline fail-closed,
+  session stores (cookies, history, bookmarks, stack, state files).
+- `docs/` - architecture, engine policy, sessions, verification notes.
 - `tests/` - static gate (`test_terminal_browser.py`), offline fixtures.
