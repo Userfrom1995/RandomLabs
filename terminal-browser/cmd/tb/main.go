@@ -25,7 +25,12 @@ func main() {
 	lite := flag.Bool("lite", false, "block images, media, and trackers on live fetch")
 	tierFlag := flag.String("tier", "", "force graphics tier (kitty, sixel, iterm2, block)")
 	dumpStats := flag.Bool("dump-stats", false, "print per-frame byte stats for the fixture render")
+	reducedMotion := flag.Bool("reduced-motion", false, "force the reduced-motion path: zero-frame cuts, static loading text")
 	flag.Parse()
+
+	if *reducedMotion {
+		term.SetReduced(true)
+	}
 
 	caps := term.Probe()
 	var tierOverride *term.GraphicsTier

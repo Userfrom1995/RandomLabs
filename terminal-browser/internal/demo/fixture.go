@@ -144,6 +144,64 @@ func Lookup(addr string) Page {
 	return NotFound(a)
 }
 
+// BlockedScheme reports whether addr uses a scheme the browser refuses
+// to run: script-bearing schemes never execute page code from the
+// address bar. Matching is case-insensitive on the scheme prefix.
+func BlockedScheme(addr string) (string, bool) {
+	lower := strings.ToLower(strings.TrimSpace(addr))
+	for _, scheme := range []string{"javascript:", "data:", "vbscript:"} {
+		if strings.HasPrefix(lower, scheme) {
+			return strings.TrimSuffix(scheme, ":"), true
+		}
+	}
+	return "", false
+}
+
+// BlockedPage renders the hostile-input card for a refused scheme: it
+// names the scheme and offers the safe action. Nothing executes.
+func BlockedPage(addr, scheme string) Page {
+	short := addr
+	if len([]rune(short)) > 64 {
+		short = string([]rune(short)[:63]) + ">"
+	}
+	return Page{
+		Name:    "blocked",
+		Title:   "Blocked address scheme",
+		Address: addr,
+		Rows: []Row{
+			{Text: "Blocked: this address cannot run here", FG: heading, Bold: true},
+			{Text: ""},
+			{Text: "Scheme: " + scheme, FG: ink},
+			{Text: "Address: " + short, FG: ink},
+			{Text: ""},
+			{Text: "Safe action: type / then an http(s) or fixture:// address.", FG: dim},
+			{Text: "Try fixture://home, fixture://article, or fixture://table.", FG: dim},
+		},
+	}
+}
+
+// EmptyPage renders the new-tab card: one centered starter card with
+// the primary open action plus three starter destinations. The
+// snapshot reports no refs against a stable gen, so chips and the
+// drawer stay hidden until the first open commits.
+func EmptyPage() Page {
+	return Page{
+		Name:    "empty",
+		Title:   "New tab",
+		Address: "about:blank",
+		Rows: []Row{
+			{Text: "New tab", FG: heading, Bold: true},
+			{Text: ""},
+			{Text: "Type / then an address to open a page.", FG: ink},
+			{Text: ""},
+			{Text: "Starter destinations:", FG: ink, Bold: true},
+			{Text: "  fixture://home - browser home", FG: dim},
+			{Text: "  fixture://article - reflow and style demo", FG: dim},
+			{Text: "  fixture://table - grid layout demo", FG: dim},
+		},
+	}
+}
+
 func heroImage() gfx.Image {
 	im := gfx.NewImage(48, 24)
 	for y := 0; y < 24; y++ {
