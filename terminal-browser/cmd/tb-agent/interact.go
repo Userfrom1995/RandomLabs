@@ -56,7 +56,7 @@ func interactCmd(args []string) {
 	stdin := fs.Bool("stdin", false, "read steps from stdin (JSON array or newline-delimited objects)")
 	out := fs.String("out", "", "tee the final envelope JSON to FILE (0600) as well as stdout")
 	session := fs.String("session", "", "session name recorded in the registry and echoed in the envelope")
-	capsFlag := fs.String("caps", "", "comma-separated capability gates (pdf, trace); TB_CAPS also read")
+	capsFlag := fs.String("caps", "", "comma-separated capability gates (pdf, trace, extension_trigger, webmcp); TB_CAPS also read")
 	dialogPolicy := fs.String("dialog-policy", "manual", "dialog policy: manual, accept, or dismiss")
 	var dos doFlags
 	fs.Var(&dos, "do", "one step as JSON (repeatable)")
