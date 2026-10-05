@@ -39,6 +39,7 @@ type Result struct {
 	Rows      []demo.Row `json:"-"`
 	RowCount  int        `json:"rows"`
 	ColdMs    int64      `json:"cold_ms"`
+	TotalMs   int64      `json:"total_ms,omitempty"`
 	Warm      time.Duration `json:"-"`
 	WarmTitle string     `json:"warm_title,omitempty"`
 	WarmOver  bool       `json:"warm_over_budget,omitempty"`
@@ -55,6 +56,16 @@ func (r *Result) Cold() time.Duration {
 		return 0
 	}
 	return time.Duration(r.ColdMs) * time.Millisecond
+}
+
+// Total reports the spawn-inclusive cost from Navigate entry through
+// render: sidecar launch plus connect plus enable plus cold load.
+// ColdMs covers the load wait only; TotalMs never understates cold.
+func (r *Result) Total() time.Duration {
+	if r == nil {
+		return 0
+	}
+	return time.Duration(r.TotalMs) * time.Millisecond
 }
 
 // Options tunes one navigation.
@@ -93,6 +104,9 @@ func ClassifyError(err error) string {
 		return "no_chrome"
 	case strings.Contains(s, "invalid url"), strings.Contains(s, "unsupported scheme"):
 		return "bad_url"
+	case strings.Contains(s, "invalid profile"),
+		strings.Contains(s, "rejected extra chrome flag"):
+		return "bad_profile"
 	default:
 		return "error"
 	}
@@ -114,7 +128,15 @@ func ValidateURL(raw string) error {
 // Navigate loads url through a fresh sidecar, styles the AX tree into
 // grid rows, runs the JS probe, and optionally measures a warm second
 // load. Every failure returns an honest offline/error Result.
+// Timing: ColdMs covers the load wait; TotalMs covers Navigate entry
+// through render (sidecar spawn plus connect plus enable plus load),
+// so cold_ms never understates true cold cost.
 func Navigate(target string, o Options) *Result {
+	t0 := time.Now()
+	stamp := func(r *Result) *Result {
+		r.TotalMs = time.Since(t0).Milliseconds()
+		return r
+	}
 	width := o.Width
 	if width <= 0 {
 		width = 80
@@ -122,7 +144,7 @@ func Navigate(target string, o Options) *Result {
 	if err := ValidateURL(target); err != nil {
 		r := OfflineResult(target, ClassifyError(err), err.Error())
 		r.Version = ""
-		return r
+		return stamp(r)
 	}
 	timeout := o.Timeout
 	if timeout == 0 {
@@ -130,17 +152,17 @@ func Navigate(target string, o Options) *Result {
 	}
 	bin, err := Locate()
 	if err != nil {
-		return OfflineResult(target, ClassifyError(err), err.Error())
+		return stamp(OfflineResult(target, ClassifyError(err), err.Error()))
 	}
 	ver, err := CheckFloor(bin)
 	if err != nil {
 		r := OfflineResult(target, ClassifyError(err), err.Error())
 		r.Version = ver
-		return r
+		return stamp(r)
 	}
 	proc, err := Launch(LaunchOpts{Binary: bin, Profile: o.Profile, Timeout: timeout})
 	if err != nil {
-		return OfflineResult(target, ClassifyError(err), err.Error())
+		return stamp(OfflineResult(target, ClassifyError(err), err.Error()))
 	}
 	defer proc.Stop()
 
@@ -148,34 +170,35 @@ func Navigate(target string, o Options) *Result {
 	if err != nil {
 		r := OfflineResult(target, ClassifyError(err), err.Error())
 		r.Version = proc.Version
-		return r
+		return stamp(r)
 	}
 	sess, err := Connect(dbg)
 	if err != nil {
 		r := OfflineResult(target, ClassifyError(err), err.Error())
 		r.Version = proc.Version
-		return r
+		return stamp(r)
 	}
 	defer sess.Close()
 	if err := sess.Enable(); err != nil {
 		r := OfflineResult(target, ClassifyError(err), err.Error())
 		r.Version = proc.Version
-		return r
+		return stamp(r)
 	}
 	if err := sess.SetLite(o.Lite); err != nil {
 		r := OfflineResult(target, ClassifyError(err), err.Error())
 		r.Version = proc.Version
-		return r
+		return stamp(r)
 	}
 	// Clock starts before Navigate so the cold cost covers the full
 	// load wait (sidecar spawn stays outside: Launch already waited for
 	// the DevTools endpoint and reports its own timeout separately).
+	// TotalMs (stamped from t0 above) carries the spawn-inclusive cost.
 	start := time.Now()
 	if _, err := sess.Navigate(target, ColdBudget); err != nil {
 		r := OfflineResult(target, ClassifyError(err), err.Error())
 		r.Version = proc.Version
 		r.ColdMs = time.Since(start).Milliseconds()
-		return r
+		return stamp(r)
 	}
 	cold := time.Since(start)
 	res := buildResult(sess, target, proc.Version, width)
@@ -199,7 +222,7 @@ func Navigate(target string, o Options) *Result {
 			res.WarmOver = res.Warm > WarmBudget
 		}
 	}
-	return res
+	return stamp(res)
 }
 
 // NavigateQuick is the TUI/CLI one-shot path: single load, default
