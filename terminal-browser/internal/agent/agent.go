@@ -811,8 +811,10 @@ func Execute(m *Manager, name string, args map[string]interface{}) (interface{},
 			names = append(names, t.Name)
 		}
 		enabled := []string{}
-		for cap := range m.CapsOf() {
-			enabled = append(enabled, cap)
+		for _, l := range LiveCaps {
+			if m.CapsOf()[l] {
+				enabled = append(enabled, l)
+			}
 		}
 		sort.Strings(enabled)
 		return map[string]interface{}{
