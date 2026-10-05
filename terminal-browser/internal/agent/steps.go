@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -284,7 +285,17 @@ func ParseSteps(body []byte) ([]Step, error) {
 	var steps []Step
 	dec := json.NewDecoder(strings.NewReader(strings.TrimSpace(string(body))))
 	// Accept one array or newline-delimited single objects.
+	// A successful array decode must consume the whole input: any
+	// trailing data past the array fails closed instead of silently
+	// dropping steps.
 	if err := dec.Decode(&steps); err == nil {
+		var extra interface{}
+		if err := dec.Decode(&extra); err != io.EOF {
+			if err == nil {
+				return nil, fmt.Errorf("trailing data after step array")
+			}
+			return nil, err
+		}
 		return steps, nil
 	}
 	steps = nil
@@ -292,7 +303,10 @@ func ParseSteps(body []byte) ([]Step, error) {
 	for {
 		var st Step
 		if err := dec.Decode(&st); err != nil {
-			break
+			if err == io.EOF {
+				break
+			}
+			return nil, err
 		}
 		steps = append(steps, st)
 	}
