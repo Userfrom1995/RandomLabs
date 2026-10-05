@@ -7,24 +7,25 @@
 <style>
 :root { color-scheme: dark; --bg:#0c0e14; --panel:#161a24; --ink:#e8eaf2; --dim:#9aa0b5; --accent:#78c8ff; --warm:#ffd178; }
 * { box-sizing: border-box; }
-body { margin:0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background:var(--bg); color:var(--ink); line-height:1.6; }
+body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background:var(--bg); color:var(--ink); line-height:1.6; }
 .wrap { max-width: 860px; margin: 0 auto; padding: 32px 20px 64px; }
 .hero { border:1px solid #2a3042; background:var(--panel); border-radius:12px; padding:28px; }
 h1 { margin:0 0 8px; font-size: clamp(24px, 4vw, 36px); }
-.sub { color:var(--dim); margin:0 0 16px; }
-.badges span { display:inline-block; border:1px solid #2a3042; border-radius:999px; padding:2px 12px; margin:0 8px 8px 0; color:var(--accent); font-size:13px; }
-pre { background:#0a0c11; border:1px solid #2a3042; border-radius:8px; padding:14px; overflow-x:auto; }
-code { color:var(--warm); }
+.sub { color:var(--dim); margin:0 0 16px; font-size:15px; }
+.badges span { display:inline-block; border:1px solid #2a3042; border-radius:999px; padding:2px 12px; margin:0 8px 8px 0; color:var(--accent); font-size:14px; }
+pre { background:#0a0c11; border:1px solid #2a3042; border-radius:8px; padding:14px; overflow-x:auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+code { color:var(--warm); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 section { margin-top: 28px; }
 h2 { font-size:20px; border-bottom:1px solid #2a3042; padding-bottom:6px; }
-table { width:100%; border-collapse:collapse; font-size:14px; }
+.table-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+table { width:100%; border-collapse:collapse; font-size:14px; min-width:480px; }
 th, td { text-align:left; border-bottom:1px solid #2a3042; padding:8px 6px; }
 a { color:var(--accent); }
 .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; }
 .card { border:1px solid #2a3042; background:var(--panel); border-radius:10px; padding:14px; }
-.card h3 { margin:0 0 6px; font-size:15px; }
-.card p { margin:0; color:var(--dim); font-size:13px; }
-@media (max-width: 480px) { .wrap { padding: 20px 14px 48px; } table { font-size:12px; } }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--dim); font-size:14px; }
+@media (max-width: 480px) { .wrap { padding: 20px 14px 48px; } table { font-size:13px; } .card p, .sub { font-size:14px; } }
 </style>
 </head>
 <body>
@@ -48,6 +49,7 @@ go test ./...</code></pre>
 
   <section>
     <h2>Command reference</h2>
+    <div class="table-scroll">
     <table>
       <tr><th>Command</th><th>What it does</th></tr>
       <tr><td><code>tb</code></td><td>Interactive terminal browser shell (tabs, address bar, status line).</td></tr>
@@ -57,6 +59,7 @@ go test ./...</code></pre>
       <tr><td><code>tb-agent render --fixture NAME --graphics-tier T</code></td><td>Renders a fixture page and reports bytes, cells, painter, tier.</td></tr>
       <tr><td><code>tb-agent fetch --url URL [--lite] [--width W]</code></td><td>Fetches a live page and reports rows, cold timing, JS probe, Chrome version.</td></tr>
     </table>
+    </div>
   </section>
 
   <section>
@@ -66,6 +69,7 @@ go test ./...</code></pre>
 
   <section>
     <h2>Support matrix</h2>
+    <div class="table-scroll">
     <table>
       <tr><th>Platform</th><th>Graphics chain</th><th>Status</th></tr>
       <tr><td>Linux</td><td>Kitty, Sixel, iTerm2, block</td><td>Full path</td></tr>
@@ -73,6 +77,7 @@ go test ./...</code></pre>
       <tr><td>Windows (ConPTY)</td><td>iTerm2 stills, Sixel, block preferred</td><td>Hardened degraded chain</td></tr>
       <tr><td>tmux / screen</td><td>Block only</td><td>Forced fallback</td></tr>
     </table>
+    </div>
   </section>
 
   <section>

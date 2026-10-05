@@ -96,7 +96,10 @@ Any miss fails the gate. The warm path reuses a live CDP session for a
 second load.
 
 Results carry `cold_ms` as real integer milliseconds (never encoded
-nanoseconds), the JS evidence, the Chrome version on every path
+nanoseconds), plus `total_ms` measured from `Navigate` entry through
+render (sidecar spawn plus connect plus enable plus load) so the
+reported cost never understates true cold; `tb-agent fetch` emits both.
+The JS evidence, the Chrome version on every path
 including AX failures, and `RowCount` always equal to `len(Rows)`.
 The warm diagnostic lives in `warm_title` / `warm_over_budget` (the
 user-visible title is never mutated) and warm runs exceeding the 3 s
@@ -118,10 +121,30 @@ pass on rendered headings plus app presence.
 ## Offline fail-closed
 
 Every failure returns an honest result: `offline` with a machine code
-(`offline`, `no_chrome`, `load_timeout`, `bad_url`, `error`) and an
+(`offline`, `no_chrome`, `load_timeout`, `bad_url`, `bad_profile`,
+`error`) and an
 actionable warning, plus an error document that names the address, the
-reason, and the next steps. Nothing ever claims content it did not
+reason, and the next steps. Invalid profile names (anything outside
+`[a-zA-Z0-9_-]`) fail closed as `bad_profile`, never the generic
+`error`. Nothing ever claims content it did not
 fetch. Unreachable hosts fail closed with the code and exit 1; the
 only bundled snapshots are the clearly-labeled corpus files under
 `tests/fixtures/` exercised by hermetic unit tests, never presented
 as live renders.
+
+## Reproduction, corpus integrity, and baseline
+
+`repro.sh` is the one-command reproduction: `go build`, `go vet`,
+`sha256sum -c tests/fixtures/MANIFEST.sha256`, hermetic `go test
+-short`, the Python static gate, `tb-agent probe`, `tb-agent render
+--fixture home`, and an offline fail-closed check, each with
+PASS/FAIL. `tests/fixtures/MANIFEST.sha256` pins every corpus file;
+`TestFixtureManifest` plus the static gate fail closed on drift.
+
+The engine never grades itself on an absolute clock alone.
+`BaselineFetchMs` is the raw-fetch incumbent (plain GET, the curl
+`time_total` equivalent) run head-to-head against `Navigate` under
+matched budgets (`TestLiveBaselineComparison` logs both and caps
+engine cold at 10x the incumbent plus slack). Repeat runs use
+`SummarizeCold` over N>=5 samples with mean plus p95
+(`TestLiveRepeatStats` fails p95 over the 10 s budget).
