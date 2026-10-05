@@ -37,7 +37,7 @@ func emit(ok bool, data interface{}, warning, code string) {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: tb-agent <probe|render|fetch|cookies|cookies-set|cookies-clear|history|history-clear|bookmark-add|bookmarks|bookmark-remove|session|session-back|session-forward|session-reload|state-save|state-load> [flags]")
+		fmt.Fprintln(os.Stderr, "usage: tb-agent <probe|render|fetch|cookies|cookies-set|cookies-clear|history|history-clear|bookmark-add|bookmarks|bookmark-remove|session|session-back|session-forward|session-reload|state-save|state-load|interact> [flags]")
 		os.Exit(2)
 	}
 	switch os.Args[1] {
@@ -75,6 +75,8 @@ func main() {
 		stateSaveCmd(os.Args[2:])
 	case "state-load":
 		stateLoadCmd(os.Args[2:])
+	case "interact":
+		interactCmd(os.Args[2:])
 	default:
 		fmt.Fprintln(os.Stderr, "unknown command: "+os.Args[1])
 		os.Exit(2)

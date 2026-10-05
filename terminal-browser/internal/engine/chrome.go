@@ -136,6 +136,31 @@ func ProfileDir(profile string) string {
 	return filepath.Join(ProfilesRoot(), safe)
 }
 
+// instanceDir returns a fresh per-launch user-data directory under
+// the profile. Concurrent browsers (the interactive shell plus agent
+// runs, or two agents at once) never share a Chromium SingletonLock,
+// and a crashed run never wedges the next launch on a stale lock:
+// every open starts clean. Cookies, history, bookmarks, and the
+// navigation stack live in the profile root in our own stores (see
+// store.go), so login sessions and continuity survive across
+// instances; only Chromium-internal state (GPU cache, localStorage)
+// is ephemeral per launch. Previous instance dirs clean up
+// best-effort at open; an in-use dir on Windows simply survives
+// until its owner exits.
+func instanceDir(safe string) string {
+	base := ProfileDir(safe)
+	// 0700: profiles hold cookies and history, never world-readable.
+	_ = os.MkdirAll(base, 0o700)
+	if ents, err := os.ReadDir(base); err == nil {
+		for _, e := range ents {
+			if e.IsDir() && strings.HasPrefix(e.Name(), "sidecar-") {
+				_ = os.RemoveAll(filepath.Join(base, e.Name()))
+			}
+		}
+	}
+	return filepath.Join(base, fmt.Sprintf("sidecar-%d-%d", os.Getpid(), time.Now().UnixNano()))
+}
+
 // FreePort binds :0 to discover an open loopback port for the
 // remote-debugging endpoint.
 func FreePort() (int, error) {
@@ -194,11 +219,7 @@ func Launch(o LaunchOpts) (*Process, error) {
 	if err != nil {
 		return nil, err
 	}
-	dir := ProfileDir(safe)
-	// 0700: profiles hold cookies and history, never world-readable.
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return nil, fmt.Errorf("profile dir: %w", err)
-	}
+	dir := instanceDir(safe)
 	for _, f := range o.Extra {
 		fl := strings.ToLower(strings.TrimSpace(f))
 		if strings.Contains(fl, "user-data-dir") ||

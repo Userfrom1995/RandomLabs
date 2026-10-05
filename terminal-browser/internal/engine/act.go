@@ -70,9 +70,12 @@ func (s *Session) resolve(backendID int64, timeout time.Duration) (string, error
 	return out.Object.ObjectID, nil
 }
 
-// callOn runs fn(obj, arg) on the resolved object and returns the raw
-// value. DOM reads and writes go through this so every act touches
-// the exact resolved node, never a re-queried lookalike.
+// callOn runs fn on the resolved object and returns the raw value.
+// DOM reads and writes go through this so every act touches the
+// exact resolved node, never a re-queried lookalike. CDP invokes the
+// function with the node as `this` (not as the first parameter), so
+// every fn body reads the element through `this`; declared parameters
+// carry the JSON arguments only.
 func (s *Session) callOn(objectID, fn string, arg interface{}, timeout time.Duration) (json.RawMessage, error) {
 	params := map[string]interface{}{
 		"objectId":           objectID,
@@ -133,6 +136,45 @@ func (s *Session) ClickObject(objectID string, timeout time.Duration) error {
 		return fmt.Errorf("press: %w", err)
 	}
 	if err := s.mouse("mouseReleased", p, "left", 1, 0, timeout); err != nil {
+		return fmt.Errorf("release: %w", err)
+	}
+	return nil
+}
+
+// releaseTimeout bounds the mouse release: a modal JavaScript dialog
+// blocks the renderer, so the release response may never arrive. The
+// Browser treats a timeout with a pending dialog as a landed click.
+const releaseTimeout = 4 * time.Second
+
+// isTimeoutErr reports CDP round-trip timeouts for the dialog-hang
+// tolerance: only timeouts consult the pending dialog, never logic
+// errors.
+func isTimeoutErr(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "timeout after")
+}
+
+// clickOID clicks a resolved object with modal-dialog release
+// tolerance: trusted move plus press, then a short-budget release. A
+// release timeout with a dialog now pending means the click landed
+// and opened the dialog; the dialog op answers it next.
+func (b *Browser) clickOID(oid string) error {
+	p, err := b.sess.boxOf(oid, actTimeout)
+	if err != nil {
+		return err
+	}
+	if err := b.sess.mouse("mouseMoved", p, "none", 0, 0, actTimeout); err != nil {
+		return fmt.Errorf("hover before click: %w", err)
+	}
+	if err := b.sess.mouse("mousePressed", p, "left", 1, 1, actTimeout); err != nil {
+		return fmt.Errorf("press: %w", err)
+	}
+	if err := b.sess.mouse("mouseReleased", p, "left", 1, 0, releaseTimeout); err != nil {
+		if isTimeoutErr(err) {
+			time.Sleep(500 * time.Millisecond)
+			if b.PendingDialog() != nil {
+				return nil
+			}
+		}
 		return fmt.Errorf("release: %w", err)
 	}
 	return nil
@@ -257,10 +299,11 @@ func (b *Browser) withRef(id string, gen int, fn func(objectID string) error) er
 	return fn(oid)
 }
 
-// Click clicks a ref: trusted mouse traffic at its box center.
+// Click clicks a ref: trusted mouse traffic at its box center,
+// tolerating the modal-dialog release hang (see clickOID).
 func (b *Browser) Click(id string, gen int) error {
 	return b.withRef(id, gen, func(oid string) error {
-		return b.sess.ClickObject(oid, actTimeout)
+		return b.clickOID(oid)
 	})
 }
 
@@ -302,16 +345,37 @@ func (b *Browser) Fill(id string, gen int, text string, clear, submit bool) erro
 		}
 		if submit {
 			if err := b.sess.PressKey("enter", "", actTimeout); err != nil {
-				return fmt.Errorf("submit: %w", err)
+				// Submits open confirm dialogs that block the
+				// renderer mid-keystroke: a timeout with a pending
+				// dialog proves the submit landed.
+				if isTimeoutErr(err) {
+					time.Sleep(500 * time.Millisecond)
+					if b.PendingDialog() == nil {
+						return fmt.Errorf("submit: %w", err)
+					}
+				} else {
+					return fmt.Errorf("submit: %w", err)
+				}
 			}
 		}
 		return nil
 	})
 }
 
-// Press sends a trusted key press to the page (no ref needed).
+// Press sends a trusted key press to the page (no ref needed). An
+// Enter onto a submit control may raise a confirm mid-keystroke; the
+// same timeout plus pending-dialog tolerance applies.
 func (b *Browser) Press(key, mod string) error {
-	return b.sess.PressKey(key, mod, actTimeout)
+	if err := b.sess.PressKey(key, mod, actTimeout); err != nil {
+		if isTimeoutErr(err) {
+			time.Sleep(500 * time.Millisecond)
+			if b.PendingDialog() != nil {
+				return nil
+			}
+		}
+		return err
+	}
+	return nil
 }
 
 // ScrollPage scrolls trusted wheel deltas at the viewport center,
@@ -338,7 +402,8 @@ func (b *Browser) ScrollPage(dx, dy float64) error {
 // equal the want or the act fails closed.
 func (b *Browser) Select(id string, gen int, value string) error {
 	return b.withRef(id, gen, func(oid string) error {
-		v, err := b.sess.callOn(oid, `function(el, val) {
+		v, err := b.sess.callOn(oid, `function(val) {
+			const el = this;
 			el.focus();
 			el.value = val;
 			el.dispatchEvent(new Event('input', {bubbles: true}));
@@ -364,7 +429,8 @@ func (b *Browser) Select(id string, gen int, value string) error {
 // closed: a no-op click that changes nothing is never silent.
 func (b *Browser) SetChecked(id string, gen int, want bool) error {
 	return b.withRef(id, gen, func(oid string) error {
-		v, err := b.sess.callOn(oid, `function(el) {
+		v, err := b.sess.callOn(oid, `function() {
+			const el = this;
 			if ('checked' in el && el.checked !== undefined) { return el.checked; }
 			return null;
 		}`, nil, actTimeout)
@@ -379,10 +445,10 @@ func (b *Browser) SetChecked(id string, gen int, want bool) error {
 		if *cur == want {
 			return nil
 		}
-		if err := b.sess.ClickObject(oid, actTimeout); err != nil {
+		if err := b.clickOID(oid); err != nil {
 			return fmt.Errorf("toggle click: %w", err)
 		}
-		v2, err := b.sess.callOn(oid, `function(el) { return !!el.checked; }`, nil, actTimeout)
+		v2, err := b.sess.callOn(oid, `function() { return !!this.checked; }`, nil, actTimeout)
 		if err != nil {
 			return fmt.Errorf("verify checked: %w", err)
 		}
@@ -444,11 +510,17 @@ func (b *Browser) Drag(fromID string, fromGen int, toID string, toGen int, toX, 
 		f := float64(i) / float64(steps)
 		mid := point{X: start.X + (end.X-start.X)*f, Y: start.Y + (end.Y-start.Y)*f}
 		if err := b.sess.mouse("mouseMoved", mid, "left", 0, 1, actTimeout); err != nil {
-			_ = b.sess.mouse("mouseReleased", mid, "left", 1, 0, actTimeout)
+			_ = b.sess.mouse("mouseReleased", mid, "left", 1, 0, releaseTimeout)
 			return fmt.Errorf("drag move %d/%d: %w", i, steps, err)
 		}
 	}
-	if err := b.sess.mouse("mouseReleased", end, "left", 1, 0, actTimeout); err != nil {
+	if err := b.sess.mouse("mouseReleased", end, "left", 1, 0, releaseTimeout); err != nil {
+		if isTimeoutErr(err) {
+			time.Sleep(500 * time.Millisecond)
+			if b.PendingDialog() != nil {
+				return nil
+			}
+		}
 		return fmt.Errorf("drag release: %w", err)
 	}
 	return nil
@@ -562,6 +634,16 @@ func (b *Browser) DialogsHandled() []DialogEvent {
 	out := make([]DialogEvent, len(b.handled))
 	copy(out, b.handled)
 	return out
+}
+
+// Evaluate runs a JS expression in the page and returns the raw
+// value. The agent CLI caps the rendered output; the raw bytes here
+// stay complete for programmatic checks.
+func (b *Browser) Evaluate(expr string) (json.RawMessage, error) {
+	if strings.TrimSpace(expr) == "" {
+		return nil, fmt.Errorf("empty expression: nothing to evaluate")
+	}
+	return b.sess.Evaluate(expr, false, actTimeout)
 }
 
 // b64PNG decodes base64 PNG bytes from CDP with a size sanity cap.

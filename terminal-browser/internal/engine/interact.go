@@ -115,7 +115,7 @@ func Open(target string, o OpenOptions) (*Browser, error) {
 	if width <= 0 {
 		width = 80
 	}
-	proc, err := Launch(LaunchOpts{Profile: safe, Timeout: timeout})
+	proc, err := openSidecar(safe, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -168,6 +168,30 @@ func Open(target string, o OpenOptions) (*Browser, error) {
 		return nil, fmt.Errorf("snapshot: %w", err)
 	}
 	return b, nil
+}
+
+// openSidecar launches the sidecar with a bounded retry for the
+// profile-lock race: a previous browser killed milliseconds ago may
+// still hold the user-data-dir lock, and the fresh Chrome exits
+// before its endpoint answers. Endpoint silence retries twice one
+// second apart; every other launch error (bad profile, rejected
+// flag, missing binary) fails immediately with no retry.
+func openSidecar(safe string, timeout time.Duration) (*Process, error) {
+	var err error
+	for attempt := 1; attempt <= 3; attempt++ {
+		var proc *Process
+		proc, err = Launch(LaunchOpts{Profile: safe, Timeout: timeout})
+		if err == nil {
+			return proc, nil
+		}
+		if !strings.Contains(err.Error(), "never answered") {
+			return nil, err
+		}
+		if attempt < 3 {
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
+	}
+	return nil, err
 }
 
 // enable turns on every domain the loop needs beyond the fetch path:
