@@ -75,8 +75,11 @@ func TestIterm2Dedup(t *testing.T) {
 	if err := p.Paint(&second, s, caps); err != nil {
 		t.Fatal(err)
 	}
-	if second.Len() != 0 {
-		t.Fatalf("repeat still must be a no-op, got %d bytes", second.Len())
+	if !strings.Contains(second.String(), "1337;File=inline=1") {
+		t.Fatal("repeat still must re-emit its placement escape")
+	}
+	if second.String() != first.String() {
+		t.Fatal("repeat still must reuse cached PNG bytes")
 	}
 }
 
