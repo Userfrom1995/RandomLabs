@@ -144,9 +144,13 @@ func ProfileDir(profile string) string {
 // navigation stack live in the profile root in our own stores (see
 // store.go), so login sessions and continuity survive across
 // instances; only Chromium-internal state (GPU cache, localStorage)
-// is ephemeral per launch. Previous instance dirs clean up
-// best-effort at open; an in-use dir on Windows simply survives
-// until its owner exits.
+// is ephemeral per launch. Reap policy: only sidecar dirs older than
+// staleSidecarAge are removed best-effort at open; younger dirs
+// (including any still-running sibling's fresh user-data-dir) are
+// left alone. An in-use dir on Windows simply survives until its
+// owner exits.
+const staleSidecarAge = 24 * time.Hour
+
 func instanceDir(safe string) string {
 	base := ProfileDir(safe)
 	// 0700: profiles hold cookies and history, never world-readable.
@@ -154,7 +158,15 @@ func instanceDir(safe string) string {
 	if ents, err := os.ReadDir(base); err == nil {
 		for _, e := range ents {
 			if e.IsDir() && strings.HasPrefix(e.Name(), "sidecar-") {
-				_ = os.RemoveAll(filepath.Join(base, e.Name()))
+				p := filepath.Join(base, e.Name())
+				fi, serr := os.Stat(p)
+				if serr != nil {
+					continue
+				}
+				if time.Since(fi.ModTime()) < staleSidecarAge {
+					continue
+				}
+				_ = os.RemoveAll(p)
 			}
 		}
 	}
@@ -226,7 +238,12 @@ func Launch(o LaunchOpts) (*Process, error) {
 			strings.Contains(fl, "remote-debugging-") ||
 			strings.Contains(fl, "renderer-cmd-prefix") ||
 			strings.Contains(fl, "gpu-launcher") ||
-			strings.Contains(fl, "utility-cmd-prefix") {
+			strings.Contains(fl, "utility-cmd-prefix") ||
+			strings.Contains(fl, "load-extension") ||
+			strings.Contains(fl, "disable-extensions-except") ||
+			strings.Contains(fl, "proxy-server") ||
+			strings.Contains(fl, "disable-web-security") ||
+			strings.Contains(fl, "allow-file-access-from-files") {
 			return nil, fmt.Errorf("rejected extra chrome flag %q: flag injection into sidecar transport denied", f)
 		}
 	}
