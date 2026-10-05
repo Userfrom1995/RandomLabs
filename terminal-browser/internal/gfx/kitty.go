@@ -9,9 +9,9 @@ import (
 )
 
 // Kitty paints through the Kitty graphics protocol: transmit once per
-// unique surface (id reuse keyed by content hash with server-side deltas
-// via repeated placement), then place per frame over reserved cells.
-// The transmit cache is LRU-capped so long sessions cannot grow server
+// unique surface (id reuse keyed by exact content hash, then place per
+// frame). Identical repeats stay place-only and cheap; distinct frames
+// transmit in full (no inter-frame delta codec here). The transmit cache is LRU-capped so long sessions cannot grow server
 // memory without bound; evicted ids are explicitly deleted (a=d).
 type Kitty struct {
 	seen  map[uint64]uint32
