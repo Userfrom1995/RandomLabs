@@ -40,13 +40,20 @@ func TestCapGating(t *testing.T) {
 	if _, err := ParseCaps("pdf,teleport"); err == nil {
 		t.Fatal("unknown capability must fail closed")
 	}
-	// Deferred Phase 6 surface never registers, even fully enabled.
+	// The extension surface registers only under its own caps.
 	full, _ := ParseCaps("pdf,trace,extension_trigger,webmcp")
-	if Lookup(full, "extension_trigger") != nil {
-		t.Fatal("extension_trigger must wait for the Phase 6 engine")
+	if Lookup(full, "extension_trigger") == nil {
+		t.Fatal("extension_trigger must register with --caps extension_trigger")
 	}
-	if Lookup(full, "webmcp") != nil {
-		t.Fatal("webmcp must wait for the Phase 6 engine")
+	if Lookup(full, "webmcp") == nil {
+		t.Fatal("webmcp must register with --caps webmcp")
+	}
+	partial, _ := ParseCaps("pdf,trace")
+	if Lookup(partial, "extension_trigger") != nil {
+		t.Fatal("extension_trigger must stay unregistered without its cap")
+	}
+	if Lookup(partial, "webmcp") != nil {
+		t.Fatal("webmcp must stay unregistered without its cap")
 	}
 }
 
@@ -64,6 +71,30 @@ func TestGatedExecuteWithoutSession(t *testing.T) {
 	_, _, code = Execute(mpdf, "pdf", map[string]interface{}{"out": "/tmp/x.pdf"})
 	if code != "no_session" {
 		t.Fatalf("pdf with caps but no session = %q, want no_session", code)
+	}
+	// Extension gates fail closed without caps, and list without a
+	// session once enabled (no browser needed to prove gate order).
+	_, _, code = Execute(m, "extension_trigger", map[string]interface{}{})
+	if code != "capability_disabled" {
+		t.Fatalf("extension_trigger without caps = %q, want capability_disabled", code)
+	}
+	_, _, code = Execute(m, "webmcp", map[string]interface{}{})
+	if code != "capability_disabled" {
+		t.Fatalf("webmcp without caps = %q, want capability_disabled", code)
+	}
+	withExt, _ := ParseCaps("extension_trigger,webmcp")
+	mext := NewManager(ManagerOptions{Caps: withExt})
+	_, _, code = Execute(mext, "extension_trigger", map[string]interface{}{})
+	if code != "no_session" {
+		t.Fatalf("extension_trigger list without session = %q, want no_session", code)
+	}
+	_, _, code = Execute(mext, "webmcp", map[string]interface{}{})
+	if code != "no_session" {
+		t.Fatalf("webmcp list without session = %q, want no_session", code)
+	}
+	_, _, code = Execute(mext, "extension_trigger", map[string]interface{}{"extension": "x", "action": "y", "args": "{oops"})
+	if code != "bad_step" {
+		t.Fatalf("extension_trigger broken args = %q, want bad_step", code)
 	}
 	_, _, code = Execute(m, "bogus", map[string]interface{}{})
 	if code != "bad_step" {
@@ -107,6 +138,7 @@ func TestStepAliases(t *testing.T) {
 		"fill": "type", "press": "press_key", "wait": "wait_for", "dialog": "dialog_handle",
 		"click": "click", "snapshot": "snapshot", "pdf": "pdf", "trace": "trace",
 		"back": "back", "session_open": "session_open", "network": "network",
+		"extension_trigger": "extension_trigger", "webmcp": "webmcp",
 	} {
 		if got := CanonicalOp(op); got != want {
 			t.Fatalf("CanonicalOp(%q) = %q, want %q", op, got, want)

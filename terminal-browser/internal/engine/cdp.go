@@ -330,6 +330,36 @@ func (s *Session) Evaluate(expr string, await bool, timeout time.Duration) (json
 	return out.Result.Value, nil
 }
 
+// EvaluateInContext runs JS inside one execution context (for
+// example an extension isolated world) and returns the raw value.
+// Page-context Evaluate stays the default; contexts are opt-in per
+// call so ordinary acts can never run in the wrong world.
+func (s *Session) EvaluateInContext(expr string, contextID int64, await bool, timeout time.Duration) (json.RawMessage, error) {
+	res, err := s.Call("Runtime.evaluate", map[string]interface{}{
+		"expression":    expr,
+		"returnByValue": true,
+		"awaitPromise":  await,
+		"contextId":     contextID,
+	}, timeout)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Result struct {
+			Value json.RawMessage `json:"value"`
+		} `json:"result"`
+		Exception *struct {
+			Text string `json:"text"`
+		} `json:"exceptionDetails"`
+	}
+	if err := json.Unmarshal(res, &out); err != nil {
+		return nil, err
+	}
+	if out.Exception != nil {
+		return nil, fmt.Errorf("evaluate: %s", out.Exception.Text)
+	}
+	return out.Result.Value, nil
+}
 // AXTree fetches the full accessibility tree.
 func (s *Session) AXTree(timeout time.Duration) (json.RawMessage, error) {
 	return s.Call("Accessibility.getFullAXTree", map[string]interface{}{"depth": 30}, timeout)

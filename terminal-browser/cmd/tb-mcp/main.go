@@ -23,7 +23,7 @@ import (
 )
 
 // ServerVersion tracks the control-plane surface (bumped per phase).
-const ServerVersion = "0.5.0"
+const ServerVersion = "0.6.0"
 
 // ProtocolVersion is the MCP wire version this server implements.
 const ProtocolVersion = "2024-11-05"
@@ -76,7 +76,7 @@ func toolResult(enc *json.Encoder, id *json.RawMessage, data interface{}, warnin
 
 func main() {
 	fs := flag.NewFlagSet("tb-mcp", flag.ExitOnError)
-	capsFlag := fs.String("caps", "", "comma-separated capability gates (pdf, trace); TB_CAPS also read")
+	capsFlag := fs.String("caps", "", "comma-separated capability gates (pdf, trace, extension_trigger, webmcp); TB_CAPS also read")
 	profile := fs.String("profile", "default", "default browser profile for fresh sessions")
 	lite := fs.Bool("lite", false, "block images, media, and trackers in fresh sessions")
 	width := fs.Int("width", 100, "grid width for fresh sessions")
@@ -170,7 +170,7 @@ func main() {
 			}
 			if agent.Lookup(mgr.CapsOf(), strings.TrimSpace(p.Name)) == nil {
 				gated := ""
-				for _, t := range agent.Registry(agent.Caps{"pdf": true, "trace": true}) {
+				for _, t := range agent.Registry(agent.Caps{"pdf": true, "trace": true, "extension_trigger": true, "webmcp": true}) {
 					if t.Name == strings.TrimSpace(p.Name) {
 						gated = t.Cap
 					}

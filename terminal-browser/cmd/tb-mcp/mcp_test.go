@@ -230,7 +230,7 @@ func TestMCPFraming(t *testing.T) {
 		t.Fatal("gated tools must not list without caps")
 	}
 	if names["extension_trigger"] || names["webmcp"] {
-		t.Fatal("deferred Phase 6 tools must never list")
+		t.Fatal("gated extension tools must not list without caps")
 	}
 	env := p.tool("bogus", nil)
 	if env["success"] != false || env["code"] != "bad_step" {
@@ -240,9 +240,55 @@ func TestMCPFraming(t *testing.T) {
 	if env["success"] != false || env["code"] != "capability_disabled" {
 		t.Fatalf("ungated pdf: %v", env)
 	}
+	env = p.tool("extension_trigger", map[string]interface{}{"extension": "x", "action": "y"})
+	if env["success"] != false || env["code"] != "capability_disabled" {
+		t.Fatalf("ungated extension_trigger: %v", env)
+	}
+	env = p.tool("webmcp", map[string]interface{}{"tool": "x"})
+	if env["success"] != false || env["code"] != "capability_disabled" {
+		t.Fatalf("ungated webmcp: %v", env)
+	}
 	bad := p.call("nope/method", nil)
 	if _, has := bad["error"]; !has {
 		t.Fatalf("unknown method needs JSON-RPC error: %v", bad)
+	}
+}
+
+// TestMCPExtensionCaps is hermetic: with the extension capabilities
+// enabled, tools/list carries extension_trigger and webmcp after the
+// core, and the tools fail closed without a session (proving the
+// gate order before any browser launches).
+func TestMCPExtensionCaps(t *testing.T) {
+	bin := buildMCP(t)
+	p := startMCP(t, bin, os.Environ(), "--caps", "extension_trigger,webmcp")
+	defer p.cmd.Process.Kill()
+	list := p.call("tools/list", map[string]interface{}{})
+	lres, _ := list["result"].(map[string]interface{})
+	tools, _ := lres["tools"].([]interface{})
+	names := map[string]bool{}
+	order := []string{}
+	for _, tl := range tools {
+		m, _ := tl.(map[string]interface{})
+		names[m["name"].(string)] = true
+		order = append(order, m["name"].(string))
+	}
+	if !names["extension_trigger"] || !names["webmcp"] {
+		t.Fatalf("gated extension tools missing from tools/list: %v", order)
+	}
+	// Core-first order holds with gates appended after the core.
+	for i, want := range []string{"navigate", "snapshot", "click", "type", "press_key", "scroll",
+		"screenshot", "wait_for", "assert", "evaluate", "console", "dialog_handle"} {
+		if order[i] != want {
+			t.Fatalf("tool %d = %q, want core %q", i, order[i], want)
+		}
+	}
+	env := p.tool("extension_trigger", map[string]interface{}{})
+	if env["success"] != false || env["code"] != "no_session" {
+		t.Fatalf("extension_trigger list without session: %v", env)
+	}
+	env = p.tool("webmcp", map[string]interface{}{})
+	if env["success"] != false || env["code"] != "no_session" {
+		t.Fatalf("webmcp list without session: %v", env)
 	}
 }
 
