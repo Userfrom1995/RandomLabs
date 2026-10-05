@@ -10,6 +10,7 @@ package term
 
 import (
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -123,12 +124,7 @@ func ProbeWithTimeout(d time.Duration) Capabilities {
 
 	if ov := strings.TrimSpace(os.Getenv("TB_TIER")); ov != "" {
 		if t, ok := ParseTier(ov); ok {
-			caps.Tier = t
-			caps.TierName = t.String()
-			caps.ForcedBlock = t == TierBlock && caps.ForcedBlock
-			if t != TierBlock {
-				caps.ForcedBlock = false
-			}
+			ApplyTierOverride(&caps, t)
 			return caps
 		}
 	}
@@ -192,11 +188,34 @@ func fromEnv() Capabilities {
 	return caps
 }
 
+// ApplyTierOverride forces a graphics tier while preserving probed
+// capability flags (notably SyncOutput): only Tier, TierName, and
+// ForcedBlock change, so a demo override never fabricates graphics
+// support or clears a probed sync-output flag.
+func ApplyTierOverride(c *Capabilities, t GraphicsTier) {
+	c.Tier = t
+	c.TierName = t.String()
+	if t == TierBlock {
+		c.ForcedBlock = true
+	} else {
+		c.ForcedBlock = false
+	}
+}
+
 func (c *Capabilities) applyReply(reply string) {
-	if strings.Contains(reply, "_Gi=") || strings.Contains(reply, "OK") && strings.Contains(reply, "Gi") {
+	if c.ProbedLive {
+		// A live reply replaces heuristics: reset graphics flags and
+		// set them from reply evidence only.
+		c.KittyGraphics = false
+		c.Sixel = false
+		c.Iterm2 = false
+		c.SyncOutput = false
+		c.KittyKeyboard = false
+	}
+	if kittyAck(reply) {
 		c.KittyGraphics = true
 	}
-	if isDAResponseWith(reply, ";4") || isDAResponseWith(reply, "4;") || strings.Contains(reply, ";4c") {
+	if daHasParam(reply, "4") {
 		c.Sixel = true
 	}
 	if strings.Contains(reply, "1337;Capabilities") || strings.Contains(reply, "1337;File=ok") {
@@ -205,11 +224,8 @@ func (c *Capabilities) applyReply(reply string) {
 	if strings.Contains(reply, "?2026;1$y") || strings.Contains(reply, "?2026;3$y") {
 		c.SyncOutput = true
 	}
-	if strings.Contains(reply, "?0u") || strings.Contains(reply, "?1u") {
+	if kittyKeyboardEnhanced(reply) {
 		c.KittyKeyboard = true
-	}
-	if c.KittyGraphics {
-		c.SyncOutput = true
 	}
 	switch {
 	case c.KittyGraphics:
@@ -229,6 +245,71 @@ func (c *Capabilities) applyReply(reply string) {
 		c.SyncOutput = false
 		c.KittyKeyboard = false
 	}
+}
+
+// kittyAck requires a Kitty graphics query answer carrying an OK token
+// on the same APC sequence (e.g. ESC _ Gi=...;OK ESC \), so an echoed
+// query or a stray "OK" elsewhere never counts as graphics support.
+func kittyAck(reply string) bool {
+	for i := 0; i < len(reply); i++ {
+		gi := strings.Index(reply[i:], "Gi=")
+		if gi < 0 {
+			return false
+		}
+		i += gi + 3
+		end := len(reply)
+		for _, term := range []string{"\x1b\\", "\x07"} {
+			if j := strings.Index(reply[i:], term); j >= 0 && i+j < end {
+				end = i + j
+			}
+		}
+		if strings.Contains(reply[i:end], "OK") {
+			return true
+		}
+	}
+	return false
+}
+
+// daHasParam reports whether a primary-DA response (ESC [ ? ... c)
+// lists param as an exact semicolon-separated token, so Sixel's "4"
+// never matches a "40" or "14" attribute.
+func daHasParam(reply, param string) bool {
+	for i := 0; i < len(reply); i++ {
+		start := strings.Index(reply[i:], "\x1b[?")
+		if start < 0 {
+			return false
+		}
+		i += start + 3
+		end := strings.Index(reply[i:], "c")
+		if end < 0 {
+			return false
+		}
+		for _, tok := range strings.Split(reply[i:i+end], ";") {
+			if tok == param {
+				return true
+			}
+		}
+		i += end
+	}
+	return false
+}
+
+var kittyKeyboardRe = regexp.MustCompile("\x1b\\[\\?(\\d+)u")
+
+// kittyKeyboardEnhanced parses the Kitty keyboard query answer
+// (CSI ? flags u) and requires a real enhancement flag (2, 4, or 8):
+// a bare "?0u" answer means no enhancement support.
+func kittyKeyboardEnhanced(reply string) bool {
+	for _, m := range kittyKeyboardRe.FindAllStringSubmatch(reply, -1) {
+		n := 0
+		for _, d := range m[1] {
+			n = n*10 + int(d-'0')
+		}
+		if n&14 != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func isDAResponseWith(reply, needle string) bool {
@@ -275,13 +356,5 @@ func (c *Cache) MarkResized() Capabilities {
 func (c *Cache) SetTier(t GraphicsTier) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.caps.Tier = t
-	c.caps.TierName = t.String()
-	c.caps.ForcedBlock = t == TierBlock && c.caps.ForcedBlock
-	if t != TierBlock {
-		c.caps.ForcedBlock = false
-		c.caps.KittyGraphics = t == TierKitty
-		c.caps.Sixel = t == TierSixel || t == TierKitty
-		c.caps.Iterm2 = t == TierIterm2 || t == TierKitty
-	}
+	ApplyTierOverride(&c.caps, t)
 }
