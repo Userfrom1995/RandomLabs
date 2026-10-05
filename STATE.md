@@ -1,18 +1,18 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-05T run 37353693731 - Phase 3 PR #538 fixed head in re-review, stand-down no duplicates**
+ - **Updated: 2026-10-05T run 37354646829 - Phase 3 PR #538 double-gated, eval dispatched**
 
 ## PRs & Issues
- - **PRs:** Open: #538 (Terminal Browser Phase 3 sessions, head 7b54028, MERGEABLE, body `Refs #532` verified live; Fixer applied both Reviewer blockings + 2 nits; opencode-review pending from owner /oc review 18:08:10Z). MERGED: #537 (Phase 2, b90591e2), #536 (Harbor Overlay v2 design, triple-cleared 9.86, merged 17:16:01Z as defa66d0), #533 (blueprint, 836870be to 7c3b60b8), #534 (Phase 1, c06166ab), #535 (design-poster mapping, 9893797c), #531, #529, #527.
- - **Issues:** Open: #532 Terminal Browser epic (Phase 1 MERGED, blueprint #533 MERGED, design v2 #536 MERGED, Phase 2 #537 MERGED; Phase 3 PR #538 in re-review; stays open until final phase), #70 lab-health (error-dump-ONLY mandate dispatched run 37353087318, verdict pending), #42 brainstorm standing. Closed: #530, #528, #526, #515, #518, #504, #507, #498.
+ - **PRs:** Open: #538 (Terminal Browser Phase 3 sessions, head 0995e51a, MERGEABLE/UNSTABLE, body `Refs #532` verified live; Reviewer approve 18:10:29Z on 7b54028 + Tester approve-test 18:15:54Z on 0995e51a with test-only delta; eval dispatched run 37354646829). MERGED: #537 (Phase 2, b90591e2), #536 (Harbor Overlay v2 design, triple-cleared 9.86, merged 17:16:01Z as defa66d0), #533 (blueprint, 836870be to 7c3b60b8), #534 (Phase 1, c06166ab), #535 (design-poster mapping, 9893797c), #531, #529, #527.
+ - **Issues:** Open: #532 Terminal Browser epic (Phase 1 MERGED, blueprint #533 MERGED, design v2 #536 MERGED, Phase 2 #537 MERGED; Phase 3 PR #538 double-gated, eval in flight; stays open until final phase), #70 lab-health (error-dump-ONLY mandate dispatched run 37353087318, verdict pending), #42 brainstorm standing. Closed: #530, #528, #526, #515, #518, #504, #507, #498.
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist (19 entries) vs 20 live `name:` fields minus self maintainer = 19, exact match verified this run. SWEEP_ALLOWLIST 7 verified (unchanged). Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
  - **Desktop Pet Platform record:** Phase 1 merged as #505. Phase 2 merged as #506. Phase 3 merged as #509. Phase 4 merged as #510. Phase 5 merged as #511. Final Phase merged as #512. Service-switch fix #513. Release track #514. Follow-up repairs #516/#517/#523/#524/#525 merged (all triple-gated). Final proof run on a360df84 FULLY GREEN + Release desktop-pet-v1.5.0 published (8 assets). Public surface graduated via #527 (b624188b).
 
 ## IN FLIGHT
- - Terminal Browser #532: Phase 1 MERGED (c06166ab). Blueprint #533 MERGED (7c3b60b8). Design v2 #536 MERGED (defa66d0). Phase 2 #537 MERGED (b90591e2, triple gate: reviewer approve on 8868e8be with test-only delta + tester approve-test on 207d4129 + evaluator approve-eval 9.84/10 on 207d4129). Phase 3 (Session Persistence with Cookies History and Profiles) PR #538 open, Reviewer pending on fixed head 7b54028; body trailer already Refs #532.
+ - Terminal Browser #532: Phase 1 MERGED (c06166ab). Blueprint #533 MERGED (7c3b60b8). Design v2 #536 MERGED (defa66d0). Phase 2 #537 MERGED (b90591e2, triple gate: reviewer approve on 8868e8be with test-only delta + tester approve-test on 207d4129 + evaluator approve-eval 9.84/10 on 207d4129). Phase 3 (Session Persistence with Cookies History and Profiles) PR #538 open, DOUBLE-GATED on head 0995e51a (reviewer approve on 7b54028 + tester approve-test on 0995e51a with test-only delta single file terminal-browser/tests/test_tester_phase3_sessions.py); Evaluator dispatched run 37354646829; body trailer Refs #532.
  - Main tip b90591e2 (post-#537 merge). No other open PRs.
  - Held runs: `opencode-pr-trigger` + Pages deploy sat `action_required` on the pre-merge PR head, awaiting owner approval through the normal held-run path.
  - Pages: confirm preview + fresh deploy coverage next sweep, trigger via `gh workflow run` only if missing/failed.
- - Run sweep: zero failure/timed_out (pending opencode-review + in-progress self are owner-triggered workers; rest skipped/cancelled fan-out + successes). No triage needed.
+ - Run sweep: zero failure/timed_out (in-progress self + skipped non-matching triggers are expected; rest skipped/cancelled fan-out + successes). No triage needed.
  - Lab error-dump wart: 6th recurrence (maintainer run 37353031785 posted the raw write-permission error on #538 at 18:03:45Z despite success); error-dump-ONLY lab mandate dispatched run 37353087318, verdict pending. No new recurrence this run - no re-dispatch.
  - Rebase-gate rule: a rebase or fix-push that rewrites a gated PR's head voids its gate; the fixed head needs Reviewer re-confirmation (then test/eval as needed) before merge. Never merge without approve-eval on the mergeable head.
  - Eval-gate calibration note (for future self): #531 and #535 merged on Reviewer approve + Tester approve-test WITHOUT an Evaluator round. Justification: surgical infra/docs fixes with zero functional product surface, Reviewer and Tester both explicitly routed onward. The Evaluator binding gate stays mandatory for product/research/phase deliverables (as with #527 triple gate, #533/#534/#536/#537 eval approvals). Design PR #536 was a product-surface spec (tokens the Builder implements) - full triple gate applied. Phase 2 PR #537 is a product implementation - full triple gate as well. If the Owner or a future audit disagrees, say so and this note records the dissent surface.
@@ -21,14 +21,14 @@
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists: `workflows:` event list AND `SWEEP_ALLOWLIST` sweep-dispatch list; watch for any new workflow drift). Verified exact match this run (19 vs 19).
-2. Terminal Browser #532: on #538 reviewer verdict route test (then eval), merge on triple-clear, chain the next phase immediately per auto-chaining. If review stalls, evaluate per 3-day/7-day triggers. Issue stays open until final phase passes acceptance; chain the next phase immediately on every intermediate merge per the auto-chaining rule.
+2. Terminal Browser #532: on #538 evaluator verdict merge on triple-clear, chain Phase 4 immediately per auto-chaining. If eval returns fix, route fix on #538. Issue stays open until final phase passes acceptance; chain the next phase immediately on every intermediate merge per the auto-chaining rule.
 3. Lab error-dump wart: mandate dispatched run 37353087318 (6th recurrence); re-dispatch ONLY on further recurrence (new error-dump comment) or next lab cycle bandwidth; cooldown respected. Do not re-dispatch while a lab run is in flight.
 4. Pages: confirm preview + deploy coverage lands on tip b90591e2; trigger via `gh workflow run` only if missing/failed. Also confirm the held PR-preview runs clear via owner approval.
 5. Council calibration: advisory Desktop Pet audit still pending.
 6. Standing rule: standby on all other fronts (no auto-ideate). Further work arrives via new issues, owner comments, or workflow failures.
 
 ## OPEN QUESTIONS
- - Will the Reviewer clear #538 fixed head 7b54028 (both blockings + nits applied) and will test/eval triple-clear it?
+ - Will the Evaluator approve-eval #538 head 0995e51a, and what shape will Phase 4 take after the merge (auto-chain per epic, never halt on the intermediate merge)?
  - What shape will Phases 4+ take once #538's session engine is in the base (auto-chain per epic, never halt on the intermediate merge)?
  - Lab finding on the maintainer error-dump wart, 6th recurrence (merge-attempt vs comment-attempt, prompt vs permissions hardening)? Error-dump-ONLY mandate dispatched; verdict pending.
  - Should the stale `opencode/lab-70-docs-sync` branch be deleted, or kept as archaeology?
