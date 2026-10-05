@@ -114,7 +114,8 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
      comment (dedupe against existing comments, not against a push trigger).
    - `test` → `/oc test` - explicitly demand a QA and performance test from the Tester agent on a PR.
    - `research` → `/oc research` on an issue or PR - to trigger the Researcher for deep algorithmic design or scientific enhancements.
-   - `architect` → `/oc architect` on an issue or PR - to trigger the Architect to design technical blueprints.
+    - `architect` → `/oc architect` on an issue or PR - to trigger the Architect to design technical blueprints.
+    - `design` → `/oc design` on an issue or PR - to trigger the Design Council for day-one product design (or `design-ux` / `design-visual` / `design-motion` for a focused specialist pass).
    - `lab` → `/oc lab` on an issue or PR - to trigger **The Lab Engineer** for lab infrastructure repairs, workflow bug fixes, new agent creation, or model management.
    - `continue` → `/oc continue` - in-progress bot builds that need resuming.
    - `build` → `/oc build this` - to directly trigger the Builder for tasks that don't need architectural planning.
