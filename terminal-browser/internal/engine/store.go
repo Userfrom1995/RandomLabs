@@ -80,8 +80,8 @@ func readStore(path string, v interface{}) error {
 }
 
 // writeStore persists v as indented JSON atomically: temp file in the
-// same directory, 0600 permissions, fsync, rename. Readers never see
-// a torn document even if the process dies mid-write.
+// same directory, 0600 permissions, fsync before rename. Readers never
+// see a torn document even if the process dies mid-write.
 func writeStore(path string, v interface{}) error {
 	raw, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
@@ -89,8 +89,23 @@ func writeStore(path string, v interface{}) error {
 	}
 	raw = append(raw, '\n')
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
 		return fmt.Errorf("write %s: %w", tmp, err)
+	}
+	if _, err := f.Write(raw); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return fmt.Errorf("write %s: %w", tmp, err)
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return fmt.Errorf("fsync %s: %w", tmp, err)
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("close %s: %w", tmp, err)
 	}
 	if err := os.Chmod(tmp, 0o600); err != nil {
 		_ = os.Remove(tmp)
