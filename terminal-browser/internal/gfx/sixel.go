@@ -17,6 +17,9 @@ func (Sixel) Name() string { return "sixel" }
 
 // Paint emits one Sixel region positioned at the surface origin.
 func (Sixel) Paint(w io.Writer, s Surface, caps term.Capabilities) error {
+	if s.CellW < 1 || s.CellH < 1 || s.Img.W < 1 || s.Img.H < 1 || len(s.Img.Pix) == 0 {
+		return nil
+	}
 	Cup(w, s.CellX+1, s.CellY+1)
 	// Downscale the surface to the cell rectangle: at most 2x2 pixels
 	// per cell keeps PTY bytes bounded on the 10 fps Sixel floor.
@@ -77,65 +80,53 @@ func writePalette(w io.Writer, grid []int) {
 func writeBody(w io.Writer, grid []int, pw, ph int) {
 	var sb strings.Builder
 	for band := 0; band*6 < ph; band++ {
+		// Collect every color present in this band so each gets its
+		// own pass; a single majority-color pass would drop dithered
+		// pixels painted in minority colors.
+		var colors []int
+		present := map[int]bool{}
 		for x := 0; x < pw; x++ {
-			best := 0
-			bestCount := -1
-			counts := map[int]int{}
 			for bit := 0; bit < 6; bit++ {
 				y := band*6 + bit
 				if y >= ph {
 					break
 				}
-				counts[grid[y*pw+x]]++
-			}
-			for q, n := range counts {
-				if n > bestCount {
-					best, bestCount = q, n
+				q := grid[y*pw+x]
+				if !present[q] {
+					present[q] = true
+					colors = append(colors, q)
 				}
-			}
-			mask := 0
-			for bit := 0; bit < 6; bit++ {
-				y := band*6 + bit
-				if y < ph && grid[y*pw+x] == best {
-					mask |= 1 << bit
-				}
-			}
-			sb.WriteString("#" + strconv.Itoa(best))
-			// Run-length compress horizontal repeats of the same byte.
-			run := 1
-			for x+run < pw {
-				nmask := 0
-				ok := true
-				for bit := 0; bit < 6; bit++ {
-					y := band*6 + bit
-					g := -1
-					if y < ph {
-						g = grid[y*pw+x+run]
-					}
-					has := g == best
-					if has {
-						nmask |= 1 << bit
-					}
-					if has != (mask&(1<<bit) != 0) {
-						ok = false
-						break
-					}
-				}
-				_ = nmask
-				if !ok {
-					break
-				}
-				run++
-			}
-			if run > 1 {
-				sb.WriteString("!" + strconv.Itoa(run) + string(rune('?'+mask)))
-				x += run - 1
-			} else {
-				sb.WriteByte(byte('?' + mask))
 			}
 		}
-		sb.WriteString("$/")
-		sb.WriteString("-")
+		for _, q := range colors {
+			masks := make([]int, pw)
+			for x := 0; x < pw; x++ {
+				mask := 0
+				for bit := 0; bit < 6; bit++ {
+					y := band*6 + bit
+					if y < ph && grid[y*pw+x] == q {
+						mask |= 1 << bit
+					}
+				}
+				masks[x] = mask
+			}
+			sb.WriteString("#" + strconv.Itoa(q))
+			// Run-length compress horizontal repeats of the same byte.
+			for x := 0; x < pw; {
+				run := 1
+				for x+run < pw && masks[x+run] == masks[x] {
+					run++
+				}
+				if run > 1 {
+					sb.WriteString("!" + strconv.Itoa(run) + string(rune('?'+masks[x])))
+					x += run
+				} else {
+					sb.WriteByte(byte('?' + masks[x]))
+					x++
+				}
+			}
+		}
+		sb.WriteString("$-")
 	}
 	io.WriteString(w, sb.String())
 }
