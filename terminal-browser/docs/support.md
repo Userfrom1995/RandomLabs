@@ -18,7 +18,9 @@ everywhere.
 
 Full tier order (Kitty, then Sixel, then iTerm2, then block) with live
 probing at startup and re-probe on resize. Animated media regions
-compose through Kitty transmit-once plus placement; stills repaint on
+compose through Kitty transmit-once plus placement (identical
+repeats place without re-transmit; distinct frames transmit each
+tick); stills repaint on
 the still interval everywhere else. No elevation, no daemons: the
 sidecar binds loopback only, and every store is an atomic JSON
 document (0700 dirs, 0600 files) under `~/.terminal-browser`

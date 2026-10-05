@@ -129,7 +129,9 @@ governor-paced tick: `tb-agent media --url URL` discovers regions
 (clamped 1..30), and logs the bandwidth ledger (`--out`, defaulting
 to the media log) with frames, PTY bytes, skipped ticks, and measured
 fps. The animated path samples every 100 ms for 10 fps through a
-persistent Kitty transmitter (transmit-once plus placement); still
+persistent Kitty transmitter (transmit-once plus placement: identical
+repeats place without re-transmit, distinct frames transmit each
+tick); still
 mode repaints at most every 2 s. Ticks that overrun their interval
 are skipped and counted, never queued. In the shell, `V` watches the
 largest video in the background (status line shows fps and bytes,
