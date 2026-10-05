@@ -65,13 +65,15 @@ go test ./...</code></pre>
       <tr><td><code>tb-agent session [--profile P]</code></td><td>Reports the back/forward stack; <code>session-back</code>, <code>session-forward</code>, <code>session-reload</code> step it.</td></tr>
       <tr><td><code>tb-agent state-save --file F [--profile P]</code></td><td>Exports cookies, bookmarks, and stack; <code>state-load</code> imports them back.</td></tr>
       <tr><td><code>tb-agent interact --url URL --script STEPS.json</code></td><td>Opens one persistent browser and runs snapshot/click/fill/wait/assert/screenshot steps with settled eN refs.</td></tr>
+      <tr><td><code>tb-agent interact --url URL --stdin --session NAME</code></td><td>Pipes NDJSON steps from stdin, names the run, registers it for <code>tb-agent sessions</code>.</td></tr>
+      <tr><td><code>tb-mcp [--caps pdf,trace]</code></td><td>Stdio MCP server: the 12-tool core plus session handles, same results as the CLI by construction.</td></tr>
     </table>
     </div>
   </section>
 
   <section>
     <h2>Agent protocol</h2>
-    <p>Every agent command returns the shared envelope <code>{success, data, warning?, code?}</code>. Snapshot-first discipline: observe with refs, act by ref, re-snapshot on <code>ref_stale</code>. The loop runs one persistent browser per invocation: <code>tb-agent interact</code> scripts snapshot, click, fill, wait, assert, console/network taps, screenshots, and PDF export against the same live page. Full interaction detail lives in <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/docs/interact.md">docs/interact</a>; tool matrix and conformance rules live in <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/docs/architecture.md">docs/architecture</a>.</p>
+    <p>Every agent command returns the shared envelope <code>{success, data, warning?, code?}</code>. Snapshot-first discipline: observe with refs, act by ref, re-snapshot on <code>ref_stale</code>. Agents drive either the <code>tb-mcp</code> stdio server (12-tool core plus session handles and gated <code>pdf</code>/<code>trace</code>) or the <code>tb-agent interact</code> script runner (same dispatch, same JSON). Full server and CLI reference lives in <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/docs/agent-control.md">docs/agent-control</a>; tool matrix and conformance rules live in <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/docs/parity.md">docs/parity</a>.</p>
   </section>
 
   <section>
@@ -95,6 +97,8 @@ go test ./...</code></pre>
       <div class="card"><h3><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/docs/engine.md">Engine</a></h3><p>Chromium sidecar, CDP session, lite mode, AX stylesheet, reflow, timing budgets.</p></div>
       <div class="card"><h3><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/docs/sessions.md">Sessions</a></h3><p>Profiles, cookie jar sync, history, bookmarks, back/forward and restore, state files.</p></div>
       <div class="card"><h3><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/docs/interact.md">Interact</a></h3><p>Settled refs, act suite, waits, taps, screenshots, shell overlay, script runner.</p></div>
+      <div class="card"><h3><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/docs/agent-control.md">Agent control</a></h3><p>MCP server, CLI reference, sessions, capability gates.</p></div>
+      <div class="card"><h3><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/docs/parity.md">Parity</a></h3><p>Tool matrix, canonicalization rules, conformance harness.</p></div>
       <div class="card"><h3><a href="https://github.com/Userfrom1995/RandomLabs/tree/main/terminal-browser">Source</a></h3><p>Go module, fixture router, verification harness, build instructions.</p></div>
     </div>
   </section>

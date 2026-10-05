@@ -54,6 +54,16 @@ REQUIRED = [
     "tests/fixtures/hn.json",
     "tests/fixtures/wiki.json",
     "tests/fixtures/MANIFEST.sha256",
+    "cmd/tb-mcp/main.go",
+    "cmd/tb-mcp/mcp_test.go",
+    "internal/agent/agent.go",
+    "internal/agent/steps.go",
+    "internal/agent/sessions.go",
+    "internal/agent/agent_test.go",
+    "internal/engine/trace.go",
+    "docs/parity.md",
+    "docs/agent-control.md",
+    "tests/test_agent_parity.py",
 ]
 
 FACADE = re.compile(
@@ -112,7 +122,7 @@ class StaticGate(unittest.TestCase):
 
     def test_docs_unified(self):
         hits = []
-        for name in ("README.md", "docs/index.md", "docs/architecture.md", "docs/engine.md", "docs/interact.md", "index.html"):
+        for name in ("README.md", "docs/index.md", "docs/architecture.md", "docs/engine.md", "docs/interact.md", "docs/parity.md", "docs/agent-control.md", "index.html"):
             path = os.path.join(ROOT, name)
             with open(path, encoding="utf-8") as fh:
                 for i, line in enumerate(fh, 1):

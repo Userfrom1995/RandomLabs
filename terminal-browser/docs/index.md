@@ -13,3 +13,7 @@ back/forward and restore, portable state files, and the session CLI.
 Then read [interact](interact.md): settled snapshots and eN refs, the
 act suite, wait-for and assert conditions, console and network taps,
 screenshots and PDF export, the shell overlay, and the script runner.
+Then read [agent-control](agent-control.md): the MCP server, the CLI
+reference, sessions, and capability gates. Then read
+[parity](parity.md): the tool matrix, canonicalization rules, and the
+conformance harness.

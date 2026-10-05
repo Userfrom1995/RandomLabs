@@ -44,7 +44,11 @@ class EvalFixSourceContract(unittest.TestCase):
                          "tb-agent must not truncate lines while emitting full RowCount")
         self.assertIn("lines_returned", src)
 
-    def test_no_parity_md_reference(self):
+    def test_parity_md_reference_resolves(self):
+        # Phase 5 ships docs/parity.md, so references must resolve to
+        # the real file instead of dangling (the old prohibition).
+        target = os.path.join(ROOT, "docs", "parity.md")
+        self.assertTrue(os.path.isfile(target), "docs/parity.md must exist")
         hits = []
         for dirpath, _, files in os.walk(ROOT):
             if ".git" in dirpath:
@@ -57,7 +61,7 @@ class EvalFixSourceContract(unittest.TestCase):
                     with open(p, encoding="utf-8", errors="replace") as fh:
                         if "parity.md" in fh.read():
                             hits.append(os.path.relpath(p, ROOT))
-        self.assertEqual(hits, [], f"dangling parity.md references: {hits}")
+        self.assertTrue(hits, "control-plane files must reference docs/parity.md")
 
     def test_hub_docs_links_rendered(self):
         with open(os.path.join(ROOT, "index.html"), encoding="utf-8") as fh:

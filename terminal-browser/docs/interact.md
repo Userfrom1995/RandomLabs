@@ -32,11 +32,21 @@ tb-agent interact --url https://example.com/ \
   --do '{"op":"click","ref":"@e4"}'
 ```
 
-Each `--do` is one step; `--script` holds a JSON array of steps. Every
+Each `--do` is one step; `--script` holds a JSON array of steps
+(NDJSON also parses, and `--stdin` reads steps from a pipe for
+jq-style producers). `--out FILE` tees the full envelope to a 0600
+file for large transcripts; `--session NAME` names the run and
+registers it for `tb-agent sessions`; `--caps` enables the gated
+`pdf`/`trace` ops. Legacy spellings (`fill`, `press`, `wait`,
+`dialog`) parse to their canonical tools, and session ops
+(`session_open`, `back`, `forward`, `reload`, `hints`, `network`)
+run in scripts too. Every
 step reports `{op, success, data, code, warning, ms}` in the shared
 envelope; any failure exits 1. Stale, missing, or node-less refs halt
 the script (later ref steps would only stack confusion); timeouts,
-assert failures, and act errors let recovery steps run on.
+assert failures, and act errors let recovery steps run on. The MCP
+server executes these same steps through one shared dispatch; the
+matrix lives in [parity](parity.md).
 
 ## Act suite
 

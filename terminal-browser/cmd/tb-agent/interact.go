@@ -62,19 +62,29 @@ func interactCmd(args []string) {
 	fs.Var(&dos, "do", "one step as JSON (repeatable)")
 	_ = fs.Parse(args)
 
+	// failOut mirrors failClosed and additionally tees the failure
+	// envelope to --out, so offloaded transcripts capture the error
+	// that stopped the run, not just successful ones.
+	failOut := func(warning, code string) {
+		if *out != "" {
+			_ = writeEnvelopeFile(*out, false, nil, warning, code)
+		}
+		failClosed(warning, code)
+	}
+
 	p := resolveProfile(*profile)
 	switch strings.ToLower(strings.TrimSpace(*dialogPolicy)) {
 	case "manual", "accept", "dismiss":
 		*dialogPolicy = strings.ToLower(strings.TrimSpace(*dialogPolicy))
 	default:
-		failClosed(fmt.Sprintf("bad --dialog-policy %q: want manual, accept, or dismiss", *dialogPolicy), "bad_step")
+		failOut(fmt.Sprintf("bad --dialog-policy %q: want manual, accept, or dismiss", *dialogPolicy), "bad_step")
 	}
 	caps, err := agent.ParseCaps(*capsFlag)
 	if err != nil {
-		failClosed(err.Error(), "bad_step")
+		failOut(err.Error(), "bad_step")
 	}
 	if envCaps, err := agent.CapsFromEnv(); err != nil {
-		failClosed("bad TB_CAPS: "+err.Error(), "bad_step")
+		failOut("bad TB_CAPS: "+err.Error(), "bad_step")
 	} else {
 		for k, v := range envCaps {
 			caps[k] = v
@@ -84,37 +94,37 @@ func interactCmd(args []string) {
 	if *script != "" {
 		body, err := os.ReadFile(*script)
 		if err != nil {
-			failClosed(fmt.Sprintf("read script: %v", err), "bad_path")
+			failOut(fmt.Sprintf("read script: %v", err), "bad_path")
 		}
 		steps, err = agent.ParseSteps(body)
 		if err != nil {
-			failClosed(fmt.Sprintf("parse script: %v", err), "bad_step")
+			failOut(fmt.Sprintf("parse script: %v", err), "bad_step")
 		}
 	}
 	if *stdin {
 		body, err := readAllStdin()
 		if err != nil {
-			failClosed(fmt.Sprintf("read stdin: %v", err), "bad_step")
+			failOut(fmt.Sprintf("read stdin: %v", err), "bad_step")
 		}
 		more, err := agent.ParseSteps(body)
 		if err != nil {
-			failClosed(fmt.Sprintf("parse stdin: %v", err), "bad_step")
+			failOut(fmt.Sprintf("parse stdin: %v", err), "bad_step")
 		}
 		steps = append(steps, more...)
 	}
 	for _, d := range dos {
 		var st Step
 		if err := json.Unmarshal([]byte(d), &st); err != nil {
-			failClosed(fmt.Sprintf("parse --do %q: %v", d, err), "bad_step")
+			failOut(fmt.Sprintf("parse --do %q: %v", d, err), "bad_step")
 		}
 		steps = append(steps, st)
 	}
 	if len(steps) == 0 {
-		failClosed("no steps: pass --script FILE, --stdin, or repeat --do '{...}'", "bad_step")
+		failOut("no steps: pass --script FILE, --stdin, or repeat --do '{...}'", "bad_step")
 	}
 	for i, st := range steps {
 		if err := checkStep(st); err != nil {
-			failClosed(fmt.Sprintf("step %d: %v", i+1, err), "bad_step")
+			failOut(fmt.Sprintf("step %d: %v", i+1, err), "bad_step")
 		}
 	}
 	// session_open and navigate open implicitly, so --url is only
@@ -122,7 +132,7 @@ func interactCmd(args []string) {
 	if strings.TrimSpace(*urlFlag) == "" && len(steps) > 0 {
 		first := agent.CanonicalOp(steps[0].Op)
 		if first != "session_open" && first != "navigate" {
-			failClosed("missing required --url (or start the script with session_open/navigate)", "bad_url")
+			failOut("missing required --url (or start the script with session_open/navigate)", "bad_url")
 		}
 	}
 
@@ -138,7 +148,11 @@ func interactCmd(args []string) {
 	if strings.TrimSpace(*urlFlag) != "" {
 		h, _, err := mgr.Open(*urlFlag, p, *lite, *width, *dialogPolicy)
 		if err != nil {
-			emit(false, nil, firstWarn(err), engine.CodeOf(err))
+			warn, code := firstWarn(err), engine.CodeOf(err)
+			if *out != "" {
+				_ = writeEnvelopeFile(*out, false, nil, warn, code)
+			}
+			emit(false, nil, warn, code)
 			os.Exit(1)
 		}
 		_ = h

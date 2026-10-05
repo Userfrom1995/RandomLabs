@@ -32,7 +32,14 @@ the MCP server can do identically.
   `cookies-set`, `cookies-clear`, `history`, `history-clear`,
   `bookmark-add`, `bookmarks`, `bookmark-remove`, `session`,
   `session-back`, `session-forward`, `session-reload`, `state-save`,
-  `state-load`) with `--profile` isolation.
+  `state-load`, `sessions`) with `--profile` isolation.
+- Agent control plane: `tb-mcp` stdio server with the 12-tool core
+  (`navigate`, `snapshot`, `click`, `type`, `press_key`, `scroll`,
+  `screenshot`, `wait_for`, `assert`, `evaluate`, `console`,
+  `dialog_handle`), session handles, and gated `pdf`/`trace`
+  capabilities; `tb-agent interact` runs the same tools from scripts,
+  `--stdin` pipes, and `--out` offload, with parity conformance
+  proving both surfaces identical.
 - Sessions: per-profile cookie jar synced from CDP Storage (push
   pre-load, merge post-load), durable history with search, bookmarks,
   persisted back/forward stack with `H`/`L` and `r` reload,
@@ -60,12 +67,14 @@ stays local), `H`/`L` step back/forward, `r` reloads, `p` switches
 profile, `:` opens the ref drawer on live pages (`eN` plus `Enter` acts,
 `f` fills, `R` remaps stale refs), `?` shows keys. Full session detail
 lives in `docs/sessions.md`; the interaction loop lives in
-`docs/interact.md`. The MCP server lands with the control plane next.
+`docs/interact.md`; the MCP server and CLI reference lives in
+`docs/agent-control.md` with the parity matrix in `docs/parity.md`.
 
 ## Layout
 
 - `cmd/tb/` - interactive frontend, fixture renderer, and live URL painter.
 - `cmd/tb-agent/` - agent CLI twin with JSON envelopes.
+- `cmd/tb-mcp/` - stdio MCP server with the 12-tool core and session handles.
 - `internal/term/` - probe, frame compositor, FPS governor, input codecs.
 - `internal/gfx/` - Kitty, Sixel, iTerm2, and block painters plus tier order.
 - `internal/tui/` - tab strip, address bar, status line, profile picker,
@@ -75,7 +84,9 @@ lives in `docs/sessions.md`; the interaction loop lives in
   plus reflow, navigation with lite blocklists and offline fail-closed,
   session stores (cookies, history, bookmarks, stack, state files),
   persistent interaction browser (settled refs, acts, waits, taps,
-  screenshots, PDF).
+  screenshots, PDF, CDP tracing).
+- `internal/agent/` - shared control-plane dispatch (12-tool core,
+  session manager, capability gates, step runner, session registry).
 - `docs/` - architecture, engine policy, sessions, interaction loop,
-  verification notes.
+  agent control, parity matrix, verification notes.
 - `tests/` - static gate (`test_terminal_browser.py`), offline fixtures.
