@@ -192,6 +192,9 @@ func HeroSurface(p Page, contentRows, width int) *gfx.Surface {
 	if p.Hero == nil {
 		return nil
 	}
+	if width-4 < 1 {
+		return nil
+	}
 	return &gfx.Surface{
 		Img:   *p.Hero,
 		CellX: 2, CellY: contentRows + 1,

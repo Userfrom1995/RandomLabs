@@ -39,8 +39,8 @@ func TestCompositorCursorFallback(t *testing.T) {
 	comp.OpenFrame(&buf)
 	comp.CloseFrame(&buf)
 	s := buf.String()
-	if !strings.Contains(s, "\x1b[?25l") || !strings.Contains(s, "\x1b[?25h") {
-		t.Fatalf("missing cursor fallback: %q", s)
+	if strings.Contains(s, "\x1b[?25l") || strings.Contains(s, "\x1b[?25h") {
+		t.Fatalf("compositor must not toggle the cursor per frame: %q", s)
 	}
 }
 
