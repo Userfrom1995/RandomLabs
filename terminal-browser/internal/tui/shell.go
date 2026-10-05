@@ -97,7 +97,7 @@ func (s *Shell) openLive(addr string) {
 		s.Message = "Offline: " + firstLine(res.Warning)
 		return
 	}
-	s.Message = "Opened " + page.Address + " live in " + res.Cold.Round(0).String() +
+	s.Message = "Opened " + page.Address + " live in " + res.Cold().Round(0).String() +
 		" (" + itoa(len(page.Rows)) + " rows, JS nodes " + itoa(res.JS.Nodes) + ")"
 }
 
