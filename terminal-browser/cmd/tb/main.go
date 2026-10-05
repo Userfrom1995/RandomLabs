@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"randomlabs/terminal-browser/internal/demo"
@@ -23,30 +24,22 @@ func main() {
 	flag.Parse()
 
 	caps := term.Probe()
+	var tierOverride *term.GraphicsTier
 	if *tierFlag != "" {
 		t, ok := term.ParseTier(*tierFlag)
 		if !ok {
 			fmt.Fprintln(os.Stderr, "unknown tier: "+*tierFlag)
 			os.Exit(2)
 		}
-		cache := term.NewCache()
-		caps = cache.Get()
-		caps.Tier = t
-		caps.TierName = t.String()
-		caps.ForcedBlock = false
-		if t != term.TierBlock {
-			caps.KittyGraphics = t == term.TierKitty
-			caps.Sixel = t == term.TierSixel || t == term.TierKitty
-			caps.Iterm2 = t == term.TierIterm2 || t == term.TierKitty
-			caps.SyncOutput = t == term.TierKitty
-		}
+		tierOverride = &t
+		term.ApplyTierOverride(&caps, t)
 	}
 
 	if *fixture != "" {
 		runFixture(os.Stdout, caps, *fixture, *dumpStats)
 		return
 	}
-	if err := runInteractive(caps); err != nil {
+	if err := runInteractive(caps, tierOverride); err != nil {
 		fmt.Fprintln(os.Stderr, "tb: "+err.Error())
 		os.Exit(1)
 	}
@@ -56,10 +49,11 @@ func main() {
 // frame, dirty rows, tier painter, byte counting. Used by demos,
 // the agent CLI twin, and the success-gate harness.
 func runFixture(w io.Writer, caps term.Capabilities, name string, dump bool) {
-	page := demo.Lookup("fixture://" + name)
-	if name == "not-found" || page.Name == "not-found" {
-		page = demo.Lookup(name)
+	addr := name
+	if name != "not-found" && !strings.Contains(name, "://") {
+		addr = "fixture://" + name
 	}
+	page := demo.Lookup(addr)
 	frame := term.NewFrame(caps.Width, caps.Height)
 	shell := tui.NewShell()
 	shell.Open(page.Address)
@@ -88,7 +82,7 @@ func runFixture(w io.Writer, caps term.Capabilities, name string, dump bool) {
 	}
 	chain := gfx.Select(caps, painters)
 	if surf != nil && len(chain) > 0 {
-		if err := chain[0].Paint(counter, *surf, caps); err != nil {
+		if _, err := gfx.PaintChain(counter, chain, *surf, caps); err != nil {
 			fmt.Fprintln(os.Stderr, "paint: "+err.Error())
 		}
 	}
@@ -104,17 +98,28 @@ func runFixture(w io.Writer, caps term.Capabilities, name string, dump bool) {
 	}
 }
 
-// runInteractive owns the terminal until quit.
-func runInteractive(caps term.Capabilities) error {
+// runInteractive owns the terminal until quit. The --tier override, if
+// any, is re-applied after the cache probe so interactive mode cannot
+// discard it.
+func runInteractive(caps term.Capabilities, tierOverride *term.GraphicsTier) error {
 	if !isTTY() {
 		return fmt.Errorf("no terminal attached; use --fixture to render offscreen")
 	}
+	restore, err := term.EnterRaw()
+	if err != nil {
+		return fmt.Errorf("raw mode: %w", err)
+	}
+	defer restore()
+
 	out := os.Stdout
 	tui.EnterAlt(out, caps)
 	defer tui.ExitAlt(out, caps)
 
 	cache := term.NewCache()
 	caps = cache.Get()
+	if tierOverride != nil {
+		term.ApplyTierOverride(&caps, *tierOverride)
+	}
 	shell := tui.NewShell()
 	comp := term.NewCompositor(caps)
 	gov := term.NewGovernor(caps.Tier)
@@ -131,7 +136,9 @@ func runInteractive(caps term.Capabilities) error {
 	var prev *term.Frame
 
 	events := make(chan []byte, 32)
-	go readLoop(events)
+	done := make(chan struct{})
+	defer close(done)
+	go readLoop(events, done)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, sigWinch())
@@ -170,9 +177,8 @@ func runInteractive(caps term.Capabilities) error {
 		if hs := demo.HeroSurface(shell.Current().Page, tui.ChromeRows+len(shell.Current().Page.Rows)+1, frame.W); hs != nil {
 			hs.CellY = tui.ChromeRows + len(shell.Current().Page.Rows) + 1
 			if hs.CellY+hs.CellH < frame.H-1 {
-				if chain := gfx.Select(caps, painters); len(chain) > 0 {
-					_ = chain[0].Paint(counter, *hs, caps)
-				}
+				chain := gfx.Select(caps, painters)
+				_, _ = gfx.PaintChain(counter, chain, *hs, caps)
 			}
 		}
 		comp.CloseFrame(counter)
