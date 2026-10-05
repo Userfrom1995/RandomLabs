@@ -47,7 +47,7 @@ func main() {
 		runURL(os.Stdout, caps, *urlFlag, *profile, *lite, *dumpStats)
 		return
 	}
-	if err := runInteractive(caps, tierOverride); err != nil {
+	if err := runInteractive(caps, tierOverride, *profile); err != nil {
 		fmt.Fprintln(os.Stderr, "tb: "+err.Error())
 		os.Exit(1)
 	}
@@ -134,8 +134,9 @@ func paintPage(w io.Writer, caps term.Capabilities, page demo.Page, dump bool) {
 
 // runInteractive owns the terminal until quit. The --tier override, if
 // any, is re-applied after the cache probe so interactive mode cannot
-// discard it.
-func runInteractive(caps term.Capabilities, tierOverride *term.GraphicsTier) error {
+// discard it. The --profile flag selects the session profile and the
+// persisted stack restores into the first tab.
+func runInteractive(caps term.Capabilities, tierOverride *term.GraphicsTier, profile string) error {
 	if !isTTY() {
 		return fmt.Errorf("no terminal attached; use --fixture to render offscreen")
 	}
@@ -155,6 +156,24 @@ func runInteractive(caps term.Capabilities, tierOverride *term.GraphicsTier) err
 		term.ApplyTierOverride(&caps, *tierOverride)
 	}
 	shell := tui.NewShell()
+	if strings.TrimSpace(profile) != "" && profile != "default" {
+		safe, err := engine.SanitizeProfile(profile)
+		if err != nil {
+			return fmt.Errorf("profile: %w", err)
+		}
+		shell.Profile = safe
+		found := false
+		for _, p := range shell.Profiles {
+			if p == safe {
+				found = true
+				break
+			}
+		}
+		if !found {
+			shell.Profiles = append(shell.Profiles, safe)
+		}
+	}
+	shell.RestoreSession()
 	comp := term.NewCompositor(caps)
 	gov := term.NewGovernor(caps.Tier)
 	block := gfx.NewBlock()

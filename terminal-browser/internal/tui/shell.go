@@ -7,7 +7,6 @@ package tui
 import (
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"unicode/utf8"
 
@@ -27,7 +26,9 @@ type Tab struct {
 	FetchWidth int
 }
 
-// Shell is the full TUI state machine.
+// Shell is the full TUI state machine. Record gates history and
+// stack persistence: the interactive shell records every visit,
+// offscreen render paths disable it so probes never pollute history.
 type Shell struct {
 	Tabs     []Tab
 	Active   int
@@ -37,6 +38,7 @@ type Shell struct {
 	Profiles []string
 	Profile  string
 	ShowHelp bool
+	Record   bool
 }
 
 // NewShell opens with the fixture home page on the default tab.
@@ -46,8 +48,34 @@ func NewShell() *Shell {
 		Tabs:     []Tab{{Title: page.Title, Address: page.Address, Page: page}},
 		Profiles: loadProfiles(),
 		Profile:  "default",
+		Record:   true,
 		Message:  "Type / then an http(s) URL for live fetch; fixture://home works offline. Press ? for keys.",
 	}
+}
+
+// RestoreSession reopens the persisted current entry after a restart.
+// Fixture entries repaint instantly; live entries restore the address
+// and title with a reload prompt instead of blocking startup on a
+// synchronous fetch. Either way the back/forward stack stays intact
+// because the restore itself records nothing.
+func (s *Shell) RestoreSession() {
+	v, ok, err := engine.CurrentStackEntry(s.Profile)
+	if err != nil || !ok {
+		return
+	}
+	if isLiveAddr(v.URL) {
+		t := s.Current()
+		t.Address, t.Title, t.Scroll = v.URL, v.Title, 0
+		t.Page = engine.OfflinePage(v.URL, "Session restored after restart; press r to reload "+v.URL)
+		t.Live, t.FetchWidth = false, 0
+		s.Message = "Restored session: " + v.URL + " (press r to reload)"
+		return
+	}
+	was := s.Record
+	s.Record = false
+	s.Open(v.URL)
+	s.Record = was
+	s.Message = "Restored session: " + v.URL
 }
 
 // Current returns the active tab.
@@ -68,7 +96,8 @@ func (s *Shell) Current() *Tab {
 // Open navigates the active tab: fixture addresses resolve through the
 // local router, http(s) addresses fetch live through the engine sidecar
 // with offline fail-closed errors. Live pages rewrap to the frame at
-// render time, so Open fetches at a generous width.
+// render time, so Open fetches at a generous width. Successful visits
+// persist to history and the back/forward stack unless Record is off.
 func (s *Shell) Open(addr string) {
 	a := strings.TrimSpace(addr)
 	if a == "" {
@@ -81,14 +110,89 @@ func (s *Shell) Open(addr string) {
 	page := demo.Lookup(a)
 	t := s.Current()
 	t.Address, t.Title, t.Page, t.Scroll = page.Address, page.Title, page, 0
+	t.Live, t.FetchWidth = false, 0
+	if s.Record {
+		_ = engine.RecordVisit(s.Profile, page.Address, page.Title)
+		_, _ = engine.VisitStack(s.Profile, page.Address, page.Title)
+	}
 	s.Message = "Opened " + page.Address
+}
+
+// CycleProfile switches to the next known profile. Tabs keep their
+// pages; subsequent navigations record under the new profile. Unknown
+// profile names never enter the list: membership comes from the
+// profiles directory, not from keystrokes.
+func (s *Shell) CycleProfile() {
+	if len(s.Profiles) == 0 {
+		s.Profiles = []string{"default"}
+	}
+	at := 0
+	for i, p := range s.Profiles {
+		if p == s.Profile {
+			at = i
+			break
+		}
+	}
+	s.Profile = s.Profiles[(at+1)%len(s.Profiles)]
+	s.Message = "Profile: " + s.Profile + " (new navigations use it)"
+}
+
+// Back moves the persisted stack one entry back and loads that entry
+// without appending: the index already moved, so the load reuses the
+// no-record path.
+func (s *Shell) Back() {
+	v, ok, err := engine.Back(s.Profile)
+	if err != nil {
+		s.Message = "Back: " + firstLine(err.Error())
+		return
+	}
+	if !ok {
+		s.Message = "Back: oldest entry."
+		return
+	}
+	was := s.Record
+	s.Record = false
+	s.Open(v.URL)
+	s.Record = was
+	s.Message = "Back to " + v.URL
+}
+
+// Forward moves the persisted stack one entry forward and loads that
+// entry without appending.
+func (s *Shell) Forward() {
+	v, ok, err := engine.Forward(s.Profile)
+	if err != nil {
+		s.Message = "Forward: " + firstLine(err.Error())
+		return
+	}
+	if !ok {
+		s.Message = "Forward: newest entry."
+		return
+	}
+	was := s.Record
+	s.Record = false
+	s.Open(v.URL)
+	s.Record = was
+	s.Message = "Forward to " + v.URL
+}
+
+// Reload reopens the current address without appending to history or
+// the stack: refreshes repeat the visit, they never fork it.
+func (s *Shell) Reload() {
+	was := s.Record
+	s.Record = false
+	s.Open(s.Current().Address)
+	s.Record = was
+	if !strings.HasPrefix(s.Message, "Offline:") {
+		s.Message = "Reloaded " + s.Current().Address
+	}
 }
 
 // openLive fetches a live page synchronously with the cold budget. The
 // address bar blocks during load by design in this phase; async loads
 // arrive with the interaction loop.
 func (s *Shell) openLive(addr string) {
-	res := engine.NavigateQuick(addr, s.Profile, false, 100)
+	res := engine.Navigate(addr, engine.Options{Profile: s.Profile, Lite: false, Width: 100, NoRecord: !s.Record})
 	page := res.ToDemoPage()
 	t := s.Current()
 	t.Address, t.Title, t.Page, t.Scroll = page.Address, page.Title, page, 0
@@ -208,6 +312,18 @@ func (s *Shell) Handle(ev term.Event) bool {
 		return true
 	case "G":
 		s.scroll(1000)
+		return true
+	case "H":
+		s.Back()
+		return true
+	case "L":
+		s.Forward()
+		return true
+	case "r":
+		s.Reload()
+		return true
+	case "p":
+		s.CycleProfile()
 		return true
 	case "[":
 		if s.Active > 0 {
@@ -394,7 +510,8 @@ func renderHelp(_ *Shell, f *term.Frame) {
 	lines := []string{
 		"Keys: q quit, / address, arrows scroll, [/] tabs,",
 		"t new tab, x close tab, 1-9 jump, g/G top/bottom,",
-		"Ctrl+T/W/L/Q twins, wheel scrolls, ? toggles help.",
+		"H/L back/forward, r reload, p profile, Ctrl+T/W/L/Q twins,",
+		"wheel scrolls, ? toggles help.",
 	}
 	y := f.H - len(lines) - 2
 	if y < ChromeRows {
@@ -477,11 +594,7 @@ func itoa(n int) string {
 }
 
 func loadProfiles() []string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return []string{"default"}
-	}
-	dir := filepath.Join(home, ".terminal-browser", "profiles")
+	dir := engine.ProfilesRoot()
 	ents, err := os.ReadDir(dir)
 	if err != nil {
 		return []string{"default"}
