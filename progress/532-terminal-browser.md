@@ -1,7 +1,7 @@
 # Progress - Terminal Browser (agent-first full browser in the terminal)
 
 - **Issue:** #532
-- **Branch:** opencode/issue532-20261005163300
+- **Branch:** opencode/issue532-terminal-browser-phase-4
 - **Status:** in-progress
 - **Blueprint:** `ideas/2026-10-05-terminal-browser.md`
 
