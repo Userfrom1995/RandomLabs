@@ -1055,6 +1055,11 @@ func renderStatus(s *Shell, f *term.Frame) {
 	if line := s.MediaStatLine(); line != "" {
 		msg += "  " + line
 	}
+	if s.LoadElapsed > 0 {
+		// The fetch line carries the real fetch cost plus the cancel
+		// hint past one second; static text on the reduced path.
+		msg += "  " + term.FetchLine(s.LoadElapsed, 10, 10)
+	}
 	f.WriteText(0, f.H-1, truncate(" "+msg, f.W), chromeFG, statusBG)
 	for x := 0; x < f.W; x++ {
 		c := f.At(x, f.H-1)
