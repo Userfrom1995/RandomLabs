@@ -1,7 +1,9 @@
 // Command tb-agent is the agent CLI twin of tb: every command emits the
 // JSON envelope {success, data, warning?, code?} shared with the MCP
-// control plane. Phase scope covers probe, fixture rendering, and live
-// fetch; the matrix grows with later phases.
+// control plane. Commands cover probe, fixture rendering, live fetch,
+// and the full session surface (cookies, history, bookmarks, the
+// back/forward stack, portable state files) with the same JSON the
+// interactive shell persists.
 package main
 
 import (
@@ -35,7 +37,7 @@ func emit(ok bool, data interface{}, warning, code string) {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: tb-agent <probe|render|fetch> [flags]")
+		fmt.Fprintln(os.Stderr, "usage: tb-agent <probe|render|fetch|cookies|cookies-set|cookies-clear|history|history-clear|bookmark-add|bookmarks|bookmark-remove|session|session-back|session-forward|session-reload|state-save|state-load> [flags]")
 		os.Exit(2)
 	}
 	switch os.Args[1] {
@@ -45,6 +47,34 @@ func main() {
 		renderCmd(os.Args[2:])
 	case "fetch":
 		fetchCmd(os.Args[2:])
+	case "cookies":
+		cookiesCmd(os.Args[2:])
+	case "cookies-set":
+		cookiesSetCmd(os.Args[2:])
+	case "cookies-clear":
+		cookiesClearCmd(os.Args[2:])
+	case "history":
+		historyCmd(os.Args[2:])
+	case "history-clear":
+		historyClearCmd(os.Args[2:])
+	case "bookmark-add":
+		bookmarkAddCmd(os.Args[2:])
+	case "bookmarks":
+		bookmarksCmd(os.Args[2:])
+	case "bookmark-remove":
+		bookmarkRemoveCmd(os.Args[2:])
+	case "session":
+		sessionCmd(os.Args[2:])
+	case "session-back":
+		sessionBackCmd(os.Args[2:])
+	case "session-forward":
+		sessionForwardCmd(os.Args[2:])
+	case "session-reload":
+		sessionReloadCmd(os.Args[2:])
+	case "state-save":
+		stateSaveCmd(os.Args[2:])
+	case "state-load":
+		stateLoadCmd(os.Args[2:])
 	default:
 		fmt.Fprintln(os.Stderr, "unknown command: "+os.Args[1])
 		os.Exit(2)
@@ -81,6 +111,7 @@ func renderCmd(args []string) {
 	page := demo.Lookup(addr)
 	frame := term.NewFrame(caps.Width, caps.Height)
 	shell := tui.NewShell()
+	shell.Record = false
 	shell.Open(page.Address)
 	rows := shell.Render(frame)
 
@@ -144,19 +175,276 @@ func fetchCmd(args []string) {
 	// breaks the rows == len(lines) contract on pages over the cap
 	// (Wikipedia and SPA probes exceed 200 rows).
 	emit(!res.Offline, map[string]interface{}{
-		"address":       res.URL,
-		"title":         res.Title,
-		"rows":          res.RowCount,
-		"lines":         lines,
+		"address":        res.URL,
+		"title":          res.Title,
+		"rows":           res.RowCount,
+		"lines":          lines,
 		"lines_returned": len(lines),
-		"cold_ms":       res.ColdMs,
-		"total_ms":      res.TotalMs,
-		"js_executed":   res.JS.Executed,
-		"js_nodes":      res.JS.Nodes,
-		"js_ready":      res.JS.Ready,
+		"cold_ms":        res.ColdMs,
+		"total_ms":       res.TotalMs,
+		"jar_applied":    res.JarApplied,
+		"jar_synced":     res.JarSynced,
+		"js_executed":    res.JS.Executed,
+		"js_nodes":       res.JS.Nodes,
+		"js_ready":       res.JS.Ready,
 		"chrome_version": res.Version,
 	}, res.Warning, res.Code)
 	if res.Offline {
 		os.Exit(1)
 	}
+}
+
+// profileFlag registers the shared --profile flag on fs.
+func profileFlag(fs *flag.FlagSet) *string {
+	return fs.String("profile", "default", "browser profile")
+}
+
+// failClosed emits success=false with a machine code and exits 1.
+// Every session command fails this way: no partial JSON, no zero exit
+// on error.
+func failClosed(warning, code string) {
+	emit(false, nil, warning, code)
+	os.Exit(1)
+}
+
+// cookiesCmd lists the persisted jar for a profile.
+func cookiesCmd(args []string) {
+	fs := flag.NewFlagSet("cookies", flag.ExitOnError)
+	profile := profileFlag(fs)
+	_ = fs.Parse(args)
+	jar, err := engine.LoadJar(*profile)
+	if err != nil {
+		failClosed(err.Error(), "bad_profile")
+	}
+	emit(true, map[string]interface{}{"profile": *profile, "cookies": jar, "count": len(jar)}, "", "")
+}
+
+// cookiesSetCmd inserts or replaces one jar row. The row persists
+// immediately and installs into the next live navigation, which is
+// how agents resume authenticated sessions across restarts.
+func cookiesSetCmd(args []string) {
+	fs := flag.NewFlagSet("cookies-set", flag.ExitOnError)
+	profile := profileFlag(fs)
+	name := fs.String("name", "", "cookie name (required)")
+	value := fs.String("value", "", "cookie value")
+	domain := fs.String("domain", "", "cookie domain")
+	path := fs.String("path", "/", "cookie path")
+	expires := fs.Int64("expires", 0, "expiry as unix seconds (0 = session)")
+	secure := fs.Bool("secure", false, "secure flag")
+	httpOnly := fs.Bool("httponly", false, "httpOnly flag")
+	sameSite := fs.String("samesite", "", "Strict, Lax, or None")
+	_ = fs.Parse(args)
+	if strings.TrimSpace(*name) == "" {
+		failClosed("missing required --name", "bad_cookie")
+	}
+	jar, err := engine.SetJarCookie(*profile, engine.Cookie{
+		Name: *name, Value: *value, Domain: *domain, Path: *path,
+		Expires: *expires, Secure: *secure, HTTPOnly: *httpOnly, SameSite: *sameSite,
+	})
+	if err != nil {
+		failClosed(err.Error(), "bad_cookie")
+	}
+	emit(true, map[string]interface{}{"profile": *profile, "cookies": jar, "count": len(jar)}, "", "")
+}
+
+// cookiesClearCmd drops the whole persisted jar.
+func cookiesClearCmd(args []string) {
+	fs := flag.NewFlagSet("cookies-clear", flag.ExitOnError)
+	profile := profileFlag(fs)
+	_ = fs.Parse(args)
+	n, err := engine.ClearJar(*profile)
+	if err != nil {
+		failClosed(err.Error(), "bad_profile")
+	}
+	emit(true, map[string]interface{}{"profile": *profile, "cleared": n}, "", "")
+}
+
+// historyCmd queries visits newest-first with optional substring
+// filter and limit.
+func historyCmd(args []string) {
+	fs := flag.NewFlagSet("history", flag.ExitOnError)
+	profile := profileFlag(fs)
+	query := fs.String("query", "", "substring filter over URL and title")
+	limit := fs.Int("limit", 50, "max entries (newest first)")
+	_ = fs.Parse(args)
+	visits, err := engine.QueryHistory(*profile, *query, *limit)
+	if err != nil {
+		failClosed(err.Error(), "bad_profile")
+	}
+	emit(true, map[string]interface{}{"profile": *profile, "visits": visits, "count": len(visits)}, "", "")
+}
+
+// historyClearCmd drops every visit for the profile.
+func historyClearCmd(args []string) {
+	fs := flag.NewFlagSet("history-clear", flag.ExitOnError)
+	profile := profileFlag(fs)
+	_ = fs.Parse(args)
+	n, err := engine.ClearHistory(*profile)
+	if err != nil {
+		failClosed(err.Error(), "bad_profile")
+	}
+	emit(true, map[string]interface{}{"profile": *profile, "cleared": n}, "", "")
+}
+
+// bookmarkAddCmd saves a page; re-adding updates its title.
+func bookmarkAddCmd(args []string) {
+	fs := flag.NewFlagSet("bookmark-add", flag.ExitOnError)
+	profile := profileFlag(fs)
+	urlFlag := fs.String("url", "", "page URL (required)")
+	title := fs.String("title", "", "page title")
+	_ = fs.Parse(args)
+	if strings.TrimSpace(*urlFlag) == "" {
+		failClosed("missing required --url", "bad_url")
+	}
+	if err := engine.AddBookmark(*profile, *urlFlag, *title); err != nil {
+		failClosed(err.Error(), "bad_url")
+	}
+	marks, err := engine.ListBookmarks(*profile)
+	if err != nil {
+		failClosed(err.Error(), "bad_profile")
+	}
+	emit(true, map[string]interface{}{"profile": *profile, "bookmarks": marks, "count": len(marks)}, "", "")
+}
+
+// bookmarksCmd lists bookmarks in creation order.
+func bookmarksCmd(args []string) {
+	fs := flag.NewFlagSet("bookmarks", flag.ExitOnError)
+	profile := profileFlag(fs)
+	_ = fs.Parse(args)
+	marks, err := engine.ListBookmarks(*profile)
+	if err != nil {
+		failClosed(err.Error(), "bad_profile")
+	}
+	emit(true, map[string]interface{}{"profile": *profile, "bookmarks": marks, "count": len(marks)}, "", "")
+}
+
+// bookmarkRemoveCmd deletes one bookmark by URL.
+func bookmarkRemoveCmd(args []string) {
+	fs := flag.NewFlagSet("bookmark-remove", flag.ExitOnError)
+	profile := profileFlag(fs)
+	urlFlag := fs.String("url", "", "page URL (required)")
+	_ = fs.Parse(args)
+	if strings.TrimSpace(*urlFlag) == "" {
+		failClosed("missing required --url", "bad_url")
+	}
+	found, err := engine.RemoveBookmark(*profile, *urlFlag)
+	if err != nil {
+		failClosed(err.Error(), "bad_profile")
+	}
+	if !found {
+		failClosed("bookmark not found: "+*urlFlag, "not_found")
+	}
+	emit(true, map[string]interface{}{"profile": *profile, "removed": *urlFlag}, "", "")
+}
+
+// sessionCmd reports the persisted back/forward stack: entry count,
+// current index, and the entry a restart would restore.
+func sessionCmd(args []string) {
+	fs := flag.NewFlagSet("session", flag.ExitOnError)
+	profile := profileFlag(fs)
+	_ = fs.Parse(args)
+	st, err := engine.LoadStack(*profile)
+	if err != nil {
+		failClosed(err.Error(), "bad_profile")
+	}
+	var current interface{}
+	if st.Index >= 0 && st.Index < len(st.Entries) {
+		current = st.Entries[st.Index]
+	}
+	emit(true, map[string]interface{}{
+		"profile": *profile, "entries": st.Entries, "count": len(st.Entries),
+		"index": st.Index, "current": current,
+	}, "", "")
+}
+
+// sessionMove runs Back or Forward and emits the entry to load. ok=false
+// (oldest/newest edge) is success with a null target, not an error:
+// the edge is a normal boundary, and the exit code must not punish it.
+func sessionMove(profile string, back bool) {
+	if back {
+		v, ok, err := engine.Back(profile)
+		if err != nil {
+			failClosed(err.Error(), "bad_profile")
+		}
+		emit(true, map[string]interface{}{"profile": profile, "moved": ok, "target": visitOrNull(v, ok)}, "", "")
+		return
+	}
+	v, ok, err := engine.Forward(profile)
+	if err != nil {
+		failClosed(err.Error(), "bad_profile")
+	}
+	emit(true, map[string]interface{}{"profile": profile, "moved": ok, "target": visitOrNull(v, ok)}, "", "")
+}
+
+func visitOrNull(v engine.Visit, ok bool) interface{} {
+	if !ok {
+		return nil
+	}
+	return v
+}
+
+// sessionBackCmd steps the stack back.
+func sessionBackCmd(args []string) {
+	fs := flag.NewFlagSet("session-back", flag.ExitOnError)
+	profile := profileFlag(fs)
+	_ = fs.Parse(args)
+	sessionMove(*profile, true)
+}
+
+// sessionForwardCmd steps the stack forward.
+func sessionForwardCmd(args []string) {
+	fs := flag.NewFlagSet("session-forward", flag.ExitOnError)
+	profile := profileFlag(fs)
+	_ = fs.Parse(args)
+	sessionMove(*profile, false)
+}
+
+// sessionReloadCmd reports the current entry without moving the stack.
+func sessionReloadCmd(args []string) {
+	fs := flag.NewFlagSet("session-reload", flag.ExitOnError)
+	profile := profileFlag(fs)
+	_ = fs.Parse(args)
+	v, ok, err := engine.CurrentStackEntry(*profile)
+	if err != nil {
+		failClosed(err.Error(), "bad_profile")
+	}
+	emit(true, map[string]interface{}{"profile": *profile, "restored": ok, "target": visitOrNull(v, ok)}, "", "")
+}
+
+// stateSaveCmd exports cookies, bookmarks, and the stack to a file.
+func stateSaveCmd(args []string) {
+	fs := flag.NewFlagSet("state-save", flag.ExitOnError)
+	profile := profileFlag(fs)
+	file := fs.String("file", "", "destination path (required)")
+	_ = fs.Parse(args)
+	if strings.TrimSpace(*file) == "" {
+		failClosed("missing required --file", "bad_path")
+	}
+	st, err := engine.SaveStateFile(*profile, *file)
+	if err != nil {
+		failClosed(err.Error(), "bad_path")
+	}
+	emit(true, map[string]interface{}{
+		"profile": *profile, "file": *file, "cookies": len(st.Cookies),
+		"bookmarks": len(st.Marks), "entries": len(st.Stack.Entries),
+	}, "", "")
+}
+
+// stateLoadCmd imports a snapshot file over the profile.
+func stateLoadCmd(args []string) {
+	fs := flag.NewFlagSet("state-load", flag.ExitOnError)
+	profile := profileFlag(fs)
+	file := fs.String("file", "", "snapshot path (required)")
+	_ = fs.Parse(args)
+	if strings.TrimSpace(*file) == "" {
+		failClosed("missing required --file", "bad_path")
+	}
+	cookies, marks, entries, err := engine.LoadStateFile(*profile, *file)
+	if err != nil {
+		failClosed(err.Error(), "bad_path")
+	}
+	emit(true, map[string]interface{}{
+		"profile": *profile, "file": *file, "cookies": cookies,
+		"bookmarks": marks, "entries": entries,
+	}, "", "")
 }
