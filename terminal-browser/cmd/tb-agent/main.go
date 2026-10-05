@@ -123,7 +123,7 @@ func renderCmd(args []string) {
 
 // fetchCmd loads one live http(s) page through the engine and emits the
 // shared envelope. Offline failures emit success=false with the
-// fail-closed code, never a faux-success snapshot.
+// fail-closed code, never a faked snapshot.
 func fetchCmd(args []string) {
 	fs := flag.NewFlagSet("fetch", flag.ExitOnError)
 	urlFlag := fs.String("url", "", "live http(s) page to fetch (required)")

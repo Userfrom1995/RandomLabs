@@ -1,0 +1,13 @@
+{
+  "url": "https://en.wikipedia.org/wiki/Terminal_pager",
+  "title": "Terminal pager (offline snapshot)",
+  "note": "Bundled shape snapshot. Used only when the live network is unreachable; runs report offline-fallback, never live.",
+  "blocks": [
+    {"kind": "heading", "text": "Terminal pager", "level": 1},
+    {"kind": "text", "text": "A terminal pager is a program that lets you page through text output one screen at a time."},
+    {"kind": "link", "text": "less (Unix)", "href": "https://en.wikipedia.org/wiki/Less_(Unix)"},
+    {"kind": "link", "text": "more (command)", "href": "https://en.wikipedia.org/wiki/More_(command)"},
+    {"kind": "heading", "text": "Common pagers", "level": 2},
+    {"kind": "table", "head": ["Pager", "Keys", "Notes"], "cells": [["less", "arrows, /", "follows, search"], ["more", "space", "classic"], ["most", "arrows", "color"]]}
+  ]
+}

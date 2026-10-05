@@ -1,0 +1,98 @@
+# Engine: Chromium sidecar plus CDP fetch and text render
+
+The terminal frontend never lays out CSS. One headless Chromium sidecar
+owns real-web fidelity over CDP; the engine package converts the
+accessibility tree into styled grid rows. No bundled browser ships in
+the repo.
+
+## Locator and launcher
+
+`Locate` prefers `TB_CHROME`, then `google-chrome` and `chromium` on
+PATH, then the well-known install paths per OS, then
+`chrome-headless-shell`. `CheckFloor` enforces the Chrome 140 floor:
+below-floor binaries fail closed with an upgrade message, and every run
+records the exact `chrome --version` string.
+
+`Launch` starts headless Chromium with a remote-debugging port and a
+per-profile user-data directory (`~/.terminal-browser/profiles/<name>`),
+then polls `/json/version` until the DevTools endpoint answers. Flags:
+`--headless=new`, `--disable-gpu`, `--no-first-run`,
+`--no-default-browser-check`, `--disable-extensions`. Profile isolation
+is real from day one; cookie and history sync arrive in the session
+phase.
+
+Windows note: ConPTY swallows APC sequences, so the engine uses the
+same TCP loopback transport everywhere and documents pipe transport as
+the AV-constrained fallback. The graphics chain on Windows already
+prefers iTerm2 stills and Sixel over Kitty; see `architecture.md`.
+
+## CDP session
+
+`cdp.go` is a dependency-free client: the standard library has no
+WebSocket client, so `ws.go` implements masked text-frame send plus
+fragmented text-frame receive with ping answers. `Session.Call` maps
+one incrementing id to one response channel with per-call timeouts;
+events fan out to subscribers by method name.
+
+Domains enabled per session: Page, Network, Runtime, Accessibility.
+DOMSnapshot enable is best-effort. Calls used in this phase:
+`Page.navigate` plus `Page.loadEventFired`, `Network.setBlockedURLs`,
+`Runtime.evaluate` (title plus the JS render probe),
+`Accessibility.getFullAXTree`.
+
+## Lite mode and the media path
+
+`SetLite(true)` blocks images (`png`, `jpg`, `jpeg`, `gif`, `webp`,
+`avif`, `svg`), media (`mp4`, `webm`, `mp3`, `ogg`), fonts (`woff`,
+`woff2`, `ttf`), and common trackers via `Network.setBlockedURLs`.
+Lite mode keeps text navigation fast and cheap. The default full path
+loads everything for media surfaces, which a later phase paints as
+real rects.
+
+## AX tree to terminal stylesheet
+
+`ax.go` parses `getFullAXTree` into nodes (roles, names, values, child
+references) and flattens them depth-first into reading-order blocks:
+headings (with level), links (with href), controls (with affordance
+suffixes like `[input]` or `[button]`), images (`[image: alt]`),
+tables (headers plus rows), list items, and prose.
+
+`style.go` maps blocks to styled rows at the grid width: headings are
+warm and bold with `#` prefixes, links are accent and underlined with
+`[N]` indices plus `-> href` lines, controls are accent, images and
+metadata are dim. `Wrap` word-wraps on rune boundaries with hard breaks
+for overlong words (URLs, CJK strings). `LayoutTable` fits equal
+columns with truncation marks and a header separator. `Rewrap`
+reflows styled rows when the frame is narrower than the fetch width.
+
+## Navigation and timing
+
+`Navigate` validates the URL (http and https only; anything else fails
+closed with a pointer to the fixture router), launches the sidecar,
+enables the domains, optionally sets lite mode, navigates with the
+cold budget, styles the AX tree, and runs the JS probe. Results carry
+`cold_ms`, the JS evidence (`executed`, node count, readiness, app-root
+presence, user agent), and the Chrome version.
+
+Binding budgets: cold navigate at most 10 s, warm navigate at most 3 s.
+Any miss fails the gate. The warm path reuses a live CDP session for a
+second load.
+
+## JS render probe
+
+The probe evaluates a small expression reporting node count,
+`document.readyState`, app-root presence (`#root`, `#__next`, `#app`,
+`main`, `article`), and the user agent. `executed` is true when the
+page holds real nodes. Server-rendered pages (Hacker News, Wikipedia)
+pass on node count and readiness; client-rendered SPAs (TodoMVC React)
+pass on rendered headings plus app presence.
+
+## Offline fail-closed
+
+Every failure returns an honest result: `offline` with a machine code
+(`offline`, `no_chrome`, `load_timeout`, `bad_url`, `error`) and an
+actionable warning, plus an error document that names the address, the
+reason, and the next steps. Nothing ever claims content it did not
+fetch. When the live network is unreachable, runs fall back to the
+bundled snapshots under `tests/fixtures/` and report
+`offline-fallback` instead of passing as live.

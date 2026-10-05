@@ -1,0 +1,17 @@
+{
+  "url": "https://news.ycombinator.com/",
+  "title": "Hacker News (offline snapshot)",
+  "note": "Bundled shape snapshot. Used only when the live network is unreachable; runs report offline-fallback, never live.",
+  "blocks": [
+    {"kind": "heading", "text": "Hacker News", "level": 1},
+    {"kind": "link", "text": "new", "href": "https://news.ycombinator.com/newest"},
+    {"kind": "link", "text": "past", "href": "https://news.ycombinator.com/front"},
+    {"kind": "link", "text": "comments", "href": "https://news.ycombinator.com/newcomments"},
+    {"kind": "link", "text": "ask", "href": "https://news.ycombinator.com/ask"},
+    {"kind": "link", "text": "show", "href": "https://news.ycombinator.com/show"},
+    {"kind": "link", "text": "jobs", "href": "https://news.ycombinator.com/jobs"},
+    {"kind": "text", "text": "1. Show HN: terminal browsers keep coming back (42 points, 7 comments)"},
+    {"kind": "text", "text": "2. A cookbook for headless browser automation (128 points, 31 comments)"},
+    {"kind": "text", "text": "3. The quiet revival of small web forums (96 points, 54 comments)"}
+  ]
+}
