@@ -178,10 +178,13 @@ func TestSanitizeProfile(t *testing.T) {
 			t.Fatalf("reject good profile %q: %v", good, err)
 		}
 	}
-	for _, bad := range []string{"../.ssh", "a/b", `a\b`, ".hidden", "", strings.Repeat("x", 65)} {
+	for _, bad := range []string{"../.ssh", "a/b", `a\b`, ".hidden", strings.Repeat("x", 65)} {
 		if _, err := SanitizeProfile(bad); err == nil {
 			t.Fatalf("accept bad profile %q", bad)
 		}
+	}
+	if got, err := SanitizeProfile(""); err != nil || got != "default" {
+		t.Fatalf("empty profile should map to default, got %q err %v", got, err)
 	}
 	if got := ProfileDir("../../.ssh"); strings.Contains(got, ".ssh") {
 		t.Fatalf("profile traversal escaped isolation: %q", got)

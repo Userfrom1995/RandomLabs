@@ -109,9 +109,9 @@ func CheckFloor(bin string) (string, error) {
 // hidden dirs (.), and shell metacharacters are rejected.
 var profileRe = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
 
-// SanitizeProfile validates a profile name. Anything outside
-// [a-zA-Z0-9_-] (including "..", "/", "\", ".", and empty) fails
-// closed instead of escaping the profiles directory.
+// SanitizeProfile validates a profile name. Empty means "default";
+// anything outside [a-zA-Z0-9_-] (including "..", "/", "\", ".")
+// fails closed instead of escaping the profiles directory.
 func SanitizeProfile(profile string) (string, error) {
 	if profile == "" {
 		return "default", nil
