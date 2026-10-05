@@ -57,8 +57,10 @@ go test ./...
 Run the interactive shell with `go run ./cmd/tb` inside a real terminal.
 `q` quits, `/` edits the address (http(s) URLs fetch live, `fixture://`
 stays local), `H`/`L` step back/forward, `r` reloads, `p` switches
-profile, `?` shows keys. Full session detail lives in
-`docs/sessions.md`. The MCP server lands with the control plane next.
+profile, `:` opens the ref drawer on live pages (`eN` plus `Enter` acts,
+`f` fills, `R` remaps stale refs), `?` shows keys. Full session detail
+lives in `docs/sessions.md`; the interaction loop lives in
+`docs/interact.md`. The MCP server lands with the control plane next.
 
 ## Layout
 
@@ -66,10 +68,14 @@ profile, `?` shows keys. Full session detail lives in
 - `cmd/tb-agent/` - agent CLI twin with JSON envelopes.
 - `internal/term/` - probe, frame compositor, FPS governor, input codecs.
 - `internal/gfx/` - Kitty, Sixel, iTerm2, and block painters plus tier order.
-- `internal/tui/` - tab strip, address bar, status line, profile picker.
+- `internal/tui/` - tab strip, address bar, status line, profile picker,
+  Harbor hint chips plus ref drawer with live act bindings.
 - `internal/demo/` - fixture pages and the local router.
 - `internal/engine/` - Chrome locator plus launcher, CDP session, AX style
   plus reflow, navigation with lite blocklists and offline fail-closed,
-  session stores (cookies, history, bookmarks, stack, state files).
-- `docs/` - architecture, engine policy, sessions, verification notes.
+  session stores (cookies, history, bookmarks, stack, state files),
+  persistent interaction browser (settled refs, acts, waits, taps,
+  screenshots, PDF).
+- `docs/` - architecture, engine policy, sessions, interaction loop,
+  verification notes.
 - `tests/` - static gate (`test_terminal_browser.py`), offline fixtures.

@@ -34,6 +34,15 @@ REQUIRED = [
     "internal/engine/ax.go",
     "internal/engine/style.go",
     "internal/engine/navigate.go",
+    "internal/engine/interact.go",
+    "internal/engine/act.go",
+    "internal/engine/observe.go",
+    "internal/engine/interact_test.go",
+    "internal/tui/hints.go",
+    "internal/tui/hints_test.go",
+    "cmd/tb-agent/interact.go",
+    "cmd/tb-agent/interact_test.go",
+    "docs/interact.md",
     "internal/engine/baseline.go",
     "internal/engine/fallback.go",
     "internal/engine/store.go",
@@ -103,7 +112,7 @@ class StaticGate(unittest.TestCase):
 
     def test_docs_unified(self):
         hits = []
-        for name in ("README.md", "docs/index.md", "docs/architecture.md", "docs/engine.md", "index.html"):
+        for name in ("README.md", "docs/index.md", "docs/architecture.md", "docs/engine.md", "docs/interact.md", "index.html"):
             path = os.path.join(ROOT, name)
             with open(path, encoding="utf-8") as fh:
                 for i, line in enumerate(fh, 1):

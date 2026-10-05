@@ -170,12 +170,12 @@ func Open(target string, o OpenOptions) (*Browser, error) {
 	return b, nil
 }
 
-// openSidecar launches the sidecar with a bounded retry for the
-// profile-lock race: a previous browser killed milliseconds ago may
-// still hold the user-data-dir lock, and the fresh Chrome exits
-// before its endpoint answers. Endpoint silence retries twice one
-// second apart; every other launch error (bad profile, rejected
-// flag, missing binary) fails immediately with no retry.
+// openSidecar launches the sidecar with a bounded retry for slow
+// hosts: a cold Chromium can take many seconds to answer its endpoint
+// under load. Endpoint silence retries twice with backoff; every
+// other launch error (bad profile, rejected flag, missing binary)
+// fails immediately with no retry. Lock races cannot happen: every
+// launch owns a fresh instance directory (see instanceDir).
 func openSidecar(safe string, timeout time.Duration) (*Process, error) {
 	var err error
 	for attempt := 1; attempt <= 3; attempt++ {

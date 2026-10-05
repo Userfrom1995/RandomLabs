@@ -201,6 +201,9 @@ func checkStep(st Step) error {
 		if strings.TrimSpace(st.Ref) == "" {
 			return fmt.Errorf("op fill needs ref")
 		}
+		if st.Text == "" && !st.Clear && !st.Submit {
+			return fmt.Errorf("op fill needs text, clear, or submit: nothing to do")
+		}
 	case "press":
 		if strings.TrimSpace(st.Key) == "" {
 			return fmt.Errorf("op press needs key")

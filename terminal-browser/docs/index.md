@@ -10,3 +10,6 @@ Chromium sidecar, CDP session, lite mode, AX stylesheet, reflow, timing
 budgets, and offline fail-closed behavior. Then read
 [sessions](sessions.md): profiles, cookie jar sync, history, bookmarks,
 back/forward and restore, portable state files, and the session CLI.
+Then read [interact](interact.md): settled snapshots and eN refs, the
+act suite, wait-for and assert conditions, console and network taps,
+screenshots and PDF export, the shell overlay, and the script runner.

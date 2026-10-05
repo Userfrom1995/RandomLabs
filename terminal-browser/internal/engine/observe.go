@@ -757,7 +757,5 @@ func (b *Browser) PDF(out string) (string, int, error) {
 	if err := os.WriteFile(out, data, 0o644); err != nil {
 		return "", 0, fmt.Errorf("write pdf: %w", err)
 	}
-	sum := sha256.Sum256(data)
-	_ = sum
 	return out, len(data), nil
 }

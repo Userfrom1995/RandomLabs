@@ -1,9 +1,9 @@
 // Package engine owns the live-web path: Chromium sidecar location and
-// launch, a stdlib-only CDP session, AX-tree styling plus grid reflow,
-// and navigation with lite-mode blocklists and offline fail-closed errors.
-//
-// Phase 2 scope only: fetch and text render. Sessions, interaction, MCP,
-// and extensions arrive in later phases and never appear as stubs here.
+// launch (per-launch instance dirs under persistent profile roots), a
+// stdlib-only CDP session, AX-tree styling plus grid reflow,
+// navigation with lite-mode blocklists and offline fail-closed errors,
+// session stores, and the persistent interaction loop (settled refs,
+// acts, waits, taps, screenshots, PDF export).
 package engine
 
 import (
@@ -122,9 +122,9 @@ func SanitizeProfile(profile string) (string, error) {
 	return profile, nil
 }
 
-// ProfileDir returns the persistent user-data directory for a profile.
-// Phase 2 uses it for per-profile contexts; cookie and history sync
-// land in Phase 3, but the directory isolation is real from day one.
+// ProfileDir returns the persistent profile root for a profile: our
+// cookie, history, bookmark, and stack stores live here, plus one
+// per-launch Chromium instance directory (see instanceDir).
 // Unsanitized input never escapes: invalid names map to "default".
 // TB_HOME (see BaseDir) redirects the whole tree for tests and
 // portable installs.

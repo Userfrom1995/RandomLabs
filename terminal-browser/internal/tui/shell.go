@@ -807,11 +807,14 @@ func renderStatus(s *Shell, f *term.Frame) {
 	msg := s.Message + "  |  tabs:" + itoa(len(s.Tabs)) +
 		"  scroll:" + itoa(s.Current().Scroll) + "/" + itoa(len(s.Current().Page.Rows))
 	if t := s.Current(); t.Live && t.Gen > 0 {
+		// The gen stamp leads the line: truncation cuts the message
+		// tail on narrow frames, never the settled generation the
+		// agent and the human both read refs against.
 		stable := "settled"
 		if !t.Stable {
 			stable = "wait-settled"
 		}
-		msg += "  gen" + itoa(t.Gen) + " " + stable + " refs:" + itoa(len(t.Refs))
+		msg = "gen" + itoa(t.Gen) + " " + stable + " " + itoa(len(t.Refs)) + "refs | " + msg
 	}
 	if s.StaleWant != "" {
 		msg += "  STALE:" + s.StaleWant + " (R remaps)"

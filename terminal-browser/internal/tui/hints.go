@@ -74,7 +74,6 @@ func (s *Shell) drawChips(f *term.Frame, chipRow int) {
 			x++
 		}
 	}
-	t := s.Current()
 	for i, r := range refs {
 		focused := i == s.HintFocus
 		bg := chromeBG
@@ -86,7 +85,6 @@ func (s *Shell) drawChips(f *term.Frame, chipRow int) {
 		x0 := x
 		put(label, chromeFG, bg, focused, false)
 		s.chips = append(s.chips, chipHit{Ref: r.ID, X0: x0, X1: x, Focused: focused})
-		_ = t
 	}
 	if more > 0 {
 		label := "+" + itoa(more) + " more"

@@ -40,13 +40,17 @@ ReGIS and Tektronix are explicitly out of scope.
 
 ## State model
 
-Each profile maps to one persistent browser context backed by a user data
-directory. Cookies sync from CDP storage into a local jar for inspection
-and offline audit; history, bookmarks, and the back/forward stack live
-in atomic JSON documents under the profile (0700 dirs, 0600 files);
-sessions save and load via portable state files. Closing and reopening
-a profile restores tabs, cookies, and history position. Full detail in
-[sessions](sessions.md).
+Each profile maps to one persistent browser context backed by the
+profile root: cookies sync from CDP storage into a local jar for
+inspection and offline audit; history, bookmarks, and the
+back/forward stack live in atomic JSON documents under the profile
+(0700 dirs, 0600 files); sessions save and load via portable state
+files. Each browser open runs Chromium in a fresh per-launch instance
+directory under the profile, so concurrent browsers never share a
+SingletonLock and crashed runs never wedge the next launch; only
+Chromium-internal state is ephemeral per instance. Closing and
+reopening a profile restores tabs, cookies, and history position.
+Full detail in [sessions](sessions.md).
 
 ## Interaction model
 
@@ -55,7 +59,9 @@ stable-per-snapshot refs; every act tool takes a ref, performs the CDP
 input sequence, then returns a fresh snapshot; stale refs fail closed with
 a `ref_stale` code telling the caller to re-snapshot. Screenshots verify
 visually but never act. Dialogs surface as warnings on every response with
-an explicit `dialog_handle` tool.
+an explicit `dialog_handle` tool. Full loop detail (act suite, waits,
+taps, screenshots, shell overlay, script runner) lives in
+[interact](interact.md).
 
 ## Control plane
 
