@@ -93,7 +93,8 @@ HAR-1.2 rows with byte counts, failure text, and the in-flight count
 `screenshot` captures `viewport`, `full` (beyond viewport), or
 `element` (a padded clip around the ref box) as PNG to `out`.
 `annotate` draws the current snapshot ref boxes into the pixels with
-a `out.legend.json` color map; `if_unchanged` skips the write when
+a `out.legend.json` color map (per drawn ref id, file mode 0600
+like the PNG itself); `if_unchanged` skips the write when
 the pixels equal the last shot and reports `deduplicated`. `pdf`
 exports the page through print-to-PDF with backgrounds on.
 

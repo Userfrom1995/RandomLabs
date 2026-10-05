@@ -270,6 +270,10 @@ func (b *Browser) watchDialogs() {
 
 // onDialog records the opening dialog and applies the auto policy.
 // Manual policy only records: the dialog op answers explicitly.
+// The pending slot clears only after a successful auto-answer: a
+// failed handleJavaScriptDialog leaves Chrome still blocked, so the
+// dialog stays pending for a manual retry instead of vanishing into
+// a phantom no_dialog.
 func (b *Browser) onDialog(ev DialogEvent) {
 	b.mu.Lock()
 	if b.pending == nil {
@@ -279,7 +283,9 @@ func (b *Browser) onDialog(ev DialogEvent) {
 	policy := b.dialogPolicy
 	b.mu.Unlock()
 	if policy == "accept" || policy == "dismiss" {
-		_, _ = b.sess.Call("Page.handleJavaScriptDialog", map[string]interface{}{"accept": policy == "accept"}, actTimeout)
+		if _, err := b.sess.Call("Page.handleJavaScriptDialog", map[string]interface{}{"accept": policy == "accept"}, actTimeout); err != nil {
+			return
+		}
 		b.mu.Lock()
 		ev.Handled = "auto-" + policy
 		b.handled = append(b.handled, ev)
@@ -501,8 +507,10 @@ type Shot struct {
 // Screenshot captures the viewport, the full page beyond the
 // viewport, or one ref element clipped to its box. Annotate draws
 // the current snapshot ref boxes into the PNG plus a legend beside
-// the file. IfUnchanged skips the write when the pixels equal the
-// last shot (dedup hit reports the previous path with no new bytes).
+// the file (out.legend.json, a color-hex map per drawn ref id, file
+// mode 0600 like the PNG itself). IfUnchanged skips the write when
+// the pixels equal the last shot (dedup hit reports the previous
+// path with no new bytes).
 func (b *Browser) Screenshot(kind, refID string, gen int, out string, annotate, ifUnchanged bool) (*Shot, error) {
 	if strings.TrimSpace(out) == "" {
 		return nil, fmt.Errorf("empty out path: screenshots need an explicit file")
@@ -597,12 +605,12 @@ func (b *Browser) Screenshot(kind, refID string, gen int, out string, annotate, 
 	if ifUnchanged && hash == lastHash && lastPath != "" {
 		return &Shot{Path: lastPath, SHA256: hash, Bytes: len(pngBytes), Dedup: true}, nil
 	}
-	if err := os.WriteFile(out, pngBytes, 0o644); err != nil {
+	if err := os.WriteFile(out, pngBytes, 0o600); err != nil {
 		return nil, fmt.Errorf("write screenshot: %w", err)
 	}
 	if len(legend) > 0 {
 		lb, _ := json.MarshalIndent(legend, "", "  ")
-		_ = os.WriteFile(out+".legend.json", lb, 0o644)
+		_ = os.WriteFile(out+".legend.json", lb, 0o600)
 	}
 	cfg, _ := png.DecodeConfig(bytes.NewReader(pngBytes))
 	b.mu.Lock()
@@ -754,7 +762,7 @@ func (b *Browser) PDF(out string) (string, int, error) {
 	if len(data) < 5 || string(data[:5]) != "%PDF-" {
 		return "", 0, fmt.Errorf("print to pdf returned %d non-PDF bytes; refusing a corrupt export", len(data))
 	}
-	if err := os.WriteFile(out, data, 0o644); err != nil {
+	if err := os.WriteFile(out, data, 0o600); err != nil {
 		return "", 0, fmt.Errorf("write pdf: %w", err)
 	}
 	return out, len(data), nil
