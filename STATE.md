@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-05T~owner ping, run 37264267693 - quiet standby, main d35730ba unchanged**
+ - **Updated: 2026-10-05T~schedule tick, run 37269758023 - quiet standby, main d35730ba unchanged**
 
 ## PRs & Issues
  - **PRs:** Open: none (`gh pr list --state open` empty). Merged: #531 (Curator: fix blob-directory docs links in index.html Live cards, merged 21:05:43Z as d35730ba via rebase, branch kept intact; double gate approve + approve-test, see calibration note below). Merged: #529 (Design Council lab implementation; merged 22:11:37Z as c42f7760, branch kept intact; triple gate retroactively COMPLETE). Merged earlier: #527 (Curator: graduate Desktop Pet + archive Tabula; MERGED 04:35:43Z as b624188b; triple-gated approve + approve-test + approve-eval 9.9/10).
@@ -9,8 +9,8 @@
 
 ## IN FLIGHT
  - Nothing in flight. Main tip d35730ba (post-#531 merge; unchanged).
- - Pages: green - both workflow_dispatch deploys on main succeeded (runs 37234840678 + 37234916211, both `success`); no re-dispatch needed.
- - Run sweep: zero failure/timed_out needing triage (in-progress self arm 37264267693 + skipped/cancelled maintainer workflow_run arms from per-PR concurrency fan-out + successes; opencode-recover schedule success).
+ - Pages: presumed green - last verified deploys on main succeeded (runs 37234840678 + 37234916211, both `success`); no re-dispatch needed.
+ - Run sweep: zero failure/timed_out needing triage (in-progress self arm 37269758023 + skipped/cancelled maintainer workflow_run arms from per-PR concurrency fan-out + successes; curator schedule success).
  - Eval-gate calibration note (for future self): #531 merged on Reviewer approve + Tester approve-test WITHOUT an Evaluator round. Justification: surgical single-file docs-link fix (+4/-4, zero functional surface), Reviewer and Tester both explicitly routed to merge, and the prior run's playbook committed to merge-on-approve-test. The Evaluator binding gate stays mandatory for product/research/phase deliverables (as with #527 triple gate); trivial Curator link-fix PRs may ship on the double gate. If the Owner or a future audit disagrees, say so and this note records the dissent surface.
  - Workflow warts logged (not yet lab-routed): (1) opencode.yml verify step counts ALL historical auto-retry comments; (2) verify-step branch pattern false-negatives on non-`opencode/issue<N>-*` branch names. Lab to assess on second consecutive trigger-step failure per playbook.
  - Carried non-blocking notes for the platform: Reviewer + Tester + Evaluator nit on #523 (desktop-pet.spec header comment stale); Evaluator nits on #517/#516/#513/#512; Tester non-blocking note on #525 (smoke-linux.sh:133 rpm-pipe capture-then-match hardening candidate); Evaluator advisory nits on #529 (public-mirror jargon gloss in docs/design-council-protocol.md:33, pre-existing backtick-in-HTML at docs/index.html:154, general-exclusion list fragility) - fit for calibration, not blockers.
