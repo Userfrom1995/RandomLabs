@@ -5,10 +5,15 @@ import (
 	"strings"
 )
 
-// AXNode is one accessibility-tree node: role, name, value, and the
-// child references that form the document outline.
+// AXNode is one accessibility-tree node: role, name, value, the child
+// references that form the document outline, and the backend DOM node
+// id that lets the interaction loop resolve the node back into a live
+// DOM object for real clicks, fills, and screenshots. BackendID is 0
+// when Chrome omits it: the ref still lists for reading, but acts fail
+// closed with ref_no_node instead of guessing.
 type AXNode struct {
 	NodeID      string            `json:"nodeId"`
+	BackendID   int64             `json:"backendDOMNodeId"`
 	Role        string            `json:"role"`
 	Name        string            `json:"name"`
 	Value       string            `json:"value"`
@@ -76,14 +81,15 @@ func itoaAX(n int) string {
 func ParseAX(raw json.RawMessage) (map[string]*AXNode, []string, error) {
 	var payload struct {
 		Nodes []struct {
-			NodeID      string `json:"nodeId"`
-			Ignored     bool   `json:"ignored"`
-			Role        axVal  `json:"role"`
-			Name        axVal  `json:"name"`
-			Description axVal  `json:"description"`
-			Value       axVal  `json:"value"`
-			ChildIDs    []string `json:"childIds"`
-			Props       []struct {
+			NodeID          string   `json:"nodeId"`
+			BackendID       int64    `json:"backendDOMNodeId"`
+			Ignored         bool     `json:"ignored"`
+			Role            axVal    `json:"role"`
+			Name            axVal    `json:"name"`
+			Description     axVal    `json:"description"`
+			Value           axVal    `json:"value"`
+			ChildIDs        []string `json:"childIds"`
+			Props           []struct {
 				Name  string `json:"name"`
 				Value axVal  `json:"value"`
 			} `json:"properties"`
@@ -97,6 +103,7 @@ func ParseAX(raw json.RawMessage) (map[string]*AXNode, []string, error) {
 	for _, n := range payload.Nodes {
 		an := &AXNode{
 			NodeID:      n.NodeID,
+			BackendID:   n.BackendID,
 			Role:        n.Role.String(),
 			Name:        n.Name.String(),
 			Value:       n.Value.String(),
@@ -348,4 +355,68 @@ func firstNonEmpty(v ...string) string {
 		}
 	}
 	return ""
+}
+
+// actionableRole reports whether an AX role is something a human or an
+// agent can act on: links, buttons, inputs, selectors, toggles,
+// sliders, and menu/tab affordances. Containers, text, headings, and
+// images never take refs: they carry no pointer or key affordance.
+func actionableRole(role string) bool {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "link", "button", "textbox", "searchbox", "combobox",
+		"listbox", "checkbox", "radio", "switch", "slider",
+		"menuitem", "menuitemcheckbox", "menuitemradio", "tab":
+		return true
+	}
+	return false
+}
+
+// RefNodes walks the tree depth-first from roots (the same document
+// order Flatten reads) and returns the actionable nodes: the DOM-order
+// basis for snapshot eN refs. Ignored subtrees recurse like Flatten so
+// presentational wrappers never hide real controls.
+func RefNodes(nodes map[string]*AXNode, order []string) []*AXNode {
+	isChild := map[string]bool{}
+	for _, n := range nodes {
+		for _, c := range n.ChildIDs {
+			isChild[c] = true
+		}
+	}
+	var roots []string
+	for _, id := range order {
+		if !isChild[id] {
+			roots = append(roots, id)
+		}
+	}
+	var out []*AXNode
+	var rec func(id string)
+	rec = func(id string) {
+		n, ok := nodes[id]
+		if !ok {
+			return
+		}
+		if n.Ignored {
+			for _, c := range n.ChildIDs {
+				rec(c)
+			}
+			return
+		}
+		if actionableRole(n.Role) {
+			out = append(out, n)
+			// Controls may still wrap children (a button holding an
+			// image with its own backend id); keep walking so nested
+			// affordances surface too.
+			for _, c := range n.ChildIDs {
+				rec(c)
+			}
+			return
+		}
+		for _, c := range n.ChildIDs {
+			rec(c)
+		}
+	}
+	for _, r := range roots {
+		rec(r)
+	}
+	return out
 }
