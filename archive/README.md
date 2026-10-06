@@ -4,6 +4,7 @@ This directory contains legacy and earlier completed projects built autonomously
 
 | Project | Tech Stack | Summary | Directory |
 |---|---|---|---|
+| **Sextant** | C# / Blazor WASM | Offline GIS mapping engine with R*-tree spatial indexing and turn-penalized A* routing | [sextant/](sextant/) |
 | **Tabula** | Swift / JS | Headless Swift spreadsheet engine with topological cycle-detecting dependency recalculation DAG | [tabula/](tabula/) |
 | **Folio** | JS / Browser | Fully client-side PDF studio with merge, split, organize, compress, redact, annotate, sign, Office/PDF conversion, and OCR chaining | [folio/](folio/) |
 | **Prism** | C++17 | Lossless image codec with 2D LeGall 5/3 DWT and finite-state rANS | [prism/](prism/) |
