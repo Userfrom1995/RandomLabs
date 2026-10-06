@@ -1,11 +1,13 @@
-"""Regression tests for PR #410 (Refs #70): landing-page meta + Prism dedup.
+"""Regression tests for PR #410 (Refs #70), updated for #549 archived reality.
 
 Verifies against the shipped artifact (root index.html served over HTTP):
-- meta description lists the live fleet (Folio M4 shipped, Tabula, Sextant,
-  Doom, Umbra, Poolduel, torshim), not the stale Tor CLI / Umbra-only text
-- 'Prism' appears exactly once (Live Projects, Finished at ceiling), with no
-  copy left under Previous Projects
-- Folio / Tabula / Sextant live cards exist before Previous Projects
+- meta description lists the current live fleet (Terminal Browser, Desktop
+  Pet, Netpulse, Thunderline, Mythduel, Hearthlight, Doom, Umbra, Poolduel,
+  torshim), not the stale Tor CLI / Umbra-only text
+- archived names (Folio, Tabula, Sextant, Prism) are absent from the meta
+  (they live under archive/, cataloged in archive/README.md)
+- Prism no longer appears on the landing page (archived to archive/prism/)
+- live cards exist before Previous Projects
 - HTML parses with zero errors, zero em dashes (lab formatting invariant)
 
 Stdlib only (html.parser + urllib), no extra runtime dependencies.
@@ -22,7 +24,21 @@ from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[2]
 INDEX = ROOT / "index.html"
-FLEET = ["Folio", "Tabula", "Sextant", "Doom", "Umbra", "Poolduel", "torshim"]
+FLEET = [
+    "Terminal Browser",
+    "Desktop Pet",
+    "Netpulse",
+    "Thunderline",
+    "Mythduel",
+    "Hearthlight",
+    "Doom",
+    "Umbra",
+    "Poolduel",
+    "torshim",
+]
+# Archived projects: preserved under archive/ (Sextant via #548), cataloged
+# in archive/README.md. They must not be advertised as live in the meta.
+ARCHIVED = ["Folio", "Tabula", "Sextant", "Prism"]
 
 
 class _StrictParser(HTMLParser):
@@ -48,23 +64,25 @@ class LandingPr410(unittest.TestCase):
         meta = meta_description(read_source())
         for name in FLEET:
             self.assertIn(name, meta, f"meta missing fleet member: {name}")
-        self.assertIn("M4 shipped", meta)
+        for name in ARCHIVED:
+            self.assertNotIn(
+                name, meta, f"archived project advertised as live: {name}"
+            )
         self.assertNotIn("issue #387", meta, "stale Tor CLI-only meta survived")
 
-    def test_prism_exactly_once_outside_previous(self):
+    def test_prism_absent_archived_names_cataloged(self):
         src = read_source()
-        self.assertEqual(src.count("Prism"), 1, "Prism must appear exactly once")
-        prev = src.split("Previous Projects")[-1]
-        self.assertNotIn("Prism", prev, "duplicate Prism copy under Previous Projects")
-        live = src.split("Previous Projects")[0]
-        self.assertIn("Prism", live)
-        self.assertIn("Finished at ceiling", live)
-        self.assertIn("9bd6d10", live)
+        self.assertEqual(
+            src.count("Prism"), 0, "Prism is archived, not on the landing page"
+        )
+        archived = src.split("Archived Projects")[-1]
+        for name in ("Sextant", "Folio", "Tabula"):
+            self.assertIn(name, archived, f"{name} missing from archive paragraph")
 
     def test_live_cards_before_previous(self):
         src = read_source()
         prev_pos = src.index("Previous Projects")
-        for name in ("Folio", "Tabula", "Sextant"):
+        for name in ("Terminal Browser", "Doom", "Umbra"):
             self.assertIn(name, src)
             self.assertLess(src.index(name), prev_pos, f"{name} card not in Live section")
 
@@ -89,7 +107,7 @@ class LandingPr410(unittest.TestCase):
                 self.assertEqual(resp.status, 200)
                 body = resp.read().decode("utf-8")
             self.assertIn(meta_description(read_source()), body)
-            self.assertEqual(body.count("Prism"), 1)
+            self.assertEqual(body.count("Prism"), 0)
             # hostile: missing asset is a clean 404, not a freeze
             try:
                 urlopen(f"http://127.0.0.1:{server.server_port}/does-not-exist.html")
