@@ -1,13 +1,17 @@
-"""Regression tests for PR #412 (Fixes #411): the tor-cli and Prism project sites.
+"""Regression tests for PR #412 (Fixes #411), updated for #549 archived reality.
 
-Verifies against the shipped artifact (both pages served over HTTP):
-- both project pages exist, parse clean, and have zero duplicate ids
+Verifies against the shipped artifact (live tor-cli page plus the archived
+Prism page, both served over HTTP):
+- both project pages exist (tor-cli live, Prism at archive/prism/), parse
+  clean, and have zero duplicate ids
 - every in-page anchor resolves and every relative link target exists
 - every copy button's data-copy payload byte-matches its visible block
 - zero em dashes and zero placeholder markers in all PR-touched files
-- landing page and README point every completed project at its own site
+- landing page and README point torshim at its live site and no longer
+  point Prism at a live site (Prism is cataloged in archive/README.md)
 - CONTRIBUTING.md codifies the every-project-ships-an-index.html rule
-- bench_vs_codecs.py imports compare_image_codecs from archive/obsidian
+- archive/prism bench_vs_codecs.py imports compare_image_codecs from
+  archive/obsidian
 - no external scripts/images (offline-safe pages), a11y table regions present
 
 Stdlib only (html.parser + urllib), no extra runtime dependencies.
@@ -26,14 +30,17 @@ from urllib.request import urlopen
 ROOT = Path(__file__).resolve().parents[2]
 PAGES = {
     "tor-cli": ROOT / "tor-cli" / "index.html",
-    "prism": ROOT / "prism" / "index.html",
 }
+ARCHIVED_PAGES = {
+    "prism": ROOT / "archive" / "prism" / "index.html",
+}
+ALL_PAGES = {**PAGES, **ARCHIVED_PAGES}
 TOUCHED = [
     ROOT / "CONTRIBUTING.md",
     ROOT / "README.md",
     ROOT / "index.html",
-    ROOT / "prism" / "benchmarks" / "bench_vs_codecs.py",
-    ROOT / "prism" / "index.html",
+    ROOT / "archive" / "prism" / "benchmarks" / "bench_vs_codecs.py",
+    ROOT / "archive" / "prism" / "index.html",
     ROOT / "tor-cli" / "index.html",
 ]
 
@@ -110,7 +117,7 @@ def parse(path):
 
 class PageIntegrity(unittest.TestCase):
     def test_pages_exist_and_parse_clean(self):
-        for name, path in PAGES.items():
+        for name, path in ALL_PAGES.items():
             self.assertTrue(path.is_file(), f"{name} page missing: {path}")
             src = path.read_text(encoding="utf-8")
             p = parse(path)
@@ -120,7 +127,7 @@ class PageIntegrity(unittest.TestCase):
                 self.assertNotIn(bad, src, f"{name}: placeholder marker {bad!r}")
 
     def test_no_duplicate_ids_and_anchors_resolve(self):
-        for name, path in PAGES.items():
+        for name, path in ALL_PAGES.items():
             p = parse(path)
             dupes = {i for i in p.ids if p.ids.count(i) > 1}
             self.assertEqual(dupes, set(), f"{name}: duplicate ids {dupes}")
@@ -131,7 +138,7 @@ class PageIntegrity(unittest.TestCase):
                 )
 
     def test_relative_targets_exist(self):
-        for name, path in PAGES.items():
+        for name, path in ALL_PAGES.items():
             p = parse(path)
             for rel in p.rel_targets:
                 clean = rel.split("#", 1)[0].split("?", 1)[0]
@@ -146,7 +153,7 @@ class PageIntegrity(unittest.TestCase):
                 )
 
     def test_no_external_scripts_or_images(self):
-        for name, path in PAGES.items():
+        for name, path in ALL_PAGES.items():
             src = path.read_text(encoding="utf-8")
             self.assertNotIn("<script src=", src, f"{name}: external script")
             self.assertNotIn("<img ", src, f"{name}: img tag")
@@ -154,7 +161,7 @@ class PageIntegrity(unittest.TestCase):
 
     def test_copy_payloads_match_visible_blocks(self):
         total = 0
-        for name, path in PAGES.items():
+        for name, path in ALL_PAGES.items():
             p = parse(path)
             buttons = len(re.findall(r'data-copy="', path.read_text(encoding="utf-8")))
             self.assertEqual(
@@ -168,10 +175,12 @@ class PageIntegrity(unittest.TestCase):
                     f"payload={payload!r}\nvisible={visible!r}",
                 )
                 total += 1
-        self.assertGreaterEqual(total, 11, "expected 11 copy blocks across both pages")
+        self.assertGreaterEqual(
+            total, 14, "expected 14 copy blocks across live + archived pages"
+        )
 
     def test_a11y_table_regions_and_skip_links(self):
-        for name, path in PAGES.items():
+        for name, path in ALL_PAGES.items():
             src = path.read_text(encoding="utf-8")
             self.assertIn('class="skip-link" href="#main-content"', src, name)
             self.assertIn('<main id="main-content">', src, name)
@@ -185,23 +194,35 @@ class PageIntegrity(unittest.TestCase):
 
 
 class SiteWiring(unittest.TestCase):
-    def test_landing_links_both_project_sites(self):
+    def test_landing_links_live_project_site(self):
         src = (ROOT / "index.html").read_text(encoding="utf-8")
         self.assertIn(
             "github.io/RandomLabs/tor-cli/", src, "landing missing torshim site link"
         )
-        self.assertIn(
-            "github.io/RandomLabs/prism/", src, "landing missing Prism site link"
+        self.assertNotIn(
+            "github.io/RandomLabs/prism/",
+            src,
+            "landing still links the live Prism site (archived to archive/prism/)",
         )
-        self.assertEqual(src.count("Prism"), 1, "Prism must appear exactly once")
 
-    def test_readme_links_both_project_sites(self):
+    def test_readme_links_live_project_site(self):
         src = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn(
             "github.io/RandomLabs/tor-cli/", src, "README missing torshim site link"
         )
-        self.assertIn(
-            "github.io/RandomLabs/prism/", src, "README missing Prism site link"
+        self.assertNotIn(
+            "github.io/RandomLabs/prism/",
+            src,
+            "README still links the live Prism site (archived to archive/prism/)",
+        )
+
+    def test_archive_catalogs_prism(self):
+        src = (ROOT / "archive" / "README.md").read_text(encoding="utf-8")
+        self.assertIn("Prism", src, "archive README missing Prism catalog entry")
+        self.assertIn("prism/", src, "archive README missing Prism directory link")
+        self.assertTrue(
+            (ROOT / "archive" / "prism" / "index.html").is_file(),
+            "archived Prism site missing",
         )
 
     def test_contributing_codifies_every_project_site_rule(self):
@@ -215,9 +236,9 @@ class SiteWiring(unittest.TestCase):
         self.assertIn("Curator", src, "CONTRIBUTING: Curator must audit the rule")
 
     def test_bench_vs_codecs_imports_archived_obsidian_helper(self):
-        src = (ROOT / "prism" / "benchmarks" / "bench_vs_codecs.py").read_text(
-            encoding="utf-8"
-        )
+        src = (
+            ROOT / "archive" / "prism" / "benchmarks" / "bench_vs_codecs.py"
+        ).read_text(encoding="utf-8")
         self.assertIn("archive", src, "sys.path must point at archive/obsidian")
         self.assertIn("compare_image_codecs", src)
         helper = ROOT / "archive" / "obsidian" / "benchmarks" / "compare_image_codecs.py"
@@ -245,7 +266,7 @@ class ServedOverHttp(unittest.TestCase):
         thread.start()
         port = server.server_port
         try:
-            for name, path in PAGES.items():
+            for name, path in ALL_PAGES.items():
                 url = f"http://127.0.0.1:{port}/{'/'.join(path.relative_to(ROOT).parts)}"
                 with urlopen(url) as resp:
                     self.assertEqual(resp.status, 200, url)
