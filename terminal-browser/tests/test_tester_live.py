@@ -55,8 +55,11 @@ class LiveRegression(unittest.TestCase):
                 self.assertGreater(len(p.stdout), 500)
 
     def test_unknown_fixture_yields_error_page_not_crash(self):
+        # Fail-closed contract (final phase, issue #532): unknown fixture
+        # names paint the honest not-found page AND exit non-zero.
         p = run([TB_BIN, "--fixture", "fixture://nonexistent-xyz", "--tier", "block"])
-        self.assertEqual(p.returncode, 0, p.stderr[-1000:])
+        self.assertEqual(p.returncode, 1, p.stderr[-1000:])
+        self.assertIn("unknown fixture", p.stderr)
         self.assertGreater(len(p.stdout), 500,
                            "unknown fixture must render the honest error page")
 
