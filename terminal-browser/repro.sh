@@ -85,7 +85,38 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' '{"js
 grep -q '"protocolVersion":"2024-11-05"' /tmp/tb-repro-mcp.json || fail "mcp initialize protocol"
 grep -q '"name":"navigate"' /tmp/tb-repro-mcp.json || fail "mcp tools/list core"
 grep -q 'capability_disabled' /tmp/tb-repro-mcp.json || fail "mcp pdf gate without caps"
-grep -q '"deferred":\[\]' /tmp/tb-repro-mcp.json || fail "mcp capabilities has no deferred tools"
+if command -v python3 >/dev/null 2>&1; then
+  # The capabilities envelope is double-encoded: the JSON-RPC result
+  # carries the tb-agent envelope as an escaped text string, so parse
+  # both layers instead of grepping the raw bytes (issue #544).
+  python3 - /tmp/tb-repro-mcp.json <<'PYEOF' || fail "mcp capabilities has no deferred tools"
+import json, sys
+found = False
+with open(sys.argv[1], encoding="utf-8") as fh:
+    for line in fh:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            msg = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        content = msg.get("result", {}).get("content", [])
+        for item in content:
+            text = item.get("text", "") if isinstance(item, dict) else ""
+            try:
+                env = json.loads(text)
+            except json.JSONDecodeError:
+                continue
+            data = env.get("data", {})
+            if isinstance(data, dict) and data.get("deferred") == []:
+                found = True
+sys.exit(0 if found else 1)
+PYEOF
+else
+  # Fixed-string match on the escaped envelope form (no python3).
+  grep -q -F '\"deferred\":[]' /tmp/tb-repro-mcp.json || fail "mcp capabilities has no deferred tools"
+fi
 if grep -q '"name":"extension_trigger"' /tmp/tb-repro-mcp.json; then
   fail "mcp extension_trigger must not list without caps"
 fi
