@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Random - a repo of agent-built projects</title>
-<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Live now: Terminal Browser (agent-first browser in the terminal, in build), Desktop Pet (interactive companion), Netpulse (browser network diagnostics), Thunderline (original rock song), Mythduel (Thor vs Zeus duel), Hearthlight (animated short film), Sextant (Blazor WASM GIS engine), Doom (web engine), Umbra (WebGPU combat game), Poolduel (Postgres pooler shootout), and torshim (Tor CLI)." />
+<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Live now: Terminal Browser (agent-first browser in the terminal, shipped), Desktop Pet (interactive companion), Netpulse (browser network diagnostics), Thunderline (original rock song), Mythduel (Thor vs Zeus duel), Hearthlight (animated short film), Doom (web engine), Umbra (WebGPU combat game), Poolduel (Postgres pooler shootout), and torshim (Tor CLI)." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -121,13 +121,14 @@
   <h2>Live Projects</h2>
   <div class="cards">
     <div class="card current">
-      <span class="tag">In build</span>
+      <span class="tag">Shipped</span>
       <h4>Terminal Browser</h4>
-      <p>An agent-first browser that runs completely in the terminal (issue #532 in progress): Go single binary with a Chromium CDP sidecar, layered Kitty/Sixel/iTerm2/block renderer with per-surface degrade, snapshot-first MCP server plus agent CLI twin with a parity matrix. Render core and app shell landed first; live web engine, sessions, and extensions follow the phase roadmap.</p>
+      <p>An agent-first browser that runs completely in the terminal (issue #532 closed): Go single binary with a Chromium CDP sidecar, layered Kitty/Sixel/iTerm2/block renderer with per-surface degrade, live web engine with sessions, snapshot-first MCP server plus agent CLI twin with a parity matrix, and extensions with media policy. Render core, app shell, engine, sessions, interact, agent control, and extensions all landed and verified.</p>
       <div class="links">
         <a href="https://userfrom1995.github.io/RandomLabs/terminal-browser/">Open hub</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/README.md">Run it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-10-05-terminal-browser.md">Writeup</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/tree/main/terminal-browser/docs">Documentation</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/issues/532">Issue #532</a>
       </div>
     </div>
@@ -154,14 +155,14 @@
       </div>
     </div>
     <div class="card current">
-      <span class="tag">Shipped</span>
+      <span class="tag">Archived</span>
       <h4>Sextant</h4>
-      <p>A from-scratch GIS mapping engine in C# (Blazor WASM), shipped (issue #286 closed): Web Mercator + Albers projections, tile clip/simplify/quantize pipeline, R*-tree index, A* routing with turn penalties, isochrones, trigram search, GeoJSON import/export - offline PWA over a synthetic downtown-Portland pack. Headless dotnet-test core (111/111) plus a canvas map/search/route/overlay UI.</p>
+      <p>A from-scratch GIS mapping engine in C# (Blazor WASM), shipped (issue #286 closed) and now archived: Web Mercator + Albers projections, tile clip/simplify/quantize pipeline, R*-tree index, A* routing with turn penalties, isochrones, trigram search, GeoJSON import/export - offline PWA over a synthetic downtown-Portland pack. Headless dotnet-test core (111/111) plus a canvas map/search/route/overlay UI.</p>
       <div class="links">
-        <a href="https://userfrom1995.github.io/RandomLabs/sextant/">Open Sextant</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/sextant/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/tree/main/archive/sextant">Browse archive</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/sextant/README.md">Run it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-04-sextant-gis-engine.md">Writeup</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/tree/main/sextant/docs">Documentation</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/tree/main/archive/sextant/docs">Documentation</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/issues/286">Issue #286</a>
       </div>
     </div>
@@ -252,6 +253,15 @@
   <h2>Previous Projects</h2>
   <ul class="projects">
     <li>
+      <h4>Terminal Browser</h4>
+      <p>Agent-first browser that runs completely in the terminal: Go single binary with Chromium CDP sidecar, layered Kitty/Sixel/iTerm2/block renderer, live web engine with sessions, agent CLI twin plus MCP server, and extensions with media policy.</p>
+      <div class="links">
+        <a href="https://userfrom1995.github.io/RandomLabs/terminal-browser/">Website</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/terminal-browser/README.md">About</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-10-05-terminal-browser.md">Writeup</a>
+      </div>
+    </li>
+    <li>
       <h4>Desktop Pet</h4>
       <p>Cross-platform interactive desktop companion platform: single-pet core plus a multi-character catalog with distinct personalities, moods, and animations, runtime switching with persisted selection, a borderless always-on-top overlay with tray service mode, per-OS autostart plus installers, a creator-pack framework, and a Pages hub with a live canvas showcase.</p>
       <div class="links">
@@ -334,19 +344,10 @@
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-11-poolduel-shootout-report.md">Writeup</a>
       </div>
     </li>
-    <li>
-      <h4>Sextant</h4>
-      <p>Offline GIS mapping engine in C# Blazor WASM with R*-tree spatial indexing and turn-penalized A* routing.</p>
-      <div class="links">
-        <a href="https://userfrom1995.github.io/RandomLabs/sextant/">Website</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/sextant/README.md">About</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-04-sextant-gis-engine.md">Writeup</a>
-      </div>
-    </li>
   </ul>
 
   <h2>Archived Projects</h2>
-  <p>Earlier completed projects are preserved in the <a href="https://github.com/Userfrom1995/RandomLabs/tree/main/archive">archive/</a> directory (full directory in <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/README.md">archive/README.md</a>), including <strong>Folio</strong> (fully client-side PDF studio with merge, split, organize, compress, redact, annotate, sign, Office/PDF conversion, and OCR chaining) and <strong>Tabula</strong> (headless Swift spreadsheet engine with topological cycle-detecting dependency recalculation DAG).</p>
+  <p>Earlier completed projects are preserved in the <a href="https://github.com/Userfrom1995/RandomLabs/tree/main/archive">archive/</a> directory (full directory in <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/README.md">archive/README.md</a>), including <strong>Sextant</strong> (offline GIS mapping engine in C# Blazor WASM with R*-tree spatial indexing and turn-penalized A* routing), <strong>Folio</strong> (fully client-side PDF studio with merge, split, organize, compress, redact, annotate, sign, Office/PDF conversion, and OCR chaining) and <strong>Tabula</strong> (headless Swift spreadsheet engine with topological cycle-detecting dependency recalculation DAG).</p>
 
   <h2>About This Repo</h2>
   <p>Almost all the code here is written, maintained, and reviewed by coding agents, driven from a single random chat. The pipeline operates on a unified event bus using automated <code>/oc</code> comments:</p>

@@ -53,12 +53,13 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Active projects are software or research builds currently in progress under open tracking issues (meta tasks such as lab health audits or workflow maintenance are not listed here):
 
-- **Terminal Browser (`terminal-browser/`)** - Agent-first browser that runs completely in the terminal: Go single binary with Chromium CDP sidecar, layered Kitty/Sixel/iTerm2/block renderer, snapshot-first MCP server plus agent CLI twin. Tracking issue #532; render core and app shell landed first. [Website](https://userfrom1995.github.io/RandomLabs/terminal-browser/) · [README](terminal-browser/README.md)
+No active builds right now. The lab is in standby; open an issue to propose the next project.
 
 ## Previous Projects (Latest 10)
 
 The 10 most recent completed projects produced by the lab:
 
+- **Terminal Browser (`terminal-browser/`)** - Agent-first browser that runs completely in the terminal: Go single binary with Chromium CDP sidecar, layered Kitty/Sixel/iTerm2/block renderer, live web engine with sessions, agent CLI twin plus MCP server, and extensions with media policy. [Website](https://userfrom1995.github.io/RandomLabs/terminal-browser/) · [README](terminal-browser/README.md)
 - **Desktop Pet (`pet/`)** - Cross-platform interactive desktop companion platform: single-pet core plus a multi-character catalog with distinct personalities, moods, and animations, runtime switching with persisted selection, a borderless always-on-top overlay with tray service mode, per-OS autostart plus installers, a creator-pack framework, and a Pages hub with a live canvas showcase. [Website](https://userfrom1995.github.io/RandomLabs/pet/) · [README](pet/README.md)
 - **Netpulse (`netpulse/`)** - Honest in-browser network diagnostics and monitoring tool: connection profile, HTTP quality probes, DNS-over-HTTPS toolkit, opt-in egress identity, WebRTC inspector, own-traffic observer, live monitor dashboard, and JSON plus CSV export with a printable source-stamped report. [Website](https://userfrom1995.github.io/RandomLabs/netpulse/) · [README](netpulse/README.md)
 - **Thunderline (`thunderline/`)** - Original rock-and-roll song composed, arranged, and produced by a deterministic in-repo synthesis pipeline (score as source of truth, reproducible master plus stems, Pages player). [Website](https://userfrom1995.github.io/RandomLabs/thunderline/) · [README](thunderline/README.md)
@@ -68,7 +69,6 @@ The 10 most recent completed projects produced by the lab:
 - **Umbra** - Deterministic 60 Hz WebGPU/WGSL silhouette combat game with particle systems and WebGL2 fallback. [Website](https://userfrom1995.github.io/RandomLabs/umbra/) · [README](umbra/README.md)
 - **Doom** - Client-side web Doom engine with checked WAD parser and FM music synthesis. [Website](https://userfrom1995.github.io/RandomLabs/doom/) · [README](doom/README.md)
 - **Poolduel** - Exhaustive PostgreSQL connection pooler shootout harness, statistical audit, and report. [Website](https://userfrom1995.github.io/RandomLabs/poolduel/) · [README](poolduel/README.md)
-- **Sextant** - Offline GIS mapping engine in C# Blazor WASM with R*-tree spatial indexing and turn-penalized A* routing. [Website](https://userfrom1995.github.io/RandomLabs/sextant/) · [README](sextant/README.md)
 
 ## Archived Projects
 
