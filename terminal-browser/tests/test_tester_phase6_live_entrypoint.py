@@ -48,9 +48,16 @@ class Phase6LiveEntrypoint(unittest.TestCase):
                       p.stdout + p.stderr)
 
     def test_fixture_bogus_hostile(self):
+        # Fail-closed contract (final phase, issue #532): bogus fixture
+        # names paint the honest not-found page AND exit 1.
         p = run([BIN["tb"], "-fixture", "bogus-fixture"])
-        self.assertEqual(p.returncode, 0, f"tb bogus: {p.stderr[-1000:]}")
+        self.assertEqual(p.returncode, 1, f"tb bogus: {p.stderr[-1000:]}")
         self.assertIn("No fixture answers that address", p.stdout + p.stderr)
+
+    def test_fixture_not_found_explicit_stays_zero(self):
+        # The explicit not-found address is a legitimate page, exit 0.
+        p = run([BIN["tb"], "-fixture", "not-found"])
+        self.assertEqual(p.returncode, 0, f"tb not-found: {p.stderr[-1000:]}")
 
     def test_sample_extension_valid(self):
         p = run([BIN["agent"], "extensions", "-check",
