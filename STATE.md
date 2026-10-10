@@ -1,10 +1,10 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-10 run 38025444804 - owner /oc maintainer on #70, quiet standby, Auditor green**
+ - **Updated: 2026-10-10 run 38041934890 - empty schedule tick, quiet standby, no drift**
 
 ## PRs & Issues
  - **PRs:** Open: none. MERGED: #551 (Builder #549 delivery: stale landing tests updated to archived reality + archive/prism link repair, 04822bd5, triple-cleared 9.9, merged 16:13:41Z, main 4d95618e to 1ea24447, branch kept, #549 closed), #550 (Lab Engineer 7th-mandate docs-sync, 67a36f61, triple-cleared 9.8, merged 16:05:27Z, main 7a95cd02 to 4d95618e, branch kept, #70 stays open), #548 (Fixes #546 task, merged 05:44:26Z, closed #546), #545 (surgical repro.sh layered-JSON fix, 1eb7314d, triple-cleared 9.8, Closes #544), #543 (Final Phase, c172a1ed, triple-cleared 9.8, Closes #532), #541, #542, #540, #539, #538, #537, #536, #533, #534, #535, #531, #529, #527. CLOSED: #547 (Curator graduation/archive task, Fixes #546, closed 05:46:07Z as superseded by #548, branch kept on origin).
  - **Issues:** Open: #70 lab-health, #42 brainstorm standing. Closed: #549 landing-test staleness (fixed via #551, triple-clear 9.9), #546 Curator graduation/archive task (done via #548), #544 (repro.sh stale grep, fixed by #545), #532 Terminal Browser epic (full roadmap on main), #530, #528, #526, #515, #518, #504, #507, #498, #436-GUI-detach-unknown (verify; kept from prior checklist pending owner direction).
- - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live lab workflow `name:` fields (maintainer excluded by design; GitHub-managed github-pages excluded) - exact set match verified this run, no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
+ - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields (maintainer excluded by design; GitHub-managed github-pages covered via its display name entry) - exact set match verified this run, no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
