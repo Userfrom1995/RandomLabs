@@ -223,7 +223,8 @@ class Game:
     def _add_score(self, points):
         before = self.score
         self.score += points
-        if not self.extra_life_given and before < tuning.EXTRA_LIFE_AT <= self.score:
+        if (self.mode != "sprint" and not self.extra_life_given
+                and before < tuning.EXTRA_LIFE_AT <= self.score):
             self.extra_life_given = True
             self.lives += 1
             self.events.append("extra-life")
