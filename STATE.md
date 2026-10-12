@@ -1,18 +1,17 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-12 run 38265431230 - standby on stray /oc fix against CLOSED PR #555; Phase 2 build queued on #552**
+ - **Updated: 2026-10-12 run 38266150185 - standby on stray /oc review against CLOSED PR #555; Phase 2 build arm pending on #552**
 
 ## PRs & Issues
  - **PRs:** Open: none. MERGED: #553 (Phase 1, commit 06093176 on main, Refs #552), #551, #550, #548, #545, #543, #541, #542, #540, #539, #538, #537, #536, #533, #534, #535, #531, #529, #527. CLOSED (not merged): #555 (Curator README sync, head c7196cb4 - conflicted with #553's richer README entry on the same line, content fully subsumed; closed as superseded, branch kept). CLOSED: #547 (superseded by #548).
- - **Issues:** Open: #70 lab-health, #42 brainstorm standing, #552 Pac-Man tracking (Phase 1 merged as Refs, Phase 2 build queued this cycle - two `/oc build this` triggers 14:50:51Z + 14:51:24Z settling via per-PR concurrency). Closed: #554 (fulfilled by #553's README entry on main), #549, #546, #544, #532, #530, #528, #526, #515, #518, #504, #507, #498, #436-GUI-detach-unknown (verify; pending owner direction).
+ - **Issues:** Open: #70 lab-health, #42 brainstorm standing, #552 Pac-Man tracking (Phase 1 merged as Refs, Phase 2 build arm pending - one `/oc build this` arm completed as fix-mode no-op on closed #555, one build arm still pending settling via per-PR concurrency). Closed: #554 (fulfilled by #553's README entry on main), #549, #546, #544, #532, #530, #528, #526, #515, #518, #504, #507, #498, #436-GUI-detach-unknown (verify; pending owner direction).
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run, no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - Pac-Man #552: Phase 1 (Deterministic Engine Core and Maze Foundation) MERGED as Refs #552 - review approve + test approve-test (81 green) + binding eval APPROVE-EVAL 9.82/10, all on head 0a0417b9, merge CLEAN. Main tip now 06093176 (verified via ls-remote this run). Phase 2 (Ghost Personalities and Mode Timing per tracker) build triggers posted; opencode arms pending 38265958576 + in_progress 38265962424 at survey time - duplicate settles via concurrency, no re-dispatch.
+ - Pac-Man #552: Phase 1 (Deterministic Engine Core and Maze Foundation) MERGED as Refs #552 - review approve + test approve-test (81 green) + binding eval APPROVE-EVAL 9.82/10, all on head 0a0417b9, merge CLEAN. Main tip now 06093176 (verified via ls-remote this run). Phase 2 (Ghost Personalities and Mode Timing per tracker) build arm pending 38265958576 at survey time - duplicate settles via concurrency, no re-dispatch.
  - PR #553 merge rule honored: Refs #552, #552 stays open until final phase passes test and eval.
- - Stray trigger noted: owner `/oc fix` on CLOSED PR #555 at 14:51:26Z is a no-op (fix guard blocks closed PRs; in-flight opencode arm skips it). No maintainer dispatch, no comment - thread already carries the supersede explanation.
- - Pages deploy for 06093176 queued as workflow_dispatch (in_progress at survey) - re-confirm next run.
- - Run sweep: zero failure/timed_out (only cancelled/skipped maintainer workflow_run entries, skipped non-matching issue_comment arms).
+ - Stray triggers noted: owner `/oc fix` (14:51:26Z) and `/oc review` (14:52:09Z) on CLOSED PR #555 are no-ops (fix/review guards block closed PRs; Fixer and Reviewer both correctly stood down with no-op verdicts). No maintainer dispatch, no comment - thread already carries the supersede explanation plus both no-op verdicts.
+ - Run sweep: zero failure/timed_out (only cancelled/skipped maintainer workflow_run entries, skipped non-matching issue_comment arms, one success fix-mode no-op, one pending build arm).
  - Rebase-gate rule: a rebase or fix-push that rewrites a gated PR's head voids its gate; fresh review round required after each Fixer production-code push. Test-only Tester commits (single-file tests/, production untouched) do NOT void the review gate per precedent.
  - Eval-gate calibration note: surgical infra/docs/test-harness fixes may merge on Reviewer approve + Tester approve-test; Evaluator binding gate stays mandatory for product/research/phase deliverables.
  - Eval-crash rule (amended): eval run dying inside `Run evaluator agent` with no decision file and no Quality Council comment carries zero signal - retry eval once (cooldown 30 min same-signature). Second AGENT-STEP silent death routes `lab`, never a third eval. UNACQUIRED deaths do not count; one exception per cooldown window max.
@@ -27,7 +26,7 @@
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
 2. Pac-Man: Phase 2 build should be in flight on #552 (Builder). React to its progress (review on delivery); Design Council (`/oc design`) before visual polish declared done.
-3. Pages re-confirm for 06093176 (deploy was in_progress this run).
+3. Pages re-confirm for 06093176 (deploy was in_progress last cycle).
 4. Error-dump wart: await Owner direction; do NOT auto-queue an 8th lab mandate.
 5. Evaluator follow-up (archived bench helper path + weak assertion) queued for a future hardening vehicle.
 6. Council calibration: advisory Desktop Pet audit still pending.
