@@ -11,6 +11,7 @@ The system is split into a pure simulation and a string-based presentation layer
 - `maze.py` - the original 28x31 symmetric layout: walls, 282 dots, 4 energizers, a side tunnel row with horizontal wrap, and a central ghost house with a ghosts-only door. Walkability is queried per actor kind; a flood fill proves every pickup is reachable from spawn.
 - `actors.py` - continuous tile-unit positions with tile-center movement: instant reversal, buffered perpendicular turns that latch near tile centers with a corner cut, exact halts on tile centers against walls, and tunnel wrapping.
 - `game.py` - the fixed 120 Hz state machine: dot and energizer pickup, scoring with ghost chains and a one-time extra life, death and respawn sequences, game over, and endless level transitions with maze regeneration. Exposes `state_hash()` over a canonical snapshot for determinism proofs.
+- `ghosts.py` - the four ghost roles (direct chaser, ahead ambusher, pincer flanker, shy drifter) with per-corner scatter targets, the scatter/chase wave clock with about-face reversals, fright timing with flashing warning and chain scoring, eye returns that revive at the door, dot-counter plus idle-timeout house exits with a scripted walk-out, tunnel slowdown, and Elroy enrage stages. Collision resolution lives here: frightened hunters are eaten for chain points, active ones cost a life, eyes pass through.
 - `replay.py` - input logs plus state hashes: re-running a recording must reproduce the hash bit-for-bit.
 
 ### Presentation (`src/render/`)
@@ -24,8 +25,8 @@ The system is split into a pure simulation and a string-based presentation layer
 
 ### Command line (`src/shell/`)
 
-Every flag maps to working logic: `--maze-check` validates dimensions, counts, and connectivity; `--self-check` runs a greedy BFS autopilot headlessly and prints the score line plus the state hash; `--renderer`, `--seed`, `--level`, and `--ticks` parameterize both. Misuse exits non-zero with a clear error.
+Every flag maps to working logic: `--maze-check` validates dimensions, counts, and connectivity; `--self-check` runs a greedy BFS autopilot headlessly and prints the score line (now including ghosts eaten, deaths, fright and wave mode) plus the state hash; `--renderer`, `--seed`, `--level`, and `--ticks` parameterize both. Misuse exits non-zero with a clear error.
 
 ## Verification
 
-Run `python3 -m pytest pacman/tests -q` (45 cases): maze symmetry and reachability, movement feel (buffering, reversal, wall halts, tunnel wrap, wall-collision fuzz), scoring and lives, cross-process determinism with golden stream values, tick-rate independence (30 Hz chunks converge with 120 Hz steps), protocol byte capture, and CLI behavior.
+Run `python3 -m pytest pacman/tests -q` (101 cases): maze symmetry and reachability, movement feel (buffering, reversal, wall halts, tunnel wrap, wall-collision fuzz), scoring and lives, ghost personalities with wave, fright, house-exit, tunnel, Elroy, eyes, and collision coverage plus a ghost wall-safety fuzz, cross-process determinism with golden stream values, tick-rate independence (30 Hz chunks converge with 120 Hz steps), protocol byte capture, and CLI behavior. The seed-1 self-check pin was resurveyed when ghost AI entered the simulation (170 dots in 2400 ticks, up from 167, with the autopilot outrunning every hunter).

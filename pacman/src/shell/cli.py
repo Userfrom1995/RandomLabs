@@ -1,8 +1,8 @@
 """Command line: honest flags only (every flag maps to working logic).
 
-Phase scope: headless verification and maze validation. Interactive play,
-audio, menus, and replays land in their own phases; no flag anticipates
-them.
+Headless verification, maze validation, and the ghost-AI simulation report.
+Interactive play, audio, and menus land in their own phases; no flag
+anticipates them.
 """
 
 import argparse
@@ -84,9 +84,13 @@ def cmd_self_check(args):
     digest, events, game = run_recording(args.seed, inputs, ticks, level=args.level)
     dots = sum(1 for e in events if e == "dot")
     zaps = sum(1 for e in events if e == "energizer")
+    eaten = sum(1 for e in events if e.startswith("ghost-eaten"))
+    deaths = sum(1 for e in events if e == "death")
     print("renderer: %s" % name)
     print("seed: %d level: %d ticks: %d" % (args.seed, game.level, game.tick_count))
     print("score: %d lives: %d dots-eaten: %d energizers: %d" % (game.score, game.lives, dots, zaps))
+    print("ghosts-eaten: %d deaths: %d fright: %s mode: %s" % (
+        eaten, deaths, "active" if game.fright_active else "off", game.ghosts.wave_mode()))
     print("state: %s dots-left: %d" % (game.state, game.dots_left))
     print("hash: %s" % digest)
     return 0
