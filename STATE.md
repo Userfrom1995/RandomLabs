@@ -1,18 +1,17 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-12 run 38244077035 - Pac-Man epic PR #553 triaged; owner build already queued, standby**
+ - **Updated: 2026-10-12 run 38244909697 - Pac-Man Phase 1 landed on PR #553, owner review already queued, standby**
 
 ## PRs & Issues
- - **PRs:** Open: #553 (Architect Phase Epic for #552: ideas/ blueprint + progress/ 6-phase tracker, head 7b47027d on opencode/issue552-20261012113721; owner /oc build this queued as pending opencode run 38244077053; merge must use Refs #552, NOT Closes). MERGED: #551 (Builder #549 delivery, triple-cleared 9.9, merged 16:13:41Z prior day cycle, #549 closed), #550 (Lab Engineer 7th-mandate docs-sync, triple-cleared 9.8, #70 stays open), #548 (Fixes #546 task), #545, #543, #541, #542, #540, #539, #538, #537, #536, #533, #534, #535, #531, #529, #527. CLOSED: #547 (superseded by #548).
- - **Issues:** Open: #70 lab-health, #42 brainstorm standing, #552 Pac-Man tracking (epic delivered via PR #553, Phase 1 build now queued). Closed: #549, #546, #544, #532, #530, #528, #526, #515, #518, #504, #507, #498, #436-GUI-detach-unknown (verify; pending owner direction).
+ - **PRs:** Open: #553 (Pac-Man epic + Phase 1: deterministic engine core and render spike, head fbab4487 on opencode/issue552-20261012113721, mergeable true, merge MUST use Refs #552 NOT Closes; owner /oc review queued as pending opencode-review run 38244909553). MERGED: #551 (Builder #549 delivery, triple-cleared 9.9, merged prior day cycle, #549 closed), #550 (Lab Engineer 7th-mandate docs-sync, triple-cleared 9.8, #70 stays open), #548 (Fixes #546 task), #545, #543, #541, #542, #540, #539, #538, #537, #536, #533, #534, #535, #531, #529, #527. CLOSED: #547 (superseded by #548).
+ - **Issues:** Open: #70 lab-health, #42 brainstorm standing, #552 Pac-Man tracking (Phase Epic + Phase 1 delivered via PR #553, now in review). Closed: #549, #546, #544, #532, #530, #528, #526, #515, #518, #504, #507, #498, #436-GUI-detach-unknown (verify; pending owner direction).
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run, no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - Pac-Man #552: Architect epic landed as PR #553 (6 semantic phases, Phase 1: Deterministic Engine Core and Maze Foundation active; Design Council pass reserved in tracker before visual polish declared done). Owner /oc build this queued (opencode run 38244077053 pending); Builder will push Phase 1 onto PR #553 branch. Next maintainer run: review gate on #553 once Phase 1 lands (do NOT review while builder is pushing), then phased review/test/eval chain.
- - PR #553 body says `Closes #552` but tracker mandates Refs until final phase: merge MUST keep #552 open; only the final verification phase uses Closes #552.
- - Run 38244046489 note: maintainer pull_request-event run on bot-created PR #553 posted the CLI write-permission denial ("User github-actions[bot] does not have write permissions"). Expected gate behavior on bot-authored PR events, not a failure; no triage, no lab escalation.
- - Main tip 1780edba (owner direct push 2026-10-12, control plane back to ubuntu-latest + poisoned-cache guard; poisoned 189-byte macOS cache entry deleted). Pages deploy covers tip; preview for PR #553 staging.
- - Run sweep: zero new failures (last-30: only cancelled/skipped maintainer workflow_run entries, skipped non-matching issue_comment arms, success pages deploy, plus this in_progress run and the pending opencode build; no failure/timed_out).
+ - Pac-Man #552: Phase 1 complete on PR #553 branch (3 modular commits 803b6a7d/b6ec143f/fbab4487, pushed, tree clean; 45 pytest green; PR body corrected to Refs #552). Owner /oc review (11:47:08Z) already queued opencode-review run 38244909553 (pending); this run's /oc maintainer trigger needs no duplicate review dispatch. Next maintainer run: react to Reviewer verdict (approve -> test chain; fix findings -> fix dispatch).
+ - PR #553 merge rule: Refs #552 only; #552 stays open until final phase passes test and eval.
+ - Main tip 1780edba (owner direct push 2026-10-12, control plane back to ubuntu-latest + poisoned-cache guard). Pages deploy covers tip; preview for PR #553 staging.
+ - Run sweep: zero new failures (last-30: only cancelled/skipped maintainer workflow_run entries, skipped non-matching issue_comment arms, success pages deploy, plus this in_progress run and the pending opencode-review run; no failure/timed_out).
  - Rebase-gate rule: a rebase or fix-push that rewrites a gated PR's head voids its gate; fixed head needs Reviewer re-confirmation before merge. Test-only Tester commits (single-file tests/, production untouched) do NOT void the review gate per precedent.
  - Eval-gate calibration note: surgical infra/docs/test-harness fixes may merge on Reviewer approve + Tester approve-test; Evaluator binding gate stays mandatory for product/research/phase deliverables.
  - Eval-crash rule (amended): eval run dying inside `Run evaluator agent` with no decision file and no Quality Council comment carries zero signal - retry eval once (cooldown 30 min same-signature). Second AGENT-STEP silent death routes `lab`, never a third eval. UNACQUIRED deaths do not count; one exception per cooldown window max.
@@ -24,7 +23,7 @@
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. Pac-Man: once Phase 1 lands on PR #553, dispatch review (`/oc review`); then test/eval chain per phase; Design Council (`/oc design`) before visual polish declared done (tracker reserves it; owner build order takes precedence for engine phases).
+2. Pac-Man: react to Reviewer verdict on PR #553 (approve -> `/oc test` chain; findings -> `/oc fix`); then test/eval chain per phase; Design Council (`/oc design`) before visual polish declared done.
 3. Enforce Refs-not-Closes on #553 merge; keep #552 open until final phase.
 4. Pages re-confirm only after new merges.
 5. Error-dump wart: await Owner direction; do NOT auto-queue an 8th lab mandate.
@@ -34,7 +33,7 @@
 9. Standing rule: standby on all other fronts (no auto-ideate).
 
 ## OPEN QUESTIONS
- - Will the queued Builder deliver Phase 1 cleanly onto PR #553's branch?
+ - Will the Reviewer approve Phase 1 on PR #553, or return findings for the Fixer?
  - Architect delivery shape on #552 (Phase Epic roadmap + protocol/AI spikes)? ANSWERED: 6-phase epic + Python 3.11 stdlib core selection, on PR #553.
  - Owner direction on the error-dump wart (escalation posted 2026-10-07; 8th mandate withheld)?
  - Evaluator follow-up hardening vehicle (archived bench helper sys.path depth + weak assertion)?
