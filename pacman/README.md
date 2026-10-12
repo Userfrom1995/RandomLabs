@@ -16,18 +16,19 @@ python3 pacman/pacman.py --self-check --ticks 2400 --seed 2
 ## What works today
 
 - Deterministic headless engine: original 28x31 symmetric maze with tunnel and ghost house, 282 dots plus 4 energizers (every pickup flood-fill verified reachable), tile-center movement with buffered turns and cornering assist, scoring with ghost-chain bonuses and extra life, lives with death and respawn sequences, endless level progression with a speed ramp.
+- Four ghost personalities with distinct chase styles (direct pursuit, ahead-ambush, pincer-mirror, shy retreat), alternating scatter/chase waves with about-face reversals, power-pellet fright with flashing warning and 200-400-800-1600 chains, eye returns that revive at the house door, dot-counter plus idle-timeout house exits, tunnel slowdown, and a late-level leader enrage that pins chase.
 - Seeded simulation with split RNG streams and replay hashes: identical inputs reproduce bit-identical state on any machine.
 - Renderer protocol layer: string-in/string-out backends (Unicode reference with cell diff and synchronized output, Kitty transmit-once plus place framing, Sixel DCS framing) with capability detection (flag beats environment beats safe Unicode default) and honest degrade when Pillow is absent.
-- Test suite: 45 pytest cases covering maze invariants, movement feel, scoring and lives, determinism, protocol bytes, and CLI behavior.
+- Test suite: 101 pytest cases covering maze invariants, movement feel, scoring and lives, ghost personalities and wave/fright/house/Elroy behavior, determinism, protocol bytes, and CLI behavior.
 
 ## What is next
 
-Ghost personalities with scatter/chase waves and fright timing, the tiered renderer with sprite atlas, the interactive terminal loop with menus and audio, fruit and high scores with themes and extra modes; the Pages hub grows into instructions, controls, and the performance scoreboard as those land.
+The tiered renderer with sprite atlas, the interactive terminal loop with menus and audio, fruit and high scores with themes and extra modes; the Pages hub grows into instructions, controls, and the performance scoreboard as those land.
 
 ## Layout
 
 - `pacman.py` - launcher (adds `src/` to the path, no install needed)
-- `src/engine/` - pure simulation: `tuning`, `rng`, `maze`, `actors`, `game`, `replay`
+- `src/engine/` - pure simulation: `tuning`, `rng`, `maze`, `actors`, `ghosts`, `game`, `replay`
 - `src/render/` - output backends: `protocol`, `framebuffer`, `ansi`, `unicode`, `kitty`, `sixel`, `detect`
 - `src/shell/` - command line: `cli`
 - `tests/` - pytest suite (`python3 -m pytest pacman/tests -q`)
