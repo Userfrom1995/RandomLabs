@@ -52,12 +52,16 @@ def paint_title(keymap=None):
     mid = ROWS // 2
     put_text(fb, mid - 6, "P A C - M A N", TITLE_FG)
     put_text(fb, mid - 4, "TERMINAL ARCADE", TEXT_FG)
-    put_text(fb, mid - 1, "arrows / WASD: move    P: pause    R: restart", DIM_FG)
+    put_text(fb, mid - 2, "arrows / WASD: move", DIM_FG)
+    put_text(fb, mid - 1, "P: pause  R: restart", DIM_FG)
     put_text(fb, mid, "ENTER: start    Q: quit", DIM_FG)
-    put_text(fb, mid + 2, "eat every dot - dodge the ghosts", TEXT_FG)
+    put_text(fb, mid + 2, "eat the dots - dodge ghosts", TEXT_FG)
     if keymap is not None:
         custom = ",".join(keymap.bindings("up")) or "arrows"
-        put_text(fb, mid + 4, "move keys: %s" % custom, DIM_FG)
+        line = "move keys: %s" % custom
+        if len(line) > COLS:
+            line = line[:COLS - 1] + ">"
+        put_text(fb, mid + 4, line, DIM_FG)
     return fb
 
 
@@ -65,7 +69,8 @@ def paint_pause(base):
     fb = _overlay(base)
     mid = ROWS // 2
     put_text(fb, mid - 1, "  PAUSED  ", TITLE_FG, CARD_BG)
-    put_text(fb, mid + 1, "P / ENTER: resume    R: restart    Q: quit", TEXT_FG, CARD_BG)
+    put_text(fb, mid + 1, "P / ENTER: resume", TEXT_FG, CARD_BG)
+    put_text(fb, mid + 2, "R: restart  Q: quit", TEXT_FG, CARD_BG)
     return fb
 
 
@@ -80,10 +85,35 @@ def paint_over(base, score):
 
 def paint_too_small(message):
     fb = _card()
-    put_text(fb, ROWS // 2 - 1, "PAC-MAN needs a bigger window", OVER_FG)
-    put_text(fb, ROWS // 2 + 1, message, DIM_FG)
+    put_text(fb, ROWS // 2 - 1, "PAC-MAN needs bigger window", OVER_FG)
+    lines = _wrap(str(message), COLS, 2)
+    if len(lines) > 0:
+        put_text(fb, ROWS // 2 + 1, lines[0], DIM_FG)
+    if len(lines) > 1:
+        put_text(fb, ROWS // 2 + 2, lines[1], DIM_FG)
     put_text(fb, ROWS // 2 + 3, "resize, or Q to quit", DIM_FG)
     return fb
+
+
+def _wrap(text, width, max_lines):
+    """Word-wrap one message into at most max_lines rows of width chars."""
+    words, lines, current = text.split(), [], ""
+    for word in words:
+        while len(word) > width:
+            if current:
+                lines.append(current)
+                current = ""
+            lines.append(word[:width])
+            word = word[width:]
+        candidate = word if not current else current + " " + word
+        if len(candidate) <= width:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines[:max_lines] if lines else [""]
 
 
 def flat_text(fb):
