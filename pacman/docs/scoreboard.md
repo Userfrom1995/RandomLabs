@@ -17,7 +17,11 @@ with the machine; rerun the command on yours to compare.
 
 Without Pillow both image backends report `unavailable (needs Pillow)` and
 the tiered renderer plays the unicode path; that degrade is covered by the
-`--verify` capability matrix.
+`--verify` capability matrix. On Pillow-less hosts the two image parity rows
+(`parity-present-kitty`, `parity-present-sixel`) record honest skips instead
+of backend timings: they pass vacuously by design so CI without image
+libraries still proves the unicode path, and the fps table above only covers
+backends that actually ran.
 
 ## Input and simulation latency
 

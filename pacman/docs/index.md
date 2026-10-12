@@ -1,5 +1,13 @@
 # Pac-Man Terminal Arcade - Documentation
 
+A complete Pac-Man arcade experience for the terminal: an original deterministic
+simulation (maze, ghosts, fruit, modes, replays), a tiered kitty/sixel/unicode
+renderer behind an auto-degrading watchdog, and an interactive shell with menus,
+scores, and remappable keys. Start with the README quickstart, then prove the
+build with `python3 pacman/pacman.py --verify` (see `verification.md` for the
+41-row report) and compare local throughput with `python3 pacman/pacman.py
+--scoreboard --frames 60` (see `scoreboard.md` for the reference numbers).
+
 ## Architecture
 
 The system is split into a pure simulation, a string-based presentation layer, and the interactive shell that joins them. The simulation never imports presentation or OS modules, so replays, tests, and benchmarks run identically on every machine.

@@ -9,7 +9,7 @@ read the same source of truth.
 import time
 
 from engine import tuning
-from engine.actors import tile_of
+from engine.actors import center_of, tile_of
 from engine.fruit import FRUIT_TILE
 from engine.game import Game
 from engine.maze import HEIGHT, TUNNEL_ROW, WIDTH
@@ -89,7 +89,11 @@ def gameplay_matrix(seed=1):
     # 6. Clearing the maze advances the level with a fresh dot field.
     # (Dot-by-dot eating is covered by live play and --self-check; here the
     # board is emptied through eat_at per tile so the remaining counters
-    # stay consistent, then the real clearing timer runs.)
+    # stay consistent, then the real clearing timer runs. The +-4 dot window
+    # below is honest, not loose: after the level-2 maze regenerates, the
+    # first landing step already eats the spawn tile plus any buffered
+    # pickup in the same slice, so a handful of dots may be gone. The window
+    # is documented in docs/verification.md too.)
     game = Game(seed=seed)
     total = game.dots_left
     for y in range(HEIGHT):
@@ -109,7 +113,6 @@ def gameplay_matrix(seed=1):
     game = Game(seed=seed)
     game.fruit.notify_dots(70)
     active = game.fruit.active
-    from engine.actors import center_of
     cx, cy = center_of(*FRUIT_TILE)
     game.player.x, game.player.y = cx, cy
     game._last_tile = FRUIT_TILE
@@ -160,16 +163,70 @@ def gameplay_matrix(seed=1):
                      paused == "paused" and app.screen == "playing",
                      "paused=%s resumed=%s" % (paused, app.screen)))
 
-    # 12. Pause genuinely freezes the simulation clock.
-    game = Game(seed=seed)
-    ticks_before = game.tick_count
+    # 12. Pause genuinely freezes the simulation clock, through the real
+    # run() freeze gate (shell/app.py: only steps while screen == PLAYING).
+    # A headless ShellState plays a few frames (ticks advance), pauses for a
+    # few frames (ticks frozen despite clock time passing), then resumes
+    # (ticks advance again). A stub terminal (no input, roomy size), a null
+    # renderer, and a manual clock keep the drive deterministic with no tty.
+    from shell.app import ShellState as _ShellState
+    from shell.app import run as _run_loop
+    from shell.audio import NullAudio as _NullAudio
+
+    class _ScriptTerm:
+        def read_available(self):
+            return b""
+
+        def size(self):
+            return (80, 50)
+
+    class _NullRenderer:
+        def init(self, cols, rows):
+            return ""
+
+        def present(self, fb, dirty):
+            return ""
+
+        def shutdown(self):
+            return ""
+
+    class _ManualClock:
+        def __init__(self):
+            self.now = 1000.0
+
+        def __call__(self):
+            return self.now
+
+        def sleep(self, seconds):
+            self.now += seconds
+
+    _app = _ShellState(seed=seed, audio=_NullAudio())
+    _app.on_action("confirm")
+    _term, _renderer, _clock, _out = _ScriptTerm(), _NullRenderer(), _ManualClock(), []
+    _run_loop(_app, _term, _renderer, _out.append, fps=30,
+              clock=_clock, sleep=_clock.sleep, max_frames=8)
+    _ticks_playing = _app.game.tick_count if _app.game is not None else 0
+    _app.on_action("pause")
+    _paused_screen = _app.screen
+    _ticks_before = _app.game.tick_count
+    _run_loop(_app, _term, _renderer, _out.append, fps=30,
+              clock=_clock, sleep=_clock.sleep, max_frames=8)
+    _frozen = _app.game.tick_count == _ticks_before
+    _app.on_action("pause")
+    _resumed_screen = _app.screen
+    _run_loop(_app, _term, _renderer, _out.append, fps=30,
+              clock=_clock, sleep=_clock.sleep, max_frames=8)
+    _resumed = _app.game.tick_count > _ticks_before
     rows.append(_row("pause-freezes-sim",
-                     game.tick_count == ticks_before,
-                     "ticks-held=%d (run() steps nothing while paused)" % ticks_before))
+                     _ticks_playing > 0 and _paused_screen == "paused"
+                     and _frozen and _resumed_screen == "playing" and _resumed,
+                     "played=%d held=%d now=%d paused=%s resumed=%s" % (
+                         _ticks_playing, _ticks_before, _app.game.tick_count,
+                         _paused_screen, _resumed_screen)))
 
     # 13. Tunnel row wraps the player across the maze edge.
     game = Game(seed=seed)
-    from engine.actors import LEFT, center_of
+    from engine.actors import LEFT
     cx, cy = center_of(0, TUNNEL_ROW)
     game.player.x, game.player.y = cx, cy
     game.player.dir = LEFT

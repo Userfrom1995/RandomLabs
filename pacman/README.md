@@ -35,7 +35,7 @@ python3 pacman/pacman.py --play --mode classic --theme neon --audio auto --fps 3
 
 ## Verification and scoreboard
 
-`--verify` runs the full 41-row matrix (gameplay transitions, collisions, power-ups, game-over, restart, terminal sizes, renderer capabilities, input methods, fallback parity) with a non-zero exit on any failure. `--input-bench` reports key-decode throughput and per-tick simulation cost; `--scoreboard` prints the published renderer/input scoreboard for your machine (reference numbers: unicode ~875, kitty ~595, sixel ~72 fps headless; decode ~1.9M keys/s; sim ~25 us/tick against the 8,333 us 120 Hz budget). Full writeups live in `docs/verification.md` and `docs/scoreboard.md`.
+`--verify` runs the full 41-row matrix (gameplay transitions, collisions, power-ups, game-over, restart, terminal sizes, renderer capabilities, input methods, fallback parity) with a non-zero exit on any failure. `--input-bench` reports key-decode throughput and per-tick simulation cost; `--scoreboard` prints the published renderer/input scoreboard for your machine (reference numbers: unicode ~875 fps, kitty ~595 fps, sixel ~72 fps headless; decode ~1.9M keys/s; sim ~25 us/tick against the 8,333 us 120 Hz budget). Full writeups live in `docs/verification.md` and `docs/scoreboard.md`.
 
 ## What is next
 
