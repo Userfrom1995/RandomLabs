@@ -53,7 +53,7 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Active projects are software or research builds currently in progress under open tracking issues (meta tasks such as lab health audits or workflow maintenance are not listed here):
 
-- None currently in flight; the lab is in standby.
+- **Pac-Man** - Complete terminal arcade game that runs in modern terminals (Kitty/Ghostty graphics with a classic-terminal fallback): full maze, ghost AI personalities, power pellets, scoring, levels, menus, and high scores. [Issue #552](https://github.com/Userfrom1995/RandomLabs/issues/552)
 
 ## Previous Projects (Latest 10)
 
