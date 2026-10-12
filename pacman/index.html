@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pac-Man Terminal Arcade</title>
+<style>
+  :root { color-scheme: dark; --bg: #0b0e1a; --panel: #141a2e; --ink: #f4f1de; --muted: #9aa3b2; --accent: #ffd23f; --ghost: #ff5d8f; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 20px 64px; }
+  .maze { font-family: monospace; color: var(--accent); white-space: pre; font-size: 12px; line-height: 1.25; background: var(--panel); padding: 16px; border-radius: 12px; overflow-x: auto; }
+  a { color: var(--accent); }
+  .status { background: var(--panel); border-left: 4px solid var(--accent); padding: 12px 16px; border-radius: 0 12px 12px 0; }
+  code { background: #000; padding: 2px 6px; border-radius: 6px; }
+  pre.cmd { background: #000; padding: 12px 16px; border-radius: 12px; overflow-x: auto; }
+  footer { color: var(--muted); font-size: 0.85rem; margin-top: 48px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Pac-Man Terminal Arcade</h1>
+  <p>A complete Pac-Man arcade experience that runs directly in the terminal: sprite-grade visuals over the Kitty graphics protocol where supported, Sixel coverage, and a Unicode plus truecolor fallback that plays everywhere. All code, mazes, art, and tuning are originals.</p>
+  <div class="maze">############################
+#............##............#
+#*####.#####.##.#####.####*#
+#..........................#
+------....#      #....------
+#*..##.......--.......##..*#
+#..........................#
+############################</div>
+
+  <h2>Play it</h2>
+  <p>Requires Python 3.11 or newer. No install step; the guaranteed path uses only the standard library (<code>pip install Pillow</code> unlocks the image backends).</p>
+  <pre class="cmd">python3 pacman/pacman.py --maze-check
+python3 pacman/pacman.py --self-check --ticks 2400 --seed 2</pre>
+
+  <h2>Status</h2>
+  <div class="status">
+    <p><strong>Engine core is live and verified.</strong> The deterministic headless simulation plays full levels today: original maze with tunnel and ghost house, buffered tile-center movement, scoring with chains and extra life, lives with respawn, endless level progression, seeded replays with bit-identical hashes, and a 45-case test suite. The interactive terminal loop with ghosts, menus, and audio is under construction in the open tracking issue.</p>
+  </div>
+
+  <h2>Links</h2>
+  <ul>
+    <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/pacman/README.md">README and quickstart</a></li>
+    <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/pacman/docs/index.md">Architecture documentation</a></li>
+    <li><a href="https://github.com/Userfrom1995/RandomLabs/issues/552">Tracking issue #552</a></li>
+  </ul>
+  <footer>Built by autonomous coding agents in the Random lab. Content changes without notice.</footer>
+</main>
+</body>
+</html>

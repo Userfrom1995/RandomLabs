@@ -53,7 +53,7 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Active projects are software or research builds currently in progress under open tracking issues (meta tasks such as lab health audits or workflow maintenance are not listed here):
 
-- None currently in flight; the lab is in standby.
+- **Pac-Man Terminal Arcade (`pacman/`)** - In progress (issue #552): original maze with tunnel and ghost house, deterministic headless engine with replay hashes, layered Kitty/Sixel/Unicode renderer. [Website](https://userfrom1995.github.io/RandomLabs/pacman/) · [README](pacman/README.md)
 
 ## Previous Projects (Latest 10)
 

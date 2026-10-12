@@ -3,12 +3,12 @@
 - **Issue:** #552
 - **Branch:** opencode/issue552-20261012113721
 - **Status:** in-progress
-- **Updated:** 2026-10-12T00:00:00Z
-- **Active Phase:** Phase 1: Deterministic Engine Core and Maze Foundation
+- **Updated:** 2026-10-12T12:00:00Z
+- **Active Phase:** Phase 1: Deterministic Engine Core and Maze Foundation (Complete, ready for review)
 
 ## Phase Roadmap
 
-- Phase 1: Deterministic Engine Core and Maze Foundation: [ ] original maze plus dot field plus tunnel plus walkability queries, [ ] tile-center movement with buffered turns and cornering, [ ] scoring plus lives plus level-clear loop, [ ] seeded PRNG plus replay hash plus headless self-check, [ ] renderer protocol spike (Kitty transmit-once plus place, Sixel path, Unicode diff) with detection draft (PR 1 target, Refs #552)
+- Phase 1: Deterministic Engine Core and Maze Foundation: [x] original maze plus dot field plus tunnel plus walkability queries, [x] tile-center movement with buffered turns and cornering, [x] scoring plus lives plus level-clear loop, [x] seeded PRNG plus replay hash plus headless self-check, [x] renderer protocol spike (Kitty transmit-once plus place, Sixel path, Unicode diff) with detection draft (PR 1 target, Refs #552)
 - Phase 2: Ghost Personalities and Mode Timing: [ ] four chase targets plus scatter corners, [ ] scatter/chase wave clock with reversals, [ ] frightened mode with flash plus chain scoring plus eyes return, [ ] house exit counters plus timeout, [ ] tunnel slowdown plus Elroy stages (PR 2 target, Refs #552)
 - Phase 3: Tiered Renderer and Capability Detection: [ ] FrameBuffer plus RenderBackend interface plus cell diff, [ ] Kitty backend with atlas cache, [ ] Sixel backend with fps cap, [ ] Unicode reference backend with sync output, [ ] detect plus override plus auto-degrade watchdog (PR 3 target, Refs #552)
 - Phase 4: Input Audio Menus and Shell: [ ] raw-mode input with remap plus resize, [ ] pluggable audio (null, bell, spawn-player synth, never blocking), [ ] title plus pause/resume plus restart plus game-over flows, [ ] CLI with honest flags only, [ ] minimum-size handling plus crash-safe teardown (PR 4 target, Refs #552)
@@ -17,7 +17,12 @@
 
 ## Current step
 
-Ready for initial build (Phase 1: Deterministic Engine Core and Maze Foundation)
+Phase 1 complete and pushed: engine core, protocol spike, CLI, docs, and hub are on the branch with 45 tests green. Ready for review (Refs #552).
+
+## Next steps
+
+- Reviewer pass on the Phase 1 diff, then Tester, then Maintainer merges
+- Builder to implement Phase 2: Ghost Personalities and Mode Timing on a fresh phase branch from main
 
 ## Next steps
 
@@ -28,3 +33,4 @@ Ready for initial build (Phase 1: Deterministic Engine Core and Maze Foundation)
 ## Agent log
 
 - 2026-10-12 (architect): charted Phase Epic from owner spec plus three subagent spikes (terminal graphics protocols, stack trade-offs, clean-room ghost-AI behavior). Selected Python 3.11+ stdlib core with Pillow optional: preinstalled everywhere, no native toolchain, Unicode path always plays, image backends upgrade where supported. Wrote unified blueprint in `ideas/2026-10-12-pacman-terminal-arcade.md` and this epic tracker. Handoff to Builder for Phase 1. - the Architect
+- 2026-10-12 (builder): implemented Phase 1 on the epic branch. Engine: `pacman/src/engine/` (tuning tables, mulberry32 with SHA-256 stream splits, original 28x31 maze with 282 dots plus 4 energizers all flood-fill reachable, tile-center movement with buffered turns and tunnel wrap, 120 Hz game state with scoring/chains/extra-life/death/levels, replay hashes). Render spike: `pacman/src/render/` (backend protocol, framebuffer with dirty sets, Unicode reference with sync output, Kitty transmit/place framing, Sixel DCS framing, detection with honest Pillow degrade). Shell: `pacman/pacman.py` with `--maze-check` and `--self-check` (BFS autopilot ate 167 dots in 2400 ticks). Suite: 45 pytest cases green, including golden RNG values and 30 Hz vs 120 Hz convergence. Docs: `pacman/README.md`, `pacman/docs/index.md`, `pacman/index.html` hub, root landing entries. Notable fixes during build: spawn tiles must be walkable plain (not house interior), builtin hash() is process-salted so stream mixing uses SHA-256. - the Builder
