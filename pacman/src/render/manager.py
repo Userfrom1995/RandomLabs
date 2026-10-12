@@ -35,7 +35,8 @@ class TieredRenderer:
     def __init__(self, preference=None, env=None, clock=None):
         self._clock = clock if clock is not None else time.monotonic
         self.choice = detect_renderer(preference, env=env)
-        self.chain = [self.choice] + [b for b in FALLBACK_ORDER if b != self.choice]
+        idx = FALLBACK_ORDER.index(self.choice)
+        self.chain = list(FALLBACK_ORDER[idx:])  # unicode always terminal
         self.backend = None
         self.backend_name = None
         self.cols = 0
@@ -73,15 +74,36 @@ class TieredRenderer:
 
     def _degrade(self):
         idx = self.chain.index(self.backend_name)
-        if idx + 1 >= len(self.chain):
-            return None
-        self.degraded_from.append(self.backend_name)
-        return self._activate(self.chain[idx + 1])
+        source = self.backend_name
+        problems = []
+        for name in self.chain[idx + 1:]:
+            try:
+                probe = make_backend(name, clock=self._clock)
+                usable = (name == "unicode") or bool(probe.available())
+            except Exception as exc:
+                problems.append("%s probe failed: %s" % (name, exc))
+                continue
+            if not usable:
+                problems.append("%s unavailable" % name)
+                continue
+            try:
+                seq = self._activate(name)
+            except Exception as exc:
+                problems.append("%s init failed: %s" % (name, exc))
+                continue
+            self.degraded_from.append(source)
+            return seq
+        raise RuntimeError("no lower renderer tier usable (%s)" % "; ".join(problems))
 
     def present(self, fb, dirty):
         if self.backend is None:
             raise ValueError("present before init")
-        start = self._clock()
+        try:
+            start = self._clock()
+        except Exception:
+            self.errors += 1
+            self.dropped += 1
+            return ""
         try:
             out = self.backend.present(fb, dirty)
         except Exception:
@@ -99,7 +121,12 @@ class TieredRenderer:
                 return ""
             self.frames += 1
             return out
-        elapsed = self._clock() - start
+        try:
+            elapsed = self._clock() - start
+        except Exception:
+            self.errors += 1
+            self.dropped += 1
+            return ""
         if elapsed > SLOW_FRAME_S:
             self.slow_strikes += 1
             if self.slow_strikes >= SLOW_STRIKES:
