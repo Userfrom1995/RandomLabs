@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-10 run 38093209737 - empty schedule tick, quiet standby, no drift**
+ - **Updated: 2026-10-12 run 38242584881 - quiet standby; owner direct-push 1780edba absorbed, cache-poison root cause explained, pages covers tip**
 
 ## PRs & Issues
  - **PRs:** Open: none. MERGED: #551 (Builder #549 delivery: stale landing tests updated to archived reality + archive/prism link repair, 04822bd5, triple-cleared 9.9, merged 16:13:41Z, main 4d95618e to 1ea24447, branch kept, #549 closed), #550 (Lab Engineer 7th-mandate docs-sync, 67a36f61, triple-cleared 9.8, merged 16:05:27Z, main 7a95cd02 to 4d95618e, branch kept, #70 stays open), #548 (Fixes #546 task, merged 05:44:26Z, closed #546), #545 (surgical repro.sh layered-JSON fix, 1eb7314d, triple-cleared 9.8, Closes #544), #543 (Final Phase, c172a1ed, triple-cleared 9.8, Closes #532), #541, #542, #540, #539, #538, #537, #536, #533, #534, #535, #531, #529, #527. CLOSED: #547 (Curator graduation/archive task, Fixes #546, closed 05:46:07Z as superseded by #548, branch kept on origin).
@@ -8,8 +8,9 @@
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - Nothing in flight. Main tip 1ea24447 (post-#551 merge, unchanged, verified via git ls-remote this run). Pages deploy covers tip 1ea24447 (no new merges since, no re-verify needed).
- - Run sweep: zero new failures (last-30 sweep: zero failure/timed_out/startup_failure; only skipped/cancelled maintainer fan-out plus curator/recover successes).
+ - Nothing in flight. Main tip 1780edba (owner direct push 2026-10-12, moves agent control plane macos-latest back to ubuntu-latest + poisoned-cache guard in vendored composite action and inline maintainer steps; poisoned 189-byte macOS cache entry deleted directly). Pages deploy covers tip 1780edba (run 38242573150 success on that SHA, verified this run).
+ - Owner's commit message is the authoritative post-mortem for the Oct 11-12 hollow-green streak (this log's 2026-10-11/12 stubs): every agent run since Oct 11 restored the poisoned `opencode-macOS-ARM64-v1.19.0` cache entry, skipped install on cache-hit, died `opencode: command not found` (exit 127); curator failed closed red, maintainer failed hollow-green under continue-on-error with no decisions. This run executing normally confirms the revival works.
+ - Run sweep: zero new failures (last-30 sweep: zero failure/timed_out/startup_failure).
  - Rebase-gate rule: a rebase or fix-push that rewrites a gated PR's head voids its gate; the fixed head needs Reviewer re-confirmation (then test/eval as needed) before merge - #547 complied (approve 05:41:51Z on d60f9874 after the fix-push); #550 complied (approve + approve-test on 67a36f61 after the Fixer empty commit). Never merge without approve-eval on the mergeable head. Test-only Tester commits (single-file tests/, production untouched, approve-test after the push) do NOT void the review gate per #534/#537/#538/#539/#540/#541/#543/#545 precedent.
  - Eval-gate calibration note (for future self): #531 and #535 merged on Reviewer approve + Tester approve-test WITHOUT an Evaluator round (surgical infra/docs fixes). The Evaluator binding gate stays mandatory for product/research/phase deliverables. #547/#548 were public-surface curation changes (README + Pages + archive move); eval applied as the binding gate before merge (same as prior terminal-browser fixes). #550 was a public-surface docs change - eval applied as binding gate before merge. #551 was a test-harness fix - eval applied as binding gate before merge (same as prior terminal-browser fixes).
  - Eval-crash rule (amended): an eval run that dies inside `Run evaluator agent` with no decision file and no Quality Council comment carries zero signal - retry eval once (cooldown: 30 min same-signature). A second AGENT-STEP silent death routes `lab`, never a third eval. UNACQUIRED deaths (never got a runner) do not count toward the budget and retry on cooldown expiry. Stacked exceptions disqualified: one exception per cooldown window max, never back-to-back.
@@ -23,11 +24,12 @@
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists: `workflows:` event list AND `SWEEP_ALLOWLIST` sweep-dispatch list; watch for any new workflow drift).
-2. Pages already covers tip 1ea24447 (verified prior run); re-confirm only after new merges.
+2. Pages already covers tip 1780edba (verified this run); re-confirm only after new merges.
 3. Error-dump wart: Owner escalation note posted (run 37552237432). Await Owner direction; do NOT auto-queue an 8th lab mandate.
 4. Evaluator follow-up (archived bench helper path + weak assertion) queued for a future hardening vehicle; verify still present when routed.
 5. Council calibration: advisory Desktop Pet audit still pending.
-6. Standing rule: standby on all other fronts (no auto-ideate). Further work arrives via new issues, owner comments, or workflow failures.
+6. Watch: first agent runs on the restored ubuntu-latest control plane - if hollow-green/silent-stall recurs, the poisoned-cache class is NOT fixed and a lab mandate is warranted.
+7. Standing rule: standby on all other fronts (no auto-ideate). Further work arrives via new issues, owner comments, or workflow failures.
 
 ## OPEN QUESTIONS
  - Owner direction on the error-dump wart (escalation posted 2026-10-07; 8th mandate withheld)?
