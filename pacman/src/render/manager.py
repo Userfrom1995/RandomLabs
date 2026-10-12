@@ -140,6 +140,15 @@ class TieredRenderer:
         self.frames += 1
         return out
 
+    def shutdown(self):
+        """Teardown sequence of the active backend ("" when never inited)."""
+        if self.backend is None:
+            return ""
+        try:
+            return self.backend.shutdown()
+        except Exception:
+            return ""
+
     def stats(self):
         info = {
             "backend": self.backend_name,
