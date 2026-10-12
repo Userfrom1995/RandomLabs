@@ -174,7 +174,7 @@ class SixelBackend(RenderBackend):
         pal = img.convert("P", palette=Image.ADAPTIVE, colors=MAX_COLORS)
         raw_palette = pal.getpalette()[:MAX_COLORS * 3]
         palette = [tuple(raw_palette[k:k + 3]) for k in range(0, len(raw_palette), 3)]
-        return list(pal.getdata()), w, h, palette
+        return list(pal.tobytes()), w, h, palette
 
     def present(self, fb, dirty):
         if fb.cols != self.cols or fb.rows != self.rows:
