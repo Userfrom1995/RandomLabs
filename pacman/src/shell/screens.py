@@ -47,21 +47,26 @@ def _overlay(base):
     return clone
 
 
-def paint_title(keymap=None):
+def paint_title(keymap=None, mode="classic", theme="classic", top=None):
     fb = _card()
     mid = ROWS // 2
-    put_text(fb, mid - 6, "P A C - M A N", TITLE_FG)
-    put_text(fb, mid - 4, "TERMINAL ARCADE", TEXT_FG)
-    put_text(fb, mid - 2, "arrows / WASD: move", DIM_FG)
-    put_text(fb, mid - 1, "P: pause  R: restart", DIM_FG)
-    put_text(fb, mid, "ENTER: start    Q: quit", DIM_FG)
-    put_text(fb, mid + 2, "eat the dots - dodge ghosts", TEXT_FG)
+    put_text(fb, mid - 7, "P A C - M A N", TITLE_FG)
+    put_text(fb, mid - 5, "TERMINAL ARCADE", TEXT_FG)
+    put_text(fb, mid - 3, "arrows / WASD: move", DIM_FG)
+    put_text(fb, mid - 2, "P: pause  R: restart", DIM_FG)
+    put_text(fb, mid - 1, "ENTER: start    Q: quit", DIM_FG)
+    put_text(fb, mid + 1, "eat the dots - dodge ghosts", TEXT_FG)
+    modeline = "mode: %s  theme: %s" % (mode, theme)
+    put_text(fb, mid + 2, modeline[:COLS], DIM_FG)
+    if top is not None:
+        best = "best: %s %d" % (top["name"], top["score"])
+        put_text(fb, mid + 3, best[:COLS], TITLE_FG)
     if keymap is not None:
         custom = ",".join(keymap.bindings("up")) or "arrows"
         line = "move keys: %s" % custom
         if len(line) > COLS:
             line = line[:COLS - 1] + ">"
-        put_text(fb, mid + 4, line, DIM_FG)
+        put_text(fb, mid + 5, line, DIM_FG)
     return fb
 
 
@@ -74,12 +79,44 @@ def paint_pause(base):
     return fb
 
 
-def paint_over(base, score):
+def paint_over(base, score, reason=None):
     fb = _overlay(base)
     mid = ROWS // 2
-    put_text(fb, mid - 2, "  GAME OVER  ", OVER_FG, CARD_BG)
-    put_text(fb, mid, "score: %d" % int(score), TEXT_FG, CARD_BG)
-    put_text(fb, mid + 2, "ENTER: play again    Q: quit", TEXT_FG, CARD_BG)
+    if reason == "timeout":
+        headline = "  TIME UP!  "
+    elif reason == "cleared":
+        headline = "  MAZE CLEARED!  "
+    else:
+        headline = "  GAME OVER  "
+    put_text(fb, mid - 3, headline, OVER_FG, CARD_BG)
+    put_text(fb, mid - 1, "score: %d" % int(score), TEXT_FG, CARD_BG)
+    put_text(fb, mid + 1, "ENTER: play again    Q: quit", TEXT_FG, CARD_BG)
+    return fb
+
+
+def paint_name_entry(base, buffer, score):
+    """High-score entry overlay: live pilot-name typing with a cursor."""
+    fb = _overlay(base)
+    mid = ROWS // 2
+    put_text(fb, mid - 3, "  NEW HIGH SCORE!  ", TITLE_FG, CARD_BG)
+    put_text(fb, mid - 1, "score: %d" % int(score), TEXT_FG, CARD_BG)
+    put_text(fb, mid + 1, "NAME: %s_" % str(buffer)[:10], TEXT_FG, CARD_BG)
+    put_text(fb, mid + 3, "type A-Z 0-9, ENTER saves", DIM_FG, CARD_BG)
+    return fb
+
+
+def paint_scores(entries):
+    """Standalone high-score card (title-screen size, all backends)."""
+    fb = _card()
+    mid = ROWS // 2
+    put_text(fb, mid - 8, "HIGH SCORES", TITLE_FG)
+    if not entries:
+        put_text(fb, mid - 5, "no scores yet - play a run!", TEXT_FG)
+    for rank, entry in enumerate(list(entries)[:10], 1):
+        line = "%2d. %-10s %6d  L%02d %s" % (
+            rank, entry["name"], entry["score"], entry["level"], entry["mode"])
+        put_text(fb, mid - 6 + rank, line[:COLS], TEXT_FG)
+    put_text(fb, mid + 6, "--play to set one", DIM_FG)
     return fb
 
 
