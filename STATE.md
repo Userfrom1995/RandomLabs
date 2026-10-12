@@ -1,18 +1,18 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-12 run 38277934040 - Phase 3 PR #557 review+test cleared on 371f13de, eval in flight (pending 38277949703), standby**
+ - **Updated: 2026-10-12 run 38277949669 - Phase 3 PR #557 MERGED as 99d401fa (approve + approve-test + approve-eval 9.82/10), Phase 4 build chained on #552**
 
 ## PRs & Issues
- - **PRs:** Open: #557 (Pac-Man Phase 3 Tiered Renderer and Capability Detection, head 371f13de, MERGEABLE/CLEAN, branch opencode/issue552-pacman-phase-3-renderer, body Refs #552; Reviewer approve 141 green + Tester approve-test 150 green, both on the effective head; Evaluator arm 38277949703 pending). MERGED: #556 (Phase 2, 97743bdc, Refs #552; approve + approve-test 114 green + eval APPROVE-EVAL 9.8/10 on head 65ef79b5), #553 (Phase 1, 06093176, Refs #552), #551, #550, #548, #545, #543, #541, #542, #540, #539, #538, #537, #536, #533, #534, #535, #531, #529, #527. CLOSED (not merged): #555 (Curator README sync, superseded by #553, branch kept). CLOSED: #547 (superseded by #548).
- - **Issues:** Open: #70 lab-health, #42 brainstorm standing, #552 Pac-Man tracking (Phase 1 + Phase 2 merged as Refs, Phase 3 through review+test, eval in flight). Closed: #554 (fulfilled by #553), #549, #546, #544, #532, #530, #528, #526, #515, #518, #504, #507, #498, #436-GUI-detach-unknown (verify; pending owner direction).
+ - **PRs:** Open: none. MERGED: #557 (Phase 3, 99d401fa, Refs #552; approve 141 green + approve-test 150 green + eval APPROVE-EVAL 9.82/10 on head 371f13de), #556 (Phase 2, 97743bdc, Refs #552; approve + approve-test 114 green + eval APPROVE-EVAL 9.8/10 on head 65ef79b5), #553 (Phase 1, 06093176, Refs #552), #551, #550, #548, #545, #543, #541, #542, #540, #539, #538, #537, #536, #533, #534, #535, #531, #529, #527. CLOSED (not merged): #555 (Curator README sync, superseded by #553, branch kept). CLOSED: #547 (superseded by #548).
+ - **Issues:** Open: #70 lab-health, #42 brainstorm standing, #552 Pac-Man tracking (Phase 1 + Phase 2 + Phase 3 merged as Refs, Phase 4 build chained). Closed: #554 (fulfilled by #553), #549, #546, #544, #532, #530, #528, #526, #515, #518, #504, #507, #498, #436-GUI-detach-unknown (verify; pending owner direction).
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run, no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - Pac-Man #552: Phase 1 MERGED as Refs #552 (approve + approve-test 81 green + eval APPROVE-EVAL 9.82/10 on head 0a0417b9). Phase 2 MERGED as Refs #552 (approve + approve-test 114 green + eval APPROVE-EVAL 9.8/10 on head 65ef79b5, main now 97743bdc). Phase 3 PR #557 OPEN on head 371f13de (Reviewer /oc approve 16:27:55Z on dc09cf00 + Tester /oc approve-test 16:29:25Z with test-only single-file tests/ push to 371f13de; eval pending 38277949703 from owner /oc eval 16:30:41Z converging with this lab's dispatch run 38277751250; owner /oc maintainer 16:30:56Z + 16:31:05Z).
+ - Pac-Man #552: Phase 1 MERGED as Refs #552 (approve + approve-test 81 green + eval APPROVE-EVAL 9.82/10 on head 0a0417b9). Phase 2 MERGED as Refs #552 (approve + approve-test 114 green + eval APPROVE-EVAL 9.8/10 on head 65ef79b5, main now 97743bdc). Phase 3 MERGED as Refs #552 (approve 141 green + approve-test 150 green + eval APPROVE-EVAL 9.82/10 on head 371f13de, main now 99d401fa). Phase 4 (Input Audio Menus and Shell) build dispatched this run; #552 stays open until the final phase passes.
  - PR #557 merge rule: body Refs #552, #552 stays open until final phase passes test and eval.
  - Fixer production-code pushes void the prior review round per the rebase-gate rule; fresh review/test/eval required after each. Test-only Tester commits (single-file tests/, production untouched) do NOT void the review gate per precedent (371f13de verified: 1 file, pacman/tests/test_tester_phase3.py only).
  - Bot-permission noise comment on #557 (16:16:56Z, links maintainer pull_request run 38276130661): CLI actor-assert on the bot-authored PR push, expected gate behavior per precedent (runs 38244046489 on #553, 38266598028 on #556) - not a failure, no lab escalation.
- - Run sweep: zero failure/timed_out (last-30 check this run returns 0; Deploy pages + pr-trigger on the PR branch action_required awaiting owner approval, not failures; opencode-eval 38277949703 pending, so eval dispatch would be a duplicate).
+ - Run sweep: zero failure/timed_out (last-15 check this run returns 0; only skipped/cancelled maintainer arms).
  - Rebase-gate rule: a rebase or fix-push that rewrites a gated PR's head voids its gate; fresh review round required after each Fixer production-code push. Test-only Tester commits (single-file tests/, production untouched) do NOT void the review gate per precedent.
  - Eval-gate calibration note: surgical infra/docs/test-harness fixes may merge on Reviewer approve + Tester approve-test; Evaluator binding gate stays mandatory for product/research/phase deliverables.
  - Eval-crash rule (amended): eval run dying inside `Run evaluator agent` with no decision file and no Quality Council comment carries zero signal - retry eval once (cooldown 30 min same-signature). Second AGENT-STEP silent death routes `lab`, never a third eval. UNACQUIRED deaths do not count; one exception per cooldown window max.
@@ -26,9 +26,9 @@
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. Pac-Man: react to Evaluator verdict on PR #557 (approve-eval -> merge Refs #552 + chain Phase 4 build; fix verdict -> fix dispatch). Design Council (`/oc design`) before visual polish declared done.
-3. Pages re-confirm for 97743bdc only after new merges (no merge this run).
-4. Main tip re-confirm (last verified 97743bdc prior run via ls-remote).
+2. Pac-Man: Phase 4 build should be in flight on #552 (react to Builder delivery: review on the new PR; fix verdict -> fix dispatch). Design Council (`/oc design`) before visual polish declared done.
+3. Pages re-confirm for 99d401fa after the merge (deploy arms pending owner approval will need attention).
+4. Main tip re-confirm (last verified 99d401fa this run via ls-remote).
 5. Error-dump wart: await Owner direction; do NOT auto-queue an 8th lab mandate.
 6. Evaluator follow-up (archived bench helper path + weak assertion) queued for a future hardening vehicle.
 7. Council calibration: advisory Desktop Pet audit still pending.
@@ -37,7 +37,7 @@
 10. Standing rule: standby on all other fronts (no auto-ideate).
 
 ## OPEN QUESTIONS
- - How will the Evaluator rule on the Phase 3 tiered renderer (150 green, all 6 review findings repaired, live entrypoint proof)?
+ - How will the Phase 4 build (Input Audio Menus and Shell) land on #552?
  - Owner direction on the error-dump wart (escalation posted 2026-10-07; 8th mandate withheld)?
  - Evaluator follow-up hardening vehicle (archived bench helper sys.path depth + weak assertion)?
  - What caused the ~50-min agent-step death in eval run 37362541465?
