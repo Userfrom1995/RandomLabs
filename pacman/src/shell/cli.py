@@ -227,6 +227,63 @@ def cmd_render_bench(args):
     return 0
 
 
+def cmd_verify(args):
+    from shell import verify as verify_mod
+    total = 0
+    failed = 0
+    for section, rows in verify_mod.full_matrix(seed=args.seed):
+        print("== %s ==" % section)
+        for row in rows:
+            total += 1
+            if not row["passed"]:
+                failed += 1
+            print("%s %s - %s" % ("PASS" if row["passed"] else "FAIL",
+                                  row["name"], row["detail"]))
+    print("verify: %d/%d passed" % (total - failed, total))
+    return 0 if failed == 0 else 1
+
+
+def cmd_input_bench(_args):
+    from shell import verify as verify_mod
+    bench = verify_mod.input_bench()
+    print("decoded-keys: %d" % bench["keys_decoded"])
+    print("decode: %.0f keys/s (%.0f ns/key)" % (
+        bench["decode_keys_per_s"], bench["decode_ns_per_key"]))
+    print("sim-tick: %.1f us/tick (%d ticks, %.0f ticks/s)" % (
+        bench["sim_us_per_tick"], bench["sim_ticks"], bench["sim_ticks_per_s"]))
+    print("input-bench OK")
+    return 0
+
+
+def cmd_scoreboard(args):
+    import platform
+    from shell import verify as verify_mod
+    try:
+        import PIL  # noqa: F401
+        pillow = "present (%s)" % getattr(PIL, "__version__", "?")
+    except ImportError:
+        pillow = "missing (image backends degrade to unicode)"
+    print("pacman perf scoreboard")
+    print("machine: %s %s / python %s / pillow %s" % (
+        platform.system(), platform.machine(), platform.python_version(), pillow))
+    render = verify_mod.render_bench(frames=max(args.frames, 1), seed=args.seed)
+    print("backend fps(full-scene present, headless) full-bytes")
+    for name in ("kitty", "sixel", "unicode"):
+        info = render[name]
+        if not info["available"]:
+            print("%-7s unavailable (needs Pillow)" % name)
+        else:
+            print("%-7s %7.1f %10d" % (name, info["fps"], info["full_bytes"]))
+    bench = verify_mod.input_bench()
+    print("input-decode: %.0f keys/s (%.0f ns/key)" % (
+        bench["decode_keys_per_s"], bench["decode_ns_per_key"]))
+    print("sim-step: %.1f us/tick (%.0f ticks/s, 120 Hz needs <8333 us)" % (
+        bench["sim_us_per_tick"], bench["sim_ticks_per_s"]))
+    print("parity: one 28x34 scene painter feeds every backend; run --verify")
+    print("scoreboard OK")
+    return 0
+
+
 def cmd_keys(args):
     from shell.input import Keymap, parse_binds
     try:
@@ -355,6 +412,12 @@ def build_parser():
                     help="paint one scene and present it through the tiered renderer")
     ap.add_argument("--render-bench", action="store_true",
                     help="benchmark present() throughput per available backend")
+    ap.add_argument("--verify", action="store_true",
+                    help="run the full gameplay/size/capability/parity matrix")
+    ap.add_argument("--input-bench", action="store_true",
+                    help="benchmark input decoding and simulation step cost")
+    ap.add_argument("--scoreboard", action="store_true",
+                    help="print the published perf scoreboard (renderers + input)")
     ap.add_argument("--frames", type=int, default=60,
                     help="frames per backend for --render-bench")
     ap.add_argument("--play", action="store_true",
@@ -435,6 +498,15 @@ def main(argv=None):
                 print("error: --frames must be >= 1")
                 return 2
             return cmd_render_bench(args)
+        if args.verify:
+            return cmd_verify(args)
+        if args.input_bench:
+            return cmd_input_bench(args)
+        if args.scoreboard:
+            if args.frames < 1:
+                print("error: --frames must be >= 1")
+                return 2
+            return cmd_scoreboard(args)
         if args.self_check:
             return cmd_self_check(args)
         build_parser().print_help()
