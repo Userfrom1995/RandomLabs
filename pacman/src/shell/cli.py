@@ -1,18 +1,22 @@
 """Command line: honest flags only (every flag maps to working logic).
 
-Headless verification, maze validation, and the ghost-AI simulation report.
-Interactive play, audio, and menus land in their own phases; no flag
-anticipates them.
+Headless verification, maze validation, the ghost-AI simulation report, and
+renderer verification/benchmarks. Interactive play, audio, and menus land in
+their own phases; no flag anticipates them.
 """
 
 import argparse
 import sys
+import time
 
+from engine import tuning
 from engine.actors import DIRS, tile_of
 from engine.game import Game
 from engine.maze import Maze, WIDTH, HEIGHT, TUNNEL_ROW, PLAYER_START_TILE
 from engine.replay import run_recording
 from render.detect import KNOWN, detect_renderer
+from render.manager import TieredRenderer
+from render.scene import COLS, ROWS, paint, sprite_ids_in
 
 
 def bfs_first_step(maze, start):
@@ -124,6 +128,60 @@ def cmd_maze_check(_args):
     return 0
 
 
+def cmd_render_check(args):
+    game = Game(seed=args.seed, level=args.level)
+    for _ in range(args.ticks):
+        game.step(tuning.STEP)
+        if not game.running:
+            break
+    fb = paint(game)
+    sprites = sprite_ids_in(fb)
+    renderer = TieredRenderer(preference=args.renderer)
+    init_seq = renderer.init(COLS, ROWS)
+    frame = renderer.present(fb, fb.dirty_cells())
+    fb2 = paint(game)
+    steady = renderer.present(fb2, fb2.dirty_cells())
+    stats = renderer.stats()
+    print("renderer: %s (choice: %s)" % (stats["backend"], stats["choice"]))
+    print("frame: %dx%d sprites: %d (%s)" % (COLS, ROWS, len(sprites), ",".join(sprites)))
+    print("init-bytes: %d full-frame-bytes: %d steady-frame-bytes: %d" % (
+        len(init_seq), len(frame), len(steady)))
+    if stats["degraded_from"]:
+        print("degraded: %s" % "->".join(stats["degraded_from"] + [stats["backend"]]))
+    for key in ("coalesced", "bytes_out"):
+        if key in stats:
+            print("%s: %s" % (key, stats[key]))
+    print("render OK")
+    return 0
+
+
+def cmd_render_bench(args):
+    from render.manager import make_backend
+    frames = max(args.frames, 1)
+    print("backend fps full-KB steady-B")
+    for name in KNOWN:
+        backend = make_backend(name)
+        if name != "unicode" and not backend.available():
+            print("%-7s unavailable (needs Pillow)" % name)
+            continue
+        game = Game(seed=args.seed, level=args.level)
+        backend.init(COLS, ROWS)
+        full_bytes, steady_bytes = 0, 0
+        start = time.perf_counter()
+        for n in range(frames):
+            game.step(1.0 / 120.0)
+            fb = paint(game)
+            out = backend.present(fb, fb.dirty_cells())
+            if n == 0:
+                full_bytes = len(out)
+            steady_bytes += len(out)
+        elapsed = max(time.perf_counter() - start, 1e-9)
+        print("%-7s %7.1f %7d %7d" % (
+            name, frames / elapsed, full_bytes, steady_bytes // frames))
+    print("bench OK")
+    return 0
+
+
 def build_parser():
     ap = argparse.ArgumentParser(prog="pacman", description="Pac-Man terminal arcade (headless engine)")
     ap.add_argument("--renderer", default=None,
@@ -135,6 +193,12 @@ def build_parser():
                     help="run the headless autopilot and print the state hash")
     ap.add_argument("--maze-check", action="store_true",
                     help="validate maze dimensions, counts, and connectivity")
+    ap.add_argument("--render-check", action="store_true",
+                    help="paint one scene and present it through the tiered renderer")
+    ap.add_argument("--render-bench", action="store_true",
+                    help="benchmark present() throughput per available backend")
+    ap.add_argument("--frames", type=int, default=60,
+                    help="frames per backend for --render-bench")
     return ap
 
 
@@ -151,6 +215,13 @@ def main(argv=None):
             return 2
         if args.maze_check:
             return cmd_maze_check(args)
+        if args.render_check:
+            return cmd_render_check(args)
+        if args.render_bench:
+            if args.frames < 1:
+                print("error: --frames must be >= 1")
+                return 2
+            return cmd_render_bench(args)
         if args.self_check:
             return cmd_self_check(args)
         build_parser().print_help()

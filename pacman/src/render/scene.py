@@ -128,7 +128,7 @@ def paint(game):
             pcell = Cell(PLAYER_GLYPH[pdir], PLAYER_FG, CORRIDOR_BG, PLAYER_SPRITE[pdir])
         fb.set(pt[0], pt[1] + HUD_ROWS, pcell)
 
-    flashing = game.ghosts.fright_flashing()
+    flashing = game.ghosts.fright_flashing
     for ghost in game.ghosts.ghosts:
         gt = tile_of(ghost.actor.x, ghost.actor.y)
         if not (0 <= gt[0] < WIDTH and 0 <= gt[1] < HEIGHT):
