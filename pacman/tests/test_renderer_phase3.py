@@ -351,3 +351,109 @@ def test_render_check_honors_renderer_override(capsys):
     from shell.cli import main
     assert main(["--render-check", "--renderer", "kitty", "--ticks", "30"]) == 0
     assert "renderer: kitty" in capsys.readouterr().out
+
+
+# -- reviewer regression tests (PR #557 fix round) ----------------------
+
+def test_manager_unicode_choice_is_terminal():
+    r = TieredRenderer(preference="unicode")
+    assert r.chain == ["unicode"]  # never steps up to an image tier
+    assert r.chain[-1] == "unicode"
+    for pref in ("kitty", "sixel"):
+        r2 = TieredRenderer(preference=pref)
+        assert r2.chain[-1] == "unicode"
+        assert r2.chain[0] == pref
+
+
+def test_manager_degrade_skips_unavailable_tier():
+    from render import manager as manager_mod
+    import unittest.mock as mock
+
+    real_make = manager_mod.make_backend
+
+    def fake_make(name, clock=None):
+        be = real_make(name, clock=clock)
+        if name == "sixel":
+            be.available = lambda: False  # Pillow missing mid-chain
+        return be
+
+    with mock.patch.object(manager_mod, "make_backend", side_effect=fake_make):
+        r = TieredRenderer(preference="kitty")
+        r.init(COLS, ROWS)
+        assert r.backend_name == "kitty"
+        # force an error-driven degrade: sixel must be skipped, not attempted
+        r.backend.present = lambda fb, dirty: (_ for _ in ()).throw(RuntimeError("boom"))
+        fb = paint(painted_game())
+        out = r.present(fb, fb.dirty_cells())
+        assert r.backend_name == "unicode"
+        assert r.degraded_from == ["kitty"]  # no phantom sixel transition
+
+
+def test_manager_degraded_from_only_on_success():
+    from render import manager as manager_mod
+    import unittest.mock as mock
+
+    real_make = manager_mod.make_backend
+    calls = []
+
+    def fake_make(name, clock=None):
+        be = real_make(name, clock=clock)
+        if name == "sixel":
+            orig_init = be.init
+
+            def fail_init(cols, rows):
+                calls.append(name)
+                raise RuntimeError("sixel init blew up")
+            be.init = fail_init
+        return be
+
+    with mock.patch.object(manager_mod, "make_backend", side_effect=fake_make):
+        r = TieredRenderer(preference="kitty")
+        r.init(COLS, ROWS)
+        seq = r._degrade()  # sixel fails, unicode must win
+        assert r.backend_name == "unicode"
+        assert r.degraded_from == ["kitty"]
+        assert calls == ["sixel"]
+
+
+def test_sixel_coalesced_pixels_survive_on_reused_buffer():
+    clock = FakeClock()
+    be = SixelBackend(min_interval_s=10.0, clock=clock, cell_px=4)
+    be.init(6, 4)
+    fb = FrameBuffer(6, 4)
+    fb.set(0, 0, red_cell("A"))
+    # first frame under a huge interval still emits (no prior frame time)
+    first = be.present(fb, fb.dirty_cells())
+    assert "\x1bPq" in first
+    fb.set(1, 0, red_cell("B"))
+    assert be.present(fb, fb.dirty_cells()) == ""  # coalesced, not lost
+    assert be.coalesced == 1
+    clock.t += 20.0
+    fb.set(2, 0, red_cell("C"))
+    third = be.present(fb, fb.dirty_cells())
+    assert "\x1bPq" in third
+    # B survived the coalesced frame: backend state now matches the buffer
+    assert be._last.cells[1 * 1 + 0] == red_cell("B") or be._last.get(1, 0) == red_cell("B")
+    assert be._last.get(2, 0) == red_cell("C")
+
+
+def test_cli_autodetect_uses_process_env(monkeypatch, capsys):
+    import os
+    from shell import cli as cli_mod
+    monkeypatch.setenv("KITTY_WINDOW_ID", "1234")
+    assert os.environ.get("KITTY_WINDOW_ID") == "1234"
+    assert cli_mod.main(["--render-check", "--ticks", "30"]) == 0
+    out = capsys.readouterr().out
+    assert "renderer: kitty" in out  # env flows through the CLI path
+
+
+def test_bench_rasterizes_every_sixel_frame(capsys):
+    from shell.cli import main
+    assert main(["--render-bench", "--frames", "4"]) == 0
+    out = capsys.readouterr().out
+    assert "bench OK" in out
+    # unthrottled: sixel line must show real bytes, never a zero average
+    for line in out.splitlines():
+        if line.startswith("sixel") and "unavailable" not in line:
+            parts = line.split()
+            assert int(parts[2]) > 0 and int(parts[3]) > 0
