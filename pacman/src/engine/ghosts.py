@@ -78,8 +78,9 @@ def _dist2(a, b):
 class Ghosts:
     """Owns the four ghosts plus the shared wave/fright/house clocks."""
 
-    def __init__(self, level, maze, rng):
+    def __init__(self, level, maze, rng, speed_mult=1.0):
         self._fright_rng = rng.fork("fright")
+        self.speed_mult = float(speed_mult)
         self.reset(level, maze)
 
     # -- lifecycle ----------------------------------------------------
@@ -249,22 +250,22 @@ class Ghosts:
 
     # -- movement -----------------------------------------------------
     def _cruise(self):
-        return tuning.player_speed(self.level) * tuning.GHOST_SPEED_FRACTION
+        return tuning.player_speed(self.level) * tuning.GHOST_SPEED_FRACTION * self.speed_mult
 
     def _speed_for(self, ghost, dots_left):
         base = tuning.player_speed(self.level)
         if ghost.state == "eyes":
             return base * EYES_SPEED_FRACTION
         if self.fright_active and ghost.state == "active":
-            return base * tuning.FRIGHT_GHOST_FRACTION
+            return base * tuning.FRIGHT_GHOST_FRACTION * self.speed_mult
         if self.maze.is_tunnel(*tile_of(ghost.actor.x, ghost.actor.y)):
-            return base * tuning.GHOST_TUNNEL_FRACTION
+            return base * tuning.GHOST_TUNNEL_FRACTION * self.speed_mult
         speed = base * tuning.GHOST_SPEED_FRACTION
         if ghost.index == 0:
             for threshold, bonus, _skip in tuning.ELROY_STAGES:
                 if dots_left <= threshold:
                     speed += base * bonus
-        return speed
+        return speed * self.speed_mult
 
     def _target_for(self, ghost, player, player_tile):
         mode = self.wave_mode()

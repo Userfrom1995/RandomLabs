@@ -1,10 +1,10 @@
 # Progress - Pac-Man Terminal Arcade
 
 - **Issue:** #552
-- **Branch:** opencode/issue552-pacman-phase-4-input-audio-shell
+- **Branch:** opencode/issue552-pacman-phase-5-progression-modes
 - **Status:** in-progress
-- **Updated:** 2026-10-12T16:30:00Z
-- **Active Phase:** Phase 4: Input Audio Menus and Shell (complete, ready for review)
+- **Updated:** 2026-10-12
+- **Active Phase:** Phase 5: Progression Fruit Scores Themes and Extra Modes
 
 ## Phase Roadmap
 
@@ -12,17 +12,18 @@
 - Phase 2: Ghost Personalities and Mode Timing: [x] four chase targets plus scatter corners, [x] scatter/chase wave clock with reversals, [x] frightened mode with flash plus chain scoring plus eyes return, [x] house exit counters plus timeout, [x] tunnel slowdown plus Elroy stages (PR 2 target, Refs #552)
 - Phase 3: Tiered Renderer and Capability Detection: [x] FrameBuffer plus RenderBackend interface plus cell diff, [x] Kitty backend with atlas cache, [x] Sixel backend with fps cap, [x] Unicode reference backend with sync output, [x] detect plus override plus auto-degrade watchdog (PR 3 target, Refs #552)
 - Phase 4: Input Audio Menus and Shell: [x] raw-mode input with remap plus resize, [x] pluggable audio (null, bell, spawn-player synth, never blocking), [x] title plus pause/resume plus restart plus game-over flows, [x] CLI with honest flags only, [x] minimum-size handling plus crash-safe teardown (PR 4 target, Refs #552)
-- Phase 5: Progression Fruit Scores Themes and Extra Modes: [ ] fruit spawn/expire plus original tier values, [ ] high-score table with name entry, [ ] configurable controls persistence plus themes (Classic plus two originals) plus reduced-flash mode, [ ] extra modes (time attack, sprint, fright-frenzy) each fully working, [ ] level progression ramp to endless (PR 5 target, Refs #552)
+- Phase 5: Progression Fruit Scores Themes and Extra Modes: [x] fruit spawn/expire plus original tier values, [ ] high-score table with name entry, [ ] configurable controls persistence plus themes (Classic plus two originals) plus reduced-flash mode, [ ] extra modes (time attack, sprint, fright-frenzy) each fully working, [ ] level progression ramp to endless (PR 5 target, Refs #552)
 - Final Phase: Verification Benchmarks Docs Hub and Pages: [ ] full gameplay verification (transitions, collisions, power-ups, game-over, restart), [ ] terminal-size plus capability plus input-method matrix, [ ] perf scoreboard (FPS per backend, input latency, parity checklist) published, [ ] unified docs plus README plus ideas entry integration, [ ] Pages hub with instructions, controls, scoreboard, doc links (Final PR, Closes #552)
 
 ## Current step
 
-Phase 4 complete and pushed on `opencode/issue552-pacman-phase-4-input-audio-shell` (Refs #552): `shell/input.py` (decoder plus Keymap) plus `terminal.py` (crash-safe raw mode plus size guard) plus `screens.py` (title/pause/over/too-small cards) plus `app.py` (flows plus frame loop) plus `audio.py` (null/bell/synth), `--play`/`--audio`/`--bind`/`--keys`/`--fps` CLI flags, `TieredRenderer.shutdown`, 43 new tests, suite 188 green, README/docs/hub/ideas updated. Ready for review.
+Phase 5 engine half done on `opencode/issue552-pacman-phase-5-progression-modes`: `engine/fruit.py` (threshold spawns plus expiry plus tier points) plus `engine/modes.py` (four honest rulesets) integrated into `game.py` (mode param, timers, refill, sprint bonus, reasons, extended canonical); `tuning.level_summary` for the endless ramp. Suite 203 green. Next: themes, scores/config, app/screens/CLI, tests, docs.
 
 ## Next steps
 
-- Reviewer pass on the Phase 4 diff, then Tester, then Maintainer merges
-- Builder to implement Phase 5: Progression Fruit Scores Themes and Extra Modes on a fresh phase branch from main
+- Finish Phase 5 (scores plus config plus themes plus modes UX) on this branch
+- Reviewer pass on the Phase 5 diff, then Tester, then Maintainer merges
+- Builder to implement the Final Phase on a fresh phase branch from main
 
 ## Standing notes
 
@@ -37,3 +38,4 @@ Phase 4 complete and pushed on `opencode/issue552-pacman-phase-4-input-audio-she
 - 2026-10-12 (builder): implemented Phase 2 on a fresh branch from main. New `pacman/src/engine/ghosts.py`: four authored personalities (chaser/ambusher/flanker/drifter) with corner scatter targets, tile-center min-distance steering with fixed tie-breaks, wave clock with reversals, fright with flash plus chains plus eyes-revive, dot-counter plus idle-timeout house exits with scripted walk-out, tunnel slowdown, Elroy stages with chase pin. `game.py` integration: fright player speedup, energizer triggers fright, house dot feed, ghost stepping with collisions, death/level resets, canonical hash covers ghosts. Suite 101 green (20 new); resurveyed seed-1 pin 167 -> 170 dots with zero deaths; CLI prints ghost stats; README/docs/hub/ideas updated. - the Builder
 - 2026-10-12 (builder): implemented Phase 3 on a fresh branch from main. New `pacman/src/render/atlas.py` (original Pillow-rasterized sprites, cached) plus `scene.py` (one 28x34 painter feeding every backend: HUD, box-drawn walls, dots, blinking energizers, directional player, fright/flash/eyes ghosts). Full `KittyBackend` (transmit-once atlas, cursor-anchored placements, text fallback) and `SixelBackend` (dirty-region raster, bounded palette, genuine band RLE, 10 fps coalescing cap, injectable clock). New `manager.py` `TieredRenderer` (detect chain, error plus slow-frame watchdog, never-raising present). CLI `--render-check`/`--render-bench`; suite 135 green (21 new); README/docs/hub/ideas updated. - the Builder
 - 2026-10-12 (builder): implemented Phase 4 on a fresh branch from main. New `pacman/src/shell/input.py` (byte decoder with partial-escape holds, validated remappable Keymap incl. restart) plus `terminal.py` (RawTerminal with guaranteed restore, non-blocking reads, size guard) plus `screens.py` (title/pause/over/too-small FrameBuffer cards) plus `app.py` (flow machine with pause-freeze plus fixed-timestep frame loop with finally-teardown) plus `audio.py` (null/bell/original-PCM-synth backends, daemon-thread spawn, honest degrade). CLI `--play`/`--audio`/`--bind`/`--keys`/`--fps`; `TieredRenderer.shutdown` pass-through. Suite 188 green (43 new, incl. real-pty restore test and scripted headless playthrough); README/docs/hub/ideas updated. - the Builder
+- 2026-10-12 (builder): Phase 5 engine half: new `engine/fruit.py` (spawn at 70/170 dots, 9.5 s expiry, tier points, canonical) and `engine/modes.py` (classic/time-attack/sprint/fright-frenzy with real modifiers); `game.py` gains mode param, per-mode lives/speeds/fright, sprint no-fright plus par bonus plus clear-to-win, time-attack countdown plus maze refill, defeat/timeout/clear reasons, fruit pickup/expiry events, extended canonical; `Ghosts` gains mode speed multiplier; `tuning.level_summary` exposes the endless ramp. Suite 203 green. - the Builder
