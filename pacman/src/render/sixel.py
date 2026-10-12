@@ -182,7 +182,8 @@ class SixelBackend(RenderBackend):
         now = self._clock()
         if now - self._last_t < self.min_interval:
             self.coalesced += 1
-            fb.clear_dirty()
+            # Keep dirty cells queued so coalesced pixels still reach the
+            # next emitted frame (clearing here dropped them permanently).
             return ""
         self._last_t = now
         pending = [i for i in dirty if fb.cells[i] != self._last.cells[i]]
