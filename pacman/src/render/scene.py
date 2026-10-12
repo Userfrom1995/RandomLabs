@@ -12,8 +12,10 @@ placements and cursor addresses agree across backends.
 """
 
 from engine.actors import LEFT, RIGHT, UP, DOWN, tile_of
+from engine.fruit import FRUIT_TILE
 from engine.maze import LAYOUT, WIDTH, HEIGHT
 from .framebuffer import Cell, FrameBuffer
+from .themes import get as theme_get
 
 HUD_ROWS = 3
 COLS = WIDTH
@@ -73,31 +75,50 @@ def wall_glyph(maze, x, y):
     return _WALL_GLYPH[key]
 
 
-def _text_row(fb, row, text, fg=TEXT_FG, bg=CORRIDOR_BG):
+def _text_row(fb, row, text, fg, bg):
     for i, ch in enumerate(text[:fb.cols]):
         fb.set(i, row, Cell(ch, fg, bg, None))
 
 
-def paint(game):
-    """Render the full scene (HUD + maze + actors) into a new FrameBuffer."""
+def paint(game, theme="classic", reduced_flash=False):
+    """Render the full scene (HUD + maze + actors) into a new FrameBuffer.
+
+    Every backend consumes this exact buffer, so the theme and flash
+    choices hold identically on Kitty, Sixel, and Unicode. With
+    reduced_flash the energizers stay lit and frightened ghosts hold one
+    steady color instead of blinking.
+    """
+    palette = theme_get(theme)
+    WALL_FG, WALL_BG, CORRIDOR_BG = palette["wall_fg"], palette["wall_bg"], palette["corridor_bg"]
+    DOT, PLAYER_FG, TEXT_FG = palette["dot"], palette["player"], palette["text"]
+    FRIGHT_FG = palette["fright"]
+    FLASH_FG = palette["flash"] if not reduced_flash else palette["fright"]
+    EYES_FG, FRUIT_FG, GHOST_FG = palette["eyes"], palette["fruit"], palette["ghosts"]
     fb = FrameBuffer(COLS, ROWS)
     maze = game.maze
 
     score_txt = "SCORE %06d" % (game.score % 1000000,)
     level_txt = "LEVEL %02d" % min(game.level, 99)
-    _text_row(fb, 0, score_txt + level_txt.rjust(COLS - len(score_txt)))
+    _text_row(fb, 0, score_txt + level_txt.rjust(COLS - len(score_txt)), TEXT_FG, CORRIDOR_BG)
     lives_txt = "LIVES %d " % max(game.lives, 0) + "o" * max(min(game.lives, 5), 0)
-    dots_txt = "DOTS %d" % game.dots_left
-    _text_row(fb, 1, lives_txt + dots_txt.rjust(COLS - len(lives_txt)))
+    if getattr(game, "mode", "classic") == "time-attack":
+        right_txt = "TIME %d" % max(int(getattr(game, "time_left", 0.0)), 0)
+    elif getattr(game, "mode", "classic") == "sprint":
+        right_txt = "TIME %d" % int(getattr(game, "elapsed", 0.0))
+    elif getattr(game, "fruit", None) is not None and game.fruit.active:
+        right_txt = "FRUIT %d" % game.fruit.points
+    else:
+        right_txt = "DOTS %d" % game.dots_left
+    _text_row(fb, 1, lives_txt + right_txt.rjust(COLS - len(lives_txt)), TEXT_FG, CORRIDOR_BG)
     mode = game.ghosts.wave_mode()
     if game.ghosts.fright_active:
         status, sfg = ("FRIGHT!", FRIGHT_FG)
     else:
         status, sfg = (mode.upper(), TEXT_FG)
     state_txt = "OVER" if game.state == "over" else ("READY" if game.tick_count < 60 else status)
-    _text_row(fb, 2, state_txt, fg=sfg)
+    _text_row(fb, 2, state_txt, sfg, CORRIDOR_BG)
 
-    blink_on = (game.tick_count // 24) % 2 == 0
+    blink_on = True if reduced_flash else (game.tick_count // 24) % 2 == 0
     for y in range(HEIGHT):
         base = y * WIDTH
         for x in range(WIDTH):
@@ -106,18 +127,22 @@ def paint(game):
             if ch == "#":
                 fb.set(x, ry, Cell(wall_glyph(maze, x, y), WALL_FG, WALL_BG, None))
             elif ch == "D":
-                fb.set(x, ry, Cell("-", (255, 184, 255), CORRIDOR_BG, None))
+                fb.set(x, ry, Cell("-", palette["text"], CORRIDOR_BG, None))
             elif ch == " ":
                 fb.set(x, ry, Cell(" ", TEXT_FG, CORRIDOR_BG, None))
             else:
                 i = base + x
                 if maze.energizers[i]:
                     glyph = "O" if blink_on else " "
-                    fb.set(x, ry, Cell(glyph, DOT_COLOR, CORRIDOR_BG, None))
+                    fb.set(x, ry, Cell(glyph, DOT, CORRIDOR_BG, None))
                 elif maze.dots[i]:
-                    fb.set(x, ry, Cell(".", DOT_COLOR, CORRIDOR_BG, None))
+                    fb.set(x, ry, Cell(".", DOT, CORRIDOR_BG, None))
                 else:
                     fb.set(x, ry, Cell(" ", TEXT_FG, CORRIDOR_BG, None))
+
+    if getattr(game, "fruit", None) is not None and game.fruit.active:
+        fx, fy = FRUIT_TILE
+        fb.set(fx, fy + HUD_ROWS, Cell("F", FRUIT_FG, CORRIDOR_BG, None))
 
     pdir = game.player.dir if game.player.dir in PLAYER_GLYPH else LEFT
     pt = tile_of(game.player.x, game.player.y)
@@ -128,7 +153,7 @@ def paint(game):
             pcell = Cell(PLAYER_GLYPH[pdir], PLAYER_FG, CORRIDOR_BG, PLAYER_SPRITE[pdir])
         fb.set(pt[0], pt[1] + HUD_ROWS, pcell)
 
-    flashing = game.ghosts.fright_flashing
+    flashing = game.ghosts.fright_flashing and not reduced_flash
     for ghost in game.ghosts.ghosts:
         gt = tile_of(ghost.actor.x, ghost.actor.y)
         if not (0 <= gt[0] < WIDTH and 0 <= gt[1] < HEIGHT):
