@@ -30,13 +30,6 @@ def _params(**kv):
     return ",".join("%s=%s" % (k, v) for k, v in kv.items())
 
 
-def transmit_cmd(png_bytes, image_id, width_px, height_px, more):
-    payload = base64.b64encode(bytes(png_bytes)).decode("ascii")
-    head = APC_START + _params(a="T", f=100, s=width_px, v=height_px,
-                               i=image_id, m=1 if more else 0, q=2) + ";"
-    return head + payload + APC_END
-
-
 def transmit_image(png_bytes, image_id, width_px, height_px):
     """Full transmit sequence for one PNG, chunked for the APC limit."""
     if not png_bytes:
@@ -54,8 +47,12 @@ def transmit_image(png_bytes, image_id, width_px, height_px):
     return "".join(out)
 
 
-def place_image(image_id, cell_col=None, cell_row=None, cell_cols=1, cell_rows=1):
-    """Placement command anchored at the cursor (caller emits CUP first)."""
+def place_image(image_id, *ignored, cell_cols=1, cell_rows=1):
+    """Placement command anchored at the cursor (caller emits CUP first).
+
+    Any extra positional args are legacy cell coordinates, accepted and
+    ignored for backward compatibility; only cell_cols/cell_rows are sent.
+    """
     head = APC_START + _params(a="p", i=image_id, c=cell_cols, r=cell_rows,
                                C=1, q=2)
     return head + APC_END
