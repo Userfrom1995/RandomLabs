@@ -1,18 +1,19 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-12 run 38281745301 - Phase 4 PR #558 MERGED (38fc2f6b, Refs #552), Phase 5 build chained**
+ - **Updated: 2026-10-12 run 38282880077 - Phase 5 PR #559 OPEN in review (head c4cb7a56), standby**
 
 ## PRs & Issues
- - **PRs:** Open: none (#558 MERGED 38fc2f6b). MERGED: #558 (Phase 4, 38fc2f6b, Refs #552; approve + approve-test 203 green + eval APPROVE-EVAL 9.9/10 on head 73f5a233), #557 (Phase 3, 99d401fa, Refs #552; approve 141 green + approve-test 150 green + eval APPROVE-EVAL 9.82/10 on head 371f13de), #556 (Phase 2, 97743bdc, Refs #552; approve + approve-test 114 green + eval APPROVE-EVAL 9.8/10 on head 65ef79b5), #553 (Phase 1, 06093176, Refs #552), #551, #550, #548, #545, #543, #541, #542, #540, #539, #538, #537, #536, #533, #534, #535, #531, #529, #527. CLOSED (not merged): #555 (Curator README sync, superseded by #553, branch kept). CLOSED: #547 (superseded by #548).
- - **Issues:** Open: #70 lab-health, #42 brainstorm standing, #552 Pac-Man tracking (Phase 1 + Phase 2 + Phase 3 + Phase 4 merged as Refs, Phase 5 build chained). Closed: #554 (fulfilled by #553), #549, #546, #544, #532, #530, #528, #526, #515, #518, #504, #507, #498, #436-GUI-detach-unknown (verify; pending owner direction).
+ - **PRs:** Open: #559 (Phase 5 Progression Fruit Scores Themes and Extra Modes, head c4cb7a56, MERGEABLE/CLEAN, 6 commits +1320/-92 across 20 files, body Refs #552, 233 green; Reviewer arm 38282880270 PENDING). MERGED: #558 (Phase 4, 38fc2f6b, Refs #552; approve + approve-test 203 green + eval APPROVE-EVAL 9.9/10 on head 73f5a233), #557 (Phase 3, 99d401fa, Refs #552; approve 141 green + approve-test 150 green + eval APPROVE-EVAL 9.82/10 on head 371f13de), #556 (Phase 2, 97743bdc, Refs #552; approve + approve-test 114 green + eval APPROVE-EVAL 9.8/10 on head 65ef79b5), #553 (Phase 1, 06093176, Refs #552), #551, #550, #548, #545, #543, #541, #542, #540, #539, #538, #537, #536, #533, #534, #535, #531, #529, #527. CLOSED (not merged): #555 (Curator README sync, superseded by #553, branch kept). CLOSED: #547 (superseded by #548).
+ - **Issues:** Open: #70 lab-health, #42 brainstorm standing, #552 Pac-Man tracking (Phase 1 + Phase 2 + Phase 3 + Phase 4 merged as Refs, Phase 5 PR #559 in review). Closed: #554 (fulfilled by #553), #549, #546, #544, #532, #530, #528, #526, #515, #518, #504, #507, #498, #436-GUI-detach-unknown (verify; pending owner direction).
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run, no drift (20 yml files incl. maintainer). `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - Pac-Man #552: Phase 1 MERGED as Refs #552 (approve + approve-test 81 green + eval APPROVE-EVAL 9.82/10 on head 0a0417b9). Phase 2 MERGED as Refs #552 (approve + approve-test 114 green + eval APPROVE-EVAL 9.8/10 on head 65ef79b5, main now 97743bdc). Phase 3 MERGED as Refs #552 (approve 141 green + approve-test 150 green + eval APPROVE-EVAL 9.82/10 on head 371f13de, main now 99d401fa). Phase 4 MERGED as Refs #552 (Reviewer approve + Tester approve-test 203 green + Evaluator APPROVE-EVAL 9.9/10, all on head 73f5a233, main now 38fc2f6b); Phase 5 (Progression Fruit Scores Themes and Extra Modes) build chained this run; #552 stays open until the final phase passes.
- - PR #558 merge rule: body Refs #552, #552 stays open until final phase passes test and eval.
+ - Pac-Man #552: Phase 1 MERGED as Refs #552 (approve + approve-test 81 green + eval APPROVE-EVAL 9.82/10 on head 0a0417b9). Phase 2 MERGED as Refs #552 (approve + approve-test 114 green + eval APPROVE-EVAL 9.8/10 on head 65ef79b5, main now 97743bdc). Phase 3 MERGED as Refs #552 (approve 141 green + approve-test 150 green + eval APPROVE-EVAL 9.82/10 on head 371f13de, main now 99d401fa). Phase 4 MERGED as Refs #552 (Reviewer approve + Tester approve-test 203 green + Evaluator APPROVE-EVAL 9.9/10, all on head 73f5a233, main now 38fc2f6b); Phase 5 (Progression Fruit Scores Themes and Extra Modes) PR #559 OPEN in review (head c4cb7a56, opencode-review 38282880270 PENDING); #552 stays open until the final phase passes.
+ - PR #559 merge rule: body Refs #552, #552 stays open until final phase passes test and eval.
  - Fixer production-code pushes void the prior review round per the rebase-gate rule; fresh review/test/eval required after each. Test-only Tester commits (single-file tests/, production untouched) do NOT void the review gate per precedent (43d77afe verified prior run: 1 file, pacman/tests/test_tester_phase4.py only, via compare 82789548...43d77afe). The repaired head 73f5a233 carried fresh approve + approve-test on the same head, so no test-only analysis needed this round.
- - Bot-permission noise comment on #558 (16:40:41Z, links maintainer pull_request run 38279025402): CLI actor-assert on the bot-authored PR push, expected gate behavior per precedent (runs 38244046489 on #553, 38266598028 on #556, 38276130661 on #557, 38279025402 on #558) - not a failure, no lab escalation.
- - Run sweep: zero failure/timed_out (last-15 check this run returns only skipped/cancelled maintainer workflow_run entries and skipped non-matching issue_comment arms, plus this in_progress run).
+ - Bot-permission noise comment on #559 (17:14:28Z, links maintainer pull_request run 38282836473): CLI actor-assert on the bot-authored PR push, expected gate behavior per precedent (runs 38244046489 on #553, 38266598028 on #556, 38276130661 on #557, 38279025402 on #558) - not a failure, no lab escalation.
+ - Pages transient: workflow_dispatch deploy run 38282884120 failed 17:14:52Z with GitHub-side 500 on create deployment for 38fc2f6b (Request ID 0400:1AD97B, platform error, not repo content). Within 30-min same-signature cooldown, no re-dispatch this run; PR preview staging posted fine. Re-confirm next run; second consecutive pages failure routes lab.
+ - Run sweep: one transient pages failure above; otherwise only skipped/cancelled maintainer workflow_run entries and skipped non-matching issue_comment arms, plus opencode-review PENDING and this in_progress run.
  - Rebase-gate rule: a rebase or fix-push that rewrites a gated PR's head voids its gate; fresh review round required after each Fixer production-code push. Test-only Tester commits (single-file tests/, production untouched) do NOT void the review gate per precedent.
  - Eval-gate calibration note: surgical infra/docs/test-harness fixes may merge on Reviewer approve + Tester approve-test; Evaluator binding gate stays mandatory for product/research/phase deliverables.
  - Eval-crash rule (amended): eval run dying inside `Run evaluator agent` with no decision file and no Quality Council comment carries zero signal - retry eval once (cooldown 30 min same-signature). Second AGENT-STEP silent death routes `lab`, never a third eval. UNACQUIRED deaths do not count; one exception per cooldown window max.
@@ -26,9 +27,9 @@
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. Pac-Man: Phase 5 build should be in flight on #552 (react to Builder delivery: new PR -> dispatch review). Design Council (`/oc design`) before visual polish declared done.
-3. Pages re-confirm for 38fc2f6b (merge seconds before this run closed; no pages run observed yet in last-5).
-4. Main tip re-confirm (merged 38fc2f6b verified via ls-remote + pr view MERGED this run).
+2. Pac-Man: react to Reviewer verdict on PR #559 head c4cb7a56 (approve -> dispatch test; findings -> dispatch fix). Design Council (`/oc design`) before visual polish declared done.
+3. Pages re-confirm for 38fc2f6b (transient 500 on 38282884120; second consecutive failure routes lab).
+4. Main tip re-confirm only after new merges (38fc2f6b verified via ls-remote this run).
 5. Error-dump wart: await Owner direction; do NOT auto-queue an 8th lab mandate.
 6. Evaluator follow-up (archived bench helper path + weak assertion) queued for a future hardening vehicle.
 7. Council calibration: advisory Desktop Pet audit still pending.
@@ -37,8 +38,9 @@
 10. Standing rule: standby on all other fronts (no auto-ideate).
 
 ## OPEN QUESTIONS
- - Will the Phase 5 Builder scope fruit/scores/themes/extra-modes cleanly on a fresh branch from 38fc2f6b?
+ - Will the Reviewer clear Phase 5 head c4cb7a56, or return fruit/mode/score findings for the Fixer?
  - How will the final verification phase be scoped after Phase 5 merges?
+ - Was the Pages 500 a one-off platform blip, or the start of an outage window?
  - Owner direction on the error-dump wart (escalation posted 2026-10-07; 8th mandate withheld)?
  - Evaluator follow-up hardening vehicle (archived bench helper sys.path depth + weak assertion)?
  - What caused the ~50-min agent-step death in eval run 37362541465?
