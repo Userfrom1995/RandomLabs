@@ -6,6 +6,7 @@ their own phases; no flag anticipates them.
 """
 
 import argparse
+import os
 import sys
 import time
 
@@ -82,7 +83,7 @@ def autopilot_inputs(seed, ticks, level=1, replan_every=4):
 
 
 def cmd_self_check(args):
-    name = detect_renderer(args.renderer)
+    name = detect_renderer(args.renderer, env=dict(os.environ))
     ticks = args.ticks
     inputs = autopilot_inputs(args.seed, ticks, level=args.level)
     digest, events, game = run_recording(args.seed, inputs, ticks, level=args.level)
@@ -136,7 +137,7 @@ def cmd_render_check(args):
             break
     fb = paint(game)
     sprites = sprite_ids_in(fb)
-    renderer = TieredRenderer(preference=args.renderer)
+    renderer = TieredRenderer(preference=args.renderer, env=dict(os.environ))
     init_seq = renderer.init(COLS, ROWS)
     frame = renderer.present(fb, fb.dirty_cells())
     fb2 = paint(game)
@@ -164,12 +165,14 @@ def cmd_render_bench(args):
         if name != "unicode" and not backend.available():
             print("%-7s unavailable (needs Pillow)" % name)
             continue
+        if getattr(backend, "min_interval", None):
+            backend.min_interval = 0.0  # bench raster cost, not the fps throttle
         game = Game(seed=args.seed, level=args.level)
         backend.init(COLS, ROWS)
         full_bytes, steady_bytes = 0, 0
         start = time.perf_counter()
         for n in range(frames):
-            game.step(1.0 / 120.0)
+            game.step(tuning.STEP)
             fb = paint(game)
             out = backend.present(fb, fb.dirty_cells())
             if n == 0:
