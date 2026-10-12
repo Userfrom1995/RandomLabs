@@ -14,6 +14,8 @@ python3 pacman/pacman.py --self-check --ticks 2400 --seed 2
 python3 pacman/pacman.py --self-check --mode fright-frenzy --ticks 2400
 python3 pacman/pacman.py --render-check --renderer kitty
 python3 pacman/pacman.py --render-bench --frames 60
+python3 pacman/pacman.py --verify
+python3 pacman/pacman.py --scoreboard --frames 60
 python3 pacman/pacman.py --modes --themes --levels 8
 python3 pacman/pacman.py --keys
 python3 pacman/pacman.py --play --mode classic --theme neon --audio auto --fps 30
@@ -29,17 +31,21 @@ python3 pacman/pacman.py --play --mode classic --theme neon --audio auto --fps 3
 - Four honest rulesets (`--mode classic|time-attack|sprint|fright-frenzy`): the standard loop, 120 seconds on a refilling maze, a one-life no-fright race against the clock with a par-time bonus, and 4x fright windows with slower ghosts. Every mode replays deterministically and reports through `--self-check`.
 - Three original visual themes (`--theme classic|neon|amber`) over the one scene painter, so parity holds on every backend, plus `--reduced-flash` for steady energizers and fright. Settings persist in an XDG config file (`--save-config` writes the effective setup; every field validated on load).
 - Persistent top-10 high scores with in-terminal pilot-name entry (type A-Z 0-9, Enter saves, Esc skips); `--scores` prints the table.
-- Test suite: 233 pytest cases covering maze invariants, movement feel, scoring and lives, ghost personalities and wave/fright/house/Elroy behavior, fruit and all four modes, theme painting with flash steadiness, score and config persistence, name entry, determinism, atlas determinism, scene parity across backends, protocol byte capture with transmit-once and fps-cap proofs, watchdog degradation, key decoding with partial-escape holds and remap validation, synth voice rendering with honest audio degrade, terminal teardown on real and fake ttys, menu flows with a scripted headless playthrough, and CLI behavior.
+- Test suite: 277 pytest cases covering maze invariants, movement feel, scoring and lives, ghost personalities and wave/fright/house/Elroy behavior, fruit and all four modes, theme painting with flash steadiness, score and config persistence, name entry, determinism, atlas determinism, scene parity across backends, protocol byte capture with transmit-once and fps-cap proofs, watchdog degradation, key decoding with partial-escape holds and remap validation, synth voice rendering with honest audio degrade, terminal teardown on real and fake ttys, menu flows with a scripted headless playthrough, the 41-row gameplay/size/capability/input/parity verification matrix, input-latency and sim-tick benchmarks, and CLI behavior.
+
+## Verification and scoreboard
+
+`--verify` runs the full 41-row matrix (gameplay transitions, collisions, power-ups, game-over, restart, terminal sizes, renderer capabilities, input methods, fallback parity) with a non-zero exit on any failure. `--input-bench` reports key-decode throughput and per-tick simulation cost; `--scoreboard` prints the published renderer/input scoreboard for your machine (reference numbers: unicode ~875, kitty ~595, sixel ~72 fps headless; decode ~1.9M keys/s; sim ~25 us/tick against the 8,333 us 120 Hz budget). Full writeups live in `docs/verification.md` and `docs/scoreboard.md`.
 
 ## What is next
 
-Fruit and high scores with themes and extra modes are live; what remains is the final verification pass (gameplay matrix, terminal capability matrix, published perf scoreboard) before the epic closes. (`--render-bench` already prints per-backend throughput today.)
+The game is complete and verified: every owner-spec item (modern terminal graphics with fallback, full mechanics, menus, scores, modes, themes, published scoreboard) is implemented, tested, and documented.
 
 ## Layout
 
 - `pacman.py` - launcher (adds `src/` to the path, no install needed)
 - `src/engine/` - pure simulation: `tuning`, `rng`, `maze`, `actors`, `ghosts`, `game`, `replay`
 - `src/render/` - output backends: `protocol`, `framebuffer`, `ansi`, `unicode`, `kitty`, `sixel`, `detect`, `atlas`, `scene`, `manager`
-- `src/shell/` - interactive play: `cli`, `input` (decoding plus keymap), `terminal` (raw mode plus size guard), `screens` (title/pause/over cards), `app` (flows plus frame loop), `audio` (null/bell/synth)
+- `src/shell/` - interactive play: `cli`, `input` (decoding plus keymap), `terminal` (raw mode plus size guard), `screens` (title/pause/over cards), `app` (flows plus frame loop), `audio` (null/bell/synth), `verify` (gameplay/size/capability/parity matrices plus input and render benches)
 - `tests/` - pytest suite (`python3 -m pytest pacman/tests -q`)
-- `docs/` - unified product documentation
+- `docs/` - unified product documentation (`verification.md`, `scoreboard.md`)

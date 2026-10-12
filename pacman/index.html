@@ -35,9 +35,11 @@
 python3 pacman/pacman.py --self-check --ticks 2400 --seed 2
 python3 pacman/pacman.py --render-check --renderer kitty
 python3 pacman/pacman.py --render-bench --frames 60
+python3 pacman/pacman.py --verify
+python3 pacman/pacman.py --scoreboard --frames 60
 python3 pacman/pacman.py --modes --themes --levels 8
 python3 pacman/pacman.py --play --mode classic --theme neon --audio auto</pre>
-  <p>Controls: arrows or WASD move, P pauses, R restarts, Enter confirms, Q quits. Remap with <code>--bind up=k</code> (repeatable, persisted with <code>--save-config</code>); <code>--keys</code> prints the table. Sound follows <code>--audio null|bell|synth|auto</code>, degrading honestly when no system player exists.</p>
+  <p>Controls: arrows or WASD move, P pauses, R restarts, Enter confirms, Q quits. Remap with <code>--bind up=k</code> (repeatable, persisted with <code>--save-config</code>); <code>--keys</code> prints the table. Sound follows <code>--audio null|bell|synth|auto</code>, degrading honestly when no system player exists. The scene needs a 28x34 terminal; smaller windows get a clear too-small message instead of a garbled maze.</p>
 
   <h2>Modes and themes</h2>
   <p>Four rulesets: <strong>classic</strong> (standard loop), <strong>time-attack</strong> (120 seconds on a refilling maze), <strong>sprint</strong> (one life, no fright, par-time bonus), <strong>fright-frenzy</strong> (4x fright, slower ghosts). Three original palettes (<strong>classic</strong>, <strong>neon</strong>, <strong>amber</strong>) plus a reduced-flash mode. Fruit ripens twice per level, high scores persist with in-terminal name entry (<code>--scores</code> prints the table), and the endless difficulty ramp is inspectable with <code>--levels N</code>.</p>
@@ -45,15 +47,20 @@ python3 pacman/pacman.py --play --mode classic --theme neon --audio auto</pre>
   <h2>Renderers</h2>
   <p>One scene painter feeds every backend, so the layout matches cell-for-cell: <strong>kitty</strong> (cached sprite atlas, transmit-once, per-frame placement), <strong>sixel</strong> (dirty-region raster, 10 fps cap), <strong>unicode</strong> (synchronized truecolor text, plays everywhere). A watchdog steps down one tier on errors or slow frames. <code>--renderer</code> overrides auto-detection; without Pillow the game degrades honestly to Unicode.</p>
 
+  <h2>Scoreboard (reference machine)</h2>
+  <p>Headless full-scene throughput via <code>--scoreboard --frames 60</code>: <strong>unicode ~875 fps</strong>, <strong>kitty ~595 fps</strong>, <strong>sixel ~72 fps</strong>; key decode ~1.9M keys/s; simulation ~25 us per tick against the 8,333 us 120 Hz budget. One 28x34 scene painter feeds every backend, so layouts match cell-for-cell with honest degrade where Pillow is missing. <code>--verify</code> proves the 41-row gameplay, terminal-size, capability, input, and parity matrix on any machine.</p>
+
   <h2>Status</h2>
   <div class="status">
-    <p><strong>Engine core, ghost AI, tiered renderer, interactive shell, fruit, modes, themes, and high scores are live and verified.</strong> The deterministic headless simulation plays full levels today: original maze with tunnel and ghost house, buffered tile-center movement, four ghost personalities with scatter/chase waves and fright chains, bonus fruit with tier points, scoring with extra life, lives with respawn, endless level progression, four rulesets (classic, time-attack, sprint, fright-frenzy), three visual themes plus reduced-flash, persistent config and top-10 scores with in-terminal name entry, seeded replays with bit-identical hashes, one scene painter feeding kitty, sixel, and unicode backends behind an auto-degrading watchdog, title/pause/name-entry/restart/game-over flows with remappable keys and pluggable original synth audio, crash-safe raw-mode teardown, and a 233-case test suite. The final verification pass (gameplay matrix, capability matrix, published perf scoreboard) is next in the open tracking issue.</p>
+    <p><strong>The game is complete and verified.</strong> The deterministic headless simulation plays full levels today: original maze with tunnel and ghost house, buffered tile-center movement, four ghost personalities with scatter/chase waves and fright chains, bonus fruit with tier points, scoring with extra life, lives with respawn, endless level progression, four rulesets (classic, time-attack, sprint, fright-frenzy), three visual themes plus reduced-flash, persistent config and top-10 scores with in-terminal name entry, seeded replays with bit-identical hashes, one scene painter feeding kitty, sixel, and unicode backends behind an auto-degrading watchdog, title/pause/name-entry/restart/game-over flows with remappable keys and pluggable original synth audio, crash-safe raw-mode teardown, a 277-case test suite, a 41-row live verification matrix, and a published perf scoreboard.</p>
   </div>
 
   <h2>Links</h2>
   <ul>
     <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/pacman/README.md">README and quickstart</a></li>
     <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/pacman/docs/index.md">Architecture documentation</a></li>
+    <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/pacman/docs/verification.md">Verification report</a></li>
+    <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/pacman/docs/scoreboard.md">Performance scoreboard</a></li>
     <li><a href="https://github.com/Userfrom1995/RandomLabs/issues/552">Tracking issue #552</a></li>
   </ul>
   <footer>Built by autonomous coding agents in the Random lab. Content changes without notice.</footer>
