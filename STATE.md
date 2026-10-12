@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-12 run 38287974060 - PR #560 MERGED (1a89293, rebase), issue #552 CLOSED, Pac-Man epic complete; standby, zero open PRs**
+ - **Updated: 2026-10-12 run 38299321605 - schedule, quiet standby; Pac-Man epic complete, zero open PRs, post-merge Pages deploy for 1a89293 confirmed success**
 
 ## PRs & Issues
  - **PRs:** Open: none. MERGED: #560 (Pac-Man Final Phase Verification Benchmarks Docs Hub and Pages, merged 1a89293 via rebase on head 384a3d4f; Reviewer approve on 61e2915f + Tester approve-test on 384a3d4f with test-only single-file delta + Evaluator APPROVE-EVAL 9.9/10 on head 384a3d4f), #559 (Phase 5, 45a2e42d, Refs #552; approve on c7160357 + approve-test on fc160724 with test-only delta + eval APPROVE-EVAL 9.84/10 on head fc160724), #558 (Phase 4, 38fc2f6b, Refs #552; approve + approve-test 203 green + eval APPROVE-EVAL 9.9/10 on head 73f5a233), #557 (Phase 3, 99d401fa, Refs #552; approve 141 green + approve-test 150 green + eval APPROVE-EVAL 9.82/10 on head 371f13de), #556 (Phase 2, 97743bdc, Refs #552; approve + approve-test 114 green + eval APPROVE-EVAL 9.8/10 on head 65ef79b5), #553 (Phase 1, 06093176, Refs #552), #551, #550, #548, #545, #543, #541, #542, #540, #539, #538, #537, #536, #533, #534, #535, #531, #529, #527. CLOSED (not merged): #555 (Curator README sync, superseded by #553, branch kept). CLOSED: #547 (superseded by #548).
@@ -8,11 +8,9 @@
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - Pac-Man #552: COMPLETE. Phases 1-5 merged as Refs #552; Final Phase PR #560 MERGED this run (1a89293 via rebase, branch kept; Closes #552 auto-closed the tracker). Gates at merge: Reviewer approve on 61e2915f + Tester approve-test on 384a3d4f (41/41 verify across seeds, scoreboard within variance, hostile flags exit 2, 286 green; 61e2915f...384a3d4f delta exactly one test file, production untouched, review gate held) + Evaluator approve-eval 9.9/10 on 384a3d4f. Orphan-main check passed (merge-base 45a2e42d present); main tip now 1a89293 with linear history.
- - opencode-review 38286966924 COMPLETED (approve on 61e2915f); opencode-test 38287146220 COMPLETED success (approve-test); opencode-eval 38287665252 COMPLETED success (approve-eval 9.9/10). Zero pending/in_progress agent arms at merge.
- - Bot-permission noise on #560 (17:34:52Z): CLI actor-assert on the bot-authored PR push, expected gate behavior per precedent - not a failure, no lab escalation.
- - Pages watch: last Deploy success 17:57:39Z covers pre-merge main (45a2e42d + PR-560 preview); post-merge deploy for 1a89293 not yet observed at survey - watch next run, trigger via dispatch only if missing/failed.
- - Run sweep: zero failure/timed_out in scope this run (recent entries all completed/skipped or cancelled maintainer arms); no untriaged issues (only boards #70/#42 open); no ideate.
+ - Pac-Man #552: COMPLETE. Phases 1-5 merged as Refs #552; Final Phase PR #560 MERGED (1a89293 via rebase, branch kept; Closes #552 auto-closed the tracker). Gates at merge: Reviewer approve on 61e2915f + Tester approve-test on 384a3d4f (41/41 verify across seeds, scoreboard within variance, hostile flags exit 2, 286 green; 61e2915f...384a3d4f delta exactly one test file, production untouched, review gate held) + Evaluator approve-eval 9.9/10 on 384a3d4f. Orphan-main check passed (merge-base 45a2e42d present); main tip 1a89293 with linear history, re-confirmed via ls-remote this run.
+ - Post-merge Pages deploy CONFIRMED: Deploy run 18:02:33Z success on head SHA 1a89293 (exact post-merge tip) - the open question from run 38287974060 is resolved.
+ - Run sweep: zero failure/timed_out in scope this run (recent entries all completed/skipped success or cancelled/skipped maintainer arms); no untriaged issues (only boards #70/#42 open); no ideate.
  - Rebase-gate rule: a rebase or fix-push that rewrites a gated PR's head voids its gate; fresh review round required after each Fixer production-code push. Test-only Tester commits (single-file tests/, production untouched) do NOT void the review gate per precedent.
  - Eval-gate calibration note: surgical infra/docs/test-harness fixes may merge on Reviewer approve + Tester approve-test; Evaluator binding gate stays mandatory for product/research/phase deliverables.
  - Eval-crash rule (amended): eval run dying inside `Run evaluator agent` with no decision file and no Quality Council comment carries zero signal - retry eval once (cooldown 30 min same-signature). Second AGENT-STEP silent death routes `lab`, never a third eval. UNACQUIRED deaths do not count; one exception per cooldown window max.
@@ -26,7 +24,7 @@
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. Pac-Man: DONE - verify post-merge Pages deploy for 1a89293 landed; otherwise standby.
+2. Pac-Man: DONE - post-merge Pages deploy for 1a89293 confirmed landed; standby.
 3. Main tip re-confirm only after new merges.
 4. Error-dump wart: await Owner direction; do NOT auto-queue an 8th lab mandate.
 5. Evaluator follow-up (archived bench helper path + weak assertion) queued for a future hardening vehicle.
@@ -36,8 +34,7 @@
 9. Standing rule: standby on all other fronts (no auto-ideate).
 
 ## OPEN QUESTIONS
- - Did the post-merge Pages deploy for 1a89293 succeed, or is it still queued?
- - Was the Pages 500 a one-off platform blip, or the start of an outage window?
+ - Was the Pages 500 a one-off platform blip, or the start of an outage window? (Single occurrence 17:14:52Z; all deploys since success.)
  - Owner direction on the error-dump wart (escalation posted 2026-10-07; 8th mandate withheld)?
  - Evaluator follow-up hardening vehicle (archived bench helper sys.path depth + weak assertion)?
  - What caused the ~50-min agent-step death in eval run 37362541465?
