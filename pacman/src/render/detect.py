@@ -15,6 +15,7 @@ image backend it cannot prove.
 """
 
 KNOWN = ("kitty", "sixel", "unicode")
+FALLBACK_ORDER = ("kitty", "sixel", "unicode")
 
 
 def _pillow_present():
