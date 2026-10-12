@@ -87,10 +87,16 @@ def step_actor(maze, actor, dt, for_ghost=False):
         stride = min(remaining, 0.1)
         nx, ny = actor.x + dx * stride, actor.y + dy * stride
 
-        # Tunnel mouth: leaving the grid on the tunnel row wraps around.
-        if (ty + dy) == TUNNEL_ROW and not 0 <= (tx + dx) < WIDTH \
+        # Tunnel mouth: crossing the edge on the tunnel row wraps around.
+        # Gate on the continuous position (nx), not the tile exit (tx+dx):
+        # wrapping early teleports in-bounds strides into off-grid limbo
+        # and breaks rightward travel. Branch on nx sign stays consistent.
+        if ty == TUNNEL_ROW and (nx < 0 or nx >= WIDTH) \
                 and maze.is_walkable(tx + dx, ty + dy, for_ghost):
-            actor.x = nx + WIDTH if nx < 0 else nx - WIDTH
+            wrapped = nx + WIDTH if nx < 0 else nx - WIDTH
+            # Float absorption can land exactly on WIDTH (e.g. 28.0):
+            # fold back so every post-step position stays in bounds.
+            actor.x = wrapped % WIDTH
             actor.y = ny
             remaining -= stride
             continue
