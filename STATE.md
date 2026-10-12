@@ -1,18 +1,18 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-12 run 38267154958 - Phase 2 PR #556 review+test cleared, eval dispatched**
+ - **Updated: 2026-10-12 run 38267379444 - Phase 2 PR #556 eval in flight, standby**
 
 ## PRs & Issues
- - **PRs:** Open: #556 (Pac-Man Phase 2 Ghost Personalities and Mode Timing, head 65ef79b5, MERGEABLE, Refs #552, review approve + test approve-test 114 green; eval dispatched this run). MERGED: #553 (Phase 1, commit 06093176 on main, Refs #552), #551, #550, #548, #545, #543, #541, #542, #540, #539, #538, #537, #536, #533, #534, #535, #531, #529, #527. CLOSED (not merged): #555 (Curator README sync, superseded by #553, branch kept). CLOSED: #547 (superseded by #548).
+ - **PRs:** Open: #556 (Pac-Man Phase 2 Ghost Personalities and Mode Timing, head 65ef79b5, MERGEABLE, Refs #552, review approve + test approve-test 114 green; eval PENDING run 38267379335). MERGED: #553 (Phase 1, commit 06093176 on main, Refs #552), #551, #550, #548, #545, #543, #541, #542, #540, #539, #538, #537, #536, #533, #534, #535, #531, #529, #527. CLOSED (not merged): #555 (Curator README sync, superseded by #553, branch kept). CLOSED: #547 (superseded by #548).
  - **Issues:** Open: #70 lab-health, #42 brainstorm standing, #552 Pac-Man tracking (Phase 1 merged as Refs, Phase 2 PR #556 in eval). Closed: #554 (fulfilled by #553), #549, #546, #544, #532, #530, #528, #526, #515, #518, #504, #507, #498, #436-GUI-detach-unknown (verify; pending owner direction).
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run, no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - Pac-Man #552: Phase 1 MERGED as Refs #552 (review approve + test approve-test 81 green + eval APPROVE-EVAL 9.82/10 on head 0a0417b9). Phase 2 PR #556 OPEN on branch opencode/issue552-pacman-phase-2-ghost-ai (4 commits, +923/-18, 11 files), review approve + test approve-test landed, eval dispatched run 38267154958.
+ - Pac-Man #552: Phase 1 MERGED as Refs #552 (review approve + test approve-test 81 green + eval APPROVE-EVAL 9.82/10 on head 0a0417b9). Phase 2 PR #556 OPEN on branch opencode/issue552-pacman-phase-2-ghost-ai (4 commits, +923/-18, 11 files), review approve + test approve-test landed, eval PENDING run 38267379335 (owner /oc eval 15:02:42Z converging with prior eval dispatch).
  - PR #556 merge rule: body Refs #552, #552 stays open until final phase passes test and eval.
  - Test-only gate note: Tester head 65ef79b5 is a single-file tests/ addition (test_tester_phase2.py, 163 lines, production untouched) on top of reviewed 612e7fd7 - review gate holds per precedent.
  - Bot-permission noise comment on #556 (14:57:15Z, links maintainer pull_request run 38266598028): CLI actor-assert on the bot-authored PR push, expected gate behavior per precedent (run 38244046489 on PR #553) - not a failure, no lab escalation.
- - Run sweep: zero failure/timed_out (only skipped/cancelled maintainer workflow_run entries, skipped non-matching issue_comment arms, action_required pages/pr-trigger on PR branch awaiting owner approval, plus this in_progress run).
+ - Run sweep: zero failure/timed_out (opencode-eval pending 38267379335, remainder skipped/cancelled maintainer workflow_run entries, skipped non-matching issue_comment arms, plus this in_progress run).
  - Rebase-gate rule: a rebase or fix-push that rewrites a gated PR's head voids its gate; fresh review round required after each Fixer production-code push. Test-only Tester commits (single-file tests/, production untouched) do NOT void the review gate per precedent.
  - Eval-gate calibration note: surgical infra/docs/test-harness fixes may merge on Reviewer approve + Tester approve-test; Evaluator binding gate stays mandatory for product/research/phase deliverables.
  - Eval-crash rule (amended): eval run dying inside `Run evaluator agent` with no decision file and no Quality Council comment carries zero signal - retry eval once (cooldown 30 min same-signature). Second AGENT-STEP silent death routes `lab`, never a third eval. UNACQUIRED deaths do not count; one exception per cooldown window max.
