@@ -1,8 +1,8 @@
 """Command line: honest flags only (every flag maps to working logic).
 
-Headless verification, maze validation, the ghost-AI simulation report, and
-renderer verification/benchmarks. Interactive play, audio, and menus land in
-their own phases; no flag anticipates them.
+Headless verification, maze validation, the ghost-AI simulation report,
+renderer verification/benchmarks, and the interactive play shell with
+audio selection and key remapping.
 """
 
 import argparse
@@ -185,6 +185,63 @@ def cmd_render_bench(args):
     return 0
 
 
+def cmd_keys(args):
+    from shell.input import Keymap, parse_binds
+    try:
+        keymap = Keymap(parse_binds(args.bind))
+    except ValueError as exc:
+        print("error: %s" % exc)
+        return 2
+    print(keymap.describe())
+    return 0
+
+
+def cmd_play(args):
+    from shell.app import ShellState, run
+    from shell.audio import select_audio
+    from shell.input import Keymap, parse_binds
+    from shell.terminal import RawTerminal, TerminalError
+    if not sys.stdin.isatty():
+        print("error: --play needs an interactive terminal (stdin is not a tty)")
+        return 2
+    try:
+        keymap = Keymap(parse_binds(args.bind))
+    except ValueError as exc:
+        print("error: %s" % exc)
+        return 2
+    try:
+        audio = select_audio(args.audio)
+    except ValueError as exc:
+        print("error: %s" % exc)
+        return 2
+    app = ShellState(seed=args.seed, level=args.level, keymap=keymap, audio=audio)
+    renderer = TieredRenderer(preference=args.renderer, env=dict(os.environ))
+    chunks = []
+
+    def write_out(text):
+        if text:
+            chunks.append(text)
+            try:
+                sys.stdout.write(text)
+                sys.stdout.flush()
+            except BrokenPipeError:
+                app.exited = True
+
+    try:
+        with RawTerminal() as term:
+            run(app, term, renderer, write_out, fps=args.fps)
+    except TerminalError as exc:
+        print("error: %s" % exc)
+        return 2
+    except BrokenPipeError:
+        pass
+    stats = renderer.stats()
+    print("played on %s (audio: %s)" % (stats["backend"], audio.stats()["backend"]))
+    if app.game is not None:
+        print("final score: %d level: %d" % (app.game.score, app.game.level))
+    return 0
+
+
 def build_parser():
     ap = argparse.ArgumentParser(prog="pacman", description="Pac-Man terminal arcade (headless engine)")
     ap.add_argument("--renderer", default=None,
@@ -202,6 +259,17 @@ def build_parser():
                     help="benchmark present() throughput per available backend")
     ap.add_argument("--frames", type=int, default=60,
                     help="frames per backend for --render-bench")
+    ap.add_argument("--play", action="store_true",
+                    help="start the interactive terminal game (needs a tty)")
+    ap.add_argument("--audio", default="auto",
+                    choices=("auto", "null", "bell", "synth"),
+                    help="sound backend for --play (synth degrades to bell without a player)")
+    ap.add_argument("--bind", action="append", default=[],
+                    help="remap a key: action=char (repeatable, e.g. --bind up=k)")
+    ap.add_argument("--keys", action="store_true",
+                    help="print the active key bindings and exit")
+    ap.add_argument("--fps", type=int, default=30,
+                    help="frame pacing for --play (1..240)")
     return ap
 
 
@@ -216,6 +284,13 @@ def main(argv=None):
         if args.ticks < 1:
             print("error: --ticks must be >= 1")
             return 2
+        if args.fps < 1 or args.fps > 240:
+            print("error: --fps must be 1..240")
+            return 2
+        if args.keys:
+            return cmd_keys(args)
+        if args.play:
+            return cmd_play(args)
         if args.maze_check:
             return cmd_maze_check(args)
         if args.render_check:

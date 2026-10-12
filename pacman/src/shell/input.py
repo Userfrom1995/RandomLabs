@@ -9,8 +9,8 @@ rest arrives, so slow terminals never misread an arrow as Escape.
 """
 
 UP, DOWN, LEFT, RIGHT = "up", "down", "left", "right"
-PAUSE, QUIT, CONFIRM = "pause", "quit", "confirm"
-ACTIONS = (UP, DOWN, LEFT, RIGHT, PAUSE, QUIT, CONFIRM)
+PAUSE, QUIT, CONFIRM, RESTART = "pause", "quit", "confirm", "restart"
+ACTIONS = (UP, DOWN, LEFT, RIGHT, PAUSE, QUIT, CONFIRM, RESTART)
 
 # Fixed spellings every terminal sends; never remappable.
 FIXED_SPELLINGS = {
@@ -31,6 +31,7 @@ DEFAULT_BINDS = {
     PAUSE: ("p",),
     QUIT: ("q",),
     CONFIRM: (),
+    RESTART: ("r",),
 }
 
 
