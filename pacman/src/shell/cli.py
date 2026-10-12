@@ -19,11 +19,21 @@ def bfs_first_step(maze, start):
     """First step toward the nearest remaining pickup. Returns a direction."""
     from collections import deque
     seen = {start}
-    queue = deque((nxt, d) for d in DIRS
-                  for nxt in [(start[0] + d[0], start[1] + d[1])]
-                  if maze.is_walkable(*nxt) and nxt not in seen)
-    for nxt, _ in list(queue):
+    queue = deque()
+    for d in DIRS:
+        nxt = (start[0] + d[0], start[1] + d[1])
+        nx, ny = nxt
+        if nx < 0 or nx >= WIDTH:
+            if start[1] != TUNNEL_ROW:
+                continue
+            nx = WIDTH - 1 if nx < 0 else 0
+            nxt = (nx, ny)
+        if nxt in seen:
+            continue
+        if not maze.is_walkable(*nxt):
+            continue
         seen.add(nxt)
+        queue.append((nxt, d))
     while queue:
         (x, y), first = queue.popleft()
         i = y * WIDTH + x
@@ -31,14 +41,14 @@ def bfs_first_step(maze, start):
             return first
         for d in DIRS:
             nxt = (x + d[0], y + d[1])
-            if nxt in seen:
-                continue
             nx, ny = nxt
             if nx < 0 or nx >= WIDTH:
                 if y != TUNNEL_ROW:
                     continue
-                nx = 0 if nx < 0 else WIDTH - 1
+                nx = WIDTH - 1 if nx < 0 else 0
                 nxt = (nx, ny)
+            if nxt in seen:
+                continue
             if not maze.is_walkable(*nxt):
                 continue
             seen.add(nxt)
