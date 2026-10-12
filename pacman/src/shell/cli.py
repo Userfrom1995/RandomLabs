@@ -238,6 +238,25 @@ def cmd_keys(args):
     return 0
 
 
+def cmd_save_config(args):
+    """Persist the effective CLI-over-config settings and report the path."""
+    try:
+        settings, config = resolve_settings(args)
+    except ValueError as exc:
+        print("error: %s" % exc)
+        return 2
+    config.update({"binds": settings["binds"], "audio": settings["audio"],
+                   "fps": settings["fps"], "mode": settings["mode"],
+                   "theme": settings["theme"],
+                   "reduced_flash": settings["reduced_flash"],
+                   "name": settings["name"]})
+    if not config.save():
+        print("error: could not write %s" % config.path)
+        return 1
+    print("saved config to %s" % config.path)
+    return 0
+
+
 def cmd_play(args):
     from shell.app import ShellState, run
     from shell.audio import select_audio
@@ -251,15 +270,9 @@ def cmd_play(args):
         print("error: %s" % exc)
         return 2
     if args.save_config:
-        config.update({"binds": settings["binds"], "audio": settings["audio"],
-                       "fps": settings["fps"], "mode": settings["mode"],
-                       "theme": settings["theme"],
-                       "reduced_flash": settings["reduced_flash"],
-                       "name": settings["name"]})
-        if not config.save():
-            print("error: could not write %s" % config.path)
-            return 1
-        print("saved config to %s" % config.path)
+        code = cmd_save_config(args)
+        if code != 0:
+            return code
     try:
         audio = select_audio(settings["audio"])
     except ValueError as exc:
@@ -398,6 +411,8 @@ def main(argv=None):
             return 2
         if args.keys:
             return cmd_keys(args)
+        if args.save_config:
+            return cmd_save_config(args)
         if args.scores:
             return cmd_scores(args)
         if args.themes:
