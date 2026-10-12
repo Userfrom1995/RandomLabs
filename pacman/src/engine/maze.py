@@ -163,7 +163,7 @@ class Maze:
             for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
                 if nx < 0 or nx >= WIDTH:  # tunnel wrap inside the fill
                     if y == TUNNEL_ROW:
-                        nx = 0 if nx < 0 else WIDTH - 1
+                        nx = WIDTH - 1 if nx < 0 else 0
                     else:
                         continue
                 if not self.in_bounds(nx, ny) or seen[ny * WIDTH + nx]:
