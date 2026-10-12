@@ -122,6 +122,34 @@ def test_title_pause_over_screens_readable():
     assert any("1x1" in row for row in small)
 
 
+def test_menu_cards_fit_frame_without_clipped_hints():
+    from render.framebuffer import Cell, FrameBuffer
+    from shell.terminal import check_size
+    blank = FrameBuffer(COLS, ROWS, Cell(" ", (255, 255, 255), (0, 0, 0), None))
+    title = screens.paint_title(Keymap())
+    pause = screens.paint_pause(blank)
+    over = screens.paint_over(blank, 1230)
+    small = screens.paint_too_small(check_size(20, 10, COLS, ROWS))
+    for name, fb in (("title", title), ("pause", pause),
+                     ("over", over), ("small", small)):
+        for row in screens.flat_text(fb):
+            assert len(row) <= COLS, "%s row overflows: %r" % (name, row)
+    rows = screens.flat_text(title)
+    assert any("R: restart" in row for row in rows)
+    assert any("Q: quit" in row for row in rows)
+    assert any("dodge ghosts" in row for row in rows)
+    rows = screens.flat_text(pause)
+    assert any("resume" in row for row in rows)
+    assert any("R: restart" in row for row in rows)
+    assert any("Q: quit" in row for row in rows)
+    rows = screens.flat_text(over)
+    assert any("Q: quit" in row for row in rows)
+    rows = screens.flat_text(small)
+    assert any("20x10" in row for row in rows)
+    assert any("28x34" in row for row in rows)
+    assert any("Q to quit" in row for row in rows)
+
+
 def test_flow_title_pause_restart_gameover_quit():
     app = ShellState(seed=3, audio=NullAudio())
     assert app.screen == TITLE
