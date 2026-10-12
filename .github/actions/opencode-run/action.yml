@@ -92,10 +92,26 @@ runs:
         path: ~/.opencode/bin
         key: opencode-${{ runner.os }}-${{ runner.arch }}-${{ steps.version.outputs.version }}
 
-    - name: Install opencode
-      if: steps.cache.outputs.cache-hit != 'true'
+    - name: Verify cached opencode binary (poisoned-cache guard)
+      id: verify
       shell: bash
-      run: curl -fsSL https://opencode.ai/install | bash
+      run: |
+        # A cache entry can be poisoned (saved with no binary inside, e.g.
+        # the 189-byte opencode-macOS-ARM64-v1.19.0 entry of 2026-10-11):
+        # restore succeeds, install is skipped on cache-hit, and the agent
+        # then dies with "opencode: command not found" (exit 127).
+        if [ -x "$HOME/.opencode/bin/opencode" ]; then
+          echo "present=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "present=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Install opencode
+      if: steps.cache.outputs.cache-hit != 'true' || steps.verify.outputs.present != 'true'
+      shell: bash
+      run: |
+        curl -fsSL https://opencode.ai/install | bash
+        test -x "$HOME/.opencode/bin/opencode"
 
     - name: Add opencode to PATH
       shell: bash

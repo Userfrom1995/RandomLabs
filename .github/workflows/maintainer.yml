@@ -57,7 +57,7 @@ jobs:
        !startsWith(github.event.comment.body, '/oc') &&
        !startsWith(github.event.comment.body, '/opencode')) ||
       (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/oc maintainer'))
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
       - name: Checkout repository
@@ -162,12 +162,28 @@ jobs:
           path: ~/.opencode/bin
           key: opencode-${{ runner.os }}-${{ runner.arch }}-${{ steps.opencode_version.outputs.version }}
 
+      - name: Verify cached opencode binary (poisoned-cache guard)
+        id: opencode_verify
+        shell: bash
+        run: |
+          # Same guard as the vendored composite action: a poisoned cache
+          # entry restores fine but holds no binary, which used to surface
+          # as "opencode: command not found" (exit 127) under
+          # continue-on-error (hollow-green, no decisions).
+          if [ -x "$HOME/.opencode/bin/opencode" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install opencode
-        if: steps.opencode_cache.outputs.cache-hit != 'true'
+        if: steps.opencode_cache.outputs.cache-hit != 'true' || steps.opencode_verify.outputs.present != 'true'
         shell: bash
         # Single-shot network fetch: retry transient blips, but a genuine
         # failure still fails loudly (the install is really needed).
-        run: curl -fsSL --retry 3 --retry-delay 10 https://opencode.ai/install | bash
+        run: |
+          curl -fsSL --retry 3 --retry-delay 10 https://opencode.ai/install | bash
+          test -x "$HOME/.opencode/bin/opencode"
 
       - name: Add opencode to PATH
         shell: bash
