@@ -14,6 +14,7 @@ import hashlib
 
 from . import tuning
 from .actors import Actor, LEFT, tile_of, center_of
+from .ghosts import Ghosts
 from .maze import Maze, PLAYER_START_TILE
 from .rng import Rng
 
@@ -37,13 +38,21 @@ class Game:
         self.ghosts_eaten_chain = 0
         self._reset_positions()
         self._last_tile = tile_of(self.player.x, self.player.y)
+        self._dots_seen = self.maze.dots_eaten
         self._eat_current_tile(initial=True)
+        self._dots_seen = self.maze.dots_eaten
 
     # -- setup --------------------------------------------------------
     def _reset_positions(self):
         cx, cy = center_of(*PLAYER_START_TILE)
         self.player = Actor(cx, cy, LEFT, tuning.player_speed(self.level))
         self.player.want = LEFT
+        if hasattr(self, "maze"):
+            if not hasattr(self, "ghosts"):
+                self.ghosts = Ghosts(self.level, self.maze, self.rng)
+            else:
+                self.ghosts.reset(self.level, self.maze)
+            self._dots_seen = self.maze.dots_eaten
 
     # -- public control -----------------------------------------------
     def set_want(self, direction):
@@ -122,6 +131,8 @@ class Game:
             return
 
         speed = tuning.player_speed(self.level)
+        if self.ghosts.fright_active:
+            speed *= tuning.FRIGHT_PLAYER_FRACTION
         if self.maze.is_tunnel(*tile_of(self.player.x, self.player.y)):
             speed *= tuning.PLAYER_TUNNEL_FRACTION
         self.player.speed = speed
@@ -130,6 +141,11 @@ class Game:
         if tile != self._last_tile:
             self._last_tile = tile
             self._eat_current_tile()
+        if self.maze.dots_eaten != self._dots_seen:
+            self.ghosts.notify_dots(self.maze.dots_eaten - self._dots_seen)
+            self._dots_seen = self.maze.dots_eaten
+        if self.state == "play":  # eating may have triggered fright; ghosts move
+            self.events.extend(self.ghosts.step(tuning.STEP, self))
         if self.maze.dots_remaining + self.maze.energizers_remaining == 0:
             self.state = "clearing"
             self.state_t = 0.0
@@ -145,6 +161,7 @@ class Game:
         elif found == "energizer":
             self._add_score(tuning.ENERGIZER_SCORE)
             self.reset_fright_chain()
+            self.ghosts.start_fright(tuning.fright_duration(self.level))
             if not initial:
                 self.events.append("energizer")
 
@@ -164,6 +181,7 @@ class Game:
             str(self.tick_count), "%.4f" % p[0], "%.4f" % p[1],
             str(p[2]), str(p[3]), self.state,
             self.maze.dot_bytes().hex(),
+            self.ghosts.canonical(),
         ]
         return "|".join(parts)
 
@@ -173,6 +191,14 @@ class Game:
     @property
     def dots_left(self):
         return self.maze.dots_remaining + self.maze.energizers_remaining
+
+    @property
+    def fright_active(self):
+        return self.ghosts.fright_active
+
+    @property
+    def fright_flashing(self):
+        return self.ghosts.fright_flashing
 
     @property
     def running(self):
