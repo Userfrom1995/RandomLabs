@@ -132,3 +132,17 @@ def house_counters(level):
     """Per-ghost dot counters, easing to the floor on deep levels."""
     ease = max(0, 5 - level)
     return tuple(max(lo, base - ease) for base, lo in zip(HOUSE_DOT_COUNTERS, HOUSE_COUNTER_MIN))
+
+
+def level_summary(level):
+    """One row of the endless difficulty ramp (for HUD, CLI, and docs)."""
+    if level < 1:
+        raise ValueError("level must be >= 1")
+    return {
+        "level": int(level),
+        "player_speed": round(player_speed(level), 3),
+        "fright_s": fright_duration(level),
+        "fruit": fruit_points(level),
+        "house": house_counters(level),
+        "waves": wave_schedule(level),
+    }
