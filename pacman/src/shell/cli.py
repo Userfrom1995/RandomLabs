@@ -411,7 +411,7 @@ def main(argv=None):
             return 2
         if args.keys:
             return cmd_keys(args)
-        if args.save_config:
+        if args.save_config and not args.play:
             return cmd_save_config(args)
         if args.scores:
             return cmd_scores(args)
