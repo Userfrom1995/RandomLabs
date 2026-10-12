@@ -48,7 +48,10 @@ def test_cli_self_check_deterministic_live():
     hb = [l for l in b.stdout.splitlines() if l.startswith("hash:")][0]
     assert len(ha.split()[1]) == 64
     assert ha == hb  # bit-identical across processes
-    assert "dots-eaten: 167" in a.stdout
+    # Resurveyed in Phase 2 (ghost AI entered the simulation; the greedy
+    # autopilot now routes 170 dots with 2 energizers and no deaths):
+    # seed 1 / 2400 ticks eats 170 dots where Phase 1 measured 167.
+    assert "dots-eaten: 170" in a.stdout
 
 
 def test_cli_self_check_seed2_live():
