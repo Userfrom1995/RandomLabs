@@ -11,13 +11,17 @@ import sys
 import time
 
 from engine import tuning
+from engine import modes as game_modes
 from engine.actors import DIRS, tile_of
 from engine.game import Game
 from engine.maze import Maze, WIDTH, HEIGHT, TUNNEL_ROW, PLAYER_START_TILE
 from engine.replay import run_recording
+from render import themes as game_themes
 from render.detect import KNOWN, detect_renderer
 from render.manager import TieredRenderer
 from render.scene import COLS, ROWS, paint, sprite_ids_in
+from shell.config import Config
+from shell.scores import ScoreTable
 
 
 def bfs_first_step(maze, start):
@@ -65,9 +69,9 @@ def bfs_first_step(maze, start):
     return DIRS[0]
 
 
-def autopilot_inputs(seed, ticks, level=1, replan_every=4):
+def autopilot_inputs(seed, ticks, level=1, replan_every=4, mode="classic"):
     """Generate a deterministic input log from a greedy BFS autopilot."""
-    game = Game(seed=seed, level=level)
+    game = Game(seed=seed, level=level, mode=mode)
     inputs = []
     want = None
     from engine import tuning
@@ -82,20 +86,58 @@ def autopilot_inputs(seed, ticks, level=1, replan_every=4):
     return inputs
 
 
+def resolve_settings(args):
+    """Merge CLI flags over the config file. Returns (settings, config)."""
+    from shell.input import Keymap, parse_binds
+    config = Config(path=args.config_file)
+    file_binds = dict(config.values["binds"])
+    try:
+        cli_binds = parse_binds(args.bind)
+    except ValueError as exc:
+        raise ValueError(str(exc))
+    file_binds.update(cli_binds)
+    try:
+        keymap = Keymap(file_binds)
+    except ValueError as exc:
+        raise ValueError(str(exc))
+    settings = {
+        "keymap": keymap,
+        "binds": file_binds,
+        "audio": args.audio or config.values["audio"],
+        "fps": args.fps if args.fps is not None else config.values["fps"],
+        "mode": args.mode or config.values["mode"],
+        "theme": args.theme or config.values["theme"],
+        "reduced_flash": (config.values["reduced_flash"] if args.reduced_flash is None
+                          else args.reduced_flash),
+        "name": args.name or config.values["name"],
+        "scores_file": args.scores_file,
+    }
+    game_modes.check(settings["mode"])
+    game_themes.check(settings["theme"])
+    return settings, config
+
+
 def cmd_self_check(args):
+    settings, _config = resolve_settings(args)
     name = detect_renderer(args.renderer, env=dict(os.environ))
     ticks = args.ticks
-    inputs = autopilot_inputs(args.seed, ticks, level=args.level)
-    digest, events, game = run_recording(args.seed, inputs, ticks, level=args.level)
+    inputs = autopilot_inputs(args.seed, ticks, level=args.level, mode=settings["mode"])
+    digest, events, game = run_recording(args.seed, inputs, ticks,
+                                         level=args.level, mode=settings["mode"])
     dots = sum(1 for e in events if e == "dot")
     zaps = sum(1 for e in events if e == "energizer")
     eaten = sum(1 for e in events if e.startswith("ghost-eaten"))
     deaths = sum(1 for e in events if e == "death")
+    fruits = [e for e in events if e.startswith("fruit:")]
+    fruit_points = sum(int(e.split(":")[1]) for e in fruits)
     print("renderer: %s" % name)
+    print("mode: %s theme: %s" % (settings["mode"], settings["theme"]))
     print("seed: %d level: %d ticks: %d" % (args.seed, game.level, game.tick_count))
     print("score: %d lives: %d dots-eaten: %d energizers: %d" % (game.score, game.lives, dots, zaps))
     print("ghosts-eaten: %d deaths: %d fright: %s mode: %s" % (
         eaten, deaths, "active" if game.fright_active else "off", game.ghosts.wave_mode()))
+    print("fruit-eaten: %d fruit-points: %d over: %s" % (
+        len(fruits), fruit_points, game.over_reason or "-"))
     print("state: %s dots-left: %d" % (game.state, game.dots_left))
     print("hash: %s" % digest)
     return 0
@@ -199,22 +241,35 @@ def cmd_keys(args):
 def cmd_play(args):
     from shell.app import ShellState, run
     from shell.audio import select_audio
-    from shell.input import Keymap, parse_binds
     from shell.terminal import RawTerminal, TerminalError
     if not sys.stdin.isatty():
         print("error: --play needs an interactive terminal (stdin is not a tty)")
         return 2
     try:
-        keymap = Keymap(parse_binds(args.bind))
+        settings, config = resolve_settings(args)
     except ValueError as exc:
         print("error: %s" % exc)
         return 2
+    if args.save_config:
+        config.update({"binds": settings["binds"], "audio": settings["audio"],
+                       "fps": settings["fps"], "mode": settings["mode"],
+                       "theme": settings["theme"],
+                       "reduced_flash": settings["reduced_flash"],
+                       "name": settings["name"]})
+        if not config.save():
+            print("error: could not write %s" % config.path)
+            return 1
+        print("saved config to %s" % config.path)
     try:
-        audio = select_audio(args.audio)
+        audio = select_audio(settings["audio"])
     except ValueError as exc:
         print("error: %s" % exc)
         return 2
-    app = ShellState(seed=args.seed, level=args.level, keymap=keymap, audio=audio)
+    scores = ScoreTable(path=settings["scores_file"])
+    app = ShellState(seed=args.seed, level=args.level, keymap=settings["keymap"],
+                     audio=audio, mode=settings["mode"], theme=settings["theme"],
+                     reduced_flash=settings["reduced_flash"], scores=scores,
+                     player_name=settings["name"])
     renderer = TieredRenderer(preference=args.renderer, env=dict(os.environ))
     chunks = []
 
@@ -229,16 +284,46 @@ def cmd_play(args):
 
     try:
         with RawTerminal() as term:
-            run(app, term, renderer, write_out, fps=args.fps)
+            run(app, term, renderer, write_out, fps=settings["fps"])
     except TerminalError as exc:
         print("error: %s" % exc)
         return 2
     except BrokenPipeError:
         pass
     stats = renderer.stats()
-    print("played on %s (audio: %s)" % (stats["backend"], audio.stats()["backend"]))
+    print("played %s on %s (audio: %s)" % (app.mode, stats["backend"], audio.stats()["backend"]))
     if app.game is not None:
         print("final score: %d level: %d" % (app.game.score, app.game.level))
+    return 0
+
+
+def cmd_scores(args):
+    table = ScoreTable(path=args.scores_file)
+    for line in table.format():
+        print(line)
+    return 0
+
+
+def cmd_themes(_args):
+    from render import themes
+    print(themes.describe())
+    return 0
+
+
+def cmd_modes(_args):
+    for mode in game_modes.MODES:
+        print(game_modes.describe(mode))
+    return 0
+
+
+def cmd_levels(args):
+    count = max(int(args.levels), 1)
+    print("lvl speed fright-s fruit house-counters")
+    for level in range(1, count + 1):
+        row = tuning.level_summary(level)
+        print("%3d %5.2f %7.1f %5d %s" % (
+            row["level"], row["player_speed"], row["fright_s"],
+            row["fruit"], "/".join(str(c) for c in row["house"])))
     return 0
 
 
@@ -261,15 +346,39 @@ def build_parser():
                     help="frames per backend for --render-bench")
     ap.add_argument("--play", action="store_true",
                     help="start the interactive terminal game (needs a tty)")
-    ap.add_argument("--audio", default="auto",
+    ap.add_argument("--audio", default=None,
                     choices=("auto", "null", "bell", "synth"),
-                    help="sound backend for --play (synth degrades to bell without a player)")
+                    help="sound backend for --play (default from config file)")
+    ap.add_argument("--mode", default=None, choices=list(game_modes.MODES),
+                    help="ruleset for --play and --self-check (default from config)")
+    ap.add_argument("--theme", default=None, choices=list(game_themes.THEMES),
+                    help="palette for --play (default from config)")
+    ap.add_argument("--reduced-flash", dest="reduced_flash", action="store_true",
+                    default=None, help="steady energizers and fright (no blinking)")
+    ap.add_argument("--no-reduced-flash", dest="reduced_flash", action="store_false",
+                    help="restore blinking (overrides config)")
+    ap.add_argument("--name", default=None,
+                    help="pilot name for high scores (default from config)")
+    ap.add_argument("--scores", action="store_true",
+                    help="print the high-score table and exit")
+    ap.add_argument("--scores-file", default=None,
+                    help="high-score file (default XDG data dir)")
+    ap.add_argument("--config-file", default=None,
+                    help="config file (default XDG config dir)")
+    ap.add_argument("--save-config", action="store_true",
+                    help="persist the effective settings to the config file")
+    ap.add_argument("--themes", action="store_true",
+                    help="list the visual themes and exit")
+    ap.add_argument("--modes", action="store_true",
+                    help="list the game modes and exit")
+    ap.add_argument("--levels", type=int, default=0, metavar="N",
+                    help="print the difficulty ramp for levels 1..N and exit")
     ap.add_argument("--bind", action="append", default=[],
                     help="remap a key: action=char (repeatable, e.g. --bind up=k)")
     ap.add_argument("--keys", action="store_true",
                     help="print the active key bindings and exit")
-    ap.add_argument("--fps", type=int, default=30,
-                    help="frame pacing for --play (1..240)")
+    ap.add_argument("--fps", type=int, default=None,
+                    help="frame pacing for --play, 1..240 (default from config)")
     return ap
 
 
@@ -284,11 +393,22 @@ def main(argv=None):
         if args.ticks < 1:
             print("error: --ticks must be >= 1")
             return 2
-        if args.fps < 1 or args.fps > 240:
+        if args.fps is not None and not 1 <= args.fps <= 240:
             print("error: --fps must be 1..240")
             return 2
         if args.keys:
             return cmd_keys(args)
+        if args.scores:
+            return cmd_scores(args)
+        if args.themes:
+            return cmd_themes(args)
+        if args.modes:
+            return cmd_modes(args)
+        if args.levels:
+            if args.levels < 1:
+                print("error: --levels must be >= 1")
+                return 2
+            return cmd_levels(args)
         if args.play:
             return cmd_play(args)
         if args.maze_check:

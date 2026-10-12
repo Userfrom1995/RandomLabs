@@ -20,9 +20,9 @@ def parse_dir(name):
         raise ValueError("unknown direction: %r (want up/down/left/right)" % (name,))
 
 
-def run_recording(seed, inputs, ticks, level=1):
+def run_recording(seed, inputs, ticks, level=1, mode="classic"):
     """Run a headless game; returns (final_hash, events)."""
-    game = Game(seed=seed, level=level)
+    game = Game(seed=seed, level=level, mode=mode)
     by_tick = {}
     for tick_index, direction in inputs:
         by_tick.setdefault(int(tick_index), direction)
@@ -34,7 +34,7 @@ def run_recording(seed, inputs, ticks, level=1):
     return game.state_hash(), list(game.events), game
 
 
-def verify_recording(seed, inputs, ticks, expected_hash, level=1):
+def verify_recording(seed, inputs, ticks, expected_hash, level=1, mode="classic"):
     """Re-run and compare. Returns (ok, actual_hash)."""
-    actual, _, _ = run_recording(seed, inputs, ticks, level=level)
+    actual, _, _ = run_recording(seed, inputs, ticks, level=level, mode=mode)
     return actual == expected_hash, actual
