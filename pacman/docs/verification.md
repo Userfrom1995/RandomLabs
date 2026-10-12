@@ -11,10 +11,14 @@ quiet.
 Dot and energizer scoring through the real pickup path, fright activation
 with the 200-point chain opener, death costing exactly one life with
 respawn, last-life defeat with the recorded reason, maze-clear level
-transition onto a fresh dot field, fruit ripening at its dot threshold with
+transition onto a fresh dot field (the level-2 dot check allows a +-4
+window because the landing step already eats the spawn tile plus any
+buffered pickup in the same slice), fruit ripening at its dot threshold with
 tier points, time-attack timeout, sprint's no-fright rule, shell restart
 building a genuinely fresh run, pause/resume cycling, pause freezing the
-simulation clock, and tunnel wrap.
+simulation clock (driven through the real headless `run()` freeze gate:
+play advances ticks, paused frames hold them despite clock time passing,
+resume advances them again), and tunnel wrap.
 
 ## Terminal sizes (6 rows)
 
