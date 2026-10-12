@@ -168,7 +168,7 @@ class ShellState:
             base = paint(self.game, theme=self.theme,
                          reduced_flash=self.reduced_flash)
             return screens.paint_name_entry(base, self.name_buffer, self.game.score)
-        game = self.game if self.game is not None else Game(seed=self.seed, level=self.level)
+        game = self.game if self.game is not None else Game(seed=self.seed, level=self.level, mode=self.mode)
         base = paint(game, theme=self.theme, reduced_flash=self.reduced_flash)
         if self.screen == PAUSED:
             return screens.paint_pause(base)
