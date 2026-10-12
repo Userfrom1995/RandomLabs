@@ -35,7 +35,7 @@ def test_unknown_bytes_dropped_never_crash():
 
 def test_default_wasd_and_vim():
     actions, _ = decode_stream(b"waskdjhl")
-    assert actions == ["up", "up", "down", "left", "right", "down", "up", "left"]
+    assert actions == ["up", "left", "down", "up", "right", "down", "left", "right"]
 
 
 def test_remap_replaces_defaults():
