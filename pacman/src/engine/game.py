@@ -217,7 +217,10 @@ class Game:
                 self.events.append("energizer")
             if modes.has_fright(self.mode):
                 self.reset_fright_chain()
-                duration = tuning.fright_duration(self.level) * modes.fright_multiplier(self.mode)
+                base = tuning.fright_duration(self.level)
+                if self.mode == "fright-frenzy":
+                    base = max(base, tuning.FRENZY_FLOOR_S)
+                duration = base * modes.fright_multiplier(self.mode)
                 self.ghosts.start_fright(duration)
 
     def _add_score(self, points):

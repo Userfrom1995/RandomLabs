@@ -51,6 +51,9 @@ WAVE_SCATTER_SHAVE_PER_LEVEL = 1.0
 # falloff so late levels reward routing over button-pressing.
 FRIGHT_DURATION_CURVE = (6.0, 5.0, 4.0, 3.5, 3.0, 2.5, 2.0, 1.5, 1.0, 0.5, 0.0)
 FRIGHT_FLASH_THRESHOLD = 1.5  # last seconds render as flashing warning
+# Fright-frenzy mode floors the base duration before the 4x multiplier so
+# deep levels (curve is 0.0 at level 11+) still open a real hunt window.
+FRENZY_FLOOR_S = 1.0
 
 # Ghost-chain bonus for eating ghosts on one power pellet.
 GHOST_CHAIN_SCORE = (200, 400, 800, 1600)
