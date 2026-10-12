@@ -16,7 +16,7 @@ import struct
 import subprocess
 import threading
 
-EVENTS = ("dot", "energizer", "ghost", "death", "extra-life", "level-clear", "game-over")
+EVENTS = ("dot", "energizer", "ghost", "fruit", "death", "extra-life", "level-clear", "game-over")
 KNOWN = ("null", "bell", "synth")
 SAMPLE_HZ = 22050
 TAU = 2.0 * math.pi
@@ -49,6 +49,9 @@ def render_event(event):
         _tone(frames, 220.0, 0.30, slide_to=880.0)
     elif event == "ghost":
         _tone(frames, 990.0, 0.20, slide_to=440.0, square=True, volume=0.25)
+    elif event == "fruit":
+        _tone(frames, 880.0, 0.09, slide_to=1320.0)
+        _tone(frames, 1320.0, 0.12, slide_to=1760.0)
     elif event == "death":
         _tone(frames, 880.0, 0.55, slide_to=110.0, volume=0.40)
         _tone(frames, 110.0, 0.15, volume=0.30)
