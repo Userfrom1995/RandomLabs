@@ -32,11 +32,16 @@
   <h2>Play it</h2>
   <p>Requires Python 3.11 or newer. No install step; the guaranteed path uses only the standard library (<code>pip install Pillow</code> unlocks the image backends).</p>
   <pre class="cmd">python3 pacman/pacman.py --maze-check
-python3 pacman/pacman.py --self-check --ticks 2400 --seed 2</pre>
+python3 pacman/pacman.py --self-check --ticks 2400 --seed 2
+python3 pacman/pacman.py --render-check --renderer kitty
+python3 pacman/pacman.py --render-bench --frames 60</pre>
+
+  <h2>Renderers</h2>
+  <p>One scene painter feeds every backend, so the layout matches cell-for-cell: <strong>kitty</strong> (cached sprite atlas, transmit-once, per-frame placement), <strong>sixel</strong> (dirty-region raster, 10 fps cap), <strong>unicode</strong> (synchronized truecolor text, plays everywhere). A watchdog steps down one tier on errors or slow frames. <code>--renderer</code> overrides auto-detection; without Pillow the game degrades honestly to Unicode.</p>
 
   <h2>Status</h2>
   <div class="status">
-    <p><strong>Engine core plus ghost AI are live and verified.</strong> The deterministic headless simulation plays full levels today: original maze with tunnel and ghost house, buffered tile-center movement, four ghost personalities with scatter/chase waves and fright chains, scoring with extra life, lives with respawn, endless level progression, seeded replays with bit-identical hashes, and a 101-case test suite. The interactive terminal loop with menus and audio is under construction in the open tracking issue.</p>
+    <p><strong>Engine core, ghost AI, and tiered renderer are live and verified.</strong> The deterministic headless simulation plays full levels today: original maze with tunnel and ghost house, buffered tile-center movement, four ghost personalities with scatter/chase waves and fright chains, scoring with extra life, lives with respawn, endless level progression, seeded replays with bit-identical hashes, one scene painter feeding kitty, sixel, and unicode backends behind an auto-degrading watchdog, and a 135-case test suite. The interactive terminal loop with menus and audio is under construction in the open tracking issue.</p>
   </div>
 
   <h2>Links</h2>
