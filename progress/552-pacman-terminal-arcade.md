@@ -3,8 +3,8 @@
 - **Issue:** #552
 - **Branch:** opencode/issue552-20261012113721
 - **Status:** in-progress
-- **Updated:** 2026-10-12T12:00:00Z
-- **Active Phase:** Phase 1: Deterministic Engine Core and Maze Foundation (Complete, ready for review)
+- **Updated:** 2026-10-12T14:55:00Z
+- **Active Phase:** Phase 2: Ghost Personalities and Mode Timing (in progress, branch `opencode/issue552-pacman-phase-2-ghost-ai`)
 
 ## Phase Roadmap
 
@@ -17,16 +17,16 @@
 
 ## Current step
 
-Phase 1 complete and pushed: engine core, protocol spike, CLI, docs, and hub are on the branch with 45 tests green. Ready for review (Refs #552).
+Phase 2 in progress on `opencode/issue552-pacman-phase-2-ghost-ai` from latest main (Phase 1 merged via PR #553): new `engine/ghosts.py` controller plus `game.py` integration. Pinned Phase 1 self-check values will be re-measured once ghost collisions enter the simulation (documented below, tests updated in the same PR).
 
 ## Next steps
 
-- Reviewer pass on the Phase 1 diff, then Tester, then Maintainer merges
-- Builder to implement Phase 2: Ghost Personalities and Mode Timing on a fresh phase branch from main
+- Reviewer pass on the Phase 2 diff, then Tester, then Maintainer merges
+- Builder to implement Phase 3: Tiered Renderer and Capability Detection on a fresh phase branch from main
 
-## Next steps
+## Standing notes
 
-- Builder to implement Phase 1: Deterministic Engine Core and Maze Foundation with real code and zero stubs
+- Builder to implement the active phase only, with real code and zero stubs
 - Reserve the Design Council pass (`/oc design`) before visual polish is declared done; it ships `pacman/docs/design.md` plus `pacman/docs/design-tokens.json`
 - Keep `Status: in-progress` with `Refs #552` until the final phase passes test and eval; only the final phase uses `Closes #552`
 
