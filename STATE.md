@@ -1,19 +1,19 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-12 run 38267728585 - Phase 2 PR #556 merged, Phase 3 chained**
+ - **Updated: 2026-10-12 run 38267696812 - Phase 2 PR #556 MERGED 97743bdc, Phase 3 build chained**
 
 ## PRs & Issues
- - **PRs:** Open: none (#556 merged 97743bdc, Refs #552). MERGED: #556 (Phase 2 Ghost Personalities and Mode Timing, 4 commits +923/-18, 11 files, review approve x2 + test approve-test 114 green + eval APPROVE-EVAL 9.8/10 on head 65ef79b5), #553 (Phase 1, commit 06093176 on main, Refs #552), #551, #550, #548, #545, #543, #541, #542, #540, #539, #538, #537, #536, #533, #534, #535, #531, #529, #527. CLOSED (not merged): #555 (Curator README sync, superseded by #553, branch kept). CLOSED: #547 (superseded by #548).
+ - **PRs:** Open: none. MERGED: #556 (Pac-Man Phase 2 Ghost Personalities and Mode Timing, merged 15:06:51Z as 97743bdc, Refs #552; review approve + test approve-test 114 green + eval APPROVE-EVAL 9.8/10 all on shipped head 65ef79b5), #553 (Phase 1, commit 06093176 on main, Refs #552), #551, #550, #548, #545, #543, #541, #542, #540, #539, #538, #537, #536, #533, #534, #535, #531, #529, #527. CLOSED (not merged): #555 (Curator README sync, superseded by #553, branch kept). CLOSED: #547 (superseded by #548).
  - **Issues:** Open: #70 lab-health, #42 brainstorm standing, #552 Pac-Man tracking (Phase 1 + Phase 2 merged as Refs, Phase 3 build chained). Closed: #554 (fulfilled by #553), #549, #546, #544, #532, #530, #528, #526, #515, #518, #504, #507, #498, #436-GUI-detach-unknown (verify; pending owner direction).
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run, no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - Pac-Man #552: Phase 1 MERGED as Refs #552 (review approve + test approve-test 81 green + eval APPROVE-EVAL 9.82/10 on head 0a0417b9). Phase 2 MERGED as Refs #552 (review approve 14:59:20Z + re-review approve 15:06:31Z + test approve-test 114 green + eval APPROVE-EVAL 9.8/10 on head 65ef79b5, merged in-session via gh pr merge --rebase, main 06093176 to 97743bdc, merge-base non-empty, no orphan). Phase 3 (Tiered Renderer and Capability Detection) build chained via decision.json this run.
+ - Pac-Man #552: Phase 1 MERGED as Refs #552 (review approve + test approve-test 81 green + eval APPROVE-EVAL 9.82/10 on head 0a0417b9). Phase 2 MERGED as Refs #552 (review approve + test approve-test 114 green + eval APPROVE-EVAL 9.8/10 on head 65ef79b5, main now 97743bdc). Phase 3 (Tiered Renderer and Capability Detection) build dispatched this run.
  - PR #556 merge rule: body Refs #552, #552 stays open until final phase passes test and eval.
- - Test-only gate note: Tester head 65ef79b5 is a single-file tests/ addition (test_tester_phase2.py, 163 lines, production untouched) on top of reviewed 612e7fd7 - review gate holds per precedent.
+ - Test-only gate note: Tester head 65ef79b5 was a single-file tests/ addition (test_tester_phase2.py, 163 lines, production untouched) on top of reviewed 612e7fd7 - review gate held per precedent; shipped head is exactly the gated head.
+ - Post-approval review note: owner `/oc review` at 15:05:45Z landed after approve-eval on the shipped head - moot, no re-dispatch (review guard blocks merged PRs).
  - Bot-permission noise comment on #556 (14:57:15Z, links maintainer pull_request run 38266598028): CLI actor-assert on the bot-authored PR push, expected gate behavior per precedent (run 38244046489 on PR #553) - not a failure, no lab escalation.
- - Failure triage this run: opencode run 38267576130 (BUILD auto-retry on #552) failed CLOSED-loop as designed - Phase 2 already shipped as PR #556 so the Builder correctly pushed nothing and the verify step exited 1 after 4 attempts. Expected no-push signal, NOT an infra failure; no lab escalation, no re-dispatch (duplicate build already chained via decision.json for Phase 3).
- - Run sweep: zero failure/timed_out besides the triaged no-push build arm above (opencode-review run 38267718311 in_progress is a redundant post-eval re-review that already posted a second approve 15:06:31Z; remainder skipped/cancelled maintainer workflow_run entries, skipped non-matching issue_comment arms, plus this in_progress run).
+ - Run sweep: zero failure/timed_out (only cancelled/skipped maintainer workflow_run entries plus this in_progress run).
  - Rebase-gate rule: a rebase or fix-push that rewrites a gated PR's head voids its gate; fresh review round required after each Fixer production-code push. Test-only Tester commits (single-file tests/, production untouched) do NOT void the review gate per precedent.
  - Eval-gate calibration note: surgical infra/docs/test-harness fixes may merge on Reviewer approve + Tester approve-test; Evaluator binding gate stays mandatory for product/research/phase deliverables.
  - Eval-crash rule (amended): eval run dying inside `Run evaluator agent` with no decision file and no Quality Council comment carries zero signal - retry eval once (cooldown 30 min same-signature). Second AGENT-STEP silent death routes `lab`, never a third eval. UNACQUIRED deaths do not count; one exception per cooldown window max.
@@ -23,14 +23,13 @@
  - Evaluator follow-up VERIFIED live on main: `archive/prism/benchmarks/bench_vs_codecs.py:28` sys.path depth bug (resolves to nonexistent `archive/archive/obsidian/benchmarks`). Queued as future Builder/test-hardening vehicle.
  - Workflow warts logged (not yet lab-routed): (1) opencode.yml verify step counts ALL historical auto-retry comments; (2) verify-step branch pattern false-negatives on non-`opencode/issue<N>-*` names. Lab to assess on second consecutive trigger-step failure.
  - Standing-board close guard: #70 must never carry `Closes #70` in a PR body; merge as Refs only.
- - Evaluator non-blocking notes (do not gate, carried): DEC2026 SYNC vs ansi.py DCS form (Phase 3 concern), cumulative event-log growth, PACMAN_RENDERER env unreachable from CLI, `--renderer auto` rejected, combined `--maze-check --self-check` drops self-check, progress tracker duplicated `## Next steps` heading, Kitty X/Y cell convention on real terminal, unlabeled maze excerpt caption.
- - Phase 2 Evaluator non-blocking notes (carried to Phase 3+): Elroy stack, notify overflow, clear-vs-dying race, Elroy-2 clock spin (confirmed non-load-bearing, follow-ups).
+ - Evaluator non-blocking notes (do not gate, carried): DEC2026 SYNC vs ansi.py DCS form (Phase 3 concern), cumulative event-log growth, PACMAN_RENDERER env unreachable from CLI, `--renderer auto` rejected, combined `--maze-check --self-check` drops self-check, progress tracker duplicated `## Next steps` heading, Kitty X/Y cell convention on real terminal, unlabeled maze excerpt caption. Plus Phase 2 notes: Elroy stage-2 speed stacking (ghosts.py:264), notify_dots overflow drop (ghosts.py:151), clear-clobbers-dying race (game.py:149), Elroy-2 clock spin (ghosts.py:204).
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. Pac-Man: Phase 3 build should be in flight on #552; react to Builder delivery (review -> test -> eval chain). Design Council (`/oc design`) before visual polish declared done.
-3. Pages re-confirm for 97743bdc (PR-branch preview for pr-556 observed staging; action_required held runs need owner approval).
-4. Main tip re-confirm (last verified 97743bdc this run via ls-remote post-merge).
+2. Pac-Man: Phase 3 build should be in flight on #552 (review -> test -> eval chain per phase). Design Council (`/oc design`) before visual polish declared done.
+3. Pages re-confirm for 97743bdc (action_required held runs need owner approval).
+4. Main tip re-confirm (last verified 97743bdc this run via ls-remote).
 5. Error-dump wart: await Owner direction; do NOT auto-queue an 8th lab mandate.
 6. Evaluator follow-up (archived bench helper path + weak assertion) queued for a future hardening vehicle.
 7. Council calibration: advisory Desktop Pet audit still pending.
@@ -39,8 +38,7 @@
 10. Standing rule: standby on all other fronts (no auto-ideate).
 
 ## OPEN QUESTIONS
- - Will Phase 3 (Tiered Renderer and Capability Detection) build cleanly on the 97743bdc main?
- - After merge, what phase branch shape will Phase 3 use?
+ - How will the Phase 3 Builder shape its branch (fresh phase branch from main per tracker)?
  - Owner direction on the error-dump wart (escalation posted 2026-10-07; 8th mandate withheld)?
  - Evaluator follow-up hardening vehicle (archived bench helper sys.path depth + weak assertion)?
  - What caused the ~50-min agent-step death in eval run 37362541465?
