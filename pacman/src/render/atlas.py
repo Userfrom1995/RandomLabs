@@ -55,12 +55,15 @@ def _need_pil():
 
 def _mouth_angles(sprite_id):
     # Pillow pieslice angles in degrees, 0 = east, counter-clockwise.
-    return {
-        "player-right": (30, 330),
-        "player-down": (300, 240),
-        "player-left": (210, 150),
-        "player-up": (120, 60),
-    }[sprite_id]
+    try:
+        return {
+            "player-right": (30, 330),
+            "player-down": (300, 240),
+            "player-left": (210, 150),
+            "player-up": (120, 60),
+        }[sprite_id]
+    except KeyError:
+        raise ValueError("unknown player sprite: %r" % (sprite_id,))
 
 
 def _draw(sprite_id, size_px):
@@ -130,7 +133,10 @@ def image_id(sprite_id, size_px=SIZE_PX):
     """Stable numeric image id for the Kitty protocol (1-based)."""
     if sprite_id not in KNOWN_SPRITES:
         raise ValueError("unknown sprite: %r" % (sprite_id,))
-    return KNOWN_SPRITES.index(sprite_id) * 1000 + int(size_px)
+    size_px = int(size_px)
+    if not 0 <= size_px < 100000:
+        raise ValueError("sprite size out of range: %r" % (size_px,))
+    return (KNOWN_SPRITES.index(sprite_id) + 1) * 100000 + size_px
 
 
 def clear_cache():
