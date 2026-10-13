@@ -84,6 +84,9 @@ registry; this section stays normative for the rules).
   agents via decision files and hardcoded PAT steps. Subagents are private
   helpers inside one run, never cross-run triggers.
 - Quality gates: Reviewer, Tester, and Evaluator gates are unchanged. The
-  ledger feeds them evidence; it replaces none of them.
+  ledger feeds them evidence; it replaces none of them. The measurable
+  completion criteria live in `.github/agents/quality-gates.md`
+  (companion; work is done only when every applicable gate passes
+  with its evidence artifact).
 - Single-threaded correctness: the primary agent remains responsible for
   the final diff, the final test result, and the final handoff.

@@ -314,6 +314,7 @@ New folder `.github/agents/`:
   CREATING_AGENTS.md # guidelines and rules for creating new agents
   delegation.md      # binding delegation/parallelism/skills protocol referenced by worker prompts
   skills.md          # known-skills registry companion to delegation.md section 5
+  quality-gates.md   # binding completion criteria companion to delegation.md section 6
   maintainer.md      # the Maintainer (Hephaestus) - the brain
   ideator.md         # the Ideator - brainstorm candidates
   architect.md       # the Architect - master technical strategist
