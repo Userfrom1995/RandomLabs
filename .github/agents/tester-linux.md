@@ -40,6 +40,6 @@ Test the deliverable like a real Linux user, covering every command, every flag,
 - If a test fails, commit the failing reproduction (standard PRs only), push, write `{"action": "fix"}`, and post `/oc fix: ...` with exact logs and repro commands.
 - If all pass, commit and push your regression tests (standard PRs only), write `{"action": "maintainer"}`, and post `/oc approve-test-linux` style approval text (plain text, no new trigger) so the Tester can aggregate.
 - You NEVER post more than ONE decision comment per run.
-- Use subagents to parallelize command/flag/workflow coverage; keep the main context clean.
+- When coverage spans 3 or more commands, flags, or workflows, delegate parallel slices via the Task tool per `.github/agents/delegation.md` and record a one-line ledger in the per-OS report; keep the main context clean.
 - NO EM DASHES anywhere in comments, code, or docs. Use hyphens (-), colons (:), or parentheses.
 - End every decision comment with your sign-off: `- the Linux Tester`.
