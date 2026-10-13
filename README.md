@@ -53,12 +53,13 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Active projects are software or research builds currently in progress under open tracking issues (meta tasks such as lab health audits or workflow maintenance are not listed here):
 
-- **Pac-Man Terminal Arcade (`pacman/`)** - In progress (issue #552): original maze with tunnel and ghost house, deterministic headless engine with replay hashes, layered Kitty/Sixel/Unicode renderer. [Website](https://userfrom1995.github.io/RandomLabs/pacman/) · [README](pacman/README.md)
+- None currently in flight; the lab is in standby.
 
 ## Previous Projects (Latest 10)
 
 The 10 most recent completed projects produced by the lab:
 
+- **Pac-Man Terminal Arcade (`pacman/`)** - Complete terminal arcade game: original maze with tunnel and ghost house, deterministic headless engine with replay hashes, layered Kitty/Sixel/Unicode renderer. [Website](https://userfrom1995.github.io/RandomLabs/pacman/) · [README](pacman/README.md)
 - **Terminal Browser (`terminal-browser/`)** - Agent-first browser that runs completely in the terminal: Go single binary with Chromium CDP sidecar, layered Kitty/Sixel/iTerm2/block renderer, snapshot-first MCP server plus agent CLI twin. [Website](https://userfrom1995.github.io/RandomLabs/terminal-browser/) · [README](terminal-browser/README.md)
 - **Desktop Pet (`pet/`)** - Cross-platform interactive desktop companion platform: single-pet core plus a multi-character catalog with distinct personalities, moods, and animations, runtime switching with persisted selection, a borderless always-on-top overlay with tray service mode, per-OS autostart plus installers, a creator-pack framework, and a Pages hub with a live canvas showcase. [Website](https://userfrom1995.github.io/RandomLabs/pet/) · [README](pet/README.md)
 - **Netpulse (`netpulse/`)** - Honest in-browser network diagnostics and monitoring tool: connection profile, HTTP quality probes, DNS-over-HTTPS toolkit, opt-in egress identity, WebRTC inspector, own-traffic observer, live monitor dashboard, and JSON plus CSV export with a printable source-stamped report. [Website](https://userfrom1995.github.io/RandomLabs/netpulse/) · [README](netpulse/README.md)
@@ -68,7 +69,6 @@ The 10 most recent completed projects produced by the lab:
 - **Tor CLI (`tor-cli`)** - Lightweight cross-platform Tor routing and network isolation CLI in Go (`torshim`): per-app routing, Tor-routed shell, and system-wide isolation with fail-closed guarantees. [Website](https://userfrom1995.github.io/RandomLabs/tor-cli/) · [README](tor-cli/README.md)
 - **Umbra** - Deterministic 60 Hz WebGPU/WGSL silhouette combat game with particle systems and WebGL2 fallback. [Website](https://userfrom1995.github.io/RandomLabs/umbra/) · [README](umbra/README.md)
 - **Doom** - Client-side web Doom engine with checked WAD parser and FM music synthesis. [Website](https://userfrom1995.github.io/RandomLabs/doom/) · [README](doom/README.md)
-- **Poolduel** - Exhaustive PostgreSQL connection pooler shootout harness, statistical audit, and report. [Website](https://userfrom1995.github.io/RandomLabs/poolduel/) · [README](poolduel/README.md)
 
 ## Archived Projects
 
