@@ -45,7 +45,7 @@ honestly with evidence, then complies when overruled.
   never the owner - with no `Co-authored-by:` trailer. Human contributor
   credit is preserved.
 
-Prompt files live in `.github/agents/` (see §17). The roster is `REGISTRY.md`.
+Prompt files live in `.github/agents/` (see §17). The roster is `REGISTRY.md`. Delegation, parallelism, and skills are binding per `.github/agents/delegation.md` (thresholds, parallel Task pattern, ledger, skill vetting); prompts that reference it MUST follow it.
 
 ## 3. The collaborative team call flow
 
@@ -312,6 +312,7 @@ New folder `.github/agents/`:
 .github/agents/
   REGISTRY.md        # roster of agents + trigger keywords (mirrored on maintainer/logs)
   CREATING_AGENTS.md # guidelines and rules for creating new agents
+  delegation.md      # binding delegation/parallelism/skills protocol referenced by worker prompts
   maintainer.md      # the Maintainer (Hephaestus) - the brain
   ideator.md         # the Ideator - brainstorm candidates
   architect.md       # the Architect - master technical strategist
