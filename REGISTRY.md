@@ -33,6 +33,7 @@ reviewed PRs (see LAB.md §21).
 
 - `.github/agents/delegation.md` - binding delegation, parallelism, and skills protocol (thresholds, parallel Task pattern, evidence ledger, skill discovery/vetting/use). It carries no trigger and gets no roster row; every worker prompt that references it MUST follow it.
 - `.github/agents/skills.md` - known-skills registry companion to `delegation.md` section 5 (one row per skill). It carries no trigger and gets no roster row.
+- `.github/agents/quality-gates.md` - binding completion criteria companion to `delegation.md` section 6 (Reviewer, Tester, Evaluator, per-OS gates plus evidence artifacts). It carries no trigger and gets no roster row.
 
 ## Team Spirit & Peer Calling Model
 
