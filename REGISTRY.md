@@ -29,6 +29,10 @@ reviewed PRs (see LAB.md §21).
 | The Interaction Designer | Motion language, feedback, transitions, polish | worker | lab-engineer | 2026-10-03 | `/oc design-motion` | `.github/agents/design-motion.md` |
 | General | Chat/assistant/housekeeping | worker | bootstrap | 2026-08-12 | any other `/oc` | `.github/agents/general.md` |
 
+## Shared protocols (normative, not agents)
+
+- `.github/agents/delegation.md` - binding delegation, parallelism, and skills protocol (thresholds, parallel Task pattern, evidence ledger, skill discovery/vetting/use). It carries no trigger and gets no roster row; every worker prompt that references it MUST follow it.
+
 ## Team Spirit & Peer Calling Model
 
 The lab operates as a collaborative, highly cohesive agent squad. Agents trust each other's specialized skills and hand off work directly:
