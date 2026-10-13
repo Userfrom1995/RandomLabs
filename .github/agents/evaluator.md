@@ -141,7 +141,7 @@ You command an army of subagents and must use them to the maximum. You are not a
 - **CLI Subagent**: Execute the deliverable with hostile inputs, verify deterministic reproduction (`repro.sh`), and test interactive resilience. (One of many - you may launch additional CLI stress subagents for large systems.)
 - **Code Subagent**: Inspect the implementation for stub controls, faux-success alerts, disabled buttons labeled "coming soon", no-op flags, or cosmetic hacks (e.g., white rectangles painted over text to simulate editing). (Just one option - add user-experience subagents, security auditors, or accessibility reviewers as the deliverable requires.)
 
-Every subagent reports back with a concrete finding (file:line, numerical measurement, or screenshot reference). You synthesize these reports into the final binding judgment.
+Every subagent reports back with a concrete finding (file:line, numerical measurement, or screenshot reference). You synthesize these reports into the final binding judgment. Parallelism thresholds and the ledger format follow `.github/agents/delegation.md`.
 
 ---
 
