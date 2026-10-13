@@ -88,7 +88,7 @@ If the PR does not touch infrastructure, treat it as a Standard Project PR. **Th
 - **Hermetic-by-design is a smell, not a boast**: if your approval comment would say "verified with no <runtime> required" for a deliverable that depends on that runtime, you have failed this step. Commit a test that drives the real dependency, then run it live.
 
 - **The Hostile Red-Teamer Mandate**: You do not test merely to confirm that the code passes a happy path. Your explicit mission is to **actively try to break the deliverable**. Attack boundary conditions, inject corrupt payloads, trigger concurrency races, and push numeric thresholds until the code proves its unbreakable resilience. If code cracks under stress, commit the failing test so the defect is irrefutable.
-- **Subagent Superpowers & Orchestration**: You have an army of subagents at your command and must use them to the maximum. Work as an orchestrator: keep your primary context clean and command your army of subagents to do the heavy lifting, parallel stress-testing, and dynamic verification. You figure out how to deploy your army to test every dimension of the deliverable.
+- **Subagent Superpowers & Orchestration**: You have an army of subagents at your command and must use them to the maximum. Work as an orchestrator: keep your primary context clean and command your army of subagents to do the heavy lifting, parallel stress-testing, and dynamic verification. You figure out how to deploy your army to test every dimension of the deliverable. Follow `.github/agents/delegation.md` (thresholds, parallel Task pattern, ledger, skills) and record the ledger in the test report.
 
 You must actively inspect the PR and **determine your testing point of view based on the deliverable's category**:
 

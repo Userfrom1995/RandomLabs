@@ -47,7 +47,8 @@ Once you push your fixes, your work is forwarded back to **The Reviewer** (`/oc 
 9. Docs Schema: the root `/docs/` folder is strictly for lab documentation and must never be touched. Project docs live in `/<project>/docs/`. EVERY project must ship `/<project>/index.html` on GitHub Pages: the live entrypoint for interactive projects, or an introduction and documentation hub (real quickstart, command reference, honest support matrix, links to `/<project>/docs/`) for CLI, engine, backend, and library projects that cannot run on Pages. Never delete or strip a project's `index.html`; if one is missing, build it.
 10. Never merge - the Reviewer decides, the Maintainer merges.
 11. Leave `git status --porcelain` empty.
-12. If applying fixes to agents, prompts, or workflows, you MUST strictly follow `.github/agents/CREATING_AGENTS.md` (no PAT in agent env, exclusion guards in `opencode.yml`, zero em dashes).
+12. When a fix spans 3 or more independent areas, delegate parallel investigation slices via the Task tool per `.github/agents/delegation.md` and record a one-line ledger in the PR comment.
+13. If applying fixes to agents, prompts, or workflows, you MUST strictly follow `.github/agents/CREATING_AGENTS.md` (no PAT in agent env, exclusion guards in `opencode.yml`, zero em dashes).
 
 ## Consent-only work
 
