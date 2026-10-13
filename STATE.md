@@ -1,17 +1,17 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-13 run 38436908942 - Lab Phase 1 PR #563 open, review in flight, standby**
+ - **Updated: 2026-10-13 run 38437402436 - Lab Phase 1 PR #563 MERGED, redeploy dispatched**
 
 ## PRs & Issues
- - **PRs:** Open: #563 (Lab Engineer Phase 1: delegation protocol, head 7b027aec, `.github/agents/` prompt-only +94/-7, Refs #42 with stray Closes #42 in body). MERGED: #562 (Curator: Pac-Man graduation + Poolduel archive + landing sync, merge commit 8461c69 via --rebase, branch kept; Reviewer approve 00:20:30Z + Tester approve-test 00:21:23Z on head 3ef23d0e, no fix after), #560 (Pac-Man Final, 1a89293, Closes #552), #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
- - **Issues:** Open: #70 lab-health, #42 brainstorm standing (lab overhaul epic, Lab Engineer owns phased PRs). Closed: #561 (Curator audit, auto-closed by Fixes #561 on merge of #562), #552 Pac-Man tracking COMPLETED 2026-10-12, plus earlier.
+ - **PRs:** Open: none. MERGED: #563 (Lab Engineer Phase 1: delegation protocol, head 7b027aec, `.github/agents/` prompt-only +94/-7, merge commit 2c2fd54 via --rebase, branch kept; Reviewer approve 17:16:16Z + Tester approve-test 17:16:58Z on head 7b027aec, no fix after; body Refs #42 only), #562 (Curator: Pac-Man graduation + Poolduel archive + landing sync, merge commit 8461c69 via --rebase, branch kept; Reviewer approve 00:20:30Z + Tester approve-test 00:21:23Z on head 3ef23d0e, no fix after), #560 (Pac-Man Final, 1a89293, Closes #552), #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
+ - **Issues:** Open: #70 lab-health, #42 brainstorm standing (lab overhaul epic, Lab Engineer owns phased PRs; Phase 1 merged, Phase 2+ announced: skills registry, reviewer ledger check). Closed: #561 (Curator audit, auto-closed by Fixes #561 on merge of #562), #552 Pac-Man tracking COMPLETED 2026-10-12, plus earlier.
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run, no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - LAB OVERHAUL Phase 1: PR #563 OPEN (head 7b027aec, delegation.md + 7 one-line prompt refs, green-invariant prompt-only). Owner `/oc review` 17:13:14Z queued opencode-review run 38436908779 (pending at survey); owner `/oc maintainer` 17:13:25Z summoned this run. Review in flight on exact head - duplicate-review stand-down applies. Body carries both `Refs #42` and `Closes #42`: merge as Refs only, keep #42 open (multi-phase epic, phases 2+ announced: skills registry, reviewer ledger check).
- - Infra routing guard active on #563: touches `.github/agents/` - follow-up work routes to Lab Engineer via `lab`, never `fix`/`continue`.
- - Main tip: 8461c69 (merge of #562; no merges since).
- - Orphan-main protection held: no merges this run, nothing to check.
+ - LAB OVERHAUL Phase 1 MERGED: PR #563 MERGED at 17:17:59Z (merge commit 2c2fd54, main tip verified). Phase 2+ (skills registry, reviewer ledger check) expected from the Lab Engineer under the standing #42 mandate from run 38436230416 - no duplicate dispatch.
+ - Infra routing guard stays active: any `.github/agents/` follow-up routes to Lab Engineer via `lab`, never `fix`/`continue`.
+ - Main tip: 2c2fd54 (merge of #563). Redeploy run 38437718504 (`Deploy static site to GitHub Pages` on `main`) dispatched ~2.5 min post-merge after no push-triggered pages run registered; next run confirms it succeeded.
+ - Orphan-main protection held: merge-base origin/main vs 7b027aec returned 8461c69 before merge.
  - Reviewer non-blocking carry-over (not gated, future lab vehicle): `.github/workflows/poolduel-{m1,m2,m9,m10-soak}.yml` still reference `poolduel/results/...`, dormant (workflow_dispatch-only). Route to Lab Engineer only if the Owner asks.
  - Rebase-gate rule: a rebase or fix-push that rewrites a gated PR's head voids its gate; fresh review round required after each Fixer production-code push. Test-only Tester commits (single-file tests/, production untouched) do NOT void the review gate per precedent.
  - Eval-gate calibration note: surgical infra/docs/test-hardening fixes may merge on Reviewer approve + Tester approve-test; Evaluator binding gate stays mandatory for product/research/phase deliverables.
@@ -21,26 +21,26 @@
  - Comment-post flakiness wart: a `github-actions[bot]` comment on #553 at 12:23:43Z contains a raw GitHub Unicorn error HTML page - single occurrence so far, watch for recurrence, route lab on second consecutive trigger/comment-step failure.
  - Evaluator follow-up VERIFIED live on main: `archive/prism/benchmarks/bench_vs_codecs.py:28` sys.path depth bug. Queued as future Builder/test-hardening vehicle.
  - Workflow warts logged (not yet lab-routed): (1) opencode.yml verify step counts ALL historical auto-retry comments; (2) verify-step branch pattern false-negatives on non-`opencode/issue<N>-*` names. Lab to assess on second consecutive trigger-step failure.
- - Standing-board close guard: #70 must never carry `Closes #70` in a PR body; merge as Refs only.
+ - Standing-board close guard: #70 must never carry `Closes #70` in a PR body; merge as Refs only. (#42 same: Refs only - enforced on #563.)
  - Evaluator non-blocking notes (do not gate, carried): DEC2026 SYNC vs ansi.py DCS form (Phase 3 concern), cumulative event-log growth, PACMAN_RENDERER env unreachable from CLI, `--renderer auto` rejected, combined `--maze-check --self-check` drops self-check, progress tracker duplicated `## Next steps` heading, Kitty X/Y cell convention on real terminal, unlabeled maze excerpt caption. Plus Phase 2 notes: Elroy stage-2 speed stacking (ghosts.py:264), notify_dots overflow drop (ghosts.py:151), clear-clobbers-dying race (game.py:149), Elroy-2 clock spin (ghosts.py:204). Plus Phase 4 notes: bare `level-clear` falls through while `level:N` plays the jingle at spawn (shell/app.py), `raw is None` EOF branch unreachable, per-frame preview Game on TITLE. Plus Phase 5 notes: `--levels 0` shows help exit 0 (argparse default=0 indistinguishable from flag-absent; coherent UX, dead-for-zero guard only), score/config writes lack tmp-file plus rename atomicity (contained by catch-and-fallback loaders), `--modes` one-liners and `--levels` header lean jargony. Plus Final Phase advisory nits (post-approval, non-blocking): non-clickable code-span cross-links, one `--fps up to 240` unit, footer lab voice; plus re-review nit: duplicate ShellState import (verify.py:144 and :172 as _ShellState).
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. Main tip re-confirm only after new merges.
-3. Lab overhaul: react to Reviewer verdict on #563 (approve -> dispatch test; findings -> dispatch lab, never fix/continue on infra PR). Merge as Refs #42, keep #42 open; expect Phase 2+ PRs.
+2. Confirm redeploy run 38437718504 succeeded; if missing/failed, re-dispatch pages.
+3. Lab overhaul: expect Phase 2+ PRs on #42; route each through review/test gates; merge as Refs #42, keep #42 open.
 4. Error-dump wart: overhaul may subsume; do NOT auto-queue a separate 8th lab mandate.
-5. Evaluator follow-up (archived bench helper path + weak assertion) queued for a future hardening vehicle.
+5. Evaluator follow-up (archived bench helper sys.path depth + weak assertion) queued for a future hardening vehicle.
 6. Council calibration: advisory Desktop Pet audit still pending.
 7. Watch: ubuntu-latest agent runs - if hollow-green/silent-stall recurs, the poisoned-cache class is NOT fixed and a lab mandate is warranted.
 8. Watch: comment-post flakiness (Unicorn-HTML wart) - second occurrence routes lab.
 9. Standing rule: standby on all other fronts (no auto-ideate).
 
 ## OPEN QUESTIONS
- - Will the Reviewer approve Phase 1, or send findings back to the Lab Engineer?
+ - Will Phase 2 (skills registry) and the reviewer ledger check land as clean small slices like Phase 1?
  - Which skills will survive quality/security review and actually get integrated and used?
- - How will the Lab Engineer sequence the remaining overhaul phases (skills registry, reviewer ledger check, ...)?
+ - How will the Lab Engineer sequence the remaining overhaul phases after Phase 1?
  - Will the Owner ask for the dormant poolduel sweep workflows to be retired or repointed at archive/poolduel?
- - Was the Pages 500 a one-off platform blip, or the start of an outage window? (Single occurrence 17:14:52Z; all deploys since success.)
+ - Was the Pages 500 a one-off platform blip, or the start of an outage window? (Single occurrence 17:14:52Z on 2026-09-29; all deploys since success.)
  - Owner direction on the error-dump wart (escalation posted 2026-10-07; 8th mandate withheld)?
  - Evaluator follow-up hardening vehicle (archived bench helper sys.path depth + weak assertion)?
  - What caused the ~50-min agent-step death in eval run 37362541465?
