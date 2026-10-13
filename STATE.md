@@ -1,20 +1,20 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-13 run 38436230416 - owner lab-restructure directive, lab dispatched on #42**
+ - **Updated: 2026-10-13 run 38436908942 - Lab Phase 1 PR #563 open, review in flight, standby**
 
 ## PRs & Issues
- - **PRs:** Open: none. MERGED: #562 (Curator: Pac-Man graduation + Poolduel archive + landing sync, merge commit 8461c69 via --rebase, branch kept; Reviewer approve 00:20:30Z + Tester approve-test 00:21:23Z on head 3ef23d0e, no fix after), #560 (Pac-Man Final, 1a89293, Closes #552), #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
- - **Issues:** Open: #70 lab-health, #42 brainstorm standing. Closed: #561 (Curator audit, auto-closed by Fixes #561 on merge of #562), #552 Pac-Man tracking COMPLETED 2026-10-12, plus earlier.
+ - **PRs:** Open: #563 (Lab Engineer Phase 1: delegation protocol, head 7b027aec, `.github/agents/` prompt-only +94/-7, Refs #42 with stray Closes #42 in body). MERGED: #562 (Curator: Pac-Man graduation + Poolduel archive + landing sync, merge commit 8461c69 via --rebase, branch kept; Reviewer approve 00:20:30Z + Tester approve-test 00:21:23Z on head 3ef23d0e, no fix after), #560 (Pac-Man Final, 1a89293, Closes #552), #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
+ - **Issues:** Open: #70 lab-health, #42 brainstorm standing (lab overhaul epic, Lab Engineer owns phased PRs). Closed: #561 (Curator audit, auto-closed by Fixes #561 on merge of #562), #552 Pac-Man tracking COMPLETED 2026-10-12, plus earlier.
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run, no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - LAB OVERHAUL: owner directive 2026-10-13T17:08:24Z on #42 (full lab restructure: investigate-first, redesign pipeline, subagent delegation, skills research/integration, quality gates, incremental PRs, continuous improvement). Dispatched `{"action": "lab", "issue": 42}` this run. Lab Engineer owns assessment + phased plan + incremental PRs; every PR stays review-gated and green.
- - Otherwise NOTHING IN FLIGHT: zero open PRs, zero untriaged issues (only boards #70/#42 remain), zero failure/timed_out in scope (recent entries all completed success/skipped/cancelled, plus this in_progress run).
- - Main tip: 8461c69 (merge of #562; not re-verified this run, no merges since).
+ - LAB OVERHAUL Phase 1: PR #563 OPEN (head 7b027aec, delegation.md + 7 one-line prompt refs, green-invariant prompt-only). Owner `/oc review` 17:13:14Z queued opencode-review run 38436908779 (pending at survey); owner `/oc maintainer` 17:13:25Z summoned this run. Review in flight on exact head - duplicate-review stand-down applies. Body carries both `Refs #42` and `Closes #42`: merge as Refs only, keep #42 open (multi-phase epic, phases 2+ announced: skills registry, reviewer ledger check).
+ - Infra routing guard active on #563: touches `.github/agents/` - follow-up work routes to Lab Engineer via `lab`, never `fix`/`continue`.
+ - Main tip: 8461c69 (merge of #562; no merges since).
  - Orphan-main protection held: no merges this run, nothing to check.
  - Reviewer non-blocking carry-over (not gated, future lab vehicle): `.github/workflows/poolduel-{m1,m2,m9,m10-soak}.yml` still reference `poolduel/results/...`, dormant (workflow_dispatch-only). Route to Lab Engineer only if the Owner asks.
  - Rebase-gate rule: a rebase or fix-push that rewrites a gated PR's head voids its gate; fresh review round required after each Fixer production-code push. Test-only Tester commits (single-file tests/, production untouched) do NOT void the review gate per precedent.
- - Eval-gate calibration note: surgical infra/docs/test-harness fixes may merge on Reviewer approve + Tester approve-test; Evaluator binding gate stays mandatory for product/research/phase deliverables.
+ - Eval-gate calibration note: surgical infra/docs/test-hardening fixes may merge on Reviewer approve + Tester approve-test; Evaluator binding gate stays mandatory for product/research/phase deliverables.
  - Eval-crash rule (amended): eval run dying inside `Run evaluator agent` with no decision file and no Quality Council comment carries zero signal - retry eval once (cooldown 30 min same-signature). Second AGENT-STEP silent death routes `lab`, never a third eval. UNACQUIRED deaths do not count; one exception per cooldown window max.
  - Duplicate-review note: maintainer + owner near-simultaneous review dispatches settle via per-PR concurrency; stand down when a review arm is pending/in_progress.
  - Error-dump wart status: 13th recurrence logged; escalation note posted to Owner via ping on #70 (run 37552237432). 8th lab mandate withheld per loop guard - awaiting Owner direction. (The overhaul may subsume this; Lab Engineer to assess, no separate mandate this run.)
@@ -27,7 +27,7 @@
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
 2. Main tip re-confirm only after new merges.
-3. Lab overhaul: expect Lab Engineer PRs on #42; route each through review/test gates; keep incremental-green invariant.
+3. Lab overhaul: react to Reviewer verdict on #563 (approve -> dispatch test; findings -> dispatch lab, never fix/continue on infra PR). Merge as Refs #42, keep #42 open; expect Phase 2+ PRs.
 4. Error-dump wart: overhaul may subsume; do NOT auto-queue a separate 8th lab mandate.
 5. Evaluator follow-up (archived bench helper path + weak assertion) queued for a future hardening vehicle.
 6. Council calibration: advisory Desktop Pet audit still pending.
@@ -36,8 +36,9 @@
 9. Standing rule: standby on all other fronts (no auto-ideate).
 
 ## OPEN QUESTIONS
- - How will the Lab Engineer sequence the overhaul (assessment first, then which subsystem PRs in which order)?
+ - Will the Reviewer approve Phase 1, or send findings back to the Lab Engineer?
  - Which skills will survive quality/security review and actually get integrated and used?
+ - How will the Lab Engineer sequence the remaining overhaul phases (skills registry, reviewer ledger check, ...)?
  - Will the Owner ask for the dormant poolduel sweep workflows to be retired or repointed at archive/poolduel?
  - Was the Pages 500 a one-off platform blip, or the start of an outage window? (Single occurrence 17:14:52Z; all deploys since success.)
  - Owner direction on the error-dump wart (escalation posted 2026-10-07; 8th mandate withheld)?
