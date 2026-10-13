@@ -90,3 +90,7 @@ registry; this section stays normative for the rules).
   with its evidence artifact).
 - Single-threaded correctness: the primary agent remains responsible for
   the final diff, the final test result, and the final handoff.
+- Continuous improvement: after every merged PR the lab verifies it still
+  works, records the improvement with evidence, and tracks leftover work
+  on the parent issue per `.github/agents/continuous-improvement.md`
+  (companion; it records gate results and replaces none of them).

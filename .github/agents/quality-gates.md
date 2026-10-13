@@ -53,8 +53,9 @@ passes with its evidence artifact present.
    for fixes) plus Tester infra-scope evidence, then Maintainer merge.
    No capability is removed before its replacement is verified green.
 - Phase PR (incremental overhaul): `Refs #N`, lab green, backward
-   compatible, each gate's result tracked on the parent issue (#42)
-   with progress, blockers, and test results.
+  compatible, each gate's result tracked on the parent issue (#42)
+  with progress, blockers, and test results, following the verify and
+  track steps in `.github/agents/continuous-improvement.md`.
 
 Adding or changing a gate means editing this file through a reviewed
 lab PR with the reason in the PR body.
