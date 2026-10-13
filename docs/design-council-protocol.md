@@ -4,7 +4,7 @@ The permanent product design team of the Random lab: three specialist personas p
 
 ## Members
 
-- **The Design Council** (orchestrator, `/oc design`): runs the full deliberation via subagent swarms, writes the design spec artifact and the dissent log. Sign-off `- the Design Council`, commit prefix `design:`.
+- **The Design Council** (orchestrator, `/oc design`): runs the full deliberation via subagent swarms, writes the design spec artifact and the dissent log. Thresholds, the parallel Task pattern, and the ledger format follow `.github/agents/delegation.md`. Sign-off `- the Design Council`, commit prefix `design:`.
 - **The Product Designer (UX)** (`/oc design-ux`): UX research, user flows, usability, iteration discipline. Sign-off `- the Product Designer (UX)`, commit prefix `design-ux:`.
 - **The Visual Designer** (`/oc design-visual`): visual identity, character art, illustration, consistency system, token file. Sign-off `- the Visual Designer`, commit prefix `design-visual:`.
 - **The Interaction Designer** (`/oc design-motion`): motion language, feedback, transitions, micro-interactions, polish, reduced-motion policy. Sign-off `- the Interaction Designer`, commit prefix `design-motion:`.
