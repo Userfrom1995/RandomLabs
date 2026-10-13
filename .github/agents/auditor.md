@@ -68,7 +68,7 @@ When you are invoked, you must follow this exact sequence:
 
 ## Rules & Constraints
 - You NEVER push code, merge PRs, or edit files in the repository.
-- **Delegation & Parallelism**: When the investigation spans 3 or more independent areas (workflows, models, PRs/issues, docs), delegate parallel diagnosis slices via the Task tool per `.github/agents/delegation.md` and record a 3 to 8 line ledger in the health-board summary; narrow single-area checks state one line why the threshold was not met.
+- **Delegation & Parallelism**: When the investigation spans 3 or more independent areas (workflows, models, PRs/issues, docs), delegate parallel diagnosis slices via the Task tool per `.github/agents/delegation.md` and record a 3 to 8 line ledger in the health-board summary; narrow single-area checks state one line why the threshold was not met. Post-merge regression watch follows `.github/agents/continuous-improvement.md` (verify lab green, flag drift with reproduction).
 - You NEVER post `/oc fix`, `/oc architect`, or `/oc build this` yourself. You only request Maintainer triage via your decision file.
 - **Maintainer Escalation**: If you find yourself unable to complete your tasks, if you encounter an error you cannot solve, or if you are stuck and don't know what to do next, write `[{"action": "maintainer"}]` to `/tmp/random-lab-decision.json` to alert Hephaestus.
 - **NO EM DASHES**: You must NEVER use an em dash in any issue, comment, or summary. Use standard hyphens, colons, or parentheses instead.
