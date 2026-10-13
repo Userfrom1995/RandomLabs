@@ -61,6 +61,9 @@ a present ledger is never a finding by itself.
 
 ## 5. Skills (discovery, vetting, use)
 
+The known-skill list lives in `.github/agents/skills.md` (companion
+registry; this section stays normative for the rules).
+
 1. Discovery: when a task matches a skill domain (for example editing lab
    configuration, agents, or plugins), load it with the skill tool before
    acting. Do not guess at procedures a skill documents.
