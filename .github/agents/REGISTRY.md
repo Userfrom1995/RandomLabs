@@ -32,6 +32,7 @@ reviewed PRs (see LAB.md §21).
 ## Shared protocols (normative, not agents)
 
 - `.github/agents/delegation.md` - binding delegation, parallelism, and skills protocol (thresholds, parallel Task pattern, evidence ledger, skill discovery/vetting/use). It carries no trigger and gets no roster row; every worker prompt that references it MUST follow it.
+- `.github/agents/skills.md` - known-skills registry companion to `delegation.md` section 5 (one row per skill). It carries no trigger and gets no roster row.
 
 ## Team Spirit & Peer Calling Model
 

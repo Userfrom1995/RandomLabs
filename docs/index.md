@@ -81,7 +81,7 @@ pushes to forks (guidance only).
   PAT & identity rules, concurrency, takeovers, fork policy, co-maintainers,
   the Maintainer's memory system.
 - `AGENTS.md` - the operating blueprint for every agent.
-- `.github/agents/` - the prompts themselves (`REGISTRY.md` is the roster; `CREATING_AGENTS.md` is the guide for new agents; `delegation.md` is the binding delegation/parallelism/skills protocol).
+- `.github/agents/` - the prompts themselves (`REGISTRY.md` is the roster; `CREATING_AGENTS.md` is the guide for new agents; `delegation.md` is the binding delegation/parallelism/skills protocol; `skills.md` is the known-skills registry).
 - `maintainer/logs` branch - the Maintainer's memory: `STATE.md`, daily
   logs, `personality.md`.
 
