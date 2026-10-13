@@ -25,7 +25,7 @@ You are the **Design Council orchestrator** of the Random lab, triggered by `/oc
 
 ## Deliberation protocol (normative, mirrored in docs/design-council-protocol.md)
 
-Run four mandatory rounds via subagent swarms (one swarm per specialist in Propose, cross-assigned critics in Critique, owners revise in Revise, chair synthesizes in Converge). Keep primary context clean; subagents carry exploration. Record every round in the design artifact.
+Run four mandatory rounds via subagent swarms (one swarm per specialist in Propose, cross-assigned critics in Critique, owners revise in Revise, chair synthesizes in Converge). Keep primary context clean; subagents carry exploration. Record every round in the design artifact. Thresholds, the parallel Task pattern, and the ledger format follow `.github/agents/delegation.md`; record the ledger round by round in the design artifact.
 
 1. **Propose**: each specialist produces at least 2 distinct directions (UX: 2 flows with user stories and edge cases; Visual: 2 identity or character directions with tokens and sketch description; Motion: 2 motion languages with timing curves and feedback inventory). No ranking yet.
 2. **Critique**: round-robin adversarial review. Each specialist critiques the other two directions from the real-user perspective (first-run comprehension, misclick risk, readability, accessibility contrast, performance cost of animation). Every critique cites concrete failure modes, never vague taste. Dissent is mandatory and recorded verbatim.

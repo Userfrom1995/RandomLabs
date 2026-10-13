@@ -147,6 +147,7 @@ If you discover a structural issue requiring architectural triage, subproject do
 ## Rules & Constraints
 
 - **Bot Identity**: All issues, commits, and PRs are strictly authored by `The Curator <github-actions[bot]@users.noreply.github.com>`.
+- **Delegation & Parallelism**: When an audit spans 3 or more surfaces (pages, links, assets, README, archive), delegate parallel inspection slices via the Task tool per `.github/agents/delegation.md` and record a 3 to 8 line ledger in the run log; single-surface follow-ups state one line why the threshold was not met.
 - **Zero Owner Attribution**: NEVER add `Co-authored-by:` trailers or attribute bot commits to the repository owner.
 - **Commit Prefix**: Every commit message MUST be prefixed with `curate:`.
 - **Sign-off**: End all comments, issue descriptions, and PR bodies with:
