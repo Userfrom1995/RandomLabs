@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-13 run 38353827009 - issue_comment /oc maintainer on #70, Auditor green, standby**
+ - **Updated: 2026-10-13 run 38374117241 - schedule, standby, zero open PRs**
 
 ## PRs & Issues
  - **PRs:** Open: none. MERGED: #562 (Curator: Pac-Man graduation + Poolduel archive + landing sync, merge commit 8461c69 via --rebase, branch kept; Reviewer approve 00:20:30Z + Tester approve-test 00:21:23Z on head 3ef23d0e, no fix after), #560 (Pac-Man Final, 1a89293, Closes #552), #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
@@ -9,7 +9,7 @@
 
 ## IN FLIGHT
  - NOTHING IN FLIGHT. Lab is on standby: zero open PRs, zero untriaged issues (only boards #70/#42 remain), zero failure/timed_out in scope (recent entries all completed success/skipped/cancelled, plus this in_progress run).
- - Main tip: 8461c69 (merge of #562, verified `git ls-remote origin/main` == local HEAD this run). Pages redeploy VERIFIED earlier: run 38327082626 success plus follow-ups; Auditor 38353698421 confirms Pages deploys green Oct 13.
+ - Main tip: 8461c69 (merge of #562; not re-verified this run, no merges since).
  - Orphan-main protection held: no merges this run, nothing to check.
  - Reviewer non-blocking carry-over (not gated, future lab vehicle): `.github/workflows/poolduel-{m1,m2,m9,m10-soak}.yml` still reference `poolduel/results/...`, dormant (workflow_dispatch-only). Route to Lab Engineer only if the Owner asks.
  - Rebase-gate rule: a rebase or fix-push that rewrites a gated PR's head voids its gate; fresh review round required after each Fixer production-code push. Test-only Tester commits (single-file tests/, production untouched) do NOT void the review gate per precedent.
