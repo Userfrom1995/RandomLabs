@@ -1,15 +1,17 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-13 run 38326659009 - issue_comment on #562, Curator PR review in flight, standby**
+ - **Updated: 2026-10-13 run 38326833425 - issue_comment /oc maintainer on #562, MERGED #562, standby**
 
 ## PRs & Issues
- - **PRs:** Open: #562 (Curator: Pac-Man graduation + Poolduel archive + landing sync, head 3ef23d0e, MERGEABLE/CLEAN, branch opencode/issue561-curate-pacman-graduate-poolduel-archive, body Fixes #561; owner /oc review 00:19:11Z queued opencode-review pending, owner /oc maintainer follows). MERGED: #560 (Pac-Man Final, 1a89293, Closes #552), #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
- - **Issues:** Open: #561 (Curator audit: graduate Pac-Man, archive Poolduel - COVERED by open PR #562, in review), #70 lab-health, #42 brainstorm standing. Closed: #552 Pac-Man tracking COMPLETED 2026-10-12, plus earlier.
+ - **PRs:** Open: none. MERGED: #562 (Curator: Pac-Man graduation + Poolduel archive + landing sync, merge commit 8461c69 via --rebase, branch kept; Reviewer approve 00:20:30Z + Tester approve-test 00:21:23Z on head 3ef23d0e, no fix after), #560 (Pac-Man Final, 1a89293, Closes #552), #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
+ - **Issues:** Open: #70 lab-health, #42 brainstorm standing. Closed: #561 (Curator audit, auto-closed by Fixes #561 on merge of #562), #552 Pac-Man tracking COMPLETED 2026-10-12, plus earlier.
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run, no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - PR #562: IN REVIEW. Reviewer arm pending (opencode-review queued 00:19:23Z on head 3ef23d0e); no approve/fix verdict yet. No merge authorized until review (plus test for a public-surface PR per precedent) clears. #561 stays open until merge.
- - Post-Pac-Man standby otherwise: zero failure/timed_out in scope this run (recent entries all completed/skipped success, cancelled maintainer skips, or this in_progress run); no untriaged issues (only boards + #561 covered by #562); no ideate.
+ - NOTHING IN FLIGHT. Lab is on standby: zero open PRs, zero untriaged issues (only boards #70/#42 remain), zero failure/timed_out in scope (recent entries all completed/skipped success or cancelled maintainer skips, plus this run).
+ - Main tip: 8461c69 (merge of #562). Post-merge pages redeploy dispatched via workflow_dispatch (run 38327082626) after no push/closed-triggered pages run registered within ~2.5 min of the merge; watch next run for its success.
+ - Orphan-main protection held: merge-base origin/main vs 3ef23d0e returned 1a89293 before merging.
+ - Reviewer non-blocking carry-over (not gated, future lab vehicle): `.github/workflows/poolduel-{m1,m2,m9,m10-soak}.yml` still reference `poolduel/results/...`, dormant (workflow_dispatch-only). Route to Lab Engineer only if the Owner asks.
  - Rebase-gate rule: a rebase or fix-push that rewrites a gated PR's head voids its gate; fresh review round required after each Fixer production-code push. Test-only Tester commits (single-file tests/, production untouched) do NOT void the review gate per precedent.
  - Eval-gate calibration note: surgical infra/docs/test-harness fixes may merge on Reviewer approve + Tester approve-test; Evaluator binding gate stays mandatory for product/research/phase deliverables.
  - Eval-crash rule (amended): eval run dying inside `Run evaluator agent` with no decision file and no Quality Council comment carries zero signal - retry eval once (cooldown 30 min same-signature). Second AGENT-STEP silent death routes `lab`, never a third eval. UNACQUIRED deaths do not count; one exception per cooldown window max.
@@ -23,7 +25,7 @@
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. PR #562: react to Reviewer verdict (approve -> dispatch test; findings -> dispatch fix). Then test -> merge (Fixes #561 closes the audit issue).
+2. Confirm pages redeploy run 38327082626 succeeded; if failed, investigate and re-dispatch.
 3. Main tip re-confirm only after new merges.
 4. Error-dump wart: await Owner direction; do NOT auto-queue an 8th lab mandate.
 5. Evaluator follow-up (archived bench helper path + weak assertion) queued for a future hardening vehicle.
@@ -33,7 +35,8 @@
 9. Standing rule: standby on all other fronts (no auto-ideate).
 
 ## OPEN QUESTIONS
- - Will the Reviewer approve #562 on the first round, or request public-surface fixes?
+ - Did the pages redeploy (run 38327082626) succeed, or do the push/closed triggers just lag?
+ - Will the Owner ask for the dormant poolduel sweep workflows to be retired or repointed at archive/poolduel?
  - Was the Pages 500 a one-off platform blip, or the start of an outage window? (Single occurrence 17:14:52Z; all deploys since success.)
  - Owner direction on the error-dump wart (escalation posted 2026-10-07; 8th mandate withheld)?
  - Evaluator follow-up hardening vehicle (archived bench helper sys.path depth + weak assertion)?
