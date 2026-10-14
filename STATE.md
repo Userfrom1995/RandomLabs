@@ -1,23 +1,24 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-14 run 38561308053 - schedule, standby, no drift**
+ - **Updated: 2026-10-14 run 38601147963 - curator PR #569 in tester gate, stood down**
 
 ## PRs & Issues
- - **PRs:** Open: none. MERGED: #567 (Lab Engineer Phase 5 continuous-improvement loop, head 016ee574, merge commit acede055 via --rebase, branch kept; body Refs #42 only), #566 (Phase 4 quality gates, head 661833a6, merge commit af4aaf1, branch kept; Refs #42), #565 (Phase 3 skills registry, head 5e41f24, merge commit 9bce3e0, branch kept; Refs #42), #564 (Phase 2 delegation coverage, head 8ada09de, merge commit 0ed8f17, branch kept; Refs #42), #563 (Phase 1 delegation protocol, head 7b027aec, merge commit 2c2fd54, branch kept; Refs #42), #562 (Curator Pac-Man graduation + Poolduel archive, merge commit 8461c69, branch kept), #560 (Pac-Man Final, 1a89293, Closes #552), #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
- - **Issues:** Open: #70 lab-health, #42 brainstorm standing (lab overhaul epic AND single source of truth; Phases 1-5 merged as Refs #42, Phase 6 instructed run stood down with evidenced completion, accepted run 38463966490). Closed: #561 (Curator audit, auto-closed by Fixes #561 on merge of #562), #552 Pac-Man tracking COMPLETED 2026-10-12, plus earlier.
+ - **PRs:** Open: #569 (Curator: remove milestone codes from doom public site, Fixes #568, head 63948b81, branch `opencode/issue568-curate-doom-milestone-language`, MERGEABLE, Reviewer `/oc approve` 16:48:40Z, Tester run 38601247664 in_progress since 16:48:46Z). MERGED: #567 (Lab Engineer Phase 5 continuous-improvement loop, head 016ee574, merge commit acede055 via --rebase, branch kept; body Refs #42 only), #566 (Phase 4 quality gates, head 661833a6, merge commit af4aaf1, branch kept; Refs #42), #565 (Phase 3 skills registry, head 5e41f24, merge commit 9bce3e0, branch kept; Refs #42), #564 (Phase 2 delegation coverage, head 8ada09de, merge commit 0ed8f17, branch kept; Refs #42), #563 (Phase 1 delegation protocol, head 7b027aec, merge commit 2c2fd54, branch kept; Refs #42), #562 (Curator Pac-Man graduation + Poolduel archive, merge commit 8461c69, branch kept), #560 (Pac-Man Final, 1a89293, Closes #552), #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
+ - **Issues:** Open: #568 (Curator doom milestone language, has linked PR #569 - triaged), #70 lab-health, #42 brainstorm standing (lab overhaul epic AND single source of truth; Phases 1-5 merged as Refs #42, Phase 6 instructed run stood down with evidenced completion, accepted run 38463966490). Closed: #561 (Curator audit, auto-closed by Fixes #561 on merge of #562), #552 Pac-Man tracking COMPLETED 2026-10-12, plus earlier.
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run, no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
+ - PR #569 CURATOR TRACK: Reviewer approved 16:48:40Z (one-file text-only `doom/index.html` +8/-8, verified no milestone leakage, filenames intact). Owner dispatched `/oc test` 16:48:42Z; `opencode-test` run 38601247664 in_progress. Maintainer stands down until `approve-test` lands, then merges (rebase, keep branch) and closes #568 per `Fixes #568`. Surgical copy fix: merge on Reviewer + Tester per eval-gate calibration (no Evaluator product gate).
  - LAB OVERHAUL SUBSTANTIALLY COMPLETE: Phase 6 instructed run 38463786451 (20:33:57Z 2026-10-13) stood down with evidence (two-knob free, 20 workflow pins free, allowlist exact match, docs bindings present, 0 open PRs). Verified live in run 38463966490; NO third lab dispatch per anti-loop bar from run 38459290981. Future infra needs a fresh scoped order, not a repeat Phase 6.
  - Pages GREEN: main deploy 38463785775 success at 20:33:40Z 2026-10-13 (post-#567). Prior redeploy 38463702824 cancelled (superseded); main deploys 20:25:48Z/20:26:35Z success. Preview-refs-only wart holds (5th data point: Phase 5 head preview failure vs main success); main deploys are the binding signal.
  - Pages preview wart (watch, fifth data point): PR-branch `pull_request` pages runs keep failing on lab PR refs even though Reviewer/Tester verified all 20 workflows parse clean. If a main deploy fails the same way, route lab immediately.
  - Reviewer non-blocking note (carried, not a finding): PRs #564/#565 say "tracked on #42" but #42 is titled Brainstorm Board; precedent accepts the linkage, no diff impact.
  - Reviewer advisory (carried, from #567): 9-file/3-dir shape sits above the literal delegation section-2 file/dir count, so a future run of this shape may want a 3-line ledger to avoid threshold debate; not blocking.
  - Infra routing guard stays active: any `.github/agents/` follow-up routes to Lab Engineer via `lab`, never `fix`/`continue`.
- - Main tip: acede055 (merge of #567; verified `git ls-remote origin/main` == local HEAD this run, no merges since).
- - Orphan-main protection held on #567 (merge-base returned af4aaf1 before merge).
+ - Main tip: acede055 (merge of #567; PR #569 unmerged so main tip unchanged).
+ - Orphan-main protection holds: verify merge-base with main before merging #569.
  - Rebase-gate rule: a rebase or fix-push that rewrites a gated PR's head voids its gate; fresh review round required after each Fixer production-code push. Test-only Tester commits (single-file tests/, production untouched) do NOT void the review gate per precedent.
- - Eval-gate calibration note: surgical infra/docs/test-hardening fixes may merge on Reviewer approve + Tester approve-test; Evaluator binding gate stays mandatory for product/research/phase deliverables.
+ - Eval-gate calibration note: surgical infra/docs/test-hardening fixes may merge on Reviewer approve + Tester approve-test; Evaluator binding gate stays mandatory for product/research/phase deliverables. #569 (text-only curator copy) qualifies as surgical.
  - Eval-crash rule (amended): eval run dying inside `Run evaluator agent` with no decision file and no Quality Council comment carries zero signal - retry eval once (cooldown 30 min same-signature). Second AGENT-STEP silent death routes `lab`, never a third eval. UNACQUIRED deaths do not count; one exception per cooldown window max.
  - Duplicate-review note: maintainer + owner near-simultaneous review dispatches settle via per-PR concurrency; stand down when a review arm is pending/in_progress.
  - IP hold (standing): God of War Kratos vs Zeus commission declined twice on binding IP grounds (Sony copyright; waiver does not transfer liability); original mythic-duel alternative (Thor vs Zeus original designs) stands awaiting owner confirmation. Envelope context in this run carries no new Kratos order.
@@ -30,7 +31,7 @@
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. Routine survey; main tip re-confirm only after new merges.
+2. PR #569: if Tester `approve-test` landed with no newer `/oc fix`, merge (rebase, keep branch), close #568, verify Pages main deploy.
 3. Future lab work needs a fresh scoped owner order; do NOT re-dispatch Phase 6 or the overhaul mandate without one.
 4. Error-dump wart: overhaul substantially complete; do NOT auto-queue a separate 8th lab mandate without owner direction.
 5. Evaluator follow-up (archived bench helper sys.path depth + weak assertion) queued for a future hardening vehicle.
