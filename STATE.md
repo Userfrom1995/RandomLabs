@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-13 run 38473892558 - schedule standby, overhaul complete, no drift**
+ - **Updated: 2026-10-14 run 38493203028 - schedule standby, no drift, overhaul complete**
 
 ## PRs & Issues
  - **PRs:** Open: none. MERGED: #567 (Lab Engineer Phase 5 continuous-improvement loop, head 016ee574, merge commit acede055 via --rebase, branch kept; body Refs #42 only), #566 (Phase 4 quality gates, head 661833a6, merge commit af4aaf1, branch kept; Refs #42), #565 (Phase 3 skills registry, head 5e41f24, merge commit 9bce3e0, branch kept; Refs #42), #564 (Phase 2 delegation coverage, head 8ada09de, merge commit 0ed8f17, branch kept; Refs #42), #563 (Phase 1 delegation protocol, head 7b027aec, merge commit 2c2fd54, branch kept; Refs #42), #562 (Curator Pac-Man graduation + Poolduel archive, merge commit 8461c69, branch kept), #560 (Pac-Man Final, 1a89293, Closes #552), #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
@@ -8,13 +8,13 @@
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - LAB OVERHAUL SUBSTANTIALLY COMPLETE: Phase 6 instructed run 38463786451 (20:33:57Z) stood down with evidence (two-knob free, 20 workflow pins free, allowlist exact match, docs bindings present, 0 open PRs). Verified live in run 38463966490; NO third lab dispatch per anti-loop bar from run 38459290981. Future infra needs a fresh scoped order, not a repeat Phase 6.
- - Pages GREEN: main deploy 38463785775 success at 20:33:40Z (post-#567). Prior redeploy 38463702824 cancelled (superseded); main deploys 20:25:48Z/20:26:35Z success. Preview-refs-only wart holds (5th data point: Phase 5 head preview failure vs main success); main deploys are the binding signal.
+ - LAB OVERHAUL SUBSTANTIALLY COMPLETE: Phase 6 instructed run 38463786451 (20:33:57Z 2026-10-13) stood down with evidence (two-knob free, 20 workflow pins free, allowlist exact match, docs bindings present, 0 open PRs). Verified live in run 38463966490; NO third lab dispatch per anti-loop bar from run 38459290981. Future infra needs a fresh scoped order, not a repeat Phase 6.
+ - Pages GREEN: main deploy 38463785775 success at 20:33:40Z 2026-10-13 (post-#567). Prior redeploy 38463702824 cancelled (superseded); main deploys 20:25:48Z/20:26:35Z success. Preview-refs-only wart holds (5th data point: Phase 5 head preview failure vs main success); main deploys are the binding signal.
  - Pages preview wart (watch, fifth data point): PR-branch `pull_request` pages runs keep failing on lab PR refs even though Reviewer/Tester verified all 20 workflows parse clean. If a main deploy fails the same way, route lab immediately.
  - Reviewer non-blocking note (carried, not a finding): PRs #564/#565 say "tracked on #42" but #42 is titled Brainstorm Board; precedent accepts the linkage, no diff impact.
  - Reviewer advisory (carried, from #567): 9-file/3-dir shape sits above the literal delegation section-2 file/dir count, so a future run of this shape may want a 3-line ledger to avoid threshold debate; not blocking.
  - Infra routing guard stays active: any `.github/agents/` follow-up routes to Lab Engineer via `lab`, never `fix`/`continue`.
- - Main tip: acede055 (merge of #567; not re-verified this run, no merges since).
+ - Main tip: acede055 (merge of #567; verified `git ls-remote origin/main` == local HEAD this run, no merges since).
  - Orphan-main protection held on #567 (merge-base returned af4aaf1 before merge).
  - Rebase-gate rule: a rebase or fix-push that rewrites a gated PR's head voids its gate; fresh review round required after each Fixer production-code push. Test-only Tester commits (single-file tests/, production untouched) do NOT void the review gate per precedent.
  - Eval-gate calibration note: surgical infra/docs/test-hardening fixes may merge on Reviewer approve + Tester approve-test; Evaluator binding gate stays mandatory for product/research/phase deliverables.
