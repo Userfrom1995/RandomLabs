@@ -1,16 +1,16 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-14 run 38601782501 - PR #569 MERGED, issue #568 closed**
+ - **Updated: 2026-10-14 run 38605815785 - post-#569 Pages deploy VERIFIED, standby**
 
 ## PRs & Issues
  - **PRs:** Open: none. MERGED: #569 (Curator: remove milestone codes from doom public site, head 63948b81, merged 16:53:22Z via --rebase, branch kept; body Fixes #568), #567 (Lab Engineer Phase 5 continuous-improvement loop, head 016ee574, merge commit acede055 via --rebase, branch kept; body Refs #42 only), #566 (Phase 4 quality gates, head 661833a6, merge commit af4aaf1, branch kept; Refs #42), #565 (Phase 3 skills registry, head 5e41f24, merge commit 9bce3e0, branch kept; Refs #42), #564 (Phase 2 delegation coverage, head 8ada09de, merge commit 0ed8f17, branch kept; Refs #42), #563 (Phase 1 delegation protocol, head 7b027aec, merge commit 2c2fd54, branch kept; Refs #42), #562 (Curator Pac-Man graduation + Poolduel archive, merge commit 8461c69, branch kept), #560 (Pac-Man Final, 1a89293, Closes #552), #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
  - **Issues:** Open: #70 lab-health, #42 brainstorm standing (lab overhaul epic AND single source of truth; Phases 1-5 merged as Refs #42, Phase 6 instructed run stood down with evidenced completion, accepted run 38463966490). Closed: #568 (Curator doom milestone language, auto-closed 16:53:24Z via Fixes #568 on merge of #569), #561 (Curator audit, auto-closed by Fixes #561 on merge of #562), #552 Pac-Man tracking COMPLETED 2026-10-12, plus earlier.
- - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run (line 38 of maintainer.yml holds the 19-entry list), no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
+ - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run (20 `name:` fields incl. maintainer itself), no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - NOTHING IN FLIGHT: zero open PRs, zero untriaged issues. Curator track #569/#568 fully resolved this run (Reviewer approve 16:48:40Z, Tester approve-test 16:52:27Z, merged 16:53:22Z).
+ - NOTHING IN FLIGHT: zero open PRs, zero untriaged issues. Curator track #569/#568 fully resolved run 38601782501 (Reviewer approve 16:48:40Z, Tester approve-test 16:52:27Z, merged 16:53:22Z).
  - LAB OVERHAUL SUBSTANTIALLY COMPLETE: Phase 6 instructed run 38463786451 (20:33:57Z 2026-10-13) stood down with evidence (two-knob free, 20 workflow pins free, allowlist exact match, docs bindings present, 0 open PRs). Verified live in run 38463966490; NO third lab dispatch per anti-loop bar from run 38459290981. Future infra needs a fresh scoped order, not a repeat Phase 6.
- - Pages: main tip f1c2908d (merge of #569). Post-merge main deploy pending verification next run; last verified main deploy 38463785775 success at 20:33:40Z 2026-10-13 (post-#567). Prior redeploy 38463702824 cancelled (superseded); main deploys 20:25:48Z/20:26:35Z success. Preview-refs-only wart holds (5th data point: Phase 5 head preview failure vs main success); main deploys are the binding signal.
+ - Pages: main tip f1c2908d (merge of #569). Post-#569 main deploy VERIFIED this run: pages workflow_dispatch 16:54:11Z success. Prior main deploy 38463785775 success 20:33:40Z 2026-10-13 (post-#567). Preview-refs-only wart holds (5th data point: Phase 5 head preview failure vs main success); main deploys are the binding signal.
  - Pages preview wart (watch, fifth data point): PR-branch `pull_request` pages runs keep failing on lab PR refs even though Reviewer/Tester verified all 20 workflows parse clean. If a main deploy fails the same way, route lab immediately.
  - Reviewer non-blocking note (carried, not a finding): PRs #564/#565 say "tracked on #42" but #42 is titled Brainstorm Board; precedent accepts the linkage, no diff impact.
  - Reviewer advisory (carried, from #567): 9-file/3-dir shape sits above the literal delegation section-2 file/dir count, so a future run of this shape may want a 3-line ledger to avoid threshold debate; not blocking.
@@ -31,16 +31,15 @@
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. Verify post-#569 Pages main deploy succeeded; if it failed the same way as PR-ref runs, route lab immediately.
-3. Future lab work needs a fresh scoped owner order; do NOT re-dispatch Phase 6 or the overhaul mandate without one.
-4. Error-dump wart: overhaul substantially complete; do NOT auto-queue a separate 8th lab mandate without owner direction.
-5. Evaluator follow-up (archived bench helper sys.path depth + weak assertion) queued for a future hardening vehicle.
-6. Council calibration: advisory Desktop Pet audit still pending.
-7. Watch: ubuntu-latest agent runs - if hollow-green/silent-stall recurs, the poisoned-cache class is NOT fixed and a lab mandate is warranted.
-8. Watch: comment-post flakiness (Unicorn-HTML wart) - second occurrence routes lab.
-9. Watch: main Pages deploys - failure routes lab immediately.
-10. Standing rule: standby on all other fronts (no auto-ideate).
-11. IP: any new Kratos/God of War order stays declined on binding grounds; original-duel path on confirmation only.
+2. Future lab work needs a fresh scoped owner order; do NOT re-dispatch Phase 6 or the overhaul mandate without one.
+3. Error-dump wart: overhaul substantially complete; do NOT auto-queue a separate 8th lab mandate without owner direction.
+4. Evaluator follow-up (archived bench helper sys.path depth + weak assertion) queued for a future hardening vehicle.
+5. Council calibration: advisory Desktop Pet audit still pending.
+6. Watch: ubuntu-latest agent runs - if hollow-green/silent-stall recurs, the poisoned-cache class is NOT fixed and a lab mandate is warranted.
+7. Watch: comment-post flakiness (Unicorn-HTML wart) - second occurrence routes lab.
+8. Watch: main Pages deploys - failure routes lab immediately.
+9. Standing rule: standby on all other fronts (no auto-ideate).
+10. IP: any new Kratos/God of War order stays declined on binding grounds; original-duel path on confirmation only.
 
 ## OPEN QUESTIONS
  - After Phase 6 acceptance, is there any residual overhaul scope the owner still wants (or is the mandate closed)?
