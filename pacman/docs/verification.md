@@ -1,20 +1,21 @@
 # Pac-Man Terminal Arcade - Verification Report
 
-Produced by `python3 pacman/pacman.py --verify` (92 rows, all passing on the
-reference machine). The same matrices live in `src/shell/verify.py`, so the
-CLI, this report, and the pytest suite (`tests/test_verify_final.py`) can
-never drift apart: the suite pins the row counts and fails if a check goes
-quiet. Real-terminal proof rides alongside: true-pty `--play` drives on
-unicode and kitty at 80x50, 100x44, 120x50, and 160x60 (title, magnified
-gameplay with side panels, pause, too-small card at 20x10, clean teardown,
-symmetric kitty place/erase counts with multi-cell `c=2` placements) plus
-sixel and midnight-theme smoke runs, a dedicated menu tour on unicode
-100x44 and kitty 120x50 (title navigation, help open and back, mid-game
-help, session mute on and off, pause-menu sound toggle, hotkey resume,
-clean exit with symmetric kitty place/erase), and a settings tour on
-unicode 100x44/80x40 and kitty 120x50 (title and pause entry, left/right
-cycling, mode deferred to the next run, config-file persistence
-reloaded from disk, clean exit 0).
+Produced by `python3 pacman/pacman.py --verify` (106 rows, all passing on
+the reference machine). The same matrices live in `src/shell/verify.py`, so
+the CLI, this report, and the pytest suite (`tests/test_verify_final.py`)
+can never drift apart: the suite pins the row counts and fails if a check
+goes quiet. Real-terminal proof rides alongside: a true-pty `--play` tour
+on unicode at 100x44, 120x50, 80x24 (follow-cam viewport), and 160x60 plus
+kitty at 100x44 and 120x50 (title, magnified gameplay with side panels and
+crisp 1x HUD text, pause/resume, too-small card at 20x10, clean exit 0,
+symmetric kitty place/erase counts, zero duplicated-letter artifacts in the
+stripped frame text) plus sixel and midnight-theme smoke runs, a dedicated
+menu tour on unicode 100x44 and kitty 120x50 (title navigation, help open
+and back, mid-game help, session mute on and off, pause-menu sound toggle,
+hotkey resume, clean exit with symmetric kitty place/erase), and a settings
+tour on unicode 100x44/80x40 and kitty 120x50 (title and pause entry,
+left/right cycling, mode and level deferred to the next run, config-file
+persistence reloaded from disk, clean exit 0).
 
 ## Gameplay (15 rows)
 
@@ -33,12 +34,13 @@ the ghost freeze is gone: active hunters displace whole tiles within
 seconds (peak displacement tracked, so a mid-run death cannot hide a
 freeze), and frightened ghosts roam double-digit tiles while fright lasts.
 
-## Terminal sizes (6 rows)
+## Terminal sizes (8 rows)
 
-The scene needs 28x34 cells. Exact fit passes, roomy terminals (80x50,
-120x40) pass, and anything smaller (standard 80x24, classic 80x25, tiny
-20x10) routes to the honest too-small card instead of a garbled maze.
-Note: a stock 80x24 terminal is below the minimum, the game tells you so.
+Full magnified boxes play where they fit (exact 28x34, roomy 80x50 and
+120x40). Short windows fall back to the follow-cam viewport instead of
+failing: the standard 80x24 and classic 80x25 defaults play a 1x maze
+slice that tracks the player. Only windows below 28x16 (tiny 20x10,
+narrow 27x30, short 80x15) get the honest too-small card.
 
 ## Responsive layout (10 rows)
 
@@ -55,12 +57,13 @@ with panel thresholds that follow the magnified maze box.
 ## Scaled visuals (13 rows)
 
 Roomy terminals magnify instead of leaving dead space. The visual matrix
-pins the magnification ladder (classic 1x1, wide 2x1 once 56x34 fits,
-full 2x2 on huge windows, auto picking the richest fit; unknown modes
-fall back to classic while `check()` raises), the doubled wide blit
-(origin cells verbatim, fillers repeating the glyph, one `(2,1)` image
-span per sprite), and multi-cell kitty placements (`c=2`) on the live
-backend. Animation frames are pinned tick by tick: the mouth opens and
+pins the magnification ladder (classic 1x1; wide 2x1; auto/full filling
+up to 4x per axis, e.g. 4x2 on 200x80, with single-tall rows capped at
+2x1 so the side chrome fills the rest; unknown modes fall back to
+classic while `check()` raises), the magnified blit (HUD rows exact at
+1x, maze origins matching the scene, fillers repeating the glyph, one
+`(2,1)` image span per maze sprite), and multi-cell kitty placements
+(`c=2`) on the live backend. Animation frames are pinned tick by tick: the mouth opens and
 closes (legacy paint never emits closed sprites), energizers pulse
 through three frames with reduced-flash pinning one, dying advances
 four frames over the death sequence, clearing tints walls rainbow, and
@@ -90,16 +93,32 @@ back to the title with the help card showing its headline. The pause menu
 resumes on confirm, toggles sound while staying paused, and quits back to
 the title without exiting; the game-over menu restarts on confirm.
 
-## Custom settings (10 rows)
+## Custom settings (12 rows)
 
 The settings screen is reachable from the title and pause menus and
 returns to the screen it came from without disturbing a live run. Theme
 cycling changes the live palette (a full cycle wraps back), effects and
 scale cycle live on the fullscreen canvas, the mode choice leaves the
 running game on its old ruleset (honestly deferred: the next
-`start_run` picks it up), every change persists to the config file and
-reloads field-identically, invalid values are rejected with the state
-kept intact, and help opened from settings returns to settings.
+`start_run` picks it up), the starting level cycles 1..32 and likewise
+defers to the next run while persisting to the config file, every
+change persists to the config file and reloads field-identically,
+invalid values are rejected with the state kept intact, and help
+opened from settings returns to settings.
+
+## Fullscreen clarity, fill, and viewport (10 rows)
+
+The wave-2 section pins the three owner reports directly against the
+real composer. Two rows scan magnified frames (2x1 on 120x50, 4x1 on
+200x80) for duplicated-letter artifacts and require the HUD rows
+byte-exact at 1x over the magnified maze. Two fill rows pin the
+largest fitting boxes (4x2 on 200x80; the 2x1 aspect cap with both
+panels on 160x60). Four viewport rows prove the 80x24 default plays
+through follow-cam (frame size, edge-clamped camera math, the player
+sprite inside the slice, the 28x16 floor with smaller windows still on
+the too-small card, and the standalone painter agreeing with the
+layout path). One smoothness row caps the 160x60 unicode steady-frame
+average below 4 KB, pinning the diff path that keeps play fluid.
 
 ## Fallback parity (11 rows)
 

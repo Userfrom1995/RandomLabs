@@ -4,7 +4,7 @@
 - **Branch:** opencode/issue552-pacman-remediation
 - **Status:** in-progress
 - **Updated:** 2026-10-15
-- **Active Phase:** Phase 3: Thoughtful Controls Menus and Remapping (DONE, awaiting review gate)
+- **Active Phase:** Wave 2: Fullscreen Fit, Clarity, Levels, Packaging (DONE, ready for review gate; Refs #552)
 
 ## Phase Roadmap
 
@@ -86,13 +86,29 @@ duplicated every scene glyph, so HUD rows read "SSCCOORREE / LLEEVVEELL".
 - [x] Smoothness: measured, not guessed: unicode steady frames stay
   tiny (37-64 B at 120x50..200x80 via the backend diff path),
   compose+present runs 77-542 fps headless vs the 30 fps loop.
-- [ ] Levels: starting level selectable in settings/CLI/config (1..32
+- [x] Levels: starting level selectable in settings/CLI/config (1..32
   in the UI, any >= 1 via --level); win-to-next progression unchanged.
-- [ ] Packaging: pyproject.toml (setuptools, console script), pip
+- [x] Packaging: pyproject.toml (setuptools, console script), pip
   install verified in a clean venv, --version flag, install docs.
-- [ ] Proof: 10-row fullscreen verify section (104 total), pty tour
-  across sizes/backends, scoreboard/docs/hub/ideas refreshed.
-- Suite: 467 green. PR target: Refs #552 (no close until owner confirms).
+- [x] Proof: 10-row fullscreen verify section (106 total with 2 level
+  rows), pty tour 7/7 across sizes/backends, scoreboard/docs/hub/ideas
+  refreshed.
+- Suite: 475 green. PR target: Refs #552 (no close until owner confirms).
+
+## Agent log (wave 2)
+
+- 2026-10-15 (builder): implemented Wave 2 on
+  `opencode/issue552-pacman-fullscreen-wave2` (Refs #552) in 4 modular
+  commits: render clarity/fill/viewport (scale 1..4 fill with aspect
+  cap, HUD-at-1x blit, follow-cam viewport to 28x16, OverflowError
+  hardening, verify 92 -> 104 with the fullscreen section), starting
+  level select (settings/config/CLI/`--level`, verify 104 -> 106),
+  installable packaging (pyproject.toml, console script, `--version`,
+  clean-venv proof), docs/hub/ideas/scoreboard refresh. True-pty tour
+  7/7 (unicode 100x44/120x50/80x24/160x60, kitty 100x44/120x50,
+  too-small 20x10): exit 0 everywhere, zero duplicated-letter
+  artifacts, symmetric kitty place/erase. Suite 475 green. Ready for
+  review. - the Builder
 
 ## Standing notes
 
