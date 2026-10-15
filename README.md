@@ -53,13 +53,12 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Active projects are software or research builds currently in progress under open tracking issues (meta tasks such as lab health audits or workflow maintenance are not listed here):
 
-- None currently in flight; the lab is in standby.
+- **Pac-Man Terminal Arcade (`pacman/`)** (Tracking Issue: [#552](https://github.com/Userfrom1995/RandomLabs/issues/552)) - Complete terminal arcade game: original maze with tunnel and ghost house, deterministic headless engine with replay hashes, layered Kitty/Sixel/Unicode renderer (phased build in progress). [Website](https://userfrom1995.github.io/RandomLabs/pacman/) · [README](pacman/README.md)
 
 ## Previous Projects (Latest 10)
 
-The 10 most recent completed projects produced by the lab:
+The most recent completed projects produced by the lab (up to 10):
 
-- **Pac-Man Terminal Arcade (`pacman/`)** - Complete terminal arcade game: original maze with tunnel and ghost house, deterministic headless engine with replay hashes, layered Kitty/Sixel/Unicode renderer. [Website](https://userfrom1995.github.io/RandomLabs/pacman/) · [README](pacman/README.md)
 - **Terminal Browser (`terminal-browser/`)** - Agent-first browser that runs completely in the terminal: Go single binary with Chromium CDP sidecar, layered Kitty/Sixel/iTerm2/block renderer, snapshot-first MCP server plus agent CLI twin. [Website](https://userfrom1995.github.io/RandomLabs/terminal-browser/) · [README](terminal-browser/README.md)
 - **Desktop Pet (`pet/`)** - Cross-platform interactive desktop companion platform: single-pet core plus a multi-character catalog with distinct personalities, moods, and animations, runtime switching with persisted selection, a borderless always-on-top overlay with tray service mode, per-OS autostart plus installers, a creator-pack framework, and a Pages hub with a live canvas showcase. [Website](https://userfrom1995.github.io/RandomLabs/pet/) · [README](pet/README.md)
 - **Netpulse (`netpulse/`)** - Honest in-browser network diagnostics and monitoring tool: connection profile, HTTP quality probes, DNS-over-HTTPS toolkit, opt-in egress identity, WebRTC inspector, own-traffic observer, live monitor dashboard, and JSON plus CSV export with a printable source-stamped report. [Website](https://userfrom1995.github.io/RandomLabs/netpulse/) · [README](netpulse/README.md)
