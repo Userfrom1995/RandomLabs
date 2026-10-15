@@ -5,9 +5,10 @@ can never regress to green-while-broken:
   B1. kitty stale image placements (sprite trails) are erased per move,
       and sprite cells always carry a text underlay for terminals that
       cannot render images;
-  B2. every backend centers the scene in the real terminal size and
-      re-inits cleanly on resize (no corner-cramming, no stale placements
-      at old offsets);
+  B2. the canvas frame matches the terminal size and the composer places
+      the maze plus side regions at layout offsets (no corner-cramming,
+      no dead canvas); resizes re-init the backends at the new dims
+      (no stale placements at old offsets);
   B3. (ghost displacement lives in test_ghosts.py: active hunters must
       roam tiles, not quiver at spawn).
 """
@@ -144,16 +145,20 @@ def test_manager_resize_same_size_is_noop():
 
 
 def test_manager_resize_reinits_and_repaints_fully():
+    # Canvas contract: the frame follows the live terminal size, so the
+    # composer (not the renderer origin) places the maze. After a resize
+    # the backend is re-inited at the new terminal dims with origin (0,0).
     renderer = TieredRenderer(preference="unicode", env={})
-    renderer.init(COLS, ROWS, 80, 40)
-    assert (renderer.ox, renderer.oy) == (26, 3)
+    renderer.init(80, 40, 80, 40)
+    assert (renderer.ox, renderer.oy) == (0, 0)
     seq = renderer.resize(120, 50)
     assert seq  # setup bytes must be written (clear + alt-screen re-enter)
-    assert (renderer.ox, renderer.oy) == (46, 8)
-    game = painted_game()
-    fb = paint(game)
+    assert (renderer.cols, renderer.rows) == (120, 50)
+    assert (renderer.ox, renderer.oy) == (0, 0)
+    fb = FrameBuffer(120, 50)
+    fb.set(0, 0, Cell("X", FG, BG, None))
     out = renderer.present(fb, fb.dirty_cells())
-    assert ansi.cup(9, 47) in out  # scene cell (0,0) at the new centered origin
+    assert ansi.cup(1, 1) in out  # canvas cell (0,0) at the top-left corner
 
 
 def test_manager_degrade_cleans_up_old_tier():

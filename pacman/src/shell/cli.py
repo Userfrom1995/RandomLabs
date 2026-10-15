@@ -255,6 +255,33 @@ def cmd_input_bench(_args):
     return 0
 
 
+def cmd_layout_check(args):
+    """Report the responsive canvas layout for a terminal size."""
+    from render import layout as layout_mod
+    import shutil
+    spec = (args.layout_check or "").strip()
+    if spec:
+        try:
+            cols_s, rows_s = spec.lower().split("x")
+            size = (int(cols_s), int(rows_s))
+        except ValueError:
+            print("error: --layout-check wants COLSxROWS (e.g. 120x40)")
+            return 2
+        sizes = [size]
+    else:
+        try:
+            sh = shutil.get_terminal_size()
+            live = (int(sh.columns), int(sh.lines))
+        except Exception:
+            live = (80, 24)
+        sizes = [live, (28, 34), (80, 24), (80, 50), (120, 40), (160, 60)]
+    for cols, rows in sizes:
+        print(layout_mod.describe(layout_mod.compute(cols, rows)))
+        print("")
+    print("layout OK")
+    return 0
+
+
 def cmd_scoreboard(args):
     import platform
     from shell import verify as verify_mod
@@ -279,7 +306,7 @@ def cmd_scoreboard(args):
         bench["decode_keys_per_s"], bench["decode_ns_per_key"]))
     print("sim-step: %.1f us/tick (%.0f ticks/s, 120 Hz needs <8333 us)" % (
         bench["sim_us_per_tick"], bench["sim_ticks_per_s"]))
-    print("parity: one 28x34 scene painter feeds every backend; run --verify")
+    print("parity: one 28x34 scene painter plus the fullscreen composer feeds every backend; run --verify")
     print("scoreboard OK")
     return 0
 
@@ -418,6 +445,8 @@ def build_parser():
                     help="benchmark input decoding and simulation step cost")
     ap.add_argument("--scoreboard", action="store_true",
                     help="print the published perf scoreboard (renderers + input)")
+    ap.add_argument("--layout-check", nargs="?", const="", metavar="COLSxROWS",
+                    help="report the responsive canvas layout (default: live size plus samples)")
     ap.add_argument("--frames", type=int, default=60,
                     help="frames per backend for --render-bench")
     ap.add_argument("--play", action="store_true",
@@ -507,6 +536,8 @@ def main(argv=None):
                 print("error: --frames must be >= 1")
                 return 2
             return cmd_scoreboard(args)
+        if args.layout_check is not None:
+            return cmd_layout_check(args)
         if args.self_check:
             return cmd_self_check(args)
         build_parser().print_help()

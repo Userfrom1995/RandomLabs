@@ -310,6 +310,77 @@ def size_matrix():
     return rows
 
 
+def layout_matrix(seed=1):
+    """Responsive-canvas matrix: regions appear as the window grows, and the
+    composer blits the maze verbatim at the layout origin on every size."""
+    from render.compose import paint_full
+    from render.layout import COLS as _COLS, ROWS as _ROWS, compute, describe
+    from render.scene import paint as paint_scene
+    rows = []
+
+    tiny = compute(20, 10)
+    rows.append(_row("layout-tiny-too-small", not tiny.fits,
+                     "20x10 needs %dx%d" % (_COLS, _ROWS)))
+
+    exact = compute(28, 34)
+    rows.append(_row("layout-exact-fit-bare-maze",
+                     exact.fits and exact.left is None and exact.right is None
+                     and exact.status_y is None and exact.title_y is None
+                     and (exact.maze_ox, exact.maze_oy) == (0, 0),
+                     "28x34 plays exactly as before"))
+
+    narrow = compute(40, 40)
+    rows.append(_row("layout-narrow-no-panels",
+                     narrow.fits and narrow.left is None and narrow.right is None
+                     and narrow.status_y == 39 and narrow.title_y == 0,
+                     "40x40: strips only, maze at (%d,%d)" % (
+                         narrow.maze_ox, narrow.maze_oy)))
+
+    mid = compute(60, 40)
+    rows.append(_row("layout-right-panel-only",
+                     mid.fits and mid.left is None and mid.right is not None
+                     and mid.right.w == 26,
+                     "60x40: dashboard without legend panel"))
+
+    wide = compute(120, 50)
+    rows.append(_row("layout-wide-full-chrome",
+                     wide.fits and wide.left is not None and wide.right is not None
+                     and wide.left.w == 22 and wide.right.w == 26
+                     and wide.status_y == 49 and wide.title_y == 0
+                     and (wide.maze_ox, wide.maze_oy) == (44, 8),
+                     "120x50: both panels, maze at (44,8)"))
+
+    game = Game(seed=seed)
+    for _ in range(30):
+        game.step(tuning.STEP)
+    ref = paint_scene(game)
+    full = paint_full(game, wide)
+    rows.append(_row("layout-frame-matches-terminal",
+                     full.cols == 120 and full.rows == 50,
+                     "canvas frame is %dx%d" % (full.cols, full.rows)))
+    blit_ok = all(full.get(wide.maze_ox + x, wide.maze_oy + y) == ref.get(x, y)
+                  for y in range(_ROWS) for x in range(_COLS))
+    rows.append(_row("layout-maze-blit-verbatim", blit_ok,
+                     "28x34 scene identical at the maze origin"))
+    text = "".join(cell.glyph for cell in full.cells)
+    rows.append(_row("layout-dashboard-shows-live-data",
+                     "SCORE" in text and "DOTS" in text and "CONTROLS" in text,
+                     "dashboard plus legend panels carry real content"))
+
+    legacy = compute(28, 34)
+    legacy_full = paint_full(game, legacy)
+    same = (legacy_full.cols == ref.cols and legacy_full.rows == ref.rows
+            and all(a == b for a, b in zip(legacy_full.cells, ref.cells)))
+    rows.append(_row("layout-minimum-equals-legacy-scene", same,
+                     "28x34 canvas is cell-identical to scene.paint"))
+    report = describe(wide)
+    rows.append(_row("layout-describe-reports-regions",
+                     "maze 28x34 at (44,8)" in report
+                     and "left panel" in report and "right panel" in report,
+                     "describe() names every region"))
+    return rows
+
+
 def capability_matrix():
     """Renderer capability matrix: detection chain plus honest degrade."""
     from render.detect import detect_renderer
@@ -402,11 +473,13 @@ def parity_check(seed=1):
         except Exception as exc:  # noqa: BLE001 - the check itself must not raise
             rows.append(_row("parity-present-%s" % name, False, "raised: %s" % exc))
 
-    # Remediation rows: stale-placement erase and terminal centering, all
-    # against the real backends (kitty rows skip honestly without Pillow).
+    # Remediation rows: stale-placement erase, plus the canvas model where
+    # the renderer stays at origin (0,0) and the composer places the maze.
     from render import ansi as _ansi
+    from render.compose import paint_full as paint_full_canvas
     from render.framebuffer import Cell as _Cell
     from render.framebuffer import FrameBuffer as _FrameBuffer
+    from render.layout import compute as layout_compute
     kitty = make_backend("kitty")
     if not kitty.available():
         rows.append(_row("parity-kitty-erase-on-move", True,
@@ -436,20 +509,26 @@ def parity_check(seed=1):
                          "unchanged frame emits no image commands"))
 
     uni_renderer = TieredRenderer(preference="unicode", env={})
-    uni_renderer.init(COLS, ROWS, 100, 44)
-    uni_fb = paint(Game(seed=seed))
+    uni_renderer.init(100, 44, 100, 44)
+    lay = layout_compute(100, 44)
+    uni_fb = paint_full_canvas(Game(seed=seed), lay)
     uni_out = uni_renderer.present(uni_fb, uni_fb.dirty_cells())
-    rows.append(_row("parity-centered-origin",
-                     uni_renderer.ox == 36 and uni_renderer.oy == 5
-                     and _ansi.cup(6, 37) in uni_out,
-                     "100x44 centers 28x34 at (36,5)"))
+    rows.append(_row("parity-canvas-origin",
+                     (uni_renderer.ox, uni_renderer.oy) == (0, 0)
+                     and uni_fb.cols == 100 and uni_fb.rows == 44
+                     and lay.maze_ox == 34 and lay.maze_oy == 5
+                     and _ansi.cup(6, 35) in uni_out,
+                     "100x44 canvas: renderer at (0,0), maze at (34,5)"))
     uni_renderer.resize(120, 50)
-    uni_fb2 = paint(Game(seed=seed))
+    lay2 = layout_compute(120, 50)
+    uni_fb2 = paint_full_canvas(Game(seed=seed), lay2)
     uni_out2 = uni_renderer.present(uni_fb2, uni_fb2.dirty_cells())
-    rows.append(_row("parity-resize-recenters",
-                     (uni_renderer.ox, uni_renderer.oy) == (46, 8)
-                     and _ansi.cup(9, 47) in uni_out2,
-                     "120x50 recenters at (46,8)"))
+    rows.append(_row("parity-resize-relayout",
+                     (uni_renderer.ox, uni_renderer.oy) == (0, 0)
+                     and uni_fb2.cols == 120 and uni_fb2.rows == 50
+                     and (lay2.maze_ox, lay2.maze_oy) == (44, 8)
+                     and _ansi.cup(9, 45) in uni_out2,
+                     "120x50 canvas: renderer at (0,0), maze at (44,8)"))
     return rows
 
 
@@ -514,6 +593,7 @@ def full_matrix(seed=1):
     sections = [
         ("gameplay", gameplay_matrix(seed)),
         ("terminal-size", size_matrix()),
+        ("layout", layout_matrix(seed)),
         ("capability", capability_matrix()),
         ("input", input_matrix()),
         ("parity", parity_check(seed)),
