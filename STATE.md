@@ -1,21 +1,21 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-15 run 38797032172 - PR #573 MERGED, Phase 2 chained**
+ - **Updated: 2026-10-15 run 38802345581 - PR #574 Phase 2 in review gate, stood down**
 
 ## PRs & Issues
- - **PRs:** Open: none (post-merge). MERGED: #573 (Pac-Man fullscreen canvas Phase 1, head 51b87ee, merged 19:50:48Z via --rebase, branch kept; Refs #552), #572 (Pac-Man real-terminal remediation for #552, head af67ea82, merged 15:47:17Z via --rebase, branch kept; Refs #552), #571 (Curator docs nav hrefs, head 7fdc22f6, merged 03:51:16Z via --rebase, branch kept; Fixes #570), #569, #567, #566, #565, #564, #563, #562, #560, #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
+ - **PRs:** Open: #574 only (Pac-Man fullscreen canvas Phase 2 Scaled Sprites Visual Effects and Theming, head 781ff4a6, MERGEABLE/CLEAN, Refs #552, review arm 38802345702 pending). MERGED: #573 (Pac-Man fullscreen canvas Phase 1, head 51b87ee, merged 19:50:48Z via --rebase, branch kept; Refs #552), #572 (Pac-Man real-terminal remediation for #552, head af67ea82, merged 15:47:17Z via --rebase, branch kept; Refs #552), #571 (Curator docs nav hrefs, head 7fdc22f6, merged 03:51:16Z via --rebase, branch kept; Fixes #570), #569, #567, #566, #565, #564, #563, #562, #560, #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
  - **Issues:** Open: #552 (Pac-Man terminal arcade; owner-reopened 2026-10-15T14:59:57Z, remediation #572 merged with Refs only, fullscreen-canvas Phase 1 #573 merged with Refs only, Phase 2 build dispatched - NEVER close on intermediate PRs), #70 lab-health, #42 brainstorm standing. Closed: #570 (via Fixes #570 on merge of #571), #568, #561, plus earlier.
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run, no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - #552 PHASE 2 CHAINED: Phase 1 merged (full gate green: Reviewer approve 19:35:29Z, Tester approve-test 19:43:41Z, Evaluator approve-eval 9.8/10 19:49:36Z; test-only Tester commit preserves review gate per precedent). Build trigger for Phase 2 (Scaled Sprites Visual Effects and Theming) dispatched this run per the auto-chain rule. Next: when Builder opens the Phase 2 PR, route review at once; each phase through the full gate (review, Tester incl per-OS runners, Evaluator mandatory) with real-terminal proof. Refs #552 only until the final phase (Phase 4, Closes #552) passes the gate.
+ - #574 PHASE 2 IN REVIEW GATE: Builder opened Phase 2 (Scaled Sprites Visual Effects and Theming, head 781ff4a6, Refs #552); owner /oc review dispatched, opencode-review run 38802345702 pending - stood down per duplicate-review rule. Next: on Reviewer approve route Tester + per-OS runners; on approve-test route Evaluator (mandatory); merge only on approve-eval. Refs #552 only until the final phase (Phase 4, Closes #552) passes the gate.
  - #552 FULLSCREEN REDESIGN WAVE: Architect dispatched run 38791339030 to chart the fullscreen-canvas epic; Builder Phase 1 landed early as #573 and is now on main. Each phase via full gate with real-terminal proof. Refs #552 only until owner confirms complete.
  - #552 remediation A/B/C/D DONE and merged (#572, full gate green: Reviewer approve, Tester approve-test, Evaluator approve-eval 9.8/10; main Pages deploy 38763528845 success).
  - Evaluator non-blocking follow-ups queued (not dispatched): stale "304 tests" pins in 4 doc spots (collects ~314 after Tester gate commit), weak disjunction assertion in test_tester_remediation_gate.py:48, pre-existing `--levels 0` help fall-through (exit 0 vs `--levels -1` exit 2). Plus #573 Tester advisory: compute(inf) OverflowError xfail (one-word except widening, later wave). Plus #573 Evaluator advisories: stale 41-row count in docs/index.md (pre-existing drift, curator track), O/O legend glyph ambiguity, stale branch line in progress header. Future hardening vehicle, not a gate.
  - LAB OVERHAUL SUBSTANTIALLY COMPLETE: Phase 6 instructed run 38463786451 stood down with evidence; verified live in run 38463966490; NO third lab dispatch per anti-loop bar. Future infra needs a fresh scoped order, not a repeat Phase 6.
- - Pages: main tip 7a9ff007 (merge of #573); post-merge main-deploy watch OPEN: verify the Deploy static site run for 7a9ff007 succeeds; if it fails the same way as PR-branch refs, route lab immediately. Prior tip 488fe345 (merge of #572) deploy 38763528845 success 15:48:12Z.
+ - Pages: main tip 7a9ff007 (merge of #573); post-merge main-deploy watch CLEARS this run: Deploy static site run 38802354358 success. Prior tip 488fe345 (merge of #572) deploy 38763528845 success 15:48:12Z.
  - Pages preview wart (watch): PR-branch `pull_request` pages runs keep failing on lab PR refs; if a main deploy fails the same way, route lab immediately.
- - Write-permission denial note (watch, not a finding): `github-actions[bot]` comment on #573 at 19:31:28Z reads "User github-actions[bot] does not have write permissions" linking run 38794511692 (maintainer pull_request-event run, concluded success). Same clean actor-gate/CLI-assert skip shape as #572 15:27:18Z. Watch for a third consecutive trigger/comment-step failure, which routes lab.
+ - Write-permission denial note (watch, not a finding): `github-actions[bot]` comment on #574 at 20:29:31Z reads "User github-actions[bot] does not have write permissions" linking run 38802277784 (maintainer pull_request-event run, concluded success). Same benign actor-gate/CLI-assert skip shape as #573 19:31:28Z and #572 15:27:18Z - third occurrence, but all link success-concluded runs, so NOT a trigger-step failure; no lab routing per loop guard. Fourth consecutive occurrence WITH a failure conclusion routes lab.
  - Reviewer non-blocking note (carried, not a finding): PRs #564/#565 say "tracked on #42" but #42 is titled Brainstorm Board; precedent accepts the linkage, no diff impact.
  - Reviewer advisory (carried, from #567): 9-file/3-dir shape sits above the literal delegation section-2 file/dir count, so a future run of this shape may want a 3-line ledger; not blocking.
  - Reviewer advisory (carried, from #571): 2-dir touch literally meets the delegation-ledger threshold but no ledger present; trivial 2-line href swap, not a finding.
@@ -37,20 +37,20 @@
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. #552 Phase 2 build dispatched this run: when Builder opens the Phase 2 PR, route review at once; then Tester (incl per-OS runners for the terminal size matrix) plus mandatory Evaluator audit with real-terminal proof; merge only on approve-eval. On eval `fix` verdict, route Fixer. On AGENT-STEP silent death, retry once per 30-min cooldown; second death routes lab. NEVER auto-close #552 (final Phase 4 carries Closes #552).
+2. #574 Phase 2 in review gate (opencode-review 38802345702 pending on head 781ff4a6): on Reviewer approve route Tester + per-OS runners at once; on approve-test with no newer fix route Evaluator (mandatory); merge only on approve-eval. On fix findings route Fixer. NEVER auto-close #552 (final Phase 4 carries Closes #552).
 3. #552 fullscreen redesign wave: Architect blueprint (dispatched run 38791339030) still expected in parallel; later Builder phases (Phase 3, Phase 4) chain as they land, each through the full gate. Refs #552 only until owner confirms complete.
 4. Future lab work needs a fresh scoped owner order; do NOT re-dispatch Phase 6 or the overhaul mandate without one.
 5. Error-dump wart: overhaul substantially complete; do NOT auto-queue a separate 8th lab mandate without owner direction.
 6. Evaluator follow-ups (archived bench helper sys.path depth + weak assertion + stale test-count pins + levels-0 quirk + compute(inf) xfail + docs/index.md 41-row drift + legend glyph + progress header) queued for a future hardening vehicle.
 7. Council calibration: advisory Desktop Pet audit still pending.
 8. Watch: ubuntu-latest agent runs - if hollow-green/silent-stall recurs, the poisoned-cache class is NOT fixed and a lab mandate is warranted.
-9. Watch: comment-post flakiness (Unicorn-HTML wart) plus the write-permission denial shape (now 2nd occurrence on #573) - third consecutive occurrence of either routes lab.
-10. Watch: post-merge main Pages deploy for 7a9ff007 - VERIFY next run; prior 488fe345 deploy success (38763528845, 15:48:12Z).
+9. Watch: comment-post flakiness (Unicorn-HTML wart) plus the write-permission denial shape (now 3rd occurrence on #574, all success-concluded, benign) - a consecutive occurrence WITH a failure conclusion routes lab.
+10. Watch: post-merge main Pages deploy for 7a9ff007 - CLEARED this run (38802354358 success).
 11. Standing rule: standby on all other fronts (no auto-ideate).
 12. IP: any new Kratos/God of War order stays declined on binding grounds; original-duel path on confirmation only.
 
 ## OPEN QUESTIONS
- - Will the Builder open the Phase 2 (Scaled Sprites Visual Effects and Theming) PR cleanly off the new main tip, and will it pass the full gate?
+ - Will Phase 2 PR #574 (head 781ff4a6) pass the full gate (review, Tester incl per-OS, Evaluator with real-terminal proof)?
  - After the full fullscreen-canvas epic lands, will the Owner confirm #552 complete on real terminals, or order further iteration?
  - Will the Architect's fullscreen-canvas blueprint cover all five fronts (capability probe, full-space layout, visuals/effects, controls, customization/settings) as one unified epic?
  - After Phase 6 acceptance, is there any residual overhaul scope the owner still wants (or is the mandate closed)?
