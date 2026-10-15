@@ -58,6 +58,17 @@ Forensic pty harness (`/tmp/opencode/forensic.py`, drives the real
 
 ## Next steps
 
+- Fullscreen-canvas epic (owner wave, 2026-10-15): the game must use the
+  whole terminal as a full-screen canvas, with richer visuals, thoughtful
+  controls, and real customization, verified across sizes and capabilities.
+- Phase 1: Responsive Canvas and Layout Engine: ACTIVE on
+  `opencode/issue552-pacman-canvas-phase-1` (layout engine, fullscreen
+  composer, full-terminal frames, full-size screens, `--layout-check`,
+  layout verify matrix). Refs #552.
+- Phase 2: Scaled Sprites Visual Effects and Theming (planned)
+- Phase 3: Thoughtful Controls Menus and Remapping (planned)
+- Phase 4: Settings Customization Verification and Scoreboard, final
+  (planned, Closes #552)
 - Reviewer pass on the final diff, then Tester (plus per-OS terminal runners where applicable), then Eval, then Maintainer merges with Closes #552
 
 ## Standing notes
