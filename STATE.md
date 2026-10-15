@@ -1,14 +1,15 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-15 run 38790373388 - owner progress-update request on #552, status reported, standby (zero open PRs, #552 awaits owner verification)**
+ - **Updated: 2026-10-15 run 38791339030 - owner fullscreen-canvas redesign order on #552, Architect dispatched**
 
 ## PRs & Issues
- - **PRs:** Open: none (post-merge). MERGED: #572 (Pac-Man real-terminal remediation for #552, head af67ea82, merged 15:47:17Z via --rebase, branch kept; Refs #552), #571 (Curator docs nav hrefs, head 7fdc22f6, merged 03:51:16Z via --rebase, branch kept; Fixes #570), #569, #567, #566, #565, #564, #563, #562, #560, #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
- - **Issues:** Open: #552 (Pac-Man terminal arcade; owner-reopened 2026-10-15T14:59:57Z, remediation #572 merged with Refs only, awaits owner verification - NEVER close on intermediate PRs), #70 lab-health, #42 brainstorm standing. Closed: #570 (via Fixes #570 on merge of #571), #568, #561, plus earlier.
+ - **PRs:** Open: none. MERGED: #572 (Pac-Man real-terminal remediation for #552, head af67ea82, merged 15:47:17Z via --rebase, branch kept; Refs #552), #571 (Curator docs nav hrefs, head 7fdc22f6, merged 03:51:16Z via --rebase, branch kept; Fixes #570), #569, #567, #566, #565, #564, #563, #562, #560, #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
+ - **Issues:** Open: #552 (Pac-Man terminal arcade; owner-reopened 2026-10-15T14:59:57Z, remediation #572 merged with Refs only, NEW owner redesign order 2026-10-15 evening: fullscreen dynamic canvas, richer visuals, controls, customization/settings as one holistic wave - NEVER close on intermediate PRs), #70 lab-health, #42 brainstorm standing. Closed: #570 (via Fixes #570 on merge of #571), #568, #561, plus earlier.
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run, no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - #552 AWAITING OWNER VERIFICATION: remediation PR #572 merged (reviewer approved fixed head, tester approved-test live, evaluator approve-eval 9.8/10). Progress file marks remediations A/B/C/D DONE. Fresh `--verify` 47/47 confirmed on main this run; pytest unavailable on this runner image (no module), prior gate evidence (304/314 green) stands. Status update posted on #552 this run per owner "Progress update please." No next phase defined, so no auto-chain dispatched; standby for owner verdict. On owner confirmation the issue may close; on new defect reports, route Fixer/Builder.
+ - #552 FULLSCREEN REDESIGN WAVE: Architect dispatched this run to chart the fullscreen-canvas epic (capability investigation + unified blueprint: responsive full-space layout, rendering/visual effects, controls, customization/settings). Builder phases follow; each phase via full gate (review, Tester incl per-OS runners, Evaluator mandatory) with real-terminal proof. Refs #552 only until owner confirms complete.
+ - #552 remediation A/B/C/D DONE and merged (#572, full gate green: Reviewer approve, Tester approve-test, Evaluator approve-eval 9.8/10; main Pages deploy 38763528845 success).
  - Evaluator non-blocking follow-ups queued (not dispatched): stale "304 tests" pins in 4 doc spots (collects ~314 after Tester gate commit), weak disjunction assertion in test_tester_remediation_gate.py:48, pre-existing `--levels 0` help fall-through (exit 0 vs `--levels -1` exit 2). Future hardening vehicle, not a gate.
  - LAB OVERHAUL SUBSTANTIALLY COMPLETE: Phase 6 instructed run 38463786451 stood down with evidence; verified live in run 38463966490; NO third lab dispatch per anti-loop bar. Future infra needs a fresh scoped order, not a repeat Phase 6.
  - Pages: main tip 488fe345 (merge of #572); post-merge main-deploy watch CLEAR: Deploy static site run 38763528845 success 15:48:12Z. Preview-refs-only wart holds; main deploys are the binding signal.
@@ -35,7 +36,7 @@
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. #552 awaiting owner verification (remediation #572 merged with Refs only): on owner confirmation, close; on new defect reports, route Fixer/Builder. NEVER auto-close.
+2. #552 fullscreen redesign wave in flight (Architect dispatched run 38791339030): when Architect PR/blueprint lands, route Builder phases; each phase through full gate (review, Tester incl per-OS, Evaluator mandatory). NEVER auto-close #552.
 3. Future lab work needs a fresh scoped owner order; do NOT re-dispatch Phase 6 or the overhaul mandate without one.
 4. Error-dump wart: overhaul substantially complete; do NOT auto-queue a separate 8th lab mandate without owner direction.
 5. Evaluator follow-ups (archived bench helper sys.path depth + weak assertion + stale test-count pins + levels-0 quirk) queued for a future hardening vehicle.
@@ -47,7 +48,8 @@
 11. IP: any new Kratos/God of War order stays declined on binding grounds; original-duel path on confirmation only.
 
 ## OPEN QUESTIONS
- - Will the Owner confirm #552 fixed on real terminals, or report further defects needing another iteration?
+ - Will the Architect's fullscreen-canvas blueprint cover all five fronts (capability probe, full-space layout, visuals/effects, controls, customization/settings) as one unified epic?
+ - After the redesign lands, will the Owner confirm #552 complete on real terminals, or order further iteration?
  - After Phase 6 acceptance, is there any residual overhaul scope the owner still wants (or is the mandate closed)?
  - Are the PR-preview pages failures a systematic defect on PR refs or platform blips?
  - Should the lab prompt be hardened so a bare `/oc lab` on an open mandate defaults to executing the mandate instead of standing by?
