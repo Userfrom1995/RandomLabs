@@ -14,7 +14,7 @@ from engine import tuning
 from engine.game import Game
 from render.compose import _bar, paint_full
 from render.layout import (LEFT_MIN_COLS, RIGHT_MIN_COLS, STATUS_MIN_ROWS,
-                           TITLE_MIN_ROWS, compute, describe)
+                           TITLE_MIN_ROWS, VIEW_MIN_ROWS, compute, describe)
 from render.manager import TieredRenderer
 from render.scene import COLS, ROWS, paint as paint_scene
 from shell import verify as verify_mod
@@ -45,7 +45,11 @@ def test_tester_exact_minimum_plays_as_before():
 
 def test_tester_one_cell_short_is_too_small():
     assert not compute(COLS - 1, ROWS).fits
-    assert not compute(COLS, ROWS - 1).fits
+    # One row short of the full box no longer fails: short windows play
+    # via the follow-cam viewport down to the 28x16 floor.
+    short = compute(COLS, ROWS - 1)
+    assert short.viewport and short.fits
+    assert compute(COLS, VIEW_MIN_ROWS - 1).fits is False
     assert not compute(20, 10).fits
 
 
@@ -91,8 +95,11 @@ def test_tester_composition_centered_and_inside_frame():
 def test_tester_compute_survives_realistic_garbage():
     for bad in [(None, None), ("x", "y"), ("", ""), (-5, -5), (0, 0),
                 (28, None), (None, 34), ([28], [34]), (-10**18, -10**18),
-                (28.9, 33.7), (float("nan"), float("nan")),
+                (27.9, 33.7), (float("nan"), float("nan")),
                 (True, True)]:
+        # Note: (28.9, 33.7) coerces to 28x33, which now plays via the
+        # follow-cam viewport instead of failing (see
+        # test_tester_one_cell_short_is_too_small).
         lay = compute(*bad)
         assert not lay.fits
 
@@ -106,12 +113,9 @@ def test_tester_compute_coerces_numeric_strings():
     assert not compute("x", "y").fits
 
 
-@pytest.mark.xfail(reason="compute(float('inf')) raises OverflowError; "
-                          "int(inf) is outside the caught (TypeError, "
-                          "ValueError). Unreachable via real terminal sizes "
-                          "(OS reports small ints) but the 'never raises' "
-                          "docstring would want OverflowError caught too.")
 def test_tester_compute_survives_infinite_size():
+    # Wave-2 fix: the coercion guards now catch OverflowError too, so the
+    # "never raises" contract holds even for infinite sizes.
     lay = compute(float("inf"), float("inf"))
     assert not lay.fits
 

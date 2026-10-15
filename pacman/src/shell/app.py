@@ -25,7 +25,7 @@ from shell.input import CONFIRM, DOWN as A_DOWN, LEFT as A_LEFT, PAUSE, QUIT, RE
 from shell.input import RIGHT as A_RIGHT, UP as A_UP, decode_stream
 from shell.input import MUTE as A_MUTE, HELP as A_HELP
 from shell.scores import ScoreTable, clean_name
-from shell.terminal import check_size
+
 
 TITLE, PLAYING, PAUSED, OVER, ENTER_NAME = "title", "playing", "paused", "over", "enter-name"
 HELP, SCORES, SETTINGS = "help", "scores", "settings"
@@ -388,11 +388,14 @@ def run(app, term, renderer, write_out, fps=30, clock=None, sleep=None, max_fram
             if (term_cols, term_rows) != (renderer.term_cols, renderer.term_rows):
                 # Resize: re-layout the canvas and repaint from a clean slate.
                 write_out(renderer.resize(term_cols, term_rows))
-            problem = check_size(term_cols, term_rows, COLS, ROWS)
-            if problem is not None:
+            layout = canvas_layout(term_cols, term_rows,
+                                   getattr(app, "scale_mode", "auto"))
+            if not (layout.fits or layout.viewport):
                 for action in actions:
                     if action == QUIT:
                         app.exited = True
+                problem = ("terminal too small: have %dx%d, need at least "
+                           "28x16" % (term_cols, term_rows))
                 fb = screens.paint_too_small(problem, term_cols, term_rows)
             else:
                 for action in actions:
@@ -405,8 +408,6 @@ def run(app, term, renderer, write_out, fps=30, clock=None, sleep=None, max_fram
                         acc -= tuning.STEP
                         app.step_play(tuning.STEP)
                         ticks += 1
-                layout = canvas_layout(term_cols, term_rows,
-                                       getattr(app, "scale_mode", "auto"))
                 fb = app.paint(layout)
             last = clock()
             write_out(renderer.present(fb, fb.dirty_cells()))
