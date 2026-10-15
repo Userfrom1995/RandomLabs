@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-15 run 38763255482 - #572 MERGED (approve-eval 9.8/10), #552 stays open, standby**
+ - **Updated: 2026-10-15 run 38785179678 - schedule tick, standby (zero open PRs, #552 awaits owner verification)**
 
 ## PRs & Issues
  - **PRs:** Open: none (post-merge). MERGED: #572 (Pac-Man real-terminal remediation for #552, head af67ea82, merged 15:47:17Z via --rebase, branch kept; Refs #552), #571 (Curator docs nav hrefs, head 7fdc22f6, merged 03:51:16Z via --rebase, branch kept; Fixes #570), #569, #567, #566, #565, #564, #563, #562, #560, #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
@@ -11,7 +11,7 @@
  - #552 AWAITING OWNER VERIFICATION: remediation PR #572 merged (reviewer approved fixed head, tester approved-test live, evaluator approve-eval 9.8/10). Progress file marks remediations A/B/C/D DONE. No next phase defined, so no auto-chain dispatched; standby for owner verdict on #552. On owner confirmation the issue may close; on new defect reports, route Fixer/Builder.
  - Evaluator non-blocking follow-ups queued (not dispatched): stale "304 tests" pins in 4 doc spots (collects ~314 after Tester gate commit), weak disjunction assertion in test_tester_remediation_gate.py:48, pre-existing `--levels 0` help fall-through (exit 0 vs `--levels -1` exit 2). Future hardening vehicle, not a gate.
  - LAB OVERHAUL SUBSTANTIALLY COMPLETE: Phase 6 instructed run 38463786451 stood down with evidence; verified live in run 38463966490; NO third lab dispatch per anti-loop bar. Future infra needs a fresh scoped order, not a repeat Phase 6.
- - Pages: main tip 488fe345 (merge of #572); post-merge main-deploy watch active. Preview-refs-only wart holds; main deploys are the binding signal.
+ - Pages: main tip 488fe345 (merge of #572); post-merge main-deploy watch CLEAR: Deploy static site run 38763528845 success 15:48:12Z. Preview-refs-only wart holds; main deploys are the binding signal.
  - Pages preview wart (watch): PR-branch `pull_request` pages runs keep failing on lab PR refs; if a main deploy fails the same way, route lab immediately.
  - Write-permission denial note (watch, not a finding): a `github-actions[bot]` comment on #572 at 15:27:18Z reads "User github-actions[bot] does not have write permissions" linking run 38760362323 (maintainer pull_request-event run, concluded success). Reads as a clean actor-gate/CLI-assert skip on a bot-triggered arm, not a failure (zero failure/timed_out in recent runs). If a second consecutive trigger/comment-step failure of this shape appears, route lab.
  - Reviewer non-blocking note (carried, not a finding): PRs #564/#565 say "tracked on #42" but #42 is titled Brainstorm Board; precedent accepts the linkage, no diff impact.
@@ -42,7 +42,7 @@
 6. Council calibration: advisory Desktop Pet audit still pending.
 7. Watch: ubuntu-latest agent runs - if hollow-green/silent-stall recurs, the poisoned-cache class is NOT fixed and a lab mandate is warranted.
 8. Watch: comment-post flakiness (Unicorn-HTML wart) plus the 15:27:18Z write-permission denial on #572 - second consecutive occurrence of either routes lab.
-9. Watch: post-merge main Pages deploy for 488fe345 - failure routes lab immediately.
+9. Watch: post-merge main Pages deploy for 488fe345 - VERIFIED success this run (38763528845, 15:48:12Z); watch clears until next merge.
 10. Standing rule: standby on all other fronts (no auto-ideate).
 11. IP: any new Kratos/God of War order stays declined on binding grounds; original-duel path on confirmation only.
 
