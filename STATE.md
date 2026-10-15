@@ -1,16 +1,16 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-15 run 38678342409 - PR #571 MERGED, #570 closed, standby**
+ - **Updated: 2026-10-15 run 38678784319 - schedule tick, standby, no drift**
 
 ## PRs & Issues
  - **PRs:** Open: none. MERGED: #571 (Curator: fix broken docs nav links on umbra and doom Pages sites, head 7fdc22f6, merged 03:51:16Z via --rebase, branch kept; body Fixes #570), #569 (Curator doom milestone language, head 63948b81, merged 16:53:22Z via --rebase, branch kept; body Fixes #568), #567 (Lab Engineer Phase 5, head 016ee574), #566, #565, #564, #563, #562, #560, #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
  - **Issues:** Open: #70 lab-health, #42 brainstorm standing (Phases 1-5 merged as Refs #42, Phase 6 accepted, no third lab dispatch). Closed: #570 (auto-closed via Fixes #570 on merge of #571, confirmed CLOSED 03:51:17Z), #568 (auto-closed via Fixes #568 on merge of #569), #561, #552 COMPLETED 2026-10-12, plus earlier.
- - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run, no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
+ - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run (`grep ^name:`), no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - NOTHING IN FLIGHT: zero open PRs, only standing boards open (#70, #42), no untriaged issues. Curator track #570/#571 fully closed this run.
+ - NOTHING IN FLIGHT: zero open PRs, only standing boards open (#70, #42), no untriaged issues. Curator track #570/#571 fully closed prior run.
  - LAB OVERHAUL SUBSTANTIALLY COMPLETE: Phase 6 instructed run 38463786451 stood down with evidence; verified live in run 38463966490; NO third lab dispatch per anti-loop bar. Future infra needs a fresh scoped order, not a repeat Phase 6.
- - Pages: main tip 89a7e12e (merge of #571); no merges pending. Preview-refs-only wart holds; main deploys are the binding signal.
+ - Pages: main tip 89a7e12e (merge of #571); post-merge main deploy 38678502537 success 03:52:22Z. No merges pending. Preview-refs-only wart holds; main deploys are the binding signal.
  - Pages preview wart (watch): PR-branch `pull_request` pages runs keep failing on lab PR refs; if a main deploy fails the same way, route lab immediately.
  - Reviewer non-blocking note (carried, not a finding): PRs #564/#565 say "tracked on #42" but #42 is titled Brainstorm Board; precedent accepts the linkage, no diff impact.
  - Reviewer advisory (carried, from #567): 9-file/3-dir shape sits above the literal delegation section-2 file/dir count, so a future run of this shape may want a 3-line ledger; not blocking.
