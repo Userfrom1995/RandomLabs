@@ -34,9 +34,11 @@ def run_cli(*args):
 def test_phase2_self_check_pin_live():
     p = run_cli("--self-check", "--seed", "1", "--ticks", "2400")
     assert p.returncode == 0, p.stderr + p.stdout
-    assert "dots-eaten: 170" in p.stdout
-    assert "energizers: 2" in p.stdout
-    assert "deaths: 0" in p.stdout
+    # Resurveyed in the ghost-movement remediation (frozen hunters fixed;
+    # live ghosts intercept the greedy autopilot: 2 deaths on this route).
+    assert "dots-eaten: 147" in p.stdout
+    assert "energizers: 1" in p.stdout
+    assert "deaths: 2" in p.stdout
 
 
 def test_phase2_maze_check_live():

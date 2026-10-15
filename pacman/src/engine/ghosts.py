@@ -52,7 +52,8 @@ LEAVING_SPEED_FRACTION = 0.55  # scripted house exit pace
 
 
 class Ghost:
-    __slots__ = ("index", "name", "actor", "state", "counter", "scatter")
+    __slots__ = ("index", "name", "actor", "state", "counter", "scatter",
+                 "decided")
 
     def __init__(self, index, x, y, direction, speed, state, counter):
         self.index = index
@@ -61,6 +62,12 @@ class Ghost:
         self.state = state  # house | leaving | active | eyes
         self.counter = counter  # dots still owed before leaving
         self.scatter = SCATTER_CORNERS[index]
+        # Last tile where tile-center steering ran (None = undecided).
+        # Steering must fire ONCE per tile visit: re-snapping every tick
+        # while still inside the decision window undoes each stride and
+        # pins the ghost in place forever (strides are shorter than the
+        # window at 120 Hz), so the gate below is load-bearing.
+        self.decided = None
 
     def state_tuple(self):
         p = self.actor.state_tuple()
@@ -141,16 +148,20 @@ class Ghosts:
         self._reverse_all()
 
     def notify_dots(self, n):
-        """Feed eaten dots into the house-exit counters."""
-        if n <= 0:
-            return
-        self.idle_t = 0.0
-        remaining = n
-        for ghost in sorted(self._waiting(), key=lambda g: g.index):
-            if remaining <= 0:
-                break
-            ghost.counter -= remaining
-            remaining = 0
+        """Feed eaten dots into the house-exit counters, one dot at a time.
+
+        Each dot resets the idle timer and decrements the lowest-index
+        waiting ghost; a counter reaching zero walks that ghost out. Feeding
+        dots one by one (instead of dumping a whole batch onto one ghost)
+        keeps multi-dot feeds ordered across the house.
+        """
+        for _ in range(max(0, int(n))):
+            self.idle_t = 0.0
+            waiting = self._waiting()
+            if not waiting:
+                return
+            ghost = min(waiting, key=lambda g: g.index)
+            ghost.counter -= 1
             if ghost.counter <= 0:
                 ghost.counter = 0
                 self._start_leaving(ghost)
@@ -220,6 +231,10 @@ class Ghosts:
         for ghost in self.ghosts:
             if ghost.state == "active":
                 ghost.actor.want = opposite(ghost.actor.dir)
+                # A reversal mid-tile must re-decide at the next tile
+                # center even if it is a tile already decided for: clear
+                # the gate so steering runs again on arrival.
+                ghost.decided = None
 
     # -- house --------------------------------------------------------
     def _waiting(self):
@@ -228,6 +243,7 @@ class Ghosts:
     def _start_leaving(self, ghost):
         if ghost.state == "house":
             ghost.state = "leaving"
+            ghost.decided = None
 
     def _step_leaving(self, ghost, dt):
         """L-shaped walk: first to the door column, then up and out."""
@@ -334,13 +350,20 @@ class Ghosts:
             actor.x, actor.y = out_cx, out_cy
             actor.dir = actor.want = LEFT
             ghost.state = "active"
+            ghost.decided = None
             return
         actor.speed = self._speed_for(ghost, dots_left)
         target = self._target_for(ghost, player, player_tile)
         tile = tile_of(actor.x, actor.y)
         cx, cy = center_of(*tile)
         near = abs(cx - actor.x) + abs(cy - actor.y) <= CENTER_SNAP
-        if near and self.maze.is_walkable(*tile, for_ghost=True):
+        # Decide at most once per tile visit. Strides at 120 Hz are shorter
+        # than CENTER_SNAP, so deciding on every near tick would snap the
+        # ghost back to the center each tick and freeze it in place; the
+        # decided gate lets each stride accumulate into real travel while
+        # still steering at every newly entered tile center.
+        if near and ghost.decided != tile \
+                and self.maze.is_walkable(*tile, for_ghost=True):
             actor.x, actor.y = cx, cy
             if ghost.state == "eyes":
                 pick = self._choose(ghost, target, random_pick=False)
@@ -350,6 +373,7 @@ class Ghosts:
                 pick = self._choose(ghost, target, random_pick=False)
             if pick is not None:
                 actor.dir = actor.want = pick
+            ghost.decided = tile
         step_actor(self.maze, actor, dt, for_ghost=True)
 
     def _eyes_home(self, actor):
@@ -371,5 +395,5 @@ class Ghosts:
         ]
         for ghost in self.ghosts:
             st = ghost.state_tuple()
-            parts.append("%s|%d|%.4f|%.4f|%d|%d" % st)
+            parts.append("%s|%d|%.4f|%.4f|%d|%d|%s" % (st + (ghost.decided,)))
         return ";".join(parts)

@@ -1,10 +1,10 @@
 # Progress - Pac-Man Terminal Arcade
 
-- **Issue:** #552
-- **Branch:** opencode/issue552-pacman-final-verification-scoreboard
-- **Status:** complete
-- **Updated:** 2026-10-12
-- **Active Phase:** Final Phase: Verification Benchmarks Docs Hub and Pages (Complete, ready for review)
+- **Issue:** #552 (reopened 2026-10-15: real-terminal remediation)
+- **Branch:** opencode/issue552-pacman-remediation
+- **Status:** in-progress
+- **Updated:** 2026-10-15
+- **Active Phase:** Remediation A: Ghost-Movement Freeze (Complete) -> Remediation B: Frame Clearing and Layout (active)
 
 ## Phase Roadmap
 
@@ -20,6 +20,20 @@
 Final Phase complete on `opencode/issue552-pacman-final-verification-scoreboard` (Closes #552): `shell/verify.py` (41-row gameplay/size/capability/input/parity matrices plus input and render benches, all headless against the real code) with CLI `--verify`/`--input-bench`/`--scoreboard`; 9 new tests, suite 277 green; `docs/verification.md` plus `docs/scoreboard.md` published with reference numbers (unicode ~875, kitty ~595, sixel ~72 fps; decode ~1.9M keys/s; sim ~25 us/tick); README/docs/hub/ideas updated. Ready for review.
 
 Phase 5 complete and pushed on `opencode/issue552-pacman-phase-5-progression-modes` (Refs #552): `engine/fruit.py` (threshold spawns plus expiry plus tier points) plus `engine/modes.py` (four honest rulesets) integrated into `game.py` (mode param, timers, refill, sprint bonus, reasons, extended canonical); `render/themes.py` (classic/neon/amber) plus themed `scene.py` with reduced-flash and mode/fruit HUD; `shell/scores.py` (persistent top-10) plus `shell/config.py` (validated persistence) plus name-entry flow in `app.py`/`screens.py` plus 13 honest CLI flags and a fruit synth voice; 30 new tests, suite 233 green; README/docs/hub/ideas updated. Ready for review.
+
+## Remediation (owner reopen, 2026-10-15)
+
+Forensic pty harness (`/tmp/opencode/forensic.py`, drives the real
+`shell.app.run` + ANSI emulator) confirmed all three reported defects:
+- Remediation A (ghost freeze): DONE. `_move_ghost` re-snapped to the tile
+  center on every near tick; 120 Hz strides are shorter than CENTER_SNAP so
+  each stride was undone and every active ghost quivered 0.07 tiles off
+  spawn forever. Fix: decide-once-per-tile-visit gate (`Ghost.decided`,
+  cleared on reversals/leaving/revive), one-at-a-time house dot feed.
+  Self-check pin resurveyed 170 -> 147 dots (live hunters intercept the
+  autopilot: 1 ghost eaten, 2 deaths); 3 new regression tests.
+- Remediation B (frame clearing / kitty stale placements): active.
+- Remediation C (dynamic terminal-size adaptation / centering): queued.
 
 ## Next steps
 
