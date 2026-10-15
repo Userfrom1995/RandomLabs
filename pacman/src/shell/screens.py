@@ -103,19 +103,22 @@ def paint_help(keymap=None, cols=COLS, rows=ROWS):
                  "menus: up/down moves - ENTER picks"]
     for i, line in enumerate(lines):
         put_text(fb, mid - 4 + i, line[:cols], TEXT_FG if i == 0 else DIM_FG)
-    put_text(fb, mid + 1, "M ghost  O frightened  x eyes", DIM_FG)
+    put_text(fb, mid + 1, "M ghost  B frightened  x eyes", DIM_FG)
     put_text(fb, mid + 2, ". dot  O energizer  F fruit", DIM_FG)
     put_text(fb, mid + 4, "P / ENTER: back", TEXT_FG, CARD_BG)
     put_text(fb, mid + 5, "Q: quit", TEXT_FG, CARD_BG)
     return fb
 
 
-def paint_settings(state, selected=0, cols=COLS, rows=ROWS):
+def paint_settings(state, selected=0, cols=COLS, rows=ROWS, keymap=None):
     """Fullscreen settings card: one row per option, change/back hints."""
     from shell import settings as settings_mod
     fb = _card(cols, rows)
     mid = rows // 2
-    sel = int(selected)
+    try:
+        sel = int(selected)
+    except (TypeError, ValueError):
+        sel = 0
     opts = list(settings_mod.OPTIONS)
     put_text(fb, mid - 8, "SETTINGS", TITLE_FG)
     for i, opt in enumerate(opts):
@@ -140,7 +143,15 @@ def paint_settings(state, selected=0, cols=COLS, rows=ROWS):
     if 0 <= sel < len(opts):
         detail = str(settings_mod.describe(opts[sel]))[:max(0, cols - 8)]
         put_text(fb, mid + 2, detail, DIM_FG)
-    put_text(fb, mid + 4, "left/right: change   P / ENTER: back", TEXT_FG, CARD_BG)
+    if keymap is not None:
+        try:
+            pause_keys = "/".join(keymap.bindings("pause")) or "P"
+        except (AttributeError, ValueError):
+            pause_keys = "P"
+        footer = "left/right: change   %s / ENTER: back" % pause_keys.upper()
+    else:
+        footer = "left/right: change   P / ENTER: back"
+    put_text(fb, mid + 4, footer, TEXT_FG, CARD_BG)
     return fb
 
 
