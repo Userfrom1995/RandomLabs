@@ -19,7 +19,15 @@ _DESCRIBE = {
     "mode": "mode: ruleset",
     "scale": "scale: magnification",
     "effects": "effects: extra visuals",
-    "reduced_flash": "reduced_flash: steady glyphs",
+    "reduced_flash": "reduced flash: steady glyphs",
+}
+
+_LABEL = {
+    "theme": "theme",
+    "mode": "mode",
+    "scale": "scale",
+    "effects": "effects",
+    "reduced_flash": "reduced flash",
 }
 
 _ATTRS = {
@@ -106,6 +114,10 @@ def set_value(state, option, value):
 def cycle(state, option, delta):
     """Step to the next/previous choice with wraparound; return new str."""
     _require_option(option)
+    try:
+        step = int(delta)
+    except (TypeError, ValueError):
+        raise ValueError("delta must be an int, got %r" % (delta,))
     allowed = choices(option)
     current = get(state, option)
     try:
@@ -113,9 +125,9 @@ def cycle(state, option, delta):
     except ValueError:
         # Hand-mutated state outside the legal set: restart from an end
         # so cycling still lands on a legal choice deterministically.
-        picked = allowed[0] if int(delta) >= 0 else allowed[-1]
+        picked = allowed[0] if step >= 0 else allowed[-1]
         return set_value(state, option, picked)
-    new_value = allowed[(index + int(delta)) % len(allowed)]
+    new_value = allowed[(index + step) % len(allowed)]
     return set_value(state, option, new_value)
 
 
@@ -136,7 +148,7 @@ def note(option):
 def row_label(state, option):
     """Paint-ready row, e.g. 'theme: neon'."""
     _require_option(option)
-    return "%s: %s" % (option, get(state, option))
+    return "%s: %s" % (_LABEL[option], get(state, option))
 
 
 def snapshot(state):
@@ -151,12 +163,30 @@ def snapshot(state):
 
 
 def apply_snapshot(state, snap):
-    """Validate-and-apply a snapshot dict; return snapshot(state)."""
+    """Validate every key first, then apply; return snapshot(state).
+
+    All five values are checked before any write lands, so a bad
+    snapshot leaves the live state untouched.
+    """
     if not isinstance(snap, dict):
         raise ValueError("snapshot must be a dict, got %r" % (snap,))
     for key in ("theme", "mode", "scale", "effects", "reduced_flash"):
         if key not in snap:
             raise ValueError("snapshot missing key: %r" % (key,))
+    from render import themes as themes_mod
+    from engine import modes as modes_mod
+    from render import scale as scale_mod
+    if not isinstance(snap["theme"], str):
+        raise ValueError("want theme name, got %r" % (snap["theme"],))
+    themes_mod.check(snap["theme"])
+    if not isinstance(snap["mode"], str):
+        raise ValueError("want mode name, got %r" % (snap["mode"],))
+    modes_mod.check(snap["mode"])
+    if not isinstance(snap["scale"], str):
+        raise ValueError("want scale mode, got %r" % (snap["scale"],))
+    scale_mod.check(snap["scale"])
+    _parse_on_off(snap["effects"])
+    _parse_on_off(snap["reduced_flash"])
     set_value(state, "theme", snap["theme"])
     set_value(state, "mode", snap["mode"])
     set_value(state, "scale", snap["scale"])
