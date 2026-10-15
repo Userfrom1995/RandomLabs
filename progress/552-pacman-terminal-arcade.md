@@ -93,7 +93,7 @@ duplicated every scene glyph, so HUD rows read "SSCCOORREE / LLEEVVEELL".
 - [x] Proof: 10-row fullscreen verify section (106 total with 2 level
   rows), pty tour 7/7 across sizes/backends, scoreboard/docs/hub/ideas
   refreshed.
-- Suite: 475 green. PR target: Refs #552 (no close until owner confirms).
+- Suite: 495 green. PR target: Refs #552 (no close until owner confirms).
 
 ## Agent log (wave 2)
 
@@ -107,8 +107,16 @@ duplicated every scene glyph, so HUD rows read "SSCCOORREE / LLEEVVEELL".
   clean-venv proof), docs/hub/ideas/scoreboard refresh. True-pty tour
   7/7 (unicode 100x44/120x50/80x24/160x60, kitty 100x44/120x50,
   too-small 20x10): exit 0 everywhere, zero duplicated-letter
-  artifacts, symmetric kitty place/erase. Suite 475 green. Ready for
-  review. - the Builder
+   artifacts, symmetric kitty place/erase. Suite 475 green. Ready for
+   review. - the Builder
+- 2026-10-15 (fixer): applied the Evaluator's binding fix verdict (8.9/10)
+  on PR #579 in 3 modular commits: (1) paint_viewport dims ceiling-clamped
+  at MAX_VIEW_DIM 4096 so 10**18 inputs return a capped frame instead of
+  raising OverflowError, plus a huge-dims regression pin in
+  test_tester_wave2_fit.py; (2) suite-count sync 475 -> 495 across
+  README/docs/index/hub; (3) landing polish (representative 28-wide
+  HUD-plus-maze capture with caption, dense Play-it paragraph split into
+  bullets). Suite 495 green, verify 106/106. - the Fixer
 
 ## Standing notes
 
