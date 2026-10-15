@@ -98,16 +98,21 @@ class TieredRenderer:
         raise RuntimeError("no renderer tier usable (%s)" % "; ".join(problems))
 
     def resize(self, term_cols, term_rows):
-        """Adapt to a new terminal size: re-init (full repaint) + recenter.
+        """Adapt to a new terminal size: the canvas frame follows the live
+        terminal dimensions, then re-init (full repaint) + re-derive origin.
 
         Returns the setup sequence to write. When the size is unchanged it
-        returns "" so the loop can skip redundant clears.
+        returns "" so the loop can skip redundant clears. Frame dims are
+        clamped to >= 1 so a pathological zero-size report resizes to a
+        1x1 frame instead of raising out of the play loop.
         """
         if self.backend is None:
             raise ValueError("resize before init")
         if int(term_cols) == self.term_cols and int(term_rows) == self.term_rows:
             return ""
         self.term_cols, self.term_rows = int(term_cols), int(term_rows)
+        self.cols = max(1, self.term_cols)
+        self.rows = max(1, self.term_rows)
         try:
             cleanup = self.backend.clear()
         except Exception:
@@ -224,6 +229,7 @@ class TieredRenderer:
             "frames": self.frames,
             "errors": self.errors,
             "dropped": self.dropped,
+            "frame": (self.cols, self.rows),
             "term": (self.term_cols, self.term_rows),
             "origin": (self.ox, self.oy),
         }
