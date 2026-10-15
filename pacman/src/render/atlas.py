@@ -27,9 +27,16 @@ GHOST_COLORS = (
 )
 
 PLAYER_SPRITES = ("player-left", "player-right", "player-up", "player-down")
+PLAYER_CLOSED_SPRITES = ("player-left-closed", "player-right-closed",
+                          "player-up-closed", "player-down-closed")
+# Direction strings match scene.py usage ("left"/"right"/"up"/"down").
+PLAYER_SPRITE_CLOSED = {"left": "player-left-closed", "right": "player-right-closed",
+                        "up": "player-up-closed", "down": "player-down-closed"}
 GHOST_SPRITES = ("ghost-0", "ghost-1", "ghost-2", "ghost-3")
 EXTRA_SPRITES = ("ghost-fright", "ghost-fright-flash", "ghost-eyes")
-KNOWN_SPRITES = PLAYER_SPRITES + GHOST_SPRITES + EXTRA_SPRITES
+# Invariant: image_id() is index-based, so the closed sprites stay appended
+# at the end; every pre-existing id keeps its value.
+KNOWN_SPRITES = PLAYER_SPRITES + GHOST_SPRITES + EXTRA_SPRITES + PLAYER_CLOSED_SPRITES
 
 _cache = {}
 
@@ -55,12 +62,17 @@ def _need_pil():
 
 def _mouth_angles(sprite_id):
     # Pillow pieslice angles in degrees, 0 = east, counter-clockwise.
+    # Closed mouths use half the open angle (24 degrees vs 60), same center.
     try:
         return {
             "player-right": (30, 330),
             "player-down": (300, 240),
             "player-left": (210, 150),
             "player-up": (120, 60),
+            "player-right-closed": (12, 348),
+            "player-down-closed": (282, 258),
+            "player-left-closed": (192, 168),
+            "player-up-closed": (102, 78),
         }[sprite_id]
     except KeyError:
         raise ValueError("unknown player sprite: %r" % (sprite_id,))
@@ -72,7 +84,7 @@ def _draw(sprite_id, size_px):
     d = ImageDraw.Draw(img)
     pad = max(1, size_px // 12)
     box = [pad, pad, size_px - pad - 1, size_px - pad - 1]
-    if sprite_id in PLAYER_SPRITES:
+    if sprite_id in PLAYER_SPRITES or sprite_id in PLAYER_CLOSED_SPRITES:
         start, end = _mouth_angles(sprite_id)
         d.pieslice(box, start=start, end=end, fill=PLAYER_COLOR + (255,))
     elif sprite_id in GHOST_SPRITES or sprite_id in ("ghost-fright", "ghost-fright-flash"):
