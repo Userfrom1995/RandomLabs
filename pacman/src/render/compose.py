@@ -134,15 +134,17 @@ def paint_left_panel(fb, rect, palette, keymap=None):
     _line(fb, x, y + 1, "move: arrows", fg, bg, w)
     _line(fb, x, y + 2, _move_keys(keymap)[:w], dim, bg, w)
     controls = [("pause", "P"), ("restart", "R"), ("quit", "Q"),
-                ("start", "ENTER")]
+                ("mute", "M"), ("help", "?"), ("start", "ENTER")]
     if keymap is not None:
         controls = [("pause", "/".join(keymap.bindings("pause")) or "P"),
                     ("restart", "/".join(keymap.bindings("restart")) or "R"),
                     ("quit", "/".join(keymap.bindings("quit")) or "Q"),
+                    ("mute", "/".join(keymap.bindings("mute")) or "M"),
+                    ("help", "/".join(keymap.bindings("help")) or "?"),
                     ("start", "ENTER")]
     for i, (label, keys) in enumerate(controls):
         _line(fb, x, y + 4 + i, "%s: %s" % (label, keys), fg, bg, w)
-    base = y + 9
+    base = y + 11
     _line(fb, x, base, "LEGEND", PANEL_FG, bg, w)
     for i, legend in enumerate(("<>^v you", "M ghost", "O frightened",
                                 "x eyes", ". dot", "O energizer",

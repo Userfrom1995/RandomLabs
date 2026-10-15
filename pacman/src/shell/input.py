@@ -1,8 +1,8 @@
 """Key decoding and remappable bindings for interactive play.
 
 Bytes read from stdin in raw mode are translated into game actions
-(up/down/left/right/pause/quit/confirm) by a pure, headless-testable
-decoder. Arrow keys and control keys are fixed; single-character movement
+(up/down/left/right/pause/quit/confirm/restart/mute/help) by a pure,
+headless-testable decoder. Arrow keys and control keys are fixed; single-character movement
 and menu keys are remappable through Keymap (validated, duplicates
 rejected). Partial escape sequences are held as leftover bytes until the
 rest arrives, so slow terminals never misread an arrow as Escape.
@@ -10,7 +10,8 @@ rest arrives, so slow terminals never misread an arrow as Escape.
 
 UP, DOWN, LEFT, RIGHT = "up", "down", "left", "right"
 PAUSE, QUIT, CONFIRM, RESTART = "pause", "quit", "confirm", "restart"
-ACTIONS = (UP, DOWN, LEFT, RIGHT, PAUSE, QUIT, CONFIRM, RESTART)
+MUTE, HELP = "mute", "help"
+ACTIONS = (UP, DOWN, LEFT, RIGHT, PAUSE, QUIT, CONFIRM, RESTART, MUTE, HELP)
 
 # Fixed spellings every terminal sends; never remappable.
 FIXED_SPELLINGS = {
@@ -32,6 +33,8 @@ DEFAULT_BINDS = {
     QUIT: ("q",),
     CONFIRM: (),
     RESTART: ("r",),
+    MUTE: ("m",),
+    HELP: ("?",),
 }
 
 
@@ -86,7 +89,7 @@ class Keymap:
         for action in ACTIONS:
             chars = ", ".join(self._table[action]) or "-"
             lines.append("%-7s %s" % (action, chars))
-        lines.append("arrows: always move; esc: pause; ctrl-c: quit; enter: confirm")
+        lines.append("arrows: always move; esc: pause; ctrl-c: quit; enter: confirm; m: mute; ?: help")
         return "\n".join(lines)
 
 
