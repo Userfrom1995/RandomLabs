@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pacman-terminal-arcade"
+version = "1.0.0"
+description = "Pac-Man arcade game for the terminal (Kitty/Sixel/Unicode rendering)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "RandomLabs" }]
+keywords = ["pacman", "arcade", "terminal", "game", "kitty", "sixel"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Games/Entertainment :: Arcade",
+]
+dependencies = []
+
+[project.optional-dependencies]
+images = ["Pillow>=9"]
+
+[project.scripts]
+pacman-terminal-arcade = "shell.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Userfrom1995/RandomLabs"
+Issues = "https://github.com/Userfrom1995/RandomLabs/issues"
+
+[tool.setuptools]
+# The game ships as importable engine/render/shell packages resolved from
+# src/ (the same layout the repo tests use via sys.path). Install with
+# `pip install ./pacman` (add `[images]` for Kitty/Sixel sprite backends),
+# then run `pacman-terminal-arcade --play`.
+package-dir = { "" = "src" }
+packages = ["engine", "render", "shell"]

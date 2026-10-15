@@ -519,11 +519,29 @@ def build_parser():
                     help="print the active key bindings and exit")
     ap.add_argument("--fps", type=int, default=None,
                     help="frame pacing for --play, 1..240 (default from config)")
+    ap.add_argument("--version", action="store_true",
+                    help="print the installed package version and exit")
     return ap
+
+
+def package_version():
+    """Installed distribution version, or the dev fallback. Never raises."""
+    try:
+        from importlib import metadata as _metadata
+        return str(_metadata.version("pacman-terminal-arcade"))
+    except Exception:
+        return "1.0.0 (dev, uninstalled)"
+
+
+def cmd_version(_args):
+    print("pacman-terminal-arcade %s" % package_version())
+    return 0
 
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
+    if args.version:
+        return cmd_version(args)
     try:
         if args.renderer is not None:
             detect_renderer(args.renderer)  # fail fast on unknown names
