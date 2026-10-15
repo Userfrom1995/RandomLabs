@@ -15,7 +15,7 @@ from shell.config import Config
 
 
 def _state(**kw):
-    base = dict(theme="neon", mode="classic", scale_mode="auto",
+    base = dict(theme="neon", mode="classic", level=1, scale_mode="auto",
                 effects=True, reduced_flash=False)
     base.update(kw)
     return SimpleNamespace(**base)
@@ -71,7 +71,7 @@ def test_settings_cycle_changes_live_values():
     assert app.theme != first  # cycled to the next palette
     app.on_action("left")
     assert app.theme == first  # and back
-    app.settings_index = 3  # effects row
+    app.settings_index = 4  # effects row (level sits at 2)
     app.on_action("right")
     assert app.effects is False
     app.on_action("right")
@@ -149,6 +149,6 @@ def test_settings_paint_survives_sizes():
 def test_settings_matrix_all_pass():
     from shell import verify as verify_mod
     rows = verify_mod.settings_matrix(seed=1)
-    assert len(rows) == 10
+    assert len(rows) == 12
     failed = [(r["name"], r["detail"]) for r in rows if not r["passed"]]
     assert failed == []

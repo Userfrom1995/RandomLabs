@@ -110,6 +110,8 @@ def resolve_settings(args):
         "reduced_flash": (config.values["reduced_flash"] if args.reduced_flash is None
                           else args.reduced_flash),
         "name": args.name or config.values["name"],
+        "level": (config.values["level"] if args.level is None
+                  else args.level),
         "scores_file": args.scores_file,
         "scale": (config.values.get("scale", "auto") if args.scale is None
                   else args.scale),
@@ -123,13 +125,20 @@ def resolve_settings(args):
     return settings, config
 
 
+def _cli_level(args):
+    """Explicit --level or 1. Play merges config inside resolve_settings."""
+    return args.level if args.level is not None else 1
+
+
 def cmd_self_check(args):
     settings, _config = resolve_settings(args)
     name = detect_renderer(args.renderer, env=dict(os.environ))
     ticks = args.ticks
-    inputs = autopilot_inputs(args.seed, ticks, level=args.level, mode=settings["mode"])
+    inputs = autopilot_inputs(args.seed, ticks, level=_cli_level(args),
+                              mode=settings["mode"])
     digest, events, game = run_recording(args.seed, inputs, ticks,
-                                         level=args.level, mode=settings["mode"])
+                                         level=_cli_level(args),
+                                         mode=settings["mode"])
     dots = sum(1 for e in events if e == "dot")
     zaps = sum(1 for e in events if e == "energizer")
     eaten = sum(1 for e in events if e.startswith("ghost-eaten"))
@@ -178,7 +187,7 @@ def cmd_maze_check(_args):
 
 
 def cmd_render_check(args):
-    game = Game(seed=args.seed, level=args.level)
+    game = Game(seed=args.seed, level=_cli_level(args))
     for _ in range(args.ticks):
         game.step(tuning.STEP)
         if not game.running:
@@ -215,7 +224,7 @@ def cmd_render_bench(args):
             continue
         if getattr(backend, "min_interval", None):
             backend.min_interval = 0.0  # bench raster cost, not the fps throttle
-        game = Game(seed=args.seed, level=args.level)
+        game = Game(seed=args.seed, level=_cli_level(args))
         backend.init(COLS, ROWS)
         full_bytes, steady_bytes = 0, 0
         start = time.perf_counter()
@@ -345,7 +354,7 @@ def cmd_save_config(args):
         return 2
     config.update({"binds": settings["binds"], "audio": settings["audio"],
                    "fps": settings["fps"], "mode": settings["mode"],
-                   "theme": settings["theme"],
+                   "level": settings["level"], "theme": settings["theme"],
                    "reduced_flash": settings["reduced_flash"],
                    "name": settings["name"], "scale": settings["scale"],
                    "effects": settings["effects"]})
@@ -378,7 +387,8 @@ def cmd_play(args):
         print("error: %s" % exc)
         return 2
     scores = ScoreTable(path=settings["scores_file"])
-    app = ShellState(seed=args.seed, level=args.level, keymap=settings["keymap"],
+    app = ShellState(seed=args.seed, level=settings["level"],
+                     keymap=settings["keymap"],
                      audio=audio, mode=settings["mode"], theme=settings["theme"],
                      reduced_flash=settings["reduced_flash"], scores=scores,
                      player_name=settings["name"],
@@ -446,7 +456,8 @@ def build_parser():
     ap.add_argument("--renderer", default=None,
                     help="renderer backend (%s); default auto-detect" % "/".join(KNOWN))
     ap.add_argument("--seed", type=int, default=1, help="master RNG seed")
-    ap.add_argument("--level", type=int, default=1, help="starting level (>= 1)")
+    ap.add_argument("--level", type=int, default=None,
+                    help="starting level (>= 1; overrides the config file)")
     ap.add_argument("--ticks", type=int, default=1200, help="self-check simulation length in ticks")
     ap.add_argument("--self-check", action="store_true",
                     help="run the headless autopilot and print the state hash")
@@ -516,7 +527,7 @@ def main(argv=None):
     try:
         if args.renderer is not None:
             detect_renderer(args.renderer)  # fail fast on unknown names
-        if args.level < 1:
+        if args.level is not None and args.level < 1:
             print("error: --level must be >= 1")
             return 2
         if args.ticks < 1:

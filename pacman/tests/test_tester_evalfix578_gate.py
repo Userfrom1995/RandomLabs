@@ -71,7 +71,8 @@ def test_fix5_settings_labels_humanized():
 
 
 def test_fix6_apply_snapshot_validates_before_mutating():
-    st = SimpleNamespace(theme="neon", mode="classic", scale_mode="auto",
+    st = SimpleNamespace(theme="neon", mode="classic", level=1,
+                         scale_mode="auto",
                          effects=True, reduced_flash=False)
     before = settings_mod.snapshot(st)
     with pytest.raises((ValueError, TypeError)):

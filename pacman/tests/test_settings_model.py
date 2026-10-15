@@ -9,17 +9,19 @@ from shell import settings
 
 
 class State:
-    def __init__(self, theme="classic", mode="classic", scale_mode="auto",
-                 effects=True, reduced_flash=False):
+    def __init__(self, theme="classic", mode="classic", level=1,
+                 scale_mode="auto", effects=True, reduced_flash=False):
         self.theme = theme
         self.mode = mode
+        self.level = level
         self.scale_mode = scale_mode
         self.effects = effects
         self.reduced_flash = reduced_flash
 
 
 def test_options_order():
-    assert settings.OPTIONS == ("theme", "mode", "scale", "effects", "reduced_flash")
+    assert settings.OPTIONS == ("theme", "mode", "level", "scale",
+                              "effects", "reduced_flash")
 
 
 def test_choices_theme_match_real_themes_sorted():
@@ -74,6 +76,10 @@ def test_set_invalid_values_raise():
     with pytest.raises(ValueError):
         settings.set_value(st, "scale", "nope")
     with pytest.raises(ValueError):
+        settings.set_value(st, "level", "nope")
+    with pytest.raises(ValueError):
+        settings.set_value(st, "level", "0")
+    with pytest.raises(ValueError):
         settings.set_value(st, "effects", "maybe")
     with pytest.raises(ValueError):
         settings.set_value(st, "reduced_flash", "maybe")
@@ -123,8 +129,8 @@ def test_snapshot_apply_round_trip():
     st = State(theme="neon", mode="sprint", scale_mode="full",
                effects=False, reduced_flash=True)
     snap = settings.snapshot(st)
-    assert snap == {"theme": "neon", "mode": "sprint", "scale": "full",
-                    "effects": False, "reduced_flash": True}
+    assert snap == {"theme": "neon", "mode": "sprint", "level": 1,
+                    "scale": "full", "effects": False, "reduced_flash": True}
     other = State()
     settings.apply_snapshot(other, snap)
     assert settings.snapshot(other) == snap
@@ -136,7 +142,8 @@ def test_apply_snapshot_rejects_bad_dict():
         settings.apply_snapshot(st, {"theme": "neon"})  # missing keys
     with pytest.raises(ValueError):
         settings.apply_snapshot(st, {"theme": "nope", "mode": "classic",
-                                     "scale": "auto", "effects": True,
+                                     "level": 1, "scale": "auto",
+                                     "effects": True,
                                      "reduced_flash": False})
     with pytest.raises(ValueError):
         settings.apply_snapshot(st, "neon")
@@ -144,6 +151,7 @@ def test_apply_snapshot_rejects_bad_dict():
 
 def test_mode_note_honesty_and_others_empty():
     assert settings.note("mode") == "applies to next run"
+    assert settings.note("level").startswith("applies to next run")
     for option in ("theme", "scale", "effects", "reduced_flash"):
         assert settings.note(option) == ""
 
@@ -163,3 +171,30 @@ def test_no_shell_app_import():
     text = src.read_text(encoding="utf-8")
     assert "shell.app" not in text
     assert "shell import app" not in text
+
+
+def test_level_choices_span_1_to_32():
+    assert settings.choices("level") == tuple(str(n) for n in range(1, 33))
+    assert settings.get(State(level=7), "level") == "7"
+
+
+def test_level_set_accepts_int_and_digit_string():
+    st = State()
+    assert settings.set_value(st, "level", 5) == "5"
+    assert st.level == 5
+    assert settings.set_value(st, "level", "12") == "12"
+    assert st.level == 12
+
+
+def test_level_cycle_wraps_32_to_1():
+    st = State(level=32)
+    assert settings.cycle(st, "level", 1) == "1"
+    assert st.level == 1
+    assert settings.cycle(st, "level", -1) == "32"
+    assert st.level == 32
+
+
+def test_level_above_32_reads_honestly_cycles_to_range():
+    st = State(level=100)  # endless-ramp level via --level
+    assert settings.get(st, "level") == "100"
+    assert settings.cycle(st, "level", 1) == "1"

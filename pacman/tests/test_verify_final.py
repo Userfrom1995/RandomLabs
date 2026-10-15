@@ -29,10 +29,10 @@ def test_matrix_row_counts_pinned():
     assert counts["capability"] == 8
     assert counts["input"] == 7
     assert counts["controls"] == 12
-    assert counts["settings"] == 10
+    assert counts["settings"] == 12
     assert counts["fullscreen"] == 10
     assert counts["parity"] == 11
-    assert sum(counts.values()) == 104
+    assert sum(counts.values()) == 106
 
 
 def test_verify_matrix_stable_across_seeds():
@@ -63,7 +63,7 @@ def test_render_bench_unicode_always_available():
 def test_cli_verify_passes(capsys):
     assert main(["--verify", "--seed", "1"]) == 0
     out = capsys.readouterr().out
-    assert "verify: 104/104 passed" in out
+    assert "verify: 106/106 passed" in out
     assert "FAIL" not in out
 
 

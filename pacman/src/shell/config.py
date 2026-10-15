@@ -20,6 +20,7 @@ DEFAULTS = {
     "audio": "auto",
     "fps": 30,
     "mode": "classic",
+    "level": 1,
     "name": "ACE",
     "scale": "auto",
     "effects": True,
@@ -123,6 +124,12 @@ class Config:
                 self.values["mode"] = DEFAULTS["mode"]
         if "name" in raw:
             self.values["name"] = clean_name(raw["name"])
+        if "level" in raw:
+            try:
+                number = int(str(raw["level"]).strip())
+            except (TypeError, ValueError):
+                number = DEFAULTS["level"]
+            self.values["level"] = max(1, number)
         if "scale" in raw:
             mode = str(raw["scale"]).strip().lower()
             self.values["scale"] = mode if mode in SCALE_CHOICES else DEFAULTS["scale"]
