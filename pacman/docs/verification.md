@@ -1,10 +1,13 @@
 # Pac-Man Terminal Arcade - Verification Report
 
-Produced by `python3 pacman/pacman.py --verify` (47 rows, all passing on the
+Produced by `python3 pacman/pacman.py --verify` (57 rows, all passing on the
 reference machine). The same matrices live in `src/shell/verify.py`, so the
 CLI, this report, and the pytest suite (`tests/test_verify_final.py`) can
 never drift apart: the suite pins the row counts and fails if a check goes
-quiet.
+quiet. Real-terminal proof rides alongside: true-pty `--play` drives on
+unicode and kitty at 28x34, 80x40, 100x44, and 120x50 (title, gameplay with
+side panels, pause, too-small card at 20x10, clean teardown, symmetric
+kitty place/erase counts) plus a sixel smoke run.
 
 ## Gameplay (15 rows)
 
@@ -29,10 +32,17 @@ The scene needs 28x34 cells. Exact fit passes, roomy terminals (80x50,
 120x40) pass, and anything smaller (standard 80x24, classic 80x25, tiny
 20x10) routes to the honest too-small card instead of a garbled maze.
 Note: a stock 80x24 terminal is below the minimum, the game tells you so.
-Fitting terminals center the scene (verified live in a real pty at 80x40,
-100x44, and 120x50, plus a mid-game 80x40 to 120x50 resize that recenters
-exactly); the size matrix pins the fit/too-small routing while the parity
-rows below pin the centering offsets.
+
+## Responsive layout (10 rows)
+
+The window is a full-screen canvas, not a centered postage stamp. The
+layout matrix pins the region thresholds: tiny windows report too-small,
+28x34 plays the bare maze cell-identically to the scene painter, narrow
+windows gain only the title and hints strips, 56+ column windows gain the
+live score/run/progress dashboard, 80+ column windows add the
+controls-and-legend panel, and the composer blits the 28x34 scene
+verbatim at the layout origin inside frames that always match the
+terminal size. `describe()` names every region for `--layout-check`.
 
 ## Renderer capability (8 rows)
 
@@ -54,5 +64,7 @@ single-column glyphs everywhere, a text glyph on every sprite cell, and a
 clean `present()` on each available backend. Four remediation rows pin the
 real-terminal fixes against the live backends: a moved kitty sprite erases
 its departed cell before placing the new one, a steady frame emits no
-image commands at all, a 100x44 terminal centers the scene at offset
-(36, 5), and a resize to 120x50 recenters at (46, 8).
+image commands at all, and the canvas model pins renderer origin (0,0)
+with the maze composed at (34,5) on 100x44 and (44,8) after a resize to
+120x50 (the composer owns offsets now; resizes re-init the backends at
+the new terminal dims and repaint fully).
