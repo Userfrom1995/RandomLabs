@@ -67,6 +67,33 @@ Forensic pty harness (`/tmp/opencode/forensic.py`, drives the real
 - Phase 4: Settings Customization Verification and Scoreboard, final (DONE, ready for review gate; Closes #552)
 - Reviewer pass on the final diff, then Tester (plus per-OS terminal runners where applicable), then Eval, then Maintainer merges with Closes #552
 
+## Wave 2: fullscreen fit, clarity, levels, packaging (owner reopen, 2026-10-15)
+
+Owner verdict on the canvas wave: text shatters (letters repeated), the
+maze does not fill the window, play feels less smooth, levels are not
+user-controllable, and the game should ship as an installable package.
+Forensic reproduction confirmed the shatter exactly: at 2x1 the composer
+duplicated every scene glyph, so HUD rows read "SSCCOORREE / LLEEVVEELL".
+
+- [x] Clarity: HUD text rows render at 1x centered over the maze; only
+  the 28x31 playfield magnifies (compose `_blit_magnified` split).
+- [x] Fill: scale factors 1..4 per axis fill the window (auto/full pick
+  the largest fitting box; single-tall rows cap width at 2x so the
+  dashboard/legend chrome dresses the sides instead of fat glyphs).
+- [x] Viewport: windows too short for the box play via a 1x follow-cam
+  slice (camera centers on the player, clamps at the edges) down to
+  28x16, so the 80x24 default terminal plays instead of too-small.
+- [x] Smoothness: measured, not guessed: unicode steady frames stay
+  tiny (37-64 B at 120x50..200x80 via the backend diff path),
+  compose+present runs 77-542 fps headless vs the 30 fps loop.
+- [ ] Levels: starting level selectable in settings/CLI/config (1..32
+  in the UI, any >= 1 via --level); win-to-next progression unchanged.
+- [ ] Packaging: pyproject.toml (setuptools, console script), pip
+  install verified in a clean venv, --version flag, install docs.
+- [ ] Proof: 10-row fullscreen verify section (104 total), pty tour
+  across sizes/backends, scoreboard/docs/hub/ideas refreshed.
+- Suite: 467 green. PR target: Refs #552 (no close until owner confirms).
+
 ## Standing notes
 
 - Builder to implement the active phase only, with real code and zero stubs

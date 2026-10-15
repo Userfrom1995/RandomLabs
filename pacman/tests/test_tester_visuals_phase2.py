@@ -18,7 +18,7 @@ from render import scale as scale_mod
 from render import themes
 from render.compose import paint_full
 from render.layout import compute_scaled
-from render.scene import COLS, ROWS, paint as paint_scene
+from render.scene import COLS, HUD_ROWS, ROWS, paint as paint_scene
 from render.scene import sprite_ids_in
 from shell import verify as verify_mod
 from shell.app import ShellState, run
@@ -75,7 +75,7 @@ def test_tester_cli_verify_and_scoreboard_pass(capsys):
     from shell.cli import main
     assert main(["--verify"]) == 0
     out = capsys.readouterr().out
-    assert "verify: 92/92 passed" in out
+    assert "verify: 104/104 passed" in out
     assert main(["--scoreboard", "--frames", "5"]) == 0
     board = capsys.readouterr().out
     assert "scoreboard OK" in board and "canvas-compose" in board
@@ -89,7 +89,7 @@ def test_tester_scale_ladder_pins():
     assert (scale_mod.choose(120, 50, "auto").sx,
             scale_mod.choose(120, 50, "auto").sy) == (2, 1)
     assert (scale_mod.choose(200, 80, "auto").sx,
-            scale_mod.choose(200, 80, "auto").sy) == (2, 2)
+            scale_mod.choose(200, 80, "auto").sy) == (4, 2)
     assert scale_mod.choose(80, 50, "wide").sx == 2
     assert scale_mod.choose(40, 40, "wide").sx == 1
     assert scale_mod.choose(120, 50, "hologram").sx == 1
@@ -105,10 +105,8 @@ def test_tester_scale_survives_hostile_dims():
         assert (picked.sx, picked.sy) == (1, 1)
 
 
-@pytest.mark.xfail(reason="choose(float('inf'),...) raises OverflowError; "
-                          "int(inf) escapes the (TypeError, ValueError) "
-                          "guard. Unreachable via real terminal sizes.")
 def test_tester_scale_survives_infinite():
+    # Wave-2 fix: the coercion guards now catch OverflowError too.
     picked = scale_mod.choose(float("inf"), float("inf"))
     assert (picked.sx, picked.sy) == (1, 1)
 
@@ -121,17 +119,24 @@ def test_tester_wide_blit_doubles_cells_with_spans():
     lay = compute_scaled(120, 50, 56, 34)
     wide = paint_full(game, lay)
     assert (wide.cols, wide.rows) == (120, 50)
-    for y in range(ROWS):
+    hx = lay.maze_ox + (56 - COLS) // 2
+    for r in range(HUD_ROWS):  # HUD text stays 1x: no duplicated letters
         for x in range(COLS):
-            assert wide.get(lay.maze_ox + x * 2, lay.maze_oy + y) == \
-                ref.get(x, y)
-            assert wide.get(lay.maze_ox + x * 2 + 1,
-                            lay.maze_oy + y).glyph == ref.get(x, y).glyph
-    sprites = [i for i, c in enumerate(ref.cells) if c.sprite is not None]
+            assert wide.get(hx + x, lay.maze_oy + r) == ref.get(x, r)
+    for my in range(ROWS - HUD_ROWS):  # only the maze playfield magnifies
+        for mx in range(COLS):
+            assert wide.get(lay.maze_ox + mx * 2,
+                            lay.maze_oy + HUD_ROWS + my) == \
+                ref.get(mx, my + HUD_ROWS)
+            assert wide.get(lay.maze_ox + mx * 2 + 1,
+                            lay.maze_oy + HUD_ROWS + my).glyph == \
+                ref.get(mx, my + HUD_ROWS).glyph
+    sprites = [i for i, c in enumerate(ref.cells)
+               if c.sprite is not None and i >= HUD_ROWS * COLS]
     assert sprites, "expected sprite cells in a live frame"
     for i in sprites:
-        idx = (lay.maze_oy + i // COLS) * wide.cols + lay.maze_ox + \
-            (i % COLS) * 2
+        idx = (lay.maze_oy + HUD_ROWS + i // COLS - HUD_ROWS) * wide.cols + \
+            lay.maze_ox + (i % COLS) * 2
         assert wide.spans.get(idx) == (2, 1)
 
 
@@ -296,5 +301,5 @@ def test_tester_full_matrix_ninety_two_green():
             total += 1
             if not row["passed"]:
                 failed.append(row["name"])
-    assert total == 92, "matrix grew; update this pin, got %d" % total
+    assert total == 104, "matrix grew; update this pin, got %d" % total
     assert failed == []

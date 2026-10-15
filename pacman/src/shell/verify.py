@@ -288,25 +288,30 @@ def _run_until(game, want_state, cap_s=10.0):
 
 
 def size_matrix():
-    """Terminal-size matrix against the 28x34 scene geometry."""
-    from render.scene import COLS, ROWS
-    from shell.terminal import check_size
+    """Terminal-size matrix against the canvas layout engine.
+
+    Full magnified boxes play where they fit; short windows fall back
+    to the follow-cam viewport (down to 28x16, so the 80x24 default
+    plays); anything smaller gets the too-small card.
+    """
+    from shell.app import canvas_layout
     cases = [
-        ("exact-fit-28x34", 28, 34, True),
-        ("standard-80x24-too-small", 80, 24, False),
-        ("classic-80x25-too-small", 80, 25, False),
-        ("roomy-80x50", 80, 50, True),
-        ("wide-120x40", 120, 40, True),
-        ("tiny-20x10", 20, 10, False),
+        ("exact-fit-28x34", 28, 34, "full"),
+        ("standard-80x24-viewport", 80, 24, "viewport"),
+        ("classic-80x25-viewport", 80, 25, "viewport"),
+        ("roomy-80x50", 80, 50, "full"),
+        ("wide-120x40", 120, 40, "full"),
+        ("tiny-20x10", 20, 10, "too-small"),
+        ("narrow-27x30", 27, 30, "too-small"),
+        ("short-80x15", 80, 15, "too-small"),
     ]
     rows = []
-    for name, cols, rows_need, want_fit in cases:
-        msg = check_size(cols, rows_need, COLS, ROWS)
-        fits = msg is None
-        rows.append(_row("size-%s" % name, fits == want_fit,
-                         "have=%dx%d need=%dx%d %s" % (
-                             cols, rows_need, COLS, ROWS,
-                             "fits" if fits else "too-small-card")))
+    for name, cols, rows_need, want in cases:
+        lay = canvas_layout(cols, rows_need, "auto")
+        got = "full" if lay.fits and not lay.viewport else (
+            "viewport" if lay.viewport else "too-small")
+        rows.append(_row("size-%s" % name, got == want,
+                         "have=%dx%d plays=%s" % (cols, rows_need, got)))
     return rows
 
 
@@ -378,6 +383,110 @@ def layout_matrix(seed=1):
                      "maze 28x34 at (44,8)" in report
                      and "left panel" in report and "right panel" in report,
                      "describe() names every region"))
+    return rows
+
+
+def _maze_box_text(frame, lay):
+    """Glyph text of the maze-box rows (HUD plus playfield)."""
+    return ["".join(frame.get(x, y).glyph
+                    for x in range(lay.maze_ox, lay.maze_ox + lay.maze_w))
+            for y in range(lay.maze_oy, lay.maze_oy + lay.maze_h)]
+
+
+def fullscreen_matrix(seed=1):
+    """Fullscreen wave-2 matrix: HUD clarity, space fill, viewport play.
+
+    Every row drives the real scale/layout/composer code headlessly and
+    pins the owner's three reports: no letter duplication at any
+    magnification, the maze box grows with the window, and short
+    windows (including the 80x24 default) play via follow-cam.
+    """
+    from render import scale as scale_mod
+    from render.compose import cam_y, paint_full, paint_viewport
+    from render.scene import COLS as _COLS
+    from render.scene import paint as paint_scene
+    from shell.app import canvas_layout
+    rows = []
+
+    game = Game(seed=seed)
+    for _ in range(200):
+        game.step(tuning.STEP)
+    ref = paint_scene(game)
+    ref_hud = ["".join(ref.get(x, r).glyph for x in range(_COLS))
+               for r in range(3)]
+    for name, cols, rows_need in (("hud-once-2x1", 120, 50),
+                                  ("hud-once-4x1", 200, 80)):
+        lay = canvas_layout(cols, rows_need, "auto")
+        frame = paint_full(game, lay)
+        box = _maze_box_text(frame, lay)
+        hud_ok = True
+        for r in range(3):
+            want = ref_hud[r]
+            got = box[r][(lay.maze_w - _COLS) // 2:
+                         (lay.maze_w - _COLS) // 2 + _COLS]
+            if got != want:
+                pintar = False
+        flat = "".join(box)
+        rows.append(_row(name, hud_ok and "SSCCOORREE" not in flat
+                         and "LLEEVVEELL" not in flat,
+                         "HUD exact at 1x over the magnified maze"))
+
+    auto200 = scale_mod.choose(200, 80, "auto")
+    rows.append(_row("fill-200x80-uses-space",
+                     (auto200.sx, auto200.sy) == (4, 2)
+                     and auto200.maze_cols == 112
+                     and auto200.maze_rows == 65,
+                     scale_mod.describe(auto200)))
+    auto160 = scale_mod.choose(160, 60, "auto")
+    lay160 = canvas_layout(160, 60, "auto")
+    rows.append(_row("fill-160x60-capped-with-chrome",
+                     (auto160.sx, auto160.sy) == (2, 1)
+                     and lay160.left is not None
+                     and lay160.right is not None,
+                     "aspect cap 2x1, both panels dress the sides"))
+    lay80 = canvas_layout(80, 24, "auto")
+    frame80 = paint_full(game, lay80)
+    rows.append(_row("viewport-80x24-plays",
+                     lay80.viewport and (frame80.cols, frame80.rows) == (80, 24)
+                     and "".join(frame80.get(x, 0).glyph for x in range(26, 54)
+                                 ).startswith("SCORE"),
+                     "default terminal size plays via follow-cam"))
+    cam_ok = (cam_y(0, 21) == 0 and cam_y(30, 21) == 10
+              and cam_y(-5, 21) == 0 and cam_y(99, 21) == 10
+              and cam_y(15, 31) == 0)
+    rows.append(_row("viewport-camera-clamps", cam_ok,
+                     "top/bottom edges rest, overshoot clamps"))
+    pxy = tile_of(game.player.x, game.player.y)
+    seen = any(frame80.get(x, y).sprite is not None
+               and "player" in str(frame80.get(x, y).sprite)
+               for y in range(2, 23) for x in range(26, 54))
+    rows.append(_row("viewport-player-visible", seen,
+                     "player sprite %s inside the 80x24 slice" % (pxy,)))
+    tiny_ok = not canvas_layout(20, 10, "auto").viewport
+    min_ok = canvas_layout(28, 16, "auto").viewport
+    rows.append(_row("viewport-floor-28x16",
+                     tiny_ok and min_ok and not canvas_layout(27, 30, "auto").fits
+                     and not canvas_layout(80, 15, "auto").fits,
+                     "below 28x16 stays on the too-small card"))
+    direct = paint_viewport(game, 80, 24)
+    rows.append(_row("viewport-direct-paints",
+                     (direct.cols, direct.rows) == (80, 24)
+                     and direct.cells == frame80.cells,
+                     "standalone viewport painter matches the layout path"))
+    from render.manager import make_backend
+    uni = make_backend("unicode")
+    uni.init(160, 60)
+    first = paint_full(game, canvas_layout(160, 60, "auto"), effects=True)
+    uni.present(first, first.dirty_cells())
+    steady_total = 0
+    for _ in range(10):
+        game.step(tuning.STEP)
+        frame = paint_full(game, canvas_layout(160, 60, "auto"), effects=True)
+        steady_total += len(uni.present(frame, frame.dirty_cells()))
+    rows.append(_row("smooth-steady-frames-stay-small",
+                     steady_total // 10 < 4096,
+                     "160x60 steady avg %d B (diff path, no full redraws)"
+                     % (steady_total // 10)))
     return rows
 
 
@@ -766,12 +875,14 @@ def visual_matrix(seed=1):
     rows.append(_row("scale-full-independent-axes",
                      (tall.sx, tall.sy) == (1, 2),
                      scale_mod.describe(tall)))
-    ladder = [(28, 34, (1, 1)), (120, 50, (2, 1)), (200, 80, (2, 2))]
+    ladder = [(28, 34, (1, 1)), (120, 50, (2, 1)), (200, 80, (4, 2)),
+              (160, 60, (2, 1)), (300, 100, (4, 3))]
     ladder_ok = all((scale_mod.choose(c, r, "auto").sx,
                      scale_mod.choose(c, r, "auto").sy) == want
                     for c, r, want in ladder)
     rows.append(_row("scale-auto-ladder", ladder_ok,
-                     "28x34->1x1 120x50->2x1 200x80->2x2"))
+                     "28x34->1x1 120x50->2x1 200x80->4x2 "
+                     "160x60->2x1(cap) 300x100->4x3"))
     fallback = scale_mod.choose(120, 50, "hologram")
     try:
         scale_mod.check("hologram")
@@ -788,22 +899,29 @@ def visual_matrix(seed=1):
     ref = paint_scene(game)
     wide_lay = compute_scaled(120, 50, 56, 34)
     wide = paint_full(game, wide_lay)
+    hx = wide_lay.maze_ox + (56 - _COLS) // 2
+    hud_ok = all(wide.get(hx + x, wide_lay.maze_oy + r) == ref.get(x, r)
+                 for r in range(3) for x in range(_COLS))
     origin_ok = all(
-        wide.get(wide_lay.maze_ox + x * 2, wide_lay.maze_oy + y) == ref.get(x, y)
-        for y in range(_ROWS) for x in range(_COLS))
+        wide.get(wide_lay.maze_ox + x * 2, wide_lay.maze_oy + 3 + y)
+        == ref.get(x, y + 3)
+        for y in range(_ROWS - 3) for x in range(_COLS))
     filler_ok = all(
-        wide.get(wide_lay.maze_ox + x * 2 + 1, wide_lay.maze_oy + y).glyph
-        == ref.get(x, y).glyph
-        for y in range(_ROWS) for x in range(_COLS))
-    sprite_cells = [i for i, c in enumerate(ref.cells) if c.sprite is not None]
+        wide.get(wide_lay.maze_ox + x * 2 + 1,
+                 wide_lay.maze_oy + 3 + y).glyph
+        == ref.get(x, y + 3).glyph
+        for y in range(_ROWS - 3) for x in range(_COLS))
+    sprite_cells = [i for i, c in enumerate(ref.cells)
+                    if c.sprite is not None and i >= 3 * _COLS]
     spans_ok = all(wide.spans.get(
-        (wide_lay.maze_oy + (i // _COLS)) * wide.cols
+        (wide_lay.maze_oy + 3 + (i // _COLS) - 3) * wide.cols
         + wide_lay.maze_ox + (i % _COLS) * 2) == (2, 1)
         for i in sprite_cells)
     rows.append(_row("scale-wide-blit-doubles",
                      wide.cols == 120 and wide.rows == 50
-                     and origin_ok and filler_ok and spans_ok,
-                     "origin+fill match, %d sprite spans (2,1)" % len(sprite_cells)))
+                     and hud_ok and origin_ok and filler_ok and spans_ok,
+                     "HUD 1x + maze 2x, %d sprite spans (2,1)"
+                     % len(sprite_cells)))
 
     from render.manager import make_backend
     kitty = make_backend("kitty")
@@ -988,6 +1106,7 @@ def full_matrix(seed=1):
         ("input", input_matrix()),
         ("controls", controls_matrix(seed)),
         ("settings", settings_matrix(seed)),
+        ("fullscreen", fullscreen_matrix(seed)),
         ("parity", parity_check(seed)),
     ]
     return sections

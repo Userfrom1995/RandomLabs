@@ -1,10 +1,12 @@
 """Fullscreen composer: game state plus layout -> full-terminal FrameBuffer.
 
 The composer owns every region the layout engine places: it blits the
-28x34 scene (the unchanged parity anchor every backend shares) at the
-layout's maze origin, then fills the rest of the window with live regions
+28-column scene (the unchanged parity anchor every backend shares) at the
+layout's maze origin - HUD text rows at 1x, the 28x31 playfield magnified
+per render/scale.py - then fills the rest of the window with live regions
 instead of dead space: a stats dashboard on the right, controls and legend
 on the left, a title strip on top, and a hints status bar at the bottom.
+Short windows get a follow-cam viewport slice instead of side panels.
 
 Every region shows live data from the game object, the keymap, and the
 score table: there are no placeholder panels. When the window is too small
@@ -12,9 +14,11 @@ for side panels the composer degrades to the bare centered maze, which is
 cell-identical to scene.paint, so small terminals play exactly as before.
 """
 
+from engine.actors import tile_of
+from engine.maze import HEIGHT as MAZE_H, WIDTH as MAZE_W
 from render.framebuffer import BLANK, Cell, FrameBuffer
 from render import effects as fx
-from render.scene import COLS, ROWS, paint
+from render.scene import COLS, HUD_ROWS, ROWS, paint
 from render.themes import get as theme_get
 
 TITLE_TEXT = "PAC-MAN TERMINAL ARCADE"
@@ -186,21 +190,29 @@ def _paint_chrome(fb, palette):
 
 
 def _blit_magnified(fb, scene_fb, ox, oy, sx, sy):
-    """Blit the 28x34 scene scaled sx by sy into the canvas frame.
+    """Blit the scene into the canvas frame: HUD at 1x, maze magnified.
 
-    Each scene cell covers an sx by sy block: the block origin carries
-    the full cell (glyph plus sprite) and fillers repeat the text
-    underlay without a sprite. Sprite origins are recorded in
-    fb.spans so image backends place one sx by sy image per block
-    instead of tiling. Text backends simply draw every cell.
+    The 3 HUD text rows render at native size, centered over the
+    magnified maze: magnifying text duplicates every letter (the
+    shatter bug: "SCORE" became "SSCCOORREE" at 2x1). Only the maze
+    playfield scales: each maze cell covers an sx by sy block whose
+    origin carries the full cell (glyph plus sprite) while fillers
+    repeat the text underlay without a sprite. Sprite origins are
+    recorded in fb.spans so image backends place one sx by sy image
+    per block instead of tiling. Text backends simply draw every cell.
     """
+    maze_w = COLS * sx
+    hx = ox + (maze_w - COLS) // 2
+    for r in range(HUD_ROWS):
+        for x in range(COLS):
+            fb.set(hx + x, oy + r, scene_fb.get(x, r))
     spans = {}
-    for sy_ in range(ROWS):
-        for sx_ in range(COLS):
-            cell = scene_fb.get(sx_, sy_)
+    for my in range(MAZE_H):
+        for mx in range(MAZE_W):
+            cell = scene_fb.get(mx, my + HUD_ROWS)
             for dy in range(sy):
                 for dx in range(sx):
-                    xx, yy = ox + sx_ * sx + dx, oy + sy_ * sy + dy
+                    xx, yy = ox + mx * sx + dx, oy + HUD_ROWS + my * sy + dy
                     if dx == 0 and dy == 0:
                         fb.set(xx, yy, cell)
                         if cell.sprite is not None and (sx, sy) != (1, 1):
@@ -208,6 +220,66 @@ def _blit_magnified(fb, scene_fb, ox, oy, sx, sy):
                     else:
                         fb.set(xx, yy, Cell(cell.glyph, cell.fg, cell.bg, None))
     return spans
+
+
+def cam_y(player_tile_y, view_h):
+    """Top maze row of the follow-cam viewport. Never raises.
+
+    Centers on the player and clamps to the 31-row playfield, so the
+    camera rests at the top/bottom edges instead of showing void.
+    """
+    try:
+        py = int(player_tile_y)
+    except (TypeError, ValueError):
+        py = MAZE_H // 2
+    try:
+        vh = max(1, int(view_h))
+    except (TypeError, ValueError):
+        vh = MAZE_H
+    if vh >= MAZE_H:
+        return 0
+    return min(max(py - vh // 2, 0), MAZE_H - vh)
+
+
+def paint_viewport(game, term_cols, term_rows, theme="classic",
+                   reduced_flash=False, hint=None, effects=False):
+    """Fullscreen follow-cam frame for short windows (down to 28x16).
+
+    A 1x maze slice (28 wide, rows-3 tall) tracks the player tile, with
+    the scene's own condensed HUD rows (score/level, lives/dots) at 1x
+    on top and the status hint at the bottom. No side panels: the slice
+    plus chrome already fills narrow windows.
+    """
+    from render.layout import VIEW_HUD_ROWS
+    palette = theme_get(theme)
+    bg = palette["corridor_bg"]
+    cols = max(1, int(term_cols))
+    rows = max(1, int(term_rows))
+    fb = FrameBuffer(cols, rows, Cell(" ", palette["text"], bg, None))
+    _paint_chrome(fb, palette)
+    scene_fb = paint(game, theme=theme, reduced_flash=reduced_flash,
+                     effects=effects)
+    if effects and getattr(game, "fruit", None) is not None \
+            and game.fruit.active:
+        _paint_sparkles(scene_fb, game)
+    ox = (cols - COLS) // 2
+    for r in range(min(VIEW_HUD_ROWS, HUD_ROWS)):
+        for x in range(COLS):
+            fb.set(ox + x, r, scene_fb.get(x, r))
+    view_h = max(0, rows - VIEW_HUD_ROWS - 1)
+    top = cam_y(tile_of(game.player.x, game.player.y)[1], max(view_h, 1))
+    for i in range(view_h):
+        maze_row = top + i
+        if not (0 <= maze_row < MAZE_H):
+            continue
+        for x in range(COLS):
+            fb.set(ox + x, VIEW_HUD_ROWS + i,
+                   scene_fb.get(x, maze_row + HUD_ROWS))
+    if rows >= 1:
+        text = hint if hint is not None else _default_hint()
+        _line(fb, 0, rows - 1,
+              text.center(cols)[:cols], PANEL_DIM, bg)
+    return fb
 
 
 def _paint_sparkles(scene_fb, game):
@@ -243,14 +315,20 @@ def paint_full(game, layout, theme="classic", reduced_flash=False,
                keymap=None, scores=None, hint=None, effects=False):
     """Render the whole terminal window: maze plus live side regions.
 
-    The maze blit magnifies the 28x34 scene painter to the layout's
-    maze box (1x1 on small windows, 2x1 wide or 2x2 full on roomy
-    ones), so the Kitty, Sixel, and Unicode backends keep the parity
-    they already had at a larger size; only the surrounding chrome is
-    new. hint is the status-bar text (the shell supplies per-screen
-    hints); scores feeds the BEST line. With effects=True the scene
-    animates (mouth, pulse, sparkles, death and clearing sequences).
+    The maze blit magnifies the 28x31 playfield to the layout's maze
+    box (1x1 on small windows, up to 4x per axis filling roomy ones)
+    while the 3 HUD text rows stay at 1x, so the Kitty, Sixel, and
+    Unicode backends keep parity at a larger size without duplicating
+    letters; only the surrounding chrome is new. hint is the
+    status-bar text (the shell supplies per-screen hints); scores
+    feeds the BEST line. With effects=True the scene animates (mouth,
+    pulse, sparkles, death and clearing sequences). Viewport layouts
+    (short windows) delegate to paint_viewport, the follow-cam slice.
     """
+    if getattr(layout, "viewport", False):
+        return paint_viewport(game, layout.frame_cols, layout.frame_rows,
+                              theme=theme, reduced_flash=reduced_flash,
+                              hint=hint, effects=effects)
     palette = theme_get(theme)
     bg = palette["corridor_bg"]
     fb = FrameBuffer(layout.frame_cols, layout.frame_rows,

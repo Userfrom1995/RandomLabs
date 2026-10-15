@@ -15,7 +15,7 @@ from render import themes
 from render.atlas import KNOWN_SPRITES, image_id, png_for
 from render.compose import paint_full
 from render.layout import compute, compute_scaled
-from render.scene import COLS, ROWS, PLAYER_SPRITE_CLOSED
+from render.scene import COLS, HUD_ROWS, ROWS, PLAYER_SPRITE_CLOSED
 from render.scene import paint as paint_scene
 from render.scene import sprite_ids_in, wall_glyph
 from shell import verify as verify_mod
@@ -44,7 +44,7 @@ def test_scale_modes_pinned():
     assert (scale_mod.choose(40, 80, "full").sx,
             scale_mod.choose(40, 80, "full").sy) == (1, 2)
     assert (scale_mod.choose(200, 80, "auto").sx,
-            scale_mod.choose(200, 80, "auto").sy) == (2, 2)
+            scale_mod.choose(200, 80, "auto").sy) == (4, 2)
     assert (scale_mod.choose(120, 50, "auto").sx,
             scale_mod.choose(120, 50, "auto").sy) == (2, 1)
 
@@ -67,7 +67,8 @@ def test_scaled_layout_centers_magnified_maze():
     assert lay.fits and (lay.maze_ox, lay.maze_oy) == (30, 8)
     assert lay.right is not None and lay.left is not None
     assert compute_scaled(28, 34, 28, 34) == compute(28, 34)
-    assert not compute_scaled(28, 34, 56, 34).fits
+    overflow = compute_scaled(28, 34, 56, 34)
+    assert overflow.viewport and overflow.fits
 
 
 def test_canvas_layout_helper_picks_scale():
@@ -87,16 +88,22 @@ def test_wide_blit_preserves_cells_and_records_spans():
     lay = compute_scaled(120, 50, 56, 34)
     wide = paint_full(game, lay)
     assert (wide.cols, wide.rows) == (120, 50)
-    for y in range(ROWS):
+    hx = lay.maze_ox + (56 - COLS) // 2
+    for r in range(HUD_ROWS):  # HUD text stays 1x: no duplicated letters
         for x in range(COLS):
-            origin = wide.get(lay.maze_ox + x * 2, lay.maze_oy + y)
-            assert origin == ref.get(x, y)
-            filler = wide.get(lay.maze_ox + x * 2 + 1, lay.maze_oy + y)
-            assert filler.glyph == ref.get(x, y).glyph
+            assert wide.get(hx + x, lay.maze_oy + r) == ref.get(x, r)
+    for my in range(ROWS - HUD_ROWS):  # only the maze playfield magnifies
+        for mx in range(COLS):
+            origin = wide.get(lay.maze_ox + mx * 2, lay.maze_oy + HUD_ROWS + my)
+            assert origin == ref.get(mx, my + HUD_ROWS)
+            filler = wide.get(lay.maze_ox + mx * 2 + 1,
+                              lay.maze_oy + HUD_ROWS + my)
+            assert filler.glyph == ref.get(mx, my + HUD_ROWS).glyph
             assert filler.sprite is None
     for i, cell in enumerate(ref.cells):
-        if cell.sprite is not None:
-            idx = (lay.maze_oy + i // COLS) * wide.cols + lay.maze_ox + (i % COLS) * 2
+        if cell.sprite is not None and i >= HUD_ROWS * COLS:
+            idx = ((lay.maze_oy + HUD_ROWS + i // COLS - HUD_ROWS)
+                   * wide.cols + lay.maze_ox + (i % COLS) * 2)
             assert wide.spans.get(idx) == (2, 1)
 
 
