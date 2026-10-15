@@ -425,7 +425,7 @@ def fullscreen_matrix(seed=1):
             got = box[r][(lay.maze_w - _COLS) // 2:
                          (lay.maze_w - _COLS) // 2 + _COLS]
             if got != want:
-                pintar = False
+                hud_ok = False
         flat = "".join(box)
         rows.append(_row(name, hud_ok and "SSCCOORREE" not in flat
                          and "LLEEVVEELL" not in flat,
