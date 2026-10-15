@@ -80,6 +80,31 @@ def test_canvas_layout_helper_picks_scale():
             canvas_layout(120, 50, "classic").maze_h) == (28, 34)
 
 
+def test_paint_full_roundtrip_matches_choose_at_200x80():
+    """paint_full's effective sy matches choose() for the 200x80 case.
+
+    Regression pin: the composer must derive sy from the HUD-excluded
+    maze height ((maze_h - HUD_ROWS) // MAZE_H), not maze_h // ROWS,
+    so the 4x2 box (112x65) paints all 62 magnified maze rows.
+    """
+    from engine.maze import HEIGHT as _MAZE_H
+    picked = scale_mod.choose(200, 80, "auto")
+    assert (picked.sx, picked.sy) == (4, 2)
+    lay = canvas_layout(200, 80, "auto")
+    assert (lay.maze_w, lay.maze_h) == (picked.maze_cols, picked.maze_rows)
+    eff_sx = max(1, lay.maze_w // COLS)
+    eff_sy = max(1, (lay.maze_h - HUD_ROWS) // _MAZE_H)
+    assert (eff_sx, eff_sy) == (picked.sx, picked.sy)
+    game = live_game()
+    frame = paint_full(game, lay)
+    assert (frame.cols, frame.rows) == (200, 80)
+    ref = paint_scene(game)
+    bottom_src = ref.get(0, HUD_ROWS + _MAZE_H - 1)
+    got = frame.get(lay.maze_ox, lay.maze_oy + HUD_ROWS
+                    + (_MAZE_H - 1) * eff_sy)
+    assert got.glyph == bottom_src.glyph
+
+
 # -- magnification blit --------------------------------------------------
 
 def test_wide_blit_preserves_cells_and_records_spans():
