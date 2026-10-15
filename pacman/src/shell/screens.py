@@ -84,7 +84,7 @@ def paint_help(keymap=None, cols=COLS, rows=ROWS):
     if keymap is not None:
         move = "arrows/" + ("/".join(keymap.bindings("up")) or "WASD")
         lines = [
-            "move: %s" % move[:cols - 8],
+            "move: %s" % move[:max(0, cols - 8)],
             "pause: %s  restart: %s" % (
                 "/".join(keymap.bindings("pause")) or "P",
                 "/".join(keymap.bindings("restart")) or "R"),
