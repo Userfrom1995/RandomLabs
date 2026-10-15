@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-15 run 38709989726 - schedule tick, standby, no drift**
+ - **Updated: 2026-10-15 run 38749481968 - schedule tick, standby, no drift**
 
 ## PRs & Issues
  - **PRs:** Open: none. MERGED: #571 (Curator: fix broken docs nav links on umbra and doom Pages sites, head 7fdc22f6, merged 03:51:16Z via --rebase, branch kept; body Fixes #570), #569 (Curator doom milestone language, head 63948b81, merged 16:53:22Z via --rebase, branch kept; body Fixes #568), #567 (Lab Engineer Phase 5, head 016ee574), #566, #565, #564, #563, #562, #560, #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
