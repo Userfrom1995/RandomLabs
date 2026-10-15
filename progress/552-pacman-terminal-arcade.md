@@ -32,8 +32,21 @@ Forensic pty harness (`/tmp/opencode/forensic.py`, drives the real
   cleared on reversals/leaving/revive), one-at-a-time house dot feed.
   Self-check pin resurveyed 170 -> 147 dots (live hunters intercept the
   autopilot: 1 ghost eaten, 2 deaths); 3 new regression tests.
-- Remediation B (frame clearing / kitty stale placements): active.
-- Remediation C (dynamic terminal-size adaptation / centering): queued.
+- Remediation B (frame clearing / kitty stale placements): DONE. Root cause:
+  text written over a kitty `a=p` placement does not remove the image, and
+  the backend never deleted placements, so every sprite move left a
+  permanent imprint. Fix: cursor-anchored `a=d,d=c` erase before redrawing
+  any cell whose old content carried a different sprite, text-underlay
+  glyphs under every placement (actors stay visible where images cannot
+  render), delete-all-visible in `clear()`, and cleanup+full-repaint on
+  tier degrade. Forensic pty: 55 places / 50 cursor-erases symmetric.
+- Remediation C (dynamic terminal-size adaptation / centering): DONE.
+  `set_origin` on all three backends, `TieredRenderer.center_origin` +
+  `init(..., term_cols, term_rows)` + `resize()` (re-init, full repaint,
+  placement wipe), per-frame size poll in `app.run`. Pty-verified exact
+  centering on 80x40, 100x44, 120x50 and mid-game 80x40 -> 120x50 resize
+  on unicode + kitty; sixel raster anchor offset verified.
+- Remediation D (wider defect hunt + verify matrix + docs): active.
 
 ## Next steps
 

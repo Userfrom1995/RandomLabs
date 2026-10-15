@@ -181,7 +181,16 @@ def gameplay_matrix(seed=1):
             return (80, 50)
 
     class _NullRenderer:
-        def init(self, cols, rows):
+        def __init__(self):
+            self.term_cols = 0
+            self.term_rows = 0
+
+        def init(self, cols, rows, term_cols=0, term_rows=0):
+            self.term_cols, self.term_rows = term_cols, term_rows
+            return ""
+
+        def resize(self, term_cols, term_rows):
+            self.term_cols, self.term_rows = term_cols, term_rows
             return ""
 
         def present(self, fb, dirty):

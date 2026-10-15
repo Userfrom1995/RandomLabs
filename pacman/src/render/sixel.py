@@ -130,11 +130,18 @@ class SixelBackend(RenderBackend):
         self.cell_px = int(cell_px)
         self.cols = 0
         self.rows = 0
+        self.ox = 0
+        self.oy = 0
         self._last = None
         self._last_t = -1e9
         self.frames = 0
         self.coalesced = 0
         self.bytes_out = 0
+
+    def set_origin(self, ox, oy):
+        """Shift the raster anchor by (ox, oy) for terminal centering."""
+        self.ox = max(0, int(ox))
+        self.oy = max(0, int(oy))
 
     def available(self):
         return available()
@@ -195,7 +202,7 @@ class SixelBackend(RenderBackend):
         box = (min(xs), min(ys), max(xs) + 1, max(ys) + 1)
         pixels, w, h, palette = self._rasterize(fb, box)
         payload = encode_indexed(pixels, w, h, palette)
-        out = (ansi.SYNC_BEGIN + ansi.cup(box[1] + 1, box[0] + 1)
+        out = (ansi.SYNC_BEGIN + ansi.cup(box[1] + 1 + self.oy, box[0] + 1 + self.ox)
                + dcs_wrap(payload) + ansi.SYNC_END)
         for i in pending:
             self._last.cells[i] = fb.cells[i]

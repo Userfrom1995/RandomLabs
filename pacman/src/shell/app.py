@@ -183,7 +183,8 @@ def run(app, term, renderer, write_out, fps=30, clock=None, sleep=None, max_fram
     clock = clock or time.monotonic
     sleep = sleep or time.sleep
     frames = 0
-    write_out(renderer.init(COLS, ROWS))
+    term_cols, term_rows = term.size()
+    write_out(renderer.init(COLS, ROWS, term_cols, term_rows))
     acc = 0.0
     last = clock()
     try:
@@ -197,7 +198,12 @@ def run(app, term, renderer, write_out, fps=30, clock=None, sleep=None, max_fram
                 actions = []
             else:
                 actions, app.leftover = decode_stream(app.leftover + raw, app.keymap)
-            problem = check_size(*term.size(), COLS, ROWS)
+            term_cols, term_rows = term.size()
+            if (term_cols, term_rows) != (renderer.term_cols, renderer.term_rows):
+                # Resize: recenter the scene and repaint from a clean slate
+                # (kitty placements do not move with the cursor on their own).
+                write_out(renderer.resize(term_cols, term_rows))
+            problem = check_size(term_cols, term_rows, COLS, ROWS)
             if problem is not None:
                 for action in actions:
                     if action == QUIT:
