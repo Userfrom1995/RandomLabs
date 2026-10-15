@@ -186,10 +186,22 @@ class TieredRenderer:
                 try:
                     prefix = self._degrade()
                 except Exception:
-                    prefix = ""
+                    self.slow_strikes = 0
+                    self.frames += 1
+                    return out
                 self.slow_strikes = 0
+                try:
+                    # The fresh tier knows no screen state: repaint
+                    # everything, not just this frame's dirty subset
+                    # (mirrors the error path above).
+                    full = list(range(fb.cols * fb.rows))
+                    out = prefix + self.backend.present(fb, full)
+                except Exception:
+                    self.errors += 1
+                    self.dropped += 1
+                    return ""
                 self.frames += 1
-                return prefix + out
+                return out
         else:
             self.slow_strikes = 0
         self.frames += 1
