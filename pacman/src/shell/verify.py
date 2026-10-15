@@ -433,6 +433,105 @@ def input_matrix():
     return rows
 
 
+def controls_matrix(seed=1):
+    """Controls/menus matrix: new keys, menus, mute, help, remaps."""
+    from shell.app import ShellState
+    from shell.audio import NullAudio
+    from shell.input import Keymap, decode_stream, parse_binds
+    rows = []
+    actions, leftover = decode_stream(b"m?", Keymap())
+    rows.append(_row("controls-mute-help-decode",
+                     actions == ["mute", "help"] and leftover == b"",
+                     "actions=%s" % (actions,)))
+    remapped = Keymap(parse_binds(["mute=x", "help=z"]))
+    actions, _ = decode_stream(b"xz", remapped)
+    rows.append(_row("controls-remap-mute-help", actions == ["mute", "help"],
+                     "actions=%s" % (actions,)))
+    app = ShellState(seed=seed, audio=NullAudio())
+    app.on_action("mute")
+    app.on_action("confirm")
+    app._ingest("dot")
+    rows.append(_row("controls-mute-silences",
+                     app.muted and app.audio.played == 0,
+                     "muted=%s played=%d" % (app.muted, app.audio.played)))
+    app.on_action("mute")
+    from shell.app import DOT_SOUND_TICKS as _DST
+    app.game.tick_count += _DST
+    app._ingest("dot")
+    rows.append(_row("controls-unmute-restores",
+                     not app.muted and app.audio.played == 1,
+                     "muted=%s played=%d" % (app.muted, app.audio.played)))
+    app = ShellState(seed=seed, audio=NullAudio())
+    app.on_action("confirm")
+    rows.append(_row("controls-title-confirm-starts",
+                     app.screen == "playing" and app.game is not None,
+                     "screen=%s" % app.screen))
+    app = ShellState(seed=seed, audio=NullAudio())
+    first = app.title_menu.current()
+    app.on_action("down")
+    moved = app.title_menu.current()
+    for _ in range(len(app.title_menu.items) - 1):
+        app.on_action("down")
+    rows.append(_row("controls-title-menu-wraps",
+                     moved != first and app.title_menu.current() == first,
+                     "first=%s moved=%s wrapped=%s" % (
+                         first, moved, app.title_menu.current())))
+    app = ShellState(seed=seed, audio=NullAudio())
+    app.on_action("down")  # help is the second title item
+    app.on_action("confirm")
+    help_ok = app.screen == "help"
+    from shell import screens as screens_mod
+    card = screens_mod.flat_text(app.paint())
+    app.on_action("confirm")
+    rows.append(_row("controls-help-roundtrip",
+                     help_ok and app.screen == "title"
+                     and any("HOW TO PLAY" in row for row in card),
+                     "help=%s back=%s" % (help_ok, app.screen)))
+    app = ShellState(seed=seed, audio=NullAudio())
+    app.on_action("down")
+    app.on_action("down")  # scores is the third title item
+    app.on_action("confirm")
+    scores_ok = app.screen == "scores"
+    app.on_action("confirm")
+    rows.append(_row("controls-scores-roundtrip",
+                     scores_ok and app.screen == "title",
+                     "scores=%s back=%s" % (scores_ok, app.screen)))
+    app = ShellState(seed=seed, audio=NullAudio())
+    app.on_action("confirm")
+    app.on_action("pause")
+    app.on_action("confirm")
+    rows.append(_row("controls-pause-menu-resumes",
+                     app.screen == "playing", "screen=%s" % app.screen))
+    app = ShellState(seed=seed, audio=NullAudio())
+    app.on_action("confirm")
+    app.on_action("pause")
+    app.on_action("down")
+    app.on_action("down")  # sound is the third pause item
+    app.on_action("confirm")
+    rows.append(_row("controls-pause-menu-mutes",
+                     app.screen == "paused" and app.muted,
+                     "screen=%s muted=%s" % (app.screen, app.muted)))
+    app = ShellState(seed=seed, audio=NullAudio())
+    app.on_action("confirm")
+    app.on_action("pause")
+    for _ in range(4):  # quit-to-title is the fifth pause item
+        app.on_action("down")
+    app.on_action("confirm")
+    rows.append(_row("controls-pause-quit-to-title",
+                     app.screen == "title" and not app.exited,
+                     "screen=%s exited=%s" % (app.screen, app.exited)))
+    app = ShellState(seed=seed, audio=NullAudio())
+    app.on_action("confirm")
+    app.game.state = "over"
+    app.step_play(1.0 / 120.0)
+    over_ok = app.screen == "over"
+    app.on_action("confirm")
+    rows.append(_row("controls-over-menu-restarts",
+                     over_ok and app.screen == "playing",
+                     "over=%s restarted=%s" % (over_ok, app.screen)))
+    return rows
+
+
 def parity_check(seed=1):
     """Fallback-mode parity: one painter, every backend, same layout."""
     from render.scene import COLS, ROWS, paint
@@ -783,6 +882,7 @@ def full_matrix(seed=1):
         ("visual", visual_matrix(seed)),
         ("capability", capability_matrix()),
         ("input", input_matrix()),
+        ("controls", controls_matrix(seed)),
         ("parity", parity_check(seed)),
     ]
     return sections

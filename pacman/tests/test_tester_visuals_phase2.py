@@ -75,7 +75,7 @@ def test_tester_cli_verify_and_scoreboard_pass(capsys):
     from shell.cli import main
     assert main(["--verify"]) == 0
     out = capsys.readouterr().out
-    assert "verify: 70/70 passed" in out
+    assert "verify: 82/82 passed" in out
     assert main(["--scoreboard", "--frames", "5"]) == 0
     board = capsys.readouterr().out
     assert "scoreboard OK" in board and "canvas-compose" in board
@@ -289,12 +289,12 @@ def test_tester_visual_matrix_thirteen_green():
     assert [r for r in rows if not r["passed"]] == []
 
 
-def test_tester_full_matrix_seventy_green():
+def test_tester_full_matrix_eighty_two_green():
     total, failed = 0, []
     for _section, rows in verify_mod.full_matrix(seed=1):
         for row in rows:
             total += 1
             if not row["passed"]:
                 failed.append(row["name"])
-    assert total == 70, "matrix grew; update this pin, got %d" % total
+    assert total == 82, "matrix grew; update this pin, got %d" % total
     assert failed == []
