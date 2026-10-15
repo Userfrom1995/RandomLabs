@@ -203,6 +203,7 @@ class Ghosts:
                 continue
             if self.fright_active:
                 ghost.state = "eyes"
+                ghost.decided = None  # new target (door); re-decide even on same tile
                 points = game.notify_ghost_eaten()
                 self.eaten_this_fright += 1
                 events.append("ghost-eaten:%s:%d" % (ghost.name, points))
@@ -263,6 +264,7 @@ class Ghosts:
                 actor.x, actor.y = out_cx, out_cy
                 actor.dir = actor.want = LEFT
                 ghost.state = "active"
+                ghost.decided = None  # mirror eyes-revive path
 
     # -- movement -----------------------------------------------------
     def _cruise(self):
@@ -365,12 +367,10 @@ class Ghosts:
         if near and ghost.decided != tile \
                 and self.maze.is_walkable(*tile, for_ghost=True):
             actor.x, actor.y = cx, cy
-            if ghost.state == "eyes":
+            if ghost.state == "eyes" or not self.fright_active:
                 pick = self._choose(ghost, target, random_pick=False)
-            elif self.fright_active:
-                pick = self._choose(ghost, None, random_pick=True)
             else:
-                pick = self._choose(ghost, target, random_pick=False)
+                pick = self._choose(ghost, None, random_pick=True)
             if pick is not None:
                 actor.dir = actor.want = pick
             ghost.decided = tile
