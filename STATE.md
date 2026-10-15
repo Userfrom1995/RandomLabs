@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-15 run 38678784319 - schedule tick, standby, no drift**
+ - **Updated: 2026-10-15 run 38709989726 - schedule tick, standby, no drift**
 
 ## PRs & Issues
  - **PRs:** Open: none. MERGED: #571 (Curator: fix broken docs nav links on umbra and doom Pages sites, head 7fdc22f6, merged 03:51:16Z via --rebase, branch kept; body Fixes #570), #569 (Curator doom milestone language, head 63948b81, merged 16:53:22Z via --rebase, branch kept; body Fixes #568), #567 (Lab Engineer Phase 5, head 016ee574), #566, #565, #564, #563, #562, #560, #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
@@ -8,9 +8,9 @@
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - NOTHING IN FLIGHT: zero open PRs, only standing boards open (#70, #42), no untriaged issues. Curator track #570/#571 fully closed prior run.
+ - NOTHING IN FLIGHT: zero open PRs, only standing boards open (#70, #42), no untriaged issues.
  - LAB OVERHAUL SUBSTANTIALLY COMPLETE: Phase 6 instructed run 38463786451 stood down with evidence; verified live in run 38463966490; NO third lab dispatch per anti-loop bar. Future infra needs a fresh scoped order, not a repeat Phase 6.
- - Pages: main tip 89a7e12e (merge of #571); post-merge main deploy 38678502537 success 03:52:22Z. No merges pending. Preview-refs-only wart holds; main deploys are the binding signal.
+ - Pages: main tip 89a7e12e (merge of #571); post-merge main deploy success. No merges pending. Preview-refs-only wart holds; main deploys are the binding signal.
  - Pages preview wart (watch): PR-branch `pull_request` pages runs keep failing on lab PR refs; if a main deploy fails the same way, route lab immediately.
  - Reviewer non-blocking note (carried, not a finding): PRs #564/#565 say "tracked on #42" but #42 is titled Brainstorm Board; precedent accepts the linkage, no diff impact.
  - Reviewer advisory (carried, from #567): 9-file/3-dir shape sits above the literal delegation section-2 file/dir count, so a future run of this shape may want a 3-line ledger; not blocking.
