@@ -1,11 +1,14 @@
 """Menu screens painted as framebuffers for every renderer backend.
 
-Title, pause, game-over, name-entry, scores, and too-small screens render
-at full terminal size (the layout engine decides the frame; the composer
-owns gameplay chrome). Cards center their content on whatever frame they
-get, so narrow windows look exactly as before while wide windows use the
-whole canvas. Pause, game-over, and name-entry overlay the live game
-frame; title, scores, and too-small paint standalone cards.
+Title, pause, game-over, name-entry, scores, settings, and too-small
+screens render at full terminal size (the layout engine decides the
+frame; the composer owns gameplay chrome). Cards center their content
+on whatever frame they get, so narrow windows look exactly as before
+while wide windows use the whole canvas. The settings card lists one
+row per shell.settings OPTIONS entry (live row_label values, dim mode
+honesty note, change/back footer) with the same centering and clipping
+as the help card. Pause, game-over, and name-entry overlay the live game
+frame; title, scores, settings, and too-small paint standalone cards.
 """
 
 from render.framebuffer import BLANK, Cell, FrameBuffer
@@ -104,6 +107,40 @@ def paint_help(keymap=None, cols=COLS, rows=ROWS):
     put_text(fb, mid + 2, ". dot  O energizer  F fruit", DIM_FG)
     put_text(fb, mid + 4, "P / ENTER: back", TEXT_FG, CARD_BG)
     put_text(fb, mid + 5, "Q: quit", TEXT_FG, CARD_BG)
+    return fb
+
+
+def paint_settings(state, selected=0, cols=COLS, rows=ROWS):
+    """Fullscreen settings card: one row per option, change/back hints."""
+    from shell import settings as settings_mod
+    fb = _card(cols, rows)
+    mid = rows // 2
+    sel = int(selected)
+    opts = list(settings_mod.OPTIONS)
+    put_text(fb, mid - 8, "SETTINGS", TITLE_FG)
+    for i, opt in enumerate(opts):
+        y = mid - 5 + i
+        if not (0 <= y < fb.rows):
+            continue
+        marker = "> " if i == sel else "  "
+        label = str(settings_mod.row_label(state, opt))[:max(0, cols - 8)]
+        text = marker + label
+        if len(text) > fb.cols:
+            text = text[:fb.cols - 1] + ">"
+        start = max(0, (fb.cols - len(text)) // 2)
+        fg = TITLE_FG if i == sel else TEXT_FG
+        for j, ch in enumerate(text):
+            x = start + j
+            if x >= fb.cols:
+                break
+            base = fb.get(x, y)
+            fb.set(x, y, Cell(ch, fg, base.bg, None))
+    honesty = settings_mod.note("mode") or "mode applies to next run"
+    put_text(fb, mid + 1, str(honesty)[:cols], DIM_FG)
+    if 0 <= sel < len(opts):
+        detail = str(settings_mod.describe(opts[sel]))[:max(0, cols - 8)]
+        put_text(fb, mid + 2, detail, DIM_FG)
+    put_text(fb, mid + 4, "left/right: change   P / ENTER: back", TEXT_FG, CARD_BG)
     return fb
 
 

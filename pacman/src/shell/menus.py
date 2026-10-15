@@ -7,9 +7,9 @@ item id maps to a real shell transition in ``shell.app``; labels are built
 live so toggles (sound on/off) always show the true state.
 """
 
-START, RESUME, RESTART, SOUND, HELP, SCORES, TITLE, AGAIN, QUIT = (
+START, RESUME, RESTART, SOUND, HELP, SCORES, TITLE, AGAIN, QUIT, SETTINGS = (
     "start", "resume", "restart", "sound", "help", "scores",
-    "quit-to-title", "play-again", "quit",
+    "quit-to-title", "play-again", "quit", "settings",
 )
 
 
@@ -37,12 +37,12 @@ class Menu:
 
 def title_menu():
     """Title-screen items: start selected so ENTER still starts the run."""
-    return Menu("PAC-MAN", [START, HELP, SCORES, SOUND, QUIT])
+    return Menu("PAC-MAN", [START, HELP, SCORES, SOUND, SETTINGS, QUIT])
 
 
 def pause_menu():
     """Pause items: resume selected so P/ENTER still resumes instantly."""
-    return Menu("PAUSED", [RESUME, RESTART, SOUND, HELP, TITLE, QUIT])
+    return Menu("PAUSED", [RESUME, RESTART, SOUND, HELP, TITLE, SETTINGS, QUIT])
 
 
 def over_menu():
@@ -74,6 +74,7 @@ def label(item, muted=False, keymap=None):
         RESTART: "restart [%s]" % _live("restart", "R"),
         HELP: "how to play [%s]" % _live("help", "?"),
         SCORES: "high scores",
+        SETTINGS: "settings",
         TITLE: "quit to title",
         AGAIN: "play again [ENTER]",
         QUIT: "quit [%s]" % _live("quit", "Q"),
