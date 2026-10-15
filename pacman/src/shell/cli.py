@@ -503,7 +503,7 @@ def build_parser():
     ap.add_argument("--levels", type=int, default=0, metavar="N",
                     help="print the difficulty ramp for levels 1..N and exit")
     ap.add_argument("--bind", action="append", default=[],
-                    help="remap a key: action=char (repeatable, e.g. --bind up=k)")
+                    help="remap a key: action=char (repeatable, e.g. --bind up=k; needs an action flag such as --play, --keys, or --save-config)")
     ap.add_argument("--keys", action="store_true",
                     help="print the active key bindings and exit")
     ap.add_argument("--fps", type=int, default=None,
@@ -564,6 +564,9 @@ def main(argv=None):
             return cmd_layout_check(args)
         if args.self_check:
             return cmd_self_check(args)
+        if args.bind:
+            print("warning: --bind needs an action flag "
+                  "(e.g. --play, --keys, or --save-config); showing help")
         build_parser().print_help()
         return 0
     except ValueError as exc:
