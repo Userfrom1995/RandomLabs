@@ -23,6 +23,12 @@ from render.themes import get as theme_get
 
 TITLE_TEXT = "PAC-MAN TERMINAL ARCADE"
 
+# Ceiling for coerced terminal dimensions: int(float("inf")) is caught by
+# the coerce guards, but a merely huge int (e.g. 10**18) would pass them
+# and then blow up FrameBuffer allocation with OverflowError. Capping
+# keeps paint_viewport's never-raises contract for any numeric input.
+MAX_VIEW_DIM = 4096
+
 PANEL_FG = (255, 255, 0)
 PANEL_DIM = (150, 150, 150)
 
@@ -258,6 +264,8 @@ def paint_viewport(game, term_cols, term_rows, theme="classic",
         rows = max(1, int(term_rows))
     except (TypeError, ValueError, OverflowError):
         rows = 1
+    cols = min(cols, MAX_VIEW_DIM)
+    rows = min(rows, MAX_VIEW_DIM)
     fb = FrameBuffer(cols, rows, Cell(" ", palette["text"], bg, None))
     _paint_chrome(fb, palette)
     scene_fb = paint(game, theme=theme, reduced_flash=reduced_flash,
