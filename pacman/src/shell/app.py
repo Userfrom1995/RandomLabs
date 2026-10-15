@@ -14,6 +14,8 @@ from engine import tuning
 from engine import modes as game_modes
 from engine.actors import DOWN, LEFT, RIGHT, UP
 from engine.game import Game
+from render import compose as composer
+from render import layout as layout_mod
 from render.scene import COLS, ROWS, paint
 from render.themes import check as check_theme
 from shell import screens
@@ -28,6 +30,14 @@ DIR_OF = {A_UP: UP, A_DOWN: DOWN, A_LEFT: LEFT, A_RIGHT: RIGHT}
 DOT_SOUND_TICKS = 10
 MAX_CATCHUP_TICKS = 40
 NAME_MAX = 10
+
+HINTS = {
+    TITLE: "ENTER start   Q quit   arrows/WASD move",
+    PLAYING: "arrows/WASD move   P pause   R restart   Q quit",
+    PAUSED: "P / ENTER resume   R restart   Q quit",
+    OVER: "ENTER play again   Q quit",
+    ENTER_NAME: "type A-Z 0-9   ENTER saves   ESC skips",
+}
 
 
 class ShellState:
@@ -159,17 +169,37 @@ class ShellState:
             else:
                 self.screen = OVER
 
-    def paint(self):
+    def paint(self, layout=None):
+        """Render the current screen. Without a layout this is the legacy
+        28x34 frame (all headless tests pin this path); with a layout from
+        layout.compute() it is the full-terminal canvas frame."""
         if self.screen == TITLE:
             top = self.scores.entries[0] if self.scores.entries else None
+            if layout is None:
+                return screens.paint_title(self.keymap, mode=self.mode,
+                                           theme=self.theme, top=top)
             return screens.paint_title(self.keymap, mode=self.mode,
-                                       theme=self.theme, top=top)
+                                       theme=self.theme, top=top,
+                                       cols=layout.frame_cols,
+                                       rows=layout.frame_rows)
+        if layout is None:
+            if self.screen == ENTER_NAME and self.game is not None:
+                base = paint(self.game, theme=self.theme,
+                             reduced_flash=self.reduced_flash)
+                return screens.paint_name_entry(base, self.name_buffer, self.game.score)
+            game = self.game if self.game is not None else Game(seed=self.seed, level=self.level, mode=self.mode)
+            base = paint(game, theme=self.theme, reduced_flash=self.reduced_flash)
+            if self.screen == PAUSED:
+                return screens.paint_pause(base)
+            if self.screen == OVER:
+                reason = getattr(game, "over_reason", None)
+                return screens.paint_over(base, game.score, reason=reason)
+            return base
         if self.screen == ENTER_NAME and self.game is not None:
-            base = paint(self.game, theme=self.theme,
-                         reduced_flash=self.reduced_flash)
+            base = self._canvas(self.game, layout)
             return screens.paint_name_entry(base, self.name_buffer, self.game.score)
         game = self.game if self.game is not None else Game(seed=self.seed, level=self.level, mode=self.mode)
-        base = paint(game, theme=self.theme, reduced_flash=self.reduced_flash)
+        base = self._canvas(game, layout)
         if self.screen == PAUSED:
             return screens.paint_pause(base)
         if self.screen == OVER:
@@ -177,14 +207,27 @@ class ShellState:
             return screens.paint_over(base, game.score, reason=reason)
         return base
 
+    def _canvas(self, game, layout):
+        """Fullscreen gameplay frame with per-screen status hints."""
+        return composer.paint_full(
+            game, layout, theme=self.theme,
+            reduced_flash=self.reduced_flash, keymap=self.keymap,
+            scores=self.scores, hint=HINTS.get(self.screen))
+
 
 def run(app, term, renderer, write_out, fps=30, clock=None, sleep=None, max_frames=None):
-    """Own the terminal until quit: poll, step, paint, present, pace."""
+    """Own the terminal until quit: poll, step, paint, present, pace.
+
+    Frames always match the live terminal size: the layout engine places
+    the maze composition plus side regions, the composer paints that full
+    canvas, and resizes re-layout and repaint from a clean slate (kitty
+    placements do not move with the cursor on their own).
+    """
     clock = clock or time.monotonic
     sleep = sleep or time.sleep
     frames = 0
     term_cols, term_rows = term.size()
-    write_out(renderer.init(COLS, ROWS, term_cols, term_rows))
+    write_out(renderer.init(term_cols, term_rows, term_cols, term_rows))
     acc = 0.0
     last = clock()
     try:
@@ -200,15 +243,14 @@ def run(app, term, renderer, write_out, fps=30, clock=None, sleep=None, max_fram
                 actions, app.leftover = decode_stream(app.leftover + raw, app.keymap)
             term_cols, term_rows = term.size()
             if (term_cols, term_rows) != (renderer.term_cols, renderer.term_rows):
-                # Resize: recenter the scene and repaint from a clean slate
-                # (kitty placements do not move with the cursor on their own).
+                # Resize: re-layout the canvas and repaint from a clean slate.
                 write_out(renderer.resize(term_cols, term_rows))
             problem = check_size(term_cols, term_rows, COLS, ROWS)
             if problem is not None:
                 for action in actions:
                     if action == QUIT:
                         app.exited = True
-                fb = screens.paint_too_small(problem)
+                fb = screens.paint_too_small(problem, term_cols, term_rows)
             else:
                 for action in actions:
                     app.on_action(action)
@@ -220,7 +262,8 @@ def run(app, term, renderer, write_out, fps=30, clock=None, sleep=None, max_fram
                         acc -= tuning.STEP
                         app.step_play(tuning.STEP)
                         ticks += 1
-                fb = app.paint()
+                layout = layout_mod.compute(term_cols, term_rows)
+                fb = app.paint(layout)
             last = clock()
             write_out(renderer.present(fb, fb.dirty_cells()))
             if hasattr(app.audio, "drain"):
