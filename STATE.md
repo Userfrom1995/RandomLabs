@@ -1,18 +1,17 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-15 run 38756408266 - owner reopened #552 (Pac-Man defects), Builder dispatched**
+ - **Updated: 2026-10-15 run 38760436649 - #572 remediation PR in review gate, stood down (review arm in flight)**
 
 ## PRs & Issues
- - **PRs:** Open: none. MERGED: #571 (Curator docs nav hrefs, head 7fdc22f6, merged 03:51:16Z via --rebase, branch kept; Fixes #570), #569, #567, #566, #565, #564, #563, #562, #560, #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
- - **Issues:** Open: #552 REOPENED by owner 2026-10-15T14:59:57Z (Pac-Man real-terminal defects: frame-clear trails, frozen ghosts, no terminal-size adaptation, plus full re-verification demanded; no-rush close), #70 lab-health, #42 brainstorm standing. Closed: #570 (via Fixes #570 on merge of #571), #568, #561, plus earlier.
+ - **PRs:** Open: #572 (Builder remediation for #552: ghost movement, frame clearing, centered layout; head 1a8b7557, MERGEABLE, mergeStateStatus CLEAN, base main; body Refs #552). MERGED: #571 (Curator docs nav hrefs, head 7fdc22f6, merged 03:51:16Z via --rebase, branch kept; Fixes #570), #569, #567, #566, #565, #564, #563, #562, #560, #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
+ - **Issues:** Open: #552 REOPENED by owner 2026-10-15T14:59:57Z (Pac-Man real-terminal defects; remediation PR #572 in flight, Refs only, stays open until approve-eval + merge), #70 lab-health, #42 brainstorm standing. Closed: #570 (via Fixes #570 on merge of #571), #568, #561, plus earlier.
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run (`grep ^name:`), no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - #552 PAC-MAN REMEDIATION: Builder dispatched this run (`{"action": "build", "issue": 552}`). Scope: frame-clearing fix, working ghost movement/behavior in the live path, dynamic terminal-size layout, plus full defect hunt across mechanics/rendering/controls and testing across sizes/OS/terminal variants. Prior headless claims (277 green, 41/41 verify) treated as suspect until real-terminal proof.
- - Code-level plausibility noted (for Builder to confirm forensically, not as verdict): dirty-cell present path (`manager.present` over `fb.dirty_cells()`) fits the imprint report; zero centering/offset logic in scene/app/framebuffer fits the corner-cram report; engine ghost stepping exists but live-path behavior needs hostile re-verification.
- - Acceptance bar: remediation PRs carry `Refs #552` ONLY; #552 stays open until fixes are proven in a real terminal through review -> test (incl per-OS runners) -> eval -> merge.
+ - #572 REMEDIATION IN REVIEW GATE: owner `/oc review` 15:26:55Z on #572; opencode-review run 38760410536 in_progress, second review run 38760436893 pending (per-PR concurrency settles the duplicate; no maintainer action). Decision this run: `[]` (stand down, no duplicate dispatch). Next: Reviewer verdict -> Tester (+ per-OS runners for size/OS/variant matrix) -> Evaluator (MANDATORY product gate) -> merge only on approve-eval. #552 stays open until then.
+ - Write-permission denial note (watch, not a finding): a `github-actions[bot]` comment on #572 at 15:27:18Z reads "User github-actions[bot] does not have write permissions" linking run 38760362323 (maintainer pull_request-event run, concluded success). Reads as a clean actor-gate/CLI-assert skip on a bot-triggered arm, not a failure (zero failure/timed_out in recent runs). If a second consecutive trigger/comment-step failure of this shape appears, route lab.
  - LAB OVERHAUL SUBSTANTIALLY COMPLETE: Phase 6 instructed run 38463786451 stood down with evidence; verified live in run 38463966490; NO third lab dispatch per anti-loop bar. Future infra needs a fresh scoped order, not a repeat Phase 6.
- - Pages: main tip 89a7e12e (merge of #571); `git ls-remote origin/main` == local HEAD this run. No merges pending. Preview-refs-only wart holds; main deploys are the binding signal.
+ - Pages: main tip 89a7e12e (merge of #571); no merges pending. Preview-refs-only wart holds; main deploys are the binding signal.
  - Pages preview wart (watch): PR-branch `pull_request` pages runs keep failing on lab PR refs; if a main deploy fails the same way, route lab immediately.
  - Reviewer non-blocking note (carried, not a finding): PRs #564/#565 say "tracked on #42" but #42 is titled Brainstorm Board; precedent accepts the linkage, no diff impact.
  - Reviewer advisory (carried, from #567): 9-file/3-dir shape sits above the literal delegation section-2 file/dir count, so a future run of this shape may want a 3-line ledger; not blocking.
@@ -34,19 +33,20 @@
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. #552 remediation in flight: when Builder opens remediation PR(s), route review immediately; then Tester (dispatch per-OS runners for the size/OS/variant matrix); then Evaluator (mandatory product gate); merge only on approve-eval. NEVER close #552 on intermediate Refs PRs.
+2. #572 in review gate (Refs #552): on Reviewer `/oc approve`, route Tester immediately + per-OS runners for the size/OS/variant matrix; on `/oc approve-test` with no newer `/oc fix`, route Evaluator (mandatory); merge only on `approve-eval`. NEVER close #552 on intermediate Refs PRs. On `/oc fix` findings, route Fixer.
 3. Future lab work needs a fresh scoped owner order; do NOT re-dispatch Phase 6 or the overhaul mandate without one.
 4. Error-dump wart: overhaul substantially complete; do NOT auto-queue a separate 8th lab mandate without owner direction.
 5. Evaluator follow-up (archived bench helper sys.path depth + weak assertion) queued for a future hardening vehicle.
 6. Council calibration: advisory Desktop Pet audit still pending.
 7. Watch: ubuntu-latest agent runs - if hollow-green/silent-stall recurs, the poisoned-cache class is NOT fixed and a lab mandate is warranted.
-8. Watch: comment-post flakiness (Unicorn-HTML wart) - second occurrence routes lab.
+8. Watch: comment-post flakiness (Unicorn-HTML wart) plus the 15:27:18Z write-permission denial on #572 - second consecutive occurrence of either routes lab.
 9. Watch: main Pages deploys - failure routes lab immediately.
 10. Standing rule: standby on all other fronts (no auto-ideate).
 11. IP: any new Kratos/God of War order stays declined on binding grounds; original-duel path on confirmation only.
 
 ## OPEN QUESTIONS
- - Will the #552 remediation reproduce the reported defects (trails, frozen ghosts, corner-cram) on a real terminal, and what further defects will the Builder's hostile sweep surface?
+ - Will #572 pass the Reviewer gate, and will the Tester + per-OS runners confirm the real-terminal fixes (no trails, moving ghosts, centered layout) across sizes/OS/variants?
+ - What further defects will the hostile sweep surface beyond the three remediations, and will the Evaluator demand another iteration?
  - After Phase 6 acceptance, is there any residual overhaul scope the owner still wants (or is the mandate closed)?
  - Are the PR-preview pages failures a systematic defect on PR refs or platform blips?
  - Should the lab prompt be hardened so a bare `/oc lab` on an open mandate defaults to executing the mandate instead of standing by?
