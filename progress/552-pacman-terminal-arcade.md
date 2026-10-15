@@ -4,7 +4,7 @@
 - **Branch:** opencode/issue552-pacman-remediation
 - **Status:** in-progress
 - **Updated:** 2026-10-15
-- **Active Phase:** Remediation A/B/C/D (all DONE, awaiting review gate)
+- **Active Phase:** Phase 1: Responsive Canvas and Layout Engine (DONE, awaiting review gate)
 
 ## Phase Roadmap
 
@@ -61,14 +61,10 @@ Forensic pty harness (`/tmp/opencode/forensic.py`, drives the real
 - Fullscreen-canvas epic (owner wave, 2026-10-15): the game must use the
   whole terminal as a full-screen canvas, with richer visuals, thoughtful
   controls, and real customization, verified across sizes and capabilities.
-- Phase 1: Responsive Canvas and Layout Engine: ACTIVE on
-  `opencode/issue552-pacman-canvas-phase-1` (layout engine, fullscreen
-  composer, full-terminal frames, full-size screens, `--layout-check`,
-  layout verify matrix). Refs #552.
+- Phase 1: Responsive Canvas and Layout Engine: [x] pure layout engine mapping terminal size to maze/dashboard/strip regions with documented thresholds, [x] fullscreen composer blitting the verbatim 28x34 scene plus live side panels into terminal-sized frames, [x] play loop sizing frames to the terminal with resize re-layout and full-size screens, [x] `--layout-check` reporting plus 10-row layout verify matrix (57 total), [x] resize-follows-terminal manager fix found by the new matrix, [x] true-pty proof across sizes and backends (PR target, Refs #552)
 - Phase 2: Scaled Sprites Visual Effects and Theming (planned)
 - Phase 3: Thoughtful Controls Menus and Remapping (planned)
-- Phase 4: Settings Customization Verification and Scoreboard, final
-  (planned, Closes #552)
+- Phase 4: Settings Customization Verification and Scoreboard, final (planned, Closes #552)
 - Reviewer pass on the final diff, then Tester (plus per-OS terminal runners where applicable), then Eval, then Maintainer merges with Closes #552
 
 ## Standing notes
@@ -78,7 +74,6 @@ Forensic pty harness (`/tmp/opencode/forensic.py`, drives the real
 - Keep `Status: in-progress` with `Refs #552` until the final phase passes test and eval; only the final phase uses `Closes #552`
 
 ## Agent log
-
 - 2026-10-12 (architect): charted Phase Epic from owner spec plus three subagent spikes (terminal graphics protocols, stack trade-offs, clean-room ghost-AI behavior). Selected Python 3.11+ stdlib core with Pillow optional: preinstalled everywhere, no native toolchain, Unicode path always plays, image backends upgrade where supported. Wrote unified blueprint in `ideas/2026-10-12-pacman-terminal-arcade.md` and this epic tracker. Handoff to Builder for Phase 1. - the Architect
 - 2026-10-12 (builder): implemented Phase 1 on the epic branch. Engine: `pacman/src/engine/` (tuning tables, mulberry32 with SHA-256 stream splits, original 28x31 maze with 282 dots plus 4 energizers all flood-fill reachable, tile-center movement with buffered turns and tunnel wrap, 120 Hz game state with scoring/chains/extra-life/death/levels, replay hashes). Render spike: `pacman/src/render/` (backend protocol, framebuffer with dirty sets, Unicode reference with sync output, Kitty transmit/place framing, Sixel DCS framing, detection with honest Pillow degrade). Shell: `pacman/pacman.py` with `--maze-check` and `--self-check` (BFS autopilot ate 167 dots in 2400 ticks). Suite: 45 pytest cases green, including golden RNG values and 30 Hz vs 120 Hz convergence. Docs: `pacman/README.md`, `pacman/docs/index.md`, `pacman/index.html` hub, root landing entries. Notable fixes during build: spawn tiles must be walkable plain (not house interior), builtin hash() is process-salted so stream mixing uses SHA-256. - the Builder
 - 2026-10-12 (builder): implemented Phase 2 on a fresh branch from main. New `pacman/src/engine/ghosts.py`: four authored personalities (chaser/ambusher/flanker/drifter) with corner scatter targets, tile-center min-distance steering with fixed tie-breaks, wave clock with reversals, fright with flash plus chains plus eyes-revive, dot-counter plus idle-timeout house exits with scripted walk-out, tunnel slowdown, Elroy stages with chase pin. `game.py` integration: fright player speedup, energizer triggers fright, house dot feed, ghost stepping with collisions, death/level resets, canonical hash covers ghosts. Suite 101 green (20 new); resurveyed seed-1 pin 167 -> 170 dots with zero deaths; CLI prints ghost stats; README/docs/hub/ideas updated. - the Builder
@@ -88,3 +83,4 @@ Forensic pty harness (`/tmp/opencode/forensic.py`, drives the real
 - 2026-10-12 (builder): completed Phase 5 on the same branch. New `render/themes.py` (classic/neon/amber originals) with themed `scene.py` (mode clocks, fruit glyph, reduced-flash steadiness); new `shell/scores.py` (persistent top-10) plus `shell/config.py` (validated persistence); name-entry flow in `app.py`/`screens.py` with reason headlines; 13 honest CLI flags plus fruit synth voice; fixed `--save-config` standalone no-op found by the new tests. Suite 233 green (30 new); README/docs/hub/ideas updated with zero milestone leakage. - the Builder
 - 2026-10-12 (builder): completed the Final Phase on a fresh branch from main. New `pacman/src/shell/verify.py` (41-row gameplay/size/capability/input/parity matrices plus input and render benches, all headless against the real code) with CLI `--verify`/`--input-bench`/`--scoreboard`; new `pacman/docs/verification.md` plus `pacman/docs/scoreboard.md` with reference numbers (unicode ~875, kitty ~595, sixel ~72 fps; decode ~1.9M keys/s; sim ~25 us/tick vs the 8,333 us 120 Hz budget); README/docs/hub/ideas updated. Suite 277 green (9 new, matrix counts pinned). - the Builder
 - 2026-10-15 (fixer): applied Reviewer findings on PR #572 (manager slow-degrade repaint, ghost decided clears, test/hygiene nits, header sync). Delegation ledger: (1) general subagent on manager.py slow-path confirmed old-tier replay bug and recommended full-repaint fix; (2) general subagent on ghosts.py confirmed active->eyes stale-decided delay and identical eyes/else arms (leaving->active clear redundant but added for symmetry); (3) general subagent on test/progress hygiene confirmed unused import, redundant sys.path, stale header. Primary verified itself by reading manager.py:183-196, ghosts.py:204-265/368-373, test_remediation.py:1-60, and running the full pytest suite green. Skills note: no skill fits this pacman terminal fix (only known skill customize-opencode covers opencode config, not game code). - the Fixer
+- 2026-10-15 (builder): implemented Phase 1: Responsive Canvas and Layout Engine on `opencode/issue552-pacman-canvas-phase-1` (Refs #552). New `render/layout.py` (pure region engine: dashboard at 56+ cols, legend panel at 80+ cols, status strip at 36+ rows, title strip at 40+ rows, centered composition) plus `render/compose.py` (fullscreen composer: verbatim 28x34 scene blit, live score/run/progress dashboard, controls/legend panel, title and hint strips, all data live from game/keymap/scores). `shell/app.py` sizes frames to the terminal and paints per-screen hints; `screens.py` cards render at full terminal size with legacy defaults intact; `TieredRenderer.resize` now follows the terminal (frame = terminal, clamped >= 1) with a `frame` stats field, a real bug the new matrix caught (stale 100x44 backend vs 120x50 canvas). CLI `--layout-check`, verify matrix 47 -> 57 rows with a 10-row layout section, 20 new tests in `test_layout_canvas.py` (suite 334 green). True-pty proof: unicode at 100x44/28x34/20x10 (title, dashboard, pause, bare maze, too-small card, teardown), kitty at 120x50 (29 placements / 29 erases symmetric), sixel smoke. README, verification report, hub, and ideas entry updated with zero milestone leakage. - the Builder
