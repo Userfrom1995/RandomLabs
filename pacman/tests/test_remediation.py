@@ -12,8 +12,6 @@ can never regress to green-while-broken:
       roam tiles, not quiver at spawn).
 """
 
-import pytest
-
 from render import ansi
 from render.framebuffer import Cell, FrameBuffer
 from render.kitty import KittyBackend, delete_at_cursor
@@ -38,8 +36,6 @@ def tiny_fb(sprite_at=None, sprite_id="player-right", glyph=">"):
 
 
 def painted_game(seed=1, ticks=240):
-    import sys
-    sys.path.insert(0, "src")
     from engine.game import Game
     from engine import tuning
     game = Game(seed=seed)
