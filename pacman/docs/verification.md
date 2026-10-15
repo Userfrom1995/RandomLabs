@@ -1,13 +1,14 @@
 # Pac-Man Terminal Arcade - Verification Report
 
-Produced by `python3 pacman/pacman.py --verify` (57 rows, all passing on the
+Produced by `python3 pacman/pacman.py --verify` (70 rows, all passing on the
 reference machine). The same matrices live in `src/shell/verify.py`, so the
 CLI, this report, and the pytest suite (`tests/test_verify_final.py`) can
 never drift apart: the suite pins the row counts and fails if a check goes
 quiet. Real-terminal proof rides alongside: true-pty `--play` drives on
-unicode and kitty at 28x34, 80x40, 100x44, and 120x50 (title, gameplay with
-side panels, pause, too-small card at 20x10, clean teardown, symmetric
-kitty place/erase counts) plus a sixel smoke run.
+unicode and kitty at 80x50, 100x44, 120x50, and 160x60 (title, magnified
+gameplay with side panels, pause, too-small card at 20x10, clean teardown,
+symmetric kitty place/erase counts with multi-cell `c=2` placements) plus
+sixel and midnight-theme smoke runs.
 
 ## Gameplay (15 rows)
 
@@ -42,7 +43,23 @@ windows gain only the title and hints strips, 56+ column windows gain the
 live score/run/progress dashboard, 80+ column windows add the
 controls-and-legend panel, and the composer blits the 28x34 scene
 verbatim at the layout origin inside frames that always match the
-terminal size. `describe()` names every region for `--layout-check`.
+terminal size. `describe()` names every region for `--layout-check`,
+with panel thresholds that follow the magnified maze box.
+
+## Scaled visuals (13 rows)
+
+Roomy terminals magnify instead of leaving dead space. The visual matrix
+pins the magnification ladder (classic 1x1, wide 2x1 once 56x34 fits,
+full 2x2 on huge windows, auto picking the richest fit; unknown modes
+fall back to classic while `check()` raises), the doubled wide blit
+(origin cells verbatim, fillers repeating the glyph, one `(2,1)` image
+span per sprite), and multi-cell kitty placements (`c=2`) on the live
+backend. Animation frames are pinned tick by tick: the mouth opens and
+closes (legacy paint never emits closed sprites), energizers pulse
+through three frames with reduced-flash pinning one, dying advances
+four frames over the death sequence, clearing tints walls rainbow, and
+fruit sparkles deterministically around its tile. All six themes paint
+the shared grid with three distinct wall-drawing styles.
 
 ## Renderer capability (8 rows)
 
@@ -59,7 +76,7 @@ into a pause), and invalid remaps rejected with a clear error.
 
 ## Fallback parity (11 rows)
 
-28x34 geometry on every theme, identical grids across classic/neon/amber,
+28x34 geometry on every theme, identical grids across all six palettes,
 single-column glyphs everywhere, a text glyph on every sprite cell, and a
 clean `present()` on each available backend. Four remediation rows pin the
 real-terminal fixes against the live backends: a moved kitty sprite erases
