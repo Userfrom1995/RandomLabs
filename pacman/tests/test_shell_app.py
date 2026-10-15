@@ -214,9 +214,18 @@ class ScriptTerminal:
 class FakeRenderer:
     def __init__(self):
         self.frames = []
+        self.term_cols = 0
+        self.term_rows = 0
+        self.resizes = []
 
-    def init(self, cols, rows):
+    def init(self, cols, rows, term_cols=0, term_rows=0):
+        self.term_cols, self.term_rows = term_cols, term_rows
         return "<init>"
+
+    def resize(self, term_cols, term_rows):
+        self.resizes.append((term_cols, term_rows))
+        self.term_cols, self.term_rows = term_cols, term_rows
+        return "<resize>"
 
     def present(self, fb, dirty):
         self.frames.append((fb.cols, fb.rows))

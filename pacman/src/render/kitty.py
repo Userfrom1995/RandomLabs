@@ -3,14 +3,27 @@
 Wire format (all strings, never written to stdout directly):
   transmit: ESC _ G a=T, f=100, s=<w>, v=<h>, i=<id>, m=(0|1), q=2 ; <base64> ESC \\
   place:    ESC _ G a=p, i=<id>, c=<cols>, r=<rows>, C=1, q=2 ESC \\ (at cursor)
+  erase:    ESC _ G a=d, d=c, q=2 ESC \\ (deletes placements at the cursor)
   delete:   ESC _ G a=d, d=i, i=<id>, q=2 ESC \\
 
 The atlas goes out once with a=T (chunked at 4096 chars with m=1 in-between);
 frames only move the cursor (CUP) and place with a=p, so per-frame cost stays
 tiny. Quiet mode (q=2) suppresses terminal responses. Cells without a sprite
 are drawn as cursor-addressed truecolor text, so the layout matches the
-Unicode backend cell for cell. Image encoding (PNG bytes) comes from atlas.py;
-this module only frames bytes, so it stays fully headless-testable.
+Unicode backend cell for cell.
+
+Two correctness rules dominate this backend:
+
+1. Text written over a placement does NOT remove the image: every cell whose
+   old content carried a sprite must be erased (a=d,d=c at the cursor)
+   before the new content goes down, or every moving sprite leaves a
+   permanent imprint of its old cells (the trail bug).
+2. Every sprite cell is ALSO drawn as its text glyph underneath the image,
+   so actors stay visible on terminals that accept the escape stream but
+   cannot render images; where images work they cover the glyph exactly.
+
+Image encoding (PNG bytes) comes from atlas.py; this module only frames
+bytes, so it stays fully headless-testable.
 """
 
 import base64
@@ -63,6 +76,22 @@ def delete_image(image_id):
     return head + APC_END
 
 
+def delete_at_cursor():
+    """Erase placements intersecting the cursor cell, keeping image data.
+
+    Lowercase d=c deletes the placements but retains the transmitted image,
+    so the next place needs no retransmit.
+    """
+    head = APC_START + _params(a="d", d="c", q=2)
+    return head + APC_END
+
+
+def delete_all_visible():
+    """Erase every visible placement (keeps transmitted image data)."""
+    head = APC_START + _params(a="d", q=2)
+    return head + APC_END
+
+
 class KittyBackend(RenderBackend):
     """Tiered image backend: atlas transmit once, placements per frame."""
 
@@ -71,8 +100,18 @@ class KittyBackend(RenderBackend):
     def __init__(self):
         self.cols = 0
         self.rows = 0
+        self.ox = 0
+        self.oy = 0
         self._last = None
         self._atlas_sent = {}
+
+    def set_origin(self, ox, oy):
+        """Shift every cursor address by (ox, oy) for terminal centering."""
+        self.ox = max(0, int(ox))
+        self.oy = max(0, int(oy))
+
+    def _cup(self, x, y):
+        return ansi.cup(y + 1 + self.oy, x + 1 + self.ox)
 
     def available(self):
         return atlas.available()
@@ -90,7 +129,7 @@ class KittyBackend(RenderBackend):
     def place(self, image_id, cell_col, cell_row, cell_cols=1, cell_rows=1):
         if image_id not in self._atlas_sent:
             raise ValueError("atlas image %r was never transmitted" % (image_id,))
-        return (ansi.cup(cell_row + 1, cell_col + 1)
+        return (self._cup(cell_col, cell_row)
                 + place_image(image_id, cell_cols=cell_cols, cell_rows=cell_rows))
 
     def _ensure_sprite(self, out, sprite_id):
@@ -106,18 +145,24 @@ class KittyBackend(RenderBackend):
         out = [ansi.SYNC_BEGIN]
         for i in dirty:
             want = fb.cells[i]
-            if want == self._last.cells[i]:
+            have = self._last.cells[i]
+            if want == have:
                 continue
             x, y = i % self.cols, i // self.cols
+            out.append(self._cup(x, y))
+            if have.sprite is not None and have.sprite != want.sprite:
+                # Stale placement erase: without this the old image stays
+                # glued to this cell after the sprite moves on (trails).
+                out.append(delete_at_cursor())
+            # Text underlay first: visible fallback where images cannot
+            # render, covered by the placement where they can.
+            out.append(ansi.fg_true(*want.fg))
+            out.append(ansi.bg_true(*want.bg))
+            out.append(want.glyph)
             if want.sprite is not None:
                 iid = self._ensure_sprite(out, want.sprite)
-                out.append(ansi.cup(y + 1, x + 1))
+                out.append(self._cup(x, y))
                 out.append(place_image(iid))
-            else:
-                out.append(ansi.cup(y + 1, x + 1))
-                out.append(ansi.fg_true(*want.fg))
-                out.append(ansi.bg_true(*want.bg))
-                out.append(want.glyph)
             self._last.cells[i] = want
         out.append(ansi.reset() + ansi.SYNC_END)
         fb.clear_dirty()
@@ -126,7 +171,9 @@ class KittyBackend(RenderBackend):
     def clear(self):
         if self._last is not None:
             self._last = FrameBuffer(self.cols, self.rows)
-        return ansi.CLEAR + ansi.cup(1, 1)
+        # Wipe placements first: CLEAR alone leaves old images floating
+        # over the cleared text.
+        return delete_all_visible() + ansi.CLEAR + ansi.cup(1, 1)
 
     def shutdown(self):
         out = [delete_image(iid) for iid in sorted(self._atlas_sent)]

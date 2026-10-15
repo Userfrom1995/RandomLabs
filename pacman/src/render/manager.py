@@ -41,21 +41,45 @@ class TieredRenderer:
         self.backend_name = None
         self.cols = 0
         self.rows = 0
+        # Actual terminal dimensions (set via init/resize so the scene can
+        # be centered); (0, 0) means "unknown, pin to the top-left corner".
+        self.term_cols = 0
+        self.term_rows = 0
+        self.ox = 0
+        self.oy = 0
         self.degraded_from = []
         self.frames = 0
         self.errors = 0
         self.dropped = 0
         self.slow_strikes = 0
 
+    @staticmethod
+    def center_origin(term_cols, term_rows, cols, rows):
+        """Top-left offset centering a cols x rows scene, clamped >= 0."""
+        try:
+            ox = (int(term_cols) - int(cols)) // 2
+            oy = (int(term_rows) - int(rows)) // 2
+        except (TypeError, ValueError):
+            return 0, 0
+        return max(0, ox), max(0, oy)
+
+    def _apply_origin(self):
+        self.ox, self.oy = self.center_origin(
+            self.term_cols, self.term_rows, self.cols, self.rows)
+        if self.backend is not None and hasattr(self.backend, "set_origin"):
+            self.backend.set_origin(self.ox, self.oy)
+
     def _activate(self, name):
         backend = make_backend(name, clock=self._clock)
         seq = backend.init(self.cols, self.rows)
         self.backend = backend
         self.backend_name = name
+        self._apply_origin()
         return seq
 
-    def init(self, cols, rows):
+    def init(self, cols, rows, term_cols=0, term_rows=0):
         self.cols, self.rows = int(cols), int(rows)
+        self.term_cols, self.term_rows = int(term_cols), int(term_rows)
         problems = []
         for name in self.chain:
             backend = make_backend(name, clock=self._clock)
@@ -69,12 +93,38 @@ class TieredRenderer:
                 continue
             self.backend = backend
             self.backend_name = name
+            self._apply_origin()
             return seq
         raise RuntimeError("no renderer tier usable (%s)" % "; ".join(problems))
+
+    def resize(self, term_cols, term_rows):
+        """Adapt to a new terminal size: re-init (full repaint) + recenter.
+
+        Returns the setup sequence to write. When the size is unchanged it
+        returns "" so the loop can skip redundant clears.
+        """
+        if self.backend is None:
+            raise ValueError("resize before init")
+        if int(term_cols) == self.term_cols and int(term_rows) == self.term_rows:
+            return ""
+        self.term_cols, self.term_rows = int(term_cols), int(term_rows)
+        try:
+            cleanup = self.backend.clear()
+        except Exception:
+            cleanup = ""
+        seq = self.backend.init(self.cols, self.rows)
+        self._apply_origin()
+        return cleanup + seq
 
     def _degrade(self):
         idx = self.chain.index(self.backend_name)
         source = self.backend_name
+        try:
+            # Wipe the outgoing tier's screen state first (kitty placements
+            # survive CLEAR and would ghost over the next tier's frames).
+            cleanup = self.backend.clear()
+        except Exception:
+            cleanup = ""
         problems = []
         for name in self.chain[idx + 1:]:
             try:
@@ -92,7 +142,7 @@ class TieredRenderer:
                 problems.append("%s init failed: %s" % (name, exc))
                 continue
             self.degraded_from.append(source)
-            return seq
+            return cleanup + seq
         raise RuntimeError("no lower renderer tier usable (%s)" % "; ".join(problems))
 
     def present(self, fb, dirty):
@@ -109,12 +159,15 @@ class TieredRenderer:
         except Exception:
             self.errors += 1
             try:
-                self._degrade()
+                prefix = self._degrade()
             except Exception:
                 self.dropped += 1
                 return ""
             try:
-                out = self.backend.present(fb, dirty)
+                # The fresh tier knows no screen state: repaint everything,
+                # not just this frame's dirty subset.
+                full = list(range(fb.cols * fb.rows))
+                out = prefix + self.backend.present(fb, full)
             except Exception:
                 self.errors += 1
                 self.dropped += 1
@@ -131,10 +184,12 @@ class TieredRenderer:
             self.slow_strikes += 1
             if self.slow_strikes >= SLOW_STRIKES:
                 try:
-                    self._degrade()
+                    prefix = self._degrade()
                 except Exception:
-                    pass
+                    prefix = ""
                 self.slow_strikes = 0
+                self.frames += 1
+                return prefix + out
         else:
             self.slow_strikes = 0
         self.frames += 1
@@ -157,6 +212,8 @@ class TieredRenderer:
             "frames": self.frames,
             "errors": self.errors,
             "dropped": self.dropped,
+            "term": (self.term_cols, self.term_rows),
+            "origin": (self.ox, self.oy),
         }
         for key in ("coalesced", "bytes_out"):
             if hasattr(self.backend, key):

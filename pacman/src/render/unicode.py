@@ -18,7 +18,14 @@ class UnicodeBackend(RenderBackend):
     def __init__(self):
         self.cols = 0
         self.rows = 0
+        self.ox = 0
+        self.oy = 0
         self._last = None
+
+    def set_origin(self, ox, oy):
+        """Shift every cursor address by (ox, oy) for terminal centering."""
+        self.ox = max(0, int(ox))
+        self.oy = max(0, int(oy))
 
     def available(self):
         return True
@@ -39,7 +46,7 @@ class UnicodeBackend(RenderBackend):
             if want == have:
                 continue
             x, y = i % self.cols, i // self.cols
-            out.append(ansi.cup(y + 1, x + 1))
+            out.append(ansi.cup(y + 1 + self.oy, x + 1 + self.ox))
             if want.fg != last_fg:
                 out.append(ansi.fg_true(*want.fg))
                 last_fg = want.fg
