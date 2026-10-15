@@ -134,7 +134,8 @@ def test_help_round_trips_through_settings_from_pause():
 
 def test_hostile_values_rejected_state_untouched():
     from types import SimpleNamespace
-    st = SimpleNamespace(theme="classic", mode="classic", scale_mode="auto",
+    st = SimpleNamespace(theme="classic", mode="classic", level=1,
+                         scale_mode="auto",
                          effects=True, reduced_flash=False)
     before = settings_mod.snapshot(st)
     for opt, val in (("theme", "NOPE"), ("mode", "NOPE"), ("scale", "NOPE"),

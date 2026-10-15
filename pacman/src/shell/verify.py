@@ -734,7 +734,7 @@ def settings_matrix(seed=1):
                      (frame.cols, frame.rows) == (100, 44),
                      "frame=%dx%d" % (frame.cols, frame.rows)))
     app7.screen = "settings"
-    app7.settings_index = 2  # scale row
+    app7.settings_index = 3  # scale row (level sits at 2)
     app7.on_action("right")
     frame2 = app7.paint(compute(100, 44))
     rows.append(_row("settings-scale-cycles-live",
@@ -742,6 +742,29 @@ def settings_matrix(seed=1):
                      and (frame2.cols, frame2.rows) == (100, 44),
                      "scale=%s frame=%dx%d" % (app7.scale_mode,
                                                frame2.cols, frame2.rows)))
+    app8 = ShellState(seed=seed, audio=NullAudio(), level=1)
+    app8.on_action("confirm")
+    app8.screen = "settings"
+    app8.settings_index = 2  # level row
+    app8.on_action("right")
+    level_ok = app8.level == 2 and app8.game.level == 1
+    for _ in range(len(settings_mod.choices("level")) - 1):
+        app8.on_action("right")
+    rows.append(_row("settings-level-select-defers",
+                     level_ok and app8.level == 1,
+                     "setting cycles 1..32, live run keeps level 1"))
+    with tempfile.TemporaryDirectory() as tmp:
+        path = tmp + "/config.json"
+        app9 = ShellState(seed=seed, audio=NullAudio(), level=1,
+                          config=Config(path=path))
+        app9.screen = "settings"
+        app9.settings_index = 2
+        for _ in range(4):
+            app9.on_action("right")
+        saved = Config(path=path)
+        rows.append(_row("settings-level-persists",
+                         app9.level == 5 and saved.values["level"] == 5,
+                         "setting=5 saved=%s" % saved.values["level"]))
     return rows
 
 
