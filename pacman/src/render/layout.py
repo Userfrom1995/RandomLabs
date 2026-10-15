@@ -37,7 +37,8 @@ VIEW_MIN_COLS = COLS
 VIEW_MIN_ROWS = 16
 VIEW_HUD_ROWS = 2
 
-# Maze (28) + gap + right panel (26): the dashboard joins past this width.
+# 1x convenience thresholds for the classic 28x34 box used by compute():
+# maze (28) + gap + right panel (26): the dashboard joins past this width.
 RIGHT_MIN_COLS = COLS + GAP + RIGHT_WIDTH
 # Right composition + gap + left panel (22): full chrome past this width.
 LEFT_MIN_COLS = RIGHT_MIN_COLS + GAP + LEFT_WIDTH
@@ -45,6 +46,9 @@ LEFT_MIN_COLS = RIGHT_MIN_COLS + GAP + LEFT_WIDTH
 STATUS_MIN_ROWS = ROWS + GAP
 # Status composition + title strip and spacing: full height chrome past here.
 TITLE_MIN_ROWS = ROWS + 6
+# (compute_scaled generalizes these as mw+GAP+RIGHT_WIDTH etc. for
+# magnified boxes; the constants above stay as the pinned 1x aliases
+# that compute() and the threshold tests share.)
 
 Rect = namedtuple("Rect", ("x", "y", "w", "h"))
 

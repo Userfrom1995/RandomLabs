@@ -1,7 +1,7 @@
 # Progress - Pac-Man Terminal Arcade
 
 - **Issue:** #552 (reopened 2026-10-15: real-terminal remediation)
-- **Branch:** opencode/issue552-pacman-remediation
+- **Branch:** opencode/issue552-pacman-fullscreen-wave2
 - **Status:** in-progress
 - **Updated:** 2026-10-15
 - **Active Phase:** Wave 2: Fullscreen Fit, Clarity, Levels, Packaging (DONE, ready for review gate; Refs #552)
