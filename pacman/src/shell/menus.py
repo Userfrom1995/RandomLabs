@@ -52,8 +52,6 @@ def over_menu():
 
 def label(item, muted=False, keymap=None):
     """Live one-line label for an item id (toggle states included)."""
-    if item == SOUND:
-        return "sound: %s [M]" % ("OFF" if muted else "ON")
     hints = {}
     if keymap is not None:
         try:
@@ -61,15 +59,23 @@ def label(item, muted=False, keymap=None):
                      ("up", "down", "pause", "quit", "restart", "mute", "help")}
         except ValueError:
             hints = {}
-    move = hints.get("up", "W") if hints else "arrows/WASD"
+
+    def _live(action, default):
+        if not hints:
+            return default
+        return hints.get(action) or default
+
+    if item == SOUND:
+        return "sound: %s [%s]" % ("OFF" if muted else "ON", _live("mute", "M"))
+    move = hints.get("up") or "W" if hints else "arrows/WASD"
     table = {
         START: "start game [ENTER]",
-        RESUME: "resume [P] (move: %s)" % move,
-        RESTART: "restart [R]",
-        HELP: "how to play [?]",
+        RESUME: "resume [%s] (move: %s)" % (_live("pause", "P"), move),
+        RESTART: "restart [%s]" % _live("restart", "R"),
+        HELP: "how to play [%s]" % _live("help", "?"),
         SCORES: "high scores",
         TITLE: "quit to title",
         AGAIN: "play again [ENTER]",
-        QUIT: "quit [Q]",
+        QUIT: "quit [%s]" % _live("quit", "Q"),
     }
     return table.get(item, str(item))
