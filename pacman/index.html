@@ -20,14 +20,22 @@
 <main>
   <h1>Pac-Man Terminal Arcade</h1>
   <p>A complete Pac-Man arcade experience that runs directly in the terminal: sprite-grade visuals over the Kitty graphics protocol where supported, Sixel coverage, and a Unicode plus truecolor fallback that plays everywhere. All code, mazes, art, and tuning are originals.</p>
-  <div class="maze">############################
+  <div class="maze">SCORE 012340   LEVEL 03   LIVES 2
+############################
 #............##............#
 #*####.#####.##.#####.####*#
+#o####.#####.##.#####.####o#
 #..........................#
+#.##.#.############.#.##.#.#
+#......<..##    ##..M......#
+######.### #    # ###.######
 ------....#      #....------
-#*..##.......--.......##..*#
-#..........................#
+######.### #    # ###.######
+#............##............#
+#*..###.............###..*.#
+#.......##.------.##.......#
 ############################</div>
+  <p>Representative layout: crisp native-size HUD over the maze, with the player (&lt;), a ghost (M), dots, energizers (o/*), and the tunnel/house rows (Unicode fallback shown).</p>
 
   <h2>Play it</h2>
   <p>Requires Python 3.11 or newer. No install step, or install it properly: <code>pip install ./pacman</code> (add <code>[images]</code> for Pillow and the sprite backends) then <code>pacman-terminal-arcade --play</code>.</p>
@@ -40,7 +48,13 @@ python3 pacman/pacman.py --scoreboard --frames 60
 python3 pacman/pacman.py --modes --themes --levels 8
 python3 pacman/pacman.py --layout-check 120x50
 python3 pacman/pacman.py --play --mode classic --theme neon --audio auto</pre>
-  <p>Controls: arrows or WASD move, P pauses, R restarts, M mutes, ? opens help, Enter confirms, Q quits. Title, pause, and game-over screens are real menus (up/down plus ENTER: start, resume, restart, sound on/off, help, scores, quit to title, quit). Remap with <code>--bind up=k</code> (repeatable, persisted with <code>--save-config</code>); <code>--keys</code> prints the table. Sound follows <code>--audio null|bell|synth|auto</code>, degrading honestly when no system player exists. The game fills the whole window as a full-screen canvas (the maze magnifies up to 4x with crisp native-size HUD text plus live dashboards; short windows down to 28x16 play through a follow-cam viewport; <code>--scale auto|classic|wide|full</code> picks the magnification and <code>--layout-check</code> reports the regions); the starting level is selectable (<code>--level N</code> or the settings screen); animation toggles with <code>--effects</code>/<code>--no-effects</code>; windows below 28x16 get a clear too-small message instead of a garbled maze.</p>
+  <p>Controls: arrows or WASD move, P pauses, R restarts, M mutes, ? opens help, Enter confirms, Q quits. Title, pause, and game-over screens are real menus (up/down plus ENTER: start, resume, restart, sound on/off, help, scores, quit to title, quit). Remap with <code>--bind up=k</code> (repeatable, persisted with <code>--save-config</code>); <code>--keys</code> prints the table. Sound follows <code>--audio null|bell|synth|auto</code>, degrading honestly when no system player exists.</p>
+  <ul>
+    <li>Fullscreen canvas: the game fills the whole window. The maze magnifies up to 4x with crisp native-size HUD text plus live dashboards; short windows down to 28x16 play through a follow-cam viewport.</li>
+    <li>Magnification control: <code>--scale auto|classic|wide|full</code> picks the magnification and <code>--layout-check</code> reports the regions.</li>
+    <li>Starting level and animation: selectable via <code>--level N</code> or the settings screen; animation toggles with <code>--effects</code>/<code>--no-effects</code>.</li>
+    <li>Undersized windows: windows below 28x16 get a clear too-small message instead of a garbled maze.</li>
+  </ul>
 
   <h2>Modes and themes</h2>
   <p>Four rulesets: <strong>classic</strong> (standard loop), <strong>time-attack</strong> (120 seconds on a refilling maze), <strong>sprint</strong> (one life, no fright, par-time bonus), <strong>fright-frenzy</strong> (4x fright, slower ghosts). Six original palettes (<strong>classic</strong>, <strong>neon</strong>, <strong>amber</strong>, <strong>midnight</strong>, <strong>forest</strong>, <strong>ember</strong>), each with its own wall style and margin pattern, plus a reduced-flash mode. Fruit ripens twice per level, high scores persist with in-terminal name entry (<code>--scores</code> prints the table), and the endless difficulty ramp is inspectable with <code>--levels N</code>.</p>
@@ -60,7 +74,7 @@ python3 pacman/pacman.py --play --mode classic --theme neon --audio auto</pre>
       <li>One scene painter plus a fullscreen composer feeding kitty, sixel, and unicode backends behind an auto-degrading watchdog</li>
       <li>Responsive full-window canvas with magnified maze, live dashboards, and hints (verified live in real ptys at 80x50 through 160x60)</li>
       <li>Navigable title, pause, name-entry, restart, and game-over menus with session mute, live help, remappable keys, and synth audio</li>
-      <li>475-case test suite, 106-row live verification matrix, and a published perf scoreboard; kitty sprites erase cleanly with no trails</li>
+      <li>495-case test suite, 106-row live verification matrix, and a published perf scoreboard; kitty sprites erase cleanly with no trails</li>
     </ul>
   </div>
 
