@@ -106,6 +106,18 @@ def test_tester_wave2_cam_y_hostile():
     assert cam_y("x", "y") == 0
 
 
+def test_tester_wave2_viewport_huge_dims_capped():
+    """10**18 dims must not raise: the frame is ceiling-clamped."""
+    from render.compose import MAX_VIEW_DIM
+    game = live_game()
+    wide = paint_viewport(game, 10 ** 18, 24)
+    assert wide.rows == 24
+    assert 1 <= wide.cols <= MAX_VIEW_DIM
+    tall = paint_viewport(game, 80, 10 ** 18)
+    assert tall.cols == 80
+    assert 1 <= tall.rows <= MAX_VIEW_DIM
+
+
 def test_tester_wave2_tiny_terminal_layout_not_full():
     """20x10 reports fits=False so the shell shows the too-small card."""
     lay = canvas_layout(20, 10, "auto")
