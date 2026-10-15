@@ -1,10 +1,15 @@
 """Menu screens painted as framebuffers for every renderer backend.
 
-Title, pause, game-over, and too-small screens are real FrameBuffers in the
-same COLSxROWS geometry as gameplay, so the Kitty/Sixel/Unicode backends
-present them unchanged. Pause and game-over overlay the live game frame;
-title and too-small paint standalone cards.
+Title, pause, game-over, name-entry, scores, and too-small screens render
+at full terminal size (the layout engine decides the frame; the composer
+owns gameplay chrome). Cards center their content on whatever frame they
+get, so narrow windows look exactly as before while wide windows use the
+whole canvas. Pause, game-over, and name-entry overlay the live game
+frame; title, scores, and too-small paint standalone cards.
 """
+
+from render.framebuffer import BLANK, Cell, FrameBuffer
+from render.scene import COLS, ROWS
 
 from render.framebuffer import BLANK, Cell, FrameBuffer
 from render.scene import COLS, ROWS
@@ -34,6 +39,7 @@ def put_text(fb, y, text, fg=TEXT_FG, bg=None):
 
 
 def _card(cols=COLS, rows=ROWS):
+    cols, rows = max(1, int(cols)), max(1, int(rows))
     fb = FrameBuffer(cols, rows, Cell(" ", TEXT_FG, (0, 0, 0), None))
     for x in range(cols):
         fb.set(x, 0, Cell("-", DIM_FG, (0, 0, 0), None))
@@ -47,9 +53,10 @@ def _overlay(base):
     return clone
 
 
-def paint_title(keymap=None, mode="classic", theme="classic", top=None):
-    fb = _card()
-    mid = ROWS // 2
+def paint_title(keymap=None, mode="classic", theme="classic", top=None,
+                cols=COLS, rows=ROWS):
+    fb = _card(cols, rows)
+    mid = rows // 2
     put_text(fb, mid - 7, "P A C - M A N", TITLE_FG)
     put_text(fb, mid - 5, "TERMINAL ARCADE", TEXT_FG)
     put_text(fb, mid - 3, "arrows / WASD: move", DIM_FG)
@@ -57,22 +64,22 @@ def paint_title(keymap=None, mode="classic", theme="classic", top=None):
     put_text(fb, mid - 1, "ENTER: start    Q: quit", DIM_FG)
     put_text(fb, mid + 1, "eat the dots - dodge ghosts", TEXT_FG)
     modeline = "mode: %s  theme: %s" % (mode, theme)
-    put_text(fb, mid + 2, modeline[:COLS], DIM_FG)
+    put_text(fb, mid + 2, modeline[:cols], DIM_FG)
     if top is not None:
         best = "best: %s %d" % (top["name"], top["score"])
-        put_text(fb, mid + 3, best[:COLS], TITLE_FG)
+        put_text(fb, mid + 3, best[:cols], TITLE_FG)
     if keymap is not None:
         custom = ",".join(keymap.bindings("up")) or "arrows"
         line = "move keys: %s" % custom
-        if len(line) > COLS:
-            line = line[:COLS - 1] + ">"
+        if len(line) > cols:
+            line = line[:cols - 1] + ">"
         put_text(fb, mid + 5, line, DIM_FG)
     return fb
 
 
 def paint_pause(base):
     fb = _overlay(base)
-    mid = ROWS // 2
+    mid = base.rows // 2
     put_text(fb, mid - 1, "  PAUSED  ", TITLE_FG, CARD_BG)
     put_text(fb, mid + 1, "P / ENTER: resume", TEXT_FG, CARD_BG)
     put_text(fb, mid + 2, "R: restart  Q: quit", TEXT_FG, CARD_BG)
@@ -81,7 +88,7 @@ def paint_pause(base):
 
 def paint_over(base, score, reason=None):
     fb = _overlay(base)
-    mid = ROWS // 2
+    mid = base.rows // 2
     if reason == "timeout":
         headline = "  TIME UP!  "
     elif reason == "cleared":
@@ -97,7 +104,7 @@ def paint_over(base, score, reason=None):
 def paint_name_entry(base, buffer, score):
     """High-score entry overlay: live pilot-name typing with a cursor."""
     fb = _overlay(base)
-    mid = ROWS // 2
+    mid = base.rows // 2
     put_text(fb, mid - 3, "  NEW HIGH SCORE!  ", TITLE_FG, CARD_BG)
     put_text(fb, mid - 1, "score: %d" % int(score), TEXT_FG, CARD_BG)
     put_text(fb, mid + 1, "NAME: %s_" % str(buffer)[:10], TEXT_FG, CARD_BG)
@@ -105,30 +112,31 @@ def paint_name_entry(base, buffer, score):
     return fb
 
 
-def paint_scores(entries):
+def paint_scores(entries, cols=COLS, rows=ROWS):
     """Standalone high-score card (title-screen size, all backends)."""
-    fb = _card()
-    mid = ROWS // 2
+    fb = _card(cols, rows)
+    mid = rows // 2
     put_text(fb, mid - 8, "HIGH SCORES", TITLE_FG)
     if not entries:
         put_text(fb, mid - 5, "no scores yet - play a run!", TEXT_FG)
     for rank, entry in enumerate(list(entries)[:10], 1):
         line = "%2d. %-10s %6d  L%02d %s" % (
             rank, entry["name"], entry["score"], entry["level"], entry["mode"])
-        put_text(fb, mid - 6 + rank, line[:COLS], TEXT_FG)
+        put_text(fb, mid - 6 + rank, line[:cols], TEXT_FG)
     put_text(fb, mid + 6, "--play to set one", DIM_FG)
     return fb
 
 
-def paint_too_small(message):
-    fb = _card()
-    put_text(fb, ROWS // 2 - 1, "PAC-MAN needs bigger window", OVER_FG)
-    lines = _wrap(str(message), COLS, 2)
+def paint_too_small(message, cols=COLS, rows=ROWS):
+    fb = _card(cols, rows)
+    mid = rows // 2
+    put_text(fb, mid - 1, "PAC-MAN needs bigger window", OVER_FG)
+    lines = _wrap(str(message), cols, 2)
     if len(lines) > 0:
-        put_text(fb, ROWS // 2 + 1, lines[0], DIM_FG)
+        put_text(fb, mid + 1, lines[0], DIM_FG)
     if len(lines) > 1:
-        put_text(fb, ROWS // 2 + 2, lines[1], DIM_FG)
-    put_text(fb, ROWS // 2 + 3, "resize, or Q to quit", DIM_FG)
+        put_text(fb, mid + 2, lines[1], DIM_FG)
+    put_text(fb, mid + 3, "resize, or Q to quit", DIM_FG)
     return fb
 
 
