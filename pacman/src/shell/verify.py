@@ -532,6 +532,176 @@ def parity_check(seed=1):
     return rows
 
 
+def visual_matrix(seed=1):
+    """Scaled-visuals matrix: magnification, effects, and theming.
+
+    Every row drives the real scene/composer/backend code headlessly:
+    scale selection across sizes and modes, wide-blit magnification
+    correctness, multi-cell Kitty placements, tick animation frames,
+    and the six-theme registry.
+    """
+    from render import effects as fx
+    from render import scale as scale_mod
+    from render.compose import paint_full
+    from render.layout import compute_scaled
+    from render.scene import COLS as _COLS, ROWS as _ROWS
+    from render.scene import paint as paint_scene
+    from render.scene import sprite_ids_in as scene_sprites
+    from render.scene import wall_glyph
+    from render.themes import THEMES, check as check_theme
+    rows = []
+
+    classic = scale_mod.choose(200, 80, "classic")
+    rows.append(_row("scale-classic-pinned",
+                     (classic.sx, classic.sy) == (1, 1),
+                     scale_mod.describe(classic)))
+    rows.append(_row("scale-wide-needs-room",
+                     scale_mod.choose(40, 40, "wide").sx == 1
+                     and scale_mod.choose(80, 50, "wide").sx == 2,
+                     "40x40->1x 80x50->2x"))
+    tall = scale_mod.choose(40, 80, "full")
+    rows.append(_row("scale-full-independent-axes",
+                     (tall.sx, tall.sy) == (1, 2),
+                     scale_mod.describe(tall)))
+    ladder = [(28, 34, (1, 1)), (120, 50, (2, 1)), (200, 80, (2, 2))]
+    ladder_ok = all((scale_mod.choose(c, r, "auto").sx,
+                     scale_mod.choose(c, r, "auto").sy) == want
+                    for c, r, want in ladder)
+    rows.append(_row("scale-auto-ladder", ladder_ok,
+                     "28x34->1x1 120x50->2x1 200x80->2x2"))
+    fallback = scale_mod.choose(120, 50, "hologram")
+    try:
+        scale_mod.check("hologram")
+        raises = False
+    except ValueError:
+        raises = True
+    rows.append(_row("scale-unknown-falls-back",
+                     (fallback.sx, fallback.sy) == (1, 1) and raises,
+                     "choose coerces, check raises"))
+
+    game = Game(seed=seed)
+    for _ in range(30):
+        game.step(tuning.STEP)
+    ref = paint_scene(game)
+    wide_lay = compute_scaled(120, 50, 56, 34)
+    wide = paint_full(game, wide_lay)
+    origin_ok = all(
+        wide.get(wide_lay.maze_ox + x * 2, wide_lay.maze_oy + y) == ref.get(x, y)
+        for y in range(_ROWS) for x in range(_COLS))
+    filler_ok = all(
+        wide.get(wide_lay.maze_ox + x * 2 + 1, wide_lay.maze_oy + y).glyph
+        == ref.get(x, y).glyph
+        for y in range(_ROWS) for x in range(_COLS))
+    sprite_cells = [i for i, c in enumerate(ref.cells) if c.sprite is not None]
+    spans_ok = all(wide.spans.get(
+        (wide_lay.maze_oy + (i // _COLS)) * wide.cols
+        + wide_lay.maze_ox + (i % _COLS) * 2) == (2, 1)
+        for i in sprite_cells)
+    rows.append(_row("scale-wide-blit-doubles",
+                     wide.cols == 120 and wide.rows == 50
+                     and origin_ok and filler_ok and spans_ok,
+                     "origin+fill match, %d sprite spans (2,1)" % len(sprite_cells)))
+
+    from render.manager import make_backend
+    kitty = make_backend("kitty")
+    if not kitty.available():
+        rows.append(_row("scale-kitty-multisize-place", True,
+                         "unavailable without Pillow, honest skip"))
+    else:
+        kitty.init(120, 50)
+        out = kitty.present(wide, wide.dirty_cells())
+        rows.append(_row("scale-kitty-multisize-place",
+                         "c=2" in out and "a=p" in out,
+                         "wide sprite placements span 2 cells"))
+
+    fresh = Game(seed=seed)
+    open_glyph = paint_scene(fresh, effects=True).get(
+        *player_scene_xy(fresh)).glyph
+    shut_glyph = paint_scene(game, effects=True).get(
+        *player_scene_xy(game)).glyph
+    assert fresh.tick_count == 0 and game.tick_count == 30
+    legacy_sprites = scene_sprites(paint_scene(game))
+    rows.append(_row("effects-mouth-animates",
+                     open_glyph != shut_glyph
+                     and not any(s.endswith("-closed") for s in legacy_sprites),
+                     "open=%r closed=%r, legacy has no closed sprites"
+                     % (open_glyph, shut_glyph)))
+    pulse = {fx.energizer_glyph(t) for t in range(48)}
+    rows.append(_row("effects-energizer-pulse",
+                     len(pulse) >= 2 and fx.energizer_glyph(7, True) == "O",
+                     "frames=%s" % sorted(pulse)))
+    dying = Game(seed=seed)
+    dying.kill_player()
+    dying.step(0.05)
+    early = paint_scene(dying, effects=True).get(*player_scene_xy(dying)).glyph
+    dying.step(0.8)
+    late = paint_scene(dying, effects=True).get(*player_scene_xy(dying)).glyph
+    rows.append(_row("effects-death-sequence",
+                     early in fx.DEATH_GLYPHS and late in fx.DEATH_GLYPHS
+                     and early != late,
+                     "early=%r late=%r" % (early, late)))
+    clearing = Game(seed=seed)
+    for y in range(HEIGHT):
+        for x in range(MAZE_W):
+            clearing.maze.eat_at(x, y)
+    clearing._dots_seen = clearing.maze.dots_eaten
+    clearing.step(tuning.STEP)
+    assert clearing.state == "clearing"
+    wall_play = paint_scene(game).get(0, 3).fg
+    wall_clear = paint_scene(clearing, effects=True).get(0, 3).fg
+    rows.append(_row("effects-clearing-rainbow",
+                     wall_play != wall_clear,
+                     "wall %s -> %s" % (wall_play, wall_clear)))
+    fruity = Game(seed=seed)
+    for y in range(HEIGHT):
+        for x in range(MAZE_W):
+            if abs(x - FRUIT_TILE[0]) + abs(y - FRUIT_TILE[1]) <= 2:
+                fruity.maze.eat_at(x, y)
+    fruity._dots_seen = fruity.maze.dots_eaten
+    fruity.fruit.notify_dots(70)
+    assert fruity.fruit.active
+    sparkle_seen = False
+    for tick in range(64):
+        while fruity.tick_count < tick:
+            fruity.step(tuning.STEP)
+        frame = paint_full(fruity, compute_scaled(28, 34, 28, 34), effects=True)
+        for dx in range(-2, 3):
+            for dy in range(-2, 3):
+                tx, ty = FRUIT_TILE[0] + dx, FRUIT_TILE[1] + dy + 3
+                if 0 <= tx < _COLS and 0 <= ty < _ROWS:
+                    if frame.get(tx, ty).glyph == "*":
+                        sparkle_seen = True
+    repeat_a = paint_full(fruity, compute_scaled(28, 34, 28, 34), effects=True)
+    repeat_b = paint_full(fruity, compute_scaled(28, 34, 28, 34), effects=True)
+    rows.append(_row("effects-fruit-sparkle",
+                     sparkle_seen and repeat_a.cells == repeat_b.cells,
+                     "sparkle ringing fruit, deterministic per tick"))
+
+    try:
+        for name in THEMES:
+            check_theme(name)
+            paint_scene(game, theme=name)
+        themes_ok = len(THEMES) == 6
+    except ValueError:
+        themes_ok = False
+    corner = next((x, y) for y in range(HEIGHT) for x in range(MAZE_W)
+                  if wall_glyph(game.maze, x, y) == "+")
+    styles = {wall_glyph(game.maze, corner[0], corner[1], style=s)
+              for s in ("ascii", "double", "round")}
+    rows.append(_row("themes-six-registry",
+                     themes_ok and len(styles) == 3,
+                     "6 themes paint; wall corner ascii/double/round distinct"))
+    return rows
+
+
+def player_scene_xy(game):
+    """Scene-buffer coordinates of the player tile (HUD offset included)."""
+    from engine.actors import tile_of
+    from render.scene import HUD_ROWS
+    tx, ty = tile_of(game.player.x, game.player.y)
+    return tx, ty + HUD_ROWS
+
+
 def input_bench(rounds=20000):
     """Input latency probe: decode throughput plus one sim-tick cost."""
     from shell.input import Keymap, decode_stream
@@ -557,6 +727,22 @@ def input_bench(rounds=20000):
         "sim_us_per_tick": sim_elapsed * 1e6 / ticks,
         "sim_ticks_per_s": ticks / sim_elapsed,
     }
+
+
+def canvas_bench(frames=30, seed=1):
+    """Fullscreen composer throughput (120x50 auto canvas, effects on)."""
+    from render.compose import paint_full
+    from shell.app import canvas_layout
+    game = Game(seed=seed, level=1)
+    lay = canvas_layout(120, 50, "auto")
+    start = time.perf_counter()
+    for _ in range(frames):
+        game.step(tuning.STEP)
+        paint_full(game, lay, effects=True)
+    elapsed = max(time.perf_counter() - start, 1e-9)
+    return {"fps": frames / elapsed,
+            "frame": (lay.frame_cols, lay.frame_rows),
+            "maze": (lay.maze_w, lay.maze_h)}
 
 
 def render_bench(frames=60, seed=1):
@@ -594,6 +780,7 @@ def full_matrix(seed=1):
         ("gameplay", gameplay_matrix(seed)),
         ("terminal-size", size_matrix()),
         ("layout", layout_matrix(seed)),
+        ("visual", visual_matrix(seed)),
         ("capability", capability_matrix()),
         ("input", input_matrix()),
         ("parity", parity_check(seed)),

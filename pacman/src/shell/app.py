@@ -44,10 +44,13 @@ class ShellState:
     """Screen flows and event-to-sound mapping. No I/O, fully testable."""
 
     def __init__(self, seed=1, level=1, keymap=None, audio=None, mode="classic",
-                 theme="classic", reduced_flash=False, scores=None, player_name="ACE"):
+                 theme="classic", reduced_flash=False, scores=None, player_name="ACE",
+                 scale_mode="auto", effects=True):
         from shell.input import Keymap
         game_modes.check(mode)
         check_theme(theme)
+        from render.scale import check as check_scale
+        check_scale(scale_mode)
         self.seed = int(seed)
         self.level = int(level)
         self.keymap = keymap or Keymap()
@@ -55,6 +58,8 @@ class ShellState:
         self.mode = mode
         self.theme = theme
         self.reduced_flash = bool(reduced_flash)
+        self.scale_mode = scale_mode
+        self.effects = bool(effects)
         self.scores = scores if scores is not None else ScoreTable()
         self.player_name = clean_name(player_name)
         self.screen = TITLE
@@ -212,7 +217,21 @@ class ShellState:
         return composer.paint_full(
             game, layout, theme=self.theme,
             reduced_flash=self.reduced_flash, keymap=self.keymap,
-            scores=self.scores, hint=HINTS.get(self.screen))
+            scores=self.scores, hint=HINTS.get(self.screen),
+            effects=self.effects)
+
+
+def canvas_layout(term_cols, term_rows, scale_mode="auto"):
+    """Terminal size plus scale mode to a magnification-aware layout.
+
+    Pure helper shared by the play loop and tests: picks the integer
+    magnification, then places the scaled maze box plus side regions.
+    Small windows still report fits=False for the too-small card.
+    """
+    from render import scale as scale_mod
+    picked = scale_mod.choose(term_cols, term_rows, scale_mode)
+    return layout_mod.compute_scaled(term_cols, term_rows,
+                                     picked.maze_cols, picked.maze_rows)
 
 
 def run(app, term, renderer, write_out, fps=30, clock=None, sleep=None, max_frames=None):
@@ -262,7 +281,8 @@ def run(app, term, renderer, write_out, fps=30, clock=None, sleep=None, max_fram
                         acc -= tuning.STEP
                         app.step_play(tuning.STEP)
                         ticks += 1
-                layout = layout_mod.compute(term_cols, term_rows)
+                layout = canvas_layout(term_cols, term_rows,
+                                       getattr(app, "scale_mode", "auto"))
                 fb = app.paint(layout)
             last = clock()
             write_out(renderer.present(fb, fb.dirty_cells()))

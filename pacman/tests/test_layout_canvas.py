@@ -223,8 +223,15 @@ def test_wide_run_presents_full_terminal_frames():
     # without their blanks ("SCORE000000"), which still proves the HUD
     # and dashboard travel through the real backend path.
     assert "SCORE" in screen and "000000" in screen
-    assert "CONTROLS" in screen  # legend panel text through the backend
     assert ansi.cup(1, 1) in out  # canvas addresses stay inside the window
+    # Wide auto magnification: the 56-wide maze plus dashboard fills 100
+    # cols, so the left legend panel (needs 108 cols at 2x) stays hidden.
+    from shell.app import canvas_layout
+    assert (canvas_layout(100, 44, "auto").maze_w,
+            canvas_layout(100, 44, "auto").maze_h) == (56, 34)
+    # Full chrome keeps the legend panel on roomy terminals.
+    _app2, _, out2, _ = drive([b"\r", b"", b"", b"q"], [(120, 50)] * 8)
+    assert "CONTROLS" in visible_text(out2)  # legend panel text through the backend
 
 
 def test_mid_run_resize_relayouts_to_new_terminal():
@@ -252,7 +259,7 @@ def test_cli_layout_check_reports_regions(capsys):
     from shell.cli import main
     assert main(["--layout-check", "120x50"]) == 0
     out = capsys.readouterr().out
-    assert "maze 28x34 at (44,8)" in out and "layout OK" in out
+    assert "maze 56x34 at (30,8)" in out and "layout OK" in out
 
 
 def test_cli_layout_check_rejects_garbage(capsys):

@@ -21,7 +21,12 @@ DEFAULTS = {
     "fps": 30,
     "mode": "classic",
     "name": "ACE",
+    "scale": "auto",
+    "effects": True,
+    "version": 2,
 }
+
+SCALE_CHOICES = ("auto", "classic", "wide", "full")
 
 
 def default_path():
@@ -88,6 +93,7 @@ class Config:
 
     def update(self, raw):
         from engine import modes
+        from render import scale as scale_mod
         from render import themes
         from shell.scores import clean_name
         if not isinstance(raw, dict):
@@ -117,6 +123,16 @@ class Config:
                 self.values["mode"] = DEFAULTS["mode"]
         if "name" in raw:
             self.values["name"] = clean_name(raw["name"])
+        if "scale" in raw:
+            mode = str(raw["scale"]).strip().lower()
+            self.values["scale"] = mode if mode in SCALE_CHOICES else DEFAULTS["scale"]
+        if "effects" in raw:
+            self.values["effects"] = bool(raw["effects"])
+        if "version" in raw:
+            try:
+                self.values["version"] = max(1, int(raw["version"]))
+            except (TypeError, ValueError):
+                self.values["version"] = DEFAULTS["version"]
 
     def save(self):
         try:

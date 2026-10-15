@@ -185,7 +185,7 @@ def test_tester_cli_layout_check_reference_size(capsys):
     from shell.cli import main
     assert main(["--layout-check", "120x50"]) == 0
     out = capsys.readouterr().out
-    assert "maze 28x34 at (44,8)" in out and "layout OK" in out
+    assert "maze 56x34 at (30,8)" in out and "layout OK" in out
 
 
 def test_tester_cli_layout_check_too_small(capsys):
@@ -264,7 +264,16 @@ def test_tester_wide_run_serves_full_terminal_frames():
     screen = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", screen)
     screen = re.sub(r"\x1b\(B", "", screen)
     assert "SCORE" in screen and "000000" in screen
-    assert "CONTROLS" in screen
+    # Wide auto magnification hides the left legend panel at 100 cols
+    # (it needs 108 at 2x); roomy terminals keep full chrome.
+    from shell.app import canvas_layout
+    assert (canvas_layout(100, 44, "auto").maze_w,
+            canvas_layout(100, 44, "auto").maze_h) == (56, 34)
+    _a2, _r2, out2, _f2 = _drive([b"\r", b"", b"", b"q"], [(120, 50)] * 8)
+    screen2 = re.sub(r"\x1bP.*?\x1b\\\\", "", out2)
+    screen2 = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", screen2)
+    screen2 = re.sub(r"\x1b\(B", "", screen2)
+    assert "CONTROLS" in screen2
 
 
 def test_tester_mid_run_resize_relayouts():
