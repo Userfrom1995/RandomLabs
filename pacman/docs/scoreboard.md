@@ -11,9 +11,9 @@ with the machine; rerun the command on yours to compare.
 
 | Backend | fps    | Full-frame bytes | Notes |
 |---------|-------:|-----------------:|-------|
-| kitty   | ~328   | ~36,259          | Atlas transmitted once; per-frame placements plus cursor erases and text underlays |
-| sixel   | ~71    | ~42,829          | Dirty-region raster with band RLE, 10 fps coalescing cap |
-| unicode | ~844   | ~11,939          | Changed cells only, inside synchronized output |
+| kitty   | ~687   | ~36,259          | Atlas transmitted once; per-frame placements plus cursor erases and text underlays |
+| sixel   | ~109   | ~42,829          | Dirty-region raster with band RLE, 10 fps coalescing cap |
+| unicode | ~1508  | ~11,939          | Changed cells only, inside synchronized output |
 
 Without Pillow both image backends report `unavailable (needs Pillow)` and
 the tiered renderer plays the unicode path; that degrade is covered by the
@@ -27,12 +27,16 @@ backends that actually ran.
 
 | Probe | Result | Budget |
 |-------|--------|--------|
-| Key decode | ~1,621,000 keys/s (~617 ns/key) | Human input is ms-scale; decode is noise |
-| Simulation tick | ~20 us/tick (~50,000 ticks/s) | 120 Hz needs <8,333 us; margin is ~400x |
-| Canvas compose (120x50, effects on) | ~137 fps (56x34 maze) | Fullscreen paint with magnification and animation |
+| Key decode | ~2,900,000 keys/s (~348 ns/key) | Human input is ms-scale; decode is noise |
+| Simulation tick | ~10 us/tick (~98,000 ticks/s) | 120 Hz needs <8,333 us; margin is ~800x |
+| Canvas compose (120x50, effects on) | ~239 fps (56x34 maze) | Fullscreen paint with magnification and animation |
+| Steady frames (160x60 unicode) | ~52 B/frame average | Backend diff path: only moved actors emit bytes |
 
-The fixed 120 Hz timestep therefore costs about 2.4 ms of CPU per real second;
-the rest of the frame budget belongs to the terminal emulator.
+The fixed 120 Hz timestep therefore costs about 1.2 ms of CPU per real second;
+the rest of the frame budget belongs to the terminal emulator. The earlier
+"smoothness" complaint measured as a visual defect, not throughput: steady
+frames were already tiny; the shatter came from duplicated HUD glyphs at 2x,
+which the 1x-HUD blit removes.
 
 ## Fallback-mode parity checklist
 
