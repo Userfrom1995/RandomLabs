@@ -1,6 +1,6 @@
 # Pac-Man Terminal Arcade - Verification Report
 
-Produced by `python3 pacman/pacman.py --verify` (70 rows, all passing on the
+Produced by `python3 pacman/pacman.py --verify` (82 rows, all passing on the
 reference machine). The same matrices live in `src/shell/verify.py`, so the
 CLI, this report, and the pytest suite (`tests/test_verify_final.py`) can
 never drift apart: the suite pins the row counts and fails if a check goes
@@ -8,7 +8,10 @@ quiet. Real-terminal proof rides alongside: true-pty `--play` drives on
 unicode and kitty at 80x50, 100x44, 120x50, and 160x60 (title, magnified
 gameplay with side panels, pause, too-small card at 20x10, clean teardown,
 symmetric kitty place/erase counts with multi-cell `c=2` placements) plus
-sixel and midnight-theme smoke runs.
+sixel and midnight-theme smoke runs, and a dedicated menu tour on unicode
+100x44 and kitty 120x50 (title navigation, help open and back, mid-game
+help, session mute on and off, pause-menu sound toggle, hotkey resume,
+clean exit with symmetric kitty place/erase).
 
 ## Gameplay (15 rows)
 
@@ -73,6 +76,16 @@ unknown backend name raises a clear error.
 CSI and SS3 arrows, WASD, pause/quit/confirm/restart keys, trailing partial
 escape sequences held for the next read (slow terminals never turn an arrow
 into a pause), and invalid remaps rejected with a clear error.
+
+## Thoughtful controls (12 rows)
+
+Mute and help decode from their default keys and from remapped keys, with
+conflicts against existing binds rejected. Session mute genuinely silences
+every event voice and unmute restores them. Title confirm still starts the
+run, the title menu wraps around both ends, and help and scores round-trip
+back to the title with the help card showing its headline. The pause menu
+resumes on confirm, toggles sound while staying paused, and quits back to
+the title without exiting; the game-over menu restarts on confirm.
 
 ## Fallback parity (11 rows)
 
