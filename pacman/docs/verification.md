@@ -1,6 +1,6 @@
 # Pac-Man Terminal Arcade - Verification Report
 
-Produced by `python3 pacman/pacman.py --verify` (82 rows, all passing on the
+Produced by `python3 pacman/pacman.py --verify` (92 rows, all passing on the
 reference machine). The same matrices live in `src/shell/verify.py`, so the
 CLI, this report, and the pytest suite (`tests/test_verify_final.py`) can
 never drift apart: the suite pins the row counts and fails if a check goes
@@ -8,10 +8,13 @@ quiet. Real-terminal proof rides alongside: true-pty `--play` drives on
 unicode and kitty at 80x50, 100x44, 120x50, and 160x60 (title, magnified
 gameplay with side panels, pause, too-small card at 20x10, clean teardown,
 symmetric kitty place/erase counts with multi-cell `c=2` placements) plus
-sixel and midnight-theme smoke runs, and a dedicated menu tour on unicode
+sixel and midnight-theme smoke runs, a dedicated menu tour on unicode
 100x44 and kitty 120x50 (title navigation, help open and back, mid-game
 help, session mute on and off, pause-menu sound toggle, hotkey resume,
-clean exit with symmetric kitty place/erase).
+clean exit with symmetric kitty place/erase), and a settings tour on
+unicode 100x44/80x40 and kitty 120x50 (title and pause entry, left/right
+cycling, mode deferred to the next run, config-file persistence
+reloaded from disk, clean exit 0).
 
 ## Gameplay (15 rows)
 
@@ -86,6 +89,17 @@ run, the title menu wraps around both ends, and help and scores round-trip
 back to the title with the help card showing its headline. The pause menu
 resumes on confirm, toggles sound while staying paused, and quits back to
 the title without exiting; the game-over menu restarts on confirm.
+
+## Custom settings (10 rows)
+
+The settings screen is reachable from the title and pause menus and
+returns to the screen it came from without disturbing a live run. Theme
+cycling changes the live palette (a full cycle wraps back), effects and
+scale cycle live on the fullscreen canvas, the mode choice leaves the
+running game on its old ruleset (honestly deferred: the next
+`start_run` picks it up), every change persists to the config file and
+reloads field-identically, invalid values are rejected with the state
+kept intact, and help opened from settings returns to settings.
 
 ## Fallback parity (11 rows)
 
