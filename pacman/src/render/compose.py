@@ -16,7 +16,7 @@ cell-identical to scene.paint, so small terminals play exactly as before.
 
 from engine.actors import tile_of
 from engine.maze import HEIGHT as MAZE_H, WIDTH as MAZE_W
-from render.framebuffer import BLANK, Cell, FrameBuffer
+from render.framebuffer import Cell, FrameBuffer
 from render import effects as fx
 from render.scene import COLS, HUD_ROWS, ROWS, paint
 from render.themes import get as theme_get
@@ -25,8 +25,6 @@ TITLE_TEXT = "PAC-MAN TERMINAL ARCADE"
 
 PANEL_FG = (255, 255, 0)
 PANEL_DIM = (150, 150, 150)
-
-CHROME_GLYPHS = {"dots": ".", "grid": "+"}
 
 
 def _line(fb, x, y, text, fg, bg, max_w=None):
@@ -206,7 +204,6 @@ def _blit_magnified(fb, scene_fb, ox, oy, sx, sy):
     for r in range(HUD_ROWS):
         for x in range(COLS):
             fb.set(hx + x, oy + r, scene_fb.get(x, r))
-    spans = {}
     for my in range(MAZE_H):
         for mx in range(MAZE_W):
             cell = scene_fb.get(mx, my + HUD_ROWS)
@@ -219,7 +216,7 @@ def _blit_magnified(fb, scene_fb, ox, oy, sx, sy):
                             fb.spans[yy * fb.cols + xx] = (sx, sy)
                     else:
                         fb.set(xx, yy, Cell(cell.glyph, cell.fg, cell.bg, None))
-    return spans
+    return fb.spans
 
 
 def cam_y(player_tile_y, view_h):
@@ -230,11 +227,11 @@ def cam_y(player_tile_y, view_h):
     """
     try:
         py = int(player_tile_y)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         py = MAZE_H // 2
     try:
         vh = max(1, int(view_h))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         vh = MAZE_H
     if vh >= MAZE_H:
         return 0
@@ -253,8 +250,14 @@ def paint_viewport(game, term_cols, term_rows, theme="classic",
     from render.layout import VIEW_HUD_ROWS
     palette = theme_get(theme)
     bg = palette["corridor_bg"]
-    cols = max(1, int(term_cols))
-    rows = max(1, int(term_rows))
+    try:
+        cols = max(1, int(term_cols))
+    except (TypeError, ValueError, OverflowError):
+        cols = 1
+    try:
+        rows = max(1, int(term_rows))
+    except (TypeError, ValueError, OverflowError):
+        rows = 1
     fb = FrameBuffer(cols, rows, Cell(" ", palette["text"], bg, None))
     _paint_chrome(fb, palette)
     scene_fb = paint(game, theme=theme, reduced_flash=reduced_flash,
@@ -264,17 +267,25 @@ def paint_viewport(game, term_cols, term_rows, theme="classic",
         _paint_sparkles(scene_fb, game)
     ox = (cols - COLS) // 2
     for r in range(min(VIEW_HUD_ROWS, HUD_ROWS)):
+        if not (0 <= r < rows):
+            continue
         for x in range(COLS):
-            fb.set(ox + x, r, scene_fb.get(x, r))
+            xx = ox + x
+            if 0 <= xx < cols:
+                fb.set(xx, r, scene_fb.get(x, r))
     view_h = max(0, rows - VIEW_HUD_ROWS - 1)
     top = cam_y(tile_of(game.player.x, game.player.y)[1], max(view_h, 1))
     for i in range(view_h):
         maze_row = top + i
         if not (0 <= maze_row < MAZE_H):
             continue
+        yy = VIEW_HUD_ROWS + i
+        if not (0 <= yy < rows):
+            continue
         for x in range(COLS):
-            fb.set(ox + x, VIEW_HUD_ROWS + i,
-                   scene_fb.get(x, maze_row + HUD_ROWS))
+            xx = ox + x
+            if 0 <= xx < cols:
+                fb.set(xx, yy, scene_fb.get(x, maze_row + HUD_ROWS))
     if rows >= 1:
         text = hint if hint is not None else _default_hint()
         _line(fb, 0, rows - 1,
@@ -340,7 +351,7 @@ def paint_full(game, layout, theme="classic", reduced_flash=False,
             and game.fruit.active:
         _paint_sparkles(scene_fb, game)
     sx = max(1, layout.maze_w // COLS)
-    sy = max(1, layout.maze_h // ROWS)
+    sy = max(1, (layout.maze_h - HUD_ROWS) // MAZE_H)
     _blit_magnified(fb, scene_fb, layout.maze_ox, layout.maze_oy, sx, sy)
     if layout.title_y is not None:
         modeline = "%s   %s   %s" % (
