@@ -121,6 +121,17 @@ def test_time_attack_refills_instead_of_advancing():
 
 def test_time_attack_timeout_ends_run():
     game = Game(seed=1, mode="time-attack")
+    # Isolate the timeout path: pin every ghost in the house (huge counters,
+    # idle release disabled) so the stationary player survives the full
+    # 120 s. With live hunters roaming, the run would end in defeat first -
+    # that collision path is covered by test_collision_kills_player_*.
+    for ghost in game.ghosts.ghosts:
+        ghost.state = "house"
+        ghost.counter = 10 ** 9
+    game.ghosts.idle_t = -10 ** 9
+    # The idle timer also walks ghosts out once the player stops eating, so
+    # bar the door as well: the timeout path must not depend on hunters.
+    game.ghosts._start_leaving = lambda ghost: None
     for _ in range(400):  # step() clamps to 0.5 s per call by design
         game.step(1.0)
         if game.state == "over":

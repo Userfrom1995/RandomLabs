@@ -290,3 +290,61 @@ def test_death_resets_ghosts_and_clock():
     assert [g.state for g in game.ghosts.ghosts] == ["active", "house", "house", "house"]
     assert not game.fright_active
     assert game.ghosts.wave_idx == 0 and game.ghosts.wave_phase == "scatter"
+
+
+def test_active_ghosts_displace_over_time():
+    """Regression: tile-center steering must not pin ghosts in place.
+
+    Strides at 120 Hz are shorter than the steering window, so re-snapping
+    on every near-center tick froze every active ghost within 0.1 tiles of
+    spawn (the suite stayed green because nothing asserted displacement).
+    A live hunter roams whole tiles within seconds.
+    """
+    game = Game(seed=1)
+    chaser = game.ghosts.ghosts[0]
+    start = (chaser.actor.x, chaser.actor.y)
+    for _ in range(600):  # 5 s: the chaser must leave its spawn tile
+        game.step(tuning.STEP)
+        if game.state != "play":
+            break
+    moved = abs(chaser.actor.x - start[0]) + abs(chaser.actor.y - start[1])
+    assert tile_of(chaser.actor.x, chaser.actor.y) != tile_of(*start)
+    assert moved > 2.0
+
+
+def test_steering_decides_once_per_tile_visit():
+    """The decided gate fires on a fresh tile and holds while inside it."""
+    game = Game(seed=3)
+    ghosts = game.ghosts
+    chaser = ghosts.ghosts[0]
+    chaser.actor.x, chaser.actor.y = center_of(13, 11)
+    chaser.actor.dir = chaser.actor.want = LEFT
+    chaser.decided = None
+    player_tile = tile_of(game.player.x, game.player.y)
+    ghosts._move_ghost(chaser, tuning.STEP, game.player, player_tile, 200)
+    assert chaser.decided == (13, 11)
+    first_dir = chaser.actor.dir
+    # Still inside the same tile: no re-decision, but travel accumulates.
+    before = (chaser.actor.x, chaser.actor.y)
+    ghosts._move_ghost(chaser, tuning.STEP, game.player, player_tile, 200)
+    assert chaser.decided == (13, 11)
+    assert chaser.actor.dir == first_dir
+    assert (chaser.actor.x, chaser.actor.y) != before
+    # A reversal clears the gate so the next center re-steers.
+    ghosts._reverse_all()
+    assert chaser.decided is None
+
+
+def test_frightened_ghosts_roam_while_fright_lasts():
+    """Fright random steering must also accumulate into real travel."""
+    game = Game(seed=5)
+    game.ghosts.start_fright(30.0)
+    positions = set()
+    for _ in range(1200):
+        game.step(tuning.STEP)
+        if game.state != "play":
+            break
+        for ghost in game.ghosts.ghosts:
+            if ghost.state == "active":
+                positions.add(tile_of(ghost.actor.x, ghost.actor.y))
+    assert len(positions) > 10
