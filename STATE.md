@@ -1,14 +1,14 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-15 run 38760436649 - #572 remediation PR in review gate, stood down (review arm in flight)**
+ - **Updated: 2026-10-15 run 38761341259 - #572 fixed head in second review round, stood down (review arm pending)**
 
 ## PRs & Issues
- - **PRs:** Open: #572 (Builder remediation for #552: ghost movement, frame clearing, centered layout; head 1a8b7557, MERGEABLE, mergeStateStatus CLEAN, base main; body Refs #552). MERGED: #571 (Curator docs nav hrefs, head 7fdc22f6, merged 03:51:16Z via --rebase, branch kept; Fixes #570), #569, #567, #566, #565, #564, #563, #562, #560, #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
- - **Issues:** Open: #552 REOPENED by owner 2026-10-15T14:59:57Z (Pac-Man real-terminal defects; remediation PR #572 in flight, Refs only, stays open until approve-eval + merge), #70 lab-health, #42 brainstorm standing. Closed: #570 (via Fixes #570 on merge of #571), #568, #561, plus earlier.
- - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run (`grep ^name:`), no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
+ - **PRs:** Open: #572 (Builder remediation for #552: ghost movement, frame clearing, centered layout; head 56eb4d4a after Fixer 3-commit push + rebase on main, MERGEABLE, mergeStateStatus CLEAN, base main; body Refs #552). MERGED: #571 (Curator docs nav hrefs, head 7fdc22f6, merged 03:51:16Z via --rebase, branch kept; Fixes #570), #569, #567, #566, #565, #564, #563, #562, #560, #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
+ - **Issues:** Open: #552 REOPENED by owner 2026-10-15T14:59:57Z (Pac-Man real-terminal defects; remediation PR #572 in gate, Refs only, stays open until approve-eval + merge), #70 lab-health, #42 brainstorm standing. Closed: #570 (via Fixes #570 on merge of #571), #568, #561, plus earlier.
+ - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run, no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - #572 REMEDIATION IN REVIEW GATE: owner `/oc review` 15:26:55Z on #572; opencode-review run 38760410536 in_progress, second review run 38760436893 pending (per-PR concurrency settles the duplicate; no maintainer action). Decision this run: `[]` (stand down, no duplicate dispatch). Next: Reviewer verdict -> Tester (+ per-OS runners for size/OS/variant matrix) -> Evaluator (MANDATORY product gate) -> merge only on approve-eval. #552 stays open until then.
+ - #572 REMEDIATION IN SECOND REVIEW ROUND: owner `/oc review` 15:26:55Z -> Reviewer `/oc fix` findings (binding slow-frame degrade replay + decided staleness + ledger, run 38760410536) -> owner `/oc fix` 15:30:08Z -> Fixer applied all three (3 focused commits, rebased, 304 passed) 15:32:51Z -> owner `/oc review` 15:32:54Z -> opencode-review run 38761341253 pending (per-PR concurrency settles). Decision this run: `[]` (stand down, no duplicate dispatch). Next: Reviewer verdict on head 56eb4d4a -> Tester (+ per-OS runners for size/OS/variant matrix) -> Evaluator (MANDATORY product gate) -> merge only on approve-eval. #552 stays open until then. Rebase-gate note: Fixer rewrote the head (1a8b7557 -> 56eb4d4a), so prior-round signals do not carry; fresh verdict required.
  - Write-permission denial note (watch, not a finding): a `github-actions[bot]` comment on #572 at 15:27:18Z reads "User github-actions[bot] does not have write permissions" linking run 38760362323 (maintainer pull_request-event run, concluded success). Reads as a clean actor-gate/CLI-assert skip on a bot-triggered arm, not a failure (zero failure/timed_out in recent runs). If a second consecutive trigger/comment-step failure of this shape appears, route lab.
  - LAB OVERHAUL SUBSTANTIALLY COMPLETE: Phase 6 instructed run 38463786451 stood down with evidence; verified live in run 38463966490; NO third lab dispatch per anti-loop bar. Future infra needs a fresh scoped order, not a repeat Phase 6.
  - Pages: main tip 89a7e12e (merge of #571); no merges pending. Preview-refs-only wart holds; main deploys are the binding signal.
@@ -33,7 +33,7 @@
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. #572 in review gate (Refs #552): on Reviewer `/oc approve`, route Tester immediately + per-OS runners for the size/OS/variant matrix; on `/oc approve-test` with no newer `/oc fix`, route Evaluator (mandatory); merge only on `approve-eval`. NEVER close #552 on intermediate Refs PRs. On `/oc fix` findings, route Fixer.
+2. #572 in second review round on head 56eb4d4a (Refs #552): on Reviewer `/oc approve`, route Tester immediately + per-OS runners for the size/OS/variant matrix; on `/oc approve-test` with no newer `/oc fix`, route Evaluator (mandatory); merge only on `approve-eval`. NEVER close #552 on intermediate Refs PRs. On `/oc fix` findings, route Fixer.
 3. Future lab work needs a fresh scoped owner order; do NOT re-dispatch Phase 6 or the overhaul mandate without one.
 4. Error-dump wart: overhaul substantially complete; do NOT auto-queue a separate 8th lab mandate without owner direction.
 5. Evaluator follow-up (archived bench helper sys.path depth + weak assertion) queued for a future hardening vehicle.
@@ -45,7 +45,7 @@
 11. IP: any new Kratos/God of War order stays declined on binding grounds; original-duel path on confirmation only.
 
 ## OPEN QUESTIONS
- - Will #572 pass the Reviewer gate, and will the Tester + per-OS runners confirm the real-terminal fixes (no trails, moving ghosts, centered layout) across sizes/OS/variants?
+ - Will #572 pass the Reviewer gate on the fixed head, and will the Tester + per-OS runners confirm the real-terminal fixes (no trails, moving ghosts, centered layout) across sizes/OS/variants?
  - What further defects will the hostile sweep surface beyond the three remediations, and will the Evaluator demand another iteration?
  - After Phase 6 acceptance, is there any residual overhaul scope the owner still wants (or is the mandate closed)?
  - Are the PR-preview pages failures a systematic defect on PR refs or platform blips?
