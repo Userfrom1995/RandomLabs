@@ -33,3 +33,24 @@ def test_bad_renderer_rejected(capsys):
 def test_bad_numeric_flags_rejected(capsys):
     assert main(["--self-check", "--level", "0"]) == 2
     assert main(["--self-check", "--ticks", "0"]) == 2
+
+
+def test_version_reports_package(capsys):
+    from shell.cli import package_version
+    assert main(["--version"]) == 0
+    out = capsys.readouterr().out
+    assert "pacman-terminal-arcade" in out and package_version() in out
+
+
+def test_pyproject_console_script_matches_cli_main():
+    import pathlib
+    import tomllib
+    root = pathlib.Path(__file__).resolve().parents[1]
+    data = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    assert data["project"]["name"] == "pacman-terminal-arcade"
+    assert (data["project"]["scripts"]["pacman-terminal-arcade"]
+            == "shell.cli:main")
+    assert set(data["tool"]["setuptools"]["packages"]) == {
+        "engine", "render", "shell"}
+    from shell import cli
+    assert callable(cli.main)
