@@ -78,9 +78,9 @@ def test_tester_menu_wrap_extremes():
     menu = menus_mod.title_menu()
     for _ in range(17):
         menu.move(1)
-    assert menu.current() == "scores"
+    assert menu.current() == "quit"  # 17 mod 6 items (settings added)
     menu.move(-100)
-    assert menu.current() in ("start", "help", "scores", "sound", "quit")
+    assert menu.current() in ("start", "help", "scores", "sound", "settings", "quit")
     menu.reset()
     assert menu.current() == "start"
     pause = menus_mod.pause_menu()
@@ -200,4 +200,4 @@ def test_tester_menu_rows_clip_safely_at_tiny_widths():
         drawn = screens.paint_menu_items(
             fb, 5, menus_mod.pause_menu().items,
             selected=5, muted=True, keymap=_remapped())
-        assert drawn == 6
+        assert drawn == 7  # pause menu gained the settings row

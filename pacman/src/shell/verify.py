@@ -532,6 +532,110 @@ def controls_matrix(seed=1):
     return rows
 
 
+def settings_matrix(seed=1):
+    """Settings matrix: entry, cycling, mode honesty, persist, paint."""
+    import tempfile
+    from shell import settings as settings_mod
+    from shell.app import ShellState
+    from shell.audio import NullAudio
+    from shell.config import Config
+    rows = []
+    app = ShellState(seed=seed, audio=NullAudio())
+    for _ in range(4):  # settings is fifth on the title menu
+        app.on_action("down")
+    entered = app.title_menu.current() == "settings"
+    app.on_action("confirm")
+    from shell import screens as screens_mod
+    card = screens_mod.flat_text(app.paint())
+    was_settings = (app.screen == "settings")
+    app.on_action("pause")
+    rows.append(_row("settings-title-roundtrip",
+                     entered and was_settings
+                     and any("SETTINGS" in row for row in card)
+                     and app.screen == "title",
+                     "entered=%s back=%s" % (entered, app.screen)))
+    # Note: the row above folds entry+paint+back; re-drive for clarity.
+    app2 = ShellState(seed=seed, audio=NullAudio())
+    app2.on_action("confirm")
+    app2.on_action("pause")
+    for _ in range(5):  # settings is sixth on the pause menu
+        app2.on_action("down")
+    app2.on_action("confirm")
+    game_before = app2.game
+    app2.on_action("confirm")
+    rows.append(_row("settings-pause-roundtrip-run-untouched",
+                     app2.screen == "paused" and app2.game is game_before,
+                     "screen=%s kept=%s" % (app2.screen,
+                                            app2.game is game_before)))
+    app3 = ShellState(seed=seed, audio=NullAudio(), theme="classic")
+    app3.screen = "settings"
+    app3.settings_index = 0
+    before = app3.theme
+    app3.on_action("right")
+    rows.append(_row("settings-theme-cycles",
+                     app3.theme != before, "theme=%s" % app3.theme))
+    for _ in range(len(settings_mod.choices("theme")) - 1):
+        app3.on_action("right")
+    rows.append(_row("settings-full-cycle-wraps",
+                     app3.theme == before, "theme=%s" % app3.theme))
+    app4 = ShellState(seed=seed, audio=NullAudio(), mode="classic")
+    app4.on_action("confirm")
+    app4.screen = "settings"
+    app4.settings_index = 1  # mode row
+    app4.on_action("right")
+    rows.append(_row("settings-mode-defers-to-next-run",
+                     app4.mode != "classic"
+                     and app4.game.mode == "classic",
+                     "setting=%s live=%s" % (app4.mode, app4.game.mode)))
+    with tempfile.TemporaryDirectory() as tmp:
+        path = tmp + "/config.json"
+        app5 = ShellState(seed=seed, audio=NullAudio(), theme="classic",
+                          config=Config(path=path))
+        app5.screen = "settings"
+        app5.settings_index = 0
+        app5.on_action("right")
+        saved = Config(path=path)
+        rows.append(_row("settings-persist-roundtrip",
+                         saved.values["theme"] == app5.theme,
+                         "saved=%s" % saved.values["theme"]))
+    app6 = ShellState(seed=seed, audio=NullAudio())
+    app6.screen = "settings"
+    app6.on_action("help")
+    help_ok = app6.screen == "help"
+    app6.on_action("confirm")
+    rows.append(_row("settings-help-roundtrip",
+                     help_ok and app6.screen == "settings",
+                     "help=%s back=%s" % (help_ok, app6.screen)))
+    kept = dict(theme=app6.theme, mode=app6.mode,
+                scale_mode=app6.scale_mode, effects=app6.effects,
+                reduced_flash=app6.reduced_flash)
+    try:
+        settings_mod.set_value(app6, "theme", "not-a-theme")
+        rejected = False
+    except ValueError:
+        rejected = True
+    rows.append(_row("settings-invalid-rejected",
+                     rejected and app6.theme == kept["theme"],
+                     "rejected=%s kept=%s" % (rejected, app6.theme)))
+    from render.layout import compute
+    app7 = ShellState(seed=seed, audio=NullAudio(), effects=False)
+    app7.on_action("confirm")
+    frame = app7.paint(compute(100, 44))
+    rows.append(_row("settings-effects-off-paints",
+                     (frame.cols, frame.rows) == (100, 44),
+                     "frame=%dx%d" % (frame.cols, frame.rows)))
+    app7.screen = "settings"
+    app7.settings_index = 2  # scale row
+    app7.on_action("right")
+    frame2 = app7.paint(compute(100, 44))
+    rows.append(_row("settings-scale-cycles-live",
+                     app7.scale_mode != "auto"
+                     and (frame2.cols, frame2.rows) == (100, 44),
+                     "scale=%s frame=%dx%d" % (app7.scale_mode,
+                                               frame2.cols, frame2.rows)))
+    return rows
+
+
 def parity_check(seed=1):
     """Fallback-mode parity: one painter, every backend, same layout."""
     from render.scene import COLS, ROWS, paint
@@ -883,6 +987,7 @@ def full_matrix(seed=1):
         ("capability", capability_matrix()),
         ("input", input_matrix()),
         ("controls", controls_matrix(seed)),
+        ("settings", settings_matrix(seed)),
         ("parity", parity_check(seed)),
     ]
     return sections

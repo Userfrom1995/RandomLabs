@@ -95,7 +95,7 @@ def test_title_menu_scores_roundtrip():
 
 def test_title_menu_quit_exits():
     app = ShellState(seed=3, audio=NullAudio())
-    for _ in range(4):
+    for _ in range(5):  # start/help/scores/sound/settings, then quit
         app.on_action("down")
     assert app.title_menu.current() == "quit"
     app.on_action("confirm")

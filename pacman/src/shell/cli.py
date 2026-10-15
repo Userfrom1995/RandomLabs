@@ -383,7 +383,7 @@ def cmd_play(args):
                      reduced_flash=settings["reduced_flash"], scores=scores,
                      player_name=settings["name"],
                      scale_mode=settings["scale"],
-                     effects=settings["effects"])
+                     effects=settings["effects"], config=config)
     renderer = TieredRenderer(preference=args.renderer, env=dict(os.environ))
     chunks = []
 

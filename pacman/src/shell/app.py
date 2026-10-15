@@ -28,7 +28,7 @@ from shell.scores import ScoreTable, clean_name
 from shell.terminal import check_size
 
 TITLE, PLAYING, PAUSED, OVER, ENTER_NAME = "title", "playing", "paused", "over", "enter-name"
-HELP, SCORES = "help", "scores"
+HELP, SCORES, SETTINGS = "help", "scores", "settings"
 DIR_OF = {A_UP: UP, A_DOWN: DOWN, A_LEFT: LEFT, A_RIGHT: RIGHT}
 DOT_SOUND_TICKS = 10
 MAX_CATCHUP_TICKS = 40
@@ -42,6 +42,7 @@ HINTS = {
     ENTER_NAME: "type A-Z 0-9   ENTER saves   ESC skips",
     HELP: "P / ENTER back   Q quit",
     SCORES: "P / ENTER back   Q quit",
+    SETTINGS: "up/down move   left/right change   P / ENTER back",
 }
 
 
@@ -50,7 +51,7 @@ class ShellState:
 
     def __init__(self, seed=1, level=1, keymap=None, audio=None, mode="classic",
                  theme="classic", reduced_flash=False, scores=None, player_name="ACE",
-                 scale_mode="auto", effects=True):
+                 scale_mode="auto", effects=True, config=None):
         from shell.input import Keymap
         game_modes.check(mode)
         check_theme(theme)
@@ -74,6 +75,9 @@ class ShellState:
         self.name_buffer = ""
         self.muted = False
         self.help_from = TITLE
+        self.settings_from = TITLE
+        self.settings_index = 0
+        self.config = config
         self.title_menu = menus_mod.title_menu()
         self.pause_menu = menus_mod.pause_menu()
         self.over_menu = menus_mod.over_menu()
@@ -100,6 +104,21 @@ class ShellState:
         if self.audio is not None:
             self.audio.play(event)
 
+    def _persist_settings(self):
+        """Write the live visual/mode settings back to the config file.
+
+        Session-only when no config is bound (tests, headless probes);
+        a failed save is soft (the game keeps playing with live values).
+        """
+        if self.config is None:
+            return True
+        from shell import settings as settings_mod
+        try:
+            self.config.update(settings_mod.snapshot(self))
+            return bool(self.config.save())
+        except (OSError, ValueError):
+            return False
+
     def _activate(self, item, origin):
         """Run one menu item id. Returns nothing; mutates screen/mute/exit."""
         if item in (menus_mod.START, menus_mod.AGAIN, menus_mod.RESTART):
@@ -108,6 +127,10 @@ class ShellState:
             self.screen = PLAYING
         elif item == menus_mod.SOUND:
             self.muted = not self.muted
+        elif item == menus_mod.SETTINGS:
+            self.settings_from = origin
+            self.settings_index = 0
+            self.screen = SETTINGS
         elif item == menus_mod.HELP:
             self.help_from = origin
             self.screen = HELP
@@ -126,13 +149,23 @@ class ShellState:
             self.muted = not self.muted
             return
         if action == A_HELP:
-            if self.screen in (TITLE, PLAYING, PAUSED, OVER):
+            if self.screen in (TITLE, PLAYING, PAUSED, OVER, SETTINGS):
                 self.help_from = self.screen
                 self.screen = HELP
             return
         if action in DIR_OF:
             if self.screen == PLAYING and self.game is not None:
                 self.game.set_want(DIR_OF[action])
+            elif self.screen == SETTINGS:
+                from shell import settings as settings_mod
+                opts = list(settings_mod.OPTIONS)
+                if action in (A_UP, A_DOWN):
+                    self.settings_index = (self.settings_index +
+                                           (-1 if action == A_UP else 1)) % len(opts)
+                else:  # left/right cycles the selected option, then persists
+                    settings_mod.cycle(self, opts[self.settings_index],
+                                       -1 if action == A_LEFT else 1)
+                    self._persist_settings()
             elif self.screen == TITLE and action in (A_UP, A_DOWN):
                 self.title_menu.move(-1 if action == A_UP else 1)
             elif self.screen == PAUSED and action in (A_UP, A_DOWN):
@@ -167,6 +200,9 @@ class ShellState:
         elif self.screen == HELP:
             if action in (CONFIRM, PAUSE):
                 self.screen = self.help_from
+        elif self.screen == SETTINGS:
+            if action in (CONFIRM, PAUSE):
+                self.screen = self.settings_from
         elif self.screen == SCORES:
             if action in (CONFIRM, PAUSE):
                 self.screen = TITLE
@@ -255,6 +291,9 @@ class ShellState:
                                        muted=self.muted)
         if self.screen == HELP:
             return screens.paint_help(self.keymap, cols=cols, rows=rows)
+        if self.screen == SETTINGS:
+            return screens.paint_settings(self, selected=self.settings_index,
+                                          cols=cols, rows=rows)
         if self.screen == SCORES:
             return screens.paint_scores(self.scores.entries, cols=cols, rows=rows)
         if layout is None:
