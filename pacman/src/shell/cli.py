@@ -111,9 +111,15 @@ def resolve_settings(args):
                           else args.reduced_flash),
         "name": args.name or config.values["name"],
         "scores_file": args.scores_file,
+        "scale": (config.values.get("scale", "auto") if args.scale is None
+                  else args.scale),
+        "effects": (config.values.get("effects", True) if args.effects is None
+                    else args.effects),
     }
     game_modes.check(settings["mode"])
     game_themes.check(settings["theme"])
+    from render import scale as scale_mod
+    scale_mod.check(settings["scale"])
     return settings, config
 
 
@@ -258,6 +264,8 @@ def cmd_input_bench(_args):
 def cmd_layout_check(args):
     """Report the responsive canvas layout for a terminal size."""
     from render import layout as layout_mod
+    from render import scale as scale_mod
+    from shell.app import canvas_layout
     import shutil
     spec = (args.layout_check or "").strip()
     if spec:
@@ -276,7 +284,9 @@ def cmd_layout_check(args):
             live = (80, 24)
         sizes = [live, (28, 34), (80, 24), (80, 50), (120, 40), (160, 60)]
     for cols, rows in sizes:
-        print(layout_mod.describe(layout_mod.compute(cols, rows)))
+        picked = scale_mod.choose(cols, rows, getattr(args, "scale", None) or "auto")
+        print(scale_mod.describe(picked))
+        print(layout_mod.describe(canvas_layout(cols, rows, picked.mode)))
         print("")
     print("layout OK")
     return 0
@@ -306,6 +316,10 @@ def cmd_scoreboard(args):
         bench["decode_keys_per_s"], bench["decode_ns_per_key"]))
     print("sim-step: %.1f us/tick (%.0f ticks/s, 120 Hz needs <8333 us)" % (
         bench["sim_us_per_tick"], bench["sim_ticks_per_s"]))
+    canvas = verify_mod.canvas_bench(frames=max(args.frames, 1), seed=args.seed)
+    print("canvas-compose: %.0f fps (%dx%d frame, %dx%d maze, effects on)" % (
+        canvas["fps"], canvas["frame"][0], canvas["frame"][1],
+        canvas["maze"][0], canvas["maze"][1]))
     print("parity: one 28x34 scene painter plus the fullscreen composer feeds every backend; run --verify")
     print("scoreboard OK")
     return 0
@@ -333,7 +347,8 @@ def cmd_save_config(args):
                    "fps": settings["fps"], "mode": settings["mode"],
                    "theme": settings["theme"],
                    "reduced_flash": settings["reduced_flash"],
-                   "name": settings["name"]})
+                   "name": settings["name"], "scale": settings["scale"],
+                   "effects": settings["effects"]})
     if not config.save():
         print("error: could not write %s" % config.path)
         return 1
@@ -366,7 +381,9 @@ def cmd_play(args):
     app = ShellState(seed=args.seed, level=args.level, keymap=settings["keymap"],
                      audio=audio, mode=settings["mode"], theme=settings["theme"],
                      reduced_flash=settings["reduced_flash"], scores=scores,
-                     player_name=settings["name"])
+                     player_name=settings["name"],
+                     scale_mode=settings["scale"],
+                     effects=settings["effects"])
     renderer = TieredRenderer(preference=args.renderer, env=dict(os.environ))
     chunks = []
 
@@ -458,6 +475,13 @@ def build_parser():
                     help="ruleset for --play and --self-check (default from config)")
     ap.add_argument("--theme", default=None, choices=list(game_themes.THEMES),
                     help="palette for --play (default from config)")
+    ap.add_argument("--scale", default=None,
+                    choices=("auto", "classic", "wide", "full"),
+                    help="maze magnification for --play (default from config)")
+    ap.add_argument("--effects", dest="effects", action="store_true",
+                    default=None, help="animated mouth, pulse, sparkles (default on)")
+    ap.add_argument("--no-effects", dest="effects", action="store_false",
+                    help="steady legacy sprites (overrides config)")
     ap.add_argument("--reduced-flash", dest="reduced_flash", action="store_true",
                     default=None, help="steady energizers and fright (no blinking)")
     ap.add_argument("--no-reduced-flash", dest="reduced_flash", action="store_false",
