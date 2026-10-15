@@ -116,7 +116,7 @@ class ShellState:
         try:
             self.config.update(settings_mod.snapshot(self))
             return bool(self.config.save())
-        except (OSError, ValueError):
+        except (OSError, ValueError, AttributeError):
             return False
 
     def _activate(self, item, origin):
@@ -159,6 +159,7 @@ class ShellState:
             elif self.screen == SETTINGS:
                 from shell import settings as settings_mod
                 opts = list(settings_mod.OPTIONS)
+                self.settings_index %= len(opts)
                 if action in (A_UP, A_DOWN):
                     self.settings_index = (self.settings_index +
                                            (-1 if action == A_UP else 1)) % len(opts)
@@ -292,8 +293,12 @@ class ShellState:
         if self.screen == HELP:
             return screens.paint_help(self.keymap, cols=cols, rows=rows)
         if self.screen == SETTINGS:
+            from shell import settings as settings_mod
+            opts = list(settings_mod.OPTIONS)
+            self.settings_index %= len(opts)
             return screens.paint_settings(self, selected=self.settings_index,
-                                          cols=cols, rows=rows)
+                                          cols=cols, rows=rows,
+                                          keymap=self.keymap)
         if self.screen == SCORES:
             return screens.paint_scores(self.scores.entries, cols=cols, rows=rows)
         if layout is None:
