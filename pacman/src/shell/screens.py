@@ -11,9 +11,6 @@ frame; title, scores, and too-small paint standalone cards.
 from render.framebuffer import BLANK, Cell, FrameBuffer
 from render.scene import COLS, ROWS
 
-from render.framebuffer import BLANK, Cell, FrameBuffer
-from render.scene import COLS, ROWS
-
 TITLE_FG = (255, 255, 0)
 TEXT_FG = (255, 255, 255)
 DIM_FG = (150, 150, 150)
