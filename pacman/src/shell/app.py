@@ -19,24 +19,29 @@ from render import layout as layout_mod
 from render.scene import COLS, ROWS, paint
 from render.themes import check as check_theme
 from shell import screens
+from shell import menus as menus_mod
 from shell.audio import BellAudio
 from shell.input import CONFIRM, DOWN as A_DOWN, LEFT as A_LEFT, PAUSE, QUIT, RESTART
 from shell.input import RIGHT as A_RIGHT, UP as A_UP, decode_stream
+from shell.input import MUTE as A_MUTE, HELP as A_HELP
 from shell.scores import ScoreTable, clean_name
 from shell.terminal import check_size
 
 TITLE, PLAYING, PAUSED, OVER, ENTER_NAME = "title", "playing", "paused", "over", "enter-name"
+HELP, SCORES = "help", "scores"
 DIR_OF = {A_UP: UP, A_DOWN: DOWN, A_LEFT: LEFT, A_RIGHT: RIGHT}
 DOT_SOUND_TICKS = 10
 MAX_CATCHUP_TICKS = 40
 NAME_MAX = 10
 
 HINTS = {
-    TITLE: "ENTER start   Q quit   arrows/WASD move",
-    PLAYING: "arrows/WASD move   P pause   R restart   Q quit",
-    PAUSED: "P / ENTER resume   R restart   Q quit",
-    OVER: "ENTER play again   Q quit",
+    TITLE: "up/down + ENTER menu   arrows/WASD move",
+    PLAYING: "arrows/WASD move   P pause   M mute   ? help   R restart   Q quit",
+    PAUSED: "up/down menu   P resume   R restart   Q quit",
+    OVER: "up/down menu   ENTER play again   Q quit",
     ENTER_NAME: "type A-Z 0-9   ENTER saves   ESC skips",
+    HELP: "P / ENTER back   Q quit",
+    SCORES: "P / ENTER back   Q quit",
 }
 
 
@@ -67,6 +72,11 @@ class ShellState:
         self.exited = False
         self.leftover = b""
         self.name_buffer = ""
+        self.muted = False
+        self.help_from = TITLE
+        self.title_menu = menus_mod.title_menu()
+        self.pause_menu = menus_mod.pause_menu()
+        self.over_menu = menus_mod.over_menu()
         self._seen_events = 0
         self._last_dot_tick = -DOT_SOUND_TICKS
 
@@ -75,36 +85,91 @@ class ShellState:
         self._seen_events = len(self.game.events)
         self._last_dot_tick = -DOT_SOUND_TICKS
         self.name_buffer = ""
+        self.title_menu.reset()
+        self.pause_menu.reset()
+        self.over_menu.reset()
         self.screen = PLAYING
 
+    def quit_to_title(self):
+        self.title_menu.reset()
+        self.screen = TITLE
+
     def _sound(self, event):
+        if self.muted:
+            return  # session mute: events still map, nothing audible
         if self.audio is not None:
             self.audio.play(event)
 
+    def _activate(self, item, origin):
+        """Run one menu item id. Returns nothing; mutates screen/mute/exit."""
+        if item in (menus_mod.START, menus_mod.AGAIN, menus_mod.RESTART):
+            self.start_run()
+        elif item == menus_mod.RESUME:
+            self.screen = PLAYING
+        elif item == menus_mod.SOUND:
+            self.muted = not self.muted
+        elif item == menus_mod.HELP:
+            self.help_from = origin
+            self.screen = HELP
+        elif item == menus_mod.SCORES:
+            self.screen = SCORES
+        elif item == menus_mod.TITLE:
+            self.quit_to_title()
+        elif item == menus_mod.QUIT:
+            self.exited = True
+
     def on_action(self, action):
-        if action in DIR_OF:
-            if self.screen == PLAYING and self.game is not None:
-                self.game.set_want(DIR_OF[action])
-            return
         if action == QUIT:
             self.exited = True
             return
+        if action == A_MUTE:
+            self.muted = not self.muted
+            return
+        if action == A_HELP:
+            if self.screen in (TITLE, PLAYING, PAUSED, OVER):
+                self.help_from = self.screen
+                self.screen = HELP
+            return
+        if action in DIR_OF:
+            if self.screen == PLAYING and self.game is not None:
+                self.game.set_want(DIR_OF[action])
+            elif self.screen == TITLE and action in (A_UP, A_DOWN):
+                self.title_menu.move(-1 if action == A_UP else 1)
+            elif self.screen == PAUSED and action in (A_UP, A_DOWN):
+                self.pause_menu.move(-1 if action == A_UP else 1)
+            elif self.screen == OVER and action in (A_UP, A_DOWN):
+                self.over_menu.move(-1 if action == A_UP else 1)
+            return
         if self.screen == TITLE:
-            if action in (CONFIRM, RESTART):
+            if action == CONFIRM:
+                self._activate(self.title_menu.current(), TITLE)
+            elif action == RESTART:
                 self.start_run()
         elif self.screen == PLAYING:
             if action == PAUSE:
+                self.pause_menu.reset()
                 self.screen = PAUSED
             elif action == RESTART:
                 self.start_run()
         elif self.screen == PAUSED:
-            if action in (PAUSE, CONFIRM):
+            if action == PAUSE:
                 self.screen = PLAYING
+            elif action == CONFIRM:
+                self._activate(self.pause_menu.current(), PAUSED)
             elif action == RESTART:
                 self.start_run()
         elif self.screen == OVER:
             if action in (CONFIRM, RESTART):
-                self.start_run()
+                if action == CONFIRM:
+                    self._activate(self.over_menu.current(), OVER)
+                else:
+                    self.start_run()
+        elif self.screen == HELP:
+            if action in (CONFIRM, PAUSE):
+                self.screen = self.help_from
+        elif self.screen == SCORES:
+            if action in (CONFIRM, PAUSE):
+                self.screen = TITLE
 
     # -- high-score name entry --------------------------------------
     def handle_entry_bytes(self, data):
@@ -178,15 +243,20 @@ class ShellState:
         """Render the current screen. Without a layout this is the legacy
         28x34 frame (all headless tests pin this path); with a layout from
         layout.compute() it is the full-terminal canvas frame."""
+        cols = layout.frame_cols if layout is not None else COLS
+        rows = layout.frame_rows if layout is not None else ROWS
         if self.screen == TITLE:
             top = self.scores.entries[0] if self.scores.entries else None
-            if layout is None:
-                return screens.paint_title(self.keymap, mode=self.mode,
-                                           theme=self.theme, top=top)
             return screens.paint_title(self.keymap, mode=self.mode,
                                        theme=self.theme, top=top,
-                                       cols=layout.frame_cols,
-                                       rows=layout.frame_rows)
+                                       cols=cols, rows=rows,
+                                       menu=self.title_menu.items,
+                                       menu_index=self.title_menu.index,
+                                       muted=self.muted)
+        if self.screen == HELP:
+            return screens.paint_help(self.keymap, cols=cols, rows=rows)
+        if self.screen == SCORES:
+            return screens.paint_scores(self.scores.entries, cols=cols, rows=rows)
         if layout is None:
             if self.screen == ENTER_NAME and self.game is not None:
                 base = paint(self.game, theme=self.theme,
@@ -195,10 +265,15 @@ class ShellState:
             game = self.game if self.game is not None else Game(seed=self.seed, level=self.level, mode=self.mode)
             base = paint(game, theme=self.theme, reduced_flash=self.reduced_flash)
             if self.screen == PAUSED:
-                return screens.paint_pause(base)
+                return screens.paint_pause(base, menu=self.pause_menu.items,
+                                           menu_index=self.pause_menu.index,
+                                           muted=self.muted, keymap=self.keymap)
             if self.screen == OVER:
                 reason = getattr(game, "over_reason", None)
-                return screens.paint_over(base, game.score, reason=reason)
+                return screens.paint_over(base, game.score, reason=reason,
+                                          menu=self.over_menu.items,
+                                          menu_index=self.over_menu.index,
+                                          muted=self.muted, keymap=self.keymap)
             return base
         if self.screen == ENTER_NAME and self.game is not None:
             base = self._canvas(self.game, layout)
@@ -206,10 +281,15 @@ class ShellState:
         game = self.game if self.game is not None else Game(seed=self.seed, level=self.level, mode=self.mode)
         base = self._canvas(game, layout)
         if self.screen == PAUSED:
-            return screens.paint_pause(base)
+            return screens.paint_pause(base, menu=self.pause_menu.items,
+                                       menu_index=self.pause_menu.index,
+                                       muted=self.muted, keymap=self.keymap)
         if self.screen == OVER:
             reason = getattr(game, "over_reason", None)
-            return screens.paint_over(base, game.score, reason=reason)
+            return screens.paint_over(base, game.score, reason=reason,
+                                      menu=self.over_menu.items,
+                                      menu_index=self.over_menu.index,
+                                      muted=self.muted, keymap=self.keymap)
         return base
 
     def _canvas(self, game, layout):

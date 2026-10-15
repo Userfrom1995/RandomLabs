@@ -50,8 +50,65 @@ def _overlay(base):
     return clone
 
 
+def paint_menu_items(fb, top_y, items, selected=0, muted=False, keymap=None):
+    """Draw navigable menu rows centered; returns rows drawn. Clips safely."""
+    from shell import menus as menus_mod
+    drawn = 0
+    for i, item in enumerate(items):
+        y = top_y + i
+        if not (0 <= y < fb.rows):
+            continue
+        marker = "> " if i == selected else "  "
+        text = marker + menus_mod.label(item, muted=muted, keymap=keymap)
+        if len(text) > fb.cols:
+            text = text[:fb.cols - 1] + ">"
+        start = max(0, (fb.cols - len(text)) // 2)
+        fg = TITLE_FG if i == selected else TEXT_FG
+        for j, ch in enumerate(text):
+            x = start + j
+            if x >= fb.cols:
+                break
+            base = fb.get(x, y)
+            fb.set(x, y, Cell(ch, fg, base.bg, None))
+        drawn += 1
+    return drawn
+
+
+def paint_help(keymap=None, cols=COLS, rows=ROWS):
+    """Fullscreen help card: live bindings, goal, ghost legend, back hint."""
+    fb = _card(cols, rows)
+    mid = rows // 2
+    put_text(fb, mid - 9, "HOW TO PLAY", TITLE_FG)
+    put_text(fb, mid - 7, "eat every dot - dodge the ghosts", TEXT_FG)
+    put_text(fb, mid - 6, "energizer, then hunt the blue!", DIM_FG)
+    if keymap is not None:
+        move = "arrows/" + ("/".join(keymap.bindings("up")) or "WASD")
+        lines = [
+            "move: %s" % move[:cols - 8],
+            "pause: %s  restart: %s" % (
+                "/".join(keymap.bindings("pause")) or "P",
+                "/".join(keymap.bindings("restart")) or "R"),
+            "mute: %s  help: %s  quit: %s" % (
+                "/".join(keymap.bindings("mute")) or "M",
+                "/".join(keymap.bindings("help")) or "?",
+                "/".join(keymap.bindings("quit")) or "Q"),
+            "menus: up/down moves - ENTER picks",
+        ]
+    else:
+        lines = ["move: arrows/WASD", "P: pause  R: restart",
+                 "M: mute  ?: help  Q: quit",
+                 "menus: up/down moves - ENTER picks"]
+    for i, line in enumerate(lines):
+        put_text(fb, mid - 4 + i, line[:cols], TEXT_FG if i == 0 else DIM_FG)
+    put_text(fb, mid + 1, "M ghost  O frightened  x eyes", DIM_FG)
+    put_text(fb, mid + 2, ". dot  O energizer  F fruit", DIM_FG)
+    put_text(fb, mid + 4, "P / ENTER: back", TEXT_FG, CARD_BG)
+    put_text(fb, mid + 5, "Q: quit", TEXT_FG, CARD_BG)
+    return fb
+
+
 def paint_title(keymap=None, mode="classic", theme="classic", top=None,
-                cols=COLS, rows=ROWS):
+                cols=COLS, rows=ROWS, menu=None, menu_index=0, muted=False):
     fb = _card(cols, rows)
     mid = rows // 2
     put_text(fb, mid - 7, "P A C - M A N", TITLE_FG)
@@ -71,19 +128,27 @@ def paint_title(keymap=None, mode="classic", theme="classic", top=None,
         if len(line) > cols:
             line = line[:cols - 1] + ">"
         put_text(fb, mid + 5, line, DIM_FG)
+    if menu is not None:
+        put_text(fb, mid + 7, "MENU: up/down + ENTER", DIM_FG)
+        paint_menu_items(fb, mid + 8, list(menu), selected=menu_index,
+                         muted=muted, keymap=keymap)
     return fb
 
 
-def paint_pause(base):
+def paint_pause(base, menu=None, menu_index=0, muted=False, keymap=None):
     fb = _overlay(base)
     mid = base.rows // 2
     put_text(fb, mid - 1, "  PAUSED  ", TITLE_FG, CARD_BG)
     put_text(fb, mid + 1, "P / ENTER: resume", TEXT_FG, CARD_BG)
     put_text(fb, mid + 2, "R: restart  Q: quit", TEXT_FG, CARD_BG)
+    if menu is not None:
+        paint_menu_items(fb, mid + 4, list(menu), selected=menu_index,
+                         muted=muted, keymap=keymap)
     return fb
 
 
-def paint_over(base, score, reason=None):
+def paint_over(base, score, reason=None, menu=None, menu_index=0,
+               muted=False, keymap=None):
     fb = _overlay(base)
     mid = base.rows // 2
     if reason == "timeout":
@@ -95,6 +160,9 @@ def paint_over(base, score, reason=None):
     put_text(fb, mid - 3, headline, OVER_FG, CARD_BG)
     put_text(fb, mid - 1, "score: %d" % int(score), TEXT_FG, CARD_BG)
     put_text(fb, mid + 1, "ENTER: play again    Q: quit", TEXT_FG, CARD_BG)
+    if menu is not None:
+        paint_menu_items(fb, mid + 3, list(menu), selected=menu_index,
+                         muted=muted, keymap=keymap)
     return fb
 
 
