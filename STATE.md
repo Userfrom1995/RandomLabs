@@ -1,51 +1,54 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-15 run 38677374526 - standby, no drift**
+ - **Updated: 2026-10-15 run 38677927332 - PR #571 curator fix in test gate, standing down**
 
 ## PRs & Issues
- - **PRs:** Open: none. MERGED: #569 (Curator: remove milestone codes from doom public site, head 63948b81, merged 16:53:22Z via --rebase, branch kept; body Fixes #568), #567 (Lab Engineer Phase 5 continuous-improvement loop, head 016ee574, merge commit acede055 via --rebase, branch kept; body Refs #42 only), #566 (Phase 4 quality gates, head 661833a6, merge commit af4aaf1, branch kept; Refs #42), #565 (Phase 3 skills registry, head 5e41f24, merge commit 9bce3e0, branch kept; Refs #42), #564 (Phase 2 delegation coverage, head 8ada09de, merge commit 0ed8f17, branch kept; Refs #42), #563 (Phase 1 delegation protocol, head 7b027aec, merge commit 2c2fd54, branch kept; Refs #42), #562 (Curator Pac-Man graduation + Poolduel archive, merge commit 8461c69, branch kept), #560 (Pac-Man Final, 1a89293, Closes #552), #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
- - **Issues:** Open: #70 lab-health, #42 brainstorm standing (lab overhaul epic AND single source of truth; Phases 1-5 merged as Refs #42, Phase 6 instructed run stood down with evidenced completion, accepted run 38463966490). Closed: #568 (Curator doom milestone language, auto-closed 16:53:24Z via Fixes #568 on merge of #569), #561 (Curator audit, auto-closed by Fixes #561 on merge of #562), #552 Pac-Man tracking COMPLETED 2026-10-12, plus earlier.
+ - **PRs:** Open: #571 (Curator: fix broken docs nav links on umbra and doom Pages sites, head 7fdc22f6, Fixes #570; Reviewer /oc approve 03:46:20Z, Tester arm in flight). MERGED: #569 (Curator doom milestone language, head 63948b81, merged 16:53:22Z via --rebase, branch kept; body Fixes #568), #567 (Lab Engineer Phase 5, head 016ee574), #566, #565, #564, #563, #562, #560, #559, #558, #557, #556, #553, plus earlier. CLOSED (not merged): #555 (superseded), #547.
+ - **Issues:** Open: #570 ([Curator] broken docs nav links, linked by Fixes #570 on #571), #70 lab-health, #42 brainstorm standing (Phases 1-5 merged as Refs #42, Phase 6 accepted, no third lab dispatch). Closed: #568 (auto-closed via Fixes #568 on merge of #569), #561, #552 COMPLETED 2026-10-12, plus earlier.
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match verified this run (20 `name:` fields incl. maintainer itself), no drift. `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - NOTHING IN FLIGHT: zero open PRs, zero untriaged issues. Curator track #569/#568 fully resolved run 38601782501 (Reviewer approve 16:48:40Z, Tester approve-test 16:52:27Z, merged 16:53:22Z). Post-#569 main deploy VERIFIED run 38605815785 (pages workflow_dispatch 16:54:11Z success).
- - LAB OVERHAUL SUBSTANTIALLY COMPLETE: Phase 6 instructed run 38463786451 (20:33:57Z 2026-10-13) stood down with evidence (two-knob free, 20 workflow pins free, allowlist exact match, docs bindings present, 0 open PRs). Verified live in run 38463966490; NO third lab dispatch per anti-loop bar from run 38459290981. Future infra needs a fresh scoped order, not a repeat Phase 6.
- - Pages: main tip f1c2908d (merge of #569), verified `git ls-remote origin/main` == local HEAD this run. Preview-refs-only wart holds (5th data point: Phase 5 head preview failure vs main success); main deploys are the binding signal.
- - Pages preview wart (watch, fifth data point): PR-branch `pull_request` pages runs keep failing on lab PR refs even though Reviewer/Tester verified all 20 workflows parse clean. If a main deploy fails the same way, route lab immediately.
+ - PR #571 IN TEST GATE: Reviewer approved 03:46:20Z (two-line href swap verified, MERGEABLE, no infra touch, advisory only on delegation-ledger note). Owner /oc test 03:46:24Z routed correctly: opencode-test run 38678001028 in_progress, all sibling arms (review/eval/lab/curator/ideate/recover/peros/auditor/opencode) skipped. Maintainer stands down this run - no duplicate dispatch, no merge until /oc approve-test lands.
+ - LAB OVERHAUL SUBSTANTIALLY COMPLETE: Phase 6 instructed run 38463786451 stood down with evidence; verified live in run 38463966490; NO third lab dispatch per anti-loop bar. Future infra needs a fresh scoped order, not a repeat Phase 6.
+ - Pages: main tip f1c2908d (merge of #569); no merges since. Preview-refs-only wart holds; main deploys are the binding signal.
+ - Pages preview wart (watch): PR-branch `pull_request` pages runs keep failing on lab PR refs; if a main deploy fails the same way, route lab immediately.
  - Reviewer non-blocking note (carried, not a finding): PRs #564/#565 say "tracked on #42" but #42 is titled Brainstorm Board; precedent accepts the linkage, no diff impact.
- - Reviewer advisory (carried, from #567): 9-file/3-dir shape sits above the literal delegation section-2 file/dir count, so a future run of this shape may want a 3-line ledger to avoid threshold debate; not blocking.
+ - Reviewer advisory (carried, from #567): 9-file/3-dir shape sits above the literal delegation section-2 file/dir count, so a future run of this shape may want a 3-line ledger; not blocking.
+ - Reviewer advisory (carried, from #571): 2-dir touch literally meets the delegation-ledger threshold but no ledger present; trivial 2-line href swap, not a finding.
  - Infra routing guard stays active: any `.github/agents/` follow-up routes to Lab Engineer via `lab`, never `fix`/`continue`.
  - Main tip: f1c2908d (merge of #569).
  - Orphan-main protection holds: merge-base with main verified non-empty before merging #569 (common ancestor acede055).
  - Rebase-gate rule: a rebase or fix-push that rewrites a gated PR's head voids its gate; fresh review round required after each Fixer production-code push. Test-only Tester commits (single-file tests/, production untouched) do NOT void the review gate per precedent.
- - Eval-gate calibration note: surgical infra/docs/test-hardening fixes may merge on Reviewer approve + Tester approve-test; Evaluator binding gate stays mandatory for product/research/phase deliverables. #569 (text-only curator copy) qualified as surgical and merged accordingly.
+ - Eval-gate calibration note: surgical infra/docs/test-hardening fixes may merge on Reviewer approve + Tester approve-test; Evaluator binding gate stays mandatory for product/research/phase deliverables. #571 (two-line curator href fix) qualifies as surgical if Tester approves.
  - Eval-crash rule (amended): eval run dying inside `Run evaluator agent` with no decision file and no Quality Council comment carries zero signal - retry eval once (cooldown 30 min same-signature). Second AGENT-STEP silent death routes `lab`, never a third eval. UNACQUIRED deaths do not count; one exception per cooldown window max.
  - Duplicate-review note: maintainer + owner near-simultaneous review dispatches settle via per-PR concurrency; stand down when a review arm is pending/in_progress.
- - IP hold (standing): God of War Kratos vs Zeus commission declined twice on binding IP grounds (Sony copyright; waiver does not transfer liability); original mythic-duel alternative (Thor vs Zeus original designs) stands awaiting owner confirmation. Envelope context in this run carries no new Kratos order.
- - Error-dump wart status: 13th recurrence logged; escalation note posted to Owner via ping on #70 (run 37552237432). 8th lab mandate withheld per loop guard - awaiting Owner direction. (The overhaul may subsume this; Lab Engineer assessed pipeline green, no separate mandate.)
+ - IP hold (standing): God of War Kratos vs Zeus commission declined twice on binding IP grounds (Sony copyright; waiver does not transfer liability); original mythic-duel alternative (Thor vs Zeus original designs) stands awaiting owner confirmation.
+ - Error-dump wart status: 13th recurrence logged; escalation note posted to Owner via ping on #70 (run 37552237432). 8th lab mandate withheld per loop guard - awaiting Owner direction.
  - Comment-post flakiness wart: a `github-actions[bot]` comment on #553 at 12:23:43Z contains a raw GitHub Unicorn error HTML page - single occurrence so far, watch for recurrence, route lab on second consecutive trigger/comment-step failure.
  - Evaluator follow-up VERIFIED live on main: `archive/prism/benchmarks/bench_vs_codecs.py:28` sys.path depth bug. Queued as future Builder/test-hardening vehicle.
  - Workflow warts logged (not yet lab-routed): (1) opencode.yml verify step counts ALL historical auto-retry comments; (2) verify-step branch pattern false-negatives on non-`opencode/issue<N>-*` names. Lab to assess on second consecutive trigger-step failure.
- - Standing-board close guard: #70 must never carry `Closes #70` in a PR body; merge as Refs only. (#42 same: Refs only - enforced on #563, #564, #565, #566, #567.)
- - Evaluator non-blocking notes (do not gate, carried): DEC2026 SYNC vs ansi.py DCS form (Phase 3 concern), cumulative event-log growth, PACMAN_RENDERER env unreachable from CLI, `--renderer auto` rejected, combined `--maze-check --self-check` drops self-check, progress tracker duplicated `## Next steps` heading, Kitty X/Y cell convention on real terminal, unlabeled maze excerpt caption. Plus Phase 2 notes: Elroy stage-2 speed stacking (ghosts.py:264), notify_dots overflow drop (ghosts.py:151), clear-clobbers-dying race (game.py:149), Elroy-2 clock spin (ghosts.py:204). Plus Phase 4 notes: bare `level-clear` falls through while `level:N` plays the jingle at spawn (shell/app.py), `raw is None` EOF branch unreachable, per-frame preview Game on TITLE. Plus Phase 5 notes: `--levels 0` shows help exit 0 (argparse default=0 indistinguishable from flag-absent; coherent UX, dead-for-zero guard only), score/config writes lack tmp-file plus rename atomicity (contained by catch-and-fallback loaders), `--modes` one-liners and `--levels` header lean jargony. Plus Final Phase advisory nits (post-approval, non-blocking): non-clickable code-span cross-links, one `--fps up to 240` unit, footer lab voice; plus re-review nit: duplicate ShellState import (verify.py:144 and :172 as _ShellState).
+ - Standing-board close guard: #70 must never carry `Closes #70` in a PR body; merge as Refs only. (#42 same: Refs only.)
+ - Evaluator non-blocking notes (do not gate, carried): DEC2026 SYNC vs ansi.py DCS form, cumulative event-log growth, PACMAN_RENDERER env unreachable from CLI, `--renderer auto` rejected, combined `--maze-check --self-check` drops self-check, progress tracker duplicated `## Next steps` heading, Kitty X/Y cell convention, unlabeled maze excerpt caption. Plus Phase 2 notes: Elroy stage-2 speed stacking (ghosts.py:264), notify_dots overflow drop (ghosts.py:151), clear-clobbers-dying race (game.py:149), Elroy-2 clock spin (ghosts.py:204). Plus Phase 4 notes: bare `level-clear` falls through while `level:N` plays the jingle at spawn (shell/app.py), `raw is None` EOF branch unreachable, per-frame preview Game on TITLE. Plus Phase 5 notes: `--levels 0` shows help exit 0, score/config writes lack tmp-file plus rename atomicity, `--modes` one-liners and `--levels` header lean jargony. Plus Final Phase advisory nits: non-clickable code-span cross-links, one `--fps up to 240` unit, footer lab voice; plus re-review nit: duplicate ShellState import (verify.py:144 and :172 as _ShellState).
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. Future lab work needs a fresh scoped owner order; do NOT re-dispatch Phase 6 or the overhaul mandate without one.
-3. Error-dump wart: overhaul substantially complete; do NOT auto-queue a separate 8th lab mandate without owner direction.
-4. Evaluator follow-up (archived bench helper sys.path depth + weak assertion) queued for a future hardening vehicle.
-5. Council calibration: advisory Desktop Pet audit still pending.
-6. Watch: ubuntu-latest agent runs - if hollow-green/silent-stall recurs, the poisoned-cache class is NOT fixed and a lab mandate is warranted.
-7. Watch: comment-post flakiness (Unicorn-HTML wart) - second occurrence routes lab.
-8. Watch: main Pages deploys - failure routes lab immediately.
-9. Standing rule: standby on all other fronts (no auto-ideate).
-10. IP: any new Kratos/God of War order stays declined on binding grounds; original-duel path on confirmation only.
+2. PR #571: await Tester verdict. On /oc approve-test with no newer /oc fix findings, merge via --rebase (keep branch), verify main deploy, close #570 (auto-close via Fixes #570; confirm).
+3. Future lab work needs a fresh scoped owner order; do NOT re-dispatch Phase 6 or the overhaul mandate without one.
+4. Error-dump wart: overhaul substantially complete; do NOT auto-queue a separate 8th lab mandate without owner direction.
+5. Evaluator follow-up (archived bench helper sys.path depth + weak assertion) queued for a future hardening vehicle.
+6. Council calibration: advisory Desktop Pet audit still pending.
+7. Watch: ubuntu-latest agent runs - if hollow-green/silent-stall recurs, the poisoned-cache class is NOT fixed and a lab mandate is warranted.
+8. Watch: comment-post flakiness (Unicorn-HTML wart) - second occurrence routes lab.
+9. Watch: main Pages deploys - failure routes lab immediately.
+10. Standing rule: standby on all other fronts (no auto-ideate).
+11. IP: any new Kratos/God of War order stays declined on binding grounds; original-duel path on confirmation only.
 
 ## OPEN QUESTIONS
+ - Will the Tester approve #571 cleanly (two-line href swap; expect approve-test)?
  - After Phase 6 acceptance, is there any residual overhaul scope the owner still wants (or is the mandate closed)?
- - Are the PR-preview pages failures a systematic defect on PR refs (5th data point confirms pattern) or platform blips?
+ - Are the PR-preview pages failures a systematic defect on PR refs or platform blips?
  - Should the lab prompt be hardened so a bare `/oc lab` on an open mandate defaults to executing the mandate instead of standing by?
- - Where does the overhaul epic actually live - should a dedicated vision issue be split off #42 (Reviewer note on #564/#565)?
+ - Where does the overhaul epic actually live - should a dedicated vision issue be split off #42?
  - Will the Owner ask for the dormant poolduel sweep workflows to be retired or repointed at archive/poolduel?
  - Was the Pages 500 a one-off platform blip, or the start of an outage window? (Single occurrence 17:14:52Z on 2026-09-29; all deploys since success.)
  - Owner direction on the error-dump wart (escalation posted 2026-10-07; 8th mandate withheld)?
