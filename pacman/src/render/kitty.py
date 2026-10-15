@@ -142,6 +142,7 @@ class KittyBackend(RenderBackend):
     def present(self, fb, dirty):
         if fb.cols != self.cols or fb.rows != self.rows:
             raise ValueError("framebuffer size does not match init")
+        spans = getattr(fb, "spans", {}) or {}
         out = [ansi.SYNC_BEGIN]
         for i in dirty:
             want = fb.cells[i]
@@ -162,7 +163,13 @@ class KittyBackend(RenderBackend):
             if want.sprite is not None:
                 iid = self._ensure_sprite(out, want.sprite)
                 out.append(self._cup(x, y))
-                out.append(place_image(iid))
+                span = spans.get(i, (1, 1))
+                try:
+                    cols, rows = int(span[0]), int(span[1])
+                except (TypeError, ValueError, IndexError):
+                    cols, rows = 1, 1
+                cols, rows = max(1, cols), max(1, rows)
+                out.append(place_image(iid, cell_cols=cols, cell_rows=rows))
             self._last.cells[i] = want
         out.append(ansi.reset() + ansi.SYNC_END)
         fb.clear_dirty()

@@ -14,6 +14,7 @@ placements and cursor addresses agree across backends.
 from engine.actors import LEFT, RIGHT, UP, DOWN, tile_of
 from engine.fruit import FRUIT_TILE
 from engine.maze import LAYOUT, WIDTH, HEIGHT
+from . import effects as fx
 from .framebuffer import Cell, FrameBuffer
 from .themes import get as theme_get
 
@@ -41,9 +42,16 @@ GHOST_FG = (
 PLAYER_GLYPH = {LEFT: "<", RIGHT: ">", UP: "^", DOWN: "v"}
 PLAYER_SPRITE = {LEFT: "player-left", RIGHT: "player-right",
                  UP: "player-up", DOWN: "player-down"}
+PLAYER_SPRITE_CLOSED = {LEFT: "player-left-closed",
+                        RIGHT: "player-right-closed",
+                        UP: "player-up-closed",
+                        DOWN: "player-down-closed"}
+_DIR_NAME = {LEFT: "left", RIGHT: "right", UP: "up", DOWN: "down"}
 
-# 4-neighbourhood (N, E, S, W wall presence) -> double-line box glyph.
-_WALL_GLYPH = {
+# 4-neighbourhood (N, E, S, W wall presence) -> box glyph, per wall style.
+# ascii is the legacy reference every test pins; double and round are
+# original Unicode line-drawing variants (all single-column cells).
+_WALL_GLYPH_ASCII = {
     (0, 0, 0, 0): "#",
     (1, 0, 0, 0): "|",
     (0, 1, 0, 0): "-",
@@ -62,6 +70,51 @@ _WALL_GLYPH = {
     (1, 1, 1, 1): "#",
 }
 
+_WALL_GLYPH_DOUBLE = {
+    (0, 0, 0, 0): "\u25a0",
+    (1, 0, 0, 0): "\u2551",
+    (0, 1, 0, 0): "\u2550",
+    (0, 0, 1, 0): "\u2551",
+    (0, 0, 0, 1): "\u2550",
+    (1, 0, 1, 0): "\u2551",
+    (0, 1, 0, 1): "\u2550",
+    (1, 1, 0, 0): "\u2554",
+    (0, 1, 1, 0): "\u2557",
+    (0, 0, 1, 1): "\u255d",
+    (1, 0, 0, 1): "\u255a",
+    (1, 1, 1, 0): "\u2566",
+    (1, 0, 1, 1): "\u2560",
+    (1, 1, 0, 1): "\u2569",
+    (0, 1, 1, 1): "\u2563",
+    (1, 1, 1, 1): "\u256c",
+}
+
+_WALL_GLYPH_ROUND = {
+    (0, 0, 0, 0): "\u25a0",
+    (1, 0, 0, 0): "\u2502",
+    (0, 1, 0, 0): "\u2500",
+    (0, 0, 1, 0): "\u2502",
+    (0, 0, 0, 1): "\u2500",
+    (1, 0, 1, 0): "\u2502",
+    (0, 1, 0, 1): "\u2500",
+    (1, 1, 0, 0): "\u256d",
+    (0, 1, 1, 0): "\u256e",
+    (0, 0, 1, 1): "\u256f",
+    (1, 0, 0, 1): "\u2570",
+    (1, 1, 1, 0): "\u252c",
+    (1, 0, 1, 1): "\u251c",
+    (1, 1, 0, 1): "\u2534",
+    (0, 1, 1, 1): "\u2524",
+    (1, 1, 1, 1): "\u253c",
+}
+
+_WALL_GLYPHS = {"ascii": _WALL_GLYPH_ASCII,
+                "double": _WALL_GLYPH_DOUBLE,
+                "round": _WALL_GLYPH_ROUND}
+
+# Backwards-compatible alias: the legacy table tests import.
+_WALL_GLYPH = _WALL_GLYPH_ASCII
+
 
 def _is_wall(maze, x, y):
     if not (0 <= x < WIDTH and 0 <= y < HEIGHT):
@@ -69,10 +122,11 @@ def _is_wall(maze, x, y):
     return LAYOUT[y][x] == "#"
 
 
-def wall_glyph(maze, x, y):
+def wall_glyph(maze, x, y, style="ascii"):
+    table = _WALL_GLYPHS.get(style, _WALL_GLYPH_ASCII)
     key = (_is_wall(maze, x, y - 1), _is_wall(maze, x + 1, y),
            _is_wall(maze, x, y + 1), _is_wall(maze, x - 1, y))
-    return _WALL_GLYPH[key]
+    return table[key]
 
 
 def _text_row(fb, row, text, fg, bg):
@@ -80,20 +134,34 @@ def _text_row(fb, row, text, fg, bg):
         fb.set(i, row, Cell(ch, fg, bg, None))
 
 
-def paint(game, theme="classic", reduced_flash=False):
+def paint(game, theme="classic", reduced_flash=False, effects=False):
     """Render the full scene (HUD + maze + actors) into a new FrameBuffer.
 
     Every backend consumes this exact buffer, so the theme and flash
     choices hold identically on Kitty, Sixel, and Unicode. With
     reduced_flash the energizers stay lit and frightened ghosts hold one
     steady color instead of blinking.
+
+    With effects=True the painter animates from the live game counters:
+    the player mouth opens and closes (glyph plus closed-mouth sprites),
+    energizers pulse through three frames, fruit gently pulses, frightened
+    ghosts shimmer while flashing, dying plays a four-frame sequence from
+    state_t, and a clearing maze celebrates with rainbow walls. With
+    effects=False (the default) the output is the legacy reference frame
+    every parity test pins.
     """
+    from engine import tuning as _tuning
     palette = theme_get(theme)
+    wall_style = palette.get("wall_style", "ascii")
     WALL_FG, WALL_BG, CORRIDOR_BG = palette["wall_fg"], palette["wall_bg"], palette["corridor_bg"]
     DOT, PLAYER_FG, TEXT_FG = palette["dot"], palette["player"], palette["text"]
     FRIGHT_FG = palette["fright"]
     FLASH_FG = palette["flash"] if not reduced_flash else palette["fright"]
     EYES_FG, FRUIT_FG, GHOST_FG = palette["eyes"], palette["fruit"], palette["ghosts"]
+    tick = int(getattr(game, "tick_count", 0))
+    clearing = getattr(game, "state", "play") == "clearing"
+    if effects and clearing:
+        WALL_FG = fx.RAINBOW[(tick // 10) % len(fx.RAINBOW)]
     fb = FrameBuffer(COLS, ROWS)
     maze = game.maze
 
@@ -125,7 +193,7 @@ def paint(game, theme="classic", reduced_flash=False):
             ch = LAYOUT[y][x]
             ry = y + HUD_ROWS
             if ch == "#":
-                fb.set(x, ry, Cell(wall_glyph(maze, x, y), WALL_FG, WALL_BG, None))
+                fb.set(x, ry, Cell(wall_glyph(maze, x, y, wall_style), WALL_FG, WALL_BG, None))
             elif ch == "D":
                 fb.set(x, ry, Cell("-", palette["text"], CORRIDOR_BG, None))
             elif ch == " ":
@@ -133,7 +201,10 @@ def paint(game, theme="classic", reduced_flash=False):
             else:
                 i = base + x
                 if maze.energizers[i]:
-                    glyph = "O" if blink_on else " "
+                    if effects:
+                        glyph = fx.energizer_glyph(tick, reduced_flash)
+                    else:
+                        glyph = "O" if blink_on else " "
                     fb.set(x, ry, Cell(glyph, DOT, CORRIDOR_BG, None))
                 elif maze.dots[i]:
                     fb.set(x, ry, Cell(".", DOT, CORRIDOR_BG, None))
@@ -141,14 +212,23 @@ def paint(game, theme="classic", reduced_flash=False):
                     fb.set(x, ry, Cell(" ", TEXT_FG, CORRIDOR_BG, None))
 
     if getattr(game, "fruit", None) is not None and game.fruit.active:
-        fx, fy = FRUIT_TILE
-        fb.set(fx, fy + HUD_ROWS, Cell("F", FRUIT_FG, CORRIDOR_BG, None))
+        fx_, fy = FRUIT_TILE
+        fglyph = fx.fruit_glyph(tick) if effects else "F"
+        fb.set(fx_, fy + HUD_ROWS, Cell(fglyph, FRUIT_FG, CORRIDOR_BG, None))
 
     pdir = game.player.dir if game.player.dir in PLAYER_GLYPH else LEFT
     pt = tile_of(game.player.x, game.player.y)
     if 0 <= pt[0] < WIDTH and 0 <= pt[1] < HEIGHT:
         if game.state == "dying":
-            pcell = Cell("x", TEXT_FG, CORRIDOR_BG, None)
+            if effects:
+                frame = fx.death_frame(getattr(game, "state_t", 0.0),
+                                       _tuning.DEATH_SEQUENCE_S)
+                pcell = Cell(fx.DEATH_GLYPHS[frame], TEXT_FG, CORRIDOR_BG, None)
+            else:
+                pcell = Cell("x", TEXT_FG, CORRIDOR_BG, None)
+        elif effects and not fx.mouth_open(tick):
+            pcell = Cell(fx.CLOSED_GLYPH, PLAYER_FG, CORRIDOR_BG,
+                         PLAYER_SPRITE_CLOSED[pdir])
         else:
             pcell = Cell(PLAYER_GLYPH[pdir], PLAYER_FG, CORRIDOR_BG, PLAYER_SPRITE[pdir])
         fb.set(pt[0], pt[1] + HUD_ROWS, pcell)
@@ -162,7 +242,8 @@ def paint(game, theme="classic", reduced_flash=False):
             cell = Cell("x", EYES_FG, CORRIDOR_BG, "ghost-eyes")
         elif game.ghosts.fright_active and ghost.state == "active":
             if flashing:
-                cell = Cell("O", FLASH_FG, CORRIDOR_BG, "ghost-fright-flash")
+                fglyph = fx.fright_glyph(tick, True) if effects else "O"
+                cell = Cell(fglyph, FLASH_FG, CORRIDOR_BG, "ghost-fright-flash")
             else:
                 cell = Cell("O", FRIGHT_FG, CORRIDOR_BG, "ghost-fright")
         else:

@@ -21,6 +21,11 @@ class FrameBuffer:
         self.rows = int(rows)
         self.cells = [fill] * (self.cols * self.rows)
         self._dirty = set(range(self.cols * self.rows))
+        # Magnification spans: {origin_index: (cell_cols, cell_rows)} for
+        # image backends placing one sprite across a multi-cell block.
+        # Plain 1x1 frames leave this empty; the composer fills it when
+        # it magnifies, and backends read it with getattr(..., {}).
+        self.spans = {}
 
     def _idx(self, x, y):
         if not (0 <= x < self.cols and 0 <= y < self.rows):

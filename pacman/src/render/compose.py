@@ -13,6 +13,7 @@ cell-identical to scene.paint, so small terminals play exactly as before.
 """
 
 from render.framebuffer import BLANK, Cell, FrameBuffer
+from render import effects as fx
 from render.scene import COLS, ROWS, paint
 from render.themes import get as theme_get
 
@@ -20,6 +21,8 @@ TITLE_TEXT = "PAC-MAN TERMINAL ARCADE"
 
 PANEL_FG = (255, 255, 0)
 PANEL_DIM = (150, 150, 150)
+
+CHROME_GLYPHS = {"dots": ".", "grid": "+"}
 
 
 def _line(fb, x, y, text, fg, bg, max_w=None):
@@ -79,11 +82,16 @@ def _move_keys(keymap):
     return "%s%s" % (arrows, " or %s" % keys if keys else "")
 
 
+def _content_dy(rect):
+    """Vertical centering offset for panel content on tall (scaled) panels."""
+    return max(0, (rect.h - ROWS) // 2)
+
+
 def paint_right_panel(fb, game, rect, palette, top=None):
     """Live run dashboard: score, level, lives, mode, progress, best."""
     fg, dim, bg = palette["text"], PANEL_DIM, palette["corridor_bg"]
     _border(fb, rect, dim, bg)
-    x, y, w = rect.x + 2, rect.y + 1, rect.w - 4
+    x, y, w = rect.x + 2, rect.y + 1 + _content_dy(rect), rect.w - 4
     if w < 8:
         return
     _line(fb, x, y, "SCORE", PANEL_FG, bg, w)
@@ -119,7 +127,7 @@ def paint_left_panel(fb, rect, palette, keymap=None):
     """Controls cheat-sheet plus glyph legend, both clipped to the panel."""
     fg, dim, bg = palette["text"], PANEL_DIM, palette["corridor_bg"]
     _border(fb, rect, dim, bg)
-    x, y, w = rect.x + 2, rect.y + 1, rect.w - 4
+    x, y, w = rect.x + 2, rect.y + 1 + _content_dy(rect), rect.w - 4
     if w < 8:
         return
     _line(fb, x, y, "CONTROLS", PANEL_FG, bg, w)
@@ -147,24 +155,113 @@ def paint_left_panel(fb, rect, palette, keymap=None):
         _line(fb, x, tip_row + 2, "hunt the blue!", dim, bg, w)
 
 
+def _chrome_cell(x, y, palette):
+    """Themed background cell for non-game canvas areas.
+
+    flat renders solid corridor color (the legacy look); dots and grid
+    add a subtle dim pattern so wide terminals feel dressed instead of
+    empty. Never raises.
+    """
+    bg = palette["corridor_bg"]
+    dim = palette.get("dim", PANEL_DIM)
+    try:
+        pattern = palette.get("chrome", "flat")
+    except AttributeError:
+        pattern = "flat"
+    if pattern == "dots" and x % 4 == 0 and y % 2 == 0:
+        return Cell(".", dim, bg, None)
+    if pattern == "grid" and x % 6 == 0 and y % 3 == 0:
+        return Cell("+", dim, bg, None)
+    return Cell(" ", palette["text"], bg, None)
+
+
+def _paint_chrome(fb, palette):
+    """Fill the whole frame with the themed background pattern."""
+    for y in range(fb.rows):
+        for x in range(fb.cols):
+            fb.cells[y * fb.cols + x] = _chrome_cell(x, y, palette)
+    fb._dirty = set(range(fb.cols * fb.rows))
+
+
+def _blit_magnified(fb, scene_fb, ox, oy, sx, sy):
+    """Blit the 28x34 scene scaled sx by sy into the canvas frame.
+
+    Each scene cell covers an sx by sy block: the block origin carries
+    the full cell (glyph plus sprite) and fillers repeat the text
+    underlay without a sprite. Sprite origins are recorded in
+    fb.spans so image backends place one sx by sy image per block
+    instead of tiling. Text backends simply draw every cell.
+    """
+    spans = {}
+    for sy_ in range(ROWS):
+        for sx_ in range(COLS):
+            cell = scene_fb.get(sx_, sy_)
+            for dy in range(sy):
+                for dx in range(sx):
+                    xx, yy = ox + sx_ * sx + dx, oy + sy_ * sy + dy
+                    if dx == 0 and dy == 0:
+                        fb.set(xx, yy, cell)
+                        if cell.sprite is not None and (sx, sy) != (1, 1):
+                            fb.spans[yy * fb.cols + xx] = (sx, sy)
+                    else:
+                        fb.set(xx, yy, Cell(cell.glyph, cell.fg, cell.bg, None))
+    return spans
+
+
+def _paint_sparkles(scene_fb, game):
+    """Ring the active fruit with deterministic tick sparkles.
+
+    Only empty corridor cells (" ") gain a sparkle so dots, walls, and
+    actors are never overwritten. Pure overlay on the 1x scene buffer,
+    magnified with everything else by the blit.
+    """
+    from engine.maze import LAYOUT, WIDTH, HEIGHT
+    from engine.fruit import FRUIT_TILE
+    tick = int(getattr(game, "tick_count", 0))
+    palette_dim = (150, 150, 150)
+    fx0, fy0 = FRUIT_TILE
+    for dx, dy in fx.sparkle_offsets(tick):
+        tx, ty = fx0 + dx, fy0 + dy
+        if not (0 <= tx < WIDTH and 0 <= ty < HEIGHT):
+            continue
+        if LAYOUT[ty][tx] == "#":
+            continue
+        i = ty * WIDTH + tx
+        if game.maze.dots[i] or game.maze.energizers[i]:
+            continue
+        cell = scene_fb.get(tx, ty + 3)
+        if cell.glyph != " " or cell.sprite is not None:
+            continue
+        scene_fb.cells[(ty + 3) * COLS + tx] = Cell(
+            "*", palette_dim, cell.bg, None)
+        scene_fb._dirty.add((ty + 3) * COLS + tx)
+
+
 def paint_full(game, layout, theme="classic", reduced_flash=False,
-               keymap=None, scores=None, hint=None):
+               keymap=None, scores=None, hint=None, effects=False):
     """Render the whole terminal window: maze plus live side regions.
 
-    The maze blit is verbatim scene.paint output, so the Kitty, Sixel,
-    and Unicode backends keep the parity they already had; only the
-    surrounding chrome is new. hint is the status-bar text (the shell
-    supplies per-screen hints); scores feeds the BEST line.
+    The maze blit magnifies the 28x34 scene painter to the layout's
+    maze box (1x1 on small windows, 2x1 wide or 2x2 full on roomy
+    ones), so the Kitty, Sixel, and Unicode backends keep the parity
+    they already had at a larger size; only the surrounding chrome is
+    new. hint is the status-bar text (the shell supplies per-screen
+    hints); scores feeds the BEST line. With effects=True the scene
+    animates (mouth, pulse, sparkles, death and clearing sequences).
     """
     palette = theme_get(theme)
     bg = palette["corridor_bg"]
     fb = FrameBuffer(layout.frame_cols, layout.frame_rows,
                      Cell(" ", palette["text"], bg, None))
-    scene_fb = paint(game, theme=theme, reduced_flash=reduced_flash)
-    for sy in range(ROWS):
-        for sx in range(COLS):
-            fb.set(layout.maze_ox + sx, layout.maze_oy + sy,
-                   scene_fb.get(sx, sy))
+    _paint_chrome(fb, palette)
+    scene_fb = paint(game, theme=theme, reduced_flash=reduced_flash,
+                     effects=effects)
+    if effects and getattr(game, "fruit", None) is not None \
+            and game.fruit.active:
+        _paint_sparkles(scene_fb, game)
+    sx = max(1, layout.maze_w // COLS)
+    sy = max(1, layout.maze_h // ROWS)
+    _blit_magnified(fb, scene_fb, layout.maze_ox, layout.maze_oy, sx, sy)
     if layout.title_y is not None:
         modeline = "%s   %s   %s" % (
             TITLE_TEXT, getattr(game, "mode", "classic"), theme)
