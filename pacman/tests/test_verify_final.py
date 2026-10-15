@@ -21,12 +21,12 @@ def test_full_matrix_all_pass_seed_1():
 def test_matrix_row_counts_pinned():
     counts = {section: len(rows)
               for section, rows in verify_mod.full_matrix(seed=1)}
-    assert counts["gameplay"] == 13
+    assert counts["gameplay"] == 15
     assert counts["terminal-size"] == 6
     assert counts["capability"] == 8
     assert counts["input"] == 7
-    assert counts["parity"] == 7
-    assert sum(counts.values()) == 41
+    assert counts["parity"] == 11
+    assert sum(counts.values()) == 47
 
 
 def test_verify_matrix_stable_across_seeds():
@@ -57,7 +57,7 @@ def test_render_bench_unicode_always_available():
 def test_cli_verify_passes(capsys):
     assert main(["--verify", "--seed", "1"]) == 0
     out = capsys.readouterr().out
-    assert "verify: 41/41 passed" in out
+    assert "verify: 47/47 passed" in out
     assert "FAIL" not in out
 
 

@@ -9,11 +9,11 @@ with the machine; rerun the command on yours to compare.
 
 ## Renderer throughput (full-scene present, headless)
 
-| Backend | fps   | Full-frame bytes | Notes |
-|---------|------:|-----------------:|-------|
-| kitty   | ~595  | ~36,063          | Sprite atlas transmitted once, per-frame placements only |
-| sixel   | ~72   | ~42,829          | Dirty-region raster with band RLE, 10 fps coalescing cap |
-| unicode | ~875  | ~11,939          | Changed cells only, inside synchronized output |
+| Backend | fps    | Full-frame bytes | Notes |
+|---------|-------:|-----------------:|-------|
+| kitty   | ~694   | ~36,259          | Atlas transmitted once; per-frame placements plus cursor erases and text underlays |
+| sixel   | ~94    | ~42,829          | Dirty-region raster with band RLE, 10 fps coalescing cap |
+| unicode | ~1,118 | ~11,939          | Changed cells only, inside synchronized output |
 
 Without Pillow both image backends report `unavailable (needs Pillow)` and
 the tiered renderer plays the unicode path; that degrade is covered by the
@@ -27,8 +27,8 @@ backends that actually ran.
 
 | Probe | Result | Budget |
 |-------|--------|--------|
-| Key decode | ~1,868,000 keys/s (~535 ns/key) | Human input is ms-scale; decode is noise |
-| Simulation tick | ~25 us/tick (~39,000 ticks/s) | 120 Hz needs <8,333 us; margin is ~300x |
+| Key decode | ~2,087,000 keys/s (~479 ns/key) | Human input is ms-scale; decode is noise |
+| Simulation tick | ~14 us/tick (~71,000 ticks/s) | 120 Hz needs <8,333 us; margin is ~500x |
 
 The fixed 120 Hz timestep therefore costs about 3 ms of CPU per real second;
 the rest of the frame budget belongs to the terminal emulator.
@@ -38,11 +38,18 @@ the rest of the frame budget belongs to the terminal emulator.
 - One 28x34 scene painter feeds every backend: maze, entity, and HUD cells
   match by construction, not by parallel implementations.
 - Every sprite cell carries a text glyph, so the unicode path draws the same
-  layout where images cannot go.
+  layout where images cannot go; the kitty backend draws that glyph under
+  every placement, so actors stay visible even where images cannot render.
+- The kitty backend erases each departed sprite cell (`a=d,d=c`) before
+  redrawing it: moving sprites leave no imprints.
+- The scene is centered in the real terminal size on every backend, and a
+  mid-game resize re-inits from a clean slate (stale kitty placements at
+  old offsets are wiped) and repaints fully.
 - All glyphs are single-column, so cursor addresses agree across backends.
 - `TieredRenderer.present` never raises; backend errors and repeated slow
-  frames step down one tier with counted drops.
-- `--verify` proves all of the above on every run (7 parity rows).
+  frames step down one tier with counted drops, emitting the outgoing
+  tier's cleanup plus the incoming tier's setup so no switch loses bytes.
+- `--verify` proves all of the above on every run (11 parity rows).
 
 ## How to reproduce
 

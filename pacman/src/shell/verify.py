@@ -245,6 +245,36 @@ def gameplay_matrix(seed=1):
     rows.append(_row("tunnel-wrap", wrapped,
                      "tile=%s" % (tile_of(game.player.x, game.player.y),)))
 
+    # 14. Remediation: active ghost hunters genuinely displace over time.
+    # (Tile-center steering used to re-snap every near tick, freezing every
+    # ghost within 0.1 tiles of spawn; strides are shorter than the window
+    # at 120 Hz. Max displacement is tracked so death/respawn mid-run
+    # cannot hide a freeze.)
+    game = Game(seed=seed)
+    chaser = game.ghosts.ghosts[0]
+    start = (chaser.actor.x, chaser.actor.y)
+    peak = 0.0
+    for _ in range(600):
+        game.step(tuning.STEP)
+        peak = max(peak, abs(chaser.actor.x - start[0])
+                   + abs(chaser.actor.y - start[1]))
+    rows.append(_row("ghost-hunters-displace", peak > 2.0,
+                     "peak-displacement=%.2f tiles" % peak))
+
+    # 15. Remediation: frightened ghosts roam while fright lasts.
+    game = Game(seed=seed)
+    game.ghosts.start_fright(30.0)
+    roamed = set()
+    for _ in range(1200):
+        game.step(tuning.STEP)
+        if game.state != "play":
+            break
+        for ghost in game.ghosts.ghosts:
+            if ghost.state == "active":
+                roamed.add(tile_of(ghost.actor.x, ghost.actor.y))
+    rows.append(_row("fright-ghosts-roam", len(roamed) > 10,
+                     "distinct-tiles=%d" % len(roamed)))
+
     return rows
 
 
@@ -371,6 +401,55 @@ def parity_check(seed=1):
             rows.append(_row("parity-present-%s" % name, True, "present() clean"))
         except Exception as exc:  # noqa: BLE001 - the check itself must not raise
             rows.append(_row("parity-present-%s" % name, False, "raised: %s" % exc))
+
+    # Remediation rows: stale-placement erase and terminal centering, all
+    # against the real backends (kitty rows skip honestly without Pillow).
+    from render import ansi as _ansi
+    from render.framebuffer import Cell as _Cell
+    from render.framebuffer import FrameBuffer as _FrameBuffer
+    kitty = make_backend("kitty")
+    if not kitty.available():
+        rows.append(_row("parity-kitty-erase-on-move", True,
+                         "unavailable without Pillow, honest skip"))
+        rows.append(_row("parity-kitty-steady-no-erase", True,
+                         "unavailable without Pillow, honest skip"))
+    else:
+        kitty.init(4, 2)
+        _blank = _Cell(".", (200, 200, 200), (0, 0, 0), None)
+
+        def _sprite_fb(sx):
+            fb = _FrameBuffer(4, 2, _blank)
+            fb.set(sx, 0, _Cell(">", (255, 255, 0), (0, 0, 0), "player-right"))
+            return fb
+
+        first = _sprite_fb(1)
+        kitty.present(first, first.dirty_cells())
+        second = _sprite_fb(2)
+        moved = kitty.present(second, second.dirty_cells())
+        rows.append(_row("parity-kitty-erase-on-move",
+                         "d=c" in moved and "a=p" in moved,
+                         "departed cell erased, new cell placed"))
+        third = _sprite_fb(2)
+        steady = kitty.present(third, third.dirty_cells())
+        rows.append(_row("parity-kitty-steady-no-erase",
+                         "d=c" not in steady and "a=p" not in steady,
+                         "unchanged frame emits no image commands"))
+
+    uni_renderer = TieredRenderer(preference="unicode", env={})
+    uni_renderer.init(COLS, ROWS, 100, 44)
+    uni_fb = paint(Game(seed=seed))
+    uni_out = uni_renderer.present(uni_fb, uni_fb.dirty_cells())
+    rows.append(_row("parity-centered-origin",
+                     uni_renderer.ox == 36 and uni_renderer.oy == 5
+                     and _ansi.cup(6, 37) in uni_out,
+                     "100x44 centers 28x34 at (36,5)"))
+    uni_renderer.resize(120, 50)
+    uni_fb2 = paint(Game(seed=seed))
+    uni_out2 = uni_renderer.present(uni_fb2, uni_fb2.dirty_cells())
+    rows.append(_row("parity-resize-recenters",
+                     (uni_renderer.ox, uni_renderer.oy) == (46, 8)
+                     and _ansi.cup(9, 47) in uni_out2,
+                     "120x50 recenters at (46,8)"))
     return rows
 
 

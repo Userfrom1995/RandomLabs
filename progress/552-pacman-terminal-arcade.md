@@ -46,7 +46,15 @@ Forensic pty harness (`/tmp/opencode/forensic.py`, drives the real
   placement wipe), per-frame size poll in `app.run`. Pty-verified exact
   centering on 80x40, 100x44, 120x50 and mid-game 80x40 -> 120x50 resize
   on unicode + kitty; sixel raster anchor offset verified.
-- Remediation D (wider defect hunt + verify matrix + docs): active.
+- Remediation D (wider defect hunt + verify matrix + docs): DONE. True-pty
+  `--play` runs on unicode + kitty (title, gameplay, pause, too-small at
+  20x10, clean teardown); all four modes run headless; all themes paint;
+  name-entry saves; bind/mode/theme/scores/save-config/audio-select CLI
+  probed (synth degrades honestly to bell without a system player).
+  `--verify` extended 41 -> 47 rows (pins updated); scoreboard, README,
+  hub, and ideas refreshed. No further live defects found.
+- Suite: 304 green. Ready for review; PR uses Refs #552 (no close until
+  the full gate passes on real terminals).
 
 ## Next steps
 
