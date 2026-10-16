@@ -191,7 +191,7 @@ fn settings_persist_across_sessions() {
     {
         let b = App::new(120, 45, &env, dir.path.clone());
         assert!(b.settings.mute, "mute must reload");
-        assert_eq!(b.chime.muted(), true);
+        assert!(b.chime.muted(), "mute must reach the chime");
     }
 }
 
