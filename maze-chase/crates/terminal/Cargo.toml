@@ -1,0 +1,21 @@
+[package]
+name = "maze-chase-terminal"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Polished fullscreen terminal publication layer for Maze Chase (Unicode, Sixel, and Kitty graphics tiers on the shared engine)"
+
+[lib]
+name = "maze_chase_terminal"
+path = "src/lib.rs"
+
+[[bin]]
+name = "maze-chase-terminal"
+path = "src/main.rs"
+
+[dependencies]
+maze-chase-engine = { path = "../engine" }
+maze-chase-assets = { path = "../assets" }
+maze-chase-audio = { path = "../audio" }
+maze-chase-config = { path = "../config" }
+crossterm = "0.29"
