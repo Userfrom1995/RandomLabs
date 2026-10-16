@@ -1,17 +1,17 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-16 run 38886942832 - owner eval + maintainer on #585, eval arm pending, stand down**
+ - **Updated: 2026-10-16 run 38887186367 - Evaluator fix verdict 9.0/10 on #585, Fixer dispatched**
 
 ## PRs & Issues
- - **PRs:** Open: #585 only (Phase 3 engine for #582, head bdad5b00 post-Tester lint tidy, MERGEABLE/CLEAN, base main; body reads Refs #582; Reviewer approve on 76b51e99, Tester approve-test 10:21:59Z, delta verified test-only so review gate stands; eval arms pending - dispatched eval from run 38886751252 plus owner /oc eval arm 38886943032 converging, per-PR concurrency settles). MERGED: #584 (Phase 2 engine core for #582, eval head 34b0eb95, merged 09:47:35Z as 0f9f0948 via --rebase, branch kept; Refs #582), #583 (Phase 1 docs for #582, eval head e3826248, merged 09:10:29Z as 58f60bc6 via --rebase, branch kept; Refs #582), #581 (Curator landing fix for #580, head f2cbb539, merged 03:47:01Z as 88c3f132 via --rebase, branch kept; Fixes #580), plus earlier.
- - **Issues:** Open: #582 (Rust-migration parent tracker, Phases 1-2 merged on main, Phase 3 in eval via #585), #552 (Pac-Man terminal arcade; REOPENED, Wave 2 #579 merged with Refs only - closes ONLY on owner live-terminal confirmation; now also the gameplay reference for the Rust migration, removal-blocked until replacement verified), #70 lab-health, #42 brainstorm standing only.
- - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries, exact set match re-verified this run (20 live `name:` fields minus maintainer). No drift.
+ - **PRs:** Open: #585 only (Phase 3 engine for #582, head bdad5b00, MERGEABLE/CLEAN, base main; body reads Refs #582; Reviewer approve on 76b51e99, Tester approve-test 10:21:59Z, delta verified test-only so review gate stands; Evaluator fix verdict 9.0/10 below 9.8 gate 10:25:52Z - required: feature-matrix.md:45 truncated cell plus internal-shorthand leak; Fixer dispatched this run). MERGED: #584 (Phase 2 engine core for #582, eval head 34b0eb95, merged 09:47:35Z as 0f9f0948 via --rebase, branch kept; Refs #582), #583 (Phase 1 docs for #582, eval head e3826248, merged 09:10:29Z as 58f60bc6 via --rebase, branch kept; Refs #582), #581 (Curator landing fix for #580, head f2cbb539, merged 03:47:01Z as 88c3f132 via --rebase, branch kept; Fixes #580), plus earlier.
+ - **Issues:** Open: #582 (Rust-migration parent tracker, Phases 1-2 merged on main, Phase 3 in fix-after-eval via #585), #552 (Pac-Man terminal arcade; REOPENED, Wave 2 #579 merged with Refs only - closes ONLY on owner live-terminal confirmation; now also the gameplay reference for the Rust migration, removal-blocked until replacement verified), #70 lab-health, #42 brainstorm standing only.
+ - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries, exact set match re-verified this run. No drift.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - #582 parent stays OPEN through all phases; Phase 3 (Ghost Intelligence, Scoring and Progression) landed as #585, Reviewer-approved plus Tester-approved, now in eval (duplicate eval arms converging, stand down until verdict).
+ - #582 parent stays OPEN through all phases; Phase 3 (Ghost Intelligence, Scoring and Progression) on #585: Reviewer-approved plus Tester-approved, Evaluator returned fix (one required public-tracker repair plus advisories) - Fixer dispatched, fresh review follows on the new head.
  - #552 awaits owner live-terminal confirmation AND now serves as migration reference; no removal of working functionality until replacement verified.
  - TEST-CRASH RULE (standing, mirrors eval-crash rule): a test run dying inside `Run opencode tester` with no decision file and no Tester comment carries zero signal - retry test once. A second CONSECUTIVE silent death on the same PR routes `lab` (possible runner/model health fault), never a third test. UNACQUIRED deaths do not count; one retry per cooldown window max.
- - Evaluator non-blocking follow-ups queued (not dispatched): Phase 2 eval residuals (tick dt assert, replay genesis precondition doc, second golden vector, hub nowrap/table polish, maze symmetry prose) plus #579 Evaluator residuals plus #578 Reviewer nits plus all prior #575 nits plus #575 Reviewer deep-audit notes plus stale pins, weak disjunction assertion in test_tester_remediation_gate.py:48, pre-existing `--levels 0` help fall-through, plus #573 Tester advisory (compute(inf) OverflowError xfail) plus #573 Evaluator advisories plus #574 Reviewer nits plus #574 Tester xfails plus #579 re-review advisory plus residual hardening notes. Future hardening vehicle, not a gate.
+ - Evaluator non-blocking follow-ups queued (not dispatched): Phase 2 eval residuals (tick dt assert, replay genesis precondition doc, second golden vector, hub nowrap/table polish, maze symmetry prose) plus #579 Evaluator residuals plus #578 Reviewer nits plus all prior #575 nits plus #575 Reviewer deep-audit notes plus stale pins, weak disjunction assertion in test_tester_remediation_gate.py:48, pre-existing `--levels 0` help fall-through, plus #573 Tester advisory (compute(inf) OverflowError xfail) plus #573 Evaluator advisories plus #574 Reviewer nits plus #574 Tester xfails plus #579 re-review advisory plus residual hardening notes, plus Phase 3 eval advisories (harness flag handling, timing string in compared output, saturating_sub, BFS bounds guard, hub overflow guard). Future hardening vehicle, not a gate.
  - LAB OVERHAUL SUBSTANTIALLY COMPLETE: Phase 6 instructed run 38463786451 stood down with evidence; verified live in run 38463966490; NO third lab dispatch per anti-loop bar. Future infra needs a fresh scoped order, not a repeat Phase 6.
  - Pages: main tip 0f9f0948 (merge of #584); post-merge main Pages deploy VERIFIED success (run 38884277603, 10:00:06Z).
  - Write-permission denial count now 15 (latest on #585 linking success-concluded pull_request run 38884224652 - benign shape, watch only).
@@ -39,7 +39,7 @@
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. Phase 3 #585 in eval: on Evaluator approve-eval with no newer fix, merge via --rebase (keep branch), verify main Pages deploy, keep #582 OPEN, then immediately chain Phase 4 via build on #582. On eval fix findings, route Fixer then fresh review on the new head. Full gate applies to engine work.
+2. Phase 3 #585 post-eval-fix: on Fixer push, dispatch review on the new head; on approve with no newer fix, dispatch test; on approve-test, dispatch eval; merge only on approve-eval with no newer fix (keep branch, verify main Pages deploy, keep #582 OPEN, then immediately chain Phase 4 via build on #582).
 3. #582 stays OPEN through all phases; only the final release-audit PR may carry Closes #582.
 4. #552 closes ONLY on owner live-terminal confirmation - never auto-close on `Refs #552`; working code stays until Rust replacement verified.
 5. Future lab work needs a fresh scoped owner order; do NOT re-dispatch Phase 6 or the overhaul mandate without one.
@@ -52,7 +52,7 @@
 12. IP: any new Kratos/God of War order stays declined on binding grounds; original-duel path on confirmation only.
 
 ## OPEN QUESTIONS
- - Will Phase 3 (#585) pass the Evaluator gate cleanly on head bdad5b00?
+ - Will Phase 3 (#585) pass re-review plus re-test plus re-eval cleanly after the one-line tracker repair?
  - What sub-issue split does the blueprint recommend after Phase 1 merges (research, engine, ghost AI, assets/audio, terminal, desktop, WASM, packaging, testing, docs)?
  - Will the Owner confirm #552 complete on real terminals now that Wave 2 is merged?
  - After Phase 6 acceptance, is there any residual overhaul scope the owner still wants (or is the mandate closed)?
