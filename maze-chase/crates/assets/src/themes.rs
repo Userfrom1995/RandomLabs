@@ -184,4 +184,47 @@ mod tests {
         assert!(luminance(EMBER_WARREN.bg) < 0.25);
         assert!(luminance(ABYSS_LANTERN.bg) < 0.25);
     }
+
+    fn hex(c: Rgb) -> String {
+        format!("#{:02X}{:02X}{:02X}", c.0, c.1, c.2)
+    }
+
+    #[test]
+    fn tokens_mirror_theme_palettes() {
+        // docs/design-tokens.json is the machine companion of design.md;
+        // its hex values must match these Rust originals exactly.
+        let tokens = include_str!("../../../docs/design-tokens.json");
+        for t in all() {
+            let pairs = [
+                ("bg", t.bg),
+                ("wall", t.wall),
+                ("wall_inner", t.wall_inner),
+                ("crumb", t.crumb),
+                ("sunseed", t.sunseed),
+                ("pip", t.pip),
+                ("bram", t.bram),
+                ("kessa", t.kessa),
+                ("jory", t.jory),
+                ("nib", t.nib),
+                ("fright", t.fright),
+                ("eyes", t.eyes),
+                ("text", t.text),
+                ("dim_text", t.dim_text),
+                ("accent", t.accent),
+            ];
+            assert!(
+                tokens.contains(&format!("\"{}\"", t.id)),
+                "tokens missing theme {}",
+                t.id
+            );
+            for (slot, color) in pairs {
+                assert!(
+                    tokens.contains(&format!("\"{slot}\": \"{}\"", hex(color))),
+                    "tokens mismatch on {}.{slot} (want {})",
+                    t.id,
+                    hex(color)
+                );
+            }
+        }
+    }
 }
