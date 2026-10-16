@@ -211,13 +211,13 @@
   function importScores() {
     try {
       var raw = storeGet(SCORES_KEY);
-      if (!raw || typeof exp.mc_score_add === 'undefined') return;
+      if (!raw || typeof exp.mc_scores_push === 'undefined') return;
       var arr = JSON.parse(raw);
       if (!Array.isArray(arr)) return;
       arr.forEach(function (e) {
         if (e && typeof e.name === 'string') {
           var w = scratchWriteUtf8(e.name.slice(0, 12));
-          exp.mc_score_add(w.ptr, w.len);
+          exp.mc_scores_push(w.ptr, w.len, e.score >>> 0, e.level >>> 0);
         }
       });
     } catch (e) { /* corrupt scores: start empty */ }
@@ -229,9 +229,9 @@
       for (i = 0; i < n; i++) {
         var s = scratchBytes();
         var cap = Math.min(s.cap, 256);
-        var len = exp.mc_score_name(i, s.ptr, cap) >>> 0;
+        var len = exp.mc_score_get_name(i, s.ptr, cap) >>> 0;
         var name = dec.decode(new Uint8Array(exp.memory.buffer, s.ptr, len));
-        out.push({ name: name, score: exp.mc_score_score(i) >>> 0, level: exp.mc_score_level(i) >>> 0 });
+        out.push({ name: name, score: exp.mc_score_get_score(i) >>> 0, level: exp.mc_score_get_level(i) >>> 0 });
       }
       storeSet(SCORES_KEY, JSON.stringify(out));
     } catch (e) { /* ignore */ }
@@ -256,11 +256,11 @@
       for (var i = 0; i < n; i++) {
         var s = scratchBytes();
         var cap = Math.min(s.cap, 256);
-        var len = exp.mc_score_name(i, s.ptr, cap) >>> 0;
+        var len = exp.mc_score_get_name(i, s.ptr, cap) >>> 0;
         var row = document.createElement('tr');
         [['#' + (i + 1)],
           [dec.decode(new Uint8Array(exp.memory.buffer, s.ptr, len))],
-          [String(exp.mc_score_score(i) >>> 0) + ' / L' + (exp.mc_score_level(i) >>> 0)]
+          [String(exp.mc_score_get_score(i) >>> 0) + ' / L' + (exp.mc_score_get_level(i) >>> 0)]
         ].forEach(function (cell) {
           var c = document.createElement('td');
           c.textContent = cell[0];
