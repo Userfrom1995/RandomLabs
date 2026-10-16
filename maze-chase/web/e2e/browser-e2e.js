@@ -2,7 +2,8 @@
 // node's built-in WebSocket. Proves: boot with zero console errors,
 // title panel visible, Start click enters play, real keyboard turns Pip
 // (score advances), pause/resume, touch swipe, canvas pixels non-blank,
-// mobile viewport renders the board.
+// mobile viewport renders the board, scores panel restores a persisted
+// row across reload and clears it in-page.
 const fs = require('fs');
 
 // Usage: node web/e2e/browser-e2e.js [page-url] [debug-port]
@@ -151,6 +152,27 @@ async function shot(ws, path) {
   console.log('mobile canvas css:', JSON.stringify(mBox));
   assert(mBox[0] > 200 && mBox[1] > 100 && mBox[2] >= -1, 'mobile canvas visible near top');
   await shot(ws, `${SHOT_DIR}/mc-e2e-mobile.png`);
+
+  // Scores panel: seed one persisted row, reload so the boot import path
+  // (mc_scores_push) restores it, open Scores, assert the row renders via
+  // the mc_score_get_* getters (the short-name bug rendered empty tables).
+  await evalJs(ws, `localStorage.setItem('maze-chase-scores', JSON.stringify([{name:'Kessa',score:900,level:3}]))`);
+  await send(ws, 'Page.navigate', { url: PAGE });
+  await sleep(2500);
+  const boot2 = await evalJs(ws, `document.getElementById('boot-status').textContent`);
+  assert(boot2 === 'Ready.', 'engine reboots after scores seed, got: ' + boot2);
+  await evalJs(ws, `document.getElementById('btn-title-scores').click()`);
+  await sleep(400);
+  const scoresVisible = await evalJs(ws, `!document.getElementById('panel-scores').hidden`);
+  assert(scoresVisible === true, 'scores panel opens');
+  const scoresText = await evalJs(ws, `document.getElementById('scores-body').textContent`);
+  console.log('scores rows:', JSON.stringify(scoresText));
+  assert(scoresText.includes('Kessa') && scoresText.includes('900'),
+    'persisted row renders (name plus score), got: ' + scoresText);
+  await evalJs(ws, `document.getElementById('btn-scores-clear').click()`);
+  await sleep(300);
+  const clearedText = await evalJs(ws, `document.getElementById('scores-body').textContent`);
+  assert(clearedText.includes('No scores yet'), 'clear empties the table in-page');
 
   const realErrors = errors.filter((e) => !/AudioContext|audio|user gesture/i.test(e));
   console.log('console/log errors:', realErrors.length ? realErrors : '(none)');
