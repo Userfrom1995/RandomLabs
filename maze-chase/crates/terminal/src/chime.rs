@@ -33,6 +33,10 @@ fn flash_for(cue: Cue) -> bool {
     )
 }
 
+/// Retained cue history cap: `heard` is a test/HUD seam, not a session
+/// log, so long sessions must not grow it without bound.
+pub const MAX_HEARD: usize = 512;
+
 /// Terminal [`Audio`] sink: BELs plus flash requests, volumes honored.
 #[derive(Clone, Debug)]
 pub struct Chime {
@@ -107,6 +111,10 @@ impl Default for Chime {
 impl Audio for Chime {
     fn play(&mut self, cue: Cue) {
         self.heard.push(cue);
+        if self.heard.len() > MAX_HEARD {
+            let excess = self.heard.len() - MAX_HEARD;
+            self.heard.drain(..excess);
+        }
         if !self.audible() {
             return;
         }
@@ -202,6 +210,15 @@ mod tests {
         }
         assert_eq!(c.take_bells(), "\x07\x07\x07\x07");
         assert_eq!(c.take_bells(), "");
+    }
+
+    #[test]
+    fn heard_history_is_capped() {
+        let mut c = Chime::new();
+        for _ in 0..(MAX_HEARD + 100) {
+            c.play(Cue::Crumb);
+        }
+        assert_eq!(c.heard().len(), MAX_HEARD);
     }
 
     #[test]
