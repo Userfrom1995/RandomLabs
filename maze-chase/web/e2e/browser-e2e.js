@@ -14,6 +14,11 @@ const DEBUG_PORT = Number(process.argv[3] || 9331);
 const PAGE = process.argv[2] || 'http://localhost:8931/play.html';
 const SHOT_DIR = '/tmp';
 
+if (typeof WebSocket === 'undefined') {
+  console.error('BROWSER-E2E FAIL: global WebSocket not found; run with Node 22+ (`node --version`), no extra packages needed.');
+  process.exit(1);
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let nextId = 1;
 const pending = new Map();

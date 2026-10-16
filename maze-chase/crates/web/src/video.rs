@@ -219,7 +219,9 @@ pub fn render_board(game: &Game, theme: &Theme, frame_no: u64, flash: bool) -> F
 
     // Wardens under Pip (Pip paints last).
     let fright = game.wardens.fright_active();
-    let flash_on = flash && game.wardens.fright_t <= 1.5 && (frame_no / 6).is_multiple_of(2);
+    let flash_on = flash
+        && game.wardens.fright_t <= tuning::FRIGHT_FLASH_THRESHOLD
+        && (frame_no / 6).is_multiple_of(2);
     let bodies = [theme.bram, theme.kessa, theme.jory, theme.nib];
     for warden in game.wardens.wardens.iter() {
         let cx = (warden.actor.x * PPT as f32) as i32;

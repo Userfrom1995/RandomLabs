@@ -42,6 +42,8 @@ pub const KEY_M: u32 = 13;
 pub const KEY_MAX: u32 = 13;
 
 /// Human label for a key id (rebind screens and the web settings panel).
+/// The JS harness mirrors this table as `ID_TO_LABEL` for button text;
+/// this function is the canonical Rust-side getter (covered by tests).
 pub fn key_label(id: u32) -> &'static str {
     match id {
         KEY_UP => "Up",
