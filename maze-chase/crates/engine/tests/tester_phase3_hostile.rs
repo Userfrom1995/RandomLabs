@@ -163,7 +163,7 @@ fn phase3_personalities_edge_tiles_deterministic() {
     assert_eq!(bram_target(corner), corner);
     // Jory with extreme mirror inputs stays a pure reflection.
     let j = jory_target((0, 0), (27, 30), Dir::Right);
-    assert_eq!(j, (2 * (27 + 2) - 0, 2 * 30 - 0));
+    assert_eq!(j, (2 * (27 + 2), 2 * 30));
     // Nib boundary: exactly 8.0 tiles away retreats (not farther than 8).
     let sc = (1, 29);
     assert_eq!(nib_target((8, 0), (0, 0), sc), sc);
