@@ -107,28 +107,24 @@ pub fn id_from_key(key: Key) -> Option<u32> {
 /// Returns `None` for UI-only keys and unknown ids.
 pub fn dir_from_id(id: u32, map: &Keymap) -> Option<Dir> {
     let key = key_from_id(id)?;
-    for (action, dir) in [
+    [
         (Action::Up, Dir::Up),
         (Action::Down, Dir::Down),
         (Action::Left, Dir::Left),
         (Action::Right, Dir::Right),
-    ] {
-        if map.keys(action).contains(&key) {
-            return Some(dir);
-        }
-    }
-    None
+    ]
+    .iter()
+    .find(|(action, _)| map.keys(*action).contains(&key))
+    .map(|(_, dir)| *dir)
 }
 
 /// Resolve a key id to its bound non-movement [`Action`], if any.
 pub fn action_from_id(id: u32, map: &Keymap) -> Option<Action> {
     let key = key_from_id(id)?;
-    for action in [Action::Pause, Action::Confirm, Action::Back, Action::Mute] {
-        if map.keys(action).contains(&key) {
-            return Some(action);
-        }
-    }
-    None
+    [Action::Pause, Action::Confirm, Action::Back, Action::Mute]
+        .iter()
+        .copied()
+        .find(|action| map.keys(*action).contains(&key))
 }
 
 /// Minimum swipe length in CSS pixels before a touch counts as a turn.

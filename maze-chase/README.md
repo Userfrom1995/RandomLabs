@@ -7,8 +7,7 @@ project; the in-repo Python game (`pacman/`, issue #552) is a behavioral
 feel reference, never a code source. Clean-room rules live in
 `docs/legal.md`.
 
-Current status: **the terminal and desktop games are playable; the
-browser layer is still planned.** The deterministic engine
+Current status: **all three layers are playable.** The deterministic engine
 simulates the full core loop plus the complete hunt headless (120 Hz
 timestep, movement with buffered turns and cornering, crumbs and
 sunseeds, four authored personalities with scatter corners, scatter/chase
@@ -28,8 +27,10 @@ probe, 24-bit and 16-color cell tiers with watchdog auto-degrade, live
 resize with magnification, title/help/scores/settings/rebind/pause
 surfaces, machine high scores, and BEL-plus-ticker sound. Install and
 launch details live in [docs/terminal.md](docs/terminal.md). The desktop
-game is covered in [docs/desktop.md](docs/desktop.md); the browser layer
-is planned and tracked in the shared [feature matrix](docs/feature-matrix.md).
+  game is covered in [docs/desktop.md](docs/desktop.md); the browser game
+  plays from [play.html](play.html) and is covered in
+  [docs/web.md](docs/web.md). The shared [feature matrix](docs/feature-matrix.md)
+  tracks every mechanic.
 This README describes the whole product honestly; anything not yet built
 is marked planned.
 
@@ -37,6 +38,8 @@ Run the checks: `cargo test` and
 `cargo run --bin maze-chase-verify` inside `maze-chase/`.
 Play the terminal game: `cargo run --release -p maze-chase-terminal`.
 Play the desktop game: `cargo run --release -p maze-chase-desktop`.
+Play the browser game: serve `maze-chase/` over http and open `play.html`
+(browsers refuse `.wasm` over `file://`).
 
 ## What this will be
 
@@ -74,9 +77,16 @@ Play the desktop game: `cargo run --release -p maze-chase-desktop`.
   synthesized effects and tunes with silent fallback, per-OS packaging
   (Linux tarball plus installer, Windows zip, macOS app bundle), and a
   `--probe` frame-run plus screenshot mode for display-free verification.
-- **Browser game** (`crates/wasm`, Phase 7): the same renderer compiled to
-  WebAssembly, keyboard plus touch controls, DPR-aware resize, web-audio
-  unlock, served from the Pages hub.
+- **Browser game** (`crates/web` 0.1.0 plus `play.html` plus
+  `web/maze-chase.js`, done, [launch docs](docs/web.md)): the same hunt
+  as dependency-free WebAssembly behind a plain C ABI (no wasm-bindgen;
+  the committed `web/maze-chase.wasm` builds reproducibly with stock
+  `cargo build --target wasm32-unknown-unknown`), canvas board at
+  bitmap density with DPR-aware integer scaling, keyboard plus swipe
+  plus d-pad with a remap screen, DOM title/help/scores/settings/pause
+  flows, WebAudio SFX plus the five tunes from the crate's own data
+  with gesture unlock, localStorage scores and settings, and
+  node plus headless-chromium E2E (`web/e2e/`).
 
 ## Docs
 
@@ -97,6 +107,8 @@ Play the desktop game: `cargo run --release -p maze-chase-desktop`.
 - `docs/desktop.md` - desktop install, launch, controls, gamepad,
   settings/audio, per-OS packaging, `--probe` verification, and
   troubleshooting.
+- `docs/web.md` - browser install, launch, controls, canvas/audio,
+  localStorage, reproducible `.wasm` builds, and troubleshooting.
 
 ## Clean-room rule
 
@@ -137,6 +149,14 @@ escalated, never shipped on assumption.
   menu composition over the shared rasterizer (`render`), strict CLI
   plus `--probe` verification (`cli`), and the `maze-chase-desktop`
   binary (`main`).
+- `crates/web` - the browser game: fixed-step session on the shared
+  engine (`session`), keyboard plus swipe mapping (`input`), RGBA
+  board composer mirroring the terminal raster (`video`), top-10
+  scores (`scores`), cue/SFX/tune routing tables (`audio_map`), and
+  the plain C-ABI boundary (`bridge`); `play.html` plus
+  `web/maze-chase.js` (DOM screens, HUD, WebAudio synth, touch pad,
+  localStorage), the committed `web/maze-chase.wasm`, and durable
+  node plus headless-chromium E2E (`web/e2e/`).
 
 ## Verification
 

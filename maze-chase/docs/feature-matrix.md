@@ -64,14 +64,14 @@ otherwise.
 | Menus, settings, scores, audio controls | n/a (adapter) | n/a | done | n/a | `desktop::{screens,app,sound}::*` (flows, session, synth) + `desktop/tests/headless.rs` + `desktop/tests/tester_hostile.rs::corrupt_config_boots_with_defaults` + `::accumulator_drops_surplus` + `::wild_menu_cursors_never_panic` |
 | Per-OS packaging with reproducible steps | n/a (adapter) | n/a | done | n/a | `packaging/desktop/{linux-tarball,install-linux}.sh` (`bash -n` clean) + `windows-zip.ps1` + `macos-app.sh` + `maze-chase.desktop` + `docs/desktop.md` |
 
-## WASM layer and hub (Phase 7 target: `crates/wasm`)
+## WASM layer and hub (Phase 7: `crates/web`, done)
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|
-| Same-renderer browser build | n/a (adapter) | n/a | n/a | planned | Playwright desktop + mobile |
-| Keyboard + touch (swipe + d-pad) | n/a (adapter) | n/a | n/a | planned | touch-mapping tests |
-| DPR resize + web-audio unlock | n/a (adapter) | n/a | n/a | planned | viewport + mute tests |
-| Pages hub with play + per-layer docs | docs/hub | n/a | n/a | planned | hub link + load checks |
+| Same-renderer browser build | n/a (adapter) | n/a | n/a | done | `web::video::*` (board composition mirrors the terminal raster at 8 ppt, determinism, sunseed/relish/fright/pip animation cadence) + `web::bridge::*` (hostile probes) + node `web/e2e/wasm-smoke.js` (zero-import instantiate, scoring, bit-identical frames) + committed `web/maze-chase.wasm` |
+| Keyboard + touch (swipe + d-pad) | n/a (adapter) | n/a | n/a | done | `web::input::*` (key table round-trip, defaults, rebind lookup, swipe deadzone/axis) + `web::session::*` (steering reaches the engine, menus, steal rebinds) + `web/e2e/browser-e2e.js` (real ArrowUp scores, P pause/resume, touch swipe, 390x844 board visible, zero console errors) |
+| DPR resize + web-audio unlock | n/a (adapter) | n/a | n/a | done | `web::video::*` (fit math incl. clip case, blit round-trip/letterbox) + `web::audio_map::*` (every engine event reaches SFX, loop, or sting; 132 BPM mirrored) + harness gesture unlock + volume/mute persistence (E2E boot clean; headless has no audio device, documented in `docs/web.md`) |
+| Pages hub with play + per-layer docs | docs/hub | n/a | n/a | done | `maze-chase/play.html` (Play entry from the hub, all six screens, favicon, offline-safe) + `docs/web.md` + `docs/index.md` entry + CDP DOM proof (title visible, panels sync from `mc_screen`) |
 
 ## Cross-cutting (Final phase target)
 
