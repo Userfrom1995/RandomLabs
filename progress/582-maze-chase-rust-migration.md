@@ -1,10 +1,10 @@
 # Progress - Maze-Chase Rust Migration
 
 - **Issue:** #582 (parent tracker; gameplay reference #552 stays functional until replacement is verified)
-- **Branch:** opencode/issue582-maze-chase-phase-4
+- **Branch:** opencode/issue582-maze-chase-phase-5
 - **Status:** in-progress
 - **Updated:** 2026-10-16
-- **Active Phase:** Phase 4: Original Assets Audio and Identity System (Complete, ready for review)
+- **Active Phase:** Phase 5: Terminal Publication Layer (Complete, ready for review)
 
 ## Phase Roadmap
 
@@ -12,12 +12,32 @@
 - Phase 2: Shared Engine Core and Deterministic Simulation: [x] Cargo workspace plus pure engine crate, [x] maze plus movement plus collision plus tunnel, [x] scoring plus lives plus level-clear loop, [x] seeded RNG plus replay hash plus headless verify harness (PR 2 target, Refs #582)
 - Phase 3: Ghost Intelligence Scoring and Progression: [x] four authored personalities plus scatter corners, [x] scatter/chase wave clock with reversals, [x] fright with flash plus chains plus eyes return, [x] house exits plus tunnel clamp plus pursuer stages, [x] bonus items plus difficulty ramp plus extra modes rules (PR 3 target, Refs #582)
 - Phase 4: Original Assets Audio and Identity System: [x] original sprites plus animations plus themes, [x] original sound effects plus music plus audio trait impls, [x] settings plus keymap plus persistence model, [x] Design Council pass with design.md plus tokens (PR 4 target, Refs #582)
-- Phase 5: Terminal Publication Layer: [ ] fullscreen canvas layout plus scale engine, [ ] Kitty plus Sixel plus Unicode backends with detection and watchdog, [ ] dynamic resize with re-layout, [ ] menus plus help plus scores plus settings screens, [ ] installable package plus launch command plus docs (PR 5 target, Refs #582)
+- Phase 5: Terminal Publication Layer: [x] fullscreen canvas layout plus scale engine, [x] Kitty plus Sixel plus Unicode backends with detection and watchdog, [x] dynamic resize with re-layout, [x] menus plus help plus scores plus settings screens, [x] installable package plus launch command plus docs (PR 5 target, Refs #582)
 - Phase 6: Desktop Publication Layer: [ ] windowed plus fullscreen GUI on one renderer core, [ ] keyboard plus gamepad input with remap, [ ] menus plus settings plus scores plus audio controls, [ ] Windows plus macOS plus Linux packaging with reproducible steps (PR 6 target, Refs #582)
 - Phase 7: WebAssembly Publication Layer and Web Hub: [ ] browser-playable WASM build on same renderer core, [ ] keyboard plus touch controls with mobile polish, [ ] DPR-aware resize plus web-audio unlock, [ ] maze-chase index.html hub with play entry plus per-layer docs (PR 7 target, Refs #582)
 - Final Phase: Packaging Verification and Release Audit: [ ] desktop packages plus terminal package plus WASM deploy shipped, [ ] engine plus per-layer E2E green (terminal sizes/capabilities, desktop OSes, browser keyboard/touch), [ ] reproducible build/release instructions, [ ] matrix plus scoreboard plus test results published, [ ] #552 retirement only after verified parity (Final PR, Closes #582)
 
 ## Current step
+
+Phase 5 complete on `opencode/issue582-maze-chase-phase-5` (Refs #582):
+new `maze-chase/crates/terminal` 0.1.0 (`layout` canvas fitter with
+magnification plus too-small card; `raster` shared pixel frame;
+`kitty` hand-rolled PNG plus chunked graphics with env-gated
+detection; `sixel` hand-rolled encoder with live DA1 probe;
+`backend` tier ladder with degrading watchdog; `unicode` 24-bit and
+16-color cell board; `input` keymap-driven headings; `scores`
+machine top-10; `chime` BEL-plus-ticker audio; `screens` plus `chrome`
+menu flows with key-rebind capture; `app` session on the shared engine
+with zero gameplay logic; `maze-chase-terminal` binary with RAII
+terminal restore, 60 fps loop, `--tier`/`--dir` flags),
+`docs/terminal.md` launch guide, matrix terminal rows to `done`,
+README/hub status to playable, plus
+`ideas/2026-10-16-maze-chase-phase-5-terminal-layer.md`. No engine,
+assets, audio, or config file changed (verify 19/19 intact). Proof: 58
+unit + 6 headless integration green, workspace fully green, `--help`
+smoke, fmt clean, zero new clippy warnings. Ready for review.
+
+## Prior step
 
 Phase 4 complete on `opencode/issue582-maze-chase-phase-4` (Refs #582):
 new `maze-chase/crates/{assets,audio,config}` (sprite glyphs plus
@@ -67,7 +87,7 @@ flood-fill proof in header), `tests/golden.rs` (pinned hashes),
 
 ## Next steps
 
-- Reviewer pass on Phase 4, then Phase 5 (terminal publication layer)
+- Reviewer pass on Phase 5, then Phase 6 (desktop publication layer)
   on a fresh phase branch from main referencing `Refs #582`
 - Formal Design Council pass (`/oc design`) may refine `design.md` in
   a later phase; the Builder-authored pass is binding until then
@@ -82,6 +102,8 @@ flood-fill proof in header), `tests/golden.rs` (pinned hashes),
 - Every merge leaves repo and workflows green
 
 ## Agent log
+
+- 2026-10-16 (builder): implemented Phase 5 on `opencode/issue582-maze-chase-phase-5`. New `crates/terminal` 0.1.0 (only dependency: crossterm; PNG, base64, Sixel, layout, and all screens hand-rolled std-only) driving the shared engine with zero gameplay logic, plus `docs/terminal.md`, matrix/README/hub updates, and the Phase 5 ideas entry. Proof: 58 unit + 6 headless integration green, workspace fully green, verify 19/19, `--help` smoke, fmt clean, zero new clippy warnings. Notable catches: first-run settings save needed `create_dir_all` (pinned by persist test), fright-mask test first asserted body pixels the mask glyph never carries, PNG chunk test assumed a wrong frame split. Delegation ledger: no subagents (single-crate layer the primary authored directly against the shipped engine/assets/audio/config APIs; only known skill customize-opencode covers opencode config, not game code). - the Builder
 
 - 2026-10-16 (builder): implemented Phase 4 on `opencode/issue582-maze-chase-phase-4`. Three subagents authored `crates/assets` (glyphs, anim, themes), `crates/audio` (cues, score, sinks), `crates/config` (settings, keymap, persist) against written specs; primary wired workspace members, removed stray per-crate lockfiles, authored `docs/design.md` plus `design-tokens.json` with a palette cross-check test, updated matrix/README/hub/identity/index plus the Phase 4 ideas entry. Proof: 20 assets + 13 audio + 18 config green, engine suites untouched, verify 19/19. Delegation ledger: three parallel general subagents for crate implementation (only known skill customize-opencode covers opencode config, not game code). - the Builder
 

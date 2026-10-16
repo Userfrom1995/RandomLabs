@@ -7,8 +7,8 @@ project; the in-repo Python game (`pacman/`, issue #552) is a behavioral
 feel reference, never a code source. Clean-room rules live in
 `docs/legal.md`.
 
-Current status: **Phase 4 (original assets, audio, identity system)
-is done; no playable layer exists yet.** The deterministic engine
+Current status: **the terminal game is playable; desktop and browser
+layers are still planned.** The deterministic engine
 simulates the full core loop plus the complete hunt headless (120 Hz
 timestep, movement with buffered turns and cornering, crumbs and
 sunseeds, four authored personalities with scatter corners, scatter/chase
@@ -22,13 +22,19 @@ and sound data with settings: 11x11 Pip and warden sprites with
 shape-distinct accents, fright masks, eye pairs, six relish icons,
 three contrast-checked themes, every engine event routed to an audio
 cue with five original tunes, and difficulty/keymap/persistence with
-honest engine presets. The three publication layers (Phases 5-7) are
-planned and tracked in the shared [feature matrix](docs/feature-matrix.md).
+honest engine presets. The terminal game (`crates/terminal`) plays the
+full hunt fullscreen: Kitty pixel graphics, Sixel pixels after a live
+probe, 24-bit and 16-color cell tiers with watchdog auto-degrade, live
+resize with magnification, title/help/scores/settings/rebind/pause
+surfaces, machine high scores, and BEL-plus-ticker sound. Install and
+launch details live in [docs/terminal.md](docs/terminal.md). The desktop
+and browser layers are planned and tracked in the shared [feature matrix](docs/feature-matrix.md).
 This README describes the whole product honestly; anything not yet built
 is marked planned.
 
 Run the checks: `cargo test` and
 `cargo run --bin maze-chase-verify` inside `maze-chase/`.
+Play the terminal game: `cargo run --release -p maze-chase-terminal`.
 
 ## What this will be
 
@@ -53,10 +59,11 @@ Run the checks: `cargo test` and
   (Cozy/Classic-from-L1, Standard/Classic-from-L2, Harsh/Sprint), keymap
   with duplicate-safe rebinds, and a human-readable settings file.
   Design language pinned in `docs/design.md` plus `design-tokens.json`.
-- **Terminal game** (`crates/terminal`, Phase 5): installable package with
+- **Terminal game** (`crates/terminal`, done, [launch docs](docs/terminal.md)): installable package with
   a fullscreen canvas layout engine, magnification that fills the window,
-  Kitty plus Sixel plus Unicode backends with detection and auto-degrade
-  watchdog, dynamic resize, menus, scores, settings, and launch docs.
+  Kitty plus Sixel plus Unicode tiers with detection and auto-degrade
+  watchdog, dynamic resize, title/help/scores/settings/key-rebind/pause
+  surfaces, machine high scores, and BEL-plus-ticker sound.
 - **Desktop game** (`crates/desktop`, Phase 6): windowed plus fullscreen
   GUI on the shared renderer core, keyboard plus gamepad input, menus and
   audio controls, packaged per OS with reproducible steps.
@@ -78,6 +85,8 @@ Run the checks: `cargo test` and
   interaction language with machine tokens mirroring the theme store.
 - `docs/feature-matrix.md` - shared binding tracker: one row per mechanic,
   columns per layer, every row needing test proof.
+- `docs/terminal.md` - terminal install, launch, controls, render tiers,
+  layout, settings/scores files, and troubleshooting.
 
 ## Clean-room rule
 
@@ -103,6 +112,13 @@ escalated, never shipped on assumption.
   timing plus themes (`assets`), cues plus original tunes and SFX plus
   test sinks (`audio`), difficulty presets plus keymap plus settings
   persistence (`config`).
+- `crates/terminal` - the playable terminal game: fullscreen canvas
+  layout (`layout`), shared pixel raster plus Kitty/Sixel/Unicode tiers
+  (`raster`, `kitty`, `sixel`, `unicode`, `backend` with watchdog),
+  crossterm input mapping (`input`), machine high scores (`scores`),
+  BEL-plus-ticker audio (`chime`), menu/help/scores/settings/rebind
+  flows (`screens`, `chrome`), the session on the shared engine (`app`),
+  and the `maze-chase-terminal` binary (`main`).
 
 ## Verification
 
