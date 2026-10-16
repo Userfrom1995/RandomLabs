@@ -1,14 +1,14 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-16 run 38887512030 - Phase 3 eval-fix received on #585 (head 6baa327c), fresh review arm queued, stand down**
+ - **Updated: 2026-10-16 run 38887982861 - Phase 3 eval-fix head re-approved by Reviewer plus Tester on #585 (head 6baa327c), eval dispatched**
 
 ## PRs & Issues
- - **PRs:** Open: #585 only (Phase 3 engine for #582, head 6baa327c post-Fixer eval-required tracker repair, MERGEABLE/CLEAN, base main; body reads Refs #582; prior Reviewer approve on 76b51e99 plus Tester approve-test plus Evaluator fix verdict 9.0/10 all pre-date the repair push, so fresh review required; opencode-review arm pending from owner /oc review 10:28:48Z). MERGED: #584 (Phase 2 engine core for #582, eval head 34b0eb95, merged 09:47:35Z as 0f9f0948 via --rebase, branch kept; Refs #582), #583 (Phase 1 docs for #582, eval head e3826248, merged 09:10:29Z as 58f60bc6 via --rebase, branch kept; Refs #582), #581 (Curator landing fix for #580, head f2cbb539, merged 03:47:01Z as 88c3f132 via --rebase, branch kept; Fixes #580), plus earlier.
- - **Issues:** Open: #582 (Rust-migration parent tracker, Phases 1-2 merged on main, Phase 3 in fresh review via #585), #552 (Pac-Man terminal arcade; REOPENED, Wave 2 #579 merged with Refs only - closes ONLY on owner live-terminal confirmation; now also the gameplay reference for the Rust migration, removal-blocked until replacement verified), #70 lab-health, #42 brainstorm standing only.
+ - **PRs:** Open: #585 only (Phase 3 engine for #582, head 6baa327c post-Fixer eval-required tracker repair, MERGEABLE/CLEAN, base main; body reads Refs #582; Reviewer approve 10:31:52Z plus Tester approve-test 10:33:08Z both on head 6baa327c, no newer fix; binding eval dispatched). MERGED: #584 (Phase 2 engine core for #582, eval head 34b0eb95, merged 09:47:35Z as 0f9f0948 via --rebase, branch kept; Refs #582), #583 (Phase 1 docs for #582, eval head e3826248, merged 09:10:29Z as 58f60bc6 via --rebase, branch kept; Refs #582), #581 (Curator landing fix for #580, head f2cbb539, merged 03:47:01Z as 88c3f132 via --rebase, branch kept; Fixes #580), plus earlier.
+ - **Issues:** Open: #582 (Rust-migration parent tracker, Phases 1-2 merged on main, Phase 3 in eval via #585), #552 (Pac-Man terminal arcade; REOPENED, Wave 2 #579 merged with Refs only - closes ONLY on owner live-terminal confirmation; now also the gameplay reference for the Rust migration, removal-blocked until replacement verified), #70 lab-health, #42 brainstorm standing only.
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries, exact set match re-verified this run. No drift.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - #582 parent stays OPEN through all phases; Phase 3 (Ghost Intelligence, Scoring and Progression) on #585: Fixer applied the Evaluator's one required tracker repair (feature-matrix.md:45 user-facing rewrite, advisories untouched per no-re-spin), fresh Reviewer round queued - test then eval follow on approve, merge only on approve-eval with no newer fix.
+ - #582 parent stays OPEN through all phases; Phase 3 (Ghost Intelligence, Scoring and Progression) on #585: Reviewer plus Tester both re-approved the eval-fix head 6baa327c, binding Evaluator round dispatched - merge only on approve-eval with no newer fix.
  - #552 awaits owner live-terminal confirmation AND now serves as migration reference; no removal of working functionality until replacement verified.
  - TEST-CRASH RULE (standing, mirrors eval-crash rule): a test run dying inside `Run opencode tester` with no decision file and no Tester comment carries zero signal - retry test once. A second CONSECUTIVE silent death on the same PR routes `lab` (possible runner/model health fault), never a third test. UNACQUIRED deaths do not count; one retry per cooldown window max.
  - Evaluator non-blocking follow-ups queued (not dispatched): Phase 2 eval residuals (tick dt assert, replay genesis precondition doc, second golden vector, hub nowrap/table polish, maze symmetry prose) plus #579 Evaluator residuals plus #578 Reviewer nits plus all prior #575 nits plus #575 Reviewer deep-audit notes plus stale pins, weak disjunction assertion in test_tester_remediation_gate.py:48, pre-existing `--levels 0` help fall-through, plus #573 Tester advisory (compute(inf) OverflowError xfail) plus #573 Evaluator advisories plus #574 Reviewer nits plus #574 Tester xfails plus #579 re-review advisory plus residual hardening notes, plus Phase 3 eval advisories (harness flag handling, timing string in compared output, saturating_sub, BFS bounds guard, hub overflow guard). Future hardening vehicle, not a gate.
@@ -39,7 +39,7 @@
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. Phase 3 #585 post-eval-fix: Reviewer round on head 6baa327c in flight; on approve with no newer fix, dispatch test; on approve-test, dispatch eval; merge only on approve-eval with no newer fix (keep branch, verify main Pages deploy, keep #582 OPEN, then immediately chain Phase 4 via build on #582).
+2. Phase 3 #585 in eval on head 6baa327c: on approve-eval with no newer fix, merge via --rebase (keep branch), verify main Pages deploy, keep #582 OPEN, then immediately chain Phase 4 via build on #582.
 3. #582 stays OPEN through all phases; only the final release-audit PR may carry Closes #582.
 4. #552 closes ONLY on owner live-terminal confirmation - never auto-close on `Refs #552`; working code stays until Rust replacement verified.
 5. Future lab work needs a fresh scoped owner order; do NOT re-dispatch Phase 6 or the overhaul mandate without one.
@@ -52,7 +52,7 @@
 12. IP: any new Kratos/God of War order stays declined on binding grounds; original-duel path on confirmation only.
 
 ## OPEN QUESTIONS
- - Will Phase 3 (#585) pass re-review plus re-test plus re-eval cleanly after the one-line tracker repair?
+ - Will Phase 3 (#585) pass the binding re-eval cleanly on the repaired head 6baa327c?
  - What sub-issue split does the blueprint recommend after Phase 1 merges (research, engine, ghost AI, assets/audio, terminal, desktop, WASM, packaging, testing, docs)?
  - Will the Owner confirm #552 complete on real terminals now that Wave 2 is merged?
  - After Phase 6 acceptance, is there any residual overhaul scope the owner still wants (or is the mandate closed)?
