@@ -1,0 +1,21 @@
+[package]
+name = "maze-chase-desktop"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Native desktop publication layer for Maze Chase (windowed/fullscreen GUI on the shared software renderer)"
+
+[lib]
+name = "maze_chase_desktop"
+path = "src/lib.rs"
+
+[dependencies]
+maze-chase-engine = { path = "../engine" }
+maze-chase-assets = { path = "../assets" }
+maze-chase-audio = { path = "../audio" }
+maze-chase-config = { path = "../config" }
+maze-chase-terminal = { path = "../terminal" }
+winit = "0.30"
+softbuffer = "0.4"
+gilrs = "0.11"
+rodio = "0.20"
