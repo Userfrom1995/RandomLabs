@@ -12,17 +12,18 @@ use maze_chase_engine::tuning::STEP;
 /// One scripted run: 10 seconds of play from `seed`, one frame per
 /// simulated second. Returns (final score, frames).
 fn scripted_run(seed: u64) -> (u32, Vec<Vec<u32>>) {
+    scripted_run_with(seed, &[Dir::Left, Dir::Up, Dir::Right, Dir::Down])
+}
+
+/// Same as [`scripted_run`] but steering through `wants` in rotation
+/// (one heading per 90 ticks). Different steering must visibly diverge
+/// the hunt: this is the harness's input-sensitivity check.
+fn scripted_run_with(seed: u64, wants: &[Dir]) -> (u32, Vec<Vec<u32>>) {
     let theme = &themes::EMBER_WARREN;
     let mut game = Game::new(seed, 1);
-    let wants = [
-        Some(Dir::Left),
-        Some(Dir::Up),
-        Some(Dir::Right),
-        Some(Dir::Down),
-    ];
     let mut frames = Vec::new();
     for tick in 0..1200 {
-        game.step(STEP as f64, wants[(tick / 90) % wants.len()]);
+        game.step(STEP as f64, Some(wants[(tick / 90) % wants.len()]));
         if tick % 120 == 0 {
             let hud = Hud {
                 best: 0,
@@ -59,10 +60,12 @@ fn scripted_run_reproduces_identical_pixels() {
 }
 
 #[test]
-fn different_seeds_stay_independent() {
-    let (s1, _) = scripted_run(99);
-    let (s2, _) = scripted_run(100);
-    assert_ne!((s1, 0), (s2, 1));
-    // Both runs are valid games regardless of score ordering.
+fn different_inputs_stay_independent() {
+    // The scripted hunt never samples RNG (no fright, no wander draws),
+    // so seeds alone converge by design; steering is what must diverge
+    // the pixels. Both runs stay valid games.
+    let (s1, f1) = scripted_run_with(99, &[Dir::Left, Dir::Up, Dir::Right, Dir::Down]);
+    let (s2, f2) = scripted_run_with(99, &[Dir::Right, Dir::Down, Dir::Left, Dir::Up]);
     assert!(s1 > 0 && s2 > 0);
+    assert_ne!(f1, f2, "opposite steering must diverge the frames");
 }
