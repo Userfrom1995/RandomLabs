@@ -22,7 +22,10 @@ pub struct Replay {
 
 impl Replay {
     /// Record `ticks` ticks of `game` under the scripted `intents`
-    /// function (tick index -> want). The game is advanced as part of
+    /// function (tick index -> want). The game must be fresh from
+    /// `Game::with_mode` with the header seed/level/mode when recording
+    /// starts: only the header is stored, so a mid-run recording cannot
+    /// re-simulate to the same hash. The game is advanced as part of
     /// recording; use the returned replay for independent re-simulation.
     pub fn record(game: &mut Game, ticks: usize, intents: impl Fn(usize) -> Option<Dir>) -> Self {
         let seed = game.seed;
