@@ -45,15 +45,15 @@ otherwise.
 | Settings, keymap, persistence | `crates/config` | planned | planned | planned | `config::{settings,keymap,persist}::*` (presets, rebind, round-trip) |
 | Design pass (design.md + tokens) | docs | planned | planned | planned | Builder design pass signed (`design.md` + `design-tokens.json`); formal Design Council review may refine |
 
-## Terminal layer (Phase 5 target: `crates/terminal`)
+## Terminal layer (`crates/terminal`, done)
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|
-| Fullscreen layout + scale engine | n/a (adapter) | planned | n/a | n/a | layout/scale unit + pty tests |
-| Kitty/Sixel/Unicode backends, detect, watchdog | n/a (adapter) | planned | n/a | n/a | escape-capture + degrade tests |
-| Dynamic resize with re-layout | n/a (adapter) | planned | n/a | n/a | resize pty tests |
-| Menus, help, scores, settings screens | n/a (adapter) | planned | n/a | n/a | screen + flow tests |
-| Installable package + launch docs | n/a (adapter) | planned | n/a | n/a | clean-install check |
+| Fullscreen layout + scale engine | n/a (adapter) | done | n/a | n/a | `terminal::layout::*` (centered, magnified, too-small card, resize sweep) |
+| Kitty/Sixel/Unicode backends, detect, watchdog | n/a (adapter) | done | n/a | n/a | `terminal::{kitty,sixel,backend}::*` (PNG CRC walk, probe parse, tier ladder, override) + `tests/headless.rs::tier_override_selects_every_backend` |
+| Dynamic resize with re-layout | n/a (adapter) | done | n/a | n/a | `tests/headless.rs::resize_sweep_never_breaks_layout` (0..200 x 0..70 sweep) |
+| Menus, help, scores, settings screens | n/a (adapter) | done | n/a | n/a | `terminal::{screens,chrome,scores,chime}::*` + `tests/headless.rs::full_session_boots_plays_pauses_and_quits` + `settings_persist_across_sessions` + `game_over_lands_on_the_scores_table` |
+| Installable package + launch docs | n/a (adapter) | done | n/a | n/a | `cargo build --release -p maze-chase-terminal` + `--help` smoke + `docs/terminal.md` |
 
 ## Desktop layer (Phase 6 target: `crates/desktop`)
 

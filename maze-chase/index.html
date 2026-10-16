@@ -21,7 +21,7 @@
   <h1>Maze Chase (Rust)</h1>
   <p>An original maze-chase game in Rust: one deterministic engine with three full publication layers (terminal, desktop, browser). You are <strong>Pip</strong>, a hungry courier lantern; outrun the four wardens, clear every crumb, and turn the tables with a sunseed.</p>
 
-  <div class="status"><strong>Status: Phase 4 (original assets, audio, identity system) complete.</strong> The deterministic engine simulates the full hunt headless: 45 unit tests, 2 golden replay hashes, and the 19-row <code>maze-chase-verify</code> harness all green. The identity system is original and tested: sprite glyphs with shape-distinct wardens, three contrast-checked themes, every engine event routed to an audio cue with five original tunes, and difficulty/keymap/settings with honest engine presets (20 assets tests, 13 audio tests, 18 config tests green). No playable layer exists yet: all three layers are planned and tracked in the <a href="docs/feature-matrix.md">feature matrix</a>. There is nothing to download or run in this phase, and this page offers no play button until the WASM layer ships in Phase 7.</div>
+  <div class="status"><strong>Status: the terminal game is playable.</strong> The deterministic engine simulates the full hunt headless: 45 unit tests, 2 golden replay hashes, and the 19-row <code>maze-chase-verify</code> harness all green. The identity system is original and tested: sprite glyphs with shape-distinct wardens, three contrast-checked themes, every engine event routed to an audio cue with five original tunes, and difficulty/keymap/settings with honest engine presets. The terminal layer plays the full hunt fullscreen (58 unit plus 6 headless integration tests green): Kitty pixel graphics, Sixel pixels after a live probe, 24-bit and 16-color cell tiers with watchdog auto-degrade, live resize, title/help/scores/settings/key-rebind/pause surfaces, machine high scores, and BEL-plus-ticker sound. Run it with <code>cargo run --release -p maze-chase-terminal</code> inside <code>maze-chase/</code>; the <a href="docs/terminal.md">terminal guide</a> covers install, controls, tiers, and troubleshooting. Desktop and browser layers are planned and tracked in the <a href="docs/feature-matrix.md">feature matrix</a>. This page offers no play button until the browser layer ships.</div>
 
   <h2>Cast</h2>
   <div class="cast"><table>
@@ -32,10 +32,10 @@
     <tr><td>Nib</td><td>Lurker: hunts while far, retreats when close</td><td>violet, notched ear</td></tr>
   </table></div>
 
-  <h2>Layers (all planned)</h2>
-  <p>The engine they will share hunts headless and verified (<code>cargo run --bin maze-chase-verify</code> inside <code>maze-chase/</code>): four personalities on a reversing wave clock, pathing eyes, relishes, pursuer stages, and four mode rulesets. The identity system they will wear is done: original sprites, three themes, routed audio cues with original tunes, and settings with honest difficulty presets.</p>
+  <h2>Layers</h2>
+  <p>The engine they share hunts headless and verified (<code>cargo run --bin maze-chase-verify</code> inside <code>maze-chase/</code>): four personalities on a reversing wave clock, pathing eyes, relishes, pursuer stages, and four mode rulesets. The terminal layer below is playable now; desktop and browser layers are planned.</p>
   <ul>
-    <li><strong>Terminal</strong>: installable package, fullscreen canvas, Kitty/Sixel/Unicode tiers with auto-degrade, dynamic resize.</li>
+    <li><strong>Terminal (playable)</strong>: installable package, fullscreen canvas, Kitty/Sixel/Unicode tiers with auto-degrade, dynamic resize. See the <a href="docs/terminal.md">terminal guide</a>.</li>
     <li><strong>Desktop</strong>: windowed plus fullscreen GUI on the shared renderer core, keyboard plus gamepad, per-OS packaging.</li>
     <li><strong>Browser</strong>: same renderer as WebAssembly with keyboard plus touch, served from this hub.</li>
   </ul>
@@ -48,10 +48,11 @@
     <li><a href="docs/behavior-spec.md">#552 behavior reference (pinned)</a></li>
     <li><a href="docs/design.md">Visual and interaction design</a></li>
     <li><a href="docs/feature-matrix.md">Feature-completeness matrix</a></li>
+    <li><a href="docs/terminal.md">Terminal install and launch guide</a></li>
   </ul>
   <p>Tracking issue: <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">#582</a>. The Python reference game (<a href="https://github.com/Userfrom1995/RandomLabs/issues/552">#552</a>) stays functional until this build proves verified parity. All code, mazes, art, audio, and tuning here are originals; see the clean-room log.</p>
 
-  <footer>Phase 4 deliverable: original sprites, themes, animation timing, routed audio with original tunes, settings with honest difficulty presets, and the signed design language. Layers arrive in later phases; every mechanic ships with test proof or stays marked planned.</footer>
+  <footer>Terminal layer playable: fullscreen canvas, Kitty/Sixel/Unicode tiers with watchdog auto-degrade, live resize, menus plus help plus scores plus settings with key rebinding, machine high scores, and launch docs. Desktop and browser layers are planned; every mechanic ships with test proof or stays marked planned.</footer>
 </main>
 </body>
 </html>
