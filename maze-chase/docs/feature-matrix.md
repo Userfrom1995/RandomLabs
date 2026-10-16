@@ -23,7 +23,7 @@ rule no layer UI pretends otherwise.
 | Tile-center movement, buffered turns, cornering | `actors.rs` | planned | planned | planned | `verify: movement-cornering, movement-tunnel-wrap` + `actors::*` |
 | Dot/sunseed pickup, scoring, lives, level flow | `game.rs`, `tuning.rs` | planned | planned | planned | `verify: scoring-lives, lives-death-defeat, level-clear-flow, fright-chain` + `game::*` |
 | Seeded RNG streams, replay log, state hash | `rng.rs`, `replay.rs` | planned | planned | planned | `rng::*` (bit-exact vectors), `replay::record_replay_converges`, `tests/golden.rs` |
-| Headless verify harness | `verify.rs` + `maze-chase-verify` | planned | planned | planned | CI: `cargo run --bin maze-chase-verify` 12/12 green, 0.7 us/tick |
+| Headless verify harness | `verify.rs` + `maze-chase-verify` | planned | planned | planned | CI: `cargo run --bin maze-chase-verify` 19/19 green |
 
 ## Ghosts and progression (Phase 3: `crates/engine`, done)
 
