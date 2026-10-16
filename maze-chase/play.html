@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<!-- Maze Chase playable page (Phase 7 of issue #582).
+  Served from maze-chase/play.html; the engine wasm must sit at
+  maze-chase/web/maze-chase.wasm, built by the maze-chase-web Rust crate.
+  NOTE: browsers refuse fetch() of .wasm over file://, so serve over http
+  (e.g. `python3 -m http.server` inside maze-chase/). No external resources:
+  works offline once served, minus the wasm fetch itself. -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Maze Chase - Play</title>
+<link rel="icon" href="web/favicon.svg" type="image/svg+xml" />
+<script src="web/maze-chase.js" defer></script>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0c0f16; --panel: #151b2c; --ink: #f2ead8;
+    --muted: #9aa3b2; --accent: #ffc53d; --teal: #4fd1c5;
+  }
+  * { box-sizing: border-box; }
+  /* Author display rules would otherwise override the UA [hidden] style
+     (notably .badge's inline-block): hidden always wins. */
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, sans-serif; }
+  a { color: var(--accent); }
+  header {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 12px 16px; background: var(--panel); border-bottom: 2px solid var(--accent);
+  }
+  header h1 { font-size: 1.2rem; margin: 0; }
+  header h1 .sub { color: var(--teal); font-weight: normal; font-size: 0.9rem; }
+  header .spacer { flex: 1; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  .stage { display: flex; gap: 16px; align-items: flex-start; }
+  #canvas-wrap { flex: 1 1 auto; min-width: 0; }
+  canvas {
+    display: block; background: #000; border-radius: 12px;
+    border: 1px solid #2a3350; touch-action: none;
+    min-width: 280px; min-height: 280px;
+  }
+  aside#hud {
+    flex: 0 0 240px; background: var(--panel); border-radius: 12px; padding: 12px 16px;
+  }
+  aside#hud dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
+  aside#hud dt { color: var(--muted); font-size: 0.8rem; }
+  aside#hud dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .badge {
+    display: inline-block; margin-top: 8px; padding: 2px 10px; border-radius: 999px;
+    background: var(--accent); color: #111; font-weight: bold; font-size: 0.85rem;
+  }
+  .badge.teal { background: var(--teal); }
+  section.panel {
+    background: var(--panel); border-radius: 12px; padding: 16px 20px; margin-top: 16px;
+  }
+  section.panel h2 { margin-top: 0; color: var(--accent); }
+  button, input[type="text"] { font: inherit; }
+  button {
+    min-height: 44px; min-width: 44px; padding: 8px 16px; border-radius: 10px;
+    border: 1px solid var(--accent); background: transparent; color: var(--ink);
+    cursor: pointer; margin: 4px 4px 4px 0;
+  }
+  button:hover { background: #232c47; }
+  button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+  button.primary { background: var(--accent); color: #111; font-weight: bold; }
+  input[type="text"] {
+    min-height: 44px; border-radius: 10px; border: 1px solid #2a3350;
+    background: #0c0f16; color: var(--ink); padding: 8px 12px; max-width: 220px;
+  }
+  input[type="range"] { width: 180px; accent-color: var(--accent); }
+  table.scores { border-collapse: collapse; width: 100%; max-width: 480px; }
+  table.scores td, table.scores th { border-bottom: 1px solid #2a3350; padding: 6px 8px; text-align: left; }
+  #rebind-list { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+  #dpad { display: none; grid-template-columns: repeat(3, 56px); gap: 6px; margin-top: 12px; justify-content: center; }
+  #dpad button { min-height: 56px; font-size: 1.3rem; margin: 0; }
+  #pad-up { grid-column: 2; } #pad-left { grid-column: 1; grid-row: 2; }
+  #pad-right { grid-column: 3; grid-row: 2; } #pad-down { grid-column: 2; grid-row: 3; }
+  @media (pointer: coarse) { #dpad { display: grid; } }
+  body.pad-force #dpad { display: grid; }
+  .note { color: var(--muted); font-size: 0.85rem; }
+  .error-card { border: 2px solid #ff6b6b; }
+  .error-card h2 { color: #ff6b6b; }
+  footer { color: var(--muted); font-size: 0.85rem; padding: 16px; max-width: 1100px; margin: 0 auto; }
+  @media (max-width: 760px) {
+    .stage { flex-direction: column; }
+    aside#hud { flex: 1 1 auto; width: 100%; }
+    #hud dl { grid-template-columns: repeat(4, auto); }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Maze Chase <span class="sub">starring Pip the courier lantern</span></h1>
+  <span class="spacer"></span>
+  <a href="index.html">Back to hub</a>
+  <button type="button" id="btn-mute">Mute</button>
+</header>
+<main>
+  <div class="stage">
+    <div id="canvas-wrap">
+      <canvas id="game-canvas" width="640" height="460" aria-label="Maze Chase board"></canvas>
+      <div id="dpad" aria-label="On-screen direction pad">
+        <button type="button" id="pad-up" aria-label="Up">&#8593;</button>
+        <button type="button" id="pad-left" aria-label="Left">&#8592;</button>
+        <button type="button" id="pad-right" aria-label="Right">&#8594;</button>
+        <button type="button" id="pad-down" aria-label="Down">&#8595;</button>
+      </div>
+      <p><button type="button" id="btn-pad">Toggle touch pad</button></p>
+    </div>
+    <aside id="hud" aria-label="Game status">
+      <dl>
+        <dt>Score</dt><dd id="hud-score">0</dd>
+        <dt>Best</dt><dd id="hud-best">0</dd>
+        <dt>Wicks</dt><dd id="hud-wicks">3</dd>
+        <dt>Level</dt><dd id="hud-level">1</dd>
+        <dt>Mode</dt><dd id="hud-mode">Classic</dd>
+        <dt>Dots</dt><dd id="hud-dots">0</dd>
+        <dt>FPS</dt><dd id="hud-fps">0</dd>
+        <dt>Tune</dt><dd id="hud-tune">OFF</dd>
+      </dl>
+      <span class="badge" id="hud-fright" hidden>FRIGHT!</span>
+      <span class="badge teal" id="hud-relish" hidden>RELISH</span>
+      <p class="note" id="audio-note" hidden>Audio unavailable in this browser; playing silent.</p>
+    </aside>
+  </div>
+
+  <section class="panel" id="panel-title" aria-label="Title">
+    <h2>Maze Chase</h2>
+    <p>You are Pip, a courier lantern. Clear every crumb, dodge the wardens
+    Bram, Kessa, Jory and Nib, and grab a sunseed to turn the hunt around.</p>
+    <p>
+      <button type="button" class="primary" id="btn-start" data-primary>Start game</button>
+      <button type="button" id="btn-title-help">Help</button>
+      <button type="button" id="btn-title-scores">Scores</button>
+      <button type="button" id="btn-title-settings">Settings</button>
+    </p>
+    <p class="note" id="boot-status">Loading engine...</p>
+  </section>
+
+  <section class="panel" id="panel-help" hidden aria-label="Help">
+    <h2>How to play</h2>
+    <p>Move with arrows or WASD (remappable in Settings). Eat all crumbs to clear
+    the level. Sunseeds grant fright powers: eat wardens for chain bonuses.
+    Relishes appear for bonus points. P or Esc pauses; M mutes.</p>
+    <p class="note">Modes: Classic, Time Attack, Sprint, Fright Frenzy. Difficulty
+    presets (Cozy, Standard, Harsh) pick the start level and mode.</p>
+    <p><button type="button" id="btn-help-back" data-primary>Back</button></p>
+  </section>
+
+  <section class="panel" id="panel-scores" hidden aria-label="High scores">
+    <h2>High scores</h2>
+    <table class="scores">
+      <thead><tr><th>Rank</th><th>Name</th><th>Score / Level</th></tr></thead>
+      <tbody id="scores-body"></tbody>
+    </table>
+    <p>
+      <button type="button" id="btn-scores-clear">Clear scores</button>
+      <button type="button" id="btn-scores-back" data-primary>Back</button>
+    </p>
+  </section>
+
+  <section class="panel" id="panel-settings" hidden aria-label="Settings">
+    <h2>Settings</h2>
+    <p>
+      <label>Master <input type="range" id="rng-master" min="0" max="100" value="100" /></label>
+      <label>Music <input type="range" id="rng-music" min="0" max="100" value="100" /></label>
+      <label>SFX <input type="range" id="rng-sfx" min="0" max="100" value="100" /></label>
+    </p>
+    <p><label><input type="checkbox" id="chk-flash" /> Reduced flashing</label></p>
+    <p>
+      <button type="button" id="btn-theme">Next theme</button> <span id="theme-label">Theme 1/1</span>
+      <button type="button" id="btn-diff">Next difficulty</button> <span id="diff-label">Standard</span>
+      <button type="button" id="btn-mute-2">Mute toggle</button>
+    </p>
+    <h3>Remap keys</h3>
+    <ul id="rebind-list"></ul>
+    <p><button type="button" id="btn-settings-back" data-primary>Back</button></p>
+  </section>
+
+  <section class="panel" id="panel-pause" hidden aria-label="Paused">
+    <h2>Paused</h2>
+    <p>
+      <button type="button" class="primary" id="btn-resume" data-primary>Resume</button>
+      <button type="button" id="btn-pause-restart">Restart</button>
+      <button type="button" id="btn-pause-quit">Quit to title</button>
+      <button type="button" id="btn-pause-back">Back</button>
+    </p>
+  </section>
+
+  <section class="panel" id="panel-over" hidden aria-label="Game over">
+    <h2>Game over</h2>
+    <p>Score <strong id="over-score">0</strong> - Level <strong id="over-level">1</strong> -
+    Best <strong id="over-best">0</strong></p>
+    <p id="save-row" hidden>
+      <label>Name (max 12)
+        <input type="text" id="name-input" maxlength="12" inputmode="text" autocomplete="off" />
+      </label>
+      <button type="button" id="btn-save-score">Save score</button>
+    </p>
+    <table class="scores">
+      <thead><tr><th>Rank</th><th>Name</th><th>Score / Level</th></tr></thead>
+      <tbody id="over-body"></tbody>
+    </table>
+    <p>
+      <button type="button" class="primary" id="btn-over-restart" data-primary>Play again</button>
+      <button type="button" id="btn-over-start">New run (fresh seed)</button>
+      <button type="button" id="btn-over-quit">Quit to title</button>
+    </p>
+  </section>
+
+  <section class="panel error-card" id="panel-error" hidden aria-label="Error">
+    <h2>Could not start</h2>
+    <p id="error-reason">Unknown error.</p>
+    <p class="note" id="error-hint"></p>
+    <p><button type="button" id="btn-retry" data-primary>Retry</button></p>
+  </section>
+</main>
+<footer>
+  Maze Chase is an original game: you are Pip, a courier lantern, outrunning the
+  wardens Bram, Kessa, Jory and Nib. <a href="index.html">Maze Chase hub</a>.
+  Tracking issue: <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">#582</a>.
+</footer>
+</body>
+</html>

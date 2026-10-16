@@ -201,6 +201,13 @@ pub extern "C" fn mc_fright_active() -> u32 {
     u32::from(session().game().wardens.fright_active())
 }
 
+/// 1 while a fright window is in its flashing tail (harness shows the
+/// "ending soon" badge state).
+#[no_mangle]
+pub extern "C" fn mc_fright_flash() -> u32 {
+    u32::from(session().game().wardens.fright_flashing())
+}
+
 /// 1 while a bonus relish waits on its tile.
 #[no_mangle]
 pub extern "C" fn mc_relish_active() -> u32 {
