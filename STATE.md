@@ -1,20 +1,19 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-16 run 38891007206 - Phase 4 #586 in eval arm pending (head 3877403e), stand down**
+ - **Updated: 2026-10-16 run 38891439326 - Phase 4 #586 MERGED as 316f9628, Phase 5 chained via build on #582**
 
 ## PRs & Issues
- - **PRs:** Open: #586 only (Phase 4 assets/audio/identity for #582, head 3877403e post-Tester hostile suites, MERGEABLE/CLEAN, base main; body reads Refs #582). MERGED: #585 (Phase 3 engine for #582, eval head 6baa327c, merged 10:38:23Z as f245dbcb via --rebase, branch kept; Refs #582), #584 (Phase 2 engine core for #582, eval head 34b0eb95, merged 09:47:35Z as 0f9f0948 via --rebase, branch kept; Refs #582), #583 (Phase 1 docs for #582, eval head e3826248, merged 09:10:29Z as 58f60bc6 via --rebase, branch kept; Refs #582), #581 (Curator landing fix for #580, head f2cbb539, merged 03:47:01Z as 88c3f132 via --rebase, branch kept; Fixes #580), plus earlier.
- - **Issues:** Open: #582 (Rust-migration parent tracker, Phases 1-3 merged on main, Phase 4 in eval via #586), #552 (Pac-Man terminal arcade; REOPENED, Wave 2 #579 merged with Refs only - closes ONLY on owner live-terminal confirmation; now also the gameplay reference for the Rust migration, removal-blocked until replacement verified), #70 lab-health, #42 brainstorm standing only.
+ - **PRs:** Open: none (post-merge). MERGED: #586 (Phase 4 assets/audio/identity for #582, eval head 3877403e, merged 11:06:09Z as 316f9628 via --rebase, branch kept; Refs #582), #585 (Phase 3 engine for #582, eval head 6baa327c, merged 10:38:23Z as f245dbcb via --rebase, branch kept; Refs #582), #584 (Phase 2 engine core for #582, eval head 34b0eb95, merged 09:47:35Z as 0f9f0948 via --rebase, branch kept; Refs #582), #583 (Phase 1 docs for #582, eval head e3826248, merged 09:10:29Z as 58f60bc6 via --rebase, branch kept; Refs #582), #581 (Curator landing fix for #580, head f2cbb539, merged 03:47:01Z as 88c3f132 via --rebase, branch kept; Fixes #580), plus earlier.
+ - **Issues:** Open: #582 (Rust-migration parent tracker, Phases 1-4 merged on main, Phase 5 build chaining via this run), #552 (Pac-Man terminal arcade; REOPENED, Wave 2 #579 merged with Refs only - closes ONLY on owner live-terminal confirmation; now also the gameplay reference for the Rust migration, removal-blocked until replacement verified), #70 lab-health, #42 brainstorm standing only.
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries, exact set match re-verified this run. No drift.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - #586 Phase 4 (Original Assets, Audio, and Identity System, incl. Design Council pass shipping design.md plus tokens) in eval: Reviewer approve on c68aa2d8 plus Tester approve-test on 3877403e (delta verified test-only: 3 hostile test files, production untouched - review gate stands per test-only precedent); eval arm opencode-eval 38891007474 pending from owner /oc eval 11:00:50Z (converges with dispatched eval from run 38890736673). Full gate (Reviewer + Tester + Evaluator) applies.
- - #582 parent stays OPEN through all phases; only the final release-audit PR may carry Closes #582.
- - #552 awaits owner live-terminal confirmation AND now serves as migration reference; no removal of working functionality until replacement verified.
+ - #582 parent stays OPEN through all phases; only the final release-audit PR may carry Closes #582. Phase 5 (Terminal Publication Layer) build arm dispatched this run; next run confirms it landed.
+ - #552 awaits owner live-terminal confirmation AND now serves as the migration reference; no removal of working functionality until replacement verified.
  - TEST-CRASH RULE (standing, mirrors eval-crash rule): a test run dying inside `Run opencode tester` with no decision file and no Tester comment carries zero signal - retry test once. A second CONSECUTIVE silent death on the same PR routes `lab` (possible runner/model health fault), never a third test. UNACQUIRED deaths do not count; one retry per cooldown window max.
- - Evaluator non-blocking follow-ups queued (not dispatched): Phase 2 eval residuals (tick dt assert, replay genesis precondition doc, second golden vector, hub nowrap/table polish, maze symmetry prose) plus #579 Evaluator residuals plus #578 Reviewer nits plus all prior #575 nits plus #575 Reviewer deep-audit notes plus stale pins, weak disjunction assertion in test_tester_remediation_gate.py:48, pre-existing `--levels 0` help fall-through, plus #573 Tester advisory (compute(inf) OverflowError xfail) plus #573 Evaluator advisories plus #574 Reviewer nits plus #574 Tester xfails plus #579 re-review advisory plus residual hardening notes, plus Phase 3 eval advisories (harness flag handling, timing string in compared output, saturating_sub, BFS bounds guard, hub overflow guard). Future hardening vehicle, not a gate.
+ - Evaluator non-blocking follow-ups queued (not dispatched): Phase 2 eval residuals (tick dt assert, replay genesis precondition doc, second golden vector, hub nowrap/table polish, maze symmetry prose) plus #579 Evaluator residuals plus #578 Reviewer nits plus all prior #575 nits plus #575 Reviewer deep-audit notes plus stale pins, weak disjunction assertion in test_tester_remediation_gate.py:48, pre-existing `--levels 0` help fall-through, plus #573 Tester advisory (compute(inf) OverflowError xfail) plus #573 Evaluator advisories plus #574 Reviewer nits plus #574 Tester xfails plus #579 re-review advisory plus residual hardening notes, plus Phase 3 eval advisories (harness flag handling, timing string in compared output, saturating_sub, BFS bounds guard, hub overflow guard), plus Phase 4 Reviewer advisories (sprites.rs:131 rectangular-input assumption, anim.rs:40 negative t_left, string clip frame IDs, TuneId sting gap, keymap single-char alias round-trip, rebind twin collapse, persist unknown-theme/order notes) plus Phase 4 Evaluator advisories (ragged-input panic on direct API misuse only, fright negative-time, fright non-finite parse, TuneId 3-sting gap, keymap separator keys, undocumented typography token block). Future hardening vehicle, not a gate.
  - LAB OVERHAUL SUBSTANTIALLY COMPLETE: Phase 6 instructed run 38463786451 stood down with evidence; verified live in run 38463966490; NO third lab dispatch per anti-loop bar. Future infra needs a fresh scoped order, not a repeat Phase 6.
- - Pages: main tip f245dbcb (merge of #585); post-merge main Pages deploy (Deploy run 38890085688 success 10:52:31Z) verified in run 38890082771.
+ - Pages: main tip 316f9628 (merge of #586); post-merge main Pages deploy verification pending (next-run playbook item).
  - Write-permission denial count now 16 (latest on #586 at 10:52:40Z linking success-concluded pull_request maintainer run 38890037675 - benign shape, watch only).
  - Prior-run APIError notes (watch, not findings): run 38807340202 and 38807603090 posted transient backend-overload shapes on 2026-10-15/16. A consecutive provider outage that blocks a gate arm routes lab (model fallback), not a single blip.
  - Reviewer non-blocking note (carried, not a finding): PRs #564/#565 say "tracked on #42" but #42 is titled Brainstorm Board; precedent accepts the linkage, no diff impact.
@@ -22,10 +21,10 @@
  - Reviewer advisory (carried, from #571): 2-dir touch literally meets the delegation-ledger threshold but no ledger present; trivial 2-line href swap, not a finding.
  - Reviewer observation (carried, from #577 approve): no delegation ledger / no-delegation one-liner on a single-file two-line edit (below every threshold); recorded as observation only, not a finding.
  - Infra routing guard stays active: any `.github/agents/` follow-up routes to Lab Engineer via `lab`, never `fix`/`continue`.
- - Main tip: f245dbcb (merge of #585).
- - Orphan-main protection holds: merge-base with main verified non-empty (0f9f0948) before the #585 merge; post-merge tip f245dbcb confirmed via ls-remote.
+ - Main tip: 316f9628 (merge of #586).
+ - Orphan-main protection holds: merge-base with main verified non-empty (f245dbcb) before the #586 merge; post-merge tip 316f9628 confirmed via ls-remote.
  - Rebase-gate rule: a rebase or fix-push that rewrites a gated PR's head voids its gate; fresh review round required after each Fixer production-code push. Test-only Tester commits (single-file tests/, production untouched) do NOT void the review gate per precedent (applied to #584 34b0eb95, #585 bdad5b00, and now #586 3877403e - three test-only files).
- - Eval-gate calibration note: surgical infra/docs/test-hardening fixes may merge on Reviewer approve + Tester approve-test; Evaluator binding gate stays mandatory for product/research/phase deliverables. #552 remediation and Phases 1-4 merged only after mandatory approve-eval. #577 was README-only (docs-class), so Reviewer + Tester sufficed. #581 was landing-text-only (docs-class), same bar - merged 03:47:01Z. #583 Phase 1 was docs/hub-only (docs-class), same bar - merged 09:10:29Z. #584 Phase 2 (engine code) required and passed the full gate including Evaluator (9.8/10). #585 Phase 3 (engine code) required and passed the full gate including Evaluator (9.8/10).
+ - Eval-gate calibration note: surgical infra/docs/test-hardening fixes may merge on Reviewer approve + Tester approve-test; Evaluator binding gate stays mandatory for product/research/phase deliverables. #552 remediation and Phases 1-4 merged only after mandatory approve-eval. #577 was README-only (docs-class), so Reviewer + Tester sufficed. #581 was landing-text-only (docs-class), same bar - merged 03:47:01Z. #583 Phase 1 was docs/hub-only (docs-class), same bar - merged 09:10:29Z. #584 Phase 2 (engine code) required and passed the full gate including Evaluator (9.8/10). #585 Phase 3 (engine code) required and passed the full gate including Evaluator (9.8/10). #586 Phase 4 (new crates) required and passed the full gate including Evaluator (9.9/10).
  - Duplicate-review note: maintainer + owner near-simultaneous review dispatches settle via per-PR concurrency; stand down when a review arm is pending/in_progress. Same applies to eval arms, fix arms, build arms, and test arms.
  - IP hold (standing): God of War Kratos vs Zeus commission declined twice on binding IP grounds; original mythic-duel alternative stands awaiting owner confirmation.
  - Error-dump wart status: 13th recurrence logged; escalation note posted to Owner via ping on #70 (run 37552237432). 8th lab mandate withheld per loop guard - awaiting Owner direction.
@@ -39,13 +38,13 @@
  - ARCHITECT BODY-CLOSE WART (resolved): Architect PR #583 body said `Closes #582` though the epic contract reserves Closes for the final verified release only. The Builder corrected it to `Refs #582` in-run.
 
 ## NEXT-RUN PLAYBOOK
-1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. Phase 4 #586 gate: on Evaluator approve-eval of head 3877403e with no newer fix, merge via --rebase (keep branch), verify main Pages deploy, keep #582 OPEN, then immediately chain Phase 5 via build on #582. On eval fix findings, route Fixer then fresh review on the new head.
-3. #582 stays OPEN through all phases; only the final release-audit PR may carry Closes #582.
+1. Trigger-list re-verify each run (both allowlists; watch for new workflow drift).
+2. Confirm Phase 5 (Terminal Publication Layer) build arm landed on #582; follow the Reviewer-Test-Eval gate per phase; #582 stays OPEN until the final release-audit PR (only Closes #582).
+3. Verify post-merge main Pages deploy succeeded after tip 316f9628.
 4. #552 closes ONLY on owner live-terminal confirmation - never auto-close on `Refs #552`; working code stays until Rust replacement verified.
 5. Future lab work needs a fresh scoped owner order; do NOT re-dispatch Phase 6 or the overhaul mandate without one.
 6. Error-dump wart: overhaul substantially complete; do NOT auto-queue a separate 8th lab mandate without owner direction.
-7. Evaluator follow-ups plus all carried Reviewer/Tester nits queued for a future hardening vehicle.
+7. Evaluator follow-ups plus all carried Reviewer/Tester/Evaluator nits queued for a future hardening vehicle.
 8. Council calibration: advisory Desktop Pet audit still pending.
 9. Watch: ubuntu-latest agent runs - if hollow-green/silent-stall recurs, the poisoned-cache class is NOT fixed and a lab mandate is warranted.
 10. Watch: comment-post flakiness (Unicorn-HTML wart) plus the write-permission denial shape plus transient APIError provider blips - a consecutive occurrence WITH a failure conclusion or a gate-blocking outage routes lab.
@@ -53,8 +52,7 @@
 12. IP: any new Kratos/God of War order stays declined on binding grounds; original-duel path on confirmation only.
 
 ## OPEN QUESTIONS
- - Will the Phase 4 Evaluator round pass cleanly on head 3877403e (new assets/audio/config crates plus design.md/tokens)?
- - What sub-issue split does the blueprint recommend after Phase 1 merges (research, engine, ghost AI, assets/audio, terminal, desktop, WASM, packaging, testing, docs)?
+ - Will the Phase 5 Builder arm land cleanly on a fresh phase branch from main (terminal publication layer)?
  - Will the Owner confirm #552 complete on real terminals now that Wave 2 is merged?
  - After Phase 6 acceptance, is there any residual overhaul scope the owner still wants (or is the mandate closed)?
  - Are the PR-preview pages failures a systematic defect on PR refs or platform blips?
