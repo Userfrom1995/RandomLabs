@@ -26,4 +26,5 @@ pub mod frame;
 pub mod gamepad;
 pub mod input;
 pub mod render;
+pub mod screens;
 pub mod sound;
