@@ -1,20 +1,26 @@
 # Web layer E2E scripts (Phase 7)
 
-Two durable, dependency-free harnesses (Node 18+, no npm packages) that
-prove the browser layer against the real artifacts. Both exit nonzero
+Three durable, dependency-free harnesses (Node 18+, no npm packages) that
+prove the browser layer against the real artifacts. All exit nonzero
 on failure and print `ALL GREEN` on success.
 
 - `wasm-smoke.js [path-to-wasm]`: instantiates the release `.wasm`
   with zero imports and drives a session through the C ABI (boot,
   reset, steering, scoring, frame determinism across instances, audio
-  tables, hostile boundary probes). Defaults to the release artifact
-  under `maze-chase/target/`.
+  tables, hostile boundary probes). Defaults to the shipped
+  `web/maze-chase.wasm`, falling back to the cargo release artifact.
+- `tester-regression.js [path-to-wasm]`: pins review-found fixes at the
+  shipped-artifact level (warden-chain wire domain plus single Rust-side
+  pitch doubling, scores getter names plus push/getter round-trip plus
+  clear, hostile boundaries, determinism). Same default path rule as
+  `wasm-smoke.js`.
 - `browser-e2e.js [page-url] [debug-port]`: drives the served
   `play.html` in headless chromium over CDP with node's built-in
   WebSocket (boot with zero console errors, title visible, canvas
   pixels, real button click to play, real ArrowUp keypresses scoring,
-  P pause plus Resume, touch swipe, mobile 390x844 viewport, gameplay
-  screenshots to `/tmp/mc-e2e-*.png`).
+  P pause plus Resume, touch swipe, mobile 390x844 viewport, scores
+  panel restoring a persisted row across reload plus in-page clear,
+  gameplay screenshots to `/tmp/mc-e2e-*.png`).
 
 Setup for the browser run (two shells, from `maze-chase/`):
 
