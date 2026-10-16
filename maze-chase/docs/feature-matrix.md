@@ -8,21 +8,21 @@ Status words: `done` (implemented, tested, verified), `planned` (scoped in
 a future phase, no code yet), `degraded` (documented capability fallback,
 never silent), `n/a` (genuinely not applicable to that layer).
 
-Phase 1 note: the engine and all three layers are `planned`; only the
-research, legal, identity, and behavior-spec foundations are `done`. No
-layer code exists yet, and by the zero-stub rule no layer UI pretends
-otherwise.
+Phase 2 note: the engine simulation rows below are `done` (implemented,
+tested, verified headless). Ghost personalities, assets, and all three
+layers remain `planned`; no layer code exists yet, and by the zero-stub
+rule no layer UI pretends otherwise.
 
-## Engine simulation (Phase 2 target: `crates/engine`)
+## Engine simulation (Phase 2: `crates/engine`, done)
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|
-| Fixed 120 Hz timestep, accumulator, spiral clamp | `game.rs` | planned | planned | planned | headless tick tests + replay hashes |
-| Maze load, walkability, tunnel wrap, reachability | `maze.rs`, `level.rs` | planned | planned | planned | load + flood-fill + wrap tests |
-| Tile-center movement, buffered turns, cornering | `actors.rs` | planned | planned | planned | movement + turn-window tests |
-| Dot/energizer pickup, scoring, lives, level flow | `game.rs`, `tuning.rs` | planned | planned | planned | scoring/lives/clear tests |
-| Seeded RNG streams, replay log, state hash | `rng.rs`, `replay.rs` | planned | planned | planned | golden-hash tests |
-| Headless verify harness | `verify.rs` | planned | planned | planned | CI matrix run |
+| Fixed 120 Hz timestep, accumulator, spiral clamp | `game.rs` | planned | planned | planned | `verify: determinism-replay` + `game::determinism_same_seed_same_hash` |
+| Maze load, walkability, tunnel wrap, reachability | `maze.rs` | planned | planned | planned | `verify: maze-geometry, maze-reachability` + `maze::*` + `levels/ember-warren.maze` proof |
+| Tile-center movement, buffered turns, cornering | `actors.rs` | planned | planned | planned | `verify: movement-cornering, movement-tunnel-wrap` + `actors::*` |
+| Dot/sunseed pickup, scoring, lives, level flow | `game.rs`, `tuning.rs` | planned | planned | planned | `verify: scoring-lives, lives-death-defeat, level-clear-flow, fright-chain` + `game::*` |
+| Seeded RNG streams, replay log, state hash | `rng.rs`, `replay.rs` | planned | planned | planned | `rng::*` (bit-exact vectors), `replay::record_replay_converges`, `tests/golden.rs` |
+| Headless verify harness | `verify.rs` + `maze-chase-verify` | planned | planned | planned | CI: `cargo run --bin maze-chase-verify` 12/12 green, 0.7 us/tick |
 
 ## Ghosts and progression (Phase 3 target: `crates/engine`)
 
