@@ -7,33 +7,39 @@ project; the in-repo Python game (`pacman/`, issue #552) is a behavioral
 feel reference, never a code source. Clean-room rules live in
 `docs/legal.md`.
 
-Current status: **Phase 2 (shared engine core) is done; no playable
-layer exists yet.** The deterministic engine simulates the full core loop
-headless (120 Hz timestep, movement with buffered turns and cornering,
-crumbs and sunseeds, fright windows with 200/400/800/1600 chains, spare
-wick, death/respawn, level flow, gatehouse counters with idle release,
-seeded streams, replay log, state hash, 12-row verify harness green).
-Ghost personalities and the wave clock (Phase 3), assets and identity
-system (Phase 4), and the three publication layers (Phases 5-7) are
-planned and tracked in the shared
-[feature matrix](docs/feature-matrix.md). This README describes the whole
-product honestly; anything not yet built is marked planned.
+Current status: **Phase 3 (ghost intelligence, scoring, progression)
+is done; no playable layer exists yet.** The deterministic engine
+simulates the full core loop plus the complete hunt headless (120 Hz
+timestep, movement with buffered turns and cornering, crumbs and
+sunseeds, four authored personalities with scatter corners, scatter/chase
+wave clock with reversals and chase-hold, fright windows with flash
+staging and 200/400/800/1600 chains, pathing eyes that drift home,
+relish bonuses on a 70/170 schedule with level tiers, pursuer stages,
+spare wick, death/respawn, level flow, gatehouse counters with idle
+release, four extra mode rulesets, seeded streams, replay log, state
+hash, 19-row verify harness green). Assets and identity system (Phase
+4) and the three publication layers (Phases 5-7) are planned and tracked
+in the shared [feature matrix](docs/feature-matrix.md). This README
+describes the whole product honestly; anything not yet built is marked
+planned.
 
 Run the engine checks: `cargo test` and
 `cargo run --bin maze-chase-verify` inside `maze-chase/`.
 
 ## What this will be
 
-- **One engine** (`crates/engine`, Phase 2 done): fixed 120 Hz
+- **One engine** (`crates/engine`, Phase 3 done): fixed 120 Hz
   deterministic simulation with seeded RNG streams, replay log, and
   state hash. Tile movement with buffered turns, four warden
-  slots with gatehouse counters (Bram the leader starts out; Kessa,
-  Jory, and Nib wait on crumbs or the idle timeout), wander steering
-  behind a trait that Phase 3 personalities will implement,
-  sunseed fright with 200/400/800/1600 chains, spare wick at 10,000,
-  endless level ramp. Layers map input to
-  `TickInput` and render `Game` state plus `GameEvent`s; any gameplay
-  branch in a layer crate is a blocking review finding.
+  personalities (Bram leads, Kessa ambushes ahead, Jory flanks the
+  mirror, Nib lurks at range) alternating scatter corners with the hunt
+  on a reversing wave clock, gatehouse counters with idle release,
+  sunseed fright with 200/400/800/1600 chains and pathing eyes, relish
+  bonuses, pursuer stages, spare wick at 10,000, endless level ramp,
+  and classic plus time-attack plus sprint plus fright-frenzy rulesets.
+  Layers map input to `TickInput` and render `Game` state plus
+  `GameEvent`s; any gameplay branch in a layer crate is a blocking
+  review finding.
 - **Terminal game** (`crates/terminal`, Phase 5): installable package with
   a fullscreen canvas layout engine, magnification that fills the window,
   Kitty plus Sixel plus Unicode backends with detection and auto-degrade
@@ -72,8 +78,9 @@ escalated, never shipped on assumption.
 - `index.html` - Pages hub and documentation entry point.
 - `crates/engine` - the deterministic simulation (this phase's core
   deliverable): `tuning`, `maze`, `actors`, `steering`, `ghosts`,
-  `game`, `rng`, `sha256`, `replay`, `verify`, plus the
-  `maze-chase-verify` binary and golden tests.
+  `personalities`, `modes`, `relish`, `game`, `rng`, `sha256`,
+  `replay`, `verify`, plus the `maze-chase-verify` binary and golden
+  tests.
 - `levels/ember-warren.maze` - the authored launch maze with its
   authorship header and reachability proof, compiled into the engine.
 
