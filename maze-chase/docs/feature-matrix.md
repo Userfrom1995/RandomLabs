@@ -42,7 +42,7 @@ rule no layer UI pretends otherwise.
 | Original sprites, themes, wall styles | `crates/assets` | planned | planned | planned | asset-validation step + paint tests |
 | Original SFX/music, Audio trait impls | `audio.rs` + rodio/web shim | planned | planned | planned | cue-routing + degrade tests |
 | Settings, keymap, persistence | `crates/config` | planned | planned | planned | validation round-trip tests |
-| Design Council pass (design.md + tokens) | docs | planned | planned | planned | `/oc design` output reviewed in |
+| Design Council pass (design.md + tokens) | docs | planned | planned | planned | Design Council review (design.md + tokens) signed |
 
 ## Terminal layer (Phase 5 target: `crates/terminal`)
 
