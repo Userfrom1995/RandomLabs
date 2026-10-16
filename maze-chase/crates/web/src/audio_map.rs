@@ -152,14 +152,15 @@ pub fn wave_code(wave: Wave) -> u32 {
 }
 
 /// SFX recipe for a cue code, with the warden-eaten chain arm applied
-/// (pitch doubles per chain, matching the audio crate contract).
+/// (pitch doubles per chain in engine domain 0..=3, matching the audio
+/// crate contract; the wire 1..=4 is stored+1, never doubled twice).
 /// Returns `None` for musical/silent cues.
 pub fn sfx_for_code(code: u32, chain: u8) -> Option<Sfx> {
     let cue = match code {
         CUE_CRUMB => Cue::Crumb,
         CUE_SUNSEED => Cue::Sunseed,
         CUE_WARDEN_EATEN => Cue::WardenEaten {
-            chain: chain.clamp(1, 4),
+            chain: chain.min(3),
         },
         CUE_RELISH_SPAWN => Cue::RelishSpawn,
         CUE_RELISH_EATEN => Cue::RelishEaten,
@@ -284,9 +285,13 @@ mod tests {
 
     #[test]
     fn warden_chain_selects_pitch_arm() {
-        let low = sfx_for_code(CUE_WARDEN_EATEN, 1).expect("sfx");
-        let high = sfx_for_code(CUE_WARDEN_EATEN, 4).expect("sfx");
+        // Chain arm is engine domain 0..=3; out-of-range clamps, never wraps.
+        let low = sfx_for_code(CUE_WARDEN_EATEN, 0).expect("sfx");
+        let high = sfx_for_code(CUE_WARDEN_EATEN, 3).expect("sfx");
+        assert_eq!(low.from_hz, 400.0);
+        assert_eq!(high.from_hz, 3200.0);
         assert!(high.from_hz > low.from_hz, "chain raises pitch");
+        assert_eq!(sfx_for_code(CUE_WARDEN_EATEN, 9).unwrap().from_hz, 3200.0);
         assert!(sfx_for_code(CUE_DEATH, 1).is_none(), "stings use tunes");
         assert!(sfx_for_code(0, 1).is_none());
         assert!(sfx_for_code(99, 1).is_none());

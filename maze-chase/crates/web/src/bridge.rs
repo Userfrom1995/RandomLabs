@@ -217,8 +217,9 @@ pub extern "C" fn mc_relish_active() -> u32 {
 /// Current relish bounty (0 when none waiting).
 #[no_mangle]
 pub extern "C" fn mc_relish_value() -> u32 {
-    if session().game().relish.active {
-        session().game().relish.value
+    let s = session();
+    if s.game().relish.active {
+        s.game().relish.value
     } else {
         0
     }
@@ -455,10 +456,10 @@ pub extern "C" fn mc_cue_tune(code: u32) -> u32 {
     audio_map::tune_for_cue(code).unwrap_or(0xFFFF_FFFF)
 }
 
-/// Last warden-chain arm 1..=4 (SFX pitch doubling).
+/// Last warden-chain arm, engine domain 0..=3 exposed on the wire as 1..=4.
 #[no_mangle]
 pub extern "C" fn mc_last_chain() -> u32 {
-    session().last_chain() as u32
+    session().last_chain().min(3) as u32 + 1
 }
 
 /// SFX waveform code (0 square, 1 triangle, 2 sine, 3 noise;

@@ -153,6 +153,7 @@ pub struct WebSession {
     music_pending: Option<u32>,
     capture: Option<Action>,
     capture_ok: bool,
+    /// Engine-domain warden chain 0..=3 (wire exposes stored+1).
     last_chain: u8,
     pending_score: Option<(u32, u32)>,
     base_seed: u64,
@@ -179,7 +180,7 @@ impl WebSession {
             music_pending: Some(MUSIC_TITLE),
             capture: None,
             capture_ok: false,
-            last_chain: 1,
+            last_chain: 0,
             pending_score: None,
             base_seed: ATTRACT_SEED,
             reset_seq: 0,
@@ -234,7 +235,8 @@ impl WebSession {
         }
     }
 
-    /// Last warden-chain arm (1..=4) for SFX pitch doubling.
+    /// Last warden-chain arm in engine domain 0..=3 (the wire exposes
+    /// stored+1 as 1..=4; the SFX pitch doubling lives in Rust).
     pub fn last_chain(&self) -> u8 {
         self.last_chain
     }
@@ -300,7 +302,7 @@ impl WebSession {
             return;
         };
         if let Cue::WardenEaten { chain } = cue {
-            self.last_chain = chain.clamp(1, 4);
+            self.last_chain = chain.min(3);
         }
         self.push_cue(audio_map::cue_code(cue));
     }
@@ -401,10 +403,9 @@ impl WebSession {
             };
             return self.complete_rebind(action, key);
         }
-        let Some(key) = input::key_from_id(id) else {
+        let Some(_) = input::key_from_id(id) else {
             return 0;
         };
-        let _ = key;
         if let Some(dir) = input::dir_from_id(id, &self.keymap) {
             if self.screen == Screen::Playing {
                 self.pending = Some(dir);
@@ -415,7 +416,6 @@ impl WebSession {
         match input::action_from_id(id, &self.keymap) {
             Some(Action::Pause) => {
                 self.toggle_pause();
-                let _ = key;
                 1
             }
             Some(Action::Mute) => {
@@ -917,5 +917,28 @@ mod tests {
         ] {
             assert_eq!(screen.wire(), wire);
         }
+    }
+
+    #[test]
+    fn warden_chain_stays_engine_domain_with_single_pitch_doubling() {
+        // Engine emits warden:200/1600 as chain 0/3; the session stores
+        // that domain untouched, the wire exposes stored+1, and the SFX
+        // recipe doubles exactly once (400 Hz base, 400*2^chain top).
+        let mut s = session();
+        s.push_engine_event("warden:200");
+        assert_eq!(s.last_chain(), 0, "chain 0 stored, not clamped to 1");
+        assert_eq!(s.poll_cue(), audio_map::CUE_WARDEN_EATEN);
+        assert_eq!(s.last_chain().min(3) as u32 + 1, 1, "wire chain 1");
+        let low = audio_map::sfx_for_code(audio_map::CUE_WARDEN_EATEN, s.last_chain())
+            .expect("warden sfx");
+        assert_eq!(low.from_hz, 400.0, "first warden plays 400 Hz, not 800");
+
+        let mut s2 = session();
+        s2.push_engine_event("warden:1600");
+        assert_eq!(s2.last_chain(), 3, "chain 3 stored");
+        assert_eq!(s2.last_chain().min(3) as u32 + 1, 4, "wire chain 4");
+        let high = audio_map::sfx_for_code(audio_map::CUE_WARDEN_EATEN, s2.last_chain())
+            .expect("warden sfx");
+        assert_eq!(high.from_hz, 3200.0, "top chain plays 3200 Hz, not 12800");
     }
 }
