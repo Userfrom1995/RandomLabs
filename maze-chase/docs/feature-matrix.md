@@ -59,10 +59,10 @@ otherwise.
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|
-| Windowed/fullscreen shared-renderer core | n/a (adapter) | n/a | done | n/a | render_menu/play layout tests, Xvfb `--probe` run |
-| Keyboard + gamepad input with remap | n/a (adapter) | n/a | done | n/a | winit_to_key, stick/button/padmap tests, PadBind capture tests |
-| Menus, settings, scores, audio controls | n/a (adapter) | n/a | done | n/a | screens flow tests, app session tests, rodio synth tests |
-| Per-OS packaging with reproducible steps | n/a (adapter) | n/a | done | n/a | linux tarball+install scripts, win/mac staging scripts, docs/desktop.md |
+| Windowed/fullscreen shared-renderer core | n/a (adapter) | n/a | done | n/a | `desktop::render::*` (layout, play determinism, small card, menu cursor) + `desktop::frame::*` + `desktop/tests/headless.rs` + `desktop/tests/tester_hostile.rs::tiny_and_zero_windows_draw_card` + Xvfb `--probe` PPM (`docs/desktop-probe.ppm`) |
+| Keyboard + gamepad input with remap | n/a (adapter) | n/a | done | n/a | `desktop::{input,gamepad,screens}::*` (winit map, stick deadzone, padmap, capture) + `desktop/tests/headless.rs` + `desktop/tests/tester_hostile.rs::corrupt_padmap_falls_back_to_defaults` |
+| Menus, settings, scores, audio controls | n/a (adapter) | n/a | done | n/a | `desktop::{screens,app,sound}::*` (flows, session, synth) + `desktop/tests/headless.rs` + `desktop/tests/tester_hostile.rs::corrupt_config_boots_with_defaults` + `::accumulator_drops_surplus` + `::wild_menu_cursors_never_panic` |
+| Per-OS packaging with reproducible steps | n/a (adapter) | n/a | done | n/a | `packaging/desktop/{linux-tarball,install-linux}.sh` (`bash -n` clean) + `windows-zip.ps1` + `macos-app.sh` + `maze-chase.desktop` + `docs/desktop.md` |
 
 ## WASM layer and hub (Phase 7 target: `crates/wasm`)
 

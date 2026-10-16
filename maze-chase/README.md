@@ -28,7 +28,8 @@ probe, 24-bit and 16-color cell tiers with watchdog auto-degrade, live
 resize with magnification, title/help/scores/settings/rebind/pause
 surfaces, machine high scores, and BEL-plus-ticker sound. Install and
 launch details live in [docs/terminal.md](docs/terminal.md). The desktop
-and browser layers are planned and tracked in the shared [feature matrix](docs/feature-matrix.md).
+game is covered in [docs/desktop.md](docs/desktop.md); the browser layer
+is planned and tracked in the shared [feature matrix](docs/feature-matrix.md).
 This README describes the whole product honestly; anything not yet built
 is marked planned.
 
