@@ -246,8 +246,17 @@ impl App {
         let Some(key) = crate::input::crossterm_to_key(ev) else {
             return;
         };
-        // Armed rebind capture eats the next key whole.
+        // Armed rebind capture eats the next key whole, except Back
+        // which cancels the armed capture (first press) instead of
+        // attempting a rebind that could never succeed.
         if self.screens.capture.is_some() && self.screens.current == ScreenId::Rebind {
+            if let Some(action) = crate::input::action_for_key(&self.keymap, key) {
+                if action == Action::Back {
+                    self.screens.capture = None;
+                    self.screens.capture_error = None;
+                    return;
+                }
+            }
             let event = self.screens.capture_key(&mut self.keymap, key);
             self.save_settings();
             self.apply_event(event);
@@ -295,7 +304,13 @@ impl App {
                         Dir::Right
                     };
                     self.screens.adjust(dir);
+                    // The edit lands in the screens working copy: commit
+                    // it to the live settings before previewing so volume
+                    // / mute changes give immediate audible feedback and
+                    // persist without waiting for Back.
+                    self.settings = self.screens.settings.clone();
                     self.sync_chime();
+                    self.save_settings();
                 } else {
                     let event = self.screens.press(action);
                     self.apply_event(event);
@@ -491,5 +506,46 @@ mod tests {
         assert_eq!(d.len(), 10);
         assert_eq!(&d[4..5], "-");
         assert!(d[0..4].parse::<i32>().unwrap() >= 2026);
+    }
+
+    #[test]
+    fn space_confirms_and_esc_cancels_rebind_capture() {
+        use maze_chase_config::Action;
+        let mut a = app();
+        // Space is a default Confirm key: it starts a run from the title.
+        a.on_key(key(KeyCode::Char(' ')));
+        assert_eq!(a.screens.current, ScreenId::Playing);
+        // Arm a rebind capture, then Esc cancels instead of failing.
+        a.screens.show(ScreenId::Rebind);
+        a.screens.capture = Some(Action::Pause);
+        a.on_key(key(KeyCode::Esc));
+        assert_eq!(a.screens.capture, None);
+        assert!(a.screens.capture_error.is_none());
+        assert_eq!(a.screens.current, ScreenId::Rebind);
+        // A second Back with nothing armed exits to Settings.
+        a.on_key(key(KeyCode::Esc));
+        assert_eq!(a.screens.current, ScreenId::Settings);
+    }
+
+    #[test]
+    fn settings_edits_sync_and_persist_live() {
+        let mut a = app();
+        for _ in 0..3 {
+            a.on_key(key(KeyCode::Down));
+        }
+        a.on_key(key(KeyCode::Enter));
+        assert_eq!(a.screens.current, ScreenId::Settings);
+        // Left/Right on Master commits to the live settings + chime.
+        a.screens.settings_row = 2;
+        let before = a.settings.master;
+        a.on_key(key(KeyCode::Right));
+        assert_eq!(a.settings.master, a.screens.settings.master);
+        assert_ne!(a.settings.master, before - 1.0);
+        // Mute toggle via Confirm commits immediately (not only on Back).
+        a.screens.settings_row = 5;
+        let muted = a.settings.mute;
+        a.on_key(key(KeyCode::Enter));
+        assert_eq!(a.settings.mute, !muted);
+        assert_eq!(a.screens.settings.mute, a.settings.mute);
     }
 }
