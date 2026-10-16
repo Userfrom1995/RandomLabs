@@ -81,6 +81,52 @@ pub const START_LIVES: i32 = 3;
 pub const DEATH_SEQUENCE_S: f32 = 1.4;
 /// Level-clear cinematics length, in seconds, before the next maze.
 pub const LEVEL_CLEAR_SEQUENCE_S: f32 = 2.0;
+/// Scatter/chase wave clock (Phase 3).
+///
+/// Six authored scatter/chase pairs in seconds, then a chase-hold that
+/// never expires. Early scatter legs are shaved 1 s per level above 1
+/// (floored at 1.0 s) so deep levels press sooner; chase legs never
+/// change. Values re-expressed as original Rust tables from the genre
+/// feel pinned in `docs/behavior-spec.md`, per `docs/legal.md`.
+pub const WAVE_TABLE: [(f32, f32); 6] = [
+    (7.0, 20.0),
+    (7.0, 20.0),
+    (5.0, 20.0),
+    (5.0, 20.0),
+    (3.0, 25.0),
+    (3.0, 25.0),
+];
+/// Per-level shave applied to scatter legs above level 1.
+pub const WAVE_SCATTER_SHAVE_PER_LEVEL: f32 = 1.0;
+/// Floor for a shaved scatter leg.
+pub const WAVE_SCATTER_MIN_S: f32 = 1.0;
+
+/// Late-level pursuer stages (Phase 3): crumbs remaining that enrage the
+/// leader, and his cruise multiplier at each stage. The second stage
+/// also pins the wave clock to chase (handled in `modes.rs`).
+pub const PURSUER_FIRST_AT: usize = 20;
+pub const PURSUER_FIRST_FRACTION: f32 = 1.03;
+pub const PURSUER_SECOND_AT: usize = 10;
+pub const PURSUER_SECOND_FRACTION: f32 = 1.06;
+
+/// Bonus relish schedule (Phase 3): dots-eaten counts per level that
+/// ripen a relish, its board lifetime, and its tile just below the
+/// gatehouse on the open row.
+pub const RELISH_SPAWN_AT: [usize; 2] = [70, 170];
+pub const RELISH_EXPIRE_S: f32 = 9.5;
+pub const RELISH_TILE: (i32, i32) = (13, 16);
+/// Relish tiers by level (index 0 is level 1), clamped at depth.
+pub const RELISH_TIERS: [u32; 9] = [100, 300, 500, 700, 1000, 1500, 2000, 3000, 5000];
+
+/// Extra mode rules (Phase 3, all authored for this project):
+/// time-attack clock, sprint par clock plus per-second bonus, and the
+/// fright-frenzy fright multiplier with its floor and ghost slowdown.
+pub const TIME_ATTACK_S: f32 = 120.0;
+pub const SPRINT_PAR_S: f32 = 300.0;
+pub const SPRINT_BONUS_PER_S: u32 = 10;
+pub const FRIGHT_FRENZY_MULT: f32 = 4.0;
+pub const FRIGHT_FRENZY_FLOOR_S: f32 = 1.0;
+pub const FRIGHT_FRENZY_GHOST_FRACTION: f32 = 0.9;
 /// Buffered-turn cornering assist window, in tiles.
 pub const TURN_WINDOW_TILES: f32 = 0.35;
 /// Pip-warden touch distance in tiles (same tile or within this radius).
@@ -99,6 +145,25 @@ pub fn player_speed(level: u32) -> f32 {
 /// Sunseed fright duration for a level, in seconds.
 pub fn fright_duration(level: u32) -> f32 {
     clamped(&FRIGHT_DURATION_CURVE, level)
+}
+
+/// Scatter leg length for wave `index` on `level`: base shaved 1 s per
+/// level above 1, floored at 1.0 s.
+pub fn wave_scatter(index: usize, level: u32) -> f32 {
+    assert!(level >= 1, "level must be >= 1");
+    let base = WAVE_TABLE[index].0;
+    (base - ((level - 1) as f32) * WAVE_SCATTER_SHAVE_PER_LEVEL).max(WAVE_SCATTER_MIN_S)
+}
+
+/// Chase leg length for wave `index` (never shaved).
+pub fn wave_chase(index: usize) -> f32 {
+    WAVE_TABLE[index].1
+}
+
+/// Relish tier value for a level, in points.
+pub fn relish_value(level: u32) -> u32 {
+    assert!(level >= 1, "level must be >= 1");
+    RELISH_TIERS[(core::cmp::min(level as usize, RELISH_TIERS.len())) - 1]
 }
 
 /// Per-warden gatehouse dot counters, easing to the floor on deep levels.
@@ -132,5 +197,23 @@ mod tests {
         assert_eq!(house_counters(1), [0, 3, 13, 28]);
         assert_eq!(house_counters(5), [0, 7, 17, 32]);
         assert_eq!(house_counters(99), [0, 7, 17, 32]);
+    }
+
+    #[test]
+    fn wave_scatter_shaves_and_floors() {
+        assert_eq!(wave_scatter(0, 1), 7.0);
+        assert_eq!(wave_chase(0), 20.0);
+        assert_eq!(wave_scatter(0, 2), 6.0);
+        assert_eq!(wave_scatter(2, 5), 1.0);
+        assert_eq!(wave_scatter(5, 9), 1.0);
+        assert_eq!(wave_chase(5), 25.0);
+    }
+
+    #[test]
+    fn relish_tiers_clamp_at_depth() {
+        assert_eq!(relish_value(1), 100);
+        assert_eq!(relish_value(5), 1000);
+        assert_eq!(relish_value(9), 5000);
+        assert_eq!(relish_value(99), 5000);
     }
 }

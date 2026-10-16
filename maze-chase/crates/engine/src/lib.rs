@@ -11,16 +11,21 @@
 //! WASM) map input to [`TickInput`] and render [`Game`] state plus events;
 //! any gameplay branch inside a layer crate is a blocking review finding.
 //!
-//! Phase 3 owns: the four authored warden personalities, the scatter/chase
-//! wave clock, fright flash staging, eyes that drift home, bonus relishes,
-//! difficulty pursuer stages, and extra mode rules. This phase ships a
-//! [`steering::WanderSteering`] baseline behind the [`steering::Steer`]
-//! trait so Phase 3 upgrades steering without touching the core loop.
+//! Phase 3 (shipped): the four authored warden personalities
+//! ([`personalities`]), the scatter/chase [`modes::WaveClock`] with
+//! reversals, eyes that drift home, bonus [`relish`]es, pursuer stages,
+//! and extra [`modes::GameMode`] rules. [`steering::WanderSteering`]
+//! remains as the tested deterministic baseline behind the
+//! [`steering::Steer`] trait; frightened wardens wander from their own
+//! seeded stream while personalities hunt.
 
 pub mod actors;
 pub mod game;
 pub mod ghosts;
 pub mod maze;
+pub mod modes;
+pub mod personalities;
+pub mod relish;
 pub mod replay;
 pub mod rng;
 pub mod sha256;

@@ -1,4 +1,4 @@
-//! `maze-chase-verify`: headless Phase 2 acceptance run.
+//! `maze-chase-verify`: headless Phase 2 + Phase 3 acceptance run.
 //!
 //! Prints one row per matrix check and exits non-zero on any failure:
 //! `cargo run -p maze-chase-engine --bin maze-chase-verify`.

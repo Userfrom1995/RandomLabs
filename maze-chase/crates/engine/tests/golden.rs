@@ -30,9 +30,17 @@ fn run(seed: u64, level: u32, ticks: usize) -> Game {
 #[test]
 fn golden_seed_777_level_1_1200_ticks() {
     let game = run(777, 1, 1200);
+    // Re-pinned in Phase 3 (issue #582): the simulation intentionally
+    // changed - personalities replaced wander steering, eaten wardens
+    // became pathing eyes, and the canonical string gained the mode
+    // clock, relish, and wave clock. Score (50) and liveness are
+    // unchanged; the old hash
+    // 6a401db306eea9631a544c3af42e485f66cf90da60d60dfb9b7100bd92edb181
+    // is retired with the wander baseline. Never re-pin blindly: this
+    // re-pin was investigated (replay converges, 19/19 verify green).
     assert_eq!(
         game.state_hash(),
-        "6a401db306eea9631a544c3af42e485f66cf90da60d60dfb9b7100bd92edb181"
+        "23c17f89734e1b083f5e656d68a21a56201181e9748c45c9648a61a18e5fd8b2"
     );
     assert_eq!(game.score, 50);
     assert!(game.running());
