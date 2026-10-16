@@ -80,7 +80,7 @@ fn committed_probe_screenshot_is_a_real_capture() {
     );
     let body = &bytes[header.len()..];
     let distinct: std::collections::HashSet<&[u8]> =
-        body.chunks_exact(3).step_by(997).take(2000).collect();
+        body.chunks(3).step_by(997).take(2000).collect();
     assert!(
         distinct.len() > 3,
         "probe capture must be a real multi-color composition, not a flat fill"
