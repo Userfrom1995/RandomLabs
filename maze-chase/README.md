@@ -7,23 +7,31 @@ project; the in-repo Python game (`pacman/`, issue #552) is a behavioral
 feel reference, never a code source. Clean-room rules live in
 `docs/legal.md`.
 
-Current status: **Phase 1 (research and legal foundations) is done; no
-playable build exists yet.** The engine (Phase 2), ghosts and progression
-(Phase 3), assets and identity system (Phase 4), and the three publication
-layers (Phases 5-7) are planned and tracked in the shared
+Current status: **Phase 2 (shared engine core) is done; no playable
+layer exists yet.** The deterministic engine simulates the full core loop
+headless (120 Hz timestep, movement with buffered turns and cornering,
+crumbs and sunseeds, fright windows with 200/400/800/1600 chains, spare
+wick, death/respawn, level flow, gatehouse counters with idle release,
+seeded streams, replay log, state hash, 12-row verify harness green).
+Ghost personalities and the wave clock (Phase 3), assets and identity
+system (Phase 4), and the three publication layers (Phases 5-7) are
+planned and tracked in the shared
 [feature matrix](docs/feature-matrix.md). This README describes the whole
 product honestly; anything not yet built is marked planned.
 
+Run the engine checks: `cargo test` and
+`cargo run --bin maze-chase-verify` inside `maze-chase/`.
+
 ## What this will be
 
-- **One engine** (`crates/engine`, Phase 2-3): fixed 120 Hz deterministic
-  simulation with seeded RNG streams, replay log, and state hash. Tile
-  movement with buffered turns, four warden personalities (Bram the leader,
-  Kessa the ambusher, Jory the flanker, Nib the lurker), scatter/chase
-  waves with reversals, sunseed fright with 200/400/800/1600 chains, eyes
-  that drift home, gatehouse dot counters with idle timeout, tunnel clamp,
-  late-level pursuer stages, crumb scoring with extra life, relish bonuses,
-  endless level ramp, and honest extra modes. Layers map input to
+- **One engine** (`crates/engine`, Phase 2 done): fixed 120 Hz
+  deterministic simulation with seeded RNG streams, replay log, and
+  state hash. Tile movement with buffered turns, four warden
+  slots with gatehouse counters (Bram the leader starts out; Kessa,
+  Jory, and Nib wait on crumbs or the idle timeout), wander steering
+  behind a trait that Phase 3 personalities will implement,
+  sunseed fright with 200/400/800/1600 chains, spare wick at 10,000,
+  endless level ramp. Layers map input to
   `TickInput` and render `Game` state plus `GameEvent`s; any gameplay
   branch in a layer crate is a blocking review finding.
 - **Terminal game** (`crates/terminal`, Phase 5): installable package with
@@ -62,8 +70,12 @@ escalated, never shipped on assumption.
 
 - `docs/` - unified product documentation (this phase's deliverable).
 - `index.html` - Pages hub and documentation entry point.
-- `crates/` - arrives in Phase 2 (workspace plus pure engine crate).
-- `levels/`, `assets/` - arrive with their authoring phases.
+- `crates/engine` - the deterministic simulation (this phase's core
+  deliverable): `tuning`, `maze`, `actors`, `steering`, `ghosts`,
+  `game`, `rng`, `sha256`, `replay`, `verify`, plus the
+  `maze-chase-verify` binary and golden tests.
+- `levels/ember-warren.maze` - the authored launch maze with its
+  authorship header and reachability proof, compiled into the engine.
 
 ## Verification
 

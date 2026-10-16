@@ -47,12 +47,16 @@ only these terms plus the cast names above.
 - #552 reference maze (28x31, symmetric, tunnel row 14, 282 crumbs plus 4
   sunseeds, gatehouse center): authored in-repo for `pacman/`; used here
   only as a feel and verification reference. NOT copied into this project.
-- Rust maze set (to be authored in Phase 2 under `maze-chase/levels/`):
-  fresh original layouts with per-file authorship notes (author, date,
-  design intent, symmetry choice, tunnel placement, gatehouse position).
-  Each level file records its crumb count and flood-fill reachability
-  proof. At least the launch maze must differ tile-by-tile from the #552
-  layout in multiple regions; the diff is reviewed, not assumed.
+- Rust launch maze "Ember Warren" (`maze-chase/levels/ember-warren.maze`,
+  authored 2026-10-16, Phase 2): 28x31, left-right symmetric, tunnel row
+  14, gatehouse center with door tiles at columns 13-14, 445 crumbs plus
+  4 corner sunseeds, flood fill from (13, 23) reaches all 449 pickups.
+  Differs tile-by-tile from the #552 reference in the top pillar rhythm,
+  the row-11 cross corridor, the gatehouse flanks, and the south-center
+  vault; only the functional anchors (dimensions, tunnel row, gatehouse
+  coordinates, start/mouth tiles) coincide, as the behavior spec demands.
+  Loaded at compile time via `include_str!` so the engine stays
+  dependency-free and WASM-safe.
 - Sprite and audio authorship (Phase 4) will append tool plus date per
   sheet and per bank to this log.
 
