@@ -59,10 +59,10 @@ otherwise.
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|
-| Windowed/fullscreen shared-renderer core | n/a (adapter) | n/a | planned | n/a | per-OS runner tests |
-| Keyboard + gamepad input with remap | n/a (adapter) | n/a | planned | n/a | input-mapping tests |
-| Menus, settings, scores, audio controls | n/a (adapter) | n/a | planned | n/a | flow tests |
-| Per-OS packaging with reproducible steps | n/a (adapter) | n/a | planned | n/a | install checks per OS |
+| Windowed/fullscreen shared-renderer core | n/a (adapter) | n/a | done | n/a | render_menu/play layout tests, Xvfb `--probe` run |
+| Keyboard + gamepad input with remap | n/a (adapter) | n/a | done | n/a | winit_to_key, stick/button/padmap tests, PadBind capture tests |
+| Menus, settings, scores, audio controls | n/a (adapter) | n/a | done | n/a | screens flow tests, app session tests, rodio synth tests |
+| Per-OS packaging with reproducible steps | n/a (adapter) | n/a | done | n/a | linux tarball+install scripts, win/mac staging scripts, docs/desktop.md |
 
 ## WASM layer and hub (Phase 7 target: `crates/wasm`)
 

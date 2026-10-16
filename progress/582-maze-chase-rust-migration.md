@@ -13,29 +13,32 @@
 - Phase 3: Ghost Intelligence Scoring and Progression: [x] four authored personalities plus scatter corners, [x] scatter/chase wave clock with reversals, [x] fright with flash plus chains plus eyes return, [x] house exits plus tunnel clamp plus pursuer stages, [x] bonus items plus difficulty ramp plus extra modes rules (PR 3 target, Refs #582)
 - Phase 4: Original Assets Audio and Identity System: [x] original sprites plus animations plus themes, [x] original sound effects plus music plus audio trait impls, [x] settings plus keymap plus persistence model, [x] Design Council pass with design.md plus tokens (PR 4 target, Refs #582)
 - Phase 5: Terminal Publication Layer: [x] fullscreen canvas layout plus scale engine, [x] Kitty plus Sixel plus Unicode backends with detection and watchdog, [x] dynamic resize with re-layout, [x] menus plus help plus scores plus settings screens, [x] installable package plus launch command plus docs (PR 5 target, Refs #582)
-- Phase 6: Desktop Publication Layer: [ ] windowed plus fullscreen GUI on one renderer core (renderer core DONE: `frame` plus `font` plus `render` in `crates/desktop`, 18 tests green), [ ] keyboard plus gamepad input with remap, [ ] menus plus settings plus scores plus audio controls, [ ] Windows plus macOS plus Linux packaging with reproducible steps (PR 6 target, Refs #582)
+- Phase 6: Desktop Publication Layer: [x] windowed plus fullscreen GUI on one renderer core, [x] keyboard plus gamepad input with remap, [x] menus plus settings plus scores plus audio controls, [x] Windows plus macOS plus Linux packaging with reproducible steps (PR 6 target, Refs #582)
 - Phase 7: WebAssembly Publication Layer and Web Hub: [ ] browser-playable WASM build on same renderer core, [ ] keyboard plus touch controls with mobile polish, [ ] DPR-aware resize plus web-audio unlock, [ ] maze-chase index.html hub with play entry plus per-layer docs (PR 7 target, Refs #582)
 - Final Phase: Packaging Verification and Release Audit: [ ] desktop packages plus terminal package plus WASM deploy shipped, [ ] engine plus per-layer E2E green (terminal sizes/capabilities, desktop OSes, browser keyboard/touch), [ ] reproducible build/release instructions, [ ] matrix plus scoreboard plus test results published, [ ] #552 retirement only after verified parity (Final PR, Closes #582)
 
 ## Current step
 
-Phase 6 chunk 1 on `opencode/issue582-maze-chase-phase-6` (Refs #582):
-`maze-chase/Cargo.toml` gains `crates/desktop`; new lib-only
-`maze-chase-desktop` 0.1.0 with `font` (original 5x7 face, 52 glyphs,
-pairwise-distinct test), `frame` (XRGB8888 software framebuffer: fill,
-scaled blits of the shared terminal raster, text, panels, all
-clip-safe), `render` (pure layout with integer board scale plus side
-HUD plus too-small card; `render_play` composes shared-raster board
-pixels with score/best/level/wicks/mode/fright/relish/game-over/fps
-HUD). Deps pinned after compile probes: winit 0.30 plus softbuffer
-0.4 (build with zero system headers), gilrs 0.11 plus rodio 0.20
-(build once `libasound2-dev`/`libudev-dev` are present; packaging
-docs will carry the apt note). Board pixels come from
-`maze_chase_terminal::raster` (same core as the Kitty/Sixel tiers),
-so desktop/terminal-bitmap/WASM-next pixels match by construction.
-Proof: 15 unit plus 3 headless integration green, fmt clean, zero new
-clippy warnings. Next chunks: window/input/sound, then
-screens/app/binary plus packaging plus docs.
+Phase 6 complete on `opencode/issue582-maze-chase-phase-6` (Refs #582):
+new lib-plus-binary `maze-chase-desktop` 0.1.0 (`font` original 5x7
+face; `frame` XRGB framebuffer with PPM screenshots; `render` pure
+layout plus play/menu composition over the shared terminal
+rasterizer; `input` winit physical-key mapping; `gamepad`
+stick/button/padmap mapping plus remap screens; `sound` deterministic
+PCM synth plus rodio backend with silent fallback; `screens`
+title/help/scores/settings/audio/rebinds/padbind/pause/over flow;
+`app` fixed-120 Hz session sharing the terminal settings/scores
+files; `window` winit plus softbuffer loop with resize/fullscreen;
+`cli` strict flags plus `--probe`; `main` binary),
+`packaging/desktop/` (XPM icon, .desktop entry, Linux tarball plus
+installer, Windows zip, macOS app scripts), `docs/desktop.md` launch
+guide, matrix desktop rows to `done`, README/hub status to playable,
+plus `ideas/2026-10-16-maze-chase-phase-6-desktop-layer.md`. No
+engine, assets, audio, or config file changed (verify 19/19 intact).
+Proof: 54 unit plus 3 headless integration green, workspace fully
+green, `--help`/strict-flags smoke, real Xvfb `--probe 90` window run
+(exit 0, 1100x760 title PPM verified pixel-counts), fmt clean, zero
+new clippy warnings. Ready for review.
 
 ## Prior step
 
