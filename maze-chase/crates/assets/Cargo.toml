@@ -1,0 +1,10 @@
+[package]
+name = "maze-chase-assets"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Original pixel-art glyphs, animation tables, and color themes for Maze Chase (zero dependencies)"
+
+[lib]
+name = "maze_chase_assets"
+path = "src/lib.rs"

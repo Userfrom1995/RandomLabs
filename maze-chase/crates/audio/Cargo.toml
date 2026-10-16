@@ -1,0 +1,10 @@
+[package]
+name = "maze-chase-audio"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Zero-dependency audio cues, original music/SFX data, and test sinks for Maze Chase"
+
+[lib]
+name = "maze_chase_audio"
+path = "src/lib.rs"
