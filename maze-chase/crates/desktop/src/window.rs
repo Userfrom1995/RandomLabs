@@ -95,6 +95,15 @@ impl Runner {
         self.last = now;
         self.app.poll_pad();
         self.app.tick(dt);
+        // The probe countdown runs per redraw request even when the
+        // frame cannot be presented, so a headless stall cannot hang
+        // `--probe` forever.
+        if self.probe_left.is_some() {
+            self.tick_probe();
+            if self.probe_left.is_none() {
+                return;
+            }
+        }
         let Some(frame) = self.app.render(self.size.0, self.size.1) else {
             return;
         };
@@ -111,7 +120,6 @@ impl Runner {
         buffer[..n].copy_from_slice(&frame.px[..n]);
         buffer.present().ok();
         self.last_frame = Some(frame);
-        self.tick_probe();
     }
 
     /// Bounded verification countdown: persist the last screenshot and
@@ -122,7 +130,26 @@ impl Runner {
         };
         if left <= 1 {
             if let Some(frame) = &self.last_frame {
-                let _ = std::fs::write(&path, frame.to_ppm());
+                if let Err(e) = std::fs::write(&path, frame.to_ppm()) {
+                    eprintln!("maze-chase-desktop: probe screenshot failed ({e})");
+                    std::process::exit(1);
+                }
+            } else {
+                // No frame was ever presented: render one headless shot
+                // so --probe still yields evidence instead of exit 0
+                // with no file.
+                match self.app.render(self.size.0, self.size.1) {
+                    Some(frame) => {
+                        if let Err(e) = std::fs::write(&path, frame.to_ppm()) {
+                            eprintln!("maze-chase-desktop: probe screenshot failed ({e})");
+                            std::process::exit(1);
+                        }
+                    }
+                    None => {
+                        eprintln!("maze-chase-desktop: probe could not render a frame");
+                        std::process::exit(1);
+                    }
+                }
             }
             self.probe_left = None;
             self.app.quit = true;
@@ -184,10 +211,6 @@ impl ApplicationHandler for Runner {
 /// Open the window and run the game. Returns the process exit code.
 /// `Err` (exit 1) when no display/backend exists.
 pub fn run(app: App, opts: Opts) -> i32 {
-    if opts.no_pad {
-        // Session owns PadPoll; flag it absent before the loop starts.
-        let _ = &app;
-    }
     let event_loop = match EventLoop::new() {
         Ok(el) => el,
         Err(_) => {
