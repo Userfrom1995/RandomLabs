@@ -27,6 +27,9 @@ impl Replay {
         let level = game.level;
         let mut wants = Vec::with_capacity(ticks);
         for i in 0..ticks {
+            if !game.running() {
+                break;
+            }
             let want = intents(i);
             game.step(1.0 / 120.0, want);
             wants.push(want);

@@ -151,6 +151,9 @@ impl Game {
     /// itself still integrates at f32 precision.
     pub fn step(&mut self, dt: f64, want: TickInput) -> Vec<String> {
         assert!(dt > 0.0, "dt must be positive");
+        if self.state == GameState::Over {
+            return self.take_events();
+        }
         if let Some(dir) = want {
             self.set_want(dir);
         }
@@ -166,6 +169,9 @@ impl Game {
     /// Advance exactly one fixed tick (120 Hz). Public for the verify
     /// harness and replays; layers should prefer `step`.
     pub fn tick(&mut self, dt: f32) {
+        if self.state == GameState::Over {
+            return;
+        }
         self.tick_count += 1;
         match self.state {
             GameState::Dying => {

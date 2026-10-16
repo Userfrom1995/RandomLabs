@@ -158,7 +158,10 @@ fn hostile_rng_zero_bound_rejected() {
 fn hostile_kill_player_outside_play_is_noop() {
     let mut game = Game::new(12, 1);
     game.kill_player();
-    assert!(!matches!(game.state, maze_chase_engine::game::GameState::Play));
+    assert!(!matches!(
+        game.state,
+        maze_chase_engine::game::GameState::Play
+    ));
     // Second kill during the death sequence must not corrupt the machine.
     game.kill_player();
     for _ in 0..400 {
@@ -167,7 +170,6 @@ fn hostile_kill_player_outside_play_is_noop() {
     // After the death beat the machine must have respawned or ended the run.
     assert!(matches!(
         game.state,
-        maze_chase_engine::game::GameState::Play
-            | maze_chase_engine::game::GameState::Over
+        maze_chase_engine::game::GameState::Play | maze_chase_engine::game::GameState::Over
     ));
 }
