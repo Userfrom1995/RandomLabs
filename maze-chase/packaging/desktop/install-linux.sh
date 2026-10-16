@@ -21,6 +21,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK="$HERE"
 if [ -n "$TARBALL" ]; then
   WORK="$(mktemp -d)"
+  trap 'rm -rf "$WORK"' EXIT
   tar -xzf "$TARBALL" -C "$WORK"
 fi
 
@@ -31,7 +32,6 @@ BIN="$WORK/maze-chase-desktop"
 
 mkdir -p "$PREFIX/bin" "$PREFIX/share/applications" "$PREFIX/share/icons/hicolor/11x11/apps" "$PREFIX/share/doc/maze-chase"
 
-BIN="$WORK/maze-chase-desktop"
 if [ ! -f "$BIN" ]; then
   echo "no maze-chase-desktop binary in $WORK (build first or pass --tarball)" >&2
   exit 1
