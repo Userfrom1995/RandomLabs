@@ -1,21 +1,21 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-16 run 38884275793 - owner /oc review + /oc maintainer on #585, review arm in flight, stand down**
+ - **Updated: 2026-10-16 run 38884970810 - owner /oc review + /oc maintainer on #585, Fixer repair received, fresh review arm queued, stand down**
 
 ## PRs & Issues
- - **PRs:** Open: #585 only (Phase 3 engine for #582, head 37c863ab, MERGEABLE/CLEAN, base main; body reads Refs #582). MERGED: #584 (Phase 2 engine core for #582, eval head 34b0eb95, merged 09:47:35Z as 0f9f0948 via --rebase, branch kept; Refs #582), #583 (Phase 1 docs for #582, eval head e3826248, merged 09:10:29Z as 58f60bc6 via --rebase, branch kept; Refs #582), #581 (Curator landing fix for #580, head f2cbb539, merged 03:47:01Z as 88c3f132 via --rebase, branch kept; Fixes #580), plus earlier.
- - **Issues:** Open: #582 (Rust-migration parent tracker, Phases 1-2 merged on main, Phase 3 in review via #585), #552 (Pac-Man terminal arcade; REOPENED, Wave 2 #579 merged with Refs only - closes ONLY on owner live-terminal confirmation; now also the gameplay reference for the Rust migration, removal-blocked until replacement verified), #70 lab-health, #42 brainstorm standing only.
- - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries, exact set match re-verified this run. No drift.
+ - **PRs:** Open: #585 only (Phase 3 engine for #582, head 2a4a7af5 post-Fixer 3 commits, MERGEABLE/CLEAN, base main; body reads Refs #582). MERGED: #584 (Phase 2 engine core for #582, eval head 34b0eb95, merged 09:47:35Z as 0f9f0948 via --rebase, branch kept; Refs #582), #583 (Phase 1 docs for #582, eval head e3826248, merged 09:10:29Z as 58f60bc6 via --rebase, branch kept; Refs #582), #581 (Curator landing fix for #580, head f2cbb539, merged 03:47:01Z as 88c3f132 via --rebase, branch kept; Fixes #580), plus earlier.
+ - **Issues:** Open: #582 (Rust-migration parent tracker, Phases 1-2 merged on main, Phase 3 in fresh review via #585), #552 (Pac-Man terminal arcade; REOPENED, Wave 2 #579 merged with Refs only - closes ONLY on owner live-terminal confirmation; now also the gameplay reference for the Rust migration, removal-blocked until replacement verified), #70 lab-health, #42 brainstorm standing only.
+ - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries, exact set match re-verified this run (20 live `name:` fields minus maintainer). No drift.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - #582 parent stays OPEN through all phases; Phase 3 (Ghost Intelligence, Scoring and Progression) landed as #585, in review.
+ - #582 parent stays OPEN through all phases; Phase 3 (Ghost Intelligence, Scoring and Progression) landed as #585, Fixer repair applied, in fresh review.
  - #552 awaits owner live-terminal confirmation AND now serves as migration reference; no removal of working functionality until replacement verified.
  - TEST-CRASH RULE (standing, mirrors eval-crash rule): a test run dying inside `Run opencode tester` with no decision file and no Tester comment carries zero signal - retry test once. A second CONSECUTIVE silent death on the same PR routes `lab` (possible runner/model health fault), never a third test. UNACQUIRED deaths do not count; one retry per cooldown window max.
  - Evaluator non-blocking follow-ups queued (not dispatched): Phase 2 eval residuals (tick dt assert, replay genesis precondition doc, second golden vector, hub nowrap/table polish, maze symmetry prose) plus #579 Evaluator residuals plus #578 Reviewer nits plus all prior #575 nits plus #575 Reviewer deep-audit notes plus stale pins, weak disjunction assertion in test_tester_remediation_gate.py:48, pre-existing `--levels 0` help fall-through, plus #573 Tester advisory (compute(inf) OverflowError xfail) plus #573 Evaluator advisories plus #574 Reviewer nits plus #574 Tester xfails plus #579 re-review advisory plus residual hardening notes. Future hardening vehicle, not a gate.
  - LAB OVERHAUL SUBSTANTIALLY COMPLETE: Phase 6 instructed run 38463786451 stood down with evidence; verified live in run 38463966490; NO third lab dispatch per anti-loop bar. Future infra needs a fresh scoped order, not a repeat Phase 6.
  - Pages: main tip 0f9f0948 (merge of #584); post-merge main Pages deploy VERIFIED success (run 38884277603, 10:00:06Z).
  - Write-permission denial count now 15 (latest on #585 linking success-concluded pull_request run 38884224652 - benign shape, watch only).
- - Prior-run APIError notes (watch, not findings): run 38807363402 and 38807603090 posted transient backend-overload shapes on 2026-10-15/16. A consecutive provider outage that blocks a gate arm routes lab (model fallback), not a single blip.
+ - Prior-run APIError notes (watch, not findings): run 38807340202 and 38807603090 posted transient backend-overload shapes on 2026-10-15/16. A consecutive provider outage that blocks a gate arm routes lab (model fallback), not a single blip.
  - Reviewer non-blocking note (carried, not a finding): PRs #564/#565 say "tracked on #42" but #42 is titled Brainstorm Board; precedent accepts the linkage, no diff impact.
  - Reviewer advisory (carried, from #567): 9-file/3-dir shape sits above the literal delegation section-2 file/dir count, so a future run of this shape may want a 3-line ledger; not blocking.
  - Reviewer advisory (carried, from #571): 2-dir touch literally meets the delegation-ledger threshold but no ledger present; trivial 2-line href swap, not a finding.
@@ -32,14 +32,14 @@
  - Evaluator follow-up VERIFIED live on main: `archive/prism/benchmarks/bench_vs_codecs.py:28` sys.path depth bug. Queued as future Builder/test-hardening vehicle.
  - Workflow warts logged (not yet lab-routed): (1) opencode.yml verify step counts ALL historical auto-retry comments; (2) verify-step branch pattern false-negatives on non-`opencode/issue<N>-*` names. Lab to assess on second consecutive trigger-step failure.
  - Standing-board close guard: #70 must never carry `Closes #70` in a PR body; merge as Refs only. (#42 same: Refs only.)
- - Evaluator non-blocking notes (do not gate, carried): DEC2026 SYNC vs ansi.py DCS form, cumulative event-log growth, PACMAN_RENDERER env unreachable from CLI, `--renderer auto` rejected, combined `--maze-check --self-check` drops self-check, progress tracker duplicated `## Next steps` heading, Kitty X/Y cell convention, unlabeled maze excerpt caption. Plus Phase 2 notes: Elroy stage-2 speed stacking (ghosts.py:264), notify_dots overflow drop (ghosts.py:151), clear-clobbers-dying race (game.py:149), Elroy-2 clock spin (ghosts.py:204). Plus Phase 4 notes: bare `level-clear` falls through while `level:N` plays the jingle at spawn (shell/app.py), `raw is None` EOF branch unreachable, per-frame preview Game on TITLE. Plus Phase 5 notes: `--levels 0` shows help exit 0, score/config writes lack tmp-file plus rename atomicity, `--modes` one-liners and `--levels` header lean jargony. Plus Final Phase advisory nits: non-clickable code-span cross-links, one `--fps up to 240` unit, footer lab voice; plus re-review nit: duplicate ShellState import (verify.py:144 and :172 as _ShellState).
+ - Evaluator non-blocking notes (do not gate, carried): DEC2026 SYNC vs ansi.py DCS form, cumulative event-log growth, PACMAN_RENDERER env unreachable from CLI, `--renderer auto` rejected, combined `--maze-check --self-check` drops self-check, progress tracker duplicated `## Next steps` heading, Kitty X/Y cell convention, unlabeled maze excerpt caption. Plus Phase 2 notes: Elroy stage-2 speed stacking (ghosts.py:264), notify_dots overflow drop (ghosts.py:151), clear-clobbers-dying race (game.py:149), Elroy-2 clock spin (ghosts.py:204). Plus Phase 4 notes: bare `level-clear` falls through while `level:N` plays the jingle at spawn (shell/app.py), `raw is None` EOF branch unreachable, per-frame preview Game on TITLE. Plus Phase 5 notes: `--levels 0` shows help exit 0, score/config writes lack tmp-file plus rename atomicity, `--modes` one-liners and `--levels` header lean jargon-y. Plus Final Phase advisory nits: non-clickable code-span cross-links, one `--fps up to 240` unit, footer lab voice; plus re-review nit: duplicate ShellState import (verify.py:144 and :172 as _ShellState).
  - Tester non-blocking note (carried from #572 approve-test, not a finding): `--levels 0` falls through to help (exit 0) because cli.py uses `if args.levels:` with default 0; pre-existing, untouched by remediation, out of scope.
  - TESTING-GAP LESSON (from the reopen): the 92-row verify matrix asserts headless row counts, never rendered frames - multi-cell magnifier text duplication passes green while looking shattered. The #552 Wave 2 Builder PR adds true-pty frame-capture regression tests so this class can never go green-while-broken again.
  - ARCHITECT BODY-CLOSE WART (resolved): Architect PR #583 body said `Closes #582` though the epic contract reserves Closes for the final verified release only. The Builder corrected it to `Refs #582` in-run.
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. Phase 3 #585 in review: on Reviewer approve, dispatch test; on Tester approve-test with no newer fix, dispatch eval; merge only on approve-eval with no newer fix. Full gate applies to engine work.
+2. Phase 3 #585 in fresh review on head 2a4a7af5 (Fixer touched production game.rs, so prior round is void): on Reviewer approve, dispatch test; on Tester approve-test with no newer fix, dispatch eval; merge only on approve-eval with no newer fix. Full gate applies to engine work.
 3. #582 stays OPEN through all phases; only the final release-audit PR may carry Closes #582.
 4. #552 closes ONLY on owner live-terminal confirmation - never auto-close on `Refs #552`; working code stays until Rust replacement verified.
 5. Future lab work needs a fresh scoped owner order; do NOT re-dispatch Phase 6 or the overhaul mandate without one.
@@ -52,7 +52,7 @@
 12. IP: any new Kratos/God of War order stays declined on binding grounds; original-duel path on confirmation only.
 
 ## OPEN QUESTIONS
- - Will Phase 3 (#585) pass the full Reviewer plus Tester plus Evaluator gate cleanly?
+ - Will Phase 3 (#585) pass the fresh review round on head 2a4a7af5 plus the full Tester plus Evaluator gate cleanly?
  - What sub-issue split does the blueprint recommend after Phase 1 merges (research, engine, ghost AI, assets/audio, terminal, desktop, WASM, packaging, testing, docs)?
  - Will the Owner confirm #552 complete on real terminals now that Wave 2 is merged?
  - After Phase 6 acceptance, is there any residual overhaul scope the owner still wants (or is the mandate closed)?
@@ -66,7 +66,7 @@
  - What caused the ~50-min agent-step death in eval run 37362541465?
  - What killed the Tester agent step in opencode-test run 38821322108 (exit 143 SIGTERM after ~5.5 min mid-stream) - runner preemption, step timeout, or provider drop?
  - Should the stale `opencode/lab-70-docs-sync` branch be deleted, or kept as archaeology?
- - Should the maintainer trigger poster re-checkout main after in-session merges before reading its own mapping?
+ - Should the maintainer trigger poster re-checkout main before reading its own mapping?
  - Opencode verify-step warts: (1) auto-retry counter per-attempt-window vs all-time? (2) branch pattern accepting `opencode/<issue>-*`?
  - What shape will the release pipeline take at publish time going forward?
  - What caused the 08:34-11:26Z schedule silence on 2026-09-29?
