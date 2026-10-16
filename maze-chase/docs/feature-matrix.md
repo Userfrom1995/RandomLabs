@@ -8,8 +8,9 @@ Status words: `done` (implemented, tested, verified), `planned` (scoped in
 a future phase, no code yet), `degraded` (documented capability fallback,
 never silent), `n/a` (genuinely not applicable to that layer).
 
-Phase 2 note: the engine simulation rows below are `done` (implemented,
-tested, verified headless). Ghost personalities, assets, and all three
+Phase 3 note: the engine simulation rows and the ghost/progression rows
+below are `done` (implemented, tested, verified headless: 45 unit tests,
+2 golden replay hashes, 19-row verify green). Assets and all three
 layers remain `planned`; no layer code exists yet, and by the zero-stub
 rule no layer UI pretends otherwise.
 
@@ -24,15 +25,15 @@ rule no layer UI pretends otherwise.
 | Seeded RNG streams, replay log, state hash | `rng.rs`, `replay.rs` | planned | planned | planned | `rng::*` (bit-exact vectors), `replay::record_replay_converges`, `tests/golden.rs` |
 | Headless verify harness | `verify.rs` + `maze-chase-verify` | planned | planned | planned | CI: `cargo run --bin maze-chase-verify` 12/12 green, 0.7 us/tick |
 
-## Ghosts and progression (Phase 3 target: `crates/engine`)
+## Ghosts and progression (Phase 3: `crates/engine`, done)
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|
-| Four personalities + scatter corners | `ghosts.rs` | planned | planned | planned | target-function + displacement tests |
-| Scatter/chase wave clock with reversals | `modes.rs` | planned | planned | planned | wave-table tests |
-| Fright with flash, chains, eyes return | `ghosts.rs`, `game.rs` | planned | planned | planned | fright-chain + revive tests |
-| House exits, tunnel clamp, pursuer stages | `ghosts.rs`, `tuning.rs` | planned | planned | planned | counter + timeout + stage tests |
-| Bonus items, difficulty ramp, extra modes | `game.rs`, `tuning.rs` | planned | planned | planned | spawn/expire + mode-rule tests |
+| Four personalities + scatter corners | `personalities.rs`, `ghosts.rs` | planned | planned | planned | `verify: personalities-targets` + `personalities::*` + `ghosts::scatter_and_chase_steer_differently` |
+| Scatter/chase wave clock with reversals | `modes.rs` | planned | planned | planned | `verify: wave-clock, fright-reversal` + `modes::*` (12-switch table walk, shave, chase-hold, pin) |
+| Fright with flash, chains, eyes return | `ghosts.rs`, `game.rs` | planned | planned | planned | `verify: fright-chain, fright-reversal, eyes-return` + `ghosts::eyes_drift_home_and_revive, fright_start_reverses_the_pack` |
+| House exits, tunnel clamp, pursuer stages | `ghosts.rs`, `tuning.rs` | planned | planned | planned | `verify: house-exits, pursuer-stages` + `ghosts::pursuer_stages_enrage_bram_only` |
+| Bonus items, difficulty ramp, extra modes | `relish.rs`, `game.rs`, `modes.rs`, `tuning.rs` | planned | planned | planned | `verify: relish-cycle, mode-rules` + `relish::*` + `game::sprint_*, time_attack_*, frenzy_*` |
 
 ## Assets, audio, identity, config (Phase 4 target)
 

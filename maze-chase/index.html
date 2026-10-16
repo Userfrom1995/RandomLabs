@@ -21,7 +21,7 @@
   <h1>Maze Chase (Rust)</h1>
   <p>An original maze-chase game in Rust: one deterministic engine with three full publication layers (terminal, desktop, browser). You are <strong>Pip</strong>, a hungry courier lantern; outrun the four wardens, clear every crumb, and turn the tables with a sunseed.</p>
 
-  <div class="status"><strong>Status: Phase 2 (shared engine core) complete.</strong> The deterministic engine simulates the full core loop headless: 23 unit tests, 2 golden replay hashes, and the 12-row <code>maze-chase-verify</code> harness all green. No playable layer exists yet: personalities, assets, and all three layers are planned and tracked in the <a href="docs/feature-matrix.md">feature matrix</a>. There is nothing to download or run in this phase, and this page offers no play button until the WASM layer ships in Phase 7.</div>
+  <div class="status"><strong>Status: Phase 3 (ghost intelligence, scoring, progression) complete.</strong> The deterministic engine simulates the full hunt headless: 45 unit tests, 2 golden replay hashes, and the 19-row <code>maze-chase-verify</code> harness all green. No playable layer exists yet: assets and all three layers are planned and tracked in the <a href="docs/feature-matrix.md">feature matrix</a>. There is nothing to download or run in this phase, and this page offers no play button until the WASM layer ships in Phase 7.</div>
 
   <h2>Cast</h2>
   <div class="cast"><table>
@@ -33,7 +33,7 @@
   </table></div>
 
   <h2>Layers (all planned)</h2>
-  <p>The engine they will share is done and verified headless (<code>cargo run --bin maze-chase-verify</code> inside <code>maze-chase/</code>). Warden personalities, the wave clock, and eyes arrive in Phase 3; until then the engine skates with a deterministic wander baseline behind a steering trait.</p>
+  <p>The engine they will share hunts headless and verified (<code>cargo run --bin maze-chase-verify</code> inside <code>maze-chase/</code>): four personalities on a reversing wave clock, pathing eyes, relishes, pursuer stages, and four mode rulesets. Original sprites, audio, and settings arrive in Phase 4 before any layer is built.</p>
   <ul>
     <li><strong>Terminal</strong>: installable package, fullscreen canvas, Kitty/Sixel/Unicode tiers with auto-degrade, dynamic resize.</li>
     <li><strong>Desktop</strong>: windowed plus fullscreen GUI on the shared renderer core, keyboard plus gamepad, per-OS packaging.</li>
@@ -50,7 +50,7 @@
   </ul>
   <p>Tracking issue: <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">#582</a>. The Python reference game (<a href="https://github.com/Userfrom1995/RandomLabs/issues/552">#552</a>) stays functional until this build proves verified parity. All code, mazes, art, audio, and tuning here are originals; see the clean-room log.</p>
 
-  <footer>Phase 2 deliverable: shared engine core plus verify harness. Personalities, assets, and layers arrive in later phases; every mechanic ships with test proof or stays marked planned.</footer>
+  <footer>Phase 3 deliverable: ghost intelligence, scoring chains, relishes, pursuer stages, and extra mode rules on the shared engine. Assets and layers arrive in later phases; every mechanic ships with test proof or stays marked planned.</footer>
 </main>
 </body>
 </html>
