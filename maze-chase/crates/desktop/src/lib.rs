@@ -23,4 +23,7 @@
 
 pub mod font;
 pub mod frame;
+pub mod gamepad;
+pub mod input;
 pub mod render;
+pub mod sound;
