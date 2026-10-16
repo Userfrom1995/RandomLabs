@@ -250,6 +250,11 @@ impl PadPoll {
         stick_to_dir(self.stick.0, self.stick.1)
     }
 
+    /// Mutable backend handle (session capture path only).
+    pub fn gilrs_mut(&mut self) -> Option<&mut Gilrs> {
+        self.gilrs.as_mut()
+    }
+
     /// Drain pending button presses/releases into pad events. Stick
     /// motion updates the cached deflection (read via [`stick_dir`]).
     pub fn drain(&mut self, map: &PadMap) -> Vec<PadEvent> {
