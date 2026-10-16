@@ -8,12 +8,14 @@
 
 use crate::actors::Dir;
 use crate::game::Game;
+use crate::modes::GameMode;
 
 /// One recorded run: header plus per-tick intents.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Replay {
     pub seed: u64,
     pub level: u32,
+    pub mode: GameMode,
     /// Per-tick heading intents (`None` = hold current heading).
     pub intents: Vec<Option<Dir>>,
 }
@@ -25,6 +27,7 @@ impl Replay {
     pub fn record(game: &mut Game, ticks: usize, intents: impl Fn(usize) -> Option<Dir>) -> Self {
         let seed = game.seed;
         let level = game.level;
+        let mode = game.mode;
         let mut wants = Vec::with_capacity(ticks);
         for i in 0..ticks {
             if !game.running() {
@@ -37,6 +40,7 @@ impl Replay {
         Self {
             seed,
             level,
+            mode,
             intents: wants,
         }
     }
@@ -45,7 +49,7 @@ impl Replay {
     /// Level-ups are deterministic functions of state, so a recording that
     /// spans a level transition still converges.
     pub fn replay_hash(&self) -> String {
-        let mut game = Game::new(self.seed, self.level);
+        let mut game = Game::with_mode(self.seed, self.level, self.mode);
         for &want in &self.intents {
             if !game.running() {
                 break;
