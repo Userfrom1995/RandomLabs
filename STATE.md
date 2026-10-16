@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-16 run 38920875524 - #590 MERGED as f1ecb537, #582 stays OPEN**
+ - **Updated: 2026-10-16 run 38945258021 - post-#590 standby, Pages deploy verified**
 
 ## PRs & Issues
  - **PRs:** Open: none (post-merge). MERGED: #590 (Final Phase Packaging Verification and Release Audit for #582, eval head 68b27b09, merged 15:04:40Z as f1ecb537 via --rebase, branch kept; Refs #582), #589 (Phase 7 WASM publication layer for #582, eval head 2446cf8e, merged 14:41:27Z as db71c63c via --rebase, branch kept; Refs #582), #588 (Phase 6 desktop publication layer for #582, eval head f7c77aa3, merged 13:17:10Z as 4db47100 via --rebase, branch kept; Refs #582), #587 (Phase 5 terminal publication layer for #582, eval head 5cf92e09, merged 11:58:47Z as c0ec926a via --rebase, branch kept; Refs #582), #586 (Phase 4 assets/audio/identity for #582, eval head 3877403e, merged 11:06:09Z as 316f9628 via --rebase, branch kept; Refs #582), #585 (Phase 3 engine for #582, eval head 6baa327c, merged 10:38:23Z as f245dbcb via --rebase, branch kept; Refs #582), #584 (Phase 2 engine core for #582, eval head 34b0eb95, merged 09:47:35Z as 0f9f0948 via --rebase, branch kept; Refs #582), #583 (Phase 1 docs for #582, eval head e3826248, merged 09:10:29Z as 58f60bc6 via --rebase, branch kept; Refs #582), #581 (Curator landing fix for #580, head f2cbb539, merged 03:47:01Z as 88c3f132 via --rebase, branch kept; Fixes #580), plus earlier.
@@ -14,7 +14,7 @@
  - TEST-CRASH RULE (standing, mirrors eval-crash rule): a test run dying inside `Run opencode tester` with no decision file and no Tester comment carries zero signal - retry test once. A second CONSECUTIVE silent death on the same PR routes `lab` (possible runner/model health fault), never a third test. UNACQUIRED deaths do not count; one retry per cooldown window max.
  - Evaluator non-blocking follow-ups queued (not dispatched): Phase 2 eval residuals plus #579 Evaluator residuals plus #578 Reviewer nits plus all prior #575 nits plus #575 Reviewer deep-audit notes plus stale pins, weak disjunction assertion in test_tester_remediation_gate.py:48, pre-existing `--levels 0` help fall-through, plus #573 Tester/ Evaluator advisories plus #574 Reviewer nits plus #574 Tester xfails plus #579 re-review advisory plus residual hardening notes, plus Phase 3 eval advisories, plus Phase 4 Reviewer/Evaluator advisories, plus Phase 5 Reviewer advisories plus Phase 5 eval advisories carried, plus re-eval advisories, plus Phase 6 Reviewer non-blocking nits (half-row guard fragility, frame.rs:109 sole unguarded prod index, app.rs NaN-dt poisoning) plus Phase 6 eval residuals (hub evalfix-count naming, desktop.md section depth, install-linux.sh bare---prefix set-u), all left for future hardening. (Phase 7 eval residuals were fixed in the repair: e2e README, docs/web.md 43-count; artifact-level mc_sfx_from(4)==3200 pin covered by the sfx-wire-arm invariant; only the index.html 42-count copy nit rides to future hardening.) Plus #590 eval advisories: wrap the hub code chip for small screens; explicit argc guard with usage for installer missing values; pin the Cargo.toml VERSION grep to the package stanza.
  - LAB OVERHAUL SUBSTANTIALLY COMPLETE: future infra needs a fresh scoped order, not a repeat Phase 6.
- - Pages: post-merge main Pages deploy verification after tip f1ecb537 moves to the next merge run (main tip f1ecb537 at merge).
+ - Pages: post-merge main Pages deploy VERIFIED this run (Deploy run succeeded 15:05:46Z at tip f1ecb537, after the #590 merge 15:04:40Z).
  - Write-permission denial count now 20 (latest on #590 at 14:51:54Z linking pull_request run 38919154389 - benign shape, watch only).
  - Prior-run APIError notes (watch, not findings): run 38807340202 and 38807603090 posted transient backend-overload shapes on 2026-10-15/16. A consecutive provider outage that blocks a gate arm routes lab (model fallback), not a single blip.
  - Infra routing guard stays active: any `.github/agents/` follow-up routes to Lab Engineer via `lab`, never `fix`/`continue`.
@@ -27,12 +27,11 @@
  - Standing-board close guard: #70 must never carry `Closes #70` in a PR body; merge as Refs only. (#42 same: Refs only.)
 
 ## NEXT-RUN PLAYBOOK
-1. Verify post-merge main Pages deploy succeeded after tip f1ecb537.
-2. #582 stays OPEN: it closes only on a later natively-proved phase (Windows/macOS native package plus E2E proof per parity.md open rows). Do NOT close #582 on the #590 merge; do NOT dispatch new build work on #582 without an owner order or a natively-proved phase vehicle.
-3. #552 closes ONLY on owner live-terminal confirmation - never auto-close on `Refs #552`; working code stays until Rust replacement verified.
-4. Future lab work needs a fresh scoped owner order; do NOT re-dispatch without one.
-5. Evaluator follow-ups plus all carried Reviewer/Tester/Evaluator advisory nits remain queued for a future hardening vehicle.
-6. Standing rule: standby on all other fronts (no auto-ideate).
+1. #582 stays OPEN: it closes only on a later natively-proved phase (Windows/macOS native package plus E2E proof per parity.md open rows). Do NOT close #582 on the #590 merge; do NOT dispatch new build work on #582 without an owner order or a natively-proved phase vehicle.
+2. #552 closes ONLY on owner live-terminal confirmation - never auto-close on `Refs #552`; working code stays until Rust replacement verified.
+3. Future lab work needs a fresh scoped owner order; do NOT re-dispatch without one.
+4. Evaluator follow-ups plus all carried Reviewer/Tester/Evaluator advisory nits remain queued for a future hardening vehicle.
+5. Standing rule: standby on all other fronts (no auto-ideate).
 
 ## OPEN QUESTIONS
  - What natively-proved vehicle closes #582 (Windows/macOS per-OS runner packaging plus E2E proof)?
