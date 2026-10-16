@@ -36,6 +36,21 @@ maze-chase-terminal --help            # all options
 Install it on `PATH` with `cargo install --path crates/terminal` from
 `maze-chase/`, then launch with `maze-chase-terminal` anywhere.
 
+Portable package (Unix, from the repo root): the tarball script builds
+the release binary and stages a versioned archive into
+`maze-chase/dist/` (never committed), and the installer unpacks it
+into a prefix with a `--version` probe at the end:
+
+```sh
+bash maze-chase/packaging/terminal/linux-tarball.sh
+bash maze-chase/packaging/terminal/install-linux.sh --tarball maze-chase/dist/maze-chase-terminal-0.1.0-linux-x86_64.tar.gz
+```
+
+The tarball name records the machine that built it; build one per
+release OS instead of relabeling. Windows installs via the
+`cargo install` line above. Full per-OS release steps live in
+[docs/release.md](release.md).
+
 ## Controls
 
 | Keys | Action |

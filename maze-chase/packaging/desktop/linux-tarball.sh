@@ -5,7 +5,8 @@
 # the binary, the .desktop entry, the XPM icon, and the launch docs.
 #
 # System needs (Debian/Ubuntu): sudo apt-get install libasound2-dev
-# (build-time ALSA headers for rodio) plus libxkbcommon0 and
+# libudev-dev (build-time ALSA headers for rodio, udev headers for
+# gamepad input) plus libxkbcommon0 and
 # libxkbcommon-x11-0 (winit runtime). No other system packages.
 set -euo pipefail
 

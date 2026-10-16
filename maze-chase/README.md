@@ -40,6 +40,10 @@ Play the terminal game: `cargo run --release -p maze-chase-terminal`.
 Play the desktop game: `cargo run --release -p maze-chase-desktop`.
 Play the browser game: serve `maze-chase/` over http and open `play.html`
 (browsers refuse `.wasm` over `file://`).
+Ship a release: follow `docs/release.md` (engine checks, layer builds,
+`packaging/terminal` and `packaging/desktop` scripts per OS, committed
+reproducible `.wasm`); measured results land in `docs/scoreboard.md`
+and the parity gate in `docs/parity.md`.
 
 ## What this will be
 
@@ -109,6 +113,13 @@ Play the browser game: serve `maze-chase/` over http and open `play.html`
   troubleshooting.
 - `docs/web.md` - browser install, launch, controls, canvas/audio,
   localStorage, reproducible `.wasm` builds, and troubleshooting.
+- `docs/release.md` - reproducible build and release guide: toolchain,
+  system libraries, layer builds, per-OS packaging matrix, and the
+  clean-checkout release checklist.
+- `docs/scoreboard.md` - measured release results: tick cost, suite
+  totals, E2E evidence, frame budgets, pending native-OS rows.
+- `docs/parity.md` - #552 parity checklist mapping every pinned
+  reference behavior to its engine table and verify row.
 
 ## Clean-room rule
 

@@ -10,11 +10,12 @@ by default), so both layers share configuration and the leaderboard.
 
 Rust 1.85+ with cargo. System needs:
 
-- **Linux**: `sudo apt-get install libasound2-dev` (build-time ALSA
-  headers for audio) plus `libxkbcommon0 libxkbcommon-x11-0` (winit
+- **Linux**: `sudo apt-get install libasound2-dev libudev-dev`
+  (build-time ALSA headers for audio, udev headers for gamepad
+  input) plus `libxkbcommon0 libxkbcommon-x11-0` (winit
   runtime for window creation and keyboard handling). Most desktop
-  distributions already ship the xkbcommon pair; the ALSA headers are
-  the one package a fresh build machine is likely missing.
+  distributions already ship the xkbcommon pair; the ALSA and udev
+  headers are the packages a fresh build machine is likely missing.
 - **Windows**: nothing beyond the Rust toolchain (WASAPI audio and
   Win32 windowing need no extra installs).
 - **macOS**: nothing beyond the Rust toolchain (CoreAudio and AppKit
