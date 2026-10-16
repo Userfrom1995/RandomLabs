@@ -165,13 +165,15 @@ impl App {
             ScreenId::Over => TuneId::None,
             _ => TuneId::Title,
         };
-        self.tune = tune;
-        self.audio.start_music(tune);
+        if tune != self.tune {
+            self.tune = tune;
+            self.audio.start_music(tune);
+        }
     }
 
     fn start_game(&mut self) {
         let p = preset(self.settings.difficulty);
-        self.seed_counter += 1;
+        self.seed_counter = self.seed_counter.wrapping_add(1);
         let seed = fresh_seed().wrapping_add(self.seed_counter);
         self.game = Game::with_mode(seed, p.start_level, p.mode);
         self.pending_dir = None;
@@ -310,6 +312,9 @@ impl App {
             }
             for b in raw {
                 self.on_pad_button(b);
+                if self.screens.pad_capture.is_none() {
+                    break;
+                }
             }
             return;
         }
@@ -376,6 +381,9 @@ impl App {
                     self.audio.play(cue);
                 }
             }
+        }
+        if steps == MAX_STEPS_PER_FRAME && self.acc >= FIXED_DT {
+            self.acc = 0.0;
         }
         self.apply_tune();
         if self.game.state == GameState::Over && self.was_running {
