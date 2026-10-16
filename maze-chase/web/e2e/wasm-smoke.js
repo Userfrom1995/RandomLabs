@@ -3,8 +3,11 @@
 const fs = require('fs');
 const path = require('path');
 // Usage: node web/e2e/wasm-smoke.js [path-to-wasm]
-// Defaults to the release artifact relative to maze-chase/.
-const wasmPath = process.argv[2] || path.join(__dirname, '..', '..', 'target', 'wasm32-unknown-unknown', 'release', 'maze_chase_web.wasm');
+// Defaults to the shipped web/maze-chase.wasm, falling back to the
+// release artifact relative to maze-chase/.
+const shipped = path.join(__dirname, '..', 'maze-chase.wasm');
+const built = path.join(__dirname, '..', '..', 'target', 'wasm32-unknown-unknown', 'release', 'maze_chase_web.wasm');
+const wasmPath = process.argv[2] || (fs.existsSync(shipped) ? shipped : built);
 const fail = (m) => { console.error('SMOKE FAIL:', m); process.exit(1); };
 if (!fs.existsSync(wasmPath)) fail('no wasm at ' + wasmPath + ' (build it first: see docs/web.md)');
 const bytes = fs.readFileSync(wasmPath);
