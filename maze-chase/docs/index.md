@@ -29,3 +29,11 @@ One cohesive product view; no milestone counters or sprint references.
   http, keyboard plus touch controls, DPR-aware canvas, WebAudio unlock,
   localStorage settings/scores, reproducible `.wasm` builds, and
   troubleshooting (browser layer).
+- [Reproducible build and release guide](release.md): toolchain plus
+  system libraries, engine checks, layer builds, the per-OS packaging
+  matrix, and the clean-checkout release checklist.
+- [Release scoreboard](scoreboard.md): measured tick cost, suite
+  totals, E2E results, frame budgets, and pending native-OS rows.
+- [#552 parity checklist](parity.md): every pinned reference behavior
+  mapped to its engine table and verify row, with the open native-OS
+  rows that keep #552 functional.

@@ -53,7 +53,7 @@ otherwise.
 | Kitty/Sixel/Unicode backends, detect, watchdog | n/a (adapter) | done | n/a | n/a | `terminal::{kitty,sixel,backend}::*` (PNG CRC walk, probe parse, tier ladder, override) + `tests/headless.rs::tier_override_selects_every_backend` |
 | Dynamic resize with re-layout | n/a (adapter) | done | n/a | n/a | `tests/headless.rs::resize_sweep_never_breaks_layout` (0..200 x 0..70 sweep) |
 | Menus, help, scores, settings screens | n/a (adapter) | done | n/a | n/a | `terminal::{screens,chrome,scores,chime}::*` + `tests/headless.rs::full_session_boots_plays_pauses_and_quits` + `settings_persist_across_sessions` + `game_over_lands_on_the_scores_table` |
-| Installable package + launch docs | n/a (adapter) | done | n/a | n/a | `cargo build --release -p maze-chase-terminal` + `--help` smoke + `docs/terminal.md` |
+| Installable package + launch docs | n/a (adapter) | done | n/a | n/a | `cargo build --release -p maze-chase-terminal` + `--help` smoke + `packaging/terminal/{linux-tarball,install-linux}.sh` (staged + installed + `--version`-probed on Linux) + `docs/terminal.md` |
 
 ## Desktop layer (Phase 6 target: `crates/desktop`)
 
@@ -73,14 +73,14 @@ otherwise.
 | DPR resize + web-audio unlock | n/a (adapter) | n/a | n/a | done | `web::video::*` (fit math incl. clip case, blit round-trip/letterbox) + `web::audio_map::*` (every engine event reaches SFX, loop, or sting; 132 BPM mirrored) + harness gesture unlock + volume/mute persistence (E2E boot clean; headless has no audio device, documented in `docs/web.md`) |
 | Pages hub with play + per-layer docs | docs/hub | n/a | n/a | done | `maze-chase/play.html` (Play entry from the hub, all six screens, favicon, offline-safe) + `docs/web.md` + `docs/index.md` entry + CDP DOM proof (title visible, panels sync from `mc_screen`) |
 
-## Cross-cutting (Final phase target)
+## Cross-cutting (release audit: done except native-OS proof)
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|
-| Per-layer E2E green | all | planned | planned | planned | E2E suites per layer |
-| Scoreboard (FPS, latency, parity) | all | planned | planned | planned | bench harness output |
-| Reproducible build/release instructions | docs | planned | planned | planned | clean-checkout rebuild |
-| #552 retirement only after verified parity | n/a | planned | planned | planned | parity checklist signed |
+| Per-layer E2E green | all | done | done | done | terminal headless (layout sweep, full session, resize) + desktop headless + Xvfb `--probe` PPM + node `wasm-smoke.js` + `tester-regression.js` + CDP `browser-e2e.js` 13/13 (all green on Linux; Windows/macOS native runs pending per-OS runners, see `docs/parity.md`) |
+| Scoreboard (tick cost, suites, budgets) | all | done | done | done | `docs/scoreboard.md`: `perf-headless` 0.8 us/tick, 344/344 `cargo test` green, node smokes green, budgets with measured anchors |
+| Reproducible build/release instructions | docs | done | done | done | `docs/release.md` (toolchain, system libraries, layer builds, packaging matrix, clean-checkout checklist) + `packaging/{terminal,desktop}/` scripts + committed byte-reproducible `web/maze-chase.wasm` |
+| #552 retirement only after verified parity | n/a | planned | planned | planned | `docs/parity.md`: every engine rule row signed against `behavior-spec.md` + 19/19 verify; native-OS package/E2E rows still open, so `pacman/` is untouched and #552 stays functional |
 
 ## Rules
 
