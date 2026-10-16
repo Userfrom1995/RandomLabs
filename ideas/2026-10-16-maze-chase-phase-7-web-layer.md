@@ -68,3 +68,14 @@ node smoke (zero imports, scoring, bit-identical frames, audio
 tables, hostile probes), CDP E2E (zero console errors, real input
 scoring 20 to 30, FPS 60 live, mobile board visible). No engine,
 assets, audio, or config file changed.
+
+## Delegation ledger
+
+- Session plus bridge units, input plus video plus scores plus
+  audio-map units, and play.html plus harness plus docs plus tracker
+  units implemented directly by the primary against the shipped
+  engine/assets/audio/config APIs (no subagent launch record survives
+  in the log for this phase); primary verified itself via the proof
+  above.
+- Skills note: only known skill customize-opencode covers opencode
+  config, not game code.
