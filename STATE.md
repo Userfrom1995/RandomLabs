@@ -1,14 +1,14 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-16 run 38911997993 - Phase 7 #589 in review**
+ - **Updated: 2026-10-16 run 38913370745 - Phase 7 #589 fix received, fresh review pending**
 
 ## PRs & Issues
- - **PRs:** Open: #589 (Phase 7 WASM publication layer for #582, head 2ff2f221, review arm opencode-review 38911996802 pending). MERGED: #588 (Phase 6 desktop publication layer for #582, eval head f7c77aa3, merged 13:17:10Z as 4db47100 via --rebase, branch kept; Refs #582), #587 (Phase 5 terminal publication layer for #582, eval head 5cf92e09, merged 11:58:47Z as c0ec926a via --rebase, branch kept; Refs #582), #586 (Phase 4 assets/audio/identity for #582, eval head 3877403e, merged 11:06:09Z as 316f9628 via --rebase, branch kept; Refs #582), #585 (Phase 3 engine for #582, eval head 6baa327c, merged 10:38:23Z as f245dbcb via --rebase, branch kept; Refs #582), #584 (Phase 2 engine core for #582, eval head 34b0eb95, merged 09:47:35Z as 0f9f0948 via --rebase, branch kept; Refs #582), #583 (Phase 1 docs for #582, eval head e3826248, merged 09:10:29Z as 58f60bc6 via --rebase, branch kept; Refs #582), #581 (Curator landing fix for #580, head f2cbb539, merged 03:47:01Z as 88c3f132 via --rebase, branch kept; Fixes #580), plus earlier.
- - **Issues:** Open: #582 (Rust-migration parent tracker, Phases 1-6 merged on main, Phase 7 in review on #589), #552 (Pac-Man terminal arcade; REOPENED, Wave 2 #579 merged with Refs only - closes ONLY on owner live-terminal confirmation; now also the gameplay reference for the Rust migration, removal-blocked until replacement verified), #70 lab-health, #42 brainstorm standing only.
+ - **PRs:** Open: #589 (Phase 7 WASM publication layer for #582, head 83c29e21 post-Fixer 3 commits, MERGEABLE/CLEAN, base main; body reads Refs #582). MERGED: #588 (Phase 6 desktop publication layer for #582, eval head f7c77aa3, merged 13:17:10Z as 4db47100 via --rebase, branch kept; Refs #582), #587 (Phase 5 terminal publication layer for #582, eval head 5cf92e09, merged 11:58:47Z as c0ec926a via --rebase, branch kept; Refs #582), #586 (Phase 4 assets/audio/identity for #582, eval head 3877403e, merged 11:06:09Z as 316f9628 via --rebase, branch kept; Refs #582), #585 (Phase 3 engine for #582, eval head 6baa327c, merged 10:38:23Z as f245dbcb via --rebase, branch kept; Refs #582), #584 (Phase 2 engine core for #582, eval head 34b0eb95, merged 09:47:35Z as 0f9f0948 via --rebase, branch kept; Refs #582), #583 (Phase 1 docs for #582, eval head e3826248, merged 09:10:29Z as 58f60bc6 via --rebase, branch kept; Refs #582), #581 (Curator landing fix for #580, head f2cbb539, merged 03:47:01Z as 88c3f132 via --rebase, branch kept; Fixes #580), plus earlier.
+ - **Issues:** Open: #582 (Rust-migration parent tracker, Phases 1-6 merged on main, Phase 7 in fresh review on #589), #552 (Pac-Man terminal arcade; REOPENED, Wave 2 #579 merged with Refs only - closes ONLY on owner live-terminal confirmation; now also the gameplay reference for the Rust migration, removal-blocked until replacement verified), #70 lab-health, #42 brainstorm standing only.
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries, exact set match re-verified this run. No drift.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v2 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - #589 Phase 7 (WebAssembly Publication Layer and Web Hub: zero-dep web crate with C-ABI bridge, play.html plus JS runtime, committed release WASM plus e2e harnesses, web docs plus hub Play entry) in Reviewer round on head 2ff2f221; full gate (Reviewer, then Tester, then Evaluator) applies; merge only on approve-eval with no newer fix.
+ - #589 Phase 7 (WebAssembly Publication Layer and Web Hub: zero-dep web crate with C-ABI bridge, play.html plus JS runtime, committed release WASM plus e2e harnesses, web docs plus hub Play entry) in fresh Reviewer round on Fixer head 83c29e21 (prior review on 2ff2f221 voided by production-code fix push per rebase-gate rule); full gate (Reviewer, then Tester, then Evaluator) applies; merge only on approve-eval with no newer fix.
  - #582 parent stays OPEN through all phases; only the final release-audit PR may carry Closes #582.
  - #552 awaits owner live-terminal confirmation AND serves as the migration reference; no removal of working functionality until replacement verified.
  - TEST-CRASH RULE (standing, mirrors eval-crash rule): a test run dying inside `Run opencode tester` with no decision file and no Tester comment carries zero signal - retry test once. A second CONSECUTIVE silent death on the same PR routes `lab` (possible runner/model health fault), never a third test. UNACQUIRED deaths do not count; one retry per cooldown window max.
@@ -27,7 +27,7 @@
  - Standing-board close guard: #70 must never carry `Closes #70` in a PR body; merge as Refs only. (#42 same: Refs only.)
 
 ## NEXT-RUN PLAYBOOK
-1. On Reviewer approve of #589 head 2ff2f221, dispatch test; on approve-test with no newer fix, dispatch eval; merge only on approve-eval with no newer fix.
+1. On Reviewer approve of #589 head 83c29e21, dispatch test; on approve-test with no newer fix, dispatch eval; merge only on approve-eval with no newer fix.
 2. Verify post-merge main Pages deploy succeeded after tip 4db47100.
 3. #552 closes ONLY on owner live-terminal confirmation - never auto-close on `Refs #552`; working code stays until Rust replacement verified.
 4. Future lab work needs a fresh scoped owner order; do NOT re-dispatch without one.
