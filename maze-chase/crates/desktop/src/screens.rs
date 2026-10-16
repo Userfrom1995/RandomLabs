@@ -205,20 +205,32 @@ impl Screens {
         };
     }
 
+    /// Clamp a stored cursor to a valid item index (stored cursors are
+    /// `pub` so out-of-range writes can never panic a `press` path).
+    fn clamp_idx(pos: usize, len: usize) -> usize {
+        if len == 0 {
+            0
+        } else {
+            pos.min(len - 1)
+        }
+    }
+
     /// Route one action through the current screen.
     pub fn press(&mut self, action: Action) -> Event {
         match self.current {
             ScreenId::Title => match action {
                 Action::Up => Self::move_cursor(&mut self.menu, MenuItem::ALL.len(), true),
                 Action::Down => Self::move_cursor(&mut self.menu, MenuItem::ALL.len(), false),
-                Action::Confirm => match MenuItem::ALL[self.menu] {
-                    MenuItem::Play => return Event::StartGame,
-                    MenuItem::Help => self.show(ScreenId::Help),
-                    MenuItem::Scores => self.show(ScreenId::Scores),
-                    MenuItem::Settings => self.show(ScreenId::Settings),
-                    MenuItem::Audio => self.show(ScreenId::Audio),
-                    MenuItem::Quit => return Event::Quit,
-                },
+                Action::Confirm => {
+                    match MenuItem::ALL[Self::clamp_idx(self.menu, MenuItem::ALL.len())] {
+                        MenuItem::Play => return Event::StartGame,
+                        MenuItem::Help => self.show(ScreenId::Help),
+                        MenuItem::Scores => self.show(ScreenId::Scores),
+                        MenuItem::Settings => self.show(ScreenId::Settings),
+                        MenuItem::Audio => self.show(ScreenId::Audio),
+                        MenuItem::Quit => return Event::Quit,
+                    }
+                }
                 Action::Back => return Event::Quit,
                 _ => {}
             },
@@ -239,7 +251,9 @@ impl Screens {
                 Action::Down => {
                     Self::move_cursor(&mut self.settings_row, SettingsRow::ALL.len(), false);
                 }
-                Action::Confirm => match SettingsRow::ALL[self.settings_row] {
+                Action::Confirm => match SettingsRow::ALL
+                    [Self::clamp_idx(self.settings_row, SettingsRow::ALL.len())]
+                {
                     SettingsRow::Keybinds => self.show(ScreenId::Rebind),
                     SettingsRow::Padbinds => self.show(ScreenId::PadBind),
                     SettingsRow::Back => {
@@ -257,14 +271,16 @@ impl Screens {
             ScreenId::Audio => match action {
                 Action::Up => Self::move_cursor(&mut self.audio_row, AudioRow::ALL.len(), true),
                 Action::Down => Self::move_cursor(&mut self.audio_row, AudioRow::ALL.len(), false),
-                Action::Confirm => match AudioRow::ALL[self.audio_row] {
-                    AudioRow::Mute => self.adjust_notify(),
-                    AudioRow::Back => {
-                        self.show(ScreenId::Title);
-                        return Event::SettingsCommitted;
+                Action::Confirm => {
+                    match AudioRow::ALL[Self::clamp_idx(self.audio_row, AudioRow::ALL.len())] {
+                        AudioRow::Mute => self.adjust_notify(),
+                        AudioRow::Back => {
+                            self.show(ScreenId::Title);
+                            return Event::SettingsCommitted;
+                        }
+                        _ => {}
                     }
-                    _ => {}
-                },
+                }
                 Action::Back => {
                     self.show(ScreenId::Title);
                     return Event::SettingsCommitted;
@@ -272,12 +288,22 @@ impl Screens {
                 _ => {}
             },
             ScreenId::Rebind => match action {
-                Action::Up => Self::move_cursor(&mut self.rebind_action, Action::ALL.len(), true),
+                Action::Up => {
+                    if self.capture.is_none() {
+                        Self::move_cursor(&mut self.rebind_action, Action::ALL.len(), true)
+                    }
+                }
                 Action::Down => {
-                    Self::move_cursor(&mut self.rebind_action, Action::ALL.len(), false)
+                    if self.capture.is_none() {
+                        Self::move_cursor(&mut self.rebind_action, Action::ALL.len(), false)
+                    }
                 }
                 Action::Confirm => {
-                    self.capture = Some(Action::ALL[self.rebind_action]);
+                    if self.capture.is_some() {
+                        return Event::None;
+                    }
+                    self.capture =
+                        Some(Action::ALL[Self::clamp_idx(self.rebind_action, Action::ALL.len())]);
                     self.capture_error = None;
                 }
                 Action::Back => {
@@ -288,13 +314,21 @@ impl Screens {
             },
             ScreenId::PadBind => match action {
                 Action::Up => {
-                    Self::move_cursor(&mut self.padbind_action, Action::ALL.len(), true);
+                    if self.pad_capture.is_none() {
+                        Self::move_cursor(&mut self.padbind_action, Action::ALL.len(), true);
+                    }
                 }
                 Action::Down => {
-                    Self::move_cursor(&mut self.padbind_action, Action::ALL.len(), false);
+                    if self.pad_capture.is_none() {
+                        Self::move_cursor(&mut self.padbind_action, Action::ALL.len(), false);
+                    }
                 }
                 Action::Confirm => {
-                    self.pad_capture = Some(Action::ALL[self.padbind_action]);
+                    if self.pad_capture.is_some() {
+                        return Event::None;
+                    }
+                    self.pad_capture =
+                        Some(Action::ALL[Self::clamp_idx(self.padbind_action, Action::ALL.len())]);
                     self.pad_capture_error = None;
                 }
                 Action::Back => {
@@ -314,13 +348,15 @@ impl Screens {
                 Action::Down => {
                     Self::move_cursor(&mut self.pause_menu, PauseItem::ALL.len(), false);
                 }
-                Action::Confirm => match PauseItem::ALL[self.pause_menu] {
-                    PauseItem::Resume => {
-                        self.show(ScreenId::Playing);
-                        return Event::ResumeGame;
+                Action::Confirm => {
+                    match PauseItem::ALL[Self::clamp_idx(self.pause_menu, PauseItem::ALL.len())] {
+                        PauseItem::Resume => {
+                            self.show(ScreenId::Playing);
+                            return Event::ResumeGame;
+                        }
+                        PauseItem::QuitToTitle => return Event::QuitToTitle,
                     }
-                    PauseItem::QuitToTitle => return Event::QuitToTitle,
-                },
+                }
                 Action::Back => {
                     self.show(ScreenId::Playing);
                     return Event::ResumeGame;
@@ -338,19 +374,24 @@ impl Screens {
     /// Toggle-style rows flip on Confirm (sliders go through `adjust`).
     fn adjust_notify(&mut self) {
         match self.current {
-            ScreenId::Settings => match SettingsRow::ALL[self.settings_row] {
-                SettingsRow::ReducedFlash => {
-                    self.settings.reduced_flash = !self.settings.reduced_flash;
+            ScreenId::Settings => {
+                match SettingsRow::ALL[Self::clamp_idx(self.settings_row, SettingsRow::ALL.len())] {
+                    SettingsRow::ReducedFlash => {
+                        self.settings.reduced_flash = !self.settings.reduced_flash;
+                    }
+                    SettingsRow::ShowFps => {
+                        let v = self.settings.show_fps;
+                        self.settings.show_fps = !v;
+                    }
+                    SettingsRow::Difficulty => self.cycle_difficulty(1),
+                    SettingsRow::Theme => self.cycle_theme(1),
+                    _ => {}
                 }
-                SettingsRow::ShowFps => {
-                    let v = self.settings.show_fps;
-                    self.settings.show_fps = !v;
-                }
-                SettingsRow::Difficulty => self.cycle_difficulty(1),
-                SettingsRow::Theme => self.cycle_theme(1),
-                _ => {}
-            },
-            ScreenId::Audio if AudioRow::ALL[self.audio_row] == AudioRow::Mute => {
+            }
+            ScreenId::Audio
+                if AudioRow::ALL[Self::clamp_idx(self.audio_row, AudioRow::ALL.len())]
+                    == AudioRow::Mute =>
+            {
                 self.settings.mute = !self.settings.mute;
             }
             _ => {}
@@ -361,14 +402,16 @@ impl Screens {
     pub fn adjust(&mut self, left: bool) {
         let step = if left { -1 } else { 1 };
         match self.current {
-            ScreenId::Settings => match SettingsRow::ALL[self.settings_row] {
-                SettingsRow::Difficulty => self.cycle_difficulty(step),
-                SettingsRow::Theme => self.cycle_theme(step),
-                _ => {}
-            },
+            ScreenId::Settings => {
+                match SettingsRow::ALL[Self::clamp_idx(self.settings_row, SettingsRow::ALL.len())] {
+                    SettingsRow::Difficulty => self.cycle_difficulty(step),
+                    SettingsRow::Theme => self.cycle_theme(step),
+                    _ => {}
+                }
+            }
             ScreenId::Audio => {
                 let delta = if left { -0.1 } else { 0.1 };
-                match AudioRow::ALL[self.audio_row] {
+                match AudioRow::ALL[Self::clamp_idx(self.audio_row, AudioRow::ALL.len())] {
                     AudioRow::Master => {
                         self.settings.master = clamp01(self.settings.master + delta)
                     }
