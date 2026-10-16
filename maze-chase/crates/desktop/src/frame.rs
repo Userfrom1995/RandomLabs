@@ -10,6 +10,9 @@ use crate::font;
 use maze_chase_assets::themes::Rgb;
 use maze_chase_terminal::raster::PixelFrame;
 
+/// Maximum framebuffer allocation in pixels (4096x4096 cap: no huge alloc).
+pub const MAX_PIXELS: u64 = 16_777_216;
+
 /// Pack an [`Rgb`] into one `0x00RRGGBB` word.
 pub fn pack(c: Rgb) -> u32 {
     ((c.0 as u32) << 16) | ((c.1 as u32) << 8) | (c.2 as u32)
@@ -30,7 +33,7 @@ impl Frame {
             return None;
         }
         let n = (w as u64) * (h as u64);
-        if n > 16_777_216 {
+        if n > MAX_PIXELS {
             return None;
         }
         Some(Self {
@@ -76,6 +79,7 @@ impl Frame {
         if w == 0 || h == 0 || t == 0 {
             return;
         }
+        let t = t.min(w).min(h);
         let (w, h) = (w as i32, h as i32);
         let t = t as i32;
         self.rect(x, y, w as u32, t as u32, c);

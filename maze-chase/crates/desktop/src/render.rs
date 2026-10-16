@@ -389,14 +389,12 @@ pub fn render_menu(
         f.text_centered(&row, cx, y, 2, color, None);
         y += font::LINE as i32 * 2 + 4;
     }
-    f.border(
-        PAD,
-        PAD,
-        w - PAD as u32 * 2,
-        h - PAD as u32 * 2,
-        2,
-        theme.wall_inner,
-    );
+    let bw = w.saturating_sub(PAD as u32 * 2);
+    let bh = h.saturating_sub(PAD as u32 * 2);
+    if bw == 0 || bh == 0 {
+        return Some(f);
+    }
+    f.border(PAD, PAD, bw, bh, 2, theme.wall_inner);
     f.text_centered(
         footer,
         cx,
