@@ -3,5 +3,20 @@
 version = 4
 
 [[package]]
+name = "maze-chase-assets"
+version = "0.1.0"
+
+[[package]]
+name = "maze-chase-audio"
+version = "0.1.0"
+
+[[package]]
+name = "maze-chase-config"
+version = "0.1.0"
+dependencies = [
+ "maze-chase-engine",
+]
+
+[[package]]
 name = "maze-chase-engine"
 version = "0.3.0"
