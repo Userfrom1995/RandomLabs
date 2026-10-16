@@ -1,20 +1,20 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-16 run 38876868391 - owner ordered Rust migration as dedicated parent-tracked project; creating parent issue this run**
+ - **Updated: 2026-10-16 run 38877146314 - parent issue #582 confirmed live; dispatching Architect on it this run**
 
 ## PRs & Issues
  - **PRs:** Open: none (post-merge). MERGED: #581 (Curator landing fix for #580, head f2cbb539, merged 03:47:01Z as 88c3f132 via --rebase, branch kept; Fixes #580), #579 (Pac-Man Wave 2 for #552, eval-fix head 206a42d2, merged 23:45:54Z as 340f055a via --rebase, branch kept; Refs #552), #578 (Phase 4 for #552, head b24f8426, merged 22:18:56Z, branch kept; Closes #552), #575 (Phase 3, head 65225d66, merged 21:34:53Z, branch kept; Refs #552), #577 (Curator README Active sync, head cb779556, merged 21:13:01Z, branch kept; Fixes #576), #574 (Phase 2, head d1bcc53e, merged 20:43:41Z, branch kept; Refs #552), #573 (Phase 1, head 51b87ee, merged 19:50:48Z, branch kept; Refs #552), #572 (remediation, head af67ea82, merged 15:47:17Z, branch kept; Refs #552), #571 (Curator docs nav hrefs, head 7fdc22f6, merged 03:51:16Z, branch kept; Fixes #570), plus earlier. CLOSED (not merged): #555 (superseded), #547.
- - **Issues:** Open: #552 (Pac-Man terminal arcade; REOPENED, Wave 2 #579 merged with Refs only - closes ONLY on owner live-terminal confirmation; now also the gameplay reference for the Rust migration, removal-blocked until replacement verified), #70 lab-health, #42 brainstorm standing only, plus NEW parent issue for the Rust migration (created this run, number assigned by the hardcoded step; UNTRIAGED until the next run routes it). Closed: #580 (via #581 merge 03:47:01Z), #576 (via #577), #570 (via #571), plus earlier.
+ - **Issues:** Open: #582 (Rust-migration parent tracker, created 08:57:21Z by run 38876868391; UNTRIAGED at survey - zero comments - routed to Architect THIS run), #552 (Pac-Man terminal arcade; REOPENED, Wave 2 #579 merged with Refs only - closes ONLY on owner live-terminal confirmation; now also the gameplay reference for the Rust migration, removal-blocked until replacement verified), #70 lab-health, #42 brainstorm standing only. Closed: #580 (via #581 merge 03:47:01Z), #576 (via #577), #570 (via #571), plus earlier.
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match re-verified this run (auditor, curator, ideate, Lab Engineer, opencode-eval, opencode-peros-test, opencode-pr-trigger, opencode-recover, opencode-review, opencode-test, opencode, pages, pet-release, poolduel-m1, poolduel-m10-soak, poolduel-m2, poolduel-m9, postformer-cpu-train, tor-cli). `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - Rust migration parent issue created this run (create_issue decision; number pending from hardcoded step). Next run: sweep will find it UNTRIAGED and route Architect (Phase Epic roadmap in progress/, semantic phase names) before any Builder work, per the epic-intake rule; sub-issues (research, architecture, engine, mechanics, ghost AI, assets/audio, terminal, desktop, WASM, packaging, testing, docs) follow from the blueprint.
+ - #582 routed to Architect this run (epic-intake rule: >7-feature multi-component project gets the Phase Epic roadmap in progress/ with semantic phase names before any Builder work). Next run: confirm `/oc architect` landed on #582; thereafter sub-issues plus phased builds through the full gate.
  - #552 awaits owner live-terminal confirmation AND now serves as migration reference; no removal of working functionality until replacement verified.
  - TEST-CRASH RULE (standing, mirrors eval-crash rule): a test run dying inside `Run opencode tester` with no decision file and no Tester comment carries zero signal - retry test once. A second CONSECUTIVE silent death on the same PR routes `lab` (possible runner/model health fault), never a third test. UNACQUIRED deaths do not count; one retry per cooldown window max.
  - Evaluator non-blocking follow-ups queued (not dispatched): #579 Evaluator residuals plus #578 Reviewer nits plus all prior #575 nits plus #575 Reviewer deep-audit notes plus stale pins, weak disjunction assertion in test_tester_remediation_gate.py:48, pre-existing `--levels 0` help fall-through, plus #573 Tester advisory (compute(inf) OverflowError xfail) plus #573 Evaluator advisories plus #574 Reviewer nits plus #574 Tester xfails plus #579 re-review advisory plus residual hardening notes. Future hardening vehicle, not a gate.
  - LAB OVERHAUL SUBSTANTIALLY COMPLETE: Phase 6 instructed run 38463786451 stood down with evidence; verified live in run 38463966490; NO third lab dispatch per anti-loop bar. Future infra needs a fresh scoped order, not a repeat Phase 6.
  - Pages: main tip 88c3f132 (merge of #581); post-merge main Pages deploy VERIFIED success (run 38847323061, 03:48:09Z).
- - First failure-conclusion run of the prior day: opencode-test 38821322108 (failure, 23:04:34Z issue_comment fan-out, agent-step SIGTERM, triaged + retried; retry succeeded). Zero failure/timed_out in this run's survey window besides expected skipped/cancelled fan-out.
+ - First failure-conclusion run of the prior day: opencode-test 38821322108 (failure, 23:04:34Z issue_comment fan-out, agent-step SIGTERM, triaged + retried; retry succeeded). Zero failure/timed_out in this run's survey window.
  - Write-permission denial note (watch, not a finding): 12th occurrence counting the `github-actions[bot]` comment on #581 at 03:41:57Z linking run 38846772522 (concluded success path, same benign actor-gate/CLI-assert skip shape). A consecutive occurrence WITH a failure conclusion routes lab.
  - Prior-run APIError notes (watch, not findings): run 38807363402 and 38807603090 posted transient backend-overload shapes on 2026-10-15/16. A consecutive provider outage that blocks a gate arm routes lab (model fallback), not a single blip.
  - Reviewer non-blocking note (carried, not a finding): PRs #564/#565 say "tracked on #42" but #42 is titled Brainstorm Board; precedent accepts the linkage, no diff impact.
@@ -40,7 +40,7 @@
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. New Rust-migration parent issue is UNTRIAGED until routed: next run dispatches Architect (Phase Epic roadmap in progress/) - never direct-to-Builder on a >7-feature epic.
+2. Confirm `/oc architect` landed on #582; if the Architect delivered the Phase Epic roadmap in progress/, route sub-issue creation plus phased builds through the full gate (research first where algorithmic depth warrants, else build).
 3. #552 closes ONLY on owner live-terminal confirmation - never auto-close on `Refs #552`; working code stays until Rust replacement verified.
 4. Future lab work needs a fresh scoped owner order; do NOT re-dispatch Phase 6 or the overhaul mandate without one.
 5. Error-dump wart: overhaul substantially complete; do NOT auto-queue a separate 8th lab mandate without owner direction.
@@ -52,8 +52,7 @@
 11. IP: any new Kratos/God of War order stays declined on binding grounds; original-duel path on confirmation only.
 
 ## OPEN QUESTIONS
- - Will the create_issue hardcoded step report the new Rust-migration parent number so the next run can route Architect on it?
- - After the parent lands, what sub-issue split does the Architect recommend (research, engine, ghost AI, assets/audio, terminal, desktop, WASM, packaging, testing, docs)?
+ - Did the `/oc architect` trigger land on #582 via the hardcoded step, and what sub-issue split does the blueprint recommend (research, engine, ghost AI, assets/audio, terminal, desktop, WASM, packaging, testing, docs)?
  - Will the Owner confirm #552 complete on real terminals now that Wave 2 is merged?
  - After Phase 6 acceptance, is there any residual overhaul scope the owner still wants (or is the mandate closed)?
  - Are the PR-preview pages failures a systematic defect on PR refs or platform blips?
