@@ -178,6 +178,19 @@ impl Frame {
     pub fn count(&self, c: Rgb) -> usize {
         self.count_packed(pack(c))
     }
+
+    /// Encode the frame as binary PPM (`P6`) bytes: a 3-line header plus
+    /// row-major RGB triplets. Used by `--probe` screenshots and tests.
+    pub fn to_ppm(&self) -> Vec<u8> {
+        let mut out = format!("P6\n{} {}\n255\n", self.w, self.h).into_bytes();
+        out.reserve((self.w as usize) * (self.h as usize) * 3);
+        for &px in &self.px {
+            out.push((px >> 16) as u8);
+            out.push((px >> 8) as u8);
+            out.push(px as u8);
+        }
+        out
+    }
 }
 
 #[cfg(test)]
@@ -246,8 +259,18 @@ mod tests {
     }
 
     #[test]
-    fn border_and_rect_stay_inside() {
-        let mut f = Frame::blank(10, 10, BG).unwrap();
+    fn ppm_encodes_header_and_rgb_triplets() {
+        let mut f = Frame::blank(2, 1, BG).unwrap();
+        f.set(0, 0, Rgb(255, 0, 0));
+        f.set(1, 0, Rgb(0, 255, 0));
+        let ppm = f.to_ppm();
+        let header = format!("P6\n2 1\n255\n");
+        assert!(ppm.starts_with(header.as_bytes()));
+        assert_eq!(&ppm[header.len()..], &[255, 0, 0, 0, 255, 0]);
+    }
+
+    #[test]
+    fn border_and_rect_stay_inside() {        let mut f = Frame::blank(10, 10, BG).unwrap();
         f.rect(-2, -2, 6, 6, FG);
         assert!(f.count(FG) > 0 && f.count(FG) < 36);
         let mut g = Frame::blank(10, 10, BG).unwrap();

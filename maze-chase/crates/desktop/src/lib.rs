@@ -21,6 +21,8 @@
 //! rodio audio, screens, and the binary arrive as later modules in this
 //! phase; each lands with its own tests.
 
+pub mod app;
+pub mod cli;
 pub mod font;
 pub mod frame;
 pub mod gamepad;
@@ -28,3 +30,4 @@ pub mod input;
 pub mod render;
 pub mod screens;
 pub mod sound;
+pub mod window;
