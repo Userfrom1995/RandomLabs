@@ -105,6 +105,12 @@ xvfb-run -a maze-chase-desktop --no-pad --probe 90 /tmp/shot.ppm
 ```
 
 CI and per-OS runners use this to prove the window path end to end.
+A committed sample from that pipeline ships in this repo
+(`docs/desktop-probe.ppm`: P6 binary PPM, 1100x760, 2508016 bytes,
+captured with `xvfb-run -a maze-chase-desktop --no-pad --probe 30`);
+open it with any image viewer (`xdg-open
+maze-chase/docs/desktop-probe.ppm` on Linux) to preview the title
+frame without building.
 The 5x7 HUD face, the framebuffer, the board rasterizer, input
 mapping, pad parsing, the synth, and the screens all carry unit tests
 (`cargo test -p maze-chase-desktop`); `tests/headless.rs` replays a

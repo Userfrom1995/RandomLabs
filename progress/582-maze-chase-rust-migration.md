@@ -35,7 +35,8 @@ installer, Windows zip, macOS app scripts), `docs/desktop.md` launch
 guide, matrix desktop rows to `done`, README/hub status to playable,
 plus `ideas/2026-10-16-maze-chase-phase-6-desktop-layer.md`. No
 engine, assets, audio, or config file changed (verify 19/19 intact).
-Proof: 54 unit plus 3 headless integration green, workspace fully
+Proof: 55 unit plus 3 headless plus 8 hostile regression green (66 desktop
+tests total), workspace fully
 green, `--help`/strict-flags smoke, real Xvfb `--probe 90` window run
 (exit 0, 1100x760 title PPM verified pixel-counts), fmt clean, zero
 new clippy warnings. Ready for review.
@@ -125,6 +126,8 @@ flood-fill proof in header), `tests/golden.rs` (pinned hashes),
 - Every merge leaves repo and workflows green
 
 ## Agent log
+
+- 2026-10-16 (fixer): applied the 8 Evaluator gaps on `opencode/issue582-maze-chase-phase-6` (README stale desktop-planned sentence; hub counts to 55 unit + 3 headless + 8 hostile; committed `docs/desktop-probe.ppm` from a live Xvfb `--probe 30` run with desktop.md/index.html references; matrix desktop proof column names test files; render_menu y-budget truncation plus overflow test; fright test hardened to a `start_fright` deterministic fixture; docs/index.md gains terminal/desktop guides; .desktop gains TryExec plus StartupWMClass). Proof: 55 unit + 3 headless + 8 hostile green, verify 19/19, fmt clean, zero desktop clippy warnings (6 engine warnings pre-exist). Delegation ledger: no subagents (eight small surgical edits the primary applied directly against the quoted findings; only known skill customize-opencode covers opencode config, not game code). - the Fixer
 
 - 2026-10-16 (fixer): applied the Phase 6 review findings on `opencode/issue582-maze-chase-phase-6` (install-linux.sh local fallback plus tmpdir trap; apply_tune change guard; accumulator surplus drop; render_menu/frame border small-window guards; screens index clamping plus capture cursor freeze; SFX sink play plus dead-code cleanup; probe error propagation plus per-redraw countdown; stick reset on disconnect; pad-capture single-button break; lib.rs comment; headless independence assert on pixels; tracker branch/phase; hub Layers sentence). Proof: desktop unit plus headless suites green, workspace build green, fmt clean. Delegation ledger: no subagents (nine small surgical edits the primary applied directly file-by-file against the quoted findings; only known skill customize-opencode covers opencode config, not game code). - the Fixer
 
