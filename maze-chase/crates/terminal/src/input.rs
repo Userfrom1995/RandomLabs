@@ -28,6 +28,7 @@ pub fn crossterm_to_key(ev: KeyEvent) -> Option<Key> {
         KeyCode::Char('d') | KeyCode::Char('D') => Some(Key::D),
         KeyCode::Char('p') | KeyCode::Char('P') => Some(Key::P),
         KeyCode::Char('m') | KeyCode::Char('M') => Some(Key::M),
+        KeyCode::Char(' ') => Some(Key::Space),
         KeyCode::Char(c) => Key::parse(&c.to_string()),
         KeyCode::Enter => Some(Key::Enter),
         KeyCode::Esc => Some(Key::Escape),
@@ -130,5 +131,14 @@ mod tests {
         let action = action_for_key(&map, Key::Char('x'));
         assert_eq!(action, Some(Action::Pause));
         assert_eq!(dir_for_action(Action::Pause), None);
+    }
+
+    #[test]
+    fn space_confirms_menus() {
+        // `Key::parse(" ")` rejects whitespace, so the space bar needs an
+        // explicit map: Space is a default Confirm key.
+        assert_eq!(crossterm_to_key(key(KeyCode::Char(' '))), Some(Key::Space));
+        let map = Keymap::defaults();
+        assert_eq!(action_for_key(&map, Key::Space), Some(Action::Confirm));
     }
 }
