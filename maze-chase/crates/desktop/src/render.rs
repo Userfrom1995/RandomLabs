@@ -338,3 +338,109 @@ mod tests {
         }
     }
 }
+
+/// One menu row: text plus cursor highlight.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct MenuLine {
+    pub text: String,
+    pub cursor: bool,
+}
+
+impl MenuLine {
+    pub fn plain(text: &str) -> Self {
+        Self {
+            text: text.to_string(),
+            cursor: false,
+        }
+    }
+    pub fn at(text: &str, cursor: bool) -> Self {
+        Self {
+            text: text.to_string(),
+            cursor,
+        }
+    }
+}
+
+/// Compose a centered menu frame: big title, rows with a `>` cursor in
+/// the accent color, footer hint at the bottom. Pure and total.
+pub fn render_menu(
+    title: &str,
+    lines: &[MenuLine],
+    footer: &str,
+    theme: &Theme,
+    w: u32,
+    h: u32,
+) -> Option<Frame> {
+    let mut f = Frame::blank(w, h, theme.bg)?;
+    let cx = w as i32 / 2;
+    f.text_centered(title, cx, PAD * 2, 4, theme.accent, None);
+    let mut y = PAD * 2 + font::text_height(1, 4) as i32 + PAD;
+    for line in lines {
+        let row = if line.cursor {
+            format!("> {}", line.text)
+        } else {
+            format!("  {}", line.text)
+        };
+        let color = if line.cursor {
+            theme.accent
+        } else {
+            theme.text
+        };
+        f.text_centered(&row, cx, y, 2, color, None);
+        y += font::LINE as i32 * 2 + 4;
+    }
+    f.border(
+        PAD,
+        PAD,
+        w - PAD as u32 * 2,
+        h - PAD as u32 * 2,
+        2,
+        theme.wall_inner,
+    );
+    f.text_centered(
+        footer,
+        cx,
+        h as i32 - PAD - font::text_height(1, 1) as i32,
+        1,
+        theme.dim_text,
+        None,
+    );
+    Some(f)
+}
+
+#[cfg(test)]
+mod menu_tests {
+    use super::*;
+
+    fn theme() -> &'static Theme {
+        &maze_chase_assets::themes::EMBER_WARREN
+    }
+
+    #[test]
+    fn menu_frame_is_deterministic_with_cursor_accent() {
+        let lines = vec![
+            MenuLine::at("PLAY", true),
+            MenuLine::plain("HOW TO PLAY"),
+            MenuLine::plain("QUIT"),
+        ];
+        let a = render_menu("MAZE CHASE", &lines, "ARROWS + ENTER", theme(), 900, 700).unwrap();
+        let b = render_menu("MAZE CHASE", &lines, "ARROWS + ENTER", theme(), 900, 700).unwrap();
+        assert_eq!(a.px, b.px);
+        assert!(a.count(theme().accent) > 30);
+        assert!(a.count(theme().text) > 30);
+        let moved = vec![
+            MenuLine::plain("PLAY"),
+            MenuLine::at("HOW TO PLAY", true),
+            MenuLine::plain("QUIT"),
+        ];
+        let c = render_menu("MAZE CHASE", &moved, "ARROWS + ENTER", theme(), 900, 700).unwrap();
+        assert_ne!(a.px, c.px);
+    }
+
+    #[test]
+    fn menu_handles_empty_rows_and_tiny_windows() {
+        let f = render_menu("T", &[], "F", theme(), 900, 700).unwrap();
+        assert_eq!((f.w, f.h), (900, 700));
+        assert!(render_menu("T", &[], "F", theme(), 0, 0).is_none());
+    }
+}
