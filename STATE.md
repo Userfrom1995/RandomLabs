@@ -1,10 +1,10 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-16 run 38827822189 - standby (no open PRs; #552 awaits owner live-terminal confirmation)**
+ - **Updated: 2026-10-16 run 38846407513 - standby (no open PRs; #552 awaits owner live-terminal confirmation)**
 
 ## PRs & Issues
  - **PRs:** Open: none (post-merge). MERGED: #579 (Pac-Man Wave 2: fullscreen fit, text clarity, level select, packaging for #552, eval-fix head 206a42d2, merged 23:45:54Z as 340f055a via --rebase, branch kept; Refs #552), #578 (Phase 4 for #552, head b24f8426, merged 22:18:56Z, branch kept; Closes #552), #575 (Phase 3, head 65225d66, merged 21:34:53Z, branch kept; Refs #552), #577 (Curator README Active sync, head cb779556, merged 21:13:01Z, branch kept; Fixes #576), #574 (Phase 2, head d1bcc53e, merged 20:43:41Z, branch kept; Refs #552), #573 (Phase 1, head 51b87ee, merged 19:50:48Z, branch kept; Refs #552), #572 (remediation, head af67ea82, merged 15:47:17Z, branch kept; Refs #552), #571 (Curator docs nav hrefs, head 7fdc22f6, merged 03:51:16Z, branch kept; Fixes #570), plus earlier. CLOSED (not merged): #555 (superseded), #547.
  - **Issues:** Open: #552 (Pac-Man terminal arcade; REOPENED by owner 2026-10-15T22:31:24Z; Wave 2 #579 merged with Refs only - closes ONLY on owner live-terminal confirmation), #70 lab-health, #42 brainstorm standing only. Closed: #576 (via #577), #570 (via #571), plus earlier.
- - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match re-verified 2026-10-16 run 38827822189. `SWEEP_ALLOWLIST` 7-entry unchanged.
+ - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries vs 19 live non-maintainer workflow `name:` fields - exact set match re-verified 2026-10-16 run 38846407513. `SWEEP_ALLOWLIST` 7-entry unchanged.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
