@@ -316,26 +316,17 @@ mod tests {
 
     #[test]
     fn fright_banner_paints_fright_color() {
+        // Deterministic fixture: force fright directly instead of
+        // script-walking toward a sunseed (which may never arrive).
         let mut game = Game::new(11, 1);
-        // Drive toward a sunseed: eat everything on the left corridor.
-        for _ in 0..3000 {
-            if game.wardens.fright_active() {
-                break;
-            }
-            let dir = if game.tick_count.is_multiple_of(2) {
-                Some(Dir::Left)
-            } else {
-                Some(Dir::Up)
-            };
-            step(&mut game, dir);
-        }
+        game.wardens.start_fright(30.0);
+        assert!(game.wardens.fright_active());
         let f = render_play(&game, theme(), hud(), 1100, 760).unwrap();
-        if game.wardens.fright_active() {
-            assert!(f.count(theme().fright) > 30);
-        } else {
-            // No fright reached: banner absent, frame still valid.
-            assert_eq!((f.w, f.h), (1100, 760));
-        }
+        assert!(f.count(theme().fright) > 30);
+        // Banner cleared when fright is over: fresh game paints none
+        // of the banner path (frame still valid either way).
+        let fresh = render_play(&Game::new(11, 1), theme(), hud(), 1100, 760).unwrap();
+        assert_eq!((fresh.w, fresh.h), (1100, 760));
     }
 }
 
@@ -374,8 +365,16 @@ pub fn render_menu(
     let mut f = Frame::blank(w, h, theme.bg)?;
     let cx = w as i32 / 2;
     f.text_centered(title, cx, PAD * 2, 4, theme.accent, None);
+    // Vertical budget: rows stop before the footer line so a long menu
+    // on a short window truncates instead of painting over the footer
+    // (same windowed approach as the help scroll in `screens`).
+    let row_h = font::LINE as i32 * 2 + 4;
+    let footer_y = h as i32 - PAD - font::text_height(1, 1) as i32;
     let mut y = PAD * 2 + font::text_height(1, 4) as i32 + PAD;
     for line in lines {
+        if y + row_h / 2 > footer_y {
+            break;
+        }
         let row = if line.cursor {
             format!("> {}", line.text)
         } else {
@@ -440,5 +439,16 @@ mod menu_tests {
         let f = render_menu("T", &[], "F", theme(), 900, 700).unwrap();
         assert_eq!((f.w, f.h), (900, 700));
         assert!(render_menu("T", &[], "F", theme(), 0, 0).is_none());
+    }
+
+    #[test]
+    fn menu_truncates_rows_before_footer_on_short_windows() {
+        let lines: Vec<MenuLine> = (0..40)
+            .map(|i| MenuLine::plain(&format!("ROW {i}")))
+            .collect();
+        let f = render_menu("T", &lines, "FOOTER", theme(), 900, 200).unwrap();
+        assert_eq!((f.w, f.h), (900, 200));
+        // Footer row still paints in dim text; overflow rows are dropped.
+        assert!(f.count(theme().dim_text) > 0);
     }
 }
