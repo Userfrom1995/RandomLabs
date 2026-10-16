@@ -18,8 +18,7 @@
 //!   too-small card).
 //!
 //! Window presentation (winit + softbuffer), keyboard/gamepad input,
-//! rodio audio, screens, and the binary arrive as later modules in this
-//! phase; each lands with its own tests.
+//! rodio audio, screens, session, and the binary: each with its own tests.
 
 pub mod app;
 pub mod cli;

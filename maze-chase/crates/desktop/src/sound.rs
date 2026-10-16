@@ -101,9 +101,7 @@ pub fn render_tune(tune: Tune) -> Vec<f32> {
         for (i, s) in out.iter_mut().take(seam).enumerate() {
             *s *= i as f32 / seam as f32;
         }
-        let len = out.len();
         for (i, s) in out.iter_mut().rev().take(seam).enumerate() {
-            let _ = (len, i);
             *s *= i as f32 / seam as f32;
         }
     }
@@ -179,6 +177,7 @@ impl RodioSink {
         }
         let src = SamplesBuffer::new(1, RATE, samples);
         self.sfx.append(src);
+        self.sfx.play();
     }
 }
 

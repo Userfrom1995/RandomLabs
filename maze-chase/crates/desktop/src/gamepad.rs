@@ -283,7 +283,9 @@ impl PadPoll {
                 }
                 EventType::AxisChanged(Axis::LeftStickX, v, _) => self.stick.0 = v,
                 EventType::AxisChanged(Axis::LeftStickY, v, _) => self.stick.1 = v,
-                EventType::Connected | EventType::Disconnected => {}
+                EventType::Connected | EventType::Disconnected => {
+                    self.stick = (0.0, 0.0);
+                }
                 _ => {}
             }
         }
