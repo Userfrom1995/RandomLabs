@@ -1,14 +1,14 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-16 run 38886296562 - owner /oc review + 2x /oc maintainer on #585, Fixer eyes-BFS repair received, fresh review arm pending, stand down**
+ - **Updated: 2026-10-16 run 38886309522 - owner /oc test on #585, Reviewer approve landed on head 76b51e99, test arm in flight, stand down**
 
 ## PRs & Issues
- - **PRs:** Open: #585 only (Phase 3 engine for #582, head 76b51e99 post-Fixer eyes-BFS fix, MERGEABLE/CLEAN, base main; body reads Refs #582). MERGED: #584 (Phase 2 engine core for #582, eval head 34b0eb95, merged 09:47:35Z as 0f9f0948 via --rebase, branch kept; Refs #582), #583 (Phase 1 docs for #582, eval head e3826248, merged 09:10:29Z as 58f60bc6 via --rebase, branch kept; Refs #582), #581 (Curator landing fix for #580, head f2cbb539, merged 03:47:01Z as 88c3f132 via --rebase, branch kept; Fixes #580), plus earlier.
- - **Issues:** Open: #582 (Rust-migration parent tracker, Phases 1-2 merged on main, Phase 3 in fresh review via #585), #552 (Pac-Man terminal arcade; REOPENED, Wave 2 #579 merged with Refs only - closes ONLY on owner live-terminal confirmation; now also the gameplay reference for the Rust migration, removal-blocked until replacement verified), #70 lab-health, #42 brainstorm standing only.
+ - **PRs:** Open: #585 only (Phase 3 engine for #582, head 76b51e99 post-Fixer eyes-BFS fix, MERGEABLE/CLEAN, base main; body reads Refs #582; Reviewer approve on this head via run 38886281332). MERGED: #584 (Phase 2 engine core for #582, eval head 34b0eb95, merged 09:47:35Z as 0f9f0948 via --rebase, branch kept; Refs #582), #583 (Phase 1 docs for #582, eval head e3826248, merged 09:10:29Z as 58f60bc6 via --rebase, branch kept; Refs #582), #581 (Curator landing fix for #580, head f2cbb539, merged 03:47:01Z as 88c3f132 via --rebase, branch kept; Fixes #580), plus earlier.
+ - **Issues:** Open: #582 (Rust-migration parent tracker, Phases 1-2 merged on main, Phase 3 in test via #585), #552 (Pac-Man terminal arcade; REOPENED, Wave 2 #579 merged with Refs only - closes ONLY on owner live-terminal confirmation; now also the gameplay reference for the Rust migration, removal-blocked until replacement verified), #70 lab-health, #42 brainstorm standing only.
  - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries, exact set match re-verified this run (20 live `name:` fields minus maintainer). No drift.
  - Design v2 (Harbor Overlay System v2, 3-row drawer) supersedes v1 commentary on #532; PR #536 carried the spec + tokens, now on main.
 
 ## IN FLIGHT
- - #582 parent stays OPEN through all phases; Phase 3 (Ghost Intelligence, Scoring and Progression) landed as #585, Fixer eyes-BFS repair applied, in fresh review.
+ - #582 parent stays OPEN through all phases; Phase 3 (Ghost Intelligence, Scoring and Progression) landed as #585, Reviewer-approved on head 76b51e99, now in test (opencode-test 38886512791 in flight).
  - #552 awaits owner live-terminal confirmation AND now serves as migration reference; no removal of working functionality until replacement verified.
  - TEST-CRASH RULE (standing, mirrors eval-crash rule): a test run dying inside `Run opencode tester` with no decision file and no Tester comment carries zero signal - retry test once. A second CONSECUTIVE silent death on the same PR routes `lab` (possible runner/model health fault), never a third test. UNACQUIRED deaths do not count; one retry per cooldown window max.
  - Evaluator non-blocking follow-ups queued (not dispatched): Phase 2 eval residuals (tick dt assert, replay genesis precondition doc, second golden vector, hub nowrap/table polish, maze symmetry prose) plus #579 Evaluator residuals plus #578 Reviewer nits plus all prior #575 nits plus #575 Reviewer deep-audit notes plus stale pins, weak disjunction assertion in test_tester_remediation_gate.py:48, pre-existing `--levels 0` help fall-through, plus #573 Tester advisory (compute(inf) OverflowError xfail) plus #573 Evaluator advisories plus #574 Reviewer nits plus #574 Tester xfails plus #579 re-review advisory plus residual hardening notes. Future hardening vehicle, not a gate.
@@ -25,7 +25,7 @@
  - Orphan-main protection holds: merge-base with main verified non-empty (58f60bc6) before the #584 merge; post-merge tip 0f9f0948 confirmed via ls-remote.
  - Rebase-gate rule: a rebase or fix-push that rewrites a gated PR's head voids its gate; fresh review round required after each Fixer production-code push. Test-only Tester commits (single-file tests/, production untouched) do NOT void the review gate per precedent.
  - Eval-gate calibration note: surgical infra/docs/test-hardening fixes may merge on Reviewer approve + Tester approve-test; Evaluator binding gate stays mandatory for product/research/phase deliverables. #552 remediation and Phases 1-4 merged only after mandatory approve-eval. #577 was README-only (docs-class), so Reviewer + Tester sufficed. #581 was landing-text-only (docs-class), same bar - merged 03:47:01Z. #583 Phase 1 was docs/hub-only (docs-class), same bar - merged 09:10:29Z. #584 Phase 2 (engine code) required and passed the full gate including Evaluator (9.8/10).
- - Duplicate-review note: maintainer + owner near-simultaneous review dispatches settle via per-PR concurrency; stand down when a review arm is pending/in_progress. Same applies to eval arms, fix arms, and build arms.
+ - Duplicate-review note: maintainer + owner near-simultaneous review dispatches settle via per-PR concurrency; stand down when a review arm is pending/in_progress. Same applies to eval arms, fix arms, build arms, and test arms.
  - IP hold (standing): God of War Kratos vs Zeus commission declined twice on binding IP grounds; original mythic-duel alternative stands awaiting owner confirmation.
  - Error-dump wart status: 13th recurrence logged; escalation note posted to Owner via ping on #70 (run 37552237432). 8th lab mandate withheld per loop guard - awaiting Owner direction.
  - Comment-post flakiness wart: a `github-actions[bot]` comment on #553 at 12:23:43Z contains a raw GitHub Unicorn error HTML page - single occurrence so far, watch for recurrence, route lab on second consecutive trigger/comment-step failure.
@@ -39,7 +39,7 @@
 
 ## NEXT-RUN PLAYBOOK
 1. Trigger-list re-verify each run (BOTH allowlists; watch for new workflow drift).
-2. Phase 3 #585 in fresh review on head 76b51e99 (Fixer touched production ghosts.rs, so prior approve/test rounds are void): on Reviewer approve, dispatch test; on Tester approve-test with no newer fix, dispatch eval; merge only on approve-eval with no newer fix. Full gate applies to engine work.
+2. Phase 3 #585 approved on head 76b51e99 and in test (opencode-test 38886512791 in flight): on Tester approve-test with no newer fix, dispatch eval; merge only on approve-eval with no newer fix. Full gate applies to engine work.
 3. #582 stays OPEN through all phases; only the final release-audit PR may carry Closes #582.
 4. #552 closes ONLY on owner live-terminal confirmation - never auto-close on `Refs #552`; working code stays until Rust replacement verified.
 5. Future lab work needs a fresh scoped owner order; do NOT re-dispatch Phase 6 or the overhaul mandate without one.
@@ -52,7 +52,7 @@
 12. IP: any new Kratos/God of War order stays declined on binding grounds; original-duel path on confirmation only.
 
 ## OPEN QUESTIONS
- - Will Phase 3 (#585) pass the fresh review round on head 76b51e99 plus the full Tester plus Evaluator gate cleanly?
+ - Will Phase 3 (#585) pass the Tester plus Evaluator gate cleanly on head 76b51e99?
  - What sub-issue split does the blueprint recommend after Phase 1 merges (research, engine, ghost AI, assets/audio, terminal, desktop, WASM, packaging, testing, docs)?
  - Will the Owner confirm #552 complete on real terminals now that Wave 2 is merged?
  - After Phase 6 acceptance, is there any residual overhaul scope the owner still wants (or is the mandate closed)?
