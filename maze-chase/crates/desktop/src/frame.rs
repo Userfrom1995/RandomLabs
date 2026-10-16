@@ -264,13 +264,14 @@ mod tests {
         f.set(0, 0, Rgb(255, 0, 0));
         f.set(1, 0, Rgb(0, 255, 0));
         let ppm = f.to_ppm();
-        let header = format!("P6\n2 1\n255\n");
+        let header = "P6\n2 1\n255\n".to_string();
         assert!(ppm.starts_with(header.as_bytes()));
         assert_eq!(&ppm[header.len()..], &[255, 0, 0, 0, 255, 0]);
     }
 
     #[test]
-    fn border_and_rect_stay_inside() {        let mut f = Frame::blank(10, 10, BG).unwrap();
+    fn border_and_rect_stay_inside() {
+        let mut f = Frame::blank(10, 10, BG).unwrap();
         f.rect(-2, -2, 6, 6, FG);
         assert!(f.count(FG) > 0 && f.count(FG) < 36);
         let mut g = Frame::blank(10, 10, BG).unwrap();

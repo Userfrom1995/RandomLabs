@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Maze Chase
+GenericName=Maze-chase arcade game
+Comment=Outrun the wardens, clear every crumb, turn the hunt with a sunseed.
+Exec=maze-chase-desktop
+Icon=maze-chase
+Terminal=false
+Categories=Game;ArcadeGame;
+Keywords=maze;arcade;chase;
+StartupNotify=true

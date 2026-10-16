@@ -1,0 +1,21 @@
+/* XPM */
+/* Maze Chase desktop icon: Pip (half-open chomp) transcribed from the
+   original PIP_RIGHT_MID sprite glyph in crates/assets/src/sprites.rs.
+   `.` transparent, `#` lantern outline, `o` pip glow, `*` highlight. */
+static const char * maze_chase_xpm[] = {
+"11 11 4 1",
+". c None",
+"# c #3A2410",
+"o c #FFE182",
+"* c #FFFFFF",
+"....###....",
+"...##.##...",
+"....###....",
+"...#####...",
+".##ooooo##.",
+".#ooo*ooo#.",
+".#oo***o...",
+".#ooo*ooo#.",
+".##ooooo##.",
+"...#####...",
+"....###...."};

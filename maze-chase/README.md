@@ -7,8 +7,8 @@ project; the in-repo Python game (`pacman/`, issue #552) is a behavioral
 feel reference, never a code source. Clean-room rules live in
 `docs/legal.md`.
 
-Current status: **the terminal game is playable; desktop and browser
-layers are still planned.** The deterministic engine
+Current status: **the terminal and desktop games are playable; the
+browser layer is still planned.** The deterministic engine
 simulates the full core loop plus the complete hunt headless (120 Hz
 timestep, movement with buffered turns and cornering, crumbs and
 sunseeds, four authored personalities with scatter corners, scatter/chase
@@ -35,6 +35,7 @@ is marked planned.
 Run the checks: `cargo test` and
 `cargo run --bin maze-chase-verify` inside `maze-chase/`.
 Play the terminal game: `cargo run --release -p maze-chase-terminal`.
+Play the desktop game: `cargo run --release -p maze-chase-desktop`.
 
 ## What this will be
 
@@ -64,9 +65,14 @@ Play the terminal game: `cargo run --release -p maze-chase-terminal`.
   Kitty plus Sixel plus Unicode tiers with detection and auto-degrade
   watchdog, dynamic resize, title/help/scores/settings/key-rebind/pause
   surfaces, machine high scores, and BEL-plus-ticker sound.
-- **Desktop game** (`crates/desktop`, Phase 6): windowed plus fullscreen
-  GUI on the shared renderer core, keyboard plus gamepad input, menus and
-  audio controls, packaged per OS with reproducible steps.
+- **Desktop game** (`crates/desktop`, Phase 6 done, [launch docs](docs/desktop.md)): windowed plus fullscreen
+  GUI on the shared rasterizer core (board pixels identical to the
+  terminal bitmap tiers), keyboard plus gamepad input with duplicate-safe
+  remap screens, title/help/scores/settings/audio/keybinds/padbinds/pause
+  surfaces, machine high scores shared with the terminal game, rodio
+  synthesized effects and tunes with silent fallback, per-OS packaging
+  (Linux tarball plus installer, Windows zip, macOS app bundle), and a
+  `--probe` frame-run plus screenshot mode for display-free verification.
 - **Browser game** (`crates/wasm`, Phase 7): the same renderer compiled to
   WebAssembly, keyboard plus touch controls, DPR-aware resize, web-audio
   unlock, served from the Pages hub.
@@ -87,6 +93,9 @@ Play the terminal game: `cargo run --release -p maze-chase-terminal`.
   columns per layer, every row needing test proof.
 - `docs/terminal.md` - terminal install, launch, controls, render tiers,
   layout, settings/scores files, and troubleshooting.
+- `docs/desktop.md` - desktop install, launch, controls, gamepad,
+  settings/audio, per-OS packaging, `--probe` verification, and
+  troubleshooting.
 
 ## Clean-room rule
 
@@ -119,6 +128,14 @@ escalated, never shipped on assumption.
   BEL-plus-ticker audio (`chime`), menu/help/scores/settings/rebind
   flows (`screens`, `chrome`), the session on the shared engine (`app`),
   and the `maze-chase-terminal` binary (`main`).
+- `crates/desktop` - the native desktop game: windowed/fullscreen GUI
+  (`window` on winit plus softbuffer), session on the shared engine
+  (`app`), keyboard mapping (`input`), gamepad mapping plus remap
+  (`gamepad`), rodio synth backend (`sound`), menu flow (`screens`),
+  XRGB framebuffer plus original 5x7 face (`frame`, `font`), play and
+  menu composition over the shared rasterizer (`render`), strict CLI
+  plus `--probe` verification (`cli`), and the `maze-chase-desktop`
+  binary (`main`).
 
 ## Verification
 

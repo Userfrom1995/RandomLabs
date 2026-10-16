@@ -166,7 +166,11 @@ mod tests {
             other => panic!("expected Error, got {other:?}"),
         }
         for bad_count in ["0", "99999", "abc"] {
-            let words = vec!["--probe".to_string(), bad_count.to_string(), "x".to_string()];
+            let words = vec![
+                "--probe".to_string(),
+                bad_count.to_string(),
+                "x".to_string(),
+            ];
             match parse_args(&words) {
                 Cli::Error(msg) => assert!(msg.contains("frame count")),
                 other => panic!("expected Error, got {other:?}"),
