@@ -326,10 +326,14 @@
       if (ae0 && ae0.tagName === 'BUTTON') ae0.blur();
     }
     // Move keyboard focus to the new panel's primary button when focus was on body.
+    // preventScroll keeps the board in view: focusing must never yank the
+    // page away from the canvas on load or on small screens.
     var pid = SCREEN_PANELS[s];
     if (pid && (document.activeElement === document.body || document.activeElement === null)) {
       var prim = document.querySelector('#' + pid + ' [data-primary]');
-      if (prim) prim.focus();
+      if (prim && prim.focus) {
+        try { prim.focus({ preventScroll: true }); } catch (err) { prim.focus(); }
+      }
     }
   }
 

@@ -14,16 +14,31 @@
 - Phase 4: Original Assets Audio and Identity System: [x] original sprites plus animations plus themes, [x] original sound effects plus music plus audio trait impls, [x] settings plus keymap plus persistence model, [x] Design Council pass with design.md plus tokens (PR 4 target, Refs #582)
 - Phase 5: Terminal Publication Layer: [x] fullscreen canvas layout plus scale engine, [x] Kitty plus Sixel plus Unicode backends with detection and watchdog, [x] dynamic resize with re-layout, [x] menus plus help plus scores plus settings screens, [x] installable package plus launch command plus docs (PR 5 target, Refs #582)
 - Phase 6: Desktop Publication Layer: [x] windowed plus fullscreen GUI on one renderer core, [x] keyboard plus gamepad input with remap, [x] menus plus settings plus scores plus audio controls, [x] Windows plus macOS plus Linux packaging with reproducible steps (PR 6 target, Refs #582)
-- Phase 7: WebAssembly Publication Layer and Web Hub: [ ] browser-playable WASM build on same renderer core, [ ] keyboard plus touch controls with mobile polish, [ ] DPR-aware resize plus web-audio unlock, [ ] maze-chase index.html hub with play entry plus per-layer docs (PR 7 target, Refs #582)
+- Phase 7: WebAssembly Publication Layer and Web Hub: [x] browser-playable WASM build on same renderer core, [x] keyboard plus touch controls with mobile polish, [x] DPR-aware resize plus web-audio unlock, [x] maze-chase index.html hub with play entry plus per-layer docs (PR 7 target, Refs #582)
 - Final Phase: Packaging Verification and Release Audit: [ ] desktop packages plus terminal package plus WASM deploy shipped, [ ] engine plus per-layer E2E green (terminal sizes/capabilities, desktop OSes, browser keyboard/touch), [ ] reproducible build/release instructions, [ ] matrix plus scoreboard plus test results published, [ ] #552 retirement only after verified parity (Final PR, Closes #582)
 
 ## Current step
 
-Phase 7 in progress on `opencode/issue582-maze-chase-phase-7` (Refs #582):
-new `crates/web` 0.1.0 (`maze-chase-web`, zero external dependencies,
-C-ABI bridge, no wasm-bindgen) driving the shared engine with zero
-gameplay logic, plus the JS harness, play page, and hub entry. Scaffold
-pushed (workspace member, empty modules, native + wasm32 compile proof).
+Phase 7 complete on `opencode/issue582-maze-chase-phase-7` (Refs #582):
+new `crates/web` 0.1.0 (`maze-chase-web`, zero external deps, C-ABI
+bridge, no wasm-bindgen: `session` fixed-step flow plus screens plus
+steal rebinds, `input` keyboard/swipe maps, `video` RGBA composer
+mirroring the terminal raster, `scores` top-10, `audio_map` cue/SFX/
+tune tables, `bridge` total boundary), `play.html` plus
+`web/maze-chase.js` (canvas loop, DOM screens/HUD, WebAudio synth,
+swipe plus d-pad, localStorage, error card, favicon), committed
+`web/maze-chase.wasm` (release, 190 KB, zero imports, reproducible),
+durable `web/e2e/` (node smoke plus CDP browser E2E), `docs/web.md`
+launch guide, matrix WASM rows to `done`, README/hub status to
+all-playable with a Play button, plus
+`ideas/2026-10-16-maze-chase-phase-7-web-layer.md`. No engine, assets,
+audio, or config file changed (verify 19/19 intact).
+Proof: 42 web unit green, workspace fully green, node smoke green
+(zero imports, scoring, bit-identical frames, audio tables, hostile
+probes), CDP E2E green (zero console errors, real ArrowUp scoring
+20 to 30, P pause plus Resume, touch swipe, 390x844 board visible,
+FPS 60 live), fmt clean, zero new clippy warnings (6 pre-existing
+engine lints from clippy 1.99 untouched). Ready for review.
 
 Phase 6 complete on `opencode/issue582-maze-chase-phase-6` (Refs #582):
 new lib-plus-binary `maze-chase-desktop` 0.1.0 (`font` original 5x7

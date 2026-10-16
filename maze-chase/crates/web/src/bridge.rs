@@ -594,7 +594,7 @@ mod tests {
         assert_eq!(mc_goto(99), 0);
         assert_eq!(mc_key(999, 1), 0);
         assert_eq!(mc_swipe(f32::NAN, 0.0), 0);
-        assert_eq!(mc_rebind(99), 0 + 0, "cancel path returns armed-state 0");
+        assert_eq!(mc_rebind(99), 0, "cancel path returns armed-state 0");
         assert_eq!(mc_binding(99), 0);
         assert_eq!(mc_cue_tune(0), 0xFFFF_FFFF);
         assert_eq!(mc_sfx_wave(0), 0xFFFF_FFFF);

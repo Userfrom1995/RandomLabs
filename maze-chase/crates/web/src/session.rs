@@ -483,7 +483,7 @@ impl WebSession {
                 1
             }
             BTN_QUIT => {
-                self.to_title();
+                self.show_title();
                 1
             }
             BTN_THEME_NEXT => {
@@ -523,7 +523,7 @@ impl WebSession {
                 self.menu_return = Screen::Title;
             }
             if target == Screen::Title {
-                self.to_title();
+                self.show_title();
             } else {
                 self.screen = target;
                 self.push_cue(audio_map::CUE_UI_MOVE);
@@ -659,7 +659,7 @@ impl WebSession {
                 self.push_cue(audio_map::CUE_UI_SELECT);
             }
             Screen::Playing => self.toggle_pause(),
-            Screen::Over => self.to_title(),
+            Screen::Over => self.show_title(),
             Screen::Title => {}
         }
     }
@@ -682,7 +682,7 @@ impl WebSession {
         }
     }
 
-    fn to_title(&mut self) {
+    fn show_title(&mut self) {
         self.game = Game::with_mode(self.base_seed, 1, GameMode::Classic);
         self.pending = None;
         self.acc = 0.0;
