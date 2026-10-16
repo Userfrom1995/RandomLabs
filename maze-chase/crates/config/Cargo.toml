@@ -1,0 +1,13 @@
+[package]
+name = "maze-chase-config"
+version = "0.1.0"
+edition = "2021"
+description = "Layer-neutral settings, keymap, and persistence for Maze Chase (maps difficulty to shipped engine modes only)"
+license = "MIT"
+
+[lib]
+name = "maze_chase_config"
+path = "src/lib.rs"
+
+[dependencies]
+maze-chase-engine = { path = "../engine" }
