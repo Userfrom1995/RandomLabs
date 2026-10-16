@@ -198,7 +198,10 @@ pub fn load(text: &str) -> (Settings, Keymap, Vec<String>) {
                     }
                 }
             }
-            _ => problems.push(format!("line {}: unknown key {key:?}; ignoring", lineno + 1)),
+            _ => problems.push(format!(
+                "line {}: unknown key {key:?}; ignoring",
+                lineno + 1
+            )),
         }
     }
 
@@ -221,12 +224,18 @@ pub fn load_from(path: &Path) -> (Settings, Keymap, Vec<String>) {
         Err(e) if e.kind() == io::ErrorKind::NotFound => (
             Settings::default(),
             Keymap::defaults(),
-            vec![format!("notice: {} not found; using defaults", path.display())],
+            vec![format!(
+                "notice: {} not found; using defaults",
+                path.display()
+            )],
         ),
         Err(e) => (
             Settings::default(),
             Keymap::defaults(),
-            vec![format!("error: cannot read {} ({e}); using defaults", path.display())],
+            vec![format!(
+                "error: cannot read {} ({e}); using defaults",
+                path.display()
+            )],
         ),
     }
 }

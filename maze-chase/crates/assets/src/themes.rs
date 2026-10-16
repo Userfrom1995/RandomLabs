@@ -161,7 +161,11 @@ mod tests {
     fn text_contrast_readable() {
         for t in all() {
             let ratio = contrast_ratio(t.text, t.bg);
-            assert!(ratio >= 4.5, "theme {} text/bg contrast {ratio:.2} < 4.5", t.id);
+            assert!(
+                ratio >= 4.5,
+                "theme {} text/bg contrast {ratio:.2} < 4.5",
+                t.id
+            );
         }
     }
 
@@ -172,7 +176,11 @@ mod tests {
             for i in 0..wardens.len() {
                 for j in (i + 1)..wardens.len() {
                     let d = euclidean(wardens[i], wardens[j]);
-                    assert!(d >= 60.0, "theme {} wardens {i}/{j} too close: {d:.1}", t.id);
+                    assert!(
+                        d >= 60.0,
+                        "theme {} wardens {i}/{j} too close: {d:.1}",
+                        t.id
+                    );
                 }
             }
         }

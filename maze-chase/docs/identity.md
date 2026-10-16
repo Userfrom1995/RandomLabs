@@ -57,8 +57,18 @@ only these terms plus the cast names above.
   coordinates, start/mouth tiles) coincide, as the behavior spec demands.
   Loaded at compile time via `include_str!` so the engine stays
   dependency-free and WASM-safe.
-- Sprite and audio authorship (Phase 4) will append tool plus date per
-  sheet and per bank to this log.
+- Sprite and audio authorship (Phase 4, authored 2026-10-16, all
+  original hand-authored data in-repo, no external sources):
+  `crates/assets/src/sprites.rs` (Pip 11x11 three mouth phases with
+  transform-derived facings, four 11x11 wardens with the accents above,
+  5x5 eye pairs, fright mask plus hollow flash, crumb/sunseed frames,
+  six 7x7 relish icons: emberberry, sunplum, lanternpod, clockpepper,
+  harborfig, starmarrow), `crates/assets/src/themes.rs` (Ember Warren,
+  Abyss Lantern, Parchment Dawn, all WCAG 4.5+ text contrast),
+  `crates/audio/src/score.rs` (five original tunes plus four SFX
+  recipes, synthesized locally by layers, no audio files),
+  `docs/design.md` plus `docs/design-tokens.json` (visual language,
+  palette cross-checked by test).
 
 ## Brand marks
 

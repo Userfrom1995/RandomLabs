@@ -6,7 +6,7 @@
 //! [`tune_for_id`].
 
 use crate::cue::Cue;
-use crate::score::{FRIGHT_LOOP, TITLE_LOOP, Tune};
+use crate::score::{Tune, FRIGHT_LOOP, TITLE_LOOP};
 
 /// Looping music slot. `None` means silence.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -268,8 +268,8 @@ mod tests {
 
     #[test]
     fn tune_for_id_resolves_loops() {
-        assert_eq!(tune_for_id(TuneId::Title).unwrap().looped, true);
-        assert_eq!(tune_for_id(TuneId::Fright).unwrap().looped, true);
+        assert!(tune_for_id(TuneId::Title).unwrap().looped);
+        assert!(tune_for_id(TuneId::Fright).unwrap().looped);
         assert_eq!(tune_for_id(TuneId::None), None);
     }
 }

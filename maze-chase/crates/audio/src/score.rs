@@ -35,26 +35,86 @@ pub struct Tune {
 pub const TITLE_LOOP: Tune = Tune {
     name: "title",
     notes: &[
-        Note { midi: 62, beats: 0.5 }, // D4
-        Note { midi: 64, beats: 0.5 }, // E4
-        Note { midi: 65, beats: 0.5 }, // F4
-        Note { midi: 67, beats: 0.5 }, // G4
-        Note { midi: 69, beats: 0.5 }, // A4
-        Note { midi: 67, beats: 0.5 }, // G4
-        Note { midi: 65, beats: 0.5 }, // F4
-        Note { midi: 64, beats: 0.5 }, // E4
-        Note { midi: 62, beats: 0.5 }, // D4
-        Note { midi: 65, beats: 0.5 }, // F4
-        Note { midi: 69, beats: 0.5 }, // A4
-        Note { midi: 71, beats: 0.5 }, // B4 (dorian 6th)
-        Note { midi: 69, beats: 0.5 }, // A4
-        Note { midi: 67, beats: 0.5 }, // G4
-        Note { midi: 65, beats: 0.5 }, // F4
-        Note { midi: 64, beats: 0.5 }, // E4
-        Note { midi: 65, beats: 0.5 }, // F4
-        Note { midi: 67, beats: 0.5 }, // G4
-        Note { midi: 69, beats: 0.5 }, // A4
-        Note { midi: 67, beats: 0.5 }, // G4 (loops back to D4)
+        Note {
+            midi: 62,
+            beats: 0.5,
+        }, // D4
+        Note {
+            midi: 64,
+            beats: 0.5,
+        }, // E4
+        Note {
+            midi: 65,
+            beats: 0.5,
+        }, // F4
+        Note {
+            midi: 67,
+            beats: 0.5,
+        }, // G4
+        Note {
+            midi: 69,
+            beats: 0.5,
+        }, // A4
+        Note {
+            midi: 67,
+            beats: 0.5,
+        }, // G4
+        Note {
+            midi: 65,
+            beats: 0.5,
+        }, // F4
+        Note {
+            midi: 64,
+            beats: 0.5,
+        }, // E4
+        Note {
+            midi: 62,
+            beats: 0.5,
+        }, // D4
+        Note {
+            midi: 65,
+            beats: 0.5,
+        }, // F4
+        Note {
+            midi: 69,
+            beats: 0.5,
+        }, // A4
+        Note {
+            midi: 71,
+            beats: 0.5,
+        }, // B4 (dorian 6th)
+        Note {
+            midi: 69,
+            beats: 0.5,
+        }, // A4
+        Note {
+            midi: 67,
+            beats: 0.5,
+        }, // G4
+        Note {
+            midi: 65,
+            beats: 0.5,
+        }, // F4
+        Note {
+            midi: 64,
+            beats: 0.5,
+        }, // E4
+        Note {
+            midi: 65,
+            beats: 0.5,
+        }, // F4
+        Note {
+            midi: 67,
+            beats: 0.5,
+        }, // G4
+        Note {
+            midi: 69,
+            beats: 0.5,
+        }, // A4
+        Note {
+            midi: 67,
+            beats: 0.5,
+        }, // G4 (loops back to D4)
     ],
     looped: true,
 };
@@ -63,22 +123,70 @@ pub const TITLE_LOOP: Tune = Tune {
 pub const FRIGHT_LOOP: Tune = Tune {
     name: "fright",
     notes: &[
-        Note { midi: 52, beats: 0.25 }, // E3 pedal
-        Note { midi: 52, beats: 0.25 },
-        Note { midi: 53, beats: 0.25 }, // F3 stab
-        Note { midi: 52, beats: 0.25 },
-        Note { midi: 50, beats: 0.25 }, // D3 dip
-        Note { midi: 50, beats: 0.25 },
-        Note { midi: 51, beats: 0.25 }, // Eb3 climb
-        Note { midi: 52, beats: 0.25 },
-        Note { midi: 52, beats: 0.25 }, // E3 pedal
-        Note { midi: 52, beats: 0.25 },
-        Note { midi: 53, beats: 0.25 }, // F3 stab
-        Note { midi: 52, beats: 0.25 },
-        Note { midi: 55, beats: 0.25 }, // G3 lift
-        Note { midi: 53, beats: 0.25 },
-        Note { midi: 52, beats: 0.25 },
-        Note { midi: 50, beats: 0.25 }, // D3 (loops to E3)
+        Note {
+            midi: 52,
+            beats: 0.25,
+        }, // E3 pedal
+        Note {
+            midi: 52,
+            beats: 0.25,
+        },
+        Note {
+            midi: 53,
+            beats: 0.25,
+        }, // F3 stab
+        Note {
+            midi: 52,
+            beats: 0.25,
+        },
+        Note {
+            midi: 50,
+            beats: 0.25,
+        }, // D3 dip
+        Note {
+            midi: 50,
+            beats: 0.25,
+        },
+        Note {
+            midi: 51,
+            beats: 0.25,
+        }, // Eb3 climb
+        Note {
+            midi: 52,
+            beats: 0.25,
+        },
+        Note {
+            midi: 52,
+            beats: 0.25,
+        }, // E3 pedal
+        Note {
+            midi: 52,
+            beats: 0.25,
+        },
+        Note {
+            midi: 53,
+            beats: 0.25,
+        }, // F3 stab
+        Note {
+            midi: 52,
+            beats: 0.25,
+        },
+        Note {
+            midi: 55,
+            beats: 0.25,
+        }, // G3 lift
+        Note {
+            midi: 53,
+            beats: 0.25,
+        },
+        Note {
+            midi: 52,
+            beats: 0.25,
+        },
+        Note {
+            midi: 50,
+            beats: 0.25,
+        }, // D3 (loops to E3)
     ],
     looped: true,
 };
@@ -87,13 +195,34 @@ pub const FRIGHT_LOOP: Tune = Tune {
 pub const DEATH_STING: Tune = Tune {
     name: "death",
     notes: &[
-        Note { midi: 67, beats: 0.5 }, // G4
-        Note { midi: 64, beats: 0.5 }, // E4
-        Note { midi: 60, beats: 0.5 }, // C4
-        Note { midi: 57, beats: 0.5 }, // A3
-        Note { midi: 55, beats: 0.5 }, // G3
-        Note { midi: 52, beats: 0.5 }, // E3
-        Note { midi: 48, beats: 1.5 }, // C3 thud
+        Note {
+            midi: 67,
+            beats: 0.5,
+        }, // G4
+        Note {
+            midi: 64,
+            beats: 0.5,
+        }, // E4
+        Note {
+            midi: 60,
+            beats: 0.5,
+        }, // C4
+        Note {
+            midi: 57,
+            beats: 0.5,
+        }, // A3
+        Note {
+            midi: 55,
+            beats: 0.5,
+        }, // G3
+        Note {
+            midi: 52,
+            beats: 0.5,
+        }, // E3
+        Note {
+            midi: 48,
+            beats: 1.5,
+        }, // C3 thud
     ],
     looped: false,
 };
@@ -102,15 +231,42 @@ pub const DEATH_STING: Tune = Tune {
 pub const CLEAR_JINGLE: Tune = Tune {
     name: "clear",
     notes: &[
-        Note { midi: 60, beats: 0.5 }, // C4
-        Note { midi: 62, beats: 0.5 }, // D4
-        Note { midi: 64, beats: 0.5 }, // E4
-        Note { midi: 67, beats: 0.5 }, // G4
-        Note { midi: 69, beats: 0.5 }, // A4
-        Note { midi: 72, beats: 0.5 }, // C5
-        Note { midi: 74, beats: 0.5 }, // D5
-        Note { midi: 76, beats: 0.5 }, // E5
-        Note { midi: 79, beats: 1.0 }, // G5 held top
+        Note {
+            midi: 60,
+            beats: 0.5,
+        }, // C4
+        Note {
+            midi: 62,
+            beats: 0.5,
+        }, // D4
+        Note {
+            midi: 64,
+            beats: 0.5,
+        }, // E4
+        Note {
+            midi: 67,
+            beats: 0.5,
+        }, // G4
+        Note {
+            midi: 69,
+            beats: 0.5,
+        }, // A4
+        Note {
+            midi: 72,
+            beats: 0.5,
+        }, // C5
+        Note {
+            midi: 74,
+            beats: 0.5,
+        }, // D5
+        Note {
+            midi: 76,
+            beats: 0.5,
+        }, // E5
+        Note {
+            midi: 79,
+            beats: 1.0,
+        }, // G5 held top
     ],
     looped: false,
 };
@@ -119,13 +275,34 @@ pub const CLEAR_JINGLE: Tune = Tune {
 pub const GAMEOVER_STING: Tune = Tune {
     name: "gameover",
     notes: &[
-        Note { midi: 64, beats: 0.5 }, // E4
-        Note { midi: 62, beats: 0.5 }, // D4
-        Note { midi: 60, beats: 0.5 }, // C4
-        Note { midi: 59, beats: 0.5 }, // B3
-        Note { midi: 57, beats: 0.5 }, // A3
-        Note { midi: 55, beats: 1.0 }, // G3
-        Note { midi: 52, beats: 2.0 }, // E3 rest
+        Note {
+            midi: 64,
+            beats: 0.5,
+        }, // E4
+        Note {
+            midi: 62,
+            beats: 0.5,
+        }, // D4
+        Note {
+            midi: 60,
+            beats: 0.5,
+        }, // C4
+        Note {
+            midi: 59,
+            beats: 0.5,
+        }, // B3
+        Note {
+            midi: 57,
+            beats: 0.5,
+        }, // A3
+        Note {
+            midi: 55,
+            beats: 1.0,
+        }, // G3
+        Note {
+            midi: 52,
+            beats: 2.0,
+        }, // E3 rest
     ],
     looped: false,
 };
@@ -373,14 +550,8 @@ mod tests {
         assert!(CLEAR_JINGLE.notes.len() >= 8 && !CLEAR_JINGLE.looped);
         assert!(GAMEOVER_STING.notes.len() >= 6 && !GAMEOVER_STING.looped);
         // Death descends overall, clear ascends overall.
-        assert!(
-            DEATH_STING.notes.first().unwrap().midi
-                > DEATH_STING.notes.last().unwrap().midi
-        );
-        assert!(
-            CLEAR_JINGLE.notes.first().unwrap().midi
-                < CLEAR_JINGLE.notes.last().unwrap().midi
-        );
+        assert!(DEATH_STING.notes.first().unwrap().midi > DEATH_STING.notes.last().unwrap().midi);
+        assert!(CLEAR_JINGLE.notes.first().unwrap().midi < CLEAR_JINGLE.notes.last().unwrap().midi);
     }
 
     #[test]
@@ -390,7 +561,7 @@ mod tests {
             assert!(sfx.ms > 0);
         }
         // Crumb is the shortest blip.
-        assert!(SFX_CRUMB.ms <= 100);
+        const { assert!(SFX_CRUMB.ms <= 100) };
     }
 
     #[test]
