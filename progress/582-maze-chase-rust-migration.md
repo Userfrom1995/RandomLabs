@@ -1,10 +1,10 @@
 # Progress - Maze-Chase Rust Migration
 
 - **Issue:** #582 (parent tracker; gameplay reference #552 stays functional until replacement is verified)
-- **Branch:** opencode/issue582-maze-chase-phase-6
+- **Branch:** opencode/issue582-maze-chase-phase-7
 - **Status:** in-progress
 - **Updated:** 2026-10-16
-- **Active Phase:** Phase 6: Desktop Publication Layer (Complete, ready for review)
+- **Active Phase:** Phase 7: WebAssembly Publication Layer and Web Hub (in progress)
 
 ## Phase Roadmap
 
@@ -18,6 +18,12 @@
 - Final Phase: Packaging Verification and Release Audit: [ ] desktop packages plus terminal package plus WASM deploy shipped, [ ] engine plus per-layer E2E green (terminal sizes/capabilities, desktop OSes, browser keyboard/touch), [ ] reproducible build/release instructions, [ ] matrix plus scoreboard plus test results published, [ ] #552 retirement only after verified parity (Final PR, Closes #582)
 
 ## Current step
+
+Phase 7 in progress on `opencode/issue582-maze-chase-phase-7` (Refs #582):
+new `crates/web` 0.1.0 (`maze-chase-web`, zero external dependencies,
+C-ABI bridge, no wasm-bindgen) driving the shared engine with zero
+gameplay logic, plus the JS harness, play page, and hub entry. Scaffold
+pushed (workspace member, empty modules, native + wasm32 compile proof).
 
 Phase 6 complete on `opencode/issue582-maze-chase-phase-6` (Refs #582):
 new lib-plus-binary `maze-chase-desktop` 0.1.0 (`font` original 5x7

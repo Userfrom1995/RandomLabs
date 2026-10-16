@@ -1,0 +1,17 @@
+[package]
+name = "maze-chase-web"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Browser WebAssembly publication layer for Maze Chase (same engine, canvas framebuffer, C-ABI bridge, zero external dependencies)"
+
+[lib]
+name = "maze_chase_web"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+maze-chase-engine = { path = "../engine" }
+maze-chase-assets = { path = "../assets" }
+maze-chase-audio = { path = "../audio" }
+maze-chase-config = { path = "../config" }
