@@ -178,9 +178,18 @@ mod tests {
 
     #[test]
     fn chain_mapping_covers_all_four_values() {
-        assert_eq!(cue_for_event("warden:200"), Some(Cue::WardenEaten { chain: 0 }));
-        assert_eq!(cue_for_event("warden:400"), Some(Cue::WardenEaten { chain: 1 }));
-        assert_eq!(cue_for_event("warden:800"), Some(Cue::WardenEaten { chain: 2 }));
+        assert_eq!(
+            cue_for_event("warden:200"),
+            Some(Cue::WardenEaten { chain: 0 })
+        );
+        assert_eq!(
+            cue_for_event("warden:400"),
+            Some(Cue::WardenEaten { chain: 1 })
+        );
+        assert_eq!(
+            cue_for_event("warden:800"),
+            Some(Cue::WardenEaten { chain: 2 })
+        );
         assert_eq!(
             cue_for_event("warden:1600"),
             Some(Cue::WardenEaten { chain: 3 })

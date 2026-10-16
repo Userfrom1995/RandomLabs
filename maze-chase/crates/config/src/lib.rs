@@ -16,4 +16,4 @@ pub mod persist;
 pub mod settings;
 
 pub use keymap::{Action, Key, Keymap};
-pub use settings::{Difficulty, EnginePreset, Settings, preset};
+pub use settings::{preset, Difficulty, EnginePreset, Settings};

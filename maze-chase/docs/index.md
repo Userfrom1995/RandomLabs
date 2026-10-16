@@ -15,3 +15,6 @@ One cohesive product view; no milestone counters or sprint references.
   modules.
 - [Feature-completeness matrix](feature-matrix.md): the shared binding
   tracker, one row per mechanic across the engine and all three layers.
+- [Visual and interaction design](design.md) plus
+  [design tokens](design-tokens.json): the glyph system, themes, motion,
+  sound, and settings language every layer shares.

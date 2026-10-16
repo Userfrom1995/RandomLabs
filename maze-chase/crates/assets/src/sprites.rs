@@ -287,10 +287,10 @@ pub const WARDEN_NIB: [&str; 11] = [
 pub const EYES_RIGHT: [&str; 5] = [".....", "*#.*#", "*#.*#", "*#.*#", "....."];
 
 /// Directional eye pair looking up, 5x5 (`#` pupils on the top rows).
-pub const EYES_UP: [&str; 5] = [".....", "##.##", "**.**", "**.**", "....." ];
+pub const EYES_UP: [&str; 5] = [".....", "##.##", "**.**", "**.**", "....."];
 
 /// Directional eye pair looking down, 5x5 (`#` pupils on the bottom rows).
-pub const EYES_DOWN: [&str; 5] = [".....", "**.**", "**.**", "##.##", "....." ];
+pub const EYES_DOWN: [&str; 5] = [".....", "**.**", "**.**", "##.##", "....."];
 
 /// Fright mask face worn during the turn, 11x11.
 ///
@@ -333,24 +333,12 @@ pub const CRUMB: [&str; 3] = ["...", ".o.", "..."];
 
 /// Sunseed pulse frame A (solid seed, no halo), 7x7.
 pub const SUNSEED_A: [&str; 7] = [
-    ".......",
-    "...#...",
-    "..#o#..",
-    ".#ooo#.",
-    "..#o#..",
-    "...#...",
-    ".......",
+    ".......", "...#...", "..#o#..", ".#ooo#.", "..#o#..", "...#...", ".......",
 ];
 
 /// Sunseed pulse frame B (halo ring of `*` around the same core), 7x7.
 pub const SUNSEED_B: [&str; 7] = [
-    "..*.*..",
-    ".*.#.*.",
-    "..#o#..",
-    "*#ooo#*",
-    "..#o#..",
-    ".*.#.*.",
-    "..*.*..",
+    "..*.*..", ".*.#.*.", "..#o#..", "*#ooo#*", "..#o#..", ".*.#.*.", "..*.*..",
 ];
 
 /// Relish tier icon names (original invented names, 6 tiers).
@@ -369,58 +357,22 @@ pub const RELISH_NAMES: [&str; 6] = [
 /// harborfig (droplet), starmarrow (star).
 pub const RELISH_ICONS: [[&str; 7]; 6] = [
     [
-        ".......",
-        "..###..",
-        ".#ooo#.",
-        ".#o*o#.",
-        ".#ooo#.",
-        "..###..",
-        ".......",
+        ".......", "..###..", ".#ooo#.", ".#o*o#.", ".#ooo#.", "..###..", ".......",
     ],
     [
-        "...*...",
-        "...#...",
-        "..#o#..",
-        ".#ooo#.",
-        "..#o#..",
-        "...#...",
-        "...*...",
+        "...*...", "...#...", "..#o#..", ".#ooo#.", "..#o#..", "...#...", "...*...",
     ],
     [
-        "..###..",
-        "..#o#..",
-        "..#o#..",
-        ".#ooo#.",
-        "..#*#..",
-        "..###..",
-        ".......",
+        "..###..", "..#o#..", "..#o#..", ".#ooo#.", "..#*#..", "..###..", ".......",
     ],
     [
-        ".......",
-        ".#####.",
-        ".#ooo#.",
-        ".#o*##.",
-        ".#ooo#.",
-        ".#####.",
-        ".......",
+        ".......", ".#####.", ".#ooo#.", ".#o*##.", ".#ooo#.", ".#####.", ".......",
     ],
     [
-        "...#...",
-        "..#o#..",
-        "..#o#..",
-        ".#ooo#.",
-        ".#ooo#.",
-        "..###..",
-        ".......",
+        "...#...", "..#o#..", "..#o#..", ".#ooo#.", ".#ooo#.", "..###..", ".......",
     ],
     [
-        "...#...",
-        "..#*#..",
-        "##***##",
-        "..#*#..",
-        ".#***#.",
-        "...#...",
-        "...*...",
+        "...#...", "..#*#..", "##***##", "..#*#..", ".#***#.", "...#...", "...*...",
     ],
 ];
 
@@ -459,7 +411,10 @@ mod tests {
     }
 
     fn outline(rows: &[&str]) -> usize {
-        rows.iter().flat_map(|r| r.chars()).filter(|&c| c == '#').count()
+        rows.iter()
+            .flat_map(|r| r.chars())
+            .filter(|&c| c == '#')
+            .count()
     }
 
     fn cell_diff(a: &[&str], b: &[&str]) -> usize {
@@ -503,10 +458,16 @@ mod tests {
         }
         assert_eq!(fills, vec![68, 37, 9, 5]);
         for w in fills.windows(2) {
-            assert!(w[0] > w[1], "fill counts must shrink monotonically: {fills:?}");
+            assert!(
+                w[0] > w[1],
+                "fill counts must shrink monotonically: {fills:?}"
+            );
         }
         for w in outlines.windows(2) {
-            assert!(w[0] > w[1], "outline counts must shrink monotonically: {outlines:?}");
+            assert!(
+                w[0] > w[1],
+                "outline counts must shrink monotonically: {outlines:?}"
+            );
         }
     }
 
@@ -546,7 +507,10 @@ mod tests {
         // flip_horizontal reuse derives the left-looking pair.
         let left = flip_horizontal(&EYES_RIGHT);
         assert_eq!(left[1], "#*.#*");
-        assert_eq!(validate_glyph(&left.iter().map(|s| s.as_str()).collect::<Vec<_>>()), Ok((5, 5)));
+        assert_eq!(
+            validate_glyph(&left.iter().map(|s| s.as_str()).collect::<Vec<_>>()),
+            Ok((5, 5))
+        );
     }
 
     #[test]
@@ -573,12 +537,22 @@ mod tests {
     fn relish_icons_valid_names_clean() {
         assert_eq!(RELISH_NAMES.len(), 6);
         assert_eq!(RELISH_ICONS.len(), 6);
-        let forbidden = ["cherry", "strawberry", "apple", "orange", "melon", "galboss"];
+        let forbidden = [
+            "cherry",
+            "strawberry",
+            "apple",
+            "orange",
+            "melon",
+            "galboss",
+        ];
         for name in RELISH_NAMES {
             assert!(!name.is_empty());
             let lower = name.to_lowercase();
             for bad in forbidden {
-                assert!(!lower.contains(bad), "relish name {name:?} contains {bad:?}");
+                assert!(
+                    !lower.contains(bad),
+                    "relish name {name:?} contains {bad:?}"
+                );
             }
         }
         let mut names = RELISH_NAMES.to_vec();
@@ -589,9 +563,9 @@ mod tests {
             assert_eq!(validate_glyph(&icon), Ok((7, 7)));
         }
         // Icons pairwise distinct.
-        for i in 0..6 {
-            for j in (i + 1)..6 {
-                assert!(cell_diff(&RELISH_ICONS[i], &RELISH_ICONS[j]) > 0);
+        for (i, icon) in RELISH_ICONS.iter().enumerate() {
+            for other in RELISH_ICONS.iter().skip(i + 1) {
+                assert!(cell_diff(icon, other) > 0);
             }
         }
     }

@@ -113,7 +113,11 @@ impl Settings {
     /// problem; an empty vec means valid.
     pub fn validate(&self) -> Vec<String> {
         let mut problems = Vec::new();
-        for (name, v) in [("master", self.master), ("music", self.music), ("sfx", self.sfx)] {
+        for (name, v) in [
+            ("master", self.master),
+            ("music", self.music),
+            ("sfx", self.sfx),
+        ] {
             if !v.is_finite() || !(0.0..=1.0).contains(&v) {
                 problems.push(format!("{name} volume {v} out of range 0..=1"));
             }
@@ -205,10 +209,12 @@ mod tests {
 
     #[test]
     fn out_of_range_volumes_flagged() {
-        let mut s = Settings::default();
-        s.master = 1.5;
-        s.music = -0.1;
-        s.sfx = f32::NAN;
+        let s = Settings {
+            master: 1.5,
+            music: -0.1,
+            sfx: f32::NAN,
+            ..Settings::default()
+        };
         let problems = s.validate();
         assert_eq!(problems.len(), 3);
         assert!(problems.iter().any(|p| p.contains("master")));
@@ -218,13 +224,18 @@ mod tests {
 
     #[test]
     fn unknown_and_empty_themes_flagged() {
-        let mut s = Settings::default();
-        s.theme = "neon-void".to_string();
+        let s = Settings {
+            theme: "neon-void".to_string(),
+            ..Settings::default()
+        };
         let problems = s.validate();
         assert_eq!(problems.len(), 1);
         assert!(problems[0].contains("unknown theme"));
 
-        s.theme = "   ".to_string();
+        let s = Settings {
+            theme: "   ".to_string(),
+            ..Settings::default()
+        };
         let problems = s.validate();
         assert!(problems.iter().any(|p| p.contains("non-empty")));
     }

@@ -8,11 +8,12 @@ Status words: `done` (implemented, tested, verified), `planned` (scoped in
 a future phase, no code yet), `degraded` (documented capability fallback,
 never silent), `n/a` (genuinely not applicable to that layer).
 
-Phase 3 note: the engine simulation rows and the ghost/progression rows
-below are `done` (implemented, tested, verified headless: 45 unit tests,
-2 golden replay hashes, 19-row verify green). Assets and all three
-layers remain `planned`; no layer code exists yet, and by the zero-stub
-rule no layer UI pretends otherwise.
+Phase 4 note: the assets, audio, identity, and config rows below are
+`done` (implemented, tested, reviewed headless: 20 assets tests, 13
+audio tests, 18 config tests, plus the palette cross-check against
+`design-tokens.json`). All three layers remain `planned`; no layer
+code exists yet, and by the zero-stub rule no layer UI pretends
+otherwise.
 
 ## Engine simulation (Phase 2: `crates/engine`, done)
 
@@ -35,14 +36,14 @@ rule no layer UI pretends otherwise.
 | House exits, tunnel clamp, pursuer stages | `ghosts.rs`, `tuning.rs` | planned | planned | planned | `verify: house-exits, pursuer-stages` + `ghosts::pursuer_stages_enrage_bram_only` |
 | Bonus items, difficulty ramp, extra modes | `relish.rs`, `game.rs`, `modes.rs`, `tuning.rs` | planned | planned | planned | `verify: relish-cycle, mode-rules` + `relish::*` + `game::sprint_*, time_attack_*, frenzy_*` |
 
-## Assets, audio, identity, config (Phase 4 target)
+## Assets, audio, identity, config (Phase 4: done)
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|
-| Original sprites, themes, wall styles | `crates/assets` | planned | planned | planned | asset-validation step + paint tests |
-| Original SFX/music, Audio trait impls | `audio.rs` + rodio/web shim | planned | planned | planned | cue-routing + degrade tests |
-| Settings, keymap, persistence | `crates/config` | planned | planned | planned | validation round-trip tests |
-| Design Council pass (design.md + tokens) | docs | planned | planned | planned | Design Council review (design.md + tokens) signed |
+| Original sprites, themes, wall styles | `crates/assets` | planned | planned | planned | `assets::sprites::*` (glyph validation, accent diffs) + `assets::anim::*` + `themes::tokens_mirror_theme_palettes` |
+| Original SFX/music, Audio trait impls | `crates/audio` (`cue`, `score`, `sink`) | planned | planned | planned | `audio::cue::*` (every engine event maps) + `audio::score::*` + `audio::sink::*` (Record/Null) |
+| Settings, keymap, persistence | `crates/config` | planned | planned | planned | `config::{settings,keymap,persist}::*` (presets, rebind, round-trip) |
+| Design pass (design.md + tokens) | docs | planned | planned | planned | Builder design pass signed (`design.md` + `design-tokens.json`); formal Design Council review may refine |
 
 ## Terminal layer (Phase 5 target: `crates/terminal`)
 

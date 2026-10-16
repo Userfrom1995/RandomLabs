@@ -7,7 +7,7 @@ project; the in-repo Python game (`pacman/`, issue #552) is a behavioral
 feel reference, never a code source. Clean-room rules live in
 `docs/legal.md`.
 
-Current status: **Phase 3 (ghost intelligence, scoring, progression)
+Current status: **Phase 4 (original assets, audio, identity system)
 is done; no playable layer exists yet.** The deterministic engine
 simulates the full core loop plus the complete hunt headless (120 Hz
 timestep, movement with buffered turns and cornering, crumbs and
@@ -17,13 +17,17 @@ staging and 200/400/800/1600 chains, pathing eyes that drift home,
 relish bonuses on a 70/170 schedule with level tiers, pursuer stages,
 spare wick, death/respawn, level flow, gatehouse counters with idle
 release, four extra mode rulesets, seeded streams, replay log, state
-hash, 19-row verify harness green). Assets and identity system (Phase
-4) and the three publication layers (Phases 5-7) are planned and tracked
-in the shared [feature matrix](docs/feature-matrix.md). This README
-describes the whole product honestly; anything not yet built is marked
-planned.
+hash, 19-row verify harness green). The identity system is original art
+and sound data with settings: 11x11 Pip and warden sprites with
+shape-distinct accents, fright masks, eye pairs, six relish icons,
+three contrast-checked themes, every engine event routed to an audio
+cue with five original tunes, and difficulty/keymap/persistence with
+honest engine presets. The three publication layers (Phases 5-7) are
+planned and tracked in the shared [feature matrix](docs/feature-matrix.md).
+This README describes the whole product honestly; anything not yet built
+is marked planned.
 
-Run the engine checks: `cargo test` and
+Run the checks: `cargo test` and
 `cargo run --bin maze-chase-verify` inside `maze-chase/`.
 
 ## What this will be
@@ -40,6 +44,15 @@ Run the engine checks: `cargo test` and
   Layers map input to `TickInput` and render `Game` state plus
   `GameEvent`s; any gameplay branch in a layer crate is a blocking
   review finding.
+- **Identity system** (`crates/assets`, `crates/audio`,
+  `crates/config`, Phase 4 done): original 11x11 sprite glyphs with a
+  shared legend and derived facings, animation clips and flash/bob
+  timing, three contrast-checked themes, every engine event routed to
+  an audio cue with five original tunes and synthesized SFX recipes
+  behind a backend-agnostic `Audio` trait, and difficulty presets
+  (Cozy/Classic-from-L1, Standard/Classic-from-L2, Harsh/Sprint), keymap
+  with duplicate-safe rebinds, and a human-readable settings file.
+  Design language pinned in `docs/design.md` plus `design-tokens.json`.
 - **Terminal game** (`crates/terminal`, Phase 5): installable package with
   a fullscreen canvas layout engine, magnification that fills the window,
   Kitty plus Sixel plus Unicode backends with detection and auto-degrade
@@ -61,6 +74,8 @@ Run the engine checks: `cargo test` and
   authorship log.
 - `docs/behavior-spec.md` - pinned #552 behavior contract the Rust engine
   must reproduce (measured values with sources).
+- `docs/design.md` plus `docs/design-tokens.json` - visual and
+  interaction language with machine tokens mirroring the theme store.
 - `docs/feature-matrix.md` - shared binding tracker: one row per mechanic,
   columns per layer, every row needing test proof.
 
@@ -83,6 +98,11 @@ escalated, never shipped on assumption.
   tests.
 - `levels/ember-warren.maze` - the authored launch maze with its
   authorship header and reachability proof, compiled into the engine.
+- `crates/assets`, `crates/audio`, `crates/config` - the original
+  identity system (this phase's new deliverable): sprites and animation
+  timing plus themes (`assets`), cues plus original tunes and SFX plus
+  test sinks (`audio`), difficulty presets plus keymap plus settings
+  persistence (`config`).
 
 ## Verification
 

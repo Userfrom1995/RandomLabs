@@ -1,17 +1,17 @@
 # Progress - Maze-Chase Rust Migration
 
 - **Issue:** #582 (parent tracker; gameplay reference #552 stays functional until replacement is verified)
-- **Branch:** opencode/issue582-maze-chase-phase-3
+- **Branch:** opencode/issue582-maze-chase-phase-4
 - **Status:** in-progress
 - **Updated:** 2026-10-16
-- **Active Phase:** Phase 3: Ghost Intelligence Scoring and Progression (Complete, ready for review)
+- **Active Phase:** Phase 4: Original Assets Audio and Identity System (Complete, ready for review)
 
 ## Phase Roadmap
 
 - Phase 1: Research Synthesis and Legal Guardrails: [x] mechanics research from legitimate public sources, [x] clean-room legal review with flagged items, [x] shared feature-completeness matrix scaffolded in docs, [x] original naming plus branding plus maze-geometry authorship log, [x] #552 behavior reference spec pinned (PR 1 target, Refs #582)
 - Phase 2: Shared Engine Core and Deterministic Simulation: [x] Cargo workspace plus pure engine crate, [x] maze plus movement plus collision plus tunnel, [x] scoring plus lives plus level-clear loop, [x] seeded RNG plus replay hash plus headless verify harness (PR 2 target, Refs #582)
 - Phase 3: Ghost Intelligence Scoring and Progression: [x] four authored personalities plus scatter corners, [x] scatter/chase wave clock with reversals, [x] fright with flash plus chains plus eyes return, [x] house exits plus tunnel clamp plus pursuer stages, [x] bonus items plus difficulty ramp plus extra modes rules (PR 3 target, Refs #582)
-- Phase 4: Original Assets Audio and Identity System: [ ] original sprites plus animations plus themes, [ ] original sound effects plus music plus audio trait impls, [ ] settings plus keymap plus persistence model, [ ] Design Council pass with design.md plus tokens (PR 4 target, Refs #582)
+- Phase 4: Original Assets Audio and Identity System: [x] original sprites plus animations plus themes, [x] original sound effects plus music plus audio trait impls, [x] settings plus keymap plus persistence model, [x] Design Council pass with design.md plus tokens (PR 4 target, Refs #582)
 - Phase 5: Terminal Publication Layer: [ ] fullscreen canvas layout plus scale engine, [ ] Kitty plus Sixel plus Unicode backends with detection and watchdog, [ ] dynamic resize with re-layout, [ ] menus plus help plus scores plus settings screens, [ ] installable package plus launch command plus docs (PR 5 target, Refs #582)
 - Phase 6: Desktop Publication Layer: [ ] windowed plus fullscreen GUI on one renderer core, [ ] keyboard plus gamepad input with remap, [ ] menus plus settings plus scores plus audio controls, [ ] Windows plus macOS plus Linux packaging with reproducible steps (PR 6 target, Refs #582)
 - Phase 7: WebAssembly Publication Layer and Web Hub: [ ] browser-playable WASM build on same renderer core, [ ] keyboard plus touch controls with mobile polish, [ ] DPR-aware resize plus web-audio unlock, [ ] maze-chase index.html hub with play entry plus per-layer docs (PR 7 target, Refs #582)
@@ -19,7 +19,23 @@
 
 ## Current step
 
-Phase 3 complete on `opencode/issue582-maze-chase-phase-3` (Refs #582):
+Phase 4 complete on `opencode/issue582-maze-chase-phase-4` (Refs #582):
+new `maze-chase/crates/{assets,audio,config}` (sprite glyphs plus
+anim clips plus three contrast-checked themes; engine-event cue
+routing plus five original tunes plus SFX recipes plus Null/Record
+sinks; difficulty presets over shipped engine knobs plus keymap plus
+human-readable persistence), `docs/design.md` plus
+`design-tokens.json` with a palette cross-check test, matrix Phase 4
+rows to `done`, README/hub to Phase 4, identity authorship log, plus
+`ideas/2026-10-16-maze-chase-phase-4-assets-audio-identity.md`. No
+engine file changed (goldens intact), no layer code per the zero-stub
+rule. Proof: 45 engine unit + 2 golden + 26 hostile/quiescence green,
+20 assets + 13 audio + 18 config green, `maze-chase-verify` 19/19.
+Ready for review.
+
+## Prior step
+
+Phase 3 complete on `opencode/issue582-maze-chase-phase-3` (Refs #582, merged):
 new `maze-chase/crates/engine/src/{modes,personalities,relish}.rs`
 (wave clock plus four GameMode rulesets; four pure chase targets;
 two-window relish machine), `ghosts.rs` rewritten around leg targets
@@ -51,9 +67,10 @@ flood-fill proof in header), `tests/golden.rs` (pinned hashes),
 
 ## Next steps
 
-- Reviewer pass on the Phase 3 engine, then Phase 4 (original assets,
-  audio, settings, Design Council pass) on a fresh phase branch from
-  main referencing `Refs #582`
+- Reviewer pass on Phase 4, then Phase 5 (terminal publication layer)
+  on a fresh phase branch from main referencing `Refs #582`
+- Formal Design Council pass (`/oc design`) may refine `design.md` in
+  a later phase; the Builder-authored pass is binding until then
 - Reserve the Design Council pass (`/oc design`) in Phase 4 before visual polish is declared done; it ships `maze-chase/docs/design.md` plus `maze-chase/docs/design-tokens.json`
 - Keep `Status: in-progress` with `Refs #582` until the final phase passes test and eval; only the final phase uses `Closes #582`
 
@@ -65,6 +82,8 @@ flood-fill proof in header), `tests/golden.rs` (pinned hashes),
 - Every merge leaves repo and workflows green
 
 ## Agent log
+
+- 2026-10-16 (builder): implemented Phase 4 on `opencode/issue582-maze-chase-phase-4`. Three subagents authored `crates/assets` (glyphs, anim, themes), `crates/audio` (cues, score, sinks), `crates/config` (settings, keymap, persist) against written specs; primary wired workspace members, removed stray per-crate lockfiles, authored `docs/design.md` plus `design-tokens.json` with a palette cross-check test, updated matrix/README/hub/identity/index plus the Phase 4 ideas entry. Proof: 20 assets + 13 audio + 18 config green, engine suites untouched, verify 19/19. Delegation ledger: three parallel general subagents for crate implementation (only known skill customize-opencode covers opencode config, not game code). - the Builder
 
 - 2026-10-16 (architect): charted Phase Epic from the owner order plus three subagent spikes (Rust stack trade-offs, module decomposition, legal and matrix planning). Selected pure-Rust engine with macroquad/miniquad shared renderer (eframe fallback), ratatui plus crossterm terminal with image-plus-Unicode tiers, rodio plus web-audio shim behind an engine Audio trait. Wrote unified blueprint in `ideas/2026-10-16-maze-chase-rust-migration.md` and this epic tracker. Handoff to Builder for Phase 1. - the Architect
 - 2026-10-16 (builder): implemented Phase 1 on the epic branch. New `maze-chase/docs/` (research with the #552-feel basis and crate trade-offs, legal with source log plus four flagged mitigations, identity with the Pip-vs-wardens cast and maze authorship log, behavior-spec with live-measured #552 values, feature-matrix with every row honestly planned, index map) plus `maze-chase/README.md` and `maze-chase/index.html` hub (honest Phase 1 status, no play button until Phase 7) plus `ideas/2026-10-16-maze-chase-phase-1-research.md` plus root landing entries. No `crates/` scaffold (Phase 2's deliverable). Delegation ledger: no subagents (docs-only phase synthesizing in-repo sources the primary had already read: tuning.py, ghosts.py, game.py, maze.py, modes.py, plus live measurement runs; only known skill customize-opencode covers opencode config, not game docs). Primary verified itself by measuring every pinned value from the real code. - the Builder
