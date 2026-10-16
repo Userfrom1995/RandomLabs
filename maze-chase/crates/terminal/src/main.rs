@@ -343,14 +343,24 @@ fn main() {
                 println!("maze-chase-terminal {VERSION}");
                 return;
             }
-            "--tier" => {
-                tier_override = args.next();
-            }
-            "--dir" => {
-                if let Some(d) = args.next() {
+            "--tier" => match args.next() {
+                Some(v) => {
+                    tier_override = Some(v);
+                }
+                None => {
+                    eprintln!("missing value for --tier\n{}", usage());
+                    std::process::exit(2);
+                }
+            },
+            "--dir" => match args.next() {
+                Some(d) => {
                     dir = d.into();
                 }
-            }
+                None => {
+                    eprintln!("missing value for --dir\n{}", usage());
+                    std::process::exit(2);
+                }
+            },
             other => {
                 eprintln!("unknown argument: {other}\n{}", usage());
                 std::process::exit(2);

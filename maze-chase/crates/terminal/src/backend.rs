@@ -131,7 +131,11 @@ pub fn initial_tier(env: &[(String, String)]) -> Tier {
             "sixel" => return Tier::Sixel,
             "truecolor" => return Tier::Truecolor,
             "legacy" => return Tier::Legacy,
-            _ => {}
+            _ => {
+                eprintln!(
+                    "maze-chase-terminal: unrecognized MAZE_CHASE_TIER '{force}'; falling back to auto-detect"
+                );
+            }
         }
     }
     if crate::kitty::kitty_present(env) {
