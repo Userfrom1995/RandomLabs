@@ -432,6 +432,21 @@ pub extern "C" fn mc_scores_clear() {
     session().scores_mut().clear();
 }
 
+/// Restore one persisted row directly into the table (localStorage
+/// import path: no finished run is pending on a fresh boot, so
+/// `mc_score_add` cannot serve restores). Returns 1 when the row made
+/// the table.
+#[no_mangle]
+pub extern "C" fn mc_scores_push(ptr: *const u8, len: u32, score: u32, level: u32) -> u32 {
+    match read_bytes(ptr, len, MAX_NAME_BYTES) {
+        Some(bytes) => match std::str::from_utf8(&bytes) {
+            Ok(name) => u32::from(session().scores_mut().add(name, score, level)),
+            Err(_) => 0,
+        },
+        None => 0,
+    }
+}
+
 /// Drain one queued cue code (0 when empty).
 #[no_mangle]
 pub extern "C" fn mc_poll_cue() -> u32 {
@@ -614,6 +629,22 @@ mod tests {
         // Nothing pending without a finished run.
         assert_eq!(mc_can_add_score(), 0);
         assert_eq!(mc_score_add(b"Pip".as_ptr(), 3), 0);
+        assert_eq!(mc_score_count(), 0);
+        // Direct restore path (localStorage import) round-trips rows.
+        assert_eq!(mc_scores_push(b"Kessa".as_ptr(), 5, 900, 3), 1);
+        assert_eq!(mc_scores_push(b"Nib".as_ptr(), 3, 400, 2), 1);
+        assert_eq!(mc_score_count(), 2);
+        let mut name = [0u8; 16];
+        assert_eq!(mc_score_get_name(0, name.as_mut_ptr(), 16), 5);
+        assert_eq!(&name[..5], b"Kessa");
+        assert_eq!(mc_score_get_score(0), 900);
+        assert_eq!(mc_score_get_level(0), 3);
+        assert_eq!(mc_score_get_score(1), 400);
+        assert_eq!(mc_score_get_level(1), 2);
+        // Hostile push degrades quietly.
+        assert_eq!(mc_scores_push(std::ptr::null(), 3, 10, 1), 0);
+        assert_eq!(mc_score_count(), 2);
+        mc_scores_clear();
         assert_eq!(mc_score_count(), 0);
     }
 
