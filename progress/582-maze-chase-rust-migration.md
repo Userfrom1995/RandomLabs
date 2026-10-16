@@ -1,10 +1,10 @@
 # Progress - Maze-Chase Rust Migration
 
 - **Issue:** #582 (parent tracker; gameplay reference #552 stays functional until replacement is verified)
-- **Branch:** opencode/issue582-maze-chase-phase-7
+- **Branch:** opencode/issue582-maze-chase-phase-final
 - **Status:** in-progress
 - **Updated:** 2026-10-16
-- **Active Phase:** Phase 7: WebAssembly Publication Layer and Web Hub (in progress)
+- **Active Phase:** Final Phase: Packaging Verification and Release Audit (in progress)
 
 ## Phase Roadmap
 
@@ -15,9 +15,26 @@
 - Phase 5: Terminal Publication Layer: [x] fullscreen canvas layout plus scale engine, [x] Kitty plus Sixel plus Unicode backends with detection and watchdog, [x] dynamic resize with re-layout, [x] menus plus help plus scores plus settings screens, [x] installable package plus launch command plus docs (PR 5 target, Refs #582)
 - Phase 6: Desktop Publication Layer: [x] windowed plus fullscreen GUI on one renderer core, [x] keyboard plus gamepad input with remap, [x] menus plus settings plus scores plus audio controls, [x] Windows plus macOS plus Linux packaging with reproducible steps (PR 6 target, Refs #582)
 - Phase 7: WebAssembly Publication Layer and Web Hub: [x] browser-playable WASM build on same renderer core, [x] keyboard plus touch controls with mobile polish, [x] DPR-aware resize plus web-audio unlock, [x] maze-chase index.html hub with play entry plus per-layer docs (PR 7 target, Refs #582)
-- Final Phase: Packaging Verification and Release Audit: [ ] desktop packages plus terminal package plus WASM deploy shipped, [ ] engine plus per-layer E2E green (terminal sizes/capabilities, desktop OSes, browser keyboard/touch), [ ] reproducible build/release instructions, [ ] matrix plus scoreboard plus test results published, [ ] #552 retirement only after verified parity (Final PR, Closes #582)
+- Final Phase: Packaging Verification and Release Audit: [x] terminal tarball plus installer with Linux smoke, [x] reproducible build/release guide, [x] parity checklist against the behavior spec, [x] measured scoreboard, [x] matrix cross-cutting rows current, [ ] Windows/macOS native package plus E2E proof on per-OS runners (scripts shipped, proof pending), [ ] #552 retirement only after that proof (Final PR, Refs #582; Closes reserved for the verified-complete run)
 
 ## Current step
+
+Final Phase in progress on `opencode/issue582-maze-chase-phase-final`
+(Refs #582): new `packaging/terminal/` (`linux-tarball.sh` plus
+`install-linux.sh`, mirroring the desktop pair, `--version`-probed),
+new `docs/release.md` (toolchain, system libraries, layer builds,
+packaging matrix, clean-checkout checklist), new `docs/parity.md`
+(every behavior-spec rule mapped to its engine table and verify row;
+native-OS rows open, so `pacman/` untouched), new
+`docs/scoreboard.md` (0.8 us/tick, 344/344 suites green, node smokes
+green, budgets with measured anchors), matrix cross-cutting rows
+current, README/hub/docs-index unified. Two layer-test clippy lints
+fixed and re-probed green; six pre-existing engine lints untouched.
+Proof so far: `cargo test --workspace` exit 0 (344 passed, 0 failed,
+30 suites), `maze-chase-verify` 19/19, fmt clean, node smokes ALL
+GREEN, terminal tarball staged plus installed to a scratch prefix.
+Windows/macOS native proof pending per-OS runners: PR uses Refs, not
+Closes.
 
 Phase 7 complete on `opencode/issue582-maze-chase-phase-7` (Refs #582):
 new `crates/web` 0.1.0 (`maze-chase-web`, zero external deps, C-ABI
