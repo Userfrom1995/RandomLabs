@@ -1,10 +1,10 @@
 # Progress - Maze-Chase Rust Migration
 
 - **Issue:** #582 (parent tracker; gameplay reference #552 stays functional until replacement is verified)
-- **Branch:** opencode/issue582-maze-chase-phase-5
+- **Branch:** opencode/issue582-maze-chase-phase-6
 - **Status:** in-progress
 - **Updated:** 2026-10-16
-- **Active Phase:** Phase 5: Terminal Publication Layer (Complete, ready for review)
+- **Active Phase:** Phase 6: Desktop Publication Layer (Complete, ready for review)
 
 ## Phase Roadmap
 
@@ -125,6 +125,10 @@ flood-fill proof in header), `tests/golden.rs` (pinned hashes),
 - Every merge leaves repo and workflows green
 
 ## Agent log
+
+- 2026-10-16 (fixer): applied the Phase 6 review findings on `opencode/issue582-maze-chase-phase-6` (install-linux.sh local fallback plus tmpdir trap; apply_tune change guard; accumulator surplus drop; render_menu/frame border small-window guards; screens index clamping plus capture cursor freeze; SFX sink play plus dead-code cleanup; probe error propagation plus per-redraw countdown; stick reset on disconnect; pad-capture single-button break; lib.rs comment; headless independence assert on pixels; tracker branch/phase; hub Layers sentence). Proof: desktop unit plus headless suites green, workspace build green, fmt clean. Delegation ledger: no subagents (nine small surgical edits the primary applied directly file-by-file against the quoted findings; only known skill customize-opencode covers opencode config, not game code). - the Fixer
+
+- 2026-10-16 (builder): implemented Phase 6 on `opencode/issue582-maze-chase-phase-6`. New `crates/desktop` 0.1.0 (font/frame/render/input/gamepad/sound/screens/app/window/cli plus binary) driving the shared engine with zero gameplay logic, plus `packaging/desktop/` per-OS artifacts, `docs/desktop.md`, matrix/README/hub updates, and the Phase 6 ideas entry. Proof: 54 unit + 3 headless integration green, workspace fully green, verify 19/19, `--help`/strict-flag smoke, real Xvfb `--probe 90` window run, fmt clean, zero new clippy warnings. Delegation ledger: renderer/session, input/audio/CLI, and docs/packaging/tracker units implemented directly by the primary against the shipped engine/assets/audio/config APIs (no subagent launch record survives in the log for this phase); primary verified itself via the proof above. Skills note: only known skill customize-opencode covers opencode config, not game code. - the Builder
 
 - 2026-10-16 (builder): implemented Phase 5 on `opencode/issue582-maze-chase-phase-5`. New `crates/terminal` 0.1.0 (only dependency: crossterm; PNG, base64, Sixel, layout, and all screens hand-rolled std-only) driving the shared engine with zero gameplay logic, plus `docs/terminal.md`, matrix/README/hub updates, and the Phase 5 ideas entry. Proof: 58 unit + 6 headless integration green, workspace fully green, verify 19/19, `--help` smoke, fmt clean, zero new clippy warnings. Notable catches: first-run settings save needed `create_dir_all` (pinned by persist test), fright-mask test first asserted body pixels the mask glyph never carries, PNG chunk test assumed a wrong frame split. Delegation ledger: no subagents (single-crate layer the primary authored directly against the shipped engine/assets/audio/config APIs; only known skill customize-opencode covers opencode config, not game code). - the Builder
 
