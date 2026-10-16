@@ -1,0 +1,53 @@
+# Maze Chase launch maze: "Ember Warren"
+#
+# Authorship: authored 2026-10-16 for the Maze Chase Rust project (issue
+# #582, Phase 2). Original geometry drawn for this game: orthogonal,
+# left-right symmetric 28x31 grid with a side tunnel on row 14 and a
+# central gatehouse. Functional constraints shared with the genre
+# (dimensions, tunnel row, gatehouse anchors, four corner sunseeds) follow
+# docs/behavior-spec.md; every wall run outside the gatehouse block is
+# fresh. Deliberately distinct from the #552 reference layout: different
+# pillar rhythms in the top third, an open cross corridor on row 11, twin
+# vertical bars flanking the gatehouse, and a walled south-center vault
+# around rows 20-26.
+#
+# Design intent: long sight-lines on rows 1, 11, and 27-29 for chase
+# drama; tight pillar weaves (rows 2-10, 17-26) for cornering escapes;
+# the tunnel as a genuine rotation route, not a hiding spot.
+#
+# Proof: 445 crumbs + 4 sunseeds; flood fill from the player start
+# (13,23) reaches all 449 pickups (see maze_reachability check).
+#
+# Legend: # wall | . crumb | * sunseed | - plain corridor |
+#         D gatehouse door (wardens only) | space gatehouse interior
+############################
+#..........................#
+#.###.####........####.###.#
+#*###.####........####.###*#
+#..........................#
+#.###.##.####..####.##.###.#
+#.###.##.####..####.##.###.#
+#.###.##............##.###.#
+#.....##.##......##.##.....#
+#.######.##......##.######.#
+#.####...##......##...####.#
+#..........................#
+#.###.##.....DD.....##.###.#
+#.###.##..        ..##.###.#
+----------        ----------
+#.###.##..        ..##.###.#
+#..........................#
+#.###.##.####..####.##.###.#
+#.###.##.####..####.##.###.#
+#.....##............##.....#
+#.####..##.##..##.##..####.#
+#.####..##.##..##.##..####.#
+#.*.....##.#...##.##.....*.#
+#.###.##...#...##...##.###.#
+#.###.##...#...##...##.###.#
+#........####..####........#
+#........####..####........#
+#..........................#
+#..........................#
+#..........................#
+############################
