@@ -30,7 +30,10 @@
 //!     cruise, with 10 left 6% plus a chase pin.
 
 use crate::actors::{center_of, step_actor, tile_of, Actor, Dir};
-use crate::maze::{Maze, GHOST_DOOR_TILE, GHOST_OUTSIDE_TILE, HOUSE_SLOTS, SCATTER_CORNERS};
+use crate::maze::{
+    Maze, GHOST_DOOR_TILE, GHOST_OUTSIDE_TILE, HEIGHT, HOUSE_SLOTS, SCATTER_CORNERS, TUNNEL_ROW,
+    WIDTH,
+};
 use crate::modes::{WaveClock, WavePhase};
 use crate::personalities::chase_target;
 use crate::rng::Rng;
@@ -349,8 +352,10 @@ impl Wardens {
                 }
                 WardenState::Eyes => {
                     // Drift home to the gatehouse door at eyes pace, then
-                    // revive at the mouth. Greedy pathing with the ghost
-                    // walkability set (the door belongs to wardens).
+                    // revive at the mouth. Shortest-path stepping over the
+                    // ghost walkability set (the door belongs to wardens);
+                    // reversals are allowed, eyes drift home, they do not
+                    // patrol.
                     let speed = cruise * tuning::EYES_SPEED_FRACTION;
                     w.actor.speed = speed;
                     let tile = tile_of(w.actor.x, w.actor.y);
@@ -370,7 +375,7 @@ impl Wardens {
                     let near = (cx - w.actor.x).abs() + (cy - w.actor.y).abs() <= CENTER_SNAP;
                     if near && w.decided != Some(tile) {
                         w.decided = Some(tile);
-                        w.actor.want = greedy_exit(maze, tile, w.actor.dir, GHOST_DOOR_TILE);
+                        w.actor.want = eyes_exit(maze, tile, w.actor.dir);
                     } else if !near {
                         w.decided = None;
                     }
@@ -417,6 +422,74 @@ impl Wardens {
             self.mode.canonical(),
         )
     }
+}
+
+/// Eyes homing: first step of the shortest ghost-walkable path to the
+/// gatehouse door (breadth-first search, [`Dir::ORDER`] expansion for
+/// determinism, tunnel wrap included).
+///
+/// Greedy no-reverse steering orbits 2x2 corridor loops forever: every
+/// tile of the cycle bans the reversal that would leave it, so eyes
+/// stranded near the south-west weave circled four tiles ~120 times in
+/// 40 simulated seconds and never revived. Shortest-path stepping cannot
+/// cycle: each decision descends the BFS distance field by one tile, so
+/// arrival takes at most WIDTH x HEIGHT decisions on a connected maze.
+/// Reversals are allowed (eyes drift home, they do not patrol), and no
+/// RNG is consumed, so replays stay bit-identical. Falls back to
+/// [`greedy_exit`] only if the door is unreachable (broken maze).
+fn eyes_exit(maze: &Maze, tile: (i32, i32), current: Dir) -> Dir {
+    use std::collections::VecDeque;
+    if tile == GHOST_DOOR_TILE {
+        return current;
+    }
+    let idx = |x: i32, y: i32| (y * WIDTH + x) as usize;
+    let step = |x: i32, y: i32, dir: Dir| -> Option<(i32, i32)> {
+        let (dx, dy) = dir.delta();
+        let (mut nx, ny) = (x + dx, y + dy);
+        if ny == TUNNEL_ROW && !(0..WIDTH).contains(&nx) {
+            nx = if nx < 0 { WIDTH - 1 } else { 0 };
+        }
+        if !Maze::in_bounds(nx, ny) || !maze.is_walkable(nx, ny, true) {
+            return None;
+        }
+        Some((nx, ny))
+    };
+    // BFS from the eyes tile; `parent` walks the winning path back.
+    let mut parent: Vec<Option<(i32, i32)>> = vec![None; (WIDTH * HEIGHT) as usize];
+    let mut queue = VecDeque::from([tile]);
+    parent[idx(tile.0, tile.1)] = Some(tile);
+    while let Some((x, y)) = queue.pop_front() {
+        if (x, y) == GHOST_DOOR_TILE {
+            break;
+        }
+        for dir in Dir::ORDER {
+            if let Some((nx, ny)) = step(x, y, dir) {
+                if parent[idx(nx, ny)].is_none() {
+                    parent[idx(nx, ny)] = Some((x, y));
+                    queue.push_back((nx, ny));
+                }
+            }
+        }
+    }
+    if parent[idx(GHOST_DOOR_TILE.0, GHOST_DOOR_TILE.1)].is_none() {
+        return greedy_exit(maze, tile, current, GHOST_DOOR_TILE);
+    }
+    // Walk back from the door to the tile after the eyes tile.
+    let mut at = GHOST_DOOR_TILE;
+    while let Some(p) = parent[idx(at.0, at.1)] {
+        if p == tile {
+            break;
+        }
+        at = p;
+    }
+    for dir in Dir::ORDER {
+        if let Some(n) = step(tile.0, tile.1, dir) {
+            if n == at {
+                return dir;
+            }
+        }
+    }
+    greedy_exit(maze, tile, current, GHOST_DOOR_TILE)
 }
 
 /// Uniform-random non-reversing exit from the `fright` stream (frightened
