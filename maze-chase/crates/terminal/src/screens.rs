@@ -228,11 +228,11 @@ impl Screens {
                     }
                     SettingsRow::Mute => {
                         self.settings.mute = !self.settings.mute;
-                        Event::None
+                        Event::SettingsCommitted
                     }
                     SettingsRow::ReducedFlash => {
                         self.settings.reduced_flash = !self.settings.reduced_flash;
-                        Event::None
+                        Event::SettingsCommitted
                     }
                     _ => Event::None,
                 },
