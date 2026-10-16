@@ -317,6 +317,7 @@ impl Game {
             self.reset_positions();
             self.last_tile = tile_of(self.player.x, self.player.y);
             self.eat_current_tile(true);
+            self.crumbs_seen = self.maze.dots_eaten;
             self.state = GameState::Play;
             self.events.push("refill".to_string());
             return;
@@ -333,6 +334,7 @@ impl Game {
         self.reset_positions();
         self.last_tile = tile_of(self.player.x, self.player.y);
         self.eat_current_tile(true);
+        self.crumbs_seen = self.maze.dots_eaten;
         self.state = GameState::Play;
         self.events.push(format!("level:{}", self.level));
     }
