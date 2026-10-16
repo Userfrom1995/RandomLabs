@@ -65,13 +65,14 @@
     0: 'panel-title', 1: 'panel-help', 2: 'panel-scores',
     3: 'panel-settings', 5: 'panel-pause', 6: 'panel-over'
   };
-  var WARDEN_CUE = 4; // WardenEaten: pitch doubles per chain via mc_last_chain.
+  var WARDEN_CUE = 4; // WardenEaten: pitch doubling lives in Rust (mc_sfx_from/to already carry the chain arm); mc_last_chain is display-only.
   var SETTINGS_KEY = 'maze-chase-settings';
   var SCORES_KEY = 'maze-chase-scores';
 
   function $(id) { return document.getElementById(id); }
 
   var canvas, ctx, canvasWrap;
+  var lastCssW = 0, lastCssH = 0; // style writes are dirty-checked per frame.
   var exp = null; // wasm exports once booted.
   var lastScreen = -1;
   var armedRebind = -1; // action index armed, or -1.
@@ -277,8 +278,12 @@
     var avail = (canvasWrap && canvasWrap.clientWidth) || window.innerWidth;
     var cssW = Math.max(280, Math.min(avail, window.innerWidth * 0.92));
     var cssH = Math.max(280, Math.round(cssW * 0.72));
-    canvas.style.width = cssW + 'px';
-    canvas.style.height = cssH + 'px';
+    if (cssW !== lastCssW || cssH !== lastCssH) {
+      canvas.style.width = cssW + 'px';
+      canvas.style.height = cssH + 'px';
+      lastCssW = cssW;
+      lastCssH = cssH;
+    }
     var bw = Math.round(cssW * dpr), bh = Math.round(cssH * dpr);
     if (canvas.width !== bw || canvas.height !== bh) {
       canvas.width = bw;
@@ -449,13 +454,6 @@
       ms = exp.mc_sfx_ms(cue) >>> 0;
     } catch (e) { return; }
     if (!(ms > 0)) return;
-    var mult = 1;
-    if (cue === WARDEN_CUE) {
-      try {
-        var ch = exp.mc_last_chain() >>> 0;
-        if (ch >= 1 && ch <= 4) mult = Math.pow(2, ch - 1);
-      } catch (e) { /* ignore */ }
-    }
     var t = AC.currentTime, dur = ms / 1000;
     var g = AC.createGain();
     g.gain.setValueAtTime(0.6, t);
@@ -469,8 +467,8 @@
     } else {
       src = AC.createOscillator();
       src.type = wave === 0 ? 'square' : wave === 1 ? 'triangle' : 'sine';
-      src.frequency.setValueAtTime(Math.max(20, f0 * mult), t);
-      src.frequency.linearRampToValueAtTime(Math.max(20, f1 * mult), t + dur);
+      src.frequency.setValueAtTime(Math.max(20, f0), t);
+      src.frequency.linearRampToValueAtTime(Math.max(20, f1), t + dur);
     }
     src.connect(g);
     try { src.start(t); src.stop(t + dur + 0.02); } catch (e) { /* ignore */ }
@@ -608,14 +606,8 @@
   }
   function isPlaying() { return lastScreen === 4; }
 
-  function disarmRebind(restoreLabel) {
+  function disarmRebind() {
     armedRebind = -1;
-    var btns = document.querySelectorAll('#rebind-list button');
-    for (var i = 0; i < btns.length; i++) {
-      if (btns[i].textContent.indexOf('press a key') === 0 && restoreLabel) {
-        btns[i].textContent = REBIND_ACTIONS[i] + ': ?';
-      }
-    }
   }
 
   // Show the live Rust-side binding on every rebind button (mc_binding
@@ -644,7 +636,7 @@
         try { exp.mc_key(id, 1); exp.mc_key(id, 0); } catch (err) { /* ignore */ }
       }
       var b = document.querySelectorAll('#rebind-list button')[armedRebind];
-      disarmRebind(false);
+      disarmRebind();
       refreshBindingLabels();
       return;
     }
