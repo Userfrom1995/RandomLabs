@@ -46,7 +46,8 @@ concurrency:
 # env indirection in PAT steps (issue #422 residual), R11 guards the lab
 # post-agent strip/push decision gate, R12 guards the shared actor-write
 # gate (issue #428), R13 guards bot-created triage parity (issue #450), and
-# R14 guards per-OS arm queue preservation (issue #594).
+# R14 guards per-OS arm queue preservation (issue #594), and R15 guards the
+# model fallback ladder plus loud Model-not-found failure (issue #591).
 # =============================================================================
 
 jobs:
@@ -1940,6 +1941,25 @@ jobs:
             - Answer/housekeeping = a comment or API action is complete; code changes get committed (as `github-actions[bot]`, NEVER a `Co-authored-by:` trailer), pushed, and PR'd when appropriate - nothing forced.
             - You never post "/oc" comments; comment only as `github-actions[bot]`; never expose secrets; never remove the README first section, the root `index.html`, `docs/`, the pages.yml PR-preview feature, or the lab infrastructure without a clear request.
             - Sign your work: commit subjects start with `general:`, comments end with ` -  the General agent`.
+
+      - name: Verify general agent completed (loud failure, issue #591)
+        if: always() && steps.actor_gate.outputs.run == 'true'
+        env:
+          # Env indirection: the outcome expression stays out of the run block.
+          AGENT_OUTCOME: ${{ steps.opencode.outcome }}
+        run: |
+          # LOUD-FAIL (issue #591): the general arm had no verify step, so a
+          # Model-not-found death under continue-on-error concluded green
+          # (2026-10-17 outage: two general runs, both "success"). The
+          # fallback ladder now resolves this in-run; if the agent step still
+          # ends non-success the whole ladder or the agent crashed, and this
+          # step goes RED so workflow_run failure triage fires.
+          if [ "$AGENT_OUTCOME" = "success" ]; then
+            echo "General agent step completed."
+            exit 0
+          fi
+          echo "::error::General agent step finished with outcome '$AGENT_OUTCOME' (model-resolution death or crash); failing loudly so failure triage fires instead of a hollow green."
+          exit 1
 
       - name: Post /oc maintainer to trigger Maintainer
         if: always() && steps.actor_gate.outputs.run == 'true'
