@@ -691,7 +691,10 @@ fi
 #      that step's success;
 #   4. the shared script validates the sign-off, posts as github-actions[bot]
 #      (never the owner PAT), and re-fetches the comment by id to verify
-#      authorship, the sign-off tail, and the exact body (each anchored);
+#      authorship, the sign-off tail, and the exact body: every guard is an
+#      uncommented line whose failure block's own body ends in a hard
+#      `exit 1` (a weakened comparison, a commented-out guard, or an
+#      `exit 1` replaced by a no-op all trip the rule);
 #   5. all three tester prompt files carry the contract.
 r17_bad=""
 R17_SCRIPT=".github/scripts/post-peros-findings.sh"
@@ -716,10 +719,10 @@ else
     printf '%s\n' "$r17_block" | grep -qF '[ -s /tmp/random-lab-findings.md ] || missing="${missing} findings-report"' || r17_bad="${r17_bad} arm-${r17_os}(verify-not-requiring-findings-file)"
     printf '%s\n' "$r17_block" | grep -qF 'if [ "$need_poster" = "true" ]; then' || r17_bad="${r17_bad} arm-${r17_os}(no-poster-restore-for-older-heads)"
     printf '%s\n' "$r17_block" | grep -qF 'git archive "${GITHUB_SHA}" -- .github/scripts/post-peros-findings.sh' || r17_bad="${r17_bad} arm-${r17_os}(no-poster-archive-restore)"
-    printf '%s\n' "$r17_block" | grep -qE "post-peros-findings\\.sh ${r17_os} " || r17_bad="${r17_bad} arm-${r17_os}(no-shared-post-step)"
+    printf '%s\n' "$r17_block" | grep -qE '^[[:space:]]*bash \.github/scripts/post-peros-findings\.sh '"${r17_os}"' "\$TARGET"[[:space:]]*$' || r17_bad="${r17_bad} arm-${r17_os}(no-shared-post-step)"
     printf '%s\n' "$r17_block" | grep -qF "steps.findings.outcome == 'success'" || r17_bad="${r17_bad} arm-${r17_os}(forward-not-gated-on-findings)"
-    r17_post_gates=$(printf '%s\n' "$r17_block" | grep -cF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'" || true)
-    [ "$r17_post_gates" -ge 2 ] || r17_bad="${r17_bad} arm-${r17_os}(post-step-and-forward-gate-count=${r17_post_gates},want>=2)"
+    printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'" || r17_bad="${r17_bad} arm-${r17_os}(post-step-gate-not-exact)"
+    printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.findings.outcome == 'success'" || r17_bad="${r17_bad} arm-${r17_os}(forward-gate-not-exact)"
     r17_token_envs=$(printf '%s\n' "$r17_block" | grep -cF 'GH_TOKEN: ${{ github.token }}' || true)
     [ "$r17_token_envs" -ge 2 ] || r17_bad="${r17_bad} arm-${r17_os}(github-token-env-count=${r17_token_envs},want>=2)"
   done
@@ -737,6 +740,30 @@ else
   grep -qF 'if [ "$fetched_body" != "$expected_body" ]' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-body-equality-check)"
   grep -qF 'issues/comments/${comment_id}' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-re-fetch-verification)"
   grep -qF 'Verified bot-authored' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-verified-terminal-marker)"
+  # Structural assertions (independent-verifier findings X1/X2/X3): the
+  # literal greps above can be satisfied by weakened or no-op code. Require
+  # each guard to be an uncommented if-line and its own failure block to end
+  # in a real `exit 1` before its closing `fi`.
+  r17_script_line_starts() {
+    sed 's/^[[:space:]]*//' "$R17_SCRIPT" | awk -v p="$1" 'index($0, p) == 1 { f=1 } END { exit(f ? 0 : 1) }'
+  }
+  r17_guard_block_has_exit() {
+    sed 's/^[[:space:]]*//' "$R17_SCRIPT" | awk -v p="$1" '
+      index($0, p) == 1 { inblk=1; next }
+      inblk && $0 == "exit 1" { found=1 }
+      inblk && $0 == "fi" { inblk=0 }
+      END { exit(found ? 0 : 1) }'
+  }
+  for r17_guard in \
+    'pre-post-signoff:if [ "$last_line" != "$signoff" ]' \
+    'bot-author:if [ "$author" != "github-actions[bot]" ]' \
+    'post-fetch-signoff:if [ "$fetched_last" != "$signoff" ]' \
+    'body-equality:if [ "$fetched_body" != "$expected_body" ]'; do
+    r17_guard_name="${r17_guard%%:*}"
+    r17_guard_line="${r17_guard#*:}"
+    r17_script_line_starts "$r17_guard_line" || r17_bad="${r17_bad} script(${r17_guard_name}-guard-missing-or-commented)"
+    r17_guard_block_has_exit "$r17_guard_line" || r17_bad="${r17_bad} script(${r17_guard_name}-guard-block-has-no-exit-1)"
+  done
 fi
 for r17_prompt in tester-linux.md tester-macos.md tester-windows.md; do
   r17_path=".github/agents/${r17_prompt}"
