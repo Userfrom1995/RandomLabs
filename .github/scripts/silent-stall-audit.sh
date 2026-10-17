@@ -1034,15 +1034,39 @@ fi
 # pass defeated a first text-only draft exactly that way). Two properties:
 #   1. whole-tree discovery: inside every job whose runner is Windows (static
 #      or list-form runs-on values mentioning windows, or a matrix runs-on
-#      whose matrix values mention windows), no bash-effective step (a pwsh
-#      step has no MSYS layer and is skipped) may pass a slash-leading body
-#      value ("/oc ...") through argv (--body / --body= / gh's -b shorthand)
-#      unless a REAL env opt-out applies to that step (step-level or job-level
-#      env key MSYS_NO_PATHCONV with value 1/true, or MSYS2_ARG_CONV_EXCL
-#      whose comma/semicolon token list contains "*" or exactly "/oc": MSYS
-#      prefix-matches whole args, so a value like "/octal" never covers
-#      "/oc maintainer"); commented-out text, heredoc prose, zero values, and
-#      similar spoofs are not env keys and never count. Bash quoting is
+#      whose matrix values mention windows), no bash-effective step (pwsh and
+#      cmd steps have no MSYS layer and are skipped; on a Windows runner a
+#      plain "sh" resolves to Git's MSYS sh and is scanned) may pass a
+#      slash-leading body value ("/oc ...") through argv (--body / --body= /
+#      gh's -b shorthand, separate or attached) unless a REAL env opt-out
+#      applies to that step. Opt-out semantics are
+#      taken from the MSYS2 runtime source, not from folklore:
+#        - MSYS_NO_PATHCONV is a presence check (find_path_start_and_type
+#          returns early whenever getenv() is non-NULL,
+#          msys2_path_conv.cc:347), so any non-empty value at workflow, job,
+#          or step level is a real opt-out ("1", "0", "false", "yes" all
+#          work). An empty YAML value stays red: whether the runner exports a
+#          key set to the empty string is not verifiable from the tree, so
+#          the conservative reading wins.
+#        - MSYS2_ARG_CONV_EXCL is read once at spawn (spawn.cc:292-299),
+#          split on ";" only and never trimmed, and a token is honored only
+#          when it is exactly "*" or a prefix of the argv word (path.cc:4208-
+#          4212; empty tokens never match), so a comma-joined "foo,/oc", a
+#          padded " /oc", or a quote-wrapped '"*"' is NOT an opt-out while
+#          an exact "*" or "/oc" token is. MSYS prefix-matches whole argv
+#          words, so "/octal" never covers "/oc maintainer", an exact "/oc"
+#          token covers only the separate-token transport ("--body" then
+#          "/oc ...") and never an attached word ("--body=/oc ...",
+#          "-b/oc ..."), and it never covers a different slash body such as
+#          "/review ...". Only the most specific
+#          level that sets it takes effect (step > job > workflow), so an
+#          ineffective step value is not rescued by a broader effective one.
+#      An inline per-command assignment (MSYS_NO_PATHCONV=1 gh ...) and a
+#      separate export statement are not env keys and stay red as
+#      intentionally conservative false positives (modeling shell state
+#      across a script is out of scope for a static tripwire); commented-out
+#      text, heredoc prose, zero values, and similar spoofs never count.
+#      Bash quoting is
 #      modeled with a small state machine (NORMAL / single / double quotes /
 #      $( ... ) command substitution, top-level positions only), comment
 #      stripping follows shell word-start rules (a "x=${y#*/}" parameter
@@ -1050,22 +1074,29 @@ fi
 #      workflow- and job-level defaults.run.shell are honored, and an
 #      OR-composed if condition (e.g. "... || always()") is never treated as
 #      a Windows skip. Composite action bash run steps under
-#      .github/actions/ are scanned too (they run on the caller's runner).
+#      .github/actions/ are scanned too (they run on the caller's runner),
+#      with step-level env only: an action file cannot see the caller's
+#      workflow/job env maps, so that scan stays conservative.
 #   2. canonical per-OS forwarder contract: each of the three
 #      "Forward ... tester decision" steps in opencode-peros-test.yml must
-#      exist (exact YAML name), carry the opt-out, deliver the body via stdin
-#      (a real top-level "--body-file -" argument), and contain NO top-level
-#      --body (non-file) or -b token at all, so neither the argv guard nor
-#      the conversion-proof transport can silently regress (a helper that
-#      reverts to --body "$1" or -b "$1" is caught even though the runtime
-#      slash value is invisible to a lexical scan, and a dead helper holding
-#      "--body-file -" text cannot mask the reverted transport).
+#      exist exactly once by YAML name inside its own job (test-linux /
+#      test-macos / test-windows; a duplicate-named decoy step in another
+#      job can neither stand in for nor hide a defaced forwarder), carry the
+#      opt-out, deliver the body via stdin (a real top-level "--body-file -"
+#      argument), and contain NO top-level --body (non-file) or -b token at
+#      all, so neither the argv guard nor the conversion-proof transport can
+#      silently regress (a helper that reverts to --body "$1", -b "$1", or
+#      the attached -b"$1" is caught even though the runtime slash value is
+#      invisible to a lexical scan, and a dead helper holding "--body-file -"
+#      text cannot mask the reverted transport).
 # Residual limitation (stated honestly): bash is undecidable, so a
 # deliberately obfuscated rewrite that never spells "gh", "--body" or the
 # slash value literally (string building, eval, arrays across lines) can
-# still evade any static rule; R18 is a tripwire for accidental
-# reintroduction plus a strict canonical contract, and the human reviewer
-# carries the semantic gate.
+# still evade any static rule, and a run block that mutates the opt-out
+# variables itself (unset ..., export KEY=..., writing to $GITHUB_ENV for a
+# later step) evades the env-map model by design; R18 is a tripwire for
+# accidental reintroduction plus a strict canonical contract, and the human
+# reviewer carries the semantic gate.
 r18_bad=""
 r18_python_out=$(python3 - <<'R18PY'
 import glob
@@ -1080,15 +1111,29 @@ except Exception as exc:
     raise SystemExit(0)
 
 PEROS = ".github/workflows/opencode-peros-test.yml"
-FORWARDER_OS = ("Linux", "macOS", "Windows")
+FORWARDERS = (
+    ("Linux", "test-linux"),
+    ("macOS", "test-macos"),
+    ("Windows", "test-windows"),
+)
 problems = []
 
 GH_WORD_RE = re.compile(r"(^|[^A-Za-z0-9_.-])gh(\s|$|[);&|])")
-SLASH_BODY_LONG_RE = re.compile(r"(?<![A-Za-z0-9_-])--body(=|\s+)[\"']?(/[^\s/])")
-SLASH_BODY_SHORT_RE = re.compile(r"(?<![A-Za-z0-9_-])-b(=|\s+)[\"']?(/[^\s/])")
-BODY_NONFILE_RE = re.compile(r"(?<![A-Za-z0-9_-])--body(=|\s+)")
+# Slash-leading body forms, split by transport: attached ("--body=/oc x",
+# "-b/oc x", '-b"/oc x"') keeps the body inside the same argv word as the
+# flag, so no MSYS2_ARG_CONV_EXCL token can ever prefix-match it; separate
+# ("--body /oc x", "-b /oc x") leaves the body in its own argv word.
+# BODY_TOKEN_RE / SHORT_B_TOKEN_RE are the contract-side detectors: any
+# --body that is not --body-file, and any standalone -b token, whatever
+# transport follows (they catch the variable-indirection defacements that the
+# slash-literal forms cannot see).
+BODY_LONG_ATTACHED_RE = re.compile(r"(?<![A-Za-z0-9_-])--body=[\"']?(/[^\s/][^\s/]?)")
+BODY_LONG_SEPARATE_RE = re.compile(r"(?<![A-Za-z0-9_-])--body\s+[\"']?(/[^\s/][^\s/]?)")
+BODY_SHORT_ATTACHED_RE = re.compile(r"(?<![A-Za-z0-9_-])-b=?[\"']?(/[^\s/][^\s/]?)")
+BODY_SHORT_SEPARATE_RE = re.compile(r"(?<![A-Za-z0-9_-])-b\s+[\"']?(/[^\s/][^\s/]?)")
+BODY_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9_-])--body(?!-file)")
 BODY_FILE_STDIN_RE = re.compile(r"--body-file(=|\s+)-\s*(\d?>|\|\||;|&|$)")
-SHORT_B_ANY_RE = re.compile(r"(?<![A-Za-z0-9_-])-b(=|\s+)")
+SHORT_B_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9_-])-b(?![A-Za-z0-9_-])")
 BARE_QUOTED_RE = re.compile(r"([\"'])([A-Za-z0-9_./-]+)\1")
 
 
@@ -1126,7 +1171,20 @@ def effective_shell(step, job, workflow_defaults):
 
 
 def is_bash_shell(shell):
-    return "bash" in shell.lower()
+    # "bash" covers Git for Windows' Git Bash; on a Windows runner a plain
+    # "sh" resolves to the same MSYS2 layer (Git's sh.exe), including custom
+    # templates whose first word names it ("sh -e {0}", an absolute sh.exe
+    # path). Everything else (pwsh, cmd, python) has no MSYS conversion layer.
+    text = str(shell).strip().lower()
+    if "bash" in text:
+        return True
+    parts = text.split()
+    if not parts:
+        return False
+    first = parts[0].replace("\\", "/").rsplit("/", 1)[-1]
+    if first.endswith(".exe"):
+        first = first[:-4]
+    return first == "sh"
 
 
 def skips_windows(step):
@@ -1148,26 +1206,58 @@ def skips_windows(step):
     )
 
 
-def env_optout(env):
+def presence_optout(env):
+    # MSYS_NO_PATHCONV is a presence check at runtime: find_path_start_and_type
+    # disables conversion whenever getenv() is non-NULL (msys2_path_conv.cc:347),
+    # so any non-empty value is a real opt-out ("0", "false", and "yes" all
+    # work). An empty YAML value is rejected conservatively: whether the runner
+    # exports a key set to the empty string is not verifiable from the tree.
     if not isinstance(env, dict):
         return False
     value = env.get("MSYS_NO_PATHCONV")
-    if value is not None and str(value).strip().strip("\"'").lower() in ("1", "true"):
-        return True
+    return value is not None and str(value) != ""
+
+
+def arg_conv_excl_optout(env, body=None, attached=False):
+    # MSYS2_ARG_CONV_EXCL is read once at spawn and split on ";" only, with no
+    # trimming (spawn.cc:292-299); a token is honored only when it is exactly
+    # "*" or a prefix of the argv word, and empty tokens never match
+    # (path.cc:4208-4212). So "foo,/oc", " /oc", and a quote-wrapped '"*"' are
+    # NOT opt-outs (MSYS sees one padded or quoted token). An exact "*" covers
+    # every word; an exact "/oc" token covers only a slash body carried in its
+    # own argv word ("--body" then "/oc ..."), never an attached word
+    # ("--body=/oc ...", "-b/oc ...") and never a different slash body.
+    if not isinstance(env, dict):
+        return False
     value = env.get("MSYS2_ARG_CONV_EXCL")
-    if value is not None:
-        text = str(value).strip().strip("\"'")
-        tokens = [token.strip() for token in re.split(r"[,;]", text)]
-        # MSYS2_ARG_CONV_EXCL prefix-matches whole args; a value naming only
-        # "/octal" never covers "/oc maintainer", so only "*" or an exact
-        # "/oc" token counts as a real opt-out.
-        if "*" in tokens or "/oc" in tokens:
-            return True
+    if value is None:
+        return False
+    tokens = str(value).split(";")
+    if "*" in tokens:
+        return True
+    return (
+        "/oc" in tokens
+        and not attached
+        and body is not None
+        and body.startswith("/oc")
+    )
+
+
+def env_optout(env, body=None, attached=False):
+    return presence_optout(env) or arg_conv_excl_optout(env, body, attached)
+
+
+def merged_optout(workflow_env, job_env, step_env, body=None, attached=False):
+    # MSYS_NO_PATHCONV is presence-based, so any level that sets it wins.
+    if presence_optout(step_env) or presence_optout(job_env) or presence_optout(workflow_env):
+        return True
+    # MSYS2_ARG_CONV_EXCL follows the env override chain: only the most
+    # specific level that sets the key takes effect (step > job > workflow),
+    # so an ineffective step value is never rescued by a broader effective one.
+    for env in (step_env, job_env, workflow_env):
+        if isinstance(env, dict) and "MSYS2_ARG_CONV_EXCL" in env:
+            return arg_conv_excl_optout(env, body, attached)
     return False
-
-
-def merged_optout(job, step):
-    return env_optout(job.get("env")) or env_optout(step.get("env"))
 
 
 def at_top_level(line, index):
@@ -1272,19 +1362,27 @@ def strip_comment(line):
 
 
 def slash_body_hit(line):
-    gh = GH_WORD_RE.search(line)
     # The regexp consumes the character before "gh"; the state must be
     # evaluated AT the g (m.end(1)), because that char can itself open a
-    # backtick substitution (`gh ...`).
-    if gh is None or not at_top_level(line, gh.end(1)):
-        return None
-    match = SLASH_BODY_LONG_RE.search(line)
-    if match is not None and at_top_level(line, match.start()):
-        return "--body"
-    match = SLASH_BODY_SHORT_RE.search(line)
-    if match is not None and at_top_level(line, match.start()):
-        return "-b"
-    return None
+    # backtick substitution (`gh ...`). ANY top-level gh on the line enables
+    # the scan: a quoted "gh" earlier on the line (echo "using gh" && gh ...)
+    # must not suppress a later real invocation.
+    if not any(at_top_level(line, match.end(1)) for match in GH_WORD_RE.finditer(line)):
+        return []
+    hits = []
+    for regex, flag, attached in (
+        (BODY_LONG_ATTACHED_RE, "--body", True),
+        (BODY_LONG_SEPARATE_RE, "--body", False),
+        (BODY_SHORT_ATTACHED_RE, "-b", True),
+        (BODY_SHORT_SEPARATE_RE, "-b", False),
+    ):
+        # Every hit on the line matters: a step can carry several posting
+        # commands, and an opt-out that fits one body/form must not mask an
+        # unguarded sibling.
+        for match in regex.finditer(line):
+            if at_top_level(line, match.start()):
+                hits.append((flag, attached, match.group(1)))
+    return hits
 
 
 def normalize_line(line):
@@ -1295,14 +1393,14 @@ def normalize_line(line):
     return BARE_QUOTED_RE.sub(r"\2", line)
 
 
-def first_slash_body_line(run_text):
+def slash_body_hits(run_text):
+    hits = []
     for line in logical_lines(run_text):
         stripped = normalize_line(strip_comment(line)).strip()
         if not stripped:
             continue
-        if slash_body_hit(stripped) is not None:
-            return stripped
-    return None
+        hits.extend(slash_body_hit(stripped))
+    return hits
 
 
 def safe_step_name(step):
@@ -1321,6 +1419,7 @@ for path in sorted(set(glob.glob(".github/workflows/*.yml") + glob.glob(".github
     if not isinstance(jobs, dict):
         continue
     workflow_defaults = doc.get("defaults") if isinstance(doc, dict) else None
+    workflow_env = doc.get("env") if isinstance(doc, dict) else None
     for job_name, job in jobs.items():
         if not isinstance(job, dict) or not is_windows_job(job):
             continue
@@ -1337,10 +1436,11 @@ for path in sorted(set(glob.glob(".github/workflows/*.yml") + glob.glob(".github
                 continue
             if skips_windows(step):
                 continue
-            hit = first_slash_body_line(run_text)
-            if hit is None:
-                continue
-            if not merged_optout(job, step):
+            hit_unguarded = any(
+                not merged_optout(workflow_env, job.get("env"), step.get("env"), body, attached)
+                for _flag, attached, body in slash_body_hits(run_text)
+            )
+            if hit_unguarded:
                 problems.append(
                     "%s(job-%s/step-%s:unguarded-slash-body-argv)"
                     % (path, job_name, safe_step_name(step))
@@ -1355,26 +1455,38 @@ else:
     except Exception as exc:
         problems.append("%s(yaml-parse-error:%s)" % (PEROS, exc))
         peros_doc = None
-    for os_name in FORWARDER_OS:
+    peros_env = peros_doc.get("env") if isinstance(peros_doc, dict) else None
+    peros_jobs = (peros_doc or {}).get("jobs") if isinstance(peros_doc, dict) else None
+    if not isinstance(peros_jobs, dict):
+        peros_jobs = {}
+    for os_name, job_id in FORWARDERS:
         want = "Forward %s tester decision" % os_name
+        # Exact-name matches anywhere in the file: a duplicate is a decoy
+        # (the forwarder is identified by name, so a second same-named step
+        # could stand in for a defaced forwarder) and is always red.
+        named = [
+            step
+            for job in peros_jobs.values()
+            if isinstance(job, dict)
+            for step in (job.get("steps") if isinstance(job.get("steps"), list) else [])
+            if isinstance(step, dict) and step.get("name") == want
+        ]
+        if len(named) > 1:
+            problems.append("peros(forward-%s-name-duplicate:%d)" % (os_name, len(named)))
+            continue
         found = None
-        jobs = (peros_doc or {}).get("jobs") if isinstance(peros_doc, dict) else None
-        if isinstance(jobs, dict):
-            for job in jobs.values():
-                if not isinstance(job, dict):
-                    continue
-                for step in job.get("steps") or []:
-                    if isinstance(step, dict) and step.get("name") == want:
-                        found = (job, step)
-                        break
-                if found is not None:
+        job = peros_jobs.get(job_id)
+        if isinstance(job, dict):
+            for step in job.get("steps") if isinstance(job.get("steps"), list) else []:
+                if isinstance(step, dict) and step.get("name") == want:
+                    found = step
                     break
         if found is None:
-            problems.append("peros(forward-%s-step-missing)" % os_name)
+            problems.append("peros(forward-%s-step-missing-in-%s)" % (os_name, job_id))
             continue
-        job, step = found
+        step = found
         run_text = step.get("run") if isinstance(step.get("run"), str) else ""
-        if not merged_optout(job, step):
+        if not merged_optout(peros_env, job.get("env"), step.get("env")):
             problems.append("peros(forward-%s-no-msys-optout)" % os_name)
         transport = False
         raw_body = False
@@ -1387,9 +1499,10 @@ else:
                 match = BODY_FILE_STDIN_RE.search(stripped)
                 if match is not None and at_top_level(stripped, match.start()):
                     transport = True
-            # Any top-level -b (slash-leading or variable, --body non-file
-            # forms) means a handoff body can reach argv on this step.
-            for regex in (BODY_NONFILE_RE, SHORT_B_ANY_RE, SLASH_BODY_SHORT_RE):
+            # Any top-level --body that is not --body-file, or any standalone
+            # -b token (separate or attached, variable or literal), means a
+            # handoff body can reach argv on this step.
+            for regex in (BODY_TOKEN_RE, SHORT_B_TOKEN_RE):
                 match = regex.search(stripped)
                 if match is not None and at_top_level(stripped, match.start()):
                     raw_body = True
@@ -1420,16 +1533,17 @@ for action_path in sorted(set(glob.glob(".github/actions/*/action.yml") + glob.g
         if not isinstance(run_text, str):
             continue
         shell = str(step.get("shell") or "")
-        if "bash" not in shell.lower():
+        if not is_bash_shell(shell):
             continue
         if skips_windows(step):
             # A composite step conditioned away from Windows (evaluated on
             # the caller's runner) can never hit MSYS path conversion.
             continue
-        hit = first_slash_body_line(run_text)
-        if hit is None:
-            continue
-        if env_optout(step.get("env")):
+        hit_unguarded = any(
+            not env_optout(step.get("env"), body, attached)
+            for _flag, attached, body in slash_body_hits(run_text)
+        )
+        if not hit_unguarded:
             continue
         problems.append(
             "%s(composite-step-%s:unguarded-slash-body-argv)"
