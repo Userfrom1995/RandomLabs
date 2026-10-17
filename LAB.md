@@ -87,11 +87,18 @@ Public Surface / Web Track:                                              │
 - **Peer Handoffs**: Each agent knows its role in the pipeline and hands off work directly to its teammates via the workflow decision forwarder.
 - **Queued Execution**: The lab's pipeline workflows (`opencode*.yml`,
   `maintainer.yml`, `lab.yml`, `curator.yml`, `auditor.yml`, `ideate.yml`)
-  all set `cancel-in-progress: false`, so trigger events queue up
-  sequentially and in-flight builds, reviews, tests, and maintainer merges
-  finish cleanly without being cancelled mid-run. Superseding-only workflows
-  (`pages.yml` deploys and `tor-cli.yml` CI) set `cancel-in-progress: true`
-  on purpose: a newer event replaces a stale one.
+  all set `cancel-in-progress: false`, so an in-flight build, review, test, or
+  maintainer merge is never cancelled mid-run. Non-cancellation is not lossless
+  queuing: GitHub keeps at most ONE pending run per group by default, so a
+  newer queued run replaces a still-pending older one (documented behavior;
+  actions/runner#3722). Homogeneous triggers (a duplicate `/oc continue` behind
+  a build, a duplicate arm behind the running arm) are deliberately
+  superseding, but a group that serializes heterogeneous work must set
+  `queue: max`; `opencode-peros-test.yml` does exactly that so a later trigger
+  (for example the no-op `/oc maintainer` completion handoff) can never cancel
+  a queued per-OS arm (issue #594). Superseding-only workflows (`pages.yml`
+  deploys and `tor-cli.yml` CI) set `cancel-in-progress: true` on purpose: a
+  newer event replaces a stale one.
 - **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (rebase, bot identity), closes linked issues, updates memory, and advances the pipeline.
 - **Merge capability**: Workflow-file PRs require `workflows` scope, which `GITHUB_TOKEN` cannot grant via `permissions:` (valid `GITHUB_TOKEN` scopes are `actions`, `contents`, `pull-requests`, etc.; `workflows` is App/PAT only). The mutating workflows (`lab.yml`, `maintainer.yml`, `opencode.yml`, `opencode-recover.yml`) push via the PAT-backed runner step (`https://x-access-token:${OPENCODE_PAT}@github.com/...` with credential-injection cleanup), and merges of PRs touching `.github/workflows/*` must likewise use the PAT or an owner click. Read-only agents (Reviewer, Tester, Auditor, Ideator) carry no extra scope. Without a PAT merge, infra PR merges fail with "refusing to allow a GitHub App to create or update workflow ... without workflows permission" (observed on PR #139; flagged in #120).
 - In-progress continuation: When a build requires additional phases (`Status: in-progress`), the workflow triggers `/oc continue`.
@@ -139,12 +146,17 @@ concurrency:
   cancel-in-progress: false
 ```
 
-- Runs queue sequentially so that active merges and repo surveys finish cleanly.
+- Runs never cancel an active merge or survey. With the default single pending
+  slot, a newer queued run replaces a still-pending older trigger, which is
+  fine here: the newest repo state wins. Groups that serialize heterogeneous
+  work where a later trigger must not drop a queued run set `queue: max`
+  instead (see `opencode-peros-test.yml`).
   Repo-wide items (schedule, dispatch without PR) serialize on the
   `global` group.
 - No scoping of decisions - every run has full repo-wide vision and authority;
   per-run safety comes from fresh re-survey + dedup + one-trigger-per-PR-per-run.
-- Workers get per-issue concurrency groups (same-PR builds can never overlap;
+- Workers get per-issue concurrency groups (same-PR builds never overlap;
+  a newer queued trigger supersedes a still-pending older one, and
   different PRs build in parallel).
 - `timeout-minutes: 60` on the Maintainer job (zombie-proofs the queue).
 
@@ -392,9 +404,12 @@ verify step never misreads a pre-start resolution failure as an agent crash
 
 Concurrency: the pipeline workflows above (`opencode*.yml`, `maintainer.yml`,
 `lab.yml`, `curator.yml`, `auditor.yml`, `ideate.yml`) queue with
-`cancel-in-progress: false`; the superseding-only workflows (`pages.yml`
-deploys and `tor-cli.yml` CI) set `true` on purpose - a newer event
-replaces a stale one (see AGENTS.md, Queued Execution).
+`cancel-in-progress: false`, but the default queue depth is a single pending
+slot: a newer queued run replaces a still-pending older one (fine for
+homogeneous superseding triggers). `opencode-peros-test.yml` sets `queue: max`
+so a queued per-OS arm is never displaced (issue #594); the superseding-only
+workflows (`pages.yml` deploys and `tor-cli.yml` CI) set `true` on purpose -
+a newer event replaces a stale one (see AGENTS.md, Queued Execution).
 
 Project CI (separate from lab infrastructure): `tor-cli.yml`,
 `poolduel-m1.yml`, `poolduel-m2.yml`, `poolduel-m9.yml`,
@@ -459,7 +474,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R13), CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R14), CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
