@@ -27,6 +27,10 @@ struct Pty {
     slave: std::fs::File,
 }
 
+/// Serializes the MT-Unsafe `ptsname` static buffer across the parallel
+/// test threads in this binary (`ptsname_r` is ENOTSUP on macOS).
+static PTSNAME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Open a PTY pair with a fixed window size and non-blocking master reads.
 fn open_pty(cols: u16, rows: u16) -> Pty {
     unsafe {
@@ -34,9 +38,12 @@ fn open_pty(cols: u16, rows: u16) -> Pty {
         assert!(master >= 0, "posix_openpt failed");
         assert_eq!(libc::grantpt(master), 0, "grantpt failed");
         assert_eq!(libc::unlockpt(master), 0, "unlockpt failed");
-        let name = libc::ptsname(master);
-        assert!(!name.is_null(), "ptsname failed");
-        let slave = libc::open(name, libc::O_RDWR | libc::O_NOCTTY);
+        let slave = {
+            let _guard = PTSNAME_LOCK.lock().unwrap();
+            let name = libc::ptsname(master);
+            assert!(!name.is_null(), "ptsname failed");
+            libc::open(name, libc::O_RDWR | libc::O_NOCTTY)
+        };
         assert!(slave >= 0, "open slave failed");
         let ws = libc::winsize {
             ws_row: rows,
