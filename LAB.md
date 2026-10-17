@@ -125,7 +125,12 @@ Public Surface / Web Track:                                              │
   `.github/scripts/post-peros-findings.sh` posts it as `github-actions[bot]`
   and re-fetches the comment by id to verify authorship, sign-off, and the
   exact body; and the decision forward is gated on that step's success, so an
-  unverified report can never conclude an arm green. Audit rule R17
+  unverified report can never conclude an arm green. Line endings are
+  normalized to LF on both sides of the exact-body comparison and an
+  LF-normalized copy is posted (issue #612 follow-up: Git Bash on Windows
+  translates command-substituted output, and the CRLF-translated re-fetch
+  tripped the gate on run 39068849150 after the report had already posted);
+  a real content mismatch still fails closed. Audit rule R17
   regression-guards the contract across all three arms and their prompt
   files.
 - **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (rebase, bot identity), closes linked issues, updates memory, and advances the pipeline.
