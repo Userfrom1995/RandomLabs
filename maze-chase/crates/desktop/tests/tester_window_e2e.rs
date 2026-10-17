@@ -9,7 +9,9 @@
 //! mid-probe must be captured at the size it actually has. Every run is
 //! wall-clock bounded: a hang fails the test instead of freezing the
 //! suite. Tests that need Xvfb (optionally openbox/xdotool) skip cleanly
-//! when the tooling is not installed.
+//! when the tooling is not installed. The absent-display arm is X11
+//! specific (winit's Windows and macOS backends ignore `DISPLAY`), so it
+//! runs on Linux only.
 
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -198,7 +200,9 @@ impl Drop for XvfbSession {
     }
 }
 
-/// A display number nothing is listening on right now.
+/// A display number nothing is listening on right now. Only the Linux
+/// arm uses `DISPLAY`, so the helper is Linux-scoped with its test.
+#[cfg(target_os = "linux")]
 fn absent_display() -> String {
     for _ in 0..80 {
         let n = next_display();
@@ -263,6 +267,7 @@ fn resize_window(display: &str, wid: u64, w: u32, h: u32) {
 }
 
 #[test]
+#[cfg(target_os = "linux")]
 fn no_display_is_a_loud_nonzero_failure() {
     let path = temp_path("no-display");
     let _ = std::fs::remove_file(&path);
