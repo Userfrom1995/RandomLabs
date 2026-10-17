@@ -57,7 +57,7 @@ stays an honest exit-4 refusal (no tun2socks backend shipped; per-app + shell wo
   exits the owned tor instead of orphaning it. Shutdown is close-first, then
   SIGTERM (5 s grace), then SIGKILL. Foreign instances are reused, never killed.
   torrc passthrough lines overriding a torshim-managed key (listeners,
-  identity, daemon behavior, `Include`) are rejected up front (M5):
+  identity, daemon behavior, `Include`) are rejected up front:
   bridge/pluggable-transport lines keep working.
 - Readiness (binding): bootstrap `PROGRESS=100` + `TAG=done` AND
   `status/circuit-established == 1`, polled, 120 s default timeout.
@@ -73,7 +73,7 @@ stays an honest exit-4 refusal (no tun2socks backend shipped; per-app + shell wo
   failures, and the parent prints the PID plus endpoints and exits 0.
   A bare GUI run is refused with detach guidance instead of hanging;
   headless browser runs stay on the wait path like CLI tools.
-- Per-app (macOS/Windows, M4): exec with `socks5h://` proxy environment
+- Per-app (macOS/Windows): exec with `socks5h://` proxy environment
   (all six `*_PROXY` keys, parent duplicates scrubbed). Only apps honoring
   proxy env are covered; every launch prints the coverage note. No DYLD
   shim by decision (SIP would strip it silently). GUI launches need
@@ -99,24 +99,24 @@ Man page: `man ./torshim.1` (or `man torshim` after install).
 ## Layout
 
 - `main.go` - cobra-free flag dispatch, exit codes (0 ok, 1 error, 2 usage,
-  3 tor-not-ready fail-closed, 4 later-milestone).
+  3 tor-not-ready fail-closed, 4 unsupported on this platform).
 - `internal/control/` - control-protocol v1 client + readiness parsing,
   read-only diagnostics (version, circuits, streams, guards, traffic,
   listeners) + rate-limited NEWNYM.
 - `internal/doctor/` - `doctor` verdict: graded pass/fail/skip checks over
   control, bootstrap, circuit, SOCKS, DNSPort, exit-IP egress, firewall,
   IPv6; stub-injectable, stdlib-only probes.
-- `internal/lifecycle/` - torrc gen, launch, readiness wait, detect, stop.
-  M3 adds fixed TransPort, RunAs setuid, TempParent scoping, and per-OS
+- `internal/lifecycle/` - torrc gen, launch, readiness wait, detect, stop,
+  plus fixed TransPort, RunAs setuid, TempParent scoping, and per-OS
   spawn/signal shims (linux/darwin/windows all compile).
 - `internal/perapp/` - torsocks conf/exec + static-binary guard (Linux);
-  socks5h proxy-env backend with coverage note (macOS/Windows, M4);
+  socks5h proxy-env backend with coverage note (macOS/Windows);
   GUI-aware tier (firefox, falkon, chromium, chrome with headless
   bypass) plus the wait/detach supervision split with signal
   forwarding, log-file capture, and bounded alive poll.
 - `internal/shell/` - child shell + coverage banner (shim on Linux,
   proxy env elsewhere).
-- `internal/syswide/` - M3 system-wide: iptables + nft backends, state,
+- `internal/syswide/` - system-wide routing: iptables + nft backends, state,
   snapshot/restore, verify suite, connect/disconnect/repair, status probe.
 - `internal/status/` - state aggregator (absent/unknown never protected;
   folds in the system session, `mode: system` only on state + rules).
