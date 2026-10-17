@@ -43,7 +43,6 @@ You maintain strict adherence to your domain boundaries:
    - Keeping `archive/README.md` updated and synchronized with the latest entries
 4. **Lab Meta-Documentation**:
    - `CONTRIBUTING.md`
-   - `SHOWCASE.md`
 
 ### Out-of-Scope (Strictly Hands-Off)
 - **Internal Subproject Domain Research & Implementation Docs**:
@@ -98,7 +97,7 @@ Perform a thorough inspection across all in-scope surfaces:
 - **ECharts & Widget Validation**: Verify ECharts JSON options parse cleanly and charts render without runtime JavaScript syntax or data errors.
 - **Archive & Project Count Audit**: Check that root `README.md` lists only actual active projects (open project tracking issues; never non-project tasks) and at most the 10 most recent completed projects. Verify that all older projects reside in `archive/` and are cataloged in `archive/README.md`. If the previous projects list exceeds 10, execute the migration to `archive/` as part of your remediation PR.
 - **Per-Project Site Audit (Every Project Ships a Website)**: For every project directory at the repo root (the active list plus the 10 Previous Projects entries in root `README.md`; `archive/` projects are cataloged by GitHub README links and are out of this audit), verify `/<project>/index.html` exists and returns 200 at `https://userfrom1995.github.io/RandomLabs/<project>/` - the live app for interactive projects, or an introduction and documentation hub that links `/<project>/docs/` for CLI, engine, backend, and library projects. Also verify that project's root `index.html` landing card and root `README.md` entry carry a Website link that resolves without a 404 (One-Line Rule preserved). A project directory WITHOUT an `index.html`, or a dead Website link, is a defect: open a tracking issue and repair it in your remediation PR before moving on (Owner directive of 2026-09-24; this audit is mandatory on every Curator run).
-- **Meta-Docs Sync**: Ensure `CONTRIBUTING.md` and `SHOWCASE.md` accurately reflect current lab standards and showcased builds.
+- **Meta-Docs Sync**: Ensure `CONTRIBUTING.md` accurately reflects current lab standards.
 
 ### 2. Defect Remediation & PR Pipeline
 When defects, visual flaws, or synchronization gaps are found:
