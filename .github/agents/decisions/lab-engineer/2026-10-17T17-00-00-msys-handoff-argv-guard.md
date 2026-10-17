@@ -103,6 +103,67 @@ real top-level token positions count.
   per-OS Windows arm run on this PR itself (the arm's handoff comment must be
   byte-exact `/oc maintainer`).
 
+## Round 2: the Tester's guard findings and the hardening that followed
+
+The Tester's read-only infrastructure round (`/oc test`, verdict
+`{"action":"lab"}`) confirmed the handoff fix end to end and found one
+blocking false negative in R18's opt-out validation plus non-blocking
+conservatism:
+
+- Blocking: `MSYS2_ARG_CONV_EXCL` was split on `[,;]` with per-token
+  trimming, but the runtime splits on `;` only and never trims
+  (spawn.cc:292-299) and prefix-matches whole argv words (path.cc:4208-4212),
+  so `"foo,/oc"` and `" /oc"` were green-lit while MSYS would still mangle
+  the body.
+- Non-blocking: `MSYS_NO_PATHCONV` values `"0"`, `"false"`, `"yes"` and
+  workflow-level `env:` were red although runtime-safe.
+
+Round-2 fixes (commit 50ec847e):
+
+- `presence_optout` / `arg_conv_excl_optout` mirror the runtime exactly:
+  presence semantics for `MSYS_NO_PATHCONV` (any non-empty value, any level),
+  semicolon-only split with no trimming for `MSYS2_ARG_CONV_EXCL`, and the
+  env override chain (step > job > workflow) so an ineffective step value is
+  never rescued by a broader effective one. Workflow-level env is honored.
+  An empty `MSYS_NO_PATHCONV` stays red (documented conservative reading).
+- An exact `"/oc"` token counts only when the detected body travels in its
+  own argv word and starts with `/oc`.
+- Attached transports (`--body=/oc`, `-b/oc`, `-b"/oc`) are detected and can
+  never be covered by a `/oc` token, and a `/oc` token no longer covers a
+  different slash body (`/review ...`).
+- The canonical forwarder contract is now job-bound and duplicate-proof: a
+  decoy step named "Forward Windows tester decision" outside `test-windows`
+  (or a second same-named step anywhere) is red, and the raw-body detection
+  catches the attached `-b"$1"` defacement even behind a dead stdin helper.
+- `sh` and `sh -e {0}` shells on Windows are scanned as MSYS-effective, and
+  every slash-body hit in a step is evaluated (a passing first hit no longer
+  masks an unguarded sibling); any top-level `gh` on a line enables the scan
+  so a quoted `gh` cannot suppress a later real invocation.
+
+Additional adversarial rounds (independent subagent, fresh `/tmp` copies,
+carried context across rounds) re-ran every previously found counterexample
+after each change and hunted new ones. The rounds found these additional
+literal false negatives, all closed in this round: attached-flag bodies under
+a `/oc` token (a single-token `--body=/oc ...` is not prefix-excluded by MSYS
+but was green-lit), the attached `-b/oc` detection gap, the duplicate/relocated
+forwarder decoy, and first-hit masking across multiple hits in one step. Final
+verdicts: all previously reported literal gaps closed; remaining
+disagreements are the documented conservatism (inline per-command
+assignments, `export`, `unset` / `$GITHUB_ENV` mutation, variable-built argv,
+`bash -c '...'` payloads, non-literal obfuscation) plus fail-closed
+over-approximations (an unrelated same-line `--body` token; bodies containing
+`:` that the runtime would copy as-is; `/oc ` and `/` token prefixes that are
+runtime-effective but rejected in favor of the exact `*` / `/oc` tokens).
+
+Evidence: a 58-case mutation matrix on isolated copies under `/tmp` with
+credential scrubbing, covering every Tester counterexample (now red), every
+adversarial disagreement, all supported opt-out forms (green), the structural
+discovery dimensions (list/matrix/alias runners, workflow and job shell
+defaults, OR-composed `if`, composite actions, `sh` shells), and the
+canonical forwarder contract mutations (duplicate, relocated, attached
+defacement, transport removal); full audit 17 passed / 0 failed on the
+rebased tree; `bash -n` clean; zero em dashes.
+
 ## Delegation ledger
 
 - Subagent 1 (general; adversarial verification, three rounds, read-only on
@@ -119,6 +180,25 @@ real top-level token positions count.
   6-case forwarder proof under `env -u` scrubbing with stub-interception
   assertion, the em-dash sweep over every changed file, and the final
   `git status`/diff review before committing.
+- Subagent 2 (general; R18 round-2/3 verification with carried context, three
+  adversarial rounds on fresh `/tmp` copies): confirmed the Tester's comma and
+  padded-token counterexamples fixed; found the attached-transport `/oc` token
+  false negative, the attached `-b/oc` detection gap, the duplicate/relocated
+  forwarder decoy, and the first-hit masking hole; re-ran every prior
+  counterexample after each fix and confirmed each closed, with the only new
+  behavior a documented fail-closed over-approximation (an unrelated
+  same-line `--body` token).
+- Subagent 3 (general; structural regression suite, fresh `/tmp` copies):
+  re-verified static/list/matrix/alias runner discovery, workflow and job
+  shell defaults, OR-composed `if` handling, composite scanning, the
+  three-forwarder contract, whole-tree `gh` body absence, YAML and bash
+  syntax, and the changed-file inventory (audit script byte-identical to the
+  working tree).
+- Primary verified itself in round 2: the full 58-case matrix after every
+  change, the full audit and `bash -n` after every edit, the audit against
+  the rebased tree (17 passed / 0 failed), and the diff/em-dash review before
+  committing. `sh -e {0}` handling and the quoted-`gh` suppression fix were
+  driven by the subagent findings and re-verified in the primary matrix.
 - Skills: no skill fits (GitHub Actions lab infrastructure and lab prompts,
   not opencode configuration of this workspace).
 
