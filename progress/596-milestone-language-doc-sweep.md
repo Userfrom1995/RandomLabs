@@ -24,7 +24,7 @@ ledger sections.
 - [x] doom gate tools: audit-layout.mjs, audit-m2.mjs, audit-m3.mjs,
       audit-m5.mjs, render-m2-shell.mjs, capture-m5.mjs (generators must not
       reintroduce codes; audit checks must assert the unified headers)
-- [ ] tor-cli: README.md, docs/limitations.md, docs/threat-model.md,
+- [x] tor-cli: README.md, docs/limitations.md, docs/threat-model.md,
       docs/research.md, docs/reproducibility.md
 - [ ] maze-chase: README.md, docs/design.md, docs/behavior-spec.md,
       docs/feature-matrix.md, docs/identity.md, docs/legal.md,
@@ -52,10 +52,9 @@ ledger sections.
 
 ## Current step
 
-doom swept: all public docs de-coded; audit-m2.md and layout-audit.md
-regenerated from their updated generators; manifest resealed; audit-m5 now
-96/96 (its stale index.html scope check was pinned to the pre-#568 label and
-is updated to the unified one); doom suite 424/424 green. Next: tor-cli.
+tor-cli swept: README plus the four docs/ files de-coded (delta headers,
+"(M5 final)" titles, per-OS section labels, milestone-ordered roadmap prose);
+go test ./... green. Next: maze-chase.
 
 ## Agent log
 
@@ -84,3 +83,9 @@ is updated to the unified one); doom suite 424/424 green. Next: tor-cli.
   audit-m2.md (48/48) and layout-audit.md (15 checks, ALL PASS), resealed
   manifest.sha256 (5 artifacts). doom suite 424/424 green; audit-m3 52/52;
   audit-m5 96/96. bench-m5.json prose left untouched (machine evidence).
+- 2026-10-17: tor-cli done. README de-coded (exit-code note, per-app and
+  layout bullets); limitations.md title, hardening intro, and per-OS section
+  labels capability-named; threat-model "delta" headers renamed to their
+  subject; research spec title and delivery-order handoff de-coded;
+  reproducibility title de-coded. Go code comments (internal) untouched by
+  decision. go test ./... green.

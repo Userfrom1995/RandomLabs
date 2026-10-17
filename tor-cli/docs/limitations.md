@@ -1,8 +1,8 @@
-# torshim per-OS limitations (M5 final)
+# torshim per-OS limitations
 
 Unofficial frontend. Not sponsored by The Tor Project.
 
-M5 hardening (this milestone): concurrent connect/disconnect/repair
+Final hardening summary: concurrent connect/disconnect/repair
 runs serialize on a session lock (`session.lock` in the state dir; a
 stale lock from a crashed run is reaped, a live holder fails closed
 with the holder pid named); torrc passthrough lines that would
@@ -31,7 +31,7 @@ pinned by `internal/syswide/edge_test.go`.
   is why the ack flag is mandatory there. Prefer Tor Browser for
   fingerprint-sensitive browsing on every OS.
 
-## Linux (M3 fully implemented)
+## Linux (per-app, shell, system-wide)
 
 - Requires root for `connect` / `disconnect` / `repair`, plus a stock
   `tor` binary and either `iptables`+`ip6tables` or `nft` on PATH
@@ -45,8 +45,8 @@ pinned by `internal/syswide/edge_test.go`.
   (ICMP), IPv6-only services, LAN printers/shares by IP, DHCP renewal
   on long sessions, NTP over UDP. This blocking is the fail-closed
   design, not a bug.
-- No IPv6 exits in M3: v6 is REJECTed (loopback and tor exempt), never
-  routed. v6-capable exits are M4+ work.
+- No IPv6 exits: v6 is REJECTed (loopback and tor exempt), never
+  routed. v6-capable exits are future work.
 - Pre-existing clearnet flows at connect time die on their next packet
   (no ESTABLISHED exemption); packets already sent cannot be unsent.
   Quit sensitive apps before connecting.
@@ -57,7 +57,7 @@ pinned by `internal/syswide/edge_test.go`.
   only on the next `status`/`disconnect`. Stop such managers first.
 - Reboot equals disconnected (rules are in-memory, state is under
   `/run`). Reconnect explicitly after boot; nothing persists unless the
-  operator builds their own unit file (out of scope for M3).
+  operator builds their own unit file (torshim ships no unit file).
 - Tor DNSPort answers only A/AAAA/PTR. Exotic record types get NOTIMPL
   or empty: correct Tor behavior, documented so it is not filed as a bug.
 - Per-app mode does not block host IPv6: the torsocks shim only
@@ -66,7 +66,7 @@ pinned by `internal/syswide/edge_test.go`.
   should use system mode (v6 REJECTed session-wide) or disable host v6.
   `doctor` reports this as a skip-with-reason, never a pass.
 
-## macOS (M4: per-app + shell work via proxy env)
+## macOS (per-app + shell via proxy env)
 
 - `run` / `<app>` and `shell` work: proxy environment
   (`ALL_PROXY`/`all_proxy`/`HTTP(S)_PROXY` as `socks5h://`, DNS
@@ -89,7 +89,7 @@ pinned by `internal/syswide/edge_test.go`.
   surface, per-OS packet plumbing). Per-app + shell are the macOS
   story.
 
-## Windows (M4: per-app + shell work via proxy env)
+## Windows (per-app + shell via proxy env)
 
 - `run` / `<app>` and `shell` work via the same `socks5h` proxy
   environment (PowerShell and most CLI tools honor it; WinINET apps

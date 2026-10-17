@@ -1,4 +1,4 @@
-# Tor CLI (torshim) - Research Specification (M1)
+# Tor CLI (torshim) - Research Specification
 
 Status: research complete, handing off to Architect.
 Scope: lightweight cross-platform Tor wrapper. Uses the existing Tor client and network; never implements Tor itself.
@@ -15,7 +15,7 @@ Rationale:
 - `ontor` is rejected: PyPI `ontor 0.4.11` (ontology editor on Owlready2) is a hard collision.
 - `torshim` (7 chars, tor-shim) precisely signals a lightweight wrapper, is memorable, and types well.
 - Fallback: `tormux` (also clean on all registries; avoids generic `wrap/run/tool`; slight risk of aural confusion with `tmux`).
-- Trademark caveat (binding): `Tor` is a registered mark and the Tor Project asks that products not use `Tor` in product or domain names without written permission. Any `tor*` prefix, including `torshim`, is trademark-sensitive. Mitigation required: subtitle every surface with `torshim - lightweight launcher for the Tor network (unofficial, not sponsored by The Tor Project)`, add a README disclaimer with a link to torproject.org, and contact trademarks@torproject.org before productizing. This does not block M2 development under the placeholder name.
+- Trademark caveat (binding): `Tor` is a registered mark and the Tor Project asks that products not use `Tor` in product or domain names without written permission. Any `tor*` prefix, including `torshim`, is trademark-sensitive. Mitigation required: subtitle every surface with `torshim - lightweight launcher for the Tor network (unofficial, not sponsored by The Tor Project)`, add a README disclaimer with a link to torproject.org, and contact trademarks@torproject.org before productizing. This does not block development under the placeholder name.
 
 This document uses `torshim` as the binary name; `tor-tool` in the issue text refers to the same thing.
 
@@ -244,8 +244,8 @@ Adversary: local network observer and remote destination trying to link the user
 
 ## 10. Architecture handoff notes (for the Architect)
 
-- Milestone order stands: M2 per-app plus shell on Linux primary (torsocks default, static-binary guard, readiness wait, reuse/cleanup, Ctrl-C, DNS plus v4/v6 tests); M3 system-wide Linux `connect`/`disconnect` (iptables plus nft backends, backup/restore, idempotence, reboot-safety) with macOS/Windows backends plus limitations doc; M4 macOS plus Windows ports with `status`/`version`, packaging, man/help; M5 hardening plus tri-OS CI.
-- `progress/387-tor-cli.md` epic owned by Architect next.
+- Delivery order stands: per-app plus shell on Linux primary (torsocks default, static-binary guard, readiness wait, reuse/cleanup, Ctrl-C, DNS plus v4/v6 tests); system-wide Linux `connect`/`disconnect` (iptables plus nft backends, backup/restore, idempotence, reboot-safety) with macOS/Windows backends plus limitations doc; macOS plus Windows ports with `status`/`version`, packaging, man/help; hardening plus tri-OS CI.
+- `progress/387-tor-cli.md` delivery plan owned by Architect next.
 - Packaging: single static Go binary plus vendored or depended `torsocks`/`proxychains-ng`/`tun2socks` helpers per OS (document which are bundled versus apt/brew/choco deps); man page plus `--help`; `status`/`version` contract per section 6.
 - Docs deliverables: `tor-cli/docs/` with this research, threat model (section 7), per-OS limitations (section 8 plus 4.2/4.3), reproducibility notes (commands, versions, registry check dates).
 
