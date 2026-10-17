@@ -438,14 +438,19 @@ live rung (the registry response is parsed defensively and can never inject
 shell text; an unreachable registry degrades to pass-through, never to a
 blocked run). At runtime the shared runner retries the next rung once per
 rung on a provider `Model not found` (opencode may exit nonzero or exit 0
-after posting its error comment), and a fully dead ladder fails the step
+after posting its error comment), matching the exact attempted id with a word
+boundary so prose quoting a different retired model can never advance the
+ladder; a failed log capture and a fully dead ladder both fail the step
 nonzero instead of the 2026-10-17 hollow green, so the existing crash-parity
 verify steps (auto-retry, then `/oc maintainer`) decide what happens next.
 `maintainer.yml` inlines the same resolver and per-rung retry - its dead pin
 used to be exactly the arm that would otherwise have repaired the outage -
 and a verify step goes red whenever the Maintainer agent ends without
 `.maintainer/decision.json`; the general arm carries the same loud-failure
-verify step. Audit rule R14 regression-guards the resolver, the ladder
+verify step. The recover arm deliberately keeps its `continue-on-error` agent
+step: its direct `recover.sh` engine fallback runs regardless, so recovery
+still executes even when the ladder is dead (that arm's red is not needed to
+summon the repair). Audit rule R14 regression-guards the resolver, the ladder
 rungs, and both retry paths.
 
 The schedule arms (`curator.yml`, `auditor.yml`) and the dispatched arms

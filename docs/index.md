@@ -94,12 +94,13 @@ pushes to forks (guidance only).
   agent starts, and the scheduled (`curator`, `auditor`) and dispatched
   (`curator`, `auditor`, `ideate`, `lab`) agent arms self-heal once before
   escalating to the Maintainer, so a crash never burns a whole cron cycle
-  unnoticed. The same runner resolves the pinned model against the live
+  unnoticed. The same resolver resolves the pinned model against the live
   provider registry before every run and steps through an ordered free-tier
   fallback ladder when the provider retires the pin; when the whole ladder is
-  dead the run fails loudly instead of concluding green. Dispatch inputs
-  reach shell only as environment data, and a crashed lab run never pushes
-  its branch.
+  dead the agent step fails loudly instead of a hollow green, and the
+  Maintainer and general arms red their runs so failure triage fires.
+  Dispatch inputs reach shell only as environment data, and a crashed lab
+  run never pushes its branch.
 - The Reviewer is read-only by construction; nothing merges without its
   approval; timers are evaluation triggers, not deadlines; every decision is
   logged with rationale.
