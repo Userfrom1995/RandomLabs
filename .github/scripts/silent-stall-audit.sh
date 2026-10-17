@@ -9,17 +9,20 @@
 # R12 actor-write gate guard (issue #428), the R13 bot-created triage
 # parity guard (issue #450), the R14 heterogeneous-group queue-preservation
 # guard (per-OS arms issue #594 plus the whole comment-triggered cohort issue
-# #601), and the R15 model fallback ladder guard (issue #591:
-# provider model retirement / loud Model-not-found failure).
-# Wired into auditor.yml as the R1-R15 matrix.
+# #601), the R15 model fallback ladder guard (issue #591:
+# provider model retirement / loud Model-not-found failure), and the R16
+# shallow-workspace PAT merge guard (issue #602: a depth-limited opencode CLI
+# session fetch re-shallows the Maintainer checkout, and merge-base-dependent
+# merge checks then fail closed and silently skip a linked workflow PR).
+# Wired into auditor.yml as the R1-R16 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R15 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R16 audit the whole tree
 # (the review-restore guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
-# group cohort, and the model fallback
-# ladder), so they trip on a bad
+# group cohort, the model fallback
+# ladder, and the PAT merge shallow-workspace guard), so they trip on a bad
 # curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml no matter which
 # file the audit was pointed at.
 # Exit code is always 0 so it never breaks the auditor run; failures are reported
@@ -48,12 +51,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R15 PASS] $name: $desc"
+  [R1-R16 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R15 FAIL] $name: $desc"
+  [R1-R16 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -609,16 +612,71 @@ else
   check "R15" "model fallback ladder missing:${r15_bad} (issue #591: one retired pin kills every arm at once and Model-not-found deaths conclude green)" "bad"
 fi
 
-summary="Silent-stall regression audit (R1-R15) on ${WF}: ${pass} passed, ${fail} failed."
+# [R16] Shallow-workspace PAT merge guard (issue #602): the PAT-backed merge
+# sweep proves a workflow-touching PR shares history with main using
+# merge-base-dependent commands (the three-dot workflow diff and the orphan
+# guard). On a shallow workspace both fail closed: the three-dot diff exits
+# "no merge base" (the PR is skipped as not touching workflows) and the orphan
+# guard reads a linked PR as unrelated, so the merge is silently skipped with
+# no error and no red run - and workflow-file PRs can only land through this
+# PAT path (issue #283 class). The opencode CLI session bootstrap itself
+# re-shallows the full-depth checkout: its PR checkout path fetches with
+# --depth=max(commits,20) and its PR-create precheck falls back to --depth=1
+# (verified against the installed CLI), and a depth-limited fetch into a full
+# clone records a new shallow boundary. Properties:
+#   1. the merge step detects the shallow state and restores full history
+#      BEFORE its first merge-base-dependent command (ordering is checked
+#      structurally, not just by marker presence);
+#   2. the strict orphan check is retained at BOTH sites (a single-site flip
+#      to fail-open `-n` must trip the rule, so the count of strict `-z`
+#      checks is asserted and any `-n` merge-base check is banned);
+#   3. a workspace still shallow after the unshallow attempt warns loudly
+#      instead of skipping silently (the conditional detection line must
+#      appear for both the outer guard and the inner re-check, so replacing
+#      either with an unconditional `if true` trips the rule).
+r16_bad=""
+if [ ! -f "$MAIN_WF" ]; then
+  r16_bad=" maintainer.yml(missing)"
+else
+  pat_block=$(sed -n '/- name: PAT-backed merge for approved workflow-touching PRs/,/^      - name: /p' "$MAIN_WF" 2>/dev/null || true)
+  if [ -z "$pat_block" ]; then
+    r16_bad="${r16_bad} maintainer.yml(pat-merge-step-missing-or-renamed)"
+  else
+    # The exact conditional detection line must appear TWICE: the outer guard
+    # and the post-attempt still-shallow re-check. A weakened outer `if true`
+    # leaves only the inner occurrence; removing detection entirely leaves
+    # none.
+    r16_detect=$(printf '%s\n' "$pat_block" | grep -cF 'if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then' || true)
+    [ "$r16_detect" -ge 2 ] || r16_bad="${r16_bad} maintainer.yml(shallow-detection-count=${r16_detect},want>=2)"
+    printf '%s\n' "$pat_block" | grep -qE 'git fetch origin main[[:space:]]+--unshallow' || r16_bad="${r16_bad} maintainer.yml(no-unshallow-fetch)"
+    printf '%s\n' "$pat_block" | grep -qF 'still shallow after the unshallow attempt' || r16_bad="${r16_bad} maintainer.yml(no-still-shallow-warning)"
+    r16_strict=$(printf '%s\n' "$pat_block" | grep -cF '[ -z "$(git merge-base origin/main' || true)
+    r16_failopen=$(printf '%s\n' "$pat_block" | grep -cF '[ -n "$(git merge-base origin/main' || true)
+    [ "$r16_strict" -ge 2 ] || r16_bad="${r16_bad} maintainer.yml(orphan-check-not-strict:strict=${r16_strict},want>=2)"
+    [ "$r16_failopen" -eq 0 ] || r16_bad="${r16_bad} maintainer.yml(orphan-check-fail-open:failopen=${r16_failopen})"
+    r16_unshallow_line=$(printf '%s\n' "$pat_block" | grep -nE 'git fetch origin main[[:space:]]+--unshallow' | head -1 | cut -d: -f1)
+    r16_dep_line=$(printf '%s\n' "$pat_block" | grep -nE 'git merge-base|git diff --name-only "origin/main' | head -1 | cut -d: -f1)
+    if [ -z "$r16_unshallow_line" ] || [ -z "$r16_dep_line" ] || [ "$r16_unshallow_line" -ge "$r16_dep_line" ]; then
+      r16_bad="${r16_bad} maintainer.yml(unshallow-not-before-merge-base:${r16_unshallow_line:-none}/${r16_dep_line:-none})"
+    fi
+  fi
+fi
+if [ -z "$r16_bad" ]; then
+  check "R16" "shallow workspace is unshallowed before the PAT merge sweep's first merge-base-dependent command, the strict orphan check is retained, and a still-shallow workspace warns instead of skipping silently (issue #602)" "ok"
+else
+  check "R16" "shallow-workspace PAT merge guard missing:${r16_bad} (issue #602: a linked workflow PR is silently skipped as an orphan on a shallow workspace)" "bad"
+fi
+
+summary="Silent-stall regression audit (R1-R16) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R15)
+  body="## Silent-stall regression audit FAILED (R1-R16)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, or R15 model fallback ladder). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder, or R16 shallow-workspace PAT merge guard). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
