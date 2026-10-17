@@ -189,6 +189,18 @@ jobs:
         shell: bash
         run: echo "$HOME/.opencode/bin" >> $GITHUB_PATH
 
+      - name: Resolve model (bounded fallback ladder)
+        id: model_ladder
+        shell: bash
+        # Fail-loud pre-flight (issue #591): the Maintainer is the arm that
+        # would dispatch the model repair, so its own pin dying is the exact
+        # single point of failure of the 2026-10-17 outage. Same resolver and
+        # ladder as the shared composite action; a fully dead ladder exits 1
+        # here and the verify step below goes red instead of hollow green.
+        env:
+          REQUESTED_MODEL: opencode/deepseek-v4.1-flash-free
+        run: bash .github/actions/opencode-run/resolve-model.sh
+
       - name: Run Maintainer agent
         id: maintainer_run
         continue-on-error: true
@@ -199,7 +211,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
           VARIANT: max
-          MODEL: opencode/deepseek-v4.1-flash-free
+          MODEL_CANDIDATES: ${{ steps.model_ladder.outputs.candidates }}
           USE_GITHUB_TOKEN: "true"
           PROMPT: |
             You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.
@@ -230,7 +242,59 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             export GITHUB_EVENT_NAME="workflow_dispatch"
           fi
-          opencode github run
+          # FALLBACK-LADDER (issue #591): per-rung retry on provider
+          # "Model not found" (opencode may exit nonzero OR exit 0 after
+          # posting its error comment), exactly once per rung; any other
+          # failure exits immediately; a dead ladder exits 1 loudly so the
+          # verify step below goes red instead of the 2026-10-17 hollow green.
+          candidates="${MODEL_CANDIDATES:-}"
+          if [ -z "$candidates" ]; then
+            echo "::error::No model candidates resolved; refusing to run the Maintainer (the resolve step did not produce a candidate chain)."
+            exit 1
+          fi
+          status=1
+          for model in $candidates; do
+            log="$(mktemp)"
+            echo "::notice::maintainer run with model '$model'"
+            set +e
+            MODEL="$model" opencode github run 2>&1 | tee "$log"
+            status=${PIPESTATUS[0]}
+            set -e
+            if [ "$status" -eq 0 ] && ! grep -qF "Model not found: $model" "$log"; then
+              rm -f "$log"
+              exit 0
+            fi
+            if grep -qF "Model not found: $model" "$log"; then
+              echo "::warning::model '$model' was not found by the provider; advancing to the next ladder rung if any."
+              rm -f "$log"
+              continue
+            fi
+            echo "::error::Maintainer opencode run failed with exit status $status on model '$model' (not a model-resolution death; remaining rungs are not retried)."
+            rm -f "$log"
+            exit "$status"
+          done
+          echo "::error::Maintainer exhausted every model rung ($candidates) with 'Model not found' (issue #591 fallback ladder is dead); failing loudly so the run is visible to health audit and triage."
+          exit 1
+
+      - name: Verify Maintainer wrote its decision contract (loud failure, issue #591)
+        id: verify_agent
+        if: always()
+        shell: bash
+        env:
+          # Env indirection: the outcome expression stays out of the run block.
+          AGENT_OUTCOME: ${{ steps.maintainer_run.outcome }}
+        run: |
+          # A healthy Maintainer ALWAYS writes .maintainer/decision.json
+          # (an empty array [] is a valid quiet run), so its absence is a
+          # broken contract: the 2026-10-17 outage's Model-not-found deaths
+          # concluded green under continue-on-error with only a warning, and
+          # the workflow_run failure triage never fired. Go RED instead.
+          if [ -f .maintainer/decision.json ]; then
+            echo "Maintainer decision contract present (outcome '$AGENT_OUTCOME')."
+            exit 0
+          fi
+          echo "::error::Maintainer agent finished with outcome '$AGENT_OUTCOME' and no .maintainer/decision.json (model-resolution death, provider error, or crash). Failing loudly instead of concluding green without triage."
+          exit 1
 
       - name: Remove maintainer stray PRs and branches (the Maintainer never opens PRs)
         if: always()

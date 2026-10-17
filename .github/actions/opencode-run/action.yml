@@ -2,15 +2,20 @@ name: "opencode GitHub Action (vendored, hardened)"
 description: >-
   In-repo vendoring of anomalyco/opencode/github@latest with a non-fatal,
   authenticated version lookup, so an anonymous releases-API rate limit can
-  never abort an agent run before the agent starts (issue #422).
+  never abort an agent run before the agent starts (issue #422), plus a
+  bounded model fallback ladder, so a provider-side model retirement can no
+  longer kill every arm at once or conclude a Model-not-found death green
+  (issue #591).
 branding:
   icon: "code"
   color: "orange"
 
 # Vendored from github/action.yml of anomalyco/opencode at @latest.
 # Keep inputs and the cache/install/PATH/run steps byte-compatible with
-# upstream so a future re-sync is a mechanical diff; the ONLY intentional
-# divergence is the hardened "Get opencode version" step below.
+# upstream so a future re-sync is a mechanical diff; the intentional
+# divergences are (1) the hardened "Get opencode version" step below and
+# (2) the model-resilience pair (resolve-model.sh + model-ladder.txt and the
+# per-rung retry loop in "Run opencode"), both guarded by audit rule R14.
 inputs:
   model:
     description: "Model to use"
@@ -117,12 +122,64 @@ runs:
       shell: bash
       run: echo "$HOME/.opencode/bin" >> $GITHUB_PATH
 
+    - name: Resolve model (bounded fallback ladder)
+      id: model_ladder
+      shell: bash
+      # Fail-loud pre-flight (issue #591): resolves the requested pin against
+      # the live registry and substitutes the first live ladder rung when the
+      # provider retired the pin. A registry outage degrades to pass-through
+      # (never blocks the run); a fully dead ladder exits 1 here so the
+      # caller's crash-parity verify step decides retry/escalation instead of
+      # hollow green. Script + ladder co-locate with this action so the
+      # PR-head restore archive (issue #430) carries them atomically.
+      env:
+        REQUESTED_MODEL: ${{ inputs.model }}
+      run: |
+        script="${GITHUB_ACTION_PATH:-.github/actions/opencode-run}/resolve-model.sh"
+        bash "$script"
+
     - name: Run opencode
       shell: bash
       id: run_opencode
-      run: opencode github run
+      # Per-rung retry (issue #591): the task says a provider retirement is
+      # unilateral and the death was silent. MODEL_CANDIDATES is the ordered
+      # chain from resolve-model.sh (requested first when live, then the live
+      # rungs). A provider "Model not found" (whether opencode exits nonzero
+      # or exits 0 after posting its error comment) advances to the next rung
+      # exactly once per rung; any other failure exits immediately; a fully
+      # exhausted ladder exits 1 LOUDLY so the verify steps summon triage.
+      run: |
+        candidates="${MODEL_CANDIDATES:-${MODEL:-}}"
+        if [ -z "$candidates" ]; then
+          echo "::error::No model candidates resolved; refusing to run opencode (the resolve step did not produce a candidate chain)."
+          exit 1
+        fi
+        status=1
+        for model in $candidates; do
+          log="$(mktemp)"
+          echo "::notice::opencode run with model '$model'"
+          set +e
+          MODEL="$model" opencode github run 2>&1 | tee "$log"
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -eq 0 ] && ! grep -qF "Model not found: $model" "$log"; then
+            rm -f "$log"
+            exit 0
+          fi
+          if grep -qF "Model not found: $model" "$log"; then
+            echo "::warning::model '$model' was not found by the provider; advancing to the next ladder rung if any."
+            rm -f "$log"
+            continue
+          fi
+          echo "::error::opencode failed with exit status $status on model '$model' (not a model-resolution death; remaining rungs are not retried)."
+          rm -f "$log"
+          exit "$status"
+        done
+        echo "::error::opencode exhausted every model rung ($candidates) with 'Model not found' (issue #591 fallback ladder is dead); failing loudly so failure triage fires instead of a hollow green."
+        exit 1
       env:
-        MODEL: ${{ inputs.model }}
+        MODEL_CANDIDATES: ${{ steps.model_ladder.outputs.candidates }}
+        MODEL: ${{ steps.model_ladder.outputs.model }}
         AGENT: ${{ inputs.agent }}
         SHARE: ${{ inputs.share }}
         PROMPT: ${{ inputs.prompt }}
