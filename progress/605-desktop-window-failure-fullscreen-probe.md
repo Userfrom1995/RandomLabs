@@ -24,9 +24,10 @@ Status: in-progress
 - Fullscreen probe waits for the resize; windowed probe byte-stable.
 
 ## Current step
-Fix, regressions, docs, and live Xvfb evidence complete. 62 lib + 8
-hostile + 6 eval-fix + 3 headless + 1 persistence green; fmt clean; zero
-new clippy warnings. Ready for review.
+Fix, regressions, docs, and live Xvfb evidence complete; branch rebased on
+latest `main`. 62 lib + 8 hostile + 6 eval-fix + 3 headless + 1
+persistence green, workspace green, verify 19/19, fmt clean, zero new
+clippy warnings. PR #607 is open and ready for review.
 
 ## Next steps
 - `/oc review`, then `/oc test`, then `/oc eval` before merge.
@@ -83,3 +84,9 @@ new clippy warnings. Ready for review.
   tests: 4 gate cases, 1 boot-failure seam case, 2 capture-size cases.
   `cargo test -p maze-chase-desktop`: 62 lib + 8 hostile + 6 eval-fix + 3
   headless + 1 persistence green. - the Builder
+- 2026-10-17 (Builder): verified the fix live on the debug binary
+  (evidence section above), updated `docs/desktop.md`, ran the full
+  workspace suite (`cargo test --workspace`, exit 0), `maze-chase-verify`
+  19/19, fmt clean, clippy with zero desktop warnings. Opened PR #607
+  with `Closes #605`, rebased on latest `main` (6270703a), and applied
+  rustfmt plus a naming fix to the probe gate before handoff. - the Builder
