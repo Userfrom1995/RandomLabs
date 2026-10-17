@@ -13,8 +13,6 @@ use crossterm::terminal::{
 use maze_chase_terminal::app::{config_dir, App};
 use maze_chase_terminal::backend::Tier;
 use maze_chase_terminal::{chrome, sixel, unicode};
-#[cfg(windows)]
-use std::io::Read;
 use std::io::{IsTerminal, Write};
 use std::time::{Duration, Instant};
 
@@ -142,18 +140,26 @@ fn read_probe_reply_fd(fd: std::os::fd::RawFd, timeout: Duration) -> Vec<u8> {
     reply
 }
 
-/// Windows arm: the console input handle is waitable, so wait bounded
-/// and only then read. No orphan reader can outlive the timeout.
+/// Windows arm: the console input handle is waitable, but a high-level
+/// `std::io::stdin().read()` after a wake is not bounded - ReadConsole
+/// discards arrow/function-key (and mouse/window) records and does not
+/// return until a character is available, so a wake on a non-character
+/// record parks a blocking read past the deadline that then eats the
+/// next key. Read queued records directly instead, and never through
+/// Rust's buffered stdin (a fill can strand records where crossterm
+/// will never look).
 #[cfg(windows)]
 fn read_probe_reply(timeout: Duration) -> Vec<u8> {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::Foundation::WAIT_OBJECT_0;
+    use windows_sys::Win32::System::Console::{
+        GetNumberOfConsoleInputEvents, ReadConsoleInputW, INPUT_RECORD, KEY_EVENT,
+    };
     use windows_sys::Win32::System::Threading::WaitForSingleObject;
 
     let deadline = Instant::now() + timeout;
     let handle = std::io::stdin().as_raw_handle();
     let mut reply: Vec<u8> = Vec::new();
-    let mut buf = [0u8; 64];
     loop {
         let remaining = deadline.saturating_duration_since(Instant::now());
         if remaining.is_zero() {
@@ -163,13 +169,35 @@ fn read_probe_reply(timeout: Duration) -> Vec<u8> {
         if unsafe { WaitForSingleObject(handle, ms) } != WAIT_OBJECT_0 {
             break;
         }
-        match std::io::stdin().read(&mut buf) {
-            Ok(0) | Err(_) => break,
-            Ok(n) => {
-                reply.extend_from_slice(&buf[..n]);
-                if da1_reply_complete(&reply) {
-                    break;
+        // Drain only records that are already queued: ReadConsoleInputW
+        // blocks on an empty buffer, and the buffer is not empty when
+        // GetNumberOfConsoleInputEvents reports records.
+        let mut pending: u32 = 0;
+        while unsafe { GetNumberOfConsoleInputEvents(handle, &mut pending) } != 0 && pending > 0 {
+            let mut record: INPUT_RECORD = unsafe { std::mem::zeroed() };
+            let mut got: u32 = 0;
+            if unsafe { ReadConsoleInputW(handle, &mut record, 1, &mut got) } == 0 || got == 0 {
+                break;
+            }
+            if u32::from(record.EventType) == KEY_EVENT {
+                let key = unsafe { record.Event.KeyEvent };
+                let ch = unsafe { key.uChar.UnicodeChar };
+                if key.bKeyDown != 0 && ch != 0 {
+                    if ch < 0x80 {
+                        reply.push(ch as u8);
+                    } else {
+                        let mut utf8 = [0u8; 4];
+                        reply.extend_from_slice(
+                            char::from_u32(ch as u32)
+                                .unwrap_or(char::REPLACEMENT_CHARACTER)
+                                .encode_utf8(&mut utf8)
+                                .as_bytes(),
+                        );
+                    }
                 }
+            }
+            if da1_reply_complete(&reply) {
+                return reply;
             }
         }
     }
