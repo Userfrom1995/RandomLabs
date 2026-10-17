@@ -378,4 +378,76 @@ properties, and result strings now name both issues.
   clean, repo untouched). Skills: no skill fit (GitHub Actions lab
   infrastructure).
 
+## Addendum VII: R15 round-6 closure (A1/A2/A3)
+
+- **A1 (Reviewer, BLOCKING):** the log-capture guard was pinned statically but
+  never executed: every scenario's capture succeeds, so the guard's failure
+  branch could rot behind a satisfied pin while the run continued on an empty
+  log. The sandbox now swaps a failing `tee` mock (reads stdin, writes `$1`,
+  exits 3) onto `PATH` for a `failing-tee` scenario whose mock `opencode`
+  otherwise prints a healthy success line: both runner paths must fail loudly
+  (rc 1, exactly one attempt) with the `could not capture the opencode log`
+  error and must never continue on the empty log.
+- **A2 (Reviewer, BLOCKING):** the tail window had only upper-bound fixtures,
+  so shrinking `tail -n 40` itself passed every detector fixture. New
+  boundary pair for both detectors: `ft-window39` (terminal line + 39 healthy
+  trailing lines) must still match, `ft-window40` must not; new `ft-trailing`
+  behavioral scenario (attempt 1 exits 0 with the FT terminal line followed
+  by 3 healthy lines) must still consume exactly one same-model retry
+  (attempts `a-free a-free`, rc 0): a narrowed window mistakes the failure
+  for success and stops after one attempt.
+- **A3 (Reviewer, non-blocking "Also exercise"):** the dotted-candidate
+  production-shape behavioral path now covers the nonzero boundary grep too:
+  `mnf-dot-lookalike` runs the real dotted candidate
+  `opencode/deepseek-v4.1-flash-free` whose attempt-1 nonzero line names the
+  lookalike `opencode/deepseek-v4X1-flash-free` (one character where the dot
+  sits) and asserts the run does not advance to the next rung on it
+  (attempts stay `opencode/deepseek-v4.1-flash-free`, rc 4).
+- **Guard implementation:** four window fixtures, three mock opencode arms
+  (`failing-tee`, `ft-trailing`, `mnf-dot-lookalike`), the failing `tee` mock
+  plus its per-scenario swap/restore in the sandbox setup, a candidates
+  parameter on the behavioral runner (`MODEL_CANDIDATES`/`MODEL`), the third
+  optional `cands` argument on the case helper, three new behavioral cases,
+  and the R15 header/check/failure text now naming the functional detector
+  fixtures and the new scenarios.
+- **Mutation matrix (this pass, full audit per mutation, both runner files):**
+  pristine control 22 passed / 0 failed (workspace and an independent fresh
+  export); 19 mutations each trip exactly one check (R15) with their
+  dedicated flags, no collateral, every mutated YAML parses:
+  - round-6 classes: A1 failing-tee decoy (`|| true` failure branch plus a
+    comment decoy holding the static pin) -> `failing-tee:rc=0,want=1` and
+    missing-output on both labels; A2 window narrowing (`tail -n 2`, static
+    pins held) -> `ft-window39` functional mismatch on both detector files
+    plus `ft-trailing` attempts and backoff on both labels plus the new
+    tail-scope static pin; A3 unescaped nonzero boundary grep (comment decoy
+    holds the pinned form) -> `mnf-dot-lookalike` attempts mismatch on both
+    labels.
+  - re-confirmed rounds F3-F8: F3a budget moved after `continue` -> timeout
+    (rc=124); F3b `if false` wiring plus comment decoys -> static wiring
+    pins; F3c huge live sleeps plus unreachable decoy sleeps -> anchored
+    static count plus `bad-backoff`; F3c1/F3c2 per-branch loud-exit swaps ->
+    the branch-tied exit pins; F4a hoisted budget ->
+    `transient-nonzero:rc=1,want=0`; F4b in-loop init -> timeout; F5a cap
+    decoy -> static cap pin; F5b persistent `rm -f "$log"` -> `exit 0` ->
+    `persistent-zero:rc=0,want=1`; F5c loop-rewrite (condition-only advance)
+    -> `transient-nonzero:rc=1,want=0` (the while body never re-enters for
+    the next rung, so the false exhaustion is caught behaviorally); F5d dead
+    backoff -> `bad-backoff`; F5e alternate in-loop reset -> timeout; F6/F7/
+    F8a/F8b as recorded in Addendum VI.
+- **Docs sync:** the AGENTS.md #620 bullet and both LAB.md R15 sections now
+  name the functional detector fixtures (39/40 lower bound, dot-lookalike),
+  the failing-tee loudness, the trailing-lines retry, and the widened denial
+  (no textual pin relocation, decoy, loop rewrite, or detection-window tweak
+  impersonates the contract).
+- **This pass's evidence:** control audit 22/0 in the workspace; 20-case
+  matrix under `/tmp/opencode/lab620-a12/` (full-tree copies outside the
+  repo, full audit plus YAML parse per mutation).
+- **Delegation ledger (this pass):** primary implemented the guard scenarios
+  and ran the full 20-case matrix directly; one independent general verifier
+  subagent re-exported the workspace, reproduced the control (22/0) and the
+  three round-6 mutations on its own copies, confirmed exactly one R15 FAIL
+  with the dedicated flags, clean YAML each time, and the new scenario tokens
+  present in the guard file. Skills: no skill fit (GitHub Actions lab
+  infrastructure).
+
 - the Lab Engineer
