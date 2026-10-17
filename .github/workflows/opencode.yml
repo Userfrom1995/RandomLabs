@@ -101,7 +101,8 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/muse-spark-1.3-contributor-free
+          variant: max
+          model: opencode/deepseek-v4.1-flash-free
           use_github_token: true
           prompt: |
             You are the Researcher of the Random lab, triggered by "/oc research".
@@ -277,7 +278,8 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/muse-spark-1.3-contributor-free
+          variant: max
+          model: opencode/deepseek-v4.1-flash-free
           use_github_token: true
           prompt: |
             You are the Architect of the Random lab, triggered by "/oc architect" or "/oc plan".
@@ -558,7 +560,8 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/muse-spark-1.3-contributor-free
+          variant: max
+          model: opencode/deepseek-v4.1-flash-free
           use_github_token: true
           prompt: |
             You are the Builder of the Random lab, triggered by "/oc build" or "/oc continue" on this issue/PR.
@@ -1012,7 +1015,8 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/muse-spark-1.3-contributor-free
+          variant: max
+          model: opencode/deepseek-v4.1-flash-free
           use_github_token: true
           prompt: |
             You are the Fixer of the Random lab, responding to the reviewer's findings on the open PR this comment was posted on.
@@ -1194,7 +1198,8 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/muse-spark-1.3-contributor-free
+          variant: max
+          model: opencode/deepseek-v4.1-flash-free
           use_github_token: true
           prompt: |
             You are the Design Council of the Random lab, triggered by "/oc design".
@@ -1363,7 +1368,8 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/muse-spark-1.3-contributor-free
+          variant: max
+          model: opencode/deepseek-v4.1-flash-free
           use_github_token: true
           prompt: |
             You are the Product Designer (UX) of the Random lab, triggered by "/oc design-ux".
@@ -1532,7 +1538,8 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/muse-spark-1.3-contributor-free
+          variant: max
+          model: opencode/deepseek-v4.1-flash-free
           use_github_token: true
           prompt: |
             You are the Visual Designer of the Random lab, triggered by "/oc design-visual".
@@ -1701,7 +1708,8 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/muse-spark-1.3-contributor-free
+          variant: max
+          model: opencode/deepseek-v4.1-flash-free
           use_github_token: true
           prompt: |
             You are the Interaction Designer of the Random lab, triggered by "/oc design-motion".
@@ -1919,7 +1927,8 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/muse-spark-1.3-contributor-free
+          variant: max
+          model: opencode/deepseek-v4.1-flash-free
           use_github_token: true
           prompt: |
             You are the General agent of the Random lab, triggered by a plain "/oc" request (a question, housekeeping, or a small change).
