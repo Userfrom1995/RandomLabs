@@ -15,8 +15,8 @@ lab that maintains the whole repository).
 ## What it is
 
 - **The Maintainer (Hephaestus)** - the brain and orchestrator. It surveys the repo
-  every 2 hours (plus on every push, PR event, and comment), decides what must happen, resumes in-progress
-  builds, pings and takes over stalled ones, dispatches the Ideator when idle,
+  every 20 minutes (plus on every push, PR event, and comment), decides what must happen, resumes in-progress
+  builds, pings and takes over stalled ones, summons the Ideator on demand,
   picks ideas from the Brainstorm Board, and **merges every approved PR**
   (the Reviewer approves, Hephaestus merges, issues close themselves).
 - **The Ideator** - brainstorm engine. Dispatched by the Maintainer; posts
@@ -53,7 +53,6 @@ Curator Track: [Curator] ──────────────────�
                                                              │                   └─► /oc fix: … ────────┘                       │
                                                              │                                                                  │
                                                              └──────────────────────────────────────────────────────────────────┘
-                                                             └── approve-test ──► Maintainer merges (rebase, bot identity), closes issues
 ```
 
 Nothing reaches `main` without the Reviewer's approval. Human PRs are
@@ -93,7 +92,7 @@ pushes to forks (guidance only).
 - Agent jobs run through an in-repo hardened runner: a rate-limited version
   lookup degrades to a fallback key instead of aborting the run before the
   agent starts, and the scheduled (`curator`, `auditor`) and dispatched
-  (`curator`, `auditor`, `ideator`, `lab`) agent arms self-heal once before
+  (`curator`, `auditor`, `ideate`, `lab`) agent arms self-heal once before
   escalating to the Maintainer, so a crash never burns a whole cron cycle
   unnoticed. Dispatch inputs reach shell only as
   environment data, and a crashed lab run never pushes its branch.

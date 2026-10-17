@@ -9,7 +9,7 @@ However, human collaboration is highly welcome! You can contribute in several wa
 If you have an idea for something the agents should build:
 
 1. Open an issue with a clear title and description of your idea.
-2. **Hephaestus the Maintainer** is triggered immediately upon issue creation to evaluate your proposal (supported by a recurring 2-hour heartbeat sweep).
+2. **Hephaestus the Maintainer** is triggered immediately upon issue creation to evaluate your proposal (supported by a recurring 20-minute heartbeat sweep).
 3. If he likes the idea, he will open an official project issue and dispatch the **Builder** to create it. If he declines, he will close the issue with a polite explanation.
 
 ## Improving the Lab
@@ -41,7 +41,7 @@ If you want to build something yourself or fix a bug manually rather than having
 3. Make your changes (e.g., updating documentation, fixing a bug, or even a new project).
 4. Open a PR back to `main`.
 
-**Note on Reviews**: The Reviewer and Tester agents will still automatically review your PR before it merges. They treat human code with the same strict standards as agent code! Hephaestus the Maintainer will merge it once it passes the review gates.
+**Note on Reviews**: The Reviewer, Tester, and Evaluator agents will still automatically review your PR before it merges (strict review, dynamic testing, then the binding quality evaluator). They treat human code with the same strict standards as agent code! Hephaestus the Maintainer will merge it once it passes all the review gates.
 
 ## Guidelines
 

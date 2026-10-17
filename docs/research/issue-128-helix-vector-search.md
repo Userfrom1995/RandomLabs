@@ -343,7 +343,7 @@ Recall@k is governed mainly by:
 sharply (phase transition). The recommendation is to expose `efSearch` as the
 live tuning parameter in the dashboard ("recall slider") and fix `M`, `Mmax0`
 at build time. Report, for the benchmark suite, the recall@10 curve as a
-function of `efSearch` at fixed `M` so the Architect/Builer can pick defaults.
+function of `efSearch` at fixed `M` so the Architect/Builder can pick defaults.
 
 ### 5.3 Complexity summary (combined engine)
 
