@@ -142,6 +142,11 @@ impl App {
     }
 
     fn save_settings(&self) {
+        // First runs have no config directory yet: create it so the very
+        // first settings commit persists (config's save_to truncates only).
+        if !self.dir.as_os_str().is_empty() {
+            let _ = std::fs::create_dir_all(&self.dir);
+        }
         let _ = persist::save_to(&self.settings, &self.keymap, &self.dir.join(SETTINGS_FILE));
         let _ = std::fs::write(self.dir.join(PADMAP_FILE), self.padmap.save());
     }

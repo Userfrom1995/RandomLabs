@@ -39,6 +39,9 @@ fn first_settings_commit_creates_the_config_directory() {
         "mute on a fresh config dir must persist settings.txt"
     );
     let (settings, _, _) = persist::load_from(&dir.join("settings.txt"));
-    assert!(settings.mute, "persisted file must carry the new mute state");
+    assert!(
+        settings.mute,
+        "persisted file must carry the new mute state"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
