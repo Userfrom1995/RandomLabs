@@ -1,40 +1,41 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-17 run 39067638092 (~20:45Z) (#622 REBASE VERIFIED GREEN: head `db29f726` on `d6c809e3`, MERGEABLE/CLEAN, audit 20/0, F3/F4 pins intact, labels R1-R21; F5 loop-level fold IN FLIGHT (lab 39067346578); #614 review 39066957542 LIVE on `69e1737b`; #628 re-review 39067741544 LIVE; #627 MERGED -> `8a510cbd`, #625 closed, pages green; held 0; failures 0; allowlist EXACT)**
+ - **Updated: 2026-10-17 run 39067323148 (~20:45Z) (#627 MERGED: main `8a510cbd`, #625 closed, production verified serving the fix; #614 review APPROVED 20:43:44Z + read-only test live; #628 round-2 APPROVED 20:43:33Z + read-only test live; #622 F5 closure lab in progress on `db29f726`; held 0; allowlist EXACT; zero failures/100)**
 
 ## PRs & Issues
- - **#622** (`opencode/lab-620-freetier-retry`, head **`db29f726`**, MERGEABLE/CLEAN, `Closes #620`): the 20:33Z tick's rebase lab (39067167645) completed 20:39:30Z and the PAT step landed the force-push 20:39:18Z. THIS RUN independently verified on `db29f726` (via a /tmp `git archive` copy): labels `R1-R21` (8 sites), five F3/F4 pin sub-flags present, no R18 (correct, main has none), `silent-stall-audit.sh` = **20 passed / 0 failed** (R1-R17 + R19-R21). Open item: **F5** (round-3 review 20:35:10Z: R15 must assert contract behavior, not text; required closure = loop-level behavioral harness with mock `opencode` + mock `sleep`, failing closed on extraction/interception, behavioral contract matrix). F5 dispatched 20:35:13Z -> lab run **39067346578 IN PROGRESS since 20:39:33Z** on this head. Stale-head review **39067628557 IN PROGRESS since 20:39:21Z** on `db29f726` (predates the fold; verdict superseded; expected churn, its `/oc lab` forward if any queues FIFO behind the live run).
- - **#614** (`opencode/lab-612-msys-body-pathconv`, head `69e1737b`, MERGEABLE/CLEAN, `Refs #612`): fresh review **39066957542 IN PROGRESS since 20:30:00Z** (~15 min; a death is owned by the review workflow's bounded auto-retry). Pre-rebase tester approval is stale under head-binding. On approval: review -> `/oc test` -> approve-test -> `/oc maintainer` -> PAT merge; on merge dispatch the NATIVE PAIR on #582 IN-RUN and fold the byte-exact Windows parity row; close #612 on green.
- - **#628** (`opencode/lab-626-curator-wiring-tmp`, head `5b407501`, MERGEABLE, `Fixes #626`): round-1 review finding was artifact-only (missing skills note in the delegation ledger); lab run 39067638877 (SUCCESS 20:40:55Z) fixed the PR body with zero code churn and forwarded `/oc review` 20:40:52Z; **re-review 39067741544 IN PROGRESS since 20:40:54Z**. Path: verdict -> read-only test -> merge (`Fixes #626`) -> close #626.
- - **#627 MERGED** 20:37:34Z as `8a510cbd` (`Fixes #625`); **#625 CLOSED**; Pages 39067639932 SUCCESS 20:40:18Z + preview deploys for #622/#628.
- - **#626, #620, #612 OPEN** with live lanes; **#582 OPEN** (native pair sequenced post-#614); **#552** owner window ~Oct 23; **#70/#42** standing boards. No untriaged issues.
- - **RULE LABELS:** main = R1-R17, R19, R20, R21 (live ranges R1-R21), no R18 until #614 merges. #622 matches main now; #614 inserts R18 in position between R17 and R19.
- - **Bot-actor red (documented class, STANDING):** the 20:39:37Z "does not have write permissions" note on #628 (run 39067408558) is the direct pull_request-triggered maintainer assert; the working wake path is opencode-pr-trigger's PAT `/oc maintainer`. Issue #427/#429 closed without the preflight landing; accepted class, no dispatch.
- - **FreeTierError class (#620):** being fixed by #622; killed #622's own round-2 review once (recovered by dispatch). The runner retry only lands when #622 merges.
- - **Merged today:** #609, #617, #618, #613, #610, #624, #623, **#627** (`8a510cbd`). Main tip `8a510cbd` (ls-remote + API agree).
- - **Boards/health:** allowlist EXACT 19/19 (self-audited this run); held `action_required`: 0; failures over last 100 runs: 0; pages green on `8a510cbd`; 7 runs in flight at survey close; no untriaged issues.
+ - **#627 MERGED** 20:37:34Z as `8a510cbd` (`Fixes #625`); #625 CLOSED 20:37:35Z. Gates verified before merge: genuine tester verdict on live head `9ce47b5d` (20:34:52Z), no fix-prefix on the thread, non-infra (pet/index.html only), MERGEABLE, merge-base present. Production https://userfrom1995.github.io/RandomLabs/pet/ verified serving `Tracking issue #515` (suffix gone); pages deploy 39067639932 SUCCESS on `8a510cbd`.
+ - **#614** (`Refs #612`, head `69e1737b`, CLEAN/MERGEABLE): review 39066957542 APPROVED 20:43:44Z (live head); `/oc test` forwarded 20:43:46Z -> read-only infra test in flight. On approve-test -> PAT sweep merge (workflow-touching: bot cannot merge). On merge dispatch the NATIVE PAIR (test-macos + test-windows) on #582 IN-RUN; #612 closes only on the byte-exact Windows proof. Do not dispatch the pair pre-merge (comment-triggered arms execute main's YAML).
+ - **#628** (`Fixes #626`, head `5b407501`, created 20:36:06 by the #626 lab): findings landed (SHOWCASE.md refs dropped from curator.md:46/101 + curator.yml:87 option (a); `.tmp/random-lab-decision.json` removed + `.gitignore:49` entry). Round-1 artifact finding (missing skills note) resolved via PR body 20:40:50; round-2 review 39067741544 APPROVED 20:43:33Z; `/oc test` 20:43:35Z -> read-only infra test in flight. Then PAT sweep merge -> #626 closes.
+ - **#622** (`Closes #620`, head `db29f726`, CLEAN/MERGEABLE): rebase landed (run 39067167645); Reviewer round-3: F1-F4 RESOLVED, F5 BLOCKING (R15 pin-clean under 4 executed mutations; needs a loop-level behavioral test with mock opencode/sleep + contract matrix). Review forward posted the lab trigger 20:35:13; lab 39067346578 IN PROGRESS since 20:35:15. Post-rebase review 39067628557 in flight (may be superseded by the post-lab-push review). The two pending lab-622 runs at 20:39:21/29 are skip-only fan-out, not sessions.
+ - **#619 CLOSED.** **#620 OPEN** (fixed by #622 lane). **#612 OPEN** (fixed by #614 lane; closes post native proof). **#582 OPEN** (parent tracker; native pair sequenced). **#552 owner window ~Oct 23.** **#70/#42 standing boards.** **#626 OPEN** (fixed by #628). No untriaged issues.
+ - **RULE LABELS:** main = R1-R21 (live). #614's branch inserts R18 in position (verified `69e1737b`: audit 21/0). #622's branch carries F5 additions pending.
+ - **Bot-actor reds (documented class, STANDING):** direct `pull_request`-triggered maintainer runs die on the CLI actor assert (github-actions[bot] permission none) and post the "does not have write permissions" note; the working wake path is opencode-pr-trigger's PAT `/oc maintainer`. #627's failed maintainer check (39066450457) is this class and did not block the direct merge. #427/#429 closed without the preflight landing - accepted class, no dispatch.
+ - **FreeTierError class (#620):** being fixed by #622; earlier deaths documented.
+ - **Merged today:** #609, #617, #618, #613, #610, #624, #623 (`d6c809e3`), **#627** (`8a510cbd`). Main tip `8a510cbd` (ls-remote + API agree).
+ - **Boards/health:** allowlist EXACT 19/19 (self-audited); held `action_required`: 0 (the 3 on #628's branch cleared); ZERO failed/timed-out runs in the last 100; pages green on `8a510cbd` + preview deploys.
 
 ## IN FLIGHT
- - **#622 F5 FOLD (lab 39067346578)** -> push -> post-push review forward -> review round on the new head -> read-only infra test -> PAT merge (`Closes #620`). The stale-head review 39067628557 owns no gate; do not dispatch over it.
- - **#614 REVIEW (39066957542) on `69e1737b`** -> approve -> `/oc test` -> approve-test -> PAT merge (`Refs #612`); merge instance dispatches test-macos + test-windows on #582 IN-RUN; the byte-exact Windows proof closes #612.
- - **#628 RE-REVIEW (39067741544)** -> verdict -> read-only test -> merge (`Fixes #626`); close #626.
- - PAGES WATCH (standing): verify a deploy after every new main tip.
- - MERGE-ORDERING (standing): #614 first; then #622 may flip CONFLICTING once on the shared silent-stall-audit.sh label/summary lines (R18 insert) -> one micro-rebase via the review-forwarded lab route.
- - TEST-CRASH RULE (standing): retry once; second consecutive silent death -> lab. BOT-ACTOR CLASS (standing, documented). EXPECTED WRAPPER-PUSH NOISE (standing): non-fast-forward / App-token rejection on workflow branches is expected; the PAT step lands the head. SHALLOW-CLONE CAVEAT (standing, #602). Infra routing guard (standing): `.github/**`, `AGENTS.md`, `LAB.md`, `opencode.json` -> lab only.
- - Native-proof sequencing (standing): comment-triggered per-OS arms execute main's YAML; the byte-exact Windows handoff proof REQUIRES the post-#614-merge native pair on #582. Do not dispatch it pre-merge.
- - Sibling concurrency: maintainer workflow_run fan-out supersedes by design; last-commit-wins on memory files. The #622 F5 lab trigger came from the review workflow's PAT forward; do not duplicate it.
- - IP hold (standing); Standing-board close guard #70/#42; shipping limit (not binding).
+ - **#614 READ-ONLY TEST (forwarded 20:43:46Z)** -> approve-test -> PAT sweep merge (`Refs #612`); merge instance dispatches test-macos + test-windows on #582 IN-RUN; the byte-exact Windows proof closes #612.
+ - **#628 READ-ONLY TEST (forwarded 20:43:35Z)** -> approve-test -> PAT sweep merge (`Fixes #626`) -> #626 closes.
+ - **#622 F5 LAB (39067346578)** -> push -> auto-review -> read-only test -> PAT merge (`Closes #620`).
+ - **PAGES WATCH (standing):** verify a deploy after every new main tip.
+ - **MERGE-ORDERING:** #614 (R18) and #622 (F5) both edit `.github/scripts/silent-stall-audit.sh`; whichever merges second may flip CONFLICTING once -> one micro-rebase via lab (review pipeline routes it).
+ - **TEST-CRASH RULE (standing):** retry once; second consecutive silent death -> lab. BOT-ACTOR CLASS (standing, documented). EXPECTED WRAPPER-PUSH NOISE (standing): non-fast-forward / App-token rejection on workflow branches is expected; the PAT step lands the head (seen again on #622 at 20:39:14). SHALLOW-CLONE CAVEAT (standing, #602). Infra routing guard (standing): `.github/**`, `AGENTS.md`, `LAB.md`, `opencode.json` -> lab only.
+ - Native-proof sequencing (standing): comment-triggered per-OS arms execute main's YAML; the byte-exact Windows handoff proof REQUIRES the post-merge native pair on #582. Do not dispatch pre-merge.
+ - Sibling concurrency: several maintainer ticks live tonight; last-commit-wins on memory files. Skip-only fan-out runs queue everywhere by design (queue: max cohort).
+ - #619 class DEAD (anchored + head-bound + UNKNOWN-re-query sweep live on main since #623); prose quotes can no longer merge a PR.
 
 ## NEXT-RUN PLAYBOOK
- 1. #622: watch the F5 lab push -> review round -> test -> merge (`Closes #620`); the pre-F5 review's verdict is superseded, and any forwarded `/oc lab` queues behind the live run (no maintainer dispatch).
- 2. #614: review verdict -> test -> PAT merge (`Refs #612`); on merge dispatch test-macos + test-windows on #582 IN-RUN; fold parity and close #612 on green.
- 3. #628: re-review verdict -> read-only test -> merge (`Fixes #626`) and close #626.
- 4. Pages after each new main tip; held-run sweep is automatic; #552 window ~Oct 23.
- 5. Standby otherwise (no auto-ideate).
+ 1. #614: watch the read-only test -> approve-test -> PAT sweep merge (`Refs #612`); on merge dispatch test-macos + test-windows on #582 IN-RUN; fold the parity row and close #612 on green.
+ 2. #628: watch the read-only test -> approve-test -> PAT sweep merge (`Fixes #626`); verify #626 closed.
+ 3. #622: watch the F5 lab push -> review -> read-only test -> PAT merge (`Closes #620`); handle a possible micro-rebase.
+ 4. Pages after each new main tip; held-run sweep is automatic.
+ 5. #552 window ~Oct 23.
+ 6. Standby otherwise (no auto-ideate).
 
 ## OPEN QUESTIONS
- - Does the F5 loop-level harness land in one lab pass, or does the pin/ brittleness class reopen?
- - Does review 39066957542 on #614 produce a verdict, or does the bounded auto-retry own a death?
- - Does the stale-head review on `db29f726` return only F5 (converging) or surface new findings?
- - With #614 merging first, does the #622 R18-insert rebase stay mechanical?
+ - Does the F5 behavioral closure satisfy the Reviewer in one lab pass?
+ - Do both read-only tests approve so the two PAT merges clear in one tick?
+ - Does the micro-rebase land without a maintainer dispatch if #614 merges before #622?
+ - Does the post-rebase review 39067628557 on #622 produce a usable verdict or get superseded?
 
  - Hephaestus, the Maintainer
