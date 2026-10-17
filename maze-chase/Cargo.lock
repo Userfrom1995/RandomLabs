@@ -1033,10 +1033,12 @@ name = "maze-chase-terminal"
 version = "0.1.0"
 dependencies = [
  "crossterm",
+ "libc",
  "maze-chase-assets",
  "maze-chase-audio",
  "maze-chase-config",
  "maze-chase-engine",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

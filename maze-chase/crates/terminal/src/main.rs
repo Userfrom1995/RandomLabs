@@ -13,7 +13,9 @@ use crossterm::terminal::{
 use maze_chase_terminal::app::{config_dir, App};
 use maze_chase_terminal::backend::Tier;
 use maze_chase_terminal::{chrome, sixel, unicode};
-use std::io::{IsTerminal, Read, Write};
+#[cfg(windows)]
+use std::io::Read;
+use std::io::{IsTerminal, Write};
 use std::time::{Duration, Instant};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -73,11 +75,12 @@ impl Drop for Terminal {
 }
 
 /// Live Sixel probe: asks the terminal (DA1) and waits up to 250 ms for
-/// the reply on a helper thread, so a silent terminal costs a quarter
-/// second once at startup and never blocks the game. Returns true only
-/// when the reply positively announces Sixel.
+/// the reply, reading only while bytes are ready. Bounded by design: no
+/// reader thread survives the deadline, so a silent terminal costs a
+/// quarter second once and can never steal the next key the user types
+/// (a blocked reader would consume it). Returns true only when the reply
+/// positively announces Sixel.
 fn probe_sixel_live() -> bool {
-    use std::sync::mpsc;
     if !std::io::stdin().is_terminal() {
         return false;
     }
@@ -86,17 +89,98 @@ fn probe_sixel_live() -> bool {
         let _ = out.write_all(sixel::probe_request().as_bytes());
         let _ = out.flush();
     }
-    let (tx, rx) = mpsc::channel();
-    std::thread::spawn(move || {
-        let mut buf = [0u8; 64];
-        // One blocking read: the DA reply arrives as a single burst.
-        let n = std::io::stdin().read(&mut buf).unwrap_or(0);
-        let _ = tx.send(buf[..n].to_vec());
-    });
-    match rx.recv_timeout(Duration::from_millis(250)) {
-        Ok(bytes) => sixel::probe_ok(&String::from_utf8_lossy(&bytes)),
-        Err(_) => false,
+    let reply = read_probe_reply(Duration::from_millis(250));
+    sixel::probe_ok(&String::from_utf8_lossy(&reply))
+}
+
+/// True once `reply` holds a complete DA1 reply (`ESC [ ? ... c`).
+fn da1_reply_complete(reply: &[u8]) -> bool {
+    reply.windows(3).any(|w| w == b"\x1b[?") && reply.last() == Some(&b'c')
+}
+
+/// Read stdin until the DA1 reply completes or `timeout` elapses, reading
+/// only when bytes are ready (Unix: `poll`; Windows: a waitable console
+/// handle). Bytes typed during the probe window are read here, but once
+/// the deadline passes nothing is left blocked on stdin.
+#[cfg(unix)]
+fn read_probe_reply(timeout: Duration) -> Vec<u8> {
+    use std::os::fd::AsRawFd;
+    read_probe_reply_fd(std::io::stdin().as_raw_fd(), timeout)
+}
+
+/// [`read_probe_reply`] for an arbitrary fd (the pipe-based tests drive
+/// this directly).
+#[cfg(unix)]
+fn read_probe_reply_fd(fd: std::os::fd::RawFd, timeout: Duration) -> Vec<u8> {
+    let deadline = Instant::now() + timeout;
+    let mut reply: Vec<u8> = Vec::new();
+    let mut buf = [0u8; 64];
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        let ms = remaining.as_millis().min(i32::MAX as u128) as i32;
+        let mut pfd = libc::pollfd {
+            fd,
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        let ready = unsafe { libc::poll(&mut pfd, 1, ms) };
+        if ready <= 0 || pfd.revents & libc::POLLIN == 0 {
+            break;
+        }
+        let n = unsafe { libc::read(fd, buf.as_mut_ptr().cast(), buf.len()) };
+        if n <= 0 {
+            break;
+        }
+        reply.extend_from_slice(&buf[..n as usize]);
+        if da1_reply_complete(&reply) {
+            break;
+        }
     }
+    reply
+}
+
+/// Windows arm: the console input handle is waitable, so wait bounded
+/// and only then read. No orphan reader can outlive the timeout.
+#[cfg(windows)]
+fn read_probe_reply(timeout: Duration) -> Vec<u8> {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Foundation::WAIT_OBJECT_0;
+    use windows_sys::Win32::System::Threading::WaitForSingleObject;
+
+    let deadline = Instant::now() + timeout;
+    let handle = std::io::stdin().as_raw_handle();
+    let mut reply: Vec<u8> = Vec::new();
+    let mut buf = [0u8; 64];
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        let ms = (remaining.as_millis().min(u32::MAX as u128) as u32).max(1);
+        if unsafe { WaitForSingleObject(handle, ms) } != WAIT_OBJECT_0 {
+            break;
+        }
+        match std::io::stdin().read(&mut buf) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => {
+                reply.extend_from_slice(&buf[..n]);
+                if da1_reply_complete(&reply) {
+                    break;
+                }
+            }
+        }
+    }
+    reply
+}
+
+/// No portable bounded console read elsewhere: stay on the cell tier
+/// rather than leave a blocked reader behind.
+#[cfg(not(any(unix, windows)))]
+fn read_probe_reply(_timeout: Duration) -> Vec<u8> {
+    Vec::new()
 }
 
 fn paint_line(out: &mut String, row: u16, col: u16, text: &str) {
@@ -446,5 +530,78 @@ fn main() {
                 app.watchdog.note_ok();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    fn pipe_pair() -> (std::fs::File, std::fs::File) {
+        use std::os::fd::FromRawFd;
+        let mut fds = [0i32; 2];
+        assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0, "pipe failed");
+        unsafe {
+            (
+                std::fs::File::from(std::os::fd::OwnedFd::from_raw_fd(fds[0])),
+                std::fs::File::from(std::os::fd::OwnedFd::from_raw_fd(fds[1])),
+            )
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn probe_reply_assembles_fragmented_da1_reply() {
+        use std::io::Write;
+        use std::os::fd::AsRawFd;
+        let (reader, mut writer) = pipe_pair();
+        let sender = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(20));
+            writer.write_all(b"\x1b[?6").unwrap();
+            writer.flush().unwrap();
+            std::thread::sleep(Duration::from_millis(40));
+            writer.write_all(b"2;4c").unwrap();
+        });
+        let reply = read_probe_reply_fd(reader.as_raw_fd(), Duration::from_millis(250));
+        sender.join().unwrap();
+        assert_eq!(reply, b"\x1b[?62;4c");
+        assert!(sixel::probe_ok(&String::from_utf8_lossy(&reply)));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn probe_timeout_is_bounded_and_leaves_input_intact() {
+        use std::io::{Read, Write};
+        use std::os::fd::AsRawFd;
+        let (mut reader, mut writer) = pipe_pair();
+        let started = Instant::now();
+        let reply = read_probe_reply_fd(reader.as_raw_fd(), Duration::from_millis(80));
+        let elapsed = started.elapsed();
+        assert!(reply.is_empty(), "silent terminal must yield no reply");
+        assert!(
+            elapsed >= Duration::from_millis(60),
+            "returned before the budget: {elapsed:?}"
+        );
+        assert!(
+            elapsed < Duration::from_millis(800),
+            "waited past the budget: {elapsed:?}"
+        );
+        // The old orphan thread consumed the next user key; the bounded
+        // probe must leave everything typed after its deadline untouched.
+        writer.write_all(b"\r").unwrap();
+        writer.flush().unwrap();
+        let mut buf = [0u8; 1];
+        assert_eq!(reader.read(&mut buf).unwrap(), 1, "key must survive");
+        assert_eq!(buf[0], b'\r');
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn da1_reply_completion_ignores_plain_keys() {
+        assert!(!da1_reply_complete(b"\r"));
+        assert!(!da1_reply_complete(b"\x1b[?62;4"));
+        assert!(da1_reply_complete(b"\x1b[?62;4c"));
+        assert!(da1_reply_complete(b"typed\x1b[?1;2c"));
     }
 }
