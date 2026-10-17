@@ -119,7 +119,7 @@ Public Surface / Web Track:                                              │
 
 ## 4. Maintainer triggers & concurrency
 
-- Triggers: schedule every 2 hours (12×/day) · `workflow_dispatch`
+- Triggers: schedule every 20 minutes (72×/day) · `workflow_dispatch`
   (inputs: `pr_number`, `issue_number`, `reason`) · `pull_request`
   [opened, synchronize, ready_for_review, reopened] · `issue_comment`
   [created] (no-op when the comment is a `/oc` trigger - opencode.yml already
@@ -450,7 +450,7 @@ and a verify step goes red whenever the Maintainer agent ends without
 verify step. The recover arm deliberately keeps its `continue-on-error` agent
 step: its direct `recover.sh` engine fallback runs regardless, so recovery
 still executes even when the ladder is dead (that arm's red is not needed to
-summon the repair). Audit rule R14 regression-guards the resolver, the ladder
+summon the repair). Audit rule R15 regression-guards the resolver, the ladder
 rungs, and both retry paths.
 
 The schedule arms (`curator.yml`, `auditor.yml`) and the dispatched arms
@@ -498,7 +498,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422) + the model fallback ladder (resolve-model.sh, model-ladder.txt, issue #591)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R14), CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R15), CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
@@ -619,7 +619,7 @@ catches up in seconds.
   and the general arm have explicit loud-failure verify steps) instead of
   concluding green without triage, and a fully dead ladder escalates through
   the standard crash-parity paths. The resolver, the ladder, and both retry
-  paths are statically enforced by R14 in
+  paths are statically enforced by R15 in
   `.github/scripts/silent-stall-audit.sh`.
 - The Maintainer cannot land infra/model/workflow changes herself: routine
   changes route to the Lab Engineer (`{"action":"lab"}`), and the direct-to-main

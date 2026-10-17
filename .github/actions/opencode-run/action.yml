@@ -15,7 +15,7 @@ branding:
 # upstream so a future re-sync is a mechanical diff; the intentional
 # divergences are (1) the hardened "Get opencode version" step below and
 # (2) the model-resilience pair (resolve-model.sh + model-ladder.txt and the
-# per-rung retry loop in "Run opencode"), both guarded by audit rule R14.
+# per-rung retry loop in "Run opencode"), both guarded by audit rule R15.
 inputs:
   model:
     description: "Model to use"
