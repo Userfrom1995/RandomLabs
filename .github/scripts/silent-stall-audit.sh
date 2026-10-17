@@ -599,27 +599,36 @@ fi
 #      incident's terminal lines (match) and echo / envelope / trailing-suffix
 #      / stale-beyond-tail / superset-id forms (no match), plus the dotted-id
 #      boundary pair (a real dotted rung id matches, its lookalike with the
-#      dot position held by another character never does; review round F8),
-#      and a LOOP-LEVEL behavioral test extracts each runner's real `run:`
-#      block and executes it in an isolated sandbox against an executable mock
-#      `opencode` plus a mock `sleep`, asserting the whole contract by
-#      behavior: transient recovery on BOTH exit shapes with the bounded
-#      backoff asserted exactly (one recorded sleep, value `sleep 15`, so a
-#      decoy or a different sleep value fails; review round F6), exactly one
-#      same-model retry, persistent rejection loud after exactly two attempts
-#      and propagating the provider's own status across distinct values (so a
-#      hardcoded exit can never pass), rung advance preserved for
-#      Model-not-found, a Model-not-found advance consuming NO free-tier
+#      dot position held by another character never does; review round F8)
+#      and the tail-window lower-bound pair (a terminal line with 39 trailing
+#      lines, 40 total, must still match; with 40 trailing lines, 41 total,
+#      must fall out of the window, so a silently narrowed window fails the
+#      must-match fixture and a widened one fails the must-not-match; review
+#      round A2), and a LOOP-LEVEL behavioral test extracts each runner's
+#      real `run:` block and executes it in an isolated sandbox against an
+#      executable mock `opencode` plus a mock `sleep`, asserting the whole
+#      contract by behavior: transient recovery on BOTH exit shapes with the
+#      bounded backoff asserted exactly (one recorded sleep, value `sleep 15`,
+#      so a decoy or a different sleep value fails; review round F6), exactly
+#      one same-model retry, persistent rejection loud after exactly two
+#      attempts and propagating the provider's own status across distinct
+#      values (so a hardcoded exit can never pass), rung advance preserved
+#      for Model-not-found, a Model-not-found advance consuming NO free-tier
 #      budget (a later free-tier rejection on the advanced rung still retries
 #      once; review round F8), the post-loop loud exhaustion actually reached
 #      and asserted loud (an all-MNF ladder must exit nonzero with the
 #      exhaustion message; review round F7), the budget shared across rungs,
 #      an indented or quoted echo, a trailing suffixed line and a stale line
-#      past the tail window never consuming the retry, a superset model id
-#      never matching the boundary regex, and unclassified status propagation
-#      - with a per-scenario timeout so any unbounded-retry re-spelling
-#      (decoys, relocations, loop rewrites) fails the rule. Static anchored
-#      counts remain only as cheap element-presence tripwires (review F5:
+#      past the tail window never consuming the retry, a terminal line still
+#      inside the window (3 trailing lines) honoring the retry (review round
+#      A2), a superset model id never matching the boundary regex, a dotted
+#      candidate whose dot-lookalike nonzero Model-not-found line must NOT
+#      advance the rung (review round F8), a failing log capture (mock `tee`
+#      exits 3) failing loudly instead of blind-advancing (review round A1),
+#      and unclassified status propagation - with a per-scenario timeout so
+#      any unbounded-retry re-spelling (decoys, relocations, loop rewrites)
+#      fails the rule. Static anchored counts remain only as cheap
+#      element-presence tripwires (review F5:
 #      order/reachability cannot be expressed textually, so three rounds of
 #      pin escapes landed until the guard executed the real blocks itself;
 #      the round-F5 adversarial verdict's six escape classes - suffix
@@ -793,6 +802,36 @@ R15EOF
 cat > "$r15_fn_dir/mnf-dot-lookalike.txt" <<'R15EOF'
 Model not found: opencode/deepseek-v4X1-flash-free. Did you mean: opencode/glm-5.3-flash-free?
 R15EOF
+# Round-A2: the tail window's LOWER bound. `tail -n 40` must still match a
+# terminal line followed by 39 healthy lines (40 lines total), while a line
+# followed by 40 healthy lines (41 total) must fall out of the window. A
+# silently narrowed window (e.g. `tail -n 2`) fails the must-match fixture
+# and a widened one fails the must-not-match fixture, so the pair pins the
+# window to exactly 40 lines for both detectors.
+cat > "$r15_fn_dir/ft-window39.txt" <<'R15EOF'
+AI_APICallError: OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building.
+R15EOF
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39; do
+  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/ft-window39.txt"
+done
+cat > "$r15_fn_dir/ft-window40.txt" <<'R15EOF'
+AI_APICallError: OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building.
+R15EOF
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40; do
+  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/ft-window40.txt"
+done
+cat > "$r15_fn_dir/mnf-window39.txt" <<'R15EOF'
+Model not found: a-free. Did you mean: b-free?
+R15EOF
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39; do
+  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/mnf-window39.txt"
+done
+cat > "$r15_fn_dir/mnf-window40.txt" <<'R15EOF'
+Model not found: a-free. Did you mean: b-free?
+R15EOF
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40; do
+  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/mnf-window40.txt"
+done
 r15_detector_case() {
   local got
   ( set +e; . "$1" >/dev/null 2>&1; freetier_error_terminal "$3" ) >/dev/null 2>&1
@@ -820,6 +859,8 @@ for r15_fn in "$r15_fn_dir/action.fn" "$r15_fn_dir/maint.fn"; do
   r15_detector_case "$r15_fn" 1 "$r15_fn_dir/other.txt"
   r15_detector_case "$r15_fn" 1 "$r15_fn_dir/ft-suffix.txt"
   r15_detector_case "$r15_fn" 1 "$r15_fn_dir/ft-stale.txt"
+  r15_detector_case "$r15_fn" 0 "$r15_fn_dir/ft-window39.txt"
+  r15_detector_case "$r15_fn" 1 "$r15_fn_dir/ft-window40.txt"
 done
 for r15_fn in "$r15_fn_dir/action-mnf.fn" "$r15_fn_dir/maint-mnf.fn"; do
   if [ ! -s "$r15_fn" ]; then
@@ -832,6 +873,8 @@ for r15_fn in "$r15_fn_dir/action-mnf.fn" "$r15_fn_dir/maint-mnf.fn"; do
   r15_mnf_detector_case "$r15_fn" 1 "$r15_fn_dir/mnf-stale.txt"
   r15_mnf_detector_case "$r15_fn" 0 "$r15_fn_dir/mnf-dotted.txt" "opencode/deepseek-v4.1-flash-free"
   r15_mnf_detector_case "$r15_fn" 1 "$r15_fn_dir/mnf-dot-lookalike.txt" "opencode/deepseek-v4.1-flash-free"
+  r15_mnf_detector_case "$r15_fn" 0 "$r15_fn_dir/mnf-window39.txt"
+  r15_mnf_detector_case "$r15_fn" 1 "$r15_fn_dir/mnf-window40.txt"
 done
 rm -rf "$r15_fn_dir"
 # Issue #620 loop-level behavioral test (review F5): static pins and a
@@ -908,9 +951,13 @@ case "${R15_SCENARIO}:${n}" in
   mnf-prefix:*) echo "Model not found: ${MODEL}-plus. Did you mean: b-free?"; exit 4 ;;
   mnf-stale:*) echo "Model not found: ${MODEL}. Did you mean: b-free?"; for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45; do echo "healthy tail line $i"; done; exit 0 ;;
   mnf-all:*) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 0 ;;
+  mnf-dot-lookalike:*) echo "Model not found: opencode/deepseek-v4X1-flash-free. Did you mean: opencode/glm-5.3-flash-free?"; exit 4 ;;
   echo-envelope:*) printf '  | AI_APICallError: %s\n' "${ft}"; printf '  responseBody: "{\\"type\\":\\"error\\"}",\n'; exit 0 ;;
   ft-echo-suffix:*) echo "AI_APICallError: ${ft} (quoted from a tool result)"; exit 0 ;;
   ft-stale:*) echo "AI_APICallError: ${ft}"; for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45; do echo "healthy tail line $i"; done; exit 0 ;;
+  ft-trailing:1) echo "AI_APICallError: ${ft}"; echo "healthy tail line 1"; echo "healthy tail line 2"; echo "healthy tail line 3"; exit 0 ;;
+  ft-trailing:*) echo "healthy success"; exit 0 ;;
+  failing-tee:*) echo "healthy success"; exit 0 ;;
   budget-rungs:1) echo "AI_APICallError: ${ft}"; exit 0 ;;
   budget-rungs:2) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 0 ;;
   budget-rungs:*) echo "APIError: ${ft}"; exit 0 ;;
@@ -938,6 +985,17 @@ R15SLEEP
     p=$(command -v "$tool" 2>/dev/null || true)
     [ -n "$p" ] && ln -sf "$p" "$sbx/bin/$tool"
   done
+  # Failing-tee mock (review A1): swapped in for the real `tee` during the
+  # failing-tee scenario only. It preserves the real pipeline shape (writes
+  # stdin through to the requested log path) and then exits 3, so the
+  # runner's log-capture guard must fail loudly; a decoy comment holding the
+  # static pin cannot fake the behavior.
+  cat > "$sbx/tee-fail" <<'R15TEE'
+#!/bin/bash
+while IFS= read -r line; do printf '%s\n' "$line" >> "$1"; done
+exit 3
+R15TEE
+  chmod +x "$sbx/tee-fail"
   if [ ! -x "$sbx/bin/opencode" ] \
      || [ "$(env PATH="$sbx/bin" "$r15_bash_bin" -c 'command -v opencode' 2>/dev/null || true)" != "$sbx/bin/opencode" ]; then
     r15_bad="${r15_bad} behavioral(${label},mock-not-intercepted)"
@@ -945,16 +1003,27 @@ R15SLEEP
     return
   fi
   r15_behavioral_run() {
+    local scenario="$1" cands="${2:-a-free b-free}" tee_swap=0
     : > "$attempts"; : > "$sleeps"
+    # Failing-tee scenario (review A1): swap the real tee symlink for the
+    # failing mock so the log-capture guard is exercised end-to-end; restore
+    # it afterwards so every other scenario keeps the real pipeline shape.
+    if [ "$scenario" = "failing-tee" ]; then
+      ln -sf "$sbx/tee-fail" "$sbx/bin/tee"
+      tee_swap=1
+    fi
     (
       cd "$sbx" || exit 1
       exec "$r15_timeout_bin" 10 "$r15_env_bin" -u GITHUB_TOKEN -u GITHUB_EVENT_PATH -u GITHUB_RUN_ID -u GITHUB_REPOSITORY -u GITHUB_ACTIONS \
         PATH="$sbx/bin" HOME="$sbx/home" TMPDIR="$sbx/tmp" \
-        MODEL_CANDIDATES="a-free b-free" MODEL="a-free" \
-        R15_SCENARIO="$1" R15_ATTEMPTS="$attempts" R15_SLEEPS="$sleeps" \
+        MODEL_CANDIDATES="$cands" MODEL="${cands%% *}" \
+        R15_SCENARIO="$scenario" R15_ATTEMPTS="$attempts" R15_SLEEPS="$sleeps" \
         "$r15_bash_bin" "$block"
     ) > "$out" 2>&1
     r15_last_rc=$?
+    if [ "$tee_swap" = "1" ]; then
+      ln -sf "$(command -v tee)" "$sbx/bin/tee"
+    fi
     r15_last_models=$(sed -n 's/^model=//p' "$attempts" | tr '\n' ' ')
     r15_last_models="${r15_last_models% }"
   }
@@ -965,8 +1034,8 @@ R15SLEEP
     return
   fi
   r15_behavioral_case() {
-    local scenario="$1" want_rc="$2" want_models="$3" want_out="$4" want_sleeps="$5"
-    r15_behavioral_run "$scenario"
+    local scenario="$1" want_rc="$2" want_models="$3" want_out="$4" want_sleeps="$5" cands="${6:-a-free b-free}"
+    r15_behavioral_run "$scenario" "$cands"
     [ "$r15_last_rc" = "$want_rc" ] || r15_bad="${r15_bad} behavioral(${label},${scenario}:rc=${r15_last_rc},want=${want_rc})"
     [ "$r15_last_models" = "$want_models" ] || r15_bad="${r15_bad} behavioral(${label},${scenario}:attempts='${r15_last_models}',want='${want_models}')"
     if [ -n "$want_out" ] && ! grep -qE "$want_out" "$out"; then
@@ -994,11 +1063,14 @@ R15SLEEP
   r15_behavioral_case mnf-prefix 4 "a-free" "" 0
   r15_behavioral_case mnf-stale 0 "a-free" "" 0
   r15_behavioral_case mnf-all 1 "a-free b-free" "exhausted every model rung" 0
+  r15_behavioral_case mnf-dot-lookalike 4 "opencode/deepseek-v4.1-flash-free" "" 0 "opencode/deepseek-v4.1-flash-free opencode/glm-5.3-flash-free"
   r15_behavioral_case mnf-then-ft 0 "a-free b-free b-free" "" 1
   r15_behavioral_case mnf-then-ft0 0 "a-free b-free b-free" "" 1
   r15_behavioral_case echo-envelope 0 "a-free" "" 0
   r15_behavioral_case ft-echo-suffix 0 "a-free" "" 0
   r15_behavioral_case ft-stale 0 "a-free" "" 0
+  r15_behavioral_case ft-trailing 0 "a-free a-free" "" 1
+  r15_behavioral_case failing-tee 1 "a-free" "could not capture the (Maintainer )?opencode log" 0
   r15_behavioral_case budget-rungs 1 "a-free a-free b-free" "persistent free-tier rejection" 0
   r15_behavioral_case unclassified 5 "a-free" "" 0
   r15_behavioral_case unclassified9 9 "a-free" "" 0
@@ -1018,9 +1090,9 @@ else
   grep -A2 'General agent step finished' "$OPENCODE_WF" | grep -q 'exit 1' || r15_bad="${r15_bad} opencode.yml(general-verify-not-exit-1)"
 fi
 if [ -z "$r15_bad" ]; then
-  check "R15" "model resilience wired: live-registry resolver + free-tier ladder rungs + boundary-aware per-rung retry with exit-0 terminal anchoring, a log-capture guard, loud exhaustion, and the bounded transient FreeTierError same-model retry (anchored detector, cap 1, loud persistent failure) in the shared runner and the maintainer inline path, with loud-failure verify steps on the Maintainer and general arm, all enforced behaviorally: the extracted detectors are executed functionally (terminal match; echo/envelope/suffix/stale/superset no-match; dotted-id match with the dot-lookalike no-match), and both real runner run-blocks are executed loop-level against an executable mock opencode + mock sleep (transient recovery on both exit shapes with the exact bounded backoff asserted, exactly one same-model retry, persistent loudness after two attempts with the provider's own distinct statuses propagated, rung advance preserved without consuming the free-tier budget, post-loop exhaustion reached and loud, budget shared across rungs, echo/suffix/stale non-match, superset-id non-match, unclassified propagation, per-scenario timeout) (issues #591, #620)" "ok"
+  check "R15" "model resilience wired: live-registry resolver + free-tier ladder rungs + boundary-aware per-rung retry with exit-0 terminal anchoring, a log-capture guard, loud exhaustion, and the bounded transient FreeTierError same-model retry (anchored detector, cap 1, loud persistent failure) in the shared runner and the maintainer inline path, with loud-failure verify steps on the Maintainer and general arm, all enforced behaviorally: the extracted detectors are executed functionally (terminal match; echo/envelope/suffix/stale/superset no-match; dotted-id match with the dot-lookalike no-match; the tail window's lower-bound pair, 39 trailing lines must match and 40 must not), and both real runner run-blocks are executed loop-level against an executable mock opencode + mock sleep (transient recovery on both exit shapes with the exact bounded backoff asserted, exactly one same-model retry, persistent loudness after two attempts with the provider's own distinct statuses propagated, rung advance preserved without consuming the free-tier budget, post-loop exhaustion reached and loud, budget shared across rungs, echo/suffix/stale non-match, a terminal line with trailing healthy lines still retrying, superset-id non-match, a dotted-candidate dot-lookalike nonzero line not advancing the rung, a failing log capture failing loudly, unclassified propagation, per-scenario timeout) (issues #591, #620)" "ok"
 else
-  check "R15" "model resilience guard missing:${r15_bad} (issues #591/#620: one retired pin kills every arm at once, Model-not-found deaths conclude green, a transient free-tier rejection kills a gate with no bounded retry, or the retry loops unboundedly / concludes silently green)" "bad"
+  check "R15" "model resilience guard missing:${r15_bad} (issues #591/#620: one retired pin kills every arm at once, Model-not-found deaths conclude green, a transient free-tier rejection kills a gate with no bounded retry, or the retry loops unboundedly / concludes silently green / silently blind-advances past a failed log capture / misses a rejection inside its tail window / advances on a lookalike id)" "bad"
 fi
 
 # [R16] Shallow-workspace PAT merge guard (issue #602): the PAT-backed merge
