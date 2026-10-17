@@ -10,19 +10,23 @@
 # parity guard (issue #450), the R14 heterogeneous-group queue-preservation
 # guard (per-OS arms issue #594 plus the whole comment-triggered cohort issue
 # #601), the R15 model fallback ladder guard (issue #591:
-# provider model retirement / loud Model-not-found failure), and the R16
+# provider model retirement / loud Model-not-found failure), the R16
 # shallow-workspace PAT merge guard (issue #602: a depth-limited opencode CLI
 # session fetch re-shallows the Maintainer checkout, and merge-base-dependent
-# merge checks then fail closed and silently skip a linked workflow PR).
-# Wired into auditor.yml as the R1-R16 matrix.
+# merge checks then fail closed and silently skip a linked workflow PR), and
+# the R19 review-comment publication-evidence guard (issue #616: a reviewer
+# death between the decision-file write and the comment post forwarded an
+# unread verdict with zero published findings).
+# Wired into auditor.yml as the R1-R19 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R16 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R19 audit the whole tree
 # (the review-restore guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
 # group cohort, the model fallback
-# ladder, and the PAT merge shallow-workspace guard), so they trip on a bad
+# ladder, the PAT merge shallow-workspace guard, and the review-comment
+# publication-evidence guard), so they trip on a bad
 # curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml no matter which
 # file the audit was pointed at.
 # Exit code is always 0 so it never breaks the auditor run; failures are reported
@@ -51,12 +55,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R16 PASS] $name: $desc"
+  [R1-R19 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R16 FAIL] $name: $desc"
+  [R1-R19 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -667,16 +671,257 @@ else
   check "R16" "shallow-workspace PAT merge guard missing:${r16_bad} (issue #602: a linked workflow PR is silently skipped as an orphan on a shallow workspace)" "bad"
 fi
 
-summary="Silent-stall regression audit (R1-R16) on ${WF}: ${pass} passed, ${fail} failed."
+# [R19] Review-comment publication evidence (issue #616): the review verify
+# step treated ANY present /tmp/random-lab-decision.json as a completed
+# verdict, even when the reviewer died between the decision-file write and
+# the comment post (provider api_key_expired at turn end, review run
+# 39052018409 on PR #614): the gate forwarded an unread verdict with zero
+# published findings. Properties:
+#   1. the shared script accepts only a github-actions[bot] comment created
+#      after the triggering comment whose body carries the reviewer sign-off
+#      line (the wrapper's final-message comment with its run footer and a
+#      mid-session comment-tool post without one both qualify; the dying
+#      run's sign-off-less APIError comment never does), and exits
+#      0 published / 1 not published / 2 unverifiable;
+#   2. the verify step reads the script from this run's own workflow commit
+#      (never the checked-out PR head, so a PR can never weaken the gate
+#      that reviews it) and fails closed when it is unavailable;
+#   3. an unpublished verdict is discarded BEFORE the infra override and the
+#      forward step can ever see it, and a failed agent step falls into the
+#      existing bounded auto-retry; a verification failure (exit 2) neither
+#      forwards nor auto-retries a possibly-published review;
+#   4. the force-lab-routing and forward steps are gated on the verify
+#      step's success, so no forward path survives an inconclusive verify;
+#   5. a functional test executes the real script against an executable mock
+#      `gh` (interception asserted, credentials scrubbed, per-case payload
+#      from a sandbox config file, sandbox outside the repo tree) across
+#      published (footer + tool-posted + page-2 + trailing-space),
+#      incident-error, stale, owner-authored, inline-mention, empty,
+#      bad-json, and fetch-failure payloads.
+# Review-gated residual boundary (same as R17): the verify step's own shell
+# control flow cannot be executed by a static audit, so an arbitrary
+# reshuffle that still passes every exact-form and ordering pin below is
+# caught by the review gate, not by this rule.
+r19_bad=""
+R19_SCRIPT=".github/scripts/review-comment-published.sh"
+R19_VERDICT_GATE="if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success'"
+if [ ! -f "$R19_SCRIPT" ]; then
+  r19_bad="${r19_bad} review-comment-published.sh(missing)"
+else
+  bash -n "$R19_SCRIPT" 2>/dev/null || r19_bad="${r19_bad} script(syntax)"
+  [ -x "$R19_SCRIPT" ] || r19_bad="${r19_bad} script(not-executable)"
+  # Exact evidence predicate: bot author + created after the trigger + a real
+  # sign-off line. Weakening or removing any filter must trip the rule.
+  sed 's/^[[:space:]]*//' "$R19_SCRIPT" | grep -qxF '| select(.user.login == "github-actions[bot]")' || r19_bad="${r19_bad} script(no-bot-author-select)"
+  sed 's/^[[:space:]]*//' "$R19_SCRIPT" | grep -qxF '| select(.created_at > $since)' || r19_bad="${r19_bad} script(no-since-filter)"
+  sed 's/^[[:space:]]*//' "$R19_SCRIPT" | grep -qxF '| select(.body | test("(?m)^- the Reviewer[ \t]*$"))' || r19_bad="${r19_bad} script(no-signoff-regex)"
+  # Paginated, slurped fetch (a single unpaginated page would miss the
+  # decision comment on busy threads and silently read as unpublished).
+  sed 's/^[[:space:]]*//' "$R19_SCRIPT" | grep -qxF 'payload=$(gh api "repos/${REPO}/issues/${PR}/comments?per_page=100" --paginate --slurp 2>/dev/null) || {' || r19_bad="${r19_bad} script(no-paginated-slurp-fetch)"
+  # Exit-code contract: exactly one published exit 0 and one not-published
+  # exit 1; every failure path exits 2. An added silent `exit 0` (e.g. in
+  # front of the fetch guard) or a weakened failure exit trips the counts.
+  r19_exit0=$(sed 's/^[[:space:]]*//' "$R19_SCRIPT" | grep -cxF 'exit 0' || true)
+  r19_exit1=$(sed 's/^[[:space:]]*//' "$R19_SCRIPT" | grep -cxF 'exit 1' || true)
+  r19_exit2=$(sed 's/^[[:space:]]*//' "$R19_SCRIPT" | grep -cxF 'exit 2' || true)
+  [ "$r19_exit0" -eq 1 ] || r19_bad="${r19_bad} script(exit0-count=${r19_exit0},want=1)"
+  [ "$r19_exit1" -eq 1 ] || r19_bad="${r19_bad} script(exit1-count=${r19_exit1},want=1)"
+  [ "$r19_exit2" -ge 4 ] || r19_bad="${r19_bad} script(exit2-count=${r19_exit2},want>=4)"
+  # Harness-detection bans: the functional test runs with realistic values,
+  # so the script must not branch on CI-only env or hardcode a repo slug.
+  grep -qF 'GITHUB_ACTIONS' "$R19_SCRIPT" && r19_bad="${r19_bad} script(references-GITHUB_ACTIONS)"
+  grep -qF 'MOCK_' "$R19_SCRIPT" && r19_bad="${r19_bad} script(references-MOCK)"
+  grep -qF 'Userfrom1995' "$R19_SCRIPT" && r19_bad="${r19_bad} script(hardcodes-repo-slug)"
+  grep -qF 'RandomLabs/' "$R19_SCRIPT" && r19_bad="${r19_bad} script(hardcodes-repo-slug)"
+fi
+if [ ! -f "$REVIEW_WF" ]; then
+  r19_bad="${r19_bad} opencode-review.yml(missing)"
+else
+  r19_verify_block=$(sed -n '/- name: Verify review decided, else auto-retry/,/^      - name: /p' "$REVIEW_WF" 2>/dev/null || true)
+  if [ -z "$r19_verify_block" ]; then
+    r19_bad="${r19_bad} review.yml(verify-step-missing-or-renamed)"
+  else
+    # The trigger timestamp must arrive via env indirection, never expanded
+    # into the run script text (R10).
+    printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'SINCE: ${{ github.event.comment.created_at }}' || r19_bad="${r19_bad} review.yml(no-since-env)"
+    # Script provenance: this run's own workflow commit, never the PR head.
+    printf '%s\n' "$r19_verify_block" | grep -qF 'if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/review-comment-published.sh" 2>/dev/null; then' || r19_bad="${r19_bad} review.yml(no-workflow-commit-probe)"
+    printf '%s\n' "$r19_verify_block" | grep -qF 'git show "${GITHUB_SHA}:.github/scripts/review-comment-published.sh" > "$evidence_script" 2>/dev/null || rm -f "$evidence_script"' || r19_bad="${r19_bad} review.yml(no-workflow-commit-extraction)"
+    printf '%s\n' "$r19_verify_block" | grep -q 'bash \.github/scripts/review-comment-published\.sh' && r19_bad="${r19_bad} review.yml(head-workspace-script-invocation)"
+    printf '%s\n' "$r19_verify_block" | grep -qF 'bash "$evidence_script" "$pr" "$SINCE" || pub_rc=$?' || r19_bad="${r19_bad} review.yml(no-evidence-invocation)"
+    # Fail-closed when the script cannot be extracted.
+    printf '%s\n' "$r19_verify_block" | grep -qF 'if [ ! -s "$evidence_script" ]; then' || r19_bad="${r19_bad} review.yml(no-fail-closed-on-missing-script)"
+    # Exit-code mapping: 0 published / 1 unpublished / anything else refuse.
+    printf '%s\n' "$r19_verify_block" | grep -qF '0) published="true" ;;' || r19_bad="${r19_bad} review.yml(no-published-map)"
+    printf '%s\n' "$r19_verify_block" | grep -qF '1) published="false" ;;' || r19_bad="${r19_bad} review.yml(no-unpublished-map)"
+    r19_unknown_block=$(printf '%s\n' "$r19_verify_block" | awk '
+      $0 ~ /^[[:space:]]*\*\)[[:space:]]*$/ { f=1 }
+      f { print }
+      f && $0 ~ /^[[:space:]]*;;[[:space:]]*$/ { exit }')
+    printf '%s\n' "$r19_unknown_block" | grep -qF 'rm -f /tmp/random-lab-decision.json' || r19_bad="${r19_bad} review.yml(unknown-verify-keeps-verdict)"
+    printf '%s\n' "$r19_unknown_block" | grep -qE '^[[:space:]]*exit 1$' || r19_bad="${r19_bad} review.yml(unknown-verify-not-exit-1)"
+    printf '%s\n' "$r19_unknown_block" | grep -q 'gh api' && r19_bad="${r19_bad} review.yml(unknown-verify-auto-retries)"
+    # Ordering (issue #616 core): evidence before verdict, verdict before the
+    # published guard, published guard before its exit 0, and the discard of
+    # an unpublished verdict between the guard and the retry block.
+    r19_line() { printf '%s\n' "$r19_verify_block" | grep -nF -- "$1" | head -1 | cut -d: -f1; }
+    r19_ev_line=$(r19_line 'bash "$evidence_script" "$pr" "$SINCE" || pub_rc=$?')
+    r19_verdict_line=$(r19_line 'if [ -f /tmp/random-lab-decision.json ]; then')
+    r19_pubtrue_line=$(r19_line 'if [ "$published" = "true" ]; then')
+    r19_pubexit_line=$(r19_line 'Review decision file present and the decision comment is published; gate produced a verdict.')
+    r19_retry_line=$(r19_line 'if [ "$outcome" != "success" ]; then')
+    r19_unpubl_line=$(r19_line 'if [ "$unpublished_verdict" = "true" ]; then')
+    r19_uverdict_line=$(r19_line 'unpublished_verdict="true"')
+    if [ -z "$r19_ev_line" ] || [ -z "$r19_verdict_line" ] || [ "$r19_ev_line" -ge "$r19_verdict_line" ]; then
+      r19_bad="${r19_bad} review.yml(evidence-not-before-verdict:${r19_ev_line:-none}/${r19_verdict_line:-none})"
+    fi
+    if [ -z "$r19_verdict_line" ] || [ -z "$r19_pubtrue_line" ] || [ -z "$r19_pubexit_line" ] || [ "$r19_verdict_line" -ge "$r19_pubtrue_line" ] || [ "$r19_pubtrue_line" -ge "$r19_pubexit_line" ]; then
+      r19_bad="${r19_bad} review.yml(published-guard-order:${r19_verdict_line:-none}/${r19_pubtrue_line:-none}/${r19_pubexit_line:-none})"
+    fi
+    if [ -z "$r19_retry_line" ] || [ -z "$r19_unpubl_line" ] || [ -z "$r19_uverdict_line" ] || [ "$r19_uverdict_line" -ge "$r19_retry_line" ] || [ "$r19_retry_line" -ge "$r19_unpubl_line" ]; then
+      r19_bad="${r19_bad} review.yml(unpublished-discard-order:${r19_uverdict_line:-none}/${r19_retry_line:-none}/${r19_unpubl_line:-none})"
+    fi
+    r19_discard_line=$(printf '%s\n' "$r19_verify_block" | grep -nF 'rm -f /tmp/random-lab-decision.json' | awk -F: -v a="$r19_pubtrue_line" -v b="$r19_retry_line" '$1 > a && $1 < b {print $1; exit}')
+    [ -n "$r19_discard_line" ] || r19_bad="${r19_bad} review.yml(no-discard-between-verdict-and-retry)"
+    [ "$(printf '%s\n' "$r19_verify_block" | grep -cF 'rm -f /tmp/random-lab-decision.json' || true)" -ge 3 ] || r19_bad="${r19_bad} review.yml(discard-count-lt-3)"
+    # No forward path survives an inconclusive verify: both the infra
+    # override and the decision forward carry the exact verify-success gate.
+    r19_gated=$(grep -cF "if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success'" "$REVIEW_WF" || true)
+    [ "$r19_gated" -eq 2 ] || r19_bad="${r19_bad} review.yml(verify-gated-forward-count=${r19_gated},want=2)"
+    printf '%s\n' "$(grep -A1 -F -- '- name: Force lab routing for infrastructure PRs' "$REVIEW_WF" | tail -1 | sed 's/^[[:space:]]*//')" | grep -qxF "$R19_VERDICT_GATE" || r19_bad="${r19_bad} review.yml(force-lab-step-not-gated)"
+    printf '%s\n' "$(grep -A1 -F -- '- name: Forward reviewer decision' "$REVIEW_WF" | tail -1 | sed 's/^[[:space:]]*//')" | grep -qxF "$R19_VERDICT_GATE" || r19_bad="${r19_bad} review.yml(forward-step-not-gated)"
+  fi
+fi
+# Functional contract test (delegation.md section 6: executable mock,
+# interception asserted before any run, credentials scrubbed, sandbox
+# outside the repo tree, per-case behavior from a sandbox config file, live
+# non-credential Actions env set realistically so env-fingerprint detection
+# cannot green a broken script). The real script must classify real payload
+# shapes, including paginated slurp pages.
+if [ -f "$R19_SCRIPT" ]; then
+  r19_script_abs="$(pwd)/$R19_SCRIPT"
+  r19_tmp=$(mktemp -d 2>/dev/null || true)
+  if [ -z "$r19_tmp" ] || [ ! -d "$r19_tmp" ]; then
+    r19_bad="${r19_bad} script(functional-sandbox-unavailable)"
+  elif ! command -v jq >/dev/null 2>&1; then
+    r19_bad="${r19_bad} script(functional-jq-missing)"
+  else
+    trap 'rm -rf "$r19_tmp"' EXIT
+    r19_mockdir="$r19_tmp/bin"
+    mkdir -p "$r19_mockdir"
+    cat > "$r19_mockdir/gh" <<'R19_MOCK'
+#!/usr/bin/env bash
+r19_cfg="$(cd "$(dirname "$0")/.." && pwd)/case.cfg"
+payload_file=""
+fail_fetch="0"
+# shellcheck disable=SC1090
+. "$r19_cfg"
+case "$*" in
+  *"/comments"*)
+    if [ "$fail_fetch" = "1" ]; then
+      echo "mock gh: api failure" >&2
+      exit 1
+    fi
+    cat "$payload_file"
+    ;;
+  *)
+    echo "mock gh: unexpected call: $*" >&2
+    exit 1
+    ;;
+esac
+R19_MOCK
+    chmod +x "$r19_mockdir/gh"
+    if [ "$(PATH="$r19_mockdir:$PATH" command -v gh)" != "$r19_mockdir/gh" ]; then
+      r19_bad="${r19_bad} script(functional-mock-not-intercepted)"
+    else
+      r19_since="2026-10-17T17:12:07Z"
+      r19_p_footer="$r19_tmp/p-footer.json"
+      cat > "$r19_p_footer" <<'R19_PAYLOAD'
+[[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T17:20:00Z","body":"## Review\n\nVerified the fix.\n\n- the Reviewer\n\n[github run](https://github.com/Userfrom1995/RandomLabs/actions/runs/39057481045)"}]]
+R19_PAYLOAD
+      r19_p_tool="$r19_tmp/p-tool.json"
+      cat > "$r19_p_tool" <<'R19_PAYLOAD'
+[[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T17:20:00Z","body":"## Review\n\n- the Reviewer\n"}]]
+R19_PAYLOAD
+      r19_p_page2="$r19_tmp/p-page2.json"
+      cat > "$r19_p_page2" <<'R19_PAYLOAD'
+[[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T17:00:00Z","body":"old note"}],[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T17:20:00Z","body":"- the Reviewer"}]]
+R19_PAYLOAD
+      r19_p_trail="$r19_tmp/p-trail.json"
+      cat > "$r19_p_trail" <<'R19_PAYLOAD'
+[[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T17:20:00Z","body":"## Review\n\n- the Reviewer   "}]]
+R19_PAYLOAD
+      r19_p_incident="$r19_tmp/p-incident.json"
+      cat > "$r19_p_incident" <<'R19_PAYLOAD'
+[[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T17:12:08Z","body":"APIError: The operation was aborted. (api_key_expired)"}]]
+R19_PAYLOAD
+      r19_p_stale="$r19_tmp/p-stale.json"
+      cat > "$r19_p_stale" <<'R19_PAYLOAD'
+[[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T16:00:00Z","body":"## Review\n\n- the Reviewer"}]]
+R19_PAYLOAD
+      r19_p_owner="$r19_tmp/p-owner.json"
+      cat > "$r19_p_owner" <<'R19_PAYLOAD'
+[[{"user":{"login":"Userfrom1995"},"created_at":"2026-10-17T17:20:00Z","body":"## Review\n\n- the Reviewer"}]]
+R19_PAYLOAD
+      r19_p_inline="$r19_tmp/p-inline.json"
+      cat > "$r19_p_inline" <<'R19_PAYLOAD'
+[[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T17:20:00Z","body":"See the line \"- the Reviewer\" quoted above."}]]
+R19_PAYLOAD
+      r19_p_empty="$r19_tmp/p-empty.json"
+      printf '[[]]\n' > "$r19_p_empty"
+      r19_p_badjson="$r19_tmp/p-badjson.json"
+      printf '{"message":"Not Found"}\n' > "$r19_p_badjson"
+      r19_case() {
+        r19_case_name="$1"; r19_case_want="$2"; r19_case_payload="$3"; shift 3
+        {
+          printf 'payload_file=%q\n' "$r19_case_payload"
+          printf 'fail_fetch="0"\n'
+          for r19_kv in "$@"; do printf '%s\n' "$r19_kv"; done
+        } > "$r19_tmp/case.cfg"
+        r19_case_out=$(cd "$r19_tmp" && env -u GITHUB_TOKEN -u GH_TOKEN -u GH_API_TOKEN \
+          PATH="$r19_mockdir:$PATH" GITHUB_ACTIONS=true GITHUB_REPOSITORY="Userfrom1995/RandomLabs" \
+          bash "$r19_script_abs" 614 "$r19_since" 2>&1)
+        r19_case_rc=$?
+        if [ "$r19_case_rc" -ne "$r19_case_want" ]; then
+          r19_bad="${r19_bad} script(functional-${r19_case_name}-rc=${r19_case_rc},want=${r19_case_want})"
+          printf 'R19 functional case %s failed (rc=%s, want=%s); output:\n%s\n' "$r19_case_name" "$r19_case_rc" "$r19_case_want" "$r19_case_out" >&2
+        fi
+      }
+      r19_case published-footer 0 "$r19_p_footer"
+      r19_case published-tool 0 "$r19_p_tool"
+      r19_case page2-signoff 0 "$r19_p_page2"
+      r19_case trailing-space 0 "$r19_p_trail"
+      r19_case incident-error 1 "$r19_p_incident"
+      r19_case stale 1 "$r19_p_stale"
+      r19_case owner-authored 1 "$r19_p_owner"
+      r19_case inline-mention 1 "$r19_p_inline"
+      r19_case empty 1 "$r19_p_empty"
+      r19_case bad-json 2 "$r19_p_badjson"
+      r19_case fetch-failure 2 "$r19_tmp/never-read.json" 'fail_fetch="1"'
+    fi
+  fi
+fi
+if [ -f .github/agents/reviewer.md ]; then
+  grep -qF 'Publication Contract (issue #616)' .github/agents/reviewer.md || r19_bad="${r19_bad} reviewer.md(no-publication-contract)"
+else
+  r19_bad="${r19_bad} reviewer.md(missing)"
+fi
+if [ -z "$r19_bad" ]; then
+  check "R19" "review forwarding requires published decision-comment evidence: the shared script accepts only a bot-authored, post-trigger, reviewer-signed comment (exit 0/1/2), the verify step extracts it from this run's own workflow commit, discards unpublished verdicts before the retry and forward paths, fails closed on inconclusive verification, and both forward steps are verify-success gated (issue #616)" "ok"
+else
+  check "R19" "review-comment publication-evidence guard missing:${r19_bad} (issue #616: a reviewer death between the decision-file write and the comment post forwards an unread verdict with zero published findings)" "bad"
+fi
+
+summary="Silent-stall regression audit (R1-R19) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R16)
+  body="## Silent-stall regression audit FAILED (R1-R19)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder, or R16 shallow-workspace PAT merge guard). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder, R16 shallow-workspace PAT merge guard, or R19 review-comment publication evidence guard). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
