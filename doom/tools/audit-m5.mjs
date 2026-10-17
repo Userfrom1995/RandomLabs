@@ -101,11 +101,12 @@ check('selector reflects stored tier', app.includes("store.getItem('doom-tier') 
 check('reject paths restore the running status', app.includes('restoreRunningStatus()'));
 const html = read('index.html');
 check('inline favicon kills the 404', html.includes('rel="icon" href="data:,"'));
-check('scope section uses the unified label', html.includes('About integration and end-to-end audit')
+check('scope section uses the unified label', html.includes('About the engine')
   && !html.includes('Milestone 5 scope'));
 
 // M4 sealed strings intact.
-check('m4 scope text intact', html.includes('WAD ecosystem and polish'));
+check('m4 ecosystem copy intact in the unified panel', html.includes('map-group replacement')
+  && html.includes('per-map isolation'));
 check('old M3 scope text still gone', !html.includes('WAD ecosystem polish (M4) is the next milestone'));
 
 // Scoreboard carries the final ledger.
