@@ -72,8 +72,8 @@ enum ProbeGate {
 
 impl ProbeGate {
     /// Gate a launched session: fullscreen probes hold for the resize.
-    fn arm(fullscreen: bool, expected: Option<(u32, u32)>, now: Instant) -> Self {
-        if fullscreen {
+    fn arm(fullscreen_probe: bool, expected: Option<(u32, u32)>, now: Instant) -> Self {
+        if fullscreen_probe {
             Self::AwaitingResize {
                 expected,
                 deadline: now + FULLSCREEN_SETTLE,
@@ -169,11 +169,9 @@ impl Runner {
             }
         };
         if self.fullscreen {
-            self.probe_gate = ProbeGate::arm(
-                self.probe_left.is_some(),
-                monitor_size(&window),
-                Instant::now(),
-            );
+            let fullscreen_probe = self.probe_left.is_some();
+            self.probe_gate =
+                ProbeGate::arm(fullscreen_probe, monitor_size(&window), Instant::now());
             window.set_fullscreen(Some(Fullscreen::Borderless(None)));
         }
         let context = match Context::new(event_loop.owned_display_handle()) {
