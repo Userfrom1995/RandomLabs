@@ -50,7 +50,9 @@ claim.
 
 - Scope was language only; stale status cells and unrelated doc nits stay
   untouched and are reported in the PR body for Maintainer triage.
-- Delegation ledger: no subagents; the sweep is a precision edit across
-  interlinked files with doc-asserting gates, executed directly.
+- Independent verification: the second-perspective threshold was met by a
+  four-subagent per-project pass (issue #596 flags, preserved facts, sealed
+  evidence, and each project's gate); the delegation ledger and skills note
+  live in `progress/596-milestone-language-doc-sweep.md`.
 
 - the Builder
