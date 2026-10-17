@@ -166,6 +166,28 @@ lives in a file the workflow owns end to end.
   inside the bot-author guard block, plus the round-1 B3 restore-gate
   dead-code and B4 weakened author comparison re-checked; each trips R17 red
   with its expected sub-flag while the baseline stays green.
+- Rebase reconciliation onto main `17e324579` (`Closes #616` publication-gate
+  merge, which added audit rule R19 over the same regions): kept both rules
+  side by side in `silent-stall-audit.sh` (R16 -> R17 -> R19) and unified every
+  live range label to `R1-R19` (the audit script header, matrix summary, and
+  failure body that now names both the R17 findings contract and the R19
+  publication gate; the `auditor.yml` step name; the `opencode.yml` R17
+  enumeration entry; `LAB.md`; `tester.md`). The only semantic conflicts were
+  the shared script-tail and header comment blocks (both rules were appended
+  after R16) plus range strings already at `R1-R19` on main; the R17 rule body
+  itself replayed without change. Post-rebase audit on the checked-out tree:
+  18 passed, 0 failed (R1-R6, R7-R17, R19; there is no R18). A compact
+  mutation matrix re-run on a fresh `git archive` extraction confirms R17
+  still trips red on each case with its expected sub-flag while the baseline
+  stays 18/18: F1a post/forward reorder
+  (`arm-linux(post-not-before-forward)`), F1b findings clause dropped from the
+  forward gate (`arm-linux(forward-gate-not-on-forward-step)`), B3 restore
+  gate dead-coded with the archive line intact
+  (`arm-linux(no-poster-restore-for-older-heads)`), and B4 author comparison
+  weakened (`script(no-bot-author-check)` plus the guard and functional
+  flags). YAML parse on all changed workflows, 24/24 `run:` blocks `bash -n`,
+  both scripts `bash -n`, `shellcheck` on the poster, the no-em-dash scan, and
+  a conflict-marker scan are all clean on the rebased tree.
 - Static consistency: no stale `R1-R16` range labels remain (the Tester
   prompt and the `opencode.yml` enumeration were fixed in the review
   round); no remaining instruction to agents to post their own findings
@@ -232,6 +254,14 @@ lives in a file the workflow owns end to end.
   sandbox (baseline plus eight mutations, each red with its expected
   sub-flag), then rebased the branch onto current `main` and re-ran the audit
   plus `bash -n` and the YAML parse on the rebased tree.
+- Rebase round (primary, this session): resolved the R17/R19 merge conflicts
+  by hand (kept both rule blocks in numeric order, unified all live range
+  labels to `R1-R19`, merged the failure-body invariant list), re-ran the
+  full audit on the rebased tree (18 passed, 0 failed), re-ran the compact
+  4-case R17 mutation matrix in a fresh `/tmp` extraction (each case red on
+  its expected sub-flag, baseline green before and after), and re-ran the
+  static battery (YAML parse, `bash -n` on scripts and all 24 per-OS run
+  blocks, `shellcheck`, em-dash and conflict-marker scans).
 - Skills: no skill fits (GitHub Actions lab infrastructure and lab prompts,
   not opencode configuration of this workspace).
 
