@@ -45,7 +45,7 @@ concurrency:
 # schedule/dispatch self-heal parity (issue #422 B), R10 guards dispatch-input
 # env indirection in PAT steps (issue #422 residual), R11 guards the lab
 # post-agent strip/push decision gate, R12 guards the shared actor-write
-# gate (issue #428), R13 guards bot-created triage parity (issue #450), and
+# gate (issue #428), R13 guards bot-created triage parity (issue #450),
 # R14 guards per-OS arm queue preservation (issue #594), and R15 guards the
 # model fallback ladder plus loud Model-not-found failure (issue #591).
 # =============================================================================
