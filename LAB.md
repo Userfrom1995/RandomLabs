@@ -324,7 +324,7 @@ New folder `.github/agents/`:
 .github/agents/
   REGISTRY.md        # roster of agents + trigger keywords (mirrored on maintainer/logs)
   CREATING_AGENTS.md # guidelines and rules for creating new agents
-  delegation.md      # binding delegation/parallelism/skills protocol referenced by worker prompts
+  delegation.md      # binding delegation/parallelism/skills/harness-isolation protocol referenced by worker prompts and the Lab Engineer
   skills.md          # known-skills registry companion to delegation.md section 5
   quality-gates.md   # binding completion criteria companion to delegation.md section 7
   continuous-improvement.md # binding post-merge loop companion to quality-gates.md (verify, record, track)
