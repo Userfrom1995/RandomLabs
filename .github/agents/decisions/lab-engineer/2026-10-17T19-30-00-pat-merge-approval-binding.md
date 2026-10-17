@@ -111,6 +111,52 @@ merged tree (R17, R19, R20, and R21 all green), `bash -n` is clean, and the
 R21 functional harness (extracted predicate plus extracted decision block)
 still passes against the rebased `maintainer.yml`.
 
+## Review round 2 fold (F3/F4 and minor)
+
+The Reviewer's round on head `15b4620c` (19:47:53Z comment) found the core
+fix sound but required four changes; the rebase pass already folded the
+blocking integration findings, and this pass folds the rest:
+
+- F1 (branch conflicted against main): resolved by the rebase onto
+  `b560ed38` recorded above.
+- F2 (the new rule number R20 was already taken by #621's landed guard):
+  resolved by the R21 renumber and the `r20_*` -> `r21_*` state rename, with
+  every range label synced to R1-R21 (audit header, `check()` PASS/FAIL
+  prefixes, summary and failure-body text, `auditor.yml` step name,
+  `opencode.yml` comment, `tester.md`, `LAB.md`).
+- F3 (the strict first-line anchor could silently stall genuine Tester
+  verdicts whose real-world shape was pinned nowhere): the verdict contract
+  is now pinned in `tester.md` (line 71: the first line must be exactly
+  `/oc approve-test`, optionally backticked, summary on the following
+  lines, ending with `- the Tester`; line 136: the same marker as the
+  entire first line of the decision comment). The safe strict anchor is
+  kept; the predicate was not relaxed.
+- F4 (the R21 harness let three real weakenings stay green): hardened with
+  the Reviewer's corrected code:
+  1. the predicate extraction now runs over live (non-comment) lines only,
+     and a single-live-assignment count (exactly 1 occurrence of the
+     assignment prefix) is enforced, so a commented-out anchored predicate
+     plus a live unanchored matcher now reads as
+     `verdict-predicate-not-single-live-assignment` +
+     `verdict-predicate-not-shape-anchored` (plus the false-match reds);
+  2. each genuine predicate fixture now asserts the EXACT returned verdict
+     timestamp (the constant-2099 mutation now reads as
+     `functional-*-wrong-timestamp`), and a new newest-genuine-wins fixture
+     with two genuine verdicts pins the `| last |` reduction (a `first` swap
+     now reads as `functional-newest-genuine-wins-wrong-timestamp`);
+  3. both head-time `sort | tail -1` reductions are pinned by count
+     (exactly 2), so a `sort | head -1` min-reducer swap now reads as
+     `head-time-reduction-not-pinned`.
+- Minor (stale conflict-surface line in this note): recorded under Rebase
+  reconciliation above.
+
+Mutation evidence (primary, live, this push): M1 commented-out predicate +
+live unanchored matcher -> the two structural flags plus three false-match
+reds; M2 constant 2099 timestamp -> three wrong-timestamp reds; M3
+`sort | head -1` -> head-time-reduction-not-pinned; M4 `last` -> `first` ->
+newest-genuine-wins wrong-timestamp; clean control 20 passed / 0 failed.
+`bash -n` clean, zero em dashes in the diff.
+
 ## Delegation ledger
 
 - Subagent A (general; scope: end-to-end merge-sweep behavioral matrix in
@@ -127,6 +173,12 @@ still passes against the rebased `maintainer.yml`.
 - Primary verified itself: as listed under Evidence; plus line-by-line
   reads of the final hunk, the R20 rule, and the rebase reconciliation with
   R17.
+- Primary (review-finding fold pass, this push): mapped F1-F4 against the
+  rebased tree, pinned the F3 contract, applied the three F4 hardenings
+  verbatim, and ran a 4-mutation live matrix whose reds are logged under
+  Review round 2 fold. No subagent was needed for this narrow, fully
+  specified fold; each mutation was executed directly and reverted, with a
+  clean control in between.
 - Skills: no skill fits (GitHub Actions lab infrastructure and lab prompts,
   not opencode configuration of this workspace).
 
