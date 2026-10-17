@@ -226,6 +226,45 @@ impl Session {
         }
     }
 
+    /// Drain the buffer, then wait until a full fresh window of output
+    /// both contains `present` and never contains `absent` (windows are
+    /// retried until `timeout`). Proves a state was left: after resume,
+    /// playing frames carry `SCORE ` and never `PAUSED`.
+    fn wait_frames_without(
+        &self,
+        absent: &str,
+        present: &str,
+        window: Duration,
+        timeout: Duration,
+    ) -> bool {
+        let deadline = Instant::now() + timeout;
+        loop {
+            {
+                let mut guard = self.out.lock().unwrap();
+                guard.clear();
+            }
+            let until = Instant::now() + window;
+            let mut seen_present = false;
+            let mut seen_absent = false;
+            while Instant::now() < until {
+                std::thread::sleep(Duration::from_millis(5));
+                let mut guard = self.out.lock().unwrap();
+                if !guard.is_empty() {
+                    let hay = String::from_utf8_lossy(&guard).into_owned();
+                    seen_present |= hay.contains(present);
+                    seen_absent |= hay.contains(absent);
+                    guard.clear();
+                }
+            }
+            if seen_present && !seen_absent {
+                return true;
+            }
+            if Instant::now() >= deadline {
+                return false;
+            }
+        }
+    }
+
     fn wait_exit(&mut self, timeout: Duration) -> Option<std::process::ExitStatus> {
         let deadline = Instant::now() + timeout;
         loop {
@@ -288,8 +327,13 @@ fn full_session_exits_clean_and_restores_termios() {
     );
     s.send(b"p");
     assert!(
-        s.wait_for("SCORE ", Duration::from_secs(5)),
-        "P on the pause menu must resume; tail: {}",
+        s.wait_frames_without(
+            "PAUSED",
+            "SCORE ",
+            Duration::from_millis(250),
+            Duration::from_secs(5)
+        ),
+        "P on the pause menu must resume (the PAUSED panel must disappear); tail: {}",
         s.tail()
     );
     s.send(b"p");
