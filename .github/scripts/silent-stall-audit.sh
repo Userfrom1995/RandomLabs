@@ -10,7 +10,7 @@
 # parity guard (issue #450), the R14 per-OS arm queue-preservation guard
 # (issue #594), and the R15 model fallback ladder guard (issue #591:
 # provider model retirement / loud Model-not-found failure).
-# Wired into auditor.yml as the R1-R14 matrix.
+# Wired into auditor.yml as the R1-R15 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
 # R1-R6 are scoped to <path-to-opencode.yml>; R7-R15 audit the whole tree
@@ -463,7 +463,8 @@ fi
 # runs green (hollow green: `continue-on-error` plus no verify step), so
 # workflow_run failure triage never fired. Properties:
 #   1. the shared resolver exists and resolves against the live registry,
-#      defaulting to the ladder file next to it;
+#      defaulting to the ladder file next to it, and degrades to pass-through
+#      on a registry outage or an unparseable registry body (never blocks);
 #   2. the ordered ladder exists, is non-empty, and every rung is a
 #      free-tier model ref (a paid rung would trip the R6 free-tier guard);
 #   3. the shared composite action calls the resolver, retries per rung on a
@@ -486,6 +487,7 @@ if [ ! -f "$RESOLVER" ]; then
 else
   grep -q 'zen/v1/models' "$RESOLVER" || r15_bad="${r15_bad} resolver(no-live-registry-lookup)"
   grep -q 'model-ladder\.txt' "$RESOLVER" || r15_bad="${r15_bad} resolver(no-ladder-default)"
+  grep -qF 'no parseable model ids' "$RESOLVER" || r15_bad="${r15_bad} resolver(no-unparseable-registry-passthrough)"
 fi
 if [ ! -f "$LADDER_FILE" ]; then
   r15_bad="${r15_bad} ladder-file(missing)"
