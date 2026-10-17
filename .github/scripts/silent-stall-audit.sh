@@ -6,15 +6,16 @@
 # hardened runner guard, the R9 schedule/dispatch retry-parity guard
 # (issue #422), the R10 PAT-step input-indirection guard, the R11
 # post-agent PAT gate guard (both issue #422 residual hardening), the
-# R12 actor-write gate guard (issue #428), and the R13 bot-created triage
-# parity guard (issue #450).
-# Wired into auditor.yml as the R1-R13 matrix.
+# R12 actor-write gate guard (issue #428), the R13 bot-created triage
+# parity guard (issue #450), and the R14 per-OS arm queue-preservation
+# guard (issue #594).
+# Wired into auditor.yml as the R1-R14 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R13 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R14 audit the whole tree
 # (the review-restore guard, the vendored runner, every schedule/dispatch
-# agent arm, dispatch-input indirection, the lab post-agent PAT gates, and
-# the shared actor-write gate), so they trip on a bad
+# agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
+# shared actor-write gate, and the per-OS arm queue), so they trip on a bad
 # curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml no matter which
 # file the audit was pointed at.
 # Exit code is always 0 so it never breaks the auditor run; failures are reported
@@ -43,12 +44,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R13 PASS] $name: $desc"
+  [R1-R14 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R13 FAIL] $name: $desc"
+  [R1-R14 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -416,16 +417,54 @@ else
   check "R13" "bot-created triage parity missing:${r13_bad} (issue #450: a bot-created issue idles with no opened event until a human pings it)" "bad"
 fi
 
-summary="Silent-stall regression audit (R1-R13) on ${WF}: ${pass} passed, ${fail} failed."
+# [R14] Per-OS arm queue preservation (issue #594): opencode-peros-test.yml's
+# workflow-level group serializes heterogeneous per-OS arms plus the no-op
+# completion-handoff runs, and GitHub keeps at most ONE pending run per group
+# by default: a later trigger (for example the /oc maintainer handoff posted
+# by a finished arm) silently cancels a still-pending arm even with
+# cancel-in-progress: false, which lost the Windows native proof for #582
+# (run 39021803178 had zero jobs). Two acceptable designs: no workflow-level
+# block at all (the per-OS job-level groups alone serialize each arm), or a
+# workflow-level block that carries `queue: max` (up to 100 pending runs).
+# The three per-OS job groups must exist, and no group in the file may cancel
+# in progress.
+PEROS_WF=".github/workflows/opencode-peros-test.yml"
+r14_bad=""
+if [ ! -f "$PEROS_WF" ]; then
+  r14_bad=" ${PEROS_WF}(missing)"
+else
+  # Workflow-level block = the column-0 `concurrency:` mapping. A same-name
+  # job-level `concurrency:` is indented, so it never matches the anchor.
+  peros_wf_block=$(awk '
+    /^concurrency:/ { inblk=1 }
+    inblk && /^[^[:space:]#]/ && !/^concurrency:/ { exit }
+    inblk { print }
+  ' "$PEROS_WF" || true)
+  if [ -n "$peros_wf_block" ] && ! printf '%s\n' "$peros_wf_block" | grep -qE '^[[:space:]]+queue:[[:space:]]*max'; then
+    r14_bad="${r14_bad} peros(workflow-group-without-queue-max)"
+  fi
+  for peros_os in linux macos windows; do
+    grep -q "opencode-peros-${peros_os}-" "$PEROS_WF" || r14_bad="${r14_bad} peros(no-${peros_os}-job-group)"
+  done
+  peros_cancel_true=$(grep -nE 'cancel-in-progress:\s*true' "$PEROS_WF" || true)
+  [ -n "$peros_cancel_true" ] && r14_bad="${r14_bad} peros(cancel-in-progress-true)"
+fi
+if [ -z "$r14_bad" ]; then
+  check "R14" "per-OS arms cannot be silently displaced: workflow-level group absent or queue: max, all three per-OS job groups present, no cancelling group (issue #594)" "ok"
+else
+  check "R14" "per-OS arm queue preservation missing:${r14_bad} (issue #594: the single pending slot cancels a queued arm)" "bad"
+fi
+
+summary="Silent-stall regression audit (R1-R14) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R13)
+  body="## Silent-stall regression audit FAILED (R1-R14)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 two-knob free tier, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, or R13 bot-created triage parity). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 two-knob free tier, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, or R14 per-OS arm queue preservation). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
