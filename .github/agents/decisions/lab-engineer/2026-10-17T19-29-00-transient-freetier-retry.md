@@ -271,4 +271,38 @@ properties, and result strings now name both issues.
   re-run of the existing harness in refreshed isolated copies
   (`/tmp/opencode/f5-harness/repo-e2`, `tree`).
 
+## Addendum V: rebase onto main after the #629 R22 landing
+
+- Main advanced to `114406a2` (PR #629 landed the tester verdict publication
+  contract and added `R22`; the audit's range labels are now `R1-R22` with
+  R22 after R21). The branch is rebased onto it, 0 commits behind.
+- Single content conflict: the audit's failure-body invariant list. The
+  resolution keeps main's new `R22 tester verdict publication` item and
+  retains `R15 model fallback ladder plus transient free-tier retry`. The
+  auto-merged `AGENTS.md`/`LAB.md` text was checked for coherence: the #620
+  free-tier sections and main's #629 R22 section coexist with no duplicated
+  sections and no stale `R1-R21` label anywhere in the tree. `git range-diff`
+  shows every commit identical except the conflict hunk in the R15 guard
+  commit; the runner blocks and the entire R15 region are byte-identical to
+  the reviewed head.
+- Re-verification on the rebased tree: pristine audit 22 passed / 0 failed
+  (R22 included, run both in the workspace and in an extracted copy under
+  `/tmp/opencode/mutfix2`); the mutation spot-check matrix re-run there is
+  7/7 RED, one class per pin/behavioral layer: decoy cap (anchored count plus
+  behavioral timeout), persistent-branch `exit 0` substitution (behavioral
+  rc mismatch only: the static pins stay clean by design), loop-condition
+  rewrite (behavioral attempt mismatch), dead backoff after `continue`
+  (behavioral no-backoff-sleep), alternate in-loop budget reset
+  (`$((0))` spelling: behavioral timeout), budget-after-`continue` (behavioral
+  timeout), hoisted budget (consumption count plus behavioral mismatch). A
+  step-rename fail-closed edge check trips `extract-or-shape` (never skips).
+- **Delegation ledger (this pass):** no subagents; the pass is a mechanical
+  rebase plus a re-run of the previously specified harness in isolated copies
+  under `/tmp/opencode/` (delegation.md section 6: mocks `chmod +x`,
+  interception asserted, env scrubbed, execution cwd inside the sandbox,
+  timeout per scenario). Zero external side effects confirmed (no new PR
+  comments or API writes from the harness runs; the audit's mocks intercepted
+  every invocation). Skills: no skill fits (GitHub Actions lab
+  infrastructure, not opencode workspace configuration).
+
 - the Lab Engineer
