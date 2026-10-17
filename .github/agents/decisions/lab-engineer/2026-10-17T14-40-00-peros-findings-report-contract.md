@@ -79,18 +79,23 @@ lives in a file the workflow owns end to end.
   check deleted, post-step gate removed, and post-step token swapped to the
   owner PAT; each trips R17 red with the expected sub-flag on the tightened
   guard.
-- Independent verification (subagent 2, adversarial): all 11 cases red, and
-  three further blind spots found and closed. X1: appending ` && false` to a
-  post-step gate passed the substring count (the whole step was skipped
-  silently), now closed by exact whole-line post-step and forward gate
-  assertions. X2: replacing a guard block's `exit 1` with a no-op kept the
-  anchored `if` line green while the script printed its verified marker,
-  now closed by a structural check that each guard's own block (up to its
-  `fi`) contains a real `exit 1`. X3/X7: commenting out or `|| true`-ing the
-  shared-script invocation passed the loose regex, now closed by an anchored
-  uncommented whole-line invocation assertion. A re-run of the extended
-  18-case matrix (M1-M11 plus X1-X7) trips R17 red on every case with the
-  expected sub-flag.
+- Independent verification (subagent 2, adversarial): three rounds of
+  mutation testing against the tightened R17. Round 1: all 11 review-round
+  mutations red, and three blind spots found (X1 gate suffix `&& false`, X2
+  guard `exit 1` replaced by a no-op, X3 commented invocation). Round 2:
+  X1-X3 closed, but four further silent-capable evasions found (Y1 guard
+  condition suffix, Y2 invocation wrapped in a dead conditional, Y7 gate
+  parked on another step, Y9 unreachable `exit 1` behind a nested dead
+  branch; plus Y6/Y7-style variants). Round 3 (covered by the final matrix):
+  all closed. The final R17 enforcement: exact uncommented `; then` guard
+  lines; each guard's own block must reach a real `exit 1` before its `fi`
+  with no nested `if`; the shared-script invocation must be the exact
+  single line at the post step's own indentation; the post step must carry
+  the exact name/id/gate/env/token sequence with no `continue-on-error`;
+  the post-step and forward gates must be exact whole lines; the arm must
+  carry its actor-gate plus post-step `github.token` envs. The final 24-case
+  matrix (M1-M11 plus X1-X7 and Y1-Y10) trips R17 red on every case with the
+  expected sub-flag; the baseline stays 17 passed, 0 failed.
 - Static consistency: no stale `R1-R16` range labels remain (the Tester
   prompt and the `opencode.yml` enumeration were fixed in the review
   round); no remaining instruction to agents to post their own findings
@@ -122,14 +127,15 @@ lives in a file the workflow owns end to end.
   the poster's failure matrix, and ran the YAML/`bash -n`/em-dash/clean-tree
   checks before committing.
 - Review-fix round (primary, this session): applied B1-B5 and N1, re-ran the
-  audit on the committed tree (17 passed, 0 failed), then closed the
-  independent verifier's X1/X2/X3 blind spots with exact whole-line gate
-  assertions, an anchored uncommented invocation assertion, and structural
-  guard-block `exit 1` checks, and re-ran the extended 18-case mutation
-  matrix in a `/tmp` sandbox (baseline 17/17; every case trips R17 red with
-  its expected sub-flag), plus workflow YAML parse, `bash -n` on both
-  scripts, `shellcheck` on the poster, the stale-range sweep, and the
-  no-em-dash check.
+  audit on the committed tree (17 passed, 0 failed), then hardened R17
+  through the independent-verifier rounds (X1-X3, then Y1/Y2/Y7-Y10) with
+  exact-line gate assertions, an anchored fixed-indentation invocation
+  assertion, a strict post-step sequence check, and structural guard-block
+  `exit 1` checks, and re-ran the final 24-case mutation matrix in a `/tmp`
+  sandbox (baseline 17/17; every case trips R17 red with its expected
+  sub-flag), plus workflow YAML parse, `bash -n` on both scripts,
+  `shellcheck` on the poster, the stale-range sweep, and the no-em-dash
+  check.
 - Skills: no skill fits (GitHub Actions lab infrastructure and lab prompts,
   not opencode configuration of this workspace).
 
