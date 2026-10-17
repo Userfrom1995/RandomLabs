@@ -125,4 +125,14 @@ When you find issues or missing work (i.e., the PR is NOT clean), you must choos
 End every comment with:
 
 `- the Reviewer`
+
+**Publication Contract (issue #616)**: the review gate only recognizes your
+verdict once this sign-off-bearing decision comment is actually published on
+the PR thread. Write the decision file first, then publish the comment before
+the session ends (the wrapper posts your final message automatically; a
+mid-session comment-tool post with the same sign-off also counts). Never leave
+the decision file behind without a published sign-off comment: an unpublished
+verdict is discarded, the run is treated as a crash, and the bounded review
+auto-retry takes over.
+
 - **Escalation**: If you encounter a systemic roadblock, broken environment, or fundamentally unsolvable issue that requires human or Maintainer intervention, you have the capability to escalate. Write `{"action": "maintainer"}` to `/tmp/random-lab-decision.json` and explain the exact issue in your comment so Hephaestus can bridge the gap.
