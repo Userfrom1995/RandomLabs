@@ -125,3 +125,7 @@ decision file is written. Handing off to the Reviewer.
   intentional policy line and artifact filenames remain). Skills: no known
   skill fits a docs-language verification pass (`skills.md` lists only
   `customize-opencode`, for opencode configuration edits).
+- 2026-10-17: Round-2 review fix. `umbra/docs/scoreboard.md:20` said "four
+  capability rounds" while the section lists five; corrected to "five"
+  (doom's counterpart stays "four": its section has exactly four rounds).
+  umbra suite 467/467 green after the edit.
