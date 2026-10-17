@@ -62,8 +62,9 @@ concurrency:
 # R14 guards heterogeneous-group queue preservation (per-OS arms, issue #594,
 # and the whole comment-triggered cohort, issue #601), R15 guards the
 # model fallback ladder plus loud Model-not-found failure (issue #591),
-# R16 guards the PAT merge shallow-workspace guard (issue #602), and R19
-# guards the review-comment publication-evidence gate (issue #616).
+# R16 guards the PAT merge shallow-workspace guard (issue #602), R17 guards
+# the per-OS findings-report contract (issue #608), and R19 guards the
+# review-comment publication-evidence gate (issue #616).
 # =============================================================================
 
 jobs:

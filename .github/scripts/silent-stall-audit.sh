@@ -13,10 +13,13 @@
 # provider model retirement / loud Model-not-found failure), the R16
 # shallow-workspace PAT merge guard (issue #602: a depth-limited opencode CLI
 # session fetch re-shallows the Maintainer checkout, and merge-base-dependent
-# merge checks then fail closed and silently skip a linked workflow PR), and
-# the R19 review-comment publication-evidence guard (issue #616: a reviewer
-# death between the decision-file write and the comment post forwarded an
-# unread verdict with zero published findings).
+# merge checks then fail closed and silently skip a linked workflow PR), the
+# R17 per-OS findings-report contract guard (issue #608: a PR-creating
+# per-OS arm run turns the session's final message into the PR body and
+# silently drops the findings report), and the R19 review-comment
+# publication-evidence guard (issue #616: a reviewer death between the
+# decision-file write and the comment post forwarded an unread verdict with
+# zero published findings).
 # Wired into auditor.yml as the R1-R19 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
@@ -25,8 +28,8 @@
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
 # group cohort, the model fallback
-# ladder, the PAT merge shallow-workspace guard, and the review-comment
-# publication-evidence guard), so they trip on a bad
+# ladder, the PAT merge shallow-workspace guard, the per-OS findings-report
+# contract, and the review-comment publication-evidence guard), so they trip on a bad
 # curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml no matter which
 # file the audit was pointed at.
 # Exit code is always 0 so it never breaks the auditor run; failures are reported
@@ -671,6 +674,75 @@ else
   check "R16" "shallow-workspace PAT merge guard missing:${r16_bad} (issue #602: a linked workflow PR is silently skipped as an orphan on a shallow workspace)" "bad"
 fi
 
+# [R17] Per-OS findings-report contract (issue #608): a per-OS arm session
+# used to carry its findings report only in the session's final message. The
+# wrapper posts that message as a comment when no PR is created, but a
+# PR-creating run turns it into the PR body instead, so the report vanished
+# into the run log (macOS arm run 39036858261, PR #606 on issue #582) and the
+# Maintainer had to recover it by hand. Properties:
+#   1. each arm clears the runtime findings file before the agent step and
+#      its prompt requires the report at /tmp/random-lab-findings.md;
+#   2. each fail-closed verify step requires the findings report alongside
+#      the decision file;
+#   3. each arm posts the report through the shared script with its own OS
+#      label and gates the decision forward on that step's success;
+#   4. the shared script validates the sign-off, posts as github-actions[bot]
+#      (never the owner PAT), and re-fetches the comment by id to verify
+#      authorship and the exact body;
+#   5. all three tester prompt files carry the contract.
+r17_bad=""
+R17_SCRIPT=".github/scripts/post-peros-findings.sh"
+peros_arm_block() {
+  awk -v job="  $1:" '
+    $0 == job { inblk = 1 }
+    inblk && /^  [a-z0-9-]+:$/ && $0 != job { exit }
+    inblk { print }
+  ' "$PEROS_WF" 2>/dev/null || true
+}
+if [ ! -f "$PEROS_WF" ]; then
+  r17_bad=" opencode-peros-test.yml(missing)"
+else
+  for r17_os in linux macos windows; do
+    r17_block=$(peros_arm_block "test-${r17_os}")
+    if [ -z "$r17_block" ]; then
+      r17_bad="${r17_bad} arm-${r17_os}(job-missing)"
+      continue
+    fi
+    printf '%s\n' "$r17_block" | grep -qF 'rm -f /tmp/random-lab-decision.json /tmp/random-lab-findings.md' || r17_bad="${r17_bad} arm-${r17_os}(no-findings-clear)"
+    printf '%s\n' "$r17_block" | grep -qF 'the COMPLETE findings report as Markdown to `/tmp/random-lab-findings.md`' || r17_bad="${r17_bad} arm-${r17_os}(prompt-not-file-based)"
+    printf '%s\n' "$r17_block" | grep -qF '[ -s /tmp/random-lab-findings.md ] || missing="${missing} findings-report"' || r17_bad="${r17_bad} arm-${r17_os}(verify-not-requiring-findings-file)"
+    printf '%s\n' "$r17_block" | grep -qF 'if [ "$need_poster" = "true" ]' || r17_bad="${r17_bad} arm-${r17_os}(no-poster-restore-for-older-heads)"
+    printf '%s\n' "$r17_block" | grep -qF 'git archive "${GITHUB_SHA}" -- .github/scripts/post-peros-findings.sh' || r17_bad="${r17_bad} arm-${r17_os}(no-poster-archive-restore)"
+    printf '%s\n' "$r17_block" | grep -qE "post-peros-findings\\.sh ${r17_os} " || r17_bad="${r17_bad} arm-${r17_os}(no-shared-post-step)"
+    printf '%s\n' "$r17_block" | grep -qF "steps.findings.outcome == 'success'" || r17_bad="${r17_bad} arm-${r17_os}(forward-not-gated-on-findings)"
+  done
+fi
+if [ ! -f "$R17_SCRIPT" ]; then
+  r17_bad="${r17_bad} post-peros-findings.sh(missing)"
+else
+  for r17_signoff in '- the Linux Tester' '- the macOS Tester' '- the Windows Tester'; do
+    grep -qF -- "$r17_signoff" "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-signoff:$r17_signoff)"
+  done
+  grep -qF 'github-actions[bot]' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-bot-author-check)"
+  grep -qF 'if [ "$last_line" != "$signoff" ]' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-pre-post-signoff-validation)"
+  grep -qF 'issues/comments/${comment_id}' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-re-fetch-verification)"
+  grep -qF 'Verified bot-authored' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-verified-terminal-marker)"
+fi
+for r17_prompt in tester-linux.md tester-macos.md tester-windows.md; do
+  r17_path=".github/agents/${r17_prompt}"
+  if [ ! -f "$r17_path" ]; then
+    r17_bad="${r17_bad} ${r17_prompt}(missing)"
+    continue
+  fi
+  grep -qF '/tmp/random-lab-findings.md' "$r17_path" || r17_bad="${r17_bad} ${r17_prompt}(no-report-contract)"
+  grep -qF 'Findings Report Contract' "$r17_path" || r17_bad="${r17_bad} ${r17_prompt}(no-contract-marker)"
+done
+if [ -z "$r17_bad" ]; then
+  check "R17" "all three per-OS arms clear, require, post, and verify the signed /tmp/random-lab-findings.md report (bot-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract (issue #608)" "ok"
+else
+  check "R17" "per-OS findings-report contract missing:${r17_bad} (issue #608: a PR-creating arm run drops the report and only the run log has it)" "bad"
+fi
+
 # [R19] Review-comment publication evidence (issue #616): the review verify
 # step treated ANY present /tmp/random-lab-decision.json as a completed
 # verdict, even when the reviewer died between the decision-file write and
@@ -921,7 +993,7 @@ if [ "$fail" -gt 0 ]; then
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder, R16 shallow-workspace PAT merge guard, or R19 review-comment publication evidence guard). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, or R19 review-comment publication evidence guard). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
