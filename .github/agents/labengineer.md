@@ -74,11 +74,12 @@ Triggered when Hephaestus orders a model switch or upgrade (e.g. `/oc lab model-
 
 1. **Model Matrix Survey**:
    - Query available models via `curl -s https://opencode.ai/zen/v1/models`.
-   - Select the highest-tier, active free model (ending in `-free`, e.g. `mimo-v2.5-free`, `nemotron-3-ultra-free`, `nemotron-3.5-lightning-free`, `hy3-free`, `laguna-s-2.1-free`).
-2. **Two-Knob Model Updates (critical)**: Models are configured in TWO places and BOTH must be updated together:
+   - Select the highest-tier, active free model (ending in `-free`; live examples at fix time: `deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `glm-5.3-flash-free`, `nemotron-3.5-lightning-free`). Never trust a hardcoded example here: the registry response is the only truth.
+2. **Three-Knob Model Updates (critical)**: Models are configured in THREE places and ALL must be updated together:
    - `model:` inputs in `.github/workflows/*.yml` (main agent models; the action passes them via the MODEL env var).
    - `model` and `small_model` in `opencode.json` (repo config). The action has NO `small_model` input, so the small/title runs (title generation for shared sessions, small subagent calls) read `small_model` from `opencode.json` only. If it is missing or points at a paid model, every run crashes with `CreditsError: No payment method` (workspace billing URL in the error) even when the main model is free - this is what bricked the Obsidian build (title model resolved to paid `gpt-5.4-nano`).
-   - Always pin both `model` and `small_model` to free models, e.g. `opencode/deepseek-v4-flash-free` and `opencode/mimo-v2.5-free`.
+   - The ordered fallback ladder in `.github/actions/opencode-run/model-ladder.txt` (issue #591). `resolve-model.sh` in the same directory resolves the requested pin against `https://opencode.ai/zen/v1/models` before every agent run: a live pin leads with the live free rungs behind it; a retired pin is substituted by the first live rung. The shared runner (composite action plus maintainer.yml's inline copy) retries one rung at a time on a provider `Model not found` and exits nonzero loudly when the whole ladder is dead. Keep every rung live and free-tier (a retirement or a better free model = update this file too).
+   - Always pin both `model` and `small_model` to free models, e.g. `opencode/deepseek-v4.1-flash-free` for both.
 3. **Apply Workflow Updates on Disk**:
    - Update `model:` configurations in `.github/workflows/*.yml` and `model`/`small_model` in `opencode.json` directly on disk on `main`.
    - Leave the files modified. Do NOT execute `git push` directly from the prompt.

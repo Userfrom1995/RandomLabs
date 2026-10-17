@@ -59,7 +59,7 @@ If an agent needs to trigger other workflows (e.g. by posting `/oc test` or `/oc
     OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
     GITHUB_TOKEN: ${{ github.token }}
   with:
-    model: opencode/deepseek-v4-flash-free
+    model: opencode/deepseek-v4.1-flash-free
     prompt: |
       ...
       Write your trigger comment to `comment.md`.
