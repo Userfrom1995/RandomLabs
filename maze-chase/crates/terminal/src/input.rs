@@ -38,6 +38,211 @@ pub fn crossterm_to_key(ev: KeyEvent) -> Option<Key> {
     }
 }
 
+/// Decode raw bytes captured by the startup Sixel probe back into key
+/// events, so the probe window can replay them instead of swallowing
+/// input. Mirrors crossterm's parser for the sequences the game can act
+/// on (text, Enter, Esc, Backspace, Tab, arrows, Home/End, Insert,
+/// Delete, PageUp/PageDown, F1-F12, and xterm modifier parameters).
+/// Unparseable fragments at the capture boundary are dropped, exactly
+/// as crossterm drops unbound or unparseable input.
+pub fn keys_from_captured_bytes(bytes: &[u8]) -> Vec<KeyEvent> {
+    let mut keys: Vec<KeyEvent> = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            0x1b => i += decode_escape(&bytes[i..], &mut keys),
+            b'\r' | b'\n' => {
+                // Enter: a CR typed before raw mode engages arrives as
+                // LF because the line discipline translates it.
+                keys.push(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty()));
+                i += 1;
+            }
+            b'\t' => {
+                keys.push(KeyEvent::new(KeyCode::Tab, KeyModifiers::empty()));
+                i += 1;
+            }
+            0x7f | 0x08 => {
+                keys.push(KeyEvent::new(KeyCode::Backspace, KeyModifiers::empty()));
+                i += 1;
+            }
+            0x00 => {
+                keys.push(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::CONTROL));
+                i += 1;
+            }
+            0x01..=0x1a => {
+                keys.push(KeyEvent::new(
+                    KeyCode::Char((b'a' + bytes[i] - 1) as char),
+                    KeyModifiers::CONTROL,
+                ));
+                i += 1;
+            }
+            0x1c..=0x1f => {
+                keys.push(KeyEvent::new(
+                    KeyCode::Char((b'4' + bytes[i] - 0x1c) as char),
+                    KeyModifiers::CONTROL,
+                ));
+                i += 1;
+            }
+            _ => {
+                let (ch, consumed) = decode_utf8_char(&bytes[i..]);
+                keys.push(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::empty()));
+                i += consumed;
+            }
+        }
+    }
+    keys
+}
+
+/// One UTF-8 character and its byte width; invalid lead bytes decode to
+/// U+FFFD so the caller always makes progress.
+fn decode_utf8_char(bytes: &[u8]) -> (char, usize) {
+    let text = match std::str::from_utf8(bytes) {
+        Ok(text) => text,
+        Err(e) if e.valid_up_to() > 0 => {
+            std::str::from_utf8(&bytes[..e.valid_up_to()]).unwrap_or("")
+        }
+        Err(_) => "",
+    };
+    text.chars()
+        .next()
+        .map(|c| (c, c.len_utf8()))
+        .unwrap_or(('\u{FFFD}', 1))
+}
+
+/// Decode one escape sequence at `bytes[0] == ESC`; returns the number
+/// of bytes consumed (always at least 1).
+fn decode_escape(bytes: &[u8], keys: &mut Vec<KeyEvent>) -> usize {
+    match bytes.get(1) {
+        None => {
+            keys.push(KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()));
+            1
+        }
+        Some(b'[') => decode_csi(&bytes[2..], keys),
+        Some(b'O') => match bytes.get(2) {
+            Some(&code) => {
+                if let Some(key) = match code {
+                    b'A' => Some(KeyCode::Up),
+                    b'B' => Some(KeyCode::Down),
+                    b'C' => Some(KeyCode::Right),
+                    b'D' => Some(KeyCode::Left),
+                    b'H' => Some(KeyCode::Home),
+                    b'F' => Some(KeyCode::End),
+                    b'P'..=b'S' => Some(KeyCode::F(1 + code - b'P')),
+                    _ => None,
+                } {
+                    keys.push(KeyEvent::new(key, KeyModifiers::empty()));
+                }
+                3
+            }
+            // Split SS3 fragment: the remainder is in crossterm's stream.
+            None => 2,
+        },
+        Some(b'\x1b') => {
+            keys.push(KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()));
+            1
+        }
+        Some(_) => {
+            // Alt+key: no Alt chord is bound today, but replay it as the
+            // parser would so a future binding sees it.
+            let (ch, consumed) = decode_utf8_char(&bytes[1..]);
+            keys.push(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::ALT));
+            1 + consumed
+        }
+    }
+}
+
+/// Decode a CSI body (the bytes after `ESC [`); returns the number of
+/// bytes consumed including the two-byte introducer.
+fn decode_csi(body: &[u8], keys: &mut Vec<KeyEvent>) -> usize {
+    let Some(end) = body.iter().position(|&b| (0x40..=0x7e).contains(&b)) else {
+        // The capture deadline split the sequence: the remainder is in
+        // crossterm's stream, so drop the fragment rather than inventing
+        // an Esc the user never pressed.
+        return body.len() + 2;
+    };
+    let params = &body[..end];
+    let final_byte = body[end];
+    let key = match final_byte {
+        b'A' => Some(KeyCode::Up),
+        b'B' => Some(KeyCode::Down),
+        b'C' => Some(KeyCode::Right),
+        b'D' => Some(KeyCode::Left),
+        b'H' => Some(KeyCode::Home),
+        b'F' => Some(KeyCode::End),
+        b'Z' => Some(KeyCode::BackTab),
+        b'~' => match first_csi_param(params) {
+            Some(1) => Some(KeyCode::Home),
+            Some(2) => Some(KeyCode::Insert),
+            Some(3) => Some(KeyCode::Delete),
+            Some(4) => Some(KeyCode::End),
+            Some(5) => Some(KeyCode::PageUp),
+            Some(6) => Some(KeyCode::PageDown),
+            Some(15) => Some(KeyCode::F(5)),
+            Some(17) => Some(KeyCode::F(6)),
+            Some(18) => Some(KeyCode::F(7)),
+            Some(19) => Some(KeyCode::F(8)),
+            Some(20) => Some(KeyCode::F(9)),
+            Some(21) => Some(KeyCode::F(10)),
+            Some(23) => Some(KeyCode::F(11)),
+            Some(24) => Some(KeyCode::F(12)),
+            _ => None,
+        },
+        _ => None,
+    };
+    if let Some(key) = key {
+        // `~` tuples carry key numbers, not modifiers; everything else
+        // may end in the xterm `1 + bits` modifier parameter.
+        let modifiers = if final_byte == b'~' {
+            KeyModifiers::empty()
+        } else {
+            csi_modifiers(params)
+        };
+        keys.push(KeyEvent::new(key, modifiers));
+    }
+    2 + end + 1
+}
+
+/// First `;`-separated numeric CSI parameter (`None` for empty).
+fn first_csi_param(params: &[u8]) -> Option<u8> {
+    let end = params
+        .iter()
+        .position(|&b| b == b';')
+        .unwrap_or(params.len());
+    std::str::from_utf8(&params[..end]).ok()?.parse().ok()
+}
+
+/// xterm modifier parameter: the last CSI parameter is `1 + bitmask`
+/// (1 shift, 2 alt, 4 ctrl, 8 meta).
+fn csi_modifiers(params: &[u8]) -> KeyModifiers {
+    let start = params
+        .iter()
+        .rposition(|&b| b == b';')
+        .map(|i| i + 1)
+        .unwrap_or(0);
+    let value: u16 = match std::str::from_utf8(&params[start..])
+        .ok()
+        .and_then(|s| s.parse().ok())
+    {
+        Some(v) if v > 1 => v,
+        _ => return KeyModifiers::empty(),
+    };
+    let bits = value - 1;
+    let mut modifiers = KeyModifiers::empty();
+    if bits & 1 != 0 {
+        modifiers |= KeyModifiers::SHIFT;
+    }
+    if bits & 2 != 0 {
+        modifiers |= KeyModifiers::ALT;
+    }
+    if bits & 4 != 0 {
+        modifiers |= KeyModifiers::CONTROL;
+    }
+    if bits & 8 != 0 {
+        modifiers |= KeyModifiers::META;
+    }
+    modifiers
+}
+
 /// Resolve a [`Key`] through the active [`Keymap`] to an [`Action`].
 pub fn action_for_key(map: &Keymap, key: Key) -> Option<Action> {
     Action::ALL
@@ -140,5 +345,88 @@ mod tests {
         assert_eq!(crossterm_to_key(key(KeyCode::Char(' '))), Some(Key::Space));
         let map = Keymap::defaults();
         assert_eq!(action_for_key(&map, Key::Space), Some(Action::Confirm));
+    }
+
+    fn codes(bytes: &[u8]) -> Vec<KeyCode> {
+        keys_from_captured_bytes(bytes)
+            .into_iter()
+            .map(|k| k.code)
+            .collect()
+    }
+
+    #[test]
+    fn captured_text_and_enter_decode_in_order() {
+        assert_eq!(codes(b"\r"), vec![KeyCode::Enter]);
+        // Canonical mode may translate CR to LF before raw mode engages.
+        assert_eq!(codes(b"\n"), vec![KeyCode::Enter]);
+        assert_eq!(codes(b"4"), vec![KeyCode::Char('4')]);
+        assert_eq!(
+            codes(b"m1\r"),
+            vec![KeyCode::Char('m'), KeyCode::Char('1'), KeyCode::Enter]
+        );
+        assert_eq!(codes(b"\x7f"), vec![KeyCode::Backspace]);
+        assert_eq!(codes(b"\t"), vec![KeyCode::Tab]);
+        assert_eq!(codes("é".as_bytes()), vec![KeyCode::Char('é')]);
+    }
+
+    #[test]
+    fn captured_escape_sequences_decode_to_keys() {
+        assert_eq!(codes(b"\x1b[A"), vec![KeyCode::Up]);
+        assert_eq!(codes(b"\x1b[B"), vec![KeyCode::Down]);
+        assert_eq!(codes(b"\x1b[C"), vec![KeyCode::Right]);
+        assert_eq!(codes(b"\x1b[D"), vec![KeyCode::Left]);
+        assert_eq!(codes(b"\x1bOA"), vec![KeyCode::Up]);
+        assert_eq!(codes(b"\x1bOP"), vec![KeyCode::F(1)]);
+        assert_eq!(codes(b"\x1b[3~"), vec![KeyCode::Delete]);
+        assert_eq!(codes(b"\x1b[6~"), vec![KeyCode::PageDown]);
+        assert_eq!(codes(b"\x1b"), vec![KeyCode::Esc]);
+        assert_eq!(codes(b"\x1b\x1b"), vec![KeyCode::Esc, KeyCode::Esc]);
+    }
+
+    #[test]
+    fn captured_modified_keys_keep_their_modifiers() {
+        let keys = keys_from_captured_bytes(b"\x1b[1;5C");
+        assert_eq!(keys.len(), 1);
+        assert_eq!(keys[0].code, KeyCode::Right);
+        assert_eq!(keys[0].modifiers, KeyModifiers::CONTROL);
+        // Alt chords decode with ALT (the game drops them, crossterm
+        // parity) rather than leaking a bare character.
+        let keys = keys_from_captured_bytes(b"\x1bx");
+        assert_eq!(keys.len(), 1);
+        assert_eq!(keys[0].code, KeyCode::Char('x'));
+        assert_eq!(keys[0].modifiers, KeyModifiers::ALT);
+    }
+
+    #[test]
+    fn captured_keystrokes_reach_actions() {
+        let map = Keymap::defaults();
+        let start = keys_from_captured_bytes(b"\r");
+        assert_eq!(
+            action_for_key(&map, crossterm_to_key(start[0]).unwrap()),
+            Some(Action::Confirm)
+        );
+        // A captured arrow still steers once play is on.
+        let keys = keys_from_captured_bytes(b"\x1b[C");
+        assert_eq!(dir_for_event(&map, keys[0]), Some(Dir::Right));
+    }
+
+    #[test]
+    fn captured_fragments_never_panic_and_make_progress() {
+        for fragment in [
+            &b"\x1b"[..],
+            b"\x1b[",
+            b"\x1b[1;",
+            b"\xc3",
+            b"\xff\xfe",
+            b"\x1b[?",
+        ] {
+            let _ = keys_from_captured_bytes(fragment);
+        }
+        // A lone Esc is a complete key and survives; split CSI/SS3
+        // fragments are dropped (their remainder is crossterm's).
+        assert_eq!(codes(b"\x1b"), vec![KeyCode::Esc]);
+        assert!(codes(b"\x1b[?62;4").is_empty());
+        assert!(codes(b"\x1b[").is_empty());
+        assert!(codes(b"\x1bO").is_empty());
     }
 }

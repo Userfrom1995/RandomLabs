@@ -80,7 +80,8 @@ The game picks the best tier its terminal proves, best first:
 2. **sixel**: true pixels through a hand-rolled Sixel encoder (palette
    registers, six-row bands, run-length rows). Engages after the
    terminal answers the DA1 probe at startup (250 ms budget, then the
-   game starts regardless), or via `--tier sixel` on known Sixel
+   game starts regardless, and keys typed while the probe waits are
+   replayed, never swallowed), or via `--tier sixel` on known Sixel
    terminals (foot, contour, mlterm, Sixel-build xterm).
 3. **truecolor-cells**: 24-bit Unicode board (solid-block walls, dotted
    crumbs, letter wardens in theme colors, facing Pip mouth) with

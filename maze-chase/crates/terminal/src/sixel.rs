@@ -16,19 +16,21 @@ pub fn probe_request() -> &'static str {
 }
 
 /// True when a DA1 reply announces Sixel (a `4` parameter), e.g.
-/// `\x1b[?62;4c`. Conservative: anything unparseable is a "no".
+/// `\x1b[?62;4c`. Strictly framed: only a complete `ESC [ ? params c`
+/// reply counts, so a stray key (a typed `4`) can never be mistaken for
+/// a terminal announcement. Anything unparseable is a "no".
 pub fn probe_ok(reply: &str) -> bool {
-    let start = reply.find("\x1b[").map(|i| i + 2).unwrap_or(0);
-    let tail = &reply[start..];
+    let Some(start) = reply.find("\x1b[?") else {
+        return false;
+    };
+    let tail = &reply[start + 3..];
     let end = tail
-        .find(|c: char| c.is_ascii_alphabetic())
-        .map(|i| start + i)
-        .unwrap_or(reply.len());
-    let params = &reply[start..end];
-    params
-        .trim_start_matches('?')
-        .split(';')
-        .any(|p| p.trim() == "4")
+        .find(|c: char| !(c.is_ascii_digit() || c == ';'))
+        .unwrap_or(tail.len());
+    if tail.as_bytes().get(end) != Some(&b'c') {
+        return false;
+    }
+    tail[..end].split(';').any(|p| p == "4")
 }
 
 fn dist(a: Rgb, b: Rgb) -> u32 {
@@ -181,6 +183,12 @@ mod tests {
         assert!(!probe_ok("garbage"));
         // `14` is not Sixel (`4`): no substring tricks.
         assert!(!probe_ok("\x1b[?62;14c"));
+        // Unframed keys can never announce Sixel, even when they happen
+        // to spell a parameter sequence.
+        assert!(!probe_ok("4"));
+        assert!(!probe_ok("4c"));
+        assert!(!probe_ok("m4"));
+        assert!(!probe_ok("\x1b[?62;4"));
     }
 
     #[test]

@@ -12,7 +12,7 @@ use crossterm::terminal::{
 };
 use maze_chase_terminal::app::{config_dir, App};
 use maze_chase_terminal::backend::Tier;
-use maze_chase_terminal::{chrome, sixel, unicode};
+use maze_chase_terminal::{chrome, input, sixel, unicode};
 use std::io::{IsTerminal, Write};
 use std::time::{Duration, Instant};
 
@@ -72,36 +72,85 @@ impl Drop for Terminal {
     }
 }
 
+/// Outcome of the live Sixel probe: whether the terminal positively
+/// announced Sixel, plus every user keystroke the probe read while
+/// waiting. Captured keys are replayed into the game loop (never
+/// dropped), so the probe window can never swallow the first keypress.
+struct ProbeOutcome {
+    sixel: bool,
+    typed: Vec<u8>,
+}
+
 /// Live Sixel probe: asks the terminal (DA1) and waits up to 250 ms for
 /// the reply, reading only while bytes are ready. Bounded by design: no
 /// reader thread survives the deadline, so a silent terminal costs a
-/// quarter second once and can never steal the next key the user types
-/// (a blocked reader would consume it). Returns true only when the reply
-/// positively announces Sixel.
-fn probe_sixel_live() -> bool {
+/// quarter second once. Only a complete framed DA1 reply is consumed;
+/// every other captured byte is user input and comes back in `typed`.
+/// Returns `sixel = true` only when the reply positively announces it.
+fn probe_sixel_live() -> ProbeOutcome {
     if !std::io::stdin().is_terminal() {
-        return false;
+        return ProbeOutcome {
+            sixel: false,
+            typed: Vec::new(),
+        };
     }
     {
         let mut out = std::io::stdout();
         let _ = out.write_all(sixel::probe_request().as_bytes());
         let _ = out.flush();
     }
-    let reply = read_probe_reply(Duration::from_millis(250));
-    sixel::probe_ok(&String::from_utf8_lossy(&reply))
+    let (reply, typed) = read_probe_reply(Duration::from_millis(250));
+    ProbeOutcome {
+        sixel: da1_reply_complete(&reply) && sixel::probe_ok(&String::from_utf8_lossy(&reply)),
+        typed,
+    }
+}
+
+/// Find a complete framed DA1 reply (`ESC [ ? params c`) in `bytes` and
+/// return its `[start, end)` span. Only bytes forming this shape can be
+/// the terminal's answer; anything else stays user input.
+fn find_da1_reply(bytes: &[u8]) -> Option<(usize, usize)> {
+    let mut start = 0;
+    while start + 3 <= bytes.len() {
+        if &bytes[start..start + 3] == b"\x1b[?" {
+            let mut end = start + 3;
+            while end < bytes.len() && (bytes[end].is_ascii_digit() || bytes[end] == b';') {
+                end += 1;
+            }
+            if bytes.get(end) == Some(&b'c') {
+                return Some((start, end + 1));
+            }
+        }
+        start += 1;
+    }
+    None
 }
 
 /// True once `reply` holds a complete DA1 reply (`ESC [ ? ... c`).
 fn da1_reply_complete(reply: &[u8]) -> bool {
-    reply.windows(3).any(|w| w == b"\x1b[?") && reply.last() == Some(&b'c')
+    find_da1_reply(reply).is_some()
 }
 
-/// Read stdin until the DA1 reply completes or `timeout` elapses, reading
-/// only when bytes are ready (Unix: `poll`; Windows: a waitable console
-/// handle). Bytes typed during the probe window are read here, but once
-/// the deadline passes nothing is left blocked on stdin.
+/// Split a probe capture into `(reply, typed)`: the framed DA1 reply
+/// (when one completed inside the window) and every other byte, which is
+/// user input typed while the probe waited.
+fn split_da1_reply(captured: &[u8]) -> (Vec<u8>, Vec<u8>) {
+    match find_da1_reply(captured) {
+        Some((start, end)) => {
+            let mut typed = captured[..start].to_vec();
+            typed.extend_from_slice(&captured[end..]);
+            (captured[start..end].to_vec(), typed)
+        }
+        None => (Vec::new(), captured.to_vec()),
+    }
+}
+
+/// Read stdin until a complete DA1 reply lands or `timeout` elapses,
+/// reading only when bytes are ready (Unix: `poll`; Windows: a waitable
+/// console handle). Returns `(reply, typed)`: the framed DA1 reply, if
+/// any, plus every other byte read (user keystrokes), never dropped.
 #[cfg(unix)]
-fn read_probe_reply(timeout: Duration) -> Vec<u8> {
+fn read_probe_reply(timeout: Duration) -> (Vec<u8>, Vec<u8>) {
     use std::os::fd::AsRawFd;
     read_probe_reply_fd(std::io::stdin().as_raw_fd(), timeout)
 }
@@ -109,9 +158,9 @@ fn read_probe_reply(timeout: Duration) -> Vec<u8> {
 /// [`read_probe_reply`] for an arbitrary fd (the pipe-based tests drive
 /// this directly).
 #[cfg(unix)]
-fn read_probe_reply_fd(fd: std::os::fd::RawFd, timeout: Duration) -> Vec<u8> {
+fn read_probe_reply_fd(fd: std::os::fd::RawFd, timeout: Duration) -> (Vec<u8>, Vec<u8>) {
     let deadline = Instant::now() + timeout;
-    let mut reply: Vec<u8> = Vec::new();
+    let mut captured: Vec<u8> = Vec::new();
     let mut buf = [0u8; 64];
     loop {
         let remaining = deadline.saturating_duration_since(Instant::now());
@@ -132,12 +181,12 @@ fn read_probe_reply_fd(fd: std::os::fd::RawFd, timeout: Duration) -> Vec<u8> {
         if n <= 0 {
             break;
         }
-        reply.extend_from_slice(&buf[..n as usize]);
-        if da1_reply_complete(&reply) {
+        captured.extend_from_slice(&buf[..n as usize]);
+        if da1_reply_complete(&captured) {
             break;
         }
     }
-    reply
+    split_da1_reply(&captured)
 }
 
 /// Windows arm: the console input handle is waitable, but a high-level
@@ -149,7 +198,7 @@ fn read_probe_reply_fd(fd: std::os::fd::RawFd, timeout: Duration) -> Vec<u8> {
 /// Rust's buffered stdin (a fill can strand records where crossterm
 /// will never look).
 #[cfg(windows)]
-fn read_probe_reply(timeout: Duration) -> Vec<u8> {
+fn read_probe_reply(timeout: Duration) -> (Vec<u8>, Vec<u8>) {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::Foundation::WAIT_OBJECT_0;
     use windows_sys::Win32::System::Console::{
@@ -159,7 +208,7 @@ fn read_probe_reply(timeout: Duration) -> Vec<u8> {
 
     let deadline = Instant::now() + timeout;
     let handle = std::io::stdin().as_raw_handle();
-    let mut reply: Vec<u8> = Vec::new();
+    let mut captured: Vec<u8> = Vec::new();
     loop {
         let remaining = deadline.saturating_duration_since(Instant::now());
         if remaining.is_zero() {
@@ -184,10 +233,10 @@ fn read_probe_reply(timeout: Duration) -> Vec<u8> {
                 let ch = unsafe { key.uChar.UnicodeChar };
                 if key.bKeyDown != 0 && ch != 0 {
                     if ch < 0x80 {
-                        reply.push(ch as u8);
+                        captured.push(ch as u8);
                     } else {
                         let mut utf8 = [0u8; 4];
-                        reply.extend_from_slice(
+                        captured.extend_from_slice(
                             char::from_u32(ch as u32)
                                 .unwrap_or(char::REPLACEMENT_CHARACTER)
                                 .encode_utf8(&mut utf8)
@@ -196,19 +245,19 @@ fn read_probe_reply(timeout: Duration) -> Vec<u8> {
                     }
                 }
             }
-            if da1_reply_complete(&reply) {
-                return reply;
-            }
+        }
+        if da1_reply_complete(&captured) {
+            break;
         }
     }
-    reply
+    split_da1_reply(&captured)
 }
 
 /// No portable bounded console read elsewhere: stay on the cell tier
 /// rather than leave a blocked reader behind.
 #[cfg(not(any(unix, windows)))]
-fn read_probe_reply(_timeout: Duration) -> Vec<u8> {
-    Vec::new()
+fn read_probe_reply(_timeout: Duration) -> (Vec<u8>, Vec<u8>) {
+    (Vec::new(), Vec::new())
 }
 
 fn paint_line(out: &mut String, row: u16, col: u16, text: &str) {
@@ -499,9 +548,16 @@ fn main() {
 
     // Live Sixel probe on cell tiers (skipped when the tier is forced or
     // already bitmap): a silent terminal costs 250 ms once, then cells.
+    // Keystrokes the probe reads while waiting are decoded here and
+    // replayed into the game loop below, never swallowed.
     let forced = env.iter().any(|(k, _)| k == "MAZE_CHASE_TIER");
-    if !forced && matches!(app.tier(), Tier::Truecolor | Tier::Legacy) && probe_sixel_live() {
-        app.watchdog.note_sixel_probe_ok();
+    let mut replay: Vec<crossterm::event::KeyEvent> = Vec::new();
+    if !forced && matches!(app.tier(), Tier::Truecolor | Tier::Legacy) {
+        let probe = probe_sixel_live();
+        if probe.sixel {
+            app.watchdog.note_sixel_probe_ok();
+        }
+        replay = input::keys_from_captured_bytes(&probe.typed);
     }
 
     let mut last = Instant::now();
@@ -558,6 +614,18 @@ fn main() {
                 app.watchdog.note_ok();
             }
         }
+        // Replay the startup keystrokes the probe captured, but only
+        // after the first frame is on screen: the player saw the title
+        // they were typing at, and the key acts on it instead of being
+        // swallowed by the probe window.
+        if !replay.is_empty() {
+            for key in std::mem::take(&mut replay) {
+                if app.quit {
+                    break;
+                }
+                app.on_key(key);
+            }
+        }
     }
 }
 
@@ -591,9 +659,29 @@ mod tests {
             std::thread::sleep(Duration::from_millis(40));
             writer.write_all(b"2;4c").unwrap();
         });
-        let reply = read_probe_reply_fd(reader.as_raw_fd(), Duration::from_millis(250));
+        let (reply, typed) = read_probe_reply_fd(reader.as_raw_fd(), Duration::from_millis(250));
         sender.join().unwrap();
         assert_eq!(reply, b"\x1b[?62;4c");
+        assert!(typed.is_empty(), "no user input arrived in this window");
+        assert!(sixel::probe_ok(&String::from_utf8_lossy(&reply)));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn probe_keeps_typed_bytes_that_precede_the_reply() {
+        use std::io::Write;
+        use std::os::fd::AsRawFd;
+        let (reader, mut writer) = pipe_pair();
+        writer.write_all(b"\r").unwrap();
+        writer.flush().unwrap();
+        let sender = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(20));
+            writer.write_all(b"\x1b[?62;4c").unwrap();
+        });
+        let (reply, typed) = read_probe_reply_fd(reader.as_raw_fd(), Duration::from_millis(250));
+        sender.join().unwrap();
+        assert_eq!(reply, b"\x1b[?62;4c");
+        assert_eq!(typed, b"\r", "the Enter must be replayed, not consumed");
         assert!(sixel::probe_ok(&String::from_utf8_lossy(&reply)));
     }
 
@@ -604,9 +692,10 @@ mod tests {
         use std::os::fd::AsRawFd;
         let (mut reader, mut writer) = pipe_pair();
         let started = Instant::now();
-        let reply = read_probe_reply_fd(reader.as_raw_fd(), Duration::from_millis(80));
+        let (reply, typed) = read_probe_reply_fd(reader.as_raw_fd(), Duration::from_millis(80));
         let elapsed = started.elapsed();
         assert!(reply.is_empty(), "silent terminal must yield no reply");
+        assert!(typed.is_empty(), "nothing was typed during the window");
         assert!(
             elapsed >= Duration::from_millis(60),
             "returned before the budget: {elapsed:?}"
@@ -629,7 +718,24 @@ mod tests {
     fn da1_reply_completion_ignores_plain_keys() {
         assert!(!da1_reply_complete(b"\r"));
         assert!(!da1_reply_complete(b"\x1b[?62;4"));
+        assert!(!da1_reply_complete(b"\x1b[?"));
         assert!(da1_reply_complete(b"\x1b[?62;4c"));
         assert!(da1_reply_complete(b"typed\x1b[?1;2c"));
+    }
+
+    #[test]
+    fn split_da1_reply_keeps_every_non_reply_byte() {
+        let (reply, typed) = split_da1_reply(b"\r\x1b[?62;4c4");
+        assert_eq!(reply, b"\x1b[?62;4c");
+        assert_eq!(typed, b"\r4");
+        let (reply, typed) = split_da1_reply(b"4");
+        assert!(reply.is_empty());
+        assert_eq!(typed, b"4");
+        let (reply, typed) = split_da1_reply(b"\x1b[A");
+        assert!(reply.is_empty());
+        assert_eq!(typed, b"\x1b[A");
+        let (reply, typed) = split_da1_reply(b"\x1b[?6");
+        assert!(reply.is_empty());
+        assert_eq!(typed, b"\x1b[?6");
     }
 }
