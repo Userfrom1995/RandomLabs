@@ -7,7 +7,7 @@ One cohesive product view; no milestone counters or sprint references.
   behavioral contract the engine must meet, and the selected Rust stack
   with rejected alternatives.
 - [Clean-room log and legal guardrails](legal.md): sources consulted,
-  flagged items with mitigations, naming rationale, per-phase obligations.
+  flagged items with mitigations, naming rationale, release obligations.
 - [Identity: naming, branding, maze authorship](identity.md): the title,
   cast, terminology allowlist, and the maze authorship log.
 - [#552 behavior reference spec](behavior-spec.md): pinned measured values
