@@ -15,6 +15,17 @@
 # and re-fetches the posted comment by id to verify authorship and the exact
 # body before the arm can conclude green.
 #
+# Line-ending contract (issue #612 follow-up, Windows arm run 39068849150 on
+# PR #632): Git Bash on windows-latest translates line endings of
+# command-substituted output, so on 2026-10-17 the Windows arm posted its
+# findings comment (6242535208 on #582) and then this script's exact-body gate
+# rejected the re-fetch although the stored body was clean LF and matched the
+# report. Line endings are therefore normalized to LF on both sides before the
+# comparison, and the posted body is an LF-normalized copy of the report so
+# the stored comment is byte-stable on every runner. The gate stays exact:
+# any real content difference (beyond CR bytes and trailing newlines) still
+# fails closed.
+#
 # Usage: post-peros-findings.sh <linux|macos|windows> <target-number> [report-file]
 # Env:   GH_TOKEN           required; the workflow passes github.token (never
 #                           the owner PAT) so the comment is authored by
@@ -60,13 +71,28 @@ if [ ! -s "$report" ]; then
   exit 1
 fi
 
-last_line=$(tr -d '\r' < "$report" | awk 'NF { line=$0 } END { print line }')
+# Normalize CR bytes out of the report once, before posting and comparing
+# (issue #612 follow-up): Git Bash on windows-latest translates the line
+# endings of command-substituted output, so a CRLF report or a CRLF-translated
+# re-fetch used to fail the exact-body gate after the comment had already
+# posted (Windows arm run 39068849150). The normalized LF copy is both the
+# posted body (byte-stable storage on every runner) and the comparison source,
+# so CR can never decide the outcome.
+normalized_report=$(mktemp) || true
+if [ -z "$normalized_report" ] || [ ! -f "$normalized_report" ]; then
+  echo "::error::post-peros-findings.sh: could not create the LF-normalized findings copy; refusing to post without the exact-body verification (issue #608)."
+  exit 1
+fi
+trap 'rm -f "$normalized_report"' EXIT
+tr -d '\r' < "$report" > "$normalized_report"
+
+last_line=$(awk 'NF { line=$0 } END { print line }' "$normalized_report")
 if [ "$last_line" != "$signoff" ]; then
   echo "::error::post-peros-findings.sh: findings report '$report' does not end with the required sign-off '$signoff' (last non-blank line: '$last_line'); refusing to post an unsigned report (issue #608)."
   exit 1
 fi
 
-response=$(gh api "repos/${repo}/issues/${target}/comments" -F body=@"$report" 2>&1) || {
+response=$(gh api "repos/${repo}/issues/${target}/comments" -F body=@"$normalized_report" 2>&1) || {
   echo "::error::post-peros-findings.sh: posting the ${os_label} findings report to #${target} failed: ${response}"
   exit 1
 }
@@ -83,9 +109,9 @@ fetched=$(gh api "repos/${repo}/issues/comments/${comment_id}" 2>&1) || {
 }
 author=$(printf '%s' "$fetched" | jq -r '.user.login // empty' 2>/dev/null || true)
 html_url=$(printf '%s' "$fetched" | jq -r '.html_url // empty' 2>/dev/null || true)
-fetched_body=$(printf '%s' "$fetched" | jq -r '.body // empty' 2>/dev/null || true)
-fetched_last=$(printf '%s' "$fetched_body" | tr -d '\r' | awk 'NF { line=$0 } END { print line }')
-expected_body="$(cat "$report")"
+fetched_body=$(printf '%s' "$fetched" | jq -r '.body // empty' 2>/dev/null | tr -d '\r' || true)
+fetched_last=$(printf '%s' "$fetched_body" | awk 'NF { line=$0 } END { print line }')
+expected_body="$(cat "$normalized_report")"
 
 if [ "$author" != "github-actions[bot]" ]; then
   echo "::error::post-peros-findings.sh: posted findings comment ${comment_id} is authored by '${author}', not github-actions[bot] (issue #608)."
@@ -96,7 +122,7 @@ if [ "$fetched_last" != "$signoff" ]; then
   exit 1
 fi
 if [ "$fetched_body" != "$expected_body" ]; then
-  echo "::error::post-peros-findings.sh: posted findings comment ${comment_id} does not match the report file body after trailing-newline normalization (issue #608)."
+  echo "::error::post-peros-findings.sh: posted findings comment ${comment_id} body differs from the LF-normalized report content after CR and trailing-newline normalization (expected $(printf '%s' "$expected_body" | wc -c | tr -d ' ') bytes, stored $(printf '%s' "$fetched_body" | wc -c | tr -d ' ') bytes); the stored comment diverged from the report (issue #608)."
   exit 1
 fi
 
