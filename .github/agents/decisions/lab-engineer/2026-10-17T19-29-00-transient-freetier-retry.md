@@ -396,7 +396,8 @@ properties, and result strings now name both issues.
   by 3 healthy lines) must still consume exactly one same-model retry
   (attempts `a-free a-free`, rc 0): a narrowed window mistakes the failure
   for success and stops after one attempt.
-- **A3 (Reviewer, non-blocking "Also exercise"):** the dotted-candidate
+- **A3 (Reviewer round 6, "Also exercise"; round 7 re-flagged the F8a
+  remainder as blocking):** the dotted-candidate
   production-shape behavioral path now covers the nonzero boundary grep too:
   `mnf-dot-lookalike` runs the real dotted candidate
   `opencode/deepseek-v4.1-flash-free` whose attempt-1 nonzero line names the
@@ -531,5 +532,55 @@ four non-blocking hardening residuals from that review are now adopted:
   and the six hardening mutations on its own fresh export and confirmed the
   dedicated flags with no collateral. Skills: no skill fit (GitHub Actions
   lab infrastructure).
+
+## Addendum IX: R15 round-8 closure (A4 tee pin re-verified, AENV residual accepted and recorded)
+
+The round-8 review (run 39076944681, head `6150a829`) found A4 blocking: the
+log-capture (tee) guard was pinned only by whole-file substring greps plus the
+`failing-tee` behavioral fixture whose tee exits exactly 3, so a live
+condition rewrite to `if [ "$tee_status" -eq 3 ]; then` with a comment decoy
+quoting the pinned substring kept the full audit green while a failing tee
+that writes nothing and exits 1 blind-advanced silently (rc 0 instead of the
+loud rc 1). The review could not see the fix because the concurrently running
+round-7 hardening pass had authored it at 23:02:26Z in `d0d14361` but the PAT
+push landed at 23:20:41Z, after the review sampled the then-pushed head.
+
+- **Closure already shipped:** `d0d14361` replaced the four weak pins with
+  anchored line-count tripwires, including exactly the pin the review
+  prescribed. `.github/scripts/silent-stall-audit.sh:689` now counts
+  `^[[:space:]]*if \[ "\$tee_status" -ne 0 \]; then$` per file (= 1), which a
+  comment decoy can never satisfy, with the `failing-tee` scenario carrying
+  the behavioral semantics.
+- **A4 re-verification (this pass, fresh `git archive HEAD` export under
+  `/tmp/opencode/lab620-a4/`):** pristine control 22 passed / 0 failed; the
+  exact round-8 A4 mutation in both runner files (live guard rewritten to
+  `-eq 3`, comment decoy holding the pinned substring) turns exactly R15 red
+  with `action-file(tee-guard-decoyed-or-missing)` and
+  `maintainer.yml(tee-guard-decoyed-or-missing)`, 21 passed / 1 failed, no
+  collateral.
+- **AENV accepted residual (reviewer finding, reproduced in
+  `/tmp/opencode/lab620-a4/aenv/`):** inserting
+  `if [ "${GITHUB_ACTIONS:-}" = "true" ]; then exit 0; fi` immediately before
+  the persistent-rejection message in each branch keeps the full audit green
+  (the harness scrubs `GITHUB_ACTIONS` per delegation.md section 6, so the
+  sabotage is inert under test), while in a live Actions environment the
+  persistent path exits 0 silently before the loud message (reviewer-verified:
+  scrubbed env rc 1 loud, `GITHUB_ACTIONS=true` rc 0 silent). Accepted, not
+  fixed: any scrubbed harness is exposed to an edit that reads its
+  environment, and a runner diff branching on `GITHUB_ACTIONS=true` is
+  facially malicious. Recorded here as a known limitation.
+- **Non-blocking re-confirmations:** the round-8 review measured the
+  backgrounded-sleep, case-fold, per-rung budget and step-shadowing classes
+  on head `6150a829`, before `d0d14361`; the H1-H4 hardening recorded in
+  Addendum VIII was verified on `faa64bdb`, and `29c8955a` only extends it
+  with the decision note, so that evidence carries by ancestry.
+- **Nit corrections (round-8 review):** Addendum VII's A3 label now records
+  that round 7 re-flagged the F8a remainder as blocking; LAB.md's R15
+  paragraph now labels the covered classes "review rounds F5-F8 plus A1-A3"
+  instead of the under-inclusive "F5-F6".
+- **Delegation ledger (this pass):** primary only - this was mechanical
+  re-verification of an already-prescribed pin plus the recording of a
+  reviewer-executed residual, so a subagent would have duplicated the same
+  execution. Skills: no skill fit (GitHub Actions lab infrastructure).
 
 - the Lab Engineer
