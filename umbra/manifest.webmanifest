@@ -1,7 +1,7 @@
 {
   "name": "Umbra",
   "short_name": "Umbra",
-  "description": "Umbra: shadow-fight silhouette combat game (offline-capable M1 shell).",
+  "description": "Umbra: shadow-fight silhouette combat game (offline-capable shell).",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
