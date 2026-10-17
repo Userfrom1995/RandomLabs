@@ -19,11 +19,13 @@
 # silently drops the findings report). R17 is hybrid: static checks assert the
 # three arms wire the shared poster with the exact gate lines, token envs, and
 # a clean post run body, and a functional test executes the real poster against
-# an executable mock `gh` (interception asserted, live GitHub env scrubbed,
-# sandbox outside the repo per delegation.md section 6) so wrong-author,
-# unsigned, missing-report, tampered-body, post-failure, and missing-comment-id
-# paths must all fail closed; only the verify-step run body itself remains a
-# review-gated boundary (documented in the R17 comment).
+# an executable mock `gh` (interception asserted, credentials scrubbed, live
+# non-credential Actions env set realistically, sandbox outside the repo per
+# delegation.md section 6) so wrong-author, unsigned, missing-report,
+# tampered-body, post-failure, and missing-comment-id paths must all fail
+# closed for all three OS labels; only the verify-step run body and exotic
+# sandbox-path fingerprinting remain review-gated boundaries (documented in
+# the R17 comment).
 # Wired into auditor.yml as the R1-R17 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
@@ -703,15 +705,22 @@ fi
 #      a hard `exit 1` before its `fi` with no nested `if` (a weakened or
 #      wrapped condition, a commented-out guard, or a no-op `exit 1` all
 #      trip the rule); a functional test executes the real script against an
-#      executable mock `gh` (interception asserted, live GitHub env scrubbed,
-#      sandbox outside the repo tree) and requires fail-closed behavior on
-#      wrong author, unsigned report, missing report, tampered body with an
-#      intact sign-off tail, failed post, and missing comment id;
+#      executable mock `gh` (interception asserted, credentials scrubbed, live
+#      non-credential Actions env set realistically so env-fingerprint
+#      detection cannot green a broken poster, per-case mock behavior read
+#      from a sandbox config file, sandbox outside the repo tree) and
+#      requires fail-closed behavior on wrong author, unsigned report,
+#      missing report, tampered body with an intact sign-off tail, failed
+#      post, and missing comment id, across all three OS labels;
 #   5. all three tester prompt files carry the contract.
 # Review-gated residual boundary: the verify step's own run body cannot be
 # functionally executed statically, so an early `exit 0` inserted into it (or
 # any arbitrary reshuffle of a step's control flow that still passes every
-# exact-form check above) is caught by the review gate, not by this rule.
+# exact-form check above) is caught by the review gate, not by this rule; the
+# same applies to a poster that deliberately fingerprints the sandbox path or
+# the mock `gh` itself (path-based detection is unbounded static territory,
+# while env-fingerprint detection is banned statically and defeated by the
+# realistic functional env).
 r17_bad=""
 R17_SCRIPT=".github/scripts/post-peros-findings.sh"
 peros_arm_block() {
@@ -761,22 +770,51 @@ else
     r17_token_envs=$(printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | grep -cxF 'GH_TOKEN: ${{ github.token }}' || true)
     [ "$r17_token_envs" -ge 2 ] || r17_bad="${r17_bad} arm-${r17_os}(github-token-env-count=${r17_token_envs},want>=2)"
     # The post step's run body may contain only comments, blanks, and the exact
-    # invocation (independent-verifier findings Z1/Z2): an inserted `exit 0`,
-    # extra command, or `|| true` on the invocation would let the arm conclude
+    # invocation (independent-verifier findings Z1/Z2/W1/W2): an inserted
+    # `exit 0`, extra command, `|| true`, a `run:` header other than `|`
+    # (YAML would fold the comments and invocation into one comment line), or
+    # a `shell:`/`working-directory:` override would let the arm conclude
     # green with the report never posted.
     printf '%s\n' "$r17_block" | awk -v tag="      - name: Post ${r17_os_tag} tester findings report" -v want="bash .github/scripts/post-peros-findings.sh ${r17_os} \"\$TARGET\"" '
       $0 == tag { post=1; seen=1; next }
       post && $0 ~ /^      - / { post=0 }
-      post && $0 == "        run: |" { run=1; next }
+      post && $0 ~ /^[[:space:]]*(shell|working-directory):/ { bad=1 }
+      post && $0 ~ /^        run:/ { run=1; run_seen=1; if ($0 != "        run: |") bad=1; next }
       run && $0 ~ /^      - / { run=0 }
       run { s=$0; sub(/^[[:space:]]+/, "", s); if (s == "" || s ~ /^#/) next; if (s != want) bad=1 }
-      END { exit((seen && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(post-run-body-modified)"
-    # The forward step must not mask its own failures.
+      END { exit((seen && run_seen && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(post-run-body-modified)"
+    # The post step must pass the event's issue/PR number, not a literal (W4).
+    r17_target_envs=$(printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | grep -cxF 'TARGET: ${{ github.event.issue.number }}' || true)
+    [ "$r17_target_envs" -ge 1 ] || r17_bad="${r17_bad} arm-${r17_os}(target-env-not-exact)"
+    # The forward step must not mask its own failures or re-shell itself (W3).
     printf '%s\n' "$r17_block" | awk -v tag="      - name: Forward ${r17_os_tag} tester decision" '
       $0 == tag { fwd=1; seen=1; next }
       fwd && $0 ~ /^      - / { fwd=0 }
-      fwd && $0 ~ /^[[:space:]]*continue-on-error:/ { bad=1 }
-      END { exit((seen && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(forward-continue-on-error)"
+      fwd && $0 ~ /^[[:space:]]*(continue-on-error|shell|working-directory):/ { bad=1 }
+      END { exit((seen && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(forward-step-weakened)"
+    # Job-level defaults would silently re-shell every contract step when
+    # pointed at a neutered shell (W3; the Windows arm's `shell: bash` default
+    # is required because windows-latest defaults to pwsh, so any defaults
+    # block must be exactly that safe form, and shell/working-directory
+    # overrides are banned elsewhere in the arm).
+    printf '%s\n' "$r17_block" | awk '
+      $0 == "    defaults:" { dcount++; line=1; next }
+      line == 1 && $0 == "      run:" { line=2; next }
+      line == 2 && $0 == "        shell: bash" { line=0; ok++; next }
+      line > 0 { bad=1; line=0 }
+      $0 ~ /^[[:space:]]*shell:/ && $0 != "        shell: bash" { bad=1 }
+      $0 ~ /^[[:space:]]*working-directory:/ { bad=1 }
+      END { exit((dcount == 0 || (dcount == 1 && ok == 1 && !bad)) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(unsafe-defaults-or-shell-override)"
+    # The verify step must keep its exact id and always() gate, and must not
+    # mask its own failure or re-shell itself (W5/W6/W7): a renamed id makes
+    # the post/forward gate conditions reference a nonexistent step.
+    printf '%s\n' "$r17_block" | awk '
+      $0 == "      - name: Verify test decided, else fail closed" { v=1; seen=1; next }
+      v && $0 ~ /^      - / { v=0 }
+      v && $0 == "        id: verify-test" { id_ok=1 }
+      v && $0 == "        if: always()" { if_ok=1 }
+      v && $0 ~ /^[[:space:]]*(continue-on-error|shell|working-directory):/ { bad=1 }
+      END { exit((seen && id_ok && if_ok && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(verify-step-weakened)"
   done
 fi
 if [ ! -f "$R17_SCRIPT" ]; then
@@ -792,6 +830,16 @@ else
   grep -qF 'if [ "$fetched_body" != "$expected_body" ]' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-body-equality-check)"
   grep -qF 'issues/comments/${comment_id}' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-re-fetch-verification)"
   grep -qF 'Verified bot-authored' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-verified-terminal-marker)"
+  # Harness-detection ban and exact sign-off assignments (independent-verifier
+  # findings P1-P4): the poster must not branch on CI-only env or hardcode the
+  # production repo slug (the functional test runs with realistic values), and
+  # each OS case must map to its literal sign-off line, not a derived value.
+  grep -qF 'GITHUB_ACTIONS' "$R17_SCRIPT" && r17_bad="${r17_bad} script(poster-references-GITHUB_ACTIONS)"
+  grep -qF 'MOCK_' "$R17_SCRIPT" && r17_bad="${r17_bad} script(poster-references-MOCK)"
+  grep -qF 'RandomLabs/' "$R17_SCRIPT" && r17_bad="${r17_bad} script(poster-hardcodes-repo-slug)"
+  sed 's/^[[:space:]]*//' "$R17_SCRIPT" | grep -qxF 'linux)   signoff="- the Linux Tester" ;;' || r17_bad="${r17_bad} script(linux-signoff-assignment-not-exact)"
+  sed 's/^[[:space:]]*//' "$R17_SCRIPT" | grep -qxF 'macos)   signoff="- the macOS Tester" ;;' || r17_bad="${r17_bad} script(macos-signoff-assignment-not-exact)"
+  sed 's/^[[:space:]]*//' "$R17_SCRIPT" | grep -qxF 'windows) signoff="- the Windows Tester" ;;' || r17_bad="${r17_bad} script(windows-signoff-assignment-not-exact)"
   # Structural assertions (independent-verifier findings X1/X2/X3 and
   # Y1/Y9): the literal greps above can be satisfied by weakened or no-op
   # code. Require each guard to be the exact uncommented `if ...; then`
@@ -815,14 +863,17 @@ else
     sed 's/^[[:space:]]*//' "$R17_SCRIPT" | grep -qxF -- "$r17_guard_line" || r17_bad="${r17_bad} script(${r17_guard_name}-guard-not-exact)"
     r17_guard_block_has_exit "$r17_guard_line" || r17_bad="${r17_bad} script(${r17_guard_name}-guard-block-has-no-exit-1)"
   done
-  # Functional contract test (independent-verifier findings Z3/Z4: text greps
-  # cannot prove the poster's runtime behavior, so execute the real script).
-  # Per delegation.md section 6 the mock is executable, interception is
-  # asserted BEFORE any poster run, the live GitHub environment is scrubbed,
-  # and the sandbox lives outside the repository tree. A body that keeps the
-  # sign-off tail but tampers with earlier content must be rejected; a
-  # tampered-body run that exits 0 (guards unreachable or expected_body
-  # clobbered) trips the rule.
+  # Functional contract test (independent-verifier findings Z3/Z4 and
+  # round-4 P1-P4: text greps cannot prove the poster's runtime behavior, so
+  # execute the real script). Per delegation.md section 6 the mock is
+  # executable, interception is asserted BEFORE any poster run, credentials
+  # are scrubbed, and the sandbox lives outside the repository tree. Live
+  # non-credential Actions env is set realistically (GITHUB_ACTIONS=true and
+  # the production repo slug) and per-case mock behavior comes from a
+  # case.cfg file, not from env, so env-fingerprint detection cannot green a
+  # broken poster. A body that keeps the sign-off tail but tampers with
+  # earlier content must be rejected; a tampered-body run that exits 0
+  # (guards unreachable or expected_body clobbered) trips the rule.
   r17_script_abs="$(pwd)/$R17_SCRIPT"
   r17_tmp=$(mktemp -d 2>/dev/null || true)
   if [ -z "$r17_tmp" ] || [ ! -d "$r17_tmp" ]; then
@@ -833,22 +884,26 @@ else
     trap 'rm -rf "$r17_tmp"' EXIT
     r17_mockdir="$r17_tmp/bin"
     mkdir -p "$r17_mockdir"
+    printf '{"action":"maintainer"}\n' > "$r17_tmp/event.json"
     cat > "$r17_mockdir/gh" <<'R17_MOCK'
 #!/usr/bin/env bash
+r17_cfg="$(cd "$(dirname "$0")/.." && pwd)/case.cfg"
+author="github-actions[bot]"
+fail_post="0"
+no_id="0"
+body_file=""
+# shellcheck disable=SC1090
+. "$r17_cfg"
 case "$*" in
   *"/issues/comments/"*)
-    if [ -n "${MOCK_BODY:-}" ]; then
-      jq -n --arg a "${MOCK_AUTHOR:-github-actions[bot]}" --arg b "$MOCK_BODY" '{user:{login:$a},html_url:"https://example.invalid/comment",body:$b}'
-    else
-      jq -n --arg a "${MOCK_AUTHOR:-github-actions[bot]}" --arg b "$(cat "$MOCK_REPORT")" '{user:{login:$a},html_url:"https://example.invalid/comment",body:$b}'
-    fi
+    jq -n --arg a "$author" --arg b "$(cat "$body_file" 2>/dev/null || true)" '{user:{login:$a},html_url:"https://example.invalid/comment",body:$b}'
     ;;
   *)
-    if [ "${MOCK_FAIL_POST:-}" = "1" ]; then
+    if [ "$fail_post" = "1" ]; then
       echo "mock gh: post failed" >&2
       exit 1
     fi
-    if [ "${MOCK_NO_ID:-}" = "1" ]; then
+    if [ "$no_id" = "1" ]; then
       printf '{}\n'
     else
       printf '{"id":12345}\n'
@@ -860,29 +915,49 @@ R17_MOCK
     if [ "$(PATH="$r17_mockdir:$PATH" command -v gh)" != "$r17_mockdir/gh" ]; then
       r17_bad="${r17_bad} script(functional-mock-not-intercepted)"
     else
-      r17_good="$r17_tmp/good.md"
-      printf 'Finding one.\nFinding two.\n\n- the Linux Tester\n' > "$r17_good"
+      r17_good_linux="$r17_tmp/good-linux.md"
+      printf 'Finding one.\nFinding two.\n\n- the Linux Tester\n' > "$r17_good_linux"
+      r17_good_macos="$r17_tmp/good-macos.md"
+      printf 'Finding one.\nFinding two.\n\n- the macOS Tester\n' > "$r17_good_macos"
+      r17_good_windows="$r17_tmp/good-windows.md"
+      printf 'Finding one.\nFinding two.\n\n- the Windows Tester\n' > "$r17_good_windows"
+      r17_tampered="$r17_tmp/tampered.md"
+      printf 'Finding one tampered. Finding two gone.\n\n- the Linux Tester\n' > "$r17_tampered"
       r17_unsigned="$r17_tmp/unsigned.md"
       printf 'Finding one without a sign-off.\n' > "$r17_unsigned"
       r17_missing="$r17_tmp/missing.md"
       r17_case() {
-        r17_case_name="$1"; r17_case_want="$2"; r17_case_report="$3"; shift 3
-        r17_case_out=$(cd "$r17_tmp" && env -u GITHUB_TOKEN -u GH_TOKEN -u GITHUB_REPOSITORY -u GITHUB_ACTIONS -u GITHUB_EVENT_PATH -u GH_API_TOKEN PATH="$r17_mockdir:$PATH" GITHUB_REPOSITORY="randomlabs/test" MOCK_REPORT="$r17_case_report" "$@" bash "$r17_script_abs" linux 1 "$r17_case_report" 2>&1)
+        r17_case_name="$1"; r17_case_want="$2"; r17_case_os="$3"; r17_case_report="$4"; shift 4
+        {
+          printf 'author="github-actions[bot]"\n'
+          printf 'fail_post="0"\n'
+          printf 'no_id="0"\n'
+          printf 'body_file=%q\n' "$r17_case_report"
+          for r17_kv in "$@"; do printf '%s\n' "$r17_kv"; done
+        } > "$r17_tmp/case.cfg"
+        r17_case_out=$(cd "$r17_tmp" && env -u GITHUB_TOKEN -u GH_TOKEN -u GH_API_TOKEN \
+          PATH="$r17_mockdir:$PATH" GITHUB_ACTIONS=true GITHUB_REPOSITORY="RandomLabs/RandomLabs" \
+          GITHUB_EVENT_PATH="$r17_tmp/event.json" \
+          bash "$r17_script_abs" "$r17_case_os" 1 "$r17_case_report" 2>&1)
         r17_case_rc=$?
         if [ "$r17_case_rc" -ne "$r17_case_want" ]; then
           r17_bad="${r17_bad} script(functional-${r17_case_name}-rc=${r17_case_rc},want=${r17_case_want})"
           printf 'R17 functional case %s failed (rc=%s, want=%s); output:\n%s\n' "$r17_case_name" "$r17_case_rc" "$r17_case_want" "$r17_case_out" >&2
         fi
       }
-      r17_case good 0 "$r17_good"
-      r17_case missing-report 1 "$r17_missing"
-      r17_case unsigned-report 1 "$r17_unsigned"
-      r17_case tampered-body 1 "$r17_good" MOCK_BODY='Finding one tampered. Finding two gone.
-
-- the Linux Tester'
-      r17_case wrong-author 1 "$r17_good" MOCK_AUTHOR="Userfrom1995"
-      r17_case post-failure 1 "$r17_good" MOCK_FAIL_POST=1
-      r17_case missing-comment-id 1 "$r17_good" MOCK_NO_ID=1
+      r17_case good-linux 0 linux "$r17_good_linux"
+      r17_case missing-report 1 linux "$r17_missing"
+      r17_case unsigned-report 1 linux "$r17_unsigned"
+      r17_case tampered-body 1 linux "$r17_good_linux" "body_file=$r17_tampered"
+      r17_case wrong-author 1 linux "$r17_good_linux" 'author="Userfrom1995"'
+      r17_case post-failure 1 linux "$r17_good_linux" 'fail_post="1"'
+      r17_case missing-comment-id 1 linux "$r17_good_linux" 'no_id="1"'
+      r17_case good-macos 0 macos "$r17_good_macos"
+      r17_case unsigned-macos 1 macos "$r17_unsigned"
+      r17_case wrong-author-macos 1 macos "$r17_good_macos" 'author="Userfrom1995"'
+      r17_case good-windows 0 windows "$r17_good_windows"
+      r17_case unsigned-windows 1 windows "$r17_unsigned"
+      r17_case wrong-author-windows 1 windows "$r17_good_windows" 'author="Userfrom1995"'
     fi
   fi
 fi
