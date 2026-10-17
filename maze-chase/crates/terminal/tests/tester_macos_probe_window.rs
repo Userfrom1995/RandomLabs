@@ -221,3 +221,69 @@ fn probe_ok_rejects_unframed_stray_keys() {
     assert!(!probe_ok("\x1b[?62c"));
     assert!(!probe_ok("garbage"));
 }
+
+/// A DA1 reply whose first fragment lands inside the probe window and
+/// whose completion lands after it (a slow or busy terminal; measured
+/// natively on a loaded macOS VM where short thread sleeps coalesce up
+/// to 10x) must not be treated as a Sixel announcement, and the partial
+/// bytes must not steal the next key: one Enter still starts play.
+///
+/// This is the shipped-binary-level counterpart of the fragmented-reply
+/// unit test in `src/main.rs`, deliberately tolerant of timing (400 ms
+/// past the 250 ms budget; sleeps only oversleep, never undersleep) so
+/// it stays green on slow runners.
+#[test]
+fn fragmented_late_da1_reply_never_flips_or_steals() {
+    let (mut pty, mut child, dir) = spawn_terminal("probe-frag-late");
+
+    let mut out = Vec::new();
+    let requested = wait_for(&mut pty.master, &mut out, "\x1b[c", Duration::from_secs(15));
+    assert!(
+        requested,
+        "DA1 probe request never appeared; tail: {}",
+        tail(&out)
+    );
+    (&pty.master).write_all(b"\x1b[?6").unwrap();
+    std::thread::sleep(Duration::from_millis(400));
+    (&pty.master).write_all(b"2;4c").unwrap();
+
+    let titled = wait_for(
+        &mut pty.master,
+        &mut out,
+        "video tier:",
+        Duration::from_secs(10),
+    );
+    assert!(titled, "title screen never appeared; tail: {}", tail(&out));
+
+    (&pty.master).write_all(b"\r").unwrap();
+    let started = wait_for(
+        &mut pty.master,
+        &mut out,
+        "Arrows/WASD move",
+        Duration::from_secs(5),
+    );
+
+    let text = String::from_utf8_lossy(&out);
+    let sixel = text.contains("video tier: sixel");
+    let payload = text.contains("\x1bPq");
+
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = std::fs::remove_dir_all(&dir);
+
+    assert!(
+        started,
+        "one Enter after a late fragmented reply must start play; tail: {}",
+        tail(&out)
+    );
+    assert!(
+        !sixel,
+        "a reply completing past the budget must not flip to sixel; tail: {}",
+        tail(&out)
+    );
+    assert!(
+        !payload,
+        "no Sixel payload may be emitted on this terminal; tail: {}",
+        tail(&out)
+    );
+}
