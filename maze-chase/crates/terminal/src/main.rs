@@ -540,6 +540,10 @@ fn main() {
 
     let mut env: Vec<(String, String)> = std::env::vars().collect();
     if let Some(t) = tier_override {
+        // The explicit flag is the highest-precedence tier source:
+        // replace any exported MAZE_CHASE_TIER so the first-match env
+        // lookup can never read the ambient value instead (issue #615).
+        env.retain(|(k, _)| k != "MAZE_CHASE_TIER");
         env.push(("MAZE_CHASE_TIER".to_string(), t));
     }
     let (cols, rows) = crossterm::terminal::size().unwrap_or((80, 24));

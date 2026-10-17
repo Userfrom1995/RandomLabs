@@ -118,7 +118,10 @@ fn get<'a>(env: &'a [(String, String)], key: &str) -> Option<&'a str> {
 
 /// Pick the starting tier from the environment (pure, testable).
 ///
-/// Precedence: explicit `MAZE_CHASE_TIER` override (`kitty`, `sixel`,
+/// Precedence: CLI flag > exported `MAZE_CHASE_TIER` > auto-detect. The
+/// binary folds `--tier` into the env as the single `MAZE_CHASE_TIER`
+/// entry, replacing any exported value, so the override below always
+/// reflects the flag when one was given. The override (`kitty`, `sixel`,
 /// `truecolor`, `legacy`) wins for testing and stubborn terminals; then
 /// Kitty on positive proof; then truecolor when `COLORTERM` is
 /// `truecolor`/`24bit` or `TERM_PROGRAM` names a known truecolor
