@@ -17,7 +17,7 @@ approve-eval >= 9.8/10.
 
 ## Verification rounds
 
-The release was verified in four capability rounds; their evidence stays
+The release was verified in five capability rounds; their evidence stays
 committed under `docs/`:
 
 - **Render foundation (shell, tiers, offline).** SceneDesc ticks
