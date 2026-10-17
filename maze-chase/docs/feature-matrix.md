@@ -54,9 +54,9 @@ layout ever pretends a `planned` row works.
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|
-| Windowed/fullscreen shared-renderer core | n/a (adapter) | n/a | done | n/a | `desktop::render::*` (layout, play determinism, small card, menu cursor) + `desktop::frame::*` + `desktop/tests/headless.rs` + `desktop/tests/tester_hostile.rs::tiny_and_zero_windows_draw_card` + Xvfb `--probe` PPM (`docs/desktop-probe.ppm`) |
-| Keyboard + gamepad input with remap | n/a (adapter) | n/a | done | n/a | `desktop::{input,gamepad,screens}::*` (winit map, stick deadzone, padmap, capture) + `desktop/tests/headless.rs` + `desktop/tests/tester_hostile.rs::corrupt_padmap_falls_back_to_defaults` |
-| Menus, settings, scores, audio controls | n/a (adapter) | n/a | done | n/a | `desktop::{screens,app,sound}::*` (flows, session, synth) + `desktop/tests/headless.rs` + `desktop/tests/tester_hostile.rs::corrupt_config_boots_with_defaults` + `::accumulator_drops_surplus` + `::wild_menu_cursors_never_panic` |
+| Windowed/fullscreen shared-renderer core | n/a (adapter) | n/a | done | n/a | `desktop::render::*` (layout, play determinism, small card, menu cursor) + `desktop::frame::*` + `desktop/tests/headless.rs` + `desktop/tests/tester_hostile.rs::tiny_and_zero_windows_never_panic` + Xvfb `--probe` PPM (`docs/desktop-probe.ppm`) |
+| Keyboard + gamepad input with remap | n/a (adapter) | n/a | done | n/a | `desktop::{input,gamepad,screens}::*` (winit map, stick deadzone, padmap, capture) + `desktop/tests/headless.rs` + `desktop/tests/tester_hostile.rs::corrupt_padmap_falls_back_and_stick_deadzone_holds` |
+| Menus, settings, scores, audio controls | n/a (adapter) | n/a | done | n/a | `desktop::{screens,app,sound}::*` (flows, session, synth) + `desktop/tests/headless.rs` + `desktop/tests/tester_hostile.rs::corrupt_config_files_never_kill_boot` + `::accumulator_surplus_is_dropped_not_replayed` + `::out_of_range_menu_cursors_never_panic` |
 | Per-OS packaging with reproducible steps | n/a (adapter) | n/a | done | n/a | `packaging/desktop/{linux-tarball,install-linux}.sh` (`bash -n` clean) + `windows-zip.ps1` + `macos-app.sh` + `maze-chase.desktop` + `docs/desktop.md` |
 
 ## WASM layer and hub (`crates/web`, done)
@@ -72,7 +72,7 @@ layout ever pretends a `planned` row works.
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|
-| Per-layer E2E green | all | done | done | done | terminal headless (layout sweep, full session, resize) + desktop headless + Xvfb `--probe` PPM + node `wasm-smoke.js` + `tester-regression.js` + CDP `browser-e2e.js` 13/13 (all green on Linux; Windows/macOS native runs pending per-OS runners, see `docs/parity.md`) |
+| Per-layer E2E green | all | done | done | done | terminal headless (layout sweep, full session, resize) + desktop headless + Xvfb `--probe` PPM + node `wasm-smoke.js` + `tester-regression.js` + CDP `browser-e2e.js` 17/17 (all green on Linux; Windows/macOS native runs pending per-OS runners, see `docs/parity.md`) |
 | Scoreboard (tick cost, suites, budgets) | all | done | done | done | `docs/scoreboard.md`: `perf-headless` 0.8 us/tick, 344/344 `cargo test` green, node smokes green, budgets with measured anchors |
 | Reproducible build/release instructions | docs | done | done | done | `docs/release.md` (toolchain, system libraries, layer builds, packaging matrix, clean-checkout checklist) + `packaging/{terminal,desktop}/` scripts + committed byte-reproducible `web/maze-chase.wasm` |
 | #552 retirement only after verified parity | n/a | planned | planned | planned | `docs/parity.md`: every engine rule row signed against `behavior-spec.md` + 19/19 verify; native-OS package/E2E rows still open, so `pacman/` is untouched and #552 stays functional |

@@ -39,11 +39,13 @@ Browser artifacts (Node 18+, committed `web/maze-chase.wasm`):
 - `node web/e2e/tester-regression.js`: `TESTER REGRESSION: ALL GREEN`
   (warden-chain wire domain, scores push/getter round-trip, hostile
   boundaries, determinism).
-- `web/e2e/browser-e2e.js` (headless chromium over CDP): 13/13 green
-  at release sign-off (zero console errors, real ArrowUp scoring,
-  pause/resume, touch swipe, 390x844 board visible, 60 FPS live).
-  Not re-run in this audit (no display server on the release
-  machine); the committed harness is unchanged since its green run.
+- `web/e2e/browser-e2e.js` (headless chromium over CDP): 17
+  assertions in the current harness; 13/13 green at release sign-off
+  (zero console errors, real ArrowUp scoring, pause/resume, touch
+  swipe, 390x844 board visible, 60 FPS live), and the macOS native
+  pass re-ran the current harness green. Not re-run in this audit
+  (no display server on the release machine); the committed harness
+  is unchanged since its green run.
 
 Packaging (this audit):
 

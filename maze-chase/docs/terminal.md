@@ -2,7 +2,7 @@
 
 The fullscreen terminal publication layer for Maze Chase: one installable
 package (`maze-chase-terminal`) running the shared deterministic engine
-with a fullscreen canvas, three render tiers, live resize, menus, help,
+with a fullscreen canvas, four render tiers, live resize, menus, help,
 high scores, settings with key rebinding, and launch docs (this file).
 
 ## Install and launch
