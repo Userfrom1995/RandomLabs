@@ -683,15 +683,17 @@ fi
 #      the decision file;
 #   3. each arm posts the report through the shared script with its own OS
 #      label, keeps the exact actor-gate + verify-success condition on both
-#      the post step and the decision forward, carries its actor-gate plus
-#      post-step github.token envs (never a PAT), and gates the forward on
-#      that step's success;
+#      the post step and the decision forward, keeps the post step's
+#      name/id/gate/env/token sequence and its exactly-indented uncommented
+#      invocation line, carries its actor-gate plus post-step github.token
+#      envs (never a PAT), and gates the forward on that step's success;
 #   4. the shared script validates the sign-off, posts as github-actions[bot]
 #      (never the owner PAT), and re-fetches the comment by id to verify
-#      authorship, the sign-off tail, and the exact body: every guard is an
-#      uncommented line whose failure block's own body ends in a hard
-#      `exit 1` (a weakened comparison, a commented-out guard, or an
-#      `exit 1` replaced by a no-op all trip the rule);
+#      authorship, the sign-off tail, and the exact body: every guard is the
+#      exact uncommented `if ...; then` line whose own failure block ends in
+#      a hard `exit 1` before its `fi` with no nested `if` (a weakened or
+#      wrapped condition, a commented-out guard, or a no-op `exit 1` all
+#      trip the rule);
 #   5. all three tester prompt files carry the contract.
 r17_bad=""
 R17_SCRIPT=".github/scripts/post-peros-findings.sh"
@@ -716,11 +718,30 @@ else
     printf '%s\n' "$r17_block" | grep -qF '[ -s /tmp/random-lab-findings.md ] || missing="${missing} findings-report"' || r17_bad="${r17_bad} arm-${r17_os}(verify-not-requiring-findings-file)"
     printf '%s\n' "$r17_block" | grep -qF 'if [ "$need_poster" = "true" ]; then' || r17_bad="${r17_bad} arm-${r17_os}(no-poster-restore-for-older-heads)"
     printf '%s\n' "$r17_block" | grep -qF 'git archive "${GITHUB_SHA}" -- .github/scripts/post-peros-findings.sh' || r17_bad="${r17_bad} arm-${r17_os}(no-poster-archive-restore)"
-    printf '%s\n' "$r17_block" | grep -qE '^[[:space:]]*bash \.github/scripts/post-peros-findings\.sh '"${r17_os}"' "\$TARGET"[[:space:]]*$' || r17_bad="${r17_bad} arm-${r17_os}(no-shared-post-step)"
+    printf '%s\n' "$r17_block" | grep -qE '^          bash \.github/scripts/post-peros-findings\.sh '"${r17_os}"' "\$TARGET"$' || r17_bad="${r17_bad} arm-${r17_os}(no-shared-post-step)"
     printf '%s\n' "$r17_block" | grep -qF "steps.findings.outcome == 'success'" || r17_bad="${r17_bad} arm-${r17_os}(forward-not-gated-on-findings)"
     printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'" || r17_bad="${r17_bad} arm-${r17_os}(post-step-gate-not-exact)"
     printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.findings.outcome == 'success'" || r17_bad="${r17_bad} arm-${r17_os}(forward-gate-not-exact)"
-    r17_token_envs=$(printf '%s\n' "$r17_block" | grep -cF 'GH_TOKEN: ${{ github.token }}' || true)
+    # The gate and the github.token env must live on the post step itself, in
+    # order: a parked exact line on another step or a PAT env swap must trip
+    # (independent-verifier finding Y7). Step names capitalize as Linux/macOS/
+    # Windows.
+    case "$r17_os" in
+      linux)   r17_os_tag="Linux" ;;
+      macos)   r17_os_tag="macOS" ;;
+      windows) r17_os_tag="Windows" ;;
+    esac
+    printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | awk -v tag="Post ${r17_os_tag} tester findings report" -v gate="if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'" '
+      done { next }
+      $0 == "- name: " tag { seq=1; next }
+      seq == 5 && $0 ~ /^- name: / { done=1; next }
+      seq == 1 { if ($0 == "id: findings") { seq=2 } else { bad=1 }; next }
+      seq == 2 { if ($0 == gate) { seq=3 } else { bad=1 }; next }
+      seq == 3 { if ($0 == "env:") { seq=4 } else { bad=1 }; next }
+      seq == 4 { if ($0 == "GH_TOKEN: ${{ github.token }}") { ok=1; seq=5 } else { bad=1 }; next }
+      seq == 5 { if ($0 ~ /^continue-on-error:/) { bad=1 }; next }
+      END { exit((ok && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(post-step-sequence-broken)"
+    r17_token_envs=$(printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | grep -cxF 'GH_TOKEN: ${{ github.token }}' || true)
     [ "$r17_token_envs" -ge 2 ] || r17_bad="${r17_bad} arm-${r17_os}(github-token-env-count=${r17_token_envs},want>=2)"
   done
 fi
@@ -737,28 +758,27 @@ else
   grep -qF 'if [ "$fetched_body" != "$expected_body" ]' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-body-equality-check)"
   grep -qF 'issues/comments/${comment_id}' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-re-fetch-verification)"
   grep -qF 'Verified bot-authored' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-verified-terminal-marker)"
-  # Structural assertions (independent-verifier findings X1/X2/X3): the
-  # literal greps above can be satisfied by weakened or no-op code. Require
-  # each guard to be an uncommented if-line and its own failure block to end
-  # in a real `exit 1` before its closing `fi`.
-  r17_script_line_starts() {
-    sed 's/^[[:space:]]*//' "$R17_SCRIPT" | awk -v p="$1" 'index($0, p) == 1 { f=1 } END { exit(f ? 0 : 1) }'
-  }
+  # Structural assertions (independent-verifier findings X1/X2/X3 and
+  # Y1/Y9): the literal greps above can be satisfied by weakened or no-op
+  # code. Require each guard to be the exact uncommented `if ...; then`
+  # line, and its own failure block (up to its closing `fi`, with no nested
+  # `if` and no early fall-through) to end in a real `exit 1`.
   r17_guard_block_has_exit() {
     sed 's/^[[:space:]]*//' "$R17_SCRIPT" | awk -v p="$1" '
-      index($0, p) == 1 { inblk=1; next }
+      $0 == p { inblk=1; next }
+      inblk && $0 ~ /^if[[:space:]]/ { nested=1 }
       inblk && $0 == "exit 1" { found=1 }
-      inblk && $0 == "fi" { inblk=0 }
-      END { exit(found ? 0 : 1) }'
+      inblk && $0 == "fi" { closed=1; inblk=0 }
+      END { exit((found && closed && !nested) ? 0 : 1) }'
   }
   for r17_guard in \
-    'pre-post-signoff:if [ "$last_line" != "$signoff" ]' \
-    'bot-author:if [ "$author" != "github-actions[bot]" ]' \
-    'post-fetch-signoff:if [ "$fetched_last" != "$signoff" ]' \
-    'body-equality:if [ "$fetched_body" != "$expected_body" ]'; do
+    'pre-post-signoff:if [ "$last_line" != "$signoff" ]; then' \
+    'bot-author:if [ "$author" != "github-actions[bot]" ]; then' \
+    'post-fetch-signoff:if [ "$fetched_last" != "$signoff" ]; then' \
+    'body-equality:if [ "$fetched_body" != "$expected_body" ]; then'; do
     r17_guard_name="${r17_guard%%:*}"
     r17_guard_line="${r17_guard#*:}"
-    r17_script_line_starts "$r17_guard_line" || r17_bad="${r17_bad} script(${r17_guard_name}-guard-missing-or-commented)"
+    sed 's/^[[:space:]]*//' "$R17_SCRIPT" | grep -qxF -- "$r17_guard_line" || r17_bad="${r17_bad} script(${r17_guard_name}-guard-not-exact)"
     r17_guard_block_has_exit "$r17_guard_line" || r17_bad="${r17_bad} script(${r17_guard_name}-guard-block-has-no-exit-1)"
   done
 fi
