@@ -10,10 +10,10 @@
 //! `enable_raw_mode()` succeeds where the Unix arm fails, and the
 //! documented refusal (`docs/terminal.md` troubleshooting: a piped run
 //! prints "cannot take over the terminal" and exits 1) never fires.
-//! The Phase 5 CLI-strictness suite pinned the same contract with
-//! `stderr[T]`, and its `bogus_tier_warns_naming_value_then_refuses_
-//! without_tty` test hung the whole `cargo test --workspace` run on this
-//! machine because the child never exits.
+//! The Phase 5 CLI-strictness suite pins the same contract, and its
+//! `bogus_tier_warns_naming_value_then_refuses_without_tty` test hung the
+//! whole `cargo test --workspace` run on this machine before the guard
+//! existed, because the child never exited.
 //!
 //! This suite is deliberately time-bounded: the child is killed at the
 //! deadline and the test fails with `None` instead of hanging the runner,

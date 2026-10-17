@@ -79,8 +79,13 @@ fn bogus_tier_warns_naming_value_then_refuses_without_tty() {
     // rejected value (this covers both MAZE_CHASE_TIER=bogus and the
     // `--tier bogus` CLI path, which flows through the same env var).
     for value in ["bogus", ""] {
-        let (code, _, stderr) = run(&["--tier", value], &[]);
+        let (code, stdout, stderr) = run(&["--tier", value], &[]);
         assert_eq!(code, 1, "non-TTY run must exit 1, value was: {value:?}");
+        assert!(
+            stdout.is_empty(),
+            "a refused run must write zero bytes of takeover frames to stdout, wrote {} (value {value:?})",
+            stdout.len()
+        );
         assert!(
             stderr.contains(&format!(
                 "unrecognized MAZE_CHASE_TIER '{value}'; falling back to auto-detect"
@@ -88,8 +93,13 @@ fn bogus_tier_warns_naming_value_then_refuses_without_tty() {
             "warning must name the value, stderr was: {stderr}"
         );
     }
-    let (code, _, stderr) = run(&[], &[("MAZE_CHASE_TIER", "bogus")]);
+    let (code, stdout, stderr) = run(&[], &[("MAZE_CHASE_TIER", "bogus")]);
     assert_eq!(code, 1);
+    assert!(
+        stdout.is_empty(),
+        "a refused run must write zero bytes of takeover frames to stdout, wrote {}",
+        stdout.len()
+    );
     assert!(
         stderr.contains("unrecognized MAZE_CHASE_TIER 'bogus'"),
         "stderr was: {stderr}"
