@@ -527,7 +527,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422) + the model fallback ladder (resolve-model.sh, model-ladder.txt, issue #591)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R16), CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R18), CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
@@ -659,6 +659,15 @@ catches up in seconds.
   issue #283 fix), keeps the strict orphan check (never fail-open), and warns
   loudly if the workspace is still shallow after the unshallow attempt.
   Statically enforced by R16 in
+  `.github/scripts/silent-stall-audit.sh`.
+- A native Windows per-OS handoff cannot be mangled by MSYS path conversion
+  (issue #612): under Git Bash on the windows-latest arm, MSYS2 rewrote the
+  slash-leading "/oc maintainer" body into the literal path
+  "C:/Program Files/Git/oc maintainer" before gh saw it (run 39036859435), a
+  handoff no strict-prefix consumer would accept. The three per-OS decision
+  forwarders now carry `MSYS_NO_PATHCONV: "1"` and deliver the trigger body
+  through stdin (`--body-file -`), so no "/oc" string is ever an argv element
+  of a native process. Statically enforced by R18 in
   `.github/scripts/silent-stall-audit.sh`.
 - The Maintainer cannot land infra/model/workflow changes herself: routine
   changes route to the Lab Engineer (`{"action":"lab"}`), and the direct-to-main
