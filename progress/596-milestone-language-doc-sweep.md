@@ -17,7 +17,7 @@ ledger sections.
 ## Checklist
 
 - [x] Scaffold: progress file + ideas entry
-- [ ] umbra: README.md, docs/architecture.md, docs/scoreboard.md
+- [x] umbra: README.md, docs/architecture.md, docs/scoreboard.md
 - [ ] doom: README.md, docs/scoreboard.md, docs/architecture.md,
       docs/THREATS.md, docs/audit-m2.md, docs/layout-audit.md,
       docs/render-m2.md..render-m5.md, docs/research-spec.md
@@ -52,7 +52,8 @@ ledger sections.
 
 ## Current step
 
-Scaffold written; about to sweep umbra.
+umbra swept (README, architecture, scoreboard); tests 467/467 green, no
+prose codes, no en/em dashes. Moving to doom (the largest surface).
 
 ## Agent log
 
@@ -64,3 +65,9 @@ Scaffold written; about to sweep umbra.
   tests) so the sweep keeps every gate green. Delegation ledger: no
   subagents; the sweep is a precision language edit across interlinked
   files with doc-asserting gates, executed directly.
+- 2026-10-17: umbra done. README rewritten as one feature list (combat,
+  content, rendering, polish); architecture title and module map de-coded
+  (per-subsystem grouping, no per-phase annotations); scoreboard rewritten
+  as a final G1-G7 ledger plus capability-named verification rounds with
+  every measured number preserved. Evidence paths kept by decision. All 467
+  umbra node tests green (incl. the no-em-dash README/scoreboard test).
