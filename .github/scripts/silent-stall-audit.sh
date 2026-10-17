@@ -693,13 +693,15 @@ fi
 #   2. each fail-closed verify step requires the findings report alongside
 #      the decision file;
 #   3. each arm posts the report through the shared script with its own OS
-#      label, keeps the exact actor-gate + verify-success condition on both
-#      the post step and the decision forward, keeps the post step's
-#      name/id/gate/env/token sequence and its exactly-indented uncommented
-#      invocation line, carries its actor-gate plus post-step github.token
-#      envs (never a PAT), gates the forward on that step's success, keeps the
-#      post step's run body free of anything but comments and the invocation,
-#      and keeps the forward step free of continue-on-error;
+#      label, keeps the post step's exact name/id/gate/env sequence (its own
+#      actor-gate + verify-success condition, then github.token, then the
+#      event-derived TARGET) before the single decision-forward step, whose
+#      first line after its name is the exact actor-gate + verify +
+#      findings-success condition (a block-wide or parked gate line does not
+#      satisfy this), carries its actor-gate plus post-step github.token envs
+#      (never a PAT), keeps the post step's run body free of anything but
+#      comments and the invocation with the invocation itself present, and
+#      keeps the forward step free of continue-on-error;
 #   4. the shared script validates the sign-off, posts as github-actions[bot]
 #      (never the owner PAT), and re-fetches the comment by id to verify
 #      authorship, the sign-off tail, and the exact body: every guard is the
@@ -747,13 +749,11 @@ else
     printf '%s\n' "$r17_block" | grep -qF 'if [ "$need_poster" = "true" ]; then' || r17_bad="${r17_bad} arm-${r17_os}(no-poster-restore-for-older-heads)"
     printf '%s\n' "$r17_block" | grep -qF 'git archive "${GITHUB_SHA}" -- .github/scripts/post-peros-findings.sh' || r17_bad="${r17_bad} arm-${r17_os}(no-poster-archive-restore)"
     printf '%s\n' "$r17_block" | grep -qE '^          bash \.github/scripts/post-peros-findings\.sh '"${r17_os}"' "\$TARGET"$' || r17_bad="${r17_bad} arm-${r17_os}(no-shared-post-step)"
-    printf '%s\n' "$r17_block" | grep -qF "steps.findings.outcome == 'success'" || r17_bad="${r17_bad} arm-${r17_os}(forward-not-gated-on-findings)"
     printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'" || r17_bad="${r17_bad} arm-${r17_os}(post-step-gate-not-exact)"
-    printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.findings.outcome == 'success'" || r17_bad="${r17_bad} arm-${r17_os}(forward-gate-not-exact)"
     # The gate and the github.token env must live on the post step itself, in
-    # order: a parked exact line on another step or a PAT env swap must trip
-    # (independent-verifier finding Y7). Step names capitalize as Linux/macOS/
-    # Windows.
+    # order (github.token, then the event-derived TARGET): a parked exact line
+    # on another step or a PAT env swap must trip (independent-verifier
+    # finding Y7). Step names capitalize as Linux/macOS/Windows.
     case "$r17_os" in
       linux)   r17_os_tag="Linux" ;;
       macos)   r17_os_tag="macOS" ;;
@@ -762,20 +762,48 @@ else
     printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | awk -v tag="Post ${r17_os_tag} tester findings report" -v gate="if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'" '
       done { next }
       $0 == "- name: " tag { seq=1; next }
-      seq == 5 && $0 ~ /^- name: / { done=1; next }
-      seq == 1 { if ($0 == "id: findings") { seq=2 } else { bad=1 }; next }
-      seq == 2 { if ($0 == gate) { seq=3 } else { bad=1 }; next }
-      seq == 3 { if ($0 == "env:") { seq=4 } else { bad=1 }; next }
-      seq == 4 { if ($0 == "GH_TOKEN: ${{ github.token }}") { ok=1; seq=5 } else { bad=1 }; next }
-      seq == 5 { if ($0 ~ /^continue-on-error:/) { bad=1 }; next }
+      seq >= 6 && $0 ~ /^- name: / { done=1; next }
+      seq == 1 { if ($0 == "id: findings") { seq=2 } else { bad=1; seq=9 }; next }
+      seq == 2 { if ($0 == gate) { seq=3 } else { bad=1; seq=9 }; next }
+      seq == 3 { if ($0 == "env:") { seq=4 } else { bad=1; seq=9 }; next }
+      seq == 4 { if ($0 == "GH_TOKEN: ${{ github.token }}") { seq=5 } else { bad=1; seq=9 }; next }
+      seq == 5 { if ($0 == "TARGET: ${{ github.event.issue.number }}") { ok=1; seq=6 } else { bad=1; seq=9 }; next }
+      seq == 6 { if ($0 ~ /^continue-on-error:/) { bad=1 }; next }
+      seq == 9 { next }
       END { exit((ok && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(post-step-sequence-broken)"
+    # The forward gate must live on the forward step itself, the arm must carry
+    # exactly one post step and one forward step, and the post step must
+    # precede the forward (round-2 reviewer finding F1): block-wide greps and a
+    # first-occurrence match let a reordered arm green while the forward's
+    # findings gate evaluated before the findings step ran, and let a parked
+    # exact line on a dead duplicate step hide a dropped live gate.
+    r17_post_name="      - name: Post ${r17_os_tag} tester findings report"
+    r17_fwd_name="      - name: Forward ${r17_os_tag} tester decision"
+    r17_post_count=$(printf '%s\n' "$r17_block" | grep -cF -- "$r17_post_name" || true)
+    r17_fwd_count=$(printf '%s\n' "$r17_block" | grep -cF -- "$r17_fwd_name" || true)
+    [ "$r17_post_count" -eq 1 ] || r17_bad="${r17_bad} arm-${r17_os}(post-step-count=${r17_post_count},want=1)"
+    [ "$r17_fwd_count" -eq 1 ] || r17_bad="${r17_bad} arm-${r17_os}(forward-step-count=${r17_fwd_count},want=1)"
+    r17_post_line=$(printf '%s\n' "$r17_block" | grep -nF -- "$r17_post_name" | head -n1 | cut -d: -f1)
+    r17_fwd_line=$(printf '%s\n' "$r17_block" | grep -nF -- "$r17_fwd_name" | head -n1 | cut -d: -f1)
+    if [ -z "$r17_post_line" ] || [ -z "$r17_fwd_line" ] || [ "$r17_post_line" -ge "$r17_fwd_line" ]; then
+      r17_bad="${r17_bad} arm-${r17_os}(post-not-before-forward)"
+    fi
+    printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | awk -v tag="Forward ${r17_os_tag} tester decision" -v gate="if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.findings.outcome == 'success'" '
+      done { next }
+      $0 == "- name: " tag { seq=1; seen=1; next }
+      seq == 2 && $0 ~ /^- name: / { done=1; next }
+      seq == 1 { if ($0 == gate) { ok=1; seq=2 } else { bad=1; seq=3 }; next }
+      seq == 3 { next }
+      END { exit((seen && ok && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(forward-gate-not-on-forward-step)"
     r17_token_envs=$(printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | grep -cxF 'GH_TOKEN: ${{ github.token }}' || true)
     [ "$r17_token_envs" -ge 2 ] || r17_bad="${r17_bad} arm-${r17_os}(github-token-env-count=${r17_token_envs},want>=2)"
     # The post step's run body may contain only comments, blanks, and the exact
-    # invocation (independent-verifier findings Z1/Z2/W1/W2): an inserted
-    # `exit 0`, extra command, `|| true`, a `run:` header other than `|`
-    # (YAML would fold the comments and invocation into one comment line), or
-    # a `shell:`/`working-directory:` override would let the arm conclude
+    # invocation, and the invocation must itself appear there (round-2
+    # reviewer recommendation; independent-verifier findings Z1/Z2/W1/W2): an
+    # inserted `exit 0`, extra command, `|| true`, a `run:` header other than
+    # `|` (YAML would fold the comments and invocation into one comment line),
+    # a `shell:`/`working-directory:` override, or a comment-only body with
+    # the live invocation parked in another step would let the arm conclude
     # green with the report never posted.
     printf '%s\n' "$r17_block" | awk -v tag="      - name: Post ${r17_os_tag} tester findings report" -v want="bash .github/scripts/post-peros-findings.sh ${r17_os} \"\$TARGET\"" '
       $0 == tag { post=1; seen=1; next }
@@ -783,11 +811,8 @@ else
       post && $0 ~ /^[[:space:]]*(shell|working-directory):/ { bad=1 }
       post && $0 ~ /^        run:/ { run=1; run_seen=1; if ($0 != "        run: |") bad=1; next }
       run && $0 ~ /^      - / { run=0 }
-      run { s=$0; sub(/^[[:space:]]+/, "", s); if (s == "" || s ~ /^#/) next; if (s != want) bad=1 }
-      END { exit((seen && run_seen && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(post-run-body-modified)"
-    # The post step must pass the event's issue/PR number, not a literal (W4).
-    r17_target_envs=$(printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | grep -cxF 'TARGET: ${{ github.event.issue.number }}' || true)
-    [ "$r17_target_envs" -ge 1 ] || r17_bad="${r17_bad} arm-${r17_os}(target-env-not-exact)"
+      run { s=$0; sub(/^[[:space:]]+/, "", s); if (s == "" || s ~ /^#/) next; if (s != want) { bad=1 } else { got=1 } }
+      END { exit((seen && run_seen && !bad && got) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(post-run-body-modified)"
     # The forward step must not mask its own failures or re-shell itself (W3).
     printf '%s\n' "$r17_block" | awk -v tag="      - name: Forward ${r17_os_tag} tester decision" '
       $0 == tag { fwd=1; seen=1; next }
@@ -842,15 +867,17 @@ else
   sed 's/^[[:space:]]*//' "$R17_SCRIPT" | grep -qxF 'linux)   signoff="- the Linux Tester" ;;' || r17_bad="${r17_bad} script(linux-signoff-assignment-not-exact)"
   sed 's/^[[:space:]]*//' "$R17_SCRIPT" | grep -qxF 'macos)   signoff="- the macOS Tester" ;;' || r17_bad="${r17_bad} script(macos-signoff-assignment-not-exact)"
   sed 's/^[[:space:]]*//' "$R17_SCRIPT" | grep -qxF 'windows) signoff="- the Windows Tester" ;;' || r17_bad="${r17_bad} script(windows-signoff-assignment-not-exact)"
-  # Structural assertions (independent-verifier findings X1/X2/X3 and
-  # Y1/Y9): the literal greps above can be satisfied by weakened or no-op
-  # code. Require each guard to be the exact uncommented `if ...; then`
+  # Structural assertions (independent-verifier findings X1/X2/X3, Y1/Y9, and
+  # round-2 note N1): the literal greps above can be satisfied by weakened or
+  # no-op code. Require each guard to be the exact uncommented `if ...; then`
   # line, and its own failure block (up to its closing `fi`, with no nested
-  # `if` and no early fall-through) to end in a real `exit 1`.
+  # control flow - `if`/`while`/`for`/`case`/`until` or a function definition -
+  # and no early fall-through) to end in a real `exit 1`.
   r17_guard_block_has_exit() {
     sed 's/^[[:space:]]*//' "$R17_SCRIPT" | awk -v p="$1" '
       $0 == p { inblk=1; next }
-      inblk && $0 ~ /^if[[:space:]]/ { nested=1 }
+      inblk && $0 ~ /^(if|while|for|case|until)[[:space:]]/ { nested=1 }
+      inblk && $0 ~ /^[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\(\)[[:space:]]*\{/ { nested=1 }
       inblk && $0 == "exit 1" { found=1 }
       inblk && $0 == "fi" { closed=1; inblk=0 }
       END { exit((found && closed && !nested) ? 0 : 1) }'
@@ -870,10 +897,13 @@ else
   # execute the real script). Per delegation.md section 6 the mock is
   # executable, interception is asserted BEFORE any poster run, credentials
   # are scrubbed, and the sandbox lives outside the repository tree. Live
-  # non-credential Actions env is set realistically (GITHUB_ACTIONS=true and
-  # the production repo slug) and per-case mock behavior comes from a
+  # non-credential Actions env is set realistically (GITHUB_ACTIONS=true and a
+  # realistic repo slug whose owner segment differs from production) and
+  # per-case mock behavior comes from a
   # case.cfg file, not from env, so env-fingerprint detection cannot green a
-  # broken poster. A body that keeps the sign-off tail but tampers with
+  # broken poster (the full production slug is statically banned, so an
+  # owner-only fingerprint remains a review-gated boundary, round-2 note N3).
+  # A body that keeps the sign-off tail but tampers with
   # earlier content must be rejected; a tampered-body run that exits 0
   # (guards unreachable or expected_body clobbered) trips the rule.
   r17_script_abs="$(pwd)/$R17_SCRIPT"
