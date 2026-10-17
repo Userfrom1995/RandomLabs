@@ -27,8 +27,7 @@ fn embedded_sources_are_lf_on_any_checkout() {
     let maze_chase = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     for rel in ["levels/ember-warren.maze", "docs/design-tokens.json"] {
         let path = maze_chase.join(rel);
-        let bytes =
-            std::fs::read(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+        let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
         assert!(!bytes.is_empty(), "{} is empty", path.display());
         let crlf = bytes
             .windows(2)
