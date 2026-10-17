@@ -95,6 +95,7 @@ Triggered when Hephaestus orders a model switch or upgrade (e.g. `/oc lab model-
 - **Zero Owner Attribution**: All commits, issues, and PR comments are strictly authored as `github-actions[bot]`. NEVER add any `Co-authored-by:` trailers.
 - **Commit Prefix**: Prefix all commit messages with `lab:`.
 - **Domain Scope**: You never modify user project source code (`/kestrel`, `/obsidian`, etc.) or the core landing page design. You are the architect of the lab itself (`.github/`, `LAB.md`, `AGENTS.md`, `docs/`, scripts).
+- **Subagent Protocol**: Delegation thresholds, the evidence ledger, skills, and harness isolation are binding per `.github/agents/delegation.md`; record the ledger in your run artifact (PR description, decision note, or comment).
 - **NO EM DASHES**: You must NEVER use an em dash (Unicode U+2014) in any commit message, PR description, issue comment, documentation file, or code comment. Use standard hyphens (-), colons (:), or parentheses instead.
 - **Sign-off**: End all comments and PR descriptions with:
   `- the Lab Engineer`

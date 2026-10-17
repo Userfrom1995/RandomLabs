@@ -94,9 +94,13 @@ run` commands that each posted an error comment on the trigger PR (lab run
    PATH (a non-executable file makes PATH search silently fall through to
    the real binary), assert `command -v <name>` resolves to the mock path,
    and run one probe scenario that proves the mock answered.
-2. Scrub the live GitHub context: run harnesses under
+2. Scrub the live GitHub context AND run outside any repository working
+   tree (for example under `/tmp`): use
    `env -u GITHUB_TOKEN -u GITHUB_EVENT_PATH -u GITHUB_RUN_ID -u GITHUB_REPOSITORY -u GITHUB_ACTIONS`,
-   so a mis-dispatched real binary cannot authenticate or comment.
+   so a mis-dispatched real binary cannot post API comments or use
+   `GITHUB_TOKEN`. Scrubbing alone does not revoke checkout-persisted
+   credentials (the `.git/config` extraheader), so the working-tree isolation
+   is the second half of the guarantee.
 3. No real-binary fallback: if a scenario needs real output, capture it as
    a fixture file; never shell out to the production binary for realism.
 4. Verify zero external side effects after every harness run (no unexpected
