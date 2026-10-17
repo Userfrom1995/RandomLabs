@@ -148,12 +148,32 @@ runs:
       # or exits 0 after posting its error comment) advances to the next rung
       # exactly once per rung; any other failure exits immediately; a fully
       # exhausted ladder exits 1 LOUDLY so the verify steps summon triage.
+      # Exit-0 anchoring (issue #591, finding 7): a healthy completed run must
+      # never advance merely because its own transcript echoed the phrase, so
+      # the exit-0 path matches only the provider's anchored terminal error
+      # line in the tail of the log; the nonzero path keeps the boundary
+      # match (a genuine provider death exits nonzero with the error as the
+      # terminal output).
       run: |
         candidates="${MODEL_CANDIDATES:-${MODEL:-}}"
         if [ -z "$candidates" ]; then
           echo "::error::No model candidates resolved; refusing to run opencode (the resolve step did not produce a candidate chain)."
           exit 1
         fi
+        # The wrapper prints the provider's terminal error at column 0 (the
+        # final text part `Model not found: <id>. Did you mean: ...`, or
+        # `Error: Model not found: ...` when its catch handler prints the
+        # throw), while a transcript echo of the phrase (a tool-call echo
+        # rendered with the tool prefix, a quoted log line embedded in prose)
+        # cannot match both the column-0 anchor and the terminal form. The
+        # 2026-10-17 exit-0 fire re-ran a healthy completed session because a
+        # whole-log substring match hit tool-call echoes of the exact pin.
+        # Residual (documented): a healthy run whose own final response
+        # contains the exact terminal form as a standalone column-0 line
+        # could still match; no such line has ever been observed.
+        model_error_terminal() {
+          tail -n 40 "$1" | grep -qE "^(Error: )?Model not found: ${2//./\\.}(\. Did you mean: .*|\.?$)"
+        }
         status=1
         for model in $candidates; do
           log="$(mktemp)"
@@ -173,9 +193,14 @@ runs:
             rm -f "$log"
             exit 1
           fi
-          if [ "$status" -eq 0 ] && ! grep -qE "Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)" "$log"; then
+          if [ "$status" -eq 0 ]; then
+            if ! model_error_terminal "$log" "$model"; then
+              rm -f "$log"
+              exit 0
+            fi
+            echo "::warning::model '$model' died at the provider (terminal Model-not-found error on an exit-0 run); advancing to the next ladder rung if any."
             rm -f "$log"
-            exit 0
+            continue
           fi
           if grep -qE "Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)" "$log"; then
             echo "::warning::model '$model' was not found by the provider; advancing to the next ladder rung if any."
