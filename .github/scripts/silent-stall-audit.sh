@@ -7,15 +7,17 @@
 # (issue #422), the R10 PAT-step input-indirection guard, the R11
 # post-agent PAT gate guard (both issue #422 residual hardening), the
 # R12 actor-write gate guard (issue #428), the R13 bot-created triage
-# parity guard (issue #450), and the R14 per-OS arm queue-preservation
-# guard (issue #594).
+# parity guard (issue #450), the R14 per-OS arm queue-preservation guard
+# (issue #594), and the R15 model fallback ladder guard (issue #591:
+# provider model retirement / loud Model-not-found failure).
 # Wired into auditor.yml as the R1-R14 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R14 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R15 audit the whole tree
 # (the review-restore guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
-# shared actor-write gate, and the per-OS arm queue), so they trip on a bad
+# shared actor-write gate, the per-OS arm queue, and the model fallback
+# ladder), so they trip on a bad
 # curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml no matter which
 # file the audit was pointed at.
 # Exit code is always 0 so it never breaks the auditor run; failures are reported
@@ -44,12 +46,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R14 PASS] $name: $desc"
+  [R1-R15 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R14 FAIL] $name: $desc"
+  [R1-R15 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -455,16 +457,87 @@ else
   check "R14" "per-OS arm queue preservation missing:${r14_bad} (issue #594: the single pending slot cancels a queued arm)" "bad"
 fi
 
-summary="Silent-stall regression audit (R1-R14) on ${WF}: ${pass} passed, ${fail} failed."
+# [R15] Model fallback ladder (issue #591): a provider-side retirement of the
+# shared model pin used to kill every arm at once (including the Maintainer
+# that would dispatch the repair), and Model-not-found deaths concluded their
+# runs green (hollow green: `continue-on-error` plus no verify step), so
+# workflow_run failure triage never fired. Properties:
+#   1. the shared resolver exists and resolves against the live registry,
+#      defaulting to the ladder file next to it;
+#   2. the ordered ladder exists, is non-empty, and every rung is a
+#      free-tier model ref (a paid rung would trip the R6 two-knob guard);
+#   3. the shared composite action calls the resolver, retries per rung on a
+#      provider "Model not found", and exits nonzero after the last rung;
+#   4. maintainer.yml (the arm that would otherwise dispatch the repair)
+#      calls the resolver, wires the candidate chain, and has the verify
+#      step that goes red without .maintainer/decision.json;
+#   5. the general arm (which had no verify step) carries its loud-failure
+#      verify, and maintainer.yml plus the composite still expose the
+#      loud-exhaustion marker.
+r15_bad=""
+LADDER_DIR=".github/actions/opencode-run"
+RESOLVER="${LADDER_DIR}/resolve-model.sh"
+LADDER_FILE="${LADDER_DIR}/model-ladder.txt"
+if [ ! -f "$RESOLVER" ]; then
+  r15_bad="${r15_bad} resolver(missing)"
+else
+  grep -q 'zen/v1/models' "$RESOLVER" || r15_bad="${r15_bad} resolver(no-live-registry-lookup)"
+  grep -q 'model-ladder\.txt' "$RESOLVER" || r15_bad="${r15_bad} resolver(no-ladder-default)"
+fi
+if [ ! -f "$LADDER_FILE" ]; then
+  r15_bad="${r15_bad} ladder-file(missing)"
+else
+  r15_rungs=$(grep -vE '^[[:space:]]*(#|$)' "$LADDER_FILE" || true)
+  if [ -z "$r15_rungs" ]; then
+    r15_bad="${r15_bad} ladder-file(empty)"
+  fi
+  if printf '%s\n' "$r15_rungs" | grep -vqE '^opencode/[A-Za-z0-9._-]+-free$'; then
+    r15_bad="${r15_bad} ladder-file(non-free-or-malformed-rung)"
+  fi
+fi
+if [ ! -f "$ACTION_FILE" ]; then
+  r15_bad="${r15_bad} action-file(missing)"
+else
+  grep -qF 'bash "$script"' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(no-resolver-invocation)"
+  grep -qF 'Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(no-boundary-aware-per-rung-retry)"
+  grep -qF 'if [ "$tee_status" -ne 0 ]' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(no-log-capture-failure-guard)"
+  grep -A1 'exhausted every model rung' "$ACTION_FILE" | grep -q 'exit 1' || r15_bad="${r15_bad} action-file(loud-exhaustion-not-exit-1)"
+fi
+if [ ! -f "$MAIN_WF" ]; then
+  r15_bad="${r15_bad} maintainer.yml(missing)"
+else
+  grep -qF 'bash .github/actions/opencode-run/resolve-model.sh' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-resolver-invocation)"
+  grep -q 'MODEL_CANDIDATES' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-candidate-chain)"
+  grep -qF 'Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-boundary-aware-per-rung-retry)"
+  grep -qF 'if [ "$tee_status" -ne 0 ]' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-log-capture-failure-guard)"
+  grep -q 'id: verify_agent' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-loud-verify)"
+  grep -A1 'exhausted every model rung' "$MAIN_WF" | grep -q 'exit 1' || r15_bad="${r15_bad} maintainer.yml(loud-exhaustion-not-exit-1)"
+fi
+OPENCODE_WF=".github/workflows/opencode.yml"
+if [ ! -f "$OPENCODE_WF" ]; then
+  r15_bad="${r15_bad} opencode.yml(missing)"
+else
+  if ! grep -q 'Verify general agent completed' "$OPENCODE_WF"; then
+    r15_bad="${r15_bad} opencode.yml(general-arm-no-loud-verify)"
+  fi
+  grep -A2 'General agent step finished' "$OPENCODE_WF" | grep -q 'exit 1' || r15_bad="${r15_bad} opencode.yml(general-verify-not-exit-1)"
+fi
+if [ -z "$r15_bad" ]; then
+  check "R15" "model fallback ladder wired: live-registry resolver + free-tier ladder rungs + per-rung retry and loud exhaustion in the shared runner and the maintainer inline path, with loud-failure verify steps on the Maintainer and general arm (issue #591)" "ok"
+else
+  check "R15" "model fallback ladder missing:${r15_bad} (issue #591: one retired pin kills every arm at once and Model-not-found deaths conclude green)" "bad"
+fi
+
+summary="Silent-stall regression audit (R1-R15) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R14)
+  body="## Silent-stall regression audit FAILED (R1-R15)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 two-knob free tier, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, or R14 per-OS arm queue preservation). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 two-knob free tier, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 per-OS arm queue preservation, or R15 model fallback ladder). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
