@@ -74,7 +74,15 @@ modes without relaxing the linkage proof.
   `bash -n` OK for the audit script and all 102 extracted `run:` blocks; no
   em dashes; R14/R15 audit blocks byte-identical to `main` (append-only R16);
   the two orphan-check lines identical to `main`; diff limited to the seven
-  intended files.
+  files the commit itself touched (the note was committed after the sweep, so
+  the final PR tree carries eight).
+- Post-review correction (round 1): the static sweep's stale-label check
+  missed one live site, `.github/agents/tester.md:60`, which still pinned the
+  audit range as `R1`-`R15` while line 64 of the same file was already bumped
+  (the R15 precedent, #591 commit `263f47d7`, swept both sites together). The
+  follow-up commit fixes line 60 to `R1`-`R16` and closes the sweep gap; the
+  "stale label sweep ... all PASS" ledger claim below was inaccurate as
+  originally written and is corrected by this entry.
 
 ## Delegation ledger
 
@@ -89,8 +97,10 @@ modes without relaxing the linkage proof.
   one and two boundaries and a no-op on a healthy clone.
 - Subagent 3 (general; scope: static consistency sweep): nine checks
   (status scope, YAML parse, shell syntax, audit matrix, stale label sweep,
-  em-dash ban, coherence counts, executable bit, diff review) all PASS; no
-  inconsistencies.
+  em-dash ban, coherence counts, executable bit, diff review) all PASS;
+  the stale-label sweep later proved incomplete (missed
+  `.github/agents/tester.md:60`, corrected in review round 1; see the
+  post-review correction above).
 - Primary verified itself: read the final guard hunk line by line, ran the
   live audit twice (16 passed, 0 failed), the tightened R16 against `main`'s
   maintainer.yml (red on marker removal), `bash -n` on the audit script, and
