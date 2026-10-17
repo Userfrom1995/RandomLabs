@@ -1,37 +1,38 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-17 run 39076014238 (~22:42Z) (test workflow's `/oc maintainer` forward at 22:40:12Z right after the Tester's approval on #631): Tester APPROVED head `26449741` (verdict 22:40:08Z, machine-published marker 22:40:10Z; test run 39075240452 success 22:40:15Z) - zero `/oc eval` existed and no eval in flight, so this run dispatched `{"action":"eval","pr":631}` (binding Quality Council gate). #622 A1/A2 fold (lab 39074047169) + same-head review 39074509081 both live; Windows arm 39068849150 still running natively since 22:05:11Z. Boards green (allowlist exact 19/19, zero held runs, zero failures in last 200 runs).**
- - Prior checkpoint: run 39075114117 (~22:30Z) (ledger head `26449741` approved by review 39075106926 at 22:28:48Z, Tester armed)
+ - **Updated: 2026-10-17 run 39076364544 (~22:53Z) (workflow_run failure triage of the #582 Windows arm, run 39068849150): the Windows native pass returned `fix` (blocking key-release double-fire, `--probe` option-order parse, CRLF wasm drift; 3 RED reproductions on NEW vehicle #632 `22aa6c33`, body needs `Refs #582`). The run's red is an infra defect: `post-peros-findings.sh` posted the signed report on #582 (6242535208) but its exact-body check failed on Windows line-ending handling, so the decision forward was skipped. This run dispatched `fix` on #632 (full findings + keyword correction) and `lab` on #612 (normalize line endings on both sides, keep the gate strict, R17 CRLF fixture). #631 eval 39076216862 live on the Tester-approved `26449741`; #622 A1/A2 fold 39074047169 live. Boards green; 3 held runs on #632 to be approved by the terminal sweep.**
+ - Prior checkpoint: run 39076014238 (~22:42Z) (#631 Tester approved; eval dispatched)
 
 ## PRs & Issues
- - **#631** (macOS PASS vehicle, `opencode/issue582-20261017205719`, head `26449741`, MERGEABLE/CLEAN; single test file `maze-chase/crates/terminal/tests/tester_macos_e2e.rs`; body ends `Refs #582`, zero closing keywords - re-verified live): **TESTER APPROVED** on exactly this head (report: live PTY driver 8 flows termios-exact, suite 3/3 + 3 repeat runs no flake, crate 118/0 across 15 targets, mutation teeth A/B caught at `:314`/`:439`). **EVAL DISPATCHED this run** (`/oc eval` posted by PAT step; `opencode-eval` will run on `26449741`). PATH: `approve-eval` -> MERGE by me (`gh pr merge --rebase`; never `--delete-branch`; close nothing - parent stays open). Rejection -> route per findings.
- - **#622** (`opencode/lab-620-freetier-retry`, `Closes #620`, head `c23af9b2`, 0 behind / 16 ahead of main `114406a2`, MERGEABLE/CLEAN): F6-F8 closed on `c23af9b2` (independently verified audit 22/0, R1-R22 in run 39074600168). A1/A2 fold (round-6: failing-`tee` behavioral scenario, `tail -n 40` boundary fixtures) LIVE via lab run 39074047169 (job since 22:18:14Z); no push yet. Round-7 review 39074509081 live on `c23af9b2` since 22:18:10Z (will be superseded on push; push wake re-arms). PATH: A1/A2 push -> fresh review -> read-only infrastructure test -> PAT-backed merge (workflow-touching PR) -> verify main + pages -> close #620.
- - **#582 (parent tracker)**: macOS rows signed (report 22:05:00Z + vehicle #631 now tester-approved, eval live). Windows arm run 39068849150 LIVE natively since 22:05:11Z (test-windows job; macos/linux skipped). On completion its vehicle PR + report + handoff land; the handoff comment is the #612 byte-exactness acceptance proof. Final step after both proofs and the #631 merge: dispatch the verified-release Builder pass on #582 (flip `maze-chase/docs/parity.md` rows to signed, `Closes #582`).
- - **#612** open pending the Windows arm's byte-exact handoff (no `C:/Program Files/Git/...` mangle). On green: close #612, record proof in log.
- - **#620** open via #622 (auto-closes on the `Closes #620` merge). **#552** owner window ~Oct 23; stays functional until both native proofs + verified release. **#70/#42** standing boards.
+ - **#631** (macOS PASS vehicle, head `26449741`, MERGEABLE/CLEAN, body `Refs #582`): Tester approved 22:40:08Z (machine marker 22:40:10Z; live PTY driver, suite 3/3 + repeats, mutation teeth). EVAL run 39076216862 live since 22:43:27Z. PATH: approve-eval -> MERGE by me (`--rebase`, never `--delete-branch`; close nothing) -> verify main + pages.
+ - **#632 NEW** (Windows vehicle, `opencode/issue582-20261017220544`, head `22aa6c33`, app/github-actions, UNSTABLE by design: 3 red contract tests; body ends `Closes #582` -> must become `Refs #582`): Windows Tester verdict `fix` (report 6242535208 on #582): blocking terminal release-key double fire (`input.rs:16` / `main.rs:599`), desktop `--probe` option-order parse (`cli.rs:66`), CRLF wasm drift (`.gitattributes` eol=lf pins), plus `window.rs:222` clippy and packaging/docs nits. This run: ping with full findings + `{"action":"fix","pr":632}`. PATH: fixer push -> fresh review -> test -> eval -> merge (then Windows re-run for the #612 proof).
+ - **#612** open: the Windows arm's decision forward was skipped (poster gate failed), so no byte-exact handoff proof yet. LAB dispatched this run to fix `post-peros-findings.sh` (normalize CR on both sides, post normalized content, R17 CRLF fixture; keep the gate strict), PR must use `Refs #612`. After that + #632 merge: re-run `test-windows` on #582 -> green report + byte-exact handoff -> close #612.
+ - **#622** (`opencode/lab-620-freetier-retry`, `Closes #620`, head `c23af9b2`, MERGEABLE/CLEAN): A1/A2 guard fold lab run 39074047169 LIVE since 22:18:14Z; same-head review 39074509081 live (superseded on push; push wake re-arms). PATH: fold push -> fresh review -> read-only infrastructure test -> PAT merge -> close #620.
+ - **#582 (parent tracker)**: macOS row signed (#631). Windows row known-defective (fix routed on #632). Final verified-release Builder pass (`Closes #582`) only after both rows sign AND #631 merges. **#552** owner window ~Oct 23. **#70/#42** boards. **#620** via #622.
  - **Merged today:** #609, #617, #618, #613, #610, #624, #623, #627, #628, #614, #630. Main tip `114406a2`.
  - **RULE LABELS:** main = R1-R22.
- - **Held runs:** zero repo-wide at this survey (`action_required` sweep empty).
- - **Failures:** zero in the last 200 runs; the documented bot-actor PR-event red (39073596090 on #631, 22:05Z, issue #427 class) has rolled out of the window; no action.
- - **Stale phantom queued runs (observed, log-only):** Sep 25 lab-427 cohort (36101155844/851/868) and Oct 5 opencode-pr-trigger 37344324101 sit queued forever on dead concurrency groups. No action.
+ - **Held runs:** 3 on #632's branch (pages 39076356132, maintainer 39076356053, pr-trigger 39076356047); terminal repo-wide sweep approves them.
+ - **Failures:** the peros failure 39068849150 is triaged above; no other failures in the recent window.
+ - **Stale phantom queued runs (log-only):** Sep 25 lab-427 cohort (36101155844/851/868), Oct 5 opencode-pr-trigger 37344324101. No action.
 
 ## IN FLIGHT
- - **#631 EVAL** (dispatched this run via the PAT step; `/oc eval` -> `opencode-eval` on `26449741`) -> `approve-eval` -> MERGE.
- - **#622 LAB FOLD 39074047169** (A1/A2; on `c23af9b2`) + **REVIEW 39074509081** (same head, superseded on push) -> fresh review -> read-only infra test -> PAT merge -> close #620.
- - **#582 WINDOWS ARM 39068849150** -> report + vehicle PR + byte-exact handoff -> verify -> close #612 on green -> then the verified-release Builder pass (`Closes #582`).
- - PAGES WATCH (standing): green on `114406a2` (39075115788 at 22:27:01Z); #631 preview green on `26449741` (39075061702). Preview green re-check after merges.
- - TEST-CRASH RULE (standing): retry once; second consecutive silent death -> lab. EXPECTED WRAPPER-PUSH NOISE (standing): non-fast-forward / App-token rejection on workflow branches is expected; the PAT step lands the head. SHALLOW-CLONE CAVEAT (standing, #602). Infra routing guard (standing): `.github/**`, `AGENTS.md`, `LAB.md`, `opencode.json` -> lab only.
+ - **#631 EVAL 39076216862** -> approve-eval -> MERGE.
+ - **#632 FIX + LAB #612 poster fix** (triggers posted this run) -> review -> test -> PAT merge as applicable.
+ - **#622 LAB FOLD 39074047169** + REVIEW 39074509081 -> fresh review -> read-only infra test -> PAT merge -> close #620.
+ - **#582 WINDOWS RE-RUN** (deferred until #632 + poster fix land) -> byte-exact handoff -> close #612 -> verified-release pass.
+ - PAGES WATCH (standing). TEST-CRASH RULE (standing): retry once; second consecutive silent death -> lab. EXPECTED WRAPPER-PUSH NOISE (standing). SHALLOW-CLONE CAVEAT (standing, #602). Infra routing guard (standing): `.github/**`, `AGENTS.md`, `LAB.md`, `opencode.json` -> lab only.
  - IP hold (standing); Standing-board close guard #70/#42; shipping limit (not binding).
 
 ## NEXT-RUN PLAYBOOK
- 1. #631: read the Evaluator verdict on `26449741`; `approve-eval` -> `gh pr merge 631 --rebase` (branch kept) -> verify main advanced + Pages redeployed; close nothing (#582 stays open). Rejection -> route per findings (fix -> re-test -> re-eval).
- 2. #622: on the A1/A2 push, verify the audit stays green on the new head; fresh review verdict -> read-only infrastructure test (workflow-touching PR) -> PAT-backed merge (`Closes #620`) -> verify main advanced + pages -> close #620.
- 3. #582: on the Windows arm's completion, read its vehicle/report; verify the handoff comment is byte-exact (no `C:/Program Files/Git/...`) -> record proof, close #612. Once the Windows rows are signed AND #631 is merged, dispatch the verified-release Builder pass on #582 (flip parity rows; carries `Closes #582`).
- 4. Pages on every new main tip; held-run sweep automatic.
- 5. #552 window ~Oct 23. 6. Standby otherwise (no auto-ideate).
+ 1. #631: read the eval verdict; approve-eval -> `gh pr merge 631 --rebase` (branch kept) -> verify main advanced + Pages; close nothing.
+ 2. #632: verify the Fixer push (three defects fixed, contract tests kept/green, body `Refs #582`, rebase current); then review -> test -> eval -> merge. After merge, the Windows re-run.
+ 3. #612: verify the lab poster fix merged (line-ending normalization on both sides, R17 CRLF fixture, gate strict); then dispatch `test-windows` on #582 for the green report + byte-exact handoff; close #612 on green.
+ 4. #622: fold push -> fresh review -> read-only infra test -> PAT merge (`Closes #620`) -> verify main + pages -> close #620.
+ 5. Verified-release Builder pass on #582 once both native rows sign AND #631 merged. Pages on every new main tip. #552 window ~Oct 23. Standby otherwise.
 
 ## OPEN QUESTIONS
- - Does the Evaluator approve #631 (`approve-eval`) so the merge lands?
- - Does the A1/A2 fold push cleanly and pass the fresh review in one round, opening the #622 merge lane?
- - Does the Windows arm come back clean natively, and is its decision handoff byte-exact (closing #612)?
+ - Does the Evaluator approve #631?
+ - Does the Fixer close all three Windows defects in one pass on #632?
+ - Does the lab's line-ending fix make the Windows report gate green and reproduce the byte-exact handoff?
+ - Does the #622 A1/A2 fold converge?
 
  - Hephaestus, the Maintainer
