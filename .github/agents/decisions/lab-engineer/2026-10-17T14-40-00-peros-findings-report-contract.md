@@ -57,8 +57,9 @@ lives in a file the workflow owns end to end.
   tail, body mismatch) exit 1; only the verified path exits 0. The same
   failure classes (wrong author, unsigned report, missing report, tampered
   body with an intact sign-off tail, failed post, missing comment id) now
-  run inside R17 itself against the real script, so the audit owns the
-  runtime behavior, not just the text form.
+  run inside R17 itself against the real script under realistic Actions env,
+  across all three OS labels, so the audit owns the runtime behavior, not
+  just the text form.
 - Restore step: sandboxed against an old head lacking the poster (restored
   from the workflow commit, exclude entry written) and a head where the
   poster is absent from both sources (fails closed).
@@ -97,21 +98,40 @@ lives in a file the workflow owns end to end.
   the post run body may contain only comments and the exact invocation, the
   forward step must carry no `continue-on-error`, and a functional test now
   executes the real poster against an executable mock `gh` (interception
-  asserted, live GitHub env scrubbed, sandbox outside the repo tree)
-  requiring fail-closed behavior on the six failure classes above. The final
-  R17 enforcement: exact uncommented `; then` guard lines; each guard's own
-  block must reach a real `exit 1` before its `fi` with no nested `if`; the
-  shared-script invocation must be the exact single line at the post step's
-  own indentation; the post step must carry the exact
-  name/id/gate/env/token sequence with no `continue-on-error`; the post-step
-  and forward gates must be exact whole lines; the arm must carry its
-  actor-gate plus post-step `github.token` envs. The final 28-case matrix
-  (M1-M11, X1-X7, Y1-Y10, Z1-Z4) trips R17 red on every case with the
-  expected sub-flag; the baseline stays 17 passed, 0 failed. V2 (the verify
-  step's final `exit 1` swapped for `exit 0`) remains a documented
+  asserted, sandbox outside the repo tree) requiring fail-closed behavior on
+  the six failure classes above. Round 4 (fresh independent agent): found 11
+  audit-green evasions, all closed. P1-P3: the poster could fingerprint the
+  scrubbed test env (`GITHUB_ACTIONS`, `MOCK_REPORT`) or the production repo
+  slug and exit 0 before posting; the functional test now runs with realistic
+  non-credential Actions env and a case.cfg-driven mock (per-case behavior is
+  read from a sandbox file, never env), and the poster is statically banned
+  from `GITHUB_ACTIONS`/`MOCK_`/production-slug references. P4: a derived
+  macOS signoff satisfied the substring grep; each OS case now must be its
+  exact literal assignment line, and the functional test covers all three OS
+  labels (13 runs). W1-W7: `run: >` folded headers (comments and invocation
+  collapse into one comment line), post-step and job-defaults `shell:`
+  overrides, a literal `TARGET`, and verify-step weakening (`if: false`,
+  `continue-on-error`, renamed id leaving the gates dangling) were all closed
+  with exact-form checks. The final R17 enforcement: exact uncommented
+  `; then` guard lines; each guard's own block must reach a real `exit 1`
+  before its `fi` with no nested `if`; the shared-script invocation must be
+  the exact single line at the post step's own indentation; the post step
+  must carry the exact name/id/gate/env/token sequence with no
+  `continue-on-error`, exactly `run: |`, no shell/working-directory override,
+  and the event's TARGET number; the post-step and forward gates must be
+  exact whole lines; arm job defaults (if present) must be exactly
+  `run: shell: bash`; the verify step must keep `id: verify-test` and
+  `if: always()` with no failure mask or shell override; the arm must carry
+  its actor-gate plus post-step `github.token` envs. The final 39-case matrix
+  (M1-M11, X1-X7, Y1-Y10, Z1-Z4, P1-P4, W1-W7) trips R17 red on every case
+  with the expected sub-flag; the baseline stays 17 passed, 0 failed. V2 (the
+  verify step's final `exit 1` swapped for `exit 0`) remains a documented
   review-gated residual boundary: the verify run body cannot be functionally
   executed statically, so arbitrary control-flow edits inside it are caught
-  by the review gate, not by this rule.
+  by the review gate, not by this rule; a poster deliberately fingerprinting
+  the sandbox path or the mock `gh` itself is likewise review-gated (path
+  detection is unbounded static territory, while env-fingerprint detection is
+  banned statically and defeated by the realistic functional env).
 - Static consistency: no stale `R1-R16` range labels remain (the Tester
   prompt and the `opencode.yml` enumeration were fixed in the review
   round); no remaining instruction to agents to post their own findings
@@ -138,6 +158,16 @@ lives in a file the workflow owns end to end.
   found three additional blind spots (gate-suffix `&& false`, guard `exit 1`
   replaced by a no-op, commented invocation) that were all closed before
   handoff.
+- Subagent 3 (general; scope: fresh adversarial verification after the Z
+  round, in isolated `/tmp` sandbox copies, read-only on the real repo):
+  baseline 17/17 and functional-test liveness confirmed (a forced bot author
+  and a `trap 'exit 0' EXIT` mutant both trip `functional-` sub-flags); found
+  11 audit-green evasions (P1-P4: env/slug fingerprinting and a derived macOS
+  signoff; W1-W7: folded `run:` header, post-step and job-defaults `shell:`
+  overrides, literal `TARGET`, verify `if: false` / `continue-on-error` /
+  renamed id) and confirmed V2 (verify run-body early `exit 0`) as the
+  accepted review-gated residual. All P/W findings were closed by the primary
+  as recorded above; the final matrix re-run trips on all of them.
 - Primary verified itself: read every changed hunk, ran the audit before and
   after the tightening, sandboxed the restore step's three paths, exercised
   the poster's failure matrix, and ran the YAML/`bash -n`/em-dash/clean-tree
@@ -145,16 +175,20 @@ lives in a file the workflow owns end to end.
 - Review-fix round (primary, this session): applied B1-B5 and N1, re-ran the
   audit on the committed tree (17 passed, 0 failed), then hardened R17
   through the independent-verifier rounds (X1-X3, then Y1/Y2/Y7-Y10, then
-  Z1-Z4) with exact-line gate assertions, an anchored fixed-indentation
-  invocation assertion, a strict post-step sequence check, a post-run-body
-  content check, a forward `continue-on-error` ban, structural guard-block
+  Z1-Z4, then P1-P4/W1-W7) with exact-line gate assertions, an anchored
+  fixed-indentation invocation assertion, a strict post-step sequence check,
+  a post-run-body content check with exact `run: |` header and shell-override
+  bans, a forward-step masking ban, unsafe job-defaults checks, verify-step
+  id/gate/mask assertions, an exact TARGET-env check, exact per-OS signoff
+  assignment lines, a poster harness-detection ban, structural guard-block
   `exit 1` checks, and an embedded functional poster test against an
-  executable mock `gh` (env scrubbed, interception asserted, sandbox outside
-  the repo), and re-ran the final 28-case mutation matrix in a `/tmp`
-  sandbox (baseline 17/17; every case trips R17 red with its expected
-  sub-flag), plus workflow YAML parse, `bash -n` on both scripts,
-  `shellcheck` on the poster, the stale-range sweep, and the no-em-dash
-  check.
+  executable mock `gh` (credential env scrubbed, realistic Actions env,
+  case.cfg-driven per-case behavior, interception asserted, sandbox outside
+  the repo) covering 13 runs across all three OS labels, and re-ran the final
+  39-case mutation matrix in a `/tmp` sandbox (baseline 17/17; every case
+  trips R17 red with its expected sub-flag), plus workflow YAML parse,
+  `bash -n` on both scripts, `shellcheck` on the poster, the stale-range
+  sweep, and the no-em-dash check.
 - Skills: no skill fits (GitHub Actions lab infrastructure and lab prompts,
   not opencode configuration of this workspace).
 
@@ -163,8 +197,12 @@ lives in a file the workflow owns end to end.
 - Review-gated residual boundary (V2): the verify step's own run body cannot
   be functionally executed statically, so an early `exit 0` inserted into it
   (or arbitrary reshuffling of a step's control flow that still passes every
-  exact-form check) is caught by the review gate, not by R17. The poster's
-  runtime semantics, by contrast, are now functionally tested inside R17.
+  exact-form check) is caught by the review gate, not by R17. A poster
+  deliberately fingerprinting the functional sandbox path or the mock `gh`
+  itself is likewise review-gated (path-based detection is unbounded static
+  territory); env-fingerprint detection is banned statically and defeated by
+  the realistic functional env. The poster's runtime semantics, by contrast,
+  are functionally tested inside R17.
 - Residual: the poster trusts the head's copy when a head already carries
   `.github/scripts/post-peros-findings.sh`; a PR that breaks that script in a
   way its own review misses will fail the arm's post step red (fail closed,
