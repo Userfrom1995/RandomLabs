@@ -2,8 +2,9 @@
 
 Binding for every worker agent (Researcher, Architect, Builder, Fixer,
 Reviewer, Tester, per-OS testers, Curator, Auditor, Evaluator, Design
-Council). This file is normative: prompts that reference it MUST follow it.
-It changes no workflow wiring and no authority boundaries.
+Council) and for the Lab Engineer. This file is normative: prompts that
+reference it MUST follow it. It changes no workflow wiring and no authority
+boundaries.
 
 ## 1. Why this exists
 
@@ -78,7 +79,31 @@ registry; this section stays normative for the rules).
    one. Shelfware (loaded but unused, or needed but unloaded) is a
    Reviewer finding only when it changed the outcome.
 
-## 6. What this protocol does not change
+## 6. Harness isolation (verification runs must fail inert)
+
+Verification harnesses (mock executables, extracted shell loops, scenario
+matrices under `/tmp`) execute inside the live runner with real credentials
+in the environment, so a dispatch mistake can mutate GitHub state at machine
+speed. On 2026-10-17 a mock `opencode` script was written without the
+executable bit; PATH search skipped the non-executable file and fell through
+to the real CLI, and a 20-iteration retry matrix ran live `opencode github
+run` commands that each posted an error comment on the trigger PR (lab run
+39024455956). A mock that fails to intercept MUST fail inert. Binding rules:
+
+1. Prove interception before the matrix: `chmod +x` every mock placed in
+   PATH (a non-executable file makes PATH search silently fall through to
+   the real binary), assert `command -v <name>` resolves to the mock path,
+   and run one probe scenario that proves the mock answered.
+2. Scrub the live GitHub context: run harnesses under
+   `env -u GITHUB_TOKEN -u GITHUB_EVENT_PATH -u GITHUB_RUN_ID -u GITHUB_REPOSITORY -u GITHUB_ACTIONS`,
+   so a mis-dispatched real binary cannot authenticate or comment.
+3. No real-binary fallback: if a scenario needs real output, capture it as
+   a fixture file; never shell out to the production binary for realism.
+4. Verify zero external side effects after every harness run (no unexpected
+   comments, reactions, pushes, or API writes) before reporting results; a
+   harness result without that check is not evidence.
+
+## 7. What this protocol does not change
 
 - Authority: only the Maintainer (and scoped co-maintainers) call other
   agents via decision files and hardcoded PAT steps. Subagents are private
