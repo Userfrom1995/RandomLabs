@@ -687,6 +687,13 @@ r15_freetier_pins() {
   [ "$(grep -cF 'one bounded retry of the same model in 15s' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(no-same-model-retry-marker)"
   [ "$(grep -cE '^[[:space:]]*continue 2$' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(rung-advance-continue2-count)"
   [ "$(grep -cE '^[[:space:]]*sleep 15$' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(no-bounded-retry-backoff)"
+  # Review round 7 corrected tripwires: anchored live-form counts, so a
+  # comment decoy quoting the pinned text can never satisfy them. The
+  # behavioral matrix carries the semantics (the failing-tee scenario and the
+  # window lower-bound fixtures plus ft-trailing), these are first-line
+  # element-presence checks.
+  [ "$(grep -cE '^[[:space:]]*if \[ "\$tee_status" -ne 0 \]; then$' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(tee-guard-decoyed-or-missing)"
+  [ "$(grep -cE '^[[:space:]]*tail -n 40 "\$1" \| grep -qE' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(detectors-not-tail-scoped-live)"
   # Loud persistence, exact-form and branch-tied: each persistent-rejection
   # branch must end in the nonzero exit matching its own message, so a
   # compensated swap (one branch's loud exit moved to the other, with the
@@ -709,10 +716,8 @@ if [ ! -f "$ACTION_FILE" ]; then
 else
   grep -qF 'bash "$script"' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(no-resolver-invocation)"
   grep -qF 'Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(no-boundary-aware-per-rung-retry)"
-  grep -qF 'if [ "$tee_status" -ne 0 ]' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(no-log-capture-failure-guard)"
   grep -qF 'model_error_terminal()' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(no-exit-0-terminal-detector)"
   grep -qF 'if model_error_terminal "$log" "$model"; then' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(exit-0-not-terminal-anchored)"
-  grep -qF 'tail -n 40 "$1" | grep -qE' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(exit-0-detector-not-tail-scoped)"
   grep -qF 'Model not found: ${2//./\\.}(\. Did you mean: .*|\.?$)' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(no-anchored-terminal-error-form)"
   grep -A1 'exhausted every model rung' "$ACTION_FILE" | grep -q 'exit 1' || r15_bad="${r15_bad} action-file(loud-exhaustion-not-exit-1)"
   # Non-blocking extraction hardening (review round F5 residual): the awk
@@ -720,6 +725,13 @@ else
   # so a duplicate compliant decoy step placed earlier could shadow a broken
   # real step. Exactly one such step must exist.
   [ "$(grep -cE '^[[:space:]]*-[[:space:]]*name: Run opencode[[:space:]]*$' "$ACTION_FILE" || true)" = "1" ] || r15_bad="${r15_bad} action-file(run-step-not-unique)"
+  # Step identity (review round 7 non-blocking hardening): a dead decoy step
+  # named like the runner and parked earlier (gated with `if: false`) must
+  # never shadow the real step. The invocation must be unique in the file, the
+  # extracted step must be unconditional (checked in r15_behavioral), and the
+  # extracted block must carry the invocation - together the extracted step is
+  # the executing one.
+  [ "$(grep -cF 'opencode github run' "$ACTION_FILE" || true)" = "1" ] || r15_bad="${r15_bad} action-file(run-invocation-not-unique)"
   r15_freetier_pins "action-file" "$ACTION_FILE"
 fi
 if [ ! -f "$MAIN_WF" ]; then
@@ -728,16 +740,15 @@ else
   grep -qF 'bash .github/actions/opencode-run/resolve-model.sh' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-resolver-invocation)"
   grep -q 'MODEL_CANDIDATES' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-candidate-chain)"
   grep -qF 'Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-boundary-aware-per-rung-retry)"
-  grep -qF 'if [ "$tee_status" -ne 0 ]' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-log-capture-failure-guard)"
   grep -qF 'model_error_terminal()' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-exit-0-terminal-detector)"
   grep -qF 'if model_error_terminal "$log" "$model"; then' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(exit-0-not-terminal-anchored)"
-  grep -qF 'tail -n 40 "$1" | grep -qE' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(exit-0-detector-not-tail-scoped)"
   grep -qF 'Model not found: ${2//./\\.}(\. Did you mean: .*|\.?$)' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-anchored-terminal-error-form)"
   grep -qF '.maintainer/decision.json' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-decision-contract-test)"
   grep -q 'id: verify_agent' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-loud-verify)"
   grep -A1 'exhausted every model rung' "$MAIN_WF" | grep -q 'exit 1' || r15_bad="${r15_bad} maintainer.yml(loud-exhaustion-not-exit-1)"
   # Same uniqueness pin as the composite: one runner step exactly.
   [ "$(grep -cE '^[[:space:]]*-[[:space:]]*name: Run Maintainer agent[[:space:]]*$' "$MAIN_WF" || true)" = "1" ] || r15_bad="${r15_bad} maintainer.yml(run-step-not-unique)"
+  [ "$(grep -cF 'opencode github run' "$MAIN_WF" || true)" = "1" ] || r15_bad="${r15_bad} maintainer.yml(run-invocation-not-unique)"
   r15_freetier_pins "maintainer.yml" "$MAIN_WF"
 fi
 # Issue #620 functional detector test: executes the REAL extracted
@@ -832,6 +843,16 @@ R15EOF
 for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40; do
   printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/mnf-window40.txt"
 done
+# Round-7 hardening (case folding): both detectors must stay case-sensitive,
+# so a transcript echo in another case can never advance the rung or consume
+# the retry. A `grep -qiE` mutation passes every other fixture; these
+# uppercase forms must not match.
+cat > "$r15_fn_dir/ft-upper.txt" <<'R15EOF'
+OPENCODE'S FREE TIER CAN ONLY BE USED FROM WITHIN OPENCODE. DOWNLOAD IT AT HTTPS://OPENCODE.AI AND KEEP BUILDING.
+R15EOF
+cat > "$r15_fn_dir/mnf-upper.txt" <<'R15EOF'
+Model not found: A-FREE. Did you mean: b-free?
+R15EOF
 r15_detector_case() {
   local got
   ( set +e; . "$1" >/dev/null 2>&1; freetier_error_terminal "$3" ) >/dev/null 2>&1
@@ -861,6 +882,7 @@ for r15_fn in "$r15_fn_dir/action.fn" "$r15_fn_dir/maint.fn"; do
   r15_detector_case "$r15_fn" 1 "$r15_fn_dir/ft-stale.txt"
   r15_detector_case "$r15_fn" 0 "$r15_fn_dir/ft-window39.txt"
   r15_detector_case "$r15_fn" 1 "$r15_fn_dir/ft-window40.txt"
+  r15_detector_case "$r15_fn" 1 "$r15_fn_dir/ft-upper.txt"
 done
 for r15_fn in "$r15_fn_dir/action-mnf.fn" "$r15_fn_dir/maint-mnf.fn"; do
   if [ ! -s "$r15_fn" ]; then
@@ -875,6 +897,7 @@ for r15_fn in "$r15_fn_dir/action-mnf.fn" "$r15_fn_dir/maint-mnf.fn"; do
   r15_mnf_detector_case "$r15_fn" 1 "$r15_fn_dir/mnf-dot-lookalike.txt" "opencode/deepseek-v4.1-flash-free"
   r15_mnf_detector_case "$r15_fn" 0 "$r15_fn_dir/mnf-window39.txt"
   r15_mnf_detector_case "$r15_fn" 1 "$r15_fn_dir/mnf-window40.txt"
+  r15_mnf_detector_case "$r15_fn" 1 "$r15_fn_dir/mnf-upper.txt"
 done
 rm -rf "$r15_fn_dir"
 # Issue #620 loop-level behavioral test (review F5): static pins and a
@@ -894,11 +917,19 @@ rm -rf "$r15_fn_dir"
 # missing harness binary fails closed, never skips. The extracted block is
 # the real workflow body; its single Actions expression (the workflow_run
 # guard) is substituted with `schedule`, matching the non-workflow_run arm.
+# Round-7 hardening: the extracted step must be the executing one (no `if:`
+# gate in its header, a unique `opencode github run` invocation in the file,
+# and that invocation present in the extracted block), the mock sleep records
+# start/end timestamps and the matrix asserts the next attempt started after
+# the backoff actually completed (a backgrounded sleep cannot pass), and the
+# fixtures and scenarios stay case-sensitive and three-rung deep enough that
+# a case fold or a later-rung budget gate is observable.
 r15_timeout_bin=$(command -v timeout 2>/dev/null || true)
 r15_env_bin=$(command -v env 2>/dev/null || true)
 r15_bash_bin=$(command -v bash 2>/dev/null || true)
-if [ -z "$r15_timeout_bin" ] || [ -z "$r15_env_bin" ] || [ -z "$r15_bash_bin" ]; then
-  r15_bad="${r15_bad} behavioral-harness(missing-timeout-env-or-bash)"
+r15_sleep_bin=$(command -v sleep 2>/dev/null || true)
+if [ -z "$r15_timeout_bin" ] || [ -z "$r15_env_bin" ] || [ -z "$r15_bash_bin" ] || [ -z "$r15_sleep_bin" ]; then
+  r15_bad="${r15_bad} behavioral-harness(missing-timeout-env-bash-or-sleep)"
 fi
 r15_extract_block() {
   awk -v step="$2" '
@@ -921,9 +952,26 @@ r15_behavioral() {
   mkdir -p "$sbx/bin" "$sbx/home" "$sbx/tmp"
   : > "$attempts"; : > "$sleeps"; : > "$out"
   r15_extract_block "$file" "$step_re" > "$block" 2>/dev/null || true
+  # Step identity (review round 7 non-blocking hardening): the extracted step
+  # must be the executing one. Its header (name line through the run line) may
+  # carry no `if:` gate, and its block must carry the unique runner
+  # invocation, so a dead decoy step parked earlier (e.g. with `if: false`)
+  # can neither shadow a broken real step nor itself be extracted while
+  # skipped.
+  r15_hdr=$(awk -v step="$step_re" '
+    $0 ~ step { in_step=1 }
+    in_step && /^[[:space:]]*run: \|[[:space:]]*$/ { exit }
+    in_step { print }
+  ' "$file" 2>/dev/null || true)
+  if printf '%s\n' "$r15_hdr" | grep -qE '^[[:space:]]*if:'; then
+    r15_bad="${r15_bad} behavioral(${label},run-step-conditional)"
+    rm -rf "$sbx"
+    return
+  fi
   if [ ! -s "$block" ] \
      || ! bash -n "$block" 2>/dev/null \
      || ! grep -qF 'freetier_error_terminal() {' "$block" \
+     || ! grep -qF 'opencode github run' "$block" \
      || [ "$(grep -vE '^[[:space:]]*$' "$block" | tail -n 1 | grep -cE '^[[:space:]]*exit 1$' || true)" != "1" ]; then
     r15_bad="${r15_bad} behavioral(${label},extract-or-shape)"
     rm -rf "$sbx"
@@ -934,7 +982,10 @@ r15_behavioral() {
 # Scenario-driven mock for the R15 loop-level behavioral test: records each
 # invocation and answers per attempt from $R15_SCENARIO.
 n=$(wc -l < "$R15_ATTEMPTS" 2>/dev/null); n=$(( ${n:-0} + 1 ))
-echo "model=${MODEL:-}" >> "$R15_ATTEMPTS"
+# The start timestamp lets the harness prove the bounded backoff was actually
+# waited before the next attempt (a backgrounded `sleep 15 &` starts the next
+# attempt before the mock sleep's recorded end).
+echo "model=${MODEL:-} $(date +%s%N)" >> "$R15_ATTEMPTS"
 ft="OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building."
 case "${R15_SCENARIO}:${n}" in
   probe:*) echo "probe ok"; exit 0 ;;
@@ -967,21 +1018,34 @@ case "${R15_SCENARIO}:${n}" in
   mnf-then-ft0:1) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 0 ;;
   mnf-then-ft0:2) echo "APIError: ${ft}"; exit 0 ;;
   mnf-then-ft0:*) echo "healthy success"; exit 0 ;;
+  deep-grant:1) echo "APIError: ${ft}"; exit 0 ;;
+  deep-grant:2) echo "Model not found: ${MODEL}. Did you mean: next-free?"; exit 0 ;;
+  deep-grant:3) echo "Model not found: ${MODEL}. Did you mean: next-free?"; exit 0 ;;
+  deep-grant:*) echo "APIError: ${ft}"; exit 0 ;;
+  deep-advance:1) echo "Model not found: ${MODEL}. Did you mean: next-free?"; exit 0 ;;
+  deep-advance:2) echo "Model not found: ${MODEL}. Did you mean: next-free?"; exit 0 ;;
+  deep-advance:3) echo "APIError: ${ft}"; exit 0 ;;
+  deep-advance:*) echo "APIError: ${ft}"; exit 0 ;;
   unclassified:*) echo "some unrelated provider failure"; exit 5 ;;
   unclassified9:*) echo "some unrelated provider failure"; exit 9 ;;
 esac
 echo "unhandled R15 scenario ${R15_SCENARIO} attempt ${n}" >&2
 exit 9
 R15MOCK
-  cat > "$sbx/bin/sleep" <<'R15SLEEP'
-#!/bin/bash
-# Instant mock sleep: records the backoff so the test can assert it happened
-# (and keeps the 15s wait from slowing the audit).
-echo "sleep ${1:-}" >> "$R15_SLEEPS"
-exit 0
-R15SLEEP
+  {
+    echo '#!/bin/bash'
+    echo '# Mock sleep: records the requested backoff, blocks for a small real interval'
+    echo '# through the real sleep baked in at generation time, then records its end'
+    echo '# timestamp. The harness asserts that the final attempt started at or after'
+    echo '# that end, so a backgrounded (`sleep 15 &`), reordered, or removed wait'
+    echo '# cannot pass while a decoy holds the static count.'
+    echo 'echo "sleep ${1:-} $(date +%s%N)" >> "$R15_SLEEPS"'
+    printf '%s 0.2\n' "$r15_sleep_bin"
+    echo 'echo "end $(date +%s%N)" >> "$R15_SLEEPS"'
+    echo 'exit 0'
+  } > "$sbx/bin/sleep"
   chmod +x "$sbx/bin/opencode" "$sbx/bin/sleep"
-  for tool in mktemp tee grep rm tail sed tr wc; do
+  for tool in mktemp tee grep rm tail sed tr wc date; do
     p=$(command -v "$tool" 2>/dev/null || true)
     [ -n "$p" ] && ln -sf "$p" "$sbx/bin/$tool"
   done
@@ -1024,7 +1088,7 @@ R15TEE
     if [ "$tee_swap" = "1" ]; then
       ln -sf "$(command -v tee)" "$sbx/bin/tee"
     fi
-    r15_last_models=$(sed -n 's/^model=//p' "$attempts" | tr '\n' ' ')
+    r15_last_models=$(sed -n 's/^model=\([^ ]*\).*/\1/p' "$attempts" | tr '\n' ' ')
     r15_last_models="${r15_last_models% }"
   }
   r15_behavioral_run probe
@@ -1042,13 +1106,23 @@ R15TEE
       r15_bad="${r15_bad} behavioral(${label},${scenario}:missing-output)"
     fi
     # Round-F6: the backoff itself is asserted, not just the presence of any
-    # sleep recording: exactly one mock sleep, and its value must be the
-    # bounded `sleep 15`. A decoy/unreachable `sleep 15` holding the static
-    # count while the live wait becomes `sleep 31536000` (or vice versa) fails
-    # here, and a dead or missing sleep fails the line count.
+    # sleep recording: exactly one mock sleep, its value must be the bounded
+    # `sleep 15`, and (review round 7 non-blocking hardening) the final
+    # attempt must have started at or after that sleep's recorded end. A
+    # decoy/unreachable `sleep 15` holding the static count while the live
+    # wait becomes `sleep 31536000` fails on the value, and a backgrounded
+    # (`sleep 15 &`), reordered, or removed wait fails on the ordering, even
+    # though it records the right value.
     if [ "$want_sleeps" = "1" ]; then
-      if [ "$(wc -l < "$sleeps" 2>/dev/null || true)" != "1" ] || ! grep -qx 'sleep 15' "$sleeps"; then
+      if [ "$(grep -cE '^sleep 15 ' "$sleeps" 2>/dev/null || true)" != "1" ] \
+         || [ "$(grep -cE '^end ' "$sleeps" 2>/dev/null || true)" != "1" ]; then
         r15_bad="${r15_bad} behavioral(${label},${scenario}:bad-backoff)"
+      else
+        r15_sleep_end=$(sed -n 's/^end //p' "$sleeps" 2>/dev/null || true)
+        r15_last_ts=$(sed -n 's/^model=[^ ]* //p' "$attempts" 2>/dev/null | tail -n 1)
+        if [ -z "$r15_sleep_end" ] || [ -z "$r15_last_ts" ] || [ "$r15_last_ts" -lt "$r15_sleep_end" ]; then
+          r15_bad="${r15_bad} behavioral(${label},${scenario}:backoff-not-waited)"
+        fi
       fi
     fi
   }
@@ -1066,6 +1140,14 @@ R15TEE
   r15_behavioral_case mnf-dot-lookalike 4 "opencode/deepseek-v4.1-flash-free" "" 0 "opencode/deepseek-v4.1-flash-free opencode/glm-5.3-flash-free"
   r15_behavioral_case mnf-then-ft 0 "a-free b-free b-free" "" 1
   r15_behavioral_case mnf-then-ft0 0 "a-free b-free b-free" "" 1
+  # Round-7 hardening (per-rung budget gating): a grant or theft of the
+  # free-tier budget gated on a later rung is invisible to a two-rung matrix.
+  # deep-grant consumes the budget on rung 1, advances to rung 3, and must
+  # report the rung-3 rejection as persistent without a second retry;
+  # deep-advance reaches rung 3 with the budget unused and must still spend
+  # exactly one same-model retry there.
+  r15_behavioral_case deep-grant 1 "a-free a-free b-free c-free" "persistent free-tier rejection" 1 "a-free b-free c-free"
+  r15_behavioral_case deep-advance 1 "a-free b-free c-free c-free" "persistent free-tier rejection" 1 "a-free b-free c-free"
   r15_behavioral_case echo-envelope 0 "a-free" "" 0
   r15_behavioral_case ft-echo-suffix 0 "a-free" "" 0
   r15_behavioral_case ft-stale 0 "a-free" "" 0
@@ -1076,7 +1158,7 @@ R15TEE
   r15_behavioral_case unclassified9 9 "a-free" "" 0
   rm -rf "$sbx"
 }
-if [ -n "$r15_timeout_bin" ] && [ -n "$r15_env_bin" ] && [ -n "$r15_bash_bin" ]; then
+if [ -n "$r15_timeout_bin" ] && [ -n "$r15_env_bin" ] && [ -n "$r15_bash_bin" ] && [ -n "$r15_sleep_bin" ]; then
   r15_behavioral action-file "$ACTION_FILE" '^[[:space:]]*-[[:space:]]*name: Run opencode[[:space:]]*$'
   r15_behavioral maintainer.yml "$MAIN_WF" '^[[:space:]]*-[[:space:]]*name: Run Maintainer agent[[:space:]]*$'
 fi
@@ -1090,9 +1172,9 @@ else
   grep -A2 'General agent step finished' "$OPENCODE_WF" | grep -q 'exit 1' || r15_bad="${r15_bad} opencode.yml(general-verify-not-exit-1)"
 fi
 if [ -z "$r15_bad" ]; then
-  check "R15" "model resilience wired: live-registry resolver + free-tier ladder rungs + boundary-aware per-rung retry with exit-0 terminal anchoring, a log-capture guard, loud exhaustion, and the bounded transient FreeTierError same-model retry (anchored detector, cap 1, loud persistent failure) in the shared runner and the maintainer inline path, with loud-failure verify steps on the Maintainer and general arm, all enforced behaviorally: the extracted detectors are executed functionally (terminal match; echo/envelope/suffix/stale/superset no-match; dotted-id match with the dot-lookalike no-match; the tail window's lower-bound pair, 39 trailing lines must match and 40 must not), and both real runner run-blocks are executed loop-level against an executable mock opencode + mock sleep (transient recovery on both exit shapes with the exact bounded backoff asserted, exactly one same-model retry, persistent loudness after two attempts with the provider's own distinct statuses propagated, rung advance preserved without consuming the free-tier budget, post-loop exhaustion reached and loud, budget shared across rungs, echo/suffix/stale non-match, a terminal line with trailing healthy lines still retrying, superset-id non-match, a dotted-candidate dot-lookalike nonzero line not advancing the rung, a failing log capture failing loudly, unclassified propagation, per-scenario timeout) (issues #591, #620)" "ok"
+  check "R15" "model resilience wired: live-registry resolver + free-tier ladder rungs + boundary-aware per-rung retry with exit-0 terminal anchoring, a log-capture guard, loud exhaustion, and the bounded transient FreeTierError same-model retry (anchored detector, cap 1, loud persistent failure) in the shared runner and the maintainer inline path, with loud-failure verify steps on the Maintainer and general arm, all enforced behaviorally: the extracted detectors are executed functionally (terminal match; echo/envelope/suffix/stale/superset no-match; dotted-id match with the dot-lookalike no-match; case-sensitive forms, so an uppercase id line never matches; the tail window's lower-bound pair, 39 trailing lines must match and 40 must not), and both real runner run-blocks are executed loop-level against an executable mock opencode + mock sleep (transient recovery on both exit shapes with the exact bounded backoff asserted and its wait ordering proven, exactly one same-model retry, persistent loudness after two attempts with the provider's own distinct statuses propagated, rung advance preserved without consuming the free-tier budget, post-loop exhaustion reached and loud, the budget shared across three rungs with a rung-gated grant or theft caught, echo/suffix/stale non-match, a terminal line with trailing healthy lines still retrying, superset-id non-match, a dotted-candidate dot-lookalike nonzero line not advancing the rung, a failing log capture failing loudly, unclassified propagation, per-scenario timeout, and the extracted runner step proven the unique executing one: no if: gate, unique invocation in the file, invocation present in the extracted block) (issues #591, #620)" "ok"
 else
-  check "R15" "model resilience guard missing:${r15_bad} (issues #591/#620: one retired pin kills every arm at once, Model-not-found deaths conclude green, a transient free-tier rejection kills a gate with no bounded retry, or the retry loops unboundedly / concludes silently green / silently blind-advances past a failed log capture / misses a rejection inside its tail window / advances on a lookalike id)" "bad"
+  check "R15" "model resilience guard missing:${r15_bad} (issues #591/#620: one retired pin kills every arm at once, Model-not-found deaths conclude green, a transient free-tier rejection kills a gate with no bounded retry, or the retry loops unboundedly / concludes silently green / silently blind-advances past a failed log capture / misses a rejection inside its tail window / advances on a lookalike id / matches a terminal form in the wrong case / records a backoff it never waited / runs a conditional or shadowed runner step)" "bad"
 fi
 
 # [R16] Shallow-workspace PAT merge guard (issue #602): the PAT-backed merge
