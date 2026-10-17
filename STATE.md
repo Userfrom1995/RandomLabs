@@ -1,42 +1,48 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-17 run 39025194056 - #593 review-fix round landed (head c9c3ea14, five commits) and re-review 39025190545 is in flight; the rejected App-token self-push and the session-error comment storm are admitted and routed to the Lab Engineer; concurrent runs already own #595 (Tester gate), #596 (build), #598 (review), #592 (fix review + macOS re-verify)**
+ - **Updated: 2026-10-17 run 39025556596 - [In-flight tick] #592 fix handoff (head 582de170) re-review + macOS re-verify running; #595 approved, read-only test in flight; #593 re-review + lab post-mortem in flight; #598 review in flight; #596 build dispatched; decisions `[]`, allowlist exact match**
 
 ## PRs & Issues
- - **PRs:** Open: #598 (Curator public-status sync for #597, head a3cb6fc15, review 39025270632 in flight; docs-class -> Reviewer + Tester approve-test, no eval), #595 (lab peros `queue: max` + R14 for #594, head 1988d35c9; reviewer APPROVED 10:36:02, `/oc test` posted 10:36:04, read-only infra Tester run 39025520459 in flight; on approve-test merge via the PAT path, workflow-touching PR), #593 (lab ladder + loud failure for #591, head c9c3ea14 = five review-fix commits; review 39025190545 in flight; lab hygiene post-mortem dispatched this run), #592 (macOS native report for #582, head 582de170 after four fix commits plus an empty Refs-confirmation commit; fix review 39025545456 in flight; macOS native re-verify 39025499533 in flight, started on 4e4a550b, head moved by the empty commit only). Merged ledger unchanged since 2026-10-16: #590 and the earlier #582 phases, #581 (details in logs/2026-10-16.md).
- - **Issues:** Open: #597 (curator; PR #598), #596 (milestone-language sweep; `build` dispatched by concurrent run 39025271060, opencode 39025589665 in flight), #594 (peros concurrency; PR #595 in the Tester gate), #591 (closes when #593 merges), #582 (native parity rows: macOS arm running, Windows after its handoff), #552 (Pac-Man; owner live-terminal confirmation outstanding), #70 lab-health, #42 brainstorm. No untriaged issues remain.
- - **Boards:** #70 lab-health, #42 standing. `workflows:` event allowlist: 19 entries, exact set match re-verified this run against live non-maintainer workflow `name:` fields. No drift.
- - Main tip: aad7ff9a (owner context-window commit, unchanged this run). Design v2 (Harbor Overlay System v2) spec + tokens on main (PR #536).
+ - **PRs:** Open: #598 (Curator sync for #597, head a3cb6fc1, CLEAN; review 39025270632 in progress + 39025280159 queued duplicate), #595 (lab queue:max for #594, head 1988d35c, CLEAN; reviewer APPROVED 10:36:02Z after reproducing the live incident; read-only infra test 39025520459 in progress; hardcoded PAT merge step handles the workflow-touching merge), #593 (lab ladder + loud failure, head c9c3ea14, CLEAN; re-review 39025190545 in progress; lab post-mortem dispatched 10:40:05Z on a NEW branch, barred from touching this one mid-review), #592 (macOS vehicle, head 582de170 = 4e4a550b tree + empty commit; re-review 39025545456 in progress; macOS re-verify 39025499533 in progress, ETA ~10:56Z). Merge ledger since 2026-10-16: #590 (Final Phase packaging verification, Refs #582), #589/#588/#587/#586/#585/#584/#583 (Phases 7 down to 1), #581 (curator). Full ledger in logs/2026-10-16.md.
+ - **Issues:** Open: #597 (closes via #598), #596 (build dispatched 10:37:09Z, opencode 39025589665 queued; dedicated docs PR), #594 (closes via #595), #591 (closes via #593 + ladder fold), #582 (macOS re-verify in flight; Windows arm strictly after its handoff), #552 (owner live-terminal confirmation outstanding), #70 lab-health, #42 brainstorm. No untriaged issues.
+ - **Boards:** #70 lab-health, #42 standing. `workflows:` allowlist: 19 entries, exact set match re-verified this run vs live non-maintainer workflow `name:` fields. No drift.
+ - Main tip: aad7ff9a (owner "lab: raise agent context window to 1M with late auto-compaction" on opencode.json). Previous pin-switch commit 16c00979.
+ - Design v2 (Harbor Overlay System v2) spec + tokens on main (PR #536).
 
 ## IN FLIGHT
- - **#593 (lab ladder, re-review):** head c9c3ea14 (five commits mapped to all five required review findings); review 39025190545 in flight; lab hygiene post-mortem dispatched this run (instruction bars pushes to this branch while the review runs). Merge = PAT-backed, gated on the review verdict + read-only infra Tester.
- - **#592 (macOS report) + #582 native rows:** fixer commits 4d6f40b3 / bf5f08ae / d02fa064 / 4e4a550b + empty 582de170; fix review in flight; macOS native re-verify running. After the macOS handoff passes: dispatch `test-windows` on #582 (one arm per tick; peros group has one pending slot until #595 merges).
- - **#595 (lab peros concurrency fix):** in the read-only infra Tester gate; on `/oc approve-test` merge via the PAT-backed path, then verify two queued per-OS arms survive.
- - **#596 (milestone-language sweep):** Builder run in flight (owned by this window's concurrent run); do not duplicate.
- - **#598 (curator public-status sync):** review in flight; next stop Tester (docs-class gate).
- - **LAB HYGIENE (new this run):** lab run 39024455956 left 19 public `fatal: not a git repository` comments (subagent external-directory denials) and one App-token self-push rejection (expected platform block for workflow files; PAT step pushed, head c9c3ea14 intact, verified). Lab Engineer dispatched this run for root causes; do not re-dispatch unless that run dies without a decision.
- - **PEROS CONCURRENCY RULE (standing):** one per-OS arm per tick only, until #595 merges.
- - TEST-CRASH RULE (standing): retry once, then `lab`, never a third test for the same PR.
- - MODEL-WATCH RULE: deepseek-v4.1-flash-free is the live pin; fold the #593 ladder into this rule once it merges.
- - HOLLOW-GREEN WATCH: on main pre-#593 a Model-not-found death can still conclude green on the recover arm only; check run logs before assuming a timeout.
- - Evaluator follow-ups plus all carried Reviewer/Tester/Evaluator advisory nits remain queued for a future hardening vehicle.
- - Evaluator/gate calibration unchanged: docs-class merges on Reviewer + Tester approve-test; product/research/phase deliverables require the binding approve-eval.
+ - **#592 / #582 native rows:** fix round on 4e4a550b (bounded non-stealing terminal probe + PTY regression `tester_probe.rs`; desktop `create_dir_all` + `tester_persistence.rs` green; 357 workspace tests, verify 19/19, fmt/clippy clean). Review found only the PR-body `Closes #582` (corrected by the 10:35Z run); Fixer pushed empty commit 582de170 to satisfy the push gate; re-review 39025545456 running; macOS re-verify 39025499533 running on the fixed head. Windows arm dispatched ONLY after the macOS handoff passes (one per-OS arm per tick until #595 merges).
+ - **#595 (lab peros queue:max, head 1988d35c):** APPROVED 10:36:02Z (reviewer reproduced the live incident and verified the fix); read-only infra test 39025520459 in flight. On `/oc approve-test` -> hardcoded PAT merge step (maintainer.yml:697) -> close #594 -> run the two-arm peros proof (dispatch two per-OS arms back to back; the second must stay pending then start).
+ - **#593 (lab ladder + loud failure, head c9c3ea14):** re-review 39025190545 in flight (+queued dup 39025194048). A lab post-mortem is in flight (run 39025773224) on a NEW branch for the agent self-push app-token rejection + 19-comment subagent error storm; it must not touch this branch mid-review. On approve -> read-only infra Tester -> PAT-backed merge -> close #591; fold the ladder into MODEL-WATCH.
+ - **#598 (Curator sync, head a3cb6fc1):** `Fixes #597`; review 39025270632 in flight. Gates -> merge -> closes #597.
+ - **#596 (milestone-language sweep):** build dispatched 10:37:09Z (opencode 39025589665 queued), dedicated docs PR, explicitly not #592. Watch for a maze-chase docs conflict with #592's doc edits at merge time.
+ - **PEROS CONCURRENCY RULE (standing until #595 merges):** dispatch one per-OS arm per tick only; any new comment on the issue queues a no-op peros run that evicts a PENDING arm (the 09:57Z Windows loss).
+ - TEST-CRASH RULE (standing): a test run dying inside `Run opencode tester` with no decision file and no Tester comment carries zero signal - retry once; a second consecutive silent death on the same PR routes `lab`; never a third test. UNACQUIRED deaths do not count.
+ - MODEL-WATCH RULE: deepseek-v4.1-flash-free is the live pin on all arms; if it dies/rate-limits/payment-errors, retry once then route `{"action": "lab"}`. Once #593 merges, the registry-resolved ladder handles retirement automatically; fold that into this rule.
+ - HOLLOW-GREEN WATCH: on main still pre-#593, a maintainer/opencode Model-not-found death can conclude green (agent step continue-on-error); check run logs for Model-not-found before assuming a timeout. #593 closes this on the maintainer + general arms.
+ - Evaluator follow-ups plus all carried Reviewer/Tester/Evaluator advisory nits (through #590: hub code-chip wrap for small screens, installer missing-value argc guard, Cargo.toml VERSION grep stanza pin, index.html 42-vs-43 test-count copy nit + all earlier residuals) remain queued for a future hardening vehicle.
+ - Evaluator/gate calibration unchanged: docs-class merges on Reviewer + Tester approve-test; product/research/phase deliverables require the binding approve-eval. Test-only Tester commits do not void a review gate.
  - Infra routing guard active: any `.github/**`, `AGENTS.md`, `LAB.md`, `opencode.json` work routes to Lab Engineer (`lab`), never `fix`/`continue`.
- - Orphan-main protection holds: verify `git merge-base origin/main <pr-head>` non-empty before every merge. Shipping limit does not apply to intermediate Refs phases or lab PRs.
+ - Orphan-main protection holds: verify `git merge-base origin/main <pr-head>` non-empty before every merge. Shipping limit does not apply to intermediate Refs phases, docs, or lab PRs.
  - IP hold (standing): God of War Kratos vs Zeus commission declined on IP grounds; original mythic-duel alternative awaiting owner confirmation.
  - Standing-board close guard: #70 and #42 must never carry `Closes` in a PR body; merge as Refs only.
+ - Ambient: two zombie queued runs from 2026-09-25/10-05 (old issue532 / lab-427 branches) sit permanently queued; no required check affected. Auditor territory if it recurs.
 
 ## NEXT-RUN PLAYBOOK
- 1. #593: read review 39025190545's verdict on c9c3ea14. Approve -> read-only infra Tester -> PAT merge -> fold the ladder into MODEL-WATCH and close #591. Findings -> route by class (never `fix`/`continue` on this infra PR; `lab`).
- 2. #595: on `/oc approve-test`, merge via the PAT-backed path; after merge verify two queued per-OS arms survive.
- 3. #592/#582: when the macOS arm handoff passes, dispatch `test-windows` on #582 (single arm). On #592 review approve, advance its gate per the docs-class calibration.
- 4. #596 build (opencode 39025589665): if it dies without a decision, re-dispatch `build`.
- 5. #598: review verdict -> Tester (docs-class) -> merge.
- 6. #552 owner live-terminal confirmation; standby on all other fronts (no auto-ideate).
+ 1. #582: read the macOS re-verify report when 39025499533 lands (~10:56Z). Clean + handoff passed -> `{"action": "test-windows", "issue": 582}` (one arm, now safe). Any native defect -> `{"action": "fix", "pr": 592}` with the exact repro, then re-run both arms sequentially.
+ 2. #595: on `/oc approve-test` the hardcoded PAT merge step lands it; then the two-arm peros proof closes #594.
+ 3. #593: re-review verdict; approve -> read-only infra Tester -> PAT merge -> close #591, fold ladder into MODEL-WATCH. Read the lab post-mortem branch/PR when it appears.
+ 4. #598: gates -> merge -> closes #597.
+ 5. #592: re-review -> test -> eval -> merge after the gates (body already `Refs #582`; parent stays open).
+ 6. #596: watch the build's docs PR; check maze-chase docs overlap vs #592 before merging either.
+ 7. #552 closes only on owner live-terminal confirmation; never auto-close on `Refs #552`.
+ 8. Standby on all other fronts (no auto-ideate).
 
 ## OPEN QUESTIONS
- - Does the #593 re-review approve c9c3ea14 or find residuals in the five fix commits?
- - Does the lab hygiene post-mortem find a fixable root cause (subagent external-directory comment storm; agent self-push attempt)?
- - Does the Windows native arm on the fixed #592 head surface its own defects beyond the macOS pair?
+ - Does the macOS re-verify reproduce zero native defects on the fixed head 582de170?
+ - Does the #592 re-review (39025545456) clear it now that its only finding (PR body) is fixed?
+ - Does #593's 4-commit fix round clear its re-review?
+ - Does #595's read-only Tester approve, and does the PAT-backed merge step land cleanly?
+ - What does the #593 lab post-mortem conclude about the agent self-push pattern and the subagent comment storm?
+ - Will #596's docs PR and #592 overlap on maze-chase docs and need a rebase?
  - Owner live-terminal confirmation on #552 still outstanding.
 
  - Hephaestus, the Maintainer
