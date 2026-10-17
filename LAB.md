@@ -413,7 +413,7 @@ a newer event replaces a stale one (see AGENTS.md, Queued Execution).
 
 Project CI (separate from lab infrastructure): `tor-cli.yml`,
 `poolduel-m1.yml`, `poolduel-m2.yml`, `poolduel-m9.yml`,
-`poolduel-m10-soak.yml`, `postformer-cpu-train.yml`.
+`poolduel-m10-soak.yml`, `postformer-cpu-train.yml`, `pet-release.yml`.
 
 `idea.yml` was deleted (superseded by the Maintainer-dispatched Ideator; also
 removed the PAT that used to sit in the ideation agent's env).
@@ -428,6 +428,25 @@ agent). The upstream version
 step could abort a whole run in under 130 ms on an anonymous rate limit, before
 the agent ever started (issue #422), so the third-party `@latest` reference is
 gone from every workflow.
+
+Provider model retirement is no longer a lab-wide single point of failure
+(issue #591). `.github/actions/opencode-run/resolve-model.sh` resolves the
+requested pin against `https://opencode.ai/zen/v1/models` before every agent
+run: a live pin leads with the live free-tier rungs of `model-ladder.txt`
+(same directory) behind it, and a retired pin is substituted by the first
+live rung (the registry response is parsed defensively and can never inject
+shell text; an unreachable registry degrades to pass-through, never to a
+blocked run). At runtime the shared runner retries the next rung once per
+rung on a provider `Model not found` (opencode may exit nonzero or exit 0
+after posting its error comment), and a fully dead ladder fails the step
+nonzero instead of the 2026-10-17 hollow green, so the existing crash-parity
+verify steps (auto-retry, then `/oc maintainer`) decide what happens next.
+`maintainer.yml` inlines the same resolver and per-rung retry - its dead pin
+used to be exactly the arm that would otherwise have repaired the outage -
+and a verify step goes red whenever the Maintainer agent ends without
+`.maintainer/decision.json`; the general arm carries the same loud-failure
+verify step. Audit rule R14 regression-guards the resolver, the ladder
+rungs, and both retry paths.
 
 The schedule arms (`curator.yml`, `auditor.yml`) and the dispatched arms
 (`curator.yml`, `auditor.yml`, `ideate.yml`, `lab.yml`) share
@@ -473,7 +492,7 @@ ideas/YYYY-MM-DD-<name>-<what>.md   build writeups
 docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
-.github/actions/               the vendored opencode runner (composite action, issue #422)
+.github/actions/               the vendored opencode runner (composite action, issue #422) + the model fallback ladder (resolve-model.sh, model-ladder.txt, issue #591)
 .github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R14), CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
@@ -586,6 +605,16 @@ catches up in seconds.
   unnoticed. Dispatch inputs reach PAT-backed shell steps only as env data,
   and a crashed lab run never strips or pushes its branch. These rules are
   statically enforced by R8-R11 in
+  `.github/scripts/silent-stall-audit.sh`.
+- A provider-side model retirement cannot halt the lab (issue #591): every
+  arm resolves its pin against the live registry and walks the ordered
+  free-tier ladder in `.github/actions/opencode-run/model-ladder.txt` (one
+  retry per rung), so one retired model pin no longer kills every arm at
+  once. A Model-not-found death now fails the step loudly (the Maintainer
+  and the general arm have explicit loud-failure verify steps) instead of
+  concluding green without triage, and a fully dead ladder escalates through
+  the standard crash-parity paths. The resolver, the ladder, and both retry
+  paths are statically enforced by R14 in
   `.github/scripts/silent-stall-audit.sh`.
 - The Maintainer cannot land infra/model/workflow changes herself: routine
   changes route to the Lab Engineer (`{"action":"lab"}`), and the direct-to-main
