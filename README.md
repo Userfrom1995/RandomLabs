@@ -54,7 +54,7 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 Active projects are software or research builds currently in progress under open tracking issues (meta tasks such as lab health audits or workflow maintenance are not listed here):
 
 - **Pac-Man Terminal Arcade (`pacman/`)** (Tracking Issue: [#552](https://github.com/Userfrom1995/RandomLabs/issues/552)) - Complete terminal arcade game: original maze with tunnel and ghost house, deterministic headless engine with replay hashes, layered Kitty/Sixel/Unicode renderer (phased build in progress). [Website](https://userfrom1995.github.io/RandomLabs/pacman/) · [README](pacman/README.md)
-- **Maze Chase Rust (`maze-chase/`)** (Tracking Issue: [#582](https://github.com/Userfrom1995/RandomLabs/issues/582)) - Original maze-chase game in Rust: one deterministic 120 Hz engine with terminal, desktop, and browser layers (Phase 2 engine core done and verified headless; personalities, assets, and layers planned). [Website](https://userfrom1995.github.io/RandomLabs/maze-chase/) · [README](maze-chase/README.md)
+- **Maze Chase Rust (`maze-chase/`)** (Tracking Issue: [#582](https://github.com/Userfrom1995/RandomLabs/issues/582)) - Original maze-chase game in Rust: one deterministic 120 Hz engine shared by terminal, desktop, and browser layers, all three now playable (terminal fullscreen with Kitty/Sixel/Unicode tiers, desktop windowed/fullscreen with gamepad and per-OS packaging, browser WebAssembly with keyboard, swipe, and WebAudio), now in cross-platform release verification. [Website](https://userfrom1995.github.io/RandomLabs/maze-chase/) · [README](maze-chase/README.md)
 
 ## Previous Projects (Latest 10)
 
