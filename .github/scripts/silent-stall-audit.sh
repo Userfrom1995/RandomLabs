@@ -7,8 +7,9 @@
 # (issue #422), the R10 PAT-step input-indirection guard, the R11
 # post-agent PAT gate guard (both issue #422 residual hardening), the
 # R12 actor-write gate guard (issue #428), the R13 bot-created triage
-# parity guard (issue #450), the R14 per-OS arm queue-preservation guard
-# (issue #594), and the R15 model fallback ladder guard (issue #591:
+# parity guard (issue #450), the R14 heterogeneous-group queue-preservation
+# guard (per-OS arms issue #594 plus the whole comment-triggered cohort issue
+# #601), and the R15 model fallback ladder guard (issue #591:
 # provider model retirement / loud Model-not-found failure).
 # Wired into auditor.yml as the R1-R15 matrix.
 #
@@ -16,7 +17,8 @@
 # R1-R6 are scoped to <path-to-opencode.yml>; R7-R15 audit the whole tree
 # (the review-restore guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
-# shared actor-write gate, the per-OS arm queue, and the model fallback
+# shared actor-write gate, the per-OS arm queue plus the comment-triggered
+# group cohort, and the model fallback
 # ladder), so they trip on a bad
 # curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml no matter which
 # file the audit was pointed at.
@@ -419,29 +421,41 @@ else
   check "R13" "bot-created triage parity missing:${r13_bad} (issue #450: a bot-created issue idles with no opened event until a human pings it)" "bad"
 fi
 
-# [R14] Per-OS arm queue preservation (issue #594): opencode-peros-test.yml's
-# workflow-level group serializes heterogeneous per-OS arms plus the no-op
-# completion-handoff runs, and GitHub keeps at most ONE pending run per group
-# by default: a later trigger (for example the /oc maintainer handoff posted
-# by a finished arm) silently cancels a still-pending arm even with
-# cancel-in-progress: false, which lost the Windows native proof for #582
-# (run 39021803178 had zero jobs). Two acceptable designs: no workflow-level
-# block at all (the per-OS job-level groups alone serialize each arm), or a
-# workflow-level block that carries `queue: max` (up to 100 pending runs).
-# The three per-OS job groups must exist, and no group in the file may cancel
-# in progress.
+# [R14] Heterogeneous group queue preservation (issues #594, #601): a group
+# that serializes heterogeneous work (real triggers together with runs that
+# skip at their job gate) must not rely on the default single pending slot,
+# because GitHub cancels any previously PENDING run in the same group when a
+# newer run is queued (cancel-in-progress: false protects only the RUNNING
+# run). Two live losses: the per-OS Windows arm of #582 (run 39021803178 had
+# zero jobs, issue #594) and the forwarded /oc review on PR #593 (run
+# 39028030013) plus the forwarded /oc fix on PR #592 (run 39028202649), each
+# displaced by a skip-only comment run landing behind it (issue #601).
+# Every comment-triggered workflow whose issue_comment arm spawns a run for
+# EVERY comment must carry `queue: max` on its workflow-level group: opencode,
+# opencode-review, opencode-test, opencode-eval, lab, ideate, curator,
+# auditor, opencode-recover, plus opencode-peros-test for the per-OS arms
+# (whose three job-level per-OS groups must also exist; a workflow-level
+# block may be absent there because the job groups alone serialize each arm).
+# maintainer.yml is deliberately OUT of the cohort: its triggers are
+# homogeneous (every run re-surveys fresh, the newest state wins) and a queue
+# there would accumulate a FIFO backlog of stale schedule ticks, so it must
+# keep its explicit "superseding by design" marker and must NOT grow a queue.
+# No cohort group may cancel in progress.
+# Workflow-level block = the column-0 `concurrency:` mapping. A same-name
+# job-level `concurrency:` is indented, so it never matches the anchor.
+wf_concurrency_block() {
+  awk '
+    /^concurrency:/ { inblk=1 }
+    inblk && /^[^[:space:]#]/ && !/^concurrency:/ { exit }
+    inblk { print }
+  ' "$1" || true
+}
 PEROS_WF=".github/workflows/opencode-peros-test.yml"
 r14_bad=""
 if [ ! -f "$PEROS_WF" ]; then
   r14_bad=" ${PEROS_WF}(missing)"
 else
-  # Workflow-level block = the column-0 `concurrency:` mapping. A same-name
-  # job-level `concurrency:` is indented, so it never matches the anchor.
-  peros_wf_block=$(awk '
-    /^concurrency:/ { inblk=1 }
-    inblk && /^[^[:space:]#]/ && !/^concurrency:/ { exit }
-    inblk { print }
-  ' "$PEROS_WF" || true)
+  peros_wf_block=$(wf_concurrency_block "$PEROS_WF")
   if [ -n "$peros_wf_block" ] && ! printf '%s\n' "$peros_wf_block" | grep -qE '^[[:space:]]+queue:[[:space:]]*max'; then
     r14_bad="${r14_bad} peros(workflow-group-without-queue-max)"
   fi
@@ -451,10 +465,53 @@ else
   peros_cancel_true=$(grep -nE 'cancel-in-progress:\s*true' "$PEROS_WF" || true)
   [ -n "$peros_cancel_true" ] && r14_bad="${r14_bad} peros(cancel-in-progress-true)"
 fi
-if [ -z "$r14_bad" ]; then
-  check "R14" "per-OS arms cannot be silently displaced: workflow-level group absent or queue: max, all three per-OS job groups present, no cancelling group (issue #594)" "ok"
+for r14_wf in opencode.yml opencode-review.yml opencode-test.yml opencode-eval.yml lab.yml ideate.yml curator.yml auditor.yml opencode-recover.yml; do
+  r14_path=".github/workflows/${r14_wf}"
+  if [ ! -f "$r14_path" ]; then
+    r14_bad="${r14_bad} ${r14_wf}(missing)"
+    continue
+  fi
+  r14_block=$(wf_concurrency_block "$r14_path")
+  if [ -z "$r14_block" ]; then
+    r14_bad="${r14_bad} ${r14_wf}(no-workflow-group)"
+  elif ! printf '%s\n' "$r14_block" | grep -qE '^[[:space:]]+queue:[[:space:]]*max'; then
+    r14_bad="${r14_bad} ${r14_wf}(no-queue-max)"
+  fi
+  r14_cancel_true=$(grep -nE 'cancel-in-progress:\s*true' "$r14_path" || true)
+  [ -n "$r14_cancel_true" ] && r14_bad="${r14_bad} ${r14_wf}(cancel-in-progress-true)"
+done
+if [ ! -f "$MAIN_WF" ]; then
+  r14_bad="${r14_bad} maintainer.yml(missing)"
 else
-  check "R14" "per-OS arm queue preservation missing:${r14_bad} (issue #594: the single pending slot cancels a queued arm)" "bad"
+  main_block=$(wf_concurrency_block "$MAIN_WF")
+  printf '%s\n' "$main_block" | grep -qF 'superseding by design' || r14_bad="${r14_bad} maintainer.yml(no-superseding-decision-marker)"
+  # Anchored to the key form so the marker comment's own prose (which mentions
+  # queue: max while explaining why it is wrong there) never trips the check.
+  printf '%s\n' "$main_block" | grep -qE '^[[:space:]]+queue:[[:space:]]*max' && r14_bad="${r14_bad} maintainer.yml(queue-max-contradicts-superseding-decision)"
+fi
+# Discovery backstop (R12-style whole-tree scan): EVERY workflow that grows an
+# issue_comment or pull_request_review_comment arm is subject to the same rule
+# automatically, so a new comment-triggered workflow cannot silently regress;
+# a deliberate homogeneous single-slot group records the explicit "superseding
+# by design" marker.
+for r14_path in .github/workflows/*.yml; do
+  [ -f "$r14_path" ] || continue
+  r14_name=$(basename "$r14_path")
+  grep -qE '^  (issue_comment|pull_request_review_comment):' "$r14_path" || continue
+  r14_block=$(wf_concurrency_block "$r14_path")
+  if printf '%s\n' "$r14_block" | grep -qF 'superseding by design'; then
+    continue
+  fi
+  if [ -z "$r14_block" ]; then
+    r14_bad="${r14_bad} ${r14_name}(discovered-no-workflow-group)"
+  elif ! printf '%s\n' "$r14_block" | grep -qE '^[[:space:]]+queue:[[:space:]]*max'; then
+    r14_bad="${r14_bad} ${r14_name}(discovered-no-queue-max)"
+  fi
+done
+if [ -z "$r14_bad" ]; then
+  check "R14" "heterogeneous groups cannot silently displace a queued real run: the whole comment-triggered cohort (plus any discovered issue_comment workflow) carries queue: max, all three per-OS job groups exist, and maintainer keeps its documented single-slot superseding decision (issues #594/#601)" "ok"
+else
+  check "R14" "heterogeneous group queue preservation missing:${r14_bad} (issues #594/#601: the default single pending slot cancels a queued real run)" "bad"
 fi
 
 # [R15] Model fallback ladder (issue #591): a provider-side retirement of the
