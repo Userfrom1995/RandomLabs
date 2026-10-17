@@ -10,7 +10,7 @@
 <body>
 <header>
   <h1>DOOM / WEB</h1>
-  <span class="sub">client-side engine at /doom/ - shipped: integration and end-to-end audit</span>
+  <span class="sub">client-side engine at /doom/ - play it in your browser</span>
   <nav><a href="../">Random lab</a> <a href="https://github.com/Userfrom1995/RandomLabs/tree/main/doom/docs">docs</a></nav>
 </header>
 <main>
@@ -153,14 +153,10 @@
     <ul id="error-list" aria-label="WAD diagnostics"></ul>
   </section>
 
-  <section class="panel" aria-label="About WAD ecosystem and polish">
-    <h2>WAD ecosystem and polish</h2>
-    <p>WAD ecosystem and polish: multi-file load order with map-group replacement and last-wins resources, per-map isolation (one corrupt map never kills the load), DEHACKED surfacing, onboarding plus sample level, loading and error states with the previous level kept running, shareware episode clamp, and an offline service worker pass that preserves the WAD cache. Audio, saves, renderer, and input shipped in earlier releases.</p>
-  </section>
-
-  <section class="panel" aria-label="About integration and end-to-end audit">
-    <h2>Integration and end-to-end audit</h2>
-    <p>Integration and end-to-end audit: the renderer selector now pins the stored tier instead of re-probing, the full verification ledger is resolved end to end in a real browser (every cell measured or explicitly unsupported by design; see docs/scoreboard.md and docs/bench-m5.json), and settled desktop plus mobile proofs live at docs/shell-m5-1280.png and docs/shell-m5-390.png (see docs/render-m5.md).</p>
+  <section class="panel" aria-label="About the engine">
+    <h2>About the engine</h2>
+    <p>A complete client-side Doom engine: a checked WAD reader with layered diagnostics, a WebGL paletted renderer with a fallback tier ladder, desktop plus touch input with on-page remapping, WebAudio sound effects plus FM music synthesis, OPFS save persistence with export and import, and a multi-WAD load order with map-group replacement, last-wins resources, and per-map isolation so one corrupt map never kills the load. Onboarding, a built-in generated sample level, loading and error states that keep the previous level running, a shareware episode clamp, and an offline service worker that preserves the WAD cache round out the experience.</p>
+    <p>The engine is verified end to end in a real browser: every ledger cell is measured or explicitly unsupported by design. See <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/doom/docs/scoreboard.md">the verification scoreboard</a> and <a href="https://github.com/Userfrom1995/RandomLabs/tree/main/doom/docs">the documentation</a> for the full evidence, including the desktop and mobile rendering proofs.</p>
   </section>
 
   <footer>Doom engine code is GPL-2.0 lineage (doomgeneric/Chocolate Doom); game data is yours. Built-in levels are generated, not id Software data.</footer>
