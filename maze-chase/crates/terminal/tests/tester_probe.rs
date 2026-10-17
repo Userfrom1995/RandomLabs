@@ -103,6 +103,117 @@ fn tail(bytes: &[u8]) -> String {
     text[start..].iter().collect()
 }
 
+/// A DA1 reply split across two writes must still be assembled inside
+/// the probe budget: the fragmented `ESC[?6` + `2;4c` announces Sixel,
+/// so the session must enter the sixel tier without swallowing the
+/// single Enter that follows.
+#[test]
+fn fragmented_da1_reply_selects_sixel_and_play_still_starts() {
+    let mut pty = open_pty(100, 40);
+    let dir = std::env::temp_dir().join(format!("maze-chase-probe-frag-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let mut child = Command::new(env!("CARGO_BIN_EXE_maze-chase-terminal"))
+        .arg("--dir")
+        .arg(&dir)
+        .env("TERM", "xterm-256color")
+        .env("COLORTERM", "truecolor")
+        .env_remove("MAZE_CHASE_TIER")
+        .stdin(Stdio::from(pty.slave.try_clone().unwrap()))
+        .stdout(Stdio::from(pty.slave.try_clone().unwrap()))
+        .stderr(Stdio::from(pty.slave.try_clone().unwrap()))
+        .spawn()
+        .expect("spawn maze-chase-terminal");
+
+    let mut out = Vec::new();
+    assert!(
+        wait_for(&mut pty.master, &mut out, "\x1b[c", Duration::from_secs(15)),
+        "DA1 probe request never appeared; tail: {}",
+        tail(&out)
+    );
+    (&pty.master).write_all(b"\x1b[?6").unwrap();
+    std::thread::sleep(Duration::from_millis(60));
+    (&pty.master).write_all(b"2;4c").unwrap();
+
+    assert!(
+        wait_for(
+            &mut pty.master,
+            &mut out,
+            "video tier: sixel",
+            Duration::from_secs(10)
+        ),
+        "fragmented DA1 reply must select the sixel tier; tail: {}",
+        tail(&out)
+    );
+
+    // One Enter, after the probe already consumed its reply. The playing
+    // surface's top bar / side panel carry "SCORE " (the title does not),
+    // and the probe trail replaces the hint line, so that is the marker.
+    (&pty.master).write_all(b"\r").unwrap();
+    let started = wait_for(&mut pty.master, &mut out, "SCORE ", Duration::from_secs(5));
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(
+        started,
+        "one Enter after sixel detection must start play; tail: {}",
+        tail(&out)
+    );
+}
+
+/// A DA1 reply that arrives after the 250 ms deadline (a slow or busy
+/// terminal) must not corrupt the input stream: it is parsed as an
+/// internal crossterm event and dropped, the tier stays on cells, and
+/// the next single Enter still starts play.
+#[test]
+fn late_da1_reply_never_steals_the_next_key() {
+    let mut pty = open_pty(100, 40);
+    let dir = std::env::temp_dir().join(format!("maze-chase-probe-late-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let mut child = Command::new(env!("CARGO_BIN_EXE_maze-chase-terminal"))
+        .arg("--dir")
+        .arg(&dir)
+        .env("TERM", "xterm-256color")
+        .env("COLORTERM", "truecolor")
+        .env_remove("MAZE_CHASE_TIER")
+        .stdin(Stdio::from(pty.slave.try_clone().unwrap()))
+        .stdout(Stdio::from(pty.slave.try_clone().unwrap()))
+        .stderr(Stdio::from(pty.slave.try_clone().unwrap()))
+        .spawn()
+        .expect("spawn maze-chase-terminal");
+
+    let mut out = Vec::new();
+    assert!(
+        wait_for(
+            &mut pty.master,
+            &mut out,
+            "video tier: truecolor-cells",
+            Duration::from_secs(15)
+        ),
+        "title never appeared; tail: {}",
+        tail(&out)
+    );
+    // The probe returned long ago; this reply is late by construction.
+    std::thread::sleep(Duration::from_millis(150));
+    (&pty.master).write_all(b"\x1b[?62;4c").unwrap();
+    std::thread::sleep(Duration::from_millis(150));
+    (&pty.master).write_all(b"\r").unwrap();
+
+    let started = wait_for(&mut pty.master, &mut out, "SCORE ", Duration::from_secs(5));
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(
+        started,
+        "late DA1 reply must not break the next single Enter; tail: {}",
+        tail(&out)
+    );
+    assert!(
+        !String::from_utf8_lossy(&out).contains("video tier: sixel"),
+        "a reply after the deadline must not upgrade the tier; tail: {}",
+        tail(&out)
+    );
+}
+
 #[test]
 fn one_enter_starts_the_game_after_a_silent_da1_probe() {
     let mut pty = open_pty(100, 40);
