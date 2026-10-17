@@ -15,6 +15,9 @@ $dist = Join-Path $root "dist"
 $stage = Join-Path $dist "stage-win"
 
 cargo build --release -p maze-chase-desktop --manifest-path (Join-Path $root "Cargo.toml")
+if ($LASTEXITCODE -ne 0) {
+  throw "cargo build failed with exit code $LASTEXITCODE"
+}
 
 Remove-Item -Recurse -Force $stage -ErrorAction SilentlyContinue
 New-Item -ItemType Directory $stage | Out-Null
@@ -30,3 +33,6 @@ Remove-Item $zip -ErrorAction SilentlyContinue
 Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $zip
 Write-Host "staged: $zip"
 & (Join-Path $stage "maze-chase-desktop.exe") --version
+if ($LASTEXITCODE -ne 0) {
+  throw "the staged binary --version probe failed with exit code $LASTEXITCODE"
+}
