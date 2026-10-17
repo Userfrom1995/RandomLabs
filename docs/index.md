@@ -97,8 +97,9 @@ pushes to forks (guidance only).
   unnoticed. The same resolver resolves the pinned model against the live
   provider registry before every run and steps through an ordered free-tier
   fallback ladder when the provider retires the pin; when the whole ladder is
-  dead the agent step fails loudly instead of a hollow green, and the
-  Maintainer and general arms red their runs so failure triage fires.
+  dead the agent step fails loudly instead of a hollow green; the general arm
+  reds its run so failure triage fires, and the Maintainer, self-excluded from
+  failure triage, is surfaced by its recurring schedule.
   Dispatch inputs reach shell only as environment data, and a crashed lab
   run never pushes its branch.
 - The Reviewer is read-only by construction; nothing merges without its

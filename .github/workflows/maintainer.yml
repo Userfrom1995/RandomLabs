@@ -303,7 +303,7 @@ jobs:
           # concluded green under continue-on-error with only a warning. Go RED
           # instead. Note: the Maintainer is self-excluded from the
           # workflow_run failure allowlist, so the observable coverage of this
-          # red is the failed run itself plus the 2-hour schedule (and the
+          # red is the failed run itself plus its recurring 20-minute schedule (and the
           # Auditor's silent-stall survey), not failure-triggered triage.
           # Also intended until the actor-permission preflight (issue #427)
           # lands: on a bot-authored PR's pull_request event the opencode CLI
