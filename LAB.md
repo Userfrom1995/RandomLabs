@@ -540,7 +540,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422) + the model fallback ladder (resolve-model.sh, model-ladder.txt, issue #591)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R19), per-OS findings poster, review-comment publication evidence, CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R20), per-OS findings poster, review-comment publication evidence, CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
@@ -683,6 +683,19 @@ catches up in seconds.
   verdicts before the retry and forward paths, fails closed when verification
   itself fails, and both forward steps are gated on the verify step's success.
   Enforced by R19 in `.github/scripts/silent-stall-audit.sh`.
+- Bounded retry caps cannot silently defeat themselves on busy threads (issue
+  #621): every retry/auto-heal/gate enumeration reads thread comments with the
+  paginated slurp form (`?per_page=100` plus `--paginate --slurp` piped through
+  `jq '.[][] | ...'`), because the REST API serves 30 comments per page oldest
+  first and an unpaginated read sees only the oldest page, so the recent retry
+  markers fall outside it and the cap reads 0 forever (the phantom-zero loop a
+  truncated page used to sneak past the refuse-to-retry guard). R20 pins every
+  enumeration site, scans every workflow for unpaginated comment reads, and
+  functionally executes each real cohort enumeration pipeline against a mock
+  `gh` bound to a
+  3-page payload whose markers sit on page 3 (34-comment thread shape), proving
+  the count reads 3 and the cap trips. Enforced by R20 in
+  `.github/scripts/silent-stall-audit.sh`.
 - The Maintainer cannot land infra/model/workflow changes herself: routine
   changes route to the Lab Engineer (`{"action":"lab"}`), and the direct-to-main
   revival path fires only with a complete `.maintainer/emergency.json`
