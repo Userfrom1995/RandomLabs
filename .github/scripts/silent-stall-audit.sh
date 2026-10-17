@@ -25,19 +25,23 @@
 # tampered-body, post-failure, and missing-comment-id paths must all fail
 # closed for all three OS labels; only the verify-step run body and exotic
 # sandbox-path fingerprinting remain review-gated boundaries (documented in
-# the R17 comment), and the R19 review-comment publication-evidence guard
+# the R17 comment), the R19 review-comment publication-evidence guard
 # (issue #616: a reviewer death between the decision-file write and the
-# comment post forwarded an unread verdict with zero published findings).
-# Wired into auditor.yml as the R1-R19 matrix.
+# comment post forwarded an unread verdict with zero published findings), and
+# the R20 paginated comment-read guard (issue #621: unbounded comment
+# enumerations read only the oldest 30 comments, so a retry cap on a busy
+# thread reads 0 and a crash loop re-posts retry 1 forever).
+# Wired into auditor.yml as the R1-R20 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R19 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R20 audit the whole tree
 # (the review-restore guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
 # group cohort, the model fallback
 # ladder, the PAT merge shallow-workspace guard, the per-OS findings-report
-# contract, and the review-comment publication-evidence guard), so they trip on a bad
+# contract, the review-comment publication-evidence guard, and the paginated
+# comment-read guard), so they trip on a bad
 # curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml no matter which
 # file the audit was pointed at.
 # Exit code is always 0 so it never breaks the auditor run; failures are reported
@@ -66,12 +70,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R19 PASS] $name: $desc"
+  [R1-R20 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R19 FAIL] $name: $desc"
+  [R1-R20 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -1249,16 +1253,181 @@ else
   check "R19" "review-comment publication-evidence guard missing:${r19_bad} (issue #616: a reviewer death between the decision-file write and the comment post forwards an unread verdict with zero published findings)" "bad"
 fi
 
-summary="Silent-stall regression audit (R1-R19) on ${WF}: ${pass} passed, ${fail} failed."
+# [R20] Paginated comment-read guard (issue #621): every retry/auto-heal cap
+# and gate-count enumeration read the thread comments with an UNPAGINATED
+# `gh api .../comments` call. The REST API serves 30 comments per page, oldest
+# first, so on any thread past 30 comments the recent retry markers fall
+# outside page 1 and the count reads 0: the cap never trips and a crash-looping
+# gate re-posts retry 1 forever (live on PR #609, 34 comments, 2026-10-17;
+# flagged by both #618 quality gates). A truncated page is not an API failure,
+# so the existing refuse-to-retry-on-enumeration-failure guard never fires.
+# The required form is the paginated slurp: a ?per_page=100 query plus
+# `--paginate --slurp` piped to `jq` with the `.[][]` page iterator
+# (`--slurp` cannot be combined with `--jq`; it yields an array of pages).
+# Properties:
+#   1. every enumeration site in the cohort carries the exact paginated form
+#      (per_page=100, --paginate --slurp, piped jq, no --jq flag);
+#   2. no unpaginated issue-comment read remains in any workflow file (a
+#      workflow-tree discovery scan, so a new read cannot regress silently);
+#   3. a functional harness executes EVERY real extracted enumeration pipeline
+#      against an executable mock `gh` bound to a 3-page slurp payload whose
+#      markers sit on page 3 (34-comment thread shape, past the old
+#      30-comment page boundary): each counter must read 3 (the cap trips) and
+#      the freshness read must select the newest page-3 timestamp. The mock
+#      refuses an unpaginated call, and interception is asserted first
+#      (delegation.md section 6 harness isolation).
+r20_bad=""
+r20_files=".github/workflows/opencode.yml .github/workflows/opencode-review.yml .github/workflows/curator.yml .github/workflows/ideate.yml .github/workflows/opencode-eval.yml"
+r20_found=""
+# Real cohort extraction: the assignment line through the line that closes the
+# command substitution, for every known enumeration variable. The old
+# unpaginated `--jq` form in a workflow file is mutated by the verification
+# matrix and must turn this rule red.
+r20_snips_of() {
+  awk '
+    /^[ \t]*(retries|heals|recent|approval_comments)[=][$][(]gh api/ {
+      buf = $0 "\n"
+      if ($0 ~ /\|\|[ \t]*(true|echo)/) { printf "%s%c", buf, 0; buf=""; next }
+      collecting = 1; next
+    }
+    collecting {
+      buf = buf $0 "\n"
+      if ($0 ~ /\|\|[ \t]*(true|echo)/) { printf "%s%c", buf, 0; collecting = 0; buf="" }
+    }
+  ' "$1" 2>/dev/null || true
+}
+for r20_file in $r20_files; do
+  if [ ! -f "$r20_file" ]; then
+    r20_bad="${r20_bad} ${r20_file}(missing)"
+    continue
+  fi
+  while IFS= read -r -d '' r20_snip; do
+    [ -n "$r20_snip" ] || continue
+    r20_marker=$(printf '%s\n' "$r20_snip" | grep -oE '(startswith|contains)\("[^"]+"' | head -1 | sed -E 's/^(startswith|contains)\("//; s/"$//')
+    if [ -z "$r20_marker" ]; then
+      r20_bad="${r20_bad} ${r20_file}(enumeration-without-recognizable-marker)"
+      continue
+    fi
+    r20_found="${r20_found}${r20_file}|${r20_marker}
+"
+    printf '%s\n' "$r20_snip" | grep -q '?per_page=100' || r20_bad="${r20_bad} ${r20_file}(${r20_marker}:no-per_page-100)"
+    printf '%s\n' "$r20_snip" | grep -q -- '--paginate --slurp' || r20_bad="${r20_bad} ${r20_file}(${r20_marker}:no-paginate-slurp)"
+    printf '%s\n' "$r20_snip" | grep -q -- '--jq' && r20_bad="${r20_bad} ${r20_file}(${r20_marker}:jq-flag-cannot-combine-with-slurp)"
+    printf '%s\n' "$r20_snip" | grep -qE '\|[[:space:]]*jq ' || r20_bad="${r20_bad} ${r20_file}(${r20_marker}:no-piped-jq)"
+    printf '%s\n' "$r20_snip" | grep -qF '.[][]' || r20_bad="${r20_bad} ${r20_file}(${r20_marker}:no-page-iterator)"
+  done < <(r20_snips_of "$r20_file")
+done
+# Expected-site registry: every retry/auto-heal/gate enumeration must be
+# present. Deleting a counter or renaming its marker trips the rule.
+while IFS='|' read -r r20_ef r20_em; do
+  [ -n "$r20_ef" ] || continue
+  printf '%s\n' "$r20_found" | grep -qxF "${r20_ef}|${r20_em}" || r20_bad="${r20_bad} ${r20_ef}(missing-enumeration:${r20_em})"
+done <<'R20_EXPECTED'
+.github/workflows/opencode.yml|/oc research (auto-retry
+.github/workflows/opencode.yml|/oc architect (auto-retry
+.github/workflows/opencode.yml|/oc build this (auto-retry
+.github/workflows/opencode.yml|/oc continue (auto-heal
+.github/workflows/opencode.yml|/oc fix (auto-retry
+.github/workflows/opencode.yml|/oc design (auto-retry
+.github/workflows/opencode.yml|/oc design-ux (auto-retry
+.github/workflows/opencode.yml|/oc design-visual (auto-retry
+.github/workflows/opencode.yml|/oc design-motion (auto-retry
+.github/workflows/opencode-review.yml|/oc review (auto-retry
+.github/workflows/curator.yml|/oc curate (auto-retry
+.github/workflows/ideate.yml|### Candidate:
+.github/workflows/opencode-eval.yml|/oc approve-test
+R20_EXPECTED
+# Repo-wide discovery backstop: any issue-comment read that neither paginates
+# nor targets a single comment trips, so a new workflow cannot silently
+# regress. Posting calls (`-f body`) and the single-comment PATCH endpoint
+# (`.../issues/comments/<id>`) are out of class by construction.
+r20_unpaginated=$(grep -rnE 'gh api "[^"]*/comments"' .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null | grep -vE -- '--paginate|\?per_page=100' | grep -v -- '-f body' || true)
+if [ -n "$r20_unpaginated" ]; then
+  r20_bad="${r20_bad} unpaginated-read(s):$(printf '%s' "$r20_unpaginated" | head -3 | tr '\n' ' ')"
+fi
+# Functional harness: the real extracted pipelines against a mock gh that
+# emits a 3-page slurp array and refuses any unpaginated call. The payload
+# mirrors PR #609 (30 comments on page 1, 1 filler on page 2, 3 retry markers
+# on page 3 = 34 comments): an unpaginated read sees page 1 only, so the mock
+# refusal and the count assertion together prove the cap now trips.
+if ! command -v jq >/dev/null 2>&1; then
+  r20_bad="${r20_bad} harness(jq-missing)"
+else
+  r20_tmp=$(mktemp -d 2>/dev/null || true)
+  if [ -z "$r20_tmp" ] || [ ! -d "$r20_tmp" ]; then
+    r20_bad="${r20_bad} harness(sandbox-unavailable)"
+  else
+    r20_mockdir="$r20_tmp/bin"
+    mkdir -p "$r20_mockdir"
+    cat > "$r20_mockdir/gh" <<'R20_MOCK'
+#!/usr/bin/env bash
+case "$*" in
+  *--slurp*) cat "$R20_PAYLOAD" ;;
+  *) echo "mock gh: unpaginated comment read refused: $*" >&2; exit 1 ;;
+esac
+R20_MOCK
+    chmod +x "$r20_mockdir/gh"
+    if [ "$(PATH="$r20_mockdir:$PATH" command -v gh)" != "$r20_mockdir/gh" ]; then
+      r20_bad="${r20_bad} harness(mock-not-intercepted)"
+    else
+      r20_case=0
+      for r20_file in $r20_files; do
+        [ -f "$r20_file" ] || continue
+        while IFS= read -r -d '' r20_snip; do
+          [ -n "$r20_snip" ] || continue
+          r20_case=$((r20_case + 1))
+          r20_marker=$(printf '%s\n' "$r20_snip" | grep -oE '(startswith|contains)\("[^"]+"' | head -1 | sed -E 's/^(startswith|contains)\("//; s/"$//')
+          r20_login="mockowner"
+          if printf '%s\n' "$r20_snip" | grep -qF 'github-actions[bot]'; then
+            r20_login='github-actions[bot]'
+          fi
+          r20_payload_file="$r20_tmp/payload-$r20_case.json"
+          jq -n --arg login "$r20_login" --arg marker "$r20_marker" '
+            [ [range(30) | {user:{login:"filler"},created_at:"2026-10-16T00:00:00Z",body:"filler"}],
+              [{user:{login:"filler"},created_at:"2026-10-16T00:00:01Z",body:"filler"}],
+              [ {user:{login:$login},created_at:"2026-10-17T19:00:00Z",body:($marker + " 1)")},
+                {user:{login:$login},created_at:"2026-10-17T19:01:00Z",body:($marker + " 2)")},
+                {user:{login:$login},created_at:"2026-10-17T19:02:00Z",body:($marker + " 3)")} ] ]
+          ' > "$r20_payload_file" 2>/dev/null
+          {
+            printf 'target=609 issue=609 pr=609 issue_num=609 board=609\n'
+            printf '%s\n' "$r20_snip" \
+              | sed -e 's/\${{ github\.repository_owner }}/mockowner/g' \
+                    -e 's/\${{ github\.repository }}/mockrepo/g' \
+                    -e 's/\${{ [^}]* }}/1/g'
+            r20_var=$(printf '%s\n' "$r20_snip" | sed -n '1s/^[[:space:]]*\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p')
+            printf 'printf "%%s" "$%s"\n' "$r20_var"
+          } > "$r20_tmp/case.sh"
+          r20_out=$(cd "$r20_tmp" && env -u GITHUB_TOKEN -u GITHUB_EVENT_PATH -u GITHUB_RUN_ID \
+            -u GITHUB_REPOSITORY -u GITHUB_ACTIONS -u GH_TOKEN -u GH_API_TOKEN \
+            PATH="$r20_mockdir:$PATH" R20_PAYLOAD="$r20_payload_file" bash "$r20_tmp/case.sh" 2>/dev/null)
+          if printf '%s\n' "$r20_snip" | grep -q '| length'; then
+            [ "$r20_out" = "3" ] || r20_bad="${r20_bad} harness(${r20_file}:${r20_marker}:count=${r20_out:-empty},want=3)"
+          else
+            [ "$(printf '%s' "$r20_out" | tr -d '"')" = "2026-10-17T19:02:00Z" ] || r20_bad="${r20_bad} harness(${r20_file}:${r20_marker}:latest=${r20_out:-empty},want=2026-10-17T19:02:00Z)"
+          fi
+        done < <(r20_snips_of "$r20_file")
+      done
+    fi
+    rm -rf "$r20_tmp"
+  fi
+fi
+if [ -z "$r20_bad" ]; then
+  check "R20" "every retry/auto-heal and gate-count enumeration uses the paginated slurp form and the 3-page harness proves markers on page 3 are counted (cap trips); no unpaginated issue-comment read remains (issue #621)" "ok"
+else
+  check "R20" "paginated comment-read guard missing:${r20_bad} (issue #621: an unpaginated read sees only the oldest 30 comments, the cap reads 0, and a crash loop re-posts retry 1 forever)" "bad"
+fi
+
+summary="Silent-stall regression audit (R1-R20) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R19)
+  body="## Silent-stall regression audit FAILED (R1-R20)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, or R19 review-comment publication evidence guard). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R19 review-comment publication evidence, or R20 paginated comment reads). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
