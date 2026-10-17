@@ -1123,14 +1123,24 @@ GH_WORD_RE = re.compile(r"(^|[^A-Za-z0-9_.-])gh(\s|$|[);&|])")
 # "-b/oc x", '-b"/oc x"') keeps the body inside the same argv word as the
 # flag, so no MSYS2_ARG_CONV_EXCL token can ever prefix-match it; separate
 # ("--body /oc x", "-b /oc x") leaves the body in its own argv word.
+# The value may be spelled as a plain quoted word ('/oc x', "/oc x"), an
+# ANSI-C or locale quote ($'/oc x', $"/oc x" - bash strips the $ and expands
+# the quoted text into the same argv word), or a default-value parameter
+# expansion (${x:-/oc x} - expands to the default when x is unset), possibly
+# under an enclosing quote ("${x:-/oc x}"); all of these spell the slash body
+# literally, so BODY_VALUE_PREFIX accepts every spelling.
 # BODY_TOKEN_RE / SHORT_B_TOKEN_RE are the contract-side detectors: any
 # --body that is not --body-file, and any standalone -b token, whatever
 # transport follows (they catch the variable-indirection defacements that the
 # slash-literal forms cannot see).
-BODY_LONG_ATTACHED_RE = re.compile(r"(?<![A-Za-z0-9_-])--body=[\"']?(/[^\s/][^\s/]?)")
-BODY_LONG_SEPARATE_RE = re.compile(r"(?<![A-Za-z0-9_-])--body\s+[\"']?(/[^\s/][^\s/]?)")
-BODY_SHORT_ATTACHED_RE = re.compile(r"(?<![A-Za-z0-9_-])-b=?[\"']?(/[^\s/][^\s/]?)")
-BODY_SHORT_SEPARATE_RE = re.compile(r"(?<![A-Za-z0-9_-])-b\s+[\"']?(/[^\s/][^\s/]?)")
+BODY_VALUE_PREFIX = (
+    r"(?:[\"']?\$(?:[\"']|\{[A-Za-z_][A-Za-z0-9_]*:-)?[\"']?"
+    r"|\$?[\"']?)"
+)
+BODY_LONG_ATTACHED_RE = re.compile(r"(?<![A-Za-z0-9_-])--body=" + BODY_VALUE_PREFIX + r"(/[^\s/][^\s/]?)")
+BODY_LONG_SEPARATE_RE = re.compile(r"(?<![A-Za-z0-9_-])--body\s+" + BODY_VALUE_PREFIX + r"(/[^\s/][^\s/]?)")
+BODY_SHORT_ATTACHED_RE = re.compile(r"(?<![A-Za-z0-9_-])-b=?" + BODY_VALUE_PREFIX + r"(/[^\s/][^\s/]?)")
+BODY_SHORT_SEPARATE_RE = re.compile(r"(?<![A-Za-z0-9_-])-b\s+" + BODY_VALUE_PREFIX + r"(/[^\s/][^\s/]?)")
 BODY_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9_-])--body(?!-file)")
 BODY_FILE_STDIN_RE = re.compile(r"--body-file(=|\s+)-\s*(\d?>|\|\||;|&|$)")
 SHORT_B_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9_-])-b(?![A-Za-z0-9_-])")
