@@ -11,7 +11,8 @@ top to bottom on a fresh machine and you get the release.
   edition 2021 with no pinned nightly features.
 - For the browser build: `rustup target add wasm32-unknown-unknown`.
 - For the browser E2E: Node 18+ (no npm packages) plus a headless
-  chromium; serving uses `python3 -m http.server`.
+  chromium; serving uses `python3 -m http.server` (`python -m
+  http.server` on Windows).
 - System libraries:
   - **Linux**: `sudo apt-get install libasound2-dev libudev-dev`
     (build-time ALSA headers for desktop audio, udev headers for
@@ -56,9 +57,9 @@ The committed `web/maze-chase.wasm` is byte-reproducible from that
 exact command on stock stable Rust (no `wasm-bindgen`, zero imports);
 the page gates on the bridge ABI version and fails loudly on the
 error card instead of misbehaving on a mismatch. Play it by serving
-the directory over http (`python3 -m http.server 8931` inside
-`maze-chase/`, then open `play.html`); browsers refuse `.wasm` over
-`file://`.
+the directory over http (`python3 -m http.server 8931`, or
+`python -m http.server 8931` on Windows, inside `maze-chase/`, then
+open `play.html`); browsers refuse `.wasm` over `file://`.
 
 Smoke each binary:
 

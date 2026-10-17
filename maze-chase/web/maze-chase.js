@@ -31,7 +31,8 @@
  *   enforces a minimum display size (280px) so tiny viewports scale the
  *   baked frame down instead of reflowing the layout.
  * - file:// note: browsers block fetch() of .wasm from file://, so this page
- *   must be served over http (e.g. `python3 -m http.server` in maze-chase/).
+ *   must be served over http (e.g. `python3 -m http.server`, or
+ *   `python -m http.server` on Windows, in maze-chase/).
  */
 (function () {
   var EXPECT_VERSION = 1;
@@ -165,7 +166,8 @@
       .catch(function (err) {
         showError('Could not load the game engine (' + (err && err.message ? err.message : err) + ').',
           'Hint: this page must be served over http so the browser can fetch web/maze-chase.wasm ' +
-          '(run `python3 -m http.server` inside maze-chase/ and open maze-chase/play.html). ' +
+          '(run `python3 -m http.server` (`python -m http.server` on Windows) inside maze-chase/ ' +
+          'and open maze-chase/play.html). ' +
           'The engine file is built by the maze-chase-web Rust crate.');
       });
   }

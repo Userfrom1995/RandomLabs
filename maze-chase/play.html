@@ -3,7 +3,8 @@
   Served from maze-chase/play.html; the engine wasm must sit at
   maze-chase/web/maze-chase.wasm, built by the maze-chase-web Rust crate.
   NOTE: browsers refuse fetch() of .wasm over file://, so serve over http
-  (e.g. `python3 -m http.server` inside maze-chase/). No external resources:
+  (e.g. `python3 -m http.server`, or `python -m http.server` on Windows,
+  inside maze-chase/). No external resources:
   works offline once served, minus the wasm fetch itself. -->
 <html lang="en">
 <head>
