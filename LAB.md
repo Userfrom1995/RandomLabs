@@ -500,6 +500,20 @@ still executes even when the ladder is dead (that arm's red is not needed to
 summon the repair). Audit rule R15 regression-guards the resolver, the ladder
 rungs, and both retry paths.
 
+A transient provider rejection is no longer fatal either (issue #620). The
+provider intermittently kills a free-tier call seconds into the agent step
+with `FreeTierError` ("AI_APICallError: OpenCode's free tier can only be used
+from within OpenCode ..."), which used to drop a Maintainer wake-up or kill a
+gate with no decision file (Tester run 39059437136 and Maintainer run
+39060571484, 2026-10-17). Both runner paths now retry the SAME model exactly
+once per arm on that provider class: the detector reuses the #591 tail +
+column-0 terminal anchoring, so a transcript echo or the `responseBody` JSON
+envelope can never consume the retry, the retry re-enters the same-model loop
+(never advancing the ladder), and a second rejection exits loudly instead of
+looping. The bounded cap, the same-model/advance split, and the detector's
+accept/reject matrix are enforced by R15 (extended) in
+`.github/scripts/silent-stall-audit.sh`.
+
 The schedule arms (`curator.yml`, `auditor.yml`) and the dispatched arms
 (`curator.yml`, `auditor.yml`, `ideate.yml`, `lab.yml`) share
 `.github/scripts/schedule-selfheal.sh`: when the agent step fails and no
@@ -665,9 +679,12 @@ catches up in seconds.
   once. A Model-not-found death now fails the step loudly (the Maintainer
   and the general arm have explicit loud-failure verify steps) instead of
   concluding green without triage, and a fully dead ladder escalates through
-  the standard crash-parity paths. The resolver, the ladder, and both retry
-  paths are statically enforced by R15 in
-  `.github/scripts/silent-stall-audit.sh`.
+  the standard crash-parity paths. A transient provider `FreeTierError`
+  rejection is also survivable (issue #620): both runner paths retry the
+  same model exactly once per arm on that class (anchored detector, bounded
+  cap, a second rejection fails loudly). The resolver, the ladder, both
+  retry paths, and the transient free-tier retry are statically enforced by
+  R15 in `.github/scripts/silent-stall-audit.sh`.
 - The PAT merge sweep never silently skips a linked workflow PR on a shallow
   workspace (issue #602): the opencode CLI session bootstrap re-shallows the
   Maintainer's full-depth checkout with depth-limited fetches, and
