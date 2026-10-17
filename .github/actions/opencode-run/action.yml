@@ -160,13 +160,24 @@ runs:
           echo "::notice::opencode run with model '$model'"
           set +e
           MODEL="$model" opencode github run 2>&1 | tee "$log"
-          status=${PIPESTATUS[0]}
+          # Capture BOTH pipeline statuses in one assignment: a following
+          # t=${PIPESTATUS[1]} would be empty because the first assignment
+          # resets PIPESTATUS. A failed tee (e.g. full RUNNER_TEMP) leaves an
+          # empty log whose grep can never match, so an exit-0 Model-not-found
+          # death would take the success branch; fail loudly instead.
+          st=("${PIPESTATUS[@]}")
           set -e
-          if [ "$status" -eq 0 ] && ! grep -qF "Model not found: $model" "$log"; then
+          status="${st[0]}"; tee_status="${st[1]}"
+          if [ "$tee_status" -ne 0 ]; then
+            echo "::error::could not capture the opencode log for model '$model' (tee exit $tee_status); failing loudly instead of risking a blind advance."
+            rm -f "$log"
+            exit 1
+          fi
+          if [ "$status" -eq 0 ] && ! grep -qE "Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)" "$log"; then
             rm -f "$log"
             exit 0
           fi
-          if grep -qF "Model not found: $model" "$log"; then
+          if grep -qE "Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)" "$log"; then
             echo "::warning::model '$model' was not found by the provider; advancing to the next ladder rung if any."
             rm -f "$log"
             continue
