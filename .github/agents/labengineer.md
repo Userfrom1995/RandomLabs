@@ -76,12 +76,13 @@ Triggered when Hephaestus orders a model switch or upgrade (e.g. `/oc lab model-
    - Query available models via `curl -s https://opencode.ai/zen/v1/models`.
    - Select the highest-tier, active free model (ending in `-free`; live examples at fix time: `deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `glm-5.3-flash-free`, `nemotron-3.5-lightning-free`). Never trust a hardcoded example here: the registry response is the only truth.
 2. **Three-Knob Model Updates (critical)**: Models are configured in THREE places and ALL must be updated together:
-   - `model:` inputs in `.github/workflows/*.yml` (main agent models; the action passes them via the MODEL env var).
+   - `model:` inputs in `.github/workflows/*.yml` (main agent models; the action passes them via the MODEL env var). This includes `maintainer.yml`'s inline `REQUESTED_MODEL` pin, which is NOT a `model:` input (the Maintainer runs opencode directly): update it by hand alongside the others, and keep it a live free-tier ref.
    - `model` and `small_model` in `opencode.json` (repo config). The action has NO `small_model` input, so the small/title runs (title generation for shared sessions, small subagent calls) read `small_model` from `opencode.json` only. If it is missing or points at a paid model, every run crashes with `CreditsError: No payment method` (workspace billing URL in the error) even when the main model is free - this is what bricked the Obsidian build (title model resolved to paid `gpt-5.4-nano`).
    - The ordered fallback ladder in `.github/actions/opencode-run/model-ladder.txt` (issue #591). `resolve-model.sh` in the same directory resolves the requested pin against `https://opencode.ai/zen/v1/models` before every agent run: a live pin leads with the live free rungs behind it; a retired pin is substituted by the first live rung. The shared runner (composite action plus maintainer.yml's inline copy) retries one rung at a time on a provider `Model not found` and exits nonzero loudly when the whole ladder is dead. Keep every rung live and free-tier (a retirement or a better free model = update this file too).
    - Always pin both `model` and `small_model` to free models, e.g. `opencode/deepseek-v4.1-flash-free` for both.
 3. **Apply Workflow Updates on Disk**:
    - Update `model:` configurations in `.github/workflows/*.yml` and `model`/`small_model` in `opencode.json` directly on disk on `main`.
+   - The fast track stages only the pin-bearing files (`model:` inputs, `opencode.json`, and `model-ladder.txt`). The resolver subsystem itself (`.github/actions/opencode-run/resolve-model.sh`, `action.yml`) is code, not pin configuration: its changes always route through a normal reviewed PR.
    - Leave the files modified. Do NOT execute `git push` directly from the prompt.
 4. **Automated Runner PAT Push**:
    - The dedicated workflow runner step will stage, commit as `github-actions[bot]`, and push the model updates directly to `main`.
