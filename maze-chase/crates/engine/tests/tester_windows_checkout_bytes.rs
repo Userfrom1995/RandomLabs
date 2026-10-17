@@ -6,14 +6,18 @@
 //! (sha256 d99c23b4...) while the committed `web/maze-chase.wasm` built on
 //! Linux is 190,772 bytes (sha256 5ec2a05a...), 41,419 differing bytes.
 //! Root cause: `levels/ember-warren.maze` (embedded by
-//! `crates/engine/src/maze.rs` via `include_str!`) and
-//! `docs/design-tokens.json` (embedded by `crates/assets/src/themes.rs`
-//! via `include_str!`) arrive CRLF on a default Git for Windows checkout,
+//! `crates/engine/src/maze.rs` via `include_str!`) arrives CRLF on a
+//! default Git for Windows checkout (53 line endings convert, +53 bytes),
 //! and `include_str!` embeds the working-tree bytes verbatim. The game
 //! itself is CRLF-tolerant (`Maze::from_rows` trims line ends; the maze
 //! parse and the golden replay verify green on the CRLF checkout), so only
 //! the shipped build output loses its byte reproducibility, which
 //! `docs/release.md` promises for the committed wasm.
+//!
+//! `docs/design-tokens.json` is pinned alongside the maze, but it cannot
+//! contribute to this drift: the file carries zero newlines (nothing to
+//! convert) and its only `include_str!` sits in the `#[cfg(test)]` module
+//! of `crates/assets/src/themes.rs`, so it never reaches the wasm build.
 //!
 //! Fix direction: pin both embedded sources `text eol=lf` in
 //! `.gitattributes` so any checkout yields identical bytes under
