@@ -515,22 +515,28 @@ accept/reject matrix plus its tail-window lower bound are enforced by R15
 (extended) in `.github/scripts/silent-stall-audit.sh`, which first executes
 the extracted detector functions functionally (terminal match;
 echo/envelope/suffix/stale no-match; dotted-id match with the dot-lookalike
-no-match; a terminal line followed by 39 lines still matches while 40 does
-not), then extracts both real runner `run:` blocks and executes them
+no-match; an uppercase id line never matches, so the match stays
+case-sensitive; a terminal line followed by 39 lines still matches while 40
+does not), then extracts both real runner `run:` blocks and executes them
 loop-level against an executable mock `opencode` and a mock `sleep` (isolated
 sandbox, live Actions env scrubbed, execution cwd confined to the sandbox,
 interception proven, per-scenario timeout): transient recovery on both exit
-shapes with the exact bounded backoff asserted, exactly one same-model retry,
-loud persistence after two attempts with the provider's own distinct statuses
+shapes with the exact bounded backoff asserted and its wait ordering proven
+(a backgrounded sleep cannot pass), exactly one same-model retry, loud
+persistence after two attempts with the provider's own distinct statuses
 propagated, rung advance preserved without consuming the free-tier budget,
-the post-loop exhaustion reached and loud, the budget shared across rungs,
-echo/envelope/suffixed/stale non-match, superset-id non-match, dotted-id
-boundary matching, a dotted-candidate dot-lookalike nonzero line not
-advancing the rung, a terminal line with in-window trailing healthy lines
-still consuming its bounded retry, a failing log capture failing loudly, and
-unclassified status propagation are asserted by behavior, so textual pin
-relocations, decoys, loop rewrites, or detection-window tweaks cannot pass
-while the contract breaks.
+the post-loop exhaustion reached and loud, the budget shared across three
+rungs with a rung-gated grant or theft caught, echo/envelope/suffixed/stale
+non-match, superset-id non-match, dotted-id boundary matching, a
+dotted-candidate dot-lookalike nonzero line not advancing the rung, a
+terminal line with in-window trailing healthy lines still consuming its
+bounded retry, a failing log capture failing loudly, unclassified status
+propagation, and the extracted runner step proven the unique executing one
+(no conditional gate, a unique invocation in the file, and the invocation
+present in the extracted block) are asserted by behavior, so textual pin
+relocations, decoys, loop rewrites, detection-window tweaks, backoff
+backgrounding, case folds, later-rung budget gating, or step shadowing cannot
+pass while the contract breaks.
 
 The schedule arms (`curator.yml`, `auditor.yml`) and the dispatched arms
 (`curator.yml`, `auditor.yml`, `ideate.yml`, `lab.yml`) share
