@@ -1,12 +1,13 @@
-# Doom M1 threats to validity and noise disclosure
+# Doom threats to validity and noise disclosure
 
 Binding noise model for every number in `bench-m1.json`, `soak-m1.json`,
-and the scoreboard H1a cell. M5 re-measures H1-H5 in a real browser via
-Playwright; this page records what can (and cannot) be claimed from node.
+and the scoreboard H1a cell. The end-to-end round re-measures H1-H5 in a
+real browser via Playwright; this page records what can (and cannot) be
+claimed from node.
 
 ## Timer resolution
 
-`performance.now` granularity is ~1us at best; the M1 frame path averages
+`performance.now` granularity is ~1us at best; the frame path averages
 ~0.013ms (13us), so single-frame deltas carry up to ~8 percent quantization
 noise each. Mitigation: each bench sample is a batch of 50 consecutive frames
 timed as one interval (`bench-m1.mjs`, N=60 batches = 3000 frames per path),
@@ -46,8 +47,8 @@ CV as measured with this disclosure rather than rounding it away.
 
 node `perf_hooks` measures the raster core only (no `putImageData`, no
 compositor, no rAF quantization). Browser frame cost is strictly higher, so
-node numbers are a lower bound; the H1 browser cell stays pending to M5
-with Playwright tracing. The node-vs-browser fallback in `loop.js`
+node numbers are a lower bound; the H1 browser cell stayed pending to the
+end-to-end round with Playwright tracing. The node-vs-browser fallback in `loop.js`
 (setTimeout 16ms when rAF is absent) is covered by the Tester red-team pod,
 not by this bench.
 
@@ -60,8 +61,8 @@ not by this bench.
 
 100k ticks = ~48 minutes of 35Hz game time, exact tick count, byte-identical
 framebuffer across independent engines. Multi-hour wall-clock soak (thermal,
-socket/heap profiling over time) remains M5 scope; 3000-tick node soak from
-the Tester suite still stands for the short scale.
+socket/heap profiling over time) remains end-to-end-round scope; 3000-tick
+node soak from the Tester suite still stands for the short scale.
 
 ## Adversarial self-review (hostile-reviewer simulation)
 
@@ -74,5 +75,5 @@ the Tester suite still stands for the short scale.
 - Baseline fairness: both paths share identical WAD bytes, scene, label text,
   and status-bar cost; only geometry rasterization differs, and order (A then
   B) is fixed per pair so drift cannot favor one path.
-- Scope honesty: H1-H5 browser cells stay pending; H1a is labeled a node
-  raster-core proxy, not a browser FPS claim.
+- Scope honesty: the H1-H5 browser cells are measured in the end-to-end
+  round; H1a is labeled a node raster-core proxy, not a browser FPS claim.
