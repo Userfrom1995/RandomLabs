@@ -442,11 +442,15 @@ fi
 # keep its explicit "superseding by design" marker and must NOT grow a queue.
 # No cohort group may cancel in progress.
 # Workflow-level block = the column-0 `concurrency:` mapping. A same-name
-# job-level `concurrency:` is indented, so it never matches the anchor.
+# job-level `concurrency:` is indented, so it never matches the anchor. Any
+# column-0 line ends the mapping, including a comment: otherwise a top-level
+# comment after the block containing the marker text would satisfy the
+# maintainer/discovery checks even after the in-block marker was removed
+# (issue #601 review finding 2).
 wf_concurrency_block() {
   awk '
     /^concurrency:/ { inblk=1 }
-    inblk && /^[^[:space:]#]/ && !/^concurrency:/ { exit }
+    inblk && /^[^[:space:]]/ && !/^concurrency:/ { exit }
     inblk { print }
   ' "$1" || true
 }
@@ -456,7 +460,7 @@ if [ ! -f "$PEROS_WF" ]; then
   r14_bad=" ${PEROS_WF}(missing)"
 else
   peros_wf_block=$(wf_concurrency_block "$PEROS_WF")
-  if [ -n "$peros_wf_block" ] && ! printf '%s\n' "$peros_wf_block" | grep -qE '^[[:space:]]+queue:[[:space:]]*max'; then
+  if [ -n "$peros_wf_block" ] && ! printf '%s\n' "$peros_wf_block" | grep -qE '^[[:space:]]+queue:[[:space:]]*"?max"?'; then
     r14_bad="${r14_bad} peros(workflow-group-without-queue-max)"
   fi
   for peros_os in linux macos windows; do
@@ -474,7 +478,7 @@ for r14_wf in opencode.yml opencode-review.yml opencode-test.yml opencode-eval.y
   r14_block=$(wf_concurrency_block "$r14_path")
   if [ -z "$r14_block" ]; then
     r14_bad="${r14_bad} ${r14_wf}(no-workflow-group)"
-  elif ! printf '%s\n' "$r14_block" | grep -qE '^[[:space:]]+queue:[[:space:]]*max'; then
+  elif ! printf '%s\n' "$r14_block" | grep -qE '^[[:space:]]+queue:[[:space:]]*"?max"?'; then
     r14_bad="${r14_bad} ${r14_wf}(no-queue-max)"
   fi
   r14_cancel_true=$(grep -nE 'cancel-in-progress:\s*true' "$r14_path" || true)
@@ -487,14 +491,16 @@ else
   printf '%s\n' "$main_block" | grep -qF 'superseding by design' || r14_bad="${r14_bad} maintainer.yml(no-superseding-decision-marker)"
   # Anchored to the key form so the marker comment's own prose (which mentions
   # queue: max while explaining why it is wrong there) never trips the check.
-  printf '%s\n' "$main_block" | grep -qE '^[[:space:]]+queue:[[:space:]]*max' && r14_bad="${r14_bad} maintainer.yml(queue-max-contradicts-superseding-decision)"
+  printf '%s\n' "$main_block" | grep -qE '^[[:space:]]+queue:[[:space:]]*"?max"?' && r14_bad="${r14_bad} maintainer.yml(queue-max-contradicts-superseding-decision)"
 fi
 # Discovery backstop (R12-style whole-tree scan): EVERY workflow that grows an
 # issue_comment or pull_request_review_comment arm is subject to the same rule
 # automatically, so a new comment-triggered workflow cannot silently regress;
-# a deliberate homogeneous single-slot group records the explicit "superseding
-# by design" marker.
-for r14_path in .github/workflows/*.yml; do
+# the scan covers both workflow extensions GitHub executes (.yml and .yaml,
+# issue #601 review finding 3), and a deliberate homogeneous single-slot group
+# records the explicit "superseding by design" marker inside its concurrency
+# block.
+for r14_path in .github/workflows/*.yml .github/workflows/*.yaml; do
   [ -f "$r14_path" ] || continue
   r14_name=$(basename "$r14_path")
   grep -qE '^  (issue_comment|pull_request_review_comment):' "$r14_path" || continue
@@ -504,7 +510,7 @@ for r14_path in .github/workflows/*.yml; do
   fi
   if [ -z "$r14_block" ]; then
     r14_bad="${r14_bad} ${r14_name}(discovered-no-workflow-group)"
-  elif ! printf '%s\n' "$r14_block" | grep -qE '^[[:space:]]+queue:[[:space:]]*max'; then
+  elif ! printf '%s\n' "$r14_block" | grep -qE '^[[:space:]]+queue:[[:space:]]*"?max"?'; then
     r14_bad="${r14_bad} ${r14_name}(discovered-no-queue-max)"
   fi
 done
@@ -612,7 +618,7 @@ if [ "$fail" -gt 0 ]; then
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 per-OS arm queue preservation, or R15 model fallback ladder). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, or R15 model fallback ladder). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
