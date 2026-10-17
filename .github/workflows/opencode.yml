@@ -68,11 +68,12 @@ concurrency:
 # and the whole comment-triggered cohort, issue #601), R15 guards the
 # model fallback ladder plus loud Model-not-found failure (issue #591),
 # R16 guards the PAT merge shallow-workspace guard (issue #602), R17 guards
-# the per-OS findings-report contract (issue #608), R19 guards the
-# review-comment publication-evidence gate (issue #616), R20 guards
-# paginated comment enumeration (issue #621), and R21 guards the
-# PAT merge approval binding (shape-anchored verdict plus head binding plus
-# mergeable=UNKNOWN re-query, issue #619).
+# the per-OS findings-report contract (issue #608), R18 guards the Windows
+# MSYS argv-conversion opt-out plus the stdin per-OS handoff transport
+# (issue #612), R19 guards the review-comment publication-evidence gate
+# (issue #616), R20 guards paginated comment enumeration (issue #621), and
+# R21 guards the PAT merge approval binding (shape-anchored verdict plus head
+# binding plus mergeable=UNKNOWN re-query, issue #619).
 # =============================================================================
 
 jobs:

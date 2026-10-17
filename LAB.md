@@ -673,6 +673,15 @@ catches up in seconds.
   loudly if the workspace is still shallow after the unshallow attempt.
   Statically enforced by R16 in
   `.github/scripts/silent-stall-audit.sh`.
+- A native Windows per-OS handoff cannot be mangled by MSYS path conversion
+  (issue #612): under Git Bash on the windows-latest arm, MSYS2 rewrote the
+  slash-leading "/oc maintainer" body into the literal path
+  "C:/Program Files/Git/oc maintainer" before gh saw it (run 39036859435), a
+  handoff no strict-prefix consumer would accept. The three per-OS decision
+  forwarders now carry `MSYS_NO_PATHCONV: "1"` and deliver the trigger body
+  through stdin (`--body-file -`), so no "/oc" string is ever an argv element
+  of a native process. Statically enforced by R18 in
+  `.github/scripts/silent-stall-audit.sh`.
 - The review gate only forwards a verdict that was actually published (issue
   #616): a reviewer death between the decision-file write and the comment post
   used to leave the decision file behind with zero published findings, and the
