@@ -45,9 +45,9 @@ Ship a release: follow `docs/release.md` (engine checks, layer builds,
 reproducible `.wasm`); measured results land in `docs/scoreboard.md`
 and the parity gate in `docs/parity.md`.
 
-## What this will be
+## What it is
 
-- **One engine** (`crates/engine`, Phase 3 done): fixed 120 Hz
+- **One engine** (`crates/engine`, done): fixed 120 Hz
   deterministic simulation with seeded RNG streams, replay log, and
   state hash. Tile movement with buffered turns, four warden
   personalities (Bram leads, Kessa ambushes ahead, Jory flanks the
@@ -60,7 +60,7 @@ and the parity gate in `docs/parity.md`.
   `GameEvent`s; any gameplay branch in a layer crate is a blocking
   review finding.
 - **Identity system** (`crates/assets`, `crates/audio`,
-  `crates/config`, Phase 4 done): original 11x11 sprite glyphs with a
+  `crates/config`, done): original 11x11 sprite glyphs with a
   shared legend and derived facings, animation clips and flash/bob
   timing, three contrast-checked themes, every engine event routed to
   an audio cue with five original tunes and synthesized SFX recipes
@@ -73,7 +73,7 @@ and the parity gate in `docs/parity.md`.
   Kitty plus Sixel plus Unicode tiers with detection and auto-degrade
   watchdog, dynamic resize, title/help/scores/settings/key-rebind/pause
   surfaces, machine high scores, and BEL-plus-ticker sound.
-- **Desktop game** (`crates/desktop`, Phase 6 done, [launch docs](docs/desktop.md)): windowed plus fullscreen
+- **Desktop game** (`crates/desktop`, done, [launch docs](docs/desktop.md)): windowed plus fullscreen
   GUI on the shared rasterizer core (board pixels identical to the
   terminal bitmap tiers), keyboard plus gamepad input with duplicate-safe
   remap screens, title/help/scores/settings/audio/keybinds/padbinds/pause
@@ -97,7 +97,7 @@ and the parity gate in `docs/parity.md`.
 - `docs/research.md` - mechanics and stack research with the #552-feel
   basis and crate trade-offs.
 - `docs/legal.md` - clean-room log, sources consulted, flagged items, and
-  per-phase obligations.
+  release obligations.
 - `docs/identity.md` - original naming, cast, terminology, and maze
   authorship log.
 - `docs/behavior-spec.md` - pinned #552 behavior contract the Rust engine
@@ -131,17 +131,17 @@ escalated, never shipped on assumption.
 
 ## Layout
 
-- `docs/` - unified product documentation (this phase's deliverable).
+- `docs/` - unified product documentation.
 - `index.html` - Pages hub and documentation entry point.
-- `crates/engine` - the deterministic simulation (this phase's core
-  deliverable): `tuning`, `maze`, `actors`, `steering`, `ghosts`,
+- `crates/engine` - the deterministic simulation:
+  `tuning`, `maze`, `actors`, `steering`, `ghosts`,
   `personalities`, `modes`, `relish`, `game`, `rng`, `sha256`,
   `replay`, `verify`, plus the `maze-chase-verify` binary and golden
   tests.
 - `levels/ember-warren.maze` - the authored launch maze with its
   authorship header and reachability proof, compiled into the engine.
 - `crates/assets`, `crates/audio`, `crates/config` - the original
-  identity system (this phase's new deliverable): sprites and animation
+  identity system: sprites and animation
   timing plus themes (`assets`), cues plus original tunes and SFX plus
   test sinks (`audio`), difficulty presets plus keymap plus settings
   persistence (`config`).
@@ -171,7 +171,7 @@ escalated, never shipped on assumption.
 
 ## Verification
 
-Each phase keeps the feature matrix current and proves its rows with named
+Every layer keeps the feature matrix current and proves its rows with named
 tests: headless engine suites with golden replay hashes, escape-sequence
 capture for terminal backends, per-OS runners for desktop, Playwright
 keyboard and touch runs for WASM, and a bench harness publishing FPS, input
