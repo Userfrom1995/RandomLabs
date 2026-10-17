@@ -157,8 +157,8 @@ jobs:
             echo "warning: no Brainstorm Board issue found - the ideator was asked to create it"
             exit 0
           fi
-          recent=$(gh api "repos/${{ github.repository }}/issues/$board/comments" \
-            --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | contains("### Candidate:")))] | last | .created_at' 2>/dev/null || echo "")
+          recent=$(gh api "repos/${{ github.repository }}/issues/$board/comments?per_page=100" --paginate --slurp 2>/dev/null \
+            | jq '[.[][] | select(.user.login == "github-actions[bot]" and (.body | contains("### Candidate:")))] | last | .created_at' 2>/dev/null || echo "")
           if [ -z "$recent" ]; then
             echo "warning: no candidate comment found on the board - the ideator may have failed"
             exit 0

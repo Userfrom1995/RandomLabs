@@ -146,8 +146,8 @@ jobs:
 
           # On issue_comment trigger (e.g. /oc curate), mirror review/build auto-retry parity up to 3 times:
           if [ "$event_name" = "issue_comment" ] && [ -n "$issue_num" ] && [ "$issue_num" != "null" ]; then
-            retries=$(gh api "repos/${{ github.repository }}/issues/$issue_num/comments" \
-              --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc curate (auto-retry")))] | length' 2>/dev/null || true)
+            retries=$(gh api "repos/${{ github.repository }}/issues/$issue_num/comments?per_page=100" --paginate --slurp 2>/dev/null \
+              | jq '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc curate (auto-retry")))] | length' 2>/dev/null || true)
             if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
               echo "::error::Could not enumerate prior auto-retries on #$issue_num. Refusing to retry to avoid a runaway loop."
               exit 1
