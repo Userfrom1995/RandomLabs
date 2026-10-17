@@ -82,7 +82,7 @@ mod live {
     //! PTY half: the title screen must run the flag's tier even when a
     //! conflicting value is exported.
 
-    use std::io::{Read, Write};
+    use std::io::Read;
     use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
     use std::process::{Child, Command, Stdio};
     use std::time::{Duration, Instant};
