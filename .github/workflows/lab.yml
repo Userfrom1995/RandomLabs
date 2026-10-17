@@ -268,11 +268,16 @@ jobs:
             echo "pr_number=$pr" >> "$GITHUB_ENV"
 
           elif [ "$branch" = "main" ]; then
-            # Stage any uncommitted workflow and two-knob model modifications if left modified
-            if [ -n "$(git status --porcelain .github/workflows opencode.json 2>/dev/null)" ]; then
+            # Stage any uncommitted workflow and three-knob model modifications if left modified.
+            # The three knobs are .github/workflows/*.yml, opencode.json, and the fallback
+            # ladder file (issue #591): without the ladder in the pathspec a fast-track run
+            # that only changed rungs created no commit at all, and a mixed run silently
+            # dropped the ladder edit with the ephemeral runner.
+            if [ -n "$(git status --porcelain .github/workflows opencode.json .github/actions/opencode-run/model-ladder.txt 2>/dev/null)" ]; then
               echo "Staging uncommitted workflow and model modifications on main..."
               git add .github/workflows/*.yml
               [ -n "$(git status --porcelain opencode.json 2>/dev/null)" ] && git add opencode.json
+              [ -n "$(git status --porcelain .github/actions/opencode-run/model-ladder.txt 2>/dev/null)" ] && git add .github/actions/opencode-run/model-ladder.txt
               git commit --author="The Lab Engineer (CTO) <github-actions[bot]@users.noreply.github.com>" -m "lab: update workflow model configuration" || true
             fi
             
