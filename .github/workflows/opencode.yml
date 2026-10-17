@@ -13,7 +13,16 @@ permissions:
   actions: write
 
 concurrency:
+  # Issue #601: every issue or review comment spawns an opencode.yml run; the
+  # skip-only runs (the comment is another workflow's trigger) share this
+  # per-issue group with real triggers. With the default single pending slot, a
+  # skip-only run queued behind an in-flight run cancels any still-pending real
+  # trigger (cancel-in-progress: false protects only the RUNNING run), silently
+  # losing a forwarded /oc fix. queue: max keeps up to 100 pending runs FIFO,
+  # so a pending real trigger is never displaced; duplicate real triggers now
+  # queue instead of superseding (accepted; see AGENTS.md "Queued Execution").
   group: opencode-${{ github.event.issue.number || 'global' }}
+  queue: max
   cancel-in-progress: false
 
 # =============================================================================
@@ -35,6 +44,10 @@ concurrency:
 #
 # RULES (do not violate when editing):
 #   - Keep `cancel-in-progress: false` on EVERY concurrency group (S2).
+#   - Keep `queue: max` on the top-level per-issue group (issue #601): the group
+#     serializes real triggers together with skip-only comment runs, and the
+#     default single pending slot lets a skip-only run displace a pending real
+#     trigger. queue: max preserves S1 (still one running run at a time).
 #   - Keep K = 2 (finite). Changing K must still preserve the L1 termination proof.
 #   - NEVER assume a zero counter on an API/rate-limit failure; escalate to
 #     /oc maintainer instead (prevents the phantom-zero infinite loop).
@@ -46,7 +59,8 @@ concurrency:
 # env indirection in PAT steps (issue #422 residual), R11 guards the lab
 # post-agent strip/push decision gate, R12 guards the shared actor-write
 # gate (issue #428), R13 guards bot-created triage parity (issue #450),
-# R14 guards per-OS arm queue preservation (issue #594), and R15 guards the
+# R14 guards heterogeneous-group queue preservation (per-OS arms, issue #594,
+# and the whole comment-triggered cohort, issue #601), and R15 guards the
 # model fallback ladder plus loud Model-not-found failure (issue #591).
 # =============================================================================
 

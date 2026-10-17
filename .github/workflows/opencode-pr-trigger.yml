@@ -5,6 +5,13 @@ on:
     types: [opened, synchronize]
 
 concurrency:
+  # Deliberately single-slot (issue #601 review): the triggers are per-PR
+  # wake-ups, all homogeneous - the newest push/synchronize wins and a stale
+  # pending wake-up losing to it costs nothing. The one skip-only class is a
+  # draft-state event (the job gate below requires draft == false); a displaced
+  # real wake-up then costs at most one 20-minute Maintainer tick, so queue:
+  # max (which would multiply /oc maintainer wake-ups on push bursts) is the
+  # wrong trade here. This workflow is intentionally outside the R14 cohort.
   group: pr-trigger-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 

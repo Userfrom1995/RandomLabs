@@ -20,7 +20,12 @@ permissions:
   actions: write
 
 concurrency:
+  # Issue #601: every comment anywhere spawns an auditor run; non-"/oc auditor"
+  # comments skip at the job gate but still share this repo-wide group with
+  # schedule/dispatch/self-heal runs. queue: max keeps a pending real run from
+  # being displaced by a skip-only one.
   group: auditor
+  queue: max
   cancel-in-progress: false
 
 jobs:

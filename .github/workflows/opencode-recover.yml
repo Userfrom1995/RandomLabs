@@ -16,7 +16,12 @@ permissions:
   actions: write
 
 concurrency:
+  # Issue #601: every comment on a PR spawns a recover run; non-"/oc recover"
+  # comments skip at the job gate but still share this group with the real
+  # recovery runs (comment triggers, PR-close detects). queue: max keeps up to
+  # 100 pending runs FIFO so a pending recovery is never displaced.
   group: recover-${{ github.event.issue.number || github.event.pull_request.number || 'detect' }}
+  queue: max
   cancel-in-progress: false
 
 jobs:

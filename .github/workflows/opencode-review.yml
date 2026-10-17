@@ -5,7 +5,14 @@ on:
     types: [created]
 
 concurrency:
+  # Issue #601: every comment on the PR spawns a run; non-"/oc review" comments
+  # skip at the job gate but still share this group. With the default single
+  # pending slot such a skip-only run cancels a still-pending real trigger
+  # (this lost the forwarded review of PR head f2e7f97d, run 39028030013).
+  # queue: max keeps up to 100 pending runs FIFO so a forwarded /oc review
+  # (including its auto-retries) can never be displaced; duplicates queue.
   group: opencode-review-${{ github.event.issue.number }}
+  queue: max
   cancel-in-progress: false
 
 jobs:

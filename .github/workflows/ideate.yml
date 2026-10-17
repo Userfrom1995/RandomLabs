@@ -21,6 +21,10 @@ concurrency:
   group: ideate
   # Queued execution, lab-wide (S2): a self-heal re-dispatch must QUEUE behind
   # this run, never cancel it mid-verify (issue #422 B).
+  # Issue #601: this group is repo-wide and every comment anywhere spawns a
+  # skip-only ideate run; queue: max keeps a pending /oc ideate trigger (or a
+  # queued self-heal re-dispatch) from being displaced by one of them.
+  queue: max
   cancel-in-progress: false
 
 jobs:
