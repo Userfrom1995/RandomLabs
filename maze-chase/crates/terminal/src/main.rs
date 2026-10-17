@@ -652,14 +652,16 @@ mod tests {
         use std::io::Write;
         use std::os::fd::AsRawFd;
         let (reader, mut writer) = pipe_pair();
+        // Fragment one is queued synchronously; this test proves fragmented
+        // assembly, not budget precision, so the completion gets a generous
+        // budget (loaded runners have seen short sleeps stretch past 250 ms).
+        writer.write_all(b"\x1b[?6").unwrap();
+        writer.flush().unwrap();
         let sender = std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(20));
-            writer.write_all(b"\x1b[?6").unwrap();
-            writer.flush().unwrap();
             std::thread::sleep(Duration::from_millis(40));
             writer.write_all(b"2;4c").unwrap();
         });
-        let (reply, typed) = read_probe_reply_fd(reader.as_raw_fd(), Duration::from_millis(250));
+        let (reply, typed) = read_probe_reply_fd(reader.as_raw_fd(), Duration::from_secs(5));
         sender.join().unwrap();
         assert_eq!(reply, b"\x1b[?62;4c");
         assert!(typed.is_empty(), "no user input arrived in this window");
