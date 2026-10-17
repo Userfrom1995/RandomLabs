@@ -5,6 +5,7 @@
 // mobile viewport renders the board, scores panel restores a persisted
 // row across reload and clears it in-page.
 const fs = require('fs');
+const os = require('os');
 
 // Usage: node web/e2e/browser-e2e.js [page-url] [debug-port]
 //   page-url defaults to http://localhost:8931/play.html
@@ -13,7 +14,7 @@ const fs = require('fs');
 //   `--headless=new --remote-debugging-port=9331 --window-size=1280,900 <page-url>`
 const DEBUG_PORT = Number(process.argv[3] || 9331);
 const PAGE = process.argv[2] || 'http://localhost:8931/play.html';
-const SHOT_DIR = '/tmp';
+const SHOT_DIR = os.tmpdir();
 
 if (typeof WebSocket === 'undefined') {
   console.error('BROWSER-E2E FAIL: global WebSocket not found; run with Node 22+ (`node --version`), no extra packages needed.');

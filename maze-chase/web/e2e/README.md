@@ -20,12 +20,13 @@ on failure and print `ALL GREEN` on success.
   pixels, real button click to play, real ArrowUp keypresses scoring,
   P pause plus Resume, touch swipe, mobile 390x844 viewport, scores
   panel restoring a persisted row across reload plus in-page clear,
-  gameplay screenshots to `/tmp/mc-e2e-*.png`).
+  gameplay screenshots to the system temp directory (`os.tmpdir()`,
+  `mc-e2e-*.png`).
 
 Setup for the browser run (two shells, from `maze-chase/`):
 
 ```
-python3 -m http.server 8931
+python3 -m http.server 8931   # Windows: python -m http.server 8931
 chromium --headless=new --disable-gpu --no-sandbox \
   --remote-debugging-port=9331 --window-size=1280,900 \
   http://localhost:8931/play.html
