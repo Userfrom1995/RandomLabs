@@ -246,6 +246,13 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
   `{"action": "lab"}` part of your next decision list. Never repeat the same
   failed strategy twice - a strategy that failed once is disqualified until
   its root cause is fixed.
+- **Expected wrapper-push noise (exception to the escalation rule)**: on a
+  branch touching `.github/workflows/*`, the CLI wrapper's own end-of-session
+  App-token push rejection (`refusing to allow a GitHub App to create or
+  update workflow ...`) is expected per `LAB.md` "Merge capability" when the
+  PAT-backed step subsequently pushes the branch. Verify that PAT push (run
+  log or `git ls-remote`) and admit it plainly in your next comment, but do
+  not route a post-mortem for it alone.
 - **Routing fact**: `/oc lab` IS wired - `.github/workflows/lab.yml` triggers
   on issue comments starting with `/oc lab`. Before declaring any trigger or
   command "a no-op" or "unwired", grep ALL of `.github/workflows/*.yml` for
