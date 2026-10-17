@@ -1446,11 +1446,15 @@ fi
 #      failing closed when the time cannot be established;
 #   3. mergeable=UNKNOWN is re-queried a bounded number of times instead of
 #      skipping on the first read;
-#   4. a functional harness extracts the real predicate and the real
+#   4. a functional harness extracts the real predicate (from the single
+#      live assignment line only: commented-out predicates are never
+#      executed and a second live assignment is rejected) and the real
 #      head-binding decision block from maintainer.yml and executes them
 #      against genuine and hostile payloads (quoted mentions mid-prose and
 #      on their own line, owner-authored, trailing prose, stale/force-push/
-#      missing head times) with no network access.
+#      missing head times) with no network access, asserting the exact
+#      verdict timestamp each genuine case returns and pinning both
+#      head-time sort|tail reductions so a min-reducer swap cannot pass.
 # Review-gated residual boundary: the surrounding sweep control flow is
 # still review-gated, but every property above is pinned by exact fragments,
 # ordering checks, and executable behavior. Honest limit: committer dates
@@ -1468,7 +1472,8 @@ else
   else
     # 1. Shape-anchored verdict predicate present verbatim; the unanchored
     #    contains() form is banned.
-    r21_approve_line=$(printf '%s\n' "$r21_pat_block" | sed 's/^[[:space:]]*//' | grep -F 'approve_test_time=$(echo "$comments" | jq -r ' | head -1 || true)
+    r21_approve_line=$(printf '%s\n' "$r21_pat_block" | sed 's/^[[:space:]]*//' | grep -vE '^#' | grep -F 'approve_test_time=$(echo "$comments" | jq -r ' | head -1 || true)
+    [ "$(printf '%s\n' "$r21_pat_block" | grep -cF 'approve_test_time=$(echo "$comments" | jq -r ')" -eq 1 ] || r21_bad="${r21_bad} maintainer.yml(verdict-predicate-not-single-live-assignment)"
     printf '%s\n' "$r21_approve_line" | grep -qF 'select(.user.login=="github-actions[bot]"' || r21_bad="${r21_bad} maintainer.yml(verdict-predicate-no-bot-author)"
     printf '%s\n' "$r21_approve_line" | grep -qF '(.body|split("\n")[0]|test("^`?/oc approve-test`?[[:space:]]*$"))' || r21_bad="${r21_bad} maintainer.yml(verdict-predicate-not-shape-anchored)"
     printf '%s\n' "$r21_pat_block" | grep -qF 'contains("/oc approve-test")' && r21_bad="${r21_bad} maintainer.yml(unanchored-approve-test-contains)"
@@ -1480,6 +1485,7 @@ else
     printf '%s\n' "$r21_pat_block" | grep -qF 'head_force_push_time=$(gh api "repos/${{ github.repository }}/issues/$pr/timeline?per_page=100"' || r21_bad="${r21_bad} maintainer.yml(no-head-force-push-time-fetch)"
     printf '%s\n' "$r21_pat_block" | grep -qF 'select(.event=="head_ref_force_pushed")' || r21_bad="${r21_bad} maintainer.yml(no-force-push-event-select)"
     printf '%s\n' "$r21_pat_block" | grep -qF '[ -z "$head_push_time" ] || [ "$candidate" \> "$head_push_time" ]' || r21_bad="${r21_bad} maintainer.yml(no-head-time-max-reducer)"
+    [ "$(printf '%s\n' "$r21_pat_block" | grep -cF 'sort | tail -1')" -eq 2 ] || r21_bad="${r21_bad} maintainer.yml(head-time-reduction-not-pinned)"
     printf '%s\n' "$r21_pat_block" | grep -qF 'if [ -z "$head_push_time" ]; then' || r21_bad="${r21_bad} maintainer.yml(no-head-time-fail-closed)"
     printf '%s\n' "$r21_pat_block" | grep -qF 'if [ "$approve_test_time" \< "$head_push_time" ]; then' || r21_bad="${r21_bad} maintainer.yml(no-stale-verdict-check)"
     r21_line() { printf '%s\n' "$r21_pat_block" | grep -nF -- "$1" | head -1 | cut -d: -f1; }
@@ -1525,20 +1531,25 @@ else
           r21_bad="${r21_bad} maintainer.yml(functional-predicate-extraction)"
         else
           r21_pred_case() {
-            r21_case_name="$1"; r21_case_want="$2"; r21_case_payload="$3"
+            r21_case_name="$1"; r21_case_want="$2"; r21_case_payload="$3"; r21_case_expect="${4:-}"
             r21_case_out=$(printf '%s' "$r21_case_payload" | jq -r "$r21_jq" 2>/dev/null || true)
-            if [ "$r21_case_want" = "match" ] && [ -z "$r21_case_out" ]; then
-              r21_bad="${r21_bad} maintainer.yml(functional-${r21_case_name}-no-match)"
+            if [ "$r21_case_want" = "match" ]; then
+              if [ -z "$r21_case_out" ]; then
+                r21_bad="${r21_bad} maintainer.yml(functional-${r21_case_name}-no-match)"
+              elif [ "$r21_case_out" != "$r21_case_expect" ]; then
+                r21_bad="${r21_bad} maintainer.yml(functional-${r21_case_name}-wrong-timestamp)"
+              fi
             elif [ "$r21_case_want" = "none" ] && [ -n "$r21_case_out" ]; then
               r21_bad="${r21_bad} maintainer.yml(functional-${r21_case_name}-false-match)"
             fi
           }
-          r21_pred_case genuine-backticked match '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T18:50:48Z","body":"`/oc approve-test`\n\nInfrastructure PR #609 at `88cd5bc9`"}]'
-          r21_pred_case genuine-plain match '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T19:00:28Z","body":"/oc approve-test\nAll checks passed."}]'
-          r21_pred_case quoted-mid-prose none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T18:55:04Z","body":"#609 cleared the read-only infra test (`/oc approve-test` 18:50:48Z)."}]'
-          r21_pred_case quoted-own-line none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T18:55:04Z","body":"Status:\n- `/oc approve-test` 18:50:48Z on #609"}]'
-          r21_pred_case owner-authored none '[{"user":{"login":"Userfrom1995"},"created_at":"2026-10-17T18:50:48Z","body":"`/oc approve-test`"}]'
-          r21_pred_case trailing-prose none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T18:50:48Z","body":"`/oc approve-test` for PR #609"}]'
+          r21_pred_case genuine-backticked match '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T18:50:48Z","body":"`/oc approve-test`\n\nInfrastructure PR #609 at `88cd5bc9`"}]' 2026-10-17T18:50:48Z
+          r21_pred_case genuine-plain match '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T19:00:28Z","body":"/oc approve-test\nAll checks passed."}]' 2026-10-17T19:00:28Z
+          r21_pred_case newest-genuine-wins match '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T18:50:48Z","body":"/oc approve-test\nfirst read-only round"},{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T19:08:19Z","body":"`/oc approve-test`\nsecond read-only round"}]' 2026-10-17T19:08:19Z
+          r21_pred_case quoted-mid-prose none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T18:55:04Z","body":"#609 cleared the read-only infra test (`/oc approve-test` 18:50:48Z)."}]' ''
+          r21_pred_case quoted-own-line none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T18:55:04Z","body":"Status:\n- `/oc approve-test` 18:50:48Z on #609"}]' ''
+          r21_pred_case owner-authored none '[{"user":{"login":"Userfrom1995"},"created_at":"2026-10-17T18:50:48Z","body":"`/oc approve-test`"}]' ''
+          r21_pred_case trailing-prose none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T18:50:48Z","body":"`/oc approve-test` for PR #609"}]' ''
         fi
         if [ -z "$r21_decide_block" ]; then
           r21_bad="${r21_bad} maintainer.yml(functional-decision-block-extraction)"
@@ -1569,7 +1580,7 @@ else
   fi
 fi
 if [ -z "$r21_bad" ]; then
-  check "R21" "PAT merge approval is shape-anchored and head-bound: the verdict marker must be the comment's entire first line (optionally backticked), the verdict must not predate the head's last push (commit committer dates plus head_ref_force_pushed events, fail closed when unavailable), and mergeable=UNKNOWN is re-queried a bounded number of times, all pinned by extracted-predicate and extracted-decision functional cases (issue #619)" "ok"
+  check "R21" "PAT merge approval is shape-anchored and head-bound: the verdict marker must be the comment's entire first line (optionally backticked), the verdict must not predate the head's last push (commit committer dates plus head_ref_force_pushed events, fail closed when unavailable), and mergeable=UNKNOWN is re-queried a bounded number of times, all pinned by the extracted single-live-assignment predicate with exact returned timestamps, the extracted-decision functional cases, and both head-time max-reductions (issue #619)" "ok"
 else
   check "R21" "PAT merge approval-binding guard missing:${r21_bad} (issue #619: an unanchored contains() match merged an unreviewed workflow PR off a quoted marker, and the approved lane stalled on mergeable=UNKNOWN)" "bad"
 fi
