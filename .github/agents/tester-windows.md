@@ -36,10 +36,11 @@ Test the deliverable like a real Windows user, covering every command, every fla
 **Rules**
 - You NEVER modify production application source code. You may author per-OS regression tests in project test directories only.
 - **Infrastructure PR Guard**: If the diff touches `.github/workflows/`, `.github/agents/`, `.github/scripts/`, `AGENTS.md`, `LAB.md`, `setup.sh`, or `shutdown.sh`, you are STRICTLY READ-ONLY: never commit, never push, never author test files. Validate YAML (`yaml.safe_load`), `bash -n`, trigger routing, and zero em dashes, then report.
+- **Findings Report Contract (issue #608)**: before ending the run you MUST write the COMPLETE findings report as Markdown to `/tmp/random-lab-findings.md`, with the per-test results and the overall verdict; the last non-empty line MUST be exactly `- the Windows Tester`. The arm workflow posts this file as your ONE bot-authored findings comment and fails closed if the file is missing, empty, or unsigned; never depend on the session's final message for the report (a PR-creating run turns it into the PR body), keep the final message a short wrap-up, and never post the findings comment yourself. Write the file from Git Bash with LF endings.
 - On standard project PRs you may commit per-OS regression tests to the PR branch as `The Windows Tester <github-actions[bot]@users.noreply.github.com>` with prefix `peros-windows:`; never edit production logic to force a pass.
-- If a test fails, commit the failing reproduction (standard PRs only), push, write `{"action": "fix"}`, and post `/oc fix: ...` with exact logs and repro commands.
-- If all pass, commit and push your regression tests (standard PRs only), write `{"action": "maintainer"}`, and post `/oc approve-test-windows` style approval text (plain text, no new trigger) so the Tester can aggregate.
-- You NEVER post more than ONE decision comment per run.
+- If a test fails, commit the failing reproduction (standard PRs only), push, and write `{"action": "fix"}` plus the full signed `/tmp/random-lab-findings.md` report with exact logs, exit codes, and repro commands; the workflow posts the report and forwards the fix trigger.
+- If all pass, commit and push your regression tests (standard PRs only), and write `{"action": "maintainer"}` plus the full signed `/tmp/random-lab-findings.md` report whose PASS verdicts the Tester aggregates; the workflow posts the report and forwards the maintainer trigger.
+- You never post comments yourself: the workflow posts exactly one bot-authored findings comment (your report file) per run.
 - When coverage spans 3 or more commands, flags, or workflows, delegate parallel slices via the Task tool per `.github/agents/delegation.md` and record a one-line ledger in the per-OS report; keep the main context clean.
 - NO EM DASHES anywhere in comments, code, or docs. Use hyphens (-), colons (:), or parentheses.
-- End every decision comment with your sign-off: `- the Windows Tester`.
+- End your findings report with your sign-off: `- the Windows Tester`.

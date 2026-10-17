@@ -115,6 +115,19 @@ Public Surface / Web Track:                                              │
   deploys and `tor-cli.yml` CI) set `cancel-in-progress: true` on purpose: a
   newer event replaces a stale one. Audit rule R14 regression-guards the
   queue-preservation cohort.
+- **Per-OS findings-report contract (issue #608)**: the per-OS tester arms
+  never depend on the session's final message for their findings report: a
+  PR-creating wrapper run turns the final message into the PR body instead of
+  a comment, so the report used to survive only in the run log (macOS arm run
+  39036858261, PR #606 on issue #582). Each arm session writes the COMPLETE
+  signed report to `/tmp/random-lab-findings.md`; the fail-closed verify step
+  requires it alongside the decision file; the shared script
+  `.github/scripts/post-peros-findings.sh` posts it as `github-actions[bot]`
+  and re-fetches the comment by id to verify authorship, sign-off, and the
+  exact body; and the decision forward is gated on that step's success, so an
+  unverified report can never conclude an arm green. Audit rule R17
+  regression-guards the contract across all three arms and their prompt
+  files.
 - **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (rebase, bot identity), closes linked issues, updates memory, and advances the pipeline.
 - **Merge capability**: Workflow-file PRs require `workflows` scope, which `GITHUB_TOKEN` cannot grant via `permissions:` (valid `GITHUB_TOKEN` scopes are `actions`, `contents`, `pull-requests`, etc.; `workflows` is App/PAT only). The mutating workflows (`lab.yml`, `maintainer.yml`, `opencode.yml`, `opencode-recover.yml`) push via the PAT-backed runner step (`https://x-access-token:${OPENCODE_PAT}@github.com/...` with credential-injection cleanup), and merges of PRs touching `.github/workflows/*` must likewise use the PAT or an owner click. Read-only agents (Reviewer, Tester, Auditor, Ideator) carry no extra scope. Without a PAT merge, infra PR merges fail with "refusing to allow a GitHub App to create or update workflow ... without workflows permission" (observed on PR #139; flagged in #120). The opencode CLI wrapper additionally performs its own end-of-session push of the checked-out branch with the checkout App token, so on workflow-touching branches that internal push is rejected by the same rule (one rejection comment plus a masked `continue-on-error` step failure; the PAT-backed runner step is the authoritative push). That rejection is expected noise, not agent misbehavior (lab run 39024455956, 2026-10-17). The PAT merge sweep additionally restores full history when the workspace is shallow before its merge-base linkage checks: the opencode CLI session bootstrap re-shallows the checkout with depth-limited fetches, and on a shallow workspace both the three-dot workflow diff and the orphan guard fail closed, silently skipping a legitimately linked workflow PR (issue #602, guarded by audit rule R16).
 - In-progress continuation: When a build requires additional phases (`Status: in-progress`), the workflow triggers `/oc continue`.
@@ -407,7 +420,7 @@ personality, CHANGELOG) is direct-commit.
 | `curator.yml` | Public surface & README custodian: scheduled (6h) / dispatch / /oc curate audits and surgical PRs |
 | `auditor.yml` | The Auditor: daily schedule + `/oc auditor` → runs `.github/scripts/silent-stall-audit.sh` over `opencode.yml`, audits CI/CD and model health, posts the summary on the `lab-health` board, opens bug issues |
 | `opencode-eval.yml` | Evaluator (binding quality gate after Tester): reads deliverable, invokes swarm subagents, writes `/tmp/evaluator-decision.json`, posts `/oc eval result` via hardcoded PAT step |
-| `opencode-peros-test.yml` | Per-OS real-user testers: `test-linux` (ubuntu), `test-macos` (macos), `test-windows` (windows, bash shell); native every-command/flag testing feeding the Tester; no PAT in agent env |
+| `opencode-peros-test.yml` | Per-OS real-user testers: `test-linux` (ubuntu), `test-macos` (macos), `test-windows` (windows, bash shell); native every-command/flag testing feeding the Tester; findings reports are a file contract (`/tmp/random-lab-findings.md`) posted and verified by the workflow (issue #608); no PAT in agent env |
 | `pages.yml` | Unchanged - Pages deploy + PR previews |
 
 PR-head gates (`opencode-review.yml`, `opencode-test.yml`, `opencode-eval.yml`,
@@ -527,7 +540,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422) + the model fallback ladder (resolve-model.sh, model-ladder.txt, issue #591)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R16), CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R17), CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 

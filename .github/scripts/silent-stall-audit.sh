@@ -10,19 +10,32 @@
 # parity guard (issue #450), the R14 heterogeneous-group queue-preservation
 # guard (per-OS arms issue #594 plus the whole comment-triggered cohort issue
 # #601), the R15 model fallback ladder guard (issue #591:
-# provider model retirement / loud Model-not-found failure), and the R16
+# provider model retirement / loud Model-not-found failure), the R16
 # shallow-workspace PAT merge guard (issue #602: a depth-limited opencode CLI
 # session fetch re-shallows the Maintainer checkout, and merge-base-dependent
-# merge checks then fail closed and silently skip a linked workflow PR).
-# Wired into auditor.yml as the R1-R16 matrix.
+# merge checks then fail closed and silently skip a linked workflow PR), and
+# the R17 per-OS findings-report contract guard (issue #608: a PR-creating
+# per-OS arm run turns the session's final message into the PR body and
+# silently drops the findings report). R17 is hybrid: static checks assert the
+# three arms wire the shared poster with the exact gate lines, token envs, and
+# a clean post run body, and a functional test executes the real poster against
+# an executable mock `gh` (interception asserted, credentials scrubbed, live
+# non-credential Actions env set realistically, sandbox outside the repo per
+# delegation.md section 6) so wrong-author, unsigned, missing-report,
+# tampered-body, post-failure, and missing-comment-id paths must all fail
+# closed for all three OS labels; only the verify-step run body and exotic
+# sandbox-path fingerprinting remain review-gated boundaries (documented in
+# the R17 comment).
+# Wired into auditor.yml as the R1-R17 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R16 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R17 audit the whole tree
 # (the review-restore guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
 # group cohort, the model fallback
-# ladder, and the PAT merge shallow-workspace guard), so they trip on a bad
+# ladder, the PAT merge shallow-workspace guard, and the per-OS
+# findings-report contract), so they trip on a bad
 # curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml no matter which
 # file the audit was pointed at.
 # Exit code is always 0 so it never breaks the auditor run; failures are reported
@@ -51,12 +64,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R16 PASS] $name: $desc"
+  [R1-R17 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R16 FAIL] $name: $desc"
+  [R1-R17 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -667,16 +680,312 @@ else
   check "R16" "shallow-workspace PAT merge guard missing:${r16_bad} (issue #602: a linked workflow PR is silently skipped as an orphan on a shallow workspace)" "bad"
 fi
 
-summary="Silent-stall regression audit (R1-R16) on ${WF}: ${pass} passed, ${fail} failed."
+# [R17] Per-OS findings-report contract (issue #608): a per-OS arm session
+# used to carry its findings report only in the session's final message. The
+# wrapper posts that message as a comment when no PR is created, but a
+# PR-creating run turns it into the PR body instead, so the report vanished
+# into the run log (macOS arm run 39036858261, PR #606 on issue #582) and the
+# Maintainer had to recover it by hand. Properties:
+#   1. each arm clears the runtime findings file before the agent step and
+#      its prompt requires the report at /tmp/random-lab-findings.md;
+#   2. each fail-closed verify step requires the findings report alongside
+#      the decision file;
+#   3. each arm posts the report through the shared script with its own OS
+#      label, keeps the exact actor-gate + verify-success condition on both
+#      the post step and the decision forward, keeps the post step's
+#      name/id/gate/env/token sequence and its exactly-indented uncommented
+#      invocation line, carries its actor-gate plus post-step github.token
+#      envs (never a PAT), gates the forward on that step's success, keeps the
+#      post step's run body free of anything but comments and the invocation,
+#      and keeps the forward step free of continue-on-error;
+#   4. the shared script validates the sign-off, posts as github-actions[bot]
+#      (never the owner PAT), and re-fetches the comment by id to verify
+#      authorship, the sign-off tail, and the exact body: every guard is the
+#      exact uncommented `if ...; then` line whose own failure block ends in
+#      a hard `exit 1` before its `fi` with no nested `if` (a weakened or
+#      wrapped condition, a commented-out guard, or a no-op `exit 1` all
+#      trip the rule); a functional test executes the real script against an
+#      executable mock `gh` (interception asserted, credentials scrubbed, live
+#      non-credential Actions env set realistically so env-fingerprint
+#      detection cannot green a broken poster, per-case mock behavior read
+#      from a sandbox config file, sandbox outside the repo tree) and
+#      requires fail-closed behavior on wrong author, unsigned report,
+#      missing report, tampered body with an intact sign-off tail, failed
+#      post, and missing comment id, across all three OS labels;
+#   5. all three tester prompt files carry the contract.
+# Review-gated residual boundary: the verify step's own run body cannot be
+# functionally executed statically, so an early `exit 0` inserted into it (or
+# any arbitrary reshuffle of a step's control flow that still passes every
+# exact-form check above) is caught by the review gate, not by this rule; the
+# same applies to a poster that deliberately fingerprints the sandbox path or
+# the mock `gh` itself (path-based detection is unbounded static territory,
+# while env-fingerprint detection is banned statically and defeated by the
+# realistic functional env).
+r17_bad=""
+R17_SCRIPT=".github/scripts/post-peros-findings.sh"
+peros_arm_block() {
+  awk -v job="  $1:" '
+    $0 == job { inblk = 1 }
+    inblk && /^  [a-z0-9-]+:$/ && $0 != job { exit }
+    inblk { print }
+  ' "$PEROS_WF" 2>/dev/null || true
+}
+if [ ! -f "$PEROS_WF" ]; then
+  r17_bad=" opencode-peros-test.yml(missing)"
+else
+  for r17_os in linux macos windows; do
+    r17_block=$(peros_arm_block "test-${r17_os}")
+    if [ -z "$r17_block" ]; then
+      r17_bad="${r17_bad} arm-${r17_os}(job-missing)"
+      continue
+    fi
+    printf '%s\n' "$r17_block" | grep -qF 'rm -f /tmp/random-lab-decision.json /tmp/random-lab-findings.md' || r17_bad="${r17_bad} arm-${r17_os}(no-findings-clear)"
+    printf '%s\n' "$r17_block" | grep -qF 'the COMPLETE findings report as Markdown to `/tmp/random-lab-findings.md`' || r17_bad="${r17_bad} arm-${r17_os}(prompt-not-file-based)"
+    printf '%s\n' "$r17_block" | grep -qF '[ -s /tmp/random-lab-findings.md ] || missing="${missing} findings-report"' || r17_bad="${r17_bad} arm-${r17_os}(verify-not-requiring-findings-file)"
+    printf '%s\n' "$r17_block" | grep -qF 'if [ "$need_poster" = "true" ]; then' || r17_bad="${r17_bad} arm-${r17_os}(no-poster-restore-for-older-heads)"
+    printf '%s\n' "$r17_block" | grep -qF 'git archive "${GITHUB_SHA}" -- .github/scripts/post-peros-findings.sh' || r17_bad="${r17_bad} arm-${r17_os}(no-poster-archive-restore)"
+    printf '%s\n' "$r17_block" | grep -qE '^          bash \.github/scripts/post-peros-findings\.sh '"${r17_os}"' "\$TARGET"$' || r17_bad="${r17_bad} arm-${r17_os}(no-shared-post-step)"
+    printf '%s\n' "$r17_block" | grep -qF "steps.findings.outcome == 'success'" || r17_bad="${r17_bad} arm-${r17_os}(forward-not-gated-on-findings)"
+    printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'" || r17_bad="${r17_bad} arm-${r17_os}(post-step-gate-not-exact)"
+    printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.findings.outcome == 'success'" || r17_bad="${r17_bad} arm-${r17_os}(forward-gate-not-exact)"
+    # The gate and the github.token env must live on the post step itself, in
+    # order: a parked exact line on another step or a PAT env swap must trip
+    # (independent-verifier finding Y7). Step names capitalize as Linux/macOS/
+    # Windows.
+    case "$r17_os" in
+      linux)   r17_os_tag="Linux" ;;
+      macos)   r17_os_tag="macOS" ;;
+      windows) r17_os_tag="Windows" ;;
+    esac
+    printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | awk -v tag="Post ${r17_os_tag} tester findings report" -v gate="if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'" '
+      done { next }
+      $0 == "- name: " tag { seq=1; next }
+      seq == 5 && $0 ~ /^- name: / { done=1; next }
+      seq == 1 { if ($0 == "id: findings") { seq=2 } else { bad=1 }; next }
+      seq == 2 { if ($0 == gate) { seq=3 } else { bad=1 }; next }
+      seq == 3 { if ($0 == "env:") { seq=4 } else { bad=1 }; next }
+      seq == 4 { if ($0 == "GH_TOKEN: ${{ github.token }}") { ok=1; seq=5 } else { bad=1 }; next }
+      seq == 5 { if ($0 ~ /^continue-on-error:/) { bad=1 }; next }
+      END { exit((ok && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(post-step-sequence-broken)"
+    r17_token_envs=$(printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | grep -cxF 'GH_TOKEN: ${{ github.token }}' || true)
+    [ "$r17_token_envs" -ge 2 ] || r17_bad="${r17_bad} arm-${r17_os}(github-token-env-count=${r17_token_envs},want>=2)"
+    # The post step's run body may contain only comments, blanks, and the exact
+    # invocation (independent-verifier findings Z1/Z2/W1/W2): an inserted
+    # `exit 0`, extra command, `|| true`, a `run:` header other than `|`
+    # (YAML would fold the comments and invocation into one comment line), or
+    # a `shell:`/`working-directory:` override would let the arm conclude
+    # green with the report never posted.
+    printf '%s\n' "$r17_block" | awk -v tag="      - name: Post ${r17_os_tag} tester findings report" -v want="bash .github/scripts/post-peros-findings.sh ${r17_os} \"\$TARGET\"" '
+      $0 == tag { post=1; seen=1; next }
+      post && $0 ~ /^      - / { post=0 }
+      post && $0 ~ /^[[:space:]]*(shell|working-directory):/ { bad=1 }
+      post && $0 ~ /^        run:/ { run=1; run_seen=1; if ($0 != "        run: |") bad=1; next }
+      run && $0 ~ /^      - / { run=0 }
+      run { s=$0; sub(/^[[:space:]]+/, "", s); if (s == "" || s ~ /^#/) next; if (s != want) bad=1 }
+      END { exit((seen && run_seen && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(post-run-body-modified)"
+    # The post step must pass the event's issue/PR number, not a literal (W4).
+    r17_target_envs=$(printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | grep -cxF 'TARGET: ${{ github.event.issue.number }}' || true)
+    [ "$r17_target_envs" -ge 1 ] || r17_bad="${r17_bad} arm-${r17_os}(target-env-not-exact)"
+    # The forward step must not mask its own failures or re-shell itself (W3).
+    printf '%s\n' "$r17_block" | awk -v tag="      - name: Forward ${r17_os_tag} tester decision" '
+      $0 == tag { fwd=1; seen=1; next }
+      fwd && $0 ~ /^      - / { fwd=0 }
+      fwd && $0 ~ /^[[:space:]]*(continue-on-error|shell|working-directory):/ { bad=1 }
+      END { exit((seen && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(forward-step-weakened)"
+    # Job-level defaults would silently re-shell every contract step when
+    # pointed at a neutered shell (W3; the Windows arm's `shell: bash` default
+    # is required because windows-latest defaults to pwsh, so any defaults
+    # block must be exactly that safe form, and shell/working-directory
+    # overrides are banned elsewhere in the arm).
+    printf '%s\n' "$r17_block" | awk '
+      $0 == "    defaults:" { dcount++; line=1; next }
+      line == 1 && $0 == "      run:" { line=2; next }
+      line == 2 && $0 == "        shell: bash" { line=0; ok++; next }
+      line > 0 { bad=1; line=0 }
+      $0 ~ /^[[:space:]]*shell:/ && $0 != "        shell: bash" { bad=1 }
+      $0 ~ /^[[:space:]]*working-directory:/ { bad=1 }
+      END { exit((dcount == 0 || (dcount == 1 && ok == 1 && !bad)) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(unsafe-defaults-or-shell-override)"
+    # The verify step must keep its exact id and always() gate, and must not
+    # mask its own failure or re-shell itself (W5/W6/W7): a renamed id makes
+    # the post/forward gate conditions reference a nonexistent step.
+    printf '%s\n' "$r17_block" | awk '
+      $0 == "      - name: Verify test decided, else fail closed" { v=1; seen=1; next }
+      v && $0 ~ /^      - / { v=0 }
+      v && $0 == "        id: verify-test" { id_ok=1 }
+      v && $0 == "        if: always()" { if_ok=1 }
+      v && $0 ~ /^[[:space:]]*(continue-on-error|shell|working-directory):/ { bad=1 }
+      END { exit((seen && id_ok && if_ok && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(verify-step-weakened)"
+  done
+fi
+if [ ! -f "$R17_SCRIPT" ]; then
+  r17_bad="${r17_bad} post-peros-findings.sh(missing)"
+else
+  for r17_signoff in '- the Linux Tester' '- the macOS Tester' '- the Windows Tester'; do
+    grep -qF -- "$r17_signoff" "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-signoff:$r17_signoff)"
+  done
+  grep -qF 'github-actions[bot]' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-bot-author-check)"
+  grep -qF 'if [ "$author" != "github-actions[bot]" ]' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-bot-author-check)"
+  grep -qF 'if [ "$last_line" != "$signoff" ]' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-pre-post-signoff-validation)"
+  grep -qF 'if [ "$fetched_last" != "$signoff" ]' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-post-fetch-signoff-check)"
+  grep -qF 'if [ "$fetched_body" != "$expected_body" ]' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-body-equality-check)"
+  grep -qF 'issues/comments/${comment_id}' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-re-fetch-verification)"
+  grep -qF 'Verified bot-authored' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-verified-terminal-marker)"
+  # Harness-detection ban and exact sign-off assignments (independent-verifier
+  # findings P1-P4): the poster must not branch on CI-only env or hardcode the
+  # production repo slug (the functional test runs with realistic values), and
+  # each OS case must map to its literal sign-off line, not a derived value.
+  grep -qF 'GITHUB_ACTIONS' "$R17_SCRIPT" && r17_bad="${r17_bad} script(poster-references-GITHUB_ACTIONS)"
+  grep -qF 'MOCK_' "$R17_SCRIPT" && r17_bad="${r17_bad} script(poster-references-MOCK)"
+  grep -qF 'RandomLabs/' "$R17_SCRIPT" && r17_bad="${r17_bad} script(poster-hardcodes-repo-slug)"
+  sed 's/^[[:space:]]*//' "$R17_SCRIPT" | grep -qxF 'linux)   signoff="- the Linux Tester" ;;' || r17_bad="${r17_bad} script(linux-signoff-assignment-not-exact)"
+  sed 's/^[[:space:]]*//' "$R17_SCRIPT" | grep -qxF 'macos)   signoff="- the macOS Tester" ;;' || r17_bad="${r17_bad} script(macos-signoff-assignment-not-exact)"
+  sed 's/^[[:space:]]*//' "$R17_SCRIPT" | grep -qxF 'windows) signoff="- the Windows Tester" ;;' || r17_bad="${r17_bad} script(windows-signoff-assignment-not-exact)"
+  # Structural assertions (independent-verifier findings X1/X2/X3 and
+  # Y1/Y9): the literal greps above can be satisfied by weakened or no-op
+  # code. Require each guard to be the exact uncommented `if ...; then`
+  # line, and its own failure block (up to its closing `fi`, with no nested
+  # `if` and no early fall-through) to end in a real `exit 1`.
+  r17_guard_block_has_exit() {
+    sed 's/^[[:space:]]*//' "$R17_SCRIPT" | awk -v p="$1" '
+      $0 == p { inblk=1; next }
+      inblk && $0 ~ /^if[[:space:]]/ { nested=1 }
+      inblk && $0 == "exit 1" { found=1 }
+      inblk && $0 == "fi" { closed=1; inblk=0 }
+      END { exit((found && closed && !nested) ? 0 : 1) }'
+  }
+  for r17_guard in \
+    'pre-post-signoff:if [ "$last_line" != "$signoff" ]; then' \
+    'bot-author:if [ "$author" != "github-actions[bot]" ]; then' \
+    'post-fetch-signoff:if [ "$fetched_last" != "$signoff" ]; then' \
+    'body-equality:if [ "$fetched_body" != "$expected_body" ]; then'; do
+    r17_guard_name="${r17_guard%%:*}"
+    r17_guard_line="${r17_guard#*:}"
+    sed 's/^[[:space:]]*//' "$R17_SCRIPT" | grep -qxF -- "$r17_guard_line" || r17_bad="${r17_bad} script(${r17_guard_name}-guard-not-exact)"
+    r17_guard_block_has_exit "$r17_guard_line" || r17_bad="${r17_bad} script(${r17_guard_name}-guard-block-has-no-exit-1)"
+  done
+  # Functional contract test (independent-verifier findings Z3/Z4 and
+  # round-4 P1-P4: text greps cannot prove the poster's runtime behavior, so
+  # execute the real script). Per delegation.md section 6 the mock is
+  # executable, interception is asserted BEFORE any poster run, credentials
+  # are scrubbed, and the sandbox lives outside the repository tree. Live
+  # non-credential Actions env is set realistically (GITHUB_ACTIONS=true and
+  # the production repo slug) and per-case mock behavior comes from a
+  # case.cfg file, not from env, so env-fingerprint detection cannot green a
+  # broken poster. A body that keeps the sign-off tail but tampers with
+  # earlier content must be rejected; a tampered-body run that exits 0
+  # (guards unreachable or expected_body clobbered) trips the rule.
+  r17_script_abs="$(pwd)/$R17_SCRIPT"
+  r17_tmp=$(mktemp -d 2>/dev/null || true)
+  if [ -z "$r17_tmp" ] || [ ! -d "$r17_tmp" ]; then
+    r17_bad="${r17_bad} script(functional-sandbox-unavailable)"
+  elif ! command -v jq >/dev/null 2>&1; then
+    r17_bad="${r17_bad} script(functional-jq-missing)"
+  else
+    trap 'rm -rf "$r17_tmp"' EXIT
+    r17_mockdir="$r17_tmp/bin"
+    mkdir -p "$r17_mockdir"
+    printf '{"action":"maintainer"}\n' > "$r17_tmp/event.json"
+    cat > "$r17_mockdir/gh" <<'R17_MOCK'
+#!/usr/bin/env bash
+r17_cfg="$(cd "$(dirname "$0")/.." && pwd)/case.cfg"
+author="github-actions[bot]"
+fail_post="0"
+no_id="0"
+body_file=""
+# shellcheck disable=SC1090
+. "$r17_cfg"
+case "$*" in
+  *"/issues/comments/"*)
+    jq -n --arg a "$author" --arg b "$(cat "$body_file" 2>/dev/null || true)" '{user:{login:$a},html_url:"https://example.invalid/comment",body:$b}'
+    ;;
+  *)
+    if [ "$fail_post" = "1" ]; then
+      echo "mock gh: post failed" >&2
+      exit 1
+    fi
+    if [ "$no_id" = "1" ]; then
+      printf '{}\n'
+    else
+      printf '{"id":12345}\n'
+    fi
+    ;;
+esac
+R17_MOCK
+    chmod +x "$r17_mockdir/gh"
+    if [ "$(PATH="$r17_mockdir:$PATH" command -v gh)" != "$r17_mockdir/gh" ]; then
+      r17_bad="${r17_bad} script(functional-mock-not-intercepted)"
+    else
+      r17_good_linux="$r17_tmp/good-linux.md"
+      printf 'Finding one.\nFinding two.\n\n- the Linux Tester\n' > "$r17_good_linux"
+      r17_good_macos="$r17_tmp/good-macos.md"
+      printf 'Finding one.\nFinding two.\n\n- the macOS Tester\n' > "$r17_good_macos"
+      r17_good_windows="$r17_tmp/good-windows.md"
+      printf 'Finding one.\nFinding two.\n\n- the Windows Tester\n' > "$r17_good_windows"
+      r17_tampered="$r17_tmp/tampered.md"
+      printf 'Finding one tampered. Finding two gone.\n\n- the Linux Tester\n' > "$r17_tampered"
+      r17_unsigned="$r17_tmp/unsigned.md"
+      printf 'Finding one without a sign-off.\n' > "$r17_unsigned"
+      r17_missing="$r17_tmp/missing.md"
+      r17_case() {
+        r17_case_name="$1"; r17_case_want="$2"; r17_case_os="$3"; r17_case_report="$4"; shift 4
+        {
+          printf 'author="github-actions[bot]"\n'
+          printf 'fail_post="0"\n'
+          printf 'no_id="0"\n'
+          printf 'body_file=%q\n' "$r17_case_report"
+          for r17_kv in "$@"; do printf '%s\n' "$r17_kv"; done
+        } > "$r17_tmp/case.cfg"
+        r17_case_out=$(cd "$r17_tmp" && env -u GITHUB_TOKEN -u GH_TOKEN -u GH_API_TOKEN \
+          PATH="$r17_mockdir:$PATH" GITHUB_ACTIONS=true GITHUB_REPOSITORY="RandomLabs/RandomLabs" \
+          GITHUB_EVENT_PATH="$r17_tmp/event.json" \
+          bash "$r17_script_abs" "$r17_case_os" 1 "$r17_case_report" 2>&1)
+        r17_case_rc=$?
+        if [ "$r17_case_rc" -ne "$r17_case_want" ]; then
+          r17_bad="${r17_bad} script(functional-${r17_case_name}-rc=${r17_case_rc},want=${r17_case_want})"
+          printf 'R17 functional case %s failed (rc=%s, want=%s); output:\n%s\n' "$r17_case_name" "$r17_case_rc" "$r17_case_want" "$r17_case_out" >&2
+        fi
+      }
+      r17_case good-linux 0 linux "$r17_good_linux"
+      r17_case missing-report 1 linux "$r17_missing"
+      r17_case unsigned-report 1 linux "$r17_unsigned"
+      r17_case tampered-body 1 linux "$r17_good_linux" "body_file=$r17_tampered"
+      r17_case wrong-author 1 linux "$r17_good_linux" 'author="Userfrom1995"'
+      r17_case post-failure 1 linux "$r17_good_linux" 'fail_post="1"'
+      r17_case missing-comment-id 1 linux "$r17_good_linux" 'no_id="1"'
+      r17_case good-macos 0 macos "$r17_good_macos"
+      r17_case unsigned-macos 1 macos "$r17_unsigned"
+      r17_case wrong-author-macos 1 macos "$r17_good_macos" 'author="Userfrom1995"'
+      r17_case good-windows 0 windows "$r17_good_windows"
+      r17_case unsigned-windows 1 windows "$r17_unsigned"
+      r17_case wrong-author-windows 1 windows "$r17_good_windows" 'author="Userfrom1995"'
+    fi
+  fi
+fi
+for r17_prompt in tester-linux.md tester-macos.md tester-windows.md; do
+  r17_path=".github/agents/${r17_prompt}"
+  if [ ! -f "$r17_path" ]; then
+    r17_bad="${r17_bad} ${r17_prompt}(missing)"
+    continue
+  fi
+  grep -qF '/tmp/random-lab-findings.md' "$r17_path" || r17_bad="${r17_bad} ${r17_prompt}(no-report-contract)"
+  grep -qF 'Findings Report Contract' "$r17_path" || r17_bad="${r17_bad} ${r17_prompt}(no-contract-marker)"
+done
+if [ -z "$r17_bad" ]; then
+  check "R17" "all three per-OS arms clear, require, post, and verify the signed /tmp/random-lab-findings.md report (bot-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract (issue #608)" "ok"
+else
+  check "R17" "per-OS findings-report contract missing:${r17_bad} (issue #608: a PR-creating arm run drops the report and only the run log has it)" "bad"
+fi
+
+summary="Silent-stall regression audit (R1-R17) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R16)
+  body="## Silent-stall regression audit FAILED (R1-R17)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder, or R16 shallow-workspace PAT merge guard). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder, R16 shallow-workspace PAT merge guard, or R17 per-OS findings-report contract). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
