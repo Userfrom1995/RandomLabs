@@ -219,7 +219,7 @@ impl Runner {
     fn toggle_fullscreen(&mut self) {
         self.fullscreen = !self.fullscreen;
         if let Some(window) = &self.window {
-            window.set_fullscreen(self.fullscreen.then(|| Fullscreen::Borderless(None)));
+            window.set_fullscreen(self.fullscreen.then_some(Fullscreen::Borderless(None)));
         }
     }
 
