@@ -1,45 +1,47 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-17 run 39043035474 - [#607 MERGED (approve-eval 9.9/10) and #605 closed; Windows arm delivered PR #610 with 3 pinned defects -> `fix` dispatched; #606 eval in flight; #609 lab fix live; decisions [fix #610]]**
+ - **Updated: 2026-10-17 run 39043772106 - [#610 Windows report triaged: fix + digest ping dispatched; MSYS handoff-mangling [Infra] issue filed (UNTRIAGED); #607 was merged by concurrent run 39043937513 (#605 closed); decisions [ping #610, fix #610, create_issue MSYS]]**
 
 ## PRs & Issues
- - **Open PRs:** **#610** (Windows tester vehicle for #582, head `bcad0f30`, branch `opencode/issue582-20261017140239`, body = Windows native report, now `Refs #582` after the Maintainer corrected the linkage; **`fix` dispatched this run** for the 3 pinned defects; on fix push -> review -> test -> eval -> rebase merge), **#606** (macOS tester vehicle for #582, head `cbf94123`, CLEAN/MERGEABLE, `Refs #582`; **Tester APPROVED 14:59:55Z**; eval run 39043590288 in progress since 15:06:22Z), **#609** (lab vehicle for #608, head `ea3c519f`; lab fix run 39042663843 in its agent step since 14:53:24Z; PAT-backed merge path required since workflow files are touched).
- - **#607 MERGED** 15:13:02Z (`gh pr merge --rebase`, branch kept, merge commit `6343d8a9`, main tip now `6343d8a9`). Eval 9.9/10 at 15:11:08Z. GitHub did not auto-close #605; closed manually 15:14:17Z with a signed comment.
- - **#582 NATIVE ARMS:** macOS arm done 14:01:54Z (fix routed via #606, in eval now); Windows arm done 15:09:03Z (report + PR #610: Defect A config persist `/tmp` test paths at `crates/config/src/persist.rs:317,328`, Defect B Windows no-TTY takeover hang in `crates/terminal/src/main.rs` with RED pinned `tester_windows_cli.rs`, Defect C browser-e2e `/tmp` shot dir at `web/e2e/browser-e2e.js:16`). After #606 AND #610 land: re-run both native arms on the final merged head, then fold the parity rows; #582 stays open until both rows are genuinely signed.
- - **Issues:** **#605 CLOSED 15:14:17Z** (by the #607 merge; manual close because auto-close did not fire); **#608** closes on #609 merge only; **#582** parent tracker; **#552** owner confirmation outstanding (last owner activity 2026-10-16T08:57Z; 7-day rule ~2026-10-23); **#70** auditor daily, **#42** standing.
- - **Boards/health:** allowlist self-audit exact both directions: 19 entries in maintainer.yml `workflows:` vs 20 live workflow `name:` fields, only `maintainer` absent (self-excluded by design). Held `action_required` runs at survey: 3 from #610's PR creation (opencode-pr-trigger 39043769692, Pages 39043769694, maintainer 39043769701) - this run's terminal PAT sweep approves them. Failure sweep: only the documented bot-actor red 39041350692 on #609. Main tip: **6343d8a9**. No untriaged issues.
+ - **Open PRs:** **#610** (Windows tester vehicle for #582, head `bcad0f30`; full native report in body, verdict `fix`; **fix round dispatched by this run** (ping digest + `/oc fix`); body must be corrected `Closes #582` -> `Refs #582`; branch carries macOS commit `88dfe75e` shared with #606 - rebase note sent), **#606** (macOS tester vehicle for #582, head `cbf94123`; Tester-approved 14:59:55Z; **eval run 39043590288 live since 15:06:22Z**), **#609** (lab vehicle for #608, head `ea3c519f`; review round-1 findings being absorbed by lab run 39042663843 live since 14:53:23Z; PAT-backed merge once green; `Closes #608`).
+ - **#607 MERGED** 15:13:02Z as `6343d8a9` (main tip) by concurrent maintainer run 39043937513 after the Quality Council's `approve-eval` (9.9/10); **#605 CLOSED** 15:14:17Z. Post-merge Pages: fresh deploy dispatched 15:16:42Z (run 39044333631, workflow_dispatch on `6343d8a9`, in progress at this run's close) - next run confirms it concluded success.
+ - **#582 NATIVE ARMS:** macOS done (fix on #606, Tester-approved, eval live); **Windows done natively 15:09:03Z** -> PR #610 verdict `fix` (config test `/tmp`, Windows no-TTY hang, browser E2E shot dir). Parity rows flip only after #606 + #610 land plus fresh loaded macOS + Windows re-runs (Windows E2E rerun with the default harness, no workarounds).
+ - **Issues:** **#608** closes on #609 merge; **#582** parent; **#552** owner confirmation outstanding (last owner activity 2026-10-16T08:57Z; 7-day rule ~2026-10-23); **#70** auditor daily, **#42** standing. **NEW [Infra] MSYS handoff-mangling issue created this run (UNTRIAGED - next tick routes `lab`; the create_issue self-dispatch also spawns a maintainer run).**
+ - **Boards/health:** allowlist self-audit exact both directions: 19 entries in maintainer.yml `workflows:` vs 20 live workflow `name:` fields, only `maintainer` absent (self-excluded). Held `action_required` runs at survey: 3 on #610's branch (pr-trigger + Pages + maintainer; PAT sweep this run). Failure sweep last 100 runs: **zero**. Queued zombies: unchanged documented set (issue532 pr-trigger, lab-427 x3). No untriaged issues other than the new MSYS one.
 
 ## IN FLIGHT
- - **#610 FIX (dispatched this run):** Fixer absorbs the 3 Windows defects; the pinned RED `tester_windows_cli.rs` + the config `/tmp` test turn green. Then review -> test -> eval -> rebase merge (`Refs #582`).
- - **#606 EVAL (run 39043590288 live since 15:06:22Z):** verdict on `cbf94123`. Approve-eval -> `gh pr merge 606 --rebase` (branch kept, `Refs #582`, no closure).
- - **#609 LAB FIX (run 39042663843 live since 14:53:23Z):** review round-1 findings (B1-B5) being absorbed; skip-only lab run 39043035430 pending behind it. On push -> review round 2 -> read-only infra test -> PAT-backed merge (`Closes #608`).
- - **#582 NATIVE RE-RUN (gated):** after BOTH #606 and #610 land on main, dispatch parallel macOS + Windows arms on the final merged head (queue:max proven), then fold the parity rows.
- - **FREETIER WATCH:** one occurrence today (run 39040486914, 14:23:07Z, 403 FreeTierError on the maintainer arm); no recurrence. Repeat -> `lab` (bounded retry-once for the 403 class / rung rotation).
- - TEST-CRASH RULE (standing): a test run dying inside the agent step with no decision file and no Tester comment carries zero signal - retry once; a second consecutive silent death on the same PR routes `lab`; never a third test.
- - MODEL-WATCH RULE (standing): pin `opencode/deepseek-v4.1-flash-free`; every arm resolves pre-flight against the live registry and retries per rung on `Model not found`; R15 guards it. A dead rung or a better free model -> `lab`.
- - BOT-ACTOR CLASS (standing): the `pull_request` maintainer arm still goes red plus posts the permission-noise comment on bot-authored PR events; #427/#429 were CLOSED unmerged by the owner on 2026-09-25. Documented red + on-thread explanation; no dispatch.
- - WINDOWS FORWARD QUIRK (new, watch): the peros Windows arm's decision forward is path-mangled by Git Bash (`C:/Program Files/Git/oc maintainer` instead of `/oc maintainer`, landed on #582), so its PR gets no trigger from the arm; the maintainer survey must catch it (as it did for #610 via the zero-comment PR + the held PR-creation triplet). If it recurs on the next Windows arm, route `lab` for an MSYS-safe forward (`MSYS_NO_PATHCONV=1` or a body file).
- - PERS REPORT CONTRACT: #609 (lab) carries the fix; until it lands, recover native reports from the arm's run log before triaging.
- - Infra routing guard: anything touching `.github/**`, `AGENTS.md`, `LAB.md`, `opencode.json` routes to Lab Engineer (`lab`), never `fix`/`continue`.
+ - **#610 FIX (dispatched this run):** ping digest posted first, then `/oc fix`. Scope: 3 defects + body correction + doc nits + rebase note (drop the duplicated macOS commit once #606 merges). On push -> `review` -> test -> eval -> merge; then the Windows arm re-run validates the guard natively.
+ - **#606 EVAL (run 39043590288 live since 15:06:22Z):** approve-eval -> merge `--rebase` (Refs #582, no closure) -> plan the parity-row fold + fresh macOS arm re-run; rejection -> `fix` -> re-test -> re-eval.
+ - **#609 LAB FIX (run 39042663843 live since 14:53:23Z):** on push -> review round 2 -> read-only infra test -> PAT-backed merge (`Closes #608`).
+ - **PAGES FRESHNESS (`6343d8a9`):** deploy run 39044333631 dispatched 15:16:42Z; next run confirms success; only if it failed, re-dispatch `pages.yml`.
+ - **MSYS ISSUE (created this run):** UNTRIAGED; next run routes `lab` (path-conversion opt-out on the three peros forwarder steps + audit guard; #609 does NOT cover it).
+ - MSYS/MANGLED-HANDOFF CLASS (new watch): any future Windows arm handoff comment must read byte-exact `/oc ...`; a `C:/Program Files/Git/oc` prefix recurring -> `lab` on the vehicle issue.
+ - FREETIER WATCH: one occurrence (run 39040486914, 14:23:07Z, 403 FreeTierError); no recurrence. Repeat -> `lab` (bounded retry-once / rung rotation).
+ - TEST-CRASH RULE (standing): retry once; second consecutive silent death on same PR -> `lab`; never a third test.
+ - MODEL-WATCH RULE (standing): pin `opencode/deepseek-v4.1-flash-free`; resolver + ladder; dead rung or better free model -> `lab`.
+ - BOT-ACTOR CLASS (standing): documented red + on-thread explanation; no dispatch.
+ - PERS REPORT CONTRACT: #609 carries the fix; until it lands, recover native reports from the arm's run log if missing (this time the Windows report survived via PR #610's body).
+ - Evaluator follow-ups, Tester R14 regex residuals, Reviewer flow-style note, advisory nits: queued for a future hardening vehicle.
+ - Infra routing guard: anything touching `.github/**`, `AGENTS.md`, `LAB.md`, `opencode.json` routes to `lab`, never `fix`/`continue`.
  - Orphan-main protection holds: verify `git merge-base origin/main <pr-head>` non-empty before every merge.
- - IP hold (standing): God of War Kratos vs Zeus commission declined; original mythic-duel alternative awaiting owner confirmation.
- - Standing-board close guard: #70 and #42 must never carry `Closes` in a PR body; merge as Refs only.
- - MEMORY RACE RULE (new): concurrent maintainer sessions race their memory commits (this tick's 15:06:22 commit clobbered the 15:06:17 log entry; the two files were byte-identical through offset 149,463). At finalize time, fetch the freshest `maintainer/logs` blob and compose from that, not from the run-start materialization; recover clobbered entries from the losing commit's blob when needed.
+ - IP hold (standing): God of War commission declined; original mythic-duel alternative awaiting owner.
+ - Standing-board close guard: #70 and #42 never carry `Closes`.
+ - Ambient: maintainer concurrency bursts at 15:09/15:11 (workflow_run fan-out) - documented single-slot superseding; concurrent runs target distinct lanes (#607 merge vs this run's #610 triage). Memory-write ordering left to the hardcoded commit steps; run markers disambiguate.
 
 ## NEXT-RUN PLAYBOOK
-  1. #610: read the Fixer round; then review -> test -> eval -> `gh pr merge 610 --rebase` (`Refs #582`, keep branch).
-  2. #606: read the eval verdict on `cbf94123`; approve-eval -> `gh pr merge 606 --rebase` (`Refs #582`, no closure).
-  3. #609: read review round 2; approve -> read-only infra test -> PAT-backed merge (`Closes #608`).
-  4. After both #606 and #610 land: dispatch parallel macOS + Windows native re-runs on the final merged head; fold the parity rows; keep #582 open until both rows are genuinely signed.
-  5. FreeTier watch: a second occurrence of the 403 class -> `lab` runner hardening.
-  6. Windows forward quirk: if the next arm's forward is mangled again -> `lab` (MSYS path conversion).
-  7. #552 owner confirmation outstanding (7-day human rule).
+  1. #610: read the Fixer push; dispatch `review` on the new head; standard test gate; then Windows arm re-run to sign rows.
+  2. Pages: confirm deploy 39044333631 (`6343d8a9`) concluded success; failed -> re-dispatch `gh workflow run pages.yml`.
+  3. #606: read the eval verdict; approve-eval -> merge `--rebase` (no closure).
+  4. #609: read the post-fix review verdict; approve -> read-only infra test -> PAT-backed merge (`Closes #608`).
+  5. MSYS issue: verify the self-dispatch triaged it; absent -> dispatch `lab`.
+  6. Windows arm re-run after #610 lands (guard + workspace green natively; default-harness E2E).
+  7. #552 owner confirmation outstanding (7-day human rule ~Oct 23).
   8. Standby otherwise (no auto-ideate).
 
 ## OPEN QUESTIONS
-  - Does the Fixer close all three Windows defects in one round, and does #610 then clear review/test/eval?
-  - Does the Quality Council approve #606 on `cbf94123`, so the macOS rows can flip?
-  - Does #609 clear review round 2 and land the report-loss contract before the final native re-runs?
-  - Did the #607 merge's main advance deploy Pages green?
-  - Did #605's manual close leave the thread clean (no auto-close fired on the rebase merge)?
+  - Does the #610 fix round clear review/test/eval and turn the Windows RED test green natively?
+  - Does a Pages deploy land for the post-merge main tip, or does it need a dispatch?
+  - Does the Quality Council approve #606, unblocking the macOS row fold?
+  - Does #609 land the findings-report contract before the final native re-runs?
+  - Does the next tick route the MSYS issue to `lab`?
 
  - Hephaestus, the Maintainer
