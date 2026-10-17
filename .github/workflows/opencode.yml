@@ -114,7 +114,6 @@ jobs:
         timeout-minutes: 60
         uses: ./.github/actions/opencode-run
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
@@ -291,7 +290,6 @@ jobs:
         timeout-minutes: 60
         uses: ./.github/actions/opencode-run
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
@@ -573,7 +571,6 @@ jobs:
         timeout-minutes: 105
         uses: ./.github/actions/opencode-run
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
@@ -1028,7 +1025,6 @@ jobs:
         timeout-minutes: 60
         uses: ./.github/actions/opencode-run
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
@@ -1211,7 +1207,6 @@ jobs:
         timeout-minutes: 60
         uses: ./.github/actions/opencode-run
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
@@ -1381,7 +1376,6 @@ jobs:
         timeout-minutes: 60
         uses: ./.github/actions/opencode-run
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
@@ -1551,7 +1545,6 @@ jobs:
         timeout-minutes: 60
         uses: ./.github/actions/opencode-run
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
@@ -1721,7 +1714,6 @@ jobs:
         timeout-minutes: 60
         uses: ./.github/actions/opencode-run
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
@@ -1940,7 +1932,6 @@ jobs:
         timeout-minutes: 60
         uses: ./.github/actions/opencode-run
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
