@@ -31,9 +31,9 @@ reviewed PRs (see LAB.md §21).
 
 ## Shared protocols (normative, not agents)
 
-- `.github/agents/delegation.md` - binding delegation, parallelism, and skills protocol (thresholds, parallel Task pattern, evidence ledger, skill discovery/vetting/use). It carries no trigger and gets no roster row; every worker prompt that references it MUST follow it.
+- `.github/agents/delegation.md` - binding delegation, parallelism, and skills protocol (thresholds, parallel Task pattern, evidence ledger, skill discovery/vetting/use, verification-harness isolation). It carries no trigger and gets no roster row; every worker prompt (and the Lab Engineer) that references it MUST follow it.
 - `.github/agents/skills.md` - known-skills registry companion to `delegation.md` section 5 (one row per skill). It carries no trigger and gets no roster row.
-- `.github/agents/quality-gates.md` - binding completion criteria companion to `delegation.md` section 6 (Reviewer, Tester, Evaluator, per-OS gates plus evidence artifacts). It carries no trigger and gets no roster row.
+- `.github/agents/quality-gates.md` - binding completion criteria companion to `delegation.md` section 7 (Reviewer, Tester, Evaluator, per-OS gates plus evidence artifacts). It carries no trigger and gets no roster row.
 - `.github/agents/continuous-improvement.md` - binding post-merge loop companion to `quality-gates.md` (verify lab green, record improvement with evidence, track leftover on the parent issue). It carries no trigger and gets no roster row.
 
 ## Team Spirit & Peer Calling Model
