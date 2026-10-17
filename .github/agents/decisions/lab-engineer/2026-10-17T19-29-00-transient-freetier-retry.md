@@ -251,4 +251,24 @@ properties, and result strings now name both issues.
   isolated copies under `/tmp/opencode/` per delegation.md section 6; the
   live workspace reports the same 20/0 verdict.
 
+## Addendum IV: rebase onto main after the #612 R18 landing
+
+- Main advanced 13 commits during this pass (PR #612 landed the Windows MSYS
+  argv handoff guard and added `R18` to the audit, alongside lab health
+  commits). The branch is rebased onto `a28687b5`, 0 commits behind.
+- Single content conflict: the audit's failure-body invariant list.
+  Resolution keeps main's new `R18 Windows MSYS argv-conversion guard` item
+  and retains `R15 model fallback ladder plus transient free-tier retry`.
+  Addendum I's historical note ("no R18 exists") referred to the #616 lane's
+  renumbering at that time; main has since filled the slot with the MSYS
+  guard, and the rebased tree carries it.
+- The runner blocks (`action.yml` "Run opencode", `maintainer.yml` "Run
+  Maintainer agent") are byte-identical to the previously verified head
+  (guard-only diff, no conflicts there), and the full guard verification was
+  re-run on the rebased tree: pristine audit 21 passed / 0 failed (R18
+  included); combined mutation matrix 20/20 RED; 4/4 fail-closed edge tests.
+- **Delegation ledger (this pass):** primary only: mechanical rebase plus a
+  re-run of the existing harness in refreshed isolated copies
+  (`/tmp/opencode/f5-harness/repo-e2`, `tree`).
+
 - the Lab Engineer
