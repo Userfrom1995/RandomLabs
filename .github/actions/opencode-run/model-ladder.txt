@@ -1,0 +1,18 @@
+# Bounded fallback ladder against provider-side model retirement (issue #591).
+#
+# resolve-model.sh resolves the requested (pinned) model against the live
+# registry (https://opencode.ai/zen/v1/models) before every agent run and
+# substitutes the first live rung below when the pin is dead. At runtime the
+# shared runner retries the next rung once per rung on a provider "Model not
+# found" and fails the step loudly when the whole ladder is dead, so a
+# provider retirement can no longer kill every arm at once nor conclude green.
+#
+# Rules for rungs:
+#   - one model ref per line, order = fallback preference, comments allowed;
+#   - every rung MUST be a free-tier model ending in "-free" (the CreditsError
+#     two-knob guard, audit R6; non-free lines are ignored by the resolver);
+#   - verify each rung against the live registry before adding or reordering
+#     (the Auditor surveys the model ecosystem daily and proposes updates).
+opencode/deepseek-v4.1-flash-free
+opencode/mimo-v2.6-flash-free
+opencode/glm-5.3-flash-free
