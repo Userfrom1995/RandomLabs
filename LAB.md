@@ -540,7 +540,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422) + the model fallback ladder (resolve-model.sh, model-ladder.txt, issue #591)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R20), per-OS findings poster, review-comment publication evidence, CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R21), per-OS findings poster, review-comment publication evidence, CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
@@ -696,6 +696,22 @@ catches up in seconds.
   3-page payload whose markers sit on page 3 (34-comment thread shape), proving
   the count reads 3 and the cap trips. Enforced by R20 in
   `.github/scripts/silent-stall-audit.sh`.
+- The PAT merge sweep only merges a workflow-touching PR on a shape-anchored,
+  head-bound tester verdict (issue #619): an unanchored substring match let a
+  Maintainer decisions summary that merely quoted the tester marker while
+  describing another PR count as this PR's approval, and the sweep merged
+  unreviewed workflow PRs three times in one evening (maintainer run
+  39059718673 merged #618 at 18:55:19Z, its real verdict arriving at
+  19:00:08Z; the same pre-fix sweep merged the rebased #609 at 19:23:15Z on
+  its pre-rebase verdict; and run 39062904001's summary quote merged #624 at
+  19:38:31Z with zero verdicts on record), while the same runs skipped
+  genuinely approved lanes as mergeable=UNKNOWN (GitHub recomputes
+  mergeability right after the sweep advances main). The verdict marker must
+  now be the comment's entire first line (optionally backticked), every
+  approval must not predate the head's last push (commit committer dates plus
+  head_ref_force_pushed timeline events; fail closed when unavailable), and
+  mergeable=UNKNOWN is re-queried a bounded number of times before skipping.
+  Enforced by R21 in `.github/scripts/silent-stall-audit.sh`.
 - The Maintainer cannot land infra/model/workflow changes herself: routine
   changes route to the Lab Engineer (`{"action":"lab"}`), and the direct-to-main
   revival path fires only with a complete `.maintainer/emergency.json`

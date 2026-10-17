@@ -1428,7 +1428,10 @@ fi
 # counted as this PR's verdict: the sweep merged workflow-touching #618 at
 # 18:55:19Z with no review verdict and no read-only test (maintainer run
 # 39059718673, matched comment 6239004626 at 18:55:04Z, while #618's first
-# verdicts only arrived later: review 19:00:08Z, read-only test 19:08:19Z). The same run then skipped the
+# verdicts only arrived later: review 19:00:08Z, read-only test 19:08:19Z),
+# and a third time at 19:38:31Z when a tester-marker quote inside maintainer
+# run 39062904001's own summary comment (6239740609, 11 seconds earlier)
+# merged #624 with zero verdicts on record. The same run then skipped the
 # genuinely approved #609 as mergeable=UNKNOWN, because GitHub recomputes
 # mergeability right after the sweep itself advanced main (post-merge
 # recompute race). Anchoring alone is not enough: #609's genuine 18:50:48Z
