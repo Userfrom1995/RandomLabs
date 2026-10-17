@@ -752,7 +752,10 @@ fi
 #   re-fetch output) and `posted_capture` (records the exact file handed to
 #   `gh api -F body=@...`) knobs, and the fixture set includes a CRLF report,
 #   a CRLF-translated LF re-fetch, a CRLF report posted on Windows, and a
-#   CRLF tampered body with an intact sign-off tail.
+#   CRLF tampered body with an intact sign-off tail. The CRLF fixture is
+#   self-validating: the audit probes the mock directly and requires the
+#   translated body to carry CR bytes through the poster's own jq -r decode
+#   path, so a neutered mock cannot mask a poster normalization regression.
 # Review-gated residual boundary: the verify step's own run body cannot be
 # functionally executed statically, so an early `exit 0` inserted into it (or
 # any arbitrary reshuffle of a step's control flow that still passes every
@@ -1022,6 +1025,16 @@ R17_MOCK
       tr -d '\r' < "$r17_crlf_windows" > "$r17_crlf_windows_norm"
       r17_crlf_tampered="$r17_tmp/crlf-tampered.md"
       printf 'Finding one tampered. Finding two gone.\r\n\r\n- the Windows Tester\r\n' > "$r17_crlf_tampered"
+      # Self-validating fixture (finding F2 of the independent adversarial
+      # verification): prove the crlf_fetch emulation really emits CR bytes
+      # through the same jq -r decode path the poster uses, so a neutered
+      # mock cannot mask a poster normalization regression.
+      printf 'author="github-actions[bot]"\nfail_post="0"\nno_id="0"\nbody_file=%q\ncrlf_fetch="1"\nposted_capture=""\n' "$r17_good_linux" > "$r17_tmp/case.cfg"
+      if PATH="$r17_mockdir:$PATH" gh api "repos/mock/mock/issues/comments/1" 2>/dev/null | jq -r '.body // empty' 2>/dev/null | grep -q $'\r'; then
+        :
+      else
+        r17_bad="${r17_bad} script(functional-crlf-fetch-mock-not-translating)"
+      fi
       r17_case() {
         r17_case_name="$1"; r17_case_want="$2"; r17_case_os="$3"; r17_case_report="$4"; shift 4
         {
