@@ -187,8 +187,122 @@ jobs:
           fi
           echo "Evidence gate passed: $good non-test command(s) recorded against the deliverable."
 
-      - name: Forward tester decision
+      - name: Verify tester decision published, else fail closed
+        id: publish-gate
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.evidence-gate.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Env indirection (audit R10): the trigger timestamp reaches the
+          # publication checker as data, never expanded into the shell text.
+          SINCE: ${{ github.event.comment.created_at }}
+        run: |
+          # Issue #629: a present decision file is only a real verdict once the
+          # Tester's signed decision comment is actually published on the PR
+          # thread. A prose-first report silently stalled the PAT merge sweep
+          # on PR #628 because its first-line anchor (R21) can never match it.
+          # The shared checker requires a github-actions[bot] comment created
+          # after this run's trigger carrying the `- the Tester` sign-off (the
+          # #616 publication contract applied to the tester gate). The script
+          # is read from this run's own workflow commit, never the checked-out
+          # PR head, so a PR can never weaken the gate that tests it. Exit 2
+          # means verification itself failed: that is NOT evidence of a crash,
+          # so it must neither proceed nor auto-retry a possibly-published
+          # verdict.
+          pr="${{ github.event.issue.number }}"
+          if [ ! -f /tmp/random-lab-decision.json ]; then
+            echo "No decision file; verify step above already failed the job closed."
+            exit 0
+          fi
+          action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+          if [ "$action" != "maintainer" ]; then
+            echo "Publication gate applies to maintainer decisions only (action='$action'); nothing to verify."
+            exit 0
+          fi
+          evidence_script="${RUNNER_TEMP:-/tmp}/test-comment-published.sh"
+          rm -f "$evidence_script"
+          if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/test-comment-published.sh" 2>/dev/null; then
+            git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
+          fi
+          if git cat-file -e "${GITHUB_SHA}:.github/scripts/test-comment-published.sh" 2>/dev/null; then
+            git show "${GITHUB_SHA}:.github/scripts/test-comment-published.sh" > "$evidence_script" 2>/dev/null || rm -f "$evidence_script"
+          fi
+          if [ ! -s "$evidence_script" ]; then
+            rm -f /tmp/random-lab-decision.json
+            echo "::error::Publication-evidence script absent from workflow commit ${GITHUB_SHA}; refusing to forward an unverified verdict (issue #629, fail closed)."
+            exit 1
+          fi
+          pub_rc=0
+          bash "$evidence_script" "$pr" "$SINCE" || pub_rc=$?
+          case "$pub_rc" in
+            0)
+              echo "Tester decision comment published; the maintainer decision may proceed."
+              ;;
+            1)
+              rm -f /tmp/random-lab-decision.json
+              echo "::error::Tester wrote a decision file but no signed decision comment was published (issue #629); discarding the unpublished verdict, failing closed for a fresh /oc test dispatch."
+              exit 1
+              ;;
+            *)
+              rm -f /tmp/random-lab-decision.json
+              echo "::error::Could not verify whether the Tester's decision comment was published (checker exit $pub_rc); refusing to forward an unverified verdict (issue #629). Manual triage required."
+              exit 1
+              ;;
+          esac
+
+      - name: Publish tester approval marker (bot-authored)
+        id: marker
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.publish-gate.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Issue #629: the merge sweep's first-line anchor (R21) is satisfied
+          # by a workflow-published canonical marker instead of agent prose
+          # compliance. This step runs only after the evidence gate passed and
+          # the Tester's signed report is verified published, so it publishes a
+          # genuine machine verdict, never a forged one. The marker is posted
+          # with github.token (github-actions[bot] authorship); the
+          # /oc maintainer handoff below keeps the owner PAT because
+          # GITHUB_TOKEN-authored comments start no workflow run.
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+          if [ ! -f /tmp/random-lab-decision.json ]; then
+            echo "No decision file; nothing to publish."
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+          if [ "$action" != "maintainer" ]; then
+            echo "Decision '$action' is not an approval; no marker to publish."
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          ev=/tmp/live-run-evidence.json
+          if [ -f "$ev" ] && jq -e '.scope == "unrunnable"' "$ev" >/dev/null 2>&1; then
+            echo "Evidence declares scope=unrunnable; this is an escalation, not an approval; no approval marker published."
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          scope=$(jq -r '.scope // "standard"' "$ev" 2>/dev/null || echo "standard")
+          pr="${{ github.event.issue.number }}"
+          publisher="${RUNNER_TEMP:-/tmp}/publish-tester-marker.sh"
+          rm -f "$publisher"
+          if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-tester-marker.sh" 2>/dev/null; then
+            git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
+          fi
+          if git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-tester-marker.sh" 2>/dev/null; then
+            git show "${GITHUB_SHA}:.github/scripts/publish-tester-marker.sh" > "$publisher" 2>/dev/null || rm -f "$publisher"
+          fi
+          if [ ! -s "$publisher" ]; then
+            echo "::error::Marker publisher absent from workflow commit ${GITHUB_SHA}; refusing to hand an unpublished marker to the merge sweep (issue #629, fail closed)."
+            exit 1
+          fi
+          if ! bash "$publisher" "$pr" "$scope"; then
+            echo "::error::Tester approval marker publication failed; the merge sweep would never recognize this verdict (issue #629). Failing closed."
+            exit 1
+          fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+
+      - name: Forward tester decision
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.evidence-gate.outcome == 'success' && steps.publish-gate.outcome == 'success' && steps.marker.outputs.ok == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
