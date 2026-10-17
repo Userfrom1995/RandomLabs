@@ -35,7 +35,8 @@ for (const id of [
 check('wad error box is an alert', html.includes('id="wad-error"') && html.includes('role="alert"'));
 check('loading line is live', html.includes('id="wad-loading"') && html.includes('aria-live="polite"'));
 check('onboard panel labelled', html.includes('aria-label="Getting started"'));
-check('m4 scope section names ecosystem', html.includes('WAD ecosystem and polish'));
+check('m4 ecosystem copy present in the unified panel', html.includes('map-group replacement')
+  && html.includes('per-map isolation'));
 check('old M3 scope text gone', !html.includes('WAD ecosystem polish (M4) is the next milestone'));
 
 const app = read('app.js');
