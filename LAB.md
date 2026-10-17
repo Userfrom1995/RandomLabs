@@ -512,7 +512,17 @@ envelope can never consume the retry, the retry re-enters the same-model loop
 (never advancing the ladder), and a second rejection exits loudly instead of
 looping. The bounded cap, the same-model/advance split, and the detector's
 accept/reject matrix are enforced by R15 (extended) in
-`.github/scripts/silent-stall-audit.sh`.
+`.github/scripts/silent-stall-audit.sh`, which extracts both real runner
+`run:` blocks and executes them loop-level against an executable mock
+`opencode` and a mock `sleep` (isolated sandbox, live Actions env scrubbed,
+execution cwd confined to the sandbox, interception proven, per-scenario
+timeout): transient recovery on both exit shapes with the bounded backoff
+asserted, exactly one same-model retry, loud persistence after two attempts
+with the provider's own distinct statuses propagated, rung advance
+preserved, the budget shared across rungs, echo/envelope/suffixed/stale
+non-match, superset-id non-match, and unclassified status propagation are
+asserted by behavior, so textual pin relocations, decoys, or loop rewrites
+cannot pass while the contract breaks.
 
 The schedule arms (`curator.yml`, `auditor.yml`) and the dispatched arms
 (`curator.yml`, `auditor.yml`, `ideate.yml`, `lab.yml`) share
@@ -683,8 +693,10 @@ catches up in seconds.
   rejection is also survivable (issue #620): both runner paths retry the
   same model exactly once per arm on that class (anchored detector, bounded
   cap, a second rejection fails loudly). The resolver, the ladder, both
-  retry paths, and the transient free-tier retry are statically enforced by
-  R15 in `.github/scripts/silent-stall-audit.sh`.
+  retry paths, and the transient free-tier retry are enforced by R15 in
+  `.github/scripts/silent-stall-audit.sh` (anchored static tripwires plus a
+  loop-level behavioral execution of the real runner blocks against
+  executable mocks, issue #620 review F5).
 - The PAT merge sweep never silently skips a linked workflow PR on a shallow
   workspace (issue #602): the opencode CLI session bootstrap re-shallows the
   Maintainer's full-depth checkout with depth-limited fetches, and
