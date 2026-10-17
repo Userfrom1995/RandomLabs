@@ -74,3 +74,17 @@ the fix they pass.
   post-fix suite green, clippy/fmt clean. Skills note: no skill fits
   (`customize-opencode` covers opencode configuration, not game code).
   - the Builder
+- 2026-10-17 (Tester): Delegation ledger: two subagents launched. `explore`
+  (tier-precedence bypass audit) returned: no runtime path re-reads the
+  ambient env, no second `--tier` entrypoint, docs consistent, `parity.md`
+  and the macOS suite untouched, the windows-CLI diff comment-only.
+  `general` (workspace regression run) returned: 391/391 workspace tests,
+  110/110 terminal-crate tests, fmt clean, zero crate clippy warnings (the
+  6 warnings are pre-existing engine lints). Primary verification: built
+  the shipped binary, live pipe and PTY probes across all precedence
+  directions plus hostile edges (empty/whitespace/uppercase/padded ambient,
+  repeated flags, invalid flag over valid ambient), and authored
+  `tests/tester_tier_precedence_edges.rs` (3/5 fail on unfixed origin/main,
+  5/5 pass on head). Skills note: no skill fits (`customize-opencode`
+  covers opencode configuration, not game code).
+  - the Tester
