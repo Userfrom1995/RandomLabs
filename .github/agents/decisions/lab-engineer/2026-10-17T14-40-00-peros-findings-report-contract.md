@@ -71,8 +71,7 @@ lives in a file the workflow owns end to end.
   form (`; then`, which the fetch pre-check's `&&` no longer satisfies),
   anchored the poster's bot-author, post-fetch sign-off, and body-equality
   checks to their exact comparison lines, and added the N1
-  belt-and-suspenders per-arm assertions (the exact post-step and forward
-  gate condition must appear twice, and the arm must carry two
+  belt-and-suspenders per-arm assertions (the arm must carry two
   `GH_TOKEN: ${{ github.token }}` envs so a PAT slipped into the post step
   trips the audit). M3 (poster restore) was upgraded from removal to
   dead-coding the gate with the archive line intact, and M7-M11 were added:
@@ -80,6 +79,18 @@ lives in a file the workflow owns end to end.
   check deleted, post-step gate removed, and post-step token swapped to the
   owner PAT; each trips R17 red with the expected sub-flag on the tightened
   guard.
+- Independent verification (subagent 2, adversarial): all 11 cases red, and
+  three further blind spots found and closed. X1: appending ` && false` to a
+  post-step gate passed the substring count (the whole step was skipped
+  silently), now closed by exact whole-line post-step and forward gate
+  assertions. X2: replacing a guard block's `exit 1` with a no-op kept the
+  anchored `if` line green while the script printed its verified marker,
+  now closed by a structural check that each guard's own block (up to its
+  `fi`) contains a real `exit 1`. X3/X7: commenting out or `|| true`-ing the
+  shared-script invocation passed the loose regex, now closed by an anchored
+  uncommented whole-line invocation assertion. A re-run of the extended
+  18-case matrix (M1-M11 plus X1-X7) trips R17 red on every case with the
+  expected sub-flag.
 - Static consistency: no stale `R1-R16` range labels remain (the Tester
   prompt and the `opencode.yml` enumeration were fixed in the review
   round); no remaining instruction to agents to post their own findings
@@ -99,16 +110,25 @@ lives in a file the workflow owns end to end.
   (findings B3) showed that gate anchor was also satisfied by the fetch
   pre-check's shared prefix, so it now requires the restore gate's `; then`
   form specifically.
+- Subagent 2 (general; scope: independent adversarial re-verification of the
+  tightened R17 in fresh /tmp copies, read-only on the real repo): baseline
+  17/17; all 11 review-round mutations red with the expected sub-flags;
+  `bash -n` clean on both scripts; no em dashes in the three new commits;
+  found three additional blind spots (gate-suffix `&& false`, guard `exit 1`
+  replaced by a no-op, commented invocation) that were all closed before
+  handoff.
 - Primary verified itself: read every changed hunk, ran the audit before and
   after the tightening, sandboxed the restore step's three paths, exercised
   the poster's failure matrix, and ran the YAML/`bash -n`/em-dash/clean-tree
   checks before committing.
 - Review-fix round (primary, this session): applied B1-B5 and N1, re-ran the
-  audit on the committed tree (17 passed, 0 failed), ran the 11-case
-  mutation matrix in a `/tmp` sandbox (baseline 17/17; every mutation trips
-  R17 red with its expected sub-flag, including the four blind spots B3/B4
-  and the two N1 mutations), re-verified workflow YAML parse, `bash -n` on
-  both scripts, `shellcheck` on the poster, the stale-range sweep, and the
+  audit on the committed tree (17 passed, 0 failed), then closed the
+  independent verifier's X1/X2/X3 blind spots with exact whole-line gate
+  assertions, an anchored uncommented invocation assertion, and structural
+  guard-block `exit 1` checks, and re-ran the extended 18-case mutation
+  matrix in a `/tmp` sandbox (baseline 17/17; every case trips R17 red with
+  its expected sub-flag), plus workflow YAML parse, `bash -n` on both
+  scripts, `shellcheck` on the poster, the stale-range sweep, and the
   no-em-dash check.
 - Skills: no skill fits (GitHub Actions lab infrastructure and lab prompts,
   not opencode configuration of this workspace).
