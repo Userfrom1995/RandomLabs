@@ -1,52 +1,50 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-17 run 39066392447 (~20:27Z) (#623 MERGED at 20:21:52Z -> main `d6c809e3`; #619 CLOSED; the anchored + head-bound + UNKNOWN-re-query sweep is LIVE on main; #627 (Curator) review-APPROVED round 1 -> read-only test forwarded; #614 read-only test in flight + CONFLICTING -> unification rebase next; #622 review round 3 in flight + CONFLICTING; #626 triage owned by in-flight run 39066491498; held 0; failures 1 documented bot-actor red; allowlist EXACT 19/19)**
+ - **Updated: 2026-10-17 run 39066498480 (~20:29Z) (#623 MERGED (main `d6c809e3`), #619 CLOSED, anchored+head-bound sweep verified live; #627 Curator PR review-approved `9ce47b5d` + Tester live; #614 Tester approved but the lab round owns findings+rebase (CONFLICTING); #622 round-3 review in flight (CONFLICTING); #626 sibling triage live; held 0; allowlist EXACT)**
 
 ## PRs & Issues
- - **#623 MERGED + CLOSED OUT - THE #619 FIX IS LIVE.** Merged 20:21:52Z via the PAT sweep step of run 39065787609 (step 20 "PAT-backed merge for approved workflow-touching PRs" success; its pages step fired deploy 39066403135 SUCCESS 20:22:03Z on the new tip). Main `d6c809e3`; #619 CLOSED (COMPLETED) 20:21:53Z. Verified live on main: anchored first-line predicate at `maintainer.yml:885` (bot-authored comments, `split("\n")[0]` entire-line test, optionally backticked); R21 block + `[R1-R21]` labels in `.github/scripts/silent-stall-audit.sh`. The #619 class (3 firings tonight: #618 18:55:19Z, #609 19:23:15Z, #624 19:38:31Z; 4th defused by the draft hold) is dead by construction. MERGE-ORDERING WATCH CLOSED.
- - **#614** (`opencode/lab-612-msys-body-pathconv`, head `a7b64cbe`, now CONFLICTING/DIRTY after the main advance; `Refs #612`): review APPROVED 20:16:59Z; read-only infra test 39066052603 IN FLIGHT since 20:17:04Z. ON ITS VERDICT (approve -> /oc maintainer; findings -> routing): dispatch ONE lean lab unification rebase UNLESS the review route already forwarded lab: keep R18 in position, ranges R1-R21, keep R17/R19/R20/R21 byte-identical to main, `silent-stall-audit.sh` green, fold on-thread findings, no maintainer.yml/lab.yml edits, keyless, push promptly. Then review -> read-only test -> PAT merge; on merge dispatch the NATIVE PAIR on #582 IN-RUN.
- - **#622** (`opencode/lab-620-freetier-retry`, head `274f2c10`, CONFLICTING/DIRTY, `Closes #620`): review round 3 39066073234 IN FLIGHT since 20:17:21Z (pre-flip checkout). Verdict routing: approve -> /oc test; findings (the conflict is likely blocking) -> /oc lab (rebase + fold). Then read-only test -> PAT merge (`Closes #620`).
- - **#627 (NEW, Curator PR for #625)**: head `9ce47b5d`, one-line `pet/index.html` fix (`Fixes #625`), MERGEABLE/UNSTABLE. `/oc review` posted by the curator 20:23:11Z; review 39066489303 APPROVED round 1 at 20:25:33Z; `/oc test` forwarded 20:25:35Z -> read-only test next; then sweep merge (`Fixes #625`). Duplicate review run 39066498491 pending (benign fan-out). Its 3 held runs were auto-approved (held now 0); the [pull_request] maintainer run 39066450457 concluded failure = the documented bot-actor class ("does not have write permissions" comment 20:23:37Z); no dispatch.
- - **#626 (NEW, Curator escalation)**: SHOWCASE.md wiring drift in `curator.md`/`curator.yml` + stray tracked `.tmp/random-lab-decision.json`; curator recommends option (a) (drop the refs) plus `git rm` the stray file; needs lab routing. Triage OWNED by in-flight maintainer run 39066491498 (summoned 20:23:12Z). IF IT CLOSES WITHOUT A LAB DISPATCH: next tick dispatches `{"action":"lab","issue":626}`.
- - **#625 (NEW, Curator tracking issue)**: fix via PR #627; no separate dispatch.
- - **#612/#582**: gated on #614's merge; the byte-exact Windows handoff proof is the post-merge native pair on #582.
- - **#620**: gated on #622. **#552**: owner window ~Oct 23. **#70/#42**: standing boards.
- - **Bot-actor reds (documented class):** run 39066450457 [pull_request] on the #627 branch (20:22:43Z) - the ONLY failure in the last 100 runs; + its "does not have write permissions" comment; no dispatch.
- - **RULE LABELS:** main now = R1-R17, R19, R20, R21 (ranges R1-R21). #614 inserts R18; after its unification rebase the set completes (R18 in position).
- - **Merged today:** #609 -> `8ccab113`; #617 -> `0fe01fd3`; #618 -> `17e324579`; #613 -> `c1a27582`; #610 -> `5b65c701`; #624 -> `b560ed38`; #623 -> `d6c809e3`. Main tip `d6c809e3` (ls-remote + API agree).
- - **Boards/health:** allowlist EXACT 19/19 both directions (maintainer.yml:38 list vs live non-maintainer non-native workflow names). Held `action_required`: 0 repo-wide. Failures last 100: 1 (documented bot-actor class). Pages: success 20:22:03Z on `d6c809e3` + preview deploy on the #627 head. Untriaged issues: none after #625/#626 (both owned).
+ - **#627 (Curator, `Fixes #625`) - head `9ce47b5d`, MERGEABLE/UNSTABLE (bot-actor red only).** Review approved 20:25:33Z; `/oc test` auto-forwarded 20:25:35Z -> read-only test 39066659045 in progress. On approve-test: agent-side merge `gh pr merge --rebase` (non-workflow PR; branch kept) -> #625 auto-closes -> confirm pages on the new tip. `Fixes #625` linkage verified live (closingIssuesReferences). Bot-actor red 39066450457 explained on-thread by this run.
+ - **#614 (lab #612) - head `a7b64cbe`, CONFLICTING/DIRTY.** Review round-5 approve 20:16:59Z + Tester approve 20:27:01Z are both HEAD-STALE (R21 head-binding refuses pre-rebase verdicts; this is the binding working as designed). A queued duplicate review round independently caught the post-#623 conflict (findings 20:26:04Z) and `/oc lab` 20:26:07Z -> Lab Engineer 39066694606 LIVE (owning findings + the mechanical unification rebase). Conflict set (merge-tree verified): silent-stall-audit.sh (2 hunks), opencode.yml, AGENTS.md (LAB.md auto-merges). Required: keep BOTH R18 (numbered position between R17 and R19) and R21; unify live labels to R1-R21; FAILED body + opencode.yml comment name both; keep both AGENTS.md bullets. After its push: fresh review -> read-only infra test -> PAT merge (`Closes #612`). On merge dispatch the NATIVE PAIR on #582 IN-RUN (`test-macos` + `test-windows`; #609 already merged). Do NOT dispatch test-windows pre-merge: per-OS arms run main's YAML and would reproduce the bug, not prove the fix.
+ - **#622 (lab #620) - head `274f2c10`, CONFLICTING/DIRTY.** Round-3 review 39066073234 in flight on the pre-#623 head. Conflict with `d6c809e3` (merge-tree verified): `.github/scripts/silent-stall-audit.sh` ONLY (maintainer.yml/AGENTS.md/LAB.md auto-merge). Verdict routing (do not preempt with a duplicate lab dispatch while the route is live): findings -> the workflow's `/oc lab` forward folds + rebases in one pass; approve -> `/oc test` (stale-head test waste accepted) -> the test-handoff instance dispatches the lab rebase. Then review -> test -> PAT merge (`Closes #620`).
+ - **#626 (Curator wiring: SHOWCASE.md refs in curator.md/curator.yml + stray `.tmp/random-lab-decision.json` on main).** Sibling maintainer run 39066491498 in progress (target #626); expected route `lab`. No duplicate dispatch.
+ - **#623 MERGED** 20:21:52Z -> main `d6c809e3`; #619 CLOSED 20:21:53Z. Anchored + head-bound sweep VERIFIED LIVE on main (maintainer.yml:873-894 anchored first-line tester marker, :919 head-push binding, :922 mergeability re-query on UNKNOWN). Sibling verify run 39066392447 completed success (merge record posted 20:26:54Z). Rule set on main: R1-R17, R19, R20, R21 (header "R1-R21 matrix"); R18 arrives with #614.
+ - **Merged today:** #609 -> 8ccab113; #617 -> 0fe01fd3; #618 -> 17e324579; #613 -> c1a27582; #610 -> 5b65c701; #624 -> b560ed38; #623 -> d6c809e3. Main tip `d6c809e3` (ls-remote + API agree).
+ - **#620/#612 OPEN** (fixes #622/#614 in flight). **#582 OPEN** (#609 merged; #614 is the last prerequisite; native pair sequenced behind its merge). **#552 owner window ~Oct 23.** **#70/#42 standing boards.** No untriaged issues.
+ - **Boards/health:** allowlist EXACT 19/19 (maintainer.yml:38 list vs live non-maintainer non-native names; GitHub-native Dependabot/Dependency Graph/pages-build-deployment + maintainer self-excluded by design). Held `action_required`: 0. Failures in the recent window: ONLY the documented bot-actor red 39066450457 (#627 pull_request arm). Pages: success on `d6c809e3` (39066499572 20:23:22Z workflow_dispatch; 39066403135 20:22:03Z).
+ - **AUTH/MODEL STATE (standing watch):** keyless auth holds; pin `opencode/deepseek-v4.1-flash-free` (model + small_model + ladder), every arm `variant: max`. FreeTier transient class = #620 (fix #622).
 
 ## IN FLIGHT
- - **#614 READ-ONLY TEST (39066052603 in flight)** -> verdict -> ONE unification rebase (R18 in position; ranges R1-R21) -> review -> test -> PAT merge; on merge dispatch the NATIVE PAIR on #582 IN-RUN.
- - **#622 REVIEW round 3 (39066073234 in flight on `274f2c10`)** -> verdict routing -> rebase/fold -> test -> PAT merge (`Closes #620`).
- - **#627 READ-ONLY TEST (forwarded 20:25:35Z)** -> approve-test -> sweep merge (`Fixes #625`); findings -> lab fold.
- - **#626 triage (maintainer run 39066491498 in flight)** and **#627 triage/explanation (39066498480 in flight)**.
- - **Sibling concurrency (by design):** this run 39066392447 overlapped 39066206140 (in progress since 20:19:17Z), 39066491498, 39066498480. Last-commit-wins on shared log/state files; nothing re-done.
- - SHALLOW-CLONE CAVEAT (issue #602): the sweep unshallows before merge-base checks; verify linkage via `gh api compare/main...<branch>` if a merge is skipped.
- - PAGES WATCH (standing): re-dispatch after every new main tip (bot merges emit no push event; the sweep's pages step covers it - verify anyway).
- - EXPECTED WRAPPER-PUSH NOISE (standing): App-token push rejection on workflow-touching branches is expected; the PAT step lands the branch - verify via run log/`ls-remote`, admit on-thread, no post-mortem. Same for losing duplicate-session non-fast-forward push comments.
+ - **#627 READ-ONLY TEST (39066659045)** -> approve-test -> `/oc maintainer` -> agent-side rebase merge (`Fixes #625`). MERGE-ORDERING note expired with #623's merge: the anchored sweep is live, no marker-paraphrase hazard remains.
+ - **#614 LAB ROUND (39066694606)** -> push -> fresh review -> read-only test -> PAT merge (`Closes #612`); the head-stale approvals (review 20:16:59Z, test 20:27:01Z) are refused by the head-binding; do not merge on them.
+ - **#622 ROUND-3 REVIEW (39066073234)** -> route as above.
+ - **#626 SIBLING (39066491498)** -> verify its triage routed lab next tick; if it died without one, dispatch `{"action":"lab","issue":626}`.
+ - Pending maintainer runs: 39066659078 (#627 group, from the `/oc test` fan-out), the #614 tester handoff run (~20:27:03Z), and 39066206140 (from the 20:19Z #623 `/oc maintainer`). Single-slot superseding by design; each re-surveys fresh.
+ - PAGES WATCH (standing): re-dispatch after every new main tip (bot merges emit no push event).
+ - EXPECTED WRAPPER-PUSH NOISE (standing): App-token push rejection on workflow-touching branches is expected; the PAT step lands the branch - verify via run log/`ls-remote`, admit on-thread, no post-mortem.
+ - NATIVE-PROOF SEQUENCING (standing): per-OS arms execute main's workflow YAML; the byte-exact Windows handoff proof REQUIRES a post-merge run (native pair on #582). A pre-merge `/oc test-windows` on #614 would reproduce the bug, not prove the fix - do not dispatch it (the #614 tester's recommendation is captured here as post-merge).
  - TEST-CRASH RULE (standing): retry once; second consecutive silent death on same PR -> `lab`; never a third test.
  - BOT-ACTOR CLASS (standing): documented red + on-thread explanation; no dispatch.
  - Infra routing guard: anything touching `.github/**`, `AGENTS.md`, `LAB.md`, `opencode.json` routes to `lab`, never `fix`/`continue`.
- - Orphan-main protection holds: verify the PR branch shares history with `main` before every merge.
+ - Orphan-main protection holds: verify the PR branch shares history with `main` before every merge. Shallow caveat (issue #602): the sweep unshallows before merge-base checks; verify via `gh api compare/main...<branch>` if a merge is skipped.
  - IP hold (standing): God of War commission declined; original mythic-duel alternative awaiting owner.
  - Standing-board close guard: #70 and #42 never carry `Closes`.
  - Shipping limit: max 2 new-project merges/day (not binding; no new-project PRs in flight).
- - AUTH/MODEL STATE (standing watch): keyless auth holds; pin `opencode/deepseek-v4.1-flash-free` (model + small_model + ladder), every arm `variant: max`. Free-tier transient class = #620 (fix #622).
 
 ## NEXT-RUN PLAYBOOK
-   1. **#614 (highest priority):** on the read-only test verdict, dispatch ONE lab unification rebase (R18 in position; ranges R1-R21; keep R17/R19/R20/R21 byte-identical to main; audit green; fold findings; no maintainer.yml/lab.yml edits; keyless) unless a lab run from the review route is already live; then review -> test -> PAT merge; on merge dispatch `{"action":"test-macos","issue":582}` + `{"action":"test-windows","issue":582}` IN-RUN.
-   2. #622: watch review 39066073234 -> verdict routing -> read-only test -> PAT merge (`Closes #620`).
-   3. #627: watch the read-only test -> sweep merge (`Fixes #625`); if the test finds issues -> lab fold.
-   4. #626: verify run 39066491498 dispatched lab; else dispatch `{"action":"lab","issue":626}` (option (a): drop the SHOWCASE.md refs; `git rm .tmp/random-lab-decision.json`).
-   5. Pages: confirm success after any new main tip; else `gh workflow run pages.yml`.
-   6. Held runs: sweep is automatic; if any `action_required` survives, investigate and ping the owner if manual approval is needed.
-   7. #552 owner confirmation outstanding (7-day human rule ~Oct 23).
-   8. Standby otherwise (no auto-ideate).
+   1. **#627 (first action): read the Tester verdict** - approve-test -> `gh pr merge 627 --rebase` (branch kept; non-workflow PR, agent-side merge; verify #625 auto-closed + pages redeployed). Findings -> the review workflow routes `fix`.
+   2. **#614: watch Lab Engineer 39066694606** - verify the push folds the findings AND lands the R1-R21 unification (R18 in position, R19-R21 preserved; `silent-stall-audit.sh` green); a push without the rebase -> precise lab follow-up. Then review -> read-only infra test -> PAT merge (`Closes #612`); on merge dispatch `{"action": "test-macos", "issue": 582}` + `{"action": "test-windows", "issue": 582}` IN-RUN.
+   3. **#622: read round-3 review 39066073234** - findings -> expect the workflow's `/oc lab` forward (fold + rebase in one pass); approve -> `/oc test` (then the test-handoff instance must dispatch the lab rebase for the silent-stall-audit.sh conflict); then review -> test -> PAT merge (`Closes #620`).
+   4. NATIVE PAIR: after #614 merges, the pair on #582 against the merged tip is the #612 closing proof; green -> fold parity rows + close #582 + #552 retirement decision; defects -> fix with report evidence.
+   5. #626: verify the sibling's triage; missing -> `lab`.
+   6. Pages: confirm success after any new main tip; else `gh workflow run pages.yml`.
+   7. Held runs: sweep is automatic; if any `action_required` survives, ping the owner.
+   8. #552 owner confirmation outstanding (7-day human rule ~Oct 23).
+   9. Standby otherwise (no auto-ideate).
 
 ## OPEN QUESTIONS
-  - Does #614's read-only test approve, and does the R18-unification rebase land in one clean pass?
-  - Does #622's round-3 review approve `274f2c10` or flag the conflict as blocking?
-  - Does the in-flight #626 triage run (39066491498) dispatch lab?
-  - Does #627 sail through the read-only test as the first curator merge of the new R1-R21 era?
+  - Does #627's read-only test approve and does the one-line merge land (#625 closes)?
+  - Does the #614 lab pass land the mechanical R1-R21 unification in one push, and does the fresh review + test clear it?
+  - Does #622's round-3 verdict arrive as findings (one-pass fix+rebase) or approve (test-then-rebase waste)?
+  - Does the #626 sibling route `lab` cleanly (SHOWCASE.md wording + `.tmp` cleanup)?
+  - With #614 merged, does the native pair on #582 go fully green and sign the last parity rows?
 
  - Hephaestus, the Maintainer
