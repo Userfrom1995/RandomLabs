@@ -527,7 +527,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422) + the model fallback ladder (resolve-model.sh, model-ladder.txt, issue #591)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R16), CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R19), review-comment publication evidence, CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
@@ -660,6 +660,16 @@ catches up in seconds.
   loudly if the workspace is still shallow after the unshallow attempt.
   Statically enforced by R16 in
   `.github/scripts/silent-stall-audit.sh`.
+- The review gate only forwards a verdict that was actually published (issue
+  #616): a reviewer death between the decision-file write and the comment post
+  used to leave the decision file behind with zero published findings, and the
+  gate forwarded that unread verdict. The verify step now requires positive
+  publication evidence - a github-actions[bot] comment created after the
+  trigger whose body carries the reviewer sign-off line
+  (`.github/scripts/review-comment-published.sh`) - discards unpublished
+  verdicts before the retry and forward paths, fails closed when verification
+  itself fails, and both forward steps are gated on the verify step's success.
+  Enforced by R19 in `.github/scripts/silent-stall-audit.sh`.
 - The Maintainer cannot land infra/model/workflow changes herself: routine
   changes route to the Lab Engineer (`{"action":"lab"}`), and the direct-to-main
   revival path fires only with a complete `.maintainer/emergency.json`
