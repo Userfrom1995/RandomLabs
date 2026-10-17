@@ -246,14 +246,30 @@ jobs:
           # "Model not found" (opencode may exit nonzero OR exit 0 after
           # posting its error comment), exactly once per rung; the match is
           # boundary-aware so prose quoting a different retired id can never
-          # trigger a false advance; any other failure exits immediately; a
-          # failed log capture and a dead ladder both exit 1 loudly so the
-          # verify step below goes red instead of the 2026-10-17 hollow green.
+          # trigger a false advance; on an exit-0 run only the provider's
+          # anchored terminal error line in the tail advances (a transcript
+          # echo of the phrase re-ran a healthy completed session on
+          # 2026-10-17, finding 7, so the whole-log substring match is gone
+          # from that path); any other failure exits immediately; a failed
+          # log capture and a dead ladder both exit 1 loudly so the verify
+          # step below goes red instead of the 2026-10-17 hollow green.
           candidates="${MODEL_CANDIDATES:-}"
           if [ -z "$candidates" ]; then
             echo "::error::No model candidates resolved; refusing to run the Maintainer (the resolve step did not produce a candidate chain)."
             exit 1
           fi
+          # The wrapper prints the provider's terminal error at column 0 (the
+          # final text part `Model not found: <id>. Did you mean: ...`, or
+          # `Error: Model not found: ...` when its catch handler prints the
+          # throw), while a transcript echo of the phrase (a tool-call echo
+          # rendered with the tool prefix, a quoted log line embedded in
+          # prose) cannot match both the column-0 anchor and the terminal
+          # form. Residual (documented): a healthy run whose own final
+          # response contains the exact terminal form as a standalone
+          # column-0 line could still match; none has ever been observed.
+          model_error_terminal() {
+            tail -n 40 "$1" | grep -qE "^(Error: )?Model not found: ${2//./\\.}(\. Did you mean: .*|\.?$)"
+          }
           status=1
           for model in $candidates; do
             log="$(mktemp)"
@@ -273,9 +289,14 @@ jobs:
               rm -f "$log"
               exit 1
             fi
-            if [ "$status" -eq 0 ] && ! grep -qE "Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)" "$log"; then
+            if [ "$status" -eq 0 ]; then
+              if ! model_error_terminal "$log" "$model"; then
+                rm -f "$log"
+                exit 0
+              fi
+              echo "::warning::model '$model' died at the provider (terminal Model-not-found error on an exit-0 run); advancing to the next ladder rung if any."
               rm -f "$log"
-              exit 0
+              continue
             fi
             if grep -qE "Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)" "$log"; then
               echo "::warning::model '$model' was not found by the provider; advancing to the next ladder rung if any."
