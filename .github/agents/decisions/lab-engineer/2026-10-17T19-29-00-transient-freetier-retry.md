@@ -116,11 +116,13 @@ properties, and result strings now name both issues.
 
 ## Addendum: rebase onto main and review-finding fixes
 
-- **Rebase:** the branch was cut at `17e32457`; main meanwhile landed R17
-  (per-OS findings-report contract, issue #608), R19 (review-comment
-  publication evidence, issue #616; the planned R18 was renumbered during
-  that lane, no R18 exists), and R20 (paginated comment-read guard, issue
-  #621). The branch was rebased onto main at `b560ed38`. The single content
+- **Rebase:** the branch was cut at `17e32457`; that cut already carried R19
+  (review-comment publication evidence, issue #616; its planned R18 was
+  renumbered during that lane, no R18 exists - verified by `git show
+  17e32457:.github/scripts/silent-stall-audit.sh`, corrected during the F6-F8
+  pass). Main meanwhile landed R17 (per-OS findings-report contract, issue
+  #608) and R20 (paginated comment-read guard, issue #621). The branch was
+  rebased onto main at `b560ed38`. The single content
   conflict was in `silent-stall-audit.sh`'s failure-body invariant list; the
   resolution keeps main's R17/R19/R20 items and adds "plus transient
   free-tier retry" to the R15 item. Everything else auto-merged; both runner
@@ -229,7 +231,7 @@ properties, and result strings now name both issues.
   persistent exit pin is now a column-anchored whole-line match, so a
   comment quoting `exit "$status"` can no longer satisfy it.
 - **Adversarial closure:** the independent adversarial verifier's round-3
-  verdict (seven escape classes in the first behavioral draft: suffix regex
+  verdict (six escape classes in the first behavioral draft: suffix regex
   loophole, whole-log Model-not-found match, tail window widened to 400, a
   boundary-less Model-not-found prefix regex, constant exits in the
   unclassified and persistent branches, and a removed exit-0 backoff) now
@@ -238,7 +240,8 @@ properties, and result strings now name both issues.
   sandbox.
 - **This pass's evidence:** full audit 20 passed / 0 failed (2.6 s); the
   combined mutation matrix 20/20 RED under `/tmp/opencode/f5-harness/` (the
-  14 original classes plus the 7 escape classes; no collateral);
+  14 original classes plus the 6 behavioral-draft escape classes; no
+  collateral);
   4/4 fail-closed edge tests (removed terminal `exit 1`, renamed step,
   removed detector header, non-executable mock); `bash -n` and YAML parse
   clean; em-dash sweep. The runner runtime blocks are byte-identical to the
@@ -304,5 +307,75 @@ properties, and result strings now name both issues.
   comments or API writes from the harness runs; the audit's mocks intercepted
   every invocation). Skills: no skill fits (GitHub Actions lab
   infrastructure, not opencode workspace configuration).
+
+## Addendum VI: F6-F8 guard closure (review round 4)
+
+- **F6 (Reviewer, BLOCKING):** the mock `sleep` recorded the executed value,
+  but the behavioral case asserted only that the sleeps file was non-empty,
+  so a decoy `sleep 15` holding the static count while the live wait became
+  `sleep 31536000` kept the full audit green. The case now requires exactly
+  one recorded sleep with the value `sleep 15` (`bad-backoff` otherwise);
+  the corrected snippet is the Reviewer's own verified code.
+- **F7 (Reviewer, BLOCKING):** no scenario reached post-loop exhaustion, so
+  one `exit 0` before the exhaustion echo made a dead ladder silently green.
+  A new `mnf-all` scenario (every rung answers Model-not-found, attempts
+  `a-free, b-free`) asserts rc 1 with the exhaustion message on both paths.
+- **F8 (Reviewer, BLOCKING):** two outside-every-fixture escapes are closed.
+  (a) The MNF detector fixtures used dotless ids, so unescaping the live
+  regex (dot -> wildcard) while holding the pinned forms in comments passed;
+  the `mnf-dotted` / `mnf-dot-lookalike` fixture pair (the real dotted rung
+  id `opencode/deepseek-v4.1-flash-free` matches, its lookalike with the dot
+  position held by another character does not) plus the parameterized
+  detector case close it. (b) No scenario advanced on Model-not-found and
+  then hit a free-tier rejection, so consuming the retry budget before the
+  MNF `continue 2` passed; `mnf-then-ft` (nonzero MNF) and `mnf-then-ft0`
+  (exit-0 MNF) assert the advance consumes no free-tier budget (`a-free
+  b-free b-free`, one exact sleep, rc 0).
+- **Non-blocking extraction hardening:** the behavioral extractor takes the
+  first step matching its name, so a duplicate compliant decoy step could
+  shadow a broken real step; a uniqueness pin now requires exactly one `Run
+  opencode` / `Run Maintainer agent` step in each file.
+- **Mutation matrix (this pass, full audit per mutation, both runner
+  files):** pristine control 22 passed / 0 failed; F6 (huge live sleeps plus
+  two unreachable decoy `sleep 15` lines) -> `bad-backoff`; F7 (`exit 0`
+  before the exhaustion echo) -> `mnf-all:rc=0,want=1` and missing-output;
+  F8a (unescaped live MNF regexes plus a comment decoy holding the static
+  pins) -> `mnf-dot-lookalike` on both detector files with no static flag;
+  F8b (`freetier_retry_used=$((1))` before both MNF `continue 2` lines) ->
+  `mnf-then-ft` and `mnf-then-ft0`; re-confirmed F5 classes: cap decoy ->
+  `no-bounded-freetier-retry-cap`, persistent-branch `exit 0` ->
+  `persistent-zero` rc mismatch, loop-condition rewrite -> attempt mismatch,
+  dead backoff -> `bad-backoff`, alternate in-loop reset -> timeout
+  (rc=124). 10/10 with no collateral: each mutation fails only R15, every
+  other rule stays green, and every mutated YAML parses.
+- **Count and date corrections (Reviewer nits):** Addendum III's "seven
+  escape classes" / "14 original plus 7" was internally inconsistent (the
+  enumeration lists six, and 14 + 6 = 20 matches the stated matrix); both
+  now read six, and the R15 source comment and check text are harmonized.
+  Addendum I dated R19 after the branch cut, but `git show
+  17e32457:.github/scripts/silent-stall-audit.sh` already contains the R19
+  checks; the text now records R19 as present at the cut with only R17 and
+  R20 landing on main afterwards.
+- **Docs sync:** the AGENTS.md and LAB.md R15 contract enumerations now
+  name the exact-backoff assertion, the budget-preserving Model-not-found
+  advance, the reached-and-loud exhaustion, and the dotted-id boundary
+  matching, so the public description matches what the guard executes.
+- **Documented residual (non-blocking, Reviewer-identified):** the
+  behavioral harness runs the documented two-rung candidate chain (`a-free
+  b-free`) while the production ladder has three rungs, so a budget reset
+  gated on the third rung id could escape; a generic per-rung reset is
+  already caught (`budget-rungs`). Widening the harness candidates is
+  deferred; the Reviewer explicitly declined to block on it.
+- **This pass's evidence:** control audit 22 passed / 0 failed in the
+  workspace and in a fresh export; the 10-case matrix above under
+  `/tmp/opencode/lab620-f6f8/` (per-mutation tree copies outside the repo;
+  mock `opencode`/`sleep` interception, env scrubbed, per-scenario timeout).
+- **Delegation ledger (this pass):** primary integrated the Reviewer's
+  verified corrected snippets and ran the full matrix; one independent
+  general verifier subagent reproduced the control and all four F6-F8
+  mutations on its own fresh export under
+  `/tmp/opencode/lab620-verify-sub/` (same flags, only R15 red, YAML parse
+  clean, repo untouched). Skills: no skill fit (GitHub Actions lab
+  infrastructure).
 
 - the Lab Engineer
