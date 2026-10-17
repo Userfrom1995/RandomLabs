@@ -112,6 +112,27 @@ captured with `xvfb-run -a maze-chase-desktop --no-pad --probe 30`);
 open it with any image viewer (`xdg-open
 maze-chase/docs/desktop-probe.ppm` on Linux) to preview the title
 frame without building.
+
+`--fullscreen --probe` waits for the window manager to apply the
+borderless-fullscreen resize before it captures, so the PPM carries
+the display dimensions instead of the launch window's 1100x760 (the
+wait is bounded at two seconds, so a window manager that never
+resizes cannot hang the run; the capture is then re-rendered at the
+size the window actually has). Borderless fullscreen is a
+window-manager feature: a bare X server with no WM never resizes, so
+start a WM inside Xvfb when verifying fullscreen captures:
+
+```sh
+Xvfb :99 -screen 0 1280x1024x24 &
+DISPLAY=:99 openbox &
+DISPLAY=:99 maze-chase-desktop --no-pad --fullscreen --probe 30 /tmp/shot.ppm
+# the PPM header carries the display size: P6 1280 1024 ...
+```
+
+If the window or the software surface cannot be created at all, the
+game prints the backend reason on stderr and exits 1: no silent
+success with no window and no screenshot.
+
 The 5x7 HUD face, the framebuffer, the board rasterizer, input
 mapping, pad parsing, the synth, and the screens all carry unit tests
 (`cargo test -p maze-chase-desktop`); `tests/headless.rs` replays a
@@ -121,6 +142,12 @@ scripted run and asserts pixel-identical output across seeds.
 
 - `cannot open a display`: run inside a desktop session (or Xvfb for
   probes). Wayland and X11 both work through winit.
+- `cannot create the game window`, `cannot create the display
+  context`, or `cannot create the presentation surface`: the display
+  or window manager refused the window or the software surface; the
+  game prints the backend reason on stderr and exits 1. Run on a
+  desktop session, and add a window manager inside Xvfb for
+  fullscreen probes (see above).
 - `libxkbcommon-x11.so could not be loaded` (Linux): install
   `libxkbcommon0 libxkbcommon-x11-0`.
 - ALSA `cannot find card` spew on voiceless machines: harmless stderr
