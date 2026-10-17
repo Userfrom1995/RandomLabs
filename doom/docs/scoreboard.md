@@ -126,7 +126,7 @@ by design); the headless-measurable CPU cost is MEASURED below (H2c/G1).
 Functional gates for the audio and persistence layer (46 new tests in
 `tests/test-m3-audio.mjs` plus `tests/test-m3-storage.mjs`; full suite
 291/291 green with all sealed pins untouched; `tools/audit-m3.mjs`
-48/48 ALL PASS).
+52/52 ALL PASS).
 
 - wadAudio: DMX format 3 golden strip (playable span is length minus 32),
   u8 to f32 mapping (0 to -1, 128 to 0, 255 near 1), format-0 plus
