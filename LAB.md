@@ -45,7 +45,7 @@ honestly with evidence, then complies when overruled.
   never the owner - with no `Co-authored-by:` trailer. Human contributor
   credit is preserved.
 
-Prompt files live in `.github/agents/` (see §17). The roster is `REGISTRY.md`. Delegation, parallelism, and skills are binding per `.github/agents/delegation.md` (thresholds, parallel Task pattern, ledger, skill vetting); completion criteria per `.github/agents/quality-gates.md`; post-merge verification and tracking per `.github/agents/continuous-improvement.md`; prompts that reference them MUST follow them.
+Prompt files live in `.github/agents/` (see §17). The roster is `REGISTRY.md`. Delegation, parallelism, and skills are binding per `.github/agents/delegation.md` (thresholds, parallel Task pattern, ledger, skill vetting, harness isolation); completion criteria per `.github/agents/quality-gates.md`; post-merge verification and tracking per `.github/agents/continuous-improvement.md`; prompts that reference them MUST follow them.
 
 ## 3. The collaborative team call flow
 
@@ -326,7 +326,7 @@ New folder `.github/agents/`:
   CREATING_AGENTS.md # guidelines and rules for creating new agents
   delegation.md      # binding delegation/parallelism/skills protocol referenced by worker prompts
   skills.md          # known-skills registry companion to delegation.md section 5
-  quality-gates.md   # binding completion criteria companion to delegation.md section 6
+  quality-gates.md   # binding completion criteria companion to delegation.md section 7
   continuous-improvement.md # binding post-merge loop companion to quality-gates.md (verify, record, track)
   maintainer.md      # the Maintainer (Hephaestus) - the brain
   ideator.md         # the Ideator - brainstorm candidates

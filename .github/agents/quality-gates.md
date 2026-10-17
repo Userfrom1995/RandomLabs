@@ -1,6 +1,6 @@
 # Quality Gates (Binding Completion Criteria)
 
-Companion to `.github/agents/delegation.md` section 6, which stays
+Companion to `.github/agents/delegation.md` section 7, which stays
 normative for what this protocol does not change. This file carries no
 trigger and gets no roster row: it states the measurable criteria that
 decide when lab work is done. Work is never complete because an agent
