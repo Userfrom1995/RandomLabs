@@ -169,8 +169,11 @@ impl Runner {
             }
         };
         if self.fullscreen {
-            self.probe_gate =
-                ProbeGate::arm(self.probe_left.is_some(), monitor_size(&window), Instant::now());
+            self.probe_gate = ProbeGate::arm(
+                self.probe_left.is_some(),
+                monitor_size(&window),
+                Instant::now(),
+            );
             window.set_fullscreen(Some(Fullscreen::Borderless(None)));
         }
         let context = match Context::new(event_loop.owned_display_handle()) {
@@ -453,8 +456,14 @@ mod tests {
     #[test]
     fn boot_failures_report_the_stage_and_exit_nonzero() {
         let cases = [
-            (BootFailure::Window("boom".into()), "cannot create the game window"),
-            (BootFailure::Context("ctx".into()), "cannot create the display context"),
+            (
+                BootFailure::Window("boom".into()),
+                "cannot create the game window",
+            ),
+            (
+                BootFailure::Context("ctx".into()),
+                "cannot create the display context",
+            ),
             (
                 BootFailure::Surface("surf".into()),
                 "cannot create the presentation surface",
@@ -462,7 +471,10 @@ mod tests {
         ];
         for (failure, needle) in cases {
             let report = failure.report();
-            assert!(report.contains(needle), "report must name the stage: {report}");
+            assert!(
+                report.contains(needle),
+                "report must name the stage: {report}"
+            );
             assert!(
                 report.contains("boom") || report.contains("ctx") || report.contains("surf"),
                 "report must keep the backend error: {report}"
@@ -493,7 +505,10 @@ mod tests {
         assert!(runner.app.quit, "the probe must stop the session");
         let ppm = std::fs::read(&path).unwrap();
         let header = b"P6\n1100 760\n255\n";
-        assert!(ppm.starts_with(header), "capture must use the current window size");
+        assert!(
+            ppm.starts_with(header),
+            "capture must use the current window size"
+        );
         assert_ne!(
             &ppm[header.len()..header.len() + 3],
             [255, 0, 0],
