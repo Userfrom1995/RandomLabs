@@ -54,7 +54,11 @@ lives in a file the workflow owns end to end.
 - Functional: poster exercised against a mocked `gh` across 25 cases; all
   failure paths (missing/empty/unsigned report, unknown OS, non-numeric
   target, post failure, missing id, re-fetch failure, wrong author, wrong
-  tail, body mismatch) exit 1; only the verified path exits 0.
+  tail, body mismatch) exit 1; only the verified path exits 0. The same
+  failure classes (wrong author, unsigned report, missing report, tampered
+  body with an intact sign-off tail, failed post, missing comment id) now
+  run inside R17 itself against the real script, so the audit owns the
+  runtime behavior, not just the text form.
 - Restore step: sandboxed against an old head lacking the poster (restored
   from the workflow commit, exclude entry written) and a head where the
   poster is absent from both sources (fails closed).
@@ -86,16 +90,28 @@ lives in a file the workflow owns end to end.
   X1-X3 closed, but four further silent-capable evasions found (Y1 guard
   condition suffix, Y2 invocation wrapped in a dead conditional, Y7 gate
   parked on another step, Y9 unreachable `exit 1` behind a nested dead
-  branch; plus Y6/Y7-style variants). Round 3 (covered by the final matrix):
-  all closed. The final R17 enforcement: exact uncommented `; then` guard
-  lines; each guard's own block must reach a real `exit 1` before its `fi`
-  with no nested `if`; the shared-script invocation must be the exact
-  single line at the post step's own indentation; the post step must carry
-  the exact name/id/gate/env/token sequence with no `continue-on-error`;
-  the post-step and forward gates must be exact whole lines; the arm must
-  carry its actor-gate plus post-step `github.token` envs. The final 24-case
-  matrix (M1-M11 plus X1-X7 and Y1-Y10) trips R17 red on every case with the
-  expected sub-flag; the baseline stays 17 passed, 0 failed.
+  branch; plus Y6/Y7-style variants). Round 3: Z1 (early `exit 0` injected
+  into the post step's run body), Z2 (`continue-on-error` on the forward
+  step), Z3 (poster guards wrapped in a dead conditional), and Z4
+  (`expected_body` clobbered to the fetched body) were found and all closed:
+  the post run body may contain only comments and the exact invocation, the
+  forward step must carry no `continue-on-error`, and a functional test now
+  executes the real poster against an executable mock `gh` (interception
+  asserted, live GitHub env scrubbed, sandbox outside the repo tree)
+  requiring fail-closed behavior on the six failure classes above. The final
+  R17 enforcement: exact uncommented `; then` guard lines; each guard's own
+  block must reach a real `exit 1` before its `fi` with no nested `if`; the
+  shared-script invocation must be the exact single line at the post step's
+  own indentation; the post step must carry the exact
+  name/id/gate/env/token sequence with no `continue-on-error`; the post-step
+  and forward gates must be exact whole lines; the arm must carry its
+  actor-gate plus post-step `github.token` envs. The final 28-case matrix
+  (M1-M11, X1-X7, Y1-Y10, Z1-Z4) trips R17 red on every case with the
+  expected sub-flag; the baseline stays 17 passed, 0 failed. V2 (the verify
+  step's final `exit 1` swapped for `exit 0`) remains a documented
+  review-gated residual boundary: the verify run body cannot be functionally
+  executed statically, so arbitrary control-flow edits inside it are caught
+  by the review gate, not by this rule.
 - Static consistency: no stale `R1-R16` range labels remain (the Tester
   prompt and the `opencode.yml` enumeration were fixed in the review
   round); no remaining instruction to agents to post their own findings
@@ -128,10 +144,13 @@ lives in a file the workflow owns end to end.
   checks before committing.
 - Review-fix round (primary, this session): applied B1-B5 and N1, re-ran the
   audit on the committed tree (17 passed, 0 failed), then hardened R17
-  through the independent-verifier rounds (X1-X3, then Y1/Y2/Y7-Y10) with
-  exact-line gate assertions, an anchored fixed-indentation invocation
-  assertion, a strict post-step sequence check, and structural guard-block
-  `exit 1` checks, and re-ran the final 24-case mutation matrix in a `/tmp`
+  through the independent-verifier rounds (X1-X3, then Y1/Y2/Y7-Y10, then
+  Z1-Z4) with exact-line gate assertions, an anchored fixed-indentation
+  invocation assertion, a strict post-step sequence check, a post-run-body
+  content check, a forward `continue-on-error` ban, structural guard-block
+  `exit 1` checks, and an embedded functional poster test against an
+  executable mock `gh` (env scrubbed, interception asserted, sandbox outside
+  the repo), and re-ran the final 28-case mutation matrix in a `/tmp`
   sandbox (baseline 17/17; every case trips R17 red with its expected
   sub-flag), plus workflow YAML parse, `bash -n` on both scripts,
   `shellcheck` on the poster, the stale-range sweep, and the no-em-dash
@@ -141,6 +160,11 @@ lives in a file the workflow owns end to end.
 
 ## Notes
 
+- Review-gated residual boundary (V2): the verify step's own run body cannot
+  be functionally executed statically, so an early `exit 0` inserted into it
+  (or arbitrary reshuffling of a step's control flow that still passes every
+  exact-form check) is caught by the review gate, not by R17. The poster's
+  runtime semantics, by contrast, are now functionally tested inside R17.
 - Residual: the poster trusts the head's copy when a head already carries
   `.github/scripts/post-peros-findings.sh`; a PR that breaks that script in a
   way its own review misses will fail the arm's post step red (fail closed,
