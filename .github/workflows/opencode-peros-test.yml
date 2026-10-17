@@ -10,7 +10,16 @@ permissions:
   issues: write
 
 concurrency:
+  # Issue #594: this workflow-level group serializes heterogeneous per-OS arms
+  # plus the no-op completion-handoff runs, and GitHub keeps at most ONE
+  # pending run per group by default. A later trigger (for example the
+  # /oc maintainer handoff posted by a finished arm) silently cancels a still
+  # pending arm even with cancel-in-progress: false, and the Windows native
+  # proof was lost exactly that way (run 39021803178 had zero jobs). queue: max
+  # keeps up to 100 pending runs, so every dispatched arm survives to run in
+  # FIFO order; the job-level per-OS groups still serialize each arm.
   group: opencode-peros-test-${{ github.event.issue.number }}
+  queue: max
   cancel-in-progress: false
 
 jobs:
