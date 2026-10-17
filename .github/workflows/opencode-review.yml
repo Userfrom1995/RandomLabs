@@ -188,6 +188,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
+          # Env indirection (audit R10): the trigger-comment timestamp reaches
+          # the publication-evidence script as data, never expanded into the
+          # shell text.
+          SINCE: ${{ github.event.comment.created_at }}
         run: |
           # Terminal third outcome for a gate skip (issue #428): the reviewer
           # step never started, so "failed + no decision file" is a DENIAL, not
@@ -204,19 +208,68 @@ jobs:
           pr="${{ github.event.issue.number }}"
           outcome="${{ steps.review.outcome }}"
 
+          # Publication evidence (issue #616): a present decision file is only
+          # a verdict once the reviewer's decision comment itself is on the
+          # thread. A death between the decision-file write and the comment
+          # post (provider api_key_expired at turn end, review run 39052018409
+          # on PR #614) left the file behind with zero published findings, and
+          # the gate forwarded that unread verdict to the next agent. The
+          # shared script accepts only a github-actions[bot] comment created
+          # after this run's trigger whose body carries the reviewer sign-off
+          # line, so the wrapper's sign-off-less APIError comment (posted by
+          # the dying run itself) can never pass as evidence. The script is
+          # read from this run's own workflow commit, never from the
+          # checked-out PR head, so a PR can never weaken the publication gate
+          # reviewing it. Exit 2 means verification itself failed: that is NOT
+          # evidence of a crash, so it must neither auto-retry a
+          # possibly-published review nor forward an unverified verdict.
+          evidence_script="${RUNNER_TEMP:-/tmp}/review-comment-published.sh"
+          rm -f "$evidence_script"
+          if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/review-comment-published.sh" 2>/dev/null; then
+            git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
+          fi
+          if git cat-file -e "${GITHUB_SHA}:.github/scripts/review-comment-published.sh" 2>/dev/null; then
+            git show "${GITHUB_SHA}:.github/scripts/review-comment-published.sh" > "$evidence_script" 2>/dev/null || rm -f "$evidence_script"
+          fi
+          if [ ! -s "$evidence_script" ]; then
+            rm -f /tmp/random-lab-decision.json
+            echo "::error::Publication-evidence script absent from workflow commit ${GITHUB_SHA}; refusing to forward an unverified verdict (issue #616, fail closed)."
+            exit 1
+          fi
+          pub_rc=0
+          bash "$evidence_script" "$pr" "$SINCE" || pub_rc=$?
+          published="false"
+          case "$pub_rc" in
+            0) published="true" ;;
+            1) published="false" ;;
+            *)
+              rm -f /tmp/random-lab-decision.json
+              echo "::error::Could not verify whether the reviewer's decision comment was published (evidence script exit $pub_rc); refusing to forward an unverified verdict and refusing to auto-retry a possibly-published review. Manual triage required."
+              exit 1
+              ;;
+          esac
+
           # Crash-parity with build/fix mode (issue #132): a healthy reviewer
-          # ALWAYS writes the decision file as its final act, so "no decision
-          # file + failed agent step" is exactly the mid-stream crash signature
-          # (e.g. 'Provider finish_reason: network_error'). The in-flight job's
-          # log cannot be grepped via API until it completes, so this outcome
-          # pair IS the signature; the hard cap below bounds any other class.
+          # ALWAYS writes the decision file as its final act, so "no published
+          # verdict + failed agent step" is exactly the mid-stream crash
+          # signature (e.g. 'Provider finish_reason: network_error'). The
+          # in-flight job's log cannot be grepped via API until it completes,
+          # so this outcome pair IS the signature; the hard cap below bounds
+          # any other class. An unpublished verdict is discarded BEFORE the
+          # infra override and the forward step can ever see it (issue #616).
+          unpublished_verdict="false"
           if [ -f /tmp/random-lab-decision.json ]; then
-            echo "Review decision file present; gate produced a verdict."
-            exit 0
+            if [ "$published" = "true" ]; then
+              echo "Review decision file present and the decision comment is published; gate produced a verdict."
+              exit 0
+            fi
+            echo "::error::Reviewer wrote a decision file but never published its decision comment (issue #616: death between the decision-file write and the comment post, e.g. Provider finish_reason: network_error / APIError); discarding the unpublished verdict and treating this as a crash."
+            rm -f /tmp/random-lab-decision.json
+            unpublished_verdict="true"
           fi
 
           if [ "$outcome" != "success" ]; then
-            echo "::error::Reviewer step finished with outcome '$outcome' and no decision file (crashed mid-run, e.g. Provider finish_reason: network_error / APIError)."
+            echo "::error::Reviewer step finished with outcome '$outcome' and no published verdict (crashed mid-run, e.g. Provider finish_reason: network_error / APIError)."
             # Robust retry counter: never fall back to 0 on an API/rate-limit
             # failure, which would make the cap never trip and loop forever.
             # Only count retries the API actually returned; on enumeration
@@ -234,6 +287,11 @@ jobs:
               exit 0
             fi
             echo "::error::Review gate still dead after 4 attempts (1 initial + 3 auto-retries). Manual intervention required."
+            exit 1
+          fi
+
+          if [ "$unpublished_verdict" = "true" ]; then
+            echo "::error::Reviewer step reported success but its decision comment was never published; failing loudly instead of forwarding an unpublished verdict (issue #616)."
             exit 1
           fi
 
@@ -346,7 +404,7 @@ jobs:
           fi
 
       - name: Force lab routing for infrastructure PRs
-        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true'
+        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -374,7 +432,7 @@ jobs:
           fi
 
       - name: Forward reviewer decision
-        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true'
+        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
