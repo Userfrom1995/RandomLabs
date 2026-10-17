@@ -361,6 +361,24 @@ fn live_resize_too_small_card_recovers_mid_play() {
         "a mid-play shrink must show the too-small card; tail: {}",
         s.tail()
     );
+    s.resize(61, 35);
+    assert!(
+        s.wait_for("window 61x35 is too small", Duration::from_secs(8)),
+        "one column short of the minimum must stay on the too-small card; tail: {}",
+        s.tail()
+    );
+    s.resize(62, 34);
+    assert!(
+        s.wait_for("window 62x34 is too small", Duration::from_secs(8)),
+        "one row short of the minimum must stay on the too-small card; tail: {}",
+        s.tail()
+    );
+    s.resize(62, 35);
+    assert!(
+        s.wait_for("SCORE ", Duration::from_secs(8)),
+        "the exact 62x35 minimum must repaint the running game; tail: {}",
+        s.tail()
+    );
     s.resize(100, 40);
     assert!(
         s.wait_for("SCORE ", Duration::from_secs(8)),
