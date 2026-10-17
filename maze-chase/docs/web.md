@@ -17,7 +17,7 @@ a blank page) when the engine cannot load.
 
 ```
 # Inside maze-chase/ (serves play.html at /play.html):
-python3 -m http.server 8000
+python3 -m http.server 8000   # Windows: python -m http.server 8000
 # Open http://localhost:8000/play.html
 ```
 
