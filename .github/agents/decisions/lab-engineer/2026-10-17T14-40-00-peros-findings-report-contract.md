@@ -60,13 +60,31 @@ lives in a file the workflow owns end to end.
   poster is absent from both sources (fails closed).
 - Audit: `silent-stall-audit.sh` baseline 17 passed, 0 failed; mutation
   matrix M1 (clear removed), M2 (post step removed), M3 (poster restore
-  removed), M4 (findings requirement removed from verify), M5 (pre-post
-  sign-off validation removed), M6 (forward gate removed) each trips R17 red
-  with the expected sub-flag. M4/M5 were found blind by the independent
-  verifier and R17 was tightened before merge.
-- Static consistency: no `R1-R16` labels remain; no remaining instruction to
-  agents to post their own findings comment; the three restore-step bodies
-  are byte-identical; no em dashes in the changed files.
+  gate dead-coded with the archive line intact), M4 (findings requirement
+  removed from verify), M5 (pre-post sign-off validation removed), M6
+  (forward gate removed) each trips R17 red with the expected sub-flag.
+  M4/M5 were found blind by the independent verifier and R17 was tightened
+  before merge.
+- Review round (PR #609 findings B1-B5): fixed the stale `R1-R16` range in
+  the Tester prompt, added the missing R17 line to the `opencode.yml` audit
+  enumeration, anchored the R17 poster-restore check to the restore gate
+  form (`; then`, which the fetch pre-check's `&&` no longer satisfies),
+  anchored the poster's bot-author, post-fetch sign-off, and body-equality
+  checks to their exact comparison lines, and added the N1
+  belt-and-suspenders per-arm assertions (the exact post-step and forward
+  gate condition must appear twice, and the arm must carry two
+  `GH_TOKEN: ${{ github.token }}` envs so a PAT slipped into the post step
+  trips the audit). M3 (poster restore) was upgraded from removal to
+  dead-coding the gate with the archive line intact, and M7-M11 were added:
+  author comparison weakened, post-fetch sign-off check deleted, body-equality
+  check deleted, post-step gate removed, and post-step token swapped to the
+  owner PAT; each trips R17 red with the expected sub-flag on the tightened
+  guard.
+- Static consistency: no stale `R1-R16` range labels remain (the Tester
+  prompt and the `opencode.yml` enumeration were fixed in the review
+  round); no remaining instruction to agents to post their own findings
+  comment; the three restore-step bodies are byte-identical; no em dashes in
+  the changed files.
 
 ## Delegation ledger
 
@@ -76,12 +94,22 @@ lives in a file the workflow owns end to end.
   `bash -n` clean, poster adversarially reviewed over 25 mocked cases, static
   consistency clean. Its D1/D2 findings were fixed by tightening R17 (exact
   findings-requirement line per arm, pre-post sign-off validation marker),
-  and M4/M5 then re-ran red with the expected sub-flags; D3 hardening (exact
-  `need_poster` condition plus archive line) was also applied.
+  and M4/M5 then re-ran red with the expected sub-flags; D3 added the
+  poster-restore-gate plus archive-line assertions, and the review round
+  (findings B3) showed that gate anchor was also satisfied by the fetch
+  pre-check's shared prefix, so it now requires the restore gate's `; then`
+  form specifically.
 - Primary verified itself: read every changed hunk, ran the audit before and
   after the tightening, sandboxed the restore step's three paths, exercised
   the poster's failure matrix, and ran the YAML/`bash -n`/em-dash/clean-tree
   checks before committing.
+- Review-fix round (primary, this session): applied B1-B5 and N1, re-ran the
+  audit on the committed tree (17 passed, 0 failed), ran the 11-case
+  mutation matrix in a `/tmp` sandbox (baseline 17/17; every mutation trips
+  R17 red with its expected sub-flag, including the four blind spots B3/B4
+  and the two N1 mutations), re-verified workflow YAML parse, `bash -n` on
+  both scripts, `shellcheck` on the poster, the stale-range sweep, and the
+  no-em-dash check.
 - Skills: no skill fits (GitHub Actions lab infrastructure and lab prompts,
   not opencode configuration of this workspace).
 
@@ -91,6 +119,11 @@ lives in a file the workflow owns end to end.
   `.github/scripts/post-peros-findings.sh`; a PR that breaks that script in a
   way its own review misses will fail the arm's post step red (fail closed,
   Maintainer triage), which is the intended behavior for infra PRs.
+- Accepted review residuals (N2/N3): the poster compares the re-fetched body
+  byte-exactly, so a GitHub-side whitespace or CRLF rewrite would fail the
+  arm red (never green; the Windows prompt mandates LF), and the Windows
+  agent `/tmp` path resolution (Git Bash mount vs native path) is a
+  pre-existing exposure shared with the decision file and prompt-mitigated.
 - No workflow file additions or renames, so the maintainer `workflows:`
   allowlist is untouched.
 
