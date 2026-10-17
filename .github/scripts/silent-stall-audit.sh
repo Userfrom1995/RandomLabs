@@ -625,8 +625,10 @@ fi
 # Issue #620 pins: shared between the composite action and the maintainer
 # inline copy. The same-model retry (a bare `continue` in the nested while)
 # is separated from the rung advance (`continue 2`), the budget counter is
-# bounded (cap 1), and a persistent rejection exits loudly; the extracted
-# detector is executed functionally after the static pins below.
+# bounded (cap 1) and position-pinned on both sides of the cap check (the
+# consumption assignment must sit inside the cap branch, and the init must
+# sit outside the retry loop), and a persistent rejection exits loudly; the
+# extracted detector is executed functionally after the static pins below.
 r15_freetier_pins() {
   local label="$1" f="$2" fn n
   if [ ! -f "$f" ]; then
@@ -642,6 +644,17 @@ r15_freetier_pins() {
   [ "$(grep -cF 'if [ "$freetier_retry_used" -lt 1 ]; then' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(no-bounded-freetier-retry-cap)"
   n=$(grep -B2 -F 'one bounded retry of the same model in 15s' "$f" | grep -cE '^[[:space:]]*freetier_retry_used=1$' || true)
   [ "$n" = "2" ] || r15_bad="${r15_bad} ${label}(freetier-retry-budget-not-consumed-before-retry)"
+  # Position pins on both sides of the cap check (Reviewer round 2, F4): the
+  # consumption assignment must sit inside the cap branch (window after
+  # `if [ "$freetier_retry_used" -lt 1 ]; then`), so hoisting it one line up
+  # (unconditional, making the cap always false and silently disabling the
+  # retry) fails; the init must sit immediately before the `for model` loop,
+  # so relocating it into the `while :; do` retry body (resetting the budget
+  # per attempt, i.e. unbounded retries) fails.
+  n=$(grep -A3 -F 'if [ "$freetier_retry_used" -lt 1 ]; then' "$f" | grep -cE '^[[:space:]]*freetier_retry_used=1$' || true)
+  [ "$n" = "2" ] || r15_bad="${r15_bad} ${label}(freetier-budget-not-consumed-inside-cap-branch)"
+  n=$(grep -B3 -F 'for model in $candidates; do' "$f" | grep -cF 'freetier_retry_used=0' || true)
+  [ "$n" = "1" ] || r15_bad="${r15_bad} ${label}(freetier-budget-init-not-outside-the-retry-loop)"
   [ "$(grep -cF 'one bounded retry of the same model in 15s' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(no-same-model-retry-marker)"
   [ "$(grep -cE '^[[:space:]]*continue 2$' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(rung-advance-continue2-count)"
   n=$(grep -A4 -F 'one bounded retry of the same model in 15s' "$f" | grep -cE '^[[:space:]]*continue$' || true)
