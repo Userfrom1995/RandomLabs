@@ -21,7 +21,12 @@ on:
         type: string
 
 concurrency:
+  # Issue #601: every comment on the issue spawns a lab.yml run; non-"/oc lab"
+  # comments skip at the job gate but still share this group with the real /oc
+  # lab forwards and dispatch runs. queue: max keeps up to 100 pending runs
+  # FIFO so a pending lab session is never displaced by a skip-only run.
   group: lab-${{ github.event.issue.number || inputs.issue_number || github.run_id }}
+  queue: max
   cancel-in-progress: false
 
 permissions:

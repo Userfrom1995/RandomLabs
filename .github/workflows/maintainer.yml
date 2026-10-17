@@ -45,6 +45,14 @@ permissions:
   actions: write
 
 concurrency:
+  # Deliberately single-slot, superseding by design (issue #601): every
+  # maintainer run re-surveys GitHub fresh, so when a newer queued run replaces
+  # a still-pending older one nothing is lost (the newest repo state wins), and
+  # queue: max here would accumulate a FIFO backlog of stale 20-minute schedule
+  # ticks. Unlike the comment-triggered cohort (opencode, opencode-review,
+  # opencode-test, opencode-eval, lab, ideate, curator, auditor,
+  # opencode-recover) which sets queue: max, this group keeps the default
+  # single pending slot. Audit rule R14 guards this explicit decision.
   group: maintainer-${{ inputs.pr_number || github.event.pull_request.number || github.event.issue.number || github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.head_branch || 'global' }}
   cancel-in-progress: false
 

@@ -10,7 +10,12 @@ permissions:
   issues: write
 
 concurrency:
+  # Issue #601: every comment on the PR spawns a run (including the workflow's
+  # own "/oc eval result" verdict comments, which skip at the job gate) and all
+  # share this group. queue: max keeps up to 100 pending runs FIFO so a
+  # forwarded /oc eval can never be displaced by a skip-only run behind it.
   group: opencode-eval-${{ github.event.issue.number }}
+  queue: max
   cancel-in-progress: false
 
 jobs:
