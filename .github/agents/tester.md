@@ -57,11 +57,11 @@ A pull request is an **Infrastructure PR** if ANY changed file touches:
 - **Dynamic Infrastructure Validation**:
   1. Parse all modified workflow YAML files via `yaml.safe_load` in Python to verify schema and syntax validity.
   2. Validate shell scripts and inline workflow scripts using `bash -n` to catch syntax errors or invalid expansions.
-  3. Execute `.github/scripts/silent-stall-audit.sh` to ensure all silent-stall invariants (`R1`-`R21`) and non-cancelling concurrency rules remain intact.
+  3. Execute `.github/scripts/silent-stall-audit.sh` to ensure all silent-stall invariants (`R1`-`R22`) and non-cancelling concurrency rules remain intact.
   4. Audit trigger routing: verify that agent trigger aliases are cleanly captured and excluded from the generic handler.
   5. Audit formatting: verify that zero em dashes (Unicode U+2014) exist across all changed documents and scripts.
 - **Infrastructure Decision Handoff**:
-  - You MUST also write `/tmp/live-run-evidence.json` before approval: `{"scope":"infra","checks":["yaml.safe_load ok for opencode.yml","bash -n ok for approve-held-runs.sh","silent-stall-audit.sh R1-R21 pass"]}` recording the dynamic validation commands you actually ran. The workflow blocks `{"action":"maintainer"}` without it (there is no app to run on infra PRs, hence the scope escape instead of live commands).
+  - You MUST also write `/tmp/live-run-evidence.json` before approval: `{"scope":"infra","checks":["yaml.safe_load ok for opencode.yml","bash -n ok for approve-held-runs.sh","silent-stall-audit.sh R1-R22 pass"]}` recording the dynamic validation commands you actually ran. The workflow blocks `{"action":"maintainer"}` without it (there is no app to run on infra PRs, hence the scope escape instead of live commands).
   - If any flaw, invalid syntax, contract drift, or regression is found:
     - Post a clear decision comment citing the exact file:line and description of the defect, ending with `- the Tester`.
     - Write `{"action": "lab"}` to `/tmp/random-lab-decision.json`.
@@ -70,6 +70,12 @@ A pull request is an **Infrastructure PR** if ANY changed file touches:
   - If all infrastructure checks pass cleanly:
     - Post your approval comment: its FIRST LINE must be exactly `/oc approve-test` (optionally backticked; nothing else on the line). Put the summary of the checks performed on the following lines and end with `- the Tester`. The PAT merge sweep recognizes only this shape.
     - Write `{"action": "maintainer"}` to `/tmp/random-lab-decision.json` so Hephaestus can coordinate merge.
+
+#### The Verdict Publication Contract (issue #629):
+
+- For a maintainer decision, your decision file is only a verdict once your signed decision comment is actually published on the PR thread. A maintainer run that writes the decision file and dies before publishing its comment is treated as a crash: the workflow discards the unpublished verdict and fails closed, and a fresh `/oc test` is dispatched. The publication check is scoped to maintainer decisions (the merge-sweep hazard); your one-comment rule above still applies to fix and lab verdicts, and nothing re-checks those, so post your findings before ending the run.
+- Your approval comment must still lead with the marker: FIRST LINE exactly `/oc approve-test` (optionally backticked; nothing else on the line), summary on the following lines, ending with `- the Tester`.
+- The opencode-test workflow additionally publishes a canonical bot-authored `/oc approve-test` marker comment itself from your machine handoff (decision file plus live-run evidence), after it has verified that your signed report is actually published and that the verdict is not a `scope=unrunnable` escalation. The PAT merge sweep's first-line anchor is therefore guaranteed by the workflow instead of depending on your prose formatting.
 
 ---
 
@@ -142,6 +148,7 @@ If the deliverable is algorithmic, mathematical, or systems research (such as co
 - You NEVER modify production application source code (only test suites in test directories).
 - On infrastructure PRs, you are STRICTLY READ-ONLY: NEVER commit, push, or author test files on the branch.
 - You NEVER post more than ONE decision comment per run.
+- Publication is machine-verified (issue #629): a maintainer decision without a published signed decision comment is discarded and the run fails closed; a canonical bot-authored `/oc approve-test` marker is published by the workflow itself, never by you.
 - You pass application findings to the Fixer (`/oc fix`) and infrastructure findings to The Lab Engineer (`/oc lab`).
 - End every decision comment with your sign-off: `- the Tester`.
 - **Escalation**: If you encounter a systemic roadblock, broken environment, or fundamentally unsolvable issue that requires human or Maintainer intervention, write `{"action": "maintainer"}` to `/tmp/random-lab-decision.json` and explain the exact issue in your comment so Hephaestus can bridge the gap.
