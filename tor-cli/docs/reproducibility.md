@@ -1,4 +1,4 @@
-# torshim reproducibility + test matrix (M5 final)
+# torshim reproducibility + test matrix
 
 Unofficial frontend. Not sponsored by The Tor Project.
 
