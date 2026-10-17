@@ -119,7 +119,14 @@ lives in a file the workflow owns end to end.
   must carry the exact name/id/gate/env/token sequence with no
   `continue-on-error`, exactly `run: |`, no shell/working-directory override,
   and the event's TARGET number; the post-step and forward gates must be
-  exact whole lines; arm job defaults (if present) must be exactly
+  exact whole lines; the arm must carry exactly one Post step and one Forward
+  step, the Post step must precede the Forward step, and the forward gate must
+  be the line immediately after the forward step's name (round 2: reordering
+  or parking the gate line no longer greens the audit); the post run body must
+  itself contain the exact invocation; the event-derived `TARGET` env is part
+  of the post step's ordered env sequence, not a count-anywhere grep; guard
+  failure blocks reject nested loops and function definitions (round-2 note
+  N1); arm job defaults (if present) must be exactly
   `run: shell: bash`; the verify step must keep `id: verify-test` and
   `if: always()` with no failure mask or shell override; the arm must carry
   its actor-gate plus post-step `github.token` envs. The final 39-case matrix
@@ -132,6 +139,33 @@ lives in a file the workflow owns end to end.
   the sandbox path or the mock `gh` itself is likewise review-gated (path
   detection is unbounded static territory, while env-fingerprint detection is
   banned statically and defeated by the realistic functional env).
+- Review round 2 (PR #609 finding F1 plus the in-pass recommendations): the
+  forward-gate check was anchored to the forward step itself (the exact
+  actor-gate + verify + findings-success condition must be the first line
+  after the step name), each arm must carry exactly one Post step and one
+  Forward step (a parked duplicate forward step trips
+  `arm-<os>(forward-step-count=2,want=1)`), and the Post step must precede the
+  Forward step (`arm-<os>(post-not-before-forward)`; a pure reorder used to
+  green while the forward's findings gate evaluated before the findings step
+  ran, so the report posted, the arm concluded green, and no trigger was ever
+  forwarded). The post run body must itself contain the exact invocation (a
+  comment-only body with the invocation parked in another step trips
+  `arm-<os>(post-run-body-modified)`), and the event-derived `TARGET` check
+  moved from a count-anywhere grep into the post step's ordered env sequence
+  (a literal or relocated TARGET trips `arm-<os>(post-step-sequence-broken)`).
+  The guard-block structural check also rejects nested `while`/`for`/`case`/
+  `until` and function definitions inside a guard's failure block (round-2
+  note N1), and the functional-sandbox comment now states that the realistic
+  sandbox slug differs from production in the owner segment (note N3).
+- Round-2 verification: `silent-stall-audit.sh` on the checked-out tree
+  baseline 17 passed, 0 failed; a compact mutation matrix in a `/tmp` sandbox
+  (copy of the tree, audit run per case) 9/9 as expected: F1a post/forward
+  reorder, F1b findings clause dropped from the forward gate, F1c parked dead
+  duplicate forward gate, H1 comment-only post body with the invocation parked
+  in the verify step, H2 TARGET relocated out of the post env, N1 `while` loop
+  inside the bot-author guard block, plus the round-1 B3 restore-gate
+  dead-code and B4 weakened author comparison re-checked; each trips R17 red
+  with its expected sub-flag while the baseline stays green.
 - Static consistency: no stale `R1-R16` range labels remain (the Tester
   prompt and the `opencode.yml` enumeration were fixed in the review
   round); no remaining instruction to agents to post their own findings
@@ -189,6 +223,15 @@ lives in a file the workflow owns end to end.
   trips R17 red with its expected sub-flag), plus workflow YAML parse,
   `bash -n` on both scripts, `shellcheck` on the poster, the stale-range
   sweep, and the no-em-dash check.
+- Review-fix round 2 (primary, this session): applied review finding F1 plus
+  the in-pass hardening to R17's forward/post assertions (anchored forward
+  gate, step uniqueness and order, invocation required in the post run body,
+  `TARGET` inside the post env sequence, nested-control-flow rejection in
+  guard blocks, sandbox-slug wording), re-ran the audit on the checked-out
+  tree (17 passed, 0 failed) and a compact 9-case mutation matrix in a `/tmp`
+  sandbox (baseline plus eight mutations, each red with its expected
+  sub-flag), then rebased the branch onto current `main` and re-ran the audit
+  plus `bash -n` and the YAML parse on the rebased tree.
 - Skills: no skill fits (GitHub Actions lab infrastructure and lab prompts,
   not opencode configuration of this workspace).
 
@@ -207,11 +250,16 @@ lives in a file the workflow owns end to end.
   `.github/scripts/post-peros-findings.sh`; a PR that breaks that script in a
   way its own review misses will fail the arm's post step red (fail closed,
   Maintainer triage), which is the intended behavior for infra PRs.
-- Accepted review residuals (N2/N3): the poster compares the re-fetched body
-  byte-exactly, so a GitHub-side whitespace or CRLF rewrite would fail the
-  arm red (never green; the Windows prompt mandates LF), and the Windows
-  agent `/tmp` path resolution (Git Bash mount vs native path) is a
-  pre-existing exposure shared with the decision file and prompt-mitigated.
+- Accepted review residuals (N2/N3) and round-2 notes: the poster compares
+  the re-fetched body byte-exactly, so a GitHub-side whitespace or CRLF
+  rewrite would fail the arm red (never green; the Windows prompt mandates
+  LF), and the Windows agent `/tmp` path resolution (Git Bash mount vs
+  native path) is a pre-existing exposure shared with the decision file and
+  prompt-mitigated. Round-2 note N1 (nested loops/functions inside a guard
+  block) is closed in the structural guard check; N2 (the functional mock
+  ignores the comment id) stays accepted because a poster hardcoding a
+  comment id still fails the body comparison red at runtime; N3 wording is
+  corrected in the audit comment.
 - No workflow file additions or renames, so the maintainer `workflows:`
   allowlist is untouched.
 
