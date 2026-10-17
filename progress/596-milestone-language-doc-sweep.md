@@ -63,9 +63,10 @@ decision file is written. Handing off to the Reviewer.
   milestone, and Phase counters across the four projects. Read the
   doc-asserting tests and generators (umbra em-dash test, doom
   audit-m3/m5 checks, doom manifest seal, maze-chase packaging/matrix
-  tests) so the sweep keeps every gate green. Delegation ledger: no
-  subagents; the sweep is a precision language edit across interlinked
-  files with doc-asserting gates, executed directly.
+  tests) so the sweep keeps every gate green. Authoring ran directly (each
+  edit was a precision language change against already-open files); the
+  independent verification pass and its delegation ledger are recorded in
+  the final agent-log entry.
 - 2026-10-17: umbra done. README rewritten as one feature list (combat,
   content, rendering, polish); architecture title and module map de-coded
   (per-subsystem grouping, no per-phase annotations); scoreboard rewritten
@@ -107,3 +108,20 @@ decision file is written. Handing off to the Reviewer.
   owner label prose), and stale planned/done cells in feature-matrix rows.
 - 2026-10-17: Shipped. PR #599 body rewritten to `Closes #596` with the
   summary, gate table, and scope notes; decision file written for review.
+- 2026-10-17: Independent verification pass (review finding 1). Ledger:
+  four `general` subagents, one per project - umbra public-surface audit;
+  doom public-surface audit plus sealed-evidence cross-check; tor-cli
+  public-surface audit plus Go gate; maze-chase public-surface audit plus
+  workspace gate. Returned: tor-cli clean, `go test ./...` green across all
+  packages; maze-chase clean with 280/280 non-desktop cargo tests green
+  (desktop needs system ALSA, absent in this runner); doom clean with
+  audit-m2 regeneration byte-identical, audit gates green, and the manifest
+  hash-exact for 4/4 sealed artifacts; umbra clean on the flagged docs but
+  one real residue - "M1 shell" in `manifest.webmanifest`'s user-visible
+  PWA description, swept in this pass. Primary verified itself: re-ran
+  umbra 467/467, doom 424/424 plus audit-m2/m3/m5/layout, tor-cli
+  `go test ./...`, the six non-desktop maze-chase crates, the manifest
+  hash check, and the final public-surface grep (clean; only the
+  intentional policy line and artifact filenames remain). Skills: no known
+  skill fits a docs-language verification pass (`skills.md` lists only
+  `customize-opencode`, for opencode configuration edits).
