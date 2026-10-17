@@ -657,7 +657,8 @@ catches up in seconds.
   The merge step detects the shallow state and restores full history before
   its first merge-base-dependent command (mirroring the integrity guard's
   issue #283 fix), keeps the strict orphan check (never fail-open), and warns
-  loudly if the unshallow attempt itself fails. Statically enforced by R16 in
+  loudly if the workspace is still shallow after the unshallow attempt.
+  Statically enforced by R16 in
   `.github/scripts/silent-stall-audit.sh`.
 - The Maintainer cannot land infra/model/workflow changes herself: routine
   changes route to the Lab Engineer (`{"action":"lab"}`), and the direct-to-main
