@@ -38,11 +38,16 @@
 # PAT merge approval-binding guard (issue #619: the sweep's unanchored
 # contains() approval match merged an unreviewed workflow-touching PR off a
 # Maintainer summary that merely quoted the tester marker, and the same run
-# skipped the genuinely approved lane as mergeable=UNKNOWN).
-# Wired into auditor.yml as the R1-R21 matrix.
+# skipped the genuinely approved lane as mergeable=UNKNOWN), and the R22
+# tester verdict-publication guard (issue #629: a prose-first tester verdict
+# comment never matched R21's entire-first-line anchor and silently stalled
+# the sweep, so tester maintainer decisions now require positive publication
+# evidence and the workflow publishes the canonical bot-authored marker
+# itself from the evidence-gated machine handoff).
+# Wired into auditor.yml as the R1-R22 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R21 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R22 audit the whole tree
 # (the review-restore guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
@@ -50,7 +55,8 @@
 # ladder, the PAT merge shallow-workspace guard, the Windows MSYS
 # argv-conversion guard, the per-OS findings-report contract, the
 # review-comment publication-evidence guard, the paginated
-# comment-read guard, and the PAT merge approval binding), so they trip on a
+# comment-read guard, the PAT merge approval binding, and the tester
+# verdict publication contract), so they trip on a
 # bad curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml/peros arm no
 # matter which file the audit was pointed at.
 # Exit code is always 0 so it never breaks the auditor run; failures are reported
@@ -79,12 +85,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R21 PASS] $name: $desc"
+  [R1-R22 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R21 FAIL] $name: $desc"
+  [R1-R22 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -2158,16 +2164,383 @@ else
   check "R21" "PAT merge approval-binding guard missing:${r21_bad} (issue #619: an unanchored contains() match merged an unreviewed workflow PR off a quoted marker, and the approved lane stalled on mergeable=UNKNOWN)" "bad"
 fi
 
-summary="Silent-stall regression audit (R1-R21) on ${WF}: ${pass} passed, ${fail} failed."
+# [R22] Tester verdict publication and canonical marker (issue #629): the PAT
+# merge sweep recognizes a tester verdict only when the `/oc approve-test`
+# marker is the ENTIRE first line of a github-actions[bot] comment (R21,
+# issue #619), but nothing machine-checked the publication shape on the
+# publisher side: the Tester's published report is prose-first in practice
+# (PR #628 comment 6240760500 opened "All green. Posting the decision
+# comment." with the marker on line 3; #614's read-only verdict 6240507941
+# had the same shape), the test verify step looked only at the decision file,
+# and the run concluded green while the sweep would skip the lane forever -
+# and no App-token merge path exists for `.github/workflows/*` PRs. Two
+# properties close the class:
+#   1. positive publication evidence before any maintainer decision proceeds:
+#      a github-actions[bot] comment created after the triggering comment
+#      whose body carries the `- the Tester` sign-off line, checked by
+#      .github/scripts/test-comment-published.sh (exit 0 published / 1 not
+#      published / 2 unverifiable), read from this run's own workflow commit,
+#      never the checked-out PR head; a missing or unpublished report is
+#      discarded and the run fails closed (no forward), so the crash-parity
+#      triage re-dispatches a fresh /oc test;
+#   2. the canonical marker is published BY THE WORKFLOW from the machine
+#      handoff (decision file plus live-run evidence): the new
+#      .github/scripts/publish-tester-marker.sh posts a bot-authored comment
+#      whose first line is exactly `/oc approve-test` (github.token, never
+#      the owner PAT), re-fetches it by id, and verifies bot authorship and
+#      the exact first line before the /oc maintainer handoff; no marker is
+#      ever published for a non-maintainer decision or a scope=unrunnable
+#      escalation, so the shape is guaranteed by construction instead of
+#      depending on agent prose formatting (and never forged: the marker only
+#      exists behind the decision file, the evidence gate, and the published
+#      signed report).
+# Review-gated residual boundary (same as R17/R19): the two workflow steps'
+# own control flow cannot be executed by a static audit, so an arbitrary
+# reshuffle that still passes every exact-form and ordering pin below is
+# caught by the review gate, not by this rule; the script-level behavior is
+# functionally executed instead.
+r22_bad=""
+R22_WF=".github/workflows/opencode-test.yml"
+R22_CHECKER=".github/scripts/test-comment-published.sh"
+R22_PUBLISHER=".github/scripts/publish-tester-marker.sh"
+if [ ! -f "$R22_CHECKER" ]; then
+  r22_bad="${r22_bad} test-comment-published.sh(missing)"
+else
+  bash -n "$R22_CHECKER" 2>/dev/null || r22_bad="${r22_bad} checker(syntax)"
+  [ -x "$R22_CHECKER" ] || r22_bad="${r22_bad} checker(not-executable)"
+  # Exact evidence predicate: bot author + created after the trigger + a real
+  # tester sign-off line. Weakening or removing any filter must trip the rule.
+  sed 's/^[[:space:]]*//' "$R22_CHECKER" | grep -qxF '| select(.user.login == "github-actions[bot]")' || r22_bad="${r22_bad} checker(no-bot-author-select)"
+  sed 's/^[[:space:]]*//' "$R22_CHECKER" | grep -qxF '| select(.created_at > $since)' || r22_bad="${r22_bad} checker(no-since-filter)"
+  sed 's/^[[:space:]]*//' "$R22_CHECKER" | grep -qxF '| select(.body | test("(?m)^- the Tester[ \t]*$"))' || r22_bad="${r22_bad} checker(no-signoff-regex)"
+  # Paginated, slurped fetch (a single unpaginated page would miss the
+  # decision comment on busy threads and silently read as unpublished; R20).
+  sed 's/^[[:space:]]*//' "$R22_CHECKER" | grep -qxF 'payload=$(gh api "repos/${REPO}/issues/${PR}/comments?per_page=100" --paginate --slurp 2>/dev/null) || {' || r22_bad="${r22_bad} checker(no-paginated-slurp-fetch)"
+  # Exit-code contract: exactly one published exit 0 and one not-published
+  # exit 1; every failure path exits 2. An added silent `exit 0` (e.g. in
+  # front of the fetch guard) or a weakened failure exit trips the counts.
+  r22_exit0=$(sed 's/^[[:space:]]*//' "$R22_CHECKER" | grep -cxF 'exit 0' || true)
+  r22_exit1=$(sed 's/^[[:space:]]*//' "$R22_CHECKER" | grep -cxF 'exit 1' || true)
+  r22_exit2=$(sed 's/^[[:space:]]*//' "$R22_CHECKER" | grep -cxF 'exit 2' || true)
+  [ "$r22_exit0" -eq 1 ] || r22_bad="${r22_bad} checker(exit0-count=${r22_exit0},want=1)"
+  [ "$r22_exit1" -eq 1 ] || r22_bad="${r22_bad} checker(exit1-count=${r22_exit1},want=1)"
+  [ "$r22_exit2" -ge 4 ] || r22_bad="${r22_bad} checker(exit2-count=${r22_exit2},want>=4)"
+  # Harness-detection bans (the functional test runs with realistic values).
+  grep -qF 'GITHUB_ACTIONS' "$R22_CHECKER" && r22_bad="${r22_bad} checker(references-GITHUB_ACTIONS)"
+  grep -qF 'MOCK_' "$R22_CHECKER" && r22_bad="${r22_bad} checker(references-MOCK)"
+  grep -qF 'Userfrom1995' "$R22_CHECKER" && r22_bad="${r22_bad} checker(hardcodes-repo-slug)"
+  grep -qF 'RandomLabs/' "$R22_CHECKER" && r22_bad="${r22_bad} checker(hardcodes-repo-slug)"
+fi
+if [ ! -f "$R22_PUBLISHER" ]; then
+  r22_bad="${r22_bad} publish-tester-marker.sh(missing)"
+else
+  bash -n "$R22_PUBLISHER" 2>/dev/null || r22_bad="${r22_bad} publisher(syntax)"
+  [ -x "$R22_PUBLISHER" ] || r22_bad="${r22_bad} publisher(not-executable)"
+  # The canonical body is built around the literal marker first line, and the
+  # re-fetch check requires that exact first line back from the API.
+  grep -qF "'/oc approve-test'" "$R22_PUBLISHER" || r22_bad="${r22_bad} publisher(no-marker-literal)"
+  grep -qF '"$fetched_first" != "/oc approve-test"' "$R22_PUBLISHER" || r22_bad="${r22_bad} publisher(no-post-fetch-first-line-check)"
+  # Bot authorship is re-verified after the post (a PAT-posted marker would
+  # never match the sweep's R21 predicate).
+  grep -qF 'if [ "$author" != "github-actions[bot]" ]; then' "$R22_PUBLISHER" || r22_bad="${r22_bad} publisher(no-bot-author-check)"
+  grep -qF 'issues/comments/${comment_id}' "$R22_PUBLISHER" || r22_bad="${r22_bad} publisher(no-re-fetch-verification)"
+  grep -qF 'Verified bot-authored tester approval marker' "$R22_PUBLISHER" || r22_bad="${r22_bad} publisher(no-verified-terminal-marker)"
+  grep -qF "''|*[!0-9]*)" "$R22_PUBLISHER" || r22_bad="${r22_bad} publisher(no-numeric-target-guard)"
+  grep -qF 'if [ -z "$repo" ]; then' "$R22_PUBLISHER" || r22_bad="${r22_bad} publisher(no-repo-guard)"
+  grep -qF 'if [ -z "$comment_id" ]; then' "$R22_PUBLISHER" || r22_bad="${r22_bad} publisher(no-comment-id-guard)"
+  grep -qF 'GITHUB_ACTIONS' "$R22_PUBLISHER" && r22_bad="${r22_bad} publisher(references-GITHUB_ACTIONS)"
+  grep -qF 'MOCK_' "$R22_PUBLISHER" && r22_bad="${r22_bad} publisher(references-MOCK)"
+  grep -qF 'Userfrom1995' "$R22_PUBLISHER" && r22_bad="${r22_bad} publisher(hardcodes-repo-slug)"
+  grep -qF 'RandomLabs/' "$R22_PUBLISHER" && r22_bad="${r22_bad} publisher(hardcodes-repo-slug)"
+  # Structural assertions: the literal greps above can be satisfied by
+  # weakened or no-op code, so require each guard to be the exact uncommented
+  # `if ...; then` line whose own failure block (up to its closing `fi`, with
+  # no nested control flow) ends in a real `exit 1`.
+  r22_guard_block_has_exit() {
+    sed 's/^[[:space:]]*//' "$1" | awk -v p="$2" '
+      $0 == p { inblk=1; next }
+      inblk && $0 ~ /^(if|while|for|case|until)[[:space:]]/ { nested=1 }
+      inblk && $0 ~ /^[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\(\)[[:space:]]*\{/ { nested=1 }
+      inblk && $0 == "exit 1" { found=1 }
+      inblk && $0 == "fi" { closed=1; inblk=0 }
+      END { exit((found && closed && !nested) ? 0 : 1) }'
+  }
+  for r22_guard in \
+    'repo-guard:if [ -z "$repo" ]; then' \
+    'comment-id:if [ -z "$comment_id" ]; then' \
+    'bot-author:if [ "$author" != "github-actions[bot]" ]; then' \
+    'first-line:if [ "$fetched_first" != "/oc approve-test" ]; then'; do
+    r22_guard_name="${r22_guard%%:*}"
+    r22_guard_line="${r22_guard#*:}"
+    sed 's/^[[:space:]]*//' "$R22_PUBLISHER" | grep -qxF -- "$r22_guard_line" || r22_bad="${r22_bad} publisher(${r22_guard_name}-guard-not-exact)"
+    r22_guard_block_has_exit "$R22_PUBLISHER" "$r22_guard_line" || r22_bad="${r22_bad} publisher(${r22_guard_name}-guard-block-has-no-exit-1)"
+  done
+fi
+if [ ! -f "$R22_WF" ]; then
+  r22_bad="${r22_bad} opencode-test.yml(missing)"
+else
+  r22_pub_block=$(sed -n '/- name: Verify tester decision published, else fail closed/,/^      - name: /p' "$R22_WF" 2>/dev/null || true)
+  r22_marker_block=$(sed -n '/- name: Publish tester approval marker (bot-authored)/,/^      - name: /p' "$R22_WF" 2>/dev/null || true)
+  r22_fwd_block=$(sed -n '/- name: Forward tester decision/,/^      - name: /p' "$R22_WF" 2>/dev/null || true)
+  if [ -z "$r22_pub_block" ] || [ -z "$r22_marker_block" ] || [ -z "$r22_fwd_block" ]; then
+    r22_bad="${r22_bad} test.yml(publication-steps-missing-or-renamed)"
+  else
+    # Publication-gate step: exact gate, env-indirected trigger timestamp,
+    # workflow-commit provenance, fail-closed missing script, exit mapping
+    # with the verdict discarded on every non-published outcome.
+    printf '%s\n' "$r22_pub_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.evidence-gate.outcome == 'success'" || r22_bad="${r22_bad} test.yml(publish-gate-not-exact)"
+    printf '%s\n' "$r22_pub_block" | sed 's/^[[:space:]]*//' | grep -qxF 'SINCE: ${{ github.event.comment.created_at }}' || r22_bad="${r22_bad} test.yml(no-since-env)"
+    printf '%s\n' "$r22_pub_block" | grep -qF 'git cat-file -e "${GITHUB_SHA}:.github/scripts/test-comment-published.sh" 2>/dev/null; then' || r22_bad="${r22_bad} test.yml(no-checker-workflow-commit-probe)"
+    printf '%s\n' "$r22_pub_block" | grep -qF 'git show "${GITHUB_SHA}:.github/scripts/test-comment-published.sh" > "$evidence_script" 2>/dev/null || rm -f "$evidence_script"' || r22_bad="${r22_bad} test.yml(no-checker-workflow-commit-extraction)"
+    printf '%s\n' "$r22_pub_block" | grep -q 'bash \.github/scripts/test-comment-published\.sh' && r22_bad="${r22_bad} test.yml(head-workspace-checker-invocation)"
+    printf '%s\n' "$r22_pub_block" | grep -qF 'bash "$evidence_script" "$pr" "$SINCE" || pub_rc=$?' || r22_bad="${r22_bad} test.yml(no-evidence-invocation)"
+    printf '%s\n' "$r22_pub_block" | grep -qF 'if [ ! -s "$evidence_script" ]; then' || r22_bad="${r22_bad} test.yml(no-fail-closed-on-missing-checker)"
+    printf '%s\n' "$r22_pub_block" | grep -qF 'Tester wrote a decision file but no signed decision comment was published' || r22_bad="${r22_bad} test.yml(no-unpublished-branch)"
+    printf '%s\n' "$r22_pub_block" | grep -qF 'Could not verify whether the Tester' || r22_bad="${r22_bad} test.yml(no-unverifiable-branch)"
+    printf '%s\n' "$r22_pub_block" | grep -qF 'if [ "$action" != "maintainer" ]; then' || r22_bad="${r22_bad} test.yml(no-maintainer-scope-guard)"
+    [ "$(printf '%s\n' "$r22_pub_block" | grep -cF 'rm -f /tmp/random-lab-decision.json' || true)" -ge 3 ] || r22_bad="${r22_bad} test.yml(publish-gate-discard-count-lt-3)"
+    # Marker step: exact gate, bot token, workflow-commit provenance, unrunnable
+    # exclusion, and the forward-permitting ok output on every non-failing path.
+    printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.publish-gate.outcome == 'success'" || r22_bad="${r22_bad} test.yml(marker-gate-not-exact)"
+    printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF 'GH_TOKEN: ${{ github.token }}' || r22_bad="${r22_bad} test.yml(marker-not-github-token)"
+    printf '%s\n' "$r22_marker_block" | grep -q 'secrets\.' && r22_bad="${r22_bad} test.yml(marker-references-secrets)"
+    printf '%s\n' "$r22_marker_block" | grep -qF 'git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-tester-marker.sh" 2>/dev/null; then' || r22_bad="${r22_bad} test.yml(no-publisher-workflow-commit-probe)"
+    printf '%s\n' "$r22_marker_block" | grep -qF 'git show "${GITHUB_SHA}:.github/scripts/publish-tester-marker.sh" > "$publisher" 2>/dev/null || rm -f "$publisher"' || r22_bad="${r22_bad} test.yml(no-publisher-workflow-commit-extraction)"
+    printf '%s\n' "$r22_marker_block" | grep -q 'bash \.github/scripts/publish-tester-marker\.sh' && r22_bad="${r22_bad} test.yml(head-workspace-publisher-invocation)"
+    printf '%s\n' "$r22_marker_block" | grep -qF 'if [ ! -s "$publisher" ]; then' || r22_bad="${r22_bad} test.yml(no-fail-closed-on-missing-publisher)"
+    printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qF "if [ -f \"\$ev\" ] && jq -e '.scope == \"unrunnable\"' \"\$ev\" >/dev/null 2>&1; then" || r22_bad="${r22_bad} test.yml(no-unrunnable-escalation-exclusion)"
+    printf '%s\n' "$r22_marker_block" | grep -qF 'if ! bash "$publisher" "$pr" "$scope"; then' || r22_bad="${r22_bad} test.yml(no-publisher-invocation)"
+    printf '%s\n' "$r22_marker_block" | grep -qF 'echo "ok=false" >> "$GITHUB_OUTPUT"' || r22_bad="${r22_bad} test.yml(no-marker-ok-default)"
+    [ "$(printf '%s\n' "$r22_marker_block" | grep -cF 'echo "ok=true" >> "$GITHUB_OUTPUT"' || true)" -ge 4 ] || r22_bad="${r22_bad} test.yml(marker-ok-true-count-lt-4)"
+    # Forward gate: the exact conjunction on the forward step itself, so no
+    # forward path survives a failed publication check or a failed marker.
+    r22_fwd_gate=$(grep -A1 -F -- '- name: Forward tester decision' "$R22_WF" | tail -1 | sed 's/^[[:space:]]*//')
+    printf '%s\n' "$r22_fwd_gate" | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.evidence-gate.outcome == 'success' && steps.publish-gate.outcome == 'success' && steps.marker.outputs.ok == 'true'" || r22_bad="${r22_bad} test.yml(forward-gate-not-exact)"
+    printf '%s\n' "$r22_fwd_block" | grep -qF '/oc maintainer' || r22_bad="${r22_bad} test.yml(forward-maintainer-mapping-missing)"
+    # Ordering: evidence gate -> publication gate -> marker -> forward.
+    r22_line() { grep -nF -- "$1" "$R22_WF" | head -1 | cut -d: -f1; }
+    r22_ev_ln=$(r22_line '- name: Enforce live-execution evidence gate')
+    r22_pub_ln=$(r22_line '- name: Verify tester decision published, else fail closed')
+    r22_marker_ln=$(r22_line '- name: Publish tester approval marker (bot-authored)')
+    r22_fwd_ln=$(r22_line '- name: Forward tester decision')
+    if [ -z "$r22_ev_ln" ] || [ -z "$r22_pub_ln" ] || [ -z "$r22_marker_ln" ] || [ -z "$r22_fwd_ln" ] || [ "$r22_ev_ln" -ge "$r22_pub_ln" ] || [ "$r22_pub_ln" -ge "$r22_marker_ln" ] || [ "$r22_marker_ln" -ge "$r22_fwd_ln" ]; then
+      r22_bad="${r22_bad} test.yml(step-order:${r22_ev_ln:-none}/${r22_pub_ln:-none}/${r22_marker_ln:-none}/${r22_fwd_ln:-none})"
+    fi
+  fi
+fi
+if [ -f .github/agents/tester.md ]; then
+  grep -qF 'Verdict Publication Contract (issue #629)' .github/agents/tester.md || r22_bad="${r22_bad} tester.md(no-publication-contract)"
+  grep -qF 'canonical bot-authored' .github/agents/tester.md || r22_bad="${r22_bad} tester.md(no-machine-marker-contract)"
+else
+  r22_bad="${r22_bad} tester.md(missing)"
+fi
+# Functional contract tests (delegation.md section 6: executable mock,
+# interception asserted before any run, credentials scrubbed, sandbox outside
+# the repo tree, per-case behavior from a sandbox config file, live
+# non-credential Actions env set realistically so env-fingerprint detection
+# cannot green a broken script). The real scripts must classify real payload
+# shapes: the checker across published (footer + tool-posted + page-2 +
+# trailing-space) and hostile (incident-error, stale, owner-authored,
+# inline-mention, empty, bad-json, fetch-failure) payloads, and the publisher
+# across genuine and hostile post/fetch outcomes (prose-first fetched first
+# line, wrong author, post failure, missing id) with the recorded posted body
+# proving the exact marker first line.
+if [ -f "$R22_CHECKER" ] && [ -f "$R22_PUBLISHER" ]; then
+  r22_checker_abs="$(pwd)/$R22_CHECKER"
+  r22_publisher_abs="$(pwd)/$R22_PUBLISHER"
+  r22_tmp=$(mktemp -d 2>/dev/null || true)
+  if [ -z "$r22_tmp" ] || [ ! -d "$r22_tmp" ]; then
+    r22_bad="${r22_bad} scripts(functional-sandbox-unavailable)"
+  elif ! command -v jq >/dev/null 2>&1; then
+    r22_bad="${r22_bad} scripts(functional-jq-missing)"
+  else
+    r22_mockdir="$r22_tmp/bin"
+    mkdir -p "$r22_mockdir"
+    cat > "$r22_mockdir/gh" <<'R22_CHECKER_MOCK'
+#!/usr/bin/env bash
+r22_cfg="$(cd "$(dirname "$0")/.." && pwd)/case.cfg"
+payload_file=""
+fail_fetch="0"
+# shellcheck disable=SC1090
+. "$r22_cfg"
+case "$*" in
+  *"/comments"*)
+    if [ "$fail_fetch" = "1" ]; then
+      echo "mock gh: api failure" >&2
+      exit 1
+    fi
+    cat "$payload_file"
+    ;;
+  *)
+    echo "mock gh: unexpected call: $*" >&2
+    exit 1
+    ;;
+esac
+R22_CHECKER_MOCK
+    chmod +x "$r22_mockdir/gh"
+    if [ "$(PATH="$r22_mockdir:$PATH" command -v gh)" != "$r22_mockdir/gh" ]; then
+      r22_bad="${r22_bad} scripts(functional-mock-not-intercepted)"
+    else
+      r22_since="2026-10-17T20:12:07Z"
+      r22_p_footer="$r22_tmp/p-footer.json"
+      cat > "$r22_p_footer" <<'R22_PAYLOAD'
+[[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T20:20:00Z","body":"## Tester report\n\nVerified end-to-end.\n\n- the Tester\n\n[github run](https://github.com/Userfrom1995/RandomLabs/actions/runs/39068463210)"}]]
+R22_PAYLOAD
+      r22_p_tool="$r22_tmp/p-tool.json"
+      cat > "$r22_p_tool" <<'R22_PAYLOAD'
+[[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T20:20:00Z","body":"## Tester report\n\n- the Tester\n"}]]
+R22_PAYLOAD
+      r22_p_page2="$r22_tmp/p-page2.json"
+      cat > "$r22_p_page2" <<'R22_PAYLOAD'
+[[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T20:00:00Z","body":"old note"}],[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T20:20:00Z","body":"- the Tester"}]]
+R22_PAYLOAD
+      r22_p_trail="$r22_tmp/p-trail.json"
+      cat > "$r22_p_trail" <<'R22_PAYLOAD'
+[[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T20:20:00Z","body":"## Tester report\n\n- the Tester   "}]]
+R22_PAYLOAD
+      r22_p_incident="$r22_tmp/p-incident.json"
+      cat > "$r22_p_incident" <<'R22_PAYLOAD'
+[[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T20:12:08Z","body":"APIError: The operation was aborted. (api_key_expired)"}]]
+R22_PAYLOAD
+      r22_p_stale="$r22_tmp/p-stale.json"
+      cat > "$r22_p_stale" <<'R22_PAYLOAD'
+[[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T19:00:00Z","body":"## Tester report\n\n- the Tester"}]]
+R22_PAYLOAD
+      r22_p_owner="$r22_tmp/p-owner.json"
+      cat > "$r22_p_owner" <<'R22_PAYLOAD'
+[[{"user":{"login":"Userfrom1995"},"created_at":"2026-10-17T20:20:00Z","body":"## Tester report\n\n- the Tester"}]]
+R22_PAYLOAD
+      r22_p_inline="$r22_tmp/p-inline.json"
+      cat > "$r22_p_inline" <<'R22_PAYLOAD'
+[[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T20:20:00Z","body":"See the line \"- the Tester\" quoted above."}]]
+R22_PAYLOAD
+      r22_p_empty="$r22_tmp/p-empty.json"
+      printf '[[]]\n' > "$r22_p_empty"
+      r22_p_badjson="$r22_tmp/p-badjson.json"
+      printf '{"message":"Not Found"}\n' > "$r22_p_badjson"
+      r22_checker_case() {
+        r22_cc_name="$1"; r22_cc_want="$2"; r22_cc_payload="$3"; shift 3
+        {
+          printf 'payload_file=%q\n' "$r22_cc_payload"
+          printf 'fail_fetch="0"\n'
+          for r22_kv in "$@"; do printf '%s\n' "$r22_kv"; done
+        } > "$r22_tmp/case.cfg"
+        r22_cc_out=$(cd "$r22_tmp" && env -u GITHUB_TOKEN -u GH_TOKEN -u GH_API_TOKEN \
+          PATH="$r22_mockdir:$PATH" GITHUB_ACTIONS=true GITHUB_REPOSITORY="RandomLabs/RandomLabs" \
+          bash "$r22_checker_abs" 628 "$r22_since" 2>&1)
+        r22_cc_rc=$?
+        if [ "$r22_cc_rc" -ne "$r22_cc_want" ]; then
+          r22_bad="${r22_bad} checker(functional-${r22_cc_name}-rc=${r22_cc_rc},want=${r22_cc_want})"
+          printf 'R22 checker functional case %s failed (rc=%s, want=%s); output:\n%s\n' "$r22_cc_name" "$r22_cc_rc" "$r22_cc_want" "$r22_cc_out" >&2
+        fi
+      }
+      r22_checker_case published-footer 0 "$r22_p_footer"
+      r22_checker_case published-tool 0 "$r22_p_tool"
+      r22_checker_case page2-signoff 0 "$r22_p_page2"
+      r22_checker_case trailing-space 0 "$r22_p_trail"
+      r22_checker_case incident-error 1 "$r22_p_incident"
+      r22_checker_case stale 1 "$r22_p_stale"
+      r22_checker_case owner-authored 1 "$r22_p_owner"
+      r22_checker_case inline-mention 1 "$r22_p_inline"
+      r22_checker_case empty 1 "$r22_p_empty"
+      r22_checker_case bad-json 2 "$r22_p_badjson"
+      r22_checker_case fetch-failure 2 "$r22_tmp/never-read.json" 'fail_fetch="1"'
+      # Publisher mock: records the posted body and re-serves it on the
+      # by-id fetch (or a fixed hostile body), so the real first-line and
+      # authorship verifications are exercised end to end.
+      cat > "$r22_mockdir/gh" <<'R22_PUBLISHER_MOCK'
+#!/usr/bin/env bash
+r22_cfg="$(cd "$(dirname "$0")/.." && pwd)/case.cfg"
+author="github-actions[bot]"
+fail_post="0"
+no_id="0"
+fetch_mode="posted"
+fixed_body_file=""
+posted_file=""
+# shellcheck disable=SC1090
+. "$r22_cfg"
+case "$*" in
+  *"/issues/comments/"*)
+    if [ "$fetch_mode" = "fixed" ]; then
+      jq -n --arg a "$author" --arg b "$(cat "$fixed_body_file" 2>/dev/null || true)" '{user:{login:$a},html_url:"https://example.invalid/comment",body:$b}'
+    else
+      jq -n --arg a "$author" --arg b "$(cat "$posted_file" 2>/dev/null || true)" '{user:{login:$a},html_url:"https://example.invalid/comment",body:$b}'
+    fi
+    ;;
+  *)
+    if [ "$fail_post" = "1" ]; then
+      echo "mock gh: post failed" >&2
+      exit 1
+    fi
+    for r22_arg in "$@"; do
+      case "$r22_arg" in
+        body=*) printf '%s' "${r22_arg#body=}" > "$posted_file" ;;
+      esac
+    done
+    if [ "$no_id" = "1" ]; then
+      printf '{}\n'
+    else
+      printf '{"id":12345}\n'
+    fi
+    ;;
+esac
+R22_PUBLISHER_MOCK
+      chmod +x "$r22_mockdir/gh"
+      if [ "$(PATH="$r22_mockdir:$PATH" command -v gh)" != "$r22_mockdir/gh" ]; then
+        r22_bad="${r22_bad} publisher(functional-mock-not-intercepted)"
+      else
+        r22_prose="$r22_tmp/prose-first.txt"
+        printf 'All green. Posting the decision comment.\n\n/oc approve-test\n\n- the Tester\n' > "$r22_prose"
+        r22_pub_case() {
+          r22_pc_name="$1"; r22_pc_want="$2"; r22_pc_target="$3"; shift 3
+          {
+            printf 'author="github-actions[bot]"\n'
+            printf 'fail_post="0"\n'
+            printf 'no_id="0"\n'
+            printf 'fetch_mode="posted"\n'
+            printf 'fixed_body_file=""\n'
+            printf 'posted_file=%q\n' "$r22_tmp/posted-$r22_pc_name"
+            for r22_kv in "$@"; do printf '%s\n' "$r22_kv"; done
+          } > "$r22_tmp/case.cfg"
+          rm -f "$r22_tmp/posted-$r22_pc_name"
+          r22_pc_out=$(cd "$r22_tmp" && env -u GITHUB_TOKEN -u GH_TOKEN -u GH_API_TOKEN \
+            PATH="$r22_mockdir:$PATH" GITHUB_ACTIONS=true GITHUB_REPOSITORY="RandomLabs/RandomLabs" \
+            bash "$r22_publisher_abs" "$r22_pc_target" "infra" 2>&1)
+          r22_pc_rc=$?
+          if [ "$r22_pc_rc" -ne "$r22_pc_want" ]; then
+            r22_bad="${r22_bad} publisher(functional-${r22_pc_name}-rc=${r22_pc_rc},want=${r22_pc_want})"
+            printf 'R22 publisher functional case %s failed (rc=%s, want=%s); output:\n%s\n' "$r22_pc_name" "$r22_pc_rc" "$r22_pc_want" "$r22_pc_out" >&2
+          fi
+        }
+        r22_pub_case good-marker 0 628
+        r22_pub_case prose-first 1 628 'fetch_mode="fixed"' "fixed_body_file=$r22_prose"
+        r22_pub_case wrong-author 1 628 'author="Userfrom1995"'
+        r22_pub_case post-failure 1 628 'fail_post="1"'
+        r22_pub_case missing-id 1 628 'no_id="1"'
+        r22_pub_case bad-target 1 "abc"
+        r22_posted_first=$(head -n1 "$r22_tmp/posted-good-marker" 2>/dev/null || true)
+        [ "$r22_posted_first" = "/oc approve-test" ] || r22_bad="${r22_bad} publisher(functional-good-marker-posted-first-line='${r22_posted_first}')"
+      fi
+    fi
+    rm -rf "$r22_tmp"
+  fi
+fi
+if [ -z "$r22_bad" ]; then
+  check "R22" "tester maintainer decisions require positive publication evidence (bot-authored, post-trigger, tester-signed comment checked from this run's own workflow commit; unpublished and unverifiable verdicts are discarded and fail closed) and the workflow publishes the canonical bot-authored first-line /oc approve-test marker itself from the evidence-gated machine handoff (never for a non-maintainer decision or a scope=unrunnable escalation, re-fetched and verified by id), so the PAT merge sweep's R21 anchor is guaranteed by construction instead of agent prose formatting (issue #629)" "ok"
+else
+  check "R22" "tester verdict publication guard missing:${r22_bad} (issue #629: a prose-first tester verdict silently stalls the PAT merge sweep and no publication-shape check existed)" "bad"
+fi
+
+summary="Silent-stall regression audit (R1-R22) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R21)
+  body="## Silent-stall regression audit FAILED (R1-R22)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, or R21 PAT merge approval binding). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, or R22 tester verdict publication). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then

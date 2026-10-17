@@ -540,7 +540,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422) + the model fallback ladder (resolve-model.sh, model-ladder.txt, issue #591)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R21), per-OS findings poster, review-comment publication evidence, CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R22), per-OS findings poster, review-comment and tester-verdict publication evidence, tester marker publisher, CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
@@ -721,6 +721,27 @@ catches up in seconds.
   head_ref_force_pushed timeline events; fail closed when unavailable), and
   mergeable=UNKNOWN is re-queried a bounded number of times before skipping.
   Enforced by R21 in `.github/scripts/silent-stall-audit.sh`.
+- A tester maintainer verdict must be published in the sweep's canonical shape
+  (issue #629): a prose-first decision comment ("All green. Posting the
+  decision comment." with the marker on a later line) never matches the sweep's
+  entire-first-line anchor, so PR #628's workflow-touching head stalled at the
+  sweep even though the read-only infra test run 39067932835 concluded SUCCESS
+  with a genuine approval (review approved 20:43:33Z; comment 6240760500,
+  evidence scope infra, posted 20:46:03Z with the marker on line 3), and PR
+  #614's read-only verdict (comment 6240507941, 20:27:01Z) surfaced the same
+  prose-first shape. `opencode-test.yml` now
+  requires positive publication evidence
+  (`.github/scripts/test-comment-published.sh`: a github-actions[bot] comment
+  created after the trigger whose body carries the `- the Tester` sign-off),
+  discards an unpublished or unverifiable maintainer verdict before the
+  forward path, and
+  the workflow then publishes the canonical marker itself
+  (`.github/scripts/publish-tester-marker.sh`: first line exactly
+  `/oc approve-test`, bot-authored, re-fetched and verified by id) from the
+  evidence-gated machine handoff - never for a non-maintainer decision and
+  never for a `scope=unrunnable` escalation. The R21 anchor is therefore
+  guaranteed by construction instead of agent prose formatting, and R21 is
+  unchanged. Enforced by R22 in `.github/scripts/silent-stall-audit.sh`.
 - The Maintainer cannot land infra/model/workflow changes herself: routine
   changes route to the Lab Engineer (`{"action":"lab"}`), and the direct-to-main
   revival path fires only with a complete `.maintainer/emergency.json`
