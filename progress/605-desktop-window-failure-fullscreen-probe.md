@@ -13,9 +13,9 @@ Status: in-progress
       hang), and the capture re-renders when the last frame is stale
 - [x] Regressions: unit tests for the boot-failure report/exit seam, the
       probe gate state machine, and the stale-frame capture guard
-- [ ] Windowed `--probe 30` PPM stays byte-identical to the committed
+- [x] Windowed `--probe 30` PPM stays byte-identical to the committed
       `docs/desktop-probe.ppm`
-- [ ] Docs: desktop guide verification and troubleshooting sections
+- [x] Docs: desktop guide verification and troubleshooting sections
 - [ ] Reviewer / Tester / Evaluator gates (pipeline)
 
 ## Scope (binding, from issue triage)
@@ -24,13 +24,32 @@ Status: in-progress
 - Fullscreen probe waits for the resize; windowed probe byte-stable.
 
 ## Current step
-`window.rs` fix landed with 7 new unit regressions (62 lib tests green);
-docs and live Xvfb evidence pending.
+Fix, regressions, docs, and live Xvfb evidence complete. 62 lib + 8
+hostile + 6 eval-fix + 3 headless + 1 persistence green; fmt clean; zero
+new clippy warnings. Ready for review.
 
 ## Next steps
-- Update `docs/desktop.md`, run workspace tests, capture Xvfb evidence
-  (windowed md5 vs committed PPM; openbox fullscreen PPM dims; depth-8
-  induced window failure), then hand to review.
+- `/oc review`, then `/oc test`, then `/oc eval` before merge.
+
+## Fixed-tree evidence (2026-10-17, debug binary)
+- Windowed byte stability:
+  `xvfb-run -a ./target/debug/maze-chase-desktop --no-pad --probe 30 /tmp/opencode/shot-win-after.ppm`
+  -> exit 0, md5 fae603b7bc52980968918439719f2096, `cmp` byte-identical
+  to `maze-chase/docs/desktop-probe.ppm`.
+- Fullscreen probe under Xvfb plus openbox (1280x1024), N=1, 2, 3, 90
+  (four runs): all exit 0 and every PPM header is `P6 1280 1024 255`.
+  Before the fix N=2 captured `P6 1100 760`.
+- Bare Xvfb (no WM, no resize exists): exit 0 after wall=2.08 s with
+  `P6 1100 760 255` (the window's actual size); the bounded settle means
+  no hang and no stale-size claim.
+- Induced bootstrap failure (Xvfb screen depth 8, softbuffer rejects the
+  visual): exit 1 with
+  `maze-chase-desktop: cannot create the presentation surface (Platform error: Some("Visual 0x21 does not use softbuffer's pixel format and is unsupported"))`
+  and no PPM (before: exit 0, no PPM, no message).
+- No display at all: exit 1 with `cannot open a display (no windowing
+  backend)`.
+- Full evidence log: `/tmp/opencode/evidence-605.txt` (session-local);
+  commands and outputs are repeated in the PR description.
 
 ## Reproduction evidence (unfixed tree, 2026-10-17)
 - Windowed byte-stable baseline:
