@@ -244,8 +244,10 @@ jobs:
           fi
           # FALLBACK-LADDER (issue #591): per-rung retry on provider
           # "Model not found" (opencode may exit nonzero OR exit 0 after
-          # posting its error comment), exactly once per rung; any other
-          # failure exits immediately; a dead ladder exits 1 loudly so the
+          # posting its error comment), exactly once per rung; the match is
+          # boundary-aware so prose quoting a different retired id can never
+          # trigger a false advance; any other failure exits immediately; a
+          # failed log capture and a dead ladder both exit 1 loudly so the
           # verify step below goes red instead of the 2026-10-17 hollow green.
           candidates="${MODEL_CANDIDATES:-}"
           if [ -z "$candidates" ]; then
@@ -258,13 +260,24 @@ jobs:
             echo "::notice::maintainer run with model '$model'"
             set +e
             MODEL="$model" opencode github run 2>&1 | tee "$log"
-            status=${PIPESTATUS[0]}
+            # Capture BOTH pipeline statuses in one assignment: a following
+            # t=${PIPESTATUS[1]} would be empty because the first assignment
+            # resets PIPESTATUS. A failed tee (e.g. full RUNNER_TEMP) leaves an
+            # empty log whose grep can never match, so an exit-0 Model-not-found
+            # death would take the success branch; fail loudly instead.
+            st=("${PIPESTATUS[@]}")
             set -e
-            if [ "$status" -eq 0 ] && ! grep -qF "Model not found: $model" "$log"; then
+            status="${st[0]}"; tee_status="${st[1]}"
+            if [ "$tee_status" -ne 0 ]; then
+              echo "::error::could not capture the Maintainer opencode log for model '$model' (tee exit $tee_status); failing loudly instead of risking a blind advance."
+              rm -f "$log"
+              exit 1
+            fi
+            if [ "$status" -eq 0 ] && ! grep -qE "Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)" "$log"; then
               rm -f "$log"
               exit 0
             fi
-            if grep -qF "Model not found: $model" "$log"; then
+            if grep -qE "Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)" "$log"; then
               echo "::warning::model '$model' was not found by the provider; advancing to the next ladder rung if any."
               rm -f "$log"
               continue
@@ -287,8 +300,16 @@ jobs:
           # A healthy Maintainer ALWAYS writes .maintainer/decision.json
           # (an empty array [] is a valid quiet run), so its absence is a
           # broken contract: the 2026-10-17 outage's Model-not-found deaths
-          # concluded green under continue-on-error with only a warning, and
-          # the workflow_run failure triage never fired. Go RED instead.
+          # concluded green under continue-on-error with only a warning. Go RED
+          # instead. Note: the Maintainer is self-excluded from the
+          # workflow_run failure allowlist, so the observable coverage of this
+          # red is the failed run itself plus the 2-hour schedule (and the
+          # Auditor's silent-stall survey), not failure-triggered triage.
+          # Also intended until the actor-permission preflight (issue #427)
+          # lands: on a bot-authored PR's pull_request event the opencode CLI
+          # refuses the bot actor and writes no decision file, so this step
+          # reds that redundant arm too. The real triage arm is the
+          # /oc maintainer comment triggered by opencode-pr-trigger.yml.
           if [ -f .maintainer/decision.json ]; then
             echo "Maintainer decision contract present (outcome '$AGENT_OUTCOME')."
             exit 0
