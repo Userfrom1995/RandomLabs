@@ -467,10 +467,38 @@ fn game_over_writes_a_scores_row() {
         .filter(|l| !l.trim().is_empty() && !l.starts_with('#'))
         .collect();
     assert_eq!(rows.len(), 1, "exactly one run recorded; body:\n{body}");
-    let score = rows[0].split('|').next().unwrap().trim();
+    let fields: Vec<&str> = rows[0].split('|').map(str::trim).collect();
+    assert_eq!(
+        fields.len(),
+        4,
+        "the recorded row must be `score | level | mode | date`; row: {}",
+        rows[0]
+    );
+    let score: u32 = fields[0].parse().unwrap_or_else(|_| {
+        panic!(
+            "the recorded row must carry a numeric score; row: {}",
+            rows[0]
+        )
+    });
     assert!(
-        score.parse::<u32>().is_ok(),
-        "the recorded row must carry a numeric score; row: {}",
+        score > 0,
+        "a Harsh run must record a positive score; row: {}",
+        rows[0]
+    );
+    let level: u32 = fields[1].parse().unwrap_or_else(|_| {
+        panic!(
+            "the recorded row must carry a numeric level; row: {}",
+            rows[0]
+        )
+    });
+    assert_eq!(
+        level, 1,
+        "Harsh starts at level 1, so a parse fallback is caught here; row: {}",
+        rows[0]
+    );
+    assert_eq!(
+        fields[2], "sprint",
+        "Harsh maps to the sprint mode, not the Classic fallback; row: {}",
         rows[0]
     );
     s.finish();
