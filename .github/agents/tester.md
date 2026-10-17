@@ -68,7 +68,7 @@ A pull request is an **Infrastructure PR** if ANY changed file touches:
     - The workflow forwarder will automatically post `/oc lab` to summon The Lab Engineer (CTO) to fix it.
     - DO NOT post `/oc fix` (the Fixer fixes application code, not lab infrastructure).
   - If all infrastructure checks pass cleanly:
-    - Post your approval comment: `/oc approve-test` with a summary of the checks performed, ending with `- the Tester`.
+    - Post your approval comment: its FIRST LINE must be exactly `/oc approve-test` (optionally backticked; nothing else on the line). Put the summary of the checks performed on the following lines and end with `- the Tester`. The PAT merge sweep recognizes only this shape.
     - Write `{"action": "maintainer"}` to `/tmp/random-lab-decision.json` so Hephaestus can coordinate merge.
 
 ---
@@ -133,7 +133,7 @@ If the deliverable is algorithmic, mathematical, or systems research (such as co
 - If all tests pass cleanly and the deliverable meets the standard of excellence:
   - Commit and push your durable test suite.
   - Write `{"action": "maintainer"}` to `/tmp/random-lab-decision.json`.
-  - Post: `/oc approve-test`
+  - Post: `/oc approve-test` as the entire first line of your decision comment (the merge sweep's first-line anchor requires it).
 
 ---
 
