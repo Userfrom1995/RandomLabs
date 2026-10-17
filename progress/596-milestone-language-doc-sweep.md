@@ -1,7 +1,7 @@
 # T-596: Milestone-language sweep in shipped project docs
 
 - **Issue:** #596 (Curator audit escalation)
-- **Status:** in-progress
+- **Status:** complete (awaiting review)
 - **Branch:** `opencode/issue596-20261017103724`
 - **Owner:** the Builder
 
@@ -34,7 +34,7 @@ ledger sections.
       tests (em/en-dash + doc checks), doom node tests plus audit tools,
       layout-audit regeneration + manifest reseal, tor-cli go tests,
       maze-chase full workspace cargo tests
-- [ ] PR updated to `Closes #596`
+- [x] PR updated to `Closes #596`
 
 ## Scope decisions
 
@@ -52,11 +52,9 @@ ledger sections.
 
 ## Current step
 
-maze-chase swept and verified: all four public surfaces grep clean; full
-`cargo test --workspace` green (docs-asserting packaging/evalfix tests
-included; ALSA/udev dev packages installed in this runner for the desktop
-crate). Final repo-wide verification pass clean. Remaining: update the PR
-body to `Closes #596` and write the review decision file.
+Complete. PR #599 body carries `Closes #596` with the full per-project
+summary, gate results, and the out-of-scope observations; the run's review
+decision file is written. Handing off to the Reviewer.
 
 ## Agent log
 
@@ -107,3 +105,5 @@ body to `Closes #596` and write the review decision file.
   internal code/test comments and Cargo/binary strings, the authored maze
   header (levels/ember-warren.maze), machine evidence JSONs (bench-m5.json
   owner label prose), and stale planned/done cells in feature-matrix rows.
+- 2026-10-17: Shipped. PR #599 body rewritten to `Closes #596` with the
+  summary, gate table, and scope notes; decision file written for review.
