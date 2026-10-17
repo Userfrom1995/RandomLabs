@@ -16,14 +16,20 @@
 # merge checks then fail closed and silently skip a linked workflow PR), the
 # R17 per-OS findings-report contract guard (issue #608: a PR-creating
 # per-OS arm run turns the session's final message into the PR body and
-# silently drops the findings report). R17 is hybrid: static checks assert the
+# silently drops the findings report; issue #612 follow-up: the Windows arm's
+# CRLF-translated re-fetch tripped the exact-body gate after the report had
+# already posted, because Git Bash translates command-substituted line
+# endings, so CR bytes are now normalized on both sides and an LF-normalized
+# copy is posted). R17 is hybrid: static checks assert the
 # three arms wire the shared poster with the exact gate lines, token envs, and
 # a clean post run body, and a functional test executes the real poster against
 # an executable mock `gh` (interception asserted, credentials scrubbed, live
 # non-credential Actions env set realistically, sandbox outside the repo per
 # delegation.md section 6) so wrong-author, unsigned, missing-report,
 # tampered-body, post-failure, and missing-comment-id paths must all fail
-# closed for all three OS labels; only the verify-step run body and exotic
+# closed for all three OS labels, while CRLF report / CRLF re-fetch fixtures
+# must verify green with a byte-exact LF-normalized posted body; only the
+# verify-step run body and exotic
 # sandbox-path fingerprinting remain review-gated boundaries (documented in
 # the R17 comment), the R18 Windows MSYS argv-conversion guard (issue #612:
 # Git Bash on the windows-latest arm rewrote a slash-leading "/oc" handoff
@@ -736,6 +742,17 @@ fi
 #      missing report, tampered body with an intact sign-off tail, failed
 #      post, and missing comment id, across all three OS labels;
 #   5. all three tester prompt files carry the contract.
+#   Windows line endings (issue #612 follow-up, Windows arm run 39068849150
+#   on PR #632): Git Bash translates line endings of command-substituted
+#   output, so the Windows arm posted its findings comment and then the
+#   exact-body gate rejected the clean-LF re-fetch. The poster must normalize
+#   CR bytes on both sides of the exact comparison and post an LF-normalized
+#   copy so the stored body is platform-stable, while a real content mismatch
+#   stays red. The functional-test mock carries `crlf_fetch` (CRLF-translated
+#   re-fetch output) and `posted_capture` (records the exact file handed to
+#   `gh api -F body=@...`) knobs, and the fixture set includes a CRLF report,
+#   a CRLF-translated LF re-fetch, a CRLF report posted on Windows, and a
+#   CRLF tampered body with an intact sign-off tail.
 # Review-gated residual boundary: the verify step's own run body cannot be
 # functionally executed statically, so an early `exit 0` inserted into it (or
 # any arbitrary reshuffle of a step's control flow that still passes every
@@ -943,16 +960,33 @@ author="github-actions[bot]"
 fail_post="0"
 no_id="0"
 body_file=""
+crlf_fetch="0"
+posted_capture=""
 # shellcheck disable=SC1090
 . "$r17_cfg"
 case "$*" in
   *"/issues/comments/"*)
-    jq -n --arg a "$author" --arg b "$(cat "$body_file" 2>/dev/null || true)" '{user:{login:$a},html_url:"https://example.invalid/comment",body:$b}'
+    r17_body="$(cat "$body_file" 2>/dev/null || true)"
+    if [ "$crlf_fetch" = "1" ]; then
+      r17_body="$(printf '%s' "$r17_body" | sed 's/$/\r/')"
+    fi
+    jq -n --arg a "$author" --arg b "$r17_body" '{user:{login:$a},html_url:"https://example.invalid/comment",body:$b}'
     ;;
   *)
     if [ "$fail_post" = "1" ]; then
       echo "mock gh: post failed" >&2
       exit 1
+    fi
+    if [ -n "$posted_capture" ]; then
+      r17_posted=""
+      for r17_arg in "$@"; do
+        case "$r17_arg" in
+          body=@*) r17_posted="${r17_arg#body=@}" ;;
+        esac
+      done
+      if [ -n "$r17_posted" ]; then
+        cp "$r17_posted" "$posted_capture" 2>/dev/null || true
+      fi
     fi
     if [ "$no_id" = "1" ]; then
       printf '{}\n'
@@ -977,6 +1011,17 @@ R17_MOCK
       r17_unsigned="$r17_tmp/unsigned.md"
       printf 'Finding one without a sign-off.\n' > "$r17_unsigned"
       r17_missing="$r17_tmp/missing.md"
+      # Windows line-ending fixtures (issue #612 follow-up, Windows arm run
+      # 39068849150 on PR #632): the tester wrote its report on Windows, and
+      # Git Bash translates command-substituted output to CRLF, so a CRLF
+      # report and/or a CRLF-translated re-fetch must verify green, and the
+      # posted body must be the LF-normalized copy (captured by the mock).
+      r17_crlf_windows="$r17_tmp/crlf-windows.md"
+      printf 'Finding one.\r\nFinding two.\r\n\r\n- the Windows Tester\r\n' > "$r17_crlf_windows"
+      r17_crlf_windows_norm="$r17_tmp/crlf-windows-normalized.md"
+      tr -d '\r' < "$r17_crlf_windows" > "$r17_crlf_windows_norm"
+      r17_crlf_tampered="$r17_tmp/crlf-tampered.md"
+      printf 'Finding one tampered. Finding two gone.\r\n\r\n- the Windows Tester\r\n' > "$r17_crlf_tampered"
       r17_case() {
         r17_case_name="$1"; r17_case_want="$2"; r17_case_os="$3"; r17_case_report="$4"; shift 4
         {
@@ -1009,6 +1054,18 @@ R17_MOCK
       r17_case good-windows 0 windows "$r17_good_windows"
       r17_case unsigned-windows 1 windows "$r17_unsigned"
       r17_case wrong-author-windows 1 windows "$r17_good_windows" 'author="Userfrom1995"'
+      r17_case crlf-fetch-linux 0 linux "$r17_good_linux" 'crlf_fetch="1"'
+      r17_case crlf-report-plain-windows 0 windows "$r17_crlf_windows"
+      r17_case crlf-report-windows 0 windows "$r17_crlf_windows" 'crlf_fetch="1"' "posted_capture=$r17_tmp/posted-crlf-report.md"
+      r17_case crlf-tampered-windows 1 windows "$r17_crlf_windows" "body_file=$r17_crlf_tampered" 'crlf_fetch="1"'
+      # The normalized LF copy is what must reach the API (issue #612
+      # follow-up requirement b): the captured posted body must be
+      # byte-identical to the LF-normalized report, never the raw CRLF file.
+      if [ -f "$r17_tmp/posted-crlf-report.md" ] && cmp -s "$r17_tmp/posted-crlf-report.md" "$r17_crlf_windows_norm"; then
+        :
+      else
+        r17_bad="${r17_bad} script(functional-crlf-report-not-posted-as-normalized-lf)"
+      fi
     fi
   fi
 fi
