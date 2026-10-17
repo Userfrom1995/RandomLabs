@@ -187,6 +187,36 @@ worktree (probe-msys.yml): the four spellings now red as
 guarded `MSYS_NO_PATHCONV: "1"` ANSI-C form stays green; the full audit is
 19 passed / 0 failed before and after the fix.
 
+## Round 4: rebase onto main's R20 and the R1-R20 label unification
+
+While the round-3 head was in review, main advanced again and #621 landed
+audit rule R20 (paginated comment enumerations) with every range string
+already reading R1-R20, so PR #614 went CONFLICTING a second time (the shared
+script, the opencode.yml rule comment, AGENTS.md and LAB.md conflicted; the
+peros forwarders, lab.yml, and this decision note did not).
+
+Rebased the 8 commits onto `b560ed38` per the maintainer's lean-rebase
+directive (comment 6239628624). Conflict resolution keeps all four rules:
+main's R20 block is preserved byte-identically (sha256
+2169086ba680bab60e79ce0b088e6301cb46454b1aae83f9f781e5578a82e9be on both
+trees), R18 sits in its numbered position between R17 and R19, and every
+range string reads R1-R20 (script header, PASS/FAIL lines, summary, FAILED
+body, opencode.yml rule comment, LAB.md line 543; AGENTS.md carries
+individually numbered per-rule bullets, which on main are unchanged). The
+R18 and R20 descriptions are merged into the script header and the
+FAILED-summary sentence, and the AGENTS.md/LAB.md bullet lists keep the R18
+bullet between R16/R17 and the R19 bullet with the R20 bullet after it.
+
+Evidence: full audit on the rebased tree 20 passed / 0 failed (R1-R20);
+`git diff --name-only origin/main HEAD` lists exactly the 7 PR files; the
+R20 pagination sites in opencode.yml are unchanged from main (10
+`?per_page=100` / `--paginate --slurp` occurrences before and after); 154
+extracted run blocks pass `bash -n`; `yaml.safe_load` clean on every edited
+workflow; zero stale R1-R18/R1-R19 range strings in the tree; zero em
+dashes; no trailers introduced. The in-flight review round on the pre-rebase
+head `3b4a7cb8` (run 39063893617) posted no findings before handoff; its
+head is superseded by this rebase.
+
 ## Delegation ledger
 
 - Subagent 1 (general; adversarial verification, three rounds, read-only on
@@ -227,6 +257,19 @@ guarded `MSYS_NO_PATHCONV: "1"` ANSI-C form stays green; the full audit is
   regex matrix; the rebase reconciliation was verified with a merge-base
   assertion, whole-tree range sweeps, and the full audit. No subagents were
   warranted for this bounded fix.
+- Subagent 4 (general; independent rebase verification, read-only on the
+  real repo): confirmed the exactly-7-file diff, the byte-identical R20
+  block (sha256), the R17 < R18 < R19 < R20 ordering, R1-R20 labels, the
+  three stdin forwarders, the 20 passed / 0 failed audit, `bash -n` and
+  YAML syntax, and zero em dashes; the only two flagged literals (AGENTS.md
+  has no literal R1-R20 range string; `Co-authored-by:` strip-pattern
+  occurrences) were proven unchanged from main and not introduced by this
+  PR.
+- Primary verified itself in round 4: the conflict-union edits (script
+  header, FAILED-summary sentence, opencode.yml rule comment), the full
+  audit 20 passed / 0 failed after resolution, the 154-block `bash -n`
+  sweep, YAML parses on every edited workflow, the whitespace / em-dash /
+  trailer sweeps, and the final diff review before committing.
 - Skills: no skill fits (GitHub Actions lab infrastructure and lab prompts,
   not opencode configuration of this workspace).
 
