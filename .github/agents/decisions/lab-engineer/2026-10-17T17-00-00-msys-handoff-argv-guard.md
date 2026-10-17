@@ -164,6 +164,29 @@ canonical forwarder contract mutations (duplicate, relocated, attached
 defacement, transport removal); full audit 17 passed / 0 failed on the
 rebased tree; `bash -n` clean; zero em dashes.
 
+## Round 3: rebase onto main's R17/R19 and the reviewer's spelling-gap closure
+
+The PR went CONFLICTING when R17 (#608) and R19 (#616) landed on main while
+this PR was under review. Rebased onto `8ccab113` per the maintainer's
+lean-rebase directive: main's R17 (per-OS findings report) and R19 (review
+publication evidence) are preserved, R18 sits in its numbered position between
+them, and every range string and label reads R1-R19 (script header, PASS/FAIL
+lines, auditor step label, AGENTS.md, LAB.md, tester.md, opencode.yml rule
+comment). Full audit on the rebased tree: 19 passed / 0 failed.
+
+The round-3 review (`/oc lab fix review findings`, comment 6239689248) marked
+the conflict blocking (resolved by the rebase) and recorded one non-blocking
+R18 false negative: `--body $'/oc ...'`, `--body $"/oc ..."`,
+`--body ${x:-/oc ...}`, and the attached `--body=$'/oc ...'` spelling all
+expand under bash to a slash-leading body but passed the lexical tripwire.
+Closed in this round by extending `BODY_VALUE_PREFIX` in the four slash-body
+regexes to accept an optional ANSI-C/locale `$` quote and a default-value
+parameter expansion, including under an enclosing quote. Probe on an isolated
+worktree (probe-msys.yml): the four spellings now red as
+`unguarded-slash-body-argv`; the `--body "$VAR"` control stays green; a
+guarded `MSYS_NO_PATHCONV: "1"` ANSI-C form stays green; the full audit is
+19 passed / 0 failed before and after the fix.
+
 ## Delegation ledger
 
 - Subagent 1 (general; adversarial verification, three rounds, read-only on
@@ -199,6 +222,11 @@ rebased tree; `bash -n` clean; zero em dashes.
   the rebased tree (17 passed / 0 failed), and the diff/em-dash review before
   committing. `sh -e {0}` handling and the quoted-`gh` suppression fix were
   driven by the subagent findings and re-verified in the primary matrix.
+- Round 3: a single primary probe run on an isolated worktree
+  (probe-msys.yml positive/negative matrix, then removed) plus an in-process
+  regex matrix; the rebase reconciliation was verified with a merge-base
+  assertion, whole-tree range sweeps, and the full audit. No subagents were
+  warranted for this bounded fix.
 - Skills: no skill fits (GitHub Actions lab infrastructure and lab prompts,
   not opencode configuration of this workspace).
 
