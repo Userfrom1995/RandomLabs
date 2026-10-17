@@ -1,7 +1,7 @@
 # Continuous Improvement Loop (Binding)
 
 Companion to `.github/agents/quality-gates.md` (which states when work is
-done) and `.github/agents/delegation.md` section 6 (which states what the
+done) and `.github/agents/delegation.md` section 7 (which states what the
 protocol does not change). This file carries no trigger and gets no roster
 row: it states the binding loop that answers owner directive point 6. Every
 merged PR must leave the lab measurably better or measurably unchanged, and
