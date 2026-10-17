@@ -27,21 +27,25 @@
 # sandbox-path fingerprinting remain review-gated boundaries (documented in
 # the R17 comment), the R19 review-comment publication-evidence guard
 # (issue #616: a reviewer death between the decision-file write and the
-# comment post forwarded an unread verdict with zero published findings), and
+# comment post forwarded an unread verdict with zero published findings),
 # the R20 paginated comment-read guard (issue #621: unbounded comment
 # enumerations read only the oldest 30 comments, so a retry cap on a busy
-# thread reads 0 and a crash loop re-posts retry 1 forever).
-# Wired into auditor.yml as the R1-R20 matrix.
+# thread reads 0 and a crash loop re-posts retry 1 forever), and the R21
+# PAT merge approval-binding guard (issue #619: the sweep's unanchored
+# contains() approval match merged an unreviewed workflow-touching PR off a
+# Maintainer summary that merely quoted the tester marker, and the same run
+# skipped the genuinely approved lane as mergeable=UNKNOWN).
+# Wired into auditor.yml as the R1-R21 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R20 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R21 audit the whole tree
 # (the review-restore guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
 # group cohort, the model fallback
 # ladder, the PAT merge shallow-workspace guard, the per-OS findings-report
-# contract, the review-comment publication-evidence guard, and the paginated
-# comment-read guard), so they trip on a bad
+# contract, the review-comment publication-evidence guard, the paginated
+# comment-read guard, and the PAT merge approval binding), so they trip on a bad
 # curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml no matter which
 # file the audit was pointed at.
 # Exit code is always 0 so it never breaks the auditor run; failures are reported
@@ -70,12 +74,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R20 PASS] $name: $desc"
+  [R1-R21 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R20 FAIL] $name: $desc"
+  [R1-R21 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -1417,17 +1421,166 @@ if [ -z "$r20_bad" ]; then
 else
   check "R20" "paginated comment-read guard missing:${r20_bad} (issue #621: an unpaginated read sees only the oldest 30 comments, the cap reads 0, and a crash loop re-posts retry 1 forever)" "bad"
 fi
+# [R21] PAT merge approval binding (issue #619): the sweep's approval
+# detection was an unanchored substring match over every github-actions[bot]
+# comment (.body | contains("/oc approve-test")), so a Maintainer decisions
+# summary that merely QUOTED the tester marker while describing another PR
+# counted as this PR's verdict: the sweep merged workflow-touching #618 at
+# 18:55:19Z with no review verdict and no read-only test (maintainer run
+# 39059718673, matched comment 6239004626 at 18:55:04Z, while #618's first
+# verdicts only arrived later: review 19:00:08Z, read-only test 19:08:19Z). The same run then skipped the
+# genuinely approved #609 as mergeable=UNKNOWN, because GitHub recomputes
+# mergeability right after the sweep itself advanced main (post-merge
+# recompute race). Anchoring alone is not enough: #609's genuine 18:50:48Z
+# verdict is head-stale after its rebase, and an anchored-but-unbound match
+# would merge the rebased head before its fresh read-only round. Properties:
+#   1. the verdict predicate is anchored to the verdict SHAPE: the marker
+#      must be the comment's entire first line, optionally backticked, and
+#      the unanchored contains() form is banned from the sweep;
+#   2. head-binding is mandatory: the verdict must not predate the head's
+#      last push (the later of the head commits' committer dates and any
+#      head_ref_force_pushed timeline event), computed before the check and
+#      failing closed when the time cannot be established;
+#   3. mergeable=UNKNOWN is re-queried a bounded number of times instead of
+#      skipping on the first read;
+#   4. a functional harness extracts the real predicate and the real
+#      head-binding decision block from maintainer.yml and executes them
+#      against genuine and hostile payloads (quoted mentions mid-prose and
+#      on their own line, owner-authored, trailing prose, stale/force-push/
+#      missing head times) with no network access.
+# Review-gated residual boundary: the surrounding sweep control flow is
+# still review-gated, but every property above is pinned by exact fragments,
+# ordering checks, and executable behavior. Honest limit: committer dates
+# are author-settable and only force-push events carry a true push
+# timestamp, so a fast-forward push of commits with forged older dates after
+# a verdict would not stale it; the lab's bot pushes create fresh-dated
+# commits, so this is outside the bot trust model.
+r21_bad=""
+if [ ! -f "$MAIN_WF" ]; then
+  r21_bad=" maintainer.yml(missing)"
+else
+  r21_pat_block=$(sed -n '/- name: PAT-backed merge for approved workflow-touching PRs/,/^      - name: /p' "$MAIN_WF" 2>/dev/null || true)
+  if [ -z "$r21_pat_block" ]; then
+    r21_bad="${r21_bad} maintainer.yml(pat-merge-step-missing-or-renamed)"
+  else
+    # 1. Shape-anchored verdict predicate present verbatim; the unanchored
+    #    contains() form is banned.
+    r21_approve_line=$(printf '%s\n' "$r21_pat_block" | sed 's/^[[:space:]]*//' | grep -F 'approve_test_time=$(echo "$comments" | jq -r ' | head -1 || true)
+    printf '%s\n' "$r21_approve_line" | grep -qF 'select(.user.login=="github-actions[bot]"' || r21_bad="${r21_bad} maintainer.yml(verdict-predicate-no-bot-author)"
+    printf '%s\n' "$r21_approve_line" | grep -qF '(.body|split("\n")[0]|test("^`?/oc approve-test`?[[:space:]]*$"))' || r21_bad="${r21_bad} maintainer.yml(verdict-predicate-not-shape-anchored)"
+    printf '%s\n' "$r21_pat_block" | grep -qF 'contains("/oc approve-test")' && r21_bad="${r21_bad} maintainer.yml(unanchored-approve-test-contains)"
+    # 2. Head-binding: both head-time sources, the max reducer, the
+    #    fail-closed guard, and the stale-verdict check, ordered after the
+    #    verdict read and before any merge action.
+    printf '%s\n' "$r21_pat_block" | grep -qF 'head_commit_time=$(gh api "repos/${{ github.repository }}/pulls/$pr/commits?per_page=100"' || r21_bad="${r21_bad} maintainer.yml(no-head-commit-time-fetch)"
+    printf '%s\n' "$r21_pat_block" | grep -qF -- "--jq '.[].commit.committer.date'" || r21_bad="${r21_bad} maintainer.yml(no-head-commit-date-field)"
+    printf '%s\n' "$r21_pat_block" | grep -qF 'head_force_push_time=$(gh api "repos/${{ github.repository }}/issues/$pr/timeline?per_page=100"' || r21_bad="${r21_bad} maintainer.yml(no-head-force-push-time-fetch)"
+    printf '%s\n' "$r21_pat_block" | grep -qF 'select(.event=="head_ref_force_pushed")' || r21_bad="${r21_bad} maintainer.yml(no-force-push-event-select)"
+    printf '%s\n' "$r21_pat_block" | grep -qF '[ -z "$head_push_time" ] || [ "$candidate" \> "$head_push_time" ]' || r21_bad="${r21_bad} maintainer.yml(no-head-time-max-reducer)"
+    printf '%s\n' "$r21_pat_block" | grep -qF 'if [ -z "$head_push_time" ]; then' || r21_bad="${r21_bad} maintainer.yml(no-head-time-fail-closed)"
+    printf '%s\n' "$r21_pat_block" | grep -qF 'if [ "$approve_test_time" \< "$head_push_time" ]; then' || r21_bad="${r21_bad} maintainer.yml(no-stale-verdict-check)"
+    r21_line() { printf '%s\n' "$r21_pat_block" | grep -nF -- "$1" | head -1 | cut -d: -f1; }
+    r21_approve_ln=$(r21_line 'approve_test_time=$(echo "$comments" | jq -r ')
+    r21_commit_ln=$(r21_line 'head_commit_time=$(gh api "repos/${{ github.repository }}/pulls/$pr/commits?per_page=100"')
+    r21_reducer_ln=$(r21_line 'head_push_time=""')
+    r21_stale_ln=$(r21_line 'if [ "$approve_test_time" \< "$head_push_time" ]; then')
+    if [ -z "$r21_approve_ln" ] || [ -z "$r21_reducer_ln" ] || [ "$r21_approve_ln" -ge "$r21_reducer_ln" ]; then
+      r21_bad="${r21_bad} maintainer.yml(verdict-not-before-head-binding:${r21_approve_ln:-none}/${r21_reducer_ln:-none})"
+    fi
+    if [ -z "$r21_commit_ln" ] || [ -z "$r21_stale_ln" ] || [ "$r21_commit_ln" -ge "$r21_stale_ln" ]; then
+      r21_bad="${r21_bad} maintainer.yml(head-time-not-before-stale-check:${r21_commit_ln:-none}/${r21_stale_ln:-none})"
+    fi
+    # 3. Bounded UNKNOWN re-query before the mergeability gate.
+    printf '%s\n' "$r21_pat_block" | grep -qF 'for _ in 1 2 3 4 5 6; do' || r21_bad="${r21_bad} maintainer.yml(no-bounded-mergeable-requery-loop)"
+    printf '%s\n' "$r21_pat_block" | grep -qF '[ "$mergeable" = "UNKNOWN" ] || break' || r21_bad="${r21_bad} maintainer.yml(no-mergeable-unknown-requery)"
+    printf '%s\n' "$r21_pat_block" | grep -qE '^[[:space:]]*sleep [0-9]+$' || r21_bad="${r21_bad} maintainer.yml(no-requery-backoff)"
+    r21_mergeable_reads=$(printf '%s\n' "$r21_pat_block" | grep -cF -- '--json mergeable' || true)
+    [ "$r21_mergeable_reads" -ge 2 ] || r21_bad="${r21_bad} maintainer.yml(mergeable-reads=${r21_mergeable_reads},want>=2)"
+    printf '%s\n' "$r21_pat_block" | grep -qF 'if [ "$mergeable" != "MERGEABLE" ]; then' || r21_bad="${r21_bad} maintainer.yml(no-non-mergeable-skip)"
+    # 4. Functional harness: extract the REAL predicate and the REAL decision
+    #    block from maintainer.yml and execute them (no network access; the
+    #    sandbox under mktemp -d is removed before the rule reports).
+    if ! command -v jq >/dev/null 2>&1; then
+      r21_bad="${r21_bad} maintainer.yml(functional-jq-missing)"
+    elif [ -z "$r21_approve_line" ]; then
+      r21_bad="${r21_bad} maintainer.yml(functional-predicate-missing)"
+    else
+      r21_tmp=$(mktemp -d 2>/dev/null || true)
+      if [ -z "$r21_tmp" ] || [ ! -d "$r21_tmp" ]; then
+        r21_bad="${r21_bad} maintainer.yml(functional-sandbox-unavailable)"
+      else
+        r21_start="jq -r '"
+        r21_end="' 2>/dev/null"
+        r21_jq="${r21_approve_line#*${r21_start}}"
+        r21_jq="${r21_jq%%${r21_end}*}"
+        r21_decide_block=$(printf '%s\n' "$r21_pat_block" | awk '
+          /^[[:space:]]*head_push_time=""/ { f=1 }
+          f { print }
+          f && /predates the last head push/ { g=1 }
+          g && /^[[:space:]]*fi[[:space:]]*$/ { exit }')
+        if [ -z "$r21_jq" ] || [ "$r21_jq" = "$r21_approve_line" ]; then
+          r21_bad="${r21_bad} maintainer.yml(functional-predicate-extraction)"
+        else
+          r21_pred_case() {
+            r21_case_name="$1"; r21_case_want="$2"; r21_case_payload="$3"
+            r21_case_out=$(printf '%s' "$r21_case_payload" | jq -r "$r21_jq" 2>/dev/null || true)
+            if [ "$r21_case_want" = "match" ] && [ -z "$r21_case_out" ]; then
+              r21_bad="${r21_bad} maintainer.yml(functional-${r21_case_name}-no-match)"
+            elif [ "$r21_case_want" = "none" ] && [ -n "$r21_case_out" ]; then
+              r21_bad="${r21_bad} maintainer.yml(functional-${r21_case_name}-false-match)"
+            fi
+          }
+          r21_pred_case genuine-backticked match '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T18:50:48Z","body":"`/oc approve-test`\n\nInfrastructure PR #609 at `88cd5bc9`"}]'
+          r21_pred_case genuine-plain match '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T19:00:28Z","body":"/oc approve-test\nAll checks passed."}]'
+          r21_pred_case quoted-mid-prose none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T18:55:04Z","body":"#609 cleared the read-only infra test (`/oc approve-test` 18:50:48Z)."}]'
+          r21_pred_case quoted-own-line none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T18:55:04Z","body":"Status:\n- `/oc approve-test` 18:50:48Z on #609"}]'
+          r21_pred_case owner-authored none '[{"user":{"login":"Userfrom1995"},"created_at":"2026-10-17T18:50:48Z","body":"`/oc approve-test`"}]'
+          r21_pred_case trailing-prose none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T18:50:48Z","body":"`/oc approve-test` for PR #609"}]'
+        fi
+        if [ -z "$r21_decide_block" ]; then
+          r21_bad="${r21_bad} maintainer.yml(functional-decision-block-extraction)"
+        else
+          r21_head_case() {
+            r21_hc_name="$1"; r21_hc_hct="$2"; r21_hc_hfpt="$3"; r21_hc_att="$4"; r21_hc_want="$5"
+            r21_skipped=0
+            pr="1"
+            head_commit_time="$r21_hc_hct"
+            head_force_push_time="$r21_hc_hfpt"
+            approve_test_time="$r21_hc_att"
+            r21_body=$(printf '%s\n' "$r21_decide_block" | sed 's/^[[:space:]]*continue[[:space:]]*$/r21_skipped=1/')
+            eval "$r21_body" >/dev/null 2>&1 || true
+            if [ "$r21_skipped" != "$r21_hc_want" ]; then
+              r21_bad="${r21_bad} maintainer.yml(functional-head-${r21_hc_name}-skip=${r21_skipped},want=${r21_hc_want})"
+            fi
+          }
+          r21_head_case fresh 2026-10-17T18:00:00Z "" 2026-10-17T18:05:00Z 0
+          r21_head_case stale-commit 2026-10-17T18:00:00Z "" 2026-10-17T17:55:00Z 1
+          r21_head_case stale-force-push 2026-10-17T18:00:00Z 2026-10-17T18:06:00Z 2026-10-17T18:05:00Z 1
+          r21_head_case force-push-before-verdict 2026-10-17T18:00:00Z 2026-10-17T17:50:00Z 2026-10-17T18:05:00Z 0
+          r21_head_case no-head-time "" "" 2026-10-17T18:05:00Z 1
+          r21_head_case same-second 2026-10-17T18:05:00Z "" 2026-10-17T18:05:00Z 0
+        fi
+        rm -rf "$r21_tmp"
+      fi
+    fi
+  fi
+fi
+if [ -z "$r21_bad" ]; then
+  check "R21" "PAT merge approval is shape-anchored and head-bound: the verdict marker must be the comment's entire first line (optionally backticked), the verdict must not predate the head's last push (commit committer dates plus head_ref_force_pushed events, fail closed when unavailable), and mergeable=UNKNOWN is re-queried a bounded number of times, all pinned by extracted-predicate and extracted-decision functional cases (issue #619)" "ok"
+else
+  check "R21" "PAT merge approval-binding guard missing:${r21_bad} (issue #619: an unanchored contains() match merged an unreviewed workflow PR off a quoted marker, and the approved lane stalled on mergeable=UNKNOWN)" "bad"
+fi
 
-summary="Silent-stall regression audit (R1-R20) on ${WF}: ${pass} passed, ${fail} failed."
+summary="Silent-stall regression audit (R1-R21) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R20)
+  body="## Silent-stall regression audit FAILED (R1-R21)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R19 review-comment publication evidence, or R20 paginated comment reads). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R19 review-comment publication evidence, R20 paginated comment reads, or R21 PAT merge approval binding). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
