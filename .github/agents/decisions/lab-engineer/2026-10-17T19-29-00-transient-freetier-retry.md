@@ -114,4 +114,44 @@ properties, and result strings now name both issues.
 - `maintainer.yml`'s Model-not-found retry, verify contracts, and the
   general arm's loud verify are unchanged.
 
+## Addendum: rebase onto main and review-finding fixes
+
+- **Rebase:** the branch was cut at `17e32457`; main meanwhile landed R17
+  (per-OS findings-report contract, issue #608), R19 (review-comment
+  publication evidence, issue #616; the planned R18 was renumbered during
+  that lane, no R18 exists), and R20 (paginated comment-read guard, issue
+  #621). The branch was rebased onto main at `b560ed38`. The single content
+  conflict was in `silent-stall-audit.sh`'s failure-body invariant list; the
+  resolution keeps main's R17/R19/R20 items and adds "plus transient
+  free-tier retry" to the R15 item. Everything else auto-merged; both runner
+  blocks (`action.yml` "Run opencode", `maintainer.yml` "Run Maintainer
+  agent") are byte-identical to the reviewed head, so the behavioral
+  evidence below is unchanged.
+- **F2 (Reviewer):** the vendored action header mislabeled the bounded
+  FreeTierError retry as "audit rule R20"; it now reads "also guarded by
+  extended audit rule R15" (R20 is the paginated comment-read guard of issue
+  #621).
+- **F3 (Reviewer):** the new R15 pins were count-only/shape-only. Three
+  verified escape mutations now trip dedicated sub-flags on both runner
+  files:
+  - order-pinned budget: `freetier_retry_used=1` must sit in the two lines
+    before the retry marker, so moving it after the `continue` (unreachable,
+    unbounded retry) fails;
+  - anchored wiring and backoff: `^[[:space:]]*if freetier_error_terminal
+    "\$log"; then$` and `^[[:space:]]*sleep 15$` reject comment decoys and a
+    `sleep 31536000`;
+  - per-branch, message-tied loud exits: a compensated swap (exit-0 path
+    silently `exit 0`, aggregate `exit 1` count held by an unreachable line
+    in the other branch) fails the exit-0 sub-pin.
+- **This pass's evidence:** full audit 19 passed / 0 failed on the rebased
+  tree (R17/R19/R20 included); F3 mutation matrix 10/10 (pristine files stay
+  clean, each mutation trips exactly its sub-flag, no collateral, on both
+  `action.yml` and `maintainer.yml`); YAML parse on the touched workflows;
+  `bash -n` on the audit script; em-dash sweep. The harness lives outside
+  the repo tree (`/tmp/opencode/f3-verify/`), per delegation.md section 6.
+- **Delegation ledger (this pass):** primary only; the F3 pin replacement
+  strings and the mutation matrix follow the Reviewer's own verified
+  corrected code, and the extraction is mechanical (no subagent needed for
+  a two-file pin fix).
+
 - the Lab Engineer
