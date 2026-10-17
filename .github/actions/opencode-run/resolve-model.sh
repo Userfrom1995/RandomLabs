@@ -67,8 +67,8 @@ else
   echo "::warning::resolve-model: ladder file '$MODEL_LADDER_FILE' not found; falling back to the requested model only."
 fi
 
-# Free-tier rungs only: a non-free rung would trip the paid-model guard (R6)
-# and can never be a valid fallback for this lab.
+# Free-tier rungs only: a non-free rung would trip the R6 free-tier model
+# guard and can never be a valid fallback for this lab.
 free_ladder="$(printf '%s\n' "$ladder" | grep -E -- '-free$' || true)"
 
 # Registry lookup, bounded. Never fatal by itself: an unreachable registry

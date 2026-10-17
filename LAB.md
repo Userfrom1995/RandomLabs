@@ -440,7 +440,10 @@ blocked run). At runtime the shared runner retries the next rung once per
 rung on a provider `Model not found` (opencode may exit nonzero or exit 0
 after posting its error comment), matching the exact attempted id with a word
 boundary so prose quoting a different retired model can never advance the
-ladder; a failed log capture and a fully dead ladder both fail the step
+ladder; on an exit-0 run only the provider's anchored terminal error line in
+the log tail counts, so a healthy completed run whose own transcript echoes
+the phrase never re-runs on the next rung (issue #591 finding 7). A failed
+log capture and a fully dead ladder both fail the step
 nonzero instead of the 2026-10-17 hollow green, so the existing crash-parity
 verify steps (auto-retry, then `/oc maintainer`) decide what happens next.
 `maintainer.yml` inlines the same resolver and per-rung retry - its dead pin
