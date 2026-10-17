@@ -10,8 +10,10 @@
 # parity guard (issue #450), the R14 heterogeneous-group queue-preservation
 # guard (per-OS arms issue #594 plus the whole comment-triggered cohort issue
 # #601), the R15 model fallback ladder guard (issue #591:
-# provider model retirement / loud Model-not-found failure), the R16
-# shallow-workspace PAT merge guard (issue #602: a depth-limited opencode CLI
+# provider model retirement / loud Model-not-found failure; extended by
+# issue #620: transient provider FreeTierError rejection / bounded
+# same-model retry), the R16 shallow-workspace PAT merge guard (issue #602:
+# a depth-limited opencode CLI
 # session fetch re-shallows the Maintainer checkout, and merge-base-dependent
 # merge checks then fail closed and silently skip a linked workflow PR), the
 # R17 per-OS findings-report contract guard (issue #608: a PR-creating
@@ -587,7 +589,17 @@ fi
 #      red without it;
 #   5. the general arm (which had no verify step) carries its loud-failure
 #      verify, and maintainer.yml plus the composite still expose the
-#      loud-exhaustion marker.
+#      loud-exhaustion marker;
+#   6. issue #620: both runner paths carry a bounded transient-free-tier
+#      retry: a FreeTierError terminal line (detected with the same tail +
+#      column-0 anchoring as the #591 exit-0 detector, so a transcript echo
+#      or the responseBody JSON envelope never matches) retries the SAME
+#      model exactly once per arm, a second rejection fails loudly, and the
+#      bounded counter plus the bare-continue (same-model) versus
+#      continue-2 (rung-advance) split are pinned, backed by a functional
+#      test that executes both extracted real detectors against the
+#      incident's terminal lines (match) and echo/envelope/other-error forms
+#      (no match).
 r15_bad=""
 LADDER_DIR=".github/actions/opencode-run"
 RESOLVER="${LADDER_DIR}/resolve-model.sh"
@@ -610,6 +622,42 @@ else
     r15_bad="${r15_bad} ladder-file(non-free-or-malformed-rung)"
   fi
 fi
+# Issue #620 pins: shared between the composite action and the maintainer
+# inline copy. The same-model retry (a bare `continue` in the nested while)
+# is separated from the rung advance (`continue 2`), the budget counter is
+# bounded (cap 1), and a persistent rejection exits loudly; the extracted
+# detector is executed functionally after the static pins below.
+r15_freetier_pins() {
+  local label="$1" f="$2" fn n
+  if [ ! -f "$f" ]; then
+    r15_bad="${r15_bad} ${label}(missing)"
+    return
+  fi
+  grep -qF 'freetier_error_terminal() {' "$f" || r15_bad="${r15_bad} ${label}(no-freetier-detector)"
+  fn=$(sed -n '/freetier_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$f" | sed 's/^[[:space:]]*//')
+  printf '%s\n' "$fn" | grep -qF 'tail -n 40 "$1" | grep -qE' || r15_bad="${r15_bad} ${label}(freetier-detector-not-tail-scoped)"
+  printf '%s\n' "$fn" | grep -qF "(AI_APICallError: |APIError: |Error: )?OpenCode's free tier can only be used from within OpenCode\. Download it at https://opencode\.ai and keep building\.?\$" || r15_bad="${r15_bad} ${label}(no-anchored-freetier-terminal-form)"
+  [ "$(grep -cF 'if freetier_error_terminal "$log"; then' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(freetier-detector-not-wired-both-paths)"
+  [ "$(grep -cF 'freetier_retry_used=0' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-freetier-retry-counter)"
+  [ "$(grep -cF 'if [ "$freetier_retry_used" -lt 1 ]; then' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(no-bounded-freetier-retry-cap)"
+  [ "$(grep -cF 'freetier_retry_used=1' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(freetier-retry-budget-not-consumed)"
+  [ "$(grep -cF 'one bounded retry of the same model in 15s' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(no-same-model-retry-marker)"
+  [ "$(grep -cE '^[[:space:]]*continue 2$' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(rung-advance-continue2-count)"
+  n=$(grep -A4 -F 'one bounded retry of the same model in 15s' "$f" | grep -cE '^[[:space:]]*continue$' || true)
+  [ "$n" = "2" ] || r15_bad="${r15_bad} ${label}(same-model-retry-not-a-bare-continue)"
+  n=$(grep -A4 -F 'one bounded retry of the same model in 15s' "$f" | grep -cF 'sleep 15' || true)
+  [ "$n" = "2" ] || r15_bad="${r15_bad} ${label}(no-bounded-retry-backoff)"
+  # Loud persistence, exact-form: the two persistent-rejection branches must
+  # end in the nonzero exit matching their path (`exit 1` after the exit-0
+  # branch, `exit "$status"` after the nonzero branch). The text of the
+  # message itself contains "(exit $status)", so this must match full lines,
+  # not merely the token "exit" (verifier finding, 2026-10-17: the loose
+  # check let `exit "$status"` -> `exit 0` through).
+  n=$(grep -A2 -F 'persistent free-tier rejection on model' "$f" | grep -cE '^[[:space:]]*exit 1$' || true)
+  [ "$n" = "1" ] || r15_bad="${r15_bad} ${label}(persistent-freetier-exit-0-path-not-loud)"
+  n=$(grep -A2 -F 'persistent free-tier rejection on model' "$f" | grep -cF 'exit "$status"' || true)
+  [ "$n" = "1" ] || r15_bad="${r15_bad} ${label}(persistent-freetier-exit-status-path-not-loud)"
+}
 if [ ! -f "$ACTION_FILE" ]; then
   r15_bad="${r15_bad} action-file(missing)"
 else
@@ -617,10 +665,11 @@ else
   grep -qF 'Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(no-boundary-aware-per-rung-retry)"
   grep -qF 'if [ "$tee_status" -ne 0 ]' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(no-log-capture-failure-guard)"
   grep -qF 'model_error_terminal()' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(no-exit-0-terminal-detector)"
-  grep -qF 'if ! model_error_terminal "$log" "$model"; then' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(exit-0-not-terminal-anchored)"
+  grep -qF 'if model_error_terminal "$log" "$model"; then' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(exit-0-not-terminal-anchored)"
   grep -qF 'tail -n 40 "$1" | grep -qE' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(exit-0-detector-not-tail-scoped)"
   grep -qF 'Model not found: ${2//./\\.}(\. Did you mean: .*|\.?$)' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(no-anchored-terminal-error-form)"
   grep -A1 'exhausted every model rung' "$ACTION_FILE" | grep -q 'exit 1' || r15_bad="${r15_bad} action-file(loud-exhaustion-not-exit-1)"
+  r15_freetier_pins "action-file" "$ACTION_FILE"
 fi
 if [ ! -f "$MAIN_WF" ]; then
   r15_bad="${r15_bad} maintainer.yml(missing)"
@@ -630,13 +679,52 @@ else
   grep -qF 'Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-boundary-aware-per-rung-retry)"
   grep -qF 'if [ "$tee_status" -ne 0 ]' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-log-capture-failure-guard)"
   grep -qF 'model_error_terminal()' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-exit-0-terminal-detector)"
-  grep -qF 'if ! model_error_terminal "$log" "$model"; then' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(exit-0-not-terminal-anchored)"
+  grep -qF 'if model_error_terminal "$log" "$model"; then' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(exit-0-not-terminal-anchored)"
   grep -qF 'tail -n 40 "$1" | grep -qE' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(exit-0-detector-not-tail-scoped)"
   grep -qF 'Model not found: ${2//./\\.}(\. Did you mean: .*|\.?$)' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-anchored-terminal-error-form)"
   grep -qF '.maintainer/decision.json' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-decision-contract-test)"
   grep -q 'id: verify_agent' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-loud-verify)"
   grep -A1 'exhausted every model rung' "$MAIN_WF" | grep -q 'exit 1' || r15_bad="${r15_bad} maintainer.yml(loud-exhaustion-not-exit-1)"
+  r15_freetier_pins "maintainer.yml" "$MAIN_WF"
 fi
+# Issue #620 functional detector test: executes the REAL extracted
+# freetier_error_terminal from both runner paths against the incident's
+# terminal lines (match) and echo/envelope/other-error forms (no match), so
+# the anchoring contract is verified behaviorally, not only by grep pins.
+r15_fn_dir=$(mktemp -d)
+sed -n '/freetier_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$ACTION_FILE" > "$r15_fn_dir/action.fn" 2>/dev/null || true
+sed -n '/freetier_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$MAIN_WF" > "$r15_fn_dir/maint.fn" 2>/dev/null || true
+cat > "$r15_fn_dir/terminal.txt" <<'R15EOF'
+AI_APICallError: OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building.
+APIError: OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building.
+R15EOF
+cat > "$r15_fn_dir/echo.txt" <<'R15EOF'
+  | AI_APICallError: OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building.
+Here is prose quoting the provider line above.
+R15EOF
+cat > "$r15_fn_dir/envelope.txt" <<'R15EOF'
+  responseBody: "{\"type\":\"error\",\"error\":{\"type\":\"FreeTierError\",\"message\":\"OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building.\"}}",
+R15EOF
+printf 'Error: Model not found: opencode/model-a-free. Did you mean: opencode/glm-5.3-flash-free?\n' > "$r15_fn_dir/other.txt"
+r15_detector_case() {
+  local got
+  ( set +e; . "$1" >/dev/null 2>&1; freetier_error_terminal "$3" ) >/dev/null 2>&1
+  got=$?
+  if [ "$got" != "$2" ]; then
+    r15_bad="${r15_bad} detector-functional($(basename "$1"),$(basename "$3"),rc=$got,want=$2)"
+  fi
+}
+for r15_fn in "$r15_fn_dir/action.fn" "$r15_fn_dir/maint.fn"; do
+  if [ ! -s "$r15_fn" ]; then
+    r15_bad="${r15_bad} detector-functional($(basename "$r15_fn"),empty)"
+    continue
+  fi
+  r15_detector_case "$r15_fn" 0 "$r15_fn_dir/terminal.txt"
+  r15_detector_case "$r15_fn" 1 "$r15_fn_dir/echo.txt"
+  r15_detector_case "$r15_fn" 1 "$r15_fn_dir/envelope.txt"
+  r15_detector_case "$r15_fn" 1 "$r15_fn_dir/other.txt"
+done
+rm -rf "$r15_fn_dir"
 OPENCODE_WF=".github/workflows/opencode.yml"
 if [ ! -f "$OPENCODE_WF" ]; then
   r15_bad="${r15_bad} opencode.yml(missing)"
@@ -647,9 +735,9 @@ else
   grep -A2 'General agent step finished' "$OPENCODE_WF" | grep -q 'exit 1' || r15_bad="${r15_bad} opencode.yml(general-verify-not-exit-1)"
 fi
 if [ -z "$r15_bad" ]; then
-  check "R15" "model fallback ladder wired: live-registry resolver + free-tier ladder rungs + boundary-aware per-rung retry with exit-0 terminal anchoring, a log-capture guard, and loud exhaustion in the shared runner and the maintainer inline path, with loud-failure verify steps on the Maintainer and general arm (issue #591)" "ok"
+  check "R15" "model resilience wired: live-registry resolver + free-tier ladder rungs + boundary-aware per-rung retry with exit-0 terminal anchoring, a log-capture guard, loud exhaustion, and the bounded transient FreeTierError same-model retry (anchored detector, cap 1, bare-continue same-model vs continue-2 advance, loud persistent failure, functional detector test) in the shared runner and the maintainer inline path, with loud-failure verify steps on the Maintainer and general arm (issues #591, #620)" "ok"
 else
-  check "R15" "model fallback ladder missing:${r15_bad} (issue #591: one retired pin kills every arm at once and Model-not-found deaths conclude green)" "bad"
+  check "R15" "model resilience guard missing:${r15_bad} (issues #591/#620: one retired pin kills every arm at once, Model-not-found deaths conclude green, or a transient free-tier rejection kills a gate with no bounded retry)" "bad"
 fi
 
 # [R16] Shallow-workspace PAT merge guard (issue #602): the PAT-backed merge
@@ -2610,7 +2698,7 @@ if [ "$fail" -gt 0 ]; then
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, or R22 tester verdict publication). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier retry, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, or R22 tester verdict publication). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
