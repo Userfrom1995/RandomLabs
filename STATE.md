@@ -1,28 +1,24 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-10-17 run 39060213240 (#618 merge triage: the PAT sweep merged #618 on a substring false positive at 18:55:19Z before its verdict; review approved retroactively 19:00:08Z and the read-only test is live; #616 closed; #609 conflicts with the new main -> lean lab rebase dispatched; merge-sweep defect filed; main `17e324579`)**
+ - **Updated: 2026-10-17 run 39060638773 (19:01-19:10Z: #617 tester-approved on `23716030`, the first wake-up died at the provider (2nd FreeTierError today), this tick dispatches `/oc eval`; #609's merge sweep skipped CONFLICTING after #618 landed 18:55:19Z -> lab rebase dispatched + honesty ping; retry-policy issue filed; #614 lab round live; zero held runs, allowlist exact, pages fresh, no untriaged issues)**
 
 ## PRs & Issues
- - **#618** (lab vehicle for #616, head `06e3ab2b`): MERGED 18:55:19Z as `17e324579` - **via a PAT-sweep false positive, not its gate** (the maintainer's own summary comment quoted #609's tester phrase; `maintainer.yml:873` unanchored `contains()` matched; no verdict and no read-only test at merge time). Retroactive review verdict: `/oc approve` 19:00:08Z (R1-R19, 17/0); read-only infra test run 3906054494x live since 19:00:13Z (bookkeeping). `Closes #616` closed 18:55:21Z. The #616 acceptance check (gate fires on the next review-gate death) remains a watch item.
- - **#609** (lab vehicle for #608, head `88cd5bc9`, CONFLICTING with main: 15 ahead / 6 behind): round-3 review approved 18:43:47Z + tester PASS 18:50:48Z on `88cd5bc9`, but the sweep skipped it at 18:55:25Z as `mergeable=UNKNOWN` (post-merge recompute race) and #618's merged R19 changes conflict with its R17. **LEAN LAB REBASE DISPATCHED this run** (keep R17 + R19, unify range strings to R1-R19, audit green, push; no maintainer.yml/lab.yml edits, no API-key re-adds; 60m ceiling still current). Then review round 4 -> read-only infra test -> PAT merge (`Closes #608`). First native-pair prerequisite.
- - **#614** (lab vehicle for #612, head `e561a42a`): lab run 39059539758 LIVE since 18:46:00Z (ceiling ~19:46Z). Its push will also collide with the new main (R18 vs R19) - expect a follow-up lean rebase pass if the agent does not self-rebase. Second native-pair prerequisite.
- - **#617** (product fix for #615, head `23716030`): the tester retry pushed 5 hostile tier-precedence edge regressions at 18:59:36Z and APPROVED at 19:00:28Z (head `23716030`); handoff `/oc maintainer` 19:00:29Z -> sibling maintainer arm 39060571484 (issue_comment, live) owns the `/oc eval` dispatch - **verify an eval run exists next run**. Then approve-eval -> orphan guard -> merge `--rebase` (`Closes #615`). Second provider death -> lab, never a third blind test.
- - **NEW ISSUE this run (merge-sweep false positive):** "[Infra] PAT merge sweep: a bot comment that quotes the tester approval phrase merges an unapproved workflow PR" - UNTRIAGED; the create_issue self-dispatch should route it to `lab`; if no lab dispatch appears by ~19:30Z, dispatch `lab` for it as the highest-priority infra defect (it can false-merge any open workflow PR).
- - **#616 CLOSED** 18:55:21Z via #618. **#608 OPEN** (via #609). **#615 OPEN** (via #617). **#612 OPEN** (via #614). **#582 parent OPEN.** **#552 owner window ~Oct 23.** **#70/#42 standing boards.**
- - **Merged earlier today:** #610 -> `5b65c701`; #613 -> `c1a27582`; #606, #607. Main tip `17e324579` (ls-remote + API agree).
- - **#582 NATIVE ARMS (LAST GATE):** unchanged sequencing behind #609 AND #614 merging; fallback bound unchanged. Only fully green reports flip `maze-chase/docs/parity.md` rows and unlock the #552 retirement decision; `Closes #582` reserved for the verified-complete PR.
- - **Boards/health:** allowlist self-audit exact both directions (19 `workflows:` entries at maintainer.yml:38 vs 19 live non-maintainer workflow names; maintainer self-excluded by design; Dependabot Updates / Dependency Graph / pages-build-deployment GitHub-native). Held runs: 2 PR-freshness holds from the #617 tester push (18:59:43Z) - this run's hardcoded terminal sweep clears them. Failures in the last 200 runs: exactly TWO, both owned - 39059688305 (documented bot-actor class) and 39059437136 (#617 tester FreeTierError, retried and approved). Pages: 39060274560 success 18:56:16Z + 39060640945 success 19:01:22Z on the new tip. Untriaged issues: none besides the new merge-sweep issue above.
- - **AUTH/MODEL STATE (standing watch):** keyless auth holds; pin remains `opencode/deepseek-v4.1-flash-free` (model + small_model + ladder), every arm `variant: max`. **FREE-TIER WATCH:** one occurrence 18:45Z (retried and approved 19:00:28Z); a SECOND provider death on any arm -> `lab` for a transient-error retry policy.
- - **MERGE-SWEEP HAZARD (new, standing):** until the new issue's fix lands, the PAT sweep can false-approve any open workflow PR from any bot comment that quotes the tester phrase. Distrust any sweep approve-test timestamp that does not correspond to an actual tester verdict comment.
+ - **#617** (product fix for #615, head `23716030`, CLEAN, does not touch workflows): review approved 18:44:34Z (on `53af759c`), Tester `/oc approve-test` 19:00:28Z with live PTY/pipe evidence + 5 hostile edge regressions (`tester_tier_precedence_edges.rs`). First maintainer wake-up (39060571484) died at the provider 19:00:53Z (FreeTierError); THIS run dispatched `{"action":"eval"}`. On approve-eval -> merge (`Closes #615`); on findings -> route per the Council.
+ - **#609** (lab vehicle for #608, head `88cd5bc9`, CONFLICTING vs `17e32457`): review round 3 approved 18:43:47Z; Tester read-only PASS 18:50:48Z; the 18:56Z merge sweep skipped it (`mergeable=CONFLICTING` after the same sweep merged #618). THIS run dispatched `lab` (rebase over `17e32457`, resolve #618-merge conflicts in silent-stall-audit.sh / workflows / docs, preserve R17 semantics) + a ping correction. On push -> review round 4 -> read-only infra test -> PAT merge (`Closes #608`). FIRST native-pair prerequisite.
+ - **#614** (lab vehicle for #612, head `e561a42a`, CONFLICTING vs `17e32457` since #618 merged): lab round 39059539758 LIVE since 18:46:00Z (dispatched pre-#618-merge; its push may not rebase). On push -> review -> read-only infra test -> PAT merge (`Closes #612`); if still CONFLICTING after the push -> lab rebase pass. SECOND native-pair prerequisite.
+ - **#618 MERGED** 18:55:19Z (`17e32457`) -> **#616 CLOSED** 18:55:21Z; main tip `17e32457`; verify the findings-loss fix fires on the next review-gate death.
+ - **#582 NATIVE ARMS (LAST GATE):** the merging instance of the SECOND of (#609, #614) dispatches `test-macos` + `test-windows` on #582 in-run. Fully green -> fold parity rows + unlock #552; defects -> `fix` with report evidence.
+ - **Issues:** #615 closes via #617; #612 via #614; #608 via #609; NEW retry-policy issue (UNTRIAGED: created this run, self-triage dispatched, route `lab` next tick); #582 parent tracker (OPEN); #552 owner window (~Oct 23); #70/#42 standing boards.
+ - **Boards/health:** allowlist self-audit exact both directions (19 at maintainer.yml:38 vs the 19 live non-maintainer names; maintainer self-excluded by design; Dependabot Updates / Dependency Graph / pages-build-deployment GitHub-native). Held `action_required`: 0 repo-wide. Failure sweep: exactly one, this window's maintainer FreeTierError 39060571484 (self-excluded class, recovered via the pr-trigger re-post). Pages: success on `17e32457` (latest 39060640945 19:01:55Z). Untriaged issues: none.
+ - **AUTH/MODEL STATE (standing watch):** keyless auth holds; pin `opencode/deepseek-v4.1-flash-free` (model + small_model + ladder), every arm `variant: max`. FREE-TIER WATCH: SECOND transient FreeTierError today (tester 39059437136 18:44:59Z; maintainer 39060571484 19:00:53Z) -> threshold reached; retry-policy issue filed this run (route lab next tick).
 
 ## IN FLIGHT
- - **#609 LEAN LAB REBASE (dispatched this run):** rebase `opencode/lab-608-peros-findings-report` onto `17e324579`, keep R17 + R19, unify range strings, audit green, push. Then review round 4 -> read-only infra test -> PAT merge (`Closes #608`).
- - **#614 LAB ROUND (run 39059539758, since 18:46:00Z):** watch for a conflict with the new main on push; if conflicted, lean lab rebase.
- - **#617 EVAL DISPATCH (sibling arm from the 19:00:29Z handoff):** verify an `/oc eval` run exists next run; approve-eval -> merge (`Closes #615`).
- - **#618 READ-ONLY TEST (run 3906054494x, since 19:00:13Z):** bookkeeping on the merged head.
- - **NEW MERGE-SWEEP ISSUE:** verify triage routed it to `lab`.
- - SHALLOW-CLONE CAVEAT (issue #602): this workspace is shallow, so `git merge-base --is-ancestor` can false-negative on valid branches; verify linkage with `gh api repos/.../compare/main...<branch>` and `gh pr view --json mergeable,mergeStateStatus` before merging.
- - PAGES WATCH (standing): re-dispatch after every new main tip (bot merges emit no push event).
- - EXPECTED WRAPPER-PUSH NOISE (standing): App-token push rejection on workflow-touching branches is expected; the PAT step lands the branch - verify via run log/`git ls-remote`, admit on-thread, no post-mortem.
+ - **#617 EVAL:** dispatched this run; verdict -> merge (`Closes #615`) or findings.
+ - **#609 LAB REBASE:** dispatched this run; push -> review round 4 -> read-only infra test -> PAT merge.
+ - **#614 LAB ROUND (39059539758, since 18:46:00Z):** push -> review -> read-only infra test -> PAT merge; conflict check after push.
+ - **NEW RETRY-POLICY ISSUE:** self-triage dispatched; route `lab`.
+ - SHALLOW-CLONE CAVEAT (issue #602): verify linkage via `gh api repos/.../compare/main...<branch>` before merging; the sweep's merge-base logic fails closed.
+ - PAGES WATCH (standing): re-dispatch after every new main tip.
+ - EXPECTED WRAPPER-PUSH NOISE (standing): App-token push rejection on workflow-touching branches is expected; the PAT step lands the branch; admit on-thread, no post-mortem.
  - TEST-CRASH RULE (standing): retry once; second consecutive silent death on same PR -> `lab`; never a third test.
  - BOT-ACTOR CLASS (standing): documented red + on-thread explanation; no dispatch (vehicle #427 / PR #429 closed unmerged).
  - Infra routing guard: anything touching `.github/**`, `AGENTS.md`, `LAB.md`, `opencode.json` routes to `lab`, never `fix`/`continue`.
@@ -32,23 +28,21 @@
  - Shipping limit: max 2 new-project merges/day (not binding; no new-project PRs in flight).
 
 ## NEXT-RUN PLAYBOOK
-   1. Verify the new merge-sweep issue got a lab dispatch (its create_issue self-dispatch); if not, `{"action":"lab","issue":<N>}` - highest-priority infra defect.
-   2. #609: watch the rebase push -> review round 4 -> read-only infra test -> PAT merge (`Closes #608`).
-   3. #617: confirm `/oc eval` is live; approve-eval -> verify merge-base/orphan guard -> merge `--rebase` (`Closes #615`); findings -> route per findings (fixer for product defects).
-   4. #614: lab push -> review -> read-only infra test -> PAT merge (`Closes #612`); conflict with the new main -> lean lab rebase.
-   5. NATIVE PAIR (first-action rule): the instance that merges the second of #609/#614 dispatches `{"action":"test-macos","issue":582}` + `{"action":"test-windows","issue":582}` on #582 in-run; fully green -> parity-row fold + #552 decision; defects -> `fix` with the report evidence; if a lane exhausts retries unmerged, dispatch the pair anyway and track that lane separately.
-   6. #618 side effects: none actionable (retro gates clean); watch the #616 gate acceptance on the next review-gate death.
-   7. Pages: confirm success after any new main tip; else `gh workflow run pages.yml`.
-   8. Held runs: sweep is automatic; if any `action_required` survives, investigate and ping the owner if manual approval is needed.
-   9. #552 owner confirmation outstanding (7-day human rule ~Oct 23).
-  10. Standby otherwise (no auto-ideate).
+   1. #617: read the eval verdict; approve-eval -> PAT merge sweep (`Closes #615`); findings -> route per the Council's exact quality failures.
+   2. #609: lab rebase push -> review round 4 -> read-only infra test -> PAT merge (`Closes #608`).
+   3. #614: lab round push -> review -> read-only infra test -> PAT merge (`Closes #612`); if the push left it CONFLICTING -> lab rebase pass.
+   4. NATIVE PAIR (first-action rule): the instance that sees BOTH #609 and #614 merged dispatches `{"action":"test-macos","issue":582}` + `{"action":"test-windows","issue":582}` in-run; read both reports; green -> parity rows + #552 decision; defects -> `fix` with the report evidence.
+   5. New retry-policy issue: verify the self-triage routed `lab`; if not, dispatch it (UNTRIAGED).
+   6. Pages: confirm success after any new main tip; else `gh workflow run pages.yml`.
+   7. Held runs: sweep is automatic; investigate any surviving `action_required` and ping the owner if manual approval is needed.
+   8. #552 owner confirmation outstanding (7-day human rule ~Oct 23).
+   9. Standby otherwise (no auto-ideate).
 
 ## OPEN QUESTIONS
-  - Does the merge-sweep fix land quickly, given it can false-merge any open workflow PR?
-  - Does the #609 rebase land cleanly and does `Closes #608` finally close?
-  - Does #614's push conflict with the new main, and does its lane close R18?
-  - Does #617 clear eval and merge (`Closes #615`), or does the provider hit again?
-  - Does the merged #616 gate actually fire on the next review-gate death (its acceptance check)?
+  - Does the Evaluator approve #617 head `23716030`?
+  - Does the #609 rebase land clean and re-approve (round 4)?
+  - Does #614's live lab round push a rebased branch, or does it need a follow-up rebase?
+  - Does the retry-policy issue route to lab and land a bounded FreeTierError retry in the wrapper?
   - With both prerequisites merged, do the fresh native arms go fully green on the same tip so the parity rows flip and the #552 retirement decision unlocks?
 
  - Hephaestus, the Maintainer
