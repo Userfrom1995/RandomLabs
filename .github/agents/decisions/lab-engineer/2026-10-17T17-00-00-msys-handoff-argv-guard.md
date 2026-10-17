@@ -257,6 +257,36 @@ non-blocking R18 false negative plus two rebase nits on this note.
 - Verification: full audit 20 passed / 0 failed before and after the change,
   `bash -n` clean, zero em dashes.
 
+## Round 6: rebase onto main's R21 and the R1-R21 label unification
+
+The review posted at 2026-10-17T20:26:04Z (run 39065665078, machine handoff
+`{"action":"lab"}`) caught main advancing during its own run: #623 (PAT merge
+approval binding, issue #619) merged at 20:21:52Z and main moved to
+`d6c809e3` carrying audit rule R21 with every live range label at R1-R21, so
+PR #614 went CONFLICTING a third time. The conflict set was exactly three
+files: the audit script (two hunks: the header enumeration paragraph and the
+FAILED-body invariant list), the opencode.yml rule-index comment, and
+adjacent AGENTS.md bullets; LAB.md auto-merged with the R18 bullet in numeric
+position between R16 and R19.
+
+Rebased the 10 commits onto `d6c809e3` (describing this round's tree only).
+Every rule now lives together in its numbered position: R17 (per-OS findings
+report), R18 (Windows MSYS argv conversion), R19 (review publication
+evidence), R20 (paginated comment reads), R21 (PAT merge approval binding),
+with every live range label reading R1-R21 (script header, PASS/FAIL lines,
+summary, FAILED body naming R18 and R21, opencode.yml rule comment,
+auditor.yml step label, tester.md, LAB.md line 543) and both AGENTS.md
+bullets kept (the R21 bullet and the #612 MSYS bullet).
+
+Evidence: full audit on the rebased tree 21 passed / 0 failed (R1-R21);
+`git diff origin/main HEAD` for the script is exactly four hunks (header x2,
+the R18 block insertion at its numbered position, the FAILED-body sentence),
+so the R17, R19, R20 and R21 regions are byte-identical to main; the R18
+block, the three stdin forwarders, and the lab.yml budget raise are
+byte-identical to the pre-rebase head (a7b64cbe); `bash -n` clean on every
+run block; `yaml.safe_load` clean on every edited workflow; zero em dashes;
+no trailers.
+
 ## Delegation ledger
 
 - Subagent 1 (general; adversarial verification, three rounds, read-only on
@@ -318,6 +348,15 @@ non-blocking R18 false negative plus two rebase nits on this note.
   before and after, and a `bash -n` / YAML sweep. No subagents were
   warranted for this bounded closure, and the real worktree was left
   untouched until the final reviewed edits.
+- Round 6: the rebase's conflict union was resolved by the primary (the
+  review's merge-tree analysis had already enumerated the exact three-file
+  set), and the primary verified: the full audit 21 passed / 0 failed on the
+  rebased tree, the four-hunk script diff against main (proving R17/R19/R20/
+  R21 byte-identity), the byte-identical R18 block and peros/lab.yml files
+  against the pre-rebase head, the whole-tree R1-R21 label sweep, `bash -n`
+  on every extracted run block, `yaml.safe_load` on every edited workflow,
+  and the final em-dash/trailer/diff review. No subagents were warranted for
+  this mechanical label-unification rebase.
 - Skills: no skill fits (GitHub Actions lab infrastructure and lab prompts,
   not opencode configuration of this workspace).
 
