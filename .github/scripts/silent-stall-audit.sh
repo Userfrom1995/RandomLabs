@@ -111,7 +111,7 @@ else
   check "R5" "missing decision-file fallback to /oc maintainer not found (violates R5)" "bad"
 fi
 
-# [R6] Model free-tier compliance: all model pins must be free-tier (issue #130 two-knob guard).
+# [R6] Model free-tier compliance: all model pins must be free-tier (issue #130 free-tier model guard).
 # Every `model:` in opencode.yml and both knobs in opencode.json must end in `-free`
 # to avoid CreditsError (workspace billing requires payment method for paid models).
 # This catches drift where a workflow or opencode.json points at a paid model.
@@ -139,7 +139,7 @@ else
   detail=""
   [ -n "$non_free_models" ] && detail="workflow: ${non_free_models}"
   [ -n "$(echo "$json_non_free" | tr -d ' ')" ] && detail="${detail} json:${json_non_free}"
-  check "R6" "non-free model pin found -> ${detail} (violates two-knob free guard)" "bad"
+  check "R6" "non-free model pin found -> ${detail} (violates free-tier model guard)" "bad"
 fi
 
 # [R7] Review-restore ownership gate (PR #412 head-rewind regression): the
@@ -465,12 +465,15 @@ fi
 #   1. the shared resolver exists and resolves against the live registry,
 #      defaulting to the ladder file next to it;
 #   2. the ordered ladder exists, is non-empty, and every rung is a
-#      free-tier model ref (a paid rung would trip the R6 two-knob guard);
+#      free-tier model ref (a paid rung would trip the R6 free-tier guard);
 #   3. the shared composite action calls the resolver, retries per rung on a
-#      provider "Model not found", and exits nonzero after the last rung;
+#      boundary-aware provider "Model not found" match (prose quoting a
+#      different retired id must never advance the ladder), fails loudly when
+#      the log capture itself fails, and exits nonzero after the last rung;
 #   4. maintainer.yml (the arm that would otherwise dispatch the repair)
-#      calls the resolver, wires the candidate chain, and has the verify
-#      step that goes red without .maintainer/decision.json;
+#      invokes the resolver, wires the candidate chain, carries the same
+#      boundary-aware retry plus tee-guard, and has the verify step that
+#      tests for .maintainer/decision.json and goes red without it;
 #   5. the general arm (which had no verify step) carries its loud-failure
 #      verify, and maintainer.yml plus the composite still expose the
 #      loud-exhaustion marker.
@@ -510,6 +513,7 @@ else
   grep -q 'MODEL_CANDIDATES' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-candidate-chain)"
   grep -qF 'Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-boundary-aware-per-rung-retry)"
   grep -qF 'if [ "$tee_status" -ne 0 ]' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-log-capture-failure-guard)"
+  grep -qF '.maintainer/decision.json' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-decision-contract-test)"
   grep -q 'id: verify_agent' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-loud-verify)"
   grep -A1 'exhausted every model rung' "$MAIN_WF" | grep -q 'exit 1' || r15_bad="${r15_bad} maintainer.yml(loud-exhaustion-not-exit-1)"
 fi
@@ -523,7 +527,7 @@ else
   grep -A2 'General agent step finished' "$OPENCODE_WF" | grep -q 'exit 1' || r15_bad="${r15_bad} opencode.yml(general-verify-not-exit-1)"
 fi
 if [ -z "$r15_bad" ]; then
-  check "R15" "model fallback ladder wired: live-registry resolver + free-tier ladder rungs + per-rung retry and loud exhaustion in the shared runner and the maintainer inline path, with loud-failure verify steps on the Maintainer and general arm (issue #591)" "ok"
+  check "R15" "model fallback ladder wired: live-registry resolver + free-tier ladder rungs + boundary-aware per-rung retry with a log-capture guard and loud exhaustion in the shared runner and the maintainer inline path, with loud-failure verify steps on the Maintainer and general arm (issue #591)" "ok"
 else
   check "R15" "model fallback ladder missing:${r15_bad} (issue #591: one retired pin kills every arm at once and Model-not-found deaths conclude green)" "bad"
 fi
@@ -537,7 +541,7 @@ if [ "$fail" -gt 0 ]; then
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 two-knob free tier, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 per-OS arm queue preservation, or R15 model fallback ladder). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 per-OS arm queue preservation, or R15 model fallback ladder). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
