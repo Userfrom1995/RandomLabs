@@ -712,7 +712,7 @@ catches up in seconds.
   functional detector fixtures and a loop-level behavioral execution of the
   real runner blocks against executable mocks, including a mock failing log
   capture, the tail-window 39/40 boundary, and a dotted-id lookalike that
-  must not advance a rung, issue #620 review rounds F5-F6).
+  must not advance a rung, issue #620 review rounds F5-F8 plus A1-A3).
 - The PAT merge sweep never silently skips a linked workflow PR on a shallow
   workspace (issue #602): the opencode CLI session bootstrap re-shallows the
   Maintainer's full-depth checkout with depth-limited fetches, and
