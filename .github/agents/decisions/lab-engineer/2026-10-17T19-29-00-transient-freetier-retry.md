@@ -450,4 +450,86 @@ properties, and result strings now name both issues.
   present in the guard file. Skills: no skill fit (GitHub Actions lab
   infrastructure).
 
+## Addendum VIII: R15 round-7 hardening (blocking items re-verified, four non-blocking residuals adopted)
+
+The round-7 review (run 39074509081, head `6150a829`) found A1, A2 and the
+F8a remainder blocking; a concurrent run had already folded all three in
+`ff1d2f50`, `6dde5362` and `6150a829`, and this pass re-verified them present
+(failing-tee mock, 39/40 window pair, ft-trailing, mnf-dot-lookalike). The
+four non-blocking hardening residuals from that review are now adopted:
+
+- **Backoff timing (H1):** the mock `sleep` records its own start and end
+  timestamps around a real 0.2s nap; the F6 check now requires exactly one
+  `^sleep 15 ` record, exactly one `^end ` record, and proves the last
+  recorded attempt started at or after the recorded sleep end. A
+  backgrounded `sleep 15 &` (which starts attempt 2 before the nap ends) is
+  caught as `backoff-not-waited` even while dead decoy `sleep 15` lines hold
+  the anchored static count at 2 per file.
+- **Case sensitivity (H2):** two new fixtures (`ft-upper.txt`,
+  `mnf-upper.txt`) carry the terminal forms with the distinguishing words
+  uppercased and expect no match, so a case-folding `grep -qiE` on either
+  detector is caught (`mnf-upper.txt,rc=0,want=1`).
+- **Deep-rung budget gating (H3):** two new behavioral scenarios run the
+  three-rung candidate chain `a-free b-free c-free`: `deep-grant` asserts the
+  third rung gets its own FT retry (`a-free a-free b-free c-free`, one
+  sleep), so a rung-gated grant or an in-loop reset is caught by rc=124 and
+  an attempts mismatch; `deep-advance` asserts the third rung's FT retry is
+  consumed before the fourth candidate (`a-free b-free c-free c-free`), so a
+  synthetic consumption/thrift on a later rung is caught by the attempts
+  mismatch.
+- **Step identity (H4):** each runner file must carry exactly one
+  `opencode github run` invocation string; the extracted step header (name
+  line through `run: |`) must carry no `if:` gate (`run-step-conditional`);
+  and the fail-closed shape check now also requires the invocation inside
+  the extracted block, so a dead decoy step parked earlier can neither
+  shadow a broken real step nor itself be extracted while skipped.
+- **Anchored static tripwires:** the tee-guard count and the `tail -n 40`
+  scope count are now anchored line-count pins (1 and 2 per file) replacing
+  four weaker unanchored substring pins; a decoyed or displaced guard or
+  scope change is caught statically before the behavioral run.
+- **Mutation matrix (this pass, fresh `git archive HEAD` export under
+  `/tmp/opencode/lab620-r7h/`, full audit per mutation, both runner files):**
+  pristine control 22 passed / 0 failed; 12 mutations each turn exactly R15
+  red with their dedicated flags and no other rule failing:
+  - H1 backgrounded `sleep 15 &` plus dead decoy sleeps ->
+    `bad-backoff`/`backoff-not-waited`; H2 `grep -qiE` on the mnf detector ->
+    `mnf-upper`; H3 theft `freetier_retry_used=$((1))` on `c-free` ->
+    `deep-advance` attempts mismatch; H3 grant/reset `$((0))` -> `deep-grant`
+    rc=124 plus attempts mismatch.
+  - H4 dead `if: false` decoy named `Run opencode`/`Run Maintainer agent`
+    parked before the renamed real step -> `run-invocation-not-unique` plus
+    `run-step-conditional` (and the extracted decoy trips the static count
+    cohort).
+  - Re-confirmed seeds: F5b persistent zero-exit -> `persistent-zero`; F5c
+    loop rewrite -> `transient-nonzero`; F5e alternate in-loop reset ->
+    timeout (rc=124); F6 huge live sleep plus decoys -> `bad-backoff`; F7
+    exhaustion exit-0 -> `mnf-all`; A1 decoyed tee guard -> `failing-tee`;
+    A2 narrowed tail window -> `ft-window39` plus `ft-trailing`.
+  - Harness-side note (honesty): the first A1 decoy mutation used an empty
+    `if` body, which is invalid bash; the guard reported
+    `extract-or-shape`, not the behavioral flag. After giving the decoy a
+    non-empty body the guard reported the dedicated `failing-tee` flag, so
+    the miss was in the mutation construction, not the guard.
+- **Independent verification:** a general verifier subagent re-exported
+  `faa64bdb`, reproduced the control (22/0, byte-exact summary), confirmed
+  `opencode github run` appears exactly once per runner file, built its own
+  six mutations with its own applier (M1 backgrounded backoff, M2 case fold,
+  M3 deep-rung theft, M4 deep-rung reset, M5 shadowed step, M6 decoyed tee
+  guard), and observed exactly one R15 FAIL with the expected dedicated
+  flags and no collateral failures on all six. Verdict: CONFIRMED.
+- **Docs sync:** the AGENTS.md #620 bullet and both LAB.md R15 paragraphs now
+  name the recorded-and-waited backoff proof, the case-sensitivity fixtures,
+  the deep-rung budget scenarios, and the unique-invocation and
+  unconditional-header step identity checks.
+- **This pass's evidence:** workspace audit 22/0; primary matrix under
+  `/tmp/opencode/lab620-r7h/`; independent verification report under
+  `/tmp/opencode/verify-r7/` (full-tree copies outside the repo, full audit
+  per mutation).
+- **Delegation ledger (this pass):** primary implemented the four hardening
+  items, the anchored tripwires and the docs sync, and ran the direct 13-run
+  matrix; one independent general verifier subagent reproduced the control
+  and the six hardening mutations on its own fresh export and confirmed the
+  dedicated flags with no collateral. Skills: no skill fit (GitHub Actions
+  lab infrastructure).
+
 - the Lab Engineer
