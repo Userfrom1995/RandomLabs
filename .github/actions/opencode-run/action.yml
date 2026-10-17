@@ -18,7 +18,7 @@ branding:
 # divergences are (1) the hardened "Get opencode version" step below and
 # (2) the model-resilience pair (resolve-model.sh + model-ladder.txt and the
 # per-rung retry loop in "Run opencode", audit rule R15, plus the bounded
-# FreeTierError same-model retry, audit rule R20).
+# FreeTierError same-model retry, also guarded by extended audit rule R15).
 inputs:
   model:
     description: "Model to use"
