@@ -51,39 +51,73 @@ pub fn usage() -> String {
 }
 
 /// Parse `args` (without the program name).
+///
+/// Options parse in any order. `--probe` takes its frame count from the
+/// next token and its screenshot path from the next positional token,
+/// so `--probe 30 --dir <cfg> <shot.ppm>` honors every option instead
+/// of swallowing `--dir` as the shot path.
 pub fn parse_args(args: &[String]) -> Cli {
     let mut fullscreen = false;
     let mut no_pad = false;
     let mut dir = config_dir();
-    let mut probe: Option<(u32, PathBuf)> = None;
-    let mut rest = args.iter();
-    while let Some(arg) = rest.next() {
-        match arg.as_str() {
+    let mut probe_frames: Option<u32> = None;
+    let mut probe_shot: Option<PathBuf> = None;
+    let mut i = 0;
+    while i < args.len() {
+        let arg = args[i].as_str();
+        i += 1;
+        match arg {
             "--help" | "-h" => return Cli::Help,
             "--version" | "-V" => return Cli::Version,
             "--fullscreen" => fullscreen = true,
             "--no-pad" => no_pad = true,
-            "--probe" => match (rest.next(), rest.next()) {
-                (Some(n), Some(p)) => match n.parse::<u32>() {
-                    Ok(frames) if frames > 0 && frames <= 3600 => {
-                        probe = Some((frames, p.into()));
-                    }
+            "--probe" => {
+                let Some(value) = args.get(i) else {
+                    return Cli::Error(format!("missing values for --probe\n{}", usage()));
+                };
+                if value.starts_with("--") {
+                    return Cli::Error(format!("missing values for --probe\n{}", usage()));
+                }
+                i += 1;
+                match value.parse::<u32>() {
+                    Ok(frames) if frames > 0 && frames <= 3600 => probe_frames = Some(frames),
                     _ => {
                         return Cli::Error(format!(
                             "--probe needs a frame count 1..=3600\n{}",
                             usage()
                         ));
                     }
-                },
-                _ => return Cli::Error(format!("missing values for --probe\n{}", usage())),
-            },
-            "--dir" => match rest.next() {
-                Some(d) => dir = d.into(),
-                None => return Cli::Error(format!("missing value for --dir\n{}", usage())),
-            },
-            other => return Cli::Error(format!("unknown argument: {other}\n{}", usage())),
+                }
+            }
+            "--dir" => {
+                let Some(value) = args.get(i) else {
+                    return Cli::Error(format!("missing value for --dir\n{}", usage()));
+                };
+                if value.starts_with("--") {
+                    return Cli::Error(format!("missing value for --dir\n{}", usage()));
+                }
+                dir = value.into();
+                i += 1;
+            }
+            other if other.starts_with('-') => {
+                return Cli::Error(format!("unknown argument: {other}\n{}", usage()));
+            }
+            other => {
+                if probe_frames.is_some() && probe_shot.is_none() {
+                    probe_shot = Some(other.into());
+                } else {
+                    return Cli::Error(format!("unknown argument: {other}\n{}", usage()));
+                }
+            }
         }
     }
+    let probe = match (probe_frames, probe_shot) {
+        (Some(frames), Some(shot)) => Some((frames, shot)),
+        (Some(_), None) => {
+            return Cli::Error(format!("missing values for --probe\n{}", usage()));
+        }
+        (None, _) => None,
+    };
     Cli::Run(Opts {
         fullscreen,
         no_pad,
