@@ -38,7 +38,8 @@ powershell -ExecutionPolicy Bypass -File maze-chase/packaging/desktop/windows-zi
 bash maze-chase/packaging/desktop/macos-app.sh
 ```
 
-Or run uninstalled during development:
+Or run uninstalled during development (cargo commands run from inside
+`maze-chase/`, the workspace root):
 
 ```sh
 cargo run --release -p maze-chase-desktop -- --help
@@ -163,7 +164,8 @@ scripted run and asserts pixel-identical output across seeds.
 ## Reproducible builds
 
 Pin the toolchain (`rustc --version` is recorded in release notes),
-`cargo build --release -p maze-chase-desktop` from a clean checkout,
+`cargo build --release -p maze-chase-desktop` from a clean checkout
+(inside `maze-chase/`),
 then the per-OS staging script above. The engine, assets, audio, and
 config crates are dependency-light on purpose; the desktop crate adds
 exactly four third-party crates (winit, softbuffer, gilrs, rodio),
