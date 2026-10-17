@@ -7,9 +7,10 @@
 //! 3.3 MB of escape frames in 12 seconds until an external `timeout`
 //! killed it (exit 124). crossterm raw mode on Windows talks to the
 //! console object (CONIN$/CONOUT$), not to the redirected std handles, so
-//! `enable_raw_mode()` succeeds where the Unix arm fails, and the
-//! documented refusal (`docs/terminal.md` troubleshooting: a piped run
-//! prints "cannot take over the terminal" and exits 1) never fires.
+//! `enable_raw_mode()` succeeds where the Unix arm fails, so on Windows
+//! the documented refusal (`docs/terminal.md` troubleshooting: a piped
+//! run prints "cannot take over the terminal" and exits 1) was bypassed
+//! whenever stdio was redirected.
 //! The Phase 5 CLI-strictness suite pins the same contract, and its
 //! `bogus_tier_warns_naming_value_then_refuses_without_tty` test hung the
 //! whole `cargo test --workspace` run on this machine before the guard
