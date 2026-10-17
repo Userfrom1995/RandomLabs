@@ -25,7 +25,11 @@
 # tampered-body, post-failure, and missing-comment-id paths must all fail
 # closed for all three OS labels; only the verify-step run body and exotic
 # sandbox-path fingerprinting remain review-gated boundaries (documented in
-# the R17 comment), the R19 review-comment publication-evidence guard
+# the R17 comment), the R18 Windows MSYS argv-conversion guard (issue #612:
+# Git Bash on the windows-latest arm rewrote a slash-leading "/oc" handoff
+# body into a mangled "C:/Program Files/Git/..." path before gh saw it, so
+# slash-leading argv bodies now require an MSYS conversion opt-out or a
+# stdin transport), the R19 review-comment publication-evidence guard
 # (issue #616: a reviewer death between the decision-file write and the
 # comment post forwarded an unread verdict with zero published findings),
 # the R20 paginated comment-read guard (issue #621: unbounded comment
@@ -43,11 +47,12 @@
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
 # group cohort, the model fallback
-# ladder, the PAT merge shallow-workspace guard, the per-OS findings-report
-# contract, the review-comment publication-evidence guard, the paginated
-# comment-read guard, and the PAT merge approval binding), so they trip on a bad
-# curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml no matter which
-# file the audit was pointed at.
+# ladder, the PAT merge shallow-workspace guard, the Windows MSYS
+# argv-conversion guard, the per-OS findings-report contract, the
+# review-comment publication-evidence guard, the paginated
+# comment-read guard, and the PAT merge approval binding), so they trip on a
+# bad curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml/peros arm no
+# matter which file the audit was pointed at.
 # Exit code is always 0 so it never breaks the auditor run; failures are reported
 # on stdout and (when a health issue number is supplied and GITHUB_TOKEN is set)
 # posted as a comment to the lab-health board.
@@ -1016,6 +1021,437 @@ else
   check "R17" "per-OS findings-report contract missing:${r17_bad} (issue #608: a PR-creating arm run drops the report and only the run log has it)" "bad"
 fi
 
+# [R18] Windows MSYS argv conversion guard (issue #612): the per-OS decision
+# forwarders run under Git Bash on the windows-latest arm, and MSYS2 path
+# conversion rewrites any argv element that looks like a POSIX absolute path
+# before the native child process sees it. The native Windows arm's handoff
+# body was posted as the literal path "C:/Program Files/Git/oc maintainer"
+# (comment on #582 at 15:08:55Z, run 39036859435), which is not a valid "/oc"
+# trigger for any strict-prefix consumer. The rule parses the workflow YAML
+# STRUCTURALLY (python3 + PyYAML, preinstalled on the auditor runner) instead
+# of grepping raw text, because a raw-text check can be spoofed by dead
+# comment/echo/heredoc content inside a run block (an independent adversarial
+# pass defeated a first text-only draft exactly that way). Two properties:
+#   1. whole-tree discovery: inside every job whose runner is Windows (static
+#      or list-form runs-on values mentioning windows, or a matrix runs-on
+#      whose matrix values mention windows), no bash-effective step (a pwsh
+#      step has no MSYS layer and is skipped) may pass a slash-leading body
+#      value ("/oc ...") through argv (--body / --body= / gh's -b shorthand)
+#      unless a REAL env opt-out applies to that step (step-level or job-level
+#      env key MSYS_NO_PATHCONV with value 1/true, or MSYS2_ARG_CONV_EXCL
+#      whose comma/semicolon token list contains "*" or exactly "/oc": MSYS
+#      prefix-matches whole args, so a value like "/octal" never covers
+#      "/oc maintainer"); commented-out text, heredoc prose, zero values, and
+#      similar spoofs are not env keys and never count. Bash quoting is
+#      modeled with a small state machine (NORMAL / single / double quotes /
+#      $( ... ) command substitution, top-level positions only), comment
+#      stripping follows shell word-start rules (a "x=${y#*/}" parameter
+#      expansion is not a comment), backslash line continuations are joined,
+#      workflow- and job-level defaults.run.shell are honored, and an
+#      OR-composed if condition (e.g. "... || always()") is never treated as
+#      a Windows skip. Composite action bash run steps under
+#      .github/actions/ are scanned too (they run on the caller's runner).
+#   2. canonical per-OS forwarder contract: each of the three
+#      "Forward ... tester decision" steps in opencode-peros-test.yml must
+#      exist (exact YAML name), carry the opt-out, deliver the body via stdin
+#      (a real top-level "--body-file -" argument), and contain NO top-level
+#      --body (non-file) or -b token at all, so neither the argv guard nor
+#      the conversion-proof transport can silently regress (a helper that
+#      reverts to --body "$1" or -b "$1" is caught even though the runtime
+#      slash value is invisible to a lexical scan, and a dead helper holding
+#      "--body-file -" text cannot mask the reverted transport).
+# Residual limitation (stated honestly): bash is undecidable, so a
+# deliberately obfuscated rewrite that never spells "gh", "--body" or the
+# slash value literally (string building, eval, arrays across lines) can
+# still evade any static rule; R18 is a tripwire for accidental
+# reintroduction plus a strict canonical contract, and the human reviewer
+# carries the semantic gate.
+r18_bad=""
+r18_python_out=$(python3 - <<'R18PY'
+import glob
+import os
+import re
+import sys
+
+try:
+    import yaml
+except Exception as exc:
+    sys.stdout.write("python-runtime(no-pyyaml:%s)\n" % exc)
+    raise SystemExit(0)
+
+PEROS = ".github/workflows/opencode-peros-test.yml"
+FORWARDER_OS = ("Linux", "macOS", "Windows")
+problems = []
+
+GH_WORD_RE = re.compile(r"(^|[^A-Za-z0-9_.-])gh(\s|$|[);&|])")
+SLASH_BODY_LONG_RE = re.compile(r"(?<![A-Za-z0-9_-])--body(=|\s+)[\"']?(/[^\s/])")
+SLASH_BODY_SHORT_RE = re.compile(r"(?<![A-Za-z0-9_-])-b(=|\s+)[\"']?(/[^\s/])")
+BODY_NONFILE_RE = re.compile(r"(?<![A-Za-z0-9_-])--body(=|\s+)")
+BODY_FILE_STDIN_RE = re.compile(r"--body-file(=|\s+)-\s*(\d?>|\|\||;|&|$)")
+SHORT_B_ANY_RE = re.compile(r"(?<![A-Za-z0-9_-])-b(=|\s+)")
+BARE_QUOTED_RE = re.compile(r"([\"'])([A-Za-z0-9_./-]+)\1")
+
+
+def has_windows(value):
+    if isinstance(value, str):
+        return "windows" in value.lower()
+    if isinstance(value, list):
+        return any(has_windows(item) for item in value)
+    if isinstance(value, dict):
+        return any(has_windows(item) for item in value.values())
+    return False
+
+
+def is_windows_job(job):
+    runs_on = job.get("runs-on")
+    if isinstance(runs_on, str) and "matrix" in runs_on:
+        strategy = job.get("strategy")
+        matrix = strategy.get("matrix") if isinstance(strategy, dict) else None
+        if matrix is not None and has_windows(matrix):
+            return True
+    return has_windows(runs_on)
+
+
+def effective_shell(step, job, workflow_defaults):
+    shell = step.get("shell")
+    for defaults in (job.get("defaults"), workflow_defaults):
+        if shell is not None:
+            break
+        run_defaults = defaults.get("run") if isinstance(defaults, dict) else None
+        if isinstance(run_defaults, dict):
+            shell = run_defaults.get("shell")
+    if shell is None:
+        return "pwsh" if is_windows_job(job) else "bash"
+    return str(shell)
+
+
+def is_bash_shell(shell):
+    return "bash" in shell.lower()
+
+
+def skips_windows(step):
+    cond = step.get("if")
+    if not isinstance(cond, str):
+        return False
+    compact = cond.replace(" ", "")
+    if "||" in compact:
+        # An OR-composed condition can still run on Windows (for example
+        # "runner.os != 'Windows' || always()"); never treat those as skips.
+        return False
+    return (
+        "runner.os!='Windows'" in compact
+        or 'runner.os!="Windows"' in compact
+        or "runner.os=='Linux'" in compact
+        or 'runner.os=="Linux"' in compact
+        or "runner.os=='macOS'" in compact
+        or 'runner.os=="macOS"' in compact
+    )
+
+
+def env_optout(env):
+    if not isinstance(env, dict):
+        return False
+    value = env.get("MSYS_NO_PATHCONV")
+    if value is not None and str(value).strip().strip("\"'").lower() in ("1", "true"):
+        return True
+    value = env.get("MSYS2_ARG_CONV_EXCL")
+    if value is not None:
+        text = str(value).strip().strip("\"'")
+        tokens = [token.strip() for token in re.split(r"[,;]", text)]
+        # MSYS2_ARG_CONV_EXCL prefix-matches whole args; a value naming only
+        # "/octal" never covers "/oc maintainer", so only "*" or an exact
+        # "/oc" token counts as a real opt-out.
+        if "*" in tokens or "/oc" in tokens:
+            return True
+    return False
+
+
+def merged_optout(job, step):
+    return env_optout(job.get("env")) or env_optout(step.get("env"))
+
+
+def at_top_level(line, index):
+    # State machine over shell quoting: NORMAL, single quotes, double quotes,
+    # command substitution ($( ... )) and backtick command substitution.
+    # Tokens inside $( ) or `...` are real commands even when the
+    # substitution itself sits inside double quotes, so
+    # "out=$(gh ... --body /oc)" and "out=`gh ... --body /oc`" must not hide
+    # the invocation.
+    stack = []
+    i = 0
+    while i < index and i < len(line):
+        state = stack[-1] if stack else "normal"
+        char = line[i]
+        if state == "sq":
+            if char == "'":
+                stack.pop()
+        elif state == "dq":
+            if char == "\\":
+                i += 1
+            elif char == '"':
+                stack.pop()
+            elif char == "$" and i + 1 < len(line) and line[i + 1] == "(":
+                stack.append("cmd")
+                i += 1
+            elif char == "`":
+                stack.append("bt")
+        elif state == "cmd":
+            if char == "'":
+                stack.append("sq")
+            elif char == '"':
+                stack.append("dq")
+            elif char == "\\":
+                i += 1
+            elif char == "$" and i + 1 < len(line) and line[i + 1] == "(":
+                stack.append("cmd")
+                i += 1
+            elif char == "`":
+                stack.append("bt")
+            elif char == ")":
+                stack.pop()
+        elif state == "bt":
+            if char == "'":
+                stack.append("sq")
+            elif char == '"':
+                stack.append("dq")
+            elif char == "\\":
+                i += 1
+            elif char == "`":
+                stack.pop()
+        else:
+            if char == "'":
+                stack.append("sq")
+            elif char == '"':
+                stack.append("dq")
+            elif char == "\\":
+                i += 1
+            elif char == "$" and i + 1 < len(line) and line[i + 1] == "(":
+                stack.append("cmd")
+                i += 1
+            elif char == "`":
+                stack.append("bt")
+        i += 1
+    return (not stack) or stack[-1] in ("cmd", "bt")
+
+
+def logical_lines(run_text):
+    joined = []
+    buffer = ""
+    for raw in run_text.split("\n"):
+        line = raw.rstrip()
+        if line.endswith("\\"):
+            buffer += line[:-1] + " "
+            continue
+        joined.append(buffer + line)
+        buffer = ""
+    if buffer:
+        joined.append(buffer)
+    return joined
+
+
+def strip_comment(line):
+    # In shell a "#" starts a comment only at the start of a word (word start
+    # or whitespace/;/&/|/( before it). A bare "char == '#'" test would cut
+    # "x=${y#*/}; gh ... --body /oc" at the parameter-expansion # and hide a
+    # real invocation.
+    out = []
+    quote = None
+    for i, char in enumerate(line):
+        if quote is not None:
+            if char == quote:
+                quote = None
+            out.append(char)
+        elif char in "\"'":
+            quote = char
+            out.append(char)
+        elif char == "#" and (i == 0 or line[i - 1] in " \t;&|("):
+            break
+        else:
+            out.append(char)
+    return "".join(out)
+
+
+def slash_body_hit(line):
+    gh = GH_WORD_RE.search(line)
+    # The regexp consumes the character before "gh"; the state must be
+    # evaluated AT the g (m.end(1)), because that char can itself open a
+    # backtick substitution (`gh ...`).
+    if gh is None or not at_top_level(line, gh.end(1)):
+        return None
+    match = SLASH_BODY_LONG_RE.search(line)
+    if match is not None and at_top_level(line, match.start()):
+        return "--body"
+    match = SLASH_BODY_SHORT_RE.search(line)
+    if match is not None and at_top_level(line, match.start()):
+        return "-b"
+    return None
+
+
+def normalize_line(line):
+    # A bare quoted command word ("gh", 'gh') is the same word to bash, and
+    # ${IFS} (or $IFS) is a whitespace separator; normalizing both keeps the
+    # lexical scan honest without executing anything.
+    line = line.replace("${IFS}", " ").replace("$IFS", " ")
+    return BARE_QUOTED_RE.sub(r"\2", line)
+
+
+def first_slash_body_line(run_text):
+    for line in logical_lines(run_text):
+        stripped = normalize_line(strip_comment(line)).strip()
+        if not stripped:
+            continue
+        if slash_body_hit(stripped) is not None:
+            return stripped
+    return None
+
+
+def safe_step_name(step):
+    name = step.get("name")
+    return str(name) if name is not None else "?"
+
+
+for path in sorted(set(glob.glob(".github/workflows/*.yml") + glob.glob(".github/workflows/*.yaml"))):
+    try:
+        with open(path) as handle:
+            doc = yaml.safe_load(handle)
+    except Exception as exc:
+        problems.append("%s(yaml-parse-error:%s)" % (path, exc))
+        continue
+    jobs = (doc or {}).get("jobs") if isinstance(doc, dict) else None
+    if not isinstance(jobs, dict):
+        continue
+    workflow_defaults = doc.get("defaults") if isinstance(doc, dict) else None
+    for job_name, job in jobs.items():
+        if not isinstance(job, dict) or not is_windows_job(job):
+            continue
+        steps = job.get("steps")
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            run_text = step.get("run")
+            if not isinstance(run_text, str):
+                continue
+            if not is_bash_shell(effective_shell(step, job, workflow_defaults)):
+                continue
+            if skips_windows(step):
+                continue
+            hit = first_slash_body_line(run_text)
+            if hit is None:
+                continue
+            if not merged_optout(job, step):
+                problems.append(
+                    "%s(job-%s/step-%s:unguarded-slash-body-argv)"
+                    % (path, job_name, safe_step_name(step))
+                )
+
+if not os.path.exists(PEROS):
+    problems.append("opencode-peros-test.yml(missing)")
+else:
+    try:
+        with open(PEROS) as handle:
+            peros_doc = yaml.safe_load(handle)
+    except Exception as exc:
+        problems.append("%s(yaml-parse-error:%s)" % (PEROS, exc))
+        peros_doc = None
+    for os_name in FORWARDER_OS:
+        want = "Forward %s tester decision" % os_name
+        found = None
+        jobs = (peros_doc or {}).get("jobs") if isinstance(peros_doc, dict) else None
+        if isinstance(jobs, dict):
+            for job in jobs.values():
+                if not isinstance(job, dict):
+                    continue
+                for step in job.get("steps") or []:
+                    if isinstance(step, dict) and step.get("name") == want:
+                        found = (job, step)
+                        break
+                if found is not None:
+                    break
+        if found is None:
+            problems.append("peros(forward-%s-step-missing)" % os_name)
+            continue
+        job, step = found
+        run_text = step.get("run") if isinstance(step.get("run"), str) else ""
+        if not merged_optout(job, step):
+            problems.append("peros(forward-%s-no-msys-optout)" % os_name)
+        transport = False
+        raw_body = False
+        for line in logical_lines(run_text):
+            stripped = normalize_line(strip_comment(line)).strip()
+            if not stripped:
+                continue
+            gh = GH_WORD_RE.search(stripped)
+            if gh is not None and at_top_level(stripped, gh.end(1)):
+                match = BODY_FILE_STDIN_RE.search(stripped)
+                if match is not None and at_top_level(stripped, match.start()):
+                    transport = True
+            # Any top-level -b (slash-leading or variable, --body non-file
+            # forms) means a handoff body can reach argv on this step.
+            for regex in (BODY_NONFILE_RE, SHORT_B_ANY_RE, SLASH_BODY_SHORT_RE):
+                match = regex.search(stripped)
+                if match is not None and at_top_level(stripped, match.start()):
+                    raw_body = True
+        if not transport:
+            problems.append("peros(forward-%s-no-stdin-transport)" % os_name)
+        if raw_body:
+            problems.append("peros(forward-%s-raw-argv-body)" % os_name)
+
+# Composite actions run on the caller's runner, so a bash run step holding a
+# slash-leading gh body can execute under Git Bash on Windows just like an
+# inline workflow step. There is no safe default here: every such composite
+# invocation must carry an MSYS env opt-out (or none may exist at all).
+for action_path in sorted(set(glob.glob(".github/actions/*/action.yml") + glob.glob(".github/actions/*/action.yaml"))):
+    try:
+        with open(action_path) as handle:
+            action_doc = yaml.safe_load(handle)
+    except Exception as exc:
+        problems.append("%s(yaml-parse-error:%s)" % (action_path, exc))
+        continue
+    runs = action_doc.get("runs") if isinstance(action_doc, dict) else None
+    steps = runs.get("steps") if isinstance(runs, dict) else None
+    if not isinstance(steps, list):
+        continue
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        run_text = step.get("run")
+        if not isinstance(run_text, str):
+            continue
+        shell = str(step.get("shell") or "")
+        if "bash" not in shell.lower():
+            continue
+        if skips_windows(step):
+            # A composite step conditioned away from Windows (evaluated on
+            # the caller's runner) can never hit MSYS path conversion.
+            continue
+        hit = first_slash_body_line(run_text)
+        if hit is None:
+            continue
+        if env_optout(step.get("env")):
+            continue
+        problems.append(
+            "%s(composite-step-%s:unguarded-slash-body-argv)"
+            % (action_path, safe_step_name(step))
+        )
+
+for problem in problems:
+    sys.stdout.write(problem + "\n")
+R18PY
+) || r18_python_out="python-runtime(exit-failure)"
+if [ -n "$r18_python_out" ]; then
+  while IFS= read -r r18_line; do
+    [ -n "$r18_line" ] || continue
+    r18_bad="${r18_bad} ${r18_line}"
+  done <<< "$r18_python_out"
+fi
+if [ -z "$r18_bad" ]; then
+  check "R18" "every Windows-runner bash step passes slash-leading bodies through argv only behind a real MSYS env opt-out, and the three per-OS forwarders carry the opt-out plus the stdin (--body-file -) transport with no raw-argv body (issue #612)" "ok"
+else
+  check "R18" "Windows MSYS argv-conversion guard missing:${r18_bad} (issue #612: a /oc handoff body can be posted as a mangled C:/Program Files/Git path)" "bad"
+fi
+
 # [R19] Review-comment publication evidence (issue #616): the review verify
 # step treated ANY present /tmp/random-lab-decision.json as a completed
 # verdict, even when the reviewer died between the decision-file write and
@@ -1594,7 +2030,7 @@ if [ "$fail" -gt 0 ]; then
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R19 review-comment publication evidence, R20 paginated comment reads, or R21 PAT merge approval binding). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, or R21 PAT merge approval binding). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
