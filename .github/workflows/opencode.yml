@@ -56,7 +56,7 @@ concurrency:
 #     busy thread the recent retry markers fall outside page 1, the cap reads
 #     0, and the loop never stops (issue #621). Use `?per_page=100` +
 #     `--paginate --slurp` piped through `jq '.[][] | ...'`.
-# These are statically audited by R1-R20 in auditor.yml (.github/scripts/silent-stall-audit.sh):
+# These are statically audited by R1-R21 in auditor.yml (.github/scripts/silent-stall-audit.sh):
 # R1-R6 cover the invariants above plus the free-tier model guard, R7 guards the
 # review-restore ownership gate (PR #412 head rewind), R8 guards the vendored
 # hardened runner (.github/actions/opencode-run, issue #422 A), R9 guards
@@ -69,8 +69,10 @@ concurrency:
 # model fallback ladder plus loud Model-not-found failure (issue #591),
 # R16 guards the PAT merge shallow-workspace guard (issue #602), R17 guards
 # the per-OS findings-report contract (issue #608), R19 guards the
-# review-comment publication-evidence gate (issue #616), and R20 guards
-# paginated comment enumeration (issue #621).
+# review-comment publication-evidence gate (issue #616), R20 guards
+# paginated comment enumeration (issue #621), and R21 guards the
+# PAT merge approval binding (shape-anchored verdict plus head binding plus
+# mergeable=UNKNOWN re-query, issue #619).
 # =============================================================================
 
 jobs:
