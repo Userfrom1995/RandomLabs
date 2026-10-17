@@ -13,7 +13,8 @@ Status: in-progress
       conflicting exported value (fails pre-fix, passes post-fix)
 - [x] Cosmetic: reword the overstated historical phrase in
       `tester_windows_cli.rs:11-12`
-- [ ] fmt / clippy / workspace suite green
+- [x] fmt / clippy / workspace suite green (391/391 across 39 suites,
+      zero new clippy warnings, fmt clean)
 - [ ] Reviewer / Tester / Evaluator gates (pipeline)
 
 ## Scope (binding, from issue #615 triage)
@@ -49,10 +50,19 @@ Regression proof: with the `main.rs` fix stashed, both tests in
 MAZE_CHASE_TIER=bogus`; PTY title never reaches `kitty-graphics`); with
 the fix they pass.
 
+## Validation (2026-10-17)
+- `cargo test --workspace`: 391 passed / 0 failed across 39 suites.
+- `cargo clippy -p maze-chase-terminal --all-targets`: zero warnings from
+  the crate (only the 6 pre-existing engine lints).
+- `cargo fmt --all --check`: clean.
+
 ## Next steps
-- Workspace suite, fmt, clippy; push; hand off to the Reviewer.
+- Push the validation commit; hand off to the Reviewer.
 
 ## Agent log
 - 2026-10-17 (Builder): orientation done; defect reproduced pre-fix on
   both observables (warning path and live PTY title); fix + regressions +
-  cosmetic reword implemented; pre/post-fix evidence captured.
+  cosmetic reword implemented; pre/post-fix evidence captured; workspace
+  suite green (391/391), clippy/fmt clean.
+- 2026-10-17 (Builder): dropped an unused `Write` import the workspace
+  clippy run surfaced in the new test file.
