@@ -1,8 +1,8 @@
-# Doom M2 audit: renderer plus input shell contract
+# Doom renderer and input audit: shell contract
 
-- **Updated:** 2026-09-17 (M2)
+- **Updated:** 2026-09-17
 - **Result:** ALL PASS (48/48 checks)
-- **Runner:** node-only static plus live unit-behavior audit (browser E2E stays M5 scope)
+- **Runner:** node-only static plus live unit-behavior audit (browser E2E stays with the end-to-end round)
 
 ## Checks
 
@@ -38,8 +38,8 @@
 - [x] innerHTML only clears
 - [x] probeGL webgl2-first throwaway
 - [x] pointer lock wiring
-- [x] tier M1 pins
-- [x] tier M2 GL
+- [x] tier baseline pins
+- [x] tier GL branches
 - [x] tier failure chain
 - [x] governor hysteresis
 - [x] tic speeds
@@ -53,4 +53,4 @@
 - [x] touch state clamp
 - [x] contrast text/bg >= 4.5 (16.02)
 - [x] contrast muted/panel >= 4.5 (7.05)
-- [x] no em dashes in M2 files
+- [x] no em dashes in renderer and input files

@@ -1,4 +1,4 @@
-# M3 headless-Chromium shell proofs (2026-09-17)
+# Headless-Chromium shell proofs (2026-09-17)
 
 Taken with system Chromium (`--headless=new --disable-gpu`, SwiftShader
 WebGL) served from `doom/` over localhost. Screenshots fire before async
@@ -19,7 +19,7 @@ script over built-in `fetch` plus `WebSocket`, no dependencies).
 blank black PNG of the same size (7.6x): the automap frame is really
 composited (Tier 0 quad, SwiftShader), not a cleared canvas.
 
-## Environment defects found and fixed (M3 hardening)
+## Environment defects found and fixed (hardening pass)
 
 - `navigator.storage.getDirectory()` never resolves in this runner (stays
   `PENDING`): the ladder previously selected OPFS without probing it and
@@ -27,7 +27,7 @@ composited (Tier 0 quad, SwiftShader), not a cleared canvas.
   against `probeTimeoutMs` (OPFS plus IDB carry real round-trip probes).
 - Cache Storage (`caches.open`/`match`) hangs the same way (`CACHE-TIMEOUT`
   probe page): `loadCachedWad`/`precacheWad` now race `CACHE_TIMEOUT_MS`
-  (3 s) and fall back to memory/demo boot. Sealed M1 contract kept
+  (3 s) and fall back to memory/demo boot. Sealed contract kept
   (`precacheWad` still returns `'memory'` headless; suite 293/293 green).
 
 ## Screenshots
@@ -37,7 +37,7 @@ composited (Tier 0 quad, SwiftShader), not a cleared canvas.
 - `shell-m3-390.png`: mobile 390x844, canvas on top, controls below,
   responsive contract holds.
 
-## Owned by M5 (Playwright, real gesture plus audible output)
+## Owned by the end-to-end round (Playwright, real gesture plus audible output)
 
 - AudioContext resume latency and audible SFX/music audition.
 - Pointer Lock capture plus touch multi-touch.

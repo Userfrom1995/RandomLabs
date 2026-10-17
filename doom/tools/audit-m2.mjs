@@ -55,8 +55,8 @@ check('pointer lock wiring', (() => {
     mouseSrc.includes('unadjustedMovement');
 })());
 // 4. Tier ladder live behavior (M1 pins plus M2 GL branches).
-check('tier M1 pins', resolveTier({ hasWasm: true }) === 2 && resolveTier({ hasWasm: false }) === 3);
-check('tier M2 GL', resolveTier({ hasWebGL2: true }) === 0 && resolveTier({ hasWebGL1: true }) === 1);
+check('tier baseline pins', resolveTier({ hasWasm: true }) === 2 && resolveTier({ hasWasm: false }) === 3);
+check('tier GL branches', resolveTier({ hasWebGL2: true }) === 0 && resolveTier({ hasWebGL1: true }) === 1);
 check('tier failure chain', [0, 1, 2, 3].map(tierForFailure).join() === '1,2,3,4');
 // 5. Governor hysteresis live (no flip-flop inside 500ms).
 check('governor hysteresis', (() => {
@@ -110,23 +110,23 @@ const textBg = ratio('#e6edf3', '#0d1117');
 const mutedPanel = ratio('#9aa7b4', '#161b22');
 check('contrast text/bg >= 4.5', textBg >= 4.5, textBg.toFixed(2));
 check('contrast muted/panel >= 4.5', mutedPanel >= 4.5, mutedPanel.toFixed(2));
-// 10. Em-dash ban across all M2 files.
+// 10. Em-dash ban across all renderer and input files.
 const m2files = ['src/input/tic.js', 'src/input/bindings.js', 'src/input/keyboard.js',
   'src/input/mouse.js', 'src/input/touch.js', 'src/input/remap-ui.js',
   'src/render/upload.js', 'src/render/palette.js', 'src/render/glQuad.js',
   'src/render/resolution.js', 'src/render/tiers.js', 'src/engine/doomEngine.js',
   'src/render/automap.js', 'index.html', 'app.js', 'theme.css',
   'tests/test-m2-input.mjs', 'tests/test-m2-render.mjs', 'tools/audit-m2.mjs'];
-check('no em dashes in M2 files', m2files.every((f) => !read(f).includes('\u2014')));
+check('no em dashes in renderer and input files', m2files.every((f) => !read(f).includes('\u2014')));
 
 const passed = results.filter((r) => r.ok).length;
 const failed = results.filter((r) => !r.ok);
 const lines = [
-  '# Doom M2 audit: renderer plus input shell contract',
+  '# Doom renderer and input audit: shell contract',
   '',
-  `- **Updated:** 2026-09-17 (M2)`,
+  `- **Updated:** 2026-09-17`,
   `- **Result:** ${failed.length === 0 ? 'ALL PASS' : `${failed.length} FAILURES`} (${passed}/${results.length} checks)`,
-  `- **Runner:** node-only static plus live unit-behavior audit (browser E2E stays M5 scope)`,
+  `- **Runner:** node-only static plus live unit-behavior audit (browser E2E stays with the end-to-end round)`,
   '',
   '## Checks',
   '',

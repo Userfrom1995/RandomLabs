@@ -90,9 +90,9 @@ check('wad cache races wedged backends with timeout', read('src/storage/wad-cach
 const bun = read('src/storage/saveBundle.js');
 check('bundle format v1 pinned', bun.includes("BUNDLE_FORMAT = 'doom-save-bundle'") && bun.includes('BUNDLE_VERSION = 1'));
 
-// Docs: scoreboard carries the M3 ledger, research spec untouched.
+// Docs: scoreboard carries the audio and persistence round, research spec untouched.
 const score = read('docs/scoreboard.md');
-check('scoreboard has M3 ledger', score.includes('M3 ledger') && score.includes('H5'));
+check('scoreboard has audio and persistence round', score.includes('Audio and persistence') && score.includes('H5'));
 
 console.log(`\naudit-m3: ${pass} pass, ${fail} fail`);
 process.exit(fail === 0 ? 0 : 1);

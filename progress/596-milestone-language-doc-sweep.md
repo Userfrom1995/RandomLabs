@@ -18,10 +18,10 @@ ledger sections.
 
 - [x] Scaffold: progress file + ideas entry
 - [x] umbra: README.md, docs/architecture.md, docs/scoreboard.md
-- [ ] doom: README.md, docs/scoreboard.md, docs/architecture.md,
+- [x] doom: README.md, docs/scoreboard.md, docs/architecture.md,
       docs/THREATS.md, docs/audit-m2.md, docs/layout-audit.md,
       docs/render-m2.md..render-m5.md, docs/research-spec.md
-- [ ] doom gate tools: audit-layout.mjs, audit-m2.mjs, audit-m3.mjs,
+- [x] doom gate tools: audit-layout.mjs, audit-m2.mjs, audit-m3.mjs,
       audit-m5.mjs, render-m2-shell.mjs, capture-m5.mjs (generators must not
       reintroduce codes; audit checks must assert the unified headers)
 - [ ] tor-cli: README.md, docs/limitations.md, docs/threat-model.md,
@@ -52,8 +52,10 @@ ledger sections.
 
 ## Current step
 
-umbra swept (README, architecture, scoreboard); tests 467/467 green, no
-prose codes, no en/em dashes. Moving to doom (the largest surface).
+doom swept: all public docs de-coded; audit-m2.md and layout-audit.md
+regenerated from their updated generators; manifest resealed; audit-m5 now
+96/96 (its stale index.html scope check was pinned to the pre-#568 label and
+is updated to the unified one); doom suite 424/424 green. Next: tor-cli.
 
 ## Agent log
 
@@ -71,3 +73,14 @@ prose codes, no en/em dashes. Moving to doom (the largest surface).
   as a final G1-G7 ledger plus capability-named verification rounds with
   every measured number preserved. Evidence paths kept by decision. All 467
   umbra node tests green (incl. the no-em-dash README/scoreboard test).
+- 2026-10-17: doom done. README and scoreboard rewritten as one final-ledger
+  product view (H1-H5 plus G rows, capability-named verification rounds);
+  architecture/THREATS/render proofs/research spec de-coded; generators
+  (audit-layout, audit-m2, render-m2-shell, capture-m5) emit unified prose;
+  audit-m3/m5 checks updated to the new headers (audit-m5's index.html scope
+  check had been failing on main since #568 and now asserts the shipped
+  label). README TTFF figures refreshed to the bench-m5 values (313.6 /
+  269.4 / 35.2 / 1190) while replacing stale ones. Regenerated
+  audit-m2.md (48/48) and layout-audit.md (15 checks, ALL PASS), resealed
+  manifest.sha256 (5 artifacts). doom suite 424/424 green; audit-m3 52/52;
+  audit-m5 96/96. bench-m5.json prose left untouched (machine evidence).

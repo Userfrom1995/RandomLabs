@@ -77,7 +77,7 @@ for (const vw of [1280, 390]) {
 }
 
 const failed = rows.filter((r) => !r.pass);
-const md = `# Doom M1 layout audit (static, no browser in runner)\n\n` +
+const md = `# Doom layout audit (static, no browser in runner)\n\n` +
   `- **Generated:** ${new Date().toISOString()}\n` +
   `- **Sources:** doom/index.html, doom/theme.css\n` +
   `- **Result:** ${failed.length === 0 ? 'ALL PASS' : `${failed.length} FAIL`} (${rows.length} checks)\n\n` +

@@ -1,4 +1,4 @@
-# M5 settled headless-Chromium shell proofs (2026-09-18)
+# Settled headless-Chromium shell proofs (2026-09-18)
 
 Taken with system Chromium (headless new, SwiftShader WebGL) served from
 the repo root over localhost, via the committed driver
@@ -29,7 +29,7 @@ saves plus onboarding paint before `Page.captureScreenshot`.
 - onboarding visible on first visit: `true`
 - `canvas.toDataURL()` length: `2890` chars
 
-## M5 shell fixes proved here
+## Shell fixes proved here
 
 - Renderer selector pins the stored tier: forcing `doom-tier=1` boots
   `Tier 1 WebGL1 RGBA` and the selector shows `1` (was auto-probe only,
