@@ -40,7 +40,11 @@ passes with its evidence artifact present.
 4. **Per-OS testers (where applicable)** - Linux (`/oc test-linux`),
    macOS (`/oc test-macos`), Windows (`/oc test-windows`) verify
    every command and flag natively on their OS and feed reports to the
-   Tester. Failures route to Fixer or Lab Engineer. Single-platform
+   Tester. Each arm's workflow posts the full signed findings comment
+   from `/tmp/random-lab-findings.md` and verifies it by id (bot
+   authorship, sign-off, exact body) before the arm can conclude
+   (issue #608); aggregate from those comments, never from run logs.
+   Failures route to Fixer or Lab Engineer. Single-platform
    projects record which OS gates ran and why others were out of scope.
 
 ## What "done" means
