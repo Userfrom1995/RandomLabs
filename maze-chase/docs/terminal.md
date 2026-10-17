@@ -31,10 +31,14 @@ maze-chase-terminal --tier sixel      # force Sixel pixels (needs support)
 maze-chase-terminal --tier kitty      # force Kitty graphics (needs support)
 maze-chase-terminal --dir ~/.maze-chase   # config/scores directory (default)
 maze-chase-terminal --help            # all options
+
+# Windows (cargo install): the binary carries the .exe suffix
+maze-chase-terminal.exe --tier legacy
 ```
 
 Install it on `PATH` with `cargo install --path crates/terminal` from
-`maze-chase/`, then launch with `maze-chase-terminal` anywhere.
+`maze-chase/`, then launch with `maze-chase-terminal` anywhere
+(`maze-chase-terminal.exe` on Windows).
 
 Portable package (Unix, from the repo root): the tarball script builds
 the release binary and stages a versioned archive into
@@ -48,8 +52,9 @@ bash maze-chase/packaging/terminal/install-linux.sh --tarball maze-chase/dist/ma
 
 The tarball name records the machine that built it; build one per
 release OS instead of relabeling. Windows installs via the
-`cargo install` line above. Full per-OS release steps live in
-[docs/release.md](release.md).
+`cargo install` line above (binary:
+`%CARGO_HOME%\bin\maze-chase-terminal.exe`). Full per-OS release steps
+live in [docs/release.md](release.md).
 
 ## Controls
 

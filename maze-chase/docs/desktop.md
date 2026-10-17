@@ -17,7 +17,10 @@ Rust 1.85+ with cargo. System needs:
   distributions already ship the xkbcommon pair; the ALSA and udev
   headers are the packages a fresh build machine is likely missing.
 - **Windows**: nothing beyond the Rust toolchain (WASAPI audio and
-  Win32 windowing need no extra installs).
+  Win32 windowing need no extra installs). The zip ships an unsigned
+  `.exe`: the first launch shows the SmartScreen "Windows protected
+  your PC" prompt (choose More info, then Run anyway), and Windows
+  remembers the choice after that.
 - **macOS**: nothing beyond the Rust toolchain (CoreAudio and AppKit
   need no extra installs). The bundle is unsigned: first launch needs
   right-click Open, then Gatekeeper remembers it.
@@ -48,7 +51,8 @@ cargo run --release -p maze-chase-desktop -- --help
 ## Launch
 
 ```sh
-maze-chase-desktop [OPTIONS]
+maze-chase-desktop [OPTIONS]        # Linux / macOS
+maze-chase-desktop.exe [OPTIONS]    # Windows (from the zip; same options)
 
 Options:
   --fullscreen                 start fullscreen
