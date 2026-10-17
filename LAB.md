@@ -516,13 +516,14 @@ accept/reject matrix are enforced by R15 (extended) in
 `run:` blocks and executes them loop-level against an executable mock
 `opencode` and a mock `sleep` (isolated sandbox, live Actions env scrubbed,
 execution cwd confined to the sandbox, interception proven, per-scenario
-timeout): transient recovery on both exit shapes with the bounded backoff
-asserted, exactly one same-model retry, loud persistence after two attempts
-with the provider's own distinct statuses propagated, rung advance
-preserved, the budget shared across rungs, echo/envelope/suffixed/stale
-non-match, superset-id non-match, and unclassified status propagation are
-asserted by behavior, so textual pin relocations, decoys, or loop rewrites
-cannot pass while the contract breaks.
+timeout): transient recovery on both exit shapes with the exact bounded
+backoff asserted, exactly one same-model retry, loud persistence after two
+attempts with the provider's own distinct statuses propagated, rung advance
+preserved without consuming the free-tier budget, the post-loop exhaustion
+reached and loud, the budget shared across rungs, echo/envelope/suffixed/stale
+non-match, superset-id non-match, dotted-id boundary matching, and unclassified
+status propagation are asserted by behavior, so textual pin relocations,
+decoys, or loop rewrites cannot pass while the contract breaks.
 
 The schedule arms (`curator.yml`, `auditor.yml`) and the dispatched arms
 (`curator.yml`, `auditor.yml`, `ideate.yml`, `lab.yml`) share
