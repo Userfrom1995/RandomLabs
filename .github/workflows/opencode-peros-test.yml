@@ -154,23 +154,37 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
+          # Issue #612: under Git Bash on windows-latest, MSYS2 path conversion
+          # rewrites any argv that looks like a POSIX absolute path before the
+          # child process sees it, so a --body value starting with "/oc" landed
+          # as the literal path "C:/Program Files/Git/oc ..." (run 39036859435).
+          # This opt-out is inert on Linux/macOS (kept uniform across the three
+          # per-OS forwarders); the stdin transport below is conversion-proof by
+          # construction, and audit rule R18 guards both.
+          MSYS_NO_PATHCONV: "1"
         run: |
           action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           target="${{ github.event.issue.number }}"
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
           head_ref="$HEAD_REF"
+          # Conversion-proof poster (issue #612): the body travels on stdin
+          # (--body-file -), never in argv, so MSYS path conversion can never
+          # rewrite the "/oc" prefix. Audit rule R18 asserts this contract.
+          post_trigger() {
+            printf '%s' "$1" | gh issue comment "$target" --repo "${{ github.repository }}" --body-file - || true
+          }
           case "$action" in
             fix)
               if echo "$head_ref" | grep -q "opencode/lab"; then
-                gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc lab" || true
+                post_trigger "/oc lab"
               elif [ "$is_pr" = "true" ]; then
-                gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc fix: Linux tester findings (see report)" || true
+                post_trigger "/oc fix: Linux tester findings (see report)"
               else
-                gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+                post_trigger "/oc maintainer"
               fi ;;
-            lab) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc lab" || true ;;
-            *) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true ;;
+            lab) post_trigger "/oc lab" ;;
+            *) post_trigger "/oc maintainer" ;;
           esac
 
   test-macos:
@@ -304,23 +318,31 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
+          # Issue #612: uniform with the other per-OS forwarders; inert here,
+          # load-bearing on the windows-latest arm (see the Linux forwarder).
+          MSYS_NO_PATHCONV: "1"
         run: |
           action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           target="${{ github.event.issue.number }}"
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
           head_ref="$HEAD_REF"
+          # Conversion-proof poster (issue #612): the body travels on stdin
+          # (--body-file -), never in argv. Audit rule R18 asserts this contract.
+          post_trigger() {
+            printf '%s' "$1" | gh issue comment "$target" --repo "${{ github.repository }}" --body-file - || true
+          }
           case "$action" in
             fix)
               if echo "$head_ref" | grep -q "opencode/lab"; then
-                gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc lab" || true
+                post_trigger "/oc lab"
               elif [ "$is_pr" = "true" ]; then
-                gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc fix: macOS tester findings (see report)" || true
+                post_trigger "/oc fix: macOS tester findings (see report)"
               else
-                gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+                post_trigger "/oc maintainer"
               fi ;;
-            lab) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc lab" || true ;;
-            *) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true ;;
+            lab) post_trigger "/oc lab" ;;
+            *) post_trigger "/oc maintainer" ;;
           esac
 
   test-windows:
@@ -457,21 +479,36 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
+          # Issue #612: the live regression. Under Git Bash on windows-latest,
+          # MSYS2 path conversion rewrote the --body value "/oc maintainer"
+          # into "C:/Program Files/Git/oc maintainer" before gh ever saw it
+          # (comment on #582 at 15:08:55Z, run 39036859435). This opt-out
+          # disables that conversion; the stdin transport below is the primary,
+          # conversion-proof fix. Audit rule R18 guards both.
+          MSYS_NO_PATHCONV: "1"
         run: |
           action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           target="${{ github.event.issue.number }}"
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
           head_ref="$HEAD_REF"
+          # Conversion-proof poster (issue #612): printf -> pipe -> gh reads the
+          # body from stdin (--body-file -), so no "/oc" string is ever an argv
+          # element of a native process and MSYS conversion has nothing to
+          # rewrite. `printf '%s'` (no trailing newline) keeps the body
+          # byte-exact. Audit rule R18 asserts this contract.
+          post_trigger() {
+            printf '%s' "$1" | gh issue comment "$target" --repo "${{ github.repository }}" --body-file - || true
+          }
           case "$action" in
             fix)
               if echo "$head_ref" | grep -q "opencode/lab"; then
-                gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc lab" || true
+                post_trigger "/oc lab"
               elif [ "$is_pr" = "true" ]; then
-                gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc fix: Windows tester findings (see report)" || true
+                post_trigger "/oc fix: Windows tester findings (see report)"
               else
-                gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+                post_trigger "/oc maintainer"
               fi ;;
-            lab) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc lab" || true ;;
-            *) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true ;;
+            lab) post_trigger "/oc lab" ;;
+            *) post_trigger "/oc maintainer" ;;
           esac

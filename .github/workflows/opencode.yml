@@ -51,7 +51,7 @@ concurrency:
 #   - Keep K = 2 (finite). Changing K must still preserve the L1 termination proof.
 #   - NEVER assume a zero counter on an API/rate-limit failure; escalate to
 #     /oc maintainer instead (prevents the phantom-zero infinite loop).
-# These are statically audited by R1-R16 in auditor.yml (.github/scripts/silent-stall-audit.sh):
+# These are statically audited by R1-R18 in auditor.yml (.github/scripts/silent-stall-audit.sh):
 # R1-R6 cover the invariants above plus the free-tier model guard, R7 guards the
 # review-restore ownership gate (PR #412 head rewind), R8 guards the vendored
 # hardened runner (.github/actions/opencode-run, issue #422 A), R9 guards
@@ -61,8 +61,10 @@ concurrency:
 # gate (issue #428), R13 guards bot-created triage parity (issue #450),
 # R14 guards heterogeneous-group queue preservation (per-OS arms, issue #594,
 # and the whole comment-triggered cohort, issue #601), R15 guards the
-# model fallback ladder plus loud Model-not-found failure (issue #591), and
-# R16 guards the PAT merge shallow-workspace guard (issue #602).
+# model fallback ladder plus loud Model-not-found failure (issue #591),
+# R16 guards the PAT merge shallow-workspace guard (issue #602), and
+# R18 guards the Windows MSYS argv-conversion opt-out plus the stdin
+# per-OS handoff transport (issue #612).
 # =============================================================================
 
 jobs:

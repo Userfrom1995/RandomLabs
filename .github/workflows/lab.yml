@@ -40,7 +40,13 @@ jobs:
     name: Lab Engineer
     if: (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/oc lab')) || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    # Issue #612: the 2026-10-17T15:22 lab run on #612 hit the agent step's
+    # 60-minute cap at 60m11s with the whole fix already committed locally but
+    # unpushed, so the work was lost. The agent step now carries 90 minutes
+    # (matching the per-OS arms), and this job cap is raised together with it:
+    # a 90-minute step under a 75-minute job ceiling would still die at the
+    # wire, just later.
+    timeout-minutes: 120
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -71,7 +77,11 @@ jobs:
         id: opencode
         if: steps.actor_gate.outputs.run == 'true'
         continue-on-error: true
-        timeout-minutes: 60
+        # Issue #612: raised 60 -> 90 (the per-OS arm ceiling) so a
+        # near-complete infrastructure pass is not killed at the wire; the
+        # job-level cap above is raised in lockstep (75 -> 120) so it cannot
+        # cut this step short.
+        timeout-minutes: 90
         uses: ./.github/actions/opencode-run
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
