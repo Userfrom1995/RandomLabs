@@ -75,8 +75,8 @@ jobs:
           echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
 
           # Verify Tester approval presence (binding mechanism: evaluator blocks after tester).
-          approval_comments=$(gh api "repos/${{ github.repository }}/issues/$pr/comments" \
-            --jq '[.[] | select(.body | contains("/oc approve-test"))] | length' 2>/dev/null || echo "0")
+          approval_comments=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null \
+            | jq '[.[][] | select(.body | contains("/oc approve-test"))] | length' 2>/dev/null || echo "0")
           echo "approval_comments=$approval_comments" >> "$GITHUB_OUTPUT"
 
           # Read progress/status from the branch.

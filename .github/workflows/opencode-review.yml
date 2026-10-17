@@ -274,8 +274,8 @@ jobs:
             # failure, which would make the cap never trip and loop forever.
             # Only count retries the API actually returned; on enumeration
             # failure, stop retrying - mirrors opencode.yml build/fix parity.
-            retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments" \
-              --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc review (auto-retry")))] | length' 2>/dev/null || true)
+            retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null \
+              | jq '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc review (auto-retry")))] | length' 2>/dev/null || true)
             if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
               echo "::error::Could not enumerate prior auto-retries on #$pr (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
               exit 1
