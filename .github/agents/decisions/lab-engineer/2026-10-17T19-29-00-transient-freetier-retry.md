@@ -190,4 +190,65 @@ properties, and result strings now name both issues.
   mechanical re-run of the round-1 harness extended with the two F4
   relocations, and the runner runtime blocks are untouched.
 
+## Addendum III: F5 loop-level behavioral guard (review round 3)
+
+- **F5 (Reviewer, BLOCKING):** R15 must stop relying on textual pins.
+  Static pins and the detector-only functional test cannot express execution
+  order or reachability; three review rounds (F3/F4/F5) each found escapes
+  where decoys, dead lines, or one-line relocations satisfied every pin while
+  the runtime contract changed. The guard now extracts each runner's REAL
+  `run:` block by step name and executes it loop-level in an isolated
+  sandbox: `mktemp -d` outside the repo, execution cwd set to the sandbox so
+  no relative path can escape it, `env -u` scrub of the live Actions
+  variables, a PATH containing only an executable mock `opencode` plus
+  symlinked coreutils, a mock `sleep` (records the backoff, costs zero wall
+  time), and `timeout 10` per scenario. Extraction fails closed on an empty
+  or unparsable block, a missing detector definition, or a missing terminal
+  `exit 1`; interception is proven before any scenario (`command -v opencode`
+  must resolve to the mock, and a probe scenario must be answered by it).
+- **Contract matrix (16 scenarios per path, both `action.yml` and
+  `maintainer.yml`):** transient recovery on both exit shapes with the
+  bounded backoff actually slept (exit 1, exit 0), exactly one same-model
+  retry, persistent rejection loud after exactly two attempts with the
+  provider's own status propagated across distinct values (exit 3, exit 7;
+  exit-0 -> rc 1), rung advance preserved (Model-not-found on both exit
+  shapes), echo/envelope non-match, indented echo non-match, a trailing
+  suffixed terminal-line look-alike never consuming the retry, a stale
+  terminal line beyond the `tail -n 40` window never matching, a superset
+  model id never matching the boundary regex, the budget shared across rungs
+  (a-free retry -> a-free -> b-free, then loud), and unclassified status
+  propagation across distinct values (5, 9). Any unbounded retry re-spelling
+  hangs into the per-scenario timeout and fails the rule.
+- **Detector functional test (expanded):** both real extracted detectors
+  (`freetier_error_terminal`, `model_error_terminal`) from both runner paths
+  run against the incident terminal lines (match) and echo / envelope /
+  trailing-suffix / stale-beyond-tail / superset-id forms (no match).
+- **Static pins trimmed:** the brittle F3/F4 proximity windows were removed
+  (they false-failed benign edits and could never express order); cheap
+  anchored element-presence counts remain as tripwires, and the nonzero
+  persistent exit pin is now a column-anchored whole-line match, so a
+  comment quoting `exit "$status"` can no longer satisfy it.
+- **Adversarial closure:** the independent adversarial verifier's round-3
+  verdict (seven escape classes in the first behavioral draft: suffix regex
+  loophole, whole-log Model-not-found match, tail window widened to 400, a
+  boundary-less Model-not-found prefix regex, constant exits in the
+  unclassified and persistent branches, and a removed exit-0 backoff) now
+  has a dedicated fixture or scenario per class; its honesty note (the block
+  ran with the audit's cwd) is closed by executing with cwd inside the
+  sandbox.
+- **This pass's evidence:** full audit 20 passed / 0 failed (2.6 s); the
+  combined mutation matrix 20/20 RED under `/tmp/opencode/f5-harness/` (the
+  14 original classes plus the 7 escape classes; no collateral);
+  4/4 fail-closed edge tests (removed terminal `exit 1`, renamed step,
+  removed detector header, non-executable mock); `bash -n` and YAML parse
+  clean; em-dash sweep. The runner runtime blocks are byte-identical to the
+  reviewed head (guard-only change).
+- **Delegation ledger (this pass):** primary integrated the guard and
+  closed the adversarial escapes; verifier A (general, independent harness:
+  18/18 scenario runs across both paths, zero side effects); verifier B
+  (general, adversarial: contract matrix 18/18 independent probes, seven
+  escape classes reported, all closed as above). All verification ran in
+  isolated copies under `/tmp/opencode/` per delegation.md section 6; the
+  live workspace reports the same 20/0 verdict.
+
 - the Lab Engineer
