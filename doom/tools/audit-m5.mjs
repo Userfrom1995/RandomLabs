@@ -101,15 +101,16 @@ check('selector reflects stored tier', app.includes("store.getItem('doom-tier') 
 check('reject paths restore the running status', app.includes('restoreRunningStatus()'));
 const html = read('index.html');
 check('inline favicon kills the 404', html.includes('rel="icon" href="data:,"'));
-check('m5 scope section present', html.includes('Milestone 5 scope'));
+check('scope section uses the unified label', html.includes('About integration and end-to-end audit')
+  && !html.includes('Milestone 5 scope'));
 
 // M4 sealed strings intact.
 check('m4 scope text intact', html.includes('WAD ecosystem and polish'));
 check('old M3 scope text still gone', !html.includes('WAD ecosystem polish (M4) is the next milestone'));
 
-// Scoreboard carries the M5 ledger.
+// Scoreboard carries the final ledger.
 const score = read('docs/scoreboard.md');
-check('scoreboard has M5 ledger', score.includes('M5 ledger') && score.includes('bench-m5.json'));
+check('scoreboard has final ledger', score.includes('integration and end-to-end audit') && score.includes('bench-m5.json'));
 check('scoreboard resolves H1-H5', score.includes('H1 ') && score.includes('H5 '));
 check('scoreboard carries fuzz plus soak rows', score.includes('G fuzz') && score.includes('G soak'));
 check('scoreboard carries hardware-runner owner note', score.includes('hardware/GPU runner'));

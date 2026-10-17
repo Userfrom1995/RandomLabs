@@ -1,7 +1,7 @@
-# M4 headless-Chromium shell proofs (2026-09-18)
+# Headless-Chromium shell proofs (2026-09-18)
 
 Taken with system Chromium (`--headless=new --disable-gpu`, SwiftShader
-WebGL) served from `doom/` over localhost. Same settled-CDP method as M3
+WebGL) served from `doom/` over localhost. Same settled-CDP method as the earlier proof pass
 (`Page.captureScreenshot` after a 20 s settle, throwaway Node CDP script
 over built-in `fetch` plus `WebSocket`, no dependencies).
 
@@ -20,23 +20,23 @@ over built-in `fetch` plus `WebSocket`, no dependencies).
 - `canvas.toDataURL()` length 2890 chars at 320x200: the automap frame is
   really composited (Tier 0 quad, SwiftShader), not a cleared canvas
 
-## Environment defect found and fixed (M4 hardening)
+## Environment defect found and fixed (hardening pass)
 
 - `app.js` imported `droppedLines` from `src/wad/loadout.js`; the export
   lives in `src/ui/shellStates.js`. Module link failure killed the whole
   boot (status stuck at `Loading…`, no save manager). Fixed the import,
   added an `audit-m4` import-surface pin, re-captured both screenshots
-  green. Lesson for M5: a boot-smoke assertion on `status-line` content
-  belongs in the Tester E2E gate.
+  green. Lesson for the end-to-end round: a boot-smoke assertion on
+  `status-line` content belongs in the Tester E2E gate.
 
 ## Screenshots
 
 - `shell-m4-1280.png`: desktop 1280x1000, E1M1 automap live, Controls plus
-  Video plus Audio panels rendered, M4 header.
+  Video plus Audio panels rendered.
 - `shell-m4-390.png`: mobile 390x844, canvas on top, control deck below,
   responsive contract holds, no center overlap.
 
-## Owned by M5 (Playwright, real gestures)
+## Owned by the end-to-end round (Playwright, real gestures)
 
 - Drop-and-picker ingest round-trip with a real IWAD plus PWAD pair,
   per-map isolation visible in the diagnostics list.

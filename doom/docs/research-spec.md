@@ -6,7 +6,7 @@
 - **Author role:** Researcher (Dr. Mob)
 - **Target platform:** Static GitHub Pages at `/doom/index.html`, zero server runtime, zero external API dependencies at runtime, same-origin assets only, offline-capable after first load
 - **Core stack:** C engine compiled to single-threaded WebAssembly via Emscripten, software 8-bit renderer, WebGL texture upload, WebAudio (DMX SFX plus Wasm OPL3 FM music), OPFS persistence with IndexedDB and localStorage fallbacks
-- **Handoff target:** Architect (module blueprint, build system, milestone epic roadmap in `progress/362-doom.md`), then Builder (implementation)
+- **Handoff target:** Architect (module blueprint, build system, staged delivery roadmap in `progress/362-doom.md`), then Builder (implementation)
 
 This document is the scientific and systems blueprint. It defines the engine choice, the WAD container and map data structures, the rendering path with verified frame budget, the audio pipeline, the persistence layer, the control model, the performance budget with statistical acceptance gates, and the baseline catalog. It contains no production code; the Architect turns this into packages and the Builder implements it.
 
@@ -392,15 +392,15 @@ Ship shareware DOOM1.WAD preloaded and cached client-side (same-origin, Cache St
 1. Emscripten SDL2 versus custom shim: Chocolate Doom wants the SDL2 port (compile-time, `--disable-pthreads` build per decision 2); doomgeneric wants a hand-written five-function shim with smaller glue. The Architect must pick per phase and keep all artifacts same-origin with correct relative paths.
 2. Wasm binary split for SIMD versus scalar (Section 4.6) doubles the tested artifact count; the Architect must define the probe, the loader, and the cached choice with manual override.
 3. Node-builder inclusion: rebuilding `NODES` for partial PWAD maps inside the client avoids hard failures on node-less uploads; cost is a compact builder or a ZDBSP subset, to be sized by the Architect.
-4. Hexen-dialect maps (`BEHAVIOR` present) are detect-and-report in version 1; any playable Hexen path is a later milestone with its own research note.
+4. Hexen-dialect maps (`BEHAVIOR` present) are detect-and-report in version 1; any playable Hexen path is a later capability with its own research note.
 5. Multiplayer is out of version 1 scope; if ever revived, the only sanctioned pattern is the Cloudflare WebSocket socket shim, never raw UDP.
-6. `progress/362-doom.md` milestone epic roadmap (M1 engine core and WAD parser, M2 renderer and input, M3 audio and persistence, M4 WAD ecosystem and polish, M5 review, test, and evaluation hardening) is the Architect's deliverable, not this document's.
+6. `progress/362-doom.md` staged delivery roadmap (engine core and WAD parser, renderer and input, audio and persistence, WAD ecosystem and polish, then review, test, and evaluation hardening) is the Architect's deliverable, not this document's.
 
 ---
 
 ## 11. Handoff
 
-This specification satisfies the research acceptance criterion of #362 (engine choice, WAD format, rendering path with Wasm versus JS fallback, audio pipeline with OPL3 versus soundfont analysis, persistence layer with OPFS and IndexedDB analysis, control mapping, performance budget with 60 FPS and time-to-first-frame analysis). The Architect now drafts the module blueprint and the `progress/362-doom.md` milestone epic, then the Builder implements M1 first (WAD parser, lump directory, map loading, basic Canvas and WebGL render loop at 60 FPS, shareware DOOM1.WAD preload and cache) under the headless visual-loop mandate with Playwright screenshots.
+This specification satisfies the research acceptance criterion of #362 (engine choice, WAD format, rendering path with Wasm versus JS fallback, audio pipeline with OPL3 versus soundfont analysis, persistence layer with OPFS and IndexedDB analysis, control mapping, performance budget with 60 FPS and time-to-first-frame analysis). The Architect now drafts the module blueprint and the `progress/362-doom.md` staged delivery roadmap, then the Builder implements the engine core first (WAD parser, lump directory, map loading, basic Canvas and WebGL render loop at 60 FPS, shareware DOOM1.WAD preload and cache) under the headless visual-loop mandate with Playwright screenshots.
 
 Reference shell starting points for the Architect: doomgeneric Emscripten target plus minimal-import JS shells for the MVP; Chocolate Doom 3.1.1 Emscripten plus SDL2 ports for version 1.1; `Dwasm` feature checklist for ecosystem parity; `libadlmidi-js` plus Crispy `mus2mid.c` for audio; `StorageProvider` ladder of Section 6 for persistence.
 
