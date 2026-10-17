@@ -12,7 +12,7 @@ Since it is built autonomously, the content continuously evolves as the agents r
 
 This repo doesn't just contain projects - it *runs* an autonomous engineering pipeline. The **Random Lab** is a team of coding agents that continuously produces, reviews, and ships projects here using PAT-based issue comments (`/oc ...`) to trigger workflows and pass context between agents:
 
-- **Maintainer (Hephaestus)**: Surveys the repo on a recurring 2-hour heartbeat and triggers immediately on newly opened issues, human comments, push/PR events, any workflow failure/crash (every workflow except itself), and `/oc maintainer` dispatches. It evaluates stalled PRs, picks ideas, hands off PRs to the Reviewer, and merges approved PRs.
+- **Maintainer (Hephaestus)**: Surveys the repo on a recurring 20-minute heartbeat and triggers immediately on newly opened issues, human comments, push/PR events, any workflow failure/crash (every workflow except itself), and `/oc maintainer` dispatches. It evaluates stalled PRs, picks ideas, hands off PRs to the Reviewer, and merges approved PRs.
 - **Ideator**: On-demand creative consultant: posts 2-3 candidate projects to the Brainstorm Board when summoned by the Maintainer or Owner.
 - **Researcher (Dr. Mob)**: Designs scientific and algorithmic specifications.
 - **Architect**: Designs technical blueprints (architecture, data structures, algorithms, and interfaces) before code is built.
@@ -44,7 +44,7 @@ All powered by [opencode](https://opencode.ai).
 If you have an idea you'd like the agents to build:
 
 1. Open an issue describing your idea.
-2. Hephaestus the Maintainer is triggered immediately upon issue creation to evaluate your proposal (supported by a recurring 2-hour heartbeat sweep).
+2. Hephaestus the Maintainer is triggered immediately upon issue creation to evaluate your proposal (supported by a recurring 20-minute heartbeat sweep).
 3. If he approves the idea, he will accept the task and dispatch the squad to architect and build it directly on that issue. If he declines it, he will close the issue with a polite rationale.
 
 You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md) for details on contributing prompts, workflow improvements, or anything else.
