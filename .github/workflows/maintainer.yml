@@ -820,7 +820,27 @@ jobs:
           for cfg in $(git config --local --name-only --get-regexp '^includeIf\.gitdir:.*\.path$' 2>/dev/null); do
             git config --local --unset-all "$cfg" 2>/dev/null || true
           done
-          git fetch origin main --quiet 2>/dev/null || true
+          # Ancestry checks below (the three-dot workflow diff and the orphan
+          # guard) require full history. A shallow workspace cannot prove
+          # linkage: the three-dot diff fails with "no merge base" (silently
+          # skipping the PR as not touching workflows) and the orphan guard
+          # reads a linked PR as unrelated (silently skipping the merge), so a
+          # legitimate workflow PR stalls with no error and no red run. The
+          # opencode CLI session bootstrap re-shallows this full checkout (its
+          # PR checkout path and its PR-create precheck fetch with --depth),
+          # so restore full history before the first merge-base-dependent
+          # command, mirroring the integrity guard below (issue #283). Never
+          # fail open: the strict orphan check stays.
+          if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+            echo "Workspace is shallow; restoring full history before merge-base checks (issue #602)"
+            git fetch origin main --unshallow --quiet 2>/dev/null \
+              || git fetch origin main --quiet 2>/dev/null || true
+            if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+              echo "::warning::Workspace is still shallow after the unshallow attempt; a linked workflow PR may be skipped as an orphan this run (issue #602)"
+            fi
+          else
+            git fetch origin main --quiet 2>/dev/null || true
+          fi
           prs=$(gh pr list --repo "${{ github.repository }}" --state open --json number --jq '.[].number' 2>/dev/null || true)
           if [ -z "$prs" ]; then
             echo "No open PRs to consider for PAT merge"
