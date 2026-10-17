@@ -530,7 +530,9 @@ rungs with a rung-gated grant or theft caught, echo/envelope/suffixed/stale
 non-match, superset-id non-match, dotted-id boundary matching, a
 dotted-candidate dot-lookalike nonzero line not advancing the rung, a
 terminal line with in-window trailing healthy lines still consuming its
-bounded retry, a failing log capture failing loudly, unclassified status
+bounded retry, a failing log capture failing loudly at every failing tee
+status (fixtures for 3, 1, and 2, so a live guard narrowed to a single status
+cannot pass), unclassified status
 propagation, and the extracted runner step proven the unique executing one
 (no conditional gate, a unique invocation in the file, and the invocation
 present in the extracted block) are asserted by behavior, so textual pin

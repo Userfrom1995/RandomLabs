@@ -689,9 +689,12 @@ r15_freetier_pins() {
   [ "$(grep -cE '^[[:space:]]*sleep 15$' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(no-bounded-retry-backoff)"
   # Review round 7 corrected tripwires: anchored live-form counts, so a
   # comment decoy quoting the pinned text can never satisfy them. The
-  # behavioral matrix carries the semantics (the failing-tee scenario and the
-  # window lower-bound fixtures plus ft-trailing), these are first-line
-  # element-presence checks.
+  # behavioral matrix carries the semantics (the status-parameterized
+  # failing-tee scenarios and the window lower-bound fixtures plus
+  # ft-trailing), these are first-line element-presence checks. Review F9
+  # showed a count-only pin is still satisfiable by a dead exact-form decoy,
+  # so the tee guard's semantics now live in the behavioral fixtures: the
+  # tee mock honors R15_TEE_FAIL and the matrix covers statuses 3, 1, and 2.
   [ "$(grep -cE '^[[:space:]]*if \[ "\$tee_status" -ne 0 \]; then$' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(tee-guard-decoyed-or-missing)"
   [ "$(grep -cE '^[[:space:]]*tail -n 40 "\$1" \| grep -qE' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(detectors-not-tail-scoped-live)"
   # Loud persistence, exact-form and branch-tied: each persistent-rejection
@@ -1008,7 +1011,7 @@ case "${R15_SCENARIO}:${n}" in
   ft-stale:*) echo "AI_APICallError: ${ft}"; for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45; do echo "healthy tail line $i"; done; exit 0 ;;
   ft-trailing:1) echo "AI_APICallError: ${ft}"; echo "healthy tail line 1"; echo "healthy tail line 2"; echo "healthy tail line 3"; exit 0 ;;
   ft-trailing:*) echo "healthy success"; exit 0 ;;
-  failing-tee:*) echo "healthy success"; exit 0 ;;
+  failing-tee*) echo "healthy success"; exit 0 ;;
   budget-rungs:1) echo "AI_APICallError: ${ft}"; exit 0 ;;
   budget-rungs:2) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 0 ;;
   budget-rungs:*) echo "APIError: ${ft}"; exit 0 ;;
@@ -1050,14 +1053,16 @@ R15MOCK
     [ -n "$p" ] && ln -sf "$p" "$sbx/bin/$tool"
   done
   # Failing-tee mock (review A1): swapped in for the real `tee` during the
-  # failing-tee scenario only. It preserves the real pipeline shape (writes
-  # stdin through to the requested log path) and then exits 3, so the
-  # runner's log-capture guard must fail loudly; a decoy comment holding the
-  # static pin cannot fake the behavior.
+  # failing-tee scenarios only. It preserves the real pipeline shape (writes
+  # stdin through to the requested log path) and then exits with the
+  # requested nonzero status (`R15_TEE_FAIL`, default 3), so the runner's
+  # log-capture guard must fail loudly for ANY failing status; a decoy comment
+  # holding the static pin, or a live condition narrowed to one fixture status
+  # (review F9), cannot fake the behavior.
   cat > "$sbx/tee-fail" <<'R15TEE'
 #!/bin/bash
 while IFS= read -r line; do printf '%s\n' "$line" >> "$1"; done
-exit 3
+exit "${R15_TEE_FAIL:-3}"
 R15TEE
   chmod +x "$sbx/tee-fail"
   if [ ! -x "$sbx/bin/opencode" ] \
@@ -1069,10 +1074,11 @@ R15TEE
   r15_behavioral_run() {
     local scenario="$1" cands="${2:-a-free b-free}" tee_swap=0
     : > "$attempts"; : > "$sleeps"
-    # Failing-tee scenario (review A1): swap the real tee symlink for the
-    # failing mock so the log-capture guard is exercised end-to-end; restore
-    # it afterwards so every other scenario keeps the real pipeline shape.
-    if [ "$scenario" = "failing-tee" ]; then
+    # Failing-tee scenarios (review A1, widened in review F9): swap the real
+    # tee symlink for the failing mock so the log-capture guard is exercised
+    # end-to-end for every `failing-tee*` scenario; restore it afterwards so
+    # every other scenario keeps the real pipeline shape.
+    if [ "${scenario#failing-tee}" != "$scenario" ]; then
       ln -sf "$sbx/tee-fail" "$sbx/bin/tee"
       tee_swap=1
     fi
@@ -1082,6 +1088,7 @@ R15TEE
         PATH="$sbx/bin" HOME="$sbx/home" TMPDIR="$sbx/tmp" \
         MODEL_CANDIDATES="$cands" MODEL="${cands%% *}" \
         R15_SCENARIO="$scenario" R15_ATTEMPTS="$attempts" R15_SLEEPS="$sleeps" \
+        R15_TEE_FAIL="${R15_TEE_FAIL:-}" \
         "$r15_bash_bin" "$block"
     ) > "$out" 2>&1
     r15_last_rc=$?
@@ -1153,6 +1160,13 @@ R15TEE
   r15_behavioral_case ft-stale 0 "a-free" "" 0
   r15_behavioral_case ft-trailing 0 "a-free a-free" "" 1
   r15_behavioral_case failing-tee 1 "a-free" "could not capture the (Maintainer )?opencode log" 0
+  # Review F9: one fixture status cannot exercise a live condition narrowed to
+  # that status. The same guard must fire for every failing tee status, so the
+  # fixtures cover 3 (above), 1, and 2; any finite `-eq` narrowing misses at
+  # least one, and the dead-decoy variant only held the anchored static count,
+  # which these scenarios ignore.
+  R15_TEE_FAIL=1 r15_behavioral_case failing-tee1 1 "a-free" "could not capture the (Maintainer )?opencode log" 0
+  R15_TEE_FAIL=2 r15_behavioral_case failing-tee2 1 "a-free" "could not capture the (Maintainer )?opencode log" 0
   r15_behavioral_case budget-rungs 1 "a-free a-free b-free" "persistent free-tier rejection" 0
   r15_behavioral_case unclassified 5 "a-free" "" 0
   r15_behavioral_case unclassified9 9 "a-free" "" 0
@@ -1172,7 +1186,7 @@ else
   grep -A2 'General agent step finished' "$OPENCODE_WF" | grep -q 'exit 1' || r15_bad="${r15_bad} opencode.yml(general-verify-not-exit-1)"
 fi
 if [ -z "$r15_bad" ]; then
-  check "R15" "model resilience wired: live-registry resolver + free-tier ladder rungs + boundary-aware per-rung retry with exit-0 terminal anchoring, a log-capture guard, loud exhaustion, and the bounded transient FreeTierError same-model retry (anchored detector, cap 1, loud persistent failure) in the shared runner and the maintainer inline path, with loud-failure verify steps on the Maintainer and general arm, all enforced behaviorally: the extracted detectors are executed functionally (terminal match; echo/envelope/suffix/stale/superset no-match; dotted-id match with the dot-lookalike no-match; case-sensitive forms, so an uppercase id line never matches; the tail window's lower-bound pair, 39 trailing lines must match and 40 must not), and both real runner run-blocks are executed loop-level against an executable mock opencode + mock sleep (transient recovery on both exit shapes with the exact bounded backoff asserted and its wait ordering proven, exactly one same-model retry, persistent loudness after two attempts with the provider's own distinct statuses propagated, rung advance preserved without consuming the free-tier budget, post-loop exhaustion reached and loud, the budget shared across three rungs with a rung-gated grant or theft caught, echo/suffix/stale non-match, a terminal line with trailing healthy lines still retrying, superset-id non-match, a dotted-candidate dot-lookalike nonzero line not advancing the rung, a failing log capture failing loudly, unclassified propagation, per-scenario timeout, and the extracted runner step proven the unique executing one: no if: gate, unique invocation in the file, invocation present in the extracted block) (issues #591, #620)" "ok"
+  check "R15" "model resilience wired: live-registry resolver + free-tier ladder rungs + boundary-aware per-rung retry with exit-0 terminal anchoring, a log-capture guard, loud exhaustion, and the bounded transient FreeTierError same-model retry (anchored detector, cap 1, loud persistent failure) in the shared runner and the maintainer inline path, with loud-failure verify steps on the Maintainer and general arm, all enforced behaviorally: the extracted detectors are executed functionally (terminal match; echo/envelope/suffix/stale/superset no-match; dotted-id match with the dot-lookalike no-match; case-sensitive forms, so an uppercase id line never matches; the tail window's lower-bound pair, 39 trailing lines must match and 40 must not), and both real runner run-blocks are executed loop-level against an executable mock opencode + mock sleep (transient recovery on both exit shapes with the exact bounded backoff asserted and its wait ordering proven, exactly one same-model retry, persistent loudness after two attempts with the provider's own distinct statuses propagated, rung advance preserved without consuming the free-tier budget, post-loop exhaustion reached and loud, the budget shared across three rungs with a rung-gated grant or theft caught, echo/suffix/stale non-match, a terminal line with trailing healthy lines still retrying, superset-id non-match, a dotted-candidate dot-lookalike nonzero line not advancing the rung, a failing log capture failing loudly at every failing tee status (one fixture each for 3, 1, and 2, so a live guard narrowed to a single status cannot pass), unclassified propagation, per-scenario timeout, and the extracted runner step proven the unique executing one: no if: gate, unique invocation in the file, invocation present in the extracted block) (issues #591, #620)" "ok"
 else
   check "R15" "model resilience guard missing:${r15_bad} (issues #591/#620: one retired pin kills every arm at once, Model-not-found deaths conclude green, a transient free-tier rejection kills a gate with no bounded retry, or the retry loops unboundedly / concludes silently green / silently blind-advances past a failed log capture / misses a rejection inside its tail window / advances on a lookalike id / matches a terminal form in the wrong case / records a backoff it never waited / runs a conditional or shadowed runner step)" "bad"
 fi
