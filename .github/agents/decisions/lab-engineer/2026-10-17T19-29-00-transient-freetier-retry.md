@@ -584,3 +584,77 @@ push landed at 23:20:41Z, after the review sampled the then-pushed head.
   execution. Skills: no skill fit (GitHub Actions lab infrastructure).
 
 - the Lab Engineer
+
+## Addendum X: R15 round-9 closure (F9 tee-status narrowing, seed matrix re-run)
+
+The round-9 review (run 39078662290, sampled head `29c8955a`) found F9
+blocking: the round-8 A4 anchored tee pin is still a whole-file count, so a
+dead line carrying the exact anchored form satisfies it, and the single
+`failing-tee` fixture exercises tee exit status 3 only. A live guard
+narrowed to `if [ "$tee_status" -eq 3 ]; then` (anchored form parked in an
+unreachable `if false` block) therefore kept the full audit green while a
+tee failure at any other status silently blind-advanced on both runner
+paths.
+
+**Closure shipped (harness only, runtime blocks untouched):**
+
+- The failing-tee mock now exits `"${R15_TEE_FAIL:-3}"` instead of a
+  hardcoded 3; the swap condition covers every `failing-tee*` scenario; the
+  mock `opencode` answers the `failing-tee*` family; the scrubbed `env`
+  invocation forwards `R15_TEE_FAIL`; and the matrix adds `failing-tee1`
+  (status 1) and `failing-tee2` (status 2) beside the original status-3
+  case, each asserting rc 1, exactly one attempt, and the per-path loud
+  `could not capture the ... opencode log` message.
+- The R15 comment block, the R15 pass text, `AGENTS.md`, and `LAB.md` now
+  name the status-parameterized coverage.
+
+**Evidence (isolated `/tmp/opencode` sandboxes, fresh copies, no repo side
+effects):**
+
+- **Closure proof:** with the F9 mutation applied to both runner files (dead
+  `if false; then <anchored guard> fi` block after the status assignment,
+  live guard rewritten to `-eq 3` behind a comment decoy), the PRE-fix guard
+  (audit script from HEAD `c1d11c3a`) reports 22 passed / 0 failed, exactly
+  reproducing the reviewer's escape, while the POST-fix guard reports
+  21 passed / 1 failed with `behavioral(action-file,failing-tee1:rc=0,want=1)`
+  plus `failing-tee1:missing-output` and the same pair for `failing-tee2`,
+  on both labels, no collateral.
+- **Seed matrix on the new guard** (one isolated sandbox per mutation, every
+  mutated YAML parse clean, exactly one R15 FAIL each, no collateral):
+  - F5b persistent-branch `rm -f "$log"` -> `exit 0`: rc-mismatch flags
+    (`persistent-nonzero:rc=0,want=3`, `persistent-nonzero7:rc=0,want=7`,
+    `persistent-zero:rc=0,want=1`, `deep-grant`, `deep-advance`,
+    `budget-rungs`) on both labels.
+  - F5e `freetier_retry_used=$((0))` at the top of the retry loop: rc=124
+    timeouts with 47-attempt runs on both labels (unboundedness spilling
+    past the 10 s per-scenario timeout).
+  - A1 no-decoy guard disable: static
+    `tee-guard-decoyed-or-missing` plus the behavioral status-3 flags.
+  - F6 live `sleep 31536000` with two unreachable count-holding decoys:
+    `bad-backoff` on every retry scenario on both labels.
+  - F7 `exit 0` before the exhaustion echo: `mnf-all:rc=0,want=1` plus
+    missing-output on both labels.
+  - F9 as above.
+- **Control:** pristine tree 22 passed / 0 failed.
+- **Round-9 non-blocking items:** the A4 matrix and AENV record the review
+  asked for were already landed on this head by `25ae3d6f`/`c1d11c3a`
+  (after the review sampled `29c8955a`); verified present (Addendum IX
+  records both, Addendum VII's A3 label records the round-7 re-flag, and
+  LAB.md reads "review rounds F5-F8 plus A1-A3").
+
+**Delegation ledger (this pass):** one independent verifier subagent
+(general; fresh `git archive` export of the committed head `b6347e65`,
+own YAML mutation scripts, sandbox `/tmp/opencode/r10-verify`): reproduced
+control 22/0; reproduced the F9 mutation at 21/1 with exactly the eight
+`failing-tee1`/`failing-tee2` flags on both labels and no collateral; also
+showed a `-eq 1` narrowing variant is caught by the status-3 fixture plus
+the static anchored pin; repo tree untouched. Primary verified itself:
+control on the committed tree 22 passed / 0 failed; the closure proof
+(pre-fix guard 22/0 under the F9 mutation, post-fix 21/1 with the identical
+flags) in `/tmp/opencode/san-f9-prefix` and `/tmp/opencode/san-f9`; the
+six-mutation seed matrix in six isolated `/tmp/opencode/san-*` sandboxes;
+YAML parse on every mutated copy; `bash -n` on the audit script; em-dash,
+attribution, and clean-tree sweeps. Skills: no skill fit (GitHub Actions
+lab infrastructure, not opencode workspace configuration).
+
+- the Lab Engineer
