@@ -637,25 +637,29 @@ r15_freetier_pins() {
   fn=$(sed -n '/freetier_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$f" | sed 's/^[[:space:]]*//')
   printf '%s\n' "$fn" | grep -qF 'tail -n 40 "$1" | grep -qE' || r15_bad="${r15_bad} ${label}(freetier-detector-not-tail-scoped)"
   printf '%s\n' "$fn" | grep -qF "(AI_APICallError: |APIError: |Error: )?OpenCode's free tier can only be used from within OpenCode\. Download it at https://opencode\.ai and keep building\.?\$" || r15_bad="${r15_bad} ${label}(no-anchored-freetier-terminal-form)"
-  [ "$(grep -cF 'if freetier_error_terminal "$log"; then' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(freetier-detector-not-wired-both-paths)"
+  [ "$(grep -cE '^[[:space:]]*if freetier_error_terminal "\$log"; then$' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(freetier-detector-not-wired-both-paths)"
   [ "$(grep -cF 'freetier_retry_used=0' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-freetier-retry-counter)"
   [ "$(grep -cF 'if [ "$freetier_retry_used" -lt 1 ]; then' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(no-bounded-freetier-retry-cap)"
-  [ "$(grep -cF 'freetier_retry_used=1' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(freetier-retry-budget-not-consumed)"
+  n=$(grep -B2 -F 'one bounded retry of the same model in 15s' "$f" | grep -cE '^[[:space:]]*freetier_retry_used=1$' || true)
+  [ "$n" = "2" ] || r15_bad="${r15_bad} ${label}(freetier-retry-budget-not-consumed-before-retry)"
   [ "$(grep -cF 'one bounded retry of the same model in 15s' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(no-same-model-retry-marker)"
   [ "$(grep -cE '^[[:space:]]*continue 2$' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(rung-advance-continue2-count)"
   n=$(grep -A4 -F 'one bounded retry of the same model in 15s' "$f" | grep -cE '^[[:space:]]*continue$' || true)
   [ "$n" = "2" ] || r15_bad="${r15_bad} ${label}(same-model-retry-not-a-bare-continue)"
-  n=$(grep -A4 -F 'one bounded retry of the same model in 15s' "$f" | grep -cF 'sleep 15' || true)
+  n=$(grep -A4 -F 'one bounded retry of the same model in 15s' "$f" | grep -cE '^[[:space:]]*sleep 15$' || true)
   [ "$n" = "2" ] || r15_bad="${r15_bad} ${label}(no-bounded-retry-backoff)"
-  # Loud persistence, exact-form: the two persistent-rejection branches must
-  # end in the nonzero exit matching their path (`exit 1` after the exit-0
-  # branch, `exit "$status"` after the nonzero branch). The text of the
-  # message itself contains "(exit $status)", so this must match full lines,
-  # not merely the token "exit" (verifier finding, 2026-10-17: the loose
-  # check let `exit "$status"` -> `exit 0` through).
-  n=$(grep -A2 -F 'persistent free-tier rejection on model' "$f" | grep -cE '^[[:space:]]*exit 1$' || true)
+  # Loud persistence, exact-form and branch-tied: each persistent-rejection
+  # branch must end in the nonzero exit matching its own message, so a
+  # compensated swap (one branch's loud exit moved to the other, with the
+  # real path exiting 0) can never pass by keeping the aggregate count. The
+  # exit-0 message is a substring-free match for its branch (the nonzero
+  # message inserts `(exit $status) ` before "after the bounded retry"), and
+  # the text itself contains "(exit $status)", so the nonzero pin must match
+  # full forms, not merely the token "exit" (verifier findings, 2026-10-17:
+  # the loose token check and the pooled windows both let mutations through).
+  n=$(grep -A2 -F "persistent free-tier rejection on model '\$model' after the bounded retry" "$f" | grep -cE '^[[:space:]]*exit 1$' || true)
   [ "$n" = "1" ] || r15_bad="${r15_bad} ${label}(persistent-freetier-exit-0-path-not-loud)"
-  n=$(grep -A2 -F 'persistent free-tier rejection on model' "$f" | grep -cF 'exit "$status"' || true)
+  n=$(grep -A2 -F "persistent free-tier rejection on model '\$model' (exit \$status) after the bounded retry" "$f" | grep -cF 'exit "$status"' || true)
   [ "$n" = "1" ] || r15_bad="${r15_bad} ${label}(persistent-freetier-exit-status-path-not-loud)"
 }
 if [ ! -f "$ACTION_FILE" ]; then
