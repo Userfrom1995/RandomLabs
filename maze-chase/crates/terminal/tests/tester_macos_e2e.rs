@@ -381,7 +381,7 @@ fn live_resize_too_small_card_recovers_mid_play() {
     );
     s.resize(100, 40);
     assert!(
-        s.wait_for("SCORE ", Duration::from_secs(8)),
+        s.wait_for("move: arrows/WASD", Duration::from_secs(8)),
         "growing back must repaint the running game; tail: {}",
         s.tail()
     );
