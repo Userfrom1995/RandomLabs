@@ -154,4 +154,40 @@ properties, and result strings now name both issues.
   corrected code, and the extraction is mechanical (no subagent needed for
   a two-file pin fix).
 
+## Addendum II: F4 position pins (review round 2)
+
+- **F4 (Reviewer, BLOCKING):** two one-line counter relocations still escaped
+  `r15_freetier_pins` while breaking the runtime contract. Both are now
+  caught by position pins added inside the same function (no runtime code
+  changed; the runner blocks are byte-identical to the reviewed head):
+  - `freetier_retry_used=0` init pinned immediately before the `for model`
+    loop (`grep -B3 -F 'for model in $candidates; do'` window), so relocating
+    it into the `while :; do` retry body (budget reset per attempt, i.e.
+    unbounded retries: 650 attempts/8 s under an always-rejecting mock) trips
+    `freetier-budget-init-not-outside-the-retry-loop`;
+  - `freetier_retry_used=1` consumption pinned inside the cap branch
+    (`grep -A3 -F 'if [ "$freetier_retry_used" -lt 1 ]; then'` window), so
+    hoisting it one line up (unconditional, cap always false, transient
+    branch unreachable, the retry silently disabled) trips
+    `freetier-budget-not-consumed-inside-cap-branch`. Combined with the
+    existing `-B2` marker pin, the assignment's exact position is pinned from
+    both sides.
+- **This pass's evidence:** full audit 19 passed / 0 failed on the branch
+  tree (R17/R19/R20 included); F3/F4 mutation matrix 16/16 executed against
+  the real extracted pin function on copies of both runner files in
+  `/tmp/opencode/f4-verify/`: pristine files stay CLEAN, each of the seven
+  mutation classes trips exactly its expected sub-flag with no collateral
+  (F4a -> `freetier-budget-not-consumed-inside-cap-branch`; F4b ->
+  `freetier-budget-init-not-outside-the-retry-loop`; F3a -> both
+  `freetier-retry-budget-not-consumed-before-retry` and the new inside-cap
+  flag; F3b -> `freetier-detector-not-wired-both-paths`; F3c ->
+  `no-bounded-retry-backoff`; F3c1 -> `persistent-freetier-exit-0-path-not-loud`;
+  F3c2 -> `persistent-freetier-exit-status-path-not-loud`), and every
+  mutated file stays YAML-parse-clean with all extracted `run` blocks
+  `bash -n`-clean. `bash -n` on the audit script; em-dash sweep.
+- **Delegation ledger (this pass):** primary only; the F4 pin strings are
+  the Reviewer's own verified corrected code, the mutation matrix is a
+  mechanical re-run of the round-1 harness extended with the two F4
+  relocations, and the runner runtime blocks are untouched.
+
 - the Lab Engineer
