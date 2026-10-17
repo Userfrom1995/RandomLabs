@@ -1094,9 +1094,13 @@ fi
 # slash value literally (string building, eval, arrays across lines) can
 # still evade any static rule, and a run block that mutates the opt-out
 # variables itself (unset ..., export KEY=..., writing to $GITHUB_ENV for a
-# later step) evades the env-map model by design; R18 is a tripwire for
-# accidental reintroduction plus a strict canonical contract, and the human
-# reviewer carries the semantic gate.
+# later step) evades the env-map model by design. Command-substitution and
+# backtick bodies whose slash word IS spelled inside the substitution are
+# covered (conservatively, see BODY_VALUE_PREFIX); what stays out of scope
+# is a slash value that never appears literally at all (variable-built argv,
+# eval, an expansion that only constructs the slash after the first closing
+# delimiter). R18 is a tripwire for accidental reintroduction plus a strict
+# canonical contract, and the human reviewer carries the semantic gate.
 r18_bad=""
 r18_python_out=$(python3 - <<'R18PY'
 import glob
@@ -1129,12 +1133,21 @@ GH_WORD_RE = re.compile(r"(^|[^A-Za-z0-9_.-])gh(\s|$|[);&|])")
 # expansion (${x:-/oc x} - expands to the default when x is unset), possibly
 # under an enclosing quote ("${x:-/oc x}"); all of these spell the slash body
 # literally, so BODY_VALUE_PREFIX accepts every spelling.
+# A command substitution opener ($( ... ) or a backtick) is accepted up to
+# its closing delimiter: at runtime the substitution expands to whatever it
+# prints, so a slash word spelled inside it (--body "$(printf '/oc
+# maintainer')", --body "`printf '/oc maintainer'`") is a real
+# slash-leading argv word and is flagged conservatively. The value position
+# is never executed, so the reading is lexical (a substitution that spells
+# no slash word inside stays green).
 # BODY_TOKEN_RE / SHORT_B_TOKEN_RE are the contract-side detectors: any
 # --body that is not --body-file, and any standalone -b token, whatever
 # transport follows (they catch the variable-indirection defacements that the
 # slash-literal forms cannot see).
 BODY_VALUE_PREFIX = (
     r"(?:[\"']?\$(?:[\"']|\{[A-Za-z_][A-Za-z0-9_]*:-)?[\"']?"
+    r"|[\"']?\$\([^)]*"
+    r"|[\"']?`[^`]*"
     r"|\$?[\"']?)"
 )
 BODY_LONG_ATTACHED_RE = re.compile(r"(?<![A-Za-z0-9_-])--body=" + BODY_VALUE_PREFIX + r"(/[^\s/][^\s/]?)")
