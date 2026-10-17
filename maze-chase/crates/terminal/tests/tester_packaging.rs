@@ -12,6 +12,8 @@
 //! - the release docs cross-link only to committed files and the crate
 //!   version cited in the packaging matrix matches `Cargo.toml`.
 
+#![cfg(unix)]
+
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
