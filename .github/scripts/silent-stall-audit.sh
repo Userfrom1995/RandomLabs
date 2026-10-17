@@ -685,10 +685,13 @@ fi
 #   2. each fail-closed verify step requires the findings report alongside
 #      the decision file;
 #   3. each arm posts the report through the shared script with its own OS
-#      label and gates the decision forward on that step's success;
+#      label, keeps the exact actor-gate + verify-success condition on both
+#      the post step and the decision forward, carries its actor-gate plus
+#      post-step github.token envs (never a PAT), and gates the forward on
+#      that step's success;
 #   4. the shared script validates the sign-off, posts as github-actions[bot]
 #      (never the owner PAT), and re-fetches the comment by id to verify
-#      authorship and the exact body;
+#      authorship, the sign-off tail, and the exact body (each anchored);
 #   5. all three tester prompt files carry the contract.
 r17_bad=""
 R17_SCRIPT=".github/scripts/post-peros-findings.sh"
@@ -711,10 +714,14 @@ else
     printf '%s\n' "$r17_block" | grep -qF 'rm -f /tmp/random-lab-decision.json /tmp/random-lab-findings.md' || r17_bad="${r17_bad} arm-${r17_os}(no-findings-clear)"
     printf '%s\n' "$r17_block" | grep -qF 'the COMPLETE findings report as Markdown to `/tmp/random-lab-findings.md`' || r17_bad="${r17_bad} arm-${r17_os}(prompt-not-file-based)"
     printf '%s\n' "$r17_block" | grep -qF '[ -s /tmp/random-lab-findings.md ] || missing="${missing} findings-report"' || r17_bad="${r17_bad} arm-${r17_os}(verify-not-requiring-findings-file)"
-    printf '%s\n' "$r17_block" | grep -qF 'if [ "$need_poster" = "true" ]' || r17_bad="${r17_bad} arm-${r17_os}(no-poster-restore-for-older-heads)"
+    printf '%s\n' "$r17_block" | grep -qF 'if [ "$need_poster" = "true" ]; then' || r17_bad="${r17_bad} arm-${r17_os}(no-poster-restore-for-older-heads)"
     printf '%s\n' "$r17_block" | grep -qF 'git archive "${GITHUB_SHA}" -- .github/scripts/post-peros-findings.sh' || r17_bad="${r17_bad} arm-${r17_os}(no-poster-archive-restore)"
     printf '%s\n' "$r17_block" | grep -qE "post-peros-findings\\.sh ${r17_os} " || r17_bad="${r17_bad} arm-${r17_os}(no-shared-post-step)"
     printf '%s\n' "$r17_block" | grep -qF "steps.findings.outcome == 'success'" || r17_bad="${r17_bad} arm-${r17_os}(forward-not-gated-on-findings)"
+    r17_post_gates=$(printf '%s\n' "$r17_block" | grep -cF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'" || true)
+    [ "$r17_post_gates" -ge 2 ] || r17_bad="${r17_bad} arm-${r17_os}(post-step-and-forward-gate-count=${r17_post_gates},want>=2)"
+    r17_token_envs=$(printf '%s\n' "$r17_block" | grep -cF 'GH_TOKEN: ${{ github.token }}' || true)
+    [ "$r17_token_envs" -ge 2 ] || r17_bad="${r17_bad} arm-${r17_os}(github-token-env-count=${r17_token_envs},want>=2)"
   done
 fi
 if [ ! -f "$R17_SCRIPT" ]; then
@@ -724,7 +731,10 @@ else
     grep -qF -- "$r17_signoff" "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-signoff:$r17_signoff)"
   done
   grep -qF 'github-actions[bot]' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-bot-author-check)"
+  grep -qF 'if [ "$author" != "github-actions[bot]" ]' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-bot-author-check)"
   grep -qF 'if [ "$last_line" != "$signoff" ]' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-pre-post-signoff-validation)"
+  grep -qF 'if [ "$fetched_last" != "$signoff" ]' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-post-fetch-signoff-check)"
+  grep -qF 'if [ "$fetched_body" != "$expected_body" ]' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-body-equality-check)"
   grep -qF 'issues/comments/${comment_id}' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-re-fetch-verification)"
   grep -qF 'Verified bot-authored' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-verified-terminal-marker)"
 fi
