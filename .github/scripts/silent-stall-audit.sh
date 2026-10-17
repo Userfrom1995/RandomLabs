@@ -16,7 +16,14 @@
 # merge checks then fail closed and silently skip a linked workflow PR), and
 # the R17 per-OS findings-report contract guard (issue #608: a PR-creating
 # per-OS arm run turns the session's final message into the PR body and
-# silently drops the findings report).
+# silently drops the findings report). R17 is hybrid: static checks assert the
+# three arms wire the shared poster with the exact gate lines, token envs, and
+# a clean post run body, and a functional test executes the real poster against
+# an executable mock `gh` (interception asserted, live GitHub env scrubbed,
+# sandbox outside the repo per delegation.md section 6) so wrong-author,
+# unsigned, missing-report, tampered-body, post-failure, and missing-comment-id
+# paths must all fail closed; only the verify-step run body itself remains a
+# review-gated boundary (documented in the R17 comment).
 # Wired into auditor.yml as the R1-R17 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
@@ -686,15 +693,25 @@ fi
 #      the post step and the decision forward, keeps the post step's
 #      name/id/gate/env/token sequence and its exactly-indented uncommented
 #      invocation line, carries its actor-gate plus post-step github.token
-#      envs (never a PAT), and gates the forward on that step's success;
+#      envs (never a PAT), gates the forward on that step's success, keeps the
+#      post step's run body free of anything but comments and the invocation,
+#      and keeps the forward step free of continue-on-error;
 #   4. the shared script validates the sign-off, posts as github-actions[bot]
 #      (never the owner PAT), and re-fetches the comment by id to verify
 #      authorship, the sign-off tail, and the exact body: every guard is the
 #      exact uncommented `if ...; then` line whose own failure block ends in
 #      a hard `exit 1` before its `fi` with no nested `if` (a weakened or
 #      wrapped condition, a commented-out guard, or a no-op `exit 1` all
-#      trip the rule);
+#      trip the rule); a functional test executes the real script against an
+#      executable mock `gh` (interception asserted, live GitHub env scrubbed,
+#      sandbox outside the repo tree) and requires fail-closed behavior on
+#      wrong author, unsigned report, missing report, tampered body with an
+#      intact sign-off tail, failed post, and missing comment id;
 #   5. all three tester prompt files carry the contract.
+# Review-gated residual boundary: the verify step's own run body cannot be
+# functionally executed statically, so an early `exit 0` inserted into it (or
+# any arbitrary reshuffle of a step's control flow that still passes every
+# exact-form check above) is caught by the review gate, not by this rule.
 r17_bad=""
 R17_SCRIPT=".github/scripts/post-peros-findings.sh"
 peros_arm_block() {
@@ -743,6 +760,23 @@ else
       END { exit((ok && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(post-step-sequence-broken)"
     r17_token_envs=$(printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | grep -cxF 'GH_TOKEN: ${{ github.token }}' || true)
     [ "$r17_token_envs" -ge 2 ] || r17_bad="${r17_bad} arm-${r17_os}(github-token-env-count=${r17_token_envs},want>=2)"
+    # The post step's run body may contain only comments, blanks, and the exact
+    # invocation (independent-verifier findings Z1/Z2): an inserted `exit 0`,
+    # extra command, or `|| true` on the invocation would let the arm conclude
+    # green with the report never posted.
+    printf '%s\n' "$r17_block" | awk -v tag="      - name: Post ${r17_os_tag} tester findings report" -v want="bash .github/scripts/post-peros-findings.sh ${r17_os} \"\$TARGET\"" '
+      $0 == tag { post=1; seen=1; next }
+      post && $0 ~ /^      - / { post=0 }
+      post && $0 == "        run: |" { run=1; next }
+      run && $0 ~ /^      - / { run=0 }
+      run { s=$0; sub(/^[[:space:]]+/, "", s); if (s == "" || s ~ /^#/) next; if (s != want) bad=1 }
+      END { exit((seen && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(post-run-body-modified)"
+    # The forward step must not mask its own failures.
+    printf '%s\n' "$r17_block" | awk -v tag="      - name: Forward ${r17_os_tag} tester decision" '
+      $0 == tag { fwd=1; seen=1; next }
+      fwd && $0 ~ /^      - / { fwd=0 }
+      fwd && $0 ~ /^[[:space:]]*continue-on-error:/ { bad=1 }
+      END { exit((seen && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(forward-continue-on-error)"
   done
 fi
 if [ ! -f "$R17_SCRIPT" ]; then
@@ -781,6 +815,76 @@ else
     sed 's/^[[:space:]]*//' "$R17_SCRIPT" | grep -qxF -- "$r17_guard_line" || r17_bad="${r17_bad} script(${r17_guard_name}-guard-not-exact)"
     r17_guard_block_has_exit "$r17_guard_line" || r17_bad="${r17_bad} script(${r17_guard_name}-guard-block-has-no-exit-1)"
   done
+  # Functional contract test (independent-verifier findings Z3/Z4: text greps
+  # cannot prove the poster's runtime behavior, so execute the real script).
+  # Per delegation.md section 6 the mock is executable, interception is
+  # asserted BEFORE any poster run, the live GitHub environment is scrubbed,
+  # and the sandbox lives outside the repository tree. A body that keeps the
+  # sign-off tail but tampers with earlier content must be rejected; a
+  # tampered-body run that exits 0 (guards unreachable or expected_body
+  # clobbered) trips the rule.
+  r17_script_abs="$(pwd)/$R17_SCRIPT"
+  r17_tmp=$(mktemp -d 2>/dev/null || true)
+  if [ -z "$r17_tmp" ] || [ ! -d "$r17_tmp" ]; then
+    r17_bad="${r17_bad} script(functional-sandbox-unavailable)"
+  elif ! command -v jq >/dev/null 2>&1; then
+    r17_bad="${r17_bad} script(functional-jq-missing)"
+  else
+    trap 'rm -rf "$r17_tmp"' EXIT
+    r17_mockdir="$r17_tmp/bin"
+    mkdir -p "$r17_mockdir"
+    cat > "$r17_mockdir/gh" <<'R17_MOCK'
+#!/usr/bin/env bash
+case "$*" in
+  *"/issues/comments/"*)
+    if [ -n "${MOCK_BODY:-}" ]; then
+      jq -n --arg a "${MOCK_AUTHOR:-github-actions[bot]}" --arg b "$MOCK_BODY" '{user:{login:$a},html_url:"https://example.invalid/comment",body:$b}'
+    else
+      jq -n --arg a "${MOCK_AUTHOR:-github-actions[bot]}" --arg b "$(cat "$MOCK_REPORT")" '{user:{login:$a},html_url:"https://example.invalid/comment",body:$b}'
+    fi
+    ;;
+  *)
+    if [ "${MOCK_FAIL_POST:-}" = "1" ]; then
+      echo "mock gh: post failed" >&2
+      exit 1
+    fi
+    if [ "${MOCK_NO_ID:-}" = "1" ]; then
+      printf '{}\n'
+    else
+      printf '{"id":12345}\n'
+    fi
+    ;;
+esac
+R17_MOCK
+    chmod +x "$r17_mockdir/gh"
+    if [ "$(PATH="$r17_mockdir:$PATH" command -v gh)" != "$r17_mockdir/gh" ]; then
+      r17_bad="${r17_bad} script(functional-mock-not-intercepted)"
+    else
+      r17_good="$r17_tmp/good.md"
+      printf 'Finding one.\nFinding two.\n\n- the Linux Tester\n' > "$r17_good"
+      r17_unsigned="$r17_tmp/unsigned.md"
+      printf 'Finding one without a sign-off.\n' > "$r17_unsigned"
+      r17_missing="$r17_tmp/missing.md"
+      r17_case() {
+        r17_case_name="$1"; r17_case_want="$2"; r17_case_report="$3"; shift 3
+        r17_case_out=$(cd "$r17_tmp" && env -u GITHUB_TOKEN -u GH_TOKEN -u GITHUB_REPOSITORY -u GITHUB_ACTIONS -u GITHUB_EVENT_PATH -u GH_API_TOKEN PATH="$r17_mockdir:$PATH" GITHUB_REPOSITORY="randomlabs/test" MOCK_REPORT="$r17_case_report" "$@" bash "$r17_script_abs" linux 1 "$r17_case_report" 2>&1)
+        r17_case_rc=$?
+        if [ "$r17_case_rc" -ne "$r17_case_want" ]; then
+          r17_bad="${r17_bad} script(functional-${r17_case_name}-rc=${r17_case_rc},want=${r17_case_want})"
+          printf 'R17 functional case %s failed (rc=%s, want=%s); output:\n%s\n' "$r17_case_name" "$r17_case_rc" "$r17_case_want" "$r17_case_out" >&2
+        fi
+      }
+      r17_case good 0 "$r17_good"
+      r17_case missing-report 1 "$r17_missing"
+      r17_case unsigned-report 1 "$r17_unsigned"
+      r17_case tampered-body 1 "$r17_good" MOCK_BODY='Finding one tampered. Finding two gone.
+
+- the Linux Tester'
+      r17_case wrong-author 1 "$r17_good" MOCK_AUTHOR="Userfrom1995"
+      r17_case post-failure 1 "$r17_good" MOCK_FAIL_POST=1
+      r17_case missing-comment-id 1 "$r17_good" MOCK_NO_ID=1
+    fi
+  fi
 fi
 for r17_prompt in tester-linux.md tester-macos.md tester-windows.md; do
   r17_path=".github/agents/${r17_prompt}"
