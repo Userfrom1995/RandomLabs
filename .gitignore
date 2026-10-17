@@ -45,6 +45,8 @@ kestrel/model.json
 .agent/
 tmp_random_lab_*
 /tmp/random-lab-*
+# cwd-relative decision-file scratch (stray tracked artifact removed in #626)
+.tmp/
 
 # Specstory
 .specstory/
