@@ -134,3 +134,49 @@ fn public_docs_carry_no_milestone_language() {
         offenses.join("\n")
     );
 }
+
+/// Every `python3 -m http.server` mention on a public serving surface must
+/// also spell the Windows interpreter (`python -m http.server`): a
+/// python.org Windows install ships no `python3` alias, so python3-only
+/// guidance breaks the documented default flow there (Windows tester
+/// report, issue #582 fix round). The check is file-level and whitespace
+/// normalizes first, so a wrapped Windows spelling (`python -m` /
+/// `http.server` on the next line) still counts.
+#[test]
+fn serve_guidance_pairs_the_windows_python() {
+    let root = maze_root();
+    let surfaces = [
+        root.join("README.md"),
+        root.join("docs/web.md"),
+        root.join("docs/release.md"),
+        root.join("web/e2e/README.md"),
+        root.join("play.html"),
+        root.join("web/e2e/browser-e2e.js"),
+        root.join("web/maze-chase.js"),
+    ];
+    let mut paired = 0;
+    let mut offenses = Vec::new();
+    for path in surfaces {
+        let text = fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("{} must be readable: {e}", path.display()));
+        let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
+        if flat.contains("python3 -m http.server") {
+            paired += 1;
+            if !flat.contains("python -m http.server") {
+                offenses.push(format!(
+                    "{}: `python3 -m http.server` without the Windows `python -m http.server` spelling",
+                    path.display()
+                ));
+            }
+        }
+    }
+    assert!(
+        offenses.is_empty(),
+        "python3-only serve guidance on public surfaces:\n{}",
+        offenses.join("\n")
+    );
+    assert!(
+        paired >= 6,
+        "the pairing check must cover the documented serving surfaces, only {paired} mention http.server"
+    );
+}
