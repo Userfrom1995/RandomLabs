@@ -314,9 +314,9 @@ mod tests {
 
     #[test]
     fn missing_file_notice() {
-        let path = Path::new("/tmp/maze-chase-config-test-missing-file-abcdef.cfg");
-        let _ = std::fs::remove_file(path);
-        let (s, m, problems) = load_from(path);
+        let path = std::env::temp_dir().join("maze-chase-config-test-missing-file-abcdef.cfg");
+        let _ = std::fs::remove_file(&path);
+        let (s, m, problems) = load_from(&path);
         assert_eq!(s, Settings::default());
         assert_eq!(m, Keymap::defaults());
         assert_eq!(problems.len(), 1);
@@ -325,12 +325,12 @@ mod tests {
 
     #[test]
     fn save_to_and_load_from_round_trip() {
-        let path = Path::new("/tmp/maze-chase-config-test-roundtrip-abcdef.cfg");
+        let path = std::env::temp_dir().join("maze-chase-config-test-roundtrip-abcdef.cfg");
         let s = Settings::for_difficulty(Difficulty::Standard);
         let m = rebound_map();
-        save_to(&s, &m, path).unwrap();
-        let (s2, m2, problems) = load_from(path);
-        let _ = std::fs::remove_file(path);
+        save_to(&s, &m, &path).unwrap();
+        let (s2, m2, problems) = load_from(&path);
+        let _ = std::fs::remove_file(&path);
         assert!(problems.is_empty(), "unexpected: {problems:?}");
         assert_eq!(s2, s);
         assert_eq!(m2, m);
