@@ -869,10 +869,49 @@ jobs:
                 continue
               fi
             fi
-            comments=$(gh api --paginate "repos/${{ github.repository }}/issues/$pr/comments" --jq '.' 2>/dev/null || echo "[]")
-            approve_test_time=$(echo "$comments" | jq -r '[.[] | select(.user.login=="github-actions[bot]" and (.body|contains("/oc approve-test")))] | last | .created_at // empty' 2>/dev/null || echo "")
+            comments=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --jq '.[]' 2>/dev/null | jq -s '.' 2>/dev/null || echo "[]")
+            # Tester verdict detection (issue #619): anchored to the verdict
+            # SHAPE. The marker must be the ENTIRE first line of the comment,
+            # optionally wrapped in backticks (the Tester's live verdicts post
+            # "`/oc approve-test`" or "/oc approve-test" as line 1). The old
+            # unanchored contains() match accepted any bot comment that merely
+            # QUOTED the phrase: the Maintainer's own decisions summary on #618
+            # quoted #609's approval while describing that other PR, and the
+            # sweep read it as #618's verdict and merged a workflow-touching PR
+            # with no review verdict and no read-only test (run 39059718673,
+            # 18:55:19Z; #618's first verdicts arrived later: review 19:00:08Z,
+            # read-only test 19:08:19Z). A first-line anchor makes quoted or
+            # summarized mentions unmatchable.
+            approve_test_time=$(echo "$comments" | jq -r '[.[] | select(.user.login=="github-actions[bot]" and (.body|split("\n")[0]|test("^`?/oc approve-test`?[[:space:]]*$")))] | last | .created_at // empty' 2>/dev/null || echo "")
             if [ -z "$approve_test_time" ]; then
-              echo "PR #$pr has no /oc approve-test; not merge-ready"
+              echo "PR #$pr has no /oc approve-test verdict (first-line marker); not merge-ready"
+              continue
+            fi
+            # Head-binding (issue #619): a verdict only counts for the head it
+            # validated. Any push after the verdict (a rebase included) stales
+            # it until the read-only Tester re-validates the new head: #609's
+            # genuine 18:50:48Z verdict predates its lean rebase, and an
+            # anchored-but-unbound match would merge the rebased head before
+            # its fresh round. The head's last-push time is the later of the
+            # head commits' committer dates (the closest proxy for ordinary
+            # pushes) and any head_ref_force_pushed timeline event (which
+            # carries the true rebase time). Fail closed when it cannot be
+            # established.
+            head_commit_time=$(gh api "repos/${{ github.repository }}/pulls/$pr/commits?per_page=100" --paginate --jq '.[].commit.committer.date' 2>/dev/null | sort | tail -1 || true)
+            head_force_push_time=$(gh api "repos/${{ github.repository }}/issues/$pr/timeline?per_page=100" --paginate --jq '.[] | select(.event=="head_ref_force_pushed") | .created_at' 2>/dev/null | sort | tail -1 || true)
+            head_push_time=""
+            for candidate in "$head_commit_time" "$head_force_push_time"; do
+              [ -n "$candidate" ] || continue
+              if [ -z "$head_push_time" ] || [ "$candidate" \> "$head_push_time" ]; then
+                head_push_time="$candidate"
+              fi
+            done
+            if [ -z "$head_push_time" ]; then
+              echo "::warning::PR #$pr head push time could not be established; cannot bind the approval to the head; skipping"
+              continue
+            fi
+            if [ "$approve_test_time" \< "$head_push_time" ]; then
+              echo "PR #$pr approval ($approve_test_time) predates the last head push ($head_push_time); stale approval, not merge-ready"
               continue
             fi
             last_fix_time=$(echo "$comments" | jq -r '[.[] | select(.body | startswith("/oc fix"))] | last | .created_at // empty' 2>/dev/null || echo "")
@@ -880,8 +919,18 @@ jobs:
               echo "PR #$pr has /oc fix after approve-test ($last_fix_time > $approve_test_time); not merge-ready"
               continue
             fi
+            # Mergeability re-query (issue #619): GitHub computes mergeability
+            # on demand, and immediately after this sweep merges another PR
+            # (advancing main) the next read answers UNKNOWN. Skipping on that
+            # first read stranded the approved #609 lane behind #618's merge
+            # in run 39059718673. Re-query a bounded number of times instead.
             mergeable=$(gh pr view "$pr" --repo "${{ github.repository }}" --json mergeable --jq '.mergeable' 2>/dev/null || echo "")
-            echo "PR #$pr mergeable=$mergeable approve-test=$approve_test_time"
+            for _ in 1 2 3 4 5 6; do
+              [ "$mergeable" = "UNKNOWN" ] || break
+              sleep 5
+              mergeable=$(gh pr view "$pr" --repo "${{ github.repository }}" --json mergeable --jq '.mergeable' 2>/dev/null || echo "")
+            done
+            echo "PR #$pr mergeable=$mergeable approve-test=$approve_test_time head-push=$head_push_time"
             if [ "$mergeable" != "MERGEABLE" ]; then
               echo "PR #$pr not MERGEABLE ($mergeable); skipping"
               continue
