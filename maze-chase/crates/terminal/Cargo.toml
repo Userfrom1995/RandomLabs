@@ -20,10 +20,11 @@ maze-chase-audio = { path = "../audio" }
 maze-chase-config = { path = "../config" }
 crossterm = "0.29"
 
-# Bounded stdin waits for the live DA1 probe (poll(2) / waitable console
-# handle) so no reader blocks past the probe deadline.
+# Bounded stdin waits for the live DA1 probe (poll(2) on Unix, a
+# waitable console handle plus queued-record reads on Windows) so no
+# reader blocks past the probe deadline.
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Threading"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Console", "Win32_System_Threading"] }
