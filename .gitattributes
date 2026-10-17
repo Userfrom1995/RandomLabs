@@ -2,3 +2,11 @@
 # core.autocrlf=true would otherwise land CRLF in .sh files, which breaks
 # bash -n gates and Git Bash execution (Windows tester note on issue #515).
 *.sh text eol=lf
+
+# Keep include_str!-embedded sources LF on every checkout. The wasm build
+# embeds these working-tree bytes verbatim, and a CRLF checkout under
+# core.autocrlf=true silently changed the committed web/maze-chase.wasm
+# bytes (Windows tester finding on issue #582). Neither file is ever
+# edited by a Windows-native tool, so LF-only costs nothing.
+maze-chase/levels/*.maze text eol=lf
+maze-chase/docs/design-tokens.json text eol=lf
