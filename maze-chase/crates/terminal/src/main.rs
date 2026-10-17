@@ -44,6 +44,15 @@ struct Terminal {
 
 impl Terminal {
     fn new(kitty_keyboard: bool) -> std::io::Result<Self> {
+        // On Windows crossterm's raw mode talks to the console object
+        // (CONIN$/CONOUT$), not the redirected std handles, so it
+        // "succeeds" on a piped run where the Unix arm fails - refuse
+        // exactly like the documented Unix behavior instead of taking
+        // over a terminal nobody can see or drive.
+        #[cfg(windows)]
+        if !std::io::stdout().is_terminal() {
+            return Err(std::io::Error::other("stdout is not a terminal"));
+        }
         enable_raw_mode()?;
         let mut out = std::io::stdout();
         execute!(out, EnterAlternateScreen)?;
