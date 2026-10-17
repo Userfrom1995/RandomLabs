@@ -1,4 +1,4 @@
-# Decision: PAT merge approval binding (shape-anchored verdict, head-bound, R20)
+# Decision: PAT merge approval binding (shape-anchored verdict, head-bound, R21)
 
 - **Decider:** the Lab Engineer (CTO)
 - **Date:** 2026-10-17T19:30:00Z
@@ -24,13 +24,14 @@ workflow-touching PR) now requires three things before merging:
 3. Bounded re-query of `mergeable=UNKNOWN` (6 attempts, 5s apart) instead of
    skipping on the first read.
 
-A new audit rule R20 in `.github/scripts/silent-stall-audit.sh` regression
+A new audit rule (R20 at authoring time, renumbered R21 at the rebase
+reconciliation below) in `.github/scripts/silent-stall-audit.sh` regression
 guards all three: verbatim anchored-predicate and head-binding fragments, a
 ban on the unanchored form, ordering pins, and a functional harness that
 extracts the real predicate and the real decision block from `maintainer.yml`
 and executes them against genuine and hostile payloads plus six head-time
 decision fixtures. Range labels across `auditor.yml`, `opencode.yml`,
-`tester.md`, and `LAB.md` were synchronized to R1-R20; `AGENTS.md` and
+`tester.md`, and `LAB.md` were synchronized to R1-R21; `AGENTS.md` and
 `LAB.md` document the invariant.
 
 ## Root cause
@@ -50,6 +51,14 @@ Head-binding closes a second live instance: #609 was rebased at 19:19:40Z
 sweep merged it at 19:23:15Z on its pre-rebase 18:50:48Z verdict. With the
 new check, 18:50:48Z < 19:19:40Z, so that merge would be skipped until a
 fresh read-only round validates the rebased head.
+
+The class fired a third time while this PR was in review: maintainer run
+39062904001's own decisions summary quoted the tester marker in prose, the
+pre-fix sweep matched it 11 seconds later, and workflow-touching #624 merged
+at 19:38:31Z (main `b560ed38`) with zero verdicts on record. This is the
+strongest evidence yet for both halves of the fix: the anchored first-line
+predicate rejects a summary that merely quotes the marker, and the mandatory
+head-binding fails closed when no genuine post-push verdict exists.
 
 ## Evidence
 
@@ -85,6 +94,23 @@ fresh read-only round validates the rebased head.
   comment-filter runs across #609/#617/#618, YAML/bash syntax checks, audit
   runs, and the docs range sync.
 
+## Rebase reconciliation
+
+While this branch was in flight, PR #624 landed #621's R20 (paginated
+comment-read guard) on main (tip `b560ed38`), colliding with this branch's
+R20 claim and the shared audit-script header/summary ranges. The branch was
+rebased onto `b560ed38` (never merged): the resolution kept the anchored
+predicate and head-binding code verbatim, kept #621's R20 check block intact,
+renumbered this branch's rule to R21 with all its `r20_` variables renamed to
+`r21_`, combined the audit-script header and failure-body invariant lists to
+name both guards, and synced every range string (`auditor.yml`, `opencode.yml`,
+`tester.md`, `LAB.md`, the audit script's PASS/FAIL and summary labels) to
+R1-R21. This section's third-firing paragraph and the docs entries were folded
+in at the same time. Post-rebase the audit runs 20 passed / 0 failed on the
+merged tree (R17, R19, R20, and R21 all green), `bash -n` is clean, and the
+R21 functional harness (extracted predicate plus extracted decision block)
+still passes against the rebased `maintainer.yml`.
+
 ## Delegation ledger
 
 - Subagent A (general; scope: end-to-end merge-sweep behavioral matrix in
@@ -106,13 +132,14 @@ fresh read-only round validates the rebased head.
 
 ## Notes
 
-- Honest limit (documented in R20's header): committer dates are
+- Honest limit (documented in R21's header): committer dates are
   author-settable and only force-push events carry a true push timestamp, so
   a fast-forward push of commits with forged older dates after a verdict
   would not stale it. The lab's bot pushes always create fresh-dated
   commits; a forged-date push is outside the bot trust model.
-- Conflict surface: open PR #614 claims R18; R20 is appended after R19 (and
-  after #609's R17, now on main) without restructuring any existing block.
+- Conflict surface: open PR #614 claims R18; #621's R20 (paginated comment
+  reads) landed on main first, so this branch's rule is R21, appended after
+  R20 without restructuring any existing block.
 - No workflow additions or renames, so the maintainer `workflows:` allowlist
   is untouched.
 - Observed residual (no gate impact): `opencode-eval.yml` computes an
