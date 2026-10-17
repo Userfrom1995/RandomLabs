@@ -110,9 +110,9 @@
   <section class="cards">
     <div class="card">
       <h4>Maintainer (Hephaestus)</h4>
-      <p>The brain. Surveys the repo 4×/day and on every event, resumes
-      in-progress builds, dispatches the Ideator when idle, picks ideas, pings
-      stalled work, and <em>merges every approved PR</em>.</p>
+      <p>The brain. Surveys the repo every 20 minutes and on every event,
+      resumes in-progress builds, summons the Ideator on demand, picks ideas,
+      pings stalled work, and <em>merges every approved PR</em>.</p>
     </div>
     <div class="card">
       <h4>Ideator</h4>
@@ -178,12 +178,12 @@
   <h2>The review loop</h2>
   <div class="term">Product Track: [Researcher/Architect] ──► [Design Council] ──► Builder ──┐
 Lab Engineer Track: [Auditor/Maintainer] ──► Lab Engineer ───┤
-Curator Track: [Curator] ────────────────────────────────────┴──► Reviewer ──► (clean) ──► Tester ──► "/oc fix: …" ──► Fixer/Lab Engineer ──► push
+Curator Track: [Curator] ────────────────────────────────────┴──► Reviewer ──► (clean) ──► Tester ──► "/oc eval" ──► Evaluator ──► (approve-eval) ──► Maintainer merges (rebase, bot identity), closes issues
                                                              ▲                   │                      │                       │
                                                              │                   └─► "/oc fix: …" ──────┘                       │
                                                              │                                                                  │
                                                              └──────────────────────────────────────────────────────────────────┘
-                                                             └── "/oc approve-test" ──► Maintainer merges (rebase, bot identity), closes issues</div>
+</div>
   <p>Nothing reaches <code>main</code> without the Reviewer's approval. Human
   PRs are reviewed too - findings are guidance for the human to apply; the bot
   never pushes to forks (guidance only).</p>
@@ -213,7 +213,7 @@ bash shutdown.sh</code></pre>
     <tr><td><code>AGENTS.md</code></td><td>The operating blueprint for every agent.</td></tr>
     <tr><td><code>.github/agents/</code></td><td>The prompts themselves, <code>REGISTRY.md</code> roster, <code>CREATING_AGENTS.md</code> creation rules, <code>delegation.md</code> delegation/parallelism/skills protocol, and <code>skills.md</code> known-skills registry, and <code>quality-gates.md</code> binding completion criteria, and <code>continuous-improvement.md</code> binding post-merge loop.</td></tr>
     <tr><td><code>maintainer/logs</code> branch</td><td>The Maintainer's memory: <code>STATE.md</code>, daily logs, <code>personality.md</code> - every run catches up from it.</td></tr>
-    <tr><td><code>.github/workflows/</code></td><td>Thin wiring: <code>maintainer.yml</code>, <code>opencode.yml</code>, <code>opencode-review.yml</code>, <code>opencode-test.yml</code>, <code>auditor.yml</code>, <code>ideate.yml</code>, <code>pages.yml</code>.</td></tr>
+    <tr><td><code>.github/workflows/</code></td><td>Thin wiring: <code>maintainer.yml</code>, <code>opencode.yml</code>, <code>opencode-review.yml</code>, <code>opencode-test.yml</code>, <code>opencode-eval.yml</code>, <code>opencode-peros-test.yml</code>, <code>opencode-recover.yml</code>, <code>curator.yml</code>, <code>auditor.yml</code>, <code>lab.yml</code>, <code>ideate.yml</code>, <code>pages.yml</code>.</td></tr>
     <tr><td><code>.github/actions/</code></td><td>The vendored opencode runner (hardened composite action): an authenticated, non-fatal version lookup so one rate-limited API call can never abort a run before the agent starts.</td></tr>
     <tr><td><code>.github/scripts/</code></td><td>Shared CI scripts: schedule self-heal, silent-stall audit rules, held-run approval sweep, PR recovery, trailer strip.</td></tr>
   </table>
