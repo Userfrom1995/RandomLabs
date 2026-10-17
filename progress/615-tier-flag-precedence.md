@@ -66,3 +66,11 @@ the fix they pass.
   suite green (391/391), clippy/fmt clean.
 - 2026-10-17 (Builder): dropped an unused `Write` import the workspace
   clippy run surfaced in the new test file.
+- 2026-10-17 (Builder): Delegation ledger: no subagents launched (the
+  fix is a one-line precedence replacement in main.rs; the regression
+  suite, PTY harness, and pre/post-fix evidence were authored by the
+  primary against the reproduced defect). Primary verification: pre-fix
+  failure reproduced on origin/main with only the new test file present,
+  post-fix suite green, clippy/fmt clean. Skills note: no skill fits
+  (`customize-opencode` covers opencode configuration, not game code).
+  - the Builder
