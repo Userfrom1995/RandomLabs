@@ -48,7 +48,7 @@ only these terms plus the cast names above.
   sunseeds, gatehouse center): authored in-repo for `pacman/`; used here
   only as a feel and verification reference. NOT copied into this project.
 - Rust launch maze "Ember Warren" (`maze-chase/levels/ember-warren.maze`,
-  authored 2026-10-16, Phase 2): 28x31, left-right symmetric, tunnel row
+  authored 2026-10-16): 28x31, left-right symmetric, tunnel row
   14, gatehouse center with door tiles at columns 13-14, 445 crumbs plus
   4 corner sunseeds, flood fill from (13, 23) reaches all 449 pickups.
   Differs tile-by-tile from the #552 reference in the top pillar rhythm,
@@ -57,7 +57,7 @@ only these terms plus the cast names above.
   coordinates, start/mouth tiles) coincide, as the behavior spec demands.
   Loaded at compile time via `include_str!` so the engine stays
   dependency-free and WASM-safe.
-- Sprite and audio authorship (Phase 4, authored 2026-10-16, all
+- Sprite and audio authorship (authored 2026-10-16, all
   original hand-authored data in-repo, no external sources):
   `crates/assets/src/sprites.rs` (Pip 11x11 three mouth phases with
   transform-derived facings, four 11x11 wardens with the accents above,
@@ -74,4 +74,4 @@ only these terms plus the cast names above.
 
 Wordmark is plain text ("MAZE CHASE") in the theme font; no logo image
 implies any external character. Theme palettes are original (launch theme
-plus alternates ship with the Design Council tokens in Phase 4).
+plus alternates ship with the Design Council tokens).

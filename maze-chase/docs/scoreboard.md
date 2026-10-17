@@ -6,7 +6,7 @@ is estimated: every figure names the command that produced it. Rerun
 the commands in `docs/release.md` on another machine and append a new
 dated section rather than editing these rows.
 
-## 2026-10-16 (Linux x86_64, final-phase audit)
+## 2026-10-16 (Linux x86_64, release audit)
 
 Engine determinism (`cargo run --bin maze-chase-verify`):
 
@@ -40,7 +40,7 @@ Browser artifacts (Node 18+, committed `web/maze-chase.wasm`):
   (warden-chain wire domain, scores push/getter round-trip, hostile
   boundaries, determinism).
 - `web/e2e/browser-e2e.js` (headless chromium over CDP): 13/13 green
-  at Phase 7 sign-off (zero console errors, real ArrowUp scoring,
+  at release sign-off (zero console errors, real ArrowUp scoring,
   pause/resume, touch swipe, 390x844 board visible, 60 FPS live).
   Not re-run in this audit (no display server on the release
   machine); the committed harness is unchanged since its green run.
@@ -54,7 +54,7 @@ Packaging (this audit):
   /tmp/mc-terminal-prefix`): installed and re-probed `--version`
   clean.
 - Desktop Linux tarball plus installer: scripted and documented;
-  release-build plus Xvfb `--probe` run was green at Phase 6
+  release-build plus Xvfb `--probe` run was green at release
   sign-off (`docs/desktop-probe.ppm` committed). Not rebuilt in this
   audit (same sources, workspace build green here).
 - Windows zip and macOS bundle: scripts shipped, must be staged on
@@ -66,7 +66,7 @@ Style and lints:
 - `cargo clippy --workspace --all-targets`: only the six
   pre-existing engine lints from clippy 1.99 remain (untouched
   `maze.rs`/`rng.rs`/`sha256.rs` style notes, present since the
-  engine phases; consensus-critical code is not churned for style).
+  engine was written; consensus-critical code is not churned for style).
   This audit fixed the only two layer-test lints (`assert_eq!` with a
   boolean in terminal headless, `chunks_exact(3)` over an
   exactly-sized buffer in desktop eval-fix); both suites re-run green
@@ -83,7 +83,7 @@ Style and lints:
   comparable clock).
 - Desktop: fixed 120 Hz session matching the engine timestep;
   Xvfb `--probe` run rendered real titled frames to PPM.
-- Browser: 60 FPS live in the CDP run (Phase 7 evidence); the canvas
+- Browser: 60 FPS live in the CDP run (release evidence); the canvas
   composer mirrors the terminal raster with a frame-determinism test
   (`web::video`, `web::bridge` hostile probes).
 

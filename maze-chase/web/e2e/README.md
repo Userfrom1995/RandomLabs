@@ -1,4 +1,4 @@
-# Web layer E2E scripts (Phase 7)
+# Web layer E2E scripts
 
 Three durable, dependency-free harnesses (Node 18+, no npm packages) that
 prove the browser layer against the real artifacts. All exit nonzero

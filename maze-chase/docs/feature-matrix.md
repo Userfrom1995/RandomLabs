@@ -2,20 +2,15 @@
 
 Shared binding tracker for every mechanic across the one engine and the
 three publication layers. One row per mechanic; columns name the engine
-module, each layer's status, and the test proof. Kept current every phase.
+module, each layer's status, and the test proof. Kept current with every
+change.
 
-Status words: `done` (implemented, tested, verified), `planned` (scoped in
-a future phase, no code yet), `degraded` (documented capability fallback,
-never silent), `n/a` (genuinely not applicable to that layer).
+Status words: `done` (implemented, tested, verified), `planned` (scoped,
+no code yet), `degraded` (documented capability fallback, never silent),
+`n/a` (genuinely not applicable to that layer). By the zero-stub rule no UI
+layout ever pretends a `planned` row works.
 
-Phase 4 note: the assets, audio, identity, and config rows below are
-`done` (implemented, tested, reviewed headless: 20 assets tests, 13
-audio tests, 18 config tests, plus the palette cross-check against
-`design-tokens.json`). All three layers remain `planned`; no layer
-code exists yet, and by the zero-stub rule no layer UI pretends
-otherwise.
-
-## Engine simulation (Phase 2: `crates/engine`, done)
+## Engine simulation (`crates/engine`, done)
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|
@@ -26,7 +21,7 @@ otherwise.
 | Seeded RNG streams, replay log, state hash | `rng.rs`, `replay.rs` | planned | planned | planned | `rng::*` (bit-exact vectors), `replay::record_replay_converges`, `tests/golden.rs` |
 | Headless verify harness | `verify.rs` + `maze-chase-verify` | planned | planned | planned | CI: `cargo run --bin maze-chase-verify` 19/19 green |
 
-## Ghosts and progression (Phase 3: `crates/engine`, done)
+## Ghosts and progression (`crates/engine`, done)
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|
@@ -36,7 +31,7 @@ otherwise.
 | House exits, tunnel clamp, pursuer stages | `ghosts.rs`, `tuning.rs` | planned | planned | planned | `verify: house-exits, pursuer-stages` + `ghosts::pursuer_stages_enrage_bram_only` |
 | Bonus items, difficulty ramp, extra modes | `relish.rs`, `game.rs`, `modes.rs`, `tuning.rs` | planned | planned | planned | `verify: relish-cycle, mode-rules` + `relish::*` + `game::sprint_*, time_attack_*, frenzy_*` |
 
-## Assets, audio, identity, config (Phase 4: done)
+## Assets, audio, identity, config (done)
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|
@@ -55,7 +50,7 @@ otherwise.
 | Menus, help, scores, settings screens | n/a (adapter) | done | n/a | n/a | `terminal::{screens,chrome,scores,chime}::*` + `tests/headless.rs::full_session_boots_plays_pauses_and_quits` + `settings_persist_across_sessions` + `game_over_lands_on_the_scores_table` |
 | Installable package + launch docs | n/a (adapter) | done | n/a | n/a | `cargo build --release -p maze-chase-terminal` + `--help` smoke + `packaging/terminal/{linux-tarball,install-linux}.sh` (staged + installed + `--version`-probed on Linux) + `docs/terminal.md` |
 
-## Desktop layer (Phase 6 target: `crates/desktop`)
+## Desktop layer (`crates/desktop`, done)
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|
@@ -64,7 +59,7 @@ otherwise.
 | Menus, settings, scores, audio controls | n/a (adapter) | n/a | done | n/a | `desktop::{screens,app,sound}::*` (flows, session, synth) + `desktop/tests/headless.rs` + `desktop/tests/tester_hostile.rs::corrupt_config_boots_with_defaults` + `::accumulator_drops_surplus` + `::wild_menu_cursors_never_panic` |
 | Per-OS packaging with reproducible steps | n/a (adapter) | n/a | done | n/a | `packaging/desktop/{linux-tarball,install-linux}.sh` (`bash -n` clean) + `windows-zip.ps1` + `macos-app.sh` + `maze-chase.desktop` + `docs/desktop.md` |
 
-## WASM layer and hub (Phase 7: `crates/web`, done)
+## WASM layer and hub (`crates/web`, done)
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|

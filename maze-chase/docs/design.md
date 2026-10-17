@@ -1,6 +1,6 @@
 # Design: Maze Chase Visual and Interaction Language
 
-Authored 2026-10-16 (Phase 4, Builder pass; a formal Design Council
+Authored 2026-10-16 (Builder pass; a formal Design Council
 review may refine but not contradict it). This is the single visual
 source of truth for all three publication layers. Companion machine
 file: `design-tokens.json` (theme hex values mirror

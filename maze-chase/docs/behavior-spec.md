@@ -2,7 +2,7 @@
 
 Empirical behavior contract for the Rust engine, measured from the #552
 Python reference on 2026-10-16 (suite 495 green, 106-row verify matrix).
-The Rust engine (Phase 2-3) must reproduce every row below; each row names
+The Rust engine must reproduce every row below; each row names
 the #552 source module and the pinned value. Values are feel references
 for authoring original Rust tables with provenance comments, per
 `legal.md`: they are not to be transcribed without understanding.

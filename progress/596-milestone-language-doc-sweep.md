@@ -26,14 +26,14 @@ ledger sections.
       reintroduce codes; audit checks must assert the unified headers)
 - [x] tor-cli: README.md, docs/limitations.md, docs/threat-model.md,
       docs/research.md, docs/reproducibility.md
-- [ ] maze-chase: README.md, docs/design.md, docs/behavior-spec.md,
+- [x] maze-chase: README.md, docs/design.md, docs/behavior-spec.md,
       docs/feature-matrix.md, docs/identity.md, docs/legal.md,
       docs/research.md, docs/scoreboard.md, docs/index.md, play.html,
       web/e2e/README.md
-- [ ] Verification: milestone grep clean on public surfaces; umbra node
+- [x] Verification: milestone grep clean on public surfaces; umbra node
       tests (em/en-dash + doc checks), doom node tests plus audit tools,
       layout-audit regeneration + manifest reseal, tor-cli go tests,
-      maze-chase targeted doc-asserting cargo tests
+      maze-chase full workspace cargo tests
 - [ ] PR updated to `Closes #596`
 
 ## Scope decisions
@@ -52,9 +52,11 @@ ledger sections.
 
 ## Current step
 
-tor-cli swept: README plus the four docs/ files de-coded (delta headers,
-"(M5 final)" titles, per-OS section labels, milestone-ordered roadmap prose);
-go test ./... green. Next: maze-chase.
+maze-chase swept and verified: all four public surfaces grep clean; full
+`cargo test --workspace` green (docs-asserting packaging/evalfix tests
+included; ALSA/udev dev packages installed in this runner for the desktop
+crate). Final repo-wide verification pass clean. Remaining: update the PR
+body to `Closes #596` and write the review decision file.
 
 ## Agent log
 
@@ -89,3 +91,19 @@ go test ./... green. Next: maze-chase.
   subject; research spec title and delivery-order handoff de-coded;
   reproducibility title de-coded. Go code comments (internal) untouched by
   decision. go test ./... green.
+- 2026-10-17: maze-chase done. README "What this will be" retitled "What it
+  is", done markers de-coded, layout bullets lose "this phase" notes;
+  design/behavior-spec/research/identity/legal/scoreboard/index/play.html/
+  web-e2e de-coded ("Phase N" headers, per-phase obligations, final-phase
+  audit label); feature-matrix status-word definition and section headers
+  de-coded and the stale pre-layer note removed (the layer status cells
+  themselves are left as shipped facts, flagged in the PR body together
+  with the stale `levels/*.toml` mention in legal.md). Full workspace
+  cargo tests green (344+ passing, docs-asserting tests included).
+- 2026-10-17: Final verification. Public-surface grep (README.md, play.html,
+  web/e2e/README.md and every docs/*.md across the four projects) shows no
+  M-codes, milestone or phase counters except the intentional policy line
+  maze-chase/docs/index.md:4. Out of scope by decision, logged for the PR:
+  internal code/test comments and Cargo/binary strings, the authored maze
+  header (levels/ember-warren.maze), machine evidence JSONs (bench-m5.json
+  owner label prose), and stale planned/done cells in feature-matrix rows.

@@ -1,6 +1,6 @@
 # Mechanics and Stack Research
 
-Phase 1 research synthesis for the Maze-Chase Rust migration (issue #582).
+Research synthesis for the Maze-Chase Rust migration (issue #582).
 All gameplay numbers below are measured from the in-repo #552 Python
 reference (`pacman/`, suite 495 green, 106-row verify matrix); no external
 game code, ROMs, or data tables were consulted or copied. External sources
