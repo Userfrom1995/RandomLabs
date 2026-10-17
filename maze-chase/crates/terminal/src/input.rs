@@ -6,14 +6,23 @@
 //! into an [`Action`]. Gameplay code consumes [`dir_for_action`]; menu
 //! code consumes the raw actions. Nothing here touches the simulation.
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use maze_chase_config::{Action, Key, Keymap};
 use maze_chase_engine::actors::Dir;
 
 /// Translate a crossterm key event to the layer-neutral [`Key`].
 /// Returns `None` for modified keys the game does not bind (Ctrl/Alt
-/// combos) and for unmapped function keys.
+/// combos), for unmapped function keys, and for every non-[`Press`]
+/// kind: on Windows crossterm reports the key-up twin of each keystroke
+/// as [`KeyEventKind::Release`], and acting on both halves would double
+/// every key. The startup-probe replay synthesizes `Press` events, so
+/// keys captured while the probe waits still act.
+///
+/// [`Press`]: KeyEventKind::Press
 pub fn crossterm_to_key(ev: KeyEvent) -> Option<Key> {
+    if ev.kind != KeyEventKind::Press {
+        return None;
+    }
     if ev.modifiers.contains(KeyModifiers::CONTROL) || ev.modifiers.contains(KeyModifiers::ALT) {
         return None;
     }
