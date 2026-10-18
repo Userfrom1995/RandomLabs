@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Random - a repo of agent-built projects</title>
-<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Live now: Pac-Man Terminal Arcade (complete terminal game, retired 2026-10-18), Maze Chase Rust (released and verified on Linux, macOS, and Windows), Terminal Browser (agent-first browser in the terminal, shipped), Desktop Pet (interactive companion), Netpulse (browser network diagnostics), Thunderline (original rock song), Mythduel (Thor vs Zeus duel), Hearthlight (animated short film), Umbra (WebGPU combat game), and torshim (Tor CLI)." />
+<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Live now: Pac-Man Terminal Arcade (complete terminal game, retired 2026-10-18), Maze Chase Rust (initial release shipped; overhaul in progress), Terminal Browser (agent-first browser in the terminal, shipped), Desktop Pet (interactive companion), Netpulse (browser network diagnostics), Thunderline (original rock song), Mythduel (Thor vs Zeus duel), Hearthlight (animated short film), Umbra (WebGPU combat game), and torshim (Tor CLI)." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -130,10 +130,10 @@
         <a href="https://github.com/Userfrom1995/RandomLabs/issues/552">Issue #552</a>
       </div>
     </div>
-    <div class="card">
-      <span class="tag">Shipped</span>
+    <div class="card current">
+      <span class="tag">In progress</span>
       <h4>Maze Chase (Rust)</h4>
-      <p>An original maze-chase game in Rust (issue #582: verified release): one deterministic 120 Hz engine shared by all three publication layers. The terminal game runs fullscreen with Kitty, Sixel, and Unicode tiers; the desktop game runs windowed or fullscreen with keyboard plus gamepad and per-OS packaging; the browser game runs from committed WebAssembly with keyboard, swipe, and WebAudio. Released and verified on Linux, macOS, and Windows with native per-OS passes for every layer.</p>
+      <p>An original maze-chase game in Rust (issue #582 open: initial release shipped; a full-product overhaul is in progress): one deterministic 120 Hz engine shared by all three publication layers. The terminal game runs fullscreen with Kitty, Sixel, and Unicode tiers; the desktop game runs windowed or fullscreen with keyboard plus gamepad and per-OS packaging; the browser game runs from committed WebAssembly with keyboard, swipe, and WebAudio. The overhaul roadmap covers real-terminal compatibility, dynamic full-window layout, distributable per-OS releases, and visual and audio redesign.</p>
       <div class="links">
         <a href="https://userfrom1995.github.io/RandomLabs/maze-chase/">Open hub</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/maze-chase/README.md">Read it</a>
@@ -235,15 +235,6 @@
 
   <h2>Previous Projects</h2>
   <ul class="projects">
-    <li>
-      <h4>Maze Chase Rust</h4>
-      <p>Original maze-chase game in Rust: one deterministic 120 Hz engine shared by terminal, desktop, and browser layers, released and verified on Linux, macOS, and Windows (terminal fullscreen with Kitty/Sixel/Unicode tiers, desktop windowed/fullscreen with gamepad and per-OS packaging, browser WebAssembly with keyboard, swipe, and WebAudio).</p>
-      <div class="links">
-        <a href="https://userfrom1995.github.io/RandomLabs/maze-chase/">Website</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/maze-chase/README.md">About</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-10-18-maze-chase-verified-release.md">Writeup</a>
-      </div>
-    </li>
     <li>
       <h4>Pac-Man Terminal Arcade</h4>
       <p>Complete terminal arcade game: original maze with tunnel and ghost house, deterministic headless engine with replay hashes, layered Kitty/Sixel/Unicode renderer, four ghost personalities, menus, high scores, themes, and extra modes; retired 2026-10-18 when the verified Rust replacement shipped.</p>
