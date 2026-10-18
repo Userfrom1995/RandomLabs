@@ -1,5 +1,10 @@
 # Progress - Maze-Chase Rust Migration
 
+> **Archived (2026-10-18):** this migration epic is complete. The active
+> tracker for the owner-ordered overhaul is
+> `progress/582-maze-chase-overhaul.md`; the overhaul blueprint is
+> `ideas/2026-10-18-maze-chase-overhaul.md`.
+
 - **Issue:** #582 (parent tracker; gameplay reference #552 stays functional until replacement is verified)
 - **Branch:** opencode/issue582-verified-release
 - **Status:** complete
