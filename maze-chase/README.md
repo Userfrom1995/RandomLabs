@@ -11,7 +11,7 @@ Current status: **released and verified across Linux, macOS, and
 Windows.** Both native per-OS passes ran on their real operating
 systems (workspace suites, per-layer E2E, packaged artifacts, wasm
 rebuilds) and every parity row is signed; the measured numbers live in
-[docs/scoreboard.md](docs/scoreboard.md) and the retirement gate in
+[docs/scoreboard.md](docs/scoreboard.md) and the retirement record in
 [docs/parity.md](docs/parity.md). The deterministic engine
 simulates the full core loop plus the complete hunt headless (120 Hz
 timestep, movement with buffered turns and cornering, crumbs and
@@ -182,5 +182,5 @@ capture for terminal backends, real GUI drives plus per-OS runners for
 desktop, headless-chromium CDP keyboard and touch runs for WASM, and a
 release scoreboard publishing measured tick cost, suite totals, and frame
 budgets. Parity is verified on all three operating systems; the #552
-Python reference game retires by the Maintainer's explicit step after
-this release lands.
+Python reference game is retired in favor of this game, kept as the
+reference implementation.
