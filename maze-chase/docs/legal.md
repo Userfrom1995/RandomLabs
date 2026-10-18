@@ -42,8 +42,9 @@ from proprietary sources, ROMs, ripped sprites, or copied timing tables.
   pass.
 - **Cloned data tables**: resolved. Every value in `tuning.rs` carries
   provenance comments and was re-expressed from the behavioral
-  contract (`72a52df1` plus the phase-3 extension `1a464d26`); the
-  #552 numbers were feel references, never transcribed.
+  contract (`72a52df1`, extended by the ghost-intelligence work at
+  `1a464d26`); the #552 numbers were feel references, never
+  transcribed.
 - **Trademarked terms**: resolved. The naming allowlist in
   `identity.md` governs every identifier, UI string, asset filename,
   doc, and commit message; a tree-wide sweep at release finds the

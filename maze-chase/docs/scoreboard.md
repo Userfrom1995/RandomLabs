@@ -84,8 +84,8 @@ Linux release machine (this pass, Rust 1.99.0):
 
 - `cargo test --workspace --no-fail-fast`: 407 passed, 0 failed across
   45 test targets (the 2026-10-16 table above records the earlier
-  344-pass run; the difference is the tester regression suites landed
-  since).
+  344-pass run; the difference is the tester regression suites that
+  landed since).
 - `cargo run --release --bin maze-chase-verify`: `verify: 19/19 checks
   passed`, golden replay `23c17f89734e`, `perf-headless` 0.2 us/tick.
 - Wasm rebuild (`cargo build --release --target
