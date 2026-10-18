@@ -105,6 +105,13 @@ fn ticker_for(event: &str) -> Option<String> {
     }
 }
 
+/// Fit a plan for this window, using the terminal's real cell pixel
+/// size when it reports one (piped stdout and plain PTYs report none
+/// and fall back to nominal cells).
+fn layout_for(cols: u16, rows: u16) -> Layout {
+    layout::compute_with(cols, rows, crate::geometry::detect_cell_px())
+}
+
 /// The terminal game session.
 pub struct App {
     pub game: Game,
@@ -147,7 +154,7 @@ impl App {
             scores,
             chime,
             watchdog: Watchdog::new(tier),
-            layout: layout::compute(cols, rows),
+            layout: layout_for(cols, rows),
             frame_no: 0,
             pending_dir: None,
             was_running: false,
@@ -164,9 +171,11 @@ impl App {
         self.watchdog.tier()
     }
 
-    /// Re-fit the canvas (dynamic resize path).
+    /// Re-fit the canvas (dynamic resize path). The plan also re-reads
+    /// the terminal's real cell pixel size, so a font change is picked
+    /// up on the next resize (issue #673).
     pub fn resize(&mut self, cols: u16, rows: u16) {
-        self.layout = layout::compute(cols, rows);
+        self.layout = layout_for(cols, rows);
     }
 
     fn save_settings(&mut self) {
@@ -371,12 +380,14 @@ impl App {
             .unwrap_or(&maze_chase_assets::themes::EMBER_WARREN)
     }
 
-    /// Render a bitmap PNG of the current game frame (Kitty/Sixel tiers).
+    /// Render a bitmap PNG of the current game frame (Kitty/Sixel tiers)
+    /// at the plan's raster scale: the real cell pixel size when the
+    /// terminal reports it (issue #673).
     pub fn bitmap_png(&self) -> Vec<u8> {
         let frame = crate::raster::render(
             &self.game,
             self.theme(),
-            crate::raster::DEFAULT_PPT,
+            self.layout.ppt(),
             self.frame_no,
             !self.settings.reduced_flash,
         );

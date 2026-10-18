@@ -58,18 +58,28 @@ impl PixelFrame {
     }
 }
 
-/// Paint one legend glyph centered at pixel `(cx, cy)`.
+/// Sprite art is authored on an 8-pixel tile grid; when the raster is
+/// taken at a larger real cell size, each sprite pixel becomes a
+/// `scale`x`scale` block so the art stays crisp instead of shrinking
+/// relative to the tile (issue #673).
+fn sprite_scale(ppt: i32) -> i32 {
+    (ppt / 8).max(1)
+}
+
+/// Paint one legend glyph centered at pixel `(cx, cy)`, each glyph pixel
+/// drawn as a `scale`x`scale` block.
 fn paint_glyph(
     frame: &mut PixelFrame,
     rows: &[&str],
     cx: i32,
     cy: i32,
-    body: Rgb,
-    outline: Rgb,
-    highlight: Rgb,
+    scale: i32,
+    palette: [Rgb; 3],
 ) {
+    let [body, outline, highlight] = palette;
     let h = rows.len() as i32;
     let w = rows.first().map(|r| r.len()).unwrap_or(0) as i32;
+    let scale = scale.max(1);
     for (gy, row) in rows.iter().enumerate() {
         for (gx, ch) in row.bytes().enumerate() {
             let c = match ch {
@@ -79,7 +89,15 @@ fn paint_glyph(
                 b'*' => highlight,
                 _ => continue,
             };
-            frame.set(cx - w / 2 + gx as i32, cy - h / 2 + gy as i32, c);
+            for dy in 0..scale {
+                for dx in 0..scale {
+                    frame.set(
+                        cx - (w * scale) / 2 + gx as i32 * scale + dx,
+                        cy - (h * scale) / 2 + gy as i32 * scale + dy,
+                        c,
+                    );
+                }
+            }
         }
     }
 }
@@ -105,6 +123,7 @@ pub fn relish_icon_index(level: u32) -> usize {
 /// callers pass `false` to hold the steady mask (honors reduced-flash).
 pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) -> PixelFrame {
     let ppt = ppt.max(MIN_PPT) as i32;
+    let scale = sprite_scale(ppt);
     let w = WIDTH * ppt;
     let h = HEIGHT * ppt;
     let mut frame = PixelFrame::blank(w as u32, h as u32, theme.bg);
@@ -165,9 +184,8 @@ pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) 
                             glyph,
                             x0 + ppt / 2,
                             y0 + ppt / 2,
-                            theme.sunseed,
-                            theme.sunseed,
-                            theme.eyes,
+                            scale,
+                            [theme.sunseed, theme.sunseed, theme.eyes],
                         );
                     }
                 }
@@ -189,9 +207,8 @@ pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) 
             icon,
             rtx * ppt + ppt / 2,
             rty * ppt + ppt / 2 + bob,
-            theme.accent,
-            theme.text,
-            theme.eyes,
+            scale,
+            [theme.accent, theme.text, theme.eyes],
         );
     }
 
@@ -209,7 +226,14 @@ pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) 
                     maze_chase_engine::actors::Dir::Down => &sprites::EYES_DOWN,
                     _ => &sprites::EYES_RIGHT,
                 };
-                paint_glyph(&mut frame, eyes, cx, cy, theme.eyes, theme.eyes, theme.eyes);
+                paint_glyph(
+                    &mut frame,
+                    eyes,
+                    cx,
+                    cy,
+                    scale,
+                    [theme.eyes, theme.eyes, theme.eyes],
+                );
             }
             _ => {
                 let body_glyph: &[&str] = match warden.index {
@@ -229,9 +253,8 @@ pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) 
                         mask,
                         cx,
                         cy,
-                        theme.fright,
-                        theme.text,
-                        theme.eyes,
+                        scale,
+                        [theme.fright, theme.text, theme.eyes],
                     );
                 } else {
                     paint_glyph(
@@ -239,9 +262,8 @@ pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) 
                         body_glyph,
                         cx,
                         cy,
-                        bodies[warden.index],
-                        theme.text,
-                        theme.eyes,
+                        scale,
+                        [bodies[warden.index], theme.text, theme.eyes],
                     );
                     let eyes: &[&str] = match warden.actor.dir {
                         maze_chase_engine::actors::Dir::Up => &sprites::EYES_UP,
@@ -253,10 +275,9 @@ pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) 
                         &mut frame,
                         eyes,
                         cx,
-                        cy - 1,
-                        theme.eyes,
-                        theme.eyes,
-                        theme.eyes,
+                        cy - scale,
+                        scale,
+                        [theme.eyes, theme.eyes, theme.eyes],
                     );
                 }
             }
@@ -271,7 +292,12 @@ pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) 
     if game.state == maze_chase_engine::game::GameState::Dying {
         let clip = &sprites::PIP_DEATH[(frame_no as usize / 8) % 4];
         paint_glyph(
-            &mut frame, clip, pcx, pcy, theme.pip, theme.text, theme.eyes,
+            &mut frame,
+            clip,
+            pcx,
+            pcy,
+            scale,
+            [theme.pip, theme.text, theme.eyes],
         );
     } else {
         let phase = (frame_no / 5) as usize % 3;
@@ -293,7 +319,12 @@ pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) 
         };
         let refs: Vec<&str> = facing.iter().map(|s| s.as_str()).collect();
         paint_glyph(
-            &mut frame, &refs, pcx, pcy, theme.pip, theme.text, theme.eyes,
+            &mut frame,
+            &refs,
+            pcx,
+            pcy,
+            scale,
+            [theme.pip, theme.text, theme.eyes],
         );
     }
 

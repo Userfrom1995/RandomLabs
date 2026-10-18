@@ -130,6 +130,17 @@ pub fn delete_escape(id: u32) -> String {
     format!("\x1b_Ga=d,d=I,i={id}\x1b\\")
 }
 
+/// Delete every visible placement (kitty `a=d` with no other keys).
+///
+/// Used on a layout-plan change (resize, tier change): the old placement
+/// belongs to the old cell grid, and issue #674 requires it to be gone
+/// before the same-frame repaint, not lingering until the next image
+/// frame. Bare `a=d` never frees image data, so a re-display can reuse
+/// the id or resend freely.
+pub fn delete_all_escape() -> &'static str {
+    "\x1b_Ga=d\x1b\\"
+}
+
 /// Display escape with a stable image id (`None` behaves like
 /// [`display_escape`]). Re-displaying the same id after
 /// [`delete_escape`] keeps one live image per frame.
@@ -249,6 +260,13 @@ mod tests {
         assert!(esc.contains(",m=1;"), "first of two frames continues");
         assert!(esc.contains("\x1b_Gm=0;"), "final frame terminates");
         assert!(esc.ends_with("\x1b\\"));
+    }
+
+    #[test]
+    fn delete_escapes_are_minimal_and_framed() {
+        assert_eq!(delete_escape(7), "\x1b_Ga=d,d=I,i=7\x1b\\");
+        // Bare a=d deletes all visible placements without freeing data.
+        assert_eq!(delete_all_escape(), "\x1b_Ga=d\x1b\\");
     }
 
     #[test]
