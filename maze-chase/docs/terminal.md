@@ -82,13 +82,17 @@ The game picks the best tier its terminal proves, best first:
     (`KITTY_WINDOW_ID`, `TERM=xterm-kitty`, `TERM_PROGRAM=kitty`)
     plus Kitty keyboard enhancement for disambiguated input. Forcing it
     elsewhere prints escape garbage: do not force it on other terminals.
-    The compatibility harness measured the current build re-transmitting
-    every frame at 58-76 full PNG frames/s on kitty 0.32.2 (the
-    terminal's `OK` replies keep the event loop busy; see
-    `tools/compat/evidence/kitty-linux-auto/ack-spin-experiment.md`),
-    far above the intended pacing, with keyboard input degraded while
-    gameplay runs. Fixing the reply handling and the pacing is tracked
-    in the #582 overhaul.
+    The compatibility harness measured the current build on kitty 0.32.2:
+    one session sent 1642 full board transmits totalling 348.7 MiB of PNG
+    payload, and the terminal's `OK` replies keep the event loop spinning
+    at 70-77 synchronized frames/s (391/s with the too-small card up)
+    against the intended pacing (see
+    `../tools/compat/evidence/kitty-linux-auto/ack-spin-experiment.md`
+    and the committed row JSON). Input queues behind the flood: the pause
+    surface first paints 298 MB into the session and the quit path never
+    lands, so the row is marked partial. Fixing the reply handling and
+    the pacing is the terminal render pipeline phase of the #582
+    overhaul.
 2. **sixel**: true pixels through a hand-rolled Sixel encoder (palette
    registers, six-row bands, run-length rows). Engages after the
    terminal answers the DA1 probe at startup (250 ms budget, then the
@@ -101,7 +105,10 @@ The game picks the best tier its terminal proves, best first:
    iTerm2, and VS Code path.
 4. **legacy-cells**: the same board folded to the 16 ANSI colors for
    conventional terminals. Fully playable: the only difference is
-   palette depth.
+   palette depth. On a light background the cream chrome text is
+   unreadable on white (the compatibility matrix records the committed
+   light xterm row and its dark-background twin); a light-background
+   palette is tracked in the #582 overhaul.
 
 A watchdog drops one tier per failure burst (3 strikes) and records
 why; the title screen shows the active tier and the downgrade trail,
@@ -113,7 +120,7 @@ current auto-detect routes `TERM_PROGRAM=ghostty` straight to
 truecolor-cells, so Ghostty plays on the 24-bit cell tier even though it
 could paint pixels. The compatibility harness verified a forced-PNG
 session rendering through Ghostty 1.3.1
-(`tools/compat/evidence/ghostty-linux-kitty.json`); enabling it by
+(`../tools/compat/evidence/ghostty-linux-kitty.json`); enabling it by
 default is tracked in the #582 overhaul.
 
 ## Layout and resize
