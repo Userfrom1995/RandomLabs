@@ -140,10 +140,11 @@ Kitty tier the old image placement is deleted in the same frame). The
 render loop re-reads the real window size every frame and re-fits on any
 difference, so a window change is applied even when the terminal
 delivers its resize signal in the same batch as a keypress. On the
-pixel tiers the board rasterizes at the detected cell pixel size (from
-8x16 up), so the image maps nearly 1:1 onto its cell footprint;
-terminals that report no pixel size keep the proven 8-pixels-per-tile
-nominal raster.
+pixel tiers the board rasterizes at the detected cell pixel size,
+clamped to 6..20 pixels per tile so encode cost stays bounded (large
+windows get an upscaled capped raster by design), so the image maps
+nearly 1:1 onto its cell footprint; terminals that report no pixel size
+keep the proven 8-pixels-per-tile nominal raster.
 
 ## Settings and scores
 
