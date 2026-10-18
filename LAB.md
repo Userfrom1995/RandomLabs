@@ -635,8 +635,15 @@ startup, and appends only that delta, so a concurrent session's same-day
 entry is never dropped (keep-both; `STATE.md` stays last-writer-wins). The
 publish path is never quiet (real git errors always land in the step log)
 and a bounded failure ends red with the recoverable bundle printed into the
-run log instead of silently losing a session. Regression-guarded by audit
-rule R23 in `.github/scripts/silent-stall-audit.sh`.
+run log instead of silently losing a session. The bootstrap path (a brand-new
+`maintainer/logs`) uses a unique unborn root per attempt, so a retry can
+never abort on a reused branch name under the runner's `bash -e` shell, and
+an empty bootstrap composition can never conclude green without a pushed tip.
+Regression-guarded by audit rule R23 in `.github/scripts/silent-stall-audit.sh`,
+whose functional sandbox executes the real extracted step under that same
+`bash -e` shell against a local bare-repo origin (bootstrap, fetch-failure,
+and race scenarios included; a green publish claim must have advanced the
+remote tip).
 
 ## 23. Fork PRs (external contributors)
 
