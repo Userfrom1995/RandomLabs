@@ -38,8 +38,10 @@
 # body into a mangled "C:/Program Files/Git/..." path before gh saw it, so
 # slash-leading argv bodies now require an MSYS conversion opt-out or a
 # stdin transport), the R19 review-comment publication-evidence guard
-# (issue #616: a reviewer death between the decision-file write and the
-# comment post forwarded an unread verdict with zero published findings),
+# (issues #616, #637: a reviewer death between the decision-file write and
+# the comment post forwarded an unread verdict with zero published findings,
+# and a healthy session whose final message was not the signed decision
+# comment lost its verdict without the bounded auto-retry),
 # the R20 paginated comment-read guard (issue #621: unbounded comment
 # enumerations read only the oldest 30 comments, so a retry cap on a busy
 # thread reads 0 and a crash loop re-posts retry 1 forever), and the R21
@@ -2212,12 +2214,18 @@ else
   check "R18" "Windows MSYS argv-conversion guard missing:${r18_bad} (issue #612: a /oc handoff body can be posted as a mangled C:/Program Files/Git path)" "bad"
 fi
 
-# [R19] Review-comment publication evidence (issue #616): the review verify
-# step treated ANY present /tmp/random-lab-decision.json as a completed
-# verdict, even when the reviewer died between the decision-file write and
-# the comment post (provider api_key_expired at turn end, review run
-# 39052018409 on PR #614): the gate forwarded an unread verdict with zero
-# published findings. Properties:
+# [R19] Review-comment publication evidence (issues #616, #637): the review
+# verify step treated ANY present /tmp/random-lab-decision.json as a
+# completed verdict, even when the reviewer died between the decision-file
+# write and the comment post (provider api_key_expired at turn end, review
+# run 39052018409 on PR #614): the gate forwarded an unread verdict with
+# zero published findings. Issue #637 showed the other half of the class: a
+# HEALTHY reviewer session that ends on any message other than the
+# sign-off-bearing decision comment (the wrapper posts only the FINAL
+# message, so a post-compaction wrap-up replaced the composed verdict;
+# review run 39089530715 on PR #636) also has an unpublished verdict, but
+# reports outcome=success and used to hit a fail-loud branch with NO
+# auto-retry, losing the verdict until a human recovered it. Properties:
 #   1. the shared script accepts only a github-actions[bot] comment created
 #      after the triggering comment whose body carries the reviewer sign-off
 #      line (the wrapper's final-message comment with its run footer and a
@@ -2228,9 +2236,14 @@ fi
 #      (never the checked-out PR head, so a PR can never weaken the gate
 #      that reviews it) and fails closed when it is unavailable;
 #   3. an unpublished verdict is discarded BEFORE the infra override and the
-#      forward step can ever see it, and a failed agent step falls into the
-#      existing bounded auto-retry; a verification failure (exit 2) neither
-#      forwards nor auto-retries a possibly-published review;
+#      forward step can ever see it, and - regardless of the agent step's
+#      outcome (issue #637) - sets the shared crash flag that gates the
+#      same bounded auto-retry a failed agent step uses, so the
+#      success+unpublished class can never bypass the retry again; the
+#      exact shape is pinned (both detection branches set the flag, the
+#      retry is gated on exactly that flag, and no second unpublished
+#      fail-loud branch may exist after it); a verification failure (exit
+#      2) neither forwards nor auto-retries a possibly-published review;
 #   4. the force-lab-routing and forward steps are gated on the verify
 #      step's success, so no forward path survives an inconclusive verify;
 #   5. a functional test executes the real script against an executable mock
@@ -2238,11 +2251,20 @@ fi
 #      from a sandbox config file, sandbox outside the repo tree) across
 #      published (footer + tool-posted + page-2 + trailing-space),
 #      incident-error, stale, owner-authored, inline-mention, empty,
-#      bad-json, and fetch-failure payloads.
-# Review-gated residual boundary (same as R17): the verify step's own shell
-# control flow cannot be executed by a static audit, so an arbitrary
-# reshuffle that still passes every exact-form and ordering pin below is
-# caught by the review gate, not by this rule.
+#      bad-json, and fetch-failure payloads;
+#   6. a second functional test (issue #637) executes the REAL extracted
+#      verify `run:` block (five macro lines substituted, integrity
+#      asserted) in a sandbox git repo whose commit carries a
+#      scenario-driven evidence stub, against a mock `gh` that serves the
+#      retry enumeration and records posts: success+unpublished MUST post
+#      `/oc review (auto-retry N)` and exit 0 (the #637 regression), a
+#      failed run without a verdict retries, a prior-marker thread advances
+#      N, the cap and an enumeration failure refuse loudly, exit 2 never
+#      retries, success+no-decision stays a loud no-retry no-op, and a
+#      gate denial skips everything.
+# Residual boundary (same as R17): exotic sandbox-path fingerprinting is
+# caught by the review gate, not by this rule; the verify shell control flow
+# itself is now executed behaviorally per property 6.
 r19_bad=""
 R19_SCRIPT=".github/scripts/review-comment-published.sh"
 R19_VERDICT_GATE="if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success'"
@@ -2302,27 +2324,45 @@ else
     printf '%s\n' "$r19_unknown_block" | grep -qF 'rm -f /tmp/random-lab-decision.json' || r19_bad="${r19_bad} review.yml(unknown-verify-keeps-verdict)"
     printf '%s\n' "$r19_unknown_block" | grep -qE '^[[:space:]]*exit 1$' || r19_bad="${r19_bad} review.yml(unknown-verify-not-exit-1)"
     printf '%s\n' "$r19_unknown_block" | grep -q 'gh api' && r19_bad="${r19_bad} review.yml(unknown-verify-auto-retries)"
-    # Ordering (issue #616 core): evidence before verdict, verdict before the
-    # published guard, published guard before its exit 0, and the discard of
-    # an unpublished verdict between the guard and the retry block.
+    # Ordering (issues #616, #637): evidence before verdict, verdict before
+    # the published guard, published guard before its exit 0, and the discard
+    # of an unpublished verdict between the guard and the retry block.
     r19_line() { printf '%s\n' "$r19_verify_block" | grep -nF -- "$1" | head -1 | cut -d: -f1; }
     r19_ev_line=$(r19_line 'bash "$evidence_script" "$pr" "$SINCE" || pub_rc=$?')
     r19_verdict_line=$(r19_line 'if [ -f /tmp/random-lab-decision.json ]; then')
     r19_pubtrue_line=$(r19_line 'if [ "$published" = "true" ]; then')
     r19_pubexit_line=$(r19_line 'Review decision file present and the decision comment is published; gate produced a verdict.')
-    r19_retry_line=$(r19_line 'if [ "$outcome" != "success" ]; then')
-    r19_unpubl_line=$(r19_line 'if [ "$unpublished_verdict" = "true" ]; then')
     r19_uverdict_line=$(r19_line 'unpublished_verdict="true"')
+    # Issue #637 crash parity: both the failed-outcome branch and the
+    # unpublished-verdict branch must set the shared crash flag, and the
+    # bounded auto-retry must be gated on exactly that flag, so a healthy
+    # session that lost its verdict cannot skip the retry again.
+    r19_crinit_line=$(r19_line 'crash_signature="false"')
+    r19_fail_line=$(r19_line 'if [ "$outcome" != "success" ]; then')
+    r19_crset_line=$(r19_line 'crash_signature="true"')
+    r19_unpubl_line=$(r19_line 'if [ "$unpublished_verdict" = "true" ]; then')
+    r19_crash_line=$(r19_line 'if [ "$crash_signature" = "true" ]; then')
+    r19_retries_line=$(r19_line 'retries=$(gh api')
     if [ -z "$r19_ev_line" ] || [ -z "$r19_verdict_line" ] || [ "$r19_ev_line" -ge "$r19_verdict_line" ]; then
       r19_bad="${r19_bad} review.yml(evidence-not-before-verdict:${r19_ev_line:-none}/${r19_verdict_line:-none})"
     fi
     if [ -z "$r19_verdict_line" ] || [ -z "$r19_pubtrue_line" ] || [ -z "$r19_pubexit_line" ] || [ "$r19_verdict_line" -ge "$r19_pubtrue_line" ] || [ "$r19_pubtrue_line" -ge "$r19_pubexit_line" ]; then
       r19_bad="${r19_bad} review.yml(published-guard-order:${r19_verdict_line:-none}/${r19_pubtrue_line:-none}/${r19_pubexit_line:-none})"
     fi
-    if [ -z "$r19_retry_line" ] || [ -z "$r19_unpubl_line" ] || [ -z "$r19_uverdict_line" ] || [ "$r19_uverdict_line" -ge "$r19_retry_line" ] || [ "$r19_retry_line" -ge "$r19_unpubl_line" ]; then
-      r19_bad="${r19_bad} review.yml(unpublished-discard-order:${r19_uverdict_line:-none}/${r19_retry_line:-none}/${r19_unpubl_line:-none})"
+    if [ -z "$r19_crinit_line" ] || [ -z "$r19_fail_line" ] || [ -z "$r19_crset_line" ] || [ -z "$r19_unpubl_line" ] || [ -z "$r19_crash_line" ] || [ -z "$r19_retries_line" ] \
+       || [ "$r19_uverdict_line" -ge "$r19_crinit_line" ] || [ "$r19_crinit_line" -ge "$r19_fail_line" ] || [ "$r19_fail_line" -ge "$r19_crset_line" ] \
+       || [ "$r19_crset_line" -ge "$r19_unpubl_line" ] || [ "$r19_unpubl_line" -ge "$r19_crash_line" ] || [ "$r19_crash_line" -ge "$r19_retries_line" ]; then
+      r19_bad="${r19_bad} review.yml(crash-gate-order:${r19_uverdict_line:-none}/${r19_crinit_line:-none}/${r19_fail_line:-none}/${r19_crset_line:-none}/${r19_unpubl_line:-none}/${r19_crash_line:-none}/${r19_retries_line:-none})"
     fi
-    r19_discard_line=$(printf '%s\n' "$r19_verify_block" | grep -nF 'rm -f /tmp/random-lab-decision.json' | awk -F: -v a="$r19_pubtrue_line" -v b="$r19_retry_line" '$1 > a && $1 < b {print $1; exit}')
+    # Exactly one unpublished-verdict branch and exactly two crash-flag
+    # setters: the pre-#637 shape (a second, post-retry fail-loud branch for
+    # the success case) would leave one setter and one such branch, letting
+    # the success+unpublished run bypass the retry gate again.
+    r19_unpub_count=$(printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -cxF 'if [ "$unpublished_verdict" = "true" ]; then' || true)
+    [ "$r19_unpub_count" -eq 1 ] || r19_bad="${r19_bad} review.yml(unpublished-branch-count=${r19_unpub_count},want=1)"
+    r19_crset_count=$(printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -cxF 'crash_signature="true"' || true)
+    [ "$r19_crset_count" -eq 2 ] || r19_bad="${r19_bad} review.yml(crash-set-count=${r19_crset_count},want=2)"
+    r19_discard_line=$(printf '%s\n' "$r19_verify_block" | grep -nF 'rm -f /tmp/random-lab-decision.json' | awk -F: -v a="$r19_pubtrue_line" -v b="$r19_fail_line" '$1 > a && $1 < b {print $1; exit}')
     [ -n "$r19_discard_line" ] || r19_bad="${r19_bad} review.yml(no-discard-between-verdict-and-retry)"
     [ "$(printf '%s\n' "$r19_verify_block" | grep -cF 'rm -f /tmp/random-lab-decision.json' || true)" -ge 3 ] || r19_bad="${r19_bad} review.yml(discard-count-lt-3)"
     # No forward path survives an inconclusive verify: both the infra
@@ -2442,15 +2482,166 @@ R19_PAYLOAD
     fi
   fi
 fi
+# R19 property 6 (issue #637): behavioral contract test of the REAL verify
+# step. Static pins constrain the shape, but the class that lost a verdict
+# (success + provably unpublished, review run 39089530715 on PR #636) needs
+# executable proof that the bounded auto-retry fires, so the real `run:`
+# block is extracted, exactly five macro lines are substituted (integrity
+# asserted: no `${{` and no raw decision path may survive), and it executes
+# in a sandbox git repo whose commit carries a scenario-driven evidence
+# stub, with an executable mock `gh` that serves the retry enumeration
+# (refusing any unpaginated read) and records auto-retry posts. Every
+# scenario asserts exit code, posted body, decision-file state, and a
+# required output marker, so the pre-#637 fail-loud-without-retry shape
+# turns the rule red. Interception is asserted before the matrix,
+# credentials are scrubbed, the mock is the only gh in PATH, and the
+# sandbox lives outside the repo tree (delegation.md section 6).
+r19p_bash_bin=$(command -v bash 2>/dev/null || true)
+r19p_env_bin=$(command -v env 2>/dev/null || true)
+r19p_timeout_bin=$(command -v timeout 2>/dev/null || true)
+r19p_git_bin=$(command -v git 2>/dev/null || true)
+if [ -z "$r19p_bash_bin" ] || [ -z "$r19p_env_bin" ] || [ -z "$r19p_timeout_bin" ] || [ -z "$r19p_git_bin" ]; then
+  r19_bad="${r19_bad} verify-behavioral(required-binary-missing)"
+elif [ -f "$REVIEW_WF" ]; then
+  r19p_tmp=$(mktemp -d 2>/dev/null || true)
+  if [ -z "$r19p_tmp" ] || [ ! -d "$r19p_tmp" ]; then
+    r19_bad="${r19_bad} verify-behavioral(sandbox-unavailable)"
+  else
+    r19p_run=$(awk '
+      /^      - name: Verify review decided, else auto-retry[[:space:]]*$/ { in_step=1; next }
+      in_step && /^      - name: / { exit }
+      in_step && /^[[:space:]]*run: \|[[:space:]]*$/ { in_run=1; next }
+      in_run { sub(/^          /, ""); print }
+    ' "$REVIEW_WF" 2>/dev/null || true)
+    r19p_block="$r19p_tmp/verify.sh"
+    printf '%s\n' "$r19p_run" \
+      | sed -e 's/\${{ github\.event\.issue\.number }}/614/g' \
+            -e 's/\${{ github\.repository_owner }}/mockowner/g' \
+            -e 's/\${{ github\.repository }}/mockrepo/g' \
+            -e 's/\${{ steps\.review\.outcome }}/\${R19P_OUTCOME}/g' \
+            -e 's#/tmp/random-lab-decision\.json#${R19P_DECISION}#g' > "$r19p_block"
+    if [ -z "$r19p_run" ] || grep -q '\${{' "$r19p_block" 2>/dev/null \
+       || grep -qF '/tmp/random-lab-decision.json' "$r19p_block" 2>/dev/null \
+       || ! grep -qF 'crash_signature="true"' "$r19p_block" 2>/dev/null \
+       || ! "$r19p_bash_bin" -n "$r19p_block" 2>/dev/null; then
+      r19_bad="${r19_bad} verify-behavioral(extract-substitute-syntax)"
+    else
+      r19p_repo="$r19p_tmp/repo"
+      mkdir -p "$r19p_repo/.github/scripts" "$r19p_tmp/bin" "$r19p_tmp/home" "$r19p_tmp/run"
+      cat > "$r19p_repo/.github/scripts/review-comment-published.sh" <<'R19P_EVIDENCE'
+#!/usr/bin/env bash
+echo "R19P evidence stub: pr=$1 since=$2"
+exit "${R19P_EVIDENCE_RC:-1}"
+R19P_EVIDENCE
+      (
+        cd "$r19p_repo" || exit 1
+        "$r19p_git_bin" init --quiet
+        "$r19p_git_bin" config user.name "R19P Sandbox"
+        "$r19p_git_bin" config user.email "r19p@example.invalid"
+        "$r19p_git_bin" add .github/scripts/review-comment-published.sh
+        "$r19p_git_bin" commit --quiet -m "r19p sandbox stub"
+      ) > /dev/null 2>&1
+      r19p_sha=$(cd "$r19p_repo" && "$r19p_git_bin" rev-parse HEAD 2>/dev/null || true)
+      if [ -z "$r19p_sha" ]; then
+        r19_bad="${r19_bad} verify-behavioral(sandbox-commit-failed)"
+      else
+        cat > "$r19p_tmp/bin/gh" <<'R19P_GH'
+#!/usr/bin/env bash
+# R19 property 6 mock: serves the retry-enumeration payload (refusing any
+# unpaginated read) and records auto-retry posts.
+case "$*" in
+  *"--paginate --slurp"*)
+    if [ "${R19P_ENUM_FAIL:-0}" = "1" ]; then
+      echo "mock gh: enumeration failure" >&2
+      exit 1
+    fi
+    cat "$R19P_PAYLOAD"
+    ;;
+  *"-f body="*)
+    printf '%s\n' "$*" >> "$R19P_POSTS"
+    ;;
+  *)
+    echo "mock gh: unexpected call: $*" >&2
+    exit 1
+    ;;
+esac
+R19P_GH
+        chmod +x "$r19p_tmp/bin/gh"
+        if [ "$(PATH="$r19p_tmp/bin:$PATH" command -v gh)" != "$r19p_tmp/bin/gh" ]; then
+          r19_bad="${r19_bad} verify-behavioral(mock-not-intercepted)"
+        else
+          printf '[[]]\n' > "$r19p_tmp/p0.json"
+          printf '[[{"user":{"login":"mockowner"},"created_at":"2026-10-18T01:00:00Z","body":"/oc review (auto-retry 1)"}]]\n' > "$r19p_tmp/p1.json"
+          printf '[[{"user":{"login":"mockowner"},"created_at":"2026-10-18T01:00:00Z","body":"/oc review (auto-retry 1)"},{"user":{"login":"mockowner"},"created_at":"2026-10-18T01:01:00Z","body":"/oc review (auto-retry 2)"},{"user":{"login":"mockowner"},"created_at":"2026-10-18T01:02:00Z","body":"/oc review (auto-retry 3)"}]]\n' > "$r19p_tmp/p3.json"
+          # Interception probe: the mock itself must answer and record; a
+          # non-executable mock would fall through to a real gh.
+          : > "$r19p_tmp/posts"
+          R19P_POSTS="$r19p_tmp/posts" R19P_PAYLOAD="$r19p_tmp/p0.json" \
+            "$r19p_tmp/bin/gh" api "repos/mockrepo/issues/614/comments" -f body="/oc review (auto-retry 1)" > /dev/null 2>&1 || true
+          grep -qF -- "/oc review (auto-retry 1)" "$r19p_tmp/posts" 2>/dev/null || r19_bad="${r19_bad} verify-behavioral(mock-probe-failed)"
+          r19p_case() {
+            local name="$1" want_rc="$2" ev_rc="$3" outcome="$4" dec_before="$5" dec_after="$6" payload="$7" enum_fail="$8" want_post="$9" gate="${10}" want_re="${11:-}"
+            : > "$r19p_tmp/posts"
+            if [ "$dec_before" = "1" ]; then
+              printf '{"action":"lab"}\n' > "$r19p_tmp/decision.json"
+            else
+              rm -f "$r19p_tmp/decision.json"
+            fi
+            (
+              cd "$r19p_repo" || exit 1
+              exec "$r19p_timeout_bin" 30 "$r19p_env_bin" \
+                -u GITHUB_TOKEN -u GH_TOKEN -u GH_API_TOKEN -u GITHUB_EVENT_PATH -u GITHUB_RUN_ID -u GITHUB_REPOSITORY -u GITHUB_ACTIONS \
+                PATH="$r19p_tmp/bin:$PATH" HOME="$r19p_tmp/home" TMPDIR="$r19p_tmp/run" \
+                RUNNER_TEMP="$r19p_tmp/run" GITHUB_SHA="$r19p_sha" GITHUB_OUTPUT="$r19p_tmp/run/github_output" \
+                AGENT_GATE="$gate" R19P_OUTCOME="$outcome" R19P_DECISION="$r19p_tmp/decision.json" \
+                R19P_EVIDENCE_RC="$ev_rc" R19P_PAYLOAD="$payload" R19P_ENUM_FAIL="$enum_fail" R19P_POSTS="$r19p_tmp/posts" \
+                "$r19p_bash_bin" "$r19p_block"
+            ) > "$r19p_tmp/out" 2>&1
+            r19p_rc=$?
+            if [ "$r19p_rc" -ne "$want_rc" ]; then
+              r19_bad="${r19_bad} verify-behavioral(${name}:rc=${r19p_rc},want=${want_rc})"
+              printf 'R19 verify behavioral case %s failed (rc=%s, want=%s); output:\n%s\n' "$name" "$r19p_rc" "$want_rc" "$(cat "$r19p_tmp/out" 2>/dev/null || true)" >&2
+            fi
+            if [ -n "$want_post" ]; then
+              grep -qF -- "$want_post" "$r19p_tmp/posts" 2>/dev/null || r19_bad="${r19_bad} verify-behavioral(${name}:missing-post)"
+              [ "$(grep -c . "$r19p_tmp/posts" 2>/dev/null || true)" = "1" ] || r19_bad="${r19_bad} verify-behavioral(${name}:post-count-not-1)"
+            else
+              [ ! -s "$r19p_tmp/posts" ] || r19_bad="${r19_bad} verify-behavioral(${name}:unexpected-post)"
+            fi
+            if [ "$dec_after" = "1" ]; then
+              [ -f "$r19p_tmp/decision.json" ] || r19_bad="${r19_bad} verify-behavioral(${name}:decision-lost)"
+            else
+              [ ! -f "$r19p_tmp/decision.json" ] || r19_bad="${r19_bad} verify-behavioral(${name}:decision-kept)"
+            fi
+            if [ -n "$want_re" ] && ! grep -qE "$want_re" "$r19p_tmp/out" 2>/dev/null; then
+              r19_bad="${r19_bad} verify-behavioral(${name}:missing-output)"
+            fi
+          }
+          r19p_case published-verdict 0 0 success 1 1 "$r19p_tmp/p0.json" 0 "" true "gate produced a verdict"
+          r19p_case success-unpublished 0 1 success 1 0 "$r19p_tmp/p0.json" 0 "/oc review (auto-retry 1)" true "Posting auto-retry 1"
+          r19p_case success-unpublished-prior 0 1 success 1 0 "$r19p_tmp/p1.json" 0 "/oc review (auto-retry 2)" true ""
+          r19p_case crash-no-verdict 0 1 failure 0 0 "$r19p_tmp/p0.json" 0 "/oc review (auto-retry 1)" true "crashed mid-run"
+          r19p_case cap-reached 1 1 failure 0 0 "$r19p_tmp/p3.json" 0 "" true "still dead after 4 attempts"
+          r19p_case enumeration-failure 1 1 failure 0 0 "$r19p_tmp/p0.json" 1 "" true "Could not enumerate"
+          r19p_case unverifiable 1 2 success 1 0 "$r19p_tmp/p0.json" 0 "" true "Could not verify"
+          r19p_case success-no-decision 1 1 success 0 0 "$r19p_tmp/p0.json" 0 "" true "silent no-op"
+          r19p_case gate-denial 0 1 failure 0 0 "$r19p_tmp/p0.json" 0 "" false "denial is not a crash"
+        fi
+      fi
+    fi
+    rm -rf "$r19p_tmp"
+  fi
+fi
 if [ -f .github/agents/reviewer.md ]; then
-  grep -qF 'Publication Contract (issue #616)' .github/agents/reviewer.md || r19_bad="${r19_bad} reviewer.md(no-publication-contract)"
+  grep -qF 'Publication Contract (issues #616, #637)' .github/agents/reviewer.md || r19_bad="${r19_bad} reviewer.md(no-publication-contract)"
+  grep -qF 'final message MUST BE the complete sign-off-bearing' .github/agents/reviewer.md || r19_bad="${r19_bad} reviewer.md(no-final-message-rule)"
 else
   r19_bad="${r19_bad} reviewer.md(missing)"
 fi
 if [ -z "$r19_bad" ]; then
-  check "R19" "review forwarding requires published decision-comment evidence: the shared script accepts only a bot-authored, post-trigger, reviewer-signed comment (exit 0/1/2), the verify step extracts it from this run's own workflow commit, discards unpublished verdicts before the retry and forward paths, fails closed on inconclusive verification, and both forward steps are verify-success gated (issue #616)" "ok"
+  check "R19" "review forwarding requires published decision-comment evidence: the shared script accepts only a bot-authored, post-trigger, reviewer-signed comment (exit 0/1/2), the verify step extracts it from this run's own workflow commit, discards unpublished verdicts before the retry and forward paths and runs the same bounded auto-retry regardless of the agent outcome (issue #637), fails closed on inconclusive verification, both forward steps are verify-success gated, and the real extracted verify block is executed behaviorally across the crash/unpublished/cap/denial matrix (issues #616, #637)" "ok"
 else
-  check "R19" "review-comment publication-evidence guard missing:${r19_bad} (issue #616: a reviewer death between the decision-file write and the comment post forwards an unread verdict with zero published findings)" "bad"
+  check "R19" "review-comment publication-evidence guard missing:${r19_bad} (issues #616/#637: an unread verdict can be forwarded, or a lost success+unpublished verdict can skip the bounded auto-retry)" "bad"
 fi
 
 # [R20] Paginated comment-read guard (issue #621): every retry/auto-heal cap
