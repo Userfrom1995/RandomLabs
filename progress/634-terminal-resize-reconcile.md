@@ -17,8 +17,8 @@ Status: complete (implementation, regression, docs; pipeline gates pending)
 
 ## Scope (binding, from issue #634 triage)
 - Per-frame `crossterm::terminal::size()` comparison against the app's
-  last known size, calling `app.resize` on change (one cheap ioctl per
-  frame at ~60 fps). Makes the layout self-healing regardless of
+  last known size, calling `app.resize` on change (one cheap size query
+  per frame at ~60 fps). Makes the layout self-healing regardless of
   crossterm's signal-pipe drain behavior.
 - Durable PTY regression that forces the same-batch race; existing
   terminal tests never race a key against a resize.
@@ -52,8 +52,8 @@ card never paints).
   after SIGCONT (~0.04 s per run).
 
 ## Verification (this run)
-- `cargo test -p maze-chase-terminal`: 124 passed / 0 failed across 16
-  targets (was 122: the new suite adds the control + race tests).
+- `cargo test -p maze-chase-terminal`: 122 passed / 0 failed across 16
+  targets (was 120: the new suite adds the control + race tests).
 - `cargo fmt --all -- --check`: clean. `cargo clippy -p
   maze-chase-terminal --all-targets`: zero warnings in the crate (only
   the 6 pre-existing `maze-chase-engine` lints).
@@ -83,3 +83,12 @@ card never paints).
   green. Scaffold PR #635 open from the first commit. No subagents
   were needed: single-crate surgical fix with a deterministic
   in-process harness; verification was executed directly.
+- 2026-10-18 (fixer round, review run 39087655495): PTY child now owns
+  its own session and the test PTY as controlling terminal (setsid +
+  TIOCSCTTY via pre_exec), so crossterm reads the PTY under test
+  instead of an inherited outer terminal; suite counts corrected to
+  122/0 (120/0 without the new suite); size-query comment made
+  accurate. Verified: both tests pass headless and under `script`
+  (200x50 outer tty); the pre-fix spawn fails both under `script`; the
+  race test still fails under `script` with the reconciler disabled,
+  so the harness fix does not weaken the regression.
