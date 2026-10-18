@@ -111,6 +111,18 @@ published only that wrap-up (comment 6244724655), the evidence script exited
   not opencode configuration of this workspace).
 - Primary verified itself: live audit runs, YAML/em-dash/hunk checks, and
   the subagent evidence review; final diff is the primary's own work.
+- Round-2 verifier A (general; scope: F7/F8 static-pin mutation matrix
+  M1-M7 on a /tmp clone): control 22/22 green; 7/7 mutations red with the
+  exact expected R19 flags; noted that the `pr=`-ping expression occurs
+  outside the verify block too, so the mutation was applied with block-local
+  context (the pin itself is correctly scoped to the extracted block);
+  clone and workspace clean.
+- Round-2 verifier B (general; scope: F9/F10 pins plus behavioral
+  mutations M8-M13 and the F10 differential on a /tmp clone): control 22/22
+  green; 6/6 mutations red with the expected evidence; the F10-reverted
+  differential reproduces the pre-fix green escape (22/22 with the
+  SINCE-gated discard mutation), proving the sandbox env realism is
+  load-bearing; no non-R19 failure in any run; clone and workspace clean.
 
 ## Review round 1 follow-up (2026-10-18)
 
@@ -157,6 +169,54 @@ drop, discard drop, evidence-map flip) leaves the control green and turns
 R19 red in 10/10 mutated cases; the F1 differential (fix reverted plus
 mutation) reproduces the reviewer's escape.
 
+## Review round 2 follow-up (2026-10-18)
+
+The reviewer of PR #638 (round 2) verified the workflow core and the round-1
+harness fixes as correct, then found four more escapes, all behavior-changing
+edits that left the whole 22-rule audit green; all are fixed in the follow-up
+commit on this branch:
+
+- F7 (blocking): the identity lines and the counter predicate had no static
+  expression pins. The property-6 sandbox substitutes the identity macros
+  with sandbox literals, so a workflow edit that hardcodes a substituted
+  value (post or enumeration URL to `614`, `pr=614`, owner literal
+  `mockowner`, predicate weakened to `!= "mockintruder"`) was behaviorally
+  indistinguishable and escaped. New static pins: the retry POST as an
+  exact whole line (leading whitespace stripped), the enumeration URL
+  substring, the exact owner+startswith predicate, the raw event-bound
+  `pr="${{ github.event.issue.number }}"`, plus an outright ban on harness
+  literals and CI-only env fingerprints (`mockowner`, `mockrepo`, `R19P_`,
+  `GITHUB_EVENT_PATH`, `GITHUB_RUN_ID`) in the verify block.
+- F8 (blocking): the F1 `bash -e` guarantee was bypassable and the retry
+  POST was not pinned fail-fast. A `|| true` suffix on the POST made a
+  failed retry end the step green with no retry posted; a `set +e` at the
+  block top disabled fail-fast wholesale. The whole-line POST pin closes
+  the suffix class, and a `set +`/`trap` ban closes the bypass.
+- F9 (hardening): the missing-evidence fail-closed branch (`exit 1`, the
+  #616 owner) was pinned only by its `if` line and was unreachable in the
+  sandbox, so it could silently become `exit 0`. The branch is now
+  awk-extracted from the block and pinned to exit nonzero with no `exit 0`.
+- F10 (hardening): the sandbox omitted production env (`SINCE`,
+  `GITHUB_EVENT_PATH`), so env-fingerprint branches escaped; one leaked the
+  unpublished verdict in production. The case environment now sets both
+  (with a parseable `event.json` fixture), and the F7 fingerprint ban
+  rejects such branches statically.
+- Minor: the PR body claimed nine scenarios and six mutations from the
+  pre-follow-up round; it is corrected to the twelve-scenario matrix and
+  the current mutation record.
+
+Post-fix evidence (round 2): live audit 22/22 PASS on the final tree. Two
+independent verifier subagents ran a control plus thirteen escape mutations
+against clones of the fixed commit: control 22/22 green on both clones, and
+13/13 mutations turned R19 red with the exact expected sub-flags (post URL,
+enumeration URL, `pr=614`, owner literal, weakened predicate, `|| true`
+suffix, `set +e`, missing-evidence `exit 0`, SINCE-gated discard,
+env-gated extra retry post, cap `-lt 2`, `contains(` anchor, `false` before
+the post under `bash -e`). No non-R19 rule failed in any run. The M9
+differential (F10 env realism reverted plus the SINCE-gated discard
+mutation) reproduces the pre-fix green escape, proving the env realism is
+load-bearing.
+
 ## Notes and residuals
 
 - R1 (pre-existing, deliberately left in scope): on the auto-retry path the
@@ -179,10 +239,15 @@ mutation) reproduces the reviewer's escape.
 - R4 (coverage boundary): the behavioral matrix does not execute the
   missing-evidence-script branch or the two forward steps (statically
   pinned); exotic sandbox-path fingerprinting stays a review-gated boundary.
-  The F1-F5 hardening additionally pins the runner's `bash -e` execution
-  mode, the endpoint-bound mock, the exact cap 3, and the counter's
-  author/anchor predicates. No workflow file additions or renames, so the
-  maintainer `workflows:` allowlist is untouched.
+  The F1-F10 hardening additionally pins the runner's `bash -e` execution
+  mode, the endpoint-bound mock, the exact cap 3, the counter's
+  author/anchor predicates, and (round 2) the retry POST as an exact whole
+  line, the enumeration URL, the owner+startswith predicate, the
+  event-bound PR number, the missing-evidence fail-closed exit, the absence
+  of harness/env fingerprints and fail-fast bypasses, and a realistic case
+  env (`SINCE`, `GITHUB_EVENT_PATH` with a parseable event fixture). No
+  workflow file additions or renames, so the maintainer `workflows:`
+  allowlist is untouched.
 - R5 (conflict surface): `silent-stall-audit.sh` is a hot file (R21/R22
   landed recently); rebase onto main before merge if other infra PRs land
   first, and keep R19 self-contained.
