@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # run-linux.sh - Linux arm of the real-terminal compatibility harness.
 #
-# Drives the shipped release binary in real terminal emulators (Kitty,
+# Drives the release binary in real terminal emulators (Kitty,
 # Ghostty, xterm) on Linux, captures checkpoint screenshots plus the raw
 # escape transcript, and writes one evidence file per run through
 # collect.py. Every row is either executed with real captures or recorded

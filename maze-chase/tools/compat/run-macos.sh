@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # run-macos.sh - macOS arm of the real-terminal compatibility harness.
 #
-# Drives the shipped release binary inside real macOS terminals and
+# Drives the release binary inside real macOS terminals and
 # writes one evidence file per run through collect.py. Windows are driven
 # frontmost through System Events (the shared driver's `macos` path);
 # screenshots are full-screen captures. Run this on a real Mac: the
