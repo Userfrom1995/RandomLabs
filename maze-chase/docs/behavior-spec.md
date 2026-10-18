@@ -87,8 +87,8 @@ for authoring original Rust tables with provenance comments, per
 ## Verification baseline
 
 #552 ships a 106-row headless verify matrix plus input/render/canvas
-benches and true-pty tours; the Rust `verify` harness must reach the same
-bar per layer (gameplay, size, capability, input, parity rows) before any
-retirement of #552 is considered. Reference perf floors from the #552
+benches and true-pty tours; the Rust `verify` harness had to reach the
+same bar per layer (gameplay, size, capability, input, parity rows)
+before the retirement of #552. Reference perf floors from the #552
 scoreboard: Unicode well above 500 fps headless, sim tick cost far below
 the 8,333 us 120 Hz budget, key decode above 1M keys/s.
