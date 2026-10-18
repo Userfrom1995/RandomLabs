@@ -77,7 +77,8 @@ published only that wrap-up (comment 6244724655), the evidence script exited
 - Subagent C (general; contract coherence audit): traced all seven control
   flow cases; prompt, docs, and pins verified accurate; one non-blocking
   wording finding (over-broad crash-signature comment) fixed in
-  `lab: tighten the crash-parity comment wording (review F1, Refs #637)`;
+  `lab: tighten the crash-parity comment wording and record the #637 decision
+  (review F1, Refs #637)`;
   no em dashes in changed lines; changed-file set exactly as intended.
 - Primary verified itself: live audit 22/22 before and after the comment
   fix; YAML parse; em-dash scan; manual review of every hunk.
