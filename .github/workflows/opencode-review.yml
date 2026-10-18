@@ -253,17 +253,18 @@ jobs:
           # re-running the evidence script by hand.
           echo "Publication evidence for #$pr: evidence script exit $pub_rc (published=$published)."
 
-          # Crash-parity with build/fix mode (issues #132, #637): a healthy
-          # reviewer ALWAYS publishes its sign-off-bearing decision comment as
-          # its final act, so "no published verdict" is the crash signature -
-          # whether the agent step failed mid-run (e.g. 'Provider
-          # finish_reason: network_error') or reported success while ending on
-          # any message other than the decision comment (issue #637: the
-          # wrapper posts only the session's FINAL message, so a wrap-up turn
-          # after the composed verdict replaces it; review run 39089530715 on
-          # PR #636 lost its verdict exactly this way). The in-flight job's
-          # log cannot be grepped via API until it completes, so this pair IS
-          # the signature; the hard cap below bounds any other class. An
+          # Crash-parity with build/fix mode (issues #132, #637): "failed
+          # agent step OR a discarded unpublished verdict, with no published
+          # verdict" is exactly the crash signature. The failure class is a
+          # mid-stream death (e.g. 'Provider finish_reason: network_error');
+          # the unpublished-verdict class is a session that wrote its
+          # decision file but ended on any message other than the sign-off-
+          # bearing decision comment (issue #637: the wrapper posts only the
+          # session's FINAL message, so a wrap-up turn after the composed
+          # verdict replaces it; review run 39089530715 on PR #636 lost its
+          # verdict exactly this way). The in-flight job's log cannot be
+          # grepped via API until it completes, so this state IS the
+          # signature; the hard cap below bounds any other class. An
           # unpublished verdict is discarded BEFORE the infra override and the
           # forward step can ever see it (issue #616).
           unpublished_verdict="false"
