@@ -177,10 +177,11 @@ pub fn compute(cols: u16, rows: u16) -> Layout {
 /// it to keep tiles square, and the bitmap tier to rasterize at (near)
 /// the real cell resolution. `None` falls back to nominal cells.
 pub fn compute_with(cols: u16, rows: u16, cell_px: Option<(u16, u16)>) -> Layout {
-    // A zero-sized cell report is nonsense; treat it as "no report" so
-    // this public solver stays total for any caller (the detector
-    // already rejects zeros, this is defensive).
-    let cell_px = cell_px.filter(|(w, h)| *w > 0 && *h > 0);
+    // A zero-sized or out-of-bounds cell report is nonsense; treat it
+    // as "no report" so this public solver stays total for any caller
+    // (the geometry detector filters first, this keeps direct callers
+    // honest too).
+    let cell_px = crate::geometry::sane(cell_px);
     if cols < MIN_COLS || rows < MIN_ROWS {
         return Layout {
             cols,
@@ -516,14 +517,33 @@ mod tests {
     }
 
     #[test]
-    fn pixels_known_never_shrinks_the_footprint() {
-        // The footprint (cells) must not depend on whether the terminal
-        // reported pixels: only the raster detail changes.
+    fn insane_cell_reports_fall_back_to_nominal() {
+        // Non-zero but out-of-bounds reports (the geometry detector's
+        // sane bounds are shared with this public solver) must not
+        // produce a divergent plan: both degrade to nominal cells.
+        for bad in [Some((1, 1)), Some((65, 16))] {
+            assert_eq!(
+                compute_with(170, 64, bad),
+                compute_with(170, 64, None),
+                "{bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn same_aspect_pixel_reports_keep_the_footprint() {
+        // The reported cell aspect drives the footprint (the solver
+        // keeps tiles square); same-aspect reports change only the
+        // raster detail, never the plan.
         for cell_px in [None, Some((9, 18)), Some((12, 24))] {
             let l = compute_with(170, 64, cell_px);
             assert_eq!((l.cell_cols, l.cell_rows), (5, 2), "{cell_px:?}");
             assert_eq!(l.board.w, 140, "{cell_px:?}");
         }
+        // Contrasting pin: square 4x4 cells re-fit the footprint to keep
+        // the board square (2x2 tiles instead of 5x2).
+        let square = compute_with(170, 64, Some((4, 4)));
+        assert_eq!((square.cell_cols, square.cell_rows), (2, 2));
     }
 
     #[test]

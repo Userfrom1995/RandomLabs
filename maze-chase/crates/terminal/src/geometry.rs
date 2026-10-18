@@ -43,7 +43,10 @@ const MAX_CELL_W_PX: u16 = 64;
 const MIN_CELL_H_PX: u16 = 4;
 const MAX_CELL_H_PX: u16 = 128;
 
-fn sane(cell_px: Option<(u16, u16)>) -> Option<(u16, u16)> {
+/// Shared by the geometry detector, [`Geometry::new`], and the public
+/// layout solver (`layout::compute_with`), so every caller enforces the
+/// same bounds on a reported cell size.
+pub(crate) fn sane(cell_px: Option<(u16, u16)>) -> Option<(u16, u16)> {
     match cell_px {
         Some((w, h))
             if (MIN_CELL_W_PX..=MAX_CELL_W_PX).contains(&w)
@@ -57,7 +60,8 @@ fn sane(cell_px: Option<(u16, u16)>) -> Option<(u16, u16)> {
 
 impl Geometry {
     /// Geometry for `cols`x`rows` with an optional detected cell size.
-    /// `kind` is decided by [`Geometry::for_override`].
+    /// `kind` is decided by [`Geometry::new`]: a sane report selects
+    /// [`RenderKind::Pixels`], anything else [`RenderKind::Cells`].
     pub fn new(cols: u16, rows: u16, cell_px: Option<(u16, u16)>) -> Self {
         let cell_px = sane(cell_px);
         Self {
