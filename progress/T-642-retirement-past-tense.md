@@ -1,6 +1,6 @@
 # T-642: maze-chase retirement wording to past tense
 
-Status: in-progress
+Status: complete
 
 ## Checklist
 - [x] Confirm state: #552 and #582 closed 2026-10-18T03:37Z; hub already
@@ -9,14 +9,14 @@ Status: in-progress
 - [x] Sweep the remaining pre-retirement wording inside `maze-chase/`
       (`docs/parity.md`, `docs/scoreboard.md`, `docs/release.md`,
       `docs/feature-matrix.md`, `docs/behavior-spec.md`)
-- [ ] Verify: no em dashes, links intact, `git status` clean
+- [x] Verify: no em dashes, links intact, `git status` clean
 - [ ] Reviewer / Tester / Evaluator gates (pipeline)
 
 ## Current step
-Docs sweep pushed; ideas entry and final verification next.
+Done. Ready for review on PR #643.
 
 ## Next steps
-- Reword README closing paragraph; then the docs sweep; then ideas entry.
+- `/oc review`, then `/oc test`, then `/oc eval` before merge.
 
 ## Scope note
 The Curator's public-surface pass covers link validity only inside
@@ -41,3 +41,6 @@ deliberately untouched: the Curator's PR #640 already rewrites it.
   behavior-spec verification baseline. Grep sweep confirms no
   future-tense retirement wording remains under `maze-chase/` except
   `maze-chase/index.html`, which PR #640 (Curator) already rewrites.
+- 2026-10-18 (Builder): ideas writeup added; link sweep across the six
+  edited docs re-verified every relative target resolves and no em dash
+  is present. PR #643 open with `Closes #642`; handoff to review.
