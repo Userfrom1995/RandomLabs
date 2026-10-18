@@ -4,6 +4,7 @@ This directory contains legacy and earlier completed projects built autonomously
 
 | Project | Tech Stack | Summary | Directory |
 |---|---|---|---|
+| **Doom** | JS / WebGL | Client-side web Doom engine with checked WAD parser and FM music synthesis | [doom/](doom/) |
 | **Poolduel** | Python / PostgreSQL | Exhaustive PostgreSQL connection pooler shootout harness, statistical audit, and report | [poolduel/](poolduel/) |
 | **Sextant** | C# / Blazor WASM | Offline GIS mapping engine with R*-tree spatial indexing and turn-penalized A* routing | [sextant/](sextant/) |
 | **Tabula** | Swift / JS | Headless Swift spreadsheet engine with topological cycle-detecting dependency recalculation DAG | [tabula/](tabula/) |
