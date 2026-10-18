@@ -77,11 +77,18 @@ two actions to one key.
 The game picks the best tier its terminal proves, best first:
 
 1. **kitty-graphics**: true pixel art (the original 11x11 sprites,
-   beveled walls, pulsing sunseeds) transmitted as PNG over the Kitty
-   graphics protocol, re-placed at 20 fps. Engages only on positive
-   proof (`KITTY_WINDOW_ID`, `TERM=xterm-kitty`, `TERM_PROGRAM=kitty`)
-   plus Kitty keyboard enhancement for disambiguated input. Forcing it
-   elsewhere prints escape garbage: do not force it on other terminals.
+    beveled walls, pulsing sunseeds) transmitted as PNG over the Kitty
+    graphics protocol. Engages only on positive proof
+    (`KITTY_WINDOW_ID`, `TERM=xterm-kitty`, `TERM_PROGRAM=kitty`)
+    plus Kitty keyboard enhancement for disambiguated input. Forcing it
+    elsewhere prints escape garbage: do not force it on other terminals.
+    The compatibility harness measured the current build re-transmitting
+    every frame at 58-76 full PNG frames/s on kitty 0.32.2 (the
+    terminal's `OK` replies keep the event loop busy; see
+    `tools/compat/evidence/kitty-linux-auto/ack-spin-experiment.md`),
+    far above the intended pacing, with keyboard input degraded while
+    gameplay runs. Fixing the reply handling and the pacing is tracked
+    in the #582 overhaul.
 2. **sixel**: true pixels through a hand-rolled Sixel encoder (palette
    registers, six-row bands, run-length rows). Engages after the
    terminal answers the DA1 probe at startup (250 ms budget, then the
@@ -101,10 +108,13 @@ why; the title screen shows the active tier and the downgrade trail,
 so a fallback is always explained, never silent. The help screen's
 video line always names the tier in use.
 
-Ghostty note: Ghostty has no image protocol, so Ghostty plays on the
-truecolor-cells tier (24-bit color, Kitty-compatible keyboard where
-offered). That is a genuine capability gap with a documented fallback,
-not a silent drop.
+Ghostty note: Ghostty implements the Kitty graphics protocol, but the
+current auto-detect routes `TERM_PROGRAM=ghostty` straight to
+truecolor-cells, so Ghostty plays on the 24-bit cell tier even though it
+could paint pixels. The compatibility harness verified a forced-PNG
+session rendering through Ghostty 1.3.1
+(`tools/compat/evidence/ghostty-linux-kitty.json`); enabling it by
+default is tracked in the #582 overhaul.
 
 ## Layout and resize
 
