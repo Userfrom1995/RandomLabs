@@ -65,7 +65,8 @@
   @media (max-width: 640px) { .showcase { grid-template-columns: 1fr; } }
   #petCanvas {
     width: 268px;
-    height: 268px;
+    max-width: 100%;
+    height: auto;
     background: #10141f;
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -87,7 +88,11 @@
     color: #0b0e14;
     font-weight: 600;
   }
-  .table-scroll { overflow-x: auto; margin: 16px 0; }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 16px 0; }
+  .table-scroll:focus-visible { outline: 2px solid var(--accent-2); outline-offset: -2px; }
+  @media (max-width: 640px) {
+    code { overflow-wrap: anywhere; }
+  }
   #activityCaption, #characterCaption { color: var(--muted); font-size: 0.92rem; min-height: 3.2em; }
   #activityCaption strong, #characterCaption strong { color: var(--text); }
   .note { color: var(--muted); font-size: 0.88rem; }
@@ -151,7 +156,7 @@
   <p class="note">Creator packs extend this gallery without touching the core: the bundled Sunny Pack example adds Sunny the sun-sprite and Ember the ember-fox through the same JSON path third parties use (see Creator packs below).</p>
 
   <h2>Behavior guide</h2>
-  <div class="table-scroll">
+  <div class="table-scroll" role="region" aria-label="Behavior guide: activities and what brings them on" tabindex="0">
   <table>
     <tr><th>Activity</th><th>What you see</th><th>What brings it on</th></tr>
     <tr><td>Idle</td><td>Breathing sides, blinking eyes, swaying tail</td><td>The resting state between whims; try the Idle button above</td></tr>
@@ -177,7 +182,7 @@ python -m pet startup status
 python -m pet service start
 python -m pet service status
 python -m pet tray status</pre>
-  <div class="table-scroll">
+  <div class="table-scroll" role="region" aria-label="Quickstart per OS: startup commands and tkinter availability" tabindex="0">
   <table>
     <tr><th>OS</th><th>tkinter</th><th>Start command</th></tr>
     <tr><td>Windows 10/11</td><td>Bundled with python.org installers</td><td><code>python -m pet gui</code></td></tr>
@@ -214,7 +219,7 @@ python -m pet tray status</pre>
 Get-FileHash .\dist\desktop-pet.exe -Algorithm SHA256</pre>
   <p class="note">Honest note: release binaries are unsigned. Windows SmartScreen may warn on first launch (choose More info plus Run anyway); on macOS right-click plus Open the app once to clear Gatekeeper; on Linux run <code>chmod +x</code> on the AppImage. Prefer run-from-source (<code>python -m pet</code>, stdlib only, nothing to trust) if that worries you.</p>
   <p>Prefer to build it yourself? The pet is source-first, and every recipe below reproduces the release artifacts bit-for-behavior. Build the one-file binary first, then wrap it per OS. Every recipe is fail-closed, writes checksums, and runs a bundle <code>selftest</code> before declaring success; the version comes from <code>pet/__init__.py</code> in every script, never a copied literal. Artifact names below show the current version as an example; your build stamps its own version the same way.</p>
-  <div class="table-scroll">
+  <div class="table-scroll" role="region" aria-label="Native installer builds: recipe and artifact per OS" tabindex="0">
   <table>
     <tr><th>OS</th><th>Recipe</th><th>Artifact</th><th>Notes</th></tr>
     <tr><td>Windows 10/11</td><td><code>packaging/desktop-pet.iss</code> (Inno Setup 6)</td><td><code>dist/desktop-pet-setup-1.5.0.exe</code></td><td>Per-user install, Start Menu entries, optional login task; uninstaller removes app plus autostart, keeps saves</td></tr>
@@ -247,7 +252,7 @@ python -m pet characters switch sunny</pre>
   <p class="note">Validation is strict before anything is copied: slug shape, semver plus engine range, body-plan allowlist, clamped trait ranges, dialogue pools of at least 3 lines, zip traversal plus size caps. Corrupt installed packs are moved aside with a notice instead of blocking the catalog. The worked example at <code>pet/packs/examples/sunny-pack</code> adds Sunny and Ember and proves the third-party path end to end.</p>
 
   <h2>Support matrix</h2>
-  <div class="table-scroll">
+  <div class="table-scroll" role="region" aria-label="Support matrix: layer support per platform" tabindex="0">
   <table>
     <tr><th>Layer</th><th>Windows</th><th>macOS</th><th>Linux</th></tr>
     <tr><td>Behavior brain (<code>python -m pet</code>)</td><td>yes</td><td>yes</td><td>yes</td></tr>
