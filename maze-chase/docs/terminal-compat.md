@@ -1,6 +1,6 @@
 # Terminal compatibility matrix
 
-What the shipped release binary actually does in real terminal
+What the release binary actually does in real terminal
 emulators, measured by the harness in `../tools/compat/`. Every executed
 row names its committed evidence bundle (`../tools/compat/evidence/<row>.json`,
 that row's screenshots, and the row's `events.log`); every number quoted
@@ -29,8 +29,8 @@ did not execute.
 | Ghostty (forced kitty) | 1.3.1 | kitty | kitty-graphics | partial | paints the kitty raster through Ghostty's graphics implementation (921 transmits / 195.6 MiB payload); the pause surface first paints at byte 166,859,269, help and scores only in the tail (bytes 214,328,374 and 217,821,876), and the settings screen never reaches the wire before the kill; the final quit never lands, process killed | `ghostty-linux-kitty.json` |
 | xterm | 390 | auto | legacy-cells | partial | full session and clean exit, but on the default light background the cream chrome text is invisible: 7 of its 10 captures are >=98% white and the row was downgraded with the list recorded (`light_background_captures`) | `xterm-linux-auto.json` |
 | xterm (dark background) | 390, `-bg black -fg white` | auto | legacy-cells | pass | full session, clean exit; proves the light-row fault is the palette, not the layout | `xterm-dark-linux-auto.json` |
-| xterm (VT340 mode, forced) | 390, `-ti vt340` | sixel | sixel | pass | 183 sixel transmits / 2.46 MiB payload (~13.7 KiB per transmit); full session | `xterm-linux-sixel.json` |
-| xterm (VT340 mode, auto) | 390, `-ti vt340` | auto | sixel | pass | the DA1 probe answered and the game upgraded itself from legacy-cells to sixel (`tier_requested=auto`); full session; this is the row that exercises the probe path | `xterm-vt340-linux-auto.json` |
+| xterm (VT340 mode, forced) | 390, `-ti vt340 -bg black -fg white` | sixel | sixel | pass | 183 sixel transmits / 2.46 MiB payload (~13.7 KiB per transmit); full session | `xterm-linux-sixel.json` |
+| xterm (VT340 mode, auto) | 390, `-ti vt340 -bg black -fg white` | auto | sixel | pass | the DA1 probe answered and the game upgraded itself from legacy-cells to sixel (`tier_requested=auto`); full session; this is the row that exercises the probe path | `xterm-vt340-linux-auto.json` |
 
 ## Rows awaiting their host
 
@@ -41,7 +41,7 @@ did not execute.
 | Ghostty | macOS | `../tools/compat/run-macos.sh` | unverified: no macOS host in the Linux run |
 | Windows Terminal | Windows | `../tools/compat/run-windows.ps1` | unverified: no Windows host in the Linux run |
 | conhost | Windows | `../tools/compat/run-windows.ps1` | unverified: no Windows host in the Linux run |
-| WezTerm, foot, contour, mlterm | Linux | `../tools/compat/run-linux.sh --emulator <name>` | unverified: not installable on this runner from its configured sources |
+| WezTerm, foot, contour, mlterm | Linux | harness extension (no launch profile yet; the Linux runner covers kitty, ghostty, xterm) | unverified: not installable on this runner from its configured sources |
 
 ## Session view of the tier ladder
 

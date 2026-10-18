@@ -2,7 +2,8 @@
 
 Tracking issue: #582 (the overhaul roadmap and this ledger live here).
 Blueprint: `ideas/2026-10-18-maze-chase-overhaul.md`.
-Phase: 1 of 7 (Product Reassessment and Real-Terminal Truth).
+Phase: 1 of the eight-phase roadmap (Product Reassessment and
+Real-Terminal Truth).
 
 Every entry names its evidence. Real-terminal findings outrank
 harness results, and no entry below claims more than its capture or

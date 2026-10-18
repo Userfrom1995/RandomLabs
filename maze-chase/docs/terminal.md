@@ -1,7 +1,7 @@
 # Terminal Game
 
-The fullscreen terminal publication layer for Maze Chase: one installable
-package (`maze-chase-terminal`) running the shared deterministic engine
+The fullscreen terminal publication layer for Maze Chase: one dev-grade
+terminal package (`maze-chase-terminal`) running the shared deterministic engine
 with a fullscreen canvas, four render tiers, live resize, menus, help,
 high scores, settings with key rebinding, and launch docs (this file).
 
