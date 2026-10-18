@@ -2253,11 +2253,15 @@ fi
 #      incident-error, stale, owner-authored, inline-mention, empty,
 #      bad-json, and fetch-failure payloads;
 #   6. a second functional test (issue #637) executes the REAL extracted
-#      verify `run:` block (line-anchored to the `id: verify-review` binding
-#      the static pins assert; four expression macros plus the decision-file
-#      path substituted, integrity asserted) under the runner's `bash -e`
-#      default in a sandbox git repo whose commit carries a scenario-driven
-#      evidence stub, against a mock `gh` bound to the sandbox endpoint
+#      verify `run:` block (struct-anchored: the step is line-anchored to the
+#      `id: verify-review` binding the static pins assert, the run key must be
+#      the single 8-space-indent one in the step; four expression macros plus
+#      the decision-file path substituted, integrity asserted) under the
+#      runner's `bash -e` default in a sandbox git repo whose GITHUB_SHA
+#      commit carries a scenario-driven evidence stub and whose workspace tip
+#      is a poisoned always-published copy (so a HEAD-reading provenance
+#      extractor fails the unpublished cases behaviorally), against a mock
+#      `gh` bound to the sandbox endpoint
 #      (repos/mockrepo/issues/614/comments; any other call fails the case)
 #      that serves the retry enumeration and records posts (and can reject
 #      them under scenario control):
@@ -2272,7 +2276,7 @@ fi
 #      unpublished) discards the verdict and retries while a published
 #      verdict survives a failed agent step untouched, and a rejected retry
 #      POST fails the step loudly (review round 3, F11-F12).
-#   7. static expression pins (review rounds 2 and 3, F7-F9 and F14-F16)
+#   7. static expression pins (review rounds 2-4, F7-F9 and F14-F21)
 #      close what the sandbox cannot see, because its substituted identity
 #      literals make a hardcoded/rewired expression behaviorally
 #      indistinguishable: the retry POST must be the exact whole line (no
@@ -2280,9 +2284,15 @@ fi
 #      owner+startswith counter predicate, the PR-number binding, the
 #      workflow-commit provenance probe and extraction, and the evidence
 #      invocation (its `"$SINCE"` argument included) must be the exact
-#      expressions or whole lines, the missing-evidence branch must exit
-#      nonzero (its `exit 1` cannot silently become `exit 0`), the verify
-#      step's `if:` line and AGENT_GATE env mapping must be exact, harness
+#      expressions or whole lines, a `GITHUB_SHA=` reassignment or a `HEAD:`
+#      provenance path is banned outright, the missing-evidence branch must
+#      exit nonzero (its `exit 1` cannot silently become `exit 0`), the
+#      verify step's `if:` line, AGENT_GATE env mapping, and owner-PAT
+#      GH_TOKEN, the step's single `run: |` key, the absence of
+#      shell/continue-on-error/defaults overrides at step, job, and workflow
+#      level, the forward step's five exact trigger bodies, its PAT token and
+#      absent attribute overrides, and the review job's exact step sequence
+#      must hold, harness
 #      literals and CI-only env fingerprints (`mockowner`, `mockrepo`,
 #      `R19P_`, `GITHUB_EVENT_PATH`, `GITHUB_RUN_ID`, `GITHUB_ACTIONS`,
 #      `GITHUB_REPOSITORY`, `GITHUB_WORKFLOW`, `GITHUB_JOB`,
@@ -2373,6 +2383,26 @@ else
     r19_step_header=$(sed -n "${r19_name_line},$((r19_name_line + 6))p" "$REVIEW_WF")
     printf '%s\n' "$r19_step_header" | grep -qxF "        if: steps.pr-info.outputs.is_pr == 'true' && always()" || r19_bad="${r19_bad} review.yml(verify-if-not-exact)"
     printf '%s\n' "$r19_step_header" | grep -qxF '          AGENT_GATE: ${{ steps.actor_gate.outputs.run }}' || r19_bad="${r19_bad} review.yml(verify-gate-env-not-exact)"
+    # F17-F19 (review round 4): struct-anchored extraction and execution
+    # attributes. The step region must contain exactly one `run: |` key: a
+    # nested or duplicate run key (a step-shaped decoy before or inside the
+    # real one) would otherwise be harvested by, or corrupt, the property-6
+    # extraction while production executes a different body. The verify step
+    # may carry no shell / continue-on-error / defaults override, the review
+    # job none at job level, and the workflow none at workflow level: any of
+    # them voids the runner's `bash -e` fail-fast guarantee the retry POST's
+    # fail-loud contract depends on, or swallows the job failure itself. And
+    # the verify step's GH_TOKEN must stay the owner PAT: an issue_comment run
+    # spawned by a github.token-authored retry comment never fires, so the
+    # bounded auto-retry would silently die.
+    r19_runkey_count=$(printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -cxF 'run: |' || true)
+    [ "$r19_runkey_count" -eq 1 ] || r19_bad="${r19_bad} review.yml(run-key-count=${r19_runkey_count},want=1)"
+    r19_step_end_line=$(awk -v s="$r19_name_line" 'NR > s && /^      - name: / { print NR; exit }' "$REVIEW_WF")
+    [ -n "$r19_step_end_line" ] || r19_step_end_line=$(wc -l < "$REVIEW_WF" | tr -d '[:space:]')
+    sed -n "${r19_name_line},${r19_step_end_line}p" "$REVIEW_WF" | grep -qE '^[[:space:]]*(shell|continue-on-error|defaults):' && r19_bad="${r19_bad} review.yml(verify-step-attribute-override)"
+    awk '/^  review:$/ { f=1; next } f && /^  [A-Za-z_]+:/ { exit } f && /^    (defaults|shell|continue-on-error):/ { print }' "$REVIEW_WF" | grep -q . && r19_bad="${r19_bad} review.yml(job-run-attribute-override)"
+    grep -qE '^defaults:' "$REVIEW_WF" && r19_bad="${r19_bad} review.yml(workflow-run-defaults-override)"
+    printf '%s\n' "$r19_step_header" | grep -qxF '          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}' || r19_bad="${r19_bad} review.yml(verify-gh-token-not-PAT)"
     # The trigger timestamp must arrive via env indirection, never expanded
     # into the run script text (R10).
     printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'SINCE: ${{ github.event.comment.created_at }}' || r19_bad="${r19_bad} review.yml(no-since-env)"
@@ -2468,6 +2498,17 @@ else
     # statically here (branching on a runner-specific value would behave
     # differently in the sandbox than on the runner).
     printf '%s\n' "$r19_verify_block" | grep -qE 'mockowner|mockrepo|R19P_|GITHUB_EVENT_PATH|GITHUB_RUN_ID|GITHUB_ACTIONS|GITHUB_REPOSITORY|GITHUB_WORKFLOW|GITHUB_JOB|GITHUB_EVENT_NAME|GITHUB_ACTOR|RUNNER_OS|(^|[^A-Za-z_])CI([^A-Za-z_]|$)' && r19_bad="${r19_bad} review.yml(harness-literal-or-env-fingerprint)"
+    # F20 (review round 4): provenance invariance beyond the whole-line pins
+    # above. A `GITHUB_SHA=` reassignment (e.g. to `git rev-parse HEAD`)
+    # defeats the workflow-commit probe/extraction pins textually, and a
+    # literal `HEAD:.github/scripts/review-comment-published.sh` path reads
+    # the checked-out PR head (the very PR under review). The sandbox
+    # additionally commits a poisoned tip revision (an always-published stub)
+    # while GITHUB_SHA points one commit back at the real scenario-driven
+    # stub, so a HEAD-reading extractor fails the unpublished and
+    # unverifiable cases behaviorally, not only statically.
+    printf '%s\n' "$r19_verify_block" | grep -qE '(^|[[:space:]])GITHUB_SHA=' && r19_bad="${r19_bad} review.yml(github-sha-reassignment)"
+    printf '%s\n' "$r19_verify_block" | grep -qF 'HEAD:.github/scripts/review-comment-published.sh' && r19_bad="${r19_bad} review.yml(pr-head-provenance)"
     # F8/F11 (review rounds 2 and 3): no fail-fast bypass. `set +e` (quoted or
     # not) or a `trap` would disable the runner's `bash -e` baseline the retry
     # POST's fail-fast guarantee depends on.
@@ -2485,6 +2526,51 @@ else
     [ "$r19_gated" -eq 2 ] || r19_bad="${r19_bad} review.yml(verify-gated-forward-count=${r19_gated},want=2)"
     printf '%s\n' "$(grep -A1 -F -- '- name: Force lab routing for infrastructure PRs' "$REVIEW_WF" | tail -1 | sed 's/^[[:space:]]*//')" | grep -qxF "$R19_VERDICT_GATE" || r19_bad="${r19_bad} review.yml(force-lab-step-not-gated)"
     printf '%s\n' "$(grep -A1 -F -- '- name: Forward reviewer decision' "$REVIEW_WF" | tail -1 | sed 's/^[[:space:]]*//')" | grep -qxF "$R19_VERDICT_GATE" || r19_bad="${r19_bad} review.yml(forward-step-not-gated)"
+    # F21 (review round 4): the forward path and the job's step sequence are
+    # pinned. The forward step must post exactly the five canonical triggers
+    # (an edit such as /oc test -> /oc fix silently misroutes every approved
+    # review), may carry no shell/continue-on-error/defaults override, and its
+    # GH_TOKEN must stay the owner PAT (an issue_comment run spawned by a
+    # github.token-authored comment never fires). The review job's step
+    # sequence is pinned in order, so an extra near-forward step (which could
+    # re-introduce the #616 unread-verdict forward) or a reordering reds. The
+    # wanted list uses a quoted heredoc because the restore step's name
+    # contains an apostrophe.
+    r19_fwd_line=$(grep -nxF '      - name: Forward reviewer decision' "$REVIEW_WF" | head -1 | cut -d: -f1)
+    if [ -n "$r19_fwd_line" ]; then
+      r19_fwd_block=$(sed -n "${r19_fwd_line},/^      - name: /p" "$REVIEW_WF" 2>/dev/null || true)
+      for r19_body in \
+        'gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc test"' \
+        'gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc fix"' \
+        'gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc continue"' \
+        'gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc lab"' \
+        'gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"'; do
+        printf '%s\n' "$r19_fwd_block" | sed 's/^[[:space:]]*//' | grep -qxF "$r19_body" || r19_bad="${r19_bad} review.yml(forward-body-not-exact)"
+      done
+      printf '%s\n' "$r19_fwd_block" | grep -qE '^[[:space:]]*(shell|continue-on-error|defaults):' && r19_bad="${r19_bad} review.yml(forward-step-attribute-override)"
+      printf '%s\n' "$r19_fwd_block" | grep -qxF '          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}' || r19_bad="${r19_bad} review.yml(forward-gh-token-not-PAT)"
+    else
+      r19_bad="${r19_bad} review.yml(forward-step-missing)"
+    fi
+    r19_seq=$(awk '/^  review:$/ { f=1; next } f && /^  [A-Za-z_]+:/ { exit } f && /^      - name: / { sub(/^      - name: /, ""); print }' "$REVIEW_WF")
+    r19_seq_want=$(cat <<'R19_SEQ'
+Get PR info
+Checkout repository (PR head)
+Actor write gate (issue #428)
+Skip review for non-PR issue
+Record checked-out PR head
+Arm workspace push detector
+Configure git identity
+Clear runtime decision
+Restore the vendored runner when the checked-out head predates it
+Run opencode reviewer
+Verify review decided, else auto-retry
+Restore PR head only when this run's own agent moved it
+Force lab routing for infrastructure PRs
+Forward reviewer decision
+R19_SEQ
+)
+    [ "$r19_seq" = "$r19_seq_want" ] || r19_bad="${r19_bad} review.yml(step-sequence-changed)"
   fi
 fi
 # Functional contract test (delegation.md section 6: executable mock,
@@ -2600,13 +2686,16 @@ fi
 # step. Static pins constrain the shape, but the class that lost a verdict
 # (success + provably unpublished, review run 39089530715 on PR #636) needs
 # executable proof that the bounded auto-retry fires, so the real `run:`
-# block is extracted (line-anchored to the name line whose `id: verify-review`
-# binding the static pins assert), four expression macros plus the
+# block is extracted (struct-anchored to the name line whose
+# `id: verify-review` binding the static pins assert, and to the step's
+# single 8-space-indent `run:` key), four expression macros plus the
 # decision-file path are substituted (integrity asserted: no `${{` and no raw
 # decision path may survive), and it executes under the runner's `bash -e`
-# default in a sandbox git repo whose commit carries a scenario-driven
-# evidence stub (whose arguments are validated, review round 3 F15), with an
-# executable mock `gh` bound to the sandbox endpoint
+# default in a sandbox git repo whose GITHUB_SHA commit carries a
+# scenario-driven evidence stub (whose arguments are validated, review round
+# 3 F15) and whose workspace tip is a poisoned always-published copy (review
+# round 4 F20, so a HEAD-reading provenance extractor fails behaviorally),
+# with an executable mock `gh` bound to the sandbox endpoint
 # (repos/mockrepo/issues/614/comments; any other call fails the case) that
 # serves the retry enumeration, records auto-retry posts, and can reject a
 # POST under scenario control (review round 3 F11). Every scenario asserts
@@ -2636,14 +2725,17 @@ elif [ -f "$REVIEW_WF" ]; then
   if [ -z "$r19p_tmp" ] || [ ! -d "$r19p_tmp" ]; then
     r19_bad="${r19_bad} verify-behavioral(sandbox-unavailable)"
   else
-    # Extraction (F5): starts exactly at the id-bound name line, so a
-    # same-name decoy elsewhere in the file can never be harvested instead
-    # of the executing step.
+    # Extraction (F5, F17): starts exactly at the id-bound name line, so a
+    # same-name decoy elsewhere in the file can never be harvested instead of
+    # the executing step, and the run key is struct-anchored at exactly the
+    # 8-space step-key indent (a nested `run: |` decoy at another indent can
+    # never be harvested either; the run-key-count pin in the static block
+    # additionally requires it to be the only one in the step).
     r19p_run=$(awk -v start="$r19_name_line" '
       NR < start { next }
       NR == start { in_step=1; next }
       in_step && /^      - name: / { exit }
-      in_step && /^[[:space:]]*run: \|[[:space:]]*$/ { in_run=1; next }
+      in_step && /^        run: \|[[:space:]]*$/ { in_run=1; next }
       in_run { sub(/^          /, ""); print }
     ' "$REVIEW_WF" 2>/dev/null || true)
     r19p_block="$r19p_tmp/verify.sh"
@@ -2687,8 +2779,18 @@ R19P_EVIDENCE
         "$r19p_git_bin" config user.email "r19p@example.invalid"
         "$r19p_git_bin" add .github/scripts/review-comment-published.sh
         "$r19p_git_bin" commit --quiet -m "r19p sandbox stub"
+        # F20 (review round 4): the workspace tip is a poisoned copy (always
+        # published, exit 0), while GITHUB_SHA points one commit back at the
+        # real scenario-driven stub. Production reads the workflow commit;
+        # an extractor that reads HEAD (the checked-out PR head in
+        # production) pulls the poisoned copy and fails the unpublished and
+        # unverifiable cases behaviorally, so provenance escapes are caught
+        # even when their syntax dodges the static bans.
+        printf '#!/usr/bin/env bash\nexit 0\n' > "$r19p_repo/.github/scripts/review-comment-published.sh"
+        "$r19p_git_bin" add .github/scripts/review-comment-published.sh
+        "$r19p_git_bin" commit --quiet -m "r19p head tip (poisoned copy)"
       ) > /dev/null 2>&1
-      r19p_sha=$(cd "$r19p_repo" && "$r19p_git_bin" rev-parse HEAD 2>/dev/null || true)
+      r19p_sha=$(cd "$r19p_repo" && "$r19p_git_bin" rev-parse HEAD~1 2>/dev/null || true)
       if [ -z "$r19p_sha" ]; then
         r19_bad="${r19_bad} verify-behavioral(sandbox-commit-failed)"
       else
@@ -2824,7 +2926,7 @@ else
   r19_bad="${r19_bad} reviewer.md(missing)"
 fi
 if [ -z "$r19_bad" ]; then
-  check "R19" "review forwarding requires published decision-comment evidence: the shared script accepts only a bot-authored, post-trigger, reviewer-signed comment (exit 0/1/2), the verify step extracts it from this run's own workflow commit, discards unpublished verdicts before the retry and forward paths and runs the same bounded auto-retry regardless of the agent outcome (issue #637), fails closed on inconclusive verification, both forward steps are verify-success gated, the verify step is bound to its unique id: verify-review, the retry POST line, enumeration URL, counter predicate, PR-number binding, missing-evidence fail-closed exit, step if: line and AGENT_GATE mapping, workflow-commit provenance probe/extraction and evidence invocation as exact whole lines, and the absence of harness/env fingerprints and fail-fast bypasses (including quoted set +e) are pinned statically, and the real extracted verify block is executed under the runner's bash -e default in a production-shaped env (GITHUB_ACTIONS/GITHUB_REPOSITORY set, ambient CI vars sanitized) against an endpoint-bound mock gh across the published, crash/unpublished, outcome-quadrant, rejected-POST, cap/denial/lookalike matrix with an argument-validating evidence stub and the retry cap pinned to exactly 3 (issues #616, #637)" "ok"
+  check "R19" "review forwarding requires published decision-comment evidence: the shared script accepts only a bot-authored, post-trigger, reviewer-signed comment (exit 0/1/2), the verify step extracts it from this run's own workflow commit, discards unpublished verdicts before the retry and forward paths and runs the same bounded auto-retry regardless of the agent outcome (issue #637), fails closed on inconclusive verification, both forward steps are verify-success gated, the verify step is bound to its unique id: verify-review and its single run key, the retry POST line, enumeration URL, counter predicate, PR-number binding, missing-evidence fail-closed exit, step if: line, AGENT_GATE mapping, and owner-PAT GH_TOKEN, workflow-commit provenance probe/extraction and evidence invocation as exact whole lines with GITHUB_SHA-reassignment and HEAD-provenance bans, the absence of shell/continue-on-error/defaults overrides at step, job, and workflow level, the forward step's five exact trigger bodies, PAT token, and absent attribute overrides, the review job's exact step sequence, and the absence of harness/env fingerprints and fail-fast bypasses (including quoted set +e) are pinned statically, and the real extracted verify block is executed under the runner's bash -e default in a production-shaped env (GITHUB_ACTIONS/GITHUB_REPOSITORY set, ambient CI vars sanitized) with GITHUB_SHA pointing at the good evidence stub and a poisoned workspace tip against an endpoint-bound mock gh across the published, crash/unpublished, outcome-quadrant, rejected-POST, cap/denial/lookalike matrix with an argument-validating evidence stub and the retry cap pinned to exactly 3 (issues #616, #637)" "ok"
 else
   check "R19" "review-comment publication-evidence guard missing:${r19_bad} (issues #616/#637: an unread verdict can be forwarded, or a lost success+unpublished verdict can skip the bounded auto-retry)" "bad"
 fi
