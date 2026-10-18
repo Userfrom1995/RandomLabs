@@ -314,6 +314,13 @@ fn render_frame(app: &mut App, out: &mut String, fresh: bool) {
     }
     out.push_str("\x1b[H");
     if app.layout.too_small {
+        if fresh && app.tier() == Tier::Kitty {
+            // Same contract as the board path below: a plan change must
+            // kill every live placement before the card paints, so a
+            // Kitty-compatible terminal that does not clear graphics on
+            // ED2 can never leave the stale board behind the card.
+            out.push_str(maze_chase_terminal::kitty::delete_all_escape());
+        }
         for (i, line) in chrome::too_small_card(
             app.layout.cols,
             app.layout.rows,

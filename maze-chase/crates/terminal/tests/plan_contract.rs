@@ -8,6 +8,10 @@
 //!    re-display the board image in that same frame. Before this
 //!    contract, a resized frame left the old placement on the old cell
 //!    grid until the next image tick and only cleared glyph fragments.
+//!    `kitty_shrink_into_too_small_deletes_placements_and_draws_card`
+//!    pins the same contract on the shrink-into-too-small path: the
+//!    card's first frame must clear, delete every placement, then draw
+//!    the card, with no fresh display escape.
 //!
 //! 2. `trace_env_emits_start_plan_and_frame_records` pins the
 //!    `MAZE_CHASE_TRACE` machine trace the compatibility harness
@@ -280,6 +284,59 @@ fn kitty_resize_clears_stale_placements_and_repaints() {
     assert!(
         clear < delete_all && delete_all < display,
         "the resize frame must clear, delete, then re-display (got {clear} < {delete_all} < {display})"
+    );
+}
+
+/// Shrinking below the minimum on the Kitty tier must take the same
+/// stale-placement kill: the too-small card's first frame clears the
+/// screen, deletes every live placement, then draws the card, and never
+/// displays a fresh board image. Before this contract, the shrink path
+/// emitted `ESC[2J` alone, so a Kitty-compatible terminal that does not
+/// clear graphics on ED2 kept the old board behind the card.
+#[test]
+fn kitty_shrink_into_too_small_deletes_placements_and_draws_card() {
+    let mut s = Session::start("toosmall", 62, 35, None);
+    s.reach_playing();
+    assert!(
+        s.wait("\x1b_Ga=T", Duration::from_secs(8)),
+        "the playing frame must carry a Kitty display escape; tail: {}",
+        tail(&s.out)
+    );
+
+    s.clear_output();
+    set_winsize(&s.pty.master, 40, 20);
+    send_signal(s.child.id(), libc::SIGWINCH);
+    assert!(
+        s.wait("window 40x20 is too small", Duration::from_secs(8)),
+        "the too-small card never appeared; tail: {}",
+        tail(&s.out)
+    );
+    assert!(
+        s.wait("\x1b[?2026l", Duration::from_secs(8)),
+        "the too-small frame never closed; tail: {}",
+        tail(&s.out)
+    );
+
+    let frame = frame_containing(&s.out, "window 40x20 is too small")
+        .expect("captured the too-small frame");
+    assert!(
+        frame.contains("\x1b[2J"),
+        "the too-small frame must clear stale glyphs"
+    );
+    assert!(
+        frame.contains("\x1b_Ga=d\x1b\\"),
+        "the too-small frame must delete every live placement"
+    );
+    let clear = frame.find("\x1b[2J").unwrap();
+    let delete_all = frame.find("\x1b_Ga=d\x1b\\").unwrap();
+    let card = frame.find("window 40x20 is too small").unwrap();
+    assert!(
+        clear < delete_all && delete_all < card,
+        "the too-small frame must clear, delete, then draw the card (got {clear} < {delete_all} < {card})"
+    );
+    assert!(
+        !frame.contains("\x1b_Ga=T"),
+        "the too-small frame must not display a fresh board image"
     );
 }
 
