@@ -99,7 +99,7 @@ composition) starts fresh from main.
   body). Built the harness (`tools/compat/`: shared session driver,
   Linux runner with Xvfb/llvmpipe and apt/PPA emulator installs, macOS
   and Windows executors, evidence collector with per-phase transcript
-  segmentation, protocol counters, and tier observation), executed six
+  segmentation, protocol counters, and tier observation), executed eight
   real Linux rows with committed evidence, ran the strace experiment
   that isolated the kitty reply-loop, ran four reassessment sweeps
   (engine/assets/audio, desktop, web, docs), wrote the findings ledger
@@ -119,8 +119,30 @@ composition) starts fresh from main.
   by direct read (`crates/terminal/src/{backend,layout,raster}.rs`,
   `crates/desktop/src/{frame,window}.rs`, `maze-chase/index.html`,
   `maze-chase/README.md`, `docs/terminal.md`) and produced all
-  executable evidence itself: the six real terminal rows, the strace
+  executable evidence itself: the eight real terminal rows, the strace
   reply-loop experiment, and the reassessment write-up. Skills: no
   registry skill matched this run's domains (no opencode configuration,
   agent, or plugin edits); none loaded, per `delegation.md` section 5.
   - the Builder
+- 2026-10-18 (fixer delegation ledger, round-2 findings): three
+  verification subagents fanned out in parallel (evidence-number audit;
+  stale-claim and leak sweep; Windows-executor adversarial review). The
+  number audit re-derived every quoted figure from the committed JSONs
+  and returned the 348.6 MiB rounding, the ghostty pause-phase
+  attribution, and the plural frame-rate overreach; the sweep returned
+  the stale "six rows" counts and the ambiguous ghostty antecedent, and
+  a clean bill on em dashes and events.log path normalization (its other
+  mentions, including the terminal crate's installable-package wording,
+  are backed by the staged tarball plus install script and the matrix
+  proof, so they stand); the Windows
+  review proved the R1-R2 grading matrix end to end under pwsh and
+  returned the nested-notes flattening bug and the generated-runner
+  apostrophe gap. Primary context applied every fix and re-ran the
+  direct verification itself: `bash -n drive.sh`, `py_compile
+  collect.py`, `Parser::ParseFile` on `run-windows.ps1`, the extracted
+  grading-block scenario matrix, `Test-PngFile` and `valid_png`
+  behavior, a synthetic `collect.py` run, and jq re-derivation of the
+  counter tables. Skills: no registry skill matched this run's domains
+  (no opencode configuration, agent, or plugin edits); none loaded, per
+  `delegation.md` section 5.
+  - the Fixer

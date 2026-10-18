@@ -7,10 +7,11 @@ project; the in-repo Python game (`pacman/`, issue #552) is a behavioral
 feel reference, never a code source. Clean-room rules live in
 `docs/legal.md`.
 
-Current status: **shipped across Linux, macOS, and Windows.** The
-tracking issue #582 is open until the final phase of the release
-overhaul re-verifies every claim; the terminal layer's real-emulator
-truth is recorded in
+Current status: **playable on Linux, macOS, and Windows; packaging is
+dev-grade (built binaries, no installers), and the open tracking issue
+#582 carries the release overhaul through installers, signed packages,
+and a final re-verification of every claim.** The terminal layer's
+real-emulator truth is recorded in
 [docs/terminal-compat.md](docs/terminal-compat.md) with committed
 evidence and outstanding findings in
 [progress/582-maze-chase-overhaul-findings.md](../progress/582-maze-chase-overhaul-findings.md),
@@ -75,7 +76,8 @@ and the parity gate in `docs/parity.md`.
   (Cozy/Classic-from-L1, Standard/Classic-from-L2, Harsh/Sprint), keymap
   with duplicate-safe rebinds, and a human-readable settings file.
   Design language pinned in `docs/design.md` plus `design-tokens.json`.
-- **Terminal game** (`crates/terminal`, done, [launch docs](docs/terminal.md)): installable package with
+- **Terminal game** (`crates/terminal`, done, [launch docs](docs/terminal.md)): dev-grade package
+  (built binary plus tarball and install scripts; installers are release-engineering work) with
   a fullscreen canvas layout engine, magnification that fills the window,
   Kitty plus Sixel plus Unicode tiers with detection and auto-degrade
   watchdog, dynamic resize, title/help/scores/settings/key-rebind/pause
