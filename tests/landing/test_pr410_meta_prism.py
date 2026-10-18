@@ -3,10 +3,10 @@
 Verifies against the shipped artifact (root index.html served over HTTP):
 - meta description lists the current live fleet (Pac-Man Terminal Arcade,
   Maze Chase Rust, Terminal Browser, Desktop Pet, Netpulse, Thunderline,
-  Mythduel, Hearthlight, Doom, Umbra, torshim), not the stale Tor CLI /
-  Umbra-only text
-- archived names (Folio, Tabula, Sextant, Prism, Poolduel) are absent from
-  the meta (they live under archive/, cataloged in archive/README.md)
+  Mythduel, Hearthlight, Umbra, torshim), not the stale Tor CLI / Umbra-only
+  text
+- archived names (Folio, Tabula, Sextant, Prism, Poolduel, Doom) are absent
+  from the meta (they live under archive/, cataloged in archive/README.md)
 - Prism no longer appears on the landing page (archived to archive/prism/)
 - live cards exist before Previous Projects
 - HTML parses with zero errors, zero em dashes (lab formatting invariant)
@@ -34,14 +34,13 @@ FLEET = [
     "Thunderline",
     "Mythduel",
     "Hearthlight",
-    "Doom",
     "Umbra",
     "torshim",
 ]
 # Archived projects: preserved under archive/ (Sextant via #548, Poolduel
-# via #561), cataloged in archive/README.md. They must not be advertised as
-# live in the meta.
-ARCHIVED = ["Folio", "Tabula", "Sextant", "Prism", "Poolduel"]
+# via #561, Doom via #639), cataloged in archive/README.md. They must not be
+# advertised as live in the meta.
+ARCHIVED = ["Folio", "Tabula", "Sextant", "Prism", "Poolduel", "Doom"]
 
 
 class _StrictParser(HTMLParser):
@@ -85,7 +84,7 @@ class LandingPr410(unittest.TestCase):
     def test_live_cards_before_previous(self):
         src = read_source()
         prev_pos = src.index("Previous Projects")
-        for name in ("Terminal Browser", "Doom", "Umbra"):
+        for name in ("Terminal Browser", "Thunderline", "Umbra"):
             self.assertIn(name, src)
             self.assertLess(src.index(name), prev_pos, f"{name} card not in Live section")
 
