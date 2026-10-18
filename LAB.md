@@ -457,7 +457,15 @@ superseding-only workflows (`pages.yml` deploys and `tor-cli.yml` CI) set
 
 Project CI (separate from lab infrastructure): `tor-cli.yml`,
 `poolduel-m1.yml`, `poolduel-m2.yml`, `poolduel-m9.yml`,
-`poolduel-m10-soak.yml`, `postformer-cpu-train.yml`, `pet-release.yml`.
+`poolduel-m10-soak.yml`, `pet-release.yml`.
+
+`postformer-cpu-train.yml` was retired (issue #665): PostFormer is archived
+(`archive/postformer/`) and every dispatch died on its pre-archive paths
+(`postformer/harness/gate_matrix.json`, `python3 -m postformer.harness.train_chunk`,
+`postformer/requirements.txt`, `postformer/ledger/checkpoints/...`), with no live
+consumer. The workflow, its `maintainer.yml` failure-triage entry, and its
+`SWEEP_ALLOWLIST` entry were removed together so no doc or allowlist claims
+triage coverage for a workflow that no longer exists.
 
 `idea.yml` was deleted (superseded by the Maintainer-dispatched Ideator; also
 removed the PAT that used to sit in the ideation agent's env).
