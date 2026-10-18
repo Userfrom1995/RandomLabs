@@ -559,6 +559,13 @@ def main():
             transcript = fh.read()
         transcript_sha = sha256_file(transcript_path)
 
+    # Per-phase counters are computed over each phase's byte slice, so a
+    # synchronized frame or a chunked-transmit continuation straddling a
+    # checkpoint boundary can be attributed to no phase: per-phase sums
+    # sit slightly below the whole-transcript protocol_totals (measured
+    # 1-7 frames and ~1 MB of kitty payload on the flood rows). The
+    # transcript-wide totals are the authoritative figures; per-phase
+    # values describe their slice only.
     phases = segment_phases(transcript, events)
     phase_reports = []
     prev_at = None
