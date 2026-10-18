@@ -345,9 +345,9 @@ fn render_frame(app: &mut App, out: &mut String, fresh: bool) {
     match app.screens.current {
         ScreenId::Playing | ScreenId::Paused => {
             if bitmap {
-                // Board as pixels at the board origin; chrome stays cells.
-                // The board band is cleared first so the pixel image (whose
-                // cell footprint varies by terminal) never leaves stale
+                // Board as pixels; chrome stays cells. The whole board
+                // band is cleared first so the pixel image (whose cell
+                // footprint varies by terminal) never leaves stale
                 // fragments, then the image draws over the clearing.
                 let b = &app.layout.board;
                 for i in 0..b.h {
@@ -364,7 +364,13 @@ fn render_frame(app: &mut App, out: &mut String, fresh: bool) {
                         ),
                     );
                 }
-                paint_line(out, b.y, b.x, "");
+                // The raster footprint: centered inside the board, mapped
+                // from the raster's pixel size through the detected window
+                // pixels; the full board without a pixel report (issue
+                // #656 - no more overflow into the hint line and no more
+                // corner-hugging inside a larger box).
+                let img = app.layout.image;
+                paint_line(out, img.y, img.x, "");
                 if app.tier() == Tier::Kitty {
                     if fresh {
                         // The whole placement grid changed: drop every
@@ -376,8 +382,8 @@ fn render_frame(app: &mut App, out: &mut String, fresh: bool) {
                     let png = app.bitmap_png();
                     out.push_str(&maze_chase_terminal::kitty::display_escape_id(
                         &png,
-                        b.h as u32,
-                        b.w as u32,
+                        img.h as u32,
+                        img.w as u32,
                         Some(1),
                     ));
                 } else {
@@ -599,7 +605,7 @@ impl Trace {
             maze_chase_terminal::layout::Chrome::Minimal => "minimal",
         };
         self.event(&format!(
-            "\"plan\",\"cols\":{},\"rows\":{},\"cell_cols\":{},\"cell_rows\":{},\"ppt\":{},\"too_small\":{},\"chrome\":\"{chrome}\",\"board_x\":{},\"board_y\":{},\"board_w\":{},\"board_h\":{}",
+            "\"plan\",\"cols\":{},\"rows\":{},\"cell_cols\":{},\"cell_rows\":{},\"ppt\":{},\"too_small\":{},\"chrome\":\"{chrome}\",\"board_x\":{},\"board_y\":{},\"board_w\":{},\"board_h\":{},\"board_px_w\":{},\"board_px_h\":{},\"img_x\":{},\"img_y\":{},\"img_w\":{},\"img_h\":{}",
             layout.cols,
             layout.rows,
             layout.cell_cols,
@@ -609,7 +615,13 @@ impl Trace {
             layout.board.x,
             layout.board.y,
             layout.board.w,
-            layout.board.h
+            layout.board.h,
+            layout.board_px.0,
+            layout.board_px.1,
+            layout.image.x,
+            layout.image.y,
+            layout.image.w,
+            layout.image.h
         ));
     }
 
