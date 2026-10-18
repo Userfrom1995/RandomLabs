@@ -294,10 +294,13 @@ fn reconcile_size(app: &mut App) -> bool {
 }
 
 /// Render one full frame into `out` (caller flushes).
-/// `bitmap_fresh` forces a fresh bitmap image (first frame after a
-/// resize or tier change); otherwise the live image id is reused after
-/// deleting the previous placement.
-fn render_frame(app: &mut App, out: &mut String, bitmap_fresh: bool) {
+///
+/// `fresh` marks a layout-plan or tier change: the frame first clears
+/// the screen and deletes every live image placement, then repaints
+/// everything in the same frame, so a resize can never leave stale
+/// pixels or clipped glyphs behind (issue #674 - the old placement on
+/// the old cell grid must be gone before the new frame shows).
+fn render_frame(app: &mut App, out: &mut String, fresh: bool) {
     use maze_chase_terminal::screens::ScreenId;
     let theme = app.theme();
     let truecolor = matches!(app.tier(), Tier::Kitty | Tier::Sixel | Tier::Truecolor);
@@ -306,13 +309,16 @@ fn render_frame(app: &mut App, out: &mut String, bitmap_fresh: bool) {
     // Synchronized output: tear-free frames where supported, harmless
     // plain text where not.
     out.push_str("\x1b[?2026h");
+    if fresh {
+        out.push_str("\x1b[2J");
+    }
     out.push_str("\x1b[H");
     if app.layout.too_small {
         for (i, line) in chrome::too_small_card(
             app.layout.cols,
             app.layout.rows,
-            maze_chase_terminal::layout::MIN_COLS,
-            maze_chase_terminal::layout::MIN_ROWS,
+            app.layout.min_cols,
+            app.layout.min_rows,
         )
         .iter()
         .enumerate()
@@ -353,7 +359,11 @@ fn render_frame(app: &mut App, out: &mut String, bitmap_fresh: bool) {
                 }
                 paint_line(out, b.y, b.x, "");
                 if app.tier() == Tier::Kitty {
-                    if !bitmap_fresh {
+                    if fresh {
+                        // The whole placement grid changed: drop every
+                        // live placement, then re-display this frame.
+                        out.push_str(maze_chase_terminal::kitty::delete_all_escape());
+                    } else {
                         out.push_str(&maze_chase_terminal::kitty::delete_escape(1));
                     }
                     let png = app.bitmap_png();
@@ -367,7 +377,7 @@ fn render_frame(app: &mut App, out: &mut String, bitmap_fresh: bool) {
                     let frame = maze_chase_terminal::raster::render(
                         &app.game,
                         theme,
-                        maze_chase_terminal::raster::DEFAULT_PPT,
+                        app.layout.ppt(),
                         app.frame_no,
                         !app.settings.reduced_flash,
                     );
@@ -412,7 +422,7 @@ fn render_frame(app: &mut App, out: &mut String, bitmap_fresh: bool) {
 }
 
 /// HUD chrome for the playing surface.
-fn paint_chrome(app: &App, out: &mut String, truecolor: bool, cols: usize, _rows: usize) {
+fn paint_chrome(app: &App, out: &mut String, truecolor: bool, _cols: usize, _rows: usize) {
     let theme = app.theme();
     let best = app.scores.first().map(|s| s.score).unwrap_or(0);
     if let Some(side) = app.layout.side {
@@ -433,18 +443,21 @@ fn paint_chrome(app: &App, out: &mut String, truecolor: bool, cols: usize, _rows
         }
     } else if let Some(bar) = app.layout.top_bar {
         for (i, line) in chrome::top_bar(&app.game, best).iter().enumerate() {
-            let padded = format!("{:<width$}", line, width = cols);
+            if i >= bar.h as usize {
+                break;
+            }
+            let padded = format!("{:<width$}", line, width = bar.w as usize);
             paint_line(
                 out,
                 bar.y + i as u16,
-                0,
+                bar.x,
                 &unicode::paint(&padded, theme.text, theme.bg, theme.bg, truecolor),
             );
         }
     }
     let trail = app.watchdog.trail.last().map(|s| s.as_str());
     let hint = chrome::hint("playing", app.ticker(), trail);
-    let padded = format!("{:<width$}", hint, width = cols);
+    let padded = format!("{:<width$}", hint, width = app.layout.hint.w as usize);
     paint_line(
         out,
         app.layout.hint.y,
@@ -516,6 +529,85 @@ fn paint_panel(
             0,
             &unicode::paint(&padded, color, theme.bg, theme.bg, truecolor),
         );
+    }
+}
+
+/// Machine-readable session trace for the compatibility harness.
+///
+/// When `MAZE_CHASE_TRACE` names a file, the binary appends one JSON
+/// object per line (`{"kind":...,"ts_ms":...}`): `start` (window,
+/// detected cell pixels), `plan` (chosen layout plan), `frame` (bitmap
+/// encode cost), and `watchdog` (tier changes). The compat harness
+/// (`tools/compat/collect.py`) reads `session/trace.jsonl`. Tracing can
+/// never fail a run: an unset or unopenable path disables it, and write
+/// errors disable it silently.
+struct Trace {
+    file: Option<std::fs::File>,
+    started: Instant,
+}
+
+impl Trace {
+    fn from_env() -> Self {
+        let file = std::env::var_os("MAZE_CHASE_TRACE").and_then(|p| {
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(p)
+                .ok()
+        });
+        Self {
+            file,
+            started: Instant::now(),
+        }
+    }
+
+    fn event(&mut self, fields: &str) {
+        let Some(file) = self.file.as_mut() else {
+            return;
+        };
+        let ms = self.started.elapsed().as_millis();
+        use std::io::Write as _;
+        if writeln!(file, "{{\"kind\":{fields},\"ts_ms\":{ms}}}").is_err() || file.flush().is_err()
+        {
+            self.file = None;
+        }
+    }
+
+    fn note_start(&mut self, cols: u16, rows: u16) {
+        let cell = maze_chase_terminal::geometry::detect_cell_px();
+        let (cw, ch) = cell.unwrap_or((
+            maze_chase_terminal::geometry::NOMINAL_CELL_W_PX,
+            maze_chase_terminal::geometry::NOMINAL_CELL_H_PX,
+        ));
+        let known = cell.is_some();
+        self.event(&format!(
+            "\"start\",\"cols\":{cols},\"rows\":{rows},\"cell_w_px\":{cw},\"cell_h_px\":{ch},\"pixels_known\":{known}"
+        ));
+    }
+
+    fn note_plan(&mut self, layout: &maze_chase_terminal::layout::Layout) {
+        let chrome = match layout.chrome {
+            maze_chase_terminal::layout::Chrome::Side => "side",
+            maze_chase_terminal::layout::Chrome::Band => "band",
+            maze_chase_terminal::layout::Chrome::Minimal => "minimal",
+        };
+        self.event(&format!(
+            "\"plan\",\"cols\":{},\"rows\":{},\"cell_cols\":{},\"cell_rows\":{},\"ppt\":{},\"too_small\":{},\"chrome\":\"{chrome}\",\"board_x\":{},\"board_y\":{},\"board_w\":{},\"board_h\":{}",
+            layout.cols,
+            layout.rows,
+            layout.cell_cols,
+            layout.cell_rows,
+            layout.ppt(),
+            layout.too_small,
+            layout.board.x,
+            layout.board.y,
+            layout.board.w,
+            layout.board.h
+        ));
+    }
+
+    fn note_watchdog(&mut self, tier: Tier) {
+        self.event(&format!("\"watchdog\",\"tier\":\"{}\"", tier.name()));
     }
 }
 
@@ -596,8 +688,14 @@ fn main() {
     let mut last = Instant::now();
     let mut out = String::new();
     let mut bitmap_tick: u64 = 0;
-    let mut bitmap_fresh = true;
+    let mut fresh = true;
     let mut last_tier = app.tier();
+    let mut last_plan = app.layout;
+    let mut last_image = Instant::now();
+    let mut frame_seq: u64 = 0;
+    let mut trace = Trace::from_env();
+    trace.note_start(app.layout.cols, app.layout.rows);
+    trace.note_plan(&app.layout);
     loop {
         if app.quit {
             break;
@@ -606,9 +704,10 @@ fn main() {
             // Tier change (watchdog downgrade or probe upgrade): clear
             // the screen and rebuild the bitmap image from scratch.
             last_tier = app.tier();
-            bitmap_fresh = true;
+            fresh = true;
             out.clear();
             out.push_str("\x1b[2J");
+            trace.note_watchdog(last_tier);
         }
         let now = Instant::now();
         let dt = (now - last).as_secs_f64().clamp(0.0, 0.25);
@@ -617,31 +716,34 @@ fn main() {
         if event::poll(Duration::from_millis(16)).unwrap_or(false) {
             match event::read() {
                 Ok(TermEvent::Key(key)) => app.on_key(key),
-                Ok(TermEvent::Resize(c, r)) => {
-                    app.resize(c, r);
-                    bitmap_fresh = true;
-                }
+                Ok(TermEvent::Resize(c, r)) => app.resize(c, r),
                 _ => {}
             }
         }
         // Self-healing resize: never trust the Resize event alone (a
         // SIGWINCH batched with a key is dropped by the event source).
-        if reconcile_size(&mut app) {
-            bitmap_fresh = true;
+        reconcile_size(&mut app);
+        // Plan change (size or real cell pixels): the next frame clears
+        // every surface and deletes stale image placements before it
+        // repaints (issue #674).
+        if app.layout != last_plan {
+            last_plan = app.layout;
+            fresh = true;
+            trace.note_plan(&app.layout);
         }
         app.tick(dt.max(1.0 / 240.0));
         // Bitmap tiers repaint pixels at ~20 fps (encode cost); cell
-        // tiers repaint text every frame.
+        // tiers repaint text every frame. The wall-clock floor keeps a
+        // slow PTY from being flooded by back-to-back encodes.
         let is_bitmap = matches!(app.tier(), Tier::Kitty | Tier::Sixel);
         bitmap_tick += 1;
-        if !is_bitmap || bitmap_tick % 3 == 1 {
+        let image_due = !is_bitmap
+            || (bitmap_tick % 3 == 1 && last_image.elapsed() >= Duration::from_millis(45));
+        if image_due {
+            let encode_start = Instant::now();
             out.clear();
-            if is_bitmap && app.tier() != last_tier {
-                last_tier = app.tier();
-                bitmap_fresh = true;
-            }
-            render_frame(&mut app, &mut out, bitmap_fresh);
-            bitmap_fresh = false;
+            render_frame(&mut app, &mut out, fresh);
+            fresh = false;
             let mut stdout = std::io::stdout();
             if stdout.write_all(out.as_bytes()).is_err() || stdout.flush().is_err() {
                 app.watchdog.note_error("frame write failed");
@@ -650,7 +752,17 @@ fn main() {
                 }
             } else {
                 app.watchdog.note_ok();
+                if is_bitmap {
+                    trace.event(&format!(
+                        "\"frame\",\"seq\":{frame_seq},\"bytes\":{},\"ppt\":{},\"encode_ms\":{}",
+                        out.len(),
+                        app.layout.ppt(),
+                        encode_start.elapsed().as_millis()
+                    ));
+                    last_image = Instant::now();
+                }
             }
+            frame_seq += 1;
         }
         // Replay the startup keystrokes the probe captured, but only
         // after the first frame is on screen: the player saw the title
