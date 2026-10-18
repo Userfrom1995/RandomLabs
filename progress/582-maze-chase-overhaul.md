@@ -14,7 +14,7 @@
 
 ## Overhaul Roadmap
 
-- Phase 1: Product Reassessment and Real-Terminal Truth: [x] real-terminal driver harness (`maze-chase/tools/compat/`: `run-linux.sh`, `run-macos.sh`, `run-windows.ps1`, `drive.sh`, `collect.py`, `README.md`), [x] reproduce the Owner's Ghostty and Kitty findings on current main with recorded evidence (kitty reply-loop flood plus input death, Ghostty mis-routing despite its kitty-graphics support; six executed Linux rows in `tools/compat/evidence/`), [x] critical reassessment of engine, layers, and docs claims (four parallel sweeps; Section B of the ledger), [x] findings ledger with every gap (`progress/582-maze-chase-overhaul-findings.md`), [x] honest compatibility matrix scaffold `maze-chase/docs/terminal-compat.md` (executed rows plus named executors for host-pending rows), [x] new sub-issues routed through the Maintainer (proposed set in ledger Section C; filing is the Maintainer's next step) (PR 1 target, Refs #582, Refs #655, Refs #661)
+- Phase 1: Product Reassessment and Real-Terminal Truth: [x] real-terminal driver harness (`maze-chase/tools/compat/`: `run-linux.sh`, `run-macos.sh`, `run-windows.ps1`, `drive.sh`, `collect.py`, `README.md`), [x] reproduce the Owner's Ghostty and Kitty findings on current main with recorded evidence (kitty reply-loop flood plus input delayed past the session, Ghostty mis-routing despite its kitty-graphics support; eight executed Linux rows in `maze-chase/tools/compat/evidence/`), [x] critical reassessment of engine, layers, and docs claims (four parallel sweeps; Section B of the ledger), [x] findings ledger with every gap (`progress/582-maze-chase-overhaul-findings.md`), [x] honest compatibility matrix scaffold `maze-chase/docs/terminal-compat.md` (executed rows plus named executors for host-pending rows), [ ] new sub-issues routed through the Maintainer (proposed set in ledger Section C; filing is the Maintainer's next step, not done in this PR) (PR 1 target, Refs #582, Refs #655, Refs #661)
 - Phase 2: Dynamic Terminal Layout and Full-Window Composition: [ ] geometry model with cell pixel size, [ ] pure layout solver with proportion-driven chrome blocks, [ ] exact-fit image rendering at the region pixel size, [ ] continuous cell-tier scales, [ ] resize contract with same-frame repaint and stale-placement kill, [ ] tier-aware too-small card, [ ] real-emulator resize proof on Linux and macOS (PR 2 target, Refs #582, Closes #656)
 - Phase 3: Terminal Render Pipeline and Compatibility Proof: [ ] bounded live Kitty probe with byte replay (Ghostty enablement), [ ] atlas plus placement composition with full-frame fallback, [ ] dirty-change detection and wall-clock pacing with backpressure, [ ] Sixel path hardening, [ ] protocol-aware watchdog, [ ] `MAZE_CHASE_TRACE` JSONL evidence mode, [ ] kitty and ghostty rows signed on Linux and macOS plus conventional terminals (PR 3 target, Refs #582, Refs #655)
 - Phase 4: Visual Identity Redesign: [ ] Design Council direction consumed (dispatched by the Maintainer before this phase), [ ] resolution-aware character and environment art, [ ] effects and animation system, [ ] refreshed themes with accessibility tests green, [ ] all three layers integrated with real captures (PR 4 target, Refs #582, Closes #658)
@@ -26,17 +26,22 @@
 ## Current step
 
 Phase 1 landed. The harness executes real emulator sessions on Linux
-(kitty, Ghostty, xterm: six rows, all with committed evidence JSON and
-screenshots) and ships the executors for the macOS and Windows arms.
-The Owner's Kitty finding is reproduced and root-caused (terminal reply
-loop feeds the event loop; measured 58-76 full PNG frames/s and dead
-Esc/pause input), the Owner's Ghostty finding is reproduced (Ghostty
-speaks kitty graphics; the auto-detect mis-routes it to cells), and the
-findings ledger records every reassessment gap with evidence and a
-target phase. Doc truth corrections for the false Ghostty claim and the
-unqualified "released and verified" copy landed with it. Next: the
-Maintainer files the ledger's sub-issue set, then Phase 2 (dynamic
-layout and full-window composition) starts fresh from main.
+(kitty, Ghostty, xterm: eight rows, all with committed evidence JSON,
+screenshots, and events logs) and ships the executors for the macOS and
+Windows arms. The Owner's Kitty finding is reproduced and root-caused
+(terminal reply loop feeds the event loop; measured 70-77 synchronized
+frames/s sustained and input painting hundreds of megabytes behind its
+keys), the Owner's Ghostty finding is reproduced (Ghostty speaks kitty
+graphics; the auto-detect mis-routes it to cells), and the findings
+ledger records every reassessment gap with evidence and a target phase.
+Two further measured findings landed with the rows: the DA1-probe
+upgrade path is proven end-to-end by the auto VT340 row, and the
+light-background xterm row exposes a palette defect (cream chrome text
+invisible on white) that now carries its own dark-background twin. Doc
+truth corrections for the false Ghostty claim and the unqualified
+"released and verified" copy landed with it. Next: the Maintainer files
+the ledger's sub-issue set, then Phase 2 (dynamic layout and full-window
+composition) starts fresh from main.
 
 ## Next steps
 
@@ -101,3 +106,21 @@ layout and full-window composition) starts fresh from main.
   and the honest compatibility matrix, and corrected the false Ghostty
   claim plus the unqualified release copy. No product fixes, per phase
   scope. - the Builder
+- 2026-10-18 (builder delegation ledger, Phase 1): four exploration
+  subagents ran in parallel (engine/assets/audio sweep; desktop-layer
+  sweep; web-hub sweep; docs-claim sweep). Engine sweep returned the
+  warden-facing, fright-mask, audio-default, reduced-flash, and
+  minimum-size defects (ledger B.1-5). Desktop sweep returned the
+  max-pixel silent freeze, missing scale-factor, idle busy-poll, and
+  dev-grade packaging findings (B.6-9). Web sweep returned the
+  release-claim and closed-issue copy findings (B.10-13). Docs sweep
+  returned the Ghostty capability-gap claim plus the fps and README
+  overclaims (B.14-16). Primary context verified every cited file:line
+  by direct read (`crates/terminal/src/{backend,layout,raster}.rs`,
+  `crates/desktop/src/{frame,window}.rs`, `maze-chase/index.html`,
+  `maze-chase/README.md`, `docs/terminal.md`) and produced all
+  executable evidence itself: the six real terminal rows, the strace
+  reply-loop experiment, and the reassessment write-up. Skills: no
+  registry skill matched this run's domains (no opencode configuration,
+  agent, or plugin edits); none loaded, per `delegation.md` section 5.
+  - the Builder
