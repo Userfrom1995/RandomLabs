@@ -32,6 +32,32 @@ pub struct Geometry {
     pub kind: RenderKind,
 }
 
+/// Physical pixel geometry of one window: the cell size a terminal
+/// reports (already sanity-checked) plus the whole window's pixel size
+/// when the source can report it.
+///
+/// Unix `TIOCGWINSZ` fills both fields; the Windows console font API
+/// only knows the cell, so `window` stays `None` there and the layout
+/// derives it from `cols x cell` / `rows x cell`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct PixelGeometry {
+    /// Physical size of one cell.
+    pub cell: (u16, u16),
+    /// Whole-window physical size, when reported.
+    pub window: Option<(u32, u32)>,
+}
+
+impl PixelGeometry {
+    /// Window pixel size for a `cols`x`rows` window: the reported size
+    /// when available, `cols x cell` / `rows x cell` otherwise.
+    pub fn window_px(&self, cols: u16, rows: u16) -> (u32, u32) {
+        self.window.unwrap_or((
+            cols as u32 * self.cell.0 as u32,
+            rows as u32 * self.cell.1 as u32,
+        ))
+    }
+}
+
 /// Nominal fallback cell size in pixels (roughly 1:2, like most fonts).
 pub const NOMINAL_CELL_W_PX: u16 = 8;
 pub const NOMINAL_CELL_H_PX: u16 = 16;
@@ -89,12 +115,12 @@ impl Geometry {
     }
 }
 
-/// Query the active terminal's cell pixel size, best-effort.
+/// Query the active terminal's pixel geometry, best-effort.
 ///
 /// Uses stdout when it is a terminal (the surface the game paints); a
 /// piped or redirected stdout reports nothing and the caller falls back
 /// to nominal cells.
-pub fn detect_cell_px() -> Option<(u16, u16)> {
+pub fn detect_pixels() -> Option<PixelGeometry> {
     #[cfg(unix)]
     {
         use std::io::IsTerminal;
@@ -103,7 +129,7 @@ pub fn detect_cell_px() -> Option<(u16, u16)> {
             return None;
         }
         let fd = std::io::stdout().as_raw_fd();
-        cell_px_from_fd(fd)
+        pixels_from_fd(fd)
     }
     #[cfg(windows)]
     {
@@ -111,7 +137,7 @@ pub fn detect_cell_px() -> Option<(u16, u16)> {
         if !std::io::stdout().is_terminal() {
             return None;
         }
-        cell_px_from_console()
+        cell_px_from_console().map(|cell| PixelGeometry { cell, window: None })
     }
     #[cfg(not(any(unix, windows)))]
     {
@@ -119,13 +145,19 @@ pub fn detect_cell_px() -> Option<(u16, u16)> {
     }
 }
 
-/// Cell pixel size from a `TIOCGWINSZ` query on `fd` (Unix).
+/// Query the active terminal's cell pixel size, best-effort (cell-only
+/// convenience wrapper over [`detect_pixels`]).
+pub fn detect_cell_px() -> Option<(u16, u16)> {
+    detect_pixels().map(|p| p.cell)
+}
+
+/// Pixel geometry from a `TIOCGWINSZ` query on `fd` (Unix).
 ///
 /// The pixel fields are only meaningful as a pair; a terminal that
 /// reports zeroes there does not know its pixel size (common on plain
 /// PTYs and serial lines), so `None` is the honest answer.
 #[cfg(unix)]
-pub fn cell_px_from_fd(fd: std::os::fd::RawFd) -> Option<(u16, u16)> {
+pub fn pixels_from_fd(fd: std::os::fd::RawFd) -> Option<PixelGeometry> {
     let mut ws: libc::winsize = unsafe { std::mem::zeroed() };
     let rc = unsafe { libc::ioctl(fd, libc::TIOCGWINSZ as _, &mut ws as *mut libc::winsize) };
     if rc != 0 || ws.ws_xpixel == 0 || ws.ws_ypixel == 0 || ws.ws_col == 0 || ws.ws_row == 0 {
@@ -133,9 +165,20 @@ pub fn cell_px_from_fd(fd: std::os::fd::RawFd) -> Option<(u16, u16)> {
     }
     // Derived per-cell size rounds up so the reported window pixel size
     // is always covered by cols x cell_w.
-    let w = ws.ws_xpixel.div_ceil(ws.ws_col);
-    let h = ws.ws_ypixel.div_ceil(ws.ws_row);
-    sane(Some((w, h)))
+    let cell = sane(Some((
+        ws.ws_xpixel.div_ceil(ws.ws_col),
+        ws.ws_ypixel.div_ceil(ws.ws_row),
+    )))?;
+    Some(PixelGeometry {
+        cell,
+        window: Some((ws.ws_xpixel as u32, ws.ws_ypixel as u32)),
+    })
+}
+
+/// Cell pixel size from a `TIOCGWINSZ` query on `fd` (Unix).
+#[cfg(unix)]
+pub fn cell_px_from_fd(fd: std::os::fd::RawFd) -> Option<(u16, u16)> {
+    pixels_from_fd(fd).map(|p| p.cell)
 }
 
 /// Cell pixel size from the console font info (Windows), best-effort.
@@ -202,9 +245,60 @@ mod tests {
         let mut fds = [0i32; 2];
         assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0);
         assert_eq!(cell_px_from_fd(fds[0]), None);
+        assert_eq!(pixels_from_fd(fds[0]), None);
         unsafe {
             libc::close(fds[0]);
             libc::close(fds[1]);
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn pty_pixel_fields_shape_the_geometry() {
+        // A real PTY with TIOCSWINSZ pixel fields: the cell size derives
+        // by rounding up and the window size is reported verbatim.
+        unsafe {
+            let master = libc::posix_openpt(libc::O_RDWR | libc::O_NOCTTY);
+            assert!(master >= 0, "posix_openpt failed");
+            assert_eq!(libc::grantpt(master), 0);
+            assert_eq!(libc::unlockpt(master), 0);
+            let ws = libc::winsize {
+                ws_row: 40,
+                ws_col: 100,
+                ws_xpixel: 604,
+                ws_ypixel: 524,
+            };
+            assert_eq!(
+                libc::ioctl(master, libc::TIOCSWINSZ as _, &ws as *const libc::winsize),
+                0
+            );
+            let geom = pixels_from_fd(master).expect("pixel fields present");
+            assert_eq!(geom.cell, (7, 14)); // ceil(604/100), ceil(524/40)
+            assert_eq!(geom.window, Some((604, 524)));
+            assert_eq!(geom.window_px(100, 40), (604, 524));
+            let mut zero = ws;
+            zero.ws_xpixel = 0;
+            zero.ws_ypixel = 0;
+            assert_eq!(
+                libc::ioctl(master, libc::TIOCSWINSZ as _, &zero as *const libc::winsize),
+                0
+            );
+            assert_eq!(pixels_from_fd(master), None);
+            libc::close(master);
+        }
+    }
+
+    #[test]
+    fn window_px_falls_back_to_cols_times_cell() {
+        let derived = PixelGeometry {
+            cell: (8, 16),
+            window: None,
+        };
+        assert_eq!(derived.window_px(100, 40), (800, 640));
+        let reported = PixelGeometry {
+            cell: (7, 14),
+            window: Some((604, 524)),
+        };
+        assert_eq!(reported.window_px(100, 40), (604, 524));
     }
 }

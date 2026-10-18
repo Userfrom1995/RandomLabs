@@ -17,11 +17,20 @@
 //! 3. `pixel_reports_shape_footprint_and_raster` - TIOCGWINSZ pixel
 //!    fields on the live PTY: a 10x20 cell report selects the 3x1 band
 //!    plan and rasterizes the PNG at 560x620 (28x31 tiles at 20 ppt);
-//!    an 8x8 report selects the 2x1 side plan at 224x248; an insane
+//!    an 8x8 report selects the 3x1 band plan at 224x248; an insane
 //!    1x1 report falls back to the nominal 8-ppt plan. The PNG IHDR is
 //!    parsed straight from the shipped binary's Kitty escape, so the
-//!    exact-fit raster claim is pinned at the byte level.
-//! 4. `trace_storm_is_wellformed_and_tracks_every_settled_plan` -
+//!    raster-fit claim is pinned at the byte level. Each display
+//!    escape's `r=`/`c=` footprint and the cursor position it paints at
+//!    are pinned too: the image sits centered on its mapped footprint
+//!    inside the board box (issue #656 F3), never stretched across the
+//!    whole board.
+//! 4. `sixel_raster_paints_centered_inside_its_cell_box` - the same
+//!    window pixel mapping on the Sixel tier: the DCS raster paints
+//!    from the centered image origin, not the board origin anchored
+//!    with natural size (issue #656 F2), for both a roomy and a tight
+//!    window report.
+//! 5. `trace_storm_is_wellformed_and_tracks_every_settled_plan` -
 //!    `MAZE_CHASE_TRACE` JSONL stays well-formed and monotonic across
 //!    live resizes and records every settled plan (floor, both card
 //!    sides, band, side panel).
@@ -342,6 +351,39 @@ fn b64_prefix_decode(s: &str) -> Vec<u8> {
     out
 }
 
+/// The `r=`/`c=` cell footprint (rows, cols) of the first Kitty `a=T`
+/// display escape in `bytes`.
+fn first_display_placement(bytes: &[u8]) -> (u32, u32) {
+    let text = String::from_utf8_lossy(bytes).into_owned();
+    let start = text.find("\x1b_Ga=T").expect("display escape present");
+    let semi = text[start..].find(';').expect("payload separator") + start;
+    let params = &text[start..semi];
+    let get = |key: &str| {
+        params
+            .split(',')
+            .find_map(|p| p.strip_prefix(key))
+            .and_then(|v| v.parse::<u32>().ok())
+            .unwrap_or_else(|| panic!("missing {key} in {params:?}"))
+    };
+    (get("r="), get("c="))
+}
+
+/// The 1-based cursor position the frame moves to immediately before
+/// `needle` (the payload escape): the last `ESC[<row>;<col>H` sequence
+/// ahead of it.
+fn cursor_before(frame: &str, needle: &str) -> (u16, u16) {
+    let at = frame.find(needle).expect("payload escape present");
+    let head = &frame[..at];
+    let esc = head.rfind("\x1b[").expect("a cursor move precedes it");
+    let tail = &head[esc + 2..];
+    let end = tail.find('H').expect("complete cursor position");
+    let mut parts = tail[..end].split(';');
+    (
+        parts.next().unwrap().parse().expect("row"),
+        parts.next().unwrap().parse().expect("col"),
+    )
+}
+
 /// Width and height of the PNG carried by the first Kitty `a=T` display
 /// escape captured in `bytes`, parsed from the IHDR chunk.
 fn first_display_png_dims(bytes: &[u8]) -> (u32, u32) {
@@ -466,13 +508,17 @@ fn too_small_cards_are_exact_at_the_boundary_and_recover() {
     s.assert_no_panic();
 }
 
-/// Pixel reports from the live tty drive both the footprint and the
-/// raster: 10x20 cells select the 3x1 band plan at 20 ppt (PNG 560x620),
-/// 8x8 cells select the 2x1 side plan at 224x248, and an insane 1x1
-/// report falls back to the nominal 8-ppt plan.
+/// Pixel reports from the live tty drive the footprint, the raster, and
+/// the placement: 10x20 cells select the 3x1 band plan at 20 ppt (PNG
+/// 560x620) displayed across 56x31 cells at (22, 5); 8x8 cells select
+/// the 3x1 band plan at 224x248 displayed across 28x31 cells at (36, 5);
+/// and an insane 1x1 report falls back to the nominal 8-ppt plan drawn
+/// across the full board box.
 #[test]
 fn pixel_reports_shape_footprint_and_raster() {
-    // 10x20 cells at 100x40: 3x1 tiles, ppt = min(30, 20) = 20.
+    // 10x20 cells at 100x40 (1000x800 window pixels): 3x1 tiles, ppt =
+    // min(30, 20, 840/28, 620/31) = 20. The 560x620 raster maps back to
+    // a centered 56x31 footprint inside the 84x31 board.
     let mut tall = Session::start("pxtall", 100, 40, 1000, 800, "kitty", None);
     tall.reach_playing(HINT_MARKER);
     tall.wait_frame_closed();
@@ -482,11 +528,25 @@ fn pixel_reports_shape_footprint_and_raster() {
         (560, 620),
         "20-ppt raster must be 28x31 tiles at 20 px (560x620)"
     );
+    assert_eq!(
+        first_display_placement(&tall.out),
+        (31, 56),
+        "the 560x620 raster occupies 56x31 cells at 10x20"
+    );
+    let frame = frame_containing(&tall.out, "\x1b_Ga=T").expect("first board frame");
+    assert_eq!(
+        cursor_before(&frame, "\x1b_Ga=T"),
+        (6, 23),
+        "the image is centered at cell (22, 5): board x 8 + (84-56)/2"
+    );
     tall.assert_no_panic();
 
-    // 8x8 cells at 100x40 (800x320 window pixels): 2x1 tiles, ppt = 8.
+    // 8x8 cells at 100x40 (800x320 window pixels): the full-grid scan
+    // lands on the 3x1 band plan (not the old derived 2x1), ppt = 8, and
+    // the 224x248 raster maps back to a centered 28x31 footprint inside
+    // the 84x31 board.
     let mut square = Session::start("pxsquare", 100, 40, 800, 320, "kitty", None);
-    square.reach_playing(SIDE_MARKER);
+    square.reach_playing(HINT_MARKER);
     square.wait_frame_closed();
     let dims = first_display_png_dims(&square.out);
     assert_eq!(
@@ -494,9 +554,21 @@ fn pixel_reports_shape_footprint_and_raster() {
         (224, 248),
         "8-ppt raster must be 28x31 tiles at 8 px (224x248)"
     );
+    assert_eq!(
+        first_display_placement(&square.out),
+        (31, 28),
+        "the 224x248 raster occupies 28x31 cells at 8x8 (1:1, no stretch)"
+    );
+    let frame = frame_containing(&square.out, "\x1b_Ga=T").expect("first board frame");
+    assert_eq!(
+        cursor_before(&frame, "\x1b_Ga=T"),
+        (6, 37),
+        "the image is centered at cell (36, 5): board x 8 + (84-28)/2"
+    );
     square.assert_no_panic();
 
-    // Insane 1x1 cell width at 100x40: fall back to nominal 8-ppt.
+    // Insane 1x1 cell width at 100x40: fall back to nominal 8-ppt; with
+    // no trustworthy report the image keeps the Phase 1 full-board box.
     let mut insane = Session::start("pxinsane", 100, 40, 100, 100, "kitty", None);
     insane.reach_playing(HINT_MARKER);
     insane.wait_frame_closed();
@@ -506,7 +578,79 @@ fn pixel_reports_shape_footprint_and_raster() {
         (224, 248),
         "an insane 1x1 cell report must fall back to the nominal 8-ppt raster"
     );
+    assert_eq!(
+        first_display_placement(&insane.out),
+        (31, 84),
+        "without a pixel report the nominal raster keeps the full board box"
+    );
     insane.assert_no_panic();
+}
+
+/// The Sixel tier paints the raster from the centered image origin
+/// (issue #656 F2): on a 100x40 window with a 604x524 pixel report the
+/// 13-ppt raster maps to a 61x31 cell footprint centered at (19, 5), so
+/// the DCS must start at row 6, column 20 - not at the board origin.
+/// The tight report (no margin: 848x816 pixels at 143x64) must keep the
+/// raster inside its board box the same way instead of bleeding into the
+/// hint line.
+#[test]
+fn sixel_raster_paints_centered_inside_its_cell_box() {
+    use maze_chase_terminal::geometry::PixelGeometry;
+    use maze_chase_terminal::layout;
+
+    // Roomy report: xterm-family 100x40 with real 6.04x13.1 px cells.
+    let mut roomy = Session::start("sixelroomy", 100, 40, 604, 524, "sixel", None);
+    roomy.reach_playing(HINT_MARKER);
+    roomy.wait_frame_closed();
+    let l = layout::compute_pixels(
+        100,
+        40,
+        Some(PixelGeometry {
+            cell: (7, 14),
+            window: Some((604, 524)),
+        }),
+    );
+    assert_eq!((l.cell_cols, l.cell_rows), (3, 1));
+    assert_eq!(
+        l.image,
+        layout::Rect {
+            x: 19,
+            y: 5,
+            w: 61,
+            h: 31
+        }
+    );
+    let frame = frame_containing(&roomy.out, "\x1bPq").expect("first sixel frame");
+    assert_eq!(
+        cursor_before(&frame, "\x1bPq"),
+        (l.image.y + 1, l.image.x + 1),
+        "the sixel raster must start at the centered image origin"
+    );
+    // Sanity: the raster's natural size fits the board pixel box.
+    assert!(28 * l.ppt() <= l.board_px.0 && 31 * l.ppt() <= l.board_px.1);
+    roomy.assert_no_panic();
+
+    // Tight report: 848x816 px at 143x64 (real cells ~5.93x12.75) has
+    // only a few pixels of slack; the fit bound must still hold.
+    let mut tight = Session::start("sixeltight", 143, 64, 848, 816, "sixel", None);
+    tight.reach_playing(HINT_MARKER);
+    tight.wait_frame_closed();
+    let l = layout::compute_pixels(
+        143,
+        64,
+        Some(PixelGeometry {
+            cell: (6, 13),
+            window: Some((848, 816)),
+        }),
+    );
+    assert!(28 * l.ppt() <= l.board_px.0 && 31 * l.ppt() <= l.board_px.1);
+    let frame = frame_containing(&tight.out, "\x1bPq").expect("first sixel frame");
+    assert_eq!(
+        cursor_before(&frame, "\x1bPq"),
+        (l.image.y + 1, l.image.x + 1),
+        "the sixel raster must start at the centered image origin"
+    );
+    tight.assert_no_panic();
 }
 
 /// `MAZE_CHASE_TRACE` must stay well-formed and monotonic across live
