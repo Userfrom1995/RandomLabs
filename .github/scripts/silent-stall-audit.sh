@@ -3169,22 +3169,41 @@ fi
 #      prints the recoverable session bundle and exits 1 (red run);
 #   4. idempotence: a run whose marker is already in the day file never
 #      duplicates its entry;
-#   5. a functional harness executes the REAL extracted run block in an
-#      isolated sandbox (mktemp outside the repo, credentials scrubbed) against
-#      a local bare-repo origin with a push-counting pre-receive hook
-#      (rejections and concurrent-tip advance injected; a mock sleep advances
-#      the tip during the bounded backoff) and asserts: clean push, race
-#      recovery preserving the concurrent entry (the #647 regression),
-#      entry-only contract-violation recovery, persistent rejection with
-#      exactly 3 attempts / 2 bounded backoffs / nonzero loud exit / recovery
-#      bundle printed / remote untouched, no-log-entry keep-existing,
-#      already-marked no-duplication, and no-changes no-commit. Mock
-#      interception is proven before any scenario and every scenario is
-#      bounded by timeout, so an unbounded-loop re-spelling fails the rule.
-# Honest limit: the fixture races are injected deterministically (hook
+#   5. bootstrap idempotence and retry safety: the orphan bootstrap uses a
+#      unique unborn root per attempt, so a retry under the runner's default
+#      `bash -e {0}` run-step shell can never die on a reused branch name
+#      before the loud give-up, and an empty bootstrap composition can never
+#      conclude green without a published tip (review findings F1/F1b);
+#   6. a functional harness executes the REAL extracted run block under that
+#      same `bash -e` shell (review finding F2: under plain bash an aborting
+#      orphan re-checkout was invisible and a silently-blessed unpushed green
+#      passed) in an isolated sandbox (mktemp outside the repo, credentials
+#      scrubbed) against a local bare-repo origin with a push-counting
+#      pre-receive hook (rejections and concurrent-tip advance injected; a
+#      mock sleep advances the tip during the bounded backoff) and asserts:
+#      clean push, race recovery preserving the concurrent entry (the #647
+#      regression), entry-only contract-violation recovery, persistent
+#      rejection with exactly 3 attempts / 2 bounded backoffs / nonzero loud
+#      exit / recovery bundle printed / remote untouched, no-log-entry
+#      keep-existing, already-marked no-duplication, no-changes no-commit,
+#      fresh-bootstrap recovery when the first push is rejected (the orphan
+#      path as a whole), fresh-bootstrap persistent rejection reaching the
+#      full cap loudly, persistent fetch failure on an existing branch
+#      reaching the loud cap with the remote untouched (a PATH git shim fails
+#      fetches; interception proven), and the invariant that any scenario
+#      whose output claims `memory pushed to maintainer/logs` where a publish
+#      was required must have advanced the remote tip. Mock interception is
+#      proven before any scenario and every scenario is bounded by timeout,
+#      so an unbounded-loop re-spelling fails the rule.
+# Honest limits: the fixture races are injected deterministically (hook
 # rejection plus tip advance on the first backoff), not by true concurrent
 # processes; a nondeterministic interleaving that defeats the 3-attempt bound
-# is review-gated.
+# is review-gated. The empty-bootstrap no-green guard (F1b) is defense in
+# depth: with the unique root the empty-composition state is unreachable, so
+# no fixture can drive it through the real block (only the soft-orphan mutant
+# manufactures it, and that mutant is caught functionally); the guard itself
+# is pinned statically. The harness's `bash -e` fidelity is pinned by a
+# self-check on its own invocation line.
 r23_bad=""
 R23_WF=".github/workflows/maintainer.yml"
 R23_STEP_RE='- name: Commit Maintainer memory (maintainer/logs)'
@@ -3226,6 +3245,21 @@ else
     [ "$(printf '%s\n' "$r23_block" | grep -cE '^[[:space:]]*if git push origin "HEAD:maintainer/logs"; then$' || true)" = "1" ] || r23_bad="${r23_bad} maintainer.yml(push-not-loud)"
     printf '%s\n' "$r23_block" | grep -E 'git (fetch|push)' | grep -q -- '--quiet' && r23_bad="${r23_bad} maintainer.yml(quiet-publish-path)"
     printf '%s\n' "$r23_block" | grep -qE '^[[:space:]]*git rebase' && r23_bad="${r23_bad} maintainer.yml(rebase-fallback-still-present)"
+    # Bootstrap idempotence (review findings F1/F1b): a unique unborn root per
+    # attempt keeps retries alive under `bash -e`, and an empty bootstrap
+    # composition can never take the green no-changes shortcut.
+    printf '%s\n' "$r23_block" | grep -qF 'git checkout --orphan "logs-bootstrap-$attempt" --quiet' || r23_bad="${r23_bad} maintainer.yml(no-unique-bootstrap-root)"
+    printf '%s\n' "$r23_block" | grep -qF 'empty bootstrap composition on attempt $attempt; not concluding green' || r23_bad="${r23_bad} maintainer.yml(no-empty-bootstrap-guard)"
+    # The sandbox itself must execute the real block under the runner's
+    # default run-step shell (`bash -e {0}`), not plain bash (review finding
+    # F2): plain bash hides an aborting orphan re-checkout and blesses the
+    # silent loss class. Self-pin on the harness invocation; the pattern is
+    # assembled from fragments so this pin line cannot match itself.
+    r23_self="${BASH_SOURCE[0]:-$0}"
+    [ -f "$r23_self" ] || r23_self=".github/scripts/silent-stall-audit.sh"
+    r23_shell_pat='timeout 60 bash -e'
+    r23_shell_pat="${r23_shell_pat} \"\$r23_tmp/block.sh\""
+    [ "$(grep -cF -- "$r23_shell_pat" "$r23_self" 2>/dev/null || true)" = "1" ] || r23_bad="${r23_bad} harness(no-bash-e-fidelity)"
     # Keep-both log semantics: baseline + delta isolation, append (never
     # overwrite), exactly one marker append per committed attempt.
     printf '%s\n' "$r23_block" | grep -qF 'for f in state.md personality.md log-entry.md; do' || r23_bad="${r23_bad} maintainer.yml(no-session-bundle)"
@@ -3296,16 +3330,62 @@ fi
 exit 0
 R23SLEEP
         chmod +x "$r23_bin/sleep"
-        if [ "$(env PATH="$r23_bin:$PATH" bash -c 'command -v sleep' 2>/dev/null || true)" != "$r23_bin/sleep" ]; then
+        # R23 fetch-failure injector (review finding F2): the real git path is
+        # captured before the shim goes on PATH; the shim fails up to
+        # R23_FETCH_FAIL_COUNT `fetch` invocations (counting them in
+        # R23_FETCH_COUNT) and always delegates to real git for everything
+        # else, so checkout/commit/push/hooks still run genuine git.
+        r23_real_git=$(command -v git)
+        cat > "$r23_bin/git" <<R23GIT
+#!/usr/bin/env bash
+if [ "\${1:-}" = "fetch" ] && [ -n "\${R23_FETCH_FAIL_COUNT:-}" ]; then
+  n=0
+  [ -n "\${R23_FETCH_COUNT:-}" ] && [ -f "\$R23_FETCH_COUNT" ] && n=\$(cat "\$R23_FETCH_COUNT")
+  n=\$((n + 1))
+  [ -n "\${R23_FETCH_COUNT:-}" ] && printf '%s\n' "\$n" > "\$R23_FETCH_COUNT"
+  if [ "\$n" -le "\$R23_FETCH_FAIL_COUNT" ]; then
+    echo "R23 simulated fetch failure: maintainer/logs unreachable (fetch \$n)" >&2
+    exit 128
+  fi
+fi
+exec "$r23_real_git" "\$@"
+R23GIT
+        chmod +x "$r23_bin/git"
+        if [ "$(env PATH="$r23_bin:$PATH" bash -c 'command -v sleep' 2>/dev/null || true)" != "$r23_bin/sleep" ] \
+           || [ "$(env PATH="$r23_bin:$PATH" bash -c 'command -v git' 2>/dev/null || true)" != "$r23_bin/git" ]; then
           r23_bad="${r23_bad} maintainer.yml(functional-mock-not-intercepted)"
         else
           : > "$r23_tmp/probe-count"
           env PATH="$r23_bin:$PATH" R23_SLEEP_COUNT="$r23_tmp/probe-count" R23_REMOTE="" bash -c 'sleep 5' >/dev/null 2>&1 || true
+          : > "$r23_tmp/fetch-probe-count"
+          (cd "$r23_tmp" && env PATH="$r23_bin:$PATH" R23_FETCH_COUNT="$r23_tmp/fetch-probe-count" R23_FETCH_FAIL_COUNT=1 bash -c 'git fetch' >/dev/null 2>&1 || true)
           if [ "$(cat "$r23_tmp/probe-count" 2>/dev/null || true)" != "1" ]; then
-            r23_bad="${r23_bad} maintainer.yml(functional-mock-probe-failed)"
+            r23_bad="${r23_bad} maintainer.yml(functional-sleep-mock-probe-failed)"
+          elif [ "$(cat "$r23_tmp/fetch-probe-count" 2>/dev/null || true)" != "1" ]; then
+            r23_bad="${r23_bad} maintainer.yml(functional-git-mock-probe-failed)"
+          elif ! env PATH="$r23_bin:$PATH" bash -c 'git --version' >/dev/null 2>&1; then
+            r23_bad="${r23_bad} maintainer.yml(functional-git-mock-delegation-failed)"
           else
             r23_fail() { r23_bad="${r23_bad} maintainer.yml(functional-$1)"; }
             r23_check() { [ "$2" = "1" ] || r23_fail "$1"; }
+            r23_write_hook() {
+              local dir="$1"
+              cat > "$dir/remote.git/hooks/pre-receive" <<'R23HOOK'
+#!/usr/bin/env bash
+gd=$(git rev-parse --git-dir)
+n=0; [ -f "$gd/r23-push-count" ] && n=$(cat "$gd/r23-push-count")
+while read -r old new ref; do
+  [ "$ref" = "refs/heads/maintainer/logs" ] || continue
+  n=$((n + 1)); printf '%s\n' "$n" > "$gd/r23-push-count"
+  if [ "$n" -le "${R23_REJECT_COUNT:-0}" ]; then
+    echo "R23 simulated rejection: concurrent session advanced the branch (push $n)" >&2
+    exit 1
+  fi
+done
+exit 0
+R23HOOK
+              chmod +x "$dir/remote.git/hooks/pre-receive" || return 1
+            }
             r23_seed() {
               local dir="$1" base_log="$2" base_state="$3"
               rm -rf "$dir"; mkdir -p "$dir/home" "$dir/tmp"
@@ -3323,21 +3403,19 @@ R23SLEEP
                 git -c user.name=seed -c user.email=seed@example.invalid -c commit.gpgsign=false commit -q -m seed || exit 1
                 git push -q origin maintainer/logs 2>/dev/null || exit 1
               ) || return 1
-              cat > "$dir/remote.git/hooks/pre-receive" <<'R23HOOK'
-#!/usr/bin/env bash
-gd=$(git rev-parse --git-dir)
-n=0; [ -f "$gd/r23-push-count" ] && n=$(cat "$gd/r23-push-count")
-while read -r old new ref; do
-  [ "$ref" = "refs/heads/maintainer/logs" ] || continue
-  n=$((n + 1)); printf '%s\n' "$n" > "$gd/r23-push-count"
-  if [ "$n" -le "${R23_REJECT_COUNT:-0}" ]; then
-    echo "R23 simulated rejection: concurrent session advanced the branch (push $n)" >&2
-    exit 1
-  fi
-done
-exit 0
-R23HOOK
-              chmod +x "$dir/remote.git/hooks/pre-receive" || return 1
+              r23_write_hook "$dir" || return 1
+              git clone -q "$dir/remote.git" "$dir/work" 2>/dev/null || return 1
+            }
+            # Bootstrap fixture (review finding F2): an origin with NO
+            # maintainer/logs branch yet. Every retry of such a run takes the
+            # orphan-bootstrap path, which is exactly where the F1 abort and
+            # the F1b blessed-silent-loss lived.
+            r23_seed_empty() {
+              local dir="$1"
+              rm -rf "$dir"; mkdir -p "$dir/home" "$dir/tmp"
+              git init -q --bare "$dir/remote.git" 2>/dev/null || return 1
+              git --git-dir="$dir/remote.git" symbolic-ref HEAD refs/heads/maintainer/logs || return 1
+              r23_write_hook "$dir" || return 1
               git clone -q "$dir/remote.git" "$dir/work" 2>/dev/null || return 1
             }
             r23_concurrent() {
@@ -3365,26 +3443,46 @@ R23HOOK
               fi
             }
             r23_run() {
-              local dir="$1" reject="$2" advance="$3"
-              : > "$dir/sleeps"
+              local dir="$1" reject="$2" advance="$3" fetch_fail="${4:-0}"
+              : > "$dir/sleeps"; : > "$dir/fetches"
               (
                 cd "$dir/work" || exit 1
                 env -u GITHUB_TOKEN -u GH_TOKEN -u GITHUB_ACTIONS -u GITHUB_REPOSITORY -u GITHUB_RUN_ID -u GITHUB_EVENT_PATH \
                   PATH="$r23_bin:$PATH" HOME="$dir/home" TMPDIR="$dir/tmp" \
                   R23_SLEEP_COUNT="$dir/sleeps" R23_REMOTE="$dir/remote.git" \
                   R23_REJECT_COUNT="$reject" R23_ADVANCE_REF="$advance" \
-                  timeout 60 bash "$r23_tmp/block.sh"
+                  R23_FETCH_COUNT="$dir/fetches" R23_FETCH_FAIL_COUNT="$fetch_fail" \
+                  timeout 60 bash -e "$r23_tmp/block.sh"
               ) > "$dir/out" 2>&1
               echo $? > "$dir/rc"
             }
             r23_show() { git --git-dir="$1/remote.git" show "refs/heads/maintainer/logs:$2" 2>/dev/null || true; }
-            r23_tip() { git --git-dir="$1/remote.git" rev-parse refs/heads/maintainer/logs 2>/dev/null || true; }
+            # --verify --quiet: a missing ref must yield empty output, not the
+            # echoed refspec (plain rev-parse prints its unresolved argument on
+            # stdout, which made a never-created branch look published).
+            r23_tip() { git --git-dir="$1/remote.git" rev-parse --verify --quiet refs/heads/maintainer/logs 2>/dev/null || true; }
             r23_rc() { cat "$1/rc" 2>/dev/null || echo none; }
+            # Review finding F2c: a scenario whose output claims a successful
+            # publish must have actually advanced the remote tip. (Scenarios 6
+            # and 7 are the documented benign no-op conclusions and are exempt;
+            # their no-new-commit checks pin the opposite direction.) Runs the
+            # block under the runner's default `bash -e {0}` shell, so an
+            # aborting orphan re-checkout or an unpushed green is observable.
+            r23_green_implies_pushed() {
+              local dir="$1" pre="$2" tag="$3"
+              local out tip
+              out=$(cat "$dir/out" 2>/dev/null || true)
+              tip=$(r23_tip "$dir")
+              if printf '%s' "$out" | grep -qF 'memory pushed to maintainer/logs'; then
+                { [ -n "$tip" ] && [ "$tip" != "$pre" ]; } || r23_fail "$tag-green-without-push"
+              fi
+            }
             # Scenario 1: clean push, no race.
             if ! r23_seed "$r23_tmp/s1" "$r23_base_log" "state-seed
 "; then
               r23_fail "s1-setup"
             else
+              r23_s1_tip=$(r23_tip "$r23_tmp/s1")
               r23_session "$r23_tmp/s1" "$r23_base_log" "$r23_session_entry" "state-session
 "
               r23_run "$r23_tmp/s1" 0 ""
@@ -3394,6 +3492,7 @@ R23HOOK
               r23_check "s1-session-kept" "$(printf '%s' "$r23_s1_log" | grep -qF 'entry-session' && echo 1 || echo 0)"
               r23_check "s1-marker-once" "$([ "$(printf '%s' "$r23_s1_log" | grep -cF "$R23_MARKER")" = "1" ] && echo 1 || echo 0)"
               r23_check "s1-state" "$([ "$(r23_show "$r23_tmp/s1" STATE.md)" = "state-session" ] && echo 1 || echo 0)"
+              r23_green_implies_pushed "$r23_tmp/s1" "$r23_s1_tip" "s1"
             fi
             # Scenario 2 (the #647 regression): concurrent advance between the
             # failed push and the retry; both entries must survive.
@@ -3405,6 +3504,7 @@ R23HOOK
               if [ -z "$r23_s2_conc" ]; then
                 r23_fail "s2-concurrent-commit"
               else
+                r23_s2_tip=$(r23_tip "$r23_tmp/s2")
                 r23_session "$r23_tmp/s2" "$r23_base_log" "$r23_session_entry" "state-session
 "
                 r23_run "$r23_tmp/s2" 1 "$r23_s2_conc"
@@ -3418,6 +3518,7 @@ R23HOOK
                 r23_check "s2-state" "$([ "$(r23_show "$r23_tmp/s2" STATE.md)" = "state-session" ] && echo 1 || echo 0)"
                 r23_check "s2-attempts" "$([ "$(cat "$r23_tmp/s2/remote.git/r23-push-count" 2>/dev/null)" = "2" ] && echo 1 || echo 0)"
                 r23_check "s2-backoff" "$([ "$(cat "$r23_tmp/s2/sleeps" 2>/dev/null)" = "1" ] && echo 1 || echo 0)"
+                r23_green_implies_pushed "$r23_tmp/s2" "$r23_s2_tip" "s2"
               fi
             fi
             # Scenario 3: race plus an entry-only contract violation (the agent
@@ -3430,6 +3531,7 @@ R23HOOK
               if [ -z "$r23_s3_conc" ]; then
                 r23_fail "s3-concurrent-commit"
               else
+                r23_s3_tip=$(r23_tip "$r23_tmp/s3")
                 r23_session "$r23_tmp/s3" "$r23_base_log" "## 05:00Z - entry-only session
 
 entry-only
@@ -3441,6 +3543,7 @@ entry-only
                 r23_check "s3-concurrent-kept" "$(printf '%s' "$r23_s3_log" | grep -qF 'entry-concurrent' && echo 1 || echo 0)"
                 r23_check "s3-entry-only-kept" "$(printf '%s' "$r23_s3_log" | grep -qF 'entry-only' && echo 1 || echo 0)"
                 r23_check "s3-marker-once" "$([ "$(printf '%s' "$r23_s3_log" | grep -cF "$R23_MARKER")" = "1" ] && echo 1 || echo 0)"
+                r23_green_implies_pushed "$r23_tmp/s3" "$r23_s3_tip" "s3"
               fi
             fi
             # Scenario 4: persistent rejection; bounded loud give-up, recovery
@@ -3468,6 +3571,7 @@ entry-only
 "; then
               r23_fail "s5-setup"
             else
+              r23_s5_tip=$(r23_tip "$r23_tmp/s5")
               r23_session "$r23_tmp/s5" "$r23_base_log" "" "state-session
 "
               r23_run "$r23_tmp/s5" 0 ""
@@ -3476,6 +3580,7 @@ entry-only
               r23_check "s5-baseline-kept" "$(printf '%s' "$r23_s5_log" | grep -qF 'entry-baseline' && echo 1 || echo 0)"
               r23_check "s5-marker-once" "$([ "$(printf '%s' "$r23_s5_log" | grep -cF "$R23_MARKER")" = "1" ] && echo 1 || echo 0)"
               r23_check "s5-state" "$([ "$(r23_show "$r23_tmp/s5" STATE.md)" = "state-session" ] && echo 1 || echo 0)"
+              r23_green_implies_pushed "$r23_tmp/s5" "$r23_s5_tip" "s5"
             fi
             # Scenario 6: rerun after this run's entry already landed; no
             # duplication, no new commit.
@@ -3513,6 +3618,76 @@ ${R23_MARKER}
               r23_check "s7-no-changes" "$(printf '%s' "$r23_s7_out" | grep -qF 'no memory changes' && echo 1 || echo 0)"
               r23_check "s7-no-new-commit" "$([ "$(r23_tip "$r23_tmp/s7")" = "$r23_s7_tip" ] && echo 1 || echo 0)"
             fi
+            # Scenario 8 (review findings F1/F1b/F2): fresh maintainer/logs
+            # bootstrap where the first push is rejected once. Every retry
+            # takes the orphan path (the ref cannot exist until a push lands),
+            # so a non-idempotent orphan re-checkout aborts attempt 2 under the
+            # runner's bash -e (rc 128, no loud give-up) or blesses an
+            # unpushed green in its soft variant. The fixed step must recover
+            # on attempt 2 and actually publish the session entry.
+            if ! r23_seed_empty "$r23_tmp/s8"; then
+              r23_fail "s8-setup"
+            else
+              r23_s8_tip=$(r23_tip "$r23_tmp/s8")
+              r23_session "$r23_tmp/s8" "$r23_base_log" "$r23_session_entry" "state-session
+"
+              r23_run "$r23_tmp/s8" 1 ""
+              r23_s8_log=$(r23_show "$r23_tmp/s8" "logs/$R23_TODAY.md")
+              r23_s8_out=$(cat "$r23_tmp/s8/out" 2>/dev/null || true)
+              r23_check "s8-rc" "$([ "$(r23_rc "$r23_tmp/s8")" = "0" ] && echo 1 || echo 0)"
+              r23_check "s8-attempt2" "$(printf '%s' "$r23_s8_out" | grep -qF 'attempt 2/3' && echo 1 || echo 0)"
+              r23_check "s8-pushed-claim" "$(printf '%s' "$r23_s8_out" | grep -qF 'memory pushed to maintainer/logs' && echo 1 || echo 0)"
+              r23_check "s8-entry-published" "$(printf '%s' "$r23_s8_log" | grep -qF 'entry-session' && echo 1 || echo 0)"
+              r23_check "s8-marker-once" "$([ "$(printf '%s' "$r23_s8_log" | grep -cF "$R23_MARKER")" = "1" ] && echo 1 || echo 0)"
+              r23_check "s8-state" "$([ "$(r23_show "$r23_tmp/s8" STATE.md)" = "state-session" ] && echo 1 || echo 0)"
+              r23_check "s8-pushes" "$([ "$(cat "$r23_tmp/s8/remote.git/r23-push-count" 2>/dev/null)" = "2" ] && echo 1 || echo 0)"
+              r23_check "s8-backoff" "$([ "$(cat "$r23_tmp/s8/sleeps" 2>/dev/null)" = "1" ] && echo 1 || echo 0)"
+              r23_green_implies_pushed "$r23_tmp/s8" "$r23_s8_tip" "s8"
+            fi
+            # Scenario 9 (review finding F2b): every fetch fails while the
+            # branch exists remotely. The unique-root orphan path must still
+            # reach the full bounded cap loudly (a reused orphan name aborted
+            # attempt 2 with rc 128 before the loud give-up under bash -e) and
+            # the remote must stay untouched.
+            if ! r23_seed "$r23_tmp/s9" "$r23_base_log" "state-seed
+"; then
+              r23_fail "s9-setup"
+            else
+              r23_s9_tip=$(r23_tip "$r23_tmp/s9")
+              r23_session "$r23_tmp/s9" "$r23_base_log" "$r23_session_entry" "state-session
+"
+              r23_run "$r23_tmp/s9" 0 "" 99
+              r23_s9_out=$(cat "$r23_tmp/s9/out" 2>/dev/null || true)
+              r23_check "s9-rc-loud" "$([ "$(r23_rc "$r23_tmp/s9")" != "0" ] && echo 1 || echo 0)"
+              r23_check "s9-fetch-warning" "$(printf '%s' "$r23_s9_out" | grep -qF 'maintainer/logs fetch failed' && echo 1 || echo 0)"
+              r23_check "s9-error-marker" "$(printf '%s' "$r23_s9_out" | grep -qF 'maintainer memory publish failed after 3 attempts' && echo 1 || echo 0)"
+              r23_check "s9-recovery-copy" "$(printf '%s' "$r23_s9_out" | grep -qF '(recoverable copy)' && echo 1 || echo 0)"
+              r23_check "s9-recovery-content" "$(printf '%s' "$r23_s9_out" | grep -qF 'entry-session' && echo 1 || echo 0)"
+              r23_check "s9-remote-untouched" "$([ "$(r23_tip "$r23_tmp/s9")" = "$r23_s9_tip" ] && echo 1 || echo 0)"
+              r23_check "s9-no-pushed-claim" "$(printf '%s' "$r23_s9_out" | grep -qF 'memory pushed to maintainer/logs' && echo 0 || echo 1)"
+              r23_check "s9-fetches-bounded" "$([ "$(cat "$r23_tmp/s9/fetches" 2>/dev/null)" = "3" ] && echo 1 || echo 0)"
+            fi
+            # Scenario 10 (review finding F1): the full cap on the bootstrap
+            # orphan path. With a reused orphan name this aborted at attempt 2
+            # (rc 128) without the loud give-up; the fixed step must reach all
+            # 3 attempts and exit loud red with the recovery bundle, never
+            # creating the remote branch.
+            if ! r23_seed_empty "$r23_tmp/s10"; then
+              r23_fail "s10-setup"
+            else
+              r23_session "$r23_tmp/s10" "$r23_base_log" "$r23_session_entry" "state-session
+"
+              r23_run "$r23_tmp/s10" 99 ""
+              r23_s10_out=$(cat "$r23_tmp/s10/out" 2>/dev/null || true)
+              r23_check "s10-rc-loud" "$([ "$(r23_rc "$r23_tmp/s10")" != "0" ] && echo 1 || echo 0)"
+              r23_check "s10-error-marker" "$(printf '%s' "$r23_s10_out" | grep -qF 'maintainer memory publish failed after 3 attempts' && echo 1 || echo 0)"
+              r23_check "s10-recovery-copy" "$(printf '%s' "$r23_s10_out" | grep -qF '(recoverable copy)' && echo 1 || echo 0)"
+              r23_check "s10-recovery-content" "$(printf '%s' "$r23_s10_out" | grep -qF 'entry-session' && echo 1 || echo 0)"
+              r23_check "s10-attempts" "$([ "$(cat "$r23_tmp/s10/remote.git/r23-push-count" 2>/dev/null)" = "3" ] && echo 1 || echo 0)"
+              r23_check "s10-backoffs" "$([ "$(cat "$r23_tmp/s10/sleeps" 2>/dev/null)" = "2" ] && echo 1 || echo 0)"
+              r23_check "s10-remote-absent" "$([ -z "$(r23_tip "$r23_tmp/s10")" ] && echo 1 || echo 0)"
+              r23_check "s10-no-pushed-claim" "$(printf '%s' "$r23_s10_out" | grep -qF 'memory pushed to maintainer/logs' && echo 0 || echo 1)"
+            fi
           fi
         fi
       fi
@@ -3521,7 +3696,7 @@ ${R23_MARKER}
   fi
 fi
 if [ -z "$r23_bad" ]; then
-  check "R23" "maintainer memory publish is a bounded 3-attempt fetch-recompose-push loop with keep-both day-log semantics (session delta isolated against the materialization baseline and appended, never a whole-file overwrite; STATE.md last-writer-wins), a loud never-quiet publish path, a loud red give-up that prints the recoverable bundle, idempotent marker handling, and per-path memory staging, all enforced by a functional sandbox that executes the real extracted step against a local bare-repo origin with injected push rejections and concurrent tip advance (clean push, race-recovery preserving the concurrent entry, entry-only-violation recovery, persistent-rejection bound 3 attempts / 2 backoffs / loud exit / untouched remote, no-log keep-existing, already-marked no-duplication, no-changes no-commit) (issue #647)" "ok"
+  check "R23" "maintainer memory publish is a bounded 3-attempt fetch-recompose-push loop with keep-both day-log semantics (session delta isolated against the materialization baseline and appended, never a whole-file overwrite; STATE.md last-writer-wins), a loud never-quiet publish path, a loud red give-up that prints the recoverable bundle, idempotent marker handling, per-path memory staging, and a retry-safe bootstrap (unique unborn root per attempt; an empty bootstrap composition never concludes green), all enforced by a functional sandbox that executes the real extracted step under the runner's bash -e shell against a local bare-repo origin with injected push rejections and concurrent tip advance (clean push, race-recovery preserving the concurrent entry, entry-only-violation recovery, persistent-rejection bound 3 attempts / 2 backoffs / loud exit / untouched remote, no-log keep-existing, already-marked no-duplication, no-changes no-commit, bootstrap recovery after one rejected push, bootstrap persistent rejection reaching the full cap, persistent fetch failure on an existing branch via a proven git shim reaching the loud cap with the remote untouched, and every publishing scenario asserting that a green publish claim advanced the remote tip) (issue #647, review findings F1/F1b/F2)" "ok"
 else
   check "R23" "maintainer memory publish guard missing:${r23_bad} (issue #647: a single-shot quiet rebase fallback silently lost a whole memory session to a concurrent push)" "bad"
 fi
