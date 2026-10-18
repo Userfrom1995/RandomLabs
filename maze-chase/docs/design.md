@@ -228,10 +228,11 @@ ring with a reed door (a two-state shape change: barred and unbarred);
 tunnel as a submerged pipe with a current line and a 2-frame entry
 ripple (cells and kitty only; sixel gets a static entry frame); crumbs
 are water beads 3x3 with a meniscus ring; sunseeds are resting
-fireflies 7x7 with a two-frame halo every 416.7 ms (rung-snapped, see
-motion). Bonus set: Lily Charm, Copper Ripple, Reed Flute, Snail
-Shell, Dragonfly Wing, Kingfisher Feather (7x7 low, 11x11 high, 1 px
-bob). Wall readability: dark themes use bright stone edges on indigo
+fireflies 7x7 with a two-frame halo on the rung-snapped period (400 ms
+base; 416.7 ms at the 24/12 Hz snap, see motion). Bonus set: Lily
+Charm, Copper Ripple, Reed Flute, Snail Shell, Dragonfly Wing,
+Kingfisher Feather (7x7 low, 11x11 high, 1 px bob). Wall readability:
+dark themes use bright stone edges on indigo
 water; light themes use wet dark stone on pale sand-water; legacy
 rungs use `#` walls and `%` interiors on ANSI pairs.
 
