@@ -125,15 +125,25 @@ default is tracked in the #582 overhaul.
 
 ## Layout and resize
 
-The 28x31 warren plus HUD fits windows from 62x35 up. Narrow rooms get
-a top score bar; rooms 96 columns and wider get a side panel with
-score, best, lives, level, mode clock, tune, tier, and controls. Huge
-rooms (144x66 and up) magnify cells 2x. Smaller windows get an honest
-"too small" card with the minimum size. Resizing re-fits live,
-including mid-run; the simulation never restarts on resize. The render
-loop re-reads the real window size every frame and re-fits on any
+The 28x31 warren plus HUD fits windows from 62x35 up, and every window
+size gets a plan fitted for it: the layout solver scans continuous tile
+scales (1 to 8 columns per tile, up to 4 rows per tile) and keeps the
+largest square-ish board that fits, then places the chrome it can host:
+a right-hand side panel with score, best, lives, level, mode clock,
+tune, tier, and controls when there is room, a two-row HUD band above
+the board when only rows are tight, or just the bottom hint line in the
+tightest rooms. Smaller windows get an honest "too small" card naming
+the exact minimum. Resizing re-fits live, including mid-run, and the
+simulation never restarts on resize: the frame is cleared and repainted
+in one step, so no stale board fragments survive the change (on the
+Kitty tier the old image placement is deleted in the same frame). The
+render loop re-reads the real window size every frame and re-fits on any
 difference, so a window change is applied even when the terminal
-delivers its resize signal in the same batch as a keypress.
+delivers its resize signal in the same batch as a keypress. On the
+pixel tiers the board rasterizes at the detected cell pixel size (from
+8x16 up), so the image maps nearly 1:1 onto its cell footprint;
+terminals that report no pixel size keep the proven 8-pixels-per-tile
+nominal raster.
 
 ## Settings and scores
 
