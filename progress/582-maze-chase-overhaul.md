@@ -146,3 +146,20 @@ composition) starts fresh from main.
   (no opencode configuration, agent, or plugin edits); none loaded, per
   `delegation.md` section 5.
   - the Fixer
+- 2026-10-18 (fixer delegation ledger, round-3 findings): two
+  verification subagents fanned out (doc-truth/copy audit; adversarial
+  collector-gate verification). The doc audit confirmed the VT340
+  invocation and matrix-executor wording match the committed evidence
+  notes exactly and found no residual overclaim in PR-touched files; the
+  collector audit reproduced all requested scenarios and surfaced one
+  pre-existing hole (white_share classified neither RGBA nor gray+alpha,
+  the capture shapes the Windows .NET and macOS arms emit, leaving the
+  light-background gate structurally blind there), fixed by classifying
+  both by color channels. Primary context ran `py_compile`, `bash -n` on
+  all three scripts, the pwsh parser, the synthetic collector matrix,
+  drive.sh relative-outdir absolutization, and decoded all 80 committed
+  screenshots with the IEND-requiring decoder. Crafted-events-log `..`
+  escapes and basename collisions were evaluated and are unreachable
+  from driver-written logs. Skills: no registry skill matched this
+  run's domains; none loaded, per `delegation.md` section 5.
+  - the Fixer
