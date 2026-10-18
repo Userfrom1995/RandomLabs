@@ -112,6 +112,6 @@ one row each, and record the measured results in the scoreboard.
    `--probe`, node smoke plus browser CDP) and append the measured
    numbers to the [scoreboard](scoreboard.md).
 6. Confirm the [feature matrix](feature-matrix.md) cross-cutting rows
-   and the [parity checklist](parity.md) before retiring the #552
-   Python reference (retirement is a separate, explicit step: nothing
-   in `pacman/` is touched by any packaging script here).
+   and the [parity checklist](parity.md) that gated the #552 Python
+   reference retirement (a separate, explicit step: nothing in
+   `pacman/` is touched by any packaging script here).

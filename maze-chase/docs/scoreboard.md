@@ -165,5 +165,5 @@ Windows and macOS packaged artifacts plus their per-layer E2E runs
 executed on their native operating systems (the dated section above
 records the measured numbers). With them, every
 [parity checklist](parity.md) row is signed; the #552 reference game
-retires by the Maintainer's explicit step after this verified release
-merges.
+was retired in favor of this game by the Maintainer's explicit step
+after this verified release merged.

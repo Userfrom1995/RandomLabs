@@ -5,15 +5,15 @@ Status: in-progress
 ## Checklist
 - [x] Confirm state: #552 and #582 closed 2026-10-18T03:37Z; hub already
       reworded by the Curator's #639 sweep (b485e035, in PR #640)
-- [ ] Reword `maze-chase/README.md` closing paragraph to past tense
-- [ ] Sweep the remaining pre-retirement wording inside `maze-chase/`
+- [x] Reword `maze-chase/README.md` closing paragraph to past tense
+- [x] Sweep the remaining pre-retirement wording inside `maze-chase/`
       (`docs/parity.md`, `docs/scoreboard.md`, `docs/release.md`,
       `docs/feature-matrix.md`, `docs/behavior-spec.md`)
 - [ ] Verify: no em dashes, links intact, `git status` clean
 - [ ] Reviewer / Tester / Evaluator gates (pipeline)
 
 ## Current step
-Scaffold pushed; PR opens early. README reword next.
+Docs sweep pushed; ideas entry and final verification next.
 
 ## Next steps
 - Reword README closing paragraph; then the docs sweep; then ideas entry.
@@ -34,3 +34,10 @@ deliberately untouched: the Curator's PR #640 already rewrites it.
   README's "retirement gate" framing; scope covers all of them.
   Branch renamed from the runner default to
   `opencode/issue642-maze-chase-retirement-past-tense`.
+- 2026-10-18 (Builder): README fix pushed as `148e82c8` (closing
+  paragraph past tense, "retirement gate" -> "retirement record").
+  Docs sweep applied: parity.md intro plus Retirement step, scoreboard
+  closing, release checklist item 6, feature-matrix retirement row,
+  behavior-spec verification baseline. Grep sweep confirms no
+  future-tense retirement wording remains under `maze-chase/` except
+  `maze-chase/index.html`, which PR #640 (Curator) already rewrites.
