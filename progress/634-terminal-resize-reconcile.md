@@ -1,10 +1,12 @@
 # 634: Maze Chase terminal live-resize reconciliation (key + SIGWINCH same-batch race)
 
-Status: complete (implementation, regression, docs; pipeline gates pending)
+Status: in_progress (evaluator round 1 findings applied; review / Tester / fresh Council round pending)
 
 ## Checklist
-- [x] Reproduce the defect deterministically on the unfixed binary
-      (SIGSTOP/SIGCONT same-batch forcing, 5/5 lost)
+- [x] Reproduce the defect on the unfixed binary (SIGSTOP/SIGCONT
+      same-batch forcing; the original probe lost 5/5 trials, and the
+      forced SIGSTOP race in the durable suite is the deterministic
+      proof)
 - [x] Fix: reconcile `crossterm::terminal::size()` against the applied
       layout every frame in the render loop (`reconcile_size`,
       `crates/terminal/src/main.rs`); event `Resize` arm kept
@@ -40,20 +42,34 @@ event is never delivered until the next actual size change.
 at SIGCONT), SIGCONT. Both fds are readable at the first post-resume
 `epoll_wait`, TTY first: the key is consumed and the signal byte stays
 unread forever. Results: control (plain TIOCSWINSZ + SIGWINCH) passes
-every trial; raced case lost 5/5 trials (the `window 61x35 is too small`
-card never paints).
+every trial; the original probe lost the race 5/5 trials (the
+`window 61x35 is too small` card never paints). Trial counts are
+timing-flavored - the evaluator's out-of-tree run of the probe measured
+4/5 - so the determinism claim rests on the forced SIGSTOP ordering
+itself and the durable suite below, not on a trial tally.
 
 ## Test teeth (durable suite)
 `cargo test -p maze-chase-terminal --test resize_race`:
 - unfixed tree (fix patch reverted in place): control passes, race test
-  FAILS 3/3 runs at the 3 s deadline with the stale 100x40 playing frame
-  in the tail.
-- fixed tree: both pass 5/5 runs; the card lands on the first frame
-  after SIGCONT (~0.04 s per run).
+  fails at the 3 s deadline with the stale 100x40 playing frame in the
+  tail (each of its runs in earlier rounds; the evaluator also measured
+  4/5 on the probe). The SIGSTOP-forced hostile suite is the
+  deterministic proof: all four of its tests fail on the unfixed tree.
+- fixed tree: both pass; the card lands on the first frame after
+  SIGCONT (~0.04 s per run), and the four hostile tests pass on the
+  fixed head.
 
-## Verification (this run)
-- `cargo test -p maze-chase-terminal`: 122 passed / 0 failed across 16
-  targets (was 120: the new suite adds the control + race tests).
+## Verification (this head)
+- `cargo test -p maze-chase-terminal`: 133 passed / 0 failed across 20
+  test targets plus doc-tests. The count grew as the branch evolved: 120
+  on main, 122 with the resize suite, 125 once the rebase pulled in
+  main's new macOS e2e tests, 129 with the Tester's 4 hostile tests, 131
+  with this round's row-width assertion and 62x35 PTY geometry test, and
+  133 after the final rebase pulled in main's `tester_retirement_record`
+  (2 tests).
+- Renderer teeth: both new tests fail on the pre-fix renderer (a scratch
+  worktree at the reviewed head: 118 characters written to the 62-col
+  board row vs the required 62) and pass on this head.
 - `cargo fmt --all -- --check`: clean. `cargo clippy -p
   maze-chase-terminal --all-targets`: zero warnings in the crate (only
   the 6 pre-existing `maze-chase-engine` lints).
@@ -63,8 +79,16 @@ card never paints).
 ## Files changed
 - `maze-chase/crates/terminal/src/main.rs`: `reconcile_size` helper plus
   the per-frame call in the render loop (`bitmap_fresh` set on change).
+- `maze-chase/crates/terminal/src/unicode.rs`: cell renderer emits
+  exactly one character per terminal column (evaluator round: a tile's
+  expanded glyph was emitted whole once per column, doubling every board
+  row; row-width assertions pin 62x35 / 100x40 / 200x100).
 - `maze-chase/crates/terminal/tests/resize_race.rs`: new PTY suite
   (control + forced race; Session RAII cleanup on panic).
+- `maze-chase/crates/terminal/tests/render_geometry.rs`: PTY geometry
+  regression: at 62x35 the last complete frame writes exactly 62
+  characters to a corridor row and paints the right wall inside the
+  window (columns 57-58).
 - `maze-chase/docs/terminal.md`: resize paragraph now states the
   per-frame reconciliation.
 - `progress/634-terminal-resize-reconcile.md`: this file.
@@ -92,3 +116,16 @@ card never paints).
   (200x50 outer tty); the pre-fix spawn fails both under `script`; the
   race test still fails under `script` with the reconciler disabled,
   so the harness fix does not weaken the regression.
+- 2026-10-18 (fixer round, evaluator run 39100117058): applied the
+  Council's blocking visual-craft finding on this branch - the cell
+  renderer emitted each tile's expanded glyph whole once per terminal
+  column, doubling every board row (118 characters at the 62x35
+  minimum) and clipping the right wall. `render_board` now indexes the
+  expanded glyph horizontally, one output character per terminal
+  column; new row-width assertions pin 62x35 / 100x40 / 200x100 and a
+  new PTY geometry test proves the right wall paints inside a 62x35
+  window. Both new tests fail on the pre-fix renderer (scratch worktree
+  at the reviewed head: 118 vs 62 characters on the probe row); suite
+  is 133/0 on the rebased head. Also refreshed the counts above and
+  replaced the timing-sensitive trial tally with the forced-SIGSTOP
+  proof, per the Council's secondary notes.
