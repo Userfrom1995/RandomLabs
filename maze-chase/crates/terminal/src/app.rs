@@ -411,7 +411,17 @@ mod tests {
     use crossterm::event::{KeyCode, KeyEventKind, KeyEventState, KeyModifiers};
 
     fn app() -> App {
-        let dir = std::env::temp_dir().join("maze-chase-app-test");
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        // One private config dir per App: the tests in this binary run in
+        // parallel and persist settings, so a shared dir let one test's
+        // saved mute/master state leak into another's load (flaky
+        // `pause_mute_and_resize_flow`).
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "maze-chase-app-test-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
         let _ = std::fs::remove_dir_all(&dir);
         App::new(120, 45, &[], dir)
     }
