@@ -658,3 +658,71 @@ attribution, and clean-tree sweeps. Skills: no skill fit (GitHub Actions
 lab infrastructure, not opencode workspace configuration).
 
 - the Lab Engineer
+
+## Addendum XI: round-10 closure (F10 rebase onto main, seed-matrix re-run, accepted tee-status boundary)
+
+The round-10 review (run 39079244525, head `445541c6`) verified F9 closed
+(the pre-fix escape reproduced at 22/0, the post-fix catch at 21/1 with the
+`failing-tee1`/`failing-tee2` flags on both labels) and found F10 blocking:
+main had advanced to `fadab06a` with the #612 lane (`post-peros-findings.sh`
+CRLF normalization, R17 CRLF fixtures plus the neutered-mock self-validation
+in the audit script, AGENTS.md, LAB.md), so the branch was 4 behind with
+same-file changes and the merged/rebase result had never been executed.
+
+**Rebase (this pass):** `opencode/lab-620-freetier-retry` rebased onto
+`fadab06a`. The replay was conflict-free: the branch's R15 header edit and
+main's R17 CRLF follow-up sentence occupy different lines of the shared
+header comment block, so git merged both cleanly, and the branch no longer
+predates the shallow/unshallow work. The rebased head keeps both rule sets
+and the `R1-R22` labels with no R18 gap:
+
+- header comment: the R15 #620 extension text and main's "issue #612
+  follow-up" CRLF sentence are both present exactly once;
+- main's R17 CRLF fixtures and self-validation are intact (`git diff
+  origin/main..HEAD` on the audit script deletes no CRLF/neutered line);
+- the R15 pins and the loop-level harness are intact (parameterized
+  failing-tee statuses, the tail-window 39/40 pair, the dot-lookalike
+  scenario, deep-rung budget scenarios, backoff timing, step identity);
+- `AGENTS.md` / `LAB.md` carry the branch's R15/transient-retry additions
+  plus main's LF-normalization text, each exactly once (diff versus main
+  shows additions only; no duplicated sections, no stale live range
+  label beyond the dated historical notes).
+
+**Re-verification on the rebased head (fresh `git archive HEAD` exports,
+one isolated `/tmp/opencode/r11/` sandbox per case, YAML parse clean on
+every mutated copy):**
+
+- Control: 22 passed / 0 failed (plus the committed tree itself, above).
+- Seed matrix re-run (the Addendum X set), each exactly one R15 FAIL with
+  its dedicated flags and no collateral:
+  - F5b persistent-branch `rm -f "$log"` -> `exit 0`: rc-mismatch flags
+    (`persistent-nonzero:rc=0,want=3`, `persistent-nonzero7:rc=0,want=7`,
+    `persistent-zero:rc=0,want=1`, `deep-grant`, `deep-advance`,
+    `budget-rungs`) on both labels.
+  - F5e `freetier_retry_used=$((0))` at the top of the retry loop: rc=124
+    timeouts with 44 to 49 attempts (unboundedness spilling past the 10 s
+    per-scenario timeout) on both labels.
+  - F6 live `sleep 31536000` with two unreachable count-holding decoys:
+    `bad-backoff` on every retry scenario on both labels.
+  - F7 `exit 0` before the exhaustion echo: `mnf-all:rc=0,want=1` plus
+    missing-output on both labels.
+  - F9 tee guard narrowed to `-eq 3` behind a dead exact-form decoy plus a
+    comment decoy: `failing-tee1`/`failing-tee2` rc plus missing-output
+    flags on both labels.
+
+**Accepted boundary (round-10 non-blocking, recorded beside AENV):** a live
+tee guard narrowed to a finite multi-status union covering exactly {3, 1, 2}
+(omitting, for example, 4) would still pass the matrix, because finite
+fixtures cannot universally quantify tee statuses. The natural `-ne 0` form
+is held by the anchored live-form tripwire and the loop-level cases cover
+the statuses that matter, so this is accepted, not fixed: such an edit
+misses exactly the unlisted statuses while every listed one still fails
+loudly, and it is named here instead of left implicit.
+
+**Delegation ledger (this pass):** primary only - the rebase replay was
+mechanical and the re-verification re-ran the already-specified seed
+matrix plus the docs-coherence diff; a subagent would have duplicated the
+same executions. Skills: no skill fit (GitHub Actions lab infrastructure,
+not opencode workspace configuration).
+
+- the Lab Engineer
