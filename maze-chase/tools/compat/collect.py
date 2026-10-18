@@ -329,9 +329,13 @@ def decode_png(path):
     while pos + 8 <= len(data):
         length = int.from_bytes(data[pos:pos + 4], "big")
         kind = data[pos + 4:pos + 8]
+        if pos + 12 + length > len(data):
+            return None
         chunk = data[pos + 8:pos + 8 + length]
         pos += 12 + length
         if kind == b"IHDR":
+            if len(chunk) != 13:
+                return None
             (width, height, bit_depth, color_type, comp, filt,
              interlace) = struct.unpack(">IIBBBBB", chunk)
             if comp or filt:
@@ -442,25 +446,23 @@ def white_share(decoded):
 
 
 def screenshot_facts(path):
-    """Signature-checked capture facts: dimensions, single-color flatness,
-    and the white-pixel share (a light-background capture). Returns None
-    when the file is not a decodable PNG."""
+    """Signature-checked capture facts: dimensions and the white-pixel
+    share (a light-background capture). Returns None when the file is not
+    a decodable PNG: the caller rejects such captures instead of copying
+    corrupt bytes into the evidence bundle."""
     try:
         decoded = decode_png(path)
     except OSError:
         return None
     if decoded is None:
         return None
-    rows = decoded["rows"]
-    facts = {
+    share = white_share(decoded)
+    return {
         "width": decoded["width"],
         "height": decoded["height"],
-        "flat": len(set(rows)) <= 1,
+        "white_share": round(share, 4),
+        "light_background": share >= 0.98,
     }
-    share = white_share(decoded)
-    facts["white_share"] = round(share, 4)
-    facts["light_background"] = share >= 0.98
-    return facts
 
 
 # The game's own video line: `VIDEO  <tier>` on the side panel
@@ -482,6 +484,19 @@ def observed_tier(transcript):
 
 def bool_from_env_flag(value):
     return str(value).strip().lower() in ("1", "true", "yes")
+
+
+def collect_notes(args, meta):
+    notes = []
+    if args.notes:
+        notes.append(str(args.notes))
+    meta_notes = meta.get("notes")
+    if isinstance(meta_notes, str):
+        if meta_notes:
+            notes.append(meta_notes)
+    elif isinstance(meta_notes, list):
+        notes.extend(str(note) for note in meta_notes if note)
+    return notes
 
 
 def main():
@@ -592,7 +607,7 @@ def main():
             "sixel": sixel_stats(transcript),
         },
         "trace": trace_summary(args.run_dir, session),
-        "notes": [n for n in [args.notes, meta.get("notes")] if n],
+        "notes": collect_notes(args, meta),
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
 
@@ -605,6 +620,7 @@ def main():
     seen_hashes = {}
     duplicates = []
     light_captures = []
+    rejected_captures = []
     for phase in result["phases"]:
         src = phase.get("screenshot")
         if not src:
@@ -614,6 +630,14 @@ def main():
             if os.path.isfile(cand):
                 src = cand
         if os.path.isfile(src):
+            # A capture the collector cannot decode is not evidence:
+            # reject it instead of copying corrupt bytes into the bundle.
+            facts = screenshot_facts(src)
+            if facts is None:
+                phase["screenshot"] = None
+                phase["capture_rejected"] = "not a decodable PNG (truncated or corrupt)"
+                rejected_captures.append(phase["name"])
+                continue
             name = os.path.basename(src)
             dest = os.path.join(shots_out, name)
             shutil.copyfile(src, dest)
@@ -624,14 +648,12 @@ def main():
             # row went unnoticed): flag duplicate captures and captures
             # that are >=98% white (a light-background terminal renders
             # the tier's light content unreadable).
-            facts = screenshot_facts(dest)
-            if facts:
-                phase["screenshot_width"] = facts["width"]
-                phase["screenshot_height"] = facts["height"]
-                phase["white_share"] = facts["white_share"]
-                if facts["light_background"]:
-                    phase["light_background_capture"] = True
-                    light_captures.append(phase["name"])
+            phase["screenshot_width"] = facts["width"]
+            phase["screenshot_height"] = facts["height"]
+            phase["white_share"] = facts["white_share"]
+            if facts["light_background"]:
+                phase["light_background_capture"] = True
+                light_captures.append(phase["name"])
             if digest in seen_hashes:
                 duplicates.append(
                     {"sha256": digest, "phases": [seen_hashes[digest], phase["name"]]}
@@ -645,13 +667,15 @@ def main():
         result["duplicate_screenshots"] = duplicates
     if light_captures:
         result["light_background_captures"] = light_captures
+    if rejected_captures:
+        result["rejected_captures"] = rejected_captures
 
     # Honesty enforcement: a `pass` requires that the terminal actually
     # rendered the session. A row whose captures are near-uniform white
     # on a light background is downgraded to `partial` with the reason
     # recorded, so it can never be presented as a clean pass.
     disposition = args.result
-    notes = [n for n in [args.notes, meta.get("notes")] if n]
+    notes = collect_notes(args, meta)
     if disposition == "pass" and light_captures:
         disposition = "partial"
         notes.append(
@@ -659,6 +683,13 @@ def main():
             + ", ".join(light_captures)
             + " are >=98% white on the terminal's default light background; "
               "the tier's light content is unreadable there"
+        )
+    if disposition == "pass" and rejected_captures:
+        disposition = "partial"
+        notes.append(
+            "recorded partial by collect.py: checkpoint captures "
+            + ", ".join(rejected_captures)
+            + " are not decodable PNGs and were rejected from the bundle"
         )
     result["disposition"] = disposition
     result["notes"] = notes

@@ -191,18 +191,44 @@ focus_window() {
   esac
 }
 
-valid_png() { # path; PNG signature plus nonzero dimensions
+valid_png() { # path; full structure check: signature, IHDR
+  # dimensions, every chunk length, and a decompressible IDAT stream, so
+  # a truncated or corrupt-body PNG is rejected before it enters
+  # evidence (a 24-byte header check alone would accept it).
   python3 - "$1" <<'PY' >/dev/null 2>&1
-import struct, sys
+import struct, sys, zlib
 try:
     with open(sys.argv[1], "rb") as fh:
-        head = fh.read(24)
+        data = fh.read()
 except OSError:
     sys.exit(1)
-if len(head) < 24 or head[:8] != b"\x89PNG\r\n\x1a\n":
+if len(data) < 24 or data[:8] != b"\x89PNG\r\n\x1a\n":
     sys.exit(1)
-w, h = struct.unpack(">II", head[16:24])
-sys.exit(0 if w > 0 and h > 0 else 1)
+pos = 8
+width = height = 0
+idat = []
+saw_end = False
+while pos + 8 <= len(data):
+    length = int.from_bytes(data[pos:pos + 4], "big")
+    kind = data[pos + 4:pos + 8]
+    if pos + 12 + length > len(data):
+        sys.exit(1)
+    chunk = data[pos + 8:pos + 8 + length]
+    pos += 12 + length
+    if kind == b"IHDR" and len(chunk) == 13:
+        width, height = struct.unpack(">II", chunk[:8])
+    elif kind == b"IDAT":
+        idat.append(chunk)
+    elif kind == b"IEND":
+        saw_end = True
+        break
+if not saw_end or width == 0 or height == 0 or not idat:
+    sys.exit(1)
+try:
+    zlib.decompress(b"".join(idat))
+except zlib.error:
+    sys.exit(1)
+sys.exit(0)
 PY
 }
 
@@ -220,7 +246,9 @@ screenshot() { # name
     log_event note "capture '$name' produced no valid PNG; checkpoint recorded without an image" ""
     return 1
   fi
-  printf '%s\n' "$path"
+  # Log the path relative to the run directory: the committed events.log
+  # must never carry the runner's scratch root.
+  printf 'session/screenshots/%s.png\n' "$name"
 }
 
 key() { # xdotool key name
