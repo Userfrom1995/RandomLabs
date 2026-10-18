@@ -32,7 +32,9 @@ use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-/// Playing surface at 100x40: the wide side panel carries this marker.
+/// Playing surface at 100x40: the hint line under the board carries
+/// this marker (at 100x40 the chrome is the two-row HUD band, no side
+/// panel).
 const PLAYING_MARKER: &str = "Arrows/WASD move";
 /// Pause menu title, visible at any non-degenerate size.
 const PAUSED_MARKER: &str = "PAUSED";
