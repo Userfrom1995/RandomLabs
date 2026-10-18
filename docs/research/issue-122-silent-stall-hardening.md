@@ -7,7 +7,7 @@
 
 ## 1. Problem formalization
 
-The Prism M1-M4 optimization loop (issue #117, build PR #118) repeatedly entered a
+The Prism multi-stage optimization loop (issue #117, build PR #118) repeatedly entered a
 **silent stall**: a `/oc continue` dispatch produced a run that finished with neither
 a branch push nor a decision file, and nothing else was left in flight. The loop then
 died until a human posted `/oc maintainer`, which in turn tripped a false "circuit
