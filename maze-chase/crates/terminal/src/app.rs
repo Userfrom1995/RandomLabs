@@ -105,11 +105,13 @@ fn ticker_for(event: &str) -> Option<String> {
     }
 }
 
-/// Fit a plan for this window, using the terminal's real cell pixel
-/// size when it reports one (piped stdout and plain PTYs report none
-/// and fall back to nominal cells).
+/// Fit a plan for this window, using the terminal's real pixel geometry
+/// when it reports one (piped stdout and plain PTYs report none and fall
+/// back to nominal cells). The window pixel size rides along so the
+/// bitmap tiers can map their raster onto a centered footprint
+/// (issue #656).
 fn layout_for(cols: u16, rows: u16) -> Layout {
-    layout::compute_with(cols, rows, crate::geometry::detect_cell_px())
+    layout::compute_pixels(cols, rows, crate::geometry::detect_pixels())
 }
 
 /// The terminal game session.
