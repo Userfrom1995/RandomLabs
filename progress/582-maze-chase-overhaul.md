@@ -14,7 +14,7 @@
 
 ## Overhaul Roadmap
 
-- Phase 1: Product Reassessment and Real-Terminal Truth: [ ] real-terminal driver harness (`maze-chase/tools/compat/`), [ ] reproduce the Owner's Ghostty and Kitty findings on current main with recorded evidence, [ ] critical reassessment of engine, layers, and docs claims, [ ] findings ledger with every gap, [ ] honest compatibility matrix scaffold `maze-chase/docs/terminal-compat.md`, [ ] new sub-issues filed through the Maintainer (PR 1 target, Refs #582, Refs #655, Refs #661)
+- Phase 1: Product Reassessment and Real-Terminal Truth: [x] real-terminal driver harness (`maze-chase/tools/compat/`: `run-linux.sh`, `run-macos.sh`, `run-windows.ps1`, `drive.sh`, `collect.py`, `README.md`), [x] reproduce the Owner's Ghostty and Kitty findings on current main with recorded evidence (kitty reply-loop flood plus input death, Ghostty mis-routing despite its kitty-graphics support; six executed Linux rows in `tools/compat/evidence/`), [x] critical reassessment of engine, layers, and docs claims (four parallel sweeps; Section B of the ledger), [x] findings ledger with every gap (`progress/582-maze-chase-overhaul-findings.md`), [x] honest compatibility matrix scaffold `maze-chase/docs/terminal-compat.md` (executed rows plus named executors for host-pending rows), [x] new sub-issues routed through the Maintainer (proposed set in ledger Section C; filing is the Maintainer's next step) (PR 1 target, Refs #582, Refs #655, Refs #661)
 - Phase 2: Dynamic Terminal Layout and Full-Window Composition: [ ] geometry model with cell pixel size, [ ] pure layout solver with proportion-driven chrome blocks, [ ] exact-fit image rendering at the region pixel size, [ ] continuous cell-tier scales, [ ] resize contract with same-frame repaint and stale-placement kill, [ ] tier-aware too-small card, [ ] real-emulator resize proof on Linux and macOS (PR 2 target, Refs #582, Closes #656)
 - Phase 3: Terminal Render Pipeline and Compatibility Proof: [ ] bounded live Kitty probe with byte replay (Ghostty enablement), [ ] atlas plus placement composition with full-frame fallback, [ ] dirty-change detection and wall-clock pacing with backpressure, [ ] Sixel path hardening, [ ] protocol-aware watchdog, [ ] `MAZE_CHASE_TRACE` JSONL evidence mode, [ ] kitty and ghostty rows signed on Linux and macOS plus conventional terminals (PR 3 target, Refs #582, Refs #655)
 - Phase 4: Visual Identity Redesign: [ ] Design Council direction consumed (dispatched by the Maintainer before this phase), [ ] resolution-aware character and environment art, [ ] effects and animation system, [ ] refreshed themes with accessibility tests green, [ ] all three layers integrated with real captures (PR 4 target, Refs #582, Closes #658)
@@ -25,13 +25,18 @@
 
 ## Current step
 
-The overhaul roadmap and blueprint are landed on this PR. Builder execution
-starts with Phase 1: Product Reassessment and Real-Terminal Truth, on a fresh
-`opencode/issue582-overhaul-phase-1-*` branch: build the real-terminal harness,
-reproduce the Owner's findings on current `main`, reassess the layers and the
-public claims against evidence, write the findings ledger and the honest
-compatibility matrix scaffold, and route every new gap to the Maintainer as a
-linked sub-issue. Phase 1 ships tooling and truth, not product fixes.
+Phase 1 landed. The harness executes real emulator sessions on Linux
+(kitty, Ghostty, xterm: six rows, all with committed evidence JSON and
+screenshots) and ships the executors for the macOS and Windows arms.
+The Owner's Kitty finding is reproduced and root-caused (terminal reply
+loop feeds the event loop; measured 58-76 full PNG frames/s and dead
+Esc/pause input), the Owner's Ghostty finding is reproduced (Ghostty
+speaks kitty graphics; the auto-detect mis-routes it to cells), and the
+findings ledger records every reassessment gap with evidence and a
+target phase. Doc truth corrections for the false Ghostty claim and the
+unqualified "released and verified" copy landed with it. Next: the
+Maintainer files the ledger's sub-issue set, then Phase 2 (dynamic
+layout and full-window composition) starts fresh from main.
 
 ## Next steps
 
@@ -83,3 +88,16 @@ linked sub-issue. Phase 1 ships tooling and truth, not product fixes.
   the Final Phase; #656, #658, #659, #657, #660 close in their own phases.
   Design Council pass reserved for Phases 4-5. Delegation ledger in the
   blueprint. Handoff to Builder for Phase 1. - the Architect
+- 2026-10-18 (builder): executed Phase 1 on the PR #662 branch (the
+  workflow gate binds this build's push to this PR, so the phase landed
+  here instead of the roadmap's fresh-branch naming; noted in the PR
+  body). Built the harness (`tools/compat/`: shared session driver,
+  Linux runner with Xvfb/llvmpipe and apt/PPA emulator installs, macOS
+  and Windows executors, evidence collector with per-phase transcript
+  segmentation, protocol counters, and tier observation), executed six
+  real Linux rows with committed evidence, ran the strace experiment
+  that isolated the kitty reply-loop, ran four reassessment sweeps
+  (engine/assets/audio, desktop, web, docs), wrote the findings ledger
+  and the honest compatibility matrix, and corrected the false Ghostty
+  claim plus the unqualified release copy. No product fixes, per phase
+  scope. - the Builder
