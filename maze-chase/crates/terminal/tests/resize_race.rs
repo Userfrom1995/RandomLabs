@@ -38,7 +38,7 @@ use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-/// Playing surface at 100x40: the wide side panel carries this marker.
+/// Playing surface at 170x64: the wide side panel carries this marker.
 const PLAYING_MARKER: &str = "move: arrows/WASD";
 /// Too-small card at 61x35 is size-stamped: exactly the raced target.
 const CARD_61X35: &str = "window 61x35 is too small";
@@ -225,8 +225,8 @@ impl Session {
         self.out.clear();
     }
 
-    /// Title visible, then Enter starts play; the wide 100x40 layout
-    /// shows the side-panel playing marker.
+    /// Title visible, then Enter starts play; the wide layout shows the
+    /// side-panel playing marker.
     fn reach_playing(&mut self) {
         assert!(
             self.wait("video tier:", Duration::from_secs(15)),
@@ -256,7 +256,7 @@ impl Drop for Session {
 /// be vacuous.
 #[test]
 fn plain_sigwinch_resize_re_fits() {
-    let mut s = Session::start("resize-control", 100, 40);
+    let mut s = Session::start("resize-control", 170, 64);
     s.reach_playing();
 
     s.clear_output();
@@ -276,11 +276,11 @@ fn plain_sigwinch_resize_re_fits() {
 /// a frame painted after it; no second size change ever follows.
 #[test]
 fn same_batch_key_and_sigwinch_resize_is_never_lost() {
-    let mut s = Session::start("resize-race", 100, 40);
+    let mut s = Session::start("resize-race", 170, 64);
     s.reach_playing();
 
     // Stale-free assertion window: every byte read from here on is a
-    // 100x40 playing frame, so the card can only come from the race.
+    // 170x64 playing frame, so the card can only come from the race.
     s.clear_output();
 
     stop_child(&s.child);
@@ -294,14 +294,14 @@ fn same_batch_key_and_sigwinch_resize_is_never_lost() {
     let card = s.wait(CARD_61X35, Duration::from_secs(3));
     assert!(
         card,
-        "the resize raced by the key was lost: layout stayed at 100x40; tail: {}",
+        "the resize raced by the key was lost: layout stayed at 170x64; tail: {}",
         tail(&s.out)
     );
 
     // Liveness echo: a normal resize after the race still re-fits, so
     // the session survived and fresh frames keep flowing.
     s.clear_output();
-    set_winsize(&s.pty.master, 100, 40);
+    set_winsize(&s.pty.master, 170, 64);
     send_signal(s.child.id(), libc::SIGWINCH);
     let playing = s.wait(PLAYING_MARKER, Duration::from_secs(5));
     assert!(

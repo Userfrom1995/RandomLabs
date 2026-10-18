@@ -1,21 +1,21 @@
 //! Hostile PTY geometry coverage for the one-character-per-column cell
 //! renderer (Quality Council finding on PR #635): the board must paint
-//! inside the window after a live same-batch key+SIGWINCH race, in both
-//! compact (2x1) and magnified (4x2) cell modes.
+//! inside the window after a live same-batch key+SIGWINCH race, across
+//! the continuous tile scales (issue #675).
 //!
 //! `tests/render_geometry.rs` proves the startup path at the 62x35
 //! minimum. These tests attack the seam between the resize reconciliation
 //! and the renderer through the shipped binary:
 //!
-//! 1. `same_batch_race_refits_exact_width_rows` - race 100x40 -> 62x35
-//!    (compact) and back to 100x40 (side panel): every board row must
+//! 1. `same_batch_race_refits_exact_width_rows` - race 170x64 (5x2 tiles,
+//!    side panel) -> 62x35 (2x1 compact) and back: every board row must
 //!    account for exactly one character per terminal column, no visible
 //!    glyph may ever be written past the window edge, and the walls must
 //!    sit at their exact columns after each heal.
 //! 2. `magnified_race_geometry_is_exact_and_transitions_cleanly` - start
-//!    in the magnified 4x2 layout at 200x100, verify exact widths and
-//!    wall columns there, then race down to the 62x35 compact minimum
-//!    (the largest possible cell-size transition) and re-verify.
+//!    in the 7x3 layout at 200x100, verify exact widths and wall columns
+//!    there, then race down to the 62x35 compact minimum (the largest
+//!    possible cell-size transition) and re-verify.
 //!
 //! The doubled-row bug this guards against wrote 118-char rows in a
 //! 62-column window; both tests fail on that renderer (verified
@@ -30,9 +30,10 @@ use std::time::{Duration, Instant};
 
 use maze_chase_terminal::layout::{compute, Layout};
 
-/// Wide layouts (>=96 cols) carry the side panel including this marker.
+/// Wide layouts with panel room (170x64 and up at 5x2) carry the side
+/// panel including this marker.
 const SIDE_PANEL_MARKER: &str = "move: arrows/WASD";
-/// Narrow layouts fall back to the top bar plus this hint line.
+/// Narrow/band layouts fall back to the HUD band plus this hint line.
 const COMPACT_HINT: &str = "Arrows/WASD move";
 
 struct Pty {
@@ -426,15 +427,15 @@ fn assert_exact_geometry(frame: &str, layout: &Layout, tag: &str) {
     );
 }
 
-/// Race into the compact 62x35 minimum and back to the side-panel 100x40
-/// layout. After each heal the board must paint exactly within its
-/// window with the walls at their expected columns.
+/// Race into the compact 62x35 minimum and back to the side-panel
+/// 170x64 layout. After each heal the board must paint exactly within
+/// its window with the walls at their expected columns.
 #[test]
 fn same_batch_race_refits_exact_width_rows() {
-    let mut s = Session::start("compact", 100, 40);
+    let mut s = Session::start("compact", 170, 64);
     s.reach_playing(SIDE_PANEL_MARKER, "compact");
 
-    // Forced race down to the minimum: compact layout, top bar + hint.
+    // Forced race down to the minimum: compact layout, HUD band + hint.
     s.force_same_batch_race(62, 35);
     assert!(
         s.wait(COMPACT_HINT, Duration::from_secs(3)),
@@ -447,37 +448,37 @@ fn same_batch_race_refits_exact_width_rows() {
     assert_exact_geometry(&frame, &layout, "race->62x35");
 
     // Forced race back to the wide layout: the side panel returns and the
-    // board must re-fit at its 100x40 origin.
-    s.force_same_batch_race(100, 40);
+    // board must re-fit at its 170x64 origin.
+    s.force_same_batch_race(170, 64);
     assert!(
         s.wait(SIDE_PANEL_MARKER, Duration::from_secs(3)),
-        "race back to 100x40 never healed; tail: {}",
+        "race back to 170x64 never healed; tail: {}",
         tail(&s.out)
     );
-    let frame = s.capture_frame("compact-100");
-    let layout = compute(100, 40);
+    let frame = s.capture_frame("compact-170");
+    let layout = compute(170, 64);
     assert!(layout.side.is_some());
-    assert_exact_geometry(&frame, &layout, "race->100x40");
+    assert_exact_geometry(&frame, &layout, "race->170x64");
 }
 
-/// Start in the magnified 4x2 layout at 200x100, verify exact geometry,
-/// then take the largest possible cell-size transition (4x2 magnified ->
-/// 2x1 compact minimum) through the forced race and re-verify.
+/// Start in the 7x3 band layout at 200x100, verify exact geometry, then
+/// take the largest possible cell-size transition (7x3 -> 2x1 compact
+/// minimum) through the forced race and re-verify.
 #[test]
 fn magnified_race_geometry_is_exact_and_transitions_cleanly() {
     let mut s = Session::start("magnified", 200, 100);
-    s.reach_playing(SIDE_PANEL_MARKER, "magnified");
+    s.reach_playing(COMPACT_HINT, "magnified");
 
     let layout = compute(200, 100);
-    assert!(layout.magnified && layout.cell_cols == 4 && layout.cell_rows == 2);
+    assert!(layout.magnified && layout.cell_cols == 7 && layout.cell_rows == 3);
     let frame = s.capture_frame("magnified-200");
     assert_exact_geometry(&frame, &layout, "200x100-magnified");
 
-    // Cross-mode race: magnified 4x2 -> compact 2x1 at the minimum.
+    // Cross-scale race: 7x3 -> compact 2x1 at the minimum.
     s.force_same_batch_race(62, 35);
     assert!(
         s.wait(COMPACT_HINT, Duration::from_secs(3)),
-        "cross-mode race to 62x35 never healed; tail: {}",
+        "cross-scale race to 62x35 never healed; tail: {}",
         tail(&s.out)
     );
     let frame = s.capture_frame("magnified-62");

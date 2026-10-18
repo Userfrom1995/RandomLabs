@@ -33,7 +33,7 @@ use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
 /// Playing surface at 100x40: the wide side panel carries this marker.
-const PLAYING_MARKER: &str = "move: arrows/WASD";
+const PLAYING_MARKER: &str = "Arrows/WASD move";
 /// Pause menu title, visible at any non-degenerate size.
 const PAUSED_MARKER: &str = "PAUSED";
 /// The race target below the 62x35 minimum renders a size-stamped card.
