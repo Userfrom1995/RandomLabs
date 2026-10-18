@@ -268,3 +268,24 @@ Phase 3 (terminal render pipeline and compatibility proof).
   matrix PASS). Primary context applied every edit, re-ran
   `tokens_mirror_theme_palettes` and the CRLF byte test green, and
   verified the tokens `themes` section byte-identical. - the Fixer
+- 2026-10-18 (fixer, design test round T1-T3 on PR #688): applied the
+  Tester's findings. T1 (blocking): reworded the two lines that carried
+  the word "milestone" (`design.md:161` "Milestone toasts" to
+  "Achievement toasts"; `:633` to "no internal progress counters") so
+  `cargo test -p maze-chase-terminal --test tester_docs_language` is
+  green again; the guard itself is untouched. T2: the sunseed halo
+  prose now states the rung-snapped period (400 ms base; 416.7 ms at
+  the 24/12 Hz snap), matching the per-rung table and
+  `durations_ms.sunseed_halo`. T3: the reduced-motion registry prose
+  now carries the ninth source (overlay fades on desktop and web,
+  which become cuts), matching `motion_lantern_drift.reduced_motion`,
+  and the transition inventory states the same rule; no token change,
+  so the `themes` section stays byte-identical. Delegation ledger: two
+  verification subagents fanned out (docs-language guard sweep;
+  T2/T3 contract consistency); the guard sweep returned both tests
+  green and zero residue across all 18 scanned files with a positive
+  control, and the contract pass returned the halo arithmetic exact,
+  the registries at 9/9 reduced-motion and 14/14 reduced-flash, the
+  rule statement present, and the tokens file unmodified. Primary
+  context applied every edit and re-ran the docs-language guard green.
+  - the Fixer
