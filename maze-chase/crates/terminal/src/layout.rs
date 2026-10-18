@@ -1,31 +1,59 @@
-//! Fullscreen canvas layout: fit the 28x31 maze plus HUD into any window.
+//! Fullscreen canvas layout: fit the 28x31 warren plus HUD into any window.
 //!
-//! The maze board renders at `cell_cols` terminal columns per tile (2 in
-//! compact rooms, 4 when the window has room to magnify) and `cell_rows`
-//! text rows per tile (1 compact, 2 magnified). A side panel carries score,
-//! lives, level, and warden status on wide windows; narrow windows fall
-//! back to a top HUD bar plus a bottom hint line. Anything below the
-//! minimum still draws a centered "window too small" card instead of a
-//! clipped board. [`compute`] is pure: resize handling just calls it again.
+//! The board is `cell_cols` x `cell_rows` terminal cells per tile, chosen
+//! continuously: the solver scans every plausible tile scale (from the
+//! 2x1 compact floor up to 8x4) and keeps the one that gives the largest
+//! square-ish board, then centers the board plus chrome block in the
+//! window (issue #675 - no more fixed 2x1/4x2 jumps). Chrome adapts to
+//! the room the board leaves: a right side panel on wide rooms, a two-row
+//! HUD band above the board when the board's own width leaves no panel
+//! room, and nothing but the bottom hint line in tight rooms. Windows
+//! below the supported 62x35 minimum draw a centered "window too small"
+//! card instead of a clipped board; the card's numbers come from
+//! [`MIN_COLS`]/[`MIN_ROWS`], the same constants the solver enforces
+//! (issue #684).
+//!
+//! On the bitmap tiers the same solver picks the tile footprint in cells;
+//! [`Layout::ppt`] then rasterizes the board at the detected real cell
+//! pixel size (clamped for encode cost), so the image maps onto its cell
+//! footprint nearly 1:1 instead of being stretched from a nominal 8x16
+//! raster (issue #673). Terminals that report no pixel size keep the
+//! Phase 1 8-ppt nominal raster (see [`NOMINAL_IMAGE_PPT`]).
+//!
+//! [`compute`] is pure: resize handling just calls it again, and equal
+//! inputs always yield equal plans, so the binary can detect a plan
+//! change by comparison and repaint from scratch (issue #674).
 
 use maze_chase_engine::maze::{HEIGHT, WIDTH};
 
-/// Minimum window that still fits the compact board plus HUD chrome.
+/// Supported minimum window: below either floor the too-small card shows.
 pub const MIN_COLS: u16 = 62;
-/// Minimum window that still fits the compact board plus HUD chrome.
 pub const MIN_ROWS: u16 = 35;
 
-/// Compact cell: tiles per terminal cell.
-pub const COMPACT_CELL_COLS: u16 = 2;
-pub const COMPACT_CELL_ROWS: u16 = 1;
-/// Magnified cell, used when the window comfortably fits it.
-pub const MAGNIFIED_CELL_COLS: u16 = 4;
-pub const MAGNIFIED_CELL_ROWS: u16 = 2;
-
-/// Window width at or above which the side panel replaces the top bar.
-pub const SIDE_PANEL_MIN_COLS: u16 = 96;
+/// Gap between the board and the side panel, in columns.
+pub const PANEL_GAP: u16 = 2;
 /// Side panel width in columns.
 pub const SIDE_PANEL_COLS: u16 = 26;
+/// HUD band height in rows when the panel does not fit.
+pub const BAND_ROWS: u16 = 2;
+
+/// Largest tile scale the cell tier considers.
+pub const MAX_CELL_COLS: u16 = 8;
+pub const MAX_CELL_ROWS: u16 = 4;
+
+/// Rasterization bounds for the bitmap tiers: below 6 ppt glyphs stop
+/// reading, above 20 ppt the stored-block PNG grows past what 20 fps on
+/// a PTY can carry in this phase.
+pub const MIN_IMAGE_PPT: u32 = 6;
+pub const MAX_IMAGE_PPT: u32 = 20;
+/// Raster scale when the terminal reports no cell pixels (the Phase 1
+/// default): bitmap tiers keep the proven 8-ppt render instead of
+/// guessing from nominal cells.
+pub const NOMINAL_IMAGE_PPT: u32 = crate::raster::DEFAULT_PPT;
+
+/// Nominal cell pixel size used when the terminal reports none.
+pub const NOMINAL_CELL_W_PX: u16 = crate::geometry::NOMINAL_CELL_W_PX;
+pub const NOMINAL_CELL_H_PX: u16 = crate::geometry::NOMINAL_CELL_H_PX;
 
 /// A placed rectangle in terminal cells (0-based, end-exclusive).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -42,30 +70,117 @@ impl Rect {
     }
 }
 
+/// Where the HUD chrome lives in this plan.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub enum Chrome {
+    /// Only the bottom hint line (tight rooms).
+    Minimal,
+    /// Two-row HUD band above the board.
+    Band,
+    /// Right-hand side panel.
+    Side,
+}
+
+/// How the board is presented on this tier.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BoardKind {
+    /// Unicode cells at the plan's tile scale.
+    Cells { cell_cols: u16, cell_rows: u16 },
+    /// Pixels rasterized at `ppt` pixels per tile.
+    Image { ppt: u32 },
+}
+
 /// Fitted layout for one window size.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Layout {
     /// Usable window the layout was computed for.
     pub cols: u16,
     pub rows: u16,
-    /// Board origin and cell size.
+    /// Board origin and size in terminal cells.
     pub board: Rect,
+    /// Tile footprint: terminal columns/rows per maze tile (both kinds).
     pub cell_cols: u16,
     pub cell_rows: u16,
-    /// True when the magnified cell size is active.
+    /// Presentation kind for this tier.
+    pub kind: BoardKind,
+    /// Which chrome fits (side panel > band > hint only).
+    pub chrome: Chrome,
+    /// True when the tile scale is above the 2x1 compact floor.
     pub magnified: bool,
-    /// Side panel (`None` on narrow windows, which use the top bar).
+    /// Side panel (`None` unless [`Chrome::Side`]).
     pub side: Option<Rect>,
-    /// Top HUD bar (`None` on wide windows, which use the side panel).
+    /// HUD band above the board (`None` unless [`Chrome::Band`]).
     pub top_bar: Option<Rect>,
-    /// Bottom hint line (always present when the window fits at all).
+    /// Bottom hint line (full content width).
     pub hint: Rect,
     /// True when the window is below [`MIN_COLS`]x[`MIN_ROWS`].
     pub too_small: bool,
+    /// Minimums this plan enforces (card copy reads these).
+    pub min_cols: u16,
+    pub min_rows: u16,
 }
 
-/// Fit the canvas into `cols`x`rows`. Pure: call again on every resize.
+/// The plan is the layout; alias kept for call sites that read "plan".
+pub type LayoutPlan = Layout;
+
+impl Layout {
+    /// True when the board is presented as pixels on this tier.
+    pub fn is_pixels(&self) -> bool {
+        matches!(self.kind, BoardKind::Image { .. })
+    }
+
+    /// Rasterization scale (pixels per tile) for the bitmap tiers.
+    pub fn ppt(&self) -> u32 {
+        match self.kind {
+            BoardKind::Image { ppt } => ppt,
+            BoardKind::Cells { .. } => NOMINAL_IMAGE_PPT,
+        }
+    }
+}
+
+/// Internal candidate: one tile scale with the best chrome it can host.
+#[derive(Clone, Copy)]
+struct Choice {
+    cw: u16,
+    ch: u16,
+    chrome: Chrome,
+    content_w: u16,
+    content_h: u16,
+    area: u32,
+    square: u32,
+    coverage: u64,
+}
+
+fn better(a: &Choice, b: &Choice) -> bool {
+    if a.area != b.area {
+        return a.area > b.area;
+    }
+    if a.square != b.square {
+        return a.square < b.square;
+    }
+    if a.coverage != b.coverage {
+        return a.coverage > b.coverage;
+    }
+    if a.chrome != b.chrome {
+        return a.chrome > b.chrome;
+    }
+    a.cw > b.cw
+}
+
+/// Fit the canvas into `cols`x`rows` at nominal cell pixels. Pure: call
+/// again on every resize.
 pub fn compute(cols: u16, rows: u16) -> Layout {
+    compute_with(cols, rows, None)
+}
+
+/// [`compute`] with the detected real cell pixel size: the cell tier uses
+/// it to keep tiles square, and the bitmap tier to rasterize at (near)
+/// the real cell resolution. `None` falls back to nominal cells.
+pub fn compute_with(cols: u16, rows: u16, cell_px: Option<(u16, u16)>) -> Layout {
+    // A zero-sized cell report is nonsense; treat it as "no report" so
+    // this public solver stays total for any caller (the detector
+    // already rejects zeros, this is defensive).
+    let cell_px = cell_px.filter(|(w, h)| *w > 0 && *h > 0);
     if cols < MIN_COLS || rows < MIN_ROWS {
         return Layout {
             cols,
@@ -76,8 +191,13 @@ pub fn compute(cols: u16, rows: u16) -> Layout {
                 w: 0,
                 h: 0,
             },
-            cell_cols: COMPACT_CELL_COLS,
-            cell_rows: COMPACT_CELL_ROWS,
+            cell_cols: 2,
+            cell_rows: 1,
+            kind: BoardKind::Cells {
+                cell_cols: 2,
+                cell_rows: 1,
+            },
+            chrome: Chrome::Minimal,
             magnified: false,
             side: None,
             top_bar: None,
@@ -88,74 +208,147 @@ pub fn compute(cols: u16, rows: u16) -> Layout {
                 h: 1,
             },
             too_small: true,
+            min_cols: MIN_COLS,
+            min_rows: MIN_ROWS,
         };
     }
-    // Magnify when the doubled board plus chrome fits with margin.
-    let mag_w = WIDTH as u16 * MAGNIFIED_CELL_COLS + SIDE_PANEL_COLS + 6;
-    let mag_h = HEIGHT as u16 * MAGNIFIED_CELL_ROWS + 4;
-    let magnified = cols >= mag_w && rows >= mag_h;
-    let (cell_cols, cell_rows) = if magnified {
-        (MAGNIFIED_CELL_COLS, MAGNIFIED_CELL_ROWS)
-    } else {
-        (COMPACT_CELL_COLS, COMPACT_CELL_ROWS)
-    };
-    let board_w = WIDTH as u16 * cell_cols;
-    let board_h = HEIGHT as u16 * cell_rows;
-    let wide = cols >= SIDE_PANEL_MIN_COLS && cols >= board_w + SIDE_PANEL_COLS + 4;
-    let (side, top_bar, chrome_top) = if wide {
-        let panel = Rect {
-            x: 0, // filled in after centering below
-            y: 0,
-            w: SIDE_PANEL_COLS,
-            h: board_h,
+    let (cell_w, cell_h) = cell_px.unwrap_or((NOMINAL_CELL_W_PX, NOMINAL_CELL_H_PX));
+    let board_w_tiles = WIDTH as u32;
+    let board_h_tiles = HEIGHT as u32;
+    let window_area = cols as u64 * rows as u64;
+
+    let mut best: Option<Choice> = None;
+    let mut scales: Vec<(u16, u16)> = Vec::new();
+    // The compact floor is always a candidate so extreme cell aspects
+    // still produce a usable plan at the supported minimum.
+    scales.push((2, 1));
+    for cw in 1..=MAX_CELL_COLS {
+        let ideal = cw as u32 * cell_w as u32;
+        let lo = (ideal / cell_h as u32).max(1);
+        let hi = ideal.div_ceil(cell_h as u32).max(1);
+        for ch in [lo, hi] {
+            if ch > MAX_CELL_ROWS as u32 {
+                continue;
+            }
+            let pair = (cw, ch as u16);
+            if !scales.contains(&pair) {
+                scales.push(pair);
+            }
+        }
+    }
+    for &(cw, ch) in &scales {
+        let board_w = (board_w_tiles * cw as u32) as u16;
+        let board_h = (board_h_tiles * ch as u32) as u16;
+        if cols < board_w || rows < board_h + 1 {
+            continue;
+        }
+        let side_fits = cols >= board_w + PANEL_GAP + SIDE_PANEL_COLS;
+        let band_fits = rows > board_h + BAND_ROWS;
+        let chrome = if side_fits {
+            Chrome::Side
+        } else if band_fits {
+            Chrome::Band
+        } else {
+            Chrome::Minimal
         };
-        (Some(panel), None, 1u16)
-    } else {
-        (
-            None,
-            Some(Rect {
-                x: 0,
-                y: 0,
-                w: cols,
-                h: 2,
-            }),
-            3u16,
-        )
-    };
-    // Center the board (+ panel) block in the window.
-    let block_w = board_w + if wide { SIDE_PANEL_COLS + 2 } else { 0 };
-    let block_h = board_h + chrome_top + 1;
-    let ox = cols.saturating_sub(block_w) / 2;
-    let oy = rows.saturating_sub(block_h) / 2 + chrome_top.min(2);
+        let (content_w, content_h) = match chrome {
+            Chrome::Side => (board_w + PANEL_GAP + SIDE_PANEL_COLS, board_h),
+            Chrome::Band => (board_w, board_h + BAND_ROWS),
+            Chrome::Minimal => (board_w, board_h),
+        };
+        let coverage = (content_w as u64 * (content_h as u64 + 1) * 1000) / window_area;
+        let candidate = Choice {
+            cw,
+            ch,
+            chrome,
+            content_w,
+            content_h,
+            area: cw as u32 * ch as u32,
+            square: (cw as u32 * cell_w as u32).abs_diff(ch as u32 * cell_h as u32),
+            coverage,
+        };
+        if best.as_ref().is_none_or(|b| better(&candidate, b)) {
+            best = Some(candidate);
+        }
+    }
+    // The (2,1) floor always fits at or above the minimum window, so a
+    // best is guaranteed; keep a defensive fallback anyway.
+    let choice = best.unwrap_or(Choice {
+        cw: 2,
+        ch: 1,
+        chrome: Chrome::Minimal,
+        content_w: (board_w_tiles * 2) as u16,
+        content_h: board_h_tiles as u16,
+        area: 2,
+        square: 0,
+        coverage: 0,
+    });
+
+    let board_w = (board_w_tiles * choice.cw as u32) as u16;
+    let board_h = (board_h_tiles * choice.ch as u32) as u16;
+    let ox = (cols - choice.content_w) / 2;
+    let oy = (rows - (choice.content_h + 1)) / 2;
+    let board_y = oy
+        + if choice.chrome == Chrome::Band {
+            BAND_ROWS
+        } else {
+            0
+        };
     let board = Rect {
         x: ox,
-        y: oy,
+        y: board_y,
         w: board_w,
         h: board_h,
     };
-    let side = side.map(|_| Rect {
-        x: ox + board_w + 2,
-        y: oy,
-        w: SIDE_PANEL_COLS.min(cols.saturating_sub(ox + board_w + 2)),
+    let side = (choice.chrome == Chrome::Side).then_some(Rect {
+        x: ox + board_w + PANEL_GAP,
+        y: board_y,
+        w: SIDE_PANEL_COLS,
         h: board_h,
+    });
+    let top_bar = (choice.chrome == Chrome::Band).then_some(Rect {
+        x: ox,
+        y: oy,
+        w: board_w,
+        h: BAND_ROWS,
     });
     let hint = Rect {
         x: ox,
-        y: oy + board_h,
-        w: block_w.min(cols.saturating_sub(ox)),
+        y: oy + choice.content_h,
+        w: choice.content_w,
         h: 1,
+    };
+
+    let kind = match cell_px {
+        None => BoardKind::Cells {
+            cell_cols: choice.cw,
+            cell_rows: choice.ch,
+        },
+        Some(_) => {
+            // Raster at (near) the real cell resolution: the smaller of
+            // the tile's pixel dimensions, so glyph art never outgrows
+            // its tile footprint.
+            let tile_w = choice.cw as u32 * cell_w as u32;
+            let tile_h = choice.ch as u32 * cell_h as u32;
+            let ppt = tile_w.min(tile_h).clamp(MIN_IMAGE_PPT, MAX_IMAGE_PPT);
+            BoardKind::Image { ppt }
+        }
     };
     Layout {
         cols,
         rows,
         board,
-        cell_cols,
-        cell_rows,
-        magnified,
+        cell_cols: choice.cw,
+        cell_rows: choice.ch,
+        kind,
+        chrome: choice.chrome,
+        magnified: (choice.cw, choice.ch) != (2, 1),
         side,
         top_bar,
         hint,
         too_small: false,
+        min_cols: MIN_COLS,
+        min_rows: MIN_ROWS,
     }
 }
 
@@ -182,6 +375,8 @@ mod tests {
         // The classic 80x24 room cannot fit a 28x31 board: honest card.
         let l = compute(80, 24);
         assert!(l.too_small);
+        assert_eq!(l.min_cols, 62);
+        assert_eq!(l.min_rows, 35);
         assert_eq!(tile_at(&l, 40, 12), None);
     }
 
@@ -190,44 +385,95 @@ mod tests {
         let l = compute(MIN_COLS, MIN_ROWS);
         assert!(!l.too_small);
         assert!(!l.magnified);
-        assert_eq!(l.cell_cols, 2);
-        assert_eq!(l.cell_rows, 1);
-        assert_eq!(l.board.w, 56);
-        assert_eq!(l.board.h, 31);
+        assert_eq!((l.cell_cols, l.cell_rows), (2, 1));
+        assert_eq!(
+            l.board,
+            Rect {
+                x: 3,
+                y: 2,
+                w: 56,
+                h: 31
+            }
+        );
         assert!(l.top_bar.is_some());
+        assert_eq!(l.chrome, Chrome::Band);
         assert!(l.side.is_none());
+        assert_eq!(l.hint.y, 33);
+        assert_eq!(l.hint.w, 56);
     }
 
     #[test]
-    fn wide_window_gets_side_panel() {
-        let l = compute(140, 70);
+    fn scales_grow_continuously_with_the_window() {
+        // Assert the actual continuous scale steps; no fixed 2x1/4x2 jump.
+        assert_eq!(
+            (compute(62, 35).cell_cols, compute(62, 35).cell_rows),
+            (2, 1)
+        );
+        assert_eq!(
+            (compute(100, 40).cell_cols, compute(100, 40).cell_rows),
+            (3, 1)
+        );
+        assert_eq!(
+            (compute(170, 64).cell_cols, compute(170, 64).cell_rows),
+            (5, 2)
+        );
+        assert_eq!(
+            (compute(200, 100).cell_cols, compute(200, 100).cell_rows),
+            (7, 3)
+        );
+        // And the in-between: 140x70 lands between the pinned steps.
+        let mid = compute(140, 70);
+        assert!(mid.cell_cols >= 4 && mid.cell_cols < 7);
+    }
+
+    #[test]
+    fn wide_room_with_panel_room_gets_side_panel() {
+        let l = compute(170, 64);
         assert!(!l.too_small);
-        assert!(l.side.is_some());
+        assert_eq!(l.chrome, Chrome::Side);
+        let side = l.side.expect("side panel");
+        assert_eq!(side.x, l.board.x + l.board.w + PANEL_GAP);
+        assert!(side.x + side.w <= 170);
         assert!(l.top_bar.is_none());
-        let side = l.side.unwrap();
-        assert!(side.x > l.board.x + l.board.w);
+        // The hint line spans the whole content block.
+        assert_eq!(l.hint.w, l.board.w + PANEL_GAP + SIDE_PANEL_COLS);
     }
 
     #[test]
-    fn huge_window_magnifies() {
+    fn huge_window_keeps_square_tiles() {
         let l = compute(200, 100);
         assert!(l.magnified);
-        assert_eq!(l.cell_cols, 4);
-        assert_eq!(l.cell_rows, 2);
-        assert_eq!(l.board.w, 112);
-        assert_eq!(l.board.h, 62);
+        assert_eq!((l.cell_cols, l.cell_rows), (7, 3));
+        // Nominal cells: tile 56x48 px - closer to square than 64x48.
+        let alt = 8 * NOMINAL_CELL_W_PX as u32; // 8x3 candidate width
+        let chosen = l.cell_cols as u32 * NOMINAL_CELL_W_PX as u32;
+        let chosen_h = l.cell_rows as u32 * NOMINAL_CELL_H_PX as u32;
+        assert!(
+            chosen.abs_diff(chosen_h) <= alt.abs_diff(3 * NOMINAL_CELL_H_PX as u32),
+            "solver picked a less square tile than a same-area alternative"
+        );
     }
 
     #[test]
     fn board_is_centered_and_inside() {
-        for (cols, rows) in [(62, 35), (100, 40), (140, 70), (200, 100)] {
+        for (cols, rows) in [(62, 35), (100, 40), (140, 70), (170, 64), (200, 100)] {
             let l = compute(cols, rows);
             assert!(!l.too_small, "{cols}x{rows}");
             assert!(l.board.x + l.board.w <= cols, "{cols}x{rows}");
+            assert!(l.board.y + l.board.h <= rows, "{cols}x{rows}");
             assert!(l.hint.y < rows, "{cols}x{rows}");
+            assert!(l.hint.x + l.hint.w <= cols, "{cols}x{rows}");
             if let Some(side) = l.side {
                 assert!(side.x + side.w <= cols, "{cols}x{rows}");
             }
+            if let Some(bar) = l.top_bar {
+                assert_eq!(bar.y + bar.h, l.board.y, "{cols}x{rows}");
+            }
+            assert_eq!(
+                l.hint.y,
+                l.board.y + l.board.h,
+                "{cols}x{rows}: hint sits right under the block"
+            );
         }
     }
 
@@ -244,19 +490,56 @@ mod tests {
     }
 
     #[test]
+    fn real_cell_pixels_shape_the_scale_and_raster() {
+        // Real cells 10x20: same footprint family, raster at real size.
+        let l = compute_with(100, 40, Some((10, 20)));
+        assert!(l.is_pixels());
+        assert_eq!((l.cell_cols, l.cell_rows), (3, 1));
+        // Tile is 30x20 px: the raster takes the smaller dimension.
+        assert_eq!(l.ppt(), 20);
+        // Without a pixel report the plan keeps the proven 8-ppt
+        // nominal raster (Phase 1 default, no regression for terminals
+        // that cannot report pixel sizes).
+        let nominal = compute_with(100, 40, None);
+        assert!(!nominal.is_pixels());
+        assert_eq!(nominal.ppt(), NOMINAL_IMAGE_PPT);
+        assert_eq!(nominal.ppt(), 8);
+    }
+
+    #[test]
+    fn zero_cell_report_falls_back_to_nominal_without_panicking() {
+        let zero = compute_with(100, 40, Some((0, 0)));
+        assert_eq!(zero, compute_with(100, 40, None));
+        let h_zero = compute_with(62, 35, Some((10, 0)));
+        assert!(!h_zero.is_pixels());
+        assert_eq!(h_zero.cell_cols, 2);
+    }
+
+    #[test]
+    fn pixels_known_never_shrinks_the_footprint() {
+        // The footprint (cells) must not depend on whether the terminal
+        // reported pixels: only the raster detail changes.
+        for cell_px in [None, Some((9, 18)), Some((12, 24))] {
+            let l = compute_with(170, 64, cell_px);
+            assert_eq!((l.cell_cols, l.cell_rows), (5, 2), "{cell_px:?}");
+            assert_eq!(l.board.w, 140, "{cell_px:?}");
+        }
+    }
+
+    #[test]
     fn resize_recomputes_cleanly() {
         // Dynamic resize path: recompute must stay consistent across a
         // sweep of sizes, including degenerate ones.
-        let mut prev: Option<Layout> = None;
-        for cols in (0..160).step_by(7) {
-            for rows in (0..60).step_by(5) {
+        for cols in (0..200).step_by(7) {
+            for rows in (0..80).step_by(5) {
                 let l = compute(cols, rows);
                 if l.too_small {
                     assert!(cols < MIN_COLS || rows < MIN_ROWS);
                 } else {
                     assert!(l.board.w > 0 && l.board.h > 0);
+                    assert!(l.board.x + l.board.w <= cols);
+                    assert!(l.board.y + l.board.h <= rows);
                 }
-                let _ = prev.replace(l);
             }
         }
     }
