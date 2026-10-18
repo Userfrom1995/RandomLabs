@@ -493,44 +493,120 @@ jobs:
       - name: Commit Maintainer memory (maintainer/logs)
         if: always()
         run: |
-          git fetch origin maintainer/logs:refs/remotes/origin/logs --quiet || true
-          if git rev-parse --verify refs/remotes/origin/logs >/dev/null 2>&1; then
-            git checkout --force --detach refs/remotes/origin/logs --quiet
-          else
-            git checkout --orphan logs-bootstrap --quiet
-            git rm -rf . --quiet 2>/dev/null || true
-          fi
-          mkdir -p logs
-          if [ -s .maintainer/state.md ]; then cp .maintainer/state.md STATE.md; fi
-          if [ -s .maintainer/personality.md ]; then cp .maintainer/personality.md personality.md; fi
+          # Issue #647: bounded 3-attempt fetch-recompose-push loop with
+          # keep-both log semantics and loud diagnostics. The old single-shot,
+          # fully-quiet rebase fallback lost a session's whole memory silently
+          # (run 39097165251: push rejected non-fast-forward at 04:33:36.833Z,
+          # fallback died 306ms later with zero output, commit 7060a089 gone).
           today="$(date -u +%Y-%m-%d)"
-          if [ -s ".maintainer/log-entry.md" ]; then
-            cp ".maintainer/log-entry.md" "logs/$today.md"
-          elif [ ! -f "logs/$today.md" ]; then
-            printf '# %s - auto entry (agent produced no log)\n\nRun: https://github.com/%s/actions/runs/%s (%s)\n> [!WARNING]\n> Agent Output Missing\n\nNote: the agent finished without writing a log entry; this stub keeps instances in sync. See the run logs for details.\n' \
-              "$today" "${{ github.repository }}" "${{ github.run_id }}" "${{ github.event_name }}" > "logs/$today.md"
+          run_marker='<!-- run: ${{ github.run_id }} -->'
+          bundle="$(mktemp -d)"
+          for f in state.md personality.md log-entry.md; do
+            if [ -s ".maintainer/$f" ]; then cp ".maintainer/$f" "$bundle/$f"; fi
+          done
+          if [ -s ".maintainer/memory/logs/$today.md" ]; then
+            cp ".maintainer/memory/logs/$today.md" "$bundle/log-baseline.md"
           fi
-          echo "<!-- run: ${{ github.run_id }} -->" >> "logs/$today.md"
-          if git cat-file -e "origin/main:.github/agents/REGISTRY.md" 2>/dev/null; then
-            git show "origin/main:.github/agents/REGISTRY.md" > REGISTRY.md
-          elif [ -f .github/agents/REGISTRY.md ]; then
-            cp .github/agents/REGISTRY.md REGISTRY.md
+          # The agent writes the FULL day file it materialized (existing entries
+          # plus today's). Isolate the bytes it actually added against that
+          # materialization baseline, so recomposing on a fresh tip can never
+          # drop a concurrent session's entry for the same day (issue #647).
+          : > "$bundle/log-delta.md"
+          if [ -s "$bundle/log-entry.md" ]; then
+            if [ -s "$bundle/log-baseline.md" ] \
+               && [ "$(wc -c < "$bundle/log-entry.md")" -ge "$(wc -c < "$bundle/log-baseline.md")" ] \
+               && head -c "$(wc -c < "$bundle/log-baseline.md")" "$bundle/log-entry.md" | cmp -s - "$bundle/log-baseline.md"; then
+              tail -c +"$(( $(wc -c < "$bundle/log-baseline.md") + 1 ))" "$bundle/log-entry.md" > "$bundle/log-delta.md"
+            else
+              # Append-only contract violated (agent wrote a partial file): keep
+              # both by appending its whole content under the current tip.
+              # Duplicated lines are harmless; a lost entry is not.
+              cp "$bundle/log-entry.md" "$bundle/log-delta.md"
+            fi
           fi
-          # Stage ONLY the memory files - never the whole repo - then commit and push.
-          git add -- STATE.md personality.md REGISTRY.md logs 2>/dev/null || true
-          if ! git diff --cached --quiet; then
-            git -c user.name="Hephaestus (Maintainer)" -c user.email="github-actions[bot]@users.noreply.github.com" \
-              commit -m "maintainer: memory update $(date -u +%Y-%m-%dT%H:%MZ)"
-            git push origin "HEAD:maintainer/logs" --quiet || {
-              git fetch origin maintainer/logs:refs/remotes/origin/logs --quiet
-              git rebase refs/remotes/origin/logs --quiet && git push origin "HEAD:maintainer/logs" --quiet
-            }
-            echo "memory pushed to maintainer/logs"
-          else
-            echo "no memory changes"
-          fi
+          memory_pushed=0
+          for attempt in 1 2 3; do
+            echo "== maintainer memory publish attempt $attempt/3 =="
+            have_tip=0
+            if git fetch origin maintainer/logs:refs/remotes/origin/logs; then
+              if git rev-parse --verify refs/remotes/origin/logs >/dev/null 2>&1; then have_tip=1; fi
+            else
+              echo "::warning::maintainer/logs fetch failed on attempt $attempt (loud on purpose, issue #647)"
+            fi
+            if [ "$have_tip" = "1" ]; then
+              git checkout --force --detach refs/remotes/origin/logs --quiet
+            else
+              git checkout --orphan logs-bootstrap --quiet
+              git rm -rf . --quiet 2>/dev/null || true
+            fi
+            mkdir -p logs
+            if [ -s "$bundle/state.md" ]; then cp "$bundle/state.md" STATE.md; fi
+            if [ -s "$bundle/personality.md" ]; then cp "$bundle/personality.md" personality.md; fi
+            if [ -f "logs/$today.md" ] && grep -qF "$run_marker" "logs/$today.md"; then
+              echo "this run's marker is already in logs/$today.md; not duplicating the entry"
+            else
+              if [ -s "$bundle/log-delta.md" ]; then
+                if [ -f "logs/$today.md" ] && [ -s "logs/$today.md" ]; then
+                  [ -n "$(tail -c 1 "logs/$today.md")" ] && printf '\n' >> "logs/$today.md"
+                  printf '\n' >> "logs/$today.md"
+                fi
+                cat "$bundle/log-delta.md" >> "logs/$today.md"
+                [ -n "$(tail -c 1 "logs/$today.md")" ] && printf '\n' >> "logs/$today.md"
+              elif [ ! -f "logs/$today.md" ]; then
+                printf '# %s - auto entry (agent produced no log)\n\nRun: https://github.com/%s/actions/runs/%s (%s)\n> [!WARNING]\n> Agent Output Missing\n\nNote: the agent finished without writing a log entry; this stub keeps instances in sync. See the run logs for details.\n' \
+                  "$today" "${{ github.repository }}" "${{ github.run_id }}" "${{ github.event_name }}" > "logs/$today.md"
+              fi
+              printf '%s\n' "$run_marker" >> "logs/$today.md"
+            fi
+            if git cat-file -e "origin/main:.github/agents/REGISTRY.md" 2>/dev/null; then
+              git show "origin/main:.github/agents/REGISTRY.md" > REGISTRY.md
+            elif [ -f .github/agents/REGISTRY.md ]; then
+              cp .github/agents/REGISTRY.md REGISTRY.md
+            fi
+            # Stage ONLY the memory files that exist - never the whole repo.
+            # Per-path adds: one missing path makes a single atomic `git add`
+            # of all paths a silent no-op, which would lose the whole publish.
+            for f in STATE.md personality.md REGISTRY.md; do
+              if [ -f "$f" ]; then git add -- "$f"; fi
+            done
+            if [ -d logs ]; then git add -- logs; fi
+            if git diff --cached --quiet; then
+              echo "no memory changes on attempt $attempt"
+              memory_pushed=1
+              break
+            fi
+            if git -c user.name="Hephaestus (Maintainer)" -c user.email="github-actions[bot]@users.noreply.github.com" \
+              commit -m "maintainer: memory update $(date -u +%Y-%m-%dT%H:%MZ)"; then
+              # Loud publish path (issue #647): no --quiet on fetch/commit/push,
+              # so the real git error is always in the step log.
+              if git push origin "HEAD:maintainer/logs"; then
+                memory_pushed=1
+                break
+              fi
+              echo "::warning::memory push rejected on attempt $attempt (git output above); refetching the fresh tip and recomposing"
+            else
+              echo "::warning::memory commit failed on attempt $attempt"
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              sleep 5
+            fi
+          done
           # Restore workspace to origin/main so subsequent steps have access to repo scripts
           git checkout --force origin/main --quiet || git checkout --force main --quiet || true
+          if [ "$memory_pushed" != "1" ]; then
+            echo "::error::maintainer memory publish failed after 3 attempts; this session's memory was NOT persisted to maintainer/logs. The recoverable bundle follows so the entries can be restored from this run log; the next Maintainer tick starts from the last persisted tip."
+            for f in state.md personality.md log-entry.md; do
+              if [ -s "$bundle/$f" ]; then
+                echo "----- .maintainer/$f (recoverable copy) -----"
+                cat "$bundle/$f"
+                echo "----- end .maintainer/$f -----"
+              fi
+            done
+            rm -rf "$bundle"
+            exit 1
+          fi
+          echo "memory pushed to maintainer/logs"
+          rm -rf "$bundle"
 
       - name: Post Maintainer comment
         if: always()
