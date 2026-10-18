@@ -435,7 +435,7 @@ fn live_resize_too_small_card_recovers_mid_play() {
         "shrinking below the minimum must show the too-small card; tail: {}",
         s.tail()
     );
-    s.resize(100, 40);
+    s.resize(170, 64);
     assert!(
         s.wait_for("video tier:", Duration::from_secs(8)),
         "growing back must repaint the title; tail: {}",
@@ -485,10 +485,10 @@ fn live_resize_too_small_card_recovers_mid_play() {
         "the exact 62x35 minimum must repaint the running game; tail: {}",
         s.tail()
     );
-    s.resize(100, 40);
+    s.resize(170, 64);
     assert!(
         s.wait_for("move: arrows/WASD", Duration::from_secs(8)),
-        "growing back must repaint the running game; tail: {}",
+        "growing back to a side-panel room must repaint the running game; tail: {}",
         s.tail()
     );
     assert!(
