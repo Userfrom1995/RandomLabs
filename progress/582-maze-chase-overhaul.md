@@ -163,3 +163,14 @@ composition) starts fresh from main.
   from driver-written logs. Skills: no registry skill matched this
   run's domains; none loaded, per `delegation.md` section 5.
   - the Fixer
+- 2026-10-18 (tester-round follow-up on Phase 1): one blocking defect
+  from the Tester's live run: the harness README's bare
+  `tools/compat/run-*.sh` commands were committed mode 0644 and failed
+  with `Permission denied`. Set the executable bit on `run-linux.sh`,
+  `run-macos.sh`, and `drive.sh`; the committed contract suite now
+  passes 8/8. Recorded the collector's per-phase attribution boundary
+  (frames and chunked kitty payload straddling checkpoint cuts) as a
+  comment in `collect.py`; the Tester's crafted-run-dir hardening list
+  stays deferred, as scoped. No delegation: single-area mode fix plus
+  one comment, below the threshold.
+  - the Fixer
