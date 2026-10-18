@@ -214,8 +214,11 @@ Phase 3 (terminal render pipeline and compatibility proof).
   section 5.
   - the Fixer
 - 2026-10-18 (Design Council): ran the full four-round deliberation
-  (`/oc design` on #582, auto-retry 1 after the first run timed out
-  mid-round-3) and shipped the binding direction:
+  (`/oc design` on #582 across three dispatches: run 39156808919 timed
+  out in Round 4 synthesis after Round 3 had completed, the auto-retry
+  run 39161404347 died mid-Round-3 with the motion revision pending,
+  and the shipping dispatch 39168334922 composed the final motion spec
+  and wrote the artifact) and shipped the binding direction:
   `maze-chase/docs/design.md` plus `design-tokens.json` now carry
   Pondwake identity (Rill the pond frog; heron, pike, snake, dragonfly
   hunters; Dusk Pond, Morning Shallows, Moonwake themes with every
@@ -229,11 +232,39 @@ Phase 3 (terminal render pipeline and compatibility proof).
   ships as the recorded exhibit with its rescue hexes, and the full
   dissent log and delegation ledger are in the artifact. Binding for
   the visual and sound phases: the Builder implements this direction,
-  never re-authors it. Delegation ledger: Visual swarm empty twice
-  (recovered by split passes plus palette follow-ups, one of which
-  also returned empty once), Motion critic empty twice (leaner third
-  prompt succeeded), Motion revision empty twice (final spec composed
-  in primary context from the recorded critique resolutions, noted in
-  the artifact); all other swarms returned; no registry skill matched
-  this run's domains, none loaded, per `delegation.md` section 5.
+  never re-authors it. Delegation ledger (round by round): Round 1
+  propose (three specialist swarms, two directions each; the visual
+  swarm empty twice, recovered by a split parts-A pass plus palette
+  follow-ups, one of which also returned empty once); Round 2 critique
+  (three cross-assigned critic swarms; the motion critic empty twice,
+  succeeded on a leaner third prompt); Round 3 revise (the UX and
+  visual revisions returned; the motion revision empty twice, so the
+  motion revisions are primary-composed from the recorded critique
+  resolutions); Round 4 converge (primary synthesis; the final motion
+  spec primary-composed); primary context recomputed the corrected
+  palette metrics and cross-checked the artifact against the tokens;
+  all other swarms returned; no registry skill matched this run's
+  domains, none loaded, per `delegation.md` section 5.
   - the Design Council
+- 2026-10-18 (fixer, design review round 1 on PR #688): applied all
+  nine findings from the Reviewer's round 1 (F1-F9). Corrected the
+  engine windows to the warden-cruise fractions (fright hunters 5.06,
+  eyes 12.24, house exit 4.49, re-derived from `tuning.rs` and
+  `ghosts.rs`); moved the Moonwake fright fill to #E8FFF8 so the
+  "never white" rule holds (recomputed 19.17 on bg and 3.11 on wall,
+  all gates pass); aligned the token companion with the artifact
+  (Pondwake shape accents, retired `reduced_flash_replaces` in favor
+  of the single motion registry, 62x35 floor, blink key removed,
+  0.10 s death clip, 0.24 s overlay fade, refreshed notes); answered
+  the Round 2 HUD-roster critique with the compact-floor fit (best and
+  the sound chip relocate, no fourth HUD row); dropped the false ANSI
+  mapping reference; scoped checklist item 5 to the real hosts;
+  unified the pickup burst at 4 frames on the 66.7 ms grid; completed
+  the delegation ledger round by round; corrected the dispatch
+  chronology. Delegation ledger: three verification subagents fanned
+  out (engine-window and floor re-derivation returned all five speed
+  windows PASS; independent palette recomputation returned every
+  metric and gate exact; artifact contract audit returned the F1-F9
+  matrix PASS). Primary context applied every edit, re-ran
+  `tokens_mirror_theme_palettes` and the CRLF byte test green, and
+  verified the tokens `themes` section byte-identical. - the Fixer
