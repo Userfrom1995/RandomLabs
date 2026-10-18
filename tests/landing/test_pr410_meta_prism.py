@@ -1,11 +1,12 @@
 """Regression tests for PR #410 (Refs #70), updated for #549 archived reality.
 
 Verifies against the shipped artifact (root index.html served over HTTP):
-- meta description lists the current live fleet (Terminal Browser, Desktop
-  Pet, Netpulse, Thunderline, Mythduel, Hearthlight, Doom, Umbra, Poolduel,
-  torshim), not the stale Tor CLI / Umbra-only text
-- archived names (Folio, Tabula, Sextant, Prism) are absent from the meta
-  (they live under archive/, cataloged in archive/README.md)
+- meta description lists the current live fleet (Pac-Man Terminal Arcade,
+  Maze Chase Rust, Terminal Browser, Desktop Pet, Netpulse, Thunderline,
+  Mythduel, Hearthlight, Doom, Umbra, torshim), not the stale Tor CLI /
+  Umbra-only text
+- archived names (Folio, Tabula, Sextant, Prism, Poolduel) are absent from
+  the meta (they live under archive/, cataloged in archive/README.md)
 - Prism no longer appears on the landing page (archived to archive/prism/)
 - live cards exist before Previous Projects
 - HTML parses with zero errors, zero em dashes (lab formatting invariant)
@@ -25,6 +26,8 @@ from urllib.request import urlopen
 ROOT = Path(__file__).resolve().parents[2]
 INDEX = ROOT / "index.html"
 FLEET = [
+    "Pac-Man",
+    "Maze Chase",
     "Terminal Browser",
     "Desktop Pet",
     "Netpulse",
@@ -33,12 +36,12 @@ FLEET = [
     "Hearthlight",
     "Doom",
     "Umbra",
-    "Poolduel",
     "torshim",
 ]
-# Archived projects: preserved under archive/ (Sextant via #548), cataloged
-# in archive/README.md. They must not be advertised as live in the meta.
-ARCHIVED = ["Folio", "Tabula", "Sextant", "Prism"]
+# Archived projects: preserved under archive/ (Sextant via #548, Poolduel
+# via #561), cataloged in archive/README.md. They must not be advertised as
+# live in the meta.
+ARCHIVED = ["Folio", "Tabula", "Sextant", "Prism", "Poolduel"]
 
 
 class _StrictParser(HTMLParser):
