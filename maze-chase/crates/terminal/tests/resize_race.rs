@@ -34,6 +34,7 @@
 
 use std::io::{Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
@@ -181,8 +182,8 @@ impl Session {
         let pty = open_pty(cols, rows);
         let dir = std::env::temp_dir().join(format!("maze-chase-{tag}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        let child = Command::new(env!("CARGO_BIN_EXE_maze-chase-terminal"))
-            .arg("--dir")
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_maze-chase-terminal"));
+        cmd.arg("--dir")
             .arg(&dir)
             .arg("--tier")
             .arg("legacy")
@@ -190,9 +191,23 @@ impl Session {
             .env_remove("MAZE_CHASE_TIER")
             .stdin(Stdio::from(pty.slave.try_clone().unwrap()))
             .stdout(Stdio::from(pty.slave.try_clone().unwrap()))
-            .stderr(Stdio::from(pty.slave.try_clone().unwrap()))
-            .spawn()
-            .expect("spawn maze-chase-terminal");
+            .stderr(Stdio::from(pty.slave.try_clone().unwrap()));
+        // Own session + this PTY as controlling terminal, so the child's
+        // crossterm::terminal::size() reads the PTY under test via
+        // /dev/tty, not the developer's real terminal.
+        let ctl_fd = pty.slave.as_raw_fd();
+        unsafe {
+            cmd.pre_exec(move || {
+                if libc::setsid() == -1 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                if libc::ioctl(ctl_fd, libc::TIOCSCTTY as _, 0) == -1 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+        let child = cmd.spawn().expect("spawn maze-chase-terminal");
         Self {
             pty,
             child,
