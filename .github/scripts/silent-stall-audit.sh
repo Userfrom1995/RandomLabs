@@ -2816,8 +2816,10 @@ R19P_GH
   fi
 fi
 if [ -f .github/agents/reviewer.md ]; then
-  grep -qF 'Publication Contract (issues #616, #637)' .github/agents/reviewer.md || r19_bad="${r19_bad} reviewer.md(no-publication-contract)"
-  grep -qF 'final message MUST BE the complete sign-off-bearing' .github/agents/reviewer.md || r19_bad="${r19_bad} reviewer.md(no-final-message-rule)"
+  # Whole-line pins (review round 3 minor): substring greps are satisfiable
+  # by a decoy sentence; the operative contract lines are pinned exactly.
+  grep -qxF '**Publication Contract (issues #616, #637)**: the review gate only recognizes' .github/agents/reviewer.md || r19_bad="${r19_bad} reviewer.md(no-publication-contract)"
+  grep -qxF 'automatically, so that final message MUST BE the complete sign-off-bearing' .github/agents/reviewer.md || r19_bad="${r19_bad} reviewer.md(no-final-message-rule)"
 else
   r19_bad="${r19_bad} reviewer.md(missing)"
 fi
