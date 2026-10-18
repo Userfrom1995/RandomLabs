@@ -113,7 +113,10 @@ a top score bar; rooms 96 columns and wider get a side panel with
 score, best, lives, level, mode clock, tune, tier, and controls. Huge
 rooms (144x66 and up) magnify cells 2x. Smaller windows get an honest
 "too small" card with the minimum size. Resizing re-fits live,
-including mid-run; the simulation never restarts on resize.
+including mid-run; the simulation never restarts on resize. The render
+loop re-reads the real window size every frame and re-fits on any
+difference, so a window change is applied even when the terminal
+delivers its resize signal in the same batch as a keypress.
 
 ## Settings and scores
 
