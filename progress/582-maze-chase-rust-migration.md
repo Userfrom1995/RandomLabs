@@ -2,9 +2,9 @@
 
 - **Issue:** #582 (parent tracker; gameplay reference #552 stays functional until replacement is verified)
 - **Branch:** opencode/issue582-verified-release
-- **Status:** in-progress
+- **Status:** complete
 - **Updated:** 2026-10-18
-- **Active Phase:** Verified Release: Cross-Platform Proof and Retirement Handoff (in progress)
+- **Active Phase:** Verified Release: Cross-Platform Proof and Retirement Handoff (Complete, ready for review)
 
 ## Phase Roadmap
 
@@ -20,15 +20,20 @@
 
 ## Current step
 
-Verified Release pass on `opencode/issue582-verified-release` (Refs #582,
-`Closes #582` once green): flip the `maze-chase/docs/parity.md`
-native-proof rows to signed on the two native reports, record the
-per-OS numbers in `docs/scoreboard.md`, complete the feature matrix
-cross-cutting rows, resolve the `legal.md` flagged items per the
-release obligations, and re-verify the whole release from a fresh Linux
-tree (workspace suite, verify harness, wasm byte reproducibility, node
-plus browser E2E, packaging smoke). The `pacman/` tree is untouched;
-the #552 retirement step follows this PR's merge.
+Verified Release pass on `opencode/issue582-verified-release` is
+complete and ready for review (`Closes #582`): every native row in
+`maze-chase/docs/parity.md` is signed on the two native reports (macOS
+39068848280 via vehicle #631, Windows 39068849150 via vehicle #632),
+`docs/scoreboard.md` records the per-OS numbers plus the fresh Linux
+release rebuild, the feature matrix cross-cutting rows are current,
+the `legal.md` flagged items are resolved with their resolving
+artifacts, and the product surfaces (hub, `docs/index.md`, both
+READMEs, both landing pages) present one released product. The release
+tree was re-verified from a fresh Linux checkout (407 tests across 45
+targets, verify 19/19 golden `23c17f89734e`, byte-identical wasm
+rebuild, node plus CDP browser E2E, terminal/desktop packaging smoke).
+The `pacman/` tree is untouched; the #552 retirement step follows this
+PR's merge.
 
 ## Phase completion: Final Phase
 
@@ -183,6 +188,8 @@ flood-fill proof in header), `tests/golden.rs` (pinned hashes),
 - Every merge leaves repo and workflows green
 
 ## Agent log
+
+- 2026-10-18 (builder): completed the Verified Release pass on `opencode/issue582-verified-release` (PR #636, `Closes #582`). Flipped every native row in `maze-chase/docs/parity.md` to signed on the two independent native passes and added a "Native proof record" section (macOS pass run 39068848280: 398/0 across 41 targets, verify 19/19 golden 23c17f89734e, PTY 28/28, staged `.app` probe exit 0, wasm sha 5ec2a05a byte-identical; vehicle PR #631 merged 01:51:48Z as c672f443. Windows pass run 39068849150 on Windows Server 2025: 374/0 across 41 targets, CLI matrix in Git Bash plus pwsh, 9/15 ConPTY sessions with all 6 fails sharing the Release-key double-fire defect, packaged zip 609,776 bytes sha f6351a49 plus probe PPM sha 8de66bae byte-identical to the committed reference; three defects fixed and Council-verified at 9.8/10 via vehicle PR #632 merged 00:22:46Z as d08a993b). New dated `2026-10-18 (cross-platform release verification)` scoreboard section records the Linux release rebuild on this exact tree: `cargo test --workspace --no-fail-fast` 407 passed / 0 failed across 45 targets, `maze-chase-verify` 19/19 golden 23c17f89734e at 0.2 us/tick, wasm rebuild sha 5ec2a05af55f7256a5603f7047446d319f342303d0194d8f2f8920f1ee9dea87 byte-identical, `cargo fmt --all --check` clean, clippy only the six documented pre-existing engine lints plus the pre-existing rng test lint, node smokes plus CDP browser E2E ALL GREEN, terminal and desktop tarballs staged, installed to scratch prefixes, and probed. Feature matrix: all layer columns flipped from stale `planned` to `done` and the cross-cutting rows cite their per-OS evidence. `legal.md`: the four flagged items marked resolved with resolving artifacts (f37855cf, e8da9720, 72a52df1 plus the ghost-intelligence extension 1a464d26) and the `levels/*.toml` reference corrected to `levels/*.maze`. Unified presentation updated across `maze-chase/README.md`, the hub `maze-chase/index.html`, `docs/index.md`, `docs/release.md`, and the root `README.md` plus landing page. Decision record `.github/agents/decisions/builder/2026-10-18T02-30-00-maze-chase-verified-release.md` records why the native evidence composition supports `Closes #582` without a third native run; writeup `ideas/2026-10-18-maze-chase-verified-release.md`. Docs-language guard re-run green (2/2) after the edits; no em/en dashes introduced; no code changes in this pass and `pacman/` untouched. Delegation ledger: no subagents (a docs-and-evidence finalization pass; the primary executed the full Linux verification matrix and the guard test directly; only known skill customize-opencode covers opencode configuration, not this Rust/docs work). - the Builder
 
 - 2026-10-17 (fixer): applied the review-round blocking finding on `opencode/issue582-20261017220544` (PR #632). F1: removed the stale macOS vehicle duplicate `crates/terminal/tests/tester_macos_e2e.rs` (the copied #631 artifact `e0dc4129`, whose unguarded `libc::ptsname` static-buffer use and missing 61x35/62x34/62x35 plus Harsh `level==1`/`mode=="sprint"`/`score>0` assertions no longer match #631's Council-fixed vehicle), keeping every Windows commit and the three Windows contracts' assertions untouched; `git merge-tree` against #631's branch now exits 0 (the add/add conflict is gone). N1: corrected the prose of `crates/engine/tests/tester_windows_checkout_bytes.rs` to attribute the wasm drift to `levels/ember-warren.maze` alone (53 line endings, +53 bytes) and to note `docs/design-tokens.json` carries zero newlines with its only `include_str!` in a `#[cfg(test)]` module; no assertion changed. N2: recorded the residual +26 bytes (observed wasm +79 vs the maze's +53) for the fresh Windows native re-run to root-cause; no code action. N3: recorded `--probe` duplicate occurrences merging last-wins; conventional, no action. Proof: `cargo test --workspace --no-fail-fast` 402 passed / 0 failed across 43 targets (405 before, the three macOS tests removed), `maze-chase-verify` 19/19 (golden 23c17f89 identical, 0.8 us/tick), `cargo fmt --all --check` clean, clippy only the 6 pre-existing engine lints plus the pre-existing rng test lint, zero new warnings. Delegation ledger: no subagents (one blocking removal plus one prose correction the primary applied and verified directly; only known skill customize-opencode covers opencode config, not this Rust work). - the Fixer
 
