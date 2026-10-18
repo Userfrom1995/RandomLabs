@@ -1,63 +1,85 @@
 # 634: Maze Chase terminal live-resize reconciliation (key + SIGWINCH same-batch race)
 
-Status: in-progress
+Status: complete (implementation, regression, docs; pipeline gates pending)
 
 ## Checklist
 - [x] Reproduce the defect deterministically on the unfixed binary
       (SIGSTOP/SIGCONT same-batch forcing, 5/5 lost)
-- [ ] Fix: reconcile `crossterm::terminal::size()` against the applied
-      layout every frame in the render loop
-- [ ] Durable PTY regression test forcing the same-batch race
-      (control resize + raced resize, stale-free assertion window)
-- [ ] Unified docs: note the per-frame reconciliation in
+- [x] Fix: reconcile `crossterm::terminal::size()` against the applied
+      layout every frame in the render loop (`reconcile_size`,
+      `crates/terminal/src/main.rs`); event `Resize` arm kept
+- [x] Durable PTY regression `tests/resize_race.rs` forcing the
+      same-batch race (control + race, stale-free assertion window)
+- [x] Unified docs: per-frame reconciliation noted in
       `maze-chase/docs/terminal.md` "Layout and resize"
-- [ ] fmt / clippy / terminal crate suite green
+- [x] fmt / clippy / terminal crate suite green
 - [ ] Reviewer / Tester / Evaluator gates (pipeline)
 
 ## Scope (binding, from issue #634 triage)
-- Fix direction accepted by the Maintainer: per-frame
-  `crossterm::terminal::size()` comparison against the app's last known
-  size, calling `app.resize` on change (one cheap ioctl per frame at
-  ~60 fps). This makes the layout self-healing regardless of
+- Per-frame `crossterm::terminal::size()` comparison against the app's
+  last known size, calling `app.resize` on change (one cheap ioctl per
+  frame at ~60 fps). Makes the layout self-healing regardless of
   crossterm's signal-pipe drain behavior.
 - Durable PTY regression that forces the same-batch race; existing
   terminal tests never race a key against a resize.
-- Pre-existing on `main`; not introduced by PR #631 (test-only
-  vehicle). Do not touch the #631 lane.
+- Pre-existing on `main`; not introduced by PR #631. The #631 lane was
+  not touched.
 
 ## Defect recap (Tester report, run 39084739972)
-crossterm 0.29's Unix event source registers the TTY (token 0) and the
-signal-hook-mio pipe (token 1) on one edge-triggered epoll. When a
-keypress and SIGWINCH land in the same batch, `try_read` processes the
-TTY token first, parses the key, and returns - the signal pipe byte is
+crossterm 0.29's Unix event source (`event/source/unix/mio.rs`) registers
+the TTY (token 0) and the signal-hook-mio pipe (token 1) on one
+edge-triggered epoll. `try_read` processes the TTY token first, and once
+the parser yields a key it returns immediately; the signal pipe byte is
 left unread. Edge-triggered epoll never re-reports it, so the `Resize`
-event is never delivered until the next actual size change; the app
-keeps the stale layout.
+event is never delivered until the next actual size change.
 
-## Deterministic repro (this run, unfixed binary)
-`/tmp/opencode/race_force.py`: SIGSTOP + `waitpid(WUNTRACED)`, then
-queue the key byte (arms the TTY edge first), `TIOCSWINSZ`, queue
-SIGWINCH (pending until SIGCONT writes the pipe byte), SIGCONT. Both
-fds are readable at the first post-resume `epoll_wait`, TTY first:
-crossterm returns the key and the signal byte stays unread.
-Control (plain TIOCSWINSZ + SIGWINCH, no stop) passes every time;
-raced case lost 5/5 trials (card `window 61x35 is too small` never
-paints). This is the forcing the durable test will use.
+## Deterministic repro (unfixed binary, before the fix)
+`/tmp/opencode/race_force.py` (python PTY driver): SIGSTOP +
+`waitpid(WUNTRACED)`, queue the key byte (arms the TTY edge first),
+`TIOCSWINSZ`, queue SIGWINCH (pending; handler writes the pipe byte only
+at SIGCONT), SIGCONT. Both fds are readable at the first post-resume
+`epoll_wait`, TTY first: the key is consumed and the signal byte stays
+unread forever. Results: control (plain TIOCSWINSZ + SIGWINCH) passes
+every trial; raced case lost 5/5 trials (the `window 61x35 is too small`
+card never paints).
 
-## Current step
-Scaffold pushed; implementing the fix plus the PTY regression test.
+## Test teeth (durable suite)
+`cargo test -p maze-chase-terminal --test resize_race`:
+- unfixed tree (fix patch reverted in place): control passes, race test
+  FAILS 3/3 runs at the 3 s deadline with the stale 100x40 playing frame
+  in the tail.
+- fixed tree: both pass 5/5 runs; the card lands on the first frame
+  after SIGCONT (~0.04 s per run).
+
+## Verification (this run)
+- `cargo test -p maze-chase-terminal`: 124 passed / 0 failed across 16
+  targets (was 122: the new suite adds the control + race tests).
+- `cargo fmt --all -- --check`: clean. `cargo clippy -p
+  maze-chase-terminal --all-targets`: zero warnings in the crate (only
+  the 6 pre-existing `maze-chase-engine` lints).
+- Happy-path sanity: the new harness starts the shipped binary on a
+  100x40 PTY, plays, resizes and re-fits in every phase.
+
+## Files changed
+- `maze-chase/crates/terminal/src/main.rs`: `reconcile_size` helper plus
+  the per-frame call in the render loop (`bitmap_fresh` set on change).
+- `maze-chase/crates/terminal/tests/resize_race.rs`: new PTY suite
+  (control + forced race; Session RAII cleanup on panic).
+- `maze-chase/docs/terminal.md`: resize paragraph now states the
+  per-frame reconciliation.
+- `progress/634-terminal-resize-reconcile.md`: this file.
 
 ## Next steps
-1. `main.rs`: per-frame reconciliation in the event loop (before
-   `app.tick`/render), `bitmap_fresh = true` on change; keep the
-   event-driven `TermEvent::Resize` arm.
-2. New test `tests/resize_race.rs`: PTY harness (100x40 playing ->
-   too-small 61x35), control resize, then the SIGSTOP race; assert the
-   size-stamped card within a bounded deadline in a stale-free output
-   window.
-3. Update `docs/terminal.md`; run fmt/clippy/crate suite.
+1. Reviewer (`/oc review`), then Tester, then Evaluator; PR #635.
+2. The Tester may want to re-run the live race repro against the fixed
+   release binary; the durable suite covers it in-tree.
 
 ## Agent log
-- 2026-10-18: Orientation (Tester report, crossterm 0.29 source, app
-  layout fields); deterministic repro built and validated 5/5; branch
-  scaffolded.
+- 2026-10-18: Orientation (Tester report, crossterm 0.29 mio source,
+  `App` layout fields, chrome markers). Deterministic SIGSTOP repro
+  built and validated (control pass, race lost 5/5) on the unfixed
+  binary. Fix + PTY regression authored; unfixed tree fails the race
+  test 3/3, fixed tree passes 5/5; full terminal suite, fmt and clippy
+  green. Scaffold PR #635 open from the first commit. No subagents
+  were needed: single-crate surgical fix with a deterministic
+  in-process harness; verification was executed directly.
