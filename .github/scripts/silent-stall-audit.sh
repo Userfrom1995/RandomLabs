@@ -2253,21 +2253,31 @@ fi
 #      incident-error, stale, owner-authored, inline-mention, empty,
 #      bad-json, and fetch-failure payloads;
 #   6. a second functional test (issue #637) executes the REAL extracted
-#      verify `run:` block (five macro lines substituted, integrity
-#      asserted) in a sandbox git repo whose commit carries a
-#      scenario-driven evidence stub, against a mock `gh` that serves the
-#      retry enumeration and records posts: success+unpublished MUST post
-#      `/oc review (auto-retry N)` and exit 0 (the #637 regression), a
-#      failed run without a verdict retries, a prior-marker thread advances
-#      N, the cap and an enumeration failure refuse loudly, exit 2 never
-#      retries, success+no-decision stays a loud no-retry no-op, and a
-#      gate denial skips everything.
+#      verify `run:` block (line-anchored to the `id: verify-review` binding
+#      the static pins assert; four expression macros plus the decision-file
+#      path substituted, integrity asserted) under the runner's `bash -e`
+#      default in a sandbox git repo whose commit carries a scenario-driven
+#      evidence stub, against a mock `gh` bound to the sandbox endpoint
+#      (repos/mockrepo/issues/614/comments; any other call fails the case)
+#      that serves the retry enumeration and records posts:
+#      success+unpublished MUST post `/oc review (auto-retry N)` and exit 0
+#      (the #637 regression), a failed run without a verdict retries, a
+#      prior-marker thread advances N, the cap is pinned to exactly 3 (a
+#      2-prior thread posts retry 3, a 3-prior thread refuses),
+#      foreign-authored and embedded (non-prefix) lookalike markers never
+#      count, an enumeration failure refuses loudly, exit 2 never retries,
+#      success+no-decision stays a loud no-retry no-op, and a gate denial
+#      skips everything.
 # Residual boundary (same as R17): exotic sandbox-path fingerprinting is
 # caught by the review gate, not by this rule; the verify shell control flow
 # itself is now executed behaviorally per property 6.
 r19_bad=""
 R19_SCRIPT=".github/scripts/review-comment-published.sh"
 R19_VERDICT_GATE="if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success'"
+# F5 (review round 1): the verify step's exact name line, computed from its
+# unique step id below and reused by both the static extraction and the
+# property-6 behavioral extraction.
+r19_name_line=""
 if [ ! -f "$R19_SCRIPT" ]; then
   r19_bad="${r19_bad} review-comment-published.sh(missing)"
 else
@@ -2300,7 +2310,26 @@ fi
 if [ ! -f "$REVIEW_WF" ]; then
   r19_bad="${r19_bad} opencode-review.yml(missing)"
 else
-  r19_verify_block=$(sed -n '/- name: Verify review decided, else auto-retry/,/^      - name: /p' "$REVIEW_WF" 2>/dev/null || true)
+  # Step identity (F5, review round 1): the verify step is located by its
+  # unique `id: verify-review`, and the exact step name must sit immediately
+  # above that id. A renamed real step, a name decoy placed elsewhere, or a
+  # duplicate id satisfies neither, so the static pins below and the
+  # property-6 behavioral extraction can never be pointed at a step that does
+  # not execute under the id the downstream gates reference.
+  r19_id_count=$(grep -cxF '        id: verify-review' "$REVIEW_WF" || true)
+  if [ "$r19_id_count" -eq 1 ]; then
+    r19_id_line=$(grep -nxF '        id: verify-review' "$REVIEW_WF" | head -1 | cut -d: -f1)
+    [ -n "$r19_id_line" ] && r19_name_line=$((r19_id_line - 1))
+  else
+    r19_bad="${r19_bad} review.yml(verify-id-count=${r19_id_count},want=1)"
+  fi
+  if [ -z "$r19_name_line" ] || [ "$(sed -n "${r19_name_line}p" "$REVIEW_WF")" != "      - name: Verify review decided, else auto-retry" ]; then
+    r19_bad="${r19_bad} review.yml(verify-step-name-not-bound-to-id)"
+    r19_name_line=""
+    r19_verify_block=""
+  else
+    r19_verify_block=$(sed -n "${r19_name_line},/^      - name: /p" "$REVIEW_WF" 2>/dev/null || true)
+  fi
   if [ -z "$r19_verify_block" ]; then
     r19_bad="${r19_bad} review.yml(verify-step-missing-or-renamed)"
   else
@@ -2486,15 +2515,20 @@ fi
 # step. Static pins constrain the shape, but the class that lost a verdict
 # (success + provably unpublished, review run 39089530715 on PR #636) needs
 # executable proof that the bounded auto-retry fires, so the real `run:`
-# block is extracted, exactly five macro lines are substituted (integrity
-# asserted: no `${{` and no raw decision path may survive), and it executes
-# in a sandbox git repo whose commit carries a scenario-driven evidence
-# stub, with an executable mock `gh` that serves the retry enumeration
-# (refusing any unpaginated read) and records auto-retry posts. Every
-# scenario asserts exit code, posted body, decision-file state, and a
-# required output marker, so the pre-#637 fail-loud-without-retry shape
-# turns the rule red. Interception is asserted before the matrix,
-# credentials are scrubbed, the mock is the only gh in PATH, and the
+# block is extracted (line-anchored to the name line whose `id: verify-review`
+# binding the static pins assert), four expression macros plus the
+# decision-file path are substituted (integrity asserted: no `${{` and no raw
+# decision path may survive), and it executes under the runner's `bash -e`
+# default in a sandbox git repo whose commit carries a scenario-driven
+# evidence stub, with an executable mock `gh` bound to the sandbox endpoint
+# (repos/mockrepo/issues/614/comments; any other call fails the case) that
+# serves the retry enumeration and records auto-retry posts. Every scenario
+# asserts exit code, posted body, decision-file state, and a required output
+# marker, so the pre-#637 fail-loud-without-retry shape turns the rule red;
+# the retry cap is pinned to exactly 3 (a 2-prior thread posts retry 3, a
+# 3-prior thread refuses), and foreign-authored or embedded (non-prefix)
+# lookalike markers must never count. Interception is asserted before the
+# matrix, credentials are scrubbed, the mock is the only gh in PATH, and the
 # sandbox lives outside the repo tree (delegation.md section 6).
 r19p_bash_bin=$(command -v bash 2>/dev/null || true)
 r19p_env_bin=$(command -v env 2>/dev/null || true)
@@ -2502,13 +2536,21 @@ r19p_timeout_bin=$(command -v timeout 2>/dev/null || true)
 r19p_git_bin=$(command -v git 2>/dev/null || true)
 if [ -z "$r19p_bash_bin" ] || [ -z "$r19p_env_bin" ] || [ -z "$r19p_timeout_bin" ] || [ -z "$r19p_git_bin" ]; then
   r19_bad="${r19_bad} verify-behavioral(required-binary-missing)"
+elif [ -f "$REVIEW_WF" ] && [ -z "$r19_name_line" ]; then
+  # F5 (review round 1): the static block above already failed the name/id
+  # binding; never extract a possibly-decoy block.
+  r19_bad="${r19_bad} verify-behavioral(verify-step-not-locatable)"
 elif [ -f "$REVIEW_WF" ]; then
   r19p_tmp=$(mktemp -d 2>/dev/null || true)
   if [ -z "$r19p_tmp" ] || [ ! -d "$r19p_tmp" ]; then
     r19_bad="${r19_bad} verify-behavioral(sandbox-unavailable)"
   else
-    r19p_run=$(awk '
-      /^      - name: Verify review decided, else auto-retry[[:space:]]*$/ { in_step=1; next }
+    # Extraction (F5): starts exactly at the id-bound name line, so a
+    # same-name decoy elsewhere in the file can never be harvested instead
+    # of the executing step.
+    r19p_run=$(awk -v start="$r19_name_line" '
+      NR < start { next }
+      NR == start { in_step=1; next }
       in_step && /^      - name: / { exit }
       in_step && /^[[:space:]]*run: \|[[:space:]]*$/ { in_run=1; next }
       in_run { sub(/^          /, ""); print }
@@ -2547,17 +2589,20 @@ R19P_EVIDENCE
       else
         cat > "$r19p_tmp/bin/gh" <<'R19P_GH'
 #!/usr/bin/env bash
-# R19 property 6 mock: serves the retry-enumeration payload (refusing any
-# unpaginated read) and records auto-retry posts.
+# R19 property 6 mock (F2, review round 1): endpoint-bound to the sandbox
+# thread the substituted block must use (repos/mockrepo/issues/614/comments).
+# It serves the retry-enumeration payload, records auto-retry posts, and
+# refuses any other call outright, so a retry posted to, or an enumeration
+# read from, another endpoint is a failed case, not a false green.
 case "$*" in
-  *"--paginate --slurp"*)
+  *"repos/mockrepo/issues/614/comments"*"--paginate --slurp"*)
     if [ "${R19P_ENUM_FAIL:-0}" = "1" ]; then
       echo "mock gh: enumeration failure" >&2
       exit 1
     fi
     cat "$R19P_PAYLOAD"
     ;;
-  *"-f body="*)
+  *"repos/mockrepo/issues/614/comments"*"-f body="*)
     printf '%s\n' "$*" >> "$R19P_POSTS"
     ;;
   *)
@@ -2572,7 +2617,16 @@ R19P_GH
         else
           printf '[[]]\n' > "$r19p_tmp/p0.json"
           printf '[[{"user":{"login":"mockowner"},"created_at":"2026-10-18T01:00:00Z","body":"/oc review (auto-retry 1)"}]]\n' > "$r19p_tmp/p1.json"
+          printf '[[{"user":{"login":"mockowner"},"created_at":"2026-10-18T01:00:00Z","body":"/oc review (auto-retry 1)"},{"user":{"login":"mockowner"},"created_at":"2026-10-18T01:01:00Z","body":"/oc review (auto-retry 2)"}]]\n' > "$r19p_tmp/p2.json"
           printf '[[{"user":{"login":"mockowner"},"created_at":"2026-10-18T01:00:00Z","body":"/oc review (auto-retry 1)"},{"user":{"login":"mockowner"},"created_at":"2026-10-18T01:01:00Z","body":"/oc review (auto-retry 2)"},{"user":{"login":"mockowner"},"created_at":"2026-10-18T01:02:00Z","body":"/oc review (auto-retry 3)"}]]\n' > "$r19p_tmp/p3.json"
+          # F4 (review round 1): negative controls for the retry counter's
+          # author filter and marker anchor. The foreign marker is canonical
+          # but authored by a non-owner; the embedded marker is owner-authored
+          # but does not start with the marker. Neither may count, so the
+          # expected retry stays 1 (a dropped author filter or a weakened
+          # startswith, e.g. contains(), advances it to 2 and fails the case).
+          printf '[[{"user":{"login":"mockintruder"},"created_at":"2026-10-18T01:00:00Z","body":"/oc review (auto-retry 1)"}]]\n' > "$r19p_tmp/p-foreign.json"
+          printf '[[{"user":{"login":"mockowner"},"created_at":"2026-10-18T01:00:00Z","body":"re: /oc review (auto-retry 1)"}]]\n' > "$r19p_tmp/p-embedded.json"
           # Interception probe: the mock itself must answer and record; a
           # non-executable mock would fall through to a real gh.
           : > "$r19p_tmp/posts"
@@ -2595,7 +2649,7 @@ R19P_GH
                 RUNNER_TEMP="$r19p_tmp/run" GITHUB_SHA="$r19p_sha" GITHUB_OUTPUT="$r19p_tmp/run/github_output" \
                 AGENT_GATE="$gate" R19P_OUTCOME="$outcome" R19P_DECISION="$r19p_tmp/decision.json" \
                 R19P_EVIDENCE_RC="$ev_rc" R19P_PAYLOAD="$payload" R19P_ENUM_FAIL="$enum_fail" R19P_POSTS="$r19p_tmp/posts" \
-                "$r19p_bash_bin" "$r19p_block"
+                "$r19p_bash_bin" -e "$r19p_block"
             ) > "$r19p_tmp/out" 2>&1
             r19p_rc=$?
             if [ "$r19p_rc" -ne "$want_rc" ]; then
@@ -2619,7 +2673,10 @@ R19P_GH
           }
           r19p_case published-verdict 0 0 success 1 1 "$r19p_tmp/p0.json" 0 "" true "gate produced a verdict"
           r19p_case success-unpublished 0 1 success 1 0 "$r19p_tmp/p0.json" 0 "/oc review (auto-retry 1)" true "Posting auto-retry 1"
-          r19p_case success-unpublished-prior 0 1 success 1 0 "$r19p_tmp/p1.json" 0 "/oc review (auto-retry 2)" true ""
+          r19p_case success-unpublished-prior 0 1 success 1 0 "$r19p_tmp/p1.json" 0 "/oc review (auto-retry 2)" true "Posting auto-retry 2"
+          r19p_case success-unpublished-prior2 0 1 success 1 0 "$r19p_tmp/p2.json" 0 "/oc review (auto-retry 3)" true "Posting auto-retry 3"
+          r19p_case success-unpublished-foreign-marker 0 1 success 1 0 "$r19p_tmp/p-foreign.json" 0 "/oc review (auto-retry 1)" true "Posting auto-retry 1"
+          r19p_case success-unpublished-embedded-marker 0 1 success 1 0 "$r19p_tmp/p-embedded.json" 0 "/oc review (auto-retry 1)" true "Posting auto-retry 1"
           r19p_case crash-no-verdict 0 1 failure 0 0 "$r19p_tmp/p0.json" 0 "/oc review (auto-retry 1)" true "crashed mid-run"
           r19p_case cap-reached 1 1 failure 0 0 "$r19p_tmp/p3.json" 0 "" true "still dead after 4 attempts"
           r19p_case enumeration-failure 1 1 failure 0 0 "$r19p_tmp/p0.json" 1 "" true "Could not enumerate"
@@ -2639,7 +2696,7 @@ else
   r19_bad="${r19_bad} reviewer.md(missing)"
 fi
 if [ -z "$r19_bad" ]; then
-  check "R19" "review forwarding requires published decision-comment evidence: the shared script accepts only a bot-authored, post-trigger, reviewer-signed comment (exit 0/1/2), the verify step extracts it from this run's own workflow commit, discards unpublished verdicts before the retry and forward paths and runs the same bounded auto-retry regardless of the agent outcome (issue #637), fails closed on inconclusive verification, both forward steps are verify-success gated, and the real extracted verify block is executed behaviorally across the crash/unpublished/cap/denial matrix (issues #616, #637)" "ok"
+  check "R19" "review forwarding requires published decision-comment evidence: the shared script accepts only a bot-authored, post-trigger, reviewer-signed comment (exit 0/1/2), the verify step extracts it from this run's own workflow commit, discards unpublished verdicts before the retry and forward paths and runs the same bounded auto-retry regardless of the agent outcome (issue #637), fails closed on inconclusive verification, both forward steps are verify-success gated, the verify step is bound to its unique id: verify-review, and the real extracted verify block is executed under the runner's bash -e default against an endpoint-bound mock gh across the crash/unpublished/cap/denial/lookalike matrix with the retry cap pinned to exactly 3 (issues #616, #637)" "ok"
 else
   check "R19" "review-comment publication-evidence guard missing:${r19_bad} (issues #616/#637: an unread verdict can be forwarded, or a lost success+unpublished verdict can skip the bounded auto-retry)" "bad"
 fi
