@@ -213,6 +213,10 @@ Severity tag: `overclaim` where public text exceeds reality.
    no `60x36` string remains in the tree, the card reads the floor
    from `layout.min_cols/min_rows`, and PTY tests pin the exact
    62x35 boundary plus the one-short cases (`61x35`, `62x34`).
+   Round two: the string scan had missed the numeric
+   `design-tokens.json` layout token `min_terminal_cells` (60/36); the
+   #656 follow-up aligned it to 62/35, so no form of the old floor
+   remains anywhere.
 
 ### Desktop layer
 
@@ -337,3 +341,65 @@ named phase; Phase 1 files them, later phases close them.
   #662's branch, so Phase 1 landed on `opencode/issue582-20261018121223`
   rather than a fresh `opencode/issue582-overhaul-phase-1-*` branch
   (documented in the PR body).
+
+## F. Phase 2 tester round on issue #656 (real-PTY findings)
+
+The Linux Tester's real-PTY round on the Phase 2 build (issue #656)
+returned three blocking findings; all three are resolved by the Phase 2
+follow-up on this issue's own branch with committed tests.
+
+- F1 (fixed): the solver derived `cell_rows` from the column scale
+  (`ch = cw * cell_w / cell_h`), so wide-short rooms could only use
+  scales on that derived diagonal: 200x60 settled on 3x1 (21.7% board
+  coverage) where 7x1 reaches 50.6%, and 62x80 on 2x1 (35.0%) where 2x2
+  reaches 70.0%. The solver now scans the full documented 1..8 x 1..4
+  grid (the 2x1 compact floor included) with coverage-first selection
+  (ties: squareness, chrome, area, width). Pinned by
+  `layout::tests::golden_plans_pin_the_fixed_scale_grid` (200x60 -> 7x1
+  band, 62x80 -> 2x2 band, exact board rects) plus
+  `coverage_sweep_never_leaves_rooms_hollow` (62..400 x 35..120 sweep,
+  measured floor 280/1000).
+- F2 (fixed): the Sixel raster painted at natural size from the board
+  origin, so on xterm 100x40 with a 604x524 px window the raster
+  overflowed its board box into the hint line, and on 142x63 it hugged
+  the top-left of a much larger box. `Layout::ppt` is now additionally
+  bounded by the board's pixel box (`Layout::board_px`) and the raster
+  paints from the centered `Layout::image` origin. Pinned by
+  `raster_always_fits_the_board_pixel_box`,
+  `window_pixels_map_the_raster_onto_a_centered_footprint`, and the PTY
+  test
+  `tests/tester_dynamic_layout_hostile.rs::sixel_raster_paints_centered_inside_its_cell_box`.
+- F3 (fixed): the Kitty image was displayed at the full board
+  footprint, stretching the square raster (1.4x horizontal on 100x40
+  with 7x15 cells, up to 1.75x on 143x64). The display escape now uses
+  the centered `Layout::image` footprint, which maps the raster's pixel
+  size through the reported window pixels and preserves its aspect.
+  Pinned by `pixel_reports_shape_footprint_and_raster` (10x20 -> 56x31
+  at (22,5); 8x8 -> 28x31 at (36,5), 1:1) and the golden raster-size
+  assertions.
+- Docs reconciliation: `maze-chase/docs/terminal.md` (Layout and
+  resize), `maze-chase/docs/feature-matrix.md`, and the `layout.rs`
+  module header now describe the full-grid coverage solver and the
+  bounded, centered raster placement; the old derived-scales and "maps
+  nearly 1:1" wording is gone. An independent stale-claim sweep then
+  caught the cross-layer copies of the old contract: the terminal
+  README and desktop `render.rs` "board pixels identical to the
+  terminal bitmap tiers" clauses, `docs/scoreboard.md` (browser
+  mirrors the shared 8-ppt reference; solver described coverage-first),
+  `docs/parity.md` layer row, and the `min_terminal_cells` token. All
+  reconciled in this follow-up; the layout header and terminal docs
+  also gained the two precision qualifiers from adversarial review
+  (the 6-ppt floor can exceed the board box only in absurdly tiny
+  pixel windows and the footprint aspect rounds to within one cell
+  per axis).
+
+Evidence: the committed tests plus the tester's real-PTY report on
+#656; workspace suite green (0 failed), fmt clean, clippy back to the
+pre-existing engine lints only, `maze-chase-verify` 19/19 with the
+`23c17f89734e` golden intact.
+
+The earlier Phase 2 review round (recorded in the progress log) had
+already tightened the resize contract (shrink-into-too-small deletes
+live Kitty placements in the card's first frame) and re-scoped
+`Closes #656` back to `Refs #656` until the per-OS real-emulator proof
+lands; no other finding from that round remains open.
