@@ -1,0 +1,50 @@
+1792340964894	geometry	604x524	660493	
+1792340964957	checkpoint	title	679093	/tmp/maze-chase-compat.5VJ6d1/run-xterm-auto/session/screenshots/title.png
+1792340964993	key	Return	699907	
+1792340967393	key	Right	2218416	
+1792340967592	key	Right	2343094	
+1792340967790	key	Right	2467846	
+1792340967989	key	Up	2602994	
+1792340968187	key	Up	2727616	
+1792340968385	key	Left	2862870	
+1792340968584	key	Left	2998502	
+1792340968782	key	Down	3134108	
+1792340969570	geometry	604x524	3634271	
+1792340969642	checkpoint	playing	3675979	/tmp/maze-chase-compat.5VJ6d1/run-xterm-auto/session/screenshots/playing.png
+1792340969667	resize	143x64 (requested)	3718168	
+1792340971094	geometry	858x832	5083580	
+1792340971118	geometry	858x832	5099461	
+1792340971213	checkpoint	resized-wide	5194711	/tmp/maze-chase-compat.5VJ6d1/run-xterm-auto/session/screenshots/resized-wide.png
+1792340971237	resize	80x24 (requested)	5199101	
+1792340972662	geometry	480x312	5392261	
+1792340972685	geometry	480x312	5394456	
+1792340972742	checkpoint	too-small	5403236	/tmp/maze-chase-compat.5VJ6d1/run-xterm-auto/session/screenshots/too-small.png
+1792340972766	resize	143x64 (requested)	5434982	
+1792340974192	geometry	858x832	6799923	
+1792340974217	geometry	858x832	6815795	
+1792340974303	checkpoint	refit	6895155	/tmp/maze-chase-compat.5VJ6d1/run-xterm-auto/session/screenshots/refit.png
+1792340974339	key	Escape	6962688	
+1792340975328	geometry	858x832	8486422	
+1792340975411	checkpoint	paused	8615552	/tmp/maze-chase-compat.5VJ6d1/run-xterm-auto/session/screenshots/paused.png
+1792340975448	key	Down	8667204	
+1792340975646	key	Return	8945392	
+1792340976633	geometry	858x832	9553196	
+1792340976714	checkpoint	title-return	9603016	/tmp/maze-chase-compat.5VJ6d1/run-xterm-auto/session/screenshots/title-return.png
+1792340976750	key	Down	9627039	
+1792340976947	key	Return	9752478	
+1792340977934	geometry	858x832	10360343	
+1792340978014	checkpoint	help	10410168	/tmp/maze-chase-compat.5VJ6d1/run-xterm-auto/session/screenshots/help.png
+1792340978049	key	Escape	10430096	
+1792340979048	key	Down	11047864	
+1792340979246	key	Return	11177396	
+1792340980233	geometry	858x832	11785200	
+1792340980316	checkpoint	scores	11835020	/tmp/maze-chase-compat.5VJ6d1/run-xterm-auto/session/screenshots/scores.png
+1792340980352	key	Escape	11863138	
+1792340981352	key	Down	12472716	
+1792340981549	key	Return	12602252	
+1792340982536	geometry	858x832	13210178	
+1792340982619	checkpoint	settings	13260008	/tmp/maze-chase-compat.5VJ6d1/run-xterm-auto/session/screenshots/settings.png
+1792340982655	key	Escape	13289902	
+1792340983654	key	Down	13907670	
+1792340983853	key	Return	14027318	
+1792340985566	exit	exited=true killed=false	14027318	

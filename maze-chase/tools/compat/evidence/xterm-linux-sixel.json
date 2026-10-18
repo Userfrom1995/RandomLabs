@@ -15,34 +15,55 @@
     "id": "compat-harness"
   },
   "geometry": {
-    "initial": {
-      "cols": 100,
-      "rows": 40,
-      "px_w": 604,
-      "px_h": 524
-    },
-    "cell_px": {
-      "w": 6,
-      "h": 13
-    },
-    "resizes": [
-      {
-        "cols": 143,
-        "rows": 64
+    "requested": {
+      "initial": {
+        "cols": 100,
+        "rows": 40
       },
-      {
-        "cols": 80,
-        "rows": 24
+      "resizes": [
+        {
+          "cols": 143,
+          "rows": 64
+        },
+        {
+          "cols": 80,
+          "rows": 24
+        },
+        {
+          "cols": 143,
+          "rows": 64
+        }
+      ]
+    },
+    "measured": {
+      "initial": {
+        "px_w": 604,
+        "px_h": 524
       },
-      {
-        "cols": 143,
-        "rows": 64
+      "resizes": [
+        {
+          "px_w": 858,
+          "px_h": 832
+        },
+        {
+          "px_w": 480,
+          "px_h": 312
+        },
+        {
+          "px_w": 858,
+          "px_h": 832
+        }
+      ],
+      "cell_px": {
+        "w": 6,
+        "h": 13
       }
-    ]
+    },
+    "resize_exercised": true
   },
   "extra_env": [],
-  "started_at": "2026-10-18T13:09:52Z",
-  "ended_at": null,
+  "started_at": "2026-10-18T16:30:13Z",
+  "ended_at": "2026-10-18T16:30:36Z",
   "exit": {
     "code": 0,
     "killed": false,
@@ -52,195 +73,353 @@
   "phases": [
     {
       "name": "title",
-      "bytes": 250265,
+      "bytes": 255481,
+      "at_ms": 1792341015530,
       "screenshot": "screenshots/title.png",
       "frames": {
-        "count": 48,
+        "count": 49,
         "bytes_mean": 5210,
         "bytes_max": 5210
+      },
+      "surfaces": {
+        "title_video_line": {
+          "paints": 49,
+          "first_byte": 3510
+        }
       },
       "layout": {
         "addressed_cols_min": 0,
         "addressed_cols_max": 0,
         "addressed_rows_min": 0,
         "addressed_rows_max": 39,
-        "moves": 1920
+        "moves": 1960
       },
-      "screenshot_sha256": "c3e7d1d0e8d9bd83e6e64869ae850416bf2db4f57f1f41b9e9adf228ed84ff84"
+      "screenshot_sha256": "0676b171d06d36afceba8edb2d8063f6fce580f58fea01018515a2f67d606095",
+      "screenshot_width": 604,
+      "screenshot_height": 524,
+      "white_share": 0.0
     },
     {
       "name": "playing",
-      "bytes": 1647574,
+      "bytes": 1660031,
+      "at_ms": 1792341020178,
       "screenshot": "screenshots/playing.png",
+      "duration_ms": 4648,
+      "bytes_per_s": 357149,
       "frames": {
         "count": 94,
-        "bytes_mean": 17527,
-        "bytes_max": 17755
+        "bytes_mean": 17659,
+        "bytes_max": 17754
+      },
+      "frames_per_s": 20.2,
+      "surfaces": {
+        "playing_hud": {
+          "paints": 94,
+          "first_byte": 272749
+        }
       },
       "layout": {
-        "addressed_cols_min": 0,
+        "addressed_cols_min": 8,
         "addressed_cols_max": 66,
-        "addressed_rows_min": 0,
-        "addressed_rows_max": 39,
-        "moves": 4411
+        "addressed_rows_min": 4,
+        "addressed_rows_max": 35,
+        "moves": 4418
       },
       "sixel": {
-        "transmits": 93,
-        "payload_bytes": 1314167
+        "transmits": 94,
+        "payload_bytes": 1328305
       },
-      "screenshot_sha256": "75eba9f05effc5a65c91b04e6086fe310fc63a4aab2de2a291441caaf2809f62"
+      "screenshot_sha256": "f24e6345278a6f62acaf3866559a42146362c84234394f30d14664e73071047c",
+      "screenshot_width": 604,
+      "screenshot_height": 524,
+      "white_share": 0.0003
     },
     {
       "name": "resized-wide",
-      "bytes": 529074,
+      "bytes": 546771,
+      "at_ms": 1792341021729,
       "screenshot": "screenshots/resized-wide.png",
+      "duration_ms": 1551,
+      "bytes_per_s": 352528,
       "frames": {
-        "count": 30,
-        "bytes_mean": 17635,
-        "bytes_max": 17721
+        "count": 31,
+        "bytes_mean": 17637,
+        "bytes_max": 17719
+      },
+      "frames_per_s": 20.0,
+      "surfaces": {
+        "playing_hud": {
+          "paints": 31,
+          "first_byte": 1932769
+        }
       },
       "layout": {
         "addressed_cols_min": 29,
         "addressed_cols_max": 87,
         "addressed_rows_min": 16,
         "addressed_rows_max": 47,
-        "moves": 1410
+        "moves": 1457
       },
       "sixel": {
-        "transmits": 30,
-        "payload_bytes": 420624
+        "transmits": 31,
+        "payload_bytes": 434706
       },
-      "screenshot_sha256": "463771cfa6c3fba1146c3be6bfa0273b572565260bdcab4a818a8eb78757cd0c"
+      "screenshot_sha256": "a1a30fd83d0730a36644cd5d83a4557ddb14f5ce77a0af7f1382ce97ce2f4955",
+      "screenshot_width": 858,
+      "screenshot_height": 832,
+      "white_share": 0.0002
     },
     {
       "name": "too-small",
-      "bytes": 75510,
+      "bytes": 80544,
+      "at_ms": 1792341023251,
       "screenshot": "screenshots/too-small.png",
+      "duration_ms": 1522,
+      "bytes_per_s": 52919,
       "frames": {
-        "count": 30,
+        "count": 32,
         "bytes_mean": 2517,
         "bytes_max": 2517
       },
+      "frames_per_s": 21.0,
       "layout": {
         "addressed_cols_min": 0,
         "addressed_cols_max": 0,
         "addressed_rows_min": 0,
         "addressed_rows_max": 22,
-        "moves": 690
+        "moves": 736
       },
-      "screenshot_sha256": "a0c6a5f68b5d44d154937b291f38c7948f12baaf319d140620e9fe6c7a3c041b"
+      "screenshot_sha256": "8934d96ad7fa654402bc80876a5fed459ea055884590964bb949b669e01939d2",
+      "screenshot_width": 480,
+      "screenshot_height": 312,
+      "white_share": 0.0
     },
     {
       "name": "refit",
-      "bytes": 528802,
+      "bytes": 546656,
+      "at_ms": 1792341024801,
       "screenshot": "screenshots/refit.png",
+      "duration_ms": 1550,
+      "bytes_per_s": 352681,
       "frames": {
-        "count": 30,
-        "bytes_mean": 17626,
-        "bytes_max": 17729
+        "count": 31,
+        "bytes_mean": 17634,
+        "bytes_max": 17733
+      },
+      "frames_per_s": 20.0,
+      "surfaces": {
+        "playing_hud": {
+          "paints": 31,
+          "first_byte": 2560065
+        }
       },
       "layout": {
         "addressed_cols_min": 29,
         "addressed_cols_max": 87,
         "addressed_rows_min": 16,
         "addressed_rows_max": 47,
-        "moves": 1410
+        "moves": 1457
       },
       "sixel": {
-        "transmits": 30,
-        "payload_bytes": 420352
+        "transmits": 31,
+        "payload_bytes": 434591
       },
-      "screenshot_sha256": "5a5be5be3046e7da7b5e26a6ab05a98c6534f5a75bcf64551f8b504f87702fbb"
+      "screenshot_sha256": "3b201e54564effee73304767c2c723a5fa506cb3bb4ce85f50211a7e22bfd158",
+      "screenshot_width": 858,
+      "screenshot_height": 832,
+      "white_share": 0.0001
     },
     {
       "name": "paused",
-      "bytes": 597493,
+      "bytes": 623816,
+      "at_ms": 1792341025908,
       "screenshot": "screenshots/paused.png",
+      "duration_ms": 1107,
+      "bytes_per_s": 563519,
       "frames": {
-        "count": 21,
-        "bytes_mean": 28452,
-        "bytes_max": 28497
+        "count": 22,
+        "bytes_mean": 28355,
+        "bytes_max": 28414
+      },
+      "frames_per_s": 19.9,
+      "surfaces": {
+        "playing_hud": {
+          "paints": 22,
+          "first_byte": 3106691
+        },
+        "paused": {
+          "paints": 22,
+          "first_byte": 3112168
+        },
+        "pause_resume": {
+          "paints": 22,
+          "first_byte": 3112511
+        },
+        "pause_quit": {
+          "paints": 22,
+          "first_byte": 3112678
+        }
       },
       "layout": {
         "addressed_cols_min": 0,
         "addressed_cols_max": 87,
         "addressed_rows_min": 0,
         "addressed_rows_max": 62,
-        "moves": 2310
+        "moves": 2420
       },
       "sixel": {
-        "transmits": 21,
-        "payload_bytes": 295534
+        "transmits": 22,
+        "payload_bytes": 307478
       },
-      "screenshot_sha256": "c77e4ebd7e7ec2e709b5a551117f590570995ae75f454b216e73b16fd4e2ebea"
+      "screenshot_sha256": "f8dc09ced1f5ff57d6906e383595611f6bf8b13fa80c1a4134b537d65ad76b32",
+      "screenshot_width": 858,
+      "screenshot_height": 832,
+      "white_share": 0.0
     },
     {
       "name": "title-return",
-      "bytes": 352479,
+      "bytes": 380101,
+      "at_ms": 1792341027210,
       "screenshot": "screenshots/title-return.png",
+      "duration_ms": 1302,
+      "bytes_per_s": 291936,
       "frames": {
-        "count": 26,
-        "bytes_mean": 13556,
-        "bytes_max": 28497
+        "count": 27,
+        "bytes_mean": 14077,
+        "bytes_max": 28299
+      },
+      "frames_per_s": 20.7,
+      "surfaces": {
+        "playing_hud": {
+          "paints": 5,
+          "first_byte": 3730389
+        },
+        "paused": {
+          "paints": 5,
+          "first_byte": 3735866
+        },
+        "pause_resume": {
+          "paints": 5,
+          "first_byte": 3736209
+        },
+        "pause_quit": {
+          "paints": 5,
+          "first_byte": 3736376
+        },
+        "title_video_line": {
+          "paints": 22,
+          "first_byte": 3861242
+        }
       },
       "layout": {
         "addressed_cols_min": 0,
         "addressed_cols_max": 87,
         "addressed_rows_min": 0,
         "addressed_rows_max": 62,
-        "moves": 1826
+        "moves": 1936
       },
       "sixel": {
-        "transmits": 4,
-        "payload_bytes": 56351
+        "transmits": 5,
+        "payload_bytes": 69594
       },
-      "screenshot_sha256": "99132f92300b35e57ee95d6bd8ff350f2515be81e44f692cf623eda0e23b8c41"
+      "screenshot_sha256": "8786e011d4e3b03b14465eb7528f632f5826580dc5d3da77c629bef131d03fbe",
+      "screenshot_width": 858,
+      "screenshot_height": 832,
+      "white_share": 0.0
     },
     {
       "name": "help",
-      "bytes": 292864,
+      "bytes": 303711,
+      "at_ms": 1792341028518,
       "screenshot": "screenshots/help.png",
+      "duration_ms": 1308,
+      "bytes_per_s": 232194,
       "frames": {
-        "count": 27,
+        "count": 28,
         "bytes_mean": 10846,
         "bytes_max": 10847
       },
+      "frames_per_s": 21.4,
+      "surfaces": {
+        "help": {
+          "paints": 23,
+          "first_byte": 4150991
+        },
+        "title_video_line": {
+          "paints": 5,
+          "first_byte": 4099854
+        }
+      },
       "layout": {
         "addressed_cols_min": 0,
         "addressed_cols_max": 0,
         "addressed_rows_min": 0,
         "addressed_rows_max": 62,
-        "moves": 1701
+        "moves": 1764
       },
-      "screenshot_sha256": "4d20ec69d72eb8bdc2100cc3f08e48a0191b77828489d3eed572ce2ce66df7ee"
+      "screenshot_sha256": "814820e66f279784ad241fa385803db708be9b3039c1eddfee4c22794523483d",
+      "screenshot_width": 858,
+      "screenshot_height": 832,
+      "white_share": 0.0
     },
     {
       "name": "scores",
-      "bytes": 509762,
+      "bytes": 520608,
+      "at_ms": 1792341030814,
       "screenshot": "screenshots/scores.png",
+      "duration_ms": 2296,
+      "bytes_per_s": 226745,
       "frames": {
-        "count": 47,
+        "count": 48,
         "bytes_mean": 10846,
         "bytes_max": 10846
+      },
+      "frames_per_s": 20.9,
+      "surfaces": {
+        "scores": {
+          "paints": 23,
+          "first_byte": 4673335
+        },
+        "title_video_line": {
+          "paints": 25,
+          "first_byte": 4403565
+        }
       },
       "layout": {
         "addressed_cols_min": 0,
         "addressed_cols_max": 0,
         "addressed_rows_min": 0,
         "addressed_rows_max": 62,
-        "moves": 2961
+        "moves": 3024
       },
-      "screenshot_sha256": "a5a5f48483d823763301c92621c50d30d58295302a876f4a75e81d16a3f85876"
+      "screenshot_sha256": "ec1542b98936d70499507d1665474ce78ff2cf64060bf43fbf7f17b30418c18f",
+      "screenshot_width": 858,
+      "screenshot_height": 832,
+      "white_share": 0.0
     },
     {
       "name": "settings",
       "bytes": 509806,
+      "at_ms": 1792341033106,
       "screenshot": "screenshots/settings.png",
+      "duration_ms": 2292,
+      "bytes_per_s": 222428,
       "frames": {
         "count": 47,
         "bytes_mean": 10846,
         "bytes_max": 10848
       },
+      "frames_per_s": 20.5,
+      "surfaces": {
+        "settings": {
+          "paints": 22,
+          "first_byte": 5193264
+        },
+        "title_video_line": {
+          "paints": 25,
+          "first_byte": 4924173
+        }
+      },
       "layout": {
         "addressed_cols_min": 0,
         "addressed_cols_max": 0,
@@ -248,33 +427,46 @@
         "addressed_rows_max": 62,
         "moves": 2961
       },
-      "screenshot_sha256": "d711ce6b9bf14d317e8174f8b1ba83c0f6b9102d2b503496d017511a7a7c3d1c"
+      "screenshot_sha256": "0926378b91ff82b33add38ee926e4027012dd34f70db3bfc16efbfcaa72e652d",
+      "screenshot_width": 858,
+      "screenshot_height": 832,
+      "white_share": 0.0
     },
     {
       "name": "tail",
-      "bytes": 271230,
+      "bytes": 282076,
+      "at_ms": 1792341036049,
       "screenshot": null,
+      "duration_ms": 2943,
+      "bytes_per_s": 95846,
       "frames": {
-        "count": 25,
+        "count": 26,
         "bytes_mean": 10846,
         "bytes_max": 10846
+      },
+      "frames_per_s": 8.8,
+      "surfaces": {
+        "title_video_line": {
+          "paints": 26,
+          "first_byte": 5433979
+        }
       },
       "layout": {
         "addressed_cols_min": 0,
         "addressed_cols_max": 0,
         "addressed_rows_min": 0,
         "addressed_rows_max": 62,
-        "moves": 1575
+        "moves": 1638
       }
     }
   ],
   "protocol_totals": {
-    "transcript_bytes": 5564859,
-    "transcript_sha256": "e417929e730f554444345cc7854f0b757ac2ff7ebc8744405d0ecf2804f6e0ba",
+    "transcript_bytes": 5709601,
+    "transcript_sha256": "6db50dc6c0e58e1aea4475e4b5004b98ed2fd1e258cc465835b1abdc51df861f",
     "frames": {
-      "count": 425,
-      "bytes_mean": 13093,
-      "bytes_max": 28497
+      "count": 435,
+      "bytes_mean": 13124,
+      "bytes_max": 28414
     },
     "kitty": {
       "transmits": 0,
@@ -283,11 +475,13 @@
       "queries": 0,
       "chunked": false,
       "payload_bytes": 0,
+      "first_chunks_bytes": 0,
+      "payload_chunks": 0,
       "first_transmit_png": null
     },
     "sixel": {
-      "transmits": 178,
-      "payload_bytes": 2507028
+      "transmits": 183,
+      "payload_bytes": 2574674
     }
   },
   "trace": {
@@ -296,7 +490,7 @@
     "reason": "binary does not emit MAZE_CHASE_TRACE yet (trace mode is part of the render pipeline work); the harness passes the variable and ingests it automatically once the binary writes it"
   },
   "notes": [
-    "session driven by tools/compat/drive.sh on a real xterm window"
+    "session driven by tools/compat/drive.sh on a real xterm window (xterm flags: -ti vt340 -bg black -fg white)"
   ],
-  "generated_at": "2026-10-18T13:10:14Z"
+  "generated_at": "2026-10-18T16:30:36Z"
 }
