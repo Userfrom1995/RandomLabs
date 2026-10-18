@@ -143,6 +143,22 @@ published only that wrap-up (comment 6244724655), the evidence script exited
   regression mutations on a /tmp clone): control 22/22 green; 7/7 mutations
   red with the exact expected sub-flags; the 15-case matrix count confirmed;
   no non-R19 failure; clone clean.
+- Round-4 verifier A (general; scope: the reviewer's E1-E15 escape fixtures
+  on a /tmp clone of 594e1f4e): control 22/22 green; 15/15 mutations red with
+  the exact expected R19 sub-flags; zero non-R19 failures; noted the benign
+  within-rule double attribution when a job/workflow-level attribute is
+  appended at EOF (the expected class flag fires too); clone and workspace
+  clean.
+- Round-4 verifier B (general; scope: rounds 1-3 regression fixtures plus
+  the F20 poisoned-tip differentials on a /tmp clone): control 22/22; 8/8
+  regression mutations red R19-only; the provenance-dodge variant caught
+  behaviorally with zero static flags; the tip-reverted differential
+  reproduces the pre-fix green escape, proving the tip load-bearing; the
+  bans-removed differential still catches the dodge behaviorally; clean.
+- Round-4 verifier C (general; scope: coherence and hygiene audit of the
+  committed harness): audit 22/22; commit scope, pin-to-path mapping, step
+  sequence, and poisoned-tip wiring all verified; diff clean of em dashes
+  and trailers; one record wording nit fixed.
 
 ## Review round 1 follow-up (2026-10-18)
 
@@ -290,6 +306,88 @@ the GITHUB_ACTIONS-gated discard), while reverting only the ban extension
 still catches the mutation behaviorally, proving the env realism is
 load-bearing.
 
+## Review round 4 follow-up (2026-10-18)
+
+The reviewer of PR #638 (round 4) verified the workflow core and the
+round-1/2/3 fixes (F1-F16) as correct and load-bearing, then found five more
+behavior-changing escape classes in the R19 guard (twelve fixtures plus
+three draft-fix holes), all of them keeping the whole 22-rule audit green;
+all are fixed in the follow-up harness commit on this branch (audit-script
+only; the workflow file needs no change):
+
+- F17 (blocking): the property-6 extraction took the first `run: |` at ANY
+  indent, so an `env:`-nested step-shaped decoy before the real key could
+  make production execute a different body than the audit extracted. The
+  extraction is now struct-anchored at exactly the 8-space step-key indent,
+  and a run-key cardinality pin requires exactly one `run: |` in the step
+  region.
+- F18 (blocking): execution-attribute overrides were unpinned: verify-step
+  `continue-on-error: true` (header or tail), `shell: bash {0}`, job-level
+  `defaults.run.shell`, job-level `continue-on-error: true`, and
+  workflow-level `defaults:` all voided the `bash -e` fail-fast premise or
+  swallowed the job failure while the audit stayed green. Step-region,
+  job-level (4-space keys), and workflow-level (column-0 `defaults:`) pins
+  now red all seven fixtures.
+- F19 (blocking): the verify step's `GH_TOKEN` could be swapped to
+  `github.token` (an issue_comment run spawned by a token-authored retry
+  never fires, silently killing the bounded auto-retry). It is now pinned to
+  `${{ secrets.OPENCODE_PAT }}` exactly.
+- F20 (blocking): provenance invariance was textual only. A `GITHUB_SHA=`
+  reassignment (e.g. to `git rev-parse HEAD`) or a `HEAD:` extraction path
+  with a dead decoy defeated the whole-line pins, and the sandbox could not
+  see it because its HEAD equaled GITHUB_SHA. Static bans now reject both,
+  and the sandbox commits a poisoned tip revision (an always-published stub)
+  while GITHUB_SHA points one commit back at the real scenario-driven stub:
+  any HEAD-reading extractor fails the unpublished/unverifiable cases
+  behaviorally, so even a syntax variant that dodges the literal bans is
+  caught.
+- F21 (blocking): the forward path was unpinned. A dispatch body swap
+  (`/oc test` to `/oc fix`), forward-step `continue-on-error: true`, forward
+  `GH_TOKEN` to `github.token`, and an extra near-forward step before verify
+  (resurrecting the #616 unread-verdict forward) all escaped. The forward
+  step's five exact trigger bodies, its absent attribute overrides and its
+  PAT token are pinned, and the review job's full step sequence is pinned in
+  order.
+
+Post-fix evidence (round 4): live audit 22/22 PASS on the final tree
+(commit 594e1f4e, audit-script only). Three independent verifier subagents
+ran on fresh clones of that commit:
+
+- Verifier A (scope: the reviewer's E1-E15 escape fixtures): control 22/22
+  green; all 15 mutations turned R19 red (21 passed / 1 failed) with the
+  expected sub-flags (E1/E2/E3 `verify-step-attribute-override`, E4
+  `verify-gh-token-not-PAT`, E5 `github-sha-reassignment` plus the
+  behavioral matrix, E6 `pr-head-provenance` plus the matrix, E7
+  `forward-body-not-exact`, E8 `run-key-count=2,want=1`, E9/E13/E14
+  `job-run-attribute-override`, E10 `step-sequence-changed`, E11
+  `forward-step-attribute-override`, E12 `forward-gh-token-not-PAT`, E15
+  `workflow-run-defaults-override`); zero non-R19 failures.
+- Verifier B (scope: rounds 1-3 regression fixtures plus the F20
+  differentials): the eight regression mutations (false-before-post, `||
+  true` POST suffix, `set +e`, missing-evidence `exit 0`, `if: false`,
+  hardcoded AGENT_GATE, cap `-lt 2`, retry-URL literal) each red R19-only
+  with the expected flags (the URL fixture is a static-only catch); the
+  provenance-dodge variant (a `r19sha=$(git rev-parse HEAD)` indirection
+  that no static ban matches) is caught behaviorally by the poisoned-tip
+  matrix (`verify-behavioral(...missing-post...)` across the unpublished
+  cases) with zero static flags; the differential that reverts only the
+  poisoned tip escapes green (22/22), proving the tip is load-bearing, and
+  the differential that removes only the static bans still catches the
+  dodge behaviorally; valid-YAML job-level attribute fixtures fail R19 only.
+- Verifier C (scope: coherence and hygiene): audit 22/22; the commit
+  changes exactly the audit script (workflow diff empty); all eleven new
+  pin names verified against their real check paths by code reading plus
+  mutation spot-checks; the wanted step sequence diffed identical to the
+  workflow; the poisoned-tip wiring confirmed (HEAD~1 carries the
+  argument-validating stub, HEAD the always-published one); the diff
+  carries no em dashes and no trailers; the decision record matches the
+  implementation.
+
+One benign diagnostic note (verifier A): when a job- or workflow-level
+attribute is appended at EOF, the forward-block scan (which runs to EOF for
+the last step) reports it as a forward-step attribute as well; both labels
+live inside R19, the expected class flag fires, and no detection escapes.
+
 ## Notes and residuals
 
 - R1 (pre-existing, deliberately left in scope): on the auto-retry path the
@@ -312,7 +410,7 @@ load-bearing.
 - R4 (coverage boundary): the behavioral matrix does not execute the
   missing-evidence-script branch or the two forward steps (statically
   pinned); exotic sandbox-path fingerprinting stays a review-gated boundary.
-  The F1-F16 hardening additionally pins the runner's `bash -e` execution
+  The F1-F21 hardening additionally pins the runner's `bash -e` execution
   mode, the endpoint-bound mock (plus its scenario-controlled POST failure),
   the exact cap 3, the counter's author/anchor predicates, the retry POST as
   an exact whole line, the enumeration URL, the owner+startswith predicate,
@@ -324,7 +422,13 @@ load-bearing.
   (including quoted `set "+e"`), a production-shaped case env (`SINCE`,
   `GITHUB_EVENT_PATH` with a parseable event fixture, `GITHUB_ACTIONS`,
   `GITHUB_REPOSITORY`, other ambient CI vars sanitized), an argument-validating
-  evidence stub, and the outcome-quadrant plus rejected-POST cases. No
+  evidence stub, and the outcome-quadrant plus rejected-POST cases. Round 4
+  (F17-F21) adds the struct-anchored extraction (exactly one 8-space `run: |`
+  key), step/job/workflow execution-attribute override bans, the verify and
+  forward owner-PAT token pins, the forward step's five exact trigger bodies,
+  the review job's exact step sequence, `GITHUB_SHA=`-reassignment and
+  `HEAD:` provenance bans, and the poisoned sandbox tip that makes any
+  HEAD-reading provenance extractor fail the matrix behaviorally. No
   workflow file additions or renames, so the maintainer `workflows:`
   allowlist is untouched.
 - R5 (conflict surface): `silent-stall-audit.sh` is a hot file (R21/R22
