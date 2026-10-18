@@ -99,7 +99,13 @@ Screens and states. Attract (runs behind every non-play surface dimmed
 with per-item description strip right, warden legend plus goal line
 bottom: "clear 445 crumbs; sunseeds turn the hunt"), play HUD (score,
 best, wicks, level, dots with completion bar, fright and relish badges,
-sound chip; frame diagnostics hidden by default and reachable from
+sound chip; fit at the 62x35 compact floor: the three HUD rows carry
+score, wicks, level, the dots completion bar, and the fright and relish
+badges while active, while best moves to the pause hub and the scores
+screen, the sound chip to pause/help, and the four-sigil warden roster
+to pause/help plus the wide-window side panel (96 columns and above,
+where best and the sound chip also return); no addition introduces a
+fourth HUD row; frame diagnostics hidden by default and reachable from
 settings), pause hub (frozen board dimmed 55 percent, actors exempt
 from dimming and held at 3:1 or better against the dimmed board; quick
 chords M mute, R reduced motion, V reduced flash, C high contrast,
@@ -229,15 +235,16 @@ bob). Wall readability: dark themes use bright stone edges on indigo
 water; light themes use wet dark stone on pale sand-water; legacy
 rungs use `#` walls and `%` interiors on ANSI pairs.
 
-Effects vocabulary. Pickup burst 5 frames of a 3x3 expanding ring on a
-66.7 ms grid; chomp 3 frames at 12 fps as a cheek swell; fright morph
-2 frames; death ripple then bubble (window spec in motion); level clear
-is one 300 ms sweep of the board plus a 9x9 lily-crown banner; extra
-life Golden Lily 6 frames 9x9 at 12 fps; score floaters are
-desktop/web-only 5x7 numerals rising 8 px over 500 ms on an opaque
-plate (plate contrast 4.5:1 or better so float text over a sunseed
-never falls below the text gate); terminal floats stay off (no raster
-digits in the terminal font stack).
+Effects vocabulary. Pickup burst 4 frames of a 3x3 expanding ring on a
+66.7 ms grid, one burst per crumb pickup (chained pickups step the same
+grid and register as one aggregate flash source); chomp 3 frames at
+12 fps as a cheek swell; fright morph 2 frames; death ripple then
+bubble (window spec in motion); level clear is one 300 ms sweep of the
+board plus a 9x9 lily-crown banner; extra life Golden Lily 6 frames 9x9
+at 12 fps; score floaters are desktop/web-only 5x7 numerals rising 8 px
+over 500 ms on an opaque plate (plate contrast 4.5:1 or better so float
+text over a sunseed never falls below the text gate); terminal floats
+stay off (no raster digits in the terminal font stack).
 
 Fidelity ladder rules:
 
@@ -302,7 +309,7 @@ The eye slot fix (dark-on-dark and light-on-light previously at 1.03 to
 #F4F1FF, and #0A0E14 are retired.
 
 Legacy 16-color fallback, per theme, hunters as hue pairs with bold
-distinction (full mapping in `design-tokens.json`): Dusk Pond hunters
+distinction: Dusk Pond hunters
 bold blue / green / bold red / yellow; Morning Shallows bold blue /
 green / red / yellow; Moonwake bright blue / bold green / bright red /
 bold yellow. Wall and interior, crumbs, and sunseeds map to their
@@ -525,7 +532,12 @@ thresholds, the death narrative under reduced motion, and the HUD
 roster that cannot fit at 62x35.
 
 Round 3 (Revise). UX revised to Waylight (play-first boot merged with
-the Waystation card grammar), answering every critique point. Visual
+the Waystation card grammar), answering every critique point, including
+the Motion critic's HUD-roster dissent (resolved by fit, not by
+shrinking: the 62x35 compact HUD carries the live set and relocates
+best, the sound chip, and the warden roster to pause/help and the
+wide-window side panel, with no fourth HUD row, stated in the play HUD
+description). Visual
 revised to Pondwake with corrected palettes (the eyes-slot fixes
 shipped in this artifact) and retired Paper Tailor with rescue hexes
 recorded. Motion: the revision subagent returned empty twice (recorded
@@ -594,8 +606,8 @@ and the tokens file:
    every listed source, with the registry test and the 180-frame
    capture test green.
 5. All budgets state in KiB/s with the shared degrade contract, and
-   the real-host tester checks above pass on Kitty, Ghostty, xterm
-   sixel, legacy and truecolor cells, desktop, and web mobile.
+   the real-host tester checks above pass on their exact hosts (Kitty
+   and Ghostty, xterm sixel, legacy and truecolor cells).
 6. First playable input within two interactions on every layer, with
    the empty, error, and hostile-input states above reachable and
    correct.
