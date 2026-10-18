@@ -83,8 +83,9 @@ and the parity gate in `docs/parity.md`.
   watchdog, dynamic resize, title/help/scores/settings/key-rebind/pause
   surfaces, machine high scores, and BEL-plus-ticker sound.
 - **Desktop game** (`crates/desktop`, done, [launch docs](docs/desktop.md)): windowed plus fullscreen
-  GUI on the shared rasterizer core (board pixels identical to the
-  terminal bitmap tiers), keyboard plus gamepad input with duplicate-safe
+  GUI on the shared rasterizer core (the fixed 8-ppt reference raster;
+  the terminal's bitmap tiers render the same art at the detected cell
+  geometry), keyboard plus gamepad input with duplicate-safe
   remap screens, title/help/scores/settings/audio/keybinds/padbinds/pause
   surfaces, machine high scores shared with the terminal game, rodio
   synthesized effects and tunes with silent fallback, per-OS packaging
