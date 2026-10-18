@@ -28,15 +28,22 @@
    behavior for both outcome shapes.
 3. **Audit** (R19): static pins require the shared crash flag (exactly two
    setters, exactly one unpublished-verdict branch, retry gated on the flag,
-   full order chain), and a new behavioral matrix executes the REAL
-   extracted verify `run:` block (five macro lines substituted, integrity
-   asserted) in a sandbox git repo whose commit carries a scenario-driven
-   evidence stub, against a mock `gh` serving the retry enumeration and
-   recording posts. Nine scenarios assert exit code, posted body, decision
-   file state, and output markers: published verdict, success+unpublished
-   (the #637 regression: post `/oc review (auto-retry 1)`, exit 0),
-   prior-marker advance, failed-run retry, cap refusal, enumeration-failure
-   refusal, exit-2 no-retry, silent no-op no-retry, and gate denial.
+   full order chain) and bind the verify step to its unique
+   `id: verify-review` (exact step name adjacent above the id, duplicate-id
+   count pinned to 1). The behavioral matrix executes the REAL extracted
+   verify `run:` block (four expression macros plus the decision-file path
+   substituted, integrity asserted) under the runner's `bash -e` default in a
+   sandbox git repo whose commit carries a scenario-driven evidence stub,
+   against a mock `gh` bound to the sandbox endpoint that serves the retry
+   enumeration and records posts. Twelve scenarios assert exit code, posted
+   body, decision file state, and a required output marker: published verdict,
+   success+unpublished (the #637 regression: post `/oc review (auto-retry 1)`,
+   exit 0), prior-marker advance (retry 2), two-prior advance (retry 3; with
+   the three-prior refusal case this pins the cap to exactly 3),
+   foreign-authored and embedded lookalike markers (never counted), failed-run
+   retry, cap refusal, enumeration-failure refusal, exit-2 no-retry, silent
+   no-op no-retry, and gate denial. F1-F5 of review round 1 hardened this
+   harness (see the follow-up section).
 4. **Docs**: `AGENTS.md` and `LAB.md` synced to the #637 contract.
 
 ## Root cause
@@ -93,40 +100,91 @@ published only that wrap-up (comment 6244724655), the evidence script exited
   failed retry POST (real runner default, safe).
 - Subagent B (general; scope: static consistency sweep + R19 mutation matrix
   in /tmp): 22/22 baseline, 6/6 mutations red with expected sub-flags, copy
-  restored, no gap where a behavior-changing edit survives R19.
+  restored (the harness still carried five property-6 escape hatches that
+  review round 1 found as F1-F5; the follow-up round fixed and re-proved
+  them).
 - Subagent C (general; scope: claim/behavior coherence audit across
-  workflow, prompt, docs, and pins): all claims verified; F1 wording fixed;
-  F2/F3/F7 recorded below.
+  workflow, prompt, docs, and pins): all claims verified; one over-broad
+  wording finding fixed; its remaining observations are recorded under Notes
+  and residuals.
 - Skills: no skill fits (GitHub Actions lab infrastructure and lab prompts,
   not opencode configuration of this workspace).
 - Primary verified itself: live audit runs, YAML/em-dash/hunk checks, and
   the subagent evidence review; final diff is the primary's own work.
 
+## Review round 1 follow-up (2026-10-18)
+
+The reviewer of PR #638 (issue #637) found six issues, all in the new
+property-6 harness plus record text; all are fixed in the follow-up commits
+on this branch:
+
+- F1 (blocking): the harness executed the extracted block under plain `bash`,
+  not the runner's `bash -e {0}` default, so an unguarded failing command
+  before the retry post killed the retry in production while R19 stayed
+  green. The harness now runs `bash -e`; the F1 mutation (a `false` line
+  inserted before the retry post) turns R19 red, and the reverted harness
+  plus the same mutation reproduces the reviewer's green escape, so the fix
+  is load-bearing.
+- F2 (blocking): the mock `gh` matched any argument string, so a retry
+  posted to, or an enumeration read from, another endpoint escaped. The mock
+  is now bound to `repos/mockrepo/issues/614/comments` (paginated-slurp
+  reads and `-f body=` posts only; every other call fails the run). Both URL
+  mutations (post and enumeration) now turn R19 red.
+- F3 (blocking): the retry cap value was unpinned (any cap in {2,3} passed).
+  A two-prior payload with an expected-retry-3 case now joins the
+  three-prior refusal case, pinning the cap to exactly 3; a `-lt 2` mutation
+  turns R19 red.
+- F4 (blocking): the retry counter's owner-author filter and the
+  `startswith` marker anchor had no negative controls. New payloads (a
+  foreign-authored canonical marker; an owner-authored embedded marker) must
+  not count, so dropping the author filter or weakening the anchor to
+  `contains(` turns R19 red.
+- F5 (hardening): the verify step was located by the first exact name match,
+  so a renamed real step plus an old-name decoy escaped. Both the static
+  extraction and the property-6 extraction are now bound to the unique
+  `id: verify-review` plus its exact adjacent name line; the rename+decoy
+  mutation turns R19 red.
+- F6 (record text): corrected here and in the audit headers (the
+  substitution is four expression macros plus the decision-file path, not
+  five macro lines; every scenario now carries a required output marker; the
+  cross-reference to nonexistent finding labels is removed; the "no gap"
+  claim is replaced by this F1-F5 record).
+
+Post-fix evidence: live audit 22/22 PASS on the final tree; a control plus
+ten mutations (F1 false-before-post, F2 post/enumeration URL, F3 cap 2, F4
+author-filter drop and startswith-to-contains, F5 rename+decoy, crash-setter
+drop, discard drop, evidence-map flip) leaves the control green and turns
+R19 red in 10/10 mutated cases; the F1 differential (fix reverted plus
+mutation) reproduces the reviewer's escape.
+
 ## Notes and residuals
 
-- Pre-existing (not a regression, deliberately left in scope): on the
-  auto-retry path the verify step exits 0 with the decision file deleted, so
-  the verify-success-gated "Forward reviewer decision" step exits 1 and the
-  run ends red after the retry was posted. The #616 crash path already had
-  this shape; it feeds Maintainer failure triage while the queued retry
-  proceeds. A follow-up issue can make the retry path terminate green if the
-  lab decides the triage noise outweighs the visibility.
-- `success + no decision file` (nothing written at all) keeps its loud
-  no-retry no-op branch by design; #637 covers the written-but-unpublished
-  class, and the evidence script stays the sole publication oracle.
-- Supersession: the historical #616 decision record
+- R1 (pre-existing, deliberately left in scope): on the auto-retry path the
+  verify step exits 0 with the decision file deleted, so the
+  verify-success-gated "Forward reviewer decision" step exits 1 and the run
+  ends red after the retry was posted. The #616 crash path already had this
+  shape; it feeds Maintainer failure triage while the queued retry proceeds.
+  A follow-up issue can make the retry path terminate green if the lab
+  decides the triage noise outweighs the visibility.
+- R2 (by design): `success + no decision file` (nothing written at all)
+  keeps its loud no-retry no-op branch by design; #637 covers the
+  written-but-unpublished class, and the evidence script stays the sole
+  publication oracle.
+- R3 (supersession): the historical #616 decision record
   (`2026-10-17T18-45-00-review-comment-publication-gate.md`) describes the
   old success-case fail-loud branch and the then-out-of-band harness; this
   record supersedes both (the behavior now matches that record's stated
   "bounded review auto-retry takes over" contract, and the harness is
   permanent inside R19).
-- Residual coverage: the behavioral matrix does not execute the
+- R4 (coverage boundary): the behavioral matrix does not execute the
   missing-evidence-script branch or the two forward steps (statically
-  pinned); exotic sandbox-path fingerprinting stays a review-gated
-  boundary. No workflow file additions or renames, so the maintainer
-  `workflows:` allowlist is untouched.
-- Expected conflict surface: `silent-stall-audit.sh` is a hot file
-  (R21/R22 landed recently); rebase onto main before merge if other infra
-  PRs land first, and keep R19 self-contained.
+  pinned); exotic sandbox-path fingerprinting stays a review-gated boundary.
+  The F1-F5 hardening additionally pins the runner's `bash -e` execution
+  mode, the endpoint-bound mock, the exact cap 3, and the counter's
+  author/anchor predicates. No workflow file additions or renames, so the
+  maintainer `workflows:` allowlist is untouched.
+- R5 (conflict surface): `silent-stall-audit.sh` is a hot file (R21/R22
+  landed recently); rebase onto main before merge if other infra PRs land
+  first, and keep R19 self-contained.
 
 - the Lab Engineer
