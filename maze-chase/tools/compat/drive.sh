@@ -72,6 +72,15 @@ done
 [ -n "$LAUNCH" ] || { echo "drive.sh: --launch is required" >&2; exit 2; }
 [ -n "$OUTDIR" ] || { echo "drive.sh: --outdir is required" >&2; exit 2; }
 
+# Resolve --outdir to an absolute path on entry: the transcript path is
+# recorded in meta.json for collect.py, which resolves relative transcript
+# paths against the run directory, so a CWD-relative value would silently
+# point at the wrong file.
+case "$OUTDIR" in
+  /*) ;;
+  *) OUTDIR="$PWD/$OUTDIR" ;;
+esac
+
 SESSION="$OUTDIR/session"
 SHOTS="$SESSION/screenshots"
 mkdir -p "$SHOTS"
