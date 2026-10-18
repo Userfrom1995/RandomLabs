@@ -88,7 +88,7 @@ and the parity gate in `docs/parity.md`.
   remap screens, title/help/scores/settings/audio/keybinds/padbinds/pause
   surfaces, machine high scores shared with the terminal game, rodio
   synthesized effects and tunes with silent fallback, per-OS packaging
-  (Linux tarball plus installer, Windows zip, macOS app bundle), and a
+  (Linux tarball plus install script, Windows zip, macOS app bundle), and a
   `--probe` frame-run plus screenshot mode for display-free verification.
 - **Browser game** (`crates/web` 0.1.0 plus `play.html` plus
   `web/maze-chase.js`, done, [launch docs](docs/web.md)): the same hunt

@@ -1,7 +1,7 @@
 # maze-chase terminal compatibility harness
 
 Real-terminal evidence for the terminal layer. Every file in
-`evidence/` is produced by driving the shipped release binary inside a
+`evidence/` is produced by driving the release binary inside a
 real emulator window: keystrokes go through the operating system's input
 system, screenshots capture the running window (the X11 window on Linux
 via ImageMagick `import`; the whole Aqua desktop on macOS via
@@ -75,6 +75,10 @@ that quits the game.
 
 ## Running
 
+Run these from the repository's `maze-chase/` directory (the commands
+use paths relative to it; the docs elsewhere use `../tools/compat/...`
+relative to `maze-chase/docs/`):
+
 ```sh
 # Linux, all emulators, deps preselected
 tools/compat/run-linux.sh --install-deps
@@ -85,7 +89,7 @@ tools/compat/run-linux.sh --emulator kitty --skip-build
 # forced-tier probes (recorded as their own rows)
 tools/compat/run-linux.sh --emulator kitty --tier truecolor --skip-build
 tools/compat/run-linux.sh --emulator ghostty --tier kitty --skip-build
-MAZE_CHASE_COMPAT_XTERM_FLAGS="-ti vt340" \
+MAZE_CHASE_COMPAT_XTERM_FLAGS="-ti vt340 -bg black -fg white" \
   tools/compat/run-linux.sh --emulator xterm --tier sixel --skip-build
 ```
 
@@ -118,11 +122,14 @@ Honesty rules the harness enforces mechanically:
   and the captures actually rendered: on Linux/macOS a session that
   produced no escape transcript at all is recorded `unverified` with the
   reason; a row with checkpoint captures that are >=98% white on a light
-  background is downgraded to `partial` with the reason recorded. On
-  Windows, where the pty transcript deliberately does not exist, a row is
-  graded from the game's own pid plus exit code and the capture set: a
-  pass requires a zero exit code and at least one valid PNG capture, and
-  a row whose game process never started is `unverified` with the reason.
+  background is downgraded to `partial` with the reason recorded; and on
+  every OS the collector downgrades a proposed `pass` with zero accepted
+  captures in the bundle to `partial` (a pass requires at least one
+  rendered capture). On Windows, where the pty transcript deliberately
+  does not exist, a row is graded from the game's own pid plus exit code
+  and the capture set: a pass requires a zero exit code and at least one
+  valid PNG capture, and a row whose game process never started is
+  `unverified` with the reason.
 - `unverified_reason` is mandatory for unverified rows (the collector
   refuses to write a row without it).
 - Capture validation happens in layers, scoped per OS: on Linux/macOS
