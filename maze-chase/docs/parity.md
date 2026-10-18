@@ -51,7 +51,7 @@ match; the map is ours.
 | Same engine, no gameplay branches in layer code | maps input to `TickInput`, renders `Game` + `GameEvent`s | same | same | signed (review-enforced rule, see matrix) |
 | Full menu/help/scores/settings/pause flows | `screens` + `chrome`, top-10 machine scores | `screens`, shares `~/.maze-chase` scores with terminal | DOM screens, localStorage top-10 | signed |
 | Per-layer E2E green on this release | headless suite (layout sweep, full session, resize) plus PTY sessions | headless suite + Xvfb `--probe` PPM plus a real-GUI drive | node smoke + tester regression + CDP browser E2E | signed on Linux, macOS, and Windows (native runs recorded below and in `scoreboard.md`) |
-| Board pixels agree across layers | shared rasterizer reference | identical by construction (same composer) | mirrors the terminal raster at 8 ppt (frame-determinism test) | signed |
+| Board pixels agree across layers | shared rasterizer reference (bitmap tiers rasterize at the detected cell geometry, bounded) | identical by construction (same composer, fixed 8-ppt reference) | mirrors the shared 8-ppt reference (frame-determinism test) | signed |
 
 ## Native proof record
 

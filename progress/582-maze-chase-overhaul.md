@@ -16,7 +16,7 @@
 ## Overhaul Roadmap
 
 - Phase 1: Product Reassessment and Real-Terminal Truth: [x] real-terminal driver harness (`maze-chase/tools/compat/`: `run-linux.sh`, `run-macos.sh`, `run-windows.ps1`, `drive.sh`, `collect.py`, `README.md`), [x] reproduce the Owner's Ghostty and Kitty findings on current main with recorded evidence (kitty reply-loop flood plus input delayed past the session, Ghostty mis-routing despite its kitty-graphics support; eight executed Linux rows in `maze-chase/tools/compat/evidence/`), [x] critical reassessment of engine, layers, and docs claims (four parallel sweeps; Section B of the ledger), [x] findings ledger with every gap (`progress/582-maze-chase-overhaul-findings.md`), [x] honest compatibility matrix scaffold `maze-chase/docs/terminal-compat.md` (executed rows plus named executors for host-pending rows), [ ] new sub-issues routed through the Maintainer (proposed set in ledger Section C; filing is the Maintainer's next step, not done in this PR) (PR 1 target, Refs #582, Refs #655, Refs #661)
-- Phase 2: Dynamic Terminal Layout and Full-Window Composition: [x] geometry model with cell pixel size (`crates/terminal/src/geometry.rs`; TIOCGWINSZ pixel fields on Unix, console font on Windows, nominal 8x16 fallback), [x] pure layout solver with proportion-driven chrome blocks (continuous 1..8 x 1..4 tile scales plus the 2x1 floor; side panel, HUD band, hint-only by fit; exact 62x35 card), [x] exact-fit image rendering at the region pixel size (Kitty/Sixel rasterize at the detected cell size; 8-ppt nominal fallback), [x] continuous cell-tier scales (`unicode::fit_width`/`center_rows` at any scale), [x] resize contract with same-frame repaint and stale-placement kill (`ESC[2J` plus Kitty delete-all in the new frame; pinned by `tests/plan_contract.rs`), [x] tier-aware too-small card (reads `layout.min_cols/min_rows`; exact 62x35 boundary pinned), [ ] real-emulator resize proof on Linux and macOS (the PTY proof landed with this PR; the real rows are per-OS tester work, no emulator exists on the build machine) (PR 2 target, Refs #582, Refs #656)
+- Phase 2: Dynamic Terminal Layout and Full-Window Composition: [x] geometry model with cell pixel size (`crates/terminal/src/geometry.rs`; TIOCGWINSZ pixel fields on Unix, console font on Windows, nominal 8x16 fallback), [x] pure layout solver (full 1..8 x 1..4 scale grid with coverage-first selection; side panel, HUD band, hint-only by fit; exact 62x35 card; golden plans 200x60 -> 7x1 and 62x80 -> 2x2), [x] bounded centered image rendering at the real pixel geometry (raster fit to the board's pixel box; image footprint mapped through the window pixels, so Kitty never stretches and Sixel never overflows; 8-ppt nominal fallback), [x] continuous cell-tier scales (`unicode::fit_width`/`center_rows` at any scale), [x] resize contract with same-frame repaint and stale-placement kill (`ESC[2J` plus Kitty delete-all in the new frame; pinned by `tests/plan_contract.rs`), [x] tier-aware too-small card (reads `layout.min_cols/min_rows`; exact 62x35 boundary pinned), [ ] real-emulator resize proof on Linux and macOS (the PTY proof landed with this PR; the real rows are per-OS tester work, no emulator exists on the build machine) (PR 2 target, Refs #582, Refs #656)
 - Phase 3: Terminal Render Pipeline and Compatibility Proof: [ ] bounded live Kitty probe with byte replay (Ghostty enablement), [ ] atlas plus placement composition with full-frame fallback, [ ] dirty-change detection and wall-clock pacing with backpressure, [ ] Sixel path hardening, [ ] protocol-aware watchdog, [ ] `MAZE_CHASE_TRACE` JSONL evidence mode, [ ] kitty and ghostty rows signed on Linux and macOS plus conventional terminals (PR 3 target, Refs #582, Refs #655)
 - Phase 4: Visual Identity Redesign: [ ] Design Council direction consumed (dispatched by the Maintainer before this phase), [ ] resolution-aware character and environment art, [ ] effects and animation system, [ ] refreshed themes with accessibility tests green, [ ] all three layers integrated with real captures (PR 4 target, Refs #582, Closes #658)
 - Phase 5: Sound Design Overhaul: [ ] new musical score with one BPM source, [ ] soft short effect bank, [ ] mix architecture with fades and safe defaults, [ ] terminal chime policy default-off, [ ] per-layer real-host review and settings round-trip (PR 5 target, Refs #582, Closes #659)
@@ -210,6 +210,50 @@ Phase 3 (terminal render pipeline and compatibility proof).
   ppt clamp documented in `docs/terminal.md`, `fresh` consumed only after
   a successful frame write, the raster clamp comment made honest). No
   rebuttal: every finding was applied as written. Skills: no registry
-  skill matched this run's domains; none loaded, per `delegation.md`
-  section 5.
-  - the Fixer
+   skill matched this run's domains; none loaded, per `delegation.md`
+   section 5.
+   - the Fixer
+- 2026-10-18 (builder, Phase 2 tester round on #656): fixed the three
+  blocking real-PTY findings from the Linux Tester. F1: the solver now
+  scans the full documented 1..8 x 1..4 scale grid (the old derived
+  `ch = cw * cell_w / cell_h` diagonal skipped 7x1 and 2x2, stranding
+  200x60 at 21.7% coverage and 62x80 at 35.0%) and picks coverage-first
+  (ties: squareness, chrome, area, width); goldens pinned at 200x60 ->
+  7x1 band and 62x80 -> 2x2 band with a 62..400 x 35..120 coverage
+  sweep. F2/F3: `Layout` now carries the board pixel box and a centered
+  `image` footprint mapped from the raster's pixel size through the
+  detected window pixels; ppt is fit-bounded to the board box, the
+  Sixel raster paints from the centered origin (no more hint-line
+  overflow or corner-hugging), and the Kitty escape displays at the
+  centered footprint (no more 1.4-1.75x stretch). `geometry` gained
+  `PixelGeometry`/`detect_pixels()` (window pixels included), the trace
+  plan record carries the new fields, and docs were reconciled
+  (`docs/terminal.md`, `docs/feature-matrix.md`, `layout.rs` header).
+  New committed tests: `golden_plans_pin_the_fixed_scale_grid`,
+  `coverage_sweep_never_leaves_rooms_hollow`,
+  `window_pixels_map_the_raster_onto_a_centered_footprint`,
+  `raster_always_fits_the_board_pixel_box`, the PTY
+  `pixel_reports_shape_footprint_and_raster` placement pins, and
+  `sixel_raster_paints_centered_inside_its_cell_box`. Verification:
+  `cargo test --workspace` green (0 failed; desktop E2E under Xvfb),
+  `cargo fmt --all --check` clean, clippy back to the pre-existing
+  engine lints only, `maze-chase-verify` 19/19 with the
+  `23c17f89734e` golden   intact. Delegation ledger: three subagent missions ran against the
+  finished change before commit. (1) `general` adversarial verification:
+  brute-forced the solver math against an independently mirrored
+  implementation (30,793 plans, 0 mismatches; 0 containment violations
+  across 32,801 probes; extreme u16/u32 sizes clean), re-derived the
+  comparator, and re-ran the suites; it confirmed no blocking defects
+  and flagged two doc-precision issues (the 6-ppt floor can exceed the
+  board box only in absurdly tiny pixel windows; footprint aspect
+  rounds to within one cell per axis) plus a test-header numbering
+  slip. (2) `explore` stale-claim sweep: found the cross-layer doc
+  contradictions (terminal README, desktop `render.rs` comment, browser
+  parity rows) and the numeric `min_terminal_cells` token still at
+  60/36. Every finding was fixed in this run (precision qualifiers,
+  cross-layer wording, token alignment, header renumber). Primary
+  context implemented the fix, re-derived the golden rects, and ran
+  the gates. Skills: no registry skill matched this run's domains (no
+  opencode configuration, agent, or plugin edits); none loaded, per
+  `delegation.md` section 5.
+  - the Builder

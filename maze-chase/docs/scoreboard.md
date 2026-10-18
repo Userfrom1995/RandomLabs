@@ -156,8 +156,8 @@ Server 2025 with real ConPTY, vehicle PR #632):
 - Desktop: fixed 120 Hz session matching the engine timestep;
   Xvfb `--probe` run rendered real titled frames to PPM.
 - Browser: 60 FPS live in the CDP run (release evidence); the canvas
-  composer mirrors the terminal raster with a frame-determinism test
-  (`web::video`, `web::bridge` hostile probes).
+  composer mirrors the shared 8-ppt reference raster with a
+  frame-determinism test (`web::video`, `web::bridge` hostile probes).
 
 ## Native-OS proof (completed 2026-10-18)
 
@@ -184,10 +184,10 @@ The dynamic-layout overhaul (#582), measured on the Linux build machine:
   --all-targets` reports only the pre-existing engine style lints
   documented above (maze.rs/rng.rs/sha256.rs), none from the terminal
   crate.
-- Layout solver: continuous tile scales 1 to 8 columns by 1 to 4 rows
-  plus the 2x1 floor, chrome fitted in priority order (side panel,
-  HUD band, hint only), single too-small card below the exact 62x35
-  minimum. PTY sessions pin the planned scales: 62x35 to 2x1 band,
+- Layout solver: full tile-scale grid 1 to 8 columns by 1 to 4 rows
+  (the 2x1 compact scale included) picked coverage-first, chrome fitted
+  by fit (side panel, HUD band, hint only), single too-small card below
+  the exact 62x35 minimum. PTY sessions pin the planned scales: 62x35 to 2x1 band,
   100x40 to 3x1 band, 140x70 to 5x2 band, 170x64 to 5x2 side panel,
   200x100 to 7x3 band.
 - Resize contract: a live resize repaints from scratch in one frame;
@@ -201,3 +201,26 @@ The dynamic-layout overhaul (#582), measured on the Linux build machine:
 - Real-emulator resize rows (Linux kitty/Ghostty/xterm and the macOS
   arm) stay with the per-OS testers: no emulator is installed on this
   build machine, and no claim here exceeds the PTY evidence above.
+
+## 2026-10-18 (overhaul follow-up: tester round on #656)
+
+The Linux Tester's real-PTY round on the Phase 2 build returned three
+blocking findings; all three are fixed with committed tests and the
+full gates re-run on the Linux build machine:
+
+- `cargo test --workspace --no-fail-fast` (desktop E2E under Xvfb):
+  444 passed, 0 failed across 45 test binaries plus 7 doc-test suites.
+- `cargo run --release --bin maze-chase-verify`: 19/19 checks, the
+  golden replay digest unchanged (`23c17f89734e`).
+- `cargo fmt --all --check` clean; clippy reports only the pre-existing
+  engine lints.
+- Solver (F1): the full 1..8 x 1..4 scale grid is scanned and picked
+  coverage-first (ties: squareness, chrome, area, width); goldens
+  200x60 -> 7x1 band and 62x80 -> 2x2 band are pinned, and a
+  62..400 x 35..120 sweep holds the measured coverage floor (280/1000
+  at 399x62). The pinned scales in the section above all still hold.
+- Bitmap tiers (F2/F3): the raster is drawn on a centered footprint
+  bounded by the board's pixel box; Sixel paints from the centered
+  origin instead of the board origin at natural size, and the Kitty
+  display uses the footprint instead of the stretched full board box.
+  Pinned by unit tests plus PTY placement/IHDR assertions.

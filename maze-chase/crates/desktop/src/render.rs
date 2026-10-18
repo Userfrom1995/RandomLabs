@@ -15,7 +15,9 @@ use maze_chase_engine::game::{Game, GameState};
 use maze_chase_terminal::raster;
 
 /// Pixels per tile handed to the shared rasterizer (its legibility
-/// floor is 6; 8 matches the terminal bitmap tiers pixel-for-pixel).
+/// floor is 6; 8 is the parity reference raster shared with the browser
+/// layer, while the terminal bitmap tiers rasterize at the detected cell
+/// geometry).
 pub const BOARD_PPT: u32 = 8;
 /// Board size in raster pixels (28x31 tiles at [`BOARD_PPT`]).
 pub const BOARD_W: u32 = 28 * BOARD_PPT;
