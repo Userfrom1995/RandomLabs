@@ -1,5 +1,5 @@
 1792341015470	geometry	604x524	250271	
-1792341015530	checkpoint	title	255481	/tmp/maze-chase-compat.PSG9yh/run-xterm-sixel/session/screenshots/title.png
+1792341015530	checkpoint	title	255481	session/screenshots/title.png
 1792341015564	key	Return	273148	
 1792341017961	key	Right	1121755	
 1792341018157	key	Right	1192230	
@@ -10,40 +10,40 @@
 1792341019134	key	Left	1545645	
 1792341019329	key	Down	1616455	
 1792341020115	geometry	604x524	1897883	
-1792341020178	checkpoint	playing	1915512	/tmp/maze-chase-compat.PSG9yh/run-xterm-sixel/session/screenshots/playing.png
+1792341020178	checkpoint	playing	1915512	session/screenshots/playing.png
 1792341020201	resize	143x64 (requested)	1933211	
 1792341021625	geometry	858x832	2426865	
 1792341021648	geometry	858x832	2444581	
-1792341021729	checkpoint	resized-wide	2462283	/tmp/maze-chase-compat.PSG9yh/run-xterm-sixel/session/screenshots/resized-wide.png
+1792341021729	checkpoint	resized-wide	2462283	session/screenshots/resized-wide.png
 1792341021751	resize	80x24 (requested)	2464800	
 1792341023174	geometry	480x312	2537793	
 1792341023196	geometry	480x312	2540310	
-1792341023251	checkpoint	too-small	2542827	/tmp/maze-chase-compat.PSG9yh/run-xterm-sixel/session/screenshots/too-small.png
+1792341023251	checkpoint	too-small	2542827	session/screenshots/too-small.png
 1792341023274	resize	143x64 (requested)	2560507	
 1792341024698	geometry	858x832	3054063	
 1792341024720	geometry	858x832	3054063	
-1792341024801	checkpoint	refit	3089483	/tmp/maze-chase-compat.PSG9yh/run-xterm-sixel/session/screenshots/refit.png
+1792341024801	checkpoint	refit	3089483	session/screenshots/refit.png
 1792341024835	key	Escape	3117897	
 1792341025822	geometry	858x832	3685003	
-1792341025908	checkpoint	paused	3713299	/tmp/maze-chase-compat.PSG9yh/run-xterm-sixel/session/screenshots/paused.png
+1792341025908	checkpoint	paused	3713299	session/screenshots/paused.png
 1792341025946	key	Down	3741595	
 1792341026146	key	Return	3862978	
 1792341027133	geometry	858x832	4082554	
-1792341027210	checkpoint	title-return	4093400	/tmp/maze-chase-compat.PSG9yh/run-xterm-sixel/session/screenshots/title-return.png
+1792341027210	checkpoint	title-return	4093400	session/screenshots/title-return.png
 1792341027244	key	Down	4104246	
 1792341027441	key	Return	4158477	
 1792341028427	geometry	858x832	4375417	
-1792341028518	checkpoint	help	4397111	/tmp/maze-chase-compat.PSG9yh/run-xterm-sixel/session/screenshots/help.png
+1792341028518	checkpoint	help	4397111	session/screenshots/help.png
 1792341028556	key	Escape	4407957	
 1792341029554	key	Down	4624877	
 1792341029750	key	Return	4679107	
 1792341030736	geometry	858x832	4896027	
-1792341030814	checkpoint	scores	4917719	/tmp/maze-chase-compat.PSG9yh/run-xterm-sixel/session/screenshots/scores.png
+1792341030814	checkpoint	scores	4917719	session/screenshots/scores.png
 1792341030848	key	Escape	4917719	
 1792341031845	key	Down	5145485	
 1792341032042	key	Return	5188869	
 1792341033028	geometry	858x832	5416677	
-1792341033106	checkpoint	settings	5427525	/tmp/maze-chase-compat.PSG9yh/run-xterm-sixel/session/screenshots/settings.png
+1792341033106	checkpoint	settings	5427525	session/screenshots/settings.png
 1792341033140	key	Escape	5438371	
 1792341034138	key	Down	5666137	
 1792341034338	key	Return	5709601	
