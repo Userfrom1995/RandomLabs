@@ -273,6 +273,26 @@ fn paint_line(out: &mut String, row: u16, col: u16, text: &str) {
     out.push_str(&format!("\x1b[{};{}H{}", row + 1, col + 1, text));
 }
 
+/// Reconcile the fitted layout with the real terminal size.
+///
+/// crossterm only reports `Resize` when its SIGWINCH pipe byte is
+/// drained; a SIGWINCH that lands in the same epoll batch as a key is
+/// consumed by the event source without draining (the edge-triggered
+/// signal pipe then never re-reports it), so the window change would be
+/// invisible until the next resize. Comparing the real size every frame
+/// (one cheap ioctl) makes the layout self-healing regardless of that
+/// signal-pipe behavior. Returns true when the layout changed, so the
+/// caller can re-encode a fresh bitmap.
+fn reconcile_size(app: &mut App) -> bool {
+    match crossterm::terminal::size() {
+        Ok((cols, rows)) if (cols, rows) != (app.layout.cols, app.layout.rows) => {
+            app.resize(cols, rows);
+            true
+        }
+        _ => false,
+    }
+}
+
 /// Render one full frame into `out` (caller flushes).
 /// `bitmap_fresh` forces a fresh bitmap image (first frame after a
 /// resize or tier change); otherwise the live image id is reused after
@@ -603,6 +623,11 @@ fn main() {
                 }
                 _ => {}
             }
+        }
+        // Self-healing resize: never trust the Resize event alone (a
+        // SIGWINCH batched with a key is dropped by the event source).
+        if reconcile_size(&mut app) {
+            bitmap_fresh = true;
         }
         app.tick(dt.max(1.0 / 240.0));
         // Bitmap tiers repaint pixels at ~20 fps (encode cost); cell
