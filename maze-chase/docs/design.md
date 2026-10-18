@@ -552,15 +552,32 @@ plus Waylight plus Lantern Drift (revised); the named runner-up package
 is Paper Tailor plus Ember Cadence plus guided Waystation. The council
 chair broke no tie; the dissent is recorded below.
 
-Delegation ledger (honest record): the Visual swarm returned empty
-twice and was recovered by splitting into a parts-A pass plus two
-palette follow-ups (the Paper Tailor palette pass also returned empty
-once, then succeeded); the Motion critic returned empty twice and
-succeeded on a leaner third prompt; the Motion revision returned empty
-twice (once in the prior session, once on retry) and the final motion
-spec was composed in primary context as recorded above; all other
-swarms returned. Skill discovery found no registry skill matching this
-run's domains; none was loaded.
+Delegation ledger (round by round):
+- Round 1 (Propose): the UX and motion specialist swarms returned
+  (Wicklight plus Waystation; Ember Cadence plus Lantern Drift); the
+  visual swarm returned empty twice and was recovered by a split
+  parts-A pass plus two palette follow-ups (one of those also returned
+  empty once, then succeeded).
+- Round 2 (Critique): the UX and visual critic swarms returned; the
+  motion critic returned empty twice and succeeded on a leaner third
+  prompt; the three verbatim dissents are recorded below.
+- Round 3 (Revise): the UX revision returned (Waylight, point-by-point
+  responses) and the visual revision returned (Pondwake revised, with
+  corrected palettes and the Paper Tailor rescue hexes); the motion
+  revision returned empty twice (once in the retry session, once on
+  the shipping dispatch) and was composed in primary context from the
+  recorded critique resolutions.
+- Round 4 (Converge): the chair synthesized in primary context from
+  the returned rounds; the final motion spec, the hybrid ruling, and
+  the dissent framing are primary-composed because the motion revision
+  never returned.
+- Primary context verified: the corrected Pondwake palette metrics
+  recomputed from the recorded critique constraints (the visual
+  revision's hexes were lost when the retry session died in Round 3)
+  and the artifact cross-checked against the tokens file.
+- Skills: no registry skill matched this run's domains (no opencode
+  configuration, agent, or plugin edits); none loaded, per
+  delegation.md section 5.
 
 Dissent log. Verbatim dissent from Round 2, condensed to the recorded
 positions: the UX specialist dissents on shipping any layer with a
