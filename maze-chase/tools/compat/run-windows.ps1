@@ -10,10 +10,12 @@
 # There is deliberately NO pty transcript on Windows: capturing stdout
 # requires a pipe, and the game refuses a non-terminal stdout on Windows
 # (`crates/terminal/src/main.rs`), so a piped run exits before painting
-# anything. The game therefore runs unpiped in a real console and the row
-# is graded from the game process itself (pid file plus exit code file);
-# the evidence is the screenshots plus that process record, and the row
-# notes say so.
+# anything. The game therefore runs unpiped in the session runner's own
+# console (`Start-Process -NoNewWindow`): the console that receives the
+# keystrokes is the console the game renders in. The row is graded from
+# the game process itself (pid file plus exit code file) and the capture
+# set; the evidence is the screenshots plus that process record, and the
+# row notes say so.
 #
 # Usage:
 #   pwsh -File tools/compat/run-windows.ps1                    # both terminals
@@ -26,20 +28,14 @@
 param(
   [ValidateSet('all', 'windows-terminal', 'conhost')]
   [string]$Emulator = 'all',
+  [ValidateSet('auto', 'kitty', 'sixel', 'truecolor', 'legacy')]
   [string]$Tier = 'auto',
-  [switch]$SkipBuild,
-  [string]$Initial = '100x40'
+  [switch]$SkipBuild
 )
 
 $ErrorActionPreference = 'Stop'
 
-$InitialParts = $Initial -split 'x'
-if ($InitialParts.Count -ne 2 -or -not ($InitialParts[0] -as [int]) -or -not ($InitialParts[1] -as [int])) {
-  Write-Error "run-windows.ps1: -Initial must look like 100x40 (got '$Initial')"
-  exit 2
-}
-$InitCols = [int]$InitialParts[0]
-$InitRows = [int]$InitialParts[1]
+$Script:ValidCaptures = 0
 
 $Arch = switch ($env:PROCESSOR_ARCHITECTURE) {
   'AMD64' { 'x86_64' }
@@ -131,6 +127,19 @@ public class Win32Rect {
   $g.Dispose(); $bmp.Dispose()
 }
 
+function Test-PngFile([string]$Path) {
+  # Same floor the collector enforces: PNG signature plus nonzero
+  # dimensions. A capture that fails it is not evidence and is removed.
+  if (-not (Test-Path $Path)) { return $false }
+  $bytes = [System.IO.File]::ReadAllBytes($Path)
+  if ($bytes.Length -lt 24) { return $false }
+  $sig = [byte[]](0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+  for ($i = 0; $i -lt 8; $i++) { if ($bytes[$i] -ne $sig[$i]) { return $false } }
+  $w = [System.Net.IPAddress]::NetworkToHostOrder([System.BitConverter]::ToInt32($bytes, 16))
+  $h = [System.Net.IPAddress]::NetworkToHostOrder([System.BitConverter]::ToInt32($bytes, 20))
+  return ($w -gt 0 -and $h -gt 0)
+}
+
 function Invoke-Run {
   param([string]$Emu)
   $name = "$Emu-$Tier"
@@ -140,22 +149,33 @@ function Invoke-Run {
 
   $runDirSlash = $runDir -replace '\\','/'
   $sessionSlash = $session -replace '\\','/'
-  $gameArgs = "@('--dir', '$runDirSlash/config'"
+  # Single-quoted here-string literals: double embedded quotes so a path
+  # or user name containing an apostrophe cannot break the generated
+  # runner's syntax.
+  $runDirSlashQ = $runDirSlash.Replace("'", "''")
+  $sessionSlashQ = $sessionSlash.Replace("'", "''")
+  $binaryQ = $Binary.Replace("'", "''")
+  $tierArgs = ''
   if ($Tier -ne 'auto') {
-    $gameArgs += ", '--tier', '$Tier'"
+    $tierArgs = ", '--tier', '$Tier'"
   }
-  $gameArgs += ')'
   $runner = Join-Path $session 'run-game.ps1'
-  # The game itself must own the console's stdout (no pipe anywhere):
+  # The game must share the session runner's console (-NoNewWindow): a
+  # separate console would render in a window the driver never captures
+  # or drives. No pipe anywhere, so the game's terminal check passes and
   # Start-Process returns the game's own process handle, whose pid and
-  # exit code are the grading evidence.
+  # exit code are the grading evidence. Arguments are quoted at runtime
+  # because Start-Process joins -ArgumentList without quoting.
   @"
-`$env:HOME = '$runDirSlash/home'
-`$env:MAZE_CHASE_TRACE = '$sessionSlash/trace.jsonl'
-`$game = Start-Process -FilePath '$Binary' -ArgumentList $gameArgs -PassThru
-`$game.Id | Set-Content -Path '$sessionSlash/game.pid'
+`$env:HOME = '$runDirSlashQ/home'
+`$env:MAZE_CHASE_TRACE = '$sessionSlashQ/trace.jsonl'
+[Console]::Title = 'maze-chase-compat'
+`$gameArgs = @('--dir', '$runDirSlashQ/config'$tierArgs)
+`$gameArgs = `$gameArgs | ForEach-Object { if (`$_ -match '\s') { '"' + `$_ + '"' } else { `$_ } }
+`$game = Start-Process -FilePath '$binaryQ' -ArgumentList `$gameArgs -PassThru -NoNewWindow
+`$game.Id | Set-Content -Path '$sessionSlashQ/game.pid'
 `$game.WaitForExit()
-`$game.ExitCode | Set-Content -Path '$sessionSlash/game.exit'
+`$game.ExitCode | Set-Content -Path '$sessionSlashQ/game.exit'
 "@ | Set-Content -Path $runner
 
   $proc = $null
@@ -167,15 +187,16 @@ function Invoke-Run {
       }
       $proc = Start-Process wt -ArgumentList @(
         'new-tab', '--title', 'maze-chase-compat',
-        'pwsh', '-NoProfile', '-File', $runner
+        'pwsh', '-NoProfile', '-File', ('"{0}"' -f $runner)
       ) -PassThru
     }
     'conhost' {
       $proc = Start-Process pwsh -ArgumentList @(
-        '-NoProfile', '-File', $runner
+        '-NoProfile', '-File', ('"{0}"' -f $runner)
       ) -PassThru
     }
   }
+  $Script:ValidCaptures = 0
 
   Start-Sleep -Seconds 3
   # Find the terminal window by title (Windows Terminal honors --title;
@@ -210,8 +231,18 @@ public class WinFind {
 
   function Checkpoint([string]$name) {
     $p = Join-Path $shots "$name.png"
-    try { Capture-Window -Hwnd $hwnd -Path $p; Log-Event 'checkpoint' $name $p }
-    catch { Log-Event 'checkpoint' $name '' }
+    $ok = $false
+    try {
+      Capture-Window -Hwnd $hwnd -Path $p
+      $ok = Test-PngFile -Path $p
+    } catch { $ok = $false }
+    if ($ok) {
+      $Script:ValidCaptures++
+      Log-Event 'checkpoint' $name $p
+    } else {
+      Remove-Item -Path $p -Force -ErrorAction SilentlyContinue
+      Log-Event 'checkpoint' $name ''
+    }
     Write-Host "checkpoint: $name"
   }
 
@@ -237,7 +268,12 @@ public class WinFind {
   $gamePid = $null
   if (Test-Path $pidFile) {
     $pidText = (Get-Content $pidFile -ErrorAction SilentlyContinue | Select-Object -First 1)
-    if ($pidText) { $gamePid = [int]$pidText }
+    $parsedPid = 0
+    if ($pidText -and [int]::TryParse($pidText.Trim(), [ref]$parsedPid) -and $parsedPid -gt 0) {
+      $gamePid = $parsedPid
+    } else {
+      Log-Event 'note' 'game.pid exists but does not contain a pid' ''
+    }
   }
   $gameExited = $false
   if ($gamePid) {
@@ -251,9 +287,20 @@ public class WinFind {
     $gameExited = -not [bool](Get-Process -Id $gamePid -ErrorAction SilentlyContinue)
   }
   $gameExitCode = $null
-  if ($gameExited -and (Test-Path $exitFile)) {
-    $exitText = (Get-Content $exitFile -ErrorAction SilentlyContinue | Select-Object -First 1)
-    if ($exitText) { $gameExitCode = [int]$exitText }
+  if ($gameExited) {
+    # The session runner writes game.exit right after WaitForExit
+    # returns; the process can disappear a moment before the file is
+    # flushed, so wait for it briefly instead of racing the write.
+    for ($i = 0; $i -lt 15 -and -not (Test-Path $exitFile); $i++) {
+      Start-Sleep -Milliseconds 200
+    }
+    if (Test-Path $exitFile) {
+      $exitText = (Get-Content $exitFile -ErrorAction SilentlyContinue | Select-Object -First 1)
+      $parsedExit = 0
+      if ($exitText -and [int]::TryParse($exitText.Trim(), [ref]$parsedExit)) {
+        $gameExitCode = $parsedExit
+      }
+    }
   }
   Log-Event 'exit' "exited=$($gameExited.ToString().ToLower()) killed=$($killed.ToString().ToLower()) game_exit=$gameExitCode" ''
   if ($proc -and -not $proc.HasExited) {
@@ -269,7 +316,7 @@ public class WinFind {
     started_at = $startedAt.ToString('yyyy-MM-ddTHH:mm:ssZ')
     ended_at = $endedAt.ToString('yyyy-MM-ddTHH:mm:ssZ')
     geometry = @{
-      requested = @{ initial = @{ cols = $InitCols; rows = $InitRows } }
+      requested = $null
       measured = @{}
       resize_exercised = $false
     }
@@ -277,7 +324,9 @@ public class WinFind {
     exit = @{ code = $gameExitCode; killed = $killed; game_exited = $gameExited; process_exited = $gameExited }
     notes = @(
       'session driven by run-windows.ps1 (SendKeys + window capture)',
-      'no pty transcript on Windows: piping stdout would break the game''s terminal check; graded from the game process (game.pid plus game.exit) and the screenshots'
+      'the game shares the session runner console (Start-Process -NoNewWindow); no pty transcript exists on Windows because piping stdout would break the game''s terminal check',
+      'graded from the game process (game.pid plus game.exit) and the capture set: a pass requires a zero exit code and at least one valid PNG capture',
+      'the terminal host owns the window geometry: no size is requested, and the captures record what the host provided'
     )
   }
   $meta | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $session 'meta.json')
@@ -287,8 +336,21 @@ public class WinFind {
   if (-not $gamePid) {
     $result = 'unverified'
     $reason = 'the game process never started (no game.pid written by the session runner); the launcher exited at startup'
+  } elseif ($killed) {
+    $result = 'partial'
+    $reason = 'the game process was still running at the end of the session (the quit key never landed); the harness stopped it'
   } elseif (-not $gameExited) {
     $result = 'partial'
+    $reason = 'the game process was still running at the end of the session'
+  } elseif ($null -eq $gameExitCode) {
+    $result = 'partial'
+    $reason = 'the game process exited but no readable exit code was recorded (game.exit missing or unparsable); see the session captures'
+  } elseif ($gameExitCode -ne 0) {
+    $result = 'partial'
+    $reason = "game exited with code $gameExitCode; see the session captures"
+  } elseif ($Script:ValidCaptures -lt 1) {
+    $result = 'partial'
+    $reason = 'no checkpoint capture produced a valid PNG; the session is recorded without render evidence'
   }
   if ($reason) {
     & python3 (Join-Path $ScriptDir 'collect.py') --run-dir $runDir --emulator $Emu `
