@@ -1,10 +1,13 @@
 # #552 parity checklist
 
 What the Rust build must prove before the #552 Python reference game
-(`pacman/`, issue #552) can be retired. Retirement is a separate,
-explicit step: nothing in `pacman/` is touched by any build or
-packaging script here, and this checklist staying anything short of
-fully signed means #552 stays.
+(`pacman/`, issue #552) can be retired. Every row below is signed on
+real evidence: the simulation and layer rows from the in-repo verify
+and test suites, the per-layer E2E rows from native runs on Linux,
+macOS, and Windows. Retirement itself remains a separate, explicit
+step that executes after this verified release lands: nothing in
+`pacman/` is touched by any build or packaging script here, and the
+Python game has stayed functional through the whole migration.
 
 Rule values below are feel references re-expressed as original Rust
 tables (`crates/engine/src/tuning.rs`) under the clean-room rules in
@@ -47,15 +50,43 @@ match; the map is ours.
 |---|---|---|---|---|
 | Same engine, no gameplay branches in layer code | maps input to `TickInput`, renders `Game` + `GameEvent`s | same | same | signed (review-enforced rule, see matrix) |
 | Full menu/help/scores/settings/pause flows | `screens` + `chrome`, top-10 machine scores | `screens`, shares `~/.maze-chase` scores with terminal | DOM screens, localStorage top-10 | signed |
-| Per-layer E2E green on this release | headless suite (layout sweep, full session, resize) | headless suite + Xvfb `--probe` PPM | node smoke + tester regression + CDP browser E2E | signed on Linux; Windows/macOS runs pending per-OS runners (see scoreboard) |
+| Per-layer E2E green on this release | headless suite (layout sweep, full session, resize) plus PTY sessions | headless suite + Xvfb `--probe` PPM plus a real-GUI drive | node smoke + tester regression + CDP browser E2E | signed on Linux, macOS, and Windows (native runs recorded below and in `scoreboard.md`) |
 | Board pixels agree across layers | shared rasterizer reference | identical by construction (same composer) | mirrors the terminal raster at 8 ppt (frame-determinism test) | signed |
 
-## Open before retirement
+## Native proof record
 
-- Windows and macOS runs of the per-layer E2E plus the packaged
-  artifacts (zip, `.app`) have not been executed on their native OSes
-  in this release; the scripts and docs rows are shipped, the proof
-  rows are pending per-OS runners.
-- Therefore #552 stays functional. Retire it only when a later run
-  flips those rows to signed and the Maintainer takes the explicit
-  retirement step.
+The per-layer E2E and packaged-artifact rows above are signed from
+three independent runs on their own operating systems; the measured
+numbers sit in the dated sections of `scoreboard.md`.
+
+- **macOS** (tester run 39068848280, macOS 26.6.2 arm64, vehicle PR
+  #631 merged): workspace 398 passed / 0 failed across 41 targets,
+  `maze-chase-verify` 19/19 with the golden digest intact, terminal
+  PTY E2E 28/28 (probe window, tier precedence, resize recovery,
+  corrupt-config boot), desktop `--probe` plus an osascript-driven GUI
+  session, the staged `.app` bundle (probe exit 0, binary hash
+  matching the release build), and a byte-identical wasm rebuild
+  (sha256 `5ec2a05af55f...`).
+- **Windows** (tester run 39068849150, Windows Server 2025, Git Bash
+  plus real ConPTY, vehicle PR #632 merged): workspace 374 passed /
+  0 failed across 41 targets, `maze-chase-verify` 19/19, the full CLI
+  matrix in Git Bash and pwsh, the packaged zip (binary byte-identical
+  to the release build) with a probe PPM byte-identical to the
+  committed reference, web node smokes, and CDP browser E2E. That
+  pass found three defects (terminal Release-key double fire, desktop
+  `--probe` option order, CRLF wasm drift); all three fixes merged
+  with regression contracts executed red on the pre-fix head and
+  green on the fixed head by the independent Quality Council round
+  (`approve-eval` 9.8/10).
+- **Linux** (this release pass): 407 tests passed / 0 failed across 45
+  targets, `maze-chase-verify` 19/19, terminal and desktop tarballs
+  staged, installed to a scratch prefix, and probed, node smokes, and
+  real-browser CDP E2E all green.
+
+## Retirement step
+
+- Every row is signed; what remains is the Maintainer's explicit
+  retirement step after this release merges: retire #552 against this
+  checklist and record the retirement in the issue.
+- `pacman/` is untouched by this migration's scripts and PRs; the
+  Python game keeps working until the retirement decision executes.
