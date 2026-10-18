@@ -51,13 +51,14 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Active Projects
 
-No project tracking issues are currently open. Active projects appear here when a tracking issue is opened (meta tasks such as lab health audits or workflow maintenance are never listed here).
+Projects currently in progress under open tracking issues (meta tasks such as lab health audits or workflow maintenance are never listed here):
+
+- **Maze Chase (`maze-chase/`)** (Tracking Issue: [#582](https://github.com/Userfrom1995/RandomLabs/issues/582)) - Original maze-chase game in Rust under a full-product overhaul: real-terminal compatibility matrix, dynamic full-window terminal layout, distributable per-OS releases, visual and sound redesign, and a complete Pages game hub (overhaul roadmap in progress). [Website](https://userfrom1995.github.io/RandomLabs/maze-chase/) · [README](maze-chase/README.md)
 
 ## Previous Projects (Latest 10)
 
 The most recent completed projects produced by the lab (up to 10):
 
-- **Maze Chase Rust (`maze-chase/`)** - Original maze-chase game in Rust: one deterministic 120 Hz engine shared by terminal, desktop, and browser layers, released and verified on Linux, macOS, and Windows (terminal fullscreen with Kitty/Sixel/Unicode tiers, desktop windowed/fullscreen with gamepad and per-OS packaging, browser WebAssembly with keyboard, swipe, and WebAudio). [Website](https://userfrom1995.github.io/RandomLabs/maze-chase/) · [README](maze-chase/README.md)
 - **Pac-Man Terminal Arcade (`pacman/`)** - Complete terminal arcade game: original maze with tunnel and ghost house, deterministic headless engine with replay hashes, layered Kitty/Sixel/Unicode renderer, four ghost personalities, menus, high scores, themes, and extra modes; retired 2026-10-18 when the verified Rust replacement shipped. [Website](https://userfrom1995.github.io/RandomLabs/pacman/) · [README](pacman/README.md)
 - **Terminal Browser (`terminal-browser/`)** - Agent-first browser that runs completely in the terminal: Go single binary with Chromium CDP sidecar, layered Kitty/Sixel/iTerm2/block renderer, snapshot-first MCP server plus agent CLI twin. [Website](https://userfrom1995.github.io/RandomLabs/terminal-browser/) · [README](terminal-browser/README.md)
 - **Desktop Pet (`pet/`)** - Cross-platform interactive desktop companion platform: single-pet core plus a multi-character catalog with distinct personalities, moods, and animations, runtime switching with persisted selection, a borderless always-on-top overlay with tray service mode, per-OS autostart plus installers, a creator-pack framework, and a Pages hub with a live canvas showcase. [Website](https://userfrom1995.github.io/RandomLabs/pet/) · [README](pet/README.md)
