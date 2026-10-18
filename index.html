@@ -140,7 +140,7 @@
         <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">Issue #582</a>
       </div>
     </div>
-    <div class="card current">
+    <div class="card">
       <span class="tag">Shipped</span>
       <h4>Terminal Browser</h4>
       <p>An agent-first browser that runs completely in the terminal (issue #532 closed): Go single binary with a Chromium CDP sidecar, layered Kitty/Sixel/iTerm2/block renderer with per-surface degrade, snapshot-first MCP server plus agent CLI twin with a parity matrix.</p>
@@ -151,7 +151,7 @@
         <a href="https://github.com/Userfrom1995/RandomLabs/issues/532">Issue #532</a>
       </div>
     </div>
-    <div class="card current">
+    <div class="card">
       <span class="tag">Shipped</span>
       <h4>Desktop Pet</h4>
       <p>A cross-platform interactive companion platform (issue #515 closed): shipped single-pet core plus a multi-character catalog with distinct personalities and animations, runtime switching with persisted selection, a borderless always-on-top overlay with tray service mode, per-OS autostart plus installers, a creator-pack framework, and a Pages hub with a live canvas showcase.</p>
@@ -161,7 +161,7 @@
         <a href="https://github.com/Userfrom1995/RandomLabs/issues/515">Issue #515</a>
       </div>
     </div>
-    <div class="card current">
+    <div class="card">
       <span class="tag">Shipped</span>
       <h4>Thunderline</h4>
       <p>An original rock-and-roll song at /thunderline/ (issue #481 closed 2026-09-29): a 156-second E-major night drive ("Ridin' on the thunderline") composed, performed, mixed, and mastered entirely by deterministic in-repo synthesis from a machine-readable lead sheet. Real rendered stems play through a single-clock WebAudio mixer with synced lyrics, stem mute/solo, and downloads; one command rebuilds bit-identical audio from source. No samples, no covers, no artist likeness.</p>
@@ -173,7 +173,7 @@
         <a href="https://github.com/Userfrom1995/RandomLabs/issues/481">Issue #481</a>
       </div>
     </div>
-    <div class="card current">
+    <div class="card">
       <span class="tag">Shipped</span>
       <h4>Doom</h4>
       <p>A client-side web Doom engine at /doom/ (issue #362 closed, merged via PR #367): checked WAD reader with layered diagnostics, WebGL paletted renderer with tier ladder, full desktop plus touch input with remapping, WebAudio SFX plus FM music, OPFS save persistence, a multi-WAD load order with per-map isolation, onboarding, and offline support, and a fully resolved end-to-end ledger (every cell measured or explicitly unsupported by design; 424/424 node:test green). Shipped on main.</p>
@@ -185,7 +185,7 @@
         <a href="https://github.com/Userfrom1995/RandomLabs/issues/362">Issue #362</a>
       </div>
     </div>
-    <div class="card current">
+    <div class="card">
       <span class="tag">Shipped</span>
       <h4>Umbra</h4>
       <p>A Shadow Fight-inspired silhouette combat game at /umbra/ (issue #375 closed): WebGPU WGSL shaders with WebGL2 and Canvas2D fallback tiers, deterministic 60 Hz combat core (parry, chip, guard-break, hit-stop, combos), 3 playable fighters plus 5 enemies across a 17-node story, 3 phased bosses, 6 weapons with frame-data tables, dojo trials, shop economy with export and import, tutorial gate, synth SFX plus adaptive music, hit sparks with KO slow-mo, and full keyboard, gamepad, and touch controls - offline after first load (455/455 node:test green, ledger measured end to end).</p>
@@ -346,12 +346,13 @@
     <li><strong>Reviewer</strong>: strictly reviews the PR (including a preview of this site) and loops with the Fixer until it passes.</li>
     <li><strong>Tester</strong>: dynamically runs E2E user flows and visual benchmarks before merging.</li>
     <li><strong>Linux / macOS / Windows Testers</strong>: per-OS real-user QA specialists: test every command, flag, and workflow natively on their OS (<code>/oc test-linux</code>, <code>/oc test-macos</code>, <code>/oc test-windows</code>) and feed per-platform reports to the Tester.</li>
-    <li><strong>Evaluator</strong>: autonomous Quality Council / Program Committee: binding quality gate after the Tester (`/oc eval`). Audits empirical rigor, scientific depth, visual craft, baseline parity, adversarial resilience, and reproducibility; commands swarm subagents; writes `/tmp/evaluator-decision.json`.</li>
+    <li><strong>Evaluator</strong>: autonomous Quality Council / Program Committee: binding quality gate after the Tester (<code>/oc eval</code>). Audits empirical rigor, scientific depth, visual craft, baseline parity, adversarial resilience, and reproducibility; commands swarm subagents; writes <code>/tmp/evaluator-decision.json</code>.</li>
     <li><strong>Auditor</strong>: the pipeline inspector: monitors the lab health, identifies stalls or crashes, and dispatches fixes.</li>
     <li><strong>Lab Engineer</strong>: the Chief Technology Officer (CTO) &amp; Lab Architect: builds workflows, creates agents, and manages models.</li>
     <li><strong>Curator</strong>: the public surface, web, and README custodian: audits website pages, assets, styling, and README synchronization, opening surgical PRs.</li>
     <li><strong>Recover Agent</strong>: PR survival and continuation engineer. Resurrects closed or orphaned build PRs into open continuation PRs (via <code>/oc recover</code> and the <code>opencode-recover.yml</code> auto-detect job).</li>
     <li><strong>Design Council</strong>: permanent product design team: orchestrator (<code>/oc design</code>) plus UX (<code>/oc design-ux</code>), visual and character (<code>/oc design-visual</code>), and motion (<code>/oc design-motion</code>) specialists. Deliberates in four rounds with recorded dissent and ships design specs plus tokens the Builder implements.</li>
+    <li><strong>General</strong>: answers plain <code>/oc</code> questions and housekeeping.</li>
   </ul>
   <p>Open issues and pull requests show what is currently in flight. To propose an idea, open an issue and tag <a href="https://github.com/Userfrom1995">@Userfrom1995</a>.</p>
   <p><a href="https://github.com/Userfrom1995/RandomLabs">Source repository</a> · <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/README.md">README</a></p>
