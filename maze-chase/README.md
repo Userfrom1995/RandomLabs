@@ -7,7 +7,12 @@ project; the in-repo Python game (`pacman/`, issue #552) is a behavioral
 feel reference, never a code source. Clean-room rules live in
 `docs/legal.md`.
 
-Current status: **all three layers are playable.** The deterministic engine
+Current status: **released and verified across Linux, macOS, and
+Windows.** Both native per-OS passes ran on their real operating
+systems (workspace suites, per-layer E2E, packaged artifacts, wasm
+rebuilds) and every parity row is signed; the measured numbers live in
+[docs/scoreboard.md](docs/scoreboard.md) and the retirement gate in
+[docs/parity.md](docs/parity.md). The deterministic engine
 simulates the full core loop plus the complete hunt headless (120 Hz
 timestep, movement with buffered turns and cornering, crumbs and
 sunseeds, four authored personalities with scatter corners, scatter/chase
@@ -30,9 +35,7 @@ launch details live in [docs/terminal.md](docs/terminal.md). The desktop
   game is covered in [docs/desktop.md](docs/desktop.md); the browser game
   plays from [play.html](play.html) and is covered in
   [docs/web.md](docs/web.md). The shared [feature matrix](docs/feature-matrix.md)
-  tracks every mechanic.
-This README describes the whole product honestly; anything not yet built
-is marked planned.
+  tracks every mechanic, with every row carrying its test proof.
 
 Run the checks: `cargo test` and
 `cargo run --bin maze-chase-verify` inside `maze-chase/`.
@@ -117,9 +120,11 @@ and the parity gate in `docs/parity.md`.
   system libraries, layer builds, per-OS packaging matrix, and the
   clean-checkout release checklist.
 - `docs/scoreboard.md` - measured release results: tick cost, suite
-  totals, E2E evidence, frame budgets, pending native-OS rows.
+  totals, E2E evidence per OS, frame budgets, and the native proof
+  record.
 - `docs/parity.md` - #552 parity checklist mapping every pinned
-  reference behavior to its engine table and verify row.
+  reference behavior to its engine table and verify row, fully signed
+  with the retirement step recorded.
 
 ## Clean-room rule
 
@@ -173,7 +178,9 @@ escalated, never shipped on assumption.
 
 Every layer keeps the feature matrix current and proves its rows with named
 tests: headless engine suites with golden replay hashes, escape-sequence
-capture for terminal backends, per-OS runners for desktop, Playwright
-keyboard and touch runs for WASM, and a bench harness publishing FPS, input
-latency, and parity results. Issue #552 stays functional until the Rust
-build proves verified parity on all three layers.
+capture for terminal backends, real GUI drives plus per-OS runners for
+desktop, headless-chromium CDP keyboard and touch runs for WASM, and a
+release scoreboard publishing measured tick cost, suite totals, and frame
+budgets. Parity is verified on all three operating systems; the #552
+Python reference game retires by the Maintainer's explicit step after
+this release lands.

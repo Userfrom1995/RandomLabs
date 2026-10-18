@@ -33,7 +33,8 @@ One cohesive product view; no milestone counters or sprint references.
   system libraries, engine checks, layer builds, the per-OS packaging
   matrix, and the clean-checkout release checklist.
 - [Release scoreboard](scoreboard.md): measured tick cost, suite
-  totals, E2E results, frame budgets, and pending native-OS rows.
+  totals, per-OS E2E results, frame budgets, and the native proof
+  record.
 - [#552 parity checklist](parity.md): every pinned reference behavior
-  mapped to its engine table and verify row, with the open native-OS
-  rows that keep #552 functional.
+  mapped to its engine table and verify row, fully signed on the
+  Linux, macOS, and Windows runs, with the retirement step recorded.
