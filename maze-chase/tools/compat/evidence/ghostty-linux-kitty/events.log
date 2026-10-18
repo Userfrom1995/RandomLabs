@@ -1,5 +1,5 @@
 1792340920471	geometry	704x644	208015	
-1792340920612	checkpoint	title	217251	/tmp/maze-chase-compat.GvPRZK/run-ghostty-kitty/session/screenshots/title.png
+1792340920612	checkpoint	title	217251	session/screenshots/title.png
 1792340920653	key	Return	234156	
 1792340923069	key	Right	27182637	
 1792340923287	key	Right	29823166	
@@ -10,40 +10,40 @@
 1792340924375	key	Left	42339168	
 1792340924602	key	Down	44662867	
 1792340925412	geometry	704x644	53954927	
-1792340925593	checkpoint	playing	55844782	/tmp/maze-chase-compat.GvPRZK/run-ghostty-kitty/session/screenshots/playing.png
+1792340925593	checkpoint	playing	55844782	session/screenshots/playing.png
 1792340925653	resize	143x64 (requested)	56567366	
 1792340927111	geometry	1001x1024	70029623	
 1792340927147	geometry	1001x1024	70352168	
-1792340927380	checkpoint	resized-wide	72771583	/tmp/maze-chase-compat.GvPRZK/run-ghostty-kitty/session/screenshots/resized-wide.png
+1792340927380	checkpoint	resized-wide	72771583	session/screenshots/resized-wide.png
 1792340927424	resize	80x24 (requested)	73225161	
 1792340928853	geometry	560x384	74543460	
 1792340928876	geometry	560x384	74545630	
-1792340928974	checkpoint	too-small	74549970	/tmp/maze-chase-compat.GvPRZK/run-ghostty-kitty/session/screenshots/too-small.png
+1792340928974	checkpoint	too-small	74549970	session/screenshots/too-small.png
 1792340929003	resize	143x64 (requested)	74549970	
 1792340930443	geometry	1001x1024	89096701	
 1792340930484	geometry	1001x1024	89510324	
-1792340930738	checkpoint	refit	91765908	/tmp/maze-chase-compat.GvPRZK/run-ghostty-kitty/session/screenshots/refit.png
+1792340930738	checkpoint	refit	91765908	session/screenshots/refit.png
 1792340930797	key	Escape	92446266	
 1792340931814	geometry	1001x1024	101210620	
-1792340932075	checkpoint	paused	103619770	/tmp/maze-chase-compat.GvPRZK/run-ghostty-kitty/session/screenshots/paused.png
+1792340932075	checkpoint	paused	103619770	session/screenshots/paused.png
 1792340932139	key	Down	104488009	
 1792340932365	key	Return	107085051	
 1792340933386	geometry	1001x1024	118181234	
-1792340933655	checkpoint	title-return	120205429	/tmp/maze-chase-compat.GvPRZK/run-ghostty-kitty/session/screenshots/title-return.png
+1792340933655	checkpoint	title-return	120205429	session/screenshots/title-return.png
 1792340933708	key	Down	120710189	
 1792340933931	key	Return	122865946	
 1792340934944	geometry	1001x1024	133380069	
-1792340935220	checkpoint	help	135492300	/tmp/maze-chase-compat.GvPRZK/run-ghostty-kitty/session/screenshots/help.png
+1792340935220	checkpoint	help	135492300	session/screenshots/help.png
 1792340935282	key	Escape	135880865	
 1792340936302	key	Down	146425174	
 1792340936523	key	Return	148711474	
 1792340937536	geometry	1001x1024	159370463	
-1792340937801	checkpoint	scores	161721771	/tmp/maze-chase-compat.GvPRZK/run-ghostty-kitty/session/screenshots/scores.png
+1792340937801	checkpoint	scores	161721771	session/screenshots/scores.png
 1792340937849	key	Escape	162091907	
 1792340938871	key	Down	173118193	
 1792340939095	key	Return	175514610	
 1792340940130	geometry	1001x1024	186074179	
-1792340940550	checkpoint	settings	190186765	/tmp/maze-chase-compat.GvPRZK/run-ghostty-kitty/session/screenshots/settings.png
+1792340940550	checkpoint	settings	190186765	session/screenshots/settings.png
 1792340940612	key	Escape	190901786	
 1792340941638	key	Down	202158508	
 1792340941859	key	Return	204683386	

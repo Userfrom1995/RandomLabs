@@ -1,5 +1,5 @@
 1792340816127	geometry	701x601	208601	
-1792340816206	checkpoint	title	219021	/tmp/maze-chase-compat.n9VHG1/run-kitty-auto/session/screenshots/title.png
+1792340816206	checkpoint	title	219021	session/screenshots/title.png
 1792340816242	key	Return	219021	
 1792340818654	key	Right	43060557	
 1792340818858	key	Right	46444698	
@@ -10,40 +10,40 @@
 1792340819911	key	Left	63506301	
 1792340820122	key	Down	67509261	
 1792340820916	geometry	701x601	81391338	
-1792340821038	checkpoint	playing	83043287	/tmp/maze-chase-compat.n9VHG1/run-kitty-auto/session/screenshots/playing.png
+1792340821038	checkpoint	playing	83043287	session/screenshots/playing.png
 1792340821069	resize	143x64 (requested)	83540534	
 1792340822500	geometry	1001x960	109797333	
 1792340822528	geometry	1001x960	110007745	
-1792340822702	checkpoint	resized-wide	112251593	/tmp/maze-chase-compat.n9VHG1/run-kitty-auto/session/screenshots/resized-wide.png
+1792340822702	checkpoint	resized-wide	112251593	session/screenshots/resized-wide.png
 1792340822727	resize	80x24 (requested)	112623266	
 1792340824155	geometry	560x360	116737956	
 1792340824176	geometry	560x360	116737956	
-1792340824253	checkpoint	too-small	116743256	/tmp/maze-chase-compat.n9VHG1/run-kitty-auto/session/screenshots/too-small.png
+1792340824253	checkpoint	too-small	116743256	session/screenshots/too-small.png
 1792340824278	resize	143x64 (requested)	116743256	
 1792340825718	geometry	1001x960	140346524	
 1792340825749	geometry	1001x960	140892232	
-1792340825946	checkpoint	refit	143323136	/tmp/maze-chase-compat.n9VHG1/run-kitty-auto/session/screenshots/refit.png
+1792340825946	checkpoint	refit	143323136	session/screenshots/refit.png
 1792340825994	key	Escape	144201850	
 1792340826997	geometry	1001x960	161919165	
-1792340827193	checkpoint	paused	165198565	/tmp/maze-chase-compat.n9VHG1/run-kitty-auto/session/screenshots/paused.png
+1792340827193	checkpoint	paused	165198565	session/screenshots/paused.png
 1792340827251	key	Down	165743773	
 1792340827463	key	Return	169356980	
 1792340828465	geometry	1001x960	187051975	
-1792340828661	checkpoint	title-return	189926499	/tmp/maze-chase-compat.n9VHG1/run-kitty-auto/session/screenshots/title-return.png
+1792340828661	checkpoint	title-return	189926499	session/screenshots/title-return.png
 1792340828700	key	Down	190668308	
 1792340828905	key	Return	194127417	
 1792340829898	geometry	1001x960	211312044	
-1792340830060	checkpoint	help	213436264	/tmp/maze-chase-compat.n9VHG1/run-kitty-auto/session/screenshots/help.png
+1792340830060	checkpoint	help	213436264	session/screenshots/help.png
 1792340830099	key	Escape	214250041	
 1792340831109	key	Down	231955801	
 1792340831312	key	Return	235476361	
 1792340832319	geometry	1001x960	251811143	
-1792340832501	checkpoint	scores	254056464	/tmp/maze-chase-compat.n9VHG1/run-kitty-auto/session/screenshots/scores.png
+1792340832501	checkpoint	scores	254056464	session/screenshots/scores.png
 1792340832550	key	Escape	254873495	
 1792340833560	key	Down	272748926	
 1792340833763	key	Return	276360822	
 1792340834764	geometry	1001x960	294076660	
-1792340834982	checkpoint	settings	297269508	/tmp/maze-chase-compat.n9VHG1/run-kitty-auto/session/screenshots/settings.png
+1792340834982	checkpoint	settings	297269508	session/screenshots/settings.png
 1792340835044	key	Escape	298187635	
 1792340836071	key	Down	316511333	
 1792340836283	key	Return	320076042	
