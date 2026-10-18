@@ -585,7 +585,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422) + the model fallback ladder (resolve-model.sh, model-ladder.txt, issue #591)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R22), per-OS findings poster, review-comment and tester-verdict publication evidence, tester marker publisher, CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R23), per-OS findings poster, review-comment and tester-verdict publication evidence, tester marker publisher, CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
@@ -627,6 +627,16 @@ Then it re-surveys live GitHub fresh (PRs, issues, comments, board, progress
 files) - the log branch is memory, GitHub is truth. Every run appends today's
 log and rewrites `STATE.md` before finishing; a brand-new model instance
 catches up in seconds.
+
+The publish step is concurrency-safe (issue #647): it fetches the freshly
+advanced tip inside a bounded 3-attempt fetch-recompose-push loop, isolates
+this session's added bytes against the materialization baseline it loaded at
+startup, and appends only that delta, so a concurrent session's same-day
+entry is never dropped (keep-both; `STATE.md` stays last-writer-wins). The
+publish path is never quiet (real git errors always land in the step log)
+and a bounded failure ends red with the recoverable bundle printed into the
+run log instead of silently losing a session. Regression-guarded by audit
+rule R23 in `.github/scripts/silent-stall-audit.sh`.
 
 ## 23. Fork PRs (external contributors)
 
