@@ -536,7 +536,13 @@ jobs:
             if [ "$have_tip" = "1" ]; then
               git checkout --force --detach refs/remotes/origin/logs --quiet
             else
-              git checkout --orphan logs-bootstrap --quiet
+              # Unique unborn root per attempt (review finding F1): reusing one
+              # name dies on the second bootstrap attempt under the runner's
+              # default `bash -e {0}` shell ("a branch named logs-bootstrap
+              # already exists"), aborting before the loud give-up. A fresh
+              # root also guarantees the "no changes" shortcut below can never
+              # mask a previous attempt's unpushed commit (F1b).
+              git checkout --orphan "logs-bootstrap-$attempt" --quiet
               git rm -rf . --quiet 2>/dev/null || true
             fi
             mkdir -p logs
@@ -571,9 +577,17 @@ jobs:
             done
             if [ -d logs ]; then git add -- logs; fi
             if git diff --cached --quiet; then
-              echo "no memory changes on attempt $attempt"
-              memory_pushed=1
-              break
+              if [ "$have_tip" != "1" ]; then
+                # Never conclude green without a tip (review finding F1b): a
+                # bootstrap attempt starts from an unborn root, so an empty
+                # composition here means a stale tree, not a successful
+                # publish. Fall through to the bounded retry/red path.
+                echo "::warning::empty bootstrap composition on attempt $attempt; not concluding green"
+              else
+                echo "no memory changes on attempt $attempt"
+                memory_pushed=1
+                break
+              fi
             fi
             if git -c user.name="Hephaestus (Maintainer)" -c user.email="github-actions[bot]@users.noreply.github.com" \
               commit -m "maintainer: memory update $(date -u +%Y-%m-%dT%H:%MZ)"; then
