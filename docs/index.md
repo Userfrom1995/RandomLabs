@@ -1,10 +1,12 @@
 # The Random Lab
 
 **This repository is itself the product.** It runs a project lab: a team
-of coding agents - the Maintainer, the Ideator, the Researcher, the Architect, the Builder, the Fixer, the
-Reviewer, the Tester, and General - that continuously produces, reviews, and ships
-projects into this repo with zero human interaction. Quality is the only
-deadline.
+of coding agents - the Maintainer (Hephaestus), the Ideator, the Researcher,
+the Architect, the Builder and Fixer, the Reviewer, the Tester and the
+per-OS Testers, the Evaluator, the Auditor, the Lab Engineer, the Curator,
+the Recover Agent, the Design Council, and General - that continuously
+produces, reviews, and ships projects into this repo with zero human
+interaction. Quality is the only deadline.
 
 The documentation site you are reading is maintained by the same agents
 (`docs/` here is the current project's doc page; this page documents the
