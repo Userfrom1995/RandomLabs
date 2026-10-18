@@ -23,13 +23,13 @@ did not execute.
 
 | terminal | version | tier requested | tier observed | disposition | notes | evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| kitty | 0.32.2 | auto | kitty-graphics | partial | 381.8 MiB transcript: 1642 board transmits / 348.7 MiB PNG payload (~217 KiB per 224x248 transmit); the reply loop repaints 70-77 synchronized frames/s, 391/s with the too-small card up; input queues behind the flood (pause surface first paints 298 MB in) and the final quit never lands, process killed | `kitty-linux-auto.json` |
+| kitty | 0.32.2 | auto | kitty-graphics | partial | 381.8 MiB transcript: 1642 board transmits / 348.6 MiB PNG payload (~217 KiB per 224x248 transmit); the reply loop repaints 70-77 synchronized frames/s, 391/s with the too-small card up; input queues behind the flood (pause surface first paints 298 MB in) and the final quit never lands, process killed | `kitty-linux-auto.json` |
 | kitty (forced cells) | 0.32.2 | truecolor | truecolor-cells | pass | full session, clean exit, pause and menus work (16.9 MiB transcript) | `kitty-linux-truecolor.json` |
 | Ghostty | 1.3.1 | auto | truecolor-cells | pass | full session; auto-detect routes Ghostty to cells although Ghostty speaks kitty graphics | `ghostty-linux-auto.json` |
-| Ghostty (forced kitty) | 1.3.1 | kitty | kitty-graphics | partial | paints the kitty raster through Ghostty's graphics implementation (921 transmits / 195.6 MiB payload); every surface does paint eventually but far behind its key (pause surface first paints at 166.9 MB of 210.8 MiB); the final quit never lands, process killed | `ghostty-linux-kitty.json` |
+| Ghostty (forced kitty) | 1.3.1 | kitty | kitty-graphics | partial | paints the kitty raster through Ghostty's graphics implementation (921 transmits / 195.6 MiB payload); the pause surface first paints at byte 166,859,269, help and scores only in the tail (bytes 214,328,374 and 217,821,876), and the settings screen never reaches the wire before the kill; the final quit never lands, process killed | `ghostty-linux-kitty.json` |
 | xterm | 390 | auto | legacy-cells | partial | full session and clean exit, but on the default light background the cream chrome text is invisible: 7 of its 10 captures are >=98% white and the row was downgraded with the list recorded (`light_background_captures`) | `xterm-linux-auto.json` |
 | xterm (dark background) | 390, `-bg black -fg white` | auto | legacy-cells | pass | full session, clean exit; proves the light-row fault is the palette, not the layout | `xterm-dark-linux-auto.json` |
-| xterm (VT340 mode, forced) | 390, `-ti vt340` | sixel | sixel | pass | 183 sixel transmits / 2.46 MiB payload (~13.7 KiB per frame); full session | `xterm-linux-sixel.json` |
+| xterm (VT340 mode, forced) | 390, `-ti vt340` | sixel | sixel | pass | 183 sixel transmits / 2.46 MiB payload (~13.7 KiB per transmit); full session | `xterm-linux-sixel.json` |
 | xterm (VT340 mode, auto) | 390, `-ti vt340` | auto | sixel | pass | the DA1 probe answered and the game upgraded itself from legacy-cells to sixel (`tier_requested=auto`); full session; this is the row that exercises the probe path | `xterm-vt340-linux-auto.json` |
 
 ## Rows awaiting their host
@@ -49,17 +49,17 @@ did not execute.
   including the menu surfaces, on every executed cell row (kitty forced
   cells, Ghostty auto, xterm dark).
 - `sixel` is fully playable on a real sixel terminal and is the most
-  bandwidth-efficient bitmap path measured: ~13.7 KiB per frame
-  (2.46 MiB for a whole session) against the kitty path's ~217 KiB per
-  224x248 board transmit (195.6-348.7 MiB per session at the same
-  sizes).
+  bandwidth-efficient bitmap path measured: ~13.7 KiB per transmit
+  (183 transmits, 2.46 MiB for a whole session) against the kitty
+  path's ~217 KiB per 224x248 board transmit (195.6-348.6 MiB per
+  session at the same sizes).
 - `kitty-graphics` paints, but its reply handling floods the event loop:
-  the committed rows measure 70-77 synchronized frames/s sustained
-  (391/s with the too-small card up) against the intended pacing, input
-  surfaces paint hundreds of megabytes behind their keys, and both
-  committed kitty rows had to be killed when the quit path never
-  landed. The fix and the re-proof are the terminal render pipeline
-  phase of the #582 overhaul.
+  `kitty-linux-auto` measures 70-77 synchronized frames/s sustained
+  (391/s with the too-small card up) and `ghostty-linux-kitty` 39-49/s,
+  against the intended pacing; input surfaces paint hundreds of
+  megabytes behind their keys, and both kitty-graphics rows had to be
+  killed when the quit path never landed. The fix and the re-proof are
+  the terminal render pipeline phase of the #582 overhaul.
 - Ghostty's auto row is a detection defect, not a capability gap:
   Ghostty implements the kitty graphics protocol, proven by the forced
   row above.

@@ -32,8 +32,8 @@ not pass `q=2`. Nothing reads or drains those replies:
   stream is a feedback loop (more frames -> more replies -> faster
   loop);
 - measured loop rate while playing: ~190 iterations/s (1146
-  size-query `openat`/`ioctl`/`close` triples per 6 s) versus the ~62/s
-  idle pace (strace experiment);
+  size-query `openat`/`ioctl`/`close` triples per 6 s) versus the ~61/s
+  idle pace (364 size queries in 6 s; strace experiment);
 - committed rows measure the loop rate and the input lag directly:
   `kitty-linux-auto` repaints 70.3-76.9 synchronized frames/s while
   playing and 390.7/s with the too-small card up; its input surfaces
@@ -41,17 +41,21 @@ not pass `q=2`. Nothing reads or drains those replies:
   298,181,872 of a 400,331,543-byte session) and the quit path never
   lands, so the process was killed. `ghostty-linux-kitty` shows the
   same shape (pause surface first paints at byte 166,859,269 of
-  221,109,625; killed).
-- every driven surface does eventually paint in both rows (the committed
-  per-phase `surfaces` counters), so the precise defect is delayed
-  input, not dead input: an earlier draft of this ledger claimed zero
-  `PAUSED` renders while the strace note counted them - the committed
-  surface counters now settle it. The identical choreography on the
-  identical kitty build forced to `MAZE_CHASE_TIER=truecolor`
-  completes and exits cleanly.
+  221,000,942; killed).
+- the committed per-phase `surfaces` counters prove delayed input, not
+  dead input: `kitty-linux-auto` eventually paints every driven surface
+  (in the tail, hundreds of megabytes behind its keys), while
+  `ghostty-linux-kitty` paints its pause surface at byte 166,859,269
+  (first reaching the wire during the settings checkpoint, far behind
+  its key), help and scores only in the tail, and never paints the
+  settings screen before the kill (an earlier
+  draft of this ledger claimed zero `PAUSED` renders while the strace
+  note counted them - the committed counters settle it). The identical
+  choreography on the identical kitty build forced to
+  `MAZE_CHASE_TIER=truecolor` completes and exits cleanly.
 
 Evidence: `evidence/kitty-linux-auto.json` (381.8 MiB transcript, 1642
-board transmits, 348.7 MiB PNG payload, killed),
+board transmits, 348.6 MiB PNG payload, killed),
 `evidence/ghostty-linux-kitty.json` (921 transmits, killed),
 `evidence/kitty-linux-truecolor.json` (pass),
 `evidence/kitty-linux-auto/ack-spin-experiment.md` (strace transcript of
@@ -122,12 +126,13 @@ resize contract with same-frame repaint and stale-placement kill.
 
 xterm 390 in VT340 mode answers the DA1 probe with sixel support and the
 sixel tier paints real pixels: 183 transmits, 2.46 MiB of payload
-(~13.7 KiB per frame) for the whole session, versus 1642 transmits /
-348.7 MiB of PNG payload in `kitty-linux-auto` and 921 / 195.6 MiB in
-`ghostty-linux-kitty` at the same sizes. Input and exit work (the
-committed surface counters show the pause, help, scores, and settings
-surfaces painting in their own phases; clean exit). The forced-sixel
-row is fully executed: `evidence/xterm-linux-sixel.json` (pass).
+(~13.7 KiB per transmit) for the whole session, versus 1642 transmits /
+348.6 MiB of PNG payload in `kitty-linux-auto` and 921 / 195.6 MiB in
+`ghostty-linux-kitty` at the same sizes. Input and exit work in both
+sixel rows (the committed surface counters show the pause, help,
+scores, and settings surfaces painting in their own phases; clean
+exit). The forced-sixel row is fully executed:
+`evidence/xterm-linux-sixel.json` (pass).
 
 xterm requires `-ti vt340` (or the resource equivalent) before its DA1
 reply advertises sixel; the default `TERM=xterm` build lands on
