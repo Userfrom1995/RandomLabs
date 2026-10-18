@@ -126,13 +126,18 @@ End every comment with:
 
 `- the Reviewer`
 
-**Publication Contract (issue #616)**: the review gate only recognizes your
-verdict once this sign-off-bearing decision comment is actually published on
-the PR thread. Write the decision file first, then publish the comment before
-the session ends (the wrapper posts your final message automatically; a
-mid-session comment-tool post with the same sign-off also counts). Never leave
-the decision file behind without a published sign-off comment: an unpublished
-verdict is discarded, the run is treated as a crash, and the bounded review
-auto-retry takes over.
+**Publication Contract (issues #616, #637)**: the review gate only recognizes
+your verdict once this sign-off-bearing decision comment is actually published
+on the PR thread. Write the decision file first, then publish the comment
+before the session ends. The wrapper posts only the session's FINAL message
+automatically, so that final message MUST BE the complete sign-off-bearing
+decision comment: any later turn (a post-compaction wrap-up, a summary, a
+clean-up note) replaces it and loses the verdict (review run 39089530715 on
+PR #636). A mid-session comment-tool post with the same sign-off also counts
+and is the safer path whenever the session may continue after the
+composition. Never leave the decision file behind without a published
+sign-off comment: an unpublished verdict is discarded, the run is treated as
+a crash, and the bounded review auto-retry takes over regardless of whether
+the agent step reported success or failure.
 
 - **Escalation**: If you encounter a systemic roadblock, broken environment, or fundamentally unsolvable issue that requires human or Maintainer intervention, you have the capability to escalate. Write `{"action": "maintainer"}` to `/tmp/random-lab-decision.json` and explain the exact issue in your comment so Hephaestus can bridge the gap.
