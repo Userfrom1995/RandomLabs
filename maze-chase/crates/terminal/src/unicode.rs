@@ -1,13 +1,14 @@
 //! Unicode cell renderer: the polished fallback every terminal gets.
 //!
-//! The 28x31 maze becomes text cells at the layout's cell size: compact
-//! rooms draw 2 columns x 1 row per tile, magnified rooms 4 x 2. Walls are
+//! The 28x31 maze becomes text cells at the layout's continuous tile
+//! scale: every tile is `cell_cols` characters wide and `cell_rows`
+//! rows tall (not just the old 2x1/4x2 steps, issue #675). Walls are
 //! solid blocks in the theme wall tones, corridors breathe with dotted
-//! crumbs and pulsing sunseeds, Pip shows a facing mouth, wardens wear
-//! their theme colors (fright masks while frightened, drifting eyes when
-//! eaten), and the relish waits as an accent diamond. Truecolor tiers emit
-//! 24-bit SGR; the legacy tier folds every theme color to the nearest of
-//! the 16 ANSI colors.
+//! crumbs and pulsing sunseeds centered in their tile, Pip shows a
+//! facing mouth, wardens wear their theme colors (fright masks while
+//! frightened, drifting eyes when eaten), and the relish waits as an
+//! accent diamond. Truecolor tiers emit 24-bit SGR; the legacy tier
+//! folds every theme color to the nearest of the 16 ANSI colors.
 
 use crate::layout::Layout;
 use maze_chase_assets::themes::{Rgb, Theme};
@@ -244,42 +245,47 @@ pub fn render_board(
             };
         }
         // One output character per terminal column: `row_sub` selects the
-        // magnified glyph's row, `col_sub` its horizontal character. The
-        // expanded glyph is exactly `cw` characters wide, so indexing it
-        // (never emitting a whole sub-row per column) keeps every row
-        // exactly `layout.cols` characters.
+        // tile's sub-row, `col_sub` its horizontal character. Each sub-row
+        // string is exactly `cw` characters wide, so indexing it (never
+        // emitting a whole sub-row per column) keeps every row exactly
+        // `layout.cols` characters.
         let cell_text = |tx: i32, ty: i32, row_sub: usize, col_sub: usize| -> (char, Rgb, Rgb) {
             let pick = |s: &str| s.chars().nth(col_sub).unwrap_or(' ');
             let tile = game.maze.tile(tx, ty);
             if let Some(&(text, color)) = overlay.get(&(tx, ty)) {
-                let t = expand(text, cw);
-                return (pick(&t[row_sub]), color, theme.bg);
+                let t = fit_width(text, cw);
+                return (pick(&t), color, theme.bg);
             }
             match tile {
                 Tile::Wall => {
                     // Full-block face in the wall tone; the bitmap
                     // tiers add bevel shading where pixels allow.
-                    let s = if layout.magnified {
-                        "████"
-                    } else {
-                        "██"
-                    };
-                    (pick(s), theme.wall, theme.bg)
+                    (pick(&"█".repeat(cw)), theme.wall, theme.bg)
                 }
                 Tile::Door => {
-                    let s = expand("──", cw);
-                    (pick(&s[row_sub]), theme.accent, theme.bg)
+                    let s = fit_width("──", cw);
+                    (pick(&s), theme.accent, theme.bg)
                 }
                 Tile::House => (' ', theme.bg, theme.bg),
                 Tile::Dot | Tile::Energizer | Tile::Plain => {
+                    let (first, last) = center_rows(ch);
+                    let centered = row_sub >= first && row_sub <= last;
                     let i = (ty * WIDTH + tx) as usize;
                     if field.get(stride + i).copied().unwrap_or(0) == 1 {
                         let halo = (frame_no / 24) % 2 == 1;
-                        let s = expand(if halo { "○○" } else { "●●" }, cw);
-                        (pick(&s[row_sub]), theme.sunseed, theme.bg)
+                        let s = fit_width(if halo { "○○" } else { "●●" }, cw);
+                        (
+                            if centered { pick(&s) } else { ' ' },
+                            if centered { theme.sunseed } else { theme.bg },
+                            theme.bg,
+                        )
                     } else if field.get(i).copied().unwrap_or(0) == 1 {
-                        let s = expand("· ", cw);
-                        (pick(&s[row_sub]), theme.crumb, theme.bg)
+                        let s = fit_width("· ", cw);
+                        (
+                            if centered { pick(&s) } else { ' ' },
+                            if centered { theme.crumb } else { theme.bg },
+                            theme.bg,
+                        )
                     } else {
                         (' ', theme.bg, theme.bg)
                     }
@@ -297,7 +303,7 @@ pub fn render_board(
                     let ly = row - by;
                     let tx = (lx / cw) as i32;
                     let ty = (ly / ch) as i32;
-                    let row_sub = (ly % ch).min(expand_len(cw) - 1);
+                    let row_sub = ly % ch;
                     let col_sub = lx % cw;
                     (tx, ty, row_sub, col_sub)
                 } else {
@@ -324,22 +330,25 @@ pub fn render_board(
     screen
 }
 
-/// Rows produced by [`expand`] for a cell width.
-fn expand_len(width: usize) -> usize {
-    if width <= 2 {
-        1
-    } else {
-        2
+/// Fit a compact glyph to exactly `width` characters by cycling its
+/// characters (a 2-char glyph at width 3 repeats its first char last,
+/// width 5 repeats the pair). Never returns more or fewer than `width`
+/// characters, which is what keeps every output row exact.
+fn fit_width(glyph: &str, width: usize) -> String {
+    let chars: Vec<char> = glyph.chars().collect();
+    if chars.is_empty() {
+        return " ".repeat(width);
     }
+    (0..width).map(|i| chars[i % chars.len()]).collect()
 }
 
-/// Expand a 2-cell glyph to the magnified width (4) by doubling chars.
-fn expand(glyph: &str, width: usize) -> Vec<String> {
-    if width <= 2 {
-        return vec![glyph.to_string()];
-    }
-    let doubled: String = glyph.chars().flat_map(|c| [c, c]).collect();
-    vec![doubled.clone(), doubled]
+/// Inclusive sub-row range that carries a small pickup glyph: the
+/// middle row for odd tile heights, the middle pair for even ones (the
+/// old 2x1/2x2 behavior generalized to any continuous scale).
+fn center_rows(height: usize) -> (usize, usize) {
+    let start = height.saturating_sub(1) / 2;
+    let end = height / 2;
+    (start, end.max(start))
 }
 
 #[cfg(test)]
@@ -368,9 +377,9 @@ mod tests {
     #[test]
     fn board_rows_are_exactly_window_width() {
         // Every output row must be exactly `layout.cols` characters: the
-        // renderer emits one character per terminal column (compact 2x1
-        // and magnified 4x2 cells alike), so a row can never overflow
-        // the window and clip the right wall.
+        // renderer emits one character per terminal column at any
+        // continuous tile scale (2x1 floor through 7x3 at 200x100), so a
+        // row can never overflow the window and clip the right wall.
         let theme = &themes::EMBER_WARREN;
         for (cols, rows) in [(62u16, 35u16), (100, 40), (200, 100)] {
             let l = layout::compute(cols, rows);
@@ -382,12 +391,33 @@ mod tests {
                 assert_eq!(width, cols as usize, "{cols}x{rows} row {i} width");
             }
         }
-        // The sweep above covers the compact cells at 62x35/100x40 and
-        // the magnified cells at 200x100; pin that split so a layout
-        // change cannot silently make the test cover one mode twice.
+        // The sweep above covers three distinct continuous scales; pin
+        // them so a layout change cannot silently make the test cover
+        // one mode twice (issue #675).
         assert_eq!(layout::compute(62, 35).cell_cols, 2);
-        assert_eq!(layout::compute(100, 40).cell_cols, 2);
-        assert_eq!(layout::compute(200, 100).cell_cols, 4);
+        assert_eq!(layout::compute(100, 40).cell_cols, 3);
+        assert_eq!(layout::compute(200, 100).cell_cols, 7);
+        assert_eq!(layout::compute(200, 100).cell_rows, 3);
+    }
+
+    #[test]
+    fn tall_tile_walls_fill_every_sub_row() {
+        // At a 7x3 scale a wall tile is a 7-char block on all three of
+        // its sub-rows: no hollow bands inside wall runs.
+        let theme = &themes::EMBER_WARREN;
+        let l = layout::compute(200, 100);
+        assert_eq!((l.cell_cols, l.cell_rows), (7, 3));
+        let s = render_board(&game(), theme, &l, 0, true);
+        let text: Vec<String> = s
+            .rows
+            .iter()
+            .map(|row| row.iter().map(|sp| sp.text.as_str()).collect())
+            .collect();
+        for sub in 0..3usize {
+            let y = l.board.y as usize + sub;
+            let seg: String = text[y].chars().skip(l.board.x as usize).take(7).collect();
+            assert_eq!(seg, "█".repeat(7), "sub-row {sub} wall: {seg:?}");
+        }
     }
 
     #[test]
