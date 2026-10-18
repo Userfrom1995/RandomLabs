@@ -734,16 +734,27 @@ catches up in seconds.
   through stdin (`--body-file -`), so no "/oc" string is ever an argv element
   of a native process. Statically enforced by R18 in
   `.github/scripts/silent-stall-audit.sh`.
-- The review gate only forwards a verdict that was actually published (issue
-  #616): a reviewer death between the decision-file write and the comment post
-  used to leave the decision file behind with zero published findings, and the
-  gate forwarded that unread verdict. The verify step now requires positive
-  publication evidence - a github-actions[bot] comment created after the
-  trigger whose body carries the reviewer sign-off line
+- The review gate only forwards a verdict that was actually published (issues
+  #616, #637): a reviewer death between the decision-file write and the
+  comment post used to leave the decision file behind with zero published
+  findings, and the gate forwarded that unread verdict; separately, a healthy
+  session that ended on any message other than the sign-off-bearing decision
+  comment (the wrapper publishes only the session's FINAL message, so a
+  post-compaction wrap-up replaced the composed verdict; review run
+  39089530715 on PR #636) had its verdict discarded by a fail-loud branch
+  with no auto-retry. The verify step now requires positive publication
+  evidence - a github-actions[bot] comment created after the trigger whose
+  body carries the reviewer sign-off line
   (`.github/scripts/review-comment-published.sh`) - discards unpublished
-  verdicts before the retry and forward paths, fails closed when verification
-  itself fails, and both forward steps are gated on the verify step's success.
-  Enforced by R19 in `.github/scripts/silent-stall-audit.sh`.
+  verdicts before the retry and forward paths, treats a provably unpublished
+  verdict as the crash signature regardless of the agent step's outcome (so
+  the success+unpublished class runs the same bounded auto-retry a failed run
+  uses; the reviewer prompt requires the final message to be the complete
+  sign-off-bearing decision comment), fails closed when verification itself
+  fails, and both forward steps are gated on the verify step's success.
+  Enforced by R19 in `.github/scripts/silent-stall-audit.sh`, which also
+  executes the real extracted verify block in a sandbox git repo against a
+  mock `gh` across the crash/unpublished/cap/denial matrix.
 - Bounded retry caps cannot silently defeat themselves on busy threads (issue
   #621): every retry/auto-heal/gate enumeration reads thread comments with the
   paginated slurp form (`?per_page=100` plus `--paginate --slurp` piped through
