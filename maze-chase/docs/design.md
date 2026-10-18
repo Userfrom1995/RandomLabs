@@ -158,7 +158,7 @@ Accessibility. Pause is the universal hub; M, R, V, C are bare-key
 chords (terminal control chords are consumed by the tty, so the design
 deliberately avoids Ctrl combinations). The pure accessibility path is
 three interactions (Esc, Settings, Access). Every motion and flash has
-a first-class reduced path (below). Milestone toasts teach sunseed,
+a first-class reduced path (below). Achievement toasts teach sunseed,
 chain, relish, and spare wick exactly once each; they are pinned to a
 HUD row and never cover the board.
 
@@ -630,7 +630,7 @@ and the tokens file:
    correct.
 7. Sound: one tempo source, chime default off, volume and mute
    controls live on every layer, no flashing cues.
-8. Single unified product documentation view: no milestone counters,
-   no sprint language, zero em dashes.
+8. Single unified product documentation view: no internal progress
+   counters, no sprint language, zero em dashes.
 
 - the Design Council
