@@ -81,28 +81,6 @@ write_unverified() { # emulator reason
     --evidence-dir "$EVIDENCE_DIR"
 }
 
-launch_terminal_app() { # rundir session
-  # `osascript do script` opens a Terminal window running the session
-  # script; the pty transcript still comes from `script` inside it.
-  local runner="$1/session/run-game.sh"
-  osascript <<APPLESCRIPT
-tell application "Terminal"
-  activate
-  do script "$runner; exit"
-end tell
-APPLESCRIPT
-}
-
-launch_iterm() { # rundir session
-  local runner="$1/session/run-game.sh"
-  osascript <<APPLESCRIPT
-tell application "iTerm2"
-  activate
-  create window with default profile command "$runner"
-end tell
-APPLESCRIPT
-}
-
 run_emulator() { # emulator tier
   local emu="$1" tier="$2"
   local name="$emu-$tier"
@@ -136,27 +114,31 @@ RUNNER
 
   # The launcher is a small script so drive.sh can run it verbatim in the
   # background; its job is to open one window running the game through
-  # `script` (which writes the raw escape transcript).
+  # `script` (which writes the raw escape transcript). BSD/macOS `script`
+  # takes its file before the command (`script [-adkpqr] [file [command
+  # ...]]`); `-f` and `-c` are GNU-only flags and die in option parsing
+  # on macOS, so the live launchers below use the BSD grammar with the
+  # log file first.
   local launcher="$session/launch.sh"
   case "$emu" in
     terminal)
       cat > "$launcher" <<LAUNCH
 #!/usr/bin/env bash
 exec osascript -e 'tell application "Terminal" to activate' \
-  -e 'tell application "Terminal" to do script "script -q -f \"$session/pty.log\" $session/run-game.sh; exit"'
+  -e 'tell application "Terminal" to do script "script -q \"$session/pty.log\" $session/run-game.sh; exit"'
 LAUNCH
       ;;
     iterm)
       cat > "$launcher" <<LAUNCH
 #!/usr/bin/env bash
 exec osascript -e 'tell application "iTerm2" to activate' \
-  -e 'tell application "iTerm2" to create window with default profile command "script -q -f \\"$session/pty.log\\" $session/run-game.sh"'
+  -e 'tell application "iTerm2" to create window with default profile command "script -q \\"$session/pty.log\\" $session/run-game.sh"'
 LAUNCH
       ;;
     ghostty)
       cat > "$launcher" <<LAUNCH
 #!/usr/bin/env bash
-exec ghostty -e script -q -f -c '$session/run-game.sh' '$session/pty.log'
+exec ghostty -e script -q '$session/pty.log' '$session/run-game.sh'
 LAUNCH
       ;;
   esac
