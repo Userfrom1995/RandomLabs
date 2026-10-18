@@ -4,15 +4,19 @@ This is the manual experiment that isolated the root cause of the
 kitty-tier input failure and the frame flood seen in
 `kitty-linux-auto.json`. It is recorded here because the measurement
 needs `strace`, which the harness itself deliberately does not depend on.
+The syscall rates below are this experiment's own records; the row
+counters quoted in the ledger are re-derived from the committed bundle
+(see "Corroboration" below).
 
 ## Setup
 
 ```sh
+# SCRATCH is the experiment's scratch directory.
 Xvfb :98 -screen 0 1600x1200x24 -nolisten tcp &
 DISPLAY=:98 LIBGL_ALWAYS_SOFTWARE=1 kitty --title exp-kitty --config NONE \
   -o initial_window_width=100c -o initial_window_height=40c -o font_size=9 \
-  -o confirm_os_window_close=0 -e script -q -f -c /tmp/exp-runner.sh /tmp/exp-pty.log &
-# /tmp/exp-runner.sh execs the release binary with a private --dir
+  -o confirm_os_window_close=0 -e script -q -f -c "$SCRATCH/exp-runner.sh" "$SCRATCH/exp-pty.log" &
+# $SCRATCH/exp-runner.sh execs the release binary with a private --dir
 ```
 
 The game was started (Confirm on the title screen), then observed while
@@ -36,8 +40,9 @@ sudo timeout 6 strace -f -c -p <game-pid>
 - 1146 `openat`+`ioctl`+`close` in 6 s: crossterm's window-size query
   ran on every loop iteration, a direct iteration-rate probe.
 - Idle title screen (no graphics frames): 121 writes / 364 size queries
-  in 6 s, i.e. the documented ~60 fps / 20 fps pacing. The difference is
-  entirely the graphics path.
+  in 6 s, i.e. ~61 loop iterations/s, which through the
+  `bitmap_tick % 3 == 1` gate yields the documented ~20 fps frame
+  pacing. The difference is entirely the graphics path.
 
 ## Measurement 2: what is on stdin
 
@@ -55,22 +60,41 @@ reply bytes as input, which:
    faster than the 16 ms sleep would allow (feedback loop: more
    transmits -> more replies -> faster loop); and
 2. interleaves terminal replies with real keystrokes in crossterm's
-   parser. In the kitty run the escape-heavy keys (Esc, pause) never
-   registered after gameplay began: `PAUSED`, `Resume`, and
-   `Quit to title` appear zero times in the whole transcript, while the
-   identical choreography on the identical kitty build forced to
-   `MAZE_CHASE_TIER=truecolor` (no graphics traffic) renders `PAUSED`
-   61 times and exits cleanly.
+   parser. That is what the original run of this experiment found: the
+   escape-heavy keys (Esc, pause) never seemed to register after
+   gameplay began (`PAUSED`, `Resume`, and `Quit to title` appear zero
+   times in the transcript recorded then), while the identical
+   choreography on the identical kitty build forced to
+   `MAZE_CHASE_TIER=truecolor` (no graphics traffic) painted its pause
+   surface early and exited cleanly. The regenerated committed rows
+   below refine that first reading: the keys do land, but hundreds of
+   megabytes behind, so the defect is delayed input behind the reply
+   backlog, not dead input.
 
 ## Corroboration in the committed rows
 
-| row | tier | paused keys | exit | transcript |
-| --- | --- | --- | --- | --- |
-| kitty-linux-auto | kitty-graphics | dead (0 PAUSED renders) | killed | 388 MiB / ~30 s |
-| kitty-linux-truecolor | truecolor-cells | work (61 PAUSED renders) | clean | 60 MiB |
-| ghostty-linux-kitty | kitty-graphics | work (204 PAUSED renders) | killed | 214 MiB |
-| xterm-linux-sixel | sixel | work (25 PAUSED renders) | clean | 5 MiB |
+The regenerated committed rows record the shape directly in their
+surface counters (pause-marker paints, with the transcript byte of the
+first paint):
 
-The Ghostty kitty-graphics row shows the same bandwidth class (936
-transmits, 214 MiB) even though its input survives, so the flood is a
-property of the kitty graphics path itself, not of one terminal.
+| row | tier | pause paints (first byte) | exit | transcript |
+| --- | --- | --- | --- | --- |
+| kitty-linux-auto | kitty-graphics | 336 (298,181,872) | killed | 381.8 MiB, 1642 transmits |
+| kitty-linux-truecolor | truecolor-cells | 78 (9,472,924) | clean | 16.9 MiB |
+| ghostty-linux-kitty | kitty-graphics | 192 (166,859,269) | killed | 210.8 MiB, 921 transmits |
+| xterm-linux-sixel | sixel | 27 (3,112,168) | clean | 5.4 MiB |
+
+`kitty-linux-auto` paints every driven surface eventually, but far
+behind its keys: the pause surface first paints at byte 298,181,872 of a
+400,331,543-byte session, after the whole menu tour, and the final quit
+never lands, so the process was killed. The identical choreography on
+the identical kitty build forced to `MAZE_CHASE_TIER=truecolor` (no
+graphics traffic) paints its pause surface at 9,472,924 bytes - early in
+the session - and exits cleanly.
+
+The Ghostty kitty-graphics row shows the same bandwidth class (921
+transmits, 210.8 MiB) with the same delay: its pause surface first
+paints at byte 166,859,269, help and scores only in the tail (bytes
+214,328,374 and 217,821,876), and the settings screen never reaches the
+wire before the kill. The flood is a property of the kitty graphics
+path itself, not of one terminal.

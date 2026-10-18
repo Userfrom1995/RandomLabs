@@ -83,7 +83,7 @@ The game picks the best tier its terminal proves, best first:
     plus Kitty keyboard enhancement for disambiguated input. Forcing it
     elsewhere prints escape garbage: do not force it on other terminals.
     The compatibility harness measured the current build on kitty 0.32.2:
-    one session sent 1642 full board transmits totalling 348.7 MiB of PNG
+    one session sent 1642 full board transmits totalling 348.6 MiB of PNG
     payload, and the terminal's `OK` replies keep the event loop spinning
     at 70-77 synchronized frames/s (391/s with the too-small card up)
     against the intended pacing (see

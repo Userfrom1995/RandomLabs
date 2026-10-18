@@ -27,9 +27,12 @@ reason. There are no guessed rows.
 - `run-windows.ps1` - Windows runner. Drives Windows Terminal and conhost
   through PowerShell keystroke injection and .NET screen capture. It
   never pipes the game's stdout (the game refuses a non-terminal stdout
-  on Windows), so there is no pty transcript: each row is graded from the
-  game's own process (pid plus exit code files written by the session
-  runner) and the screenshots.
+  on Windows), so there is no pty transcript: the game shares the session
+  runner's own console (`Start-Process -NoNewWindow`) and each row is
+  graded from the game's own process (pid plus exit code files written by
+  the session runner) and the capture set. A pass requires a zero exit
+  code and at least one valid PNG capture; a row whose game process never
+  started is `unverified` with the reason.
 - `drive.sh` - shared scripted-session driver. Launches one emulator
   command, waits for the window, walks the game's real state machine with
   named checkpoints, captures screenshots, and logs every event with the
@@ -117,10 +120,18 @@ Honesty rules the harness enforces mechanically:
   reason; a row with checkpoint captures that are >=98% white on a light
   background is downgraded to `partial` with the reason recorded. On
   Windows, where the pty transcript deliberately does not exist, a row is
-  graded from the game's own pid plus exit code and the screenshots, and
+  graded from the game's own pid plus exit code and the capture set: a
+  pass requires a zero exit code and at least one valid PNG capture, and
   a row whose game process never started is `unverified` with the reason.
 - `unverified_reason` is mandatory for unverified rows (the collector
   refuses to write a row without it).
-- Duplicate capture hashes inside one row are recorded under
-  `duplicate_screenshots`; capture validation rejects zero-byte or
-  non-PNG files before they can enter the evidence.
+- Capture validation happens in layers, scoped per OS: on Linux/macOS
+  `drive.sh` decodes each capture's PNG structure at capture time
+  (signature, declared chunk lengths, decompressible IDAT stream) and
+  rejects a bad capture before it is logged; on Windows
+  `run-windows.ps1` checks the PNG signature and nonzero dimensions. The
+  collector then decodes every capture again itself and refuses to copy
+  an undecodable file into the bundle (listed under `rejected_captures`),
+  records each accepted capture's dimensions and white-pixel share, and
+  records duplicate capture hashes inside one row under
+  `duplicate_screenshots`.
