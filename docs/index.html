@@ -54,6 +54,11 @@
     font-size: 0.9rem;
   }
   pre code { background: none; border: none; padding: 0; }
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table-wrap:focus-visible { outline: 2px solid var(--accent-2); outline-offset: -2px; }
   table {
     width: 100%;
     border-collapse: collapse;
@@ -93,6 +98,11 @@
     font-size: 0.85rem;
     padding: 24px;
     border-top: 1px solid var(--border);
+  }
+  @media (max-width: 640px) {
+    .table-wrap table { table-layout: fixed; }
+    .table-wrap th:first-child, .table-wrap td:first-child { width: 38%; }
+    code { overflow-wrap: anywhere; }
   }
 </style>
 </head>
@@ -212,6 +222,7 @@ bash shutdown.sh</code></pre>
   loop resumes after it.</p>
 
   <h2>Where things live</h2>
+  <div class="table-wrap" role="region" aria-label="Where things live: repository paths and what they hold" tabindex="0">
   <table>
     <tr><th>Path</th><th>What it is</th></tr>
     <tr><td><code>LAB.md</code></td><td>The architecture: hierarchy, locked call graph, PAT &amp; identity rules, concurrency, takeovers, fork policy, co-maintainers, the Maintainer's memory.</td></tr>
@@ -222,6 +233,7 @@ bash shutdown.sh</code></pre>
     <tr><td><code>.github/actions/</code></td><td>The vendored opencode runner (hardened composite action): an authenticated, non-fatal version lookup so one rate-limited API call can never abort a run before the agent starts, plus a bounded model fallback ladder: the pinned model is resolved against the live provider registry before every run, an ordered free-tier ladder carries the run when the provider retires the pin, a transient free-tier provider rejection is retried once on the same model before it can drop a wake-up or kill a gate, and a fully dead ladder fails the agent step loudly instead of a hollow green (the general arm reds its run so failure triage fires; the Maintainer, self-excluded from failure triage, is surfaced by its recurring schedule).</td></tr>
     <tr><td><code>.github/scripts/</code></td><td>Shared CI scripts: schedule self-heal, silent-stall audit rules, held-run approval sweep, PR recovery, trailer strip.</td></tr>
   </table>
+  </div>
 
   <h2>Security &amp; fail-safes</h2>
   <ul>
