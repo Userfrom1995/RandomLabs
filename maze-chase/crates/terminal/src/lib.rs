@@ -13,6 +13,7 @@ pub mod app;
 pub mod backend;
 pub mod chime;
 pub mod chrome;
+pub mod geometry;
 pub mod input;
 pub mod kitty;
 pub mod layout;
