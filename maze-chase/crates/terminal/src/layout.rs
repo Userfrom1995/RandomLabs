@@ -327,8 +327,11 @@ pub fn compute_with(cols: u16, rows: u16, cell_px: Option<(u16, u16)>) -> Layout
         },
         Some(_) => {
             // Raster at (near) the real cell resolution: the smaller of
-            // the tile's pixel dimensions, so glyph art never outgrows
-            // its tile footprint.
+            // the tile's pixel dimensions, clamped to 6..20 ppt for
+            // encode cost. The clamp bounds (never removes) sprite
+            // upscaling where the art exceeds the tile footprint: the
+            // 11x11 sprite art outgrows the tile even at the nominal
+            // 8 ppt.
             let tile_w = choice.cw as u32 * cell_w as u32;
             let tile_h = choice.ch as u32 * cell_h as u32;
             let ppt = tile_w.min(tile_h).clamp(MIN_IMAGE_PPT, MAX_IMAGE_PPT);
