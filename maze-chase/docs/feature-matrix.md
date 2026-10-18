@@ -44,9 +44,9 @@ layout ever pretends a `planned` row works.
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|
-| Fullscreen layout + scale engine | n/a (adapter) | done | n/a | n/a | `terminal::layout::*` (centered, magnified, too-small card, resize sweep) |
+| Fullscreen layout + scale engine | n/a (adapter) | done | n/a | n/a | `terminal::layout::*` (continuous 1..8 x 1..4 tile scales, fitted chrome, too-small card, size sweep) + `tests/plan_contract.rs::kitty_resize_clears_stale_placements_and_repaints` |
 | Kitty/Sixel/Unicode backends, detect, watchdog | n/a (adapter) | done | n/a | n/a | `terminal::{kitty,sixel,backend}::*` (PNG CRC walk, probe parse, tier ladder, override) + `tests/headless.rs::tier_override_selects_every_backend` |
-| Dynamic resize with re-layout | n/a (adapter) | done | n/a | n/a | `tests/headless.rs::resize_sweep_never_breaks_layout` (0..200 x 0..70 sweep) |
+| Dynamic resize with re-layout | n/a (adapter) | done | n/a | n/a | `tests/headless.rs::resize_sweep_never_breaks_layout` (0..200 x 0..70 sweep) + `tests/resize_race.rs` + `tests/tester_resize_race_hostile.rs` (same-batch races, last-size convergence) |
 | Menus, help, scores, settings screens | n/a (adapter) | done | n/a | n/a | `terminal::{screens,chrome,scores,chime}::*` + `tests/headless.rs::full_session_boots_plays_pauses_and_quits` + `settings_persist_across_sessions` + `game_over_lands_on_the_scores_table` |
 | Installable package + launch docs | n/a (adapter) | done | n/a | n/a | `cargo build --release -p maze-chase-terminal` + `--help` smoke + `packaging/terminal/{linux-tarball,install-linux}.sh` (staged + installed + `--version`-probed on Linux) + `docs/terminal.md` |
 

@@ -167,3 +167,37 @@ records the measured numbers). With them, every
 [parity checklist](parity.md) row is signed; the #552 reference game
 was retired in favor of this game by the Maintainer's explicit step
 after this verified release merged.
+
+## 2026-10-18 (overhaul: dynamic layout and full-window composition)
+
+The dynamic-layout overhaul (#582), measured on the Linux build machine:
+
+- `cargo test --workspace --no-fail-fast`: 430 passed, 0 failed across
+  51 targets. This includes the new PTY resize-contract and trace
+  tests in `crates/terminal/tests/plan_contract.rs`. The desktop
+  window E2E ran under the local Xvfb (system libasound2, libudev,
+  libxkbcommon-x11, xvfb packages present).
+- `cargo run --release --bin maze-chase-verify`: 19/19 checks, the
+  golden replay digest unchanged (`23c17f89734e`), `perf-headless`
+  0.2 us/tick for 12k ticks.
+- `cargo fmt --all --check` clean; `cargo clippy --workspace
+  --all-targets` reports only the pre-existing engine style lints
+  documented above (maze.rs/rng.rs/sha256.rs), none from the terminal
+  crate.
+- Layout solver: continuous tile scales 1 to 8 columns by 1 to 4 rows
+  plus the 2x1 floor, chrome fitted in priority order (side panel,
+  HUD band, hint only), single too-small card below the exact 62x35
+  minimum. PTY sessions pin the planned scales: 62x35 to 2x1 band,
+  100x40 to 3x1 band, 140x70 to 5x2 band, 170x64 to 5x2 side panel,
+  200x100 to 7x3 band.
+- Resize contract: a live resize repaints from scratch in one frame;
+  asserted on the shipped binary on the Kitty tier, where that frame
+  must carry `ESC[2J`, then `ESC_Ga=d` (delete every placement), then
+  the re-display, in exactly that order.
+- Trace mode: `MAZE_CHASE_TRACE` emits `start`/`plan`/`frame` JSONL;
+  the launch plan at 62x35 and the post-resize plan at 100x40 are
+  asserted, so the compatibility harness collector has machine
+  evidence available.
+- Real-emulator resize rows (Linux kitty/Ghostty/xterm and the macOS
+  arm) stay with the per-OS testers: no emulator is installed on this
+  build machine, and no claim here exceeds the PTY evidence above.

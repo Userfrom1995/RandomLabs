@@ -209,7 +209,10 @@ Severity tag: `overclaim` where public text exceeds reality.
    (`crates/terminal/src/layout.rs`; the too-small card text matches),
    while docs and help copy in places say 60x36 (Phase 2: Dynamic
    Terminal Layout and Full-Window Composition doc fix; the
-   matrix already records the real floor).
+   matrix already records the real floor). RESOLVED in Phase 2:
+   no `60x36` string remains in the tree, the card reads the floor
+   from `layout.min_cols/min_rows`, and PTY tests pin the exact
+   62x35 boundary plus the one-short cases (`61x35`, `62x34`).
 
 ### Desktop layer
 
@@ -289,6 +292,9 @@ named phase; Phase 1 files them, later phases close them.
     Experience).
 14. Min-size copy alignment (60x36 -> 62x35 where it still appears)
     (Phase 2: Dynamic Terminal Layout and Full-Window Composition).
+    RESOLVED in Phase 2: `maze-chase/docs/terminal.md` and the
+    terminal help/card copy all name 62x35; the live-resize PTY test
+    asserts the exact floor and both one-short rejections.
 
 ## D. Verified and unchanged
 
