@@ -24,30 +24,34 @@ from proprietary sources, ROMs, ripped sprites, or copied timing tables.
    miniquad, ratatui, crossterm, rodio, wasm-bindgen) for capability
    assessment only; no example game code is vendored.
 
-## Flagged items (must be resolved before release)
+## Flagged items (all resolved for the verified release)
 
-- **Maze geometry similarity**: the #552 maze is itself an original
-  authored for this repo, so referencing its feel is safe; nevertheless,
-  shipping a near-identical 28x31 layout in the Rust game invites
-  lookalike comparison. Mitigation: fresh original maze files
-  (`levels/*.toml`) with their own authorship notes; any geometry
-  carried over is documented tile-by-tile with a rationale, never assumed.
-- **Lookalike sprites and sounds**: pixel-level resemblance to any
-  proprietary character or jingle is rejected at review. Mitigation: all
-  sprites are authored in-repo from the identity sheet (`identity.md`);
-  all audio is synthesized in-repo; the Reviewer checks resemblance as a
-  blocking gate.
-- **Cloned data tables**: speed curves, wave clocks, fright durations, and
-  scoring chains must be authored originals with provenance comments in
-  `tuning.rs`, even where the values rhyme with genre conventions. The
-  #552 numbers are feel references, not values to transcribe blindly.
-- **Trademarked terms**: no trademarked character names, game titles, or
-  brand terms appear in code identifiers, UI copy, asset filenames, docs,
-  or commit messages. The naming table in `identity.md` is the allowlist;
-  anything else is a blocking finding. In particular, the words
-  "Pac-Man", "Blinky", "Pinky", "Inky", and "Clyde" must never appear in
-  this project (this very sentence is the last permitted mention, kept
-  here so future contributors know what to avoid).
+- **Maze geometry similarity**: resolved. The shipped maze is "Ember
+  Warren" (`levels/ember-warren.maze`, first landed at `f37855cf`), an
+  original 28x31 layout authored for this project with a tile-by-tile
+  difference record and a flood-fill proof in `identity.md` and the
+  file header; only the functional anchors (dimensions, tunnel row,
+  gatehouse coordinates, start/mouth tiles) coincide with the #552
+  reference, as the behavior spec requires.
+- **Lookalike sprites and sounds**: resolved. Every sprite is authored
+  in-repo from the identity sheet and every sound is synthesized
+  in-repo as data (`crates/assets` plus `crates/audio`, first landed at
+  `e8da9720`; authorship log in `identity.md`); no external image or
+  audio file ships anywhere in the tree. Resemblance stayed a blocking
+  review gate through every round, including the final Quality Council
+  pass.
+- **Cloned data tables**: resolved. Every value in `tuning.rs` carries
+  provenance comments and was re-expressed from the behavioral
+  contract (`72a52df1` plus the phase-3 extension `1a464d26`); the
+  #552 numbers were feel references, never transcribed.
+- **Trademarked terms**: resolved. The naming allowlist in
+  `identity.md` governs every identifier, UI string, asset filename,
+  doc, and commit message; a tree-wide sweep at release finds the
+  banned terms only in this bullet, which names them as forbidden. The
+  words "Pac-Man", "Blinky", "Pinky", "Inky", and "Clyde" appear
+  nowhere in code, assets, UI copy, or shipped documentation (this
+  sentence is the last permitted mention, kept here so future
+  contributors know what to avoid).
 
 ## Naming rationale
 
