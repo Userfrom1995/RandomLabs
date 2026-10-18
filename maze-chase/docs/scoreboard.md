@@ -1,10 +1,11 @@
 # Release scoreboard
 
 Measured results for the packaged release, recorded from real runs on
-the release machine (Linux x86_64, stable Rust 1.99.0). No number here
-is estimated: every figure names the command that produced it. Rerun
-the commands in `docs/release.md` on another machine and append a new
-dated section rather than editing these rows.
+the release machine (Linux x86_64, stable Rust 1.99.0) plus the two
+native per-OS passes (macOS arm64 and Windows Server 2025). No number
+here is estimated: every figure names the command or run that produced
+it. Rerun the commands in `docs/release.md` on another machine and
+append a new dated section rather than editing these rows.
 
 ## 2026-10-16 (Linux x86_64, release audit)
 
@@ -74,6 +75,75 @@ Style and lints:
   exactly-sized buffer in desktop eval-fix); both suites re-run green
   after the fix.
 
+## 2026-10-18 (cross-platform release verification)
+
+The verified release: both native per-OS passes on their real
+operating systems plus a fresh Linux rebuild of this exact tree.
+
+Linux release machine (this pass, Rust 1.99.0):
+
+- `cargo test --workspace --no-fail-fast`: 407 passed, 0 failed across
+  45 test targets (the 2026-10-16 table above records the earlier
+  344-pass run; the difference is the tester regression suites landed
+  since).
+- `cargo run --release --bin maze-chase-verify`: `verify: 19/19 checks
+  passed`, golden replay `23c17f89734e`, `perf-headless` 0.2 us/tick.
+- Wasm rebuild (`cargo build --release --target
+  wasm32-unknown-unknown -p maze-chase-web`): sha256
+  `5ec2a05af55f7256a5603f7047446d319f342303d0194d8f2f8920f1ee9dea87`,
+  byte-identical to the committed `web/maze-chase.wasm`.
+- `node web/e2e/wasm-smoke.js` and `tester-regression.js`: ALL GREEN.
+  Real headless-chromium CDP `browser-e2e.js`: ALL GREEN (scoring 20
+  to 30, pause/resume, touch swipe, mobile viewport, persisted scores
+  row, zero console errors).
+- Packaging smoke: terminal tarball staged, installed to a scratch
+  prefix, `--version` probed; desktop tarball staged, installed, and a
+  real Xvfb `--probe 30` rendered a 1100x760 PPM.
+- `cargo fmt --all --check` clean; `cargo clippy --workspace
+  --all-targets` reports only the six documented pre-existing engine
+  lints plus the pre-existing rng test lint.
+
+macOS native pass (tester run 39068848280, macOS 26.6.2 arm64):
+
+- `cargo test --workspace --no-fail-fast`: 398 passed, 0 failed
+  across 41 targets; `maze-chase-verify` 19/19, golden `23c17f89734e`,
+  0.1 us/tick.
+- Terminal PTY E2E: 28/28 (full session with termios restore, probe
+  window cases, tier precedence, live resize recovery, corrupt-config
+  boot, `--dir` with spaces, game-over score persistence).
+- Desktop: `--probe 30`, `--probe 90`, and fullscreen probes exit 0
+  with real PPMs; a real GUI drive (osascript) created settings plus
+  padmap files, changed difficulty, and quit cleanly.
+- Packaging: `macos-app.sh` staged `Maze Chase.app` (Info.plist,
+  bundle hash matching the release binary, probe exit 0); the terminal
+  tarball staged, installed, and driven in a full PTY session.
+- Web: wasm rebuild byte-identical (sha256 `5ec2a05a...`), node
+  smokes green, CDP browser E2E green. Three new PTY regressions
+  committed on the vehicle (PR #631).
+
+Windows native pass plus fix round (tester run 39068849150, Windows
+Server 2025 with real ConPTY, vehicle PR #632):
+
+- `cargo test --workspace --no-fail-fast`: 374 passed, 0 failed
+  across 41 targets; `maze-chase-verify` 19/19, golden `23c17f89734e`.
+- Terminal CLI matrix green in Git Bash and pwsh; ConPTY sessions
+  rendered title/play/pause/too-small/resize (9 pass; the 6 fails all
+  shared the Release-key double-fire defect this pass found).
+- Desktop probe PPM byte-identical to the committed
+  `docs/desktop-probe.ppm` (sha256 `8de66bae...`); the packaged zip
+  `maze-chase-desktop-0.1.0-windows-x86_64.zip` (609,776 bytes)
+  extracted a binary byte-identical to the release build.
+- Web node smokes and CDP browser E2E green.
+- The three defects the pass found (terminal Release-key double fire,
+  desktop `--probe` option order, CRLF wasm drift) are fixed in the
+  merged vehicle: the fix contracts (`tester_windows_key_release.rs`,
+  `tester_windows_probe_order.rs`,
+  `tester_windows_checkout_bytes.rs`, `tester_key_kind_filter.rs`)
+  were executed red on the pre-fix head and green on the fixed head by
+  the Quality Council (`approve-eval` 9.8/10), and the root
+  `.gitattributes` pins the `include_str!` sources to LF so a CRLF
+  checkout can never reintroduce the wasm drift.
+
 ## Frame budgets (design, with measured anchors)
 
 - Engine tick: 0.8 us measured (above). At 120 Hz the simulation
@@ -89,9 +159,11 @@ Style and lints:
   composer mirrors the terminal raster with a frame-determinism test
   (`web::video`, `web::bridge` hostile probes).
 
-## Pending (not claimed)
+## Native-OS proof (completed 2026-10-18)
 
-- Windows/macOS packaged artifacts and per-OS E2E runs: scripts and
-  docs shipped, proof pending native runners. The
-  [parity checklist](parity.md) records these as the only open rows
-  before #552 retirement.
+Windows and macOS packaged artifacts plus their per-layer E2E runs
+executed on their native operating systems (the dated section above
+records the measured numbers). With them, every
+[parity checklist](parity.md) row is signed; the #552 reference game
+retires by the Maintainer's explicit step after this verified release
+merges.
