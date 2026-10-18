@@ -108,7 +108,10 @@ fn stale_future_tense_retirement_wording_is_gone() {
         let flat = flat_text(path).to_lowercase();
         for pattern in patterns {
             if flat.contains(pattern) {
-                offenses.push(format!("{}: stale future-tense phrasing {pattern:?}", path.display()));
+                offenses.push(format!(
+                    "{}: stale future-tense phrasing {pattern:?}",
+                    path.display()
+                ));
             }
         }
     }
