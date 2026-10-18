@@ -280,7 +280,7 @@ fn paint_line(out: &mut String, row: u16, col: u16, text: &str) {
 /// consumed by the event source without draining (the edge-triggered
 /// signal pipe then never re-reports it), so the window change would be
 /// invisible until the next resize. Comparing the real size every frame
-/// (one cheap ioctl) makes the layout self-healing regardless of that
+/// (one cheap size query) makes the layout self-healing regardless of that
 /// signal-pipe behavior. Returns true when the layout changed, so the
 /// caller can re-encode a fresh bitmap.
 fn reconcile_size(app: &mut App) -> bool {
