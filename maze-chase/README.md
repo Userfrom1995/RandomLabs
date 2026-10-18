@@ -7,11 +7,15 @@ project; the in-repo Python game (`pacman/`, issue #552) is a behavioral
 feel reference, never a code source. Clean-room rules live in
 `docs/legal.md`.
 
-Current status: **released and verified across Linux, macOS, and
-Windows.** Both native per-OS passes ran on their real operating
-systems (workspace suites, per-layer E2E, packaged artifacts, wasm
-rebuilds) and every parity row is signed; the measured numbers live in
-[docs/scoreboard.md](docs/scoreboard.md) and the retirement record in
+Current status: **shipped across Linux, macOS, and Windows.** The
+tracking issue #582 is open until the final phase of the release
+overhaul re-verifies every claim; the terminal layer's real-emulator
+truth is recorded in
+[docs/terminal-compat.md](docs/terminal-compat.md) with committed
+evidence and outstanding findings in
+[progress/582-maze-chase-overhaul-findings.md](../progress/582-maze-chase-overhaul-findings.md),
+and the measured numbers live in
+[docs/scoreboard.md](docs/scoreboard.md) plus the retirement record in
 [docs/parity.md](docs/parity.md). The deterministic engine
 simulates the full core loop plus the complete hunt headless (120 Hz
 timestep, movement with buffered turns and cornering, crumbs and
