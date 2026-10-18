@@ -1,10 +1,10 @@
 # Progress - Maze-Chase Rust Migration
 
 - **Issue:** #582 (parent tracker; gameplay reference #552 stays functional until replacement is verified)
-- **Branch:** opencode/issue582-maze-chase-phase-final
+- **Branch:** opencode/issue582-verified-release
 - **Status:** in-progress
-- **Updated:** 2026-10-16
-- **Active Phase:** Final Phase: Packaging Verification and Release Audit (in progress)
+- **Updated:** 2026-10-18
+- **Active Phase:** Verified Release: Cross-Platform Proof and Retirement Handoff (in progress)
 
 ## Phase Roadmap
 
@@ -15,9 +15,22 @@
 - Phase 5: Terminal Publication Layer: [x] fullscreen canvas layout plus scale engine, [x] Kitty plus Sixel plus Unicode backends with detection and watchdog, [x] dynamic resize with re-layout, [x] menus plus help plus scores plus settings screens, [x] installable package plus launch command plus docs (PR 5 target, Refs #582)
 - Phase 6: Desktop Publication Layer: [x] windowed plus fullscreen GUI on one renderer core, [x] keyboard plus gamepad input with remap, [x] menus plus settings plus scores plus audio controls, [x] Windows plus macOS plus Linux packaging with reproducible steps (PR 6 target, Refs #582)
 - Phase 7: WebAssembly Publication Layer and Web Hub: [x] browser-playable WASM build on same renderer core, [x] keyboard plus touch controls with mobile polish, [x] DPR-aware resize plus web-audio unlock, [x] maze-chase index.html hub with play entry plus per-layer docs (PR 7 target, Refs #582)
-- Final Phase: Packaging Verification and Release Audit: [x] terminal tarball plus installer with Linux smoke, [x] reproducible build/release guide, [x] parity checklist against the behavior spec, [x] measured scoreboard, [x] matrix cross-cutting rows current, [ ] Windows/macOS native package plus E2E proof on per-OS runners (scripts shipped, proof pending), [ ] #552 retirement only after that proof (Final PR, Refs #582; Closes reserved for the verified-complete run)
+- Final Phase: Packaging Verification and Release Audit: [x] terminal tarball plus installer with Linux smoke, [x] reproducible build/release guide, [x] parity checklist against the behavior spec, [x] measured scoreboard, [x] matrix cross-cutting rows current, [x] Windows/macOS native package plus E2E proof on per-OS runners (signed by the native passes; fix rounds landed via the vehicle PRs), [x] #552 retirement gate satisfied (retirement itself is the Maintainer's explicit step after this release merges)
+- Verified Release: Cross-Platform Proof and Retirement Handoff: [x] macOS native pass plus merged vehicle (398/0 across 41 targets, PTY 28/28, `.app`, byte-identical wasm rebuild), [x] Windows native pass plus merged fix round (374/0 across 41 targets, CLI matrix, zip plus reference PPM), [x] fresh Linux release rebuild (407 tests across 45 targets, verify 19/19, byte-identical wasm, layer E2Es, packaging smoke), [x] parity rows flipped to signed and release docs finalized (this PR, `Closes #582`)
 
 ## Current step
+
+Verified Release pass on `opencode/issue582-verified-release` (Refs #582,
+`Closes #582` once green): flip the `maze-chase/docs/parity.md`
+native-proof rows to signed on the two native reports, record the
+per-OS numbers in `docs/scoreboard.md`, complete the feature matrix
+cross-cutting rows, resolve the `legal.md` flagged items per the
+release obligations, and re-verify the whole release from a fresh Linux
+tree (workspace suite, verify harness, wasm byte reproducibility, node
+plus browser E2E, packaging smoke). The `pacman/` tree is untouched;
+the #552 retirement step follows this PR's merge.
+
+## Phase completion: Final Phase
 
 Final Phase in progress on `opencode/issue582-maze-chase-phase-final`
 (Refs #582): new `packaging/terminal/` (`linux-tarball.sh` plus
@@ -149,13 +162,18 @@ flood-fill proof in header), `tests/golden.rs` (pinned hashes),
 
 ## Next steps
 
-- Reviewer pass on Phase 5, then Phase 6 (desktop publication layer)
-  on a fresh phase branch from main referencing `Refs #582`
-- Formal Design Council pass (`/oc design`) may refine `design.md` in
-  a later phase; the Builder-authored pass is binding until then
-- Reserve the Design Council pass (`/oc design`) in Phase 4 before visual polish is declared done; it ships `maze-chase/docs/design.md` plus `maze-chase/docs/design-tokens.json`
-- Keep `Status: in-progress` with `Refs #582` until the final phase passes test and eval; only the final phase uses `Closes #582`
-- Windows native re-run: rebuild the wasm on a CRLF checkout and root-cause the residual +26 bytes (observed +79 vs the maze CRLF's +53; N2 on PR #632)
+- Run this release PR through the gate chain (review, Tester,
+  Quality Council) and merge on `approve-eval`
+- After merge: the Maintainer takes the explicit #552 retirement step
+  (the parity doc rule) and verifies #582 auto-closes
+- Open follow-ups stay on their own vehicles: the terminal
+  key+SIGWINCH resize delay (#634, fix in flight) and the
+  per-OS-tester report-loss hardening (#608, #612 follow-ups)
+- Wasm CRLF reproducibility is closed: the root `.gitattributes` pins
+  the two `include_str!` sources to LF and the Windows checkout-bytes
+  contract (`crates/engine/tests/tester_windows_checkout_bytes.rs`)
+  guards it, so the observed Windows drift cannot recur on a CRLF
+  checkout
 
 ## Standing notes
 
