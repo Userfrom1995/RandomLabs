@@ -18,6 +18,7 @@ code { color:var(--warm); font-family: ui-monospace, SFMono-Regular, Menlo, Cons
 section { margin-top: 28px; }
 h2 { font-size:20px; border-bottom:1px solid #2a3042; padding-bottom:6px; }
 .table-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.table-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 table { width:100%; border-collapse:collapse; font-size:14px; min-width:480px; }
 th, td { text-align:left; border-bottom:1px solid #2a3042; padding:8px 6px; }
 a { color:var(--accent); }
@@ -26,6 +27,7 @@ a { color:var(--accent); }
 .card h3 { margin:0 0 6px; font-size:16px; }
 .card p { margin:0; color:var(--dim); font-size:14px; }
 @media (max-width: 480px) { .wrap { padding: 20px 14px 48px; } table { font-size:13px; } .card p, .sub { font-size:14px; } }
+@media (max-width: 640px) { code { overflow-wrap: anywhere; } }
 </style>
 </head>
 <body>
@@ -50,7 +52,7 @@ go test ./...</code></pre>
 
   <section>
     <h2>Command reference</h2>
-    <div class="table-scroll">
+    <div class="table-scroll" role="region" aria-label="Command reference: tb and tb-agent commands" tabindex="0">
     <table>
       <tr><th>Command</th><th>What it does</th></tr>
       <tr><td><code>tb</code></td><td>Interactive terminal browser shell (tabs, address bar, status line).</td></tr>
@@ -82,7 +84,7 @@ go test ./...</code></pre>
 
   <section>
     <h2>Support matrix</h2>
-    <div class="table-scroll">
+    <div class="table-scroll" role="region" aria-label="Support matrix: platform graphics chain support" tabindex="0">
     <table>
       <tr><th>Platform</th><th>Graphics chain</th><th>Status</th></tr>
       <tr><td>Linux</td><td>Kitty, Sixel, iTerm2, block</td><td>Full path</td></tr>
