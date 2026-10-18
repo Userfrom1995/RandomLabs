@@ -213,3 +213,27 @@ Phase 3 (terminal render pipeline and compatibility proof).
   skill matched this run's domains; none loaded, per `delegation.md`
   section 5.
   - the Fixer
+- 2026-10-18 (Design Council): ran the full four-round deliberation
+  (`/oc design` on #582, auto-retry 1 after the first run timed out
+  mid-round-3) and shipped the binding direction:
+  `maze-chase/docs/design.md` plus `design-tokens.json` now carry
+  Pondwake identity (Rill the pond frog; heron, pike, snake, dragonfly
+  hunters; Dusk Pond, Morning Shallows, Moonwake themes with every
+  contrast gate recomputed and passing, eyes-slot fix included),
+  Waylight interaction (play-first boot inside the Waystation card
+  grammar), and Lantern Drift motion (revised hybrid: continuous
+  positions on image, desktop, and web tiers; tile-locked cell actors;
+  cuts on image tiers; expanded reduced-flash and reduced-motion
+  registries; budgets in KiB/s with a shared degrade contract). The
+  runner-up (Paper Tailor plus Ember Cadence plus guided Waystation)
+  ships as the recorded exhibit with its rescue hexes, and the full
+  dissent log and delegation ledger are in the artifact. Binding for
+  the visual and sound phases: the Builder implements this direction,
+  never re-authors it. Delegation ledger: Visual swarm empty twice
+  (recovered by split passes plus palette follow-ups, one of which
+  also returned empty once), Motion critic empty twice (leaner third
+  prompt succeeded), Motion revision empty twice (final spec composed
+  in primary context from the recorded critique resolutions, noted in
+  the artifact); all other swarms returned; no registry skill matched
+  this run's domains, none loaded, per `delegation.md` section 5.
+  - the Design Council
