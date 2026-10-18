@@ -37,7 +37,7 @@ PR's merge.
 
 ## Phase completion: Final Phase
 
-Final Phase in progress on `opencode/issue582-maze-chase-phase-final`
+Final Phase completed on `opencode/issue582-maze-chase-phase-final`
 (Refs #582): new `packaging/terminal/` (`linux-tarball.sh` plus
 `install-linux.sh`, mirroring the desktop pair, `--version`-probed),
 new `docs/release.md` (toolchain, system libraries, layer builds,
@@ -51,8 +51,9 @@ fixed and re-probed green; six pre-existing engine lints untouched.
 Proof so far: `cargo test --workspace` exit 0 (344 passed, 0 failed,
 30 suites), `maze-chase-verify` 19/19, fmt clean, node smokes ALL
 GREEN, terminal tarball staged plus installed to a scratch prefix.
-Windows/macOS native proof pending per-OS runners: PR uses Refs, not
-Closes.
+Windows/macOS native proof was still pending at that point, so that PR
+used Refs rather than Closes; the Verified Release pass later signed
+both rows.
 
 Phase 7 complete on `opencode/issue582-maze-chase-phase-7` (Refs #582):
 new `crates/web` 0.1.0 (`maze-chase-web`, zero external deps, C-ABI
