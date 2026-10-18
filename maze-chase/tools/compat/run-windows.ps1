@@ -1,6 +1,6 @@
 # run-windows.ps1 - Windows arm of the real-terminal compatibility harness.
 #
-# Drives the shipped release binary inside real Windows terminals and
+# Drives the release binary inside real Windows terminals and
 # writes one evidence file per run through collect.py. Windows Terminal
 # (windows-terminal row) and legacy conhost (conhost row) are both
 # covered. Keystrokes go through SendKeys, screenshots through .NET
@@ -238,7 +238,10 @@ public class WinFind {
     } catch { $ok = $false }
     if ($ok) {
       $Script:ValidCaptures++
-      Log-Event 'checkpoint' $name $p
+      # Log the run-directory-relative path, never the scratch root: the
+      # committed events.log must match the Linux logs (collect.py
+      # resolves the relative path against the run directory).
+      Log-Event 'checkpoint' $name ("session/screenshots/{0}.png" -f $name)
     } else {
       Remove-Item -Path $p -Force -ErrorAction SilentlyContinue
       Log-Event 'checkpoint' $name ''
@@ -290,14 +293,18 @@ public class WinFind {
   if ($gameExited) {
     # The session runner writes game.exit right after WaitForExit
     # returns; the process can disappear a moment before the file is
-    # flushed, so wait for it briefly instead of racing the write.
-    for ($i = 0; $i -lt 15 -and -not (Test-Path $exitFile); $i++) {
+    # flushed. Wait until the file exists AND carries a non-empty value,
+    # so a present-but-unflushed file is not misread as an unreadable
+    # exit code.
+    $exitText = $null
+    for ($i = 0; $i -lt 15; $i++) {
+      $exitText = (Get-Content $exitFile -ErrorAction SilentlyContinue | Select-Object -First 1)
+      if ($exitText -and $exitText.Trim()) { break }
       Start-Sleep -Milliseconds 200
     }
-    if (Test-Path $exitFile) {
-      $exitText = (Get-Content $exitFile -ErrorAction SilentlyContinue | Select-Object -First 1)
+    if ($exitText -and $exitText.Trim()) {
       $parsedExit = 0
-      if ($exitText -and [int]::TryParse($exitText.Trim(), [ref]$parsedExit)) {
+      if ([int]::TryParse($exitText.Trim(), [ref]$parsedExit)) {
         $gameExitCode = $parsedExit
       }
     }
@@ -337,11 +344,15 @@ public class WinFind {
     $result = 'unverified'
     $reason = 'the game process never started (no game.pid written by the session runner); the launcher exited at startup'
   } elseif ($killed) {
+    # The only path to a still-running game at grading is a failed stop:
+    # a game already gone was never killed, and every other branch below
+    # requires the process to have exited.
     $result = 'partial'
-    $reason = 'the game process was still running at the end of the session (the quit key never landed); the harness stopped it'
-  } elseif (-not $gameExited) {
-    $result = 'partial'
-    $reason = 'the game process was still running at the end of the session'
+    if ($gameExited) {
+      $reason = 'the game process was still running at the end of the session (the quit key never landed); the harness stopped it'
+    } else {
+      $reason = 'the game process was still running at the end of the session (the quit key never landed); Stop-Process did not end it'
+    }
   } elseif ($null -eq $gameExitCode) {
     $result = 'partial'
     $reason = 'the game process exited but no readable exit code was recorded (game.exit missing or unparsable); see the session captures'
