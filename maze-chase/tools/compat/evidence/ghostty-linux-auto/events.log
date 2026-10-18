@@ -1,0 +1,50 @@
+1792340890182	geometry	704x644	619014	
+1792340890362	checkpoint	title	669812	/tmp/maze-chase-compat.Y1td6k/run-ghostty-auto/session/screenshots/title.png
+1792340890413	key	Return	703892	
+1792340892826	key	Right	2807927	
+1792340893037	key	Right	2984186	
+1792340893249	key	Right	3175325	
+1792340893462	key	Up	3366464	
+1792340893671	key	Up	3542459	
+1792340893889	key	Left	3748834	
+1792340894107	key	Left	3941247	
+1792340894324	key	Down	4133398	
+1792340895126	geometry	704x644	4812822	
+1792340895280	checkpoint	playing	4945455	/tmp/maze-chase-compat.Y1td6k/run-ghostty-auto/session/screenshots/playing.png
+1792340895323	resize	143x64 (requested)	4974929	
+1792340896757	geometry	1001x1024	6629726	
+1792340896792	geometry	1001x1024	6670602	
+1792340897056	checkpoint	resized-wide	6957046	/tmp/maze-chase-compat.Y1td6k/run-ghostty-auto/session/screenshots/resized-wide.png
+1792340897095	resize	80x24 (requested)	7020539	
+1792340898529	geometry	560x384	7209329	
+1792340898565	geometry	560x384	7213669	
+1792340898677	checkpoint	too-small	7228859	/tmp/maze-chase-compat.Y1td6k/run-ghostty-auto/session/screenshots/too-small.png
+1792340898703	resize	143x64 (requested)	7233199	
+1792340900141	geometry	1001x1024	8912665	
+1792340900179	geometry	1001x1024	8953591	
+1792340900452	checkpoint	refit	9260975	/tmp/maze-chase-compat.Y1td6k/run-ghostty-auto/session/screenshots/refit.png
+1792340900518	key	Escape	9353030	
+1792340901529	geometry	1001x1024	11039165	
+1792340901861	checkpoint	paused	11560334	/tmp/maze-chase-compat.Y1td6k/run-ghostty-auto/session/screenshots/paused.png
+1792340901921	key	Down	11652305	
+1792340902149	key	Return	12048921	
+1792340903161	geometry	1001x1024	12656929	
+1792340903484	checkpoint	title-return	12841789	/tmp/maze-chase-compat.Y1td6k/run-ghostty-auto/session/screenshots/title-return.png
+1792340903537	key	Down	12882869	
+1792340903752	key	Return	13016382	
+1792340904759	geometry	1001x1024	13632642	
+1792340905071	checkpoint	help	13807249	/tmp/maze-chase-compat.Y1td6k/run-ghostty-auto/session/screenshots/help.png
+1792340905128	key	Escape	13848332	
+1792340906164	key	Down	14495342	
+1792340906378	key	Return	14618582	
+1792340907384	geometry	1001x1024	15224512	
+1792340907712	checkpoint	scores	15419642	/tmp/maze-chase-compat.Y1td6k/run-ghostty-auto/session/screenshots/scores.png
+1792340907764	key	Escape	15450452	
+1792340908779	key	Down	16076922	
+1792340908987	key	Return	16210436	
+1792340909998	geometry	1001x1024	16826756	
+1792340910314	checkpoint	settings	17015748	/tmp/maze-chase-compat.Y1td6k/run-ghostty-auto/session/screenshots/settings.png
+1792340910363	key	Escape	17042466	
+1792340911376	key	Down	17658666	
+1792340911596	key	Return	17792256	
+1792340913328	exit	exited=true killed=false	17792256	

@@ -1,0 +1,50 @@
+1792340862728	geometry	701x601	641031	
+1792340862817	checkpoint	title	667081	/tmp/maze-chase-compat.Ujzb2i/run-kitty-truecolor/session/screenshots/title.png
+1792340862860	key	Return	702953	
+1792340865272	key	Right	2954100	
+1792340865476	key	Right	3137559	
+1792340865683	key	Right	3336498	
+1792340865887	key	Up	3520134	
+1792340866093	key	Up	3733971	
+1792340866294	key	Left	3933379	
+1792340866495	key	Left	4133592	
+1792340866697	key	Down	4333666	
+1792340867492	geometry	701x601	5071354	
+1792340867608	checkpoint	playing	5163514	/tmp/maze-chase-compat.Ujzb2i/run-kitty-truecolor/session/screenshots/playing.png
+1792340867638	resize	143x64 (requested)	5194188	
+1792340869070	geometry	1001x960	6891366	
+1792340869106	geometry	1001x960	6933976	
+1792340869280	checkpoint	resized-wide	7146663	/tmp/maze-chase-compat.Ujzb2i/run-kitty-truecolor/session/screenshots/resized-wide.png
+1792340869306	resize	80x24 (requested)	7167945	
+1792340870733	geometry	560x360	7515610	
+1792340870758	geometry	560x360	7520910	
+1792340870826	checkpoint	too-small	7531510	/tmp/maze-chase-compat.Ujzb2i/run-kitty-truecolor/session/screenshots/too-small.png
+1792340870854	resize	143x64 (requested)	7536810	
+1792340872293	geometry	1001x960	9190954	
+1792340872319	geometry	1001x960	9233564	
+1792340872475	checkpoint	refit	9425166	/tmp/maze-chase-compat.Ujzb2i/run-kitty-truecolor/session/screenshots/refit.png
+1792340872516	key	Escape	9490972	
+1792340873524	geometry	1001x960	11297023	
+1792340873648	checkpoint	paused	11511067	/tmp/maze-chase-compat.Ujzb2i/run-kitty-truecolor/session/screenshots/paused.png
+1792340873692	key	Down	11607847	
+1792340873913	key	Return	11984871	
+1792340874907	geometry	1001x960	12638709	
+1792340875052	checkpoint	title-return	12738447	/tmp/maze-chase-compat.Ujzb2i/run-kitty-truecolor/session/screenshots/title-return.png
+1792340875094	key	Down	12771693	
+1792340875301	key	Return	12904678	
+1792340876304	geometry	1001x960	13569658	
+1792340876437	checkpoint	help	13658322	/tmp/maze-chase-compat.Ujzb2i/run-kitty-truecolor/session/screenshots/help.png
+1792340876477	key	Escape	13691569	
+1792340877497	key	Down	14367571	
+1792340877716	key	Return	14522719	
+1792340878721	geometry	1001x960	15176557	
+1792340878860	checkpoint	scores	15265213	/tmp/maze-chase-compat.Ujzb2i/run-kitty-truecolor/session/screenshots/scores.png
+1792340878902	key	Escape	15287377	
+1792340879921	key	Down	15952297	
+1792340880136	key	Return	16107451	
+1792340881134	geometry	1001x960	16772491	
+1792340881280	checkpoint	settings	16861163	/tmp/maze-chase-compat.Ujzb2i/run-kitty-truecolor/session/screenshots/settings.png
+1792340881332	key	Escape	16905493	
+1792340882347	key	Down	17581495	
+1792340882564	key	Return	17714559	
+1792340884294	exit	exited=true killed=false	17714559	
