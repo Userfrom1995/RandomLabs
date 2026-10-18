@@ -750,14 +750,16 @@ fn main() {
             let encode_start = Instant::now();
             out.clear();
             render_frame(&mut app, &mut out, fresh);
-            fresh = false;
             let mut stdout = std::io::stdout();
             if stdout.write_all(out.as_bytes()).is_err() || stdout.flush().is_err() {
                 app.watchdog.note_error("frame write failed");
                 if app.watchdog.tier() == Tier::Legacy {
                     break;
                 }
+                // The failed frame never reached the screen: keep
+                // `fresh` set so the next frame redoes the cleanup.
             } else {
+                fresh = false;
                 app.watchdog.note_ok();
                 if is_bitmap {
                     trace.event(&format!(
