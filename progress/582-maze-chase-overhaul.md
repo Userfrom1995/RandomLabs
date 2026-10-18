@@ -16,7 +16,7 @@
 ## Overhaul Roadmap
 
 - Phase 1: Product Reassessment and Real-Terminal Truth: [x] real-terminal driver harness (`maze-chase/tools/compat/`: `run-linux.sh`, `run-macos.sh`, `run-windows.ps1`, `drive.sh`, `collect.py`, `README.md`), [x] reproduce the Owner's Ghostty and Kitty findings on current main with recorded evidence (kitty reply-loop flood plus input delayed past the session, Ghostty mis-routing despite its kitty-graphics support; eight executed Linux rows in `maze-chase/tools/compat/evidence/`), [x] critical reassessment of engine, layers, and docs claims (four parallel sweeps; Section B of the ledger), [x] findings ledger with every gap (`progress/582-maze-chase-overhaul-findings.md`), [x] honest compatibility matrix scaffold `maze-chase/docs/terminal-compat.md` (executed rows plus named executors for host-pending rows), [ ] new sub-issues routed through the Maintainer (proposed set in ledger Section C; filing is the Maintainer's next step, not done in this PR) (PR 1 target, Refs #582, Refs #655, Refs #661)
-- Phase 2: Dynamic Terminal Layout and Full-Window Composition: [x] geometry model with cell pixel size (`crates/terminal/src/geometry.rs`; TIOCGWINSZ pixel fields on Unix, console font on Windows, nominal 8x16 fallback), [x] pure layout solver with proportion-driven chrome blocks (continuous 1..8 x 1..4 tile scales plus the 2x1 floor; side panel, HUD band, hint-only by fit; exact 62x35 card), [x] exact-fit image rendering at the region pixel size (Kitty/Sixel rasterize at the detected cell size; 8-ppt nominal fallback), [x] continuous cell-tier scales (`unicode::fit_width`/`center_rows` at any scale), [x] resize contract with same-frame repaint and stale-placement kill (`ESC[2J` plus Kitty delete-all in the new frame; pinned by `tests/plan_contract.rs`), [x] tier-aware too-small card (reads `layout.min_cols/min_rows`; exact 62x35 boundary pinned), [ ] real-emulator resize proof on Linux and macOS (the PTY proof landed with this PR; the real rows are per-OS tester work, no emulator exists on the build machine) (PR 2 target, Refs #582, Closes #656)
+- Phase 2: Dynamic Terminal Layout and Full-Window Composition: [x] geometry model with cell pixel size (`crates/terminal/src/geometry.rs`; TIOCGWINSZ pixel fields on Unix, console font on Windows, nominal 8x16 fallback), [x] pure layout solver with proportion-driven chrome blocks (continuous 1..8 x 1..4 tile scales plus the 2x1 floor; side panel, HUD band, hint-only by fit; exact 62x35 card), [x] exact-fit image rendering at the region pixel size (Kitty/Sixel rasterize at the detected cell size; 8-ppt nominal fallback), [x] continuous cell-tier scales (`unicode::fit_width`/`center_rows` at any scale), [x] resize contract with same-frame repaint and stale-placement kill (`ESC[2J` plus Kitty delete-all in the new frame; pinned by `tests/plan_contract.rs`), [x] tier-aware too-small card (reads `layout.min_cols/min_rows`; exact 62x35 boundary pinned), [ ] real-emulator resize proof on Linux and macOS (the PTY proof landed with this PR; the real rows are per-OS tester work, no emulator exists on the build machine) (PR 2 target, Refs #582, Refs #656)
 - Phase 3: Terminal Render Pipeline and Compatibility Proof: [ ] bounded live Kitty probe with byte replay (Ghostty enablement), [ ] atlas plus placement composition with full-frame fallback, [ ] dirty-change detection and wall-clock pacing with backpressure, [ ] Sixel path hardening, [ ] protocol-aware watchdog, [ ] `MAZE_CHASE_TRACE` JSONL evidence mode, [ ] kitty and ghostty rows signed on Linux and macOS plus conventional terminals (PR 3 target, Refs #582, Refs #655)
 - Phase 4: Visual Identity Redesign: [ ] Design Council direction consumed (dispatched by the Maintainer before this phase), [ ] resolution-aware character and environment art, [ ] effects and animation system, [ ] refreshed themes with accessibility tests green, [ ] all three layers integrated with real captures (PR 4 target, Refs #582, Closes #658)
 - Phase 5: Sound Design Overhaul: [ ] new musical score with one BPM source, [ ] soft short effect bank, [ ] mix architecture with fades and safe defaults, [ ] terminal chime policy default-off, [ ] per-layer real-host review and settings round-trip (PR 5 target, Refs #582, Closes #659)
@@ -196,3 +196,20 @@ Phase 3 (terminal render pipeline and compatibility proof).
   opencode configuration, agent, or plugin edits); none loaded, per
   `delegation.md` section 5.
   - the Builder
+- 2026-10-18 (fixer, Phase 2 review round 1): applied the round-1 findings
+  on PR #685: the shrink-into-too-small resize path now deletes every live
+  Kitty placement in the card's first frame (the same guard as the board
+  path), pinned by
+  `kitty_shrink_into_too_small_deletes_placements_and_draws_card` in the
+  PTY contract suite; `Closes #656` scoped back to `Refs #656` (PR title
+  and body, plus the roadmap annotation) until the per-OS real-emulator
+  proof lands; the layout footprint test renamed and re-pinned for
+  square-cell reports; the broken `Geometry::for_override` doc link
+  corrected; `compute_with` now shares the geometry detector's sane cell
+  bounds; and the round's nits folded in (resize-race marker comment, the
+  ppt clamp documented in `docs/terminal.md`, `fresh` consumed only after
+  a successful frame write, the raster clamp comment made honest). No
+  rebuttal: every finding was applied as written. Skills: no registry
+  skill matched this run's domains; none loaded, per `delegation.md`
+  section 5.
+  - the Fixer
