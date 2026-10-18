@@ -275,7 +275,7 @@ Palettes. All 15 slots, uppercase hex. The three launch themes:
 | kessa (Pike) | #3E9B6E | #1F7A4D | #35D06A |
 | jory (Snake) | #F25E4A | #C74A33 | #FF6B4A |
 | nib (Dragonfly) | #BE8B2A | #8A6A1C | #FFC93C |
-| fright | #C8F2EA | #241238 | #FFFFFF |
+| fright | #C8F2EA | #241238 | #E8FFF8 |
 | eyes | #D8F4E8 | #16201D | #E0FFF6 |
 | text | #E8F0E6 | #1B2A33 | #F2F7F5 |
 | dim_text | #9FB3A6 | #5C6F66 | #A9BFB8 |
@@ -285,8 +285,8 @@ Measured metrics (WCAG formula, recomputed by the council):
 
 - text/bg: 14.77 / 13.63 / 18.51 (gate 4.5, all pass)
 - wall/bg: 3.89 / 4.81 / 6.17
-- fright/bg: 14.20 / 15.95 / 20.04
-- fright/wall: 3.65 / 3.32 / 3.25 (gate 3.0, all pass; this gate is
+- fright/bg: 14.20 / 15.95 / 19.17
+- fright/wall: 3.65 / 3.32 / 3.11 (gate 3.0, all pass; this gate is
   the fix that retired Paper Tailor)
 - eyes/bg: 14.76 / 15.44 / 18.90 (gate 3.0, all pass)
 - eyes/wall: 3.79 / 3.21 / 3.06 (gate 3.0, all pass; the eyes slot
@@ -334,8 +334,8 @@ milliseconds and snapped per rung to whole frames (60/120 Hz) or whole
 transmits (30/24/12 Hz); no fractional quantum ever ships.
 
 Engine windows the motion design fits (unchanged engine, presentation
-only): player 8.5 tiles/s, hunters 8.16, fright hunters 5.27, eyes
-12.75, house exit 4.68; death 1.4 s; level clear 2.0 s; fright
+only): player 8.5 tiles/s, hunters 8.16, fright hunters 5.06, eyes
+12.24, house exit 4.49; death 1.4 s; level clear 2.0 s; fright
 duration 6.0 s falling to 0 by level 11; reversion warning 1.5 s;
 relish 9.5 s; spare wick at 10,000.
 
