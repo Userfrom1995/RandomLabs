@@ -326,6 +326,7 @@ def decode_png(path):
     width = height = bit_depth = color_type = None
     interlace = 0
     palette = None
+    saw_end = False
     while pos + 8 <= len(data):
         length = int.from_bytes(data[pos:pos + 4], "big")
         kind = data[pos + 4:pos + 8]
@@ -345,8 +346,9 @@ def decode_png(path):
         elif kind == b"IDAT":
             idat.append(chunk)
         elif kind == b"IEND":
+            saw_end = True
             break
-    if not width or not height or interlace:
+    if not width or not height or interlace or not saw_end:
         return None
     channels = PNG_CHANNELS.get(color_type)
     if channels is None or bit_depth not in (1, 2, 4, 8):
@@ -400,7 +402,11 @@ def decode_png(path):
 def white_share(decoded):
     """Fraction of pixels that are pure white (255,255,255); 0.0 when the
     pixel format cannot be classified. Palette lookups honor the PNG
-    palette, grayscale treats all-ones as white."""
+    palette; grayscale treats all-ones as white. RGBA and gray+alpha
+    (the shapes .NET screen capture and `screencapture` emit) classify
+    by their color channels only: GDI screen capture may leave alpha at
+    zero, and the light-background gate must err toward flagging a
+    white screenshot, never toward signing one silently."""
     width = decoded["width"]
     height = decoded["height"]
     color = decoded["color_type"]
@@ -440,6 +446,16 @@ def white_share(decoded):
     if color == 2 and bit == 8:
         for i in range(0, total * 3, 3):
             if rows[i] == 0xFF and rows[i + 1] == 0xFF and rows[i + 2] == 0xFF:
+                white += 1
+        return white / total
+    if color == 6 and bit == 8:
+        for i in range(0, total * 4, 4):
+            if rows[i] == 0xFF and rows[i + 1] == 0xFF and rows[i + 2] == 0xFF:
+                white += 1
+        return white / total
+    if color == 4 and bit == 8:
+        for i in range(0, total * 2, 2):
+            if rows[i] == 0xFF:
                 white += 1
         return white / total
     return 0.0
@@ -621,14 +637,16 @@ def main():
     duplicates = []
     light_captures = []
     rejected_captures = []
+    accepted_captures = 0
     for phase in result["phases"]:
         src = phase.get("screenshot")
         if not src:
             continue
         if not os.path.isabs(src):
-            cand = os.path.join(args.run_dir, src)
-            if os.path.isfile(cand):
-                src = cand
+            # Bind every relative capture to the run directory; a relative
+            # path must never resolve against the collector's working
+            # directory (a foreign file must not enter the bundle).
+            src = os.path.join(args.run_dir, src)
         if os.path.isfile(src):
             # A capture the collector cannot decode is not evidence:
             # reject it instead of copying corrupt bytes into the bundle.
@@ -641,6 +659,7 @@ def main():
             name = os.path.basename(src)
             dest = os.path.join(shots_out, name)
             shutil.copyfile(src, dest)
+            accepted_captures += 1
             phase["screenshot"] = f"screenshots/{name}"
             digest = sha256_file(dest)
             phase["screenshot_sha256"] = digest
@@ -673,10 +692,12 @@ def main():
     # Honesty enforcement: a `pass` requires that the terminal actually
     # rendered the session. A row whose captures are near-uniform white
     # on a light background is downgraded to `partial` with the reason
-    # recorded, so it can never be presented as a clean pass.
+    # recorded, so it can never be presented as a clean pass. Each gate
+    # below reads the driver's proposed result, not the mutated value, so
+    # the reasons all land even when several gates fire together.
     disposition = args.result
     notes = collect_notes(args, meta)
-    if disposition == "pass" and light_captures:
+    if args.result == "pass" and light_captures:
         disposition = "partial"
         notes.append(
             "recorded partial by collect.py: checkpoint captures "
@@ -684,12 +705,18 @@ def main():
             + " are >=98% white on the terminal's default light background; "
               "the tier's light content is unreadable there"
         )
-    if disposition == "pass" and rejected_captures:
+    if args.result == "pass" and rejected_captures:
         disposition = "partial"
         notes.append(
             "recorded partial by collect.py: checkpoint captures "
             + ", ".join(rejected_captures)
             + " are not decodable PNGs and were rejected from the bundle"
+        )
+    if args.result == "pass" and accepted_captures == 0:
+        disposition = "partial"
+        notes.append(
+            "recorded partial by collect.py: no checkpoint capture entered "
+            "the bundle; a pass requires at least one rendered capture"
         )
     result["disposition"] = disposition
     result["notes"] = notes
