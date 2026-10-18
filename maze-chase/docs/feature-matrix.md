@@ -14,31 +14,31 @@ layout ever pretends a `planned` row works.
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|
-| Fixed 120 Hz timestep, accumulator, spiral clamp | `game.rs` | planned | planned | planned | `verify: determinism-replay` + `game::determinism_same_seed_same_hash` |
-| Maze load, walkability, tunnel wrap, reachability | `maze.rs` | planned | planned | planned | `verify: maze-geometry, maze-reachability` + `maze::*` + `levels/ember-warren.maze` proof |
-| Tile-center movement, buffered turns, cornering | `actors.rs` | planned | planned | planned | `verify: movement-cornering, movement-tunnel-wrap` + `actors::*` |
-| Dot/sunseed pickup, scoring, lives, level flow | `game.rs`, `tuning.rs` | planned | planned | planned | `verify: scoring-lives, lives-death-defeat, level-clear-flow, fright-chain` + `game::*` |
-| Seeded RNG streams, replay log, state hash | `rng.rs`, `replay.rs` | planned | planned | planned | `rng::*` (bit-exact vectors), `replay::record_replay_converges`, `tests/golden.rs` |
-| Headless verify harness | `verify.rs` + `maze-chase-verify` | planned | planned | planned | CI: `cargo run --bin maze-chase-verify` 19/19 green |
+| Fixed 120 Hz timestep, accumulator, spiral clamp | `game.rs` | done | done | done | `verify: determinism-replay` + `game::determinism_same_seed_same_hash` |
+| Maze load, walkability, tunnel wrap, reachability | `maze.rs` | done | done | done | `verify: maze-geometry, maze-reachability` + `maze::*` + `levels/ember-warren.maze` proof |
+| Tile-center movement, buffered turns, cornering | `actors.rs` | done | done | done | `verify: movement-cornering, movement-tunnel-wrap` + `actors::*` |
+| Dot/sunseed pickup, scoring, lives, level flow | `game.rs`, `tuning.rs` | done | done | done | `verify: scoring-lives, lives-death-defeat, level-clear-flow, fright-chain` + `game::*` |
+| Seeded RNG streams, replay log, state hash | `rng.rs`, `replay.rs` | done | done | done | `rng::*` (bit-exact vectors), `replay::record_replay_converges`, `tests/golden.rs` |
+| Headless verify harness | `verify.rs` + `maze-chase-verify` | done | done | done | CI: `cargo run --bin maze-chase-verify` 19/19 green |
 
 ## Ghosts and progression (`crates/engine`, done)
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|
-| Four personalities + scatter corners | `personalities.rs`, `ghosts.rs` | planned | planned | planned | `verify: personalities-targets` + `personalities::*` + `ghosts::scatter_and_chase_steer_differently` |
-| Scatter/chase wave clock with reversals | `modes.rs` | planned | planned | planned | `verify: wave-clock, fright-reversal` + `modes::*` (12-switch table walk, shave, chase-hold, pin) |
-| Fright with flash, chains, eyes return | `ghosts.rs`, `game.rs` | planned | planned | planned | `verify: fright-chain, fright-reversal, eyes-return` + `ghosts::eyes_drift_home_and_revive, fright_start_reverses_the_pack` |
-| House exits, tunnel clamp, pursuer stages | `ghosts.rs`, `tuning.rs` | planned | planned | planned | `verify: house-exits, pursuer-stages` + `ghosts::pursuer_stages_enrage_bram_only` |
-| Bonus items, difficulty ramp, extra modes | `relish.rs`, `game.rs`, `modes.rs`, `tuning.rs` | planned | planned | planned | `verify: relish-cycle, mode-rules` + `relish::*` + `game::sprint_*, time_attack_*, frenzy_*` |
+| Four personalities + scatter corners | `personalities.rs`, `ghosts.rs` | done | done | done | `verify: personalities-targets` + `personalities::*` + `ghosts::scatter_and_chase_steer_differently` |
+| Scatter/chase wave clock with reversals | `modes.rs` | done | done | done | `verify: wave-clock, fright-reversal` + `modes::*` (12-switch table walk, shave, chase-hold, pin) |
+| Fright with flash, chains, eyes return | `ghosts.rs`, `game.rs` | done | done | done | `verify: fright-chain, fright-reversal, eyes-return` + `ghosts::eyes_drift_home_and_revive, fright_start_reverses_the_pack` |
+| House exits, tunnel clamp, pursuer stages | `ghosts.rs`, `tuning.rs` | done | done | done | `verify: house-exits, pursuer-stages` + `ghosts::pursuer_stages_enrage_bram_only` |
+| Bonus items, difficulty ramp, extra modes | `relish.rs`, `game.rs`, `modes.rs`, `tuning.rs` | done | done | done | `verify: relish-cycle, mode-rules` + `relish::*` + `game::sprint_*, time_attack_*, frenzy_*` |
 
 ## Assets, audio, identity, config (done)
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|
-| Original sprites, themes, wall styles | `crates/assets` | planned | planned | planned | `assets::sprites::*` (glyph validation, accent diffs) + `assets::anim::*` + `themes::tokens_mirror_theme_palettes` |
-| Original SFX/music, Audio trait impls | `crates/audio` (`cue`, `score`, `sink`) | planned | planned | planned | `audio::cue::*` (every engine event maps) + `audio::score::*` + `audio::sink::*` (Record/Null) |
-| Settings, keymap, persistence | `crates/config` | planned | planned | planned | `config::{settings,keymap,persist}::*` (presets, rebind, round-trip) |
-| Design pass (design.md + tokens) | docs | planned | planned | planned | Builder design pass signed (`design.md` + `design-tokens.json`); formal Design Council review may refine |
+| Original sprites, themes, wall styles | `crates/assets` | done | done | done | `assets::sprites::*` (glyph validation, accent diffs) + `assets::anim::*` + `themes::tokens_mirror_theme_palettes` |
+| Original SFX/music, Audio trait impls | `crates/audio` (`cue`, `score`, `sink`) | done | done | done | `audio::cue::*` (every engine event maps) + `audio::score::*` + `audio::sink::*` (Record/Null) |
+| Settings, keymap, persistence | `crates/config` | done | done | done | `config::{settings,keymap,persist}::*` (presets, rebind, round-trip) |
+| Design pass (design.md + tokens) | docs | done | done | done | Builder design pass signed (`design.md` + `design-tokens.json`); formal Design Council review may refine |
 
 ## Terminal layer (`crates/terminal`, done)
 
@@ -68,14 +68,14 @@ layout ever pretends a `planned` row works.
 | DPR resize + web-audio unlock | n/a (adapter) | n/a | n/a | done | `web::video::*` (fit math incl. clip case, blit round-trip/letterbox) + `web::audio_map::*` (every engine event reaches SFX, loop, or sting; 132 BPM mirrored) + harness gesture unlock + volume/mute persistence (E2E boot clean; headless has no audio device, documented in `docs/web.md`) |
 | Pages hub with play + per-layer docs | docs/hub | n/a | n/a | done | `maze-chase/play.html` (Play entry from the hub, all six screens, favicon, offline-safe) + `docs/web.md` + `docs/index.md` entry + CDP DOM proof (title visible, panels sync from `mc_screen`) |
 
-## Cross-cutting (release audit: done except native-OS proof)
+## Cross-cutting (release verification complete)
 
 | Mechanic | Engine module | Terminal | Desktop | WASM | Test proof |
 |---|---|---|---|---|---|
-| Per-layer E2E green | all | done | done | done | terminal headless (layout sweep, full session, resize) + desktop headless + Xvfb `--probe` PPM + node `wasm-smoke.js` + `tester-regression.js` + CDP `browser-e2e.js` 17/17 (all green on Linux; Windows/macOS native runs pending per-OS runners, see `docs/parity.md`) |
-| Scoreboard (tick cost, suites, budgets) | all | done | done | done | `docs/scoreboard.md`: `perf-headless` 0.8 us/tick, 344/344 `cargo test` green, node smokes green, budgets with measured anchors |
-| Reproducible build/release instructions | docs | done | done | done | `docs/release.md` (toolchain, system libraries, layer builds, packaging matrix, clean-checkout checklist) + `packaging/{terminal,desktop}/` scripts + committed byte-reproducible `web/maze-chase.wasm` |
-| #552 retirement only after verified parity | n/a | planned | planned | planned | `docs/parity.md`: every engine rule row signed against `behavior-spec.md` + 19/19 verify; native-OS package/E2E rows still open, so `pacman/` is untouched and #552 stays functional |
+| Per-layer E2E green | all | done | done | done | Linux: terminal headless (layout sweep, full session, resize) + desktop headless + Xvfb `--probe` PPM + node `wasm-smoke.js` + `tester-regression.js` + CDP `browser-e2e.js` ALL GREEN; macOS native run 39068848280 (PTY 28/28, `--probe` plus GUI drive, staged `.app`); Windows native run 39068849150 plus the merged fix round (CLI matrix, ConPTY sessions, packaged zip and reference PPM byte-identical). Recorded in `docs/scoreboard.md` |
+| Scoreboard (tick cost, suites, budgets) | all | done | done | done | `docs/scoreboard.md`: `perf-headless` 0.2 us/tick on the release build, 407/407 `cargo test` green across 45 targets plus the 398/0 (macOS) and 374/0 (Windows) native runs, node smokes green, budgets with measured anchors |
+| Reproducible build/release instructions | docs | done | done | done | `docs/release.md` (toolchain, system libraries, layer builds, packaging matrix, clean-checkout checklist) + `packaging/{terminal,desktop}/` scripts (staged, installed, and probed on Linux plus natively on macOS/Windows) + committed byte-reproducible `web/maze-chase.wasm` (sha256 `5ec2a05a...` rebuilt byte-identical on Linux and macOS; the Windows CRLF drift class is fixed by the root `.gitattributes` pin and guarded by the checkout-bytes contract) |
+| #552 retirement only after verified parity | n/a | done | done | done | `docs/parity.md`: every engine rule row signed against `behavior-spec.md` + 19/19 verify, and every native package/E2E row signed from its own OS; `pacman/` is untouched by this migration and retires by the Maintainer's explicit step after this release merges |
 
 ## Rules
 
