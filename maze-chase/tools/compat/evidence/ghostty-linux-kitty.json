@@ -1,0 +1,405 @@
+{
+  "schema": "maze-chase-compat-evidence/1",
+  "row": "ghostty-linux-kitty",
+  "emulator": "ghostty",
+  "emulator_version": "Ghostty 1.3.1",
+  "os": "linux",
+  "arch": "x86_64",
+  "scope": "native",
+  "tier_requested": "kitty",
+  "tier_observed": "kitty-graphics",
+  "disposition": "partial",
+  "unverified_reason": null,
+  "runner": {
+    "host": "runnervm8k3b6",
+    "id": "compat-harness"
+  },
+  "geometry": {
+    "initial": {
+      "cols": 100,
+      "rows": 40,
+      "px_w": 704,
+      "px_h": 644
+    },
+    "cell_px": {
+      "w": 7,
+      "h": 16
+    },
+    "resizes": [
+      {
+        "cols": 143,
+        "rows": 64
+      },
+      {
+        "cols": 80,
+        "rows": 24
+      },
+      {
+        "cols": 143,
+        "rows": 64
+      }
+    ]
+  },
+  "extra_env": [],
+  "started_at": "2026-10-18T13:05:13Z",
+  "ended_at": null,
+  "exit": {
+    "code": null,
+    "killed": true,
+    "game_exited": false,
+    "process_exited": false
+  },
+  "phases": [
+    {
+      "name": "title",
+      "bytes": 221865,
+      "screenshot": "screenshots/title.png",
+      "frames": {
+        "count": 48,
+        "bytes_mean": 4618,
+        "bytes_max": 4618
+      },
+      "layout": {
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 0,
+        "addressed_rows_min": 0,
+        "addressed_rows_max": 35,
+        "moves": 1728
+      },
+      "screenshot_sha256": "3ce3282bd79db0756d66ddeb0b4d85cb7779fbc75055d8df84c8d12bb8386130"
+    },
+    {
+      "name": "playing",
+      "bytes": 55569675,
+      "screenshot": "screenshots/playing.png",
+      "frames": {
+        "count": 245,
+        "bytes_mean": 226698,
+        "bytes_max": 226698
+      },
+      "layout": {
+        "addressed_cols_min": 7,
+        "addressed_cols_max": 65,
+        "addressed_rows_min": 2,
+        "addressed_rows_max": 33,
+        "moves": 11547
+      },
+      "kitty": {
+        "transmits": 246,
+        "placements": 0,
+        "deletes": 246,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 1007616,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      },
+      "screenshot_sha256": "55eec2cf95ccb5e867fd790090776a24d567169083b85aefd3a4286d9e3f7f7a"
+    },
+    {
+      "name": "resized-wide",
+      "bytes": 17457772,
+      "screenshot": "screenshots/resized-wide.png",
+      "frames": {
+        "count": 76,
+        "bytes_mean": 226785,
+        "bytes_max": 226789
+      },
+      "layout": {
+        "addressed_cols_min": 7,
+        "addressed_cols_max": 86,
+        "addressed_rows_min": 2,
+        "addressed_rows_max": 45,
+        "moves": 3619
+      },
+      "kitty": {
+        "transmits": 77,
+        "placements": 0,
+        "deletes": 76,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 315392,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      },
+      "screenshot_sha256": "bcf7cfbce215e02d22fd9f39f89b46e91f8f89e36d3eb84c7185a8d32ef5cc66"
+    },
+    {
+      "name": "too-small",
+      "bytes": 1970262,
+      "screenshot": "screenshots/too-small.png",
+      "frames": {
+        "count": 504,
+        "bytes_mean": 3507,
+        "bytes_max": 226789
+      },
+      "layout": {
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 86,
+        "addressed_rows_min": 0,
+        "addressed_rows_max": 45,
+        "moves": 10176
+      },
+      "kitty": {
+        "transmits": 3,
+        "placements": 0,
+        "deletes": 3,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 12288,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      },
+      "screenshot_sha256": "e9e5b5f2fb70c5059e73d647c4fabb876d279207bf5d1ddb0d4fd20acf030724"
+    },
+    {
+      "name": "refit",
+      "bytes": 16482340,
+      "screenshot": "screenshots/refit.png",
+      "frames": {
+        "count": 73,
+        "bytes_mean": 223709,
+        "bytes_max": 226787
+      },
+      "layout": {
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 86,
+        "addressed_rows_min": 0,
+        "addressed_rows_max": 45,
+        "moves": 3436
+      },
+      "kitty": {
+        "transmits": 73,
+        "placements": 0,
+        "deletes": 72,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 299008,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      },
+      "screenshot_sha256": "855f48b9c0a54fdf1f0642d6eca8243c8595106133a1fc20e64d0db5647c2f9b"
+    },
+    {
+      "name": "paused",
+      "bytes": 13116281,
+      "screenshot": "screenshots/paused.png",
+      "frames": {
+        "count": 57,
+        "bytes_mean": 226787,
+        "bytes_max": 226787
+      },
+      "layout": {
+        "addressed_cols_min": 28,
+        "addressed_cols_max": 86,
+        "addressed_rows_min": 14,
+        "addressed_rows_max": 45,
+        "moves": 2726
+      },
+      "kitty": {
+        "transmits": 58,
+        "placements": 0,
+        "deletes": 58,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 237568,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      },
+      "screenshot_sha256": "637bfad9910b183505d054ff3ec86f063d497b6b00413906578a382b14ff4af1"
+    },
+    {
+      "name": "title-return",
+      "bytes": 15760934,
+      "screenshot": "screenshots/title-return.png",
+      "frames": {
+        "count": 69,
+        "bytes_mean": 226787,
+        "bytes_max": 226787
+      },
+      "layout": {
+        "addressed_cols_min": 28,
+        "addressed_cols_max": 86,
+        "addressed_rows_min": 14,
+        "addressed_rows_max": 45,
+        "moves": 3258
+      },
+      "kitty": {
+        "transmits": 69,
+        "placements": 0,
+        "deletes": 69,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 282624,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      },
+      "screenshot_sha256": "f97dd38b651f20bee1a939bbefac2e2b4567de1ce56745b16738e12e2d221b1b"
+    },
+    {
+      "name": "help",
+      "bytes": 15274080,
+      "screenshot": "screenshots/help.png",
+      "frames": {
+        "count": 67,
+        "bytes_mean": 226787,
+        "bytes_max": 226787
+      },
+      "layout": {
+        "addressed_cols_min": 28,
+        "addressed_cols_max": 86,
+        "addressed_rows_min": 14,
+        "addressed_rows_max": 45,
+        "moves": 3181
+      },
+      "kitty": {
+        "transmits": 68,
+        "placements": 0,
+        "deletes": 68,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 278528,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      },
+      "screenshot_sha256": "cf86d7ea420a2a6878be07385e724158ade268ace2b95bfffea162360c5b1bd8"
+    },
+    {
+      "name": "scores",
+      "bytes": 28282847,
+      "screenshot": "screenshots/scores.png",
+      "frames": {
+        "count": 124,
+        "bytes_mean": 226787,
+        "bytes_max": 226787
+      },
+      "layout": {
+        "addressed_cols_min": 28,
+        "addressed_cols_max": 86,
+        "addressed_rows_min": 14,
+        "addressed_rows_max": 45,
+        "moves": 5875
+      },
+      "kitty": {
+        "transmits": 125,
+        "placements": 0,
+        "deletes": 125,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 512000,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      },
+      "screenshot_sha256": "2f52640c5088fa235138f3d038621d3cf1134523e419b93abe0e6ea5d746163d"
+    },
+    {
+      "name": "settings",
+      "bytes": 28758914,
+      "screenshot": "screenshots/settings.png",
+      "frames": {
+        "count": 121,
+        "bytes_mean": 235883,
+        "bytes_max": 236978
+      },
+      "layout": {
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 86,
+        "addressed_rows_min": 0,
+        "addressed_rows_max": 59,
+        "moves": 12214
+      },
+      "kitty": {
+        "transmits": 121,
+        "placements": 0,
+        "deletes": 122,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 495616,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      },
+      "screenshot_sha256": "e4175176868b874ade8ca8cae9f7c4947eb445dc599f05edbc3e487c97366f2c"
+    },
+    {
+      "name": "tail",
+      "bytes": 31557627,
+      "screenshot": null,
+      "frames": {
+        "count": 953,
+        "bytes_mean": 32869,
+        "bytes_max": 236978
+      },
+      "layout": {
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 86,
+        "addressed_rows_min": 0,
+        "addressed_rows_max": 59,
+        "moves": 61720
+      },
+      "kitty": {
+        "transmits": 95,
+        "placements": 0,
+        "deletes": 95,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 389120,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      }
+    }
+  ],
+  "protocol_totals": {
+    "transcript_bytes": 224452597,
+    "transcript_sha256": "f1eb2d847a18e83806090709e679cb6115626b160e2d61ff511ca3d6382bdeaf",
+    "frames": {
+      "count": 2344,
+      "bytes_mean": 95756,
+      "bytes_max": 236978
+    },
+    "kitty": {
+      "transmits": 936,
+      "placements": 0,
+      "deletes": 934,
+      "queries": 0,
+      "chunked": true,
+      "payload_bytes": 3833856,
+      "first_transmit_png": {
+        "w": 224,
+        "h": 248
+      }
+    },
+    "sixel": {
+      "transmits": 0,
+      "payload_bytes": 0
+    }
+  },
+  "trace": {
+    "present": false,
+    "path": "session/trace.jsonl",
+    "reason": "binary does not emit MAZE_CHASE_TRACE yet (trace mode is part of the render pipeline work); the harness passes the variable and ingests it automatically once the binary writes it"
+  },
+  "notes": [
+    "session driven by tools/compat/drive.sh on a real ghostty window"
+  ],
+  "generated_at": "2026-10-18T13:05:48Z"
+}

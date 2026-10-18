@@ -1,0 +1,302 @@
+{
+  "schema": "maze-chase-compat-evidence/1",
+  "row": "xterm-linux-sixel",
+  "emulator": "xterm",
+  "emulator_version": "XTerm(390)",
+  "os": "linux",
+  "arch": "x86_64",
+  "scope": "native",
+  "tier_requested": "sixel",
+  "tier_observed": "sixel",
+  "disposition": "pass",
+  "unverified_reason": null,
+  "runner": {
+    "host": "runnervm8k3b6",
+    "id": "compat-harness"
+  },
+  "geometry": {
+    "initial": {
+      "cols": 100,
+      "rows": 40,
+      "px_w": 604,
+      "px_h": 524
+    },
+    "cell_px": {
+      "w": 6,
+      "h": 13
+    },
+    "resizes": [
+      {
+        "cols": 143,
+        "rows": 64
+      },
+      {
+        "cols": 80,
+        "rows": 24
+      },
+      {
+        "cols": 143,
+        "rows": 64
+      }
+    ]
+  },
+  "extra_env": [],
+  "started_at": "2026-10-18T13:09:52Z",
+  "ended_at": null,
+  "exit": {
+    "code": 0,
+    "killed": false,
+    "game_exited": true,
+    "process_exited": true
+  },
+  "phases": [
+    {
+      "name": "title",
+      "bytes": 250265,
+      "screenshot": "screenshots/title.png",
+      "frames": {
+        "count": 48,
+        "bytes_mean": 5210,
+        "bytes_max": 5210
+      },
+      "layout": {
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 0,
+        "addressed_rows_min": 0,
+        "addressed_rows_max": 39,
+        "moves": 1920
+      },
+      "screenshot_sha256": "c3e7d1d0e8d9bd83e6e64869ae850416bf2db4f57f1f41b9e9adf228ed84ff84"
+    },
+    {
+      "name": "playing",
+      "bytes": 1647574,
+      "screenshot": "screenshots/playing.png",
+      "frames": {
+        "count": 94,
+        "bytes_mean": 17527,
+        "bytes_max": 17755
+      },
+      "layout": {
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 66,
+        "addressed_rows_min": 0,
+        "addressed_rows_max": 39,
+        "moves": 4411
+      },
+      "sixel": {
+        "transmits": 93,
+        "payload_bytes": 1314167
+      },
+      "screenshot_sha256": "75eba9f05effc5a65c91b04e6086fe310fc63a4aab2de2a291441caaf2809f62"
+    },
+    {
+      "name": "resized-wide",
+      "bytes": 529074,
+      "screenshot": "screenshots/resized-wide.png",
+      "frames": {
+        "count": 30,
+        "bytes_mean": 17635,
+        "bytes_max": 17721
+      },
+      "layout": {
+        "addressed_cols_min": 29,
+        "addressed_cols_max": 87,
+        "addressed_rows_min": 16,
+        "addressed_rows_max": 47,
+        "moves": 1410
+      },
+      "sixel": {
+        "transmits": 30,
+        "payload_bytes": 420624
+      },
+      "screenshot_sha256": "463771cfa6c3fba1146c3be6bfa0273b572565260bdcab4a818a8eb78757cd0c"
+    },
+    {
+      "name": "too-small",
+      "bytes": 75510,
+      "screenshot": "screenshots/too-small.png",
+      "frames": {
+        "count": 30,
+        "bytes_mean": 2517,
+        "bytes_max": 2517
+      },
+      "layout": {
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 0,
+        "addressed_rows_min": 0,
+        "addressed_rows_max": 22,
+        "moves": 690
+      },
+      "screenshot_sha256": "a0c6a5f68b5d44d154937b291f38c7948f12baaf319d140620e9fe6c7a3c041b"
+    },
+    {
+      "name": "refit",
+      "bytes": 528802,
+      "screenshot": "screenshots/refit.png",
+      "frames": {
+        "count": 30,
+        "bytes_mean": 17626,
+        "bytes_max": 17729
+      },
+      "layout": {
+        "addressed_cols_min": 29,
+        "addressed_cols_max": 87,
+        "addressed_rows_min": 16,
+        "addressed_rows_max": 47,
+        "moves": 1410
+      },
+      "sixel": {
+        "transmits": 30,
+        "payload_bytes": 420352
+      },
+      "screenshot_sha256": "5a5be5be3046e7da7b5e26a6ab05a98c6534f5a75bcf64551f8b504f87702fbb"
+    },
+    {
+      "name": "paused",
+      "bytes": 597493,
+      "screenshot": "screenshots/paused.png",
+      "frames": {
+        "count": 21,
+        "bytes_mean": 28452,
+        "bytes_max": 28497
+      },
+      "layout": {
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 87,
+        "addressed_rows_min": 0,
+        "addressed_rows_max": 62,
+        "moves": 2310
+      },
+      "sixel": {
+        "transmits": 21,
+        "payload_bytes": 295534
+      },
+      "screenshot_sha256": "c77e4ebd7e7ec2e709b5a551117f590570995ae75f454b216e73b16fd4e2ebea"
+    },
+    {
+      "name": "title-return",
+      "bytes": 352479,
+      "screenshot": "screenshots/title-return.png",
+      "frames": {
+        "count": 26,
+        "bytes_mean": 13556,
+        "bytes_max": 28497
+      },
+      "layout": {
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 87,
+        "addressed_rows_min": 0,
+        "addressed_rows_max": 62,
+        "moves": 1826
+      },
+      "sixel": {
+        "transmits": 4,
+        "payload_bytes": 56351
+      },
+      "screenshot_sha256": "99132f92300b35e57ee95d6bd8ff350f2515be81e44f692cf623eda0e23b8c41"
+    },
+    {
+      "name": "help",
+      "bytes": 292864,
+      "screenshot": "screenshots/help.png",
+      "frames": {
+        "count": 27,
+        "bytes_mean": 10846,
+        "bytes_max": 10847
+      },
+      "layout": {
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 0,
+        "addressed_rows_min": 0,
+        "addressed_rows_max": 62,
+        "moves": 1701
+      },
+      "screenshot_sha256": "4d20ec69d72eb8bdc2100cc3f08e48a0191b77828489d3eed572ce2ce66df7ee"
+    },
+    {
+      "name": "scores",
+      "bytes": 509762,
+      "screenshot": "screenshots/scores.png",
+      "frames": {
+        "count": 47,
+        "bytes_mean": 10846,
+        "bytes_max": 10846
+      },
+      "layout": {
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 0,
+        "addressed_rows_min": 0,
+        "addressed_rows_max": 62,
+        "moves": 2961
+      },
+      "screenshot_sha256": "a5a5f48483d823763301c92621c50d30d58295302a876f4a75e81d16a3f85876"
+    },
+    {
+      "name": "settings",
+      "bytes": 509806,
+      "screenshot": "screenshots/settings.png",
+      "frames": {
+        "count": 47,
+        "bytes_mean": 10846,
+        "bytes_max": 10848
+      },
+      "layout": {
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 0,
+        "addressed_rows_min": 0,
+        "addressed_rows_max": 62,
+        "moves": 2961
+      },
+      "screenshot_sha256": "d711ce6b9bf14d317e8174f8b1ba83c0f6b9102d2b503496d017511a7a7c3d1c"
+    },
+    {
+      "name": "tail",
+      "bytes": 271230,
+      "screenshot": null,
+      "frames": {
+        "count": 25,
+        "bytes_mean": 10846,
+        "bytes_max": 10846
+      },
+      "layout": {
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 0,
+        "addressed_rows_min": 0,
+        "addressed_rows_max": 62,
+        "moves": 1575
+      }
+    }
+  ],
+  "protocol_totals": {
+    "transcript_bytes": 5564859,
+    "transcript_sha256": "e417929e730f554444345cc7854f0b757ac2ff7ebc8744405d0ecf2804f6e0ba",
+    "frames": {
+      "count": 425,
+      "bytes_mean": 13093,
+      "bytes_max": 28497
+    },
+    "kitty": {
+      "transmits": 0,
+      "placements": 0,
+      "deletes": 0,
+      "queries": 0,
+      "chunked": false,
+      "payload_bytes": 0,
+      "first_transmit_png": null
+    },
+    "sixel": {
+      "transmits": 178,
+      "payload_bytes": 2507028
+    }
+  },
+  "trace": {
+    "present": false,
+    "path": "session/trace.jsonl",
+    "reason": "binary does not emit MAZE_CHASE_TRACE yet (trace mode is part of the render pipeline work); the harness passes the variable and ingests it automatically once the binary writes it"
+  },
+  "notes": [
+    "session driven by tools/compat/drive.sh on a real xterm window"
+  ],
+  "generated_at": "2026-10-18T13:10:14Z"
+}

@@ -1,0 +1,405 @@
+{
+  "schema": "maze-chase-compat-evidence/1",
+  "row": "kitty-linux-auto",
+  "emulator": "kitty",
+  "emulator_version": "kitty 0.32.2 created by Kovid Goyal",
+  "os": "linux",
+  "arch": "x86_64",
+  "scope": "native",
+  "tier_requested": "auto",
+  "tier_observed": "kitty-graphics",
+  "disposition": "partial",
+  "unverified_reason": null,
+  "runner": {
+    "host": "runnervm8k3b6",
+    "id": "compat-harness"
+  },
+  "geometry": {
+    "initial": {
+      "cols": 100,
+      "rows": 40,
+      "px_w": 1001,
+      "px_h": 960
+    },
+    "cell_px": {
+      "w": 10,
+      "h": 24
+    },
+    "resizes": [
+      {
+        "cols": 143,
+        "rows": 64
+      },
+      {
+        "cols": 80,
+        "rows": 24
+      },
+      {
+        "cols": 143,
+        "rows": 64
+      }
+    ]
+  },
+  "extra_env": [],
+  "started_at": "2026-10-18T13:01:37Z",
+  "ended_at": null,
+  "exit": {
+    "code": null,
+    "killed": true,
+    "game_exited": false,
+    "process_exited": false
+  },
+  "phases": [
+    {
+      "name": "title",
+      "bytes": 465633,
+      "screenshot": "screenshots/title.png",
+      "frames": {
+        "count": 42,
+        "bytes_mean": 11082,
+        "bytes_max": 11082
+      },
+      "layout": {
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 0,
+        "addressed_rows_min": 0,
+        "addressed_rows_max": 63,
+        "moves": 2688
+      },
+      "screenshot_sha256": "787bfbd04d549336a3afe717052ebc71f873b4675629ba142ca3f1ed858a5042"
+    },
+    {
+      "name": "playing",
+      "bytes": 85257555,
+      "screenshot": "screenshots/playing.png",
+      "frames": {
+        "count": 375,
+        "bytes_mean": 226791,
+        "bytes_max": 226791
+      },
+      "layout": {
+        "addressed_cols_min": 29,
+        "addressed_cols_max": 87,
+        "addressed_rows_min": 16,
+        "addressed_rows_max": 47,
+        "moves": 17657
+      },
+      "kitty": {
+        "transmits": 376,
+        "placements": 0,
+        "deletes": 376,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 1540096,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      },
+      "screenshot_sha256": "e52bef3194b964137046b4e6c3ba4d75f0a68684264f379d3241b4abe8a8b824"
+    },
+    {
+      "name": "resized-wide",
+      "bytes": 21297000,
+      "screenshot": "screenshots/resized-wide.png",
+      "frames": {
+        "count": 91,
+        "bytes_mean": 232199,
+        "bytes_max": 232943
+      },
+      "layout": {
+        "addressed_cols_min": 29,
+        "addressed_cols_max": 146,
+        "addressed_rows_min": 16,
+        "addressed_rows_max": 82,
+        "moves": 6835
+      },
+      "kitty": {
+        "transmits": 92,
+        "placements": 0,
+        "deletes": 91,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 376832,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      },
+      "screenshot_sha256": "2c2a31ec447e5e36c72c0e07b51862e3821630cb9221a43f2693d037c029f21f"
+    },
+    {
+      "name": "too-small",
+      "bytes": 27768824,
+      "screenshot": "screenshots/too-small.png",
+      "frames": {
+        "count": 121,
+        "bytes_mean": 227514,
+        "bytes_max": 232943
+      },
+      "layout": {
+        "addressed_cols_min": 15,
+        "addressed_cols_max": 146,
+        "addressed_rows_min": 3,
+        "addressed_rows_max": 82,
+        "moves": 6199
+      },
+      "kitty": {
+        "transmits": 122,
+        "placements": 0,
+        "deletes": 121,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 499712,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      },
+      "screenshot_sha256": "b37120afbcfeea1c0d86894134185d2a818c03386d3e02e12ecf897e7f196ef4"
+    },
+    {
+      "name": "refit",
+      "bytes": 21597040,
+      "screenshot": "screenshots/refit.png",
+      "frames": {
+        "count": 92,
+        "bytes_mean": 232129,
+        "bytes_max": 232938
+      },
+      "layout": {
+        "addressed_cols_min": 15,
+        "addressed_cols_max": 146,
+        "addressed_rows_min": 3,
+        "addressed_rows_max": 82,
+        "moves": 6882
+      },
+      "kitty": {
+        "transmits": 93,
+        "placements": 0,
+        "deletes": 92,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 380928,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      },
+      "screenshot_sha256": "e213e6096a01cae822d90167ed851eeefacd47bc95357da97a67eb5627e136db"
+    },
+    {
+      "name": "paused",
+      "bytes": 15574126,
+      "screenshot": "screenshots/paused.png",
+      "frames": {
+        "count": 66,
+        "bytes_mean": 232939,
+        "bytes_max": 232941
+      },
+      "layout": {
+        "addressed_cols_min": 32,
+        "addressed_cols_max": 146,
+        "addressed_rows_min": 20,
+        "addressed_rows_max": 82,
+        "moves": 5226
+      },
+      "kitty": {
+        "transmits": 67,
+        "placements": 0,
+        "deletes": 67,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 274432,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      },
+      "screenshot_sha256": "cf1a0e46c239a1dde94da9bbf9bcba494df98c04844a472ab51e2fa07414f99e"
+    },
+    {
+      "name": "title-return",
+      "bytes": 17825879,
+      "screenshot": "screenshots/title-return.png",
+      "frames": {
+        "count": 76,
+        "bytes_mean": 232941,
+        "bytes_max": 232941
+      },
+      "layout": {
+        "addressed_cols_min": 32,
+        "addressed_cols_max": 146,
+        "addressed_rows_min": 20,
+        "addressed_rows_max": 82,
+        "moves": 6006
+      },
+      "kitty": {
+        "transmits": 77,
+        "placements": 0,
+        "deletes": 77,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 315392,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      },
+      "screenshot_sha256": "748cdee4422b3125d9882d296312e6f4236d5f9f69a92d8651dfe87531c6c0c2"
+    },
+    {
+      "name": "help",
+      "bytes": 17823728,
+      "screenshot": "screenshots/help.png",
+      "frames": {
+        "count": 75,
+        "bytes_mean": 232939,
+        "bytes_max": 232941
+      },
+      "layout": {
+        "addressed_cols_min": 32,
+        "addressed_cols_max": 146,
+        "addressed_rows_min": 20,
+        "addressed_rows_max": 82,
+        "moves": 5928
+      },
+      "kitty": {
+        "transmits": 76,
+        "placements": 0,
+        "deletes": 76,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 311296,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      },
+      "screenshot_sha256": "44733368e2164af8de2dcfd45e6db2f7123e2a3e357dc05018b0ac5cc2affdbe"
+    },
+    {
+      "name": "scores",
+      "bytes": 31041952,
+      "screenshot": "screenshots/scores.png",
+      "frames": {
+        "count": 132,
+        "bytes_mean": 232936,
+        "bytes_max": 232938
+      },
+      "layout": {
+        "addressed_cols_min": 32,
+        "addressed_cols_max": 146,
+        "addressed_rows_min": 20,
+        "addressed_rows_max": 82,
+        "moves": 10374
+      },
+      "kitty": {
+        "transmits": 133,
+        "placements": 0,
+        "deletes": 133,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 544768,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      },
+      "screenshot_sha256": "ec47e4643b4c97572b1b73c291ae70adf704403e4f5d99237a638a0380f0fe96"
+    },
+    {
+      "name": "settings",
+      "bytes": 30821539,
+      "screenshot": "screenshots/settings.png",
+      "frames": {
+        "count": 132,
+        "bytes_mean": 232938,
+        "bytes_max": 232939
+      },
+      "layout": {
+        "addressed_cols_min": 32,
+        "addressed_cols_max": 146,
+        "addressed_rows_min": 20,
+        "addressed_rows_max": 82,
+        "moves": 10374
+      },
+      "kitty": {
+        "transmits": 133,
+        "placements": 0,
+        "deletes": 133,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 544768,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      },
+      "screenshot_sha256": "4bc6809b21b4e1e2b657f1edc72f028a0ddb220094fc4ea28c87736090ee140c"
+    },
+    {
+      "name": "tail",
+      "bytes": 136915525,
+      "screenshot": null,
+      "frames": {
+        "count": 587,
+        "bytes_mean": 232936,
+        "bytes_max": 232939
+      },
+      "layout": {
+        "addressed_cols_min": 32,
+        "addressed_cols_max": 146,
+        "addressed_rows_min": 20,
+        "addressed_rows_max": 82,
+        "moves": 45801
+      },
+      "kitty": {
+        "transmits": 587,
+        "placements": 0,
+        "deletes": 587,
+        "queries": 0,
+        "chunked": true,
+        "payload_bytes": 2404352,
+        "first_transmit_png": {
+          "w": 224,
+          "h": 248
+        }
+      }
+    }
+  ],
+  "protocol_totals": {
+    "transcript_bytes": 406388801,
+    "transcript_sha256": "e7660a5b338307dd1d5be6eb2392f51aa08cb959b815ee5a05672326837ba663",
+    "frames": {
+      "count": 1798,
+      "bytes_mean": 226022,
+      "bytes_max": 232943
+    },
+    "kitty": {
+      "transmits": 1756,
+      "placements": 0,
+      "deletes": 1753,
+      "queries": 0,
+      "chunked": true,
+      "payload_bytes": 7192576,
+      "first_transmit_png": {
+        "w": 224,
+        "h": 248
+      }
+    },
+    "sixel": {
+      "transmits": 0,
+      "payload_bytes": 0
+    }
+  },
+  "trace": {
+    "present": false,
+    "path": "session/trace.jsonl",
+    "reason": "binary does not emit MAZE_CHASE_TRACE yet (trace mode is part of the render pipeline work); the harness passes the variable and ingests it automatically once the binary writes it"
+  },
+  "notes": [
+    "session driven by tools/compat/drive.sh on a real kitty window"
+  ],
+  "generated_at": "2026-10-18T13:02:14Z"
+}
