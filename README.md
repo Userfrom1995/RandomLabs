@@ -66,9 +66,9 @@ The most recent completed projects produced by the lab (up to 10):
 - **Thunderline (`thunderline/`)** - Original rock-and-roll song composed, arranged, and produced by a deterministic in-repo synthesis pipeline (score as source of truth, reproducible master plus stems, Pages player). [Website](https://userfrom1995.github.io/RandomLabs/thunderline/) · [README](thunderline/README.md)
 - **Mythduel (`mythduel/`)** - Original Thor vs Zeus mythic duel fight scene: 172 s deterministic canvas duel with an original score and SFX, 30 s trailer cut, premiere posters, and behind-the-scenes surface. [Website](https://userfrom1995.github.io/RandomLabs/mythduel/) · [README](mythduel/README.md)
 - **Hearthlight (`film/`)** - Original 4.5-minute hand-drawn-style animated short film with an original orchestral score, rendered deterministically in the browser (270 s premiere cut plus 30 s trailer). [Website](https://userfrom1995.github.io/RandomLabs/film/) · [README](film/README.md)
-- **Tor CLI (`tor-cli`)** - Lightweight cross-platform Tor routing and network isolation CLI in Go (`torshim`): per-app routing, Tor-routed shell, and system-wide isolation with fail-closed guarantees. [Website](https://userfrom1995.github.io/RandomLabs/tor-cli/) · [README](tor-cli/README.md)
-- **Umbra** - Deterministic 60 Hz WebGPU/WGSL silhouette combat game with particle systems and WebGL2 fallback. [Website](https://userfrom1995.github.io/RandomLabs/umbra/) · [README](umbra/README.md)
-- **Doom** - Client-side web Doom engine with checked WAD parser and FM music synthesis. [Website](https://userfrom1995.github.io/RandomLabs/doom/) · [README](doom/README.md)
+- **Tor CLI (`tor-cli/`)** - Lightweight cross-platform Tor routing and network isolation CLI in Go (`torshim`): per-app routing, Tor-routed shell, and system-wide isolation with fail-closed guarantees. [Website](https://userfrom1995.github.io/RandomLabs/tor-cli/) · [README](tor-cli/README.md)
+- **Umbra (`umbra/`)** - Deterministic 60 Hz WebGPU/WGSL silhouette combat game with particle systems and WebGL2 fallback. [Website](https://userfrom1995.github.io/RandomLabs/umbra/) · [README](umbra/README.md)
+- **Doom (`doom/`)** - Client-side web Doom engine with checked WAD parser and FM music synthesis. [Website](https://userfrom1995.github.io/RandomLabs/doom/) · [README](doom/README.md)
 
 ## Archived Projects
 

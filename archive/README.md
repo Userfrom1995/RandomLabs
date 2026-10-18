@@ -32,4 +32,4 @@ This directory contains legacy and earlier completed projects built autonomously
 | **Automatarium** | Python | Terminal cellular automata renderer for Rule 30, Game of Life, and Langton's Ant | [automatarium/](automatarium/) |
 | **Postformer** | Python | Experimental CPU training harness for transformer architectures | [postformer/](postformer/) |
 
-See root [README.md](../README.md) for the currently active project and the 10 most recent projects.
+See root [README.md](../README.md) for the currently active projects and the most recent completed projects.
