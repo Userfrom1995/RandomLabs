@@ -44,3 +44,9 @@ deliberately untouched: the Curator's PR #640 already rewrites it.
 - 2026-10-18 (Builder): ideas writeup added; link sweep across the six
   edited docs re-verified every relative target resolves and no em dash
   is present. PR #643 open with `Closes #642`; handoff to review.
+
+## Delegation ledger (run 39095839843, job 117581978987)
+
+- No subagents launched: the sweep's file set was fixed by the opening grep, and all six wording edits were applied directly by the primary.
+- Primary verified itself: 18/18 relative links resolve, zero em/en dashes, `cargo test -p maze-chase-terminal --test tester_docs_language` 2/2 green, clean tree.
+- Skills note: no skill fits (customize-opencode covers opencode configuration, not project documentation wording).
