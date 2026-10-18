@@ -372,8 +372,9 @@ never eased.
 Transition inventory per layer: title to play is an instant cut when
 the player presses a direction (play-first); pause, settings, scores,
 how-to-play, and game over are cuts on cells, kitty, and sixel, and
-240 ms drift-in fades on desktop and web; level clear is the single
-300 ms sweep; death is the 1400 ms window; relayout is always a cut
+240 ms drift-in fades on desktop and web (reduced motion turns these
+fades into cuts); level clear is the single 300 ms sweep; death is the
+1400 ms window; relayout is always a cut
 (same-frame repaint, delete-before-place on kitty, clear plus full
 frame on sixel). Interruption: input on frame N starts on frame N+1; no
 transition ever gates input or the simulation; a resize generation
@@ -426,7 +427,8 @@ swarm, idle hunter micro-loops (heron throat pulse, dragonfly wing
 loop, snake head sway), the web loader pulse, and attract-board
 animation. Reduced-motion registry: score floaters, caustic dither,
 firefly swarm, attract board, loader motion, eyes trails, turn sparks,
-idle micro-loops. Tests: the render-code registry test fails on any
+idle micro-loops, overlay fades (desktop and web; become cuts). Tests:
+the render-code registry test fails on any
 unlisted brightness call site; a capture test renders 180 frames of the
 warning window with reduced flash on and asserts no pixel above 0.85
 luminance outside eyes and highlights and adjacent-frame delta of 8 or
