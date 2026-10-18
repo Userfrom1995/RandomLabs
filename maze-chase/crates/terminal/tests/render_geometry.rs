@@ -187,6 +187,34 @@ impl Session {
     fn type_bytes(&mut self, bytes: &[u8]) {
         (&self.pty.master).write_all(bytes).unwrap();
     }
+
+    /// Capture the first complete synchronized frame painted from now on:
+    /// waits for BOTH the `?2026h` head and `?2026l` tail in the
+    /// post-clear buffer, so a clear that raced a mid-paint frame can
+    /// never yield an orphan tail with no head.
+    fn capture_frame(&mut self, tag: &str) -> String {
+        self.clear_output();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            drain(&mut self.pty.master, &mut self.out);
+            if let Some(frame) = last_complete_frame(&self.out) {
+                return frame;
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            assert!(
+                !remaining.is_zero(),
+                "{tag}: no complete frame after this point; tail: {}",
+                tail(&self.out)
+            );
+            let mut pfd = libc::pollfd {
+                fd: self.pty.master.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            };
+            let ms = remaining.as_millis().min(50) as i32;
+            unsafe { libc::poll(&mut pfd, 1, ms) };
+        }
+    }
 }
 
 impl Drop for Session {
@@ -282,13 +310,7 @@ fn right_wall_renders_inside_a_62x35_window() {
     );
 
     // Capture a complete playing frame painted after this point.
-    s.clear_output();
-    assert!(
-        s.wait("\x1b[?2026l", Duration::from_secs(5)),
-        "no complete frame after entering play; tail: {}",
-        tail(&s.out)
-    );
-    let frame = last_complete_frame(&s.out).expect("captured a complete frame");
+    let frame = s.capture_frame("playing-62x35");
     let grid = PaintedFrame::feed(&frame, WINDOW_COLS as usize, WINDOW_ROWS as usize);
 
     let row = BOARD_Y + ROW_TY;

@@ -253,15 +253,34 @@ impl Session {
         send_signal(self.child.id(), libc::SIGCONT);
     }
 
-    /// Capture the last complete synchronized frame painted from now on.
+    /// Capture the first complete synchronized frame painted from now on.
+    ///
+    /// Waits for a frame that has BOTH its `?2026h` head and `?2026l`
+    /// tail in the post-clear buffer: waiting for the tail alone can race
+    /// a clear that drained a mid-paint frame, leaving an orphan `?2026l`
+    /// with no head (pre-existing harness flake, ~1/3 of runs).
     fn capture_frame(&mut self, tag: &str) -> String {
         self.clear_output();
-        assert!(
-            self.wait("\x1b[?2026l", Duration::from_secs(5)),
-            "{tag}: no complete frame after this point; tail: {}",
-            tail(&self.out)
-        );
-        last_complete_frame(&self.out).expect("captured a complete frame")
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            drain(&mut self.pty.master, &mut self.out);
+            if let Some(frame) = last_complete_frame(&self.out) {
+                return frame;
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            assert!(
+                !remaining.is_zero(),
+                "{tag}: no complete frame after this point; tail: {}",
+                tail(&self.out)
+            );
+            let mut pfd = libc::pollfd {
+                fd: self.pty.master.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            };
+            let ms = remaining.as_millis().min(50) as i32;
+            unsafe { libc::poll(&mut pfd, 1, ms) };
+        }
     }
 }
 
