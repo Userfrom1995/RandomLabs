@@ -243,39 +243,45 @@ pub fn render_board(
                 }
             };
         }
-        let cell_text = |tx: i32, ty: i32, sub: usize| -> (String, Rgb, Rgb) {
+        // One output character per terminal column: `row_sub` selects the
+        // magnified glyph's row, `col_sub` its horizontal character. The
+        // expanded glyph is exactly `cw` characters wide, so indexing it
+        // (never emitting a whole sub-row per column) keeps every row
+        // exactly `layout.cols` characters.
+        let cell_text = |tx: i32, ty: i32, row_sub: usize, col_sub: usize| -> (char, Rgb, Rgb) {
+            let pick = |s: &str| s.chars().nth(col_sub).unwrap_or(' ');
             let tile = game.maze.tile(tx, ty);
             if let Some(&(text, color)) = overlay.get(&(tx, ty)) {
                 let t = expand(text, cw);
-                return (t[sub].clone(), color, theme.bg);
+                return (pick(&t[row_sub]), color, theme.bg);
             }
             match tile {
                 Tile::Wall => {
                     // Full-block face in the wall tone; the bitmap
                     // tiers add bevel shading where pixels allow.
                     let s = if layout.magnified {
-                        "████".to_string()
+                        "████"
                     } else {
-                        "██".to_string()
+                        "██"
                     };
-                    (s, theme.wall, theme.bg)
+                    (pick(s), theme.wall, theme.bg)
                 }
                 Tile::Door => {
                     let s = expand("──", cw);
-                    (s[sub].clone(), theme.accent, theme.bg)
+                    (pick(&s[row_sub]), theme.accent, theme.bg)
                 }
-                Tile::House => (spaces(cw), theme.bg, theme.bg),
+                Tile::House => (' ', theme.bg, theme.bg),
                 Tile::Dot | Tile::Energizer | Tile::Plain => {
                     let i = (ty * WIDTH + tx) as usize;
                     if field.get(stride + i).copied().unwrap_or(0) == 1 {
                         let halo = (frame_no / 24) % 2 == 1;
                         let s = expand(if halo { "○○" } else { "●●" }, cw);
-                        (s[sub].clone(), theme.sunseed, theme.bg)
+                        (pick(&s[row_sub]), theme.sunseed, theme.bg)
                     } else if field.get(i).copied().unwrap_or(0) == 1 {
                         let s = expand("· ", cw);
-                        (s[sub].clone(), theme.crumb, theme.bg)
+                        (pick(&s[row_sub]), theme.crumb, theme.bg)
                     } else {
-                        (spaces(cw), theme.bg, theme.bg)
+                        (' ', theme.bg, theme.bg)
                     }
                 }
             }
@@ -285,31 +291,32 @@ pub fn render_board(
             let by = layout.board.y as usize;
             let bw = layout.board.w as usize;
             let bh = layout.board.h as usize;
-            let (tx, ty, sub) = if col >= bx && col < bx + bw && row >= by && row < by + bh {
-                let lx = col - bx;
-                let ly = row - by;
-                let tx = (lx / cw) as i32;
-                let ty = (ly / ch) as i32;
-                let sub = (ly % ch).min(expand_len(cw) - 1);
-                (tx, ty, sub)
-            } else {
-                // Chrome areas are painted by the app; fill background.
-                let s = " ".to_string();
-                if cur_fg != theme.bg || cur_bg != theme.bg {
-                    flush!();
-                    cur_fg = theme.bg;
-                    cur_bg = theme.bg;
-                }
-                line.push_str(&s);
-                continue;
-            };
-            let (text, fg, bg) = cell_text(tx, ty, sub);
+            let (tx, ty, row_sub, col_sub) =
+                if col >= bx && col < bx + bw && row >= by && row < by + bh {
+                    let lx = col - bx;
+                    let ly = row - by;
+                    let tx = (lx / cw) as i32;
+                    let ty = (ly / ch) as i32;
+                    let row_sub = (ly % ch).min(expand_len(cw) - 1);
+                    let col_sub = lx % cw;
+                    (tx, ty, row_sub, col_sub)
+                } else {
+                    // Chrome areas are painted by the app; fill background.
+                    if cur_fg != theme.bg || cur_bg != theme.bg {
+                        flush!();
+                        cur_fg = theme.bg;
+                        cur_bg = theme.bg;
+                    }
+                    line.push(' ');
+                    continue;
+                };
+            let (text, fg, bg) = cell_text(tx, ty, row_sub, col_sub);
             if fg != cur_fg || bg != cur_bg {
                 flush!();
                 cur_fg = fg;
                 cur_bg = bg;
             }
-            line.push_str(&text);
+            line.push(text);
         }
         flush!();
         screen.rows.push(spans);
@@ -324,10 +331,6 @@ fn expand_len(width: usize) -> usize {
     } else {
         2
     }
-}
-
-fn spaces(n: usize) -> String {
-    " ".repeat(n)
 }
 
 /// Expand a 2-cell glyph to the magnified width (4) by doubling chars.
@@ -360,6 +363,31 @@ mod tests {
         // Fresh Pip heads left with an open mouth.
         assert!(ansi.contains("<<"), "pip present");
         assert!(ansi.contains("BB"), "bram present");
+    }
+
+    #[test]
+    fn board_rows_are_exactly_window_width() {
+        // Every output row must be exactly `layout.cols` characters: the
+        // renderer emits one character per terminal column (compact 2x1
+        // and magnified 4x2 cells alike), so a row can never overflow
+        // the window and clip the right wall.
+        let theme = &themes::EMBER_WARREN;
+        for (cols, rows) in [(62u16, 35u16), (100, 40), (200, 100)] {
+            let l = layout::compute(cols, rows);
+            assert!(!l.too_small, "{cols}x{rows}");
+            let s = render_board(&game(), theme, &l, 0, true);
+            assert_eq!(s.rows.len(), rows as usize, "{cols}x{rows} row count");
+            for (i, row) in s.rows.iter().enumerate() {
+                let width: usize = row.iter().map(|sp| sp.text.chars().count()).sum();
+                assert_eq!(width, cols as usize, "{cols}x{rows} row {i} width");
+            }
+        }
+        // The sweep above covers the compact cells at 62x35/100x40 and
+        // the magnified cells at 200x100; pin that split so a layout
+        // change cannot silently make the test cover one mode twice.
+        assert_eq!(layout::compute(62, 35).cell_cols, 2);
+        assert_eq!(layout::compute(100, 40).cell_cols, 2);
+        assert_eq!(layout::compute(200, 100).cell_cols, 4);
     }
 
     #[test]
