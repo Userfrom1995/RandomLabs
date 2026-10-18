@@ -7,6 +7,14 @@
 # drawing of the window bounds. Run this on a real Windows host or the
 # windows-tester runner; the GUI session cannot be synthesized.
 #
+# There is deliberately NO pty transcript on Windows: capturing stdout
+# requires a pipe, and the game refuses a non-terminal stdout on Windows
+# (`crates/terminal/src/main.rs`), so a piped run exits before painting
+# anything. The game therefore runs unpiped in a real console and the row
+# is graded from the game process itself (pid file plus exit code file);
+# the evidence is the screenshots plus that process record, and the row
+# notes say so.
+#
 # Usage:
 #   pwsh -File tools/compat/run-windows.ps1                    # both terminals
 #   pwsh -File tools/compat/run-windows.ps1 -Emulator conhost  # one terminal
@@ -24,6 +32,21 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+$InitialParts = $Initial -split 'x'
+if ($InitialParts.Count -ne 2 -or -not ($InitialParts[0] -as [int]) -or -not ($InitialParts[1] -as [int])) {
+  Write-Error "run-windows.ps1: -Initial must look like 100x40 (got '$Initial')"
+  exit 2
+}
+$InitCols = [int]$InitialParts[0]
+$InitRows = [int]$InitialParts[1]
+
+$Arch = switch ($env:PROCESSOR_ARCHITECTURE) {
+  'AMD64' { 'x86_64' }
+  'ARM64' { 'aarch64' }
+  'x86'   { 'i686' }
+  default { 'unknown' }
+}
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot  = (Resolve-Path (Join-Path $ScriptDir '../..')).Path
@@ -62,13 +85,15 @@ function Write-Unverified {
   New-Item -ItemType Directory -Force -Path (Join-Path $runDir 'session') | Out-Null
   Set-Content -Path (Join-Path $runDir 'session/events.log') -Value ''
   $meta = [ordered]@{
-    emulator = $Emu; emulator_version = 'n/a'; os = 'windows'; arch = 'x86_64'
+    emulator = $Emu; emulator_version = 'n/a'; os = 'windows'; arch = $Arch
     driver = 'none'; requested_tier = $Tier; extra_env = @()
-    transcript = 'session/pty.log'
+    transcript = $null
     runner = @{ host = $env:COMPUTERNAME; id = 'compat-harness' }
     started_at = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+    ended_at = $null
     geometry = @{}; duration_s = 0; exit = $null
-    notes = @('recorded as unverified by run-windows.ps1')
+    notes = @('recorded as unverified by run-windows.ps1',
+              'no pty transcript exists on Windows: piping stdout would break the game''s terminal check; evidence is the screenshots plus the game process record')
   }
   $meta | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $runDir 'session/meta.json')
   & python3 (Join-Path $ScriptDir 'collect.py') --run-dir $runDir --emulator $Emu `
@@ -113,16 +138,27 @@ function Invoke-Run {
   $session = Join-Path $runDir 'session'
   New-Item -ItemType Directory -Force -Path $session, (Join-Path $runDir 'config'), (Join-Path $runDir 'home') | Out-Null
 
-  $tierFlag = @(); if ($Tier -ne 'auto') { $tierFlag = @('--tier', $Tier) }
+  $runDirSlash = $runDir -replace '\\','/'
+  $sessionSlash = $session -replace '\\','/'
+  $gameArgs = "@('--dir', '$runDirSlash/config'"
+  if ($Tier -ne 'auto') {
+    $gameArgs += ", '--tier', '$Tier'"
+  }
+  $gameArgs += ')'
   $runner = Join-Path $session 'run-game.ps1'
+  # The game itself must own the console's stdout (no pipe anywhere):
+  # Start-Process returns the game's own process handle, whose pid and
+  # exit code are the grading evidence.
   @"
-`$env:HOME = '$($runDir -replace '\\','/')/home'
-`$env:MAZE_CHASE_TRACE = '$($session -replace '\\','/')/trace.jsonl'
-& '$Binary' --dir '$($runDir -replace '\\','/')/config' $($tierFlag -join ' ')
-Start-Sleep -Seconds 0.3
+`$env:HOME = '$runDirSlash/home'
+`$env:MAZE_CHASE_TRACE = '$sessionSlash/trace.jsonl'
+`$game = Start-Process -FilePath '$Binary' -ArgumentList $gameArgs -PassThru
+`$game.Id | Set-Content -Path '$sessionSlash/game.pid'
+`$game.WaitForExit()
+`$game.ExitCode | Set-Content -Path '$sessionSlash/game.exit'
 "@ | Set-Content -Path $runner
 
-  $transcript = Join-Path $session 'pty.log'
+  $proc = $null
   switch ($Emu) {
     'windows-terminal' {
       if (-not (Get-Command wt -ErrorAction SilentlyContinue)) {
@@ -131,14 +167,12 @@ Start-Sleep -Seconds 0.3
       }
       $proc = Start-Process wt -ArgumentList @(
         'new-tab', '--title', 'maze-chase-compat',
-        'pwsh', '-NoProfile', '-Command',
-        "& '$runner' 2>&1 | Tee-Object -FilePath '$transcript'"
+        'pwsh', '-NoProfile', '-File', $runner
       ) -PassThru
     }
     'conhost' {
       $proc = Start-Process pwsh -ArgumentList @(
-        '-NoProfile', '-Command',
-        "& '$runner' 2>&1 | Tee-Object -FilePath '$transcript'"
+        '-NoProfile', '-File', $runner
       ) -PassThru
     }
   }
@@ -164,8 +198,11 @@ public class WinFind {
 
   $shots = Join-Path $session 'screenshots'
   New-Item -ItemType Directory -Force -Path $shots | Out-Null
+  $startedAt = (Get-Date).ToUniversalTime()
   $now = { [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() }
-  $bytes = { if (Test-Path $transcript) { (Get-Item $transcript).Length } else { 0 } }
+  # No transcript exists on Windows (see the file header): the event
+  # stream records 0 transcript bytes at every event on purpose.
+  $bytes = { 0 }
   $events = Join-Path $session 'events.log'
   function Log-Event([string]$type, [string]$detail, [string]$shot) {
     Add-Content -Path $events -Value ("{0}`t{1}`t{2}`t{3}`t{4}" -f (& $now), $type, $detail, (& $bytes), $shot)
@@ -193,25 +230,77 @@ public class WinFind {
   Send-Keys @('{ESC}', '{DOWN}', '{ENTER}'); Start-Sleep -Milliseconds 800
   Checkpoint 'settings'
   Send-Keys @('{ESC}', '{DOWN}', '{ENTER}'); Start-Sleep -Seconds 2
-  $exited = $proc.HasExited
-  Log-Event 'exit' "exited=$($exited.ToString().ToLower()) killed=false" ''
 
+  # Grade from the game's own process, never from the wt/pwsh launcher.
+  $pidFile = Join-Path $session 'game.pid'
+  $exitFile = Join-Path $session 'game.exit'
+  $gamePid = $null
+  if (Test-Path $pidFile) {
+    $pidText = (Get-Content $pidFile -ErrorAction SilentlyContinue | Select-Object -First 1)
+    if ($pidText) { $gamePid = [int]$pidText }
+  }
+  $gameExited = $false
+  if ($gamePid) {
+    $gameExited = -not [bool](Get-Process -Id $gamePid -ErrorAction SilentlyContinue)
+  }
+  $killed = $false
+  if ($gamePid -and -not $gameExited) {
+    Stop-Process -Id $gamePid -Force -ErrorAction SilentlyContinue
+    $killed = $true
+    Start-Sleep -Milliseconds 300
+    $gameExited = -not [bool](Get-Process -Id $gamePid -ErrorAction SilentlyContinue)
+  }
+  $gameExitCode = $null
+  if ($gameExited -and (Test-Path $exitFile)) {
+    $exitText = (Get-Content $exitFile -ErrorAction SilentlyContinue | Select-Object -First 1)
+    if ($exitText) { $gameExitCode = [int]$exitText }
+  }
+  Log-Event 'exit' "exited=$($gameExited.ToString().ToLower()) killed=$($killed.ToString().ToLower()) game_exit=$gameExitCode" ''
+  if ($proc -and -not $proc.HasExited) {
+    Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+  }
+
+  $endedAt = (Get-Date).ToUniversalTime()
   $meta = [ordered]@{
-    emulator = $Emu; emulator_version = 'system'; os = 'windows'; arch = 'x86_64'
+    emulator = $Emu; emulator_version = 'system'; os = 'windows'; arch = $Arch
     driver = 'windows'; requested_tier = $Tier; extra_env = @()
-    transcript = 'session/pty.log'
+    transcript = $null
     runner = @{ host = $env:COMPUTERNAME; id = 'compat-harness' }
-    started_at = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-    geometry = @{ initial = @{ cols = 100; rows = 40 } }; duration_s = 0
-    exit = @{ code = $null; killed = (-not $exited); game_exited = $exited; process_exited = $exited }
+    started_at = $startedAt.ToString('yyyy-MM-ddTHH:mm:ssZ')
+    ended_at = $endedAt.ToString('yyyy-MM-ddTHH:mm:ssZ')
+    geometry = @{
+      requested = @{ initial = @{ cols = $InitCols; rows = $InitRows } }
+      measured = @{}
+      resize_exercised = $false
+    }
+    duration_s = [int]($endedAt - $startedAt).TotalSeconds
+    exit = @{ code = $gameExitCode; killed = $killed; game_exited = $gameExited; process_exited = $gameExited }
+    notes = @(
+      'session driven by run-windows.ps1 (SendKeys + window capture)',
+      'no pty transcript on Windows: piping stdout would break the game''s terminal check; graded from the game process (game.pid plus game.exit) and the screenshots'
+    )
   }
   $meta | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $session 'meta.json')
 
-  $result = if ($exited) { 'pass' } else { 'partial' }
-  & python3 (Join-Path $ScriptDir 'collect.py') --run-dir $runDir --emulator $Emu `
-    --os windows --tier $Tier --result $result `
-    --notes 'session driven by run-windows.ps1 (SendKeys + window capture)' `
-    --evidence-dir $EvidenceDir
+  $result = 'pass'
+  $reason = $null
+  if (-not $gamePid) {
+    $result = 'unverified'
+    $reason = 'the game process never started (no game.pid written by the session runner); the launcher exited at startup'
+  } elseif (-not $gameExited) {
+    $result = 'partial'
+  }
+  if ($reason) {
+    & python3 (Join-Path $ScriptDir 'collect.py') --run-dir $runDir --emulator $Emu `
+      --os windows --tier $Tier --result $result --unverified-reason $reason `
+      --notes 'session driven by run-windows.ps1 (SendKeys + window capture)' `
+      --evidence-dir $EvidenceDir
+  } else {
+    & python3 (Join-Path $ScriptDir 'collect.py') --run-dir $runDir --emulator $Emu `
+      --os windows --tier $Tier --result $result `
+      --notes 'session driven by run-windows.ps1 (SendKeys + window capture)' `
+      --evidence-dir $EvidenceDir
+  }
   Write-Host "  scratch at $runDir"
 }
 

@@ -19,6 +19,11 @@
 #   Paused: Down then Confirm on "Quit to title" -> Title;
 #   Title: Down/Confirm walks Help, Scores, Settings then Quit.
 # Esc must never be pressed while on the Title screen (that quits).
+#
+# Window resizes are only exercised by the X11 driver (xdotool can set
+# exact window sizes). The macOS Aqua driver cannot resize Terminal.app
+# windows reliably, so its rows skip the resize checkpoints and record
+# that as a note instead of capturing resize-named images.
 set -euo pipefail
 
 TITLE="maze-chase-compat"
@@ -36,7 +41,7 @@ RESIZE_SMALL_COLS=80
 RESIZE_SMALL_ROWS=24
 EXTRA_ENV=()
 TRANSCRIPT=""
-BOOT_SECONDS=12
+BOOT_SECONDS=2
 KEY_DELAY=0.16
 RESIZE_SETTLE=1.4
 STEP_SETTLE=0.8
@@ -97,14 +102,19 @@ log_event() { # type detail screenshot
 WID=""
 WID_PX_W=0
 WID_PX_H=0
+INITIAL_PX_W=0
+INITIAL_PX_H=0
 CELL_W_PX=1
 CELL_H_PX=1
+RESIZE_SUPPORTED="false"
+MEASURED_RESIZES=()
 
 driver_ready() {
   case "$DRIVER" in
     x11)
       command -v xdotool >/dev/null || { echo "drive.sh: xdotool missing (apt install xdotool)" >&2; exit 3; }
       command -v import >/dev/null || { echo "drive.sh: ImageMagick import missing" >&2; exit 3; }
+      RESIZE_SUPPORTED="true"
       ;;
     macos)
       command -v osascript >/dev/null || { echo "drive.sh: osascript missing" >&2; exit 3; }
@@ -113,6 +123,28 @@ driver_ready() {
     none) : ;;
     *) echo "drive.sh: unknown driver: $DRIVER" >&2; exit 2 ;;
   esac
+}
+
+measure_geometry() {
+  # Re-read the real window pixel size (never trust the requested size:
+  # terminal emulators may restore a remembered geometry). Every
+  # checkpoint logs the measured size so the committed events.log proves
+  # what the captures actually show. Only the X11 driver can read window
+  # pixels; other drivers record measured geometry as unavailable instead
+  # of inventing it.
+  case "$DRIVER" in
+    x11)
+      eval "$(xdotool getwindowgeometry --shell "$WID" 2>/dev/null || true)"
+      [ -n "${WIDTH:-}" ] && WID_PX_W="$WIDTH"
+      [ -n "${HEIGHT:-}" ] && WID_PX_H="$HEIGHT"
+      ;;
+    *) return 0 ;;
+  esac
+  if [ "$INITIAL_PX_W" -eq 0 ]; then
+    INITIAL_PX_W="$WID_PX_W"
+    INITIAL_PX_H="$WID_PX_H"
+  fi
+  log_event geometry "${WID_PX_W}x${WID_PX_H}" ""
 }
 
 find_window() {
@@ -159,14 +191,35 @@ focus_window() {
   esac
 }
 
+valid_png() { # path; PNG signature plus nonzero dimensions
+  python3 - "$1" <<'PY' >/dev/null 2>&1
+import struct, sys
+try:
+    with open(sys.argv[1], "rb") as fh:
+        head = fh.read(24)
+except OSError:
+    sys.exit(1)
+if len(head) < 24 or head[:8] != b"\x89PNG\r\n\x1a\n":
+    sys.exit(1)
+w, h = struct.unpack(">II", head[16:24])
+sys.exit(0 if w > 0 and h > 0 else 1)
+PY
+}
+
 screenshot() { # name
   local name="$1"
   local path="$SHOTS/$name.png"
+  rm -f "$path"
   case "$DRIVER" in
-    x11) import -window "$WID" "$path" 2>/dev/null || cp /dev/null "$path" ;;
-    macos) screencapture -x "$path" ;;
+    x11) import -window "$WID" "$path" 2>/dev/null || true ;;
+    macos) screencapture -x "$path" 2>/dev/null || true ;;
     none) return 0 ;;
   esac
+  if ! valid_png "$path"; then
+    rm -f "$path"
+    log_event note "capture '$name' produced no valid PNG; checkpoint recorded without an image" ""
+    return 1
+  fi
   printf '%s\n' "$path"
 }
 
@@ -193,24 +246,18 @@ key() { # xdotool key name
 
 resize_to() { # cols rows
   local cols="$1" rows="$2"
-  case "$DRIVER" in
-    x11)
-      local px_w=$(( cols * CELL_W_PX ))
-      local px_h=$(( rows * CELL_H_PX ))
-      xdotool windowsize "$WID" "$px_w" "$px_h"
-      ;;
-    macos)
-      log_event note "resize ${cols}x${rows} unsupported on the macOS Aqua driver (Terminal.app cannot be resized reliably); geometry change not exercised" ""
-      return 0
-      ;;
-    none) return 0 ;;
-  esac
-  log_event resize "${cols}x${rows}" ""
+  local px_w=$(( cols * CELL_W_PX ))
+  local px_h=$(( rows * CELL_H_PX ))
+  xdotool windowsize "$WID" "$px_w" "$px_h"
+  log_event resize "${cols}x${rows} (requested)" ""
   sleep_s "$RESIZE_SETTLE"
+  measure_geometry
+  MEASURED_RESIZES+=("${WID_PX_W}x${WID_PX_H}")
 }
 
 checkpoint() { # name
   local name="$1"
+  measure_geometry
   local shot=""
   [ "$DRIVER" != "none" ] && shot="$(screenshot "$name" || true)"
   if [ -n "$shot" ]; then
@@ -235,7 +282,16 @@ driver_ready
 
 # Launch the emulator (the launch command runs the game inside `script`
 # so the raw escape stream lands in the transcript) and track its pid.
-eval "$LAUNCH" &
+# `--env KEY=VALUE` entries are applied to the launch environment itself
+# (they could not be applied anywhere else) and recorded verbatim in the
+# evidence metadata.
+ENV_PREFIX=""
+for kv in "${EXTRA_ENV[@]:-}"; do
+  [ -n "$kv" ] || continue
+  printf -v _q '%q' "$kv"
+  ENV_PREFIX+="$_q "
+done
+eval "${ENV_PREFIX}$LAUNCH" &
 LAUNCH_PID=$!
 
 find_window
@@ -247,7 +303,7 @@ find_window
 focus_window
 
 # Give the emulator a moment to paint its first frame, then capture boot.
-sleep_s 2.0
+sleep_s "$BOOT_SECONDS"
 checkpoint title
 
 if [ "$DRIVER" != "none" ]; then
@@ -262,14 +318,21 @@ if [ "$DRIVER" != "none" ]; then
   checkpoint playing
 
   # Resize wide while playing: the game must re-fit without restarting.
-  resize_to "$RESIZE_WIDE_COLS" "$RESIZE_WIDE_ROWS"
-  checkpoint resized-wide
+  # Only the X11 driver can set exact window sizes; the macOS Aqua driver
+  # skips these checkpoints and records the skip instead of capturing
+  # resize-named images it could not produce.
+  if [ "$RESIZE_SUPPORTED" = "true" ]; then
+    resize_to "$RESIZE_WIDE_COLS" "$RESIZE_WIDE_ROWS"
+    checkpoint resized-wide
 
-  # Shrink below the floor: the too-small card, then recover.
-  resize_to "$RESIZE_SMALL_COLS" "$RESIZE_SMALL_ROWS"
-  checkpoint too-small
-  resize_to "$RESIZE_WIDE_COLS" "$RESIZE_WIDE_ROWS"
-  checkpoint refit
+    # Shrink below the floor: the too-small card, then recover.
+    resize_to "$RESIZE_SMALL_COLS" "$RESIZE_SMALL_ROWS"
+    checkpoint too-small
+    resize_to "$RESIZE_WIDE_COLS" "$RESIZE_WIDE_ROWS"
+    checkpoint refit
+  else
+    log_event note "resize checkpoints skipped: the $DRIVER driver cannot set window sizes; geometry changes were not exercised" ""
+  fi
 
   # Pause from Playing (Esc = Back = pause) and prove the pause surface.
   key Escape
@@ -346,26 +409,57 @@ else
     GAME_GONE="true"
   fi
 fi
+reap_game() {
+  # The terminal process may die without propagating the signal to the
+  # game process running inside it (observed: a ghostty session left its
+  # game spinning after the window closed, burning CPU and polluting
+  # later runs). TERM then KILL the recorded game pid directly.
+  local pid=""
+  if [ -n "$GAME_PID_FILE" ] && [ -s "$GAME_PID_FILE" ]; then
+    pid="$(cat "$GAME_PID_FILE" 2>/dev/null || true)"
+  fi
+  [ -n "$pid" ] || return 0
+  kill -0 "$pid" 2>/dev/null || return 0
+  kill "$pid" 2>/dev/null || true
+  sleep_s 0.3
+  kill -9 "$pid" 2>/dev/null || true
+}
 if [ "$EXITED" = "true" ]; then
   wait_for_exit "$LAUNCH_PID" 4 || true
   kill "$LAUNCH_PID" 2>/dev/null || true
   sleep_s 0.5
   kill -9 "$LAUNCH_PID" 2>/dev/null || true
+  reap_game
   EXIT_CODE=0
   wait "$LAUNCH_PID" 2>/dev/null || EXIT_CODE=$?
 else
   kill "$LAUNCH_PID" 2>/dev/null || true
   sleep_s 0.5
   kill -9 "$LAUNCH_PID" 2>/dev/null || true
+  reap_game
   KILLED="true"
 fi
 
 ENDED_MS="$(now_ms)"
+ENDED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
 log_event exit "exited=$EXITED killed=$KILLED" ""
 
 ENV_JSON="[]"
 if [ "${#EXTRA_ENV[@]}" -gt 0 ]; then
   ENV_JSON="$(printf '%s\n' "${EXTRA_ENV[@]}" | jq -R . | jq -s .)"
+fi
+MEASURED_RESIZES_JSON="[]"
+if [ "${#MEASURED_RESIZES[@]}" -gt 0 ]; then
+  MEASURED_RESIZES_JSON="$(printf '%s\n' "${MEASURED_RESIZES[@]}" \
+    | jq -R 'split("x") | {px_w: (.[0] | tonumber), px_h: (.[1] | tonumber)}' | jq -s .)"
+fi
+MEASURED_JSON="null"
+if [ "$RESIZE_SUPPORTED" = "true" ]; then
+  MEASURED_JSON="$(jq -n \
+    --argjson px_w "${INITIAL_PX_W:-0}" --argjson px_h "${INITIAL_PX_H:-0}" \
+    --argjson cell_w "$CELL_W_PX" --argjson cell_h "$CELL_H_PX" \
+    --argjson resizes "$MEASURED_RESIZES_JSON" \
+    '{initial: {px_w: $px_w, px_h: $px_h}, resizes: $resizes, cell_px: {w: $cell_w, h: $cell_h}}')"
 fi
 
 jq -n \
@@ -377,6 +471,7 @@ jq -n \
   --arg tier "$TIER_REQUEST" \
   --arg host "$HOST_ID" \
   --arg started_at "$STARTED_AT" \
+  --arg ended_at "$ENDED_AT" \
   --arg transcript "$TRANSCRIPT" \
   --argjson env "$ENV_JSON" \
   --argjson initial_cols "$INITIAL_COLS" \
@@ -385,10 +480,8 @@ jq -n \
   --argjson wide_rows "$RESIZE_WIDE_ROWS" \
   --argjson small_cols "$RESIZE_SMALL_COLS" \
   --argjson small_rows "$RESIZE_SMALL_ROWS" \
-  --argjson px_w "$WID_PX_W" \
-  --argjson px_h "$WID_PX_H" \
-  --argjson cell_w "$CELL_W_PX" \
-  --argjson cell_h "$CELL_H_PX" \
+  --argjson measured "$MEASURED_JSON" \
+  --argjson resize_exercised "$([ "$RESIZE_SUPPORTED" = true ] && echo true || echo false)" \
   --argjson started_ms "$STARTED_MS" \
   --argjson ended_ms "$ENDED_MS" \
   --argjson exit_code "${EXIT_CODE:-null}" \
@@ -405,14 +498,18 @@ jq -n \
     transcript: $transcript,
     runner: { host: $host, id: "compat-harness" },
     started_at: $started_at,
+    ended_at: $ended_at,
     geometry: {
-      initial: { cols: $initial_cols, rows: $initial_rows, px_w: $px_w, px_h: $px_h },
-      cell_px: { w: $cell_w, h: $cell_h },
-      resizes: [
-        { cols: $wide_cols, rows: $wide_rows },
-        { cols: $small_cols, rows: $small_rows },
-        { cols: $wide_cols, rows: $wide_rows }
-      ]
+      requested: {
+        initial: { cols: $initial_cols, rows: $initial_rows },
+        resizes: [
+          { cols: $wide_cols, rows: $wide_rows },
+          { cols: $small_cols, rows: $small_rows },
+          { cols: $wide_cols, rows: $wide_rows }
+        ]
+      },
+      measured: $measured,
+      resize_exercised: $resize_exercised
     },
     duration_s: (($ended_ms - $started_ms) / 1000 | floor),
     exit: { code: $exit_code, killed: $killed, game_exited: $game_gone, process_exited: $game_gone }

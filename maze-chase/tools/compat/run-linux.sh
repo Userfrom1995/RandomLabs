@@ -13,6 +13,9 @@
 #   tools/compat/run-linux.sh --emulator ghostty --tier kitty   # forced-tier probe
 #   tools/compat/run-linux.sh --install-deps        # apt-install missing emulators
 #   tools/compat/run-linux.sh --outdir /tmp/compat  # scratch location
+#   tools/compat/run-linux.sh --emulator xterm --tier auto \
+#       --row-name xterm-dark-linux-auto            # distinct evidence row id
+#   tools/compat/run-linux.sh --keep                # retain the scratch transcripts
 #
 # Requirements: Linux, python3, jq, xdotool, ImageMagick (import), Xvfb
 # when headless, and a release binary (`--skip-build` reuses one).
@@ -33,6 +36,7 @@ INITIAL="100x40"
 WIDE="143x64"
 SMALL="80x24"
 GAME_ENV=()
+ROW_NAME=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -47,6 +51,7 @@ while [ $# -gt 0 ]; do
     --wide) WIDE="$2"; shift 2 ;;
     --small) SMALL="$2"; shift 2 ;;
     --game-env) GAME_ENV+=("$2"); shift 2 ;;
+    --row-name) ROW_NAME="$2"; shift 2 ;;
     --help|-h) sed -n '2,22p' "$0"; exit 0 ;;
     *) echo "run-linux.sh: unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -56,8 +61,7 @@ for dep in python3 jq; do
   command -v "$dep" >/dev/null || { echo "run-linux.sh: missing dependency: $dep" >&2; exit 3; }
 done
 
-STAMP="$(date -u +%Y%m%d%H%M%S)"
-[ -n "$OUTDIR" ] || OUTDIR="/tmp/maze-chase-compat/$STAMP"
+[ -n "$OUTDIR" ] || OUTDIR="$(mktemp -d "${TMPDIR:-/tmp}/maze-chase-compat.XXXXXX")"
 mkdir -p "$OUTDIR" "$EVIDENCE_DIR"
 
 # ---------------------------------------------------------------- display
@@ -100,18 +104,19 @@ emulator_version() { # name
   esac
 }
 
-install_emulator() { # name
+install_emulator() { # name; failures are logged loudly, never hidden
   case "$1" in
     kitty|xterm)
-      sudo apt-get install -y -qq "$1" >/dev/null 2>&1 || true
+      sudo apt-get install -y -qq "$1"
       ;;
     ghostty)
-      # The community PPA builds the upstream Ghostty releases for
-      # supported Ubuntu versions; the evidence records the exact
-      # version string it produced.
-      sudo add-apt-repository -y ppa:mkasberg/ghostty-ubuntu >/dev/null 2>&1 || true
-      sudo apt-get update -qq >/dev/null 2>&1 || true
-      sudo apt-get install -y -qq ghostty >/dev/null 2>&1 || true
+      # The community PPA (ppa:mkasberg/ghostty-ubuntu) builds the
+      # upstream Ghostty releases for supported Ubuntu versions; it is
+      # third-party, not part of the distribution archive. The evidence
+      # records the exact version string it produced.
+      sudo add-apt-repository -y ppa:mkasberg/ghostty-ubuntu
+      sudo apt-get update -qq
+      sudo apt-get install -y -qq ghostty
       ;;
   esac
 }
@@ -135,6 +140,7 @@ write_unverified() { # emulator reason
   python3 "$SCRIPT_DIR/collect.py" --run-dir "$rundir" --emulator "$emu" \
     --os linux --tier "$TIER" --result unverified \
     --unverified-reason "$reason" \
+    ${ROW_NAME:+--row-name "$ROW_NAME"} \
     --notes "recorded by run-linux.sh on $(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --evidence-dir "$EVIDENCE_DIR"
 }
@@ -149,7 +155,9 @@ run_emulator() { # emulator tier
   if ! command -v "$emu" >/dev/null; then
     if [ "$INSTALL_DEPS" = "true" ]; then
       echo "install: $emu"
-      install_emulator "$emu"
+      if ! install_emulator "$emu"; then
+        echo "install: $emu failed (see the installer output above)" >&2
+      fi
       hash -r 2>/dev/null || true
     fi
   fi
@@ -163,23 +171,32 @@ run_emulator() { # emulator tier
 
   # The game runs through `script` so the raw escape stream is captured;
   # MAZE_CHASE_TRACE is exported now so the trace ingestion path is live
-  # the moment the binary emits the mode.
+  # the moment the binary emits the mode. `--game-env` entries travel to
+  # drive.sh's `--env` (applied to the launch environment and recorded in
+  # the evidence metadata).
   cat > "$session/run-game.sh" <<RUNNER
 #!/usr/bin/env bash
 echo \$\$ > "$session/game.pid"
 export HOME="$rundir/home"
 export MAZE_CHASE_TRACE="$session/trace.jsonl"
-$(for kv in "${GAME_ENV[@]:-}"; do [ -n "$kv" ] && printf 'export %s\n' "$kv"; done)
 exec "$BINARY" --dir "$rundir/config" $tier_flag
 RUNNER
   chmod +x "$session/run-game.sh"
 
+  local -a env_args=()
+  for kv in "${GAME_ENV[@]:-}"; do
+    [ -n "$kv" ] && env_args+=(--env "$kv")
+  done
+
   local launch
   case "$emu" in
     kitty)
+      # remember_window_size=no is required: without it kitty restores
+      # the previous run's window and the requested initial cell size is
+      # silently ignored (observed on the first evidence run).
       launch="LIBGL_ALWAYS_SOFTWARE=1 kitty --title maze-chase-compat --config NONE \
         -o initial_window_width=${INITIAL%x*}c -o initial_window_height=${INITIAL#*x}c \
-        -o font_size=9 -o confirm_os_window_close=0 \
+        -o remember_window_size=no -o font_size=9 -o confirm_os_window_close=0 \
         -e script -q -f -c '$session/run-game.sh' '$session/pty.log'"
       ;;
     ghostty)
@@ -198,13 +215,16 @@ RUNNER
   esac
 
   echo "run: $emu ($tier) -> $rundir"
-  if bash "$SCRIPT_DIR/drive.sh" \
+  local exit_status=0
+  bash "$SCRIPT_DIR/drive.sh" \
       --driver x11 --launch "$launch" --outdir "$rundir" \
       --emulator "$emu" --emulator-version "$(emulator_version "$emu")" \
       --tier "$tier" --initial "$INITIAL" \
       --resize-wide "$WIDE" --resize-small "$SMALL" \
+      "${env_args[@]}" \
       --game-pid-file "$session/game.pid" \
-      --transcript "$session/pty.log"; then
+      --transcript "$session/pty.log" || exit_status=$?
+  if [ "$exit_status" -eq 0 ]; then
     local result="pass"
     if ! grep -q "exited=true" "$session/events.log"; then
       result="partial"
@@ -214,20 +234,34 @@ RUNNER
       python3 "$SCRIPT_DIR/collect.py" --run-dir "$rundir" --emulator "$emu" \
         --os linux --tier "$tier" --result unverified \
         --unverified-reason "session produced no escape transcript; the emulator did not run the game" \
+        ${ROW_NAME:+--row-name "$ROW_NAME"} \
         --evidence-dir "$EVIDENCE_DIR"
     else
+      local note="session driven by tools/compat/drive.sh on a real $emu window"
+      if [ "$emu" = "xterm" ] && [ -n "${MAZE_CHASE_COMPAT_XTERM_FLAGS:-}" ]; then
+        note="$note (xterm flags: $MAZE_CHASE_COMPAT_XTERM_FLAGS)"
+      fi
       python3 "$SCRIPT_DIR/collect.py" --run-dir "$rundir" --emulator "$emu" \
         --os linux --tier "$tier" --result "$result" \
-        --notes "session driven by tools/compat/drive.sh on a real $emu window" \
+        ${ROW_NAME:+--row-name "$ROW_NAME"} \
+        --notes "$note" \
         --evidence-dir "$EVIDENCE_DIR"
     fi
   else
     python3 "$SCRIPT_DIR/collect.py" --run-dir "$rundir" --emulator "$emu" \
       --os linux --tier "$tier" --result unverified \
       --unverified-reason "drive session failed before evidence collection (see $rundir)" \
+      ${ROW_NAME:+--row-name "$ROW_NAME"} \
       --evidence-dir "$EVIDENCE_DIR" || true
   fi
-  echo "  scratch at $rundir"
+  if [ "$KEEP" = "true" ]; then
+    echo "  scratch kept at $rundir (transcript included; --keep)"
+  elif [ "$exit_status" -ne 0 ]; then
+    echo "  scratch kept at $rundir (drive failed; inspect it)" >&2
+  else
+    rm -rf "$rundir"
+    echo "  scratch removed (pass --keep to retain transcripts)"
+  fi
 }
 
 # ---------------------------------------------------------------- runs
