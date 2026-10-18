@@ -4,8 +4,8 @@
 //! binary on a real PTY (macOS 26.6.2, arm64): a full title -> play ->
 //! pause -> resume -> quit-to-title session that exits 0 and restores
 //! the terminal modes it found, live resize across the 62x35 too-small
-//! boundary while playing (the running session survives the round
-//! trip), and a real game-over run that persists its score row to
+//! boundary mid-run (the paused run's frozen Sprint clock survives the
+//! round trip), and a real game-over run that persists its score row to
 //! `scores.txt`.
 //!
 //! The child is given a controlling terminal (`setsid` plus
@@ -265,6 +265,39 @@ impl Session {
         }
     }
 
+    /// Wait for a full side-panel clock token (`CLOCK  X.Ys`) and return it
+    /// (draining through it) so the exact frozen value can be re-matched
+    /// after the resize round trip. A restarted run reads 0.0s.
+    fn wait_clock(&mut self, timeout: Duration) -> String {
+        let deadline = Instant::now() + timeout;
+        loop {
+            {
+                let mut guard = self.out.lock().unwrap();
+                let hay = String::from_utf8_lossy(&guard).into_owned();
+                if let Some(idx) = hay.find("CLOCK  ") {
+                    let rest = &hay[idx + 7..];
+                    let digits: usize = rest
+                        .chars()
+                        .take_while(|c| c.is_ascii_digit() || *c == '.')
+                        .map(char::len_utf8)
+                        .sum();
+                    if rest[digits..].starts_with('s') {
+                        let end = idx + 7 + digits + 1;
+                        let token = hay[idx..end].to_string();
+                        guard.drain(..end);
+                        return token;
+                    }
+                }
+            }
+            assert!(
+                Instant::now() < deadline,
+                "no side-panel clock appeared; tail: {}",
+                self.tail()
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
     fn wait_exit(&mut self, timeout: Duration) -> Option<std::process::ExitStatus> {
         let deadline = Instant::now() + timeout;
         loop {
@@ -369,12 +402,27 @@ fn full_session_exits_clean_and_restores_termios() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// Shrinking the window below 62x35 mid-play shows the too-small card,
-/// growing back repaints the live game (the simulation never
-/// restarts), and a normal quit still works afterwards.
+/// Shrinking the window below 62x35 mid-run shows the too-small card,
+/// growing back repaints the paused game with its frozen Sprint clock
+/// intact (the simulation never restarts), and a normal quit still
+/// works afterwards.
 #[test]
 fn live_resize_too_small_card_recovers_mid_play() {
-    let (mut s, _before, dir) = spawn("live-resize", &["--tier", "truecolor"]);
+    let dir = std::env::temp_dir().join(format!(
+        "maze-chase-macos-e2e-live-resize-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    // Harsh selects the Sprint preset (single life, ticking 300 s par
+    // clock): the clock makes run progress a value the resize round
+    // trip must preserve exactly.
+    std::fs::write(
+        dir.join("settings.txt"),
+        "# maze-chase config (hand-rolled key = value; see persist.rs)\ndifficulty = harsh\n",
+    )
+    .unwrap();
+    let (mut s, _before) = spawn_at(&dir, &["--tier", "truecolor"]);
 
     assert!(
         s.wait_for("video tier: truecolor-cells", Duration::from_secs(15)),
@@ -399,10 +447,24 @@ fn live_resize_too_small_card_recovers_mid_play() {
         "Play must start; tail: {}",
         s.tail()
     );
+    // Let the Sprint clock advance, then pause to freeze it: the exact
+    // frozen token is run progress that a resize-restart would erase.
+    std::thread::sleep(Duration::from_millis(1000));
+    s.send(b"p");
+    assert!(
+        s.wait_for("PAUSED", Duration::from_secs(5)),
+        "P must pause before the resize round trip; tail: {}",
+        s.tail()
+    );
+    let clock = s.wait_clock(Duration::from_secs(5));
+    assert_ne!(
+        clock, "CLOCK  0.0s",
+        "the Sprint clock must have advanced before the trip"
+    );
     s.resize(50, 20);
     assert!(
         s.wait_for("needs at least 62x35", Duration::from_secs(8)),
-        "a mid-play shrink must show the too-small card; tail: {}",
+        "a mid-run shrink must show the too-small card; tail: {}",
         s.tail()
     );
     s.resize(61, 35);
@@ -429,10 +491,9 @@ fn live_resize_too_small_card_recovers_mid_play() {
         "growing back must repaint the running game; tail: {}",
         s.tail()
     );
-    s.send(b"p");
     assert!(
-        s.wait_for("PAUSED", Duration::from_secs(5)),
-        "P must still pause after the resize round-trip; tail: {}",
+        s.wait_for(&clock, Duration::from_secs(5)),
+        "the running session must survive the resize round trip: the frozen Sprint clock must reappear; tail: {}",
         s.tail()
     );
     s.send(b"\x1b[B");
