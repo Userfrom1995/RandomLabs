@@ -30,7 +30,17 @@ jobs:
         startsWith(github.event.comment.body, '/opencode eval')
       ) && !startsWith(github.event.comment.body, '/oc eval result') && !startsWith(github.event.comment.body, '/opencode eval result')
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # Issue #650: the 2026-10-18 Quality Council runs on PR #635 (39089476658,
+    # 39094600854) were both killed at the agent step's 75-minute cap under this
+    # 90-minute job ceiling with no decision file: run 1 was still actively
+    # executing its hostile-CLI matrix at the wire, run 2 stalled on a provider
+    # stream and burned the remainder silently. The evaluator is the lab's
+    # heaviest verification arm (it compiles the deliverable and installs
+    # runtime dependencies before the adversarial passes), so its step budget
+    # now matches the heavy build arm's 105 minutes, and this job cap is raised
+    # in lockstep (90 -> 120): a 105-minute step under a 90-minute ceiling
+    # would still die at the wire, just later.
+    timeout-minutes: 120
     steps:
       - name: Get PR info
         id: pr-info
@@ -119,7 +129,12 @@ jobs:
         id: evaluator
         if: steps.actor_gate.outputs.run == 'true'
         continue-on-error: true
-        timeout-minutes: 75
+        # Issue #650: raised 75 -> 105 (the heavy build arm's budget) so a
+        # near-complete Council pass is not killed at the wire; the job-level
+        # cap above is raised in lockstep (90 -> 120) so it cannot cut this
+        # step short, leaving the workflow's non-agent steps ~15 minutes of
+        # headroom inside the ceiling.
+        timeout-minutes: 105
         uses: ./.github/actions/opencode-run
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
