@@ -248,28 +248,50 @@ jobs:
               exit 1
               ;;
           esac
+          # Diagnosability (issue #637): the publication-check result is always
+          # visible in the job log, so this class is identifiable without
+          # re-running the evidence script by hand.
+          echo "Publication evidence for #$pr: evidence script exit $pub_rc (published=$published)."
 
-          # Crash-parity with build/fix mode (issue #132): a healthy reviewer
-          # ALWAYS writes the decision file as its final act, so "no published
-          # verdict + failed agent step" is exactly the mid-stream crash
-          # signature (e.g. 'Provider finish_reason: network_error'). The
-          # in-flight job's log cannot be grepped via API until it completes,
-          # so this outcome pair IS the signature; the hard cap below bounds
-          # any other class. An unpublished verdict is discarded BEFORE the
-          # infra override and the forward step can ever see it (issue #616).
+          # Crash-parity with build/fix mode (issues #132, #637): a healthy
+          # reviewer ALWAYS publishes its sign-off-bearing decision comment as
+          # its final act, so "no published verdict" is the crash signature -
+          # whether the agent step failed mid-run (e.g. 'Provider
+          # finish_reason: network_error') or reported success while ending on
+          # any message other than the decision comment (issue #637: the
+          # wrapper posts only the session's FINAL message, so a wrap-up turn
+          # after the composed verdict replaces it; review run 39089530715 on
+          # PR #636 lost its verdict exactly this way). The in-flight job's
+          # log cannot be grepped via API until it completes, so this pair IS
+          # the signature; the hard cap below bounds any other class. An
+          # unpublished verdict is discarded BEFORE the infra override and the
+          # forward step can ever see it (issue #616).
           unpublished_verdict="false"
           if [ -f /tmp/random-lab-decision.json ]; then
             if [ "$published" = "true" ]; then
               echo "Review decision file present and the decision comment is published; gate produced a verdict."
               exit 0
             fi
-            echo "::error::Reviewer wrote a decision file but never published its decision comment (issue #616: death between the decision-file write and the comment post, e.g. Provider finish_reason: network_error / APIError); discarding the unpublished verdict and treating this as a crash."
+            echo "::error::Reviewer wrote a decision file but never published its decision comment (issues #616/#637: death between the decision-file write and the comment post, or a final message that was not the sign-off-bearing decision comment); discarding the unpublished verdict and treating this as a crash."
             rm -f /tmp/random-lab-decision.json
             unpublished_verdict="true"
           fi
 
+          # Issue #637: an unpublished verdict is a crash signature regardless
+          # of the agent step's outcome, so both detection branches below set
+          # one shared crash flag and the bounded auto-retry is gated on
+          # exactly that flag.
+          crash_signature="false"
           if [ "$outcome" != "success" ]; then
             echo "::error::Reviewer step finished with outcome '$outcome' and no published verdict (crashed mid-run, e.g. Provider finish_reason: network_error / APIError)."
+            crash_signature="true"
+          fi
+          if [ "$unpublished_verdict" = "true" ]; then
+            echo "::error::Reviewer step ended with an unpublished verdict (issue #637: the session's final message must BE the sign-off-bearing decision comment); treating this as a crash."
+            crash_signature="true"
+          fi
+
+          if [ "$crash_signature" = "true" ]; then
             # Robust retry counter: never fall back to 0 on an API/rate-limit
             # failure, which would make the cap never trip and loop forever.
             # Only count retries the API actually returned; on enumeration
@@ -287,11 +309,6 @@ jobs:
               exit 0
             fi
             echo "::error::Review gate still dead after 4 attempts (1 initial + 3 auto-retries). Manual intervention required."
-            exit 1
-          fi
-
-          if [ "$unpublished_verdict" = "true" ]; then
-            echo "::error::Reviewer step reported success but its decision comment was never published; failing loudly instead of forwarding an unpublished verdict (issue #616)."
             exit 1
           fi
 
