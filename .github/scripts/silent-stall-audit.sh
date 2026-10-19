@@ -7688,7 +7688,7 @@ fi
 #      accepts path-qualified executables and `env`/`command`/`bash -c`
 #      prefixes, so every ordinary `gh issue create` or `gh issue new`
 #      spelling (tabs, `g""h`,
-#      `g\` newline `h`, `/usr/bin/gh`, `gh -R owner/repo issue create`,
+#      `g` newline `h`, `/usr/bin/gh`, `gh -R owner/repo issue create`,
 #      `gh issue --repo owner/repo create`, `gh issue new`, `$"ne"w`,
 #      subshell and `;` forms) is
 #      caught, as is the Python list form even when it spans lines, carries
@@ -7734,15 +7734,23 @@ fi
 #      `/usr/bin/g[h]` (review findings F37/F38; named explicitly), is the
 #      documented residual. Repo-local
 #      scripts executed by the pinned pre-handler steps are themselves
-#      scanned for the env-file channel (review finding F27: appending
+#      byte-pinned by SHA-256 to their reviewed bodies (review finding F44:
+#      a system-PATH shim plant into `/usr/local/bin/gh` or
+#      `sudo install ... /usr/bin/gh`, and a behaviorally hostile token-free
+#      edit such as an always-deny gate, both kept the spelling-sensitive
+#      token scan green; an unexpected script path or changed body now
+#      fails loudly, and a self-test appends a comment to each pinned
+#      script and requires the extractor to reject it). The token scan
+#      remains defense in depth: it rejects GITHUB_ENV, GITHUB_PATH,
+#      BASH_ENV, the pinned `.opencode` PATH directory, the ambient
+#      user-writable PATH directories, `/usr/local/bin`, `sudo`, and the
+#      decision-file input in every such script body, and recognizes the
+#      standard invocation spellings: bash/sh/source, optional flags,
+#      absolute or quoted paths (review finding F27: appending
 #      `echo "BASH_ENV=..." >> "$GITHUB_ENV"` to `resolve-model.sh` left the
-#      audit green while the handler sourced the shim; the scan now rejects
-#      GITHUB_ENV, GITHUB_PATH, BASH_ENV, the pinned `.opencode` PATH
-#      directory, and the decision-file input in every such script body,
-#      and recognizes the standard invocation spellings: bash/sh/source,
-#      optional flags, absolute or quoted paths), with one level of
+#      audit green while the handler sourced the shim). One level of
 #      indirection inside such a script (a script invoking another script,
-#      or an environment variable expanded into the target path) remaining
+#      or an environment variable expanded into the target path) remains
 #      the documented residual.
 #      Structurally, the ENTIRE pre-handler
 #      region (step sequence, execution-shape keys, full env key maps
@@ -7779,7 +7787,9 @@ fi
 #      an issue create executed from inside a repo script, composite action,
 #      or reusable workflow, are likewise review-gated residuals: the
 #      canonical region pin and the diff surface them, but no static model
-#      follows arbitrary script execution.
+#      follows arbitrary script execution. A pre-handler script edit is
+#      caught by the exact-body pin as well as the diff, and a job-level
+#      `if` on the handler's job remains review-gated.
 r26_bad=""
 R26_WF=".github/workflows/maintainer.yml"
 # Repo root the audit is running against, for the repo-root module-shadow
@@ -7894,6 +7904,7 @@ else
   else
     r26_block=$(python3 -I - "$R26_WF" "$r26_premanifest_out" "$r26_pathdirs_out" "$R26_REPO_ROOT" "$r26_handlerpath_out" 2>"$r26_extract_err" <<'R26EXTRACT'
 import codecs
+import hashlib
 import json
 import os
 import re
@@ -8467,12 +8478,52 @@ for _index, other in pre_steps:
 # an environment variable expanded into the target path) remains the
 # documented residual.
 repo_root = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] else "."
+# Exact-body pin for the repo-local scripts the pinned pre-handler steps
+# execute (review finding F44): the token scan below is spelling-sensitive and
+# covered neither a system-PATH shim plant (`/usr/local/bin/gh`, or `sudo
+# install ... /usr/bin/gh`, since /usr/local/bin is mode 777 on the runner and
+# `sudo -n` succeeds) nor a behaviorally hostile but token-free edit (an
+# always-deny gate). Every such script must therefore stay byte-identical to
+# its reviewed body: an unexpected script path or a changed body fails the
+# audit loudly, so a pre-handler script edit is a diff-visible, review-gated
+# change instead of a silent runtime hook.
+_SCRIPT_SHA256 = {
+    ".github/scripts/actor-write-gate.sh": "3a59433f9e5bfec46d272aec906cf0131d5411119c8fc717c248698183a6a03e",
+    ".github/actions/opencode-run/resolve-model.sh": "dd9ddfa0a1329796ea32fd60c5295c4d6eb63020a7d3d43c0676af5d0795a136",
+}
+
+
+def _script_sha256(path):
+    with open(path, "rb") as handle:
+        return hashlib.sha256(handle.read()).hexdigest()
+
+
+def _script_body_matches(path, expected):
+    try:
+        return _script_sha256(path) == expected
+    except OSError:
+        return False
+
+
 for _index, other in pre_steps:
     for _match in re.finditer(r"(?:^|[\s;&|()])(?:/bin/)?(?:bash|sh|source|\.)(?:[ \t]+-[A-Za-z]+)*[ \t]+[\"']?([A-Za-z0-9_./-]+\.(?:sh|bash))[\"']?\b", other.get("run") or ""):
         _rel = _match.group(1)
         _path = _rel if os.path.isabs(_rel) else os.path.join(repo_root, _rel)
+        _rel_key = os.path.relpath(_rel, repo_root) if os.path.isabs(_rel) else os.path.normpath(_rel)
         if not os.path.isfile(_path):
-            continue
+            print("handler-pre-script-missing:%s" % _rel_key, file=sys.stderr)
+            sys.exit(22)
+        _expected = _SCRIPT_SHA256.get(_rel_key)
+        if _expected is None:
+            print("handler-pre-script-unexpected:%s" % _rel_key, file=sys.stderr)
+            sys.exit(22)
+        if not _script_body_matches(_path, _expected):
+            try:
+                _digest = _script_sha256(_path)
+            except OSError:
+                _digest = "unreadable"
+            print("handler-pre-script-body:%s:%s" % (_rel_key, _digest), file=sys.stderr)
+            sys.exit(22)
         try:
             with open(_path, encoding="utf-8", errors="replace") as _handle:
                 _script = _handle.read()
@@ -8485,9 +8536,13 @@ for _index, other in pre_steps:
         # /usr/bin; a pre-handler script could plant a gh/python3 shim
         # there). The handler step's PATH is now pinned to the system
         # directories, and these tokens are banned in pinned scripts as
-        # defense in depth.
+        # defense in depth. Review finding F44: /usr/local/bin is also
+        # mode 777 on the runner (so `cat > /usr/local/bin/gh` works) and
+        # `sudo -n` succeeds (so `sudo install ... /usr/bin/gh` works), so
+        # both are banned spellings too.
         for _token in ("GITHUB_ENV", "GITHUB_PATH", "BASH_ENV", ".opencode", "decision.json",
-                       ".local/bin", ".cargo/bin", ".dotnet/tools", ".config/composer/vendor/bin"):
+                       ".local/bin", ".cargo/bin", ".dotnet/tools", ".config/composer/vendor/bin",
+                       "/usr/local/bin", "sudo"):
             if _token in _script:
                 print("handler-pre-script-channel:%s:%s" % (_rel, _token), file=sys.stderr)
                 sys.exit(22)
@@ -8718,8 +8773,18 @@ fi
 # form. Residual (documented): a healthy run whose own final
 # response contains the exact terminal form as a standalone
 # column-0 line could still match; none has ever been observed.
+# ( set +o pipefail; ... ) wrap (issue #653 review F1): every
+# `shell: bash` step runs as `bash --noprofile --norc -eo pipefail`,
+# and `grep -q` exits at the first match while `tail` may still be
+# writing. Once the 40-line window exceeds the pipe buffer (64 KiB
+# on Linux), tail takes SIGPIPE and pipefail propagates its 141, so
+# a genuine terminal line would read as "no match" (a silent green
+# on the exit-0 path, a lost retry on the nonzero path). The
+# subshell restores the pipeline's own grep status without
+# weakening either the tail scope or the column-0 anchor. The same
+# wrap guards all three detectors.
 model_error_terminal() {
-  tail -n 40 "$1" | grep -qE "^(Error: )?Model not found: ${2//./\\.}(\. Did you mean: .*|\.?$)"
+  ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(Error: )?Model not found: ${2//./\\.}(\. Did you mean: .*|\.?$)" )
 }
 # FreeTierError detector (issue #620), same tail + column-0 terminal
 # anchoring as model_error_terminal: the provider prints the terminal
@@ -8728,69 +8793,184 @@ model_error_terminal() {
 # echo, quoted log line in prose) and the responseBody JSON envelope
 # cannot match the anchored whole-line form.
 freetier_error_terminal() {
-  tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?OpenCode's free tier can only be used from within OpenCode\. Download it at https://opencode\.ai and keep building\.?$"
+  ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?OpenCode's free tier can only be used from within OpenCode\. Download it at https://opencode\.ai and keep building\.?$" )
 }
+# Transient HTTP-error detector (issue #653), same tail + column-0
+# terminal anchoring as the #591/#620 detectors: the 2026-10-18
+# evidence shows the provider's terminal line for a 429/5xx death is
+# `AI_APICallError: Rate limit exceeded. Please try again later.` or
+# `AI_APICallError: Internal Server Error` (plus the standard gateway
+# phrases), bare at column 0, while the `AI_RetryError: Failed after 3
+# attempts. Last error: ...` summary, a transcript echo, and the
+# responseBody JSON envelope cannot match the anchored whole-line form.
+transient_http_error_terminal() {
+  ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Rate limit exceeded\. Please try again later\.|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout)\.?$" )
+}
+# Provider-stall watchdog knobs (issue #653): an attempt whose captured
+# log does not grow for HANG_IDLE_SECONDS (checked every
+# HANG_POLL_SECONDS) is aborted and classified as a provider hang.
+# Env-overridable only so the audit harness can exercise the watchdog
+# in seconds; non-numeric values fall back to the production defaults.
+# Review F3: a zero poll interval would busy-loop with `idle += 0`
+# (watchdog silently disabled) and a value beyond the shell's integer
+# range would error on every `-ge` comparison (watchdog never fires),
+# so both knobs are clamped to sane positive bounds here.
+hang_idle_seconds="${HANG_IDLE_SECONDS:-600}"
+hang_poll_seconds="${HANG_POLL_SECONDS:-30}"
+case "$hang_idle_seconds" in ''|*[!0-9]*) hang_idle_seconds=600 ;; esac
+case "$hang_poll_seconds" in ''|*[!0-9]*) hang_poll_seconds=30 ;; esac
+[ "$hang_poll_seconds" -ge 1 ] 2>/dev/null || hang_poll_seconds=30
+[ "$hang_idle_seconds" -ge 1 ] 2>/dev/null || hang_idle_seconds=600
+[ "$hang_idle_seconds" -le 86400 ] 2>/dev/null || hang_idle_seconds=600
 freetier_retry_used=0
+transient_retry_used=0
+hang_retry_used=0
 status=1
 for model in $candidates; do
   while :; do
     log="$(mktemp)"
+    fifo="${log}.fifo"
+    hang_flag="${log}.hang"
+    rm -f "$fifo" "$hang_flag"
     echo "::notice::maintainer run with model '$model'"
-    set +e
-    MODEL="$model" opencode github run 2>&1 | tee "$log"
-    # Capture BOTH pipeline statuses in one assignment: a following
-    # t=${PIPESTATUS[1]} would be empty because the first assignment
-    # resets PIPESTATUS. A failed tee (e.g. full RUNNER_TEMP) leaves an
-    # empty log whose grep can never match, so an exit-0 Model-not-found
-    # death would take the success branch; fail loudly instead.
-    st=("${PIPESTATUS[@]}")
-    set -e
-    status="${st[0]}"; tee_status="${st[1]}"
+    if mkfifo "$fifo" 2>/dev/null; then
+      # FIFO capture shape (issue #653): tee and opencode run as
+      # separate background children with known PIDs, so the stall
+      # watchdog can signal exactly those two processes. A failed tee
+      # is still observed via tee_pid's status; a failed opencode via
+      # oc_pid's status.
+      set +e
+      tee "$log" < "$fifo" &
+      tee_pid=$!
+      MODEL="$model" opencode github run > "$fifo" 2>&1 &
+      oc_pid=$!
+      (
+        last_size=$(wc -c < "$log" 2>/dev/null || echo 0)
+        idle=0
+        while kill -0 "$oc_pid" 2>/dev/null; do
+          sleep "$hang_poll_seconds"
+          kill -0 "$oc_pid" 2>/dev/null || exit 0
+          size=$(wc -c < "$log" 2>/dev/null || echo 0)
+          if [ "$size" -eq "$last_size" ]; then
+            idle=$((idle + hang_poll_seconds))
+            if [ "$idle" -ge "$hang_idle_seconds" ]; then
+              echo "::warning::opencode produced no output for ${hang_idle_seconds}s on model '$model' (provider stall, issue #653); aborting this attempt."
+              printf 'hang\n' > "$hang_flag"
+              kill -TERM "$oc_pid" 2>/dev/null
+              kill -TERM "$tee_pid" 2>/dev/null
+              sleep 5
+              kill -KILL "$oc_pid" 2>/dev/null
+              kill -KILL "$tee_pid" 2>/dev/null
+              exit 0
+            fi
+          else
+            idle=0
+            last_size=$size
+          fi
+        done
+      ) &
+      watch_pid=$!
+      wait "$oc_pid"; status=$?
+      wait "$tee_pid"; tee_status=$?
+      kill "$watch_pid" 2>/dev/null
+      wait "$watch_pid" 2>/dev/null
+      set -e
+    else
+      # No mkfifo (some Windows Git Bash environments): keep the
+      # legacy inline pipeline, loudly without the stall watchdog,
+      # instead of bricking the arm.
+      echo "::warning::mkfifo is unavailable on this runner; running model '$model' without the provider-stall watchdog (issue #653)."
+      set +e
+      MODEL="$model" opencode github run 2>&1 | tee "$log"
+      # Capture BOTH pipeline statuses in one assignment: a following
+      # t=${PIPESTATUS[1]} would be empty because the first assignment
+      # resets PIPESTATUS. A failed tee (e.g. full RUNNER_TEMP) leaves an
+      # empty log whose grep can never match, so an exit-0 Model-not-found
+      # death would take the success branch; fail loudly instead.
+      st=("${PIPESTATUS[@]}")
+      set -e
+      status="${st[0]}"; tee_status="${st[1]}"
+    fi
+    if [ -s "$hang_flag" ]; then
+      rm -f "$log" "$fifo" "$hang_flag"
+      if [ "$hang_retry_used" -lt 1 ]; then
+        hang_retry_used=1
+        echo "::warning::provider stall on model '$model' (issue #653); one bounded retry of the same model in 10s."
+        sleep 10
+        continue
+      fi
+      echo "::error::repeated provider stall on model '$model' after the bounded retry (issue #653); failing loudly instead of retrying unboundedly."
+      exit 1
+    fi
     if [ "$tee_status" -ne 0 ]; then
       echo "::error::could not capture the Maintainer opencode log for model '$model' (tee exit $tee_status); failing loudly instead of risking a blind advance."
-      rm -f "$log"
+      rm -f "$log" "$fifo" "$hang_flag"
       exit 1
     fi
     if [ "$status" -eq 0 ]; then
       if model_error_terminal "$log" "$model"; then
         echo "::warning::model '$model' died at the provider (terminal Model-not-found error on an exit-0 run); advancing to the next ladder rung if any."
-        rm -f "$log"
+        rm -f "$log" "$fifo" "$hang_flag"
         continue 2
       fi
       if freetier_error_terminal "$log"; then
         if [ "$freetier_retry_used" -lt 1 ]; then
           freetier_retry_used=1
           echo "::warning::transient free-tier rejection on model '$model' (exit-0 terminal FreeTierError, issue #620); one bounded retry of the same model in 15s."
-          rm -f "$log"
+          rm -f "$log" "$fifo" "$hang_flag"
           sleep 15
           continue
         fi
         echo "::error::persistent free-tier rejection on model '$model' after the bounded retry (issue #620); failing loudly instead of retrying unboundedly."
-        rm -f "$log"
+        rm -f "$log" "$fifo" "$hang_flag"
         exit 1
       fi
-      rm -f "$log"
+      if transient_http_error_terminal "$log"; then
+        if [ "$transient_retry_used" -lt 1 ]; then
+          transient_retry_used=1
+          echo "::warning::transient HTTP error on model '$model' (exit-0 terminal 429/5xx error, issue #653); one bounded retry of the same model in 30s."
+          rm -f "$log" "$fifo" "$hang_flag"
+          sleep 30
+          continue
+        fi
+        echo "::error::persistent HTTP error on model '$model' after the bounded retry (issue #653); failing loudly instead of retrying unboundedly."
+        rm -f "$log" "$fifo" "$hang_flag"
+        exit 1
+      fi
+      rm -f "$log" "$fifo" "$hang_flag"
       exit 0
     fi
     if grep -qE "Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)" "$log"; then
       echo "::warning::model '$model' was not found by the provider; advancing to the next ladder rung if any."
-      rm -f "$log"
+      rm -f "$log" "$fifo" "$hang_flag"
       continue 2
     fi
     if freetier_error_terminal "$log"; then
       if [ "$freetier_retry_used" -lt 1 ]; then
         freetier_retry_used=1
         echo "::warning::transient free-tier rejection on model '$model' (exit $status, issue #620); one bounded retry of the same model in 15s."
-        rm -f "$log"
+        rm -f "$log" "$fifo" "$hang_flag"
         sleep 15
         continue
       fi
       echo "::error::persistent free-tier rejection on model '$model' (exit $status) after the bounded retry (issue #620); failing loudly instead of retrying unboundedly."
-      rm -f "$log"
+      rm -f "$log" "$fifo" "$hang_flag"
       exit "$status"
     fi
-    echo "::error::Maintainer opencode run failed with exit status $status on model '$model' (not a model-resolution or free-tier transient death; remaining rungs are not retried)."
-    rm -f "$log"
+    if transient_http_error_terminal "$log"; then
+      if [ "$transient_retry_used" -lt 1 ]; then
+        transient_retry_used=1
+        echo "::warning::transient HTTP error on model '$model' (exit $status, issue #653); one bounded retry of the same model in 30s."
+        rm -f "$log" "$fifo" "$hang_flag"
+        sleep 30
+        continue
+      fi
+      echo "::error::persistent HTTP error on model '$model' (exit $status) after the bounded retry (issue #653); failing loudly instead of retrying unboundedly."
+      rm -f "$log" "$fifo" "$hang_flag"
+      exit "$status"
+    fi
+    echo "::error::Maintainer opencode run failed with exit status $status on model '$model' (not a model-resolution, free-tier, or transient-HTTP death; remaining rungs are not retried)."
+    rm -f "$log" "$fifo" "$hang_flag"
     exit "$status"
   done
 done
@@ -9097,6 +9277,52 @@ R26PRE
     [ "$r26_premanifest_actual" = "$r26_premanifest_expected" ] || r26_bad="${r26_bad} maintainer.yml(pre-handler-block-changed)"
   elif [ "$r26_extract_failed" = "0" ]; then
     r26_bad="${r26_bad} maintainer.yml(pre-handler-manifest-missing)"
+  fi
+  # Negative self-test for the exact pre-handler script-body pin (review
+  # finding F44): the REAL extractor heredoc is executed against a temp repo
+  # root whose copy of each pinned script carries one appended comment. The
+  # extractor must exit nonzero with that script's handler-pre-script-body
+  # token. If the hash comparison were deleted, bypassed, or weakened to
+  # accept appended bytes, the mutated copy would be accepted and this
+  # self-test would fail the audit itself, so the wiring (not only the
+  # predicate) is regression-guarded.
+  if [ "$r26_extract_failed" = "0" ]; then
+    r26_body_selftest_tmp=$(mktemp -d 2>/dev/null || true)
+    r26_audit_src="${BASH_SOURCE[0]:-$0}"
+    if [ -z "$r26_body_selftest_tmp" ] || [ ! -f "$r26_audit_src" ]; then
+      r26_bad="${r26_bad} maintainer.yml(pre-script-body-selftest-unavailable)"
+    else
+      for r26_selftest_rel in .github/scripts/actor-write-gate.sh .github/actions/opencode-run/resolve-model.sh; do
+        r26_case_dir="$r26_body_selftest_tmp/case-$(basename "$r26_selftest_rel")"
+        mkdir -p "$r26_case_dir/.github/workflows" "$r26_case_dir/$(dirname "$r26_selftest_rel")"
+        cp "$R26_WF" "$r26_case_dir/.github/workflows/maintainer.yml"
+        for r26_copy_rel in .github/scripts/actor-write-gate.sh .github/actions/opencode-run/resolve-model.sh; do
+          mkdir -p "$r26_case_dir/$(dirname "$r26_copy_rel")"
+          cp "$R26_REPO_ROOT/$r26_copy_rel" "$r26_case_dir/$r26_copy_rel"
+        done
+        printf '\n# R26 pre-script-body negative self-test\n' >> "$r26_case_dir/$r26_selftest_rel"
+        python3 -I - "$r26_audit_src" "$r26_case_dir/extract.py" <<'R26SELFTEST' || r26_bad="${r26_bad} maintainer.yml(pre-script-body-selftest-extract-failed)"
+import sys
+source = open(sys.argv[1], encoding="utf-8").read()
+marker = "<<'R26EXTRACT'\n"
+start = source.index(marker) + len(marker)
+end = source.index("\nR26EXTRACT\n", start)
+open(sys.argv[2], "w", encoding="utf-8").write(source[start:end] + "\n")
+R26SELFTEST
+        if python3 -I "$r26_case_dir/extract.py" \
+          "$r26_case_dir/.github/workflows/maintainer.yml" \
+          "$r26_case_dir/premanifest.txt" \
+          "$r26_case_dir/pathdirs.txt" \
+          "$r26_case_dir" \
+          "$r26_case_dir/handlerpath.txt" \
+          < /dev/null > "$r26_case_dir/stdout.txt" 2> "$r26_case_dir/stderr.txt"; then
+          r26_bad="${r26_bad} maintainer.yml(pre-script-body-selftest:${r26_selftest_rel}:accepted-mutation)"
+        elif ! grep -qF "handler-pre-script-body:${r26_selftest_rel}:" "$r26_case_dir/stderr.txt"; then
+          r26_bad="${r26_bad} maintainer.yml(pre-script-body-selftest:${r26_selftest_rel}:wrong-reason:$(tr -d '\r\n' < "$r26_case_dir/stderr.txt" | head -c 120))"
+        fi
+      done
+      rm -rf "$r26_body_selftest_tmp"
+    fi
   fi
   r26_pathdirs_cfg=$(cat "$r26_pathdirs_out" 2>/dev/null || true)
   r26_handler_path=$(cat "$r26_handlerpath_out" 2>/dev/null || true)
@@ -9882,7 +10108,7 @@ R26GH
                 [ -n "$r26_pd" ] || continue
                 case "$r26_pd" in
                   '$HOME'*)
-                    r26_pd_resolved="$dir/home${r26_pd#\$HOME}"
+                    r26_pd_resolved="$dir/home${r26_pd#$HOME}"
                     ;;
                   '$GITHUB_WORKSPACE'*)
                     r26_pd_rel="${r26_pd#\$GITHUB_WORKSPACE/}"
@@ -10720,7 +10946,7 @@ EOSH
   fi
 fi
 if [ -z "$r26_bad" ]; then
-  check "R26" "create_issue dedupe: the handler queries open issues before every gh issue create and skips creation on an identical normalized title (casefold, non-alphanumerics to spaces, whitespace collapsed) while printing the existing number and self-triaging the match, with an in-run duplicate dispatching no second triage, a loud created branch that records the new number, a loud fail-open query path (a registry failure creates rather than drops a decision), the executing step resolved from the SAME YAML parse tree GitHub runs with ANY duplicate mapping key rejected outright (GitHub's parser rejects such a file with Invalid workflow file / 422, while a lenient last-wins scan would pin the decoy value; review finding F18) and with EXACTLY ONE step carrying the exact anchored name and its actor-write-gate if form (always() && steps.actor_gate.outputs.run == 'true', the form main adopted for this step in issue #696), no shell, no working-directory, no continue-on-error, EXACTLY the two token env values plus the pinned system PATH (/usr/local/bin:/usr/bin:/bin) with every value intact (review finding F41: the runner's default PATH includes user-writable directories such as $HOME/.local/bin, $HOME/.cargo/bin, and $HOME/.dotnet/tools where a pre-handler repo script could plant a gh/python3 shim, and the pinned step PATH removes them from the handler's environment), no workflow-level or job-level env key, no job-level container, and no job-level strategy matrix (a merged PYTHONPATH or BASH_ENV would change the effective environment while the step env stayed exact; review finding F21), and each handler needle (the dedupe marker, _open_issue_titles, and _self_triage) in exactly one run which must be that step, so a comment-line anchor, a same-name decoy, a renamed or weakened executor, a removed, emptied, or role-swapped credential, or a cat-shell or crash-swallowing step fails loudly (review findings F17/F18; a wholesale executing-step rewrite carrying none of the three needles remains the documented diff-review boundary), the workflow-level and job-level defaults.run shell and working-directory overrides rejected outright with malformed defaults shapes too (a defaults: run: shell: cat {0} on either scope rewrote the anchored step's effective shell without touching the step keys and left the handler dead in production; review finding F21), the workflow-level and job-level env keys and a job-level container rejected as effective-environment changes (a merged PYTHONPATH or BASH_ENV would alter what the handler executes while the step env mapping stayed exact), and any repo-root Python module or package shadowing a module the handler imports or a startup hook (json, os, re, subprocess, time, sys, sitecustomize, usercustomize) in ANY importable spelling (source json.py, sourceless bytecode json.pyc placed directly in the directory, an extension module json.so or json.pyd bare or version-tagged, or a package directory carrying any importable __init__ artifact such as __init__.pyc) failing the audit loudly (including a shadow that unlinks itself on import, caught by an audit-start checkout snapshot taken before any rule executes and ORed into the scan) with the handler step itself invoking the interpreter in isolated mode (python3 -I -, pinned inside the exact-text handler block, so no repo-root module of ANY name, spelling, or transitive-import depth, the demonstrated transitive selectors import included, can reach the handler process; review finding F23), while the extractor, the fixture runner, and the audit's own R18 YAML-consistency helper execute isolated (python3 -I; review finding F24: the helper's non-isolated Python could previously import a repo-root module that rewrote the workflow file under test) and the functional sandbox mirrors the repo root's top-level files in every importable spelling into its work dir as defense in depth, so an isolation regression that somehow survives the exact-text pin also breaks the assertions (review findings F20/F22), exact control-flow pins on the loader invocation, the skip guard, and the skip branch's terminating continue plus five-consecutive-line adjacency of the lazy-load guard through the skip guard with exact-trim matching, so no run-state or input-shape gate can be interposed regardless of the dimension it gates on (review findings F2/F4), the eleven-line call-site preamble immediately preceding that chain pinned as an exact trimmed window plus the index sentinel pinned as exact text and a no-unknown-gh-command check over the accumulated invocation log against the pristine issue/workflow/api/pr allowlist, so an inserted probe between the branch opener and the chain (the demonstrated gh search issues call, inert under the mock at rc 64 but lethal against real gh) or a conditional sentinel replacement that pre-seeds the index under production conditions fails structurally or loudly (escape-hunt closures M1 and the init-replacement class), the ENTIRE handler block pinned as canonical exact text from its first line through the trailing PY with only blank lines dropped (indentation compared too) and the exact-form loop head required exactly once, so no line can be inserted, re-indented, or replaced anywhere in the handler without failing the audit, closing the three F13/F14/F15 families that lived outside the sub-region pins: a create-path gate silently dropping decisions, a decoy duplicate 'for d in decisions:' loop head that stopped the old setup-prefix extraction early, and an index-alias clear in the post-create-branch region (review findings F12/F13/F14/F15), the skip branch pinned as a six-consecutive-line shape with the skip print immediately after the skip guard and the terminating continue immediately after the triage dispatch (a conditional continue keyed on a first-class decision action such as ping or on a blank-line-bearing body can no longer pass the audit while leaking every match into gh issue create; review finding F10), and the whole _load_open_issue_titles() body from its def line through return index pinned as exact trimmed text with exactly one def occurrence and exactly two loader-name occurrences in the block, so a cross-dimensional conjunction on individually in-envelope dimensions (len(items) >= 5 and len(decisions) == 2), its no-added-line substitution variant, and its conditional def-shadowing variant fail structurally as well as behaviorally (review finding F9), block-scoped query-shape and ordering pins extracted from the real handler step, structural pins that the run-local index is assigned exactly twice (initialization and the fail-open line) and accessed only via .get/.setdefault, with subscript writes and deletes rejected because they evade the assignment and attribute pins (adversarial verification finding plus review finding F5), functional fixtures executing the real extracted normalization function with exactly one definition required in the block (review finding F7: a shadowing second definition would leave the fixtures testing dead code) and the function body from its def line through its return pinned as exact trimmed text so an inserted context-conditional line or replaced return expression that is sandbox-inert fails structurally (escape-hunt near-miss closure) (case fold including a Unicode casefold pair so a .lower() swap fails, punctuation/hyphen/underscore/whitespace collapse, and digit, space-placement, and >80-char long-tail pairs pinned non-matching so a digit-stripping regex, a \"\".join variant, or a truncating/fragmenting normalization fails; tester finding B1 plus adversarial escape E3; plus the 2026-10-18 paraphrase pair deliberately non-matching because fuzzy suppression could lose a distinct finding), and a functional sandbox that executes the real extracted handler block under the runner's bash -e shell against an executable mock gh (interception proven before the matrix; the handler environment is built from scratch with env -i: no ambient runner variable reaches it, credentials are fully absent, the non-credential Actions context is production-shaped across the standard variables (SHA, ref, ref name/type, server/API/GraphQL URLs, workspace, RUNNER_OS/ARCH, CI), and the mock's state paths are baked into the mock script, so env-keyed gate detection is independent of the ambient CI environment and the demonstrated env-sensing backdoor class is closed for the seeded set (escape hunt M5: a gate on SHA presence fires under audit once SHA is seeded) and for both exercised event shapes (schedule and workflow_dispatch); the mock requires the pinned query argv token for token (argument count plus every positional element), so a repeated scalar flag, an added --search filter, a reorder, or merged/split tokens cannot keep the audit green while the real query returns a different set or fail-opens, and the whole matrix's accumulated gh invocation log must stay inside the pristine issue/workflow/api/pr allowlist so an inserted probe call (unmodeled subcommands are mock-inert but real-gh-live) fails loudly wherever it sits; tester finding B2 plus adversarial escapes E2/Q4/Q5 and escape hunt M1, and emits the trailing newline real gh emits on every list output so a loader gate on the stdout newline is caught (review finding F6); sandbox outside the repo) across fresh-create (one query, one create on the bot token, one triage dispatch on the owner PAT), normalized-match skip+triage five times against newest-first five-issue lists where every entry is a scenario match at index 0 (#670, the 97-char title and the concurrent-duplicate shape so an items[1:]/items[-2:] offset or a length gate falls), index 1 (#669), index 2 (#668), index 3 (#665) and index 4 (#663, the oldest entry so items[:k] prefix truncations fall), so a cardinality gate at or below the fixture size, any proper prefix truncation through items[:4], an offset, a parity-gated index build, or an order-dependent all(n >= v) rebuild fails (tester finding B3 plus adversarial escapes E1/E4/L06/L07/P1/P2 and the round-3 order class), in-run duplicate against a non-empty open index via THREE identical decisions (one create, no second dispatch, two in-run skip prints, so a subscript-write or delete sabotage of the run-local index is caught behaviorally as well; review finding F5), query-failure fail-open, bad-JSON fail-open, a THREE-decision scenario with the matching create LAST after two successful creates (exactly 2 creates and 3 dispatches asserted, so a decision-count or created-count gate creates a third issue and fails), a matching decision carrying target (any target or extra-key gate), and a mixed scenario with a failed sweep first and a successfully posted comment second before the matching create (sweep_failed and posted gates; the failed sweep drives the handler's loud SystemExit(1), asserted as rc 1), a decision-count sweep of 1-4 decisions with the matching create LAST, each asserting zero duplicates (a 2-decision scenario with exactly 1 create and 2 dispatches, the existing 3-decision scenario with 2 creates and 3 dispatches, and a 4-decision scenario with 3 creates and 4 dispatches asserting all three created-number triages, so every ==k and <=/>= count gate inside 1-4 fires on at least one scenario and the created-count envelope extends to 3; the 2-decision and 4-decision scenarios run against FIVE-entry lists with the match at a middle index, so a conjunction of an in-envelope list size with an in-envelope decision count (len(items) >= 5 and len(decisions) == 2, review finding F9's demonstrated escape) can no longer hide behind fixture pairs that never hold both dimensions together) plus a COUNT SWEEP of decision counts 5 through 23 (each k a five-entry list with the match at a middle index and k-1 leading fresh creates before the matching create LAST, asserting the exact create count k-1 and dispatch count k), so every decision count 1-23 is exercised and an exact or bound gate on any swept count fires at least once (escape hunt M6: the demonstrated len(decisions) == 20 escape, and its created-count sibling len(_created_issue_numbers) >= 4, both now caught), a mixed action context carrying ALL of the handler's action keywords (review, test, test-linux, test-macos, test-windows, eval, continue, build, auditor, curate, architect, research, design, design-ux, design-visual, design-motion, lab, recover, fix, create_pr, ping-with-target, ideate) alongside the matching create LAST (0 creates, 18 comment posts, the skipped-fix probe, and the create_pr attempt asserted, so any action-keyword gate including one keyed on ping or ideate breaks the skip assertion; review finding F10), absent-body, 23-char short-single-line, two-line body, and paragraph-break (blank-line-bearing) body skip scenarios (not body_text and every len(body_text) < N with N >= 1, newline-presence, line-count, and short-length predicates inside the absent-body to long-three-line envelope), a matching create that is NOT last with a trailing lab action (last-position action predicates), a 147-char long-title skip scenario (title-length predicates up to 146), and a workflow_dispatch-event skip scenario (the demonstrated event-name gate; schedule remains the default shape), plus leading-action skip scenarios (ping-first with target, ideate-first, lab-first, recover-first: 0 creates, exactly one triage on the match, the loud skip line, and each leading action's own inert/comment behavior asserted, so any gate keyed on the leading decision action breaks the assertions; review findings F12/F14), create-path scenarios carrying a paragraph-break body, an absent body, and a short body against unmatched lists (the create must happen, so an F13 create-path gate drops the decision and fails the assertions), a posted-comment-before-a-fresh-create scenario (an if-posted create-path gate), and a create-lab-create-identical scenario asserting exactly one create, one triage, and the in-run skip print (an index-alias clear re-creates the duplicate; review finding F15), all with realistic multi-line >200-char bodies in every other scenario decision (a body-length gate), so the whole inserted-gate family is caught behaviorally even when a decoy satisfies the adjacency pin (review findings F4/F8), three digit-collision create scenarios ('Fix bug 42'/'Fix bug 43', 'Patch v10'/'Patch v1', 'Worker v1'/'Worker v10': pristine creates, a digit strip (full-run at one or both sites, zero-favored at either side) falsely skips, and any single-site strip fails the sweep), a space-removal collision create scenario ('Swift 6 migration' vs 'Swift6 migration': pristine creates, a consistent both-sites space removal after normalization falsely skips), one long-title collision create scenario (distinct long titles differing only in their final character: pristine creates, a consistent both-sites truncation merges them under every proper cutoff and falsely skips), and a size sweep of list sizes 1-8 whose last entry is the match with three-character, digit-bearing, single-word, and x-bearing titles cycling (a len(index)==N equality gate, an items[:k] truncation with k<8, or a number/length/word-count/charset per-entry gate at or below the sweep envelope fails), so no plain one-line disabled control flow, demonstrated fixture-coverage gap (offsets, prefix truncations, cardinality and parity gates at or below the fixture envelope, inserted run-state or input-shape gates at the loader chain, inside the loader, in the skip branch, in the call-site preamble, or as an inserted gh probe call, inserted gates anywhere in the handler (the whole block is exact-text pinned), including leading-action gates above the main loop, create-path gates, decoy duplicate loop heads, indentation changes, index subscript writes or deletes, a shadowing normalization definition or loader definition, stdout-newline gates, argument tampers, normalization weakening, call-site digit stripping, call-site space removal, consistent call-site truncation, order-dependent rebuilds), or demonstrated env-sensing backdoor, or a repo-root stdlib-shadowing module or an effective-shell defaults or effective-environment override, or a pre-handler step appending a directory to GITHUB_PATH next to a committed fake gh, exporting a BASH_ENV shim over the pinned python3 -I - invocation, planting a fake gh into the pinned HOME/.opencode/bin PATH directory, or rewriting the decision-file input, can conclude green (review findings F20/F21/F22/F23/F24/F25), with the ENTIRE pre-handler region (step sequence under the effective names GitHub displays, execution-shape keys, full env key maps including values, with: maps, and every run line with blank lines dropped) pinned as canonical exact text alongside a named env-file/mention allowlist, the PATH step body pinned to exactly the single echo line, and the functional sandbox deriving its PATH directories from the pinned extractor output (mirroring repo-provided GITHUB_WORKSPACE directories) with a derived-PATH shadow scenario proving the derived directories precede the mock bin and a pinned-path shim scenario proving a gh planted into the ambient user-writable $HOME/.local/bin (outside the pinned step PATH) is never executed (review finding F41), plus a shell-faithful check that every literal gh issue create invocation (including the documented gh issue new alias, resolved past global flags and their --repo/-R/--hostname/--config values; review finding F37) in the workflow lives in the anchored handler step (path-qualified executables such as /usr/bin/gh and ./gh, env/command/bash -c prefixes, tabs, backslash-newline continuations, quote/backslash word concatenation such as g''h, ANSI-C quoting such as $'\x69ssue', locale quoting such as $\"gh\", shell metacharacter separation, global flags between gh and the subcommand, the multi-line Python list form, the shell-escaped-quote Python one-liner, a single-element shell=True list, a comment-split token, Python \xNN/\uNNNN/\U00000000/\N{...}/octal escape spellings, b/r/u/f string prefixes, and a token split across adjacent string literals such as \"iss\" \"\x75e\" included, the single-shell-string form whose adjacent literals split the command word ('gh issue ' 'create' and 'gh issue crea' 'te', plus the +-folded constant form) caught by the collapsed letter form after compile-time concatenation (non-letters dropped, so numeric operator artifacts such as the 1 of * 1 vanish) with the word scan skipping the empty boundary token (tester finding F40), with the decoded, whitespace/quote/backslash-normalized form stripping line comments, folding string prefixes, and joining adjacent literals so the escaped, comment-split, and adjacent-literal spellings are caught) exercised by self-tests that test EACH layer directly (the word scan over _f29_red, the normalized form over _f30_red, the alias normalized form over _f30_alias_red, and the F40 collapsed form over _f40_red) and then exercise the exact combined predicate the scan calls over every red case (_f29_red + _f30_red + _f31_red + _f30_alias_red + _f40_red), so deleting or weakening any layer or the combined predicate fails the audit itself (review findings F26/F29/F30/F31/F32/F34/F35/F37/F40 plus the round-18 adjacent-literal sibling and the tester-verdict single-shell-string sibling; prose carrying separate gh, issue, and create tokens in one command line is a known accepted false-positive shape), and repo-local scripts executed by the pinned pre-handler steps in any standard invocation spelling (bash/sh/source, optional flags, absolute or quoted paths) scanned for GITHUB_ENV, GITHUB_PATH, BASH_ENV, the pinned .opencode PATH directory, the ambient user-writable PATH directories (.local/bin, .cargo/bin, .dotnet/tools, .config/composer/vendor/bin), and the decision-file input so a script body cannot write the runner env-file channel, plant the handler's binary or input, or plant a shim into an ambient user-writable PATH directory (review findings F27/F41: appending a BASH_ENV write to resolve-model.sh kept the audit green while the handler sourced the shim; each demonstrated one-line variant above kept the whole audit green at 25 passed, 0 failed while the handler used the planted binary or shim and filed the exact duplicate the guard exists to prevent), with deliberate identity fingerprinting (fixture token strings, sandbox paths, per-title charset gates), call-site character-class transformations outside the tested digit (full-run and zero-favored), space-removal, and truncation classes, or truncation/cardinality/number/length/word-count thresholds above the eight-entry, 147-char fixture envelope, exact decision- or created-count gates above the swept envelope (decision counts 1-23 and created counts 0-22 before a match are every one exercised), body-content predicates keyed on prose absent from every fixture body, create-path body-length predicates above the 283-char fixture envelope, or non-credential context values outside the seeded/exercised shapes (unseeded context variables, event names beyond the schedule/workflow_dispatch pair, actor values), a wholesale rewrite of the executing step into unrelated code carrying none of the three handler needles while a canonical decoy remains (visible in the diff, not distinguishable structurally from a genuine handler replacement), a create executed from inside a repo script, composite action, or reusable workflow, a gh create reached through a variable or command-substitution indirection at the call site, through xargs, a shell-function wrapper, a shell alias, or a glob-expanded executable path such as /usr/bin/g[h] (review findings F37/F38; named explicitly), a create issued through a direct REST call (gh api --method POST .../issues or curl .../issues), a create assembled by shell expansion or runtime string construction (IFS word splitting, brace expansion such as cr{e,}ate, or a runtime-split Python string), or an env-file channel reached through one level of indirection inside a repo-local script, review-gated as a documented residual (review findings F2/F4-F41 plus the F16 print fix; issue #668)" "ok"
+  check "R26" "create_issue dedupe: the handler queries open issues before every gh issue create and skips creation on an identical normalized title (casefold, non-alphanumerics to spaces, whitespace collapsed) while printing the existing number and self-triaging the match, with an in-run duplicate dispatching no second triage, a loud created branch that records the new number, a loud fail-open query path (a registry failure creates rather than drops a decision), the executing step resolved from the SAME YAML parse tree GitHub runs with ANY duplicate mapping key rejected outright (GitHub's parser rejects such a file with Invalid workflow file / 422, while a lenient last-wins scan would pin the decoy value; review finding F18) and with EXACTLY ONE step carrying the exact anchored name and its actor-write-gate if form (always() && steps.actor_gate.outputs.run == 'true', the form main adopted for this step in issue #696), no shell, no working-directory, no continue-on-error, EXACTLY the two token env values plus the pinned system PATH (/usr/local/bin:/usr/bin:/bin) with every value intact (review finding F41: the runner's default PATH includes user-writable directories such as \$HOME/.local/bin, \$HOME/.cargo/bin, and \$HOME/.dotnet/tools where a pre-handler repo script could plant a gh/python3 shim, and the pinned step PATH removes them from the handler's environment), no workflow-level or job-level env key, no job-level container, and no job-level strategy matrix (a merged PYTHONPATH or BASH_ENV would change the effective environment while the step env stayed exact; review finding F21), and each handler needle (the dedupe marker, _open_issue_titles, and _self_triage) in exactly one run which must be that step, so a comment-line anchor, a same-name decoy, a renamed or weakened executor, a removed, emptied, or role-swapped credential, or a cat-shell or crash-swallowing step fails loudly (review findings F17/F18; a wholesale executing-step rewrite carrying none of the three needles remains the documented diff-review boundary), the workflow-level and job-level defaults.run shell and working-directory overrides rejected outright with malformed defaults shapes too (a defaults: run: shell: cat {0} on either scope rewrote the anchored step's effective shell without touching the step keys and left the handler dead in production; review finding F21), the workflow-level and job-level env keys and a job-level container rejected as effective-environment changes (a merged PYTHONPATH or BASH_ENV would alter what the handler executes while the step env mapping stayed exact), and any repo-root Python module or package shadowing a module the handler imports or a startup hook (json, os, re, subprocess, time, sys, sitecustomize, usercustomize) in ANY importable spelling (source json.py, sourceless bytecode json.pyc placed directly in the directory, an extension module json.so or json.pyd bare or version-tagged, or a package directory carrying any importable __init__ artifact such as __init__.pyc) failing the audit loudly (including a shadow that unlinks itself on import, caught by an audit-start checkout snapshot taken before any rule executes and ORed into the scan) with the handler step itself invoking the interpreter in isolated mode (python3 -I -, pinned inside the exact-text handler block, so no repo-root module of ANY name, spelling, or transitive-import depth, the demonstrated transitive selectors import included, can reach the handler process; review finding F23), while the extractor, the fixture runner, and the audit's own R18 YAML-consistency helper execute isolated (python3 -I; review finding F24: the helper's non-isolated Python could previously import a repo-root module that rewrote the workflow file under test) and the functional sandbox mirrors the repo root's top-level files in every importable spelling into its work dir as defense in depth, so an isolation regression that somehow survives the exact-text pin also breaks the assertions (review findings F20/F22), exact control-flow pins on the loader invocation, the skip guard, and the skip branch's terminating continue plus five-consecutive-line adjacency of the lazy-load guard through the skip guard with exact-trim matching, so no run-state or input-shape gate can be interposed regardless of the dimension it gates on (review findings F2/F4), the eleven-line call-site preamble immediately preceding that chain pinned as an exact trimmed window plus the index sentinel pinned as exact text and a no-unknown-gh-command check over the accumulated invocation log against the pristine issue/workflow/api/pr allowlist, so an inserted probe between the branch opener and the chain (the demonstrated gh search issues call, inert under the mock at rc 64 but lethal against real gh) or a conditional sentinel replacement that pre-seeds the index under production conditions fails structurally or loudly (escape-hunt closures M1 and the init-replacement class), the ENTIRE handler block pinned as canonical exact text from its first line through the trailing PY with only blank lines dropped (indentation compared too) and the exact-form loop head required exactly once, so no line can be inserted, re-indented, or replaced anywhere in the handler without failing the audit, closing the three F13/F14/F15 families that lived outside the sub-region pins: a create-path gate silently dropping decisions, a decoy duplicate 'for d in decisions:' loop head that stopped the old setup-prefix extraction early, and an index-alias clear in the post-create-branch region (review findings F12/F13/F14/F15), the skip branch pinned as a six-consecutive-line shape with the skip print immediately after the skip guard and the terminating continue immediately after the triage dispatch (a conditional continue keyed on a first-class decision action such as ping or on a blank-line-bearing body can no longer pass the audit while leaking every match into gh issue create; review finding F10), and the whole _load_open_issue_titles() body from its def line through return index pinned as exact trimmed text with exactly one def occurrence and exactly two loader-name occurrences in the block, so a cross-dimensional conjunction on individually in-envelope dimensions (len(items) >= 5 and len(decisions) == 2), its no-added-line substitution variant, and its conditional def-shadowing variant fail structurally as well as behaviorally (review finding F9), block-scoped query-shape and ordering pins extracted from the real handler step, structural pins that the run-local index is assigned exactly twice (initialization and the fail-open line) and accessed only via .get/.setdefault, with subscript writes and deletes rejected because they evade the assignment and attribute pins (adversarial verification finding plus review finding F5), functional fixtures executing the real extracted normalization function with exactly one definition required in the block (review finding F7: a shadowing second definition would leave the fixtures testing dead code) and the function body from its def line through its return pinned as exact trimmed text so an inserted context-conditional line or replaced return expression that is sandbox-inert fails structurally (escape-hunt near-miss closure) (case fold including a Unicode casefold pair so a .lower() swap fails, punctuation/hyphen/underscore/whitespace collapse, and digit, space-placement, and >80-char long-tail pairs pinned non-matching so a digit-stripping regex, a \"\".join variant, or a truncating/fragmenting normalization fails; tester finding B1 plus adversarial escape E3; plus the 2026-10-18 paraphrase pair deliberately non-matching because fuzzy suppression could lose a distinct finding), and a functional sandbox that executes the real extracted handler block under the runner's bash -e shell against an executable mock gh (interception proven before the matrix; the handler environment is built from scratch with env -i: no ambient runner variable reaches it, credentials are fully absent, the non-credential Actions context is production-shaped across the standard variables (SHA, ref, ref name/type, server/API/GraphQL URLs, workspace, RUNNER_OS/ARCH, CI), and the mock's state paths are baked into the mock script, so env-keyed gate detection is independent of the ambient CI environment and the demonstrated env-sensing backdoor class is closed for the seeded set (escape hunt M5: a gate on SHA presence fires under audit once SHA is seeded) and for both exercised event shapes (schedule and workflow_dispatch); the mock requires the pinned query argv token for token (argument count plus every positional element), so a repeated scalar flag, an added --search filter, a reorder, or merged/split tokens cannot keep the audit green while the real query returns a different set or fail-opens, and the whole matrix's accumulated gh invocation log must stay inside the pristine issue/workflow/api/pr allowlist so an inserted probe call (unmodeled subcommands are mock-inert but real-gh-live) fails loudly wherever it sits; tester finding B2 plus adversarial escapes E2/Q4/Q5 and escape hunt M1, and emits the trailing newline real gh emits on every list output so a loader gate on the stdout newline is caught (review finding F6); sandbox outside the repo) across fresh-create (one query, one create on the bot token, one triage dispatch on the owner PAT), normalized-match skip+triage five times against newest-first five-issue lists where every entry is a scenario match at index 0 (#670, the 97-char title and the concurrent-duplicate shape so an items[1:]/items[-2:] offset or a length gate falls), index 1 (#669), index 2 (#668), index 3 (#665) and index 4 (#663, the oldest entry so items[:k] prefix truncations fall), so a cardinality gate at or below the fixture size, any proper prefix truncation through items[:4], an offset, a parity-gated index build, or an order-dependent all(n >= v) rebuild fails (tester finding B3 plus adversarial escapes E1/E4/L06/L07/P1/P2 and the round-3 order class), in-run duplicate against a non-empty open index via THREE identical decisions (one create, no second dispatch, two in-run skip prints, so a subscript-write or delete sabotage of the run-local index is caught behaviorally as well; review finding F5), query-failure fail-open, bad-JSON fail-open, a THREE-decision scenario with the matching create LAST after two successful creates (exactly 2 creates and 3 dispatches asserted, so a decision-count or created-count gate creates a third issue and fails), a matching decision carrying target (any target or extra-key gate), and a mixed scenario with a failed sweep first and a successfully posted comment second before the matching create (sweep_failed and posted gates; the failed sweep drives the handler's loud SystemExit(1), asserted as rc 1), a decision-count sweep of 1-4 decisions with the matching create LAST, each asserting zero duplicates (a 2-decision scenario with exactly 1 create and 2 dispatches, the existing 3-decision scenario with 2 creates and 3 dispatches, and a 4-decision scenario with 3 creates and 4 dispatches asserting all three created-number triages, so every ==k and <=/>= count gate inside 1-4 fires on at least one scenario and the created-count envelope extends to 3; the 2-decision and 4-decision scenarios run against FIVE-entry lists with the match at a middle index, so a conjunction of an in-envelope list size with an in-envelope decision count (len(items) >= 5 and len(decisions) == 2, review finding F9's demonstrated escape) can no longer hide behind fixture pairs that never hold both dimensions together) plus a COUNT SWEEP of decision counts 5 through 23 (each k a five-entry list with the match at a middle index and k-1 leading fresh creates before the matching create LAST, asserting the exact create count k-1 and dispatch count k), so every decision count 1-23 is exercised and an exact or bound gate on any swept count fires at least once (escape hunt M6: the demonstrated len(decisions) == 20 escape, and its created-count sibling len(_created_issue_numbers) >= 4, both now caught), a mixed action context carrying ALL of the handler's action keywords (review, test, test-linux, test-macos, test-windows, eval, continue, build, auditor, curate, architect, research, design, design-ux, design-visual, design-motion, lab, recover, fix, create_pr, ping-with-target, ideate) alongside the matching create LAST (0 creates, 18 comment posts, the skipped-fix probe, and the create_pr attempt asserted, so any action-keyword gate including one keyed on ping or ideate breaks the skip assertion; review finding F10), absent-body, 23-char short-single-line, two-line body, and paragraph-break (blank-line-bearing) body skip scenarios (not body_text and every len(body_text) < N with N >= 1, newline-presence, line-count, and short-length predicates inside the absent-body to long-three-line envelope), a matching create that is NOT last with a trailing lab action (last-position action predicates), a 147-char long-title skip scenario (title-length predicates up to 146), and a workflow_dispatch-event skip scenario (the demonstrated event-name gate; schedule remains the default shape), plus leading-action skip scenarios (ping-first with target, ideate-first, lab-first, recover-first: 0 creates, exactly one triage on the match, the loud skip line, and each leading action's own inert/comment behavior asserted, so any gate keyed on the leading decision action breaks the assertions; review findings F12/F14), create-path scenarios carrying a paragraph-break body, an absent body, and a short body against unmatched lists (the create must happen, so an F13 create-path gate drops the decision and fails the assertions), a posted-comment-before-a-fresh-create scenario (an if-posted create-path gate), and a create-lab-create-identical scenario asserting exactly one create, one triage, and the in-run skip print (an index-alias clear re-creates the duplicate; review finding F15), all with realistic multi-line >200-char bodies in every other scenario decision (a body-length gate), so the whole inserted-gate family is caught behaviorally even when a decoy satisfies the adjacency pin (review findings F4/F8), three digit-collision create scenarios ('Fix bug 42'/'Fix bug 43', 'Patch v10'/'Patch v1', 'Worker v1'/'Worker v10': pristine creates, a digit strip (full-run at one or both sites, zero-favored at either side) falsely skips, and any single-site strip fails the sweep), a space-removal collision create scenario ('Swift 6 migration' vs 'Swift6 migration': pristine creates, a consistent both-sites space removal after normalization falsely skips), one long-title collision create scenario (distinct long titles differing only in their final character: pristine creates, a consistent both-sites truncation merges them under every proper cutoff and falsely skips), and a size sweep of list sizes 1-8 whose last entry is the match with three-character, digit-bearing, single-word, and x-bearing titles cycling (a len(index)==N equality gate, an items[:k] truncation with k<8, or a number/length/word-count/charset per-entry gate at or below the sweep envelope fails), so no plain one-line disabled control flow, demonstrated fixture-coverage gap (offsets, prefix truncations, cardinality and parity gates at or below the fixture envelope, inserted run-state or input-shape gates at the loader chain, inside the loader, in the skip branch, in the call-site preamble, or as an inserted gh probe call, inserted gates anywhere in the handler (the whole block is exact-text pinned), including leading-action gates above the main loop, create-path gates, decoy duplicate loop heads, indentation changes, index subscript writes or deletes, a shadowing normalization definition or loader definition, stdout-newline gates, argument tampers, normalization weakening, call-site digit stripping, call-site space removal, consistent call-site truncation, order-dependent rebuilds), or demonstrated env-sensing backdoor, or a repo-root stdlib-shadowing module or an effective-shell defaults or effective-environment override, or a pre-handler step appending a directory to GITHUB_PATH next to a committed fake gh, exporting a BASH_ENV shim over the pinned python3 -I - invocation, planting a fake gh into the pinned HOME/.opencode/bin PATH directory, or rewriting the decision-file input, can conclude green (review findings F20/F21/F22/F23/F24/F25), with the ENTIRE pre-handler region (step sequence under the effective names GitHub displays, execution-shape keys, full env key maps including values, with: maps, and every run line with blank lines dropped) pinned as canonical exact text alongside a named env-file/mention allowlist, the PATH step body pinned to exactly the single echo line, and the functional sandbox deriving its PATH directories from the pinned extractor output (mirroring repo-provided GITHUB_WORKSPACE directories) with a derived-PATH shadow scenario proving the derived directories precede the mock bin and a pinned-path shim scenario proving a gh planted into the ambient user-writable \$HOME/.local/bin (outside the pinned step PATH) is never executed (review finding F41), plus a shell-faithful check that every literal gh issue create invocation (including the documented gh issue new alias, resolved past global flags and their --repo/-R/--hostname/--config values; review finding F37) in the workflow lives in the anchored handler step (path-qualified executables such as /usr/bin/gh and ./gh, env/command/bash -c prefixes, tabs, backslash-newline continuations, quote/backslash word concatenation such as g''h, ANSI-C quoting such as $'\x69ssue', locale quoting such as $\"gh\", shell metacharacter separation, global flags between gh and the subcommand, the multi-line Python list form, the shell-escaped-quote Python one-liner, a single-element shell=True list, a comment-split token, Python \xNN/\uNNNN/\U00000000/\N{...}/octal escape spellings, b/r/u/f string prefixes, and a token split across adjacent string literals such as \"iss\" \"\x75e\" included, the single-shell-string form whose adjacent literals split the command word ('gh issue ' 'create' and 'gh issue crea' 'te', plus the +-folded constant form) caught by the collapsed letter form after compile-time concatenation (non-letters dropped, so numeric operator artifacts such as the 1 of * 1 vanish) with the word scan skipping the empty boundary token (tester finding F40), with the decoded, whitespace/quote/backslash-normalized form stripping line comments, folding string prefixes, and joining adjacent literals so the escaped, comment-split, and adjacent-literal spellings are caught) exercised by self-tests that test EACH layer directly (the word scan over _f29_red, the normalized form over _f30_red, the alias normalized form over _f30_alias_red, and the F40 collapsed form over _f40_red) and then exercise the exact combined predicate the scan calls over every red case (_f29_red + _f30_red + _f31_red + _f30_alias_red + _f40_red), so deleting or weakening any layer or the combined predicate fails the audit itself (review findings F26/F29/F30/F31/F32/F34/F35/F37/F40 plus the round-18 adjacent-literal sibling and the tester-verdict single-shell-string sibling; prose carrying separate gh, issue, and create tokens in one command line is a known accepted false-positive shape), and repo-local scripts executed by the pinned pre-handler steps in any standard invocation spelling (bash/sh/source, optional flags, absolute or quoted paths) byte-pinned to reviewed SHA-256 bodies, with any unexpected script path or changed body failing loudly (review finding F44: the spelling-sensitive token scan missed a system-PATH shim plant, \`/usr/local/bin/gh\` or \`sudo install ... /usr/bin/gh\`, since /usr/local/bin is mode 777 on the runner and \`sudo -n\` succeeds, and it also missed a behaviorally hostile token-free edit such as an always-deny gate, so the exact-body pin is the load-bearing guard and the token scan remains defense in depth with /usr/local/bin and sudo added to its banned tuple; the self-test appends a comment to each pinned script and requires the extractor to reject it), with deliberate identity fingerprinting (fixture token strings, sandbox paths, per-title charset gates), call-site character-class transformations outside the tested digit (full-run and zero-favored), space-removal, and truncation classes, or truncation/cardinality/number/length/word-count thresholds above the eight-entry, 147-char fixture envelope, exact decision- or created-count gates above the swept envelope (decision counts 1-23 and created counts 0-22 before a match are every one exercised), body-content predicates keyed on prose absent from every fixture body, create-path body-length predicates above the 283-char fixture envelope, or non-credential context values outside the seeded/exercised shapes (unseeded context variables, event names beyond the schedule/workflow_dispatch pair, actor values), a wholesale rewrite of the executing step into unrelated code carrying none of the three handler needles while a canonical decoy remains (visible in the diff, not distinguishable structurally from a genuine handler replacement), a create executed from inside a repo script, composite action, or reusable workflow, a gh create reached through a variable or command-substitution indirection at the call site, through xargs, a shell-function wrapper, a shell alias, or a glob-expanded executable path such as /usr/bin/g[h] (review findings F37/F38; named explicitly), a create issued through a direct REST call (gh api --method POST .../issues or curl .../issues), a create assembled by shell expansion or runtime string construction (IFS word splitting, brace expansion such as cr{e,}ate, or a runtime-split Python string), or an env-file channel reached through one level of indirection inside a repo-local script, review-gated as a documented residual (review findings F2/F4-F44 plus the F16 print fix; a job-level if on the handler's job remains review-gated; issue #668)" "ok"
 else
   check "R26" "create-issue dedupe guard missing:${r26_bad} (issue #668: concurrent per-target Maintainer ticks independently filed the same finding as #665/#666)" "bad"
 fi
