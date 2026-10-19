@@ -452,14 +452,18 @@ Public Surface / Web Track:                                              │
   tokens in one command line is a known accepted false-positive shape),
   repo-local scripts
   executed by the pinned pre-handler steps in any standard invocation
-  spelling (bash/sh/source, optional flags, absolute or quoted paths) scanned
-  for `GITHUB_ENV`,
+  spelling (bash/sh/source, optional flags, absolute or quoted paths)
+  byte-pinned by SHA-256 to reviewed bodies, with any unexpected script
+  path or changed body failing loudly (review finding F44: a
+  `/usr/local/bin/gh` plant or `sudo install ... /usr/bin/gh`, and a
+  token-free always-deny edit, both escaped the old token scan, so the
+  exact-body pin is the load-bearing guard; a self-test appends a comment
+  to each pinned script and requires rejection), with the token scan
+  retained as defense in depth over `GITHUB_ENV`,
   `GITHUB_PATH`, `BASH_ENV`, the pinned `.opencode` PATH directory, the
   ambient user-writable PATH directories (`.local/bin`, `.cargo/bin`,
-  `.dotnet/tools`, `.config/composer/vendor/bin`), and the
-  decision-file input so a script body cannot write the runner env-file
-  channel, plant the handler's binary or input, or plant a shim into an
-  ambient user-writable PATH directory (review findings F27/F41), the
+  `.dotnet/tools`, `.config/composer/vendor/bin`), `/usr/local/bin`,
+  `sudo`, and the decision-file input (review findings F27/F41), the
   PATH step body is pinned to exactly
   the single echo line, and the functional sandbox derives its PATH
   directories from the pinned extractor output (mirroring repo-provided
@@ -496,10 +500,11 @@ Public Surface / Web Track:                                              │
   splitting, brace expansion such as `cr{e,}ate`, or a runtime-split Python
   string), or an env-file channel reached through one level of indirection
   inside a repo-local script, are documented
-  as the review-gated residual (review findings F2/F4-F41 plus the F16
+  as the review-gated residual (review findings F2/F4-F44 plus the F16
   print fix, B1-B3 plus
   independent-verification escapes E1-E4, Q4/Q5, L06/L07, P1/P2,
-  M05/M07/M15-M17/M19-M21 and the round-3b boundary probes).
+  M05/M07/M15-M17/M19-M21 and the round-3b boundary probes; a job-level
+  `if` on the handler's job remains review-gated).
 - Concurrency - per-PR groups, queued execution:
 
 ```yaml
