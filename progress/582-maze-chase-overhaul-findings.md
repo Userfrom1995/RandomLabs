@@ -352,11 +352,14 @@ follow-up on this issue's own branch with committed tests.
   (`ch = cw * cell_w / cell_h`), so wide-short rooms could only use
   scales on that derived diagonal: 200x60 settled on 3x1 (21.7% board
   coverage) where 7x1 reaches 50.6%, and 62x80 on 2x1 (35.0%) where 2x2
-  reaches 70.0%. The solver now scans the full documented 1..8 x 1..4
-  grid (the 2x1 compact floor included) with coverage-first selection
+  reaches 70.0%. The solver scans the documented tile-scale grid (2..8
+  x 1..4; the 2x1 compact floor is the narrowest scale, enforced on the
+  pixel path after the round-2 review) with coverage-first selection
   (ties: squareness, chrome, area, width). Pinned by
   `layout::tests::golden_plans_pin_the_fixed_scale_grid` (200x60 -> 7x1
-  band, 62x80 -> 2x2 band, exact board rects) plus
+  band, 62x80 -> 2x2 band, exact board rects),
+  `pixel_path_never_drops_below_the_compact_floor` (the 80x63 / 8x6
+  counterexample), plus
   `coverage_sweep_never_leaves_rooms_hollow` (62..400 x 35..120 sweep,
   measured floor 280/1000).
 - F2 (fixed): the Sixel raster painted at natural size from the board
@@ -394,10 +397,11 @@ follow-up on this issue's own branch with committed tests.
   per axis).
 
 Evidence: the committed tests plus the tester's real-PTY report on
-#656; workspace suite 446 passed, 0 failed across 46 test binaries
-plus 7 doc-test suites, fmt clean, clippy back to the pre-existing
-warnings from `main` (engine style lints plus the design-token test's
-suggestions) with none from this branch's files,
+#656, re-measured after the review round's floor pin and claim
+reconciliation; workspace suite 447 passed, 0 failed across 46 test
+binaries plus 7 doc-test suites, fmt clean, clippy back to the
+pre-existing warnings from `main` (engine style lints plus the
+design-token test's suggestions) with none from this branch's files,
 `maze-chase-verify` 19/19 with the `23c17f89734e` golden intact.
 
 The earlier Phase 2 review round (recorded in the progress log) had
