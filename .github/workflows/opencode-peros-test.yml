@@ -237,7 +237,16 @@ jobs:
   test-macos:
     if: startsWith(github.event.comment.body, '/oc test-macos') || startsWith(github.event.comment.body, '/opencode test-macos')
     runs-on: macos-latest
-    timeout-minutes: 120
+    # Issue #692: run 39170578536 died at the agent-step cap at 90m13s with
+    # zero artifacts (the fail-closed verify was red: missing decision-file
+    # and findings-report, and no partial report survived the runner). The
+    # mandated macOS workload (real Terminal.app E2E, kitty and WezTerm
+    # graphics probes, docs audits, spot-verification) does not fit 90
+    # minutes on a cold runner, so the agent step rises to 120 and this job
+    # cap rises to 150: the post-agent contract steps (verify, salvage,
+    # findings post, decision forward) must always keep real headroom after
+    # a worst-case agent cap death instead of dying at the job wire.
+    timeout-minutes: 150
     concurrency:
       group: opencode-peros-macos-${{ github.event.issue.number }}
       cancel-in-progress: false
@@ -345,7 +354,10 @@ jobs:
         id: test
         if: steps.actor_gate.outputs.run == 'true'
         continue-on-error: true
-        timeout-minutes: 90
+        # Issue #692: raised 90 -> 120 with the job cap raised 120 -> 150 in
+        # lockstep, so the post-agent verify/salvage/post/forward chain still
+        # runs after a worst-case cap death.
+        timeout-minutes: 120
         uses: ./.github/actions/opencode-run
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -359,7 +371,7 @@ jobs:
 
             READ FIRST: `.github/agents/tester-macos.md` - that file IS your complete system prompt; every rule there is binding.
 
-            SAFETY NET (always binding): test like a real macOS end user (every command, every flag, every major workflow; honest exit 4 for Linux-only modes, never exit 0 with no effect). You NEVER edit production application code. On standard project PRs you may commit per-OS regression tests in test directories as "The macOS Tester" with prefix "peros-macos:". On infrastructure PRs (diff touches .github/workflows/, .github/agents/, .github/scripts/, AGENTS.md, LAB.md, setup.sh, shutdown.sh) you are strictly read-only and must NEVER commit or push. Before ending the run you MUST write BOTH machine artifacts: (1) the machine handoff to `/tmp/random-lab-decision.json`: `{"action":"fix"}` (app bug), `{"action":"lab"}` (infra bug), or `{"action":"maintainer"}` (pass or escalate); (2) the COMPLETE findings report as Markdown to `/tmp/random-lab-findings.md`, whose last non-empty line MUST be exactly `- the macOS Tester`. The workflow posts the report as the findings comment; never depend on your final session message, and never post the findings comment or any "/oc" trigger yourself.
+            SAFETY NET (always binding): test like a real macOS end user (every command, every flag, every major workflow; honest exit 4 for Linux-only modes, never exit 0 with no effect). You NEVER edit production application code. On standard project PRs you may commit per-OS regression tests in test directories as "The macOS Tester" with prefix "peros-macos:". On infrastructure PRs (diff touches .github/workflows/, .github/agents/, .github/scripts/, AGENTS.md, LAB.md, setup.sh, shutdown.sh) you are strictly read-only and must NEVER commit or push. Before ending the run you MUST write BOTH machine artifacts: (1) the machine handoff to `/tmp/random-lab-decision.json`: `{"action":"fix"}` (app bug), `{"action":"lab"}` (infra bug), or `{"action":"maintainer"}` (pass or escalate); (2) the COMPLETE findings report as Markdown to `/tmp/random-lab-findings.md`, whose last non-empty line MUST be exactly `- the macOS Tester`. Keep that report INCREMENTAL (issue #692): write the signed skeleton (Status line plus one section per planned pass) BEFORE the first heavy pass, update each section as its pass completes, and keep the sign-off as the last non-empty line at all times, so a capped or crashed agent step still leaves a usable partial report that the workflow salvages behind a provenance banner; the decision file stays the FINAL act and its absence still fails the run closed. The workflow posts the report as the findings comment; never depend on your final session message, and never post the findings comment or any "/oc" trigger yourself.
 
       - name: Verify test decided, else fail closed
         id: verify-test
@@ -392,6 +404,49 @@ jobs:
           fi
           echo "::error::macOS tester missing contract artifact(s):${missing}; failing closed (issue #608)."
           exit 1
+
+      - name: Salvage partial macOS findings report after a crashed or capped agent run (issue #692)
+        id: salvage
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET: ${{ github.event.issue.number }}
+        run: |
+          # Issue #692: run 39170578536 died at the agent-step cap with 5 of
+          # 9 planned passes still open, so no decision file existed, the
+          # fail-closed verify above went red, and the file-contract report
+          # died with the runner. The verify gate is unchanged and this run
+          # still concludes red; this step only salvages what a failed run
+          # would otherwise discard. When the decision file is absent but an
+          # incrementally written signed report exists, it is published
+          # through the strict shared poster (bot authorship, sign-off,
+          # exact-body re-fetch) behind a workflow-composed provenance
+          # banner, so a partial report can never be mistaken for a
+          # completed verdict. Best effort by design: a report that fails
+          # the strict checks (missing, unsigned, or unverifiable) is not
+          # published, and the run stays red either way. The poster runs
+          # with github.token (never the owner PAT), exactly like the
+          # healthy-path post step.
+          if [ -f /tmp/random-lab-decision.json ]; then
+            echo "Decision file present; the normal findings path owns this run."
+            exit 0
+          fi
+          if [ ! -s /tmp/random-lab-findings.md ]; then
+            echo "No partial findings report on disk; nothing to salvage."
+            exit 0
+          fi
+          {
+            printf '%s\n' "> **Salvaged partial findings report (issue #692).** The macOS tester agent step"
+            printf '%s\n' "> ended without writing its decision artifact, so this arm failed closed and the"
+            printf '%s\n' "> workflow published the partial report it left behind. Sections may be incomplete."
+            printf '%s\n\n' "> Failing run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            cat /tmp/random-lab-findings.md
+          } > /tmp/random-lab-findings-salvage.md
+          if bash .github/scripts/post-peros-findings.sh macos "$TARGET" /tmp/random-lab-findings-salvage.md; then
+            echo "Salvaged partial macOS findings report; the run still concludes red."
+          else
+            echo "::warning::Partial macOS findings report exists but failed the strict poster checks (not signed or not verifiable); nothing was published."
+          fi
 
       - name: Post macOS tester findings report
         id: findings
@@ -442,7 +497,12 @@ jobs:
   test-windows:
     if: startsWith(github.event.comment.body, '/oc test-windows') || startsWith(github.event.comment.body, '/opencode test-windows')
     runs-on: windows-latest
-    timeout-minutes: 120
+    # Issue #692: the Windows arm carries the same 90-minute shape that killed
+    # the macOS arm (run 39170578536) and had never been exercised on this
+    # lane. Agent step 120 under a 150-minute job cap, same headroom rule as
+    # macOS, so a cap death still reaches the verify/salvage/post/forward
+    # chain instead of dying at the job wire.
+    timeout-minutes: 150
     defaults:
       run:
         shell: bash
@@ -553,7 +613,9 @@ jobs:
         id: test
         if: steps.actor_gate.outputs.run == 'true'
         continue-on-error: true
-        timeout-minutes: 90
+        # Issue #692: raised 90 -> 120 with the job cap raised 120 -> 150 in
+        # lockstep, matching the macOS arm's treatment.
+        timeout-minutes: 120
         uses: ./.github/actions/opencode-run
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -567,7 +629,7 @@ jobs:
 
             READ FIRST: `.github/agents/tester-windows.md` - that file IS your complete system prompt; every rule there is binding.
 
-            SAFETY NET (always binding): test like a real Windows end user from Git Bash (every command, every flag, every major workflow; honest exit 4 for Linux-only modes, never exit 0 with no effect; .exe handling, NTFS filename rules, CRLF traps). You NEVER edit production application code. On standard project PRs you may commit per-OS regression tests in test directories as "The Windows Tester" with prefix "peros-windows:". On infrastructure PRs (diff touches .github/workflows/, .github/agents/, .github/scripts/, AGENTS.md, LAB.md, setup.sh, shutdown.sh) you are strictly read-only and must NEVER commit or push. Before ending the run you MUST write BOTH machine artifacts: (1) the machine handoff to `/tmp/random-lab-decision.json`: `{"action":"fix"}` (app bug), `{"action":"lab"}` (infra bug), or `{"action":"maintainer"}` (pass or escalate); (2) the COMPLETE findings report as Markdown to `/tmp/random-lab-findings.md`, whose last non-empty line MUST be exactly `- the Windows Tester`. The workflow posts the report as the findings comment; never depend on your final session message, and never post the findings comment or any "/oc" trigger yourself.
+            SAFETY NET (always binding): test like a real Windows end user from Git Bash (every command, every flag, every major workflow; honest exit 4 for Linux-only modes, never exit 0 with no effect; .exe handling, NTFS filename rules, CRLF traps). You NEVER edit production application code. On standard project PRs you may commit per-OS regression tests in test directories as "The Windows Tester" with prefix "peros-windows:". On infrastructure PRs (diff touches .github/workflows/, .github/agents/, .github/scripts/, AGENTS.md, LAB.md, setup.sh, shutdown.sh) you are strictly read-only and must NEVER commit or push. Before ending the run you MUST write BOTH machine artifacts: (1) the machine handoff to `/tmp/random-lab-decision.json`: `{"action":"fix"}` (app bug), `{"action":"lab"}` (infra bug), or `{"action":"maintainer"}` (pass or escalate); (2) the COMPLETE findings report as Markdown to `/tmp/random-lab-findings.md`, whose last non-empty line MUST be exactly `- the Windows Tester`. Keep that report INCREMENTAL (issue #692): write the signed skeleton (Status line plus one section per planned pass) BEFORE the first heavy pass, update each section as its pass completes, and keep the sign-off as the last non-empty line at all times, so a capped or crashed agent step still leaves a usable partial report that the workflow salvages behind a provenance banner; the decision file stays the FINAL act and its absence still fails the run closed. The workflow posts the report as the findings comment; never depend on your final session message, and never post the findings comment or any "/oc" trigger yourself.
 
       - name: Verify test decided, else fail closed
         id: verify-test
@@ -600,6 +662,40 @@ jobs:
           fi
           echo "::error::Windows tester missing contract artifact(s):${missing}; failing closed (issue #608)."
           exit 1
+
+      - name: Salvage partial Windows findings report after a crashed or capped agent run (issue #692)
+        id: salvage
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET: ${{ github.event.issue.number }}
+        run: |
+          # Issue #692: same salvage contract as the macOS arm (see the macOS
+          # salvage step): the fail-closed verify above stays red and only a
+          # signed, re-fetchable partial report is published, behind a
+          # workflow-composed provenance banner, through the strict shared
+          # poster with github.token (never the owner PAT). Best effort: a
+          # missing, unsigned, or unverifiable report publishes nothing.
+          if [ -f /tmp/random-lab-decision.json ]; then
+            echo "Decision file present; the normal findings path owns this run."
+            exit 0
+          fi
+          if [ ! -s /tmp/random-lab-findings.md ]; then
+            echo "No partial findings report on disk; nothing to salvage."
+            exit 0
+          fi
+          {
+            printf '%s\n' "> **Salvaged partial findings report (issue #692).** The Windows tester agent step"
+            printf '%s\n' "> ended without writing its decision artifact, so this arm failed closed and the"
+            printf '%s\n' "> workflow published the partial report it left behind. Sections may be incomplete."
+            printf '%s\n\n' "> Failing run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            cat /tmp/random-lab-findings.md
+          } > /tmp/random-lab-findings-salvage.md
+          if bash .github/scripts/post-peros-findings.sh windows "$TARGET" /tmp/random-lab-findings-salvage.md; then
+            echo "Salvaged partial Windows findings report; the run still concludes red."
+          else
+            echo "::warning::Partial Windows findings report exists but failed the strict poster checks (not signed or not verifiable); nothing was published."
+          fi
 
       - name: Post Windows tester findings report
         id: findings
