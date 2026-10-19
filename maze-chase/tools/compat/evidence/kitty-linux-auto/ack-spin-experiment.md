@@ -73,28 +73,23 @@ reply bytes as input, which:
 
 ## Corroboration in the committed rows
 
-The regenerated committed rows record the shape directly in their
-surface counters (pause-marker paints, with the transcript byte of the
-first paint):
+The original flood reading in the narrative above (381.8 MiB and 1642
+transmits on Kitty, 210.8 MiB and 921 on Ghostty, both killed) was
+recorded before steady transmits became silent. Those runs are
+superseded and their JSONs were regenerated; the table below re-derives
+from the committed rows and shows the fixed pipeline.
 
-| row | tier | pause paints (first byte) | exit | transcript |
-| --- | --- | --- | --- | --- |
-| kitty-linux-auto | kitty-graphics | 336 (298,181,872) | killed | 381.8 MiB, 1642 transmits |
-| kitty-linux-truecolor | truecolor-cells | 78 (9,472,924) | clean | 16.9 MiB |
-| ghostty-linux-kitty | kitty-graphics | 192 (166,859,269) | killed | 210.8 MiB, 921 transmits |
-| xterm-linux-sixel | sixel | 27 (3,112,168) | clean | 5.4 MiB |
+| row | tier | pause paints (first byte) | exit | transcript | protocol traffic |
+| --- | --- | --- | --- | --- | --- |
+| kitty-linux-auto | kitty-graphics | 2 (1,393,272) | clean | 1.52 MiB, 21 kitty transmits |
+| kitty-linux-truecolor | truecolor-cells | 2 (6,230,878) | clean | 6.14 MiB, no graphics traffic |
+| ghostty-linux-kitty | kitty-graphics | 2 (1,193,556) | clean | 1.34 MiB, 21 kitty transmits |
+| xterm-linux-sixel | sixel | 2 (4,491,893) | clean | 4.47 MiB, 140 Sixel transmits |
 
-`kitty-linux-auto` paints every driven surface eventually, but far
-behind its keys: the pause surface first paints at byte 298,181,872 of a
-400,331,543-byte session, after the whole menu tour, and the final quit
-never lands, so the process was killed. The identical choreography on
-the identical kitty build forced to `MAZE_CHASE_TIER=truecolor` (no
-graphics traffic) paints its pause surface at 9,472,924 bytes - early in
-the session - and exits cleanly.
-
-The Ghostty kitty-graphics row shows the same bandwidth class (921
-transmits, 210.8 MiB) with the same delay: its pause surface first
-paints at byte 166,859,269, help and scores only in the tail (bytes
-214,328,374 and 217,821,876), and the settings screen never reaches the
-wire before the kill. The flood is a property of the kitty graphics
-path itself, not of one terminal.
+Every committed row now paints its pause surface early (inside the
+first 1.4 MB on the kitty-graphics rows and inside the first 4.5 MB on
+the Sixel row), walks every menu, and exits on its own. The kitty rows send 21 transmits, not 1642: the reply backlog that
+made input arrive hundreds of megabytes behind the keys is gone. The
+pre-fix figures are historical narrative only and are not re-derivable
+from the committed JSONs; the table is the document's only current
+numeric claim.
