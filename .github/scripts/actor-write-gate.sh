@@ -26,11 +26,16 @@
 # third outcome - a denial is not a crash). Genuine mid-stream crashes from
 # privileged triggers keep their existing bounded retries and escalation.
 #
-# Maintainer parity: this is the issue #427 maintainer preflight extracted into
-# one shared gate. maintainer.yml is deliberately out of the shared-gate
-# cohort: its own inline actor permission preflight is still pending in issue
-# #427 / PR #429, so until it lands the maintainer arm still relies on the CLI
-# assert alone.
+# Maintainer parity (issue #696): this is the issue #427 maintainer preflight
+# extracted into one shared gate, and maintainer.yml now invokes it directly
+# right after checkout (it runs `opencode github run` inline instead of
+# through the composite action, so the R12 cohort loop never saw it). The
+# maintainer arm gates its agent step and every post-gate side-effect step
+# (comment poster, owner-PAT triggers/merges/pages/integrity, memory publish,
+# held-CI approvals) on the gate output, and its verify step treats a denial
+# as the terminal clean-skip outcome, not a crash. Before issue #696 landed
+# every bot-authored pull_request event redded the maintainer run on the
+# CLI's own assert and posted the raw error as a public comment.
 #
 # Env inputs:
 #   GATE_EVENT       required - github.event_name
