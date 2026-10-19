@@ -101,8 +101,9 @@ Independent verifier campaign (general subagent, fresh `git archive` exports
 of `159447ab` and `16dedc98`, its own mutation applier,
 `/tmp/opencode/verify-r6-fresh` isolation, workspace read-only): control
 23/0; eight mutant classes on the fixed tree all caught by R15 alone at 22/1
-with the expected pin and/or `mnf-err-nz` behavioral labels (M3 fires both
-watchdog labels; M4/M7 additionally fire the behavioral labels); every one
+with the expected pin and/or `mnf-err-nz` behavioral labels (the third mutant fires both
+watchdog labels; the fourth and seventh additionally fire the behavioral
+labels); every one
 of the eight escaped at 23/0 on the parent, confirming this commit is
 exactly what closes the holes. It also verified the `mnf-err-nz` mock arms
 and shared case are present (`.github/scripts/silent-stall-audit.sh:1654`,
