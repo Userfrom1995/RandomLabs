@@ -438,10 +438,14 @@ r12_bad=""
 for r12_path in .github/workflows/*.yml; do
   [ -f "$r12_path" ] || continue
   r12_name=$(basename "$r12_path")
-  # Anchored to a real `uses:` line so #430's restore-step comment (which
-  # quotes `uses: ./.github/actions/opencode-run` in prose) never counts as
-  # an agent step and double-inflates the agent side of the comparison.
-  r12_agents=$(grep -c '^[[:space:]]*uses: \./\.github/actions/opencode-run' "$r12_path" || true)
+  # Anchored to a real `uses:` line in every standard step spelling (own
+  # line, inline sequence `- uses:`, and `uses :` with whitespace before the
+  # colon) so #430's restore-step comment (which quotes
+  # `uses: ./.github/actions/opencode-run` in prose) never counts as an agent
+  # step and double-inflates the agent side of the comparison. The inline and
+  # whitespace spellings were a real count miss caught by the Tester on
+  # PR #702 (issue #701).
+  r12_agents=$(grep -cE '^[[:space:]]*(-[[:space:]]+)?uses[[:space:]]*:[[:space:]]*\./\.github/actions/opencode-run[[:space:]]*(#.*)?$' "$r12_path" || true)
   [ "$r12_agents" -gt 0 ] || continue
   if ! grep -q 'actor-write-gate\.sh' "$r12_path"; then
     r12_bad="${r12_bad} ${r12_name}(no-gate-script)"
@@ -4349,10 +4353,13 @@ fi
 #     truthful);
 #   - the canonical step name must be unique in its file, and inside the job
 #     it must be the unique `uses: ./.github/actions/opencode-run` invocation
-#     (matched as the whole YAML value, so a renamed real agent step plus a
-#     dummy canonical-named step with a compliant timeout, or a switched
-#     action reference, cannot satisfy the rule; a decoy-step bypass found in
-#     verification);
+#     (matched as the whole YAML value in every standard step spelling: own
+#     line, inline sequence `- uses:`, and `uses :` with whitespace before
+#     the colon, so a renamed real agent step plus a dummy canonical-named
+#     step with a compliant timeout, a switched action reference, or a
+#     second shadow runner step cannot satisfy the rule; decoy-step and
+#     inline-spelling bypasses found in verification and the Tester review
+#     of PR #702);
 #   - only a canonical decimal literal with no leading zeros and at most
 #     four digits is accepted, so quoted/anchor forms and octal-looking
 #     `0150` cannot pass as a 150;
@@ -4385,13 +4392,13 @@ r25_check_arm() {
   fi
   step_count=$(grep -cF -- "      - name: ${step}" "$wf" || true)
   [ "$step_count" -eq 1 ] || r25_bad="${r25_bad} ${tag}(agent-step-count=${step_count},want=1)"
-  uses_count=$(printf '%s\n' "$block" | grep -cE '^[[:space:]]+uses: \./\.github/actions/opencode-run[[:space:]]*(#.*)?$' || true)
+  uses_count=$(printf '%s\n' "$block" | grep -cE '^[[:space:]]*(-[[:space:]]+)?uses[[:space:]]*:[[:space:]]*\./\.github/actions/opencode-run[[:space:]]*(#.*)?$' || true)
   [ "$uses_count" -eq 1 ] || r25_bad="${r25_bad} ${tag}(agent-uses-count=${uses_count},want=1)"
   step_block=$(printf '%s\n' "$block" | awk -v tag="      - name: ${step}" '
     $0 == tag { s=1; print; next }
     s && $0 ~ /^      - / { exit }
     s { print }')
-  printf '%s\n' "$step_block" | grep -qE '^[[:space:]]+uses: \./\.github/actions/opencode-run[[:space:]]*(#.*)?$' || r25_bad="${r25_bad} ${tag}(canonical-step-not-the-runner)"
+  printf '%s\n' "$step_block" | grep -qE '^[[:space:]]*(-[[:space:]]+)?uses[[:space:]]*:[[:space:]]*\./\.github/actions/opencode-run[[:space:]]*(#.*)?$' || r25_bad="${r25_bad} ${tag}(canonical-step-not-the-runner)"
   job_cap=$(printf '%s\n' "$block" | sed -n 's/^    timeout-minutes:[[:space:]]*\([0-9][0-9]*\)[[:space:]]*\(#.*\)\{0,1\}$/\1/p' | head -n1)
   agent_cap=$(printf '%s\n' "$step_block" | awk '
     $0 ~ /^        timeout-minutes:/ {
