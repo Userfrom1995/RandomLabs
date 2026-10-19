@@ -412,10 +412,14 @@ Public Surface / Web Track:                                              │
   and `./gh`, `env`/`command`/`bash -c` prefixes, tabs, backslash-newline
   continuations, quote/backslash word concatenation such as `g""h`, ANSI-C
   quoting such as `$'\x69ssue'`, shell metacharacter separation, global flags
-  between `gh` and the subcommand, and the multi-line Python list form
-  included) exercised by a red self-test matrix over every listed spelling so
-  a future weakening of the scan fails the audit itself (review findings
-  F26/F29; prose carrying separate `gh`, `issue`, and `create` tokens in one
+  between `gh` and the subcommand, the multi-line Python list form, and the
+  shell-escaped-quote Python one-liner included, with the
+  whitespace/quote/backslash-normalized form folding backslashes so the
+  escaped spelling is caught) exercised by red and green self-test matrices
+  over every listed spelling AND over the combined detector the scan actually
+  runs, so a future weakening or deletion of either the shell-faithful layer
+  or the normalized layer fails the audit itself (review findings F26/F29/F30;
+  prose carrying separate `gh`, `issue`, and `create` tokens in one
   command line is a known accepted false-positive shape), repo-local scripts
   executed by the pinned pre-handler steps in any standard invocation
   spelling (bash/sh/source, optional flags, absolute or quoted paths) scanned
@@ -452,7 +456,7 @@ Public Surface / Web Track:                                              │
   (`gh api --method POST .../issues` or `curl .../issues`), or an
   env-file channel reached through one level of indirection inside a
   repo-local script, are documented
-  as the review-gated residual (review findings F2/F4-F29 plus the F16
+  as the review-gated residual (review findings F2/F4-F30 plus the F16
   print fix, B1-B3 plus
   independent-verification escapes E1-E4, Q4/Q5, L06/L07, P1/P2,
   M05/M07/M15-M17/M19-M21 and the round-3b boundary probes).
