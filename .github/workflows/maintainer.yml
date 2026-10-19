@@ -859,6 +859,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           BOT_TOKEN: ${{ github.token }}
+          PATH: /usr/local/bin:/usr/bin:/bin
         run: |
           python3 -I - <<'PY'
           import json, os, re, subprocess, time
