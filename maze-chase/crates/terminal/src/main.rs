@@ -648,7 +648,7 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
     use maze_chase_terminal::atlas;
     use maze_chase_terminal::kitty as kg;
 
-    let b = app.layout.board;
+    let img = app.layout.image;
     let theme = app.theme();
     let ppt = app.layout.ppt();
     let native_w = WIDTH as u32 * ppt;
@@ -668,8 +668,8 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
         let png = app.bitmap_png();
         out.push_str(&kg::display_escape_id(
             &png,
-            b.h as u32,
-            b.w as u32,
+            img.h as u32,
+            img.w as u32,
             Some(1),
         ));
         return FrameStats {
@@ -709,13 +709,13 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
         // The static layer sits at z=0, so a resend always stays
         // beneath every live sprite placement; no sprite repaint is
         // needed to restore the order.
-        paint_line(out, b.y, b.x, "");
+        paint_line(out, img.y, img.x, "");
         out.push_str(&kg::place_scaled_escape(
             kg::STATIC_IMAGE_ID,
             kg::STATIC_PLACEMENT_ID,
             (0, 0, native_w, native_h),
             (0, 0),
-            Some((b.w as u32, b.h as u32)),
+            Some((img.w as u32, img.h as u32)),
             atlas::z::STATIC,
         ));
     }
@@ -733,8 +733,8 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
     ));
     let cell_w = cell_w.max(1) as i32;
     let cell_h = cell_h.max(1) as i32;
-    let disp_w = b.w as i32 * cell_w;
-    let disp_h = b.h as i32 * cell_h;
+    let disp_w = img.w as i32 * cell_w;
+    let disp_h = img.h as i32 * cell_h;
     let fx = disp_w as f32 / native_w as f32;
     let fy = disp_h as f32 / native_h as f32;
     let scaled = (fx - 1.0).abs() > 0.02 || (fy - 1.0).abs() > 0.02;
@@ -774,8 +774,8 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
         );
         let dx = (sx0 as f32 * fx).round() as i32;
         let dy = (sy0 as f32 * fy).round() as i32;
-        let col = b.x as i32 + dx.div_euclid(cell_w);
-        let row = b.y as i32 + dy.div_euclid(cell_h);
+        let col = img.x as i32 + dx.div_euclid(cell_w);
+        let row = img.y as i32 + dy.div_euclid(cell_h);
         if col < 0 || row < 0 {
             continue;
         }
@@ -888,7 +888,7 @@ fn render_frame(
     }
     let bitmap = matches!(app.tier(), Tier::Kitty | Tier::Sixel);
     match app.screens.current {
-        ScreenId::Playing | ScreenId::Paused => {
+        ScreenId::Playing => {
             if bitmap {
                 // Board as pixels; chrome stays cells. The whole board
                 // band is cleared first so the pixel image (whose cell
@@ -971,17 +971,33 @@ fn render_frame(
                 }
             }
             paint_chrome(app, out, truecolor, cols, rows);
-            if app.screens.current == ScreenId::Paused {
-                paint_panel(
-                    out,
-                    &chrome::paused(app.screens.pause_menu),
-                    theme,
-                    truecolor,
-                    cols,
-                    rows,
-                    theme.accent,
-                );
+        }
+        ScreenId::Paused => {
+            // The pause menu is a full-screen text panel. Kitty composites
+            // image placements above text, so a placed board (even at z=0)
+            // would cover the menu: release every image before painting.
+            // The cell and Sixel tiers need no board write either; the
+            // panel covers every row, and the screen-change clear has
+            // already run for them.
+            if fresh && app.tier() == Tier::Kitty {
+                out.push_str(maze_chase_terminal::kitty::delete_all_escape());
+                out.push_str(&maze_chase_terminal::kitty::free_image_escape(
+                    maze_chase_terminal::kitty::STATIC_IMAGE_ID,
+                ));
+                out.push_str(&maze_chase_terminal::kitty::free_image_escape(
+                    maze_chase_terminal::kitty::ATLAS_IMAGE_ID,
+                ));
+                kitty.invalidate();
             }
+            paint_panel(
+                out,
+                &chrome::paused(app.screens.pause_menu),
+                theme,
+                truecolor,
+                cols,
+                rows,
+                theme.accent,
+            );
         }
         _ => {
             if fresh && app.tier() == Tier::Kitty {
@@ -1654,6 +1670,41 @@ mod tests {
             "no release bytes when the session never left Kitty"
         );
         assert!(!staying.starts_with(&trio));
+    }
+
+    #[test]
+    fn paused_on_kitty_releases_the_image_layer_before_painting_the_menu() {
+        use maze_chase_terminal::kitty;
+        use maze_chase_terminal::screens::ScreenId;
+        let env = vec![("KITTY_WINDOW_ID".to_string(), "1".to_string())];
+        let mut app = App::new(100, 40, &env, std::path::PathBuf::from("."));
+        assert_eq!(app.tier(), Tier::Kitty);
+        app.screens.show(ScreenId::Paused);
+        let mut kitty_renderer = KittyRenderer::new(true);
+        let mut frame = String::new();
+        let _stats = compose_frame(&mut app, &mut frame, true, &mut kitty_renderer, false);
+        let trio = format!(
+            "{}{}{}",
+            kitty::delete_all_escape(),
+            kitty::free_image_escape(kitty::STATIC_IMAGE_ID),
+            kitty::free_image_escape(kitty::ATLAS_IMAGE_ID),
+        );
+        assert!(
+            frame.starts_with(&format!("\x1b[?2026h\x1b[2J\x1b[H{trio}")),
+            "the pause surface must release every image before the menu paints"
+        );
+        assert!(
+            !frame.contains("\x1b_Ga=t"),
+            "the pause surface must not transmit the board: {frame:?}"
+        );
+        assert!(
+            !frame.contains("\x1b_Ga=p"),
+            "the pause surface must not place the board or sprites: {frame:?}"
+        );
+        assert!(
+            frame.contains("PAUSED") && frame.contains("Resume"),
+            "the pause menu must paint"
+        );
     }
 
     #[cfg(unix)]

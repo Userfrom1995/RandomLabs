@@ -238,12 +238,23 @@ fn tail(bytes: &[u8]) -> String {
 /// from a previous plan with the same footprint can never pass the
 /// cursor check.
 fn display_at(bytes: &[u8], rows: u32, cols: u32, cursor: (u16, u16)) -> bool {
+    use maze_chase_terminal::kitty::{STATIC_IMAGE_ID, STATIC_PLACEMENT_ID};
     let text = String::from_utf8_lossy(bytes).into_owned();
-    let dims = format!("\x1b_Ga=T,f=100,r={rows},c={cols}");
+    // The Phase 3 Kitty tier displays the static board as one placement
+    // of the pre-transmitted image, so the display evidence is the
+    // static `a=p` escape carrying the image footprint; the cursor move
+    // ahead of it is the solved image origin.
+    let dims = format!("\x1b_Ga=p,i={STATIC_IMAGE_ID},p={STATIC_PLACEMENT_ID},x=0,y=0,w=");
     let want = format!("\x1b[{};{}H", cursor.0, cursor.1);
     let mut from = 0;
+    let footprint = format!(",c={cols},r={rows},");
     while let Some(i) = text[from..].find(&dims) {
         let i = from + i;
+        let end = text[i..].find("\x1b\\").unwrap_or(text.len() - i) + i;
+        if !text[i..end].contains(&footprint) {
+            from = end;
+            continue;
+        }
         let head = &text[i.saturating_sub(96)..i];
         if let Some(esc) = head.rfind("\x1b[") {
             let tail = &head[esc..];
@@ -253,7 +264,7 @@ fn display_at(bytes: &[u8], rows: u32, cols: u32, cursor: (u16, u16)) -> bool {
                 }
             }
         }
-        from = i + dims.len();
+        from = end;
     }
     false
 }
@@ -370,18 +381,19 @@ impl Session {
         self.out.clear();
     }
 
-    /// Wait until at least `want` display escapes for the exact `rows`x`cols`
-    /// footprint have been observed, up to `timeout`.
+    /// Wait until at least `want` kitty atlas placements have arrived,
+    /// up to `timeout`.
     ///
     /// The drain is wire-speed: the master is polled (no fixed sleep) and
     /// read until EAGAIN, so a small PTY buffer (macOS) transfers frames as
-    /// fast as the game produces them instead of at a 4 KiB per 20 ms
+    /// fast as the game produces them instead of at a fixed wall-clock
     /// cadence. Matches are counted incrementally as bytes arrive, so the
     /// growing session buffer is never re-scanned from the start. The
     /// bounded deadline makes a genuinely stalled frame stream a failure,
     /// never a hang.
-    fn wait_displays(&mut self, rows: u32, cols: u32, want: usize, timeout: Duration) -> bool {
-        let needle = format!("\x1b_Ga=T,f=100,r={rows},c={cols},i=1,");
+    fn wait_placements(&mut self, want: usize, timeout: Duration) -> bool {
+        use maze_chase_terminal::kitty::ATLAS_IMAGE_ID;
+        let needle = format!("\x1b_Ga=p,i={ATLAS_IMAGE_ID},");
         let needle = needle.as_bytes();
         let deadline = Instant::now() + timeout;
         let mut found = 0usize;
@@ -463,7 +475,7 @@ fn live_kitty_goldens_cover_wide_and_tall_rooms() {
         tail(&wide.out)
     );
     assert!(
-        !String::from_utf8_lossy(&wide.out).contains("\x1b_Ga=T,f=100,r=31,c=84"),
+        !String::from_utf8_lossy(&wide.out).contains(",c=84,r=31,"),
         "the pre-fix 3x1 plan's 84-wide footprint must not be on the wire at 200x60"
     );
     let plans = plan_records(&wide_trace);
@@ -772,14 +784,15 @@ fn live_pixel_reports_map_the_raster_onto_the_solver_footprint() {
 /// A live animated session in the wide golden room: steering input must
 /// be followed by a sustained run of real frames that keep every display
 /// escape on the same 7x1 footprint (no drift on the non-fresh repaint
-/// path), keep the per-frame image delete cycling, and never panic.
+/// path), keep the per-frame placement delete cycling, and never panic.
 ///
-/// The five re-displays are waited for with a generous 30 s deadline
-/// rather than inside a fixed wall-clock slice: a 200x60 board frame is
-/// about 230800 bytes, and macOS PTY buffers are far smaller than Linux's,
-/// so a fixed slice sized on Linux measured the harness's sleep cadence
+/// The placements are waited for with a generous 30 s deadline rather
+/// than inside a fixed wall-clock slice: a 200x60 board frame is about
+/// 230800 bytes, and macOS PTY buffers are far smaller than Linux's, so a
+/// fixed slice sized on Linux measured the harness's sleep cadence
 /// instead of the product (issue #656 macOS arm, F3). Every observed
-/// escape is still drift-checked below, so the assertion stays strict.
+/// static placement is still drift-checked below, so the assertion stays
+/// strict.
 #[test]
 fn live_wide_room_animates_and_steers_without_footprint_drift() {
     let mut s = Session::start("soak", 200, 60, 0, 0, "kitty", None);
@@ -795,37 +808,38 @@ fn live_wide_room_animates_and_steers_without_footprint_drift() {
         std::thread::sleep(Duration::from_millis(60));
     }
     assert!(
-        s.wait_displays(31, 196, 5, Duration::from_secs(30)),
-        "the animated session must keep re-displaying the 7x1 footprint; tail: {}",
+        s.wait_placements(5, Duration::from_secs(30)),
+        "the animated session must keep re-placing sprites; tail: {}",
         tail(&s.out)
     );
 
+    use maze_chase_terminal::kitty::{STATIC_IMAGE_ID, STATIC_PLACEMENT_ID};
     let text = String::from_utf8_lossy(&s.out).into_owned();
+    let static_place = format!(
+        "\x1b_Ga=p,i={STATIC_IMAGE_ID},p={STATIC_PLACEMENT_ID},x=0,y=0,w="
+    );
+    assert!(
+        text.contains(&static_place),
+        "the static board layer was never placed; tail: {}",
+        tail(&s.out)
+    );
+    // Every static display escape must stay on the pinned 7x1 footprint
+    // (the image-id pin from the full-frame path has the same intent in
+    // the placement pipeline: the static image and placement id above).
     let mut from = 0;
-    while let Some(i) = text[from..].find("\x1b_Ga=T,f=100,r=") {
+    while let Some(i) = text[from..].find(&static_place) {
         let i = from + i;
-        let Some(end) = text[i..].find(';').map(|end| end + i) else {
-            // A header split across the capture tail is not a verdict.
-            break;
-        };
+        let end = text[i..].find("\x1b\\").map(|e| e + i).unwrap_or(text.len());
         let params = &text[i..end];
-        let get = |key: &str| {
-            params
-                .split(',')
-                .find_map(|p| p.strip_prefix(key))
-                .and_then(|v| v.parse::<u32>().ok())
-                .unwrap_or_else(|| panic!("missing {key} in {params:?}"))
-        };
-        assert_eq!(
-            (get("r="), get("c="), get("i=")),
-            (31, 196, 1),
-            "a display escape drifted off the pinned 7x1 footprint or image id"
+        assert!(
+            params.contains(",c=196,r=31,"),
+            "a static placement drifted off the pinned 7x1 footprint: {params:?}"
         );
         from = end;
     }
     assert!(
-        text.contains("\x1b_Ga=d,d=I,i=1"),
-        "the per-frame image delete must keep cycling; tail: {}",
+        text.contains("\x1b_Ga=d,d=i,i="),
+        "the per-frame exact placement deletes must keep cycling; tail: {}",
         tail(&s.out)
     );
     assert!(s.alive(), "the session died during the animation soak");
