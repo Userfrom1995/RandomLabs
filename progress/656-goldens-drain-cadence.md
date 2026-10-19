@@ -61,3 +61,9 @@ Done; the PR is open and the review handoff follows.
   Section H records the fix. `wait_displays` waits for five observed
   pinned-footprint displays with a 30 s bound and polls the master instead
   of sleeping, so the assertion measures the product, not the harness.
+
+- 2026-10-19 (builder, same round, evidence entry): delegation ledger: no
+  subagents launched; this was a scoped single-file harness fix (the soak test
+  plus the frame emission it counts), verified by the primary with the
+  targeted suite, the full crate suite, fmt, and clippy. Skills note: no
+  available skill matches Rust PTY harness work.
