@@ -947,9 +947,9 @@ def main():
     # while signed pass). The white-share gate above only sees light
     # backgrounds; this one sees a dark blank board too. The bound was
     # still 0.98 while a blank shape with a few stale pixels (0.90 to
-    # 0.98 dominant share) could sign a pass (Evaluator QC-4); every
-    # committed playing capture sits at <=0.7113 and a text-bearing
-    # frame cannot be uniformly flat.
+    # 0.98 dominant share) could sign a pass (Evaluator QC-4); the
+    # committed bitmap-tier playing-family maximum is 0.6427 and a
+    # text-bearing frame cannot be uniformly flat.
     if args.result == "pass" and tier in ("kitty-graphics", "sixel"):
         blank_captures = []
         for phase in result["phases"]:
