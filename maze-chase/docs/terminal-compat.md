@@ -22,28 +22,42 @@ did not execute.
 ## Executed rows (Linux, harness on this build)
 
 All rows were refreshed on 2026-10-19 from the release binary built at
-`af1c1496` (the pause-surface fix round), so every number below
-re-derives from the named JSON and uses true binary units (KiB = 1024 B,
-MiB = 1024^2 B). The kitty-graphics `pass` rows also carry a
+`97e8865d5b9507b5e3af7899d2353ea1d4d6c8ab` (release
+`maze-chase-terminal`, SHA-256
+`b5a38ee755f956f92704855f4dad8f1df842625b216e326f6ad9e2c339d629ea`,
+Rust sources clean), so every number below re-derives from the named
+JSON and uses true binary units (KiB = 1024 B, MiB = 1024^2 B). Every
+row records that identity in its own `build` block
+(`build.commit`, `build.binary_sha256`, `build.sources_dirty`), so each
+bundle names the exact code and binary that produced it instead of
+implying the current head did. The forced-tier rows also record
+`pause_select: 1`: they move the pause menu cursor to "Quit to title"
+before the paused checkpoint, so the second executed row of an emulator
+never commits a byte-identical paused capture (each `events.log` shows
+the extra Down key at its byte offset).
+
+The kitty-graphics `pass` rows also carry a
 sprite-palette census per capture (`sprite_census` in each phase,
 `sprite_visibility.playing_captures_with_sprites` at the top level); when
 placements are on the wire, the collector refuses to sign a
-kitty-graphics `pass` without a playing capture containing sprite pixels.
-Independently of the placement count, it refuses a paused capture that
-carries sprite pixels, has no decodable capture, or is not a near-solid
-text panel (at least 90% and less than 100% one color). It also refuses
-a playing, resized, or refit capture that is >=98% one color on the
-bitmap tiers (a blank board).
+kitty-graphics `pass` without a playing capture containing sprite pixels,
+and on any bitmap tier (kitty-graphics or sixel) it refuses a `pass`
+with no decodable playing capture at all, so a menu-only capture set can
+never sign one. Independently of the placement count, it refuses a
+paused capture that carries sprite pixels, has no decodable capture, or
+is not a near-solid text panel (at least 90% and less than 100% one
+color). It also refuses a playing, resized, or refit capture that is
+>=98% one color on the bitmap tiers (a blank board).
 
 | terminal | version | tier requested | tier observed | disposition | notes | evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| kitty | 0.32.2 | auto | kitty-graphics | pass | full session, clean exit; 1.52 MiB transcript. The playing phase ran 99 frames in 4.79 s (20.7 fps) with 17 static/atlas transmits (128.2 KiB payload), 414 placements and 388 deletes; mean frame 5.4 KiB, max 13.9 KiB; its capture carries 228 sprite-palette pixels. For the whole session: 21 transmits / 156.1 KiB PNG payload. The paused capture is a solid text panel (99.9% one color, zero sprite pixels) and the paused phase has zero transmits and zero placements | `kitty-linux-auto.json` |
-| kitty (forced cells) | 0.32.2 | truecolor | truecolor-cells | pass | full session, clean exit, pause and menus work (6.14 MiB transcript) | `kitty-linux-truecolor.json` |
-| Ghostty | 1.3.1 | auto | kitty-graphics | pass | full session, clean exit; 1.34 MiB transcript. `TERM_PROGRAM=ghostty` proves capability, so this row skips the probe (its trace carries no probe record); playing 104 frames in 4.79 s (21.7 fps), 17 transmits / 139.3 KiB, 423 placements and 397 deletes; mean frame 5.5 KiB, max 15.4 KiB. The playing capture carries 402 sprite-palette pixels, so sprites render on the terminal that used to hide them | `ghostty-linux-auto.json` |
-| Ghostty (forced kitty) | 1.3.1 | kitty | kitty-graphics | pass | full session, clean exit; 1.34 MiB transcript. 21 transmits / 160.1 KiB for the session, playing 104 frames in 4.76 s (21.9 fps) at a 5.5 KiB mean frame; the playing capture census is 412 sprite pixels. The forced row confirms the environment identification is not masking a capability gap. The paused capture is a solid text panel (93.0% one color, zero sprite pixels); 7 trailing placements attributed to that phase are checkpoint-boundary tail, recorded in the JSON, not a board over the menu | `ghostty-linux-kitty.json` |
+| kitty | 0.32.2 | auto | kitty-graphics | pass | full session, clean exit; 1.53 MiB transcript. The playing phase ran 98 frames in 4.76 s (20.6 fps) with 17 static/atlas transmits (128.2 KiB payload), 409 placements and 383 deletes; mean frame 5.5 KiB, max 13.9 KiB; its capture carries 227 sprite-palette pixels. For the whole session: 21 transmits / 156.1 KiB PNG payload. The paused capture is a solid text panel (99.9% one color, zero sprite pixels) and the paused phase has zero transmits and zero placements (3 deletes release the board and atlas) | `kitty-linux-auto.json` |
+| kitty (forced cells) | 0.32.2 | truecolor | truecolor-cells | pass | full session, clean exit, pause and menus work (6.13 MiB transcript) | `kitty-linux-truecolor.json` |
+| Ghostty | 1.3.1 | auto | kitty-graphics | pass | full session, clean exit; 1.36 MiB transcript. `TERM_PROGRAM=ghostty` proves capability, so this row skips the probe (its trace carries no probe record); playing 105 frames in 4.78 s (22.0 fps), 17 transmits / 139.3 KiB, 426 placements and 400 deletes; mean frame 5.5 KiB, max 15.4 KiB. The playing capture carries 412 sprite-palette pixels, so sprites render on the terminal that used to hide them | `ghostty-linux-auto.json` |
+| Ghostty (forced kitty) | 1.3.1 | kitty | kitty-graphics | pass | full session, clean exit; 1.34 MiB transcript. 21 transmits / 160.1 KiB for the session, playing 103 frames in 4.78 s (21.6 fps) at a 5.5 KiB mean frame; the playing capture census is 402 sprite pixels. The forced row confirms the environment identification is not masking a capability gap. The paused capture is a solid text panel (93.0% one color, zero sprite pixels) with zero transmits and zero placements in that phase | `ghostty-linux-kitty.json` |
 | xterm | 390 | auto | legacy-cells | partial | full session and clean exit, but on the default light background the cream chrome text is invisible: 7 of its 10 captures are >=98% white and the row was downgraded with the list recorded (`light_background_captures`). The bounded Kitty probe is visible in this row (1x1 transmit plus cleanup) and correctly falls through to cells | `xterm-linux-auto.json` |
-| xterm (dark background) | 390, `-bg black -fg white` | auto | legacy-cells | pass | full session, clean exit; proves the light-row fault is the palette, not the layout (4.03 MiB transcript) | `xterm-dark-linux-auto.json` |
-| xterm (VT340 mode, forced) | 390, `-ti vt340 -bg black -fg white` | sixel | sixel | pass | 140 Sixel transmits / 3.39 MiB payload (25,392 B per transmit, 24.8 KiB); the playing checkpoint ran at 18.9 fps (466 KiB/s average); full session. The playing capture census is 52 sprite pixels, so the Sixel path renders sprites too, and the resized-wide capture is 51% one color with 208 sprite pixels (the former blank checkpoint now proves the board) | `xterm-linux-sixel.json` |
+| xterm (dark background) | 390, `-bg black -fg white` | auto | legacy-cells | pass | full session, clean exit; proves the light-row fault is the palette, not the layout (4.02 MiB transcript) | `xterm-dark-linux-auto.json` |
+| xterm (VT340 mode, forced) | 390, `-ti vt340 -bg black -fg white` | sixel | sixel | pass | 141 Sixel transmits / 3.41 MiB payload (25,365 B per transmit, 24.8 KiB); the playing checkpoint ran at 19.1 fps (471.5 KiB/s average); full session. The playing capture census is 52 sprite pixels, so the Sixel path renders sprites too, and the resized-wide capture is 51% one color with 208 sprite pixels (the former blank checkpoint now proves the board) | `xterm-linux-sixel.json` |
 | xterm (VT340 mode, auto) | 390, `-ti vt340 -bg black -fg white` | auto | sixel | pass | the DA1 probe answered and the game upgraded itself from legacy-cells to sixel (`tier_requested=auto`); full session (141 Sixel transmits / 3.41 MiB); the Kitty probe is sent first (its 1x1 transmit plus cleanup appear in this row's kitty totals) and the session still upgrades through Sixel, so this is the row that exercises the Sixel probe path | `xterm-vt340-linux-auto.json` |
 
 ## Rows awaiting their host
@@ -74,19 +88,22 @@ bitmap tiers (a blank board).
   painting its text menu, and the collector refuses a kitty `pass` whose
   paused capture carries sprite pixels, has no decodable capture, or is
   not a near-solid text panel (at least 90% and less than 100% one
-  color).
+  color); on every bitmap tier it also refuses a `pass` with no
+  decodable playing capture.
 - `sixel` is fully playable on a real Sixel terminal. The encoder caps
   its palette at 64 colors and a frame at 2 MiB (with a smaller-palette
   retry and a cell fallback), and the tier paces at 24 Hz with
-  byte-rate backpressure. A whole session is 140-141 transmits /
-  3.39-3.41 MiB.
+  byte-rate backpressure. A whole session is 141 transmits /
+  3.41 MiB.
 - `legacy-cells` and `truecolor-cells` are fully playable on every
   executed cell row (kitty forced cells, xterm dark).
 - Ghostty is no longer a detection defect: its 1.3.1 build implements
   the Kitty graphics protocol and answers the live probe when one is
   sent (a direct pty experiment with the game's exact probe request,
-  `../tools/compat/probe-graphics.py`, 2026-10-19, recorded both
-  replies); `TERM_PROGRAM=ghostty` and `TERM=xterm-ghostty` select the
+  `../tools/compat/probe-graphics.py`, 2026-10-19; both raw reply
+  captures are committed under
+  `../tools/compat/probe-captures/` with their commands and hashes);
+  `TERM_PROGRAM=ghostty` and `TERM=xterm-ghostty` select the
   graphics path directly and skip the probe on those rows. The watchdog
   watches the frame write path (steady transmits are silent by design),
   so a terminal that silently mis-composites cannot be detected; that

@@ -44,7 +44,9 @@ reason. There are no guessed rows.
   emulator: sends the game's exact kitty probe request on the terminal's
   pty, records the raw reply bytes for a bounded window, and cleans up.
   It verifies capability claims when a row's environment proof skips the
-  in-game probe (see the Ghostty note in `../docs/terminal.md`).
+  in-game probe (see the Ghostty note in `../docs/terminal.md`); the
+  committed captures, their exact commands, and their hashes live in
+  `probe-captures/`.
 - `collect.py` - turns a run directory into one evidence JSON: transcript
   hash and byte totals, synchronized-frame stats, Kitty/Sixel protocol
   counters (full chunked payload totals), first-transmit PNG dimensions,
@@ -72,6 +74,12 @@ committed bundle.
 3. on Linux only: the window resizes wide, then below the 62x35 floor
    (too-small card), then back (re-fit);
 4. Esc pauses (pause menu captured), then Down + Confirm quits to title;
+   the second executed row of an emulator sets
+   `MAZE_CHASE_COMPAT_PAUSE_SELECT=1`, which moves the pause cursor to
+   "Quit to title" before the capture so two rows of the same emulator
+   never commit byte-identical paused images (the extra key is in
+   `events.log` and in the row's `pause_select` field; the session still
+   leaves through the same menu item);
 5. the title menu walks Help, Scores, and Settings with Esc returns;
 6. Down + Confirm quits the game and the run records whether the game
    process exited on its own.
@@ -92,9 +100,13 @@ tools/compat/run-linux.sh --install-deps
 # one emulator, reuse an existing release binary
 tools/compat/run-linux.sh --emulator kitty --skip-build
 
-# forced-tier probes (recorded as their own rows)
-tools/compat/run-linux.sh --emulator kitty --tier truecolor --skip-build
-tools/compat/run-linux.sh --emulator ghostty --tier kitty --skip-build
+# forced-tier probes (recorded as their own rows; pause-select moves the
+# pause cursor so the second row of an emulator has a distinct capture)
+MAZE_CHASE_COMPAT_PAUSE_SELECT=1 \
+  tools/compat/run-linux.sh --emulator kitty --tier truecolor --skip-build
+MAZE_CHASE_COMPAT_PAUSE_SELECT=1 \
+  tools/compat/run-linux.sh --emulator ghostty --tier kitty --skip-build
+MAZE_CHASE_COMPAT_PAUSE_SELECT=1 \
 MAZE_CHASE_COMPAT_XTERM_FLAGS="-ti vt340 -bg black -fg white" \
   tools/compat/run-linux.sh --emulator xterm --tier sixel --skip-build
 ```
@@ -135,12 +147,22 @@ Honesty rules the harness enforces mechanically:
   with placements on the wire requires at least one playing capture
   carrying sprite-palette pixels (the static board layer alone decodes as
   a valid frame while every sprite can sit hidden behind it), recorded
-  as `sprite_visibility` with the per-capture census in each phase. On
+  as `sprite_visibility` with the per-capture census in each phase. A
+  proposed `pass` on any bitmap tier (`kitty-graphics` or `sixel`) also
+  requires at least one decodable playing capture: a capture set made of
+  static menus alone can never sign a pass, because the playing surface
+  itself is what a pass claims. On
   Windows, where the pty transcript deliberately
   does not exist, a row is graded from the game's own pid plus exit code
   and the capture set: a pass requires a zero exit code and at least one
   valid PNG capture, and a row whose game process never started is
   `unverified` with the reason.
+- `build` names the generating build copied from the run metadata
+  (`commit`, `binary_sha256`, `sources_dirty`), and `pause_select`
+  records how many menu items the paused capture moved the cursor (0 for
+  the plain checkpoint), so bundles are provenance-complete: metadata
+  written before these fields existed records `build.recorded: false`
+  with the reason instead.
 - `unverified_reason` is mandatory for unverified rows (the collector
   refuses to write a row without it).
 - Capture validation happens in layers, scoped per OS: on Linux/macOS
