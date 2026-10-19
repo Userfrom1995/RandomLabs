@@ -913,12 +913,7 @@ fn render_frame(
                         out,
                         b.y + i,
                         b.x,
-                        &unicode::paint(
-                            &" ".repeat(b.w as usize),
-                            theme.bg,
-                            theme.bg,
-                            truecolor,
-                        ),
+                        &unicode::paint(&" ".repeat(b.w as usize), theme.bg, theme.bg, truecolor),
                     );
                 }
                 // The raster footprint: centered inside the board, mapped
