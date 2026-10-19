@@ -44,6 +44,9 @@ passes with its evidence artifact present.
    from `/tmp/random-lab-findings.md` and verifies it by id (bot
    authorship, sign-off, exact body) before the arm can conclude
    (issue #608); aggregate from those comments, never from run logs.
+   An arm that dies without its decision file may publish a
+   banner-headed salvaged partial report instead (issue #692): treat
+   it as partial evidence, never as a completed verdict.
    Failures route to Fixer or Lab Engineer. Single-platform
    projects record which OS gates ran and why others were out of scope.
 
