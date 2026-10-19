@@ -62,7 +62,7 @@ impl PixelFrame {
 /// taken at a larger real cell size, each sprite pixel becomes a
 /// `scale`x`scale` block so the art stays crisp instead of shrinking
 /// relative to the tile (issue #673).
-fn sprite_scale(ppt: i32) -> i32 {
+pub(crate) fn sprite_scale(ppt: i32) -> i32 {
     (ppt / 8).max(1)
 }
 
@@ -124,12 +124,35 @@ pub fn relish_icon_index(level: u32) -> usize {
 pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) -> PixelFrame {
     let ppt = ppt.max(MIN_PPT) as i32;
     let scale = sprite_scale(ppt);
-    let w = WIDTH * ppt;
-    let h = HEIGHT * ppt;
-    let mut frame = PixelFrame::blank(w as u32, h as u32, theme.bg);
+    let mut frame = PixelFrame::blank((WIDTH * ppt) as u32, (HEIGHT * ppt) as u32, theme.bg);
     let crumb_field = game.maze.dot_bytes();
-    let stride = (WIDTH * HEIGHT) as usize;
+    paint_tiles(&mut frame, game, theme, ppt, &crumb_field);
+    paint_sunseeds(&mut frame, game, theme, ppt, scale, frame_no);
+    paint_relish(&mut frame, game, theme, ppt, scale, frame_no);
+    paint_wardens(&mut frame, game, theme, ppt, scale, frame_no, flash);
+    paint_pip(&mut frame, game, theme, ppt, scale, frame_no);
+    frame
+}
 
+/// Static board layer for the placement pipeline: walls, gate, house,
+/// and the crumb dots. Sunseeds, relish, and actors are dynamic layers
+/// (their animation is cheaper as placements than as whole-atlas
+/// retransmits), so this layer changes only when a crumb is eaten or the
+/// level/theme changes.
+pub fn render_static(game: &Game, theme: &Theme, ppt: u32) -> PixelFrame {
+    let ppt = ppt.max(MIN_PPT) as i32;
+    let mut frame = PixelFrame::blank((WIDTH * ppt) as u32, (HEIGHT * ppt) as u32, theme.bg);
+    let crumb_field = game.maze.dot_bytes();
+    paint_tiles(&mut frame, game, theme, ppt, &crumb_field);
+    frame
+}
+
+/// Wall, gate, house, and crumb painting shared by both board layers.
+/// Sunseeds are a separate pass (below) so their 11-px glyphs, which
+/// overflow a small tile, paint above the warren exactly like every
+/// other sprite; both the full-frame and placement paths share that
+/// order, which is what makes the compositor pixel-identical.
+fn paint_tiles(frame: &mut PixelFrame, game: &Game, theme: &Theme, ppt: i32, crumb_field: &[u8]) {
     for ty in 0..HEIGHT {
         for tx in 0..WIDTH {
             let x0 = tx * ppt;
@@ -170,49 +193,91 @@ pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) 
                             frame.set(cx - 1, cy, theme.crumb);
                         }
                     }
-                    if crumb_field.get(stride + i).copied().unwrap_or(0) == 1 {
-                        // Sunseed pulse: halo frame alternates every ~0.4 s
-                        // at 60 fps render cadence.
-                        let halo = (frame_no / 24) % 2 == 1;
-                        let glyph = if halo {
-                            &sprites::SUNSEED_B
-                        } else {
-                            &sprites::SUNSEED_A
-                        };
-                        paint_glyph(
-                            &mut frame,
-                            glyph,
-                            x0 + ppt / 2,
-                            y0 + ppt / 2,
-                            scale,
-                            [theme.sunseed, theme.sunseed, theme.eyes],
-                        );
-                    }
                 }
             }
         }
     }
+}
 
-    // Bonus relish on its tile while it waits.
-    if game.relish.active {
-        let (rtx, rty) = tuning::RELISH_TILE;
-        let icon = &sprites::RELISH_ICONS[relish_icon_index(game.level)];
-        let bob = if (frame_no / 30).is_multiple_of(2) {
-            0
-        } else {
-            -1
-        };
-        paint_glyph(
-            &mut frame,
-            icon,
-            rtx * ppt + ppt / 2,
-            rty * ppt + ppt / 2 + bob,
-            scale,
-            [theme.accent, theme.text, theme.eyes],
-        );
+/// Sunseed halo phase at a render frame (alternates every 24 frames,
+/// about 0.4 s at the 60 fps cell cadence).
+pub fn sunseed_halo(frame_no: u64) -> bool {
+    (frame_no / 24) % 2 == 1
+}
+
+/// Pulsing sunseed glyphs, painted after the warren so the overflow is
+/// never clipped by a later-painted neighbour wall.
+fn paint_sunseeds(
+    frame: &mut PixelFrame,
+    game: &Game,
+    theme: &Theme,
+    ppt: i32,
+    scale: i32,
+    frame_no: u64,
+) {
+    let crumb_field = game.maze.dot_bytes();
+    let stride = (WIDTH * HEIGHT) as usize;
+    let glyph = if sunseed_halo(frame_no) {
+        &sprites::SUNSEED_B
+    } else {
+        &sprites::SUNSEED_A
+    };
+    for ty in 0..HEIGHT {
+        for tx in 0..WIDTH {
+            let i = (ty * WIDTH + tx) as usize;
+            if crumb_field.get(stride + i).copied().unwrap_or(0) == 1 {
+                paint_glyph(
+                    frame,
+                    glyph,
+                    tx * ppt + ppt / 2,
+                    ty * ppt + ppt / 2,
+                    scale,
+                    [theme.sunseed, theme.sunseed, theme.eyes],
+                );
+            }
+        }
     }
+}
 
-    // Wardens under Pip (Pip paints last).
+/// Relish icon placement (spawns, bob-animates, expires).
+fn paint_relish(
+    frame: &mut PixelFrame,
+    game: &Game,
+    theme: &Theme,
+    ppt: i32,
+    scale: i32,
+    frame_no: u64,
+) {
+    if !game.relish.active {
+        return;
+    }
+    let (rtx, rty) = tuning::RELISH_TILE;
+    let icon = &sprites::RELISH_ICONS[relish_icon_index(game.level)];
+    let bob = if (frame_no / 30).is_multiple_of(2) {
+        0
+    } else {
+        -1
+    };
+    paint_glyph(
+        frame,
+        icon,
+        rtx * ppt + ppt / 2,
+        rty * ppt + ppt / 2 + bob,
+        scale,
+        [theme.accent, theme.text, theme.eyes],
+    );
+}
+
+/// Warden bodies, fright masks, and the eye overlay (Pip paints last).
+fn paint_wardens(
+    frame: &mut PixelFrame,
+    game: &Game,
+    theme: &Theme,
+    ppt: i32,
+    scale: i32,
+    frame_no: u64,
+    flash: bool,
+) {
     let fright = game.wardens.fright_active();
     let flash_on = flash && (game.wardens.fright_t <= 1.5) && (frame_no / 6).is_multiple_of(2);
     let bodies = [theme.bram, theme.kessa, theme.jory, theme.nib];
@@ -221,14 +286,11 @@ pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) 
         let cy = (warden.actor.y * ppt as f32) as i32;
         match warden.state {
             WardenState::Eyes => {
-                let eyes: &[&str] = match warden.actor.dir {
-                    maze_chase_engine::actors::Dir::Up => &sprites::EYES_UP,
-                    maze_chase_engine::actors::Dir::Down => &sprites::EYES_DOWN,
-                    _ => &sprites::EYES_RIGHT,
-                };
+                let eyes = eyes_rows(warden.actor.dir);
+                let refs: Vec<&str> = eyes.iter().map(|s| s.as_str()).collect();
                 paint_glyph(
-                    &mut frame,
-                    eyes,
+                    frame,
+                    &refs,
                     cx,
                     cy,
                     scale,
@@ -249,7 +311,7 @@ pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) 
                         &sprites::FRIGHT_MASK
                     };
                     paint_glyph(
-                        &mut frame,
+                        frame,
                         mask,
                         cx,
                         cy,
@@ -258,22 +320,19 @@ pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) 
                     );
                 } else {
                     paint_glyph(
-                        &mut frame,
+                        frame,
                         body_glyph,
                         cx,
                         cy,
                         scale,
                         [bodies[warden.index], theme.text, theme.eyes],
                     );
-                    let eyes: &[&str] = match warden.actor.dir {
-                        maze_chase_engine::actors::Dir::Up => &sprites::EYES_UP,
-                        maze_chase_engine::actors::Dir::Down => &sprites::EYES_DOWN,
-                        _ => &sprites::EYES_RIGHT,
-                    };
                     // Eye overlay sits high on the 11-tall body.
+                    let eyes = eyes_rows(warden.actor.dir);
+                    let refs: Vec<&str> = eyes.iter().map(|s| s.as_str()).collect();
                     paint_glyph(
-                        &mut frame,
-                        eyes,
+                        frame,
+                        &refs,
                         cx,
                         cy - scale,
                         scale,
@@ -283,8 +342,30 @@ pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) 
             }
         }
     }
+}
 
-    // Pip paints last (death clip while dying, chomp cycle in play).
+/// The eye pair for a facing (left is the mirror of right, never
+/// duplicated art).
+pub fn eyes_rows(dir: maze_chase_engine::actors::Dir) -> Vec<String> {
+    use maze_chase_engine::actors::Dir;
+    let rows: &[&str] = match dir {
+        Dir::Up => &sprites::EYES_UP,
+        Dir::Down => &sprites::EYES_DOWN,
+        Dir::Right => &sprites::EYES_RIGHT,
+        Dir::Left => return sprites::flip_horizontal(&sprites::EYES_RIGHT),
+    };
+    rows.iter().map(|s| s.to_string()).collect()
+}
+
+/// Pip (death clip while dying, chomp cycle in play).
+fn paint_pip(
+    frame: &mut PixelFrame,
+    game: &Game,
+    theme: &Theme,
+    ppt: i32,
+    scale: i32,
+    frame_no: u64,
+) {
     let (pcx, pcy) = (
         (game.player.x * ppt as f32) as i32,
         (game.player.y * ppt as f32) as i32,
@@ -292,43 +373,46 @@ pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) 
     if game.state == maze_chase_engine::game::GameState::Dying {
         let clip = &sprites::PIP_DEATH[(frame_no as usize / 8) % 4];
         paint_glyph(
-            &mut frame,
+            frame,
             clip,
             pcx,
             pcy,
             scale,
             [theme.pip, theme.text, theme.eyes],
         );
-    } else {
-        let phase = (frame_no / 5) as usize % 3;
-        let right = pip_glyph(phase);
-        // Derive the facing from the stored right-facing art, mirroring
-        // the documented sprite transforms (never duplicate art).
-        use maze_chase_engine::actors::Dir as D;
-        let facing: Vec<String> = match game.player.dir {
-            D::Right => right.iter().map(|s| s.to_string()).collect(),
-            D::Left => sprites::flip_horizontal(right),
-            D::Down => sprites::rotate_cw(right),
-            D::Up => {
-                let down = sprites::rotate_cw(right);
-                let d2: Vec<&str> = down.iter().map(|s| s.as_str()).collect();
-                let up1 = sprites::rotate_cw(&d2);
-                let u1: Vec<&str> = up1.iter().map(|s| s.as_str()).collect();
-                sprites::rotate_cw(&u1)
-            }
-        };
-        let refs: Vec<&str> = facing.iter().map(|s| s.as_str()).collect();
-        paint_glyph(
-            &mut frame,
-            &refs,
-            pcx,
-            pcy,
-            scale,
-            [theme.pip, theme.text, theme.eyes],
-        );
+        return;
     }
+    let phase = (frame_no / 5) as usize % 3;
+    let facing = pip_facing_rows(phase, game.player.dir);
+    let refs: Vec<&str> = facing.iter().map(|s| s.as_str()).collect();
+    paint_glyph(
+        frame,
+        &refs,
+        pcx,
+        pcy,
+        scale,
+        [theme.pip, theme.text, theme.eyes],
+    );
+}
 
-    frame
+/// Pip rows for one mouth phase and facing, derived from the stored
+/// right-facing art with the documented transforms (never duplicate
+/// art). Shared by the full-frame raster and the sprite atlas.
+pub fn pip_facing_rows(phase: usize, dir: maze_chase_engine::actors::Dir) -> Vec<String> {
+    use maze_chase_engine::actors::Dir;
+    let right = pip_glyph(phase);
+    match dir {
+        Dir::Right => right.iter().map(|s| s.to_string()).collect(),
+        Dir::Left => sprites::flip_horizontal(right),
+        Dir::Down => sprites::rotate_cw(right),
+        Dir::Up => {
+            let down = sprites::rotate_cw(right);
+            let d2: Vec<&str> = down.iter().map(|s| s.as_str()).collect();
+            let up1 = sprites::rotate_cw(&d2);
+            let u1: Vec<&str> = up1.iter().map(|s| s.as_str()).collect();
+            sprites::rotate_cw(&u1)
+        }
+    }
 }
 
 #[cfg(test)]

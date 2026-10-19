@@ -11,6 +11,14 @@ use crate::raster::PixelFrame;
 
 const PNG_SIG: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
 
+/// Stable image ids for the composed renderer. Ids survive for the whole
+/// session; re-transmitting data under the same id replaces it.
+pub const PROBE_IMAGE_ID: u32 = 0x4D43_0001;
+pub const PROBE_PLACEMENT_ID: u32 = 1;
+pub const ATLAS_IMAGE_ID: u32 = 0x4D43_0002;
+pub const STATIC_IMAGE_ID: u32 = 0x4D43_0003;
+pub const STATIC_PLACEMENT_ID: u32 = 1;
+
 fn crc32(data: &[u8]) -> u32 {
     let mut crc: u32 = 0xFFFF_FFFF;
     for &b in data {
@@ -34,16 +42,6 @@ fn chunk(out: &mut Vec<u8>, tag: &[u8; 4], data: &[u8]) {
     out.extend_from_slice(&crc32(&c).to_be_bytes());
 }
 
-fn adler32(data: &[u8]) -> u32 {
-    const MOD: u32 = 65521;
-    let (mut a, mut b) = (1u32, 0u32);
-    for &byte in data {
-        a = (a + byte as u32) % MOD;
-        b = (b + a) % MOD;
-    }
-    (b << 16) | a
-}
-
 /// Encode a frame as a valid 8-bit RGB PNG (zlib stored blocks: no
 /// compression, always decodable). Panics on empty frames.
 pub fn png_encode(frame: &PixelFrame) -> Vec<u8> {
@@ -59,25 +57,39 @@ pub fn png_encode(frame: &PixelFrame) -> Vec<u8> {
             raw.push(p.2);
         }
     }
-    // zlib wrapper: 0x78 0x01 (32K window, fast) + stored blocks.
-    let mut zlib = vec![0x78, 0x01];
-    for block in raw.chunks(65_535) {
-        let last = block.as_ptr_range().end == raw.as_ptr_range().end;
-        zlib.push(if last { 0x01 } else { 0x00 });
-        let len = block.len() as u16;
-        zlib.extend_from_slice(&len.to_le_bytes());
-        zlib.extend_from_slice(&(!len).to_le_bytes());
-        zlib.extend_from_slice(block);
+    png_wrap(frame.w, frame.h, 2, &raw)
+}
+
+/// Encode an RGBA frame as a valid 8-bit RGBA PNG. Used by the sprite
+/// atlas: transparent pixels never paint over the static board layer.
+pub fn png_encode_rgba(w: u32, h: u32, px: &[[u8; 4]]) -> Vec<u8> {
+    assert!(w > 0 && h > 0, "empty frame");
+    assert_eq!(px.len(), (w * h) as usize);
+    let mut raw = Vec::with_capacity((w * h * 4 + h) as usize);
+    for y in 0..h {
+        raw.push(0); // filter type 0 (None)
+        for x in 0..w {
+            let p = px[(y * w + x) as usize];
+            raw.extend_from_slice(&p);
+        }
     }
-    zlib.extend_from_slice(&adler32(&raw).to_be_bytes());
+    png_wrap(w, h, 6, &raw)
+}
+
+/// Wrap raw scanlines in a PNG container (zlib-compressed).
+/// `color_type` 2 is RGB, 6 is RGBA.
+fn png_wrap(w: u32, h: u32, color_type: u8, raw: &[u8]) -> Vec<u8> {
+    // Flat-color game art compresses enormously; a stored-block stream
+    // used to make every crumb eaten a full-board (about 1 MB) send.
+    let zlib = miniz_oxide::deflate::compress_to_vec_zlib(raw, 6);
 
     let mut out = Vec::new();
     out.extend_from_slice(&PNG_SIG);
     let mut ihdr = Vec::new();
-    ihdr.extend_from_slice(&frame.w.to_be_bytes());
-    ihdr.extend_from_slice(&frame.h.to_be_bytes());
+    ihdr.extend_from_slice(&w.to_be_bytes());
+    ihdr.extend_from_slice(&h.to_be_bytes());
     ihdr.push(8); // bit depth
-    ihdr.push(2); // color type: truecolor RGB
+    ihdr.push(color_type);
     ihdr.push(0); // compression
     ihdr.push(0); // filter
     ihdr.push(0); // interlace
@@ -144,6 +156,12 @@ pub fn delete_all_escape() -> &'static str {
 /// Display escape with a stable image id (`None` behaves like
 /// [`display_escape`]). Re-displaying the same id after
 /// [`delete_escape`] keeps one live image per frame.
+///
+/// Every transmit carries `q=2`: the terminal must not answer, because
+/// each answer lands on stdin and a per-frame reply stream turns the
+/// event loop into a feedback flood that starves input (the Owner's
+/// Kitty finding, RT-1). Capability is established once by the live
+/// probe; steady-state transmits stay silent.
 pub fn display_escape_id(png: &[u8], cell_rows: u32, cell_cols: u32, id: Option<u32>) -> String {
     let id_param = id.map(|i| format!(",i={i}")).unwrap_or_default();
     let b64 = base64_encode(png);
@@ -160,7 +178,7 @@ pub fn display_escape_id(png: &[u8], cell_rows: u32, cell_cols: u32, id: Option<
         let text = core::str::from_utf8(piece).unwrap_or("");
         if i == 0 {
             out.push_str(&format!(
-                "\x1b_Ga=T,f=100,r={},c={}{},m={};{}",
+                "\x1b_Ga=T,f=100,r={},c={}{},m={},q=2;{}",
                 cell_rows, cell_cols, id_param, more, text
             ));
         } else {
@@ -169,6 +187,153 @@ pub fn display_escape_id(png: &[u8], cell_rows: u32, cell_cols: u32, id: Option<
         out.push_str("\x1b\\");
     }
     out
+}
+
+/// Quiet transmit of an image without displaying it (`a=t`, `q=2`).
+/// Used by the atlas and static-layer pipeline: the data ships once, and
+/// [`place_escape`] creates the visible placements.
+pub fn transmit_escape(png: &[u8], id: u32) -> String {
+    let b64 = base64_encode(png);
+    let bytes = b64.as_bytes();
+    let pieces: Vec<&[u8]> = if bytes.is_empty() {
+        vec![b""]
+    } else {
+        bytes.chunks(4096).collect()
+    };
+    let mut out = String::new();
+    for (i, piece) in pieces.iter().enumerate() {
+        let more = u8::from(i + 1 < pieces.len());
+        let text = core::str::from_utf8(piece).unwrap_or("");
+        if i == 0 {
+            out.push_str(&format!("\x1b_Ga=t,f=100,i={id},m={},q=2;{}", more, text));
+        } else {
+            out.push_str(&format!("\x1b_Gm={};{}", more, text));
+        }
+        out.push_str("\x1b\\");
+    }
+    out
+}
+
+/// One placement of a source rectangle out of `image_id`, anchored at
+/// the cursor cell plus an in-cell pixel offset. `src` is
+/// `(x, y, w, h)` in image pixels; `offset` is `(X, Y)` within the cell.
+/// Natural size (no `c`/`r`) keeps pixels unscaled. `C=1` keeps the
+/// cursor where the caller put it; `q=2` keeps the steady state silent.
+pub fn place_escape(
+    image_id: u32,
+    placement_id: u32,
+    src: (u32, u32, u32, u32),
+    offset: (u32, u32),
+) -> String {
+    place_scaled_escape(image_id, placement_id, src, offset, None)
+}
+
+/// One placement with an optional `c`/`r` target-cell rectangle: when
+/// the board image is stretched to its cell footprint (non-square real
+/// cells), sprites scale to the same target so the composite stays
+/// proportional. `None` is natural size, the exact path.
+pub fn place_scaled_escape(
+    image_id: u32,
+    placement_id: u32,
+    src: (u32, u32, u32, u32),
+    offset: (u32, u32),
+    cells: Option<(u32, u32)>,
+) -> String {
+    let (x, y, w, h) = src;
+    let cell = cells
+        .map(|(c, r)| format!(",c={c},r={r}"))
+        .unwrap_or_default();
+    format!(
+        "\x1b_Ga=p,i={image_id},p={placement_id},x={x},y={y},w={w},h={h}{cell},X={},Y={},C=1,q=2\x1b\\",
+        offset.0, offset.1
+    )
+}
+
+/// Delete one placement (image data stays usable for other placements).
+pub fn delete_placement_escape(image_id: u32, placement_id: u32) -> String {
+    format!("\x1b_Ga=d,d=p,i={image_id},p={placement_id}\x1b\\")
+}
+
+/// Free an image's data and every placement that references it.
+pub fn free_image_escape(image_id: u32) -> String {
+    format!("\x1b_Ga=d,d=I,i={image_id}\x1b\\")
+}
+
+/// A live capability probe: transmit a 1x1 RGBA image without `q=2`
+/// (so the terminal answers), then place it. Two `OK` replies prove
+/// graphics and placements; an error reply proves graphics without
+/// placements (full-frame fallback); silence means "not a kitty
+/// terminal". The probe never suppresses replies (that is the point) and
+/// the caller always issues [`probe_cleanup`] afterwards.
+pub fn probe_request() -> String {
+    let png = png_encode_rgba(1, 1, &[[0, 0, 0, 0]]);
+    let b64 = base64_encode(&png);
+    format!(
+        "\x1b_Gi={PROBE_IMAGE_ID},a=t,f=100,m=0;{b64}\x1b\\\
+         \x1b[1;1H\x1b_Ga=p,i={PROBE_IMAGE_ID},p={PROBE_PLACEMENT_ID},C=1\x1b\\"
+    )
+}
+
+/// Remove the probe's placement and free its 1x1 image data.
+pub fn probe_cleanup() -> String {
+    format!(
+        "{}{}",
+        delete_placement_escape(PROBE_IMAGE_ID, PROBE_PLACEMENT_ID),
+        free_image_escape(PROBE_IMAGE_ID)
+    )
+}
+
+/// True once `captured` holds a complete kitty APC reply
+/// (`ESC _ G ... ESC \`). A fragmented reply is not complete until its
+/// ST lands.
+pub fn reply_complete(captured: &[u8]) -> bool {
+    let Some(start) = find(captured, b"\x1b_G") else {
+        return false;
+    };
+    find(&captured[start + 3..], b"\x1b\\").is_some()
+}
+
+fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
+}
+
+/// Split a probe capture into `(replies, typed)`: every complete
+/// `ESC_G...ESC\` APC reply, and every other byte (user input typed
+/// while the probe waited). Replies never swallow keys and keys never
+/// masquerade as replies.
+pub fn split_replies(captured: &[u8]) -> (Vec<String>, Vec<u8>) {
+    let mut replies = Vec::new();
+    let mut typed = Vec::new();
+    let mut i = 0;
+    while i < captured.len() {
+        if captured[i..].starts_with(b"\x1b_G") {
+            if let Some(end) = find(&captured[i + 3..], b"\x1b\\") {
+                let body = &captured[i + 3..i + 3 + end];
+                replies.push(String::from_utf8_lossy(body).into_owned());
+                i += 3 + end + 2;
+                continue;
+            }
+            // An unterminated reply at the capture boundary: it is a
+            // fragment of terminal output, not a key. Drop it.
+            break;
+        }
+        typed.push(captured[i]);
+        i += 1;
+    }
+    (replies, typed)
+}
+
+/// The status word of one reply body (`"i=1;OK"` -> `Some("OK")`).
+pub fn reply_status(body: &str) -> Option<&str> {
+    body.split_once(';').map(|(_, status)| status.trim())
+}
+
+/// `Some(true)` for `OK`, `Some(false)` for any error status
+/// (`ENOENT`, `EINVAL`, ...), `None` when the body is not a reply.
+pub fn reply_ok(body: &str) -> Option<bool> {
+    reply_status(body).map(|status| status == "OK")
 }
 
 /// True when the environment positively identifies a Kitty-family
@@ -183,7 +348,15 @@ pub fn kitty_present(env: &[(String, String)]) -> bool {
     if get("KITTY_WINDOW_ID").is_some_and(|v| !v.is_empty()) {
         return true;
     }
-    matches!(get("TERM"), Some("xterm-kitty")) || matches!(get("TERM_PROGRAM"), Some("kitty"))
+    // Ghostty implements the kitty graphics protocol but (1.3.1) never
+    // answers graphics probe commands, so a live probe cannot discover
+    // it. Its forced-tier row proves the capability
+    // (`tools/compat/evidence/ghostty-linux-kitty.json`); the
+    // environment is the only honest proof available before the first
+    // frame, and the watchdog still degrades on protocol errors.
+    matches!(get("TERM"), Some("xterm-kitty"))
+        || matches!(get("TERM_PROGRAM"), Some("kitty") | Some("ghostty"))
+        || get("TERM").is_some_and(|t| t == "xterm-ghostty")
 }
 
 /// Collect the process environment as owned pairs (test seam: pass any
@@ -252,14 +425,103 @@ mod tests {
     #[test]
     fn display_escape_frames_single_and_chunked() {
         let small = display_escape(&[1, 2, 3], 31, 56);
-        assert!(small.starts_with("\x1b_Ga=T,f=100,r=31,c=56,m=0;"));
+        assert!(small.starts_with("\x1b_Ga=T,f=100,r=31,c=56,m=0,q=2;"));
         assert!(small.ends_with("\x1b\\"));
         // 3075 raw bytes -> 4100 b64 chars: 4096 + 4, so two frames.
         let big = vec![0xabu8; 3075];
         let esc = display_escape(&big, 31, 56);
-        assert!(esc.contains(",m=1;"), "first of two frames continues");
+        assert!(esc.contains(",m=1,"), "first of two frames continues");
         assert!(esc.contains("\x1b_Gm=0;"), "final frame terminates");
         assert!(esc.ends_with("\x1b\\"));
+        // Steady-state transmits never ask for a reply (RT-1).
+        assert!(esc.contains("q=2"), "every control chunk is quiet");
+    }
+
+    #[test]
+    fn transmit_escape_is_quiet_and_chunked() {
+        let small = transmit_escape(&[1, 2, 3], ATLAS_IMAGE_ID);
+        assert!(small.starts_with(&format!("\x1b_Ga=t,f=100,i={ATLAS_IMAGE_ID},m=0,q=2;")));
+        assert!(small.ends_with("\x1b\\"));
+        let big = vec![0xabu8; 3075];
+        let esc = transmit_escape(&big, STATIC_IMAGE_ID);
+        assert!(esc.contains(&format!("i={STATIC_IMAGE_ID},m=1,q=2;")));
+        assert!(esc.contains("\x1b_Gm=0;"), "final chunk");
+    }
+
+    #[test]
+    fn place_escape_carries_source_rect_and_in_cell_offset() {
+        let esc = place_escape(ATLAS_IMAGE_ID, 7, (11, 22, 33, 44), (5, 6));
+        assert_eq!(
+            esc,
+            format!("\x1b_Ga=p,i={ATLAS_IMAGE_ID},p=7,x=11,y=22,w=33,h=44,X=5,Y=6,C=1,q=2\x1b\\")
+        );
+        assert!(delete_placement_escape(2, 3).contains("d=p,i=2,p=3"));
+        assert!(free_image_escape(2).contains("d=I,i=2"));
+    }
+
+    #[test]
+    fn reply_split_keeps_keys_and_only_complete_apc_frames() {
+        let (replies, typed) = split_replies(b"\r\x1b_Gi=1;OK\x1b\\4");
+        assert_eq!(replies, vec!["i=1;OK".to_string()]);
+        assert_eq!(typed, b"\r4");
+        // An unterminated reply fragment is not user input.
+        let (replies, typed) = split_replies(b"\x1b_Gi=1;OK");
+        assert!(replies.is_empty());
+        assert!(typed.is_empty());
+        assert!(!reply_complete(b"\x1b_Gi=1;OK"));
+        assert!(reply_complete(b"\x1b_Gi=1;OK\x1b\\"));
+    }
+
+    #[test]
+    fn reply_status_accepts_ok_and_rejects_errors() {
+        assert_eq!(reply_ok("i=1;OK"), Some(true));
+        assert_eq!(reply_ok("i=1,p=2;OK"), Some(true));
+        assert_eq!(reply_ok("i=1;ENOENT: unknown image"), Some(false));
+        assert_eq!(reply_ok("i=1;EINVAL: bad source rect"), Some(false));
+        assert_eq!(reply_ok("garbage"), None);
+        assert_eq!(reply_status("i=1;OK"), Some("OK"));
+    }
+
+    #[test]
+    fn probe_request_is_loud_and_cleanup_reverses_it() {
+        let req = probe_request();
+        assert!(req.contains(&format!("i={PROBE_IMAGE_ID},a=t,f=100")));
+        assert!(!req.contains("q=2"), "the probe must hear the answer");
+        assert!(req.contains(&format!("a=p,i={PROBE_IMAGE_ID},p={PROBE_PLACEMENT_ID}")));
+        let cleanup = probe_cleanup();
+        assert!(cleanup.contains("d=p"));
+        assert!(cleanup.contains("d=I"));
+    }
+
+    #[test]
+    fn rgba_png_declares_color_type_six() {
+        let png = png_encode_rgba(1, 1, &[[1, 2, 3, 4]]);
+        // IHDR payload starts at byte 16: w, h, depth, color type.
+        assert_eq!(&png[16..20], &1u32.to_be_bytes());
+        assert_eq!(png[24], 8);
+        assert_eq!(png[25], 6, "RGBA color type");
+    }
+
+    #[test]
+    fn png_idat_is_a_real_deflate_stream() {
+        // 32x2: the second row repeats the first, so a real DEFLATE
+        // stream is far smaller than the raw scanlines. Decode it back
+        // to prove the zlib container is valid, not just small.
+        let row: Vec<[u8; 4]> = (0..32).map(|x| [x as u8, 9, 9, 255]).collect();
+        let mut px = row.clone();
+        px.extend_from_slice(&row);
+        let png = png_encode_rgba(32, 2, &px);
+        let idat = png
+            .windows(4)
+            .position(|w| w == b"IDAT")
+            .expect("IDAT chunk");
+        let len = u32::from_be_bytes(png[idat - 4..idat].try_into().unwrap()) as usize;
+        let zlib = &png[idat + 4..idat + 4 + len];
+        let raw = miniz_oxide::inflate::decompress_to_vec_zlib(zlib).expect("valid zlib");
+        assert_eq!(raw.len(), 2 * (1 + 32 * 4));
+        assert_eq!(raw[0], 0, "filter byte");
+        assert_eq!(&raw[1..5], &[0, 9, 9, 255]);
+        assert!(png.len() < 300, "compressed PNG stayed {} bytes", png.len());
     }
 
     #[test]
@@ -276,6 +538,9 @@ mod tests {
         assert!(kitty_present(&[("KITTY_WINDOW_ID".into(), "1".into())]));
         assert!(kitty_present(&[("TERM".into(), "xterm-kitty".into())]));
         assert!(kitty_present(&[("TERM_PROGRAM".into(), "kitty".into())]));
-        assert!(!kitty_present(&[("TERM_PROGRAM".into(), "ghostty".into())]));
+        assert!(kitty_present(&[("TERM_PROGRAM".into(), "ghostty".into())]));
+        assert!(kitty_present(&[("TERM".into(), "xterm-ghostty".into())]));
+        assert!(!kitty_present(&[("TERM_PROGRAM".into(), "WezTerm".into())]));
+        assert!(!kitty_present(&[("TERM".into(), "xterm-256color".into())]));
     }
 }

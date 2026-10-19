@@ -11,7 +11,7 @@
 //!    `kitty_shrink_into_too_small_deletes_placements_and_draws_card`
 //!    pins the same contract on the shrink-into-too-small path: the
 //!    card's first frame must clear, delete every placement, then draw
-//!    the card, with no fresh display escape.
+//!    the card, with no fresh board placement.
 //!
 //! 2. `trace_env_emits_start_plan_and_frame_records` pins the
 //!    `MAZE_CHASE_TRACE` machine trace the compatibility harness
@@ -250,8 +250,8 @@ fn kitty_resize_clears_stale_placements_and_repaints() {
     let mut s = Session::start("contract", 62, 35, None);
     s.reach_playing();
     assert!(
-        s.wait("\x1b_Ga=T", Duration::from_secs(8)),
-        "the playing frame must carry a Kitty display escape; tail: {}",
+        s.wait("\x1b_Ga=p", Duration::from_secs(8)),
+        "the playing frame must carry a Kitty placement; tail: {}",
         tail(&s.out)
     );
 
@@ -259,7 +259,7 @@ fn kitty_resize_clears_stale_placements_and_repaints() {
     set_winsize(&s.pty.master, 100, 40);
     send_signal(s.child.id(), libc::SIGWINCH);
     assert!(
-        s.wait("\x1b_Ga=T", Duration::from_secs(8)),
+        s.wait("\x1b_Ga=p", Duration::from_secs(8)),
         "the resized frame never repainted the board; tail: {}",
         tail(&s.out)
     );
@@ -269,7 +269,7 @@ fn kitty_resize_clears_stale_placements_and_repaints() {
         tail(&s.out)
     );
 
-    let frame = frame_containing(&s.out, "\x1b_Ga=T").expect("captured a resized frame");
+    let frame = frame_containing(&s.out, "\x1b_Ga=p").expect("captured a resized frame");
     assert!(
         frame.contains("\x1b[2J"),
         "the resize frame must clear stale glyphs before repainting"
@@ -280,10 +280,10 @@ fn kitty_resize_clears_stale_placements_and_repaints() {
     );
     let clear = frame.find("\x1b[2J").unwrap();
     let delete_all = frame.find("\x1b_Ga=d\x1b\\").unwrap();
-    let display = frame.find("\x1b_Ga=T").unwrap();
+    let display = frame.find("\x1b_Ga=p").unwrap();
     assert!(
         clear < delete_all && delete_all < display,
-        "the resize frame must clear, delete, then re-display (got {clear} < {delete_all} < {display})"
+        "the resize frame must clear, delete, then place (got {clear} < {delete_all} < {display})"
     );
 }
 
@@ -298,8 +298,8 @@ fn kitty_shrink_into_too_small_deletes_placements_and_draws_card() {
     let mut s = Session::start("toosmall", 62, 35, None);
     s.reach_playing();
     assert!(
-        s.wait("\x1b_Ga=T", Duration::from_secs(8)),
-        "the playing frame must carry a Kitty display escape; tail: {}",
+        s.wait("\x1b_Ga=p", Duration::from_secs(8)),
+        "the playing frame must carry a Kitty placement; tail: {}",
         tail(&s.out)
     );
 
@@ -335,8 +335,8 @@ fn kitty_shrink_into_too_small_deletes_placements_and_draws_card() {
         "the too-small frame must clear, delete, then draw the card (got {clear} < {delete_all} < {card})"
     );
     assert!(
-        !frame.contains("\x1b_Ga=T"),
-        "the too-small frame must not display a fresh board image"
+        !frame.contains("\x1b_Ga=p"),
+        "the too-small frame must not place a fresh board image"
     );
 }
 
@@ -353,8 +353,8 @@ fn trace_env_emits_start_plan_and_frame_records() {
     let mut s = Session::start("trace", 62, 35, Some(&trace_path));
     s.reach_playing();
     assert!(
-        s.wait("\x1b_Ga=T", Duration::from_secs(8)),
-        "the playing frame must carry a Kitty display escape; tail: {}",
+        s.wait("\x1b_Ga=p", Duration::from_secs(8)),
+        "the playing frame must carry a Kitty placement; tail: {}",
         tail(&s.out)
     );
 
@@ -362,7 +362,7 @@ fn trace_env_emits_start_plan_and_frame_records() {
     set_winsize(&s.pty.master, 100, 40);
     send_signal(s.child.id(), libc::SIGWINCH);
     assert!(
-        s.wait("\x1b_Ga=T", Duration::from_secs(8)),
+        s.wait("\x1b_Ga=p", Duration::from_secs(8)),
         "the resized frame never repainted the board; tail: {}",
         tail(&s.out)
     );

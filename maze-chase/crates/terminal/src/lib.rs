@@ -10,6 +10,7 @@
 //! re-fits on resize; [`screens`] owns menus, help, scores, and settings.
 
 pub mod app;
+pub mod atlas;
 pub mod backend;
 pub mod chime;
 pub mod chrome;

@@ -342,11 +342,11 @@ fn b64_prefix_decode(s: &str) -> Vec<u8> {
     out
 }
 
-/// Width and height of the PNG carried by the first Kitty `a=T` display
+/// Width and height of the PNG carried by the first Kitty `a=t` transmit
 /// escape captured in `bytes`, parsed from the IHDR chunk.
 fn first_display_png_dims(bytes: &[u8]) -> (u32, u32) {
     let text = String::from_utf8_lossy(bytes).into_owned();
-    let start = text.find("\x1b_Ga=T").expect("display escape present");
+    let start = text.find("\x1b_Ga=t").expect("transmit escape present");
     let semi = text[start..].find(';').expect("payload separator") + start + 1;
     let prefix: String = text[semi..].chars().take(32).collect();
     let raw = b64_prefix_decode(&prefix);
@@ -407,9 +407,9 @@ fn resize_storm_recovers_and_fresh_frame_obeys_kitty_contract() {
     );
     s.wait_frame_closed();
     let frame = frame_containing(&s.out, SIDE_MARKER).expect("captured the settled frame");
-    assert_fresh_order(&frame, "\x1b_Ga=T", "storm settle 170x64");
+    assert_fresh_order(&frame, "\x1b_Ga=p", "storm settle 170x64");
     assert!(
-        frame.contains("r=62,c=140"),
+        frame.contains("c=140,r=62"),
         "the settled board must display at the exact 5x2 cell footprint (31*2 x 28*5); frame head: {:?}",
         &frame[..frame.len().min(400)]
     );
@@ -438,7 +438,7 @@ fn too_small_cards_are_exact_at_the_boundary_and_recover() {
         let frame = frame_containing(&s.out, &card).expect("captured the card frame");
         assert_fresh_order(&frame, &card, &format!("card {cols}x{rows}"));
         assert!(
-            !frame.contains("\x1b_Ga=T"),
+            !frame.contains("\x1b_Ga=p"),
             "the card frame for {cols}x{rows} must not display a fresh board image"
         );
     }
