@@ -21,20 +21,23 @@ did not execute.
 
 ## Executed rows (Linux, harness on this build)
 
-All rows were refreshed on 2026-10-19 from the release binary built at
+All rows ran on 2026-10-19 from a checkout at
 `8f16a3f6a277a7247f11c51c977eb96be6aebf33` (release
 `maze-chase-terminal`, SHA-256
 `9ebf8f4c32d82b62278f5d5920b968b426d6c304b85a9e64e12fd68a46a2d6c4`,
 Rust sources clean), so every number below re-derives from the named
 JSON and uses true binary units (KiB = 1024 B, MiB = 1024^2 B). Every
 row records that identity in its own `build` block
-(`build.commit`, `build.binary_sha256`, `build.sources_dirty`), so each
-bundle names the exact code and binary that produced it instead of
-implying the current head did. The forced-tier rows also record
-`pause_select: 1`: they move the pause menu cursor to "Quit to title"
-before the paused checkpoint, so the second executed row of an emulator
-never commits a byte-identical paused capture (each `events.log` shows
-the extra Down key at its byte offset).
+(`build.commit`, `build.binary_sha256`, `build.sources_dirty`). The
+recorded commit is the checkout when the row ran; because a
+`--skip-build` run can reuse a binary built at an earlier commit, the
+binary SHA-256 is authoritative. These rows record a clean checkout at
+the named commit and the binary hash above. Each bundle therefore names
+the exact binary that produced it instead of implying the current head
+did. The forced-tier rows also record `pause_select: 1`: they move the
+pause menu cursor to "Quit to title" before the paused checkpoint, so a
+forced-tier rerun of an emulator never commits a byte-identical paused
+capture (each `events.log` shows the extra Down key at its byte offset).
 
 The kitty-graphics `pass` rows also carry a
 sprite-palette census per capture (`sprite_census` in each phase,
