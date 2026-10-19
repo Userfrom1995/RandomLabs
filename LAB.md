@@ -692,7 +692,7 @@ catch-handler form still advances the rung; `mnf-err-nz` binds it
 end-to-end), the success path exits 0 itself, and the Maintainer verify's
 missing-decision `exit 1` is pinned. Each
 semantics-changing one-line rewrite in those classes
-is caught by R15 alone (23 passed, 1 failed) with zero collateral, and
+is caught by R15 alone (24 passed, 1 failed at the 25-rule base) with zero collateral, and
 exact-form static tripwires additionally guard the stderr merge, the
 watchdog arithmetic, the fire-path sites, the watchdog's fire-block
 escalation order (a whole-region pin: the extracted block must be exactly
@@ -735,13 +735,47 @@ not carry `continue-on-error:`/
 attempt green; a short timeout REJECT-kills a healthy retry loop), and
 the Maintainer step's exact `continue-on-error: true` and
 `timeout-minutes: 60` lines are each required present exactly once
-(deleting or altering either fails closed), every class reading 23
+(deleting or altering either fails closed), every class reading 24
 passed / 1 failed with R15 the only failing rule; backed by a
 TERM-trapping `term-grace`
 attempt that can only write its cleanup marker through the real grace
 window and a TERM-ignoring `hang-child-ignores-term` attempt that only
 SIGKILL can end), and the watchdog's liveness loop and
 post-sleep re-check.
+
+Review round 18 made that guard structural (issue #653 findings F1-F4,
+all previously reading 25/0 while disabling the bound behavior). A
+python3/PyYAML strict loader (duplicate mapping keys rejected; a missing
+runtime, duplicate `run`/`if`/`shell` keys, and parse errors all fail
+closed) resolves the composite `Run opencode` step, the Maintainer
+`Run Maintainer agent` step, and both verify steps by their parsed names,
+and the extracted parsed `run` scalars drive the exact line pins and the
+behavioral harness: a `run: |` decoy inside a block scalar in the step
+(for example in `env.PROMPT`) and the valid `run: |2` spelling can both no
+longer shadow the executing body (F1). The same structural pass bans
+watchdog knobs and step keys in explicit-key spelling (`? if` / `:
+false`, `? HANG_IDLE_SECONDS` / `: "86400"`), which PyYAML and GitHub
+Actions read exactly like the block spelling but the text patterns never
+saw (F2); binds both runner steps' `MODEL_CANDIDATES` (and the
+composite's `MODEL`) to the resolver outputs by exact parsed value and
+asserts the resolver step's `id: model_ladder` plus its
+`resolve-model.sh` invocation (F4); and executes both verify steps
+behaviorally in the sandbox: the Maintainer verify must exit nonzero with
+no `.maintainer/decision.json` and 0 once one exists, and the general
+verify must exit 0 on `AGENT_OUTCOME=success` and nonzero on `failure`, so
+a hollow-green `|| true` condition can no longer pass (F3). All four
+reviewer reproductions now read 24 passed / 1 failed with R15 the only
+failing rule, 0-byte stderr.
+
+Accepted residuals of the #653 runtime (documented, not hardened): the
+TERM/KILL escalation targets the two captured PIDs, so after the 5-second
+grace a reused PID could be signalled and a hung `opencode` descendant can
+survive the two-PID abort and race the retry; a legitimately silent
+attempt longer than 600 seconds is treated as a stall and retried once;
+and an env-supplied `HANG_POLL_SECONDS` with a leading zero (for example
+`09`) passes the digit clamp but bash reads it as invalid octal, so the
+watchdog never accumulates. Declarative env overrides of both knobs are
+banned tree-wide, so the last class needs a hand-set process environment.
 
 The schedule arms (`curator.yml`, `auditor.yml`) and the dispatched arms
 (`curator.yml`, `auditor.yml`, `ideate.yml`, `lab.yml`) share
