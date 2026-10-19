@@ -463,8 +463,8 @@ class TestCollectorHonestyGates(unittest.TestCase):
         # The same fail-open existed for packed gray+alpha captures.
         collect = load_collect_module()
         for bit in (1, 2, 4, 8):
-            path = os.path.join(self.tmp, f"white-gray-alpha-{bit}.png")
             level = (1 << bit) - 1
+            path = os.path.join(self.tmp, f"white-gray-alpha-{bit}.png")
             with open(path, "wb") as fh:
                 fh.write(make_gray_alpha_png(8, 8, level, alpha=level,
                                              bit_depth=bit))
@@ -474,6 +474,26 @@ class TestCollectorHonestyGates(unittest.TestCase):
                 f"{bit}-bit all-ones gray+alpha not classified as white",
             )
             self.assertTrue(facts["light_background"])
+            # Gray decides and alpha never does: an all-ones gray with a
+            # zero alpha is white, while a zero gray with all-ones alpha
+            # is not. This pins sample order and MSB-first packing; a
+            # swapped or LSB-first unpack would fail one of the two.
+            path = os.path.join(self.tmp, f"gray-white-alpha-zero-{bit}.png")
+            with open(path, "wb") as fh:
+                fh.write(make_gray_alpha_png(8, 8, level, alpha=0,
+                                             bit_depth=bit))
+            self.assertEqual(
+                collect.screenshot_facts(path)["white_share"], 1.0,
+                f"{bit}-bit all-ones gray with zero alpha is still white",
+            )
+            path = os.path.join(self.tmp, f"gray-zero-alpha-white-{bit}.png")
+            with open(path, "wb") as fh:
+                fh.write(make_gray_alpha_png(8, 8, 0, alpha=level,
+                                             bit_depth=bit))
+            self.assertEqual(
+                collect.screenshot_facts(path)["white_share"], 0.0,
+                f"{bit}-bit all-ones alpha with zero gray is not white",
+            )
 
     def test_gray_alpha_blank_playing_capture_is_downgraded(self):
         # A blank gray+alpha capture must trip the blank-board gate, not

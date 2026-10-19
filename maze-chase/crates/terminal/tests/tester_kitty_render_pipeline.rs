@@ -259,6 +259,20 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack.windows(needle.len()).position(|w| w == needle)
 }
 
+/// Last occurrence of `needle` in `haystack`. Used to isolate the frame
+/// that finally reached the terminal after a transient write failure:
+/// earlier failed frames may have written a partial copy of the same
+/// release prefix into the pipe.
+fn find_last(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    let mut last = None;
+    let mut start = 0;
+    while let Some(pos) = find(&haystack[start..], needle) {
+        last = Some(start + pos);
+        start += pos + 1;
+    }
+    last
+}
+
 /// Params (before the first `;`) of every `ESC_G ... ESC\` APC escape.
 fn apc_params(stream: &[u8]) -> Vec<String> {
     let mut out = Vec::new();
@@ -843,6 +857,165 @@ fn leaving_kitty_tier_releases_board_and_atlas_before_first_sixel_frame() {
         "the first post-downgrade frame never landed as a Sixel frame; trace:\n{}",
         trace_text(&dir)
     );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// F18: a single transient write failure on a healthy Kitty tier must
+/// force a full repaint. The renderer commits its diff state while
+/// composing, so without the reset the next successful frame would diff
+/// against a screen that never received the failed frame: stale
+/// placements would survive and neither image would be re-transmitted.
+/// The pipe is filled once and drained as soon as the trace records the
+/// failure (before the watchdog's three-strike downgrade), so the tier
+/// stays Kitty and the recovered frame is the one that reaches the
+/// screen.
+#[test]
+fn transient_kitty_write_failure_recovers_with_a_full_repaint() {
+    let dir = session_dir("kitty-transient-write");
+    // stdout is a non-blocking pipe; stdin and stderr stay on the PTY.
+    let mut fds = [0i32; 2];
+    assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0, "pipe failed");
+    let (read_fd, write_fd) = (fds[0], fds[1]);
+    #[cfg(target_os = "linux")]
+    unsafe {
+        libc::fcntl(write_fd, libc::F_SETPIPE_SZ, 65536)
+    };
+    for fd in [read_fd, write_fd] {
+        let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+        assert_ne!(flags, -1);
+        assert_ne!(
+            unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) },
+            -1
+        );
+    }
+    let write_end = unsafe { std::fs::File::from_raw_fd(write_fd) };
+    let mut read_end = unsafe { std::fs::File::from_raw_fd(read_fd) };
+
+    let mut pty = open_pty(100, 40);
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_maze-chase-terminal"));
+    cmd.arg("--dir")
+        .arg(&dir)
+        .arg("--tier")
+        .arg("kitty")
+        .env("TERM", "xterm-kitty")
+        .env("MAZE_CHASE_TRACE", dir.join("trace.jsonl"))
+        .stdin(Stdio::from(pty.slave.try_clone().unwrap()))
+        .stdout(Stdio::from(write_end))
+        .stderr(Stdio::from(pty.slave.try_clone().unwrap()));
+    unsafe {
+        cmd.pre_exec(own_controlling_tty());
+    }
+    let mut child = cmd.spawn().expect("spawn maze-chase-terminal");
+
+    // The title paints to the pipe (stdout), so read it from there and
+    // start a run once the kitty tier is visible.
+    let mut stream = Vec::new();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while Instant::now() < deadline
+        && !String::from_utf8_lossy(&stream).contains("video tier: kitty-graphics")
+    {
+        let mut chunk = [0u8; 65536];
+        match read_end.read(&mut chunk) {
+            Ok(0) => break,
+            Ok(n) => stream.extend_from_slice(&chunk[..n]),
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(_) => std::thread::sleep(Duration::from_millis(5)),
+        }
+    }
+    assert!(
+        String::from_utf8_lossy(&stream).contains("video tier: kitty-graphics"),
+        "title never painted the kitty tier; tail: {}",
+        tail(&stream)
+    );
+    (&pty.master).write_all(b"\r").unwrap();
+
+    let static_place = format!("a=p,i={STATIC_IMAGE_ID}");
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let started = String::from_utf8_lossy(&stream).contains("SCORE ")
+            && find(&stream, static_place.as_bytes()).is_some();
+        if started || Instant::now() >= deadline {
+            break;
+        }
+        let mut chunk = [0u8; 65536];
+        match read_end.read(&mut chunk) {
+            Ok(0) => break,
+            Ok(n) => stream.extend_from_slice(&chunk[..n]),
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(_) => std::thread::sleep(Duration::from_millis(5)),
+        }
+    }
+    assert!(
+        String::from_utf8_lossy(&stream).contains("SCORE "),
+        "play never started; tail: {}",
+        tail(&stream)
+    );
+    assert!(
+        find(&stream, static_place.as_bytes()).is_some(),
+        "the static board was never placed; tail: {}",
+        tail(&stream)
+    );
+
+    // Stop reading so the pipe fills. The next frame write fails and the
+    // trace records it; drain immediately, before a third strike can
+    // downgrade the healthy tier.
+    let trace_mark = trace_text(&dir).len();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let mut saw_failure = false;
+    while Instant::now() < deadline {
+        let text = trace_text(&dir);
+        if text.len() >= trace_mark && text[trace_mark..].contains("\"kind\":\"write-error\"") {
+            saw_failure = true;
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(
+        saw_failure,
+        "no frame write ever failed while the pipe was full; trace:\n{}",
+        trace_text(&dir)
+    );
+    let before = stream.len();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline {
+        let mut chunk = [0u8; 65536];
+        match read_end.read(&mut chunk) {
+            Ok(0) => break,
+            Ok(n) => stream.extend_from_slice(&chunk[..n]),
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(_) => std::thread::sleep(Duration::from_millis(5)),
+        }
+    }
+
+    let drained = &stream[before..];
+    let release = format!(
+        "\x1b_Ga=d\x1b\\\x1b_Ga=d,d=I,i={STATIC_IMAGE_ID}\x1b\\\x1b_Ga=d,d=I,i={ATLAS_IMAGE_ID}\x1b\\"
+    );
+    let release_at = find_last(drained, release.as_bytes()).unwrap_or_else(|| {
+        panic!(
+            "the recovered frame never released the stale layers; tail: {}",
+            tail(drained)
+        )
+    });
+    let after = &drained[release_at..];
+    for needle in [
+        format!("\x1b_Ga=t,f=100,i={STATIC_IMAGE_ID},"),
+        format!("\x1b_Ga=t,f=100,i={ATLAS_IMAGE_ID},"),
+        format!("a=p,i={STATIC_IMAGE_ID}"),
+    ] {
+        assert!(
+            find(after, needle.as_bytes()).is_some(),
+            "the recovered frame is missing {needle:?}; tail: {}",
+            tail(drained)
+        );
+    }
+    let trace = trace_text(&dir);
+    assert!(
+        !trace.contains("\"kind\":\"watchdog\""),
+        "a transient failure must not downgrade the kitty tier:\n{trace}"
+    );
+    let mut pty_out = Vec::new();
+    reap(&mut child, &mut pty.master, &mut pty_out);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
