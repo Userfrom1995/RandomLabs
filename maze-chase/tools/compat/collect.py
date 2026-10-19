@@ -860,6 +860,7 @@ def main():
             and (
                 str(phase.get("name", "")).startswith("playing")
                 or "resized" in str(phase.get("name", ""))
+                or str(phase.get("name", "")) == "refit"
             )
             and phase.get("dominant_share", 0.0) >= 0.98
         ]
