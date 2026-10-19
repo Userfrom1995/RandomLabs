@@ -815,9 +815,7 @@ fn live_wide_room_animates_and_steers_without_footprint_drift() {
 
     use maze_chase_terminal::kitty::{STATIC_IMAGE_ID, STATIC_PLACEMENT_ID};
     let text = String::from_utf8_lossy(&s.out).into_owned();
-    let static_place = format!(
-        "\x1b_Ga=p,i={STATIC_IMAGE_ID},p={STATIC_PLACEMENT_ID},x=0,y=0,w="
-    );
+    let static_place = format!("\x1b_Ga=p,i={STATIC_IMAGE_ID},p={STATIC_PLACEMENT_ID},x=0,y=0,w=");
     assert!(
         text.contains(&static_place),
         "the static board layer was never placed; tail: {}",
@@ -829,7 +827,10 @@ fn live_wide_room_animates_and_steers_without_footprint_drift() {
     let mut from = 0;
     while let Some(i) = text[from..].find(&static_place) {
         let i = from + i;
-        let end = text[i..].find("\x1b\\").map(|e| e + i).unwrap_or(text.len());
+        let end = text[i..]
+            .find("\x1b\\")
+            .map(|e| e + i)
+            .unwrap_or(text.len());
         let params = &text[i..end];
         assert!(
             params.contains(",c=196,r=31,"),
