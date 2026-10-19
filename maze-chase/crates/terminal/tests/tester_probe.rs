@@ -11,7 +11,7 @@
 
 use std::io::{Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
 struct Pty {
@@ -67,6 +67,29 @@ fn drain(master: &mut std::fs::File, out: &mut Vec<u8>) {
             // this drain; the caller decides whether to keep waiting.
             Err(_) => break,
         }
+    }
+}
+
+/// Reap a killed PTY child without ever blocking the suite.
+///
+/// A child SIGKILLed while blocked writing to a full PTY master stays
+/// unreapable on macOS until the pending write completes, so the old
+/// `kill(); wait()` dropped straight into a hung `Child::wait` (issue
+/// #656 macOS arm). Draining the non-blocking master lets the write
+/// finish and the kill land; the bounded loop can never hang a suite
+/// even if a platform never reaps.
+fn reap(child: &mut Child, master: &mut std::fs::File, out: &mut Vec<u8>) {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        drain(master, out);
+        match child.try_wait() {
+            Ok(Some(_)) | Err(_) => return,
+            Ok(None) => {}
+        }
+        if Instant::now() >= deadline {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(10));
     }
 }
 
@@ -151,7 +174,7 @@ fn fragmented_da1_reply_selects_sixel_and_play_still_starts() {
     (&pty.master).write_all(b"\r").unwrap();
     let started = wait_for(&mut pty.master, &mut out, "SCORE ", Duration::from_secs(5));
     let _ = child.kill();
-    let _ = child.wait();
+    reap(&mut child, &mut pty.master, &mut out);
     let _ = std::fs::remove_dir_all(&dir);
     assert!(
         started,
@@ -200,7 +223,7 @@ fn late_da1_reply_never_steals_the_next_key() {
 
     let started = wait_for(&mut pty.master, &mut out, "SCORE ", Duration::from_secs(5));
     let _ = child.kill();
-    let _ = child.wait();
+    reap(&mut child, &mut pty.master, &mut out);
     let _ = std::fs::remove_dir_all(&dir);
     assert!(
         started,
@@ -259,7 +282,7 @@ fn one_enter_starts_the_game_after_a_silent_da1_probe() {
         Duration::from_secs(5),
     );
     let _ = child.kill();
-    let _ = child.wait();
+    reap(&mut child, &mut pty.master, &mut out);
     let _ = std::fs::remove_dir_all(&dir);
     assert!(
         started,

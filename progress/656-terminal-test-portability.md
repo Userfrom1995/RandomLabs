@@ -17,11 +17,13 @@
       slave before `TIOCSWINSZ` (macOS returns `ENOTTY` on a master with no
       attached slave); both fds are `OwnedFd` so a failing assertion cannot
       leak them
-- [ ] F2: every PTY harness reaps a killed child with a bounded, drain-first
-      loop instead of `kill(); wait()` (macOS holds the SIGKILL of a child
-      blocked writing to a full master until the master is drained, so the old
-      `Session::drop` hung `plan_contract`, `tester_dynamic_layout_hostile`,
-      and `tester_layout_goldens_live` forever)
+- [x] F2: every PTY harness reaps a killed child with a bounded, drain-first
+      `reap` helper instead of `kill(); wait()` (macOS holds the SIGKILL of a
+      child blocked writing to a full master until the master is drained, so
+      the old `Session::drop` hung `plan_contract`,
+      `tester_dynamic_layout_hostile`, and `tester_layout_goldens_live`
+      forever). Applied to the seven `Drop` harnesses and the four
+      probe/replay suites with loose kill sites
 - [ ] Verify on Linux: full `cargo test -p maze-chase-terminal` with per-suite
       timeouts, `cargo fmt --check`, clippy, Linux behavior byte-identical
 - [ ] Update the shared ledgers (findings Section G + roadmap log)
@@ -29,8 +31,8 @@
 
 ## Current step
 
-F1 committed and the seven `Drop` harnesses converted; the four probe/replay
-suites with loose kill sites are next.
+All F1/F2 edits committed; the ledger entries and the final verification
+record are next.
 
 ## Next steps
 

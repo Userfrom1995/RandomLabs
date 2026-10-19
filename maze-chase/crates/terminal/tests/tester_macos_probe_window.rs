@@ -15,7 +15,7 @@
 
 use std::io::{Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
 struct Pty {
@@ -69,6 +69,29 @@ fn drain(master: &mut std::fs::File, out: &mut Vec<u8>) {
             Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
             Err(_) => break,
         }
+    }
+}
+
+/// Reap a killed PTY child without ever blocking the suite.
+///
+/// A child SIGKILLed while blocked writing to a full PTY master stays
+/// unreapable on macOS until the pending write completes, so the old
+/// `kill(); wait()` dropped straight into a hung `Child::wait` (issue
+/// #656 macOS arm). Draining the non-blocking master lets the write
+/// finish and the kill land; the bounded loop can never hang a suite
+/// even if a platform never reaps.
+fn reap(child: &mut Child, master: &mut std::fs::File, out: &mut Vec<u8>) {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        drain(master, out);
+        match child.try_wait() {
+            Ok(Some(_)) | Err(_) => return,
+            Ok(None) => {}
+        }
+        if Instant::now() >= deadline {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(10));
     }
 }
 
@@ -149,10 +172,10 @@ fn stray_four_during_probe_window_never_flips_to_sixel() {
         drain(&mut pty.master, &mut out);
         std::thread::sleep(Duration::from_millis(20));
     }
-    let text = String::from_utf8_lossy(&out);
+    let text = String::from_utf8_lossy(&out).into_owned();
 
     let _ = child.kill();
-    let _ = child.wait();
+    reap(&mut child, &mut pty.master, &mut out);
     let _ = std::fs::remove_dir_all(&dir);
 
     assert!(
@@ -198,7 +221,7 @@ fn enter_during_probe_window_still_starts_play() {
     );
 
     let _ = child.kill();
-    let _ = child.wait();
+    reap(&mut child, &mut pty.master, &mut out);
     let _ = std::fs::remove_dir_all(&dir);
 
     assert!(
@@ -268,7 +291,7 @@ fn fragmented_late_da1_reply_never_flips_or_steals() {
     let payload = text.contains("\x1bPq");
 
     let _ = child.kill();
-    let _ = child.wait();
+    reap(&mut child, &mut pty.master, &mut out);
     let _ = std::fs::remove_dir_all(&dir);
 
     assert!(
