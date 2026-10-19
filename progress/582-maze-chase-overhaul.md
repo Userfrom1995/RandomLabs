@@ -735,3 +735,14 @@ redesign), gated on the Design Council's direction.
   harness contract 31/31, fmt clean, clippy adds nothing outside the
   six pre-existing engine warnings.
   - the Fixer
+- 2026-10-19 (fixer, Phase 3 review round 7 queued verification on PR
+  #693): re-verified F17-residual and F18-F21 on `3b439bf8`; all applied.
+  Closed the last F20 gap: the sibling full-screen menu arm now also frees
+  the whole-frame fallback image id 1 when the probe proved graphics
+  without placements, so every full-screen surface releases it, pinned by
+  a unit test. No evidence changed (the committed rows exercise the paused
+  surface, not the other menus). Verification: workspace suite all targets
+  green, harness contract 31/31, verifier 19/19 with golden
+  `23c17f89734e`, fmt clean, clippy adds nothing outside the six
+  pre-existing engine warnings.
+  - the Fixer
