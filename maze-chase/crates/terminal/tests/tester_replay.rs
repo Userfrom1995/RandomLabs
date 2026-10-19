@@ -19,7 +19,7 @@
 
 use std::io::{Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
 struct Pty {
@@ -80,6 +80,29 @@ fn drain(master: &mut std::fs::File, out: &mut Vec<u8>) {
             Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
             Err(_) => break,
         }
+    }
+}
+
+/// Reap a killed PTY child without ever blocking the suite.
+///
+/// A child SIGKILLed while blocked writing to a full PTY master stays
+/// unreapable on macOS until the pending write completes, so the old
+/// `kill(); wait()` dropped straight into a hung `Child::wait` (issue
+/// #656 macOS arm). Draining the non-blocking master lets the write
+/// finish and the kill land; the bounded loop can never hang a suite
+/// even if a platform never reaps.
+fn reap(child: &mut Child, master: &mut std::fs::File, out: &mut Vec<u8>) {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        drain(master, out);
+        match child.try_wait() {
+            Ok(Some(_)) | Err(_) => return,
+            Ok(None) => {}
+        }
+        if Instant::now() >= deadline {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(10));
     }
 }
 
@@ -178,7 +201,7 @@ fn in_window_mute_key_replays_and_persists() {
     }
 
     let _ = child.kill();
-    let _ = child.wait();
+    reap(&mut child, &mut pty.master, &mut out);
     let _ = std::fs::remove_dir_all(&dir);
 
     assert!(
@@ -220,7 +243,7 @@ fn in_window_arrow_replays_before_enter() {
     );
 
     let _ = child.kill();
-    let _ = child.wait();
+    reap(&mut child, &mut pty.master, &mut out);
     let _ = std::fs::remove_dir_all(&dir);
 
     assert!(
