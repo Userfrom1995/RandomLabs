@@ -17,7 +17,7 @@
 
 - Phase 1: Product Reassessment and Real-Terminal Truth: [x] real-terminal driver harness (`maze-chase/tools/compat/`: `run-linux.sh`, `run-macos.sh`, `run-windows.ps1`, `drive.sh`, `collect.py`, `README.md`), [x] reproduce the Owner's Ghostty and Kitty findings on current main with recorded evidence (kitty reply-loop flood plus input delayed past the session, Ghostty mis-routing despite its kitty-graphics support; eight executed Linux rows in `maze-chase/tools/compat/evidence/`), [x] critical reassessment of engine, layers, and docs claims (four parallel sweeps; Section B of the ledger), [x] findings ledger with every gap (`progress/582-maze-chase-overhaul-findings.md`), [x] honest compatibility matrix scaffold `maze-chase/docs/terminal-compat.md` (executed rows plus named executors for host-pending rows), [ ] new sub-issues routed through the Maintainer (proposed set in ledger Section C; filing is the Maintainer's next step, not done in this PR) (PR 1 target, Refs #582, Refs #655, Refs #661)
 - Phase 2: Dynamic Terminal Layout and Full-Window Composition: [x] geometry model with cell pixel size (`crates/terminal/src/geometry.rs`; TIOCGWINSZ pixel fields on Unix, console font on Windows, nominal 8x16 fallback), [x] pure layout solver (2..8 x 1..4 scale grid at the 2x1 compact floor with coverage-first selection; side panel, HUD band, hint-only by fit; exact 62x35 card; golden plans 200x60 -> 7x1 and 62x80 -> 2x2), [x] bounded centered image rendering at the real pixel geometry (raster fit to the board's pixel box; image footprint mapped through the window pixels, so Kitty never stretches and the Sixel raster stays inside the board's pixel box whenever the box can host the 6-ppt legibility floor, and absurdly tiny pixel windows keep the documented floor and may overflow; 8-ppt nominal fallback), [x] continuous cell-tier scales (`unicode::fit_width`/`center_rows` at any scale), [x] resize contract with same-frame repaint and stale-placement kill (`ESC[2J` plus Kitty delete-all in the new frame; pinned by `tests/plan_contract.rs`), [x] tier-aware too-small card (reads `layout.min_cols/min_rows`; exact 62x35 boundary pinned), [ ] real-emulator resize proof on Linux and macOS (the PTY proof landed with this PR; the real rows are per-OS tester work, no emulator exists on the build machine) (PR 2 target, Refs #582, Refs #656)
-- Phase 3: Terminal Render Pipeline and Compatibility Proof: [x] bounded live Kitty probe with byte replay plus the Sixel DA1 probe (the probe requires both the transmit and placement replies before it reads a verdict; Ghostty 1.3.1 answers the probe when one is sent, and its rows select the graphics path from `TERM_PROGRAM=ghostty`/`TERM=xterm-ghostty` without probing), [x] atlas plus placement composition with full-frame fallback (static layer and sprite atlas once per change, stable-id placement diffs, single-placement `d=i` deletes, explicit `z` stacking layers, DEFLATE PNG), [x] dirty-change detection and wall-clock pacing with backpressure (visual-change key, per-tier rates, 8 MiB/s byte ceiling, 1 Hz idle keepalive), [x] Sixel path hardening (64-color cap, 2 MiB frame ceiling with smaller-palette retry and an honest `cells-fallback` trace mode), [x] capability-aware probe plus write-path watchdog (`OK`/`ENOENT` replies decide kitty support; `q=2` keeps steady transmits silent, and the watchdog drops a tier after 3 failed frame writes with the reason recorded), [x] `MAZE_CHASE_TRACE` JSONL evidence mode (plan, frame mode/placements/static/atlas/encode time, skips, probe results), [x] kitty and ghostty rows signed on Linux plus conventional terminals (kitty and Ghostty both `kitty-graphics` pass at 21 transmits / 156.1-160.1 KiB per session with sprite visibility proven by capture census; xterm auto partial only for its light-background palette, 7 of 10 captures >=98% white; xterm dark passes on cells; the VT340 sixel rows pass at 141 transmits / 3.41 MiB, and every row records its generating build commit plus binary SHA-256 in its `build` block), [ ] macOS matrix rows signed by the macOS Tester (PR 3 target, Refs #582, Refs #655)
+- Phase 3: Terminal Render Pipeline and Compatibility Proof: [x] bounded live Kitty probe with byte replay plus the Sixel DA1 probe (the probe requires both the transmit and placement replies before it reads a verdict; Ghostty 1.3.1 answers the probe when one is sent, and its rows select the graphics path from `TERM_PROGRAM=ghostty`/`TERM=xterm-ghostty` without probing), [x] atlas plus placement composition with full-frame fallback (static layer and sprite atlas once per change, stable-id placement diffs, single-placement `d=i` deletes, explicit `z` stacking layers, DEFLATE PNG), [x] dirty-change detection and wall-clock pacing with backpressure (visual-change key, per-tier rates, 8 MiB/s byte ceiling, 1 Hz idle keepalive), [x] Sixel path hardening (64-color cap, 2 MiB frame ceiling with smaller-palette retry and an honest `cells-fallback` trace mode), [x] capability-aware probe plus write-path watchdog (`OK`/`ENOENT` replies decide kitty support; `q=2` keeps steady transmits silent, and the watchdog drops a tier after 3 failed frame writes with the reason recorded), [x] `MAZE_CHASE_TRACE` JSONL evidence mode (plan, frame mode/placements/static/atlas/encode time, skips, probe results), [x] kitty and ghostty rows signed on Linux plus conventional terminals (kitty and Ghostty both `kitty-graphics` pass at 21 transmits / 156.1-160.1 KiB per session with sprite visibility proven by capture census; xterm auto and xterm dark both pass on cells, the light row at 6.2% white at worst and 1.7% while playing after the theme-canvas fix; the VT340 sixel rows pass at 140-141 transmits / 3.39-3.41 MiB, and every row records its generating build commit plus binary SHA-256 in its `build` block), [ ] macOS matrix rows signed by the macOS Tester (PR 3 target, Refs #582, Refs #655)
 - Phase 4: Visual Identity Redesign: [ ] Design Council direction consumed (dispatched by the Maintainer before this phase), [ ] resolution-aware character and environment art, [ ] effects and animation system, [ ] refreshed themes with accessibility tests green, [ ] all three layers integrated with real captures (PR 4 target, Refs #582, Closes #658)
 - Phase 5: Sound Design Overhaul: [ ] new musical score with one BPM source, [ ] soft short effect bank, [ ] mix architecture with fades and safe defaults, [ ] terminal chime policy default-off, [ ] per-layer real-host review and settings round-trip (PR 5 target, Refs #582, Closes #659)
 - Phase 6: Release Engineering and Multi-Platform Distribution: [ ] version single source plus tag parity gate, [ ] Linux deb and rpm plus tarballs for both layers, [ ] Windows installer plus zip, [ ] macOS app plus dmg plus tarball, [ ] install/launch/uninstall smoke scripts, [ ] `maze-chase-release.yml` pipeline via the Lab Engineer, [ ] release candidate artifacts on the official Releases page, [ ] install/upgrade/uninstall docs (PR 6 target, Refs #582, Closes #657)
@@ -48,19 +48,19 @@ plan, probe answers, per-frame mode and counts, encode time, and skips
 for the harness.
 
 Measured on this build (all eight Linux rows regenerated 2026-10-19
-from the release binary built at `15b387c8`, binary SHA-256
-`cfa761c0c08bf287e395a5ed5af4ea300d880177f149f5476b35330decd3b682`,
+from the release binary built at `8f16a3f6`, binary SHA-256
+`9ebf8f4c32d82b62278f5d5920b968b426d6c304b85a9e64e12fd68a46a2d6c4`,
 Rust sources clean; every row records that identity in its own `build`
 block): kitty 0.32.2 observes
 `kitty-graphics` and passes the full session at 21 transmits /
 156.1 KiB of PNG payload (the pre-pipeline flood is a historical 1642
-transmits / 348.6 MiB, killed), playing 97 frames in 4.71 s (20.6 fps)
+transmits / 348.6 MiB, killed), playing 98 frames in 4.77 s (20.6 fps)
 at a 6.0 KiB mean frame; Ghostty 1.3.1 passes both rows at 21 /
-160.1 KiB, playing 20.9-21.2 fps at a 6.1 KiB mean frame, and its
-playing captures carry 402 sprite-palette pixels (the earlier
+160.1 KiB, playing 21.8-22.0 fps at a 6.0 KiB mean frame, and its
+playing captures carry 406-412 sprite-palette pixels (the earlier
 build hid every sprite behind the board on Ghostty: zero sprite
 pixels, cause of the explicit-z fix); xterm 390 in VT340 mode passes
-at 141 sixel transmits / 3.41 MiB; the default-background xterm row
+at 140-141 sixel transmits / 3.39-3.41 MiB; the default-background xterm row
 now passes too: every painted run carries the theme's background
 explicitly, so its worst capture is 6.2% white and the playing capture
 is 1.7% (the former 7-of-10 >=98% white defect is pinned by a Unicode
@@ -880,7 +880,7 @@ redesign), gated on the Design Council's direction.
   the theme background explicitly. QC-3: the sixel budget in
   `design.md` and `design-tokens.json` is restated from the committed
   VT340 rows (20.9 KiB mean and 25.3 KiB peak per playing transmit;
-  the forced row ran 89 transmits in 4.61 s at 19.3 fps, 404 KiB/s;
+  the forced row ran 88 transmits in 4.67 s at 18.8 fps, 394 KiB/s;
   31.3 KiB mean per transmit through the resize phases) with the
   shipped backpressure contract (24 Hz target, 1.5x smoothed write
   cost, doubled above an 8 MiB/s flood, 200 ms cap, 2 MiB per-frame
@@ -896,15 +896,15 @@ redesign), gated on the Design Council's direction.
   Help key in the catch-all screen arm plus every resize, so Down can
   no longer push the panel past its last line; unit tests cover
   saturation, immediate Up response, and max-equals-render equality.
-  Evidence: all eight Linux rows were regenerated at `15b387c8`
-  (binary SHA-256
-  `cfa761c0c08bf287e395a5ed5af4ea300d880177f149f5476b35330decd3b682`,
+  Evidence: all eight Linux rows were re-run at the reachable head
+  `8f16a3f6` (binary SHA-256
+  `9ebf8f4c32d82b62278f5d5920b968b426d6c304b85a9e64e12fd68a46a2d6c4`,
   sources clean) and every row passes, with no duplicate paused
   captures; the compatibility matrix, terminal graph, design ladder,
-  sixel budget, and tokens all re-derive from those bundles (a later
-  formatting-only commit, `d7a410cf`, collapses one long call and
-  changes no behavior, so the bundles keep naming the exact build
-  they ran on). Gates on the final tree: 57 suites, 494 passed /
+  sixel budget, tokens, and Ack spin table all re-derive from those
+  bundles (a later formatting-only commit, `db0c788e`, collapses one
+  long call and changes no behavior, so the bundles keep naming the
+  exact build they ran on). Gates on the final tree: 57 suites, 494 passed /
   0 failed; `maze-chase-verify` 19/19 with golden `23c17f89734e`;
   harness contract 47/47; fmt clean; zero clippy warnings in every
   file touched by this round. Delegation ledger (round 12): three
@@ -919,11 +919,43 @@ redesign), gated on the Design Council's direction.
   max-equals-render equality plus the saturation tests; real
   collector runs against synthetic directories downgrading the
   0-paused, 2-paused, and 0.95-dominant shapes while 0.8999 passes),
-  and it surfaced the one fmt failure, which landed as `d7a410cf`.
+  and it surfaced the one fmt failure, which landed as `db0c788e`.
   The forensic auditor checked bundle identity, dispositions, pause
   uniqueness, light/dark capture equivalence (content pixel-equal
   after cropping the 2-pixel window frame), diff scope, and the
   em-dash scan; its two wording flags (the help video-line sentence
   and the plural sixel-row attribution) were corrected in the docs
   before commit. No registry skill matched the round; none loaded.
+  - the Fixer
+- 2026-10-19 (fixer, Phase 3 review round 13 on PR #693): applied F28
+  and F29 on `8f16a3f6`; no rebuttal. F28 (blocking): the bundles named
+  a build commit that the rebase orphaned, so all eight Linux rows were
+  re-run at the current reachable head; every bundle now records
+  `build.commit` `8f16a3f6a277a7247f11c51c977eb96beaebf33`, binary
+  SHA-256 `9ebf8f4c32d82b62278f5d5920b968b426d6c304b85a9e64e12fd68a46a2d6c4`,
+  and clean sources. Every quoted figure was re-derived from the new
+  bundles and refreshed wherever it moved (kitty 98 frames / 4.77 s /
+  20.6 fps; Ghostty 21.8-22.0 fps at a 6.0 KiB mean frame and 406-412
+  sprite pixels; sixel 140-141 transmits / 3.39-3.41 MiB, the forced
+  row at 88 transmits / 4.67 s / 18.8 fps / 394 KiB/s; transcripts
+  8.13, 1.49, 1.49, 4.60, 4.64, and 4.63 MiB) in the compatibility
+  matrix, terminal graph, design ladder, sixel budget, tokens, findings
+  ledger, and attempt log. The Ack spin corroboration table was
+  re-derived from the committed `surfaces` counters and transcripts
+  (the QC round had regenerated the bundles without it), and the
+  unreachable `d7a410cf` references now name its reachable equivalent
+  `db0c788e` (formatting only). F29: the two stale blank-board comments
+  now quote the current bitmap-tier playing-family maximum, 0.6427,
+  instead of the previous-generation Ghostty resize share 0.7113.
+  Verification: harness contract suite 47/47 (including the committed
+  bundle hash and build-identity gates); `py_compile` clean; no Rust
+  changed, so the workspace suite, verifier, and fmt/clippy gates
+  stand. Delegation ledger (round 13): one read-only `general`
+  subagent fanned out as the independent numeric auditor; it
+  re-derived every edited figure from the eight new bundles, computed
+  the 0.6427 playing-family maximum, and confirmed the build identity,
+  flagging only figures inside dated earlier-round log entries, which
+  remain as historical records. Primary context applied the edits and
+  re-derived every figure with a script (all match). No registry skill
+  matched the round; none loaded.
   - the Fixer
