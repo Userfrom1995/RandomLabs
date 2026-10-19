@@ -70,7 +70,7 @@ Resolved in Phase 3 (2026-10-19): steady transmits are silent (`q=2`),
 the static layer and sprite atlas transmit once per change, and every
 frame moves cached placements instead of the board. The same
 choreography on kitty 0.32.2 now sends 21 transmits / 156.1 KiB of PNG
-payload for the whole session (playing 20.6 fps, 5.5 KiB mean frame)
+payload for the whole session (playing 20.6 fps, 6.0 KiB mean frame)
 and exits cleanly (`evidence/kitty-linux-auto.json`, refreshed on
 2026-10-19). The
 ledger's pre-fix figures above describe the regenerated bundle's
@@ -159,7 +159,7 @@ resize contract with same-frame repaint and stale-placement kill.
 (confirmed, positive)
 
 xterm 390 in VT340 mode answers the DA1 probe with sixel support and the
-sixel tier paints real pixels: 141 transmits, 3.41 MiB of
+sixel tier paints real pixels: 140-141 transmits, 3.39-3.41 MiB of
 payload for the whole session on the current build (2026-10-19
 regeneration). Before Phase 3 the kitty path was far worse (1642
 transmits / 348.6 MiB in `kitty-linux-auto`); after the placement
@@ -195,11 +195,14 @@ baseline later phases must not regress; the kitty tier is the outlier,
 not the cell paths.
 
 The default light-background xterm row is the deliberate contrast case:
-the same binary, same choreography, and a clean exit, but 7 of its 10
-captures are >=98% white because the cream chrome text is unreadable on
-white (`evidence/xterm-linux-auto.json`, `light_background_captures`).
-The harness downgrades that row to `partial` instead of signing a pass
-over white-on-white screenshots; the palette fix is overhaul work.
+the same binary, same choreography, and a clean exit, and every painted
+run now carries the theme's own canvas, so the playing capture is 1.7%
+white and the worst capture is 6.2% white
+(`evidence/xterm-linux-auto.json`, `light_background_captures`). Before
+the theme-canvas fix the harness downgraded the row to `partial` because
+7 of 10 captures were >=98% white; the QC-1 fix closed that defect, the
+row now signs a `pass`, and a Unicode backend regression test pins the
+emitted background escapes.
 
 ### RT-7: unverified rows (honesty record)
 
@@ -363,8 +366,9 @@ named phase; Phase 1 files them, later phases close them.
   keys and the quit path never landed before the harness timeout); the
   regenerated 2026-10-19 bundles record both rows as `pass` with clean
   exits and are the rows the matrix cites. The light-background xterm
-  row remains `partial` for a different reason: its captures failed the
-  render check (RT-6).
+  row also passes now: the QC-1 theme-canvas fix closed RT-6, and its
+  committed bundle records 1.7% white in the playing capture and 6.2%
+  at worst.
 - Every executed row commits its `events.log` (per-event timestamps,
   measured window geometry, transcript offsets) alongside the JSON and
   screenshots, and the JSON carries per-phase `surfaces` paint counters
