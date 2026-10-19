@@ -577,6 +577,172 @@ relocations, decoys, loop rewrites, detection-window tweaks, backoff
 backgrounding, case folds, later-rung budget gating, or step shadowing cannot
 pass while the contract breaks.
 
+Two more silent-death provider classes are survivable (issue #653). A stalled
+attempt (an opencode stream that produces no output at all) used to be
+terminated only by the agent-step timeout (75 minutes on the eval arm at the
+time of that incident, 60 minutes on the Maintainer arm), so a wake-up died
+mid-tick with no retry: the eval arm stalled for 46 silent minutes (run
+39094600854) and a Maintainer run (39104661889) printed its 429 terminal
+line at 06:37:19Z and then produced no output for 60 silent minutes until
+its step timeout. Both
+runner paths now capture each attempt through a FIFO: `tee` and `opencode`
+run as separate
+background children with known PIDs (each waited separately, so a failing
+tee or opencode is still attributed exactly), and a watchdog subshell polls
+the captured log's byte size, tracking idle time. An attempt whose log does
+not grow for `HANG_IDLE_SECONDS` (default 600, checked every
+`HANG_POLL_SECONDS`, default 30) is aborted with TERM then KILL sent to
+exactly those two PIDs, flagged, and retried once on the SAME model after a
+10-second backoff; a second stall fails loudly with `exit 1`. The knobs are
+env-overridable only for the audit harness, and both are clamped to sane
+positive bounds (a zero poll interval would busy-loop with `idle += 0`,
+silently disabling the watchdog; a value beyond the shell's integer range
+would error on every comparison): the review round F3 hardening. When `mkfifo` is unavailable
+(some Windows Git Bash environments) the runner degrades LOUDLY to the legacy
+inline pipeline without the watchdog, instead of bricking the arm. The
+second class is a transient 429/5xx terminal death; its observed forms are
+`AI_APICallError: Rate limit exceeded. Please try again later.` (with the
+indented `responseBody` envelope naming `FreeUsageLimitError` and the
+provider's own `AI_RetryError: Failed after 3 attempts. Last error: ...`
+summary) and `AI_APICallError: Internal Server Error` (no trailing period; on
+2026-10-18 the quick-death cluster eval 39110580426, lab 39110581700, and
+maintainer 39110680183/39110681392 all died on it within 91-199 seconds,
+alongside maintainer 39104695066, whose attempt 1 died the same way at
+07:37:52Z and whose re-run recovered), plus the standard `Bad Gateway` /
+`Service Unavailable` / `Gateway Timeout` phrases. Both runner paths retry the SAME model exactly once per arm on an
+anchored terminal line of that shape (same tail + column-0 form as the
+#591/#620 detectors, so the summary line, a transcript echo, a phrase
+variant, or the envelope never consumes the retry) after a 30-second
+backoff; a second terminal rejection fails loudly, propagating the
+provider's own exit status on the nonzero path. The stall budget, the HTTP
+budget, and the free-tier budget are independent of one another (the HTTP
+and stall budgets are shared across ladder rungs, like the free-tier one),
+each capped at one retry. R15 is extended to enforce all of it: the #653 detector is
+executed functionally over its accept/reject matrix plus the tail-window
+39/40 boundary, and the behavioral matrix adds HTTP recovery on both exit
+shapes (backoff value-scoped and wait-ordered, so a backgrounded, revalued,
+or removed wait, and the watchdog's own poll sleeps, can never satisfy the
+assertion), persistent HTTP loud on both shapes, a stalled attempt killed by
+the watchdog and retried once on the same model after its 10-second backoff
+(ordering proven), a second stall loud, per-class budget independence in
+both directions (a consumed HTTP budget leaves the stall budget available
+and vice versa) and cross-class budget interleaves (six interleave scenarios
+repeat a class after another class's retry was consumed, covering both exit
+shapes of the free-tier and HTTP branches plus the hang branch, so an
+arithmetic reset of a spent budget inside another class's retry branch
+spends an extra backoff and runs an extra attempt), the #653 HTTP and stall
+budgets also proven at rung depth 3 by the widened grant/advance pairs (a
+widening or theft gated on the third rung is caught), the degraded no-mkfifo
+shape bound for the free-tier and HTTP retries plus its status/tee/stderr
+plumbing (an unclassified nonzero death stays loud with its own status, a
+failing tee fails loudly, and a stderr-borne terminal line still reaches the
+captured log so the bounded retry fires), and the invocation-count identity
+check (exactly the two #653 invocation sites, both inside the extracted
+executing step). Review
+round F1-F3 hardened that guard against the production shell itself: every
+terminal detector is wrapped `( set +o pipefail; ... )` because `shell: bash`
+runs `bash --noprofile --norc -eo pipefail` and `grep -q` exits at the first
+match while `tail` is still writing, so a 40-line window past the 64 KiB pipe
+buffer made `tail` take SIGPIPE (141) and a real terminal line read as "no
+match" (silent green on the exit-0 path). R15 now executes the detector cases
+under `set -o pipefail` with a ~160 KiB match-first window fixture, runs both
+behavioral blocks under the exact production `bash --noprofile --norc -eo
+pipefail` form, replays the big window end-to-end (the same-model retry must
+still fire), and exercises a zero poll override so the clamp has to keep the
+watchdog killing and retrying; the harness records each scenario's attempts
+and backoff sleeps in per-run files, so an orphaned watchdog poll sleep from a
+finished scenario can never corrupt the next scenario's exact-count backoff
+assertions.
+
+The guard was subsequently extended through the Tester rounds until every
+demonstrated test-integrity escape was bound: all three retry budgets are
+proven arm-wide (relocating any counter into the rung loop fails
+behaviorally), the degraded no-mkfifo shape is bound for the free-tier and
+HTTP retries and for its status/tee/stderr plumbing, six class-interleave
+scenarios cover every (resetting site, reset budget) pair, the rung-depth-3
+grant/advance pairs catch a widening or theft gated on the third rung, the
+primary FIFO capture shape's `2>&1` stderr merge is bound like the degraded
+probe (a stderr-borne terminal line must reach the captured log so the
+bounded retry fires on both exit shapes), the watchdog's silence accounting
+is bound directly (a 30-second-cadence/90-second-threshold scenario where
+exactly three polling rounds must accumulate, a producing attempt kept alive
+past the threshold so a zeroed byte-size read cannot kill it, and an
+output-then-stall attempt whose post-output silence must accumulate through
+the baseline re-arm), and the nonzero Model-not-found advance site is bound
+for all three budgets (a scenario per class spends its single retry,
+advances through that branch, and requires the repeat on the next rung to be
+loud persistent; rung-depth-3 mirrors catch the same reset when gated on a
+later rung, so the second advance cannot resurrect a spent budget). The
+watchdog's own configuration is pinned exactly (the 600s/30s production
+defaults, the bounded 5s TERM-to-KILL grace with its complete signal set
+pinned as a whole-region exact block - the hang-flag write, the ordered
+TERM oc, TERM tee, sleep 5, KILL oc, KILL tee sequence, and the exit,
+tolerating only whitespace, the `2>/dev/null` suffixes, and blank lines -
+and backed by a TERM-trapping attempt that can only complete its cleanup
+marker through the real grace window plus a TERM-ignoring
+`hang-child-ignores-term` attempt that only SIGKILL can end, so a TERM/KILL
+swap, an inserted sleep, a shadowed KILL, or a grace moved
+outside the TERM-to-KILL window can never pass; the watchdog's liveness loop
+gate and its post-sleep liveness re-check are pinned too, so `while :` or
+`|| true` cannot keep a watchdog that never exits on its own; the
+poll cadence bound to the poll knob, the inclusive threshold, and the
+post-growth reset to exactly zero), the nonzero-MNF advance grep is bound to
+its unanchored prefixed-form-tolerant shape (the `Error: Model not found:`
+catch-handler form still advances the rung; `mnf-err-nz` binds it
+end-to-end), the success path exits 0 itself, and the Maintainer verify's
+missing-decision `exit 1` is pinned. Each
+semantics-changing one-line rewrite in those classes
+is caught by R15 alone (23 passed, 1 failed) with zero collateral, and
+exact-form static tripwires additionally guard the stderr merge, the
+watchdog arithmetic, the fire-path sites, the watchdog's fire-block
+escalation order (a whole-region pin: the extracted block must be exactly
+the hang-flag write, the ordered TERM oc, TERM tee, sleep 5, KILL oc,
+KILL tee sequence, and the exit, with nothing else, whitespace and
+`2>/dev/null` tolerant, so an inserted sleep or a shadowed KILL inside the
+fire block cannot widen or neuter the escalation; the whole FIFO capture
+prelude (the tee and opencode launches, the watchdog subshell, the reap, and
+the cleanup) is whole-region pinned line-exact, so an inserted sleep
+anywhere in the watchdog, before the fire block included, or at the
+launch/reap path around it also fails the audit, and since review round 14
+each runner's entire extracted `run:` block is additionally pinned
+line-exact against its regenerated normalized literal (leading/trailing
+whitespace and an optional trailing `2>/dev/null` stripped, comments and
+blanks dropped, compared as whole normalized line sequences so a rewrite
+merging two real lines into one cannot pass), so any inserted or rewritten
+non-comment line anywhere in the block (the pre-attempt header, the
+degraded no-mkfifo else branch, the post-`fi` classification/retry/budget
+logic) fails the audit too; review round 15 then closed the remaining
+step-level escapes: the guard scans the runner step's whole region (the
+step name line through the next sibling `- name:` or EOF) for any
+`if:`/`if :` key (quoted `"if":`/`'if':` spellings included, review
+round 16), so a conditional placed after the run block can no longer
+skip the executing step while the body stays pinned, and pins exactly
+one `shell:` key whose exact line is `shell: bash` on both runner paths
+(a second shell override cannot shadow it), so an interpreter override
+can no longer decouple the audited execution form from the shipped one;
+review round 16 then bound the step's remaining keys after four unbound
+step-env/step-key classes all escaped round 15: neither runner step may
+carry a `HANG_IDLE_SECONDS`/`HANG_POLL_SECONDS` env mapping key (a
+step-env override pushed the first watchdog fire past every step
+timeout while the body, the 600/30 defaults, and the clamps stayed
+green), and review round 17 extended that ban tree-wide: no workflow or
+composite-action YAML may map either knob in any spelling (workflow-,
+job-, caller-step-, or flow-style `env`, block or quoted), since all of
+those env surfaces reach the runner and one declarative line can
+silently restore the same stalled tick, the composite runner step may
+not carry `continue-on-error:`/
+`timeout-minutes:` (a step-level continue-on-error reports a dead
+attempt green; a short timeout REJECT-kills a healthy retry loop), and
+the Maintainer step's exact `continue-on-error: true` and
+`timeout-minutes: 60` lines are each required present exactly once
+(deleting or altering either fails closed), every class reading 23
+passed / 1 failed with R15 the only failing rule; backed by a
+TERM-trapping `term-grace`
+attempt that can only write its cleanup marker through the real grace
+window and a TERM-ignoring `hang-child-ignores-term` attempt that only
+SIGKILL can end), and the watchdog's liveness loop and
+post-sleep re-check.
+
 The schedule arms (`curator.yml`, `auditor.yml`) and the dispatched arms
 (`curator.yml`, `auditor.yml`, `ideate.yml`, `lab.yml`) share
 `.github/scripts/schedule-selfheal.sh`: when the agent step fails and no
@@ -769,13 +935,25 @@ remote tip).
   the standard crash-parity paths. A transient provider `FreeTierError`
   rejection is also survivable (issue #620): both runner paths retry the
   same model exactly once per arm on that class (anchored detector, bounded
-  cap, a second rejection fails loudly). The resolver, the ladder, both
-  retry paths, and the transient free-tier retry are enforced by R15 in
+  cap, a second rejection fails loudly). A provider stall (an attempt that
+  produces no output at all) is aborted by the FIFO watchdog and retried
+  once on the same model, and a transient 429/5xx terminal death is retried
+  on the same model exactly once per arm with the provider's own exit
+  status propagated on a second failure (issue #653); `mkfifo`-less
+  runners degrade loudly to the legacy pipeline without the watchdog. The
+  resolver, the ladder, all retry paths (free-tier, stall, 429/5xx), and
+  the watchdog are enforced by R15 in
   `.github/scripts/silent-stall-audit.sh` (anchored static element pins plus
-  functional detector fixtures and a loop-level behavioral execution of the
-  real runner blocks against executable mocks, including a mock failing log
-  capture, the tail-window 39/40 boundary, and a dotted-id lookalike that
-  must not advance a rung, issue #620 review rounds F5-F8 plus A1-A3).
+  functional detector fixtures executed under the production pipefail shell
+  shape, including a ~160 KiB match-first window that would SIGPIPE a bare
+  `tail | grep -q` pipeline, and a loop-level behavioral execution of the
+  real runner blocks under the exact production shell form against executable
+  mocks, including a mock failing log capture, a failing mkfifo for the
+  degraded shape, the tail-window 39/40 boundary, a zero poll override that
+  must not disable the watchdog, and a dotted-id lookalike that must not
+  advance a rung, issue
+  #620 review rounds F5-F8 plus A1-A3, extended and matrix-widened for
+  #653, with review round F1-F3 closing the pipefail/knob classes).
 - The PAT merge sweep never silently skips a linked workflow PR on a shallow
   workspace (issue #602): the opencode CLI session bootstrap re-shallows the
   Maintainer's full-depth checkout with depth-limited fetches, and
