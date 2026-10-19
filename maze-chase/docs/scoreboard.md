@@ -184,10 +184,10 @@ The dynamic-layout overhaul (#582), measured on the Linux build machine:
   --all-targets` reports only the pre-existing engine style lints
   documented above (maze.rs/rng.rs/sha256.rs), none from the terminal
   crate.
-- Layout solver: full tile-scale grid 1 to 8 columns by 1 to 4 rows
-  (the 2x1 compact scale included) picked coverage-first, chrome fitted
-  by fit (side panel, HUD band, hint only), single too-small card below
-  the exact 62x35 minimum. PTY sessions pin the planned scales: 62x35 to 2x1 band,
+- Layout solver: continuous tile scales 1 to 8 columns by 1 to 4 rows
+  plus the 2x1 floor, chrome fitted in priority order (side panel,
+  HUD band, hint only), single too-small card below the exact 62x35
+  minimum. PTY sessions pin the planned scales: 62x35 to 2x1 band,
   100x40 to 3x1 band, 140x70 to 5x2 band, 170x64 to 5x2 side panel,
   200x100 to 7x3 band.
 - Resize contract: a live resize repaints from scratch in one frame;
@@ -215,11 +215,13 @@ full gates re-run on the Linux build machine:
 - `cargo fmt --all --check` clean; clippy reports only the pre-existing
   warnings from `main` (the engine style lints plus the design-token
   test's suggestion lints), none from this branch's files.
-- Solver (F1): the full 1..8 x 1..4 scale grid is scanned and picked
-  coverage-first (ties: squareness, chrome, area, width); goldens
-  200x60 -> 7x1 band and 62x80 -> 2x2 band are pinned, and a
-  62..400 x 35..120 sweep holds the measured coverage floor (280/1000
-  at 399x62). The pinned scales in the section above all still hold.
+- Solver (F1): the 2..8 x 1..4 scale grid (the 2x1 compact floor) is
+  scanned and picked coverage-first (ties: squareness, chrome, area,
+  width); goldens 200x60 -> 7x1 band and 62x80 -> 2x2 band are pinned,
+  and the pixel-path floor too (a 1x2 side-panel plan used to tie 2x2
+  at 80x63 with 8x6 cells). A 62..400 x 35..120 sweep holds the
+  measured coverage floor (280/1000 at 399x62). The pinned scales in
+  the section above all still hold.
 - Bitmap tiers (F2/F3): the raster is drawn on a centered footprint
   bounded by the board's pixel box; Sixel paints from the centered
   origin instead of the board origin at natural size, and the Kitty
