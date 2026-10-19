@@ -218,8 +218,11 @@ Public Surface / Web Track:                                              │
   which resolves the handler from the SAME YAML parse tree GitHub runs
   (rejecting any duplicate mapping key outright: GitHub's parser rejects such
   a workflow file while a lenient last-wins scan would pin the decoy value;
-  F18) and requires exactly one step carrying the exact anchored name with
-  `if: always()`, no `shell`, no `working-directory`, no `continue-on-error`,
+  F18) and requires exactly one step carrying the exact anchored name and its
+  actor-write-gate `if:` form main adopted for this step (`always() &&
+  steps.actor_gate.outputs.run == 'true'`; a bare `always()`, an `if: false`
+  decoy, or a removed gate fails loudly), no `shell`, no `working-directory`,
+  no `continue-on-error`,
   exactly the two token env keys with both token env
   expressions intact, and each handler needle (the dedupe marker,
   `_open_issue_titles`, `_self_triage`) in exactly one run which must be
