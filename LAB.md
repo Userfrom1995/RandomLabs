@@ -132,7 +132,24 @@ Public Surface / Web Track:                                              │
   tripped the gate on run 39068849150 after the report had already posted);
   a real content mismatch still fails closed. Audit rule R17
   regression-guards the contract across all three arms and their prompt
-  files.
+  files. **Cap headroom and partial-report salvage (issue #692)**: the macOS
+  90-minute agent cap under the 120-minute job left the post-agent contract
+  chain at the wire (run 39170578536: cap death, no decision file, the
+  fail-closed verify red over `missing contract artifact(s): decision-file
+  findings-report`, no report surviving the runner). The macOS and Windows
+  agent steps now run 120 minutes under 150-minute jobs (Linux keeps its
+  measured 90/120) and both arms write the report incrementally (signed
+  skeleton before the first heavy pass, sign-off always the last non-empty
+  line; the decision file stays the final act). When an arm's agent step
+  ends without the decision file while a signed partial report exists, a
+  post-verify salvage step publishes it through the same strict shared
+  poster behind a workflow-composed provenance banner; the fail-closed
+  verify gate is unchanged (the run still concludes red), a decision file or
+  a missing/empty report salvages nothing, and a banner-headed comment is
+  explicitly partial evidence, never a verdict. Audit rule R24
+  regression-guards the cap shape and the salvage wiring (the salvage run
+  body is pinned line-for-line; its step name must be unique across the
+  workflow file, and step-level YAML overrides are banned).
 - **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (rebase, bot identity), closes linked issues, updates memory, and advances the pipeline.
 - **Merge capability**: Workflow-file PRs require `workflows` scope, which `GITHUB_TOKEN` cannot grant via `permissions:` (valid `GITHUB_TOKEN` scopes are `actions`, `contents`, `pull-requests`, etc.; `workflows` is App/PAT only). The mutating workflows (`lab.yml`, `maintainer.yml`, `opencode.yml`, `opencode-recover.yml`) push via the PAT-backed runner step (`https://x-access-token:${OPENCODE_PAT}@github.com/...` with credential-injection cleanup), and merges of PRs touching `.github/workflows/*` must likewise use the PAT or an owner click. Read-only agents (Reviewer, Tester, Auditor, Ideator) carry no extra scope. Without a PAT merge, infra PR merges fail with "refusing to allow a GitHub App to create or update workflow ... without workflows permission" (observed on PR #139; flagged in #120). The opencode CLI wrapper additionally performs its own end-of-session push of the checked-out branch with the checkout App token, so on workflow-touching branches that internal push is rejected by the same rule (one rejection comment plus a masked `continue-on-error` step failure; the PAT-backed runner step is the authoritative push). That rejection is expected noise, not agent misbehavior (lab run 39024455956, 2026-10-17). The PAT merge sweep additionally restores full history when the workspace is shallow before its merge-base linkage checks: the opencode CLI session bootstrap re-shallows the checkout with depth-limited fetches, and on a shallow workspace both the three-dot workflow diff and the orphan guard fail closed, silently skipping a legitimately linked workflow PR (issue #602, guarded by audit rule R16).
 - In-progress continuation: When a build requires additional phases (`Status: in-progress`), the workflow triggers `/oc continue`.
@@ -425,7 +442,7 @@ personality, CHANGELOG) is direct-commit.
 | `curator.yml` | Public surface & README custodian: scheduled (6h) / dispatch / /oc curate audits and surgical PRs |
 | `auditor.yml` | The Auditor: daily schedule + `/oc auditor` → runs `.github/scripts/silent-stall-audit.sh` over `opencode.yml`, audits CI/CD and model health, posts the summary on the `lab-health` board, opens bug issues |
 | `opencode-eval.yml` | Evaluator (binding quality gate after Tester): reads deliverable, invokes swarm subagents, writes `/tmp/evaluator-decision.json`, posts `/oc eval result` via hardcoded PAT step |
-| `opencode-peros-test.yml` | Per-OS real-user testers: `test-linux` (ubuntu), `test-macos` (macos), `test-windows` (windows, bash shell); native every-command/flag testing feeding the Tester; findings reports are a file contract (`/tmp/random-lab-findings.md`) posted and verified by the workflow (issue #608); no PAT in agent env |
+| `opencode-peros-test.yml` | Per-OS real-user testers: `test-linux` (ubuntu), `test-macos` (macos), `test-windows` (windows, bash shell); native every-command/flag testing feeding the Tester; findings reports are a file contract (`/tmp/random-lab-findings.md`) posted and verified by the workflow (issue #608); macOS/Windows agent steps run 120 minutes under 150-minute jobs and salvage a signed partial report behind a provenance banner when they die without a decision file (issue #692); no PAT in agent env |
 | `pages.yml` | Unchanged - Pages deploy + PR previews |
 
 PR-head gates (`opencode-review.yml`, `opencode-test.yml`, `opencode-eval.yml`,
