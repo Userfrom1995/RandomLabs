@@ -114,7 +114,7 @@ The game picks the best tier its terminal proves, best first:
    budget, then the game starts regardless, and keys typed while the
    probe waits are replayed, never swallowed), or via `--tier sixel` on
    known Sixel terminals (foot, contour, mlterm, Sixel-build xterm).
-   Measured on xterm 390: 141 transmits / 3.41 MiB per session.
+   Measured on xterm 390: 140-141 transmits / 3.39-3.41 MiB per session.
 3. **truecolor-cells**: 24-bit Unicode board (solid-block walls, dotted
    crumbs, letter wardens in theme colors, facing Pip mouth) with
    synchronized tear-free frames. The WezTerm, foot-fallback, iTerm2,
