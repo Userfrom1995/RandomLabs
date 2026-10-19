@@ -43,8 +43,12 @@ Round-23 review of PR #670 (head `12450c8b`) found two blockers:
   `handler-pre-script-body:` token.
 - Synced the R26 contract comments, PASS text, `AGENTS.md`, and `LAB.md`
   with the F44 behavior, the residual range `F2/F4-F44`, and the
-  job-level `if` residual. Backslash-escaped backticks is used in the
+  job-level `if` residual. Backslash-escaped backticks are used in the
   R26 PASS string because it is a double-quoted shell argument.
+- Narrowed the "any standard invocation spelling" claim to the invocation
+  spellings the pinned workflow uses. Adding a new spelling is already
+  review-gated by the exact pre-handler manifest pin; the hash map and the
+  self-test list carry a keep-in-sync note for a future pinned script.
 
 ## Self-inflicted regression found and fixed during this round
 
