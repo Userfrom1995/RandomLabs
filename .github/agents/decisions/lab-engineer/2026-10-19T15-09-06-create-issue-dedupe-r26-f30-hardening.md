@@ -111,6 +111,31 @@ contract text.
   outside the tested digit/space-removal/truncation classes, and
   thresholds above the fixture envelope remain as previously documented.
 
+## Round-17 correction: F31/F32
+
+Round-17 review of PR #670 found that the round-16 "either layer" claim
+was still stronger than the self-tests:
+
+- **F31:** only `_f30_red` reached the combined detector; the combined
+  predicate's shell leg had no test of its own, so replacing
+  `issue_create_detected` with the normalized layer alone kept the audit
+  green while `gh $'\x69ssue' create` executed.
+- **F32:** seven literal spellings still escaped both layers: a
+  single-element `shell=True` list, a comment-split list token, a
+  comment-split adjacent token (`"iss"` + `"ue"`), Python `\xNN`,
+  `\uNNNN`, and octal escapes, and bytes literals.
+
+The correction in this round (see the round-17 decision note):
+`decode_literal_escapes` folds the Python escape spellings;
+`normalized_create_form` strips line comments before folding whitespace,
+quotes, and backslashes; `issue_create_in` folds container punctuation
+and `b`/`r`/`u`/`f` string prefixes; and the self-tests now test the word
+scan over `_f29_red` directly, the normalized form over `_f30_red`
+directly, and the exact combined predicate over `_f29_red + _f30_red +
+_f31_red` (the seven F32 spellings). The contract text now states that
+precise contract rather than claiming that the same matrix exercises both
+layers. The round-16 note above is left intact as the historical record.
+
 Refs #668.
 
 - the Lab Engineer
