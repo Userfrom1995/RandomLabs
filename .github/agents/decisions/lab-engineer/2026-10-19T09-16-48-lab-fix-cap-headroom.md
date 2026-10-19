@@ -100,6 +100,8 @@ comment after the digits is now tolerated.
   closed; fail-closed contract diff and unchanged-arm inventory verified.
 - Primary context verified itself: the full audit, both mutation batteries,
   YAML/bash/shellcheck gates, and the four-line workflow diff.
+- Skills: no skill fits (GitHub Actions lab infrastructure and audit-script
+  hardening, not opencode configuration).
 
 ## Review-round note
 
