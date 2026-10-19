@@ -74,7 +74,7 @@ committed bundle.
 3. on Linux only: the window resizes wide, then below the 62x35 floor
    (too-small card), then back (re-fit);
 4. Esc pauses (pause menu captured), then Down + Confirm quits to title;
-   the second executed row of an emulator sets
+   a forced-tier rerun of an emulator that has already run sets
    `MAZE_CHASE_COMPAT_PAUSE_SELECT=1`, which moves the pause cursor to
    "Quit to title" before the capture so two rows of the same emulator
    never commit byte-identical paused images (the extra key is in
@@ -160,8 +160,10 @@ Honesty rules the harness enforces mechanically:
   and the capture set: a pass requires a zero exit code and at least one
   valid PNG capture, and a row whose game process never started is
   `unverified` with the reason.
-- `build` names the generating build copied from the run metadata
-  (`commit`, `binary_sha256`, `sources_dirty`), and `pause_select`
+- `build` copies the run metadata (`commit`, `binary_sha256`,
+  `sources_dirty`): `commit` is the checkout when the row ran, and a
+  `--skip-build` run can reuse a binary built at an earlier commit, so
+  `binary_sha256` is authoritative. `pause_select`
   records how many menu items the paused capture moved the cursor (0 for
   the plain checkpoint), so bundles are provenance-complete: metadata
   written before these fields existed records `build.recorded: false`

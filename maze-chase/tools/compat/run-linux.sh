@@ -21,13 +21,13 @@
 #                                                   # cursor on Quit to title
 #   tools/compat/run-linux.sh --keep                # retain the scratch transcripts
 #
-# Every row records its generating build identity in the run metadata:
-# the source commit (`git rev-parse HEAD`), whether the checked-out Rust
-# sources were dirty, and the release binary's SHA-256. Rows needing an
-# independently rendered pause capture (the forced-tier rows, whose
-# paused panel would otherwise be byte-identical to the auto row of the
-# same emulator) set MAZE_CHASE_COMPAT_PAUSE_SELECT to move the menu
-# cursor before the paused checkpoint.
+# Every row records its build identity in the run metadata: the commit
+# checked out when the row ran (`git rev-parse HEAD`), whether the
+# checked-out Rust sources were dirty, and the release binary's SHA-256.
+# Rows needing an independently rendered pause capture (the forced-tier
+# rows, whose paused panel would otherwise be byte-identical to the auto
+# row of the same emulator) set MAZE_CHASE_COMPAT_PAUSE_SELECT to move
+# the menu cursor before the paused checkpoint.
 #
 # Requirements: Linux, python3, jq, xdotool, ImageMagick (import), Xvfb
 # when headless, and a release binary (`--skip-build` reuses one).
@@ -107,10 +107,12 @@ case "$BINARY" in /*) ;; *) BINARY="$PWD/$BINARY" ;; esac
 [ -x "$BINARY" ] || { echo "run-linux.sh: binary not executable: $BINARY" >&2; exit 3; }
 
 # ---------------------------------------------------------------- identity
-# Provenance for every row: the commit the Rust sources were at when the
-# binary was built, whether those sources were dirty, and the exact
-# binary hash. Evidence rows record this so a bundle always names its
-# generating build instead of implying the current head produced it.
+# Provenance for every row: the commit checked out when the row ran,
+# whether those sources were dirty, and the exact binary hash. A
+# --skip-build run can reuse a binary built at an earlier commit, so the
+# SHA-256 is authoritative and the commit names the checkout the row ran
+# from. Evidence rows record this so a bundle always names its binary
+# instead of implying the current head produced it.
 BUILD_COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
 BINARY_SHA256="$(sha256sum "$BINARY" 2>/dev/null | awk '{print $1}')"
 if [ -n "$(git -C "$REPO_ROOT" status --porcelain -- crates Cargo.toml Cargo.lock 2>/dev/null)" ]; then
