@@ -362,9 +362,12 @@ tracks every gap from discovery to resolution.
   tune, video, controls, legend) with pure `render(rect) -> Vec<Line>`
   functions; slot assignment is greedy by priority with a hard no-overflow
   invariant asserted in debug builds.
-- Candidate scoring is deterministic: maximize `(board_scale, coverage, block
-  count)` lexicographically, tie-broken by the fixed preference order, so the
-  same geometry always yields the same plan.
+- Candidate scoring is deterministic: maximize coverage (the share of the
+  window used by board plus chrome) first, then prefer square tile pixels,
+  then the richer hosted chrome (side panel, HUD band, hint only), then tile
+  area, then board width, so the same geometry always yields the same plan.
+  (As implemented: `coverage`, `square`, `chrome`, `area`, `cw` in
+  `crates/terminal/src/layout.rs`.)
 - Kitty placement planning: `Placement { image_id, src: (x, y, w, h), dst_cells,
   z }`; the atlas plan diffs against the previous frame and emits only changed
   placements; static-layer retransmit is coalesced to at most one per frame.
