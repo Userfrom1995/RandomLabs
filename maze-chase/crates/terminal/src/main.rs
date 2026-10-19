@@ -1115,7 +1115,7 @@ fn menu_lines(app: &App) -> Vec<String> {
             app.tier().name(),
             &app.watchdog.trail,
         ),
-        ScreenId::Help => chrome::help(app.screens.help_scroll),
+        ScreenId::Help => chrome::help(app.screens.help_scroll, app.layout.rows as usize),
         ScreenId::Scores => chrome::scores_table(&app.scores),
         ScreenId::Settings => {
             chrome::settings_list(&app.screens.settings_lines(), app.screens.settings_row)
