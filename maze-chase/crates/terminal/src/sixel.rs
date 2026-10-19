@@ -9,6 +9,13 @@
 
 use crate::raster::PixelFrame;
 use maze_chase_assets::themes::Rgb;
+use std::collections::HashMap;
+
+/// Hard ceiling on one Sixel frame. A pathological frame or a terminal
+/// with an odd palette must never flood a PTY: the encoder retries with
+/// a smaller palette, and the caller falls back to cells when even that
+/// cannot fit.
+pub const MAX_ENCODED_BYTES: usize = 2 * 1024 * 1024;
 
 /// Device-attributes request that reveals Sixel support (parameter `4`).
 pub fn probe_request() -> &'static str {
@@ -45,11 +52,14 @@ fn dist(a: Rgb, b: Rgb) -> u32 {
 fn palette(frame: &PixelFrame, max_colors: usize) -> (Vec<Rgb>, Vec<u8>) {
     let max_colors = max_colors.clamp(2, 256);
     let mut colors: Vec<Rgb> = Vec::new();
+    let mut seen: HashMap<u32, u8> = HashMap::new();
     let mut index = vec![0u8; frame.px.len()];
+    let key = |c: Rgb| (c.0 as u32) << 16 | (c.1 as u32) << 8 | c.2 as u32;
     for (i, &p) in frame.px.iter().enumerate() {
-        if let Some(k) = colors.iter().position(|&c| c == p) {
-            index[i] = k as u8;
+        if let Some(&k) = seen.get(&key(p)) {
+            index[i] = k;
         } else if colors.len() < max_colors {
+            seen.insert(key(p), colors.len() as u8);
             index[i] = colors.len() as u8;
             colors.push(p);
         } else {
@@ -66,8 +76,23 @@ fn palette(frame: &PixelFrame, max_colors: usize) -> (Vec<Rgb>, Vec<u8>) {
 }
 
 /// Encode a frame as Sixel bytes (DCS ... ST). Empty frames yield an
-/// empty string; callers fall back to the cell renderer instead.
+/// empty string; callers fall back to the cell renderer instead. A
+/// frame above [`MAX_ENCODED_BYTES`] is retried with a smaller palette
+/// (still bounded), and an unfittable frame returns empty so the caller
+/// can paint cells rather than dump an unbounded stream.
 pub fn encode(frame: &PixelFrame, max_colors: usize) -> String {
+    let encoded = encode_inner(frame, max_colors);
+    if encoded.len() <= MAX_ENCODED_BYTES {
+        return encoded;
+    }
+    let retry = encode_inner(frame, (max_colors / 4).max(2));
+    if retry.len() <= MAX_ENCODED_BYTES {
+        return retry;
+    }
+    String::new()
+}
+
+fn encode_inner(frame: &PixelFrame, max_colors: usize) -> String {
     if frame.w == 0 || frame.h == 0 || frame.px.is_empty() {
         return String::new();
     }
@@ -189,6 +214,27 @@ mod tests {
         assert!(!probe_ok("4c"));
         assert!(!probe_ok("m4"));
         assert!(!probe_ok("\x1b[?62;4"));
+    }
+
+    #[test]
+    fn oversized_frames_stay_within_the_byte_budget_or_fall_back() {
+        // 256 colors over a large frame defeats the first palette;
+        // the bounded retry (or the honest empty fallback) must win.
+        let w = 220u32;
+        let h = 220u32;
+        let px = (0..(w * h) as usize)
+            .map(|i| {
+                let k = (i % 256) as u8;
+                Rgb(k, k.wrapping_mul(37), k.wrapping_mul(91))
+            })
+            .collect();
+        let f = PixelFrame { w, h, px };
+        let encoded = encode(&f, 256);
+        assert!(
+            encoded.is_empty() || encoded.len() <= MAX_ENCODED_BYTES,
+            "encoded {} bytes exceeds the budget",
+            encoded.len()
+        );
     }
 
     #[test]
