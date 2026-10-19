@@ -605,11 +605,16 @@ probes ahead of the gate still run so the checkout can resolve its ref) - the
 auto-retry arms would otherwise re-post the trigger as the owner (admin) and
 launder the unprivileged actor past the CLI's write-permission assert - and
 the denial is reported as a clean skip instead of a crash (no fail-closed red,
-no self-heal re-dispatch, no `/oc maintainer` escalation). `maintainer.yml` is
-deliberately out of the shared-gate cohort: its own inline actor permission
-preflight is still pending in issue #427 / PR #429, so until it lands the
-maintainer arm still relies on the CLI assert alone. R12 regression-guards the
-coverage across every workflow that runs the composite action.
+no self-heal re-dispatch, no `/oc maintainer` escalation). The maintainer runs
+its agent inline, so it is outside the composite-action cohort: it invokes the
+same shared gate directly right after checkout (issue #696 re-landed the #427
+preflight on this script) and gates the agent step plus every post-gate
+side-effect step (comment poster, owner-PAT triggers and merges,
+pages/integrity steps, memory publish, held-CI approvals) on the gate output,
+with its verify step treating a denial as the terminal clean-skip outcome.
+R12 regression-guards the coverage across every workflow that runs the
+composite action plus the maintainer's inline gate step, clean-skip verify
+lane, and gated side-effect steps.
 
 ## 20. File map
 
@@ -738,8 +743,10 @@ remote tip).
   the trigger as the owner (admin) and launder the actor past the CLI's
   write-permission assert (issue #428). A denial skips cleanly; schedule and
   dispatch arms always pass, so crash parity is untouched. Coverage across
-  every workflow running the composite action is regression-guarded by audit
-  rule R12 in `.github/scripts/silent-stall-audit.sh`.
+  every workflow running the composite action, plus the maintainer's inline
+  gate, clean-skip verify lane, and gated post-gate side-effect steps (issue
+  #696), is regression-guarded by audit rule R12 in
+  `.github/scripts/silent-stall-audit.sh`.
 - Agent runs go through the vendored runner (`.github/actions/opencode-run/`),
   whose version lookup is authenticated and non-fatal: one rate-limited API
   call degrades to the `latest` cache key instead of killing the run before
