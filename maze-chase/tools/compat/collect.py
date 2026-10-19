@@ -24,7 +24,11 @@ name the title screen paints) and writes:
 Evidence rules (binding, see README.md): every number in the output is
 either measured from the transcript/screenshots or copied from the run
 metadata; a run that could not execute is recorded as `unverified` with
-its reason and never guessed. No em dashes anywhere (project rule).
+its reason and never guessed. Every bundle also carries the run's build
+identity (`build.commit`, `build.binary_sha256`) copied from the run
+metadata, so a row names the source commit and the exact release binary
+that produced it; metadata without identity records `build.recorded:
+false` with the reason. No em dashes anywhere (project rule).
 
 Usage:
 
@@ -774,6 +778,18 @@ def main():
         phase_reports.append(report)
 
     tier = observed_tier(transcript)
+    build = meta.get("build")
+    if not isinstance(build, dict):
+        # Provenance is part of the evidence: a bundle that cannot name
+        # the commit and binary that produced it says so instead of
+        # implying the current tree generated it.
+        build = {
+            "recorded": False,
+            "reason": ("the run metadata carries no build identity; this "
+                       "bundle was generated before the identity fields "
+                       "existed (or by a runner that does not record them) "
+                       "and cannot name its generating commit"),
+        }
     result = {
         "schema": SCHEMA,
         "row": args.row_name or f"{args.emulator}-{args.os_name}-{args.tier}",
@@ -786,6 +802,7 @@ def main():
         "tier_observed": tier,
         "disposition": args.result,
         "unverified_reason": args.unverified_reason,
+        "build": build,
         "runner": meta.get("runner", {}),
         "geometry": meta.get("geometry", {}),
         "extra_env": meta.get("extra_env", []),
@@ -922,6 +939,26 @@ def main():
                 + ", ".join(blank_captures)
                 + " are >=98% one color (a blank board, not a rendered "
                   "playing surface)"
+            )
+    # Bitmap-tier playing-surface honesty: a kitty-graphics or sixel
+    # `pass` must rest on at least one decodable playing capture. The
+    # blank-board and sprite gates above only inspect captures that
+    # exist, so a bitmap-tier row whose playing checkpoint produced no
+    # capture (a rejected or absent image) could otherwise sign a pass
+    # on its static menu screens alone.
+    if args.result == "pass" and tier in ("kitty-graphics", "sixel"):
+        playing_captures = [
+            phase["name"]
+            for phase in result["phases"]
+            if phase.get("screenshot")
+            and str(phase.get("name", "")).startswith("playing")
+        ]
+        if not playing_captures:
+            disposition = "partial"
+            notes.append(
+                "recorded partial by collect.py: no decodable playing "
+                "capture entered the bundle; a bitmap-tier pass must rest "
+                "on the rendered playing surface, not only its menus"
             )
     # Pause-surface honesty (Evaluator E1): the pause menu is a text
     # panel, so a kitty-graphics paused phase must have released the

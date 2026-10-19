@@ -15,7 +15,19 @@
 #   tools/compat/run-linux.sh --outdir /tmp/compat  # scratch location
 #   tools/compat/run-linux.sh --emulator xterm --tier auto \
 #       --row-name xterm-dark-linux-auto            # distinct evidence row id
+#   MAZE_CHASE_COMPAT_PAUSE_SELECT=1 \
+#     tools/compat/run-linux.sh --emulator ghostty --tier kitty --skip-build
+#                                                   # paused capture with the
+#                                                   # cursor on Quit to title
 #   tools/compat/run-linux.sh --keep                # retain the scratch transcripts
+#
+# Every row records its generating build identity in the run metadata:
+# the source commit (`git rev-parse HEAD`), whether the checked-out Rust
+# sources were dirty, and the release binary's SHA-256. Rows needing an
+# independently rendered pause capture (the forced-tier rows, whose
+# paused panel would otherwise be byte-identical to the auto row of the
+# same emulator) set MAZE_CHASE_COMPAT_PAUSE_SELECT to move the menu
+# cursor before the paused checkpoint.
 #
 # Requirements: Linux, python3, jq, xdotool, ImageMagick (import), Xvfb
 # when headless, and a release binary (`--skip-build` reuses one).
@@ -93,6 +105,21 @@ if [ -z "$BINARY" ]; then
 fi
 case "$BINARY" in /*) ;; *) BINARY="$PWD/$BINARY" ;; esac
 [ -x "$BINARY" ] || { echo "run-linux.sh: binary not executable: $BINARY" >&2; exit 3; }
+
+# ---------------------------------------------------------------- identity
+# Provenance for every row: the commit the Rust sources were at when the
+# binary was built, whether those sources were dirty, and the exact
+# binary hash. Evidence rows record this so a bundle always names its
+# generating build instead of implying the current head produced it.
+BUILD_COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+BINARY_SHA256="$(sha256sum "$BINARY" 2>/dev/null | awk '{print $1}')"
+if [ -n "$(git -C "$REPO_ROOT" status --porcelain -- crates Cargo.toml Cargo.lock 2>/dev/null)" ]; then
+  SOURCES_DIRTY="true"
+else
+  SOURCES_DIRTY="false"
+fi
+PAUSE_SELECT="${MAZE_CHASE_COMPAT_PAUSE_SELECT:-0}"
+echo "identity: commit $BUILD_COMMIT, binary sha256 ${BINARY_SHA256:-unknown}, sources_dirty $SOURCES_DIRTY"
 
 # ---------------------------------------------------------------- helpers
 emulator_version() { # name
@@ -221,6 +248,8 @@ RUNNER
       --emulator "$emu" --emulator-version "$(emulator_version "$emu")" \
       --tier "$tier" --initial "$INITIAL" \
       --resize-wide "$WIDE" --resize-small "$SMALL" \
+      --build-commit "$BUILD_COMMIT" --binary-sha256 "$BINARY_SHA256" \
+      --sources-dirty "$SOURCES_DIRTY" --pause-select "$PAUSE_SELECT" \
       "${env_args[@]}" \
       --game-pid-file "$session/game.pid" \
       --transcript "$session/pty.log" || exit_status=$?
@@ -240,6 +269,9 @@ RUNNER
       local note="session driven by tools/compat/drive.sh on a real $emu window"
       if [ "$emu" = "xterm" ] && [ -n "${MAZE_CHASE_COMPAT_XTERM_FLAGS:-}" ]; then
         note="$note (xterm flags: $MAZE_CHASE_COMPAT_XTERM_FLAGS)"
+      fi
+      if [ "$PAUSE_SELECT" -gt 0 ]; then
+        note="$note (paused capture taken with the menu cursor on \"Quit to title\", so same-emulator rows never commit byte-identical pause images)"
       fi
       python3 "$SCRIPT_DIR/collect.py" --run-dir "$rundir" --emulator "$emu" \
         --os linux --tier "$tier" --result "$result" \
