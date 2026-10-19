@@ -412,15 +412,20 @@ Public Surface / Web Track:                                              │
   and `./gh`, `env`/`command`/`bash -c` prefixes, tabs, backslash-newline
   continuations, quote/backslash word concatenation such as `g""h`, ANSI-C
   quoting such as `$'\x69ssue'`, shell metacharacter separation, global flags
-  between `gh` and the subcommand, the multi-line Python list form, and the
-  shell-escaped-quote Python one-liner included, with the
-  whitespace/quote/backslash-normalized form folding backslashes so the
-  escaped spelling is caught) exercised by red and green self-test matrices
-  over every listed spelling AND over the combined detector the scan actually
-  runs, so a future weakening or deletion of either the shell-faithful layer
-  or the normalized layer fails the audit itself (review findings F26/F29/F30;
-  prose carrying separate `gh`, `issue`, and `create` tokens in one
-  command line is a known accepted false-positive shape), repo-local scripts
+  between `gh` and the subcommand, the multi-line Python list form, the
+  shell-escaped-quote Python one-liner, a single-element `shell=True` list, a
+  comment-split token, Python `\xNN`/`\uNNNN`/octal escape spellings, and
+  `b`/`r`/`u`/`f` string prefixes included, with the
+  whitespace/quote/backslash-normalized form stripping line comments and
+  folding backslashes so the escaped and comment-split spellings are caught)
+  exercised by self-tests that test EACH layer directly (the word scan over
+  `_f29_red`, the normalized form over `_f30_red`) and then exercise the
+  exact combined predicate the scan calls over every red case (`_f29_red +
+  _f30_red + _f31_red`), so deleting or weakening either layer or the
+  combined predicate fails the audit itself (review findings
+  F26/F29/F30/F31/F32; prose carrying separate `gh`, `issue`, and `create`
+  tokens in one command line is a known accepted false-positive shape),
+  repo-local scripts
   executed by the pinned pre-handler steps in any standard invocation
   spelling (bash/sh/source, optional flags, absolute or quoted paths) scanned
   for `GITHUB_ENV`,
@@ -456,7 +461,7 @@ Public Surface / Web Track:                                              │
   (`gh api --method POST .../issues` or `curl .../issues`), or an
   env-file channel reached through one level of indirection inside a
   repo-local script, are documented
-  as the review-gated residual (review findings F2/F4-F30 plus the F16
+  as the review-gated residual (review findings F2/F4-F32 plus the F16
   print fix, B1-B3 plus
   independent-verification escapes E1-E4, Q4/Q5, L06/L07, P1/P2,
   M05/M07/M15-M17/M19-M21 and the round-3b boundary probes).
