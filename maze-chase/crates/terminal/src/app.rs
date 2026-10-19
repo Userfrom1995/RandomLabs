@@ -178,6 +178,20 @@ impl App {
     /// up on the next resize (issue #673).
     pub fn resize(&mut self, cols: u16, rows: u16) {
         self.layout = layout_for(cols, rows);
+        self.clamp_help_scroll();
+    }
+
+    /// Keep the help scroll inside the viewport: the body can never be
+    /// scrolled entirely away (evaluator finding; the render path
+    /// clamps again, this keeps the state consistent with what is on
+    /// screen so Up responds immediately after Down saturates).
+    fn clamp_help_scroll(&mut self) {
+        if self.screens.current == ScreenId::Help {
+            self.screens.help_scroll = self
+                .screens
+                .help_scroll
+                .min(crate::chrome::help_scroll_max(self.layout.rows as usize));
+        }
     }
 
     fn save_settings(&mut self) {
@@ -333,6 +347,7 @@ impl App {
                 }
                 let event = self.screens.press(action);
                 self.apply_event(event);
+                self.clamp_help_scroll();
             }
         }
     }
@@ -570,5 +585,36 @@ mod tests {
         a.on_key(key(KeyCode::Enter));
         assert_eq!(a.settings.mute, !muted);
         assert_eq!(a.screens.settings.mute, a.settings.mute);
+    }
+
+    #[test]
+    fn help_scroll_saturates_at_the_viewport() {
+        // Evaluator finding: repeated Down scrolled the body away. The
+        // scroll now saturates at body length minus the viewport, the
+        // last line stays rendered, and Up responds immediately.
+        let mut a = app();
+        a.screens.show(ScreenId::Help);
+        for _ in 0..80 {
+            a.on_key(key(KeyCode::Down));
+        }
+        let max = crate::chrome::help_scroll_max(a.layout.rows as usize);
+        assert_eq!(a.screens.help_scroll, max, "Down saturates at the clamp");
+        let rows = a.layout.rows as usize;
+        let lines = crate::chrome::help(a.screens.help_scroll, rows);
+        let last = crate::screens::HELP_LINES
+            .last()
+            .copied()
+            .expect("help body is not empty");
+        assert!(lines.iter().any(|l| l.as_str() == last));
+        a.on_key(key(KeyCode::Up));
+        assert_eq!(
+            a.screens.help_scroll,
+            max.saturating_sub(1),
+            "Up responds right after saturation"
+        );
+        // A resize never strands the state outside the new viewport.
+        a.on_key(key(KeyCode::Down));
+        a.resize(120, 60);
+        assert!(a.screens.help_scroll <= crate::chrome::help_scroll_max(60));
     }
 }

@@ -135,8 +135,22 @@ pub fn title(
     lines
 }
 
-/// Help screen lines with scroll offset.
-pub fn help(scroll: usize) -> Vec<String> {
+/// Fixed chrome around the help body: title + blank header, blank +
+/// hint footer.
+const HELP_OVERHEAD: usize = 4;
+
+/// Largest help scroll offset that keeps the body on screen in a
+/// window of `rows` rows: body length minus the visible viewport, so
+/// repeated Down can never scroll every help line away (evaluator
+/// finding: the unclamped `help_scroll` scrolled the whole body off).
+pub fn help_scroll_max(rows: usize) -> usize {
+    let viewport = rows.saturating_sub(HELP_OVERHEAD).max(1);
+    crate::screens::HELP_LINES.len().saturating_sub(viewport)
+}
+
+/// Help screen lines with the scroll offset clamped to the viewport.
+pub fn help(scroll: usize, rows: usize) -> Vec<String> {
+    let scroll = scroll.min(help_scroll_max(rows));
     let mut lines = vec!["HOW TO PLAY".to_string(), "".to_string()];
     lines.extend(
         crate::screens::HELP_LINES
@@ -273,7 +287,7 @@ mod tests {
         let t = title(0, Some(900), "kitty-graphics", &[]);
         assert!(t.iter().any(|l| l.contains("Play")));
         assert!(t.iter().any(|l| l.contains("kitty-graphics")));
-        let h = help(0);
+        let h = help(0, 35);
         assert!(h.iter().any(|l| l.contains("wardens")));
         let o = game_over(1230, 4, Some(2));
         assert!(o.iter().any(|l| l.contains("rank #2")));
@@ -286,6 +300,29 @@ mod tests {
         let lines = centered(&["hello".to_string()], 4, 3);
         assert_eq!(lines.len(), 3);
         assert!(lines.iter().all(|l| l.chars().count() <= 4));
+    }
+
+    #[test]
+    fn help_scroll_clamps_to_body_minus_viewport() {
+        // Evaluator finding: repeated Down scrolled the entire help
+        // body away. The render clamp keeps the tail line on screen and
+        // never overflows a short window.
+        let last = crate::screens::HELP_LINES
+            .last()
+            .copied()
+            .expect("help body is not empty");
+        let clamped = help(usize::MAX, 35);
+        assert_eq!(clamped, help(help_scroll_max(35), 35));
+        assert!(
+            clamped.iter().any(|l| l.as_str() == last),
+            "full body reachable"
+        );
+        let tiny = help(usize::MAX, 10);
+        assert!(
+            tiny.iter().any(|l| l.as_str() == last),
+            "last body line stays on screen in a short window"
+        );
+        assert!(tiny.len() <= 10, "clamped help fits the window");
     }
 
     #[test]
