@@ -841,6 +841,19 @@ Tester's two-line escape read 25 passed / 0 failed on `ca0d9d5d` and
 decoy, duplicate-id, and missing-id classes and the self-tests for both
 arms were mutation-proven too.
 
+Review round 23 bound the outcome source's runner by invocation uniqueness
+(issue #653). The round-22 identity check accepted a duplicate composite
+invocation: inserting a second no-op `uses:
+./.github/actions/opencode-run` step that carries the verify's source id,
+and renaming the real agent step, kept the audit at 25 passed / 0 failed
+while the real agent ran unverified, in both the quoted and unquoted
+`uses` spellings. The verify's job must now contain exactly one parsed
+composite invocation; otherwise R15 records
+`verify-outcome-source-runner-not-unique`. Both variants read 25 passed /
+0 failed before the fix and 24 passed / 1 failed with R15 the only failing
+rule after it, and the new duplicate-invocation self-tests cover both
+spellings.
+
 Accepted residuals of the #653 runtime (documented, not hardened): the
 TERM/KILL escalation targets the two captured PIDs, so after the 5-second
 grace a reused PID could be signalled and a hung `opencode` descendant can
