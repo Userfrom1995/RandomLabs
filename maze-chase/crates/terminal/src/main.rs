@@ -1240,6 +1240,14 @@ impl Trace {
         self.event(&format!("\"watchdog\",\"tier\":\"{}\"", tier.name()));
     }
 
+    /// Record a failed frame write. A failure is not a rendered frame,
+    /// so it has no frame record; the trace still needs the event shape
+    /// for harnesses that inject a transient failure and wait for it
+    /// before draining the pipe.
+    fn note_write_error(&mut self) {
+        self.event("\"write-error\"");
+    }
+
     fn note_probe(&mut self, protocol: &str, ok: bool, placements: bool, elapsed_ms: u128) {
         self.event(&format!(
             "\"probe\",\"protocol\":\"{protocol}\",\"ok\":{ok},\"placements\":{placements},\"elapsed_ms\":{elapsed_ms}"
@@ -1466,6 +1474,7 @@ fn main() {
                 .and_then(|_| stdout.flush());
             let took = encode_start.elapsed();
             if wrote.is_err() {
+                trace.note_write_error();
                 app.watchdog.note_error("frame write failed");
                 if app.watchdog.tier() == Tier::Legacy {
                     break;

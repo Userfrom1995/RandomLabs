@@ -713,12 +713,16 @@ redesign), gated on the Design Council's direction.
   failed frame write now forces a full repaint (`fresh = true` plus
   `kitty.invalidate()` through `note_failed_frame_write`), because the
   renderer had already committed its diff state while composing a
-  frame the terminal never received; a unit test pins the release trio
-  and both re-transmits on the recovered frame. F19: `white_share`
-  classifies packed 1/2/4-bit grayscale and gray+alpha, so a blank
-  capture in those shapes can no longer report 0.0 white and bypass
-  the 0.98 light-background gate; contract tests cover all four depths
-  for both color types. F20: the pause arm also frees the whole-frame
+  frame the terminal never received. A unit test pins the recovered
+  frame's shape, and a PTY test fills a stdout pipe once, waits for the
+  new trace `write-error` record, drains before the watchdog's third
+  strike, and asserts the release trio plus both image re-transmits on
+  the frame that actually lands while the tier stays Kitty. F19:
+  `white_share` classifies packed 1/2/4-bit grayscale and gray+alpha,
+  so a blank capture in those shapes can no longer report 0.0 white and
+  bypass the 0.98 light-background gate; contract tests cover all four
+  depths for both color types, including gray-must-be-all-ones cases
+  that pin sample order and MSB-first packing. F20: the pause arm also frees the whole-frame
   fallback image (id 1) when the probe proved graphics without
   placements, pinned by a unit test. F21: the compatibility matrix
   scopes the sprite-census refusal to rows with placements on the

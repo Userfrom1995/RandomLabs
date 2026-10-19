@@ -28,8 +28,8 @@ MiB = 1024^2 B). The kitty-graphics `pass` rows also carry a
 sprite-palette census per capture (`sprite_census` in each phase,
 `sprite_visibility.playing_captures_with_sprites` at the top level); when
 placements are on the wire, the collector refuses to sign a
-kitty-graphics `pass` without a playing capture containing sprite pixels,
-and it refuses a paused capture that
+kitty-graphics `pass` without a playing capture containing sprite pixels.
+Independently of the placement count, it refuses a paused capture that
 carries sprite pixels, has no decodable capture, or is not a near-solid
 text panel (at least 90% and less than 100% one color). It also refuses
 a playing, resized, or refit capture that is >=98% one color on the
