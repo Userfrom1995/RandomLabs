@@ -6,13 +6,15 @@
 # hardened runner guard, the R9 schedule/dispatch retry-parity guard
 # (issue #422), the R10 PAT-step input-indirection guard, the R11
 # post-agent PAT gate guard (both issue #422 residual hardening), the
-# R12 actor-write gate guard (issue #428), the R13 bot-created triage
-# parity guard (issue #450), the R14 heterogeneous-group queue-preservation
+# R12 actor-write gate guard (issue #428, extended by issue #696 to cover
+# the maintainer inline runner and its clean-skip lane), the R13 bot-created
+# triage parity guard (issue #450), the R14 heterogeneous-group queue-preservation
 # guard (per-OS arms issue #594 plus the whole comment-triggered cohort issue
 # #601), the R15 model fallback ladder guard (issue #591:
 # provider model retirement / loud Model-not-found failure; extended by
 # issue #620: transient provider FreeTierError rejection / bounded
-# same-model retry), the R16 shallow-workspace PAT merge guard (issue #602:
+# same-model retry; the maintainer runner's only allowed step conditional is
+# the shared actor-write gate, issue #696), the R16 shallow-workspace PAT merge guard (issue #602:
 # a depth-limited opencode CLI
 # session fetch re-shallows the Maintainer checkout, and merge-base-dependent
 # merge checks then fail closed and silently skip a linked workflow PR), the
@@ -60,7 +62,9 @@
 # keep-both day-log semantics, loud diagnostics, and a loud red give-up that
 # prints the recoverable bundle, enforced by a functional sandbox executing
 # the real step against a local bare-repo origin with injected push
-# rejections and concurrent tip advance), the R24 per-OS arm cap-headroom
+# rejections and concurrent tip advance; its always() gate now also carries
+# the shared actor-write gate so a denied trigger actor pushes nothing,
+# issue #696), and the R24 per-OS arm cap-headroom
 # and partial-report salvage guard (issue #692: the macOS arm died at its
 # 90-minute agent-step cap with zero artifacts and no partial report
 # survived, so every arm's agent cap must leave real headroom under its job
@@ -430,11 +434,25 @@ fi
 # Per-file, two properties: the gate script is invoked, and every agent step
 # is wired to its `steps.actor_gate.outputs.run` output; the gate-step count
 # must also cover the agent-step count so a newly added agent job without its
-# own gate trips the rule. maintainer.yml is deliberately out of cohort: it
-# invokes `opencode github run` directly (not the composite action), and its
-# own inline actor permission preflight is still pending in issue #427 /
-# PR #429 - until it lands the maintainer arm relies on the CLI assert alone.
+# own gate trips the rule.
+#
+# maintainer.yml inline parity (issue #696): the Maintainer is the one agent
+# arm that runs `opencode github run` directly instead of through the
+# composite action, so the cohort loop below never sees it. It adopts the
+# SAME shared gate right after checkout (GATE_LABEL=maintainer), wires its
+# agent step to the gate output, gives its verify step the terminal third
+# outcome (a denial is not a crash), and gates EVERY post-gate side-effect
+# step - agent runner, stray-PR cleanup, emergency push, memory publish,
+# comment poster, owner-PAT /oc triggers and merges, pages trigger, main
+# integrity restore, ideator dispatch, held-CI approvals - on the same
+# output, so an unprivileged bot pull_request event can never produce a red
+# run, a noise comment, an owner trigger, a push, or a merge. Before this,
+# every bot-authored PR open/close redded the run on the CLI's permission
+# assert and posted the raw error as a public comment (issue #696: 15 red
+# runs in one 24h window). A dropped condition on any listed step, a moved
+# gate, or a missing/renamed step trips this rule.
 r12_bad=""
+r12_main_wf=".github/workflows/maintainer.yml"
 for r12_path in .github/workflows/*.yml; do
   [ -f "$r12_path" ] || continue
   r12_name=$(basename "$r12_path")
@@ -460,10 +478,67 @@ for r12_path in .github/workflows/*.yml; do
     r12_bad="${r12_bad} ${r12_name}(gates=${r12_gates}<agents=${r12_agents})"
   fi
 done
-if [ -z "$r12_bad" ]; then
-  check "R12" "every opencode-run agent workflow invokes the shared actor-write gate and wires its agent steps to the gate output" "ok"
+# maintainer.yml inline-runner parity (issue #696): the gate step must sit
+# between checkout and the agent, carry the shared script + GATE_LABEL, wire
+# the agent step and every post-gate side-effect step on its output, and give
+# the verify step the terminal third outcome. The step list is explicit (not
+# a count): a renamed or newly inserted side-effect step must be added to the
+# list by the author, and a dropped gate condition on any listed step trips
+# the rule. The verify step itself stays `if: always()` on purpose (it must
+# run to classify the skip), so its gate handling is pinned by content.
+r12_main_steps=(
+  "Remove maintainer stray PRs and branches (the Maintainer never opens PRs)"
+  "Emergency-gated commit and push of workflow model updates to main"
+  "Commit Maintainer memory (maintainer/logs)"
+  "Post Maintainer comment"
+  "Run /oc triggers as owner"
+  "PAT-backed merge for approved workflow-touching PRs"
+  "Trigger pages deployment if main advanced"
+  "Main integrity guard (prevent orphan or divergent main rewrite)"
+  "Dispatch ideator when asked"
+  "Approve held CI runs (PR or repo-wide sweep)"
+)
+if [ ! -f "$r12_main_wf" ]; then
+  r12_bad="${r12_bad} maintainer.yml(missing)"
 else
-  check "R12" "actor-write gate coverage missing:${r12_bad} (issue #428: an unprivileged comment can launch an agent and its owner-PAT retry launders the actor)" "bad"
+  r12_main_gate_ln=$(grep -nF -- '- name: Actor write gate (issue #428)' "$r12_main_wf" | head -1 | cut -d: -f1)
+  r12_main_checkout_ln=$(grep -nF -- '- name: Checkout repository' "$r12_main_wf" | head -1 | cut -d: -f1)
+  r12_main_agent_ln=$(grep -nF -- '- name: Run Maintainer agent' "$r12_main_wf" | head -1 | cut -d: -f1)
+  [ "$(grep -cF -- '- name: Actor write gate (issue #428)' "$r12_main_wf" || true)" = "1" ] || r12_bad="${r12_bad} maintainer.yml(gate-step-count)"
+  grep -qF 'run: bash .github/scripts/actor-write-gate.sh' "$r12_main_wf" || r12_bad="${r12_bad} maintainer.yml(no-gate-script-run)"
+  grep -qF 'GATE_LABEL: maintainer' "$r12_main_wf" || r12_bad="${r12_bad} maintainer.yml(no-gate-label)"
+  if [ -z "$r12_main_gate_ln" ] || [ -z "$r12_main_checkout_ln" ] || [ -z "$r12_main_agent_ln" ] \
+     || [ "$r12_main_gate_ln" -le "$r12_main_checkout_ln" ] || [ "$r12_main_gate_ln" -ge "$r12_main_agent_ln" ]; then
+    r12_bad="${r12_bad} maintainer.yml(gate-not-between-checkout-and-agent:${r12_main_checkout_ln:-none}/${r12_main_gate_ln:-none}/${r12_main_agent_ln:-none})"
+  fi
+  r12_main_block() {
+    awk -v step="- name: $1" '
+      index($0, step) { in_step=1; next }
+      in_step && /^      - name: / { exit }
+      in_step { print }
+    ' "$r12_main_wf"
+  }
+  if ! r12_main_block "Run Maintainer agent" | grep -qF "if: steps.actor_gate.outputs.run == 'true'"; then
+    r12_bad="${r12_bad} maintainer.yml(agent-not-gated)"
+  fi
+  r12_verify_block=$(r12_main_block "Verify Maintainer wrote its decision contract (loud failure, issue #591)")
+  if [ -z "$r12_verify_block" ]; then
+    r12_bad="${r12_bad} maintainer.yml(verify-step-missing-or-renamed)"
+  else
+    printf '%s\n' "$r12_verify_block" | grep -qF 'AGENT_GATE: ${{ steps.actor_gate.outputs.run }}' || r12_bad="${r12_bad} maintainer.yml(verify-no-gate-env)"
+    printf '%s\n' "$r12_verify_block" | grep -qF 'if [ "${AGENT_GATE:-}" != "true" ]; then' || r12_bad="${r12_bad} maintainer.yml(verify-no-third-outcome)"
+    printf '%s\n' "$r12_verify_block" | grep -qF 'Actor write gate skipped the Maintainer agent' || r12_bad="${r12_bad} maintainer.yml(verify-no-denial-notice)"
+  fi
+  for r12_step in "${r12_main_steps[@]}"; do
+    if ! r12_main_block "$r12_step" | grep -qF "if: always() && steps.actor_gate.outputs.run == 'true'"; then
+      r12_bad="${r12_bad} maintainer.yml(step-not-gated:$(printf '%s' "$r12_step" | cut -d' ' -f1-2))"
+    fi
+  done
+fi
+if [ -z "$r12_bad" ]; then
+  check "R12" "every opencode-run agent workflow (and the maintainer inline runner, issue #696) fails closed behind the shared actor-write gate: gate invoked, agent wired to the gate output, maintainer verify carries the terminal denial outcome, and every post-gate maintainer side-effect step is gated on the same output" "ok"
+else
+  check "R12" "actor-write gate coverage missing:${r12_bad} (issues #428/#696: an unprivileged comment can launch an agent and its owner-PAT retry launders the actor; a bot pull_request event reds the maintainer run and posts a noise comment)" "bad"
 fi
 
 # [R13] Bot-created triage parity (issue #450): content created with
@@ -948,13 +1023,15 @@ rm -rf "$r15_fn_dir"
 # missing harness binary fails closed, never skips. The extracted block is
 # the real workflow body; its single Actions expression (the workflow_run
 # guard) is substituted with `schedule`, matching the non-workflow_run arm.
-# Round-7 hardening: the extracted step must be the executing one (no `if:`
-# gate in its header, a unique `opencode github run` invocation in the file,
-# and that invocation present in the extracted block), the mock sleep records
-# start/end timestamps and the matrix asserts the next attempt started after
-# the backoff actually completed (a backgrounded sleep cannot pass), and the
-# fixtures and scenarios stay case-sensitive and three-rung deep enough that
-# a case fold or a later-rung budget gate is observable.
+# Round-7 hardening: the extracted step must be the executing one (its header
+# carries no conditional except, for the maintainer runner only, the exact
+# shared actor-write gate condition of issue #696 - the gate step itself must
+# be present in the same file; a unique `opencode github run` invocation in
+# the file, and that invocation present in the extracted block), the mock
+# sleep records start/end timestamps and the matrix asserts the next attempt
+# started after the backoff actually completed (a backgrounded sleep cannot
+# pass), and the fixtures and scenarios stay case-sensitive and three-rung
+# deep enough that a case fold or a later-rung budget gate is observable.
 r15_timeout_bin=$(command -v timeout 2>/dev/null || true)
 r15_env_bin=$(command -v env 2>/dev/null || true)
 r15_bash_bin=$(command -v bash 2>/dev/null || true)
@@ -985,19 +1062,28 @@ r15_behavioral() {
   r15_extract_block "$file" "$step_re" > "$block" 2>/dev/null || true
   # Step identity (review round 7 non-blocking hardening): the extracted step
   # must be the executing one. Its header (name line through the run line) may
-  # carry no `if:` gate, and its block must carry the unique runner
-  # invocation, so a dead decoy step parked earlier (e.g. with `if: false`)
-  # can neither shadow a broken real step nor itself be extracted while
-  # skipped.
+  # carry no `if:` gate except, for maintainer.yml only, the exact shared
+  # actor-write gate condition of issue #696 (the gate step must be present
+  # in the same file), and its block must carry the unique runner invocation,
+  # so a dead decoy step parked earlier (e.g. with `if: false`) can neither
+  # shadow a broken real step nor itself be extracted while skipped.
   r15_hdr=$(awk -v step="$step_re" '
     $0 ~ step { in_step=1 }
     in_step && /^[[:space:]]*run: \|[[:space:]]*$/ { exit }
     in_step { print }
   ' "$file" 2>/dev/null || true)
   if printf '%s\n' "$r15_hdr" | grep -qE '^[[:space:]]*if:'; then
-    r15_bad="${r15_bad} behavioral(${label},run-step-conditional)"
-    rm -rf "$sbx"
-    return
+    if [ "$label" = "maintainer.yml" ] \
+       && [ "$(printf '%s\n' "$r15_hdr" | grep -cE '^[[:space:]]*if:' || true)" = "1" ] \
+       && printf '%s\n' "$r15_hdr" | grep -qxE "[[:space:]]*if: steps\.actor_gate\.outputs\.run == 'true'" \
+       && grep -qF -- '- name: Actor write gate (issue #428)' "$file" \
+       && grep -qF 'run: bash .github/scripts/actor-write-gate.sh' "$file"; then
+      :
+    else
+      r15_bad="${r15_bad} behavioral(${label},run-step-conditional)"
+      rm -rf "$sbx"
+      return
+    fi
   fi
   if [ ! -s "$block" ] \
      || ! bash -n "$block" 2>/dev/null \
@@ -1214,9 +1300,9 @@ else
   grep -A2 'General agent step finished' "$OPENCODE_WF" | grep -q 'exit 1' || r15_bad="${r15_bad} opencode.yml(general-verify-not-exit-1)"
 fi
 if [ -z "$r15_bad" ]; then
-  check "R15" "model resilience wired: live-registry resolver + free-tier ladder rungs + boundary-aware per-rung retry with exit-0 terminal anchoring, a log-capture guard, loud exhaustion, and the bounded transient FreeTierError same-model retry (anchored detector, cap 1, loud persistent failure) in the shared runner and the maintainer inline path, with loud-failure verify steps on the Maintainer and general arm, all enforced behaviorally: the extracted detectors are executed functionally (terminal match; echo/envelope/suffix/stale/superset no-match; dotted-id match with the dot-lookalike no-match; case-sensitive forms, so an uppercase id line never matches; the tail window's lower-bound pair, 39 trailing lines must match and 40 must not), and both real runner run-blocks are executed loop-level against an executable mock opencode + mock sleep (transient recovery on both exit shapes with the exact bounded backoff asserted and its wait ordering proven, exactly one same-model retry, persistent loudness after two attempts with the provider's own distinct statuses propagated, rung advance preserved without consuming the free-tier budget, post-loop exhaustion reached and loud, the budget shared across three rungs with a rung-gated grant or theft caught, echo/suffix/stale non-match, a terminal line with trailing healthy lines still retrying, superset-id non-match, a dotted-candidate dot-lookalike nonzero line not advancing the rung, a failing log capture failing loudly at every failing tee status (one fixture each for 3, 1, and 2, so a live guard narrowed to a single status cannot pass), unclassified propagation, per-scenario timeout, and the extracted runner step proven the unique executing one: no if: gate, unique invocation in the file, invocation present in the extracted block) (issues #591, #620)" "ok"
+  check "R15" "model resilience wired: live-registry resolver + free-tier ladder rungs + boundary-aware per-rung retry with exit-0 terminal anchoring, a log-capture guard, loud exhaustion, and the bounded transient FreeTierError same-model retry (anchored detector, cap 1, loud persistent failure) in the shared runner and the maintainer inline path, with loud-failure verify steps on the Maintainer and general arm, all enforced behaviorally: the extracted detectors are executed functionally (terminal match; echo/envelope/suffix/stale/superset no-match; dotted-id match with the dot-lookalike no-match; case-sensitive forms, so an uppercase id line never matches; the tail window's lower-bound pair, 39 trailing lines must match and 40 must not), and both real runner run-blocks are executed loop-level against an executable mock opencode + mock sleep (transient recovery on both exit shapes with the exact bounded backoff asserted and its wait ordering proven, exactly one same-model retry, persistent loudness after two attempts with the provider's own distinct statuses propagated, rung advance preserved without consuming the free-tier budget, post-loop exhaustion reached and loud, the budget shared across three rungs with a rung-gated grant or theft caught, echo/suffix/stale non-match, a terminal line with trailing healthy lines still retrying, superset-id non-match, a dotted-candidate dot-lookalike nonzero line not advancing the rung, a failing log capture failing loudly at every failing tee status (one fixture each for 3, 1, and 2, so a live guard narrowed to a single status cannot pass), unclassified propagation, per-scenario timeout, and the extracted runner step proven the unique executing one: its header carries no conditional except the maintainer's exact shared actor-write gate form, unique invocation in the file, invocation present in the extracted block) (issues #591, #620, #696)" "ok"
 else
-  check "R15" "model resilience guard missing:${r15_bad} (issues #591/#620: one retired pin kills every arm at once, Model-not-found deaths conclude green, a transient free-tier rejection kills a gate with no bounded retry, or the retry loops unboundedly / concludes silently green / silently blind-advances past a failed log capture / misses a rejection inside its tail window / advances on a lookalike id / matches a terminal form in the wrong case / records a backoff it never waited / runs a conditional or shadowed runner step)" "bad"
+  check "R15" "model resilience guard missing:${r15_bad} (issues #591/#620: one retired pin kills every arm at once, Model-not-found deaths conclude green, a transient free-tier rejection kills a gate with no bounded retry, or the retry loops unboundedly / concludes silently green / silently blind-advances past a failed log capture / misses a rejection inside its tail window / advances on a lookalike id / matches a terminal form in the wrong case / records a backoff it never waited / runs an unauthorized conditional (anything but the maintainer's exact shared actor-write gate form) or a shadowed runner step)" "bad"
 fi
 
 # [R16] Shallow-workspace PAT merge guard (issue #602): the PAT-backed merge
@@ -3724,13 +3810,29 @@ else
     r23_bad="${r23_bad} maintainer.yml(memory-step-syntax)"
   else
     # Step identity: the extracted step must be the executing one (always()
-    # gated), so a dead decoy cannot shadow a broken real step.
+    # gated), so a dead decoy cannot shadow a broken real step. Issue #696:
+    # a denied trigger actor must not push a marker/stub day entry either, so
+    # the publish step may carry exactly one ADDITIONAL conditional - the
+    # shared actor-write gate (allowed only while that pinned gate step and
+    # its invocation are present in the same file). Any other header form
+    # fails closed.
     r23_hdr=$(awk -v step="$R23_STEP_RE" '
       index($0, step) { in_step=1 }
       in_step && /^[[:space:]]*run: \|[[:space:]]*$/ { exit }
       in_step { print }
     ' "$R23_WF" 2>/dev/null || true)
-    printf '%s\n' "$r23_hdr" | grep -qE '^[[:space:]]*if: always\(\)[[:space:]]*$' || r23_bad="${r23_bad} maintainer.yml(memory-step-not-always-gated)"
+    r23_hdr_if_count=$(printf '%s\n' "$r23_hdr" | grep -cE '^[[:space:]]*if:' || true)
+    if [ "$r23_hdr_if_count" = "1" ] \
+       && printf '%s\n' "$r23_hdr" | grep -qE '^[[:space:]]*if: always\(\)[[:space:]]*$'; then
+      :
+    elif [ "$r23_hdr_if_count" = "1" ] \
+       && printf '%s\n' "$r23_hdr" | grep -qE "^[[:space:]]*if: always\(\) && steps\.actor_gate\.outputs\.run == 'true'[[:space:]]*\$" \
+       && grep -qF -- '- name: Actor write gate (issue #428)' "$R23_WF" \
+       && grep -qF 'run: bash .github/scripts/actor-write-gate.sh' "$R23_WF"; then
+      :
+    else
+      r23_bad="${r23_bad} maintainer.yml(memory-step-not-always-gated)"
+    fi
     printf '%s\n' "$r23_block" | grep -qF '${{' && r23_bad="${r23_bad} maintainer.yml(unsubstituted-expression)"
     # Bounded loop and bounded backoff.
     [ "$(printf '%s\n' "$r23_block" | grep -cE '^[[:space:]]*for attempt in 1 2 3; do$' || true)" = "1" ] || r23_bad="${r23_bad} maintainer.yml(no-bounded-3-attempt-loop)"
