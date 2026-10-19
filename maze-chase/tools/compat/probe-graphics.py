@@ -5,10 +5,12 @@ Sends the game's exact Kitty graphics probe (a 1x1 RGBA PNG transmitted
 with `a=t` plus an `a=p` placement, both without `q=2` so the terminal
 answers) on this process's controlling terminal, records every reply
 byte for a bounded window, then deletes the placement and frees the
-image. Run it inside the terminal under test:
+image. Run it inside the terminal under test, optionally overriding the
+capture window (seconds) and the output path:
 
     xvfb-run -a kitty -e tools/compat/probe-graphics.py /tmp/kitty.bin
     xvfb-run -a ghostty -e tools/compat/probe-graphics.py /tmp/ghostty.bin
+    tools/compat/probe-graphics.py [WINDOW_S] [OUT_PATH]
 
 The captured bytes are raw APC replies: a graphics-capable terminal
 answers `\\x1b_Gi=..;OK\\x1b\\` for the transmit and
@@ -17,7 +19,7 @@ that distinguishes "answers the probe" from "answers neither" evidence;
 it feeds no game code and changes no state outside the terminal.
 
 Exit status: 0 when the window closed normally (capture may still be
-short), 2 when stdin is not a terminal, 3 on missing arguments.
+short), 2 when stdin is not a terminal, 3 on a bad window argument.
 """
 
 import base64
@@ -70,10 +72,13 @@ def main():
         try:
             window = float(args[0])
         except ValueError:
-            print(f"probe-graphics: bad window seconds: {args[0]}", file=sys.stderr)
-            return 3
-    if len(args) > 1:
-        out_path = args[1]
+            out_path = args[0]
+        else:
+            if len(args) > 1:
+                out_path = args[1]
+    if not window > 0:
+        print(f"probe-graphics: bad window seconds: {window}", file=sys.stderr)
+        return 3
     if not os.isatty(0):
         print("probe-graphics: stdin is not a terminal", file=sys.stderr)
         return 2

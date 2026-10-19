@@ -38,6 +38,7 @@ TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 COMPAT_DIR = os.path.dirname(TEST_DIR)
 EVIDENCE_DIR = os.path.join(COMPAT_DIR, "evidence")
 COLLECT_PY = os.path.join(COMPAT_DIR, "collect.py")
+PROBE_PY = os.path.join(COMPAT_DIR, "probe-graphics.py")
 
 PNG_SIG = b"\x89PNG\r\n\x1a\n"
 
@@ -323,6 +324,37 @@ class TestCollectorHonestyGates(unittest.TestCase):
         )
         playing = next(p for p in row["phases"] if p["name"] == "playing")
         self.assertEqual(playing["sprite_census"]["by_color"]["pip"], 1)
+
+
+class TestProbeGraphicsArguments(unittest.TestCase):
+    """The probe experiment must run under its documented invocation.
+
+    The usage block in ``probe-graphics.py`` documents
+    ``probe-graphics.py [WINDOW_S] [OUT_PATH]``; an out-path-only
+    invocation must reach the tty check (exit 2) instead of being
+    misparsed as a float window (exit 3).
+    """
+
+    def run_probe(self, *args):
+        return subprocess.run(
+            [sys.executable, PROBE_PY, *args],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+    def test_out_path_only_is_not_a_window_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "probe.bin")
+            proc = self.run_probe(out)
+        self.assertEqual(proc.returncode, 2, proc.stderr)
+        self.assertIn("stdin is not a terminal", proc.stderr)
+
+    def test_non_positive_window_is_a_usage_error(self):
+        proc = self.run_probe("0")
+        self.assertEqual(proc.returncode, 3, proc.stderr)
+        self.assertIn("bad window seconds", proc.stderr)
 
 
 class TestCommittedEvidenceBundle(unittest.TestCase):
