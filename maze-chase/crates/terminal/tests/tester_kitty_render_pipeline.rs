@@ -860,6 +860,144 @@ fn leaving_kitty_tier_releases_board_and_atlas_before_first_sixel_frame() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// F33: a probe that proves graphics without placements keeps the
+/// whole-frame fallback (image id 1) instead of the atlas. Leaving the
+/// Kitty tier must then free that image too, not only the static and
+/// atlas ids, or the terminal retains the last board frame after the
+/// Sixel fallback has taken over. The live probe is answered over the
+/// PTY (graphics OK, placement rejected), the board displays at least
+/// once through the `a=T` fallback, and the same non-blocking pipe
+/// pressure as the atlas release test forces the downgrade.
+#[test]
+fn leaving_kitty_tier_frees_the_whole_frame_image_without_placements() {
+    let dir = session_dir("kitty-release-fullframe");
+    let mut fds = [0i32; 2];
+    assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0, "pipe failed");
+    let (read_fd, write_fd) = (fds[0], fds[1]);
+    #[cfg(target_os = "linux")]
+    unsafe {
+        libc::fcntl(write_fd, libc::F_SETPIPE_SZ, 65536)
+    };
+    for fd in [read_fd, write_fd] {
+        let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+        assert_ne!(flags, -1);
+        assert_ne!(
+            unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) },
+            -1
+        );
+    }
+    let write_end = unsafe { std::fs::File::from_raw_fd(write_fd) };
+    let mut read_end = unsafe { std::fs::File::from_raw_fd(read_fd) };
+
+    let mut pty = open_pty(100, 40);
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_maze-chase-terminal"));
+    cmd.arg("--dir")
+        .arg(&dir)
+        .env("TERM", "xterm-256color")
+        .env("COLORTERM", "truecolor")
+        .env_remove("MAZE_CHASE_TIER")
+        .env("MAZE_CHASE_TRACE", dir.join("trace.jsonl"))
+        .stdin(Stdio::from(pty.slave.try_clone().unwrap()))
+        .stdout(Stdio::from(write_end))
+        .stderr(Stdio::from(pty.slave.try_clone().unwrap()));
+    unsafe {
+        cmd.pre_exec(own_controlling_tty());
+    }
+    let mut child = cmd.spawn().expect("spawn maze-chase-terminal");
+
+    // The probe runs before the first frame; read just enough of the
+    // pipe to see the transmit request, then answer it: graphics OK,
+    // placement rejected (the trace records `placements:false`).
+    let mut seen = Vec::new();
+    let probe_tx = format!("i={PROBE_IMAGE_ID},a=t");
+    assert!(
+        wait_for(&mut read_end, &mut seen, &probe_tx, Duration::from_secs(20)),
+        "kitty probe transmit request never appeared"
+    );
+    (&pty.master)
+        .write_all(format!("\x1b_Gi={PROBE_IMAGE_ID};OK\x1b\\").as_bytes())
+        .unwrap();
+    assert!(
+        wait_for(
+            &mut read_end,
+            &mut seen,
+            &format!("a=p,i={PROBE_IMAGE_ID}"),
+            Duration::from_secs(5)
+        ),
+        "kitty probe placement request never appeared; tail: {}",
+        tail(&seen)
+    );
+    (&pty.master)
+        .write_all(format!("\x1b_Gi={PROBE_IMAGE_ID},p=1;EINVAL\x1b\\").as_bytes())
+        .unwrap();
+    assert!(
+        wait_trace(&dir, "\"placements\":false", Duration::from_secs(10)),
+        "trace never recorded the placement rejection; trace:\n{}",
+        trace_text(&dir)
+    );
+    // Start a run, then read until the whole-frame fallback reached the
+    // pipe: from then on the unread frames build the write pressure.
+    (&pty.master).write_all(b"\r").unwrap();
+    assert!(
+        wait_for(
+            &mut read_end,
+            &mut seen,
+            "a=T,f=100",
+            Duration::from_secs(15)
+        ),
+        "the whole-frame fallback display never reached the pipe; tail: {}",
+        tail(&seen)
+    );
+    assert!(
+        wait_trace(&dir, "\"kind\":\"watchdog\"", Duration::from_secs(30)),
+        "the watchdog never downgraded under write pressure; trace:\n{}",
+        trace_text(&dir)
+    );
+
+    let mut buf = Vec::new();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline {
+        let mut chunk = [0u8; 65536];
+        match read_end.read(&mut chunk) {
+            Ok(0) => break,
+            Ok(n) => buf.extend_from_slice(&chunk[..n]),
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(_) => std::thread::sleep(Duration::from_millis(10)),
+        }
+    }
+    let mut drained = Vec::new();
+    reap(&mut child, &mut pty.master, &mut drained);
+    seen.extend_from_slice(&buf);
+
+    let release = format!(
+        "\x1b_Ga=d\x1b\\\x1b_Ga=d,d=I,i={STATIC_IMAGE_ID}\x1b\\\
+         \x1b_Ga=d,d=I,i={ATLAS_IMAGE_ID}\x1b\\\x1b_Ga=d,d=I,i=1\x1b\\"
+    );
+    let rel_at = find_last(&seen, release.as_bytes()).unwrap_or_else(|| {
+        panic!(
+            "release quartet (delete-all, both image frees, and the whole-frame free) \
+             never landed; tail: {}",
+            tail(&seen)
+        )
+    });
+    let dcs_at = find(&seen[rel_at..], b"\x1bPq")
+        .map(|i| i + rel_at)
+        .unwrap_or_else(|| {
+            panic!(
+                "no Sixel DCS frame after the release; tail: {}",
+                tail(&seen)
+            )
+        });
+    assert!(rel_at < dcs_at, "the release must precede the first Sixel DCS");
+    let apcs = apc_params(&seen[..rel_at]);
+    assert!(
+        apcs.iter()
+            .any(|p| get(&kv(p), "a") == Some("T") && get(&kv(p), "i") == Some("1")),
+        "the fallback path must have displayed the whole-frame image id 1"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// F18: a single transient write failure on a healthy Kitty tier must
 /// force a full repaint. The renderer commits its diff state while
 /// composing, so without the reset the next successful frame would diff
