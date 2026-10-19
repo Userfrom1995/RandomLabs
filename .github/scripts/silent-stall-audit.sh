@@ -510,10 +510,11 @@ done
 # generic sweep: every step block that reaches the owner PAT must carry the
 # exact gate condition, so a newly inserted ungated PAT-touching step trips
 # the rule even before its author extends the list. The match is the bare
-# `OPENCODE_PAT` token and a whole-file containment check requires every
-# occurrence to sit inside a named step, so the bracket spelling
-# (`secrets['OPENCODE_PAT']`) and a job-level mapping reached through a later
-# `${{ env.X }}` indirection both fail closed (PR #698 round 6, observation).
+# `OPENCODE` stem and a whole-file containment check requires every occurrence
+# to be step-indented and attributed to a named step, so the bracket spelling
+# (`secrets['OPENCODE_PAT']`), a job- or workflow-level mapping reached
+# through a later `${{ env.X }}` indirection, and YAML-escaped spellings all
+# fail closed (PR #698 rounds 6-7).
 # Every step boundary must be a named `      - name: ` header: an unnamed
 # `      - run:` step is invisible to the name-keyed extraction AND the PAT
 # sweep, so an ungated owner-PAT step could ride every run (PR #698 round 5,
@@ -529,11 +530,20 @@ done
 # reds every denial, a final `exit 1` swap or deletion and an early `exit 0`
 # restored the hollow green: all kept the textual pins green). The body is
 # also pinned STRUCTURALLY to the pins it may read (PR #698 round 7): only
-# AGENT_GATE and AGENT_OUTCOME variable references are allowed and command
-# substitution is rejected, so a branch keyed on any ambient Actions env var
-# (an inserted `[ -n "${GITHUB_EVENT_NAME:-}" ]` restored the hollow green in
-# production while the hermetic harness stayed green) trips the rule by
-# construction rather than only when the harness happens to set that var.
+# AGENT_GATE and AGENT_OUTCOME references survive; any other `$` token
+# ($0 differs between the harness and a production temp script, $?, ${!var}
+# indirect expansion, command substitution) and any backtick trips the rule,
+# so a branch keyed on any ambient Actions env var (an inserted
+# `[ -n "${GITHUB_EVENT_NAME:-}" ]` restored the hollow green in production
+# while the hermetic harness stayed green) fails by construction rather than
+# only when the harness happens to set that var. YAML indirection is banned
+# outright for the same reason: anchors/aliases can hide a key or the owner
+# PAT behind a name the text pins never see, `?` complex keys sidestep the
+# key regexes, and escape sequences (`\u002D`, `\x65`, `\u005F`) decode to
+# tokens the searches never match; no such construct exists in the workflow
+# today, and a job- OR workflow-level `env:` (the latter applies to every
+# step) is rejected outright, so the owner PAT cannot reach an ungated step
+# through an env indirection at any level.
 # The gate header reject also matches YAML-equivalent key spellings
 # (`if :`, `"if":`, `continue-on-error :`) so whitespace or quoting cannot
 # smuggle a conditional gate past the pin (PR #698 round 5, finding 3). The
@@ -601,6 +611,27 @@ else
   if printf '%s\n' "$r12_job_block" | grep -qE "^    [\"']?env[\"']?[[:space:]]*:"; then
     r12_bad="${r12_bad} maintainer.yml(job-level-env)"
   fi
+  # Workflow-level `env:` (column 0) applies to every step of every job just
+  # like a job-level one (PR #698 round 7: it reaches all steps and, placed
+  # after the steps list, the nearest-step PAT attribution would blame a gated
+  # step).
+  if grep -qE "^[\"']?env[\"']?[[:space:]]*:" "$r12_main_wf"; then
+    r12_bad="${r12_bad} maintainer.yml(workflow-level-env)"
+  fi
+  # YAML indirection is banned outright (PR #698 round 7): anchors/aliases can
+  # hide a key or a secret behind a name the text pins never see (a key-node
+  # anchor on `continue-on-error`, an alias handing the owner PAT to an
+  # ungated step), `?` complex keys sidestep the key regexes, and escape
+  # sequences (`"continue\u002Don-error"`, `secrets.OPENCODE\u005FPAT`) decode
+  # to tokens the text searches never match. None of these constructs exists
+  # in this workflow today; a future legitimate use must extend this rule with
+  # review.
+  r12_yaml_indirect=$(grep -nE ':[[:space:]]*&[A-Za-z_]|-[[:space:]]*&[A-Za-z_]|:[[:space:]]*\*[A-Za-z_]|-[[:space:]]*\*[A-Za-z_]|^[[:space:]]*&[A-Za-z_]|^[[:space:]]*\*[A-Za-z_]|^[[:space:]]*\?[[:space:]]|\\[uUx][0-9a-fA-F]' "$r12_main_wf" || true)
+  [ -z "$r12_yaml_indirect" ] || r12_bad="${r12_bad} maintainer.yml(yaml-indirection:$(printf '%s' "$r12_yaml_indirect" | cut -d: -f1-2 | tr '\n' ';'))"
+  # Duplicate `steps:` keys are a strict-parser 422 today, but pin the count
+  # anyway (PR #698 round 7): a last-wins parser would silently drop the whole
+  # real steps list.
+  [ "$(grep -cE '^    [\"']?steps[\"']?[[:space:]]*:' "$r12_main_wf" || true)" = "1" ] || r12_bad="${r12_bad} maintainer.yml(steps-key-count)"
   r12_main_block() {
     awk -v step="      - name: $1" '
       $0 == step { in_step=1; next }
@@ -712,8 +743,14 @@ else
     # must extend the allowlist with review.
     r12_verify_vars=$(printf '%s\n' "$r12_verify_run" | grep -oE '[$][{]?[A-Za-z_][A-Za-z0-9_]*' | sed 's/^[$][{]*//' | sort -u | grep -vE '^(AGENT_GATE|AGENT_OUTCOME)$' || true)
     [ -z "$r12_verify_vars" ] || r12_bad="${r12_bad} maintainer.yml(verify-ambient-env:$(printf '%s' "$r12_verify_vars" | tr '\n' ';'))"
-    if printf '%s\n' "$r12_verify_run" | grep -q '[$]('; then
-      r12_bad="${r12_bad} maintainer.yml(verify-command-substitution)"
+    # Stronger structural pin: after removing the ONLY two allowed references,
+    # any remaining `$` or backtick is an unexpected shell token. This closes
+    # the spellings the name-list above cannot see ($0 differs between the
+    # harness and a production temp script; $?/$#; ${!var} indirect
+    # expansion; command substitution; backticks).
+    r12_verify_stripped=$(printf '%s\n' "$r12_verify_run" | sed -e 's/${AGENT_GATE:-}/ /g' -e 's/$AGENT_OUTCOME/ /g')
+    if printf '%s\n' "$r12_verify_stripped" | grep -q '[$`]'; then
+      r12_bad="${r12_bad} maintainer.yml(verify-unexpected-shell-token)"
     fi
     r12_case() {
       rm -rf "$r12_vsbx/ws"; mkdir -p "$r12_vsbx/ws/.maintainer"
@@ -761,24 +798,31 @@ else
   done < <(grep '^      - name: ' "$r12_main_wf" | sed 's/^      - name: //')
   [ -z "$r12_pat_ungated" ] || r12_bad="${r12_bad} maintainer.yml(pat-step-ungated:${r12_pat_ungated})"
   # Whole-file PAT containment (PR #698 rounds 5-7, observation plus the
-  # round-7 job-key-order escape): the name-keyed sweep only sees named step
-  # blocks, so a job-level `env: X: ${{ secrets.OPENCODE_PAT }}` (or the
-  # bracket spelling `secrets['OPENCODE_PAT']`) plus a later ${{ env.X }}
-  # indirection could hand the owner PAT to an ungated step; placed after the
-  # whole `steps:` list, the nearest-step attribution below would blame the
-  # last (gated) step, so the job-level `env:` key reject above is what makes
-  # that case fail closed regardless of key order. Match the bare token (not
-  # only the dot spelling) and require every occurrence to sit inside a named
-  # step block (its block is then covered by the sweep above).
+  # round-7 job-key-order and workflow-level-env escapes): the name-keyed
+  # sweep only sees named step blocks, so a job- or workflow-level
+  # `env: X: ${{ secrets.OPENCODE_PAT }}` (or the bracket spelling
+  # `secrets['OPENCODE_PAT']`) plus a later ${{ env.X }} indirection could
+  # hand the owner PAT to an ungated step. Match the bare `OPENCODE` stem
+  # (catches the bracket spelling and any decoded-underscore variant the text
+  # pins cannot see), require the line to be step-indented (>= 8 spaces; a
+  # 4-space job key or 0-space workflow key is outside any step regardless of
+  # key order), and attribute it to the nearest preceding named step (that
+  # block is then covered by the sweep above).
   r12_pat_outside=""
   while IFS= read -r r12_pat_ln; do
+    [ -n "$r12_pat_ln" ] || continue
+    r12_pat_indent=$(awk -v n="$r12_pat_ln" 'NR==n { match($0, /^[ ]*/); print RLENGTH }' "$r12_main_wf")
+    if [ "${r12_pat_indent:-0}" -lt 8 ]; then
+      r12_pat_outside="${r12_pat_outside} line${r12_pat_ln}"
+      continue
+    fi
     r12_pat_owner=$(awk -v n="$r12_pat_ln" 'NR <= n && /^      - name: / { name = substr($0, 15) } NR == n { print name }' "$r12_main_wf")
     [ -n "$r12_pat_owner" ] || r12_pat_outside="${r12_pat_outside} line${r12_pat_ln}"
-  done < <(grep -n 'OPENCODE_PAT' "$r12_main_wf" | cut -d: -f1)
+  done < <(grep -n 'OPENCODE' "$r12_main_wf" | cut -d: -f1)
   [ -z "$r12_pat_outside" ] || r12_bad="${r12_bad} maintainer.yml(pat-outside-step:${r12_pat_outside})"
 fi
 if [ -z "$r12_bad" ]; then
-  check "R12" "every opencode-run agent workflow (and the maintainer inline runner, issue #696) fails closed behind the shared actor-write gate: gate invoked, agent wired to the gate output, maintainer verify carries the terminal denial outcome and is executed across the full success/failure/cancelled/skipped outcome matrix with only AGENT_GATE/AGENT_OUTCOME readable and no command substitution, every post-gate maintainer side-effect step is gated on the same output, every owner-PAT occurrence sits inside a gated named step, and neither the gate, the verify step, nor the maintainer job (including a job-level env) tolerates or bypasses failure" "ok"
+  check "R12" "every opencode-run agent workflow (and the maintainer inline runner, issue #696) fails closed behind the shared actor-write gate: gate invoked, agent wired to the gate output, maintainer verify carries the terminal denial outcome and is executed across the full success/failure/cancelled/skipped outcome matrix with only AGENT_GATE/AGENT_OUTCOME readable (no other shell token, no backtick), every post-gate maintainer side-effect step is gated on the same output, every owner-PAT occurrence sits inside a gated step-indented line, no YAML anchor/alias/complex-key/escape indirection exists, and neither the gate, the verify step, nor the maintainer job (with no job- or workflow-level env) tolerates or bypasses failure" "ok"
 else
   check "R12" "actor-write gate coverage missing:${r12_bad} (issues #428/#696: an unprivileged comment can launch an agent and its owner-PAT retry launders the actor; a bot pull_request event reds the maintainer run and posts a noise comment)" "bad"
 fi
