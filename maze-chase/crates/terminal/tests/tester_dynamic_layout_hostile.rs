@@ -375,7 +375,7 @@ fn b64_prefix_decode(s: &str) -> Vec<u8> {
 }
 
 /// The `r=`/`c=` cell footprint (rows, cols) of the first Kitty static
-/// board placement in `bytes` (the Phase 3 placement path: the image is
+/// board placement in `bytes` (the placement path: the image is
 /// transmitted once with `a=t` and the static layer displays it with
 /// `a=p`).
 fn first_display_placement(bytes: &[u8]) -> (u32, u32) {
