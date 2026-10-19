@@ -547,9 +547,13 @@ else
   else
     [ "$(printf '%s\n' "$r12_verify_block" | grep -cE '^[[:space:]]*if:' || true)" = "1" ] || r12_bad="${r12_bad} maintainer.yml(verify-if-count)"
     printf '%s\n' "$r12_verify_block" | grep -qxF '        if: always()' || r12_bad="${r12_bad} maintainer.yml(verify-not-always)"
-    printf '%s\n' "$r12_verify_block" | grep -qF 'AGENT_GATE: ${{ steps.actor_gate.outputs.run }}' || r12_bad="${r12_bad} maintainer.yml(verify-no-gate-env)"
-    printf '%s\n' "$r12_verify_block" | grep -qF 'if [ "${AGENT_GATE:-}" != "true" ]; then' || r12_bad="${r12_bad} maintainer.yml(verify-no-third-outcome)"
-    printf '%s\n' "$r12_verify_block" | grep -qF 'Actor write gate skipped the Maintainer agent' || r12_bad="${r12_bad} maintainer.yml(verify-no-denial-notice)"
+    # Anchored whole-line pins (PR #698 round 3, blocking finding 1): the
+    # previous unanchored substrings let a commented-out decoy line (or a
+    # full-line comment-out of the denial branch) disable the third outcome
+    # or the loud red while the audit stayed green.
+    printf '%s\n' "$r12_verify_block" | grep -qxF '          AGENT_GATE: ${{ steps.actor_gate.outputs.run }}' || r12_bad="${r12_bad} maintainer.yml(verify-no-gate-env)"
+    printf '%s\n' "$r12_verify_block" | grep -qxF '          if [ "${AGENT_GATE:-}" != "true" ]; then' || r12_bad="${r12_bad} maintainer.yml(verify-no-third-outcome)"
+    printf '%s\n' "$r12_verify_block" | grep -qxF '            echo "::notice::Actor write gate skipped the Maintainer agent (issue #428): denial is not a crash - no agent run, no noise comment, no red, no self-heal, no /oc maintainer escalation."' || r12_bad="${r12_bad} maintainer.yml(verify-no-denial-notice)"
   fi
   for r12_step in "${r12_main_steps[@]}"; do
     r12_step_block=$(r12_main_block "$r12_step")
