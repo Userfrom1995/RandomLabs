@@ -489,20 +489,27 @@ done
 # maintainer.yml inline-runner parity (issue #696): the gate step must sit
 # IMMEDIATELY after checkout, carry the exact `id: actor_gate` and the
 # GH_TOKEN / GATE_EVENT / GATE_ACTOR / GATE_LABEL mappings, invoke the
-# shared script on an anchored `run:` line, wire the agent step and every
-# post-gate side-effect step on its output, and give the verify step the
-# terminal third outcome behind its pinned `if: always()` activation. Every
-# pinned line is anchored whole-line (per-key anchored count `= 1` plus the
-# exact pinned value for the gate `id`, mappings, and script run; `grep -qxF`
-# for the verify env mapping, third-outcome conditional, and denial notice),
-# so a commented-out, duplicated, or substring-preserving decoy line can
-# never satisfy a pin (PR #698 rounds 2-3). The step list is explicit and
-# matched against full `      - name: ` lines: a substring-preserving rename
-# of a listed step trips the rule (its extracted block comes back empty),
-# and a dropped gate condition on any listed step trips the rule. The list
-# is backed by a generic sweep: every step block that reaches the owner PAT
-# must carry the exact gate condition, so a newly inserted ungated
-# PAT-touching step trips the rule even before its author extends the list.
+# shared script on an anchored `run:` line, and carry no `if:` /
+# `continue-on-error:` of its own (a conditional gate step or tolerated gate
+# failure silently disables every maintainer run); the agent step, the
+# verify step's activation and its entire denial branch, and every post-gate
+# side-effect step are pinned. Every pinned line is anchored whole-line
+# (per-key anchored count `= 1` plus the exact pinned value for the gate
+# `id`, mappings, and script run; `grep -qxF` for the verify env mapping;
+# a byte-exact block comparison for the verify denial branch: conditional,
+# notice, `exit 0`, `fi`), so a commented-out, duplicated, re-valued, or
+# substring-preserving decoy line can never satisfy a pin (PR #698 rounds
+# 2-4). The verify step may not carry `continue-on-error:` (it would mute
+# the loud red for a gate-allowed crash), must keep the denial branch FIRST
+# (an order swap feeds a denial into the loud red), and duplicate step
+# `- name:` headers are rejected outright because the name-keyed extraction
+# stops at the first match. The step list is explicit and matched against
+# full `      - name: ` lines: a substring-preserving rename of a listed
+# step trips the rule (its extracted block comes back empty), and a dropped
+# gate condition on any listed step trips the rule. The list is backed by a
+# generic sweep: every step block that reaches the owner PAT must carry the
+# exact gate condition, so a newly inserted ungated PAT-touching step trips
+# the rule even before its author extends the list.
 r12_main_steps=(
   "Remove maintainer stray PRs and branches (the Maintainer never opens PRs)"
   "Emergency-gated commit and push of workflow model updates to main"
@@ -528,6 +535,14 @@ else
   elif [ "$(awk -v a="$r12_main_checkout_ln" -v b="$r12_main_gate_ln" 'NR>a && NR<b && /^      - name: /{n++} END{print n+0}' "$r12_main_wf")" != "0" ]; then
     r12_bad="${r12_bad} maintainer.yml(gate-not-immediately-after-checkout)"
   fi
+  # Unique step names are what make the name-keyed extraction below sound (PR
+  # #698 round 4, blocking finding 3): r12_main_block() stops at the FIRST
+  # matching header, so a step that duplicates a pinned name and sits after
+  # the real step is invisible to the explicit list AND to the generic PAT
+  # sweep, letting a copy-pasted ungated owner-PAT step ride every Maintainer
+  # run including a denied trigger. No current step name is duplicated.
+  r12_dup_steps=$(grep '^      - name: ' "$r12_main_wf" | sed 's/^      - name: //' | sort | uniq -d)
+  [ -z "$r12_dup_steps" ] || r12_bad="${r12_bad} maintainer.yml(duplicate-step-names:$(printf '%s' "$r12_dup_steps" | tr '\n' ';'))"
   r12_main_block() {
     awk -v step="      - name: $1" '
       $0 == step { in_step=1; next }
@@ -555,6 +570,15 @@ else
   printf '%s\n' "$r12_main_gate_block" | grep -qxF '          GATE_LABEL: maintainer' || r12_bad="${r12_bad} maintainer.yml(gate-no-label-mapping)"
   [ "$(r12_main_gate_key_count '        run:')" = "1" ] || r12_bad="${r12_bad} maintainer.yml(gate-run-key-count)"
   printf '%s\n' "$r12_main_gate_block" | grep -qxF '        run: bash .github/scripts/actor-write-gate.sh' || r12_bad="${r12_bad} maintainer.yml(no-gate-script-run)"
+  # The gate step's OWN activation and failure tolerance are pinned too (PR
+  # #698 round 4, blocking finding 1): an `if:` on the gate step would let it
+  # never run ($GITHUB_OUTPUT never receives `run=`, every trigger becomes a
+  # silent green no-op forever: no agent, no comment, no merge, no memory
+  # publish), and a `continue-on-error:` would turn the gate's deliberate red
+  # paths (an empty output means the gate failed red) into fail-silent,
+  # indistinguishable from a denial at the verify step.
+  r12_gate_hdr_bad=$(printf '%s\n' "$r12_main_gate_block" | grep -cE '^[[:space:]]*(if|continue-on-error):' || true)
+  [ "$r12_gate_hdr_bad" = "0" ] || r12_bad="${r12_bad} maintainer.yml(gate-conditional-or-tolerated-failure)"
   r12_agent_block=$(r12_main_block "Run Maintainer agent")
   if [ "$(printf '%s\n' "$r12_agent_block" | grep -cE '^[[:space:]]*if:' || true)" != "1" ] \
      || ! printf '%s\n' "$r12_agent_block" | grep -qxF "        if: steps.actor_gate.outputs.run == 'true'"; then
@@ -566,13 +590,39 @@ else
   else
     [ "$(printf '%s\n' "$r12_verify_block" | grep -cE '^[[:space:]]*if:' || true)" = "1" ] || r12_bad="${r12_bad} maintainer.yml(verify-if-count)"
     printf '%s\n' "$r12_verify_block" | grep -qxF '        if: always()' || r12_bad="${r12_bad} maintainer.yml(verify-not-always)"
-    # Anchored whole-line pins (PR #698 round 3, blocking finding 1): the
-    # previous unanchored substrings let a commented-out decoy line (or a
-    # full-line comment-out of the denial branch) disable the third outcome
-    # or the loud red while the audit stayed green.
+    # Anchored whole-line pins (PR #698 rounds 3-4): the original unanchored
+    # substrings let a commented-out decoy line (or a full-line comment-out of
+    # the denial branch) disable the third outcome or the loud red while the
+    # audit stayed green, so the env mapping is count-pinned and whole-line
+    # pinned, and the denial branch below is pinned byte-exact.
+    [ "$(printf '%s\n' "$r12_verify_block" | grep -cE '^[[:space:]]*AGENT_GATE:' || true)" = "1" ] || r12_bad="${r12_bad} maintainer.yml(verify-gate-key-count)"
     printf '%s\n' "$r12_verify_block" | grep -qxF '          AGENT_GATE: ${{ steps.actor_gate.outputs.run }}' || r12_bad="${r12_bad} maintainer.yml(verify-no-gate-env)"
-    printf '%s\n' "$r12_verify_block" | grep -qxF '          if [ "${AGENT_GATE:-}" != "true" ]; then' || r12_bad="${r12_bad} maintainer.yml(verify-no-third-outcome)"
-    printf '%s\n' "$r12_verify_block" | grep -qxF '            echo "::notice::Actor write gate skipped the Maintainer agent (issue #428): denial is not a crash - no agent run, no noise comment, no red, no self-heal, no /oc maintainer escalation."' || r12_bad="${r12_bad} maintainer.yml(verify-no-denial-notice)"
+    # The verify step may not tolerate failure either (PR #698 round 4,
+    # blocking finding 1): a `continue-on-error:` there mutes the loud red for
+    # a gate-allowed crash.
+    if printf '%s\n' "$r12_verify_block" | grep -qE '^[[:space:]]*continue-on-error:'; then
+      r12_bad="${r12_bad} maintainer.yml(verify-continue-on-error)"
+    fi
+    # The denial branch is pinned byte-exact AND first (PR #698 round 4,
+    # blocking finding 2): neither its `exit 0` nor its position was pinned,
+    # so `exit 1` redded denials (issue #696's exact symptom) and a branch
+    # moved below the decision-file check fed a denial into the loud red.
+    r12_verify_deny_block=$(printf '%s\n' "$r12_verify_block" | awk '
+      $0 == "          if [ \"${AGENT_GATE:-}\" != \"true\" ]; then" { f=1 }
+      f { print }
+      f && $0 == "          fi" { exit }
+    ')
+    r12_verify_deny_expected='          if [ "${AGENT_GATE:-}" != "true" ]; then
+            echo "::notice::Actor write gate skipped the Maintainer agent (issue #428): denial is not a crash - no agent run, no noise comment, no red, no self-heal, no /oc maintainer escalation."
+            exit 0
+          fi'
+    [ "$r12_verify_deny_block" = "$r12_verify_deny_expected" ] || r12_bad="${r12_bad} maintainer.yml(verify-denial-branch-changed)"
+    r12_verify_deny_ln=$(printf '%s\n' "$r12_verify_block" | grep -nxF '          if [ "${AGENT_GATE:-}" != "true" ]; then' | cut -d: -f1)
+    r12_verify_decision_ln=$(printf '%s\n' "$r12_verify_block" | grep -nxF '          if [ -f .maintainer/decision.json ]; then' | cut -d: -f1)
+    if [ -z "$r12_verify_deny_ln" ] || [ -z "$r12_verify_decision_ln" ] \
+       || [ "$r12_verify_deny_ln" -ge "$r12_verify_decision_ln" ]; then
+      r12_bad="${r12_bad} maintainer.yml(verify-denial-not-first)"
+    fi
   fi
   for r12_step in "${r12_main_steps[@]}"; do
     r12_step_block=$(r12_main_block "$r12_step")
