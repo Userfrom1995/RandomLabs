@@ -19,6 +19,9 @@ maze-chase-assets = { path = "../assets" }
 maze-chase-audio = { path = "../audio" }
 maze-chase-config = { path = "../config" }
 crossterm = "0.29"
+# Real DEFLATE for the board PNG: stored blocks made a crumb eaten cost
+# a whole uncompressed board transmit (about 1 MB) on the Kitty tier.
+miniz_oxide = "0.9"
 
 # Bounded stdin waits for the live DA1 probe (poll(2) on Unix, a
 # waitable console handle plus queued-record reads on Windows) so no

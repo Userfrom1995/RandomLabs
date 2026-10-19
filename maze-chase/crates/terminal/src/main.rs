@@ -12,6 +12,7 @@ use crossterm::terminal::{
 };
 use maze_chase_terminal::app::{config_dir, App};
 use maze_chase_terminal::backend::Tier;
+use maze_chase_terminal::screens::ScreenId;
 use maze_chase_terminal::{chrome, input, sixel, unicode};
 use std::io::{IsTerminal, Write};
 use std::time::{Duration, Instant};
@@ -57,15 +58,35 @@ impl Terminal {
         let mut out = std::io::stdout();
         execute!(out, EnterAlternateScreen)?;
         execute!(out, crossterm::cursor::Hide)?;
+        let mut term = Self {
+            kitty_keyboard: false,
+        };
         if kitty_keyboard {
+            term.set_kitty_keyboard(true);
+        }
+        Ok(term)
+    }
+
+    /// Push or pop kitty's keyboard enhancement protocol. Called when the
+    /// live probe upgrades to the graphics tier after the terminal
+    /// takeover (or when the watchdog drops back to cells), so key
+    /// reporting matches the active tier.
+    fn set_kitty_keyboard(&mut self, on: bool) {
+        if self.kitty_keyboard == on {
+            return;
+        }
+        let mut out = std::io::stdout();
+        if on {
             let _ = execute!(
                 out,
                 crossterm::event::PushKeyboardEnhancementFlags(
                     KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
                 )
             );
+        } else {
+            let _ = execute!(out, crossterm::event::PopKeyboardEnhancementFlags);
         }
-        Ok(Self { kitty_keyboard })
+        self.kitty_keyboard = on;
     }
 }
 
@@ -81,6 +102,37 @@ impl Drop for Terminal {
     }
 }
 
+/// Which protocol reply a bounded startup probe waits for.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ReplyKind {
+    /// Sixel capability: a complete DA1 `ESC [ ? params c` answer.
+    Da1,
+    /// Kitty graphics: a complete `ESC _ G ... ESC \` APC reply.
+    Kitty,
+}
+
+impl ReplyKind {
+    fn complete(self, captured: &[u8]) -> bool {
+        match self {
+            ReplyKind::Da1 => da1_reply_complete(captured),
+            ReplyKind::Kitty => maze_chase_terminal::kitty::reply_complete(captured),
+        }
+    }
+
+    /// Split a capture into `(reply, typed)`: the framed reply bytes (when
+    /// one completed) and every other byte, which is user input typed
+    /// while the probe waited.
+    fn split(self, captured: &[u8]) -> (Vec<u8>, Vec<u8>) {
+        match self {
+            ReplyKind::Da1 => split_da1_reply(captured),
+            ReplyKind::Kitty => {
+                let (replies, typed) = maze_chase_terminal::kitty::split_replies(captured);
+                (replies.join("").into_bytes(), typed)
+            }
+        }
+    }
+}
+
 /// Outcome of the live Sixel probe: whether the terminal positively
 /// announced Sixel, plus every user keystroke the probe read while
 /// waiting. Captured keys are replayed into the game loop (never
@@ -88,6 +140,67 @@ impl Drop for Terminal {
 struct ProbeOutcome {
     sixel: bool,
     typed: Vec<u8>,
+}
+
+/// Outcome of the live Kitty graphics probe.
+struct KittyProbe {
+    /// `None` when the terminal never answered (`not a kitty terminal`);
+    /// `Some(placements)` when graphics work, with placement support.
+    support: Option<KittySupport>,
+    typed: Vec<u8>,
+    elapsed: Duration,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct KittySupport {
+    /// The terminal accepted `a=p` placements (otherwise the renderer
+    /// falls back to whole-frame transmits).
+    placements: bool,
+}
+
+/// Live Kitty graphics probe: asks the terminal with a real 1x1
+/// transmit plus a placement and waits up to 200 ms for the framed
+/// replies. Bounded like the DA1 probe, and every non-reply byte the
+/// probe reads comes back in `typed` so it is replayed, never swallowed.
+fn probe_kitty_live() -> KittyProbe {
+    let started = Instant::now();
+    if !std::io::stdin().is_terminal() {
+        return KittyProbe {
+            support: None,
+            typed: Vec::new(),
+            elapsed: started.elapsed(),
+        };
+    }
+    {
+        let mut out = std::io::stdout();
+        let _ = out.write_all(maze_chase_terminal::kitty::probe_request().as_bytes());
+        let _ = out.flush();
+    }
+    let (reply, typed) = read_probe_reply(ReplyKind::Kitty, Duration::from_millis(200));
+    let (replies, _) = maze_chase_terminal::kitty::split_replies(&reply);
+    let support = match replies
+        .first()
+        .and_then(|body| maze_chase_terminal::kitty::reply_ok(body))
+    {
+        Some(true) => Some(KittySupport {
+            placements: replies
+                .get(1)
+                .and_then(|body| maze_chase_terminal::kitty::reply_ok(body))
+                .unwrap_or(false),
+        }),
+        _ => None,
+    };
+    // The probe is over either way: remove its placement and image data.
+    {
+        let mut out = std::io::stdout();
+        let _ = out.write_all(maze_chase_terminal::kitty::probe_cleanup().as_bytes());
+        let _ = out.flush();
+    }
+    KittyProbe {
+        support,
+        typed,
+        elapsed: started.elapsed(),
+    }
 }
 
 /// Live Sixel probe: asks the terminal (DA1) and waits up to 250 ms for
@@ -108,7 +221,7 @@ fn probe_sixel_live() -> ProbeOutcome {
         let _ = out.write_all(sixel::probe_request().as_bytes());
         let _ = out.flush();
     }
-    let (reply, typed) = read_probe_reply(Duration::from_millis(250));
+    let (reply, typed) = read_probe_reply(ReplyKind::Da1, Duration::from_millis(250));
     ProbeOutcome {
         sixel: da1_reply_complete(&reply) && sixel::probe_ok(&String::from_utf8_lossy(&reply)),
         typed,
@@ -154,20 +267,24 @@ fn split_da1_reply(captured: &[u8]) -> (Vec<u8>, Vec<u8>) {
     }
 }
 
-/// Read stdin until a complete DA1 reply lands or `timeout` elapses,
-/// reading only when bytes are ready (Unix: `poll`; Windows: a waitable
-/// console handle). Returns `(reply, typed)`: the framed DA1 reply, if
-/// any, plus every other byte read (user keystrokes), never dropped.
+/// Read stdin until a complete reply for `kind` lands or `timeout`
+/// elapses, reading only when bytes are ready (Unix: `poll`; Windows: a
+/// waitable console handle). Returns `(reply, typed)`: the framed reply,
+/// if any, plus every other byte read (user keystrokes), never dropped.
 #[cfg(unix)]
-fn read_probe_reply(timeout: Duration) -> (Vec<u8>, Vec<u8>) {
+fn read_probe_reply(kind: ReplyKind, timeout: Duration) -> (Vec<u8>, Vec<u8>) {
     use std::os::fd::AsRawFd;
-    read_probe_reply_fd(std::io::stdin().as_raw_fd(), timeout)
+    read_probe_reply_fd(std::io::stdin().as_raw_fd(), kind, timeout)
 }
 
 /// [`read_probe_reply`] for an arbitrary fd (the pipe-based tests drive
 /// this directly).
 #[cfg(unix)]
-fn read_probe_reply_fd(fd: std::os::fd::RawFd, timeout: Duration) -> (Vec<u8>, Vec<u8>) {
+fn read_probe_reply_fd(
+    fd: std::os::fd::RawFd,
+    kind: ReplyKind,
+    timeout: Duration,
+) -> (Vec<u8>, Vec<u8>) {
     let deadline = Instant::now() + timeout;
     let mut captured: Vec<u8> = Vec::new();
     let mut buf = [0u8; 64];
@@ -191,11 +308,11 @@ fn read_probe_reply_fd(fd: std::os::fd::RawFd, timeout: Duration) -> (Vec<u8>, V
             break;
         }
         captured.extend_from_slice(&buf[..n as usize]);
-        if da1_reply_complete(&captured) {
+        if kind.complete(&captured) {
             break;
         }
     }
-    split_da1_reply(&captured)
+    kind.split(&captured)
 }
 
 /// Windows arm: the console input handle is waitable, but a high-level
@@ -207,7 +324,7 @@ fn read_probe_reply_fd(fd: std::os::fd::RawFd, timeout: Duration) -> (Vec<u8>, V
 /// Rust's buffered stdin (a fill can strand records where crossterm
 /// will never look).
 #[cfg(windows)]
-fn read_probe_reply(timeout: Duration) -> (Vec<u8>, Vec<u8>) {
+fn read_probe_reply(kind: ReplyKind, timeout: Duration) -> (Vec<u8>, Vec<u8>) {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::Foundation::WAIT_OBJECT_0;
     use windows_sys::Win32::System::Console::{
@@ -255,17 +372,17 @@ fn read_probe_reply(timeout: Duration) -> (Vec<u8>, Vec<u8>) {
                 }
             }
         }
-        if da1_reply_complete(&captured) {
+        if kind.complete(&captured) {
             break;
         }
     }
-    split_da1_reply(&captured)
+    kind.split(&captured)
 }
 
 /// No portable bounded console read elsewhere: stay on the cell tier
 /// rather than leave a blocked reader behind.
 #[cfg(not(any(unix, windows)))]
-fn read_probe_reply(_timeout: Duration) -> (Vec<u8>, Vec<u8>) {
+fn read_probe_reply(_kind: ReplyKind, _timeout: Duration) -> (Vec<u8>, Vec<u8>) {
     (Vec::new(), Vec::new())
 }
 
@@ -293,6 +410,355 @@ fn reconcile_size(app: &mut App) -> bool {
     }
 }
 
+/// One frame's presentation counters for the trace.
+#[derive(Clone, Copy, Debug, Default)]
+struct FrameStats {
+    mode: &'static str,
+    placements: usize,
+    static_resend: bool,
+    atlas_resend: bool,
+}
+
+/// Kitty placement pipeline: a static board layer transmitted only when
+/// it changes, a transparent sprite atlas transmitted on theme/scale
+/// change, and per-entity placements diffed against the previous frame.
+/// The full-frame path remains for terminals that answer the graphics
+/// probe but reject placements.
+struct KittyRenderer {
+    /// False when the live probe proved transmit but not `a=p` support.
+    placements: bool,
+    static_key: Option<u64>,
+    atlas_key: Option<u64>,
+    atlas: Option<maze_chase_terminal::atlas::Atlas>,
+    placed: Vec<maze_chase_terminal::atlas::Placement>,
+    force_all: bool,
+}
+
+impl KittyRenderer {
+    fn new(placements: bool) -> Self {
+        Self {
+            placements,
+            static_key: None,
+            atlas_key: None,
+            atlas: None,
+            placed: Vec::new(),
+            force_all: true,
+        }
+    }
+
+    /// Drop every transmitted image and force a full retransmit. Called
+    /// on layout/plan changes, tier changes, and screen transitions.
+    fn invalidate(&mut self) {
+        self.static_key = None;
+        self.atlas_key = None;
+        self.atlas = None;
+        self.placed.clear();
+        self.force_all = true;
+    }
+}
+
+fn static_key(
+    game: &maze_chase_engine::game::Game,
+    theme: &maze_chase_assets::themes::Theme,
+    ppt: u32,
+) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    theme.id.hash(&mut h);
+    ppt.hash(&mut h);
+    game.level.hash(&mut h);
+    game.maze.dot_bytes().hash(&mut h);
+    h.finish()
+}
+
+fn atlas_key(theme: &maze_chase_assets::themes::Theme, ppt: u32) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    theme.id.hash(&mut h);
+    ppt.hash(&mut h);
+    h.finish()
+}
+
+/// The visible-state signature that lets idle surfaces skip frames.
+/// Playing always redraws (the simulation is live); every menu, panel,
+/// and overlay is static until one of these inputs changes.
+fn frame_key(app: &App) -> u64 {
+    use maze_chase_terminal::screens::ScreenId;
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    let tag: u8 = match app.screens.current {
+        ScreenId::Title => 1,
+        ScreenId::Help => 2,
+        ScreenId::Scores => 3,
+        ScreenId::Settings => 4,
+        ScreenId::Rebind => 5,
+        ScreenId::Playing => 6,
+        ScreenId::Paused => 7,
+        ScreenId::Over => 8,
+    };
+    tag.hash(&mut h);
+    match app.screens.current {
+        ScreenId::Title => app.screens.menu.hash(&mut h),
+        ScreenId::Help => app.screens.help_scroll.hash(&mut h),
+        ScreenId::Settings => app.screens.settings_row.hash(&mut h),
+        ScreenId::Rebind => {
+            app.screens.rebind_action.hash(&mut h);
+            app.screens.capture_error.hash(&mut h);
+        }
+        ScreenId::Paused => app.screens.pause_menu.hash(&mut h),
+        ScreenId::Over => {
+            app.screens.over_score.hash(&mut h);
+            app.screens.over_level.hash(&mut h);
+            app.screens.over_rank.hash(&mut h);
+        }
+        _ => {}
+    }
+    app.ticker().hash(&mut h);
+    app.watchdog.trail.last().hash(&mut h);
+    h.finish()
+}
+
+/// Wall-clock frame budget. Per-tier target rate, an exponential moving
+/// average of the measured write time, and a one-second bytes-per-second
+/// window. A slow or expensive frame delays the next one (bounded) so a
+/// PTY is never flooded; a sustained Sixel byte flood backs off further
+/// before the watchdog ever has to degrade the tier.
+struct Pacer {
+    interval: Duration,
+    next: Instant,
+    ema_write: f64,
+    window_start: Instant,
+    window_bytes: u64,
+    bytes_per_s: f64,
+    last_skip_log: Option<Instant>,
+}
+
+/// Sixel frames are large; above this rate the pacer halves its cadence.
+const SIXEL_MAX_BYTES_PER_S: f64 = 8.0 * 1024.0 * 1024.0;
+
+impl Pacer {
+    fn for_tier(tier: Tier) -> Self {
+        let hz = match tier {
+            Tier::Kitty => 30.0,
+            Tier::Sixel => 24.0,
+            _ => 60.0,
+        };
+        let now = Instant::now();
+        Self {
+            interval: Duration::from_secs_f64(1.0 / hz),
+            next: now,
+            ema_write: 0.0,
+            window_start: now,
+            window_bytes: 0,
+            bytes_per_s: 0.0,
+            last_skip_log: None,
+        }
+    }
+
+    fn due(&self, now: Instant) -> bool {
+        now >= self.next
+    }
+
+    fn note_write(&mut self, took: Duration, bytes: usize, now: Instant) {
+        let target = self.interval.as_secs_f64();
+        let sample = took.as_secs_f64();
+        self.ema_write = if self.ema_write == 0.0 {
+            sample
+        } else {
+            self.ema_write * 0.7 + sample * 0.3
+        };
+        self.window_bytes += bytes as u64;
+        let elapsed = now.duration_since(self.window_start).as_secs_f64();
+        if elapsed >= 1.0 {
+            self.bytes_per_s = self.window_bytes as f64 / elapsed;
+            self.window_start = now;
+            self.window_bytes = 0;
+        }
+        // Never faster than the tier cadence; back off to 1.5x the
+        // smoothed write cost; double that under a Sixel byte flood.
+        // The 200 ms cap keeps degradation responsive on a stuck pipe.
+        let mut delay = target.max(self.ema_write * 1.5);
+        if self.bytes_per_s > SIXEL_MAX_BYTES_PER_S {
+            delay *= 2.0;
+        }
+        self.next = now + Duration::from_secs_f64(delay.min(0.2));
+    }
+
+    fn should_log_skip(&mut self, now: Instant) -> bool {
+        match self.last_skip_log {
+            Some(at) if at.elapsed() < Duration::from_secs(1) => false,
+            _ => {
+                self.last_skip_log = Some(now);
+                true
+            }
+        }
+    }
+}
+
+/// Kitty frame production: static layer, sprite atlas, and diffed
+/// placements in board-native pixel coordinates.
+fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRenderer) -> FrameStats {
+    use maze_chase_engine::maze::{HEIGHT, WIDTH};
+    use maze_chase_terminal::atlas;
+    use maze_chase_terminal::kitty as kg;
+
+    let b = app.layout.board;
+    let theme = app.theme();
+    let ppt = app.layout.ppt();
+    let native_w = WIDTH as u32 * ppt;
+    let native_h = HEIGHT as u32 * ppt;
+
+    if fresh {
+        out.push_str(kg::delete_all_escape());
+        out.push_str(&kg::free_image_escape(kg::STATIC_IMAGE_ID));
+        out.push_str(&kg::free_image_escape(kg::ATLAS_IMAGE_ID));
+        kitty.invalidate();
+    }
+
+    if !kitty.placements {
+        // Probe proved graphics but not placements: keep the proven
+        // whole-frame path, still silent (q=2) to protect input.
+        out.push_str(&kg::delete_escape(1));
+        let png = app.bitmap_png();
+        out.push_str(&kg::display_escape_id(
+            &png,
+            b.h as u32,
+            b.w as u32,
+            Some(1),
+        ));
+        return FrameStats {
+            mode: "frame",
+            ..FrameStats::default()
+        };
+    }
+
+    let mut static_resend = false;
+    let key = static_key(&app.game, theme, ppt);
+    if kitty.static_key != Some(key) {
+        let frame = atlas::static_frame(&app.game, theme, ppt);
+        let png = kg::png_encode_rgba(frame.w, frame.h, &frame.px);
+        out.push_str(&kg::transmit_escape(&png, kg::STATIC_IMAGE_ID));
+        kitty.static_key = Some(key);
+        static_resend = true;
+    }
+
+    let mut atlas_resend = false;
+    let akey = atlas_key(theme, ppt);
+    if kitty.atlas_key != Some(akey) {
+        let built = atlas::Atlas::build(theme, ppt);
+        let png = kg::png_encode_rgba(built.frame.w, built.frame.h, &built.frame.px);
+        out.push_str(&kg::transmit_escape(&png, kg::ATLAS_IMAGE_ID));
+        kitty.atlas = Some(built);
+        kitty.atlas_key = Some(akey);
+        kitty.placed.clear();
+        kitty.force_all = true;
+        atlas_resend = true;
+    }
+    let atlas = kitty
+        .atlas
+        .as_ref()
+        .expect("the atlas is built on first use and kept until invalidation");
+
+    if static_resend {
+        // Re-placing the static layer puts it above existing sprite
+        // placements; repaint every sprite after it in the same frame
+        // to restore the intended order.
+        kitty.force_all = true;
+        paint_line(out, b.y, b.x, "");
+        out.push_str(&kg::place_scaled_escape(
+            kg::STATIC_IMAGE_ID,
+            kg::STATIC_PLACEMENT_ID,
+            (0, 0, native_w, native_h),
+            (0, 0),
+            Some((b.w as u32, b.h as u32)),
+        ));
+    }
+
+    let desired = atlas::placements(
+        &app.game,
+        ppt,
+        app.frame_no,
+        !app.settings.reduced_flash,
+        atlas,
+    );
+    let (cell_w, cell_h) = maze_chase_terminal::geometry::detect_cell_px().unwrap_or((
+        maze_chase_terminal::geometry::NOMINAL_CELL_W_PX,
+        maze_chase_terminal::geometry::NOMINAL_CELL_H_PX,
+    ));
+    let cell_w = cell_w.max(1) as i32;
+    let cell_h = cell_h.max(1) as i32;
+    let disp_w = b.w as i32 * cell_w;
+    let disp_h = b.h as i32 * cell_h;
+    let fx = disp_w as f32 / native_w as f32;
+    let fy = disp_h as f32 / native_h as f32;
+    let scaled = (fx - 1.0).abs() > 0.02 || (fy - 1.0).abs() > 0.02;
+
+    let prev: std::collections::HashMap<u32, atlas::Placement> =
+        kitty.placed.iter().map(|p| (p.id, *p)).collect();
+    for old in &kitty.placed {
+        if !desired.iter().any(|p| p.id == old.id) {
+            out.push_str(&kg::delete_placement_escape(kg::ATLAS_IMAGE_ID, old.id));
+        }
+    }
+
+    let sprite = atlas.cell as i32;
+    let mut emitted = 0usize;
+    for part in &desired {
+        if !kitty.force_all && prev.get(&part.id) == Some(part) {
+            continue;
+        }
+        if prev.contains_key(&part.id) {
+            out.push_str(&kg::delete_placement_escape(kg::ATLAS_IMAGE_ID, part.id));
+        }
+        // Clip to the board before mapping: a sprite at the tunnel edge
+        // must never bleed into the chrome, exactly like the raster.
+        let sx0 = part.x.max(0);
+        let sy0 = part.y.max(0);
+        let sx1 = (part.x + sprite).min(native_w as i32);
+        let sy1 = (part.y + sprite).min(native_h as i32);
+        if sx1 <= sx0 || sy1 <= sy0 {
+            continue;
+        }
+        let (ax, ay) = atlas.slot_origin(part.slot);
+        let src = (
+            ax + (sx0 - part.x) as u32,
+            ay + (sy0 - part.y) as u32,
+            (sx1 - sx0) as u32,
+            (sy1 - sy0) as u32,
+        );
+        let dx = (sx0 as f32 * fx).round() as i32;
+        let dy = (sy0 as f32 * fy).round() as i32;
+        let col = b.x as i32 + dx.div_euclid(cell_w);
+        let row = b.y as i32 + dy.div_euclid(cell_h);
+        if col < 0 || row < 0 {
+            continue;
+        }
+        out.push_str(&format!("[{};{}H", row + 1, col + 1));
+        let cells = scaled.then(|| {
+            (
+                ((sx1 - sx0) as f32 * fx / cell_w as f32).round().max(1.0) as u32,
+                ((sy1 - sy0) as f32 * fy / cell_h as f32).round().max(1.0) as u32,
+            )
+        });
+        out.push_str(&kg::place_scaled_escape(
+            kg::ATLAS_IMAGE_ID,
+            part.id,
+            src,
+            (dx.rem_euclid(cell_w) as u32, dy.rem_euclid(cell_h) as u32),
+            cells,
+        ));
+        emitted += 1;
+    }
+    kitty.placed = desired;
+    kitty.force_all = false;
+    FrameStats {
+        mode: "placements",
+        placements: emitted,
+        static_resend,
+        atlas_resend,
+    }
+}
+
 /// Render one full frame into `out` (caller flushes).
 ///
 /// `fresh` marks a layout-plan or tier change: the frame first clears
@@ -300,8 +766,14 @@ fn reconcile_size(app: &mut App) -> bool {
 /// everything in the same frame, so a resize can never leave stale
 /// pixels or clipped glyphs behind (issue #674 - the old placement on
 /// the old cell grid must be gone before the new frame shows).
-fn render_frame(app: &mut App, out: &mut String, fresh: bool) {
+fn render_frame(
+    app: &mut App,
+    out: &mut String,
+    fresh: bool,
+    kitty: &mut KittyRenderer,
+) -> FrameStats {
     use maze_chase_terminal::screens::ScreenId;
+    let mut stats = FrameStats::default();
     let theme = app.theme();
     let truecolor = matches!(app.tier(), Tier::Kitty | Tier::Sixel | Tier::Truecolor);
     let cols = app.layout.cols as usize;
@@ -339,7 +811,7 @@ fn render_frame(app: &mut App, out: &mut String, fresh: bool) {
             );
         }
         out.push_str("\x1b[?2026l");
-        return;
+        return stats;
     }
     let bitmap = matches!(app.tier(), Tier::Kitty | Tier::Sixel);
     match app.screens.current {
@@ -372,20 +844,7 @@ fn render_frame(app: &mut App, out: &mut String, fresh: bool) {
                 let img = app.layout.image;
                 paint_line(out, img.y, img.x, "");
                 if app.tier() == Tier::Kitty {
-                    if fresh {
-                        // The whole placement grid changed: drop every
-                        // live placement, then re-display this frame.
-                        out.push_str(maze_chase_terminal::kitty::delete_all_escape());
-                    } else {
-                        out.push_str(&maze_chase_terminal::kitty::delete_escape(1));
-                    }
-                    let png = app.bitmap_png();
-                    out.push_str(&maze_chase_terminal::kitty::display_escape_id(
-                        &png,
-                        img.h as u32,
-                        img.w as u32,
-                        Some(1),
-                    ));
+                    stats = kitty_frame(app, out, fresh, kitty);
                 } else {
                     let frame = maze_chase_terminal::raster::render(
                         &app.game,
@@ -394,7 +853,28 @@ fn render_frame(app: &mut App, out: &mut String, fresh: bool) {
                         app.frame_no,
                         !app.settings.reduced_flash,
                     );
-                    out.push_str(&sixel::encode(&frame, 64));
+                    let encoded = sixel::encode(&frame, 64);
+                    if encoded.is_empty() {
+                        // A frame the byte budget cannot carry falls
+                        // back to cells for this frame, never a blank
+                        // or unbounded stream.
+                        let screen = unicode::render_board(
+                            &app.game,
+                            theme,
+                            &app.layout,
+                            app.frame_no,
+                            !app.settings.reduced_flash,
+                        );
+                        for (i, row) in screen.rows.iter().enumerate() {
+                            paint_line(out, i as u16, 0, &unicode::row_ansi(row, theme, truecolor));
+                        }
+                    } else {
+                        out.push_str(&encoded);
+                    }
+                    stats = FrameStats {
+                        mode: "sixel",
+                        ..FrameStats::default()
+                    };
                 }
             } else {
                 // Full repaint: every row covers the window width, so
@@ -424,6 +904,19 @@ fn render_frame(app: &mut App, out: &mut String, fresh: bool) {
             }
         }
         _ => {
+            if fresh && app.tier() == Tier::Kitty {
+                // Leaving the board for a menu: no placement grid exists
+                // on this surface, and unlike text the terminal never
+                // erases graphics on its own.
+                out.push_str(maze_chase_terminal::kitty::delete_all_escape());
+                out.push_str(&maze_chase_terminal::kitty::free_image_escape(
+                    maze_chase_terminal::kitty::STATIC_IMAGE_ID,
+                ));
+                out.push_str(&maze_chase_terminal::kitty::free_image_escape(
+                    maze_chase_terminal::kitty::ATLAS_IMAGE_ID,
+                ));
+                kitty.invalidate();
+            }
             // Full-screen surfaces.
             let lines = menu_lines(app);
             paint_panel(out, &lines, theme, truecolor, cols, rows, theme.text);
@@ -432,6 +925,7 @@ fn render_frame(app: &mut App, out: &mut String, fresh: bool) {
     // Audible BELs (capped per drain inside the sink).
     out.push_str(&app.chime.take_bells());
     out.push_str("\x1b[?2026l");
+    stats
 }
 
 /// HUD chrome for the playing surface.
@@ -628,6 +1122,34 @@ impl Trace {
     fn note_watchdog(&mut self, tier: Tier) {
         self.event(&format!("\"watchdog\",\"tier\":\"{}\"", tier.name()));
     }
+
+    fn note_probe(&mut self, protocol: &str, ok: bool, placements: bool, elapsed_ms: u128) {
+        self.event(&format!(
+            "\"probe\",\"protocol\":\"{protocol}\",\"ok\":{ok},\"placements\":{placements},\"elapsed_ms\":{elapsed_ms}"
+        ));
+    }
+
+    fn note_sixel_probe(&mut self, ok: bool) {
+        self.event(&format!("\"probe\",\"protocol\":\"sixel\",\"ok\":{ok}"));
+    }
+
+    fn note_frame(
+        &mut self,
+        seq: u64,
+        bytes: usize,
+        ppt: u32,
+        encode_ms: u128,
+        stats: &FrameStats,
+    ) {
+        self.event(&format!(
+            "\"frame\",\"seq\":{seq},\"bytes\":{bytes},\"ppt\":{ppt},\"encode_ms\":{encode_ms},\"mode\":\"{}\",\"placements\":{},\"static\":{},\"atlas\":{}",
+            stats.mode, stats.placements, stats.static_resend, stats.atlas_resend
+        ));
+    }
+
+    fn note_skip(&mut self, reason: &str) {
+        self.event(&format!("\"skip\",\"reason\":\"{reason}\""));
+    }
 }
 
 fn main() {
@@ -680,7 +1202,7 @@ fn main() {
     let (cols, rows) = crossterm::terminal::size().unwrap_or((80, 24));
     let mut app = App::new(cols, rows, &env, dir);
 
-    let term = match Terminal::new(app.tier() == Tier::Kitty) {
+    let mut term = match Terminal::new(app.tier() == Tier::Kitty) {
         Ok(t) => t,
         Err(e) => {
             eprintln!("maze-chase-terminal: cannot take over the terminal ({e})");
@@ -688,33 +1210,62 @@ fn main() {
             std::process::exit(1);
         }
     };
-    let _guard = term;
 
-    // Live Sixel probe on cell tiers (skipped when the tier is forced or
-    // already bitmap): a silent terminal costs 250 ms once, then cells.
-    // Keystrokes the probe reads while waiting are decoded here and
-    // replayed into the game loop below, never swallowed.
+    // Live capability probes on auto-detect runs. Kitty graphics is
+    // probed first (this is what enables Ghostty and any terminal that
+    // speaks the protocol without an identifying environment); Sixel's
+    // DA1 probe runs only when graphics did not answer. Both are
+    // bounded, and every key either probe reads is replayed into the
+    // game loop below, never swallowed.
     let forced = env.iter().any(|(k, _)| k == "MAZE_CHASE_TIER");
     let mut replay: Vec<crossterm::event::KeyEvent> = Vec::new();
+    let mut kitty_placements = true;
+    let mut kitty_probe = None;
+    let mut sixel_probe = None;
+    if !forced && app.tier() != Tier::Kitty {
+        let probe = probe_kitty_live();
+        replay.extend(input::keys_from_captured_bytes(&probe.typed));
+        if let Some(support) = probe.support {
+            app.watchdog.note_kitty_probe_ok();
+            kitty_placements = support.placements;
+            term.set_kitty_keyboard(true);
+        }
+        kitty_probe = Some(probe);
+    }
     if !forced && matches!(app.tier(), Tier::Truecolor | Tier::Legacy) {
         let probe = probe_sixel_live();
+        replay.extend(input::keys_from_captured_bytes(&probe.typed));
         if probe.sixel {
             app.watchdog.note_sixel_probe_ok();
         }
-        replay = input::keys_from_captured_bytes(&probe.typed);
+        sixel_probe = Some(probe);
     }
 
     let mut last = Instant::now();
     let mut out = String::new();
-    let mut bitmap_tick: u64 = 0;
     let mut fresh = true;
     let mut last_tier = app.tier();
     let mut last_plan = app.layout;
-    let mut last_image = Instant::now();
     let mut frame_seq: u64 = 0;
     let mut trace = Trace::from_env();
     trace.note_start(app.layout.cols, app.layout.rows);
     trace.note_plan(&app.layout);
+    if let Some(probe) = &kitty_probe {
+        trace.note_probe(
+            "kitty",
+            probe.support.is_some(),
+            probe.support.is_some_and(|s| s.placements),
+            probe.elapsed.as_millis(),
+        );
+    }
+    if let Some(probe) = &sixel_probe {
+        trace.note_sixel_probe(probe.sixel);
+    }
+    let mut kitty = KittyRenderer::new(kitty_placements);
+    let mut pacer = Pacer::for_tier(app.tier());
+    let mut last_key = 0u64;
+    let mut last_screen = app.screens.current;
+    let mut last_drawn = Instant::now();
     loop {
         if app.quit {
             break;
@@ -726,12 +1277,15 @@ fn main() {
             fresh = true;
             out.clear();
             out.push_str("\x1b[2J");
+            kitty.invalidate();
+            pacer = Pacer::for_tier(last_tier);
+            term.set_kitty_keyboard(last_tier == Tier::Kitty);
             trace.note_watchdog(last_tier);
         }
         let now = Instant::now();
         let dt = (now - last).as_secs_f64().clamp(0.0, 0.25);
         last = now;
-        // Poll for input; render at up to ~60 fps.
+        // Poll for input; the pacer below decides when a frame is due.
         if event::poll(Duration::from_millis(16)).unwrap_or(false) {
             match event::read() {
                 Ok(TermEvent::Key(key)) => app.on_key(key),
@@ -748,22 +1302,41 @@ fn main() {
         if app.layout != last_plan {
             last_plan = app.layout;
             fresh = true;
+            kitty.invalidate();
             trace.note_plan(&app.layout);
         }
+        if app.screens.current != last_screen {
+            // Menus never erase the graphics layer on their own; a
+            // transition must delete the board before the new surface
+            // paints (RT: the image used to linger behind Title).
+            last_screen = app.screens.current;
+            fresh = true;
+            kitty.invalidate();
+        }
         app.tick(dt.max(1.0 / 240.0));
-        // Bitmap tiers repaint pixels at ~20 fps (encode cost); cell
-        // tiers repaint text every frame. The wall-clock floor keeps a
-        // slow PTY from being flooded by back-to-back encodes.
-        let is_bitmap = matches!(app.tier(), Tier::Kitty | Tier::Sixel);
-        bitmap_tick += 1;
-        let image_due = !is_bitmap
-            || (bitmap_tick % 3 == 1 && last_image.elapsed() >= Duration::from_millis(45));
-        if image_due {
+        let key = frame_key(&app);
+        let rate_due = pacer.due(Instant::now());
+        // Idle surfaces are static, but a once-a-second keepalive repaint
+        // heals any externally disturbed cells and keeps the PTY stream
+        // observable without the old per-frame churn.
+        let idle_refresh = last_drawn.elapsed() >= Duration::from_secs(1);
+        let due = fresh
+            || (rate_due
+                && (key != last_key || app.screens.current == ScreenId::Playing || idle_refresh));
+        if rate_due && !due && pacer.should_log_skip(Instant::now()) {
+            trace.note_skip("unchanged");
+        }
+        if due {
             let encode_start = Instant::now();
             out.clear();
-            render_frame(&mut app, &mut out, fresh);
+            let stats = render_frame(&mut app, &mut out, fresh, &mut kitty);
+            let bytes = out.len();
             let mut stdout = std::io::stdout();
-            if stdout.write_all(out.as_bytes()).is_err() || stdout.flush().is_err() {
+            let wrote = stdout
+                .write_all(out.as_bytes())
+                .and_then(|_| stdout.flush());
+            let took = encode_start.elapsed();
+            if wrote.is_err() {
                 app.watchdog.note_error("frame write failed");
                 if app.watchdog.tier() == Tier::Legacy {
                     break;
@@ -772,20 +1345,17 @@ fn main() {
                 // `fresh` set so the next frame redoes the cleanup.
             } else {
                 fresh = false;
+                last_key = key;
+                last_drawn = Instant::now();
                 app.watchdog.note_ok();
-                if is_bitmap {
-                    trace.event(&format!(
-                        "\"frame\",\"seq\":{frame_seq},\"bytes\":{},\"ppt\":{},\"encode_ms\":{}",
-                        out.len(),
-                        app.layout.ppt(),
-                        encode_start.elapsed().as_millis()
-                    ));
-                    last_image = Instant::now();
+                if matches!(app.tier(), Tier::Kitty | Tier::Sixel) {
+                    trace.note_frame(frame_seq, bytes, app.layout.ppt(), took.as_millis(), &stats);
                 }
+                pacer.note_write(took, bytes, Instant::now());
             }
             frame_seq += 1;
         }
-        // Replay the startup keystrokes the probe captured, but only
+        // Replay the startup keystrokes the probes captured, but only
         // after the first frame is on screen: the player saw the title
         // they were typing at, and the key acts on it instead of being
         // swallowed by the probe window.
@@ -832,7 +1402,8 @@ mod tests {
             std::thread::sleep(Duration::from_millis(40));
             writer.write_all(b"2;4c").unwrap();
         });
-        let (reply, typed) = read_probe_reply_fd(reader.as_raw_fd(), Duration::from_secs(5));
+        let (reply, typed) =
+            read_probe_reply_fd(reader.as_raw_fd(), ReplyKind::Da1, Duration::from_secs(5));
         sender.join().unwrap();
         assert_eq!(reply, b"\x1b[?62;4c");
         assert!(typed.is_empty(), "no user input arrived in this window");
@@ -851,7 +1422,11 @@ mod tests {
             std::thread::sleep(Duration::from_millis(20));
             writer.write_all(b"\x1b[?62;4c").unwrap();
         });
-        let (reply, typed) = read_probe_reply_fd(reader.as_raw_fd(), Duration::from_millis(250));
+        let (reply, typed) = read_probe_reply_fd(
+            reader.as_raw_fd(),
+            ReplyKind::Da1,
+            Duration::from_millis(250),
+        );
         sender.join().unwrap();
         assert_eq!(reply, b"\x1b[?62;4c");
         assert_eq!(typed, b"\r", "the Enter must be replayed, not consumed");
@@ -865,7 +1440,11 @@ mod tests {
         use std::os::fd::AsRawFd;
         let (mut reader, mut writer) = pipe_pair();
         let started = Instant::now();
-        let (reply, typed) = read_probe_reply_fd(reader.as_raw_fd(), Duration::from_millis(80));
+        let (reply, typed) = read_probe_reply_fd(
+            reader.as_raw_fd(),
+            ReplyKind::Da1,
+            Duration::from_millis(80),
+        );
         let elapsed = started.elapsed();
         assert!(reply.is_empty(), "silent terminal must yield no reply");
         assert!(typed.is_empty(), "nothing was typed during the window");

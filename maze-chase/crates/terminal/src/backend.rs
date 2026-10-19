@@ -2,7 +2,7 @@
 //!
 //! Tiers, best first: [`Tier::Kitty`] (bitmap graphics on Kitty-family
 //! terminals), [`Tier::Sixel`] (bitmap pixels after a live DA1 probe),
-//! [`Tier::Truecolor`] (24-bit cell art; the Ghostty/Wezterm/foot path),
+//! [`Tier::Truecolor`] (24-bit cell art; the Wezterm/foot path),
 //! [`Tier::Legacy`] (16-color cells for conventional terminals).
 //!
 //! Selection is honest: Kitty engages only on positive environment proof,
@@ -110,6 +110,20 @@ impl Watchdog {
             self.failures = 0;
         }
     }
+
+    /// Force the Kitty upgrade after the live graphics probe positively
+    /// answered (only from a cell tier; this is what enables Ghostty
+    /// despite environment heuristics that cannot identify it).
+    pub fn note_kitty_probe_ok(&mut self) {
+        if self.tier == Tier::Truecolor || self.tier == Tier::Legacy {
+            self.trail.push(format!(
+                "{} -> kitty-graphics (live graphics probe answered)",
+                self.tier.name()
+            ));
+            self.tier = Tier::Kitty;
+            self.failures = 0;
+        }
+    }
 }
 
 fn get<'a>(env: &'a [(String, String)], key: &str) -> Option<&'a str> {
@@ -126,7 +140,11 @@ fn get<'a>(env: &'a [(String, String)], key: &str) -> Option<&'a str> {
 /// Kitty on positive proof; then truecolor when `COLORTERM` is
 /// `truecolor`/`24bit` or `TERM_PROGRAM` names a known truecolor
 /// terminal; otherwise legacy. Sixel never starts active: it needs the
-/// live DA1 probe (the main loop upgrades via [`Watchdog`]).
+/// live DA1 probe (the main loop upgrades via [`Watchdog`]). Kitty is
+/// also confirmed live when the environment does not prove it (the
+/// binary probes before the first frame and upgrades on `OK`), so the
+/// `TERM_PROGRAM` list below is a fallback for a timed-out probe, not a
+/// capability verdict.
 pub fn initial_tier(env: &[(String, String)]) -> Tier {
     if let Some(force) = get(env, "MAZE_CHASE_TIER") {
         match force.trim().to_ascii_lowercase().as_str() {
@@ -190,7 +208,7 @@ mod tests {
         );
         assert_eq!(
             initial_tier(&env(&[("TERM_PROGRAM", "ghostty")])),
-            Tier::Truecolor
+            Tier::Kitty
         );
         assert_eq!(initial_tier(&env(&[])), Tier::Legacy);
         assert_eq!(
