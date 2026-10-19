@@ -79,11 +79,16 @@
 # consecutive fix sessions on #693, all with no decision file and nothing
 # pushed, so the lab arm now runs 150 minutes under a 180-minute job and the
 # fix arm 120 under 180, each leaving at least 20 minutes of post-agent
-# headroom for the verify/push/forward chain).
-# Wired into auditor.yml as the R1-R25 matrix.
+# headroom for the verify/push/forward chain), and the R26 create-issue dedupe
+# guard (issue #668: two concurrent per-target Maintainer ticks independently filed
+# the same finding as #665/#666 because the hardcoded create_issue handler
+# never compared titles; it now queries open issues before `gh issue create`,
+# skips creation on an identical normalized title and self-triages the
+# matched issue, and fails open loudly when the query fails).
+# Wired into auditor.yml as the R1-R26 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R25 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R26 audit the whole tree
 # (the review-restore guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
@@ -93,8 +98,8 @@
 # review-comment publication-evidence guard, the paginated
 # comment-read guard, the PAT merge approval binding, the tester
 # verdict publication contract, the maintainer memory publish
-# concurrency contract, and the lab/fix agent cap-headroom contract), so they
-# trip on a
+# concurrency contract, the lab/fix agent cap-headroom contract, and the
+# create-issue dedupe guard), so they trip on a
 # bad curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml/peros arm no
 # matter which file the audit was pointed at.
 # Exit code is always 0 so it never breaks the auditor run; failures are reported
@@ -102,6 +107,33 @@
 # posted as a comment to the lab-health board.
 
 set -u
+
+# R26 audit-start checkout snapshot (review findings F22/F24): the R26
+# static scan below reads the repo root AFTER earlier rules have run, so a
+# repo-root shadow that unlinks itself on import (a self-deleting sourceless
+# re.pyc, present at checkout and gone by the time the scan runs) would
+# escape the live scan while the audit stayed green (25 passed, 0 failed).
+# The R18 helper, whose non-isolated Python was the demonstrated consumer,
+# now runs isolated (python3 -I -), but the snapshot stays as defense in
+# depth: snapshot the importable-shape test for every watched module BEFORE
+# any rule executes and OR the snapshot into the R26 scan, so a shadow that
+# removes itself for any reason still fails the audit loudly.
+R26_WATCH_MODULES="json os re subprocess time sys sitecustomize usercustomize"
+R26_EARLY_SHADOWS=""
+r26_shadow_present() {
+  [ -f "$1/$2.py" ] || [ -f "$1/$2.pyc" ] || [ -f "$1/$2.so" ] || [ -f "$1/$2.pyd" ] \
+    || compgen -G "$1/$2.*.so" >/dev/null 2>&1 \
+    || compgen -G "$1/$2.*.pyd" >/dev/null 2>&1 \
+    || { [ -d "$1/$2" ] && compgen -G "$1/$2/__init__.*" >/dev/null 2>&1; }
+}
+R26_EARLY_ROOT=$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)
+if [ -n "$R26_EARLY_ROOT" ]; then
+  for r26_mod in $R26_WATCH_MODULES; do
+    if r26_shadow_present "$R26_EARLY_ROOT" "$r26_mod"; then
+      R26_EARLY_SHADOWS="${R26_EARLY_SHADOWS} ${r26_mod}"
+    fi
+  done
+fi
 
 WF="${1:-.github/workflows/opencode.yml}"
 HEALTH_ISSUE="${2:-}"
@@ -123,12 +155,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R25 PASS] $name: $desc"
+  [R1-R26 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R25 FAIL] $name: $desc"
+  [R1-R26 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -4543,7 +4575,7 @@ fi
 # delimiter). R18 is a tripwire for accidental reintroduction plus a strict
 # canonical contract, and the human reviewer carries the semantic gate.
 r18_bad=""
-r18_python_out=$(python3 - <<'R18PY'
+r18_python_out=$(python3 -I - <<'R18PY'
 import glob
 import os
 import re
@@ -7245,16 +7277,3080 @@ else
   check "R25" "lab/fix cap headroom missing:${r25_bad} (issue #701: a 90-minute lab cap under 120 and a 60-minute fix cap under 120 discarded near-complete sessions at the wire)" "bad"
 fi
 
-summary="Silent-stall regression audit (R1-R25) on ${WF}: ${pass} passed, ${fail} failed."
+# [R26] Create-issue dedupe guard (issue #668): Maintainer concurrency is
+# per-target, so two ticks on different PRs can decide on the same global
+# finding at once and each created its own issue: #665 was filed at
+# 15:53:13Z by run 39141891238 (the 15:45Z tick on PR #654) and #666 at
+# 15:55:43Z by the concurrent run 39141877509 (the tick on PR #664), before
+# either tick could see the other's issue; the duplicate cost a self-triage
+# run and was closed as a duplicate. The hardcoded create_issue handler in
+# maintainer.yml now queries open issues before every `gh issue create`,
+# compares titles under a deterministic normalization (casefold,
+# non-alphanumerics to single spaces, whitespace collapsed), skips creation
+# when an open issue carries the identical normalized title, prints the
+# existing issue number, and self-triages the matched issue so the finding
+# is never left untriaged. Properties pinned here:
+#   1. query-before-create ordering inside the handler: the open-issue
+#      lookup line precedes the `gh issue create` call, and the exact
+#      control-flow lines are pinned (review finding F2): the loader
+#      invocation (`loaded = _load_open_issue_titles()`), the `if existing:`
+#      skip guard, and the skip branch's terminating `continue` between the
+#      skip print and the create call; the lazy-load guard through the skip
+#      guard are additionally pinned as five CONSECUTIVE code lines with
+#      exact-trim matching (review finding F4: run-state/input-shape gates
+#      such as `if len(body_text) > 1: existing = None` or
+#      `if sweep_failed: existing = None` inserted in the chain passed the
+#      first-round pins while disabling the dedupe for ordinary production
+#      inputs); the skip branch itself is pinned as a six-consecutive-line
+#      shape (the skip print, the in-run check, the in-run print, the
+#      `else:`, the triage dispatch, and the terminating `continue`, which
+#      must land immediately after the triage line), so a conditional
+#      continue keyed on a dimension the fixtures never vary (a first-class
+#      decision action such as `ping`, or `"\n\n" in body_text`) can no
+#      longer pass the audit while leaking every match into
+#      `gh issue create` behind a loud-looking skip line (review finding
+#      F10); and the whole `_load_open_issue_titles()` body, from its def
+#      line through `return index`, is pinned as exact trimmed text with
+#      EXACTLY ONE def occurrence and exactly two loader-name occurrences in
+#      the block, so a cross-dimensional conjunction gate on individually
+#      in-envelope dimensions (`if len(items) >= 5 and len(decisions) == 2:
+#      return {}`, whose conjuncts no single fixture held together), its
+#      substitution variant (appending `and not (len(items) >= 5 and
+#      len(decisions) == 2)` to the isinstance guard, adding no line), and
+#      its conditional def-shadowing variant all fail structurally, not
+#      only behaviorally (review finding F9 plus the class-closing
+#      substitution and shadowing probes); the whole setup region ABOVE
+#      the main loop is separately pinned as canonical trimmed text from
+#      the block's first line through the line before `for d in decisions:`
+#      (review finding F12: a gate keyed on the LEADING decision action,
+#      such as `if decisions and decisions[0].get("action") == "ping":`
+#      paired with `globals()["_open_issue_titles"] = {}`, a
+#      `_norm_issue_title = lambda s: ""` rebind, or a decision-drop
+#      comprehension, passed the whole matrix while disabling the dedupe on
+#      ordinary production ticks, because the preamble window starts AT the
+#      loop head, the sub-region pins (norm body, loader body) cover only
+#      their own spans, and only s17 (sweep) and s20 (review) ever led a
+#      fixture decision list), and the leading-action skip scenarios (s28
+#      ping-first, s29 ideate-first, s30 lab-first) kill the family
+#      behaviorally as well; the eleven code lines
+#      immediately preceding that chain (loop head, loop-body guard,
+#      action/target extraction, branch opener, title/body reads, the
+#      create_issue guard, and the ntitle computation) are pinned as an
+#      exact trimmed window, so no probe can be interposed between the
+#      branch opener and the chain (adversarial escape hunt M1: an inserted
+#      `gh search issues` probe is inert under the mock, whose unmodeled
+#      subcommands exit 64, but succeeds against real gh and blanks ntitle
+#      on every production run), every top-level `gh` command the whole
+#      functional matrix executes is checked against the pristine allowlist
+#      (issue/workflow/api/pr) so an inserted probe call fails loudly
+#      wherever in the block it sits (escape hunt M1), and the index
+#      sentinel stays literally `_open_issue_titles = None` by exact-text
+#      pin, rejecting any conditional replacement that keeps the
+#      assignment count and pre-seeds the index under production conditions
+#      (escape hunt, init-replacement class); structurally, the run-local
+#      index is
+#      assigned only by its initialization and the single fail-open line and
+#      accessed only via .get/.setdefault (adversarial verification finding:
+#      an inserted env-conditional re-assignment or a .clear()/.update()/
+#      .pop() sabotage now has to change the block's structure, not just its
+#      runtime condition), and subscript writes/deletes of the index
+#      (`_open_issue_titles[ntitle] = ...`, `del _open_issue_titles[...]`)
+#      are rejected because they evade the bare-assignment and
+#      attribute-use pins (review finding F5);
+#   2. the skip/triage path also precedes creation and is loud: the skip
+#      print carries the existing number, the matched issue is self-triaged
+#      with a dedupe reason, and a title already created earlier in the same
+#      run never dispatches a second triage;
+#   3. the created path is loud and records the new number in the run-local
+#      index so an in-run duplicate title is caught without a second query;
+#   4. the query is fail-open to creation with a loud ::error:: on both a
+#      nonzero query and unparseable JSON: a registry hiccup must never drop
+#      a decision (the guard shrinks the concurrent-tick race window from
+#      minutes to milliseconds; it is deliberately not a suppression layer);
+#   5. functional fixtures execute the REAL extracted normalization function
+#      and pin its semantics: case fold (including the Unicode pair
+#      `Stra\u00dfe Fix` / `strasse fix`, so a `.lower()` swap fails),
+#      punctuation/hyphen/underscore/whitespace collapse all match,
+#      digit-bearing titles that differ only in digits stay NON-matching (so
+#      a digit-stripping regex fails), `foo bar` vs `foobar` stays
+#      NON-matching (space placement is real, so a `"".join` variant fails),
+#      and a >80-char pair sharing a >80-char prefix and differing only in
+#      the final word stays NON-matching (so a `[:60]`/`[:80]` truncation or
+#      `len > 80` fragment gate fails); the extractor additionally requires
+#      EXACTLY ONE `def _norm_issue_title` in the block (review finding F7:
+#      a shadowing second definition would leave the fixture matrix testing
+#      dead code, so the count is pinned), and the function body from its
+#      def line through its return is pinned as exact trimmed text, so an
+#      inserted context-conditional line or a replaced return expression
+#      that stays semantically green under the sandbox but blanks titles in
+#      production fails structurally (escape-hunt near-miss closure: the
+#      demonstrated variants were already caught behaviorally by the
+#      re-only fixture namespace raising NameError on os references, and
+#      the exact body now rejects the whole class precisely); distinct
+#      titles do not match, and
+#      (kept as the documented conservative scope) the two 2026-10-18
+#      paraphrase titles #665/#666 stay NON-matching, because a fuzzy
+#      paraphrase matcher that suppresses a genuinely distinct finding would
+#      lose work, which is worse than a duplicate issue (tester finding B1
+#      plus adversarial escape E3);
+#   6. a functional sandbox (review finding F2: the first-round guard was
+#      string-presence plus file-wide `head -1` line ordering only, so
+#      `loaded = {}`, `if False:`, or a removed skip-branch `continue` left
+#      the dedupe dead while R26 reported 24/0) extracts the REAL run block
+#      of the unique executing handler step, dedents it with the common
+#      run-block indent (the embedded Python heredoc delimiter must land in
+#      column 0), and executes it under the runner's `bash -e` shell against
+#      an executable mock `gh` (interception proven before the matrix; the
+#      handler environment is built from scratch with `env -i` so NO ambient
+#      runner variable reaches it, credentials are fully absent, the
+#      non-credential Actions context is production-shaped across the
+#      standard variables (repository, owner, workflow, job, run id, event
+#      name, actor, SHA, ref, ref name/type, server/API/GraphQL URLs,
+#      workspace, RUNNER_OS/ARCH, CI), and the mock's
+#      state paths are baked into the mock script, making detection of
+#      env-keyed gates independent of the ambient CI environment and
+#      closing the demonstrated env-sensing backdoor class for the seeded
+#      set (escape hunt M5: a gate on SHA presence is inert only when SHA
+#      is unseeded, so seeding it makes the gate fire under audit; the
+#      event name is exercised for both production trigger shapes, schedule
+#      and workflow_dispatch; context variables outside the seeded set
+#      stay a documented residual); sandbox outside
+#      the repo, per-scenario timeout) across: fresh-create (exactly one query,
+#      one create on the bot token, one triage dispatch on the owner PAT for
+#      the new number), FIVE normalized-match skip+triage scenarios against
+#      newest-first five-issue lists where every entry is a scenario match,
+#      sitting at index 0 (#670, s9; the 97-char title and the
+#      concurrent-duplicate shape, so `items[1:]`/`items[-2:]` offsets and
+#      entry-property length gates at or below the fixture envelope fall),
+#      index 1 (#669, s8), index 2 (#668, s6), index 3 (#665, s2) and index
+#      4 (#663, s7, the oldest entry, so `items[:k]` prefix truncations
+#      fall), zero creates, one dispatch on the matched open issue, loud
+#      skip line, so a cardinality gate at or below the fixture size, any
+#      proper prefix truncation `items[:1]` through `items[:4]`, an
+#      `items[1:]`/`items[-2:]` offset, an index/issue-number parity gate,
+#      or an order-dependent `all(n >= v)` index rebuild (the newest-first
+#      order production serves) fails at least one scenario (tester finding
+#      B3 plus adversarial escapes E1/E4/L06/L07/P1/P2 and the round-3
+#      order class), in-run duplicate against a non-empty open index (one
+#      create, no second dispatch, one query; extended to THREE identical
+#      decisions so a subscript-write/delete sabotage of the run-local index
+#      is caught behaviorally as well, review finding F5), query-failure
+#      fail-open
+#      (loud ::error::, create proceeds), bad-JSON fail-open, a
+#      THREE-decision scenario with the matching create LAST after two
+#      successful creates (asserting exactly 2 creates and 3 dispatches, so
+#      a decision-count or created-count gate creates a third issue and
+#      fails), a matching decision carrying `target` (a target or
+#      extra-key gate), and a mixed scenario with a failed sweep first and a
+#      successfully posted comment second before the matching create
+#      (sweep_failed and posted gates; the failed sweep also drives the
+#      handler's loud SystemExit(1), asserted as rc 1), with realistic
+#      multi-line >200-char bodies in every other scenario decision (a
+#      body-length gate; the deliberate probes s21/s22/s24/s27 carry the
+#      short, two-line, absent, and paragraph-break shapes), so the whole
+#      inserted-gate family of review finding F4 is
+#      caught behaviorally even when a decoy satisfies the adjacency pin,
+#      and (review finding F8: a loader-internal `if len(decisions) == 2:
+#      return {}` killed the dedupe on every two-decision tick while the
+#      round-4 fixtures, whose decision counts were only 1 and 3, stayed
+#      green) a decision-count sweep of ONE through FOUR decisions with the
+#      matching create LAST, each asserting zero duplicates (a 2-decision
+#      scenario asserting exactly 1 create and 2 dispatches, the existing
+#      3-decision scenario asserting 2 creates and 3 dispatches, and a
+#      4-decision scenario asserting 3 creates and 4 dispatches, so every
+#      `== k` and `<=`/`>=` count gate inside 1-4 fires on at least one
+#      scenario and the created-count envelope extends to 3; both the
+#      2-decision and the 4-decision scenario run against FIVE-entry lists,
+#      so a conjunction of an in-envelope list size with an in-envelope
+#      decision count `len(items) >= 5 and len(decisions) == 2` cannot hide
+#      behind fixtures whose two dimensions never held together, the exact
+#      escape review finding F9 demonstrated), a COUNT SWEEP of decision
+#      counts 5 through 23, each a five-entry list with the match at a
+#      middle index and k-1 leading FRESH create_issue decisions so both
+#      dimensions sweep together (k decisions with k-1 creates resolved
+#      before the match), every scenario asserting the exact create count
+#      (k-1), the exact dispatch count (k: one triage per created issue
+#      plus the matched issue), the loud skip line, and rc 0, so an exact
+#      gate on any count the earlier fixtures missed (`if len(decisions) ==
+#      20: return {}`, demonstrated green at 24/0 by the escape hunt M6, or
+#      a `len(_created_issue_numbers) >= 4` bound) now fires under audit and
+#      fails the exact-count assertions (adversarial escape hunt M6 plus
+#      its created-count sibling), a mixed
+#      action context carrying ALL of the handler's action keywords
+#      (review, test, test-linux, test-macos, test-windows, eval, continue,
+#      build, auditor, curate, architect, research, design, design-ux,
+#      design-visual, design-motion, lab, recover, fix, create_pr, plus
+#      ping-with-target and ideate, the two first-class decision actions
+#      whose absence from the fixture let a conditional skip-branch
+#      continue keyed on `ping` pass the audit, review finding F10)
+#      alongside the matching create LAST (F8 plus its independent escape
+#      hunt: any action-keyword gate, including the create_pr sibling of
+#      create_issue, breaks the skip assertion), absent-body, 23-char
+#      short-single-line, and two-line body skip scenarios (F8:
+#      `not body_text` and every `len(body_text) < N` with N >= 1,
+#      newline-presence, line-count, and short-length predicates within the
+#      absent-body to long-three-line envelope), a paragraph-break
+#      blank-line-bearing body skip scenario (review finding F10's second
+#      demonstrated key, `"\n\n" in body_text`, fires there while staying
+#      green elsewhere), a matching create that is
+#      NOT last with a trailing `lab` action (escape hunt: last-position
+#      action predicates), a 147-char long-title skip scenario (escape
+#      hunt: title-length predicates up to 146, lifting the match-required
+#      title envelope above s9's 97 and s12's 98 characters), and a
+#      workflow_dispatch-event skip scenario (the round-4 observation's
+#      demonstrated event-name gate; schedule remains the default shape),
+#      three leading-action skip scenarios with the matching create LAST
+#      (ping-first with target, ideate-first, lab-first: 0 creates, exactly
+#      one triage on the match, the loud skip line, and the leading
+#      action's own inert/comment behavior asserted, so any gate keyed on
+#      the leading decision action breaks the assertions; review finding
+#      F12), THREE
+#      digit-collision create scenarios ("Fix bug 42"/"Fix bug 43", "Patch
+#      v10"/"Patch v1", "Worker v1"/"Worker v10": pristine creates, while a
+#      digit strip (full-run at one or both sites, zero-favored at either
+#      side) maps the pair to one string and falsely skips), a space-removal
+#      collision create
+#      scenario ("Swift 6 migration" vs "Swift6 migration": pristine
+#      creates, a consistent both-sites `.replace(" ", "")` after
+#      normalization falsely skips), one long-title collision create
+#      scenario (distinct long titles differing only in their final
+#      character: pristine creates, while a consistent both-sites
+#      truncation merges them under EVERY proper cutoff and falsely skips;
+#      single-site truncations are killed by the identical-pair s9), and a
+#      SIZE SWEEP of list sizes 1 through 8 whose last (oldest) entry is
+#      the match with three-character, digit-bearing, single-word, and
+#      x-bearing titles cycling, so a `len(index) == N` equality gate, an
+#      `items[:k]` truncation with k < 8, a number/length/word-count or
+#      charset per-entry gate at or below the sweep envelope, and any
+#      single-site digit strip all fail at least one size, so no plain
+#      one-line control-flow mutation (in the loader chain, inside the
+#      loader, in the skip branch, in the call-site preamble, or as an
+#      inserted probe call, whose demonstrably escaping members the
+#      structural, allowlist, and exact-text pins above now reject
+#      outright), no demonstrated
+#      fixture-coverage gap, or demonstrated env-sensing backdoor on a
+#      seeded context variable
+#      can conclude green while the dedupe is disabled. The mock requires
+#      the query argv to equal the pinned invocation TOKEN FOR TOKEN
+#      (tester finding B2 plus adversarial escapes E2/Q4/Q5): the argument
+#      count and every positional element are compared, so a repeated
+#      scalar flag (pflag last-wins), an added `--search` filter, a
+#      reorder, or merged/split tokens (which a lossy space-joined string
+#      comparison could not distinguish) empties the served fixture list, a
+#      tamper hidden behind a decoy comment changes real behavior and fails
+#      the skip assertions, and the exact query literal is additionally
+#      pinned inside the extracted block. The mock additionally serves the
+#      `gh issue list` fixture with the trailing newline real gh emits
+#      (review finding F6: a loader gate on `r.stdout.endswith("\n")`
+#      passed against a newline-less fixture while disabling the dedupe in
+#      production) and an `api` subcommand for the mixed scenario's comment
+#      post. Deliberate identity fingerprinting
+#      on values no sandbox can avoid (fixture token strings, sandbox paths,
+#      per-title charset gates), call-site character-class transformations
+#      outside the tested digit (full-run and zero-favored), space-removal,
+#      and truncation classes, and truncation/cardinality/number/length/
+#      word-count thresholds ABOVE the built fixture envelope (eight list
+#      entries, the 147-char longest match-required title, the
+#      absent-body to long-three-line body shapes, exact decision- or
+#      created-count gates above the swept envelope: counts 1-23 are every
+#      one exercised (1-4 and 23 by dedicated scenarios, 5-22 by the count
+#      sweep) and created counts 0-22 before a match are swept, so only
+#      higher thresholds slip through), body-content
+#      predicates keyed on prose absent from every fixture body, and
+#      non-credential context values outside the seeded/exercised shapes,
+#      such as unseeded context variables, event names beyond the
+#      schedule/workflow_dispatch pair, or actor values), a create executed
+#      from inside a repo script, composite action, or reusable workflow, or
+#      reached through a variable or command-substitution indirection at the
+#      call site, and an env-file channel or input rewrite reached through
+#      one level of
+#      indirection inside a repo-local script executed by a pinned
+#      pre-handler step (review findings F26/F27) remain
+#      review-gated and are documented as a residual.
+#   7. GitHub-parser-faithful step identity and YAML well-formedness (review
+#      findings F17/F18): the handler is resolved from the SAME YAML parse
+#      tree GitHub runs, never by substring grep. The parse-tree walk
+#      rejects ANY duplicate mapping key anywhere in the workflow (the
+#      demonstrated duplicate `run:` spellings `"run":`, `run: |-`, and
+#      `run: |2`: GitHub's parser rejects the file outright with Invalid
+#      workflow file / 422, while a lenient last-wins scan would pin the
+#      decoy value), and
+#      exactly one step may carry the exact name
+#      `Run /oc triggers as owner` (a comment line or a same-name decoy no
+#      longer satisfies a grep count, and a renamed executing step fails).
+#      That step must keep `if: always()` (an `if: false` decoy or a removed
+#      gate fails), contain no `shell:`, no `working-directory:`, and no
+#      `continue-on-error:` key, and carry EXACTLY the GH_TOKEN and BOT_TOKEN
+#      env keys with both token expressions intact (a removed, emptied, or
+#      role-swapped credential, an added BASH_ENV-style key, or a step-level
+#      working directory fails; review finding F21). Each handler needle (the
+#      dedupe marker, `_open_issue_titles`, and `_self_triage`) must appear
+#      in exactly one step's run in the whole file, and that run must be the
+#      anchored step, so a canonical decoy cannot be harvested while a named
+#      or weakened executor carries any handler text. Any parse,
+#      duplicate-key, or identity
+#      failure is a loud named bad token and the block-scoped checks below
+#      are skipped.
+#   8. Effective execution shape and repo-root module identity (review
+#      findings F20/F21/F23/F24): a workflow-level or job-level
+#      `defaults: run: shell: cat {0}` (or `working-directory`) rewrites the
+#      anchored step's effective shell or working directory without touching
+#      the step's own keys, so both defaults scopes are rejected outright
+#      (malformed non-mapping defaults shapes too). A workflow-level or
+#      job-level `env:` key is rejected the same way: it merges into the
+#      anchored step's environment, so an injected PYTHONPATH or BASH_ENV
+#      would change what the handler executes while the step's own exact
+#      env-key pin stays satisfied, and a job-level `container:` would
+#      replace the whole runtime. Repo-root module shadowing is closed at
+#      the execution layer, not only at the scan layer: the handler step
+#      itself invokes the interpreter in isolated mode (`python3 -I -`,
+#      pinned inside the exact-text handler block below), so cwd is never
+#      on sys.path and no repo-root module of ANY name, spelling, or
+#      transitive-import depth (the demonstrated `selectors` import of
+#      subprocess included) can reach the handler process; removing or
+#      weakening the -I isolation fails the exact-text handler pin. The
+#      static scan below stays as belt and braces over the watched direct
+#      imports and startup hooks (json, os, re, subprocess, time, sys,
+#      sitecustomize, usercustomize) in EVERY importable spelling (source
+#      json.py, sourceless bytecode json.pyc placed directly in the
+#      directory, an extension module json.so / json.pyd bare or
+#      version-tagged, or a package directory carrying any importable
+#      __init__ artifact): a committed shadow still fails the audit loudly
+#      even though the isolated handler can no longer import it, so an
+#      accidental shadow is flagged before it can affect any other step.
+#      The extractor and the fixture runner execute isolated (python3 -I,
+#      so their own imports can never be redirected), the audit's own R18
+#      YAML-consistency helper executes isolated too (review finding F24:
+#      its non-isolated Python could previously import a repo-root module
+#      that rewrote the workflow file under test, repairing a weakened
+#      handler before R26 extracted it), and the functional sandbox still
+#      mirrors the repo root's top-level files in every importable spelling
+#      into its work dir as defense in depth, so an isolation regression
+#      that somehow survives the text pin also surfaces behaviorally. The
+#      static scan is ORed with an audit-start checkout snapshot taken
+#      before any rule executes, so a repo-root shadow that unlinks itself
+#      before the scan runs still fails loudly.
+#      Review-gated boundary: a wholesale rewrite of the executing step into
+#      unrelated code carrying none of the three needles (with a canonical
+#      decoy left in place) is visible in the diff but not distinguishable
+#      structurally from a genuine handler replacement.
+#   9. Effective PATH and runner env-file channel (review finding F25): the
+#      handler step's effective environment is defined by its own keys, the
+#      workflow/job scopes pinned above, AND every earlier step of the same
+#      job. The runner prepends each `$GITHUB_PATH` write's directories to
+#      the PATH seen by all later steps and injects every `$GITHUB_ENV`
+#      write as an environment variable, and a directory already on PATH
+#      (the pinned `$HOME/.opencode/bin`) is an executable-planting
+#      surface. A one-line mutation of a pre-handler step therefore kept
+#      the whole audit green (25 passed, 0 failed) while the handler's
+#      binary or interpreter was replaced: appending a repo-controlled
+#      directory to GITHUB_PATH next to a committed fake `gh` (which
+#      answered the dedupe query with `[]`, letting the exact duplicate
+#      recur), exporting a BASH_ENV shim (a repo-controlled `python3`
+#      executed the pinned `python3 -I -` line, defeating the F23
+#      isolation at the binary layer), planting a fake `gh` into the pinned
+#      PATH directory, or injecting LD_PRELOAD. The extractor now rejects
+#      every pre-handler line that mentions the env-file channel, the
+#      pinned PATH directory, or the decision-file input unless it is one
+#      of the exact allowed lines parsed from the pinned workflow text
+#      itself (the PATH echo, the two EMERGENCY_GATE writes, the cached
+#      binary probes, and the decision-contract reads), requires the
+#      PATH-adding step's body to be exactly the single pinned echo, and
+#      enforces the exact pre-handler step sequence (the effective names
+#      GitHub displays, including the YAML-comment-truncated decision
+#      contract name). It also requires every LITERAL `gh issue create`
+#      invocation in the whole workflow to live in the anchored handler
+#      step: any other step or job creating issues directly would bypass the
+#      guard (adversarial hunt closure). That scan is shell-faithful: it
+#      folds backslash-newline continuations, ANSI-C quoting, and
+#      quote/backslash word concatenation, splits on shell metacharacters,
+#      accepts path-qualified executables and `env`/`command`/`bash -c`
+#      prefixes, so every ordinary `gh issue create` spelling (tabs, `g""h`,
+#      `g\` newline `h`, `/usr/bin/gh`, `gh -R owner/repo issue create`,
+#      `gh issue --repo owner/repo create`, subshell and `;` forms) is
+#      caught, as is the Python list form even when it spans lines (review
+#      findings F26/F29: the old space/quote-stripping check and the first
+#      token-based rewrite both missed ordinary spellings). The scan is
+#      exercised by a red self-test matrix over every listed spelling, so a
+#      future weakening fails the audit itself; prose carrying separate
+#      `gh`, `issue`, and `create` tokens in one command line is the known
+#      accepted false-positive shape. A create executed from inside a repo
+#      script, composite action, or reusable workflow, a create issued
+#      through a direct REST call (`gh api --method POST .../issues`,
+#      `curl .../issues`), or one reached through a variable or
+#      command-substitution indirection at the call site
+#      (`$(which gh) issue create`), is the documented residual. Repo-local
+#      scripts executed by the pinned pre-handler steps are themselves
+#      scanned for the env-file channel (review finding F27: appending
+#      `echo "BASH_ENV=..." >> "$GITHUB_ENV"` to `resolve-model.sh` left the
+#      audit green while the handler sourced the shim; the scan now rejects
+#      GITHUB_ENV, GITHUB_PATH, BASH_ENV, the pinned `.opencode` PATH
+#      directory, and the decision-file input in every such script body,
+#      and recognizes the standard invocation spellings: bash/sh/source,
+#      optional flags, absolute or quoted paths), with one level of
+#      indirection inside such a script (a script invoking another script,
+#      or an environment variable expanded into the target path) remaining
+#      the documented residual.
+#      Structurally, the ENTIRE pre-handler
+#      region (step sequence, execution-shape keys, full env key maps
+#      including values, `with:` maps, and
+#      every run line with blank lines dropped) is pinned as canonical
+#      exact text compared byte for byte, so no pre-handler line can be
+#      inserted, re-indented, replaced, or re-ordered in ANY spelling
+#      (including a constructed path such as `d="$HOME/.open";
+#      d="${d}code/bin"`, a dynamically spelled `GITHUB_PATH` bucket name,
+#      a sibling step that rewrites `.maintainer/decision.json` without
+#      naming it, or an added `env:`/`if:` key), and a legitimate
+#      pre-handler edit fails loudly until the canonical heredoc is
+#      regenerated (run the extractor with the workflow plus two throwaway
+#      output paths and paste its argv[2] output). Behaviorally, the
+#      functional sandbox derives its PATH directories from the pinned
+#      extractor output instead of hardcoding the mock, mirrors a
+#      `$GITHUB_WORKSPACE`-derived directory from the repo (so a committed
+#      executable planted there would shadow the mock exactly as it
+#      shadows real gh), and carries a derived-PATH shadow scenario that
+#      plants a failing fake `gh` into the first resolved derived
+#      directory: an empty mock invocation log proves the composition order
+#      (derived directories ahead of the mock bin) is load-bearing, so a
+#      future reorder that silently neutralizes the derivation fails
+#      loudly.
+#      Review-gated boundary: the named scans cover the three demonstrated
+#      channels; any OTHER effective-environment channel that lands in a
+#      pre-handler step is caught by the canonical region pin (as a diff
+#      would show), not by a per-channel semantic model, and a
+#      pre-handler line that is itself part of the legitimate environment
+#      surface added in a future reviewed edit is pinned only after the
+#      canonical heredoc is regenerated in that same review. A channel
+#      reached through one level of indirection inside a repo-local script
+#      (a script invoking another script, or a variable-expanded path), and
+#      an issue create executed from inside a repo script, composite action,
+#      or reusable workflow, are likewise review-gated residuals: the
+#      canonical region pin and the diff surface them, but no static model
+#      follows arbitrary script execution.
+r26_bad=""
+R26_WF=".github/workflows/maintainer.yml"
+# Repo root the audit is running against, for the repo-root module-shadow
+# checks (static scan plus the sandbox mirror in r26_run; review finding F20).
+R26_REPO_ROOT=$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)
+if [ ! -f "$R26_WF" ]; then
+  r26_bad=" maintainer.yml(missing)"
+else
+  # Static contract: marker, helpers, query shape, the fail-open branch, and
+  # the exact control-flow lines whose one-word deletion silently disables the
+  # dedupe (review finding F2: `loaded = {}`, `if False:`, or a removed
+  # skip-branch `continue` all passed the first-round string/ordering checks).
+  grep -qF 'CREATE_ISSUE DEDUPE (issue #668)' "$R26_WF" || r26_bad="${r26_bad} maintainer.yml(no-dedupe-marker)"
+  grep -qF 'def _norm_issue_title(s):' "$R26_WF" || r26_bad="${r26_bad} maintainer.yml(no-norm-function)"
+  grep -qF 'def _load_open_issue_titles():' "$R26_WF" || r26_bad="${r26_bad} maintainer.yml(no-open-issue-query-helper)"
+  grep -qF '["gh", "issue", "list", "--repo", repo, "--state", "open", "--limit", "1000", "--json", "number,title"]' "$R26_WF" || r26_bad="${r26_bad} maintainer.yml(query-shape)"
+  grep -qF 'create_issue dedupe query failed; creating without the guard this run (issue #668)' "$R26_WF" || r26_bad="${r26_bad} maintainer.yml(no-loud-query-failure)"
+  grep -qF 'create_issue dedupe query returned unparseable JSON; creating without the guard this run (issue #668)' "$R26_WF" || r26_bad="${r26_bad} maintainer.yml(no-loud-bad-json)"
+  grep -qF '_open_issue_titles = loaded if loaded is not None else {}' "$R26_WF" || r26_bad="${r26_bad} maintainer.yml(no-fail-open-to-create)"
+  grep -qF 'loaded = _load_open_issue_titles()' "$R26_WF" || r26_bad="${r26_bad} maintainer.yml(no-loader-invocation)"
+  grep -qF 'if existing:' "$R26_WF" || r26_bad="${r26_bad} maintainer.yml(no-skip-guard)"
+  # Repo-root module shadowing (review findings F20/F22/F23/F24): production
+  # used to execute the handler with cwd set to the workspace root, where a
+  # committed top-level json, os, re, subprocess, time, sys, sitecustomize,
+  # or usercustomize shadow (in ANY importable spelling) shadowed the stdlib
+  # on sys.path[0] and could silently disable the dedupe (a shadow could
+  # special-case the _load_open_issue_titles caller and return [] for it)
+  # while every audit assertion stayed green. The handler step now invokes
+  # the interpreter in isolated mode (`python3 -I -`, pinned inside the
+  # exact-text handler block), so cwd is never on sys.path and no repo-root
+  # module of ANY name (the demonstrated transitive `selectors` import
+  # included), spelling, or transitive-import depth can reach the handler
+  # process; the scan below stays as belt and braces: a committed shadow of
+  # a watched module is still flagged loudly, and removing the -I isolation
+  # fails the exact-text pin. The `import` name can arrive in
+  # ANY importable spelling, so the scan covers all of them: source (json.py),
+  # sourceless bytecode placed directly in the directory (json.pyc, the PEP
+  # 3147 legacy layout), extension modules (json.so / json.pyd, bare or
+  # version-tagged), and package directories carrying any importable __init__
+  # artifact (__init__.py, __init__.pyc, __init__.*.so, ...). Fail loudly on
+  # any such shadow, and mirror the repo root's top-level files in every
+  # importable spelling into the sandbox work dir (r26_run) as defense in
+  # depth, so an isolation regression that somehow survives the exact-text
+  # pin also breaks the assertions behaviorally. The live scan is ORed with
+  # the audit-start checkout snapshot taken before any rule executes, so a
+  # shadow that unlinks itself before this scan runs still fails loudly even
+  # though it is gone from the directory now. The R18 helper, the
+  # demonstrated non-isolated consumer, now executes isolated as well
+  # (python3 -I -; review finding F24: a repo-root glob.py could previously
+  # execute during the audit and rewrite the workflow file under test).
+  if [ -z "$R26_REPO_ROOT" ] || [ ! -f "$R26_REPO_ROOT/.github/scripts/silent-stall-audit.sh" ]; then
+    r26_bad="${r26_bad} repo-root(unresolved)"
+  else
+    for r26_mod in $R26_WATCH_MODULES; do
+      # Every importable spelling (review finding F22), not only the source
+      # form: a sourceless top-level json.pyc (py_compile output placed
+      # directly in the directory, the PEP 3147 legacy layout) or a package
+      # directory carrying only an __init__.pyc is imported exactly like the
+      # source form, and extension modules (json.so / json.pyd, bare or
+      # version-tagged) are the third spelling of the same class; each could
+      # special-case the _load_open_issue_titles caller to return [] while
+      # every audit assertion stayed green (25 passed, 0 failed) before the
+      # handler step was isolated (review finding F23). A snapshot
+      # hit (present at audit start, possibly unlinked on import since) is
+      # ORed into the live present-now test.
+      r26_early=0
+      case " $R26_EARLY_SHADOWS " in
+        *" $r26_mod "*) r26_early=1 ;;
+      esac
+      if [ "$r26_early" = "1" ] || r26_shadow_present "$R26_REPO_ROOT" "$r26_mod"; then
+        r26_bad="${r26_bad} repo-root(${r26_mod} shadows stdlib)"
+      fi
+    done
+  fi
+  # Step identity and extraction (review findings F17/F18): resolve the
+  # handler from the SAME YAML parse tree GitHub runs, never by substring
+  # grep (a comment line or a decoy step carrying the exact name satisfied
+  # the old check while a renamed weakened executor actually ran) and never
+  # by a lenient line scanner (a duplicate `run:` key written `"run":`, in a
+  # second mapping, or with a `|2`/`|-` spelling is invisible to line
+  # scanning while a last-wins parser would execute the weakened value;
+  # GitHub's own parser rejects duplicate keys outright). The parse-tree walk
+  # rejects any duplicate mapping key anywhere in the workflow; it then
+  # requires EXACTLY ONE step named `Run /oc triggers as owner`
+  # (comments cannot match), its `if:` to be exactly `always()` (an
+  # `if: false` decoy or a removed gate fails), no `shell:` and no
+  # `continue-on-error:` key (a cat-shell no-op step or a crash-swallowing
+  # step fails), both token env expressions intact (GH_TOKEN:
+  # ${{ secrets.OPENCODE_PAT }} and BOT_TOKEN: ${{ github.token }}, so a
+  # removed, emptied, or role-swapped credential fails), and that each
+  # handler needle (the dedupe marker, `_open_issue_titles`, and
+  # `_self_triage`) lives in EXACTLY ONE step's run across the whole file,
+  # which must be this anchored step (a canonical decoy plus a weakened
+  # executor that still carries any handler text cannot satisfy the needles;
+  # a wholesale rewrite of the executing step into unrelated code carrying
+  # none of them remains the documented diff-review boundary at the end of
+  # the header comment). The step's run value is emitted verbatim as the
+  # extracted block every block-scoped and functional check below executes.
+  r26_extract_err=$(mktemp 2>/dev/null || true)
+  r26_premanifest_out=$(mktemp 2>/dev/null || true)
+  r26_pathdirs_out=$(mktemp 2>/dev/null || true)
+  r26_block=""
+  r26_extract_failed=0
+  r26_pathdirs_cfg=""
+  if [ -z "$r26_extract_err" ] || [ -z "$r26_premanifest_out" ] || [ -z "$r26_pathdirs_out" ]; then
+    r26_bad="${r26_bad} maintainer.yml(extract-tmp-unavailable)"
+  else
+    r26_block=$(python3 -I - "$R26_WF" "$r26_premanifest_out" "$r26_pathdirs_out" "$R26_REPO_ROOT" 2>"$r26_extract_err" <<'R26EXTRACT'
+import codecs
+import json
+import os
+import re
+import sys
+
+import yaml
+
+
+class DuplicateKey(Exception):
+    pass
+
+
+def walk(node):
+    if isinstance(node, yaml.MappingNode):
+        seen = set()
+        for key_node, value_node in node.value:
+            key = getattr(key_node, "value", None)
+            if key in seen:
+                raise DuplicateKey("duplicate-yaml-key:%s:line-%s" % (key, key_node.start_mark.line + 1))
+            seen.add(key)
+            walk(value_node)
+    elif isinstance(node, yaml.SequenceNode):
+        for child in node.value:
+            walk(child)
+
+
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as handle:
+    text = handle.read()
+
+try:
+    tree = yaml.compose(text)
+except Exception as exc:
+    print("yaml-parse-error:%s" % exc, file=sys.stderr)
+    sys.exit(2)
+
+try:
+    walk(tree)
+except DuplicateKey as exc:
+    print(str(exc), file=sys.stderr)
+    sys.exit(3)
+
+doc = yaml.safe_load(text)
+
+targets = []
+for job_name, job in (doc.get("jobs") or {}).items():
+    for index, step in enumerate((job or {}).get("steps") or []):
+        if isinstance(step, dict) and step.get("name") == "Run /oc triggers as owner":
+            targets.append((job_name, index, step))
+
+if len(targets) != 1:
+    print("step-name-not-unique:%s" % len(targets), file=sys.stderr)
+    sys.exit(4)
+
+target_key = (targets[0][0], targets[0][1])
+step = targets[0][2]
+
+# Effective execution shape (review finding F21): a job-level or workflow-level
+# `defaults: run: shell: cat {0}` (or `working-directory`) rewrites the
+# anchored step's effective shell/working directory without touching the
+# step's own keys, so the F17/F18 step pins alone left it green while the
+# handler was dead in production. Reject any malformed failure shape and any
+# defaults override on either scope.
+target_job = (doc.get("jobs") or {}).get(target_key[0]) or {}
+for scope_name, scope in (("workflow", doc), ("job", target_job)):
+    defaults = scope.get("defaults")
+    if defaults is not None and not isinstance(defaults, dict):
+        print("handler-defaults-malformed:%s" % scope_name, file=sys.stderr)
+        sys.exit(12)
+    run_defaults = (defaults or {}).get("run")
+    if run_defaults is not None and not isinstance(run_defaults, dict):
+        print("handler-defaults-malformed:%s" % scope_name, file=sys.stderr)
+        sys.exit(12)
+    if run_defaults and ("shell" in run_defaults or "working-directory" in run_defaults):
+        print("handler-effective-defaults-set:%s" % scope_name, file=sys.stderr)
+        sys.exit(12)
+
+# Effective environment (the same class as the defaults pin above): a
+# workflow-level or job-level `env:` key merges into the anchored step's
+# environment, so an injected PYTHONPATH or BASH_ENV would change what the
+# handler actually executes while the step's own exact env-key pin stays
+# satisfied. Both scopes must stay env-free, and a job-level `container:`
+# would replace the whole runtime. The step-level env mapping is pinned to
+# exactly {GH_TOKEN, BOT_TOKEN} below.
+if "env" in doc:
+    print("handler-workflow-env-set", file=sys.stderr)
+    sys.exit(15)
+if "env" in target_job:
+    print("handler-job-env-set", file=sys.stderr)
+    sys.exit(15)
+if "container" in target_job:
+    print("handler-job-container-set", file=sys.stderr)
+    sys.exit(15)
+if "strategy" in target_job:
+    print("handler-job-strategy-set", file=sys.stderr)
+    sys.exit(16)
+
+if step.get("if") != "always()":
+    print("handler-step-not-always-gated", file=sys.stderr)
+    sys.exit(5)
+if "shell" in step:
+    print("handler-step-shell-set", file=sys.stderr)
+    sys.exit(6)
+if "working-directory" in step:
+    print("handler-step-working-directory-set", file=sys.stderr)
+    sys.exit(13)
+if "continue-on-error" in step:
+    print("handler-step-continue-on-error-set", file=sys.stderr)
+    sys.exit(7)
+
+env = step.get("env") or {}
+if not isinstance(env, dict):
+    print("handler-step-env-malformed", file=sys.stderr)
+    sys.exit(14)
+if env.get("GH_TOKEN") != "${{ secrets.OPENCODE_PAT }}":
+    print("handler-step-gh-token-env-changed", file=sys.stderr)
+    sys.exit(8)
+if env.get("BOT_TOKEN") != "${{ github.token }}":
+    print("handler-step-bot-token-env-changed", file=sys.stderr)
+    sys.exit(9)
+# Any EXTRA env key is an execution-shape change too (review finding F21: an
+# added BASH_ENV passed the old checks): the handler step must carry exactly
+# the two token variables and nothing else.
+if set(env.keys()) != {"GH_TOKEN", "BOT_TOKEN"}:
+    print("handler-step-env-keys-changed", file=sys.stderr)
+    sys.exit(14)
+
+def step_runs():
+    for job_name, job in (doc.get("jobs") or {}).items():
+        for index, other in enumerate((job or {}).get("steps") or []):
+            if isinstance(other, dict):
+                yield (job_name, index), (other.get("run") or "")
+
+
+for needle in ("CREATE_ISSUE DEDUPE (issue #668)", "_open_issue_titles", "_self_triage"):
+    hits = [key for key, value in step_runs() if needle in value]
+    if hits != [target_key]:
+        print("dedupe-handler-not-unique:%s=%s" % (needle, len(hits)), file=sys.stderr)
+        sys.exit(10)
+
+# Issue creation only through the guarded handler (adversarial hunt closure,
+# hardened by review findings F26/F29): any OTHER step or job in this
+# workflow that creates an issue directly (a shell `gh issue create`, the
+# Python `["gh", "issue", "create"` form) files duplicates with no query and
+# no dedupe. The dedupe guard's whole invariant is that every created issue
+# goes through the handler, so the invocation must exist in exactly one run
+# in the whole file, and that run must be the anchored handler step. The
+# scan is shell-faithful: backslash-newline continuations join the command
+# word, ANSI-C quoting is folded (`$'\x69ssue'` is `issue`), shell
+# metacharacters delimit commands, and quote/backslash concatenation inside
+# a word is folded (`g""h`, `i""ssue`, `\g\h`), so a path-qualified
+# executable (`/usr/bin/gh`, `./gh`), a leading `env`/`command`/`bash -c`,
+# a tab separator, a global flag between `gh` and the subcommand
+# (`gh -R owner/repo issue create`, `gh issue --repo owner/repo create`), or
+# a subshell/`;`-separated command all fail loudly. The quote/whitespace
+# normalized form still catches the Python list form even when it spans
+# lines. The scan is exercised against a red regression matrix below, so a
+# future weakening of a listed spelling fails the audit itself. Known
+# false-positive shape: prose carrying separate `gh`, `issue`, and `create`
+# tokens in one command line. A create executed from inside a repo script,
+# composite action, or reusable workflow, or through variable/command
+# substitution indirection, is the documented residual below.
+def issue_create_in(text):
+    text = (text or "").replace("\\\n", "")
+    text = re.sub(r"\$'([^']*)'", lambda m: codecs.decode(m.group(1), "unicode_escape"), text)
+    for fragment in re.split(r"[;&|()`]+", text):
+        words = [re.sub(r"[\"'\\]", "", word).lower() for word in fragment.split()]
+        for word_index, word in enumerate(words):
+            executable = word.rsplit("/", 1)[-1]
+            if (executable in ("gh", "gh.exe")
+                    and "issue" in words[word_index + 1:]
+                    and "create" in words[word_index + 1:]):
+                return True
+    return False
+
+
+_f29_red = [
+    "gh issue create --title x --body y",
+    "/usr/bin/gh issue create --title x --body y",
+    "./gh issue create --title x --body y",
+    "command gh issue create --title x --body y",
+    "env gh issue create --title x --body y",
+    "g\\\nh issue create --title x --body y",
+    "g\"\"h issue create --title x --body y",
+    "gh i\"\"ssue create --title x --body y",
+    "gh $'\\x69ssue' create --title x --body y",
+    'bash -c "/usr/bin/gh issue create --title x --body y"',
+    "gh -R owner/repo issue create --title x --body y",
+    "gh issue --repo owner/repo create --title x --body y",
+    "(gh issue create --title x --body y)",
+    "gh issue create --title x --body y;",
+    "gh\tissue\tcreate --title x --body y",
+]
+_f29_green = [
+    "gh issue list --state open --limit 1000 --json number,title",
+    "hg issue create --title x --body y",
+    "gh api --method POST repos/owner/repo/issues",
+    "gh workflow run maintainer.yml",
+]
+for _case in _f29_red:
+    if not issue_create_in(_case):
+        print("f29-selftest-missed:%s" % _case, file=sys.stderr)
+        sys.exit(21)
+for _case in _f29_green:
+    if issue_create_in(_case):
+        print("f29-selftest-false-positive:%s" % _case, file=sys.stderr)
+        sys.exit(21)
+
+for key, value in step_runs():
+    if key == target_key:
+        continue
+    if issue_create_in(value):
+        print("issue-create-outside-handler:%s:%s" % key, file=sys.stderr)
+        sys.exit(21)
+    normalized = re.sub(r"\s+", "", value or "").replace('"', "").replace("'", "")
+    if "issue,create" in normalized:
+        print("issue-create-outside-handler:%s:%s" % key, file=sys.stderr)
+        sys.exit(21)
+
+run = step.get("run") or ""
+if not run.strip():
+    print("handler-run-empty", file=sys.stderr)
+    sys.exit(11)
+
+# Effective PATH / runner env-file channel (review finding F25): the anchored
+# step's effective environment is not defined by its own keys alone. The
+# runner applies every earlier step's `$GITHUB_PATH` writes (prepended PATH
+# directories) and `$GITHUB_ENV` writes (injected variables) to all later
+# steps of the same job, and a directory that is already on PATH (the pinned
+# `$HOME/.opencode/bin`) is an executable-planting surface. A one-line
+# mutation of any pre-handler step therefore silently bypassed every pin
+# above: appending a repo-controlled directory to GITHUB_PATH alongside a
+# committed fake `gh` (the planted gh answers the dedupe query with `[]` and
+# the duplicate class recurs, verified behaviorally), exporting a BASH_ENV
+# shim (a repo-controlled `python3` executes the pinned `python3 -I -` line,
+# defeating the F23 isolation at the binary layer), planting a fake `gh`
+# into the pinned PATH directory, injecting LD_PRELOAD, or rewriting the
+# handler's input file `.maintainer/decision.json` from a sibling step. The
+# checks below reject every pre-handler line mentioning the env-file
+# channel, the pinned PATH directory, or the decision-file input unless it
+# is one of the exact allowed lines (hardcoded here and matching the
+# pinned workflow text line for line); the shell section below additionally
+# pins the ENTIRE pre-handler
+# region (step sequence, execution-shape keys, and every run line) as
+# canonical exact text, so no such mutation can land in any spelling that
+# avoids the named scans either.
+pre_steps = []
+for index, other in enumerate(target_job.get("steps") or []):
+    if index >= target_key[1]:
+        break
+    pre_steps.append((index, other if isinstance(other, dict) else {}))
+
+# Effective step names as the runner displays them. (The pinned workflow
+# text itself renders `issue #591)` as a YAML comment inside the plain
+# scalar, so the parsed value ends at `issue`; the pin must use the
+# effective name GitHub actually shows, and a future "fix" of that text is
+# exactly the kind of pre-handler edit this pin exists to surface in
+# review.)
+expected_pre_names = [
+    "Checkout repository",
+    "Configure git identity",
+    "Load Maintainer memory (maintainer/logs)",
+    "Build run notification",
+    "Record main SHA before",
+    "Get opencode version",
+    "Cache opencode",
+    "Verify cached opencode binary (poisoned-cache guard)",
+    "Install opencode",
+    "Add opencode to PATH",
+    "Resolve model (bounded fallback ladder)",
+    "Run Maintainer agent",
+    "Verify Maintainer wrote its decision contract (loud failure, issue",
+    "Remove maintainer stray PRs and branches (the Maintainer never opens PRs)",
+    "Emergency-gated commit and push of workflow model updates to main",
+    "Commit Maintainer memory (maintainer/logs)",
+    "Post Maintainer comment",
+]
+if [other.get("name") for _index, other in pre_steps] != expected_pre_names:
+    print("handler-pre-step-sequence-changed", file=sys.stderr)
+    sys.exit(16)
+
+allowed_envfile_lines = {
+    'echo "$HOME/.opencode/bin" >> $GITHUB_PATH',
+    'echo "EMERGENCY_GATE=reverted" >> "$GITHUB_ENV"',
+    'echo "EMERGENCY_GATE=pushed" >> "$GITHUB_ENV"',
+}
+allowed_opencode_lines = {
+    'if [ -x "$HOME/.opencode/bin/opencode" ]; then',
+    'test -x "$HOME/.opencode/bin/opencode"',
+    'echo "$HOME/.opencode/bin" >> $GITHUB_PATH',
+}
+allowed_decision_lines = {
+    '# A healthy Maintainer ALWAYS writes .maintainer/decision.json',
+    'if [ -f .maintainer/decision.json ]; then',
+    "echo \"::error::Maintainer agent finished with outcome '$AGENT_OUTCOME' and no .maintainer/decision.json (model-resolution death, provider error, or crash). Failing loudly instead of concluding green without triage.\"",
+    'if os.path.exists(".maintainer/decision.json"):',
+    'decisions = json.load(open(".maintainer/decision.json"))',
+    'print(f"decision.json unparseable: {e}")',
+}
+for _index, other in pre_steps:
+    for line in (other.get("run") or "").splitlines():
+        stripped = line.strip()
+        if ("GITHUB_PATH" in stripped or "GITHUB_ENV" in stripped) and stripped not in allowed_envfile_lines:
+            print("handler-effective-envfile-write:%s" % stripped[:160], file=sys.stderr)
+            sys.exit(17)
+        if ".opencode" in stripped and stripped not in allowed_opencode_lines:
+            print("handler-pre-opencode-mention:%s" % stripped[:160], file=sys.stderr)
+            sys.exit(18)
+        if "decision.json" in stripped and stripped not in allowed_decision_lines:
+            print("handler-pre-decision-mention:%s" % stripped[:160], file=sys.stderr)
+            sys.exit(19)
+
+# Repo-local scripts executed by the pinned pre-handler steps (review finding
+# F27): the literal scan above reads only the workflow's own run text, so a
+# pinned invocation such as `bash .github/actions/opencode-run/resolve-model.sh`
+# was a runtime channel. Appending
+# `echo "BASH_ENV=$GITHUB_WORKSPACE/.shim" >> "$GITHUB_ENV"` to that script (or
+# writing a repo-controlled directory to GITHUB_PATH, or planting a fake `gh`
+# into the pinned `$HOME/.opencode/bin` directory) left the whole audit green
+# at 25 passed, 0 failed while the handler sourced the shim or used the
+# planted binary and filed the exact duplicate the guard exists to prevent.
+# Every repo-local script the pinned pre-handler run lines execute is therefore
+# scanned for the same env-file channel, the pinned PATH directory, and the
+# decision-file input. One level of indirection inside such a script (a script
+# invoking another script, or an environment variable expanded into the target
+# path) remains the documented residual.
+repo_root = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] else "."
+for _index, other in pre_steps:
+    for _match in re.finditer(r"(?:^|[\s;&|()])(?:/bin/)?(?:bash|sh|source|\.)(?:[ \t]+-[A-Za-z]+)*[ \t]+[\"']?([A-Za-z0-9_./-]+\.(?:sh|bash))[\"']?\b", other.get("run") or ""):
+        _rel = _match.group(1)
+        _path = _rel if os.path.isabs(_rel) else os.path.join(repo_root, _rel)
+        if not os.path.isfile(_path):
+            continue
+        try:
+            with open(_path, encoding="utf-8", errors="replace") as _handle:
+                _script = _handle.read()
+        except OSError:
+            print("handler-pre-script-unreadable:%s" % _rel, file=sys.stderr)
+            sys.exit(22)
+        for _token in ("GITHUB_ENV", "GITHUB_PATH", "BASH_ENV", ".opencode", "decision.json"):
+            if _token in _script:
+                print("handler-pre-script-channel:%s:%s" % (_rel, _token), file=sys.stderr)
+                sys.exit(22)
+
+# The PATH-adding step (exactly one, its body exactly one echo line) is the
+# only way the pinned workflow puts a directory on the handler's PATH; the
+# derived directory list is written to argv[3] for the functional sandbox
+# below, which composes its PATH from these pinned steps instead of
+# hardcoding the mock, so a repo-controlled directory would shadow the mock
+# exactly as it shadows real gh in production.
+path_step_runs = [other.get("run") or "" for _index, other in pre_steps if "GITHUB_PATH" in (other.get("run") or "")]
+if path_step_runs != ['echo "$HOME/.opencode/bin" >> $GITHUB_PATH']:
+    print("handler-path-step-not-exact", file=sys.stderr)
+    sys.exit(20)
+path_dirs = []
+for run_text in path_step_runs:
+    for line in run_text.splitlines():
+        match = re.match(r'^echo "([^"]+)" >> \$GITHUB_PATH$', line.strip())
+        if match:
+            path_dirs.append(match.group(1))
+with open(sys.argv[3], "w", encoding="utf-8") as handle:
+    for path_dir in path_dirs:
+        handle.write(path_dir + "\n")
+
+# Pre-handler manifest (review finding F25, the structural pin): a
+# deterministic, literal-only rendering of every pre-handler step (sequence,
+# execution-shape keys, env key names, `with:` maps, and every run line with
+# blank lines dropped). The shell section compares it byte for byte against
+# a canonical heredoc, so no pre-handler line can be inserted, re-indented,
+# replaced, or re-ordered in ANY spelling, not only the three channels the
+# named scans above cover (e.g. a sibling step that merely OVERWRITES
+# `.maintainer/decision.json` before the handler parses it is caught here
+# even though it mentions no forbidden token). Regenerate the heredoc
+# whenever a pre-handler step legitimately changes: run this extractor with
+# the workflow, argv[3] a throwaway path, and paste argv[2] output.
+manifest = []
+for index, other in pre_steps:
+    header = "### %d name=%s" % (index, other.get("name"))
+    for key in ("id", "uses", "if", "shell", "working-directory", "continue-on-error", "timeout-minutes"):
+        if key in other:
+            header += " | %s=%s" % (key, other.get(key))
+    env_map = other.get("env")
+    if isinstance(env_map, dict):
+        header += " | env=%s" % json.dumps(env_map, sort_keys=True, default=str)
+    with_map = other.get("with")
+    if isinstance(with_map, dict):
+        header += " | with=%s" % json.dumps(with_map, sort_keys=True, default=str)
+    manifest.append(header)
+    for line in (other.get("run") or "").splitlines():
+        if line.strip():
+            manifest.append(line)
+with open(sys.argv[2], "w", encoding="utf-8") as handle:
+    handle.write("\n".join(manifest) + "\n")
+
+sys.stdout.write(run)
+R26EXTRACT
+)
+    r26_extract_rc=$?
+    if [ "$r26_extract_rc" -ne 0 ]; then
+      r26_extract_failed=1
+      r26_reason=$(tr -d '\r\n' < "$r26_extract_err" | head -c 240)
+      [ -n "$r26_reason" ] || r26_reason="rc=$r26_extract_rc"
+      r26_bad="${r26_bad} maintainer.yml(${r26_reason})"
+    fi
+    rm -f "$r26_extract_err"
+  fi
+  # Pre-handler region pin (review finding F25): the anchored handler step's
+  # effective environment is built from its own keys (pinned above), the
+  # pinned workflow/job scopes, AND every earlier step of the same job:
+  # `$GITHUB_PATH` writes prepend directories to PATH for every later step,
+  # `$GITHUB_ENV` writes inject variables, and a directory already on PATH
+  # (the pinned `$HOME/.opencode/bin`) is an executable-planting surface. A
+  # one-line mutation of an existing pre-handler step - appending a
+  # repo-controlled directory to GITHUB_PATH alongside a committed fake
+  # `gh`, exporting a BASH_ENV shim, planting a fake `gh` into the pinned
+  # PATH directory, injecting LD_PRELOAD, or rewriting
+  # `.maintainer/decision.json` - left the entire audit green (25 passed, 0
+  # failed) while the handler used the planted binary/shim and filed the
+  # exact duplicate this guard exists to prevent. The ENTIRE pre-handler
+  # region (step sequence, execution-shape keys, env key names, `with:`
+  # maps, and every run line with blank lines dropped) is therefore pinned
+  # as canonical exact text by the extractor above, so NO pre-handler line
+  # can be inserted, re-indented, replaced, or re-ordered in any spelling;
+  # the extractor's env-file/mention allowlist scans stay as named
+  # diagnostics for the three demonstrated channels. The derived PATH
+  # directory list from the extractor is captured for the functional
+  # sandbox, which composes its PATH from these pinned steps.
+  if [ -s "$r26_premanifest_out" ]; then
+    r26_premanifest_actual=$(cat "$r26_premanifest_out")
+    r26_premanifest_expected=$(cat <<'R26PRE'
+### 0 name=Checkout repository | uses=actions/checkout@v6 | with={"fetch-depth": 0, "persist-credentials": true, "token": "${{ github.token }}"}
+### 1 name=Configure git identity
+git config --global user.name "Hephaestus (Maintainer)"
+git config --global user.email "github-actions[bot]@users.noreply.github.com"
+### 2 name=Load Maintainer memory (maintainer/logs)
+mkdir -p .maintainer/memory/logs
+git fetch origin maintainer/logs:refs/remotes/origin/logs --quiet || echo "no memory branch yet (first run)"
+for f in STATE.md personality.md REGISTRY.md; do
+  if git cat-file -e "refs/remotes/origin/logs:$f" 2>/dev/null; then
+    git show "refs/remotes/origin/logs:$f" > ".maintainer/memory/$f"
+  fi
+done
+for d in 0 1 2 3 4 5 6; do
+  day=$(date -u -d "-$d day" +%Y-%m-%d 2>/dev/null || date -u -v-$d'd' +%Y-%m-%d)
+  if git cat-file -e "refs/remotes/origin/logs:logs/$day.md" 2>/dev/null; then
+    git show "refs/remotes/origin/logs:logs/$day.md" > ".maintainer/memory/logs/$day.md"
+  fi
+done
+ls -la .maintainer/memory .maintainer/memory/logs 2>/dev/null
+### 3 name=Build run notification
+{
+  echo "WORKFLOW: ${{ github.workflow }}"
+  echo "REPO: ${{ github.repository }}"
+  echo "RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+  echo "--- event payload (jq) ---"
+  jq -r '
+    "EVENT: \(.action // "" // "unknown")",
+    "ISSUE: \(.issue.number // "" // "")",
+    "PR_NUMBER: \(.pull_request.number // "" // "")",
+    "PR_TITLE: \(.pull_request.title // "" // "")",
+    "PR_HEAD: \(.pull_request.head.sha // "" // "")",
+    "PR_HEAD_REF: \(.pull_request.head.ref // "" // "")",
+    "PR_MERGED: \(.pull_request.merged // false)",
+    "PR_AUTHOR: \(.pull_request.user.login // .issue.user.login // "" // "")",
+    "PR_BODY: \(.pull_request.body // "" // "")",
+    "COMMENT_AUTHOR: \(.comment.user.login // "" // "")",
+    "ISSUE_TITLE: \(.issue.title // "" // "")",
+    "ISSUE_USER: \(.issue.user.login // "" // "")",
+    "WORKFLOW_RUN_NAME: \(.workflow_run.name // "" // "")",
+    "WORKFLOW_RUN_CONCLUSION: \(.workflow_run.conclusion // "" // "")",
+    "WORKFLOW_RUN_BRANCH: \(.workflow_run.head_branch // "" // "")",
+    "WORKFLOW_RUN_SHA: \(.workflow_run.head_sha // "" // "")",
+    "WORKFLOW_RUN_ID: \(.workflow_run.id // "" // "")",
+    "WORKFLOW_RUN_PR: \(.workflow_run.pull_requests[0].number // "" // "")",
+    "INPUTS: \((.inputs // {}) | tostring)"' "$GITHUB_EVENT_PATH"
+} > .maintainer/notification.txt
+echo "--- notification ---"
+cat .maintainer/notification.txt
+### 4 name=Record main SHA before | id=pre_agent
+echo "sha=$(git ls-remote origin main | awk '{print $1}')" >> $GITHUB_OUTPUT
+### 5 name=Get opencode version | id=opencode_version | shell=bash | continue-on-error=True | env={"GH_TOKEN": "${{ github.token }}"}
+# Authenticated (5000 req/hour, per-repo) so shared-runner-IP
+# unauthenticated rate limits (60 req/hour) stop applying.
+# Retry loop with backoff; the `|| true` keeps `pipefail` from
+# aborting on curl non-2xx or grep no-match, so the
+# `${VERSION:-latest}` fallback always engages.
+VERSION=""
+for attempt in 1 2 3; do
+  VERSION=$(curl -sf --retry 2 --retry-delay 5 -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/anomalyco/opencode/releases/latest | grep -o '"tag_name": *"[^"]*"' | cut -d'"' -f4 || true)
+  if [ -n "$VERSION" ]; then
+    break
+  fi
+  echo "version lookup attempt $attempt failed; retrying..."
+  sleep $((attempt * 10))
+done
+echo "version=${VERSION:-latest}" >> $GITHUB_OUTPUT
+echo "resolved opencode version: ${VERSION:-latest}"
+### 6 name=Cache opencode | id=opencode_cache | uses=actions/cache@v4 | with={"key": "opencode-${{ runner.os }}-${{ runner.arch }}-${{ steps.opencode_version.outputs.version }}", "path": "~/.opencode/bin"}
+### 7 name=Verify cached opencode binary (poisoned-cache guard) | id=opencode_verify | shell=bash
+# Same guard as the vendored composite action: a poisoned cache
+# entry restores fine but holds no binary, which used to surface
+# as "opencode: command not found" (exit 127) under
+# continue-on-error (hollow-green, no decisions).
+if [ -x "$HOME/.opencode/bin/opencode" ]; then
+  echo "present=true" >> "$GITHUB_OUTPUT"
+else
+  echo "present=false" >> "$GITHUB_OUTPUT"
+fi
+### 8 name=Install opencode | if=steps.opencode_cache.outputs.cache-hit != 'true' || steps.opencode_verify.outputs.present != 'true' | shell=bash
+curl -fsSL --retry 3 --retry-delay 10 https://opencode.ai/install | bash
+test -x "$HOME/.opencode/bin/opencode"
+### 9 name=Add opencode to PATH | shell=bash
+echo "$HOME/.opencode/bin" >> $GITHUB_PATH
+### 10 name=Resolve model (bounded fallback ladder) | id=model_ladder | shell=bash | env={"REQUESTED_MODEL": "opencode/deepseek-v4.1-flash-free"}
+bash .github/actions/opencode-run/resolve-model.sh
+### 11 name=Run Maintainer agent | id=maintainer_run | shell=bash | continue-on-error=True | timeout-minutes=60 | env={"GITHUB_TOKEN": "${{ github.token }}", "MODEL_CANDIDATES": "${{ steps.model_ladder.outputs.candidates }}", "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}", "PROMPT": "You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.\n\nREAD FIRST: `.github/agents/maintainer.md` - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below.\n\nYou also have, on disk:\n- `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.\n- `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, progress/*.md) and act on everything that needs you.\n\nSAFETY NET (always binding): you NEVER post comments with \"/oc\" (a hardcoded step posts triggers for you); you never create issues or PRs and never push feature code to main or PR branches; you NEVER run git commit, git push, git checkout -b, or any branch command yourself; and you NEVER edit .github/workflows/**, .github/agents/**, opencode.json, AGENTS.md, or LAB.md as part of routine work - ALL infra, workflow, agent, and model changes route through {\"action\": \"lab\"} (the Lab Engineer). The ONLY exception is the emergency revival contract: after a dispatched lab run demonstrably failed (or lab.yml itself cannot execute because its own model is dead/rate-limited) AND production is fully halted, you MAY write .maintainer/emergency.json and leave your .github/workflows/*.yml edits UNCOMMITTED in the tree for the hardcoded PAT step to verify, commit, and push. Without a valid declaration file, any protected-path edits you leave behind are reverted automatically and never pushed. Otherwise you only write the output files below; everything you write is later committed to the maintainer/logs branch by hardcoded steps. Never print or reference any PAT or secret.\n\nOUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):\n1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | research | design | build | lab | auditor | curate | fix | ideate | recover | ping | test | eval. One entry max per PR/issue. Empty array [] is fine - do not invent work.\n2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Hephaestus, the Maintainer` (a hardcoded step appends it if missing).\n3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.\n4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).\n5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.\n6. `.maintainer/emergency.json` - ONLY under the emergency revival contract above (a failed/broken lab attempt you can link + production halted): exactly {\"reason\": \"...\", \"lab_run\": \"<failing lab run URL>\", \"production_stopped\": true}. Omit the file entirely in every other run - its presence unlocks a direct push to main.\n\nWhen you finish, print a one-line summary of what you decided (the decision list is the deliverable).\n", "USE_GITHUB_TOKEN": "true", "VARIANT": "max"}
+# opencode CLI does not natively recognize workflow_run events (it only supports
+# issue_comment, pull_request_review_comment, issues, pull_request, schedule, workflow_dispatch).
+# For workflow_run triggers, present the event as workflow_dispatch so opencode handles
+# repo-level autonomous triage while the notification file (.maintainer/notification.txt)
+# conveys the failing workflow run details.
+if [ "${{ github.event_name }}" = "workflow_run" ]; then
+  export GITHUB_EVENT_NAME="workflow_dispatch"
+fi
+# FALLBACK-LADDER (issue #591): per-rung retry on provider
+# "Model not found" (opencode may exit nonzero OR exit 0 after
+# posting its error comment), exactly once per rung; the match is
+# boundary-aware so prose quoting a different retired id can never
+# trigger a false advance; on an exit-0 run only the provider's
+# anchored terminal error line in the tail advances (a transcript
+# echo of the phrase re-ran a healthy completed session on
+# 2026-10-17, finding 7, so the whole-log substring match is gone
+# from that path); any other failure exits immediately; a failed
+# log capture and a dead ladder both exit 1 loudly so the verify
+# step below goes red instead of the 2026-10-17 hollow green.
+# FREE-TIER TRANSIENT RETRY (issue #620): the provider
+# intermittently rejects free-tier calls with FreeTierError
+# ("OpenCode's free tier can only be used from within OpenCode
+# ...") seconds into the agent step, killing the wake-up with no
+# decision file; maintainer run 39060571484, 2026-10-17. Such a
+# death retries the SAME model exactly once per arm (bounded), with
+# the same tail + column-0 terminal anchoring as the #591 detector
+# so a transcript echo or the responseBody JSON envelope never
+# consumes the retry; a second rejection fails loudly.
+candidates="${MODEL_CANDIDATES:-}"
+if [ -z "$candidates" ]; then
+  echo "::error::No model candidates resolved; refusing to run the Maintainer (the resolve step did not produce a candidate chain)."
+  exit 1
+fi
+# The wrapper prints the provider's terminal error at column 0 (the
+# final text part `Model not found: <id>. Did you mean: ...`, or
+# `Error: Model not found: ...` when its catch handler prints the
+# throw), while a transcript echo of the phrase (a tool-call echo
+# rendered with the tool prefix, a quoted log line embedded in
+# prose) cannot match both the column-0 anchor and the terminal
+# form. Residual (documented): a healthy run whose own final
+# response contains the exact terminal form as a standalone
+# column-0 line could still match; none has ever been observed.
+model_error_terminal() {
+  tail -n 40 "$1" | grep -qE "^(Error: )?Model not found: ${2//./\\.}(\. Did you mean: .*|\.?$)"
+}
+# FreeTierError detector (issue #620), same tail + column-0 terminal
+# anchoring as model_error_terminal: the provider prints the terminal
+# line bare from its AI SDK (`AI_APICallError: ...`) or from the CLI's
+# catch handler (`APIError: ...`), while a transcript echo (tool-call
+# echo, quoted log line in prose) and the responseBody JSON envelope
+# cannot match the anchored whole-line form.
+freetier_error_terminal() {
+  tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?OpenCode's free tier can only be used from within OpenCode\. Download it at https://opencode\.ai and keep building\.?$"
+}
+freetier_retry_used=0
+status=1
+for model in $candidates; do
+  while :; do
+    log="$(mktemp)"
+    echo "::notice::maintainer run with model '$model'"
+    set +e
+    MODEL="$model" opencode github run 2>&1 | tee "$log"
+    # Capture BOTH pipeline statuses in one assignment: a following
+    # t=${PIPESTATUS[1]} would be empty because the first assignment
+    # resets PIPESTATUS. A failed tee (e.g. full RUNNER_TEMP) leaves an
+    # empty log whose grep can never match, so an exit-0 Model-not-found
+    # death would take the success branch; fail loudly instead.
+    st=("${PIPESTATUS[@]}")
+    set -e
+    status="${st[0]}"; tee_status="${st[1]}"
+    if [ "$tee_status" -ne 0 ]; then
+      echo "::error::could not capture the Maintainer opencode log for model '$model' (tee exit $tee_status); failing loudly instead of risking a blind advance."
+      rm -f "$log"
+      exit 1
+    fi
+    if [ "$status" -eq 0 ]; then
+      if model_error_terminal "$log" "$model"; then
+        echo "::warning::model '$model' died at the provider (terminal Model-not-found error on an exit-0 run); advancing to the next ladder rung if any."
+        rm -f "$log"
+        continue 2
+      fi
+      if freetier_error_terminal "$log"; then
+        if [ "$freetier_retry_used" -lt 1 ]; then
+          freetier_retry_used=1
+          echo "::warning::transient free-tier rejection on model '$model' (exit-0 terminal FreeTierError, issue #620); one bounded retry of the same model in 15s."
+          rm -f "$log"
+          sleep 15
+          continue
+        fi
+        echo "::error::persistent free-tier rejection on model '$model' after the bounded retry (issue #620); failing loudly instead of retrying unboundedly."
+        rm -f "$log"
+        exit 1
+      fi
+      rm -f "$log"
+      exit 0
+    fi
+    if grep -qE "Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)" "$log"; then
+      echo "::warning::model '$model' was not found by the provider; advancing to the next ladder rung if any."
+      rm -f "$log"
+      continue 2
+    fi
+    if freetier_error_terminal "$log"; then
+      if [ "$freetier_retry_used" -lt 1 ]; then
+        freetier_retry_used=1
+        echo "::warning::transient free-tier rejection on model '$model' (exit $status, issue #620); one bounded retry of the same model in 15s."
+        rm -f "$log"
+        sleep 15
+        continue
+      fi
+      echo "::error::persistent free-tier rejection on model '$model' (exit $status) after the bounded retry (issue #620); failing loudly instead of retrying unboundedly."
+      rm -f "$log"
+      exit "$status"
+    fi
+    echo "::error::Maintainer opencode run failed with exit status $status on model '$model' (not a model-resolution or free-tier transient death; remaining rungs are not retried)."
+    rm -f "$log"
+    exit "$status"
+  done
+done
+echo "::error::Maintainer exhausted every model rung ($candidates) with 'Model not found' (issue #591 fallback ladder is dead); failing loudly so the run is visible to health audit and triage."
+exit 1
+### 12 name=Verify Maintainer wrote its decision contract (loud failure, issue | id=verify_agent | if=always() | shell=bash | env={"AGENT_OUTCOME": "${{ steps.maintainer_run.outcome }}"}
+# A healthy Maintainer ALWAYS writes .maintainer/decision.json
+# (an empty array [] is a valid quiet run), so its absence is a
+# broken contract: the 2026-10-17 outage's Model-not-found deaths
+# concluded green under continue-on-error with only a warning. Go RED
+# instead. Note: the Maintainer is self-excluded from the
+# workflow_run failure allowlist, so the observable coverage of this
+# red is the failed run itself plus its recurring 20-minute schedule (and the
+# Auditor's silent-stall survey), not failure-triggered triage.
+# Also intended until the actor-permission preflight (issue #427)
+# lands: on a bot-authored PR's pull_request event the opencode CLI
+# refuses the bot actor and writes no decision file, so this step
+# reds that redundant arm too. The real triage arm is the
+# /oc maintainer comment triggered by opencode-pr-trigger.yml.
+if [ -f .maintainer/decision.json ]; then
+  echo "Maintainer decision contract present (outcome '$AGENT_OUTCOME')."
+  exit 0
+fi
+echo "::error::Maintainer agent finished with outcome '$AGENT_OUTCOME' and no .maintainer/decision.json (model-resolution death, provider error, or crash). Failing loudly instead of concluding green without triage."
+exit 1
+### 13 name=Remove maintainer stray PRs and branches (the Maintainer never opens PRs) | if=always()
+gh pr list --author app/github-actions --state open --json number,headRefName \
+  --jq '.[] | select(.headRefName | startswith("opencode/schedule-") or startswith("opencode/dispatch-") or startswith("opencode/issue")) | .number' \
+  | while read num; do
+      gh pr close "$num" --delete-branch --comment "auto-closed by hardcoded cleanup: the Maintainer never opens PRs - its state lives on the maintainer/logs branch." || true
+    done
+gh api --paginate repos/${{ github.repository }}/branches --jq '.[].name' 2>/dev/null \
+  | grep -E '^opencode/(schedule-|dispatch-|issue)' \
+  | while read br; do
+      enc=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$br")
+      gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/$enc" || true
+    done
+echo "stray cleanup complete"
+### 14 name=Emergency-gated commit and push of workflow model updates to main | if=always() | env={"GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_AUTHOR_NAME": "Hephaestus (Maintainer)", "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_COMMITTER_NAME": "Hephaestus (Maintainer)"}
+dirty=$(git status --porcelain -- .github/workflows .github/agents opencode.json AGENTS.md LAB.md 2>/dev/null || true)
+if [ -z "$dirty" ]; then
+  echo "No protected-path modifications left by the Maintainer; nothing to do."
+  exit 0
+fi
+# Gate: a direct push to main requires a complete emergency declaration:
+# {"reason": "...", "lab_run": "<failing lab run URL>", "production_stopped": true}
+ok=0
+if [ -f .maintainer/emergency.json ]; then
+  echo "Emergency declaration found:"; cat .maintainer/emergency.json
+  decl=$(python3 - <<'PY'
+import json
+try:
+    d = json.load(open('.maintainer/emergency.json'))
+    valid = (
+        isinstance(d, dict)
+        and bool(str(d.get('reason', '')).strip())
+        and bool(str(d.get('lab_run', '')).strip())
+        and d.get('production_stopped') is True
+    )
+    print('valid' if valid else 'invalid')
+except Exception:
+    print('invalid')
+PY
+  )
+  if [ "$decl" = "valid" ]; then
+    ok=1
+    echo "Emergency declaration complete; revival contract unlocked."
+  else
+    echo "::warning::.maintainer/emergency.json exists but is incomplete/unparseable; treating as absent."
+  fi
+fi
+if [ "$ok" != "1" ]; then
+  echo "::warning::Protected-path modifications found WITHOUT a valid emergency declaration. Reverting them; infra/model/workflow changes must be routed to the Lab Engineer ({\"action\": \"lab\"})."
+  for p in .github/workflows .github/agents opencode.json AGENTS.md LAB.md; do
+    git checkout -- "$p" 2>/dev/null || true
+  done
+  git clean -fd -- .github/workflows .github/agents opencode.json AGENTS.md LAB.md >/dev/null 2>&1 || true
+  echo "EMERGENCY_GATE=reverted" >> "$GITHUB_ENV"
+  exit 0
+fi
+echo "Emergency contract satisfied. Staging and committing strictly as Hephaestus (Maintainer)..."
+# Remove actions/checkout credential injection so the PAT URL actually authenticates:
+# checkout v6 stores the App-token extraheader in $RUNNER_TEMP/git-credentials-*.config,
+# referenced via includeIf.gitdir:* entries; a plain unset of http.extraheader cannot remove it.
+git config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
+for cfg in $(git config --local --name-only --get-regexp '^includeIf\.gitdir:.*\.path$' 2>/dev/null); do
+  git config --local --unset-all "$cfg" 2>/dev/null || true
+done
+git add .github/workflows/*.yml
+[ -f opencode.json ] && git add opencode.json || true
+git commit --author="Hephaestus (Maintainer) <github-actions[bot]@users.noreply.github.com>" -m "maintainer: emergency revival - update workflow model configuration (see .maintainer/emergency.json declaration in run log)"
+git fetch origin main --quiet
+# Orphan guard: never push a history that would rewrite main as a divergent/orphan root.
+# main must stay a strict descendant of origin/main (fast-forwardable). Rebase first if needed;
+# if the rebase cannot make HEAD a descendant of origin/main, ABORT instead of orphaning main.
+if ! git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
+  echo "Local main is NOT a descendant of origin/main; rebasing to preserve full main history..."
+  git rebase origin/main --quiet || {
+    echo "::error::Rebase onto origin/main failed; aborting main push to avoid orphaning main."
+    exit 1
+  }
+fi
+git push "https://x-access-token:${{ secrets.OPENCODE_PAT }}@github.com/${{ github.repository }}.git" HEAD:main || {
+  echo "Push failed, attempting rebase..."
+  git fetch origin main --quiet
+  git rebase origin/main --quiet
+  git push "https://x-access-token:${{ secrets.OPENCODE_PAT }}@github.com/${{ github.repository }}.git" HEAD:main
+}
+echo "EMERGENCY_GATE=pushed" >> "$GITHUB_ENV"
+echo "Emergency revival pushed to main as Hephaestus (Maintainer)."
+### 15 name=Commit Maintainer memory (maintainer/logs) | if=always()
+# Issue #647: bounded 3-attempt fetch-recompose-push loop with
+# keep-both log semantics and loud diagnostics. The old single-shot,
+# fully-quiet rebase fallback lost a session's whole memory silently
+# (run 39097165251: push rejected non-fast-forward at 04:33:36.833Z,
+# fallback died 306ms later with zero output, commit 7060a089 gone).
+today="$(date -u +%Y-%m-%d)"
+run_marker='<!-- run: ${{ github.run_id }} -->'
+bundle="$(mktemp -d)"
+for f in state.md personality.md log-entry.md; do
+  if [ -s ".maintainer/$f" ]; then cp ".maintainer/$f" "$bundle/$f"; fi
+done
+if [ -s ".maintainer/memory/logs/$today.md" ]; then
+  cp ".maintainer/memory/logs/$today.md" "$bundle/log-baseline.md"
+fi
+# The agent writes the FULL day file it materialized (existing entries
+# plus today's). Isolate the bytes it actually added against that
+# materialization baseline, so recomposing on a fresh tip can never
+# drop a concurrent session's entry for the same day (issue #647).
+: > "$bundle/log-delta.md"
+if [ -s "$bundle/log-entry.md" ]; then
+  if [ -s "$bundle/log-baseline.md" ] \
+     && [ "$(wc -c < "$bundle/log-entry.md")" -ge "$(wc -c < "$bundle/log-baseline.md")" ] \
+     && head -c "$(wc -c < "$bundle/log-baseline.md")" "$bundle/log-entry.md" | cmp -s - "$bundle/log-baseline.md"; then
+    tail -c +"$(( $(wc -c < "$bundle/log-baseline.md") + 1 ))" "$bundle/log-entry.md" > "$bundle/log-delta.md"
+  else
+    # Append-only contract violated (agent wrote a partial file): keep
+    # both by appending its whole content under the current tip.
+    # Duplicated lines are harmless; a lost entry is not.
+    cp "$bundle/log-entry.md" "$bundle/log-delta.md"
+  fi
+fi
+memory_pushed=0
+for attempt in 1 2 3; do
+  echo "== maintainer memory publish attempt $attempt/3 =="
+  have_tip=0
+  if git fetch origin maintainer/logs:refs/remotes/origin/logs; then
+    if git rev-parse --verify refs/remotes/origin/logs >/dev/null 2>&1; then have_tip=1; fi
+  else
+    echo "::warning::maintainer/logs fetch failed on attempt $attempt (loud on purpose, issue #647)"
+  fi
+  if [ "$have_tip" = "1" ]; then
+    git checkout --force --detach refs/remotes/origin/logs --quiet
+  else
+    # Unique unborn root per attempt (review finding F1): reusing one
+    # name dies on the second bootstrap attempt under the runner's
+    # default `bash -e {0}` shell ("a branch named logs-bootstrap
+    # already exists"), aborting before the loud give-up. A fresh
+    # root also guarantees the "no changes" shortcut below can never
+    # mask a previous attempt's unpushed commit (F1b).
+    git checkout --orphan "logs-bootstrap-$attempt" --quiet
+    git rm -rf . --quiet 2>/dev/null || true
+  fi
+  mkdir -p logs
+  if [ -s "$bundle/state.md" ]; then cp "$bundle/state.md" STATE.md; fi
+  if [ -s "$bundle/personality.md" ]; then cp "$bundle/personality.md" personality.md; fi
+  if [ -f "logs/$today.md" ] && grep -qF "$run_marker" "logs/$today.md"; then
+    echo "this run's marker is already in logs/$today.md; not duplicating the entry"
+  else
+    if [ -s "$bundle/log-delta.md" ]; then
+      if [ -f "logs/$today.md" ] && [ -s "logs/$today.md" ]; then
+        [ -n "$(tail -c 1 "logs/$today.md")" ] && printf '\n' >> "logs/$today.md"
+        printf '\n' >> "logs/$today.md"
+      fi
+      cat "$bundle/log-delta.md" >> "logs/$today.md"
+      [ -n "$(tail -c 1 "logs/$today.md")" ] && printf '\n' >> "logs/$today.md"
+    elif [ ! -f "logs/$today.md" ]; then
+      printf '# %s - auto entry (agent produced no log)\n\nRun: https://github.com/%s/actions/runs/%s (%s)\n> [!WARNING]\n> Agent Output Missing\n\nNote: the agent finished without writing a log entry; this stub keeps instances in sync. See the run logs for details.\n' \
+        "$today" "${{ github.repository }}" "${{ github.run_id }}" "${{ github.event_name }}" > "logs/$today.md"
+    fi
+    printf '%s\n' "$run_marker" >> "logs/$today.md"
+  fi
+  if git cat-file -e "origin/main:.github/agents/REGISTRY.md" 2>/dev/null; then
+    git show "origin/main:.github/agents/REGISTRY.md" > REGISTRY.md
+  elif [ -f .github/agents/REGISTRY.md ]; then
+    cp .github/agents/REGISTRY.md REGISTRY.md
+  fi
+  # Stage ONLY the memory files that exist - never the whole repo.
+  # Per-path adds: one missing path makes a single atomic `git add`
+  # of all paths a silent no-op, which would lose the whole publish.
+  for f in STATE.md personality.md REGISTRY.md; do
+    if [ -f "$f" ]; then git add -- "$f"; fi
+  done
+  if [ -d logs ]; then git add -- logs; fi
+  if git diff --cached --quiet; then
+    if [ "$have_tip" != "1" ]; then
+      # Never conclude green without a tip (review finding F1b): a
+      # bootstrap attempt starts from an unborn root, so an empty
+      # composition here means a stale tree, not a successful
+      # publish. Fall through to the bounded retry/red path.
+      echo "::warning::empty bootstrap composition on attempt $attempt; not concluding green"
+    else
+      echo "no memory changes on attempt $attempt"
+      memory_pushed=1
+      break
+    fi
+  fi
+  if git -c user.name="Hephaestus (Maintainer)" -c user.email="github-actions[bot]@users.noreply.github.com" \
+    commit -m "maintainer: memory update $(date -u +%Y-%m-%dT%H:%MZ)"; then
+    # Loud publish path (issue #647): no --quiet on fetch/commit/push,
+    # so the real git error is always in the step log.
+    if git push origin "HEAD:maintainer/logs"; then
+      memory_pushed=1
+      break
+    fi
+    echo "::warning::memory push rejected on attempt $attempt (git output above); refetching the fresh tip and recomposing"
+  else
+    echo "::warning::memory commit failed on attempt $attempt"
+  fi
+  if [ "$attempt" -lt 3 ]; then
+    sleep 5
+  fi
+done
+# Restore workspace to origin/main so subsequent steps have access to repo scripts
+git checkout --force origin/main --quiet || git checkout --force main --quiet || true
+if [ "$memory_pushed" != "1" ]; then
+  echo "::error::maintainer memory publish failed after 3 attempts; this session's memory was NOT persisted to maintainer/logs. The recoverable bundle follows so the entries can be restored from this run log; the next Maintainer tick starts from the last persisted tip."
+  for f in state.md personality.md log-entry.md; do
+    if [ -s "$bundle/$f" ]; then
+      echo "----- .maintainer/$f (recoverable copy) -----"
+      cat "$bundle/$f"
+      echo "----- end .maintainer/$f -----"
+    fi
+  done
+  rm -rf "$bundle"
+  exit 1
+fi
+echo "memory pushed to maintainer/logs"
+rm -rf "$bundle"
+### 16 name=Post Maintainer comment | if=always() | env={"GH_TOKEN": "${{ github.token }}", "OC_TARGET": "${{ github.event.pull_request.number || github.event.issue.number || inputs.issue_number || inputs.pr_number || '' }}"}
+python3 - <<'PY'
+import json, os, subprocess
+repo = os.environ["GITHUB_REPOSITORY"]
+target = os.environ.get("OC_TARGET", "")
+decisions = []
+if os.path.exists(".maintainer/decision.json"):
+    try:
+        decisions = json.load(open(".maintainer/decision.json"))
+    except Exception as e:
+        print(f"decision.json unparseable: {e}")
+if isinstance(decisions, dict):
+    decisions = [decisions]
+elif not isinstance(decisions, list):
+    decisions = []
+posts = []
+for d in decisions:
+    if not isinstance(d, dict):
+        continue
+    if d.get("action") == "ping" and d.get("target"):
+        posts.append((d["target"], d.get("message", ""), False))
+if os.path.isfile(".maintainer/comment.md") and os.path.getsize(".maintainer/comment.md") > 0 and target:
+    posts.append((target, open(".maintainer/comment.md").read(), True))
+# Emergency-gate transparency: keep Hephaestus's public comments consistent with
+# what the hardcoded steps actually did with any protected-path edits.
+gate_notice = ""
+gate = os.environ.get("EMERGENCY_GATE", "")
+if gate == "reverted":
+    gate_notice = (
+        "[lab-gate] This run left workflow/config edits WITHOUT the required emergency declaration "
+        "(.maintainer/emergency.json), so a hardcoded step reverted them before anything was pushed. "
+        "Infra/model/workflow changes must route to the Lab Engineer ({\"action\": \"lab\"}).\n\n"
+    )
+elif gate == "pushed":
+    gate_notice = (
+        "[emergency-revival] This run's workflow changes landed on main under the emergency revival "
+        "contract (a failed/broken Lab Engineer attempt plus halted production, declared in "
+        ".maintainer/emergency.json).\n\n"
+    )
+sign = "- Hephaestus, the Maintainer"
+for t, body, is_main_comment in posts:
+    body = body.strip()
+    if not body:
+        continue
+    if is_main_comment and gate_notice:
+        body = gate_notice + body
+    if sign not in body:
+        body = body + "\n\n" + sign
+    subprocess.run(
+        ["gh", "api", f"repos/{repo}/issues/{t}/comments", "-f", f"body={body}"],
+        check=False,
+    )
+    print(f"posted comment on #{t}")
+PY
+R26PRE
+)
+    [ "$r26_premanifest_actual" = "$r26_premanifest_expected" ] || r26_bad="${r26_bad} maintainer.yml(pre-handler-block-changed)"
+  elif [ "$r26_extract_failed" = "0" ]; then
+    r26_bad="${r26_bad} maintainer.yml(pre-handler-manifest-missing)"
+  fi
+  r26_pathdirs_cfg=$(cat "$r26_pathdirs_out" 2>/dev/null || true)
+  rm -f "$r26_premanifest_out" "$r26_pathdirs_out"
+  if [ -z "$r26_block" ]; then
+    [ "$r26_extract_failed" = "1" ] || r26_bad="${r26_bad} maintainer.yml(handler-block-not-extractable)"
+  elif ! bash -n <<< "$r26_block" 2>/dev/null; then
+    r26_bad="${r26_bad} maintainer.yml(handler-block-syntax)"
+  else
+    printf '%s\n' "$r26_block" | grep -qF '${{' && r26_bad="${r26_bad} maintainer.yml(unsubstituted-expression)"
+    # Block-scoped query-shape pin (tester finding B2): the exact open-issue
+    # query literal must appear inside the extracted handler block, so a
+    # file-wide pin cannot be satisfied by a copy planted outside the
+    # executing step. A decoy copy inside the block is caught behaviorally by
+    # the argv-aware mock below, which only serves the fixture list for the
+    # pinned shape.
+    printf '%s\n' "$r26_block" | grep -qF '["gh", "issue", "list", "--repo", repo, "--state", "open", "--limit", "1000", "--json", "number,title"]' || r26_bad="${r26_bad} maintainer.yml(query-shape-not-in-block)"
+    # Ordering inside the real block: lookup and skip/triage before the
+    # create call; in-run dedupe guard present; created branch records the
+    # new number; the skip branch's terminating `continue` lies between the
+    # skip print and the create call.
+    r26_ln() { printf '%s\n' "$r26_block" | grep -nF -- "$1" | head -1 | cut -d: -f1; }
+    r26_lookup=$(r26_ln 'existing = _open_issue_titles.get(ntitle) if ntitle else None')
+    r26_skip=$(r26_ln "skip create_issue '{title}': open issue #{existing} already carries the identical normalized title (dedupe, issue #668)")
+    r26_triage=$(r26_ln '_self_triage("issue_number", existing, reason=f"dedupe match: open issue #{existing} already carries the identical normalized title (issue #668)")')
+    r26_inrun=$(r26_ln 'created earlier in this run; triage already dispatched (no duplicate dispatch)')
+    r26_create=$(r26_ln '["gh", "issue", "create", "--repo", repo, "--title", title, "--body", body_text]')
+    r26_created_log=$(r26_ln 'Created new issue #{m.group(1)}: {title}')
+    r26_index=$(r26_ln '_open_issue_titles.setdefault(ntitle, int(m.group(1)))')
+    if [ -z "$r26_lookup" ] || [ -z "$r26_create" ] || [ "$r26_lookup" -ge "$r26_create" ]; then
+      r26_bad="${r26_bad} maintainer.yml(lookup-not-before-create)"
+    fi
+    if [ -z "$r26_skip" ] || [ -z "$r26_create" ] || [ "$r26_skip" -ge "$r26_create" ]; then
+      r26_bad="${r26_bad} maintainer.yml(skip-log-not-before-create)"
+    fi
+    if [ -z "$r26_triage" ] || [ -z "$r26_create" ] || [ "$r26_triage" -ge "$r26_create" ]; then
+      r26_bad="${r26_bad} maintainer.yml(skip-triage-not-before-create)"
+    fi
+    if [ -z "$r26_inrun" ] || [ -z "$r26_create" ] || [ "$r26_inrun" -ge "$r26_create" ]; then
+      r26_bad="${r26_bad} maintainer.yml(in-run-dedupe-not-before-create)"
+    fi
+    if [ -z "$r26_created_log" ] || [ -z "$r26_index" ] || [ "$r26_index" -ge "$r26_created_log" ]; then
+      r26_bad="${r26_bad} maintainer.yml(created-index-not-before-log)"
+    fi
+    # Loader-chain adjacency (review finding F4): the five lines from the
+    # lazy-load guard through the skip guard must be CONSECUTIVE code lines,
+    # so no run-state or input-shape gate (`if len(body_text) > 1: existing =
+    # None`, `if len(decisions) >= 3: ...`, `if target: ...`, a created-count
+    # gate, `if posted: ...`, `if sweep_failed: ...`) can be interposed
+    # between the lookup and the skip test regardless of the dimension it
+    # gates on. Matching is exact-trim equality, so a `#`-prefixed comment
+    # decoy line does not satisfy the chain (a genuine decoy chain would
+    # additionally trip the assignment-structure pin below); any gate that
+    # still reaches runtime is killed behaviorally by the varied fixture
+    # dimensions (multi-line bodies everywhere, the three-decision scenario
+    # with the matching create last, the target-carrying decision, and the
+    # mixed failed-sweep/posted-comment scenario).
+    r26_ln_trim() { printf '%s\n' "$r26_block" | awk -v pat="$1" '{ t=$0; sub(/^[[:space:]]+/, "", t); sub(/[[:space:]]+$/, "", t); if (t == pat) { print NR; exit } }'; }
+    # Index-initialization exact pin (adversarial escape hunt, init-replacement
+    # class): the lazy-load sentinel must stay literally `_open_issue_titles =
+    # None`. A conditional replacement (`= {} if os.environ.get(...) else
+    # None`) keeps the assignment-count pin's count and can stay inert under
+    # every fixture while pre-seeding the index in production, so the loading
+    # never happens and the dedupe never fires; locating the line by exact
+    # trimmed text rejects any such replacement regardless of which context
+    # variable it senses.
+    r26_init=$(r26_ln_trim '_open_issue_titles = None')
+    [ -n "$r26_init" ] || r26_bad="${r26_bad} maintainer.yml(index-init-changed)"
+    # Normalization-body exact pin (adversarial escape-hunt class, raised by
+    # this round's own review of remaining unpinned regions): the whole
+    # `_norm_issue_title()` body, def line through its return, must equal
+    # the canonical trimmed text. The functional fixture matrix exercises
+    # the function's SEMANTICS but cannot see a context-conditional inserted
+    # line (`if os.environ.get("GITHUB_WORKFLOW_REF"): return ""` before the
+    # real return) that is inert under the seeded sandbox and blanks every
+    # title in production, killing the dedupe; the exact body rejects any
+    # inserted line, replacement return, or shadowing variant.
+    r26_norm_body=$(printf '%s\n' "$r26_block" | awk '/^[[:space:]]*def _norm_issue_title\(s\):[[:space:]]*$/ { in_n=1 } in_n { t=$0; sub(/^[[:space:]]+/, "", t); sub(/[[:space:]]+$/, "", t); if (t == "") next; print t; if (t ~ /^return /) exit }')
+    r26_norm_expected='def _norm_issue_title(s):
+return " ".join(re.sub(r"[^0-9a-z]+", " ", (s or "").casefold()).split())'
+    [ "$r26_norm_body" = "$r26_norm_expected" ] || r26_bad="${r26_bad} maintainer.yml(norm-body-changed)"
+    r26_chain1=$(r26_ln_trim 'if _open_issue_titles is None:')
+    r26_chain2=$(r26_ln_trim 'loaded = _load_open_issue_titles()')
+    r26_chain3=$(r26_ln_trim '_open_issue_titles = loaded if loaded is not None else {}')
+    r26_chain4=$(r26_ln_trim 'existing = _open_issue_titles.get(ntitle) if ntitle else None')
+    r26_chain5=$(r26_ln_trim 'if existing:')
+    if [ -z "$r26_chain1" ] || [ -z "$r26_chain2" ] || [ -z "$r26_chain3" ] || [ -z "$r26_chain4" ] || [ -z "$r26_chain5" ]; then
+      r26_bad="${r26_bad} maintainer.yml(loader-chain-missing)"
+    elif [ "$r26_chain2" != "$((r26_chain1 + 1))" ] || [ "$r26_chain3" != "$((r26_chain2 + 1))" ] || [ "$r26_chain4" != "$((r26_chain3 + 1))" ] || [ "$r26_chain5" != "$((r26_chain4 + 1))" ]; then
+      r26_bad="${r26_bad} maintainer.yml(loader-chain-not-adjacent)"
+    fi
+    # Call-site preamble window (adversarial escape hunt M1): the eleven
+    # code lines immediately preceding the lazy-load chain (loop head,
+    # loop-body guard, action/target extraction, branch opener, title/body
+    # reads, create_issue guard, and the ntitle computation) must equal the
+    # canonical trimmed text in order and contiguously, so no probe line can
+    # be inserted between the branch opener and the chain. The demonstrated
+    # escape inserted `gh search issues` there: the probe is inert under the
+    # mock (an unmodeled subcommand exits 64, so its result cannot gate
+    # anything under audit) but succeeds against real gh, blanks ntitle, and
+    # defeats the dedupe on every production run while all functional
+    # assertions stay green. Matching drops blank lines: the window has none
+    # in the pristine handler, so an inserted blank line also fails.
+    if [ -n "$r26_chain1" ]; then
+      r26_pre=$(printf '%s\n' "$r26_block" | awk -v c="$r26_chain1" 'NR >= c - 11 && NR <= c - 1 { t=$0; sub(/^[[:space:]]+/, "", t); sub(/[[:space:]]+$/, "", t); if (t != "") print t }')
+      r26_pre_expected='for d in decisions:
+if not isinstance(d, dict):
+continue
+action = d.get("action")
+pr = d.get("pr")
+target = d.get("target") or pr or d.get("issue")
+if action in ("create_issue", "create_pr"):
+title = d.get("title", "New Item")
+body_text = d.get("body", "")
+if action == "create_issue":
+ntitle = _norm_issue_title(title)'
+      [ "$r26_pre" = "$r26_pre_expected" ] || r26_bad="${r26_bad} maintainer.yml(preamble-window-changed)"
+    fi
+    # Skip-branch shape (review finding F10): the skip print through the
+    # terminating `continue` must be six CONSECUTIVE code lines (skip print,
+    # in-run check, in-run print, `else:`, triage dispatch, `continue`),
+    # with the skip print immediately after `if existing:` and the continue
+    # immediately after the triage line. The previous pin only counted
+    # `continue` lines between the skip print and the create call, so
+    # replacing the bare continue with a conditional (keyed on `ping`, a
+    # first-class decision action absent from the fixture set, or on
+    # `"\n\n" in body_text`) kept one continue line in range and passed
+    # 24/0 while the skip path fell through to `gh issue create`; the full
+    # shape pin closes every conditional-continue and inserted-`elif`
+    # variant regardless of the gated dimension. The `else:` is located by
+    # range so an earlier unrelated `else:` elsewhere in the block cannot
+    # satisfy it.
+    r26_sb_if=$(r26_ln_trim 'if ntitle in _created_issue_numbers:')
+    r26_sb_else=$(printf '%s\n' "$r26_block" | awk -v lo="${r26_skip:-0}" -v hi="${r26_create:-0}" 'NR > lo && NR < hi { t=$0; sub(/^[[:space:]]+/, "", t); sub(/[[:space:]]+$/, "", t); if (t == "else:") { print NR; exit } }')
+    if [ -z "$r26_skip" ] || [ -z "$r26_create" ] || [ -z "$r26_triage" ] || [ -z "$r26_inrun" ] || [ -z "$r26_sb_if" ] || [ -z "$r26_sb_else" ] || [ -z "$r26_chain5" ]; then
+      r26_bad="${r26_bad} maintainer.yml(skip-branch-missing)"
+    else
+      r26_skip_cont=$(printf '%s\n' "$r26_block" | grep -nE '^[[:space:]]*continue[[:space:]]*$' | awk -F: -v lo="$r26_skip" -v hi="$r26_create" '$1 > lo && $1 < hi { print $1; exit }')
+      if [ "$r26_skip" != "$((r26_chain5 + 1))" ] \
+        || [ "$r26_sb_if" != "$((r26_skip + 1))" ] \
+        || [ "$r26_inrun" != "$((r26_skip + 2))" ] \
+        || [ "$r26_sb_else" != "$((r26_skip + 3))" ] \
+        || [ "$r26_triage" != "$((r26_skip + 4))" ] \
+        || [ -z "$r26_skip_cont" ] \
+        || [ "$r26_skip_cont" != "$((r26_skip + 5))" ]; then
+        r26_bad="${r26_bad} maintainer.yml(skip-branch-not-adjacent)"
+      fi
+    fi
+    # Loader-region body pin (review finding F9): the whole
+    # `_load_open_issue_titles()` body, from its def line through
+    # `return index`, must equal the canonical trimmed-line text below
+    # (outer whitespace trimmed, blank lines dropped). This is the
+    # class-closing closure for gates that are INERT under every fixture
+    # while lethal in production: a cross-dimensional conjunction on
+    # individually in-envelope dimensions (`if len(items) >= 5 and
+    # len(decisions) == 2: return {}` passed 24/0 because no fixture held
+    # five list entries and exactly two decisions together), its
+    # no-added-line substitution variant (an extra conjunct appended to the
+    # isinstance guard), and its conditional def-shadowing variant (an
+    # injected second def whose conditional keeps the real body under audit
+    # values) all change this text, add a def occurrence, or add a
+    # loader-name occurrence, so each fails structurally. The exact body also
+    # rejects index/substrate emptying, early returns, and any edit to the
+    # query, parse, or index-build lines; a future legitimate loader edit
+    # must update this expected text in the same change, which is the
+    # intended audit coupling.
+    r26_loader=$(printf '%s\n' "$r26_block" | awk '/^[[:space:]]*def _load_open_issue_titles\(\):[[:space:]]*$/ { in_l=1 } in_l { print; if (/^[[:space:]]*return index[[:space:]]*$/) exit }')
+    r26_loader_norm=$(printf '%s\n' "$r26_loader" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$')
+    r26_loader_expected='def _load_open_issue_titles():
+r = subprocess.run(
+["gh", "issue", "list", "--repo", repo, "--state", "open", "--limit", "1000", "--json", "number,title"],
+capture_output=True, text=True, check=False, env=bot_env)
+if r.returncode != 0:
+print(f"::error::create_issue dedupe query failed; creating without the guard this run (issue #668): {r.stderr.strip()}")
+return None
+try:
+items = json.loads(r.stdout or "[]")
+except Exception as e:
+print(f"::error::create_issue dedupe query returned unparseable JSON; creating without the guard this run (issue #668): {e}")
+return None
+index = {}
+for it in items:
+if not isinstance(it, dict):
+continue
+n = it.get("number")
+t = _norm_issue_title(it.get("title", ""))
+if isinstance(n, int) and t and t not in index:
+index[t] = n
+return index'
+    [ "$r26_loader_norm" = "$r26_loader_expected" ] || r26_bad="${r26_bad} maintainer.yml(loader-body-changed)"
+    r26_loader_defs=$(printf '%s\n' "$r26_block" | grep -c 'def _load_open_issue_titles' || true)
+    [ "${r26_loader_defs:-0}" = "1" ] || r26_bad="${r26_bad} maintainer.yml(loader-def-count:${r26_loader_defs:-0})"
+    r26_loader_refs=$(printf '%s\n' "$r26_block" | grep -c '_load_open_issue_titles' || true)
+    [ "${r26_loader_refs:-0}" = "2" ] || r26_bad="${r26_bad} maintainer.yml(loader-occurrence-count:${r26_loader_refs:-0})"
+    # Whole-handler-block pin (review findings F13/F14/F15; this generalizes
+    # and supersedes the F12 setup-prefix pin): every line of the extracted
+    # handler block, from its first line through the trailing `PY`, must
+    # equal the canonical expected text below, compared RAW (only blank
+    # lines dropped, so an indentation-only mutation is caught as well:
+    # indentation is syntax in Python, and the trimmed comparisons of the
+    # sub-region pins above cannot see it). The F12 pin covered only the
+    # region above the main loop, which left three demonstrated families
+    # green at 24/0: (F13) a blank-line-keyed gate inserted before the
+    # create call silently dropped every create whose body carried a
+    # paragraph break (the shape most production bodies have); (F14) a
+    # decoy two-line `for d in decisions:` loop inserted before the real
+    # loop head stopped the old prefix extraction at the decoy and evaded
+    # the eleven-line preamble window, so a `recover`-first tick filed
+    # duplicates with zero queries; (F15) an alias of the run-local index
+    # cleared by a conditional in the post-create-branch region defeated
+    # every lexical structural pin (bare assignments, dotted attribute
+    # uses, subscript/delete forms) and re-created an in-run duplicate.
+    # Pinning the whole block closes all three plus any future insertion
+    # anywhere, indentation changes included; the exact-form loop-head
+    # count is pinned separately as belt-and-braces so the F14 shape is
+    # rejected by name, and the s31-s36 scenarios below close the same
+    # families behaviorally (recover-first leading skip; create-path
+    # paragraph-break, absent, and short bodies; posted-comment-before-a-
+    # fresh-create; create-lab-create-identical). The sub-region pins above
+    # stay for diagnostics. A future legitimate handler edit must update
+    # this expected text in the same change, the intended audit coupling
+    # already accepted for the loader body and the preamble window.
+    r26_full=$(printf '%s\n' "$r26_block" | awk 'NF { print }')
+    r26_full_expected=$(cat <<'R26FULL'
+python3 -I - <<'PY'
+import json, os, re, subprocess, time
+repo = os.environ["GITHUB_REPOSITORY"]
+owner = os.environ["GITHUB_REPOSITORY_OWNER"]
+# Strip GITHUB_TOKEN from env so gh CLI authenticates exclusively via GH_TOKEN (OPENCODE_PAT as owner)
+os.environ.pop("GITHUB_TOKEN", None)
+bot_env = os.environ.copy()
+bot_env["GH_TOKEN"] = os.environ.get("BOT_TOKEN", "")
+bot_env.pop("GITHUB_TOKEN", None)
+def api(*args, check=True):
+    r = subprocess.run(["gh", "api", *args], capture_output=True, text=True, check=check)
+    return r.stdout.strip(), r
+def pr_info(n):
+    out, _ = api(f"repos/{repo}/pulls/{n}", check=False)
+    try:
+        return json.loads(out)
+    except Exception:
+        return {}
+decisions = []
+if os.path.exists(".maintainer/decision.json"):
+    try:
+        decisions = json.load(open(".maintainer/decision.json"))
+    except Exception as e:
+        print(f"decision.json unparseable: {e}")
+if isinstance(decisions, dict):
+    decisions = [decisions]
+elif not isinstance(decisions, list):
+    decisions = []
+if not decisions:
+    print("::warning::Maintainer produced no decisions (missing or empty decision.json). "
+          "Check the 'Run Maintainer agent' step log: a step timeout, a model/billing error, "
+          "or an earlier setup step failure (Get opencode version, Cache opencode, Install opencode) "
+          "may have stopped the agent before it wrote its output files. No /oc triggers were posted.")
+posted = set()
+sweep_failed = False
+# SELF-TRIAGE (issue #450): content created with GITHUB_TOKEN never
+# emits issues/pull_request opened events, so without a follow-up
+# nothing summons triage for the new item. Dispatch a
+# workflow_dispatch maintainer run (owner PAT, the default credential
+# in this step) carrying the new number, so triage lands within one
+# schedule interval with no human ping.
+def _self_triage(kind, num, reason=None):
+    if not reason:
+        reason = f"self-triage bot-created {kind} #{num}"
+    rr = subprocess.run(["gh", "workflow", "run", "maintainer.yml", "--repo", repo, "--ref", "main", "-f", f"{kind}={num}", "-f", f"reason={reason}"], capture_output=True, text=True, check=False)
+    if rr.returncode == 0:
+        print(f"self-triage dispatched for {kind} #{num}")
+    else:
+        print(f"::error::Failed to self-dispatch triage for {kind} #{num}: {rr.stderr.strip()}")
+# CREATE_ISSUE DEDUPE (issue #668): Maintainer concurrency is
+# per-target, so two ticks on different PRs can decide on the same
+# global finding at once and each created its own issue (#665 filed
+# 15:53:13Z by run 39141891238; #666 filed 15:55:43Z by the
+# concurrent run 39141877509, before either tick could see the
+# other's issue). Before every `gh issue create`, compare the
+# decision title against every open issue title under a
+# deterministic normalization (casefold, non-alphanumerics to
+# spaces, whitespace collapsed) and skip creation when an identical
+# normalized title is already open, self-triaging the matched issue
+# instead so the finding is never left behind. Query-before-create
+# shrinks the concurrent-tick race window from minutes to
+# milliseconds; full atomicity is not required (a same-instant race
+# between the query and the create can still duplicate). The query
+# is fail-open to creation with a loud error: a registry hiccup must
+# never drop a decision.
+def _norm_issue_title(s):
+    return " ".join(re.sub(r"[^0-9a-z]+", " ", (s or "").casefold()).split())
+# norm title -> open issue number; None until first needed ({} means
+# the query failed and this run creates without the guard).
+_open_issue_titles = None
+_created_issue_numbers = {}
+def _load_open_issue_titles():
+    r = subprocess.run(
+        ["gh", "issue", "list", "--repo", repo, "--state", "open", "--limit", "1000", "--json", "number,title"],
+        capture_output=True, text=True, check=False, env=bot_env)
+    if r.returncode != 0:
+        print(f"::error::create_issue dedupe query failed; creating without the guard this run (issue #668): {r.stderr.strip()}")
+        return None
+    try:
+        items = json.loads(r.stdout or "[]")
+    except Exception as e:
+        print(f"::error::create_issue dedupe query returned unparseable JSON; creating without the guard this run (issue #668): {e}")
+        return None
+    index = {}
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        n = it.get("number")
+        t = _norm_issue_title(it.get("title", ""))
+        if isinstance(n, int) and t and t not in index:
+            index[t] = n
+    return index
+for d in decisions:
+    if not isinstance(d, dict):
+        continue
+    action = d.get("action")
+    pr = d.get("pr")
+    target = d.get("target") or pr or d.get("issue")
+    if action in ("create_issue", "create_pr"):
+        title = d.get("title", "New Item")
+        body_text = d.get("body", "")
+        if action == "create_issue":
+            ntitle = _norm_issue_title(title)
+            if _open_issue_titles is None:
+                loaded = _load_open_issue_titles()
+                _open_issue_titles = loaded if loaded is not None else {}
+            existing = _open_issue_titles.get(ntitle) if ntitle else None
+            if existing:
+                print(f"skip create_issue '{title}': open issue #{existing} already carries the identical normalized title (dedupe, issue #668)")
+                if ntitle in _created_issue_numbers:
+                    print(f"issue #{existing} was created earlier in this run; triage already dispatched (no duplicate dispatch)")
+                else:
+                    _self_triage("issue_number", existing, reason=f"dedupe match: open issue #{existing} already carries the identical normalized title (issue #668)")
+                continue
+            r = subprocess.run(["gh", "issue", "create", "--repo", repo, "--title", title, "--body", body_text], capture_output=True, text=True, check=False, env=bot_env)
+            if r.returncode == 0:
+                m = re.search(r"/issues/(\d+)", r.stdout or "")
+                if m:
+                    if ntitle:
+                        _created_issue_numbers[ntitle] = int(m.group(1))
+                        _open_issue_titles.setdefault(ntitle, int(m.group(1)))
+                    print(f"Created new issue #{m.group(1)}: {title}")
+                    _self_triage("issue_number", m.group(1))
+                else:
+                    print(f"Created new issue: {title}")
+                    print(f"::error::Could not parse new issue number from: {(r.stdout or '').strip()[:200]} (triage falls back to schedule plus the UNTRIAGED sweep rule)")
+            else:
+                print(f"::error::Failed to create issue '{title}': {r.stderr.strip()}")
+        else:
+            head = d.get("head", "")
+            if head:
+                r = subprocess.run(["gh", "pr", "create", "--repo", repo, "--head", head, "--base", "main", "--title", title, "--body", body_text], capture_output=True, text=True, check=False, env=bot_env)
+                if r.returncode == 0:
+                    print(f"Created new PR for branch: {head}")
+                    m = re.search(r"/pull/(\d+)", r.stdout or "")
+                    if m:
+                        _self_triage("pr_number", m.group(1))
+                    else:
+                        print(f"::error::Could not parse new PR number from: {(r.stdout or '').strip()[:200]} (triage falls back to schedule plus the UNTRIAGED sweep rule)")
+                else:
+                    print(f"::error::Failed to create PR for '{head}': {r.stderr.strip()}")
+        continue
+    # SWEEP DISPATCH (PAT-backed): run a sweep/train workflow whose
+    # completion must summon triage. Runs dispatched with the bot
+    # token do NOT emit workflow_run triggers (platform
+    # anti-recursion), so their failures complete silently - sweeps
+    # must go out with the owner credential. Handled here (never
+    # via an agent-run gh call, never via /oc comment) because no
+    # agent env may hold the PAT.
+    SWEEP_ALLOWLIST = ("poolduel-m1", "poolduel-m2", "poolduel-m9", "poolduel-m10-soak", "tor-cli", "pet-release")
+    if action == "sweep":
+        wf = d.get("workflow", "")
+        ref = d.get("ref", "") or "main"
+        inputs = d.get("inputs", "") or {}
+        skey = ("sweep", wf, ref, json.dumps(inputs, sort_keys=True) if isinstance(inputs, dict) else str(inputs))
+        if skey in posted:
+            print(f"skip sweep '{wf}' (duplicate in this run)")
+            continue
+        if wf not in SWEEP_ALLOWLIST:
+            print(f"::error::Refusing sweep dispatch for '{wf}': not in allowlist {list(SWEEP_ALLOWLIST)} (route new sweep workflows via lab first)")
+            sweep_failed = True
+            continue
+        if not isinstance(inputs, dict):
+            print(f"::error::sweep 'inputs' must be an object for '{wf}'")
+            sweep_failed = True
+            continue
+        cmd = ["gh", "workflow", "run", wf, "--repo", repo, "--ref", ref]
+        for k, v in inputs.items():
+            cmd += ["-f", f"{k}={v}"]
+        r = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        if r.returncode != 0:
+            print(f"::error::Failed to dispatch sweep '{wf}': {r.stderr.strip()}")
+            sweep_failed = True
+            continue
+        print(f"dispatched sweep '{wf}' on ref '{ref}'" + (f" inputs {inputs}" if inputs else " (defaults)"))
+        # Run-existence verification (issue #399): a dispatch that
+        # emits no run must fail loudly instead of silently
+        # blocking closure. Resolve the ref to its head SHA, then
+        # poll for a matching workflow_dispatch run.
+        expected_sha = ""
+        rr = subprocess.run(["gh", "api", f"repos/{repo}/git/ref/heads/{ref}", "--jq", ".object.sha"], capture_output=True, text=True, check=False)
+        if rr.returncode == 0 and rr.stdout.strip():
+            expected_sha = rr.stdout.strip().lower()
+        elif len(ref) >= 4 and all(c in "0123456789abcdef" for c in ref.lower()):
+            expected_sha = ref.lower()
+        def _sweep_match(run):
+            if run.get("event") != "workflow_dispatch":
+                return False
+            if expected_sha:
+                return run.get("headSha", "").lower().startswith(expected_sha[:12])
+            return run.get("headBranch", "") == ref
+        found = False
+        for attempt in range(6):
+            time.sleep(30)
+            lr = subprocess.run(["gh", "run", "list", "--repo", repo, "--workflow", wf, "--event", "workflow_dispatch", "--limit", "10", "--json", "databaseId,headSha,headBranch,event,createdAt"], capture_output=True, text=True, check=False)
+            try:
+                runs = json.loads(lr.stdout) if lr.returncode == 0 else []
+            except Exception:
+                runs = []
+            for run in runs:
+                if _sweep_match(run):
+                    print(f"verified sweep '{wf}' run {run.get('databaseId')} on {(run.get('headSha') or '')[:12]} (attempt {attempt + 1})")
+                    found = True
+                    break
+            if found:
+                break
+            print(f"sweep '{wf}' run not yet visible (attempt {attempt + 1}/6)")
+        if found:
+            posted.add(skey)
+        else:
+            print(f"::error::Sweep '{wf}' dispatched on ref '{ref}' but no workflow_dispatch run on {(expected_sha[:12] if expected_sha else ref)} appeared within 3m (dispatch misfire or allowlist drift)")
+            sweep_failed = True
+        continue
+    if not target:
+        continue
+    try:
+        target = int(target)
+    except (ValueError, TypeError):
+        print(f"::warning::Skipping malformed target '{target}' for action '{action}'")
+        continue
+    key = (action, target)
+    if key in posted:
+        print(f"skip {action} #{target} (one trigger per PR per run)")
+        continue
+    body = None
+    if action == "review":
+        head = d.get("head", "")
+        body = f"/oc review (head {head})"
+    elif action == "test":
+        body = "/oc test"
+    elif action == "test-linux":
+        body = "/oc test-linux"
+    elif action == "test-macos":
+        body = "/oc test-macos"
+    elif action == "test-windows":
+        body = "/oc test-windows"
+    elif action == "eval":
+        body = "/oc eval"
+    elif action == "continue":
+        body = "/oc continue"
+    elif action == "build":
+        body = "/oc build this"
+    elif action == "auditor":
+        body = "/oc auditor"
+    elif action == "curate":
+        body = "/oc curate"
+    elif action == "architect":
+        body = "/oc architect"
+    elif action == "research":
+        body = "/oc research"
+    elif action == "design":
+        body = "/oc design"
+    elif action == "design-ux":
+        body = "/oc design-ux"
+    elif action == "design-visual":
+        body = "/oc design-visual"
+    elif action == "design-motion":
+        body = "/oc design-motion"
+    elif action == "lab":
+        extra = d.get("instruction") or d.get("mode") or ""
+        if extra:
+            body = f"/oc lab {extra}"
+        else:
+            body = "/oc lab"
+    elif action == "recover":
+        # Maintainer's ONLY self-initiated branch/PR action: recover
+        # in-flight work from a closed/orphaned build PR. Never opens
+        # a new project; only continues existing work (recover.sh and
+        # recover.yml enforce this). This is the governance exception
+        # granted by issue #112.
+        body = "/oc recover"
+    elif action == "fix":
+        info = pr_info(target)
+        author = info.get("user", {}).get("login", "")
+        head_repo = (info.get("head", {}) or {}).get("repo", {}) or {}
+        same_repo = head_repo.get("full_name", "") == repo
+        if author not in ("github-actions[bot]", "app/github-actions") or not same_repo:
+            print(f"skip fix #{target} (not a same-repo bot PR: author={author} repo={head_repo.get('full_name')})")
+            continue
+        body = "/oc fix"
+    if body:
+        r = subprocess.run(
+            ["gh", "api", f"repos/{repo}/issues/{target}/comments", "-f", f"body={body}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if r.returncode == 0:
+            posted.add(key)
+            print(f"posted '{body}' on #{target}")
+        else:
+            print(f"::error::Failed to post '{body}' on #{target}: {r.stderr.strip()}")
+if sweep_failed:
+    print("::error::Sweep dispatch or run-existence verification failed (see errors above); failing loudly so the missing-run gap pages triage instead of silently blocking closure")
+    raise SystemExit(1)
+PY
+R26FULL
+)
+    [ "$r26_full" = "$r26_full_expected" ] || r26_bad="${r26_bad} maintainer.yml(handler-block-changed)"
+    r26_loop_heads=$(printf '%s\n' "$r26_block" | grep -cE '^[[:space:]]*for d in decisions:[[:space:]]*$' || true)
+    [ "${r26_loop_heads:-0}" = "1" ] || r26_bad="${r26_bad} maintainer.yml(loop-head-count:${r26_loop_heads:-0})"
+
+    # Structural pins (adversarial verification finding, applied): the
+    # run-local index may only be assigned by its initialization and the
+    # single fail-open line, so an inserted environment-conditional
+    # re-assignment (the demonstrated `{} if "R26_CALLS" not in os.environ
+    # else ...` / GITHUB_ACTIONS backdoor shape) lands as an extra
+    # assignment; and the only attribute accesses on it are the .get lookup
+    # and the .setdefault record, so a .clear()/.update()/.pop() sabotage
+    # needs no new assignment line to empty the index.
+    r26_assign_n=$(printf '%s\n' "$r26_block" | grep -cE '^[[:space:]]*_open_issue_titles[[:space:]]*=[^=]' || true)
+    [ "${r26_assign_n:-0}" = "2" ] || r26_bad="${r26_bad} maintainer.yml(index-assignments:${r26_assign_n:-0})"
+    r26_attr=$(printf '%s\n' "$r26_block" | grep -oE '_open_issue_titles\.[A-Za-z_]+' | sort -u | tr '\n' '|' || true)
+    [ "$r26_attr" = "_open_issue_titles.get|_open_issue_titles.setdefault|" ] || r26_bad="${r26_bad} maintainer.yml(index-attribute-uses:${r26_attr})"
+    # Subscript writes/deletes (review finding F5): `_open_issue_titles[
+    # ntitle] = None` or `del _open_issue_titles[ntitle]` in the skip branch
+    # defeats the in-run dedupe while the bare-assignment and attribute pins
+    # above stay satisfied, so both forms are rejected; the extended
+    # three-decision in-run scenario below catches them behaviorally as well.
+    printf '%s\n' "$r26_block" | grep -qE '_open_issue_titles[[:space:]]*\[|del[[:space:]]+_open_issue_titles' && r26_bad="${r26_bad} maintainer.yml(index-subscript-or-delete)"
+  # Functional: extract the REAL normalization function body from the
+  # extracted block and run it, so a semantics change (fuzzy matching, case
+  # fold removed, punctuation kept) cannot land while the static markers
+  # still pass. The extractor takes the first definition, so exactly one must
+  # exist (review finding F7): a shadowing second definition would otherwise
+  # leave the fixture matrix testing dead code.
+  r26_norm_defs=$(printf '%s\n' "$r26_block" | grep -c 'def _norm_issue_title' || true)
+  [ "${r26_norm_defs:-0}" = "1" ] || r26_bad="${r26_bad} maintainer.yml(norm-def-count:${r26_norm_defs:-0})"
+  r26_fn=$(printf '%s\n' "$r26_block" | awk '/def _norm_issue_title\(s\):/ { in_fn=1 } in_fn { print; if (/return /) exit }' 2>/dev/null)
+  if [ -z "$r26_fn" ]; then
+    r26_bad="${r26_bad} maintainer.yml(norm-function-not-extractable)"
+  else
+    r26_fixture_out=$(R26_FN="$r26_fn" python3 -I - <<'R26PY' 2>&1
+import os, re, textwrap
+src = textwrap.dedent(os.environ["R26_FN"])
+ns = {"re": re}
+exec(src, ns)
+f = ns["_norm_issue_title"]
+sid_665 = "[Infra] postformer-cpu-train targets pre-archive paths: every dispatch fails (retire or repoint)"
+sid_666 = "[Infra] postformer-cpu-train.yml targets the pre-archive postformer/ path and fails on any dispatch"
+# Long-tail pair (tester finding B1): both titles exceed 80 characters,
+# share a >80-character prefix, and differ only in the final word, so any
+# truncation (`[:60]`, `[:80]`) or a `len > 80` fragment gate collapses them
+# into a false match and the expected-NON-match fixture fails.
+long_a = "[Infra] sweep validation fails on every dispatch for the archived pre-archive pipeline path alpha"
+long_b = "[Infra] sweep validation fails on every dispatch for the archived pre-archive pipeline path bravo"
+cases = [
+    ("case-fold-matches", "Postformer CPU Train", "postformer cpu train", True),
+    ("unicode-casefold", "Stra\u00dfe Fix", "strasse fix", True),
+    ("punctuation-space-collapse", "[Infra] Foo: bar, baz! (v2)", "[INFRA]  foo bar   baz v2", True),
+    ("hyphen-equals-space", "postformer-cpu-train", "postformer cpu train", True),
+    ("underscore-equals-space", "postformer_cpu_train", "postformer cpu train", True),
+    ("digits-discriminate-suffix", "[Infra] poolduel-m1 sweep fails", "[Infra] poolduel-m2 sweep fails", False),
+    ("digits-discriminate-issue-number", "issue 665 cleanup", "issue 666 cleanup", False),
+    ("space-placement-matters", "foo bar", "foobar", False),
+    ("long-tail-differs", long_a, long_b, False),
+    ("distinct-titles-differ", "Alpha defect", "Beta defect", False),
+    ("none-is-empty", None, "", True),
+    ("paraphrase-pair-conservative", sid_665, sid_666, False),
+]
+bad = []
+for name, a, b, want in cases:
+    got = f(a) == f(b)
+    if got != want:
+        bad.append(f"{name}(got {got} want {want})")
+print(";".join(bad))
+R26PY
+)
+    if [ -n "$r26_fixture_out" ]; then
+      r26_bad="${r26_bad} functional(norm-fixtures: ${r26_fixture_out})"
+    fi
+  fi
+  # Functional sandbox (review finding F2; delegation.md section 6: executable
+  # mocks, interception proven before the matrix, non-credential Actions env
+  # set production-shaped, credentials scrubbed, sandbox outside the repo,
+  # per-scenario timeout): execute the REAL extracted handler block under the
+  # runner's `bash -e` shell against a mock `gh` across the fresh-create,
+  # normalized-match skip+triage, in-run duplicate, query-failure fail-open,
+  # and bad-JSON fail-open scenarios, so no plain one-line control-flow
+  # mutation (`loaded = {}`, `if False:`, a removed skip-branch `continue`, a
+  # dead triage dispatch, a dropped in-run index record) can conclude green
+  # while the dedupe is disabled. The demonstrated env-sensing backdoor class
+  # (fingering GITHUB_ACTIONS or a harness-specific variable so the sabotage
+  # keeps the guard only under audit) is closed as well: GITHUB_ACTIONS and
+  # the non-credential context are set production-shaped (matching the
+  # R17/R19/R22 harnesses) and NO harness-specific variable reaches the
+  # handler; the mock's state paths are baked into the mock script itself.
+  # Deliberate identity fingerprinting on values a sandbox cannot avoid
+  # (fixture token strings, sandbox paths) remains review-gated and is
+  # documented as a residual.
+  if ! command -v python3 >/dev/null 2>&1 || ! command -v timeout >/dev/null 2>&1; then
+    r26_bad="${r26_bad} maintainer.yml(functional-missing-python3-or-timeout)"
+  else
+    r26_tmp=$(mktemp -d 2>/dev/null || true)
+    if [ -z "$r26_tmp" ] || [ ! -d "$r26_tmp" ]; then
+      r26_bad="${r26_bad} maintainer.yml(functional-sandbox-unavailable)"
+    else
+      r26_bin="$r26_tmp/bin"
+      r26_state="$r26_tmp/state"
+      mkdir -p "$r26_bin" "$r26_state" "$r26_tmp/home" "$r26_tmp/tmp"
+      printf '%s\n' "$r26_block" > "$r26_tmp/block.sh"
+      R26_PAT='owner-pat-fixture'
+      R26_BOT='bot-token-fixture'
+      cat > "$r26_bin/gh.tpl" <<'R26GH'
+#!/usr/bin/env bash
+state="__R26_STATE__"
+# One log line per invocation: argv newlines (a realistic multi-line issue
+# body) are flattened to spaces so token/flag assertions stay on the call's
+# own line.
+r26_logline=$(printf '%s' "gh $* token=${GH_TOKEN:-}" | tr '\n' ' ')
+printf '%s\n' "$r26_logline" >> "$state/calls"
+case "${1:-}" in
+  issue)
+    case "${2:-}" in
+      list)
+        mode="ok"
+        [ -f "$state/mode" ] && mode=$(cat "$state/mode")
+        case "$mode" in
+          fail) echo "R26 simulated registry failure" >&2; exit 1 ;;
+          garbage) printf 'not-json{\n'; exit 0 ;;
+        esac
+        # Exact element-wise argv enforcement (tester finding B2 plus
+        # adversarial escapes E2/Q4/Q5): the fixture list is served ONLY when
+        # the query argv matches the pinned invocation token for token.
+        # Substring presence was not enough (a repeated scalar flag is
+        # pflag last-wins, an added --search filter changes the result set),
+        # and a lossy space-joined `"$*"` comparison was not enough either
+        # (merging adjacent tokens into one argv element reproduced the
+        # joined string while real gh sees an unknown flag and fail-opens).
+        # Comparing the argument COUNT plus every positional element rejects
+        # reorders, repeated flags, added filters, and merged/split tokens
+        # alike; any deviation empties the served list, so the tampering
+        # handler creates and fails the skip assertions instead of passing
+        # behind a decoy string/comment pin.
+        if [ "$#" -ne 10 ] \
+          || [ "$1" != "issue" ] || [ "$2" != "list" ] \
+          || [ "$3" != "--repo" ] || [ "$4" != "RandomLabs/RandomLabs" ] \
+          || [ "$5" != "--state" ] || [ "$6" != "open" ] \
+          || [ "$7" != "--limit" ] || [ "$8" != "1000" ] \
+          || [ "$9" != "--json" ] || [ "${10}" != "number,title" ]; then
+          printf '[]\n'; exit 0
+        fi
+        # Newline fidelity (review finding F6): real `gh ... --json` output
+        # ends with a trailing newline (`od -c` on live gh shows `] \n`), so
+        # the mock emits one on every path; without it a loader gate like
+        # `if r.stdout.endswith("\n"): return {}` would pass the audit while
+        # disabling the dedupe in production.
+        if [ -f "$state/list.json" ]; then
+          cat "$state/list.json"
+          printf '\n'
+        else
+          printf '[]\n'
+        fi
+        ;;
+      create)
+        n=0
+        [ -f "$state/create-count" ] && n=$(cat "$state/create-count")
+        n=$((n + 1))
+        printf '%s\n' "$n" > "$state/create-count"
+        printf 'https://github.com/RandomLabs/RandomLabs/issues/%s\n' "$((899 + n))"
+        ;;
+      *) echo "R26 mock gh: unexpected issue subcommand '${2:-}'" >&2; exit 64 ;;
+    esac
+    ;;
+  workflow)
+    [ "${2:-}" = "run" ] || { echo "R26 mock gh: unexpected workflow subcommand '${2:-}'" >&2; exit 64; }
+    ;;
+  api)
+    # Comment posting from ordinary non-create actions (the mixed-action
+    # scenario posts before the matching create so a `posted`-keyed gate
+    # cannot hide behind an empty run-state).
+    printf '{}\n'
+    ;;
+  *) echo "R26 mock gh: unexpected command '${1:-}'" >&2; exit 64 ;;
+esac
+exit 0
+R26GH
+      sed "s|__R26_STATE__|$r26_state|" "$r26_bin/gh.tpl" > "$r26_bin/gh" && rm -f "$r26_bin/gh.tpl"
+      chmod +x "$r26_bin/gh"
+      if [ "$(env PATH="$r26_bin:$PATH" bash -c 'command -v gh' 2>/dev/null || true)" != "$r26_bin/gh" ]; then
+        r26_bad="${r26_bad} maintainer.yml(functional-mock-not-intercepted)"
+      else
+        : > "$r26_state/calls"
+        : > "$r26_state/calls-all"
+        env PATH="$r26_bin:$PATH" GH_TOKEN=probe bash -c 'gh issue list --repo probe --state open --limit 1000 --json number,title' >/dev/null 2>&1 || true
+        if ! grep -qF 'gh issue list' "$r26_state/calls" 2>/dev/null; then
+          r26_bad="${r26_bad} maintainer.yml(functional-mock-probe-failed)"
+        else
+          r26_fail() { r26_bad="${r26_bad} maintainer.yml(functional-$1)"; }
+          r26_check() { [ "$2" = "1" ] || r26_fail "$1"; }
+          r26_calls() { grep -cF -- "$1" "$r26_state/calls" 2>/dev/null || true; }
+          r26_out_has() { grep -qF -- "$1" "$2/out" 2>/dev/null && echo 1 || echo 0; }
+          r26_rc0() { [ "$(cat "$1/rc" 2>/dev/null)" = "0" ] && echo 1 || echo 0; }
+          r26_rc_is() { [ "$(cat "$1/rc" 2>/dev/null)" = "$2" ] && echo 1 || echo 0; }
+          r26_triage_on() { grep -F 'gh workflow run' "$r26_state/calls" 2>/dev/null | grep -qF -- "issue_number=$1" && echo 1 || echo 0; }
+          r26_token_on() { grep -F -- "$1" "$r26_state/calls" 2>/dev/null | grep -qF -- "token=$2" && echo 1 || echo 0; }
+          r26_run() {
+            local dir="$1" mode="$2" list_file="$3" dec="$4" event="${5:-schedule}" plant_gh="${6:-}"
+            rm -rf "$dir"
+            mkdir -p "$dir/work/.maintainer" "$dir/home" "$dir/tmp"
+            printf '%s' "$dec" > "$dir/work/.maintainer/decision.json"
+            # Repo-root shadow mirror (review findings F20/F22/F23): the
+            # handler step now runs isolated (`python3 -I -`, pinned in the
+            # exact-text handler block), so a repo-root module can no longer
+            # reach it; mirror the repo root's top-level files in EVERY
+            # importable spelling (*.py, *.pyc, *.so, *.pyd) and package
+            # directories carrying any importable __init__ artifact into the
+            # work dir as defense in depth, so an isolation regression that
+            # somehow survives the exact-text pin also surfaces behaviorally
+            # (the static scan above already fails loudly on a watched-module
+            # shadow).
+            if [ -n "$R26_REPO_ROOT" ]; then
+              for r26_shadow in "$R26_REPO_ROOT"/*.py "$R26_REPO_ROOT"/*.pyc "$R26_REPO_ROOT"/*.so "$R26_REPO_ROOT"/*.pyd; do
+                [ -e "$r26_shadow" ] || continue
+                ln -sf "$r26_shadow" "$dir/work/$(basename "$r26_shadow")"
+              done
+              for r26_shadow_dir in "$R26_REPO_ROOT"/*/; do
+                [ -d "$r26_shadow_dir" ] || continue
+                if [ -f "${r26_shadow_dir}__init__.py" ] || compgen -G "${r26_shadow_dir}__init__.*" >/dev/null 2>&1; then
+                  ln -sfn "${r26_shadow_dir%/}" "$dir/work/$(basename "${r26_shadow_dir%/}")"
+                fi
+              done
+            fi
+            printf '%s\n' "$mode" > "$r26_state/mode"
+            if [ -n "$list_file" ] && [ -f "$list_file" ]; then
+              cp "$list_file" "$r26_state/list.json"
+            else
+              printf '[]' > "$r26_state/list.json"
+            fi
+            cat "$r26_state/calls" >> "$r26_state/calls-all" 2>/dev/null || true
+            : > "$r26_state/calls"
+            : > "$r26_state/create-count"
+            # PATH composition from the pinned workflow steps (review finding
+            # F25, defense in depth): the extractor derived the directory
+            # list from the exact-pinned `$GITHUB_PATH` step(s), and the
+            # runner puts those directories ahead of everything else on a
+            # later step's PATH. The sandbox mirrors that order honestly: a
+            # derived directory that resolves under $GITHUB_WORKSPACE is
+            # materialized from the repo (so a committed executable planted
+            # there would shadow the mock exactly as it shadows real gh in
+            # production and drain the invocation log), and every derived
+            # directory is prepended BEFORE the mock bin. The static pins
+            # above already reject any unlisted GITHUB_PATH write, so this
+            # layer only matters if a future escape defeats them, and then
+            # the fixture assertions fail loudly instead of passing with a
+            # hijacked binary.
+            r26_path_prefix=""
+            if [ -n "$r26_pathdirs_cfg" ]; then
+              while IFS= read -r r26_pd; do
+                [ -n "$r26_pd" ] || continue
+                case "$r26_pd" in
+                  '$HOME'*)
+                    r26_pd_resolved="$dir/home${r26_pd#\$HOME}"
+                    ;;
+                  '$GITHUB_WORKSPACE'*)
+                    r26_pd_rel="${r26_pd#\$GITHUB_WORKSPACE/}"
+                    [ -n "$r26_pd_rel" ] || continue
+                    if [ -n "$R26_REPO_ROOT" ] && [ -e "$R26_REPO_ROOT/$r26_pd_rel" ]; then
+                      mkdir -p "$dir/work/$(dirname "$r26_pd_rel")"
+                      cp -R "$R26_REPO_ROOT/$r26_pd_rel" "$dir/work/$r26_pd_rel" 2>/dev/null || true
+                    fi
+                    r26_pd_resolved="$dir/work/$r26_pd_rel"
+                    ;;
+                  /*)
+                    r26_pd_resolved="$r26_pd"
+                    ;;
+                  *)
+                    r26_pd_resolved="$dir/work/$r26_pd"
+                    ;;
+                esac
+                mkdir -p "$r26_pd_resolved" 2>/dev/null || true
+                r26_path_prefix="${r26_path_prefix}${r26_pd_resolved}:"
+              done <<< "$r26_pathdirs_cfg"
+            fi
+            # Derived-PATH shadow probe (review finding F25, defense in
+            # depth): plant a failing fake `gh` into the FIRST resolved
+            # derived directory (the pinned $HOME/.opencode/bin). If the
+            # composed PATH still puts derived directories ahead of the mock
+            # bin, the planted binary is what the handler invokes and the
+            # mock invocation log stays empty; a reordering regression
+            # (mock bin first) flips the pathshadow scenario's assertions
+            # loudly instead of silently neutralizing the composition.
+            if [ "$plant_gh" = "plant" ] && [ -n "$r26_path_prefix" ]; then
+              r26_first_resolved="${r26_path_prefix%%:*}"
+              printf '#!/usr/bin/env bash\nexit 64\n' > "$r26_first_resolved/gh"
+              chmod +x "$r26_first_resolved/gh"
+            fi
+            (
+              cd "$dir/work" || exit 1
+              # Fully hermetic env (review observation): `env -i` builds the
+              # handler environment from scratch, so NO ambient runner
+              # variable (GITHUB_*, ACTIONS_*, or anything else) reaches the
+              # handler - only the explicit production-shaped set below.
+              # Detection of env-keyed gates is therefore independent of the
+              # ambient CI environment, not just of the six unset secrets.
+              env -i \
+                PATH="${r26_path_prefix}$r26_bin:$PATH" HOME="$dir/home" TMPDIR="$dir/tmp" \
+                GITHUB_ACTIONS=true GITHUB_REPOSITORY="RandomLabs/RandomLabs" GITHUB_REPOSITORY_OWNER="RandomLabs" \
+                GITHUB_WORKFLOW=maintainer GITHUB_JOB=maintainer GITHUB_RUN_ID=4242424242 \
+                GITHUB_EVENT_NAME=$event GITHUB_ACTOR="github-actions[bot]" \
+                GITHUB_SHA=0123456789abcdef0123456789abcdef01234567 GITHUB_REF=refs/heads/main \
+                GITHUB_REF_NAME=main GITHUB_REF_TYPE=branch \
+                GITHUB_SERVER_URL=https://github.com GITHUB_API_URL=https://api.github.com \
+                GITHUB_GRAPHQL_URL=https://api.github.com/graphql GITHUB_WORKSPACE="$dir/work" \
+                RUNNER_OS=Linux RUNNER_ARCH=X64 CI=true \
+                GH_TOKEN="$R26_PAT" BOT_TOKEN="$R26_BOT" \
+                timeout 60 bash -e "$r26_tmp/block.sh"
+            ) > "$dir/out" 2>&1
+            echo $? > "$dir/rc"
+          }
+          # Realistic multi-line bodies in every scenario decision EXCEPT
+          # the deliberate short-body (s21, 23 chars) and absent-body (s24)
+          # probes (review finding F4 plus its escape hunt): the previous
+          # one-character bodies made the whole fixture set blind to a gate
+          # on the decision body length (`if len(body_text) > 1: existing =
+          # None` kills the dedupe on every real tick while the fixtures
+          # stayed green); the body below is production-shaped, multi-line
+          # and >200 characters.
+          r26_body="Finding: two concurrent Maintainer ticks filed the same global issue twice before either could see the other.\nEvidence: run 39141891238 filed #665 at 15:53:13Z; run 39141877509 filed #666 at 15:55:43Z.\nFix: query open issues before creating and skip on an identical normalized title."
+          r26_dec_s1="[{\"action\": \"create_issue\", \"title\": \"Brand New Finding\", \"body\": \"$r26_body\"}]"
+          r26_dec_s2="[{\"action\": \"create_issue\", \"title\": \"[Infra] Postformer-CPU-TRAIN targets pre-archive paths! (retire or repoint)\", \"body\": \"$r26_body\"}]"
+          r26_dec_s3="[{\"action\": \"create_issue\", \"title\": \"Duplicate Finding\", \"body\": \"$r26_body\"}, {\"action\": \"create_issue\", \"title\": \"duplicate-finding\", \"body\": \"$r26_body\"}, {\"action\": \"create_issue\", \"title\": \"Duplicate  Finding\", \"body\": \"$r26_body\"}]"
+          r26_dec_s4="[{\"action\": \"create_issue\", \"title\": \"Fail Open Finding\", \"body\": \"$r26_body\"}]"
+          r26_dec_s5="[{\"action\": \"create_issue\", \"title\": \"Garbage JSON Finding\", \"body\": \"$r26_body\"}]"
+          r26_dec_s6="[{\"action\": \"create_issue\", \"title\": \"A Repeat Finding\", \"body\": \"$r26_body\"}]"
+          r26_dec_s7="[{\"action\": \"create_issue\", \"title\": \"Legacy Repeat Finding\", \"body\": \"$r26_body\"}]"
+          r26_dec_s8="[{\"action\": \"create_issue\", \"title\": \"Third Repeat Finding\", \"body\": \"$r26_body\"}]"
+          r26_dec_s9="[{\"action\": \"create_issue\", \"title\": \"[Infra] sweep validation fails on every dispatch for the archived pre-archive pipeline path alpha\", \"body\": \"$r26_body\"}]"
+          r26_dec_s10="[{\"action\": \"create_issue\", \"title\": \"Fix bug 43\", \"body\": \"$r26_body\"}]"
+          r26_dec_s11="[{\"action\": \"create_issue\", \"title\": \"Patch v1\", \"body\": \"$r26_body\"}]"
+          r26_dec_s12="[{\"action\": \"create_issue\", \"title\": \"[Infra] sweep validation fails on every dispatch for the archived pre-archive pipeline path mode b\", \"body\": \"$r26_body\"}]"
+          r26_dec_s13="[{\"action\": \"create_issue\", \"title\": \"Swift6 migration\", \"body\": \"$r26_body\"}]"
+          r26_dec_s14="[{\"action\": \"create_issue\", \"title\": \"Worker v10\", \"body\": \"$r26_body\"}]"
+          r26_dec_s15="[{\"action\": \"create_issue\", \"title\": \"First Fresh Finding\", \"body\": \"$r26_body\"}, {\"action\": \"create_issue\", \"title\": \"Second Fresh Finding\", \"body\": \"$r26_body\"}, {\"action\": \"create_issue\", \"title\": \"third-time-finding\", \"body\": \"$r26_body\"}]"
+          r26_dec_s16="[{\"action\": \"create_issue\", \"title\": \"targeted-finding\", \"body\": \"$r26_body\", \"target\": \"main\"}]"
+          r26_dec_s17="[{\"action\": \"sweep\", \"workflow\": \"r26-unallowlisted-workflow\", \"ref\": \"main\"}, {\"action\": \"test\", \"pr\": 123}, {\"action\": \"create_issue\", \"title\": \"Mixed Context Finding\", \"body\": \"$r26_body\"}]"
+          r26_dec_s18="[{\"action\": \"create_issue\", \"title\": \"First Two-Decision Finding\", \"body\": \"$r26_body\"}, {\"action\": \"create_issue\", \"title\": \"two decision finding\", \"body\": \"$r26_body\"}]"
+          r26_dec_s19="[{\"action\": \"create_issue\", \"title\": \"First Four-Decision Finding\", \"body\": \"$r26_body\"}, {\"action\": \"create_issue\", \"title\": \"Second Four-Decision Finding\", \"body\": \"$r26_body\"}, {\"action\": \"create_issue\", \"title\": \"Third Four-Decision Finding\", \"body\": \"$r26_body\"}, {\"action\": \"create_issue\", \"title\": \"four decision finding\", \"body\": \"$r26_body\"}]"
+          r26_multi_actions="["
+          for r26_act in review test test-linux test-macos test-windows eval continue build auditor curate architect research design design-ux design-visual design-motion lab recover fix; do
+            r26_multi_actions="$r26_multi_actions{\"action\": \"$r26_act\", \"pr\": 200}, "
+          done
+          # ping (with target) and ideate are first-class maintainer decision
+          # actions (the decision schema) that this handler must stay inert
+          # on: the trigger handler posts nothing for them, so the comment
+          # count stays 18 and the fixture change is behavior-neutral;
+          # their presence in the decision list is what makes a conditional
+          # skip-branch continue keyed on either action fire under audit
+          # (review finding F10's demonstrated `ping` key).
+          r26_multi_actions="$r26_multi_actions{\"action\": \"ping\", \"target\": 582, \"message\": \"r26 fixture ping\"}, {\"action\": \"ideate\"}, "
+          r26_multi_actions="$r26_multi_actions{\"action\": \"create_pr\", \"head\": \"opencode/lab-r26-fixture\", \"title\": \"r26 fixture pr\", \"body\": \"$r26_body\"}, {\"action\": \"create_issue\", \"title\": \"non create context finding\", \"body\": \"$r26_body\"}]"
+          r26_dec_s20="$r26_multi_actions"
+          r26_dec_s21="[{\"action\": \"create_issue\", \"title\": \"short body finding\", \"body\": \"Short single-line body.\"}]"
+          r26_dec_s22="[{\"action\": \"create_issue\", \"title\": \"two line body finding\", \"body\": \"Two-line dedupe body line one, about seventy characters long overall.\nLine two closes the body.\"}]"
+          r26_dec_s23="[{\"action\": \"create_issue\", \"title\": \"event dispatch finding\", \"body\": \"$r26_body\"}]"
+          r26_dec_s24="[{\"action\": \"create_issue\", \"title\": \"absent body finding\"}]"
+          r26_dec_s25="[{\"action\": \"create_issue\", \"title\": \"early match finding\", \"body\": \"$r26_body\"}, {\"action\": \"lab\", \"pr\": 124}]"
+          # Paragraph-break body (review finding F10's second demonstrated
+          # key): real issue bodies routinely carry blank lines, so a gate on
+          # `"\n\n" in body_text` is invisible to every fixture body (the
+          # production-shaped r26_body, the 23-char single-line s21 body, and
+          # the two-line s22 body carry no consecutive newlines); s27's body
+          # does, so the gate fires under audit.
+          r26_dec_s27="[{\"action\": \"create_issue\", \"title\": \"paragraph break finding\", \"body\": \"Paragraph one about the duplicate finding, long enough to look like a real body on its own.\\n\\nParagraph two after a blank line, which real maintainer bodies routinely have.\"}]"
+          # Leading-action scenarios (review finding F12): the fixture set
+          # previously led with a non-create action only in s17 (sweep) and
+          # s20 (review), so a gate above the loop keyed on the LEADING
+          # decision action (`if decisions and decisions[0].get("action") ==
+          # "ping":` plus an index emptying, a norm-lambda rebind, or a
+          # decision-drop comprehension) never fired under audit while
+          # disabling the dedupe on ping-first production ticks (this
+          # thread's own maintainer ticks post `[ping #687, ping #669]`).
+          # ping (with target), ideate (targetless), and lab (comment post)
+          # now each lead the matching decision, so any leading-action-keyed
+          # gate breaks the zero-create, one-triage, loud-skip assertions.
+          r26_dec_s28="[{\"action\": \"ping\", \"target\": 582, \"message\": \"r26 fixture leading ping\"}, {\"action\": \"create_issue\", \"title\": \"leading ping finding\", \"body\": \"$r26_body\"}]"
+          r26_dec_s29="[{\"action\": \"ideate\"}, {\"action\": \"create_issue\", \"title\": \"leading ideate finding\", \"body\": \"$r26_body\"}]"
+          r26_dec_s30="[{\"action\": \"lab\", \"pr\": 124}, {\"action\": \"create_issue\", \"title\": \"leading lab finding\", \"body\": \"$r26_body\"}]"
+          # Round-7 findings F13/F14/F15 behavioral scenarios (defense-in-
+          # depth for the whole-block pin): F13's create-path gates are
+          # caught by s32-s35 (a paragraph-break, an absent, and a short
+          # body on the CREATE path, plus a posted comment before a fresh
+          # create), F14's leading-action key by s31 (recover-first), and
+          # F15's index-alias clear by s36 (create, lab, create-identical:
+          # a cleared or rebuilt run-local index re-creates the duplicate
+          # on the third decision).
+          r26_dec_s31="[{\"action\": \"recover\", \"pr\": 600}, {\"action\": \"create_issue\", \"title\": \"leading recover finding\", \"body\": \"$r26_body\"}]"
+          r26_dec_s32="[{\"action\": \"create_issue\", \"title\": \"blank line create finding\", \"body\": \"Paragraph one about the duplicate finding, long enough to look like a real body on its own.\\n\\nParagraph two after a blank line, which real maintainer bodies routinely have.\"}]"
+          r26_dec_s33="[{\"action\": \"create_issue\", \"title\": \"absent body create finding\"}]"
+          r26_dec_s34="[{\"action\": \"create_issue\", \"title\": \"short body create finding\", \"body\": \"Short single-line body.\"}]"
+          r26_dec_s35="[{\"action\": \"test\", \"pr\": 200}, {\"action\": \"create_issue\", \"title\": \"posted context finding\", \"body\": \"$r26_body\"}]"
+          r26_dec_s36="[{\"action\": \"create_issue\", \"title\": \"Alias Clear Finding\", \"body\": \"$r26_body\"}, {\"action\": \"lab\", \"pr\": 124}, {\"action\": \"create_issue\", \"title\": \"alias clear finding\", \"body\": \"$r26_body\"}]"
+          r26_long_title="[Infra] sweep validation fails on every dispatch for the archived pre-archive pipeline path with a deliberately long appended tail for the envelope"
+          r26_dec_s26="[{\"action\": \"create_issue\", \"title\": \"$r26_long_title\", \"body\": \"$r26_body\"}]"
+          # Five-entry fixture lists in the newest-first order that real
+          # `gh issue list` serves (tester finding B3 plus adversarial escapes
+          # E1/E4/L06/L07/P1/P2 and the round-3 order-dependent rebuild):
+          # EVERY entry is a scenario match, at index 0 (#670, s9), index 1
+          # (#669, s8), index 2 (#668, s6), index 3 (#665, s2) and index 4
+          # (#663, s7), so a cardinality gate at or below the fixture
+          # envelope, a prefix truncation `items[:1]` through `items[:4]`, an
+          # `items[1:]`/`items[-2:]` offset, an even/odd index or
+          # issue-number parity gate, or an entry-property length gate at or
+          # below the longest fixture title (97 chars) misses at least one
+          # scenario and fails; the newest-first order additionally kills
+          # order-dependent index rebuilds (`all(n >= v)` keeps only the
+          # first entry). Gates/truncations ABOVE the fixture envelope and
+          # per-title fingerprinting of fixture identity stay the documented
+          # residual.
+          printf '%s' '[{"number": 670, "title": "A fifth unrelated open issue"}, {"number": 669, "title": "A fourth unrelated open issue"}, {"number": 668, "title": "Yet another unrelated open issue"}, {"number": 667, "title": "Another unrelated open issue"}, {"number": 663, "title": "Some unrelated open issue"}]' > "$r26_tmp/list-s1.json"
+          printf '%s' '[{"number": 670, "title": "[Infra] sweep validation fails on every dispatch for the archived pre-archive pipeline path alpha"}, {"number": 669, "title": "third-repeat-finding"}, {"number": 668, "title": "A Repeat Finding"}, {"number": 665, "title": "[INFRA] postformer  cpu-train targets pre-archive paths (retire or repoint)"}, {"number": 663, "title": "legacy-repeat-finding"}]' > "$r26_tmp/list-s2.json"
+          printf '%s' '[{"number": 711, "title": "Fix bug 42"}, {"number": 710, "title": "Some unrelated open issue"}]' > "$r26_tmp/list-s10.json"
+          printf '%s' '[{"number": 711, "title": "Patch v10"}, {"number": 710, "title": "Some unrelated open issue"}]' > "$r26_tmp/list-s11.json"
+          printf '%s' '[{"number": 712, "title": "[Infra] sweep validation fails on every dispatch for the archived pre-archive pipeline path mode a"}, {"number": 710, "title": "Some unrelated open issue"}]' > "$r26_tmp/list-s12.json"
+          printf '%s' '[{"number": 713, "title": "Swift 6 migration"}, {"number": 710, "title": "Some unrelated open issue"}]' > "$r26_tmp/list-s13.json"
+          printf '%s' '[{"number": 714, "title": "Worker v1"}, {"number": 710, "title": "Some unrelated open issue"}]' > "$r26_tmp/list-s14.json"
+          printf '%s' '[{"number": 715, "title": "Third Time Finding"}, {"number": 710, "title": "Some unrelated open issue"}]' > "$r26_tmp/list-s15.json"
+          printf '%s' '[{"number": 716, "title": "targeted finding"}, {"number": 710, "title": "Some unrelated open issue"}]' > "$r26_tmp/list-s16.json"
+          printf '%s' '[{"number": 717, "title": "mixed context finding"}, {"number": 710, "title": "Some unrelated open issue"}]' > "$r26_tmp/list-s17.json"
+          # s18/s19 run against FIVE-entry lists (review finding F9): the
+          # demonstrated escape `if len(items) >= 5 and len(decisions) == 2:
+          # return {}` lived precisely in the gap that no fixture ever held
+          # five list entries and two decisions together (the 2-decision
+          # scenario used a 2-entry list and the five-entry lists carried one
+          # decision each); with five entries and the match at a middle
+          # index, the conjunction fires under audit and breaks the
+          # exact-count assertions.
+          printf '%s' '[{"number": 730, "title": "An unrelated newer open issue"}, {"number": 729, "title": "Another unrelated open issue"}, {"number": 718, "title": "Two Decision Finding"}, {"number": 717, "title": "A fourth unrelated open issue"}, {"number": 663, "title": "A fifth unrelated open issue"}]' > "$r26_tmp/list-s18.json"
+          printf '%s' '[{"number": 731, "title": "Unrelated open issue one"}, {"number": 719, "title": "Four Decision Finding"}, {"number": 732, "title": "Unrelated open issue two"}, {"number": 733, "title": "Unrelated open issue three"}, {"number": 663, "title": "Unrelated open issue four"}]' > "$r26_tmp/list-s19.json"
+          printf '%s' '[{"number": 720, "title": "Non Create Context Finding"}, {"number": 710, "title": "Some unrelated open issue"}]' > "$r26_tmp/list-s20.json"
+          printf '%s' '[{"number": 721, "title": "Short Body Finding"}]' > "$r26_tmp/list-s21.json"
+          printf '%s' '[{"number": 722, "title": "Two Line Body Finding"}]' > "$r26_tmp/list-s22.json"
+          printf '%s' '[{"number": 723, "title": "Event Dispatch Finding"}]' > "$r26_tmp/list-s23.json"
+          printf '%s' '[{"number": 724, "title": "Absent Body Finding"}]' > "$r26_tmp/list-s24.json"
+          printf '%s' '[{"number": 725, "title": "Early Match Finding"}]' > "$r26_tmp/list-s25.json"
+          printf '%s' "[{\"number\": 726, \"title\": \"$r26_long_title\"}]" > "$r26_tmp/list-s26.json"
+          printf '%s' '[{"number": 727, "title": "Paragraph Break Finding"}]' > "$r26_tmp/list-s27.json"
+          printf '%s' '[{"number": 745, "title": "Leading Ping Finding"}]' > "$r26_tmp/list-s28.json"
+          printf '%s' '[{"number": 746, "title": "Leading Ideate Finding"}]' > "$r26_tmp/list-s29.json"
+          printf '%s' '[{"number": 747, "title": "Leading Lab Finding"}]' > "$r26_tmp/list-s30.json"
+          # s31 matches; s32-s36 carry no match, so their creates are the
+          # asserted pristine behavior (the F13 create-path gates drop them).
+          printf '%s' '[{"number": 748, "title": "Leading Recover Finding"}]' > "$r26_tmp/list-s31.json"
+          printf '%s' '[{"number": 749, "title": "Some unrelated open issue"}]' > "$r26_tmp/list-s32.json"
+          printf '%s' '[{"number": 750, "title": "Some unrelated open issue"}]' > "$r26_tmp/list-s33.json"
+          printf '%s' '[{"number": 751, "title": "Some unrelated open issue"}]' > "$r26_tmp/list-s34.json"
+          printf '%s' '[{"number": 752, "title": "Some unrelated open issue"}]' > "$r26_tmp/list-s35.json"
+          printf '%s' '[{"number": 753, "title": "Some unrelated open issue"}]' > "$r26_tmp/list-s36.json"
+          # Count-sweep list (adversarial escape hunt M6): five entries with
+          # the match at a middle index, so an exact decision- or created-count
+          # gate that fires on any swept count breaks the exact-count
+          # assertions while a conjunction with an in-envelope list size
+          # cannot hide (the count sweep never holds fewer than five entries).
+          printf '%s' '[{"number": 740, "title": "Unrelated count sweep issue"}, {"number": 739, "title": "Another unrelated count sweep issue"}, {"number": 741, "title": "Count Sweep Finding"}, {"number": 738, "title": "Third unrelated count sweep issue"}, {"number": 737, "title": "Fourth unrelated count sweep issue"}]' > "$r26_tmp/list-count.json"
+          printf '%s' '[]' > "$r26_tmp/list-empty.json"
+          # Scenario 1: fresh title; exactly one query, one create on the bot
+          # token, one triage dispatch on the owner PAT for the new number.
+          r26_run "$r26_tmp/s1" ok "$r26_tmp/list-s1.json" "$r26_dec_s1"
+          r26_check "s1-rc" "$(r26_rc0 "$r26_tmp/s1")"
+          r26_check "s1-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s1-one-create" "$([ "$(r26_calls 'gh issue create')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s1-create-title" "$([ "$(r26_calls '--title Brand New Finding')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s1-created-loud" "$(r26_out_has 'Created new issue #900: Brand New Finding' "$r26_tmp/s1")"
+          r26_check "s1-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s1-triage-900" "$(r26_triage_on 900)"
+          r26_check "s1-list-bot-token" "$(r26_token_on 'gh issue list' "$R26_BOT")"
+          r26_check "s1-create-bot-token" "$(r26_token_on 'gh issue create' "$R26_BOT")"
+          r26_check "s1-triage-pat-token" "$(r26_token_on 'gh workflow run' "$R26_PAT")"
+          # Scenario 2: the normalized match on an open issue (the #665
+          # shape); zero creates, one dispatch on the matched issue, loud skip.
+          r26_run "$r26_tmp/s2" ok "$r26_tmp/list-s2.json" "$r26_dec_s2"
+          r26_check "s2-rc" "$(r26_rc0 "$r26_tmp/s2")"
+          r26_check "s2-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s2-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+          r26_check "s2-skip-loud" "$(r26_out_has "skip create_issue '[Infra] Postformer-CPU-TRAIN targets pre-archive paths! (retire or repoint)': open issue #665 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s2")"
+          r26_check "s2-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s2-triage-665" "$(r26_triage_on 665)"
+          r26_check "s2-dedupe-reason" "$(grep -F 'gh workflow run' "$r26_state/calls" 2>/dev/null | grep -qF 'dedupe match: open issue #665' && echo 1 || echo 0)"
+          r26_check "s2-triage-pat-token" "$(r26_token_on 'gh workflow run' "$R26_PAT")"
+          # Scenario 3: in-run duplicate against a non-empty three-issue open
+          # index (s1 fixture); one create total, no second dispatch, and a
+          # count-gated sabotage inside the handler crashes or misbehaves
+          # here instead of passing against an empty index. THREE identical
+          # decisions (review finding F5): a subscript-write/delete sabotage
+          # of the run-local index executes on the first skip and is caught
+          # when the THIRD decision re-creates a duplicate.
+          r26_run "$r26_tmp/s3" ok "$r26_tmp/list-s1.json" "$r26_dec_s3"
+          r26_check "s3-rc" "$(r26_rc0 "$r26_tmp/s3")"
+          r26_check "s3-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s3-one-create" "$([ "$(r26_calls 'gh issue create')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s3-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s3-triage-900" "$(r26_triage_on 900)"
+          r26_check "s3-two-inrun-skips" "$([ "$(grep -cF 'created earlier in this run; triage already dispatched (no duplicate dispatch)' "$r26_tmp/s3/out" 2>/dev/null || true)" = "2" ] && echo 1 || echo 0)"
+          r26_check "s3-inrun-skip" "$(r26_out_has 'created earlier in this run; triage already dispatched (no duplicate dispatch)' "$r26_tmp/s3")"
+          # Scenario 4: query failure; fail-open to creation, loud ::error::.
+          r26_run "$r26_tmp/s4" fail "" "$r26_dec_s4"
+          r26_check "s4-rc" "$(r26_rc0 "$r26_tmp/s4")"
+          r26_check "s4-loud-error" "$(r26_out_has '::error::create_issue dedupe query failed; creating without the guard this run (issue #668)' "$r26_tmp/s4")"
+          r26_check "s4-create-proceeds" "$([ "$(r26_calls 'gh issue create')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s4-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s4-create-bot-token" "$(r26_token_on 'gh issue create' "$R26_BOT")"
+          # Scenario 5: unparseable JSON; fail-open to creation, loud ::error::.
+          r26_run "$r26_tmp/s5" garbage "" "$r26_dec_s5"
+          r26_check "s5-rc" "$(r26_rc0 "$r26_tmp/s5")"
+          r26_check "s5-loud-error" "$(r26_out_has 'unparseable JSON; creating without the guard this run (issue #668)' "$r26_tmp/s5")"
+          r26_check "s5-create-proceeds" "$([ "$(r26_calls 'gh issue create')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s5-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          # Scenario 6: the normalized match sits at index 2 of the
+          # five-issue list (tester finding B3, the even index parity: #668;
+          # s9's #670 sits at index 0, s8's #669 at index 1, s2's #665 at
+          # index 3 and s7's #663 at index 4). Zero creates, one dispatch on
+          # #668, loud skip. A parity-gated or count-gated index build must
+          # fail at least one of s2/s6/s7/s8/s9.
+          r26_run "$r26_tmp/s6" ok "$r26_tmp/list-s2.json" "$r26_dec_s6"
+          r26_check "s6-rc" "$(r26_rc0 "$r26_tmp/s6")"
+          r26_check "s6-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s6-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+          r26_check "s6-skip-loud" "$(r26_out_has "skip create_issue 'A Repeat Finding': open issue #668 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s6")"
+          r26_check "s6-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s6-triage-668" "$(r26_triage_on 668)"
+          r26_check "s6-triage-pat-token" "$(r26_token_on 'gh workflow run' "$R26_PAT")"
+          # Scenario 7: the normalized match is the LAST (oldest) entry of
+          # the newest-first five-issue list, so any `items[:k]` prefix
+          # truncation or trailing-entry drop misses it. Zero creates, one
+          # dispatch on #663, loud skip.
+          r26_run "$r26_tmp/s7" ok "$r26_tmp/list-s2.json" "$r26_dec_s7"
+          r26_check "s7-rc" "$(r26_rc0 "$r26_tmp/s7")"
+          r26_check "s7-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s7-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+          r26_check "s7-skip-loud" "$(r26_out_has "skip create_issue 'Legacy Repeat Finding': open issue #663 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s7")"
+          r26_check "s7-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s7-triage-663" "$(r26_triage_on 663)"
+          # Scenario 8: match at index 1 of the newest-first five-issue list
+          # (#669), closing the `items[:1]`/`items[:2]` prefix-truncation
+          # class together with s9's index-0 long-title match.
+          r26_run "$r26_tmp/s8" ok "$r26_tmp/list-s2.json" "$r26_dec_s8"
+          r26_check "s8-rc" "$(r26_rc0 "$r26_tmp/s8")"
+          r26_check "s8-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s8-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+          r26_check "s8-skip-loud" "$(r26_out_has "skip create_issue 'Third Repeat Finding': open issue #669 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s8")"
+          r26_check "s8-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s8-triage-669" "$(r26_triage_on 669)"
+          # Scenario 9: match at index 0 of the newest-first five-issue list
+          # (#670) with a 97-character title; the FIRST entry is the
+          # concurrent-duplicate shape in production, so an `items[1:]`/
+          # `items[-2:]` offset loader drops it (adversarial escape E1), and
+          # entry-property length gates at or below the fixture envelope
+          # (`len(title) > N` skip with N <= 96) drop it too; the long-tail
+          # normalization fixture separately catches truncating normalizers.
+          r26_run "$r26_tmp/s9" ok "$r26_tmp/list-s2.json" "$r26_dec_s9"
+          r26_check "s9-rc" "$(r26_rc0 "$r26_tmp/s9")"
+          r26_check "s9-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s9-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+          r26_check "s9-skip-loud" "$(r26_out_has "skip create_issue '[Infra] sweep validation fails on every dispatch for the archived pre-archive pipeline path alpha': open issue #670 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s9")"
+          r26_check "s9-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s9-triage-670" "$(r26_triage_on 670)"
+          # Scenario 10: two distinct digit-bearing titles ("Fix bug 42" open
+          # vs "Fix bug 43" decision); pristine behavior creates. A digit
+          # strip applied CONSISTENTLY to both call sites maps both to
+          # "fix bug " (the separator space survives re.sub) and falsely
+          # skips; any SINGLE-site strip is caught by the sweep below, whose
+          # match titles are identical on both sides, so the round-3
+          # call-site digit-strip class (invisible to the function-level
+          # digit fixtures) fails in every direction.
+          r26_run "$r26_tmp/s10" ok "$r26_tmp/list-s10.json" "$r26_dec_s10"
+          r26_check "s10-rc" "$(r26_rc0 "$r26_tmp/s10")"
+          r26_check "s10-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s10-one-create" "$([ "$(r26_calls 'gh issue create')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s10-create-title" "$([ "$(r26_calls '--title Fix bug 43')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s10-created-loud" "$(r26_out_has 'Created new issue #900: Fix bug 43' "$r26_tmp/s10")"
+          r26_check "s10-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s10-triage-900" "$(r26_triage_on 900)"
+          # Scenario 11: the same digit-strip collision in a zero-favored
+          # shape ("Patch v10" open vs "Patch v1" decision: a full-run strip
+          # maps both to "patch v ", a strip of only the digit 0 maps both
+          # to "patch v1"); pristine behavior creates.
+          r26_run "$r26_tmp/s11" ok "$r26_tmp/list-s11.json" "$r26_dec_s11"
+          r26_check "s11-rc" "$(r26_rc0 "$r26_tmp/s11")"
+          r26_check "s11-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s11-one-create" "$([ "$(r26_calls 'gh issue create')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s11-create-title" "$([ "$(r26_calls '--title Patch v1')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s11-created-loud" "$(r26_out_has 'Created new issue #900: Patch v1' "$r26_tmp/s11")"
+          r26_check "s11-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s11-triage-900" "$(r26_triage_on 900)"
+          # Scenario 12: two distinct long titles differing only in their
+          # FINAL character ("path mode a" vs "path mode b"); pristine
+          # behavior creates. A CONSISTENT call-site truncation applied to
+          # both the loader and the lookup (which s9 cannot see, since it
+          # uses an identical long pair) merges them under EVERY proper
+          # truncation cutoff and falsely skips, closing the round-3
+          # both-sites truncation class. Single-site truncations are killed
+          # by s9.
+          r26_run "$r26_tmp/s12" ok "$r26_tmp/list-s12.json" "$r26_dec_s12"
+          r26_check "s12-rc" "$(r26_rc0 "$r26_tmp/s12")"
+          r26_check "s12-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s12-one-create" "$([ "$(r26_calls 'gh issue create')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s12-create-title" "$([ "$(r26_calls '--title [Infra] sweep validation fails on every dispatch for the archived pre-archive pipeline path mode b')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s12-created-loud" "$(r26_out_has 'Created new issue #900: [Infra] sweep validation fails on every dispatch for the archived pre-archive pipeline path mode b' "$r26_tmp/s12")"
+          r26_check "s12-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s12-triage-900" "$(r26_triage_on 900)"
+          # Scenario 13: a consistent both-sites space REMOVAL (a call-site
+          # `.replace(" ", "")` after normalization) maps "Swift 6 migration"
+          # and "Swift6 migration" to one string and falsely skips; pristine
+          # behavior creates (the function-level space-collapse fixtures pin
+          # only the function, not a post-normalization call-site rewrite).
+          r26_run "$r26_tmp/s13" ok "$r26_tmp/list-s13.json" "$r26_dec_s13"
+          r26_check "s13-rc" "$(r26_rc0 "$r26_tmp/s13")"
+          r26_check "s13-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s13-one-create" "$([ "$(r26_calls 'gh issue create')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s13-create-title" "$([ "$(r26_calls '--title Swift6 migration')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s13-created-loud" "$(r26_out_has 'Created new issue #900: Swift6 migration' "$r26_tmp/s13")"
+          r26_check "s13-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s13-triage-900" "$(r26_triage_on 900)"
+          # Scenario 14: the lookup-side mirror of s11 ("Worker v1" open vs
+          # "Worker v10" decision): a zero-only strip applied at the lookup
+          # alone maps the decision to the open title and falsely skips;
+          # loader-side and consistent zero strips are killed by s11, and
+          # full-run single-site strips by the sweep.
+          r26_run "$r26_tmp/s14" ok "$r26_tmp/list-s14.json" "$r26_dec_s14"
+          r26_check "s14-rc" "$(r26_rc0 "$r26_tmp/s14")"
+          r26_check "s14-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s14-one-create" "$([ "$(r26_calls 'gh issue create')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s14-create-title" "$([ "$(r26_calls '--title Worker v10')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s14-created-loud" "$(r26_out_has 'Created new issue #900: Worker v10' "$r26_tmp/s14")"
+          r26_check "s14-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s14-triage-900" "$(r26_triage_on 900)"
+          # Scenario 15 (review finding F4): THREE decisions where the
+          # matching create is LAST, after two successful creates. A gate on
+          # the decision count (`len(decisions) >= 3`) or on the created
+          # count (`len(_created_issue_numbers) >= 2`, two creates already
+          # recorded) disables the skip and creates a third issue; pristine
+          # behavior is exactly 2 creates and 3 dispatches (#900, #901, and
+          # the matched #715).
+          r26_run "$r26_tmp/s15" ok "$r26_tmp/list-s15.json" "$r26_dec_s15"
+          r26_check "s15-rc" "$(r26_rc0 "$r26_tmp/s15")"
+          r26_check "s15-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s15-two-creates" "$([ "$(r26_calls 'gh issue create')" = "2" ] && echo 1 || echo 0)"
+          r26_check "s15-create-first" "$([ "$(r26_calls '--title First Fresh Finding')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s15-create-second" "$([ "$(r26_calls '--title Second Fresh Finding')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s15-created-900" "$(r26_out_has 'Created new issue #900: First Fresh Finding' "$r26_tmp/s15")"
+          r26_check "s15-created-901" "$(r26_out_has 'Created new issue #901: Second Fresh Finding' "$r26_tmp/s15")"
+          r26_check "s15-skip-loud" "$(r26_out_has "skip create_issue 'third-time-finding': open issue #715 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s15")"
+          r26_check "s15-three-dispatches" "$([ "$(r26_calls 'gh workflow run')" = "3" ] && echo 1 || echo 0)"
+          r26_check "s15-triage-900" "$(r26_triage_on 900)"
+          r26_check "s15-triage-901" "$(r26_triage_on 901)"
+          r26_check "s15-triage-715" "$(r26_triage_on 715)"
+          # Scenario 16 (review finding F4): the matching decision carries a
+          # `target` key, so a `if target: existing = None` gate (or any
+          # extra-key gate) fires; pristine behavior skips and triages #716.
+          r26_run "$r26_tmp/s16" ok "$r26_tmp/list-s16.json" "$r26_dec_s16"
+          r26_check "s16-rc" "$(r26_rc0 "$r26_tmp/s16")"
+          r26_check "s16-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s16-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+          r26_check "s16-skip-loud" "$(r26_out_has "skip create_issue 'targeted-finding': open issue #716 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s16")"
+          r26_check "s16-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s16-triage-716" "$(r26_triage_on 716)"
+          # Scenario 17 (review finding F4): a failed sweep first
+          # (sweep_failed True) and a successfully posted comment second
+          # (posted non-empty) before the matching create, so a gate on
+          # either run-state flag (`if sweep_failed: ...`, `if posted: ...`)
+          # disables the skip; pristine behavior skips and triages #717. The
+          # failed sweep also drives the handler's final loud SystemExit(1),
+          # so rc must be 1 (not 0).
+          r26_run "$r26_tmp/s17" ok "$r26_tmp/list-s17.json" "$r26_dec_s17"
+          r26_check "s17-rc1" "$(r26_rc_is "$r26_tmp/s17" 1)"
+          r26_check "s17-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s17-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+          r26_check "s17-skip-loud" "$(r26_out_has "skip create_issue 'Mixed Context Finding': open issue #717 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s17")"
+          r26_check "s17-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s17-triage-717" "$(r26_triage_on 717)"
+          r26_check "s17-comment-posted" "$([ "$(r26_calls 'gh api')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s17-sweep-failed-loud" "$(r26_out_has '::error::Refusing sweep dispatch for' "$r26_tmp/s17")"
+          # Scenario 18 (review finding F8): TWO decisions with the matching
+          # create LAST. A loader-internal gate on the decision count
+          # (`if len(decisions) == 2: return {}`) disabled the dedupe for
+          # every two-decision tick of a real maintainer run while the
+          # round-4 fixtures (counts 1 and 3 only) stayed green; together
+          # with the single-decision skip scenarios and s15/s19 this sweeps
+          # decision counts 1 through 4, killing `== k` and `<=`/`>=` gates
+          # inside that range. Pristine: exactly 1 create (#900, the fresh
+          # first decision) and 2 dispatches (900, 718).
+          r26_run "$r26_tmp/s18" ok "$r26_tmp/list-s18.json" "$r26_dec_s18"
+          r26_check "s18-rc" "$(r26_rc0 "$r26_tmp/s18")"
+          r26_check "s18-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s18-one-create" "$([ "$(r26_calls 'gh issue create')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s18-create-first" "$([ "$(r26_calls '--title First Two-Decision Finding')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s18-created-loud" "$(r26_out_has 'Created new issue #900: First Two-Decision Finding' "$r26_tmp/s18")"
+          r26_check "s18-skip-loud" "$(r26_out_has "skip create_issue 'two decision finding': open issue #718 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s18")"
+          r26_check "s18-two-dispatches" "$([ "$(r26_calls 'gh workflow run')" = "2" ] && echo 1 || echo 0)"
+          r26_check "s18-triage-900" "$(r26_triage_on 900)"
+          r26_check "s18-triage-718" "$(r26_triage_on 718)"
+          # Scenario 19 (review finding F8): FOUR decisions with the matching
+          # create LAST after THREE successful creates, extending the
+          # created-count envelope from 2 to 3: a `len(decisions) == 4` or
+          # `len(_created_issue_numbers) >= 3` loader gate disabled the dedupe
+          # from the third create onward while the round-4 fixtures stayed
+          # green. Pristine: exactly 3 creates (#900/#901/#902) and 4
+          # dispatches (900, 901, 902, 719).
+          r26_run "$r26_tmp/s19" ok "$r26_tmp/list-s19.json" "$r26_dec_s19"
+          r26_check "s19-rc" "$(r26_rc0 "$r26_tmp/s19")"
+          r26_check "s19-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s19-three-creates" "$([ "$(r26_calls 'gh issue create')" = "3" ] && echo 1 || echo 0)"
+          r26_check "s19-created-900" "$(r26_out_has 'Created new issue #900: First Four-Decision Finding' "$r26_tmp/s19")"
+          r26_check "s19-created-901" "$(r26_out_has 'Created new issue #901: Second Four-Decision Finding' "$r26_tmp/s19")"
+          r26_check "s19-created-902" "$(r26_out_has 'Created new issue #902: Third Four-Decision Finding' "$r26_tmp/s19")"
+          r26_check "s19-skip-loud" "$(r26_out_has "skip create_issue 'four decision finding': open issue #719 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s19")"
+          r26_check "s19-four-dispatches" "$([ "$(r26_calls 'gh workflow run')" = "4" ] && echo 1 || echo 0)"
+          r26_check "s19-triage-900" "$(r26_triage_on 900)"
+          r26_check "s19-triage-901" "$(r26_triage_on 901)"
+          r26_check "s19-triage-902" "$(r26_triage_on 902)"
+          r26_check "s19-triage-719" "$(r26_triage_on 719)"
+          # Scenario 20 (review finding F8 plus its independent escape hunt,
+          # extended by F10): a mixed action context carrying ALL of the
+          # handler's action keywords (review, test, test-linux, test-macos,
+          # test-windows, eval, continue, build, auditor, curate, architect,
+          # research, design, design-ux, design-visual, design-motion, lab,
+          # recover, fix, create_pr) plus the two first-class decision
+          # actions the handler must stay inert on, ping (with target) and
+          # ideate, alongside the matching create LAST, so any
+          # action-keyword gate (`if any(d.get("action") == "lab" ...): return
+          # {}`, or the same keyed on ping or ideate) breaks the skip
+          # assertion instead of hiding behind an all-create fixture set; the
+          # create_pr sibling of create_issue is exercised too. Pristine:
+          # 0 creates, 18 comment posts on #200 (one per comment-posting
+          # action; ping and ideate post nothing in this handler, so the
+          # count is unchanged), one `gh api .../pulls/200` probe for the
+          # skipped fix action, one `gh pr create` attempt for create_pr,
+          # and 1 triage on #720.
+          r26_run "$r26_tmp/s20" ok "$r26_tmp/list-s20.json" "$r26_dec_s20"
+          r26_check "s20-rc" "$(r26_rc0 "$r26_tmp/s20")"
+          r26_check "s20-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s20-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+          r26_check "s20-action-comments" "$([ "$(r26_calls 'gh api repos/RandomLabs/RandomLabs/issues/200/comments')" = "18" ] && echo 1 || echo 0)"
+          r26_check "s20-fix-probe" "$([ "$(r26_calls 'gh api repos/RandomLabs/RandomLabs/pulls/200')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s20-pr-attempt" "$([ "$(r26_calls 'gh pr create')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s20-api-body" "$([ "$(r26_calls 'body=/oc lab')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s20-skip-loud" "$(r26_out_has "skip create_issue 'non create context finding': open issue #720 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s20")"
+          r26_check "s20-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s20-triage-720" "$(r26_triage_on 720)"
+          # Scenario 21 (review finding F8): a matching decision with a
+          # SHORT SINGLE-LINE 23-char body (no newline), closing
+          # loader-internal newline-presence and short-length body predicates
+          # (`body_text.count("\n") < 2: return {}`, `len(body_text) < N`)
+          # within the short-single-line to long-three-line envelope.
+          # Pristine: 0 creates, skip, 1 triage on #721.
+          r26_run "$r26_tmp/s21" ok "$r26_tmp/list-s21.json" "$r26_dec_s21"
+          r26_check "s21-rc" "$(r26_rc0 "$r26_tmp/s21")"
+          r26_check "s21-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s21-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+          r26_check "s21-skip-loud" "$(r26_out_has "skip create_issue 'short body finding': open issue #721 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s21")"
+          r26_check "s21-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s21-triage-721" "$(r26_triage_on 721)"
+          # Scenario 22 (review finding F8): a matching decision with a
+          # TWO-LINE body (one newline), between the single-line and the
+          # three-line shapes, so the newline-count envelope is 0/1/2.
+          # Pristine: 0 creates, skip, 1 triage on #722.
+          r26_run "$r26_tmp/s22" ok "$r26_tmp/list-s22.json" "$r26_dec_s22"
+          r26_check "s22-rc" "$(r26_rc0 "$r26_tmp/s22")"
+          r26_check "s22-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s22-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+          r26_check "s22-skip-loud" "$(r26_out_has "skip create_issue 'two line body finding': open issue #722 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s22")"
+          r26_check "s22-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s22-triage-722" "$(r26_triage_on 722)"
+          # Scenario 23 (round-4 non-blocking observation, closed while the
+          # runner is touched): the same normalized-match skip under
+          # GITHUB_EVENT_NAME=workflow_dispatch (the other production trigger
+          # shape next to schedule), so the demonstrated event-name-keyed gate
+          # probe (`if os.environ.get("GITHUB_EVENT_NAME") ==
+          # "workflow_dispatch": return {}`) breaks the skip assertion.
+          # Pristine: 0 creates, skip, 1 triage on #723.
+          r26_run "$r26_tmp/s23" ok "$r26_tmp/list-s23.json" "$r26_dec_s23" workflow_dispatch
+          r26_check "s23-rc" "$(r26_rc0 "$r26_tmp/s23")"
+          r26_check "s23-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s23-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+          r26_check "s23-skip-loud" "$(r26_out_has "skip create_issue 'event dispatch finding': open issue #723 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s23")"
+          r26_check "s23-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s23-triage-723" "$(r26_triage_on 723)"
+          # Scenario 24 (F8 escape-hunt round): a matching decision with NO
+          # body key at all (body_text defaults to ""), so `if not
+          # body_text: return {}` and EVERY `len(body_text) < N` predicate
+          # with N >= 1 fire and break the skip assertion; together with the
+          # 23-char single-line s21 body this closes the short-length family
+          # down to the absent-body shape. Pristine: 0 creates, skip, 1
+          # triage on #724.
+          r26_run "$r26_tmp/s24" ok "$r26_tmp/list-s24.json" "$r26_dec_s24"
+          r26_check "s24-rc" "$(r26_rc0 "$r26_tmp/s24")"
+          r26_check "s24-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s24-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+          r26_check "s24-skip-loud" "$(r26_out_has "skip create_issue 'absent body finding': open issue #724 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s24")"
+          r26_check "s24-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s24-triage-724" "$(r26_triage_on 724)"
+          # Scenario 25 (F8 escape-hunt round): the matching create is FIRST
+          # with a non-create `lab` action LAST, so a gate on the LAST
+          # decision's action (`if decisions[-1].get("action") !=
+          # "create_issue": return {}`) or any trailing-position predicate
+          # breaks the skip assertion; every other fixture ends on a
+          # create_issue or the matching create. Pristine: 0 creates, 1
+          # triage on #725, 1 api comment on #124.
+          r26_run "$r26_tmp/s25" ok "$r26_tmp/list-s25.json" "$r26_dec_s25"
+          r26_check "s25-rc" "$(r26_rc0 "$r26_tmp/s25")"
+          r26_check "s25-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s25-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+          r26_check "s25-skip-loud" "$(r26_out_has "skip create_issue 'early match finding': open issue #725 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s25")"
+          r26_check "s25-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s25-triage-725" "$(r26_triage_on 725)"
+          r26_check "s25-trailing-comment" "$([ "$(r26_calls 'gh api repos/RandomLabs/RandomLabs/issues/124/comments')" = "1" ] && echo 1 || echo 0)"
+          # Scenario 26 (F8 escape-hunt round): a 147-char identical pair, so
+          # entry-property title-length predicates (`len(title) > N` with
+          # N <= 146) fire and break the skip assertion; this lifts the
+          # match-required title envelope above the 97-char s9 and the
+          # 98-char create-shape s12 pair. Pristine: 0 creates, skip, 1
+          # triage on #726.
+          r26_run "$r26_tmp/s26" ok "$r26_tmp/list-s26.json" "$r26_dec_s26"
+          r26_check "s26-rc" "$(r26_rc0 "$r26_tmp/s26")"
+          r26_check "s26-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s26-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+          r26_check "s26-skip-loud" "$(r26_out_has "skip create_issue '$r26_long_title': open issue #726 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s26")"
+          r26_check "s26-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s26-triage-726" "$(r26_triage_on 726)"
+          # Scenario 27 (review finding F10's second demonstrated key): a
+          # matching decision whose body carries a paragraph break
+          # (`"\n\n"`), the shape real maintainer bodies routinely have and
+          # no other fixture body does; a gate on the double newline (at the
+          # skip-branch terminator or in the loader) breaks the skip
+          # assertion or is rejected structurally. Pristine: 0 creates,
+          # skip, 1 triage on #727.
+          r26_run "$r26_tmp/s27" ok "$r26_tmp/list-s27.json" "$r26_dec_s27"
+          r26_check "s27-rc" "$(r26_rc0 "$r26_tmp/s27")"
+          r26_check "s27-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s27-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+          r26_check "s27-skip-loud" "$(r26_out_has "skip create_issue 'paragraph break finding': open issue #727 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s27")"
+          r26_check "s27-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s27-triage-727" "$(r26_triage_on 727)"
+          # Scenario 28 (review finding F12): a ping-with-target decision
+          # LEADS the list (the production ping-first tick shape) before the
+          # matching create, closing the leading-action-keyed gate class
+          # behaviorally. Pristine: the ping path posts nothing and stays
+          # inert (no comment call, no dispatch); 0 creates, skip, 1 triage
+          # on #745.
+          r26_run "$r26_tmp/s28" ok "$r26_tmp/list-s28.json" "$r26_dec_s28"
+          r26_check "s28-rc" "$(r26_rc0 "$r26_tmp/s28")"
+          r26_check "s28-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s28-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+          r26_check "s28-skip-loud" "$(r26_out_has "skip create_issue 'leading ping finding': open issue #745 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s28")"
+          r26_check "s28-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s28-triage-745" "$(r26_triage_on 745)"
+          r26_check "s28-ping-inert" "$([ "$(r26_calls 'issues/582/comments')" = "0" ] && echo 1 || echo 0)"
+          # Scenario 29 (review finding F12): an ideate decision (targetless)
+          # LEADS the list before the matching create. Pristine: 0 creates,
+          # skip, 1 triage on #746.
+          r26_run "$r26_tmp/s29" ok "$r26_tmp/list-s29.json" "$r26_dec_s29"
+          r26_check "s29-rc" "$(r26_rc0 "$r26_tmp/s29")"
+          r26_check "s29-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s29-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+          r26_check "s29-skip-loud" "$(r26_out_has "skip create_issue 'leading ideate finding': open issue #746 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s29")"
+          r26_check "s29-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s29-triage-746" "$(r26_triage_on 746)"
+          # Scenario 30 (review finding F12): a lab decision (comment post on
+          # #124) LEADS the list before the matching create, so a
+          # leading-action gate keyed on a comment-posting action fires.
+          # Pristine: 1 comment on #124, 0 creates, skip, 1 triage on #747.
+          r26_run "$r26_tmp/s30" ok "$r26_tmp/list-s30.json" "$r26_dec_s30"
+          r26_check "s30-rc" "$(r26_rc0 "$r26_tmp/s30")"
+          r26_check "s30-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s30-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+          r26_check "s30-skip-loud" "$(r26_out_has "skip create_issue 'leading lab finding': open issue #747 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s30")"
+          r26_check "s30-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s30-triage-747" "$(r26_triage_on 747)"
+          r26_check "s30-leading-comment" "$([ "$(r26_calls 'gh api repos/RandomLabs/RandomLabs/issues/124/comments')" = "1" ] && echo 1 || echo 0)"
+          # Scenario 31 (review finding F14): a recover decision LEADS the
+          # list before the matching create; the recover action posts
+          # /oc recover on its target (#600), so a leading-action gate keyed
+          # on recover (the demonstrated F14 key) breaks the assertions.
+          # Pristine: 1 comment on #600, 0 creates, skip, 1 triage on #748.
+          r26_run "$r26_tmp/s31" ok "$r26_tmp/list-s31.json" "$r26_dec_s31"
+          r26_check "s31-rc" "$(r26_rc0 "$r26_tmp/s31")"
+          r26_check "s31-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s31-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+          r26_check "s31-skip-loud" "$(r26_out_has "skip create_issue 'leading recover finding': open issue #748 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/s31")"
+          r26_check "s31-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s31-triage-748" "$(r26_triage_on 748)"
+          r26_check "s31-recover-comment" "$([ "$(r26_calls 'gh api repos/RandomLabs/RandomLabs/issues/600/comments')" = "1" ] && echo 1 || echo 0)"
+          # Scenario 32 (review finding F13): a CREATE-path decision whose
+          # body carries a paragraph break against an unmatched list, so a
+          # gate on `"\n\n" in body_text` inserted before the create call
+          # (the demonstrated F13 escape) drops the create and fails the
+          # count/triage assertions. Pristine: 1 create (#900), 1 triage.
+          r26_run "$r26_tmp/s32" ok "$r26_tmp/list-s32.json" "$r26_dec_s32"
+          r26_check "s32-rc" "$(r26_rc0 "$r26_tmp/s32")"
+          r26_check "s32-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s32-one-create" "$([ "$(r26_calls 'gh issue create')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s32-create-title" "$([ "$(r26_calls '--title blank line create finding')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s32-created-loud" "$(r26_out_has 'Created new issue #900: blank line create finding' "$r26_tmp/s32")"
+          r26_check "s32-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s32-triage-900" "$(r26_triage_on 900)"
+          # Scenario 33 (review finding F13): the absent-body shape on the
+          # CREATE path, so `if not body_text: continue` before the create
+          # call (or any short-body predicate) drops the create. Pristine:
+          # 1 create (#900), 1 triage.
+          r26_run "$r26_tmp/s33" ok "$r26_tmp/list-s33.json" "$r26_dec_s33"
+          r26_check "s33-rc" "$(r26_rc0 "$r26_tmp/s33")"
+          r26_check "s33-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s33-one-create" "$([ "$(r26_calls 'gh issue create')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s33-create-title" "$([ "$(r26_calls '--title absent body create finding')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s33-created-loud" "$(r26_out_has 'Created new issue #900: absent body create finding' "$r26_tmp/s33")"
+          r26_check "s33-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s33-triage-900" "$(r26_triage_on 900)"
+          # Scenario 34 (review finding F13): the 23-char short-body shape
+          # on the CREATE path, closing short-length predicates there.
+          # Pristine: 1 create (#900), 1 triage.
+          r26_run "$r26_tmp/s34" ok "$r26_tmp/list-s34.json" "$r26_dec_s34"
+          r26_check "s34-rc" "$(r26_rc0 "$r26_tmp/s34")"
+          r26_check "s34-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s34-one-create" "$([ "$(r26_calls 'gh issue create')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s34-create-title" "$([ "$(r26_calls '--title short body create finding')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s34-created-loud" "$(r26_out_has 'Created new issue #900: short body create finding' "$r26_tmp/s34")"
+          r26_check "s34-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s34-triage-900" "$(r26_triage_on 900)"
+          # Scenario 35 (review finding F13): a comment-post decision (test
+          # on #200) runs before a FRESH create, so an `if posted: continue`
+          # gate before the create call drops the create (posted is
+          # otherwise only exercised on the skip path by s17). Pristine:
+          # 1 comment on #200, 1 create (#900), 1 triage.
+          r26_run "$r26_tmp/s35" ok "$r26_tmp/list-s35.json" "$r26_dec_s35"
+          r26_check "s35-rc" "$(r26_rc0 "$r26_tmp/s35")"
+          r26_check "s35-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s35-one-create" "$([ "$(r26_calls 'gh issue create')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s35-create-title" "$([ "$(r26_calls '--title posted context finding')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s35-created-loud" "$(r26_out_has 'Created new issue #900: posted context finding' "$r26_tmp/s35")"
+          r26_check "s35-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s35-triage-900" "$(r26_triage_on 900)"
+          r26_check "s35-posted-comment" "$([ "$(r26_calls 'gh api repos/RandomLabs/RandomLabs/issues/200/comments')" = "1" ] && echo 1 || echo 0)"
+          # Scenario 36 (review finding F15): create, a lab comment, then an
+          # identical create. An alias clear of the run-local index in the
+          # post-create-branch region (the demonstrated F15 escape) loses
+          # the in-run record, so the third decision re-creates the
+          # duplicate; pristine suppresses it with the in-run skip print.
+          # Pristine: 1 create (#900), 1 triage, 1 comment on #124, 1 in-run
+          # skip print.
+          r26_run "$r26_tmp/s36" ok "$r26_tmp/list-s36.json" "$r26_dec_s36"
+          r26_check "s36-rc" "$(r26_rc0 "$r26_tmp/s36")"
+          r26_check "s36-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s36-one-create" "$([ "$(r26_calls 'gh issue create')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s36-create-title" "$([ "$(r26_calls '--title Alias Clear Finding')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s36-created-loud" "$(r26_out_has 'Created new issue #900: Alias Clear Finding' "$r26_tmp/s36")"
+          r26_check "s36-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s36-triage-900" "$(r26_triage_on 900)"
+          r26_check "s36-lab-comment" "$([ "$(r26_calls 'gh api repos/RandomLabs/RandomLabs/issues/124/comments')" = "1" ] && echo 1 || echo 0)"
+          r26_check "s36-inrun-skip" "$(r26_out_has 'created earlier in this run; triage already dispatched (no duplicate dispatch)' "$r26_tmp/s36")"
+          # Size sweep (round-3 adversarial escapes): for list sizes 1 through
+          # 8 the LAST entry (oldest, issue #1, newest-first order) is the
+          # normalized match while every other entry carries an unrelated
+          # title; the match titles cycle short, digit-bearing, single-word,
+          # and x-bearing shapes. A `len(index) == N` equality gate, an
+          # `items[:k]` truncation with k < 8, an order-dependent
+          # `all(n >= v)` rebuild, a number/length/word-count gate at or
+          # below the envelope, and a digit-stripping or charset per-entry
+          # skip all fail at least one size.
+          r26_sweep_titles=("Bug 1" "Fix" "Proxy expiry" "Fix xfails" "Loop 5" "Timeout" "Minor stall" "Bug 8")
+          r26_sweep_n=1
+          while [ "$r26_sweep_n" -le 8 ]; do
+            r26_sweep_title="${r26_sweep_titles[$((r26_sweep_n - 1))]}"
+            r26_sweep_list="["
+            r26_sweep_first=1
+            r26_sweep_i="$r26_sweep_n"
+            while [ "$r26_sweep_i" -ge 1 ]; do
+              if [ "$r26_sweep_first" = "1" ]; then r26_sweep_first=0; else r26_sweep_list="$r26_sweep_list, "; fi
+              if [ "$r26_sweep_i" -eq 1 ]; then
+                r26_sweep_list="$r26_sweep_list{\"number\": 1, \"title\": \"$r26_sweep_title\"}"
+              else
+                r26_sweep_list="$r26_sweep_list{\"number\": $r26_sweep_i, \"title\": \"Other finding $r26_sweep_i\"}"
+              fi
+              r26_sweep_i=$((r26_sweep_i - 1))
+            done
+            r26_sweep_list="$r26_sweep_list]"
+            printf '%s' "$r26_sweep_list" > "$r26_tmp/list-n$r26_sweep_n.json"
+            r26_sweep_dec="[{\"action\": \"create_issue\", \"title\": \"$r26_sweep_title\", \"body\": \"$r26_body\"}]"
+            r26_run "$r26_tmp/n$r26_sweep_n" ok "$r26_tmp/list-n$r26_sweep_n.json" "$r26_sweep_dec"
+            r26_check "n$r26_sweep_n-rc" "$(r26_rc0 "$r26_tmp/n$r26_sweep_n")"
+            r26_check "n$r26_sweep_n-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+            r26_check "n$r26_sweep_n-no-create" "$([ "$(r26_calls 'gh issue create')" = "0" ] && echo 1 || echo 0)"
+            r26_check "n$r26_sweep_n-skip-loud" "$(r26_out_has "skip create_issue '$r26_sweep_title': open issue #1 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/n$r26_sweep_n")"
+            r26_check "n$r26_sweep_n-one-triage" "$([ "$(r26_calls 'gh workflow run')" = "1" ] && echo 1 || echo 0)"
+            r26_check "n$r26_sweep_n-triage-1" "$(r26_triage_on 1)"
+            r26_sweep_n=$((r26_sweep_n + 1))
+          done
+          # Decision-count / created-count sweep (adversarial escape hunt
+          # M6): counts 5 through 23, each a five-entry list with the match
+          # at a middle index and k-1 leading fresh create_issue decisions so
+          # BOTH dimensions sweep together (k decisions with k-1 creates
+          # before the match). The earlier suite pinned counts 1, 2, 3, 4 and
+          # 23 only, so an exact gate on any other count (`if len(decisions)
+          # == 20: return {}`, demonstrated green at 24/0 by the escape hunt)
+          # or on the created count (`if len(_created_issue_numbers) >= 4:
+          # return {}`) stayed inert under every fixture while disabling the
+          # dedupe in production. Every scenario asserts the exact create
+          # count (k-1), the exact dispatch count (k: one triage per created
+          # issue plus the matched issue), the skip line, and rc 0, so any
+          # exact or bound count gate firing on a swept count fails.
+          r26_count_n=5
+          while [ "$r26_count_n" -le 23 ]; do
+            r26_count_dec="["
+            r26_count_i=1
+            while [ "$r26_count_i" -lt "$r26_count_n" ]; do
+              [ "$r26_count_i" -gt 1 ] && r26_count_dec="$r26_count_dec, "
+              r26_count_dec="$r26_count_dec{\"action\": \"create_issue\", \"title\": \"count sweep filler $r26_count_i finding\", \"body\": \"$r26_body\"}"
+              r26_count_i=$((r26_count_i + 1))
+            done
+            r26_count_dec="$r26_count_dec, {\"action\": \"create_issue\", \"title\": \"count sweep finding\", \"body\": \"$r26_body\"}]"
+            r26_run "$r26_tmp/count$r26_count_n" ok "$r26_tmp/list-count.json" "$r26_count_dec"
+            r26_check "count$r26_count_n-rc" "$(r26_rc0 "$r26_tmp/count$r26_count_n")"
+            r26_check "count$r26_count_n-lists-once" "$([ "$(r26_calls 'gh issue list')" = "1" ] && echo 1 || echo 0)"
+            r26_check "count$r26_count_n-creates" "$([ "$(r26_calls 'gh issue create')" = "$((r26_count_n - 1))" ] && echo 1 || echo 0)"
+            r26_check "count$r26_count_n-skip-loud" "$(r26_out_has "skip create_issue 'count sweep finding': open issue #741 already carries the identical normalized title (dedupe, issue #668)" "$r26_tmp/count$r26_count_n")"
+            r26_check "count$r26_count_n-dispatches" "$([ "$(r26_calls 'gh workflow run')" = "$r26_count_n" ] && echo 1 || echo 0)"
+            r26_check "count$r26_count_n-triage-first" "$(r26_triage_on 900)"
+            r26_check "count$r26_count_n-triage-last" "$(r26_triage_on "$((899 + r26_count_n - 1))")"
+            r26_check "count$r26_count_n-triage-741" "$(r26_triage_on 741)"
+            r26_count_n=$((r26_count_n + 1))
+          done
+          # Derived-PATH shadow scenario (review finding F25, defense in
+          # depth): with a fake `gh` planted into the first resolved derived
+          # PATH directory (the pinned $HOME/.opencode/bin), the handler
+          # must invoke THAT binary, never the mock: an empty mock log
+          # proves the composition order (derived dirs ahead of the mock
+          # bin) is load-bearing, so a future reorder that silently
+          # neutralizes the derivation fails this scenario loudly.
+          r26_run "$r26_tmp/pathshadow" ok "" "$r26_dec_s1" schedule plant
+          r26_check "pathshadow-mock-drained" "$([ "$(r26_calls 'gh ')" = "0" ] && echo 1 || echo 0)"
+          # Unknown-gh-command check (adversarial escape hunt M1): the mock
+          # exits 64 for any command outside its model, so an inserted probe
+          # call is inert under audit while real gh answers it and the probe
+          # result can gate the dedupe. The accumulated invocation log must
+          # therefore contain no top-level command other than the ones the
+          # pristine handler uses (issue, workflow, api, pr); an inserted
+          # probe (e.g. `gh search issues`) fails the audit loudly no matter
+          # where in the block it sits, even though its result is only
+          # consumed under production conditions.
+          cat "$r26_state/calls" >> "$r26_state/calls-all" 2>/dev/null || true
+          r26_unknown=$(awk '/^gh / { print $2 }' "$r26_state/calls-all" 2>/dev/null | sort -u | grep -vE '^(issue|workflow|api|pr)$' | tr '\n' '|' || true)
+          [ -z "$r26_unknown" ] || r26_bad="${r26_bad} maintainer.yml(functional-unknown-gh-command:${r26_unknown})"
+          rm -rf "$r26_tmp"
+        fi
+      fi
+    fi
+  fi
+  fi
+fi
+if [ -z "$r26_bad" ]; then
+  check "R26" "create_issue dedupe: the handler queries open issues before every gh issue create and skips creation on an identical normalized title (casefold, non-alphanumerics to spaces, whitespace collapsed) while printing the existing number and self-triaging the match, with an in-run duplicate dispatching no second triage, a loud created branch that records the new number, a loud fail-open query path (a registry failure creates rather than drops a decision), the executing step resolved from the SAME YAML parse tree GitHub runs with ANY duplicate mapping key rejected outright (GitHub's parser rejects such a file with Invalid workflow file / 422, while a lenient last-wins scan would pin the decoy value; review finding F18) and with EXACTLY ONE step carrying the exact anchored name, if: always(), no shell, no working-directory, no continue-on-error, EXACTLY the two token env keys with both token expressions intact, no workflow-level or job-level env key, no job-level container, and no job-level strategy matrix (a merged PYTHONPATH or BASH_ENV would change the effective environment while the step env stayed exact; review finding F21), and each handler needle (the dedupe marker, _open_issue_titles, and _self_triage) in exactly one run which must be that step, so a comment-line anchor, a same-name decoy, a renamed or weakened executor, a removed, emptied, or role-swapped credential, or a cat-shell or crash-swallowing step fails loudly (review findings F17/F18; a wholesale executing-step rewrite carrying none of the three needles remains the documented diff-review boundary), the workflow-level and job-level defaults.run shell and working-directory overrides rejected outright with malformed defaults shapes too (a defaults: run: shell: cat {0} on either scope rewrote the anchored step's effective shell without touching the step keys and left the handler dead in production; review finding F21), the workflow-level and job-level env keys and a job-level container rejected as effective-environment changes (a merged PYTHONPATH or BASH_ENV would alter what the handler executes while the step env mapping stayed exact), and any repo-root Python module or package shadowing a module the handler imports or a startup hook (json, os, re, subprocess, time, sys, sitecustomize, usercustomize) in ANY importable spelling (source json.py, sourceless bytecode json.pyc placed directly in the directory, an extension module json.so or json.pyd bare or version-tagged, or a package directory carrying any importable __init__ artifact such as __init__.pyc) failing the audit loudly (including a shadow that unlinks itself on import, caught by an audit-start checkout snapshot taken before any rule executes and ORed into the scan) with the handler step itself invoking the interpreter in isolated mode (python3 -I -, pinned inside the exact-text handler block, so no repo-root module of ANY name, spelling, or transitive-import depth, the demonstrated transitive selectors import included, can reach the handler process; review finding F23), while the extractor, the fixture runner, and the audit's own R18 YAML-consistency helper execute isolated (python3 -I; review finding F24: the helper's non-isolated Python could previously import a repo-root module that rewrote the workflow file under test) and the functional sandbox mirrors the repo root's top-level files in every importable spelling into its work dir as defense in depth, so an isolation regression that somehow survives the exact-text pin also breaks the assertions (review findings F20/F22), exact control-flow pins on the loader invocation, the skip guard, and the skip branch's terminating continue plus five-consecutive-line adjacency of the lazy-load guard through the skip guard with exact-trim matching, so no run-state or input-shape gate can be interposed regardless of the dimension it gates on (review findings F2/F4), the eleven-line call-site preamble immediately preceding that chain pinned as an exact trimmed window plus the index sentinel pinned as exact text and a no-unknown-gh-command check over the accumulated invocation log against the pristine issue/workflow/api/pr allowlist, so an inserted probe between the branch opener and the chain (the demonstrated gh search issues call, inert under the mock at rc 64 but lethal against real gh) or a conditional sentinel replacement that pre-seeds the index under production conditions fails structurally or loudly (escape-hunt closures M1 and the init-replacement class), the ENTIRE handler block pinned as canonical exact text from its first line through the trailing PY with only blank lines dropped (indentation compared too) and the exact-form loop head required exactly once, so no line can be inserted, re-indented, or replaced anywhere in the handler without failing the audit, closing the three F13/F14/F15 families that lived outside the sub-region pins: a create-path gate silently dropping decisions, a decoy duplicate 'for d in decisions:' loop head that stopped the old setup-prefix extraction early, and an index-alias clear in the post-create-branch region (review findings F12/F13/F14/F15), the skip branch pinned as a six-consecutive-line shape with the skip print immediately after the skip guard and the terminating continue immediately after the triage dispatch (a conditional continue keyed on a first-class decision action such as ping or on a blank-line-bearing body can no longer pass the audit while leaking every match into gh issue create; review finding F10), and the whole _load_open_issue_titles() body from its def line through return index pinned as exact trimmed text with exactly one def occurrence and exactly two loader-name occurrences in the block, so a cross-dimensional conjunction on individually in-envelope dimensions (len(items) >= 5 and len(decisions) == 2), its no-added-line substitution variant, and its conditional def-shadowing variant fail structurally as well as behaviorally (review finding F9), block-scoped query-shape and ordering pins extracted from the real handler step, structural pins that the run-local index is assigned exactly twice (initialization and the fail-open line) and accessed only via .get/.setdefault, with subscript writes and deletes rejected because they evade the assignment and attribute pins (adversarial verification finding plus review finding F5), functional fixtures executing the real extracted normalization function with exactly one definition required in the block (review finding F7: a shadowing second definition would leave the fixtures testing dead code) and the function body from its def line through its return pinned as exact trimmed text so an inserted context-conditional line or replaced return expression that is sandbox-inert fails structurally (escape-hunt near-miss closure) (case fold including a Unicode casefold pair so a .lower() swap fails, punctuation/hyphen/underscore/whitespace collapse, and digit, space-placement, and >80-char long-tail pairs pinned non-matching so a digit-stripping regex, a \"\".join variant, or a truncating/fragmenting normalization fails; tester finding B1 plus adversarial escape E3; plus the 2026-10-18 paraphrase pair deliberately non-matching because fuzzy suppression could lose a distinct finding), and a functional sandbox that executes the real extracted handler block under the runner's bash -e shell against an executable mock gh (interception proven before the matrix; the handler environment is built from scratch with env -i: no ambient runner variable reaches it, credentials are fully absent, the non-credential Actions context is production-shaped across the standard variables (SHA, ref, ref name/type, server/API/GraphQL URLs, workspace, RUNNER_OS/ARCH, CI), and the mock's state paths are baked into the mock script, so env-keyed gate detection is independent of the ambient CI environment and the demonstrated env-sensing backdoor class is closed for the seeded set (escape hunt M5: a gate on SHA presence fires under audit once SHA is seeded) and for both exercised event shapes (schedule and workflow_dispatch); the mock requires the pinned query argv token for token (argument count plus every positional element), so a repeated scalar flag, an added --search filter, a reorder, or merged/split tokens cannot keep the audit green while the real query returns a different set or fail-opens, and the whole matrix's accumulated gh invocation log must stay inside the pristine issue/workflow/api/pr allowlist so an inserted probe call (unmodeled subcommands are mock-inert but real-gh-live) fails loudly wherever it sits; tester finding B2 plus adversarial escapes E2/Q4/Q5 and escape hunt M1, and emits the trailing newline real gh emits on every list output so a loader gate on the stdout newline is caught (review finding F6); sandbox outside the repo) across fresh-create (one query, one create on the bot token, one triage dispatch on the owner PAT), normalized-match skip+triage five times against newest-first five-issue lists where every entry is a scenario match at index 0 (#670, the 97-char title and the concurrent-duplicate shape so an items[1:]/items[-2:] offset or a length gate falls), index 1 (#669), index 2 (#668), index 3 (#665) and index 4 (#663, the oldest entry so items[:k] prefix truncations fall), so a cardinality gate at or below the fixture size, any proper prefix truncation through items[:4], an offset, a parity-gated index build, or an order-dependent all(n >= v) rebuild fails (tester finding B3 plus adversarial escapes E1/E4/L06/L07/P1/P2 and the round-3 order class), in-run duplicate against a non-empty open index via THREE identical decisions (one create, no second dispatch, two in-run skip prints, so a subscript-write or delete sabotage of the run-local index is caught behaviorally as well; review finding F5), query-failure fail-open, bad-JSON fail-open, a THREE-decision scenario with the matching create LAST after two successful creates (exactly 2 creates and 3 dispatches asserted, so a decision-count or created-count gate creates a third issue and fails), a matching decision carrying target (any target or extra-key gate), and a mixed scenario with a failed sweep first and a successfully posted comment second before the matching create (sweep_failed and posted gates; the failed sweep drives the handler's loud SystemExit(1), asserted as rc 1), a decision-count sweep of 1-4 decisions with the matching create LAST, each asserting zero duplicates (a 2-decision scenario with exactly 1 create and 2 dispatches, the existing 3-decision scenario with 2 creates and 3 dispatches, and a 4-decision scenario with 3 creates and 4 dispatches asserting all three created-number triages, so every ==k and <=/>= count gate inside 1-4 fires on at least one scenario and the created-count envelope extends to 3; the 2-decision and 4-decision scenarios run against FIVE-entry lists with the match at a middle index, so a conjunction of an in-envelope list size with an in-envelope decision count (len(items) >= 5 and len(decisions) == 2, review finding F9's demonstrated escape) can no longer hide behind fixture pairs that never hold both dimensions together) plus a COUNT SWEEP of decision counts 5 through 23 (each k a five-entry list with the match at a middle index and k-1 leading fresh creates before the matching create LAST, asserting the exact create count k-1 and dispatch count k), so every decision count 1-23 is exercised and an exact or bound gate on any swept count fires at least once (escape hunt M6: the demonstrated len(decisions) == 20 escape, and its created-count sibling len(_created_issue_numbers) >= 4, both now caught), a mixed action context carrying ALL of the handler's action keywords (review, test, test-linux, test-macos, test-windows, eval, continue, build, auditor, curate, architect, research, design, design-ux, design-visual, design-motion, lab, recover, fix, create_pr, ping-with-target, ideate) alongside the matching create LAST (0 creates, 18 comment posts, the skipped-fix probe, and the create_pr attempt asserted, so any action-keyword gate including one keyed on ping or ideate breaks the skip assertion; review finding F10), absent-body, 23-char short-single-line, two-line body, and paragraph-break (blank-line-bearing) body skip scenarios (not body_text and every len(body_text) < N with N >= 1, newline-presence, line-count, and short-length predicates inside the absent-body to long-three-line envelope), a matching create that is NOT last with a trailing lab action (last-position action predicates), a 147-char long-title skip scenario (title-length predicates up to 146), and a workflow_dispatch-event skip scenario (the demonstrated event-name gate; schedule remains the default shape), plus leading-action skip scenarios (ping-first with target, ideate-first, lab-first, recover-first: 0 creates, exactly one triage on the match, the loud skip line, and each leading action's own inert/comment behavior asserted, so any gate keyed on the leading decision action breaks the assertions; review findings F12/F14), create-path scenarios carrying a paragraph-break body, an absent body, and a short body against unmatched lists (the create must happen, so an F13 create-path gate drops the decision and fails the assertions), a posted-comment-before-a-fresh-create scenario (an if-posted create-path gate), and a create-lab-create-identical scenario asserting exactly one create, one triage, and the in-run skip print (an index-alias clear re-creates the duplicate; review finding F15), all with realistic multi-line >200-char bodies in every other scenario decision (a body-length gate), so the whole inserted-gate family is caught behaviorally even when a decoy satisfies the adjacency pin (review findings F4/F8), three digit-collision create scenarios ('Fix bug 42'/'Fix bug 43', 'Patch v10'/'Patch v1', 'Worker v1'/'Worker v10': pristine creates, a digit strip (full-run at one or both sites, zero-favored at either side) falsely skips, and any single-site strip fails the sweep), a space-removal collision create scenario ('Swift 6 migration' vs 'Swift6 migration': pristine creates, a consistent both-sites space removal after normalization falsely skips), one long-title collision create scenario (distinct long titles differing only in their final character: pristine creates, a consistent both-sites truncation merges them under every proper cutoff and falsely skips), and a size sweep of list sizes 1-8 whose last entry is the match with three-character, digit-bearing, single-word, and x-bearing titles cycling (a len(index)==N equality gate, an items[:k] truncation with k<8, or a number/length/word-count/charset per-entry gate at or below the sweep envelope fails), so no plain one-line disabled control flow, demonstrated fixture-coverage gap (offsets, prefix truncations, cardinality and parity gates at or below the fixture envelope, inserted run-state or input-shape gates at the loader chain, inside the loader, in the skip branch, in the call-site preamble, or as an inserted gh probe call, inserted gates anywhere in the handler (the whole block is exact-text pinned), including leading-action gates above the main loop, create-path gates, decoy duplicate loop heads, indentation changes, index subscript writes or deletes, a shadowing normalization definition or loader definition, stdout-newline gates, argument tampers, normalization weakening, call-site digit stripping, call-site space removal, consistent call-site truncation, order-dependent rebuilds), or demonstrated env-sensing backdoor, or a repo-root stdlib-shadowing module or an effective-shell defaults or effective-environment override, or a pre-handler step appending a directory to GITHUB_PATH next to a committed fake gh, exporting a BASH_ENV shim over the pinned python3 -I - invocation, planting a fake gh into the pinned HOME/.opencode/bin PATH directory, or rewriting the decision-file input, can conclude green (review findings F20/F21/F22/F23/F24/F25), with the ENTIRE pre-handler region (step sequence under the effective names GitHub displays, execution-shape keys, full env key maps including values, with: maps, and every run line with blank lines dropped) pinned as canonical exact text alongside a named env-file/mention allowlist, the PATH step body pinned to exactly the single echo line, and the functional sandbox deriving its PATH directories from the pinned extractor output (mirroring repo-provided GITHUB_WORKSPACE directories) with a derived-PATH shadow scenario proving the derived directories precede the mock bin, plus a shell-faithful check that every literal gh issue create invocation in the workflow lives in the anchored handler step (path-qualified executables such as /usr/bin/gh and ./gh, env/command/bash -c prefixes, tabs, backslash-newline continuations, quote/backslash word concatenation such as g''h, ANSI-C quoting such as $'\x69ssue', shell metacharacter separation, global flags between gh and the subcommand, and the multi-line Python list form included) exercised by a red self-test matrix over every listed spelling so a future weakening of the scan fails the audit itself (review findings F26/F29; prose carrying separate gh, issue, and create tokens in one command line is a known accepted false-positive shape), and repo-local scripts executed by the pinned pre-handler steps in any standard invocation spelling (bash/sh/source, optional flags, absolute or quoted paths) scanned for GITHUB_ENV, GITHUB_PATH, BASH_ENV, the pinned .opencode PATH directory, and the decision-file input so a script body cannot write the runner env-file channel or plant the handler's binary or input (review finding F27: appending a BASH_ENV write to resolve-model.sh kept the audit green while the handler sourced the shim; each demonstrated one-line variant above kept the whole audit green at 25 passed, 0 failed while the handler used the planted binary or shim and filed the exact duplicate the guard exists to prevent), with deliberate identity fingerprinting (fixture token strings, sandbox paths, per-title charset gates), call-site character-class transformations outside the tested digit (full-run and zero-favored), space-removal, and truncation classes, or truncation/cardinality/number/length/word-count thresholds above the eight-entry, 147-char fixture envelope, exact decision- or created-count gates above the swept envelope (decision counts 1-23 and created counts 0-22 before a match are every one exercised), body-content predicates keyed on prose absent from every fixture body, create-path body-length predicates above the 283-char fixture envelope, or non-credential context values outside the seeded/exercised shapes (unseeded context variables, event names beyond the schedule/workflow_dispatch pair, actor values), a wholesale rewrite of the executing step into unrelated code carrying none of the three handler needles while a canonical decoy remains (visible in the diff, not distinguishable structurally from a genuine handler replacement), a create executed from inside a repo script, composite action, or reusable workflow, a gh create reached through a variable or command-substitution indirection at the call site, a create issued through a direct REST call (gh api --method POST .../issues or curl .../issues), or an env-file channel reached through one level of indirection inside a repo-local script, review-gated as a documented residual (review findings F4-F29 plus the F16 print fix; issue #668)" "ok"
+else
+  check "R26" "create-issue dedupe guard missing:${r26_bad} (issue #668: concurrent per-target Maintainer ticks independently filed the same finding as #665/#666)" "bad"
+fi
+summary="Silent-stall regression audit (R1-R26) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R25)
+  body="## Silent-stall regression audit FAILED (R1-R26)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, or R25 lab/fix agent cap headroom). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, or R26 create-issue dedupe). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
