@@ -78,6 +78,31 @@ jobs:
           # clones and misread legitimate merges as orphans (issue #283).
           fetch-depth: 0
 
+      - name: Actor write gate (issue #428)
+        id: actor_gate
+        shell: bash
+        # Shared preflight (issue #428), adopted by the inline runner (issue
+        # #696): the opencode CLI asserts the TRIGGER ACTOR holds admin|write
+        # before its session starts on issue_comment /
+        # pull_request_review_comment / issues / pull_request events, and on
+        # failure it posts the raw error as a comment while continue-on-error
+        # keeps the job green - exactly what every bot-authored pull_request
+        # event did (15 red runs plus noise comments in the 24h before this
+        # landed). Resolve the identical permission check BEFORE the agent:
+        # a denied actor skips the agent and every post-gate side-effect step
+        # cleanly (no agent run, no noise comment, no red, no self-heal, no
+        # /oc maintainer escalation), while schedule / workflow_dispatch /
+        # workflow_run always pass and an owner /oc maintainer comment
+        # resolves to admin. The redundant wake paths (opencode-pr-trigger's
+        # owner comment, the workflow_run failure summon, the 20-minute
+        # schedule) keep coverage for denied triggers.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_EVENT: ${{ github.event_name }}
+          GATE_ACTOR: ${{ github.actor }}
+          GATE_LABEL: maintainer
+        run: bash .github/scripts/actor-write-gate.sh
+
       - name: Configure git identity
         run: |
           git config --global user.name "Hephaestus (Maintainer)"
@@ -211,6 +236,11 @@ jobs:
 
       - name: Run Maintainer agent
         id: maintainer_run
+        # Gated on the shared actor-write gate (issues #428/#696): a denied
+        # trigger actor skips the agent BEFORE the CLI's own permission
+        # assert can crash into a noise comment. R15 permits exactly this one
+        # conditional form on this step (see silent-stall-audit.sh).
+        if: steps.actor_gate.outputs.run == 'true'
         continue-on-error: true
         timeout-minutes: 60
         shell: bash
@@ -369,8 +399,22 @@ jobs:
         env:
           # Env indirection: the outcome expression stays out of the run block.
           AGENT_OUTCOME: ${{ steps.maintainer_run.outcome }}
+          AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
         run: |
-          # A healthy Maintainer ALWAYS writes .maintainer/decision.json
+          # Terminal third outcome (issues #428/#696): an actor-write-gate
+          # denial means the agent step never started, so "skipped + no
+          # decision file" is a deliberate clean skip, not a crash. This step
+          # and the run stay green: no owner auto-retry (which would launder
+          # the denied actor under an admin identity) and no escalation. The
+          # redundant wake paths (opencode-pr-trigger's owner /oc maintainer
+          # comment, the workflow_run failure summon, the 20-minute schedule)
+          # keep coverage; the loud red below stays reserved for a
+          # gate-ALLOWED run that truly crashed before writing its contract.
+          if [ "${AGENT_GATE:-}" != "true" ]; then
+            echo "::notice::Actor write gate skipped the Maintainer agent (issue #428): denial is not a crash - no agent run, no noise comment, no red, no self-heal, no /oc maintainer escalation."
+            exit 0
+          fi
+          # A gate-allowed Maintainer ALWAYS writes .maintainer/decision.json
           # (an empty array [] is a valid quiet run), so its absence is a
           # broken contract: the 2026-10-17 outage's Model-not-found deaths
           # concluded green under continue-on-error with only a warning. Go RED
@@ -378,11 +422,6 @@ jobs:
           # workflow_run failure allowlist, so the observable coverage of this
           # red is the failed run itself plus its recurring 20-minute schedule (and the
           # Auditor's silent-stall survey), not failure-triggered triage.
-          # Also intended until the actor-permission preflight (issue #427)
-          # lands: on a bot-authored PR's pull_request event the opencode CLI
-          # refuses the bot actor and writes no decision file, so this step
-          # reds that redundant arm too. The real triage arm is the
-          # /oc maintainer comment triggered by opencode-pr-trigger.yml.
           if [ -f .maintainer/decision.json ]; then
             echo "Maintainer decision contract present (outcome '$AGENT_OUTCOME')."
             exit 0
@@ -391,7 +430,7 @@ jobs:
           exit 1
 
       - name: Remove maintainer stray PRs and branches (the Maintainer never opens PRs)
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         run: |
           gh pr list --author app/github-actions --state open --json number,headRefName \
             --jq '.[] | select(.headRefName | startswith("opencode/schedule-") or startswith("opencode/dispatch-") or startswith("opencode/issue")) | .number' \
@@ -407,7 +446,7 @@ jobs:
           echo "stray cleanup complete"
 
       - name: Emergency-gated commit and push of workflow model updates to main
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_AUTHOR_NAME: "Hephaestus (Maintainer)"
@@ -491,7 +530,10 @@ jobs:
           echo "Emergency revival pushed to main as Hephaestus (Maintainer)."
 
       - name: Commit Maintainer memory (maintainer/logs)
-        if: always()
+        # Issue #696: a denied trigger actor must not push anything, including
+        # a marker/stub day entry on the memory branch. R23 permits exactly
+        # this one additional conditional form (and checks the gate step).
+        if: always() && steps.actor_gate.outputs.run == 'true'
         run: |
           # Issue #647: bounded 3-attempt fetch-recompose-push loop with
           # keep-both log semantics and loud diagnostics. The old single-shot,
@@ -623,7 +665,7 @@ jobs:
           rm -rf "$bundle"
 
       - name: Post Maintainer comment
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           OC_TARGET: ${{ github.event.pull_request.number || github.event.issue.number || inputs.issue_number || inputs.pr_number || '' }}
@@ -688,7 +730,7 @@ jobs:
               print(f"posted comment on #{t}")
           PY
       - name: Run /oc triggers as owner
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           BOT_TOKEN: ${{ github.token }}
@@ -943,7 +985,7 @@ jobs:
           PY
 
       - name: PAT-backed merge for approved workflow-touching PRs
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -1082,7 +1124,7 @@ jobs:
           echo "PAT merge sweep complete"
 
       - name: Trigger pages deployment if main advanced
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -1095,7 +1137,7 @@ jobs:
           fi
 
       - name: Main integrity guard (prevent orphan or divergent main rewrite)
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -1150,7 +1192,7 @@ jobs:
             || true
 
       - name: Dispatch ideator when asked
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -1176,7 +1218,7 @@ jobs:
 
       - name: Approve held CI runs (PR or repo-wide sweep)
         continue-on-error: true
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           # Env indirection (issue #422 residual, audit R10): run blocks must
