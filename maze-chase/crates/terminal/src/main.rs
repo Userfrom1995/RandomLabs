@@ -806,13 +806,6 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
     }
 }
 
-/// Render one full frame into `out` (caller flushes).
-///
-/// `fresh` marks a layout-plan or tier change: the frame first clears
-/// the screen and deletes every live image placement, then repaints
-/// everything in the same frame, so a resize can never leave stale
-/// pixels or clipped glyphs behind (issue #674 - the old placement on
-/// the old cell grid must be gone before the new frame shows).
 /// Compose one due frame into `out`: clear the buffer, prepend the
 /// pending Kitty release when the session just left the tier, then render
 /// the current surface. One function on purpose: the release and the
@@ -852,6 +845,13 @@ fn note_failed_frame_write(fresh: &mut bool, kitty: &mut KittyRenderer) {
     kitty.invalidate();
 }
 
+/// Render one full frame into `out` (caller flushes).
+///
+/// `fresh` marks a layout-plan or tier change: the frame first clears
+/// the screen and deletes every live image placement, then repaints
+/// everything in the same frame, so a resize can never leave stale
+/// pixels or clipped glyphs behind (issue #674 - the old placement on
+/// the old cell grid must be gone before the new frame shows).
 fn render_frame(
     app: &mut App,
     out: &mut String,

@@ -240,7 +240,7 @@ fn tail(bytes: &[u8]) -> String {
 fn display_at(bytes: &[u8], rows: u32, cols: u32, cursor: (u16, u16)) -> bool {
     use maze_chase_terminal::kitty::{STATIC_IMAGE_ID, STATIC_PLACEMENT_ID};
     let text = String::from_utf8_lossy(bytes).into_owned();
-    // The Phase 3 Kitty tier displays the static board as one placement
+    // The Kitty graphics tier displays the static board as one placement
     // of the pre-transmitted image, so the display evidence is the
     // static `a=p` escape carrying the image footprint; the cursor move
     // ahead of it is the solved image origin.

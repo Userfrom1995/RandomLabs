@@ -1,4 +1,4 @@
-//! Tester hostile-startup regression suite for the Phase 3 terminal
+//! Tester hostile-startup regression suite for the terminal
 //! overhaul (PR #693).
 //!
 //! A FIFO in the game's config directory used to hang the shipped

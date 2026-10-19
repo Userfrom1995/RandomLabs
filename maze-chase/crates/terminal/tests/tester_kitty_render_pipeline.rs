@@ -1,4 +1,4 @@
-//! Tester regression suite for the Phase 3 Kitty render pipeline and the
+//! Tester regression suite for the Kitty render pipeline and the
 //! Sixel handoff, pinning the review-round findings on PR #693:
 //!
 //! - Sprite stacking (round 1, F1): Ghostty showed a board with zero
