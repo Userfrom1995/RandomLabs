@@ -8,7 +8,7 @@
   "scope": "native",
   "tier_requested": "kitty",
   "tier_observed": "kitty-graphics",
-  "disposition": "partial",
+  "disposition": "pass",
   "unverified_reason": null,
   "runner": {
     "host": "runnervm8k3b6",
@@ -62,29 +62,29 @@
     "resize_exercised": true
   },
   "extra_env": [],
-  "started_at": "2026-10-18T16:28:37Z",
-  "ended_at": "2026-10-18T16:29:11Z",
+  "started_at": "2026-10-19T00:09:39Z",
+  "ended_at": "2026-10-19T00:10:04Z",
   "exit": {
-    "code": null,
-    "killed": true,
-    "game_exited": false,
-    "process_exited": false
+    "code": 0,
+    "killed": false,
+    "game_exited": true,
+    "process_exited": true
   },
   "phases": [
     {
       "name": "title",
-      "bytes": 217251,
-      "at_ms": 1792340920612,
+      "bytes": 14118,
+      "at_ms": 1792368582166,
       "screenshot": "screenshots/title.png",
       "frames": {
-        "count": 47,
-        "bytes_mean": 4618,
-        "bytes_max": 4618
+        "count": 3,
+        "bytes_mean": 4638,
+        "bytes_max": 4680
       },
       "surfaces": {
         "title_video_line": {
-          "paints": 47,
-          "first_byte": 3213
+          "paints": 3,
+          "first_byte": 3272
         }
       },
       "layout": {
@@ -92,7 +92,18 @@
         "addressed_cols_max": 0,
         "addressed_rows_min": 0,
         "addressed_rows_max": 35,
-        "moves": 1692
+        "moves": 108
+      },
+      "kitty": {
+        "transmits": 0,
+        "placements": 0,
+        "deletes": 3,
+        "queries": 0,
+        "chunked": false,
+        "payload_bytes": 0,
+        "first_chunks_bytes": 0,
+        "payload_chunks": 0,
+        "first_transmit_png": null
       },
       "screenshot_sha256": "3ce3282bd79db0756d66ddeb0b4d85cb7779fbc75055d8df84c8d12bb8386130",
       "screenshot_width": 704,
@@ -101,511 +112,487 @@
     },
     {
       "name": "playing",
-      "bytes": 55627531,
-      "at_ms": 1792340925593,
+      "bytes": 620759,
+      "at_ms": 1792368586998,
       "screenshot": "screenshots/playing.png",
-      "duration_ms": 4981,
-      "bytes_per_s": 11167944,
+      "duration_ms": 4832,
+      "bytes_per_s": 128468,
       "frames": {
-        "count": 246,
-        "bytes_mean": 225795,
-        "bytes_max": 226698
+        "count": 106,
+        "bytes_mean": 5856,
+        "bytes_max": 16633
       },
-      "frames_per_s": 49.4,
-      "surfaces": {
-        "playing_hud": {
-          "paints": 245,
-          "first_byte": 448170
-        },
-        "title_video_line": {
-          "paints": 1,
-          "first_byte": 220259
-        }
-      },
+      "frames_per_s": 21.9,
       "layout": {
-        "addressed_cols_min": 0,
-        "addressed_cols_max": 65,
-        "addressed_rows_min": 0,
-        "addressed_rows_max": 35,
-        "moves": 11583
+        "addressed_cols_min": 7,
+        "addressed_cols_max": 84,
+        "addressed_rows_min": 1,
+        "addressed_rows_max": 34,
+        "moves": 4259
       },
       "kitty": {
-        "transmits": 246,
-        "placements": 0,
-        "deletes": 246,
+        "transmits": 17,
+        "placements": 549,
+        "deletes": 523,
         "queries": 0,
         "chunked": true,
-        "payload_bytes": 54625604,
-        "first_chunks_bytes": 1007616,
-        "payload_chunks": 13494,
+        "payload_bytes": 156932,
+        "first_chunks_bytes": 67416,
+        "payload_chunks": 49,
         "first_transmit_png": {
-          "w": 224,
-          "h": 248
+          "w": 476,
+          "h": 527
         }
       },
-      "screenshot_sha256": "f3b84b905087230ec272650bd366a3387f52d933bce54b6d88779248e6ec7748",
+      "screenshot_sha256": "1f7cff2d9c16e184c0f7fac02381176b49a6af21eabe54f1528cccbde70de3ff",
       "screenshot_width": 704,
       "screenshot_height": 644,
-      "white_share": 0.0015
+      "white_share": 0.0014
     },
     {
       "name": "resized-wide",
-      "bytes": 16926801,
-      "at_ms": 1792340927380,
+      "bytes": 245813,
+      "at_ms": 1792368588798,
       "screenshot": "screenshots/resized-wide.png",
-      "duration_ms": 1787,
-      "bytes_per_s": 9472188,
+      "duration_ms": 1800,
+      "bytes_per_s": 136562,
       "frames": {
-        "count": 74,
-        "bytes_mean": 226783,
-        "bytes_max": 226789
+        "count": 40,
+        "bytes_mean": 6145,
+        "bytes_max": 18185
       },
-      "frames_per_s": 41.4,
+      "frames_per_s": 22.2,
       "surfaces": {
         "playing_hud": {
-          "paints": 75,
-          "first_byte": 55989180
+          "paints": 39,
+          "first_byte": 656969
         }
       },
       "layout": {
-        "addressed_cols_min": 7,
-        "addressed_cols_max": 86,
-        "addressed_rows_min": 2,
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 114,
+        "addressed_rows_min": 1,
         "addressed_rows_max": 45,
-        "moves": 3493
+        "moves": 2076
       },
       "kitty": {
-        "transmits": 74,
-        "placements": 0,
-        "deletes": 73,
+        "transmits": 2,
+        "placements": 208,
+        "deletes": 197,
         "queries": 0,
         "chunked": true,
-        "payload_bytes": 16475656,
-        "first_chunks_bytes": 303104,
-        "payload_chunks": 4070,
+        "payload_bytes": 11588,
+        "first_chunks_bytes": 5976,
+        "payload_chunks": 4,
         "first_transmit_png": {
-          "w": 224,
-          "h": 248
+          "w": 476,
+          "h": 527
         }
       },
-      "screenshot_sha256": "740af48ce04894bbdf8c04f2b29910ba76c0b633e7f789fc8a82ab90efbdc157",
+      "screenshot_sha256": "d9ed4592433f87a01dcd5212509574ad22ff8e0210d4d7d14624601a5b655cd7",
       "screenshot_width": 1001,
       "screenshot_height": 1024,
-      "white_share": 0.0007
+      "white_share": 0.0006
     },
     {
       "name": "too-small",
-      "bytes": 1778387,
-      "at_ms": 1792340928974,
+      "bytes": 75327,
+      "at_ms": 1792368590378,
       "screenshot": "screenshots/too-small.png",
-      "duration_ms": 1594,
-      "bytes_per_s": 1115675,
+      "duration_ms": 1580,
+      "bytes_per_s": 47675,
       "frames": {
-        "count": 509,
-        "bytes_mean": 3493,
-        "bytes_max": 226789
+        "count": 33,
+        "bytes_mean": 2282,
+        "bytes_max": 5875
       },
-      "frames_per_s": 319.3,
+      "frames_per_s": 20.9,
       "surfaces": {
         "playing_hud": {
-          "paints": 3,
-          "first_byte": 72997931
+          "paints": 1,
+          "first_byte": 886122
         }
       },
       "layout": {
         "addressed_cols_min": 0,
-        "addressed_cols_max": 86,
+        "addressed_cols_max": 114,
         "addressed_rows_min": 0,
         "addressed_rows_max": 45,
-        "moves": 10261
+        "moves": 692
       },
       "kitty": {
-        "transmits": 3,
-        "placements": 0,
-        "deletes": 3,
+        "transmits": 0,
+        "placements": 5,
+        "deletes": 6,
         "queries": 0,
-        "chunked": true,
-        "payload_bytes": 667932,
-        "first_chunks_bytes": 12288,
-        "payload_chunks": 165,
-        "first_transmit_png": {
-          "w": 224,
-          "h": 248
-        }
+        "chunked": false,
+        "payload_bytes": 0,
+        "first_chunks_bytes": 0,
+        "payload_chunks": 0,
+        "first_transmit_png": null
       },
-      "screenshot_sha256": "7799d9ea800897dad2ff03963d1cc53c8ee9e97b7fc6b382e4bb29407b596042",
+      "screenshot_sha256": "fe149b10538643c2f29af0d61981435882f27f5aaa2a4dbe7f97ec9bda65a514",
       "screenshot_width": 560,
       "screenshot_height": 384,
-      "white_share": 0.0032
+      "white_share": 0.003
     },
     {
       "name": "refit",
-      "bytes": 17215938,
-      "at_ms": 1792340930738,
+      "bytes": 257343,
+      "at_ms": 1792368592173,
       "screenshot": "screenshots/refit.png",
-      "duration_ms": 1764,
-      "bytes_per_s": 9759602,
+      "duration_ms": 1795,
+      "bytes_per_s": 143366,
       "frames": {
-        "count": 76,
-        "bytes_mean": 223831,
-        "bytes_max": 226787
+        "count": 41,
+        "bytes_mean": 6276,
+        "bytes_max": 18188
       },
-      "frames_per_s": 43.1,
+      "frames_per_s": 22.8,
       "surfaces": {
         "playing_hud": {
-          "paints": 75,
-          "first_byte": 74778470
+          "paints": 40,
+          "first_byte": 975932
         }
       },
       "layout": {
         "addressed_cols_min": 0,
-        "addressed_cols_max": 86,
+        "addressed_cols_max": 114,
         "addressed_rows_min": 0,
         "addressed_rows_max": 45,
-        "moves": 3577
+        "moves": 2179
       },
       "kitty": {
-        "transmits": 76,
-        "placements": 0,
-        "deletes": 75,
+        "transmits": 2,
+        "placements": 279,
+        "deletes": 268,
         "queries": 0,
         "chunked": true,
-        "payload_bytes": 16899004,
-        "first_chunks_bytes": 311296,
-        "payload_chunks": 4174,
+        "payload_bytes": 11588,
+        "first_chunks_bytes": 5976,
+        "payload_chunks": 4,
         "first_transmit_png": {
-          "w": 224,
-          "h": 248
+          "w": 476,
+          "h": 527
         }
       },
-      "screenshot_sha256": "3ec8b3c5397205bc2962ad1fe067050b1b34de134ade28c960f92f6de500fabe",
+      "screenshot_sha256": "d9ed4592433f87a01dcd5212509574ad22ff8e0210d4d7d14624601a5b655cd7",
       "screenshot_width": 1001,
       "screenshot_height": 1024,
-      "white_share": 0.0007
+      "white_share": 0.0006
     },
     {
       "name": "paused",
-      "bytes": 11853862,
-      "at_ms": 1792340932075,
+      "bytes": 50445,
+      "at_ms": 1792368593634,
       "screenshot": "screenshots/paused.png",
-      "duration_ms": 1337,
-      "bytes_per_s": 8866014,
+      "duration_ms": 1461,
+      "bytes_per_s": 34527,
       "frames": {
-        "count": 52,
-        "bytes_mean": 226787,
-        "bytes_max": 226787
+        "count": 3,
+        "bytes_mean": 16815,
+        "bytes_max": 28377
       },
-      "frames_per_s": 38.9,
+      "frames_per_s": 2.1,
       "surfaces": {
         "playing_hud": {
-          "paints": 53,
-          "first_byte": 91787496
+          "paints": 3,
+          "first_byte": 1218907
+        },
+        "paused": {
+          "paints": 2,
+          "first_byte": 1242371
+        },
+        "pause_resume": {
+          "paints": 2,
+          "first_byte": 1242712
+        },
+        "pause_quit": {
+          "paints": 2,
+          "first_byte": 1242879
         }
       },
       "layout": {
-        "addressed_cols_min": 28,
-        "addressed_cols_max": 86,
-        "addressed_rows_min": 14,
-        "addressed_rows_max": 45,
-        "moves": 2491
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 114,
+        "addressed_rows_min": 0,
+        "addressed_rows_max": 59,
+        "moves": 286
       },
       "kitty": {
-        "transmits": 53,
-        "placements": 0,
-        "deletes": 53,
+        "transmits": 2,
+        "placements": 25,
+        "deletes": 14,
         "queries": 0,
         "chunked": true,
-        "payload_bytes": 11610256,
-        "first_chunks_bytes": 217088,
-        "payload_chunks": 2868,
+        "payload_bytes": 11588,
+        "first_chunks_bytes": 5976,
+        "payload_chunks": 4,
         "first_transmit_png": {
-          "w": 224,
-          "h": 248
+          "w": 476,
+          "h": 527
         }
       },
-      "screenshot_sha256": "bc798547192fa648d8c5fe725b7384cbadd6617e1f4cbd5f269a86c4d4f5f23e",
+      "screenshot_sha256": "35a19a22518eed92671672fd1c52732f30aac56325b5ea01f51ba51385e096fb",
       "screenshot_width": 1001,
       "screenshot_height": 1024,
-      "white_share": 0.0007
+      "white_share": 0.0006
     },
     {
       "name": "title-return",
-      "bytes": 16585659,
-      "at_ms": 1792340933655,
+      "bytes": 36679,
+      "at_ms": 1792368595102,
       "screenshot": "screenshots/title-return.png",
-      "duration_ms": 1580,
-      "bytes_per_s": 10497252,
+      "duration_ms": 1468,
+      "bytes_per_s": 24985,
       "frames": {
-        "count": 72,
-        "bytes_mean": 226787,
-        "bytes_max": 226787
+        "count": 3,
+        "bytes_mean": 12226,
+        "bytes_max": 16077
       },
-      "frames_per_s": 45.6,
+      "frames_per_s": 2.0,
       "surfaces": {
         "playing_hud": {
-          "paints": 73,
-          "first_byte": 103807207
+          "paints": 1,
+          "first_byte": 1269248
+        },
+        "paused": {
+          "paints": 1,
+          "first_byte": 1274526
+        },
+        "pause_resume": {
+          "paints": 1,
+          "first_byte": 1274867
+        },
+        "pause_quit": {
+          "paints": 1,
+          "first_byte": 1275034
+        },
+        "title_video_line": {
+          "paints": 2,
+          "first_byte": 1286014
         }
       },
       "layout": {
-        "addressed_cols_min": 28,
-        "addressed_cols_max": 86,
-        "addressed_rows_min": 14,
-        "addressed_rows_max": 45,
-        "moves": 3431
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 114,
+        "addressed_rows_min": 0,
+        "addressed_rows_max": 59,
+        "moves": 232
       },
       "kitty": {
-        "transmits": 73,
-        "placements": 0,
-        "deletes": 73,
+        "transmits": 0,
+        "placements": 5,
+        "deletes": 8,
         "queries": 0,
-        "chunked": true,
-        "payload_bytes": 16095904,
-        "first_chunks_bytes": 299008,
-        "payload_chunks": 3976,
-        "first_transmit_png": {
-          "w": 224,
-          "h": 248
-        }
+        "chunked": false,
+        "payload_bytes": 0,
+        "first_chunks_bytes": 0,
+        "payload_chunks": 0,
+        "first_transmit_png": null
       },
-      "screenshot_sha256": "28b8ecfc8257dc21bcd9125f34af8ebee5835334bf8f53601bbb98e46a0195b4",
+      "screenshot_sha256": "b1ba932bc4de3b49094421d14ad4076909d2f0cdc73c0a1fbde22333d0e069ea",
       "screenshot_width": 1001,
       "screenshot_height": 1024,
-      "white_share": 0.0007
+      "white_share": 0.0006
     },
     {
       "name": "help",
-      "bytes": 15286871,
-      "at_ms": 1792340935220,
+      "bytes": 30874,
+      "at_ms": 1792368596562,
       "screenshot": "screenshots/help.png",
-      "duration_ms": 1565,
-      "bytes_per_s": 9767968,
+      "duration_ms": 1460,
+      "bytes_per_s": 21146,
       "frames": {
-        "count": 66,
-        "bytes_mean": 226787,
-        "bytes_max": 226787
+        "count": 3,
+        "bytes_mean": 10291,
+        "bytes_max": 10333
       },
-      "frames_per_s": 42.2,
+      "frames_per_s": 2.1,
       "surfaces": {
-        "playing_hud": {
-          "paints": 67,
-          "first_byte": 120362658
+        "help": {
+          "paints": 2,
+          "first_byte": 1313987
+        },
+        "title_video_line": {
+          "paints": 1,
+          "first_byte": 1306554
         }
       },
       "layout": {
-        "addressed_cols_min": 28,
-        "addressed_cols_max": 86,
-        "addressed_rows_min": 14,
-        "addressed_rows_max": 45,
-        "moves": 3149
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 0,
+        "addressed_rows_min": 0,
+        "addressed_rows_max": 59,
+        "moves": 180
       },
       "kitty": {
-        "transmits": 67,
+        "transmits": 0,
         "placements": 0,
-        "deletes": 67,
+        "deletes": 3,
         "queries": 0,
-        "chunked": true,
-        "payload_bytes": 14850152,
-        "first_chunks_bytes": 274432,
-        "payload_chunks": 3668,
-        "first_transmit_png": {
-          "w": 224,
-          "h": 248
-        }
+        "chunked": false,
+        "payload_bytes": 0,
+        "first_chunks_bytes": 0,
+        "payload_chunks": 0,
+        "first_transmit_png": null
       },
-      "screenshot_sha256": "720549d556996f17109012f53ea95826e27c49029b543bd4c634298ff528a4ae",
+      "screenshot_sha256": "1cb57a22455741da2c71cf71799e41fc8dd931a2081d4e33682971294f8fd0dc",
       "screenshot_width": 1001,
       "screenshot_height": 1024,
-      "white_share": 0.0007
+      "white_share": 0.0006
     },
     {
       "name": "scores",
-      "bytes": 26229471,
-      "at_ms": 1792340937801,
+      "bytes": 51474,
+      "at_ms": 1792368599043,
       "screenshot": "screenshots/scores.png",
-      "duration_ms": 2581,
-      "bytes_per_s": 10162522,
+      "duration_ms": 2481,
+      "bytes_per_s": 20747,
       "frames": {
-        "count": 115,
-        "bytes_mean": 226787,
-        "bytes_max": 226787
+        "count": 5,
+        "bytes_mean": 10294,
+        "bytes_max": 10332
       },
-      "frames_per_s": 44.6,
+      "frames_per_s": 2.0,
       "surfaces": {
-        "playing_hud": {
-          "paints": 116,
-          "first_byte": 135557387
+        "scores": {
+          "paints": 2,
+          "first_byte": 1366994
+        },
+        "title_video_line": {
+          "paints": 3,
+          "first_byte": 1337490
         }
       },
       "layout": {
-        "addressed_cols_min": 28,
-        "addressed_cols_max": 86,
-        "addressed_rows_min": 14,
-        "addressed_rows_max": 45,
-        "moves": 5452
+        "addressed_cols_min": 0,
+        "addressed_cols_max": 0,
+        "addressed_rows_min": 0,
+        "addressed_rows_max": 59,
+        "moves": 300
       },
       "kitty": {
-        "transmits": 116,
+        "transmits": 0,
         "placements": 0,
-        "deletes": 116,
+        "deletes": 6,
         "queries": 0,
-        "chunked": true,
-        "payload_bytes": 25681884,
-        "first_chunks_bytes": 475136,
-        "payload_chunks": 6344,
-        "first_transmit_png": {
-          "w": 224,
-          "h": 248
-        }
+        "chunked": false,
+        "payload_bytes": 0,
+        "first_chunks_bytes": 0,
+        "payload_chunks": 0,
+        "first_transmit_png": null
       },
-      "screenshot_sha256": "ffce2e30d61465f44154dc7978200a34739d5fd2e7e19d2b2930d8a24775509e",
+      "screenshot_sha256": "2a5d63e922f6005f47c2dae4deee1c50f6819997016eaee03dee61a5a7148481",
       "screenshot_width": 1001,
       "screenshot_height": 1024,
-      "white_share": 0.0007
+      "white_share": 0.0006
     },
     {
       "name": "settings",
-      "bytes": 28464994,
-      "at_ms": 1792340940550,
+      "bytes": 51478,
+      "at_ms": 1792368601510,
       "screenshot": "screenshots/settings.png",
-      "duration_ms": 2749,
-      "bytes_per_s": 10354672,
+      "duration_ms": 2467,
+      "bytes_per_s": 20866,
       "frames": {
-        "count": 120,
-        "bytes_mean": 235194,
-        "bytes_max": 236978
+        "count": 5,
+        "bytes_mean": 10295,
+        "bytes_max": 10334
       },
-      "frames_per_s": 43.7,
+      "frames_per_s": 2.0,
       "surfaces": {
-        "playing_hud": {
-          "paints": 121,
-          "first_byte": 161864679
+        "settings": {
+          "paints": 2,
+          "first_byte": 1417793
         },
-        "paused": {
-          "paints": 99,
-          "first_byte": 166859269
-        },
-        "pause_resume": {
-          "paints": 99,
-          "first_byte": 166859610
-        },
-        "pause_quit": {
-          "paints": 99,
-          "first_byte": 166859777
+        "title_video_line": {
+          "paints": 3,
+          "first_byte": 1388964
         }
       },
       "layout": {
         "addressed_cols_min": 0,
-        "addressed_cols_max": 86,
+        "addressed_cols_max": 0,
         "addressed_rows_min": 0,
         "addressed_rows_max": 59,
-        "moves": 11627
+        "moves": 300
       },
       "kitty": {
-        "transmits": 121,
+        "transmits": 0,
         "placements": 0,
-        "deletes": 121,
+        "deletes": 6,
         "queries": 0,
-        "chunked": true,
-        "payload_bytes": 26811488,
-        "first_chunks_bytes": 495616,
-        "payload_chunks": 6623,
-        "first_transmit_png": {
-          "w": 224,
-          "h": 248
-        }
+        "chunked": false,
+        "payload_bytes": 0,
+        "first_chunks_bytes": 0,
+        "payload_chunks": 0,
+        "first_transmit_png": null
       },
-      "screenshot_sha256": "1a9d41cdab341ac9fefebeb26bee5cc88984f23c72d6e845a127eaa3a2460eac",
+      "screenshot_sha256": "701cda4080198992e7e18e6799318f5c9f0a64dc929a1aab983ddccd006aa55d",
       "screenshot_width": 1001,
       "screenshot_height": 1024,
-      "white_share": 0.0007
+      "white_share": 0.0006
     },
     {
       "name": "tail",
-      "bytes": 30814177,
-      "at_ms": 1792340951847,
+      "bytes": 30957,
+      "at_ms": 1792368604485,
       "screenshot": null,
-      "duration_ms": 11297,
-      "bytes_per_s": 2727642,
+      "duration_ms": 2975,
+      "bytes_per_s": 10405,
       "frames": {
-        "count": 956,
-        "bytes_mean": 32087,
-        "bytes_max": 236978
+        "count": 3,
+        "bytes_mean": 10290,
+        "bytes_max": 10332
       },
-      "frames_per_s": 84.6,
+      "frames_per_s": 1.0,
       "surfaces": {
-        "playing_hud": {
-          "paints": 93,
-          "first_byte": 190314815
-        },
-        "paused": {
-          "paints": 93,
-          "first_byte": 190320091
-        },
-        "pause_resume": {
-          "paints": 93,
-          "first_byte": 190320432
-        },
-        "pause_quit": {
-          "paints": 93,
-          "first_byte": 190320599
-        },
-        "help": {
-          "paints": 171,
-          "first_byte": 214328374
-        },
-        "scores": {
-          "paints": 310,
-          "first_byte": 217821876
-        },
         "title_video_line": {
-          "paints": 383,
-          "first_byte": 212133493
+          "paints": 3,
+          "first_byte": 1440442
         }
       },
       "layout": {
         "addressed_cols_min": 0,
-        "addressed_cols_max": 86,
+        "addressed_cols_max": 0,
         "addressed_rows_min": 0,
         "addressed_rows_max": 59,
-        "moves": 61759
+        "moves": 180
       },
       "kitty": {
-        "transmits": 92,
+        "transmits": 0,
         "placements": 0,
-        "deletes": 92,
+        "deletes": 3,
         "queries": 0,
-        "chunked": true,
-        "payload_bytes": 20483248,
-        "first_chunks_bytes": 376832,
-        "payload_chunks": 5060,
-        "first_transmit_png": {
-          "w": 224,
-          "h": 248
-        }
+        "chunked": false,
+        "payload_bytes": 0,
+        "first_chunks_bytes": 0,
+        "payload_chunks": 0,
+        "first_transmit_png": null
       }
     }
   ],
   "protocol_totals": {
-    "transcript_bytes": 221000942,
-    "transcript_sha256": "be29a0b80603f192720afbae56561be01c3bd99117d0277d5b2718448c5970d9",
+    "transcript_bytes": 1465267,
+    "transcript_sha256": "70c117733a9247a91061cb47e37c2a90880d4e44692db0e659ca37c4a4349086",
     "frames": {
-      "count": 2340,
-      "bytes_mean": 94444,
-      "bytes_max": 236978
+      "count": 245,
+      "bytes_mean": 5979,
+      "bytes_max": 28377
     },
     "kitty": {
-      "transmits": 921,
-      "placements": 0,
-      "deletes": 919,
+      "transmits": 23,
+      "placements": 1071,
+      "deletes": 1037,
       "queries": 0,
       "chunked": true,
-      "payload_bytes": 205055124,
-      "first_chunks_bytes": 3772416,
-      "payload_chunks": 50655,
+      "payload_bytes": 191696,
+      "first_chunks_bytes": 85344,
+      "payload_chunks": 61,
       "first_transmit_png": {
-        "w": 224,
-        "h": 248
+        "w": 476,
+        "h": 527
       }
     },
     "sixel": {
@@ -614,12 +601,29 @@
     }
   },
   "trace": {
-    "present": false,
+    "present": true,
     "path": "session/trace.jsonl",
-    "reason": "binary does not emit MAZE_CHASE_TRACE yet (trace mode is part of the render pipeline work); the harness passes the variable and ingests it automatically once the binary writes it"
+    "sha256": "ad77fca1e665a122765414443b1c1ab69311b5fee25975c37993f0cc3c130553",
+    "records": 265,
+    "malformed_lines": 0,
+    "kinds": {
+      "start": 1,
+      "plan": 5,
+      "frame": 245,
+      "skip": 14
+    }
   },
   "notes": [
     "session driven by tools/compat/drive.sh on a real ghostty window"
   ],
-  "generated_at": "2026-10-18T16:29:17Z"
+  "generated_at": "2026-10-19T00:10:04Z",
+  "duplicate_screenshots": [
+    {
+      "sha256": "d9ed4592433f87a01dcd5212509574ad22ff8e0210d4d7d14624601a5b655cd7",
+      "phases": [
+        "resized-wide",
+        "refit"
+      ]
+    }
+  ]
 }
