@@ -49,7 +49,8 @@ pub mod slot {
     pub const RELISH: usize = 28;
 }
 
-/// A placed sprite: atlas `slot`, board-pixel top-left `(x, y)`.
+/// A placed sprite: atlas `slot`, board-pixel top-left `(x, y)`, and the
+/// kitty stacking layer it belongs to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Placement {
     /// Stable placement id, so an unchanged sprite is neither deleted
@@ -58,10 +59,36 @@ pub struct Placement {
     pub slot: usize,
     pub x: i32,
     pub y: i32,
+    /// Explicit kitty `z` stacking layer (see [`z`]). Every placement in
+    /// one layer sorts above every placement in the layer below, so the
+    /// terminal never falls back to the spec's equal-z tie-break by
+    /// image id (which sorts the sprite atlas below the static board).
+    pub z: u32,
 }
 
-/// An RGBA image (alpha 0 transparent), ready for the kitty transmit
-/// (`f=32`, `t=d`) or for CPU composition in tests.
+/// Kitty placement stacking layers, bottom to top. The raster paints
+/// tiles, sunseeds, relish, warden bodies/fright masks, eyes, then Pip;
+/// these layers mirror that order exactly and are passed through as the
+/// kitty `z` key. The static board may share layer 0 with nothing above
+/// it; every sprite layer is strictly above the board.
+pub mod z {
+    /// Static board layer (walls, gate, house, crumbs).
+    pub const STATIC: u32 = 0;
+    /// Sunseed halo pickups.
+    pub const SUNSEED: u32 = 1;
+    /// Relish icon (paints above sunseeds, below bodies).
+    pub const RELISH: u32 = 2;
+    /// Warden bodies and fright masks.
+    pub const BODY: u32 = 3;
+    /// Warden eye overlay.
+    pub const EYES: u32 = 4;
+    /// Pip, the player sprite (always the top layer).
+    pub const PIP: u32 = 5;
+}
+
+/// An RGBA image (alpha 0 transparent). The kitty path encodes it as a
+/// real DEFLATE PNG for the quiet transmit (`a=t,f=100`); tests compose
+/// it on the CPU.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct RgbaFrame {
     pub w: u32,
@@ -252,14 +279,16 @@ impl Atlas {
         self.slots[slot]
     }
 
-    /// Board placement for one atlas slot centered at `(cx, cy)`.
-    pub fn place(&self, id: u32, slot: usize, cx: i32, cy: i32) -> Placement {
+    /// Board placement for one atlas slot centered at `(cx, cy)` on the
+    /// given stacking layer `z` (see [`z`]).
+    pub fn place(&self, id: u32, slot: usize, cx: i32, cy: i32, z: u32) -> Placement {
         let half = self.cell as i32 / 2;
         Placement {
             id,
             slot,
             x: cx - half,
             y: cy - half,
+            z,
         }
     }
 }
@@ -270,7 +299,9 @@ pub fn static_frame(game: &Game, theme: &Theme, ppt: u32) -> RgbaFrame {
 }
 
 /// Every moving sprite for the current frame, in paint order (sunseeds,
-/// relish, wardens and their eyes, then Pip).
+/// relish, wardens and their eyes, then Pip). Each sprite carries its
+/// explicit kitty stacking layer (see [`z`]), so overlapping sprites
+/// stack identically on the terminal and in [`compose`].
 pub fn placements(
     game: &Game,
     ppt: u32,
@@ -297,6 +328,7 @@ pub fn placements(
                     sunseed,
                     tx * ppt + ppt / 2,
                     ty * ppt + ppt / 2,
+                    z::SUNSEED,
                 ));
             }
         }
@@ -315,6 +347,7 @@ pub fn placements(
             slot::RELISH + icon,
             rtx * ppt + ppt / 2,
             rty * ppt + ppt / 2 + bob,
+            z::RELISH,
         ));
     }
 
@@ -330,6 +363,7 @@ pub fn placements(
                     eyes_slot(warden.actor.dir),
                     cx,
                     cy,
+                    z::EYES,
                 ));
             }
             _ => {
@@ -339,13 +373,14 @@ pub fn placements(
                     } else {
                         slot::FRIGHT
                     };
-                    out.push(atlas.place(100 + warden.index as u32 * 2, mask, cx, cy));
+                    out.push(atlas.place(100 + warden.index as u32 * 2, mask, cx, cy, z::BODY));
                 } else {
                     out.push(atlas.place(
                         100 + warden.index as u32 * 2,
                         slot::WARDEN + warden.index,
                         cx,
                         cy,
+                        z::BODY,
                     ));
                     // Eye overlay sits high on the 11-tall body.
                     out.push(atlas.place(
@@ -353,6 +388,7 @@ pub fn placements(
                         eyes_slot(warden.actor.dir),
                         cx,
                         cy - scale,
+                        z::EYES,
                     ));
                 }
             }
@@ -364,10 +400,16 @@ pub fn placements(
         (game.player.y * ppt as f32) as i32,
     );
     if game.state == GameState::Dying {
-        out.push(atlas.place(60, slot::PIP_DEATH + (frame_no as usize / 8) % 4, pcx, pcy));
+        out.push(atlas.place(
+            60,
+            slot::PIP_DEATH + (frame_no as usize / 8) % 4,
+            pcx,
+            pcy,
+            z::PIP,
+        ));
     } else {
         let phase = (frame_no / 5) as usize % 3;
-        out.push(atlas.place(60, pip_slot(phase, game.player.dir), pcx, pcy));
+        out.push(atlas.place(60, pip_slot(phase, game.player.dir), pcx, pcy, z::PIP));
     }
     out
 }
@@ -395,10 +437,15 @@ fn eyes_slot(dir: Dir) -> usize {
 /// CPU composition of the static layer plus placements, matching the
 /// full-frame [`raster::render`] pixel for pixel. Used by the parity
 /// test; the live Kitty path places these sprites on the terminal side.
+/// Placements are composed in stacking-layer order (stable, so equal-z
+/// sprites keep their emission order), mirroring the terminal's explicit
+/// `z` handling.
 pub fn compose(base: &RgbaFrame, atlas: &Atlas, placements: &[Placement]) -> RgbaFrame {
     let mut out = base.clone();
     let cell = atlas.cell as i32;
-    for p in placements {
+    let mut ordered: Vec<&Placement> = placements.iter().collect();
+    ordered.sort_by_key(|p| p.z);
+    for p in ordered {
         let (sx, sy) = atlas.slot_origin(p.slot);
         for dy in 0..cell {
             for dx in 0..cell {

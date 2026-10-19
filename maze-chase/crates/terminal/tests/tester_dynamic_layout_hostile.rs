@@ -8,7 +8,7 @@
 //!    game back on the wide 170x64 plan with a live session; the first
 //!    frame of that plan must clear (`ESC[2J`), delete every Kitty
 //!    placement (`ESC_Ga=d`), then re-display the board at the exact
-//!    5x2 cell footprint (`r=62,c=140`), in that order.
+//!    5x2 cell footprint (`c=140,r=62`), in that order.
 //! 2. `too_small_cards_are_exact_at_the_boundary_and_recover` - the
 //!    card is size-stamped and exact on both sides of each minimum
 //!    (61x35, 62x34, 40x20), each card frame clears and deletes before
@@ -430,7 +430,7 @@ fn first_display_png_dims(bytes: &[u8]) -> (u32, u32) {
 
 /// A storm of hostile sizes must never kill the session; the settled
 /// wide plan repaints from scratch in one frame with the exact 5x2
-/// footprint (`r=62,c=140`), and the fresh frame obeys the full Kitty
+/// footprint (`c=140,r=62`), and the fresh frame obeys the full Kitty
 /// contract: clear, delete-all, re-display, in that order.
 #[test]
 fn resize_storm_recovers_and_fresh_frame_obeys_kitty_contract() {
