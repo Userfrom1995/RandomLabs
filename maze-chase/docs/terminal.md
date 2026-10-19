@@ -77,32 +77,36 @@ two actions to one key.
 The game picks the best tier its terminal proves, best first:
 
 1. **kitty-graphics**: true pixel art (the original 11x11 sprites,
-    beveled walls, pulsing sunseeds) transmitted as PNG over the Kitty
-    graphics protocol. Engages only on positive proof
-    (`KITTY_WINDOW_ID`, `TERM=xterm-kitty`, `TERM_PROGRAM=kitty`)
-    plus Kitty keyboard enhancement for disambiguated input. Forcing it
-    elsewhere prints escape garbage: do not force it on other terminals.
-    The compatibility harness measured the current build on kitty 0.32.2:
-    one session sent 1642 full board transmits totalling 348.6 MiB of PNG
-    payload, and the terminal's `OK` replies keep the event loop spinning
-    at 70-77 synchronized frames/s (391/s with the too-small card up)
-    against the intended pacing (see
-    `../tools/compat/evidence/kitty-linux-auto/ack-spin-experiment.md`
-    and the committed row JSON). Input queues behind the flood: the pause
-    surface first paints 298 MB into the session and the quit path never
-    lands, so the row is marked partial. Fixing the reply handling and
-    the pacing is the terminal render pipeline phase of the #582
-    overhaul.
+    beveled walls, pulsing sunseeds). The static board layer (walls,
+    gate, house, crumbs) and the transparent sprite atlas are
+    transmitted with real DEFLATE PNG (`a=t`) once per change, then each
+    frame moves per-entity placements (`a=p`, source rectangles, stable
+    placement ids) over them; a full-frame transmit is the fallback when
+    the bounded live probe reports no placement support. Steady
+    transmits are silent (`q=2`) so `OK` replies can never spin the
+    event loop, and protocol errors feed the watchdog. The tier engages
+    on positive environment proof (`KITTY_WINDOW_ID`,
+    `TERM=xterm-kitty`, `TERM_PROGRAM=kitty|ghostty`,
+    `TERM=xterm-ghostty`) or when the live probe answers on an
+    unidentifiable terminal; keys typed during the probe are replayed,
+    never swallowed. Kitty keyboard enhancement is enabled for
+    disambiguated input. Measured on kitty 0.32.2 (2026-10-19): 23
+    transmits and 174 KiB of PNG payload for a whole session, playing at
+    20.7 frames/s with a 5.7 KiB mean frame (before this pipeline: 1642
+    transmits and 348.6 MiB).
 2. **sixel**: true pixels through a hand-rolled Sixel encoder (palette
-   registers, six-row bands, run-length rows). Engages after the
-   terminal answers the DA1 probe at startup (250 ms budget, then the
-   game starts regardless, and keys typed while the probe waits are
-   replayed, never swallowed), or via `--tier sixel` on known Sixel
-   terminals (foot, contour, mlterm, Sixel-build xterm).
+   registers, six-row bands, run-length rows). The palette is capped at
+   64 colors and a frame at 2 MiB (smaller-palette retry, then a cell
+   fallback), and the tier paces at 24 Hz with byte-rate backpressure.
+   Engages after the terminal answers the DA1 probe at startup (250 ms
+   budget, then the game starts regardless, and keys typed while the
+   probe waits are replayed, never swallowed), or via `--tier sixel` on
+   known Sixel terminals (foot, contour, mlterm, Sixel-build xterm).
+   Measured on xterm 390: 143 transmits / 3.75 MiB per session.
 3. **truecolor-cells**: 24-bit Unicode board (solid-block walls, dotted
    crumbs, letter wardens in theme colors, facing Pip mouth) with
-   synchronized tear-free frames. The Ghostty, WezTerm, foot-fallback,
-   iTerm2, and VS Code path.
+   synchronized tear-free frames. The WezTerm, foot-fallback, iTerm2,
+   and VS Code path.
 4. **legacy-cells**: the same board folded to the 16 ANSI colors for
    conventional terminals. Fully playable: the only difference is
    palette depth. On a light background the cream chrome text is
@@ -115,13 +119,13 @@ why; the title screen shows the active tier and the downgrade trail,
 so a fallback is always explained, never silent. The help screen's
 video line always names the tier in use.
 
-Ghostty note: Ghostty implements the Kitty graphics protocol, but the
-current auto-detect routes `TERM_PROGRAM=ghostty` straight to
-truecolor-cells, so Ghostty plays on the 24-bit cell tier even though it
-could paint pixels. The compatibility harness verified a forced-PNG
-session rendering through Ghostty 1.3.1
-(`../tools/compat/evidence/ghostty-linux-kitty.json`); enabling it by
-default is tracked in the #582 overhaul.
+Ghostty note: Ghostty 1.3.1 implements the Kitty graphics protocol but
+does not answer graphics probe commands, so auto-detect identifies it
+from `TERM_PROGRAM=ghostty` / `TERM=xterm-ghostty` and paints pixels by
+default. Both the auto and forced rows pass on Ghostty 1.3.1
+(`../tools/compat/evidence/ghostty-linux-auto.json` and
+`ghostty-linux-kitty.json`); the watchdog still degrades if the
+protocol fails at runtime.
 
 ## Layout and resize
 
