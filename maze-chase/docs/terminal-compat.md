@@ -22,7 +22,7 @@ did not execute.
 ## Executed rows (Linux, harness on this build)
 
 All rows were refreshed on 2026-10-19 against the current build (the
-round that gave placements explicit `z` stacking layers), so every
+round that gave placements explicit per-warden `z` stacking layers), so every
 number below re-derives from the named JSON and uses true binary units
 (KiB = 1024 B, MiB = 1024^2 B). The kitty-graphics `pass` rows also
 carry a sprite-palette census per capture (`sprite_census` in each
@@ -38,7 +38,7 @@ without a playing capture containing sprite pixels.
 | Ghostty (forced kitty) | 1.3.1 | kitty | kitty-graphics | pass | full session, clean exit; 1.34 MiB transcript. 23 transmits / 187.2 KiB for the session, playing 99 frames in 4.70 s (21.1 fps) at a 5.9 KiB mean frame; the playing capture census is 536 sprite pixels. The forced row confirms the environment identification is not masking a capability gap | `ghostty-linux-kitty.json` |
 | xterm | 390 | auto | legacy-cells | partial | full session and clean exit, but on the default light background the cream chrome text is invisible: 6 of its 10 captures are >=98% white and the row was downgraded with the list recorded (`light_background_captures`). The bounded Kitty probe is visible in this row (1x1 transmit plus cleanup) and correctly falls through to cells | `xterm-linux-auto.json` |
 | xterm (dark background) | 390, `-bg black -fg white` | auto | legacy-cells | pass | full session, clean exit; proves the light-row fault is the palette, not the layout (4.25 MiB transcript) | `xterm-dark-linux-auto.json` |
-| xterm (VT340 mode, forced) | 390, `-ti vt340 -bg black -fg white` | sixel | sixel | pass | 146 Sixel transmits / 3.66 MiB payload (26,291 B per transmit, 25.7 KiB); the playing checkpoint ran at 19.1 fps (491.2 KiB/s average); full session. The playing capture census is 52 sprite pixels, so the Sixel path renders sprites too | `xterm-linux-sixel.json` |
+| xterm (VT340 mode, forced) | 390, `-ti vt340 -bg black -fg white` | sixel | sixel | pass | 146 Sixel transmits / 3.66 MiB payload (26,292 B per transmit, 25.7 KiB); the playing checkpoint ran at 19.1 fps (491.2 KiB/s average); full session. The playing capture census is 52 sprite pixels, so the Sixel path renders sprites too | `xterm-linux-sixel.json` |
 | xterm (VT340 mode, auto) | 390, `-ti vt340 -bg black -fg white` | auto | sixel | pass | the DA1 probe answered and the game upgraded itself from legacy-cells to sixel (`tier_requested=auto`); full session (145 Sixel transmits / 3.64 MiB); the Kitty probe is sent first (its 1x1 transmit plus cleanup appear in this row's kitty totals) and the session still upgrades through Sixel, so this is the row that exercises the Sixel probe path | `xterm-vt340-linux-auto.json` |
 
 ## Rows awaiting their host
@@ -56,7 +56,9 @@ without a playing capture containing sprite pixels.
 
 - `kitty-graphics` is fully playable on a real Kitty and Ghostty. The
   static board and sprite atlas transmit once per change, placements
-  carry every moving sprite with explicit `z` stacking layers, and
+  carry every moving sprite with explicit per-warden `z` stacking layers
+  (body `i` below eyes `i` below body `i + 1`, mirroring the raster's
+  paint order even when two warden boxes overlap), and
   steady transmits are silent (`q=2`), so replies cannot spin the input
   loop. Both rows exit cleanly, and their playing captures prove sprite
   visibility by census (no equal-z tie-break can hide the atlas).
