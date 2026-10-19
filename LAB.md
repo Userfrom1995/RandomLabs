@@ -571,8 +571,10 @@ bounded retry, a failing log capture failing loudly at every failing tee
 status (fixtures for 3, 1, and 2, so a live guard narrowed to a single status
 cannot pass), unclassified status
 propagation, and the extracted runner step proven the unique executing one
-(no conditional gate, a unique invocation in the file, and the invocation
-present in the extracted block) are asserted by behavior, so textual pin
+(no conditional gate other than the Maintainer runner's single exact shared
+actor-write gate condition (issue #696), a path-normalized unique invocation
+in the file, and the invocation present in the extracted block) are asserted
+by behavior, so textual pin
 relocations, decoys, loop rewrites, detection-window tweaks, backoff
 backgrounding, case folds, later-rung budget gating, or step shadowing cannot
 pass while the contract breaks.
@@ -848,11 +850,13 @@ invocation: inserting a second no-op `uses:
 and renaming the real agent step, kept the audit at 25 passed / 0 failed
 while the real agent ran unverified, in both the quoted and unquoted
 `uses` spellings. The verify's job must now contain exactly one parsed
-composite invocation; otherwise R15 records
+composite invocation, counted by path-normalized path (so `.../opencode-run/.`
+and equivalent dot-segment spellings are the same invocation); otherwise R15
+records
 `verify-outcome-source-runner-not-unique`. Both variants read 25 passed /
 0 failed before the fix and 24 passed / 1 failed with R15 the only failing
 rule after it, and the new duplicate-invocation self-tests cover both
-spellings.
+spellings, including a dot-segment spelling.
 
 Accepted residuals of the #653 runtime (documented, not hardened): the
 TERM/KILL escalation targets the two captured PIDs, so after the 5-second
