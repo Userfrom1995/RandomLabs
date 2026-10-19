@@ -15,8 +15,9 @@ cleanly (13 commits, zero conflicts) and R26 was re-pinned for the new
 gate shape. The production dedupe handler itself is untouched by this
 round apart from the rebase integration: whole-file
 `md5 a017b55323a9050f8a75e49f50a445c4`, handler run block
-`md5 30824dca3dafad6bb4bcb405de471796`, env keys `GH_TOKEN`/`BOT_TOKEN`,
-`python3 -I -` isolation preserved.
+`md5 5c52d8239c31e16e97483d70f4470091` (14,624 bytes, the PyYAML `run`
+value of the unique `Run /oc triggers as owner` step), env keys
+`GH_TOKEN`/`BOT_TOKEN`, `python3 -I -` isolation preserved.
 
 ## Findings addressed
 
@@ -107,9 +108,16 @@ round apart from the rebase integration: whole-file
 - Rebase: 13/13 commits replayed with zero conflicts; the rebased tree is
   the tree verified above.
 - Handler identity: whole file `a017b55323a9050f8a75e49f50a445c4`; run
-  block (dedent 10 spaces plus trailing newline)
-  `30824dca3dafad6bb4bcb405de471796`; `if:` exactly
-  `always() && steps.actor_gate.outputs.run == 'true'`.
+  block (PyYAML `run` value of the unique `Run /oc triggers as owner`
+  step, 14,624 bytes) `5c52d8239c31e16e97483d70f4470091`; `if:` exactly
+  `always() && steps.actor_gate.outputs.run == 'true'`. Correction
+  (round 22, F42): the earlier figure `30824dca3dafad6bb4bcb405de471796`
+  (13,725 bytes) came from applying the "(dedent 10 spaces plus trailing
+  newline)" parenthetical on top of the already-unindented YAML value,
+  deleting 10 characters from every indented Python line; the raw run
+  block is the figure above, and the audit's canonical pinned rendering
+  (blank lines dropped) is 14,606 bytes / md5
+  `6df27e3fbcfdbef18b154f8c76ef415d`.
 - Hygiene: zero U+2014 em dashes in the changed files; `git diff --check`
   clean; `yaml.safe_load` clean on `maintainer.yml` and `opencode.yml`.
 

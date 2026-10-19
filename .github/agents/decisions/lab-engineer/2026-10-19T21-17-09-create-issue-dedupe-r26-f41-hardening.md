@@ -12,8 +12,14 @@ restoring the exact duplicate the guard exists to prevent, while the audit
 stayed green. The production dedupe handler itself is untouched: whole
 file `md5 535bf74533e12288c095654a793d24e5` (was
 `a017b55323a9050f8a75e49f50a445c4`; the delta is the single env line),
-handler run block `md5 30824dca3dafad6bb4bcb405de471796` (13,725 bytes,
+handler run block `md5 5c52d8239c31e16e97483d70f4470091` (14,624 bytes,
+the PyYAML `run` value of the unique `Run /oc triggers as owner` step,
 byte-identical to round 20), `python3 -I -` isolation preserved.
+Correction (round 22, F42): the earlier `30824dca...` / 13,725-byte figure
+was a double-dedented extraction (10 more spaces stripped from the
+already-unindented value), not the executing step's run block; the audit's
+canonical pinned rendering (blank lines dropped) is 14,606 bytes / md5
+`6df27e3fbcfdbef18b154f8c76ef415d`.
 
 ## Findings addressed
 
@@ -101,7 +107,7 @@ byte-identical to round 20), `python3 -I -` isolation preserved.
   scan, and the scenario each carry their intended case.
 - Subagent B (independent verification): 12/12 checks PASS - syntax/YAML,
   diff scope exactly the four intended files with zero untracked, the
-  one-line `maintainer.yml` delta, run-block md5 `30824dca...`/13,725
+  one-line `maintainer.yml` delta, run-block md5 `5c52d823...`/14,624
   bytes, whole-file md5 `535bf745...`, em-dash scan clean, extractor
   argv[5] handoff, scenario wiring and assertions quoted at their live
   line numbers, token list complete, docs consistency (including no stale
