@@ -150,6 +150,18 @@ Public Surface / Web Track:                                              │
   regression-guards the cap shape and the salvage wiring (the salvage run
   body is pinned line-for-line; its step name must be unique across the
   workflow file, and step-level YAML overrides are banned).
+- **Lab and fix agent cap headroom (issue #701)**: the lab agent step runs
+  150 minutes under a 180-minute job and the fix agent step 120 under 180
+  (30 and 60 minutes of post-agent headroom), so a worst-case cap death
+  still leaves room for the fail-closed verify, the strip, the PAT-backed
+  push, and the decision forward to run. Before the fix, the lab's 90/120
+  shape killed lab rounds 18 on #654 and 14 on #670 and the fix's 60/120
+  shape killed three consecutive fix sessions on #693 at the wire, each
+  with no decision file and nothing pushed. The fail-closed decision-file
+  and PAT-push contracts are unchanged. Audit rule R25 pins both shapes
+  (agent and job minimums plus >= 20 minutes of headroom; the agent step
+  name must be unique in its file) in
+  `.github/scripts/silent-stall-audit.sh`.
 - **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (rebase, bot identity), closes linked issues, updates memory, and advances the pipeline.
 - **Merge capability**: Workflow-file PRs require `workflows` scope, which `GITHUB_TOKEN` cannot grant via `permissions:` (valid `GITHUB_TOKEN` scopes are `actions`, `contents`, `pull-requests`, etc.; `workflows` is App/PAT only). The mutating workflows (`lab.yml`, `maintainer.yml`, `opencode.yml`, `opencode-recover.yml`) push via the PAT-backed runner step (`https://x-access-token:${OPENCODE_PAT}@github.com/...` with credential-injection cleanup), and merges of PRs touching `.github/workflows/*` must likewise use the PAT or an owner click. Read-only agents (Reviewer, Tester, Auditor, Ideator) carry no extra scope. Without a PAT merge, infra PR merges fail with "refusing to allow a GitHub App to create or update workflow ... without workflows permission" (observed on PR #139; flagged in #120). The opencode CLI wrapper additionally performs its own end-of-session push of the checked-out branch with the checkout App token, so on workflow-touching branches that internal push is rejected by the same rule (one rejection comment plus a masked `continue-on-error` step failure; the PAT-backed runner step is the authoritative push). That rejection is expected noise, not agent misbehavior (lab run 39024455956, 2026-10-17). The PAT merge sweep additionally restores full history when the workspace is shallow before its merge-base linkage checks: the opencode CLI session bootstrap re-shallows the checkout with depth-limited fetches, and on a shallow workspace both the three-dot workflow diff and the orphan guard fail closed, silently skipping a legitimately linked workflow PR (issue #602, guarded by audit rule R16).
 - In-progress continuation: When a build requires additional phases (`Status: in-progress`), the workflow triggers `/oc continue`.
@@ -433,11 +445,11 @@ personality, CHANGELOG) is direct-commit.
 |---|---|
 | `maintainer.yml` | The brain: triggers, per-PR concurrency, memory-branch handling, decision list → hardcoded PAT step, 60-min timeout |
 | `opencode-pr-trigger.yml` | PR opened/synchronize → posts `/oc maintainer` as owner (PAT) on every non-draft same-repo PR (fork PRs get no secrets, so the section 12 guidance-only path applies), waking the Maintainer, which then decides review/continue/merge (the `/oc review (head <sha>)` comment is posted by `maintainer.yml`) |
-| `opencode.yml` | Build / Fix / Design Council / General modes (prompts from files; `/oc continue`; per-issue concurrency; clean-tree + sanitize; extended approve-CI with stable-head polling; no end-of-run dispatches) |
+| `opencode.yml` | Build / Fix / Design Council / General modes (prompts from files; `/oc continue`; per-issue concurrency; clean-tree + sanitize; extended approve-CI with stable-head polling; no end-of-run dispatches; the Fix mode agent step runs 120 minutes under a 180-minute job so the rebase/push/decision chain always has headroom, issue #701) |
 | `opencode-review.yml` | Reviewer (prompts from file); human-vs-bot fix behavior; `/oc approve` → dispatch Maintainer (fallback: merge as bot); ownership-gated restore-head; short `/oc fix` trigger |
 | `opencode-test.yml` | Tester gate: `/oc test` (the per-OS `/oc test-linux`, `/oc test-macos`, `/oc test-windows` aliases route to `opencode-peros-test.yml`) → dynamic real-user and code-expert testing of the PR head, durable test commits as `tester:`, `/oc approve-test` → notifies the Maintainer; infrastructure PRs run strictly read-only |
 | `opencode-recover.yml` | Recovery: `detect` job (schedule + PR-close auto-detect) resurrects closed/orphaned build PRs via `recover.sh`; `recover` job runs the Recover Agent on `/oc recover`. Tags `recover/<pr>` and re-links orphans onto `main` (never rewriting `main`) |
-| `lab.yml` | Lab Engineer (CTO): `/oc lab` on an issue or PR → infrastructure builds, workflow repairs, agent creation, model switches; the PAT-backed runner step pushes the branch and opens the PR; handoff via `/tmp/random-lab-decision.json` |
+| `lab.yml` | Lab Engineer (CTO): `/oc lab` on an issue or PR → infrastructure builds, workflow repairs, agent creation, model switches; the agent step runs 150 minutes under a 180-minute job so the post-agent chain always has headroom (issue #701); the PAT-backed runner step pushes the branch and opens the PR; handoff via `/tmp/random-lab-decision.json` |
 | `ideate.yml` | On-demand Ideator - posts candidates on the Brainstorm Board and notifies Maintainer; no PAT in agent env |
 | `curator.yml` | Public surface & README custodian: scheduled (6h) / dispatch / /oc curate audits and surgical PRs |
 | `auditor.yml` | The Auditor: daily schedule + `/oc auditor` → runs `.github/scripts/silent-stall-audit.sh` over `opencode.yml`, audits CI/CD and model health, posts the summary on the `lab-health` board, opens bug issues |
@@ -610,7 +622,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422) + the model fallback ladder (resolve-model.sh, model-ladder.txt, issue #591)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R24), per-OS findings poster, review-comment and tester-verdict publication evidence, tester marker publisher, CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R25), per-OS findings poster, review-comment and tester-verdict publication evidence, tester marker publisher, CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
