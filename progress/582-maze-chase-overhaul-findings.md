@@ -475,6 +475,6 @@ Evidence on Linux: the goldens suite is 5/5 (the new
 `count_from_counts_straddled_needles_exactly_once` pins the incremental
 counter's split-boundary behavior), the animation soak settles in under
 a second of collection after the steering burst, and the full
-`cargo test -p maze-chase-terminal` run is 166 passed / 0 failed with
+`cargo test -p maze-chase-terminal` run is 167 passed / 0 failed with
 fmt clean and no clippy warning from this file. The macOS arm re-runs
 the same suite on the fixed tree.
