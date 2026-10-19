@@ -81,7 +81,7 @@ The game picks the best tier its terminal proves, best first:
     gate, house, crumbs) and the transparent sprite atlas are
     transmitted with real DEFLATE PNG (`a=t`) once per change, then each
     frame moves per-entity placements (`a=p`, source rectangles, stable
-    placement ids, explicit `z` stacking layers) over them; a full-frame
+    placement ids, explicit per-warden `z` stacking layers) over them; a full-frame
     transmit is the fallback when the bounded live probe reports no
     placement support. Steady transmits are silent (`q=2`) so `OK`
     replies can never spin the event loop; the probe's answers feed the
