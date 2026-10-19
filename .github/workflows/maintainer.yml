@@ -860,7 +860,7 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           BOT_TOKEN: ${{ github.token }}
         run: |
-          python3 - <<'PY'
+          python3 -I - <<'PY'
           import json, os, re, subprocess, time
 
           repo = os.environ["GITHUB_REPOSITORY"]
@@ -909,12 +909,61 @@ jobs:
           # workflow_dispatch maintainer run (owner PAT, the default credential
           # in this step) carrying the new number, so triage lands within one
           # schedule interval with no human ping.
-          def _self_triage(kind, num):
-              rr = subprocess.run(["gh", "workflow", "run", "maintainer.yml", "--repo", repo, "--ref", "main", "-f", f"{kind}={num}", "-f", f"reason=self-triage bot-created {kind} #{num}"], capture_output=True, text=True, check=False)
+          def _self_triage(kind, num, reason=None):
+              if not reason:
+                  reason = f"self-triage bot-created {kind} #{num}"
+              rr = subprocess.run(["gh", "workflow", "run", "maintainer.yml", "--repo", repo, "--ref", "main", "-f", f"{kind}={num}", "-f", f"reason={reason}"], capture_output=True, text=True, check=False)
               if rr.returncode == 0:
                   print(f"self-triage dispatched for {kind} #{num}")
               else:
                   print(f"::error::Failed to self-dispatch triage for {kind} #{num}: {rr.stderr.strip()}")
+
+          # CREATE_ISSUE DEDUPE (issue #668): Maintainer concurrency is
+          # per-target, so two ticks on different PRs can decide on the same
+          # global finding at once and each created its own issue (#665 filed
+          # 15:53:13Z by run 39141891238; #666 filed 15:55:43Z by the
+          # concurrent run 39141877509, before either tick could see the
+          # other's issue). Before every `gh issue create`, compare the
+          # decision title against every open issue title under a
+          # deterministic normalization (casefold, non-alphanumerics to
+          # spaces, whitespace collapsed) and skip creation when an identical
+          # normalized title is already open, self-triaging the matched issue
+          # instead so the finding is never left behind. Query-before-create
+          # shrinks the concurrent-tick race window from minutes to
+          # milliseconds; full atomicity is not required (a same-instant race
+          # between the query and the create can still duplicate). The query
+          # is fail-open to creation with a loud error: a registry hiccup must
+          # never drop a decision.
+          def _norm_issue_title(s):
+              return " ".join(re.sub(r"[^0-9a-z]+", " ", (s or "").casefold()).split())
+
+          # norm title -> open issue number; None until first needed ({} means
+          # the query failed and this run creates without the guard).
+          _open_issue_titles = None
+          _created_issue_numbers = {}
+
+          def _load_open_issue_titles():
+              r = subprocess.run(
+                  ["gh", "issue", "list", "--repo", repo, "--state", "open", "--limit", "1000", "--json", "number,title"],
+                  capture_output=True, text=True, check=False, env=bot_env)
+              if r.returncode != 0:
+                  print(f"::error::create_issue dedupe query failed; creating without the guard this run (issue #668): {r.stderr.strip()}")
+                  return None
+              try:
+                  items = json.loads(r.stdout or "[]")
+              except Exception as e:
+                  print(f"::error::create_issue dedupe query returned unparseable JSON; creating without the guard this run (issue #668): {e}")
+                  return None
+              index = {}
+              for it in items:
+                  if not isinstance(it, dict):
+                      continue
+                  n = it.get("number")
+                  t = _norm_issue_title(it.get("title", ""))
+                  if isinstance(n, int) and t and t not in index:
+                      index[t] = n
+              return index
+
           for d in decisions:
               if not isinstance(d, dict):
                   continue
@@ -925,13 +974,29 @@ jobs:
                   title = d.get("title", "New Item")
                   body_text = d.get("body", "")
                   if action == "create_issue":
+                      ntitle = _norm_issue_title(title)
+                      if _open_issue_titles is None:
+                          loaded = _load_open_issue_titles()
+                          _open_issue_titles = loaded if loaded is not None else {}
+                      existing = _open_issue_titles.get(ntitle) if ntitle else None
+                      if existing:
+                          print(f"skip create_issue '{title}': open issue #{existing} already carries the identical normalized title (dedupe, issue #668)")
+                          if ntitle in _created_issue_numbers:
+                              print(f"issue #{existing} was created earlier in this run; triage already dispatched (no duplicate dispatch)")
+                          else:
+                              _self_triage("issue_number", existing, reason=f"dedupe match: open issue #{existing} already carries the identical normalized title (issue #668)")
+                          continue
                       r = subprocess.run(["gh", "issue", "create", "--repo", repo, "--title", title, "--body", body_text], capture_output=True, text=True, check=False, env=bot_env)
                       if r.returncode == 0:
-                          print(f"Created new issue: {title}")
                           m = re.search(r"/issues/(\d+)", r.stdout or "")
                           if m:
+                              if ntitle:
+                                  _created_issue_numbers[ntitle] = int(m.group(1))
+                                  _open_issue_titles.setdefault(ntitle, int(m.group(1)))
+                              print(f"Created new issue #{m.group(1)}: {title}")
                               _self_triage("issue_number", m.group(1))
                           else:
+                              print(f"Created new issue: {title}")
                               print(f"::error::Could not parse new issue number from: {(r.stdout or '').strip()[:200]} (triage falls back to schedule plus the UNTRIAGED sweep rule)")
                       else:
                           print(f"::error::Failed to create issue '{title}': {r.stderr.strip()}")
