@@ -232,10 +232,27 @@ pub fn save_to(s: &Settings, map: &Keymap, path: &Path) -> io::Result<()> {
 
 /// Read a file written by [`save_to`].
 ///
-/// A missing file yields defaults plus one notice entry; an unreadable
-/// file yields defaults plus one error entry; otherwise this is [`load`]
-/// of the file contents.
+/// A FIFO is refused before opening: `std::fs::read_to_string` opens
+/// with `O_RDONLY`, which blocks until a writer appears, so a settings
+/// path replaced with a FIFO would hang the game before the first
+/// frame. A missing file yields defaults plus one notice entry; an
+/// unreadable file yields defaults plus one error entry; otherwise this
+/// is [`load`] of the file contents.
 pub fn load_from(path: &Path) -> (Settings, Keymap, Vec<String>) {
+    #[cfg(unix)]
+    if path.metadata().is_ok_and(|m| {
+        use std::os::unix::fs::FileTypeExt;
+        m.file_type().is_fifo()
+    }) {
+        return (
+            Settings::default(),
+            Keymap::defaults(),
+            vec![format!(
+                "notice: {} is a FIFO; using defaults",
+                path.display()
+            )],
+        );
+    }
     match std::fs::read_to_string(path) {
         Ok(text) => load(&text),
         Err(e) if e.kind() == io::ErrorKind::NotFound => (
@@ -371,6 +388,32 @@ mod tests {
         let err = save_to(&Settings::default(), &Keymap::defaults(), &path)
             .expect_err("a FIFO settings path must be refused");
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(path.metadata().unwrap().file_type().is_fifo());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn fifo_settings_reads_are_refused_instead_of_hanging() {
+        use std::os::unix::fs::FileTypeExt;
+        let dir = std::env::temp_dir().join(format!(
+            "maze-chase-persist-fifo-read-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("settings.conf");
+        let status = std::process::Command::new("mkfifo").arg(&path).status();
+        if !matches!(status, Ok(s) if s.success()) {
+            let _ = std::fs::remove_dir_all(&dir);
+            return;
+        }
+        assert!(path.metadata().unwrap().file_type().is_fifo());
+        let (s, m, problems) = load_from(&path);
+        assert_eq!(s, Settings::default());
+        assert_eq!(m, Keymap::defaults());
+        assert_eq!(problems.len(), 1);
+        assert!(problems[0].contains("FIFO"));
         assert!(path.metadata().unwrap().file_type().is_fifo());
         let _ = std::fs::remove_dir_all(&dir);
     }
