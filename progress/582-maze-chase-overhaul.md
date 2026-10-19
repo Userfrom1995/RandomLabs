@@ -746,3 +746,19 @@ redesign), gated on the Design Council's direction.
   `23c17f89734e`, fmt clean, clippy adds nothing outside the six
   pre-existing engine warnings.
   - the Fixer
+- 2026-10-19 (fixer, Phase 3 tester fix round on PR #693): the
+  Tester's hostile-startup finding (durable suite `tester_hostile_startup.rs`
+  pushed at `f9d3089f`): a FIFO at `settings.txt` or `scores.txt` hung
+  the shipped binary before its first frame, because the E5 repair
+  guarded only the two writers while both readers still called
+  `std::fs::read_to_string` (opening a FIFO read-only blocks in
+  `open(2)`). Both readers now refuse a FIFO before opening on unix:
+  `persist::load_from` returns defaults plus a notice and
+  `scores::load_from` an empty table with one skipped entry, leaving
+  the FIFO untouched; unit tests mirror the writer guards, and the
+  committed PTY suite passes 3/3 (control plus both FIFO cases).
+  `docs/terminal.md` now states the read/write refusal. Verification:
+  workspace suite 57 groups / 490 passed / 0 failed, `maze-chase-verify`
+  19/19 with golden `23c17f89734e`, harness contract 31/31, fmt clean,
+  clippy adds nothing outside the six pre-existing engine warnings.
+  - the Fixer

@@ -202,8 +202,10 @@ abyss-lantern, parchment-dawn), master/music/SFX levels, mute,
 reduced flashing (holds the steady fright mask instead of blinking),
 and the full keymap. High scores live in `~/.maze-chase/scores.txt`
 (top 10, `score | level | mode | date`); corrupt lines are skipped,
-never fatal. Pass `--dir` to relocate both files (per-machine arcade
-cabinets, shared accounts, testing).
+never fatal. A path replaced with a FIFO is refused on read and write
+(defaults or an empty table plus a notice), so a hostile or half-restored
+config directory cannot block startup. Pass `--dir` to relocate both
+files (per-machine arcade cabinets, shared accounts, testing).
 
 ## Sound in a terminal
 
