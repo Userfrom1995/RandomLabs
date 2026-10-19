@@ -92,7 +92,20 @@ pub fn format_table(table: &[Score]) -> String {
 }
 
 /// Load the table; missing files load empty, corrupt lines are skipped.
+///
+/// A FIFO is refused before opening: `std::fs::read_to_string` opens
+/// with `O_RDONLY`, which blocks until a writer appears, so a score
+/// path replaced with a FIFO would hang the game before the first
+/// frame. It loads an empty table with one skipped entry and leaves
+/// the FIFO untouched.
 pub fn load_from(path: &Path) -> (Vec<Score>, usize) {
+    #[cfg(unix)]
+    if path.metadata().is_ok_and(|m| {
+        use std::os::unix::fs::FileTypeExt;
+        m.file_type().is_fifo()
+    }) {
+        return (Vec::new(), 1);
+    }
     match std::fs::read_to_string(path) {
         Ok(text) => parse_table(&text),
         Err(_) => (Vec::new(), 0),
@@ -197,6 +210,30 @@ mod tests {
         let table = vec![Score::new(500, 2, "classic", "2026-10-16")];
         let err = save_to(&table, &path).expect_err("a FIFO score path must be refused");
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(path.metadata().unwrap().file_type().is_fifo());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn fifo_score_reads_are_refused_instead_of_hanging() {
+        use std::os::unix::fs::FileTypeExt;
+        let dir = std::env::temp_dir().join(format!(
+            "maze-chase-scores-fifo-read-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("scores.txt");
+        let status = std::process::Command::new("mkfifo").arg(&path).status();
+        if !matches!(status, Ok(s) if s.success()) {
+            let _ = std::fs::remove_dir_all(&dir);
+            return;
+        }
+        assert!(path.metadata().unwrap().file_type().is_fifo());
+        let (table, skipped) = load_from(&path);
+        assert!(table.is_empty());
+        assert_eq!(skipped, 1);
         assert!(path.metadata().unwrap().file_type().is_fifo());
         let _ = std::fs::remove_dir_all(&dir);
     }
