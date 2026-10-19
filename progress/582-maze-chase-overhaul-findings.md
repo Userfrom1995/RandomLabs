@@ -66,6 +66,15 @@ Target: Phase 3 (Terminal Render Pipeline and Compatibility Proof):
 bounded probe, pacing with backpressure, protocol-aware handling. The
 reply-drain fix is a compatibility bugfix, not a feature.
 
+Resolved in Phase 3 (2026-10-19): steady transmits are silent (`q=2`),
+the static layer and sprite atlas transmit once per change, and every
+frame moves cached placements instead of the board. The same
+choreography on kitty 0.32.2 now sends 23 transmits / 174 KiB of PNG
+payload for the whole session (playing 20.7 fps, 5.7 KiB mean frame)
+and exits cleanly (`evidence/kitty-linux-auto.json`, refreshed). The
+ledger's pre-fix figures above describe the regenerated bundle's
+earlier run (git history keeps them); RT-1 is closed.
+
 ### RT-2: Ghostty is routed to truecolor cells although Ghostty speaks
 the kitty graphics protocol (confirmed, overclaim)
 
@@ -84,6 +93,13 @@ shows `truecolor-cells` as shipped.
 Target: Phase 3 (Terminal Render Pipeline and Compatibility Proof):
 live probe with byte replay; plus the Phase 1 doc correction landed with
 this ledger.
+
+Resolved in Phase 3 (2026-10-19): Ghostty 1.3.1 does not answer
+graphics probe commands, so the auto path identifies it from
+`TERM_PROGRAM=ghostty` / `TERM=xterm-ghostty` (the bounded probe and the
+Sixel DA1 probe still run on unrecognized terminals). Ghostty now
+observes `kitty-graphics` and passes both its auto and forced rows at 23
+transmits / 192 KiB per session. RT-2 is closed.
 
 ### RT-3: the raster is a fixed 224x248 for every window size
 (confirmed)
@@ -126,10 +142,11 @@ resize contract with same-frame repaint and stale-placement kill.
 (confirmed, positive)
 
 xterm 390 in VT340 mode answers the DA1 probe with sixel support and the
-sixel tier paints real pixels: 183 transmits, 2.46 MiB of payload
-(~13.7 KiB per transmit) for the whole session, versus 1642 transmits /
-348.6 MiB of PNG payload in `kitty-linux-auto` and 921 / 195.6 MiB in
-`ghostty-linux-kitty` at the same sizes. Input and exit work in both
+sixel tier paints real pixels: 143 transmits, 3.75 MiB of payload for
+the whole session on the current build. Before Phase 3 the kitty path
+was far worse (1642 transmits / 348.6 MiB in `kitty-linux-auto`); after
+the placement pipeline it is cheaper than full-frame sixel (23
+transmits / 174 KiB), because only changed placements cross the wire. Input and exit work in both
 sixel rows (the committed surface counters show the pause, help,
 scores, and settings surfaces painting in their own phases; clean
 exit). The forced-sixel row is fully executed:
