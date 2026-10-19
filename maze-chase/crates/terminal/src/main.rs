@@ -706,10 +706,9 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
         .expect("the atlas is built on first use and kept until invalidation");
 
     if static_resend {
-        // Re-placing the static layer puts it above existing sprite
-        // placements; repaint every sprite after it in the same frame
-        // to restore the intended order.
-        kitty.force_all = true;
+        // The static layer sits at z=0, so a resend always stays
+        // beneath every live sprite placement; no sprite repaint is
+        // needed to restore the order.
         paint_line(out, b.y, b.x, "");
         out.push_str(&kg::place_scaled_escape(
             kg::STATIC_IMAGE_ID,
