@@ -201,6 +201,261 @@ Public Surface / Web Track:                                              │
   Belt and suspenders: the Maintainer prompt sweeps untriaged issues every run
   and flags `create_issue`-only runs as UNTRIAGED in STATE.md; audit rule R13
   regression-guards both halves.
+- **Create-issue dedupe (issue #668):** concurrency is per-target, so two
+  Maintainer ticks on different PRs can decide on the same global finding at
+  once and each used to file its own issue (#665 at 15:53:13Z and #666 at
+  15:55:43Z on 2026-10-18, before either tick could see the other's issue).
+  Before every `gh issue create`, the hardcoded handler now queries open
+  issues and skips creation when one already carries an identical normalized
+  title (casefold, non-alphanumerics to spaces, whitespace collapsed),
+  printing the existing issue number and self-triaging that issue instead; a
+  title created earlier in the same run never dispatches a second triage. A
+  query failure is fail-open and loud (creation proceeds, because dropping a
+  decision is worse than a possible duplicate). Query-before-create shrinks
+  the concurrent-tick race window from minutes to milliseconds; paraphrase
+  variants are deliberately not matched (fuzzy suppression could silently
+  lose a genuinely distinct finding). Regression-guarded by audit rule R26,
+  which resolves the handler from the SAME YAML parse tree GitHub runs
+  (rejecting any duplicate mapping key outright: GitHub's parser rejects such
+  a workflow file while a lenient last-wins scan would pin the decoy value;
+  F18) and requires exactly one step carrying the exact anchored name with
+  `if: always()`, no `shell`, no `working-directory`, no `continue-on-error`,
+  exactly the two token env keys with both token env
+  expressions intact, and each handler needle (the dedupe marker,
+  `_open_issue_titles`, `_self_triage`) in exactly one run which must be
+  that step (F17: a comment-line anchor, a same-name decoy, a renamed or
+  weakened executor, or a mutilated credential or step gate all fail loudly;
+  a wholesale executing-step rewrite carrying none of the three needles
+  remains the documented diff-review boundary), rejects any workflow-level or
+  job-level `defaults: run: shell` / `working-directory` override and any
+  workflow-level or job-level `env` key, a job-level `container`, or a job-level
+  `strategy` matrix (a `defaults: run: shell: cat {0}`, a merged `PYTHONPATH`, or a swapped
+  runtime rewrote the anchored step's effective execution without touching
+  the step keys and left the handler dead in production; F21), and fails
+  loudly on any repo-root Python module or package that
+  shadows a module the handler imports or a startup hook (json, os, re,
+  subprocess, time, sys, sitecustomize, usercustomize) in ANY importable
+  spelling (source `json.py`, sourceless bytecode `json.pyc` placed directly
+  in the directory, an extension module `json.so` / `json.pyd` bare or
+  version-tagged, or a package directory carrying any importable `__init__`
+  artifact such as `__init__.pyc`), with an audit-start checkout snapshot
+  taken before any rule executes ORed into the scan so a shadow that unlinks
+  itself on import is still caught, with the handler step itself invoking the
+  interpreter in isolated mode (`python3 -I -`, pinned inside the exact-text
+  handler block: no repo-root module of any name, spelling, or
+  transitive-import depth, the demonstrated transitive `selectors` import
+  included, can reach the handler process; F23), while the extractor, the
+  fixture runner, and the audit's own R18 YAML-consistency helper execute
+  isolated (`python3 -I`; F24: the helper's non-isolated Python could
+  previously import a repo-root module that rewrote the workflow file under
+  test) and the functional sandbox
+  mirrors the repo root's top-level files in every importable spelling into
+  its work dir as defense in depth, so an isolation regression that survives
+  the exact-text pin also breaks the assertions
+  (F20/F22), pins the exact control-flow lines (loader invocation, the
+  `if existing:` skip guard, and the skip branch's terminating `continue`),
+  pins the lazy-load guard through the skip guard as five consecutive code
+  lines with exact-trim matching so no run-state or input-shape gate (body
+  length, decision count, created count, `target`, `posted`, `sweep_failed`)
+  can be interposed between the lookup and the skip test), pins the skip
+  branch as a six-consecutive-line shape (skip print, in-run check, in-run
+  print, `else:`, triage dispatch, terminating `continue`) so a conditional
+  continue keyed on a first-class decision action such as `ping` or on a
+  blank-line-bearing body cannot leak every match into `gh issue create`
+  (review finding F10), pins the whole `_load_open_issue_titles()` body from
+  its def line through `return index` as exact trimmed text with exactly one
+  def occurrence and exactly two loader-name occurrences in the block so a
+  cross-dimensional conjunction on individually in-envelope dimensions
+  (`len(items) >= 5 and len(decisions) == 2`), its no-added-line
+  substitution variant, and its conditional def-shadowing variant fail
+  structurally as well as behaviorally (review finding F9), pins the
+  eleven-line call-site preamble immediately preceding that chain as an
+  exact trimmed window plus the index sentinel as exact text and checks the
+  whole matrix's accumulated `gh` invocation log against the pristine
+  issue/workflow/api/pr allowlist, so an inserted probe between the branch
+  opener and the chain (the demonstrated `gh search issues` call, inert
+  under the mock but live against real gh) or a conditional sentinel
+  replacement that pre-seeds the index in production fails structurally or
+  loudly (escape-hunt closures M1 and the init-replacement class), pins the
+  ENTIRE extracted handler block as canonical exact text from its first
+  line through the trailing PY, compared raw with only blank lines dropped
+  (indentation is compared too) and the exact-form `for d in decisions:`
+  loop head required exactly once, so no line can be inserted, re-indented,
+  or replaced anywhere in the handler without failing the audit; this
+  generalizes and supersedes the old setup-prefix pin and closes the three
+  demonstrated families that lived outside the sub-region pins (a
+  create-path blank-line-keyed gate silently dropping decisions,
+  demonstrated green at 24/0; a decoy duplicate `for d in decisions:` loop
+  head that stopped the old setup-prefix extraction early, so a
+  `recover`-first tick filed duplicates with zero queries; and an
+  index-alias clear in the post-create-branch region that re-created an
+  in-run duplicate; review findings F13/F14/F15), structurally
+  pins that the run-local index is assigned exactly twice (its
+  initialization and the single fail-open line) and accessed only via
+  `.get`/`.setdefault` with subscript writes/deletes rejected, functionally
+  exercises the real
+  normalization
+  function (case fold including a Unicode casefold pair, punctuation/hyphen/
+  underscore/whitespace collapse, plus digit, space-placement, and >80-char
+  long-tail non-match pairs, so a digit-stripping regex, a `.lower()` swap,
+  a `"".join` variant, or a truncating/fragmenting normalization fails) and
+  requires exactly one definition in the block (a shadowing second
+  definition would leave the fixtures testing dead code) with the function
+  body pinned as exact trimmed text from its def line through its return,
+  so an inserted context-conditional line or replaced return expression
+  that is sandbox-inert but blanks titles in production fails structurally,
+  and
+  executes the real extracted handler block under `bash -e` against an
+  executable mock `gh` (interception proven, credentials fully absent and
+  the handler environment built from scratch with `env -i` so no ambient
+  variable reaches it, the non-credential Actions context production-shaped
+  across the standard variables (SHA, ref, ref name/type, server/API/
+  GraphQL URLs, workspace, RUNNER_OS/ARCH, CI) so an env-presence gate on
+  any of them fires under audit (escape-hunt closure M5),
+  the mock's state paths baked
+  into the mock script, and the mock requires the pinned query argv token
+  for token (argument count plus every positional element), so a repeated
+  scalar flag, an added `--search` filter, a reorder, or merged/split tokens
+  cannot keep the audit green; fresh-create, normalized-match skip+triage
+  five times against newest-first five-issue lists where every entry is a
+  scenario match at index 0 through 4 (index 0 the 97-char title and
+  concurrent-duplicate shape, index 4 the oldest entry so prefix truncations
+  fall), three digit-collision create scenarios (a consistent full-run or
+  zero-favored digit strip at either or both sites falsely skips), a
+  space-removal collision scenario (a consistent both-sites
+  post-normalization space removal falsely skips), and one final-character
+  long-title collision scenario (a consistent both-sites truncation merges
+  the pair under every proper cutoff; single-site variants fall in the
+  sweep), and a size sweep of list sizes 1-8 whose last entry is the match
+  with three-character, digit-bearing, single-word, and x-bearing titles
+  cycling, a three-identical-decision in-run duplicate (a
+  subscript-write/delete sabotage of the run-local index is caught on the
+  third decision), query-failure fail-open, and bad-JSON
+  fail-open scenarios, plus a three-decision scenario with the matching
+  create LAST after two successful creates (exactly 2 creates and 3
+  dispatches asserted, so a decision-count or created-count gate creates a
+  third issue and fails), a matching decision carrying `target`, and a
+  mixed scenario with a failed sweep and a successfully posted comment
+  before the matching create (the failed sweep drives the handler's loud
+  SystemExit(1), asserted as rc 1), a decision-count sweep of 1-4
+  decisions with the matching create LAST (a 2-decision scenario asserting
+  exactly 1 create and 2 dispatches and a 4-decision scenario asserting
+  3 creates and 4 dispatches with all three created-number triages, so
+  every count gate inside 1-4 fires on at least one scenario, the
+  created-count envelope extends to 3, and both scenarios run against
+  five-entry lists so a conjunction of an in-envelope list size with an
+  in-envelope decision count cannot hide (review finding F9's demonstrated
+  escape)) plus a COUNT SWEEP of decision counts 5-23 (each k a five-entry
+  list with the match at a middle index and k-1 leading fresh creates
+  before the matching create LAST, asserting exact create count k-1 and
+  dispatch count k, so every decision count 1-23 is exercised and an exact
+  or bound gate on any swept count fires, closing the demonstrated
+  `len(decisions) == 20` escape and its
+  `len(_created_issue_numbers) >= 4` created-count sibling), a mixed
+  action context carrying ALL of the handler's action
+  keywords (including `create_pr`, the skipped `fix` probe, and the first-class
+  decision actions `ping` (with target) and `ideate` this handler stays
+  inert on, so a conditional continue keyed on either fails behaviorally;
+  review finding F10) alongside the matching create (any action-keyword
+  gate breaks the skip assertion), absent-body, 23-char short-single-line,
+  two-line body, and paragraph-break (blank-line-bearing) body skip
+  scenarios (`not body_text` and every
+  `len(body_text) < N` with N >= 1, newline-presence, line-count,
+  short-length, and `"\n\n"` predicates inside the absent-body to
+  long-three-line envelope), a matching create that is NOT last with a trailing `lab`
+  action (last-position action predicates), a 147-char long-title skip
+  scenario (title-length predicates up to 146), and a
+  workflow_dispatch-event skip scenario (the demonstrated event-name gate;
+  schedule remains the default shape), plus leading-action skip scenarios
+  (ping-first with target, ideate-first, lab-first, recover-first: 0
+  creates, exactly one triage on the match, the loud skip line, and each
+  leading action's own inert/comment behavior asserted, so any gate keyed
+  on the leading decision action breaks the assertions; review findings
+  F12/F14), create-path scenarios carrying a paragraph-break body, an
+  absent body, and a short body against unmatched lists (the create must
+  happen, so a create-path gate drops the decision and fails the
+  assertions), a posted-comment-before-a-fresh-create scenario (an
+  if-posted create-path gate), and a create-lab-create-identical scenario
+  asserting exactly one create, one triage, and the in-run skip print (an
+  index-alias clear re-creates the duplicate; review finding F15), with
+  realistic multi-line bodies in
+  every other scenario decision so the whole inserted-gate family is
+  caught behaviorally even when a decoy satisfies the adjacency pin; the mock
+  serves every list output with the trailing newline real gh emits (a
+  loader gate on the stdout newline fails the skip assertions)), so no
+  plain one-line disabled control flow or
+  demonstrated fixture-coverage gap (offsets, prefix truncations,
+  cardinality and parity gates at or below the fixture envelope, inserted
+  run-state or input-shape gates at the loader chain, inside the loader, in
+  the skip branch, in the call-site preamble, or as an inserted `gh` probe
+  call, inserted gates anywhere in the handler (the whole block is
+  exact-text pinned, so create-path gates, decoy duplicate loop heads, and
+  indentation changes fall too),
+  index subscript writes or deletes, a shadowing normalization definition
+  or loader definition,
+  stdout-newline gates, argument
+  tampers, normalization weakening, call-site digit stripping, call-site
+  space removal, consistent call-site truncation, order-dependent rebuilds),
+  or a repo-root stdlib-shadowing module, or an effective-shell defaults
+  override or effective-environment override, or a one-line pre-handler
+  mutation that appends a repo-controlled directory to `GITHUB_PATH` next
+  to a committed fake `gh`, exports a `BASH_ENV` shim over the pinned
+  `python3 -I -` invocation, plants a fake `gh` into the pinned
+  `$HOME/.opencode/bin` PATH directory, or rewrites the handler's
+  decision-file input, can pass, while the ENTIRE pre-handler region of the
+  maintainer job (step sequence under the effective names GitHub displays,
+  execution-shape keys, full env key maps including values, `with:` maps,
+  and every run line with blank lines dropped) is pinned as canonical exact
+  text alongside a named env-file/mention allowlist, a shell-faithful check
+  that every literal `gh issue create` invocation in the workflow lives in
+  the anchored handler step (path-qualified executables such as `/usr/bin/gh`
+  and `./gh`, `env`/`command`/`bash -c` prefixes, tabs, backslash-newline
+  continuations, quote/backslash word concatenation such as `g""h`, ANSI-C
+  quoting such as `$'\x69ssue'`, shell metacharacter separation, global flags
+  between `gh` and the subcommand, and the multi-line Python list form
+  included) exercised by a red self-test matrix over every listed spelling so
+  a future weakening of the scan fails the audit itself (review findings
+  F26/F29; prose carrying separate `gh`, `issue`, and `create` tokens in one
+  command line is a known accepted false-positive shape), repo-local scripts
+  executed by the pinned pre-handler steps in any standard invocation
+  spelling (bash/sh/source, optional flags, absolute or quoted paths) scanned
+  for `GITHUB_ENV`,
+  `GITHUB_PATH`, `BASH_ENV`, the pinned `.opencode` PATH directory, and the
+  decision-file input so a script body cannot write the runner env-file
+  channel or plant the handler's binary or input (review finding F27), the
+  PATH step body is pinned to exactly
+  the single echo line, and the functional sandbox derives its PATH
+  directories from the pinned extractor output (mirroring repo-provided
+  `$GITHUB_WORKSPACE` directories if the pinned steps ever derive one) with
+  a derived-PATH shadow scenario
+  proving the derived directories precede the mock bin, so every such
+  variant that kept the pre-fix audit green at 25 passed, 0 failed while
+  the handler used the planted binary or shim and filed the exact duplicate
+  now fails loudly (review finding F25), while deliberate
+  fingerprinting (fixture token strings,
+  sandbox paths, per-title charset gates), call-site character-class
+  transformations outside the tested digit/space-removal/truncation
+  classes, and truncation/cardinality/number/length/word-count thresholds
+  above the eight-entry, 147-char fixture envelope, exact decision- or
+  created-count gates above the swept envelope (decision counts 1-23 and
+  created counts 0-22 before a match are every one exercised), body-content
+  predicates keyed on prose absent from every fixture body, create-path
+  body-length predicates above the 283-char fixture envelope, or
+  non-credential context values outside the seeded/exercised shapes
+  (unseeded context variables, event names
+  beyond the schedule/workflow_dispatch pair, actor values), a wholesale
+  rewrite of the executing step into unrelated code carrying none of the
+  three handler needles while a canonical decoy remains, a create executed
+  from inside a repo script, composite action, or reusable workflow, a
+  `gh` create reached through a variable or command-substitution
+  indirection at the call site, a create issued through a direct REST call
+  (`gh api --method POST .../issues` or `curl .../issues`), or an
+  env-file channel reached through one level of indirection inside a
+  repo-local script, are documented
+  as the review-gated residual (review findings F2/F4-F29 plus the F16
+  print fix, B1-B3 plus
+  independent-verification escapes E1-E4, Q4/Q5, L06/L07, P1/P2,
+  M05/M07/M15-M17/M19-M21 and the round-3b boundary probes).
 - Concurrency - per-PR groups, queued execution:
 
 ```yaml
@@ -918,7 +1173,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422) + the model fallback ladder (resolve-model.sh, model-ladder.txt, issue #591)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R25), per-OS findings poster, review-comment and tester-verdict publication evidence, tester marker publisher, CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R26), per-OS findings poster, review-comment and tester-verdict publication evidence, tester marker publisher, CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
