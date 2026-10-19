@@ -28,7 +28,10 @@ its reason and never guessed. Every bundle also carries the run's build
 identity (`build.commit`, `build.binary_sha256`) copied from the run
 metadata, so a row names the source commit and the exact release binary
 that produced it; metadata without identity records `build.recorded:
-false` with the reason. No em dashes anywhere (project rule).
+false` with the reason. The `pause_select` field records how many menu
+items the paused capture moved the cursor (`0` for the plain checkpoint),
+so a same-emulator row's pause image is provably an independent render.
+No em dashes anywhere (project rule).
 
 Usage:
 
@@ -803,6 +806,7 @@ def main():
         "disposition": args.result,
         "unverified_reason": args.unverified_reason,
         "build": build,
+        "pause_select": meta.get("pause_select", 0),
         "runner": meta.get("runner", {}),
         "geometry": meta.get("geometry", {}),
         "extra_env": meta.get("extra_env", []),
