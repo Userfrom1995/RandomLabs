@@ -509,7 +509,19 @@ done
 # gate condition on any listed step trips the rule. The list is backed by a
 # generic sweep: every step block that reaches the owner PAT must carry the
 # exact gate condition, so a newly inserted ungated PAT-touching step trips
-# the rule even before its author extends the list.
+# the rule even before its author extends the list. Every step boundary must
+# be a named `      - name: ` header: an unnamed `      - run:` step is
+# invisible to the name-keyed extraction AND the PAT sweep, so an ungated
+# owner-PAT step could ride every run (PR #698 round 5, finding 2). The
+# verify lane itself is pinned BEHAVIORALLY, not only textually (PR #698
+# round 5, finding 1): its real extracted run body is executed under bash -e
+# across the three outcomes (denial -> notice + exit 0; gate-allowed with a
+# decision file -> exit 0; gate-allowed without one -> loud exit 1), because
+# shape-preserving text mutations (a final `exit 1` swap or deletion, an
+# early `exit 0`, an inserted `AGENT_GATE=true`) all kept the textual pins
+# green. The gate header reject also matches YAML-equivalent key spellings
+# (`if :`, `"if":`, `continue-on-error :`) so whitespace or quoting cannot
+# smuggle a conditional gate past the pin (PR #698 round 5, finding 3).
 r12_main_steps=(
   "Remove maintainer stray PRs and branches (the Maintainer never opens PRs)"
   "Emergency-gated commit and push of workflow model updates to main"
@@ -543,6 +555,12 @@ else
   # run including a denied trigger. No current step name is duplicated.
   r12_dup_steps=$(grep '^      - name: ' "$r12_main_wf" | sed 's/^      - name: //' | sort | uniq -d)
   [ -z "$r12_dup_steps" ] || r12_bad="${r12_bad} maintainer.yml(duplicate-step-names:$(printf '%s' "$r12_dup_steps" | tr '\n' ';'))"
+  # Every step boundary must be a named `      - name: ` header (PR #698 round
+  # 5, finding 2): an unnamed `      - run:` / `      - uses:` step is never
+  # extracted by r12_main_block() or the name-keyed PAT sweep, so an ungated
+  # owner-PAT step could ride every Maintainer run including a denied trigger.
+  r12_unnamed_steps=$(grep -nE '^      - ' "$r12_main_wf" | grep -vE '^[0-9]+:      - name: ' || true)
+  [ -z "$r12_unnamed_steps" ] || r12_bad="${r12_bad} maintainer.yml(unnamed-step:$(printf '%s' "$r12_unnamed_steps" | tr '\n' ';'))"
   r12_main_block() {
     awk -v step="      - name: $1" '
       $0 == step { in_step=1; next }
@@ -576,8 +594,11 @@ else
   # silent green no-op forever: no agent, no comment, no merge, no memory
   # publish), and a `continue-on-error:` would turn the gate's deliberate red
   # paths (an empty output means the gate failed red) into fail-silent,
-  # indistinguishable from a denial at the verify step.
-  r12_gate_hdr_bad=$(printf '%s\n' "$r12_main_gate_block" | grep -cE '^[[:space:]]*(if|continue-on-error):' || true)
+  # indistinguishable from a denial at the verify step. The key match accepts
+  # YAML-equivalent spellings (whitespace before the colon, a quoted key), so
+  # `if : false` or `"if": false` cannot sneak past (PR #698 round 5,
+  # finding 3).
+  r12_gate_hdr_bad=$(printf '%s\n' "$r12_main_gate_block" | grep -cE "^[[:space:]]*[\"']?(if|continue-on-error)[\"']?[[:space:]]*:" || true)
   [ "$r12_gate_hdr_bad" = "0" ] || r12_bad="${r12_bad} maintainer.yml(gate-conditional-or-tolerated-failure)"
   r12_agent_block=$(r12_main_block "Run Maintainer agent")
   if [ "$(printf '%s\n' "$r12_agent_block" | grep -cE '^[[:space:]]*if:' || true)" != "1" ] \
@@ -623,6 +644,32 @@ else
        || [ "$r12_verify_deny_ln" -ge "$r12_verify_decision_ln" ]; then
       r12_bad="${r12_bad} maintainer.yml(verify-denial-not-first)"
     fi
+    # Functional pin for the verify lane (PR #698 round 5, finding 1): the
+    # static pins kept passing shape-preserving mutations that silently
+    # restored the hollow green (final `exit 1` swapped or deleted, an early
+    # `exit 0`, an inserted `AGENT_GATE=true` that reds every denial), so
+    # execute the real extracted run body under bash -e across the three
+    # outcomes. A no-op or truncated extraction fails the notice/error
+    # assertions, so this cannot be satisfied by text alone.
+    r12_vsbx=$(mktemp -d) || r12_vsbx="/tmp/r12-verify-$$"
+    r12_verify_run=$(printf '%s\n' "$r12_verify_block" | awk '
+      /^[[:space:]]*run: \|/ { f=1; next }
+      f { sub(/^          /, ""); print }
+    ')
+    r12_case() {
+      rm -rf "$r12_vsbx/ws"; mkdir -p "$r12_vsbx/ws/.maintainer"
+      if [ "$2" = "present" ]; then : > "$r12_vsbx/ws/.maintainer/decision.json"; fi
+      local got out
+      out=$(cd "$r12_vsbx/ws" && env -i PATH="$PATH" HOME="$r12_vsbx" AGENT_GATE="$1" AGENT_OUTCOME="success" bash -e -c "$r12_verify_run" 2>&1)
+      got=$?
+      if [ "$got" != "$3" ] || ! printf '%s\n' "$out" | grep -qE "$4"; then
+        r12_bad="${r12_bad} maintainer.yml(verify-lane-behavior:$1/$2:exit=$got)"
+      fi
+    }
+    r12_case false absent 0 '::notice::Actor write gate skipped the Maintainer agent'
+    r12_case true present 0 'Maintainer decision contract present'
+    r12_case true absent 1 '::error::Maintainer agent finished'
+    rm -rf "$r12_vsbx"
   fi
   for r12_step in "${r12_main_steps[@]}"; do
     r12_step_block=$(r12_main_block "$r12_step")
@@ -644,6 +691,18 @@ else
       || r12_pat_ungated="${r12_pat_ungated} [${r12_pat_name}]"
   done < <(grep '^      - name: ' "$r12_main_wf" | sed 's/^      - name: //')
   [ -z "$r12_pat_ungated" ] || r12_bad="${r12_bad} maintainer.yml(pat-step-ungated:${r12_pat_ungated})"
+  # Whole-file PAT containment (PR #698 round 5, observation): the name-keyed
+  # sweep only sees named step blocks, so a job-level
+  # `env: X: ${{ secrets.OPENCODE_PAT }}` plus a later ${{ env.X }} indirection
+  # could hand the owner PAT to an ungated step. Every literal occurrence must
+  # therefore sit inside a named step block (its block is then covered by the
+  # sweep above).
+  r12_pat_outside=""
+  while IFS= read -r r12_pat_ln; do
+    r12_pat_owner=$(awk -v n="$r12_pat_ln" 'NR <= n && /^      - name: / { name = substr($0, 15) } NR == n { print name }' "$r12_main_wf")
+    [ -n "$r12_pat_owner" ] || r12_pat_outside="${r12_pat_outside} line${r12_pat_ln}"
+  done < <(grep -n 'secrets\.OPENCODE_PAT' "$r12_main_wf" | cut -d: -f1)
+  [ -z "$r12_pat_outside" ] || r12_bad="${r12_bad} maintainer.yml(pat-outside-step:${r12_pat_outside})"
 fi
 if [ -z "$r12_bad" ]; then
   check "R12" "every opencode-run agent workflow (and the maintainer inline runner, issue #696) fails closed behind the shared actor-write gate: gate invoked, agent wired to the gate output, maintainer verify carries the terminal denial outcome, and every post-gate maintainer side-effect step is gated on the same output" "ok"
