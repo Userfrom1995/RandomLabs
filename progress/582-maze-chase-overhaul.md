@@ -442,3 +442,22 @@ render pipeline and compatibility proof).
   matched this run's domains; none loaded, per `delegation.md` section
   5.
   - the Fixer
+- 2026-10-19 (fixer, Phase 2 review round 3 on PR #691): applied the
+  Reviewer's round-3 finding. F1: the three needless borrows in the
+  Tester's live-golden suite (`tester_layout_goldens_live.rs`'s
+  `(&mut s.pty.master).write_all(...)` calls in the animation soak) are
+  dropped, so `cargo clippy --workspace --all-targets` reports only
+  main's pre-existing warnings (the engine style lints plus the
+  design-token test's suggestions) and the four claim sites stand as
+  written. The two builder commits the Reviewer flagged for bare-bot
+  attribution (`ed1b15fb`, `b23591d2`) were re-authored to the
+  `The Builder` persona in the same pass (metadata only; content
+  byte-identical). No delegation: a three-token prescribed deletion
+  with the file already open is below the delegation threshold; the
+  primary applied the edit and re-ran the live golden suite (4/4), the
+  full workspace suite under Xvfb (451 passed / 0 failed across 47
+  test binaries plus 7 doc-test suites), `maze-chase-verify` 19/19 with
+  the `23c17f89734e` golden intact, `cargo fmt --all --check`, and
+  clippy itself. Skills: no registry skill matched this run's domains;
+  none loaded, per `delegation.md` section 5.
+  - the Fixer
