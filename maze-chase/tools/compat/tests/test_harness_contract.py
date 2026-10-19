@@ -1038,6 +1038,31 @@ class TestCommittedEvidenceBundle(unittest.TestCase):
             checked += 1
         self.assertGreaterEqual(checked, 8)
 
+    def test_forced_tier_rows_move_the_pause_cursor(self):
+        # The second executed row of an emulator would otherwise commit a
+        # byte-identical paused capture; those rows move the cursor to
+        # "Quit to title" before the checkpoint and record it.
+        for row_name in ("kitty-linux-truecolor", "ghostty-linux-kitty",
+                         "xterm-linux-sixel"):
+            path = os.path.join(EVIDENCE_DIR, f"{row_name}.json")
+            with open(path, encoding="utf-8") as fh:
+                row = json.load(fh)
+            self.assertEqual(
+                row.get("pause_select"), 1,
+                f"{row_name}: the forced-tier row must move the pause cursor",
+            )
+            self.assertTrue(
+                any("menu cursor on" in note for note in row["notes"]),
+                f"{row_name}: pause choreography missing from notes",
+            )
+        for row_name in ("kitty-linux-auto", "ghostty-linux-auto",
+                         "xterm-linux-auto", "xterm-dark-linux-auto",
+                         "xterm-vt340-linux-auto"):
+            path = os.path.join(EVIDENCE_DIR, f"{row_name}.json")
+            with open(path, encoding="utf-8") as fh:
+                row = json.load(fh)
+            self.assertEqual(row.get("pause_select"), 0, row_name)
+
     def test_events_logs_carry_no_scratch_paths(self):
         for root, _dirs, files in os.walk(EVIDENCE_DIR):
             for name in files:
