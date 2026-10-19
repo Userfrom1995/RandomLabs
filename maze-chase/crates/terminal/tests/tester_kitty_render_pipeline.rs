@@ -194,6 +194,36 @@ fn collect_for(master: &mut std::fs::File, out: &mut Vec<u8>, dur: Duration) {
     }
 }
 
+/// Like `wait_for`, but only the bytes after `start` count. Used to
+/// observe a second occurrence of a byte sequence that also appears in
+/// the session's startup frames (the static board transmit/placement).
+fn wait_for_after(
+    master: &mut std::fs::File,
+    out: &mut Vec<u8>,
+    start: usize,
+    needle: &str,
+    timeout: Duration,
+) -> bool {
+    let deadline = Instant::now() + timeout;
+    loop {
+        drain(master, out);
+        if out.len() >= start && find(&out[start..], needle.as_bytes()).is_some() {
+            return true;
+        }
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return false;
+        }
+        let mut pfd = libc::pollfd {
+            fd: master.as_raw_fd(),
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        let ms = remaining.as_millis().min(25) as i32;
+        unsafe { libc::poll(&mut pfd, 1, ms) };
+    }
+}
+
 fn stop(child: &mut Child) {
     let _ = child.kill();
     let _ = child.wait();
@@ -385,6 +415,112 @@ fn kitty_render_pipeline_z_layers_quiet_transmits_and_exact_deletes() {
         !String::from_utf8_lossy(&out).contains("\x1bPq"),
         "a Kitty-tier session must never emit Sixel frames"
     );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// E1 main-loop counterpart: pausing on the Kitty tier must release the
+/// board and atlas in the pause frame itself and paint the text menu;
+/// resuming must rebuild the board (transmit plus static placement).
+/// The unit test above composes a synthetic fresh frame, so it cannot
+/// catch a stale resume or a main-loop regression.
+#[test]
+fn kitty_pause_releases_the_board_and_resume_replaces_it() {
+    let dir = session_dir("kitty-pause");
+    let (mut pty, mut child) = spawn_pty(&dir, "kitty", "xterm-kitty");
+    let mut out = Vec::new();
+    assert!(
+        wait_for(
+            &mut pty.master,
+            &mut out,
+            "video tier: kitty-graphics",
+            Duration::from_secs(20)
+        ),
+        "kitty title never appeared; tail: {}",
+        tail(&out)
+    );
+    (&pty.master).write_all(b"\r").unwrap();
+    assert!(
+        wait_for(&mut pty.master, &mut out, "SCORE ", Duration::from_secs(10)),
+        "play never started; tail: {}",
+        tail(&out)
+    );
+    let static_placement = format!("a=p,i={STATIC_IMAGE_ID},p=1");
+    let static_transmit = format!("a=t,f=100,i={STATIC_IMAGE_ID},");
+    assert!(
+        wait_for(
+            &mut pty.master,
+            &mut out,
+            &static_placement,
+            Duration::from_secs(10)
+        ),
+        "the board was never placed before the pause; tail: {}",
+        tail(&out)
+    );
+
+    let pause_start = out.len();
+    (&pty.master).write_all(b"p").unwrap();
+    assert!(
+        wait_for_after(
+            &mut pty.master,
+            &mut out,
+            pause_start,
+            "PAUSED",
+            Duration::from_secs(10)
+        ),
+        "the pause menu never painted; tail: {}",
+        tail(&out)
+    );
+    collect_for(&mut pty.master, &mut out, Duration::from_millis(600));
+    let pause_slice = String::from_utf8_lossy(&out[pause_start..]).into_owned();
+    let trio = format!(
+        "\x1b_Ga=d\x1b\\\x1b_Ga=d,d=I,i={}\x1b\\\x1b_Ga=d,d=I,i={}\x1b\\",
+        STATIC_IMAGE_ID, ATLAS_IMAGE_ID
+    );
+    let rel_at = pause_slice.find(&trio).unwrap_or_else(|| {
+        panic!(
+            "the pause frame never released the image layer; tail: {}",
+            tail(&out)
+        )
+    });
+    assert!(
+        pause_slice[rel_at..].contains("PAUSED") && pause_slice[rel_at..].contains("Resume"),
+        "the pause menu must paint after the release"
+    );
+    let after_release = &pause_slice[rel_at + trio.len()..];
+    assert!(
+        !after_release.contains("\x1b_Ga=t"),
+        "nothing may be transmitted after the pause release: {after_release:?}"
+    );
+    assert!(
+        !after_release.contains("\x1b_Ga=p"),
+        "nothing may be placed after the pause release: {after_release:?}"
+    );
+
+    let resume_start = out.len();
+    (&pty.master).write_all(b"p").unwrap();
+    assert!(
+        wait_for_after(
+            &mut pty.master,
+            &mut out,
+            resume_start,
+            &static_transmit,
+            Duration::from_secs(10)
+        ),
+        "resume never re-transmitted the board; tail: {}",
+        tail(&out)
+    );
+    assert!(
+        wait_for_after(
+            &mut pty.master,
+            &mut out,
+            resume_start,
+            &static_placement,
+            Duration::from_secs(10)
+        ),
+        "resume never re-placed the board; tail: {}",
+        tail(&out)
+    );
+    stop(&mut child);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
