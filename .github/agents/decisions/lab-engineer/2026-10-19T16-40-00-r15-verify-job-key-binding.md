@@ -22,8 +22,12 @@ verifies while the shipped audit stayed at 25 passed / 0 failed:
   general verify step deliberately carries no step `shell`, so the job
   default would execute its body as `true <path>`).
 
-The fix is audit-only. The runtime hardening approved at `78b57e6e` is
-unchanged, so this round keeps the reviewed runtime blobs byte-identical.
+The fix is audit-only. The runtime hardening is unchanged from the
+verified head `347e25d8`: `347e25d8..HEAD` has zero `.github/actions` and
+zero `.github/workflows` delta of its own. The current `maintainer.yml`
+blob is `44c1a514...` rather than the pre-rebase `a85701a2...`, and the
+only difference is main's two-line `postformer-cpu-train` allowlist
+retirement, so the hardening content is byte-identical.
 
 ## The fix
 

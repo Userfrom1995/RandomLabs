@@ -803,6 +803,24 @@ only failing rule after the fix, and the defense-in-depth `runs-on`,
 `timeout-minutes`, job `env`, workflow `defaults`, workflow `env`, and
 extra-job-key checks were mutation-proven too.
 
+Review round 21 bound step-to-job containment (issue #653). Round 20
+bound the verify jobs' key surface but nothing asserted that the verify
+(or runner) steps still live in those jobs: the extractor flattened every
+job's steps and resolved by name file-wide, so moving a bound step into a
+new sibling job kept the audit at 25 passed / 0 failed. At runtime the
+moved step's pinned `if` references the old job's step outputs, which no
+longer exist there, so GitHub evaluates it false and silently skips the
+verify (a sibling job could also hollow-green it with a job-level
+`continue-on-error`). The runner step has the same exposure when moved
+out of the `maintainer` job, where the maintainer job gate no longer
+applies. Each bound step now also has to resolve to its expected job by
+object identity: the Maintainer runner step and the Maintainer verify in
+`maintainer`, the general verify in `general`; the composite action-file
+runner step has no jobs and keeps the file-wide uniqueness checks as
+defense in depth. The three move escapes read 25 passed / 0 failed on
+`9b7a661a` and 24 passed / 1 failed with R15 the only failing rule after
+the fix.
+
 Accepted residuals of the #653 runtime (documented, not hardened): the
 TERM/KILL escalation targets the two captured PIDs, so after the 5-second
 grace a reused PID could be signalled and a hung `opencode` descendant can
