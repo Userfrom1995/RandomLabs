@@ -88,7 +88,13 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
       STATE.md) and routes the oldest first. When your decision list contains
       only `create_issue`, also record the new subject as UNTRIAGED in STATE.md
       (next steps) so any later run routes it even if the self-dispatch
-      misfires.
+      misfires. The hardcoded handler also dedupes issue creation (issue
+      #668, audit rule R26): it queries open issues first and, when one
+      carries an identical normalized title (casefold, non-alphanumerics to
+      spaces, whitespace collapsed), skips creation, logs the existing
+      number, and self-triages that issue instead. The match is exact-after-normalization only;
+      paraphrase variants are not matched (a fuzzy matcher could silently
+      suppress a genuinely distinct finding, so the guard stays conservative).
    - Merge work: **you merge approved PRs** - see below.
    - Standby when idle: when all active PRs and issues are resolved, output an empty decision list `[]`. Do NOT auto-dispatch the Ideator or invent new projects. Wait quietly on standby for the next issue, comment, or Owner directive.
    - On-demand ideation: dispatch the Ideator (`{"action": "ideate"}`) ONLY when the Owner or a contributor asks for new ideas or project proposals. When proposals are posted, pick at most ONE candidate to build, and pause further ideation.

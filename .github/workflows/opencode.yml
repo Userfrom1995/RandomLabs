@@ -56,7 +56,7 @@ concurrency:
 #     busy thread the recent retry markers fall outside page 1, the cap reads
 #     0, and the loop never stops (issue #621). Use `?per_page=100` +
 #     `--paginate --slurp` piped through `jq '.[][] | ...'`.
-# These are statically audited by R1-R25 in auditor.yml (.github/scripts/silent-stall-audit.sh):
+# These are audited by R1-R26 in auditor.yml (.github/scripts/silent-stall-audit.sh):
 # R1-R6 cover the invariants above plus the free-tier model guard, R7 guards the
 # review-restore ownership gate (PR #412 head rewind), R8 guards the vendored
 # hardened runner (.github/actions/opencode-run, issue #422 A), R9 guards
@@ -78,8 +78,9 @@ concurrency:
 # workflow-published canonical bot-authored first-line marker, issue #629),
 # R23 guards the maintainer memory publish concurrency loop (issue #647),
 # R24 guards per-OS arm cap headroom plus the partial-report salvage step
-# (issue #692), and R25 guards lab/fix agent cap headroom (lab agent >= 150
-# under job >= 180, fix agent >= 120 under job >= 180, issue #701).
+# (issue #692), R25 guards lab/fix agent cap headroom (lab agent >= 150
+# under job >= 180, fix agent >= 120 under job >= 180, issue #701), and
+# R26 guards the create-issue dedupe guard (issue #668).
 # =============================================================================
 
 jobs:
