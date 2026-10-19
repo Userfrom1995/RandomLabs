@@ -22,7 +22,10 @@ onto `main`, audit-side hardening, and contract text.
   prefixes, `bash -c`, quote/backslash word concatenation (`g""h`,
   `i""ssue`), backslash-newline continuations, and ANSI-C quoting
   (`$'\x69ssue'`). The scan is now shell-faithful and is exercised by a
-  red self-test matrix, so a future weakening fails the audit itself.
+  red self-test matrix, so a future weakening fails the audit itself. The
+  round-16 review (F30) later found the second, normalized layer had no
+  self-test and did not fold backslashes; see the round-16 note for the
+  correction.
 - **F27 follow-up (minor):** the repo-local script invocation regex now
   accepts `bash`/`sh`/`source`/dot-source with optional flags, absolute or
   quoted paths, and separators.
@@ -50,6 +53,8 @@ onto `main`, audit-side hardening, and contract text.
    `gh`/`gh.exe` as a path-suffix executable, and rejects any non-handler
    step run containing `gh` plus `issue` plus `create` after the `gh`
    token. The normalized Python-list check remains as a second layer.
+   (initially without its own self-test and without a backslash fold; the
+   round-16 F30 pass corrects both).
 3. **F29 self-test matrix:** `_f29_red` covers plain, absolute and
    relative path, `env`, `command`, backslash-continuation, `g""h`,
    `i""ssue`, ANSI-C, `bash -c`, global flag before the subcommand,
@@ -124,7 +129,9 @@ onto `main`, audit-side hardening, and contract text.
   composite action, or reusable workflow, and creates reached through a
   variable or command-substitution indirection at the call site remain
   review-gated. The F26/F29 literal spelling class itself is closed and
-  self-tested.
+  self-tested for the shell-faithful layer; the round-16 F30 pass adds the
+  escaped-quote spelling, the backslash fold, and red/green self-tests for
+  the normalized layer (see the round-16 note).
 - The pre-handler canonical manifest still blocks any new pre-handler run
   line until it is regenerated with the same extractor.
 - Deliberate fingerprinting, call-site character-class transformations
