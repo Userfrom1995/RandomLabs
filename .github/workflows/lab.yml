@@ -42,11 +42,17 @@ jobs:
     runs-on: ubuntu-latest
     # Issue #612: the 2026-10-17T15:22 lab run on #612 hit the agent step's
     # 60-minute cap at 60m11s with the whole fix already committed locally but
-    # unpushed, so the work was lost. The agent step now carries 90 minutes
-    # (matching the per-OS arms), and this job cap is raised together with it:
-    # a 90-minute step under a 75-minute job ceiling would still die at the
-    # wire, just later.
-    timeout-minutes: 120
+    # unpushed, so the work was lost; the agent step was raised to 90 minutes
+    # under this 120-minute job.
+    # Issue #701: the 90-minute cap then died the same way twice in one
+    # morning: lab round 18 on #654 (run 39208513680, 90m12s) and round 14 on
+    # #670 (run 39212805887, 90m13s) both hit `The action has timed out.` with
+    # the decision file unwritten, so the fail-closed verify went red and the
+    # runner discarded near-complete rounds. The agent step now carries 150
+    # minutes (30 minutes of post-agent headroom under this 180-minute job),
+    # so the verify, strip, push, and forward chain always has room after a
+    # worst-case cap death.
+    timeout-minutes: 180
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -81,7 +87,11 @@ jobs:
         # near-complete infrastructure pass is not killed at the wire; the
         # job-level cap above is raised in lockstep (75 -> 120) so it cannot
         # cut this step short.
-        timeout-minutes: 90
+        # Issue #701: raised 90 -> 150 (rounds 18 on #654 and 14 on #670 both
+        # died at the 90-minute cap mid-pass with no decision file); the
+        # job-level cap above is raised in lockstep (120 -> 180) to keep 30
+        # minutes of headroom for the post-agent contract chain.
+        timeout-minutes: 150
         uses: ./.github/actions/opencode-run
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
