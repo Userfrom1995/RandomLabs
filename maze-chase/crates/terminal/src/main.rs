@@ -1032,6 +1032,12 @@ fn render_frame(
                 out.push_str(&maze_chase_terminal::kitty::free_image_escape(
                     maze_chase_terminal::kitty::ATLAS_IMAGE_ID,
                 ));
+                if !kitty.placements {
+                    // The probe proved graphics but not placements, so
+                    // the board is a whole-frame display under image id
+                    // 1; release that layer too.
+                    out.push_str(&maze_chase_terminal::kitty::free_image_escape(1));
+                }
                 kitty.invalidate();
             }
             // Full-screen surfaces.
@@ -1756,6 +1762,22 @@ mod tests {
             "the whole-frame fallback image must be freed with the menu"
         );
         assert!(frame.contains("PAUSED") && frame.contains("Resume"));
+    }
+
+    #[test]
+    fn menu_on_kitty_frees_the_whole_frame_image_without_placements() {
+        use maze_chase_terminal::kitty;
+        use maze_chase_terminal::screens::ScreenId;
+        let env = vec![("KITTY_WINDOW_ID".to_string(), "1".to_string())];
+        let mut app = App::new(100, 40, &env, std::path::PathBuf::from("."));
+        app.screens.show(ScreenId::Help);
+        let mut renderer = KittyRenderer::new(false);
+        let mut frame = String::new();
+        let _ = compose_frame(&mut app, &mut frame, true, &mut renderer, false);
+        assert!(
+            frame.contains(&kitty::free_image_escape(1)),
+            "the whole-frame fallback image must be freed with any menu"
+        );
     }
 
     #[test]
