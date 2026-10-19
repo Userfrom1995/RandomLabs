@@ -587,16 +587,30 @@ class TestCollectorHonestyGates(unittest.TestCase):
 
     def test_rows_without_build_identity_say_so(self):
         # A pre-identity metadata block records `recorded: false` with the
-        # reason instead of leaving provenance to inference.
-        run_dir = make_run_dir(os.path.join(self.tmp, "run-nobuild"))
-        evidence = os.path.join(self.tmp, "evidence-nobuild")
-        proc = run_collect(run_dir, evidence, "--result", "partial")
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        with open(os.path.join(evidence, "unit-test-row.json"),
-                  encoding="utf-8") as fh:
-            row = json.load(fh)
-        self.assertIs(row["build"]["recorded"], False)
-        self.assertTrue(row["build"]["reason"])
+        # reason instead of leaving provenance to inference; an empty or
+        # partial build block is the same unrecorded state.
+        shapes = (
+            ("absent", None),
+            ("empty", {"build": {}}),
+            ("partial", {"build": {"commit": "0" * 40}}),
+            ("blank", {"build": {"commit": "", "binary_sha256": "a" * 64}}),
+        )
+        for name, meta_extra in shapes:
+            run_dir = make_run_dir(
+                os.path.join(self.tmp, f"run-nobuild-{name}"),
+                meta_extra=meta_extra,
+            )
+            evidence = os.path.join(self.tmp, f"evidence-nobuild-{name}")
+            proc = run_collect(run_dir, evidence, "--result", "partial")
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            with open(os.path.join(evidence, "unit-test-row.json"),
+                      encoding="utf-8") as fh:
+                row = json.load(fh)
+            self.assertIs(
+                row["build"]["recorded"], False,
+                f"{name}: build identity presented as recorded",
+            )
+            self.assertTrue(row["build"]["reason"])
 
     def test_dominant_share_detects_one_flat_color(self):
         # The sixel `resized-wide` checkpoint was a single flat
