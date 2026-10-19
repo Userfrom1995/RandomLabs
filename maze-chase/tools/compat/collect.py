@@ -643,11 +643,10 @@ def screenshot_facts(path):
         return None
     share = white_share(decoded)
     dominant = dominant_share(decoded)
-    # Truncate the dominant share downward to four decimals: `round` can
-    # move a true 0.89996 up across the paused gate's 0.90 floor (a
-    # fail-open) and a true 0.97996 up across the blank-board gate's 0.98
-    # edge (a false downgrade). Truncating keeps both boundaries on the
-    # conservative side of the recorded value.
+    # Truncate the dominant share downward to four decimals: the recorded
+    # value never overstates the share, so rounding cannot move a true
+    # 0.89996 up across the 0.90 floors (the paused menu band and the
+    # blank-board bound), which would fail open on the paused gate.
     recorded_dominant = int(dominant * 10000 + 1e-6) / 10000.0
     return {
         "width": decoded["width"],
@@ -943,10 +942,14 @@ def main():
             "the bundle; a pass requires at least one rendered capture"
         )
     # Bitmap-tier blank-board honesty (Evaluator E4): a capture that is
-    # >=98% one color on a playing or resize checkpoint is a blank board
+    # >=90% one color on a playing or resize checkpoint is a blank board
     # (the sixel `resized-wide` checkpoint shipped exactly that shape
     # while signed pass). The white-share gate above only sees light
-    # backgrounds; this one sees a dark blank board too.
+    # backgrounds; this one sees a dark blank board too. The bound was
+    # still 0.98 while a blank shape with a few stale pixels (0.90 to
+    # 0.98 dominant share) could sign a pass (Evaluator QC-4); every
+    # committed playing capture sits at <=0.7113 and a text-bearing
+    # frame cannot be uniformly flat.
     if args.result == "pass" and tier in ("kitty-graphics", "sixel"):
         blank_captures = []
         for phase in result["phases"]:
@@ -957,14 +960,14 @@ def main():
                     or "resized" in name
                     or name == "refit"):
                 continue
-            if phase.get("dominant_share", 0.0) >= 0.98:
+            if phase.get("dominant_share", 0.0) >= 0.90:
                 blank_captures.append(phase["name"])
         if blank_captures:
             disposition = "partial"
             notes.append(
                 "recorded partial by collect.py: bitmap-tier captures "
                 + ", ".join(blank_captures)
-                + " are >=98% one color (a blank board, not a rendered "
+                + " are >=90% one color (a blank board, not a rendered "
                   "playing surface)"
             )
     # Bitmap-tier playing-surface honesty: a kitty-graphics or sixel
@@ -994,13 +997,32 @@ def main():
     # carry the previous playing frame's placements on screen, so the
     # paused capture itself must prove a text panel (no sprite-palette
     # pixels and a near-solid background that is not completely flat).
+    # The fixed session always takes exactly one paused checkpoint
+    # (drive.sh, run-windows.ps1), so a kitty-graphics pass whose phase
+    # list has zero (or several) paused entries cannot silently skip the
+    # gate (Evaluator QC-4): a missing checkpoint is a missing claim,
+    # not a pass, and the pause-surface verdict below is only meaningful
+    # when the recorded session shape matches the fixed session.
+    paused_phases = [
+        phase
+        for phase in result["phases"]
+        if str(phase.get("name", "")).lower() == "paused"
+    ]
+    if args.result == "pass" and tier == "kitty-graphics" and len(paused_phases) != 1:
+        disposition = "partial"
+        notes.append(
+            "recorded partial by collect.py: the session carries "
+            + str(len(paused_phases))
+            + " paused checkpoint(s), expected exactly one; a missing "
+              "checkpoint is a missing claim (the pause surface cannot be "
+              "verified) and a kitty-graphics pass requires the single "
+              "paused checkpoint of the fixed session"
+        )
     if args.result == "pass" and tier == "kitty-graphics":
         paused_bad = []
         paused_missing = []
         proven = []
-        for phase in result["phases"]:
-            if str(phase.get("name", "")).lower() != "paused":
-                continue
+        for phase in paused_phases:
             kit = phase.get("kitty") or {}
             media = int(kit.get("transmits", 0)) + int(kit.get("placements", 0))
             census = phase.get("sprite_census") or {}
