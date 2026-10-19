@@ -224,7 +224,12 @@ Public Surface / Web Track:                                              │
   decoy, or a removed gate fails loudly), no `shell`, no `working-directory`,
   no `continue-on-error`,
   exactly the two token env keys with both token env
-  expressions intact, and each handler needle (the dedupe marker,
+  expressions intact plus the pinned system PATH
+  `/usr/local/bin:/usr/bin:/bin` (the runner's default PATH includes
+  user-writable directories such as `/home/runner/.local/bin`,
+  `/home/runner/.cargo/bin`, and `/home/runner/.dotnet/tools` where a
+  pre-handler repo script could plant a `gh`/`python3` shim; review finding
+  F41), and each handler needle (the dedupe marker,
   `_open_issue_titles`, `_self_triage`) in exactly one run which must be
   that step (F17: a comment-line anchor, a same-name decoy, a renamed or
   weakened executor, or a mutilated credential or step gate all fail loudly;
@@ -449,15 +454,21 @@ Public Surface / Web Track:                                              │
   executed by the pinned pre-handler steps in any standard invocation
   spelling (bash/sh/source, optional flags, absolute or quoted paths) scanned
   for `GITHUB_ENV`,
-  `GITHUB_PATH`, `BASH_ENV`, the pinned `.opencode` PATH directory, and the
+  `GITHUB_PATH`, `BASH_ENV`, the pinned `.opencode` PATH directory, the
+  ambient user-writable PATH directories (`.local/bin`, `.cargo/bin`,
+  `.dotnet/tools`, `.config/composer/vendor/bin`), and the
   decision-file input so a script body cannot write the runner env-file
-  channel or plant the handler's binary or input (review finding F27), the
+  channel, plant the handler's binary or input, or plant a shim into an
+  ambient user-writable PATH directory (review findings F27/F41), the
   PATH step body is pinned to exactly
   the single echo line, and the functional sandbox derives its PATH
   directories from the pinned extractor output (mirroring repo-provided
   `$GITHUB_WORKSPACE` directories if the pinned steps ever derive one) with
   a derived-PATH shadow scenario
-  proving the derived directories precede the mock bin, so every such
+  proving the derived directories precede the mock bin and a pinned-path
+  shim scenario proving a `gh` planted into the ambient user-writable
+  `/home/runner/.local/bin` (outside the pinned step PATH) is never executed
+  (review finding F41), so every such
   variant that kept the pre-fix audit green at 25 passed, 0 failed while
   the handler used the planted binary or shim and filed the exact duplicate
   now fails loudly (review finding F25), while deliberate
@@ -485,7 +496,7 @@ Public Surface / Web Track:                                              │
   splitting, brace expansion such as `cr{e,}ate`, or a runtime-split Python
   string), or an env-file channel reached through one level of indirection
   inside a repo-local script, are documented
-  as the review-gated residual (review findings F2/F4-F40 plus the F16
+  as the review-gated residual (review findings F2/F4-F41 plus the F16
   print fix, B1-B3 plus
   independent-verification escapes E1-E4, Q4/Q5, L06/L07, P1/P2,
   M05/M07/M15-M17/M19-M21 and the round-3b boundary probes).
