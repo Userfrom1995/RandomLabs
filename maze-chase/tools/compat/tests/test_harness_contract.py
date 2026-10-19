@@ -378,30 +378,19 @@ class TestCollectorHonestyGates(unittest.TestCase):
         self.assertEqual(playing["sprite_census"]["pixels"], 0)
 
     def test_kitty_pass_with_visible_sprites_stays_pass(self):
-        transcript = (
-            b"\x1b[?2026h"
-            b"\x1b[2J\x1b_Ga=d\x1b\\"
-            b"\x1b_Ga=p,i=3,p=1,x=0,y=0,w=1120,h=1240,c=140,r=62,z=0,C=1,q=2\x1b\\"
-            b"\x1b[?2026l"
-            b"\x1b[1;1HVIDEO  kitty-graphics\r\n"
+        # One exact pip pixel on an otherwise dark board, plus the paused
+        # checkpoint every real session takes (the pause-surface claim is
+        # part of a kitty-graphics pass).
+        playing_png = make_rgb_png(2, 2, [24, 16, 12] * 3 + [255, 225, 130])
+        paused_png = make_rgb_png(
+            100, 100, [24, 16, 12] * 9000 + [230, 230, 230] * 1000
         )
-        # One exact pip pixel on an otherwise dark board.
-        pixels = [24, 16, 12] * 3 + [255, 225, 130]
-        png = make_rgb_png(2, 2, pixels)
-        run_dir = make_run_dir(
-            os.path.join(self.tmp, "run"),
-            screenshot_name="playing.png",
-            create_png=png,
-            transcript=transcript,
-            checkpoint="playing",
+        row = self._kitty_paused_row(
+            paused_png,
+            paused_events=("200\tcheckpoint\tpaused\t200\t"
+                           "session/screenshots/paused.png\n"),
+            playing_png=playing_png,
         )
-        evidence = os.path.join(self.tmp, "evidence")
-        proc = run_collect(run_dir, evidence, "--result", "pass",
-                           "--tier", "kitty")
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        with open(os.path.join(evidence, "unit-test-row.json"),
-                  encoding="utf-8") as fh:
-            row = json.load(fh)
         self.assertEqual(row["disposition"], "pass")
         self.assertEqual(
             row["sprite_visibility"]["playing_captures_with_sprites"],
@@ -448,25 +437,16 @@ class TestCollectorHonestyGates(unittest.TestCase):
 
     def test_bitmap_pass_with_a_playing_capture_stays_pass(self):
         # The same shape with the playing capture present stays pass: the
-        # gate requires the playing surface, not every checkpoint.
-        run_dir = make_run_dir(
-            os.path.join(self.tmp, "run-playing"),
-            screenshot_name="playing.png",
-            create_png=make_rgb_png(2, 2, [24, 16, 12] * 3 + [255, 225, 130]),
-            transcript=(
-                b"\x1b[?2026h\x1b[2J\x1b_Ga=p,i=3,p=1,x=0,y=0,w=1120,h=1240,"
-                b"c=140,r=62,z=0,C=1,q=2\x1b\\\x1b[?2026l"
-                b"\x1b[1;1HVIDEO  kitty-graphics\r\n"
+        # gate requires the playing surface, not every checkpoint. The
+        # paused checkpoint is present because the fixed session always
+        # takes it and a kitty-graphics pass must prove the pause surface.
+        row = self._kitty_paused_row(
+            make_rgb_png(
+                100, 100, [24, 16, 12] * 9000 + [230, 230, 230] * 1000
             ),
-            checkpoint="playing",
+            paused_events=("200\tcheckpoint\tpaused\t200\t"
+                           "session/screenshots/paused.png\n"),
         )
-        evidence = os.path.join(self.tmp, "evidence-playing")
-        proc = run_collect(run_dir, evidence, "--result", "pass",
-                           "--tier", "kitty")
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        with open(os.path.join(evidence, "unit-test-row.json"),
-                  encoding="utf-8") as fh:
-            row = json.load(fh)
         self.assertEqual(row["disposition"], "pass")
 
     def test_pass_without_an_observed_tier_is_downgraded(self):
@@ -506,25 +486,27 @@ class TestCollectorHonestyGates(unittest.TestCase):
     def test_pass_with_a_named_tier_is_not_downgraded_by_the_tier_gate(self):
         # The positive twin: the same playing-capture shape with the tier
         # line present still passes, so the gate is scoped to the missing
-        # observation and nothing else.
+        # observation and nothing else. The sixel tier stands in here
+        # because it carries no paused-checkpoint requirement (the kitty
+        # twin lives in test_kitty_pass_with_visible_sprites_stays_pass).
         run_dir = make_run_dir(
             os.path.join(self.tmp, "run-tier-named"),
             screenshot_name="playing.png",
             create_png=make_rgb_png(2, 2, [24, 16, 12] * 3 + [255, 225, 130]),
             transcript=(
                 b"\x1b[?2026h\x1b[2J\x1b[?2026l"
-                b"\x1b[1;1HVIDEO  kitty-graphics\r\n"
+                b"\x1b[1;1HVIDEO  sixel\r\n"
             ),
             checkpoint="playing",
         )
         evidence = os.path.join(self.tmp, "evidence-tier-named")
         proc = run_collect(run_dir, evidence, "--result", "pass",
-                           "--tier", "kitty")
+                           "--tier", "sixel")
         self.assertEqual(proc.returncode, 0, proc.stderr)
         with open(os.path.join(evidence, "unit-test-row.json"),
                   encoding="utf-8") as fh:
             row = json.load(fh)
-        self.assertEqual(row["tier_observed"], "kitty-graphics")
+        self.assertEqual(row["tier_observed"], "sixel")
         self.assertEqual(row["disposition"], "pass")
         self.assertFalse(
             any("never named the active video tier" in note
@@ -754,7 +736,7 @@ class TestCollectorHonestyGates(unittest.TestCase):
             row = json.load(fh)
         self.assertEqual(row["disposition"], "partial")
         self.assertTrue(
-            any(">=98% one color" in note for note in row["notes"]),
+            any(">=90% one color" in note for note in row["notes"]),
             f"missing blank-board reason in {row['notes']}",
         )
 
@@ -786,7 +768,7 @@ class TestCollectorHonestyGates(unittest.TestCase):
             row = json.load(fh)
         self.assertEqual(row["disposition"], "partial")
         self.assertTrue(
-            any(">=98% one color" in note for note in row["notes"]),
+            any(">=90% one color" in note for note in row["notes"]),
             f"missing blank-board reason in {row['notes']}",
         )
         playing = next(p for p in row["phases"] if p["name"] == "playing")
@@ -812,7 +794,7 @@ class TestCollectorHonestyGates(unittest.TestCase):
             row = json.load(fh)
         self.assertEqual(row["disposition"], "partial")
         self.assertTrue(
-            any(">=98% one color" in note for note in row["notes"]),
+            any(">=90% one color" in note for note in row["notes"]),
             f"missing blank-board reason in {row['notes']}",
         )
 
@@ -857,7 +839,7 @@ class TestCollectorHonestyGates(unittest.TestCase):
         row = self._sixel_cased_resize_row("Refit")
         self.assertEqual(row["disposition"], "partial")
         self.assertTrue(
-            any(">=98% one color" in note for note in row["notes"]),
+            any(">=90% one color" in note for note in row["notes"]),
             f"missing blank-board reason in {row['notes']}",
         )
 
@@ -866,9 +848,62 @@ class TestCollectorHonestyGates(unittest.TestCase):
         row = self._sixel_cased_resize_row("Resized-Wide")
         self.assertEqual(row["disposition"], "partial")
         self.assertTrue(
-            any(">=98% one color" in note for note in row["notes"]),
+            any(">=90% one color" in note for note in row["notes"]),
             f"missing blank-board reason in {row['notes']}",
         )
+
+    def test_bitmap_blank_share_in_the_old_gap_is_downgraded(self):
+        # A blank board with a few stale pixels sat between 0.90 and 0.98
+        # dominant share and slipped past the old 0.98 bound; every
+        # committed playing capture is <=0.7113, so the bound is 0.90.
+        pixels = [24, 16, 12] * 9500 + [230, 230, 230] * 500
+        png = make_rgb_png(100, 100, pixels)
+        transcript = b"\x1b[1;1HVIDEO  sixel\r\n" + b" " * 200
+        run_dir = make_run_dir(
+            os.path.join(self.tmp, "run-blank-gap"),
+            screenshot_name="playing.png",
+            create_png=png,
+            transcript=transcript,
+            checkpoint="playing",
+        )
+        evidence = os.path.join(self.tmp, "evidence-blank-gap")
+        proc = run_collect(run_dir, evidence, "--result", "pass",
+                           "--tier", "sixel")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            row = json.load(fh)
+        self.assertEqual(row["disposition"], "partial")
+        playing = next(p for p in row["phases"] if p["name"] == "playing")
+        self.assertEqual(playing["dominant_share"], 0.95)
+        self.assertTrue(
+            any(">=90% one color" in note for note in row["notes"]),
+            f"missing blank-board reason in {row['notes']}",
+        )
+
+    def test_bitmap_share_below_the_new_bound_stays_pass(self):
+        # The negative twin of the new bound: a playing capture just
+        # below 0.90 is not a blank board and stays pass.
+        pixels = [24, 16, 12] * 8999 + [230, 230, 230] * 1001
+        png = make_rgb_png(100, 100, pixels)
+        transcript = b"\x1b[1;1HVIDEO  sixel\r\n" + b" " * 200
+        run_dir = make_run_dir(
+            os.path.join(self.tmp, "run-share-below"),
+            screenshot_name="playing.png",
+            create_png=png,
+            transcript=transcript,
+            checkpoint="playing",
+        )
+        evidence = os.path.join(self.tmp, "evidence-share-below")
+        proc = run_collect(run_dir, evidence, "--result", "pass",
+                           "--tier", "sixel")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            row = json.load(fh)
+        self.assertEqual(row["disposition"], "pass")
+        playing = next(p for p in row["phases"] if p["name"] == "playing")
+        self.assertEqual(playing["dominant_share"], 0.8999)
 
     def test_kitty_paused_media_with_menu_capture_stays_pass(self):
         # A paused capture with no sprite pixels and >=90% one color is
@@ -1099,6 +1134,70 @@ class TestCollectorHonestyGates(unittest.TestCase):
         self.assertEqual(row["disposition"], "partial")
         paused = next(p for p in row["phases"] if p["name"] == "paused")
         self.assertEqual(paused["dominant_share"], 0.8999)
+
+    def test_kitty_pass_without_a_paused_checkpoint_is_downgraded(self):
+        # The fixed session always takes the paused checkpoint, so a
+        # kitty-graphics phase list without one means the pause-surface
+        # claim (the board is released for the text menu) was never
+        # checked; the pass downgrades instead of silently skipping the
+        # gate.
+        transcript = (
+            b"\x1b[?2026h\x1b[2J\x1b_Ga=d\x1b\\"
+            b"\x1b_Ga=p,i=3,p=1,x=0,y=0,w=1120,h=1240,"
+            b"c=140,r=62,z=0,C=1,q=2\x1b\\\x1b[?2026l"
+            b"\x1b[1;1HVIDEO  kitty-graphics\r\n"
+        )
+        png = make_rgb_png(
+            100, 100,
+            [24, 16, 12] * 5000 + [230, 230, 230] * 4999 + [255, 225, 130],
+        )
+        run_dir = make_run_dir(
+            os.path.join(self.tmp, "run-no-paused"),
+            screenshot_name="playing.png",
+            create_png=png,
+            transcript=transcript,
+            checkpoint="playing",
+        )
+        evidence = os.path.join(self.tmp, "evidence-no-paused")
+        proc = run_collect(run_dir, evidence, "--result", "pass",
+                           "--tier", "kitty")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            row = json.load(fh)
+        self.assertEqual(row["disposition"], "partial")
+        self.assertFalse(
+            any(p["name"] == "paused" for p in row["phases"]),
+            "fixture unexpectedly carries a paused phase",
+        )
+        self.assertTrue(
+            any("expected exactly one" in note for note in row["notes"]),
+            f"missing paused-coverage reason in {row['notes']}",
+        )
+
+    def test_kitty_pass_with_extra_paused_checkpoints_is_downgraded(self):
+        # The fixed session takes exactly one paused checkpoint; a phase
+        # list with two is not the recorded session shape the pause
+        # verdict was designed around, so it fails closed too.
+        row = self._kitty_paused_row(
+            make_rgb_png(
+                100, 100, [24, 16, 12] * 9000 + [230, 230, 230] * 1000
+            ),
+            paused_events=(
+                "200\tcheckpoint\tpaused\t200\t"
+                "session/screenshots/paused.png\n"
+                "250\tcheckpoint\tpaused\t200\t"
+                "session/screenshots/paused.png\n"
+            ),
+        )
+        self.assertEqual(row["disposition"], "partial")
+        self.assertEqual(
+            sum(1 for p in row["phases"] if p["name"] == "paused"), 2
+        )
+        self.assertTrue(
+            any("expected exactly one" in note for note in row["notes"]),
+            f"missing paused-count reason in {row['notes']}",
+        )
 
 
 class TestProbeGraphicsArguments(unittest.TestCase):
