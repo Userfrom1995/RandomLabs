@@ -491,12 +491,18 @@ done
 # GH_TOKEN / GATE_EVENT / GATE_ACTOR / GATE_LABEL mappings, invoke the
 # shared script on an anchored `run:` line, wire the agent step and every
 # post-gate side-effect step on its output, and give the verify step the
-# terminal third outcome behind its pinned `if: always()` activation. The
-# step list is explicit (not a count) and matched against full
-# `      - name: ` lines: a renamed or newly inserted side-effect step must
-# be added to the list by the author, a substring-preserving rename of a
-# listed step trips the rule (its extracted block comes back empty), and a
-# dropped gate condition on any listed step trips the rule.
+# terminal third outcome behind its pinned `if: always()` activation. Every
+# pinned line is anchored whole-line (per-key anchored count `= 1` plus the
+# exact pinned value for the gate `id`, mappings, and script run; `grep -qxF`
+# for the verify env mapping, third-outcome conditional, and denial notice),
+# so a commented-out, duplicated, or substring-preserving decoy line can
+# never satisfy a pin (PR #698 rounds 2-3). The step list is explicit and
+# matched against full `      - name: ` lines: a substring-preserving rename
+# of a listed step trips the rule (its extracted block comes back empty),
+# and a dropped gate condition on any listed step trips the rule. The list
+# is backed by a generic sweep: every step block that reaches the owner PAT
+# must carry the exact gate condition, so a newly inserted ungated
+# PAT-touching step trips the rule even before its author extends the list.
 r12_main_steps=(
   "Remove maintainer stray PRs and branches (the Maintainer never opens PRs)"
   "Emergency-gated commit and push of workflow model updates to main"
@@ -530,11 +536,24 @@ else
     ' "$r12_main_wf"
   }
   r12_main_gate_block=$(r12_main_block "Actor write gate (issue #428)")
+  r12_main_gate_key_count() {
+    printf '%s\n' "$r12_main_gate_block" | grep -cE "^$1" || true
+  }
+  # Each gate key must appear EXACTLY once (PR #698 round 3, observation 1):
+  # an exact-value count alone misses a duplicated key carrying a different
+  # value (a second `GATE_EVENT: schedule`), so the anchored key count and
+  # the exact-value line are pinned together.
+  [ "$(r12_main_gate_key_count '        id:')" = "1" ] || r12_bad="${r12_bad} maintainer.yml(gate-id-key-count)"
   printf '%s\n' "$r12_main_gate_block" | grep -qxF '        id: actor_gate' || r12_bad="${r12_bad} maintainer.yml(gate-no-id)"
+  [ "$(r12_main_gate_key_count '          GH_TOKEN:')" = "1" ] || r12_bad="${r12_bad} maintainer.yml(gate-token-key-count)"
   printf '%s\n' "$r12_main_gate_block" | grep -qxF '          GH_TOKEN: ${{ github.token }}' || r12_bad="${r12_bad} maintainer.yml(gate-no-token-mapping)"
+  [ "$(r12_main_gate_key_count '          GATE_EVENT:')" = "1" ] || r12_bad="${r12_bad} maintainer.yml(gate-event-key-count)"
   printf '%s\n' "$r12_main_gate_block" | grep -qxF '          GATE_EVENT: ${{ github.event_name }}' || r12_bad="${r12_bad} maintainer.yml(gate-no-event-mapping)"
+  [ "$(r12_main_gate_key_count '          GATE_ACTOR:')" = "1" ] || r12_bad="${r12_bad} maintainer.yml(gate-actor-key-count)"
   printf '%s\n' "$r12_main_gate_block" | grep -qxF '          GATE_ACTOR: ${{ github.actor }}' || r12_bad="${r12_bad} maintainer.yml(gate-no-actor-mapping)"
+  [ "$(r12_main_gate_key_count '          GATE_LABEL:')" = "1" ] || r12_bad="${r12_bad} maintainer.yml(gate-label-key-count)"
   printf '%s\n' "$r12_main_gate_block" | grep -qxF '          GATE_LABEL: maintainer' || r12_bad="${r12_bad} maintainer.yml(gate-no-label-mapping)"
+  [ "$(r12_main_gate_key_count '        run:')" = "1" ] || r12_bad="${r12_bad} maintainer.yml(gate-run-key-count)"
   printf '%s\n' "$r12_main_gate_block" | grep -qxF '        run: bash .github/scripts/actor-write-gate.sh' || r12_bad="${r12_bad} maintainer.yml(no-gate-script-run)"
   r12_agent_block=$(r12_main_block "Run Maintainer agent")
   if [ "$(printf '%s\n' "$r12_agent_block" | grep -cE '^[[:space:]]*if:' || true)" != "1" ] \
@@ -562,6 +581,19 @@ else
       r12_bad="${r12_bad} maintainer.yml(step-not-gated:$(printf '%s' "$r12_step" | cut -d' ' -f1-2))"
     fi
   done
+  # Generic PAT containment (PR #698 round 3, observation 2): the explicit
+  # list above cannot see a newly inserted side-effect step, so pin the
+  # stronger invariant directly: EVERY step block that reaches the owner PAT
+  # must carry the exact gate condition. An ungated PAT-touching step trips
+  # this even before its author extends the list.
+  r12_pat_ungated=""
+  while IFS= read -r r12_pat_name; do
+    r12_pat_block=$(r12_main_block "$r12_pat_name")
+    printf '%s\n' "$r12_pat_block" | grep -qF 'secrets.OPENCODE_PAT' || continue
+    printf '%s\n' "$r12_pat_block" | grep -qxF "        if: always() && steps.actor_gate.outputs.run == 'true'" \
+      || r12_pat_ungated="${r12_pat_ungated} [${r12_pat_name}]"
+  done < <(grep '^      - name: ' "$r12_main_wf" | sed 's/^      - name: //')
+  [ -z "$r12_pat_ungated" ] || r12_bad="${r12_bad} maintainer.yml(pat-step-ungated:${r12_pat_ungated})"
 fi
 if [ -z "$r12_bad" ]; then
   check "R12" "every opencode-run agent workflow (and the maintainer inline runner, issue #696) fails closed behind the shared actor-write gate: gate invoked, agent wired to the gate output, maintainer verify carries the terminal denial outcome, and every post-gate maintainer side-effect step is gated on the same output" "ok"
