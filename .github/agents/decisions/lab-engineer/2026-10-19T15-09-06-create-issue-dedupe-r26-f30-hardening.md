@@ -125,7 +125,7 @@ was still stronger than the self-tests:
   comment-split adjacent token (`"iss"` + `"ue"`), Python `\xNN`,
   `\uNNNN`, and octal escapes, and bytes literals.
 
-The correction in this round (see the round-17 decision note):
+The correction in this round (see the round-17 review findings on PR #670):
 `decode_literal_escapes` folds the Python escape spellings;
 `normalized_create_form` strips line comments before folding whitespace,
 quotes, and backslashes; `issue_create_in` folds container punctuation
@@ -135,6 +135,52 @@ directly, and the exact combined predicate over `_f29_red + _f30_red +
 _f31_red` (the seven F32 spellings). The contract text now states that
 precise contract rather than claiming that the same matrix exercises both
 layers. The round-16 note above is left intact as the historical record.
+
+Round-17 delegation ledger: the round-17 session died before writing its
+own decision file, so no subagent ledger for that session survives; the
+correction above was implemented and verified by the primary (26/0
+baseline, per-layer mutations of the escape/normalized/combined
+predicates, and the literal positive controls on PR #670). Skills: no
+skill fits (GitHub Actions lab audit infrastructure, not opencode
+workspace configuration).
+
+## Round-18 correction: F34/F35
+
+Round-18 review of PR #670 found two more literal spellings that escaped
+the R26 scan at 26 passed, 0 failed, plus an artifact finding:
+
+- **F34:** bash locale quoting (`$"gh" issue create`, `$"g"h`,
+  `gh $"iss"ue`, `gh issue $"cre"ate`) was folded nowhere. The fix adds
+  the locale-quote fold `re.sub(r'\$"([^"]*)"', r"\1", text)` to
+  `issue_create_in` and four `_f29_red` fixtures.
+- **F35:** Python `\N{NAME}` and `\U00000000` escapes (including behind an
+  `rf` prefix) were not decoded. `decode_literal_escapes` now decodes `\U`
+  and `\N{...}` (via `unicodedata.lookup` with a `KeyError` fallback), with
+  three `_f31_red` fixtures covering the plain named escape, the `rf`
+  prefixed form, and the `\U` form.
+- **F36:** this note's dangling "(see the round-17 decision note)"
+  parenthetical is replaced, the Round-17 correction gained the delegation
+  ledger line above, and this section records round 18.
+- **Round-18 adjacent-literal sibling (caught by this round's adversarial
+  verification, fixed alongside F34/F35):** a token split across adjacent
+  Python string literals that compile-time concatenation joins
+  (`["gh", "iss" "\x75e", "create"]`, `[f"g" f"\x68", f"issue",
+  f"create"]`, `[b"gh", b"iss" b"\x75e", b"create"]`) executed a real
+  create while both detector layers stayed green: the word scan split the
+  literals and the normalized layer ran on the raw, undecoded text. The
+  combined detector now normalizes the DECODED text, and
+  `normalized_create_form` folds `b`/`r`/`u`/`f` prefixes before removing
+  quotes and whitespace, so adjacent literals join into `issue`/`create`.
+  `_f30_red` gained direct f/b-prefix list fixtures and `_f31_red` gained
+  seven adjacent-literal fixtures.
+
+Verification: baseline 26/0; each of the locale, `\N`, and `\U` probes
+appended after `maintainer.yml:1263` fails `25 passed, 1 failed` with
+`issue-create-outside-handler:maintainer:22`; deleting the locale fold
+fails with `f29-selftest-missed`; deleting either escape decoder fails
+with `f31-combined-selftest-missed`; reverting the decode-before-normalize
+or the prefix fold fails the adjacent-literal fixtures. The handler stays
+untouched (maintainer.yml md5 `05e477fa6a503fbfeb44365d6d5950a9`).
 
 Refs #668.
 
