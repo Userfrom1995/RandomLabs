@@ -821,6 +821,26 @@ defense in depth. The three move escapes read 25 passed / 0 failed on
 `9b7a661a` and 24 passed / 1 failed with R15 the only failing rule after
 the fix.
 
+Review round 22 bound each verify's outcome source by identity (issue
+#653). Round 21 bound step-to-job containment but the verify's
+`AGENT_OUTCOME` expression was pinned by text alone: renaming the general
+agent step's `id` and handing `id: opencode` to the earlier
+always-succeeding git-config step kept the audit at 25 passed / 0 failed
+while the verify read the decoy's `success` outcome, so a failed general
+agent still concluded hollow-green (the exact #591 class the verify
+exists to close). The expression must now be a `steps.<id>.outcome`
+reference whose id resolves to exactly one step in the verify's own job,
+and that step must be the agent runner step itself: for the general arm
+the composite `Run opencode general agent` with its exact
+`uses: ./.github/actions/opencode-run`, `continue-on-error: true`,
+`timeout-minutes: 60`, and
+`if: steps.actor_gate.outputs.run == 'true'`; for the Maintainer,
+`maintainer_run` must resolve to the `Run Maintainer agent` step. The
+Tester's two-line escape read 25 passed / 0 failed on `ca0d9d5d` and
+24 passed / 1 failed with R15 the only failing rule after the fix; the
+decoy, duplicate-id, and missing-id classes and the self-tests for both
+arms were mutation-proven too.
+
 Accepted residuals of the #653 runtime (documented, not hardened): the
 TERM/KILL escalation targets the two captured PIDs, so after the 5-second
 grace a reused PID could be signalled and a hung `opencode` descendant can
