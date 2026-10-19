@@ -204,16 +204,17 @@ The dynamic-layout overhaul (#582), measured on the Linux build machine:
 
 ## 2026-10-18 (overhaul follow-up: tester round on #656)
 
-The Linux Tester's real-PTY round on the Phase 2 build returned three
+The Linux Tester's real-PTY round on the dynamic-layout build returned three
 blocking findings; all three are fixed with committed tests and the
 full gates re-run on the Linux build machine:
 
 - `cargo test --workspace --no-fail-fast` (desktop E2E under Xvfb):
-  444 passed, 0 failed across 45 test binaries plus 7 doc-test suites.
+  446 passed, 0 failed across 46 test binaries plus 7 doc-test suites.
 - `cargo run --release --bin maze-chase-verify`: 19/19 checks, the
   golden replay digest unchanged (`23c17f89734e`).
 - `cargo fmt --all --check` clean; clippy reports only the pre-existing
-  engine lints.
+  warnings from `main` (the engine style lints plus the design-token
+  test's suggestion lints), none from this branch's files.
 - Solver (F1): the full 1..8 x 1..4 scale grid is scanned and picked
   coverage-first (ties: squareness, chrome, area, width); goldens
   200x60 -> 7x1 band and 62x80 -> 2x2 band are pinned, and a
