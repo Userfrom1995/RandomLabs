@@ -782,6 +782,27 @@ override. All five escapes read 25 passed / 0 failed on `25e9eb40` and
 defense-in-depth shell, timeout, working-directory, and extra-env checks
 were mutation-proven too.
 
+Review round 20 bound the verify steps' enclosing jobs and workflows
+(issue #653). Round 19 bound the steps but left their enclosing jobs
+free, so five one-line mutations kept the audit at 25 passed / 0 failed:
+a job-level `continue-on-error: true` on either verify job (the run
+concludes success while the verify still exits 1, so the `workflow_run`
+failure triage never fires), a job-level `if: false` on either job (the
+whole tick is skipped green with nothing posted), and a job-level
+`defaults.run.shell` override on the general job (the general verify is
+deliberately required to carry no step shell, so the job default would
+execute its body as `true <path>`, exiting 0 without running it). Both
+verify jobs are now bound structurally: their exact parsed `if` scalars
+(the shipped `|` block scalars with the trailing newline included, 588
+and 2919 chars at this head), `runs-on: ubuntu-latest`,
+`timeout-minutes: 75`, the exact key set, and the absence of
+`continue-on-error`/`defaults`/`env`; neither workflow may carry
+workflow-level `defaults` or `env`. The five reviewer escapes read
+25 passed / 0 failed on `be1b109c` and 24 passed / 1 failed with R15 the
+only failing rule after the fix, and the defense-in-depth `runs-on`,
+`timeout-minutes`, job `env`, workflow `defaults`, workflow `env`, and
+extra-job-key checks were mutation-proven too.
+
 Accepted residuals of the #653 runtime (documented, not hardened): the
 TERM/KILL escalation targets the two captured PIDs, so after the 5-second
 grace a reused PID could be signalled and a hung `opencode` descendant can
