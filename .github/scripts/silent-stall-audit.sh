@@ -60,17 +60,24 @@
 # keep-both day-log semantics, loud diagnostics, and a loud red give-up that
 # prints the recoverable bundle, enforced by a functional sandbox executing
 # the real step against a local bare-repo origin with injected push
-# rejections and concurrent tip advance), and the R24 per-OS arm cap-headroom
+# rejections and concurrent tip advance), the R24 per-OS arm cap-headroom
 # and partial-report salvage guard (issue #692: the macOS arm died at its
 # 90-minute agent-step cap with zero artifacts and no partial report
 # survived, so every arm's agent cap must leave real headroom under its job
 # cap and the macOS/Windows arms must salvage a signed partial report through
 # the strict shared poster behind a provenance banner while the fail-closed
-# verify still concludes the run red).
-# Wired into auditor.yml as the R1-R24 matrix.
+# verify still concludes the run red), and the R25 lab/fix agent cap-headroom
+# guard (issue #701: after the per-OS arms were fixed, the lab arm's
+# 90-minute cap under a 120-minute job killed lab rounds 18 on #654 and 14 on
+# #670, and the fix arm's 60-minute cap under a 120-minute job killed three
+# consecutive fix sessions on #693, all with no decision file and nothing
+# pushed, so the lab arm now runs 150 minutes under a 180-minute job and the
+# fix arm 120 under 180, each leaving at least 20 minutes of post-agent
+# headroom for the verify/push/forward chain).
+# Wired into auditor.yml as the R1-R25 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R24 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R25 audit the whole tree
 # (the review-restore guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
@@ -79,8 +86,9 @@
 # argv-conversion guard, the per-OS findings-report contract, the
 # review-comment publication-evidence guard, the paginated
 # comment-read guard, the PAT merge approval binding, the tester
-# verdict publication contract, and the maintainer memory publish
-# concurrency contract), so they trip on a
+# verdict publication contract, the maintainer memory publish
+# concurrency contract, and the lab/fix agent cap-headroom contract), so they
+# trip on a
 # bad curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml/peros arm no
 # matter which file the audit was pointed at.
 # Exit code is always 0 so it never breaks the auditor run; failures are reported
@@ -109,12 +117,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R24 PASS] $name: $desc"
+  [R1-R25 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R24 FAIL] $name: $desc"
+  [R1-R25 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -4316,16 +4324,111 @@ else
   check "R24" "per-OS cap headroom or partial-report salvage missing:${r24_bad} (issue #692: a 90-minute agent cap under a 120-minute job left no artifacts after a cap death)" "bad"
 fi
 
-summary="Silent-stall regression audit (R1-R24) on ${WF}: ${pass} passed, ${fail} failed."
+# [R25] Lab and fix agent cap headroom (issue #701): after issue #692 fixed
+# the per-OS arms, the lab and fix arms still ran near-wire caps and lost
+# near-complete work three times in one morning. Lab round 18 on #654 (run
+# 39208513680) and round 14 on #670 (run 39212805887) both died at the
+# 90-minute lab agent cap under the 120-minute job with no decision file, and
+# three consecutive fix sessions on #693 (runs 39203327749, 39203442325,
+# 39208619311) died at the 60-minute fix agent cap with the edits nearly
+# complete and unpushed; in every case the fail-closed verify correctly
+# refused to publish partial state and the runner discarded the session.
+# Properties:
+#   1. the lab arm's agent-step cap is at least 150 minutes under a job cap
+#      of at least 180 minutes;
+#   2. the fix arm's agent-step cap is at least 120 minutes under a job cap
+#      of at least 180 minutes;
+#   3. each agent step leaves at least 20 minutes of headroom under its job
+#      cap, so the post-agent chain (verify, strip, push, forward) still runs
+#      after a worst-case cap death.
+# The rule extracts the real job block and the canonical step block from
+# each workflow file and fails loudly when a cap is missing, non-numeric, or
+# lowered. Escape classes found in adversarial verification are closed:
+#   - the job key must be unique in its file (a duplicate job key decoy is
+#     already invalid YAML for Actions, but the check keeps the extraction
+#     truthful);
+#   - the canonical step name must be unique in its file, and inside the job
+#     it must be the unique `uses: ./.github/actions/opencode-run` invocation,
+#     so renaming the real agent step and planting a dummy canonical-named
+#     step with a compliant timeout cannot satisfy the rule (
+#     a decoy-step bypass found in verification);
+#   - only a canonical decimal literal with no leading zeros and at most
+#     four digits is accepted, so quoted/anchor forms and octal-looking
+#     `0150` cannot pass as a 150;
+#   - the job-block terminator matches the full Actions job-id charset, so a
+#     following job with an uppercase id cannot be swallowed into the block;
+#   - an optional trailing YAML comment after the digits is tolerated (the
+#     established style keeps comments above the key, but this costs
+#     nothing).
+r25_bad=""
+wf_job_block() {
+  awk -v job="  $2:" '
+    $0 == job { inblk = 1 }
+    inblk && /^  [A-Za-z0-9_-]+:$/ && $0 != job { exit }
+    inblk { print }
+  ' "$1" 2>/dev/null || true
+}
+r25_check_arm() {
+  local wf="$1" job="$2" step="$3" agent_min="$4" job_min="$5" tag="$6"
+  local block step_block job_cap agent_cap step_count key_count uses_count
+  if [ ! -f "$wf" ]; then
+    r25_bad="${r25_bad} ${tag}(file-missing:${wf})"
+    return
+  fi
+  key_count=$(grep -cxF -- "  ${job}:" "$wf" || true)
+  [ "$key_count" -eq 1 ] || r25_bad="${r25_bad} ${tag}(job-key-count=${key_count},want=1)"
+  block=$(wf_job_block "$wf" "$job")
+  if [ -z "$block" ]; then
+    r25_bad="${r25_bad} ${tag}(job-missing:${job})"
+    return
+  fi
+  step_count=$(grep -cF -- "      - name: ${step}" "$wf" || true)
+  [ "$step_count" -eq 1 ] || r25_bad="${r25_bad} ${tag}(agent-step-count=${step_count},want=1)"
+  uses_count=$(printf '%s\n' "$block" | grep -cF -- "uses: ./.github/actions/opencode-run" || true)
+  [ "$uses_count" -eq 1 ] || r25_bad="${r25_bad} ${tag}(agent-uses-count=${uses_count},want=1)"
+  step_block=$(printf '%s\n' "$block" | awk -v tag="      - name: ${step}" '
+    $0 == tag { s=1; print; next }
+    s && $0 ~ /^      - / { exit }
+    s { print }')
+  printf '%s\n' "$step_block" | grep -qF -- "uses: ./.github/actions/opencode-run" || r25_bad="${r25_bad} ${tag}(canonical-step-not-the-runner)"
+  job_cap=$(printf '%s\n' "$block" | sed -n 's/^    timeout-minutes:[[:space:]]*\([0-9][0-9]*\)[[:space:]]*\(#.*\)\{0,1\}$/\1/p' | head -n1)
+  agent_cap=$(printf '%s\n' "$step_block" | awk '
+    $0 ~ /^        timeout-minutes:/ {
+      sub(/^        timeout-minutes:[[:space:]]*/, "")
+      sub(/[[:space:]]*#.*$/, "")
+      print
+      exit
+    }')
+  printf '%s' "$job_cap" | grep -qE '^[1-9][0-9]{0,3}$' || r25_bad="${r25_bad} ${tag}(job-cap-invalid='${job_cap:-missing}')"
+  printf '%s' "$agent_cap" | grep -qE '^[1-9][0-9]{0,3}$' || r25_bad="${r25_bad} ${tag}(agent-cap-invalid='${agent_cap:-missing}')"
+  if printf '%s' "$job_cap" | grep -qE '^[1-9][0-9]{0,3}$' && printf '%s' "$agent_cap" | grep -qE '^[1-9][0-9]{0,3}$'; then
+    [ "$agent_cap" -ge "$agent_min" ] || r25_bad="${r25_bad} ${tag}(agent-cap=${agent_cap},want>=${agent_min})"
+    [ "$job_cap" -ge "$job_min" ] || r25_bad="${r25_bad} ${tag}(job-cap=${job_cap},want>=${job_min})"
+    [ "$job_cap" -ge $((agent_cap + 20)) ] || r25_bad="${r25_bad} ${tag}(headroom=$((job_cap - agent_cap))min,want>=20)"
+  fi
+}
+OPENCODE_WF="$(dirname "$WF")/opencode.yml"
+if [ ! -f "$OPENCODE_WF" ] && [ -f ".github/workflows/opencode.yml" ]; then
+  OPENCODE_WF=".github/workflows/opencode.yml"
+fi
+r25_check_arm "$LAB_WF" "lab" "Run opencode lab engineer agent" 150 180 "lab"
+r25_check_arm "$OPENCODE_WF" "fix" "Run opencode fix agent" 120 180 "fix"
+if [ -z "$r25_bad" ]; then
+  check "R25" "the lab agent cap is >= 150 minutes under a job cap >= 180 and the fix agent cap is >= 120 under a job cap >= 180, each leaving >= 20 minutes of post-agent headroom for the verify/strip/push/forward chain; the job key is unique, the canonical agent step is unique file-wide and is the job's single opencode-run invocation, and caps are canonical decimal literals (no quotes, anchors, or leading zeros) (issue #701)" "ok"
+else
+  check "R25" "lab/fix cap headroom missing:${r25_bad} (issue #701: a 90-minute lab cap under 120 and a 60-minute fix cap under 120 discarded near-complete sessions at the wire)" "bad"
+fi
+
+summary="Silent-stall regression audit (R1-R25) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R24)
+  body="## Silent-stall regression audit FAILED (R1-R25)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier retry, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, or R24 per-OS cap headroom and partial-report salvage). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier retry, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, or R25 lab/fix agent cap headroom). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
