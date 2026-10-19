@@ -21,23 +21,25 @@ did not execute.
 
 ## Executed rows (Linux, harness on this build)
 
-Rows refreshed on 2026-10-19 exercise the render pipeline: live
-capability probes, atlas plus placements, wall-clock pacing, and
-DEFLATE PNG transmits. Rows dated 2026-10-18 were executed by the same
-harness against the preceding build and are kept because their paths
-did not change (forced cell and Sixel tiers); every quoted number
-re-derives from the named JSON.
+All rows were refreshed on 2026-10-19 against the current build (the
+round that gave placements explicit `z` stacking layers), so every
+number below re-derives from the named JSON and uses true binary units
+(KiB = 1024 B, MiB = 1024^2 B). The kitty-graphics `pass` rows also
+carry a sprite-palette census per capture (`sprite_census` in each
+phase, `sprite_visibility.playing_captures_with_sprites` at the top
+level); the collector now refuses to sign a kitty-graphics `pass`
+without a playing capture containing sprite pixels.
 
 | terminal | version | tier requested | tier observed | disposition | notes | evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| kitty | 0.32.2 | auto | kitty-graphics | pass | full session, clean exit; 1.76 MiB transcript. The playing phase ran 99 frames in 4.77 s (20.7 fps) with 17 static/atlas transmits (131 KiB payload), 528 placements and 502 deletes; mean frame 5.7 KiB, max 14.3 KiB. For the whole session: 23 transmits / 174 KiB PNG payload | `kitty-linux-auto.json` |
-| kitty (forced cells) | 0.32.2 | truecolor | truecolor-cells | pass | full session, clean exit, pause and menus work (16.9 MiB transcript) | `kitty-linux-truecolor.json` |
-| Ghostty | 1.3.1 | auto | kitty-graphics | pass | full session, clean exit; 1.47 MiB transcript. Ghostty 1.3.1 does not answer graphics probe commands, so the auto path identifies it by `TERM_PROGRAM=ghostty` and paints pixels directly; playing 107 frames in 4.83 s (22.2 fps), 17 transmits / 157 KiB, 552 placements | `ghostty-linux-auto.json` |
-| Ghostty (forced kitty) | 1.3.1 | kitty | kitty-graphics | pass | full session, clean exit; 23 transmits / 192 KiB for the session, playing 22.2 fps at a 5.9 KiB mean frame. The forced row confirms the environment identification is not masking a capability gap | `ghostty-linux-kitty.json` |
-| xterm | 390 | auto | legacy-cells | partial | full session and clean exit, but on the default light background the cream chrome text is invisible: 7 of its 10 captures are >=98% white and the row was downgraded with the list recorded (`light_background_captures`). The bounded Kitty probe is visible in this row (1x1 transmit plus cleanup) and correctly falls through to cells | `xterm-linux-auto.json` |
-| xterm (dark background) | 390, `-bg black -fg white` | auto | legacy-cells | pass | full session, clean exit; proves the light-row fault is the palette, not the layout | `xterm-dark-linux-auto.json` |
-| xterm (VT340 mode, forced) | 390, `-ti vt340 -bg black -fg white` | sixel | sixel | pass | 143 Sixel transmits / 3.75 MiB payload (~26.8 KiB per transmit); the playing checkpoint ran at 18.8 fps (495 KiB/s average); full session | `xterm-linux-sixel.json` |
-| xterm (VT340 mode, auto) | 390, `-ti vt340 -bg black -fg white` | auto | sixel | pass | the DA1 probe answered and the game upgraded itself from legacy-cells to sixel (`tier_requested=auto`); full session; this is the row that exercises the Sixel probe path | `xterm-vt340-linux-auto.json` |
+| kitty | 0.32.2 | auto | kitty-graphics | pass | full session, clean exit; 1.62 MiB transcript. The playing phase ran 98 frames in 4.72 s (20.7 fps) with 17 static/atlas transmits (128.2 KiB payload), 528 placements and 502 deletes; mean frame 5.6 KiB, max 14.0 KiB; its capture carries 166 sprite-palette pixels. For the whole session: 23 transmits / 170.0 KiB PNG payload | `kitty-linux-auto.json` |
+| kitty (forced cells) | 0.32.2 | truecolor | truecolor-cells | pass | full session, clean exit, pause and menus work (6.14 MiB transcript) | `kitty-linux-truecolor.json` |
+| Ghostty | 1.3.1 | auto | kitty-graphics | pass | full session, clean exit; 1.35 MiB transcript. `TERM_PROGRAM=ghostty` proves capability, so this row skips the probe (its trace carries no probe record); playing 99 frames in 4.69 s (21.1 fps), 17 transmits / 153.3 KiB, 526 placements and 500 deletes; mean frame 5.9 KiB, max 16.3 KiB. The playing capture carries 528 sprite-palette pixels, so sprites render on the terminal that used to hide them | `ghostty-linux-auto.json` |
+| Ghostty (forced kitty) | 1.3.1 | kitty | kitty-graphics | pass | full session, clean exit; 1.34 MiB transcript. 23 transmits / 187.2 KiB for the session, playing 99 frames in 4.70 s (21.1 fps) at a 5.9 KiB mean frame; the playing capture census is 536 sprite pixels. The forced row confirms the environment identification is not masking a capability gap | `ghostty-linux-kitty.json` |
+| xterm | 390 | auto | legacy-cells | partial | full session and clean exit, but on the default light background the cream chrome text is invisible: 6 of its 10 captures are >=98% white and the row was downgraded with the list recorded (`light_background_captures`). The bounded Kitty probe is visible in this row (1x1 transmit plus cleanup) and correctly falls through to cells | `xterm-linux-auto.json` |
+| xterm (dark background) | 390, `-bg black -fg white` | auto | legacy-cells | pass | full session, clean exit; proves the light-row fault is the palette, not the layout (4.25 MiB transcript) | `xterm-dark-linux-auto.json` |
+| xterm (VT340 mode, forced) | 390, `-ti vt340 -bg black -fg white` | sixel | sixel | pass | 146 Sixel transmits / 3.66 MiB payload (26,291 B per transmit, 25.7 KiB); the playing checkpoint ran at 19.1 fps (491.2 KiB/s average); full session. The playing capture census is 52 sprite pixels, so the Sixel path renders sprites too | `xterm-linux-sixel.json` |
+| xterm (VT340 mode, auto) | 390, `-ti vt340 -bg black -fg white` | auto | sixel | pass | the DA1 probe answered and the game upgraded itself from legacy-cells to sixel (`tier_requested=auto`); full session (145 Sixel transmits / 3.64 MiB); the Kitty probe is sent first (its 1x1 transmit plus cleanup appear in this row's kitty totals) and the session still upgrades through Sixel, so this is the row that exercises the Sixel probe path | `xterm-vt340-linux-auto.json` |
 
 ## Rows awaiting their host
 
@@ -54,26 +56,33 @@ re-derives from the named JSON.
 
 - `kitty-graphics` is fully playable on a real Kitty and Ghostty. The
   static board and sprite atlas transmit once per change, placements
-  carry every moving sprite, and steady transmits are silent (`q=2`),
-  so replies cannot spin the input loop. Both rows exit cleanly.
-  Measured cost is 23 transmits and under 200 KiB of PNG payload per
+  carry every moving sprite with explicit `z` stacking layers, and
+  steady transmits are silent (`q=2`), so replies cannot spin the input
+  loop. Both rows exit cleanly, and their playing captures prove sprite
+  visibility by census (no equal-z tie-break can hide the atlas).
+  Measured cost is 23 transmits and 170.0-187.2 KiB of PNG payload per
   session, against 1642 transmits and 348.6 MiB before the render
   pipeline phase.
 - `sixel` is fully playable on a real Sixel terminal. The encoder caps
   its palette at 64 colors and a frame at 2 MiB (with a smaller-palette
   retry and a cell fallback), and the tier paces at 24 Hz with
-  byte-rate backpressure. A whole session is 143 transmits / 3.75 MiB.
+  byte-rate backpressure. A whole session is 146 transmits / 3.66 MiB.
 - `legacy-cells` and `truecolor-cells` are fully playable on every
   executed cell row (kitty forced cells, xterm dark).
 - Ghostty is no longer a detection defect: its 1.3.1 build implements
-  the Kitty graphics protocol but never answers graphics probe
-  commands, so `TERM_PROGRAM=ghostty` and `TERM=xterm-ghostty` select
-  the graphics path directly, and the watchdog still degrades on real
-  protocol errors. Both its auto and forced rows pass.
+  the Kitty graphics protocol and answers the live probe when one is
+  sent (a direct pty experiment with the game's exact probe request,
+  `../tools/compat/probe-graphics.py`, 2026-10-19, recorded both
+  replies); `TERM_PROGRAM=ghostty` and `TERM=xterm-ghostty` select the
+  graphics path directly and skip the probe on those rows. The watchdog
+  watches the frame write path (steady transmits are silent by design),
+  so a terminal that silently mis-composites cannot be detected; that
+  is why placements carry explicit stacking layers instead of relying
+  on tie-breaking. Both its auto and forced rows pass.
 - Light-background terminals remain a palette defect: the committed
-  light xterm row lists seven >=98% white captures (the cream chrome
-  text is unreadable on white), while the dark row at the same size
-  renders and exits cleanly.
+  light xterm row lists six >=98% white captures (the cream chrome text
+  is unreadable on white), while the dark row at the same size renders
+  and exits cleanly.
 
 The measured floor is 62 columns by 35 rows (the too-small card names
 it); below that the game keeps running and re-fits live on the next

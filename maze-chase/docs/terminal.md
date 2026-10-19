@@ -81,19 +81,20 @@ The game picks the best tier its terminal proves, best first:
     gate, house, crumbs) and the transparent sprite atlas are
     transmitted with real DEFLATE PNG (`a=t`) once per change, then each
     frame moves per-entity placements (`a=p`, source rectangles, stable
-    placement ids) over them; a full-frame transmit is the fallback when
-    the bounded live probe reports no placement support. Steady
-    transmits are silent (`q=2`) so `OK` replies can never spin the
-    event loop, and protocol errors feed the watchdog. The tier engages
+    placement ids, explicit `z` stacking layers) over them; a full-frame
+    transmit is the fallback when the bounded live probe reports no
+    placement support. Steady transmits are silent (`q=2`) so `OK`
+    replies can never spin the event loop; the probe's answers feed the
+    tier choice and frame write failures feed the watchdog. The tier engages
     on positive environment proof (`KITTY_WINDOW_ID`,
     `TERM=xterm-kitty`, `TERM_PROGRAM=kitty|ghostty`,
     `TERM=xterm-ghostty`) or when the live probe answers on an
     unidentifiable terminal; keys typed during the probe are replayed,
     never swallowed. Kitty keyboard enhancement is enabled for
     disambiguated input. Measured on kitty 0.32.2 (2026-10-19): 23
-    transmits and 174 KiB of PNG payload for a whole session, playing at
-    20.7 frames/s with a 5.7 KiB mean frame (before this pipeline: 1642
-    transmits and 348.6 MiB).
+    transmits and 170.0 KiB of PNG payload for a whole session, playing
+    at 20.7 frames/s with a 5.6 KiB mean frame (before this pipeline:
+    1642 transmits and 348.6 MiB).
 2. **sixel**: true pixels through a hand-rolled Sixel encoder (palette
    registers, six-row bands, run-length rows). The palette is capped at
    64 colors and a frame at 2 MiB (smaller-palette retry, then a cell
@@ -102,7 +103,7 @@ The game picks the best tier its terminal proves, best first:
    budget, then the game starts regardless, and keys typed while the
    probe waits are replayed, never swallowed), or via `--tier sixel` on
    known Sixel terminals (foot, contour, mlterm, Sixel-build xterm).
-   Measured on xterm 390: 143 transmits / 3.75 MiB per session.
+   Measured on xterm 390: 146 transmits / 3.66 MiB per session.
 3. **truecolor-cells**: 24-bit Unicode board (solid-block walls, dotted
    crumbs, letter wardens in theme colors, facing Pip mouth) with
    synchronized tear-free frames. The WezTerm, foot-fallback, iTerm2,
@@ -116,16 +117,24 @@ The game picks the best tier its terminal proves, best first:
 
 A watchdog drops one tier per failure burst (3 strikes) and records
 why; the title screen shows the active tier and the downgrade trail,
-so a fallback is always explained, never silent. The help screen's
-video line always names the tier in use.
+so a fallback is always explained, never silent. In steady state it
+watches the output path: a terminal that stops accepting frame writes
+triggers the downgrade. It cannot see a terminal silently
+mis-compositing placements, which is why every placement carries an
+explicit `z` stacking layer instead of relying on equal-z tie-breaking.
+The help screen's video line always names the tier in use.
 
-Ghostty note: Ghostty 1.3.1 implements the Kitty graphics protocol but
-does not answer graphics probe commands, so auto-detect identifies it
-from `TERM_PROGRAM=ghostty` / `TERM=xterm-ghostty` and paints pixels by
-default. Both the auto and forced rows pass on Ghostty 1.3.1
+Ghostty note: Ghostty 1.3.1 implements the Kitty graphics protocol and
+answers the live probe when one is sent: a direct pty experiment with
+the game's exact probe request (`tools/compat/probe-graphics.py`,
+2026-10-19) recorded both replies (`i=..;OK` and `i=..,p=..;OK`).
+Because `TERM_PROGRAM=ghostty` / `TERM=xterm-ghostty` already prove the
+capability, the auto and forced rows select the graphics path from the
+environment without probing (their traces carry no probe record, a
+fast path rather than a capability gap). Both rows pass on Ghostty
+1.3.1 with sprite visibility proven by the capture census
 (`../tools/compat/evidence/ghostty-linux-auto.json` and
-`ghostty-linux-kitty.json`); the watchdog still degrades if the
-protocol fails at runtime.
+`ghostty-linux-kitty.json`).
 
 ## Layout and resize
 
