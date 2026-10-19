@@ -381,7 +381,7 @@ impl Session {
     /// bounded deadline makes a genuinely stalled frame stream a failure,
     /// never a hang.
     fn wait_displays(&mut self, rows: u32, cols: u32, want: usize, timeout: Duration) -> bool {
-        let needle = format!("\x1b_Ga=T,f=100,r={rows},c={cols},");
+        let needle = format!("\x1b_Ga=T,f=100,r={rows},c={cols},i=1,");
         let needle = needle.as_bytes();
         let deadline = Instant::now() + timeout;
         let mut found = 0usize;
@@ -817,9 +817,9 @@ fn live_wide_room_animates_and_steers_without_footprint_drift() {
                 .unwrap_or_else(|| panic!("missing {key} in {params:?}"))
         };
         assert_eq!(
-            (get("r="), get("c=")),
-            (31, 196),
-            "a display escape drifted off the pinned 7x1 footprint"
+            (get("r="), get("c="), get("i=")),
+            (31, 196, 1),
+            "a display escape drifted off the pinned 7x1 footprint or image id"
         );
         from = end;
     }
