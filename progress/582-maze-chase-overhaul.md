@@ -48,30 +48,33 @@ plan, probe answers, per-frame mode and counts, encode time, and skips
 for the harness.
 
 Measured on this build (all eight Linux rows regenerated 2026-10-19
-from the release binary built at `97e8865d`, binary SHA-256
-`b5a38ee755f956f92704855f4dad8f1df842625b216e326f6ad9e2c339d629ea`,
+from the release binary built at `15b387c8`, binary SHA-256
+`cfa761c0c08bf287e395a5ed5af4ea300d880177f149f5476b35330decd3b682`,
 Rust sources clean; every row records that identity in its own `build`
 block): kitty 0.32.2 observes
 `kitty-graphics` and passes the full session at 21 transmits /
 156.1 KiB of PNG payload (the pre-pipeline flood is a historical 1642
-transmits / 348.6 MiB, killed), playing 98 frames in 4.76 s (20.6 fps)
-at a 5.5 KiB mean frame; Ghostty 1.3.1 passes both rows at 21 /
-160.1 KiB, playing 21.6-22.0 fps at a 5.5 KiB mean frame, and its
-playing captures carry 402-412 sprite-palette pixels (the earlier
+transmits / 348.6 MiB, killed), playing 97 frames in 4.71 s (20.6 fps)
+at a 6.0 KiB mean frame; Ghostty 1.3.1 passes both rows at 21 /
+160.1 KiB, playing 20.9-21.2 fps at a 6.1 KiB mean frame, and its
+playing captures carry 402 sprite-palette pixels (the earlier
 build hid every sprite behind the board on Ghostty: zero sprite
 pixels, cause of the explicit-z fix); xterm 390 in VT340 mode passes
 at 141 sixel transmits / 3.41 MiB; the default-background xterm row
-remains partial only because its light palette leaves 7 of 10 captures
->=98% white. The pause surface now releases the kitty board and atlas
-before painting its text menu (collect.py refuses a kitty `pass` when
-the paused capture still carries sprite pixels), and bitmap capture
-gates reject a playing/resized/refit surface that is >=98% one color;
-on every bitmap tier a `pass` with no decodable playing capture is
-refused, and the forced-tier rows record `pause_select: 1` so the
-second row of an emulator never commits a byte-identical paused
-capture. The Ghostty probe claim now cites committed raw reply
-captures (`maze-chase/tools/compat/probe-captures/`) with the exact
-commands and hashes.
+now passes too: every painted run carries the theme's background
+explicitly, so its worst capture is 6.2% white and the playing capture
+is 1.7% (the former 7-of-10 >=98% white defect is pinned by a Unicode
+backend regression test). The pause surface releases the kitty board
+and atlas before painting its text menu (collect.py refuses a kitty
+`pass` when the paused capture still carries sprite pixels, or when
+the phase list does not carry exactly one paused checkpoint), and
+bitmap capture gates reject a playing/resized/refit surface that is
+>=90% one color; on every bitmap tier a `pass` with no decodable
+playing capture is refused, and the forced-tier rows record
+`pause_select: 1` so the second row of an emulator never commits a
+byte-identical paused capture. The Ghostty probe claim cites committed
+raw reply captures (`maze-chase/tools/compat/probe-captures/`) with
+the exact commands and hashes.
 Workspace tests pass, `maze-chase-verify` 19/19 with golden
 `23c17f89734e` intact. The macOS matrix rows are the one open Phase 3
 item and stay with the per-OS testers. Next: Phase 4 (visual identity
@@ -861,4 +864,66 @@ redesign), gated on the Design Council's direction.
   kitty-graphics. Primary context applied the edits, ran the suite and
   py_compile, and verified the diff scope (five files). No registry
   skill matched the round; none loaded.
+  - the Fixer
+- 2026-10-19 (fixer, Quality Council round on PR #693): applied the
+  council's five findings (QC-1 blocking, QC-2 to QC-5) on top of
+  `4bef9697`; no rebuttal. QC-1: every painted run now carries the
+  theme's own background (the cell tiers no longer suppress a
+  background escape equal to the theme bg), so the legacy-cells path
+  renders the Ember Warren canvas on terminals with a light default;
+  the light xterm row re-derives at 1.7% white in its playing capture
+  (6.2% at worst) and now passes, and a Unicode regression test pins
+  the emitted `48;2;r;g;b` and ANSI-40 escapes. QC-2: the terminal
+  graph states the truth (the title screen always names the tier, the
+  wide side panel carries a `VIDEO` line, the narrow top bar and the
+  menus do not), and the design ladder rule says the painter carries
+  the theme background explicitly. QC-3: the sixel budget in
+  `design.md` and `design-tokens.json` is restated from the committed
+  VT340 rows (20.9 KiB mean and 25.3 KiB peak per playing transmit;
+  the forced row ran 89 transmits in 4.61 s at 19.3 fps, 404 KiB/s;
+  31.3 KiB mean per transmit through the resize phases) with the
+  shipped backpressure contract (24 Hz target, 1.5x smoothed write
+  cost, doubled above an 8 MiB/s flood, 200 ms cap, 2 MiB per-frame
+  encoder budget with smaller-palette retry then a cell fallback),
+  replacing the stale 13.7 KiB / 12 Hz / 512 KiB/s / 83.3 ms
+  estimates that no code implemented. QC-4: `collect.py` now requires
+  exactly one paused checkpoint for a kitty-graphics `pass` (zero or
+  two or more downgrades to partial with the count in the note) and
+  lowers the blank-board bound from 98% to 90% one color; contract
+  tests pin both gate shapes and the suite is 47/47. QC-5: the help
+  scroll is clamped to the body length minus the viewport
+  (`help_scroll_max`), both at render and in the app state on every
+  Help key in the catch-all screen arm plus every resize, so Down can
+  no longer push the panel past its last line; unit tests cover
+  saturation, immediate Up response, and max-equals-render equality.
+  Evidence: all eight Linux rows were regenerated at `15b387c8`
+  (binary SHA-256
+  `cfa761c0c08bf287e395a5ed5af4ea300d880177f149f5476b35330decd3b682`,
+  sources clean) and every row passes, with no duplicate paused
+  captures; the compatibility matrix, terminal graph, design ladder,
+  sixel budget, and tokens all re-derive from those bundles (a later
+  formatting-only commit, `d7a410cf`, collapses one long call and
+  changes no behavior, so the bundles keep naming the exact build
+  they ran on). Gates on the final tree: 57 suites, 494 passed /
+  0 failed; `maze-chase-verify` 19/19 with golden `23c17f89734e`;
+  harness contract 47/47; fmt clean; zero clippy warnings in every
+  file touched by this round. Delegation ledger (round 12): three
+  read-only `general` subagents fanned out. The numeric auditor
+  re-derived every quoted figure from the eight bundles (zero
+  mismatches across the build identity, per-row notes, budget
+  paragraphs, and token fields; all 80 screenshot hashes match and
+  the 8 paused captures are pairwise distinct). The adversarial
+  verifier ran all five gates and falsified all three fixes
+  behaviorally (54 of 54 QC-1 escape checks across the themes with no
+  counterexample after a targeted scratch harness; QC-5
+  max-equals-render equality plus the saturation tests; real
+  collector runs against synthetic directories downgrading the
+  0-paused, 2-paused, and 0.95-dominant shapes while 0.8999 passes),
+  and it surfaced the one fmt failure, which landed as `d7a410cf`.
+  The forensic auditor checked bundle identity, dispositions, pause
+  uniqueness, light/dark capture equivalence (content pixel-equal
+  after cropping the 2-pixel window frame), diff scope, and the
+  em-dash scan; its two wording flags (the help video-line sentence
+  and the plural sixel-row attribution) were corrected in the docs
+  before commit. No registry skill matched the round; none loaded.
   - the Fixer
