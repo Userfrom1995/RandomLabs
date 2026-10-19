@@ -16,8 +16,11 @@ review rounds and exercised live by the Tester:
   transmit, not just the first 4096-byte chunk;
 - the committed evidence bundle stays internally consistent: per-phase
   bytes reconcile with the transcript total, every cited screenshot
-  exists with its recorded sha256 and dimensions, and no committed
-  ``events.log`` carries the runner's scratch paths.
+  exists with its recorded sha256 and dimensions, no committed
+  ``events.log`` carries the runner's scratch paths, and every row
+  records its generating build (commit, binary sha256, clean sources);
+- a bitmap-tier (kitty-graphics/sixel) ``pass`` requires a decodable
+  playing capture, so a menu-only capture set can never sign one.
 
 Run from the repository root (no third-party dependencies):
 
@@ -70,25 +73,25 @@ def sha256_file(path):
 
 
 def make_run_dir(root, *, screenshot_name="title.png", create_png=None,
-                 transcript=b"", checkpoint="title"):
+                 transcript=b"", checkpoint="title", meta_extra=None):
     """Build a minimal run directory shaped like drive.sh's output."""
     session = os.path.join(root, "session")
     shots = os.path.join(session, "screenshots")
     os.makedirs(shots, exist_ok=True)
+    meta = {
+        "emulator_version": "test",
+        "arch": "x86_64",
+        "transcript": "session/pty.log",
+        "geometry": {},
+        "extra_env": [],
+        "runner": {"host": "test", "id": "compat-harness"},
+        "exit": {"code": 0, "killed": False, "game_exited": True,
+                 "process_exited": True},
+    }
+    if meta_extra:
+        meta.update(meta_extra)
     with open(os.path.join(session, "meta.json"), "w", encoding="utf-8") as fh:
-        json.dump(
-            {
-                "emulator_version": "test",
-                "arch": "x86_64",
-                "transcript": "session/pty.log",
-                "geometry": {},
-                "extra_env": [],
-                "runner": {"host": "test", "id": "compat-harness"},
-                "exit": {"code": 0, "killed": False, "game_exited": True,
-                         "process_exited": True},
-            },
-            fh,
-        )
+        json.dump(meta, fh)
     with open(os.path.join(session, "events.log"), "w", encoding="utf-8") as fh:
         fh.write(f"100\tcheckpoint\t{checkpoint}\t{len(transcript)}\t"
                  f"session/screenshots/{screenshot_name}\n")
@@ -407,6 +410,101 @@ class TestCollectorHonestyGates(unittest.TestCase):
         playing = next(p for p in row["phases"] if p["name"] == "playing")
         self.assertEqual(playing["sprite_census"]["by_color"]["pip"], 1)
 
+
+    def test_bitmap_pass_without_a_playing_capture_is_downgraded(self):
+        # A kitty-graphics or sixel pass whose only decodable captures
+        # are static menus must not sign a clean pass: the blank-board
+        # and sprite gates only inspect captures that exist, so the
+        # playing surface itself has to be on record.
+        for tier_name, transcript in (
+            ("kitty",
+             b"\x1b[?2026h\x1b[2J\x1b[?2026l\x1b[1;1HVIDEO  kitty-graphics\r\n"),
+            ("sixel",
+             b"\x1b[?2026h\x1b[2J\x1b[?2026l\x1b[1;1HVIDEO  sixel\r\n"),
+        ):
+            run_dir = make_run_dir(
+                os.path.join(self.tmp, f"run-{tier_name}"),
+                screenshot_name="title.png",
+                create_png=make_rgb_png(2, 2, [24, 16, 12] * 4),
+                transcript=transcript,
+                checkpoint="title",
+            )
+            evidence = os.path.join(self.tmp, f"evidence-{tier_name}")
+            proc = run_collect(run_dir, evidence, "--result", "pass",
+                               "--tier", tier_name)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            with open(os.path.join(evidence, "unit-test-row.json"),
+                      encoding="utf-8") as fh:
+                row = json.load(fh)
+            self.assertEqual(
+                row["disposition"], "partial",
+                f"{tier_name}: a pass without a playing capture must downgrade",
+            )
+            self.assertTrue(
+                any("no decodable playing capture" in note
+                    for note in row["notes"]),
+                f"{tier_name}: missing playing-capture reason in {row['notes']}",
+            )
+
+    def test_bitmap_pass_with_a_playing_capture_stays_pass(self):
+        # The same shape with the playing capture present stays pass: the
+        # gate requires the playing surface, not every checkpoint.
+        run_dir = make_run_dir(
+            os.path.join(self.tmp, "run-playing"),
+            screenshot_name="playing.png",
+            create_png=make_rgb_png(2, 2, [24, 16, 12] * 3 + [255, 225, 130]),
+            transcript=(
+                b"\x1b[?2026h\x1b[2J\x1b_Ga=p,i=3,p=1,x=0,y=0,w=1120,h=1240,"
+                b"c=140,r=62,z=0,C=1,q=2\x1b\\\x1b[?2026l"
+                b"\x1b[1;1HVIDEO  kitty-graphics\r\n"
+            ),
+            checkpoint="playing",
+        )
+        evidence = os.path.join(self.tmp, "evidence-playing")
+        proc = run_collect(run_dir, evidence, "--result", "pass",
+                           "--tier", "kitty")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            row = json.load(fh)
+        self.assertEqual(row["disposition"], "pass")
+
+    def test_rows_record_their_generating_build(self):
+        # Provenance: the bundle carries the run metadata's build
+        # identity (commit, binary hash, dirty flag), never an implied one.
+        run_dir = make_run_dir(
+            os.path.join(self.tmp, "run-build"),
+            meta_extra={
+                "build": {
+                    "commit": "0" * 40,
+                    "commit_short": "000000000000",
+                    "binary_sha256": "a" * 64,
+                    "sources_dirty": False,
+                },
+            },
+        )
+        evidence = os.path.join(self.tmp, "evidence-build")
+        proc = run_collect(run_dir, evidence, "--result", "partial")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            row = json.load(fh)
+        self.assertEqual(row["build"]["commit"], "0" * 40)
+        self.assertEqual(row["build"]["binary_sha256"], "a" * 64)
+        self.assertFalse(row["build"]["sources_dirty"])
+
+    def test_rows_without_build_identity_say_so(self):
+        # A pre-identity metadata block records `recorded: false` with the
+        # reason instead of leaving provenance to inference.
+        run_dir = make_run_dir(os.path.join(self.tmp, "run-nobuild"))
+        evidence = os.path.join(self.tmp, "evidence-nobuild")
+        proc = run_collect(run_dir, evidence, "--result", "partial")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            row = json.load(fh)
+        self.assertIs(row["build"]["recorded"], False)
+        self.assertTrue(row["build"]["reason"])
 
     def test_dominant_share_detects_one_flat_color(self):
         # The sixel `resized-wide` checkpoint was a single flat
@@ -907,6 +1005,38 @@ class TestCommittedEvidenceBundle(unittest.TestCase):
             )
             checked += 1
         self.assertGreater(checked, 0)
+
+    def test_every_committed_row_records_its_generating_build(self):
+        # Provenance: a committed bundle must name the commit, the exact
+        # release binary hash, and that the Rust sources were clean, so a
+        # row can never silently imply the current head generated it.
+        checked = 0
+        for path in self.rows():
+            with open(path, encoding="utf-8") as fh:
+                row = json.load(fh)
+            build = row.get("build")
+            self.assertIsInstance(
+                build, dict,
+                f"{os.path.basename(path)}: bundle carries no build block",
+            )
+            self.assertIsNot(
+                build.get("recorded"), False,
+                f"{os.path.basename(path)}: bundle records no generating build",
+            )
+            self.assertRegex(
+                build.get("commit", ""), r"^[0-9a-f]{40}$",
+                f"{os.path.basename(path)}: bad build.commit",
+            )
+            self.assertRegex(
+                build.get("binary_sha256", ""), r"^[0-9a-f]{64}$",
+                f"{os.path.basename(path)}: bad build.binary_sha256",
+            )
+            self.assertIs(
+                build.get("sources_dirty"), False,
+                f"{os.path.basename(path)}: generating Rust sources were dirty",
+            )
+            checked += 1
+        self.assertGreaterEqual(checked, 8)
 
     def test_events_logs_carry_no_scratch_paths(self):
         for root, _dirs, files in os.walk(EVIDENCE_DIR):

@@ -19,6 +19,13 @@
 #   Paused: Down then Confirm on "Quit to title" -> Title;
 #   Title: Down/Confirm walks Help, Scores, Settings then Quit.
 # Esc must never be pressed while on the Title screen (that quits).
+# With `--pause-select 1` the paused checkpoint is captured after moving
+# the menu cursor to "Quit to title" (the forced-tier rows use it: the
+# pause panel is deterministic text, so two rows of the same emulator
+# would otherwise commit byte-identical pause captures); the extra Down
+# key is recorded in events.log like every other key. `--build-commit`,
+# `--binary-sha256`, and `--sources-dirty` record the generating build
+# identity in the run metadata (run-linux.sh fills them in).
 #
 # Window resizes are only exercised by the X11 driver (xdotool can set
 # exact window sizes). The macOS Aqua driver cannot resize Terminal.app
@@ -46,6 +53,10 @@ KEY_DELAY=0.16
 RESIZE_SETTLE=1.4
 STEP_SETTLE=0.8
 GAME_PID_FILE=""
+PAUSE_SELECT=0
+BUILD_COMMIT=""
+BINARY_SHA256=""
+SOURCES_DIRTY="unknown"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -63,6 +74,10 @@ while [ $# -gt 0 ]; do
     --game-pid-file) GAME_PID_FILE="$2"; shift 2 ;;
     --transcript) TRANSCRIPT="$2"; shift 2 ;;
     --boot-seconds) BOOT_SECONDS="$2"; shift 2 ;;
+    --pause-select) PAUSE_SELECT="$2"; shift 2 ;;
+    --build-commit) BUILD_COMMIT="$2"; shift 2 ;;
+    --binary-sha256) BINARY_SHA256="$2"; shift 2 ;;
+    --sources-dirty) SOURCES_DIRTY="$2"; shift 2 ;;
     -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     *) echo "drive.sh: unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -71,6 +86,14 @@ done
 [ -n "$DRIVER" ] || { echo "drive.sh: --driver is required" >&2; exit 2; }
 [ -n "$LAUNCH" ] || { echo "drive.sh: --launch is required" >&2; exit 2; }
 [ -n "$OUTDIR" ] || { echo "drive.sh: --outdir is required" >&2; exit 2; }
+case "$PAUSE_SELECT" in
+  0|1) ;;
+  *) echo "drive.sh: --pause-select must be 0 or 1 (the pause menu has two items and the session must still leave via Quit to title)" >&2; exit 2 ;;
+esac
+case "$SOURCES_DIRTY" in
+  true|false|unknown) ;;
+  *) echo "drive.sh: --sources-dirty must be true, false, or unknown" >&2; exit 2 ;;
+esac
 
 # Resolve --outdir to an absolute path on entry: the transcript path is
 # recorded in meta.json for collect.py, which resolves relative transcript
@@ -374,11 +397,26 @@ if [ "$DRIVER" != "none" ]; then
   # Pause from Playing (Esc = Back = pause) and prove the pause surface.
   key Escape
   sleep_s "$STEP_SETTLE"
+  if [ "$PAUSE_SELECT" -gt 0 ]; then
+    # The paused panel is deterministic text, so two rows of the same
+    # emulator would otherwise commit byte-identical pause captures
+    # (not independent visual evidence). Moving the menu cursor to
+    # "Quit to title" first keeps this row's pause capture
+    # independently rendered; the key order is recorded in events.log
+    # like every other event.
+    key Down
+    sleep_s "$STEP_SETTLE"
+    log_event note "pause capture taken with the menu cursor on \"Quit to title\"" ""
+  fi
   checkpoint paused
 
   # Pause menu: cursor starts on Resume (0); one Down selects
-  # "Quit to title", Confirm returns to the Title screen.
-  key Down
+  # "Quit to title", Confirm returns to the Title screen. When the
+  # cursor was already moved for the paused capture, only Confirm
+  # remains.
+  if [ "$PAUSE_SELECT" -eq 0 ]; then
+    key Down
+  fi
   key Return
   sleep_s "$STEP_SETTLE"
   checkpoint title-return
@@ -499,6 +537,17 @@ if [ "$RESIZE_SUPPORTED" = "true" ]; then
     '{initial: {px_w: $px_w, px_h: $px_h}, resizes: $resizes, cell_px: {w: $cell_w, h: $cell_h}}')"
 fi
 
+BUILD_JSON="null"
+if [ -n "$BUILD_COMMIT" ] || [ -n "$BINARY_SHA256" ]; then
+  BUILD_JSON="$(jq -n \
+    --arg commit "$BUILD_COMMIT" \
+    --arg commit_short "${BUILD_COMMIT:0:12}" \
+    --arg sha "$BINARY_SHA256" \
+    --arg dirty "$SOURCES_DIRTY" \
+    '{commit: $commit, commit_short: $commit_short,
+      binary_sha256: $sha, sources_dirty: ($dirty == "true")}')"
+fi
+
 jq -n \
   --arg emulator "$EMULATOR" \
   --arg emulator_version "$EMULATOR_VERSION" \
@@ -518,6 +567,8 @@ jq -n \
   --argjson small_cols "$RESIZE_SMALL_COLS" \
   --argjson small_rows "$RESIZE_SMALL_ROWS" \
   --argjson measured "$MEASURED_JSON" \
+  --argjson build "$BUILD_JSON" \
+  --argjson pause_select "$PAUSE_SELECT" \
   --argjson resize_exercised "$([ "$RESIZE_SUPPORTED" = true ] && echo true || echo false)" \
   --argjson started_ms "$STARTED_MS" \
   --argjson ended_ms "$ENDED_MS" \
@@ -533,6 +584,8 @@ jq -n \
     requested_tier: $tier,
     extra_env: $env,
     transcript: $transcript,
+    build: $build,
+    pause_select: $pause_select,
     runner: { host: $host, id: "compat-harness" },
     started_at: $started_at,
     ended_at: $ended_at,
