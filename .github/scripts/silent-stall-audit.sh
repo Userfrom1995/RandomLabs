@@ -489,18 +489,20 @@ done
 # maintainer.yml inline-runner parity (issue #696): the gate step must sit
 # IMMEDIATELY after checkout, carry the exact `id: actor_gate` and the
 # GH_TOKEN / GATE_EVENT / GATE_ACTOR / GATE_LABEL mappings, invoke the
-# shared script on an anchored `run:` line, and carry no `if:` /
-# `continue-on-error:` of its own (a conditional gate step or tolerated gate
-# failure silently disables every maintainer run); the agent step, the
-# verify step's activation and its entire denial branch, and every post-gate
+# shared script on an anchored `run:` line, keep `shell: bash`, and carry no
+# `if:` / `continue-on-error:` of its own (a conditional gate step, a
+# tolerated gate failure, or a non-bash shell silently disables every
+# maintainer run); the agent step, the verify step's activation and its
+# entire denial branch, and every post-gate
 # side-effect step are pinned. Every pinned line is anchored whole-line
 # (per-key anchored count `= 1` plus the exact pinned value for the gate
 # `id`, mappings, and script run; `grep -qxF` for the verify env mapping;
 # a byte-exact block comparison for the verify denial branch: conditional,
 # notice, `exit 0`, `fi`), so a commented-out, duplicated, re-valued, or
 # substring-preserving decoy line can never satisfy a pin (PR #698 rounds
-# 2-4). The verify step may not carry `continue-on-error:` (it would mute
-# the loud red for a gate-allowed crash), must keep the denial branch FIRST
+# 2-4). The verify step may not carry `continue-on-error:` in any YAML key
+# spelling (it would mute the loud red for a gate-allowed crash), must keep
+# `shell: bash`, must keep the denial branch FIRST
 # (an order swap feeds a denial into the loud red), and duplicate step
 # `- name:` headers are rejected outright because the name-keyed extraction
 # stops at the first match. The step list is explicit and matched against
@@ -536,7 +538,11 @@ done
 # so a branch keyed on any ambient Actions env var (an inserted
 # `[ -n "${GITHUB_EVENT_NAME:-}" ]` restored the hollow green in production
 # while the hermetic harness stayed green) fails by construction rather than
-# only when the harness happens to set that var. YAML indirection is banned
+# only when the harness happens to set that var. The executable lines are
+# ALSO pinned byte-exact (comments excluded, so prose stays editable), which
+# closes ambient context read WITHOUT a `$` expansion (`[ -d .git ]`,
+# `[ -d .github ]`, `env | grep GITHUB_SHA`, `pwd`) that the behavioral
+# harness cannot see (PR #698 round 7, finding 4). YAML indirection is banned
 # outright for the same reason: anchors/aliases can hide a key or the owner
 # PAT behind a name the text pins never see, `?` complex keys sidestep the
 # key regexes, and escape sequences (`\u002D`, `\x65`, `\u005F`) decode to
@@ -548,11 +554,14 @@ done
 # (`if :`, `"if":`, `continue-on-error :`) so whitespace or quoting cannot
 # smuggle a conditional gate past the pin (PR #698 round 5, finding 3). The
 # JOB itself may not carry continue-on-error nor a job-level `env:` (PR #698
-# rounds 6-7, finding 2 plus the round-7 job-key-order escape): a job-level
+# rounds 6-8, finding 2 plus the round-7 job-key-order and job-key-spelling
+# escapes): a job-level
 # tolerance mutes both the gate's deliberate red and the verify lane's loud
 # red for a gate-allowed crash, and a job-level env can leak the owner PAT to
-# every step through an env indirection; YAML key order is free, so the scan
-# covers the whole job block, not just the header before `steps:`.
+# every step through an env indirection. YAML key order is free, so the scan
+# covers the whole job block, not just the header before `steps:`; the
+# workflow has exactly one job, so the 4-space key scan runs over the whole
+# file, independent of the job key's spelling.
 r12_main_steps=(
   "Remove maintainer stray PRs and branches (the Maintainer never opens PRs)"
   "Emergency-gated commit and push of workflow model updates to main"
@@ -593,7 +602,7 @@ else
   r12_unnamed_steps=$(grep -nE '^      - ' "$r12_main_wf" | grep -vE '^[0-9]+:      - name: ' || true)
   [ -z "$r12_unnamed_steps" ] || r12_bad="${r12_bad} maintainer.yml(unnamed-step:$(printf '%s' "$r12_unnamed_steps" | tr '\n' ';'))"
   # The maintenance JOB itself may not tolerate failure nor carry a job-level
-  # `env:` (PR #698 rounds 6-7, blocking finding 2 plus the round-7 escapes):
+  # `env:` (PR #698 rounds 6-8, blocking finding 2 plus the round-7 escapes):
   # a job-level continue-on-error mutes the gate's deliberate red (an API
   # failure exits 1 with no `run=` output, which the verify step then reads as
   # a denial and exits 0) and the verify lane's loud red for a gate-allowed
@@ -601,14 +610,19 @@ else
   # every step through an env indirection (the line sits either before the
   # steps or after them, where the nearest-step attribution would blame a
   # gated step). YAML key order is free, so the job key may follow the whole
-  # `steps:` list: scan the entire job block up to the next 2-space job key,
-  # not just the header before `steps:`. Job keys are exactly 4-space
-  # indented, so step-level keys at 8+ spaces cannot false-positive.
-  r12_job_block=$(awk '/^  maintainer:$/{f=1;next} f && /^  [A-Za-z0-9_-]+:$/{exit} f{print}' "$r12_main_wf")
-  if printf '%s\n' "$r12_job_block" | grep -qE "^    [\"']?continue-on-error[\"']?[[:space:]]*:"; then
+  # `steps:` list. The start anchor is byte-exact job-key spelling, so
+  # YAML-equivalent spellings (`"maintainer":`, a trailing comment, trailing
+  # whitespace, `maintainer :`) emptied the extracted block and skipped both
+  # checks (PR #698 round 7, blocking finding 1). The workflow has exactly one
+  # job, so scan every 4-space job key in the whole file instead: the job-key
+  # spelling can no longer hide the block. A second job must scope this rule
+  # and add review. Job keys are exactly 4-space indented, so step-level keys
+  # at 8+ spaces cannot false-positive; quoted and whitespace-before-colon
+  # spellings are matched too.
+  if grep -qE "^    [\"']?continue-on-error[\"']?[[:space:]]*:" "$r12_main_wf"; then
     r12_bad="${r12_bad} maintainer.yml(job-continue-on-error)"
   fi
-  if printf '%s\n' "$r12_job_block" | grep -qE "^    [\"']?env[\"']?[[:space:]]*:"; then
+  if grep -qE "^    [\"']?env[\"']?[[:space:]]*:" "$r12_main_wf"; then
     r12_bad="${r12_bad} maintainer.yml(job-level-env)"
   fi
   # Workflow-level `env:` (column 0) applies to every step of every job just
@@ -659,6 +673,12 @@ else
   printf '%s\n' "$r12_main_gate_block" | grep -qxF '          GATE_LABEL: maintainer' || r12_bad="${r12_bad} maintainer.yml(gate-no-label-mapping)"
   [ "$(r12_main_gate_key_count '        run:')" = "1" ] || r12_bad="${r12_bad} maintainer.yml(gate-run-key-count)"
   printf '%s\n' "$r12_main_gate_block" | grep -qxF '        run: bash .github/scripts/actor-write-gate.sh' || r12_bad="${r12_bad} maintainer.yml(no-gate-script-run)"
+  # The step's shell is part of its activation (PR #698 round 7, blocking
+  # finding 3): `shell: "true {0}"` (or any non-bash shell) makes the gate
+  # exit 0 without running the script, so $GITHUB_OUTPUT never receives
+  # `run=` and every trigger becomes a silent green no-op.
+  [ "$(r12_main_gate_key_count '        shell:')" = "1" ] || r12_bad="${r12_bad} maintainer.yml(gate-shell-key-count)"
+  printf '%s\n' "$r12_main_gate_block" | grep -qxF '        shell: bash' || r12_bad="${r12_bad} maintainer.yml(gate-not-bash-shell)"
   # The gate step's OWN activation and failure tolerance are pinned too (PR
   # #698 round 4, blocking finding 1): an `if:` on the gate step would let it
   # never run ($GITHUB_OUTPUT never receives `run=`, every trigger becomes a
@@ -689,12 +709,20 @@ else
     # pinned, and the denial branch below is pinned byte-exact.
     [ "$(printf '%s\n' "$r12_verify_block" | grep -cE '^[[:space:]]*AGENT_GATE:' || true)" = "1" ] || r12_bad="${r12_bad} maintainer.yml(verify-gate-key-count)"
     printf '%s\n' "$r12_verify_block" | grep -qxF '          AGENT_GATE: ${{ steps.actor_gate.outputs.run }}' || r12_bad="${r12_bad} maintainer.yml(verify-no-gate-env)"
-    # The verify step may not tolerate failure either (PR #698 round 4,
+    # The verify step may not tolerate failure either (PR #698 rounds 4-7,
     # blocking finding 1): a `continue-on-error:` there mutes the loud red for
-    # a gate-allowed crash.
-    if printf '%s\n' "$r12_verify_block" | grep -qE '^[[:space:]]*continue-on-error:'; then
+    # a gate-allowed crash. The key match accepts YAML-equivalent spellings
+    # (whitespace before the colon, a quoted key), so `continue-on-error :`
+    # and `"continue-on-error":` cannot sneak past (PR #698 round 7,
+    # blocking finding 2).
+    if printf '%s\n' "$r12_verify_block" | grep -qE "^[[:space:]]*[\"']?continue-on-error[\"']?[[:space:]]*:"; then
       r12_bad="${r12_bad} maintainer.yml(verify-continue-on-error)"
     fi
+    # The verify step's shell is part of its activation (PR #698 round 7,
+    # blocking finding 3): a non-bash shell makes the body never execute, so a
+    # gate-allowed crash with no decision file concludes green.
+    [ "$(printf '%s\n' "$r12_verify_block" | grep -cE '^[[:space:]]*shell:' || true)" = "1" ] || r12_bad="${r12_bad} maintainer.yml(verify-shell-key-count)"
+    printf '%s\n' "$r12_verify_block" | grep -qxF '        shell: bash' || r12_bad="${r12_bad} maintainer.yml(verify-not-bash-shell)"
     # The denial branch is pinned byte-exact AND first (PR #698 round 4,
     # blocking finding 2): neither its `exit 0` nor its position was pinned,
     # so `exit 1` redded denials (issue #696's exact symptom) and a branch
@@ -775,6 +803,28 @@ else
     r12_case true absent 1 '::error::Maintainer agent finished' failure
     r12_case true absent 1 '::error::Maintainer agent finished' skipped
     r12_case true absent 1 '::error::Maintainer agent finished' cancelled
+    # Byte-exact code pin (PR #698 round 7, blocking finding 4): the
+    # behavioral harness runs hermetically, so it cannot see ambient context
+    # read without a `$` expansion (an inserted `[ -d .git ]`, `[ -d .github ]`,
+    # `env | grep GITHUB_SHA`, or `pwd` predicate restored the hollow green in
+    # production while the harness stayed green). Comments stay editable: the
+    # executable lines, comment and blank lines stripped, must equal the
+    # reviewed lane exactly.
+    r12_verify_code=$(printf '%s\n' "$r12_verify_run" | grep -vE '^[[:space:]]*#' | grep -vE '^[[:space:]]*$')
+    r12_verify_code_expected=$(cat <<'R12VERIFY'
+if [ "${AGENT_GATE:-}" != "true" ]; then
+  echo "::notice::Actor write gate skipped the Maintainer agent (issue #428): denial is not a crash - no agent run, no noise comment, no red, no self-heal, no /oc maintainer escalation."
+  exit 0
+fi
+if [ -f .maintainer/decision.json ]; then
+  echo "Maintainer decision contract present (outcome '$AGENT_OUTCOME')."
+  exit 0
+fi
+echo "::error::Maintainer agent finished with outcome '$AGENT_OUTCOME' and no .maintainer/decision.json (model-resolution death, provider error, or crash). Failing loudly instead of concluding green without triage."
+exit 1
+R12VERIFY
+)
+    [ "$r12_verify_code" = "$r12_verify_code_expected" ] || r12_bad="${r12_bad} maintainer.yml(verify-lane-code-changed)"
     rm -rf "$r12_vsbx"
   fi
   for r12_step in "${r12_main_steps[@]}"; do
@@ -822,7 +872,7 @@ else
   [ -z "$r12_pat_outside" ] || r12_bad="${r12_bad} maintainer.yml(pat-outside-step:${r12_pat_outside})"
 fi
 if [ -z "$r12_bad" ]; then
-  check "R12" "every opencode-run agent workflow (and the maintainer inline runner, issue #696) fails closed behind the shared actor-write gate: gate invoked, agent wired to the gate output, maintainer verify carries the terminal denial outcome and is executed across the full success/failure/cancelled/skipped outcome matrix with only AGENT_GATE/AGENT_OUTCOME readable (no other shell token, no backtick), every post-gate maintainer side-effect step is gated on the same output, every owner-PAT occurrence sits inside a gated step-indented line, no YAML anchor/alias/complex-key/escape indirection exists, and neither the gate, the verify step, nor the maintainer job (with no job- or workflow-level env) tolerates or bypasses failure" "ok"
+  check "R12" "every opencode-run agent workflow (and the maintainer inline runner, issue #696) fails closed behind the shared actor-write gate: gate invoked on bash, agent wired to the gate output, maintainer verify carries the terminal denial outcome and is executed across the full success/failure/cancelled/skipped outcome matrix with only AGENT_GATE/AGENT_OUTCOME readable (no other shell token, no backtick) and its executable code pinned byte-exact, every post-gate maintainer side-effect step is gated on the same output, every owner-PAT occurrence sits inside a gated step-indented line, no YAML anchor/alias/complex-key/escape indirection exists, and neither the gate, the verify step, nor the maintainer job (with no job- or workflow-level env) tolerates or bypasses failure under any YAML key spelling or non-bash shell" "ok"
 else
   check "R12" "actor-write gate coverage missing:${r12_bad} (issues #428/#696: an unprivileged comment can launch an agent and its owner-PAT retry launders the actor; a bot pull_request event reds the maintainer run and posts a noise comment)" "bad"
 fi
