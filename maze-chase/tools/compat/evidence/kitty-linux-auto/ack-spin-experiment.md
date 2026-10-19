@@ -66,10 +66,11 @@ reply bytes as input, which:
    times in the transcript recorded then), while the identical
    choreography on the identical kitty build forced to
    `MAZE_CHASE_TIER=truecolor` (no graphics traffic) painted its pause
-   surface early and exited cleanly. The regenerated committed rows
-   below refine that first reading: the keys do land, but hundreds of
-   megabytes behind, so the defect is delayed input behind the reply
-   backlog, not dead input.
+   surface early and exited cleanly. A later pre-fix capture refined
+   that first reading: the keys did land, but hundreds of megabytes
+   behind, so the defect was delayed input behind the reply backlog,
+   not dead input. The current committed rows below show that backlog
+   gone.
 
 ## Corroboration in the committed rows
 
@@ -81,15 +82,17 @@ from the committed rows and shows the fixed pipeline.
 
 | row | tier | pause paints (first byte) | exit | transcript | protocol traffic |
 | --- | --- | --- | --- | --- | --- |
-| kitty-linux-auto | kitty-graphics | 2 (1,523,932) | clean | 1.67 MiB, 21 kitty transmits |
-| kitty-linux-truecolor | truecolor-cells | 3 (8,296,555) | clean | 8.13 MiB, no graphics traffic |
-| ghostty-linux-kitty | kitty-graphics | 4 (1,322,005) | clean | 1.49 MiB, 21 kitty transmits |
-| xterm-linux-sixel | sixel | 3 (4,617,865) | clean | 4.60 MiB, 140 Sixel transmits |
+| kitty-linux-auto | kitty-graphics | 2 (1,523,932) | clean | 1.67 MiB | 21 kitty transmits |
+| kitty-linux-truecolor | truecolor-cells | 3 (8,296,555) | clean | 8.13 MiB | no graphics traffic |
+| ghostty-linux-kitty | kitty-graphics | 4 (1,322,005) | clean | 1.49 MiB | 21 kitty transmits |
+| xterm-linux-sixel | sixel | 3 (4,617,865) | clean | 4.60 MiB | 140 Sixel transmits |
 
-Every committed row now paints its pause surface early (inside the
-first 1.5 MiB on the kitty-graphics rows and inside the first 4.5 MiB on
-the Sixel row), walks every menu, and exits on its own. The kitty rows send 21 transmits, not 1642: the reply backlog that
-made input arrive hundreds of megabytes behind the keys is gone. The
-pre-fix figures are historical narrative only and are not re-derivable
-from the committed JSONs; the table is the document's only current
-numeric claim.
+Every committed row now reaches its pause surface (inside the first
+1.5 MiB on the kitty-graphics rows, inside the first 4.5 MiB on the
+Sixel row, and at 7.91 MiB on the cell-tier truecolor row), walks every
+menu, and exits on its own. The kitty-graphics rows send 21 transmits
+each, not 1642: the reply backlog that made input arrive hundreds of
+megabytes behind the keys is gone. The truecolor row sends no graphics
+traffic. The pre-fix figures are historical narrative only and are not
+re-derivable from the committed JSONs; the table is the document's only
+current numeric claim.
