@@ -445,3 +445,36 @@ this tree (the same count as before the fix), the three formerly
 hanging suites terminate (0.31 s / 0.98 s / 2.83 s), `cargo fmt --all
 --check` clean, clippy shows only main's pre-existing engine warnings.
 The macOS arm re-run verifies the portability on the real platform.
+
+## H. macOS arm second re-run on issue #656: live-goldens drain cadence (fixed)
+
+The macOS per-OS arm on the #700 merge (`ff66fff3`, run 39227343194)
+confirmed F1 and F2 from Section G fixed, and the product itself passed
+every check (Terminal.app and Ghostty sessions, PTY sweep identical to
+the Linux and Windows tables, `GAME_EXIT:0`). It filed one blocking
+artifact, F3, in `tester_layout_goldens_live` only; no production code
+changed.
+
+- F3 (fixed): `live_wide_room_animates_and_steers_without_footprint_drift`
+  collected output for a fixed 1500 ms with a collector that read 4 KiB
+  and then slept 20 ms. A 200x60 kitty board frame is about 230800 bytes,
+  and macOS PTY buffers are far smaller than Linux's, so the fixed slice
+  measured the harness cadence, not the product, and the `>= 5` display
+  count failed even though every display escape carried the correct
+  `r=31,c=196` 7x1 footprint. The soak now waits, bounded at 30 s, until
+  five pinned-footprint displays have actually arrived, and it drains
+  the non-blocking master with `poll` (no fixed sleep) at wire speed.
+  Matches are counted incrementally as bytes arrive (a straddling header
+  is counted exactly once on the call that completes it), so the hot
+  drain loop never re-scans the growing buffer. The drift check still
+  walks every observed display escape, the per-frame delete is still
+  asserted, and a header split across the capture tail is ignored rather
+  than false-panicked.
+
+Evidence on Linux: the goldens suite is 5/5 (the new
+`count_from_counts_straddled_needles_exactly_once` pins the incremental
+counter's split-boundary behavior), the animation soak settles in under
+a second of collection after the steering burst, and the full
+`cargo test -p maze-chase-terminal` run is 166 passed / 0 failed with
+fmt clean and no clippy warning from this file. The macOS arm re-runs
+the same suite on the fixed tree.
