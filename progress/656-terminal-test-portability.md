@@ -29,7 +29,8 @@
 
 ## Current step
 
-F1 committed; the F2 reap conversions for the eleven PTY harnesses are next.
+F1 committed and the seven `Drop` harnesses converted; the four probe/replay
+suites with loose kill sites are next.
 
 ## Next steps
 

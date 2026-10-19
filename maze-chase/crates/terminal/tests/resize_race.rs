@@ -133,6 +133,29 @@ fn drain(master: &mut std::fs::File, out: &mut Vec<u8>) {
     }
 }
 
+/// Reap a killed PTY child without ever blocking the suite.
+///
+/// A child SIGKILLed while blocked writing to a full PTY master stays
+/// unreapable on macOS until the pending write completes, so the old
+/// `kill(); wait()` dropped straight into a hung `Child::wait` (issue
+/// #656 macOS arm). Draining the non-blocking master lets the write
+/// finish and the kill land; the bounded loop can never hang a suite
+/// even if a platform never reaps.
+fn reap(child: &mut Child, master: &mut std::fs::File, out: &mut Vec<u8>) {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        drain(master, out);
+        match child.try_wait() {
+            Ok(Some(_)) | Err(_) => return,
+            Ok(None) => {}
+        }
+        if Instant::now() >= deadline {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
 /// Drain the PTY until `needle` appears in the accumulated output.
 fn wait_for(
     master: &mut std::fs::File,
@@ -245,7 +268,7 @@ impl Session {
 impl Drop for Session {
     fn drop(&mut self) {
         let _ = self.child.kill();
-        let _ = self.child.wait();
+        reap(&mut self.child, &mut self.pty.master, &mut self.out);
         let _ = std::fs::remove_dir_all(&self.dir);
     }
 }
