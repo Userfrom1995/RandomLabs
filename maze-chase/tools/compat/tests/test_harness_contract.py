@@ -689,6 +689,51 @@ class TestCollectorHonestyGates(unittest.TestCase):
             f"missing absent-capture pause reason in {row['notes']}",
         )
 
+    def test_kitty_paused_share_at_the_lower_bound_stays_pass(self):
+        # The accepted band is [90%, 100%): the narrowest acceptable menu
+        # panel is exactly 90% one color.
+        paused_png = make_rgb_png(
+            100, 100, [24, 16, 12] * 9000 + [230, 230, 230] * 1000
+        )
+        row = self._kitty_paused_row(
+            paused_png,
+            paused_events=("200\tcheckpoint\tpaused\t200\t"
+                           "session/screenshots/paused.png\n"),
+        )
+        self.assertEqual(row["disposition"], "pass")
+        paused = next(p for p in row["phases"] if p["name"] == "paused")
+        self.assertEqual(paused["dominant_share"], 0.9)
+
+    def test_kitty_paused_share_below_the_lower_bound_is_downgraded(self):
+        # 89.99% one color is a board, not a menu panel.
+        paused_png = make_rgb_png(
+            100, 100, [24, 16, 12] * 8999 + [230, 230, 230] * 1001
+        )
+        row = self._kitty_paused_row(
+            paused_png,
+            paused_events=("200\tcheckpoint\tpaused\t200\t"
+                           "session/screenshots/paused.png\n"),
+        )
+        self.assertEqual(row["disposition"], "partial")
+        paused = next(p for p in row["phases"] if p["name"] == "paused")
+        self.assertEqual(paused["dominant_share"], 0.8999)
+
+    def test_kitty_paused_share_rounding_cannot_cross_the_gate(self):
+        # A true 89.9975% share rounds up to 0.9000 at four decimals;
+        # the recorded share truncates downward, so it fails the gate
+        # instead of being accepted by a rounding artifact.
+        paused_png = make_rgb_png(
+            200, 200, [24, 16, 12] * 35999 + [230, 230, 230] * 4001
+        )
+        row = self._kitty_paused_row(
+            paused_png,
+            paused_events=("200\tcheckpoint\tpaused\t200\t"
+                           "session/screenshots/paused.png\n"),
+        )
+        self.assertEqual(row["disposition"], "partial")
+        paused = next(p for p in row["phases"] if p["name"] == "paused")
+        self.assertEqual(paused["dominant_share"], 0.8999)
+
 
 class TestProbeGraphicsArguments(unittest.TestCase):
     """The probe experiment must run under its documented invocation.

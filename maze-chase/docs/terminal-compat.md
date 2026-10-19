@@ -29,10 +29,10 @@ sprite-palette census per capture (`sprite_census` in each phase,
 `sprite_visibility.playing_captures_with_sprites` at the top level); the
 collector refuses to sign a kitty-graphics `pass` without a playing
 capture containing sprite pixels, and it refuses a paused capture that
-carries sprite pixels or is not a near-solid text panel (at least 90%
-and less than 100% one color). It also refuses a playing,
-resized, or refit capture that is >=98% one color on the bitmap tiers
-(a blank board).
+carries sprite pixels, has no decodable capture, or is not a near-solid
+text panel (at least 90% and less than 100% one color). It also refuses
+a playing, resized, or refit capture that is >=98% one color on the
+bitmap tiers (a blank board).
 
 | terminal | version | tier requested | tier observed | disposition | notes | evidence |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -71,8 +71,9 @@ resized, or refit capture that is >=98% one color on the bitmap tiers
   and 348.6 MiB, not re-derivable from the regenerated JSONs). The
   pause surface releases the board and atlas before
   painting its text menu, and the collector refuses a kitty `pass` whose
-  paused capture carries sprite pixels or is not a near-solid text
-  panel (at least 90% and less than 100% one color).
+  paused capture carries sprite pixels, has no decodable capture, or is
+  not a near-solid text panel (at least 90% and less than 100% one
+  color).
 - `sixel` is fully playable on a real Sixel terminal. The encoder caps
   its palette at 64 colors and a frame at 2 MiB (with a smaller-palette
   retry and a cell fallback), and the tier paces at 24 Hz with

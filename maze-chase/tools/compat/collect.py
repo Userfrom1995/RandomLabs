@@ -489,8 +489,9 @@ def dominant_share(decoded):
     `resized-wide` blank sixel checkpoint was 99.9% background), so the
     collector uses this alongside `white_share` to reject a blank board
     signed as a pass. Alpha is ignored for the same reason as in
-    `white_share`; unsupported formats report 0.0 and never trip the
-    gate by accident."""
+    `white_share`; a decodable format this function cannot classify
+    reports 1.0 (fail closed), so an unchecked capture is downgraded
+    instead of silently passing."""
     width = decoded["width"]
     height = decoded["height"]
     color = decoded["color_type"]
@@ -616,12 +617,19 @@ def screenshot_facts(path):
     if decoded is None:
         return None
     share = white_share(decoded)
+    dominant = dominant_share(decoded)
+    # Truncate the dominant share downward to four decimals: `round` can
+    # move a true 0.89996 up across the paused gate's 0.90 floor (a
+    # fail-open) and a true 0.97996 up across the blank-board gate's 0.98
+    # edge (a false downgrade). Truncating keeps both boundaries on the
+    # conservative side of the recorded value.
+    recorded_dominant = int(dominant * 10000 + 1e-6) / 10000.0
     return {
         "width": decoded["width"],
         "height": decoded["height"],
         "white_share": round(share, 4),
         "light_background": share >= 0.98,
-        "dominant_share": round(dominant_share(decoded), 4),
+        "dominant_share": recorded_dominant,
         "sprite_census": sprite_census(decoded),
     }
 
@@ -909,7 +917,7 @@ def main():
         paused_missing = []
         proven = []
         for phase in result["phases"]:
-            if str(phase.get("name", "")) != "paused":
+            if str(phase.get("name", "")).lower() != "paused":
                 continue
             kit = phase.get("kitty") or {}
             media = int(kit.get("transmits", 0)) + int(kit.get("placements", 0))
