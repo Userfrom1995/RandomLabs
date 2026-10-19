@@ -131,6 +131,67 @@ def make_rgb_png(width, height, pixels):
     )
 
 
+def _png_chunk(kind, payload):
+    import zlib
+
+    return (
+        len(payload).to_bytes(4, "big")
+        + kind
+        + payload
+        + (zlib.crc32(kind + payload) & 0xFFFFFFFF).to_bytes(4, "big")
+    )
+
+
+def make_gray_png(width, height, bit_depth, samples):
+    """A minimal grayscale PNG (color type 0) at bit depth 1/2/4/8."""
+    import struct
+    import zlib
+
+    mask = (1 << bit_depth) - 1
+    if len(samples) != width * height:
+        raise AssertionError("sample buffer size mismatch")
+    raw = bytearray()
+    for y in range(height):
+        raw.append(0)
+        if bit_depth == 8:
+            raw.extend(samples[y * width:(y + 1) * width])
+        else:
+            per_byte = 8 // bit_depth
+            for x0 in range(0, width, per_byte):
+                byte = 0
+                for slot in range(per_byte):
+                    x = x0 + slot
+                    if x >= width:
+                        break
+                    byte |= (samples[y * width + x] & mask) << (
+                        8 - bit_depth * (slot + 1)
+                    )
+                raw.append(byte)
+    return (
+        PNG_SIG
+        + _png_chunk(b"IHDR",
+                     struct.pack(">IIBBBBB", width, height, bit_depth, 0, 0, 0, 0))
+        + _png_chunk(b"IDAT", zlib.compress(bytes(raw)))
+        + _png_chunk(b"IEND", b"")
+    )
+
+
+def make_gray_alpha_png(width, height, gray, alpha=255):
+    """A minimal gray+alpha PNG (color type 4) from one flat gray value."""
+    import struct
+    import zlib
+
+    row = bytes([gray, alpha]) * width
+    raw = b"".join(b"\x00" + row for _ in range(height))
+    return (
+        PNG_SIG
+        + _png_chunk(b"IHDR",
+                     struct.pack(">IIBBBBB", width, height, 8, 4, 0, 0, 0))
+        + _png_chunk(b"IDAT", zlib.compress(raw))
+        + _png_chunk(b"IEND", b"")
+    )
+
+
 def run_collect(run_dir, evidence_dir, *extra):
     return subprocess.run(
         [sys.executable, COLLECT_PY, "--run-dir", run_dir,
@@ -338,6 +399,53 @@ class TestCollectorHonestyGates(unittest.TestCase):
         self.assertEqual(facts["dominant_share"], 1.0)
         self.assertLess(facts["white_share"], 0.98)
 
+    def test_dominant_share_classifies_all_decodable_grayscale_depths(self):
+        # Bit depths other than 8 used to return 0.0 ("not dominant"),
+        # so a blank grayscale capture bypassed the E4 gate.
+        collect = load_collect_module()
+        for bit in (1, 2, 4, 8):
+            path = os.path.join(self.tmp, f"flat-gray-{bit}.png")
+            with open(path, "wb") as fh:
+                fh.write(make_gray_png(8, 8, bit, [0] * 64))
+            facts = collect.screenshot_facts(path)
+            self.assertEqual(
+                facts["dominant_share"], 1.0,
+                f"{bit}-bit grayscale blank capture not classified",
+            )
+
+    def test_dominant_share_classifies_gray_alpha(self):
+        collect = load_collect_module()
+        path = os.path.join(self.tmp, "flat-gray-alpha.png")
+        with open(path, "wb") as fh:
+            fh.write(make_gray_alpha_png(8, 8, 24, alpha=0))
+        facts = collect.screenshot_facts(path)
+        self.assertEqual(facts["dominant_share"], 1.0)
+
+    def test_gray_alpha_blank_playing_capture_is_downgraded(self):
+        # A blank gray+alpha capture must trip the blank-board gate, not
+        # slip through as an unverifiable "not dominant" surface.
+        png = make_gray_alpha_png(100, 100, 24)
+        transcript = b"\x1b[1;1HVIDEO  sixel\r\n" + b" " * 200
+        run_dir = make_run_dir(
+            os.path.join(self.tmp, "run"),
+            screenshot_name="playing.png",
+            create_png=png,
+            transcript=transcript,
+            checkpoint="playing",
+        )
+        evidence = os.path.join(self.tmp, "evidence")
+        proc = run_collect(run_dir, evidence, "--result", "pass",
+                           "--tier", "sixel")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            row = json.load(fh)
+        self.assertEqual(row["disposition"], "partial")
+        self.assertTrue(
+            any(">=98% one color" in note for note in row["notes"]),
+            f"missing blank-board reason in {row['notes']}",
+        )
+
     def test_bitmap_blank_playing_capture_is_downgraded(self):
         # One sprite pixel cannot rescue a playing surface that is
         # otherwise one flat color: the board itself is blank.
@@ -479,9 +587,106 @@ class TestCollectorHonestyGates(unittest.TestCase):
             row = json.load(fh)
         self.assertEqual(row["disposition"], "partial")
         self.assertTrue(
-            any("paused phase still transmits or places" in note
-                for note in row["notes"]),
+            any("still carries sprite pixels or is not a near-solid menu panel"
+                in note for note in row["notes"]),
             f"missing pause-surface reason in {row['notes']}",
+        )
+
+    def _kitty_paused_row(self, paused_png, *, paused_events, playing_png=None):
+        """Shared shape for the capture-first paused-gate cases: a
+        playing slice with one board placement, then a paused slice."""
+        playing = (
+            b"\x1b[1;1HVIDEO  kitty-graphics\r\n"
+            b"\x1b_Ga=p,i=3,p=1,x=0,y=0,w=1120,h=1240,c=140,r=62,z=0,C=1,q=2\x1b\\"
+        )
+        paused = b"\x1b[1;1HPAUSED RESUME QUIT TO TITLE" + b" " * 200
+        transcript = playing + paused
+        if playing_png is None:
+            playing_png = make_rgb_png(
+                100, 100,
+                [24, 16, 12] * 5000 + [230, 230, 230] * 4999 + [255, 225, 130],
+            )
+        run_dir = make_run_dir(
+            os.path.join(self.tmp, "run"),
+            screenshot_name="playing.png",
+            create_png=playing_png,
+            transcript=transcript,
+            checkpoint="playing",
+        )
+        shots = os.path.join(run_dir, "session", "screenshots")
+        if paused_png is not None:
+            with open(os.path.join(shots, "paused.png"), "wb") as fh:
+                fh.write(paused_png)
+        with open(os.path.join(run_dir, "session", "events.log"),
+                  "w", encoding="utf-8") as fh:
+            fh.write(f"100\tcheckpoint\tplaying\t{len(playing)}\t"
+                     "session/screenshots/playing.png\n")
+            fh.write(paused_events)
+            fh.write(f"300\texit\texited=true killed=false\t"
+                     f"{len(transcript)}\t\n")
+        evidence = os.path.join(self.tmp, "evidence")
+        proc = run_collect(run_dir, evidence, "--result", "pass",
+                           "--tier", "kitty")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def test_kitty_paused_zero_media_but_sprite_capture_is_downgraded(self):
+        # A regression that keeps the previous playing frame's board
+        # composed emits no new transmit or placement in the paused
+        # slice; the media-first gate skipped it. The capture still
+        # carries a sprite pixel, so a pass is refused.
+        paused_png = make_rgb_png(
+            100, 100, [24, 16, 12] * 9999 + [255, 225, 130]
+        )
+        row = self._kitty_paused_row(
+            paused_png,
+            paused_events=("200\tcheckpoint\tpaused\t200\t"
+                           "session/screenshots/paused.png\n"),
+        )
+        self.assertEqual(row["disposition"], "partial")
+        paused = next(p for p in row["phases"] if p["name"] == "paused")
+        kit = paused.get("kitty") or {}
+        self.assertEqual(kit.get("transmits", 0), 0)
+        self.assertEqual(kit.get("placements", 0), 0)
+        self.assertGreater(paused["sprite_census"]["pixels"], 0)
+        self.assertTrue(
+            any("still carries sprite pixels or is not a near-solid menu panel"
+                in note for note in row["notes"]),
+            f"missing capture-first pause reason in {row['notes']}",
+        )
+
+    def test_kitty_paused_completely_flat_capture_is_downgraded(self):
+        # A 100% flat capture cannot distinguish a menu panel from a
+        # blank screen, so the accepted share range is [90%, 100%).
+        paused_png = make_rgb_png(100, 100, [24, 16, 12] * (100 * 100))
+        row = self._kitty_paused_row(
+            paused_png,
+            paused_events=("200\tcheckpoint\tpaused\t200\t"
+                           "session/screenshots/paused.png\n"),
+        )
+        self.assertEqual(row["disposition"], "partial")
+        paused = next(p for p in row["phases"] if p["name"] == "paused")
+        self.assertEqual(paused["dominant_share"], 1.0)
+        self.assertTrue(
+            any("still carries sprite pixels or is not a near-solid menu panel"
+                in note for note in row["notes"]),
+            f"missing flat-capture pause reason in {row['notes']}",
+        )
+
+    def test_kitty_paused_missing_capture_is_downgraded(self):
+        row = self._kitty_paused_row(
+            None,
+            paused_events="200\tcheckpoint\tpaused\t200\t\n",
+        )
+        self.assertEqual(row["disposition"], "partial")
+        paused = next(p for p in row["phases"] if p["name"] == "paused")
+        self.assertIsNone(paused.get("screenshot"))
+        self.assertTrue(
+            any("no decodable paused capture" in note
+                for note in row["notes"]),
+            f"missing absent-capture pause reason in {row['notes']}",
         )
 
 

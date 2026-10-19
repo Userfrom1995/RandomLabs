@@ -515,10 +515,31 @@ def dominant_share(decoded):
                 idx = (byte >> (8 - bit - (x * bit) % 8)) & mask
                 key = entries[idx] if idx < len(entries) else None
                 counts[key] = counts.get(key, 0) + 1
-    elif color == 0 and bit == 8:
-        for i in range(total):
-            key = (rows[i], rows[i], rows[i])
-            counts[key] = counts.get(key, 0) + 1
+    elif color == 0:
+        # Grayscale at every decoded depth (1/2/4/8); the sample value
+        # is scaled to 8-bit by the consumer, but the dominant share is
+        # unchanged by that scaling.
+        per_byte = max(1, 8 // bit)
+        mask = (1 << bit) - 1
+        for y in range(height):
+            row = rows[y * stride:(y + 1) * stride]
+            for x in range(width):
+                byte = row[x // per_byte]
+                value = (byte >> (8 - bit - (x * bit) % 8)) & mask
+                key = (value, value, value)
+                counts[key] = counts.get(key, 0) + 1
+    elif color == 4:
+        # Gray plus alpha: classify by the gray sample only, matching
+        # `white_share` (screen capture can leave alpha at zero).
+        mask = (1 << bit) - 1
+        for y in range(height):
+            row = rows[y * stride:(y + 1) * stride]
+            for x in range(width):
+                bitpos = x * 2 * bit
+                byte = row[bitpos // 8]
+                value = (byte >> (8 - bit - (bitpos % 8))) & mask
+                key = (value, value, value)
+                counts[key] = counts.get(key, 0) + 1
     elif color == 2 and bit == 8:
         for i in range(0, total * 3, 3):
             key = (rows[i], rows[i + 1], rows[i + 2])
@@ -528,7 +549,11 @@ def dominant_share(decoded):
             key = (rows[i], rows[i + 1], rows[i + 2])
             counts[key] = counts.get(key, 0) + 1
     else:
-        return 0.0
+        # A decodable shape this function cannot classify is not
+        # evidence of a rendered board: report a single dominant color
+        # so the blank-board gate downgrades instead of silently
+        # passing an unchecked capture.
+        return 1.0
     return max(counts.values()) / total if counts else 0.0
 
 
@@ -874,44 +899,60 @@ def main():
             )
     # Pause-surface honesty (Evaluator E1): the pause menu is a text
     # panel, so a kitty-graphics paused phase must have released the
-    # board instead of re-placing it above the menu. A pass can never
-    # carry a paused phase that still transmits or places images.
+    # board instead of re-placing it above the menu. The check is
+    # capture-first: even a paused phase with no new media can still
+    # carry the previous playing frame's placements on screen, so the
+    # paused capture itself must prove a text panel (no sprite-palette
+    # pixels and a near-solid background that is not completely flat).
     if args.result == "pass" and tier == "kitty-graphics":
-        paused_media = []
+        paused_bad = []
+        paused_missing = []
         proven = []
         for phase in result["phases"]:
             if str(phase.get("name", "")) != "paused":
                 continue
             kit = phase.get("kitty") or {}
             media = int(kit.get("transmits", 0)) + int(kit.get("placements", 0))
-            if media == 0:
-                continue
-            # Checkpoint offsets can lag the last playing frame, so a few
-            # trailing placements can land in the paused slice. The menu
-            # is still proven when the paused capture has no sprite
-            # pixels and is >=90% one color (a text panel on a solid
-            # background); a board-covered menu keeps sprite pixels.
             census = phase.get("sprite_census") or {}
-            share = phase.get("dominant_share") or 0.0
-            if census.get("pixels", 0) == 0 and share >= 0.90:
+            share = float(phase.get("dominant_share") or 0.0)
+            if not phase.get("screenshot"):
+                paused_missing.append(phase["name"])
+            elif census.get("pixels", 0) > 0:
+                paused_bad.append(phase["name"])
+            elif not (0.90 <= share < 1.0):
+                paused_bad.append(phase["name"])
+            elif media > 0:
+                # Checkpoint offsets can lag the last playing frame, so a
+                # few trailing placements can land in the paused slice.
+                # The capture above already proves the menu is visible;
+                # attribute the media to the checkpoint boundary.
                 proven.append(phase["name"])
-            else:
-                paused_media.append(phase["name"])
-        if paused_media:
+        if paused_bad or paused_missing:
             disposition = "partial"
+            reasons = []
+            if paused_bad:
+                reasons.append(
+                    "the paused capture still carries sprite pixels or is "
+                    "not a near-solid menu panel ("
+                    + ", ".join(paused_bad)
+                    + ")"
+                )
+            if paused_missing:
+                reasons.append(
+                    "no decodable paused capture ("
+                    + ", ".join(paused_missing)
+                    + ")"
+                )
             notes.append(
-                "recorded partial by collect.py: the paused phase still "
-                "transmits or places kitty images ("
-                + ", ".join(paused_media)
-                + "); the opaque board can cover the pause menu"
+                "recorded partial by collect.py: " + "; ".join(reasons)
             )
         elif proven:
             notes.append(
                 "paused-phase media at "
                 + ", ".join(proven)
                 + " is checkpoint-boundary attribution; the paused capture "
-                "has no sprite pixels and is >=90% one color, so the menu "
-                "panel is visible"
+                "has no sprite pixels and is 90% to 99.9% one color, so "
+                "the menu panel is visible"
             )
     # Sprite-visibility honesty on the kitty-graphics tier: placements
     # round-tripping through the terminal proves the protocol, not that
