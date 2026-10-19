@@ -394,9 +394,11 @@ follow-up on this issue's own branch with committed tests.
   per axis).
 
 Evidence: the committed tests plus the tester's real-PTY report on
-#656; workspace suite green (0 failed), fmt clean, clippy back to the
-pre-existing engine lints only, `maze-chase-verify` 19/19 with the
-`23c17f89734e` golden intact.
+#656; workspace suite 446 passed, 0 failed across 46 test binaries
+plus 7 doc-test suites, fmt clean, clippy back to the pre-existing
+warnings from `main` (engine style lints plus the design-token test's
+suggestions) with none from this branch's files,
+`maze-chase-verify` 19/19 with the `23c17f89734e` golden intact.
 
 The earlier Phase 2 review round (recorded in the progress log) had
 already tightened the resize contract (shrink-into-too-small deletes
