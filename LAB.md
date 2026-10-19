@@ -419,18 +419,27 @@ Public Surface / Web Track:                                              │
   shell-escaped-quote Python one-liner, a single-element `shell=True` list, a
   comment-split token, Python `\xNN`/`\uNNNN`/`\U00000000`/`\N{...}`/octal
   escape spellings, `b`/`r`/`u`/`f` string prefixes, and a token split
-  across adjacent string literals such as `"iss" "\x75e"` included, with the
+  across adjacent string literals such as `"iss" "\x75e"` included, the
+  single-shell-string form whose adjacent literals split the command word
+  (`"gh issue " "create"` and `"gh issue crea" "te"`, plus the `+`-folded
+  constant form) caught by the collapsed letter form after compile-time
+  concatenation (non-letters are dropped, so numeric operator artifacts
+  such as the `* 1` in `"gh issue " * 1 + "create"` vanish) with the word
+  scan skipping the empty boundary
+  token (tester finding F40), with the
   decoded, whitespace/quote/backslash-normalized form stripping line
   comments, folding string prefixes, and joining adjacent literals so the
   escaped, comment-split, and adjacent-literal spellings are caught)
   exercised by self-tests that test EACH layer directly (the word scan over
-  `_f29_red`, the normalized form over `_f30_red`, and the alias normalized
-  form over `_f30_alias_red`) and then exercise the
+  `_f29_red`, the normalized form over `_f30_red`, the alias normalized
+  form over `_f30_alias_red`, and the F40 collapsed form over `_f40_red`)
+  and then exercise the
   exact combined predicate the scan calls over every red case (`_f29_red +
-  _f30_red + _f31_red + _f30_alias_red`), so deleting or weakening either
-  layer or the
+  _f30_red + _f31_red + _f30_alias_red + _f40_red`), so deleting or
+  weakening any layer or the
   combined predicate fails the audit itself (review findings
-  F26/F29/F30/F31/F32/F34/F35/F37 plus the adjacent-literal sibling; prose
+  F26/F29/F30/F31/F32/F34/F35/F37/F40 plus the round-18 adjacent-literal sibling and the
+  tester-verdict single-shell-string sibling; prose
   carrying separate `gh`, `issue`, and `create`
   tokens in one command line is a known accepted false-positive shape),
   repo-local scripts
@@ -473,7 +482,7 @@ Public Surface / Web Track:                                              │
   splitting, brace expansion such as `cr{e,}ate`, or a runtime-split Python
   string), or an env-file channel reached through one level of indirection
   inside a repo-local script, are documented
-  as the review-gated residual (review findings F2/F4-F38 plus the F16
+  as the review-gated residual (review findings F2/F4-F40 plus the F16
   print fix, B1-B3 plus
   independent-verification escapes E1-E4, Q4/Q5, L06/L07, P1/P2,
   M05/M07/M15-M17/M19-M21 and the round-3b boundary probes).
