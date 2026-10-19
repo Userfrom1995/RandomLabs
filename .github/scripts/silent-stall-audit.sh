@@ -449,8 +449,16 @@ fi
 # run, a noise comment, an owner trigger, a push, or a merge. Before this,
 # every bot-authored PR open/close redded the run on the CLI's permission
 # assert and posted the raw error as a public comment (issue #696: 15 red
-# runs in one 24h window). A dropped condition on any listed step, a moved
-# gate, or a missing/renamed step trips this rule.
+# runs in one 24h window). The pins are strict by construction: the gate
+# must sit IMMEDIATELY after checkout (no step boundary in between) and
+# carry the exact id + GH_TOKEN/GATE_EVENT/GATE_ACTOR/GATE_LABEL mappings
+# and an anchored shared-script invocation, the verify step must stay
+# `if: always()`, and every listed side-effect step is matched as a full
+# `      - name: ` line. A dropped condition, a substring-preserving rename
+# of a listed step, a gate moved below the agent, a stale-id rename, a
+# hardcoded actor, a frozen event, a tokenless gate, or a decoyed script
+# line therefore all trip this rule (mutations measured against the first
+# iteration of this rule found each of those escapes; review of PR #698).
 r12_bad=""
 r12_main_wf=".github/workflows/maintainer.yml"
 for r12_path in .github/workflows/*.yml; do
@@ -479,13 +487,16 @@ for r12_path in .github/workflows/*.yml; do
   fi
 done
 # maintainer.yml inline-runner parity (issue #696): the gate step must sit
-# between checkout and the agent, carry the shared script + GATE_LABEL, wire
-# the agent step and every post-gate side-effect step on its output, and give
-# the verify step the terminal third outcome. The step list is explicit (not
-# a count): a renamed or newly inserted side-effect step must be added to the
-# list by the author, and a dropped gate condition on any listed step trips
-# the rule. The verify step itself stays `if: always()` on purpose (it must
-# run to classify the skip), so its gate handling is pinned by content.
+# IMMEDIATELY after checkout, carry the exact `id: actor_gate` and the
+# GH_TOKEN / GATE_EVENT / GATE_ACTOR / GATE_LABEL mappings, invoke the
+# shared script on an anchored `run:` line, wire the agent step and every
+# post-gate side-effect step on its output, and give the verify step the
+# terminal third outcome behind its pinned `if: always()` activation. The
+# step list is explicit (not a count) and matched against full
+# `      - name: ` lines: a renamed or newly inserted side-effect step must
+# be added to the list by the author, a substring-preserving rename of a
+# listed step trips the rule (its extracted block comes back empty), and a
+# dropped gate condition on any listed step trips the rule.
 r12_main_steps=(
   "Remove maintainer stray PRs and branches (the Maintainer never opens PRs)"
   "Emergency-gated commit and push of workflow model updates to main"
@@ -501,23 +512,30 @@ r12_main_steps=(
 if [ ! -f "$r12_main_wf" ]; then
   r12_bad="${r12_bad} maintainer.yml(missing)"
 else
-  r12_main_gate_ln=$(grep -nF -- '- name: Actor write gate (issue #428)' "$r12_main_wf" | head -1 | cut -d: -f1)
-  r12_main_checkout_ln=$(grep -nF -- '- name: Checkout repository' "$r12_main_wf" | head -1 | cut -d: -f1)
-  r12_main_agent_ln=$(grep -nF -- '- name: Run Maintainer agent' "$r12_main_wf" | head -1 | cut -d: -f1)
-  [ "$(grep -cF -- '- name: Actor write gate (issue #428)' "$r12_main_wf" || true)" = "1" ] || r12_bad="${r12_bad} maintainer.yml(gate-step-count)"
-  grep -qF 'run: bash .github/scripts/actor-write-gate.sh' "$r12_main_wf" || r12_bad="${r12_bad} maintainer.yml(no-gate-script-run)"
-  grep -qF 'GATE_LABEL: maintainer' "$r12_main_wf" || r12_bad="${r12_bad} maintainer.yml(no-gate-label)"
+  r12_main_gate_ln=$(grep -nxF -- '      - name: Actor write gate (issue #428)' "$r12_main_wf" | head -1 | cut -d: -f1)
+  r12_main_checkout_ln=$(grep -nxF -- '      - name: Checkout repository' "$r12_main_wf" | head -1 | cut -d: -f1)
+  r12_main_agent_ln=$(grep -nxF -- '      - name: Run Maintainer agent' "$r12_main_wf" | head -1 | cut -d: -f1)
+  [ "$(grep -cxF -- '      - name: Actor write gate (issue #428)' "$r12_main_wf" || true)" = "1" ] || r12_bad="${r12_bad} maintainer.yml(gate-step-count)"
   if [ -z "$r12_main_gate_ln" ] || [ -z "$r12_main_checkout_ln" ] || [ -z "$r12_main_agent_ln" ] \
      || [ "$r12_main_gate_ln" -le "$r12_main_checkout_ln" ] || [ "$r12_main_gate_ln" -ge "$r12_main_agent_ln" ]; then
     r12_bad="${r12_bad} maintainer.yml(gate-not-between-checkout-and-agent:${r12_main_checkout_ln:-none}/${r12_main_gate_ln:-none}/${r12_main_agent_ln:-none})"
+  elif [ "$(awk -v a="$r12_main_checkout_ln" -v b="$r12_main_gate_ln" 'NR>a && NR<b && /^      - name: /{n++} END{print n+0}' "$r12_main_wf")" != "0" ]; then
+    r12_bad="${r12_bad} maintainer.yml(gate-not-immediately-after-checkout)"
   fi
   r12_main_block() {
-    awk -v step="- name: $1" '
-      index($0, step) { in_step=1; next }
+    awk -v step="      - name: $1" '
+      $0 == step { in_step=1; next }
       in_step && /^      - name: / { exit }
       in_step { print }
     ' "$r12_main_wf"
   }
+  r12_main_gate_block=$(r12_main_block "Actor write gate (issue #428)")
+  printf '%s\n' "$r12_main_gate_block" | grep -qxF '        id: actor_gate' || r12_bad="${r12_bad} maintainer.yml(gate-no-id)"
+  printf '%s\n' "$r12_main_gate_block" | grep -qxF '          GH_TOKEN: ${{ github.token }}' || r12_bad="${r12_bad} maintainer.yml(gate-no-token-mapping)"
+  printf '%s\n' "$r12_main_gate_block" | grep -qxF '          GATE_EVENT: ${{ github.event_name }}' || r12_bad="${r12_bad} maintainer.yml(gate-no-event-mapping)"
+  printf '%s\n' "$r12_main_gate_block" | grep -qxF '          GATE_ACTOR: ${{ github.actor }}' || r12_bad="${r12_bad} maintainer.yml(gate-no-actor-mapping)"
+  printf '%s\n' "$r12_main_gate_block" | grep -qxF '          GATE_LABEL: maintainer' || r12_bad="${r12_bad} maintainer.yml(gate-no-label-mapping)"
+  printf '%s\n' "$r12_main_gate_block" | grep -qxF '        run: bash .github/scripts/actor-write-gate.sh' || r12_bad="${r12_bad} maintainer.yml(no-gate-script-run)"
   if ! r12_main_block "Run Maintainer agent" | grep -qF "if: steps.actor_gate.outputs.run == 'true'"; then
     r12_bad="${r12_bad} maintainer.yml(agent-not-gated)"
   fi
@@ -525,6 +543,7 @@ else
   if [ -z "$r12_verify_block" ]; then
     r12_bad="${r12_bad} maintainer.yml(verify-step-missing-or-renamed)"
   else
+    printf '%s\n' "$r12_verify_block" | grep -qxF '        if: always()' || r12_bad="${r12_bad} maintainer.yml(verify-not-always)"
     printf '%s\n' "$r12_verify_block" | grep -qF 'AGENT_GATE: ${{ steps.actor_gate.outputs.run }}' || r12_bad="${r12_bad} maintainer.yml(verify-no-gate-env)"
     printf '%s\n' "$r12_verify_block" | grep -qF 'if [ "${AGENT_GATE:-}" != "true" ]; then' || r12_bad="${r12_bad} maintainer.yml(verify-no-third-outcome)"
     printf '%s\n' "$r12_verify_block" | grep -qF 'Actor write gate skipped the Maintainer agent' || r12_bad="${r12_bad} maintainer.yml(verify-no-denial-notice)"
@@ -1076,8 +1095,12 @@ r15_behavioral() {
     if [ "$label" = "maintainer.yml" ] \
        && [ "$(printf '%s\n' "$r15_hdr" | grep -cE '^[[:space:]]*if:' || true)" = "1" ] \
        && printf '%s\n' "$r15_hdr" | grep -qxE "[[:space:]]*if: steps\.actor_gate\.outputs\.run == 'true'" \
-       && grep -qF -- '- name: Actor write gate (issue #428)' "$file" \
-       && grep -qF 'run: bash .github/scripts/actor-write-gate.sh' "$file"; then
+       && grep -qxF -- '      - name: Actor write gate (issue #428)' "$file" \
+       && grep -qxF '        id: actor_gate' "$file" \
+       && grep -qxF '          GH_TOKEN: ${{ github.token }}' "$file" \
+       && grep -qxF '          GATE_EVENT: ${{ github.event_name }}' "$file" \
+       && grep -qxF '          GATE_ACTOR: ${{ github.actor }}' "$file" \
+       && grep -qxF '        run: bash .github/scripts/actor-write-gate.sh' "$file"; then
       :
     else
       r15_bad="${r15_bad} behavioral(${label},run-step-conditional)"
@@ -3827,8 +3850,12 @@ else
       :
     elif [ "$r23_hdr_if_count" = "1" ] \
        && printf '%s\n' "$r23_hdr" | grep -qE "^[[:space:]]*if: always\(\) && steps\.actor_gate\.outputs\.run == 'true'[[:space:]]*\$" \
-       && grep -qF -- '- name: Actor write gate (issue #428)' "$R23_WF" \
-       && grep -qF 'run: bash .github/scripts/actor-write-gate.sh' "$R23_WF"; then
+       && grep -qxF -- '      - name: Actor write gate (issue #428)' "$R23_WF" \
+       && grep -qxF '        id: actor_gate' "$R23_WF" \
+       && grep -qxF '          GH_TOKEN: ${{ github.token }}' "$R23_WF" \
+       && grep -qxF '          GATE_EVENT: ${{ github.event_name }}' "$R23_WF" \
+       && grep -qxF '          GATE_ACTOR: ${{ github.actor }}' "$R23_WF" \
+       && grep -qxF '        run: bash .github/scripts/actor-write-gate.sh' "$R23_WF"; then
       :
     else
       r23_bad="${r23_bad} maintainer.yml(memory-step-not-always-gated)"
