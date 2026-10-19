@@ -69,7 +69,7 @@ def sha256_file(path):
 
 
 def make_run_dir(root, *, screenshot_name="title.png", create_png=None,
-                 transcript=b""):
+                 transcript=b"", checkpoint="title"):
     """Build a minimal run directory shaped like drive.sh's output."""
     session = os.path.join(root, "session")
     shots = os.path.join(session, "screenshots")
@@ -89,7 +89,7 @@ def make_run_dir(root, *, screenshot_name="title.png", create_png=None,
             fh,
         )
     with open(os.path.join(session, "events.log"), "w", encoding="utf-8") as fh:
-        fh.write(f"100\tcheckpoint\ttitle\t{len(transcript)}\t"
+        fh.write(f"100\tcheckpoint\t{checkpoint}\t{len(transcript)}\t"
                  f"session/screenshots/{screenshot_name}\n")
         fh.write(f"200\texit\texited=true killed=false\t{len(transcript)}\t\n")
     if create_png is not None:
@@ -99,6 +99,35 @@ def make_run_dir(root, *, screenshot_name="title.png", create_png=None,
         with open(os.path.join(session, "pty.log"), "wb") as fh:
             fh.write(transcript)
     return root
+
+
+def make_rgb_png(width, height, pixels):
+    """A minimal truecolor PNG from a flat RGB byte sequence (one
+    filter-0 scanline per row), enough for the collector's decoder."""
+    import struct
+    import zlib
+
+    if len(pixels) != width * height * 3:
+        raise AssertionError("pixel buffer size mismatch")
+    raw = b"".join(
+        b"\x00" + bytes(pixels[y * width * 3:(y + 1) * width * 3])
+        for y in range(height)
+    )
+
+    def chunk(kind, payload):
+        return (
+            len(payload).to_bytes(4, "big")
+            + kind
+            + payload
+            + (zlib.crc32(kind + payload) & 0xFFFFFFFF).to_bytes(4, "big")
+        )
+
+    return (
+        PNG_SIG
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(raw))
+        + chunk(b"IEND", b"")
+    )
 
 
 def run_collect(run_dir, evidence_dir, *extra):
@@ -206,6 +235,95 @@ class TestCollectorHonestyGates(unittest.TestCase):
         self.assertEqual(stats["placements"], 1)
         self.assertEqual(stats["payload_bytes"], 8)
 
+    def test_sprite_census_matches_only_exact_palette_pixels(self):
+        collect = load_collect_module()
+        decoded = {
+            "width": 2,
+            "height": 1,
+            "bit_depth": 8,
+            "color_type": 6,
+            "palette": None,
+            "stride": 8,
+            # pip #FFE182 (exact) then an off-by-one red that must not
+            # count as anything.
+            "rows": bytes([255, 225, 130, 255, 250, 225, 130, 255]),
+        }
+        census = collect.sprite_census(decoded)
+        self.assertEqual(census["pixels"], 1)
+        self.assertEqual(census["by_color"]["pip"], 1)
+        self.assertEqual(census["by_color"]["bram"], 0)
+
+    def test_kitty_pass_without_visible_sprites_is_downgraded(self):
+        # Placements on the wire plus a valid non-white board capture
+        # used to record a clean `pass` even when every sprite was hidden
+        # behind the static board (the equal-z Ghostty collapse). The
+        # collector must refuse to sign sprite visibility without a
+        # sprite-palette pixel in a playing capture.
+        transcript = (
+            b"\x1b[?2026h"
+            b"\x1b[2J\x1b_Ga=d\x1b\\"
+            b"\x1b_Ga=p,i=3,p=1,x=0,y=0,w=1120,h=1240,c=140,r=62,z=0,C=1,q=2\x1b\\"
+            b"\x1b[?2026l"
+            b"\x1b[1;1HVIDEO  kitty-graphics\r\n"
+        )
+        png = make_rgb_png(2, 2, [24, 16, 12] * 4)
+        run_dir = make_run_dir(
+            os.path.join(self.tmp, "run"),
+            screenshot_name="playing.png",
+            create_png=png,
+            transcript=transcript,
+            checkpoint="playing",
+        )
+        evidence = os.path.join(self.tmp, "evidence")
+        proc = run_collect(run_dir, evidence, "--result", "pass",
+                           "--tier", "kitty")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            row = json.load(fh)
+        self.assertEqual(row["tier_observed"], "kitty-graphics")
+        self.assertGreater(row["protocol_totals"]["kitty"]["placements"], 0)
+        self.assertEqual(row["disposition"], "partial")
+        self.assertTrue(
+            any("sprite-palette pixel" in note for note in row["notes"]),
+            f"missing sprite-visibility reason in {row['notes']}",
+        )
+        playing = next(p for p in row["phases"] if p["name"] == "playing")
+        self.assertEqual(playing["sprite_census"]["pixels"], 0)
+
+    def test_kitty_pass_with_visible_sprites_stays_pass(self):
+        transcript = (
+            b"\x1b[?2026h"
+            b"\x1b[2J\x1b_Ga=d\x1b\\"
+            b"\x1b_Ga=p,i=3,p=1,x=0,y=0,w=1120,h=1240,c=140,r=62,z=0,C=1,q=2\x1b\\"
+            b"\x1b[?2026l"
+            b"\x1b[1;1HVIDEO  kitty-graphics\r\n"
+        )
+        # One exact pip pixel on an otherwise dark board.
+        pixels = [24, 16, 12] * 3 + [255, 225, 130]
+        png = make_rgb_png(2, 2, pixels)
+        run_dir = make_run_dir(
+            os.path.join(self.tmp, "run"),
+            screenshot_name="playing.png",
+            create_png=png,
+            transcript=transcript,
+            checkpoint="playing",
+        )
+        evidence = os.path.join(self.tmp, "evidence")
+        proc = run_collect(run_dir, evidence, "--result", "pass",
+                           "--tier", "kitty")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            row = json.load(fh)
+        self.assertEqual(row["disposition"], "pass")
+        self.assertEqual(
+            row["sprite_visibility"]["playing_captures_with_sprites"],
+            ["playing"],
+        )
+        playing = next(p for p in row["phases"] if p["name"] == "playing")
+        self.assertEqual(playing["sprite_census"]["by_color"]["pip"], 1)
+
 
 class TestCommittedEvidenceBundle(unittest.TestCase):
     def rows(self):
@@ -250,6 +368,29 @@ class TestCommittedEvidenceBundle(unittest.TestCase):
                                  (phase["screenshot_width"],
                                   phase["screenshot_height"]))
                 checked += 1
+        self.assertGreater(checked, 0)
+
+    def test_kitty_graphics_passes_prove_sprite_visibility(self):
+        checked = 0
+        for path in self.rows():
+            with open(path, encoding="utf-8") as fh:
+                row = json.load(fh)
+            if row.get("disposition") != "pass":
+                continue
+            if row.get("tier_observed") != "kitty-graphics":
+                continue
+            if row["protocol_totals"]["kitty"]["placements"] == 0:
+                continue
+            with_sprites = row.get("sprite_visibility", {}).get(
+                "playing_captures_with_sprites", []
+            )
+            self.assertTrue(
+                with_sprites,
+                f"{os.path.basename(path)}: a kitty-graphics pass must carry "
+                "a playing capture with sprite-palette pixels; the static "
+                "board layer alone can hide every sprite",
+            )
+            checked += 1
         self.assertGreater(checked, 0)
 
     def test_events_logs_carry_no_scratch_paths(self):

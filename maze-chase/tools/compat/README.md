@@ -40,15 +40,21 @@ reason. There are no guessed rows.
   Window resizes are only exercised by the X11 driver (xdotool sets
   exact sizes); the macOS driver skips the resize checkpoints and records
   the skip as an event instead of capturing resize-named images.
+- `probe-graphics.py` - live graphics-probe experiment for one
+  emulator: sends the game's exact kitty probe request on the terminal's
+  pty, records the raw reply bytes for a bounded window, and cleans up.
+  It verifies capability claims when a row's environment proof skips the
+  in-game probe (see the Ghostty note in `../docs/terminal.md`).
 - `collect.py` - turns a run directory into one evidence JSON: transcript
   hash and byte totals, synchronized-frame stats, Kitty/Sixel protocol
   counters (full chunked payload totals), first-transmit PNG dimensions,
   per-phase layout-addressing stats, per-phase durations and frame
   rates, observed video tier read from the game's own video line,
-  screenshot inventory with PNG dimensions and light-background
-  validation, the committed `events.log`, and the trace ingestion slot
-  (`session/trace.jsonl`, recorded as absent with a reason until the
-  binary emits the mode).
+  screenshot inventory with PNG dimensions, light-background validation,
+  and a sprite-palette census per capture, the committed `events.log`,
+  and the trace ingestion (`session/trace.jsonl`; an absent file is
+  recorded as absent with the reason "the session never reached the
+  trace loop").
 
 Each evidence directory also carries the run's `events.log` (timestamp,
 key, transcript byte offset per event; a few KiB of TSV, no transcript
@@ -125,7 +131,12 @@ Honesty rules the harness enforces mechanically:
   background is downgraded to `partial` with the reason recorded; and on
   every OS the collector downgrades a proposed `pass` with zero accepted
   captures in the bundle to `partial` (a pass requires at least one
-  rendered capture). On Windows, where the pty transcript deliberately
+  rendered capture); and a proposed `pass` on the `kitty-graphics` tier
+  with placements on the wire requires at least one playing capture
+  carrying sprite-palette pixels (the static board layer alone decodes as
+  a valid frame while every sprite can sit hidden behind it), recorded
+  as `sprite_visibility` with the per-capture census in each phase. On
+  Windows, where the pty transcript deliberately
   does not exist, a row is graded from the game's own pid plus exit code
   and the capture set: a pass requires a zero exit code and at least one
   valid PNG capture, and a row whose game process never started is
