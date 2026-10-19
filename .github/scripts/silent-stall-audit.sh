@@ -660,15 +660,17 @@ else
       rm -rf "$r12_vsbx/ws"; mkdir -p "$r12_vsbx/ws/.maintainer"
       if [ "$2" = "present" ]; then : > "$r12_vsbx/ws/.maintainer/decision.json"; fi
       local got out
-      out=$(cd "$r12_vsbx/ws" && env -i PATH="$PATH" HOME="$r12_vsbx" AGENT_GATE="$1" AGENT_OUTCOME="success" bash -e -c "$r12_verify_run" 2>&1)
+      out=$(cd "$r12_vsbx/ws" && env -i PATH="$PATH" HOME="$r12_vsbx" GITHUB_ACTIONS=true GITHUB_REPOSITORY="RandomLabs/RandomLabs" AGENT_GATE="$1" AGENT_OUTCOME="${5:-success}" bash -e -c "$r12_verify_run" 2>&1)
       got=$?
       if [ "$got" != "$3" ] || ! printf '%s\n' "$out" | grep -qE "$4"; then
-        r12_bad="${r12_bad} maintainer.yml(verify-lane-behavior:$1/$2:exit=$got)"
+        r12_bad="${r12_bad} maintainer.yml(verify-lane-behavior:$1/$2/${5:-success}:exit=$got)"
       fi
     }
-    r12_case false absent 0 '::notice::Actor write gate skipped the Maintainer agent'
-    r12_case true present 0 'Maintainer decision contract present'
-    r12_case true absent 1 '::error::Maintainer agent finished'
+    r12_case false absent 0 '::notice::Actor write gate skipped the Maintainer agent' success
+    r12_case true present 0 'Maintainer decision contract present' success
+    r12_case true absent 1 '::error::Maintainer agent finished' success
+    r12_case true absent 1 '::error::Maintainer agent finished' failure
+    r12_case true present 0 'Maintainer decision contract present' failure
     rm -rf "$r12_vsbx"
   fi
   for r12_step in "${r12_main_steps[@]}"; do
