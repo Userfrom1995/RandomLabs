@@ -450,16 +450,23 @@ fn live_resize_too_small_card_recovers_mid_play() {
     // Let the Sprint clock advance, then pause to freeze it: the exact
     // frozen token is run progress that a resize-restart would erase.
     std::thread::sleep(Duration::from_millis(1000));
+    // The pause surface is the full-screen menu (no side panel), so the
+    // clock is sampled on the playing surface just before pausing; the
+    // frozen run must survive the round trip and continue from there.
+    let clock_deadline = Instant::now() + Duration::from_secs(5);
+    let mut clock = s.wait_clock(Duration::from_secs(5));
+    while clock == "CLOCK  0.0s" && Instant::now() < clock_deadline {
+        clock = s.wait_clock(Duration::from_secs(5));
+    }
+    assert_ne!(
+        clock, "CLOCK  0.0s",
+        "the Sprint clock must have advanced before the trip"
+    );
     s.send(b"p");
     assert!(
         s.wait_for("PAUSED", Duration::from_secs(5)),
         "P must pause before the resize round trip; tail: {}",
         s.tail()
-    );
-    let clock = s.wait_clock(Duration::from_secs(5));
-    assert_ne!(
-        clock, "CLOCK  0.0s",
-        "the Sprint clock must have advanced before the trip"
     );
     s.resize(50, 20);
     assert!(
@@ -481,19 +488,42 @@ fn live_resize_too_small_card_recovers_mid_play() {
     );
     s.resize(62, 35);
     assert!(
-        s.wait_for("SCORE ", Duration::from_secs(8)),
-        "the exact 62x35 minimum must repaint the running game; tail: {}",
+        s.wait_for("PAUSED", Duration::from_secs(8)),
+        "the exact 62x35 minimum must repaint the pause surface; tail: {}",
         s.tail()
     );
     s.resize(170, 64);
     assert!(
-        s.wait_for("move: arrows/WASD", Duration::from_secs(8)),
-        "growing back to a side-panel room must repaint the running game; tail: {}",
+        s.wait_for("PAUSED", Duration::from_secs(8)),
+        "growing back to a side-panel room must repaint the pause surface; tail: {}",
         s.tail()
     );
+    // Resume: the playing surface is the one that carries the HUD and the
+    // side-panel clock, and the run must continue from the frozen value.
+    s.send(b"p");
     assert!(
-        s.wait_for(&clock, Duration::from_secs(5)),
-        "the running session must survive the resize round trip: the frozen Sprint clock must reappear; tail: {}",
+        s.wait_for("move: arrows/WASD", Duration::from_secs(8)),
+        "resuming must repaint the running game at 170x64; tail: {}",
+        s.tail()
+    );
+    let after = s.wait_clock(Duration::from_secs(5));
+    let seconds = |token: &str| -> f64 {
+        token
+            .trim_start_matches("CLOCK")
+            .trim()
+            .trim_end_matches('s')
+            .parse()
+            .expect("clock token seconds")
+    };
+    assert!(
+        seconds(&after) >= seconds(&clock),
+        "the running session must survive the resize round trip: the Sprint clock must not restart (before {clock}, after {after}); tail: {}",
+        s.tail()
+    );
+    s.send(b"p");
+    assert!(
+        s.wait_for("PAUSED", Duration::from_secs(5)),
+        "the second pause must show the menu before quitting; tail: {}",
         s.tail()
     );
     s.send(b"\x1b[B");

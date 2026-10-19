@@ -374,13 +374,17 @@ fn b64_prefix_decode(s: &str) -> Vec<u8> {
     out
 }
 
-/// The `r=`/`c=` cell footprint (rows, cols) of the first Kitty `a=T`
-/// display escape in `bytes`.
+/// The `r=`/`c=` cell footprint (rows, cols) of the first Kitty static
+/// board placement in `bytes` (the Phase 3 placement path: the image is
+/// transmitted once with `a=t` and the static layer displays it with
+/// `a=p`).
 fn first_display_placement(bytes: &[u8]) -> (u32, u32) {
+    use maze_chase_terminal::kitty::{STATIC_IMAGE_ID, STATIC_PLACEMENT_ID};
     let text = String::from_utf8_lossy(bytes).into_owned();
-    let start = text.find("\x1b_Ga=T").expect("display escape present");
-    let semi = text[start..].find(';').expect("payload separator") + start;
-    let params = &text[start..semi];
+    let needle = format!("\x1b_Ga=p,i={STATIC_IMAGE_ID},p={STATIC_PLACEMENT_ID}");
+    let start = text.find(&needle).expect("display placement present");
+    let end = text[start..].find("\x1b\\").expect("complete placement") + start;
+    let params = &text[start..end];
     let get = |key: &str| {
         params
             .split(',')
@@ -394,6 +398,13 @@ fn first_display_placement(bytes: &[u8]) -> (u32, u32) {
 /// The 1-based cursor position the frame moves to immediately before
 /// `needle` (the payload escape): the last `ESC[<row>;<col>H` sequence
 /// ahead of it.
+/// The static board placement escape prefix shared by the pixel-report
+/// assertions.
+fn static_needle() -> String {
+    use maze_chase_terminal::kitty::{STATIC_IMAGE_ID, STATIC_PLACEMENT_ID};
+    format!("\x1b_Ga=p,i={STATIC_IMAGE_ID},p={STATIC_PLACEMENT_ID}")
+}
+
 fn cursor_before(frame: &str, needle: &str) -> (u16, u16) {
     let at = frame.find(needle).expect("payload escape present");
     let head = &frame[..at];
@@ -557,9 +568,9 @@ fn pixel_reports_shape_footprint_and_raster() {
         (31, 56),
         "the 560x620 raster occupies 56x31 cells at 10x20"
     );
-    let frame = frame_containing(&tall.out, "\x1b_Ga=T").expect("first board frame");
+    let frame = frame_containing(&tall.out, &static_needle()).expect("first board frame");
     assert_eq!(
-        cursor_before(&frame, "\x1b_Ga=T"),
+        cursor_before(&frame, &static_needle()),
         (6, 23),
         "the image is centered at cell (22, 5): board x 8 + (84-56)/2"
     );
@@ -583,9 +594,9 @@ fn pixel_reports_shape_footprint_and_raster() {
         (31, 28),
         "the 224x248 raster occupies 28x31 cells at 8x8 (1:1, no stretch)"
     );
-    let frame = frame_containing(&square.out, "\x1b_Ga=T").expect("first board frame");
+    let frame = frame_containing(&square.out, &static_needle()).expect("first board frame");
     assert_eq!(
-        cursor_before(&frame, "\x1b_Ga=T"),
+        cursor_before(&frame, &static_needle()),
         (6, 37),
         "the image is centered at cell (36, 5): board x 8 + (84-28)/2"
     );
