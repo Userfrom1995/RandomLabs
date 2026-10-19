@@ -461,3 +461,37 @@ render pipeline and compatibility proof).
   clippy itself. Skills: no registry skill matched this run's domains;
   none loaded, per `delegation.md` section 5.
   - the Fixer
+- 2026-10-19 (builder, macOS test-portability round on #656): fixed
+  the macOS arm's two committed-artifact findings on the #691 merge
+  (the product itself passed on macOS). F1: the new geometry unit test
+  set `TIOCSWINSZ` on a PTY master with no open slave, which macOS
+  rejects with `ENOTTY`; the test now opens the slave (the
+  integration harnesses' discipline) and holds both fds in `OwnedFd`.
+  F2: `Session::drop`'s unbounded `kill(); wait()` hung forever on
+  macOS when the child was killed mid-write to a full PTY master;
+  every PTY harness now reaps through a bounded drain-first `reap`
+  helper (drain the non-blocking master, `try_wait`, 5 s cap), applied
+  to the seven `Drop` harnesses and the four probe/replay suites with
+  loose kill sites. No production code touched; Linux behavior
+  identical. Verification: `cargo test -p maze-chase-terminal` 165
+  passed / 0 failed (the three formerly hanging suites finish in under
+  3 s), `cargo fmt --all --check` clean, clippy unchanged from main's
+  pre-existing engine warnings. The macOS arm re-runs this fix.
+  Delegation ledger: one `general` verification subagent independently
+  audited the uncommitted diff against the macOS findings (read-only,
+  from the tree itself): it confirmed the geometry test opens the
+  slave before the ioctl with both fds owned, enumerated all 16 reap
+  sites across the 11 harnesses (each preceded by `kill()`), confirmed
+  the two remaining `.wait()` sites are provably safe (the continuous
+  reader thread in `tester_macos_e2e` and the Windows piped-stdio
+  harness), proved the helper cannot block (O_NONBLOCK masters,
+  bounded loop, no panicking path), found no weakened assertion or
+  discarded exit status (the only status-consuming wait is untouched),
+  and re-ran the full suite independently (165 passed / 0 failed; the
+  three formerly hanging suites in 0.31 s / 1.07 s / 2.84 s). It also
+  flagged a pre-existing, untouched race: three harnesses call
+  `ptsname` without the `PTSNAME_LOCK` guard the others use (left
+  as-is, out of this fix's scope). Skills: no registry skill matched
+  this run's domains (no opencode configuration, agent, or plugin
+  edits); none loaded, per `delegation.md` section 5.
+  - the Builder

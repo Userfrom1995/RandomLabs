@@ -3,7 +3,7 @@
 - **Issue:** #656 (dynamic terminal layout; macOS arm re-verification gate)
 - **Parent vision:** #582 (the overhaul roadmap in `progress/582-maze-chase-overhaul.md`)
 - **Branch:** opencode/issue656-20261019062816
-- **Status:** in-progress
+- **Status:** complete
 - **Updated:** 2026-10-19
 - **Scope:** terminal-crate test artifacts only; no production behavior change.
   The macOS Tester's F1/F2 findings on the #691 merge are portability defects
@@ -24,26 +24,19 @@
       `tester_dynamic_layout_hostile`, and `tester_layout_goldens_live`
       forever). Applied to the seven `Drop` harnesses and the four
       probe/replay suites with loose kill sites
-- [ ] Verify on Linux: full `cargo test -p maze-chase-terminal` with per-suite
+- [x] Verify on Linux: full `cargo test -p maze-chase-terminal` with per-suite
       timeouts, `cargo fmt --check`, clippy, Linux behavior byte-identical
-- [ ] Update the shared ledgers (findings Section G + roadmap log)
-- [ ] Push, open the PR (`Refs #656`), hand off to review
+- [x] Update the shared ledgers (findings Section G + roadmap log)
+- [x] Push, open the PR (`Refs #656`), hand off to review (PR #700)
 
 ## Current step
 
-All F1/F2 edits committed; the ledger entries and the final verification
-record are next.
+Complete; PR #700 is open and the review handoff follows.
 
 ## Next steps
 
-1. Apply F1 in `crates/terminal/src/geometry.rs`.
-2. Apply F2 (`reap` helper + Drop/site updates) in:
-   `plan_contract.rs`, `render_geometry.rs`, `resize_race.rs`,
-   `tester_dynamic_layout_hostile.rs`, `tester_layout_goldens_live.rs`,
-   `tester_render_width_hostile.rs`, `tester_resize_race_hostile.rs`,
-   `tester_probe.rs`, `tester_macos_probe_window.rs`, `tester_replay.rs`,
-   `tier_flag_precedence.rs`.
-3. Verify, commit in modules, push, open the PR.
+1. The Reviewer verifies the diff; the macOS arm re-runs the portability check
+   after the merge.
 
 ## Agent log
 
@@ -57,3 +50,18 @@ record are next.
   loose `kill(); wait()` sites in the four probe/replay suites that carry the
   shape without a `Drop`). Linux behavior stays byte-identical: `try_wait`
   reaps immediately in the normal case.
+- 2026-10-19 (builder, same round, completion entry): committed the fix in
+  five modular commits (scaffold, F1, the seven `Drop` harnesses, the four
+  probe/replay suites, the ledgers) and opened PR #700 with `Refs #656`.
+  Verification on this tree: `cargo test -p maze-chase-terminal` 165 passed /
+  0 failed (identical count to the pre-fix tree), the three formerly hanging
+  suites terminate in 0.31 s / 0.98 s / 2.83 s, `cargo fmt --all --check`
+  clean, clippy reports only main's pre-existing engine warnings. One `general`
+  verification subagent re-audited the diff read-only: it enumerated all 16
+  reap sites (each preceded by `kill()`), confirmed the only two remaining
+  `.wait()` sites are safe (the continuously draining reader thread in
+  `tester_macos_e2e` and the Windows piped-stdio harness), proved the helper
+  cannot block (O_NONBLOCK masters, bounded loop, no panicking path), and
+  found no weakened assertion or discarded exit status. It also noted one
+  pre-existing, untouched `ptsname` lock omission in three harnesses (left
+  as-is, out of scope).

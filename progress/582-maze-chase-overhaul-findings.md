@@ -414,3 +414,34 @@ already tightened the resize contract (shrink-into-too-small deletes
 live Kitty placements in the card's first frame) and re-scoped
 `Closes #656` back to `Refs #656` until the per-OS real-emulator proof
 lands; no other finding from that round remains open.
+
+## G. macOS arm on issue #656: test-harness portability (fixed)
+
+The macOS per-OS arm on the #691 merge (run 39199219952, `70ada902`)
+returned `fix` for two committed test artifacts even though the product
+passed every behavioral and contract check (Terminal.app and Ghostty,
+`GAME_EXIT:0`). The fix rides the issue's own branch with a PR
+referencing `Refs #656`; no production code changed.
+
+- F1 (fixed): `geometry::tests::pty_pixel_fields_shape_the_geometry`
+  opened a PTY master and set `TIOCSWINSZ` without ever opening the
+  slave; macOS returns `ENOTTY` on a master with no attached slave, so
+  the test panicked (`geometry.rs:273`). The test now opens the slave
+  (the same discipline every integration harness follows) and wraps
+  both fds in `OwnedFd` so a failing assertion cannot leak them.
+- F2 (fixed): every PTY harness reaped a killed child with
+  `kill(); wait()`. On macOS the SIGKILL of a child blocked writing to
+  a full PTY master stays held until that write completes, so
+  `Session::drop` hung `Child::wait` forever; `plan_contract`,
+  `tester_dynamic_layout_hostile`, and `tester_layout_goldens_live`
+  never finished. All eleven PTY harnesses now reap through a shared
+  bounded helper (`reap`): drain the non-blocking master, `try_wait`,
+  and a 5-second cap, so no suite can ever wedge on a reap. The three
+  formerly hanging suites plus the other eight harnesses pass on Linux
+  in seconds with identical behavior.
+
+Evidence: `cargo test -p maze-chase-terminal` 165 passed / 0 failed on
+this tree (the same count as before the fix), the three formerly
+hanging suites terminate (0.31 s / 0.98 s / 2.83 s), `cargo fmt --all
+--check` clean, clippy shows only main's pre-existing engine warnings.
+The macOS arm re-run verifies the portability on the real platform.
