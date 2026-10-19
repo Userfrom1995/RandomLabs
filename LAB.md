@@ -573,8 +573,8 @@ cannot pass), unclassified status
 propagation, and the extracted runner step proven the unique executing one
 (no conditional gate other than the Maintainer runner's single exact shared
 actor-write gate condition (issue #696), a path-normalized unique invocation
-in the file, and the invocation present in the extracted block) are asserted
-by behavior, so textual pin
+in the verify's job, and the invocation present in the extracted block) are
+asserted by behavior, so textual pin
 relocations, decoys, loop rewrites, detection-window tweaks, backoff
 backgrounding, case folds, later-rung budget gating, or step shadowing cannot
 pass while the contract breaks.
