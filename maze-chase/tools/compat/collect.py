@@ -8,11 +8,11 @@ directory:
     run-dir/session/events.log     TSV event stream with transcript offsets
     run-dir/session/pty.log        raw escape transcript of the game
     run-dir/session/screenshots/   one PNG per checkpoint
-    run-dir/session/trace.jsonl    MAZE_CHASE_TRACE output when the binary
-                                   emits it (the trace mode lands with the
-                                   render pipeline work; ingestion is
-                                   already wired so no harness change is
-                                   needed once the binary writes it)
+    run-dir/session/trace.jsonl    MAZE_CHASE_TRACE output: the render
+                                   pipeline's per-frame trace, exported
+                                   by run-linux.sh / run-macos.sh and
+                                   ingested below (absent only when the
+                                   binary died before writing it)
 
 `collect.py` parses the transcript deterministically (frame segmentation,
 Kitty/Sixel protocol statistics, per-phase layout addressing, the tier
@@ -463,11 +463,78 @@ def white_share(decoded):
     return 0.0
 
 
+# Sprite palette of the default Ember Warren theme
+# (maze_chase_assets::themes::EMBER_WARREN): the body colors of Pip,
+# sunseeds, and the four wardens. A kitty-graphics `pass` needs at least
+# one of these pixels visible in a playing capture: a valid screenshot of
+# the static board layer alone can decode while every sprite placement
+# sits hidden behind the opaque board (the equal-z Ghostty collapse), so
+# dimensions and white-share checks alone cannot prove sprite
+# visibility. Exact RGB matches only, never a sampled estimate; eyes and
+# fright masks are excluded because they are white/near-white and would
+# collide with the light-background check.
+SPRITE_COLORS = (
+    ("pip", (255, 225, 130)),
+    ("sunseed", (255, 215, 120)),
+    ("bram", (230, 70, 40)),
+    ("kessa", (60, 200, 180)),
+    ("jory", (240, 180, 60)),
+    ("nib", (170, 120, 230)),
+)
+
+
+def sprite_census(decoded):
+    """Count exact sprite-palette pixels in one decoded capture, per
+    color and in total. Non-RGB formats the harness never emits
+    (grayscale and friends) count zero, 16-bit captures never reach
+    this function (the PNG reader refuses them), and palette PNGs
+    resolve indices through their own PLTE chunk before matching.
+    Alpha is deliberately ignored (screen capture can leave it zero,
+    same as `white_share`, and the game never paints a transparent
+    pixel whose RGB equals a sprite color). The palette is the default
+    Ember Warren theme; the harness always drives a fresh default-theme
+    config, and a pass on another theme would downgrade loudly instead
+    of passing quietly."""
+    counts = {name: 0 for name, _ in SPRITE_COLORS}
+    lookup = {rgb: name for name, rgb in SPRITE_COLORS}
+    width = decoded["width"]
+    height = decoded["height"]
+    color = decoded["color_type"]
+    bit = decoded["bit_depth"]
+    rows = decoded["rows"]
+    stride = decoded["stride"]
+    total = width * height
+    if color == 3 and decoded["palette"]:
+        palette = decoded["palette"]
+        entries = [tuple(palette[i:i + 3]) for i in range(0, len(palette), 3)]
+        index_names = [lookup.get(entry) for entry in entries]
+        mask = (1 << bit) - 1
+        for y in range(height):
+            row = rows[y * stride:(y + 1) * stride]
+            for x in range(width):
+                byte = row[(x * bit) // 8]
+                idx = (byte >> (8 - bit - (x * bit) % 8)) & mask
+                if idx < len(index_names) and index_names[idx]:
+                    counts[index_names[idx]] += 1
+    elif color == 2 and bit == 8:
+        for i in range(0, total * 3, 3):
+            name = lookup.get((rows[i], rows[i + 1], rows[i + 2]))
+            if name:
+                counts[name] += 1
+    elif color == 6 and bit == 8:
+        for i in range(0, total * 4, 4):
+            name = lookup.get((rows[i], rows[i + 1], rows[i + 2]))
+            if name:
+                counts[name] += 1
+    return {"pixels": sum(counts.values()), "by_color": counts}
+
+
 def screenshot_facts(path):
-    """Signature-checked capture facts: dimensions and the white-pixel
-    share (a light-background capture). Returns None when the file is not
-    a decodable PNG: the caller rejects such captures instead of copying
-    corrupt bytes into the evidence bundle."""
+    """Signature-checked capture facts: dimensions, the white-pixel
+    share (a light-background capture), and the sprite-palette census
+    of the pixels. Returns None when the file is not a decodable PNG:
+    the caller rejects such captures instead of copying corrupt bytes
+    into the evidence bundle."""
     try:
         decoded = decode_png(path)
     except OSError:
@@ -480,6 +547,7 @@ def screenshot_facts(path):
         "height": decoded["height"],
         "white_share": round(share, 4),
         "light_background": share >= 0.98,
+        "sprite_census": sprite_census(decoded),
     }
 
 
@@ -679,6 +747,7 @@ def main():
             phase["screenshot_width"] = facts["width"]
             phase["screenshot_height"] = facts["height"]
             phase["white_share"] = facts["white_share"]
+            phase["sprite_census"] = facts["sprite_census"]
             if facts["light_background"]:
                 phase["light_background_capture"] = True
                 light_captures.append(phase["name"])
@@ -727,6 +796,35 @@ def main():
             "recorded partial by collect.py: no checkpoint capture entered "
             "the bundle; a pass requires at least one rendered capture"
         )
+    # Sprite-visibility honesty on the kitty-graphics tier: placements
+    # round-tripping through the terminal proves the protocol, not that
+    # the player can see the sprites. Before the explicit z layers, a
+    # terminal that honored the equal-z image-id tie-break (Ghostty
+    # 1.3.1) composited the opaque static board above the atlas, so
+    # every capture decoded as a valid, non-white board with zero sprite
+    # pixels. A `pass` on the kitty-graphics tier with placements on the
+    # wire therefore requires at least one playing capture carrying
+    # sprite-palette pixels; the census is recorded either way.
+    placements_total = result["protocol_totals"]["kitty"]["placements"]
+    if args.result == "pass" and tier == "kitty-graphics" and placements_total > 0:
+        with_sprites = [
+            phase["name"]
+            for phase in result["phases"]
+            if str(phase.get("name", "")).startswith("playing")
+            and (phase.get("sprite_census") or {}).get("pixels", 0) > 0
+        ]
+        if not with_sprites:
+            disposition = "partial"
+            notes.append(
+                "recorded partial by collect.py: kitty-graphics placements "
+                f"({placements_total}) round-tripped but no playing capture "
+                "contains a sprite-palette pixel; the static board layer "
+                "alone decodes as a valid frame, so sprite visibility is "
+                "not proven"
+            )
+        result["sprite_visibility"] = {
+            "playing_captures_with_sprites": with_sprites,
+        }
     result["disposition"] = disposition
     result["notes"] = notes
 
@@ -746,18 +844,18 @@ def main():
 
 
 def trace_summary(run_dir, session):
-    """Ingest MAZE_CHASE_TRACE JSONL when the binary emits it. The trace
-    mode lands with the render pipeline work; until then the field states
-    the absence honestly instead of fabricating a trace."""
+    """Ingest MAZE_CHASE_TRACE JSONL: the harness exports the variable to
+    `session/trace.jsonl` and the binary appends one record per frame, so
+    an absent or empty file means the session never reached tracing (a
+    crash before the first write), never a collector gap."""
     path = os.path.join(session, "trace.jsonl")
     if not os.path.isfile(path) or os.path.getsize(path) == 0:
         return {
             "present": False,
             "path": "session/trace.jsonl",
-            "reason": ("binary does not emit MAZE_CHASE_TRACE yet (trace mode "
-                       "is part of the render pipeline work); the harness "
-                       "passes the variable and ingests it automatically "
-                       "once the binary writes it"),
+            "reason": ("no trace records: the harness exported "
+                       "MAZE_CHASE_TRACE but the binary wrote none, which "
+                       "means the session never reached the trace loop"),
         }
     records = []
     bad = 0
