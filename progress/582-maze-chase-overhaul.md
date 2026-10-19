@@ -45,11 +45,15 @@ then enforced the 2x1 compact floor on the pixel path (1-column scales
 no longer win the chrome tie-break; the 80x63 / 8x6 case is pinned),
 reconciled the scoring and raster claims across the blueprint, the
 terminal doc, and the module header, restored the dated solver record
-to its pre-fix wording, and tightened the squareness guard.
-Re-measured on the final tree: workspace suite 447 passed, 0 failed
-across 46 test binaries plus 7 doc-test suites, `maze-chase-verify`
-19/19 with the `23c17f89734e` golden intact, clippy back to the
-pre-existing warnings from `main` (none from this branch's files). The
+to its pre-fix wording, and tightened the squareness guard. A Quality
+Council pass then scoped the terminal doc's coverage claim to the
+measured sweep floor (280/1000 at 399x62) and its Sixel bounding
+guarantee to the documented 6-ppt legibility-floor exception.
+Re-measured on the final tree with the Tester's committed live-golden
+suite included: workspace suite 451 passed, 0 failed across 47 test
+binaries plus 7 doc-test suites, `maze-chase-verify` 19/19 with the
+`23c17f89734e` golden intact, clippy back to the pre-existing warnings
+from `main` (none from this branch's files). The
 real-emulator resize rows (Linux kitty/Ghostty/xterm, macOS) are the
 one open Phase 2 checklist item and stay with the per-OS testers: no
 emulator is installed on the build machine. Next: Phase 3 (terminal
@@ -418,4 +422,23 @@ render pipeline and compatibility proof).
   `main.rs`, and ran all gates itself. Skills: no registry skill
   matched this run's domains (no opencode configuration, agent, or
   plugin edits); none loaded, per `delegation.md` section 5.
+  - the Fixer
+- 2026-10-19 (fixer, Phase 2 Quality Council round on PR #691):
+  applied the Evaluator's two scoped doc-accuracy findings. E1: the
+  terminal doc's coverage absolute ("never strands most of the window
+  as dead space") now states the measured behavior (wide-short and tall
+  rooms reach their scales instead of a single derived diagonal; the
+  measured sweep floor is 280/1000 at 399x62). E2: the Sixel bounding
+  guarantee is scoped to every window that can host the 6-ppt
+  legibility floor, matching the paragraph's own documented exception.
+  Refreshed the four claim sites (the scoreboard follow-up section, the
+  findings evidence paragraph, the current-step summary above, and the
+  PR body) to the tester-head tally, re-measured on this tree:
+  451 passed / 0 failed across 47 test binaries plus 7 doc-test
+  suites. No delegation: a two-sentence scoped-wording pass with named
+  replacement text needed no open-ended investigation, so no subagent
+  missions were launched; the primary applied the edits and re-ran the
+  full workspace suite under Xvfb itself. Skills: no registry skill
+  matched this run's domains; none loaded, per `delegation.md` section
+  5.
   - the Fixer
