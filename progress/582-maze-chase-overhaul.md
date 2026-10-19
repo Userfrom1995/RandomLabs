@@ -812,3 +812,23 @@ redesign), gated on the Design Council's direction.
   context regenerated all eight rows on the real emulators, ran the
   full workspace suite, and committed the probe captures.
   - the Fixer
+- 2026-10-19 (fixer, Phase 3 review round 10 on PR #693): applied F22,
+  F23, and F24 on `e04d161a`; no rebuttal. F22 (blocking): the collector
+  now fails closed when a proposed `pass` transcript never names its
+  video tier (`tier_observed: null`), because every bitmap honesty gate
+  is keyed on the observed tier and a missing observation would skip all
+  of them; a kitty, sixel, or auto run with a decodable playing capture
+  but no `VIDEO`/`video tier:` line records `partial` with the reason,
+  and the positive twin (tier line present) still passes. F23: an empty
+  or partial `build` block (missing, blank, or non-string `commit` or
+  `binary_sha256`) now also records `build.recorded: false` with the
+  reason, matching the compat README promise; the build-identity test
+  covers the absent, empty, partial, and blank shapes. F24: the
+  playing-phase gates (blank board, playing capture, sprite census)
+  match phase names case-insensitively, pinned by a `Playing`-cased
+  checkpoint test. The harness README and `docs/terminal-compat.md` now
+  document the tier-observation refusal. Verification: harness contract
+  suite 40/40 (three new tests); no Rust or committed evidence changed,
+  so the workspace suite, verifier, and bundle gates stand from the
+  evidence-hardening round.
+  - the Fixer
