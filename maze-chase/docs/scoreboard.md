@@ -215,7 +215,9 @@ terminal docs, and the module header, and tightened the squareness
 guard. The full gates re-run on the Linux build machine:
 
 - `cargo test --workspace --no-fail-fast` (desktop E2E under Xvfb):
-  447 passed, 0 failed across 46 test binaries plus 7 doc-test suites.
+  451 passed, 0 failed across 47 test binaries plus 7 doc-test suites
+  (the Tester's committed live-golden suite adds 4 tests and the 47th
+  binary on top of the 447 measured through the review rounds).
 - `cargo run --release --bin maze-chase-verify`: 19/19 checks, the
   golden replay digest unchanged (`23c17f89734e`).
 - `cargo fmt --all --check` clean; clippy reports only the pre-existing

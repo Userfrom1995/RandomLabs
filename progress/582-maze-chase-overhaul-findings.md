@@ -395,12 +395,17 @@ follow-up on this issue's own branch with committed tests.
   (the 6-ppt floor can exceed the board box only in absurdly tiny
   pixel windows and the footprint aspect rounds to within one cell
   per axis).
+- Council follow-up (fixed): the terminal doc's coverage absolute
+  ("never strands most of the window as dead space") is scoped to the
+  measured sweep floor (280/1000 at 399x62), and the Sixel bounding
+  guarantee is scoped to every window that can host the 6-ppt
+  legibility floor, matching the paragraph's own documented exception.
 
 Evidence: the committed tests plus the tester's real-PTY report on
-#656, re-measured after the review round's floor pin and claim
-reconciliation; workspace suite 447 passed, 0 failed across 46 test
-binaries plus 7 doc-test suites, fmt clean, clippy back to the
-pre-existing warnings from `main` (engine style lints plus the
+#656, re-measured on the final tree with the Tester's committed
+live-golden suite included; workspace suite 451 passed, 0 failed
+across 47 test binaries plus 7 doc-test suites, fmt clean, clippy back
+to the pre-existing warnings from `main` (engine style lints plus the
 design-token test's suggestions) with none from this branch's files,
 `maze-chase-verify` 19/19 with the `23c17f89734e` golden intact.
 
