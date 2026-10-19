@@ -8,7 +8,7 @@
 - **Status:** in-progress
 - **Updated:** 2026-10-19
 - **Active Phase:** Phase 3: Terminal Render Pipeline and Compatibility Proof
-  (landed on Linux; macOS matrix rows stay with the per-OS testers)
+  (Complete, ready for review; macOS matrix rows stay with the per-OS testers)
 - **Blueprint:** `ideas/2026-10-18-maze-chase-overhaul.md`
 - **Findings ledger:** `progress/582-maze-chase-overhaul-findings.md` (created in
   Phase 1; every reassessment gap lives here until resolved or documented)
