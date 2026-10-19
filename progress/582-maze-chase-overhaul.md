@@ -70,9 +70,9 @@ redesign), gated on the Design Council's direction.
 
 ## Next steps
 
-- Builder: Phase 2 landed with this PR (dynamic layout and full-window
-  composition); Phase 3 (render pipeline and compatibility proof) starts
-  from the merged tip.
+- Builder: Phase 3 (render pipeline and compatibility proof) landed with
+  this PR; Phase 4 (visual identity redesign) starts from the merged tip
+  once the Design Council direction is binding.
 - Maintainer: dispatch the Design Council pass (`/oc design`, specialists as
   needed) after this roadmap lands, timed to complete before Phase 4 build;
   file the Phase 1 findings as linked sub-issues prioritized into the remaining
@@ -707,4 +707,27 @@ redesign), gated on the Design Council's direction.
   and a main-based branch, and ran the full suite, verify, harness
   contract, fmt, and clippy. No registry skill matched this round; none
   loaded.
+  - the Fixer
+- 2026-10-19 (fixer, Phase 3 review round 7 on PR #693): applied
+  F17-residual and F18-F21 plus the review nits; no rebuttal. F18: a
+  failed frame write now forces a full repaint (`fresh = true` plus
+  `kitty.invalidate()` through `note_failed_frame_write`), because the
+  renderer had already committed its diff state while composing a
+  frame the terminal never received; a unit test pins the release trio
+  and both re-transmits on the recovered frame. F19: `white_share`
+  classifies packed 1/2/4-bit grayscale and gray+alpha, so a blank
+  capture in those shapes can no longer report 0.0 white and bypass
+  the 0.98 light-background gate; contract tests cover all four depths
+  for both color types. F20: the pause arm also frees the whole-frame
+  fallback image (id 1) when the probe proved graphics without
+  placements, pinned by a unit test. F21: the compatibility matrix
+  scopes the sprite-census refusal to rows with placements on the
+  wire. F17 residual: the findings ledger's kitty/Ghostty method note
+  now records the pre-fix partial state and the regenerated clean-exit
+  bundles instead of claiming the current rows are partial. Nits: the
+  `kitty_present` comment names failed frame writes as the only
+  watchdog strike source, and the roadmap's Next steps point Phase 4
+  at the merged tip. Verification: workspace suite all targets green,
+  harness contract 31/31, fmt clean, clippy adds nothing outside the
+  six pre-existing engine warnings.
   - the Fixer
