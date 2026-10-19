@@ -224,9 +224,26 @@ fn wait_for_after(
     }
 }
 
-fn stop(child: &mut Child) {
+/// Reap a killed PTY child without ever blocking the suite (issue #656
+/// F2): a child SIGKILLed while blocked writing to a full PTY master
+/// stays unreapable on macOS until the pending write completes, so the
+/// old `kill(); wait()` shape could hang this binary. Draining the
+/// non-blocking master lets the write finish and the kill land; the
+/// bounded loop can never hang a suite even if a platform never reaps.
+fn reap(child: &mut Child, master: &mut std::fs::File, out: &mut Vec<u8>) {
     let _ = child.kill();
-    let _ = child.wait();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        drain(master, out);
+        match child.try_wait() {
+            Ok(Some(_)) | Err(_) => return,
+            Ok(None) => {}
+        }
+        if Instant::now() >= deadline {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
 }
 
 fn tail(bytes: &[u8]) -> String {
@@ -319,7 +336,7 @@ fn kitty_render_pipeline_z_layers_quiet_transmits_and_exact_deletes() {
         tail(&out)
     );
     collect_for(&mut pty.master, &mut out, Duration::from_millis(2200));
-    stop(&mut child);
+    reap(&mut child, &mut pty.master, &mut out);
 
     let apcs = apc_params(&out);
     let mut static_tx = false;
@@ -520,7 +537,31 @@ fn kitty_pause_releases_the_board_and_resume_replaces_it() {
         "resume never re-placed the board; tail: {}",
         tail(&out)
     );
-    stop(&mut child);
+    let atlas_transmit = format!("a=t,f=100,i={ATLAS_IMAGE_ID},");
+    assert!(
+        wait_for_after(
+            &mut pty.master,
+            &mut out,
+            resume_start,
+            &atlas_transmit,
+            Duration::from_secs(10)
+        ),
+        "resume never re-transmitted the atlas; tail: {}",
+        tail(&out)
+    );
+    let atlas_placement = format!("a=p,i={ATLAS_IMAGE_ID},");
+    assert!(
+        wait_for_after(
+            &mut pty.master,
+            &mut out,
+            resume_start,
+            &atlas_placement,
+            Duration::from_secs(10)
+        ),
+        "resume never re-placed a sprite; tail: {}",
+        tail(&out)
+    );
+    reap(&mut child, &mut pty.master, &mut out);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -577,7 +618,7 @@ fn kitty_probe_two_fragmented_ok_replies_upgrade_to_placement_mode() {
         "play never started after the probe; tail: {}",
         tail(&out)
     );
-    stop(&mut child);
+    reap(&mut child, &mut pty.master, &mut out);
 
     let text = trace_text(&dir);
     let probe_line = text
@@ -660,7 +701,7 @@ fn kitty_probe_placement_rejection_keeps_full_frame_transmit_mode() {
         tail(&out)
     );
     collect_for(&mut pty.master, &mut out, Duration::from_millis(800));
-    stop(&mut child);
+    reap(&mut child, &mut pty.master, &mut out);
 
     let text = trace_text(&dir);
     let probe_line = text
@@ -720,7 +761,7 @@ fn leaving_kitty_tier_releases_board_and_atlas_before_first_sixel_frame() {
     let write_end = unsafe { std::fs::File::from_raw_fd(write_fd) };
     let mut read_end = unsafe { std::fs::File::from_raw_fd(read_fd) };
 
-    let pty = open_pty(100, 40);
+    let mut pty = open_pty(100, 40);
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_maze-chase-terminal"));
     cmd.arg("--dir")
         .arg(&dir)
@@ -761,7 +802,8 @@ fn leaving_kitty_tier_releases_board_and_atlas_before_first_sixel_frame() {
         }
     }
     let released = wait_trace(&dir, "\"mode\":\"sixel\"", Duration::from_secs(10));
-    stop(&mut child);
+    let mut drained = Vec::new();
+    reap(&mut child, &mut pty.master, &mut drained);
 
     let stream = String::from_utf8_lossy(&buf).into_owned();
     let last_place = stream
@@ -884,7 +926,7 @@ fn private_csi_input_stall_is_pinned_and_recovers_on_the_completion_byte() {
         collect_for(&mut pty.master, &mut out, Duration::from_millis(50));
     };
     if !exited {
-        stop(&mut child);
+        reap(&mut child, &mut pty.master, &mut out);
     }
     assert!(
         exited,
