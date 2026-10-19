@@ -1,12 +1,13 @@
 //! Fullscreen canvas layout: fit the 28x31 warren plus HUD into any window.
 //!
 //! The board is `cell_cols` x `cell_rows` terminal cells per tile, chosen
-//! continuously: the solver scans every scale in the documented 1..8 x
-//! 1..4 grid (the 2x1 compact floor included) and keeps the one with the
-//! highest coverage - the share of the window the board plus chrome
-//! occupies - breaking ties by tile squareness, chrome, area, and width
-//! (issues #675, #656: the old per-column derivation skipped wide-short
-//! scales like 7x1 and 2x2, leaving most of a wide or tall window empty).
+//! continuously: the solver scans the documented tile-scale grid (2 to 8
+//! columns per tile by 1 to 4 rows; the 2x1 compact floor is the
+//! narrowest scale) and keeps the one with the highest coverage - the
+//! share of the window the board plus chrome occupies - breaking ties by
+//! tile squareness, chrome, area, and width (issues #675, #656: the old
+//! per-column derivation skipped wide-short scales like 7x1 and 2x2,
+//! leaving most of a wide or tall window empty).
 //! Chrome adapts to the room the board leaves: a right side panel on wide
 //! rooms, a two-row HUD band above the board when the board's own width
 //! leaves no panel room, and nothing but the bottom hint line in tight
@@ -30,8 +31,9 @@
 //! rounding per axis, so the art is never stretched across the whole
 //! board.
 //! Terminals that report no pixel size keep the Phase 1 behavior: the
-//! nominal 8-ppt raster drawn across the full board box (see
-//! [`NOMINAL_IMAGE_PPT`]).
+//! nominal 8-ppt raster (see [`NOMINAL_IMAGE_PPT`]), stretched across the
+//! full board box on Kitty and painted at its natural size from the board
+//! origin on Sixel.
 //!
 //! [`compute`] is pure: resize handling just calls it again, and equal
 //! inputs always yield equal plans, so the binary can detect a plan
@@ -118,7 +120,10 @@ pub struct Layout {
     /// Cell footprint the raster is drawn into, centered inside
     /// [`Layout::board`]: the mapped raster footprint on pixel-reporting
     /// bitmap terminals, and the full board everywhere else (cell tiers,
-    /// too-small cards, and terminals without a pixel report).
+    /// too-small cards, and terminals without a pixel report). In the
+    /// absurdly tiny-pixel-window case (the 6-ppt legibility floor wins,
+    /// see [`Layout::board_px`]) the clamp to the board caps this
+    /// footprint below the raster's natural pixel size.
     pub image: Rect,
     /// Tile footprint: terminal columns/rows per maze tile (both kinds).
     pub cell_cols: u16,
@@ -273,9 +278,15 @@ pub fn compute_pixels(cols: u16, rows: u16, px: Option<PixelGeometry>) -> Layout
     // The full documented scale grid: every (cw, ch) in 1..8 x 1..4 is a
     // candidate (with the chrome combinations that fit), so wide-short
     // rooms can reach 7x1 / 8x1 and tall rooms 2x2 / 2x3 instead of
-    // being stuck on the derived-aspect diagonal (issue #656).
+    // being stuck on the derived-aspect diagonal (issue #656). The 2x1
+    // compact floor below keeps 1-column scales out of every plan.
     for cw in 1..=MAX_CELL_COLS {
         for ch in 1..=MAX_CELL_ROWS {
+            // The 2x1 compact floor: 1x<ch> is never a plan at or
+            // above the minimum window, where 2x<ch> always fits.
+            if cw == 1 && cols >= (board_w_tiles * 2) as u16 {
+                continue;
+            }
             let board_w = (board_w_tiles * cw as u32) as u16;
             let board_h = (board_h_tiles * ch as u32) as u16;
             if cols < board_w || rows < board_h + 1 {
@@ -530,7 +541,7 @@ mod tests {
         let chosen = l.cell_cols as u32 * NOMINAL_CELL_W_PX as u32;
         let chosen_h = l.cell_rows as u32 * NOMINAL_CELL_H_PX as u32;
         assert!(
-            chosen.abs_diff(chosen_h) <= alt.abs_diff(3 * NOMINAL_CELL_H_PX as u32),
+            chosen.abs_diff(chosen_h) < alt.abs_diff(3 * NOMINAL_CELL_H_PX as u32),
             "solver picked a less square tile than a same-area alternative"
         );
     }
@@ -697,9 +708,8 @@ mod tests {
 
         // The rest of the checked-in golden set: every column family the
         // solver can pick (2..8) and every row family (1..4) has a pinned
-        // plan. cw=1 never wins: at or above the 62-column minimum the
-        // 2x<rows> candidate always fits and covers more than 1x<rows>
-        // at the same height.
+        // plan. The 2x1 compact floor keeps 1-column scales out of every
+        // plan (pinned by `pixel_path_never_drops_below_the_compact_floor`).
         for (cols, rows, cw, ch, chrome) in [
             (300, 120, 8, 3, Chrome::Side),
             (300, 40, 8, 1, Chrome::Side),
@@ -727,6 +737,36 @@ mod tests {
     }
 
     #[test]
+    fn pixel_path_never_drops_below_the_compact_floor() {
+        // Issue #656 round-2 F4: with 8x6 cells at 80x63 a 1x2 side-panel
+        // plan used to tie the 2x2 minimal plan on coverage (700) and
+        // squareness (4) and then win on the chrome tie-break. The 2x1
+        // compact floor skips 1-column scales, so the 2x2 plan wins and
+        // no report can pull a plan below two columns per tile.
+        let floored = compute_with(80, 63, Some((8, 6)));
+        assert_eq!((floored.cell_cols, floored.cell_rows), (2, 2));
+        assert_eq!(floored.chrome, Chrome::Minimal);
+        assert!(floored.magnified);
+        for (cols, rows) in [
+            (62, 35),
+            (80, 63),
+            (100, 40),
+            (143, 64),
+            (200, 60),
+            (62, 80),
+            (300, 120),
+        ] {
+            for cell in [(8, 6), (4, 4), (7, 14), (10, 20), (32, 64)] {
+                let l = compute_with(cols, rows, Some(cell));
+                assert!(
+                    l.cell_cols >= 2,
+                    "{cols}x{rows} {cell:?}: plan below the compact floor"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn coverage_sweep_never_leaves_rooms_hollow() {
         // Regression sweep for issue #656 F1: across the ordinary window
         // range every plan must dress a large share of the window with
@@ -737,6 +777,7 @@ mod tests {
             for rows in MIN_ROWS..=120 {
                 let l = compute(cols, rows);
                 assert!(!l.too_small, "{cols}x{rows}");
+                assert!(l.cell_cols >= 2, "{cols}x{rows}: below the compact floor");
                 let area = cols as u64 * rows as u64;
                 let cov = l.board.w as u64 * l.board.h as u64 * 1000 / area;
                 assert!(
@@ -845,6 +886,10 @@ mod tests {
                         }),
                     );
                     assert!(l.is_pixels(), "{cols}x{rows} {cell:?}");
+                    assert!(
+                        l.cell_cols >= 2,
+                        "{cols}x{rows} {cell:?}: below the compact floor"
+                    );
                     let raster = (WIDTH as u32 * l.ppt(), HEIGHT as u32 * l.ppt());
                     let min_raster = (MIN_IMAGE_PPT * WIDTH as u32, MIN_IMAGE_PPT * HEIGHT as u32);
                     if l.board_px.0 >= min_raster.0 && l.board_px.1 >= min_raster.1 {

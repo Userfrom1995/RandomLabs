@@ -49,9 +49,11 @@ pub struct PixelGeometry {
 
 impl PixelGeometry {
     /// Window pixel size for a `cols`x`rows` window: the reported size
-    /// when available, `cols x cell` / `rows x cell` otherwise.
+    /// when available, `cols x cell` / `rows x cell` otherwise. A
+    /// zero-sized report is nonsense and falls back like a missing one,
+    /// matching the layout solver's own filter.
     pub fn window_px(&self, cols: u16, rows: u16) -> (u32, u32) {
-        self.window.unwrap_or((
+        self.window.filter(|&(w, h)| w > 0 && h > 0).unwrap_or((
             cols as u32 * self.cell.0 as u32,
             rows as u32 * self.cell.1 as u32,
         ))
@@ -300,5 +302,17 @@ mod tests {
             window: Some((604, 524)),
         };
         assert_eq!(reported.window_px(100, 40), (604, 524));
+        // A zero-sized report is as good as none (the solver's filter
+        // treats it the same way).
+        let zero = PixelGeometry {
+            cell: (8, 16),
+            window: Some((0, 0)),
+        };
+        assert_eq!(zero.window_px(100, 40), (800, 640));
+        let half_zero = PixelGeometry {
+            cell: (8, 16),
+            window: Some((0, 524)),
+        };
+        assert_eq!(half_zero.window_px(100, 40), (800, 640));
     }
 }
