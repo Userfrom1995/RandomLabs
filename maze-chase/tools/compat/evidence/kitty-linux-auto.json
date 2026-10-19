@@ -10,6 +10,13 @@
   "tier_observed": "kitty-graphics",
   "disposition": "pass",
   "unverified_reason": null,
+  "build": {
+    "commit": "97e8865d5b9507b5e3af7899d2353ea1d4d6c8ab",
+    "commit_short": "97e8865d5b95",
+    "binary_sha256": "b5a38ee755f956f92704855f4dad8f1df842625b216e326f6ad9e2c339d629ea",
+    "sources_dirty": false
+  },
+  "pause_select": 0,
   "runner": {
     "host": "runnervm8k3b6",
     "id": "compat-harness"
@@ -62,8 +69,8 @@
     "resize_exercised": true
   },
   "extra_env": [],
-  "started_at": "2026-10-19T11:09:49Z",
-  "ended_at": "2026-10-19T11:10:13Z",
+  "started_at": "2026-10-19T16:32:19Z",
+  "ended_at": "2026-10-19T16:32:43Z",
   "exit": {
     "code": 0,
     "killed": false,
@@ -73,8 +80,8 @@
   "phases": [
     {
       "name": "title",
-      "bytes": 15894,
-      "at_ms": 1792408192790,
+      "bytes": 15893,
+      "at_ms": 1792427541930,
       "screenshot": "screenshots/title.png",
       "frames": {
         "count": 3,
@@ -84,7 +91,7 @@
       "surfaces": {
         "title_video_line": {
           "paints": 3,
-          "first_byte": 3579
+          "first_byte": 3578
         }
       },
       "layout": {
@@ -124,28 +131,28 @@
     },
     {
       "name": "playing",
-      "bytes": 551889,
-      "at_ms": 1792408197575,
+      "bytes": 547550,
+      "at_ms": 1792427546688,
       "screenshot": "screenshots/playing.png",
-      "duration_ms": 4785,
-      "bytes_per_s": 115337,
+      "duration_ms": 4758,
+      "bytes_per_s": 115079,
       "frames": {
-        "count": 99,
-        "bytes_mean": 5574,
-        "bytes_max": 14280
+        "count": 98,
+        "bytes_mean": 5587,
+        "bytes_max": 14279
       },
-      "frames_per_s": 20.7,
+      "frames_per_s": 20.6,
       "layout": {
         "addressed_cols_min": 8,
         "addressed_cols_max": 76,
         "addressed_rows_min": 3,
         "addressed_rows_max": 36,
-        "moves": 3879
+        "moves": 3839
       },
       "kitty": {
         "transmits": 17,
-        "placements": 414,
-        "deletes": 388,
+        "placements": 409,
+        "deletes": 383,
         "queries": 0,
         "chunked": true,
         "payload_bytes": 131320,
@@ -156,15 +163,15 @@
           "h": 465
         }
       },
-      "screenshot_sha256": "b407f9d13015c430f335a9520e7319d441e35f58bd7550a0df15eb65bb881095",
+      "screenshot_sha256": "d2bfd56e1706af59fb9875be1fb102d728db56454e2f59666db64e7d9a717bc3",
       "screenshot_width": 701,
       "screenshot_height": 601,
       "white_share": 0.0002,
-      "dominant_share": 0.5291,
+      "dominant_share": 0.529,
       "sprite_census": {
-        "pixels": 228,
+        "pixels": 227,
         "by_color": {
-          "pip": 26,
+          "pip": 25,
           "sunseed": 52,
           "bram": 38,
           "kessa": 31,
@@ -175,21 +182,21 @@
     },
     {
       "name": "resized-wide",
-      "bytes": 358894,
-      "at_ms": 1792408199247,
+      "bytes": 358774,
+      "at_ms": 1792427548356,
       "screenshot": "screenshots/resized-wide.png",
-      "duration_ms": 1672,
-      "bytes_per_s": 214649,
+      "duration_ms": 1668,
+      "bytes_per_s": 215092,
       "frames": {
         "count": 35,
-        "bytes_mean": 10254,
-        "bytes_max": 25103
+        "bytes_mean": 10250,
+        "bytes_max": 25102
       },
-      "frames_per_s": 20.9,
+      "frames_per_s": 21.0,
       "surfaces": {
         "playing_hud": {
           "paints": 33,
-          "first_byte": 601436
+          "first_byte": 596662
         }
       },
       "layout": {
@@ -197,12 +204,12 @@
         "addressed_cols_max": 115,
         "addressed_rows_min": 0,
         "addressed_rows_max": 62,
-        "moves": 2831
+        "moves": 2830
       },
       "kitty": {
         "transmits": 2,
-        "placements": 187,
-        "deletes": 176,
+        "placements": 186,
+        "deletes": 175,
         "queries": 0,
         "chunked": true,
         "payload_bytes": 14252,
@@ -213,15 +220,15 @@
           "h": 620
         }
       },
-      "screenshot_sha256": "668b93b8c06b29adf428333d0bd5866323e728762c6b2fa9cf45461d18aa2235",
+      "screenshot_sha256": "2fd73a55903fe3b6418c3814980bde51d803b97f344396f1627e0b228b19c008",
       "screenshot_width": 1001,
       "screenshot_height": 960,
       "white_share": 0.0004,
       "dominant_share": 0.627,
       "sprite_census": {
-        "pixels": 910,
+        "pixels": 914,
         "by_color": {
-          "pip": 100,
+          "pip": 104,
           "sunseed": 208,
           "bram": 152,
           "kessa": 124,
@@ -232,21 +239,21 @@
     },
     {
       "name": "too-small",
-      "bytes": 99808,
-      "at_ms": 1792408200790,
+      "bytes": 99704,
+      "at_ms": 1792427549892,
       "screenshot": "screenshots/too-small.png",
-      "duration_ms": 1543,
-      "bytes_per_s": 64684,
+      "duration_ms": 1536,
+      "bytes_per_s": 64911,
       "frames": {
         "count": 32,
-        "bytes_mean": 3119,
-        "bytes_max": 10148
+        "bytes_mean": 3115,
+        "bytes_max": 10147
       },
-      "frames_per_s": 20.7,
+      "frames_per_s": 20.8,
       "surfaces": {
         "playing_hud": {
           "paints": 2,
-          "first_byte": 936382
+          "first_byte": 931819
         }
       },
       "layout": {
@@ -254,12 +261,12 @@
         "addressed_cols_max": 115,
         "addressed_rows_min": 0,
         "addressed_rows_max": 62,
-        "moves": 886
+        "moves": 885
       },
       "kitty": {
         "transmits": 0,
-        "placements": 10,
-        "deletes": 11,
+        "placements": 9,
+        "deletes": 10,
         "queries": 0,
         "chunked": false,
         "payload_bytes": 0,
@@ -271,7 +278,7 @@
       "screenshot_width": 560,
       "screenshot_height": 360,
       "white_share": 0.0,
-      "dominant_share": 0.9862,
+      "dominant_share": 0.9861,
       "sprite_census": {
         "pixels": 0,
         "by_color": {
@@ -286,21 +293,21 @@
     },
     {
       "name": "refit",
-      "bytes": 361470,
-      "at_ms": 1792408202451,
+      "bytes": 371506,
+      "at_ms": 1792427551574,
       "screenshot": "screenshots/refit.png",
-      "duration_ms": 1661,
-      "bytes_per_s": 217621,
+      "duration_ms": 1682,
+      "bytes_per_s": 220871,
       "frames": {
-        "count": 35,
-        "bytes_mean": 10327,
-        "bytes_max": 25103
+        "count": 36,
+        "bytes_mean": 10319,
+        "bytes_max": 25102
       },
-      "frames_per_s": 21.1,
+      "frames_per_s": 21.4,
       "surfaces": {
         "playing_hud": {
-          "paints": 33,
-          "first_byte": 1056445
+          "paints": 34,
+          "first_byte": 1051880
         }
       },
       "layout": {
@@ -308,12 +315,12 @@
         "addressed_cols_max": 115,
         "addressed_rows_min": 0,
         "addressed_rows_max": 62,
-        "moves": 2855
+        "moves": 2937
       },
       "kitty": {
         "transmits": 2,
-        "placements": 233,
-        "deletes": 222,
+        "placements": 237,
+        "deletes": 226,
         "queries": 0,
         "chunked": true,
         "payload_bytes": 14252,
@@ -324,15 +331,15 @@
           "h": 620
         }
       },
-      "screenshot_sha256": "a8376f5cecf67bcf7031b222d660ca48eba65339b25dbab760edbe3e292fd886",
+      "screenshot_sha256": "aaed81db9a3092beb2b503d7daeb0240f4269b7a1aa0d1527748c051410abbed",
       "screenshot_width": 1001,
       "screenshot_height": 960,
       "white_share": 0.0004,
       "dominant_share": 0.627,
       "sprite_census": {
-        "pixels": 910,
+        "pixels": 898,
         "by_color": {
-          "pip": 100,
+          "pip": 88,
           "sunseed": 208,
           "bram": 152,
           "kessa": 124,
@@ -344,28 +351,28 @@
     {
       "name": "paused",
       "bytes": 22098,
-      "at_ms": 1792408203594,
+      "at_ms": 1792427552708,
       "screenshot": "screenshots/paused.png",
-      "duration_ms": 1143,
-      "bytes_per_s": 19333,
+      "duration_ms": 1134,
+      "bytes_per_s": 19486,
       "frames": {
         "count": 2,
         "bytes_mean": 11049,
         "bytes_max": 11080
       },
-      "frames_per_s": 1.7,
+      "frames_per_s": 1.8,
       "surfaces": {
         "paused": {
           "paints": 2,
-          "first_byte": 1393272
+          "first_byte": 1398744
         },
         "pause_resume": {
           "paints": 2,
-          "first_byte": 1393617
+          "first_byte": 1399089
         },
         "pause_quit": {
           "paints": 2,
-          "first_byte": 1393786
+          "first_byte": 1399258
         }
       },
       "layout": {
@@ -406,10 +413,10 @@
     {
       "name": "title-return",
       "bytes": 33244,
-      "at_ms": 1792408204935,
+      "at_ms": 1792427554051,
       "screenshot": "screenshots/title-return.png",
-      "duration_ms": 1341,
-      "bytes_per_s": 24790,
+      "duration_ms": 1343,
+      "bytes_per_s": 24753,
       "frames": {
         "count": 3,
         "bytes_mean": 11081,
@@ -419,19 +426,19 @@
       "surfaces": {
         "paused": {
           "paints": 1,
-          "first_byte": 1415308
+          "first_byte": 1420780
         },
         "pause_resume": {
           "paints": 1,
-          "first_byte": 1415653
+          "first_byte": 1421125
         },
         "pause_quit": {
           "paints": 1,
-          "first_byte": 1415822
+          "first_byte": 1421294
         },
         "title_video_line": {
           "paints": 2,
-          "first_byte": 1427620
+          "first_byte": 1433092
         }
       },
       "layout": {
@@ -472,10 +479,10 @@
     {
       "name": "help",
       "bytes": 33310,
-      "at_ms": 1792408206286,
+      "at_ms": 1792427555400,
       "screenshot": "screenshots/help.png",
-      "duration_ms": 1351,
-      "bytes_per_s": 24655,
+      "duration_ms": 1349,
+      "bytes_per_s": 24692,
       "frames": {
         "count": 3,
         "bytes_mean": 11103,
@@ -485,11 +492,11 @@
       "surfaces": {
         "help": {
           "paints": 2,
-          "first_byte": 1457995
+          "first_byte": 1463467
         },
         "title_video_line": {
           "paints": 1,
-          "first_byte": 1449784
+          "first_byte": 1455256
         }
       },
       "layout": {
@@ -530,10 +537,10 @@
     {
       "name": "scores",
       "bytes": 55534,
-      "at_ms": 1792408208637,
+      "at_ms": 1792427557749,
       "screenshot": "screenshots/scores.png",
-      "duration_ms": 2351,
-      "bytes_per_s": 23621,
+      "duration_ms": 2349,
+      "bytes_per_s": 23641,
       "frames": {
         "count": 5,
         "bytes_mean": 11106,
@@ -543,11 +550,11 @@
       "surfaces": {
         "scores": {
           "paints": 2,
-          "first_byte": 1515080
+          "first_byte": 1520552
         },
         "title_video_line": {
           "paints": 3,
-          "first_byte": 1483156
+          "first_byte": 1488628
         }
       },
       "layout": {
@@ -572,7 +579,7 @@
       "screenshot_width": 1001,
       "screenshot_height": 960,
       "white_share": 0.0,
-      "dominant_share": 0.998,
+      "dominant_share": 0.9979,
       "sprite_census": {
         "pixels": 0,
         "by_color": {
@@ -588,10 +595,10 @@
     {
       "name": "settings",
       "bytes": 44456,
-      "at_ms": 1792408210977,
+      "at_ms": 1792427560096,
       "screenshot": "screenshots/settings.png",
-      "duration_ms": 2340,
-      "bytes_per_s": 18998,
+      "duration_ms": 2347,
+      "bytes_per_s": 18941,
       "frames": {
         "count": 4,
         "bytes_mean": 11114,
@@ -601,11 +608,11 @@
       "surfaces": {
         "settings": {
           "paints": 2,
-          "first_byte": 1558849
+          "first_byte": 1564321
         },
         "title_video_line": {
           "paints": 2,
-          "first_byte": 1538690
+          "first_byte": 1544162
         }
       },
       "layout": {
@@ -646,10 +653,10 @@
     {
       "name": "tail",
       "bytes": 22311,
-      "at_ms": 1792408213947,
+      "at_ms": 1792427563070,
       "screenshot": null,
-      "duration_ms": 2970,
-      "bytes_per_s": 7512,
+      "duration_ms": 2974,
+      "bytes_per_s": 7502,
       "frames": {
         "count": 2,
         "bytes_mean": 11113,
@@ -659,7 +666,7 @@
       "surfaces": {
         "title_video_line": {
           "paints": 2,
-          "first_byte": 1583146
+          "first_byte": 1588618
         }
       },
       "layout": {
@@ -683,17 +690,17 @@
     }
   ],
   "protocol_totals": {
-    "transcript_bytes": 1598908,
-    "transcript_sha256": "d6a796d7ab6d80dd2a52a688a59be683690b43951c7fa08fc95e481b0657f94c",
+    "transcript_bytes": 1604380,
+    "transcript_sha256": "fb4deb5906dbb4c1959e622cde85be8d462fc0e7e6f22cef1da570f7cd59923e",
     "frames": {
       "count": 223,
-      "bytes_mean": 7168,
-      "bytes_max": 25103
+      "bytes_mean": 7193,
+      "bytes_max": 25102
     },
     "kitty": {
       "transmits": 21,
-      "placements": 844,
-      "deletes": 824,
+      "placements": 841,
+      "deletes": 821,
       "queries": 0,
       "chunked": true,
       "payload_bytes": 159824,
@@ -712,20 +719,20 @@
   "trace": {
     "present": true,
     "path": "session/trace.jsonl",
-    "sha256": "6974fb29b3e7d5b8b7bf4b9e0a8087f07b8f075accf5eabf33bfacbdc520f6ee",
-    "records": 241,
+    "sha256": "1981f6ddd93a0758a101817e5f7f799815c05aaf5e4797e9fb44bfb10e72ab08",
+    "records": 240,
     "malformed_lines": 0,
     "kinds": {
       "start": 1,
       "plan": 4,
       "frame": 223,
-      "skip": 13
+      "skip": 12
     }
   },
   "notes": [
     "session driven by tools/compat/drive.sh on a real kitty window"
   ],
-  "generated_at": "2026-10-19T11:10:14Z",
+  "generated_at": "2026-10-19T16:32:43Z",
   "sprite_visibility": {
     "playing_captures_with_sprites": [
       "playing"
