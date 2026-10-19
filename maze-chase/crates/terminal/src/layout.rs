@@ -275,7 +275,7 @@ pub fn compute_pixels(cols: u16, rows: u16, px: Option<PixelGeometry>) -> Layout
     let window_area = cols as u64 * rows as u64;
 
     let mut best: Option<Choice> = None;
-    // The full documented scale grid: every (cw, ch) in 1..8 x 1..4 is a
+    // The documented scale grid: every (cw, ch) in 2..8 x 1..4 is a
     // candidate (with the chrome combinations that fit), so wide-short
     // rooms can reach 7x1 / 8x1 and tall rooms 2x2 / 2x3 instead of
     // being stuck on the derived-aspect diagonal (issue #656). The 2x1
