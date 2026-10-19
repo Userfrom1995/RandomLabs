@@ -56,7 +56,7 @@ Done; the PR is open and the review handoff follows.
 - 2026-10-19 (builder, same round, completion entry): the goldens suite is
   5/5 on Linux (the new `count_from_counts_straddled_needles_exactly_once`
   pins the incremental counter's split-boundary behavior), the full
-  `cargo test -p maze-chase-terminal` run is 166 passed / 0 failed, fmt is
+  `cargo test -p maze-chase-terminal` run is 167 passed / 0 failed, fmt is
   clean, and clippy reports nothing from this file. Findings ledger
   Section H records the fix. `wait_displays` waits for five observed
   pinned-footprint displays with a 30 s bound and polls the master instead
