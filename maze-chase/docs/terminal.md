@@ -103,7 +103,7 @@ The game picks the best tier its terminal proves, best first:
     never swallowed. Kitty keyboard enhancement is enabled for
     disambiguated input. Measured on kitty 0.32.2 (2026-10-19): 21
     transmits and 156.1 KiB of PNG payload for a whole session, playing
-    at 20.7 frames/s with a 5.4 KiB mean frame (before this pipeline: a
+    at 20.6 frames/s with a 5.5 KiB mean frame (before this pipeline: a
     historical 1642 transmits and 348.6 MiB, not re-derivable from the
     regenerated JSONs).
 2. **sixel**: true pixels through a hand-rolled Sixel encoder (palette
@@ -114,7 +114,7 @@ The game picks the best tier its terminal proves, best first:
    budget, then the game starts regardless, and keys typed while the
    probe waits are replayed, never swallowed), or via `--tier sixel` on
    known Sixel terminals (foot, contour, mlterm, Sixel-build xterm).
-   Measured on xterm 390: 140 transmits / 3.39 MiB per session.
+   Measured on xterm 390: 141 transmits / 3.41 MiB per session.
 3. **truecolor-cells**: 24-bit Unicode board (solid-block walls, dotted
    crumbs, letter wardens in theme colors, facing Pip mouth) with
    synchronized tear-free frames. The WezTerm, foot-fallback, iTerm2,
@@ -138,7 +138,12 @@ The help screen's video line always names the tier in use.
 Ghostty note: Ghostty 1.3.1 implements the Kitty graphics protocol and
 answers the live probe when one is sent: a direct pty experiment with
 the game's exact probe request (`tools/compat/probe-graphics.py`,
-2026-10-19) recorded both replies (`i=..;OK` and `i=..,p=..;OK`).
+2026-10-19) recorded both replies (`i=..;OK` and `i=..,p=..;OK`), and
+the raw capture is committed under
+`tools/compat/probe-captures/` together with the exact command and its
+SHA-256 (`ghostty-1.3.1.bin`, byte-identical to kitty's reply capture
+because both answer the same protocol frames with the protocol's own
+acknowledgement form).
 Because `TERM_PROGRAM=ghostty` / `TERM=xterm-ghostty` already prove the
 capability, the auto and forced rows select the graphics path from the
 environment without probing (their traces carry no probe record, a
