@@ -13,9 +13,10 @@
 
 - [x] Recon: read the macOS Tester findings, the affected harnesses, and the
       Maintainer's dispatch (issue #656 comments)
-- [ ] F1: `geometry::tests::pty_pixel_fields_shape_the_geometry` opens the PTY
+- [x] F1: `geometry::tests::pty_pixel_fields_shape_the_geometry` opens the PTY
       slave before `TIOCSWINSZ` (macOS returns `ENOTTY` on a master with no
-      attached slave)
+      attached slave); both fds are `OwnedFd` so a failing assertion cannot
+      leak them
 - [ ] F2: every PTY harness reaps a killed child with a bounded, drain-first
       loop instead of `kill(); wait()` (macOS holds the SIGKILL of a child
       blocked writing to a full master until the master is drained, so the old
@@ -28,8 +29,7 @@
 
 ## Current step
 
-Scaffold pushed; the geometry unit test and the eleven PTY harness reap sites
-are being committed in the next steps.
+F1 committed; the F2 reap conversions for the eleven PTY harnesses are next.
 
 ## Next steps
 

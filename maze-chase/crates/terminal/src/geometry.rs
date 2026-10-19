@@ -257,13 +257,25 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn pty_pixel_fields_shape_the_geometry() {
+        use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
         // A real PTY with TIOCSWINSZ pixel fields: the cell size derives
         // by rounding up and the window size is reported verbatim.
+        //
+        // The slave must be open before the ioctl: macOS rejects
+        // TIOCSWINSZ on a master with no attached slave (ENOTTY), the
+        // same discipline every integration harness already follows.
+        // `OwnedFd` closes both fds even when an assertion panics.
         unsafe {
             let master = libc::posix_openpt(libc::O_RDWR | libc::O_NOCTTY);
             assert!(master >= 0, "posix_openpt failed");
-            assert_eq!(libc::grantpt(master), 0);
-            assert_eq!(libc::unlockpt(master), 0);
+            let master = OwnedFd::from_raw_fd(master);
+            assert_eq!(libc::grantpt(master.as_raw_fd()), 0, "grantpt failed");
+            assert_eq!(libc::unlockpt(master.as_raw_fd()), 0, "unlockpt failed");
+            let name = libc::ptsname(master.as_raw_fd());
+            assert!(!name.is_null(), "ptsname failed");
+            let slave = libc::open(name, libc::O_RDWR | libc::O_NOCTTY);
+            assert!(slave >= 0, "open slave failed");
+            let _slave = OwnedFd::from_raw_fd(slave);
             let ws = libc::winsize {
                 ws_row: 40,
                 ws_col: 100,
@@ -271,10 +283,15 @@ mod tests {
                 ws_ypixel: 524,
             };
             assert_eq!(
-                libc::ioctl(master, libc::TIOCSWINSZ as _, &ws as *const libc::winsize),
-                0
+                libc::ioctl(
+                    master.as_raw_fd(),
+                    libc::TIOCSWINSZ as _,
+                    &ws as *const libc::winsize
+                ),
+                0,
+                "TIOCSWINSZ failed"
             );
-            let geom = pixels_from_fd(master).expect("pixel fields present");
+            let geom = pixels_from_fd(master.as_raw_fd()).expect("pixel fields present");
             assert_eq!(geom.cell, (7, 14)); // ceil(604/100), ceil(524/40)
             assert_eq!(geom.window, Some((604, 524)));
             assert_eq!(geom.window_px(100, 40), (604, 524));
@@ -282,11 +299,15 @@ mod tests {
             zero.ws_xpixel = 0;
             zero.ws_ypixel = 0;
             assert_eq!(
-                libc::ioctl(master, libc::TIOCSWINSZ as _, &zero as *const libc::winsize),
-                0
+                libc::ioctl(
+                    master.as_raw_fd(),
+                    libc::TIOCSWINSZ as _,
+                    &zero as *const libc::winsize
+                ),
+                0,
+                "TIOCSWINSZ failed"
             );
-            assert_eq!(pixels_from_fd(master), None);
-            libc::close(master);
+            assert_eq!(pixels_from_fd(master.as_raw_fd()), None);
         }
     }
 
