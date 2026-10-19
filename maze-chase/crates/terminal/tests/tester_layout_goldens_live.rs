@@ -147,6 +147,58 @@ fn reap(child: &mut Child, master: &mut std::fs::File, out: &mut Vec<u8>) {
     }
 }
 
+/// Count occurrences of `needle` in `hay` that were not already counted
+/// by a previous call with `from` equal to the then-current `hay.len()`.
+///
+/// The search starts up to `needle.len() - 1` bytes before `from` and
+/// counts every match that ends after `from`: a needle split across two
+/// drains is counted exactly once, on the call where its final byte
+/// arrives, and a match fully present before `from` is never re-counted.
+fn count_from(hay: &[u8], needle: &[u8], from: usize) -> usize {
+    if needle.is_empty() || hay.len() < needle.len() {
+        return 0;
+    }
+    let start = from.saturating_sub(needle.len() - 1);
+    let mut count = 0;
+    let mut i = start;
+    while i + needle.len() <= hay.len() {
+        if &hay[i..i + needle.len()] == needle {
+            if i + needle.len() > from {
+                count += 1;
+            }
+            i += needle.len();
+        } else {
+            i += 1;
+        }
+    }
+    count
+}
+
+#[test]
+fn count_from_counts_straddled_needles_exactly_once() {
+    let needle = b"FRAME";
+    let mut out = b"xxFR".to_vec();
+    assert_eq!(count_from(&out, needle, 0), 0, "no complete needle yet");
+    out.extend_from_slice(b"AMEyyFR");
+    assert_eq!(
+        count_from(&out, needle, 4),
+        1,
+        "a needle split across drains is counted when its final byte lands"
+    );
+    assert_eq!(
+        count_from(&out, needle, out.len()),
+        0,
+        "an already-counted needle is never re-counted"
+    );
+    out.extend_from_slice(b"AME");
+    assert_eq!(
+        count_from(&out, needle, 11),
+        1,
+        "the second straddled needle is counted exactly once"
+    );
+    assert_eq!(count_from(&out, needle, out.len()), 0);
+}
+
 fn wait_for(
     master: &mut std::fs::File,
     out: &mut Vec<u8>,
@@ -318,15 +370,41 @@ impl Session {
         self.out.clear();
     }
 
-    /// Collect live output for `span`, returning the bytes captured (the
-    /// session buffer keeps growing for later assertions).
-    fn collect_for(&mut self, span: Duration) {
-        let deadline = Instant::now() + span;
-        while Instant::now() < deadline {
+    /// Wait until at least `want` display escapes for the exact `rows`x`cols`
+    /// footprint have been observed, up to `timeout`.
+    ///
+    /// The drain is wire-speed: the master is polled (no fixed sleep) and
+    /// read until EAGAIN, so a small PTY buffer (macOS) transfers frames as
+    /// fast as the game produces them instead of at a 4 KiB per 20 ms
+    /// cadence. Matches are counted incrementally as bytes arrive, so the
+    /// growing session buffer is never re-scanned from the start. The
+    /// bounded deadline makes a genuinely stalled frame stream a failure,
+    /// never a hang.
+    fn wait_displays(&mut self, rows: u32, cols: u32, want: usize, timeout: Duration) -> bool {
+        let needle = format!("\x1b_Ga=T,f=100,r={rows},c={cols},");
+        let needle = needle.as_bytes();
+        let deadline = Instant::now() + timeout;
+        let mut found = 0usize;
+        let mut scanned = 0usize;
+        loop {
             drain(&mut self.pty.master, &mut self.out);
-            std::thread::sleep(Duration::from_millis(20));
+            found += count_from(&self.out, needle, scanned);
+            scanned = self.out.len();
+            if found >= want {
+                return true;
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return false;
+            }
+            let mut pfd = libc::pollfd {
+                fd: self.pty.master.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            };
+            let ms = remaining.as_millis().min(50) as i32;
+            unsafe { libc::poll(&mut pfd, 1, ms) };
         }
-        drain(&mut self.pty.master, &mut self.out);
     }
 
     fn resize(&mut self, cols: u16, rows: u16) {
@@ -691,10 +769,17 @@ fn live_pixel_reports_map_the_raster_onto_the_solver_footprint() {
     floor.assert_no_panic();
 }
 
-/// A live animated session in the wide golden room: several seconds of
-/// real frames and steering input must keep every display escape on the
-/// same 7x1 footprint (no drift on the non-fresh repaint path), keep the
-/// per-frame image delete cycling, and never panic.
+/// A live animated session in the wide golden room: steering input must
+/// be followed by a sustained run of real frames that keep every display
+/// escape on the same 7x1 footprint (no drift on the non-fresh repaint
+/// path), keep the per-frame image delete cycling, and never panic.
+///
+/// The five re-displays are waited for with a generous 30 s deadline
+/// rather than inside a fixed wall-clock slice: a 200x60 board frame is
+/// about 230800 bytes, and macOS PTY buffers are far smaller than Linux's,
+/// so a fixed slice sized on Linux measured the harness's sleep cadence
+/// instead of the product (issue #656 macOS arm, F3). Every observed
+/// escape is still drift-checked below, so the assertion stays strict.
 #[test]
 fn live_wide_room_animates_and_steers_without_footprint_drift() {
     let mut s = Session::start("soak", 200, 60, 0, 0, "kitty", None);
@@ -709,18 +794,20 @@ fn live_wide_room_animates_and_steers_without_footprint_drift() {
         s.pty.master.write_all(b"s").unwrap();
         std::thread::sleep(Duration::from_millis(60));
     }
-    s.collect_for(Duration::from_millis(1500));
-
-    let text = String::from_utf8_lossy(&s.out).into_owned();
     assert!(
-        text.matches("\x1b_Ga=T,f=100,r=31,c=196,i=1,").count() >= 5,
+        s.wait_displays(31, 196, 5, Duration::from_secs(30)),
         "the animated session must keep re-displaying the 7x1 footprint; tail: {}",
         tail(&s.out)
     );
+
+    let text = String::from_utf8_lossy(&s.out).into_owned();
     let mut from = 0;
     while let Some(i) = text[from..].find("\x1b_Ga=T,f=100,r=") {
         let i = from + i;
-        let end = text[i..].find(';').unwrap_or(text.len() - i) + i;
+        let Some(end) = text[i..].find(';').map(|end| end + i) else {
+            // A header split across the capture tail is not a verdict.
+            break;
+        };
         let params = &text[i..end];
         let get = |key: &str| {
             params
