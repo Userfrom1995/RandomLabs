@@ -551,3 +551,36 @@ redesign), gated on the Design Council's direction.
   and clippy. Skills: no registry skill matched this run's domains;
   none loaded, per `delegation.md` section 5.
   - the Fixer
+- 2026-10-19 (fixer, Phase 3 review round 2 on PR #693): applied
+  F10-F11 and folded the non-blocking notes; no rebuttal. F10: the
+  kitty `z` layers are now one band per warden (`z::body(i)` = 3 + 2i,
+  `z::eyes(i)` = 4 + 2i, Pip 11) at all four placement call sites, so
+  the terminal stacking sequence equals `raster::paint_wardens`
+  (body_i, eyes_i, body_j, eyes_j) even when two sprite boxes overlap;
+  the new `composed_frame_matches_full_raster_with_overlapping_wardens`
+  case pins it (reverting to class-wide bands fails it, verified
+  empirically). F11: `probe-graphics.py` parses its documented
+  `[WINDOW_S] [OUT_PATH]` form (a non-float first argument is the out
+  path; a non-positive window exits 3), the docstring usage and
+  exit-status line are corrected, and two new harness contract tests
+  pin the argument matrix (suite now 15/15). Folded notes: the stale
+  static-resend comment and `force_all` repaint in `main.rs` (the
+  explicit `z=0` already keeps the static layer beneath every sprite
+  placement), the sixel per-transmit figure corrected to 26,292 B
+  (3,838,628 / 146), and the PR body refreshed to the regenerated
+  numbers and the retracted Ghostty probe claim. Delegation ledger:
+  three verification subagents fanned out; the parity fuzzer compared
+  6000 randomized configurations across five ppts, three themes, all
+  directions/states, fright/flash/dying and fractional overlaps (5714
+  with overlapping boxes) with zero mismatches, and proved sensitivity
+  (646 of those diverge under the pre-change class-wide bands); the
+  probe-contract adversary verified eight invocation scenarios
+  including a real pty run and the old-parser failure mode (all PASS);
+  the numeric auditor re-derived every body and matrix claim from the
+  committed JSONs (all MATCH, including the newly committed 26,292 B
+  figure). Primary context applied the edits and re-ran the workspace
+  suite (53 targets green), `maze-chase-verify` 19/19 with golden
+  `23c17f89734e`, fmt, and clippy (only the six pre-existing engine
+  warnings). Skills: no registry skill matched this round; none
+  loaded, per `delegation.md` section 5.
+  - the Fixer
