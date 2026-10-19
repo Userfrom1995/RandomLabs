@@ -542,6 +542,38 @@ mod tests {
             assert!(!l.too_small, "{cols}x{rows}");
             assert!(l.board.x + l.board.w <= cols, "{cols}x{rows}");
             assert!(l.board.y + l.board.h <= rows, "{cols}x{rows}");
+            // The content block (board plus any side panel) is centered:
+            // the leftover columns split between the two margins within
+            // one cell of rounding.
+            let content_w = l.board.w
+                + if l.side.is_some() {
+                    PANEL_GAP + SIDE_PANEL_COLS
+                } else {
+                    0
+                };
+            let left = l.board.x;
+            let right = cols - l.board.x - content_w;
+            assert!(
+                left.abs_diff(right) <= 1,
+                "{cols}x{rows}: content block off-center ({left} vs {right})"
+            );
+            // Vertically the block is the band (if hosted), the board,
+            // and the hint line, centered the same way.
+            let band = if l.top_bar.is_some() { BAND_ROWS } else { 0 };
+            let top = l.board.y - band;
+            let content_h = band + l.board.h + 1;
+            let bottom = rows - top - content_h;
+            assert!(
+                top.abs_diff(bottom) <= 1,
+                "{cols}x{rows}: content block off-center vertically ({top} vs {bottom})"
+            );
+            // And it dresses a substantial share of the window: the same
+            // 270/1000 floor the coverage sweep enforces.
+            let cov = l.board.w as u64 * l.board.h as u64 * 1000 / (cols as u64 * rows as u64);
+            assert!(
+                cov >= 270,
+                "{cols}x{rows}: board covers only {cov}/1000 of the window"
+            );
             assert!(l.hint.y < rows, "{cols}x{rows}");
             assert!(l.hint.x + l.hint.w <= cols, "{cols}x{rows}");
             if let Some(side) = l.side {
@@ -663,8 +695,11 @@ mod tests {
         );
         assert_eq!(tall.hint.y, 71);
 
-        // The rest of the checked-in golden set: every row/column family
-        // of the 1..8 x 1..4 grid is reachable.
+        // The rest of the checked-in golden set: every column family the
+        // solver can pick (2..8) and every row family (1..4) has a pinned
+        // plan. cw=1 never wins: at or above the 62-column minimum the
+        // 2x<rows> candidate always fits and covers more than 1x<rows>
+        // at the same height.
         for (cols, rows, cw, ch, chrome) in [
             (300, 120, 8, 3, Chrome::Side),
             (300, 40, 8, 1, Chrome::Side),
@@ -672,6 +707,7 @@ mod tests {
             (144, 66, 5, 2, Chrome::Band),
             (137, 84, 4, 2, Chrome::Band),
             (100, 200, 3, 4, Chrome::Band),
+            (195, 35, 6, 1, Chrome::Band),
         ] {
             let l = compute(cols, rows);
             assert_eq!(
@@ -681,9 +717,10 @@ mod tests {
             );
         }
 
-        // Chrome-aware tie: at 143x64 the 4x2 side-panel plan covers the
-        // same content area as 5x2 minimal (140x62) with perfectly
-        // square tiles, so it wins.
+        // Coverage tie at 963 (140x63 of 143x64): squareness decides.
+        // The 4x2 side-panel plan's tiles are exactly square (4x8 ==
+        // 2x16 nominal px), while 5x2 minimal's are 40x32, so 4x2 side
+        // wins on squareness before chrome is consulted.
         let tie = compute(143, 64);
         assert_eq!((tie.cell_cols, tie.cell_rows), (4, 2));
         assert_eq!(tie.chrome, Chrome::Side);
