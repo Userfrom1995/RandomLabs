@@ -172,8 +172,9 @@ pure and fully unit-testable:
    windows prefer right and left panels, tall windows prefer top and bottom
    bands, balanced windows prefer a top band plus a hint strip; very large
    windows get both), reflows chrome blocks into slots by priority, and scores
-   the candidates deterministically: largest board scale first, then coverage
-   (fewest unused cells), then block fit. Block renderers are pure
+   the candidates deterministically: coverage (the share of the window used by
+   board plus chrome) first, then square tile pixels, then the richest hosted
+   chrome, then tile area, then board width. Block renderers are pure
    `rect -> Vec<Line>` functions that pad or truncate and can never overflow
    their slot.
 3. **Plan.** `LayoutPlan { board, chrome: Vec<ChromeSlot>, hint, overlays,
