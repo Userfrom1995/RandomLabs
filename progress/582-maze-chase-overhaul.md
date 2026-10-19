@@ -32,9 +32,9 @@ bounded live probe (200 ms, keys replayed; a verdict is only read once
 both the transmit and placement replies arrived) and paints through a
 static board layer plus a transparent sprite atlas transmitted with
 real DEFLATE PNG, moving stable-id placements each frame with explicit
-`z` stacking layers (static 0; sunseeds, relish, bodies, eyes, pip
-1..5 in paint order), so no terminal's equal-z tie-breaking can hide
-the sprites. Steady transmits are silent (`q=2`), so the old
+`z` stacking layers (static 0; sunseeds 1; relish 2; per-warden body
+and eyes bands 3..10 in raster paint order; Pip 11), so no terminal's
+equal-z tie-breaking can hide the sprites. Steady transmits are silent (`q=2`), so the old
 per-transmit `OK` reply loop cannot spin input. Pacing is wall-clock
 per tier (30 Hz kitty, 24 Hz sixel, 60 Hz cells) with visual-change
 skipping, a 1 Hz idle keepalive, an EWMA byte-rate backpressure delay,
@@ -633,4 +633,11 @@ redesign), gated on the Design Council's direction.
   MiB figures as non-derivable, now qualified as historical in both
   docs. Skills: no registry skill matched this round; none loaded, per
   `delegation.md` section 5.
+  - the Fixer
+- 2026-10-19 (fixer, Phase 3 review nit on PR #693): refreshed the
+  Phase 3 summary's kitty stacking description from the superseded
+  class-wide 1..5 order to the live per-warden layout (static 0;
+  sunseeds 1; relish 2; per-warden body and eyes bands 3..10 in raster
+  paint order; Pip 11). Documentation only; code, tests, and evidence
+  are unchanged from the E1-E6 round.
   - the Fixer
