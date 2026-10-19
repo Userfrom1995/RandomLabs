@@ -483,6 +483,55 @@ SPRITE_COLORS = (
 )
 
 
+def dominant_share(decoded):
+    """Fraction of pixels sharing the single most common RGB color.
+    A bitmap-tier capture with no board decodes as one flat color (the
+    `resized-wide` blank sixel checkpoint was 99.9% background), so the
+    collector uses this alongside `white_share` to reject a blank board
+    signed as a pass. Alpha is ignored for the same reason as in
+    `white_share`; unsupported formats report 0.0 and never trip the
+    gate by accident."""
+    width = decoded["width"]
+    height = decoded["height"]
+    color = decoded["color_type"]
+    bit = decoded["bit_depth"]
+    rows = decoded["rows"]
+    stride = decoded["stride"]
+    total = width * height
+    if total == 0:
+        return 0.0
+    counts = {}
+    if color == 3 and decoded["palette"]:
+        palette = decoded["palette"]
+        entries = [
+            None if i + 2 >= len(palette) else tuple(palette[i:i + 3])
+            for i in range(0, len(palette), 3)
+        ]
+        mask = (1 << bit) - 1
+        for y in range(height):
+            row = rows[y * stride:(y + 1) * stride]
+            for x in range(width):
+                byte = row[(x * bit) // 8]
+                idx = (byte >> (8 - bit - (x * bit) % 8)) & mask
+                key = entries[idx] if idx < len(entries) else None
+                counts[key] = counts.get(key, 0) + 1
+    elif color == 0 and bit == 8:
+        for i in range(total):
+            key = (rows[i], rows[i], rows[i])
+            counts[key] = counts.get(key, 0) + 1
+    elif color == 2 and bit == 8:
+        for i in range(0, total * 3, 3):
+            key = (rows[i], rows[i + 1], rows[i + 2])
+            counts[key] = counts.get(key, 0) + 1
+    elif color == 6 and bit == 8:
+        for i in range(0, total * 4, 4):
+            key = (rows[i], rows[i + 1], rows[i + 2])
+            counts[key] = counts.get(key, 0) + 1
+    else:
+        return 0.0
+    return max(counts.values()) / total if counts else 0.0
+
+
 def sprite_census(decoded):
     """Count exact sprite-palette pixels in one decoded capture, per
     color and in total. Non-RGB formats the harness never emits
@@ -547,6 +596,7 @@ def screenshot_facts(path):
         "height": decoded["height"],
         "white_share": round(share, 4),
         "light_background": share >= 0.98,
+        "dominant_share": round(dominant_share(decoded), 4),
         "sprite_census": sprite_census(decoded),
     }
 
@@ -747,6 +797,7 @@ def main():
             phase["screenshot_width"] = facts["width"]
             phase["screenshot_height"] = facts["height"]
             phase["white_share"] = facts["white_share"]
+            phase["dominant_share"] = facts["dominant_share"]
             phase["sprite_census"] = facts["sprite_census"]
             if facts["light_background"]:
                 phase["light_background_capture"] = True
@@ -796,6 +847,50 @@ def main():
             "recorded partial by collect.py: no checkpoint capture entered "
             "the bundle; a pass requires at least one rendered capture"
         )
+    # Bitmap-tier blank-board honesty (Evaluator E4): a capture that is
+    # >=98% one color on a playing or resize checkpoint is a blank board
+    # (the sixel `resized-wide` checkpoint shipped exactly that shape
+    # while signed pass). The white-share gate above only sees light
+    # backgrounds; this one sees a dark blank board too.
+    if args.result == "pass" and tier in ("kitty-graphics", "sixel"):
+        blank_captures = [
+            phase["name"]
+            for phase in result["phases"]
+            if phase.get("screenshot")
+            and (
+                str(phase.get("name", "")).startswith("playing")
+                or "resized" in str(phase.get("name", ""))
+            )
+            and phase.get("dominant_share", 0.0) >= 0.98
+        ]
+        if blank_captures:
+            disposition = "partial"
+            notes.append(
+                "recorded partial by collect.py: bitmap-tier captures "
+                + ", ".join(blank_captures)
+                + " are >=98% one color (a blank board, not a rendered "
+                  "playing surface)"
+            )
+    # Pause-surface honesty (Evaluator E1): the pause menu is a text
+    # panel, so a kitty-graphics paused phase must have released the
+    # board instead of re-placing it above the menu. A pass can never
+    # carry a paused phase that still transmits or places images.
+    if args.result == "pass" and tier == "kitty-graphics":
+        paused_media = []
+        for phase in result["phases"]:
+            if str(phase.get("name", "")) != "paused":
+                continue
+            kit = phase.get("kitty") or {}
+            if int(kit.get("transmits", 0)) + int(kit.get("placements", 0)) > 0:
+                paused_media.append(phase["name"])
+        if paused_media:
+            disposition = "partial"
+            notes.append(
+                "recorded partial by collect.py: the paused phase still "
+                "transmits or places kitty images ("
+                + ", ".join(paused_media)
+                + "); the opaque board can cover the pause menu"
+            )
     # Sprite-visibility honesty on the kitty-graphics tier: placements
     # round-tripping through the terminal proves the protocol, not that
     # the player can see the sprites. Before the explicit z layers, a
