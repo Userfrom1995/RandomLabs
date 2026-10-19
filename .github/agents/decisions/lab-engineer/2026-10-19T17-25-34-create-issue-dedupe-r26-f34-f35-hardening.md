@@ -4,7 +4,7 @@ Round-18 review of PR #670 (issue #668) found two more literal spellings
 that still executed a real `gh issue create` while the R26 scan reported
 `26 passed, 0 failed`: bash locale quoting (F34) and the Python
 `\N{...}`/`\U00000000` escapes (F35), plus an artifact finding in the
-round-17 note (F36). This round's own adversarial verification then found a
+round-16 note (F36). This round's own adversarial verification then found a
 sibling class in the same family: a token split across adjacent Python
 string literals that compile-time concatenation joins. All three are fixed
 audit-side; the production dedupe handler in `.github/workflows/maintainer.yml`
@@ -69,7 +69,7 @@ is untouched (`md5 05e477fa6a503fbfeb44365d6d5950a9`).
   `gh $"iss"ue`, `gh issue $"cre"ate`, `issu\N{LATIN SMALL LETTER E}`
   (plain and `rf` prefixed), and `\U00000069ssue`.
 - Mutation integrity, each restored afterward: deleting the locale fold
-  -> `f29-selftest-missed`; deleting the `\U` decoder -> 
+  -> `f29-selftest-missed`; deleting the `\U` decoder ->
   `f31-combined-selftest-missed`; deleting the `\N` decoder ->
   `f31-combined-selftest-missed`; dropping the decode-before-normalize
   step -> `f31-combined-selftest-missed` on the adjacent fixture;
