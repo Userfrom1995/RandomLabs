@@ -35,10 +35,10 @@ pub struct Screen {
 impl Screen {
     /// Flatten to one string with SGR color codes (`truecolor` selects
     /// 24-bit vs 16-color folding).
-    pub fn to_ansi(&self, theme: &Theme, truecolor: bool) -> String {
+    pub fn to_ansi(&self, truecolor: bool) -> String {
         let mut out = String::new();
         for row in &self.rows {
-            out.push_str(&row_ansi(row, theme, truecolor));
+            out.push_str(&row_ansi(row, truecolor));
             out.push('\n');
         }
         out
@@ -47,10 +47,10 @@ impl Screen {
 
 /// One row of spans as an ANSI string (no trailing newline): the caller
 /// positions the cursor first, so resizes never leave stale glyphs.
-pub fn row_ansi(row: &[Span], theme: &Theme, truecolor: bool) -> String {
+pub fn row_ansi(row: &[Span], truecolor: bool) -> String {
     let mut out = String::new();
     for span in row {
-        out.push_str(&paint(&span.text, span.fg, span.bg, theme.bg, truecolor));
+        out.push_str(&paint(&span.text, span.fg, span.bg, truecolor));
     }
     out.push_str("\x1b[0m");
     out
@@ -100,10 +100,13 @@ fn sgr_fg(c: Rgb, truecolor: bool) -> String {
     }
 }
 
-fn sgr_bg(c: Rgb, bg: Rgb, truecolor: bool) -> String {
-    if c == bg {
-        return String::new();
-    }
+fn sgr_bg(c: Rgb, truecolor: bool) -> String {
+    // The base background is always painted, even when the span's
+    // background equals it: the cell tiers own their canvas instead of
+    // inheriting the terminal's default background, so a light-default
+    // terminal can never wash out the theme's text (the evaluator's
+    // default-light xterm finding: cream chrome text invisible on
+    // white).
     if truecolor {
         format!("\x1b[48;2;{};{};{}m", c.0, c.1, c.2)
     } else {
@@ -112,12 +115,14 @@ fn sgr_bg(c: Rgb, bg: Rgb, truecolor: bool) -> String {
     }
 }
 
-/// Paint one text run with foreground/background colors.
-pub fn paint(text: &str, fg: Rgb, bg: Rgb, base_bg: Rgb, truecolor: bool) -> String {
+/// Paint one text run with foreground/background colors. `bg` is painted
+/// explicitly on every run so no cell tier depends on the terminal's
+/// default background.
+pub fn paint(text: &str, fg: Rgb, bg: Rgb, truecolor: bool) -> String {
     format!(
         "{}{}{}\x1b[0m",
         sgr_fg(fg, truecolor),
-        sgr_bg(bg, base_bg, truecolor),
+        sgr_bg(bg, truecolor),
         text
     )
 }
@@ -367,7 +372,7 @@ mod tests {
         let l = layout::compute(100, 40);
         let s = render_board(&game(), theme, &l, 0, true);
         assert_eq!(s.rows.len(), 40);
-        let ansi = s.to_ansi(theme, true);
+        let ansi = s.to_ansi(true);
         assert!(ansi.contains("38;2;"), "truecolor SGR present");
         // Fresh Pip heads left with an open mouth.
         assert!(ansi.contains("<<"), "pip present");
@@ -425,9 +430,33 @@ mod tests {
         let theme = &themes::EMBER_WARREN;
         let l = layout::compute(100, 40);
         let s = render_board(&game(), theme, &l, 0, true);
-        let ansi = s.to_ansi(theme, false);
+        let ansi = s.to_ansi(false);
         assert!(!ansi.contains("38;2;"), "no 24-bit codes in legacy");
         assert!(ansi.contains("\x1b["), "SGR still present");
+    }
+
+    #[test]
+    fn base_background_is_painted_on_cell_tiers() {
+        // Evaluator finding (default-light xterm): a span whose
+        // background equals the theme base background still emits the
+        // explicit background SGR, so a light terminal default can never
+        // hide the theme's text.
+        let theme = &themes::EMBER_WARREN;
+        let true_ansi = paint("x", theme.text, theme.bg, true);
+        assert!(
+            true_ansi.contains("\x1b[48;2;24;16;12m"),
+            "truecolor base bg painted: {true_ansi:?}"
+        );
+        let legacy_ansi = paint("x", theme.text, theme.bg, false);
+        assert!(
+            legacy_ansi.contains("\x1b[40m"),
+            "legacy base bg folded and painted: {legacy_ansi:?}"
+        );
+        let board = render_board(&game(), theme, &layout::compute(100, 40), 0, true);
+        assert!(
+            board.to_ansi(true).contains("\x1b[48;2;24;16;12m"),
+            "board rows carry the base background"
+        );
     }
 
     #[test]
@@ -437,7 +466,7 @@ mod tests {
         g.wardens.start_fright(6.0);
         let l = layout::compute(100, 40);
         let s = render_board(&g, theme, &l, 0, true);
-        assert!(s.to_ansi(theme, true).contains("FF"));
+        assert!(s.to_ansi(true).contains("FF"));
     }
 
     #[test]

@@ -893,7 +893,7 @@ fn render_frame(
                 out,
                 i as u16,
                 0,
-                &unicode::paint(&padded, theme.text, theme.bg, theme.bg, truecolor),
+                &unicode::paint(&padded, theme.text, theme.bg, truecolor),
             );
         }
         out.push_str("\x1b[?2026l");
@@ -915,7 +915,6 @@ fn render_frame(
                         b.x,
                         &unicode::paint(
                             &" ".repeat(b.w as usize),
-                            theme.bg,
                             theme.bg,
                             theme.bg,
                             truecolor,
@@ -953,7 +952,7 @@ fn render_frame(
                             !app.settings.reduced_flash,
                         );
                         for (i, row) in screen.rows.iter().enumerate() {
-                            paint_line(out, i as u16, 0, &unicode::row_ansi(row, theme, truecolor));
+                            paint_line(out, i as u16, 0, &unicode::row_ansi(row, truecolor));
                         }
                     } else {
                         out.push_str(&encoded);
@@ -980,7 +979,7 @@ fn render_frame(
                     !app.settings.reduced_flash,
                 );
                 for (i, row) in screen.rows.iter().enumerate() {
-                    paint_line(out, i as u16, 0, &unicode::row_ansi(row, theme, truecolor));
+                    paint_line(out, i as u16, 0, &unicode::row_ansi(row, truecolor));
                 }
             }
             paint_chrome(app, out, truecolor, cols, rows);
@@ -1068,7 +1067,7 @@ fn paint_chrome(app: &App, out: &mut String, truecolor: bool, _cols: usize, _row
                 out,
                 side.y + i as u16,
                 side.x,
-                &unicode::paint(&padded, theme.text, theme.bg, theme.bg, truecolor),
+                &unicode::paint(&padded, theme.text, theme.bg, truecolor),
             );
         }
     } else if let Some(bar) = app.layout.top_bar {
@@ -1081,7 +1080,7 @@ fn paint_chrome(app: &App, out: &mut String, truecolor: bool, _cols: usize, _row
                 out,
                 bar.y + i as u16,
                 bar.x,
-                &unicode::paint(&padded, theme.text, theme.bg, theme.bg, truecolor),
+                &unicode::paint(&padded, theme.text, theme.bg, truecolor),
             );
         }
     }
@@ -1092,7 +1091,7 @@ fn paint_chrome(app: &App, out: &mut String, truecolor: bool, _cols: usize, _row
         out,
         app.layout.hint.y,
         app.layout.hint.x,
-        &unicode::paint(&padded, theme.dim_text, theme.bg, theme.bg, truecolor),
+        &unicode::paint(&padded, theme.dim_text, theme.bg, truecolor),
     );
 }
 
@@ -1157,7 +1156,7 @@ fn paint_panel(
             out,
             i as u16,
             0,
-            &unicode::paint(&padded, color, theme.bg, theme.bg, truecolor),
+            &unicode::paint(&padded, color, theme.bg, truecolor),
         );
     }
 }
