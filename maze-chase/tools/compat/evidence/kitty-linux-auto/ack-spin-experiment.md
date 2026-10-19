@@ -81,13 +81,13 @@ from the committed rows and shows the fixed pipeline.
 
 | row | tier | pause paints (first byte) | exit | transcript | protocol traffic |
 | --- | --- | --- | --- | --- | --- |
-| kitty-linux-auto | kitty-graphics | 2 (1,393,272) | clean | 1.52 MiB, 21 kitty transmits |
-| kitty-linux-truecolor | truecolor-cells | 2 (6,230,878) | clean | 6.14 MiB, no graphics traffic |
-| ghostty-linux-kitty | kitty-graphics | 2 (1,193,556) | clean | 1.34 MiB, 21 kitty transmits |
-| xterm-linux-sixel | sixel | 2 (4,491,893) | clean | 4.47 MiB, 140 Sixel transmits |
+| kitty-linux-auto | kitty-graphics | 2 (1,398,744) | clean | 1.53 MiB, 21 kitty transmits |
+| kitty-linux-truecolor | truecolor-cells | 3 (6,212,452) | clean | 6.13 MiB, no graphics traffic |
+| ghostty-linux-kitty | kitty-graphics | 3 (1,196,039) | clean | 1.34 MiB, 21 kitty transmits |
+| xterm-linux-sixel | sixel | 3 (4,517,346) | clean | 4.49 MiB, 141 Sixel transmits |
 
 Every committed row now paints its pause surface early (inside the
-first 1.4 MB on the kitty-graphics rows and inside the first 4.5 MB on
+first 1.4 MiB on the kitty-graphics rows and inside the first 4.6 MiB on
 the Sixel row), walks every menu, and exits on its own. The kitty rows send 21 transmits, not 1642: the reply backlog that
 made input arrive hundreds of megabytes behind the keys is gone. The
 pre-fix figures are historical narrative only and are not re-derivable
