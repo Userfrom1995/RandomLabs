@@ -536,20 +536,25 @@ else
   printf '%s\n' "$r12_main_gate_block" | grep -qxF '          GATE_ACTOR: ${{ github.actor }}' || r12_bad="${r12_bad} maintainer.yml(gate-no-actor-mapping)"
   printf '%s\n' "$r12_main_gate_block" | grep -qxF '          GATE_LABEL: maintainer' || r12_bad="${r12_bad} maintainer.yml(gate-no-label-mapping)"
   printf '%s\n' "$r12_main_gate_block" | grep -qxF '        run: bash .github/scripts/actor-write-gate.sh' || r12_bad="${r12_bad} maintainer.yml(no-gate-script-run)"
-  if ! r12_main_block "Run Maintainer agent" | grep -qF "if: steps.actor_gate.outputs.run == 'true'"; then
+  r12_agent_block=$(r12_main_block "Run Maintainer agent")
+  if [ "$(printf '%s\n' "$r12_agent_block" | grep -cE '^[[:space:]]*if:' || true)" != "1" ] \
+     || ! printf '%s\n' "$r12_agent_block" | grep -qxF "        if: steps.actor_gate.outputs.run == 'true'"; then
     r12_bad="${r12_bad} maintainer.yml(agent-not-gated)"
   fi
   r12_verify_block=$(r12_main_block "Verify Maintainer wrote its decision contract (loud failure, issue #591)")
   if [ -z "$r12_verify_block" ]; then
     r12_bad="${r12_bad} maintainer.yml(verify-step-missing-or-renamed)"
   else
+    [ "$(printf '%s\n' "$r12_verify_block" | grep -cE '^[[:space:]]*if:' || true)" = "1" ] || r12_bad="${r12_bad} maintainer.yml(verify-if-count)"
     printf '%s\n' "$r12_verify_block" | grep -qxF '        if: always()' || r12_bad="${r12_bad} maintainer.yml(verify-not-always)"
     printf '%s\n' "$r12_verify_block" | grep -qF 'AGENT_GATE: ${{ steps.actor_gate.outputs.run }}' || r12_bad="${r12_bad} maintainer.yml(verify-no-gate-env)"
     printf '%s\n' "$r12_verify_block" | grep -qF 'if [ "${AGENT_GATE:-}" != "true" ]; then' || r12_bad="${r12_bad} maintainer.yml(verify-no-third-outcome)"
     printf '%s\n' "$r12_verify_block" | grep -qF 'Actor write gate skipped the Maintainer agent' || r12_bad="${r12_bad} maintainer.yml(verify-no-denial-notice)"
   fi
   for r12_step in "${r12_main_steps[@]}"; do
-    if ! r12_main_block "$r12_step" | grep -qF "if: always() && steps.actor_gate.outputs.run == 'true'"; then
+    r12_step_block=$(r12_main_block "$r12_step")
+    if [ "$(printf '%s\n' "$r12_step_block" | grep -cE '^[[:space:]]*if:' || true)" != "1" ] \
+       || ! printf '%s\n' "$r12_step_block" | grep -qxF "        if: always() && steps.actor_gate.outputs.run == 'true'"; then
       r12_bad="${r12_bad} maintainer.yml(step-not-gated:$(printf '%s' "$r12_step" | cut -d' ' -f1-2))"
     fi
   done
