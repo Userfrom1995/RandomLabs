@@ -419,11 +419,46 @@ impl Session {
         }
     }
 
+    /// Wait until at least `want` synchronized frame headers
+    /// (`\x1b[?2026h`, emitted exactly once per painted frame) have
+    /// arrived, up to `timeout`.
+    ///
+    /// A single frame emits the static placement plus the four warden
+    /// placements and Pip, so a placement count cannot prove a sustained
+    /// run; the frame headers can. Matches are counted incrementally as
+    /// bytes arrive, so the growing session buffer is never re-scanned
+    /// from the start, and the bounded deadline makes a stalled frame
+    /// stream a failure, never a hang.
+    fn wait_frames(&mut self, want: usize, timeout: Duration) -> bool {
+        let needle = b"\x1b[?2026h";
+        let deadline = Instant::now() + timeout;
+        let mut found = 0usize;
+        let mut scanned = 0usize;
+        loop {
+            drain(&mut self.pty.master, &mut self.out);
+            found += count_from(&self.out, needle, scanned);
+            scanned = self.out.len();
+            if found >= want {
+                return true;
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return false;
+            }
+            let mut pfd = libc::pollfd {
+                fd: self.pty.master.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            };
+            let ms = remaining.as_millis().min(50) as i32;
+            unsafe { libc::poll(&mut pfd, 1, ms) };
+        }
+    }
+
     fn resize(&mut self, cols: u16, rows: u16) {
         set_winsize(&self.pty.master, cols, rows, self.xpix, self.ypix);
         send_signal(self.child.id(), libc::SIGWINCH);
     }
-
     fn alive(&mut self) -> bool {
         self.child.try_wait().expect("try_wait").is_none()
     }
@@ -786,13 +821,15 @@ fn live_pixel_reports_map_the_raster_onto_the_solver_footprint() {
 /// escape on the same 7x1 footprint (no drift on the non-fresh repaint
 /// path), keep the per-frame placement delete cycling, and never panic.
 ///
-/// The placements are waited for with a generous 30 s deadline rather
-/// than inside a fixed wall-clock slice: a 200x60 board frame is about
-/// 230800 bytes, and macOS PTY buffers are far smaller than Linux's, so a
-/// fixed slice sized on Linux measured the harness's sleep cadence
-/// instead of the product (issue #656 macOS arm, F3). Every observed
-/// static placement is still drift-checked below, so the assertion stays
-/// strict.
+/// The frames and placements are waited for with a generous 30 s
+/// deadline rather than inside a fixed wall-clock slice: a 200x60 board
+/// frame is about 230800 bytes, and macOS PTY buffers are far smaller
+/// than Linux's, so a fixed slice sized on Linux measured the harness's
+/// sleep cadence instead of the product (issue #656 macOS arm, F3). The
+/// sustained run is proven by the per-frame `\x1b[?2026h` headers (a
+/// single frame already emits five placements, so the placement count
+/// alone cannot prove a run), and every observed static placement is
+/// still drift-checked below, so the assertion stays strict.
 #[test]
 fn live_wide_room_animates_and_steers_without_footprint_drift() {
     let mut s = Session::start("soak", 200, 60, 0, 0, "kitty", None);
@@ -807,6 +844,11 @@ fn live_wide_room_animates_and_steers_without_footprint_drift() {
         s.pty.master.write_all(b"s").unwrap();
         std::thread::sleep(Duration::from_millis(60));
     }
+    assert!(
+        s.wait_frames(5, Duration::from_secs(30)),
+        "the animated session must keep painting real frames; tail: {}",
+        tail(&s.out)
+    );
     assert!(
         s.wait_placements(5, Duration::from_secs(30)),
         "the animated session must keep re-placing sprites; tail: {}",
