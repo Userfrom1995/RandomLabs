@@ -767,6 +767,21 @@ a hollow-green `|| true` condition can no longer pass (F3). All four
 reviewer reproductions now read 24 passed / 1 failed with R15 the only
 failing rule, 0-byte stderr.
 
+Review round 19 bound the verify steps' declarative key surface too
+(issue #653). Round 18 extracted and executed their `run` bodies but left
+the step keys unbound, so five one-line mutations kept the audit at
+25 passed / 0 failed: `continue-on-error: true` on either verify, its
+`if` flipped to `false` on either arm, and the general arm's
+`AGENT_OUTCOME` hardcoded to `success`. Each verify step is now resolved
+structurally and must carry its exact `if` expression, no
+`continue-on-error`, an env mapping that is exactly `AGENT_OUTCOME` with
+the exact agent-step outcome expression, the Maintainer step's shipped
+`shell: bash`, and no `shell`/`timeout-minutes`/`working-directory`
+override. All five escapes read 25 passed / 0 failed on `25e9eb40` and
+24 passed / 1 failed with R15 the only failing rule after the fix; the
+defense-in-depth shell, timeout, working-directory, and extra-env checks
+were mutation-proven too.
+
 Accepted residuals of the #653 runtime (documented, not hardened): the
 TERM/KILL escalation targets the two captured PIDs, so after the 5-second
 grace a reused PID could be signalled and a hung `opencode` descendant can
