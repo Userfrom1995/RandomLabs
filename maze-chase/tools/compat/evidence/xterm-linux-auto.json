@@ -62,8 +62,8 @@
     "resize_exercised": true
   },
   "extra_env": [],
-  "started_at": "2026-10-19T00:05:44Z",
-  "ended_at": "2026-10-19T00:06:07Z",
+  "started_at": "2026-10-19T01:06:10Z",
+  "ended_at": "2026-10-19T01:06:32Z",
   "exit": {
     "code": 0,
     "killed": false,
@@ -73,8 +73,8 @@
   "phases": [
     {
       "name": "title",
-      "bytes": 14348,
-      "at_ms": 1792368346593,
+      "bytes": 14356,
+      "at_ms": 1792371972554,
       "screenshot": "screenshots/title.png",
       "frames": {
         "count": 3,
@@ -84,7 +84,7 @@
       "surfaces": {
         "title_video_line": {
           "paints": 3,
-          "first_byte": 3350
+          "first_byte": 3358
         }
       },
       "layout": {
@@ -112,46 +112,68 @@
       "screenshot_width": 604,
       "screenshot_height": 524,
       "white_share": 1.0,
+      "sprite_census": {
+        "pixels": 0,
+        "by_color": {
+          "pip": 0,
+          "sunseed": 0,
+          "bram": 0,
+          "kessa": 0,
+          "jory": 0,
+          "nib": 0
+        }
+      },
       "light_background_capture": true
     },
     {
       "name": "playing",
-      "bytes": 1643633,
-      "at_ms": 1792368351283,
+      "bytes": 1598925,
+      "at_ms": 1792371977163,
       "screenshot": "screenshots/playing.png",
-      "duration_ms": 4690,
-      "bytes_per_s": 350454,
+      "duration_ms": 4609,
+      "bytes_per_s": 346913,
       "frames": {
-        "count": 147,
+        "count": 143,
         "bytes_mean": 11181,
         "bytes_max": 11207
       },
-      "frames_per_s": 31.3,
+      "frames_per_s": 31.0,
       "layout": {
         "addressed_cols_min": 0,
         "addressed_cols_max": 8,
         "addressed_rows_min": 0,
         "addressed_rows_max": 39,
-        "moves": 6321
+        "moves": 6149
       },
-      "screenshot_sha256": "ee78ee1bfc35d5b6e7720d6772a147fb3f479b4e3c813fc4ebc17bae1903220f",
+      "screenshot_sha256": "702164b93953b51bb20756d0167d00f58152ed379ccd06c670f95ebfc1709514",
       "screenshot_width": 604,
       "screenshot_height": 524,
-      "white_share": 0.9241
+      "white_share": 0.9241,
+      "sprite_census": {
+        "pixels": 0,
+        "by_color": {
+          "pip": 0,
+          "sunseed": 0,
+          "bram": 0,
+          "kessa": 0,
+          "jory": 0,
+          "nib": 0
+        }
+      }
     },
     {
       "name": "resized-wide",
-      "bytes": 1241389,
-      "at_ms": 1792368352860,
+      "bytes": 1241411,
+      "at_ms": 1792371978696,
       "screenshot": "screenshots/resized-wide.png",
-      "duration_ms": 1577,
-      "bytes_per_s": 787183,
+      "duration_ms": 1533,
+      "bytes_per_s": 809791,
       "frames": {
         "count": 47,
-        "bytes_mean": 26412,
+        "bytes_mean": 26413,
         "bytes_max": 26439
       },
-      "frames_per_s": 29.8,
+      "frames_per_s": 30.7,
       "layout": {
         "addressed_cols_min": 0,
         "addressed_cols_max": 1,
@@ -159,24 +181,35 @@
         "addressed_rows_max": 62,
         "moves": 3008
       },
-      "screenshot_sha256": "fee09192d4e0dec861983a6a64a5b3811507a8248cedee0f92e67f91db2c5c70",
+      "screenshot_sha256": "45388182a072ad2d488b0538733336ea3982c60c16d29e8359e11d89d46d71f9",
       "screenshot_width": 858,
       "screenshot_height": 832,
-      "white_share": 0.8903
+      "white_share": 0.8903,
+      "sprite_census": {
+        "pixels": 0,
+        "by_color": {
+          "pip": 0,
+          "sunseed": 0,
+          "bram": 0,
+          "kessa": 0,
+          "jory": 0,
+          "nib": 0
+        }
+      }
     },
     {
       "name": "too-small",
       "bytes": 105364,
-      "at_ms": 1792368354396,
+      "at_ms": 1792371980202,
       "screenshot": "screenshots/too-small.png",
-      "duration_ms": 1536,
-      "bytes_per_s": 68596,
+      "duration_ms": 1506,
+      "bytes_per_s": 69962,
       "frames": {
         "count": 48,
         "bytes_mean": 2195,
         "bytes_max": 2199
       },
-      "frames_per_s": 31.2,
+      "frames_per_s": 31.9,
       "layout": {
         "addressed_cols_min": 0,
         "addressed_cols_max": 0,
@@ -188,19 +221,30 @@
       "screenshot_width": 480,
       "screenshot_height": 312,
       "white_share": 1.0,
+      "sprite_census": {
+        "pixels": 0,
+        "by_color": {
+          "pip": 0,
+          "sunseed": 0,
+          "bram": 0,
+          "kessa": 0,
+          "jory": 0,
+          "nib": 0
+        }
+      },
       "light_background_capture": true
     },
     {
       "name": "refit",
-      "bytes": 1240709,
-      "at_ms": 1792368355968,
+      "bytes": 1214444,
+      "at_ms": 1792371981739,
       "screenshot": "screenshots/refit.png",
-      "duration_ms": 1572,
-      "bytes_per_s": 789255,
+      "duration_ms": 1537,
+      "bytes_per_s": 790139,
       "frames": {
-        "count": 47,
-        "bytes_mean": 26398,
-        "bytes_max": 26439
+        "count": 46,
+        "bytes_mean": 26400,
+        "bytes_max": 26445
       },
       "frames_per_s": 29.9,
       "layout": {
@@ -208,38 +252,49 @@
         "addressed_cols_max": 1,
         "addressed_rows_min": 0,
         "addressed_rows_max": 62,
-        "moves": 3008
+        "moves": 2944
       },
-      "screenshot_sha256": "c26f785723816e6be75c3b8751cea3db61f31f464ad7b3486b5de51054bdec19",
+      "screenshot_sha256": "b52c728e790397424baf5dd19db11a0c85154cd87c3321177ab40ec5bf432f4f",
       "screenshot_width": 858,
       "screenshot_height": 832,
-      "white_share": 0.8903
+      "white_share": 0.8904,
+      "sprite_census": {
+        "pixels": 0,
+        "by_color": {
+          "pip": 0,
+          "sunseed": 0,
+          "bram": 0,
+          "kessa": 0,
+          "jory": 0,
+          "nib": 0
+        }
+      }
     },
     {
       "name": "paused",
-      "bytes": 72700,
-      "at_ms": 1792368357076,
+      "bytes": 72772,
+      "at_ms": 1792371982835,
       "screenshot": "screenshots/paused.png",
-      "duration_ms": 1108,
-      "bytes_per_s": 65613,
+      "duration_ms": 1096,
+      "bytes_per_s": 66397,
       "frames": {
         "count": 2,
-        "bytes_mean": 36350,
-        "bytes_max": 36352
+        "bytes_mean": 36386,
+        "bytes_max": 36388
       },
       "frames_per_s": 1.8,
       "surfaces": {
         "paused": {
           "paints": 2,
-          "first_byte": 4276495
+          "first_byte": 4205588
         },
         "pause_resume": {
           "paints": 2,
-          "first_byte": 4276812
+          "first_byte": 4205905
         },
         "pause_quit": {
           "paints": 2,
-          "first_byte": 4276966
+          "first_byte": 4206059
         }
       },
       "layout": {
@@ -249,41 +304,51 @@
         "addressed_rows_max": 62,
         "moves": 254
       },
-      "screenshot_sha256": "b765de1e69806f02674778cf971ed21b47596a496cdaceccf661fc88995f1eab",
+      "screenshot_sha256": "9fb450b23509ed75d24f449e567aa9c00a649a3bd0a10e407b1f86e8aad6c708",
       "screenshot_width": 858,
       "screenshot_height": 832,
-      "white_share": 0.9995,
-      "light_background_capture": true
+      "white_share": 0.9479,
+      "sprite_census": {
+        "pixels": 0,
+        "by_color": {
+          "pip": 0,
+          "sunseed": 0,
+          "bram": 0,
+          "kessa": 0,
+          "jory": 0,
+          "nib": 0
+        }
+      }
     },
     {
       "name": "title-return",
-      "bytes": 56280,
-      "at_ms": 1792368358383,
+      "bytes": 56316,
+      "at_ms": 1792371984107,
       "screenshot": "screenshots/title-return.png",
-      "duration_ms": 1307,
-      "bytes_per_s": 43060,
+      "duration_ms": 1272,
+      "bytes_per_s": 44273,
       "frames": {
         "count": 3,
-        "bytes_mean": 18760,
-        "bytes_max": 36348
+        "bytes_mean": 18772,
+        "bytes_max": 36384
       },
-      "frames_per_s": 2.3,
+      "frames_per_s": 2.4,
       "surfaces": {
         "paused": {
           "paints": 1,
-          "first_byte": 4349191
+          "first_byte": 4278356
         },
         "pause_resume": {
           "paints": 1,
-          "first_byte": 4349508
+          "first_byte": 4278673
         },
         "pause_quit": {
           "paints": 1,
-          "first_byte": 4349662
+          "first_byte": 4278827
         },
         "title_video_line": {
           "paints": 2,
-          "first_byte": 4360414
+          "first_byte": 4289579
         }
       },
       "layout": {
@@ -297,29 +362,40 @@
       "screenshot_width": 858,
       "screenshot_height": 832,
       "white_share": 1.0,
+      "sprite_census": {
+        "pixels": 0,
+        "by_color": {
+          "pip": 0,
+          "sunseed": 0,
+          "bram": 0,
+          "kessa": 0,
+          "jory": 0,
+          "nib": 0
+        }
+      },
       "light_background_capture": true
     },
     {
       "name": "help",
       "bytes": 29898,
-      "at_ms": 1792368359699,
+      "at_ms": 1792371985377,
       "screenshot": "screenshots/help.png",
-      "duration_ms": 1316,
-      "bytes_per_s": 22718,
+      "duration_ms": 1270,
+      "bytes_per_s": 23541,
       "frames": {
         "count": 3,
         "bytes_mean": 9966,
         "bytes_max": 9969
       },
-      "frames_per_s": 2.3,
+      "frames_per_s": 2.4,
       "surfaces": {
         "help": {
           "paints": 2,
-          "first_byte": 4387472
+          "first_byte": 4316637
         },
         "title_video_line": {
           "paints": 1,
-          "first_byte": 4380342
+          "first_byte": 4309507
         }
       },
       "layout": {
@@ -333,29 +409,40 @@
       "screenshot_width": 858,
       "screenshot_height": 832,
       "white_share": 1.0,
+      "sprite_census": {
+        "pixels": 0,
+        "by_color": {
+          "pip": 0,
+          "sunseed": 0,
+          "bram": 0,
+          "kessa": 0,
+          "jory": 0,
+          "nib": 0
+        }
+      },
       "light_background_capture": true
     },
     {
       "name": "scores",
       "bytes": 39864,
-      "at_ms": 1792368362008,
+      "at_ms": 1792371987641,
       "screenshot": "screenshots/scores.png",
-      "duration_ms": 2309,
-      "bytes_per_s": 17264,
+      "duration_ms": 2264,
+      "bytes_per_s": 17607,
       "frames": {
         "count": 4,
         "bytes_mean": 9966,
         "bytes_max": 9968
       },
-      "frames_per_s": 1.7,
+      "frames_per_s": 1.8,
       "surfaces": {
         "scores": {
           "paints": 2,
-          "first_byte": 4428911
+          "first_byte": 4358076
         },
         "title_video_line": {
           "paints": 2,
-          "first_byte": 4410244
+          "first_byte": 4339409
         }
       },
       "layout": {
@@ -369,29 +456,40 @@
       "screenshot_width": 858,
       "screenshot_height": 832,
       "white_share": 1.0,
+      "sprite_census": {
+        "pixels": 0,
+        "by_color": {
+          "pip": 0,
+          "sunseed": 0,
+          "bram": 0,
+          "kessa": 0,
+          "jory": 0,
+          "nib": 0
+        }
+      },
       "light_background_capture": true
     },
     {
       "name": "settings",
       "bytes": 39868,
-      "at_ms": 1792368364312,
+      "at_ms": 1792371989905,
       "screenshot": "screenshots/settings.png",
-      "duration_ms": 2304,
-      "bytes_per_s": 17303,
+      "duration_ms": 2264,
+      "bytes_per_s": 17609,
       "frames": {
         "count": 4,
         "bytes_mean": 9967,
         "bytes_max": 9970
       },
-      "frames_per_s": 1.7,
+      "frames_per_s": 1.8,
       "surfaces": {
         "settings": {
           "paints": 2,
-          "first_byte": 4468152
+          "first_byte": 4397317
         },
         "title_video_line": {
           "paints": 2,
-          "first_byte": 4450108
+          "first_byte": 4379273
         }
       },
       "layout": {
@@ -405,15 +503,26 @@
       "screenshot_width": 858,
       "screenshot_height": 832,
       "white_share": 1.0,
+      "sprite_census": {
+        "pixels": 0,
+        "by_color": {
+          "pip": 0,
+          "sunseed": 0,
+          "bram": 0,
+          "kessa": 0,
+          "jory": 0,
+          "nib": 0
+        }
+      },
       "light_background_capture": true
     },
     {
       "name": "tail",
       "bytes": 20012,
-      "at_ms": 1792368367262,
+      "at_ms": 1792371992829,
       "screenshot": null,
-      "duration_ms": 2950,
-      "bytes_per_s": 6783,
+      "duration_ms": 2924,
+      "bytes_per_s": 6844,
       "frames": {
         "count": 2,
         "bytes_mean": 9966,
@@ -423,7 +532,7 @@
       "surfaces": {
         "title_video_line": {
           "paints": 2,
-          "first_byte": 4489976
+          "first_byte": 4419141
         }
       },
       "layout": {
@@ -436,12 +545,12 @@
     }
   ],
   "protocol_totals": {
-    "transcript_bytes": 4504065,
-    "transcript_sha256": "aae25f144421dc87f5ddc2bbf4519c4e985a34796c585cbe15f563c714d4d428",
+    "transcript_bytes": 4433230,
+    "transcript_sha256": "c95e50168bfa35a65571b0b83cfe91ec59402a4f2f4365bbfb549cc754057fe1",
     "frames": {
-      "count": 310,
-      "bytes_mean": 14527,
-      "bytes_max": 36352
+      "count": 305,
+      "bytes_mean": 14533,
+      "bytes_max": 36388
     },
     "kitty": {
       "transmits": 1,
@@ -465,21 +574,21 @@
   "trace": {
     "present": true,
     "path": "session/trace.jsonl",
-    "sha256": "302973a50ab5ed31485511c7d27ca6556b26913906bafa095a5e531bdb1c0247",
-    "records": 20,
+    "sha256": "ff796ce668754b215a60ca5b2046fd8e7dcf6cb7be95e39155fae93c815699ef",
+    "records": 19,
     "malformed_lines": 0,
     "kinds": {
       "start": 1,
       "plan": 4,
       "probe": 2,
-      "skip": 13
+      "skip": 12
     }
   },
   "notes": [
     "session driven by tools/compat/drive.sh on a real xterm window",
-    "recorded partial by collect.py: checkpoint captures title, too-small, paused, title-return, help, scores, settings are >=98% white on the terminal's default light background; the tier's light content is unreadable there"
+    "recorded partial by collect.py: checkpoint captures title, too-small, title-return, help, scores, settings are >=98% white on the terminal's default light background; the tier's light content is unreadable there"
   ],
-  "generated_at": "2026-10-19T00:06:07Z",
+  "generated_at": "2026-10-19T01:06:33Z",
   "duplicate_screenshots": [
     {
       "sha256": "fb8f9875767aa3bd716448fbb2fa004843a27008e53fc5e2b1365a4cd907613e",
@@ -506,7 +615,6 @@
   "light_background_captures": [
     "title",
     "too-small",
-    "paused",
     "title-return",
     "help",
     "scores",
