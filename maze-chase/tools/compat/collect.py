@@ -898,6 +898,18 @@ def main():
     # the reasons all land even when several gates fire together.
     disposition = args.result
     notes = collect_notes(args, meta)
+    # Tier-observation honesty: every bitmap gate below is keyed on the
+    # observed tier, so a transcript that never names it (no VIDEO line
+    # and no `video tier:` line) would skip all of them. A pass cannot
+    # rest on a surface the collector could not classify; fail closed.
+    if args.result == "pass" and tier is None:
+        disposition = "partial"
+        notes.append(
+            "recorded partial by collect.py: the transcript never named the "
+            "active video tier (no VIDEO/video-tier line), so a pass would "
+            "rest on an unverified surface; the bitmap honesty gates are "
+            "keyed on the observed tier and cannot run without it"
+        )
     if args.result == "pass" and light_captures:
         disposition = "partial"
         notes.append(
@@ -930,7 +942,7 @@ def main():
             for phase in result["phases"]
             if phase.get("screenshot")
             and (
-                str(phase.get("name", "")).startswith("playing")
+                str(phase.get("name", "")).lower().startswith("playing")
                 or "resized" in str(phase.get("name", ""))
                 or str(phase.get("name", "")) == "refit"
             )
@@ -955,7 +967,7 @@ def main():
             phase["name"]
             for phase in result["phases"]
             if phase.get("screenshot")
-            and str(phase.get("name", "")).startswith("playing")
+            and str(phase.get("name", "")).lower().startswith("playing")
         ]
         if not playing_captures:
             disposition = "partial"
@@ -1035,7 +1047,7 @@ def main():
         with_sprites = [
             phase["name"]
             for phase in result["phases"]
-            if str(phase.get("name", "")).startswith("playing")
+            if str(phase.get("name", "")).lower().startswith("playing")
             and (phase.get("sprite_census") or {}).get("pixels", 0) > 0
         ]
         if not with_sprites:

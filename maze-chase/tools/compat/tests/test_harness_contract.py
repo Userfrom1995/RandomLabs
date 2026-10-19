@@ -469,6 +469,98 @@ class TestCollectorHonestyGates(unittest.TestCase):
             row = json.load(fh)
         self.assertEqual(row["disposition"], "pass")
 
+    def test_pass_without_an_observed_tier_is_downgraded(self):
+        # Every bitmap honesty gate is keyed on the observed tier, so a
+        # transcript that never names its tier would skip all of them. A
+        # pass cannot rest on a surface the collector cannot classify.
+        for tier_name in ("sixel", "kitty", "auto"):
+            run_dir = make_run_dir(
+                os.path.join(self.tmp, f"run-notier-{tier_name}"),
+                screenshot_name="playing.png",
+                create_png=make_rgb_png(
+                    2, 2, [24, 16, 12] * 3 + [255, 225, 130]),
+                transcript=b"\x1b[?2026h\x1b[2J\x1b[?2026l",
+                checkpoint="playing",
+            )
+            evidence = os.path.join(self.tmp, f"evidence-notier-{tier_name}")
+            proc = run_collect(run_dir, evidence, "--result", "pass",
+                               "--tier", tier_name)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            with open(os.path.join(evidence, "unit-test-row.json"),
+                      encoding="utf-8") as fh:
+                row = json.load(fh)
+            self.assertIsNone(
+                row["tier_observed"],
+                f"{tier_name}: fixture unexpectedly named its tier",
+            )
+            self.assertEqual(
+                row["disposition"], "partial",
+                f"{tier_name}: a pass with no observed tier must downgrade",
+            )
+            self.assertTrue(
+                any("never named the active video tier" in note
+                    for note in row["notes"]),
+                f"{tier_name}: missing unobserved-tier reason in {row['notes']}",
+            )
+
+    def test_pass_with_a_named_tier_is_not_downgraded_by_the_tier_gate(self):
+        # The positive twin: the same playing-capture shape with the tier
+        # line present still passes, so the gate is scoped to the missing
+        # observation and nothing else.
+        run_dir = make_run_dir(
+            os.path.join(self.tmp, "run-tier-named"),
+            screenshot_name="playing.png",
+            create_png=make_rgb_png(2, 2, [24, 16, 12] * 3 + [255, 225, 130]),
+            transcript=(
+                b"\x1b[?2026h\x1b[2J\x1b[?2026l"
+                b"\x1b[1;1HVIDEO  kitty-graphics\r\n"
+            ),
+            checkpoint="playing",
+        )
+        evidence = os.path.join(self.tmp, "evidence-tier-named")
+        proc = run_collect(run_dir, evidence, "--result", "pass",
+                           "--tier", "kitty")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            row = json.load(fh)
+        self.assertEqual(row["tier_observed"], "kitty-graphics")
+        self.assertEqual(row["disposition"], "pass")
+        self.assertFalse(
+            any("never named the active video tier" in note
+                for note in row["notes"]),
+            f"tier gate fired with an observed tier: {row['notes']}",
+        )
+
+    def test_playing_gates_match_phase_names_case_insensitively(self):
+        # Phase names are generator-controlled, but a `Playing`-cased
+        # checkpoint must not silently drop out of the playing gates (a
+        # bitmap pass whose playing surface is excluded would downgrade
+        # as if the capture were missing).
+        run_dir = make_run_dir(
+            os.path.join(self.tmp, "run-playing-case"),
+            screenshot_name="Playing.png",
+            create_png=make_rgb_png(2, 2, [24, 16, 12] * 3 + [255, 225, 130]),
+            transcript=(
+                b"\x1b[?2026h\x1b[2J\x1b[?2026l"
+                b"\x1b[1;1HVIDEO  sixel\r\n"
+            ),
+            checkpoint="Playing",
+        )
+        evidence = os.path.join(self.tmp, "evidence-playing-case")
+        proc = run_collect(run_dir, evidence, "--result", "pass",
+                           "--tier", "sixel")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            row = json.load(fh)
+        self.assertEqual(row["disposition"], "pass")
+        self.assertFalse(
+            any("no decodable playing capture" in note
+                for note in row["notes"]),
+            f"playing gates missed a cased phase name: {row['notes']}",
+        )
+
     def test_rows_record_their_generating_build(self):
         # Provenance: the bundle carries the run metadata's build
         # identity (commit, binary hash, dirty flag), never an implied one.
