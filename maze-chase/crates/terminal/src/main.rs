@@ -1781,6 +1781,46 @@ mod tests {
     }
 
     #[test]
+    fn settings_edits_change_the_idle_skip_key() {
+        let env: Vec<(String, String)> = Vec::new();
+        let mut app = App::new(100, 40, &env, std::path::PathBuf::from("."));
+        let baseline = frame_key(&app);
+
+        // The Settings screen renders the working copy: editing any field
+        // there must change the idle-skip key so the next tick repaints
+        // immediately instead of waiting out the 1 Hz idle keepalive.
+        app.screens.settings.master = 0.31;
+        let after_master = frame_key(&app);
+        assert_ne!(
+            baseline, after_master,
+            "a volume edit on the Settings screen must repaint"
+        );
+
+        app.screens.settings.difficulty = maze_chase_config::settings::Difficulty::Harsh;
+        let after_difficulty = frame_key(&app);
+        assert_ne!(
+            after_master, after_difficulty,
+            "a difficulty edit on the Settings screen must repaint"
+        );
+
+        app.screens.settings.theme = "abyss-lantern".to_string();
+        let after_theme = frame_key(&app);
+        assert_ne!(
+            after_difficulty, after_theme,
+            "a theme edit on the Settings screen must repaint"
+        );
+
+        // The playing surface reads the committed copy (reduced flash,
+        // theme): committing a setting must also change the key.
+        app.settings.reduced_flash = !app.settings.reduced_flash;
+        assert_ne!(
+            after_theme,
+            frame_key(&app),
+            "a committed setting must repaint the playing surface"
+        );
+    }
+
+    #[test]
     fn a_failed_kitty_frame_write_forces_a_full_repaint() {
         use maze_chase_terminal::kitty;
         use maze_chase_terminal::screens::ScreenId;
