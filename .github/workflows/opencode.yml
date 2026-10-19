@@ -56,7 +56,7 @@ concurrency:
 #     busy thread the recent retry markers fall outside page 1, the cap reads
 #     0, and the loop never stops (issue #621). Use `?per_page=100` +
 #     `--paginate --slurp` piped through `jq '.[][] | ...'`.
-# These are statically audited by R1-R24 in auditor.yml (.github/scripts/silent-stall-audit.sh):
+# These are statically audited by R1-R25 in auditor.yml (.github/scripts/silent-stall-audit.sh):
 # R1-R6 cover the invariants above plus the free-tier model guard, R7 guards the
 # review-restore ownership gate (PR #412 head rewind), R8 guards the vendored
 # hardened runner (.github/actions/opencode-run, issue #422 A), R9 guards
@@ -76,9 +76,10 @@ concurrency:
 # binding plus mergeable=UNKNOWN re-query, issue #619), R22 guards the
 # tester verdict publication contract (published-decision evidence plus the
 # workflow-published canonical bot-authored first-line marker, issue #629),
-# R23 guards the maintainer memory publish concurrency loop (issue #647), and
+# R23 guards the maintainer memory publish concurrency loop (issue #647),
 # R24 guards per-OS arm cap headroom plus the partial-report salvage step
-# (issue #692).
+# (issue #692), and R25 guards lab/fix agent cap headroom (lab agent >= 150
+# under job >= 180, fix agent >= 120 under job >= 180, issue #701).
 # =============================================================================
 
 jobs:
@@ -976,7 +977,14 @@ jobs:
       startsWith(github.event.comment.body, '/oc fix') &&
       github.event.issue.pull_request != null
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    # Issue #701: three consecutive fix sessions on #693 (runs 39203327749,
+    # 39203442325, 39208619311) died at the agent step's 60-minute cap without
+    # a push; the third session's log shows real edits minutes before the
+    # cap, so the work was near-complete. The agent step now carries 120
+    # minutes under this 180-minute job (60 minutes of post-agent headroom),
+    # so the rebase, push, decision, and forward chain always has room after
+    # a worst-case cap death.
+    timeout-minutes: 180
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -1038,7 +1046,10 @@ jobs:
         id: opencode
         if: steps.actor_gate.outputs.run == 'true'
         continue-on-error: true
-        timeout-minutes: 60
+        # Issue #701: raised 60 -> 120 (three cap deaths in a row on #693 with
+        # the edits nearly complete and unpushed); the job cap above is raised
+        # 120 -> 180 in lockstep to keep 60 minutes of headroom.
+        timeout-minutes: 120
         uses: ./.github/actions/opencode-run
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
