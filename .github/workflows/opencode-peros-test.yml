@@ -426,9 +426,11 @@ jobs:
           # the strict checks (missing, unsigned, or unverifiable) is not
           # published, and the run stays red either way. The poster runs
           # with github.token (never the owner PAT), exactly like the
-          # healthy-path post step.
+          # healthy-path post step. A decision file here means verify failed
+          # only because the report itself is missing or empty, so there is
+          # nothing to salvage; the red run is covered by the failure triage.
           if [ -f /tmp/random-lab-decision.json ]; then
-            echo "Decision file present; the normal findings path owns this run."
+            echo "Decision file present; nothing to salvage on this crashed-run path."
             exit 0
           fi
           if [ ! -s /tmp/random-lab-findings.md ]; then
@@ -675,9 +677,12 @@ jobs:
           # signed, re-fetchable partial report is published, behind a
           # workflow-composed provenance banner, through the strict shared
           # poster with github.token (never the owner PAT). Best effort: a
-          # missing, unsigned, or unverifiable report publishes nothing.
+          # missing, unsigned, or unverifiable report publishes nothing. A
+          # decision file here means verify failed only because the report
+          # itself is missing or empty, so there is nothing to salvage; the
+          # red run is covered by the failure triage.
           if [ -f /tmp/random-lab-decision.json ]; then
-            echo "Decision file present; the normal findings path owns this run."
+            echo "Decision file present; nothing to salvage on this crashed-run path."
             exit 0
           fi
           if [ ! -s /tmp/random-lab-findings.md ]; then

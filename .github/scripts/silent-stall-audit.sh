@@ -4199,19 +4199,27 @@ fi
 #      agent cap death; the Linux arm keeps its measured 90-minute cap (it
 #      completes in about 33 minutes), while macOS and Windows must carry at
 #      least 120 under at least 140 job minutes;
-#   2. the macOS and Windows arms carry exactly one salvage step placed after
-#      the fail-closed verify step and gated on that verify failing, whose
-#      run body (a) skips when the decision file exists or no partial report
-#      exists, (b) composes a provenance banner plus the partial report into
-#      /tmp/random-lab-findings-salvage.md, and (c) publishes it through the
-#      strict shared poster with github.token (never the owner PAT) so only a
-#      signed, bot-authored, re-fetchable report is ever published.
+#   2. the macOS and Windows arms carry exactly one salvage step (its name
+#      unique across the whole workflow file), placed after the fail-closed
+#      verify step and gated on that verify failing, whose run body's command
+#      lines are pinned line-for-line: skip when the decision file exists
+#      (verify then failed only over the report itself, so there is nothing
+#      to salvage) or no partial report exists, compose a provenance banner
+#      plus the partial report into /tmp/random-lab-findings-salvage.md, and
+#      publish it through the strict shared poster with github.token (never
+#      the owner PAT) so only a signed, bot-authored, re-fetchable report is
+#      ever published. Comments and blank lines are free in the body, but any
+#      extra command (an early exit, a second publication, a raw gh call)
+#      breaks the exact-body match, and step-level YAML overrides
+#      (continue-on-error, shell, working-directory) are banned.
 # The poster's runtime behavior is functionally tested by R17; this rule pins
-# the wiring by exact line so a removed step, a widened gate, an inverted
-# decision-file guard, a dropped banner, or a PAT swap cannot pass silently.
-# Review-gated residual boundary (same as R17): the salvage run body's own
-# control flow cannot be functionally executed statically.
+# the wiring and the run body verbatim so a removed step, a widened gate, an
+# inverted decision-file guard, a dropped banner, a PAT swap, or a decoy copy
+# of the step under a matching name cannot pass silently.
+# Review-gated residual boundary: a renamed copy of the salvage step placed
+# in another job is not scanned by name (same boundary class as R17).
 r24_bad=""
+r24_debug=""
 if [ ! -f "$PEROS_WF" ]; then
   r24_bad=" ${PEROS_WF}(missing)"
 else
@@ -4243,6 +4251,8 @@ else
     r24_salv_name="      - name: Salvage partial ${r24_tag} findings report after a crashed or capped agent run (issue #692)"
     r24_salv_count=$(printf '%s\n' "$r24_block" | grep -cF -- "$r24_salv_name" || true)
     [ "$r24_salv_count" -eq 1 ] || r24_bad="${r24_bad} arm-${r24_os}(salvage-step-count=${r24_salv_count},want=1)"
+    r24_salv_file_count=$(grep -cF -- "$r24_salv_name" "$PEROS_WF" || true)
+    [ "$r24_salv_file_count" -eq 1 ] || r24_bad="${r24_bad} arm-${r24_os}(salvage-name-file-count=${r24_salv_file_count},want=1)"
     r24_salv=$(printf '%s\n' "$r24_block" | awk -v tag="$r24_salv_name" '
       $0 == tag { s=1; next }
       s && $0 ~ /^      - / { exit }
@@ -4256,14 +4266,41 @@ else
       printf '%s\n' "$r24_salv_body" | grep -qxF 'GH_TOKEN: ${{ github.token }}' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-github-token-env)"
       printf '%s\n' "$r24_salv_body" | grep -qxF 'TARGET: ${{ github.event.issue.number }}' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-target-env)"
       printf '%s\n' "$r24_salv" | grep -qF 'OPENCODE_PAT' && r24_bad="${r24_bad} arm-${r24_os}(salvage-carries-owner-pat)"
-      printf '%s\n' "$r24_salv_body" | grep -qxF 'if [ -f /tmp/random-lab-decision.json ]; then' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-decision-file-guard)"
-      printf '%s\n' "$r24_salv_body" | grep -qxF 'if [ ! -s /tmp/random-lab-findings.md ]; then' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-missing-report-guard)"
-      printf '%s\n' "$r24_salv_body" | grep -qF '**Salvaged partial findings report (issue #692).** The '"${r24_tag}"' tester agent step' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-provenance-banner)"
-      printf '%s\n' "$r24_salv_body" | grep -qF '> Failing run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-run-url)"
-      printf '%s\n' "$r24_salv_body" | grep -qxF 'cat /tmp/random-lab-findings.md' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-partial-report-composition)"
-      printf '%s\n' "$r24_salv_body" | grep -qxF '} > /tmp/random-lab-findings-salvage.md' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-composed-file-target)"
-      printf '%s\n' "$r24_salv_body" | grep -qxF 'if bash .github/scripts/post-peros-findings.sh '"${r24_os}"' "$TARGET" /tmp/random-lab-findings-salvage.md; then' || r24_bad="${r24_bad} arm-${r24_os}(salvage-poster-invocation-not-exact)"
-      printf '%s\n' "$r24_salv_body" | grep -qF '::warning::Partial '"${r24_tag}"' findings report exists but failed the strict poster checks' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-failure-warning)"
+      printf '%s\n' "$r24_salv" | grep -qE '^[[:space:]]*(continue-on-error|shell|working-directory):' && r24_bad="${r24_bad} arm-${r24_os}(salvage-yaml-key-override)"
+      r24_salv_run=$(printf '%s\n' "$r24_salv" | awk '
+        /^        run: \|$/ { s=1; next }
+        s { print }')
+      r24_salv_cmds=$(printf '%s\n' "$r24_salv_run" | sed 's/^[[:space:]]*//' | grep -vE '^(#.*)?$' || true)
+      r24_expected=$(cat <<'R24EOF'
+if [ -f /tmp/random-lab-decision.json ]; then
+echo "Decision file present; nothing to salvage on this crashed-run path."
+exit 0
+fi
+if [ ! -s /tmp/random-lab-findings.md ]; then
+echo "No partial findings report on disk; nothing to salvage."
+exit 0
+fi
+{
+printf '%s\n' "> **Salvaged partial findings report (issue #692).** The @TAG@ tester agent step"
+printf '%s\n' "> ended without writing its decision artifact, so this arm failed closed and the"
+printf '%s\n' "> workflow published the partial report it left behind. Sections may be incomplete."
+printf '%s\n\n' "> Failing run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+cat /tmp/random-lab-findings.md
+} > /tmp/random-lab-findings-salvage.md
+if bash .github/scripts/post-peros-findings.sh @OS@ "$TARGET" /tmp/random-lab-findings-salvage.md; then
+echo "Salvaged partial @TAG@ findings report; the run still concludes red."
+else
+echo "::warning::Partial @TAG@ findings report exists but failed the strict poster checks (not signed or not verifiable); nothing was published."
+fi
+R24EOF
+)
+      r24_expected=$(printf '%s\n' "$r24_expected" | sed -e "s/@TAG@/${r24_tag}/g" -e "s/@OS@/${r24_os}/g")
+      if [ "$r24_salv_cmds" != "$r24_expected" ]; then
+        r24_bad="${r24_bad} arm-${r24_os}(salvage-body-not-exact)"
+        r24_debug="${r24_debug}
+[arm-${r24_os}] salvage body diff (expected vs actual):
+$(diff <(printf '%s\n' "$r24_expected") <(printf '%s\n' "$r24_salv_cmds") | head -n 24)"
+      fi
     fi
     r24_verify_line=$(printf '%s\n' "$r24_block" | grep -nF -- "      - name: Verify test decided, else fail closed" | head -n1 | cut -d: -f1)
     r24_salv_line=$(printf '%s\n' "$r24_block" | grep -nF -- "$r24_salv_name" | head -n1 | cut -d: -f1)
@@ -4272,8 +4309,9 @@ else
     fi
   done
 fi
+[ -n "$r24_debug" ] && printf '%s\n' "$r24_debug"
 if [ -z "$r24_bad" ]; then
-  check "R24" "every per-OS arm's agent cap leaves >= 20 minutes under its job cap (macOS/Windows agent >= 120 under job >= 140, Linux measured 90), and the macOS/Windows arms carry one post-verify salvage step that composes a provenance banner plus the signed partial report into /tmp/random-lab-findings-salvage.md and publishes it through the strict shared poster with github.token only when the decision file is absent (issue #692)" "ok"
+  check "R24" "every per-OS arm's agent cap leaves >= 20 minutes under its job cap (macOS/Windows agent >= 120 under job >= 140, Linux measured 90), and the macOS/Windows arms carry one post-verify salvage step (name unique file-wide, no YAML-key overrides) whose command lines exactly match the pinned body that guards on the decision file and partial report, composes a provenance banner plus the signed partial report into /tmp/random-lab-findings-salvage.md, and publishes it through the strict shared poster with github.token (issue #692)" "ok"
 else
   check "R24" "per-OS cap headroom or partial-report salvage missing:${r24_bad} (issue #692: a 90-minute agent cap under a 120-minute job left no artifacts after a cap death)" "bad"
 fi
