@@ -13,7 +13,9 @@
 # #601), the R15 model fallback ladder guard (issue #591:
 # provider model retirement / loud Model-not-found failure; extended by
 # issue #620: transient provider FreeTierError rejection / bounded
-# same-model retry; the maintainer runner's only allowed step conditional is
+# same-model retry; and by issue #653: transient provider 429/5xx terminal
+# deaths / bounded same-model retry plus the provider-stall inactivity
+# watchdog; the maintainer runner's only allowed step conditional is
 # the shared actor-write gate, issue #696), the R16 shallow-workspace PAT merge guard (issue #602:
 # a depth-limited opencode CLI
 # session fetch re-shallows the Maintainer checkout, and merge-base-dependent
@@ -1074,6 +1076,192 @@ fi
 #      loosening, whole-log MNF match, stale tail window, prefix id regex,
 #      constant exits, removed exit-0 backoff - are each covered by a
 #      dedicated fixture or scenario).
+#   7. issue #653: both runner paths also carry (a) a bounded transient
+#      HTTP-error retry: an anchored 429/5xx terminal line (observed forms
+#      `AI_APICallError: Rate limit exceeded. Please try again later.` and
+#      `AI_APICallError: Internal Server Error`, plus the standard gateway
+#      phrases; the `AI_RetryError: Failed after 3 attempts. ...` summary,
+#      any transcript echo, and the responseBody envelope never match)
+#      retries the SAME model exactly once per arm before failing loudly
+#      (backoff `sleep 30`, value-scoped and wait-ordered in the harness so a
+#      backgrounded or revalued wait cannot pass), and (b) a provider-stall
+#      watchdog: the attempt's captured log is polled for growth
+#      (HANG_IDLE_SECONDS / HANG_POLL_SECONDS, default 600/30, overridable
+#      only by process env for this harness; no declarative workflow or
+#      action YAML may map either key, review round 17) and a stalled attempt
+#      is TERM/KILLed and
+#      retried once on the SAME model (backoff `sleep 10`), a second stall
+#      failing loudly. The FIFO capture shape keeps opencode and tee as
+#      separate known PIDs (each waited separately); when mkfifo is
+#      unavailable (some Windows Git Bash environments) the runner degrades
+#      LOUDLY to the legacy inline pipeline without the watchdog instead of
+#      bricking the arm, and the behavioral matrix exercises both shapes
+#      (the degraded shape must still honor the bounded freetier and HTTP
+#      retry contracts with loud persistence and rung advance). The #653
+#      detector is executed functionally like the
+#      #591/#620 pair (terminal/phrase matches; echo / envelope / suffix /
+#      phrase-variant / uppercase / AI_RetryError-summary / stale no-match;
+#      the tail-window lower-bound pair), and the behavioral matrix adds
+#      HTTP recovery on both exit shapes, persistent HTTP loud on both
+#      shapes, stall kill + same-model retry, a second stall loud, per-class
+#      budget independence in both directions (a consumed HTTP budget leaves
+#      the stall budget available; a stall leaves the HTTP budget
+#      available), the no-mkfifo degraded shape still honoring the
+#      freetier restart/retry contract, and the budget/invocation count
+#      checks that bind both invocation sites to the extracted executing
+#      step. Review F1/F2 land the same pass: every detector pipeline is
+#      wrapped `( set +o pipefail; ... )` because production runs
+#      `bash --noprofile --norc -eo pipefail` and a `grep -q` early exit can
+#      SIGPIPE `tail` (141) whenever the 40-line window exceeds the 64 KiB
+#      pipe buffer, silently masking a terminal line; the detector fixtures
+#      therefore include a ~160 KiB match-first window and execute under
+#      `set -o pipefail`, the behavioral blocks execute under the exact
+#      production shell form, and one behavioral scenario replays the
+#      160 KiB window end-to-end. Review F3 clamps both watchdog knobs to
+#      sane positive bounds (`-ge 1`, idle `-le 86400`, overflow-safe) so a
+#      0-poll busy loop or an integer-overflow value can never silently
+#      disable the watchdog; a behavioral scenario exercises poll=0.
+#      Tester round 2 closed a test-integrity hole: the free-tier budget's
+#      cross-rung sharing was enforced behaviorally (deep-grant/deep-advance),
+#      but the HTTP and stall budgets' arm-wide placement (all three counters
+#      initialize once before the rung loop) was only a documented contract,
+#      so relocating `transient_retry_used=0` / `hang_retry_used=0` into the
+#      loop body silently passed (23/0). Four cross-rung scenarios now bind
+#      all three budgets the same way: grant variants (rung 1 spends the
+#      single retry, a Model-not-found advances, and a second terminal/stall
+#      on rung 2 must be loud persistent with exactly one backoff - a
+#      per-rung reset spends a second backoff and runs an extra attempt) and
+#      advance variants (a rung-1 Model-not-found must not gate the retry
+#      away from a later rung). R15 therefore fails on a relocation of
+#      either counter into the loop body in either runner path.
+#      Tester round 3 closed the last blind spot in that class: the degraded
+#      no-mkfifo branch had no persistent-error and no cross-rung scenario,
+#      so an arithmetic budget reset inserted there
+#      (`freetier_retry_used=$((0))` after the mkfifo warning, a form the
+#      literal count pins cannot see) turned the bounded retry into an
+#      unbounded loop while the audit still read 23/0. `nofifo-persistent`
+#      (a persistently rejecting free-tier provider must fail loudly after
+#      exactly two attempts and one 15s backoff) and
+#      `nofifo-http-deep-grant` (a rung-1 429 spends the retry, a
+#      Model-not-found advances, and a second 429 on rung 2 must be loud
+#      persistent with exactly one 30s backoff) now bind the degraded shape
+#      the same way, and a static pin asserts the degraded else branch never
+#      touches a retry-budget counter.
+#      Tester round 4 closed three remaining blind classes. (a) The degraded
+#      no-mkfifo branch's status/tee/stderr plumbing was unbound: `status`,
+#      `tee_status`, the PIPESTATUS capture, and the `2>&1` merge are only
+#      observably wrong on shapes the terminal-classified nofifo scenarios
+#      never exercised, so `status=0` / `status="${st[1]}"` concluded silent
+#      green on an unclassified death, `tee_status=0` / a masked PIPESTATUS
+#      swallowed a failing degraded tee, and removing `2>&1` lost a
+#      stderr-borne terminal line so the bounded retry silently vanished.
+#      `nofifo-unclassified` (a nonzero unclassified degraded death must stay
+#      loud with its own status), `nofifo-teefail` (a failing tee in the
+#      degraded pipeline must fail loudly) and `nofifo-stderr-ft` (the
+#      `2>&1` merge must carry a stderr terminal line into the log so the
+#      free-tier retry still fires) bind that plumbing. (b) A cross-class
+#      budget reset (an arithmetic `..._retry_used=$((0))` inside ANOTHER
+#      class's retry branch, e.g. next to `freetier_retry_used=1`) evaded
+#      both the literal count pins and every single-class scenario, so six
+#      class-interleave scenarios repeat a class after another class's retry
+#      was consumed (`mixed`, `mixed-nz`, `hang-mixed`, `hang-mixed-nz`,
+#      `ft-hang-http`, `ft-hang-http-nz`) and cover every (resetting site,
+#      reset budget) pair in both exit shapes of the FT and HTTP branches
+#      plus the hang branch: the shipped code must fail loudly at the repeat,
+#      while the reset spends an extra backoff and runs an extra attempt.
+#      (c) The HTTP/stall deep pairs only reached rung 2, so a widening or
+#      theft gated on rung 3 escaped; `widened`, `widened-advance`,
+#      `hang-widened` and `hang-widened-advance` mirror the free-tier deep
+#      pair at rung depth 3 (three candidates) for both budgets.
+#      Tester round 5 closed three more blind classes. (a) The FIFO capture
+#      shape's `2>&1` stderr merge (the primary shape, whose degraded
+#      counterpart `nofifo-stderr-ft` already existed) was unbound: dropping
+#      it sends a stderr-borne terminal line to the step output instead of
+#      the captured log, so the exit-0 variant concludes silent green with no
+#      retry and the nonzero variant loses the retry as unclassified.
+#      `fifo-stderr-ft` / `fifo-stderr-ft0` bind it. (b) The watchdog's
+#      silence accounting was unbound: `idle += 1` or a non-accumulating
+#      `idle=$((hang_poll_seconds))` never reaches the threshold at the
+#      production cadence, a zeroed byte-size read kills a live producer, and
+#      dropping the re-arm (`last_size=$size`) means a post-output silence
+#      never accumulates. `hang-poll-slow` (30s poll cadence, 90s threshold:
+#      exactly three polling rounds must accumulate), `hang-active` (a
+#      producing attempt past the threshold must not be killed) and
+#      `out-then-hang` (one line, then silence: the re-arm is what lets the
+#      threshold fire) bind them. (c) The NONZERO Model-not-found advance was
+#      the last unbound budget-reset site: an arithmetic reset inserted there
+#      (`transient_retry_used=$((0))` or the stall/free-tier analogue)
+#      resurrects a spent budget on the next rung, so a persistent death
+#      loops one extra bounded retry. `mnf-nz-mixed`, `ft-mnf-nz` and
+#      `hang-mnf-nz` spend one budget, advance via that branch, and require
+#      the repeat to be loud persistent with exactly one backoff. Exact-form
+#      static pins on the stderr merge and the three watchdog arithmetic
+#      sites were added as cheap tripwires; the semantics stay behavioral.
+#      Review round 8 closed the last blind spot of that class: the round-5
+#      mirrors advance through the nonzero-MNF branch only on rung 1, so a
+#      reset GATED on a later rung (`[ "$model" != "${candidates%% *}" ] &&
+#      transient_retry_used=$((0))` inserted after the advance warning) still
+#      escaped in both runner paths. `mnf-nz-deep`, `ft-mnf-nz-deep` and
+#      `hang-mnf-nz-deep` mirror the three budgets at rung depth 3: advance
+#      via that branch on rungs 1 and 2, spend the single retry on rung 2,
+#      and require the rung-3 repeat to be loud persistent with exactly one
+#      backoff, so a rung-gated reset at the second advance spends a second
+#      backoff and runs an extra c-free attempt.
+#      Tester round 7 closed the fire-block ordering class: the watchdog's
+#      escalation block was pinned by presence and count only, so a TERM/KILL
+#      swap or the grace sleep moved before the first TERM or after the last
+#      KILL kept R15 green while KILL landed before or back-to-back with
+#      TERM, destroying the window in which a TERM-trapping opencode can
+#      finish its cleanup. A normalized ordered pin over the escalation
+#      lines, a `term-grace` behavioral scenario (traps TERM, can only
+#      complete its cleanup through the real 5s grace, writes a marker a
+#      reordered fire block can never produce), and exact pins on the
+#      watchdog's loop gate plus post-sleep liveness re-check closed it.
+#      Tester round 8 closed the last completeness class: the round-7 pin
+#      filtered the extracted region down to the five escalation steps, so an
+#      unknown line spliced between or around them (`sleep 1d` before the
+#      first TERM or after the grace, a shadowed `if false; then ... fi`
+#      around a KILL, an extra early kill) kept R15 green while the abort
+#      window grew or the KILL escalation was neutered. The whole-region pin
+#      now normalizes every line of the extracted block (leading/trailing
+#      whitespace, an optional trailing `2>/dev/null`, blank lines) and
+#      requires it to be EXACTLY the hang-flag write, the five steps in
+#      order, and the success exit, nothing else; `hang-child-ignores-term`
+#      binds the KILL behaviorally (an attempt that ignores TERM survives
+#      until SIGKILL, so a neutered KILL blocks into the scenario timeout).
+#      Review round 12 closed the wider completeness class around it: the
+#      round-8 pin anchored its region at the hang-flag write, so a line
+#      spliced anywhere else in the watchdog subshell (before the baseline
+#      read, after the poll sleep, after the post-sleep liveness re-check,
+#      between the idle accumulation and the threshold, between the threshold
+#      and the warning echo, in the re-arm else branch) delayed the abort by
+#      up to a day at the production defaults with R15 still green. The
+#      whole-subshell pin requires the entire watchdog subshell to be exactly
+#      the shipped loop: baseline read, poll, liveness checks, silence
+#      accounting, fire block, and re-arm, nothing else. Review round 13
+#      closed the window immediately outside it: the round-12 pin spanned
+#      only the bare subshell open/close pair, so a line spliced at the
+#      launch/reap path around it (before the `(`, after the `) &`, after
+#      the watch_pid assignment, after the oc reap and status capture,
+#      before the tee launch) delayed the watchdog launch, the reap, or the
+#      whole capture pipeline by a day at the production defaults with R15
+#      still green. The pin now spans the whole FIFO capture prelude from
+#      the `if mkfifo` branch line through the branch's closing `set -e`:
+#      the tee launch, the opencode launch, the subshell, the reap, and the
+#      cleanup, nothing else (comment and blank lines dropped).
+#      Review round 14 closed the whole-block residual: every pin above is
+#      an exact region INSIDE the runner block, so a line spliced anywhere
+#      else in it (the pre-attempt header, the degraded no-mkfifo else
+#      branch, the post-`fi` classification/retry/budget logic) stayed green
+#      while the block's behavior changed (six one-line `sleep 1d`
+#      insertions at exactly those sites kept the parent at 23/0). Each
+#      runner's ENTIRE extracted `run:` block is now pinned line-exact
+#      against its regenerated literal (normalized like the region pins:
+#      leading/trailing whitespace and an optional trailing `2>/dev/null`
+#      stripped, comment and blank lines dropped), so any inserted or
+#      modified non-comment line anywhere in the block fails
+#      `${label}(run-block-not-exact)` alone; the region pins above remain
+#      for precise failure labels.
 r15_bad=""
 LADDER_DIR=".github/actions/opencode-run"
 RESOLVER="${LADDER_DIR}/resolve-model.sh"
@@ -1109,15 +1297,360 @@ fi
 # in-loop init, a removed or reordered sleep, a rewritten loop construct,
 # and a compensated loud-exit swap each trip the behavioral matrix, and an
 # unboundedness re-spelling hangs into the per-scenario timeout.
+# Review round 14: the normalized expected literals for the whole-run-block
+# exact pin (see r15_freetier_pins). Generated from the shipped blocks: every
+# non-comment line in order, leading/trailing whitespace and an optional
+# trailing `2>/dev/null` stripped (the caller re-normalizes, so the literals
+# stay byte-exact even if an editor alters surrounding blank captures).
+r15_expected_run_block() {
+  case "$1" in
+  action-file)
+    cat <<'R15RUNEOF'
+candidates="${MODEL_CANDIDATES:-${MODEL:-}}"
+if [ -z "$candidates" ]; then
+echo "::error::No model candidates resolved; refusing to run opencode (the resolve step did not produce a candidate chain)."
+exit 1
+fi
+model_error_terminal() {
+( set +o pipefail; tail -n 40 "$1" | grep -qE "^(Error: )?Model not found: ${2//./\\.}(\. Did you mean: .*|\.?$)" )
+}
+freetier_error_terminal() {
+( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?OpenCode's free tier can only be used from within OpenCode\. Download it at https://opencode\.ai and keep building\.?$" )
+}
+transient_http_error_terminal() {
+( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Rate limit exceeded\. Please try again later\.|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout)\.?$" )
+}
+hang_idle_seconds="${HANG_IDLE_SECONDS:-600}"
+hang_poll_seconds="${HANG_POLL_SECONDS:-30}"
+case "$hang_idle_seconds" in ''|*[!0-9]*) hang_idle_seconds=600 ;; esac
+case "$hang_poll_seconds" in ''|*[!0-9]*) hang_poll_seconds=30 ;; esac
+[ "$hang_poll_seconds" -ge 1 ] 2>/dev/null || hang_poll_seconds=30
+[ "$hang_idle_seconds" -ge 1 ] 2>/dev/null || hang_idle_seconds=600
+[ "$hang_idle_seconds" -le 86400 ] 2>/dev/null || hang_idle_seconds=600
+freetier_retry_used=0
+transient_retry_used=0
+hang_retry_used=0
+status=1
+for model in $candidates; do
+while :; do
+log="$(mktemp)"
+fifo="${log}.fifo"
+hang_flag="${log}.hang"
+rm -f "$fifo" "$hang_flag"
+echo "::notice::opencode run with model '$model'"
+if mkfifo "$fifo" 2>/dev/null; then
+set +e
+tee "$log" < "$fifo" &
+tee_pid=$!
+MODEL="$model" opencode github run > "$fifo" 2>&1 &
+oc_pid=$!
+(
+last_size=$(wc -c < "$log" 2>/dev/null || echo 0)
+idle=0
+while kill -0 "$oc_pid" 2>/dev/null; do
+sleep "$hang_poll_seconds"
+kill -0 "$oc_pid" 2>/dev/null || exit 0
+size=$(wc -c < "$log" 2>/dev/null || echo 0)
+if [ "$size" -eq "$last_size" ]; then
+idle=$((idle + hang_poll_seconds))
+if [ "$idle" -ge "$hang_idle_seconds" ]; then
+echo "::warning::opencode produced no output for ${hang_idle_seconds}s on model '$model' (provider stall, issue #653); aborting this attempt."
+printf 'hang\n' > "$hang_flag"
+kill -TERM "$oc_pid"
+kill -TERM "$tee_pid"
+sleep 5
+kill -KILL "$oc_pid"
+kill -KILL "$tee_pid"
+exit 0
+fi
+else
+idle=0
+last_size=$size
+fi
+done
+) &
+watch_pid=$!
+wait "$oc_pid"; status=$?
+wait "$tee_pid"; tee_status=$?
+kill "$watch_pid"
+wait "$watch_pid"
+set -e
+else
+echo "::warning::mkfifo is unavailable on this runner; running model '$model' without the provider-stall watchdog (issue #653)."
+set +e
+MODEL="$model" opencode github run 2>&1 | tee "$log"
+st=("${PIPESTATUS[@]}")
+set -e
+status="${st[0]}"; tee_status="${st[1]}"
+fi
+if [ -s "$hang_flag" ]; then
+rm -f "$log" "$fifo" "$hang_flag"
+if [ "$hang_retry_used" -lt 1 ]; then
+hang_retry_used=1
+echo "::warning::provider stall on model '$model' (issue #653); one bounded retry of the same model in 10s."
+sleep 10
+continue
+fi
+echo "::error::repeated provider stall on model '$model' after the bounded retry (issue #653); failing loudly instead of retrying unboundedly."
+exit 1
+fi
+if [ "$tee_status" -ne 0 ]; then
+echo "::error::could not capture the opencode log for model '$model' (tee exit $tee_status); failing loudly instead of risking a blind advance."
+rm -f "$log" "$fifo" "$hang_flag"
+exit 1
+fi
+if [ "$status" -eq 0 ]; then
+if model_error_terminal "$log" "$model"; then
+echo "::warning::model '$model' died at the provider (terminal Model-not-found error on an exit-0 run); advancing to the next ladder rung if any."
+rm -f "$log" "$fifo" "$hang_flag"
+continue 2
+fi
+if freetier_error_terminal "$log"; then
+if [ "$freetier_retry_used" -lt 1 ]; then
+freetier_retry_used=1
+echo "::warning::transient free-tier rejection on model '$model' (exit-0 terminal FreeTierError, issue #620); one bounded retry of the same model in 15s."
+rm -f "$log" "$fifo" "$hang_flag"
+sleep 15
+continue
+fi
+echo "::error::persistent free-tier rejection on model '$model' after the bounded retry (issue #620); failing loudly instead of retrying unboundedly."
+rm -f "$log" "$fifo" "$hang_flag"
+exit 1
+fi
+if transient_http_error_terminal "$log"; then
+if [ "$transient_retry_used" -lt 1 ]; then
+transient_retry_used=1
+echo "::warning::transient HTTP error on model '$model' (exit-0 terminal 429/5xx error, issue #653); one bounded retry of the same model in 30s."
+rm -f "$log" "$fifo" "$hang_flag"
+sleep 30
+continue
+fi
+echo "::error::persistent HTTP error on model '$model' after the bounded retry (issue #653); failing loudly instead of retrying unboundedly."
+rm -f "$log" "$fifo" "$hang_flag"
+exit 1
+fi
+rm -f "$log" "$fifo" "$hang_flag"
+exit 0
+fi
+if grep -qE "Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)" "$log"; then
+echo "::warning::model '$model' was not found by the provider; advancing to the next ladder rung if any."
+rm -f "$log" "$fifo" "$hang_flag"
+continue 2
+fi
+if freetier_error_terminal "$log"; then
+if [ "$freetier_retry_used" -lt 1 ]; then
+freetier_retry_used=1
+echo "::warning::transient free-tier rejection on model '$model' (exit $status, issue #620); one bounded retry of the same model in 15s."
+rm -f "$log" "$fifo" "$hang_flag"
+sleep 15
+continue
+fi
+echo "::error::persistent free-tier rejection on model '$model' (exit $status) after the bounded retry (issue #620); failing loudly instead of retrying unboundedly."
+rm -f "$log" "$fifo" "$hang_flag"
+exit "$status"
+fi
+if transient_http_error_terminal "$log"; then
+if [ "$transient_retry_used" -lt 1 ]; then
+transient_retry_used=1
+echo "::warning::transient HTTP error on model '$model' (exit $status, issue #653); one bounded retry of the same model in 30s."
+rm -f "$log" "$fifo" "$hang_flag"
+sleep 30
+continue
+fi
+echo "::error::persistent HTTP error on model '$model' (exit $status) after the bounded retry (issue #653); failing loudly instead of retrying unboundedly."
+rm -f "$log" "$fifo" "$hang_flag"
+exit "$status"
+fi
+echo "::error::opencode failed with exit status $status on model '$model' (not a model-resolution, free-tier, or transient-HTTP death; remaining rungs are not retried)."
+rm -f "$log" "$fifo" "$hang_flag"
+exit "$status"
+done
+done
+echo "::error::opencode exhausted every model rung ($candidates) with 'Model not found' (issue #591 fallback ladder is dead); failing loudly so failure triage fires instead of a hollow green."
+exit 1
+R15RUNEOF
+    ;;
+  maintainer.yml)
+    cat <<'R15RUNEOF'
+if [ "${{ github.event_name }}" = "workflow_run" ]; then
+export GITHUB_EVENT_NAME="workflow_dispatch"
+fi
+candidates="${MODEL_CANDIDATES:-}"
+if [ -z "$candidates" ]; then
+echo "::error::No model candidates resolved; refusing to run the Maintainer (the resolve step did not produce a candidate chain)."
+exit 1
+fi
+model_error_terminal() {
+( set +o pipefail; tail -n 40 "$1" | grep -qE "^(Error: )?Model not found: ${2//./\\.}(\. Did you mean: .*|\.?$)" )
+}
+freetier_error_terminal() {
+( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?OpenCode's free tier can only be used from within OpenCode\. Download it at https://opencode\.ai and keep building\.?$" )
+}
+transient_http_error_terminal() {
+( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Rate limit exceeded\. Please try again later\.|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout)\.?$" )
+}
+hang_idle_seconds="${HANG_IDLE_SECONDS:-600}"
+hang_poll_seconds="${HANG_POLL_SECONDS:-30}"
+case "$hang_idle_seconds" in ''|*[!0-9]*) hang_idle_seconds=600 ;; esac
+case "$hang_poll_seconds" in ''|*[!0-9]*) hang_poll_seconds=30 ;; esac
+[ "$hang_poll_seconds" -ge 1 ] 2>/dev/null || hang_poll_seconds=30
+[ "$hang_idle_seconds" -ge 1 ] 2>/dev/null || hang_idle_seconds=600
+[ "$hang_idle_seconds" -le 86400 ] 2>/dev/null || hang_idle_seconds=600
+freetier_retry_used=0
+transient_retry_used=0
+hang_retry_used=0
+status=1
+for model in $candidates; do
+while :; do
+log="$(mktemp)"
+fifo="${log}.fifo"
+hang_flag="${log}.hang"
+rm -f "$fifo" "$hang_flag"
+echo "::notice::maintainer run with model '$model'"
+if mkfifo "$fifo" 2>/dev/null; then
+set +e
+tee "$log" < "$fifo" &
+tee_pid=$!
+MODEL="$model" opencode github run > "$fifo" 2>&1 &
+oc_pid=$!
+(
+last_size=$(wc -c < "$log" 2>/dev/null || echo 0)
+idle=0
+while kill -0 "$oc_pid" 2>/dev/null; do
+sleep "$hang_poll_seconds"
+kill -0 "$oc_pid" 2>/dev/null || exit 0
+size=$(wc -c < "$log" 2>/dev/null || echo 0)
+if [ "$size" -eq "$last_size" ]; then
+idle=$((idle + hang_poll_seconds))
+if [ "$idle" -ge "$hang_idle_seconds" ]; then
+echo "::warning::opencode produced no output for ${hang_idle_seconds}s on model '$model' (provider stall, issue #653); aborting this attempt."
+printf 'hang\n' > "$hang_flag"
+kill -TERM "$oc_pid"
+kill -TERM "$tee_pid"
+sleep 5
+kill -KILL "$oc_pid"
+kill -KILL "$tee_pid"
+exit 0
+fi
+else
+idle=0
+last_size=$size
+fi
+done
+) &
+watch_pid=$!
+wait "$oc_pid"; status=$?
+wait "$tee_pid"; tee_status=$?
+kill "$watch_pid"
+wait "$watch_pid"
+set -e
+else
+echo "::warning::mkfifo is unavailable on this runner; running model '$model' without the provider-stall watchdog (issue #653)."
+set +e
+MODEL="$model" opencode github run 2>&1 | tee "$log"
+st=("${PIPESTATUS[@]}")
+set -e
+status="${st[0]}"; tee_status="${st[1]}"
+fi
+if [ -s "$hang_flag" ]; then
+rm -f "$log" "$fifo" "$hang_flag"
+if [ "$hang_retry_used" -lt 1 ]; then
+hang_retry_used=1
+echo "::warning::provider stall on model '$model' (issue #653); one bounded retry of the same model in 10s."
+sleep 10
+continue
+fi
+echo "::error::repeated provider stall on model '$model' after the bounded retry (issue #653); failing loudly instead of retrying unboundedly."
+exit 1
+fi
+if [ "$tee_status" -ne 0 ]; then
+echo "::error::could not capture the Maintainer opencode log for model '$model' (tee exit $tee_status); failing loudly instead of risking a blind advance."
+rm -f "$log" "$fifo" "$hang_flag"
+exit 1
+fi
+if [ "$status" -eq 0 ]; then
+if model_error_terminal "$log" "$model"; then
+echo "::warning::model '$model' died at the provider (terminal Model-not-found error on an exit-0 run); advancing to the next ladder rung if any."
+rm -f "$log" "$fifo" "$hang_flag"
+continue 2
+fi
+if freetier_error_terminal "$log"; then
+if [ "$freetier_retry_used" -lt 1 ]; then
+freetier_retry_used=1
+echo "::warning::transient free-tier rejection on model '$model' (exit-0 terminal FreeTierError, issue #620); one bounded retry of the same model in 15s."
+rm -f "$log" "$fifo" "$hang_flag"
+sleep 15
+continue
+fi
+echo "::error::persistent free-tier rejection on model '$model' after the bounded retry (issue #620); failing loudly instead of retrying unboundedly."
+rm -f "$log" "$fifo" "$hang_flag"
+exit 1
+fi
+if transient_http_error_terminal "$log"; then
+if [ "$transient_retry_used" -lt 1 ]; then
+transient_retry_used=1
+echo "::warning::transient HTTP error on model '$model' (exit-0 terminal 429/5xx error, issue #653); one bounded retry of the same model in 30s."
+rm -f "$log" "$fifo" "$hang_flag"
+sleep 30
+continue
+fi
+echo "::error::persistent HTTP error on model '$model' after the bounded retry (issue #653); failing loudly instead of retrying unboundedly."
+rm -f "$log" "$fifo" "$hang_flag"
+exit 1
+fi
+rm -f "$log" "$fifo" "$hang_flag"
+exit 0
+fi
+if grep -qE "Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)" "$log"; then
+echo "::warning::model '$model' was not found by the provider; advancing to the next ladder rung if any."
+rm -f "$log" "$fifo" "$hang_flag"
+continue 2
+fi
+if freetier_error_terminal "$log"; then
+if [ "$freetier_retry_used" -lt 1 ]; then
+freetier_retry_used=1
+echo "::warning::transient free-tier rejection on model '$model' (exit $status, issue #620); one bounded retry of the same model in 15s."
+rm -f "$log" "$fifo" "$hang_flag"
+sleep 15
+continue
+fi
+echo "::error::persistent free-tier rejection on model '$model' (exit $status) after the bounded retry (issue #620); failing loudly instead of retrying unboundedly."
+rm -f "$log" "$fifo" "$hang_flag"
+exit "$status"
+fi
+if transient_http_error_terminal "$log"; then
+if [ "$transient_retry_used" -lt 1 ]; then
+transient_retry_used=1
+echo "::warning::transient HTTP error on model '$model' (exit $status, issue #653); one bounded retry of the same model in 30s."
+rm -f "$log" "$fifo" "$hang_flag"
+sleep 30
+continue
+fi
+echo "::error::persistent HTTP error on model '$model' (exit $status) after the bounded retry (issue #653); failing loudly instead of retrying unboundedly."
+rm -f "$log" "$fifo" "$hang_flag"
+exit "$status"
+fi
+echo "::error::Maintainer opencode run failed with exit status $status on model '$model' (not a model-resolution, free-tier, or transient-HTTP death; remaining rungs are not retried)."
+rm -f "$log" "$fifo" "$hang_flag"
+exit "$status"
+done
+done
+echo "::error::Maintainer exhausted every model rung ($candidates) with 'Model not found' (issue #591 fallback ladder is dead); failing loudly so the run is visible to health audit and triage."
+exit 1
+R15RUNEOF
+    ;;
+  esac
+}
+
 r15_freetier_pins() {
-  local label="$1" f="$2" fn n
+  local label="$1" f="$2" step="$3" fn n
   if [ ! -f "$f" ]; then
     r15_bad="${r15_bad} ${label}(missing)"
     return
   fi
   grep -qF 'freetier_error_terminal() {' "$f" || r15_bad="${r15_bad} ${label}(no-freetier-detector)"
   fn=$(sed -n '/freetier_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$f" | sed 's/^[[:space:]]*//')
-  printf '%s\n' "$fn" | grep -qF 'tail -n 40 "$1" | grep -qE' || r15_bad="${r15_bad} ${label}(freetier-detector-not-tail-scoped)"
+  printf '%s\n' "$fn" | grep -qF '( set +o pipefail; tail -n 40 "$1" | grep -qE' || r15_bad="${r15_bad} ${label}(freetier-detector-not-pipefail-safe-tail-scoped)"
   printf '%s\n' "$fn" | grep -qF "(AI_APICallError: |APIError: |Error: )?OpenCode's free tier can only be used from within OpenCode\. Download it at https://opencode\.ai and keep building\.?\$" || r15_bad="${r15_bad} ${label}(no-anchored-freetier-terminal-form)"
   [ "$(grep -cE '^[[:space:]]*if freetier_error_terminal "\$log"; then$' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(freetier-detector-not-wired-both-paths)"
   [ "$(grep -cF 'freetier_retry_used=0' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-freetier-retry-counter)"
@@ -1135,7 +1668,12 @@ r15_freetier_pins() {
   # so the tee guard's semantics now live in the behavioral fixtures: the
   # tee mock honors R15_TEE_FAIL and the matrix covers statuses 3, 1, and 2.
   [ "$(grep -cE '^[[:space:]]*if \[ "\$tee_status" -ne 0 \]; then$' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(tee-guard-decoyed-or-missing)"
-  [ "$(grep -cE '^[[:space:]]*tail -n 40 "\$1" \| grep -qE' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(detectors-not-tail-scoped-live)"
+  # The live detectors must carry the pipefail-safe wrap (issue #653 review
+  # F1): the exact `( set +o pipefail; tail -n 40 "$1" | grep -qE` shape,
+  # three times (model/freetier/transient-http). The functional big-window
+  # fixtures below prove the semantics; this pin catches a shape drift or a
+  # partial unwrap cheaply.
+  [ "$(grep -cE '^[[:space:]]*\( set \+o pipefail; tail -n 40 "\$1" \| grep -qE' "$f" || true)" = "3" ] || r15_bad="${r15_bad} ${label}(detectors-not-pipefail-safe-tail-scoped-live)"
   # Loud persistence, exact-form and branch-tied: each persistent-rejection
   # branch must end in the nonzero exit matching its own message, so a
   # compensated swap (one branch's loud exit moved to the other, with the
@@ -1152,12 +1690,322 @@ r15_freetier_pins() {
   [ "$n" = "1" ] || r15_bad="${r15_bad} ${label}(persistent-freetier-exit-0-path-not-loud)"
   n=$(grep -A2 -F "persistent free-tier rejection on model '\$model' (exit \$status) after the bounded retry" "$f" | grep -cE '^[[:space:]]*exit "\$status"$' || true)
   [ "$n" = "1" ] || r15_bad="${r15_bad} ${label}(persistent-freetier-exit-status-path-not-loud)"
+  # Issue #653 element-presence pins: the transient-429/5xx detector plus its
+  # bounded retry (shared shape on both exit paths, so those counts are 2)
+  # and the provider-stall watchdog (a single attempt-shape branch ahead of
+  # the exit-shape split, so its counts are 1). Anchored counts only; the
+  # behavioral matrix owns the semantics.
+  grep -qF 'transient_http_error_terminal() {' "$f" || r15_bad="${r15_bad} ${label}(no-transient-http-detector)"
+  fn=$(sed -n '/transient_http_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$f" | sed 's/^[[:space:]]*//')
+  printf '%s\n' "$fn" | grep -qF '( set +o pipefail; tail -n 40 "$1" | grep -qE' || r15_bad="${r15_bad} ${label}(transient-http-detector-not-pipefail-safe-tail-scoped)"
+  printf '%s\n' "$fn" | grep -qF "(Rate limit exceeded\. Please try again later\.|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout)\.?\$" || r15_bad="${r15_bad} ${label}(no-anchored-transient-http-form)"
+  [ "$(grep -cE '^[[:space:]]*if transient_http_error_terminal "\$log"; then$' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(transient-http-detector-not-wired-both-paths)"
+  [ "$(grep -cF 'transient_retry_used=0' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-transient-http-retry-counter)"
+  [ "$(grep -cE '^[[:space:]]*if \[ "\$transient_retry_used" -lt 1 \]; then$' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(no-bounded-transient-http-cap)"
+  [ "$(grep -cF 'transient_retry_used=1' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(no-transient-http-retry-consumption)"
+  [ "$(grep -cF 'one bounded retry of the same model in 30s' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(no-transient-http-retry-marker)"
+  [ "$(grep -cE '^[[:space:]]*sleep 30$' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(no-transient-http-backoff)"
+  n=$(grep -A2 -F "persistent HTTP error on model '\$model' after the bounded retry" "$f" | grep -cE '^[[:space:]]*exit 1$' || true)
+  [ "$n" = "1" ] || r15_bad="${r15_bad} ${label}(persistent-transient-http-exit-0-path-not-loud)"
+  n=$(grep -A2 -F "persistent HTTP error on model '\$model' (exit \$status) after the bounded retry" "$f" | grep -cE '^[[:space:]]*exit "\$status"$' || true)
+  [ "$n" = "1" ] || r15_bad="${r15_bad} ${label}(persistent-transient-http-exit-status-path-not-loud)"
+  grep -qF 'mkfifo "$fifo"' "$f" || r15_bad="${r15_bad} ${label}(no-fifo-capture-shape)"
+  grep -qF 'mkfifo is unavailable on this runner' "$f" || r15_bad="${r15_bad} ${label}(no-loud-mkfifo-fallback)"
+  grep -qF 'HANG_IDLE_SECONDS' "$f" || r15_bad="${r15_bad} ${label}(no-stall-idle-knob)"
+  grep -qF 'HANG_POLL_SECONDS' "$f" || r15_bad="${r15_bad} ${label}(no-stall-poll-knob)"
+  # Tester round 6 (watchdog production defaults): every behavioral scenario
+  # overrides the knobs, so the default literals themselves are exact-pinned.
+  # `:-86400` would need a full day of silence (past every step timeout),
+  # `:-2` kills any attempt quiet for a single poll, and `:-3600` delays the
+  # first check past the Maintainer step cap; each silently restores the
+  # #653 incident behavior this guard exists to bound.
+  grep -qF 'hang_idle_seconds="${HANG_IDLE_SECONDS:-600}"' "$f" || r15_bad="${r15_bad} ${label}(stall-idle-default-not-600)"
+  grep -qF 'hang_poll_seconds="${HANG_POLL_SECONDS:-30}"' "$f" || r15_bad="${r15_bad} ${label}(stall-poll-default-not-30)"
+  # Review F3: the knobs are clamped to sane positive bounds, so an env
+  # override of 0 (busy-loop with `idle += 0`, watchdog silently disabled) or
+  # a value beyond the shell's integer range (every `-ge` errors, watchdog
+  # never fires) can never disable the watchdog. The poll=0 case is also
+  # exercised behaviorally (scenario `hang-poll-zero`).
+  grep -qF '[ "$hang_poll_seconds" -ge 1 ] 2>/dev/null || hang_poll_seconds=30' "$f" || r15_bad="${r15_bad} ${label}(no-stall-poll-lower-clamp)"
+  grep -qF '[ "$hang_idle_seconds" -ge 1 ] 2>/dev/null || hang_idle_seconds=600' "$f" || r15_bad="${r15_bad} ${label}(no-stall-idle-lower-clamp)"
+  grep -qF '[ "$hang_idle_seconds" -le 86400 ] 2>/dev/null || hang_idle_seconds=600' "$f" || r15_bad="${r15_bad} ${label}(no-stall-idle-upper-clamp)"
+  [ "$(grep -cF 'wait "$oc_pid"; status=$?' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-separate-opencode-pid-wait)"
+  [ "$(grep -cF 'wait "$tee_pid"; tee_status=$?' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-separate-tee-pid-wait)"
+  [ "$(grep -cF 'kill -TERM "$oc_pid"' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-stall-term-kill)"
+  [ "$(grep -cF 'kill -KILL "$oc_pid"' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-stall-kill-escalation)"
+  # Tester round 6 (bounded TERM-to-KILL grace): the watchdog's escalation
+  # window is extracted between the hang_flag write and its own `exit 0` and
+  # must carry the exact five-step shape: TERM oc, TERM tee, a single bounded
+  # `sleep 5` grace, KILL oc, KILL tee. A lengthened grace (`sleep 3600`)
+  # would let a TERM-surviving child burn toward the step timeout instead of
+  # the bounded escalation, and a dropped tee signal can orphan the capture
+  # child.
+  # Tester round 7 (fire-block order): presence and count alone never bound
+  # the ORDER, so a TERM/KILL swap or the grace moved before the first TERM
+  # or after the last KILL kept the audit green while KILL landed before or
+  # back-to-back with TERM, destroying the window in which a TERM-trapping
+  # opencode finishes its cleanup; `term-grace` backs the order behaviorally.
+  # Tester round 8 (fire-region completeness): the round-7 pin filtered the
+  # region down to the five escalation lines, so unknown lines spliced
+  # between or around them escaped. The whole-region pin below normalizes
+  # every line (leading/trailing whitespace, an optional trailing
+  # `2>/dev/null`, blank lines) and requires exactly the hang-flag write,
+  # the five steps in order, and `exit 0`, nothing else;
+  # `hang-child-ignores-term` backs the KILL behaviorally (an attempt that
+  # ignores TERM can only be ended by SIGKILL, so a neutered KILL blocks
+  # into the scenario timeout).
+  r15_fire=$(awk '
+    index($0, "printf") && index($0, "> \"$hang_flag\"") { in_fire=1 }
+    in_fire { print }
+    in_fire && /^[[:space:]]*exit 0[[:space:]]*$/ { exit }
+  ' "$f" 2>/dev/null || true)
+  if [ "$(printf '%s\n' "$r15_fire" | grep -cE '^[[:space:]]*sleep [0-9]+$' || true)" != "1" ] \
+     || ! printf '%s\n' "$r15_fire" | grep -qE '^[[:space:]]*sleep 5$'; then
+    r15_bad="${r15_bad} ${label}(no-bounded-term-kill-grace)"
+  fi
+  for r15_step in 'kill -TERM "$oc_pid" 2>/dev/null' 'kill -TERM "$tee_pid" 2>/dev/null' 'kill -KILL "$oc_pid" 2>/dev/null' 'kill -KILL "$tee_pid" 2>/dev/null'; do
+    printf '%s\n' "$r15_fire" | grep -qF "$r15_step" || r15_bad="${r15_bad} ${label}(stall-fire-block-incomplete-escalation)"
+  done
+  # Tester round 8 (whole-region completeness): the round-7 ordered pin
+  # filtered the region down to matching lines, so any unknown line spliced
+  # between or around the steps (`sleep 1d` before the first TERM or after
+  # the grace, a shadowed `if false; then ... fi` around a KILL, an extra
+  # early kill) passed while the abort window changed or the escalation was
+  # neutered. The normalized whole-region pin strips leading/trailing
+  # whitespace and an optional trailing `2>/dev/null`, drops blank lines, and
+  # requires the extracted block to be EXACTLY the hang-flag write, the five
+  # steps in order, and the success exit, with nothing else.
+  # Review round 15 (injective compare): the round-8/12/13/14 region pins
+  # joined the normalized line streams with `|` (tr '\n' '|'), which is not
+  # injective: rewriting two real lines into one merged line (carrying a bare
+  # `|`, no spaces) produced the same joined string and passed while the
+  # first line's output was swallowed into the second command's stdin. The
+  # compares are now direct multiline string comparisons at all four sites
+  # (fire region, capture prelude, and both run-block streams).
+  r15_fire_region=$(printf '%s\n' "$r15_fire" \
+    | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[[:space:]]*2>\/dev\/null$//' -e 's/[[:space:]]*$//' \
+    | grep -vE '^$' || true)
+  r15_fire_expect=$(cat <<'R15FIREEOF'
+printf 'hang\n' > "$hang_flag"
+kill -TERM "$oc_pid"
+kill -TERM "$tee_pid"
+sleep 5
+kill -KILL "$oc_pid"
+kill -KILL "$tee_pid"
+exit 0
+R15FIREEOF
+  )
+  if [ "$r15_fire_region" != "$r15_fire_expect" ]; then
+    r15_bad="${r15_bad} ${label}(stall-fire-region-not-exact-term-term-sleep-kill-kill)"
+  fi
+  # Review round 12 (whole-watchdog-subshell completeness): the round-8 pin
+  # anchored its region at the hang-flag write, so a line spliced anywhere in
+  # the watchdog outside the fire block (between the subshell open and the
+  # baseline read, after the poll sleep, after the post-sleep liveness check,
+  # between the idle accumulation and the threshold, between the threshold
+  # and the warning echo, between the echo and the flag write, in the re-arm
+  # else branch) kept R15 green while the abort window grew by a day and the
+  # #653 stall class silently recurred. Review round 13 showed the round-12
+  # window itself was still too narrow: a line spliced immediately outside
+  # the bare subshell open/close pair (before the `(`, after the `) &`, after
+  # the watch_pid assignment, after the oc reap and status capture, before
+  # the tee launch) kept R15 green while the watchdog launch, the reap, or
+  # the whole capture pipeline was delayed by a day at the production
+  # defaults, so the bounded retry never happened within any step timeout
+  # and the #653 class silently recurred. The pin below spans the whole FIFO
+  # capture prelude from the `if mkfifo` branch line through the branch's
+  # closing `set -e`: the tee launch, the opencode launch, the subshell, the
+  # reap, and the cleanup, nothing else. Every line is normalized
+  # (leading/trailing whitespace, an optional trailing `2>/dev/null`),
+  # comment and blank lines are dropped so comment edits cannot brittle-fail
+  # it. The region's outer boundary used to be the documented limit of
+  # exact-region pins (a line inserted before the `if mkfifo` branch line or
+  # after the branch's `set -e` was caught by neither this pin nor any other
+  # exact region); review round 14 closed that residual by adding the
+  # whole-run-block exact pin in r15_freetier_pins, so any such insertion
+  # now fails `${label}(run-block-not-exact)`.
+  r15_watch=$(awk '
+    /^[[:space:]]*if mkfifo .*then[[:space:]]*$/ { in_w=1 }
+    in_w { print }
+    in_w && /^[[:space:]]*set -e[[:space:]]*$/ { exit }
+  ' "$f" 2>/dev/null || true)
+  r15_watch_region=$(printf '%s\n' "$r15_watch" \
+    | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[[:space:]]*2>\/dev\/null$//' -e 's/[[:space:]]*$//' \
+    | grep -vE '^#|^$' || true)
+  r15_watch_expect=$(cat <<'R15WATCHEOF'
+if mkfifo "$fifo" 2>/dev/null; then
+set +e
+tee "$log" < "$fifo" &
+tee_pid=$!
+MODEL="$model" opencode github run > "$fifo" 2>&1 &
+oc_pid=$!
+(
+last_size=$(wc -c < "$log" 2>/dev/null || echo 0)
+idle=0
+while kill -0 "$oc_pid" 2>/dev/null; do
+sleep "$hang_poll_seconds"
+kill -0 "$oc_pid" 2>/dev/null || exit 0
+size=$(wc -c < "$log" 2>/dev/null || echo 0)
+if [ "$size" -eq "$last_size" ]; then
+idle=$((idle + hang_poll_seconds))
+if [ "$idle" -ge "$hang_idle_seconds" ]; then
+echo "::warning::opencode produced no output for ${hang_idle_seconds}s on model '$model' (provider stall, issue #653); aborting this attempt."
+printf 'hang\n' > "$hang_flag"
+kill -TERM "$oc_pid"
+kill -TERM "$tee_pid"
+sleep 5
+kill -KILL "$oc_pid"
+kill -KILL "$tee_pid"
+exit 0
+fi
+else
+idle=0
+last_size=$size
+fi
+done
+) &
+watch_pid=$!
+wait "$oc_pid"; status=$?
+wait "$tee_pid"; tee_status=$?
+kill "$watch_pid"
+wait "$watch_pid"
+set -e
+R15WATCHEOF
+  )
+  if [ "$r15_watch_region" != "$r15_watch_expect" ]; then
+    r15_bad="${r15_bad} ${label}(watchdog-prelude-not-exact)"
+  fi
+  # Tester round 7 (watchdog liveness lines): the loop gate and the
+  # post-sleep liveness re-check are what let the watchdog notice the attempt
+  # exiting and stop watching instead of polling a dead pid; `while :` or
+  # `|| true` keeps the audit green while the watchdog can never exit on its
+  # own. Exact-form pins: the semantics stay behavioral elsewhere.
+  grep -qF 'while kill -0 "$oc_pid" 2>/dev/null; do' "$f" || r15_bad="${r15_bad} ${label}(watchdog-loop-not-gated-on-oc-liveness)"
+  grep -qF 'kill -0 "$oc_pid" 2>/dev/null || exit 0' "$f" || r15_bad="${r15_bad} ${label}(watchdog-post-sleep-liveness-check-missing)"
+  [ "$(grep -cE '^[[:space:]]*if \[ -s "\$hang_flag" \]; then$' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-stall-flag-gate)"
+  [ "$(grep -cF 'hang_retry_used=0' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-stall-retry-counter)"
+  [ "$(grep -cE '^[[:space:]]*if \[ "\$hang_retry_used" -lt 1 \]; then$' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-bounded-stall-retry-cap)"
+  [ "$(grep -cF 'hang_retry_used=1' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-stall-retry-consumption)"
+  [ "$(grep -cF 'one bounded retry of the same model in 10s' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-stall-retry-marker)"
+  [ "$(grep -cE '^[[:space:]]*sleep 10$' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-stall-retry-backoff)"
+  n=$(grep -A2 -F "repeated provider stall on model '\$model' after the bounded retry" "$f" | grep -cE '^[[:space:]]*exit 1$' || true)
+  [ "$n" = "1" ] || r15_bad="${r15_bad} ${label}(persistent-stall-not-loud)"
+  # Tester round 6 (success-path exit shape): a healthy completion must exit 0
+  # itself; rewriting it to `true` falls through to the nonzero handlers and
+  # annotates every healthy run with a false failure (and a loose nonzero-MNF
+  # substring in a success log could even advance the rung). Exactly one
+  # rm-of-the-capture-files line is immediately followed by `exit 0` (the
+  # success path; `continue`, `sleep`, and every loud exit follow the others).
+  n=$(grep -A1 -F 'rm -f "$log" "$fifo" "$hang_flag"' "$f" | grep -cE '^[[:space:]]*exit 0$' || true)
+  [ "$n" = "1" ] || r15_bad="${r15_bad} ${label}(success-path-not-exit-0)"
+  # Tester round 5 element-presence tripwires: the FIFO shape's stderr merge
+  # and the watchdog's silence accounting are the exact one-line sites whose
+  # rewrites evaded the matrix (dropping `2>&1` blinds every detector to
+  # stderr-borne terminal lines; `idle += 1` or a non-accumulating idle never
+  # reaches the threshold at the production cadence; a zeroed size read kills
+  # a live producer; dropping the re-arm loses a post-output stall). The
+  # round-5 scenarios (fifo-stderr-ft/ft0, hang-poll-slow, hang-active,
+  # out-then-hang) own the semantics; these are cheap shape tripwires.
+  grep -qF 'opencode github run > "$fifo" 2>&1 &' "$f" || r15_bad="${r15_bad} ${label}(fifo-capture-not-merging-stderr)"
+  grep -qF 'idle=$((idle + hang_poll_seconds))' "$f" || r15_bad="${r15_bad} ${label}(watchdog-idle-not-accumulating-by-poll)"
+  grep -qF 'last_size=$size' "$f" || r15_bad="${r15_bad} ${label}(watchdog-not-rearming-after-growth)"
+  # The size-read pin is line-anchored: a plain fixed-string probe is also
+  # satisfied by the `last_size=$(wc ...)` initializer (substring), so it
+  # could never catch the poll line being rewritten (verifier finding D1).
+  grep -qE '^[[:space:]]*size=\$\(wc -c < "\$log" 2>/dev/null \|\| echo 0\)$' "$f" || r15_bad="${r15_bad} ${label}(watchdog-size-read-missing)"
+  # Tester round 6 (watchdog arithmetic and re-arm forms): the threshold check
+  # must stay inclusive (`-ge`: fires at exactly the configured idle), the
+  # poll sleep must consume the poll knob (a literal cadence decouples the
+  # silence accounting from the configured interval), and the post-growth
+  # re-arm must RESET the accumulator to zero: subtracting a poll interval
+  # (`idle=$((idle - hang_poll_seconds))`) makes the required post-output
+  # silence grow with the attempt's productive duration, so a long producing
+  # run could outlive the threshold indefinitely. The re-arm pin is
+  # line-anchored with an exact count (the initializer and the re-arm are the
+  # only `idle=0` lines) plus a sequence check (the re-arm precedes the size
+  # baseline update), so neither anchor can satisfy the other.
+  grep -qF 'if [ "$idle" -ge "$hang_idle_seconds" ]; then' "$f" || r15_bad="${r15_bad} ${label}(watchdog-threshold-not-inclusive-ge)"
+  grep -qF 'sleep "$hang_poll_seconds"' "$f" || r15_bad="${r15_bad} ${label}(watchdog-poll-not-using-poll-knob)"
+  [ "$(grep -cE '^[[:space:]]*idle=0[[:space:]]*$' "$f" || true)" = "2" ] || r15_bad="${r15_bad} ${label}(watchdog-idle-reset-count)"
+  grep -A1 -E '^[[:space:]]*idle=0[[:space:]]*$' "$f" | grep -qF 'last_size=$size' || r15_bad="${r15_bad} ${label}(watchdog-idle-rearm-not-followed-by-baseline-update)"
+  # Tester round 3: the degraded no-mkfifo branch must never touch a retry
+  # budget. Inserting e.g. `freetier_retry_used=$((0))` there resets the budget
+  # once per attempt in that shape, turning the bounded retry into an
+  # unbounded loop while the literal `..._retry_used=0` count pins stay green
+  # (an arithmetic form evades them). The nofifo-persistent and
+  # nofifo-http-deep-grant scenarios catch the live behavior change; this
+  # extraction pin catches the shape cheaply by asserting the branch between
+  # the mkfifo attempt and its closing `fi` mentions no budget counter.
+  # (the extraction is indentation-aware: the FIFO branch nests its own
+  # if/else/fi for the size comparison, so the branch boundaries are the
+  # `else`/`fi` lines at exactly the mkfifo `if` line's indentation)
+  r15_deg=$(awk '
+    match($0, /^[[:space:]]*/) { ind = substr($0, 1, RLENGTH) }
+    /if mkfifo "\$fifo" 2>\/dev\/null; then/ && !in_if { in_if=1; if_ind=ind; next }
+    in_if && !in_else && $0 == if_ind "else" { in_else=1; next }
+    in_else && $0 == if_ind "fi" { exit }
+    in_else { print }
+  ' "$f" 2>/dev/null || true)
+  if ! printf '%s\n' "$r15_deg" | grep -qF 'mkfifo is unavailable'; then
+    r15_bad="${r15_bad} ${label}(degraded-branch-extraction-empty)"
+  elif printf '%s\n' "$r15_deg" | grep -qF 'retry_used'; then
+    r15_bad="${r15_bad} ${label}(degraded-no-mkfifo-branch-touches-retry-budget)"
+  fi
+  # Review round 14 (whole-run-block completeness): every pin above binds an
+  # exact region INSIDE the runner block, so a line spliced anywhere else in
+  # it (the pre-attempt header, the degraded no-mkfifo else branch, the
+  # post-`fi` classification/retry/budget logic) stayed green while the
+  # block's behavior changed: six one-line `sleep 1d` insertions at those
+  # sites kept the parent at 23/0, and at the production step timeouts the
+  # delayed attempt start or retry never happened at all. The whole extracted
+  # `run:` block is now pinned line-exact against the regenerated literal in
+  # r15_expected_run_block, normalized exactly like the region pins above
+  # (leading/trailing whitespace and an optional trailing `2>/dev/null`
+  # stripped, comment and blank lines dropped): any inserted or modified
+  # non-comment line anywhere in the block fails the exact compare. Review
+  # round 15 removed the join's last hole: the normalized streams were joined
+  # with `|`, so a rewrite merging two real lines into one (carrying a bare
+  # `|`) compared equal; the compare is now a direct multiline string
+  # comparison, which keeps every line boundary significant. The
+  # extraction is indentation-aware and fail-closed: a renamed step, a
+  # missing/renamed `run: |`, or a shifted block boundary extracts nothing
+  # and fails too, and an unknown label (missing literal) fails rather than
+  # vacuously passing.
+  r15_runblock=$(awk -v step="$step" '
+    $0 ~ step { in_step=1; next }
+    in_step && /^[[:space:]]*run: \|[[:space:]]*$/ { in_run=1; indent=match($0, /[^ ]/); next }
+    in_run {
+      if ($0 ~ /^[[:space:]]*$/) next
+      if (match($0, /[^ ]/) < indent + 2) exit
+      print
+    }
+  ' "$f" 2>/dev/null || true)
+  r15_runblock_region=$(printf '%s\n' "$r15_runblock" \
+    | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[[:space:]]*2>\/dev\/null$//' -e 's/[[:space:]]*$//' \
+    | grep -vE '^#|^$' || true)
+  r15_runblock_expect=$(r15_expected_run_block "$label" \
+    | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[[:space:]]*2>\/dev\/null$//' -e 's/[[:space:]]*$//' \
+    | grep -vE '^#|^$' || true)
+  if [ -z "$r15_runblock_expect" ]; then
+    r15_bad="${r15_bad} ${label}(run-block-expected-missing)"
+  elif [ -z "$r15_runblock" ]; then
+    r15_bad="${r15_bad} ${label}(run-block-extraction-empty)"
+  elif [ "$r15_runblock_region" != "$r15_runblock_expect" ]; then
+    r15_bad="${r15_bad} ${label}(run-block-not-exact)"
+  fi
 }
 if [ ! -f "$ACTION_FILE" ]; then
   r15_bad="${r15_bad} action-file(missing)"
 else
   grep -qF 'bash "$script"' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(no-resolver-invocation)"
   grep -qF 'Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(no-boundary-aware-per-rung-retry)"
+  # Tester round 6 (nonzero-MNF advance anchoring): the advance grep is
+  # deliberately UNANCHORED at column 0 so the wrapper's `Error: Model not
+  # found: ...` catch-handler form also advances the rung; a `^` anchor
+  # silently drops that form and turns a recoverable advance into an
+  # unclassified nonzero death. The exact-form pin excludes `^`, and the
+  # mnf-err-nz behavioral scenario binds the prefixed form end-to-end.
+  grep -qF 'if grep -qE "Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)" "$log"; then' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(nonzero-mnf-grep-column0-anchored)"
   grep -qF 'model_error_terminal()' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(no-exit-0-terminal-detector)"
   grep -qF 'if model_error_terminal "$log" "$model"; then' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(exit-0-not-terminal-anchored)"
   grep -qF 'Model not found: ${2//./\\.}(\. Did you mean: .*|\.?$)' "$ACTION_FILE" || r15_bad="${r15_bad} action-file(no-anchored-terminal-error-form)"
@@ -1169,12 +2017,14 @@ else
   [ "$(grep -cE '^[[:space:]]*-[[:space:]]*name: Run opencode[[:space:]]*$' "$ACTION_FILE" || true)" = "1" ] || r15_bad="${r15_bad} action-file(run-step-not-unique)"
   # Step identity (review round 7 non-blocking hardening): a dead decoy step
   # named like the runner and parked earlier (gated with `if: false`) must
-  # never shadow the real step. The invocation must be unique in the file, the
-  # extracted step must be unconditional (checked in r15_behavioral), and the
-  # extracted block must carry the invocation - together the extracted step is
-  # the executing one.
-  [ "$(grep -cF 'opencode github run' "$ACTION_FILE" || true)" = "1" ] || r15_bad="${r15_bad} action-file(run-invocation-not-unique)"
-  r15_freetier_pins "action-file" "$ACTION_FILE"
+  # never shadow the real step. Issue #653 makes the invocation count exactly
+  # TWO inside the single executing step (the FIFO capture shape and the
+  # mutually-exclusive no-mkfifo degraded shape); r15_behavioral additionally
+  # asserts both sites live inside the extracted block, so a third (decoy)
+  # invocation anywhere in the file still fails, and the extracted step must
+  # be unconditional - together the extracted step is the executing one.
+  [ "$(grep -cF 'opencode github run' "$ACTION_FILE" || true)" = "2" ] || r15_bad="${r15_bad} action-file(run-invocation-count)"
+  r15_freetier_pins "action-file" "$ACTION_FILE" '^[[:space:]]*-[[:space:]]*name: Run opencode[[:space:]]*$'
 fi
 if [ ! -f "$MAIN_WF" ]; then
   r15_bad="${r15_bad} maintainer.yml(missing)"
@@ -1182,16 +2032,26 @@ else
   grep -qF 'bash .github/actions/opencode-run/resolve-model.sh' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-resolver-invocation)"
   grep -q 'MODEL_CANDIDATES' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-candidate-chain)"
   grep -qF 'Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-boundary-aware-per-rung-retry)"
+  # Tester round 6 (nonzero-MNF advance anchoring): same exact-form pin as the
+  # composite (see there for the rationale; mnf-err-nz binds it behaviorally).
+  grep -qF 'if grep -qE "Model not found: ${model//./\\.}([^A-Za-z0-9_-]|$)" "$log"; then' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(nonzero-mnf-grep-column0-anchored)"
   grep -qF 'model_error_terminal()' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-exit-0-terminal-detector)"
   grep -qF 'if model_error_terminal "$log" "$model"; then' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(exit-0-not-terminal-anchored)"
   grep -qF 'Model not found: ${2//./\\.}(\. Did you mean: .*|\.?$)' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-anchored-terminal-error-form)"
   grep -qF '.maintainer/decision.json' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-decision-contract-test)"
   grep -q 'id: verify_agent' "$MAIN_WF" || r15_bad="${r15_bad} maintainer.yml(no-loud-verify)"
+  # Tester round 6 (pre-existing hollow-green class, closed in the same pass):
+  # the Maintainer verify must exit 1 when the decision contract is absent; a
+  # rewritten `exit 0` returns the #591 hollow green on a dead agent run. The
+  # marker line is unique, so exactly its next line must be the loud exit.
+  n=$(grep -A1 'no .maintainer/decision.json' "$MAIN_WF" | grep -cE '^[[:space:]]*exit 1$' || true)
+  [ "$n" = "1" ] || r15_bad="${r15_bad} maintainer.yml(hollow-green-verify-not-exit-1)"
   grep -A1 'exhausted every model rung' "$MAIN_WF" | grep -q 'exit 1' || r15_bad="${r15_bad} maintainer.yml(loud-exhaustion-not-exit-1)"
-  # Same uniqueness pin as the composite: one runner step exactly.
+  # Same identity pin as the composite: one runner step exactly, carrying
+  # exactly the two #653 invocation shapes (FIFO + degraded fallback).
   [ "$(grep -cE '^[[:space:]]*-[[:space:]]*name: Run Maintainer agent[[:space:]]*$' "$MAIN_WF" || true)" = "1" ] || r15_bad="${r15_bad} maintainer.yml(run-step-not-unique)"
-  [ "$(grep -cF 'opencode github run' "$MAIN_WF" || true)" = "1" ] || r15_bad="${r15_bad} maintainer.yml(run-invocation-not-unique)"
-  r15_freetier_pins "maintainer.yml" "$MAIN_WF"
+  [ "$(grep -cF 'opencode github run' "$MAIN_WF" || true)" = "2" ] || r15_bad="${r15_bad} maintainer.yml(run-invocation-count)"
+  r15_freetier_pins "maintainer.yml" "$MAIN_WF" '^[[:space:]]*-[[:space:]]*name: Run Maintainer agent[[:space:]]*$'
 fi
 # Issue #620 functional detector test: executes the REAL extracted
 # freetier_error_terminal AND model_error_terminal from both runner paths
@@ -1207,6 +2067,9 @@ sed -n '/freetier_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$ACTION_F
 sed -n '/freetier_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$MAIN_WF" > "$r15_fn_dir/maint.fn" 2>/dev/null || true
 sed -n '/model_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$ACTION_FILE" > "$r15_fn_dir/action-mnf.fn" 2>/dev/null || true
 sed -n '/model_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$MAIN_WF" > "$r15_fn_dir/maint-mnf.fn" 2>/dev/null || true
+# Issue #653: the transient-HTTP detector pair, extracted the same way.
+sed -n '/transient_http_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$ACTION_FILE" > "$r15_fn_dir/action-http.fn" 2>/dev/null || true
+sed -n '/transient_http_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$MAIN_WF" > "$r15_fn_dir/maint-http.fn" 2>/dev/null || true
 cat > "$r15_fn_dir/terminal.txt" <<'R15EOF'
 AI_APICallError: OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building.
 APIError: OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building.
@@ -1295,9 +2158,85 @@ R15EOF
 cat > "$r15_fn_dir/mnf-upper.txt" <<'R15EOF'
 Model not found: A-FREE. Did you mean: b-free?
 R15EOF
+# Issue #653 functional fixtures for transient_http_error_terminal: the
+# incident's terminal lines in every observed provider prefix form (match),
+# plus the forms that must never consume the retry: an indented tool-call
+# echo, the responseBody JSON envelope, a trailing-suffixed line, a phrase
+# variant (different wording must not match), an uppercase line (the match
+# stays case-sensitive), the provider's own `AI_RetryError: Failed after 3
+# attempts. Last error: ...` summary (anchored whole-line form only), and a
+# line stale beyond the tail window; the window lower-bound pair pins the
+# window to exactly 40 lines here too.
+cat > "$r15_fn_dir/http-terminal.txt" <<'R15EOF'
+AI_APICallError: Internal Server Error
+APIError: Internal Server Error.
+Error: Rate limit exceeded. Please try again later.
+AI_APICallError: Bad Gateway
+APIError: Service Unavailable
+Error: Gateway Timeout
+R15EOF
+cat > "$r15_fn_dir/http-echo.txt" <<'R15EOF'
+  | AI_APICallError: Internal Server Error
+Here is prose quoting the provider line above.
+R15EOF
+cat > "$r15_fn_dir/http-envelope.txt" <<'R15EOF'
+  responseBody: "{\"type\":\"error\",\"error\":{\"message\":\"Internal Server Error\"}}",
+R15EOF
+cat > "$r15_fn_dir/http-suffix.txt" <<'R15EOF'
+AI_APICallError: Internal Server Error (quoted from a tool result)
+R15EOF
+cat > "$r15_fn_dir/http-phrase-variant.txt" <<'R15EOF'
+AI_APICallError: Rate limit exceeded. Please try again soon.
+R15EOF
+cat > "$r15_fn_dir/http-retry-summary.txt" <<'R15EOF'
+AI_RetryError: Failed after 3 attempts. Last error: Internal Server Error
+R15EOF
+cat > "$r15_fn_dir/http-upper.txt" <<'R15EOF'
+AI_APICallError: INTERNAL SERVER ERROR
+R15EOF
+cat > "$r15_fn_dir/http-stale.txt" <<'R15EOF'
+AI_APICallError: Internal Server Error
+R15EOF
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45; do
+  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/http-stale.txt"
+done
+cat > "$r15_fn_dir/http-window39.txt" <<'R15EOF'
+AI_APICallError: Internal Server Error
+R15EOF
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39; do
+  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/http-window39.txt"
+done
+cat > "$r15_fn_dir/http-window40.txt" <<'R15EOF'
+AI_APICallError: Internal Server Error
+R15EOF
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40; do
+  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/http-window40.txt"
+done
+# Review F2: pipe-buffer-sized tail windows. Every `shell: bash` step runs as
+# `bash --noprofile --norc -eo pipefail` (production), and `grep -q` exits at
+# the first match while `tail` may still be writing: once the 40-line window
+# exceeds the 64 KiB pipe buffer, tail takes SIGPIPE and a bare pipeline
+# returns 141, so a genuine terminal line reads as "no match" (silent green on
+# the exit-0 path, lost retry on the nonzero path). Each big-window fixture
+# carries the terminal line FIRST plus 39 lines of ~4 KiB (about 160 KiB
+# total, well past any pipe buffer), so the match sits before the remaining
+# bytes and only a pipefail-safe detector can return 0. The detector-case
+# helpers below run under `set -o pipefail` (the production shell shape), so
+# reverting the ( set +o pipefail; ... ) wrap in either runner file fails R15.
+r15_big_line=$(printf '%4088s' '' | tr ' ' x)
+r15_write_big_window() {
+  local first="$1" f="$2" i
+  printf '%s\n' "$first" > "$f"
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39; do
+    printf 'healthy tail line %s %s\n' "$i" "$r15_big_line" >> "$f"
+  done
+}
+r15_write_big_window "AI_APICallError: OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building." "$r15_fn_dir/ft-bigwindow.txt"
+r15_write_big_window "Model not found: a-free. Did you mean: b-free?" "$r15_fn_dir/mnf-bigwindow.txt"
+r15_write_big_window "AI_APICallError: Internal Server Error" "$r15_fn_dir/http-bigwindow.txt"
 r15_detector_case() {
   local got
-  ( set +e; . "$1" >/dev/null 2>&1; freetier_error_terminal "$3" ) >/dev/null 2>&1
+  ( set +e; set -o pipefail; . "$1" >/dev/null 2>&1; freetier_error_terminal "$3" ) >/dev/null 2>&1
   got=$?
   if [ "$got" != "$2" ]; then
     r15_bad="${r15_bad} detector-functional($(basename "$1"),$(basename "$3"),rc=$got,want=$2)"
@@ -1305,10 +2244,18 @@ r15_detector_case() {
 }
 r15_mnf_detector_case() {
   local got
-  ( set +e; . "$1" >/dev/null 2>&1; model_error_terminal "$3" "${4:-a-free}" ) >/dev/null 2>&1
+  ( set +e; set -o pipefail; . "$1" >/dev/null 2>&1; model_error_terminal "$3" "${4:-a-free}" ) >/dev/null 2>&1
   got=$?
   if [ "$got" != "$2" ]; then
     r15_bad="${r15_bad} mnf-detector-functional($(basename "$1"),$(basename "$3"),rc=$got,want=$2)"
+  fi
+}
+r15_http_detector_case() {
+  local got
+  ( set +e; set -o pipefail; . "$1" >/dev/null 2>&1; transient_http_error_terminal "$3" ) >/dev/null 2>&1
+  got=$?
+  if [ "$got" != "$2" ]; then
+    r15_bad="${r15_bad} http-detector-functional($(basename "$1"),$(basename "$3"),rc=$got,want=$2)"
   fi
 }
 for r15_fn in "$r15_fn_dir/action.fn" "$r15_fn_dir/maint.fn"; do
@@ -1324,6 +2271,7 @@ for r15_fn in "$r15_fn_dir/action.fn" "$r15_fn_dir/maint.fn"; do
   r15_detector_case "$r15_fn" 1 "$r15_fn_dir/ft-stale.txt"
   r15_detector_case "$r15_fn" 0 "$r15_fn_dir/ft-window39.txt"
   r15_detector_case "$r15_fn" 1 "$r15_fn_dir/ft-window40.txt"
+  r15_detector_case "$r15_fn" 0 "$r15_fn_dir/ft-bigwindow.txt"
   r15_detector_case "$r15_fn" 1 "$r15_fn_dir/ft-upper.txt"
 done
 for r15_fn in "$r15_fn_dir/action-mnf.fn" "$r15_fn_dir/maint-mnf.fn"; do
@@ -1339,7 +2287,25 @@ for r15_fn in "$r15_fn_dir/action-mnf.fn" "$r15_fn_dir/maint-mnf.fn"; do
   r15_mnf_detector_case "$r15_fn" 1 "$r15_fn_dir/mnf-dot-lookalike.txt" "opencode/deepseek-v4.1-flash-free"
   r15_mnf_detector_case "$r15_fn" 0 "$r15_fn_dir/mnf-window39.txt"
   r15_mnf_detector_case "$r15_fn" 1 "$r15_fn_dir/mnf-window40.txt"
+  r15_mnf_detector_case "$r15_fn" 0 "$r15_fn_dir/mnf-bigwindow.txt"
   r15_mnf_detector_case "$r15_fn" 1 "$r15_fn_dir/mnf-upper.txt"
+done
+for r15_fn in "$r15_fn_dir/action-http.fn" "$r15_fn_dir/maint-http.fn"; do
+  if [ ! -s "$r15_fn" ]; then
+    r15_bad="${r15_bad} http-detector-functional($(basename "$r15_fn"),empty)"
+    continue
+  fi
+  r15_http_detector_case "$r15_fn" 0 "$r15_fn_dir/http-terminal.txt"
+  r15_http_detector_case "$r15_fn" 1 "$r15_fn_dir/http-echo.txt"
+  r15_http_detector_case "$r15_fn" 1 "$r15_fn_dir/http-envelope.txt"
+  r15_http_detector_case "$r15_fn" 1 "$r15_fn_dir/http-suffix.txt"
+  r15_http_detector_case "$r15_fn" 1 "$r15_fn_dir/http-phrase-variant.txt"
+  r15_http_detector_case "$r15_fn" 1 "$r15_fn_dir/http-retry-summary.txt"
+  r15_http_detector_case "$r15_fn" 1 "$r15_fn_dir/http-upper.txt"
+  r15_http_detector_case "$r15_fn" 1 "$r15_fn_dir/http-stale.txt"
+  r15_http_detector_case "$r15_fn" 0 "$r15_fn_dir/http-window39.txt"
+  r15_http_detector_case "$r15_fn" 1 "$r15_fn_dir/http-window40.txt"
+  r15_http_detector_case "$r15_fn" 0 "$r15_fn_dir/http-bigwindow.txt"
 done
 rm -rf "$r15_fn_dir"
 # Issue #620 loop-level behavioral test (review F5): static pins and a
@@ -1359,21 +2325,37 @@ rm -rf "$r15_fn_dir"
 # missing harness binary fails closed, never skips. The extracted block is
 # the real workflow body; its single Actions expression (the workflow_run
 # guard) is substituted with `schedule`, matching the non-workflow_run arm.
-# Round-7 hardening: the extracted step must be the executing one (its header
-# carries no conditional except, for the maintainer runner only, the exact
-# shared actor-write gate condition of issue #696 - the gate step itself must
-# be present in the same file; a unique `opencode github run` invocation in
-# the file, and that invocation present in the extracted block), the mock
-# sleep records start/end timestamps and the matrix asserts the next attempt
-# started after the backoff actually completed (a backgrounded sleep cannot
-# pass), and the fixtures and scenarios stay case-sensitive and three-rung
-# deep enough that a case fold or a later-rung budget gate is observable.
+# Round-7 hardening, widened in review rounds 15 and 16: the extracted step
+# must be the executing one: its WHOLE step region (name line through the
+# next sibling `- name:` or EOF) carries no `if:` key (the `if :`, `"if":`,
+# and `'if':` spellings included) except, for maintainer.yml only, the exact
+# shared actor-write gate condition of issue #696 (the gate step itself must
+# be present in the same file); its block must carry BOTH #653 invocation
+# sites (FIFO shape plus degraded no-mkfifo shape, allowed by the file-level
+# count of exactly two); the step's remaining keys are bound too (no
+# HANG_IDLE_SECONDS/HANG_POLL_SECONDS env override, no
+# continue-on-error/timeout-minutes on the composite runner step, the
+# Maintainer step's exact continue-on-error: true and timeout-minutes: 60
+# each present exactly once, and exactly one `shell:` key whose exact line
+# is `shell: bash`). The mock sleep records start/end timestamps KEYED BY
+# the requested value and the matrix asserts, per expected value, that the
+# next attempt started after that backoff actually completed (a backgrounded
+# sleep cannot pass), and the fixtures and scenarios stay case-sensitive and
+# three-rung deep enough that a case fold or a later-rung budget gate is
+# observable. The watchdog's own poll sleeps (HANG_POLL_SECONDS, 1 by
+# default; review F3 adds an explicit 0-override scenario) are value keyed
+# too, so they can never masquerade as a 10/15/30s backoff. Review F2: the
+# block runs under the exact production shell form (`bash --noprofile
+# --norc -eo pipefail`), so a detector pipeline that is not pipefail-safe
+# (grep -q SIGPIPE + tail 141 on a window past the pipe buffer) fails the
+# behavioral matrix, not just the detector-level fixtures.
 r15_timeout_bin=$(command -v timeout 2>/dev/null || true)
 r15_env_bin=$(command -v env 2>/dev/null || true)
 r15_bash_bin=$(command -v bash 2>/dev/null || true)
 r15_sleep_bin=$(command -v sleep 2>/dev/null || true)
-if [ -z "$r15_timeout_bin" ] || [ -z "$r15_env_bin" ] || [ -z "$r15_bash_bin" ] || [ -z "$r15_sleep_bin" ]; then
-  r15_bad="${r15_bad} behavioral-harness(missing-timeout-env-bash-or-sleep)"
+r15_mkfifo_bin=$(command -v mkfifo 2>/dev/null || true)
+if [ -z "$r15_timeout_bin" ] || [ -z "$r15_env_bin" ] || [ -z "$r15_bash_bin" ] || [ -z "$r15_sleep_bin" ] || [ -z "$r15_mkfifo_bin" ]; then
+  r15_bad="${r15_bad} behavioral-harness(missing-timeout-env-bash-sleep-or-mkfifo)"
 fi
 r15_extract_block() {
   awk -v step="$2" '
@@ -1390,28 +2372,21 @@ r15_extract_block() {
 }
 r15_behavioral() {
   local label="$1" file="$2" step_re="$3"
-  local sbx block attempts sleeps out tool p
+  local sbx block out tool p
   sbx=$(mktemp -d) || { r15_bad="${r15_bad} behavioral(${label},sandbox-failed)"; return; }
-  block="$sbx/block.sh"; attempts="$sbx/attempts"; sleeps="$sbx/sleeps"; out="$sbx/out"
+  block="$sbx/block.sh"; out="$sbx/out"
   mkdir -p "$sbx/bin" "$sbx/home" "$sbx/tmp"
-  : > "$attempts"; : > "$sleeps"; : > "$out"
+  : > "$out"
   r15_extract_block "$file" "$step_re" > "$block" 2>/dev/null || true
-  # Step identity (review round 7 non-blocking hardening): the extracted step
-  # must be the executing one. Its header (name line through the run line) may
-  # carry no `if:` gate except, for maintainer.yml only, the exact shared
-  # actor-write gate condition of issue #696 (the gate step must be present
-  # in the same file), and its block must carry the unique runner invocation,
-  # so a dead decoy step parked earlier (e.g. with `if: false`) can neither
-  # shadow a broken real step nor itself be extracted while skipped.
-  r15_hdr=$(awk -v step="$step_re" '
+  r15_step_region=$(awk -v step="$step_re" '
     $0 ~ step { in_step=1 }
-    in_step && /^[[:space:]]*run: \|[[:space:]]*$/ { exit }
+    in_step && !($0 ~ step) && /^[[:space:]]*-[[:space:]]*name:/ { exit }
     in_step { print }
   ' "$file" 2>/dev/null || true)
-  if printf '%s\n' "$r15_hdr" | grep -qE '^[[:space:]]*if:'; then
+  if printf '%s\n' "$r15_step_region" | grep -qE "^[[:space:]]*[\"']?if[\"']?[[:space:]]*:"; then
     if [ "$label" = "maintainer.yml" ] \
-       && [ "$(printf '%s\n' "$r15_hdr" | grep -cE '^[[:space:]]*if:' || true)" = "1" ] \
-       && printf '%s\n' "$r15_hdr" | grep -qxE "[[:space:]]*if: steps\.actor_gate\.outputs\.run == 'true'" \
+       && [ "$(printf '%s\n' "$r15_step_region" | grep -cE "^[[:space:]]*[\"']?if[\"']?[[:space:]]*:" || true)" = "1" ] \
+       && printf '%s\n' "$r15_step_region" | grep -qxE "[[:space:]]*if: steps\.actor_gate\.outputs\.run == 'true'" \
        && grep -qxF -- '      - name: Actor write gate (issue #428)' "$file" \
        && grep -qxF '        id: actor_gate' "$file" \
        && grep -qxF '          GH_TOKEN: ${{ github.token }}' "$file" \
@@ -1425,10 +2400,50 @@ r15_behavioral() {
       return
     fi
   fi
+  if printf '%s\n' "$r15_step_region" | grep -qE "^[[:space:]]*[\"']?HANG_(IDLE|POLL)_SECONDS[\"']?[[:space:]]*:"; then
+    r15_bad="${r15_bad} behavioral(${label},run-step-watchdog-env-override)"
+    rm -rf "$sbx"
+    return
+  fi
+  if [ "$label" = "action-file" ]; then
+    r15_shell_line='      shell: bash'
+    if printf '%s\n' "$r15_step_region" | grep -qE "^[[:space:]]*[\"']?continue-on-error[\"']?[[:space:]]*:"; then
+      r15_bad="${r15_bad} behavioral(${label},run-step-continue-on-error)"
+      rm -rf "$sbx"
+      return
+    fi
+    if printf '%s\n' "$r15_step_region" | grep -qE "^[[:space:]]*[\"']?timeout-minutes[\"']?[[:space:]]*:"; then
+      r15_bad="${r15_bad} behavioral(${label},run-step-timeout-minutes)"
+      rm -rf "$sbx"
+      return
+    fi
+  else
+    r15_shell_line='        shell: bash'
+    if [ "$(printf '%s\n' "$r15_step_region" | grep -cE "^[[:space:]]*[\"']?continue-on-error[\"']?[[:space:]]*:" || true)" != "1" ] \
+       || ! printf '%s\n' "$r15_step_region" | grep -qxF '        continue-on-error: true'; then
+      r15_bad="${r15_bad} behavioral(${label},run-step-continue-on-error-not-exact)"
+      rm -rf "$sbx"
+      return
+    fi
+    if [ "$(printf '%s\n' "$r15_step_region" | grep -cE "^[[:space:]]*[\"']?timeout-minutes[\"']?[[:space:]]*:" || true)" != "1" ] \
+       || ! printf '%s\n' "$r15_step_region" | grep -qxF '        timeout-minutes: 60'; then
+      r15_bad="${r15_bad} behavioral(${label},run-step-timeout-minutes-not-exact)"
+      rm -rf "$sbx"
+      return
+    fi
+  fi
+  if [ "$(printf '%s\n' "$r15_step_region" | grep -cE "^[[:space:]]*[\"']?shell[\"']?[[:space:]]*:" || true)" != "1" ]; then
+    r15_bad="${r15_bad} behavioral(${label},run-step-shell-not-exactly-once)"
+    rm -rf "$sbx"
+    return
+  fi
+  printf '%s\n' "$r15_step_region" | grep -qxF "$r15_shell_line" || r15_bad="${r15_bad} behavioral(${label},run-step-shell-not-bash)"
   if [ ! -s "$block" ] \
      || ! bash -n "$block" 2>/dev/null \
      || ! grep -qF 'freetier_error_terminal() {' "$block" \
-     || ! grep -qF 'opencode github run' "$block" \
+     || ! grep -qF 'transient_http_error_terminal() {' "$block" \
+     || ! grep -qF 'mkfifo "$fifo"' "$block" \
+     || [ "$(grep -cF 'opencode github run' "$block" || true)" != "2" ] \
      || [ "$(grep -vE '^[[:space:]]*$' "$block" | tail -n 1 | grep -cE '^[[:space:]]*exit 1$' || true)" != "1" ]; then
     r15_bad="${r15_bad} behavioral(${label},extract-or-shape)"
     rm -rf "$sbx"
@@ -1485,24 +2500,263 @@ case "${R15_SCENARIO}:${n}" in
   deep-advance:*) echo "APIError: ${ft}"; exit 0 ;;
   unclassified:*) echo "some unrelated provider failure"; exit 5 ;;
   unclassified9:*) echo "some unrelated provider failure"; exit 9 ;;
+  # Issue #653 scenarios: transient 429/5xx recovery on both exit shapes,
+  # persistent loudness on both shapes, provider stalls (write nothing, keep
+  # the process alive through the real sleep so the watchdog must kill it),
+  # per-class budget independence, and the degraded no-mkfifo shape.
+  http-nonzero:1) echo "AI_APICallError: Internal Server Error"; exit 1 ;;
+  http-nonzero:*) echo "healthy success"; exit 0 ;;
+  http-429:1) echo "AI_APICallError: Rate limit exceeded. Please try again later."; exit 1 ;;
+  http-429:*) echo "healthy success"; exit 0 ;;
+  http-zero:1) echo "APIError: Internal Server Error"; exit 0 ;;
+  http-zero:*) echo "healthy success"; exit 0 ;;
+  # Review F2 end-to-end pipe-buffer fixture: the terminal line first, then 39
+  # lines of ~4 KiB (about 160 KiB, well past the 64 KiB pipe buffer), exit 0.
+  # Under the production `-eo pipefail` shell the old bare detector pipeline
+  # reads this as "no match" (tail SIGPIPE 141) and the run concludes green
+  # with no retry; the pipefail-safe detector must retry the same model once.
+  http-bigwindow:1) echo "AI_APICallError: Internal Server Error"; big=$(printf '%4088s' ''); big="${big// /x}"; for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39; do echo "healthy tail line $i $big"; done; exit 0 ;;
+  http-bigwindow:*) echo "healthy success"; exit 0 ;;
+  http-persistent:*) echo "Error: Internal Server Error"; exit 3 ;;
+  http-zero-persistent:*) echo "AI_APICallError: Bad Gateway"; exit 0 ;;
+  hang:1) exec "$R15_REAL_SLEEP" 30 ;;
+  hang:*) echo "healthy success"; exit 0 ;;
+  hang-persistent:*) exec "$R15_REAL_SLEEP" 30 ;;
+  # Review F3: same one-hang-then-healthy shape under a zero poll override.
+  hang-poll-zero:1) exec "$R15_REAL_SLEEP" 30 ;;
+  hang-poll-zero:*) echo "healthy success"; exit 0 ;;
+  http-then-hang:1) echo "AI_APICallError: Service Unavailable"; exit 0 ;;
+  http-then-hang:2) exec "$R15_REAL_SLEEP" 30 ;;
+  http-then-hang:*) echo "healthy success"; exit 0 ;;
+  hang-then-http:1) exec "$R15_REAL_SLEEP" 30 ;;
+  hang-then-http:2) echo "AI_APICallError: Gateway Timeout"; exit 0 ;;
+  hang-then-http:*) echo "healthy success"; exit 0 ;;
+  nofifo-freetier:1) echo "AI_APICallError: ${ft}"; exit 1 ;;
+  nofifo-freetier:*) echo "healthy success"; exit 0 ;;
+  # Tester round 3 (test-integrity): the degraded no-mkfifo branch must honor
+  # the same bounded-retry contract, so the nofifo scenarios include a
+  # persistently rejecting provider (the bounded freetier retry must fail
+  # loudly after exactly two attempts) and a cross-rung HTTP grant (a per-rung
+  # or per-model budget reset inserted in that branch would spend a second
+  # 30s backoff or loop forever).
+  nofifo-persistent:*) echo "AI_APICallError: ${ft}"; exit 1 ;;
+  nofifo-http-deep-grant:1) echo "AI_APICallError: Rate limit exceeded. Please try again later."; exit 0 ;;
+  nofifo-http-deep-grant:2) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 0 ;;
+  nofifo-http-deep-grant:*) echo "AI_APICallError: Internal Server Error"; exit 0 ;;
+  # Tester round 2 (test-integrity): cross-rung variants of the #653 HTTP and
+  # stall budgets. Both budgets are arm-wide (all three counters initialize
+  # once before the rung loop), so a per-rung reset (`transient_retry_used=0`
+  # / `hang_retry_used=0` relocated into the loop body) would spend a second
+  # backoff and run an extra attempt; these shapes make that observable.
+  # Grant: rung 1 spends the single retry, a Model-not-found advance reaches
+  # rung 2, and a second terminal/stall there must be loud persistent with
+  # exactly ONE backoff.
+  http-deep-grant:1) echo "AI_APICallError: Rate limit exceeded. Please try again later."; exit 0 ;;
+  http-deep-grant:2) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 0 ;;
+  http-deep-grant:*) echo "AI_APICallError: Internal Server Error"; exit 0 ;;
+  # Advance: a rung-1 Model-not-found must not gate the retry away from a
+  # later rung, which still spends exactly one 30s backoff.
+  http-deep-advance:1) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 0 ;;
+  http-deep-advance:2) echo "AI_APICallError: Internal Server Error"; exit 0 ;;
+  http-deep-advance:*) echo "healthy success"; exit 0 ;;
+  hang-deep-grant:1) exec "$R15_REAL_SLEEP" 30 ;;
+  hang-deep-grant:2) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 0 ;;
+  hang-deep-grant:*) exec "$R15_REAL_SLEEP" 30 ;;
+  hang-deep-advance:1) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 0 ;;
+  hang-deep-advance:2) exec "$R15_REAL_SLEEP" 30 ;;
+  hang-deep-advance:*) echo "healthy success"; exit 0 ;;
+  # Tester round 4 (cross-class budget coupling): each class-interleave
+  # scenario repeats a class AFTER another class's retry was consumed, so an
+  # arithmetic reset of an already-spent budget inserted inside ANOTHER
+  # class's retry branch (e.g. `transient_retry_used=$((0))` next to
+  # `freetier_retry_used=1`, a form the literal count pins cannot see) spends
+  # an extra backoff and runs an extra attempt, while the shipped code must
+  # fail loudly at the repeat. The six shapes together cover every
+  # (resetting site, reset budget) pair in both exit shapes of the FT and
+  # HTTP branches plus the hang branch.
+  mixed:1) echo "AI_APICallError: Rate limit exceeded. Please try again later."; exit 0 ;;
+  mixed:2) echo "APIError: ${ft}"; exit 0 ;;
+  mixed:3) exec "$R15_REAL_SLEEP" 30 ;;
+  mixed:4) echo "AI_APICallError: Internal Server Error"; exit 0 ;;
+  mixed:*) echo "healthy success"; exit 0 ;;
+  mixed-nz:1) echo "AI_APICallError: Rate limit exceeded. Please try again later."; exit 0 ;;
+  mixed-nz:2) echo "APIError: ${ft}"; exit 1 ;;
+  mixed-nz:3) echo "AI_APICallError: Internal Server Error"; exit 0 ;;
+  mixed-nz:*) echo "healthy success"; exit 0 ;;
+  hang-mixed:1) exec "$R15_REAL_SLEEP" 30 ;;
+  hang-mixed:2) echo "APIError: ${ft}"; exit 0 ;;
+  hang-mixed:3) echo "AI_APICallError: Internal Server Error"; exit 0 ;;
+  hang-mixed:4) exec "$R15_REAL_SLEEP" 30 ;;
+  hang-mixed:*) echo "healthy success"; exit 0 ;;
+  hang-mixed-nz:1) exec "$R15_REAL_SLEEP" 30 ;;
+  hang-mixed-nz:2) echo "APIError: ${ft}"; exit 1 ;;
+  hang-mixed-nz:3) echo "AI_APICallError: Internal Server Error"; exit 1 ;;
+  hang-mixed-nz:4) exec "$R15_REAL_SLEEP" 30 ;;
+  hang-mixed-nz:*) echo "healthy success"; exit 0 ;;
+  ft-hang-http:1) echo "APIError: ${ft}"; exit 0 ;;
+  ft-hang-http:2) exec "$R15_REAL_SLEEP" 30 ;;
+  ft-hang-http:3) echo "AI_APICallError: Internal Server Error"; exit 0 ;;
+  ft-hang-http:4) echo "APIError: ${ft}"; exit 0 ;;
+  ft-hang-http:*) echo "healthy success"; exit 0 ;;
+  ft-hang-http-nz:1) echo "APIError: ${ft}"; exit 0 ;;
+  ft-hang-http-nz:2) exec "$R15_REAL_SLEEP" 30 ;;
+  ft-hang-http-nz:3) echo "AI_APICallError: Internal Server Error"; exit 1 ;;
+  ft-hang-http-nz:4) echo "APIError: ${ft}"; exit 0 ;;
+  ft-hang-http-nz:*) echo "healthy success"; exit 0 ;;
+  # Tester round 4 (rung-depth-3 widening): mirror the free-tier deep pair
+  # for the HTTP and stall budgets with three candidates, so a widening or
+  # theft gated on the third rung is observable (the two-rung deep pairs
+  # cannot reach c-free).
+  widened:1) echo "AI_APICallError: Rate limit exceeded. Please try again later."; exit 0 ;;
+  widened:2) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 0 ;;
+  widened:3) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 0 ;;
+  widened:4) echo "AI_APICallError: Internal Server Error"; exit 0 ;;
+  widened:5) echo "AI_APICallError: Internal Server Error"; exit 0 ;;
+  widened:*) echo "healthy success"; exit 0 ;;
+  widened-advance:1) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 0 ;;
+  widened-advance:2) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 0 ;;
+  widened-advance:3) echo "AI_APICallError: Internal Server Error"; exit 0 ;;
+  widened-advance:*) echo "healthy success"; exit 0 ;;
+  hang-widened:1) exec "$R15_REAL_SLEEP" 30 ;;
+  hang-widened:2) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 0 ;;
+  hang-widened:3) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 0 ;;
+  hang-widened:4) exec "$R15_REAL_SLEEP" 30 ;;
+  hang-widened:5) exec "$R15_REAL_SLEEP" 30 ;;
+  hang-widened:*) echo "healthy success"; exit 0 ;;
+  hang-widened-advance:1) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 0 ;;
+  hang-widened-advance:2) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 0 ;;
+  hang-widened-advance:3) exec "$R15_REAL_SLEEP" 30 ;;
+  hang-widened-advance:*) echo "healthy success"; exit 0 ;;
+  # Tester round 4 (degraded-shape plumbing): an unclassified nonzero death
+  # must stay loud with its own status, a failing tee in the degraded
+  # pipeline must fail loudly, and a terminal line written to stderr must
+  # still reach the captured log through the `2>&1` merge so the bounded
+  # retry fires.
+  nofifo-unclassified:*) echo "some unrelated provider failure"; exit 5 ;;
+  nofifo-stderr-ft:1) echo "AI_APICallError: ${ft}" >&2; exit 1 ;;
+  nofifo-stderr-ft:*) echo "healthy success"; exit 0 ;;
+  # Tester round 5 (FIFO-shape stderr merge): the FIFO capture shape is the
+  # primary shape, and its `2>&1` merge is the counterpart of the degraded
+  # nofifo-stderr-ft probe. A terminal line written to stderr must reach the
+  # captured log so the bounded retry fires; without the merge the exit-0
+  # variant concludes silent green with no retry and the nonzero variant
+  # loses the retry as unclassified.
+  fifo-stderr-ft:1) echo "AI_APICallError: ${ft}" >&2; exit 1 ;;
+  fifo-stderr-ft:*) echo "healthy success"; exit 0 ;;
+  fifo-stderr-ft0:1) echo "AI_APICallError: ${ft}" >&2; exit 0 ;;
+  fifo-stderr-ft0:*) echo "healthy success"; exit 0 ;;
+  # Tester round 5 (watchdog silence accounting): hang-poll-slow runs a
+  # silent attempt at a 30s poll cadence under a 90s threshold, so exactly
+  # three polling rounds must accumulate to fire (an increment of 1 per poll
+  # or a non-accumulating assignment never reaches the threshold and the
+  # attempt runs into the scenario timeout). hang-active keeps producing
+  # output past a 3s threshold (a zero or stale byte-size read kills the
+  # live producer and the extra attempt shows). out-then-hang emits one line
+  # after the watchdog's baseline read and then stalls (without the re-arm
+  # the post-output silence never accumulates).
+  hang-poll-slow:1) exec "$R15_REAL_SLEEP" 30 ;;
+  hang-poll-slow:*) echo "healthy success"; exit 0 ;;
+  hang-active:1) for i in 1 2 3 4 5 6 7 8 9 10; do "$R15_REAL_SLEEP" 0.1; echo "progress $i"; done; exit 0 ;;
+  hang-active:*) echo "healthy success"; exit 0 ;;
+  out-then-hang:1) "$R15_REAL_SLEEP" 0.3; echo "starting work"; exec "$R15_REAL_SLEEP" 30 ;;
+  out-then-hang:*) echo "healthy success"; exit 0 ;;
+  # Tester round 5 (nonzero-MNF advance reset sites): each scenario spends
+  # one budget, advances across a NONZERO Model-not-found line (the
+  # grep-based branch that `continue 2`s), then repeats the same class on
+  # the next rung, which must be loud persistent. An arithmetic budget reset
+  # inserted at that advance site (invisible to the literal count pins)
+  # spends a second backoff and runs an extra attempt. One scenario per
+  # budget class.
+  mnf-nz-mixed:1) echo "AI_APICallError: Service Unavailable"; exit 2 ;;
+  mnf-nz-mixed:2) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 4 ;;
+  mnf-nz-mixed:3) echo "AI_APICallError: Service Unavailable"; exit 2 ;;
+  mnf-nz-mixed:*) echo "healthy success"; exit 0 ;;
+  ft-mnf-nz:1) echo "APIError: ${ft}"; exit 0 ;;
+  ft-mnf-nz:2) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 4 ;;
+  ft-mnf-nz:3) echo "APIError: ${ft}"; exit 0 ;;
+  ft-mnf-nz:*) echo "healthy success"; exit 0 ;;
+  hang-mnf-nz:1) exec "$R15_REAL_SLEEP" 30 ;;
+  hang-mnf-nz:2) echo "Model not found: ${MODEL}. Did you mean: b-free?"; exit 4 ;;
+  hang-mnf-nz:3) exec "$R15_REAL_SLEEP" 30 ;;
+  hang-mnf-nz:*) echo "healthy success"; exit 0 ;;
+  # Review round 8 (rung-gated reset at that same advance site): the round-5
+  # mirrors only advance through the nonzero-MNF branch on rung 1, so a reset
+  # GATED on a later rung (e.g. `[ "$model" != "${candidates%% *}" ] &&
+  # transient_retry_used=$((0))` inserted right after the advance warning)
+  # still escaped the matrix. These depth-3 mirrors advance via that branch
+  # on rungs 1 AND 2, spend the class's single retry on rung 2, and require
+  # the rung-3 repeat to be loud persistent with exactly one backoff; a
+  # rung-gated reset at the second advance resurrects the spent budget,
+  # spends a second backoff, and runs an extra c-free attempt.
+  mnf-nz-deep:1) echo "Model not found: ${MODEL}. Did you mean: next-free?"; exit 4 ;;
+  mnf-nz-deep:2) echo "AI_APICallError: Rate limit exceeded. Please try again later."; exit 2 ;;
+  mnf-nz-deep:3) echo "Model not found: ${MODEL}. Did you mean: next-free?"; exit 4 ;;
+  mnf-nz-deep:*) echo "AI_APICallError: Internal Server Error"; exit 2 ;;
+  ft-mnf-nz-deep:1) echo "Model not found: ${MODEL}. Did you mean: next-free?"; exit 4 ;;
+  ft-mnf-nz-deep:2) echo "APIError: ${ft}"; exit 0 ;;
+  ft-mnf-nz-deep:3) echo "Model not found: ${MODEL}. Did you mean: next-free?"; exit 4 ;;
+  ft-mnf-nz-deep:*) echo "APIError: ${ft}"; exit 0 ;;
+  hang-mnf-nz-deep:1) echo "Model not found: ${MODEL}. Did you mean: next-free?"; exit 4 ;;
+  hang-mnf-nz-deep:2) exec "$R15_REAL_SLEEP" 30 ;;
+  hang-mnf-nz-deep:3) echo "Model not found: ${MODEL}. Did you mean: next-free?"; exit 4 ;;
+  hang-mnf-nz-deep:*) exec "$R15_REAL_SLEEP" 30 ;;
+  # Tester round 6 (nonzero-MNF advance anchoring): the advance grep is
+  # deliberately UNANCHORED at column 0, so the wrapper's
+  # `Error: Model not found: ...` catch-handler form advances the rung too.
+  # A `^` anchor (invisible to the substring pin) would silently drop the
+  # prefixed form, turning the recoverable advance into an unclassified
+  # nonzero death (rc 4, single attempt).
+  mnf-err-nz:1) echo "Error: Model not found: ${MODEL}. Did you mean: b-free?"; exit 4 ;;
+  mnf-err-nz:*) echo "healthy success"; exit 0 ;;
+  # Tester round 7 (fire-block order): the attempt traps TERM, cleans up
+  # through the real grace window (the sleep mock honors the real 5s for this
+  # scenario only), writes its cleanup marker, and exits 0. A fire block
+  # whose KILL lands before or back-to-back with TERM kills the attempt
+  # before the marker lands, while rc and the attempt sequence alone would
+  # look identical.
+  term-grace:1)
+    trap 'kill "$R15_GRACE_CHILD" 2>/dev/null; "$R15_REAL_SLEEP" 2; printf "term-cleanup\n" > "$R15_TERM_MARKER"; exit 0' TERM
+    "$R15_REAL_SLEEP" 30 &
+    R15_GRACE_CHILD=$!
+    wait "$R15_GRACE_CHILD" 2>/dev/null || true
+    ;;
+  term-grace:*) echo "healthy success"; exit 0 ;;
+  # Tester round 8 (fire-region completeness): an attempt that IGNORES TERM
+  # (unlike term-grace, which traps it and cleans up) can only be ended by
+  # the fire block's SIGKILL. The `trap ''` ignores TERM at the kernel level
+  # and the SIG_IGN disposition survives the looping shell, so if the KILL is
+  # shadowed or neutered the attempt runs into the scenario timeout (rc 124)
+  # instead of the bounded same-model retry, exactly the #653 unbounded-stall
+  # shape the guard exists to bound.
+  hang-child-ignores-term:1) trap '' TERM; while :; do "$R15_REAL_SLEEP" 0.5; done ;;
+  hang-child-ignores-term:*) echo "healthy success"; exit 0 ;;
 esac
 echo "unhandled R15 scenario ${R15_SCENARIO} attempt ${n}" >&2
 exit 9
 R15MOCK
   {
     echo '#!/bin/bash'
-    echo '# Mock sleep: records the requested backoff, blocks for a small real interval'
+    echo '# Mock sleep: records the requested value, blocks for a small real interval'
     echo '# through the real sleep baked in at generation time, then records its end'
-    echo '# timestamp. The harness asserts that the final attempt started at or after'
-    echo '# that end, so a backgrounded (`sleep 15 &`), reordered, or removed wait'
-    echo '# cannot pass while a decoy holds the static count.'
+    echo '# timestamp KEYED BY the requested value. The harness asserts per value that'
+    echo '# the final attempt started at or after that wait'"'"'s end, so a backgrounded'
+    echo '# (`sleep 15 &`), reordered, or removed wait cannot pass while a decoy holds'
+    echo '# the static count; value keying also keeps the watchdog'"'"'s poll sleeps'
+    echo '# (HANG_POLL_SECONDS) from polluting the backoff assertions. Tester round 7:'
+    echo '# in the term-grace scenario the fire block'"'"'s grace honors the real'
+    echo '# requested duration, so a TERM-trapping attempt needs the real grace to'
+    echo '# complete its cleanup and a reordered fire block can never produce its marker.'
     echo 'echo "sleep ${1:-} $(date +%s%N)" >> "$R15_SLEEPS"'
+    echo 'if [ "${R15_SCENARIO:-}" = "term-grace" ] && [ "${1:-}" = "5" ]; then'
+    printf '%s 5\n' "$r15_sleep_bin"
+    echo 'else'
     printf '%s 0.2\n' "$r15_sleep_bin"
-    echo 'echo "end $(date +%s%N)" >> "$R15_SLEEPS"'
+    echo 'fi'
+    echo 'echo "end ${1:-} $(date +%s%N)" >> "$R15_SLEEPS"'
     echo 'exit 0'
   } > "$sbx/bin/sleep"
   chmod +x "$sbx/bin/opencode" "$sbx/bin/sleep"
-  for tool in mktemp tee grep rm tail sed tr wc date; do
+  for tool in mktemp tee grep rm tail sed tr wc date mkfifo; do
     p=$(command -v "$tool" 2>/dev/null || true)
     [ -n "$p" ] && ln -sf "$p" "$sbx/bin/$tool"
   done
@@ -1519,6 +2773,15 @@ while IFS= read -r line; do printf '%s\n' "$line" >> "$1"; done
 exit "${R15_TEE_FAIL:-3}"
 R15TEE
   chmod +x "$sbx/tee-fail"
+  # Failing-mkfifo mock (issue #653): swapped in for the real mkfifo during
+  # the nofifo- scenarios only, so the degraded capture shape is exercised
+  # end-to-end (loud warning plus the legacy pipeline plus the full
+  # non-watchdog retry contract).
+  cat > "$sbx/mkfifo-fail" <<'R15MKFIFO'
+#!/bin/bash
+exit 1
+R15MKFIFO
+  chmod +x "$sbx/mkfifo-fail"
   if [ ! -x "$sbx/bin/opencode" ] \
      || [ "$(env PATH="$sbx/bin" "$r15_bash_bin" -c 'command -v opencode' 2>/dev/null || true)" != "$sbx/bin/opencode" ]; then
     r15_bad="${r15_bad} behavioral(${label},mock-not-intercepted)"
@@ -1526,15 +2789,35 @@ R15TEE
     return
   fi
   r15_behavioral_run() {
-    local scenario="$1" cands="${2:-a-free b-free}" tee_swap=0
+    local scenario="$1" cands="${2:-a-free b-free}" tee_swap=0 fifo_swap=0 attempts sleeps
+    # Per-run recording files (review F2 harness hardening): a finished
+    # scenario can leave an orphaned mock `sleep` (the watchdog's own poll
+    # sleep can be mid-flight when the block exits) and that orphan would
+    # append its end timestamp into the next scenario's freshly truncated
+    # shared file, corrupting the exact-count backoff assertions. Unique
+    # per-run paths make any late write land in the finished run's own
+    # files, which are no longer asserted against.
+    attempts="$sbx/attempts.$(date +%s%N)"
+    sleeps="$sbx/sleeps.$(date +%s%N)"
     : > "$attempts"; : > "$sleeps"
     # Failing-tee scenarios (review A1, widened in review F9): swap the real
     # tee symlink for the failing mock so the log-capture guard is exercised
     # end-to-end for every `failing-tee*` scenario; restore it afterwards so
-    # every other scenario keeps the real pipeline shape.
-    if [ "${scenario#failing-tee}" != "$scenario" ]; then
+    # every other scenario keeps the real pipeline shape. Tester round 4:
+    # `nofifo-teefail` swaps tee too, so the same guard is exercised in the
+    # degraded no-mkfifo pipeline (a masked PIPESTATUS there would otherwise
+    # conclude silent green).
+    if [ "${scenario#failing-tee}" != "$scenario" ] || [ "$scenario" = "nofifo-teefail" ]; then
       ln -sf "$sbx/tee-fail" "$sbx/bin/tee"
       tee_swap=1
+    fi
+    # Issue #653 degraded-shape scenarios: swap the real mkfifo symlink for a
+    # failing mock so the runner must take its loud no-mkfifo fallback path
+    # (legacy inline pipeline, no watchdog) while still honoring the retry
+    # contract; restore afterwards.
+    if [ "${scenario#nofifo-}" != "$scenario" ]; then
+      ln -sf "$sbx/mkfifo-fail" "$sbx/bin/mkfifo"
+      fifo_swap=1
     fi
     (
       cd "$sbx" || exit 1
@@ -1543,11 +2826,19 @@ R15TEE
         MODEL_CANDIDATES="$cands" MODEL="${cands%% *}" \
         R15_SCENARIO="$scenario" R15_ATTEMPTS="$attempts" R15_SLEEPS="$sleeps" \
         R15_TEE_FAIL="${R15_TEE_FAIL:-}" \
-        "$r15_bash_bin" "$block"
+        R15_REAL_SLEEP="$r15_sleep_bin" \
+        R15_TERM_MARKER="${R15_TERM_MARKER:-/dev/null}" \
+        HANG_IDLE_SECONDS="${R15_HANG_IDLE:-600}" HANG_POLL_SECONDS="${R15_HANG_POLL:-1}" \
+        "$r15_bash_bin" --noprofile --norc -eo pipefail "$block"
     ) > "$out" 2>&1
     r15_last_rc=$?
+    r15_last_attempts="$attempts"
+    r15_last_sleeps="$sleeps"
     if [ "$tee_swap" = "1" ]; then
       ln -sf "$(command -v tee)" "$sbx/bin/tee"
+    fi
+    if [ "$fifo_swap" = "1" ]; then
+      ln -sf "$(command -v mkfifo)" "$sbx/bin/mkfifo"
     fi
     r15_last_models=$(sed -n 's/^model=\([^ ]*\).*/\1/p' "$attempts" | tr '\n' ' ')
     r15_last_models="${r15_last_models% }"
@@ -1566,67 +2857,240 @@ R15TEE
     if [ -n "$want_out" ] && ! grep -qE "$want_out" "$out"; then
       r15_bad="${r15_bad} behavioral(${label},${scenario}:missing-output)"
     fi
-    # Round-F6: the backoff itself is asserted, not just the presence of any
-    # sleep recording: exactly one mock sleep, its value must be the bounded
-    # `sleep 15`, and (review round 7 non-blocking hardening) the final
-    # attempt must have started at or after that sleep's recorded end. A
-    # decoy/unreachable `sleep 15` holding the static count while the live
-    # wait becomes `sleep 31536000` fails on the value, and a backgrounded
+    # Round-F6, generalized for #653: the backoff itself is asserted, not
+    # just the presence of any sleep recording. want_sleeps is a
+    # comma-separated `value:count` spec (e.g. `15:1` or `30:1,10:1`): for
+    # each entry the mock must have recorded exactly `count` sleeps of that
+    # value and exactly `count` matching ends, and the final attempt must
+    # have started at or after the LAST end of every expected value. A
+    # decoy/unreachable wait holding the static count while the live wait
+    # becomes `sleep 31536000` fails on the value, and a backgrounded
     # (`sleep 15 &`), reordered, or removed wait fails on the ordering, even
-    # though it records the right value.
-    if [ "$want_sleeps" = "1" ]; then
-      if [ "$(grep -cE '^sleep 15 ' "$sleeps" 2>/dev/null || true)" != "1" ] \
-         || [ "$(grep -cE '^end ' "$sleeps" 2>/dev/null || true)" != "1" ]; then
+    # though it records the right value; value keying keeps poll sleeps out
+    # of every assertion.
+    if [ -n "$want_sleeps" ]; then
+      r15_spec_ok=1
+      r15_spec_ends=""
+      for r15_spec in $(printf '%s' "$want_sleeps" | tr ',' ' '); do
+        r15_val="${r15_spec%%:*}"
+        r15_cnt="${r15_spec##*:}"
+        if [ "$(grep -cE "^sleep ${r15_val} " "$r15_last_sleeps" 2>/dev/null || true)" != "$r15_cnt" ] \
+           || [ "$(grep -cE "^end ${r15_val} " "$r15_last_sleeps" 2>/dev/null || true)" != "$r15_cnt" ]; then
+          r15_spec_ok=0
+        fi
+        for r15_e in $(sed -n "s/^end ${r15_val} //p" "$r15_last_sleeps" 2>/dev/null || true); do
+          if [ -z "$r15_spec_ends" ] || [ "$r15_e" -gt "$r15_spec_ends" ]; then
+            r15_spec_ends="$r15_e"
+          fi
+        done
+      done
+      if [ "$r15_spec_ok" != "1" ]; then
         r15_bad="${r15_bad} behavioral(${label},${scenario}:bad-backoff)"
       else
-        r15_sleep_end=$(sed -n 's/^end //p' "$sleeps" 2>/dev/null || true)
-        r15_last_ts=$(sed -n 's/^model=[^ ]* //p' "$attempts" 2>/dev/null | tail -n 1)
-        if [ -z "$r15_sleep_end" ] || [ -z "$r15_last_ts" ] || [ "$r15_last_ts" -lt "$r15_sleep_end" ]; then
+        r15_last_ts=$(sed -n 's/^model=[^ ]* //p' "$r15_last_attempts" 2>/dev/null | tail -n 1)
+        if [ -z "$r15_spec_ends" ] || [ -z "$r15_last_ts" ] || [ "$r15_last_ts" -lt "$r15_spec_ends" ]; then
           r15_bad="${r15_bad} behavioral(${label},${scenario}:backoff-not-waited)"
         fi
       fi
     fi
   }
-  r15_behavioral_case transient-nonzero 0 "a-free a-free" "" 1
-  r15_behavioral_case transient-zero 0 "a-free a-free" "" 1
-  r15_behavioral_case persistent-nonzero 3 "a-free a-free" "persistent free-tier rejection" 0
-  r15_behavioral_case persistent-nonzero7 7 "a-free a-free" "persistent free-tier rejection" 0
-  r15_behavioral_case persistent-zero 1 "a-free a-free" "persistent free-tier rejection" 0
-  r15_behavioral_case mnf-nonzero 0 "a-free b-free" "" 0
-  r15_behavioral_case mnf-zero 0 "a-free b-free" "" 0
-  r15_behavioral_case mnf-echo 0 "a-free" "" 0
-  r15_behavioral_case mnf-prefix 4 "a-free" "" 0
-  r15_behavioral_case mnf-stale 0 "a-free" "" 0
-  r15_behavioral_case mnf-all 1 "a-free b-free" "exhausted every model rung" 0
-  r15_behavioral_case mnf-dot-lookalike 4 "opencode/deepseek-v4.1-flash-free" "" 0 "opencode/deepseek-v4.1-flash-free opencode/glm-5.3-flash-free"
-  r15_behavioral_case mnf-then-ft 0 "a-free b-free b-free" "" 1
-  r15_behavioral_case mnf-then-ft0 0 "a-free b-free b-free" "" 1
+  r15_behavioral_case transient-nonzero 0 "a-free a-free" "" "15:1"
+  r15_behavioral_case transient-zero 0 "a-free a-free" "" "15:1"
+  r15_behavioral_case persistent-nonzero 3 "a-free a-free" "persistent free-tier rejection" ""
+  r15_behavioral_case persistent-nonzero7 7 "a-free a-free" "persistent free-tier rejection" ""
+  r15_behavioral_case persistent-zero 1 "a-free a-free" "persistent free-tier rejection" ""
+  r15_behavioral_case mnf-nonzero 0 "a-free b-free" "" ""
+  r15_behavioral_case mnf-zero 0 "a-free b-free" "" ""
+  r15_behavioral_case mnf-echo 0 "a-free" "" ""
+  r15_behavioral_case mnf-prefix 4 "a-free" "" ""
+  r15_behavioral_case mnf-stale 0 "a-free" "" ""
+  r15_behavioral_case mnf-all 1 "a-free b-free" "exhausted every model rung" ""
+  r15_behavioral_case mnf-dot-lookalike 4 "opencode/deepseek-v4.1-flash-free" "" "" "opencode/deepseek-v4.1-flash-free opencode/glm-5.3-flash-free"
+  r15_behavioral_case mnf-then-ft 0 "a-free b-free b-free" "" "15:1"
+  r15_behavioral_case mnf-then-ft0 0 "a-free b-free b-free" "" "15:1"
   # Round-7 hardening (per-rung budget gating): a grant or theft of the
   # free-tier budget gated on a later rung is invisible to a two-rung matrix.
   # deep-grant consumes the budget on rung 1, advances to rung 3, and must
   # report the rung-3 rejection as persistent without a second retry;
   # deep-advance reaches rung 3 with the budget unused and must still spend
   # exactly one same-model retry there.
-  r15_behavioral_case deep-grant 1 "a-free a-free b-free c-free" "persistent free-tier rejection" 1 "a-free b-free c-free"
-  r15_behavioral_case deep-advance 1 "a-free b-free c-free c-free" "persistent free-tier rejection" 1 "a-free b-free c-free"
-  r15_behavioral_case echo-envelope 0 "a-free" "" 0
-  r15_behavioral_case ft-echo-suffix 0 "a-free" "" 0
-  r15_behavioral_case ft-stale 0 "a-free" "" 0
-  r15_behavioral_case ft-trailing 0 "a-free a-free" "" 1
-  r15_behavioral_case failing-tee 1 "a-free" "could not capture the (Maintainer )?opencode log" 0
+  r15_behavioral_case deep-grant 1 "a-free a-free b-free c-free" "persistent free-tier rejection" "15:1" "a-free b-free c-free"
+  r15_behavioral_case deep-advance 1 "a-free b-free c-free c-free" "persistent free-tier rejection" "15:1" "a-free b-free c-free"
+  r15_behavioral_case echo-envelope 0 "a-free" "" ""
+  r15_behavioral_case ft-echo-suffix 0 "a-free" "" ""
+  r15_behavioral_case ft-stale 0 "a-free" "" ""
+  r15_behavioral_case ft-trailing 0 "a-free a-free" "" "15:1"
+  r15_behavioral_case failing-tee 1 "a-free" "could not capture the (Maintainer )?opencode log" ""
   # Review F9: one fixture status cannot exercise a live condition narrowed to
   # that status. The same guard must fire for every failing tee status, so the
   # fixtures cover 3 (above), 1, and 2; any finite `-eq` narrowing misses at
   # least one, and the dead-decoy variant only held the anchored static count,
   # which these scenarios ignore.
-  R15_TEE_FAIL=1 r15_behavioral_case failing-tee1 1 "a-free" "could not capture the (Maintainer )?opencode log" 0
-  R15_TEE_FAIL=2 r15_behavioral_case failing-tee2 1 "a-free" "could not capture the (Maintainer )?opencode log" 0
-  r15_behavioral_case budget-rungs 1 "a-free a-free b-free" "persistent free-tier rejection" 0
-  r15_behavioral_case unclassified 5 "a-free" "" 0
-  r15_behavioral_case unclassified9 9 "a-free" "" 0
+  R15_TEE_FAIL=1 r15_behavioral_case failing-tee1 1 "a-free" "could not capture the (Maintainer )?opencode log" ""
+  R15_TEE_FAIL=2 r15_behavioral_case failing-tee2 1 "a-free" "could not capture the (Maintainer )?opencode log" ""
+  r15_behavioral_case budget-rungs 1 "a-free a-free b-free" "persistent free-tier rejection" ""
+  r15_behavioral_case unclassified 5 "a-free" "" ""
+  r15_behavioral_case unclassified9 9 "a-free" "" ""
+  # Issue #653 behavioral matrix: transient 429/5xx recovery on BOTH exit
+  # shapes (nonzero and exit-0 terminal), the incident's exact 429 wording,
+  # persistent loudness on both shapes with the provider's own status
+  # propagated, provider-stall kill + one same-model retry after `sleep 10`
+  # (watchdog armed with HANG_IDLE_SECONDS=1 through R15_HANG_IDLE; the poll
+  # interval stays 1 for every scenario so it can never collide with the 30s
+  # transient backoff), a second stall loud, and per-class budget
+  # independence in BOTH directions (http-then-hang spends the HTTP budget
+  # then the stall budget; hang-then-http the reverse), proving neither
+  # class consumes the other's retry.
+  r15_behavioral_case http-nonzero 0 "a-free a-free" "" "30:1"
+  r15_behavioral_case http-429 0 "a-free a-free" "" "30:1"
+  r15_behavioral_case http-zero 0 "a-free a-free" "" "30:1"
+  # Review F2: the pipe-buffer-sized window (terminal line first, then 39 ~4
+  # KiB lines) still honors the same-model retry under the production
+  # `-eo pipefail` shell; the old bare detector pipeline misses it and this
+  # scenario then shows a single attempt with no 30s backoff.
+  r15_behavioral_case http-bigwindow 0 "a-free a-free" "" "30:1"
+  r15_behavioral_case http-persistent 3 "a-free a-free" "persistent HTTP error" "30:1"
+  r15_behavioral_case http-zero-persistent 1 "a-free a-free" "persistent HTTP error" "30:1"
+  R15_HANG_IDLE=1 r15_behavioral_case hang 0 "a-free a-free" "provider stall" "10:1"
+  R15_HANG_IDLE=1 r15_behavioral_case hang-persistent 1 "a-free a-free" "repeated provider stall" "10:1"
+  # Review F3: a zero poll override must not silently disable the watchdog
+  # (`sleep 0` busy loop with `idle += 0` never reaching the threshold); the
+  # clamp falls back to the 30s production default, so the stall is still
+  # killed and retried once (a hang then a healthy same-model retry).
+  R15_HANG_IDLE=1 R15_HANG_POLL=0 r15_behavioral_case hang-poll-zero 0 "a-free a-free" "" "10:1"
+  # Reset explicitly: a prefix assignment on a function call is restored on
+  # modern bash, but older bashes may persist it, and every later scenario
+  # expects the default poll interval.
+  R15_HANG_POLL=1
+  R15_HANG_IDLE=1 r15_behavioral_case http-then-hang 0 "a-free a-free a-free" "" "30:1,10:1"
+  R15_HANG_IDLE=1 r15_behavioral_case hang-then-http 0 "a-free a-free a-free" "" "10:1,30:1"
+  # Tester round 2 (test-integrity): the #653 HTTP and stall budgets are
+  # arm-wide exactly like the free-tier one (all three counters initialize
+  # once before the rung loop), and a per-rung reset of either budget must be
+  # observable. Grant variant: rung 1 spends the single retry, a
+  # Model-not-found advance reaches rung 2, and a second terminal/stall there
+  # must be loud persistent with exactly ONE backoff (the reset mutant spends
+  # a second backoff and runs an extra attempt, failing the attempts and
+  # backoff assertions). Advance variant: a rung-1 Model-not-found must not
+  # gate the retry away from a later rung, which still spends exactly one
+  # backoff.
+  r15_behavioral_case http-deep-grant 1 "a-free a-free b-free" "persistent HTTP error" "30:1"
+  r15_behavioral_case http-deep-advance 0 "a-free b-free b-free" "" "30:1"
+  R15_HANG_IDLE=1 r15_behavioral_case hang-deep-grant 1 "a-free a-free b-free" "repeated provider stall" "10:1"
+  R15_HANG_IDLE=1 r15_behavioral_case hang-deep-advance 0 "a-free b-free b-free" "" "10:1"
+  r15_behavioral_case nofifo-freetier 0 "a-free a-free" "mkfifo is unavailable" "15:1"
+  # Tester round 3 (test-integrity): bind the degraded shape's retry contract
+  # too. nofifo-persistent: a persistently rejecting provider must fail loudly
+  # after exactly two attempts and one 15s backoff (a budget reset inserted in
+  # the degraded branch loops forever instead). nofifo-http-deep-grant: a
+  # rung-1 429 spends the retry, a Model-not-found advance reaches rung 2, and
+  # a second 429 there must be loud persistent with exactly one 30s backoff (a
+  # model-change-gated per-rung reset spends a second backoff and runs an
+  # extra attempt).
+  r15_behavioral_case nofifo-persistent 1 "a-free a-free" "persistent free-tier rejection" "15:1"
+  r15_behavioral_case nofifo-http-deep-grant 1 "a-free a-free b-free" "persistent HTTP error" "30:1"
+  # Tester round 4 (degraded-shape plumbing): the nofifo scenarios above are
+  # all terminal-classified, so `status`, `tee_status`, the PIPESTATUS
+  # capture, and the `2>&1` merge were never observably wrong. These three
+  # bind that plumbing: an unclassified nonzero degraded death must stay
+  # loud with its own status (want_out matches both runner paths' message
+  # wording), a failing degraded tee must fail loudly, and a stderr-borne
+  # free-tier terminal line must reach the captured log so the bounded retry
+  # still fires (without `2>&1` the log is empty, the death reads as
+  # unclassified, and the retry is silently lost).
+  r15_behavioral_case nofifo-unclassified 5 "a-free" "failed with exit status 5" ""
+  r15_behavioral_case nofifo-teefail 1 "a-free" "could not capture the (Maintainer )?opencode log" ""
+  r15_behavioral_case nofifo-stderr-ft 0 "a-free a-free" "" "15:1"
+  # Tester round 5 (FIFO-shape stderr merge): the primary capture shape's
+  # `2>&1` merge, bound exactly like the degraded probe above. Without it a
+  # stderr-borne terminal line never reaches the captured log, so the exit-0
+  # shape (`fifo-stderr-ft0`) concludes silent green with no retry and the
+  # nonzero shape (`fifo-stderr-ft`) loses the retry as unclassified.
+  r15_behavioral_case fifo-stderr-ft 0 "a-free a-free" "" "15:1"
+  r15_behavioral_case fifo-stderr-ft0 0 "a-free a-free" "" "15:1"
+  # Tester round 4 (cross-class budget coupling): six class-interleave
+  # scenarios repeat a class AFTER another class's retry was consumed. The
+  # shipped code fails loudly at the repeat; an arithmetic reset of the
+  # repeated budget inside any other class's retry branch (both exit shapes
+  # of the FT and HTTP branches plus the hang branch are covered by the set)
+  # spends an extra backoff and runs an extra attempt, so the attempts,
+  # backoff counts, and rc assertions catch it.
+  R15_HANG_IDLE=1 r15_behavioral_case mixed 1 "a-free a-free a-free a-free" "persistent HTTP error" "30:1,15:1,10:1"
+  r15_behavioral_case mixed-nz 1 "a-free a-free a-free" "persistent HTTP error" "30:1,15:1"
+  R15_HANG_IDLE=1 r15_behavioral_case hang-mixed 1 "a-free a-free a-free a-free" "repeated provider stall" "10:1,15:1,30:1"
+  R15_HANG_IDLE=1 r15_behavioral_case hang-mixed-nz 1 "a-free a-free a-free a-free" "repeated provider stall" "10:1,15:1,30:1"
+  R15_HANG_IDLE=1 r15_behavioral_case ft-hang-http 1 "a-free a-free a-free a-free" "persistent free-tier rejection" "15:1,10:1,30:1"
+  R15_HANG_IDLE=1 r15_behavioral_case ft-hang-http-nz 1 "a-free a-free a-free a-free" "persistent free-tier rejection" "15:1,10:1,30:1"
+  # Tester round 4 (rung-depth-3 widening): mirror the free-tier deep pair
+  # for the HTTP and stall budgets at rung depth 3 with three candidates, so
+  # a widening (`..._retry_used=-1` gated on c-free) spends a second backoff
+  # and runs an extra attempt, and a theft (`...=1`) blocks the rung-3 retry
+  # and turns a healthy advance loud.
+  r15_behavioral_case widened 1 "a-free a-free b-free c-free" "persistent HTTP error" "30:1" "a-free b-free c-free"
+  r15_behavioral_case widened-advance 0 "a-free b-free c-free c-free" "" "30:1" "a-free b-free c-free"
+  R15_HANG_IDLE=1 r15_behavioral_case hang-widened 1 "a-free a-free b-free c-free" "repeated provider stall" "10:1" "a-free b-free c-free"
+  R15_HANG_IDLE=1 r15_behavioral_case hang-widened-advance 0 "a-free b-free c-free c-free" "" "10:1" "a-free b-free c-free"
+  # Tester round 5 (nonzero-MNF advance reset sites): after a spent budget, a
+  # rung advance across a NONZERO Model-not-found line must not resurrect that
+  # budget. Each scenario spends one class's single retry, advances through
+  # the grep-based nonzero-MNF branch, and repeats the class on the next rung,
+  # which must be loud persistent with exactly one backoff; an arithmetic
+  # reset inserted at that advance site spends a second backoff and runs an
+  # extra attempt. One scenario per budget class (HTTP, free-tier, stall),
+  # covering all three reset directions.
+  r15_behavioral_case mnf-nz-mixed 2 "a-free a-free b-free" "persistent HTTP error" "30:1"
+  r15_behavioral_case ft-mnf-nz 1 "a-free a-free b-free" "persistent free-tier rejection" "15:1"
+  R15_HANG_IDLE=1 r15_behavioral_case hang-mnf-nz 1 "a-free a-free b-free" "repeated provider stall" "10:1"
+  # Review round 8: the round-5 mirrors above only advance through the
+  # nonzero-MNF branch on rung 1, so a reset GATED on a later rung escaped
+  # (the depth-2 shapes never reach the second advance). These rung-depth-3
+  # mirrors advance via that branch on rungs 1 and 2, spend the class's
+  # single retry on rung 2, and require the rung-3 repeat to be loud
+  # persistent with exactly one backoff; a rung-gated reset at the second
+  # advance spends a second backoff and runs an extra c-free attempt.
+  r15_behavioral_case mnf-nz-deep 2 "a-free b-free b-free c-free" "persistent HTTP error" "30:1" "a-free b-free c-free"
+  r15_behavioral_case ft-mnf-nz-deep 1 "a-free b-free b-free c-free" "persistent free-tier rejection" "15:1" "a-free b-free c-free"
+  R15_HANG_IDLE=1 r15_behavioral_case hang-mnf-nz-deep 1 "a-free b-free b-free c-free" "repeated provider stall" "10:1" "a-free b-free c-free"
+  # Tester round 6 (nonzero-MNF advance anchoring): the prefixed
+  # `Error: Model not found: ...` catch-handler form must still advance the
+  # rung (an unanchored per-model grep); a column-0 `^` anchor drops it and
+  # the run dies unclassified at rc 4 with a single attempt.
+  r15_behavioral_case mnf-err-nz 0 "a-free b-free" "" ""
+  # Tester round 5 (watchdog silence accounting): the stall-decision
+  # arithmetic itself is now observable. hang-poll-slow runs a silent attempt
+  # at a 30s poll cadence under a 90s threshold, so exactly three polling
+  # rounds must accumulate to fire (an increment of 1 per poll or a
+  # non-accumulating assignment never reaches the threshold and the attempt
+  # runs into the scenario timeout). hang-active keeps producing output past
+  # the threshold (a zeroed byte-size read kills a live producer and the
+  # extra attempt shows). out-then-hang emits one line and then stalls (the
+  # re-arm after growth is what lets the post-output silence accumulate).
+  R15_HANG_POLL=30 R15_HANG_IDLE=90 r15_behavioral_case hang-poll-slow 0 "a-free a-free" "" "10:1"
+  R15_HANG_POLL=1
+  R15_HANG_IDLE=3 r15_behavioral_case hang-active 0 "a-free" "" ""
+  R15_HANG_IDLE=3 r15_behavioral_case out-then-hang 0 "a-free a-free" "" "10:1"
+  R15_HANG_POLL=1
+  R15_HANG_IDLE=1
+  # Tester round 7 (fire-block order): the real-grace behavioral probe. The
+  # TERM-trapping attempt can only complete its cleanup while the fire block
+  # holds TERM before KILL across the real 5s grace; a reordered fire block
+  # (KILL first, or the grace before the first TERM / after the last KILL)
+  # leaves the marker missing while rc and the attempts sequence stay
+  # identical (the ordered static pin covers the tee pairs the marker cannot
+  # observe).
+  R15_TERM_MARKER="$sbx/term-marker.$(date +%s%N)"
+  R15_HANG_IDLE=1 r15_behavioral_case term-grace 0 "a-free a-free" "" "10:1"
+  [ -f "$R15_TERM_MARKER" ] || r15_bad="${r15_bad} behavioral(${label},term-grace:term-cleanup-marker-missing)"
+  # Tester round 8 (fire-region completeness): the KILL step itself, bound
+  # behaviorally. The attempt ignores TERM, so only the fire block's SIGKILL
+  # can end it; with the KILL shadowed or neutered the scenario blocks into
+  # its 10s timeout (rc 124, a single attempt) instead of recovering through
+  # the bounded retry. The shipped code KILLs it at the grace, retries once
+  # on the same model after 10s, and the healthy attempt 2 concludes rc 0.
+  R15_HANG_IDLE=1 r15_behavioral_case hang-child-ignores-term 0 "a-free a-free" "provider stall" "10:1"
   rm -rf "$sbx"
 }
-if [ -n "$r15_timeout_bin" ] && [ -n "$r15_env_bin" ] && [ -n "$r15_bash_bin" ] && [ -n "$r15_sleep_bin" ]; then
+if [ -n "$r15_timeout_bin" ] && [ -n "$r15_env_bin" ] && [ -n "$r15_bash_bin" ] && [ -n "$r15_sleep_bin" ] && [ -n "$r15_mkfifo_bin" ]; then
   r15_behavioral action-file "$ACTION_FILE" '^[[:space:]]*-[[:space:]]*name: Run opencode[[:space:]]*$'
   r15_behavioral maintainer.yml "$MAIN_WF" '^[[:space:]]*-[[:space:]]*name: Run Maintainer agent[[:space:]]*$'
 fi
@@ -1639,10 +3103,43 @@ else
   fi
   grep -A2 'General agent step finished' "$OPENCODE_WF" | grep -q 'exit 1' || r15_bad="${r15_bad} opencode.yml(general-verify-not-exit-1)"
 fi
+# Review round 17 (issue #653 test integrity): the watchdog knobs are
+# process env, never declarative YAML config. Workflow-, job-, caller-step-
+# and flow-style env mappings all reach the runner (a `uses:` composite step
+# inherits workflow/job/caller-step env; the Maintainer inline step reads its
+# own), and a single declarative line can push the first watchdog fire past
+# every step/job timeout (HANG_IDLE_SECONDS=86400 needs 24h of silence) or to
+# the cap (HANG_POLL_SECONDS=3600), silently restoring the pre-#653 stalled
+# tick with every body and step-region pin green. The pattern matches an env
+# mapping key in any spelling (block, quoted, flow) and skips the shell
+# default references `"${HANG_IDLE_SECONDS:-600}"` plus prose mentions. The
+# positive/negative fixtures prove the pattern itself is not vacuous; the
+# tree-wide scan bans the keys from every declarative env surface in
+# workflows and actions. A `$GITHUB_ENV` write from earlier arbitrary step
+# code is out of scope by design.
+r15_knob_pattern='HANG_(IDLE|POLL)_SECONDS["'"'"']?[[:space:]]*:[[:space:]]'
+r15_knob_dir=$(mktemp -d) || r15_bad="${r15_bad} behavioral(tree,watchdog-knob-env-mapping-self-test)"
+if [ -n "${r15_knob_dir:-}" ]; then
+  printf '%s\n' 'env:' '  HANG_IDLE_SECONDS: "86400"' > "$r15_knob_dir/workflow-level.yml"
+  printf '%s\n' 'jobs:' '  maintainer:' '    env:' '      HANG_POLL_SECONDS: "3600"' > "$r15_knob_dir/job-level.yml"
+  printf '%s\n' '- name: Run opencode' '  env:' '    "HANG_IDLE_SECONDS": "86400"' > "$r15_knob_dir/caller-step.yml"
+  printf '%s\n' 'env: {HANG_IDLE_SECONDS: "86400", HANG_POLL_SECONDS: "3600"}' > "$r15_knob_dir/flow-style.yml"
+  printf '%s\n' 'hang_idle_seconds="${HANG_IDLE_SECONDS:-600}"' 'hang_poll_seconds="${HANG_POLL_SECONDS:-30}"' '# HANG_IDLE_SECONDS is the watchdog idle threshold' 'description: HANG_POLL_SECONDS' > "$r15_knob_dir/controls.yml"
+  for r15_knob_fixture in "$r15_knob_dir"/workflow-level.yml "$r15_knob_dir"/job-level.yml "$r15_knob_dir"/caller-step.yml "$r15_knob_dir"/flow-style.yml; do
+    grep -qE "$r15_knob_pattern" "$r15_knob_fixture" || r15_bad="${r15_bad} behavioral(tree,watchdog-knob-env-mapping-self-test)"
+  done
+  if grep -qE "$r15_knob_pattern" "$r15_knob_dir/controls.yml"; then
+    r15_bad="${r15_bad} behavioral(tree,watchdog-knob-env-mapping-self-test)"
+  fi
+  rm -rf "$r15_knob_dir"
+fi
+if grep -rnE "$r15_knob_pattern" .github/workflows .github/actions >/dev/null 2>&1; then
+  r15_bad="${r15_bad} behavioral(tree,watchdog-knob-env-mapping)"
+fi
 if [ -z "$r15_bad" ]; then
-  check "R15" "model resilience wired: live-registry resolver + free-tier ladder rungs + boundary-aware per-rung retry with exit-0 terminal anchoring, a log-capture guard, loud exhaustion, and the bounded transient FreeTierError same-model retry (anchored detector, cap 1, loud persistent failure) in the shared runner and the maintainer inline path, with loud-failure verify steps on the Maintainer and general arm, all enforced behaviorally: the extracted detectors are executed functionally (terminal match; echo/envelope/suffix/stale/superset no-match; dotted-id match with the dot-lookalike no-match; case-sensitive forms, so an uppercase id line never matches; the tail window's lower-bound pair, 39 trailing lines must match and 40 must not), and both real runner run-blocks are executed loop-level against an executable mock opencode + mock sleep (transient recovery on both exit shapes with the exact bounded backoff asserted and its wait ordering proven, exactly one same-model retry, persistent loudness after two attempts with the provider's own distinct statuses propagated, rung advance preserved without consuming the free-tier budget, post-loop exhaustion reached and loud, the budget shared across three rungs with a rung-gated grant or theft caught, echo/suffix/stale non-match, a terminal line with trailing healthy lines still retrying, superset-id non-match, a dotted-candidate dot-lookalike nonzero line not advancing the rung, a failing log capture failing loudly at every failing tee status (one fixture each for 3, 1, and 2, so a live guard narrowed to a single status cannot pass), unclassified propagation, per-scenario timeout, and the extracted runner step proven the unique executing one: its header carries no conditional except the maintainer's exact shared actor-write gate form, unique invocation in the file, invocation present in the extracted block) (issues #591, #620, #696)" "ok"
+  check "R15" "model resilience wired: live-registry resolver + free-tier ladder rungs + boundary-aware per-rung retry with exit-0 terminal anchoring, a log-capture guard, loud exhaustion, the bounded transient FreeTierError same-model retry (anchored detector, cap 1, loud persistent failure), plus the #653 bounded transient 429/5xx same-model retry (anchored 429/5xx terminal detector, cap 1 shared across rungs, loud persistent failure) and the provider-stall watchdog (FIFO capture shape, HANG_IDLE_SECONDS/HANG_POLL_SECONDS growth poll, TERM/KILL of exactly the opencode and tee PIDs, one same-model retry after 10s, second stall loud, loud no-mkfifo fallback to the legacy pipeline) in the shared runner and the maintainer inline path, with loud-failure verify steps on the Maintainer and general arm, all enforced behaviorally: the extracted detectors are executed functionally (terminal match; echo/envelope/suffix/stale/superset no-match; dotted-id match with the dot-lookalike no-match; case-sensitive forms, so an uppercase id line never matches; the AI_RetryError summary and phrase variants never match; the tail window's lower-bound pair, 39 trailing lines must match and 40 must not; all executed under set -o pipefail with a ~160 KiB match-first window, so a grep -q SIGPIPE can never mask a terminal line), and both real runner run-blocks are executed loop-level under the exact production shell form (bash --noprofile --norc -eo pipefail) against an executable mock opencode + mock sleep (transient recovery on both exit shapes with the exact bounded backoff asserted and its wait ordering proven, exactly one same-model retry, persistent loudness after two attempts with the provider's own distinct statuses propagated, rung advance preserved without consuming the free-tier budget, post-loop exhaustion reached and loud, the free-tier budget shared across three rungs with a rung-gated grant or theft caught, echo/suffix/stale non-match, a terminal line with trailing healthy lines still retrying, superset-id non-match, a dotted-candidate dot-lookalike nonzero line not advancing the rung, a failing log capture failing loudly at every failing tee status (one fixture each for 3, 1, and 2, so a live guard narrowed to a single status cannot pass), unclassified status propagation in both capture shapes, per-scenario timeout, the #653 HTTP recovery on both exit shapes with the 30s backoff value-scoped and wait-ordered, persistent HTTP loud on both shapes with the provider status propagated, a stalled attempt killed by the watchdog and retried once on the same model after the 10s backoff (ordering proven), a second stall loud, per-class budget independence in both directions and cross-class budget interleaves (six interleave scenarios repeat a class after another class's retry was consumed, so an arithmetic reset of a spent budget inside any other class's retry branch, in either exit shape of the FT and HTTP branches plus the hang branch, spends an extra backoff and runs an extra attempt), the #653 HTTP and stall budgets proven arm-wide by cross-rung grant/advance pairs in the FIFO capture shape and at rung depth 3 by the widened/hang-widened grant and advance pairs (a widening or theft gated on the third rung spends an extra backoff or turns a healthy advance loud), the degraded no-mkfifo shape bound the same way for the free-tier and HTTP retries (a persistent degraded rejection failing loudly after exactly the bounded retry with its one backoff, and a degraded cross-rung HTTP grant spending exactly one 30s backoff, plus a static no-budget-assignment pin on the degraded branch, and its status/tee/stderr plumbing: an unclassified nonzero degraded death stays loud with its own status, a failing degraded tee fails loudly, and a stderr-borne terminal line still reaches the captured log so the bounded retry fires), the degraded no-mkfifo shape still honoring the free-tier retry contract loudly, the FIFO capture shape's \`2>&1\` stderr merge bound like the degraded probe (a stderr-borne terminal line must reach the captured log so the bounded retry fires on both exit shapes), the watchdog's silence accounting bound directly (a 30s-cadence/90s-threshold scenario where exactly three polling rounds must accumulate, a producing attempt kept alive past the threshold so a zeroed byte-size read cannot kill it, and an output-then-stall attempt whose post-output silence must accumulate through the re-arm), the watchdog's production defaults (600s idle / 30s poll) and its single bounded 5s TERM-to-KILL escalation grace whole-region pinned as exactly the hang-flag write, the ordered TERM oc, TERM tee, sleep 5, KILL oc, KILL tee sequence, and the exit, with nothing else (whitespace and 2>/dev/null tolerated, an inserted sleep or a shadowed KILL caught), and the whole FIFO capture prelude whole-region pinned line-exact so an inserted sleep anywhere in the watchdog or at the launch/reap path around it (before the tee launch, before the opencode launch, anywhere in the subshell outside the fire block: before the baseline read, after the poll, after the post-sleep liveness re-check, between the idle accumulation and the threshold, between the threshold and the warning echo, in the re-arm else branch, after the subshell close, after the watch_pid assignment, after the oc reap and status capture) also fails the audit, with a TERM-trapping attempt that can only complete its cleanup through the real grace window and a TERM-ignoring hang-child-ignores-term attempt that only SIGKILL can end (so a neutered KILL blocks into the scenario timeout), the watchdog loop gate and post-sleep liveness re-check pinned, the poll cadence bound to the poll knob, the inclusive -ge threshold and the post-growth reset to exactly zero line-anchored (a weakened re-arm would make the required silence grow with the attempt's productive duration), the nonzero Model-not-found advance site bound for all three budgets (a scenario per class spends its single retry, advances through that branch, and requires the repeat on the next rung to be loud persistent with exactly one backoff, with rung-depth-3 mirrors so a rung-gated reset at that site cannot resurrect a spent budget), the prefixed Error: Model not found: catch-handler form still advancing the rung (unanchored per-model grep pinned exactly, mnf-err-nz), the success path exiting 0 itself rather than falling through, and the Maintainer verify's loud exit 1 on a missing decision contract, a 160 KiB match-first terminal window still retrying the same model end-to-end, a zero poll override clamped to the production interval so the watchdog still kills and retries, and the extracted runner step proven the executing one: no if: (or \`if :\`, or the quoted \`\"if\":\` / \`'if':\` spellings) key anywhere in its whole step region (except, for the Maintainer runner only, the exact shared actor-write gate condition of issue #696, with the gate step present in the same file; the step name line through the next sibling \`- name:\` or EOF, so a step-level \`if: false\` inserted after the run block cannot skip the runner while the body stays pinned), its step key set bound too (no HANG_IDLE_SECONDS/HANG_POLL_SECONDS env override in either runner step, and a tree-wide static ban rejects any such env mapping anywhere in .github/workflows or .github/actions in block, quoted, caller-step, or flow spelling, since workflow-, job-, caller-step- and flow-level env all reach the runner and one declarative line can push the first watchdog fire past every step timeout, no continue-on-error/timeout-minutes key on the composite runner step, the Maintainer step's exact continue-on-error: true and timeout-minutes: 60 each present exactly once, and exactly one shell: key whose exact line is shell: bash), exactly the two #653 invocation sites allowed by the file-level count and both present in the extracted block, and each runner's entire extracted run block pinned line-exact against its regenerated normalized literal (leading/trailing whitespace and an optional trailing 2>/dev/null stripped, comment and blank lines dropped, compared as whole normalized line sequences so a rewrite merging two real lines into one cannot pass), so any inserted or modified non-comment line anywhere in the block (the pre-attempt header, the degraded no-mkfifo else branch, the post-fi classification/retry/budget logic) fails the audit alone) (issues #591, #620, #653, #696)" "ok"
 else
-  check "R15" "model resilience guard missing:${r15_bad} (issues #591/#620: one retired pin kills every arm at once, Model-not-found deaths conclude green, a transient free-tier rejection kills a gate with no bounded retry, or the retry loops unboundedly / concludes silently green / silently blind-advances past a failed log capture / misses a rejection inside its tail window / advances on a lookalike id / matches a terminal form in the wrong case / records a backoff it never waited / runs an unauthorized conditional (anything but the maintainer's exact shared actor-write gate form) or a shadowed runner step)" "bad"
+  check "R15" "model resilience guard missing:${r15_bad} (issues #591/#620/#653/#696: one retired pin kills every arm at once, Model-not-found deaths conclude green, a transient free-tier or 429/5xx rejection kills a gate with no bounded retry, a provider stall silently burns the whole tick, or the retries loop unboundedly / conclude silently green / silently blind-advance past a failed log capture / miss a rejection inside the tail window / miss a terminal line past the pipe buffer because the detector pipeline was not pipefail-safe / advance on a lookalike id / match a terminal form in the wrong case / record a backoff they never waited / busy-loop with a zero poll interval that silently disables the watchdog / run without the watchdog silently when mkfifo is unavailable / reset a retry budget inside the degraded no-mkfifo branch so the bounded retry loops unboundedly / silently green an unclassified death or swallow a failing tee in the degraded pipeline / drop a stderr-carried terminal line in the degraded pipeline so the bounded retry is lost / drop the FIFO shape's stderr merge so a stderr-carried terminal line never reaches the captured log / watchdog accounting that never accumulates toward the threshold, kills a live producer, or never re-arms after growth / reset a retry budget at the nonzero Model-not-found advance site (even behind a later-rung gate) so a spent budget resurrects / reset another class's retry budget so an already-spent budget silently retries again / widen or steal the HTTP or stall budget gated on a later rung / pin a wrong watchdog default (idle or poll) or an unbounded TERM-to-KILL grace / reorder, widen, or neuter the fire-block escalation (KILL before or back-to-back with TERM, an inserted sleep, a shadowed KILL) so a TERM-trapping attempt can never finish its cleanup and a TERM-ignoring attempt can never be ended / splice an unknown line anywhere outside the fire block (the watchdog loop, or the FIFO capture prelude's launch, reap, or cleanup path around the subshell) so the abort or the bounded retry is delayed past every step timeout / drop the watchdog liveness gate or its post-sleep re-check / decouple the poll cadence from the poll knob, weaken the inclusive threshold, or re-arm the accumulator with anything but an exact reset to zero / anchor the nonzero-MNF grep at column 0 so the prefixed Error: form loses the rung advance / splice or rewrite any non-comment line outside the bound sub-regions of a runner block (the pre-attempt header, the degraded no-mkfifo else branch, the post-fi classification/retry/budget logic) so a one-line insertion delays or neuters the attempt start, the retry, or the rejection handling while every sub-region pin stays satisfied / turn the success path's exit 0 into a silent fall-through / hollow-green the Maintainer verify / run a conditional or shadowed runner step (anything but the Maintainer runner's exact shared actor-write gate form; including a step-level \`if:\` key placed after the run block, the \`if :\` spelling, or the quoted \`\"if\":\` / \`'if':\` spellings) / override the runner step's watchdog knobs through its step env (HANG_IDLE_SECONDS/HANG_POLL_SECONDS) or set either knob through any workflow-, job-, caller-step-, or flow-style env mapping in .github/workflows or .github/actions, add continue-on-error/timeout-minutes to the composite runner step, drop, alter, quote, or duplicate the Maintainer step's exact continue-on-error: true / timeout-minutes: 60 lines, override the runner step's \`shell:\` so the audited execution form differs from production, or add a second shell: key / merge two pinned lines into one to evade the exact compare)" "bad"
 fi
 
 # [R16] Shallow-workspace PAT merge guard (issue #602): the PAT-backed merge
@@ -4882,7 +6379,7 @@ if [ "$fail" -gt 0 ]; then
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier retry, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, or R25 lab/fix agent cap headroom). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, or R25 lab/fix agent cap headroom). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
