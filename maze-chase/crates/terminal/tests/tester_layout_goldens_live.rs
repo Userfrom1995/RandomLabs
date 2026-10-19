@@ -9,16 +9,20 @@
 //!    the wire bytes, and the `MAZE_CHASE_TRACE` plan record must carry
 //!    the new pixel/image fields the fix added.
 //! 2. `live_resize_walk_matches_the_pure_solver` - one session walked
-//!    across every column and row family of the 2..8 x 1..4 scale grid;
-//!    each settled frame's display footprint and cursor must equal the
-//!    pure solver's `image` rect for that size, so the binary and the
-//!    layout crate can never diverge on any reachable plan.
+//!    across every column and row family of the 2..8 x 1..4 scale grid
+//!    plus the documented 399x62 coverage-floor case; each settled
+//!    frame's display footprint and cursor must equal the pure solver's
+//!    `image` rect for that size, so the binary and the layout crate can
+//!    never diverge on any reachable plan.
 //! 3. `live_pixel_reports_map_the_raster_onto_the_solver_footprint` -
 //!    real TIOCGWINSZ pixel reports on the live PTY: the wire footprint
 //!    and cursor must equal the in-process solver's `image` rect for a
-//!    wide golden, a tall golden, and the documented tiny-pixel-window
-//!    case where the 6-ppt legibility floor wins; the Sixel tier must
-//!    paint from the same centered origin instead of the board origin.
+//!    wide golden, a tall golden, the documented tiny-pixel-window case
+//!    where the 6-ppt legibility floor wins, and the 80x63 / 8x6-cell
+//!    case where the 2x1 compact floor must keep the plan at two columns
+//!    per tile; the Sixel tier must paint from the same centered origin
+//!    when pixels are reported and from the board origin (natural size)
+//!    when they are not.
 #![cfg(unix)]
 
 use std::io::{Read, Write};
@@ -408,9 +412,12 @@ fn live_kitty_goldens_cover_wide_and_tall_rooms() {
 }
 
 /// One live session walked across every column family (2..8) and row
-/// family (1..4) of the scale grid: each settled frame's display
-/// footprint and cursor must equal the pure solver's `image` rect, so
-/// the shipped render path and the layout crate can never disagree.
+/// family (1..4) of the scale grid, plus the 399x62 window that
+/// `docs/terminal.md` cites as the measured coverage floor of the
+/// 62..400 x 35..120 sweep: each settled frame's display footprint and
+/// cursor must equal the pure solver's `image` rect, so the shipped
+/// render path and the layout crate can never disagree, and the cited
+/// 280/1000 floor figure itself is pinned against the solver.
 #[test]
 fn live_resize_walk_matches_the_pure_solver() {
     let mut s = Session::start("walk", 62, 35, 0, 0, "kitty", None);
@@ -427,6 +434,7 @@ fn live_resize_walk_matches_the_pure_solver() {
         (137, 84),  // 4x2 band
         (64, 90),   // 2x2 band (same footprint as 62x80, different origin)
         (300, 40),  // 8x1 side
+        (399, 62),  // the documented coverage-floor case (E1)
     ];
     for &(cols, rows) in sizes {
         let l = layout::compute(cols, rows);
@@ -448,13 +456,28 @@ fn live_resize_walk_matches_the_pure_solver() {
         assert!(s.alive(), "{cols}x{rows}: session died");
     }
     s.assert_no_panic();
+
+    // The public docs cite the measured sweep floor exactly: 399x62 is
+    // the worst case of the 62..400 x 35..120 sweep at 280/1000
+    // (`docs/terminal.md`, the E1-scoped coverage sentence). Pin the
+    // figure so the doc claim and the solver can never drift apart.
+    let floor = layout::compute(399, 62);
+    let cov = floor.board.w as u64 * floor.board.h as u64 * 1000 / (399 * 62);
+    assert_eq!(
+        cov, 280,
+        "the documented 399x62 sweep floor changed: {cov}/1000"
+    );
 }
 
 /// Pixel reports from the live tty: the wire display footprint and the
 /// cursor must equal the in-process solver's `image` rect for a wide
-/// golden, a tall golden, and the tiny-pixel-window case where the 6-ppt
-/// legibility floor clamps the image; the Sixel tier must start painting
-/// from the same centered origin instead of the board origin.
+/// golden, a tall golden, the tiny-pixel-window case where the 6-ppt
+/// legibility floor clamps the image, and the 80x63 / 8x6-cell case
+/// where the 2x1 compact floor keeps the pixel path at two columns per
+/// tile; the Sixel tier must start painting from the same centered
+/// origin when pixels are reported, and from the board origin at the
+/// natural nominal raster size when they are not (the documented
+/// per-tier fallback in `layout.rs` and `docs/terminal.md`).
 #[test]
 fn live_pixel_reports_map_the_raster_onto_the_solver_footprint() {
     // 200x60 with 10x20 cells: a wide golden under a real pixel report.
@@ -578,6 +601,71 @@ fn live_pixel_reports_map_the_raster_onto_the_solver_footprint() {
         l.image
     );
     sixel.assert_no_panic();
+
+    // No pixel report on the Sixel tier: the documented per-tier
+    // fallback paints the natural-size nominal raster from the board
+    // origin, unlike the centered footprint the reported path uses.
+    let mut sixel_nopx = Session::start("sixelnopx", 200, 60, 0, 0, "sixel", None);
+    sixel_nopx.reach_playing(HINT_MARKER);
+    assert!(
+        sixel_nopx.wait("\x1bPq", Duration::from_secs(10)),
+        "the no-report sixel raster never painted; tail: {}",
+        tail(&sixel_nopx.out)
+    );
+    let nominal = layout::compute(200, 60);
+    assert_eq!(
+        nominal.image, nominal.board,
+        "with no report the image footprint is the full board box"
+    );
+    let text = String::from_utf8_lossy(&sixel_nopx.out).into_owned();
+    let at = text.find("\x1bPq").expect("sixel escape present");
+    let esc = text[..at]
+        .rfind("\x1b[")
+        .expect("a cursor move precedes it");
+    let tail_txt = &text[esc + 2..];
+    let end = tail_txt.find('H').expect("complete cursor position");
+    let mut parts = tail_txt[..end].split(';');
+    let row: u16 = parts.next().unwrap().parse().expect("row");
+    let col: u16 = parts.next().unwrap().parse().expect("col");
+    assert_eq!(
+        (row, col),
+        (nominal.board.y + 1, nominal.board.x + 1),
+        "the no-report sixel raster must paint from the board origin"
+    );
+    sixel_nopx.assert_no_panic();
+
+    // The pixel-path compact floor: 80x63 with an 8x6 cell report used
+    // to tie a 1x2 side plan against the 2x2 minimal plan and win the
+    // chrome tie-break; the floor skip in the solver must keep two
+    // columns per tile, and the live wire must follow the 2x2 plan.
+    let mut floor = Session::start("pxfloor", 80, 63, 640, 378, "kitty", None);
+    floor.reach_playing(HINT_MARKER);
+    let l = layout::compute_pixels(
+        80,
+        63,
+        Some(PixelGeometry {
+            cell: (8, 6),
+            window: Some((640, 378)),
+        }),
+    );
+    assert!(l.is_pixels());
+    assert_eq!(
+        (l.cell_cols, l.cell_rows),
+        (2, 2),
+        "the pixel path must pick the 2x2 minimal plan, never a 1-column scale"
+    );
+    assert!(
+        floor.wait_display(
+            l.image.h as u32,
+            l.image.w as u32,
+            (l.image.y + 1, l.image.x + 1),
+            Duration::from_secs(10)
+        ),
+        "80x63 @8x6: wire must match the solver image {:?}; tail: {}",
+        l.image,
+        tail(&floor.out)
+    );
+    floor.assert_no_panic();
 }
 
 /// A live animated session in the wide golden room: several seconds of
