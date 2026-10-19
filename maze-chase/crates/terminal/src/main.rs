@@ -987,7 +987,9 @@ fn render_frame(
                 out.push_str(&maze_chase_terminal::kitty::free_image_escape(
                     maze_chase_terminal::kitty::ATLAS_IMAGE_ID,
                 ));
-                kitty.invalidate();
+                // The screen-change path already invalidated the renderer
+                // when this surface was entered; the release bytes above
+                // are what actually frees the images.
             }
             paint_panel(
                 out,
