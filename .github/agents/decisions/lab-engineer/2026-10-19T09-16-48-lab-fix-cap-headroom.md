@@ -55,8 +55,9 @@ implementation, all closed before handoff:
   step name and its cap, so renaming the real agent step (lowered cap) and
   planting a dummy canonical-named step with a compliant timeout passed
   25/25. R25 now requires the canonical step to be the job's unique
-  `uses: ./.github/actions/opencode-run` invocation (and counts the
-  invocation in the job).
+  `uses: ./.github/actions/opencode-run` invocation, matched as the whole
+  YAML value (a switched action reference such as `opencode-run-v2` cannot
+  count), and counts that invocation in the job.
 - **Leading-zero literals:** `^[0-9]+$` accepted `0150`/`0120`, which YAML
   1.1 can read as octal while bash reads decimal, so the audited value could
   differ from the runner's. R25 now accepts only `^[1-9][0-9]{0,3}$`
