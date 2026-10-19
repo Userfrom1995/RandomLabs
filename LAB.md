@@ -451,8 +451,9 @@ Public Surface / Web Track:                                              │
   carrying separate `gh`, `issue`, and `create`
   tokens in one command line is a known accepted false-positive shape),
   repo-local scripts
-  executed by the pinned pre-handler steps in any standard invocation
-  spelling (bash/sh/source, optional flags, absolute or quoted paths)
+  executed by the pinned pre-handler steps in the invocation spellings
+  the pinned workflow uses (bash/sh/source, optional flags, absolute or
+  quoted paths)
   byte-pinned by SHA-256 to reviewed bodies, with any unexpected script
   path or changed body failing loudly (review finding F44: a
   `/usr/local/bin/gh` plant or `sudo install ... /usr/bin/gh`, and a
