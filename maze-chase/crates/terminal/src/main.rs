@@ -828,6 +828,9 @@ fn compose_frame(
         out.push_str(&maze_chase_terminal::kitty::free_image_escape(
             maze_chase_terminal::kitty::ATLAS_IMAGE_ID,
         ));
+        if !kitty.placements {
+            out.push_str(&maze_chase_terminal::kitty::free_image_escape(1));
+        }
     }
     render_frame(app, out, fresh, kitty)
 }
@@ -1704,6 +1707,40 @@ mod tests {
             "no release bytes when the session never left Kitty"
         );
         assert!(!staying.starts_with(&trio));
+    }
+
+    #[test]
+    fn leaving_kitty_frees_the_whole_frame_image_without_placements() {
+        use maze_chase_terminal::kitty;
+        let mut app = App::new(80, 24, &[], std::path::PathBuf::from("."));
+        let mut kitty_renderer = KittyRenderer::new(false);
+        let release = format!(
+            "{}{}{}{}",
+            kitty::delete_all_escape(),
+            kitty::free_image_escape(kitty::STATIC_IMAGE_ID),
+            kitty::free_image_escape(kitty::ATLAS_IMAGE_ID),
+            kitty::free_image_escape(1),
+        );
+        let mut leaving = String::new();
+        let _ = compose_frame(&mut app, &mut leaving, true, &mut kitty_renderer, true);
+        assert!(
+            leaving.starts_with(&release),
+            "leaving Kitty with the whole-frame fallback must free image 1 too"
+        );
+
+        let mut atlas_renderer = KittyRenderer::new(true);
+        let mut atlas_leaving = String::new();
+        let _ = compose_frame(
+            &mut app,
+            &mut atlas_leaving,
+            true,
+            &mut atlas_renderer,
+            true,
+        );
+        assert!(
+            !atlas_leaving.contains(&kitty::free_image_escape(1)),
+            "the atlas path never created the whole-frame image, so it must not free it"
+        );
     }
 
     #[test]
