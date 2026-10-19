@@ -854,8 +854,9 @@ class TestCollectorHonestyGates(unittest.TestCase):
 
     def test_bitmap_blank_share_in_the_old_gap_is_downgraded(self):
         # A blank board with a few stale pixels sat between 0.90 and 0.98
-        # dominant share and slipped past the old 0.98 bound; every
-        # committed playing capture is <=0.7113, so the bound is 0.90.
+        # dominant share and slipped past the old 0.98 bound; the
+        # committed bitmap-tier playing-family maximum is 0.6427, so
+        # the bound is 0.90.
         pixels = [24, 16, 12] * 9500 + [230, 230, 230] * 500
         png = make_rgb_png(100, 100, pixels)
         transcript = b"\x1b[1;1HVIDEO  sixel\r\n" + b" " * 200
