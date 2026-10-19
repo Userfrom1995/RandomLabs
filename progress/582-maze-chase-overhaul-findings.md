@@ -69,8 +69,8 @@ reply-drain fix is a compatibility bugfix, not a feature.
 Resolved in Phase 3 (2026-10-19): steady transmits are silent (`q=2`),
 the static layer and sprite atlas transmit once per change, and every
 frame moves cached placements instead of the board. The same
-choreography on kitty 0.32.2 now sends 23 transmits / 170.0 KiB of PNG
-payload for the whole session (playing 20.7 fps, 5.6 KiB mean frame)
+choreography on kitty 0.32.2 now sends 21 transmits / 156.1 KiB of PNG
+payload for the whole session (playing 20.7 fps, 5.4 KiB mean frame)
 and exits cleanly (`evidence/kitty-linux-auto.json`, refreshed on
 2026-10-19). The
 ledger's pre-fix figures above describe the regenerated bundle's
@@ -108,7 +108,7 @@ experiment with the game's exact probe request
 compositing the opaque board above the sprite atlas on Ghostty (every
 sprite invisible, zero palette pixels in its captures); placements now
 carry explicit `z` stacking layers. Ghostty observes `kitty-graphics`
-and passes both its auto and forced rows at 23 transmits / 187.2 KiB
+and passes both its auto and forced rows at 21 transmits / 160.1 KiB
 per session with sprite visibility proven by the capture census. RT-2
 is closed.
 
@@ -131,7 +131,7 @@ geometry model with cell pixel size, exact-fit image rendering.
 Resolved in Phase 2: the fixed 224x248 raster above is the Phase 1
 finding; the current bundle carries dynamic sizes re-derived from the
 plan and real cell pixels (`first_transmit_png` 420x465 in
-`kitty-linux-auto.json`, 476x527 under Ghostty; the 1x1 entries in the
+`kitty-linux-auto.json`, 448x496 under Ghostty; the 1x1 entries in the
 xterm rows are the bounded Kitty probe's image, not a frame).
 
 ### RT-4: resize leaves stale frames and stale placements on screen
@@ -159,11 +159,12 @@ resize contract with same-frame repaint and stale-placement kill.
 (confirmed, positive)
 
 xterm 390 in VT340 mode answers the DA1 probe with sixel support and the
-sixel tier paints real pixels: 146 transmits, 3.66 MiB of payload for
-the whole session on the current build (2026-10-19 regeneration).
-Before Phase 3 the kitty path was far worse (1642 transmits / 348.6 MiB
-in `kitty-linux-auto`); after the placement pipeline it is cheaper than
-full-frame sixel (23 transmits / 170.0-187.2 KiB), because only changed
+sixel tier paints real pixels: 140-141 transmits, 3.39-3.41 MiB of
+payload for the whole session on the current build (2026-10-19
+regeneration). Before Phase 3 the kitty path was far worse (1642
+transmits / 348.6 MiB in `kitty-linux-auto`); after the placement
+pipeline it is cheaper than full-frame sixel (21 transmits /
+156.1-160.1 KiB), because only changed
 placements cross the wire. Input and exit work in both
 sixel rows (the committed surface counters show the pause, help,
 scores, and settings surfaces painting in their own phases; clean
@@ -194,7 +195,7 @@ baseline later phases must not regress; the kitty tier is the outlier,
 not the cell paths.
 
 The default light-background xterm row is the deliberate contrast case:
-the same binary, same choreography, and a clean exit, but 6 of its 10
+the same binary, same choreography, and a clean exit, but 7 of its 10
 captures are >=98% white because the cream chrome text is unreadable on
 white (`evidence/xterm-linux-auto.json`, `light_background_captures`).
 The harness downgrades that row to `partial` instead of signing a pass
@@ -345,7 +346,7 @@ named phase; Phase 1 files them, later phases close them.
   xterm (RT-5), and the legacy/truecolor cell boards render correctly
   and glitch-free (RT-6).
 - The kitty graphic raster itself displays: the 224x248 PNG (Phase 1
-  size; the dynamic raster is 420x465/476x527 per RT-3's resolution)
+  size; the dynamic raster is 420x465/448x496 per RT-3's resolution)
   arrives and paints; the artifacts are the fixed-size stretch (RT-3),
   stale composition (RT-4), and the reply-loop flood (RT-1), not a
   broken encoder or raster.
