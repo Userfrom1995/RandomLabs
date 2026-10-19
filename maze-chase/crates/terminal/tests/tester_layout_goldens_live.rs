@@ -591,11 +591,11 @@ fn live_wide_room_animates_and_steers_without_footprint_drift() {
     s.clear_output();
 
     for _ in 0..6 {
-        (&mut s.pty.master).write_all(b"\x1b[A").unwrap();
+        s.pty.master.write_all(b"\x1b[A").unwrap();
         std::thread::sleep(Duration::from_millis(60));
-        (&mut s.pty.master).write_all(b"d").unwrap();
+        s.pty.master.write_all(b"d").unwrap();
         std::thread::sleep(Duration::from_millis(60));
-        (&mut s.pty.master).write_all(b"s").unwrap();
+        s.pty.master.write_all(b"s").unwrap();
         std::thread::sleep(Duration::from_millis(60));
     }
     s.collect_for(Duration::from_millis(1500));
