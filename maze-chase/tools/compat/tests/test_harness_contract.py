@@ -216,10 +216,10 @@ def make_gray_alpha_png(width, height, gray, alpha=255, bit_depth=8):
     )
 
 
-def run_collect(run_dir, evidence_dir, *extra):
+def run_collect(run_dir, evidence_dir, *extra, os_name="linux"):
     return subprocess.run(
         [sys.executable, COLLECT_PY, "--run-dir", run_dir,
-         "--emulator", "xterm", "--os", "linux", "--tier", "auto",
+         "--emulator", "xterm", "--os", os_name, "--tier", "auto",
          "--evidence-dir", evidence_dir, "--row-name", "unit-test-row",
          *extra],
         capture_output=True, text=True,
@@ -532,6 +532,38 @@ class TestCollectorHonestyGates(unittest.TestCase):
             f"tier gate fired with an observed tier: {row['notes']}",
         )
 
+    def test_windows_pass_without_a_transcript_is_not_downgraded(self):
+        # Windows rows carry no pty transcript by design (run-windows.ps1)
+        # and are graded from the process record plus the capture set, so
+        # the tier-observation gate must not misgrade every Windows pass.
+        run_dir = make_run_dir(
+            os.path.join(self.tmp, "run-windows-notier"),
+            screenshot_name="playing.png",
+            create_png=make_rgb_png(2, 2, [24, 16, 12] * 3 + [255, 225, 130]),
+            transcript=b"",
+            checkpoint="playing",
+            meta_extra={"transcript": None},
+        )
+        evidence = os.path.join(self.tmp, "evidence-windows-notier")
+        proc = run_collect(run_dir, evidence, "--result", "pass",
+                           "--tier", "kitty", os_name="windows")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            row = json.load(fh)
+        self.assertEqual(row["os"], "windows")
+        self.assertIsNone(row["tier_observed"])
+        self.assertEqual(
+            row["disposition"], "pass",
+            "a Windows pass with no transcript was misgraded by the "
+            "tier-observation gate",
+        )
+        self.assertFalse(
+            any("never named the active video tier" in note
+                for note in row["notes"]),
+            f"tier gate fired on a Windows row: {row['notes']}",
+        )
+
     def test_playing_gates_match_phase_names_case_insensitively(self):
         # Phase names are generator-controlled, but a `Playing`-cased
         # checkpoint must not silently drop out of the playing gates (a
@@ -594,6 +626,8 @@ class TestCollectorHonestyGates(unittest.TestCase):
             ("empty", {"build": {}}),
             ("partial", {"build": {"commit": "0" * 40}}),
             ("blank", {"build": {"commit": "", "binary_sha256": "a" * 64}}),
+            ("whitespace", {"build": {"commit": " " * 40,
+                                      "binary_sha256": " " * 64}}),
         )
         for name, meta_extra in shapes:
             run_dir = make_run_dir(
@@ -776,6 +810,60 @@ class TestCollectorHonestyGates(unittest.TestCase):
         with open(os.path.join(evidence, "unit-test-row.json"),
                   encoding="utf-8") as fh:
             row = json.load(fh)
+        self.assertEqual(row["disposition"], "partial")
+        self.assertTrue(
+            any(">=98% one color" in note for note in row["notes"]),
+            f"missing blank-board reason in {row['notes']}",
+        )
+
+    def _sixel_cased_resize_row(self, phase_name):
+        """A sixel row with a mixed playing capture and a flat
+        resize-phase capture under the given phase-name casing."""
+        mixed = make_rgb_png(
+            100, 100,
+            [24, 16, 12] * 5000 + [230, 230, 230] * 4999 + [255, 225, 130],
+        )
+        flat = make_rgb_png(100, 100, [24, 16, 12] * (100 * 100))
+        transcript = b"\x1b[1;1HVIDEO  sixel\r\n" + b" " * 200
+        run_dir = make_run_dir(
+            os.path.join(self.tmp, f"run-cased-{phase_name}"),
+            screenshot_name="playing.png",
+            create_png=mixed,
+            transcript=transcript,
+            checkpoint="playing",
+        )
+        shots = os.path.join(run_dir, "session", "screenshots")
+        with open(os.path.join(shots, f"{phase_name}.png"), "wb") as fh:
+            fh.write(flat)
+        with open(os.path.join(run_dir, "session", "events.log"),
+                  "w", encoding="utf-8") as fh:
+            fh.write("100\tcheckpoint\tplaying\t100\t"
+                     "session/screenshots/playing.png\n")
+            fh.write(f"200\tcheckpoint\t{phase_name}\t200\t"
+                     f"session/screenshots/{phase_name}.png\n")
+            fh.write("300\texit\texited=true killed=false\t200\t\n")
+        evidence = os.path.join(self.tmp, f"evidence-cased-{phase_name}")
+        proc = run_collect(run_dir, evidence, "--result", "pass",
+                           "--tier", "sixel")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def test_sixel_cased_refit_capture_is_downgraded(self):
+        # The resized/refit predicates must normalize their phase names
+        # like the playing predicate; a `Refit`-cased phase used to skip
+        # the blank-board gate entirely.
+        row = self._sixel_cased_resize_row("Refit")
+        self.assertEqual(row["disposition"], "partial")
+        self.assertTrue(
+            any(">=98% one color" in note for note in row["notes"]),
+            f"missing blank-board reason in {row['notes']}",
+        )
+
+    def test_sixel_cased_resized_capture_is_downgraded(self):
+        # The same hole for a `Resized-Wide`-cased phase name.
+        row = self._sixel_cased_resize_row("Resized-Wide")
         self.assertEqual(row["disposition"], "partial")
         self.assertTrue(
             any(">=98% one color" in note for note in row["notes"]),

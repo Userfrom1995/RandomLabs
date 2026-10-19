@@ -785,9 +785,9 @@ def main():
     if not (
         isinstance(build, dict)
         and isinstance(build.get("commit"), str)
-        and build.get("commit")
+        and build.get("commit").strip()
         and isinstance(build.get("binary_sha256"), str)
-        and build.get("binary_sha256")
+        and build.get("binary_sha256").strip()
     ):
         # Provenance is part of the evidence: a bundle that cannot name
         # the commit and binary that produced it says so instead of
@@ -905,11 +905,15 @@ def main():
     # the reasons all land even when several gates fire together.
     disposition = args.result
     notes = collect_notes(args, meta)
-    # Tier-observation honesty: every bitmap gate below is keyed on the
+    # Tier-observation honesty: on platforms whose sessions carry a
+    # transcript (Linux/macOS), every bitmap gate below is keyed on the
     # observed tier, so a transcript that never names it (no VIDEO line
     # and no `video tier:` line) would skip all of them. A pass cannot
     # rest on a surface the collector could not classify; fail closed.
-    if args.result == "pass" and tier is None:
+    # Windows rows carry no transcript by design (run-windows.ps1) and
+    # are graded from the process record plus the capture set instead, so
+    # this gate does not apply there.
+    if args.result == "pass" and tier is None and args.os_name != "windows":
         disposition = "partial"
         notes.append(
             "recorded partial by collect.py: the transcript never named the "
@@ -944,17 +948,17 @@ def main():
     # while signed pass). The white-share gate above only sees light
     # backgrounds; this one sees a dark blank board too.
     if args.result == "pass" and tier in ("kitty-graphics", "sixel"):
-        blank_captures = [
-            phase["name"]
-            for phase in result["phases"]
-            if phase.get("screenshot")
-            and (
-                str(phase.get("name", "")).lower().startswith("playing")
-                or "resized" in str(phase.get("name", ""))
-                or str(phase.get("name", "")) == "refit"
-            )
-            and phase.get("dominant_share", 0.0) >= 0.98
-        ]
+        blank_captures = []
+        for phase in result["phases"]:
+            name = str(phase.get("name", "")).lower()
+            if not phase.get("screenshot"):
+                continue
+            if not (name.startswith("playing")
+                    or "resized" in name
+                    or name == "refit"):
+                continue
+            if phase.get("dominant_share", 0.0) >= 0.98:
+                blank_captures.append(phase["name"])
         if blank_captures:
             disposition = "partial"
             notes.append(
