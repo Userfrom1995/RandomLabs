@@ -70,7 +70,7 @@ Resolved in Phase 3 (2026-10-19): steady transmits are silent (`q=2`),
 the static layer and sprite atlas transmit once per change, and every
 frame moves cached placements instead of the board. The same
 choreography on kitty 0.32.2 now sends 21 transmits / 156.1 KiB of PNG
-payload for the whole session (playing 20.7 fps, 5.4 KiB mean frame)
+payload for the whole session (playing 20.6 fps, 5.5 KiB mean frame)
 and exits cleanly (`evidence/kitty-linux-auto.json`, refreshed on
 2026-10-19). The
 ledger's pre-fix figures above describe the regenerated bundle's
@@ -159,7 +159,7 @@ resize contract with same-frame repaint and stale-placement kill.
 (confirmed, positive)
 
 xterm 390 in VT340 mode answers the DA1 probe with sixel support and the
-sixel tier paints real pixels: 140-141 transmits, 3.39-3.41 MiB of
+sixel tier paints real pixels: 141 transmits, 3.41 MiB of
 payload for the whole session on the current build (2026-10-19
 regeneration). Before Phase 3 the kitty path was far worse (1642
 transmits / 348.6 MiB in `kitty-linux-auto`); after the placement

@@ -17,7 +17,7 @@
 
 - Phase 1: Product Reassessment and Real-Terminal Truth: [x] real-terminal driver harness (`maze-chase/tools/compat/`: `run-linux.sh`, `run-macos.sh`, `run-windows.ps1`, `drive.sh`, `collect.py`, `README.md`), [x] reproduce the Owner's Ghostty and Kitty findings on current main with recorded evidence (kitty reply-loop flood plus input delayed past the session, Ghostty mis-routing despite its kitty-graphics support; eight executed Linux rows in `maze-chase/tools/compat/evidence/`), [x] critical reassessment of engine, layers, and docs claims (four parallel sweeps; Section B of the ledger), [x] findings ledger with every gap (`progress/582-maze-chase-overhaul-findings.md`), [x] honest compatibility matrix scaffold `maze-chase/docs/terminal-compat.md` (executed rows plus named executors for host-pending rows), [ ] new sub-issues routed through the Maintainer (proposed set in ledger Section C; filing is the Maintainer's next step, not done in this PR) (PR 1 target, Refs #582, Refs #655, Refs #661)
 - Phase 2: Dynamic Terminal Layout and Full-Window Composition: [x] geometry model with cell pixel size (`crates/terminal/src/geometry.rs`; TIOCGWINSZ pixel fields on Unix, console font on Windows, nominal 8x16 fallback), [x] pure layout solver (2..8 x 1..4 scale grid at the 2x1 compact floor with coverage-first selection; side panel, HUD band, hint-only by fit; exact 62x35 card; golden plans 200x60 -> 7x1 and 62x80 -> 2x2), [x] bounded centered image rendering at the real pixel geometry (raster fit to the board's pixel box; image footprint mapped through the window pixels, so Kitty never stretches and the Sixel raster stays inside the board's pixel box whenever the box can host the 6-ppt legibility floor, and absurdly tiny pixel windows keep the documented floor and may overflow; 8-ppt nominal fallback), [x] continuous cell-tier scales (`unicode::fit_width`/`center_rows` at any scale), [x] resize contract with same-frame repaint and stale-placement kill (`ESC[2J` plus Kitty delete-all in the new frame; pinned by `tests/plan_contract.rs`), [x] tier-aware too-small card (reads `layout.min_cols/min_rows`; exact 62x35 boundary pinned), [ ] real-emulator resize proof on Linux and macOS (the PTY proof landed with this PR; the real rows are per-OS tester work, no emulator exists on the build machine) (PR 2 target, Refs #582, Refs #656)
-- Phase 3: Terminal Render Pipeline and Compatibility Proof: [x] bounded live Kitty probe with byte replay plus the Sixel DA1 probe (the probe requires both the transmit and placement replies before it reads a verdict; Ghostty 1.3.1 answers the probe when one is sent, and its rows select the graphics path from `TERM_PROGRAM=ghostty`/`TERM=xterm-ghostty` without probing), [x] atlas plus placement composition with full-frame fallback (static layer and sprite atlas once per change, stable-id placement diffs, single-placement `d=i` deletes, explicit `z` stacking layers, DEFLATE PNG), [x] dirty-change detection and wall-clock pacing with backpressure (visual-change key, per-tier rates, 8 MiB/s byte ceiling, 1 Hz idle keepalive), [x] Sixel path hardening (64-color cap, 2 MiB frame ceiling with smaller-palette retry and an honest `cells-fallback` trace mode), [x] capability-aware probe plus write-path watchdog (`OK`/`ENOENT` replies decide kitty support; `q=2` keeps steady transmits silent, and the watchdog drops a tier after 3 failed frame writes with the reason recorded), [x] `MAZE_CHASE_TRACE` JSONL evidence mode (plan, frame mode/placements/static/atlas/encode time, skips, probe results), [x] kitty and ghostty rows signed on Linux plus conventional terminals (kitty and Ghostty both `kitty-graphics` pass at 21 transmits / 156.1-160.1 KiB per session with sprite visibility proven by capture census; xterm auto partial only for its light-background palette, 7 of 10 captures >=98% white; xterm dark passes on cells; the VT340 sixel rows pass at 140-141 transmits / 3.39-3.41 MiB), [ ] macOS matrix rows signed by the macOS Tester (PR 3 target, Refs #582, Refs #655)
+- Phase 3: Terminal Render Pipeline and Compatibility Proof: [x] bounded live Kitty probe with byte replay plus the Sixel DA1 probe (the probe requires both the transmit and placement replies before it reads a verdict; Ghostty 1.3.1 answers the probe when one is sent, and its rows select the graphics path from `TERM_PROGRAM=ghostty`/`TERM=xterm-ghostty` without probing), [x] atlas plus placement composition with full-frame fallback (static layer and sprite atlas once per change, stable-id placement diffs, single-placement `d=i` deletes, explicit `z` stacking layers, DEFLATE PNG), [x] dirty-change detection and wall-clock pacing with backpressure (visual-change key, per-tier rates, 8 MiB/s byte ceiling, 1 Hz idle keepalive), [x] Sixel path hardening (64-color cap, 2 MiB frame ceiling with smaller-palette retry and an honest `cells-fallback` trace mode), [x] capability-aware probe plus write-path watchdog (`OK`/`ENOENT` replies decide kitty support; `q=2` keeps steady transmits silent, and the watchdog drops a tier after 3 failed frame writes with the reason recorded), [x] `MAZE_CHASE_TRACE` JSONL evidence mode (plan, frame mode/placements/static/atlas/encode time, skips, probe results), [x] kitty and ghostty rows signed on Linux plus conventional terminals (kitty and Ghostty both `kitty-graphics` pass at 21 transmits / 156.1-160.1 KiB per session with sprite visibility proven by capture census; xterm auto partial only for its light-background palette, 7 of 10 captures >=98% white; xterm dark passes on cells; the VT340 sixel rows pass at 141 transmits / 3.41 MiB, and every row records its generating build commit plus binary SHA-256 in its `build` block), [ ] macOS matrix rows signed by the macOS Tester (PR 3 target, Refs #582, Refs #655)
 - Phase 4: Visual Identity Redesign: [ ] Design Council direction consumed (dispatched by the Maintainer before this phase), [ ] resolution-aware character and environment art, [ ] effects and animation system, [ ] refreshed themes with accessibility tests green, [ ] all three layers integrated with real captures (PR 4 target, Refs #582, Closes #658)
 - Phase 5: Sound Design Overhaul: [ ] new musical score with one BPM source, [ ] soft short effect bank, [ ] mix architecture with fades and safe defaults, [ ] terminal chime policy default-off, [ ] per-layer real-host review and settings round-trip (PR 5 target, Refs #582, Closes #659)
 - Phase 6: Release Engineering and Multi-Platform Distribution: [ ] version single source plus tag parity gate, [ ] Linux deb and rpm plus tarballs for both layers, [ ] Windows installer plus zip, [ ] macOS app plus dmg plus tarball, [ ] install/launch/uninstall smoke scripts, [ ] `maze-chase-release.yml` pipeline via the Lab Engineer, [ ] release candidate artifacts on the official Releases page, [ ] install/upgrade/uninstall docs (PR 6 target, Refs #582, Closes #657)
@@ -48,21 +48,30 @@ plan, probe answers, per-frame mode and counts, encode time, and skips
 for the harness.
 
 Measured on this build (all eight Linux rows regenerated 2026-10-19
-from the binary at `af1c1496`): kitty 0.32.2 observes
+from the release binary built at `97e8865d`, binary SHA-256
+`b5a38ee755f956f92704855f4dad8f1df842625b216e326f6ad9e2c339d629ea`,
+Rust sources clean; every row records that identity in its own `build`
+block): kitty 0.32.2 observes
 `kitty-graphics` and passes the full session at 21 transmits /
 156.1 KiB of PNG payload (the pre-pipeline flood is a historical 1642
-transmits / 348.6 MiB, killed), playing 99 frames in 4.79 s (20.7 fps)
-at a 5.4 KiB mean frame; Ghostty 1.3.1 passes both rows at 21 /
-160.1 KiB, playing 21.7-21.9 fps at a 5.5 KiB mean frame, and its
+transmits / 348.6 MiB, killed), playing 98 frames in 4.76 s (20.6 fps)
+at a 5.5 KiB mean frame; Ghostty 1.3.1 passes both rows at 21 /
+160.1 KiB, playing 21.6-22.0 fps at a 5.5 KiB mean frame, and its
 playing captures carry 402-412 sprite-palette pixels (the earlier
 build hid every sprite behind the board on Ghostty: zero sprite
 pixels, cause of the explicit-z fix); xterm 390 in VT340 mode passes
-at 140 sixel transmits / 3.39 MiB; the default-background xterm row
+at 141 sixel transmits / 3.41 MiB; the default-background xterm row
 remains partial only because its light palette leaves 7 of 10 captures
 >=98% white. The pause surface now releases the kitty board and atlas
 before painting its text menu (collect.py refuses a kitty `pass` when
 the paused capture still carries sprite pixels), and bitmap capture
-gates reject a playing/resized/refit surface that is >=98% one color.
+gates reject a playing/resized/refit surface that is >=98% one color;
+on every bitmap tier a `pass` with no decodable playing capture is
+refused, and the forced-tier rows record `pause_select: 1` so the
+second row of an emulator never commits a byte-identical paused
+capture. The Ghostty probe claim now cites committed raw reply
+captures (`maze-chase/tools/compat/probe-captures/`) with the exact
+commands and hashes.
 Workspace tests pass, `maze-chase-verify` 19/19 with golden
 `23c17f89734e` intact. The macOS matrix rows are the one open Phase 3
 item and stay with the per-OS testers. Next: Phase 4 (visual identity
@@ -761,4 +770,45 @@ redesign), gated on the Design Council's direction.
   workspace suite 57 groups / 490 passed / 0 failed, `maze-chase-verify`
   19/19 with golden `23c17f89734e`, harness contract 31/31, fmt clean,
   clippy adds nothing outside the six pre-existing engine warnings.
+  - the Fixer
+- 2026-10-19 (fixer, Phase 3 evidence-hardening round on PR #693): one
+  comprehensive evidence pass after the Quality Council's 9.1/10 (void
+  on the moved head) and the Maintainer's routed findings; no rebuttal.
+  E1: every row now records its generating build
+  (`build.commit`, `build.binary_sha256`, `build.sources_dirty`, wired
+  in `run-linux.sh`/`drive.sh` and emitted by `collect.py` with a
+  `recorded: false` fallback), and all eight Linux rows were regenerated
+  on `97e8865d` with release binary SHA-256 `b5a38ee7...`, so the matrix
+  no longer names the unreachable `af1c1496` and no bundle predates the
+  later render-path commits. E2: a bitmap-tier (kitty-graphics/sixel)
+  `pass` now requires at least one decodable playing capture, pinned by
+  contract tests. E3: the forced-tier rows set `pause_select: 1`
+  (`drive.sh --pause-select 1`) to move the pause cursor to "Quit to
+  title" before the capture, so no two rows of one emulator commit a
+  byte-identical paused image; the extra key is in `events.log` and the
+  row. E4: the Ghostty probe claim now cites committed raw reply
+  captures under `tools/compat/probe-captures/` with exact commands and
+  hashes (kitty and Ghostty reply byte-identically because both answer
+  the same protocol frames). E5: the misattached `compose_frame` doc
+  comment was split from `render_frame`, and the remaining bare
+  "Phase 3" counters in terminal source comments became capability
+  wording. Fresh figures: kitty 98 frames / 20.6 fps / 21 transmits /
+  156.1 KiB; Ghostty 21.6-22.0 fps / 160.1 KiB with 402-412 sprite
+  pixels; sixel 141 transmits / 3.41 MiB; light xterm still 7 of 10
+  white captures; no paused-capture hashes repeat across rows.
+  Verification: workspace suite all green, harness contract 37/37,
+  `maze-chase-verify` 19/19 with golden `23c17f89734e`, fmt clean,
+  clippy adds nothing outside the six pre-existing engine warnings.
+  Delegation ledger: two read-only auditors fanned out. The numeric
+  auditor re-derived every doc-quoted figure from the regenerated JSONs
+  (83 claims) and found one mismatch (the Ghostty forced-kitty playing
+  duration was written 4.76 s against a derived 4.78 s), fixed; the
+  adversarial auditor ran the suite (37/37), proved both new gates by
+  mutation in `/tmp` copies (deleting the playing gate fails
+  `test_bitmap_pass_without_a_playing_capture_is_downgraded`; faking the
+  build fallback fails `test_rows_without_build_identity_say_so`),
+  proved all eight paused hashes distinct, and confirmed the
+  pause-cursor events in the three forced rows' `events.log`. Primary
+  context regenerated all eight rows on the real emulators, ran the
+  full workspace suite, and committed the probe captures.
   - the Fixer
