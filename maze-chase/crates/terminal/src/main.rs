@@ -115,19 +115,29 @@ impl ReplyKind {
     fn complete(self, captured: &[u8]) -> bool {
         match self {
             ReplyKind::Da1 => da1_reply_complete(captured),
-            ReplyKind::Kitty => maze_chase_terminal::kitty::reply_complete(captured),
+            // The kitty probe issues two commands (transmit plus
+            // placement); only both replies prove the round trip, so the
+            // capture is complete once two framed APC replies landed.
+            ReplyKind::Kitty => maze_chase_terminal::kitty::complete_reply_count(captured) >= 2,
         }
     }
 
     /// Split a capture into `(reply, typed)`: the framed reply bytes (when
     /// one completed) and every other byte, which is user input typed
-    /// while the probe waited.
+    /// while the probe waited. The Kitty arm re-frames every complete APC
+    /// reply, so the caller can re-split it with
+    /// [`maze_chase_terminal::kitty::split_replies`]; the framing is
+    /// never dropped (the old joined-body form was unparseable).
     fn split(self, captured: &[u8]) -> (Vec<u8>, Vec<u8>) {
         match self {
             ReplyKind::Da1 => split_da1_reply(captured),
             ReplyKind::Kitty => {
                 let (replies, typed) = maze_chase_terminal::kitty::split_replies(captured);
-                (replies.join("").into_bytes(), typed)
+                let framed: String = replies
+                    .iter()
+                    .map(|body| format!("\x1b_G{body}\x1b\\"))
+                    .collect();
+                (framed.into_bytes(), typed)
             }
         }
     }
@@ -158,8 +168,29 @@ struct KittySupport {
     placements: bool,
 }
 
+/// Decide probe support from the framed APC replies of one round trip:
+/// the transmit reply must be `OK` (graphics work); the placement reply
+/// then decides placement support, and anything but `OK` there keeps
+/// the proven whole-frame path. Silence or an errored transmit is
+/// "not a kitty terminal".
+fn kitty_probe_support(reply: &[u8]) -> Option<KittySupport> {
+    let (replies, _) = maze_chase_terminal::kitty::split_replies(reply);
+    match replies
+        .first()
+        .and_then(|body| maze_chase_terminal::kitty::reply_ok(body))
+    {
+        Some(true) => Some(KittySupport {
+            placements: replies
+                .get(1)
+                .and_then(|body| maze_chase_terminal::kitty::reply_ok(body))
+                .unwrap_or(false),
+        }),
+        _ => None,
+    }
+}
+
 /// Live Kitty graphics probe: asks the terminal with a real 1x1
-/// transmit plus a placement and waits up to 200 ms for the framed
+/// transmit plus a placement and waits up to 200 ms for both framed
 /// replies. Bounded like the DA1 probe, and every non-reply byte the
 /// probe reads comes back in `typed` so it is replayed, never swallowed.
 fn probe_kitty_live() -> KittyProbe {
@@ -177,19 +208,7 @@ fn probe_kitty_live() -> KittyProbe {
         let _ = out.flush();
     }
     let (reply, typed) = read_probe_reply(ReplyKind::Kitty, Duration::from_millis(200));
-    let (replies, _) = maze_chase_terminal::kitty::split_replies(&reply);
-    let support = match replies
-        .first()
-        .and_then(|body| maze_chase_terminal::kitty::reply_ok(body))
-    {
-        Some(true) => Some(KittySupport {
-            placements: replies
-                .get(1)
-                .and_then(|body| maze_chase_terminal::kitty::reply_ok(body))
-                .unwrap_or(false),
-        }),
-        _ => None,
-    };
+    let support = kitty_probe_support(&reply);
     // The probe is over either way: remove its placement and image data.
     {
         let mut out = std::io::stdout();
@@ -479,9 +498,30 @@ fn atlas_key(theme: &maze_chase_assets::themes::Theme, ppt: u32) -> u64 {
     h.finish()
 }
 
+/// Hash every visible settings field: the Settings screen renders the
+/// working copy (`app.screens.settings`) while the playing surface reads
+/// the committed copy (`app.settings`, for reduced-flash and the theme),
+/// so both participate in the idle-skip key. Volumes hash by bit pattern
+/// (settings fields are not `Hash`).
+fn hash_settings(h: &mut impl std::hash::Hasher, s: &maze_chase_config::settings::Settings) {
+    use std::hash::Hash;
+    s.difficulty.as_str().hash(h);
+    s.theme.hash(h);
+    s.master.to_bits().hash(h);
+    s.music.to_bits().hash(h);
+    s.sfx.to_bits().hash(h);
+    s.mute.hash(h);
+    s.reduced_flash.hash(h);
+    s.high_contrast.hash(h);
+    s.show_fps.hash(h);
+}
+
 /// The visible-state signature that lets idle surfaces skip frames.
 /// Playing always redraws (the simulation is live); every menu, panel,
-/// and overlay is static until one of these inputs changes.
+/// and overlay is static until one of these inputs changes. Settings
+/// values, the armed rebind capture, and the bound keymap are part of
+/// the key: changing any of them repaints immediately instead of
+/// waiting out the 1 Hz idle keepalive.
 fn frame_key(app: &App) -> u64 {
     use maze_chase_terminal::screens::ScreenId;
     use std::hash::{Hash, Hasher};
@@ -497,13 +537,19 @@ fn frame_key(app: &App) -> u64 {
         ScreenId::Over => 8,
     };
     tag.hash(&mut h);
+    hash_settings(&mut h, &app.settings);
+    hash_settings(&mut h, &app.screens.settings);
     match app.screens.current {
         ScreenId::Title => app.screens.menu.hash(&mut h),
         ScreenId::Help => app.screens.help_scroll.hash(&mut h),
         ScreenId::Settings => app.screens.settings_row.hash(&mut h),
         ScreenId::Rebind => {
             app.screens.rebind_action.hash(&mut h);
+            app.screens.capture.hash(&mut h);
             app.screens.capture_error.hash(&mut h);
+            for action in maze_chase_config::Action::ALL {
+                app.keymap.keys(action).hash(&mut h);
+            }
         }
         ScreenId::Paused => app.screens.pause_menu.hash(&mut h),
         ScreenId::Over => {
@@ -671,6 +717,7 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
             (0, 0, native_w, native_h),
             (0, 0),
             Some((b.w as u32, b.h as u32)),
+            atlas::z::STATIC,
         ));
     }
 
@@ -746,6 +793,7 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
             src,
             (dx.rem_euclid(cell_w) as u32, dy.rem_euclid(cell_h) as u32),
             cells,
+            part.z,
         ));
         emitted += 1;
     }
@@ -766,6 +814,32 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
 /// everything in the same frame, so a resize can never leave stale
 /// pixels or clipped glyphs behind (issue #674 - the old placement on
 /// the old cell grid must be gone before the new frame shows).
+/// Compose one due frame into `out`: clear the buffer, prepend the
+/// pending Kitty release when the session just left the tier, then render
+/// the current surface. One function on purpose: the release and the
+/// buffer clear must not be reorderable, or a later clear can silently
+/// discard the only bytes that release the old placements on a terminal
+/// that never erases graphics on its own.
+fn compose_frame(
+    app: &mut App,
+    out: &mut String,
+    fresh: bool,
+    kitty: &mut KittyRenderer,
+    left_kitty: bool,
+) -> FrameStats {
+    out.clear();
+    if left_kitty {
+        out.push_str(maze_chase_terminal::kitty::delete_all_escape());
+        out.push_str(&maze_chase_terminal::kitty::free_image_escape(
+            maze_chase_terminal::kitty::STATIC_IMAGE_ID,
+        ));
+        out.push_str(&maze_chase_terminal::kitty::free_image_escape(
+            maze_chase_terminal::kitty::ATLAS_IMAGE_ID,
+        ));
+    }
+    render_frame(app, out, fresh, kitty)
+}
+
 fn render_frame(
     app: &mut App,
     out: &mut String,
@@ -854,7 +928,8 @@ fn render_frame(
                         !app.settings.reduced_flash,
                     );
                     let encoded = sixel::encode(&frame, 64);
-                    if encoded.is_empty() {
+                    let cells_fallback = encoded.is_empty();
+                    if cells_fallback {
                         // A frame the byte budget cannot carry falls
                         // back to cells for this frame, never a blank
                         // or unbounded stream.
@@ -872,7 +947,13 @@ fn render_frame(
                         out.push_str(&encoded);
                     }
                     stats = FrameStats {
-                        mode: "sixel",
+                        // The trace must name what actually painted:
+                        // an over-budget frame painted cells, not sixel.
+                        mode: if cells_fallback {
+                            "cells-fallback"
+                        } else {
+                            "sixel"
+                        },
                         ..FrameStats::default()
                     };
                 }
@@ -1266,17 +1347,30 @@ fn main() {
     let mut last_key = 0u64;
     let mut last_screen = app.screens.current;
     let mut last_drawn = Instant::now();
+    // Set when the session leaves the Kitty tier; the release escapes are
+    // prepended to the next frame that actually reaches the screen and stay
+    // pending across failed writes (the failed frame never arrived, and
+    // `last_tier` has already moved on so re-entering the tier-change block
+    // cannot re-arm them).
+    let mut left_kitty = false;
     loop {
         if app.quit {
             break;
         }
         if app.tier() != last_tier {
-            // Tier change (watchdog downgrade or probe upgrade): clear
-            // the screen and rebuild the bitmap image from scratch.
+            // Tier change (watchdog downgrade or probe upgrade): rebuild
+            // the bitmap image from scratch and, when leaving Kitty,
+            // release the old board and sprites. The terminal never
+            // erases placements on its own, and render_frame's Kitty
+            // cleanups only run while the new tier is Kitty, so without
+            // the release the old graphics would stay composited above
+            // the Sixel/cell fallback.
+            let previous = last_tier;
             last_tier = app.tier();
             fresh = true;
-            out.clear();
-            out.push_str("\x1b[2J");
+            if previous == Tier::Kitty {
+                left_kitty = true;
+            }
             kitty.invalidate();
             pacer = Pacer::for_tier(last_tier);
             term.set_kitty_keyboard(last_tier == Tier::Kitty);
@@ -1328,8 +1422,7 @@ fn main() {
         }
         if due {
             let encode_start = Instant::now();
-            out.clear();
-            let stats = render_frame(&mut app, &mut out, fresh, &mut kitty);
+            let stats = compose_frame(&mut app, &mut out, fresh, &mut kitty, left_kitty);
             let bytes = out.len();
             let mut stdout = std::io::stdout();
             let wrote = stdout
@@ -1345,6 +1438,7 @@ fn main() {
                 // `fresh` set so the next frame redoes the cleanup.
             } else {
                 fresh = false;
+                left_kitty = false;
                 last_key = key;
                 last_drawn = Instant::now();
                 app.watchdog.note_ok();
@@ -1489,5 +1583,100 @@ mod tests {
         let (reply, typed) = split_da1_reply(b"\x1b[?6");
         assert!(reply.is_empty());
         assert_eq!(typed, b"\x1b[?6");
+    }
+
+    #[test]
+    fn kitty_probe_requires_two_replies_and_reframes_them() {
+        // Transmit plus placement, both OK: graphics and placement proven.
+        let both_ok = b"\x1b_Gi=1;OK\x1b\\\x1b_Gi=1,p=1;OK\x1b\\";
+        assert_eq!(
+            kitty_probe_support(both_ok),
+            Some(KittySupport { placements: true })
+        );
+        // Placement rejected: graphics proven, placements degraded.
+        assert_eq!(
+            kitty_probe_support(b"\x1b_Gi=1;OK\x1b\\\x1b_Gi=1,p=1;ENOTSUP\x1b\\"),
+            Some(KittySupport { placements: false })
+        );
+        // Only the transmit reply arrived: the placement verdict has no
+        // evidence and must read as unsupported, not guessed.
+        assert_eq!(
+            kitty_probe_support(b"\x1b_Gi=1;OK\x1b\\"),
+            Some(KittySupport { placements: false })
+        );
+        // Transmit rejected or silent: not a kitty terminal.
+        assert_eq!(kitty_probe_support(b"\x1b_Gi=1;ENOENT\x1b\\"), None);
+        assert_eq!(kitty_probe_support(b""), None);
+        // The split re-frames every reply so the caller can re-parse
+        // them, and typed keys around them survive untouched.
+        let mut combined = Vec::new();
+        combined.extend_from_slice(b"\r");
+        combined.extend_from_slice(both_ok);
+        combined.extend_from_slice(b"x");
+        let (reply, typed) = ReplyKind::Kitty.split(&combined);
+        assert_eq!(reply, both_ok);
+        assert_eq!(typed, b"\rx");
+    }
+
+    #[test]
+    fn kitty_probe_completion_needs_both_replies() {
+        // The old probe stopped at the first reply, so the placement
+        // verdict was always computed from a truncated capture.
+        assert!(!ReplyKind::Kitty.complete(b"\x1b_Gi=1;OK\x1b\\"));
+        assert!(!ReplyKind::Kitty.complete(b"\x1b_Gi=1;OK\x1b\\\x1b_Gi=1,p=1;OK"));
+        assert!(ReplyKind::Kitty.complete(b"\x1b_Gi=1;OK\x1b\\\x1b_Gi=1,p=1;OK\x1b\\"));
+    }
+
+    #[test]
+    fn leaving_kitty_prepends_the_release_to_the_next_frame() {
+        use maze_chase_terminal::kitty;
+        let mut app = App::new(80, 24, &[], std::path::PathBuf::from("."));
+        let mut kitty_renderer = KittyRenderer::new(true);
+        let trio = format!(
+            "{}{}{}",
+            kitty::delete_all_escape(),
+            kitty::free_image_escape(kitty::STATIC_IMAGE_ID),
+            kitty::free_image_escape(kitty::ATLAS_IMAGE_ID),
+        );
+        let mut leaving = String::new();
+        let _ = compose_frame(&mut app, &mut leaving, true, &mut kitty_renderer, true);
+        assert!(
+            leaving.starts_with(&trio),
+            "the release must lead the first frame after leaving Kitty"
+        );
+        assert!(
+            leaving.contains("\x1b[?2026h"),
+            "the frame surface still renders after the release"
+        );
+        let mut staying = String::new();
+        let _ = compose_frame(&mut app, &mut staying, true, &mut kitty_renderer, false);
+        assert!(
+            staying.starts_with("\x1b[?2026h"),
+            "no release bytes when the session never left Kitty"
+        );
+        assert!(!staying.starts_with(&trio));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn kitty_probe_pipe_captures_fragmented_two_reply_round_trip() {
+        use std::io::Write;
+        use std::os::fd::AsRawFd;
+        let (reader, mut writer) = pipe_pair();
+        writer.write_all(b"\x1b_Gi=1;OK").unwrap();
+        writer.flush().unwrap();
+        let sender = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(30));
+            writer.write_all(b"\x1b\\\x1b_Gi=1,p=1;OK\x1b\\").unwrap();
+        });
+        let (reply, typed) =
+            read_probe_reply_fd(reader.as_raw_fd(), ReplyKind::Kitty, Duration::from_secs(5));
+        sender.join().unwrap();
+        assert_eq!(
+            kitty_probe_support(&reply),
+            Some(KittySupport { placements: true }),
+            "both fragmented replies must assemble: {reply:?}"
+        );
+        assert!(typed.is_empty());
     }
 }

@@ -1,11 +1,11 @@
 //! Kitty graphics tier: real pixel frames on Kitty-family terminals.
 //!
 //! Everything here is hand-rolled std-only: a minimal PNG encoder (8-bit
-//! RGB with zlib stored blocks, always valid), a base64 framer, and the
-//! Kitty `a=T,f=100` transmit-and-display escape with chunked `m=1`
-//! continuation. No image crate, no allocator tricks. Detection is
-//! environment-gated (see [`kitty_present`]) so unsupported terminals
-//! never see the escape bytes.
+//! RGB/RGBA with real DEFLATE IDAT via `miniz_oxide`, always valid), a
+//! base64 framer, and the Kitty `a=T,f=100` transmit-and-display escape
+//! with chunked `m=1` continuation. No image crate, no allocator tricks.
+//! Detection is environment-gated (see [`kitty_present`]) so unsupported
+//! terminals never see the escape bytes.
 
 use crate::raster::PixelFrame;
 
@@ -42,8 +42,8 @@ fn chunk(out: &mut Vec<u8>, tag: &[u8; 4], data: &[u8]) {
     out.extend_from_slice(&crc32(&c).to_be_bytes());
 }
 
-/// Encode a frame as a valid 8-bit RGB PNG (zlib stored blocks: no
-/// compression, always decodable). Panics on empty frames.
+/// Encode a frame as a valid 8-bit RGB PNG (real zlib deflate via
+/// `miniz_oxide`, always decodable). Panics on empty frames.
 pub fn png_encode(frame: &PixelFrame) -> Vec<u8> {
     assert!(frame.w > 0 && frame.h > 0, "empty frame");
     assert_eq!(frame.px.len(), (frame.w * frame.h) as usize);
@@ -224,34 +224,46 @@ pub fn place_escape(
     placement_id: u32,
     src: (u32, u32, u32, u32),
     offset: (u32, u32),
+    z: u32,
 ) -> String {
-    place_scaled_escape(image_id, placement_id, src, offset, None)
+    place_scaled_escape(image_id, placement_id, src, offset, None, z)
 }
 
 /// One placement with an optional `c`/`r` target-cell rectangle: when
 /// the board image is stretched to its cell footprint (non-square real
 /// cells), sprites scale to the same target so the composite stays
 /// proportional. `None` is natural size, the exact path.
+///
+/// Every placement carries an explicit `z` stacking layer. The kitty
+/// spec breaks equal-z ties by image id, and the sprite atlas id sorts
+/// below the static board id, so a terminal that follows the spec
+/// (Ghostty 1.3.1) used to paint the opaque board above every sprite.
+/// The caller passes per-layer values instead of relying on unspecified
+/// tie-breaking (see [`crate::atlas::z`]).
 pub fn place_scaled_escape(
     image_id: u32,
     placement_id: u32,
     src: (u32, u32, u32, u32),
     offset: (u32, u32),
     cells: Option<(u32, u32)>,
+    z: u32,
 ) -> String {
     let (x, y, w, h) = src;
     let cell = cells
         .map(|(c, r)| format!(",c={c},r={r}"))
         .unwrap_or_default();
     format!(
-        "\x1b_Ga=p,i={image_id},p={placement_id},x={x},y={y},w={w},h={h}{cell},X={},Y={},C=1,q=2\x1b\\",
+        "\x1b_Ga=p,i={image_id},p={placement_id},x={x},y={y},w={w},h={h}{cell},X={},Y={},z={z},C=1,q=2\x1b\\",
         offset.0, offset.1
     )
 }
 
-/// Delete one placement (image data stays usable for other placements).
+/// Delete one exact placement (image data stays usable for other
+/// placements). The kitty delete table reaches a single placement only
+/// through `d=i` with both `i` and `p`; `d=p` deletes by cell position
+/// (`x,y`) and can never match a placement without those keys.
 pub fn delete_placement_escape(image_id: u32, placement_id: u32) -> String {
-    format!("\x1b_Ga=d,d=p,i={image_id},p={placement_id}\x1b\\")
+    format!("\x1b_Ga=d,d=i,i={image_id},p={placement_id}\x1b\\")
 }
 
 /// Free an image's data and every placement that references it.
@@ -287,10 +299,28 @@ pub fn probe_cleanup() -> String {
 /// (`ESC _ G ... ESC \`). A fragmented reply is not complete until its
 /// ST lands.
 pub fn reply_complete(captured: &[u8]) -> bool {
-    let Some(start) = find(captured, b"\x1b_G") else {
-        return false;
-    };
-    find(&captured[start + 3..], b"\x1b\\").is_some()
+    complete_reply_count(captured) >= 1
+}
+
+/// Number of complete `ESC_G ... ESC\` APC replies in `captured`. The
+/// live probe needs two (transmit plus placement), so the caller can
+/// wait for both instead of stopping at the first one; a trailing
+/// unterminated fragment is not counted (it is not complete yet).
+pub fn complete_reply_count(captured: &[u8]) -> usize {
+    let mut count = 0;
+    let mut i = 0;
+    while i < captured.len() {
+        if captured[i..].starts_with(b"\x1b_G") {
+            let Some(end) = find(&captured[i + 3..], b"\x1b\\") else {
+                break;
+            };
+            count += 1;
+            i += 3 + end + 2;
+        } else {
+            i += 1;
+        }
+    }
+    count
 }
 
 fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
@@ -449,14 +479,46 @@ mod tests {
     }
 
     #[test]
-    fn place_escape_carries_source_rect_and_in_cell_offset() {
-        let esc = place_escape(ATLAS_IMAGE_ID, 7, (11, 22, 33, 44), (5, 6));
+    fn place_escape_carries_source_rect_in_cell_offset_and_z() {
+        let esc = place_escape(ATLAS_IMAGE_ID, 7, (11, 22, 33, 44), (5, 6), 3);
         assert_eq!(
             esc,
-            format!("\x1b_Ga=p,i={ATLAS_IMAGE_ID},p=7,x=11,y=22,w=33,h=44,X=5,Y=6,C=1,q=2\x1b\\")
+            format!(
+                "\x1b_Ga=p,i={ATLAS_IMAGE_ID},p=7,x=11,y=22,w=33,h=44,X=5,Y=6,z=3,C=1,q=2\x1b\\"
+            )
         );
-        assert!(delete_placement_escape(2, 3).contains("d=p,i=2,p=3"));
+        // A single placement is deleted with `d=i` plus `i` and `p`:
+        // `d=p` needs cell coordinates and can never match one placement.
+        assert_eq!(delete_placement_escape(2, 3), "\x1b_Ga=d,d=i,i=2,p=3\x1b\\");
         assert!(free_image_escape(2).contains("d=I,i=2"));
+    }
+
+    #[test]
+    fn scaled_place_escape_keeps_z_after_cell_rect() {
+        let esc = place_scaled_escape(ATLAS_IMAGE_ID, 9, (0, 0, 8, 8), (1, 2), Some((3, 4)), 5);
+        assert!(
+            esc.contains(",c=3,r=4,X=1,Y=2,z=5,"),
+            "z must be explicit and ordered after the cell rect: {esc}"
+        );
+    }
+
+    #[test]
+    fn complete_reply_count_counts_framed_replies_only() {
+        assert_eq!(complete_reply_count(b""), 0);
+        assert_eq!(complete_reply_count(b"\r"), 0);
+        assert_eq!(complete_reply_count(b"\x1b_Gi=1;OK\x1b\\"), 1);
+        assert_eq!(
+            complete_reply_count(b"\x1b_Gi=1;OK\x1b\\\x1b_Gi=1,p=1;OK\x1b\\"),
+            2
+        );
+        // A trailing fragment is not complete and does not count.
+        assert_eq!(
+            complete_reply_count(b"\x1b_Gi=1;OK\x1b\\\x1b_Gi=1,p=1;OK"),
+            1
+        );
+        // Keys between replies never masquerade as replies.
+        assert_eq!(complete_reply_count(b"\x1b_Gi=1;OK\x1b\\\rG"), 1);
+        assert!(reply_complete(b"\x1b_Gi=1;OK\x1b\\"));
     }
 
     #[test]
@@ -489,7 +551,9 @@ mod tests {
         assert!(!req.contains("q=2"), "the probe must hear the answer");
         assert!(req.contains(&format!("a=p,i={PROBE_IMAGE_ID},p={PROBE_PLACEMENT_ID}")));
         let cleanup = probe_cleanup();
-        assert!(cleanup.contains("d=p"));
+        assert!(cleanup.contains(&format!(
+            "\x1b_Ga=d,d=i,i={PROBE_IMAGE_ID},p={PROBE_PLACEMENT_ID}\x1b\\"
+        )));
         assert!(cleanup.contains("d=I"));
     }
 
