@@ -129,7 +129,7 @@ The 28x31 warren plus HUD fits windows from 62x35 up, and every window
 size gets a plan fitted for it: the layout solver scans the full tile
 scale grid (1 to 8 columns per tile, 1 to 4 rows per tile) and keeps
 the plan that covers the most of the window, breaking ties by tile
-squareness, chrome, and area. Every scale gets the best chrome it can
+squareness, chrome, area, and width. Every scale gets the best chrome it can
 host: a right-hand side panel with score, best, lives, level, mode
 clock, tune, tier, and controls when the board leaves room, a two-row
 HUD band above the board when only rows are tight, or just the bottom
@@ -158,6 +158,7 @@ within a cell of rounding per axis, so the art is never stretched across
 the whole board), and the Sixel raster paints from the centered image
 origin at its natural size, so it cannot bleed into the hint line or hug
 a corner of a larger box.
+
 Terminals that report no pixel size keep the proven 8-pixels-per-tile
 nominal raster drawn across the full board box, exactly as before.
 
