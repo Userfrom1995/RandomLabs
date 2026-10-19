@@ -877,11 +877,24 @@ def main():
     # carry a paused phase that still transmits or places images.
     if args.result == "pass" and tier == "kitty-graphics":
         paused_media = []
+        proven = []
         for phase in result["phases"]:
             if str(phase.get("name", "")) != "paused":
                 continue
             kit = phase.get("kitty") or {}
-            if int(kit.get("transmits", 0)) + int(kit.get("placements", 0)) > 0:
+            media = int(kit.get("transmits", 0)) + int(kit.get("placements", 0))
+            if media == 0:
+                continue
+            # Checkpoint offsets can lag the last playing frame, so a few
+            # trailing placements can land in the paused slice. The menu
+            # is still proven when the paused capture has no sprite
+            # pixels and is >=90% one color (a text panel on a solid
+            # background); a board-covered menu keeps sprite pixels.
+            census = phase.get("sprite_census") or {}
+            share = phase.get("dominant_share") or 0.0
+            if census.get("pixels", 0) == 0 and share >= 0.90:
+                proven.append(phase["name"])
+            else:
                 paused_media.append(phase["name"])
         if paused_media:
             disposition = "partial"
@@ -890,6 +903,14 @@ def main():
                 "transmits or places kitty images ("
                 + ", ".join(paused_media)
                 + "); the opaque board can cover the pause menu"
+            )
+        elif proven:
+            notes.append(
+                "paused-phase media at "
+                + ", ".join(proven)
+                + " is checkpoint-boundary attribution; the paused capture "
+                "has no sprite pixels and is >=90% one color, so the menu "
+                "panel is visible"
             )
     # Sprite-visibility honesty on the kitty-graphics tier: placements
     # round-tripping through the terminal proves the protocol, not that
