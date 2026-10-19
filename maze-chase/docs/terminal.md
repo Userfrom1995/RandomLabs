@@ -134,9 +134,11 @@ Every scale gets the best chrome it can host: a right-hand side panel with score
 clock, tune, tier, and controls when the board leaves room, a two-row
 HUD band above the board when only rows are tight, or just the bottom
 hint line in the tightest rooms. Wide-short rooms reach wide-short
-scales (7x1, 8x1), tall rooms reach tall ones (2x2 through 4 rows), so
-a plan never strands most of the window as dead space. Smaller windows
-get an honest "too small" card naming the exact minimum. Resizing
+scales (7x1, 8x1) and tall rooms reach tall ones (2x2 through 4 rows)
+instead of collapsing to a single derived diagonal: the fitted plan
+uses the best scale the grid can place, and the measured sweep floor is
+280/1000 at 399x62. Smaller windows get an honest "too small" card
+naming the exact minimum. Resizing
 re-fits live, including mid-run, and the simulation never restarts on
 resize: the frame is cleared and repainted in one step, so no stale
 board fragments survive the change (on the Kitty tier the old image
@@ -157,8 +159,10 @@ raster's pixel size through the detected window pixels: Kitty terminals
 scale the image into that footprint (which tracks the raster's aspect to
 within a cell of rounding per axis, so the art is never stretched across
 the whole board), and the Sixel raster paints from the centered image
-origin at its natural size, so it cannot bleed into the hint line or hug
-a corner of a larger box.
+origin at its natural size, so, in every window that can host the
+6-pixels-per-tile legibility floor, it stays inside the board box
+instead of bleeding into the hint line or hugging a corner of a larger
+box.
 
 Terminals that report no pixel size keep the proven 8-pixels-per-tile
 nominal raster, exactly as before: Kitty stretches it across the full
