@@ -59,18 +59,22 @@ pub struct Placement {
     pub slot: usize,
     pub x: i32,
     pub y: i32,
-    /// Explicit kitty `z` stacking layer (see [`z`]). Every placement in
-    /// one layer sorts above every placement in the layer below, so the
-    /// terminal never falls back to the spec's equal-z tie-break by
-    /// image id (which sorts the sprite atlas below the static board).
+    /// Explicit kitty `z` stacking layer (see [`z`]). Every placement
+    /// carries the layer that mirrors its position in the raster paint
+    /// order, so the terminal never falls back to the spec's equal-z
+    /// tie-break by image id (which sorts the sprite atlas below the
+    /// static board).
     pub z: u32,
 }
 
-/// Kitty placement stacking layers, bottom to top. The raster paints
-/// tiles, sunseeds, relish, warden bodies/fright masks, eyes, then Pip;
-/// these layers mirror that order exactly and are passed through as the
-/// kitty `z` key. The static board may share layer 0 with nothing above
-/// it; every sprite layer is strictly above the board.
+/// Kitty placement stacking layers, bottom to top. The raster
+/// ([`crate::raster::paint_wardens`]) paints, per warden in index order,
+/// its body (or fright mask) and then its eye overlay; two warden boxes
+/// can overlap when the sprite cell is larger than one board tile, so
+/// the layers use one band per warden (`body(i) < eyes(i) < body(i+1)`)
+/// to reproduce that interleaving exactly. A single shared body layer
+/// followed by a single shared eye layer would stack every eye above
+/// every body, which diverges from the raster for overlapping wardens.
 pub mod z {
     /// Static board layer (walls, gate, house, crumbs).
     pub const STATIC: u32 = 0;
@@ -78,12 +82,18 @@ pub mod z {
     pub const SUNSEED: u32 = 1;
     /// Relish icon (paints above sunseeds, below bodies).
     pub const RELISH: u32 = 2;
-    /// Warden bodies and fright masks.
-    pub const BODY: u32 = 3;
-    /// Warden eye overlay.
-    pub const EYES: u32 = 4;
+    /// Warden `warden` body or fright mask; strictly above warden
+    /// `warden - 1`'s eyes and strictly below its own eyes.
+    pub const fn body(warden: usize) -> u32 {
+        3 + 2 * warden as u32
+    }
+    /// Warden `warden` eyes overlay, above its own body and below
+    /// warden `warden + 1`'s body, exactly like the raster.
+    pub const fn eyes(warden: usize) -> u32 {
+        4 + 2 * warden as u32
+    }
     /// Pip, the player sprite (always the top layer).
-    pub const PIP: u32 = 5;
+    pub const PIP: u32 = 11;
 }
 
 /// An RGBA image (alpha 0 transparent). The kitty path encodes it as a
@@ -363,7 +373,7 @@ pub fn placements(
                     eyes_slot(warden.actor.dir),
                     cx,
                     cy,
-                    z::EYES,
+                    z::eyes(warden.index),
                 ));
             }
             _ => {
@@ -373,14 +383,20 @@ pub fn placements(
                     } else {
                         slot::FRIGHT
                     };
-                    out.push(atlas.place(100 + warden.index as u32 * 2, mask, cx, cy, z::BODY));
+                    out.push(atlas.place(
+                        100 + warden.index as u32 * 2,
+                        mask,
+                        cx,
+                        cy,
+                        z::body(warden.index),
+                    ));
                 } else {
                     out.push(atlas.place(
                         100 + warden.index as u32 * 2,
                         slot::WARDEN + warden.index,
                         cx,
                         cy,
-                        z::BODY,
+                        z::body(warden.index),
                     ));
                     // Eye overlay sits high on the 11-tall body.
                     out.push(atlas.place(
@@ -388,7 +404,7 @@ pub fn placements(
                         eyes_slot(warden.actor.dir),
                         cx,
                         cy - scale,
-                        z::EYES,
+                        z::eyes(warden.index),
                     ));
                 }
             }
@@ -438,8 +454,9 @@ fn eyes_slot(dir: Dir) -> usize {
 /// full-frame [`raster::render`] pixel for pixel. Used by the parity
 /// test; the live Kitty path places these sprites on the terminal side.
 /// Placements are composed in stacking-layer order (stable, so equal-z
-/// sprites keep their emission order), mirroring the terminal's explicit
-/// `z` handling.
+/// sprites keep their emission order); the per-warden bands reproduce
+/// the raster's body/eyes interleaving even when two warden boxes
+/// overlap.
 pub fn compose(base: &RgbaFrame, atlas: &Atlas, placements: &[Placement]) -> RgbaFrame {
     let mut out = base.clone();
     let cell = atlas.cell as i32;
@@ -535,6 +552,37 @@ mod tests {
                 &placements(&game, ppt, 12, false, &atlas),
             );
             assert_frames_eq(&got, &want, &format!("ppt {ppt} moved pip"));
+        }
+    }
+
+    #[test]
+    fn composed_frame_matches_full_raster_with_overlapping_wardens() {
+        // The sprite cell is `11 * scale` pixels, so at these ppt values
+        // two close wardens' boxes genuinely overlap. The raster paints
+        // body_i, eyes_i, body_j, eyes_j in warden index order; the
+        // terminal must stack the same way, or the lower-index eyes
+        // cover the higher-index body (a class-wide eye layer does not
+        // reproduce that interleaving).
+        for ppt in [6, 17] {
+            for sep in [0.25f32, 0.5, 0.75] {
+                let mut game = Game::new(11, 1);
+                let theme = themes::EMBER_WARREN;
+                let atlas = atlas_for(ppt);
+                let (x0, y0) = (
+                    game.wardens.wardens[0].actor.x,
+                    game.wardens.wardens[0].actor.y,
+                );
+                game.wardens.wardens[1].actor.x = x0 + sep;
+                game.wardens.wardens[1].actor.y = y0;
+                game.wardens.wardens[1].state = WardenState::Active;
+                let want = RgbaFrame::from_rgb(&raster::render(&game, &theme, ppt, 12, false));
+                let got = compose(
+                    &static_frame(&game, &theme, ppt),
+                    &atlas,
+                    &placements(&game, ppt, 12, false, &atlas),
+                );
+                assert_frames_eq(&got, &want, &format!("ppt {ppt} sep {sep}"));
+            }
         }
     }
 
