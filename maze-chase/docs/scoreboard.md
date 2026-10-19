@@ -151,8 +151,9 @@ Server 2025 with real ConPTY, vehicle PR #632):
   frame on presentation.
 - Terminal: 60 fps loop with watchdog auto-degrade (measured
   implicitly by the headless layout sweep and the tier ladder tests;
-  no wall-clock FPS is claimed because CI terminals have no
-  comparable clock).
+  the CI terminal tests claim no wall-clock FPS because CI terminals
+  have no comparable clock; the compatibility harness measures it on a
+  real terminal).
 - Desktop: fixed 120 Hz session matching the engine timestep;
   Xvfb `--probe` run rendered real titled frames to PPM.
 - Browser: 60 FPS live in the CDP run (release evidence); the canvas

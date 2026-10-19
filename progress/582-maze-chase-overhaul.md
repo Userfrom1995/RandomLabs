@@ -17,7 +17,7 @@
 
 - Phase 1: Product Reassessment and Real-Terminal Truth: [x] real-terminal driver harness (`maze-chase/tools/compat/`: `run-linux.sh`, `run-macos.sh`, `run-windows.ps1`, `drive.sh`, `collect.py`, `README.md`), [x] reproduce the Owner's Ghostty and Kitty findings on current main with recorded evidence (kitty reply-loop flood plus input delayed past the session, Ghostty mis-routing despite its kitty-graphics support; eight executed Linux rows in `maze-chase/tools/compat/evidence/`), [x] critical reassessment of engine, layers, and docs claims (four parallel sweeps; Section B of the ledger), [x] findings ledger with every gap (`progress/582-maze-chase-overhaul-findings.md`), [x] honest compatibility matrix scaffold `maze-chase/docs/terminal-compat.md` (executed rows plus named executors for host-pending rows), [ ] new sub-issues routed through the Maintainer (proposed set in ledger Section C; filing is the Maintainer's next step, not done in this PR) (PR 1 target, Refs #582, Refs #655, Refs #661)
 - Phase 2: Dynamic Terminal Layout and Full-Window Composition: [x] geometry model with cell pixel size (`crates/terminal/src/geometry.rs`; TIOCGWINSZ pixel fields on Unix, console font on Windows, nominal 8x16 fallback), [x] pure layout solver (2..8 x 1..4 scale grid at the 2x1 compact floor with coverage-first selection; side panel, HUD band, hint-only by fit; exact 62x35 card; golden plans 200x60 -> 7x1 and 62x80 -> 2x2), [x] bounded centered image rendering at the real pixel geometry (raster fit to the board's pixel box; image footprint mapped through the window pixels, so Kitty never stretches and the Sixel raster stays inside the board's pixel box whenever the box can host the 6-ppt legibility floor, and absurdly tiny pixel windows keep the documented floor and may overflow; 8-ppt nominal fallback), [x] continuous cell-tier scales (`unicode::fit_width`/`center_rows` at any scale), [x] resize contract with same-frame repaint and stale-placement kill (`ESC[2J` plus Kitty delete-all in the new frame; pinned by `tests/plan_contract.rs`), [x] tier-aware too-small card (reads `layout.min_cols/min_rows`; exact 62x35 boundary pinned), [ ] real-emulator resize proof on Linux and macOS (the PTY proof landed with this PR; the real rows are per-OS tester work, no emulator exists on the build machine) (PR 2 target, Refs #582, Refs #656)
-- Phase 3: Terminal Render Pipeline and Compatibility Proof: [x] bounded live Kitty probe with byte replay plus the Sixel DA1 probe (the probe requires both the transmit and placement replies before it reads a verdict; Ghostty 1.3.1 answers the probe when one is sent, and its rows select the graphics path from `TERM_PROGRAM=ghostty`/`TERM=xterm-ghostty` without probing), [x] atlas plus placement composition with full-frame fallback (static layer and sprite atlas once per change, stable-id placement diffs, single-placement `d=i` deletes, explicit `z` stacking layers, DEFLATE PNG), [x] dirty-change detection and wall-clock pacing with backpressure (visual-change key, per-tier rates, 8 MiB/s byte ceiling, 1 Hz idle keepalive), [x] Sixel path hardening (64-color cap, 2 MiB frame ceiling with smaller-palette retry and an honest `cells-fallback` trace mode), [x] capability-aware probe plus write-path watchdog (`OK`/`ENOENT` replies decide kitty support; `q=2` keeps steady transmits silent, and the watchdog drops a tier after 3 failed frame writes with the reason recorded), [x] `MAZE_CHASE_TRACE` JSONL evidence mode (plan, frame mode/placements/static/atlas/encode time, skips, probe results), [x] kitty and ghostty rows signed on Linux plus conventional terminals (kitty and Ghostty both `kitty-graphics` pass at 23 transmits / 170.0-187.2 KiB per session with sprite visibility proven by capture census; xterm auto partial only for its light-background palette, 6 of 10 captures >=98% white; xterm dark and VT340 sixel pass at 146 transmits / 3.66 MiB), [ ] macOS matrix rows signed by the macOS Tester (PR 3 target, Refs #582, Refs #655)
+- Phase 3: Terminal Render Pipeline and Compatibility Proof: [x] bounded live Kitty probe with byte replay plus the Sixel DA1 probe (the probe requires both the transmit and placement replies before it reads a verdict; Ghostty 1.3.1 answers the probe when one is sent, and its rows select the graphics path from `TERM_PROGRAM=ghostty`/`TERM=xterm-ghostty` without probing), [x] atlas plus placement composition with full-frame fallback (static layer and sprite atlas once per change, stable-id placement diffs, single-placement `d=i` deletes, explicit `z` stacking layers, DEFLATE PNG), [x] dirty-change detection and wall-clock pacing with backpressure (visual-change key, per-tier rates, 8 MiB/s byte ceiling, 1 Hz idle keepalive), [x] Sixel path hardening (64-color cap, 2 MiB frame ceiling with smaller-palette retry and an honest `cells-fallback` trace mode), [x] capability-aware probe plus write-path watchdog (`OK`/`ENOENT` replies decide kitty support; `q=2` keeps steady transmits silent, and the watchdog drops a tier after 3 failed frame writes with the reason recorded), [x] `MAZE_CHASE_TRACE` JSONL evidence mode (plan, frame mode/placements/static/atlas/encode time, skips, probe results), [x] kitty and ghostty rows signed on Linux plus conventional terminals (kitty and Ghostty both `kitty-graphics` pass at 21 transmits / 156.1-160.1 KiB per session with sprite visibility proven by capture census; xterm auto partial only for its light-background palette, 7 of 10 captures >=98% white; xterm dark and VT340 sixel pass at 140-141 transmits / 3.39-3.41 MiB), [ ] macOS matrix rows signed by the macOS Tester (PR 3 target, Refs #582, Refs #655)
 - Phase 4: Visual Identity Redesign: [ ] Design Council direction consumed (dispatched by the Maintainer before this phase), [ ] resolution-aware character and environment art, [ ] effects and animation system, [ ] refreshed themes with accessibility tests green, [ ] all three layers integrated with real captures (PR 4 target, Refs #582, Closes #658)
 - Phase 5: Sound Design Overhaul: [ ] new musical score with one BPM source, [ ] soft short effect bank, [ ] mix architecture with fades and safe defaults, [ ] terminal chime policy default-off, [ ] per-layer real-host review and settings round-trip (PR 5 target, Refs #582, Closes #659)
 - Phase 6: Release Engineering and Multi-Platform Distribution: [ ] version single source plus tag parity gate, [ ] Linux deb and rpm plus tarballs for both layers, [ ] Windows installer plus zip, [ ] macOS app plus dmg plus tarball, [ ] install/launch/uninstall smoke scripts, [ ] `maze-chase-release.yml` pipeline via the Lab Engineer, [ ] release candidate artifacts on the official Releases page, [ ] install/upgrade/uninstall docs (PR 6 target, Refs #582, Closes #657)
@@ -640,4 +640,37 @@ redesign), gated on the Design Council's direction.
   sunseeds 1; relish 2; per-warden body and eyes bands 3..10 in raster
   paint order; Pip 11). Documentation only; code, tests, and evidence
   are unchanged from the E1-E6 round.
+  - the Fixer
+- 2026-10-19 (fixer, Phase 3 review round 5 on PR #693): applied
+  F12-F14 and the two non-blocking notes; no rebuttal. F12: the
+  kitty-graphics paused gate in `collect.py` is now capture-first: a
+  paused phase with no new transmits or placements is still inspected,
+  and a `pass` is downgraded when the paused capture carries
+  sprite-census pixels, has no decodable capture, or is not in the
+  `[90%, 100%)` dominant-share band (a 100% flat capture is not proof
+  of a menu). The checkpoint-boundary media note remains for accepted
+  captures. Contract tests pin the three false negatives, the accepted
+  boundary, and the flat-capture case. F13: added the PTY integration
+  test `kitty_pause_releases_the_board_and_resume_replaces_it`, which
+  waits for a real static placement, pauses, asserts the release trio
+  leads the menu with no kitty transmit or placement after it, and
+  resumes to assert the board transmit and placement return. F14:
+  the Phase 3 checklist now carries the regenerated figures (21
+  transmits / 156.1-160.1 KiB, 7 of 10 light captures, 140-141 sixel
+  transmits / 3.39-3.41 MiB). Non-blocking: `dominant_share` now
+  classifies grayscale at bit depths 1/2/4/8 and gray+alpha (color
+  type 4), and fails closed for any decodable shape it cannot classify,
+  so a blank capture cannot bypass the E4 gate; `scoreboard.md`
+  distinguishes the CI terminal tests from the real-terminal FPS
+  measurements. Verification: workspace suite all targets green,
+  harness contract suite 26/26, fmt clean, clippy clean for the
+  terminal targets (the six pre-existing engine warnings only).
+  Delegation ledger: two read-only auditors fanned out. The gate
+  auditor executed 19 crafted collector scenarios (all expectations
+  met) and re-derived all committed kitty-graphics paused phases
+  against the new rule; the PTY adversary proved the pause-release and
+  resume-rebuild sensitivities by mutation in a /tmp copy and ran the
+  new test 5/5. Primary context applied the edits, ran the full
+  workspace suite, the contract suite, fmt, and clippy, and re-ran the
+  full kitty PTY suite (7/7).
   - the Fixer
