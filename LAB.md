@@ -407,7 +407,9 @@ Public Surface / Web Track:                                              │
   execution-shape keys, full env key maps including values, `with:` maps,
   and every run line with blank lines dropped) is pinned as canonical exact
   text alongside a named env-file/mention allowlist, a shell-faithful check
-  that every literal `gh issue create` invocation in the workflow lives in
+  that every literal `gh issue create` invocation (including the documented
+  `gh issue new` alias, resolved past global flags and their
+  `--repo`/`-R`/`--hostname`/`--config` values; F37) in the workflow lives in
   the anchored handler step (path-qualified executables such as `/usr/bin/gh`
   and `./gh`, `env`/`command`/`bash -c` prefixes, tabs, backslash-newline
   continuations, quote/backslash word concatenation such as `g""h`, ANSI-C
@@ -422,11 +424,13 @@ Public Surface / Web Track:                                              │
   comments, folding string prefixes, and joining adjacent literals so the
   escaped, comment-split, and adjacent-literal spellings are caught)
   exercised by self-tests that test EACH layer directly (the word scan over
-  `_f29_red`, the normalized form over `_f30_red`) and then exercise the
+  `_f29_red`, the normalized form over `_f30_red`, and the alias normalized
+  form over `_f30_alias_red`) and then exercise the
   exact combined predicate the scan calls over every red case (`_f29_red +
-  _f30_red + _f31_red`), so deleting or weakening either layer or the
+  _f30_red + _f31_red + _f30_alias_red`), so deleting or weakening either
+  layer or the
   combined predicate fails the audit itself (review findings
-  F26/F29/F30/F31/F32/F34/F35 plus the adjacent-literal sibling; prose
+  F26/F29/F30/F31/F32/F34/F35/F37 plus the adjacent-literal sibling; prose
   carrying separate `gh`, `issue`, and `create`
   tokens in one command line is a known accepted false-positive shape),
   repo-local scripts
@@ -461,13 +465,15 @@ Public Surface / Web Track:                                              │
   three handler needles while a canonical decoy remains, a create executed
   from inside a repo script, composite action, or reusable workflow, a
   `gh` create reached through a variable or command-substitution
-  indirection at the call site, a create issued through a direct REST call
+  indirection at the call site, through `xargs`, a shell-function wrapper,
+  a shell `alias`, or a glob-expanded executable path such as
+  `/usr/bin/g[h]` (F38; named explicitly), a create issued through a direct REST call
   (`gh api --method POST .../issues` or `curl .../issues`), a create
   assembled by shell expansion or runtime string construction (IFS word
   splitting, brace expansion such as `cr{e,}ate`, or a runtime-split Python
   string), or an env-file channel reached through one level of indirection
   inside a repo-local script, are documented
-  as the review-gated residual (review findings F2/F4-F35 plus the F16
+  as the review-gated residual (review findings F2/F4-F38 plus the F16
   print fix, B1-B3 plus
   independent-verification escapes E1-E4, Q4/Q5, L06/L07, P1/P2,
   M05/M07/M15-M17/M19-M21 and the round-3b boundary probes).
