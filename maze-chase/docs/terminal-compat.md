@@ -90,5 +90,12 @@ The measured floor is 62 columns by 35 rows (the too-small card names
 it); below that the game keeps running and re-fits live on the next
 resize.
 
+Known input limitation: the event source is crossterm's global parser,
+which holds an unrecognized private CSI sequence (for example
+`ESC [ ? 99999 h`) and suppresses key delivery until a completion byte
+such as `u` arrives. The harness cannot synthesize a recovery the game
+does not have, so the limitation is documented in `terminal.md` and
+pinned by a PTY regression test; it is not a row-level pass claim.
+
 Findings and root causes behind this table:
 `../../progress/582-maze-chase-overhaul-findings.md`.

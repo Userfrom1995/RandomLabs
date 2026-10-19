@@ -378,12 +378,13 @@ pub fn kitty_present(env: &[(String, String)]) -> bool {
     if get("KITTY_WINDOW_ID").is_some_and(|v| !v.is_empty()) {
         return true;
     }
-    // Ghostty implements the kitty graphics protocol but (1.3.1) never
-    // answers graphics probe commands, so a live probe cannot discover
-    // it. Its forced-tier row proves the capability
-    // (`tools/compat/evidence/ghostty-linux-kitty.json`); the
-    // environment is the only honest proof available before the first
-    // frame, and the watchdog still degrades on protocol errors.
+    // Ghostty 1.3.1 implements the kitty graphics protocol and does
+    // answer the live probe (`tools/compat/probe-graphics.py` recorded
+    // both replies on 2026-10-19), but its environment identifies it
+    // before the first frame, so these rows skip the probe round trip.
+    // `tools/compat/evidence/ghostty-linux-kitty.json` still proves the
+    // capability end to end, and the watchdog degrades on protocol
+    // errors.
     matches!(get("TERM"), Some("xterm-kitty"))
         || matches!(get("TERM_PROGRAM"), Some("kitty") | Some("ghostty"))
         || get("TERM").is_some_and(|t| t == "xterm-ghostty")

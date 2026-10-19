@@ -72,6 +72,16 @@ Settings, then Key bindings: pick an action, press Enter, press the new
 key. Conflicts are refused with the reason shown; nothing ever binds
 two actions to one key.
 
+Input parsing has one known boundary. The event source is crossterm's
+global parser, which buffers an unrecognized private CSI sequence (for
+example `ESC [ ? 99999 h`) and delivers no key events until a
+completion byte such as `u` arrives. The game never sees those keys,
+so it cannot time the buffer out; if typing suddenly stops after a
+stray escape sequence, send `u` to complete the sequence and input
+resumes. The behavior is pinned by a PTY regression test
+(`tester_kitty_render_pipeline.rs`) so this note cannot drift from the
+shipped binary.
+
 ## Render tiers
 
 The game picks the best tier its terminal proves, best first:
