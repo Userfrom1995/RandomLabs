@@ -16,7 +16,7 @@
 ## Overhaul Roadmap
 
 - Phase 1: Product Reassessment and Real-Terminal Truth: [x] real-terminal driver harness (`maze-chase/tools/compat/`: `run-linux.sh`, `run-macos.sh`, `run-windows.ps1`, `drive.sh`, `collect.py`, `README.md`), [x] reproduce the Owner's Ghostty and Kitty findings on current main with recorded evidence (kitty reply-loop flood plus input delayed past the session, Ghostty mis-routing despite its kitty-graphics support; eight executed Linux rows in `maze-chase/tools/compat/evidence/`), [x] critical reassessment of engine, layers, and docs claims (four parallel sweeps; Section B of the ledger), [x] findings ledger with every gap (`progress/582-maze-chase-overhaul-findings.md`), [x] honest compatibility matrix scaffold `maze-chase/docs/terminal-compat.md` (executed rows plus named executors for host-pending rows), [ ] new sub-issues routed through the Maintainer (proposed set in ledger Section C; filing is the Maintainer's next step, not done in this PR) (PR 1 target, Refs #582, Refs #655, Refs #661)
-- Phase 2: Dynamic Terminal Layout and Full-Window Composition: [x] geometry model with cell pixel size (`crates/terminal/src/geometry.rs`; TIOCGWINSZ pixel fields on Unix, console font on Windows, nominal 8x16 fallback), [x] pure layout solver (full 1..8 x 1..4 scale grid with coverage-first selection; side panel, HUD band, hint-only by fit; exact 62x35 card; golden plans 200x60 -> 7x1 and 62x80 -> 2x2), [x] bounded centered image rendering at the real pixel geometry (raster fit to the board's pixel box; image footprint mapped through the window pixels, so Kitty never stretches and Sixel never overflows; 8-ppt nominal fallback), [x] continuous cell-tier scales (`unicode::fit_width`/`center_rows` at any scale), [x] resize contract with same-frame repaint and stale-placement kill (`ESC[2J` plus Kitty delete-all in the new frame; pinned by `tests/plan_contract.rs`), [x] tier-aware too-small card (reads `layout.min_cols/min_rows`; exact 62x35 boundary pinned), [ ] real-emulator resize proof on Linux and macOS (the PTY proof landed with this PR; the real rows are per-OS tester work, no emulator exists on the build machine) (PR 2 target, Refs #582, Refs #656)
+- Phase 2: Dynamic Terminal Layout and Full-Window Composition: [x] geometry model with cell pixel size (`crates/terminal/src/geometry.rs`; TIOCGWINSZ pixel fields on Unix, console font on Windows, nominal 8x16 fallback), [x] pure layout solver (full 1..8 x 1..4 scale grid with coverage-first selection; side panel, HUD band, hint-only by fit; exact 62x35 card; golden plans 200x60 -> 7x1 and 62x80 -> 2x2), [x] bounded centered image rendering at the real pixel geometry (raster fit to the board's pixel box; image footprint mapped through the window pixels, so Kitty never stretches and the Sixel raster stays inside the board's pixel box whenever the box can host the 6-ppt legibility floor, and absurdly tiny pixel windows keep the documented floor and may overflow; 8-ppt nominal fallback), [x] continuous cell-tier scales (`unicode::fit_width`/`center_rows` at any scale), [x] resize contract with same-frame repaint and stale-placement kill (`ESC[2J` plus Kitty delete-all in the new frame; pinned by `tests/plan_contract.rs`), [x] tier-aware too-small card (reads `layout.min_cols/min_rows`; exact 62x35 boundary pinned), [ ] real-emulator resize proof on Linux and macOS (the PTY proof landed with this PR; the real rows are per-OS tester work, no emulator exists on the build machine) (PR 2 target, Refs #582, Refs #656)
 - Phase 3: Terminal Render Pipeline and Compatibility Proof: [ ] bounded live Kitty probe with byte replay (Ghostty enablement), [ ] atlas plus placement composition with full-frame fallback, [ ] dirty-change detection and wall-clock pacing with backpressure, [ ] Sixel path hardening, [ ] protocol-aware watchdog, [ ] `MAZE_CHASE_TRACE` JSONL evidence mode, [ ] kitty and ghostty rows signed on Linux and macOS plus conventional terminals (PR 3 target, Refs #582, Refs #655)
 - Phase 4: Visual Identity Redesign: [ ] Design Council direction consumed (dispatched by the Maintainer before this phase), [ ] resolution-aware character and environment art, [ ] effects and animation system, [ ] refreshed themes with accessibility tests green, [ ] all three layers integrated with real captures (PR 4 target, Refs #582, Closes #658)
 - Phase 5: Sound Design Overhaul: [ ] new musical score with one BPM source, [ ] soft short effect bank, [ ] mix architecture with fades and safe defaults, [ ] terminal chime policy default-off, [ ] per-layer real-host review and settings round-trip (PR 5 target, Refs #582, Closes #659)
@@ -29,20 +29,26 @@
 Phase 2 landed on the workflow-bound branch
 `opencode/issue582-20261018200149` (the same mechanic as Phase 1: the
 run's push binds to its trigger branch, noted in the PR body). The
-layout is now a pure continuous solver (tile scales 1..8 columns by
-1..4 rows plus the 2x1 floor; side panel, then HUD band, then hint-only
-chrome by fit; one exact 62x35 card), the cell tier renders at any
-scale, the bitmap tiers rasterize at the detected real cell pixel size
-with the proven 8-ppt nominal fallback, a live resize clears the screen
-and repaints in the same frame (the Kitty tier deletes every live
-placement first), and `MAZE_CHASE_TRACE` writes the JSONL machine
-trace the harness collector ingests. Measured: workspace suite 430
-passed, 0 failed across 51 targets, `maze-chase-verify` 19/19 with the
-`23c17f89734e` golden intact, clippy back to the pre-existing engine
-lints only. The real-emulator resize rows (Linux kitty/Ghostty/xterm,
-macOS) are the one open Phase 2 checklist item and stay with the
-per-OS testers: no emulator is installed on the build machine. Next:
-Phase 3 (terminal render pipeline and compatibility proof).
+layout is now a pure continuous solver (the full 1..8 x 1..4 scale grid
+picked coverage-first; side panel, then HUD band, then hint-only chrome
+by fit; one exact 62x35 card), the cell tier renders at any scale, the
+bitmap tiers rasterize at the detected real cell pixel size (raster fit
+to the board's pixel box, image on a centered footprint) with the
+proven 8-ppt nominal fallback, a live resize clears the screen and
+repaints in the same frame (the Kitty tier deletes every live placement
+first), and `MAZE_CHASE_TRACE` writes the JSONL machine trace the
+harness collector ingests. The Linux Tester's real-PTY round on the
+dynamic-layout build returned three blocking findings (F1: the solver
+scan; F2: Sixel placement; F3: Kitty footprint); all three are fixed on
+this follow-up branch with committed tests. Re-measured after the
+fixes: workspace suite 446 passed, 0 failed across 46 test binaries
+plus 7 doc-test suites, `maze-chase-verify` 19/19 with the
+`23c17f89734e` golden intact, clippy back to the pre-existing warnings
+from `main` (none from this branch's files). The real-emulator resize
+rows (Linux kitty/Ghostty/xterm, macOS) are the one open Phase 2
+checklist item and stay with the per-OS testers: no emulator is
+installed on the build machine. Next: Phase 3 (terminal render
+pipeline and compatibility proof).
 
 ## Next steps
 
@@ -311,10 +317,12 @@ Phase 3 (terminal render pipeline and compatibility proof).
   `raster_always_fits_the_board_pixel_box`, the PTY
   `pixel_reports_shape_footprint_and_raster` placement pins, and
   `sixel_raster_paints_centered_inside_its_cell_box`. Verification:
-  `cargo test --workspace` green (0 failed; desktop E2E under Xvfb),
-  `cargo fmt --all --check` clean, clippy back to the pre-existing
-  engine lints only, `maze-chase-verify` 19/19 with the
-  `23c17f89734e` golden   intact. Delegation ledger: three subagent missions ran against the
+  `cargo test --workspace --no-fail-fast` (desktop E2E under Xvfb):
+  446 passed, 0 failed across 46 test binaries plus 7 doc-test suites;
+  `cargo fmt --all --check` clean; clippy back to the pre-existing
+  warnings from `main` only, none from this branch's files;
+  `maze-chase-verify` 19/19 with the `23c17f89734e` golden intact.
+  Delegation ledger: two subagent missions ran against the
   finished change before commit. (1) `general` adversarial verification:
   brute-forced the solver math against an independently mirrored
   implementation (30,793 plans, 0 mismatches; 0 containment violations
