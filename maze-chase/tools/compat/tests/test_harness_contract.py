@@ -372,6 +372,78 @@ class TestCollectorHonestyGates(unittest.TestCase):
         playing = next(p for p in row["phases"] if p["name"] == "playing")
         self.assertEqual(playing["dominant_share"], 0.9999)
 
+    def test_sixel_blank_resize_capture_is_downgraded(self):
+        pixels = [24, 16, 12] * (100 * 100)
+        png = make_rgb_png(100, 100, pixels)
+        transcript = b"\x1b[1;1HVIDEO  sixel\r\n" + b" " * 200
+        run_dir = make_run_dir(
+            os.path.join(self.tmp, "run"),
+            screenshot_name="resized-wide.png",
+            create_png=png,
+            transcript=transcript,
+            checkpoint="resized-wide",
+        )
+        evidence = os.path.join(self.tmp, "evidence")
+        proc = run_collect(run_dir, evidence, "--result", "pass",
+                           "--tier", "sixel")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            row = json.load(fh)
+        self.assertEqual(row["disposition"], "partial")
+        self.assertTrue(
+            any(">=98% one color" in note for note in row["notes"]),
+            f"missing blank-board reason in {row['notes']}",
+        )
+
+    def test_kitty_paused_media_with_menu_capture_stays_pass(self):
+        # A paused capture with no sprite pixels and >=90% one color is
+        # the text menu on a solid background, so trailing placements
+        # attributed to the paused slice are checkpoint-boundary noise.
+        playing = (
+            b"\x1b[1;1HVIDEO  kitty-graphics\r\n"
+            b"\x1b_Ga=p,i=3,p=1,x=0,y=0,w=1120,h=1240,c=140,r=62,z=0,C=1,q=2\x1b\\"
+        )
+        paused = (
+            b"\x1b_Ga=p,i=3,p=1,x=0,y=0,w=1120,h=1240,c=140,r=62,z=0,C=1,q=2\x1b\\"
+            b"\x1b[1;1HPAUSED RESUME QUIT TO TITLE"
+        )
+        transcript = playing + paused
+        playing_px = [24, 16, 12] * 5000 + [230, 230, 230] * 4999 + [255, 225, 130]
+        paused_px = [24, 16, 12] * 9500 + [230, 230, 230] * 500
+        run_dir = make_run_dir(
+            os.path.join(self.tmp, "run"),
+            screenshot_name="playing.png",
+            create_png=make_rgb_png(100, 100, playing_px),
+            transcript=transcript,
+            checkpoint="playing",
+        )
+        shots = os.path.join(run_dir, "session", "screenshots")
+        with open(os.path.join(shots, "paused.png"), "wb") as fh:
+            fh.write(make_rgb_png(100, 100, paused_px))
+        p1 = len(playing)
+        p2 = len(transcript)
+        with open(os.path.join(run_dir, "session", "events.log"),
+                  "w", encoding="utf-8") as fh:
+            fh.write(f"100\tcheckpoint\tplaying\t{p1}\t"
+                     "session/screenshots/playing.png\n")
+            fh.write(f"200\tcheckpoint\tpaused\t{p2}\t"
+                     "session/screenshots/paused.png\n")
+            fh.write(f"300\texit\texited=true killed=false\t{p2}\t\n")
+        evidence = os.path.join(self.tmp, "evidence")
+        proc = run_collect(run_dir, evidence, "--result", "pass",
+                           "--tier", "kitty")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            row = json.load(fh)
+        self.assertEqual(row["disposition"], "pass")
+        self.assertTrue(
+            any("checkpoint-boundary attribution" in note
+                for note in row["notes"]),
+            f"missing attribution note in {row['notes']}",
+        )
+
     def test_kitty_paused_phase_with_media_is_downgraded(self):
         # The pause menu is text; a paused phase that still places the
         # opaque board can cover it. The collector refuses to sign that
