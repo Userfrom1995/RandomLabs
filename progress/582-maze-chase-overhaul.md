@@ -830,5 +830,35 @@ redesign), gated on the Design Council's direction.
   document the tier-observation refusal. Verification: harness contract
   suite 40/40 (three new tests); no Rust or committed evidence changed,
   so the workspace suite, verifier, and bundle gates stand from the
-  evidence-hardening round.
+  evidence-hardening round. Delegation ledger (round 10): the round was
+  a single-file collector edit with its contract tests and docs, so no
+  subagents were dispatched; the primary re-ran the contract suite,
+  py_compile, and the em-dash scan itself and exercised the three gate
+  shapes with synthetic run directories. No registry skill matched the
+  round; none loaded.
+  - the Fixer
+- 2026-10-19 (fixer, Phase 3 review round 11 on PR #693): applied F25,
+  F26, and F27 on `4893c52f`; no rebuttal. F25 (major): the
+  tier-observation gate is scoped to transcript-bearing platforms, so
+  Windows rows (which carry no pty transcript by design) keep the
+  documented process-plus-capture grading instead of being downgraded on
+  every pass; the compat README and both `docs/terminal-compat.md`
+  occurrences state the Linux/macOS scope, and a Windows-shaped contract
+  test pins the pass with no tier-observation note. F26: the blank-board
+  gate normalizes the phase name once, so `Refit` and `Resized-Wide`
+  captures can no longer skip it; contract tests cover both casings.
+  F27: the round-10 and round-11 delegation ledgers are recorded. Folded
+  note: a whitespace-only build identity now records `recorded: false`,
+  pinned by the extended build-shape test. Verification: harness contract
+  suite 43/43; no Rust or committed evidence changed, so the round-10
+  workspace suite, verifier, and bundle gates stand. Delegation ledger
+  (round 11): two read-only `general` subagents fanned out. The gate
+  auditor re-ran the harness suite (43/43), reproduced the Windows pass
+  and Linux downgrade shapes plus the cased `Refit` and `Resized-Wide`
+  downgrades, and A/B-replayed the pre-fix collector to prove the
+  sensitivity; the docs auditor matched every changed statement to the
+  code and flagged the paused-gate sentence, now scoped to
+  kitty-graphics. Primary context applied the edits, ran the suite and
+  py_compile, and verified the diff scope (five files). No registry
+  skill matched the round; none loaded.
   - the Fixer

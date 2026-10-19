@@ -43,10 +43,12 @@ placements are on the wire, the collector refuses to sign a
 kitty-graphics `pass` without a playing capture containing sprite pixels,
 and on any bitmap tier (kitty-graphics or sixel) it refuses a `pass`
 with no decodable playing capture at all, so a menu-only capture set can
-never sign one. A `pass` whose transcript never names the active video
-tier is refused outright, because the bitmap gates are keyed on the
-observed tier. Independently of the placement count, it refuses a
-paused capture that carries sprite pixels, has no decodable capture, or
+never sign one. On Linux and macOS, a `pass` whose transcript never names
+the active video tier is refused outright, because the bitmap gates are
+keyed on the observed tier (Windows rows carry no transcript by design and
+are graded from the process record and the capture set). Independently of
+the placement count, it refuses a kitty-graphics `pass` whose
+paused capture carries sprite pixels, has no decodable capture, or
 is not a near-solid text panel (at least 90% and less than 100% one
 color). It also refuses a playing, resized, or refit capture that is
 >=98% one color on the bitmap tiers (a blank board).
@@ -91,7 +93,8 @@ color). It also refuses a playing, resized, or refit capture that is
   paused capture carries sprite pixels, has no decodable capture, or is
   not a near-solid text panel (at least 90% and less than 100% one
   color); on every bitmap tier it also refuses a `pass` with no
-  decodable playing capture, or one whose transcript never names the
+  decodable playing capture, or (on Linux and macOS, whose sessions carry
+  a transcript) one whose transcript never names the
   active video tier.
 - `sixel` is fully playable on a real Sixel terminal. The encoder caps
   its palette at 64 colors and a frame at 2 MiB (with a smaller-palette

@@ -151,9 +151,10 @@ Honesty rules the harness enforces mechanically:
   proposed `pass` on any bitmap tier (`kitty-graphics` or `sixel`) also
   requires at least one decodable playing capture: a capture set made of
   static menus alone can never sign a pass, because the playing surface
-  itself is what a pass claims. A proposed `pass` whose transcript never
-  names the active video tier is refused outright, because every bitmap
-  gate above is keyed on that observation and cannot run without it. On
+  itself is what a pass claims. On Linux and macOS, a proposed `pass`
+  whose transcript never names the active video tier is refused outright,
+  because every bitmap gate above is keyed on that observation and cannot
+  run without it. On
   Windows, where the pty transcript deliberately
   does not exist, a row is graded from the game's own pid plus exit code
   and the capture set: a pass requires a zero exit code and at least one
