@@ -101,9 +101,9 @@ The game picks the best tier its terminal proves, best first:
     `TERM=xterm-ghostty`) or when the live probe answers on an
     unidentifiable terminal; keys typed during the probe are replayed,
     never swallowed. Kitty keyboard enhancement is enabled for
-    disambiguated input. Measured on kitty 0.32.2 (2026-10-19): 21
-    transmits and 156.1 KiB of PNG payload for a whole session, playing
-    at 20.6 frames/s with a 5.5 KiB mean frame (before this pipeline: a
+   disambiguated input. Measured on kitty 0.32.2 (2026-10-19): 21
+   transmits and 156.1 KiB of PNG payload for a whole session, playing
+   at 20.6 frames/s with a 6.0 KiB mean frame (before this pipeline: a
     historical 1642 transmits and 348.6 MiB, not re-derivable from the
     regenerated JSONs).
 2. **sixel**: true pixels through a hand-rolled Sixel encoder (palette
@@ -121,10 +121,11 @@ The game picks the best tier its terminal proves, best first:
    and VS Code path.
 4. **legacy-cells**: the same board folded to the 16 ANSI colors for
    conventional terminals. Fully playable: the only difference is
-   palette depth. On a light background the cream chrome text is
-   unreadable on white (the compatibility matrix records the committed
-   light xterm row and its dark-background twin); a light-background
-   palette is tracked in the #582 overhaul.
+   palette depth, and every painted run carries the theme's own
+   background, so a terminal with a light default (an unconfigured
+   xterm) renders the Ember Warren canvas instead of vanishing into
+   white (the compatibility matrix records the committed default-light
+   xterm row and its dark-background twin, both passing).
 
 A watchdog drops one tier per failure burst (3 strikes) and records
 why; the title screen shows the active tier and the downgrade trail,
@@ -133,7 +134,9 @@ watches the output path: a terminal that stops accepting frame writes
 triggers the downgrade. It cannot see a terminal silently
 mis-compositing placements, which is why every placement carries an
 explicit `z` stacking layer instead of relying on equal-z tie-breaking.
-The help screen's video line always names the tier in use.
+The title screen always names the tier in use (`video tier: ...`), and
+the wide-window side panel carries a `VIDEO` line; the narrow top bar
+and the menus (help, scores, settings) do not.
 
 Ghostty note: Ghostty 1.3.1 implements the Kitty graphics protocol and
 answers the live probe when one is sent: a direct pty experiment with

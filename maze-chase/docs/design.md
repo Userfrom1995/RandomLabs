@@ -249,10 +249,11 @@ stay off (no raster digits in the terminal font stack).
 
 Fidelity ladder rules:
 
-1. Legacy cells: 16 ANSI colors plus terminal palette variance; light
-   and dark backgrounds both read; hunters differentiate by boldness
-   plus hue pairs (bold blue / green / red / yellow class mappings per
-   theme); player is the bright player pair.
+1. Legacy cells: 16 ANSI colors plus terminal palette variance; every
+   painted run carries the theme's own background explicitly, so light
+   and dark terminal defaults both read; hunters differentiate by
+   boldness plus hue pairs (bold blue / green / red / yellow class
+   mappings per theme); player is the bright player pair.
 2. Truecolor cells plus half-block detail: 24-bit color; actors and
    walls down-sample to 1x2 subcells; half-block wall highlight row.
 3. Image tiers (sixel, kitty) plus desktop plus web canvas: the same
@@ -441,13 +442,20 @@ exceeds 512 KiB/s for 1 s. Kitty: atlas 256 KiB once; steady placement
 traffic ceiling 64 KiB/s (about 150 B per entity move, delete plus
 place, on a z-layered base image contract where deletion reveals the
 base without repaint); degrade to 15 Hz above 128 KiB/s sustained 1 s.
-Sixel: 13.7 KiB per 224x248 transmit (0.253 B/px); 12 Hz is 164 KiB/s
-and 24 Hz is 329 KiB/s; hard cap 512 KiB/s with backpressure (a frame
-is skipped while a prior write is still in flight past 83.3 ms); at
-ppt 12 or higher sixel clamps mover motion to 0.5 tiles per transmitted
-frame on the low-density cast, so a mover never aliases further than
-that quantum; sixel carries static or pre-rendered frames only, never
-per-frame animated particles. Desktop: dirty-rect software framebuffer,
+Sixel: the transmit is the whole board raster and its encoded size is
+content-dependent; the committed xterm VT340 rows measure 20.9 KiB
+mean and 25.3 KiB peak per playing transmit (the forced row ran 89
+transmits in 4.61 s at 19.3 fps, 404 KiB/s) and 31.3 KiB mean per
+transmit through the resize phases, well inside the encoder's 2 MiB
+per-frame budget (a
+smaller-palette retry, then a cell fallback for that frame). The tier
+paces at 24 Hz and backpressure stretches the transmit interval to
+1.5x the smoothed write cost (doubled above an 8 MiB/s byte flood,
+capped at 200 ms), so a slow PTY throttles instead of being flooded;
+at ppt 12 or higher sixel clamps mover motion to 0.5 tiles per
+transmitted frame on the low-density cast, so a mover never aliases
+further than that quantum; sixel carries static or pre-rendered frames
+only, never per-frame animated particles. Desktop: dirty-rect software framebuffer,
 p99 frame 8.3 ms, effects add at most 20 percent fill. Web: 60 fps, at
 most one allocation per frame, a flat heap over 60 s; degrade to 30 Hz
 only after 10 consecutive frames of 20 ms or more, and the fallback is
