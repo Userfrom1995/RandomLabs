@@ -60,11 +60,17 @@
 # keep-both day-log semantics, loud diagnostics, and a loud red give-up that
 # prints the recoverable bundle, enforced by a functional sandbox executing
 # the real step against a local bare-repo origin with injected push
-# rejections and concurrent tip advance).
-# Wired into auditor.yml as the R1-R23 matrix.
+# rejections and concurrent tip advance), and the R24 per-OS arm cap-headroom
+# and partial-report salvage guard (issue #692: the macOS arm died at its
+# 90-minute agent-step cap with zero artifacts and no partial report
+# survived, so every arm's agent cap must leave real headroom under its job
+# cap and the macOS/Windows arms must salvage a signed partial report through
+# the strict shared poster behind a provenance banner while the fail-closed
+# verify still concludes the run red).
+# Wired into auditor.yml as the R1-R24 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R23 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R24 audit the whole tree
 # (the review-restore guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
@@ -103,12 +109,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R23 PASS] $name: $desc"
+  [R1-R24 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R23 FAIL] $name: $desc"
+  [R1-R24 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -4179,16 +4185,109 @@ else
   check "R23" "maintainer memory publish guard missing:${r23_bad} (issue #647: a single-shot quiet rebase fallback silently lost a whole memory session to a concurrent push)" "bad"
 fi
 
-summary="Silent-stall regression audit (R1-R23) on ${WF}: ${pass} passed, ${fail} failed."
+# [R24] Per-OS arm cap headroom and partial-report salvage (issue #692): the
+# macOS per-OS arm died at its 90-minute agent-step cap with zero artifacts
+# (run 39170578536: 5 of 9 planned passes still open, no decision file, the
+# fail-closed verify red with `missing contract artifact(s): decision-file
+# findings-report`, and no partial report survived the runner). The
+# fail-closed gate itself behaved correctly; the defect was the cap shape
+# (agent 90 under job 120 leaves the chain at the wire) plus an
+# all-or-nothing artifact contract that lost every completed pass. Properties:
+#   1. every per-OS arm's agent-step cap leaves at least 20 minutes of
+#      headroom under its job cap, so the post-agent contract steps (verify,
+#      salvage, findings post, decision forward) still run after a worst-case
+#      agent cap death; the Linux arm keeps its measured 90-minute cap (it
+#      completes in about 33 minutes), while macOS and Windows must carry at
+#      least 120 under at least 140 job minutes;
+#   2. the macOS and Windows arms carry exactly one salvage step placed after
+#      the fail-closed verify step and gated on that verify failing, whose
+#      run body (a) skips when the decision file exists or no partial report
+#      exists, (b) composes a provenance banner plus the partial report into
+#      /tmp/random-lab-findings-salvage.md, and (c) publishes it through the
+#      strict shared poster with github.token (never the owner PAT) so only a
+#      signed, bot-authored, re-fetchable report is ever published.
+# The poster's runtime behavior is functionally tested by R17; this rule pins
+# the wiring by exact line so a removed step, a widened gate, an inverted
+# decision-file guard, a dropped banner, or a PAT swap cannot pass silently.
+# Review-gated residual boundary (same as R17): the salvage run body's own
+# control flow cannot be functionally executed statically.
+r24_bad=""
+if [ ! -f "$PEROS_WF" ]; then
+  r24_bad=" ${PEROS_WF}(missing)"
+else
+  for r24_os in linux macos windows; do
+    r24_block=$(peros_arm_block "test-${r24_os}")
+    case "$r24_os" in
+      linux)   r24_tag="Linux" ;;
+      macos)   r24_tag="macOS" ;;
+      windows) r24_tag="Windows" ;;
+    esac
+    if [ -z "$r24_block" ]; then
+      r24_bad="${r24_bad} arm-${r24_os}(job-missing)"
+      continue
+    fi
+    r24_job_cap=$(printf '%s\n' "$r24_block" | sed -n 's/^    timeout-minutes:[[:space:]]*//p' | head -n1)
+    r24_agent_cap=$(printf '%s\n' "$r24_block" | awk -v tag="      - name: Run ${r24_tag} tester agent" '
+      $0 == tag { s=1; next }
+      s && $0 ~ /^      - / { exit }
+      s && $0 ~ /^        timeout-minutes:/ { sub(/^        timeout-minutes:[[:space:]]*/, ""); print; exit }')
+    printf '%s' "$r24_job_cap" | grep -qE '^[0-9]+$' || r24_bad="${r24_bad} arm-${r24_os}(job-cap-invalid='${r24_job_cap}')"
+    printf '%s' "$r24_agent_cap" | grep -qE '^[0-9]+$' || r24_bad="${r24_bad} arm-${r24_os}(agent-cap-invalid='${r24_agent_cap}')"
+    if printf '%s' "$r24_job_cap" | grep -qE '^[0-9]+$' && printf '%s' "$r24_agent_cap" | grep -qE '^[0-9]+$'; then
+      r24_agent_min=90
+      [ "$r24_os" = "linux" ] || r24_agent_min=120
+      [ "$r24_agent_cap" -ge "$r24_agent_min" ] || r24_bad="${r24_bad} arm-${r24_os}(agent-cap=${r24_agent_cap},want>=${r24_agent_min})"
+      [ "$r24_job_cap" -ge $((r24_agent_cap + 20)) ] || r24_bad="${r24_bad} arm-${r24_os}(headroom=$((r24_job_cap - r24_agent_cap))min,want>=20)"
+    fi
+    [ "$r24_os" = "linux" ] && continue
+    r24_salv_name="      - name: Salvage partial ${r24_tag} findings report after a crashed or capped agent run (issue #692)"
+    r24_salv_count=$(printf '%s\n' "$r24_block" | grep -cF -- "$r24_salv_name" || true)
+    [ "$r24_salv_count" -eq 1 ] || r24_bad="${r24_bad} arm-${r24_os}(salvage-step-count=${r24_salv_count},want=1)"
+    r24_salv=$(printf '%s\n' "$r24_block" | awk -v tag="$r24_salv_name" '
+      $0 == tag { s=1; next }
+      s && $0 ~ /^      - / { exit }
+      s { print }')
+    if [ -z "$r24_salv" ]; then
+      r24_bad="${r24_bad} arm-${r24_os}(salvage-step-body-missing)"
+    else
+      r24_salv_body=$(printf '%s\n' "$r24_salv" | sed 's/^[[:space:]]*//')
+      printf '%s\n' "$r24_salv_body" | grep -qxF 'id: salvage' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-exact-id)"
+      printf '%s\n' "$r24_salv_body" | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'failure'" || r24_bad="${r24_bad} arm-${r24_os}(salvage-gate-not-exact)"
+      printf '%s\n' "$r24_salv_body" | grep -qxF 'GH_TOKEN: ${{ github.token }}' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-github-token-env)"
+      printf '%s\n' "$r24_salv_body" | grep -qxF 'TARGET: ${{ github.event.issue.number }}' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-target-env)"
+      printf '%s\n' "$r24_salv" | grep -qF 'OPENCODE_PAT' && r24_bad="${r24_bad} arm-${r24_os}(salvage-carries-owner-pat)"
+      printf '%s\n' "$r24_salv_body" | grep -qxF 'if [ -f /tmp/random-lab-decision.json ]; then' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-decision-file-guard)"
+      printf '%s\n' "$r24_salv_body" | grep -qxF 'if [ ! -s /tmp/random-lab-findings.md ]; then' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-missing-report-guard)"
+      printf '%s\n' "$r24_salv_body" | grep -qF '**Salvaged partial findings report (issue #692).** The '"${r24_tag}"' tester agent step' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-provenance-banner)"
+      printf '%s\n' "$r24_salv_body" | grep -qF '> Failing run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-run-url)"
+      printf '%s\n' "$r24_salv_body" | grep -qxF 'cat /tmp/random-lab-findings.md' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-partial-report-composition)"
+      printf '%s\n' "$r24_salv_body" | grep -qxF '} > /tmp/random-lab-findings-salvage.md' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-composed-file-target)"
+      printf '%s\n' "$r24_salv_body" | grep -qxF 'if bash .github/scripts/post-peros-findings.sh '"${r24_os}"' "$TARGET" /tmp/random-lab-findings-salvage.md; then' || r24_bad="${r24_bad} arm-${r24_os}(salvage-poster-invocation-not-exact)"
+      printf '%s\n' "$r24_salv_body" | grep -qF '::warning::Partial '"${r24_tag}"' findings report exists but failed the strict poster checks' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-failure-warning)"
+    fi
+    r24_verify_line=$(printf '%s\n' "$r24_block" | grep -nF -- "      - name: Verify test decided, else fail closed" | head -n1 | cut -d: -f1)
+    r24_salv_line=$(printf '%s\n' "$r24_block" | grep -nF -- "$r24_salv_name" | head -n1 | cut -d: -f1)
+    if [ -z "$r24_verify_line" ] || [ -z "$r24_salv_line" ] || [ "$r24_salv_line" -le "$r24_verify_line" ]; then
+      r24_bad="${r24_bad} arm-${r24_os}(salvage-not-after-verify)"
+    fi
+  done
+fi
+if [ -z "$r24_bad" ]; then
+  check "R24" "every per-OS arm's agent cap leaves >= 20 minutes under its job cap (macOS/Windows agent >= 120 under job >= 140, Linux measured 90), and the macOS/Windows arms carry one post-verify salvage step that composes a provenance banner plus the signed partial report into /tmp/random-lab-findings-salvage.md and publishes it through the strict shared poster with github.token only when the decision file is absent (issue #692)" "ok"
+else
+  check "R24" "per-OS cap headroom or partial-report salvage missing:${r24_bad} (issue #692: a 90-minute agent cap under a 120-minute job left no artifacts after a cap death)" "bad"
+fi
+
+summary="Silent-stall regression audit (R1-R24) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R23)
+  body="## Silent-stall regression audit FAILED (R1-R24)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier retry, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, or R23 maintainer memory publish concurrency). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier retry, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, or R24 per-OS cap headroom and partial-report salvage). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
