@@ -47,21 +47,24 @@ recorded), and its rows select `kitty-graphics` from
 plan, probe answers, per-frame mode and counts, encode time, and skips
 for the harness.
 
-Measured on this build (all eight Linux rows regenerated 2026-10-19):
-kitty 0.32.2 observes `kitty-graphics` and passes the full session at
-23 transmits / 170.0 KiB of PNG payload (previously 1642 transmits /
-348.6 MiB, killed), playing 98 frames in 4.72 s (20.7 fps) at a
-5.6 KiB mean frame; Ghostty 1.3.1 passes both rows at 23 / 187.2 KiB,
-playing 21.1 fps at a 5.9 KiB mean frame, and its playing captures
-carry 528-536 sprite-palette pixels (the earlier build hid every
-sprite behind the board on Ghostty: zero sprite pixels, cause of the
-explicit-z fix); xterm 390 in VT340 mode passes at 146 sixel transmits
-/ 3.66 MiB; the default-background xterm row remains partial only
-because its light palette leaves 6 of 10 captures >=98% white.
+Measured on this build (all eight Linux rows regenerated 2026-10-19
+from the binary at `af1c1496`): kitty 0.32.2 observes
+`kitty-graphics` and passes the full session at 21 transmits /
+156.1 KiB of PNG payload (the pre-pipeline flood is a historical 1642
+transmits / 348.6 MiB, killed), playing 99 frames in 4.79 s (20.7 fps)
+at a 5.4 KiB mean frame; Ghostty 1.3.1 passes both rows at 21 /
+160.1 KiB, playing 21.7-21.9 fps at a 5.5 KiB mean frame, and its
+playing captures carry 402-412 sprite-palette pixels (the earlier
+build hid every sprite behind the board on Ghostty: zero sprite
+pixels, cause of the explicit-z fix); xterm 390 in VT340 mode passes
+at 140 sixel transmits / 3.39 MiB; the default-background xterm row
+remains partial only because its light palette leaves 7 of 10 captures
+>=98% white. The pause surface now releases the kitty board and atlas
+before painting its text menu (collect.py refuses a kitty `pass` when
+the paused capture still carries sprite pixels), and bitmap capture
+gates reject a playing/resized/refit surface that is >=98% one color.
 Workspace tests pass, `maze-chase-verify` 19/19 with golden
-`23c17f89734e` intact, and the collector now refuses to sign a
-kitty-graphics `pass` without a playing capture containing
-sprite-palette pixels. The macOS matrix rows are the one open Phase 3
+`23c17f89734e` intact. The macOS matrix rows are the one open Phase 3
 item and stay with the per-OS testers. Next: Phase 4 (visual identity
 redesign), gated on the Design Council's direction.
 
@@ -583,4 +586,51 @@ redesign), gated on the Design Council's direction.
   `23c17f89734e`, fmt, and clippy (only the six pre-existing engine
   warnings). Skills: no registry skill matched this round; none
   loaded, per `delegation.md` section 5.
+  - the Fixer
+- 2026-10-19 (fixer, Phase 3 post-evaluation round on PR #693):
+  applied E1-E6 plus the rebase; no rebuttal. E1: `ScreenId::Paused` is
+  now its own render arm; on a fresh kitty frame it emits delete-all,
+  frees the static and atlas image ids, invalidates the renderer, and
+  paints only the text panel, so the opaque board can no longer cover
+  the menu. The unit test pins the release prefix, zero transmits and
+  placements, and the painted PAUSED text; collect.py rejects a
+  kitty-graphics `pass` whose paused capture still carries sprite
+  pixels (checkpoint-boundary media are accepted only when the paused
+  capture has zero sprite pixels and is >=90% one color). E2: every
+  Linux row was regenerated from the release binary built at
+  `af1c1496`, and the matrix now names that head instead of the false
+  z-round provenance. E3: the ack-spin experiment's corroboration table
+  was replaced with the four committed rows that re-derive from their
+  JSONs (clean exits, 21 kitty transmits, pause paints at 1,193,556 /
+  1,393,272 / 4,491,893 bytes and 6,230,878 for truecolor); the old
+  flood figures are marked historical and non-re-derivable. E4:
+  collect.py computes the dominant-color share, records it per phase,
+  and downgrades a kitty/sixel `pass` whose playing, resized, or refit
+  capture is >=98% one color; the formerly blank sixel `resized-wide`
+  checkpoint now re-derives as 51% one color with 208 sprite pixels.
+  E5: both settings and score writers refuse a FIFO with InvalidInput
+  before opening (tests create real FIFOs and assert the refusal leaves
+  them intact); the crossterm private-CSI stall is documented in
+  terminal.md and terminal-compat.md and pinned by a PTY test that
+  proves Esc is dead until the completion byte `u` and works after it.
+  E6: the kitty_present comment no longer claims Ghostty never answers
+  the probe; it states the environment fast path. Rebase: main's new
+  centered image footprint (`layout.image`), its live-golden contract,
+  and its macOS resize expectations were reconciled with the placement
+  pipeline; the three tester suites pass. Evidence: all eight Linux
+  rows regenerated (kitty 21 / 156.1 KiB, Ghostty 21 / 160.1 KiB,
+  sixel 140 / 3.39 MiB, light xterm 7 of 10 white captures); workspace
+  suite 56 targets green, harness contract suite 20/20, `cargo fmt
+  --all --check` clean, clippy only the pre-existing engine/design
+  warnings, `maze-chase-verify` 19/19 with the `23c17f89734e` golden.
+  Delegation ledger: two read-only auditors fanned out; the code
+  auditor returned E1/E5/E6 PASS, flagged two missing contract-test
+  branches (the paused-media menu acceptance and the sixel resized
+  gate) which were added, and flagged the `refit` checkpoint outside
+  the blank-board filter (fixed); the numeric auditor re-derived every
+  row, session bullet, light-capture count, and ack-spin table entry
+  from the JSONs (all MATCH) and flagged the historical 1642 / 348.6
+  MiB figures as non-derivable, now qualified as historical in both
+  docs. Skills: no registry skill matched this round; none loaded, per
+  `delegation.md` section 5.
   - the Fixer
