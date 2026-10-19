@@ -86,10 +86,7 @@ fn open_pty(cols: u16, rows: u16) -> Pty {
 }
 
 fn session_dir(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "maze-chase-{tag}-{}",
-        std::process::id()
-    ));
+    let dir = std::env::temp_dir().join(format!("maze-chase-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("create session dir");
     dir
@@ -247,9 +244,7 @@ fn kv(params: &str) -> Vec<(String, String)> {
 }
 
 fn get<'a>(kvs: &'a [(String, String)], key: &str) -> Option<&'a str> {
-    kvs.iter()
-        .find(|(k, _)| k == key)
-        .map(|(_, v)| v.as_str())
+    kvs.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
 }
 
 fn trace_text(dir: &Path) -> String {
@@ -360,9 +355,8 @@ fn kitty_render_pipeline_z_layers_quiet_transmits_and_exact_deletes() {
                     && get(&kvs, "p").is_none();
                 let placement = get(&kvs, "d") == Some("i")
                     && get(&kvs, "i") == Some(ATLAS_IMAGE_ID)
-                    && get(&kvs, "p").is_some_and(|p| {
-                        !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit())
-                    });
+                    && get(&kvs, "p")
+                        .is_some_and(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()));
                 assert!(
                     exact || free || placement,
                     "unexpected delete shape: {params}"
@@ -405,7 +399,12 @@ fn kitty_probe_two_fragmented_ok_replies_upgrade_to_placement_mode() {
     let mut out = Vec::new();
     let probe_tx = format!("i={PROBE_IMAGE_ID},a=t");
     assert!(
-        wait_for(&mut pty.master, &mut out, &probe_tx, Duration::from_secs(20)),
+        wait_for(
+            &mut pty.master,
+            &mut out,
+            &probe_tx,
+            Duration::from_secs(20)
+        ),
         "kitty probe transmit request never appeared; tail: {}",
         tail(&out)
     );
@@ -483,11 +482,18 @@ fn kitty_probe_placement_rejection_keeps_full_frame_transmit_mode() {
     let mut out = Vec::new();
     let probe_tx = format!("i={PROBE_IMAGE_ID},a=t");
     assert!(
-        wait_for(&mut pty.master, &mut out, &probe_tx, Duration::from_secs(20)),
+        wait_for(
+            &mut pty.master,
+            &mut out,
+            &probe_tx,
+            Duration::from_secs(20)
+        ),
         "kitty probe transmit request never appeared; tail: {}",
         tail(&out)
     );
-    (&pty.master).write_all(b"\x1b_Gi=1296236545;OK\x1b\\").unwrap();
+    (&pty.master)
+        .write_all(b"\x1b_Gi=1296236545;OK\x1b\\")
+        .unwrap();
     assert!(
         wait_for(
             &mut pty.master,
@@ -530,7 +536,8 @@ fn kitty_probe_placement_rejection_keeps_full_frame_transmit_mode() {
         "probe record must report graphics-without-placements: {probe_line}"
     );
     assert!(
-        text.lines().any(|l| l.contains("\"kind\":\"frame\"") && l.contains("\"mode\":\"frame\"")),
+        text.lines()
+            .any(|l| l.contains("\"kind\":\"frame\"") && l.contains("\"mode\":\"frame\"")),
         "trace must show full-frame frames:\n{text}"
     );
     let apcs = apc_params(&out);
@@ -637,9 +644,10 @@ fn leaving_kitty_tier_releases_board_and_atlas_before_first_sixel_frame() {
                 tail(&buf)
             )
         });
-    let dcs_at = stream[rel_at..].find("\x1bPq").map(|i| i + rel_at).unwrap_or_else(|| {
-        panic!("no Sixel DCS frame after the release; tail: {}", tail(&buf))
-    });
+    let dcs_at = stream[rel_at..]
+        .find("\x1bPq")
+        .map(|i| i + rel_at)
+        .unwrap_or_else(|| panic!("no Sixel DCS frame after the release; tail: {}", tail(&buf)));
     let sync_at = stream[rel_at..]
         .find("\x1b[?2026h")
         .map(|i| i + rel_at)
@@ -689,7 +697,62 @@ fn eaten_sunseed_leaves_the_desired_set_and_maps_to_an_exact_delete() {
     let del = kitty::delete_placement_escape(kitty::ATLAS_IMAGE_ID, tile_id);
     assert_eq!(
         del,
-        format!("\x1b_Ga=d,d=i,i={},p={tile_id}\x1b\\", kitty::ATLAS_IMAGE_ID)
+        format!(
+            "\x1b_Ga=d,d=i,i={},p={tile_id}\x1b\\",
+            kitty::ATLAS_IMAGE_ID
+        )
     );
     assert!(!del.contains("d=p"), "d=p is not a placement delete");
+}
+
+#[test]
+fn private_csi_input_stall_is_pinned_and_recovers_on_the_completion_byte() {
+    // Documented limitation (review round E5): crossterm's parser keeps
+    // an unrecognized private CSI (for example `ESC [ ? 99999 h`) in its
+    // buffer and delivers no key events until a completion byte such as
+    // `u` arrives. The game therefore cannot recover on its own; this
+    // test pins the exact behavior so the docs cannot drift from it.
+    let dir = session_dir("private-csi");
+    let (mut pty, mut child) = spawn_pty(&dir, "truecolor", "xterm-256color");
+    let mut out = Vec::new();
+    assert!(
+        wait_for(
+            &mut pty.master,
+            &mut out,
+            "video tier: truecolor-cells",
+            Duration::from_secs(20)
+        ),
+        "title never appeared; tail: {}",
+        tail(&out)
+    );
+    pty.master.write_all(b"\x1b[?99999h").unwrap();
+    collect_for(&mut pty.master, &mut out, Duration::from_millis(250));
+    pty.master.write_all(b"\x1b").unwrap();
+    collect_for(&mut pty.master, &mut out, Duration::from_millis(700));
+    assert!(
+        child.try_wait().unwrap().is_none(),
+        "the private-CSI limitation changed: Esc quit while the parser was stalled; tail: {}",
+        tail(&out)
+    );
+    pty.master.write_all(b"u").unwrap();
+    collect_for(&mut pty.master, &mut out, Duration::from_millis(250));
+    pty.master.write_all(b"\x1b").unwrap();
+    let deadline = Instant::now() + Duration::from_secs(4);
+    let exited = loop {
+        if child.try_wait().unwrap().is_some() {
+            break true;
+        }
+        if Instant::now() >= deadline {
+            break false;
+        }
+        collect_for(&mut pty.master, &mut out, Duration::from_millis(50));
+    };
+    if !exited {
+        stop(&mut child);
+    }
+    assert!(
+        exited,
+        "Esc after the completion byte must quit; tail: {}",
+        tail(&out)
+    );
 }
