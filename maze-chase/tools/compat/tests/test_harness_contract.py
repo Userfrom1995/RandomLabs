@@ -326,6 +326,93 @@ class TestCollectorHonestyGates(unittest.TestCase):
         self.assertEqual(playing["sprite_census"]["by_color"]["pip"], 1)
 
 
+    def test_dominant_share_detects_one_flat_color(self):
+        # The sixel `resized-wide` checkpoint was a single flat
+        # background color yet signed pass; the collector now measures
+        # the most common pixel color directly.
+        collect = load_collect_module()
+        path = os.path.join(self.tmp, "flat.png")
+        with open(path, "wb") as fh:
+            fh.write(make_rgb_png(4, 4, [24, 16, 12] * 16))
+        facts = collect.screenshot_facts(path)
+        self.assertEqual(facts["dominant_share"], 1.0)
+        self.assertLess(facts["white_share"], 0.98)
+
+    def test_bitmap_blank_playing_capture_is_downgraded(self):
+        # One sprite pixel cannot rescue a playing surface that is
+        # otherwise one flat color: the board itself is blank.
+        pixels = [24, 16, 12] * 9999 + [255, 225, 130]
+        png = make_rgb_png(100, 100, pixels)
+        transcript = (
+            b"\x1b[?2026h"
+            b"\x1b[2J\x1b_Ga=d\x1b\\"
+            b"\x1b_Ga=p,i=3,p=1,x=0,y=0,w=1120,h=1240,c=140,r=62,z=0,C=1,q=2\x1b\\"
+            b"\x1b[?2026l"
+            b"\x1b[1;1HVIDEO  kitty-graphics\r\n"
+        )
+        run_dir = make_run_dir(
+            os.path.join(self.tmp, "run"),
+            screenshot_name="playing.png",
+            create_png=png,
+            transcript=transcript,
+            checkpoint="playing",
+        )
+        evidence = os.path.join(self.tmp, "evidence")
+        proc = run_collect(run_dir, evidence, "--result", "pass",
+                           "--tier", "kitty")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            row = json.load(fh)
+        self.assertEqual(row["disposition"], "partial")
+        self.assertTrue(
+            any(">=98% one color" in note for note in row["notes"]),
+            f"missing blank-board reason in {row['notes']}",
+        )
+        playing = next(p for p in row["phases"] if p["name"] == "playing")
+        self.assertEqual(playing["dominant_share"], 0.9999)
+
+    def test_kitty_paused_phase_with_media_is_downgraded(self):
+        # The pause menu is text; a paused phase that still places the
+        # opaque board can cover it. The collector refuses to sign that
+        # shape even when the sprite census looks healthy.
+        transcript = (
+            b"\x1b[1;1HVIDEO  kitty-graphics\r\n"
+            b"\x1b[?2026h\x1b[2J"
+            b"\x1b_Ga=p,i=3,p=1,x=0,y=0,w=1120,h=1240,c=140,r=62,z=0,C=1,q=2\x1b\\"
+            + b" " * 20
+            + b"\x1b[?2026l\x1b[1;1HPAUSED"
+            + b" " * 200
+        )
+        png = make_rgb_png(100, 100, [24, 16, 12] * 9999 + [255, 225, 130])
+        run_dir = make_run_dir(
+            os.path.join(self.tmp, "run"),
+            screenshot_name="paused.png",
+            create_png=png,
+            transcript=transcript,
+            checkpoint="paused",
+        )
+        with open(os.path.join(run_dir, "session", "events.log"),
+                  "w", encoding="utf-8") as fh:
+            fh.write("100\tcheckpoint\tpaused\t120\t"
+                     "session/screenshots/paused.png\n")
+            fh.write(f"200\texit\texited=true killed=false\t"
+                     f"{len(transcript)}\t\n")
+        evidence = os.path.join(self.tmp, "evidence")
+        proc = run_collect(run_dir, evidence, "--result", "pass",
+                           "--tier", "kitty")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(evidence, "unit-test-row.json"),
+                  encoding="utf-8") as fh:
+            row = json.load(fh)
+        self.assertEqual(row["disposition"], "partial")
+        self.assertTrue(
+            any("paused phase still transmits or places" in note
+                for note in row["notes"]),
+            f"missing pause-surface reason in {row['notes']}",
+        )
+
+
 class TestProbeGraphicsArguments(unittest.TestCase):
     """The probe experiment must run under its documented invocation.
 
