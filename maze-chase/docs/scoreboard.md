@@ -205,11 +205,17 @@ The dynamic-layout overhaul (#582), measured on the Linux build machine:
 ## 2026-10-18 (overhaul follow-up: tester round on #656)
 
 The Linux Tester's real-PTY round on the dynamic-layout build returned three
-blocking findings; all three are fixed with committed tests and the
-full gates re-run on the Linux build machine:
+blocking findings; all three are fixed with committed tests. The review
+round after the fix then enforced the 2x1 compact floor on the pixel path
+(a 1x2 side-panel plan used to tie the 2x2 minimal plan at 80x63 with 8x6
+cells and win the chrome tie-break; pinned by
+`layout::tests::pixel_path_never_drops_below_the_compact_floor`),
+reconciled the scoring and raster claims across the blueprint, the
+terminal docs, and the module header, and tightened the squareness
+guard. The full gates re-run on the Linux build machine:
 
 - `cargo test --workspace --no-fail-fast` (desktop E2E under Xvfb):
-  446 passed, 0 failed across 46 test binaries plus 7 doc-test suites.
+  447 passed, 0 failed across 46 test binaries plus 7 doc-test suites.
 - `cargo run --release --bin maze-chase-verify`: 19/19 checks, the
   golden replay digest unchanged (`23c17f89734e`).
 - `cargo fmt --all --check` clean; clippy reports only the pre-existing
