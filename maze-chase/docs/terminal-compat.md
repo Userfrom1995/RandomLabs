@@ -26,9 +26,10 @@ All rows were refreshed on 2026-10-19 from the release binary built at
 re-derives from the named JSON and uses true binary units (KiB = 1024 B,
 MiB = 1024^2 B). The kitty-graphics `pass` rows also carry a
 sprite-palette census per capture (`sprite_census` in each phase,
-`sprite_visibility.playing_captures_with_sprites` at the top level); the
-collector refuses to sign a kitty-graphics `pass` without a playing
-capture containing sprite pixels, and it refuses a paused capture that
+`sprite_visibility.playing_captures_with_sprites` at the top level); when
+placements are on the wire, the collector refuses to sign a
+kitty-graphics `pass` without a playing capture containing sprite pixels,
+and it refuses a paused capture that
 carries sprite pixels, has no decodable capture, or is not a near-solid
 text panel (at least 90% and less than 100% one color). It also refuses
 a playing, resized, or refit capture that is >=98% one color on the

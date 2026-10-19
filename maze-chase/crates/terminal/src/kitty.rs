@@ -383,8 +383,9 @@ pub fn kitty_present(env: &[(String, String)]) -> bool {
     // both replies on 2026-10-19), but its environment identifies it
     // before the first frame, so these rows skip the probe round trip.
     // `tools/compat/evidence/ghostty-linux-kitty.json` still proves the
-    // capability end to end, and the watchdog degrades on protocol
-    // errors.
+    // capability end to end, and the watchdog degrades on failed frame
+    // writes (the only strike source; it never observes silent
+    // mis-compositing).
     matches!(get("TERM"), Some("xterm-kitty"))
         || matches!(get("TERM_PROGRAM"), Some("kitty") | Some("ghostty"))
         || get("TERM").is_some_and(|t| t == "xterm-ghostty")

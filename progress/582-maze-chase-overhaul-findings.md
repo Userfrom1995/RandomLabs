@@ -358,13 +358,13 @@ named phase; Phase 1 files them, later phases close them.
   because they persist across every synchronized repaint and appear as
   app-drawn cell content; a hardware-GL host should be included in the
   Phase 2 proof pass.
-- The kitty-linux-auto and ghostty-linux-kitty rows are `partial` by
-  construction: the state machine was driven, keys were recorded, and
-  the game process had to be killed because input painted hundreds of
-  megabytes behind its keys and the quit path never landed before the
-  harness timeout (RT-1). Their screenshots still document real
-  defects. The light-background xterm row is `partial` for a different
-  reason: its captures failed the render check (RT-6).
+- The kitty-linux-auto and ghostty-linux-kitty rows were `partial` in
+  the pre-fix capture (RT-1 painted hundreds of megabytes behind the
+  keys and the quit path never landed before the harness timeout); the
+  regenerated 2026-10-19 bundles record both rows as `pass` with clean
+  exits and are the rows the matrix cites. The light-background xterm
+  row remains `partial` for a different reason: its captures failed the
+  render check (RT-6).
 - Every executed row commits its `events.log` (per-event timestamps,
   measured window geometry, transcript offsets) alongside the JSON and
   screenshots, and the JSON carries per-phase `surfaces` paint counters
