@@ -839,6 +839,19 @@ fn compose_frame(
     render_frame(app, out, fresh, kitty)
 }
 
+/// Apply a failed frame write. The composed frame never reached the
+/// terminal, but `kitty_frame` already committed the diff state it
+/// rendered (`placed`, `force_all`, and the static/atlas keys). Without a
+/// reset the next frame diffs against state the screen never received,
+/// leaving removed sprites visible, new stationary sprites missing, and
+/// the old board composited. Force a full repaint: the next frame deletes
+/// every placement, frees both images, re-transmits the board and atlas,
+/// and starts from an empty placement set.
+fn note_failed_frame_write(fresh: &mut bool, kitty: &mut KittyRenderer) {
+    *fresh = true;
+    kitty.invalidate();
+}
+
 fn render_frame(
     app: &mut App,
     out: &mut String,
@@ -987,6 +1000,12 @@ fn render_frame(
                 out.push_str(&maze_chase_terminal::kitty::free_image_escape(
                     maze_chase_terminal::kitty::ATLAS_IMAGE_ID,
                 ));
+                if !kitty.placements {
+                    // The probe proved graphics but not placements, so
+                    // the board is a whole-frame display under image id
+                    // 1; release that layer too or it covers the menu.
+                    out.push_str(&maze_chase_terminal::kitty::free_image_escape(1));
+                }
                 // The screen-change path already invalidated the renderer
                 // when this surface was entered; the release bytes above
                 // are what actually frees the images.
@@ -1451,8 +1470,12 @@ fn main() {
                 if app.watchdog.tier() == Tier::Legacy {
                     break;
                 }
-                // The failed frame never reached the screen: keep
-                // `fresh` set so the next frame redoes the cleanup.
+                // The failed frame never reached the screen, but the
+                // renderer committed its diff state above. Force a full
+                // repaint so the next frame deletes stale placements and
+                // re-transmits both images instead of diffing against
+                // state the terminal never received.
+                note_failed_frame_write(&mut fresh, &mut kitty);
             } else {
                 fresh = false;
                 left_kitty = false;
@@ -1706,6 +1729,84 @@ mod tests {
         assert!(
             frame.contains("PAUSED") && frame.contains("Resume"),
             "the pause menu must paint"
+        );
+    }
+
+    #[test]
+    fn paused_on_kitty_frees_the_whole_frame_image_without_placements() {
+        use maze_chase_terminal::kitty;
+        use maze_chase_terminal::screens::ScreenId;
+        let env = vec![("KITTY_WINDOW_ID".to_string(), "1".to_string())];
+        let mut app = App::new(100, 40, &env, std::path::PathBuf::from("."));
+        app.screens.show(ScreenId::Paused);
+        let mut renderer = KittyRenderer::new(false);
+        let mut frame = String::new();
+        let _ = compose_frame(&mut app, &mut frame, true, &mut renderer, false);
+        assert!(
+            frame.contains(&kitty::free_image_escape(1)),
+            "the whole-frame fallback image must be freed with the menu"
+        );
+        assert!(frame.contains("PAUSED") && frame.contains("Resume"));
+    }
+
+    #[test]
+    fn a_failed_kitty_frame_write_forces_a_full_repaint() {
+        use maze_chase_terminal::kitty;
+        use maze_chase_terminal::screens::ScreenId;
+        let env = vec![("KITTY_WINDOW_ID".to_string(), "1".to_string())];
+        let mut app = App::new(100, 40, &env, std::path::PathBuf::from("."));
+        app.screens.show(ScreenId::Playing);
+        let mut renderer = KittyRenderer::new(true);
+        let mut first = String::new();
+        let stats = compose_frame(&mut app, &mut first, true, &mut renderer, false);
+        assert_eq!(stats.mode, "placements");
+        assert!(
+            first.contains(&format!("\x1b_Ga=t,f=100,i={},", kitty::STATIC_IMAGE_ID)),
+            "the healthy frame must transmit the static board"
+        );
+        assert!(
+            first.contains(&format!("\x1b_Ga=t,f=100,i={},", kitty::ATLAS_IMAGE_ID)),
+            "the healthy frame must transmit the atlas"
+        );
+        assert!(renderer.static_key.is_some() && renderer.atlas_key.is_some());
+        assert!(!renderer.placed.is_empty());
+
+        // The write failed: none of those bytes reached the terminal,
+        // yet the renderer committed the diff state while composing.
+        let mut fresh = false;
+        note_failed_frame_write(&mut fresh, &mut renderer);
+        assert!(fresh);
+        assert!(renderer.static_key.is_none());
+        assert!(renderer.atlas_key.is_none());
+        assert!(renderer.placed.is_empty());
+        assert!(renderer.force_all);
+
+        let mut recovered = String::new();
+        let stats = compose_frame(&mut app, &mut recovered, fresh, &mut renderer, false);
+        assert_eq!(stats.mode, "placements");
+        let trio = format!(
+            "{}{}{}",
+            kitty::delete_all_escape(),
+            kitty::free_image_escape(kitty::STATIC_IMAGE_ID),
+            kitty::free_image_escape(kitty::ATLAS_IMAGE_ID),
+        );
+        let release_at = recovered
+            .find(&trio)
+            .unwrap_or_else(|| panic!("recovered frame never releases the stale layers"));
+        let transmit_at = recovered
+            .find("\x1b_Ga=t")
+            .unwrap_or_else(|| panic!("recovered frame never re-transmits an image"));
+        assert!(
+            release_at < transmit_at,
+            "the release must lead the re-transmits"
+        );
+        assert!(
+            recovered.contains(&format!("\x1b_Ga=t,f=100,i={},", kitty::STATIC_IMAGE_ID)),
+            "the recovered frame must re-transmit the static board"
+        );
+        assert!(
+            recovered.contains(&format!("\x1b_Ga=t,f=100,i={},", kitty::ATLAS_IMAGE_ID)),
+            "the recovered frame must re-transmit the atlas"
         );
     }
 
