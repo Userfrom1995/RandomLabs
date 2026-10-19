@@ -1263,6 +1263,316 @@ fi
 #      `${label}(run-block-not-exact)` alone; the region pins above remain
 #      for precise failure labels.
 r15_bad=""
+# Review round 18 (issue #653 test integrity): every R15 step/run-block pin
+# used to extract its subject textually, so a block scalar carrying a decoy
+# `run: |` (for example inside the runner step's `env.PROMPT`) could win the
+# extraction while the real step hid behind the valid `run: |2` spelling, and
+# the step-key checks (an explicit `? if` / `: false`, an explicit
+# `? HANG_IDLE_SECONDS` / `: "86400"`) never saw a key written in YAML
+# explicit-key syntax even though GitHub Actions reads it exactly like the
+# block spelling. The runner step, its `run` scalar, its key set, its env
+# mapping, the resolver step, and the two verify steps are now resolved
+# STRUCTURALLY with python3 + PyYAML (preinstalled on the auditor runner,
+# same precedent as R18). A strict loader rejects duplicate mapping keys, so
+# a second `run`/`if`/`shell` key can never silently override the audited
+# one; parsing failures, a missing/duplicated runner step, and a missing
+# python runtime all fail closed. The extracted `run` scalars are written to
+# a private directory for the whole-block exact pin and the behavioral
+# harness, so no textual decoy can ever become the audited body.
+r15_struct_dir=$(mktemp -d 2>/dev/null || true)
+if [ -z "$r15_struct_dir" ]; then
+  r15_bad="${r15_bad} structural(mkdtemp-failed)"
+else
+  r15_struct_out=$(R15_STRUCT_DIR="$r15_struct_dir" python3 - <<'R15PY'
+import glob
+import os
+import sys
+
+try:
+    import yaml
+except Exception as exc:
+    sys.stdout.write("structural(python-runtime:no-pyyaml:%s)\n" % exc)
+    raise SystemExit(0)
+
+STRUCT = os.environ.get("R15_STRUCT_DIR", "")
+KNOBS = {"HANG_IDLE_SECONDS", "HANG_POLL_SECONDS"}
+problems = []
+
+
+class StrictLoader(yaml.SafeLoader):
+    pass
+
+
+def strict_mapping(loader, node, deep=False):
+    mapping = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            duplicate = key in mapping
+        except TypeError:
+            duplicate = False
+        if duplicate:
+            raise yaml.constructor.ConstructorError(
+                None, None, "duplicate key %r" % (key,), key_node.start_mark
+            )
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+StrictLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, strict_mapping
+)
+
+
+def load(path):
+    with open(path) as handle:
+        return yaml.load(handle, Loader=StrictLoader)
+
+
+def write_block(name, text):
+    if not STRUCT:
+        return
+    with open(os.path.join(STRUCT, name), "w") as handle:
+        handle.write(text)
+
+
+def steps_of(doc):
+    if isinstance(doc, dict) and isinstance(doc.get("runs"), dict):
+        steps = doc["runs"].get("steps")
+        return steps if isinstance(steps, list) else []
+    jobs = doc.get("jobs") if isinstance(doc, dict) else None
+    if not isinstance(jobs, dict):
+        return []
+    found = []
+    for job in jobs.values():
+        if isinstance(job, dict) and isinstance(job.get("steps"), list):
+            found.extend(job["steps"])
+    return found
+
+
+def named_steps(steps, name):
+    return [step for step in steps if isinstance(step, dict) and step.get("name") == name]
+
+
+def runner_key_hits(step, kind):
+    hits = []
+    if "if" in step:
+        hits.append("run-step-conditional")
+    env = step.get("env")
+    if isinstance(env, dict) and (set(env) & KNOBS):
+        hits.append("run-step-watchdog-env-override")
+    if kind == "action":
+        if "continue-on-error" in step:
+            hits.append("run-step-continue-on-error")
+        if "timeout-minutes" in step:
+            hits.append("run-step-timeout-minutes")
+    else:
+        if step.get("continue-on-error") is not True:
+            hits.append("run-step-continue-on-error-not-exact")
+        if step.get("timeout-minutes") != 60:
+            hits.append("run-step-timeout-minutes-not-exact")
+    if step.get("shell") != "bash":
+        hits.append("run-step-shell-not-bash")
+    return hits
+
+
+def runner_check(label, kind, path, step_name, block_name):
+    try:
+        doc = load(path)
+    except Exception as exc:
+        problems.append("%s(yaml-parse-error:%s)" % (label, exc))
+        return
+    steps = steps_of(doc)
+    hits = named_steps(steps, step_name)
+    if len(hits) != 1:
+        problems.append("%s(run-step-not-unique)" % label)
+        return
+    step = hits[0]
+    for hit in runner_key_hits(step, kind):
+        problems.append("behavioral(%s,%s)" % (label, hit))
+    run = step.get("run")
+    if not isinstance(run, str) or run.count("opencode github run") != 2:
+        problems.append("%s(run-invocation-count)" % label)
+    if isinstance(run, str):
+        write_block(block_name, run)
+    env = step.get("env") if isinstance(step.get("env"), dict) else {}
+    candidates = env.get("MODEL_CANDIDATES")
+    if not isinstance(candidates, str) or candidates.strip() != "${{ steps.model_ladder.outputs.candidates }}":
+        problems.append("%s(candidate-env-not-resolver-output)" % label)
+    if kind == "action":
+        model = env.get("MODEL")
+        if not isinstance(model, str) or model.strip() != "${{ steps.model_ladder.outputs.model }}":
+            problems.append("%s(model-env-not-resolver-output)" % label)
+    resolver = named_steps(steps, "Resolve model (bounded fallback ladder)")
+    if len(resolver) != 1:
+        problems.append("%s(resolver-step-not-unique)" % label)
+    else:
+        resolver_step = resolver[0]
+        if resolver_step.get("id") != "model_ladder":
+            problems.append("%s(resolver-step-no-model-ladder-id)" % label)
+        resolver_run = resolver_step.get("run")
+        if not isinstance(resolver_run, str) or "resolve-model.sh" not in resolver_run:
+            problems.append("%s(resolver-step-no-resolver-invocation)" % label)
+
+
+def verify_check(label, path, step_prefix, block_name):
+    try:
+        doc = load(path)
+    except Exception as exc:
+        problems.append("%s(yaml-parse-error:%s)" % (label, exc))
+        return
+    hits = [
+        step
+        for step in steps_of(doc)
+        if isinstance(step, dict)
+        and isinstance(step.get("name"), str)
+        and step["name"].startswith(step_prefix)
+    ]
+    if len(hits) != 1:
+        problems.append("%s(verify-step-not-unique)" % label)
+        return
+    run = hits[0].get("run")
+    if not isinstance(run, str) or not run.strip():
+        problems.append("%s(verify-run-missing)" % label)
+        return
+    write_block(block_name, run)
+
+
+def knob_env_hit(node):
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "env" and isinstance(value, dict) and (set(value) & KNOBS):
+                return True
+            if knob_env_hit(value):
+                return True
+    elif isinstance(node, list):
+        for item in node:
+            if knob_env_hit(item):
+                return True
+    return False
+
+
+runner_check(
+    "action-file",
+    "action",
+    ".github/actions/opencode-run/action.yml",
+    "Run opencode",
+    "action-file.run",
+)
+runner_check(
+    "maintainer.yml",
+    "maintainer",
+    ".github/workflows/maintainer.yml",
+    "Run Maintainer agent",
+    "maintainer.yml.run",
+)
+verify_check(
+    "maintainer.yml",
+    ".github/workflows/maintainer.yml",
+    "Verify Maintainer wrote its decision contract",
+    "maintainer-verify.run",
+)
+verify_check(
+    "opencode.yml",
+    ".github/workflows/opencode.yml",
+    "Verify general agent completed",
+    "general-verify.run",
+)
+
+for path in sorted(
+    set(
+        glob.glob(".github/workflows/*.yml")
+        + glob.glob(".github/workflows/*.yaml")
+        + glob.glob(".github/actions/**/action.yml", recursive=True)
+        + glob.glob(".github/actions/**/action.yaml", recursive=True)
+    )
+):
+    try:
+        doc = load(path)
+    except Exception as exc:
+        problems.append("behavioral(tree,watchdog-knob-env-parse-error:%s:%s)" % (path, exc))
+        continue
+    if knob_env_hit(doc):
+        problems.append("behavioral(tree,watchdog-knob-env-mapping)")
+
+# Self-tests: the structural env walk must see every declarative spelling
+# (block, job, caller-step, quoted, flow, and explicit-key), and it must not
+# flag shell default references or prose. The step-key checks must see every
+# explicit-key spelling too, since that is the class the round-17 text
+# patterns could not bind.
+env_fixtures = {
+    "workflow-block": 'env:\n  HANG_IDLE_SECONDS: "86400"\n',
+    "job-block": 'jobs:\n  maintainer:\n    env:\n      HANG_POLL_SECONDS: "3600"\n',
+    "caller-step": '- name: Run opencode\n  env:\n    "HANG_IDLE_SECONDS": "86400"\n',
+    "flow-style": 'env: {HANG_IDLE_SECONDS: "86400", HANG_POLL_SECONDS: "3600"}\n',
+    "explicit-idle": 'env:\n  ? HANG_IDLE_SECONDS\n  : "86400"\n',
+    "explicit-poll": 'env:\n  ? "HANG_POLL_SECONDS"\n  : "3600"\n',
+}
+for fixture_name, fixture_text in env_fixtures.items():
+    try:
+        fixture_doc = yaml.load(fixture_text, Loader=StrictLoader)
+    except Exception:
+        problems.append("behavioral(tree,watchdog-knob-env-mapping-self-test)")
+        continue
+    if not knob_env_hit(fixture_doc):
+        problems.append("behavioral(tree,watchdog-knob-env-mapping-self-test)")
+control_doc = yaml.load(
+    'run: |\n'
+    '  hang_idle_seconds="${HANG_IDLE_SECONDS:-600}"\n'
+    '  hang_poll_seconds="${HANG_POLL_SECONDS:-30}"\n'
+    '# HANG_IDLE_SECONDS is the watchdog idle threshold\n'
+    'description: HANG_POLL_SECONDS\n',
+    Loader=StrictLoader,
+)
+if knob_env_hit(control_doc):
+    problems.append("behavioral(tree,watchdog-knob-env-mapping-self-test)")
+step_fixture = (
+    "- name: Run opencode\n"
+    "  ? if\n"
+    "  : false\n"
+    "  ? continue-on-error\n"
+    "  : true\n"
+    "  ? timeout-minutes\n"
+    "  : 1\n"
+    "  ? shell\n"
+    "  : dash\n"
+    "  env:\n"
+    "    ? HANG_IDLE_SECONDS\n"
+    '    : "86400"\n'
+)
+try:
+    parsed_steps = yaml.load(step_fixture, Loader=StrictLoader)
+    fixture_hits = runner_key_hits(parsed_steps[0], "action")
+    required_hits = {
+        "run-step-conditional",
+        "run-step-watchdog-env-override",
+        "run-step-continue-on-error",
+        "run-step-timeout-minutes",
+        "run-step-shell-not-bash",
+    }
+    if not required_hits.issubset(set(fixture_hits)):
+        problems.append("behavioral(tree,step-key-explicit-syntax-self-test)")
+except Exception:
+    problems.append("behavioral(tree,step-key-explicit-syntax-self-test)")
+try:
+    yaml.load("run: one\nrun: two\n", Loader=StrictLoader)
+    problems.append("structural(duplicate-key-loader-self-test)")
+except yaml.constructor.ConstructorError:
+    pass
+except Exception:
+    problems.append("structural(duplicate-key-loader-self-test)")
+
+for problem in problems:
+    sys.stdout.write(problem + "\n")
+R15PY
+  ) || r15_struct_out="structural(python-runtime-failed)"
+  if [ -n "$r15_struct_out" ]; then
+    while IFS= read -r r15_struct_line; do
+      [ -n "$r15_struct_line" ] || continue
+      r15_bad="${r15_bad} ${r15_struct_line}"
+    done <<< "$r15_struct_out"
+  fi
+fi
 LADDER_DIR=".github/actions/opencode-run"
 RESOLVER="${LADDER_DIR}/resolve-model.sh"
 LADDER_FILE="${LADDER_DIR}/model-ladder.txt"
@@ -1643,7 +1953,7 @@ R15RUNEOF
 }
 
 r15_freetier_pins() {
-  local label="$1" f="$2" step="$3" fn n
+  local label="$1" f="$2" fn n
   if [ ! -f "$f" ]; then
     r15_bad="${r15_bad} ${label}(missing)"
     return
@@ -1966,20 +2276,18 @@ R15WATCHEOF
   # round 15 removed the join's last hole: the normalized streams were joined
   # with `|`, so a rewrite merging two real lines into one (carrying a bare
   # `|`) compared equal; the compare is now a direct multiline string
-  # comparison, which keeps every line boundary significant. The
-  # extraction is indentation-aware and fail-closed: a renamed step, a
-  # missing/renamed `run: |`, or a shifted block boundary extracts nothing
-  # and fails too, and an unknown label (missing literal) fails rather than
-  # vacuously passing.
-  r15_runblock=$(awk -v step="$step" '
-    $0 ~ step { in_step=1; next }
-    in_step && /^[[:space:]]*run: \|[[:space:]]*$/ { in_run=1; indent=match($0, /[^ ]/); next }
-    in_run {
-      if ($0 ~ /^[[:space:]]*$/) next
-      if (match($0, /[^ ]/) < indent + 2) exit
-      print
-    }
-  ' "$f" 2>/dev/null || true)
+  # comparison, which keeps every line boundary significant. Review round
+  # 18 (F1) replaced the textual extraction itself: the `run` scalar now
+  # comes from the python3/PyYAML structural pass at the top of R15 (strict
+  # duplicate-key-rejecting loader, step resolved by its parsed `name`), so
+  # a `run: |` decoy inside any block scalar in the step and the valid
+  # `run: |2` spelling both resolve to the real executing body; a missing
+  # structural extraction fails the compare, and an unknown label (missing
+  # literal) fails rather than vacuously passing.
+  r15_runblock=""
+  if [ -n "${r15_struct_dir:-}" ] && [ -f "$r15_struct_dir/$label.run" ]; then
+    r15_runblock=$(cat "$r15_struct_dir/$label.run" 2>/dev/null || true)
+  fi
   r15_runblock_region=$(printf '%s\n' "$r15_runblock" \
     | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/[[:space:]]*2>\/dev\/null$//' -e 's/[[:space:]]*$//' \
     | grep -vE '^#|^$' || true)
@@ -2019,12 +2327,13 @@ else
   # named like the runner and parked earlier (gated with `if: false`) must
   # never shadow the real step. Issue #653 makes the invocation count exactly
   # TWO inside the single executing step (the FIFO capture shape and the
-  # mutually-exclusive no-mkfifo degraded shape); r15_behavioral additionally
+  # mutually-exclusive no-mkfifo degraded shape); r15_behavioral executes the
+  # structurally extracted block (review round 18 F1) and additionally
   # asserts both sites live inside the extracted block, so a third (decoy)
   # invocation anywhere in the file still fails, and the extracted step must
   # be unconditional - together the extracted step is the executing one.
   [ "$(grep -cF 'opencode github run' "$ACTION_FILE" || true)" = "2" ] || r15_bad="${r15_bad} action-file(run-invocation-count)"
-  r15_freetier_pins "action-file" "$ACTION_FILE" '^[[:space:]]*-[[:space:]]*name: Run opencode[[:space:]]*$'
+  r15_freetier_pins "action-file" "$ACTION_FILE"
 fi
 if [ ! -f "$MAIN_WF" ]; then
   r15_bad="${r15_bad} maintainer.yml(missing)"
@@ -2051,7 +2360,7 @@ else
   # exactly the two #653 invocation shapes (FIFO + degraded fallback).
   [ "$(grep -cE '^[[:space:]]*-[[:space:]]*name: Run Maintainer agent[[:space:]]*$' "$MAIN_WF" || true)" = "1" ] || r15_bad="${r15_bad} maintainer.yml(run-step-not-unique)"
   [ "$(grep -cF 'opencode github run' "$MAIN_WF" || true)" = "2" ] || r15_bad="${r15_bad} maintainer.yml(run-invocation-count)"
-  r15_freetier_pins "maintainer.yml" "$MAIN_WF" '^[[:space:]]*-[[:space:]]*name: Run Maintainer agent[[:space:]]*$'
+  r15_freetier_pins "maintainer.yml" "$MAIN_WF"
 fi
 # Issue #620 functional detector test: executes the REAL extracted
 # freetier_error_terminal AND model_error_terminal from both runner paths
@@ -2357,87 +2666,24 @@ r15_mkfifo_bin=$(command -v mkfifo 2>/dev/null || true)
 if [ -z "$r15_timeout_bin" ] || [ -z "$r15_env_bin" ] || [ -z "$r15_bash_bin" ] || [ -z "$r15_sleep_bin" ] || [ -z "$r15_mkfifo_bin" ]; then
   r15_bad="${r15_bad} behavioral-harness(missing-timeout-env-bash-sleep-or-mkfifo)"
 fi
-r15_extract_block() {
-  awk -v step="$2" '
-    $0 ~ step { in_step=1; next }
-    in_step && /^[[:space:]]*run: \|[[:space:]]*$/ { in_run=1; indent=match($0, /[^ ]/); next }
-    in_run {
-      if ($0 ~ /^[[:space:]]*$/) { blanks = blanks "\n"; next }
-      n = match($0, /[^ ]/)
-      if (n < indent + 2) exit
-      printf "%s", blanks; blanks = ""
-      print
-    }
-  ' "$1" | sed 's/\${{ github.event_name }}/schedule/g'
-}
 r15_behavioral() {
-  local label="$1" file="$2" step_re="$3"
+  local label="$1"
   local sbx block out tool p
   sbx=$(mktemp -d) || { r15_bad="${r15_bad} behavioral(${label},sandbox-failed)"; return; }
   block="$sbx/block.sh"; out="$sbx/out"
   mkdir -p "$sbx/bin" "$sbx/home" "$sbx/tmp"
   : > "$out"
-  r15_extract_block "$file" "$step_re" > "$block" 2>/dev/null || true
-  r15_step_region=$(awk -v step="$step_re" '
-    $0 ~ step { in_step=1 }
-    in_step && !($0 ~ step) && /^[[:space:]]*-[[:space:]]*name:/ { exit }
-    in_step { print }
-  ' "$file" 2>/dev/null || true)
-  if printf '%s\n' "$r15_step_region" | grep -qE "^[[:space:]]*[\"']?if[\"']?[[:space:]]*:"; then
-    if [ "$label" = "maintainer.yml" ] \
-       && [ "$(printf '%s\n' "$r15_step_region" | grep -cE "^[[:space:]]*[\"']?if[\"']?[[:space:]]*:" || true)" = "1" ] \
-       && printf '%s\n' "$r15_step_region" | grep -qxE "[[:space:]]*if: steps\.actor_gate\.outputs\.run == 'true'" \
-       && grep -qxF -- '      - name: Actor write gate (issue #428)' "$file" \
-       && grep -qxF '        id: actor_gate' "$file" \
-       && grep -qxF '          GH_TOKEN: ${{ github.token }}' "$file" \
-       && grep -qxF '          GATE_EVENT: ${{ github.event_name }}' "$file" \
-       && grep -qxF '          GATE_ACTOR: ${{ github.actor }}' "$file" \
-       && grep -qxF '        run: bash .github/scripts/actor-write-gate.sh' "$file"; then
-      :
-    else
-      r15_bad="${r15_bad} behavioral(${label},run-step-conditional)"
-      rm -rf "$sbx"
-      return
-    fi
+  if [ -n "${r15_struct_dir:-}" ] && [ -f "$r15_struct_dir/$label.run" ]; then
+    sed 's/\${{ github.event_name }}/schedule/g' "$r15_struct_dir/$label.run" > "$block" 2>/dev/null || true
   fi
-  if printf '%s\n' "$r15_step_region" | grep -qE "^[[:space:]]*[\"']?HANG_(IDLE|POLL)_SECONDS[\"']?[[:space:]]*:"; then
-    r15_bad="${r15_bad} behavioral(${label},run-step-watchdog-env-override)"
-    rm -rf "$sbx"
-    return
-  fi
-  if [ "$label" = "action-file" ]; then
-    r15_shell_line='      shell: bash'
-    if printf '%s\n' "$r15_step_region" | grep -qE "^[[:space:]]*[\"']?continue-on-error[\"']?[[:space:]]*:"; then
-      r15_bad="${r15_bad} behavioral(${label},run-step-continue-on-error)"
-      rm -rf "$sbx"
-      return
-    fi
-    if printf '%s\n' "$r15_step_region" | grep -qE "^[[:space:]]*[\"']?timeout-minutes[\"']?[[:space:]]*:"; then
-      r15_bad="${r15_bad} behavioral(${label},run-step-timeout-minutes)"
-      rm -rf "$sbx"
-      return
-    fi
-  else
-    r15_shell_line='        shell: bash'
-    if [ "$(printf '%s\n' "$r15_step_region" | grep -cE "^[[:space:]]*[\"']?continue-on-error[\"']?[[:space:]]*:" || true)" != "1" ] \
-       || ! printf '%s\n' "$r15_step_region" | grep -qxF '        continue-on-error: true'; then
-      r15_bad="${r15_bad} behavioral(${label},run-step-continue-on-error-not-exact)"
-      rm -rf "$sbx"
-      return
-    fi
-    if [ "$(printf '%s\n' "$r15_step_region" | grep -cE "^[[:space:]]*[\"']?timeout-minutes[\"']?[[:space:]]*:" || true)" != "1" ] \
-       || ! printf '%s\n' "$r15_step_region" | grep -qxF '        timeout-minutes: 60'; then
-      r15_bad="${r15_bad} behavioral(${label},run-step-timeout-minutes-not-exact)"
-      rm -rf "$sbx"
-      return
-    fi
-  fi
-  if [ "$(printf '%s\n' "$r15_step_region" | grep -cE "^[[:space:]]*[\"']?shell[\"']?[[:space:]]*:" || true)" != "1" ]; then
-    r15_bad="${r15_bad} behavioral(${label},run-step-shell-not-exactly-once)"
-    rm -rf "$sbx"
-    return
-  fi
-  printf '%s\n' "$r15_step_region" | grep -qxF "$r15_shell_line" || r15_bad="${r15_bad} behavioral(${label},run-step-shell-not-bash)"
+  # Step identity, key set, env mapping, and candidate chain are bound
+  # structurally by the python3 session above (review round 18): the step is
+  # resolved by its parsed `name`, its parsed `run` scalar is what executes
+  # here, duplicate keys are rejected by the loader, and explicit-key
+  # spellings of `if`/watchdog env/`continue-on-error`/`timeout-minutes`/
+  # `shell` are the same dict keys to the parser, so no textual spelling can
+  # hide a key from the audit. That structural pass emits the same
+  # `behavioral(<label>,...)` failures the old text scan emitted.
   if [ ! -s "$block" ] \
      || ! bash -n "$block" 2>/dev/null \
      || ! grep -qF 'freetier_error_terminal() {' "$block" \
@@ -3091,8 +3337,42 @@ R15MKFIFO
   rm -rf "$sbx"
 }
 if [ -n "$r15_timeout_bin" ] && [ -n "$r15_env_bin" ] && [ -n "$r15_bash_bin" ] && [ -n "$r15_sleep_bin" ] && [ -n "$r15_mkfifo_bin" ]; then
-  r15_behavioral action-file "$ACTION_FILE" '^[[:space:]]*-[[:space:]]*name: Run opencode[[:space:]]*$'
-  r15_behavioral maintainer.yml "$MAIN_WF" '^[[:space:]]*-[[:space:]]*name: Run Maintainer agent[[:space:]]*$'
+  r15_behavioral action-file
+  r15_behavioral maintainer.yml
+  # Review round 18 (F3, hollow-green verify): the round-6/11 pins were
+  # presence checks, so deleting the general decision test while leaving the
+  # echo/exit-token text, or appending `|| true` to the Maintainer's loud
+  # exit, kept the audit green while a dead agent concluded success. The
+  # structurally extracted verify bodies are now EXECUTED in a sandbox under
+  # the production shell form: the Maintainer verify must exit nonzero with
+  # no decision file and 0 once one exists, and the general verify must exit
+  # 0 on AGENT_OUTCOME=success and nonzero on failure.
+  r15_verify_sbx=$(mktemp -d) || r15_bad="${r15_bad} behavioral(verify,sandbox-failed)"
+  if [ -n "${r15_verify_sbx:-}" ]; then
+    mkdir -p "$r15_verify_sbx/home" "$r15_verify_sbx/maint/.maintainer" "$r15_verify_sbx/general"
+    if [ -f "${r15_struct_dir:-}/maintainer-verify.run" ]; then
+      ( cd "$r15_verify_sbx/maint" && "$r15_env_bin" -i HOME="$r15_verify_sbx/home" PATH="$PATH" AGENT_OUTCOME=success "$r15_bash_bin" --noprofile --norc -eo pipefail "$r15_struct_dir/maintainer-verify.run" ) >/dev/null 2>&1
+      r15_verify_rc=$?
+      [ "$r15_verify_rc" -ne 0 ] || r15_bad="${r15_bad} maintainer.yml(verify-missing-decision-not-loud)"
+      : > "$r15_verify_sbx/maint/.maintainer/decision.json"
+      ( cd "$r15_verify_sbx/maint" && "$r15_env_bin" -i HOME="$r15_verify_sbx/home" PATH="$PATH" AGENT_OUTCOME=success "$r15_bash_bin" --noprofile --norc -eo pipefail "$r15_struct_dir/maintainer-verify.run" ) >/dev/null 2>&1
+      r15_verify_rc=$?
+      [ "$r15_verify_rc" -eq 0 ] || r15_bad="${r15_bad} maintainer.yml(verify-present-decision-not-green)"
+    else
+      r15_bad="${r15_bad} maintainer.yml(verify-run-missing)"
+    fi
+    if [ -f "${r15_struct_dir:-}/general-verify.run" ]; then
+      ( cd "$r15_verify_sbx/general" && "$r15_env_bin" -i HOME="$r15_verify_sbx/home" PATH="$PATH" AGENT_OUTCOME=success "$r15_bash_bin" --noprofile --norc -eo pipefail "$r15_struct_dir/general-verify.run" ) >/dev/null 2>&1
+      r15_verify_rc=$?
+      [ "$r15_verify_rc" -eq 0 ] || r15_bad="${r15_bad} opencode.yml(general-verify-success-not-green)"
+      ( cd "$r15_verify_sbx/general" && "$r15_env_bin" -i HOME="$r15_verify_sbx/home" PATH="$PATH" AGENT_OUTCOME=failure "$r15_bash_bin" --noprofile --norc -eo pipefail "$r15_struct_dir/general-verify.run" ) >/dev/null 2>&1
+      r15_verify_rc=$?
+      [ "$r15_verify_rc" -ne 0 ] || r15_bad="${r15_bad} opencode.yml(general-verify-failure-not-loud)"
+    else
+      r15_bad="${r15_bad} opencode.yml(general-verify-run-missing)"
+    fi
+    rm -rf "$r15_verify_sbx"
+  fi
 fi
 OPENCODE_WF=".github/workflows/opencode.yml"
 if [ ! -f "$OPENCODE_WF" ]; then
@@ -3137,9 +3417,9 @@ if grep -rnE "$r15_knob_pattern" .github/workflows .github/actions >/dev/null 2>
   r15_bad="${r15_bad} behavioral(tree,watchdog-knob-env-mapping)"
 fi
 if [ -z "$r15_bad" ]; then
-  check "R15" "model resilience wired: live-registry resolver + free-tier ladder rungs + boundary-aware per-rung retry with exit-0 terminal anchoring, a log-capture guard, loud exhaustion, the bounded transient FreeTierError same-model retry (anchored detector, cap 1, loud persistent failure), plus the #653 bounded transient 429/5xx same-model retry (anchored 429/5xx terminal detector, cap 1 shared across rungs, loud persistent failure) and the provider-stall watchdog (FIFO capture shape, HANG_IDLE_SECONDS/HANG_POLL_SECONDS growth poll, TERM/KILL of exactly the opencode and tee PIDs, one same-model retry after 10s, second stall loud, loud no-mkfifo fallback to the legacy pipeline) in the shared runner and the maintainer inline path, with loud-failure verify steps on the Maintainer and general arm, all enforced behaviorally: the extracted detectors are executed functionally (terminal match; echo/envelope/suffix/stale/superset no-match; dotted-id match with the dot-lookalike no-match; case-sensitive forms, so an uppercase id line never matches; the AI_RetryError summary and phrase variants never match; the tail window's lower-bound pair, 39 trailing lines must match and 40 must not; all executed under set -o pipefail with a ~160 KiB match-first window, so a grep -q SIGPIPE can never mask a terminal line), and both real runner run-blocks are executed loop-level under the exact production shell form (bash --noprofile --norc -eo pipefail) against an executable mock opencode + mock sleep (transient recovery on both exit shapes with the exact bounded backoff asserted and its wait ordering proven, exactly one same-model retry, persistent loudness after two attempts with the provider's own distinct statuses propagated, rung advance preserved without consuming the free-tier budget, post-loop exhaustion reached and loud, the free-tier budget shared across three rungs with a rung-gated grant or theft caught, echo/suffix/stale non-match, a terminal line with trailing healthy lines still retrying, superset-id non-match, a dotted-candidate dot-lookalike nonzero line not advancing the rung, a failing log capture failing loudly at every failing tee status (one fixture each for 3, 1, and 2, so a live guard narrowed to a single status cannot pass), unclassified status propagation in both capture shapes, per-scenario timeout, the #653 HTTP recovery on both exit shapes with the 30s backoff value-scoped and wait-ordered, persistent HTTP loud on both shapes with the provider status propagated, a stalled attempt killed by the watchdog and retried once on the same model after the 10s backoff (ordering proven), a second stall loud, per-class budget independence in both directions and cross-class budget interleaves (six interleave scenarios repeat a class after another class's retry was consumed, so an arithmetic reset of a spent budget inside any other class's retry branch, in either exit shape of the FT and HTTP branches plus the hang branch, spends an extra backoff and runs an extra attempt), the #653 HTTP and stall budgets proven arm-wide by cross-rung grant/advance pairs in the FIFO capture shape and at rung depth 3 by the widened/hang-widened grant and advance pairs (a widening or theft gated on the third rung spends an extra backoff or turns a healthy advance loud), the degraded no-mkfifo shape bound the same way for the free-tier and HTTP retries (a persistent degraded rejection failing loudly after exactly the bounded retry with its one backoff, and a degraded cross-rung HTTP grant spending exactly one 30s backoff, plus a static no-budget-assignment pin on the degraded branch, and its status/tee/stderr plumbing: an unclassified nonzero degraded death stays loud with its own status, a failing degraded tee fails loudly, and a stderr-borne terminal line still reaches the captured log so the bounded retry fires), the degraded no-mkfifo shape still honoring the free-tier retry contract loudly, the FIFO capture shape's \`2>&1\` stderr merge bound like the degraded probe (a stderr-borne terminal line must reach the captured log so the bounded retry fires on both exit shapes), the watchdog's silence accounting bound directly (a 30s-cadence/90s-threshold scenario where exactly three polling rounds must accumulate, a producing attempt kept alive past the threshold so a zeroed byte-size read cannot kill it, and an output-then-stall attempt whose post-output silence must accumulate through the re-arm), the watchdog's production defaults (600s idle / 30s poll) and its single bounded 5s TERM-to-KILL escalation grace whole-region pinned as exactly the hang-flag write, the ordered TERM oc, TERM tee, sleep 5, KILL oc, KILL tee sequence, and the exit, with nothing else (whitespace and 2>/dev/null tolerated, an inserted sleep or a shadowed KILL caught), and the whole FIFO capture prelude whole-region pinned line-exact so an inserted sleep anywhere in the watchdog or at the launch/reap path around it (before the tee launch, before the opencode launch, anywhere in the subshell outside the fire block: before the baseline read, after the poll, after the post-sleep liveness re-check, between the idle accumulation and the threshold, between the threshold and the warning echo, in the re-arm else branch, after the subshell close, after the watch_pid assignment, after the oc reap and status capture) also fails the audit, with a TERM-trapping attempt that can only complete its cleanup through the real grace window and a TERM-ignoring hang-child-ignores-term attempt that only SIGKILL can end (so a neutered KILL blocks into the scenario timeout), the watchdog loop gate and post-sleep liveness re-check pinned, the poll cadence bound to the poll knob, the inclusive -ge threshold and the post-growth reset to exactly zero line-anchored (a weakened re-arm would make the required silence grow with the attempt's productive duration), the nonzero Model-not-found advance site bound for all three budgets (a scenario per class spends its single retry, advances through that branch, and requires the repeat on the next rung to be loud persistent with exactly one backoff, with rung-depth-3 mirrors so a rung-gated reset at that site cannot resurrect a spent budget), the prefixed Error: Model not found: catch-handler form still advancing the rung (unanchored per-model grep pinned exactly, mnf-err-nz), the success path exiting 0 itself rather than falling through, and the Maintainer verify's loud exit 1 on a missing decision contract, a 160 KiB match-first terminal window still retrying the same model end-to-end, a zero poll override clamped to the production interval so the watchdog still kills and retries, and the extracted runner step proven the executing one: no if: (or \`if :\`, or the quoted \`\"if\":\` / \`'if':\` spellings) key anywhere in its whole step region (except, for the Maintainer runner only, the exact shared actor-write gate condition of issue #696, with the gate step present in the same file; the step name line through the next sibling \`- name:\` or EOF, so a step-level \`if: false\` inserted after the run block cannot skip the runner while the body stays pinned), its step key set bound too (no HANG_IDLE_SECONDS/HANG_POLL_SECONDS env override in either runner step, and a tree-wide static ban rejects any such env mapping anywhere in .github/workflows or .github/actions in block, quoted, caller-step, or flow spelling, since workflow-, job-, caller-step- and flow-level env all reach the runner and one declarative line can push the first watchdog fire past every step timeout, no continue-on-error/timeout-minutes key on the composite runner step, the Maintainer step's exact continue-on-error: true and timeout-minutes: 60 each present exactly once, and exactly one shell: key whose exact line is shell: bash), exactly the two #653 invocation sites allowed by the file-level count and both present in the extracted block, and each runner's entire extracted run block pinned line-exact against its regenerated normalized literal (leading/trailing whitespace and an optional trailing 2>/dev/null stripped, comment and blank lines dropped, compared as whole normalized line sequences so a rewrite merging two real lines into one cannot pass), so any inserted or modified non-comment line anywhere in the block (the pre-attempt header, the degraded no-mkfifo else branch, the post-fi classification/retry/budget logic) fails the audit alone) (issues #591, #620, #653, #696)" "ok"
+  check "R15" "model resilience wired: live-registry resolver + free-tier ladder rungs + boundary-aware per-rung retry with exit-0 terminal anchoring, a log-capture guard, loud exhaustion, the bounded transient FreeTierError same-model retry (anchored detector, cap 1, loud persistent failure), plus the #653 bounded transient 429/5xx same-model retry (anchored 429/5xx terminal detector, cap 1 shared across rungs, loud persistent failure) and the provider-stall watchdog (FIFO capture shape, HANG_IDLE_SECONDS/HANG_POLL_SECONDS growth poll, TERM/KILL of exactly the opencode and tee PIDs, one same-model retry after 10s, second stall loud, loud no-mkfifo fallback to the legacy pipeline) in the shared runner and the maintainer inline path, with loud-failure verify steps on the Maintainer and general arm, all enforced behaviorally: the extracted detectors are executed functionally (terminal match; echo/envelope/suffix/stale/superset no-match; dotted-id match with the dot-lookalike no-match; case-sensitive forms, so an uppercase id line never matches; the AI_RetryError summary and phrase variants never match; the tail window's lower-bound pair, 39 trailing lines must match and 40 must not; all executed under set -o pipefail with a ~160 KiB match-first window, so a grep -q SIGPIPE can never mask a terminal line), and both real runner run-blocks are executed loop-level under the exact production shell form (bash --noprofile --norc -eo pipefail) against an executable mock opencode + mock sleep (transient recovery on both exit shapes with the exact bounded backoff asserted and its wait ordering proven, exactly one same-model retry, persistent loudness after two attempts with the provider's own distinct statuses propagated, rung advance preserved without consuming the free-tier budget, post-loop exhaustion reached and loud, the free-tier budget shared across three rungs with a rung-gated grant or theft caught, echo/suffix/stale non-match, a terminal line with trailing healthy lines still retrying, superset-id non-match, a dotted-candidate dot-lookalike nonzero line not advancing the rung, a failing log capture failing loudly at every failing tee status (one fixture each for 3, 1, and 2, so a live guard narrowed to a single status cannot pass), unclassified status propagation in both capture shapes, per-scenario timeout, the #653 HTTP recovery on both exit shapes with the 30s backoff value-scoped and wait-ordered, persistent HTTP loud on both shapes with the provider status propagated, a stalled attempt killed by the watchdog and retried once on the same model after the 10s backoff (ordering proven), a second stall loud, per-class budget independence in both directions and cross-class budget interleaves (six interleave scenarios repeat a class after another class's retry was consumed, so an arithmetic reset of a spent budget inside any other class's retry branch, in either exit shape of the FT and HTTP branches plus the hang branch, spends an extra backoff and runs an extra attempt), the #653 HTTP and stall budgets proven arm-wide by cross-rung grant/advance pairs in the FIFO capture shape and at rung depth 3 by the widened/hang-widened grant and advance pairs (a widening or theft gated on the third rung spends an extra backoff or turns a healthy advance loud), the degraded no-mkfifo shape bound the same way for the free-tier and HTTP retries (a persistent degraded rejection failing loudly after exactly the bounded retry with its one backoff, and a degraded cross-rung HTTP grant spending exactly one 30s backoff, plus a static no-budget-assignment pin on the degraded branch, and its status/tee/stderr plumbing: an unclassified nonzero degraded death stays loud with its own status, a failing degraded tee fails loudly, and a stderr-borne terminal line still reaches the captured log so the bounded retry fires), the degraded no-mkfifo shape still honoring the free-tier retry contract loudly, the FIFO capture shape's \`2>&1\` stderr merge bound like the degraded probe (a stderr-borne terminal line must reach the captured log so the bounded retry fires on both exit shapes), the watchdog's silence accounting bound directly (a 30s-cadence/90s-threshold scenario where exactly three polling rounds must accumulate, a producing attempt kept alive past the threshold so a zeroed byte-size read cannot kill it, and an output-then-stall attempt whose post-output silence must accumulate through the re-arm), the watchdog's production defaults (600s idle / 30s poll) and its single bounded 5s TERM-to-KILL escalation grace whole-region pinned as exactly the hang-flag write, the ordered TERM oc, TERM tee, sleep 5, KILL oc, KILL tee sequence, and the exit, with nothing else (whitespace and 2>/dev/null tolerated, an inserted sleep or a shadowed KILL caught), and the whole FIFO capture prelude whole-region pinned line-exact so an inserted sleep anywhere in the watchdog or at the launch/reap path around it (before the tee launch, before the opencode launch, anywhere in the subshell outside the fire block: before the baseline read, after the poll, after the post-sleep liveness re-check, between the idle accumulation and the threshold, between the threshold and the warning echo, in the re-arm else branch, after the subshell close, after the watch_pid assignment, after the oc reap and status capture) also fails the audit, with a TERM-trapping attempt that can only complete its cleanup through the real grace window and a TERM-ignoring hang-child-ignores-term attempt that only SIGKILL can end (so a neutered KILL blocks into the scenario timeout), the watchdog loop gate and post-sleep liveness re-check pinned, the poll cadence bound to the poll knob, the inclusive -ge threshold and the post-growth reset to exactly zero line-anchored (a weakened re-arm would make the required silence grow with the attempt's productive duration), the nonzero Model-not-found advance site bound for all three budgets (a scenario per class spends its single retry, advances through that branch, and requires the repeat on the next rung to be loud persistent with exactly one backoff, with rung-depth-3 mirrors so a rung-gated reset at that site cannot resurrect a spent budget), the prefixed Error: Model not found: catch-handler form still advancing the rung (unanchored per-model grep pinned exactly, mnf-err-nz), the success path exiting 0 itself rather than falling through, and the Maintainer verify's loud exit 1 on a missing decision contract, a 160 KiB match-first terminal window still retrying the same model end-to-end, a zero poll override clamped to the production interval so the watchdog still kills and retries, and the extracted runner step proven the executing one: no if: (or \`if :\`, or the quoted \`\"if\":\` / \`'if':\` spellings) key anywhere in its whole step region (the step name line through the next sibling \`- name:\` or EOF, so a step-level \`if: false\` inserted after the run block cannot skip the runner while the body stays pinned), its step key set bound too (no HANG_IDLE_SECONDS/HANG_POLL_SECONDS env override in either runner step, and a tree-wide static ban rejects any such env mapping anywhere in .github/workflows or .github/actions in block, quoted, caller-step, or flow spelling, since workflow-, job-, caller-step- and flow-level env all reach the runner and one declarative line can push the first watchdog fire past every step timeout, no continue-on-error/timeout-minutes key on the composite runner step, the Maintainer step's exact continue-on-error: true and timeout-minutes: 60 each present exactly once, and exactly one shell: key whose exact line is shell: bash), exactly the two #653 invocation sites allowed by the file-level count and both present in the extracted block, and each runner's entire extracted run block pinned line-exact against its regenerated normalized literal (leading/trailing whitespace and an optional trailing 2>/dev/null stripped, comment and blank lines dropped, compared as whole normalized line sequences so a rewrite merging two real lines into one cannot pass), so any inserted or modified non-comment line anywhere in the block (the pre-attempt header, the degraded no-mkfifo else branch, the post-fi classification/retry/budget logic) fails the audit alone; review round 18 made the whole extraction structural: python3/PyYAML (a strict, duplicate-key-rejecting loader) resolves each runner step by its parsed name, pins its parsed run scalar line-exact, treats explicit-key \`? if\` / \`: false\` and \`? HANG_IDLE_SECONDS\` / \`: \"86400\"\` spellings as the keys GitHub Actions sees, binds both runner steps' \`MODEL_CANDIDATES\` (and the composite's \`MODEL\`) to the resolver outputs by exact parsed value plus the resolver step's \`model_ladder\` id and \`resolve-model.sh\` invocation, and executes both verify steps behaviorally (the Maintainer verify must exit nonzero with no decision file and 0 with one; the general verify 0 on success and nonzero on failure), so a decoy \`run: |\` block scalar, the \`run: |2\` hide (F1), an explicit-key knob or step key (F2), a hollow-green \`|| true\` verify condition (F3), or a deleted candidate-chain env mapping (F4) can no longer pass, and a missing python runtime, a duplicate run/if/shell key, or a parse error fails closed) (issues #591, #620, #653)" "ok"
 else
-  check "R15" "model resilience guard missing:${r15_bad} (issues #591/#620/#653/#696: one retired pin kills every arm at once, Model-not-found deaths conclude green, a transient free-tier or 429/5xx rejection kills a gate with no bounded retry, a provider stall silently burns the whole tick, or the retries loop unboundedly / conclude silently green / silently blind-advance past a failed log capture / miss a rejection inside the tail window / miss a terminal line past the pipe buffer because the detector pipeline was not pipefail-safe / advance on a lookalike id / match a terminal form in the wrong case / record a backoff they never waited / busy-loop with a zero poll interval that silently disables the watchdog / run without the watchdog silently when mkfifo is unavailable / reset a retry budget inside the degraded no-mkfifo branch so the bounded retry loops unboundedly / silently green an unclassified death or swallow a failing tee in the degraded pipeline / drop a stderr-carried terminal line in the degraded pipeline so the bounded retry is lost / drop the FIFO shape's stderr merge so a stderr-carried terminal line never reaches the captured log / watchdog accounting that never accumulates toward the threshold, kills a live producer, or never re-arms after growth / reset a retry budget at the nonzero Model-not-found advance site (even behind a later-rung gate) so a spent budget resurrects / reset another class's retry budget so an already-spent budget silently retries again / widen or steal the HTTP or stall budget gated on a later rung / pin a wrong watchdog default (idle or poll) or an unbounded TERM-to-KILL grace / reorder, widen, or neuter the fire-block escalation (KILL before or back-to-back with TERM, an inserted sleep, a shadowed KILL) so a TERM-trapping attempt can never finish its cleanup and a TERM-ignoring attempt can never be ended / splice an unknown line anywhere outside the fire block (the watchdog loop, or the FIFO capture prelude's launch, reap, or cleanup path around the subshell) so the abort or the bounded retry is delayed past every step timeout / drop the watchdog liveness gate or its post-sleep re-check / decouple the poll cadence from the poll knob, weaken the inclusive threshold, or re-arm the accumulator with anything but an exact reset to zero / anchor the nonzero-MNF grep at column 0 so the prefixed Error: form loses the rung advance / splice or rewrite any non-comment line outside the bound sub-regions of a runner block (the pre-attempt header, the degraded no-mkfifo else branch, the post-fi classification/retry/budget logic) so a one-line insertion delays or neuters the attempt start, the retry, or the rejection handling while every sub-region pin stays satisfied / turn the success path's exit 0 into a silent fall-through / hollow-green the Maintainer verify / run a conditional or shadowed runner step (anything but the Maintainer runner's exact shared actor-write gate form; including a step-level \`if:\` key placed after the run block, the \`if :\` spelling, or the quoted \`\"if\":\` / \`'if':\` spellings) / override the runner step's watchdog knobs through its step env (HANG_IDLE_SECONDS/HANG_POLL_SECONDS) or set either knob through any workflow-, job-, caller-step-, or flow-style env mapping in .github/workflows or .github/actions, add continue-on-error/timeout-minutes to the composite runner step, drop, alter, quote, or duplicate the Maintainer step's exact continue-on-error: true / timeout-minutes: 60 lines, override the runner step's \`shell:\` so the audited execution form differs from production, or add a second shell: key / merge two pinned lines into one to evade the exact compare)" "bad"
+  check "R15" "model resilience guard missing:${r15_bad} (issues #591/#620/#653: one retired pin kills every arm at once, Model-not-found deaths conclude green, a transient free-tier or 429/5xx rejection kills a gate with no bounded retry, a provider stall silently burns the whole tick, or the retries loop unboundedly / conclude silently green / silently blind-advance past a failed log capture / miss a rejection inside the tail window / miss a terminal line past the pipe buffer because the detector pipeline was not pipefail-safe / advance on a lookalike id / match a terminal form in the wrong case / record a backoff they never waited / busy-loop with a zero poll interval that silently disables the watchdog / run without the watchdog silently when mkfifo is unavailable / reset a retry budget inside the degraded no-mkfifo branch so the bounded retry loops unboundedly / silently green an unclassified death or swallow a failing tee in the degraded pipeline / drop a stderr-carried terminal line in the degraded pipeline so the bounded retry is lost / drop the FIFO shape's stderr merge so a stderr-carried terminal line never reaches the captured log / watchdog accounting that never accumulates toward the threshold, kills a live producer, or never re-arms after growth / reset a retry budget at the nonzero Model-not-found advance site (even behind a later-rung gate) so a spent budget resurrects / reset another class's retry budget so an already-spent budget silently retries again / widen or steal the HTTP or stall budget gated on a later rung / pin a wrong watchdog default (idle or poll) or an unbounded TERM-to-KILL grace / reorder, widen, or neuter the fire-block escalation (KILL before or back-to-back with TERM, an inserted sleep, a shadowed KILL) so a TERM-trapping attempt can never finish its cleanup and a TERM-ignoring attempt can never be ended / splice an unknown line anywhere outside the fire block (the watchdog loop, or the FIFO capture prelude's launch, reap, or cleanup path around the subshell) so the abort or the bounded retry is delayed past every step timeout / drop the watchdog liveness gate or its post-sleep re-check / decouple the poll cadence from the poll knob, weaken the inclusive threshold, or re-arm the accumulator with anything but an exact reset to zero / anchor the nonzero-MNF grep at column 0 so the prefixed Error: form loses the rung advance / splice or rewrite any non-comment line outside the bound sub-regions of a runner block (the pre-attempt header, the degraded no-mkfifo else branch, the post-fi classification/retry/budget logic) so a one-line insertion delays or neuters the attempt start, the retry, or the rejection handling while every sub-region pin stays satisfied / turn the success path's exit 0 into a silent fall-through / hollow-green the Maintainer verify / run a conditional or shadowed runner step (including a step-level \`if:\` key placed after the run block, the \`if :\` spelling, or the quoted \`\"if\":\` / \`'if':\` spellings) / override the runner step's watchdog knobs through its step env (HANG_IDLE_SECONDS/HANG_POLL_SECONDS) or set either knob through any workflow-, job-, caller-step-, or flow-style env mapping in .github/workflows or .github/actions, add continue-on-error/timeout-minutes to the composite runner step, drop, alter, quote, or duplicate the Maintainer step's exact continue-on-error: true / timeout-minutes: 60 lines, override the runner step's \`shell:\` so the audited execution form differs from production, or add a second shell: key / merge two pinned lines into one to evade the exact compare / validate a textual decoy \`run: |\` block instead of the executing step's parsed run scalar, or hide the real body behind \`run: |2\` (F1) / miss an explicit-key \`? HANG_IDLE_SECONDS\` or \`? if\` spelling of a watchdog knob or step key (F2) / hollow-green either verify step with a \`|| true\` condition (F3) / leave a runner step's \`MODEL_CANDIDATES\` (or the composite's \`MODEL\`) unbound from the resolver outputs, or the resolver step without its \`model_ladder\` id and \`resolve-model.sh\` invocation (F4) / fail open when python3/PyYAML is unavailable, a YAML file has duplicate keys, or a runner/verify step cannot be resolved exactly once)" "bad"
 fi
 
 # [R16] Shallow-workspace PAT merge guard (issue #602): the PAT-backed merge
