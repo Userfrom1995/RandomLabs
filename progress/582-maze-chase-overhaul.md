@@ -959,3 +959,40 @@ redesign), gated on the Design Council's direction.
   re-derived every figure with a script (all match). No registry skill
   matched the round; none loaded.
   - the Fixer
+- 2026-10-19 (fixer, Phase 3 post-QC review round 14 on PR #693): applied
+  F30-F34 on `82c707fd`; no rebuttal. F30: the Ack-spin corroboration
+  table now carries six data columns per row, so the protocol-traffic
+  column is no longer empty; the summary states that the truecolor row
+  reaches its pause surface at 7.91 MiB (binary units, not the suggested
+  8.30), sends no graphics traffic, and that only the kitty-graphics
+  rows send 21 transmits. F31: the Sixel budget sentence distinguishes
+  the 20.9 KiB mean payload per playing transmit from the 25.3 KiB peak
+  synchronized playing frame (25.2 KiB mean), and the token
+  `per_transmit_playing_peak_kib` became `per_playing_frame_peak_kib`
+  (25.3) with a matching `per_playing_frame_mean_kib` (25.2). F32: the
+  compatibility matrix and harness README now say a forced-tier rerun
+  records `pause_select: 1`, not the second executed row of an emulator.
+  F33: the left-Kitty release also frees the whole-frame fallback image
+  id 1 when the probe proved no placements, pinned by a new unit test
+  that also asserts the atlas path never frees it. F34: the provenance
+  comment and the README/matrix wording now state that `build.commit`
+  is the checkout when the row ran and the binary SHA-256 is
+  authoritative under `--skip-build`. A residual pre-fix "hundreds of
+  megabytes behind" sentence in the Ack-spin file was corrected to the
+  current committed rows. Verification: workspace 57 test groups / 495
+  passed / 0 failed; `maze-chase-verify` 19/19 with golden
+  `23c17f89734e`; harness contract 47/47; fmt clean; clippy reports
+  only the pre-existing engine and design-token-test warnings.
+  Delegation ledger (round 14): two read-only `general` subagents fanned
+  out. The evidence auditor re-derived every F30/F31 number from the
+  committed bundles (all match, including the 7.91 MiB binary-unit
+  correction), confirmed the F32 `pause_select` row order, the F34
+  wording consistency, and flagged the stale Ack-spin sentence, now
+  fixed. The code auditor confirmed F33's guard, predicate, and ordering
+  with file:line evidence, ran the targeted bin tests (15/15), and
+  proved the new test fails when the free is removed in a /tmp copy.
+  Primary context applied the edits, corrected the suggested 8.30 MiB
+  to 7.91 MiB, and ran the full workspace suite, verifier, harness
+  contract, fmt, and clippy. No registry skill matched the round; none
+  loaded.
+  - the Fixer
