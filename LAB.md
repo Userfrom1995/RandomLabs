@@ -741,8 +741,8 @@ remote tip).
   (`.github/scripts/actor-write-gate.sh`): an unprivileged comment can launch
   neither an agent nor an owner-PAT auto-retry, which would otherwise re-post
   the trigger as the owner (admin) and launder the actor past the CLI's
-  write-permission assert (issue #428). A denial skips cleanly; schedule and
-  dispatch arms always pass, so crash parity is untouched. Coverage across
+  write-permission assert (issue #428). A denial skips cleanly; schedule,
+  dispatch, and workflow_run arms always pass, so crash parity is untouched. Coverage across
   every workflow running the composite action, plus the maintainer's inline
   gate, clean-skip verify lane, and gated post-gate side-effect steps (issue
   #696), is regression-guarded by audit rule R12 in
