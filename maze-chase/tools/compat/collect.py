@@ -435,12 +435,17 @@ def white_share(decoded):
     if color == 0:
         if bit == 8:
             white = sum(1 for i in range(total) if rows[i] == 0xFF)
-        elif bit == 1:
+        elif bit in (1, 2, 4):
+            # Packed grayscale: samples are MSB-first. All-ones is white
+            # at every depth, and returning 0.0 here would let a blank
+            # 2- or 4-bit capture bypass the light-background gate.
+            per_byte = 8 // bit
+            mask = (1 << bit) - 1
             for y in range(height):
                 row = rows[y * stride:(y + 1) * stride]
                 for x in range(width):
-                    byte = row[x // 8]
-                    if (byte >> (7 - (x % 8))) & 1:
+                    byte = row[x // per_byte]
+                    if ((byte >> (8 - bit - (x % per_byte) * bit)) & mask) == mask:
                         white += 1
         else:
             return 0.0
@@ -459,6 +464,19 @@ def white_share(decoded):
         for i in range(0, total * 2, 2):
             if rows[i] == 0xFF:
                 white += 1
+        return white / total
+    if color == 4 and bit in (1, 2, 4):
+        # Packed gray+alpha: each pixel is a gray sample followed by an
+        # alpha sample, both `bit` bits wide. Classify by gray only, as
+        # the 8-bit path does.
+        mask = (1 << bit) - 1
+        for y in range(height):
+            row = rows[y * stride:(y + 1) * stride]
+            for x in range(width):
+                bitpos = x * 2 * bit
+                byte = row[bitpos // 8]
+                if ((byte >> (8 - bit - (bitpos % 8))) & mask) == mask:
+                    white += 1
         return white / total
     return 0.0
 

@@ -176,18 +176,39 @@ def make_gray_png(width, height, bit_depth, samples):
     )
 
 
-def make_gray_alpha_png(width, height, gray, alpha=255):
-    """A minimal gray+alpha PNG (color type 4) from one flat gray value."""
+def make_gray_alpha_png(width, height, gray, alpha=255, bit_depth=8):
+    """A minimal gray+alpha PNG (color type 4) from one flat pair.
+
+    At depths 1/2/4 each pixel packs its gray sample then its alpha
+    sample, MSB-first, so a test can prove the same all-ones-is-white
+    classification the 8-bit path uses.
+    """
     import struct
     import zlib
 
-    row = bytes([gray, alpha]) * width
-    raw = b"".join(b"\x00" + row for _ in range(height))
+    mask = (1 << bit_depth) - 1
+    raw = bytearray()
+    for _ in range(height):
+        raw.append(0)
+        if bit_depth == 8:
+            raw.extend(bytes([gray, alpha]) * width)
+        else:
+            per_byte = 8 // (2 * bit_depth)
+            for x0 in range(0, width, per_byte):
+                byte = 0
+                for slot in range(per_byte):
+                    x = x0 + slot
+                    if x >= width:
+                        break
+                    gray_shift = 8 - bit_depth - slot * 2 * bit_depth
+                    byte |= (gray & mask) << gray_shift
+                    byte |= (alpha & mask) << (gray_shift - bit_depth)
+                raw.append(byte)
     return (
         PNG_SIG
         + _png_chunk(b"IHDR",
-                     struct.pack(">IIBBBBB", width, height, 8, 4, 0, 0, 0))
-        + _png_chunk(b"IDAT", zlib.compress(raw))
+                     struct.pack(">IIBBBBB", width, height, bit_depth, 4, 0, 0, 0))
+        + _png_chunk(b"IDAT", zlib.compress(bytes(raw)))
         + _png_chunk(b"IEND", b"")
     )
 
@@ -420,6 +441,39 @@ class TestCollectorHonestyGates(unittest.TestCase):
             fh.write(make_gray_alpha_png(8, 8, 24, alpha=0))
         facts = collect.screenshot_facts(path)
         self.assertEqual(facts["dominant_share"], 1.0)
+
+    def test_white_share_classifies_all_decodable_grayscale_depths(self):
+        # Packed 2- and 4-bit grayscale used to report 0.0 white, so a
+        # blank capture in those shapes could never trip the 0.98
+        # light-background gate even though it promises all-ones white.
+        collect = load_collect_module()
+        for bit in (1, 2, 4, 8):
+            path = os.path.join(self.tmp, f"white-gray-{bit}.png")
+            samples = [(1 << bit) - 1] * 64
+            with open(path, "wb") as fh:
+                fh.write(make_gray_png(8, 8, bit, samples))
+            facts = collect.screenshot_facts(path)
+            self.assertEqual(
+                facts["white_share"], 1.0,
+                f"{bit}-bit all-ones grayscale not classified as white",
+            )
+            self.assertTrue(facts["light_background"])
+
+    def test_white_share_classifies_all_decodable_gray_alpha_depths(self):
+        # The same fail-open existed for packed gray+alpha captures.
+        collect = load_collect_module()
+        for bit in (1, 2, 4, 8):
+            path = os.path.join(self.tmp, f"white-gray-alpha-{bit}.png")
+            level = (1 << bit) - 1
+            with open(path, "wb") as fh:
+                fh.write(make_gray_alpha_png(8, 8, level, alpha=level,
+                                             bit_depth=bit))
+            facts = collect.screenshot_facts(path)
+            self.assertEqual(
+                facts["white_share"], 1.0,
+                f"{bit}-bit all-ones gray+alpha not classified as white",
+            )
+            self.assertTrue(facts["light_background"])
 
     def test_gray_alpha_blank_playing_capture_is_downgraded(self):
         # A blank gray+alpha capture must trip the blank-board gate, not
