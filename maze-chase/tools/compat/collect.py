@@ -782,10 +782,17 @@ def main():
 
     tier = observed_tier(transcript)
     build = meta.get("build")
-    if not isinstance(build, dict):
+    if not (
+        isinstance(build, dict)
+        and isinstance(build.get("commit"), str)
+        and build.get("commit")
+        and isinstance(build.get("binary_sha256"), str)
+        and build.get("binary_sha256")
+    ):
         # Provenance is part of the evidence: a bundle that cannot name
         # the commit and binary that produced it says so instead of
-        # implying the current tree generated it.
+        # implying the current tree generated it. An empty or partial
+        # build block is the same unrecorded state as an absent one.
         build = {
             "recorded": False,
             "reason": ("the run metadata carries no build identity; this "
