@@ -126,11 +126,11 @@ default is tracked in the #582 overhaul.
 ## Layout and resize
 
 The 28x31 warren plus HUD fits windows from 62x35 up, and every window
-size gets a plan fitted for it: the layout solver scans the full tile
-scale grid (1 to 8 columns per tile, 1 to 4 rows per tile) and keeps
-the plan that covers the most of the window, breaking ties by tile
-squareness, chrome, area, and width. Every scale gets the best chrome it can
-host: a right-hand side panel with score, best, lives, level, mode
+size gets a plan fitted for it: the layout solver scans the tile scale
+grid (2 to 8 columns per tile, 1 to 4 rows per tile; the 2x1 compact
+scale is the floor) and keeps the plan that covers the most of the
+window, breaking ties by tile squareness, chrome, area, and width.
+Every scale gets the best chrome it can host: a right-hand side panel with score, best, lives, level, mode
 clock, tune, tier, and controls when the board leaves room, a two-row
 HUD band above the board when only rows are tight, or just the bottom
 hint line in the tightest rooms. Wide-short rooms reach wide-short
@@ -150,7 +150,8 @@ bounded so the raster's natural pixel size fits the board's pixel box
 (whenever the box can host even the 6-pixels-per-tile legibility floor;
 only absurdly tiny pixel windows fall back to the floor and may
 overflow) and clamped to 6..20 pixels per tile so encode cost stays
-bounded (large windows get an upscaled capped raster by design). The
+bounded (the cap bounds encode cost, not the on-screen scale: a large window
+draws the capped raster at its native size on the centered footprint). The
 image is drawn on a centered footprint inside the board, mapped from the
 raster's pixel size through the detected window pixels: Kitty terminals
 scale the image into that footprint (which tracks the raster's aspect to
@@ -160,7 +161,9 @@ origin at its natural size, so it cannot bleed into the hint line or hug
 a corner of a larger box.
 
 Terminals that report no pixel size keep the proven 8-pixels-per-tile
-nominal raster drawn across the full board box, exactly as before.
+nominal raster, exactly as before: Kitty stretches it across the full
+board box, while the Sixel path paints it at its natural size from the
+board origin.
 
 ## Settings and scores
 
