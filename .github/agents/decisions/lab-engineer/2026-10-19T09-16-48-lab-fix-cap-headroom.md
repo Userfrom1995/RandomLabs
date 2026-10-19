@@ -110,4 +110,17 @@ literals, full job-id terminator, unique job key) is implemented inside the
 existing rule; the rule description and the audit summary text document it
 so a future reviewer can re-run the batteries above.
 
+## Tester-round note
+
+The Tester's independent review on PR #702 found a genuine escape in the
+uniqueness count: it matched only the own-line `uses:` spelling, so an inline
+sequence step (`- uses: ./.github/actions/opencode-run`) or the `uses :` form
+with whitespace before the colon could add a second, ungated runner
+invocation while R25 and R12 stayed green (reproduced in a scratch tree:
+`yaml.safe_load` counted two runner steps and the audit still passed 25/25).
+Both counts now match all three standard step spellings, anchored as the
+whole YAML value. The clean tree stays 25/25 and each shadow case fails with
+`lab(agent-uses-count=2,want=1)` plus the R12 gate-coverage failure on the
+file-wide count.
+
 - the Lab Engineer
