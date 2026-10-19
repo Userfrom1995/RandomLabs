@@ -100,7 +100,23 @@ pub fn load_from(path: &Path) -> (Vec<Score>, usize) {
 }
 
 /// Save the table (creates parent directories).
+///
+/// A FIFO is refused before opening: `std::fs::write` opens with
+/// `O_WRONLY`, which blocks until a reader appears, so a score path
+/// replaced with a FIFO would hang the game after a finished run. The
+/// settings writer carries the same guard; both return `InvalidInput`
+/// and leave the FIFO untouched.
 pub fn save_to(table: &[Score], path: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    if path.metadata().is_ok_and(|m| {
+        use std::os::unix::fs::FileTypeExt;
+        m.file_type().is_fifo()
+    }) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("refusing to write high scores to FIFO {}", path.display()),
+        ));
+    }
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent)?;
@@ -160,6 +176,28 @@ mod tests {
         let (back, skipped) = load_from(&path);
         assert_eq!(back, t);
         assert_eq!(skipped, 0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn fifo_score_writes_are_refused_instead_of_hanging() {
+        use std::os::unix::fs::FileTypeExt;
+        let dir =
+            std::env::temp_dir().join(format!("maze-chase-scores-fifo-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("scores.txt");
+        let status = std::process::Command::new("mkfifo").arg(&path).status();
+        if !matches!(status, Ok(s) if s.success()) {
+            let _ = std::fs::remove_dir_all(&dir);
+            return;
+        }
+        assert!(path.metadata().unwrap().file_type().is_fifo());
+        let table = vec![Score::new(500, 2, "classic", "2026-10-16")];
+        let err = save_to(&table, &path).expect_err("a FIFO score path must be refused");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(path.metadata().unwrap().file_type().is_fifo());
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

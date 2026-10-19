@@ -209,7 +209,24 @@ pub fn load(text: &str) -> (Settings, Keymap, Vec<String>) {
 }
 
 /// Write [`save`] output to `path` (creates or truncates the file).
+///
+/// A FIFO is refused before opening: `std::fs::write` opens with
+/// `O_WRONLY`, which blocks until a reader appears, so a settings path
+/// that an attacker (or a confused restore) replaced with a FIFO would
+/// hang the game before the terminal is restored. The same guard lives
+/// on the score table; both return `InvalidInput` and leave the FIFO
+/// untouched.
 pub fn save_to(s: &Settings, map: &Keymap, path: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    if path.metadata().is_ok_and(|m| {
+        use std::os::unix::fs::FileTypeExt;
+        m.file_type().is_fifo()
+    }) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("refusing to write settings to FIFO {}", path.display()),
+        ));
+    }
     std::fs::write(path, save(s, map))
 }
 
@@ -334,5 +351,27 @@ mod tests {
         assert!(problems.is_empty(), "unexpected: {problems:?}");
         assert_eq!(s2, s);
         assert_eq!(m2, m);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn fifo_settings_writes_are_refused_instead_of_hanging() {
+        use std::os::unix::fs::FileTypeExt;
+        let dir =
+            std::env::temp_dir().join(format!("maze-chase-persist-fifo-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("settings.conf");
+        let status = std::process::Command::new("mkfifo").arg(&path).status();
+        if !matches!(status, Ok(s) if s.success()) {
+            let _ = std::fs::remove_dir_all(&dir);
+            return;
+        }
+        assert!(path.metadata().unwrap().file_type().is_fifo());
+        let err = save_to(&Settings::default(), &Keymap::defaults(), &path)
+            .expect_err("a FIFO settings path must be refused");
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        assert!(path.metadata().unwrap().file_type().is_fifo());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
