@@ -1588,11 +1588,17 @@ def outcome_source_hits(
         hits.append("verify-outcome-source-not-agent-step")
         return hits
     if expected_runner == "composite":
+        # Round 24: count by path-normalized path, so a dot-segment spelling
+        # of the same directory (for example
+        # `./.github/actions/opencode-run/.`) cannot hide a duplicate
+        # invocation from the uniqueness clause.
+        canonical_uses = os.path.normpath("./.github/actions/opencode-run")
         invocations = [
             candidate
             for candidate in steps_of_job(doc, expected_job)
             if isinstance(candidate, dict)
-            and candidate.get("uses") == "./.github/actions/opencode-run"
+            and isinstance(candidate.get("uses"), str)
+            and os.path.normpath(candidate["uses"]) == canonical_uses
         ]
         if len(invocations) != 1:
             hits.append("verify-outcome-source-runner-not-unique")
@@ -2084,6 +2090,18 @@ for mutant_name, uses_literal in (
             outcome_duplicate_doc(uses_literal),
         )
     )
+outcome_mutant = outcome_duplicate_doc("./.github/actions/opencode-run")
+outcome_mutant["jobs"]["general"]["steps"][2]["uses"] = (
+    "./.github/actions/opencode-run/."
+)
+outcome_mutants.append(
+    (
+        "duplicate-invocation-slashed",
+        "general",
+        "verify-outcome-source-runner-not-unique",
+        outcome_mutant,
+    )
+)
 outcome_mutant = outcome_doc("composite")
 outcome_mutant["jobs"]["general"]["steps"][1]["continue-on-error"] = False
 outcome_mutants.append(
