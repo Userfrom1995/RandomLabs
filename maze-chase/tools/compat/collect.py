@@ -167,7 +167,9 @@ def kitty_stats(data):
                 # command: the stream is malformed but the bytes were
                 # still sent, so they stay counted.
                 chunked = True
-            if action == "T":
+            if action in ("T", "t"):
+                # `a=T` displays immediately; `a=t` is the quiet
+                # transmit the atlas/static placement pipeline uses.
                 transmits += 1
                 first_chunks_bytes += len(payload)
                 payload_bytes += len(payload)

@@ -191,6 +191,21 @@ class TestCollectorHonestyGates(unittest.TestCase):
         self.assertEqual(stats["first_chunks_bytes"], 4)
         self.assertTrue(stats["chunked"])
 
+    def test_kitty_quiet_transmit_counts_as_a_transmit(self):
+        # The placement pipeline ships the static layer and atlas with
+        # `a=t`; a collector that only counts `a=T` would report zero
+        # transmits for every placement-mode row.
+        collect = load_collect_module()
+        stream = (
+            b"\x1b_Ga=t,f=100,i=1,m=1;AAAA\x1b\\"
+            b"\x1b_Gm=0;BBBB\x1b\\"
+            b"\x1b_Ga=p,i=1,p=1,x=0,y=0,w=2,h=2\x1b\\"
+        )
+        stats = collect.kitty_stats(stream)
+        self.assertEqual(stats["transmits"], 1)
+        self.assertEqual(stats["placements"], 1)
+        self.assertEqual(stats["payload_bytes"], 8)
+
 
 class TestCommittedEvidenceBundle(unittest.TestCase):
     def rows(self):
