@@ -1014,7 +1014,7 @@ Next: Phase 5 (sound design overhaul).
   Regenerated all eight Linux compatibility rows at code commit
   `90cb9b87` (binary `e5c9a284...`, clean sources), the desktop title
   PPM, and the browser gameplay PNG; `browser-e2e.js` ALL GREEN. Gates:
-  workspace 498/498 across 58 targets, harness contract 47/47, verify
+  workspace 498/498 across 57 targets, harness contract 47/47, verify
   19/19 (`23c17f89734e`), fmt clean, clippy only the pre-existing engine
   lints. Delegation ledger: the phase was implemented in the primary
   context across assets, renderers, config, docs, and captures; no
@@ -1026,7 +1026,7 @@ Next: Phase 5 (sound design overhaul).
   scaling at 16-20 ppt, made the cell tier paint cues over Pip,
   suppressed the new-level start floater, stopped the hop during death
   and clearing, freed the Kitty whole-frame image, and clamped score
-  floaters. Re-ran 514/514 across 58 targets, harness 47/47, verify
+  floaters. Re-ran 514/514 across 57 targets, harness 47/47, verify
   19/19 (`23c17f89734e`), fmt/clippy, rebuilt the wasm, recaptured the
   browser frame, and re-executed six Linux terminal rows at the new
   commit. Three subagents (docs audit, renderer review, evidence
@@ -1051,7 +1051,7 @@ Next: Phase 5 (sound design overhaul).
   evidence labels, OS qualification, probe/wasm hashes, and test counts,
   captured the desktop gameplay frame (`docs/desktop-gameplay.ppm`),
   and regenerated the browser gameplay capture. Verification: 525/525
-  across 58 targets, verify 19/19 (`23c17f89734e`), fmt and clippy
+  across 57 targets, verify 19/19 (`23c17f89734e`), fmt and clippy
   clean apart from the documented pre-existing lints, wasm sha256
   `61a72473...`, node smokes and `browser-e2e.js` ALL GREEN. No registry
   skill matched; none loaded.
@@ -1066,7 +1066,7 @@ Next: Phase 5 (sound design overhaul).
   test counts, completed the truncated scoreboard sentence, aligned the
   design and token transition durations with the shipped cuts and snaps,
   and qualified the remaining all-OS parity claims. Verification: 532/532
-  across 58 targets, harness 47/47, verify 19/19 (`23c17f89734e`), fmt
+  across 57 targets, harness 47/47, verify 19/19 (`23c17f89734e`), fmt
   clean, wasm sha256 `47afaaea...`. No registry skill matched; none
   loaded.
   - the Fixer
@@ -1079,8 +1079,8 @@ Next: Phase 5 (sound design overhaul).
   clock instead of render frames, the cell-relish test carries a positive
   control, the dead `Clip` API is gone, and the wasm plus every size,
   hash, and toolchain claim is rebuilt and requalified. Verification:
-  545/545 across 58 targets, harness 47/47, verify 19/19
-  (`23c17f89734e`), fmt clean, wasm sha256 `11f75cd2...` (206,253 bytes,
+  535/535 across 57 targets, harness 47/47, verify 19/19
+  (`23c17f89734e`), fmt clean, wasm sha256 `029352dc...` (202,727 bytes,
   reproduced byte-identically with rustc 1.99.0 commit `b940084d7`),
   node smokes and `browser-e2e.js` ALL GREEN, desktop E2E under Xvfb
   green. No registry skill matched; none loaded. Code commit `470a050f`.
@@ -1172,4 +1172,18 @@ Next: Phase 5 (sound design overhaul).
   HUD ABI section) and `wasm-smoke.js` are ALL GREEN. Single-file code
   fix, so no subagents were dispatched. No registry skill matched; none
   loaded.
+  - the Fixer
+
+- 2026-10-20 (fixer, Pondwake review round 12 on `ab4cd357`): restored the
+  historical evidence rows that a prior docs pass had rewritten to current
+  numbers. `docs/scoreboard.md` now records the initial identity delivery at
+  `90cb9b87` as 498/57 and the round-6 reviewed head `88ee1467` (code commit
+  `470a050f`) as 535/57 with wasm `029352dc...` (202,727 bytes, checked
+  against the committed artifact); this file restores 498/57, 514/57,
+  525/57, 532/57, and the same round-6 535/57 row, while the Quality Council
+  round stays separate at 545/58 and `7545da6a...`. The PR summary now
+  qualifies its claims sentence so current-state values match this tree and
+  dated rows keep their own measurements. Documentation-only change; no code,
+  wasm, or evidence was touched. Single-area docs fix, so no subagents were
+  dispatched. No registry skill matched; none loaded.
   - the Fixer
