@@ -11664,8 +11664,8 @@ fi
 # events, an executable mock `gh` (interception proven), and a local bare
 # origin whose commit subjects model Builder and Tester pushes, including a
 # 1500-commit large-range fixture and a branch-without-helpers staging
-# fixture; 64 mutation
-# self-tests (56 workflow static-pin mutants plus 8 helper-fixture mutants)
+# fixture; 65 mutation
+# self-tests (57 workflow static-pin mutants plus 8 helper-fixture mutants)
 # prove both the exact pins and the fixture matrices are load-bearing (a
 # foreign-branch pushed="yes", a verify or forward `if: false`, a
 # retry-target rebind, a retry-counter reset, a fail-open attribution
@@ -12540,12 +12540,10 @@ for job_name, job_doc in (doc.get("jobs") or {}).items():
         # can overwrite them too. Ban every writer outside the one staging
         # step. The source helpers are covered as well so a pre-staging step
         # cannot tamper with the tree that is about to be staged.
-        for line in bound_body.splitlines():
-            if "$RUNNER_TEMP/lab-scripts" not in line and ".github/scripts/" not in line:
-                continue
-            if re.search(r"(^|[^A-Za-z0-9_])(cp|mv|install|rsync|ln|tee|dd|sed|perl|truncate|rm|chmod)([^A-Za-z0-9_]|$)", line) \
-                    or re.search(r"(^|[^A-Za-z0-9_])open\s*\(", line) \
-                    or re.search(r">>?\s*\"?\$RUNNER_TEMP/lab-scripts", line):
+        if "$RUNNER_TEMP/lab-scripts" in bound_body or ".github/scripts/" in bound_body:
+            if re.search(r"(^|[^A-Za-z0-9_])(cp|mv|install|rsync|ln|tee|dd|sed|perl|truncate|rm|chmod)([^A-Za-z0-9_]|$)", bound_body) \
+                    or re.search(r"(^|[^A-Za-z0-9_])open\s*\(", bound_body) \
+                    or re.search(r">>?\s*\"?\$RUNNER_TEMP/lab-scripts", bound_body):
                 fail("staged-helper-overwrite:%s:%s"
                      % (job_name, bound_step.get("name")))
 
@@ -13003,6 +13001,14 @@ mutants = {
         '        run: sed -i \'s/exit 1/exit 0/g\' "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"\n'
         '      - name: Verify research decided, else auto-retry\n',
     ),
+    "stage-inplace-indirect": sub(
+        '      - name: Verify research decided, else auto-retry\n',
+        '      - name: Tamper staged strip helper\n'
+        '        run: |\n'
+        '          cd "$RUNNER_TEMP/lab-scripts"\n'
+        "          sed -i 's/exit 1/exit 0/g' strip-trailers.sh\n"
+        '      - name: Verify research decided, else auto-retry\n',
+    ),
     "build-different-branch-no-tipmove": sub(
         "            elif [ -n \"$tip_now\" ] && ! printf '%s\\n' \"$PATTERN_TIPS\" | grep -qxF \"$tip_now\"; then\n",
         "            elif [ -n \"$tip_now\" ]; then\n",
@@ -13028,7 +13034,7 @@ print("\n".join(sorted(mutants)))
 R28STATICMUT
     r28_bad="${r28_bad} opencode.yml(static-mutant-generation-failed:$(tr '\n' ';' < "$r28_tmp/static-mutants.log" | cut -c1-200))"
   else
-    r28_wf_mutant_list="verify-target verify-counter verify-newest-pr verify-retries-reset verify-cap verify-env-token verify-id verify-continue-on-error forward-target forward-comment forward-if forward-event-number forward-env-token build-if build-env-branch build-attribution build-fail-open build-pushed-foreign build-continue-on-error recover-gate recover-exit recover-shell workflow-env research-job-env build-job-defaults build-baseline-id phase-actor-gate-id research-job-continue-on-error build-job-continue-on-error phase-gate-if-false phase-gate-duplicate phase-opencode-if-false phase-opencode-duplicate build-baseline-if-false build-baseline-comment-markers research-job-if-false build-job-if-false build-baseline-body-main phase-agent-alias phase-agent-pat phase-agent-timeout research-job-permissions research-job-runs-on research-job-timeout build-baseline-blank-continuation stage-body-changed stage-name-changed stage-direct-path stage-overwrite-copy stage-inplace-tamper forward-builder-body-helper build-baseline-fail-open build-baseline-git-fail-open build-different-branch-no-tipmove permissions-pr-none forward-builder-gate"
+    r28_wf_mutant_list="verify-target verify-counter verify-newest-pr verify-retries-reset verify-cap verify-env-token verify-id verify-continue-on-error forward-target forward-comment forward-if forward-event-number forward-env-token build-if build-env-branch build-attribution build-fail-open build-pushed-foreign build-continue-on-error recover-gate recover-exit recover-shell workflow-env research-job-env build-job-defaults build-baseline-id phase-actor-gate-id research-job-continue-on-error build-job-continue-on-error phase-gate-if-false phase-gate-duplicate phase-opencode-if-false phase-opencode-duplicate build-baseline-if-false build-baseline-comment-markers research-job-if-false build-job-if-false build-baseline-body-main phase-agent-alias phase-agent-pat phase-agent-timeout research-job-permissions research-job-runs-on research-job-timeout build-baseline-blank-continuation stage-body-changed stage-name-changed stage-direct-path stage-overwrite-copy stage-inplace-tamper stage-inplace-indirect forward-builder-body-helper build-baseline-fail-open build-baseline-git-fail-open build-different-branch-no-tipmove permissions-pr-none forward-builder-gate"
     # Bind the generator's mutation set to the list executed below: a mutant
     # added (or dropped) in only one place would otherwise silently shrink
     # the load-bearing matrix without tripping any other check.
@@ -13347,7 +13353,7 @@ R28MUTCLASS
 fi
 rm -rf "$r28_tmp"
 if [ -z "$r28_bad" ]; then
-  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected and its exact if/id/env/key set and normalized run body pinned, every consumed steps.<id> resolves in its owning job to the expected step identity (actor gate, agent, baseline, verify-phase, verify) ahead of its consumer with the resolved gate/agent/baseline steps bound to their exact key surface, if, env, and executable output lines so a skipped decoy cannot shadow them, every bound job's key set, runs-on, timeout, and trigger if scalar are pinned exactly, the agent env/timeout/continue-on-error are pinned, composite uses paths are path-normalized before counting, the baseline run body is pinned exactly, job-level continue-on-error is rejected on every bound job, the attribution calls are pinned including their fail-closed closure with no pushed=yes inside a foreign branch, both merge-decision helper scripts plus the strip script are staged from the trusted default-branch checkout into RUNNER_TEMP before the agent starts and every post-agent step invokes the staged copy (never the agent-mutable workspace copy, which an in-flight branch may not even contain), the baseline fails loudly on a nonzero gh or git status (capture-first, so a failed ls-remote is never swallowed as branch-absent), so an empty branch means only a successful no-PR query, and no step outside the staging step may copy over, in-place edit (sed -i, perl -i, truncate, rm, chmod, a Python open-write), or redirect into the staged-helper directory, or edit the source helpers before staging, the workflow-level permissions block is pinned exactly, the build forward is gated on a verified own push, the classifier reads subjects through a here-string so a large builder batch cannot SIGPIPE into a false foreign verdict, both real helper scripts are executed against fixture events (including an unparseable payload that must fail closed), an executable mock gh, and a local bare origin with Builder/Tester commit subjects (including a 1500-commit large-range fixture and a branch-without-helpers staging fixture), and 64 mutation self-tests (56 workflow static-pin mutants plus 8 helper-fixture mutants) prove the static pins and both fixture matrices load-bearing (issue #690)" "ok"
+  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected and its exact if/id/env/key set and normalized run body pinned, every consumed steps.<id> resolves in its owning job to the expected step identity (actor gate, agent, baseline, verify-phase, verify) ahead of its consumer with the resolved gate/agent/baseline steps bound to their exact key surface, if, env, and executable output lines so a skipped decoy cannot shadow them, every bound job's key set, runs-on, timeout, and trigger if scalar are pinned exactly, the agent env/timeout/continue-on-error are pinned, composite uses paths are path-normalized before counting, the baseline run body is pinned exactly, job-level continue-on-error is rejected on every bound job, the attribution calls are pinned including their fail-closed closure with no pushed=yes inside a foreign branch, both merge-decision helper scripts plus the strip script are staged from the trusted default-branch checkout into RUNNER_TEMP before the agent starts and every post-agent step invokes the staged copy (never the agent-mutable workspace copy, which an in-flight branch may not even contain), the baseline fails loudly on a nonzero gh or git status (capture-first, so a failed ls-remote is never swallowed as branch-absent), so an empty branch means only a successful no-PR query, and no step outside the staging step may copy over, in-place edit (sed -i, perl -i, truncate, rm, chmod, a Python open-write), or redirect into the staged-helper directory, or edit the source helpers before staging (the write ban is scoped to the whole step body, so a cd-then-relative edit cannot evade it), the workflow-level permissions block is pinned exactly, the build forward is gated on a verified own push, the classifier reads subjects through a here-string so a large builder batch cannot SIGPIPE into a false foreign verdict, both real helper scripts are executed against fixture events (including an unparseable payload that must fail closed), an executable mock gh, and a local bare origin with Builder/Tester commit subjects (including a 1500-commit large-range fixture and a branch-without-helpers staging fixture), and 65 mutation self-tests (57 workflow static-pin mutants plus 8 helper-fixture mutants) prove the static pins and both fixture matrices load-bearing (issue #690)" "ok"
 else
   check "R28" "phase thread binding or build-push attribution guard missing:${r28_bad} (issue #690: a design retry/forward migrated to the newest phase PR and the build verify read a foreign Tester push as its own)" "bad"
 fi
