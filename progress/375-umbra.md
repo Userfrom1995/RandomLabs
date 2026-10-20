@@ -35,7 +35,7 @@
 - Final Milestone (M5) polish + product hardening (final PR, Closes #375 ONLY when all gates green):
   - [ ] VFX pass (hit sparks, dust, KO slow-mo) + SFX/adaptive-music mix + haptics tuning + onboarding tutorial bout
   - [ ] Accessibility audit + soak/fuzz ledger + G1-G7 scoreboard MEASURED + landing card + README/docs sync
-  - [ ] Reviewer `/oc approve`, Tester `/oc approve-test`, Quality Council `/oc approve-eval` >= 9.8/10, Pages deploy green at `/umbra/`
+  - [ ] Reviewer `/oc approve`, Tester `/oc approve-test`, Quality Council `approve-eval` verdict >= 9.8/10, Pages deploy green at `/umbra/`
 
 ## Current step
 

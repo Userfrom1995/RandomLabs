@@ -28,7 +28,7 @@
   - [x] Shell states (`src/ui/shellStates.js`): onboarding plus sample, loading/empty/error states, failed loads resume the running level, shareware episode clamp on staged WADs, per-file remove, WAD-cache-preserving service worker `doom-m4-v1`, landing card
 - Final Milestone (M5) integration and end-to-end audit (final PR, Closes #362):
   - [x] H1-H5 statistical ledger plus baseline catalog measured
-  - [ ] Reviewer `/oc approve`, Tester `/oc approve-test`, Quality Council `/oc approve-eval` >= 9.8/10, Pages deploy green
+  - [ ] Reviewer `/oc approve`, Tester `/oc approve-test`, Quality Council `approve-eval` verdict >= 9.8/10, Pages deploy green
 
 ## M5 build log (this run)
 
