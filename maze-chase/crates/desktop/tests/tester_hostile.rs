@@ -54,7 +54,6 @@ fn test_app(tag: &str) -> (TmpDir, App) {
 fn sample_hud() -> Hud<'static> {
     Hud {
         best: 0,
-        frame_no: 7,
         flash: true,
         fps: Some(60.0),
         tune: "OFF",

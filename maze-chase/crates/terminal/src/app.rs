@@ -127,7 +127,8 @@ pub struct App {
     pub frame_no: u64,
     pending_dir: Option<Dir>,
     was_running: bool,
-    ticker: Option<(String, u64)>,
+    ticker: Option<(String, f64)>,
+    clock_s: f64,
     dir: PathBuf,
     seed_counter: u64,
     /// Set when the player picks Quit (the binary exits its loop).
@@ -161,6 +162,7 @@ impl App {
             pending_dir: None,
             was_running: false,
             ticker: None,
+            clock_s: 0.0,
             dir,
             seed_counter: 0,
             quit: false,
@@ -356,13 +358,16 @@ impl App {
     /// playing; menus just age the ticker).
     pub fn tick(&mut self, dt: f64) {
         self.frame_no += 1;
+        if dt > 0.0 && dt.is_finite() {
+            self.clock_s += dt;
+        }
         if self.screens.current != ScreenId::Playing {
             return;
         }
         let events = self.game.step(dt, self.pending_dir.take());
         for event in &events {
             if let Some(t) = ticker_for(event) {
-                self.ticker = Some((t, self.frame_no));
+                self.ticker = Some((t, self.clock_s));
             }
             if let Some(cue) = cue_for_event(event) {
                 self.chime.play(cue);
@@ -383,11 +388,11 @@ impl App {
         }
     }
 
-    /// Current ticker line, if fresh (8 s at 60 fps).
+    /// Current ticker line, if fresh (8 s of wall clock).
     pub fn ticker(&self) -> Option<&str> {
         self.ticker
             .as_ref()
-            .filter(|(_, at)| self.frame_no.saturating_sub(*at) < 480)
+            .filter(|(_, at)| self.clock_s - *at < 8.0)
             .map(|(t, _)| t.as_str())
     }
 
@@ -405,7 +410,6 @@ impl App {
             &self.game,
             self.theme(),
             self.layout.ppt(),
-            self.frame_no,
             !self.settings.reduced_flash,
         );
         crate::kitty::png_encode(&frame)
@@ -529,11 +533,14 @@ mod tests {
     #[test]
     fn ticker_ages_out() {
         let mut a = app();
-        a.on_key(key(KeyCode::Enter));
-        a.ticker = Some(("hello".into(), a.frame_no));
+        a.ticker = Some(("hello".into(), a.clock_s));
         assert_eq!(a.ticker(), Some("hello"));
-        for _ in 0..500 {
-            a.tick(1.0 / 60.0);
+        for _ in 0..948 {
+            a.tick(1.0 / 120.0);
+        }
+        assert_eq!(a.ticker(), Some("hello"), "still fresh just under 8 s");
+        for _ in 0..132 {
+            a.tick(1.0 / 120.0);
         }
         assert_eq!(a.ticker(), None);
     }

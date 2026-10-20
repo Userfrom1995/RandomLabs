@@ -27,7 +27,6 @@ fn scripted_run_with(seed: u64, wants: &[Dir]) -> (u32, Vec<Vec<u32>>) {
         if tick % 120 == 0 {
             let hud = Hud {
                 best: 0,
-                frame_no: tick as u64,
                 flash: true,
                 fps: Some(60.0),
                 tune: "OFF",

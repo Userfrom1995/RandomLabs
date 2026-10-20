@@ -88,7 +88,8 @@ pub struct App {
     acc: f64,
     pub frame_no: u64,
     fps_ema: f64,
-    ticker: Option<(String, u64)>,
+    ticker: Option<(String, f64)>,
+    clock_s: f64,
     was_running: bool,
     seed_counter: u64,
     tune: TuneId,
@@ -125,6 +126,7 @@ impl App {
             frame_no: 0,
             fps_ema: 60.0,
             ticker: None,
+            clock_s: 0.0,
             was_running: false,
             seed_counter: 0,
             tune: TuneId::None,
@@ -366,6 +368,7 @@ impl App {
     pub fn tick(&mut self, dt: f64) {
         self.frame_no += 1;
         if dt > 0.0 && dt.is_finite() {
+            self.clock_s += dt;
             let fps = 1.0 / dt.max(1e-6);
             self.fps_ema += (fps - self.fps_ema) * 0.05;
         }
@@ -380,7 +383,7 @@ impl App {
             let events = self.game.step(FIXED_DT, self.pending_dir.take());
             for event in &events {
                 if let Some(t) = ticker_for(event) {
-                    self.ticker = Some((t, self.frame_no));
+                    self.ticker = Some((t, self.clock_s));
                 }
                 if let Some(cue) = cue_for_event(event) {
                     self.audio.play(cue);
@@ -405,11 +408,11 @@ impl App {
         }
     }
 
-    /// Fresh ticker line, if any (8 s at 60 fps).
+    /// Fresh ticker line, if any (8 s of wall clock).
     pub fn ticker(&self) -> Option<&str> {
         self.ticker
             .as_ref()
-            .filter(|(_, at)| self.frame_no.saturating_sub(*at) < 480)
+            .filter(|(_, at)| self.clock_s - *at < 8.0)
             .map(|(t, _)| t.as_str())
     }
 
@@ -421,7 +424,6 @@ impl App {
             ScreenId::Playing | ScreenId::Paused => {
                 let hud = Hud {
                     best,
-                    frame_no: self.frame_no,
                     flash: !self.settings.reduced_flash,
                     fps: self.settings.show_fps.then_some(self.fps_ema as f32),
                     tune: tune_name(self.tune),
@@ -686,11 +688,27 @@ mod tests {
     }
 
     #[test]
+    fn ticker_ages_out_at_the_120hz_layer_rate() {
+        let mut app = test_app("ticker-age");
+        app.ticker = Some(("hello".into(), app.clock_s));
+        assert_eq!(app.ticker(), Some("hello"));
+        for _ in 0..948 {
+            app.tick(1.0 / 120.0);
+        }
+        assert_eq!(app.ticker(), Some("hello"), "still fresh just under 8 s");
+        for _ in 0..132 {
+            app.tick(1.0 / 120.0);
+        }
+        assert_eq!(app.ticker(), None, "9 s of 120 Hz frames ages it out");
+        let _ = std::fs::remove_dir_all(&app.dir);
+    }
+
+    #[test]
     fn clear_ticker_reaches_the_composed_frame() {
         let mut app = test_app("ticker");
         app.on_action(Action::Confirm);
         let text = ticker_for("level-clear").expect("level-clear ticker");
-        app.ticker = Some((text, app.frame_no));
+        app.ticker = Some((text, app.clock_s));
         assert_eq!(app.ticker(), Some("POND CLEAR!"));
         let with = app.render(1100, 760).unwrap();
         app.ticker = None;
