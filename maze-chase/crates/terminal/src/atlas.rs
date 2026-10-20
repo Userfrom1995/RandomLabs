@@ -32,15 +32,6 @@ pub const SLOT_COUNT: usize = 46;
 /// Slot grid columns.
 pub const ATLAS_COLS: usize = 8;
 
-/// Glyph box used by the authored rung for a pixels-per-tile choice.
-pub fn glyph_px(ppt: u32) -> u32 {
-    if raster::art_rung(ppt.max(raster::MIN_PPT) as i32) == 21 {
-        21
-    } else {
-        GLYPH_PX
-    }
-}
-
 /// Slot indices, grouped by layer.
 pub mod slot {
     pub const PIP_RIGHT_OPEN: usize = 0;
@@ -200,7 +191,11 @@ impl Atlas {
     pub fn build(theme: &Theme, ppt: u32) -> Self {
         let ppt = ppt.max(raster::MIN_PPT);
         let scale = raster::sprite_scale(ppt as i32);
-        let cell = glyph_px(ppt) * scale as u32;
+        // The 21 rung draws Rill's 21x21 sheet at scale 1 (centered in the
+        // same 22-pixel cell the 11x11 sheet occupies at scale 2), so the
+        // atlas stays the quiet single-transmit path at every rung.
+        let pip_scale = raster::pip_scale(ppt as i32);
+        let cell = GLYPH_PX * scale as u32;
         let rows = SLOT_COUNT.div_ceil(ATLAS_COLS) as u32;
         let mut frame = RgbaFrame::transparent(ATLAS_COLS as u32 * cell, rows * cell);
         let mut slots = [(0, 0); SLOT_COUNT];
@@ -320,11 +315,16 @@ impl Atlas {
             let y0 = (slot / ATLAS_COLS) as u32 * cell;
             slots[slot] = (x0, y0);
             let refs: Vec<&str> = rows.iter().map(|s| s.as_str()).collect();
+            let draw_scale = if slot < slot::PIP_DEATH {
+                pip_scale
+            } else {
+                scale
+            };
             frame.draw_glyph(
                 &refs,
                 (x0 + cell / 2) as i32,
                 (y0 + cell / 2) as i32,
-                scale,
+                draw_scale,
                 palette,
             );
         }
@@ -609,7 +609,7 @@ mod tests {
         for ppt in [8, 21] {
             let atlas = atlas_for(ppt);
             let cell = atlas.cell;
-            assert_eq!(cell, glyph_px(ppt) * actual_sprite_scale(ppt));
+            assert_eq!(cell, GLYPH_PX * actual_sprite_scale(ppt));
             assert_eq!(atlas.frame.w, ATLAS_COLS as u32 * cell);
             assert!(atlas.frame.h >= cell * 6);
             for slot in 0..SLOT_COUNT {
@@ -635,7 +635,7 @@ mod tests {
 
     #[test]
     fn composed_frame_matches_full_raster() {
-        for ppt in [6, 8, 12, 20] {
+        for ppt in [6, 8, 12, 20, 21] {
             let mut game = Game::new(11, 1);
             let theme = themes::DUSK_POND;
             let atlas = atlas_for(ppt);

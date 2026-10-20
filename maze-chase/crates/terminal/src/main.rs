@@ -665,7 +665,7 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
         kitty.invalidate();
     }
 
-    if !kitty.placements || ppt >= 21 {
+    if !kitty.placements {
         // Probe proved graphics but not placements, or the 21 ppt rung
         // selected the authored high-detail sheet (its cell grid is not
         // uniform with the 11x11 effect art): keep the proven whole-frame
