@@ -42,14 +42,18 @@ pub fn too_small_card(cols: u16, rows: u16, min_cols: u16, min_rows: u16) -> Vec
     )
 }
 
-/// 30-segment fright countdown plus the reduced-flash banner.
+/// Fright badge for the whole active window plus the final-tail meter.
 ///
-/// The meter appears only in the final 1.5 s window; the banner replaces
-/// the flashing instruction for reduced-flash players (information, not
-/// decoration).
+/// The badge names the fright for as long as the window is active. The
+/// 30-segment countdown joins only in the final 1.5 s, and the banner
+/// replaces the flashing instruction for reduced-flash players
+/// (information, not decoration).
 pub fn fright_readout(game: &Game, reduced_flash: bool) -> Option<String> {
-    if !game.wardens.fright_flashing() {
+    if !game.wardens.fright_active() {
         return None;
+    }
+    if !game.wardens.fright_flashing() {
+        return Some("FRIGHT!".to_string());
     }
     let lit = anim::fright_bar_segments(game.wardens.fright_t).min(30);
     let bar = format!("{}{}", "█".repeat(lit), "░".repeat(30 - lit));
@@ -386,6 +390,10 @@ mod tests {
         let reduced = fright_readout(&g, true).expect("reduced banner");
         assert!(reduced.starts_with("THE TURN ENDS "));
         g.wardens.fright_t = 2.0;
+        let early = fright_readout(&g, false).expect("badge before the warning tail");
+        assert_eq!(early, "FRIGHT!");
+        assert!(!early.contains('█') && !early.contains('░'));
+        g.wardens.fright_t = 0.0;
         assert!(fright_readout(&g, false).is_none());
     }
 }

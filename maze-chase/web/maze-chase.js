@@ -373,12 +373,13 @@
       var reduced = ((exp.mc_reduced_flash() >>> 0) !== 0) ||
         ((exp.mc_reduced_motion() >>> 0) !== 0);
       var segs = fr ? (exp.mc_fright_segments() >>> 0) : 0;
-      if (meter) meter.hidden = !fr || segs === 0;
+      if (meter) meter.hidden = !fr;
       if (frel) frel.hidden = !fr;
       if (fr && reduced && segs > 0) txt('hud-fright', 'THE TURN ENDS');
       else if (fr && (exp.mc_fright_flash() >>> 0)) txt('hud-fright', 'FRIGHT ENDING');
       else if (fr) txt('hud-fright', 'FRIGHT!');
       var segEl = $('fright-segs');
+      if (segEl) segEl.hidden = !fr || segs === 0;
       if (segEl && segEl.children.length === FRIGHT_SEGMENTS) {
         for (var si = 0; si < FRIGHT_SEGMENTS; si++) {
           segEl.children[si].className = si < segs ? 'on' : '';
