@@ -59,11 +59,11 @@ impl Scores {
         self.entries.iter().any(|e| score > e.score)
     }
 
-    /// Sanitize a raw name: trim, fall back to `"Pip"`, cap at
+    /// Sanitize a raw name: trim, fall back to `"Rill"`, cap at
     /// [`MAX_NAME`] characters.
     pub fn clean_name(raw: &str) -> String {
         let trimmed = raw.trim();
-        let base = if trimmed.is_empty() { "Pip" } else { trimmed };
+        let base = if trimmed.is_empty() { "Rill" } else { trimmed };
         base.chars().take(MAX_NAME).collect()
     }
 
@@ -135,12 +135,12 @@ mod tests {
 
     #[test]
     fn names_are_sanitized() {
-        assert_eq!(Scores::clean_name("  "), "Pip");
+        assert_eq!(Scores::clean_name("  "), "Rill");
         assert_eq!(Scores::clean_name("  Kessa  "), "Kessa");
         assert_eq!(Scores::clean_name("averylongnamehere").len(), MAX_NAME);
         let mut s = Scores::new();
         assert!(s.add("", 50, 1));
-        assert_eq!(s.get(0).map(|e| e.name.as_str()), Some("Pip"));
+        assert_eq!(s.get(0).map(|e| e.name.as_str()), Some("Rill"));
     }
 
     #[test]

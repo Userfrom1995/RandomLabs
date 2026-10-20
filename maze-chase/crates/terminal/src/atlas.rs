@@ -14,6 +14,7 @@
 //! static layer plus placements on the CPU for parity tests against the
 //! full-frame raster: both paths must produce identical pixels.
 
+use maze_chase_assets::anim;
 use maze_chase_assets::sprites;
 use maze_chase_assets::themes::{Rgb, Theme};
 use maze_chase_engine::actors::Dir;
@@ -24,12 +25,21 @@ use maze_chase_engine::tuning;
 
 use crate::raster::{self, PixelFrame};
 
-/// Sprite art is authored on an 11x11 glyph box (widest row wins).
+/// Baseline 11x11 glyph box (the 21x21 rung doubles this).
 pub const GLYPH_PX: u32 = 11;
-/// Atlas slots (6x6 grid, 36 cells; two unused).
-pub const SLOT_COUNT: usize = 34;
+/// Atlas slots (8x6 grid, 48 cells; two unused).
+pub const SLOT_COUNT: usize = 46;
 /// Slot grid columns.
-pub const ATLAS_COLS: usize = 6;
+pub const ATLAS_COLS: usize = 8;
+
+/// Glyph box used by the authored rung for a pixels-per-tile choice.
+pub fn glyph_px(ppt: u32) -> u32 {
+    if raster::art_rung(ppt.max(raster::MIN_PPT) as i32) == 21 {
+        21
+    } else {
+        GLYPH_PX
+    }
+}
 
 /// Slot indices, grouped by layer.
 pub mod slot {
@@ -43,10 +53,14 @@ pub mod slot {
     pub const WARDEN: usize = 16;
     pub const FRIGHT: usize = 20;
     pub const FRIGHT_FLASH: usize = 21;
-    pub const EYES: usize = 22;
-    pub const SUNSEED_A: usize = 26;
-    pub const SUNSEED_B: usize = 27;
-    pub const RELISH: usize = 28;
+    pub const FRIGHT_ENTRY: usize = 22;
+    pub const EYES: usize = 23;
+    pub const SUNSEED_A: usize = 27;
+    pub const SUNSEED_B: usize = 28;
+    pub const RELISH: usize = 29;
+    pub const PICKUP_BURST: usize = 35;
+    pub const TURN_SPARK: usize = 39;
+    pub const GOLDEN_LILY: usize = 40;
 }
 
 /// A placed sprite: atlas `slot`, board-pixel top-left `(x, y)`, and the
@@ -85,15 +99,21 @@ pub mod z {
     /// Warden `warden` body or fright mask; strictly above warden
     /// `warden - 1`'s eyes and strictly below its own eyes.
     pub const fn body(warden: usize) -> u32 {
-        3 + 2 * warden as u32
+        4 + 2 * warden as u32
     }
     /// Warden `warden` eyes overlay, above its own body and below
     /// warden `warden + 1`'s body, exactly like the raster.
     pub const fn eyes(warden: usize) -> u32 {
-        4 + 2 * warden as u32
+        5 + 2 * warden as u32
     }
-    /// Pip, the player sprite (always the top layer).
-    pub const PIP: u32 = 11;
+    /// Pickup burst (above the board, below the actors).
+    pub const BURST: u32 = 3;
+    /// Pip, the player sprite (above every warden).
+    pub const PIP: u32 = 13;
+    /// Committed-turn spark (above Pip).
+    pub const SPARK: u32 = 14;
+    /// Spare-wick Golden Lily (above the spark).
+    pub const LILY: u32 = 15;
 }
 
 /// An RGBA image (alpha 0 transparent). The kitty path encodes it as a
@@ -178,8 +198,9 @@ pub struct Atlas {
 impl Atlas {
     /// Build the atlas for a theme and pixels-per-tile choice.
     pub fn build(theme: &Theme, ppt: u32) -> Self {
-        let scale = (ppt.max(raster::MIN_PPT) as i32 / 8).max(1);
-        let cell = GLYPH_PX * scale as u32;
+        let ppt = ppt.max(raster::MIN_PPT);
+        let scale = raster::sprite_scale(ppt as i32);
+        let cell = glyph_px(ppt) * scale as u32;
         let rows = SLOT_COUNT.div_ceil(ATLAS_COLS) as u32;
         let mut frame = RgbaFrame::transparent(ATLAS_COLS as u32 * cell, rows * cell);
         let mut slots = [(0, 0); SLOT_COUNT];
@@ -191,7 +212,11 @@ impl Atlas {
                 .into_iter()
                 .enumerate()
             {
-                let rows = raster::pip_facing_rows(phase, dir);
+                let rows = sprites::pip_facing_rows(
+                    phase,
+                    raster::facing_of(dir),
+                    raster::art_rung(ppt as i32),
+                );
                 glyphs.push((
                     slot::PIP_RIGHT_OPEN + phase * slot::PIP_PHASE_STRIDE + facing,
                     rows,
@@ -235,6 +260,14 @@ impl Atlas {
                 .collect(),
             [theme.fright, theme.text, theme.eyes],
         ));
+        glyphs.push((
+            slot::FRIGHT_ENTRY,
+            sprites::FRIGHT_MASK_ENTRY
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+            [theme.fright, theme.text, theme.eyes],
+        ));
         for (i, dir) in [Dir::Right, Dir::Left, Dir::Up, Dir::Down]
             .into_iter()
             .enumerate()
@@ -259,6 +292,25 @@ impl Atlas {
             glyphs.push((
                 slot::RELISH + i,
                 icon.iter().map(|s| s.to_string()).collect(),
+                [theme.accent, theme.text, theme.eyes],
+            ));
+        }
+        for (i, frame) in sprites::PICKUP_BURST.iter().enumerate() {
+            glyphs.push((
+                slot::PICKUP_BURST + i,
+                frame.iter().map(|s| s.to_string()).collect(),
+                [theme.accent, theme.text, theme.eyes],
+            ));
+        }
+        glyphs.push((
+            slot::TURN_SPARK,
+            sprites::TURN_SPARK.iter().map(|s| s.to_string()).collect(),
+            [theme.text, theme.text, theme.text],
+        ));
+        for (i, frame) in sprites::GOLDEN_LILY.iter().enumerate() {
+            glyphs.push((
+                slot::GOLDEN_LILY + i,
+                frame.iter().map(|s| s.to_string()).collect(),
                 [theme.accent, theme.text, theme.eyes],
             ));
         }
@@ -361,6 +413,16 @@ pub fn placements(
         ));
     }
 
+    if let Some((anchor, idx)) = game.fx.pickup_burst() {
+        out.push(atlas.place(
+            70,
+            slot::PICKUP_BURST + idx,
+            (anchor.x * ppt as f32) as i32,
+            (anchor.y * ppt as f32) as i32,
+            z::BURST,
+        ));
+    }
+
     let fright = game.wardens.fright_active();
     let flash_on = flash && (game.wardens.fright_t <= 1.5) && (frame_no / 6).is_multiple_of(2);
     for warden in game.wardens.wardens.iter() {
@@ -378,7 +440,11 @@ pub fn placements(
             }
             _ => {
                 if fright && warden.state == WardenState::Active {
-                    let mask = if flash_on {
+                    let morph = !game.wardens.fright_total.is_finite()
+                        || game.wardens.fright_total - game.wardens.fright_t < 0.25;
+                    let mask = if morph {
+                        slot::FRIGHT_ENTRY
+                    } else if flash_on {
                         slot::FRIGHT_FLASH
                     } else {
                         slot::FRIGHT
@@ -389,6 +455,14 @@ pub fn placements(
                         cx,
                         cy,
                         z::body(warden.index),
+                    ));
+                    // The raster keeps the eye overlay over the mask.
+                    out.push(atlas.place(
+                        101 + warden.index as u32 * 2,
+                        eyes_slot(warden.actor.dir),
+                        cx,
+                        cy,
+                        z::eyes(warden.index),
                     ));
                 } else {
                     out.push(atlas.place(
@@ -418,14 +492,38 @@ pub fn placements(
     if game.state == GameState::Dying {
         out.push(atlas.place(
             60,
-            slot::PIP_DEATH + (frame_no as usize / 8) % 4,
+            slot::PIP_DEATH + anim::death_frame(game.state_elapsed()),
             pcx,
             pcy,
             z::PIP,
         ));
     } else {
-        let phase = (frame_no / 5) as usize % 3;
-        out.push(atlas.place(60, pip_slot(phase, game.player.dir), pcx, pcy, z::PIP));
+        let phase = game.fx.gulp_phase().unwrap_or((frame_no / 5) as usize % 3);
+        let hop = game
+            .fx
+            .hop_frame()
+            .map(|pose| raster::hop_offset(ppt, pose))
+            .unwrap_or(0);
+        out.push(atlas.place(60, pip_slot(phase, game.player.dir), pcx, pcy + hop, z::PIP));
+    }
+
+    if let Some(anchor) = game.fx.turn_spark() {
+        out.push(atlas.place(
+            71,
+            slot::TURN_SPARK,
+            (anchor.x * ppt as f32) as i32,
+            (anchor.y * ppt as f32) as i32,
+            z::SPARK,
+        ));
+    }
+    if let Some(idx) = game.fx.lily_frame() {
+        out.push(atlas.place(
+            72,
+            slot::GOLDEN_LILY + idx,
+            (WIDTH * ppt) / 2,
+            (HEIGHT * ppt) / 2,
+            z::LILY,
+        ));
     }
     out
 }
@@ -504,27 +602,36 @@ mod tests {
 
     #[test]
     fn atlas_has_every_slot_and_transparent_corners() {
-        let atlas = atlas_for(8);
-        assert_eq!(atlas.cell, GLYPH_PX);
-        assert_eq!(atlas.frame.w, ATLAS_COLS as u32 * GLYPH_PX);
-        assert!(atlas.frame.h >= GLYPH_PX * 6);
-        for slot in 0..SLOT_COUNT {
-            let (x, y) = atlas.slot_origin(slot);
-            assert!(x + atlas.cell <= atlas.frame.w);
-            assert!(y + atlas.cell <= atlas.frame.h);
-        }
-        // Slot 34/35 are unused and fully transparent.
-        let (x, y) = (atlas.frame.w - GLYPH_PX, atlas.frame.h - GLYPH_PX);
-        for dy in 0..GLYPH_PX as i32 {
-            for dx in 0..GLYPH_PX as i32 {
-                assert_eq!(atlas.frame.get(x as i32 + dx, y as i32 + dy), [0, 0, 0, 0]);
+        for ppt in [8, 21] {
+            let atlas = atlas_for(ppt);
+            let cell = glyph_px(ppt);
+            assert_eq!(atlas.cell, cell);
+            assert_eq!(atlas.frame.w, ATLAS_COLS as u32 * cell);
+            assert!(atlas.frame.h >= cell * 6);
+            for slot in 0..SLOT_COUNT {
+                let (x, y) = atlas.slot_origin(slot);
+                assert!(x + atlas.cell <= atlas.frame.w);
+                assert!(y + atlas.cell <= atlas.frame.h);
+            }
+            // The two cells past SLOT_COUNT stay fully transparent.
+            let start = SLOT_COUNT;
+            for slot in start..(ATLAS_COLS * 6) {
+                let (x, y) = (
+                    (slot % ATLAS_COLS) as u32 * cell,
+                    (slot / ATLAS_COLS) as u32 * cell,
+                );
+                for dy in 0..cell as i32 {
+                    for dx in 0..cell as i32 {
+                        assert_eq!(atlas.frame.get(x as i32 + dx, y as i32 + dy), [0, 0, 0, 0]);
+                    }
+                }
             }
         }
     }
 
     #[test]
     fn composed_frame_matches_full_raster() {
-        for ppt in [6, 8, 12] {
+        for ppt in [6, 8, 12, 21] {
             let mut game = Game::new(11, 1);
             let theme = themes::DUSK_POND;
             let atlas = atlas_for(ppt);
@@ -542,6 +649,39 @@ mod tests {
                     );
                 }
             }
+            // Fright entry, steady and flashing masks must compose to the
+            // same pixels as the raster: the mask glyph alone is not the
+            // whole mask, the eye overlay stays on top.
+            game.wardens.start_fright(6.0);
+            for frame_no in [0u64, 30, 120, 700] {
+                for flash in [false, true] {
+                    let want =
+                        RgbaFrame::from_rgb(&raster::render(&game, &theme, ppt, frame_no, flash));
+                    let got = compose(
+                        &static_frame(&game, &theme, ppt),
+                        &atlas,
+                        &placements(&game, ppt, frame_no, flash, &atlas),
+                    );
+                    assert_frames_eq(
+                        &got,
+                        &want,
+                        &format!("ppt {ppt} fright frame {frame_no} flash {flash}"),
+                    );
+                }
+            }
+            // Effects: pickup burst, turn spark and the spare-wick bloom.
+            game.fx.pickup(game.player.x, game.player.y);
+            game.fx.turn(game.player.x + 0.25, game.player.y);
+            game.fx.spare_wick();
+            for frame_no in [0u64, 4, 12] {
+                let want = RgbaFrame::from_rgb(&raster::render(&game, &theme, ppt, frame_no, true));
+                let got = compose(
+                    &static_frame(&game, &theme, ppt),
+                    &atlas,
+                    &placements(&game, ppt, frame_no, true, &atlas),
+                );
+                assert_frames_eq(&got, &want, &format!("ppt {ppt} effects frame {frame_no}"));
+            }
             // Move Pip and animate the death clip; wardens and relish
             // stay where they are, which still exercises overlay order.
             game.player.x += 0.5;
@@ -552,6 +692,22 @@ mod tests {
                 &placements(&game, ppt, 12, false, &atlas),
             );
             assert_frames_eq(&got, &want, &format!("ppt {ppt} moved pip"));
+
+            // Dying: frame index comes from the state clock, not frame_no.
+            game.kill_player();
+            for step in 0..20 {
+                for _ in 0..2 {
+                    game.tick(1.0 / 120.0);
+                }
+                let frame_no = 400 + step as u64 * 7;
+                let want = RgbaFrame::from_rgb(&raster::render(&game, &theme, ppt, frame_no, true));
+                let got = compose(
+                    &static_frame(&game, &theme, ppt),
+                    &atlas,
+                    &placements(&game, ppt, frame_no, true, &atlas),
+                );
+                assert_frames_eq(&got, &want, &format!("ppt {ppt} dying step {step}"));
+            }
         }
     }
 

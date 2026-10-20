@@ -11,6 +11,7 @@
 //! folds every theme color to the nearest of the 16 ANSI colors.
 
 use crate::layout::Layout;
+use maze_chase_assets::anim;
 use maze_chase_assets::themes::{Rgb, Theme};
 use maze_chase_engine::actors::tile_of;
 use maze_chase_engine::game::{Game, GameState};
@@ -131,14 +132,18 @@ pub fn paint(text: &str, fg: Rgb, bg: Rgb, truecolor: bool) -> String {
 fn pip_text(game: &Game, frame_no: u64) -> &'static str {
     use maze_chase_engine::actors::Dir;
     if game.state == GameState::Dying {
-        return match (frame_no / 8) % 4 {
+        return match anim::death_frame(game.state_elapsed()) {
             0 => "><",
             1 => "++",
             2 => "..",
             _ => "  ",
         };
     }
-    let closed = (frame_no / 5) % 3 == 2;
+    let closed = game
+        .fx
+        .gulp_phase()
+        .map(|phase| phase == 2)
+        .unwrap_or((frame_no / 5) % 3 == 2);
     match game.player.dir {
         Dir::Right => {
             if closed {
@@ -217,7 +222,6 @@ pub fn render_board(
         overlay.insert(t, (text, color));
     }
     let pip_tile = tile_of(game.player.x, game.player.y);
-    overlay.insert(pip_tile, (pip_text(game, frame_no), theme.pip));
     if game.relish.active {
         overlay.insert(
             maze_chase_engine::tuning::RELISH_TILE,
@@ -231,6 +235,27 @@ pub fn render_board(
             ),
         );
     }
+    // Effect cues on the cell rung: the pickup ripple is the two static
+    // states the motion table allows, the turn spark a committed-corner
+    // marker, and the spare wick a crown over the board center.
+    if let Some((anchor, frame)) = game.fx.pickup_burst() {
+        overlay.insert(
+            (anchor.x.floor() as i32, anchor.y.floor() as i32),
+            (if frame < 2 { "++" } else { "**" }, theme.accent),
+        );
+    }
+    if let Some(anchor) = game.fx.turn_spark() {
+        overlay.insert(
+            (anchor.x.floor() as i32, anchor.y.floor() as i32),
+            ("::", theme.text),
+        );
+    }
+    if game.fx.lily_live() {
+        let cx = WIDTH / 2;
+        let cy = HEIGHT / 2;
+        overlay.insert((cx, cy), ("YY", theme.accent));
+    }
+    overlay.insert(pip_tile, (pip_text(game, frame_no), theme.pip));
 
     for row in 0..rows {
         let mut spans: Vec<Span> = Vec::new();

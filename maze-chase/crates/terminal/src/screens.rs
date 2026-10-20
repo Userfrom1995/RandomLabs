@@ -406,7 +406,7 @@ pub const HELP_LINES: [&str; 20] = [
     "PAUSE ........... P or Esc while playing.",
     "MUTE ............ M toggles sound instantly.",
     "",
-    "Eat all crumbs and sunseeds to clear the warren and descend.",
+    "Eat all crumbs and sunseeds to clear the pond and descend.",
     "Sunseeds turn the hunt around: wardens glow pale and flee,",
     "and eating them scores a 200 / 400 / 800 / 1600 chain.",
     "Eaten wardens drift home as eyes, then revive at the gate.",

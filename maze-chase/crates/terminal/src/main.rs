@@ -451,6 +451,8 @@ struct KittyRenderer {
     atlas: Option<maze_chase_terminal::atlas::Atlas>,
     placed: Vec<maze_chase_terminal::atlas::Placement>,
     force_all: bool,
+    /// True while the whole-frame clear (sweep and banner) owns the board.
+    clearing: bool,
 }
 
 impl KittyRenderer {
@@ -462,6 +464,7 @@ impl KittyRenderer {
             atlas: None,
             placed: Vec::new(),
             force_all: true,
+            clearing: false,
         }
     }
 
@@ -473,6 +476,7 @@ impl KittyRenderer {
         self.atlas = None;
         self.placed.clear();
         self.force_all = true;
+        self.clearing = false;
     }
 }
 
@@ -676,6 +680,43 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
             mode: "frame",
             ..FrameStats::default()
         };
+    }
+
+    // The level-clear sweep and lily-crown banner are full-board overlays
+    // that are not part of the static layer (its key ignores state_t).
+    // For the whole 2 s clear window the Kitty tier paints the existing
+    // whole-frame raster instead of placements, then rebuilds the static
+    // and atlas layers afterwards so the first play frame cannot show a
+    // stale board.
+    if app.game.state == maze_chase_engine::game::GameState::Clearing {
+        if !kitty.clearing {
+            out.push_str(kg::delete_all_escape());
+            out.push_str(&kg::free_image_escape(kg::STATIC_IMAGE_ID));
+            out.push_str(&kg::free_image_escape(kg::ATLAS_IMAGE_ID));
+            kitty.static_key = None;
+            kitty.atlas_key = None;
+            kitty.atlas = None;
+            kitty.placed.clear();
+            kitty.force_all = true;
+            kitty.clearing = true;
+        }
+        out.push_str(&kg::delete_escape(1));
+        let png = app.bitmap_png();
+        out.push_str(&kg::display_escape_id(
+            &png,
+            img.h as u32,
+            img.w as u32,
+            Some(1),
+        ));
+        return FrameStats {
+            mode: "frame",
+            ..FrameStats::default()
+        };
+    }
+    if kitty.clearing {
+        kitty.clearing = false;
+        out.push_str(kg::delete_all_escape());
+        kitty.invalidate();
     }
 
     let mut static_resend = false;

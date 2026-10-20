@@ -13,6 +13,7 @@
 //! the cinematics beat, descend to a fresh maze one level deeper.
 
 use crate::actors::{center_of, step_actor, tile_of, Actor, Dir, TickInput};
+use crate::effects::Effects;
 use crate::ghosts::Wardens;
 use crate::maze::{Maze, Pickup, PLAYER_START_TILE};
 use crate::modes::GameMode;
@@ -48,6 +49,8 @@ pub struct Game {
     extra_life_given: bool,
     pub state: GameState,
     state_t: f32,
+    /// Presentation-only effect clocks (never hashed).
+    pub fx: Effects,
     pub player: Actor,
     pub wardens: Wardens,
     pub maze: Maze,
@@ -79,6 +82,7 @@ impl Game {
             extra_life_given: false,
             state: GameState::Play,
             state_t: 0.0,
+            fx: Effects::new(),
             player: Actor::new(0.0, 0.0, Dir::Left, 0.0),
             wardens: Wardens::new(level),
             maze: Maze::new(),
@@ -153,6 +157,9 @@ impl Game {
     /// harness can stage scores without playing a thousand crumbs; layers
     /// (separate crates) can only score through simulation.
     pub(crate) fn add_score(&mut self, points: u32) {
+        if self.tick_count > 0 && points > 0 {
+            self.fx.score(points, self.player.x, self.player.y);
+        }
         let before = self.score;
         self.score = self.score.saturating_add(points);
         if self.mode.extra_life_allowed()
@@ -162,6 +169,7 @@ impl Game {
         {
             self.extra_life_given = true;
             self.lives += 1;
+            self.fx.spare_wick();
             self.events.push("extra-life".to_string());
         }
     }
@@ -212,6 +220,7 @@ impl Game {
             self.mode_t += dt;
         }
         self.tick_count += 1;
+        self.fx.advance(dt);
         match self.state {
             GameState::Dying => {
                 self.state_t += dt;
@@ -252,7 +261,15 @@ impl Game {
             speed *= tuning::PLAYER_TUNNEL_FRACTION;
         }
         self.player.speed = speed;
+        let (before_x, before_y) = (self.player.x, self.player.y);
+        let before_dir = self.player.dir;
         step_actor(&self.maze, &mut self.player, dt, false);
+        let moved = (self.player.x - before_x).abs() > f32::EPSILON
+            || (self.player.y - before_y).abs() > f32::EPSILON;
+        self.fx.set_moving(moved);
+        if self.player.dir != before_dir {
+            self.fx.turn(self.player.x, self.player.y);
+        }
 
         // Pickup on tile change (plus the settle case below).
         let tile = tile_of(self.player.x, self.player.y);
@@ -349,12 +366,14 @@ impl Game {
             Some(Pickup::Dot) => {
                 self.add_score(tuning::DOT_SCORE);
                 if !initial {
+                    self.fx.pickup(self.player.x, self.player.y);
                     self.events.push("dot".to_string());
                 }
             }
             Some(Pickup::Energizer) => {
                 self.add_score(tuning::ENERGIZER_SCORE);
                 if !initial {
+                    self.fx.pickup(self.player.x, self.player.y);
                     self.events.push("sunseed".to_string());
                 }
                 self.wardens.eaten_chain = 0;
@@ -580,6 +599,50 @@ mod tests {
         }
         assert_eq!(game.state, GameState::Over);
         assert!(last.iter().any(|e| e == "time-up"));
+    }
+
+    #[test]
+    fn presentation_effects_track_pickups_turns_and_spares() {
+        use crate::actors::Dir;
+        let mut game = Game::new(9, 1);
+        // Walk long enough to eat at least one crumb.
+        for _ in 0..600 {
+            game.tick(tuning::STEP);
+            if game.fx.pickup_burst().is_some() {
+                break;
+            }
+        }
+        assert!(
+            game.fx.pickup_burst().is_some(),
+            "a real crumb pickup arms the burst"
+        );
+        assert!(game.fx.gulp_phase().is_some());
+
+        // A committed turn arms the corner spark.
+        game.set_want(Dir::Up);
+        for _ in 0..600 {
+            let before = game.player.dir;
+            game.tick(tuning::STEP);
+            if game.player.dir != before || game.fx.turn_spark().is_some() {
+                break;
+            }
+        }
+        assert!(game.fx.turn_spark().is_some(), "a real turn arms the spark");
+
+        // Crossing the spare-wick threshold blooms the Golden Lily.
+        let mut game = Game::new(3, 1);
+        game.add_score(tuning::EXTRA_LIFE_AT);
+        assert!(game.fx.lily_live());
+        assert_eq!(game.lives, tuning::START_LIVES + 1);
+    }
+
+    #[test]
+    fn effects_are_not_part_of_the_canonical_state() {
+        let base = Game::new(21, 1);
+        let mut with_fx = Game::new(21, 1);
+        with_fx.fx.pickup(1.0, 2.0);
+        with_fx.fx.turn(3.0, 4.0);
+        assert_eq!(base.canonical(), with_fx.canonical());
     }
 
     #[test]
