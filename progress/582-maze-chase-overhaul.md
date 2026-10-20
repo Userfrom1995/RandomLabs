@@ -41,8 +41,8 @@ Golden Lily bloom; the desktop and browser canvases add score floaters,
 and the web settings panel shows the active theme name. Accessibility gates (text/bg,
 fright/wall, eyes/wall, hunter separation, light/dark) pass, the golden
 replay digest is unchanged (`23c17f89734e`), and the wasm rebuild is
-committed (`68e331b2...`, 206,711 bytes). The title and pause surfaces
-now stage the live game: terminal and desktop paint a dimmed attract
+committed (`ae474117...`, 206,711 bytes). The title and pause surfaces
+now stage the live game: terminal and desktop paint a dimmed fresh
 board behind centered cards, the browser overlays a fixed title card
 with a visible Start action and a header Pause control, and the pause
 hub dims the playfield to 55 percent while keeping actors exempt.
@@ -71,10 +71,10 @@ wasm, and `browser-e2e.js` is ALL GREEN. macOS and Windows terminal rows
 stay with the per-OS testers; no claim here exceeds the executed Linux
 rows.
 
-Workspace gates: public count 559 across 61 targets (full workspace rerun
+Workspace gates: public count 561 across 61 targets (full workspace rerun
 on this head), harness contract 47/47, `maze-chase-verify`
 19/19 (`23c17f89734e`; `perf-headless` 0.2-0.4 us/tick on CI reruns),
-wasm sha256 `68e331b2...`, `cargo fmt --all --check` clean, and clippy
+wasm sha256 `ae474117...`, `cargo fmt --all --check` clean, and clippy
 reports only the pre-existing engine style lints.
 
 Delegation ledger (round 5): no subagents were dispatched; the primary
@@ -1236,6 +1236,13 @@ Next: Phase 5 (sound design overhaul).
   sources. Full workspace rerun: 559 passed / 0 failed across 61 targets,
   `maze-chase-verify` 19/19 (`23c17f89734e`), fmt clean, clippy limited to
   the six pre-existing engine lints; wasm unchanged at `68e331b2...`.
+  Delegation ledger (Quality Council round on `b6f82a24`): no subagent
+  dispatch was recorded for that round, so the primary context applied
+  the four blocking findings directly across the terminal, card, desktop,
+  and docs files. Observed output: 559 tests across 61 targets,
+  `maze-chase-verify` 19/19 (`23c17f89734e`), wasm unchanged. No registry
+  skill matched; none loaded. The omission is recorded here rather than
+  reconstructed after the fact.
   - the Fixer
 
 - 2026-10-20 (fixer, Pondwake docs-consistency round on `f51b4dc8`): aligned
@@ -1250,4 +1257,34 @@ Next: Phase 5 (sound design overhaul).
   no code, wasm, or evidence was touched. A single-area docs fix with the
   file already open, so no subagents were dispatched. No registry skill
   matched; none loaded.
+  - the Fixer
+
+- 2026-10-20 (fixer, Round 14 review on `620b3d32`): applied the three
+  blocking findings and four should-fix findings. The compact desktop
+  title card now clamps its origin inside the frame with the production
+  three-detail menu (`MIN_W x MIN_H` 492x296 regression test across the
+  601/602 px boundaries), and the window-floor doc drops the stale
+  480x360 claim. The web boot gate now requires `mc_fright_segments`,
+  `mc_version` advances to 2 across the bridge, harness, smoke, and
+  docs, and the wasm was rebuilt twice byte-identically
+  (`ae474117...`, 206,711 bytes); a new `boot-gate-e2e.js` serves
+  hand-built stale modules through a page-level fetch override and
+  proves both the missing-export and version-skew rejections on the
+  error card. The Quality Council round's missing delegation ledger is
+  recorded, the high-contrast label now names the effective Moonwake
+  theme (browser assertion added), `docs/design.md` and `docs/web.md`
+  describe the static fresh title board and the shipped static help and
+  Back behavior (no attract demo, no history guard) with the accepted
+  simplifications, and the cell tier no longer lets reduced flash gate
+  the chomp or turn spark (new behavioral test). Verification:
+  `cargo test --workspace --no-fail-fast` 561 passed / 0 failed across
+  61 targets under Xvfb, `maze-chase-verify` 19/19 (`23c17f89734e`),
+  harness 47/47, fmt clean, clippy only the six pre-existing engine
+  lints; `wasm-smoke.js`, `tester-regression.js`, `boot-gate-e2e.js`,
+  and the real headless-chromium `browser-e2e.js` are all ALL GREEN.
+  Delegation ledger: three `explore` subagents (stale claims audit,
+  attract/demo docs audit, boot-gate test design) mapped the ABI/hash
+  sites, the stale prose, and a fake-fetch fixture; the primary context
+  re-read the edited files, rebuilt and hashed the wasm, and ran every
+  test and E2E command above. No registry skill matched; none loaded.
   - the Fixer

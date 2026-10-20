@@ -361,3 +361,16 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
 - Terminal sprite census was updated from the retired Ember Warren
   palette to the Dusk Pond theme palette (Rill, sunseed, and the four
   hunters).
+- Round 14 review fix (head `620b3d32`): the desktop compact title card
+  clamps inside the frame at the 492x296 floor (production three-detail
+  regression test), and the window-floor doc matches. The web bridge
+  ABI moves to 2, the boot gate requires `mc_fright_segments`, and the
+  rebuilt wasm is `ae474117...` (206,711 bytes, second clean build
+  byte-identical); `boot-gate-e2e.js` proves stale version-1 modules
+  reach the error card for both the missing export and version skew.
+  The high-contrast label names the effective Moonwake theme, the cell
+  tier keeps chomp and turn sparks under reduced flash, and the docs
+  describe the static fresh title board, static help pages, and the
+  shipped no-history-guard Back behavior. Full workspace rerun: 561
+  passed / 0 failed across 61 targets; verify 19/19; all four web E2E
+  scripts green.
