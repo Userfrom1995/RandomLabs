@@ -85,9 +85,9 @@ First run, per layer:
 
 - Terminal: launch, then Enter on Play starts the hunt (2 interactions,
   under 1.5 s). The title is an overlay over a live attract board;
-  Up/Down select and Enter activates. Esc at the title is a no-op
-  (accidental-quit prevention); Quit is a title row and Quit to title is
-  a pause row, both applied immediately.
+  Up/Down select and Enter activates. Esc at the title quits (same as
+  the Quit row); Quit is a title row and Quit to title is a pause row,
+  both applied immediately.
 - Desktop: double-click, then Enter on Play (2 interactions, under 2 s).
 - Web: page open, then the Start button (2 interactions, playable under
   2.5 s on a 10 Mbps link).
@@ -115,11 +115,11 @@ hunt), scores,
 settings (four tabs: Game, Sound, Access, Controls; live-apply; theme
 and difficulty apply next hunt), game over (score, crumbs cleared,
 warden-eats, best, rank; name entry on web), too-small card (states
-the current size and the floor, run preserved), web loading (three
-pulsing crumbs plus a real progress line), audio unlock chip, error
+the current size and the floor, run preserved), web loading (a
+boot-status line in the title card), audio unlock chip, error
 surfaces.
 
-Happy path. Title to play is instant on one directional press. During
+Happy path. Title to play is instant on one Enter/Start press. During
 play every input gets a visible response within one frame budget: the
 player sprite turns, the turn caret moves, the crumb counter ticks.
 Pause freezes the engine on key-down before any dim. Resume is a cut on
@@ -164,7 +164,7 @@ release; the three-interaction target and the one-time teaching
 toasts are recorded under accepted simplifications.
 
 Web information architecture. The game page opens directly into the
-game: full-viewport board, loader inside the board rectangle, title
+game: full-viewport board, boot-status line in the title card, title
 overlay, no prose. Downloads, install, docs, compatibility, and
 releases are dedicated subpages. The pause hub carries a "Get the
 full game" row to the downloads chooser (two questions: surface, then
@@ -214,9 +214,9 @@ slot (below).
 Frightened state: predators wear the entry, steady, or warning fright
 mask; the mask fill NEVER uses the eyes slot (separate fill rule),
 never white. Last 1.5 s: steady-state change plus the HUD countdown bar
-(spec in motion). Reduced flash: the steady mask is held. Eyes return:
-the eyes overlay drifts home to the house, drawn with the eyes slot
-directly on the board, hence the eyes contrast gate (below). The
+(spec in motion). Reduced flash: the hollow warning mask is held. Eyes
+return: the eyes overlay drifts home to the house, drawn with the eyes
+slot directly on the board, hence the eyes contrast gate (below). The
 bubble-orbs/ripple trail and the 6-frame bubble-up revive are deferred
 design targets (see accepted simplifications below).
 
@@ -395,10 +395,10 @@ ambient loops; drift-settle (0.16, 1, 0.3, 1) for pickups; lantern-q8
 gameplay positions, always: interpolation of engine state is exact and
 never eased.
 
-Transition inventory per layer: title to play is an instant cut when
-the player presses a direction (play-first); pause, settings, scores,
-how-to-play, and game over are instant cuts on every layer; level clear
-is the single 300 ms sweep; death is the 1400 ms window; relayout is
+Transition inventory per layer: title to play is an instant cut on
+Enter (Start on web); pause, settings, scores, how-to-play, and game
+over are instant cuts on every layer; level clear is the single 300 ms
+sweep; death is the 1400 ms window; relayout is
 always a cut (same-frame repaint, delete-before-place on kitty, clear
 plus full frame on sixel). Interruption: input on frame N starts on
 frame N+1; no transition ever gates input or the simulation; a resize
