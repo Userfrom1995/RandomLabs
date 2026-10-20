@@ -1187,3 +1187,20 @@ Next: Phase 5 (sound design overhaul).
   wasm, or evidence was touched. Single-area docs fix, so no subagents were
   dispatched. No registry skill matched; none loaded.
   - the Fixer
+
+- 2026-10-20 (fixer, Pondwake Tester fright-HUD round on `58902440`): kept
+  the fright badge visible for the whole active window in the terminal and
+  browser HUDs (desktop already did). `chrome::fright_readout` now returns
+  `FRIGHT!` whenever `fright_active()`, and joins the 30-segment `█`/`░`
+  meter (or `THE TURN ENDS` under reduced flash) only once
+  `fright_flashing()` reaches the final 1.5 s; the browser hides only the
+  segment row on a zero-segment read so `#fright-meter` and its badge stay
+  visible for the full `fr` window. Updated the terminal unit test to the
+  same contract. Verification: `cargo test -p maze-chase-terminal` all
+  targets green (including `tester_fright_badge`, 2/2), `cargo fmt --all
+  --check` clean, `tester-regression.js` ALL GREEN, and the real
+  headless-chromium `browser-e2e.js` ALL GREEN with zero console errors
+  (early badge visible, segments hidden; tail segments drain 1..30). Two
+  coupled areas (terminal HUD, web HUD), so no subagents were dispatched.
+  No registry skill matched; none loaded.
+  - the Fixer
