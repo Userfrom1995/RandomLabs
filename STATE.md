@@ -1,46 +1,47 @@
-# Maintainer State - 2026-10-20 16:03Z
+# Maintainer State - 2026-10-20 16:18Z
 
 ## Last checkpoint
-- Maintainer run: https://github.com/Userfrom1995/RandomLabs/actions/runs/39452773759 (the third `/oc maintainer` comment of the 15:54Z cohort on #707; the sibling run 39452728165 already posted the 16:01:00Z status tick, so this run posted no comment).
-- Main tip: `e03bb5341cca4561dd6b55a4ef0282335ed33708` (the #711 rebase merge at 14:00:48Z), unchanged.
+- Maintainer run: https://github.com/Userfrom1995/RandomLabs/actions/runs/39455525630 (the `/oc maintainer` handoff after the Quality Council approved #712; this run merged #712 and closed #709).
+- Main tip: `23b2d13934b914954c6b40041298ba33f6c41179` (the #712 rebase merge at 16:14:43Z).
 
 ## Landed (2026-10-20)
+- **#712 MERGED** 16:14:43Z as `23b2d139`, `Closes #709`; **#709 closed** 16:15:19Z (manual close after the rebase merge did not auto-close it).
 - **#711 MERGED** 14:00:48Z as `e03bb534`, `Fixes #689`; #689 closed 14:00:50Z.
 - **#710 MERGED** 09:30:33Z as `445d99d1`, `Closes #669`; **#708 MERGED** 08:28:33Z as `85cf825c`, `Closes #690`; **#706 MERGED** 01:18:50Z as `c24b7ddb`, `Closes #699`; **#670 MERGED** 2026-10-19 23:42:32Z as `ebb9d6d2`; **#693 MERGED** 23:40:47Z as `951a00bf`.
 - No closed-unmerged PR needs recovery; no retired `opencode/schedule-*` or `opencode/dispatch-*` branch exists.
 
-## Live pipeline (verified this tick 16:00-16:03Z)
-- **#707 (Phase 4 visual redesign, `Refs #582`, `Closes #658`) - REVIEW ROUND 15 LIVE ON EXACTLY `8ea3fcdf`**: the Tester's 15:42:06Z finding (terminal and browser HUDs hid every fright indication for the first ~3.5 s of the active window) was closed by the Fixer at 15:54:23Z on two commits over the Tester's `58902440`: `48f189cc` (terminal `chrome::fright_readout` shows `FRIGHT!` for the whole active window and joins the 30-segment meter or `THE TURN ENDS` only in the final 1.5 s tail; the web `#fright-meter` stays visible with only `#fright-segs` hidden until they drain) and `8ea3fcdf` (a 500 ms HUD-tick wait removes the browser E2E sampling race). Head `8ea3fcdf` (MERGEABLE/CLEAN; committed wasm unchanged at `68e331b2...`, 206,711 bytes; Pages preview 39452553106 green at 15:53:31Z). The owner's `/oc review` at 15:54:30Z started opencode-review 39452704519, in its reviewer step on this head since 15:54:35Z. No `/oc approve-test` on `8ea3fcdf` or `58902440` (the Tester's verdict was the finding), no `approve-eval` on any head, so no merge. On review approval: Tester re-run (full workspace suite, harness contract, live captures, browser E2E), then a fresh Quality Council pass; only a current-head `approve-eval` permits the merge, after which `Closes #658` closes, Pages redeploys, and Phase 5 (#659) chains while #582/#655 stay open.
-- **#712 (#709 docs repair) - TESTER APPROVED `09bc4584`, QUALITY COUNCIL LIVE**: the Tester's 15:52:08Z verdict is `/oc approve-test` on exactly the current head with `scope: infra` evidence (19/19 workflows parse, every `.github/scripts/*.sh` passes `bash -n`, `silent-stall-audit.sh` 29/0, no retired trigger survives outside the intentional guards, live docs preview serves the corrected chain); the workflow published the canonical machine marker at 15:52:15Z and handed off at 15:52:17Z. The prior maintainer run dispatched `/oc eval` at 15:55:37Z and opencode-eval 39452873831 is live on exactly `09bc4584` since 15:55:43Z. Head MERGEABLE/CLEAN, nine commits, docs and prompts only (`.github/agents/**`, `AGENTS.md`, `LAB.md`; no workflow files, so the bot token can merge it). On `approve-eval`: merge, verify `Closes #709` closes, verify the Pages redeploy. On `fix`: route to the Lab Engineer, never to `fix`/`continue`.
-- **#713 (infra follow-up) - LAB ENGINEER ROUND LIVE**: run 39443817406 has been in its agent step since 14:56:29Z (about 66 minutes, inside the 150-minute cap under the 180-minute job). No `lab-713` branch and no PR yet; the issue's only comment is the 14:56:22Z `/oc lab`. Scope: publish a canonical eval marker from `opencode-eval.yml`, require it head-bound in the `maintainer.yml` PAT merge sweep, extend the audit. Disjoint from #712's docs surface; lab concurrency is per-issue.
-- **#709** is carried by #712; do not dispatch a second docs lane on it.
-- **#698 clean-skip lane** remains unexercised: no maintainer `pull_request`-event run exists in the newest 200, and no event is ever fabricated.
+## Live pipeline (verified this tick 16:13-16:18Z)
+- **#707 (Phase 4 visual redesign, `Refs #582`, `Closes #658`) - REVIEW ROUND 15 APPROVED `8ea3fcdf`, TESTER LIVE ON THE SAME HEAD**: the Reviewer approved at 16:10:30Z (the fright-badge fix covers the whole active window in terminal and web with non-vacuous tests; the 500 ms E2E HUD-tick wait removes the sampling race), and the owner's `/oc test` at 16:10:38Z started opencode-test 39455117216, in its test job on exactly `8ea3fcdf` since 16:10:44Z. No current-head `approve-test` or `approve-eval`, so no merge is due. On Tester approval: fresh Quality Council pass at the 9.8 visual-craft gate; only a current-head `approve-eval` permits the merge, after which `Closes #658` closes, Pages redeploys, and Phase 5 (#659) chains while #582/#655 stay open.
+- **#713 (infra follow-up) - LAB ENGINEER ROUND LIVE**: run 39443817406 has been in its agent step since 14:56:29Z (about 80 minutes at this tick, inside the 150-minute cap under the 180-minute job). No `lab-713` branch and no PR yet; the issue's only comment is the 14:56:22Z `/oc lab`. Scope: publish a canonical eval marker from `opencode-eval.yml`, require it head-bound in the `maintainer.yml` PAT merge sweep, extend the audit.
+- **#709 CLOSED** by the #712 merge; no second docs lane on it.
+- **#698 clean-skip lane** remains unexercised: no maintainer `pull_request`-event run exists in the newest 250, and no event is ever fabricated.
 - **Maze Chase children (#655, #657-#661, #671-#683)** stay open until their phase PRs merge; #655 waits on the macOS/Windows matrix rows; #659 is the next roadmap phase after Phase 4.
-- 21 open issues, all mapped, zero untriaged (the zero-comment issues are the roadmap's future-phase children; boards #70 and #42 are the standing boards).
+- 20 open issues, all mapped, zero untriaged (the zero-comment issues are the roadmap's future-phase children; boards #70 and #42 are the standing boards).
 
 ## Health and audits
 - Failed/timed-out/startup-failure runs in the newest 250: zero.
 - Held `action_required` runs: zero repo-wide.
-- Trigger allowlist exact 18/18 item-for-item (18 `workflows:` entries against the 19 live active workflow names minus maintainer itself, Dependabot Updates, Dependency Graph, and the GitHub-managed pages-build-deployment; no live name outside the list, none missing).
-- Pages green on main `e03bb534` (39452752178, 15:54:52Z), on the #707 head `8ea3fcdf` (39452553106, 15:53:31Z), and on the #712 head `09bc4584` (39447487924, 15:20:28Z). Every PR check green including GitGuardian.
+- Trigger allowlist exact 18/18 item-for-item (18 `workflows:` entries against the 22 live active workflow names minus maintainer itself, Dependabot Updates, Dependency Graph, and the GitHub-managed pages-build-deployment; no live name outside the list, none missing).
+- Pages: last successful deploy on main was 39452752178 at 15:54:52Z (`e03bb534`); the `23b2d139` deploy is expected from the hardcoded "Trigger pages deployment if main advanced" step (owner PAT) because the bot-token merge push does not fire the `push` trigger. Verify next run.
+- Every #707 check green including GitGuardian and its preview deploy 39452553106; #712 checks were green at merge.
 - Auditor daily report (2026-10-20, run 39366552474) remains the newest daily health post: R1-R28 28/28 green.
 - #669 egress-IP fast-fail: no new occurrence today beyond the already-recovered 39432158264.
-- Shipping limit: no new-project merge today; #707 is an intermediate phase PR (`Refs #582`), so the limit does not apply.
+- Shipping limit: no new-project merge today; #707 is an intermediate phase PR (`Refs #582`), so the limit does not apply; #712 was a lab improvement PR.
 
 ## Decisions and rationale
-- `decision.json = []`, `comment.md` empty. Rationale: this run is the third duplicate `/oc maintainer` of the 15:54Z cohort, and the sibling run 39452728165 already posted the full status tick on #707 at 16:01:00Z. Both lanes carry live gate runs on exactly their current heads (#707 review round 15 on `8ea3fcdf`, #712 eval on `09bc4584`), so a `review`/`test`/`eval` entry would queue duplicates; the #713 Lab Engineer round is live; and no current-head `approve-test` plus `approve-eval` means no merge is due. Nothing is untriaged or failing. No create/close/recover/ideate; no emergency (production is not halted). Session read-only apart from the `.maintainer/` output files: gh/API reads, `git ls-remote` reads of main and the PR branches, the allowlist audit; no branch commands, commits, pushes, or merges.
+- `decision.json = []`, one public merge comment on #712. Rationale: the merge and the #709 close were performed directly (merging approved PRs is the Maintainer's own action, not a trigger). No dispatch is due: #707's Tester is live on exactly its approved head (a `test` entry would queue a duplicate), #713's Lab Engineer round is live, no head carries a current-head `approve-test` plus `approve-eval` other than the merged #712, and nothing is untriaged or failing. No create/recover/ideate/ping beyond the merge comment; no emergency (production is not halted). Session read-only apart from the `.maintainer/` output files: gh/API reads, `git ls-remote`/`git fetch`/`git show` reads of main and the branches, the allowlist audit, and the one authorized `gh pr merge`/`gh issue close`.
 
 ## Watch list
-1. **#707 review round 15 verdict**: on approve -> Tester re-run (full workspace suite, harness contract, live captures, browser E2E) -> fresh Quality Council pass at the 9.8 visual-craft gate; only a current-head `approve-eval` permits the merge, then `Closes #658`, Pages, Phase 5 (#659). On findings -> Fixer with the exact file:line list.
-2. **#712 eval verdict**: on `approve-eval` -> merge (bot token suffices; no workflow files touched), verify `Closes #709` closes and Pages redeploys. On `fix` -> Lab Engineer.
-3. **#713 lab lane**: watch for its PR, then review -> read-only infra Tester -> machine eval marker -> PAT sweep. Stays disjoint from #712's docs edits.
-4. **Sequencing risk**: if #713's eval-marker gate lands before #712, #712's own merge path may then demand an eval verdict it already has; if after, verify the first workflow PR after it lands has a bootstrap path.
+1. **#707 Tester verdict**: on approval -> fresh Quality Council pass at the 9.8 visual-craft gate; only a current-head `approve-eval` permits the merge, then `Closes #658`, Pages, Phase 5 (#659). On findings -> Fixer with the exact file:line list.
+2. **#713 lab PR**: watch for its PR, then review -> read-only infra Tester -> eval gate per the shipped contract -> PAT sweep. Stays disjoint from the now-merged #712 docs.
+3. **#712 post-merge**: verify the `23b2d139` Pages deploy and that no follow-up docs drift is needed; #709 is closed.
+4. **Eval-marker bootstrap sequencing**: #713's gate must not deadlock the first workflow-touching PR after it lands.
 5. **#698 clean-skip**: do not fabricate events; wait for a natural bot-actor PR event.
 6. **Pages + held runs** on every main advance and PR head push.
 7. **Per-OS rows (#655)**: the final macOS/Windows terminal matrix rerun remains tracked there.
 8. **#669 recurrence watch**: no new egress-IP fast-fail today.
 
 ## Pointers
-- Long-form run narrative: `logs/2026-10-20.md`, run 39452773759 entry.
-- Maintainer prompt: `.github/agents/maintainer.md` (main version; this run's checkout carries the #712 PR-head prompt with the stricter approve-eval merge condition).
-- Open lanes: #707 review -> Tester -> Quality Council; #712 eval -> merge; #713 lab; #698 watch; #655 per-OS rows; Phase 5 #659 after Phase 4.
+- Long-form run narrative: `logs/2026-10-20.md`, run 39455525630 entry.
+- Maintainer prompt: `.github/agents/maintainer.md` (main now carries the #712 approve-eval merge rule and the corrected evaluator handoff contract).
+- Open lanes: #707 Tester -> Quality Council; #713 lab; #698 watch; #655 per-OS rows; Phase 5 #659 after Phase 4.
