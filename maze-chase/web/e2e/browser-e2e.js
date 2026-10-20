@@ -84,6 +84,17 @@ async function shot(ws, path) {
   await send(ws, 'Log.enable', {});
   await send(ws, 'Runtime.enable', {});
   await send(ws, 'Page.enable', {});
+  // Capture the page's own wasm exports so the fright HUD contract below can
+  // drive the same session the on-screen HUD reads from.
+  await send(ws, 'Page.addScriptToEvaluateOnNewDocument', {
+    source: `(() => {
+      const wrap = (r) => { try { window.__mazeExports = r.instance ? r.instance.exports : r.exports; } catch (e) {} return r; };
+      const streaming = WebAssembly.instantiateStreaming;
+      if (streaming) WebAssembly.instantiateStreaming = function () { return streaming.apply(this, arguments).then(wrap); };
+      const instantiate = WebAssembly.instantiate;
+      WebAssembly.instantiate = function () { return instantiate.apply(this, arguments).then(wrap); };
+    })();`,
+  });
   await send(ws, 'Page.navigate', { url: PAGE });
   await sleep(1000);
   const assert = (c, m) => { if (!c) { console.error('FAIL:', m); process.exitCode = 1; } else { console.log('ok:', m); } };
@@ -182,6 +193,63 @@ async function shot(ws, path) {
   await sleep(300);
   const resumed = await evalJs(ws, `document.getElementById('panel-pause').hidden`);
   assert(resumed === true, 'resume returns to play');
+
+  // Fright HUD: the badge announces the active window for its whole
+  // duration; the 30-segment meter joins only for the final 1.5 s tail.
+  // Drive the same deterministic route the node harness uses.
+  const fid = { up: 1, down: 2, left: 3, right: 4 };
+  const fkey = async (id, ms) => {
+    await evalJs(ws, `window.__mazeExports.mc_key(${id}, 1)`);
+    await sleep(ms);
+    await evalJs(ws, `window.__mazeExports.mc_key(${id}, 0)`);
+    await sleep(50);
+  };
+  const hasExports = await evalJs(ws, `!!window.__mazeExports`);
+  assert(hasExports === true, 'page wasm exports captured for the fright HUD drive');
+  if (hasExports) {
+    await evalJs(ws, `window.__mazeExports.mc_reset(12345, 0, 1, 0)`);
+    await sleep(200);
+    await evalJs(ws, `window.__mazeExports.mc_press(4)`);
+    await sleep(300);
+    for (const [dir, ms] of [['right', 200], ['down', 1200], ['left', 2000], ['up', 600], ['right', 200]]) {
+      await fkey(fid[dir], ms);
+    }
+    const early = await evalJs(ws, `(() => {
+      const e = window.__mazeExports;
+      return {
+        active: e.mc_fright_active() >>> 0,
+        flash: e.mc_fright_flash() >>> 0,
+        segs: e.mc_fright_segments() >>> 0,
+        hidden: document.getElementById('fright-meter').hidden,
+        segsVisible: document.getElementById('fright-segs').getClientRects().length > 0,
+        text: document.getElementById('hud-fright').textContent,
+      };
+    })()`);
+    console.log('fright early:', JSON.stringify(early));
+    assert(early.active === 1 && early.flash === 0 && early.segs === 0,
+      'deterministic route reaches the early fright window');
+    assert(early.hidden === false, 'fright badge is visible for the whole active window, not only its final tail');
+    assert(early.segsVisible === false, 'the 30-segment meter stays out of the early fright window');
+    assert(/FRIGHT/.test(early.text), 'active fright badge names the fright, got: ' + early.text);
+    await sleep(3700);
+    const late = await evalJs(ws, `(() => {
+      const e = window.__mazeExports;
+      return {
+        active: e.mc_fright_active() >>> 0,
+        segs: e.mc_fright_segments() >>> 0,
+        hidden: document.getElementById('fright-meter').hidden,
+        segsVisible: document.getElementById('fright-segs').getClientRects().length > 0,
+        text: document.getElementById('hud-fright').textContent,
+      };
+    })()`);
+    console.log('fright tail:', JSON.stringify(late));
+    assert(late.active === 1 && late.segs >= 1 && late.segs <= 30,
+      'countdown reaches the final tail inside 1..30, got ' + late.segs);
+    assert(late.hidden === false, 'fright meter stays visible while the tail drains');
+    assert(late.segsVisible === true, 'the 30-segment meter joins for the final tail');
+    assert(/FRIGHT ENDING|THE TURN ENDS/.test(late.text),
+      'tail badge names the ending, got: ' + late.text);
+  }
 
   // Touch swipe on the canvas (up-right flick) must not error or leave play.
   const box = await evalJs(ws, `(() => { const r = document.getElementById('game-canvas').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`);
