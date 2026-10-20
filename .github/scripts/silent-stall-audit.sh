@@ -84,11 +84,18 @@
 # the same finding as #665/#666 because the hardcoded create_issue handler
 # never compared titles; it now queries open issues before `gh issue create`,
 # skips creation on an identical normalized title and self-triages the
-# matched issue, and fails open loudly when the query fails).
-# Wired into auditor.yml as the R1-R26 matrix.
+# matched issue, and fails open loudly when the query fails), and the R27
+# maintainer stray-PR cleanup boundary guard (issue #699: the hardcoded
+# cleanup ran `gh` unauthenticated as a silent no-op, and its filter also
+# matched the live build namespace, so authenticating it as-is would have
+# closed every open build PR; it now targets only the retired
+# schedule/dispatch branch classes, uses the job-scoped github.token, and
+# fails loudly on auth/API errors, with the filter boundary, token, exact
+# run body, and loud-failure behavior pinned structurally and behaviorally).
+# Wired into auditor.yml as the R1-R27 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R26 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R27 audit the whole tree
 # (the review-restore guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
@@ -98,8 +105,9 @@
 # review-comment publication-evidence guard, the paginated
 # comment-read guard, the PAT merge approval binding, the tester
 # verdict publication contract, the maintainer memory publish
-# concurrency contract, the lab/fix agent cap-headroom contract, and the
-# create-issue dedupe guard), so they trip on a
+# concurrency contract, the lab/fix agent cap-headroom contract, the
+# create-issue dedupe guard, and the maintainer stray-PR cleanup guard), so
+# they trip on a
 # bad curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml/peros arm no
 # matter which file the audit was pointed at.
 # Exit code is always 0 so it never breaks the auditor run; failures are reported
@@ -155,12 +163,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R26 PASS] $name: $desc"
+  [R1-R27 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R26 FAIL] $name: $desc"
+  [R1-R27 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -9004,18 +9012,25 @@ if [ -f .maintainer/decision.json ]; then
 fi
 echo "::error::Maintainer agent finished with outcome '$AGENT_OUTCOME' and no .maintainer/decision.json (model-resolution death, provider error, or crash). Failing loudly instead of concluding green without triage."
 exit 1
-### 14 name=Remove maintainer stray PRs and branches (the Maintainer never opens PRs) | if=always() && steps.actor_gate.outputs.run == 'true'
-gh pr list --author app/github-actions --state open --json number,headRefName \
-  --jq '.[] | select(.headRefName | startswith("opencode/schedule-") or startswith("opencode/dispatch-") or startswith("opencode/issue")) | .number' \
-  | while read num; do
-      gh pr close "$num" --delete-branch --comment "auto-closed by hardcoded cleanup: the Maintainer never opens PRs - its state lives on the maintainer/logs branch." || true
-    done
-gh api --paginate repos/${{ github.repository }}/branches --jq '.[].name' 2>/dev/null \
-  | grep -E '^opencode/(schedule-|dispatch-|issue)' \
-  | while read br; do
-      enc=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$br")
-      gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/$enc" || true
-    done
+### 14 name=Remove maintainer stray PRs and branches (the Maintainer never opens PRs) | if=always() && steps.actor_gate.outputs.run == 'true' | shell=bash | env={"GH_TOKEN": "${{ github.token }}"}
+set -euo pipefail
+repo="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
+stray_prs=$(gh pr list --author app/github-actions --state open --json number,headRefName \
+  --jq '.[] | select(.headRefName | startswith("opencode/schedule-") or startswith("opencode/dispatch-")) | .number')
+for num in $stray_prs; do
+  gh pr close "$num" --delete-branch --comment "auto-closed by hardcoded cleanup: the Maintainer never opens PRs - its state lives on the maintainer/logs branch."
+done
+branch_list=$(mktemp)
+trap 'rm -f "$branch_list"' EXIT
+gh api --paginate "repos/${repo}/branches" --jq '.[].name' > "$branch_list"
+while IFS= read -r br; do
+  case "$br" in
+    opencode/schedule-*|opencode/dispatch-*) ;;
+    *) continue ;;
+  esac
+  enc=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$br")
+  gh api -X DELETE "repos/${repo}/git/refs/heads/${enc}"
+done < "$branch_list"
 echo "stray cleanup complete"
 ### 15 name=Emergency-gated commit and push of workflow model updates to main | if=always() && steps.actor_gate.outputs.run == 'true' | env={"GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_AUTHOR_NAME": "Hephaestus (Maintainer)", "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_COMMITTER_NAME": "Hephaestus (Maintainer)"}
 dirty=$(git status --porcelain -- .github/workflows .github/agents opencode.json AGENTS.md LAB.md 2>/dev/null || true)
@@ -10952,16 +10967,388 @@ if [ -z "$r26_bad" ]; then
 else
   check "R26" "create-issue dedupe guard missing:${r26_bad} (issue #668: concurrent per-target Maintainer ticks independently filed the same finding as #665/#666)" "bad"
 fi
-summary="Silent-stall regression audit (R1-R26) on ${WF}: ${pass} passed, ${fail} failed."
+
+# [R27] Maintainer stray-PR cleanup boundary guard (issue #699): the hardcoded
+# `Remove maintainer stray PRs and branches` step used to run `gh` with no
+# token. That made it a silent no-op (gh printed its GH_TOKEN warning, the
+# pipeline status was the while loop's 0, and the step concluded green), and
+# its filter also matched the live `opencode/issue*` build namespace, so simply
+# authenticating it would have closed every open build PR. The step now
+# targets ONLY the retired schedule/dispatch branch classes, authenticates
+# with the least-privilege job token, and fails loudly on any auth/API error.
+# R27 is hybrid: a parsed-YAML extractor (duplicate keys rejected) resolves
+# the unique anchored step and pins its gate `if:`, `shell: bash`, exact env
+# map, the exact normalized run body, and the filter/token/loudness
+# semantics; negative self-tests mutate the real workflow and require each
+# semantic check to reject with the exact-text pin skipped (so the checks are
+# proven load-bearing rather than shadowed by the pin), plus one
+# semantically-neutral mutation that only the exact pin can catch; and a
+# functional sandbox executes the real run body under the runner's
+# `bash -e -o pipefail` against an executable mock `gh` across a fixture
+# matrix: only schedule/dispatch PRs are closed and only schedule/dispatch
+# branches deleted (issue-namespace entries in the same fixture are never
+# touched, including when they are the only candidates), a missing token
+# fails instead of silently no-opping, and a failure in each gh call (PR
+# list, PR close, branch list, branch delete) fails the step without
+# printing the completion line. Residual (review-gated): a wholesale rewrite
+# of the step body into unrelated code is visible in the diff even though the
+# exact pin would reject it; the pin is the structural guard.
+r27_bad=""
+R27_WF=".github/workflows/maintainer.yml"
+if [ ! -f "$R27_WF" ]; then
+  r27_bad=" maintainer.yml(missing)"
+else
+  r27_tmp=$(mktemp -d 2>/dev/null || true)
+  if [ -z "$r27_tmp" ]; then
+    r27_bad="${r27_bad} maintainer.yml(r27-sandbox-tmp-unavailable)"
+  else
+    r27_expected="$r27_tmp/expected-run.txt"
+    r27_run_file="$r27_tmp/step-run.sh"
+    r27_extract_err="$r27_tmp/extract.err"
+    cat > "$r27_expected" <<'R27RUN'
+set -euo pipefail
+repo="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
+stray_prs=$(gh pr list --author app/github-actions --state open --json number,headRefName \
+  --jq '.[] | select(.headRefName | startswith("opencode/schedule-") or startswith("opencode/dispatch-")) | .number')
+for num in $stray_prs; do
+  gh pr close "$num" --delete-branch --comment "auto-closed by hardcoded cleanup: the Maintainer never opens PRs - its state lives on the maintainer/logs branch."
+done
+branch_list=$(mktemp)
+trap 'rm -f "$branch_list"' EXIT
+gh api --paginate "repos/${repo}/branches" --jq '.[].name' > "$branch_list"
+while IFS= read -r br; do
+  case "$br" in
+    opencode/schedule-*|opencode/dispatch-*) ;;
+    *) continue ;;
+  esac
+  enc=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$br")
+  gh api -X DELETE "repos/${repo}/git/refs/heads/${enc}"
+done < "$branch_list"
+echo "stray cleanup complete"
+R27RUN
+    r27_extract_py="$r27_tmp/extract.py"
+    cat > "$r27_extract_py" <<'R27EXTRACT'
+import os
+import re
+import sys
+
+import yaml
+
+
+class DuplicateKey(Exception):
+    pass
+
+
+def walk(node):
+    if isinstance(node, yaml.MappingNode):
+        seen = set()
+        for key_node, value_node in node.value:
+            key = getattr(key_node, "value", None)
+            if key in seen:
+                raise DuplicateKey("duplicate-yaml-key:%s:line-%s" % (key, key_node.start_mark.line + 1))
+            seen.add(key)
+            walk(value_node)
+    elif isinstance(node, yaml.SequenceNode):
+        for child in node.value:
+            walk(child)
+
+
+def fail(token):
+    print(token, file=sys.stderr)
+    sys.exit(1)
+
+
+path = sys.argv[1]
+expected_path = sys.argv[2] if len(sys.argv) > 2 else ""
+with open(path, "r", encoding="utf-8") as handle:
+    text = handle.read()
+try:
+    tree = yaml.compose(text)
+    doc = yaml.safe_load(text)
+except Exception as exc:
+    fail("yaml-parse-error:%s" % exc)
+try:
+    walk(tree)
+except DuplicateKey as exc:
+    fail(str(exc))
+
+target_name = "Remove maintainer stray PRs and branches (the Maintainer never opens PRs)"
+targets = []
+for job_name, job in (doc.get("jobs") or {}).items():
+    for index, step in enumerate((job or {}).get("steps") or []):
+        if isinstance(step, dict) and step.get("name") == target_name:
+            targets.append((job_name, index, step))
+if len(targets) != 1:
+    fail("stray-cleanup-step-not-unique:%d" % len(targets))
+job_name, index, step = targets[0]
+if job_name != "maintainer":
+    fail("stray-cleanup-wrong-job:%s" % job_name)
+
+if step.get("if") != "always() && steps.actor_gate.outputs.run == 'true'":
+    fail("stray-cleanup-gate-changed:%r" % (step.get("if"),))
+if step.get("shell") != "bash":
+    fail("stray-cleanup-shell-not-bash:%r" % (step.get("shell"),))
+if "continue-on-error" in step:
+    fail("stray-cleanup-tolerates-failure")
+if "working-directory" in step:
+    fail("stray-cleanup-working-directory")
+if step.get("env") != {"GH_TOKEN": "${{ github.token }}"}:
+    fail("stray-cleanup-token-map:%r" % (step.get("env"),))
+
+run = step.get("run")
+if not isinstance(run, str) or not run.strip():
+    fail("stray-cleanup-run-empty")
+
+prefixes = re.findall(r'startswith\("([^"]*)"\)', run)
+if sorted(prefixes) != ["opencode/dispatch-", "opencode/schedule-"]:
+    fail("stray-cleanup-filter-prefixes:%s" % ",".join(prefixes))
+namespaces = sorted(set(re.findall(r"opencode/[A-Za-z0-9_-]+", run)))
+if namespaces != ["opencode/dispatch-", "opencode/schedule-"]:
+    fail("stray-cleanup-branch-namespace:%s" % ",".join(namespaces))
+
+if "|| true" in run or "||true" in run:
+    fail("stray-cleanup-swallows-failure")
+if "/dev/null" in run:
+    fail("stray-cleanup-hides-stderr")
+if not re.search(r"^set -euo pipefail$", run, re.M):
+    fail("stray-cleanup-no-errexit-pipefail")
+for needle in (
+    "gh pr list --author app/github-actions --state open",
+    'gh pr close "$num" --delete-branch',
+    "gh api --paginate",
+    "gh api -X DELETE",
+):
+    if needle not in run:
+        fail("stray-cleanup-missing:%s" % needle)
+
+if expected_path and os.environ.get("R27_SKIP_PIN") != "1":
+    with open(expected_path, "r", encoding="utf-8") as handle:
+        expected = [line.rstrip() for line in handle.read().splitlines() if line.strip()]
+    actual = [line.rstrip() for line in run.splitlines() if line.strip()]
+    if actual != expected:
+        fail("stray-cleanup-run-block-changed")
+
+sys.stdout.write(run if run.endswith("\n") else run + "\n")
+R27EXTRACT
+    if ! python3 -I "$r27_extract_py" "$R27_WF" "$r27_expected" > "$r27_run_file" 2> "$r27_extract_err"; then
+      r27_bad="${r27_bad} maintainer.yml($(tr '\n' ';' < "$r27_extract_err"))"
+    elif ! R27_SKIP_PIN=1 python3 -I "$r27_extract_py" "$R27_WF" "" >/dev/null 2>&1; then
+      # The semantic checks must pass on the pristine step with the exact pin
+      # skipped; otherwise the mutation self-tests below would be vacuous.
+      r27_bad="${r27_bad} maintainer.yml(r27-semantic-control-failed)"
+    else
+      # Negative self-tests: each mutant must be rejected by the semantic
+      # checks with the exact pin skipped, so deleting or weakening one of
+      # them (for example the namespace check) fails the audit itself.
+      r27_mutator() {
+        python3 -I - "$1" "$2" "$3" <<'R27MUT'
+import sys
+
+src, dst, name = sys.argv[1], sys.argv[2], sys.argv[3]
+text = open(src, encoding="utf-8").read()
+target = "Remove maintainer stray PRs and branches (the Maintainer never opens PRs)"
+start = text.index("- name: %s" % target)
+nxt = text.find("\n      - name: ", start + 1)
+end = nxt if nxt != -1 else len(text)
+region = text[start:end]
+if name == "issue-prefix":
+    region = region.replace('startswith("opencode/dispatch-")', 'startswith("opencode/issue")', 1)
+elif name == "issue-prefix-add":
+    region = region.replace('startswith("opencode/dispatch-")', 'startswith("opencode/dispatch-") or startswith("opencode/issue")', 1)
+elif name == "swallow-close":
+    region = region.replace('the maintainer/logs branch."\n', 'the maintainer/logs branch." || true\n', 1)
+elif name == "hide-stderr":
+    region = region.replace("--jq '.[].name' >", "--jq '.[].name' 2>/dev/null >", 1)
+elif name == "no-pipefail":
+    region = region.replace("set -euo pipefail", "set -u", 1)
+elif name == "owner-pat":
+    region = region.replace("GH_TOKEN: ${{ github.token }}", "GH_TOKEN: ${{ secrets.OPENCODE_PAT }}", 1)
+elif name == "completion-change":
+    region = region.replace('echo "stray cleanup complete"', 'echo "cleanup done"', 1)
+else:
+    sys.exit(2)
+if region == text[start:end]:
+    sys.exit(3)
+open(dst, "w", encoding="utf-8").write(text[:start] + region + text[end:])
+R27MUT
+      }
+      for r27_case in issue-prefix issue-prefix-add swallow-close hide-stderr no-pipefail owner-pat; do
+        r27_mut_wf="$r27_tmp/mutant-$r27_case.yml"
+        if ! r27_mutator "$R27_WF" "$r27_mut_wf" "$r27_case" >/dev/null 2>&1; then
+          r27_bad="${r27_bad} maintainer.yml(r27-selftest-mutation:$r27_case)"
+          continue
+        fi
+        if R27_SKIP_PIN=1 python3 -I "$r27_extract_py" "$r27_mut_wf" "" >/dev/null 2>&1; then
+          r27_bad="${r27_bad} maintainer.yml(r27-selftest-missed:$r27_case)"
+        fi
+      done
+      if r27_mutator "$R27_WF" "$r27_tmp/mutant-pin.yml" completion-change >/dev/null 2>&1; then
+        if python3 -I "$r27_extract_py" "$r27_tmp/mutant-pin.yml" "$r27_expected" >/dev/null 2>&1; then
+          r27_bad="${r27_bad} maintainer.yml(r27-selftest-pin-missed)"
+        fi
+      else
+        r27_bad="${r27_bad} maintainer.yml(r27-selftest-mutation:completion-change)"
+      fi
+
+      # Functional sandbox: execute the real run body against an executable
+      # mock gh. GH_TOKEN is supplied exactly as the pinned step env supplies
+      # it; the mock refuses every call without it, so an unauthenticated
+      # regression fails loudly instead of printing a hollow completion line.
+      r27_mock_bin="$r27_tmp/bin"
+      mkdir -p "$r27_mock_bin"
+      cat > "$r27_mock_bin/gh" <<'R27MOCK'
+#!/usr/bin/env bash
+set -u
+state="${MOCK_STATE:?MOCK_STATE is required}"
+if [ -z "${GH_TOKEN:-}" ]; then
+  echo "gh: To use GitHub CLI in a GitHub Actions workflow, set the GH_TOKEN environment variable" >&2
+  printf 'AUTH-MISSING\n' >> "$state/calls"
+  exit 90
+fi
+printf 'gh %s\n' "$*" >> "$state/calls"
+mode=$(cat "$state/mode" 2>/dev/null || true)
+if [ "$1" = "pr" ] && [ "$2" = "list" ]; then
+  [ "$mode" != "pr-list-fail" ] || { echo "mock: pr list failed" >&2; exit 1; }
+  case " $* " in
+    *" --author app/github-actions "*) ;;
+    *) echo "mock: unexpected pr list argv: $*" >&2; exit 91 ;;
+  esac
+  jq_expr=""
+  prev=""
+  for arg in "$@"; do
+    if [ "$prev" = "--jq" ]; then jq_expr="$arg"; fi
+    prev="$arg"
+  done
+  python3 - "$jq_expr" "$state/prs.json" <<'PY'
+import json
+import re
+import sys
+expr = sys.argv[1]
+items = json.load(open(sys.argv[2], encoding="utf-8"))
+prefixes = re.findall(r'startswith\("([^"]*)"\)', expr)
+if not prefixes:
+    sys.exit(93)
+for item in items:
+    if any(item["headRefName"].startswith(prefix) for prefix in prefixes):
+        print(item["number"])
+PY
+  exit $?
+fi
+if [ "$1" = "pr" ] && [ "$2" = "close" ]; then
+  [ "$mode" != "pr-close-fail" ] || { echo "mock: pr close failed" >&2; exit 1; }
+  [ "${3:-}" != "" ] || { echo "mock: pr close missing number" >&2; exit 91; }
+  printf '%s\n' "$3" >> "$state/closed"
+  exit 0
+fi
+if [ "$1" = "api" ]; then
+  if [ "$2" = "--paginate" ]; then
+    [ "$mode" != "branch-list-fail" ] || { echo "mock: branch list failed" >&2; exit 1; }
+    [ "${3:-}" = "repos/Userfrom1995/RandomLabs/branches" ] || { echo "mock: unexpected branch endpoint: ${3:-}" >&2; exit 91; }
+    [ "${4:-}" = "--jq" ] && [ "${5:-}" = ".[].name" ] || { echo "mock: unexpected branch list args: $*" >&2; exit 91; }
+    cat "$state/branches"
+    exit 0
+  fi
+  if [ "$2" = "-X" ] && [ "$3" = "DELETE" ]; then
+    [ "$mode" != "branch-delete-fail" ] || { echo "mock: branch delete failed" >&2; exit 1; }
+    printf '%s\n' "${4:-}" >> "$state/deleted"
+    exit 0
+  fi
+fi
+echo "mock: unexpected gh invocation: $*" >&2
+exit 92
+R27MOCK
+      chmod +x "$r27_mock_bin/gh"
+
+      r27_run_case() {
+        local name="$1" mode="$2" prs="$3" branches="$4" token="$5"
+        local dir="$r27_tmp/case-$name"
+        mkdir -p "$dir/state" "$dir/work" "$dir/tmp" "$dir/home"
+        printf '%s' "$prs" > "$dir/state/prs.json"
+        printf '%s\n' "$branches" > "$dir/state/branches"
+        printf '%s\n' "$mode" > "$dir/state/mode"
+        cp "$r27_run_file" "$dir/work/step.sh"
+        local -a r27_env=(
+          "PATH=$r27_mock_bin:/usr/bin:/bin"
+          "HOME=$dir/home"
+          "TMPDIR=$dir/tmp"
+          "GITHUB_REPOSITORY=Userfrom1995/RandomLabs"
+          "MOCK_STATE=$dir/state"
+        )
+        if [ "$token" = "yes" ]; then
+          r27_env+=("GH_TOKEN=ghs_r27_fixture")
+        fi
+        env -i "${r27_env[@]}" bash --noprofile --norc -e -o pipefail "$dir/work/step.sh" \
+          > "$dir/stdout" 2> "$dir/stderr"
+        return $?
+      }
+
+      r27_prs_happy='[{"number":101,"headRefName":"opencode/issue582-phase3"},{"number":102,"headRefName":"opencode/schedule-2026-01-01"},{"number":103,"headRefName":"opencode/dispatch-2026-01-02"},{"number":104,"headRefName":"opencode/lab-699-stray-cleanup"},{"number":105,"headRefName":"opencode/schedulex"},{"number":106,"headRefName":"opencode/dispatch"}]'
+      r27_branches_happy='main
+opencode/issue582-phase3
+opencode/schedule-2026-01-01
+opencode/dispatch-2026-01-02
+opencode/lab-699-stray-cleanup
+opencode/schedulex
+opencode/dispatch'
+      r27_expected_deleted='repos/Userfrom1995/RandomLabs/git/refs/heads/opencode%2Fschedule-2026-01-01
+repos/Userfrom1995/RandomLabs/git/refs/heads/opencode%2Fdispatch-2026-01-02'
+
+      if r27_run_case happy ok "$r27_prs_happy" "$r27_branches_happy" yes; then
+        r27_case_dir="$r27_tmp/case-happy"
+        [ "$(cat "$r27_case_dir/state/closed" 2>/dev/null)" = "$(printf '102\n103')" ] \
+          || r27_bad="${r27_bad} maintainer.yml(r27-sandbox-closed-set)"
+        [ "$(cat "$r27_case_dir/state/deleted" 2>/dev/null)" = "$r27_expected_deleted" ] \
+          || r27_bad="${r27_bad} maintainer.yml(r27-sandbox-deleted-set)"
+        grep -qF 'stray cleanup complete' "$r27_case_dir/stdout" 2>/dev/null \
+          || r27_bad="${r27_bad} maintainer.yml(r27-sandbox-no-completion)"
+        grep -qF 'gh pr list' "$r27_case_dir/state/calls" 2>/dev/null \
+          || r27_bad="${r27_bad} maintainer.yml(r27-sandbox-mock-not-intercepted)"
+      else
+        r27_bad="${r27_bad} maintainer.yml(r27-sandbox-happy-failed)"
+      fi
+      if r27_run_case issue-only ok '[{"number":201,"headRefName":"opencode/issue693-phase3"}]' 'main
+opencode/issue693-phase3' yes; then
+        r27_case_dir="$r27_tmp/case-issue-only"
+        [ ! -s "$r27_case_dir/state/closed" ] \
+          || r27_bad="${r27_bad} maintainer.yml(r27-sandbox-closed-live-issue-pr)"
+        [ ! -s "$r27_case_dir/state/deleted" ] \
+          || r27_bad="${r27_bad} maintainer.yml(r27-sandbox-deleted-live-issue-branch)"
+        grep -qF 'stray cleanup complete' "$r27_case_dir/stdout" 2>/dev/null \
+          || r27_bad="${r27_bad} maintainer.yml(r27-sandbox-issue-only-no-completion)"
+      else
+        r27_bad="${r27_bad} maintainer.yml(r27-sandbox-issue-only-failed)"
+      fi
+      for r27_case_name in pr-list-fail pr-close-fail branch-list-fail branch-delete-fail; do
+        if r27_run_case "$r27_case_name" "$r27_case_name" "$r27_prs_happy" "$r27_branches_happy" yes; then
+          r27_bad="${r27_bad} maintainer.yml(r27-sandbox-${r27_case_name}-silent)"
+        elif grep -qF 'stray cleanup complete' "$r27_tmp/case-$r27_case_name/stdout" 2>/dev/null; then
+          r27_bad="${r27_bad} maintainer.yml(r27-sandbox-${r27_case_name}-completed)"
+        fi
+      done
+      if r27_run_case no-token ok "$r27_prs_happy" "$r27_branches_happy" no; then
+        r27_bad="${r27_bad} maintainer.yml(r27-sandbox-unauthenticated-noop)"
+      elif grep -qF 'stray cleanup complete' "$r27_tmp/case-no-token/stdout" 2>/dev/null; then
+        r27_bad="${r27_bad} maintainer.yml(r27-sandbox-unauthenticated-completed)"
+      fi
+    fi
+    rm -rf "$r27_tmp"
+  fi
+fi
+if [ -z "$r27_bad" ]; then
+  check "R27" "the Maintainer stray-PR cleanup targets ONLY the retired schedule/dispatch branch classes (never the live issue build namespace), authenticates every gh call with the job-scoped github.token, and fails loudly on auth or API errors across PR list, PR close, branch list, and branch delete; the unique anchored step (resolved from the parsed YAML with duplicate keys rejected, in the maintainer job) keeps its actor-write gate and bash shell, and the exact run body plus semantic namespace/token/loudness checks are proven load-bearing by mutation self-tests and an executable-mock sandbox (issue #699)" "ok"
+else
+  check "R27" "maintainer stray-PR cleanup boundary or loud-failure guard missing:${r27_bad} (issue #699: an unauthenticated no-op regressed silently, and authenticating the old filter would have closed every open build PR)" "bad"
+fi
+summary="Silent-stall regression audit (R1-R27) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R26)
+  body="## Silent-stall regression audit FAILED (R1-R27)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, or R26 create-issue dedupe). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, or R27 stray-PR cleanup boundary). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
