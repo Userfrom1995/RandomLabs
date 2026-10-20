@@ -38,10 +38,20 @@ class LeadSheetArtifactPins(unittest.TestCase):
             self.sheet = f.read()
 
     def test_responsive_viewport_meta(self):
-        self.assertIn(VIEWPORT, self.sheet)
+        self.assertEqual(self.sheet.count(VIEWPORT), 1,
+                         "viewport meta missing or duplicated")
+        head_start = self.sheet.index("<head>")
+        head_end = self.sheet.index("</head>")
+        self.assertTrue(head_start < self.sheet.index(VIEWPORT) < head_end,
+                        "viewport meta must live inside <head>")
 
     def test_inline_favicon_avoids_404(self):
-        self.assertIn(ICON, self.sheet)
+        self.assertEqual(self.sheet.count(ICON), 1,
+                         "inline favicon missing or duplicated")
+        head_start = self.sheet.index("<head>")
+        head_end = self.sheet.index("</head>")
+        self.assertTrue(head_start < self.sheet.index(ICON) < head_end,
+                        "inline favicon must live inside <head>")
 
     def test_sheet_identity(self):
         self.assertIn("<title>Thunderline - lead sheet</title>", self.sheet)
@@ -58,8 +68,16 @@ class GeneratorParityPins(unittest.TestCase):
 
     def test_generator_emits_viewport_and_icon(self):
         generated = build_sheet(load_score())
-        self.assertIn(VIEWPORT, generated)
-        self.assertIn(ICON, generated)
+        self.assertEqual(generated.count(VIEWPORT), 1,
+                         "generator must emit exactly one viewport meta")
+        self.assertEqual(generated.count(ICON), 1,
+                         "generator must emit exactly one inline favicon")
+        head_start = generated.index("<head>")
+        head_end = generated.index("</head>")
+        self.assertTrue(head_start < generated.index(VIEWPORT) < head_end,
+                        "generator viewport meta must live inside <head>")
+        self.assertTrue(head_start < generated.index(ICON) < head_end,
+                        "generator inline favicon must live inside <head>")
 
 
 class ProvenancePins(unittest.TestCase):
