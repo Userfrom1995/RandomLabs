@@ -44,12 +44,12 @@ replay digest is unchanged (`23c17f89734e`), and the wasm rebuild is
 committed (`e3ffbe0d...`).
 
 Real captures: the six kitty/xterm Linux compatibility rows were
-re-executed on 2026-10-20 at code commit `7dcb9089` (binary SHA-256
-`9f71c883c3853edca6a99c3ed0d7aa8711aa2a290e665a35d1a02723212b0271`,
+re-executed on 2026-10-20 at code commit `14b939d9` (binary SHA-256
+`c81890e8d27c8f6914a8decf3df14ca02a9314fd2a9b70bf94991ca714821e9b`,
 clean Rust sources), and all pass (kitty and Ghostty at 21 transmits /
-165.0-175.0 KiB per session with 163-271 sprite-palette pixels in the
+169.6-175.0 KiB per session with 163-271 sprite-palette pixels in the
 playing capture; xterm light/dark on legacy cells; xterm VT340 forced
-and auto on Sixel at 138 transmits / 3.91 MiB). The two Ghostty rows
+and auto on Sixel at 137 transmits / 4.27 MiB). The two Ghostty rows
 remain the `90cb9b87` record and are labeled pre-fix in
 `docs/terminal-compat.md`; the final sign-off phase reruns them. The
 desktop title capture (`docs/desktop-probe.ppm`) is byte-identical, the
@@ -64,7 +64,7 @@ failed across 57 targets, harness contract 47/47, `maze-chase-verify`
 wasm sha256 `e3ffbe0d...`, `cargo fmt --all --check` clean, and clippy
 reports only the pre-existing engine style lints.
 
-Delegation ledger (review fix round, code commit `7dcb9089`):
+Delegation ledger (review fix round, code commit `14b939d9`):
 - Launch: a general subagent audited every public doc and progress claim
   against code, evidence, and the fresh test run; an explore subagent
   reviewed the renderer diff for clock, paint-order, facing, atlas, and
@@ -1020,7 +1020,7 @@ Next: Phase 5 (sound design overhaul).
   context across assets, renderers, config, docs, and captures; no
   registry skill matched and no subagent was dispatched for the initial
   integration pass (the review fix round's ledger is in Current step).
-- 2026-10-20 (builder, Phase 4 review fix round at `7dcb9089`): closed
+- 2026-10-20 (builder, Phase 4 review fix round at `14b939d9`): closed
   the Reviewer's blocking findings and three delegated audits. Added the
   reachable 21 ppt rung with per-rung Pip scale, restored 11x11 sprite
   scaling at 16-20 ppt, made the cell tier paint cues over Pip,
