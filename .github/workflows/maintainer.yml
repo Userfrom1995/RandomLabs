@@ -1320,6 +1320,18 @@ jobs:
               echo "PR #$pr has no /oc approve-test verdict (first-line marker); not merge-ready"
               continue
             fi
+            # Evaluator verdict detection (issue #713): the PAT sweep is the
+            # only automated path that can land workflow-touching PRs, so the
+            # binding Quality Council gate is enforced here too. The canonical
+            # marker is published by opencode-eval.yml from the approve-eval
+            # machine handoff and carries the same entire-first-line plus
+            # bot-authorship shape as the tester verdict (R21), so quoted or
+            # summarized mentions can never count.
+            approve_eval_time=$(echo "$comments" | jq -r '[.[] | select(.user.login=="github-actions[bot]" and (.body|split("\n")[0]|test("^`?eval-verdict: approve-eval`?[[:space:]]*$")))] | last | .created_at // empty' 2>/dev/null || echo "")
+            if [ -z "$approve_eval_time" ]; then
+              echo "PR #$pr has no eval approval marker (first-line marker); not merge-ready"
+              continue
+            fi
             # Head-binding (issue #619): a verdict only counts for the head it
             # validated. Any push after the verdict (a rebase included) stales
             # it until the read-only Tester re-validates the new head: #609's
@@ -1352,6 +1364,18 @@ jobs:
               echo "PR #$pr has /oc fix after approve-test ($last_fix_time > $approve_test_time); not merge-ready"
               continue
             fi
+            # Evaluator head-binding and pipeline ordering (issue #713): a
+            # verdict only counts for the head it validated, and the eval
+            # verdict must not predate the tester approval it builds on. Fail
+            # closed: a stale eval marker is no better than a missing one.
+            if [ "$approve_eval_time" \< "$head_push_time" ]; then
+              echo "PR #$pr eval verdict ($approve_eval_time) predates the last head push ($head_push_time); stale eval verdict, not merge-ready"
+              continue
+            fi
+            if [ "$approve_eval_time" \< "$approve_test_time" ]; then
+              echo "PR #$pr eval verdict ($approve_eval_time) predates the tester approval ($approve_test_time); not merge-ready"
+              continue
+            fi
             # Mergeability re-query (issue #619): GitHub computes mergeability
             # on demand, and immediately after this sweep merges another PR
             # (advancing main) the next read answers UNKNOWN. Skipping on that
@@ -1363,7 +1387,7 @@ jobs:
               sleep 5
               mergeable=$(gh pr view "$pr" --repo "${{ github.repository }}" --json mergeable --jq '.mergeable' 2>/dev/null || echo "")
             done
-            echo "PR #$pr mergeable=$mergeable approve-test=$approve_test_time head-push=$head_push_time"
+            echo "PR #$pr mergeable=$mergeable approve-test=$approve_test_time approve-eval=$approve_eval_time head-push=$head_push_time"
             if [ "$mergeable" != "MERGEABLE" ]; then
               echo "PR #$pr not MERGEABLE ($mergeable); skipping"
               continue
