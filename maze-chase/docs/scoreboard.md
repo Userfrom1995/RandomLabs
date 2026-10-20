@@ -251,10 +251,10 @@ commit `90cb9b87` (kept as history):
   `browser-e2e.js` ALL GREEN with zero console errors.
 
 Review fix rounds, measured on the same Linux machine at the head of
-this PR (round 2 landed on `14b939d9`):
+this PR (round 4 code commit `e938ce5a`):
 
 - `cargo test --workspace --no-fail-fast` (desktop E2E under Xvfb):
-  525 passed, 0 failed across 57 test targets, including the new
+  528 passed, 0 failed across 57 test targets, including the new
   effect-window, authored-facing, death-hold, sweep-order, mirrored-eye,
   death-boundary, fright-slot, cell-clear, and Kitty image-one tests.
 - `cargo run --release --bin maze-chase-verify`: 19/19 checks, golden
@@ -267,7 +267,7 @@ this PR (round 2 landed on `14b939d9`):
   theme, renderer, or bridge code.
 - Wasm rebuild (`cargo build --release --target
   wasm32-unknown-unknown -p maze-chase-web`): sha256
-  `61a72473c7591b48d55010592c58d15234f2875e6b66c5178f59116ad2c78530`,
+  `f393fac1c651c6900ef33108048a42fbb7684a642e54ddd1c6b9f7632389aa17`,
   committed as `web/maze-chase.wasm`; `wasm-smoke.js`,
   `tester-regression.js`, and the real headless-chromium
   `browser-e2e.js` are ALL GREEN with zero console errors. The committed
@@ -277,20 +277,23 @@ this PR (round 2 landed on `14b939d9`):
   (sha256 `1b6f17cc7c2ea69fbd2f20881047c92fc53030a4e3d6a5f3ae624bb4293acf9d`);
   the desktop E2E asserts the probe bytes. The committed gameplay
   capture `docs/desktop-gameplay.ppm` (sha256
-  `abed89190516d5b1fab94ea6f52a918b5de803956832c19c01d9845b2307628d`)
+  `f6040ea93bd09ba057016972fb3e8320ce45229667cbae635a97754200625068`)
   was recorded from the same Xvfb window pipeline after driving a play
   state, so the #658 evidence is a real gameplay frame, not the title.
-- Linux terminal compatibility harness: the six kitty/xterm rows were
+- Linux terminal compatibility harness: five kitty/xterm rows were
   re-executed at `14b939d9` (binary sha256
   `c81890e8d27c8f6914a8decf3df14ca02a9314fd2a9b70bf94991ca714821e9b`,
   `sources_dirty=false`): kitty auto and forced cells, xterm light and
-  dark, and xterm VT340 forced and auto. Every row records
+  dark, and xterm VT340 auto. The forced xterm sixel row was re-executed
+  after the renderer fixes at `e938ce5a` (binary
+  `e06807bc1f4c0d3fb98552d436c5f4222b28d97cc25ea685d639475154bdc7e0`,
+  `sources_dirty=false`, `pause_select=1`). Every row records
   `disposition: pass`; kitty-graphics rows carry 169.6-175.0 KiB per
   session with 163-271 exact sprite-palette pixels in the playing
-  capture, and the Sixel rows carry 137 transmits / 4.27 MiB. The two
-  Ghostty rows remain the `90cb9b87` record and are labeled pre-fix in
-  `docs/terminal-compat.md`; the final sign-off phase reruns them. The
-  evidence bundles under `tools/compat/evidence/` and their screenshots
-  are the committed capture set.
+  capture, and the VT340 rows carry 137-139 transmits / 4.27-4.33 MiB.
+  The two Ghostty rows remain the `90cb9b87` record and are labeled
+  pre-fix in `docs/terminal-compat.md`; the final sign-off phase reruns
+  them. The evidence bundles under `tools/compat/evidence/` and their
+  screenshots are the committed capture set.
 - Terminal sprite census was updated from the retired Ember Warren
   palette to the Dusk Pond theme palette (Rill, sunseed, and the four
