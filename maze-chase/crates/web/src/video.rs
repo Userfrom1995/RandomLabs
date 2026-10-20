@@ -224,36 +224,20 @@ pub fn render_board(game: &Game, theme: &Theme, frame_no: u64, flash: bool) -> F
         );
     }
 
-    // One pickup ripple per crumb or sunseed, below the actors.
-    if let Some((anchor, idx)) = game.fx.pickup_burst() {
-        paint_glyph(
-            &mut frame,
-            &sprites::PICKUP_BURST[idx],
-            (anchor.x * PPT as f32) as i32,
-            (anchor.y * PPT as f32) as i32,
-            theme.accent,
-            theme.text,
-            theme.eyes,
-        );
-    }
-
     // Wardens under Pip (Pip paints last).
     let fright = game.wardens.fright_active();
-    let flash_on = flash
-        && game.wardens.fright_t <= tuning::FRIGHT_FLASH_THRESHOLD
-        && (frame_no / 6).is_multiple_of(2);
+    let flash_on = flash && anim::fright_flash_on(game.wardens.fright_t);
     let bodies = [theme.bram, theme.kessa, theme.jory, theme.nib];
     for warden in game.wardens.wardens.iter() {
         let cx = (warden.actor.x * PPT as f32) as i32;
         let cy = (warden.actor.y * PPT as f32) as i32;
         match warden.state {
             WardenState::Eyes => {
-                let eyes: &[&str] = match warden.actor.dir {
-                    Dir::Up => &sprites::EYES_UP,
-                    Dir::Down => &sprites::EYES_DOWN,
-                    _ => &sprites::EYES_RIGHT,
-                };
-                paint_glyph(&mut frame, eyes, cx, cy, theme.eyes, theme.eyes, theme.eyes);
+                let eye_rows = sprites::eyes_rows(facing_of(warden.actor.dir));
+                let eyes: Vec<&str> = eye_rows.iter().map(|s| s.as_str()).collect();
+                paint_glyph(
+                    &mut frame, &eyes, cx, cy, theme.eyes, theme.eyes, theme.eyes,
+                );
             }
             _ => {
                 let body_glyph: &[&str] = match warden.index {
@@ -281,24 +265,20 @@ pub fn render_board(game: &Game, theme: &Theme, frame_no: u64, flash: bool) -> F
                         theme.text,
                         theme.eyes,
                     );
-                    let eyes: &[&str] = match warden.actor.dir {
-                        Dir::Up => &sprites::EYES_UP,
-                        Dir::Down => &sprites::EYES_DOWN,
-                        _ => &sprites::EYES_RIGHT,
-                    };
-                    paint_glyph(&mut frame, eyes, cx, cy, theme.eyes, theme.eyes, theme.eyes);
+                    let eye_rows = sprites::eyes_rows(facing_of(warden.actor.dir));
+                    let eyes: Vec<&str> = eye_rows.iter().map(|s| s.as_str()).collect();
+                    paint_glyph(
+                        &mut frame, &eyes, cx, cy, theme.eyes, theme.eyes, theme.eyes,
+                    );
                 } else {
                     let body = bodies.get(warden.index).copied().unwrap_or(theme.bram);
                     paint_glyph(&mut frame, body_glyph, cx, cy, body, theme.text, theme.eyes);
-                    let eyes: &[&str] = match warden.actor.dir {
-                        Dir::Up => &sprites::EYES_UP,
-                        Dir::Down => &sprites::EYES_DOWN,
-                        _ => &sprites::EYES_RIGHT,
-                    };
+                    let eye_rows = sprites::eyes_rows(facing_of(warden.actor.dir));
+                    let eyes: Vec<&str> = eye_rows.iter().map(|s| s.as_str()).collect();
                     // Eye overlay sits high on the 11-tall body.
                     paint_glyph(
                         &mut frame,
-                        eyes,
+                        &eyes,
                         cx,
                         cy - 1,
                         theme.eyes,
@@ -331,6 +311,19 @@ pub fn render_board(game: &Game, theme: &Theme, frame_no: u64, flash: bool) -> F
             pcx,
             pcy + hop,
             theme.pip,
+            theme.text,
+            theme.eyes,
+        );
+    }
+
+    // Pickup ripple above Pip, so the player never hides it.
+    if let Some((anchor, idx)) = game.fx.pickup_burst() {
+        paint_glyph(
+            &mut frame,
+            &sprites::PICKUP_BURST[idx],
+            (anchor.x * PPT as f32) as i32,
+            (anchor.y * PPT as f32) as i32,
+            theme.accent,
             theme.text,
             theme.eyes,
         );
@@ -599,8 +592,18 @@ mod tests {
         let theme = themes::DUSK_POND;
         let mut g = fresh();
         let base = render_board(&g, &theme, 0, true);
-        g.fx.pickup(g.player.x + 1.0, g.player.y);
-        assert_ne!(render_board(&g, &theme, 0, true).px, base.px);
+        g.fx.pickup(g.player.x, g.player.y);
+        let burst = render_board(&g, &theme, 0, true);
+        assert_ne!(burst.px, base.px);
+        let (px, py) = (
+            (g.player.x * BOARD_PPT as f32) as i32,
+            (g.player.y * BOARD_PPT as f32) as i32,
+        );
+        assert_eq!(
+            burst.get(px, py).map(|(r, g, b, _)| (r, g, b)),
+            Some((theme.text.0, theme.text.1, theme.text.2)),
+            "the burst must paint over Pip, not under the sprite"
+        );
         g.fx.advance(0.3);
         assert_eq!(render_board(&g, &theme, 0, true).px, base.px);
 
@@ -623,6 +626,61 @@ mod tests {
             g.tick(1.0 / 120.0);
         }
         assert_eq!(render_board(&g, &theme, 0, true), held);
+    }
+
+    #[test]
+    fn death_frame_boundaries_are_exact() {
+        let theme = themes::DUSK_POND;
+        let mut frames = Vec::new();
+        for t in [0.0f32, 0.05, 0.1, 0.2, 0.4] {
+            let mut g = fresh();
+            g.kill_player();
+            if t > 0.0 {
+                g.tick(t);
+            }
+            frames.push(render_board(&g, &theme, 0, true).px);
+        }
+        assert_eq!(frames[0], frames[1], "0.0 and 0.05 hold frame 0");
+        assert_ne!(frames[1], frames[2], "0.1 starts frame 1");
+        assert_ne!(frames[2], frames[3], "0.2 starts frame 2");
+        assert_ne!(frames[3], frames[4], "0.4 holds the final frame");
+        assert_ne!(frames[0], frames[4], "the first and last frames differ");
+    }
+
+    #[test]
+    fn left_facing_warden_eyes_are_mirrored() {
+        let theme = themes::DUSK_POND;
+        let mut g = fresh();
+        for (i, warden) in g.wardens.wardens.iter_mut().enumerate() {
+            warden.state = WardenState::Active;
+            warden.actor.x = 2.0 + i as f32 * 3.0;
+            warden.actor.y = 2.0;
+        }
+        g.wardens.fright_t = 0.0;
+        let cx = (g.wardens.wardens[0].actor.x * BOARD_PPT as f32) as i32;
+        let cy = (g.wardens.wardens[0].actor.y * BOARD_PPT as f32) as i32 - 1;
+        let eye_positions = |frame: &Frame| {
+            let mut set = std::collections::BTreeSet::new();
+            for dy in -3..=3 {
+                for dx in -3..=3 {
+                    if frame.get(cx + dx, cy + dy).map(|(r, g, b, _)| (r, g, b))
+                        == Some((theme.eyes.0, theme.eyes.1, theme.eyes.2))
+                    {
+                        set.insert((dx, dy));
+                    }
+                }
+            }
+            set
+        };
+        g.wardens.wardens[0].actor.dir = Dir::Left;
+        let left = eye_positions(&render_board(&g, &theme, 0, true));
+        g.wardens.wardens[0].actor.dir = Dir::Right;
+        let right = eye_positions(&render_board(&g, &theme, 0, true));
+        let left_only: std::collections::BTreeSet<_> = left.difference(&right).copied().collect();
+        let right_only: std::collections::BTreeSet<_> = right.difference(&left).copied().collect();
+        let mirrored: std::collections::BTreeSet<_> =
+            right_only.iter().map(|&(dx, dy)| (-dx, dy)).collect();
+        assert_eq!(left_only, mirrored, "left eyes must mirror right eyes");
     }
 
     #[test]

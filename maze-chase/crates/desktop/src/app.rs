@@ -66,7 +66,7 @@ fn ticker_for(event: &str) -> Option<String> {
         "death" => Some("CAUGHT!".into()),
         "respawn" => Some("BACK IN THE POND".into()),
         "extra-life" => Some("SPARE WICK!".into()),
-        "clear" => Some("POND CLEAR!".into()),
+        "level-clear" => Some("POND CLEAR!".into()),
         "game-over" => Some("NO WICKS LEFT".into()),
         _ => None,
     }
@@ -676,6 +676,12 @@ mod tests {
             assert_eq!((frame.w, frame.h), (1100, 760));
         }
         let _ = std::fs::remove_dir_all(&app.dir);
+    }
+
+    #[test]
+    fn clear_ticker_uses_the_engine_event_name() {
+        assert!(ticker_for("level-clear").is_some());
+        assert!(ticker_for("clear").is_none());
     }
 
     #[test]

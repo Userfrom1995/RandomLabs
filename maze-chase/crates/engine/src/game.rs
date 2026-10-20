@@ -353,7 +353,7 @@ impl Game {
         if self.mode == GameMode::Sprint {
             let spare_s = (tuning::SPRINT_PAR_S - self.mode_t).max(0.0);
             let bonus = (spare_s * tuning::SPRINT_BONUS_PER_S as f32) as u32;
-            self.add_score(bonus);
+            self.add_score_with_floater(bonus, false);
             self.events.push(format!("sprint-bonus:{bonus}"));
         }
         self.level += 1;
@@ -575,6 +575,9 @@ mod tests {
         assert_eq!(game.state, GameState::Clearing);
         for _ in 0..(2.0 * 120.0 + 10.0) as usize {
             game.tick(tuning::STEP);
+            if game.state == GameState::Play {
+                break;
+            }
         }
         assert_eq!(game.level, 2);
         // Cleared almost instantly: near-full par bonus banked.
@@ -587,6 +590,11 @@ mod tests {
             .parse()
             .unwrap();
         assert!(bonus >= 2990);
+        assert_eq!(
+            game.fx.floaters().count(),
+            0,
+            "the par bonus must not leave a floater on the old level"
+        );
     }
 
     #[test]

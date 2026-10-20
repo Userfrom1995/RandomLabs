@@ -332,6 +332,7 @@ pub const RILL21_UP_CLOSED: [&str; 21] = [
 
 /// Rill down open, 21x21.
 pub const RILL21_DOWN_OPEN: [&str; 21] = [
+    ".....................",
     ".....##.......##.....",
     "....#**#.....#**#....",
     "....#oo#.....#oo#....",
@@ -352,11 +353,11 @@ pub const RILL21_DOWN_OPEN: [&str; 21] = [
     "...#.............#...",
     "....#.#.......#.#....",
     ".....................",
-    ".....................",
 ];
 
 /// Rill down mid, 21x21.
 pub const RILL21_DOWN_MID: [&str; 21] = [
+    ".....................",
     ".....##.......##.....",
     "....#**#.....#**#....",
     "....#oo#.....#oo#....",
@@ -377,11 +378,11 @@ pub const RILL21_DOWN_MID: [&str; 21] = [
     "...#..ooooooooo..#...",
     "....#.#.......#.#....",
     ".....................",
-    ".....................",
 ];
 
 /// Rill down closed, 21x21.
 pub const RILL21_DOWN_CLOSED: [&str; 21] = [
+    ".....................",
     ".....##.......##.....",
     "....#**#.....#**#....",
     "....#oo#.....#oo#....",
@@ -401,7 +402,6 @@ pub const RILL21_DOWN_CLOSED: [&str; 21] = [
     "..##ooooooooooooo##..",
     "...#ooooooooooooo#...",
     "....#.#.......#.#....",
-    ".....................",
     ".....................",
 ];
 
@@ -674,6 +674,20 @@ pub const EYES_DOWN: [&str; 7] = [
     ".......", "...#...", ".......", ".#...#.", "###.###", ".#...#.", ".......",
 ];
 
+/// Eye-bubble rows for a facing, with left mirrored from right.
+///
+/// Shared by every renderer so a hunter never shows right-facing eyes while
+/// travelling left.
+pub fn eyes_rows(facing: Facing) -> Vec<String> {
+    let rows: &[&str] = match facing {
+        Facing::Right => &EYES_RIGHT,
+        Facing::Left => return flip_horizontal(&EYES_RIGHT),
+        Facing::Up => &EYES_UP,
+        Facing::Down => &EYES_DOWN,
+    };
+    rows.iter().map(|row| (*row).to_string()).collect()
+}
+
 /// Frightened hunter: flat fright fill with concentric rings, 11x11.
 ///
 /// Never uses the eyes slot (`*`) and never uses a white fill.
@@ -827,7 +841,7 @@ pub const GOLDEN_LILY: [[&str; 9]; 6] = [
     ],
     [
         "..#...#..",
-        ".#o#.#o#.",
+        ".#o#o#o#.",
         "#ooo#ooo#",
         ".#ooooo#.",
         "..#o*o#..",
@@ -1090,6 +1104,63 @@ mod tests {
         for icon in RELISH_ICONS {
             assert_eq!(validate_glyph(&icon), Ok((7, 7)));
         }
+    }
+
+    #[test]
+    fn rill_21_sheets_share_a_baseline() {
+        let sheets: [&[&str]; 9] = [
+            &RILL21_RIGHT_OPEN,
+            &RILL21_RIGHT_MID,
+            &RILL21_RIGHT_CLOSED,
+            &RILL21_UP_OPEN,
+            &RILL21_UP_MID,
+            &RILL21_UP_CLOSED,
+            &RILL21_DOWN_OPEN,
+            &RILL21_DOWN_MID,
+            &RILL21_DOWN_CLOSED,
+        ];
+        for sheet in sheets {
+            let low = sheet
+                .iter()
+                .rposition(|row| row.chars().any(|ch| ch != '.'))
+                .expect("a Rill sheet must draw something");
+            assert_eq!(low, 19, "every 21x21 Rill sheet must land on row 19");
+        }
+    }
+
+    #[test]
+    fn golden_lily_frames_are_all_distinct() {
+        for a in 0..GOLDEN_LILY.len() {
+            for b in (a + 1)..GOLDEN_LILY.len() {
+                assert_ne!(GOLDEN_LILY[a], GOLDEN_LILY[b], "lily frames {a} and {b}");
+            }
+        }
+    }
+
+    #[test]
+    fn left_eyes_are_the_right_eyes_mirrored() {
+        assert_eq!(eyes_rows(Facing::Left), flip_horizontal(&EYES_RIGHT));
+        assert_eq!(
+            eyes_rows(Facing::Right),
+            EYES_RIGHT
+                .iter()
+                .map(|row| (*row).to_string())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            eyes_rows(Facing::Up),
+            EYES_UP
+                .iter()
+                .map(|row| (*row).to_string())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            eyes_rows(Facing::Down),
+            EYES_DOWN
+                .iter()
+                .map(|row| (*row).to_string())
+                .collect::<Vec<_>>()
+        );
     }
 
     #[test]

@@ -120,6 +120,10 @@ fn loader_never_fails_on_corrupt_input() {
     let (s, _, _) = load("theme = not-a-theme");
     assert_eq!(s.theme, "not-a-theme");
     assert!(!s.validate().is_empty());
+    // Retired Pondwake palette ids migrate through the persist loader.
+    let (s, _, problems) = load("theme = ember-warren");
+    assert_eq!(s.theme, "dusk-pond");
+    assert!(problems.is_empty());
     // Duplicate scalar keys: deterministic, last wins.
     let (s, _, _) = load("master = 0.1\nmaster = 0.9");
     assert!((s.master - 0.9).abs() < 1e-6);

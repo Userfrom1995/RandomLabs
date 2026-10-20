@@ -264,7 +264,7 @@ fn display_at(bytes: &[u8], rows: u32, cols: u32, cursor: (u16, u16)) -> bool {
 }
 
 fn cursor_before(text: &str, at: usize, want: &str) -> bool {
-    let head = &text[at.saturating_sub(160)..at];
+    let head = &text[at.saturating_sub(96)..at];
     if let Some(esc) = head.rfind("\x1b[") {
         let tail = &head[esc..];
         if let Some(end) = tail.find('H') {

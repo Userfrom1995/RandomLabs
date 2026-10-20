@@ -122,13 +122,14 @@ pub fn turn_spark_on(elapsed: f32) -> bool {
 
 /// Whether the fright-mask flash variant shows, given seconds of the turn left.
 ///
-/// Returns true only during the last 1.5 s warning window, blinking at 6 Hz:
-/// the fractional part of `t_left * 6.0` gates the on/off phase.
+/// Returns true only during the last 1.5 s warning window, blinking at
+/// 2.5 Hz (inside the design's 2 to 3 Hz cap): the fractional part of
+/// `t_left * 2.5` gates the on/off phase.
 pub fn fright_flash_on(t_left: f32) -> bool {
     if t_left > 1.5 {
         return false;
     }
-    (t_left * 6.0).fract() < 0.5
+    (t_left * 2.5).fract() < 0.5
 }
 
 /// Relish bob pixel offset (-1..=1) as a triangle wave over `t` (seconds).
@@ -177,11 +178,11 @@ mod tests {
         // Outside the warning window: always off.
         assert!(!fright_flash_on(2.0));
         assert!(!fright_flash_on(1.51));
-        // Boundary: 1.5 * 6 = 9.0 exactly, fractional part 0 -> on.
-        assert!(fright_flash_on(1.5));
-        // Inside the window both blink phases occur.
-        assert!(fright_flash_on(1.4)); // 8.4 -> on
-        assert!(!fright_flash_on(1.45)); // 8.7 -> off
+        // 2.5 Hz: both phases inside the window.
+        assert!(fright_flash_on(1.2)); // 3.0 -> on
+        assert!(fright_flash_on(0.8)); // 2.0 -> on
+        assert!(!fright_flash_on(1.0)); // 2.5 -> off
+        assert!(!fright_flash_on(1.45)); // 3.625 -> off
         assert!(fright_flash_on(0.0));
     }
 
@@ -196,7 +197,7 @@ mod tests {
         assert_eq!(fright_mask_id(0.0, 5.0), "fright_entry");
         assert_eq!(fright_mask_id(0.24, 5.0), "fright_entry");
         assert_eq!(fright_mask_id(0.25, 5.0), "fright_mask");
-        assert_eq!(fright_mask_id(1.0, 1.5), "fright_mask_flash");
+        assert_eq!(fright_mask_id(1.0, 1.2), "fright_mask_flash");
         assert_eq!(fright_mask_id(f32::NAN, 0.0), "fright_mask");
 
         assert_eq!(pickup_burst_frame(0.0), Some(0));
