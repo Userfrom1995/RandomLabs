@@ -60,10 +60,12 @@
      dimmed fresh board, so the primary action is always reachable without
      scrolling (the Quality Council finding on the old below-fold CTA). */
   section.overlay-card {
-    position: fixed; z-index: 40; left: 50%; top: 50%;
+    position: fixed; z-index: 40; left: 50%;
+    top: calc(50% + var(--header-half, 0px));
     transform: translate(-50%, -50%);
     width: min(560px, calc(100vw - 24px));
-    max-height: calc(100vh - 24px); overflow: auto; margin: 0;
+    max-height: calc(100vh - var(--header-h, 0px) - 24px);
+    overflow: auto; margin: 0;
     border: 1px solid #2a3350; box-shadow: 0 24px 80px #000c;
     background: var(--panel); border-radius: 16px; padding: 20px 24px;
   }
@@ -93,7 +95,7 @@
     box-shadow: inset 0 0 0 1px #10203a;
   }
   @media (max-width: 760px) {
-    section.overlay-card { padding: 16px 18px; top: 46%; }
+    section.overlay-card { padding: 16px 18px; }
     section.overlay-card h2 { font-size: 1.55rem; }
     .title-actions button { flex: 1 1 44%; }
     .title-actions .primary { flex-basis: 100%; }
@@ -242,7 +244,7 @@
   </section>
 
   <section class="panel overlay-card" id="panel-pause" hidden aria-label="Paused"
-           role="dialog" aria-modal="true">
+           role="dialog">
     <p class="title-kicker">The pond holds its breath</p>
     <h2>Paused</h2>
     <p class="note">Rill and the wardens freeze exactly where they were.</p>

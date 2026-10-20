@@ -96,6 +96,11 @@ pub fn layout(w: u32, h: u32) -> Layout {
     }
 }
 
+/// Whether the window is too small to fit the board at scale 1.
+pub fn too_small(w: u32, h: u32) -> bool {
+    layout(w, h).too_small
+}
+
 /// Center of the play board in frame pixels. Stage cards (title and
 /// pause) sit here; the page center is offset by the right-hand HUD band.
 pub fn stage_center(w: u32, h: u32) -> (i32, i32) {

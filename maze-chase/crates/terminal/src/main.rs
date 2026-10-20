@@ -1223,7 +1223,8 @@ fn paint_chrome(app: &App, out: &mut String, truecolor: bool, _cols: usize, _row
             if i >= side.h as usize {
                 break;
             }
-            let padded = format!("{:<width$}", line, width = side.w as usize);
+            let clipped: String = line.chars().take(side.w as usize).collect();
+            let padded = format!("{:<width$}", clipped, width = side.w as usize);
             paint_line(
                 out,
                 side.y + i as u16,
@@ -1232,11 +1233,15 @@ fn paint_chrome(app: &App, out: &mut String, truecolor: bool, _cols: usize, _row
             );
         }
     } else if let Some(bar) = app.layout.top_bar {
-        for (i, line) in chrome::top_bar(&app.game, best, reduced).iter().enumerate() {
+        for (i, line) in chrome::top_bar(&app.game, best, reduced, bar.w as usize)
+            .iter()
+            .enumerate()
+        {
             if i >= bar.h as usize {
                 break;
             }
-            let padded = format!("{:<width$}", line, width = bar.w as usize);
+            let clipped: String = line.chars().take(bar.w as usize).collect();
+            let padded = format!("{:<width$}", clipped, width = bar.w as usize);
             paint_line(
                 out,
                 bar.y + i as u16,

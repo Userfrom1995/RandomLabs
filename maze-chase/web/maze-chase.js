@@ -149,7 +149,8 @@
         var need = ['mc_version', 'mc_reset', 'mc_step', 'mc_frame', 'mc_frame_len',
           'mc_key', 'mc_swipe', 'mc_press', 'mc_goto', 'mc_rebind', 'mc_binding', 'mc_screen',
           'mc_scratch', 'mc_scratch_len', 'mc_theme_name', 'mc_fright_segments',
-          'memory'];
+          'mc_fright_flash', 'mc_reduced_flash', 'mc_reduced_motion', 'mc_high_contrast',
+          'mc_theme', 'mc_theme_count', 'mc_difficulty', 'memory'];
         for (var i = 0; i < need.length; i++) {
           if (typeof exp[need[i]] === 'undefined') throw new Error('missing export: ' + need[i]);
         }
@@ -751,6 +752,21 @@
         sp.setAttribute('aria-hidden', 'true');
         segs.appendChild(sp);
       }
+    }
+
+    // Keep overlay cards clear of the sticky header on every viewport.
+    var header = document.querySelector('header');
+    var syncHeaderHeight = function () {
+      if (!header) return;
+      var h = header.offsetHeight || 0;
+      document.documentElement.style.setProperty('--header-h', h + 'px');
+      document.documentElement.style.setProperty('--header-half', (h / 2) + 'px');
+    };
+    syncHeaderHeight();
+    window.addEventListener('resize', syncHeaderHeight);
+    window.addEventListener('orientationchange', syncHeaderHeight);
+    if (window.ResizeObserver) {
+      try { new ResizeObserver(syncHeaderHeight).observe(header); } catch (e) { /* ignore */ }
     }
 
     document.addEventListener('keydown', onKeyDown);

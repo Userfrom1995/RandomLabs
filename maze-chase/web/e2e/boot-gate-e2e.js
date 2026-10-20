@@ -48,9 +48,20 @@ async function evalJs(ws, expr) {
 }
 
 // Hand-assembled zero-import module: `mc_version` returns `version`, every
-// other required name returns 0, and one exported memory. `withFright`
-// controls whether the stale module also exports mc_fright_segments.
-function staleWasmB64(version, withFright) {
+// other required name returns 0, and one exported memory. `opts.omit` drops
+// one export so a boot-gate case can prove that group is required;
+// `opts.withFright === false` drops mc_fright_segments for the stale module.
+const NAMES = [
+  'mc_version', 'mc_reset', 'mc_step', 'mc_frame', 'mc_frame_len',
+  'mc_key', 'mc_swipe', 'mc_press', 'mc_goto', 'mc_rebind', 'mc_binding',
+  'mc_screen', 'mc_scratch', 'mc_scratch_len', 'mc_theme_name',
+  'mc_fright_segments', 'mc_fright_flash', 'mc_reduced_flash',
+  'mc_reduced_motion', 'mc_high_contrast', 'mc_theme', 'mc_theme_count',
+  'mc_difficulty',
+];
+
+function staleWasmB64(version, opts) {
+  opts = opts || {};
   const leb = (n) => {
     const out = [];
     do {
@@ -62,12 +73,11 @@ function staleWasmB64(version, withFright) {
     return out;
   };
   const name = (s) => [Buffer.byteLength(s), ...Buffer.from(s, 'utf8')];
-  const names = [
-    'mc_version', 'mc_reset', 'mc_step', 'mc_frame', 'mc_frame_len',
-    'mc_key', 'mc_swipe', 'mc_press', 'mc_goto', 'mc_rebind', 'mc_binding',
-    'mc_screen', 'mc_scratch', 'mc_scratch_len', 'mc_theme_name',
-  ];
-  if (withFright) names.push('mc_fright_segments');
+  const names = NAMES.filter((n) => n !== opts.omit);
+  if (opts.withFright === false) {
+    const at = names.indexOf('mc_fright_segments');
+    if (at >= 0) names.splice(at, 1);
+  }
   const type = [1, 0x60, 0, 1, 0x7f];
   const funcs = [2, 0, 0];
   const mem = [1, 0, 1];
@@ -84,8 +94,12 @@ function staleWasmB64(version, withFright) {
   return Buffer.from(bytes).toString('base64');
 }
 
-const staleV1NoFright = staleWasmB64(1, false);
-const staleV1WithFright = staleWasmB64(1, true);
+const staleV1NoFright = staleWasmB64(1, { withFright: false });
+const staleV1WithFright = staleWasmB64(1, {});
+const staleV2NoHudFlash = staleWasmB64(2, { omit: 'mc_fright_flash' });
+const staleV2NoReducedFlash = staleWasmB64(2, { omit: 'mc_reduced_flash' });
+const staleV2NoTheme = staleWasmB64(2, { omit: 'mc_theme' });
+const staleV2NoDifficulty = staleWasmB64(2, { omit: 'mc_difficulty' });
 
 (async () => {
   const listRes = await fetch(`http://localhost:${DEBUG_PORT}/json/list`).then((r) => r.json());
@@ -101,7 +115,14 @@ const staleV1WithFright = staleWasmB64(1, true);
     source: `(() => {
       const mode = new URL(location.href).searchParams.get('stale-wasm');
       if (!mode) return;
-      const b64 = mode === '2' ? '${staleV1WithFright}' : '${staleV1NoFright}';
+      const modules = {
+        '2': '${staleV1WithFright}',
+        'hud-flash': '${staleV2NoHudFlash}',
+        'reduced-flash': '${staleV2NoReducedFlash}',
+        'theme': '${staleV2NoTheme}',
+        'difficulty': '${staleV2NoDifficulty}',
+      };
+      const b64 = modules[mode] || '${staleV1NoFright}';
       const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
       const realFetch = (window.fetch || fetch).bind(window);
       window.fetch = function (input, init) {
@@ -162,6 +183,27 @@ const staleV1WithFright = staleWasmB64(1, true);
   assert(state.reason ===
     'Could not load the game engine (version mismatch: wasm=1 harness=2).',
     'the error names both versions, got: ' + state.reason);
+
+  // An ABI-2 module missing one first-HUD or accessibility export must fail
+  // the boot gate instead of reaching Ready with a silently frozen HUD.
+  const groupCases = [
+    ['hud-flash', 'mc_fright_flash'],
+    ['reduced-flash', 'mc_reduced_flash'],
+    ['theme', 'mc_theme'],
+    ['difficulty', 'mc_difficulty'],
+  ];
+  for (const [mode, exportName] of groupCases) {
+    const url = new URL(PAGE);
+    url.searchParams.set('stale-wasm', mode);
+    await send(ws, 'Page.navigate', { url: url.toString() });
+    await sleep(2500);
+    state = await cardState();
+    assert(state.cardVisible, 'missing ' + exportName + ' reaches the error card');
+    assert(state.reason ===
+      'Could not load the game engine (missing export: ' + exportName + ').',
+      'the error names ' + exportName + ', got: ' + state.reason);
+    assert(state.boot === 'Loading engine...', 'boot status never reaches Ready for ' + exportName);
+  }
 
   await send(ws, 'Page.removeScriptToEvaluateOnNewDocument', {
     identifier: injected.identifier,

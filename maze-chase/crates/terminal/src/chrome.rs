@@ -48,24 +48,30 @@ pub fn too_small_card(cols: u16, rows: u16, min_cols: u16, min_rows: u16) -> Vec
 /// 30-segment countdown joins only in the final 1.5 s, and the banner
 /// replaces the flashing instruction for reduced-flash players
 /// (information, not decoration).
-pub fn fright_readout(game: &Game, reduced_flash: bool) -> Option<String> {
+pub fn fright_readout(game: &Game, reduced_flash: bool, max_width: usize) -> Option<String> {
     if !game.wardens.fright_active() {
         return None;
     }
     if !game.wardens.fright_flashing() {
         return Some("FRIGHT!".to_string());
     }
-    let lit = anim::fright_bar_segments(game.wardens.fright_t).min(30);
-    let bar = format!("{}{}", "█".repeat(lit), "░".repeat(30 - lit));
-    Some(if reduced_flash {
-        format!("THE TURN ENDS {bar}")
+    let label = if reduced_flash {
+        "TURN ENDS "
     } else {
-        format!("FRIGHT {bar}")
-    })
+        "FRIGHT "
+    };
+    let bar_w = max_width.saturating_sub(label.chars().count());
+    if bar_w == 0 {
+        return Some(label.trim_end().to_string());
+    }
+    let lit = (anim::fright_bar_segments(game.wardens.fright_t) * bar_w / 30).min(bar_w);
+    let bar = format!("{}{}", "█".repeat(lit), "░".repeat(bar_w - lit));
+    Some(format!("{label}{bar}"))
 }
 
-/// Compact top HUD bar (narrow windows): two lines.
-pub fn top_bar(game: &Game, best: u32, reduced_flash: bool) -> [String; 2] {
+/// Compact top HUD bar (narrow windows): two lines, each clipped to
+/// `max_width` cells.
+pub fn top_bar(game: &Game, best: u32, reduced_flash: bool, max_width: usize) -> [String; 2] {
     let state = match game.state {
         GameState::Play => "",
         GameState::Dying => "  OUCH",
@@ -73,7 +79,13 @@ pub fn top_bar(game: &Game, best: u32, reduced_flash: bool) -> [String; 2] {
         GameState::Over => "  GAME OVER",
     };
     let mode = game.mode.as_str().to_uppercase();
-    [
+    let clock = mode_clock(game);
+    let prefix = if clock.is_empty() {
+        format!("MODE {mode}  ")
+    } else {
+        format!("MODE {mode} {clock}  ")
+    };
+    let lines = [
         format!(
             "SCORE {:06}  BEST {:06}  LIVES {}  LEVEL {:02}{}",
             game.score,
@@ -82,11 +94,16 @@ pub fn top_bar(game: &Game, best: u32, reduced_flash: bool) -> [String; 2] {
             game.level,
             state
         ),
-        match fright_readout(game, reduced_flash) {
-            Some(readout) => format!("MODE {} {}  {readout}", mode, mode_clock(game)),
-            None => format!("MODE {} {}", mode, mode_clock(game)),
+        match fright_readout(
+            game,
+            reduced_flash,
+            max_width.saturating_sub(prefix.chars().count()),
+        ) {
+            Some(readout) => format!("{prefix}{readout}"),
+            None => prefix.trim_end().to_string(),
         },
-    ]
+    ];
+    lines.map(|line| line.chars().take(max_width).collect())
 }
 
 /// Side panel lines (wide windows, 26 columns).
@@ -110,7 +127,9 @@ pub fn side_panel(
     if !clock.is_empty() {
         lines.push(format!("CLOCK  {clock}"));
     }
-    if let Some(readout) = fright_readout(game, reduced_flash) {
+    if let Some(readout) =
+        fright_readout(game, reduced_flash, crate::layout::SIDE_PANEL_COLS as usize)
+    {
         lines.push(readout);
     }
     lines.push("".to_string());
@@ -314,7 +333,7 @@ mod tests {
     #[test]
     fn hud_bars_render() {
         let g = Game::new(1, 1);
-        let bar = top_bar(&g, 0, false);
+        let bar = top_bar(&g, 0, false, 62);
         assert!(bar[0].contains("SCORE"));
         assert!(bar[0].contains("LIVES"));
         let panel = side_panel(&g, 500, "title", "truecolor-cells", false);
@@ -383,17 +402,43 @@ mod tests {
         let mut g = Game::new(1, 1);
         g.wardens.start_fright(6.0);
         g.wardens.fright_t = 1.2;
-        let readout = fright_readout(&g, false).expect("meter in the final window");
+        let readout = fright_readout(&g, false, 26).expect("meter in the final window");
         assert!(readout.starts_with("FRIGHT "));
-        assert_eq!(readout.matches('█').count(), 24);
-        assert_eq!(readout.matches('░').count(), 6);
-        let reduced = fright_readout(&g, true).expect("reduced banner");
-        assert!(reduced.starts_with("THE TURN ENDS "));
+        assert_eq!(readout.chars().count(), 26);
+        assert_eq!(readout.matches('█').count(), 15);
+        assert_eq!(readout.matches('░').count(), 4);
+        let reduced = fright_readout(&g, true, 26).expect("reduced banner");
+        assert!(reduced.starts_with("TURN ENDS "));
+        assert_eq!(reduced.chars().count(), 26);
         g.wardens.fright_t = 2.0;
-        let early = fright_readout(&g, false).expect("badge before the warning tail");
+        let early = fright_readout(&g, false, 26).expect("badge before the warning tail");
         assert_eq!(early, "FRIGHT!");
         assert!(!early.contains('█') && !early.contains('░'));
         g.wardens.fright_t = 0.0;
-        assert!(fright_readout(&g, false).is_none());
+        assert!(fright_readout(&g, false, 26).is_none());
+    }
+
+    #[test]
+    fn fright_readout_and_hud_bars_fit_their_rects() {
+        use maze_chase_engine::modes::GameMode;
+
+        let mut g = Game::new(1, 1);
+        g.wardens.start_fright(6.0);
+        g.wardens.fright_t = 1.2;
+
+        let panel = side_panel(&g, 0, "off", "truecolor-cells", true);
+        assert!(
+            panel.iter().all(|l| l.chars().count() <= 26),
+            "side panel lines must fit SIDE_PANEL_COLS: {panel:?}"
+        );
+
+        g.mode = GameMode::Sprint;
+        g.mode_t = 60.0;
+        let bar = top_bar(&g, 0, true, 62);
+        assert!(
+            bar.iter().all(|l| l.chars().count() <= 62),
+            "compact top bar lines must fit a 62-column window: {bar:?}"
+        );
+        assert!(bar[1].contains("TURN ENDS"), "got {:?}", bar[1]);
     }
 }

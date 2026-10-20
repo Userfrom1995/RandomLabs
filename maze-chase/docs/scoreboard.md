@@ -371,6 +371,6 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   The high-contrast label names the effective Moonwake theme, the cell
   tier keeps chomp and turn sparks under reduced flash, and the docs
   describe the static fresh title board, static help pages, and the
-  shipped no-history-guard Back behavior. Full workspace rerun: 561
+  shipped no-history-guard Back behavior. Full workspace rerun: 568
   passed / 0 failed across 61 targets; verify 19/19; all four web E2E
   scripts green.

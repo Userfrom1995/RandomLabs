@@ -71,8 +71,8 @@ wasm, and `browser-e2e.js` is ALL GREEN. macOS and Windows terminal rows
 stay with the per-OS testers; no claim here exceeds the executed Linux
 rows.
 
-Workspace gates: public count 561 across 61 targets (full workspace rerun
-on this head), harness contract 47/47, `maze-chase-verify`
+Workspace gates: public count 568 across 61 targets (full workspace rerun
+on this head under Xvfb), harness contract 47/47, `maze-chase-verify`
 19/19 (`23c17f89734e`; `perf-headless` 0.2-0.4 us/tick on CI reruns),
 wasm sha256 `ae474117...`, `cargo fmt --all --check` clean, and clippy
 reports only the pre-existing engine style lints.
@@ -1287,4 +1287,33 @@ Next: Phase 5 (sound design overhaul).
   sites, the stale prose, and a fake-fetch fixture; the primary context
   re-read the edited files, rebuilt and hashed the wasm, and ran every
   test and E2E command above. No registry skill matched; none loaded.
+  - the Fixer
+
+- 2026-10-20 (fixer, Round 15 review on `ee601779`): applied all ten
+  findings. The terminal fright readout is now width-aware (label plus
+  bar scaled to the remaining cells, `TURN ENDS` in reduced flash) and
+  both the side panel and 62-column Sprint top bar clip every line, with
+  a 170x64/62x35 rendered-rect integration test. The browser title card
+  centers below the sticky header through `--header-h`/`--header-half`,
+  and browser E2E checks header clearance, centering, and heading hit
+  testing at 320x480, 360x640, 375x667, and 390x844. `docs/design.md`
+  and `docs/design-tokens.json` now name only shipped effects and the
+  complete reduced-flash/reduced-motion source lists. The desktop title
+  skips the menu overlay when the window is too small for the three-detail
+  card. The pause panel drops the false `aria-modal`, and browser E2E
+  proves header Mute stays reachable while paused. QuitToTitle rebuilds
+  a fresh board (spawn crumb banked, score 10) on desktop and terminal.
+  The web build docs copy the wasm to `web/maze-chase.wasm`, and the
+  boot gate requires the new fright/theme/difficulty exports with
+  per-group missing-export cases. Test gaps closed: scoped attract-call
+  context, two-state death window, hollow fright-mask center, entry-morph
+  ID at t=0, and a high-contrast effective-theme browser assertion.
+  Verification: full workspace 568 passed / 0 failed across 61 targets
+  under Xvfb, harness 47/47, `maze-chase-verify` 19/19 (`23c17f89734e`),
+  fmt clean, clippy only the pre-existing engine lint, wasm unchanged
+  `ae474117...` (206,711 bytes, ABI 2), and `wasm-smoke.js`,
+  `tester-regression.js`, `boot-gate-e2e.js`, and `browser-e2e.js` ALL
+  GREEN. No subagents were dispatched; the primary context edited,
+  formatted, and ran every gate above. No registry skill matched; none
+  loaded.
   - the Fixer

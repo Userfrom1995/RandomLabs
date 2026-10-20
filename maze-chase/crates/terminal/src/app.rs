@@ -253,7 +253,13 @@ impl App {
                 self.quit = true;
             }
             Event::QuitToTitle => {
+                let p = preset(self.settings.difficulty);
+                self.seed_counter += 1;
+                let seed = fresh_seed().wrapping_add(self.seed_counter);
+                self.game = Game::with_mode(seed, p.start_level, p.mode);
+                self.pending_dir = None;
                 self.was_running = false;
+                self.ticker = None;
                 self.screens.show(ScreenId::Title);
                 self.apply_tune();
             }
@@ -491,6 +497,23 @@ mod tests {
         a.on_key(key(KeyCode::Enter));
         assert_eq!(a.screens.current, ScreenId::Playing);
         assert!(a.was_running);
+    }
+
+    #[test]
+    fn quit_to_title_restores_a_fresh_board() {
+        let mut a = app();
+        a.on_key(key(KeyCode::Enter));
+        a.tick(1.0 / 60.0);
+        assert!(a.game.tick_count > 0);
+        a.game.score = 4321;
+        a.game.lives = 0;
+        a.apply_event(Event::QuitToTitle);
+        assert_eq!(a.screens.current, ScreenId::Title);
+        assert_eq!(a.game.tick_count, 0, "title attract starts unmoved");
+        assert_eq!(a.game.score, 10, "the fresh board banks its spawn crumb");
+        assert!(a.game.lives > 0, "a fresh board restores lives");
+        assert!(!a.was_running);
+        let _ = std::fs::remove_dir_all(&a.dir);
     }
 
     #[test]

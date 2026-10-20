@@ -415,10 +415,11 @@ committed-turn cue that lasts to the next junction: a 7x7 glyph spark
 at the turn corner on cells, kitty, desktop, and web, recolored to the
 theme text color under fright (never body color), static facing notch
 only on sixel. Wisps are cut entirely (they showed history, not
-intent). Eyes travel with a 3-frame ripple trail on cells and kitty
-(never sixel, never reduced motion). Gate state is a two-state door
-shape change (barred and unbarred) plus an optional accent blend pulse
-capped at 2 Hz and registered as a flash source. Key press
+intent). Eyes return as the shared overlay (the 3-frame ripple trail
+and the 6-frame bubble-up revive are deferred targets, not shipped).
+Gate state is a two-state door shape change (barred and unbarred); the
+optional accent blend pulse is not shipped, so it registers no flash
+source. Key press
 acknowledgment, focus, and press states render within one frame budget
 on every layer; error text never shakes.
 
