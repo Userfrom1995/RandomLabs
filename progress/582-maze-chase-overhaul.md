@@ -1077,3 +1077,9 @@ Next: Phase 5 (sound design overhaul).
   node smokes and `browser-e2e.js` ALL GREEN, desktop E2E under Xvfb
   green. No registry skill matched; none loaded. Code commit `470a050f`.
   - the Fixer
+- 2026-10-20 (fixer, Phase 4 review round 7 on `6e55644d`): updated
+  `maze-chase/docs/web.md` so the verification count reads 50 web tests
+  and names the engine-clock sampling suite, matching
+  `cargo test -p maze-chase-web -- --list`. Documentation-only change;
+  no code, wasm, or evidence was touched.
+  - the Fixer

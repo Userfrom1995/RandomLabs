@@ -101,10 +101,10 @@ so the HUD previews that state until you press Start.
 
 ## Verification
 
-- `cargo test -p maze-chase-web`: 49 tests (board composition and
+- `cargo test -p maze-chase-web`: 50 tests (board composition and
   determinism, canvas fit/blit math, keyboard/touch mapping, rebind
   steal rules, score table, cue/SFX/tune routing, session flow,
-  hostile bridge probes).
+  hostile bridge probes, engine-clock sampling).
 - Node instantiation of the release `.wasm`: zero imports, scoring
   through the real ABI, bit-identical frames across instances, audio
   tables resolving from crate data.
