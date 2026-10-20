@@ -208,6 +208,12 @@ pub extern "C" fn mc_fright_flash() -> u32 {
     u32::from(session().game().wardens.fright_flashing())
 }
 
+/// Lit segments in the fright countdown (0 outside the final 1.5 s).
+#[no_mangle]
+pub extern "C" fn mc_fright_segments() -> u32 {
+    maze_chase_assets::anim::fright_bar_segments(session().game().wardens.fright_t) as u32
+}
+
 /// 1 while a bonus relish waits on its tile.
 #[no_mangle]
 pub extern "C" fn mc_relish_active() -> u32 {
