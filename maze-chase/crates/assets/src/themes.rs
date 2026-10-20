@@ -1,4 +1,14 @@
-//! Original color themes for Maze Chase (no I/O, no dependencies).
+//! Pondwake color themes for Maze Chase (no I/O, no dependencies).
+//!
+//! The three launch themes are Dusk Pond (dark default), Morning Shallows
+//! (light) and Moonwake (high contrast). Every palette value mirrors the
+//! binding `docs/design-tokens.json` companion file; the `themes` section of
+//! that file is generated from these constants and checked by the test at the
+//! bottom of this module.
+//!
+//! Legacy ids (`ember-warren`, `abyss-lantern`, `parchment-dawn`) still resolve
+//! through [`by_id`] so a settings file written before the identity refresh
+//! boots into the matching Pondwake theme instead of falling back blindly.
 
 /// An sRGB color.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -26,77 +36,94 @@ pub struct Theme {
     pub accent: Rgb,
 }
 
-/// Launch theme: deep charcoal-brown background, ember-orange walls.
-pub const EMBER_WARREN: Theme = Theme {
-    id: "ember-warren",
-    name: "Ember Warren",
-    bg: Rgb(24, 16, 12),
-    wall: Rgb(232, 110, 40),
-    wall_inner: Rgb(120, 52, 22),
-    crumb: Rgb(235, 200, 150),
-    sunseed: Rgb(255, 215, 120),
-    pip: Rgb(255, 225, 130),
-    bram: Rgb(230, 70, 40),
-    kessa: Rgb(60, 200, 180),
-    jory: Rgb(240, 180, 60),
-    nib: Rgb(170, 120, 230),
-    fright: Rgb(235, 240, 245),
-    eyes: Rgb(255, 255, 255),
-    text: Rgb(245, 230, 200),
-    dim_text: Rgb(170, 140, 115),
-    accent: Rgb(255, 150, 60),
+/// Dusk Pond (dark default): deep water, mossy banks, Rill's pond green.
+pub const DUSK_POND: Theme = Theme {
+    id: "dusk-pond",
+    name: "Dusk Pond",
+    bg: Rgb(0x0E, 0x1E, 0x1C),
+    wall: Rgb(0x38, 0x85, 0x6F),
+    wall_inner: Rgb(0x1C, 0x4A, 0x40),
+    crumb: Rgb(0x9F, 0xB5, 0x9B),
+    sunseed: Rgb(0xF2, 0xC1, 0x4E),
+    pip: Rgb(0x7E, 0xD9, 0x57),
+    bram: Rgb(0x5F, 0x87, 0xB8),
+    kessa: Rgb(0x3E, 0x9B, 0x6E),
+    jory: Rgb(0xF2, 0x5E, 0x4A),
+    nib: Rgb(0xBE, 0x8B, 0x2A),
+    fright: Rgb(0xC8, 0xF2, 0xEA),
+    eyes: Rgb(0xD8, 0xF4, 0xE8),
+    text: Rgb(0xE8, 0xF0, 0xE6),
+    dim_text: Rgb(0x9F, 0xB3, 0xA6),
+    accent: Rgb(0xF0, 0xB4, 0x5A),
 };
 
-/// Dark-blue abyss theme: deep-sea background, bright signal walls.
-pub const ABYSS_LANTERN: Theme = Theme {
-    id: "abyss-lantern",
-    name: "Abyss Lantern",
-    bg: Rgb(8, 18, 38),
-    wall: Rgb(70, 140, 220),
-    wall_inner: Rgb(30, 70, 130),
-    crumb: Rgb(200, 220, 235),
-    sunseed: Rgb(255, 230, 140),
-    pip: Rgb(255, 240, 170),
-    bram: Rgb(255, 90, 70),
-    kessa: Rgb(70, 220, 200),
-    jory: Rgb(255, 200, 90),
-    nib: Rgb(160, 140, 255),
-    fright: Rgb(230, 245, 255),
-    eyes: Rgb(255, 255, 255),
-    text: Rgb(220, 235, 245),
-    dim_text: Rgb(140, 165, 190),
-    accent: Rgb(90, 200, 255),
+/// Morning Shallows (light): pale sand-water with wet dark stone.
+pub const MORNING_SHALLOWS: Theme = Theme {
+    id: "morning-shallows",
+    name: "Morning Shallows",
+    bg: Rgb(0xF4, 0xF7, 0xF2),
+    wall: Rgb(0x2C, 0x7A, 0x5B),
+    wall_inner: Rgb(0xA8, 0xC9, 0xB8),
+    crumb: Rgb(0x7A, 0x8A, 0x80),
+    sunseed: Rgb(0xA8, 0x64, 0x08),
+    pip: Rgb(0x2F, 0x9E, 0x4F),
+    bram: Rgb(0x3B, 0x5C, 0x8F),
+    kessa: Rgb(0x1F, 0x7A, 0x4D),
+    jory: Rgb(0xC7, 0x4A, 0x33),
+    nib: Rgb(0x8A, 0x6A, 0x1C),
+    fright: Rgb(0x24, 0x12, 0x38),
+    eyes: Rgb(0x16, 0x20, 0x1D),
+    text: Rgb(0x1B, 0x2A, 0x33),
+    dim_text: Rgb(0x5C, 0x6F, 0x66),
+    accent: Rgb(0xB3, 0x5A, 0x2B),
 };
 
-/// Light theme: warm parchment background, dark umber text and walls.
-pub const PARCHMENT_DAWN: Theme = Theme {
-    id: "parchment-dawn",
-    name: "Parchment Dawn",
-    bg: Rgb(242, 230, 200),
-    wall: Rgb(150, 90, 40),
-    wall_inner: Rgb(190, 150, 100),
-    crumb: Rgb(120, 85, 45),
-    sunseed: Rgb(200, 130, 20),
-    pip: Rgb(170, 95, 15),
-    bram: Rgb(180, 50, 30),
-    kessa: Rgb(20, 130, 125),
-    jory: Rgb(180, 120, 20),
-    nib: Rgb(110, 70, 170),
-    fright: Rgb(150, 70, 70),
-    eyes: Rgb(250, 250, 245),
-    text: Rgb(46, 30, 20),
-    dim_text: Rgb(110, 90, 70),
-    accent: Rgb(200, 90, 30),
+/// Moonwake (high contrast): near-black water, bright moonlit edges.
+pub const MOONWAKE: Theme = Theme {
+    id: "moonwake",
+    name: "Moonwake",
+    bg: Rgb(0x06, 0x08, 0x0C),
+    wall: Rgb(0x26, 0xA0, 0x88),
+    wall_inner: Rgb(0x0F, 0x4A, 0x3E),
+    crumb: Rgb(0xB9, 0xC7, 0xD1),
+    sunseed: Rgb(0xFF, 0xD8, 0x4D),
+    pip: Rgb(0x6B, 0xE8, 0x6B),
+    bram: Rgb(0x5F, 0xA8, 0xFF),
+    kessa: Rgb(0x35, 0xD0, 0x6A),
+    jory: Rgb(0xFF, 0x6B, 0x4A),
+    nib: Rgb(0xFF, 0xC9, 0x3C),
+    fright: Rgb(0xE8, 0xFF, 0xF8),
+    eyes: Rgb(0xE0, 0xFF, 0xF6),
+    text: Rgb(0xF2, 0xF7, 0xF5),
+    dim_text: Rgb(0xA9, 0xBF, 0xB8),
+    accent: Rgb(0x7F, 0xE8, 0xFF),
 };
 
-/// All themes in stable order.
+/// All themes in stable order: dark default, light, high contrast.
 pub fn all() -> [&'static Theme; 3] {
-    [&EMBER_WARREN, &ABYSS_LANTERN, &PARCHMENT_DAWN]
+    [&DUSK_POND, &MORNING_SHALLOWS, &MOONWAKE]
 }
 
-/// Look up a theme by its id.
+/// Look up a theme by id, including the pre-refresh legacy ids.
 pub fn by_id(id: &str) -> Option<&'static Theme> {
-    all().into_iter().find(|t| t.id == id)
+    match id {
+        "dusk-pond" | "ember-warren" => Some(&DUSK_POND),
+        "morning-shallows" | "parchment-dawn" => Some(&MORNING_SHALLOWS),
+        "moonwake" | "abyss-lantern" => Some(&MOONWAKE),
+        _ => None,
+    }
+}
+
+/// Canonical id for any accepted theme id (old ids migrate forward).
+pub fn canonical_id(id: &str) -> Option<&'static str> {
+    by_id(id).map(|t| t.id)
+}
+
+/// Blend two colors by `t` (`0.0` returns `a`, `1.0` returns `b`).
+pub fn mix(a: Rgb, b: Rgb, t: f32) -> Rgb {
+    let t = t.clamp(0.0, 1.0);
+    let lerp = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round() as u8;
+    Rgb(lerp(a.0, b.0), lerp(a.1, b.1), lerp(a.2, b.2))
 }
 
 #[cfg(test)]
@@ -151,10 +178,20 @@ mod tests {
         ids.sort_unstable();
         ids.dedup();
         assert_eq!(ids.len(), 3, "theme ids must be unique");
-        assert_eq!(by_id("ember-warren").unwrap().name, "Ember Warren");
-        assert_eq!(by_id("abyss-lantern").unwrap().name, "Abyss Lantern");
-        assert_eq!(by_id("parchment-dawn").unwrap().name, "Parchment Dawn");
+        assert_eq!(by_id("dusk-pond").unwrap().name, "Dusk Pond");
+        assert_eq!(by_id("morning-shallows").unwrap().name, "Morning Shallows");
+        assert_eq!(by_id("moonwake").unwrap().name, "Moonwake");
         assert!(by_id("no-such-theme").is_none());
+    }
+
+    #[test]
+    fn legacy_ids_migrate_forward() {
+        assert_eq!(by_id("ember-warren").unwrap().id, "dusk-pond");
+        assert_eq!(by_id("parchment-dawn").unwrap().id, "morning-shallows");
+        assert_eq!(by_id("abyss-lantern").unwrap().id, "moonwake");
+        assert_eq!(canonical_id("ember-warren"), Some("dusk-pond"));
+        assert_eq!(canonical_id("moonwake"), Some("moonwake"));
+        assert_eq!(canonical_id(""), None);
     }
 
     #[test]
@@ -166,6 +203,29 @@ mod tests {
                 "theme {} text/bg contrast {ratio:.2} < 4.5",
                 t.id
             );
+        }
+    }
+
+    #[test]
+    fn design_gates_hold_per_theme() {
+        for t in all() {
+            assert!(
+                contrast_ratio(t.fright, t.wall) >= 3.0,
+                "theme {} fright/wall below 3.0",
+                t.id
+            );
+            assert!(
+                contrast_ratio(t.eyes, t.bg) >= 3.0,
+                "theme {} eyes/bg below 3.0",
+                t.id
+            );
+            assert!(
+                contrast_ratio(t.eyes, t.wall) >= 3.0,
+                "theme {} eyes/wall below 3.0",
+                t.id
+            );
+            assert_ne!(t.fright, Rgb(255, 255, 255));
+            assert_ne!(t.fright, t.eyes);
         }
     }
 
@@ -188,9 +248,20 @@ mod tests {
 
     #[test]
     fn light_and_dark_backgrounds() {
-        assert!(luminance(PARCHMENT_DAWN.bg) > 0.4);
-        assert!(luminance(EMBER_WARREN.bg) < 0.25);
-        assert!(luminance(ABYSS_LANTERN.bg) < 0.25);
+        assert!(luminance(MORNING_SHALLOWS.bg) > 0.4);
+        assert!(luminance(DUSK_POND.bg) < 0.25);
+        assert!(luminance(MOONWAKE.bg) < 0.25);
+    }
+
+    #[test]
+    fn mix_hits_both_ends_and_clamps() {
+        let a = Rgb(0, 0, 0);
+        let b = Rgb(255, 255, 255);
+        assert_eq!(mix(a, b, 0.0), a);
+        assert_eq!(mix(a, b, 1.0), b);
+        assert_eq!(mix(a, b, -1.0), a);
+        assert_eq!(mix(a, b, 2.0), b);
+        assert_eq!(mix(a, b, 0.5), Rgb(128, 128, 128));
     }
 
     fn hex(c: Rgb) -> String {
@@ -200,7 +271,7 @@ mod tests {
     #[test]
     fn tokens_mirror_theme_palettes() {
         // docs/design-tokens.json is the machine companion of design.md;
-        // its hex values must match these Rust originals exactly.
+        // its launch-theme hex values must match these Rust originals exactly.
         let tokens = include_str!("../../../docs/design-tokens.json");
         for t in all() {
             let pairs = [
