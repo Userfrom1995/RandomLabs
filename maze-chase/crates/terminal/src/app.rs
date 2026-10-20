@@ -405,16 +405,21 @@ impl App {
             .unwrap_or(&maze_chase_assets::themes::DUSK_POND)
     }
 
+    /// Accessibility and staging options for the current settings.
+    ///
+    /// Every gameplay render path (bitmap, cell, atlas, and the staged
+    /// title/pause boards) takes its flags from here, so reduced flash and
+    /// reduced motion can never diverge between surfaces.
+    pub fn fx(&self) -> maze_chase_assets::anim::Fx {
+        maze_chase_assets::anim::Fx::new(!self.settings.reduced_flash, self.settings.reduced_motion)
+    }
+
     /// Render a bitmap PNG of the current game frame (Kitty/Sixel tiers)
     /// at the plan's raster scale: the real cell pixel size when the
     /// terminal reports it (issue #673).
     pub fn bitmap_png(&self) -> Vec<u8> {
-        let frame = crate::raster::render(
-            &self.game,
-            self.theme(),
-            self.layout.ppt(),
-            !self.settings.reduced_flash,
-        );
+        let frame =
+            crate::raster::render_opts(&self.game, self.theme(), self.layout.ppt(), self.fx());
         crate::kitty::png_encode(&frame)
     }
 }
@@ -457,6 +462,25 @@ mod tests {
             kind: KeyEventKind::Press,
             state: KeyEventState::empty(),
         }
+    }
+
+    #[test]
+    fn bitmap_png_carries_both_accessibility_flags() {
+        let mut a = app();
+        a.settings.reduced_flash = false;
+        a.settings.reduced_motion = true;
+        assert_eq!(a.fx(), maze_chase_assets::anim::Fx::new(true, true));
+        let expected = crate::kitty::png_encode(&crate::raster::render_opts(
+            &a.game,
+            a.theme(),
+            a.layout.ppt(),
+            a.fx(),
+        ));
+        assert_eq!(
+            a.bitmap_png(),
+            expected,
+            "the bitmap path must render with both reduced flags"
+        );
     }
 
     #[test]
