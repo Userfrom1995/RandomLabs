@@ -226,15 +226,14 @@ jobs:
           echo "Evidence gate passed: $good non-test command(s) recorded against the deliverable."
 
       - name: Post Quality Council result as bot (never as owner, never with /oc prefix)
+        id: post-result
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set +e
-
           if [ ! -f /tmp/evaluator-decision.json ]; then
-            echo "No evaluator decision file found; nothing to post."
-            exit 0
+            echo "::error::No evaluator decision file found; the verify step above should have failed closed (issue #713)."
+            exit 1
           fi
 
           # Read structured decision.
@@ -255,13 +254,41 @@ jobs:
             body="Quality Council INCOMPLETE - Action: ${action}. Score: ${score}. ${summary} - The Quality Council (Evaluator)"
           fi
 
-          # Always post back to the PR so the pipeline has an auditable record.
+          # Issue #713: the signed result must actually be on the thread before
+          # any approval marker can be published, so the marker step is gated on
+          # this step's outcome. Post through the API, capture the comment id,
+          # and re-fetch it to verify bot authorship and the exact body; a
+          # failed or unverifiable post fails this step closed instead of
+          # leaving an approval marker without its signed verdict.
           echo "Posting evaluation result to PR/issue..."
-          gh issue comment "${{ github.event.issue.number }}" --repo "${{ github.repository }}" --body "$body" || true
+          response=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments" -f body="$body" 2>&1) || {
+            echo "::error::Posting the Quality Council result failed; refusing to publish an approval marker without its signed verdict (issue #713)."
+            exit 1
+          }
+          comment_id=$(printf '%s' "$response" | jq -r '.id // empty' 2>/dev/null || true)
+          if [ -z "$comment_id" ]; then
+            echo "::error::The GitHub API accepted the Quality Council result but returned no comment id; cannot verify it persisted (issue #713)."
+            exit 1
+          fi
+          fetched=$(gh api "repos/${{ github.repository }}/issues/comments/${comment_id}" 2>&1) || {
+            echo "::error::Could not re-fetch the Quality Council result comment ${comment_id}; refusing to hand an unverified verdict onward (issue #713)."
+            exit 1
+          }
+          author=$(printf '%s' "$fetched" | jq -r '.user.login // empty' 2>/dev/null || true)
+          fetched_body=$(printf '%s' "$fetched" | jq -r '.body // empty' 2>/dev/null | tr -d '\r' || true)
+          if [ "$author" != "github-actions[bot]" ]; then
+            echo "::error::Quality Council result comment ${comment_id} is authored by '${author}', not github-actions[bot] (issue #713)."
+            exit 1
+          fi
+          if [ "$fetched_body" != "$body" ]; then
+            echo "::error::Quality Council result comment ${comment_id} does not carry the exact signed body; refusing to hand an unverified verdict onward (issue #713)."
+            exit 1
+          fi
+          echo "Verified bot-authored Quality Council result comment ${comment_id}."
 
       - name: Publish eval approval marker (bot-authored)
         id: marker
-        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success' && steps.post-result.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
