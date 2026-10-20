@@ -315,12 +315,6 @@ fn paint_tiles(frame: &mut PixelFrame, game: &Game, theme: &Theme, ppt: i32, cru
     }
 }
 
-/// Sunseed halo phase at a render frame (alternates every 24 frames,
-/// about 0.4 s at the 60 fps cell cadence).
-pub fn sunseed_halo(frame_no: u64) -> bool {
-    (frame_no / 24) % 2 == 1
-}
-
 /// Pulsing sunseed glyphs, painted after the pond so the overflow is
 /// never clipped by a later-painted neighbour wall.
 fn paint_sunseeds(
@@ -333,7 +327,7 @@ fn paint_sunseeds(
 ) {
     let crumb_field = game.maze.dot_bytes();
     let stride = (WIDTH * HEIGHT) as usize;
-    let glyph = if sunseed_halo(frame_no) {
+    let glyph = if anim::sunseed_halo(frame_no) {
         &sprites::SUNSEED_B
     } else {
         &sprites::SUNSEED_A
@@ -395,7 +389,12 @@ fn paint_wardens(
     flash: bool,
 ) {
     let fright = game.wardens.fright_active();
-    let flash_on = flash && anim::fright_flash_on(game.wardens.fright_t);
+    let fright_elapsed = game.wardens.fright_total - game.wardens.fright_t;
+    let flash_t_left = if flash {
+        game.wardens.fright_t
+    } else {
+        f32::INFINITY
+    };
     let bodies = [theme.bram, theme.kessa, theme.jory, theme.nib];
     for warden in game.wardens.wardens.iter() {
         let cx = (warden.actor.x * ppt as f32) as i32;
@@ -421,14 +420,10 @@ fn paint_wardens(
                     _ => &sprites::WARDEN_NIB,
                 };
                 if fright && warden.state == WardenState::Active {
-                    let morph = !game.wardens.fright_total.is_finite()
-                        || game.wardens.fright_total - game.wardens.fright_t < 0.25;
-                    let mask: &[&str] = if morph {
-                        &sprites::FRIGHT_MASK_ENTRY
-                    } else if flash_on {
-                        &sprites::FRIGHT_MASK_FLASH
-                    } else {
-                        &sprites::FRIGHT_MASK
+                    let mask: &[&str] = match anim::fright_mask_id(fright_elapsed, flash_t_left) {
+                        "fright_entry" => &sprites::FRIGHT_MASK_ENTRY,
+                        "fright_mask_flash" => &sprites::FRIGHT_MASK_FLASH,
+                        _ => &sprites::FRIGHT_MASK,
                     };
                     paint_glyph(
                         frame,
@@ -631,28 +626,35 @@ mod tests {
     }
 
     #[test]
-    fn level_clear_sweep_and_banner_paint_then_hold() {
+    fn level_clear_sweep_and_banner_paint_in_sequence() {
         let theme = themes::DUSK_POND;
-        let mut g = fresh();
-        g.state = maze_chase_engine::game::GameState::Clearing;
-        let early = render(&g, &theme, 8, 0, true);
-        let mut later = fresh();
-        later.state = maze_chase_engine::game::GameState::Clearing;
-        for _ in 0..60 {
-            later.tick(1.0 / 120.0);
-        }
-        let swept = render(&later, &theme, 8, 0, true);
-        assert_ne!(early.px, swept.px, "the sweep must move across the board");
-        // The lily-crown banner is only up for the first 900 ms.
-        let mut after = fresh();
-        after.state = maze_chase_engine::game::GameState::Clearing;
-        for _ in 0..120 {
-            after.tick(1.0 / 120.0);
-        }
-        let held = render(&after, &theme, 8, 0, true);
+        let render_at = |elapsed: f32| {
+            let mut g = fresh();
+            g.state = maze_chase_engine::game::GameState::Clearing;
+            if elapsed > 0.0 {
+                g.tick(elapsed);
+            }
+            render(&g, &theme, 8, 0, true)
+        };
+        let early = render_at(0.0);
+        let sweeping = render_at(0.1);
+        let bannered = render_at(0.5);
+        let done = render_at(1.3);
+        assert_ne!(
+            early.px, sweeping.px,
+            "the sweep must move across the board"
+        );
+        assert_ne!(
+            early.px, bannered.px,
+            "the lily-crown banner must paint after the sweep"
+        );
         assert!(
-            held.count(theme.accent) < early.count(theme.accent),
-            "banner must not stay for the whole clear window"
+            bannered.count(theme.accent) > early.count(theme.accent),
+            "the banner adds accent pixels"
+        );
+        assert!(
+            done.count(theme.accent) < bannered.count(theme.accent),
+            "both clear effects must end inside the clear window"
         );
     }
 

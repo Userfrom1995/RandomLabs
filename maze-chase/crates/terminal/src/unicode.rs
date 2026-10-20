@@ -197,7 +197,13 @@ pub fn render_board(
     let field = game.maze.dot_bytes();
     let stride = (WIDTH * HEIGHT) as usize;
     let fright = game.wardens.fright_active();
-    let flash_on = flash && anim::fright_flash_on(game.wardens.fright_t);
+    let fright_elapsed = game.wardens.fright_total - game.wardens.fright_t;
+    let flash_t_left = if flash {
+        game.wardens.fright_t
+    } else {
+        f32::INFINITY
+    };
+    let fright_mask = anim::fright_mask_id(fright_elapsed, flash_t_left);
     let bodies = [theme.bram, theme.kessa, theme.jory, theme.nib];
 
     // Actor overlay lookup: tile -> (text, color).
@@ -206,9 +212,14 @@ pub fn render_board(
         let t = tile_of(warden.actor.x, warden.actor.y);
         let (text, color) = match warden.state {
             WardenState::Eyes => ("''", theme.eyes),
-            _ if fright && warden.state == WardenState::Active => {
-                (if flash_on { "##" } else { "FF" }, theme.fright)
-            }
+            _ if fright && warden.state == WardenState::Active => (
+                if fright_mask == "fright_mask" {
+                    "FF"
+                } else {
+                    "##"
+                },
+                theme.fright,
+            ),
             _ => {
                 let letter = match warden.index {
                     0 => "BB",
@@ -318,8 +329,14 @@ pub fn render_board(
                     let centered = row_sub >= first && row_sub <= last;
                     let i = (ty * WIDTH + tx) as usize;
                     if field.get(stride + i).copied().unwrap_or(0) == 1 {
-                        let halo = (frame_no / 24) % 2 == 1;
-                        let s = fit_width(if halo { "○○" } else { "●●" }, cw);
+                        let s = fit_width(
+                            if anim::sunseed_halo(frame_no) {
+                                "○○"
+                            } else {
+                                "●●"
+                            },
+                            cw,
+                        );
                         (
                             if centered { pick(&s) } else { ' ' },
                             if centered { theme.sunseed } else { theme.bg },
@@ -503,11 +520,20 @@ mod tests {
     #[test]
     fn fright_masks_show_in_cells() {
         let theme = &themes::DUSK_POND;
+        let l = layout::compute(100, 40);
         let mut g = game();
         g.wardens.start_fright(6.0);
-        let l = layout::compute(100, 40);
-        let s = render_board(&g, theme, &l, 0, true);
-        assert!(s.to_ansi(true).contains("FF"));
+        let entry = render_board(&g, theme, &l, 0, true).to_ansi(true);
+        assert!(entry.contains("##"), "the entry morph shows first");
+
+        g.wardens.fright_t = 5.5;
+        let steady = render_board(&g, theme, &l, 0, true).to_ansi(true);
+        assert!(steady.contains("FF"), "the steady mask shows");
+        assert!(!steady.contains("##"));
+
+        g.wardens.fright_t = 1.3;
+        let flash = render_board(&g, theme, &l, 0, true).to_ansi(true);
+        assert!(flash.contains("##"), "the flash phase shows");
     }
 
     #[test]
@@ -530,7 +556,7 @@ mod tests {
         assert!(banner.contains("YY"), "the lily banner must paint");
         assert!(!banner.contains("▓▓"), "the sweep has passed");
 
-        g.tick(0.6);
+        g.tick(1.0);
         let late = render_board(&g, theme, &l, 0, true).to_ansi(true);
         assert!(!late.contains("▓▓") && !late.contains("YY"));
     }

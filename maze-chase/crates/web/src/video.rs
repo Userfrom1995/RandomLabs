@@ -181,10 +181,7 @@ pub fn render_board(game: &Game, theme: &Theme, frame_no: u64, flash: bool) -> F
                         );
                     }
                     if crumb_field.get(stride + i).copied().unwrap_or(0) == 1 {
-                        // Sunseed pulse: halo frame alternates every ~0.4 s
-                        // at 60 fps render cadence.
-                        let halo = (frame_no / 24) % 2 == 1;
-                        let glyph: &[&str] = if halo {
+                        let glyph: &[&str] = if anim::sunseed_halo(frame_no) {
                             &sprites::SUNSEED_B
                         } else {
                             &sprites::SUNSEED_A
@@ -226,7 +223,12 @@ pub fn render_board(game: &Game, theme: &Theme, frame_no: u64, flash: bool) -> F
 
     // Wardens under Pip (Pip paints last).
     let fright = game.wardens.fright_active();
-    let flash_on = flash && anim::fright_flash_on(game.wardens.fright_t);
+    let fright_elapsed = game.wardens.fright_total - game.wardens.fright_t;
+    let flash_t_left = if flash {
+        game.wardens.fright_t
+    } else {
+        f32::INFINITY
+    };
     let bodies = [theme.bram, theme.kessa, theme.jory, theme.nib];
     for warden in game.wardens.wardens.iter() {
         let cx = (warden.actor.x * PPT as f32) as i32;
@@ -247,14 +249,10 @@ pub fn render_board(game: &Game, theme: &Theme, frame_no: u64, flash: bool) -> F
                     _ => &sprites::WARDEN_NIB,
                 };
                 if fright && warden.state == WardenState::Active {
-                    let morph = !game.wardens.fright_total.is_finite()
-                        || game.wardens.fright_total - game.wardens.fright_t < 0.25;
-                    let mask: &[&str] = if morph {
-                        &sprites::FRIGHT_MASK_ENTRY
-                    } else if flash_on {
-                        &sprites::FRIGHT_MASK_FLASH
-                    } else {
-                        &sprites::FRIGHT_MASK
+                    let mask: &[&str] = match anim::fright_mask_id(fright_elapsed, flash_t_left) {
+                        "fright_entry" => &sprites::FRIGHT_MASK_ENTRY,
+                        "fright_mask_flash" => &sprites::FRIGHT_MASK_FLASH,
+                        _ => &sprites::FRIGHT_MASK,
                     };
                     paint_glyph(
                         &mut frame,
@@ -651,11 +649,15 @@ mod tests {
     fn left_facing_warden_eyes_are_mirrored() {
         let theme = themes::DUSK_POND;
         let mut g = fresh();
-        for (i, warden) in g.wardens.wardens.iter_mut().enumerate() {
+        for warden in g.wardens.wardens.iter_mut() {
             warden.state = WardenState::Active;
-            warden.actor.x = 2.0 + i as f32 * 3.0;
-            warden.actor.y = 2.0;
         }
+        // A wall corner keeps the 7x7 eye window free of pickups and Pip,
+        // and Kessa carries no body highlight in the eyes color, so every
+        // sampled eye pixel comes from the direction overlay itself.
+        g.wardens.wardens[0].index = 1;
+        g.wardens.wardens[0].actor.x = 0.5;
+        g.wardens.wardens[0].actor.y = 0.5;
         g.wardens.fright_t = 0.0;
         let cx = (g.wardens.wardens[0].actor.x * BOARD_PPT as f32) as i32;
         let cy = (g.wardens.wardens[0].actor.y * BOARD_PPT as f32) as i32 - 1;
@@ -676,11 +678,17 @@ mod tests {
         let left = eye_positions(&render_board(&g, &theme, 0, true));
         g.wardens.wardens[0].actor.dir = Dir::Right;
         let right = eye_positions(&render_board(&g, &theme, 0, true));
-        let left_only: std::collections::BTreeSet<_> = left.difference(&right).copied().collect();
-        let right_only: std::collections::BTreeSet<_> = right.difference(&left).copied().collect();
-        let mirrored: std::collections::BTreeSet<_> =
-            right_only.iter().map(|&(dx, dy)| (-dx, dy)).collect();
-        assert_eq!(left_only, mirrored, "left eyes must mirror right eyes");
+        assert!(
+            !right.is_empty(),
+            "the right-facing eye pixels must be found"
+        );
+        let mirror: std::collections::BTreeSet<_> =
+            right.iter().map(|&(dx, dy)| (-dx, dy)).collect();
+        assert_ne!(
+            left, right,
+            "left-facing eyes must differ from right-facing eyes"
+        );
+        assert_eq!(left, mirror, "left eyes must be the horizontal mirror");
     }
 
     #[test]

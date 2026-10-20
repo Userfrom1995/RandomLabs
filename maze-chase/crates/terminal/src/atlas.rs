@@ -376,7 +376,7 @@ pub fn placements(
     let mut out = Vec::new();
     let crumb_field = game.maze.dot_bytes();
     let stride = (WIDTH * HEIGHT) as usize;
-    let sunseed = if raster::sunseed_halo(frame_no) {
+    let sunseed = if anim::sunseed_halo(frame_no) {
         slot::SUNSEED_B
     } else {
         slot::SUNSEED_A
@@ -424,7 +424,12 @@ pub fn placements(
     }
 
     let fright = game.wardens.fright_active();
-    let flash_on = flash && anim::fright_flash_on(game.wardens.fright_t);
+    let fright_elapsed = game.wardens.fright_total - game.wardens.fright_t;
+    let flash_t_left = if flash {
+        game.wardens.fright_t
+    } else {
+        f32::INFINITY
+    };
     for warden in game.wardens.wardens.iter() {
         let cx = (warden.actor.x * ppt as f32) as i32;
         let cy = (warden.actor.y * ppt as f32) as i32;
@@ -440,14 +445,10 @@ pub fn placements(
             }
             _ => {
                 if fright && warden.state == WardenState::Active {
-                    let morph = !game.wardens.fright_total.is_finite()
-                        || game.wardens.fright_total - game.wardens.fright_t < 0.25;
-                    let mask = if morph {
-                        slot::FRIGHT_ENTRY
-                    } else if flash_on {
-                        slot::FRIGHT_FLASH
-                    } else {
-                        slot::FRIGHT
+                    let mask = match anim::fright_mask_id(fright_elapsed, flash_t_left) {
+                        "fright_entry" => slot::FRIGHT_ENTRY,
+                        "fright_mask_flash" => slot::FRIGHT_FLASH,
+                        _ => slot::FRIGHT,
                     };
                     out.push(atlas.place(
                         100 + warden.index as u32 * 2,

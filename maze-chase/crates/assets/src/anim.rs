@@ -2,8 +2,8 @@
 //!
 //! A [`Clip`] references glyphs by string ID (keys such as `"pip_right_open"`
 //! resolve to the art in [`crate::sprites`]). Helpers like
-//! [`fright_flash_on`] and [`relish_bob`] are pure functions of time so they
-//! are trivially testable.
+//! [`fright_flash_on`], [`fright_mask_id`], and [`relish_bob`] are pure
+//! functions of time so they are trivially testable.
 
 /// A looping (or one-shot) sequence of glyph-ID frames.
 pub struct Clip {
@@ -51,46 +51,29 @@ pub fn death_frame(elapsed: f32) -> usize {
     ((elapsed / DEATH_FRAME_S) as usize).min(crate::sprites::PIP_DEATH.len() - 1)
 }
 
-/// Sunseed halo pulse: one 7x7 -> 9x9 beat every 0.4 s.
-pub const SUNSEED_HALO_S: f32 = 0.4;
-
-/// Whether the wide sunseed halo is shown at `t` seconds.
-pub fn sunseed_halo_on(t: f32) -> bool {
-    if !t.is_finite() {
-        return false;
-    }
-    t.rem_euclid(SUNSEED_HALO_S) < SUNSEED_HALO_S * 0.5
+/// Sunseed halo phase at a render frame.
+///
+/// The two 7x7 sheets alternate every 24 frames at the 60 fps cadence
+/// (400 ms per state, matching the design's halo period). Every renderer
+/// calls this shared helper instead of re-deriving the cadence.
+pub fn sunseed_halo(frame_no: u64) -> bool {
+    (frame_no / 24) % 2 == 1
 }
 
 /// Fright-mask style sequence: entry morph first, then normal or warning.
+///
+/// The entry morph holds for the first 250 ms of the turn; after that the
+/// steady mask shows, or the warning variant during the flash phase. A
+/// reduced-flash caller passes `f32::INFINITY` as `t_left` to hold the
+/// steady mask for the whole window.
 pub fn fright_mask_id(elapsed: f32, t_left: f32) -> &'static str {
-    if !elapsed.is_finite() || elapsed < 0.0 {
-        return "fright_mask";
-    }
-    if elapsed < 0.25 {
+    if !elapsed.is_finite() || elapsed < 0.0 || elapsed < 0.25 {
         return "fright_entry";
     }
     if fright_flash_on(t_left) {
         "fright_mask_flash"
     } else {
         "fright_mask"
-    }
-}
-
-/// Frame index of the four-frame pickup burst at `elapsed` seconds.
-///
-/// Returns `None` once the one-shot has finished. Non-finite or negative
-/// input is treated as the first frame so renderers can stay branch-light.
-pub fn pickup_burst_frame(elapsed: f32) -> Option<usize> {
-    const STEP_S: f32 = 0.0667;
-    if !elapsed.is_finite() || elapsed < 0.0 {
-        return Some(0);
-    }
-    let frame = (elapsed / STEP_S).floor() as usize;
-    if frame >= 4 {
-        None
-    } else {
-        Some(frame)
     }
 }
 
@@ -107,17 +90,9 @@ pub fn level_clear_sweep(t: f32) -> Option<f32> {
 /// Whether the level-clear lily-crown banner is up at `elapsed` seconds.
 ///
 /// The 300 ms sweep lands first; the 9x9 lily crown holds for the next
-/// 900 ms of the 2.0 s clear window.
+/// 900 ms (0.3..1.2 s of the 2.0 s clear window), leaving the rest empty.
 pub fn level_clear_banner_on(elapsed: f32) -> bool {
-    elapsed.is_finite() && (0.0..0.9).contains(&elapsed)
-}
-
-/// How long the four-pixel turn spark lives after a reversal.
-pub const TURN_SPARK_S: f32 = 0.18;
-
-/// Whether the turn spark is visible at `elapsed` seconds.
-pub fn turn_spark_on(elapsed: f32) -> bool {
-    elapsed.is_finite() && (0.0..TURN_SPARK_S).contains(&elapsed)
+    elapsed.is_finite() && (0.3..1.2).contains(&elapsed)
 }
 
 /// Whether the fright-mask flash variant shows, given seconds of the turn left.
@@ -187,34 +162,41 @@ mod tests {
     }
 
     #[test]
-    fn lanterndrift_helpers_are_bounded_and_pure() {
-        assert!(sunseed_halo_on(0.0));
-        assert!(!sunseed_halo_on(0.2));
-        assert!(sunseed_halo_on(0.4));
-        assert!(!sunseed_halo_on(f32::NAN));
-        assert!(!sunseed_halo_on(f32::INFINITY));
+    fn sunseed_halo_alternates_every_twenty_four_frames() {
+        assert!(!sunseed_halo(0));
+        assert!(!sunseed_halo(23));
+        assert!(sunseed_halo(24));
+        assert!(sunseed_halo(47));
+        assert!(!sunseed_halo(48));
+    }
 
+    #[test]
+    fn fright_mask_id_selects_entry_steady_and_flash() {
         assert_eq!(fright_mask_id(0.0, 5.0), "fright_entry");
         assert_eq!(fright_mask_id(0.24, 5.0), "fright_entry");
         assert_eq!(fright_mask_id(0.25, 5.0), "fright_mask");
         assert_eq!(fright_mask_id(1.0, 1.2), "fright_mask_flash");
-        assert_eq!(fright_mask_id(f32::NAN, 0.0), "fright_mask");
+        assert_eq!(fright_mask_id(f32::NAN, 0.0), "fright_entry");
+        assert_eq!(
+            fright_mask_id(1.0, f32::INFINITY),
+            "fright_mask",
+            "reduced flash holds the steady mask"
+        );
+    }
 
-        assert_eq!(pickup_burst_frame(0.0), Some(0));
-        assert_eq!(pickup_burst_frame(0.0667), Some(1));
-        assert_eq!(pickup_burst_frame(0.21), Some(3));
-        assert_eq!(pickup_burst_frame(0.27), None);
-        assert_eq!(pickup_burst_frame(f32::NAN), Some(0));
-
+    #[test]
+    fn level_clear_windows_are_sequential() {
         assert_eq!(level_clear_sweep(0.0), Some(0.0));
         assert_eq!(level_clear_sweep(0.15), Some(0.5));
         assert_eq!(level_clear_sweep(0.3), None);
         assert_eq!(level_clear_sweep(-1.0), None);
 
-        assert!(turn_spark_on(0.0));
-        assert!(turn_spark_on(0.179));
-        assert!(!turn_spark_on(0.18));
-        assert!(!turn_spark_on(f32::NAN));
+        assert!(!level_clear_banner_on(0.0));
+        assert!(!level_clear_banner_on(0.299));
+        assert!(level_clear_banner_on(0.3));
+        assert!(level_clear_banner_on(1.199));
+        assert!(!level_clear_banner_on(1.2));
+        assert!(!level_clear_banner_on(f32::NAN));
     }
 
     #[test]
