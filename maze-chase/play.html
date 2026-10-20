@@ -72,7 +72,10 @@
     margin: 0 0 6px; color: var(--teal); font-size: 0.78rem;
     letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700;
   }
-  .title-lede { margin: 0 0 14px; color: var(--ink); }
+  .title-lede { margin: 0 0 10px; color: var(--ink); }
+  .title-desc { margin: 0 0 8px; color: var(--teal); font-weight: 600; }
+  .title-legend { margin: 0; color: var(--muted); font-size: 0.9rem; }
+  .title-goal { margin: 2px 0 10px; color: var(--accent); font-weight: 600; }
   .title-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0; }
   .title-actions .primary { margin-right: 6px; }
   .pause-actions { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 0; }
@@ -176,11 +179,19 @@
     <p class="title-lede">You are Rill, a pond frog. Clear every crumb, dodge
     the wardens Bram, Kessa, Jory and Nib, and grab a sunseed to turn the
     hunt around.</p>
+    <p class="title-desc" id="title-desc">Start game: begin a hunt in the pond.</p>
+    <p class="title-legend" id="title-legend">Wardens: Bram the heron, Kessa the
+    pike, Jory the snake, and Nib the dragonfly.</p>
+    <p class="title-goal" id="title-goal">Clear 445 crumbs; sunseeds turn the hunt.</p>
     <p class="title-actions">
-      <button type="button" class="primary" id="btn-start" data-primary>Start game</button>
-      <button type="button" id="btn-title-help">Help</button>
-      <button type="button" id="btn-title-scores">Scores</button>
-      <button type="button" id="btn-title-settings">Settings</button>
+      <button type="button" class="primary" id="btn-start" data-primary
+        data-desc="Start game: begin a hunt in the pond.">Start game</button>
+      <button type="button" id="btn-title-help"
+        data-desc="Help: controls, rules, and the warden legend.">Help</button>
+      <button type="button" id="btn-title-scores"
+        data-desc="Scores: the house best and recent runs.">Scores</button>
+      <button type="button" id="btn-title-settings"
+        data-desc="Settings: theme, access, and bindings.">Settings</button>
     </p>
     <p class="note" id="boot-status">Loading engine...</p>
   </section>

@@ -155,6 +155,11 @@ pub fn title(
         let cursor = if i == selected { "> " } else { "  " };
         lines.push(format!("{cursor}{}", item.label()));
     }
+    let selected_item = MenuItem::ALL
+        .get(selected)
+        .copied()
+        .unwrap_or(MenuItem::Play);
+    lines.push(format!("  {}", selected_item.description()));
     lines.push("".to_string());
     if let Some(best) = scores_best {
         lines.push(format!("house best: {best:06}"));
@@ -163,6 +168,8 @@ pub fn title(
     for t in trail.iter().take(2) {
         lines.push(format!("degraded: {t}"));
     }
+    lines.push("Bram heron · Kessa pike · Jory snake · Nib dragonfly".to_string());
+    lines.push("clear 445 crumbs; sunseeds turn the hunt".to_string());
     lines
 }
 
@@ -317,6 +324,9 @@ mod tests {
     fn menus_pin_content() {
         let t = title(0, Some(900), "kitty-graphics", &[]);
         assert!(t.iter().any(|l| l.contains("Play")));
+        assert!(t.iter().any(|l| l.contains("start a hunt in the pond")));
+        assert!(t.iter().any(|l| l.contains("Bram heron")));
+        assert!(t.iter().any(|l| l.contains("clear 445 crumbs")));
         assert!(t.iter().any(|l| l.contains("kitty-graphics")));
         let h = help(0, 35);
         assert!(h.iter().any(|l| l.contains("wardens")));

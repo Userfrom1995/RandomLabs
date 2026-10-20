@@ -420,7 +420,7 @@ pub fn placements_opts(game: &Game, ppt: u32, atlas: &Atlas, opts: anim::Fx) -> 
         ));
     }
 
-    if !opts.reduced_motion {
+    if !opts.reduced_motion && opts.flash {
         if let Some((anchor, idx)) = game.fx.pickup_burst() {
             out.push(atlas.place(
                 70,
@@ -502,7 +502,8 @@ pub fn placements_opts(game: &Game, ppt: u32, atlas: &Atlas, opts: anim::Fx) -> 
     if game.state == GameState::Dying {
         out.push(atlas.place(
             60,
-            slot::PIP_DEATH + anim::death_frame_for(game.state_elapsed(), opts.reduced_motion),
+            slot::PIP_DEATH
+                + anim::death_frame_for(game.state_elapsed(), opts.reduced_motion || !opts.flash),
             pcx,
             pcy,
             z::PIP,
@@ -536,7 +537,11 @@ pub fn placements_opts(game: &Game, ppt: u32, atlas: &Atlas, opts: anim::Fx) -> 
         }
     }
     if let Some(idx) = game.fx.lily_frame() {
-        let idx = if opts.reduced_motion { 0 } else { idx };
+        let idx = if opts.reduced_motion || !opts.flash {
+            0
+        } else {
+            idx
+        };
         out.push(atlas.place(
             72,
             slot::GOLDEN_LILY + idx,

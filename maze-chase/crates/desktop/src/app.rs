@@ -454,8 +454,28 @@ impl App {
                     0 => "ARROWS/WASD + ENTER - NO SCORES YET",
                     b => &format!("ARROWS/WASD + ENTER - BEST {b}"),
                 };
-                let mut frame = render::render_attract(&self.game, theme, w, h, 0.40)?;
-                render::overlay_menu(&mut frame, "MAZE CHASE", &lines, footer, theme);
+                let selected = screens::MenuItem::ALL
+                    .get(self.screens.menu)
+                    .copied()
+                    .unwrap_or(screens::MenuItem::Play);
+                let mut frame = render::render_attract(
+                    &self.game,
+                    theme,
+                    w,
+                    h,
+                    0.40,
+                    !self.settings.reduced_flash,
+                    self.settings.reduced_motion,
+                )?;
+                let details = [
+                    (selected.description(), theme.text),
+                    (
+                        "BRAM HERON - KESSA PIKE - JORY SNAKE - NIB DRAGONFLY",
+                        theme.dim_text,
+                    ),
+                    ("CLEAR 445 CRUMBS; SUNSEEDS TURN THE HUNT", theme.accent),
+                ];
+                render::overlay_menu(&mut frame, "MAZE CHASE", &lines, &details, footer, theme);
                 Some(frame)
             }
             ScreenId::Help => {

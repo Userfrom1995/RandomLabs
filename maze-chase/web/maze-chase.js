@@ -772,7 +772,17 @@
         }
       });
     };
-    // Title.
+    // Title: each action updates the selected-item description strip.
+    var titleIds = ['btn-start', 'btn-title-help', 'btn-title-scores', 'btn-title-settings'];
+    titleIds.forEach(function (id) {
+      var btn = $(id);
+      var describe = function () {
+        var desc = btn.getAttribute('data-desc');
+        if (desc) { $('title-desc').textContent = desc; }
+      };
+      btn.addEventListener('mouseenter', describe);
+      btn.addEventListener('focus', describe);
+    });
     $('btn-start').addEventListener('click', doStart);
     press('btn-title-help', ['mc_goto', 1]);
     press('btn-title-scores', ['mc_goto', 2]);
