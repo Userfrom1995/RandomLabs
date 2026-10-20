@@ -7,7 +7,7 @@ description: >-
   longer kill every arm at once or conclude a Model-not-found death green
   (issue #591), a bounded same-model retry on the provider's transient
   FreeTierError rejection, so one free-tier blip cannot kill a gate or drop
-  a wake-up (issue #620), and   a bounded same-model retry on transient 429/5xx
+  a wake-up (issue #620), and a bounded same-model retry on transient 429/5xx
   provider errors plus an inactivity watchdog that aborts a silent provider
   stall before the step timeout burns the whole tick (issue #653), and a named
   fast-fail for the provider's 403 abusive-traffic egress-IP block, whose
@@ -248,15 +248,24 @@ runs:
         # rejects the runner's egress IP with HTTP 403 and one of two
         # FreeTierError forms (`Forbidden, OpenCode Free Model Gateway Detect
         # Abuse Traffic`, or the long "OpenCode's free models aren't available
-        # from your current network ..." message). Both 2026-10-18 incidents
-        # hit on the session's FIRST provider call within 8-20 seconds, which
-        # is consistent with the runner's egress IP already being blocked when
-        # the job starts, so this class is deliberately FAST-FAILED rather
-        # than retried: a same-model retry from the same runner would hit the
-        # same IP. The canonical error below names the class and the fresh-run
-        # recovery path; crash-parity triage already re-dispatches onto a new
-        # runner (review/curator owner auto-retry, test/lab via Maintainer
-        # workflow_run triage, the Maintainer via its recurring schedule).
+        # from your current network ..." message). All four incidents
+        # (2026-10-18: 39127259752, 39144091490, 39165526719; 2026-10-20:
+        # 39378762068) hit on the session's FIRST provider call within 8-20
+        # seconds, which is consistent with the runner's egress IP already
+        # being blocked when the job starts, so this class is deliberately
+        # FAST-FAILED rather than retried: a same-model retry from the same
+        # runner would hit the same IP. The canonical error below names the
+        # class and the fresh-run recovery path; crash-parity triage already
+        # re-dispatches onto a new runner (review/curator owner auto-retry,
+        # test/lab via Maintainer workflow_run triage, the Maintainer via its
+        # recurring schedule).
+        # Accepted residual (review observation): this detector also runs on
+        # the exit-0 path, so a healthy session that prints the exact provider
+        # line at column 0 within its last 40 log lines (for example a fenced
+        # quote of the failure it is debugging) is fast-failed with no retry.
+        # This is the same accepted residual as the #591/#620/#653 detectors
+        # (their echo fixtures cover indented echoes only), and the cost is
+        # one fresh-run re-dispatch, which is this class's intended recovery.
         ip_block_error_terminal() {
           ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic|OpenCode's free models aren't available from your current network because we've detected abusive traffic from this IP address\. This isn't related to your account\. If you're on a VPN or proxy, turn it off and try again, or subscribe to OpenCode Go at https://opencode\.ai/go to keep building\.)$" )
         }
