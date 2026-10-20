@@ -57,7 +57,8 @@ passes with its evidence artifact present.
    Maintainer merge. `Closes #N` only when all binding gates pass;
    otherwise `Refs #N` with negative findings logged.
 - Infrastructure PR: Reviewer `/oc approve` (or `/oc lab` round-trip
-   for fixes) plus Tester infra-scope evidence, then Maintainer merge.
+   for fixes) plus Tester infra-scope evidence plus Evaluator
+   `approve-eval` (infra-scope evidence), then Maintainer merge.
    No capability is removed before its replacement is verified green.
 - Phase PR (incremental overhaul): `Refs #N`, lab green, backward
   compatible, each gate's result tracked on the parent issue (#42)
