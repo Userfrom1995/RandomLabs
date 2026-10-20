@@ -71,8 +71,8 @@ wasm, and `browser-e2e.js` is ALL GREEN. macOS and Windows terminal rows
 stay with the per-OS testers; no claim here exceeds the executed Linux
 rows.
 
-Workspace gates: public count 550 across 59 targets (the full rerun
-remains the Tester's gate), harness contract 47/47, `maze-chase-verify`
+Workspace gates: public count 552 across 60 targets (full rerun executed
+by the Tester at `e78035c57`), harness contract 47/47, `maze-chase-verify`
 19/19 (`23c17f89734e`; `perf-headless` 0.2-0.4 us/tick on CI reruns),
 wasm sha256 `68e331b2...`, `cargo fmt --all --check` clean, and clippy
 reports only the pre-existing engine style lints.
@@ -1203,4 +1203,16 @@ Next: Phase 5 (sound design overhaul).
   (early badge visible, segments hidden; tail segments drain 1..30). Two
   coupled areas (terminal HUD, web HUD), so no subagents were dispatched.
   No registry skill matched; none loaded.
+  - the Fixer
+
+- 2026-10-20 (fixer, Tester count round on `e78035c5`): updated the three
+  current-state public counts to the Tester's live run at that head.
+  `index.html` and `docs/feature-matrix.md` now state 552 tests across 60
+  targets, and this file's gates paragraph records 552 across 60 targets
+  with the full rerun executed by the Tester at `e78035c57`. The committed
+  wasm remains `68e331b2...` (206,711 bytes), matching the other
+  current-state claims. Documentation-only change; no code, wasm,
+  or evidence was touched. A single-area docs fix with the files already
+  open, so no subagents were dispatched. No registry skill matched; none
+  loaded.
   - the Fixer
