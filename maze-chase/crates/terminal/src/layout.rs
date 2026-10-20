@@ -58,10 +58,11 @@ pub const MAX_CELL_COLS: u16 = 8;
 pub const MAX_CELL_ROWS: u16 = 4;
 
 /// Rasterization bounds for the bitmap tiers: below 6 ppt glyphs stop
-/// reading, above 20 ppt the stored-block PNG grows past what 20 fps on
-/// a PTY can carry in this phase.
+/// reading, above 21 ppt the stored-block PNG grows past what 20 fps on
+/// a PTY can carry in this phase. The 21 ppt rung selects the authored
+/// high-detail sheets.
 pub const MIN_IMAGE_PPT: u32 = 6;
-pub const MAX_IMAGE_PPT: u32 = 20;
+pub const MAX_IMAGE_PPT: u32 = 21;
 /// Raster scale when the terminal reports no cell pixels (the Phase 1
 /// default): bitmap tiers keep the proven 8-ppt render instead of
 /// guessing from nominal cells.
@@ -384,7 +385,7 @@ pub fn compute_pixels(cols: u16, rows: u16, px: Option<PixelGeometry>) -> Layout
     // tile's pixel dimensions, further bounded so the raster's natural
     // size fits the board's pixel box (issue #656: a 20-ppt raster could
     // outgrow its board box and bleed into the hint line), and clamped to
-    // 6..20 ppt for encode cost. The clamp bounds (never removes) sprite
+    // 6..21 ppt for encode cost. The clamp bounds (never removes) sprite
     // upscaling where the art exceeds the tile footprint: the 11x11
     // sprite art outgrows the tile even at the nominal 8 ppt.
     let ppt = cell_px.map(|_| {
@@ -853,6 +854,19 @@ mod tests {
                 h: 62
             }
         );
+    }
+
+    #[test]
+    fn high_detail_rung_is_reachable() {
+        let mut found = false;
+        for cell in [(10, 22), (10, 24), (12, 24), (14, 26), (16, 32)] {
+            let l = compute_with(200, 60, Some(cell));
+            if l.ppt() == MAX_IMAGE_PPT {
+                found = true;
+                assert_eq!(super::super::raster::art_rung(l.ppt() as i32), 21);
+            }
+        }
+        assert!(found, "some real cell size must reach the 21 ppt rung");
     }
 
     #[test]

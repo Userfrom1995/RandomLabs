@@ -407,8 +407,8 @@ fn paint_floater(
     let cx = (floater.x * PPT as f32) as i32;
     let cy = (floater.y * PPT as f32) as i32 - rise;
     let w = text.chars().count() as i32 * 6 - 1;
-    let x0 = cx - w / 2;
-    let y0 = cy - 3;
+    let x0 = (cx - w / 2).clamp(1, frame.w as i32 - w - 2);
+    let y0 = (cy - 3).clamp(9, frame.h as i32 - 10);
     for y in y0 - 1..y0 + 8 {
         for x in x0 - 1..x0 + w + 1 {
             frame.set(x, y, theme.bg);

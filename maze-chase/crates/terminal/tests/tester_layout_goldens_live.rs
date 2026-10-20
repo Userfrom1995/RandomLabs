@@ -255,16 +255,33 @@ fn display_at(bytes: &[u8], rows: u32, cols: u32, cursor: (u16, u16)) -> bool {
             from = end;
             continue;
         }
-        let head = &text[i.saturating_sub(96)..i];
-        if let Some(esc) = head.rfind("\x1b[") {
-            let tail = &head[esc..];
-            if let Some(end) = tail.find('H') {
-                if tail[..=end] == want {
-                    return true;
-                }
-            }
+        if cursor_before(&text, i, &want) {
+            return true;
         }
         from = end;
+    }
+    // The 21 ppt rung renders through the whole-frame path: one combined
+    // transmit-and-place escape (`a=T`, image id 1) at the same cursor.
+    let whole = format!(",r={rows},c={cols},i=1,");
+    let mut from = 0;
+    while let Some(i) = text[from..].find("\x1b_Ga=T,f=100") {
+        let i = from + i;
+        let end = text[i..].find("\x1b\\").unwrap_or(text.len() - i) + i;
+        if text[i..end].contains(&whole) && cursor_before(&text, i, &want) {
+            return true;
+        }
+        from = end;
+    }
+    false
+}
+
+fn cursor_before(text: &str, at: usize, want: &str) -> bool {
+    let head = &text[at.saturating_sub(160)..at];
+    if let Some(esc) = head.rfind("\x1b[") {
+        let tail = &head[esc..];
+        if let Some(end) = tail.find('H') {
+            return &tail[..=end] == want;
+        }
     }
     false
 }

@@ -27,7 +27,7 @@ relish bonuses on a 70/170 schedule with level tiers, pursuer stages,
 spare wick, death/respawn, level flow, gatehouse counters with idle
 release, four extra mode rulesets, seeded streams, replay log, state
 hash, 19-row verify harness green). The identity system is original art
-and sound data with settings: 11x11 Rill and warden sprites with
+and sound data with settings: 11x11 and 21x21 Rill plus 11x11 wardens with
 shape-distinct accents, fright masks, eye pairs, six relish icons,
 the three contrast-checked Pondwake themes, every engine event routed to an audio
 cue with five original tunes, and difficulty/keymap/persistence with
@@ -68,7 +68,7 @@ and the parity gate in `docs/parity.md`.
   `GameEvent`s; any gameplay branch in a layer crate is a blocking
   review finding.
 - **Identity system** (`crates/assets`, `crates/audio`,
-  `crates/config`, done): original 11x11 sprite glyphs with a
+  `crates/config`, done): original 11x11 and 21x21 sprite art with a
   shared legend and derived facings, animation clips and flash/bob
   timing, the three contrast-checked Pondwake themes, every engine event routed to
   an audio cue with five original tunes and synthesized SFX recipes

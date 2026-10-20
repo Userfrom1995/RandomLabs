@@ -157,7 +157,11 @@ impl Game {
     /// harness can stage scores without playing a thousand crumbs; layers
     /// (separate crates) can only score through simulation.
     pub(crate) fn add_score(&mut self, points: u32) {
-        if self.tick_count > 0 && points > 0 {
+        self.add_score_with_floater(points, true);
+    }
+
+    fn add_score_with_floater(&mut self, points: u32, floater: bool) {
+        if floater && self.tick_count > 0 && points > 0 {
             self.fx.score(points, self.player.x, self.player.y);
         }
         let before = self.score;
@@ -223,6 +227,7 @@ impl Game {
         self.fx.advance(dt);
         match self.state {
             GameState::Dying => {
+                self.fx.set_moving(false);
                 self.state_t += dt;
                 if self.state_t >= tuning::DEATH_SEQUENCE_S {
                     self.lives -= 1;
@@ -239,6 +244,7 @@ impl Game {
                 return;
             }
             GameState::Clearing => {
+                self.fx.set_moving(false);
                 self.state_t += dt;
                 if self.state_t >= tuning::LEVEL_CLEAR_SEQUENCE_S {
                     self.finish_clear();
@@ -364,14 +370,14 @@ impl Game {
     fn eat_current_tile(&mut self, initial: bool) {
         match self.maze.eat_at(self.last_tile.0, self.last_tile.1) {
             Some(Pickup::Dot) => {
-                self.add_score(tuning::DOT_SCORE);
+                self.add_score_with_floater(tuning::DOT_SCORE, !initial);
                 if !initial {
                     self.fx.pickup(self.player.x, self.player.y);
                     self.events.push("dot".to_string());
                 }
             }
             Some(Pickup::Energizer) => {
-                self.add_score(tuning::ENERGIZER_SCORE);
+                self.add_score_with_floater(tuning::ENERGIZER_SCORE, !initial);
                 if !initial {
                     self.fx.pickup(self.player.x, self.player.y);
                     self.events.push("sunseed".to_string());
@@ -490,9 +496,17 @@ mod tests {
         assert_eq!(game.state, GameState::Clearing);
         for _ in 0..(2.0 * 120.0 + 10.0) as usize {
             game.tick(tuning::STEP);
+            if game.state == GameState::Play {
+                break;
+            }
         }
         assert_eq!(game.state, GameState::Play);
         assert_eq!(game.level, 2);
+        assert_eq!(
+            game.fx.floaters().count(),
+            0,
+            "the new level's start crumb must not emit a score floater"
+        );
         assert!(game.maze.pickups_left() > 0);
         assert!(game.events.iter().any(|e| e == "level:2"));
     }
@@ -643,6 +657,21 @@ mod tests {
         with_fx.fx.pickup(1.0, 2.0);
         with_fx.fx.turn(3.0, 4.0);
         assert_eq!(base.canonical(), with_fx.canonical());
+    }
+
+    #[test]
+    fn clearing_stops_the_hop_and_effect_clock_death_stops_too() {
+        let mut game = Game::new(2, 1);
+        game.fx.set_moving(true);
+        assert!(game.fx.hop_frame().is_some());
+        game.state = GameState::Clearing;
+        game.tick(tuning::STEP);
+        assert_eq!(game.fx.hop_frame(), None);
+        let mut game = Game::new(2, 1);
+        game.fx.set_moving(true);
+        game.kill_player();
+        game.tick(tuning::STEP);
+        assert_eq!(game.fx.hop_frame(), None);
     }
 
     #[test]
