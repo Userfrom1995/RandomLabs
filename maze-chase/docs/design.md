@@ -260,8 +260,8 @@ Fidelity ladder rules:
    rasterized pixel art everywhere, from the same asset data. Kitty
    transmits the static atlas once (<= 256 KiB) and per-entity
    placements after that; sixel repaints full frames at its own
-   cadence. Desktop and web canvas render the same raster at their own
-   pixel-per-tile.
+   cadence. Desktop renders that raster directly; the web canvas
+   re-composes the same authored art at its own pixel-per-tile.
 4. Web DOM chrome and desktop menu composition: CSS and the 5x7
    desktop font; wordmark "MAZE CHASE" everywhere.
 
