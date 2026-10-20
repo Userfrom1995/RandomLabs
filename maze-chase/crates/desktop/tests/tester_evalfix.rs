@@ -18,7 +18,6 @@ fn theme() -> &'static maze_chase_assets::themes::Theme {
 fn hud() -> Hud<'static> {
     Hud {
         best: 0,
-        frame_no: 7,
         flash: true,
         fps: Some(60.0),
         tune: "OFF",

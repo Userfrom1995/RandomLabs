@@ -100,7 +100,6 @@ pub fn layout(w: u32, h: u32) -> Layout {
 #[derive(Clone, Copy, Debug)]
 pub struct Hud<'a> {
     pub best: u32,
-    pub frame_no: u64,
     pub flash: bool,
     pub fps: Option<f32>,
     pub tune: &'a str,
@@ -115,7 +114,7 @@ pub fn render_play(game: &Game, theme: &Theme, hud: Hud<'_>, w: u32, h: u32) -> 
     if lay.too_small {
         return Some(render_small(&mut f, theme));
     }
-    let board = raster::render(game, theme, BOARD_PPT, hud.frame_no, hud.flash);
+    let board = raster::render(game, theme, BOARD_PPT, hud.flash);
     f.blit_board(&board, lay.bx, lay.by, lay.scale);
     render_floaters(&mut f, game, theme, &lay);
     f.border(
@@ -302,7 +301,6 @@ mod tests {
     fn hud<'a>() -> Hud<'a> {
         Hud {
             best: 0,
-            frame_no: 0,
             flash: true,
             fps: None,
             tune: "OFF",
