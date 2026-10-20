@@ -251,12 +251,13 @@ commit `90cb9b87` (kept as history):
   `browser-e2e.js` ALL GREEN with zero console errors.
 
 Review fix rounds, measured on the same Linux machine at the head of
-this PR (round 4 code commit `e938ce5a`):
+this PR (round 5 code commit `0cdb8d36`):
 
 - `cargo test --workspace --no-fail-fast` (desktop E2E under Xvfb):
-  528 passed, 0 failed across 57 test targets, including the new
+  532 passed, 0 failed across 57 test targets, including the new
   effect-window, authored-facing, death-hold, sweep-order, mirrored-eye,
-  death-boundary, fright-slot, cell-clear, and Kitty image-one tests.
+  death-boundary, fright-slot, cell-clear, cell-death-bubble,
+  cell-relish-order, desktop-ticker, and Kitty image-one tests.
 - `cargo run --release --bin maze-chase-verify`: 19/19 checks, golden
   replay digest unchanged (`23c17f89734e`); `perf-headless` 0.2-0.4 us/tick
   across CI reruns (the release machine measured 0.1;
@@ -267,7 +268,7 @@ this PR (round 4 code commit `e938ce5a`):
   theme, renderer, or bridge code.
 - Wasm rebuild (`cargo build --release --target
   wasm32-unknown-unknown -p maze-chase-web`): sha256
-  `f393fac1c651c6900ef33108048a42fbb7684a642e54ddd1c6b9f7632389aa17`,
+  `47afaaeab5283e8f610ff0a88b4512d7b79e5810d85a8cc0696d61733b7c405f`,
   committed as `web/maze-chase.wasm`; `wasm-smoke.js`,
   `tester-regression.js`, and the real headless-chromium
   `browser-e2e.js` are ALL GREEN with zero console errors. The committed
@@ -297,3 +298,4 @@ this PR (round 4 code commit `e938ce5a`):
   screenshots are the committed capture set.
 - Terminal sprite census was updated from the retired Ember Warren
   palette to the Dusk Pond theme palette (Rill, sunseed, and the four
+  hunters).

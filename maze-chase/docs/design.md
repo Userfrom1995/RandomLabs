@@ -121,9 +121,8 @@ surfaces.
 Happy path. Title to play is instant on one directional press. During
 play every input gets a visible response within one frame budget: the
 player sprite turns, the turn caret moves, the crumb counter ticks.
-Pause freezes the engine on key-down before any dim. Resume is a cut
-(cells) or a 240 ms fade (desktop and web). Score changes count up only
-at 30 Hz or above; below that they snap instantly. Fright entry is a
+Pause freezes the engine on key-down before any dim. Resume is a cut on
+every layer. Score changes snap instantly. Fright entry is a
 steady mask change plus a HUD countdown bar; the reversion frame lands
 exactly when the bar empties.
 
@@ -337,10 +336,10 @@ positions interpolate continuously at the finest quantum each layer can
 pay for (identity-preserving; half-tile snapping at 17 Hz was measured
 by the critic to beat against the 12 fps chomp and read as flicker, so
 the cell rung keeps tile-locked actors). Ambient motion is quantized
-and rung-snapped; transitions are cuts or band wipes on image tiers and
-fades only on desktop and web. Every duration below is stated once in
-milliseconds and snapped per rung to whole frames (60/120 Hz) or whole
-transmits (30/24/12 Hz); no fractional quantum ever ships.
+and rung-snapped; transitions are cuts on every shipped layer (band
+wipes remain an image-tier option). Every duration below is stated once
+in milliseconds and snapped per rung to whole frames (60/120 Hz) or
+whole transmits (30/24/12 Hz); no fractional quantum ever ships.
 
 Engine windows the motion design fits (unchanged engine, presentation
 only): player 8.5 tiles/s, hunters 8.16, fright hunters 5.06, eyes
@@ -359,8 +358,8 @@ Per-rung duration table (frame counts exact):
 | Banner | 54f (900 ms) | 108f | 27 quanta | 22 quanta (916.7 ms) | 11 quanta (916.7 ms) |
 | Sunseed halo | 24f (400 ms) | 48f | 12 quanta | 10 quanta (416.7 ms) | 5 quanta (416.7 ms) |
 | Pickup burst | 4f grid (66.7 ms) | 8f | 2 quanta | static 2-state | static 2-state |
-| Score count-up | 240 ms | 240 ms | 240 ms | instant (below 30 Hz) | instant (below 30 Hz) |
-| Overlay fade | 240 ms | 240 ms | cut | cut | cut |
+| Score count-up | instant | instant | instant | instant | instant |
+| Overlay fade | cut | cut | cut | cut | cut |
 
 Easing table (named, no unnamed easings anywhere): drift-in
 (0.22, 1, 0.36, 1) for entrances on desktop and web; drift-out
@@ -403,7 +402,7 @@ empty on the exact reversion frame. The bar is grayscale-safe: filled
 versus empty segments differ by glyph (block, half-block, dot) and by a
 3:1 or better segment contrast, never brightness alone. Optional body
 pulse capped at 2 to 3 Hz, eye-sized, registered as a flash source.
-Reduced flash: steady hollow mask plus dim_text banner. Reduced motion:
+Reduced flash: steady hollow mask. Reduced motion:
 identical to reduced flash, with the bar still draining (it is
 information, not decoration).
 

@@ -41,7 +41,7 @@ turn spark, and Golden Lily bloom; the web settings panel shows the
 active theme name. Accessibility gates (text/bg,
 fright/wall, eyes/wall, hunter separation, light/dark) pass, the golden
 replay digest is unchanged (`23c17f89734e`), and the wasm rebuild is
-committed (`f393fac1...`).
+committed (`47afaaea...`).
 
 Real captures: five kitty/xterm Linux compatibility rows were
 re-executed on 2026-10-20 at code commit `14b939d9` (binary SHA-256
@@ -63,18 +63,17 @@ wasm, and `browser-e2e.js` is ALL GREEN. macOS and Windows terminal rows
 stay with the per-OS testers; no claim here exceeds the executed Linux
 rows.
 
-Workspace gates: `cargo test --workspace --no-fail-fast` 528 passed / 0
+Workspace gates: `cargo test --workspace --no-fail-fast` 532 passed / 0
 failed across 57 targets, harness contract 47/47, `maze-chase-verify`
 19/19 (`23c17f89734e`; `perf-headless` 0.2-0.4 us/tick on CI reruns),
-wasm sha256 `f393fac1...`, `cargo fmt --all --check` clean, and clippy
+wasm sha256 `47afaaea...`, `cargo fmt --all --check` clean, and clippy
 reports only the pre-existing engine style lints.
 
-Delegation ledger (round 4, code commit `e938ce5a`): no subagents were
-dispatched; the primary context applied all eight findings directly,
-re-ran the 528-test workspace, verify, fmt, clippy, wasm and browser
-smokes, regenerated both gameplay captures, and re-executed the forced
-xterm sixel row with `pause_select=1` (47/47 harness contract). No
-registry skill matched; none loaded.
+Delegation ledger (round 5): no subagents were dispatched; the primary
+context applied the cell-tier death and flash, desktop ticker, claim,
+relish-order, and shared-digit findings directly, re-ran the 532-test
+workspace, harness 47/47, verify, fmt, clippy, and rebuilt the wasm
+(`47afaaea...`). No registry skill matched; none loaded.
 Next: Phase 5 (sound design overhaul).
 
 ## Next steps
@@ -1048,4 +1047,18 @@ Next: Phase 5 (sound design overhaul).
   clean apart from the documented pre-existing lints, wasm sha256
   `61a72473...`, node smokes and `browser-e2e.js` ALL GREEN. No registry
   skill matched; none loaded.
+  - the Fixer
+- 2026-10-20 (fixer, Phase 4 review round 5 on `e291265d`): applied the
+  Reviewer's B1-B4 and S1-S2 findings on PR #707. The cell tier now holds
+  the visible death bubble, the reduced-flash contract selects the hollow
+  warning mask across the shared helper and the cell tier, and the relish
+  paints under the hunters. The desktop HUD renders the engine
+  `level-clear` ticker in place of the static hint line, and score
+  floaters use the shared `sprites::DIGITS`. Corrected the wasm size and
+  test counts, completed the truncated scoreboard sentence, aligned the
+  design and token transition durations with the shipped cuts and snaps,
+  and qualified the remaining all-OS parity claims. Verification: 532/532
+  across 57 targets, harness 47/47, verify 19/19 (`23c17f89734e`), fmt
+  clean, wasm sha256 `47afaaea...`. No registry skill matched; none
+  loaded.
   - the Fixer
