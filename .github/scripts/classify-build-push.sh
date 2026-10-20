@@ -51,7 +51,11 @@ else
   subjects="$(git log -1 --format=%s "$tip" 2>/dev/null || true)"
 fi
 
-if printf '%s\n' "$subjects" | grep -qE '^builder:'; then
+# Use a here-string, never a pipe: under `set -euo pipefail` a `grep -q`
+# early exit can SIGPIPE the writer once the subject list exceeds the pipe
+# buffer (64 KiB), and the resulting 141 reads as "no builder commit" even
+# when every commit is a builder: commit (issue #690 review round 3).
+if grep -qE '^builder:' <<< "$subjects"; then
   printf 'own\n'
 else
   printf 'foreign\n'
