@@ -10,7 +10,11 @@
 //   3. Scores path: mc_score_get_* getters exist (no short-name drift),
 //      two rows round-trip through mc_scores_push plus the getters, clear
 //      empties the table.
-//   4. Hostile probes never trap: zero/huge frames are null, unknown
+//   4. Fright HUD wire contract: mc_fright_segments is exported and drains
+//      inside 1..30 during the final 1.5 s of a real fright window (the
+//      harness calls it from updateHud; a missing export silently kills
+//      the badge and meter inside the swallowing try/catch).
+//   5. Hostile probes never trap: zero/huge frames are null, unknown
 //      press/goto/key codes are ignored, fresh instances stay deterministic.
 //
 // Usage: node web/e2e/tester-regression.js [path-to-wasm]
@@ -89,7 +93,33 @@ if (!fs.existsSync(wasmPath)) {
   e.mc_scores_clear();
   assert(e.mc_score_count() === 0, 'clear empties the table');
 
-  // 4. Hostile boundary probes.
+  // 4. Fright HUD wire contract: the harness calls mc_fright_segments()
+  // from updateHud while a fright window runs; a missing export throws
+  // inside the swallowing try/catch and silently suppresses the badge and
+  // meter (the same class as the score-getter drift above). Drive the
+  // deterministic route that eats a sunseed and reach the flashing tail.
+  const fright = await WebAssembly.instantiate(mod, {});
+  const fr = fright.exports;
+  const ids = { up: 1, down: 2, left: 3, right: 4 };
+  let ft = 1000;
+  const fstep = () => { ft += 16; fr.mc_step(ft); };
+  const fadv = (s) => { for (let i = 0; i < Math.round(s * 62.5); i++) fstep(); };
+  fr.mc_reset(12345, 0, 1, 0);
+  fadv(0.2); fr.mc_press(4); fadv(0.3);
+  for (const [d, s] of [['right', 0.2], ['down', 1.2], ['left', 2.0], ['up', 0.60], ['right', 0.2]]) {
+    fr.mc_key(ids[d], 1); fadv(s); fr.mc_key(ids[d], 0); fadv(0.05);
+  }
+  assert((fr.mc_fright_active() >>> 0) === 1, 'sunseed route starts a fright window');
+  assert(typeof fr.mc_fright_segments === 'function',
+    'mc_fright_segments exported (HUD countdown), got ' + typeof fr.mc_fright_segments);
+  assert((fr.mc_fright_segments() >>> 0) === 0, 'countdown empty before the final 1.5 s');
+  fadv(3.7);
+  assert((fr.mc_fright_active() >>> 0) === 1 && (fr.mc_fright_flash() >>> 0) === 1,
+    'fright reaches its flashing tail');
+  const segs = fr.mc_fright_segments() >>> 0;
+  assert(segs >= 1 && segs <= 30, 'countdown drains inside 1..30, got ' + segs);
+
+  // 5. Hostile boundary probes.
   assert(e.mc_frame(0, 0) === 0, 'zero-size frame is null');
   assert(e.mc_frame(100000, 100000) === 0, 'huge frame rejected without trap');
   assert(e.mc_press(999) === 0 && e.mc_goto(99) === 0 && e.mc_key(-1, 1) === 0,
