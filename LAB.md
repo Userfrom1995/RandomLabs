@@ -535,8 +535,8 @@ Public Surface / Web Track:                                              │
   made. `.github/scripts/resolve-thread-target.sh` resolves the event thread
   (`thread`) and the logical parent issue parsed from an
   `opencode/issue<N>-*` phase-PR head (`parent`); a plain issue is its own
-  parent, and an unresolvable PR head or gh failure exits non-zero so the
-  step fails closed. Retries bind `target` to the trigger thread and sum
+  parent, and an unparseable event payload, an unresolvable PR head, or a
+  gh failure exits non-zero so the step fails closed. Retries bind `target` to the trigger thread and sum
   retry markers on the trigger thread and the parent issue (a phase PR
   shares the issue-wide budget); forwards target the parent issue, never the
   newest phase PR. `.github/scripts/classify-build-push.sh` attributes a
@@ -550,8 +550,12 @@ Public Surface / Web Track:                                              │
   workspace copy may be absent on an in-flight branch predating this PR and
   is agent-mutable; any run body outside the staging steps that names a
   helper basename without the `$RUNNER_TEMP/lab-scripts/` prefix is
-  rejected in any spelling. The build baseline fails loudly on a nonzero `gh`
-  status (an empty branch means only a successful no-PR query), the
+  rejected in any spelling, and no non-staging step may write into the
+  directory (a copy verb or redirect there is rejected, so a reviewed extra
+  step can never glob-copy workspace helpers over the staged copies). The
+  build baseline fails loudly on a nonzero `gh` or `git` status
+  (capture-first, so a failed `ls-remote` is never swallowed as "branch
+  absent"; an empty branch means only a successful no-PR query), the
   new-branch fallback requires a tip absent from the baseline pattern set,
   the workflow-level `permissions` block is pinned exactly, the build
   forward is gated on a verified own push, and the classifier reads
@@ -573,8 +577,8 @@ Public Surface / Web Track:                                              │
   of any `pushed=yes` inside a foreign branch; it executes both real helpers
   against fixture events, an executable mock `gh`, and a local bare origin
   with Builder/Tester commit subjects, including a 1500-commit large-range
-  fixture and a branch-without-helpers staging fixture, and 61 mutation
-  self-tests (53 workflow static-pin mutants plus 8 helper-fixture
+  fixture and a branch-without-helpers staging fixture, and 63 mutation
+  self-tests (55 workflow static-pin mutants plus 8 helper-fixture
   mutants) prove the static pins and both fixture matrices load-bearing
   (a foreign-branch
   `pushed=yes`, a verify or forward `if: false`, a retry-target rebind, a
@@ -584,8 +588,9 @@ Public Surface / Web Track:                                              │
   baseline output, an owner PAT in the agent env, a shortened agent cap, a
   raised retry cap, a job-level `if: false`, `permissions`, `runs-on`,
   `timeout-minutes`, or `continue-on-error`, a recover `exit 0`, a dropped
-  or direct workspace helper invocation, a fail-open baseline, a widened
-  `permissions` block, an ungated build forward, a different-branch
+  or direct workspace helper invocation, a fail-open baseline (gh or git
+  probe), a staged-helper overwrite, a widened `permissions` block, an
+  ungated build forward, a different-branch
   `pushed=yes` without a new tip, and added shell or step-level
   `continue-on-error` keys each fail alone).
 - Concurrency - per-PR groups, queued execution:

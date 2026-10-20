@@ -11428,8 +11428,8 @@ fi
 # events, an executable mock `gh` (interception proven), and a local bare
 # origin whose commit subjects model Builder and Tester pushes, including a
 # 1500-commit large-range fixture and a branch-without-helpers staging
-# fixture; 61 mutation
-# self-tests (53 workflow static-pin mutants plus 8 helper-fixture mutants)
+# fixture; 63 mutation
+# self-tests (55 workflow static-pin mutants plus 8 helper-fixture mutants)
 # prove both the exact pins and the fixture matrices are load-bearing (a
 # foreign-branch pushed="yes", a verify or forward `if: false`, a
 # retry-target rebind, a retry-counter reset, a fail-open attribution
@@ -11446,6 +11446,7 @@ if [ -z "$r28_tmp" ] || [ ! -d "$r28_tmp" ]; then
 else
   r28_static_py="$r28_tmp/static.py"
   cat > "$r28_static_py" <<'R28STATIC'
+import re
 import sys
 
 import yaml
@@ -11594,7 +11595,15 @@ else
 fi
 head_before=""
 if [ -n "$pr_branch" ]; then
-  head_before=$(git ls-remote origin "refs/heads/$pr_branch" 2>/dev/null | cut -f1)
+  # Capture first and fail loudly on a nonzero git exit: a piped
+  # ls-remote reports cut's status, so a network/remote failure used
+  # to be swallowed as "branch absent", fall back to main, and let
+  # the verify attribute pre-existing work as this session's push.
+  head_before_raw=$(git ls-remote origin "refs/heads/$pr_branch") || {
+    echo "::error::Could not resolve the remote tip of $pr_branch at baseline (git ls-remote failed); refusing to guess a build baseline."
+    exit 1
+  }
+  head_before=$(printf '%s\n' "$head_before_raw" | cut -f1)
 fi
 if [ -z "$head_before" ]; then
   # Fresh build with no remote branch yet: fall back to current HEAD (main).
@@ -11606,7 +11615,13 @@ fi
 # several stale branches per issue (the norm after retry rounds) a
 # sha-sorted pick would differ from whichever stale branch the agent
 # checked out, and an unpushed session would read as pushed.
-pattern_tips=$(git ls-remote origin "refs/heads/opencode/issue${issue}-*" 2>/dev/null | cut -f1 | sort -u)
+# Capture first here too; a successful empty result remains the
+# legitimate "no matching branch yet" case.
+pattern_tips_raw=$(git ls-remote origin "refs/heads/opencode/issue${issue}-*") || {
+  echo "::error::Could not enumerate issue #$issue branch tips at baseline (git ls-remote failed); refusing to guess a build baseline."
+  exit 1
+}
+pattern_tips=$(printf '%s\n' "$pattern_tips_raw" | cut -f1 | sort -u)
 {
   echo "branch=$pr_branch"
   echo "head_before=$head_before"
@@ -12278,6 +12293,18 @@ for (bound_job_name, _, bound_step) in steps:
                 fail("untrusted-helper-invocation:%s:%s:%s"
                      % (bound_job_name, bound_step.get("name"), helper))
             remaining = remaining[at + len(helper):]
+    # The staging directory is a trust boundary, not just an invocation path:
+    # a reviewed extra step could glob-copy the agent-mutable workspace
+    # helpers over the staged copies (no helper basename to trip the scan
+    # above) or redirect into the directory. Ban any copy verb or redirect
+    # that targets it outside the one staging step.
+    for line in bound_body.splitlines():
+        if "$RUNNER_TEMP/lab-scripts" not in line:
+            continue
+        if re.search(r"(^|[^A-Za-z0-9_])(cp|mv|install|rsync|ln|tee|dd)([^A-Za-z0-9_]|$)", line) \
+                or re.search(r">>?\s*\"?\$RUNNER_TEMP/lab-scripts", line):
+            fail("staged-helper-overwrite:%s:%s"
+                 % (bound_job_name, bound_step.get("name")))
 
 if doc.get("permissions") != EXPECTED_PERMISSIONS:
     fail("workflow-permissions-changed:%r" % (doc.get("permissions"),))
@@ -12675,6 +12702,58 @@ mutants = {
         '              --jq \'[.[] | select(.headRefName | startswith("opencode/issue\'"${issue}"\'-"))] | sort_by(.createdAt) | last | .headRefName\' 2>/dev/null || echo "")\n'
         '          fi\n',
     ),
+    "build-baseline-git-fail-open": sub(
+        '          head_before=""\n'
+        '          if [ -n "$pr_branch" ]; then\n'
+        '            # Capture first and fail loudly on a nonzero git exit: a piped\n'
+        '            # ls-remote reports cut\'s status, so a network/remote failure used\n'
+        '            # to be swallowed as "branch absent", fall back to main, and let\n'
+        '            # the verify attribute pre-existing work as this session\'s push.\n'
+        '            head_before_raw=$(git ls-remote origin "refs/heads/$pr_branch") || {\n'
+        '              echo "::error::Could not resolve the remote tip of $pr_branch at baseline (git ls-remote failed); refusing to guess a build baseline."\n'
+        '              exit 1\n'
+        '            }\n'
+        '            head_before=$(printf \'%s\\n\' "$head_before_raw" | cut -f1)\n'
+        '          fi\n'
+        '          if [ -z "$head_before" ]; then\n'
+        '            # Fresh build with no remote branch yet: fall back to current HEAD (main).\n'
+        '            head_before=$(git rev-parse HEAD 2>/dev/null || echo "")\n'
+        '          fi\n'
+        '          # ALL known tips among this issue\'s branch pattern (multiline). The\n'
+        '          # verify step treats the set as "pre-existing state": any tip NOT in\n'
+        '          # it is a genuine push. A single-sha snapshot cannot do that - with\n'
+        '          # several stale branches per issue (the norm after retry rounds) a\n'
+        '          # sha-sorted pick would differ from whichever stale branch the agent\n'
+        '          # checked out, and an unpushed session would read as pushed.\n'
+        '          # Capture first here too; a successful empty result remains the\n'
+        '          # legitimate "no matching branch yet" case.\n'
+        '          pattern_tips_raw=$(git ls-remote origin "refs/heads/opencode/issue${issue}-*") || {\n'
+        '            echo "::error::Could not enumerate issue #$issue branch tips at baseline (git ls-remote failed); refusing to guess a build baseline."\n'
+        '            exit 1\n'
+        '          }\n'
+        '          pattern_tips=$(printf \'%s\\n\' "$pattern_tips_raw" | cut -f1 | sort -u)\n',
+        '          head_before=""\n'
+        '          if [ -n "$pr_branch" ]; then\n'
+        '            head_before=$(git ls-remote origin "refs/heads/$pr_branch" 2>/dev/null | cut -f1)\n'
+        '          fi\n'
+        '          if [ -z "$head_before" ]; then\n'
+        '            # Fresh build with no remote branch yet: fall back to current HEAD (main).\n'
+        '            head_before=$(git rev-parse HEAD 2>/dev/null || echo "")\n'
+        '          fi\n'
+        '          # ALL known tips among this issue\'s branch pattern (multiline). The\n'
+        '          # verify step treats the set as "pre-existing state": any tip NOT in\n'
+        '          # it is a genuine push. A single-sha snapshot cannot do that - with\n'
+        '          # several stale branches per issue (the norm after retry rounds) a\n'
+        '          # sha-sorted pick would differ from whichever stale branch the agent\n'
+        '          # checked out, and an unpushed session would read as pushed.\n'
+        '          pattern_tips=$(git ls-remote origin "refs/heads/opencode/issue${issue}-*" 2>/dev/null | cut -f1 | sort -u)\n',
+    ),
+    "stage-overwrite-copy": sub(
+        '      - name: Verify research decided, else auto-retry\n',
+        '      - name: Refresh staged helpers\n'
+        '        run: cp .github/scripts/*.sh "$RUNNER_TEMP/lab-scripts/"\n'
+        '      - name: Verify research decided, else auto-retry\n',
+    ),
     "build-different-branch-no-tipmove": sub(
         "            elif [ -n \"$tip_now\" ] && ! printf '%s\\n' \"$PATTERN_TIPS\" | grep -qxF \"$tip_now\"; then\n",
         "            elif [ -n \"$tip_now\" ]; then\n",
@@ -12700,7 +12779,7 @@ print("\n".join(sorted(mutants)))
 R28STATICMUT
     r28_bad="${r28_bad} opencode.yml(static-mutant-generation-failed:$(tr '\n' ';' < "$r28_tmp/static-mutants.log" | cut -c1-200))"
   else
-    r28_wf_mutant_list="verify-target verify-counter verify-newest-pr verify-retries-reset verify-cap verify-env-token verify-id verify-continue-on-error forward-target forward-comment forward-if forward-event-number forward-env-token build-if build-env-branch build-attribution build-fail-open build-pushed-foreign build-continue-on-error recover-gate recover-exit recover-shell workflow-env research-job-env build-job-defaults build-baseline-id phase-actor-gate-id research-job-continue-on-error build-job-continue-on-error phase-gate-if-false phase-gate-duplicate phase-opencode-if-false phase-opencode-duplicate build-baseline-if-false build-baseline-comment-markers research-job-if-false build-job-if-false build-baseline-body-main phase-agent-alias phase-agent-pat phase-agent-timeout research-job-permissions research-job-runs-on research-job-timeout build-baseline-blank-continuation stage-body-changed stage-name-changed stage-direct-path forward-builder-body-helper build-baseline-fail-open build-different-branch-no-tipmove permissions-pr-none forward-builder-gate"
+    r28_wf_mutant_list="verify-target verify-counter verify-newest-pr verify-retries-reset verify-cap verify-env-token verify-id verify-continue-on-error forward-target forward-comment forward-if forward-event-number forward-env-token build-if build-env-branch build-attribution build-fail-open build-pushed-foreign build-continue-on-error recover-gate recover-exit recover-shell workflow-env research-job-env build-job-defaults build-baseline-id phase-actor-gate-id research-job-continue-on-error build-job-continue-on-error phase-gate-if-false phase-gate-duplicate phase-opencode-if-false phase-opencode-duplicate build-baseline-if-false build-baseline-comment-markers research-job-if-false build-job-if-false build-baseline-body-main phase-agent-alias phase-agent-pat phase-agent-timeout research-job-permissions research-job-runs-on research-job-timeout build-baseline-blank-continuation stage-body-changed stage-name-changed stage-direct-path stage-overwrite-copy forward-builder-body-helper build-baseline-fail-open build-baseline-git-fail-open build-different-branch-no-tipmove permissions-pr-none forward-builder-gate"
     # Bind the generator's mutation set to the list executed below: a mutant
     # added (or dropped) in only one place would otherwise silently shrink
     # the load-bearing matrix without tripping any other check.
@@ -12786,6 +12865,7 @@ R28GH
     printf '%s' '{"issue":{"number":685,"pull_request":{"html_url":"https://github.com/x/y/pull/685"}},"comment":{"body":"/oc design"}}' > "$r28_tmp/events/pr.json"
     printf '%s' '{"pull_request":{"number":685},"comment":{"body":"/oc design"}}' > "$r28_tmp/events/review.json"
     printf '%s' '{"comment":{"body":"/oc design"}}' > "$r28_tmp/events/no-number.json"
+    printf '%s' '{not valid json' > "$r28_tmp/events/bad.json"
 
     r28_resolver_case() {
       local name="$1" script="$2" event="$3" head="$4" mode="$5" arg="$6" want_rc="$7" want_out="$8" want_calls="$9"
@@ -12824,6 +12904,11 @@ R28GH
       r28_resolver_case p-nonnumeric "$script" "$r28_tmp/events/pr.json" "opencode/issues582-x" ok parent 0 685 1 || bad="${bad} p-nonnumeric"
       r28_resolver_case p-leadingdash "$script" "$r28_tmp/events/pr.json" "opencode/issue-582-x" ok parent 0 685 1 || bad="${bad} p-leadingdash"
       r28_resolver_case p-nonum "$script" "$r28_tmp/events/no-number.json" "" ok parent 1 "" 0 || bad="${bad} p-nonum"
+      # A payload that cannot be parsed must fail closed in BOTH modes: an
+      # unparseable is_pr used to read as "not a PR" and resolve a phase PR to
+      # itself, restoring the #690 mis-target.
+      r28_resolver_case bad-json-thread "$script" "$r28_tmp/events/bad.json" "" ok thread 1 "" 0 || bad="${bad} bad-json-thread"
+      r28_resolver_case bad-json-parent "$script" "$r28_tmp/events/bad.json" "" ok parent 1 "" 0 || bad="${bad} bad-json-parent"
       r28_resolver_case bad-mode "$script" "$r28_tmp/events/issue.json" "" ok bogus 2 "" 0 || bad="${bad} bad-mode"
       # gh failures (non-zero exit AND silence) must fail closed, never fall
       # back to the thread: a phase PR whose head cannot be resolved must not
@@ -13009,7 +13094,7 @@ R28MUTCLASS
 fi
 rm -rf "$r28_tmp"
 if [ -z "$r28_bad" ]; then
-  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected and its exact if/id/env/key set and normalized run body pinned, every consumed steps.<id> resolves in its owning job to the expected step identity (actor gate, agent, baseline, verify-phase, verify) ahead of its consumer with the resolved gate/agent/baseline steps bound to their exact key surface, if, env, and executable output lines so a skipped decoy cannot shadow them, every bound job's key set, runs-on, timeout, and trigger if scalar are pinned exactly, the agent env/timeout/continue-on-error are pinned, composite uses paths are path-normalized before counting, the baseline run body is pinned exactly, job-level continue-on-error is rejected on every bound job, the attribution calls are pinned including their fail-closed closure with no pushed=yes inside a foreign branch, both real helper scripts are staged from the trusted default-branch checkout into RUNNER_TEMP before the agent starts and every post-agent step invokes the staged copy (never the agent-mutable workspace copy, which an in-flight branch may not even contain), the baseline fails loudly on a nonzero gh status so an empty branch means only a successful no-PR query, the workflow-level permissions block is pinned exactly, the build forward is gated on a verified own push, the classifier reads subjects through a here-string so a large builder batch cannot SIGPIPE into a false foreign verdict, both real helper scripts are executed against fixture events, an executable mock gh, and a local bare origin with Builder/Tester commit subjects (including a 1500-commit large-range fixture and a branch-without-helpers staging fixture), and 61 mutation self-tests (53 workflow static-pin mutants plus 8 helper-fixture mutants) prove the static pins and both fixture matrices load-bearing (issue #690)" "ok"
+  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected and its exact if/id/env/key set and normalized run body pinned, every consumed steps.<id> resolves in its owning job to the expected step identity (actor gate, agent, baseline, verify-phase, verify) ahead of its consumer with the resolved gate/agent/baseline steps bound to their exact key surface, if, env, and executable output lines so a skipped decoy cannot shadow them, every bound job's key set, runs-on, timeout, and trigger if scalar are pinned exactly, the agent env/timeout/continue-on-error are pinned, composite uses paths are path-normalized before counting, the baseline run body is pinned exactly, job-level continue-on-error is rejected on every bound job, the attribution calls are pinned including their fail-closed closure with no pushed=yes inside a foreign branch, both real helper scripts are staged from the trusted default-branch checkout into RUNNER_TEMP before the agent starts and every post-agent step invokes the staged copy (never the agent-mutable workspace copy, which an in-flight branch may not even contain), the baseline fails loudly on a nonzero gh or git status (capture-first, so a failed ls-remote is never swallowed as branch-absent), so an empty branch means only a successful no-PR query, and no non-staging step may write into the staged-helper directory, the workflow-level permissions block is pinned exactly, the build forward is gated on a verified own push, the classifier reads subjects through a here-string so a large builder batch cannot SIGPIPE into a false foreign verdict, both real helper scripts are executed against fixture events (including an unparseable payload that must fail closed), an executable mock gh, and a local bare origin with Builder/Tester commit subjects (including a 1500-commit large-range fixture and a branch-without-helpers staging fixture), and 63 mutation self-tests (55 workflow static-pin mutants plus 8 helper-fixture mutants) prove the static pins and both fixture matrices load-bearing (issue #690)" "ok"
 else
   check "R28" "phase thread binding or build-push attribution guard missing:${r28_bad} (issue #690: a design retry/forward migrated to the newest phase PR and the build verify read a foreign Tester push as its own)" "bad"
 fi

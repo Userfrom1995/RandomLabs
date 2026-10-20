@@ -31,6 +31,15 @@ esac
 
 event_path="${GITHUB_EVENT_PATH:?GITHUB_EVENT_PATH is required}"
 
+# Prove the payload is parseable before deriving anything from it: a jq
+# failure used to surface as an empty is_pr, which read as "not a PR" and
+# silently resolved a phase PR to itself instead of its parent issue (the
+# #690 mis-target). A malformed event fails closed here instead.
+if ! jq -e . "$event_path" >/dev/null 2>&1; then
+  echo "Could not parse the workflow event payload; refusing to resolve a target." >&2
+  exit 1
+fi
+
 thread="$(jq -r '.issue.number // .pull_request.number // empty' "$event_path" 2>/dev/null || true)"
 case "$thread" in
   ''|*[!0-9]*)
