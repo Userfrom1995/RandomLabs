@@ -136,7 +136,7 @@ fn pip_text(game: &Game, frame_no: u64) -> &'static str {
             0 => "><",
             1 => "++",
             2 => "..",
-            _ => "  ",
+            _ => "()",
         };
     }
     let closed = game
@@ -208,15 +208,28 @@ pub fn render_board(
 
     // Actor overlay lookup: tile -> (text, color).
     let mut overlay = std::collections::BTreeMap::new();
+    if game.relish.active {
+        overlay.insert(
+            maze_chase_engine::tuning::RELISH_TILE,
+            (
+                if (frame_no / 30).is_multiple_of(2) {
+                    "<>"
+                } else {
+                    "<<"
+                },
+                theme.accent,
+            ),
+        );
+    }
     for warden in game.wardens.wardens.iter() {
         let t = tile_of(warden.actor.x, warden.actor.y);
         let (text, color) = match warden.state {
             WardenState::Eyes => ("''", theme.eyes),
             _ if fright && warden.state == WardenState::Active => (
-                if fright_mask == "fright_mask" {
-                    "FF"
-                } else {
+                if fright_mask == "fright_mask_flash" {
                     "##"
+                } else {
+                    "FF"
                 },
                 theme.fright,
             ),
@@ -233,19 +246,6 @@ pub fn render_board(
         overlay.insert(t, (text, color));
     }
     let pip_tile = tile_of(game.player.x, game.player.y);
-    if game.relish.active {
-        overlay.insert(
-            maze_chase_engine::tuning::RELISH_TILE,
-            (
-                if (frame_no / 30).is_multiple_of(2) {
-                    "<>"
-                } else {
-                    "<<"
-                },
-                theme.accent,
-            ),
-        );
-    }
     overlay.insert(pip_tile, (pip_text(game, frame_no), theme.pip));
     // Effect cues on the cell rung: the pickup ripple is the two static
     // states the motion table allows, the turn spark a committed-corner
@@ -524,7 +524,8 @@ mod tests {
         let mut g = game();
         g.wardens.start_fright(6.0);
         let entry = render_board(&g, theme, &l, 0, true).to_ansi(true);
-        assert!(entry.contains("##"), "the entry morph shows first");
+        assert!(entry.contains("FF"), "the entry morph draws flat cells");
+        assert!(!entry.contains("##"), "entry is not the hollow variant");
 
         g.wardens.fright_t = 5.5;
         let steady = render_board(&g, theme, &l, 0, true).to_ansi(true);
@@ -534,6 +535,52 @@ mod tests {
         g.wardens.fright_t = 1.3;
         let flash = render_board(&g, theme, &l, 0, true).to_ansi(true);
         assert!(flash.contains("##"), "the flash phase shows");
+
+        g.wardens.fright_t = 5.5;
+        let reduced = render_board(&g, theme, &l, 0, false).to_ansi(true);
+        assert!(
+            reduced.contains("##"),
+            "reduced flash holds the hollow warning mask"
+        );
+        assert!(!reduced.contains("FF"));
+    }
+
+    #[test]
+    fn cell_relish_stays_under_the_hunters() {
+        let theme = &themes::DUSK_POND;
+        let l = layout::compute(100, 40);
+        let (rx, ry) = maze_chase_engine::tuning::RELISH_TILE;
+        let mut g = game();
+        g.relish.active = true;
+        g.wardens.wardens[0].state = WardenState::Active;
+        g.wardens.wardens[0].actor.x = rx as f32 + 0.5;
+        g.wardens.wardens[0].actor.y = ry as f32 + 0.5;
+        let with_hunter = render_board(&g, theme, &l, 0, true).to_ansi(true);
+        g.relish.active = false;
+        let without_relish = render_board(&g, theme, &l, 0, true).to_ansi(true);
+        assert_eq!(
+            with_hunter, without_relish,
+            "a hunter on the relish tile must hide the relish"
+        );
+        assert!(with_hunter.contains("BB"), "the hunter glyph still paints");
+    }
+
+    #[test]
+    fn dying_cells_hold_a_bubble() {
+        let mut g = game();
+        g.kill_player();
+        g.tick(0.9);
+        assert_eq!(
+            pip_text(&g, 0),
+            "()",
+            "the held death frame keeps a visible bubble"
+        );
+        let l = layout::compute(100, 40);
+        let ansi = render_board(&g, &themes::DUSK_POND, &l, 0, true).to_ansi(true);
+        assert!(
+            ansi.contains("()"),
+            "the cell tier renders the held bubble instead of a blank"
+        );
     }
 
     #[test]

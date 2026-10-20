@@ -425,6 +425,7 @@ impl App {
                     flash: !self.settings.reduced_flash,
                     fps: self.settings.show_fps.then_some(self.fps_ema as f32),
                     tune: tune_name(self.tune),
+                    ticker: self.ticker(),
                 };
                 let mut frame = render::render_play(&self.game, theme, hud, w, h)?;
                 if self.screens.current == ScreenId::Paused {
@@ -682,6 +683,23 @@ mod tests {
     fn clear_ticker_uses_the_engine_event_name() {
         assert!(ticker_for("level-clear").is_some());
         assert!(ticker_for("clear").is_none());
+    }
+
+    #[test]
+    fn clear_ticker_reaches_the_composed_frame() {
+        let mut app = test_app("ticker");
+        app.on_action(Action::Confirm);
+        let text = ticker_for("level-clear").expect("level-clear ticker");
+        app.ticker = Some((text, app.frame_no));
+        assert_eq!(app.ticker(), Some("POND CLEAR!"));
+        let with = app.render(1100, 760).unwrap();
+        app.ticker = None;
+        let without = app.render(1100, 760).unwrap();
+        assert_ne!(
+            with.px, without.px,
+            "the ticker must reach the composed play frame"
+        );
+        let _ = std::fs::remove_dir_all(&app.dir);
     }
 
     #[test]

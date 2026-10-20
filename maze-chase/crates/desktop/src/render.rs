@@ -10,6 +10,7 @@
 
 use crate::font;
 use crate::frame::Frame;
+use maze_chase_assets::sprites;
 use maze_chase_assets::themes::Theme;
 use maze_chase_engine::game::{Game, GameState};
 use maze_chase_terminal::raster;
@@ -103,6 +104,7 @@ pub struct Hud<'a> {
     pub flash: bool,
     pub fps: Option<f32>,
     pub tune: &'a str,
+    pub ticker: Option<&'a str>,
 }
 
 /// Compose one play frame at exactly `w`x`h` (too-small card when the
@@ -155,7 +157,7 @@ fn render_floaters(f: &mut Frame, game: &Game, theme: &Theme, lay: &Layout) {
             theme.bg,
         );
         for ch in text.chars() {
-            let rows = font::rows_for(ch);
+            let rows = &sprites::DIGITS[ch.to_digit(10).unwrap_or(0) as usize];
             for (gy, row) in rows.iter().enumerate() {
                 for (gx, ink) in row.bytes().enumerate() {
                     if ink == b'#' {
@@ -272,8 +274,11 @@ fn render_hud(f: &mut Frame, game: &Game, theme: &Theme, hud: Hud<'_>, lay: &Lay
     }
     f.text(&format!("TUNE {}", hud.tune), x, y, s, theme.dim_text, None);
     step(&mut y);
-    // Bottom hint bar spans the full window width.
-    let hint = "ARROWS/WASD MOVE - P PAUSE - M MUTE - F FULLSCREEN - ESC MENU";
+    // Bottom hint bar spans the full window width; a fresh event ticker
+    // replaces the static control hint.
+    let hint = hud
+        .ticker
+        .unwrap_or("ARROWS/WASD MOVE - P PAUSE - M MUTE - F FULLSCREEN - ESC MENU");
     f.text(
         hint,
         PAD,
@@ -301,12 +306,50 @@ mod tests {
             flash: true,
             fps: None,
             tune: "OFF",
+            ticker: None,
         }
     }
 
     /// Advance the shared engine one fixed step toward `want`.
     fn step(game: &mut Game, want: Option<Dir>) {
         game.step(maze_chase_engine::tuning::STEP as f64, want);
+    }
+
+    #[test]
+    fn ticker_replaces_the_static_hint_line() {
+        let game = Game::new(7, 1);
+        let plain = render_play(&game, theme(), hud(), 1100, 760).unwrap();
+        let ticker = render_play(
+            &game,
+            theme(),
+            Hud {
+                ticker: Some("POND CLEAR!"),
+                ..hud()
+            },
+            1100,
+            760,
+        )
+        .unwrap();
+        assert_ne!(plain.px, ticker.px, "the ticker reaches the frame");
+        let h = font::text_height(1, 1) as i32;
+        let y0 = 760 - PAD - h;
+        let dim = crate::frame::pack(theme().dim_text);
+        let band = |f: &crate::frame::Frame| {
+            let mut n = 0;
+            for y in y0..y0 + h {
+                for x in 0..1100 {
+                    if f.get(x, y) == Some(dim) {
+                        n += 1;
+                    }
+                }
+            }
+            n
+        };
+        assert!(band(&ticker) > 0, "the ticker paints in the hint band");
+        assert!(
+            band(&ticker) < band(&plain),
+            "the ticker replaces the longer default hint"
+        );
     }
 
     #[test]
