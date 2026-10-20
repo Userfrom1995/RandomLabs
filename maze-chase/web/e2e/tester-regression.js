@@ -110,6 +110,9 @@ if (!fs.existsSync(wasmPath)) {
     fr.mc_key(ids[d], 1); fadv(s); fr.mc_key(ids[d], 0); fadv(0.05);
   }
   assert((fr.mc_fright_active() >>> 0) === 1, 'sunseed route starts a fright window');
+  const harness = fs.readFileSync(path.join(__dirname, '..', 'maze-chase.js'), 'utf8');
+  assert(harness.includes('exp.mc_fright_segments()'),
+    'harness updateHud calls the fright countdown export');
   assert(typeof fr.mc_fright_segments === 'function',
     'mc_fright_segments exported (HUD countdown), got ' + typeof fr.mc_fright_segments);
   assert((fr.mc_fright_segments() >>> 0) === 0, 'countdown empty before the final 1.5 s');
