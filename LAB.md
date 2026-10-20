@@ -577,8 +577,8 @@ Public Surface / Web Track:                                              │
   of any `pushed=yes` inside a foreign branch; it executes both real helpers
   against fixture events, an executable mock `gh`, and a local bare origin
   with Builder/Tester commit subjects, including a 1500-commit large-range
-  fixture and a branch-without-helpers staging fixture, and 63 mutation
-  self-tests (55 workflow static-pin mutants plus 8 helper-fixture
+  fixture and a branch-without-helpers staging fixture, and 65 mutation
+  self-tests (57 workflow static-pin mutants plus 8 helper-fixture
   mutants) prove the static pins and both fixture matrices load-bearing
   (a foreign-branch
   `pushed=yes`, a verify or forward `if: false`, a retry-target rebind, a
