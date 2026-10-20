@@ -41,7 +41,7 @@ Golden Lily bloom; the desktop and browser canvases add score floaters,
 and the web settings panel shows the active theme name. Accessibility gates (text/bg,
 fright/wall, eyes/wall, hunter separation, light/dark) pass, the golden
 replay digest is unchanged (`23c17f89734e`), and the wasm rebuild is
-committed (`7545da6a...`, 206,252 bytes). The title and pause surfaces
+committed (`346ef9b8...`, 206,295 bytes). The title and pause surfaces
 now stage the live game: terminal and desktop paint a dimmed attract
 board behind centered cards, the browser overlays a fixed title card
 with a visible Start action and a header Pause control, and the pause
@@ -71,10 +71,10 @@ wasm, and `browser-e2e.js` is ALL GREEN. macOS and Windows terminal rows
 stay with the per-OS testers; no claim here exceeds the executed Linux
 rows.
 
-Workspace gates: `cargo test --workspace --no-fail-fast` 550 passed / 0
-failed across 59 targets, harness contract 47/47, `maze-chase-verify`
+Workspace gates: public count 550 across 59 targets (the full rerun
+remains the Tester's gate), harness contract 47/47, `maze-chase-verify`
 19/19 (`23c17f89734e`; `perf-headless` 0.2-0.4 us/tick on CI reruns),
-wasm sha256 `69d5a55c...`, `cargo fmt --all --check` clean, and clippy
+wasm sha256 `346ef9b8...`, `cargo fmt --all --check` clean, and clippy
 reports only the pre-existing engine style lints.
 
 Delegation ledger (round 5): no subagents were dispatched; the primary
@@ -1147,4 +1147,14 @@ Next: Phase 5 (sound design overhaul).
   the 42-assertion browser E2E all green. The full workspace suite is the Tester's
   run (this sandbox lacks the ALSA headers for `alsa-sys`). No registry
   skill matched; none loaded.
+  - the Fixer
+
+- 2026-10-20 (fixer, Pondwake review round 11 on `a55760e2`): corrected the
+  two stale current-state claims in this file. The Current step summary and
+  the workspace-gates paragraph now name the shipped wasm
+  `346ef9b8...` (206,295 bytes), and the gates paragraph reports the public
+  count of 550 across 59 targets with the full rerun explicitly left to the
+  Tester, matching `docs/scoreboard.md`. Documentation-only change; no code,
+  wasm, or evidence was touched. Single-file fix with the file already open,
+  so no subagents were dispatched. No registry skill matched; none loaded.
   - the Fixer
