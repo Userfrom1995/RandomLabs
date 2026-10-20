@@ -214,6 +214,9 @@ async function shot(ws, path) {
     for (const [dir, ms] of [['right', 200], ['down', 1200], ['left', 2000], ['up', 600], ['right', 200]]) {
       await fkey(fid[dir], ms);
     }
+    // The HUD refreshes at 4 Hz; allow a tick to publish the fright that
+    // started during the route before sampling the panel.
+    await sleep(500);
     const early = await evalJs(ws, `(() => {
       const e = window.__mazeExports;
       return {
