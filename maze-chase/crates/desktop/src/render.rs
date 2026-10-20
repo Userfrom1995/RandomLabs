@@ -96,6 +96,17 @@ pub fn layout(w: u32, h: u32) -> Layout {
     }
 }
 
+/// Center of the play board in frame pixels. Stage cards (title and
+/// pause) sit here; the page center is offset by the right-hand HUD band.
+pub fn stage_center(w: u32, h: u32) -> (i32, i32) {
+    let lay = layout(w, h);
+    if lay.too_small {
+        (w as i32 / 2, h as i32 / 2)
+    } else {
+        (lay.bx + lay.bw as i32 / 2, lay.by + lay.bh as i32 / 2)
+    }
+}
+
 /// Extra HUD context the engine does not own (machine best, fps line).
 #[derive(Clone, Copy, Debug)]
 pub struct Hud<'a> {
@@ -260,16 +271,19 @@ pub fn overlay_menu(
         .max(1);
     if let Some(card) = render_menu_detailed(title, lines, details, footer, theme, cw, ch) {
         // Wide windows put the menu in the right-hand empty band while the
-        // live attract board stays fully visible on the left.
+        // live attract board stays fully visible on the left. When there is
+        // no room for that band the compact card stages over the board
+        // itself, never over the middle of the page.
         let lay = layout(f.w, f.h);
         let board_right = lay.bx + lay.bw as i32 + 6;
         let right_space = f.w as i32 - board_right - PAD;
+        let (board_cx, board_cy) = stage_center(f.w, f.h);
         let ox = if right_space >= cw as i32 {
             board_right + (right_space - cw as i32) / 2
         } else {
-            (f.w as i32 - cw as i32) / 2
+            board_cx - cw as i32 / 2
         };
-        let oy = (f.h as i32 - ch as i32) / 2;
+        let oy = board_cy - ch as i32 / 2;
         for y in 0..card.h as i32 {
             for x in 0..card.w as i32 {
                 if let Some(v) = card.get(x, y) {
@@ -712,6 +726,61 @@ mod menu_tests {
         assert_eq!((detailed.w, detailed.h), (900, 700));
         assert!(detailed.count(theme().dim_text) > 0);
         assert!(detailed.count(theme().text) > a.count(theme().text));
+    }
+
+    #[test]
+    fn stage_center_is_the_board_center_not_the_page_center() {
+        for (w, h) in [(1440, 900), (1100, 760), (900, 700)] {
+            let lay = layout(w, h);
+            let (cx, cy) = stage_center(w, h);
+            assert_eq!(cx, lay.bx + lay.bw as i32 / 2);
+            assert_eq!(cy, lay.by + lay.bh as i32 / 2);
+            assert_ne!(cx, w as i32 / 2, "the HUD band offsets the board");
+        }
+    }
+
+    #[test]
+    fn compact_title_card_falls_back_to_the_board_center() {
+        let theme = theme();
+        let lines = vec![
+            MenuLine::at("PLAY", true),
+            MenuLine::plain("HOW TO PLAY"),
+            MenuLine::plain("QUIT"),
+        ];
+        let details = [
+            ("START A HUNT IN THE POND", theme.text),
+            (
+                "BRAM HERON - KESSA PIKE - JORY SNAKE - NIB DRAGONFLY",
+                theme.dim_text,
+            ),
+        ];
+        let mut f = Frame::blank(900, 700, theme.bg).unwrap();
+        overlay_menu(
+            &mut f,
+            "MAZE CHASE",
+            &lines,
+            &details,
+            "ARROWS + ENTER",
+            theme,
+        );
+        let border = crate::frame::pack(theme.wall_inner);
+        let (mut min_x, mut max_x) = (i32::MAX, i32::MIN);
+        for y in 0..f.h as i32 {
+            for x in 0..f.w as i32 {
+                if f.get(x, y) == Some(border) {
+                    min_x = min_x.min(x);
+                    max_x = max_x.max(x);
+                }
+            }
+        }
+        assert!(min_x <= max_x, "the card border must paint");
+        let card_cx = (min_x + max_x) / 2;
+        let (board_cx, _) = stage_center(f.w, f.h);
+        assert!(
+            (card_cx - board_cx).abs() <= 2,
+            "compact card center {card_cx} must track board center {board_cx}"
+        );
+        assert_ne!(card_cx, 900 / 2, "page center is not the board center");
     }
 
     #[test]
