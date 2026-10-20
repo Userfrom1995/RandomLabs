@@ -139,7 +139,7 @@ fn pip_text(game: &Game, reduced_motion: bool, reduced_flash: bool) -> &'static 
             _ => "()",
         };
     }
-    let closed = !(reduced_motion || reduced_flash) && game.fx.chomp_phase() == 2;
+    let closed = !reduced_motion && game.fx.chomp_phase() == 2;
     match game.player.dir {
         Dir::Right => {
             if closed {
@@ -286,6 +286,8 @@ pub fn render_board_opts(game: &Game, theme: &Theme, layout: &Layout, opts: anim
                 (if frame < 2 { "++" } else { "**" }, effect_accent, true),
             );
         }
+    }
+    if !opts.reduced_motion {
         if let Some(anchor) = game.fx.turn_spark() {
             overlay.insert(
                 (anchor.x.floor() as i32, anchor.y.floor() as i32),
@@ -642,6 +644,46 @@ mod tests {
         assert!(
             ansi.contains("()"),
             "the cell tier renders the held bubble instead of a blank"
+        );
+    }
+
+    #[test]
+    fn reduced_flash_keeps_cell_chomp_and_turn_spark() {
+        let theme = &themes::DUSK_POND;
+        let l = layout::compute(100, 40);
+        let mut g = game();
+        g.fx.set_moving(true);
+        g.fx.advance(2.0 / 12.0);
+        g.fx.turn(10.0, 10.0);
+        assert_eq!(
+            g.fx.chomp_phase(),
+            2,
+            "the moving chomp reaches the closed pose"
+        );
+        assert_eq!(pip_text(&g, false, false), "()");
+
+        // Reduced flash with motion on: chomp and turn spark still animate.
+        let reduced_flash = render_board(&g, theme, &l, false).to_ansi(true);
+        assert!(
+            reduced_flash.contains("()"),
+            "the chomp still closes under reduced flash"
+        );
+        assert!(
+            reduced_flash.contains("::"),
+            "the turn spark still paints under reduced flash"
+        );
+
+        // Reduced motion holds the open mouth and drops the spark.
+        let reduced_motion =
+            render_board_opts(&g, theme, &l, anim::Fx::new(true, true)).to_ansi(true);
+        assert!(
+            !reduced_motion.contains("::"),
+            "reduced motion holds the turn spark"
+        );
+        assert_ne!(
+            pip_text(&g, true, false),
+            "()",
+            "reduced motion holds the open mouth"
         );
     }
 

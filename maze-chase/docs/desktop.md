@@ -167,8 +167,8 @@ scripted run and asserts pixel-identical output across seeds.
 - No gamepad appears: check the OS sees it first (`/dev/input`,
   Game Controllers, System Information); the Padbinds screen only
   lists OS-present devices.
-- Window too small card: drag larger; the minimum is roughly 480x360
-  for the board at scale 1 plus the HUD.
+- Window too small card: drag larger; the minimum is 492x296 for the
+  board at scale 1 plus the HUD.
 
 ## Reproducible builds
 
