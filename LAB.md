@@ -1048,6 +1048,33 @@ and backoff sleeps in per-run files, so an orphaned watchdog poll sleep from a
 finished scenario can never corrupt the next scenario's exact-count backoff
 assertions.
 
+A third provider class is deliberately not retried (issue #669): the provider
+rejects a runner's egress IP with HTTP 403 and a `FreeTierError` body, in two
+observed terminal forms (`Forbidden, OpenCode Free Model Gateway Detect Abuse
+Traffic`, and the long "OpenCode's free models aren't available from your
+current network ..." message) under `AI_APICallError:`/`APIError:` prefixes.
+All four 2026-10-18 incidents (lab run 39378762068, maintainer run
+39165526719, and earlier 39127259752/39144091490) died on the session's first
+provider call within 8-20 seconds, so the runner's egress IP was already
+blocked when the job started: a same-runner retry would hit the same IP, and
+the proven recovery is a fresh run on a new runner (crash-parity triage
+re-dispatches review/test/lab; the Maintainer's recurring schedule covers its
+own arm). Both runner paths therefore carry a named
+`ip_block_error_terminal()` detector with the same tail + column-0 terminal
+anchoring and pipefail-safe wrap as the #591/#620/#653 detectors. The
+classification sits ahead of the exit-shape split so BOTH exit shapes are
+covered, prints a canonical `::error::` naming the class and the fresh-run
+recovery path, and exits 1 unconditionally (never `exit "$status"`, which
+would conclude an exit-0 provider death green). It consumes no retry budget,
+records no backoff, and never advances the ladder. R15 executes the detector
+functionally over both terminal forms and all three prefixes, plus the
+echo/envelope/suffix/phrase-variant/uppercase/stale no-match matrix and the
+tail-window 39/40 boundary, and the behavioral matrix adds `ip-block`,
+`ip-block0`, `ip-block7`, and `ip-block-stderr`: exactly one attempt on the
+first rung, no recorded backoff, no rung advance, rc 1, and the canonical
+message for both exit shapes, a non-1 provider status, and a stderr-carried
+line.
+
 The guard was subsequently extended through the Tester rounds until every
 demonstrated test-integrity escape was bound: all three retry budgets are
 proven arm-wide (relocating any counter into the rung loop fails
@@ -1457,8 +1484,12 @@ remote tip).
   once on the same model, and a transient 429/5xx terminal death is retried
   on the same model exactly once per arm with the provider's own exit
   status propagated on a second failure (issue #653); `mkfifo`-less
-  runners degrade loudly to the legacy pipeline without the watchdog. The
-  resolver, the ladder, all retry paths (free-tier, stall, 429/5xx), and
+  runners degrade loudly to the legacy pipeline without the watchdog, and
+  a provider 403 abusive-traffic egress-IP block is a named unconditional
+  fast-fail whose recovery is a fresh run on a new runner, never a
+  same-runner retry (issue #669). The
+  resolver, the ladder, all retry paths (free-tier, stall, 429/5xx), the
+  egress-IP fast-fail, and
   the watchdog are enforced by R15 in
   `.github/scripts/silent-stall-audit.sh` (anchored static element pins plus
   functional detector fixtures executed under the production pipefail shell
