@@ -72,7 +72,7 @@ Ready for re-review.
 
 ## Next steps
 
-- Reviewer `/oc review` -> Tester `/oc test` -> Evaluator per milestone;
+- Reviewer `/oc review` -> Tester `/oc test` -> `/oc approve-test` -> Maintainer routes `/oc eval` -> Evaluator -> `/oc maintainer` on `approve-eval` per milestone;
   intermediates use `Refs #375`, only the final verified M5 uses `Closes #375`
 - M5 (next): polish + product hardening on a new milestone branch
   (`opencode/issue375-umbra-m5` from main after this PR merges)
