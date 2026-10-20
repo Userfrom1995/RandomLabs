@@ -554,20 +554,37 @@ jobs:
           echo "::error::Maintainer agent finished with outcome '$AGENT_OUTCOME' and no .maintainer/decision.json (model-resolution death, provider error, or crash). Failing loudly instead of concluding green without triage."
           exit 1
 
+      # Issue #699: this cleanup used to run unauthenticated (a silent no-op)
+      # and its filter also matched the live build branch namespace, so adding
+      # a token first would have closed every open build PR. It now touches
+      # ONLY the retired schedule/dispatch branch classes, authenticates with
+      # the least-privilege job token, and fails loudly on any API or auth
+      # error instead of swallowing it. Audit rule R27 pins the filter
+      # boundary, the token, the loud-failure shape, and the exact run body.
       - name: Remove maintainer stray PRs and branches (the Maintainer never opens PRs)
         if: always() && steps.actor_gate.outputs.run == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr list --author app/github-actions --state open --json number,headRefName \
-            --jq '.[] | select(.headRefName | startswith("opencode/schedule-") or startswith("opencode/dispatch-") or startswith("opencode/issue")) | .number' \
-            | while read num; do
-                gh pr close "$num" --delete-branch --comment "auto-closed by hardcoded cleanup: the Maintainer never opens PRs - its state lives on the maintainer/logs branch." || true
-              done
-          gh api --paginate repos/${{ github.repository }}/branches --jq '.[].name' 2>/dev/null \
-            | grep -E '^opencode/(schedule-|dispatch-|issue)' \
-            | while read br; do
-                enc=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$br")
-                gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/$enc" || true
-              done
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
+          stray_prs=$(gh pr list --author app/github-actions --state open --json number,headRefName \
+            --jq '.[] | select(.headRefName | startswith("opencode/schedule-") or startswith("opencode/dispatch-")) | .number')
+          for num in $stray_prs; do
+            gh pr close "$num" --delete-branch --comment "auto-closed by hardcoded cleanup: the Maintainer never opens PRs - its state lives on the maintainer/logs branch."
+          done
+          branch_list=$(mktemp)
+          trap 'rm -f "$branch_list"' EXIT
+          gh api --paginate "repos/${repo}/branches" --jq '.[].name' > "$branch_list"
+          while IFS= read -r br; do
+            case "$br" in
+              opencode/schedule-*|opencode/dispatch-*) ;;
+              *) continue ;;
+            esac
+            enc=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$br")
+            gh api -X DELETE "repos/${repo}/git/refs/heads/${enc}"
+          done < "$branch_list"
           echo "stray cleanup complete"
 
       - name: Emergency-gated commit and push of workflow model updates to main
