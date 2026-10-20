@@ -16,7 +16,7 @@ honestly with evidence, then complies when overruled.
 1. **Owner** - supreme, ultimate authority. Directives override everything. The owner has ultimate power over the repository, workflows, and decisions.
 2. **Hephaestus (Maintainer / Chief Orchestrator)** - the lab's main operational authority (succeeded founding Maintainer Mae on 2026-08-27; past logs/decisions referencing Mae are recognized as valid history). Directs the squad, assigns priorities, coordinates workflows, and decides track routing. Possesses full operational authority to execute major architectural pivots, format changes, and multi-version iterations autonomously without pausing for owner confirmation. All workers report to Hephaestus and execute his instructions.
 3. **Collaborators** - directives are binding.
- 4. **Specialists & Workers** (The Lab Engineer, The Architect, The Researcher, The Builder, The Fixer, The Reviewer, The Tester, The Linux Tester, The macOS Tester, The Windows Tester, The Ideator, The Auditor, The Curator, General Agent) - report to Hephaestus, execute tasks under his direction, and strictly obey both Hephaestus and the Owner.
+4. **Specialists & Workers** (The Lab Engineer, The Architect, The Researcher, The Builder, The Fixer, The Reviewer, The Tester, The Linux Tester, The macOS Tester, The Windows Tester, The Evaluator, The Recover Agent, The Design Council, The Ideator, The Auditor, The Curator, General Agent) - report to Hephaestus, execute tasks under his direction, and strictly obey both Hephaestus and the Owner.
 
 ## 2. Agents & personalities
 
@@ -36,6 +36,7 @@ honestly with evidence, then complies when overruled.
 | Evaluator | Autonomous Quality Council / Program Committee | Binding quality gate; commands swarm subagents; audits 5-dimension rubric; approvals hard-gated on live-execution evidence (`/tmp/live-run-evidence.json`) |
 | Auditor | Pipeline inspector & health monitor | Highly skilled, creative problem solver, expert in agent workflows |
 | Lab Engineer | Chief Technology Officer (CTO) & Lab Architect | Master DevOps architect, workflow engineer, and systems designer |
+| Recover Agent | PR survival & continuation engineer | Restores closed or orphaned build PRs into open continuation PRs from recover tags |
 | Curator | Public surface, web & README custodian | Meticulous web craftsperson, aesthetic guardian, and public surface custodian |
 | Design Council | Permanent product design team (orchestrator + UX, visual, motion) | Four-round deliberation with recorded dissent; ships design specs plus tokens |
 | General | Chat/assistant/answers | Helpful |
@@ -75,7 +76,7 @@ Public Surface / Web Track:                                              │
                                                                           (rejected)     (approved)
                                                                                 │               │
                                                                                 ▼               ▼
-                                                                  Fixer (re-evaluate)  Maintainer (/oc approve-eval -> merge)
+                                                                  Fixer (re-evaluate)  Maintainer (/oc maintainer -> merge)
                                                                                                   │
                                                                                                   ▼
                                                                                             (merge PR & close)
@@ -162,7 +163,7 @@ Public Surface / Web Track:                                              │
   (agent and job minimums plus >= 20 minutes of headroom; the agent step
   name must be unique in its file) in
   `.github/scripts/silent-stall-audit.sh`.
-- **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (rebase, bot identity), closes linked issues, updates memory, and advances the pipeline.
+- **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer routes the binding Evaluator gate (`/oc eval`), and the Evaluator's hardcoded PAT step returns the verdict with `/oc maintainer` -> the Maintainer merges only on `approve-eval` (rebase, bot identity), closes linked issues, updates memory, and advances the pipeline.
 - **Merge capability**: Workflow-file PRs require `workflows` scope, which `GITHUB_TOKEN` cannot grant via `permissions:` (valid `GITHUB_TOKEN` scopes are `actions`, `contents`, `pull-requests`, etc.; `workflows` is App/PAT only). The mutating workflows (`lab.yml`, `maintainer.yml`, `opencode.yml`, `opencode-recover.yml`) push via the PAT-backed runner step (`https://x-access-token:${OPENCODE_PAT}@github.com/...` with credential-injection cleanup), and merges of PRs touching `.github/workflows/*` must likewise use the PAT or an owner click. Read-only agents (Reviewer, Tester, Auditor, Ideator) carry no extra scope. Without a PAT merge, infra PR merges fail with "refusing to allow a GitHub App to create or update workflow ... without workflows permission" (observed on PR #139; flagged in #120). The opencode CLI wrapper additionally performs its own end-of-session push of the checked-out branch with the checkout App token, so on workflow-touching branches that internal push is rejected by the same rule (one rejection comment plus a masked `continue-on-error` step failure; the PAT-backed runner step is the authoritative push). That rejection is expected noise, not agent misbehavior (lab run 39024455956, 2026-10-17). The PAT merge sweep additionally restores full history when the workspace is shallow before its merge-base linkage checks: the opencode CLI session bootstrap re-shallows the checkout with depth-limited fetches, and on a shallow workspace both the three-dot workflow diff and the orphan guard fail closed, silently skipping a legitimately linked workflow PR (issue #602, guarded by audit rule R16).
 - In-progress continuation: When a build requires additional phases (`Status: in-progress`), the workflow triggers `/oc continue`.
 
@@ -772,7 +773,7 @@ Your PAT is used ONLY by hardcoded workflow steps, for exactly these things:
 - **Test Authoring & Commit Authorization**: Authorized to author permanent regression and E2E test suites in project test directories (`tests/`, `e2e/`, etc.) and commit them directly to the PR branch under `tester: ...`.
 - **Strict Separation of Concerns**: The Tester never touches production application logic. If a test fails, the failing test is committed and pushed so the bug is reproducible, and the Tester posts `/oc fix: <details>` → the Fixer runs.
 - **Infrastructure PR Guard**: If the diff touches `.github/workflows/`, `.github/agents/`, `AGENTS.md`, or `LAB.md`, the Tester operates strictly read-only (never commits/pushes), validates infrastructure dynamically, and routes issues to `/oc lab`.
-- If clean and all tests pass, the Tester commits any new test suites, pushes, and posts `/oc approve-test` → the Maintainer is dispatched to merge.
+- If clean and all tests pass, the Tester commits any new test suites, pushes, and posts `/oc approve-test` → the test workflow notifies the Maintainer (`/oc maintainer`), which routes the binding Evaluator gate (`/oc eval`) and merges only on `approve-eval`.
 
 ## 12. Human PR playbook
 
@@ -853,6 +854,7 @@ New folder `.github/agents/`:
   tester-linux.md    # the Linux Tester - per-OS real-user QA on Linux
   tester-macos.md    # the macOS Tester - per-OS real-user QA on macOS
   tester-windows.md  # the Windows Tester - per-OS real-user QA on Windows
+  evaluator.md       # the Evaluator - binding Quality Council gate after the Tester
   auditor.md         # the Auditor - pipeline inspector
   curator.md         # the Curator - public surface, web & README custodian
   design-council.md  # the Design Council orchestrator - product design deliberation
@@ -860,6 +862,7 @@ New folder `.github/agents/`:
   design-visual.md   # the Visual Designer - identity, character, tokens
   design-motion.md   # the Interaction Designer - motion, feedback, polish
   labengineer.md # the Lab Engineer (CTO) - lab infrastructure & DevOps specialist
+  recover.md         # the Recover Agent - PR survival & continuation engineer
   general.md         # the General agent - chat/assistant
   decisions/
     README.md        # decision-file protocol
@@ -893,14 +896,14 @@ personality, CHANGELOG) is direct-commit.
 | `maintainer.yml` | The brain: triggers, per-PR concurrency, memory-branch handling, decision list → hardcoded PAT step, 60-min timeout |
 | `opencode-pr-trigger.yml` | PR opened/synchronize → posts `/oc maintainer` as owner (PAT) on every non-draft same-repo PR (fork PRs get no secrets, so the section 12 guidance-only path applies), waking the Maintainer, which then decides review/continue/merge (the `/oc review (head <sha>)` comment is posted by `maintainer.yml`) |
 | `opencode.yml` | Build / Fix / Design Council / General modes (prompts from files; `/oc continue`; per-issue concurrency; clean-tree + sanitize; extended approve-CI with stable-head polling; no end-of-run dispatches; the Fix mode agent step runs 120 minutes under a 180-minute job so the rebase/push/decision chain always has headroom, issue #701) |
-| `opencode-review.yml` | Reviewer (prompts from file); human-vs-bot fix behavior; `/oc approve` → dispatch Maintainer (fallback: merge as bot); ownership-gated restore-head; short `/oc fix` trigger |
+| `opencode-review.yml` | Reviewer (prompts from file); human-vs-bot fix behavior; `/oc approve` → `/oc test` → Tester `/oc approve-test` → `/oc maintainer` (then the Maintainer routes the Evaluator gate via `/oc eval` and merges only on `approve-eval`); a reviewer `maintainer` decision escalates directly via `/oc maintainer`; ownership-gated restore-head; short `/oc fix` trigger |
 | `opencode-test.yml` | Tester gate: `/oc test` (the per-OS `/oc test-linux`, `/oc test-macos`, `/oc test-windows` aliases route to `opencode-peros-test.yml`) → dynamic real-user and code-expert testing of the PR head, durable test commits as `tester:`, `/oc approve-test` → notifies the Maintainer; infrastructure PRs run strictly read-only |
 | `opencode-recover.yml` | Recovery: `detect` job (schedule + PR-close auto-detect) resurrects closed/orphaned build PRs via `recover.sh`; `recover` job runs the Recover Agent on `/oc recover`. Tags `recover/<pr>` and re-links orphans onto `main` (never rewriting `main`) |
 | `lab.yml` | Lab Engineer (CTO): `/oc lab` on an issue or PR → infrastructure builds, workflow repairs, agent creation, model switches; the agent step runs 150 minutes under a 180-minute job so the post-agent chain always has headroom (issue #701); the PAT-backed runner step pushes the branch and opens the PR; handoff via `/tmp/random-lab-decision.json` |
 | `ideate.yml` | On-demand Ideator - posts candidates on the Brainstorm Board and notifies Maintainer; no PAT in agent env |
 | `curator.yml` | Public surface & README custodian: scheduled (6h) / dispatch / /oc curate audits and surgical PRs |
 | `auditor.yml` | The Auditor: daily schedule + `/oc auditor` → runs `.github/scripts/silent-stall-audit.sh` over `opencode.yml`, audits CI/CD and model health, posts the summary on the `lab-health` board, opens bug issues |
-| `opencode-eval.yml` | Evaluator (binding quality gate after Tester): reads deliverable, invokes swarm subagents, writes `/tmp/evaluator-decision.json`, posts `/oc eval result` via hardcoded PAT step |
+| `opencode-eval.yml` | Evaluator (binding quality gate after Tester): reads deliverable, invokes swarm subagents, writes `/tmp/evaluator-decision.json`, posts its signed verdict as a bot comment, and hands off with `/oc maintainer` via hardcoded PAT step; the Maintainer decides merge, fix, or lab |
 | `opencode-peros-test.yml` | Per-OS real-user testers: `test-linux` (ubuntu), `test-macos` (macos), `test-windows` (windows, bash shell); native every-command/flag testing feeding the Tester; findings reports are a file contract (`/tmp/random-lab-findings.md`) posted and verified by the workflow (issue #608); macOS/Windows agent steps run 120 minutes under 150-minute jobs and salvage a signed partial report behind a provenance banner when they die without a decision file (issue #692); no PAT in agent env |
 | `pages.yml` | Unchanged - Pages deploy + PR previews |
 
