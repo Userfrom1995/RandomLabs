@@ -589,6 +589,10 @@ mod tests {
         Atlas::build(&themes::DUSK_POND, ppt)
     }
 
+    fn actual_sprite_scale(ppt: u32) -> u32 {
+        raster::sprite_scale(ppt as i32) as u32
+    }
+
     fn assert_frames_eq(got: &RgbaFrame, want: &RgbaFrame, ctx: &str) {
         assert_eq!((got.w, got.h), (want.w, want.h), "{ctx}");
         for (i, (g, w)) in got.px.iter().zip(&want.px).enumerate() {
@@ -604,8 +608,8 @@ mod tests {
     fn atlas_has_every_slot_and_transparent_corners() {
         for ppt in [8, 21] {
             let atlas = atlas_for(ppt);
-            let cell = glyph_px(ppt);
-            assert_eq!(atlas.cell, cell);
+            let cell = atlas.cell;
+            assert_eq!(cell, glyph_px(ppt) * actual_sprite_scale(ppt));
             assert_eq!(atlas.frame.w, ATLAS_COLS as u32 * cell);
             assert!(atlas.frame.h >= cell * 6);
             for slot in 0..SLOT_COUNT {
@@ -631,7 +635,7 @@ mod tests {
 
     #[test]
     fn composed_frame_matches_full_raster() {
-        for ppt in [6, 8, 12, 21] {
+        for ppt in [6, 8, 12, 20] {
             let mut game = Game::new(11, 1);
             let theme = themes::DUSK_POND;
             let atlas = atlas_for(ppt);

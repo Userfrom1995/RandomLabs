@@ -57,7 +57,7 @@ gates in `crates/assets/src/themes.rs`. Settings saved with the earlier
 palette ids (`ember-warren`, `abyss-lantern`, `parchment-dawn`) migrate
 to the matching Pondwake theme on load.
 
-Rill's sheet is 11x11 with three mouth phases, three telling facings
+Rill's 11x11 baseline and 21x21 high-detail sheets carry three mouth phases, three telling facings
 (right, up, down; left is the horizontal mirror), and a four-frame
 death-sink into a bubble. The hunters use one 11x11 silhouette each,
 plus directional 7x7 eye bubbles, a fright mask, and a hollow warning

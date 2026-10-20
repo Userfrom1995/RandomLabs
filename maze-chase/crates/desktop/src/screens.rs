@@ -540,9 +540,9 @@ fn clamp01(v: f32) -> f32 {
 /// Help body (scrollable window of [`HELP_WINDOW`] lines).
 pub const HELP: &[&str] = &[
     "EAT EVERY CRUMB TO CLEAR",
-    "THE WARREN.",
+    "THE POND.",
     "",
-    "ARROWS OR WASD STEER PIP.",
+    "ARROWS OR WASD STEER RILL.",
     "THE LEFT AND RIGHT EDGES",
     "ARE TUNNELS.",
     "",

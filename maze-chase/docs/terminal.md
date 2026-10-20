@@ -102,7 +102,7 @@ The game picks the best tier its terminal proves, best first:
     unidentifiable terminal; keys typed during the probe are replayed,
     never swallowed. Kitty keyboard enhancement is enabled for
    disambiguated input. Measured on kitty 0.32.2 (2026-10-20): 21
-   transmits and 167.1 KiB of PNG payload for a whole session, playing
+   transmits and 165.0 KiB of PNG payload for a whole session, playing
    at 20.6 frames/s with a 6.1 KiB mean frame (before this pipeline: a
     historical 1642 transmits and 348.6 MiB, not re-derivable from the
     regenerated JSONs).
@@ -114,7 +114,7 @@ The game picks the best tier its terminal proves, best first:
    budget, then the game starts regardless, and keys typed while the
    probe waits are replayed, never swallowed), or via `--tier sixel` on
    known Sixel terminals (foot, contour, mlterm, Sixel-build xterm).
-   Measured on xterm 390: 143-144 transmits / 4.58-4.60 MiB per session.
+   Measured on xterm 390: 138 transmits / 3.91 MiB per session.
 3. **truecolor-cells**: 24-bit Unicode board (solid-block walls, dotted
    crumbs, letter wardens in theme colors, facing Rill mouth) with
    synchronized tear-free frames. The WezTerm, foot-fallback, iTerm2,
@@ -183,9 +183,12 @@ On the pixel tiers the board rasterizes at the detected cell pixel size,
 bounded so the raster's natural pixel size fits the board's pixel box
 (whenever the box can host even the 6-pixels-per-tile legibility floor;
 only absurdly tiny pixel windows fall back to the floor and may
-overflow) and clamped to 6..20 pixels per tile so encode cost stays
+overflow) and clamped to 6..21 pixels per tile so encode cost stays
 bounded (the cap bounds encode cost, not the on-screen scale: a large window
 draws the capped raster at its native size on the centered footprint). The
+21-pixels-per-tile rung selects Rill's authored 21x21 sheet; on Kitty that
+rung renders as one whole-frame image instead of the 11x11-based atlas, so
+the sprite scale stays exact. The
 image is drawn on a centered footprint inside the board, mapped from the
 raster's pixel size through the detected window pixels: Kitty terminals
 scale the image into that footprint (which tracks the raster's aspect to

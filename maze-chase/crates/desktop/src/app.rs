@@ -64,9 +64,9 @@ fn ticker_for(event: &str) -> Option<String> {
     match event {
         "sunseed" => Some("SUNSEED! THE HUNT TURNS".into()),
         "death" => Some("CAUGHT!".into()),
-        "respawn" => Some("BACK IN THE WARREN".into()),
+        "respawn" => Some("BACK IN THE POND".into()),
         "extra-life" => Some("SPARE WICK!".into()),
-        "clear" => Some("WARREN CLEAR!".into()),
+        "clear" => Some("POND CLEAR!".into()),
         "game-over" => Some("NO WICKS LEFT".into()),
         _ => None,
     }
