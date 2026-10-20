@@ -122,7 +122,8 @@ def build_sheet(song):
     lines = []
     lines.append("<!doctype html>")
     lines.append('<html lang="en"><head><meta charset="utf-8">')
-    lines.append("<title>%s - lead sheet</title></head><body>" % song["title"])
+    lines.append('<meta name="viewport" content="width=device-width, initial-scale=1">')
+    lines.append("<title>%s - lead sheet</title><link rel=\"icon\" href=\"data:,\"></head><body>" % song["title"])
     lines.append("<h1>%s</h1>" % song["title"])
     lines.append("<p>Key %s, meter %s, tempo %s BPM, %s bars, %s seconds. Original work, lab-owned.</p>"
                  % (song["key"], song["meter"], song["tempo"]["bpm"],
