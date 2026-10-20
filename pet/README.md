@@ -193,9 +193,13 @@ Run-from-source shortcut scripts cover the no-binary path
 (`install.sh`/`uninstall.sh`, `install.ps1`/`uninstall.ps1`).
 Versioned artifacts ship on GitHub Releases (`desktop-pet-vX.Y.Z`)
 via `.github/workflows/pet-release.yml`, which builds all three OS
-families natively and smokes each artifact (install, selftest,
-service cycle, uninstall-clean) before publish; release binaries are
-unsigned, so SmartScreen/Gatekeeper/`chmod +x` notes apply.
+families natively and runs a headless smoke before publish: version
+parity, selftest, a service start/status/stop cycle, and package
+payload verification always run, while the real install plus
+uninstall-clean path runs only with `--install` / `-Install`; the
+uploaded service plist is checksummed but not smoked. Release
+binaries are unsigned, so SmartScreen/Gatekeeper/`chmod +x` notes
+apply.
 No binaries are checked in; the per-OS matrix, release notes, and
 checksum commands live in `packaging/README.md`.
 
