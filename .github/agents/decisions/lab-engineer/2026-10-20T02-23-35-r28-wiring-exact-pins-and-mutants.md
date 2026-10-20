@@ -1,4 +1,4 @@
-# Decision: R28 exact wiring pins, foreign-branch guard, and 22 mutants (PR #708)
+# Decision: R28 exact wiring pins, foreign-branch guard, and 25 mutants (PR #708)
 
 - **Decider:** the Lab Engineer (CTO)
 - **Date:** 2026-10-20T02:23:35Z
@@ -39,12 +39,16 @@ to diff review.
   branches and four legitimate own-path `pushed="yes"` assignments, and fails
   if any `pushed="yes"` appears between a foreign `elif` and its terminating
   `fi`.
-- The mutation generator now emits 22 mutants (up from 7): the six reviewer
+- The static pass also rejects workflow-level and bound-job-level `env`,
+  `defaults`, `container`, and `strategy` keys, so an effective execution
+  override cannot ride alongside an exactly pinned step.
+- The mutation generator now emits 25 mutants (up from 7): the six reviewer
   escapes plus retry-cap raise, env token swaps, verify-id rename,
   continue-on-error on both verify shapes, forward event-number targeting,
-  build baseline-branch env blanking, recover `exit 0`, and a recover shell
-  override. Every mutant must fail the static pass, and a mutation that no
-  longer applies aborts the generator.
+  build baseline-branch env blanking, recover `exit 0`, a recover shell
+  override, and workflow- and job-level execution overrides. Every mutant
+  must fail the static pass, and a mutation that no longer applies aborts the
+  generator.
 - `.github/agents/tester.md` now cites `R1`-`R28` in both the validation step
   and the evidence example.
 - `AGENTS.md` and `LAB.md` describe the exact pins and the mutation matrix.
@@ -57,10 +61,11 @@ to diff review.
 - Pre-fix repro on `1b61f2a8`: all six reviewer escapes stayed
   `28 passed, 0 failed` (independently reproduced by the adversarial
   verifier, which also found eight more green escapes; all are now closed).
-- Post-fix repro: all 22 mutants fail the static pass with distinct tokens
+- Post-fix repro: all 25 mutants fail the static pass with distinct tokens
   (`step-run-changed`, `step-if-changed`, `step-env-changed`,
-  `step-id-changed`, `step-key-surface`, `duplicate-yaml-key`), while the
-  unmodified control passes.
+  `step-id-changed`, `step-key-surface`, `workflow-effective-override`,
+  `job-effective-override`, `duplicate-yaml-key`), while the unmodified
+  control passes.
 - `bash -n` passes on `silent-stall-audit.sh`; PyYAML parses every workflow;
   the em-dash scan and `git diff --check` are clean.
 
@@ -73,7 +78,8 @@ to diff review.
   six reviewer escapes green at `1b61f2a8` and found eight additional
   green escapes (empty `BASELINE_BRANCH`, `github.sha` baseline, forward
   event-number targeting, phase GH_TOKEN swap, raised retry cap, renamed
-  verify id, build/phase `continue-on-error`, recover `exit 0`); all are
+  verify id, build/phase `continue-on-error`, recover `exit 0`, and
+  workflow/job execution overrides); all are
   covered by the exact pins and mutants above.
 - Primary verified itself: generated the canonical normalized bodies from the
   live workflow, validated the templates against all six phases before

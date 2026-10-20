@@ -550,9 +550,11 @@ Public Surface / Web Track:                                              │
   key set, and normalized `run:` body (all six phase verifies, all six
   forwards, the full build verify, the full recover-tag body), the exact
   attribution calls with their fail-closed closure, and the absence of any
-  `pushed=yes` inside a foreign branch; it executes both real helpers
+  `pushed=yes` inside a foreign branch, and rejects workflow- and
+  job-level `env`/`defaults`/`container`/`strategy` overrides around the
+  bound jobs; it executes both real helpers
   against fixture events, an executable mock `gh`, and a local bare origin
-  with Builder/Tester commit subjects, and 22 mutation self-tests prove the
+  with Builder/Tester commit subjects, and 25 mutation self-tests prove the
   static pins and both fixture matrices load-bearing (a foreign-branch
   `pushed=yes`, a verify or forward `if: false`, a retry-target rebind, a
   retry-counter reset, a fail-open attribution closure, an env token swap, a

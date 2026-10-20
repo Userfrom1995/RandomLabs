@@ -11853,6 +11853,16 @@ if "|| echo" in "\n".join(attribution_calls):
 
 expect_step("Preserve build branch with recover tag", "build", ("name", "if", "env", "run"),
             RECOVER_IF, RECOVER_ENV, RECOVER_TAG)
+
+if doc.get("env") is not None or doc.get("defaults") is not None:
+    fail("workflow-effective-override")
+for bound_job in sorted(set(phase) | {"build"}):
+    bound_doc = (doc.get("jobs") or {}).get(bound_job)
+    if not isinstance(bound_doc, dict):
+        fail("bound-job-missing:%s" % bound_job)
+    for bad_key in ("defaults", "env", "container", "strategy"):
+        if bad_key in bound_doc:
+            fail("job-effective-override:%s:%s" % (bound_job, bad_key))
 R28STATIC
   r28_static_err="$r28_tmp/static.err"
   if ! python3 -I "$r28_static_py" "$OPENCODE_WF" >"$r28_tmp/static.out" 2>"$r28_static_err"; then
@@ -11985,6 +11995,12 @@ mutants = {
     )),
     "recover-shell": sub(RECOVER_HEAD + '        run: |\n',
                          RECOVER_HEAD + '        shell: sh\n        run: |\n'),
+    "workflow-env": sub('name: opencode\n\non:\n',
+                        'name: opencode\n\nenv:\n  BASH_ENV: /tmp/evil\n\non:\n'),
+    "research-job-env": sub('  research:\n    if: |\n',
+                            '  research:\n    env:\n      BASH_ENV: /tmp/evil\n    if: |\n'),
+    "build-job-defaults": sub('  build:\n    if: |\n',
+                              '  build:\n    defaults:\n      run:\n        shell: sh\n    if: |\n'),
 }
 
 for name, body in mutants.items():
@@ -11996,12 +12012,14 @@ print("\n".join(sorted(mutants)))
 R28STATICMUT
     r28_bad="${r28_bad} opencode.yml(static-mutant-generation-failed:$(tr '\n' ';' < "$r28_tmp/static-mutants.log" | cut -c1-200))"
   else
-    for r28_wf_mutant in \
-      verify-target verify-counter verify-newest-pr verify-retries-reset verify-cap \
-      verify-env-token verify-id verify-continue-on-error forward-target forward-comment \
-      forward-if forward-event-number forward-env-token build-if build-env-branch \
-      build-attribution build-fail-open build-pushed-foreign build-continue-on-error \
-      recover-gate recover-exit recover-shell; do
+    r28_wf_mutant_list="verify-target verify-counter verify-newest-pr verify-retries-reset verify-cap verify-env-token verify-id verify-continue-on-error forward-target forward-comment forward-if forward-event-number forward-env-token build-if build-env-branch build-attribution build-fail-open build-pushed-foreign build-continue-on-error recover-gate recover-exit recover-shell workflow-env research-job-env build-job-defaults"
+    # Bind the generator's mutation set to the list executed below: a mutant
+    # added (or dropped) in only one place would otherwise silently shrink
+    # the load-bearing matrix without tripping any other check.
+    if [ "$(sort "$r28_tmp/static-mutants.log")" != "$(printf '%s\n' $r28_wf_mutant_list | sort)" ]; then
+      r28_bad="${r28_bad} opencode.yml(static-mutant-list-changed)"
+    fi
+    for r28_wf_mutant in $r28_wf_mutant_list; do
       if python3 -I "$r28_static_py" "$r28_tmp/static-mutants/$r28_wf_mutant.yml" >/dev/null 2>&1; then
         r28_bad="${r28_bad} opencode.yml(${r28_wf_mutant}-not-caught)"
       fi
@@ -12234,7 +12252,7 @@ R28MUTCLASS
 fi
 rm -rf "$r28_tmp"
 if [ -z "$r28_bad" ]; then
-  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected and its exact if/id/env/key set and normalized run body pinned, the attribution calls are pinned including their fail-closed closure with no pushed=yes inside a foreign branch, both real helper scripts are executed against fixture events, an executable mock gh, and a local bare origin with Builder/Tester commit subjects, and 22 mutation self-tests prove the static pins and both fixture matrices load-bearing (issue #690)" "ok"
+  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected and its exact if/id/env/key set and normalized run body pinned, the attribution calls are pinned including their fail-closed closure with no pushed=yes inside a foreign branch, both real helper scripts are executed against fixture events, an executable mock gh, and a local bare origin with Builder/Tester commit subjects, and 25 mutation self-tests prove the static pins and both fixture matrices load-bearing (issue #690)" "ok"
 else
   check "R28" "phase thread binding or build-push attribution guard missing:${r28_bad} (issue #690: a design retry/forward migrated to the newest phase PR and the build verify read a foreign Tester push as its own)" "bad"
 fi
