@@ -113,6 +113,13 @@ jobs:
           # shallow clones and misroute healthy branches (issue #283).
           fetch-depth: 0
 
+      - name: "Stage lab helper scripts (issue #690)"
+        run: |
+          mkdir -p "$RUNNER_TEMP/lab-scripts"
+          cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
+          chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
+
       - name: Actor write gate (issue #428)
         id: actor_gate
         shell: bash
@@ -186,7 +193,7 @@ jobs:
             exit 0
           fi
 
-          issue=$(bash .github/scripts/resolve-thread-target.sh thread) || {
+          issue=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" thread) || {
             echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
@@ -208,7 +215,7 @@ jobs:
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
-            parent=$(bash .github/scripts/resolve-thread-target.sh parent) || parent=""
+            parent=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || parent=""
             if [ -z "$parent" ]; then
               echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
               echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -252,7 +259,7 @@ jobs:
           # the newest open phase PR. On 2026-10-18 this forward resolved #685
           # (an in-test phase PR of #582) and the resulting /oc build bound a
           # fresh session to that PR's approved head.
-          target=$(bash .github/scripts/resolve-thread-target.sh parent) || {
+          target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {
             echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
             exit 1
           }
@@ -313,6 +320,13 @@ jobs:
           # Full history: orphan-guard merge-base checks fail closed on
           # shallow clones and misroute healthy branches (issue #283).
           fetch-depth: 0
+
+      - name: "Stage lab helper scripts (issue #690)"
+        run: |
+          mkdir -p "$RUNNER_TEMP/lab-scripts"
+          cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
+          chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 
       - name: Actor write gate (issue #428)
         id: actor_gate
@@ -388,7 +402,7 @@ jobs:
             exit 0
           fi
 
-          issue=$(bash .github/scripts/resolve-thread-target.sh thread) || {
+          issue=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" thread) || {
             echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
@@ -410,7 +424,7 @@ jobs:
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
-            parent=$(bash .github/scripts/resolve-thread-target.sh parent) || parent=""
+            parent=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || parent=""
             if [ -z "$parent" ]; then
               echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
               echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -453,7 +467,7 @@ jobs:
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
-          target=$(bash .github/scripts/resolve-thread-target.sh parent) || {
+          target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {
             echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
             exit 1
           }
@@ -575,6 +589,13 @@ jobs:
           # shallow clones and misroute healthy branches (issue #283).
           fetch-depth: 0
 
+      - name: "Stage lab helper scripts (issue #690)"
+        run: |
+          mkdir -p "$RUNNER_TEMP/lab-scripts"
+          cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
+          chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
+
       - name: Actor write gate (issue #428)
         id: actor_gate
         shell: bash
@@ -606,11 +627,22 @@ jobs:
           # local checkout state. This mirrors the proven FIX-job pattern.
           is_pr="${{ github.event.issue.pull_request != null }}"
           pr_branch=""
+          # Fail loudly on a nonzero gh status: an API/rate-limit failure used
+          # to be swallowed as an empty baseline, and the verify then took its
+          # "new branch" fallback and reported a pre-existing PR tip as this
+          # session's push (the #690 false positive). An empty branch now means
+          # only "the query succeeded and found no PR at baseline".
           if [ "$is_pr" = "true" ]; then
-            pr_branch=$(gh pr view "$issue" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+            pr_branch=$(gh pr view "$issue" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName') || {
+              echo "::error::Could not resolve the PR branch for issue #$issue at baseline; refusing to guess a build baseline."
+              exit 1
+            }
           else
             pr_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
-              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefName') || {
+              echo "::error::Could not list open PRs for issue #$issue at baseline; refusing to guess a build baseline."
+              exit 1
+            }
           fi
           head_before=""
           if [ -n "$pr_branch" ]; then
@@ -744,7 +776,7 @@ jobs:
               # moves the tip too, and treating it as this session's push ran
               # the post-push bookkeeping against work the build never made.
               if [ -n "$tip_now" ] && [ -n "$BASELINE_HEAD" ] && [ "$tip_now" != "$BASELINE_HEAD" ]; then
-                attribution=$(bash .github/scripts/classify-build-push.sh "$BASELINE_HEAD" "$tip_now" "$target_branch" 2>/dev/null || true)
+                attribution=$(bash "$RUNNER_TEMP/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$target_branch" 2>/dev/null || true)
                 if [ "$attribution" = "own" ]; then
                   pushed="yes"
                   echo "Build pushed successfully: $target_branch moved $BASELINE_HEAD -> $tip_now (builder commit attributed)"
@@ -756,13 +788,16 @@ jobs:
               else
                 echo "No push detected on target branch $target_branch (tip=${tip_now:-<none>}, baseline=$BASELINE_HEAD)"
               fi
-            elif [ -n "$tip_now" ]; then
+            elif [ -n "$tip_now" ] && ! printf '%s\n' "$PATTERN_TIPS" | grep -qxF "$tip_now"; then
               # A DIFFERENT branch now carries this issue's open PR (the agent
-              # created it mid-run): PR existence itself proves real pushes.
+              # created it mid-run). A tip that existed at baseline is stale
+              # state, not this session's push: the baseline step fails loudly
+              # on a query failure, so an empty/different branch here is a
+              # genuine new branch and its tip must not be pre-existing.
               pushed="yes"
               echo "Build pushed successfully: new branch $target_branch at $tip_now"
             else
-              echo "Target branch $target_branch has no remote tip yet; no push detected"
+              echo "No push detected on target branch $target_branch (tip=${tip_now:-<none>} matches pre-existing state or is absent)"
             fi
           elif [ -z "$BASELINE_BRANCH" ]; then
             # Fresh build from a plain issue with no open PR at either end:
@@ -799,7 +834,7 @@ jobs:
             if [ -n "$tip_now" ] && [ "$tip_now" != "$BASELINE_HEAD" ]; then
               # Issue #690: attribute the move to a builder: commit; a foreign
               # push on the lost-PR branch is not this session's work either.
-              attribution=$(bash .github/scripts/classify-build-push.sh "$BASELINE_HEAD" "$tip_now" "$BASELINE_BRANCH" 2>/dev/null || true)
+              attribution=$(bash "$RUNNER_TEMP/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$BASELINE_BRANCH" 2>/dev/null || true)
               if [ "$attribution" = "own" ]; then
                 pushed="yes"
                 echo "Build pushed successfully: $BASELINE_BRANCH moved $BASELINE_HEAD -> $tip_now (builder commit attributed)"
@@ -943,7 +978,7 @@ jobs:
           exit 0
 
       - name: Forward builder decision
-        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.pushed == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -1285,6 +1320,13 @@ jobs:
           ref: ${{ github.event.repository.default_branch || github.ref_name }}
           fetch-depth: 0
 
+      - name: "Stage lab helper scripts (issue #690)"
+        run: |
+          mkdir -p "$RUNNER_TEMP/lab-scripts"
+          cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
+          chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
+
       - name: Actor write gate (issue #428)
         id: actor_gate
         shell: bash
@@ -1345,7 +1387,7 @@ jobs:
             echo "Decision file present; design phase produced a handoff."
             exit 0
           fi
-          issue=$(bash .github/scripts/resolve-thread-target.sh thread) || {
+          issue=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" thread) || {
             echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
@@ -1364,7 +1406,7 @@ jobs:
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
-            parent=$(bash .github/scripts/resolve-thread-target.sh parent) || parent=""
+            parent=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || parent=""
             if [ -z "$parent" ]; then
               echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
               echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -1407,7 +1449,7 @@ jobs:
           # the newest open phase PR. This forward resolved #685 (an in-test
           # phase PR of #582) and posted /oc build there, binding a fresh build
           # session to the approved head.
-          target=$(bash .github/scripts/resolve-thread-target.sh parent) || {
+          target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {
             echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
             exit 1
           }
@@ -1479,6 +1521,13 @@ jobs:
           ref: ${{ github.event.repository.default_branch || github.ref_name }}
           fetch-depth: 0
 
+      - name: "Stage lab helper scripts (issue #690)"
+        run: |
+          mkdir -p "$RUNNER_TEMP/lab-scripts"
+          cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
+          chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
+
       - name: Actor write gate (issue #428)
         id: actor_gate
         shell: bash
@@ -1539,7 +1588,7 @@ jobs:
             echo "Decision file present; design-ux phase produced a handoff."
             exit 0
           fi
-          issue=$(bash .github/scripts/resolve-thread-target.sh thread) || {
+          issue=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" thread) || {
             echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
@@ -1558,7 +1607,7 @@ jobs:
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
-            parent=$(bash .github/scripts/resolve-thread-target.sh parent) || parent=""
+            parent=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || parent=""
             if [ -z "$parent" ]; then
               echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
               echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -1600,7 +1649,7 @@ jobs:
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
-          target=$(bash .github/scripts/resolve-thread-target.sh parent) || {
+          target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {
             echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
             exit 1
           }
@@ -1672,6 +1721,13 @@ jobs:
           ref: ${{ github.event.repository.default_branch || github.ref_name }}
           fetch-depth: 0
 
+      - name: "Stage lab helper scripts (issue #690)"
+        run: |
+          mkdir -p "$RUNNER_TEMP/lab-scripts"
+          cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
+          chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
+
       - name: Actor write gate (issue #428)
         id: actor_gate
         shell: bash
@@ -1732,7 +1788,7 @@ jobs:
             echo "Decision file present; design-visual phase produced a handoff."
             exit 0
           fi
-          issue=$(bash .github/scripts/resolve-thread-target.sh thread) || {
+          issue=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" thread) || {
             echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
@@ -1751,7 +1807,7 @@ jobs:
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
-            parent=$(bash .github/scripts/resolve-thread-target.sh parent) || parent=""
+            parent=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || parent=""
             if [ -z "$parent" ]; then
               echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
               echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -1793,7 +1849,7 @@ jobs:
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
-          target=$(bash .github/scripts/resolve-thread-target.sh parent) || {
+          target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {
             echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
             exit 1
           }
@@ -1865,6 +1921,13 @@ jobs:
           ref: ${{ github.event.repository.default_branch || github.ref_name }}
           fetch-depth: 0
 
+      - name: "Stage lab helper scripts (issue #690)"
+        run: |
+          mkdir -p "$RUNNER_TEMP/lab-scripts"
+          cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
+          chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
+
       - name: Actor write gate (issue #428)
         id: actor_gate
         shell: bash
@@ -1925,7 +1988,7 @@ jobs:
             echo "Decision file present; design-motion phase produced a handoff."
             exit 0
           fi
-          issue=$(bash .github/scripts/resolve-thread-target.sh thread) || {
+          issue=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" thread) || {
             echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
@@ -1944,7 +2007,7 @@ jobs:
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
-            parent=$(bash .github/scripts/resolve-thread-target.sh parent) || parent=""
+            parent=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || parent=""
             if [ -z "$parent" ]; then
               echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
               echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -1986,7 +2049,7 @@ jobs:
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
-          target=$(bash .github/scripts/resolve-thread-target.sh parent) || {
+          target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {
             echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
             exit 1
           }
