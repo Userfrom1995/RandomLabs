@@ -296,6 +296,14 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   rebuilt to sha256 `69d5a55c...` (206,288 bytes, second clean build
   byte-identical); the browser E2E now carries 42 assertions and is all
   green.
+- Review round 10 (same head family): the browser renderer now strips
+  score floaters under reduced motion through the same early-return
+  helper pattern as the desktop, with a behavioral test that renders a
+  live floater under `Fx::new(true, true)` and asserts its absence.
+  Web suite 51 tests; workspace suite 550 passed across 59 targets.
+  Wasm rebuilt to sha256 `346ef9b8...` (206,295 bytes, second clean
+  build byte-identical); node smokes and the 42-assertion browser E2E
+  are all green.
 - Desktop Xvfb `--probe 30` stays byte-identical to
   `docs/desktop-probe.ppm`
   (sha256 `dcb33b7de14cbbd27205d07d707854eb574e1ccc938afca417eaf8d624088421`);

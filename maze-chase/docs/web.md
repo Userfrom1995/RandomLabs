@@ -23,7 +23,7 @@ python3 -m http.server 8000   # Windows: python -m http.server 8000
 
 On GitHub Pages the committed build plays from the project hub: open
 the hub `index.html`, press Play. The shipped artifact is
-`maze-chase/web/maze-chase.wasm` (about 201 KiB / 206,288 bytes, zero
+`maze-chase/web/maze-chase.wasm` (about 201 KiB / 206,295 bytes, zero
 imports, fully
 self-contained), built reproducibly (see below); `web/maze-chase.js` is
 the harness (plain script, no bundler, no external resources, works
@@ -101,10 +101,11 @@ so the HUD previews that state until you press Start.
 
 ## Verification
 
-- `cargo test -p maze-chase-web`: 50 tests (board composition and
+- `cargo test -p maze-chase-web`: 51 tests (board composition and
   determinism, canvas fit/blit math, keyboard/touch mapping, rebind
   steal rules, score table, cue/SFX/tune routing, session flow,
-  hostile bridge probes, engine-clock sampling).
+  hostile bridge probes, engine-clock sampling, reduced-motion floater
+  stripping).
 - Node instantiation of the release `.wasm`: zero imports, scoring
   through the real ABI, bit-identical frames across instances, audio
   tables resolving from crate data.
@@ -141,9 +142,9 @@ cargo build --release --target wasm32-unknown-unknown -p maze-chase-web
 cp target/wasm32-unknown-unknown/release/maze_chase_web.wasm maze-chase/web/maze-chase.wasm
 ```
 
-The committed `web/maze-chase.wasm` is that exact artifact: 206,288
+The committed `web/maze-chase.wasm` is that exact artifact: 206,295
 bytes, sha256
-`69d5a55c213a549d5f8ab36366c2245a8952f264ecf3d39f16e663dc560eb51c`,
+`346ef9b8074e0a69c918d858624887f84694a2357c75de052ca77d47230e519d`,
 built with Rust 1.99.0 (rustc commit
 `b940084d7eb6a299eb4bfeb8e34901bc051e7ac4`, embedded in the artifact);
 a second clean build reproduces the same bytes, while a different

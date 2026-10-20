@@ -453,11 +453,19 @@ pub fn render_board_with(game: &Game, theme: &Theme, opts: anim::Fx) -> Frame {
     }
 
     // Rising score floaters on an opaque plate (desktop and web only).
-    for (floater, progress) in game.fx.floaters() {
-        paint_floater(&mut frame, &floater, progress, theme);
-    }
+    paint_floaters(&mut frame, game, theme, opts.reduced_motion);
 
     frame
+}
+
+/// Rising score floaters, stripped under reduced motion (desktop and web).
+fn paint_floaters(frame: &mut Frame, game: &Game, theme: &Theme, reduced_motion: bool) {
+    if reduced_motion {
+        return;
+    }
+    for (floater, progress) in game.fx.floaters() {
+        paint_floater(frame, &floater, progress, theme);
+    }
 }
 
 /// One floater: 5x7 numerals rising 8 px over 500 ms on an opaque plate.
@@ -741,6 +749,30 @@ mod tests {
             g.tick(1.0 / 120.0);
         }
         assert_eq!(render_board(&g, &theme, true), held);
+    }
+
+    #[test]
+    fn reduced_motion_strips_score_floaters() {
+        let theme = themes::DUSK_POND;
+        let mut g = fresh();
+        g.fx.score(100, g.player.x, g.player.y);
+        assert_eq!(
+            g.fx.floaters().count(),
+            1,
+            "the fixture needs a live floater"
+        );
+        let default_baseline = render_board_with(&fresh(), &theme, anim::Fx::new(true, false));
+        let default = render_board_with(&g, &theme, anim::Fx::new(true, false));
+        assert_ne!(
+            default.px, default_baseline.px,
+            "a live floater must paint under default motion"
+        );
+        let reduced_baseline = render_board_with(&fresh(), &theme, anim::Fx::new(true, true));
+        let reduced = render_board_with(&g, &theme, anim::Fx::new(true, true));
+        assert_eq!(
+            reduced.px, reduced_baseline.px,
+            "reduced motion must strip the floater instead of animating it"
+        );
     }
 
     #[test]
