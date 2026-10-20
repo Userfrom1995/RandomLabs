@@ -40,13 +40,12 @@ Browser artifacts (Node 18+, committed `web/maze-chase.wasm`):
 - `node web/e2e/tester-regression.js`: `TESTER REGRESSION: ALL GREEN`
   (warden-chain wire domain, scores push/getter round-trip, hostile
   boundaries, determinism).
-- `web/e2e/browser-e2e.js` (headless chromium over CDP): 38
-  assertions in the current harness; 38/38 green on this tree
+- `web/e2e/browser-e2e.js` (headless chromium over CDP): 42
+  assertions in the current harness; 42/42 green on this tree
   (zero console errors, real ArrowUp scoring, pause/resume, touch
-  swipe, 390x844 board visible, 60 FPS live), and the macOS native
-  pass re-ran the current harness green. Not re-run in this audit
-  (no display server on the release machine); the committed harness
-  is unchanged since its green run.
+  swipe, 390x844 board visible, 60 FPS live, and the three-zone title
+  description, warden legend, and goal line), and the macOS native
+  pass re-ran the earlier 38-assertion harness green.
 
 Packaging (this audit):
 
@@ -58,8 +57,9 @@ Packaging (this audit):
   clean.
 - Desktop Linux tarball plus installer: scripted and documented;
   release-build plus Xvfb `--probe` run was green at release
-  sign-off (`docs/desktop-probe.ppm` committed). Not rebuilt in this
-  audit (same sources, workspace build green here).
+  sign-off (`docs/desktop-probe.ppm` committed), and recaptured in
+  review round 9 after the title zones landed (Xvfb probe 30 bytes
+  stable across runs).
 - Windows zip and macOS bundle: scripts shipped, must be staged on
   their native OSes (see below).
 
@@ -130,7 +130,7 @@ Windows native pass plus fix round, pre-Pondwake (tester run
   rendered title/play/pause/too-small/resize (9 pass; the 6 fails all
   shared the Release-key double-fire defect this pass found).
 - Desktop probe PPM byte-identical to the committed
-  `docs/desktop-probe.ppm` (pre-Pondwake file, sha256 `8de66bae...`; the current Pondwake file is `a5d4f892...`); the packaged zip
+  `docs/desktop-probe.ppm` (pre-Pondwake file, sha256 `8de66bae...`; the Pondwake file at that pass was `a5d4f892...`); the packaged zip
   `maze-chase-desktop-0.1.0-windows-x86_64.zip` (609,776 bytes)
   extracted a binary byte-identical to the release build.
 - Web node smokes and CDP browser E2E green.
@@ -285,9 +285,20 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   workspace suite stayed at 545 passed across 58 targets, the desktop
   title probe was regenerated, and the wasm rebuilt to sha256
   `7545da6a...` (206,252 bytes) after a second clean build.
+- Review round 9 (same head family): the three-zone title now carries a
+  selected-item description strip plus the warden legend and goal line on
+  terminal, desktop, and web, and the reduced-flash contract gates the
+  pickup burst, golden lily, and death hold on terminal raster, atlas,
+  cell tier, desktop attract board, and browser renderer. New
+  `tester_reduced_flash.rs` enumerates every brightness call site and
+  proves a 180-frame fright window is pixel-stable under reduced flash and
+  reduced motion. Workspace suite 549 passed across 59 targets; wasm
+  rebuilt to sha256 `69d5a55c...` (206,288 bytes, second clean build
+  byte-identical); the browser E2E now carries 42 assertions and is all
+  green.
 - Desktop Xvfb `--probe 30` stays byte-identical to
   `docs/desktop-probe.ppm`
-  (sha256 `a5d4f892150840c7498829341cc1ff1537727d88e598d0d534304db0413f8f0a`);
+  (sha256 `dcb33b7de14cbbd27205d07d707854eb574e1ccc938afca417eaf8d624088421`);
   the desktop E2E asserts the probe bytes. The committed gameplay
   capture `docs/desktop-gameplay.ppm` (sha256
   `f6040ea93bd09ba057016972fb3e8320ce45229667cbae635a97754200625068`)

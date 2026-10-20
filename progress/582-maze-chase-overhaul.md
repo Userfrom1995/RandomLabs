@@ -62,7 +62,7 @@ clean sources, `pause_select=1`) and is 139 transmits / 4.33 MiB. The
 two Ghostty rows remain the `90cb9b87` record and are labeled pre-fix
 in `docs/terminal-compat.md`; the final sign-off phase reruns them. The
 desktop title capture (`docs/desktop-probe.ppm`, sha256
-`a5d4f892...`) was regenerated for the staged title, the
+`dcb33b7d...`) was regenerated for the three-zone title, the
 desktop gameplay capture (`docs/desktop-gameplay.ppm`, 1100x760,
 sha256 `f6040ea9...`) was recorded from the same Xvfb `--probe` pipeline
 after driving a play session, the browser gameplay capture
@@ -71,10 +71,10 @@ wasm, and `browser-e2e.js` is ALL GREEN. macOS and Windows terminal rows
 stay with the per-OS testers; no claim here exceeds the executed Linux
 rows.
 
-Workspace gates: `cargo test --workspace --no-fail-fast` 545 passed / 0
-failed across 58 targets, harness contract 47/47, `maze-chase-verify`
+Workspace gates: `cargo test --workspace --no-fail-fast` 549 passed / 0
+failed across 59 targets, harness contract 47/47, `maze-chase-verify`
 19/19 (`23c17f89734e`; `perf-headless` 0.2-0.4 us/tick on CI reruns),
-wasm sha256 `7545da6a...`, `cargo fmt --all --check` clean, and clippy
+wasm sha256 `69d5a55c...`, `cargo fmt --all --check` clean, and clippy
 reports only the pre-existing engine style lints.
 
 Delegation ledger (round 5): no subagents were dispatched; the primary
@@ -1110,4 +1110,23 @@ Next: Phase 5 (sound design overhaul).
   (`23c17f89734e`), fmt clean, wasm sha256 `7545da6a...` (206,252
   bytes, reproduced by a second clean build), browser E2E 38/38 green,
   desktop E2E under Xvfb green. No registry skill matched; none loaded.
+  - the Fixer
+- 2026-10-20 (fixer, Pondwake review round 9 on `bb5670e8`): restored
+  the design-of-record three-zone title. Terminal, desktop, and browser
+  titles now show a selected-item description, the four-warden legend,
+  and the goal line beneath the live attract board. Reduced flash now
+  covers every brightness-bearing render call site: pickup burst,
+  golden lily, and death hold gate on `reduced_motion || !flash` in
+  terminal raster, atlas, and cell tier, the desktop attract board
+  forwards the live settings, and the browser renderer matches. Added
+  `tester_reduced_flash.rs`, which enumerates every brightness call
+  site and proves a 180-frame fright window stays pixel-stable under
+  reduced flash and reduced motion, with
+  a default-options positive control; `browser-e2e.js` now asserts the
+  three title zones (42 assertions). Verification: 549/549 across 59
+  targets on the Linux workspace suite, harness 47/47, verify 19/19
+  (`23c17f89734e`), fmt clean, wasm sha256 `69d5a55c...` (206,288 bytes,
+  second clean build byte-identical), browser E2E 42/42 green, and the
+  desktop Xvfb probe recaptured to `dcb33b7d...` (30-frame capture,
+  byte-stable on rerun). No registry skill matched; none loaded.
   - the Fixer
