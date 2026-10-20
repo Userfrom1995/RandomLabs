@@ -248,11 +248,14 @@ binaries are built from documented recipes, never downloaded blind:
 - Versioned artifacts ship on GitHub Releases
   (`desktop-pet-vX.Y.Z`) via `.github/workflows/pet-release.yml`,
   which builds all three OS families natively and runs a headless
-  smoke before publish: version parity, selftest, a service
-  start/status/stop cycle, and package payload verification always
-  run, while the real install plus uninstall-clean path runs only
-  with `--install` / `-Install`; the uploaded service plist is
-  checksummed but not smoked. Release binaries are unsigned
+  smoke before publish: version parity, selftest, and a service
+  start/status/stop cycle always run, and the Linux deb/rpm and
+  macOS pkg/dmg payloads are inspected; the Windows setup is
+  name/version checked only, with payload verification and the real
+  install plus uninstall-clean path running only with `-Install`,
+  and the Linux/macOS install plus uninstall-clean path running only
+  with `--install`; the uploaded service plist is checksummed but
+  not smoked. Release binaries are unsigned
   (SmartScreen/Gatekeeper/`chmod +x` notes in `packaging/README.md`);
   always verify against the release `SHA256SUMS.txt`.
 - Run-from-source shortcut scripts: `packaging/install.sh` and
