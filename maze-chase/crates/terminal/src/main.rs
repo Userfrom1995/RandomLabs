@@ -518,6 +518,7 @@ fn hash_settings(h: &mut impl std::hash::Hasher, s: &maze_chase_config::settings
     s.sfx.to_bits().hash(h);
     s.mute.hash(h);
     s.reduced_flash.hash(h);
+    s.reduced_motion.hash(h);
     s.high_contrast.hash(h);
     s.show_fps.hash(h);
 }
@@ -772,7 +773,12 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
         ));
     }
 
-    let desired = atlas::placements(&app.game, ppt, !app.settings.reduced_flash, atlas);
+    let desired = atlas::placements_opts(
+        &app.game,
+        ppt,
+        atlas,
+        maze_chase_assets::anim::Fx::new(!app.settings.reduced_flash, app.settings.reduced_motion),
+    );
     let (cell_w, cell_h) = maze_chase_terminal::geometry::detect_cell_px().unwrap_or((
         maze_chase_terminal::geometry::NOMINAL_CELL_W_PX,
         maze_chase_terminal::geometry::NOMINAL_CELL_H_PX,
@@ -1028,12 +1034,10 @@ fn render_frame(
             paint_chrome(app, out, truecolor, cols, rows);
         }
         ScreenId::Paused => {
-            // The pause menu is a full-screen text panel. Kitty composites
-            // image placements above text, so a placed board (even at z=0)
-            // would cover the menu: release every image before painting.
-            // The cell and Sixel tiers need no board write either; the
-            // panel covers every row, and the screen-change clear has
-            // already run for them.
+            // Pause stages the frozen board under a centered card. Kitty
+            // composites image placements above text, so a placed board
+            // (even at z=0) would cover the card: release every image
+            // before painting the cell-rendered backdrop.
             if fresh && app.tier() == Tier::Kitty {
                 out.push_str(maze_chase_terminal::kitty::delete_all_escape());
                 out.push_str(&maze_chase_terminal::kitty::free_image_escape(
@@ -1053,7 +1057,8 @@ fn render_frame(
                 // when this surface was entered; the release bytes above
                 // are what actually frees the images.
             }
-            paint_panel(
+            paint_staged_board(app, out, theme, truecolor, 0.55, 0.0);
+            paint_card(
                 out,
                 &chrome::paused(app.screens.pause_menu),
                 theme,
@@ -1061,6 +1066,32 @@ fn render_frame(
                 cols,
                 rows,
                 theme.accent,
+            );
+        }
+        ScreenId::Title => {
+            if fresh && app.tier() == Tier::Kitty {
+                out.push_str(maze_chase_terminal::kitty::delete_all_escape());
+                out.push_str(&maze_chase_terminal::kitty::free_image_escape(
+                    maze_chase_terminal::kitty::STATIC_IMAGE_ID,
+                ));
+                out.push_str(&maze_chase_terminal::kitty::free_image_escape(
+                    maze_chase_terminal::kitty::ATLAS_IMAGE_ID,
+                ));
+                if kitty.whole_frame || !kitty.placements {
+                    out.push_str(&maze_chase_terminal::kitty::free_image_escape(1));
+                    kitty.whole_frame = false;
+                }
+                kitty.invalidate();
+            }
+            paint_staged_board(app, out, theme, truecolor, 0.40, 0.40);
+            paint_card(
+                out,
+                &menu_lines(app),
+                theme,
+                truecolor,
+                cols,
+                rows,
+                theme.text,
             );
         }
         _ => {
@@ -1095,14 +1126,91 @@ fn render_frame(
     stats
 }
 
+/// Paint the live board dimmed behind a staged card (title, pause).
+///
+/// Uses the cell renderer on every tier: Kitty placements sit above text,
+/// so a placed board would cover the card. Actors stay legible on pause
+/// (`dim_actors` 0) while the maze fades; the title fades both.
+fn paint_staged_board(
+    app: &App,
+    out: &mut String,
+    theme: &maze_chase_assets::themes::Theme,
+    truecolor: bool,
+    dim_playfield: f32,
+    dim_actors: f32,
+) {
+    let fx = maze_chase_assets::anim::Fx::dimmed(
+        !app.settings.reduced_flash,
+        app.settings.reduced_motion,
+        dim_playfield,
+        dim_actors,
+    );
+    let screen = unicode::render_board_opts(&app.game, theme, &app.layout, fx);
+    for (i, row) in screen.rows.iter().enumerate() {
+        paint_line(out, i as u16, 0, &unicode::row_ansi(row, truecolor));
+    }
+}
+
+/// Centered opaque card over the dimmed board. Lines are padded to the
+/// card width and each row is cleared with the theme background, so the
+/// playfield stays visible around the card instead of being replaced by
+/// a blank text page.
+fn paint_card(
+    out: &mut String,
+    lines: &[String],
+    theme: &maze_chase_assets::themes::Theme,
+    truecolor: bool,
+    cols: usize,
+    rows: usize,
+    fg: maze_chase_assets::themes::Rgb,
+) {
+    let widest = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0);
+    let card_w = (widest + 4).min(cols.saturating_sub(2)).max(12);
+    let inner = card_w.saturating_sub(2);
+    let card_h = lines.len() + 2;
+    if card_h > rows || card_w > cols {
+        // Tiny windows keep the old full-width panel rather than an
+        // unreadable clipped card.
+        paint_panel(out, lines, theme, truecolor, cols, rows, fg);
+        return;
+    }
+    let x = (cols - card_w) / 2;
+    let y = (rows - card_h) / 2;
+    let top = format!("┌{}┐", "─".repeat(inner));
+    let bottom = format!("└{}┘", "─".repeat(inner));
+    let paint =
+        |out: &mut String, row: usize, text: &str, color: maze_chase_assets::themes::Rgb| {
+            paint_line(
+                out,
+                row as u16,
+                x as u16,
+                &unicode::paint(text, color, theme.bg, truecolor),
+            );
+        };
+    paint(out, y, &top, theme.accent);
+    for (i, line) in lines.iter().enumerate() {
+        let clipped: String = line.chars().take(inner).collect();
+        let text = format!("│{:<inner$}│", clipped, inner = inner);
+        let color = if line.starts_with("> ") {
+            theme.accent
+        } else {
+            fg
+        };
+        paint(out, y + 1 + i, &text, color);
+    }
+    paint(out, y + card_h - 1, &bottom, theme.accent);
+}
+
 /// HUD chrome for the playing surface.
 fn paint_chrome(app: &App, out: &mut String, truecolor: bool, _cols: usize, _rows: usize) {
     let theme = app.theme();
     let best = app.scores.first().map(|s| s.score).unwrap_or(0);
+    let reduced = app.settings.reduced_flash || app.settings.reduced_motion;
     if let Some(side) = app.layout.side {
-        for (i, line) in chrome::side_panel(&app.game, best, tune_name(app), app.tier().name())
-            .iter()
-            .enumerate()
+        for (i, line) in
+            chrome::side_panel(&app.game, best, tune_name(app), app.tier().name(), reduced)
+                .iter()
+                .enumerate()
         {
             if i >= side.h as usize {
                 break;
@@ -1116,7 +1224,7 @@ fn paint_chrome(app: &App, out: &mut String, truecolor: bool, _cols: usize, _row
             );
         }
     } else if let Some(bar) = app.layout.top_bar {
-        for (i, line) in chrome::top_bar(&app.game, best).iter().enumerate() {
+        for (i, line) in chrome::top_bar(&app.game, best, reduced).iter().enumerate() {
             if i >= bar.h as usize {
                 break;
             }

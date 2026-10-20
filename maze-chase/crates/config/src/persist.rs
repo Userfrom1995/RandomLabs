@@ -2,8 +2,9 @@
 //!
 //! Format: one `key = value` per line. Blank lines and `#` comments are
 //! skipped. Known scalar keys are `difficulty`, `master`, `music`, `sfx`,
-//! `mute`, `theme`, `reduced_flash`, `high_contrast`, `show_fps`; per-action
-//! keys are `bind_<action>` with a comma list (`bind_up = Up,W`).
+//! `mute`, `theme`, `reduced_flash`, `reduced_motion`, `high_contrast`,
+//! `show_fps`; per-action keys are `bind_<action>` with a comma list
+//! (`bind_up = Up,W`).
 //! [`load`] never fails: unknown keys are ignored with a warning entry,
 //! malformed values keep the default with an error entry, and missing keys
 //! silently keep defaults.
@@ -42,6 +43,7 @@ pub fn save(s: &Settings, map: &Keymap) -> String {
     out.push_str(&format!("mute = {}\n", s.mute));
     out.push_str(&format!("theme = {}\n", s.theme));
     out.push_str(&format!("reduced_flash = {}\n", s.reduced_flash));
+    out.push_str(&format!("reduced_motion = {}\n", s.reduced_motion));
     out.push_str(&format!("high_contrast = {}\n", s.high_contrast));
     out.push_str(&format!("show_fps = {}\n", s.show_fps));
     for a in Action::ALL {
@@ -142,6 +144,14 @@ pub fn load(text: &str) -> (Settings, Keymap, Vec<String>) {
                     "line {}: bad reduced_flash {value:?}; keeping default {}",
                     lineno + 1,
                     Settings::default().reduced_flash
+                )),
+            },
+            "reduced_motion" => match parse_bool(value) {
+                Some(b) => settings.reduced_motion = b,
+                None => problems.push(format!(
+                    "line {}: bad reduced_motion {value:?}; keeping default {}",
+                    lineno + 1,
+                    Settings::default().reduced_motion
                 )),
             },
             "high_contrast" => match parse_bool(value) {
@@ -295,6 +305,7 @@ mod tests {
         s.sfx = 1.0;
         s.mute = true;
         s.theme = "moonwake".to_string();
+        s.reduced_motion = true;
         s.high_contrast = true;
         s.show_fps = true;
         let m = rebound_map();

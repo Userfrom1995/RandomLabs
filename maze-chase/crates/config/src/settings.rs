@@ -115,14 +115,15 @@ pub struct Settings {
     pub mute: bool,
     pub theme: String,
     pub reduced_flash: bool,
+    pub reduced_motion: bool,
     pub high_contrast: bool,
     pub show_fps: bool,
 }
 
 impl Settings {
     /// Default settings for one difficulty. Volumes are 0.8 / 0.7 / 0.9,
-    /// unmuted, theme `"dusk-pond"`, contrast / fps flags off; only
-    /// `reduced_flash` varies (on for Cozy, off otherwise).
+    /// unmuted, theme `"dusk-pond"`, contrast / motion / fps flags off;
+    /// only `reduced_flash` varies (on for Cozy, off otherwise).
     pub fn for_difficulty(d: Difficulty) -> Self {
         Self {
             difficulty: d,
@@ -132,6 +133,7 @@ impl Settings {
             mute: false,
             theme: "dusk-pond".to_string(),
             reduced_flash: matches!(d, Difficulty::Cozy),
+            reduced_motion: false,
             high_contrast: false,
             show_fps: false,
         }
@@ -184,6 +186,7 @@ mod tests {
         assert!(!s.mute);
         assert_eq!(s.theme, "dusk-pond");
         assert!(!s.reduced_flash);
+        assert!(!s.reduced_motion);
         assert!(!s.high_contrast);
         assert!(!s.show_fps);
     }

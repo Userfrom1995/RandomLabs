@@ -139,6 +139,9 @@ impl App {
 
     /// Theme for the current settings (unknown ids fall back to Dusk Pond).
     pub fn theme(&self) -> &'static maze_chase_assets::themes::Theme {
+        if self.settings.high_contrast {
+            return &maze_chase_assets::themes::MOONWAKE;
+        }
         maze_chase_assets::themes::by_id(&self.settings.theme)
             .unwrap_or(&maze_chase_assets::themes::DUSK_POND)
     }
@@ -425,6 +428,12 @@ impl App {
                 let hud = Hud {
                     best,
                     flash: !self.settings.reduced_flash,
+                    reduced_motion: self.settings.reduced_motion,
+                    dim_playfield: if self.screens.current == ScreenId::Paused {
+                        0.55
+                    } else {
+                        0.0
+                    },
                     fps: self.settings.show_fps.then_some(self.fps_ema as f32),
                     tune: tune_name(self.tune),
                     ticker: self.ticker(),
@@ -445,7 +454,9 @@ impl App {
                     0 => "ARROWS/WASD + ENTER - NO SCORES YET",
                     b => &format!("ARROWS/WASD + ENTER - BEST {b}"),
                 };
-                render::render_menu("MAZE CHASE", &lines, footer, theme, w, h)
+                let mut frame = render::render_attract(&self.game, theme, w, h, 0.40)?;
+                render::overlay_menu(&mut frame, "MAZE CHASE", &lines, footer, theme);
+                Some(frame)
             }
             ScreenId::Help => {
                 let lines: Vec<MenuLine> = screens::help_window(self.screens.help_scroll)

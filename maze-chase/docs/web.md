@@ -23,7 +23,7 @@ python3 -m http.server 8000   # Windows: python -m http.server 8000
 
 On GitHub Pages the committed build plays from the project hub: open
 the hub `index.html`, press Play. The shipped artifact is
-`maze-chase/web/maze-chase.wasm` (about 198 KiB / 202,727 bytes, zero
+`maze-chase/web/maze-chase.wasm` (about 201 KiB / 206,252 bytes, zero
 imports, fully
 self-contained), built reproducibly (see below); `web/maze-chase.js` is
 the harness (plain script, no bundler, no external resources, works
@@ -50,7 +50,7 @@ keyboard plus touch is the full control scheme (see the matrix).
 ## Screens
 
 Title (Start, Help, Scores, Settings), Help, Scores (machine top-10
-with rank/name/score/level), Settings (volumes, reduced flash, theme,
+with rank/name/score/level), Settings (volumes, reduced flash, reduced motion, high contrast, theme,
 difficulty, mute, key remap), Pause (Resume, Restart, Quit to title),
 Game over (score/level/best, name entry when the run qualifies, Play
 again). The canvas behind the panels shows the live board: the attract
@@ -141,9 +141,9 @@ cargo build --release --target wasm32-unknown-unknown -p maze-chase-web
 cp target/wasm32-unknown-unknown/release/maze_chase_web.wasm maze-chase/web/maze-chase.wasm
 ```
 
-The committed `web/maze-chase.wasm` is that exact artifact: 202,727
+The committed `web/maze-chase.wasm` is that exact artifact: 206,252
 bytes, sha256
-`029352dc0f54d074f6de1a200174e30fec76652caf115ca9d223a2d8357f819e`,
+`7545da6a0fbde27c0b159b2028628dcdc1de518b472053c42e96af90af5a2eca`,
 built with Rust 1.99.0 (rustc commit
 `b940084d7eb6a299eb4bfeb8e34901bc051e7ac4`, embedded in the artifact);
 a second clean build reproduces the same bytes, while a different

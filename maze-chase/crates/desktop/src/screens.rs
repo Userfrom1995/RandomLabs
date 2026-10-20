@@ -84,6 +84,8 @@ pub enum SettingsRow {
     Difficulty,
     Theme,
     ReducedFlash,
+    ReducedMotion,
+    HighContrast,
     ShowFps,
     Keybinds,
     Padbinds,
@@ -91,10 +93,12 @@ pub enum SettingsRow {
 }
 
 impl SettingsRow {
-    pub const ALL: [SettingsRow; 7] = [
+    pub const ALL: [SettingsRow; 9] = [
         SettingsRow::Difficulty,
         SettingsRow::Theme,
         SettingsRow::ReducedFlash,
+        SettingsRow::ReducedMotion,
+        SettingsRow::HighContrast,
         SettingsRow::ShowFps,
         SettingsRow::Keybinds,
         SettingsRow::Padbinds,
@@ -379,6 +383,12 @@ impl Screens {
                     SettingsRow::ReducedFlash => {
                         self.settings.reduced_flash = !self.settings.reduced_flash;
                     }
+                    SettingsRow::ReducedMotion => {
+                        self.settings.reduced_motion = !self.settings.reduced_motion;
+                    }
+                    SettingsRow::HighContrast => {
+                        self.settings.high_contrast = !self.settings.high_contrast;
+                    }
                     SettingsRow::ShowFps => {
                         let v = self.settings.show_fps;
                         self.settings.show_fps = !v;
@@ -493,6 +503,11 @@ impl Screens {
                 maze_chase_config::settings::theme_label(&self.settings.theme).to_uppercase(),
             ),
             ("REDUCED FLASH".into(), on_off(self.settings.reduced_flash)),
+            (
+                "REDUCED MOTION".into(),
+                on_off(self.settings.reduced_motion),
+            ),
+            ("HIGH CONTRAST".into(), on_off(self.settings.high_contrast)),
             ("SHOW FPS".into(), on_off(self.settings.show_fps)),
             ("KEYBINDS".into(), "EDIT >".into()),
             ("PADBINDS".into(), "EDIT >".into()),
@@ -662,6 +677,23 @@ mod tests {
         s.press(Action::Confirm);
         assert_ne!(s.settings.theme, t0);
         assert!(maze_chase_config::settings::KNOWN_THEMES.contains(&s.settings.theme.as_str()));
+        // Accessibility rows toggle and render their state.
+        s.settings_row = SettingsRow::ALL
+            .iter()
+            .position(|r| *r == SettingsRow::ReducedMotion)
+            .unwrap();
+        s.press(Action::Confirm);
+        assert!(s.settings.reduced_motion);
+        assert!(s
+            .settings_lines()
+            .iter()
+            .any(|(l, v)| l == "REDUCED MOTION" && v == "ON"));
+        s.settings_row = SettingsRow::ALL
+            .iter()
+            .position(|r| *r == SettingsRow::HighContrast)
+            .unwrap();
+        s.press(Action::Confirm);
+        assert!(s.settings.high_contrast);
         // Exit commits.
         s.settings_row = SettingsRow::ALL.len() - 1;
         assert_eq!(s.press(Action::Confirm), Event::SettingsCommitted);

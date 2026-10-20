@@ -38,7 +38,8 @@
 //!
 //! [`CRUMB`] is a water bead with a meniscus ring, [`SUNSEED_A`] and
 //! [`SUNSEED_B`] are resting fireflies, [`RELISH_ICONS`] is the six-piece
-//! found-object bonus set, [`GOLDEN_LILY`] is the spare-wick bloom,
+//! found-object bonus set (7x7 and 11x11 rungs), [`GOLDEN_LILY`] is the
+//! spare-wick bloom,
 //! [`PICKUP_BURST`] is the four-frame ripple, [`TURN_SPARK`] is the committed
 //! turn cue, and [`PIP_DEATH`] is the four-frame death ripple.
 
@@ -674,6 +675,18 @@ pub const EYES_DOWN: [&str; 7] = [
     ".......", "...#...", ".......", ".#...#.", "###.###", ".#...#.", ".......",
 ];
 
+/// Directional eye bubbles looking right, compact 5x5 rung.
+///
+/// The same two-ring identity as the 7x7 pair at the small tile grid,
+/// with the trail kept as a single pixel so it never crowds the orbs.
+pub const EYES_RIGHT_5: [&str; 5] = [".....", ".#.#.", "##.##", ".#.#.", ".#..."];
+
+/// Directional eye bubbles looking up, compact 5x5 rung.
+pub const EYES_UP_5: [&str; 5] = [".....", ".#.#.", "#####", ".#.#.", "..#.."];
+
+/// Directional eye bubbles looking down, compact 5x5 rung.
+pub const EYES_DOWN_5: [&str; 5] = ["..#..", ".#.#.", "#####", ".#.#.", "....."];
+
 /// Eye-bubble rows for a facing, with left mirrored from right.
 ///
 /// Shared by every renderer so a hunter never shows right-facing eyes while
@@ -684,6 +697,22 @@ pub fn eyes_rows(facing: Facing) -> Vec<String> {
         Facing::Left => return flip_horizontal(&EYES_RIGHT),
         Facing::Up => &EYES_UP,
         Facing::Down => &EYES_DOWN,
+    };
+    rows.iter().map(|row| (*row).to_string()).collect()
+}
+
+/// Eye-bubble rows at the authored rung: 5 selects the compact pair,
+/// anything larger selects the 7x7 pair. Left stays the mirror of right
+/// at both rungs.
+pub fn eyes_rows_for(facing: Facing, rung: u8) -> Vec<String> {
+    if rung > 5 {
+        return eyes_rows(facing);
+    }
+    let rows: &[&str] = match facing {
+        Facing::Right => &EYES_RIGHT_5,
+        Facing::Left => return flip_horizontal(&EYES_RIGHT_5),
+        Facing::Up => &EYES_UP_5,
+        Facing::Down => &EYES_DOWN_5,
     };
     rows.iter().map(|row| (*row).to_string()).collect()
 }
@@ -782,6 +811,100 @@ pub const RELISH_ICONS: [[&str; 7]; 6] = [
     ],
 ];
 
+/// Six original 11x11 bonus icons, the high-detail rung of
+/// [`RELISH_ICONS`] in [`RELISH_NAMES`] order.
+pub const RELISH_ICONS_11: [[&str; 11]; 6] = [
+    [
+        ".....#.....",
+        "....#o#....",
+        "...#o*o#...",
+        "..#o###o#..",
+        ".#o#...#o#.",
+        ".#o#.#.#o#.",
+        ".#o#...#o#.",
+        "..#o###o#..",
+        "...#o*o#...",
+        "....#o#....",
+        ".....#.....",
+    ],
+    [
+        "...........",
+        "....###....",
+        "...#ooo#...",
+        "..#o***o#..",
+        ".#o*o#o*o#.",
+        ".#o*****o#.",
+        ".#o*o#o*o#.",
+        "..#o***o#..",
+        "...#ooo#...",
+        "....###....",
+        "...........",
+    ],
+    [
+        ".....#.....",
+        "....#o#....",
+        "....#*#....",
+        "....#o#....",
+        "....#*#....",
+        "....#o#....",
+        "....#*#....",
+        "....#o#....",
+        "....#*#....",
+        "...#ooo#...",
+        "...#####...",
+    ],
+    [
+        ".....##....",
+        "....#oo#...",
+        "...#o##o#..",
+        "..#o#..#o#.",
+        "..#o#..#o#.",
+        "..#o#oo#o#.",
+        "..#o####o#.",
+        "...#oooo#..",
+        "....#oo#...",
+        ".....##....",
+        "...........",
+    ],
+    [
+        "...........",
+        ".....#.....",
+        "....#o#....",
+        "...#o#o#...",
+        "..#o#.#o#..",
+        ".#o#...#o#.",
+        "#ooo###ooo#",
+        ".#o#...#o#.",
+        "..#o#.#o#..",
+        "...#o#o#...",
+        "....#o#....",
+    ],
+    [
+        "......#....",
+        ".....#o#...",
+        "....#o*#...",
+        "...#o*#....",
+        "..#o*#.....",
+        ".#o*#......",
+        "#o*#...#...",
+        ".##...#o#..",
+        "..#..#o*#..",
+        ".....#o#...",
+        "......#....",
+    ],
+];
+
+/// Pick the bonus icon at the authored rung: 7x7 below 11, 11x11 at the
+/// high-detail rung.
+pub fn relish_icon(index: usize, rung: u8) -> &'static [&'static str] {
+    let i = index.min(RELISH_ICONS.len() - 1);
+    if rung >= 11 {
+        &RELISH_ICONS_11[i]
+    } else {
+        &RELISH_ICONS[i]
+    }
+}
+
 /// Spare-wick bloom, six 9x9 frames from bud to open lily.
 pub const GOLDEN_LILY: [[&str; 9]; 6] = [
     [
@@ -852,12 +975,12 @@ pub const GOLDEN_LILY: [[&str; 9]; 6] = [
     ],
 ];
 
-/// Four-frame pickup ripple, 5x5, on the 66.7 ms burst grid.
-pub const PICKUP_BURST: [[&str; 5]; 4] = [
-    [".....", ".....", "..#..", ".....", "....."],
-    [".....", "..#..", ".#.#.", "..#..", "....."],
-    ["..#..", ".#.#.", "#...#", ".#.#.", "..#.."],
-    [".....", ".#.#.", "..#..", ".#.#.", "....."],
+/// Four-frame pickup ripple, 3x3, on the 66.7 ms burst grid.
+pub const PICKUP_BURST: [[&str; 3]; 4] = [
+    ["...", ".#.", "..."],
+    [".#.", "#*#", ".#."],
+    ["#.#", ".#.", "#.#"],
+    ["#.#", "#.#", "#.#"],
 ];
 
 /// Committed-turn cue: a seven-pixel spark at the turn corner, 7x7.
@@ -992,17 +1115,23 @@ mod tests {
         for eyes in [&EYES_RIGHT, &EYES_UP, &EYES_DOWN] {
             assert_eq!(validate_glyph(eyes), Ok((7, 7)));
         }
+        for eyes in [&EYES_RIGHT_5, &EYES_UP_5, &EYES_DOWN_5] {
+            assert_eq!(validate_glyph(eyes), Ok((5, 5)));
+        }
         assert_eq!(validate_glyph(&CRUMB), Ok((3, 3)));
         assert_eq!(validate_glyph(&SUNSEED_A), Ok((7, 7)));
         assert_eq!(validate_glyph(&SUNSEED_B), Ok((7, 7)));
         for icon in &RELISH_ICONS {
             assert_eq!(validate_glyph(icon), Ok((7, 7)));
         }
+        for icon in &RELISH_ICONS_11 {
+            assert_eq!(validate_glyph(icon), Ok((11, 11)));
+        }
         for frame in &GOLDEN_LILY {
             assert_eq!(validate_glyph(frame), Ok((9, 9)));
         }
         for frame in &PICKUP_BURST {
-            assert_eq!(validate_glyph(frame), Ok((5, 5)));
+            assert_eq!(validate_glyph(frame), Ok((3, 3)));
         }
         assert_eq!(validate_glyph(&TURN_SPARK), Ok((7, 7)));
     }
@@ -1076,6 +1205,15 @@ mod tests {
         assert_eq!(EYES_DOWN[1], "...#...");
         let flipped = flip_horizontal(&EYES_RIGHT);
         assert_eq!(flipped[5], "....#..");
+        // The compact rung keeps the same ring identity and mirror.
+        assert_eq!(validate_glyph(&EYES_RIGHT_5), Ok((5, 5)));
+        assert_eq!(validate_glyph(&EYES_UP_5), Ok((5, 5)));
+        assert_eq!(validate_glyph(&EYES_DOWN_5), Ok((5, 5)));
+        assert_eq!(
+            eyes_rows_for(Facing::Left, 5),
+            flip_horizontal(&EYES_RIGHT_5)
+        );
+        assert_eq!(eyes_rows_for(Facing::Right, 7), eyes_rows(Facing::Right));
     }
 
     #[test]
@@ -1093,6 +1231,10 @@ mod tests {
     fn relish_set_is_original_and_complete() {
         assert_eq!(RELISH_NAMES.len(), 6);
         assert_eq!(RELISH_ICONS.len(), 6);
+        assert_eq!(RELISH_ICONS_11.len(), 6);
+        assert_eq!(relish_icon(0, 7).len(), 7);
+        assert_eq!(relish_icon(0, 11).len(), 11);
+        assert_eq!(relish_icon(99, 11).len(), 11);
         let mut names = RELISH_NAMES.to_vec();
         names.sort_unstable();
         names.dedup();

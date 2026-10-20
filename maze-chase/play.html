@@ -28,6 +28,7 @@
   header {
     display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
     padding: 12px 16px; background: var(--panel); border-bottom: 2px solid var(--accent);
+    position: sticky; top: 0; z-index: 50;
   }
   header h1 { font-size: 1.2rem; margin: 0; }
   header h1 .sub { color: var(--teal); font-weight: normal; font-size: 0.9rem; }
@@ -55,6 +56,44 @@
     background: var(--panel); border-radius: 12px; padding: 16px 20px; margin-top: 16px;
   }
   section.panel h2 { margin-top: 0; color: var(--accent); }
+  /* First-run title and pause are cards centered in the viewport, over the
+     live dimmed board, so the primary action is always reachable without
+     scrolling (the Quality Council finding on the old below-fold CTA). */
+  section.overlay-card {
+    position: fixed; z-index: 40; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(560px, calc(100vw - 24px));
+    max-height: calc(100vh - 24px); overflow: auto; margin: 0;
+    border: 1px solid #2a3350; box-shadow: 0 24px 80px #000c;
+    background: var(--panel); border-radius: 16px; padding: 20px 24px;
+  }
+  section.overlay-card h2 { font-size: 1.9rem; letter-spacing: 0.02em; margin: 0 0 4px; }
+  .title-kicker {
+    margin: 0 0 6px; color: var(--teal); font-size: 0.78rem;
+    letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700;
+  }
+  .title-lede { margin: 0 0 14px; color: var(--ink); }
+  .title-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0; }
+  .title-actions .primary { margin-right: 6px; }
+  .pause-actions { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 0; }
+  .fright-meter { margin-top: 10px; }
+  .fright-meter .badge { margin-top: 0; }
+  .fright-segs { display: flex; gap: 2px; margin-top: 6px; }
+  .fright-segs span {
+    flex: 1 1 auto; height: 5px; align-self: flex-end;
+    border-radius: 2px; background: #2a3350;
+    box-shadow: inset 0 0 0 1px #6d7897;
+  }
+  .fright-segs span.on {
+    height: 9px; background: var(--accent);
+    box-shadow: inset 0 0 0 1px #10203a;
+  }
+  @media (max-width: 760px) {
+    section.overlay-card { padding: 16px 18px; top: 46%; }
+    section.overlay-card h2 { font-size: 1.55rem; }
+    .title-actions button { flex: 1 1 44%; }
+    .title-actions .primary { flex-basis: 100%; }
+  }
   button, input[type="text"] { font: inherit; }
   button {
     min-height: 44px; min-width: 44px; padding: 8px 16px; border-radius: 10px;
@@ -94,6 +133,7 @@
   <h1>Maze Chase <span class="sub">starring Rill the pond frog</span></h1>
   <span class="spacer"></span>
   <a href="index.html">Back to hub</a>
+  <button type="button" id="btn-pause" hidden aria-label="Pause game">Pause</button>
   <button type="button" id="btn-mute">Mute</button>
 </header>
 <main>
@@ -119,17 +159,24 @@
         <dt>FPS</dt><dd id="hud-fps">0</dd>
         <dt>Tune</dt><dd id="hud-tune">OFF</dd>
       </dl>
-      <span class="badge" id="hud-fright" hidden>FRIGHT!</span>
+      <div class="fright-meter" id="fright-meter" hidden>
+        <span class="badge" id="hud-fright">FRIGHT!</span>
+        <div class="fright-segs" id="fright-segs" role="meter"
+             aria-label="Fright time left" aria-valuemin="0" aria-valuemax="30"
+             aria-valuenow="0"></div>
+      </div>
       <span class="badge teal" id="hud-relish" hidden>RELISH</span>
       <p class="note" id="audio-note" hidden>Audio unavailable in this browser; playing silent.</p>
     </aside>
   </div>
 
-  <section class="panel" id="panel-title" aria-label="Title">
+  <section class="panel overlay-card" id="panel-title" aria-label="Title">
+    <p class="title-kicker">A Pondwake arcade original</p>
     <h2>Maze Chase</h2>
-    <p>You are Rill, a pond frog. Clear every crumb, dodge the wardens
-    Bram, Kessa, Jory and Nib, and grab a sunseed to turn the hunt around.</p>
-    <p>
+    <p class="title-lede">You are Rill, a pond frog. Clear every crumb, dodge
+    the wardens Bram, Kessa, Jory and Nib, and grab a sunseed to turn the
+    hunt around.</p>
+    <p class="title-actions">
       <button type="button" class="primary" id="btn-start" data-primary>Start game</button>
       <button type="button" id="btn-title-help">Help</button>
       <button type="button" id="btn-title-scores">Scores</button>
@@ -167,7 +214,11 @@
       <label>Music <input type="range" id="rng-music" min="0" max="100" value="100" /></label>
       <label>SFX <input type="range" id="rng-sfx" min="0" max="100" value="100" /></label>
     </p>
-    <p><label><input type="checkbox" id="chk-flash" /> Reduced flashing</label></p>
+    <p>
+      <label><input type="checkbox" id="chk-flash" /> Reduced flashing</label>
+      <label><input type="checkbox" id="chk-motion" /> Reduced motion</label>
+      <label><input type="checkbox" id="chk-contrast" /> High contrast</label>
+    </p>
     <p>
       <button type="button" id="btn-theme">Next theme</button> <span id="theme-label">Theme 1/1</span>
       <button type="button" id="btn-diff">Next difficulty</button> <span id="diff-label">Standard</span>
@@ -178,9 +229,12 @@
     <p><button type="button" id="btn-settings-back" data-primary>Back</button></p>
   </section>
 
-  <section class="panel" id="panel-pause" hidden aria-label="Paused">
+  <section class="panel overlay-card" id="panel-pause" hidden aria-label="Paused"
+           role="dialog" aria-modal="true">
+    <p class="title-kicker">The pond holds its breath</p>
     <h2>Paused</h2>
-    <p>
+    <p class="note">Rill and the wardens freeze exactly where they were.</p>
+    <p class="pause-actions">
       <button type="button" class="primary" id="btn-resume" data-primary>Resume</button>
       <button type="button" id="btn-pause-restart">Restart</button>
       <button type="button" id="btn-pause-quit">Quit to title</button>

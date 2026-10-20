@@ -101,6 +101,33 @@ async function shot(ws, path) {
   const badgesHidden = await evalJs(ws, `document.getElementById('hud-fright').hidden && document.getElementById('hud-relish').hidden`);
   assert(badgesHidden === true, 'fright/relish badges hidden while idle');
 
+  // First-view craft: the title card and its primary CTA are fully inside
+  // the 1440x900 viewport, centered, and hit-testable at their real
+  // coordinates (not merely present in the DOM below the fold).
+  const firstView = await evalJs(ws, `(() => {
+    const card = document.getElementById('panel-title');
+    const btn = document.getElementById('btn-start');
+    const c = card.getBoundingClientRect(), b = btn.getBoundingClientRect();
+    const hit = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2);
+    const cx = c.x + c.width / 2, cy = c.y + c.height / 2;
+    return [c.x, c.y, c.width, c.height, b.x, b.y, b.width, b.height,
+      (hit === btn || btn.contains(hit)) ? 1 : 0,
+      Math.abs(cx - document.documentElement.clientWidth / 2) < 2 ? 1 : 0,
+      Math.abs(cy - innerHeight / 2) < 2 ? 1 : 0,
+      document.documentElement.clientWidth, innerHeight];
+  })()`);
+  console.log('first view card/cta:', JSON.stringify(firstView));
+  assert(firstView[0] >= 0 && firstView[1] >= 0 &&
+    firstView[0] + firstView[2] <= firstView[11] &&
+    firstView[1] + firstView[3] <= firstView[12],
+    'title card fully inside the first viewport');
+  assert(firstView[4] >= 0 && firstView[5] >= 0 &&
+    firstView[4] + firstView[6] <= firstView[11] &&
+    firstView[5] + firstView[7] <= firstView[12],
+    'Start CTA fully inside the first viewport');
+  assert(firstView[8] === 1, 'Start CTA receives the hit test at its center');
+  assert(firstView[9] === 1 && firstView[10] === 1, 'title card is centered in the viewport');
+
   // Canvas pixels are really the game (sample the data URL: must vary).
   const pxVar = await evalJs(ws, `(() => {
     const c = document.getElementById('game-canvas');
@@ -110,8 +137,10 @@ async function shot(ws, path) {
   console.log('canvas distinct sampled bytes:', pxVar);
   assert(pxVar > 8, 'canvas paints varied game pixels');
 
-  // Start the game through the real button, steer with real keys.
-  await evalJs(ws, `document.getElementById('btn-start').click()`);
+  // Start the game through a real mouse click at the CTA center.
+  const startPt = await evalJs(ws, `(() => { const r = document.getElementById('btn-start').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`);
+  await send(ws, 'Input.dispatchMouseEvent', { type: 'mousePressed', x: startPt[0], y: startPt[1], button: 'left', clickCount: 1 });
+  await send(ws, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: startPt[0], y: startPt[1], button: 'left', clickCount: 1 });
   await sleep(300);
   const screen = await evalJs(ws, `(() => { const s = []; return document.getElementById('panel-title').hidden; })()`);
   assert(screen === true, 'title panel hides after Start (playing)');
@@ -153,6 +182,36 @@ async function shot(ws, path) {
   const mBox = await evalJs(ws, `(() => { const c = document.getElementById('game-canvas'); const r = c.getBoundingClientRect(); return [r.width, r.height, r.top]; })()`);
   console.log('mobile canvas css:', JSON.stringify(mBox));
   assert(mBox[0] > 200 && mBox[1] > 100 && mBox[2] >= -1, 'mobile canvas visible near top');
+  const mobilePause = await evalJs(ws, `(() => {
+    const p = document.getElementById('panel-pause');
+    const b = document.getElementById('btn-pause');
+    const pr = p.getBoundingClientRect(), br = b.getBoundingClientRect();
+    const hit = document.elementFromPoint(br.x + br.width / 2, br.y + br.height / 2);
+    return [b.hidden ? 0 : 1, p.hidden ? 0 : 1,
+      br.x >= 0 && br.y >= 0 && br.x + br.width <= innerWidth && br.y + br.height <= innerHeight ? 1 : 0,
+      (hit === b || b.contains(hit)) ? 1 : 0,
+      pr.x >= 0 && pr.y >= 0 && pr.x + pr.width <= innerWidth && pr.y + pr.height <= innerHeight ? 1 : 0,
+      pr.x, pr.y, pr.width, pr.height, innerWidth, innerHeight];
+  })()`);
+  console.log('mobile pause hit test:', JSON.stringify(mobilePause));
+  assert(mobilePause[0] === 1, 'mobile pause control is visible during play');
+  assert(mobilePause[2] === 1 && mobilePause[3] === 1, 'mobile pause control is inside the viewport and hit-testable');
+  const pausePt = await evalJs(ws, `(() => { const r = document.getElementById('btn-pause').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`);
+  await send(ws, 'Input.dispatchMouseEvent', { type: 'mousePressed', x: pausePt[0], y: pausePt[1], button: 'left', clickCount: 1 });
+  await send(ws, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: pausePt[0], y: pausePt[1], button: 'left', clickCount: 1 });
+  await sleep(300);
+  const mobilePaused = await evalJs(ws, `(() => {
+    const p = document.getElementById('panel-pause');
+    const r = p.getBoundingClientRect();
+    return [p.hidden ? 0 : 1, r.x >= 0 && r.y >= 0 && r.x + r.width <= innerWidth && r.y + r.height <= innerHeight ? 1 : 0];
+  })()`);
+  assert(mobilePaused[0] === 1, 'real click opens the pause dialog on mobile');
+  assert(mobilePaused[1] === 1, 'mobile pause dialog fits the viewport');
+  const resumePt = await evalJs(ws, `(() => { const r = document.getElementById('btn-resume').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`);
+  await send(ws, 'Input.dispatchMouseEvent', { type: 'mousePressed', x: resumePt[0], y: resumePt[1], button: 'left', clickCount: 1 });
+  await send(ws, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: resumePt[0], y: resumePt[1], button: 'left', clickCount: 1 });
+  await sleep(300);
+  assert((await evalJs(ws, `document.getElementById('panel-pause').hidden`)) === true, 'mobile Resume returns to play');
   await shot(ws, `${SHOT_DIR}/mc-e2e-mobile.png`);
 
   // Scores panel: seed one persisted row, reload so the boot import path
@@ -214,6 +273,35 @@ async function shot(ws, path) {
   await evalJs(ws, `document.getElementById('btn-theme').click()`);
   await sleep(400);
   assert((await themeLabel()) === 'Dusk Pond (1/3)', 'theme returns to the default row');
+
+  // Accessibility settings: both checkboxes exist, reachable, persist in
+  // the Rust settings blob, and restore checked across a reload.
+  assert((await evalJs(ws, `document.querySelectorAll('#chk-motion, #chk-contrast').length`)) === 2,
+    'reduced-motion and high-contrast checkboxes exist');
+  await evalJs(ws, `(() => {
+    const m = document.getElementById('chk-motion');
+    const c = document.getElementById('chk-contrast');
+    m.checked = true; m.dispatchEvent(new Event('change', { bubbles: true }));
+    c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+  await sleep(400);
+  const a11yBlob = await evalJs(ws, `localStorage.getItem('maze-chase-settings')`);
+  const a11yText = a11yBlob ? Buffer.from(a11yBlob, 'base64').toString('utf8') : '';
+  assert(/^reduced_motion = true$/m.test(a11yText), 'reduced_motion persists in the settings blob, got: ' + JSON.stringify(a11yText.split('\n').filter((l) => l.startsWith('reduced_motion'))));
+  assert(/^high_contrast = true$/m.test(a11yText), 'high_contrast persists in the settings blob');
+  await send(ws, 'Page.navigate', { url: PAGE });
+  await sleep(2500);
+  await evalJs(ws, `document.getElementById('btn-title-settings').click()`);
+  await sleep(400);
+  assert((await evalJs(ws, `document.getElementById('chk-motion').checked`)) === true, 'reduced-motion restores checked');
+  assert((await evalJs(ws, `document.getElementById('chk-contrast').checked`)) === true, 'high-contrast restores checked');
+  await evalJs(ws, `(() => {
+    const m = document.getElementById('chk-motion');
+    const c = document.getElementById('chk-contrast');
+    m.checked = false; m.dispatchEvent(new Event('change', { bubbles: true }));
+    c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+  await sleep(300);
 
   const realErrors = errors.filter((e) => !/AudioContext|audio|user gesture/i.test(e));
   console.log('console/log errors:', realErrors.length ? realErrors : '(none)');

@@ -7,6 +7,7 @@
 
 use crate::scores::Score;
 use crate::screens::{MenuItem, PauseItem, TITLE_BANNER};
+use maze_chase_assets::anim;
 use maze_chase_config::settings::Settings;
 use maze_chase_config::{Action, Keymap};
 use maze_chase_engine::game::{Game, GameState};
@@ -41,8 +42,26 @@ pub fn too_small_card(cols: u16, rows: u16, min_cols: u16, min_rows: u16) -> Vec
     )
 }
 
+/// 30-segment fright countdown plus the reduced-flash banner.
+///
+/// The meter appears only in the final 1.5 s window; the banner replaces
+/// the flashing instruction for reduced-flash players (information, not
+/// decoration).
+pub fn fright_readout(game: &Game, reduced_flash: bool) -> Option<String> {
+    if !game.wardens.fright_flashing() {
+        return None;
+    }
+    let lit = anim::fright_bar_segments(game.wardens.fright_t).min(30);
+    let bar = format!("{}{}", "█".repeat(lit), "░".repeat(30 - lit));
+    Some(if reduced_flash {
+        format!("THE TURN ENDS {bar}")
+    } else {
+        format!("FRIGHT {bar}")
+    })
+}
+
 /// Compact top HUD bar (narrow windows): two lines.
-pub fn top_bar(game: &Game, best: u32) -> [String; 2] {
+pub fn top_bar(game: &Game, best: u32, reduced_flash: bool) -> [String; 2] {
     let state = match game.state {
         GameState::Play => "",
         GameState::Dying => "  OUCH",
@@ -59,12 +78,21 @@ pub fn top_bar(game: &Game, best: u32) -> [String; 2] {
             game.level,
             state
         ),
-        format!("MODE {} {}", mode, mode_clock(game)),
+        match fright_readout(game, reduced_flash) {
+            Some(readout) => format!("MODE {} {}  {readout}", mode, mode_clock(game)),
+            None => format!("MODE {} {}", mode, mode_clock(game)),
+        },
     ]
 }
 
 /// Side panel lines (wide windows, 26 columns).
-pub fn side_panel(game: &Game, best: u32, tune: &str, tier: &str) -> Vec<String> {
+pub fn side_panel(
+    game: &Game,
+    best: u32,
+    tune: &str,
+    tier: &str,
+    reduced_flash: bool,
+) -> Vec<String> {
     let mut lines = vec![
         "MAZE CHASE".to_string(),
         "".to_string(),
@@ -77,6 +105,9 @@ pub fn side_panel(game: &Game, best: u32, tune: &str, tier: &str) -> Vec<String>
     let clock = mode_clock(game);
     if !clock.is_empty() {
         lines.push(format!("CLOCK  {clock}"));
+    }
+    if let Some(readout) = fright_readout(game, reduced_flash) {
+        lines.push(readout);
     }
     lines.push("".to_string());
     lines.push(format!("TUNE   {tune}"));
@@ -272,10 +303,10 @@ mod tests {
     #[test]
     fn hud_bars_render() {
         let g = Game::new(1, 1);
-        let bar = top_bar(&g, 0);
+        let bar = top_bar(&g, 0, false);
         assert!(bar[0].contains("SCORE"));
         assert!(bar[0].contains("LIVES"));
-        let panel = side_panel(&g, 500, "title", "truecolor-cells");
+        let panel = side_panel(&g, 500, "title", "truecolor-cells", false);
         assert!(panel.iter().any(|l| l.contains("500")));
         assert!(panel.iter().any(|l| l.contains("truecolor-cells")));
         assert!(hint("playing", None, None).contains("pause"));
@@ -331,5 +362,20 @@ mod tests {
         let lines = rebind_list(&map, 0, Some(Action::Up), None);
         assert!(lines.iter().any(|l| l.contains("press a key")));
         let _ = SettingsRow::Back;
+    }
+
+    #[test]
+    fn fright_readout_drains_and_names_the_turn_end() {
+        let mut g = Game::new(1, 1);
+        g.wardens.start_fright(6.0);
+        g.wardens.fright_t = 1.2;
+        let readout = fright_readout(&g, false).expect("meter in the final window");
+        assert!(readout.starts_with("FRIGHT "));
+        assert_eq!(readout.matches('█').count(), 24);
+        assert_eq!(readout.matches('░').count(), 6);
+        let reduced = fright_readout(&g, true).expect("reduced banner");
+        assert!(reduced.starts_with("THE TURN ENDS "));
+        g.wardens.fright_t = 2.0;
+        assert!(fright_readout(&g, false).is_none());
     }
 }

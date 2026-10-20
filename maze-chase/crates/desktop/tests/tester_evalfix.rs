@@ -19,6 +19,8 @@ fn hud() -> Hud<'static> {
     Hud {
         best: 0,
         flash: true,
+        reduced_motion: false,
+        dim_playfield: 0.0,
         fps: Some(60.0),
         tune: "OFF",
         ticker: None,

@@ -81,12 +81,14 @@ pub enum SettingsRow {
     Sfx,
     Mute,
     ReducedFlash,
+    ReducedMotion,
+    HighContrast,
     Keybinds,
     Back,
 }
 
 impl SettingsRow {
-    pub const ALL: [SettingsRow; 9] = [
+    pub const ALL: [SettingsRow; 11] = [
         SettingsRow::Difficulty,
         SettingsRow::Theme,
         SettingsRow::Master,
@@ -94,6 +96,8 @@ impl SettingsRow {
         SettingsRow::Sfx,
         SettingsRow::Mute,
         SettingsRow::ReducedFlash,
+        SettingsRow::ReducedMotion,
+        SettingsRow::HighContrast,
         SettingsRow::Keybinds,
         SettingsRow::Back,
     ];
@@ -234,6 +238,14 @@ impl Screens {
                         self.settings.reduced_flash = !self.settings.reduced_flash;
                         Event::SettingsCommitted
                     }
+                    SettingsRow::ReducedMotion => {
+                        self.settings.reduced_motion = !self.settings.reduced_motion;
+                        Event::SettingsCommitted
+                    }
+                    SettingsRow::HighContrast => {
+                        self.settings.high_contrast = !self.settings.high_contrast;
+                        Event::SettingsCommitted
+                    }
                     _ => Event::None,
                 },
                 Action::Back => {
@@ -343,6 +355,12 @@ impl Screens {
             SettingsRow::ReducedFlash => {
                 self.settings.reduced_flash = !self.settings.reduced_flash;
             }
+            SettingsRow::ReducedMotion => {
+                self.settings.reduced_motion = !self.settings.reduced_motion;
+            }
+            SettingsRow::HighContrast => {
+                self.settings.high_contrast = !self.settings.high_contrast;
+            }
             SettingsRow::Keybinds | SettingsRow::Back => {}
         }
     }
@@ -378,6 +396,22 @@ impl Screens {
             (
                 "Reduced flashing".into(),
                 if s.reduced_flash {
+                    "on".into()
+                } else {
+                    "off".into()
+                },
+            ),
+            (
+                "Reduced motion".into(),
+                if s.reduced_motion {
+                    "on".into()
+                } else {
+                    "off".into()
+                },
+            ),
+            (
+                "High contrast".into(),
+                if s.high_contrast {
                     "on".into()
                 } else {
                     "off".into()
@@ -466,6 +500,22 @@ mod tests {
         assert_eq!(s.settings.difficulty, Difficulty::Harsh);
         s.adjust(Dir::Right);
         assert_eq!(s.settings.difficulty, Difficulty::Cozy);
+        // Accessibility rows toggle and render their state.
+        s.settings_row = SettingsRow::ALL
+            .iter()
+            .position(|r| *r == SettingsRow::ReducedMotion)
+            .unwrap();
+        s.adjust(Dir::Right);
+        assert!(s.settings.reduced_motion);
+        assert!(s
+            .settings_lines()
+            .contains(&("Reduced motion".into(), "on".into())));
+        s.settings_row = SettingsRow::ALL
+            .iter()
+            .position(|r| *r == SettingsRow::HighContrast)
+            .unwrap();
+        s.adjust(Dir::Right);
+        assert!(s.settings.high_contrast);
         // Volumes clamp at the rails.
         s.settings_row = 2;
         for _ in 0..20 {
@@ -473,7 +523,7 @@ mod tests {
         }
         assert!((s.settings.master - 1.0).abs() < 1e-6);
         // Back commits.
-        s.settings_row = 8;
+        s.settings_row = SettingsRow::ALL.len() - 1;
         assert_eq!(s.press(Action::Confirm), Event::SettingsCommitted);
         assert_eq!(s.current, ScreenId::Title);
     }

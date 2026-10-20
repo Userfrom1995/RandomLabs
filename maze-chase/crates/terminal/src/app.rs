@@ -398,6 +398,9 @@ impl App {
 
     /// Theme for the active settings (falls back to Dusk Pond).
     pub fn theme(&self) -> &'static maze_chase_assets::themes::Theme {
+        if self.settings.high_contrast {
+            return &maze_chase_assets::themes::MOONWAKE;
+        }
         maze_chase_assets::themes::by_id(self.settings.theme.as_str())
             .unwrap_or(&maze_chase_assets::themes::DUSK_POND)
     }

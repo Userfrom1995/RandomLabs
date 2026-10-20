@@ -66,6 +66,7 @@
     0: 'panel-title', 1: 'panel-help', 2: 'panel-scores',
     3: 'panel-settings', 5: 'panel-pause', 6: 'panel-over'
   };
+  var FRIGHT_SEGMENTS = 30;
   var WARDEN_CUE = 4; // WardenEaten: pitch doubling lives in Rust (mc_sfx_from/to already carry the chain arm); mc_last_chain is display-only.
   var SETTINGS_KEY = 'maze-chase-settings';
   var SCORES_KEY = 'maze-chase-scores';
@@ -333,6 +334,8 @@
     Object.keys(SCREEN_PANELS).forEach(function (k) {
       $(SCREEN_PANELS[k]).hidden = (Number(k) !== s);
     });
+    var pauseBtn = $('btn-pause');
+    if (pauseBtn) pauseBtn.hidden = (s !== 4);
     if (s === 2 || s === 6) { renderScores(); refreshOver(); }
     if (s === 3) { syncSettingsUI(); }
     if (s === 4) {
@@ -365,10 +368,23 @@
       txt('hud-mode', MODE_NAMES[m] || ('Mode ' + m));
       txt('hud-dots', String(exp.mc_dots_left() >>> 0));
       var fr = exp.mc_fright_active() >>> 0;
+      var meter = $('fright-meter');
       var frel = $('hud-fright');
+      var reduced = ((exp.mc_reduced_flash() >>> 0) !== 0) ||
+        ((exp.mc_reduced_motion() >>> 0) !== 0);
+      var segs = fr ? (exp.mc_fright_segments() >>> 0) : 0;
+      if (meter) meter.hidden = !fr || segs === 0;
       if (frel) frel.hidden = !fr;
-      if (fr && (exp.mc_fright_flash() >>> 0)) txt('hud-fright', 'FRIGHT ENDING');
+      if (fr && reduced && segs > 0) txt('hud-fright', 'THE TURN ENDS');
+      else if (fr && (exp.mc_fright_flash() >>> 0)) txt('hud-fright', 'FRIGHT ENDING');
       else if (fr) txt('hud-fright', 'FRIGHT!');
+      var segEl = $('fright-segs');
+      if (segEl && segEl.children.length === FRIGHT_SEGMENTS) {
+        for (var si = 0; si < FRIGHT_SEGMENTS; si++) {
+          segEl.children[si].className = si < segs ? 'on' : '';
+        }
+        segEl.setAttribute('aria-valuenow', String(segs));
+      }
       var rel = $('hud-relish');
       if (rel) {
         var ra = exp.mc_relish_active() >>> 0;
@@ -406,6 +422,8 @@
       $('rng-music').value = Math.round(exp.mc_music() * 100);
       $('rng-sfx').value = Math.round(exp.mc_sfx() * 100);
       $('chk-flash').checked = (exp.mc_reduced_flash() >>> 0) !== 0;
+      $('chk-motion').checked = (exp.mc_reduced_motion() >>> 0) !== 0;
+      $('chk-contrast').checked = (exp.mc_high_contrast() >>> 0) !== 0;
     } catch (e) { /* ignore */ }
   }
 
@@ -721,6 +739,14 @@
     canvas = $('game-canvas');
     ctx = canvas.getContext('2d');
     canvasWrap = $('canvas-wrap');
+    var segs = $('fright-segs');
+    if (segs && segs.children.length === 0) {
+      for (var si = 0; si < FRIGHT_SEGMENTS; si++) {
+        var sp = document.createElement('span');
+        sp.setAttribute('aria-hidden', 'true');
+        segs.appendChild(sp);
+      }
+    }
 
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', onKeyUp);
@@ -752,6 +778,10 @@
     press('btn-title-scores', ['mc_goto', 2]);
     press('btn-title-settings', ['mc_goto', 3]);
     // Pause / over.
+    $('btn-pause').addEventListener('click', function () {
+      unlockAudio();
+      if (exp) { try { exp.mc_press(2); } catch (e) { /* ignore */ } }
+    });
     press('btn-resume', ['mc_press', 5]);
     press('btn-pause-restart', ['mc_press', 6]);
     press('btn-pause-quit', ['mc_press', 7]);
@@ -803,6 +833,16 @@
     $('chk-flash').addEventListener('change', function () {
       if (!exp) return;
       try { exp.mc_set_reduced_flash($('chk-flash').checked ? 1 : 0); } catch (e) { /* ignore */ }
+      saveSettings();
+    });
+    $('chk-motion').addEventListener('change', function () {
+      if (!exp) return;
+      try { exp.mc_set_reduced_motion($('chk-motion').checked ? 1 : 0); } catch (e) { /* ignore */ }
+      saveSettings();
+    });
+    $('chk-contrast').addEventListener('change', function () {
+      if (!exp) return;
+      try { exp.mc_set_high_contrast($('chk-contrast').checked ? 1 : 0); } catch (e) { /* ignore */ }
       saveSettings();
     });
     // D-pad.

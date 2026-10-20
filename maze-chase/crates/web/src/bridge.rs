@@ -15,7 +15,7 @@ use std::sync::{Mutex, OnceLock};
 
 use crate::audio_map;
 use crate::input;
-use crate::session::{difficulty_from_index, difficulty_index, WebSession};
+use crate::session::{difficulty_from_index, difficulty_index, Screen, WebSession};
 use crate::video;
 
 const SCRATCH_LEN: usize = 4096;
@@ -339,6 +339,30 @@ pub extern "C" fn mc_set_reduced_flash(on: u32) {
     session().settings_mut().reduced_flash = on != 0;
 }
 
+/// 1 when reduced-motion is on (decorative motion held still).
+#[no_mangle]
+pub extern "C" fn mc_reduced_motion() -> u32 {
+    u32::from(session().settings().reduced_motion)
+}
+
+/// Set reduced-motion.
+#[no_mangle]
+pub extern "C" fn mc_set_reduced_motion(on: u32) {
+    session().settings_mut().reduced_motion = on != 0;
+}
+
+/// 1 when high-contrast rendering is on (Moonwake palette).
+#[no_mangle]
+pub extern "C" fn mc_high_contrast() -> u32 {
+    u32::from(session().settings().high_contrast)
+}
+
+/// Set high-contrast rendering.
+#[no_mangle]
+pub extern "C" fn mc_set_high_contrast(on: u32) {
+    session().settings_mut().high_contrast = on != 0;
+}
+
 /// Scratch buffer for blob/name transfers (4096 bytes).
 #[no_mangle]
 pub extern "C" fn mc_scratch() -> *mut u8 {
@@ -574,7 +598,18 @@ pub extern "C" fn mc_frame(w: u32, h: u32) -> *const u8 {
         return std::ptr::null();
     }
     let s = session();
-    let board = video::render_board(s.game(), s.theme(), !s.settings().reduced_flash);
+    let (dim_playfield, dim_actors) = match s.screen() {
+        Screen::Title => (0.40, 0.40),
+        Screen::Paused => (0.55, 0.0),
+        _ => (0.0, 0.0),
+    };
+    let fx = maze_chase_assets::anim::Fx::dimmed(
+        !s.settings().reduced_flash,
+        s.settings().reduced_motion,
+        dim_playfield,
+        dim_actors,
+    );
+    let board = video::render_board_with(s.game(), s.theme(), fx);
     let bg = s.theme().bg;
     drop(s);
     let fit = video::fit_canvas(w, h);

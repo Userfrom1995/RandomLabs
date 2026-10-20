@@ -94,6 +94,73 @@ pub fn relish_bob(t: f32) -> i32 {
     }
 }
 
+/// Render-time accessibility and staging options shared by every layer.
+///
+/// `flash` is false under reduced flashing (hold steady warning art),
+/// `reduced_motion` strips decorative motion, `dim_playfield` fades the
+/// static maze/pickup layer behind a title or pause card, and
+/// `dim_actors` fades Pip and the wardens too (title only; the pause hub
+/// keeps its actors at full brightness).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Fx {
+    pub flash: bool,
+    pub reduced_motion: bool,
+    pub dim_playfield: f32,
+    pub dim_actors: f32,
+}
+
+impl Fx {
+    pub fn new(flash: bool, reduced_motion: bool) -> Self {
+        Self {
+            flash,
+            reduced_motion,
+            dim_playfield: 0.0,
+            dim_actors: 0.0,
+        }
+    }
+
+    pub fn dimmed(flash: bool, reduced_motion: bool, playfield: f32, actors: f32) -> Self {
+        Self {
+            flash,
+            reduced_motion,
+            dim_playfield: playfield.clamp(0.0, 1.0),
+            dim_actors: actors.clamp(0.0, 1.0),
+        }
+    }
+}
+
+impl Default for Fx {
+    fn default() -> Self {
+        Self::new(true, false)
+    }
+}
+
+/// Number of lit segments in the 30-segment fright warning bar.
+///
+/// The meter is information, not decoration: it appears only for the
+/// final 1.5 s of a fright window and drains linearly to zero. A
+/// reduced-flash caller still shows it (it is a steady meter).
+pub fn fright_bar_segments(t_left: f32) -> usize {
+    if !t_left.is_finite() || t_left <= 0.0 || t_left > 1.5 {
+        return 0;
+    }
+    ((t_left / 1.5) * 30.0).ceil().clamp(0.0, 30.0) as usize
+}
+
+/// Death silhouette frame after applying the reduced-motion contract:
+/// two static states (intact, then the final bubble) instead of the
+/// four-frame clip.
+pub fn death_frame_for(elapsed: f32, reduced_motion: bool) -> usize {
+    if !reduced_motion {
+        return death_frame(elapsed);
+    }
+    if !elapsed.is_finite() || elapsed < 0.2 {
+        0
+    } else {
+        crate::sprites::PIP_DEATH.len() - 1
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -150,6 +217,36 @@ mod tests {
         assert!(level_clear_banner_on(1.199));
         assert!(!level_clear_banner_on(1.2));
         assert!(!level_clear_banner_on(f32::NAN));
+    }
+
+    #[test]
+    fn fright_bar_drains_over_the_final_window_only() {
+        assert_eq!(fright_bar_segments(2.0), 0);
+        assert_eq!(fright_bar_segments(1.5001), 0);
+        assert_eq!(fright_bar_segments(1.5), 30);
+        assert_eq!(fright_bar_segments(0.75), 15);
+        assert_eq!(fright_bar_segments(0.05), 1);
+        assert_eq!(fright_bar_segments(0.0), 0);
+        assert_eq!(fright_bar_segments(f32::NAN), 0);
+    }
+
+    #[test]
+    fn reduced_motion_death_holds_two_states() {
+        assert_eq!(death_frame_for(0.0, true), 0);
+        assert_eq!(death_frame_for(0.19, true), 0);
+        assert_eq!(death_frame_for(0.2, true), 3);
+        assert_eq!(death_frame_for(1.0, true), 3);
+        assert_eq!(death_frame_for(0.1, false), 1);
+    }
+
+    #[test]
+    fn fx_defaults_are_plain_playback() {
+        let fx = Fx::default();
+        assert!(fx.flash);
+        assert!(!fx.reduced_motion);
+        assert_eq!(fx.dim_playfield, 0.0);
+        assert_eq!(Fx::dimmed(true, false, 2.0, -1.0).dim_playfield, 1.0);
+        assert_eq!(Fx::dimmed(true, false, 2.0, -1.0).dim_actors, 0.0);
     }
 
     #[test]
