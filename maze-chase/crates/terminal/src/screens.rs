@@ -6,7 +6,7 @@
 //! a blocking prompt: selecting a binding arms capture, the next key
 //! event completes or cancels it.
 
-use maze_chase_config::settings::{Difficulty, Settings, KNOWN_THEMES};
+use maze_chase_config::settings::{theme_label, Difficulty, Settings, KNOWN_THEMES};
 use maze_chase_config::{Action, Key, Keymap};
 use maze_chase_engine::actors::Dir;
 
@@ -367,7 +367,7 @@ impl Screens {
         let s = &self.settings;
         vec![
             ("Difficulty".into(), s.difficulty.as_str().into()),
-            ("Theme".into(), s.theme.clone()),
+            ("Theme".into(), theme_label(&s.theme)),
             ("Master volume".into(), format!("{:.0}%", s.master * 100.0)),
             ("Music volume".into(), format!("{:.0}%", s.music * 100.0)),
             ("SFX volume".into(), format!("{:.0}%", s.sfx * 100.0)),

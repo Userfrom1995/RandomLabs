@@ -488,7 +488,10 @@ impl Screens {
                 "DIFFICULTY".into(),
                 self.settings.difficulty.as_str().to_uppercase(),
             ),
-            ("THEME".into(), self.settings.theme.to_uppercase()),
+            (
+                "THEME".into(),
+                maze_chase_config::settings::theme_label(&self.settings.theme).to_uppercase(),
+            ),
             ("REDUCED FLASH".into(), on_off(self.settings.reduced_flash)),
             ("SHOW FPS".into(), on_off(self.settings.show_fps)),
             ("KEYBINDS".into(), "EDIT >".into()),

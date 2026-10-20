@@ -29,7 +29,7 @@ fn save_load_roundtrip_survives_rebinds_and_flags() {
     s.music = 0.0;
     s.sfx = 1.0;
     s.mute = true;
-    s.theme = "abyss-lantern".to_string();
+    s.theme = "moonwake".to_string();
     s.reduced_flash = true;
     s.high_contrast = true;
     s.show_fps = true;

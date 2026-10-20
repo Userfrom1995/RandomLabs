@@ -1834,7 +1834,7 @@ mod tests {
             "a difficulty edit on the Settings screen must repaint"
         );
 
-        app.screens.settings.theme = "abyss-lantern".to_string();
+        app.screens.settings.theme = "moonwake".to_string();
         let after_theme = frame_key(&app);
         assert_ne!(
             after_difficulty, after_theme,

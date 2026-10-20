@@ -147,7 +147,7 @@
         exp = mod.instance ? mod.instance.exports : mod.exports || mod;
         var need = ['mc_version', 'mc_reset', 'mc_step', 'mc_frame', 'mc_frame_len',
           'mc_key', 'mc_swipe', 'mc_press', 'mc_goto', 'mc_rebind', 'mc_binding', 'mc_screen',
-          'mc_scratch', 'mc_scratch_len', 'memory'];
+          'mc_scratch', 'mc_scratch_len', 'mc_theme_name', 'memory'];
         for (var i = 0; i < need.length; i++) {
           if (typeof exp[need[i]] === 'undefined') throw new Error('missing export: ' + need[i]);
         }
@@ -170,6 +170,14 @@
           'and open maze-chase/play.html). ' +
           'The engine file is built by the maze-chase-web Rust crate.');
       });
+  }
+
+  function themeName() {
+    try {
+      var s = scratchBytes();
+      var n = exp.mc_theme_name(s.ptr, s.cap) >>> 0;
+      return new TextDecoder().decode(new Uint8Array(exp.memory.buffer, s.ptr, n));
+    } catch (e) { return 'Theme'; }
   }
 
   // ---------- settings blob via scratch ----------
@@ -374,7 +382,7 @@
       applyVolumes();
       // Settings labels follow Rust (single source of truth).
       var th = exp.mc_theme() >>> 0, thc = exp.mc_theme_count() >>> 0;
-      txt('theme-label', 'Theme ' + (th + 1) + '/' + thc);
+      txt('theme-label', themeName() + ' (' + (th + 1) + '/' + thc + ')');
       var d = exp.mc_difficulty() >>> 0;
       txt('diff-label', DIFF_NAMES[d] || ('Difficulty ' + d));
     } catch (e) { /* ignore */ }

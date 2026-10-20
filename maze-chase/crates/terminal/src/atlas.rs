@@ -488,7 +488,7 @@ mod tests {
     use maze_chase_assets::themes;
 
     fn atlas_for(ppt: u32) -> Atlas {
-        Atlas::build(&themes::EMBER_WARREN, ppt)
+        Atlas::build(&themes::DUSK_POND, ppt)
     }
 
     fn assert_frames_eq(got: &RgbaFrame, want: &RgbaFrame, ctx: &str) {
@@ -526,7 +526,7 @@ mod tests {
     fn composed_frame_matches_full_raster() {
         for ppt in [6, 8, 12] {
             let mut game = Game::new(11, 1);
-            let theme = themes::EMBER_WARREN;
+            let theme = themes::DUSK_POND;
             let atlas = atlas_for(ppt);
             for frame_no in [0u64, 7, 33, 99] {
                 for flash in [false, true] {
@@ -566,7 +566,7 @@ mod tests {
         for ppt in [6, 17] {
             for sep in [0.25f32, 0.5, 0.75] {
                 let mut game = Game::new(11, 1);
-                let theme = themes::EMBER_WARREN;
+                let theme = themes::DUSK_POND;
                 let atlas = atlas_for(ppt);
                 let (x0, y0) = (
                     game.wardens.wardens[0].actor.x,
