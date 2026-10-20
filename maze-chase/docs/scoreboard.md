@@ -305,6 +305,14 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   Wasm rebuilt to sha256 `346ef9b8...` (206,295 bytes, second clean
   build byte-identical); node smokes and the 42-assertion browser E2E
   are all green.
+- Tester round (head `f00dffdb`): the browser fright HUD calls
+  `mc_fright_segments`, which the bridge did not export; the resulting
+  `TypeError` was swallowed by `updateHud`'s catch, freezing the badge,
+  meter, and later HUD rows for the whole fright window. The bridge now
+  exports the countdown, the wasm was rebuilt with the recorded Rust
+  1.99.0 toolchain to sha256 `68e331b2...` (206,711 bytes, second clean
+  build byte-identical), and `tester-regression.js` (fright HUD ABI and
+  drain assertions) plus `wasm-smoke.js` are ALL GREEN.
 - Desktop Xvfb `--probe 30` stays byte-identical to
   `docs/desktop-probe.ppm`
   (sha256 `dcb33b7de14cbbd27205d07d707854eb574e1ccc938afca417eaf8d624088421`);
