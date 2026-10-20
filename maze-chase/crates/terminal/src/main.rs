@@ -983,11 +983,11 @@ fn render_frame(
                 if app.tier() == Tier::Kitty {
                     stats = kitty_frame(app, out, fresh, kitty);
                 } else {
-                    let frame = maze_chase_terminal::raster::render(
+                    let frame = maze_chase_terminal::raster::render_opts(
                         &app.game,
                         theme,
                         app.layout.ppt(),
-                        !app.settings.reduced_flash,
+                        app.fx(),
                     );
                     let encoded = sixel::encode(&frame, 64);
                     let cells_fallback = encoded.is_empty();
@@ -995,12 +995,8 @@ fn render_frame(
                         // A frame the byte budget cannot carry falls
                         // back to cells for this frame, never a blank
                         // or unbounded stream.
-                        let screen = unicode::render_board(
-                            &app.game,
-                            theme,
-                            &app.layout,
-                            !app.settings.reduced_flash,
-                        );
+                        let screen =
+                            unicode::render_board_opts(&app.game, theme, &app.layout, app.fx());
                         for (i, row) in screen.rows.iter().enumerate() {
                             paint_line(out, i as u16, 0, &unicode::row_ansi(row, truecolor));
                         }
@@ -1021,12 +1017,7 @@ fn render_frame(
             } else {
                 // Full repaint: every row covers the window width, so
                 // resizes and menu transitions never leave stale glyphs.
-                let screen = unicode::render_board(
-                    &app.game,
-                    theme,
-                    &app.layout,
-                    !app.settings.reduced_flash,
-                );
+                let screen = unicode::render_board_opts(&app.game, theme, &app.layout, app.fx());
                 for (i, row) in screen.rows.iter().enumerate() {
                     paint_line(out, i as u16, 0, &unicode::row_ansi(row, truecolor));
                 }
@@ -1176,6 +1167,23 @@ fn paint_card(
     }
     let x = (cols - card_w) / 2;
     let y = (rows - card_h) / 2;
+    // Opaque one-cell ring: the card sits over the frozen board, and the
+    // board keeps its actors and pickups on the rows around the card. The
+    // ring clears those cells to the theme background first, so nothing
+    // paints through the card's edge. Clamped to the window so tiny rooms
+    // never address outside it.
+    let ring_x = x.saturating_sub(1);
+    let ring_y = y.saturating_sub(1);
+    let ring_w = (card_w + 2).min(cols - ring_x);
+    let ring_h = (card_h + 2).min(rows - ring_y);
+    for row in ring_y..ring_y + ring_h {
+        paint_line(
+            out,
+            row as u16,
+            ring_x as u16,
+            &unicode::paint(&" ".repeat(ring_w), theme.bg, theme.bg, truecolor),
+        );
+    }
     let top = format!("┌{}┐", "─".repeat(inner));
     let bottom = format!("└{}┘", "─".repeat(inner));
     let paint =
@@ -2128,6 +2136,95 @@ mod tests {
             recovered.contains(&format!("\x1b_Ga=t,f=100,i={},", kitty::ATLAS_IMAGE_ID)),
             "the recovered frame must re-transmit the atlas"
         );
+    }
+
+    /// Minimal terminal model for card tests: replay cursor moves and
+    /// ignore SGR so the painted character grid can be inspected.
+    fn paint_grid(out: &str, cols: usize, rows: usize) -> Vec<Vec<char>> {
+        let mut grid = vec![vec![' '; cols]; rows];
+        let chars: Vec<char> = out.chars().collect();
+        let mut i = 0;
+        let (mut row, mut col) = (0usize, 0usize);
+        while i < chars.len() {
+            if chars[i] == '\x1b' && chars.get(i + 1) == Some(&'[') {
+                let mut j = i + 2;
+                while j < chars.len() && !('@'..='~').contains(&chars[j]) {
+                    j += 1;
+                }
+                if j >= chars.len() {
+                    break;
+                }
+                if chars[j] == 'H' {
+                    let params: String = chars[i + 2..j].iter().collect();
+                    let mut parts = params.split(';');
+                    row = parts
+                        .next()
+                        .and_then(|s| s.parse::<usize>().ok())
+                        .unwrap_or(1)
+                        .saturating_sub(1);
+                    col = parts
+                        .next()
+                        .and_then(|s| s.parse::<usize>().ok())
+                        .unwrap_or(1)
+                        .saturating_sub(1);
+                }
+                i = j + 1;
+                continue;
+            }
+            let ch = chars[i];
+            if row < rows && col < cols {
+                grid[row][col] = ch;
+            }
+            col += 1;
+            i += 1;
+        }
+        grid
+    }
+
+    #[test]
+    fn paint_card_clears_an_opaque_ring_around_the_card() {
+        let theme = &maze_chase_assets::themes::DUSK_POND;
+        let lines = vec!["PAUSED".to_string(), "> RESUME".to_string()];
+        let (cols, rows) = (20usize, 10usize);
+        let mut out = String::new();
+        // Seed every cell with an actor glyph, then stage the card over it.
+        for row in 0..rows {
+            paint_line(&mut out, row as u16, 0, &"X".repeat(cols));
+        }
+        paint_card(&mut out, &lines, theme, true, cols, rows, theme.accent);
+        let grid = paint_grid(&out, cols, rows);
+        // widest 8 -> card_w 12, card_h 4, origin (4, 3); ring (3, 2) 14x6.
+        assert_eq!(grid[3][4], '┌');
+        assert_eq!(grid[3][15], '┐');
+        assert_eq!(grid[6][4], '└');
+        assert_eq!(grid[6][15], '┘');
+        assert_eq!(grid[4][4], '│');
+        assert_eq!(grid[4][15], '│');
+        for cell in &grid[2][3..17] {
+            assert_eq!(*cell, ' ', "top ring must clear every actor cell");
+        }
+        for cell in &grid[7][3..17] {
+            assert_eq!(*cell, ' ', "bottom ring must clear every actor cell");
+        }
+        for row in &grid[3..7] {
+            assert_eq!(row[3], ' ', "left ring must clear every actor cell");
+            assert_eq!(row[16], ' ', "right ring must clear every actor cell");
+        }
+        // Outside the ring the seeded glyphs survive: the fill is the ring,
+        // not a full-screen clear.
+        assert_eq!(grid[1][3], 'X');
+        assert_eq!(grid[8][16], 'X');
+    }
+
+    #[test]
+    fn paint_card_ring_clamps_to_a_minimum_window() {
+        let theme = &maze_chase_assets::themes::DUSK_POND;
+        let lines = vec!["PAUSED".to_string(), "> RESUME".to_string()];
+        let mut out = String::new();
+        paint_card(&mut out, &lines, theme, false, 12, 4, theme.accent);
+        let grid = paint_grid(&out, 12, 4);
+        assert_eq!(grid[0][0], '┌', "the clamped ring must not move the card");
+        assert_eq!(grid[3][0], '└');
     }
 
     #[cfg(unix)]
