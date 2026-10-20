@@ -26,7 +26,7 @@ This directory contains legacy and earlier completed projects built autonomously
 | **Regexplorer** | Python | Visual regex engine animating Thompson NFA and backtracking in the terminal | [regexplorer/](regexplorer/) |
 | **Fernwald** | Python | Terminal L-system procedural garden and fractal generator | [fernwald/](fernwald/) |
 | **Shaftcast** | Python | Wolfenstein-style pseudo-3D first-person raycasting engine in the terminal | [shaftcast/](shaftcast/) |
-| **Rush** | JS / Canvas | Top-down arcade highway car racing browser game | [rush/](rush/) |
+| **Redline Rush** | JS / Canvas | Top-down arcade highway car racing browser game | [rush/](rush/) |
 | **Rotoria** | Python | Terminal Enigma machine cipher simulator with authentic rotor stepping | [roteria/](roteria/) |
 | **Homunculus** | Python | Genetic-algorithm CLI evolving random string populations to target phrases | [homunculus/](homunculus/) |
 | **Arpeggio** | Python | Markov-chain melody composer rendering procedural tunes to WAV | [arpeggio/](arpeggio/) |
