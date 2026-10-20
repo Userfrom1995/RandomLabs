@@ -565,7 +565,7 @@ Public Surface / Web Track:                                              │
   (duplicate keys rejected) and pins each step's exact `if:`, `id`, env map,
   key set, and normalized `run:` body (all six phase verifies, all six
   phase forwards, the full build verify, the full build forward, the full
-  recover-tag body, and the seven helper-staging steps, each running after
+  recover-tag body, and the nine helper-staging steps, each running after
   checkout and before the actor gate), resolves
   every consumed `steps.<id>` inside its owning job to exactly one step with
   the expected identity ahead of its consumer (the actor-write-gate step,
@@ -593,6 +593,43 @@ Public Surface / Web Track:                                              │
   ungated build forward, a different-branch
   `pushed=yes` without a new tip, and added shell or step-level
   `continue-on-error` keys each fail alone).
+- **Trailer-strip thread binding (issue #689):** the shared strip script
+  resolved the triggering PR number and then required its head to match
+  `opencode/issue<PR#>-*`, a convention that only holds for PRs built
+  directly against an issue. A `Refs`-only PR is named for its parent issue
+  (PR #685 carried `opencode/issue582-...` for #582), so every session
+  triggered from that thread redded the strip step with `Refusing to rewrite
+  unexpected branch` even when nothing needed stripping (design retry run
+  39168334922, session commit `8514388b` clean, PR #688 opened normally).
+  The PR-comment path now resolves the branch directly from the triggering
+  PR's head (`issue_comment` on a PR and `pull_request_review_comment`); the
+  issue-to-linked-PR lookup keeps the strict issue-number namespace refusal
+  and filters its open-PR list to same-repository PRs under `--limit 100`,
+  selecting the newest matching branch. Every one of the nine hardcoded
+  strip steps (research, architect, build, fix, design, design-ux,
+  design-visual, design-motion, general) delegates to the shared script
+  staged from the trusted default-branch checkout, under the actor gate
+  with the job-scoped `github.token`; inline `git filter-branch` copies are
+  gone from those nine steps (the lab workflow keeps its separate
+  R11-guarded strip). A non-same-repository head (a fork or deleted head) is
+  a loud no-op, so a fork's branch name can never fetch and rewrite a
+  same-named origin branch. The PR-comment path rewrites only `opencode/`
+  lab branches, but a branch with zero owner trailers exits 0 loudly before
+  that refusal, so a clean human or fork PR cannot red. Regression-guarded by
+  audit rule R29, which pins all nine workflow invocations, their trusted
+  checkout ref and staged order, and rejects inline copies in those nine
+  steps, then executes the real script against a mock `gh` and a local bare
+  origin in an isolated environment (Refs no-trailer exit 0 untouched, Refs
+  owner-trailer strip, clean human exit 0, human branches with an owner
+  trailer refused, fork/deleted-head PRs loud no-ops with the remote
+  untouched, issue-mismatch refused, contributor trailer preserved,
+  cross-repository and same-repo/head-repository/prefix decoys filtered,
+  newest match selected, review-comment payload resolves, malformed event
+  and git-log failure fail closed) and whose ten mutants (the pre-fix
+  PR-number guard applied to the PR path, the narrowed PR namespace guard,
+  each identity/namespace guard removed, the cross-repository and
+  head-repository filters removed, the prefix widened, the sort reversed,
+  and the sanitizer broadened) each fail a scenario alone.
 - Concurrency - per-PR groups, queued execution:
 
 ```yaml
@@ -662,8 +699,17 @@ Your PAT is used ONLY by hardcoded workflow steps, for exactly these things:
   behalf; never reveal the owner's identity.
 - A hardcoded "clean tree" step in the implementer workflow prevents the
   action's auto-commit from leaking a `Co-authored-by: <owner>` trailer into
-  pushed commits, and a sanitize step in the fix job rewrites any leaked
-  trailers off the PR branch.
+  pushed commits, and every `opencode.yml` agent job's sanitize step delegates
+  to the staged copy of `.github/scripts/strip-trailers.sh` (the lab job
+  keeps its separate decision-gated strip). On a PR-comment trigger it sanitizes the
+  triggering PR's own head (a `Refs`-only PR is named for its parent issue,
+  not its own number, so the issue-number naming guard applies only to the
+  issue-to-linked-PR lookup); both paths first prove the PR is
+  same-repository, and the PR-comment path refuses a branch outside the
+  `opencode/` lab namespace only when it actually carries an owner trailer
+  (a clean branch exits 0 loudly, so a human PR cannot red). The issue path
+  keeps its strict namespace refusal and filters its open-PR lookup to
+  same-repository PRs under `--limit 100` (issue #689, audit R29).
 
 ## 8. Worker rules (all agents)
 
@@ -1337,7 +1383,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422) + the model fallback ladder (resolve-model.sh, model-ladder.txt, issue #591)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R28), phase thread target resolution, build push attribution, per-OS findings poster, review-comment and tester-verdict publication evidence, tester marker publisher, CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R29), phase thread target resolution, build push attribution, per-OS findings poster, review-comment and tester-verdict publication evidence, tester marker publisher, CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 

@@ -104,11 +104,18 @@
 # is attributed to a `builder:` commit with foreign or unattributable moves
 # failing closed as no-push and recover-tag bookkeeping gated on a verified
 # own push; both helper scripts are executed against fixture events, a mock
-# `gh`, and a local bare origin with mutation self-tests).
-# Wired into auditor.yml as the R1-R28 matrix.
+# `gh`, and a local bare origin with mutation self-tests), and the R29
+# trailer-strip thread-binding guard (issue #689: strip-trailers.sh re-applied
+# the issue-number branch-naming guard to a Refs PR thread whose branch is
+# named for its parent issue, false-redding clean sessions; the PR-comment
+# path now resolves the triggering PR head directly behind a same-repository
+# plus opencode/ identity check while the issue path keeps the strict
+# issue-number namespace refusal, proven by a functional sandbox with mutation
+# self-tests).
+# Wired into auditor.yml as the R1-R29 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R28 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R29 audit the whole tree
 # (the review-restore guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
@@ -119,8 +126,9 @@
 # comment-read guard, the PAT merge approval binding, the tester
 # verdict publication contract, the maintainer memory publish
 # concurrency contract, the lab/fix agent cap-headroom contract, the
-# create-issue dedupe guard, the maintainer stray-PR cleanup guard, and the
-# phase thread-binding plus build-push attribution guard), so
+# create-issue dedupe guard, the maintainer stray-PR cleanup guard, the
+# phase thread-binding plus build-push attribution guard, and the
+# trailer-strip thread-binding guard), so
 # they trip on a
 # bad curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml/peros arm no
 # matter which file the audit was pointed at.
@@ -177,12 +185,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R28 PASS] $name: $desc"
+  [R1-R29 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R28 FAIL] $name: $desc"
+  [R1-R29 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -12312,6 +12320,7 @@ STAGE_NAME = "Stage lab helper scripts (issue #690)"
 STAGE_BODY = r"""mkdir -p "$RUNNER_TEMP/lab-scripts"
 cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
 cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
+cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
 chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 """
 EXPECTED_PERMISSIONS = {
@@ -12513,7 +12522,7 @@ for (bound_job_name, _, bound_step) in steps:
         continue
     bound_body = "\n".join(line for line in norm(bound_step.get("run") or "").splitlines()
                            if not line.strip().startswith("#"))
-    for helper in ("resolve-thread-target.sh", "classify-build-push.sh"):
+    for helper in ("resolve-thread-target.sh", "classify-build-push.sh", "strip-trailers.sh"):
         remaining = bound_body
         while helper in remaining:
             at = remaining.index(helper)
@@ -13024,8 +13033,9 @@ R28STATICMUT
   r28_root="$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd || true)"
   r28_resolver="$r28_root/.github/scripts/resolve-thread-target.sh"
   r28_classifier="$r28_root/.github/scripts/classify-build-push.sh"
-  if [ ! -f "$r28_resolver" ] || [ ! -f "$r28_classifier" ]; then
-    r28_bad="${r28_bad} scripts(missing:resolve=$([ -f "$r28_resolver" ] && echo no || echo yes),classify=$([ -f "$r28_classifier" ] && echo no || echo yes))"
+  r28_stripper="$r28_root/.github/scripts/strip-trailers.sh"
+  if [ ! -f "$r28_resolver" ] || [ ! -f "$r28_classifier" ] || [ ! -f "$r28_stripper" ]; then
+    r28_bad="${r28_bad} scripts(missing:resolve=$([ -f "$r28_resolver" ] && echo no || echo yes),classify=$([ -f "$r28_classifier" ] && echo no || echo yes),strip=$([ -f "$r28_stripper" ] && echo no || echo yes))"
   else
     mkdir -p "$r28_tmp/bin" "$r28_tmp/state" "$r28_tmp/home" "$r28_tmp/events"
     # Branch-without-helpers regression fixture (issue #690 review round 3):
@@ -13039,6 +13049,7 @@ R28STATICMUT
     mkdir -p "$r28_stage_ws/.github/scripts"
     cp "$r28_resolver" "$r28_stage_ws/.github/scripts/resolve-thread-target.sh"
     cp "$r28_classifier" "$r28_stage_ws/.github/scripts/classify-build-push.sh"
+    cp "$r28_stripper" "$r28_stage_ws/.github/scripts/strip-trailers.sh"
     if python3 -I - "$OPENCODE_WF" "$r28_tmp/stage-body.sh" <<'R28STAGEEXTRACT' >"$r28_tmp/stage-extract.log" 2>&1; then
 import sys
 
@@ -13048,7 +13059,7 @@ doc = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
 hits = [step for job in (doc.get("jobs") or {}).values()
         for step in ((job or {}).get("steps") or [])
         if step.get("name") == "Stage lab helper scripts (issue #690)"]
-if len(hits) != 7:
+if len(hits) != 9:
     raise SystemExit("stage-step-count=%d" % len(hits))
 bodies = {step.get("run") for step in hits}
 if len(bodies) != 1:
@@ -13061,12 +13072,14 @@ R28STAGEEXTRACT
         r28_bad="${r28_bad} scripts(stage-step-run-failed:$(tr '\n' ';' < "$r28_tmp/stage-run.log" | cut -c1-200))"
       fi
       if [ ! -x "$r28_stage_temp/lab-scripts/resolve-thread-target.sh" ] \
-        || [ ! -x "$r28_stage_temp/lab-scripts/classify-build-push.sh" ]; then
+        || [ ! -x "$r28_stage_temp/lab-scripts/classify-build-push.sh" ] \
+        || [ ! -x "$r28_stage_temp/lab-scripts/strip-trailers.sh" ]; then
         r28_bad="${r28_bad} scripts(staged-copies-missing)"
       fi
       rm -rf "$r28_stage_ws/.github/scripts"
       if [ ! -x "$r28_stage_temp/lab-scripts/resolve-thread-target.sh" ] \
-        || [ ! -x "$r28_stage_temp/lab-scripts/classify-build-push.sh" ]; then
+        || [ ! -x "$r28_stage_temp/lab-scripts/classify-build-push.sh" ] \
+        || [ ! -x "$r28_stage_temp/lab-scripts/strip-trailers.sh" ]; then
         r28_bad="${r28_bad} scripts(staged-helper-depends-on-workspace)"
       fi
     else
@@ -13322,20 +13335,469 @@ R28MUTCLASS
 fi
 rm -rf "$r28_tmp"
 if [ -z "$r28_bad" ]; then
-  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected and its exact if/id/env/key set and normalized run body pinned, every consumed steps.<id> resolves in its owning job to the expected step identity (actor gate, agent, baseline, verify-phase, verify) ahead of its consumer with the resolved gate/agent/baseline steps bound to their exact key surface, if, env, and executable output lines so a skipped decoy cannot shadow them, every bound job's key set, runs-on, timeout, and trigger if scalar are pinned exactly, the agent env/timeout/continue-on-error are pinned, composite uses paths are path-normalized before counting, the baseline run body is pinned exactly, job-level continue-on-error is rejected on every bound job, the attribution calls are pinned including their fail-closed closure with no pushed=yes inside a foreign branch, both real helper scripts are staged from the trusted default-branch checkout into RUNNER_TEMP before the agent starts and every post-agent step invokes the staged copy (never the agent-mutable workspace copy, which an in-flight branch may not even contain), the baseline fails loudly on a nonzero gh or git status (capture-first, so a failed ls-remote is never swallowed as branch-absent), so an empty branch means only a successful no-PR query, and no non-staging step may write into the staged-helper directory, the workflow-level permissions block is pinned exactly, the build forward is gated on a verified own push, the classifier reads subjects through a here-string so a large builder batch cannot SIGPIPE into a false foreign verdict, both real helper scripts are executed against fixture events (including an unparseable payload that must fail closed), an executable mock gh, and a local bare origin with Builder/Tester commit subjects (including a 1500-commit large-range fixture and a branch-without-helpers staging fixture), and 63 mutation self-tests (55 workflow static-pin mutants plus 8 helper-fixture mutants) prove the static pins and both fixture matrices load-bearing (issue #690)" "ok"
+  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected and its exact if/id/env/key set and normalized run body pinned, every consumed steps.<id> resolves in its owning job to the expected step identity (actor gate, agent, baseline, verify-phase, verify) ahead of its consumer with the resolved gate/agent/baseline steps bound to their exact key surface, if, env, and executable output lines so a skipped decoy cannot shadow them, every bound job's key set, runs-on, timeout, and trigger if scalar are pinned exactly, the agent env/timeout/continue-on-error are pinned, composite uses paths are path-normalized before counting, the baseline run body is pinned exactly, job-level continue-on-error is rejected on every bound job, the attribution calls are pinned including their fail-closed closure with no pushed=yes inside a foreign branch, both merge-decision helper scripts plus the strip script are staged from the trusted default-branch checkout into RUNNER_TEMP before the agent starts and every post-agent step invokes the staged copy (never the agent-mutable workspace copy, which an in-flight branch may not even contain), the baseline fails loudly on a nonzero gh or git status (capture-first, so a failed ls-remote is never swallowed as branch-absent), so an empty branch means only a successful no-PR query, and no non-staging step may write into the staged-helper directory, the workflow-level permissions block is pinned exactly, the build forward is gated on a verified own push, the classifier reads subjects through a here-string so a large builder batch cannot SIGPIPE into a false foreign verdict, both real helper scripts are executed against fixture events (including an unparseable payload that must fail closed), an executable mock gh, and a local bare origin with Builder/Tester commit subjects (including a 1500-commit large-range fixture and a branch-without-helpers staging fixture), and 63 mutation self-tests (55 workflow static-pin mutants plus 8 helper-fixture mutants) prove the static pins and both fixture matrices load-bearing (issue #690)" "ok"
 else
   check "R28" "phase thread binding or build-push attribution guard missing:${r28_bad} (issue #690: a design retry/forward migrated to the newest phase PR and the build verify read a foreign Tester push as its own)" "bad"
 fi
-summary="Silent-stall regression audit (R1-R28) on ${WF}: ${pass} passed, ${fail} failed."
+
+# [R29] Trailer-strip thread binding (issue #689): strip-trailers.sh used to
+# resolve the triggering PR number and then require the head branch to match
+# opencode/issue<PR#>-*, a convention that only holds for PRs built directly
+# against an issue. A Refs-only PR is named for its parent issue (PR #685
+# carried opencode/issue582-... for #582), so every session triggered from
+# that thread redded the strip step with "Refusing to rewrite unexpected
+# branch" despite carrying no owner trailers (design retry run 39168334922,
+# commit 8514388b clean, PR #688 opened normally). The fix resolves the
+# branch directly from the triggering PR in the PR-comment path (both
+# issue_comment on a PR and pull_request_review_comment) and keeps the strict
+# issue-number namespace refusal only for the issue-to-linked-PR lookup. The
+# issue lookup filters to same-repository PRs under --limit 100 and takes the
+# newest matching branch. The rewrite is still bounded by identity: a PR whose
+# head is not on this repository (a fork, or a deleted head repository) is a
+# loud no-op, because fetching its branch name would resolve a same-named
+# branch here that is not the triggering work. The PR-comment path refuses a
+# branch outside the opencode/ lab namespace only when it actually carries an
+# owner trailer; a clean branch exits 0 loudly, so a general request on a human
+# PR cannot red. Every hardcoded strip step in opencode.yml now delegates to
+# this script, staged from the trusted default-branch checkout, under the actor
+# gate with the job-scoped token, and no inline filter-branch copy remains in
+# those nine steps (the lab workflow keeps its separate R11-guarded strip).
+#
+# The rule pins all nine workflow invocations and the event-shape parsing
+# statically, then functionally executes the real script in a sandbox against
+# an executable mock gh and a local bare origin across the whole matrix: a
+# Refs PR thread with no trailers exits 0 without a rewrite (the incident),
+# the same thread with one owner trailer is stripped, a clean human branch
+# exits 0, human branches with an owner trailer are refused, fork and
+# deleted-head PRs are loud no-ops with the remote tip untouched, an
+# issue-thread-mismatch is refused, a mixed
+# owner-plus-contributor trailer preserves the contributor, the issue lookup
+# filters cross-repository, non-same-repository, and prefix decoys and strips
+# the newest matching branch, a
+# pull_request_review_comment payload resolves, a malformed event fails
+# closed, and a missing origin/main fails closed. Mutation self-tests
+# re-introduce the pre-fix PR-number guard, narrow and widen each
+# identity/namespace guard, remove the cross-repository and head-repository
+# filters, widen the prefix, reverse the sort, and broaden the sanitizer; each
+# mutant must fail a scenario alone, so a future rewrite cannot keep the audit
+# green while the false-red returns or the rewrite boundary widens.
+R29_SCRIPT=".github/scripts/strip-trailers.sh"
+r29_bad=""
+if [ ! -f "$R29_SCRIPT" ]; then
+  r29_bad="${r29_bad} strip-trailers.sh(missing)"
+else
+  bash -n "$R29_SCRIPT" 2>/dev/null || r29_bad="${r29_bad} strip-trailers.sh(syntax)"
+  [ -x "$R29_SCRIPT" ] || r29_bad="${r29_bad} strip-trailers.sh(not-executable)"
+  grep -qF '.issue.pull_request' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-pr-comment-shape)"
+  grep -qF '.pull_request.number' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-review-comment-number)"
+  grep -qF 'isCrossRepository' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-cross-repo-identity)"
+  grep -qF 'headRepository.nameWithOwner' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-head-repo-identity)"
+  grep -qF 'opencode/issue"$thread"-*' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-issue-namespace-guard)"
+  grep -qF -- '--limit 100' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-pr-list-limit)"
+  grep -qF -- '--json number,headRefName,createdAt,isCrossRepository,headRepository' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-pr-list-identity-fields)"
+  grep -qF 'startswith($prefix)' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-pr-list-prefix-filter)"
+  grep -qF 'Could not read commits' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-git-log-fail-closed)"
+  grep -qF 'No same-repository head' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-non-repo-noop)"
+  grep -qF 'opencode/*)' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-pr-namespace-guard)"
+  grep -qF 'refs/remotes/origin/main..HEAD' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-base-preserving-range)"
+  if grep -qF 'R29_' "$R29_SCRIPT"; then
+    r29_bad="${r29_bad} script(references-audit-harness)"
+  fi
+fi
+
+r29_tmp=$(mktemp -d 2>/dev/null || true)
+if [ -z "$r29_tmp" ] || [ ! -d "$r29_tmp" ]; then
+  r29_bad="${r29_bad} sandbox(tmp-unavailable)"
+else
+  if ! python3 -I - "${OPENCODE_WF:-.github/workflows/opencode.yml}" <<'R29WIRING' >"$r29_tmp/wiring.log" 2>&1; then
+import sys
+
+import yaml
+
+
+class StrictLoader(yaml.SafeLoader):
+    pass
+
+
+def _construct_mapping(loader, node, deep=False):
+    mapping = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in mapping:
+            raise ValueError("duplicate key: %r" % (key,))
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+StrictLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_mapping
+)
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as handle:
+    doc = yaml.load(handle, Loader=StrictLoader)
+
+expected_jobs = {
+    "research",
+    "architect",
+    "build",
+    "fix",
+    "design",
+    "design-ux",
+    "design-visual",
+    "design-motion",
+    "general",
+}
+found = {}
+for job_name, job in (doc.get("jobs") or {}).items():
+    for step in ((job or {}).get("steps") or []):
+        if step.get("name") == "Strip owner Co-authored-by trailers from the PR branch":
+            found.setdefault(job_name, []).append(step)
+
+if set(found) != expected_jobs:
+    raise SystemExit(
+        "strip-step-jobs-mismatch: found=%r expected=%r"
+        % (sorted(found), sorted(expected_jobs))
+    )
+
+stage_name = "Stage lab helper scripts (issue #690)"
+for job_name, steps in found.items():
+    if len(steps) != 1:
+        raise SystemExit("strip-step-duplicated:%s" % job_name)
+    step = steps[0]
+    if set(step) != {"name", "if", "env", "run"}:
+        raise SystemExit("strip-step-key-surface:%s:%r" % (job_name, sorted(step)))
+    if step.get("if") != "always() && steps.actor_gate.outputs.run == 'true'":
+        raise SystemExit("strip-step-if:%s" % job_name)
+    if step.get("env") != {"GH_TOKEN": "${{ github.token }}"}:
+        raise SystemExit("strip-step-env:%s" % job_name)
+    body = "\n".join(
+        line for line in (step.get("run") or "").splitlines() if line.strip()
+    )
+    if body != 'bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"':
+        raise SystemExit("strip-step-body:%s" % job_name)
+    stages = [
+        candidate
+        for candidate in (((doc.get("jobs") or {}).get(job_name) or {}).get("steps") or [])
+        if candidate.get("name") == stage_name
+    ]
+    if len(stages) != 1:
+        raise SystemExit("strip-stage-step:%s" % job_name)
+    if set(stages[0]) != {"name", "run"}:
+        raise SystemExit("strip-stage-key-surface:%s:%r" % (job_name, sorted(stages[0])))
+    stage_body = "\n".join(
+        line for line in (stages[0].get("run") or "").splitlines() if line.strip()
+    )
+    if 'cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"' not in stage_body:
+        raise SystemExit("strip-stage-copy:%s" % job_name)
+    job_steps = ((doc.get("jobs") or {}).get(job_name) or {}).get("steps") or []
+    checkouts = [s for s in job_steps if s.get("uses") == "actions/checkout@v6"]
+    if len(checkouts) != 1:
+        raise SystemExit("strip-checkout-count:%s" % job_name)
+    with_map = checkouts[0].get("with") or {}
+    if with_map.get("ref") != "${{ github.event.repository.default_branch || github.ref_name }}":
+        raise SystemExit("strip-checkout-ref:%s" % job_name)
+    if with_map.get("token") != "${{ github.token }}":
+        raise SystemExit("strip-checkout-token:%s" % job_name)
+    agents = []
+    for candidate in job_steps:
+        uses = str(candidate.get("uses") or "").strip()
+        while uses.startswith("./"):
+            uses = uses[2:]
+        if uses.rstrip("/") == ".github/actions/opencode-run":
+            agents.append(candidate)
+    gates = [s for s in job_steps if s.get("id") == "actor_gate"]
+    if len(agents) != 1 or len(gates) != 1:
+        raise SystemExit("strip-agent-or-gate:%s" % job_name)
+    indices = {id(s): i for i, s in enumerate(job_steps)}
+    if not (indices[id(stages[0])] < indices[id(gates[0])] < indices[id(agents[0])] < indices[id(step)]):
+        raise SystemExit("strip-step-order:%s" % job_name)
+
+text = open(path, encoding="utf-8").read()
+if "git filter-branch" in text:
+    raise SystemExit("inline-strip-implementation")
+R29WIRING
+    r29_bad="${r29_bad} workflow-wiring"
+  fi
+  R29_ABS="$(cd "$(dirname "$R29_SCRIPT")" && pwd)/$(basename "$R29_SCRIPT")"
+  r29_bin="$r29_tmp/bin"
+  r29_bare="$r29_tmp/origin.git"
+  mkdir -p "$r29_bin"
+  cat > "$r29_bin/gh" <<'R29GH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "${R29_GH_LOG:?}"
+case "${1:-} ${2:-}" in
+  "pr view")
+    if [ "$#" -ne 7 ] || [ "$4" != "--repo" ] || [ "$5" != "${R29_REPO:?}" ] \
+      || [ "$6" != "--json" ] || [ "$7" != "headRefName,isCrossRepository,headRepository" ]; then
+      echo "mock gh: unexpected pr view argv: $*" >&2
+      exit 91
+    fi
+    if [ -n "${R29_EXPECT_PR:-}" ] && [ "$3" != "$R29_EXPECT_PR" ]; then
+      echo "mock gh: requested PR $3, expected $R29_EXPECT_PR" >&2
+      exit 92
+    fi
+    cat "${R29_PR_JSON:?}"
+    ;;
+  "pr list")
+    if [ "$#" -ne 10 ] || [ "$3" != "--repo" ] || [ "$4" != "${R29_REPO:?}" ] \
+      || [ "$5" != "--state" ] || [ "$6" != "open" ] \
+      || [ "$7" != "--limit" ] || [ "$8" != "100" ] \
+      || [ "$9" != "--json" ] \
+      || [ "${10}" != "number,headRefName,createdAt,isCrossRepository,headRepository" ]; then
+      echo "mock gh: unexpected pr list argv: $*" >&2
+      exit 93
+    fi
+    cat "${R29_LIST_JSON:?}"
+    ;;
+  *)
+    echo "unexpected gh invocation: $*" >&2
+    exit 64
+    ;;
+esac
+R29GH
+  chmod +x "$r29_bin/gh"
+
+  r29_build() {
+    git init --bare -q "$r29_bare" || return 1
+    git --git-dir="$r29_bare" symbolic-ref HEAD refs/heads/main || return 1
+    local seed="$r29_tmp/seed"
+    rm -rf "$seed"
+    git clone -q "$r29_bare" "$seed" 2>/dev/null || return 1
+    (
+      cd "$seed" || exit 1
+      git config user.email "audit@example.com"
+      git config user.name "Audit"
+      git config commit.gpgsign false
+      printf 'base\n' > base.txt
+      git add base.txt
+      git commit -q -m "base"
+      git push -q origin HEAD:main || exit 1
+      r29_branch() {
+        local name="$1" trailer="$2"
+        git checkout -q main || exit 1
+        git checkout -q -b "$name" || exit 1
+        printf '%s\n' "$name" > branch.txt
+        git add branch.txt
+        case "$trailer" in
+          owner)
+            git commit -q -m "feat: $name" -m "Co-authored-by: Userfrom1995 <owner@example.com>" || exit 1
+            ;;
+          mixed)
+            git commit -q -m "feat: $name" \
+              -m "Co-authored-by: Userfrom1995 <owner@example.com>" \
+              -m "Co-authored-by: Jane Contributor <jane@example.com>" || exit 1
+            ;;
+          *)
+            git commit -q -m "feat: $name" || exit 1
+            ;;
+        esac
+        git push -q origin "HEAD:refs/heads/$name" || exit 1
+      }
+      r29_branch opencode/issue582-noowner none
+      r29_branch opencode/issue582-owner owner
+      r29_branch opencode/issue582-deleted-head owner
+      r29_branch feature/human-owner owner
+      r29_branch feature/human-clean none
+      r29_branch opencode/issue582-fork owner
+      r29_branch opencode/issue582-mismatch owner
+      r29_branch opencode/issue582-review none
+      r29_branch opencode/issue582-mixed mixed
+      r29_branch opencode/issue42-newer-owner owner
+      r29_branch opencode/issue42-older-owner owner
+    ) || return 1
+    return 0
+  }
+
+  printf '%s\n' '{"issue":{"number":685,"pull_request":{"html_url":"https://github.com/Userfrom1995/RandomLabs/pull/685"}}}' > "$r29_tmp/event-pr.json"
+  printf '%s\n' '{"issue":{"number":42}}' > "$r29_tmp/event-issue.json"
+  printf '%s\n' '{"pull_request":{"number":685}}' > "$r29_tmp/event-review.json"
+  printf '%s\n' 'this is not json' > "$r29_tmp/event-malformed.json"
+  printf '%s\n' '{"headRefName":"opencode/issue582-noowner","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-noowner.json"
+  printf '%s\n' '{"headRefName":"opencode/issue582-owner","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-owner.json"
+  printf '%s\n' '{"headRefName":"feature/human-owner","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-human.json"
+  printf '%s\n' '{"headRefName":"feature/human-clean","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-human-clean.json"
+  printf '%s\n' '{"headRefName":"opencode/issue582-fork","isCrossRepository":true,"headRepository":{"nameWithOwner":"someone/RandomLabs"}}' > "$r29_tmp/pr-fork.json"
+  printf '%s\n' '{"headRefName":"opencode/issue582-mismatch","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-mismatch.json"
+  printf '%s\n' '{"headRefName":"opencode/issue582-review","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-review.json"
+  printf '%s\n' '{"headRefName":"opencode/issue582-mixed","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-mixed.json"
+  printf '%s\n' '{"headRefName":"opencode/issue582-deleted-head","isCrossRepository":false,"headRepository":null}' > "$r29_tmp/pr-deleted-head.json"
+  printf '%s\n' '{"headRefName":"opencode/issue42-newer-owner","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-issue42-newer.json"
+  printf '%s\n' '[{"number":199,"headRefName":"opencode/issue42-newer-owner","createdAt":"2026-01-07T00:00:00Z","isCrossRepository":true,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}},{"number":198,"headRefName":"opencode/issue42-newer-owner","createdAt":"2026-01-08T00:00:00Z","isCrossRepository":false,"headRepository":{"nameWithOwner":"someone/RandomLabs"}},{"number":200,"headRefName":"opencode/issue42-newer-owner","createdAt":"2026-01-04T00:00:00Z","isCrossRepository":true,"headRepository":{"nameWithOwner":"someone/RandomLabs"}},{"number":201,"headRefName":"opencode/issue42-newer-owner","createdAt":"2026-01-03T00:00:00Z","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}},{"number":202,"headRefName":"opencode/issue42-older-owner","createdAt":"2026-01-02T00:00:00Z","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}},{"number":203,"headRefName":"feature/other","createdAt":"2026-01-05T00:00:00Z","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}},{"number":204,"headRefName":"opencode/issue420-owner","createdAt":"2026-01-06T00:00:00Z","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}]' > "$r29_tmp/list-issue42.json"
+  printf '%s\n' '[{"number":99,"headRefName":"opencode/issue42-match","createdAt":"2026-01-01T00:00:00Z","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}]' > "$r29_tmp/list-issue99.json"
+
+  r29_verify_case() {
+    local label="$1" script="$2" branch="$3" event="$4" json="$5" list="$6" expect_pr="$7" want_rc="$8" want_msg="$9" want_tip="${10}" want_trailer="${11}"
+    local work="$r29_tmp/work-$label" before after out rc ok=0 log_out event_name
+    rm -rf "$work"
+    git clone -q "$r29_bare" "$work" 2>/dev/null || return 1
+    before="$(git --git-dir="$r29_bare" rev-parse "refs/heads/$branch" 2>/dev/null)" || return 1
+    case "$event" in
+      */event-review.json) event_name="pull_request_review_comment" ;;
+      *) event_name="issue_comment" ;;
+    esac
+    mkdir -p "$work/home"
+    out="$( cd "$work" && \
+      env -i PATH="$r29_bin:/usr/bin:/bin" HOME="$work/home" \
+      GITHUB_REPOSITORY="Userfrom1995/RandomLabs" GITHUB_EVENT_PATH="$event" \
+      GITHUB_EVENT_NAME="$event_name" GITHUB_ACTOR="Userfrom1995" \
+      GITHUB_WORKSPACE="$work" GITHUB_REF="refs/heads/main" GITHUB_REF_NAME="main" \
+      CI="true" GH_TOKEN="audit-token" \
+      R29_GH_LOG="$work/gh.log" R29_PR_JSON="$json" R29_LIST_JSON="$list" \
+      R29_EXPECT_PR="$expect_pr" R29_REPO="Userfrom1995/RandomLabs" \
+      bash "$script" 2>&1 )"
+    rc=$?
+    after="$(git --git-dir="$r29_bare" rev-parse "refs/heads/$branch" 2>/dev/null)" || return 1
+    [ "$rc" -eq "$want_rc" ] || ok=1
+    if [ -n "$want_msg" ]; then
+      printf '%s' "$out" | grep -qF -- "$want_msg" || ok=1
+    fi
+    case "$want_tip" in
+      same) [ "$after" = "$before" ] || ok=1 ;;
+      changed) [ "$after" != "$before" ] || ok=1 ;;
+    esac
+    log_out="$(git --git-dir="$r29_bare" log --format=%B "refs/heads/$branch" 2>/dev/null || true)"
+    case "$want_trailer" in
+      present)
+        printf '%s' "$log_out" | grep -qF 'Co-authored-by: Userfrom1995' || ok=1
+        ;;
+      absent)
+        if printf '%s' "$log_out" | grep -qF 'Co-authored-by: Userfrom1995'; then
+          ok=1
+        fi
+        ;;
+      contributor)
+        printf '%s' "$log_out" | grep -qF 'Co-authored-by: Jane Contributor' || ok=1
+        if printf '%s' "$log_out" | grep -qF 'Co-authored-by: Userfrom1995'; then
+          ok=1
+        fi
+        ;;
+    esac
+    if [ "$ok" -ne 0 ]; then
+      echo "R29 case failed: ${label} (rc=${rc}, want=${want_rc}, tip=${want_tip}, output=$(printf '%s' "$out" | tr '\n' '|'))" >&2
+    fi
+    return "$ok"
+  }
+
+  r29_case() {
+    local label="$1"
+    shift
+    if ! r29_verify_case "$label" "$R29_ABS" "$@"; then
+      r29_bad="${r29_bad} ${label}"
+    fi
+  }
+
+  if ! r29_build; then
+    r29_bad="${r29_bad} sandbox(build-failed)"
+  else
+    if [ "$(PATH="$r29_bin:$PATH" command -v gh)" != "$r29_bin/gh" ]; then
+      r29_bad="${r29_bad} sandbox(gh-not-intercepted)"
+    fi
+    r29_case pr-refs-no-trailer opencode/issue582-noowner "$r29_tmp/event-pr.json" "$r29_tmp/pr-noowner.json" "" "685" 0 "No leaked owner trailers" same absent
+    r29_case pr-refs-strips opencode/issue582-owner "$r29_tmp/event-pr.json" "$r29_tmp/pr-owner.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed absent
+    r29_case pr-human-clean feature/human-clean "$r29_tmp/event-pr.json" "$r29_tmp/pr-human-clean.json" "" "685" 0 "No leaked owner trailers" same absent
+    r29_case pr-human-refused feature/human-owner "$r29_tmp/event-pr.json" "$r29_tmp/pr-human.json" "" "685" 1 "not an opencode/ lab branch" same present
+    r29_case pr-fork-skips opencode/issue582-fork "$r29_tmp/event-pr.json" "$r29_tmp/pr-fork.json" "" "685" 0 "No same-repository head" same present
+    r29_case pr-deleted-head-skips opencode/issue582-deleted-head "$r29_tmp/event-pr.json" "$r29_tmp/pr-deleted-head.json" "" "685" 0 "No same-repository head" same present
+    r29_case pr-mixed-trailer opencode/issue582-mixed "$r29_tmp/event-pr.json" "$r29_tmp/pr-mixed.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed contributor
+    r29_case issue-unexpected-refused opencode/issue582-mismatch "$r29_tmp/event-issue.json" "$r29_tmp/pr-mismatch.json" "$r29_tmp/list-issue99.json" "99" 1 "Refusing to rewrite unexpected branch" same present
+    r29_case issue-matching-strips opencode/issue42-newer-owner "$r29_tmp/event-issue.json" "$r29_tmp/pr-issue42-newer.json" "$r29_tmp/list-issue42.json" "201" 0 "Stripping 1 leaked owner trailer" changed absent
+    r29_case review-comment-refs opencode/issue582-review "$r29_tmp/event-review.json" "$r29_tmp/pr-review.json" "" "685" 0 "No leaked owner trailers" same absent
+    r29_case malformed-event-refused opencode/issue582-noowner "$r29_tmp/event-malformed.json" "$r29_tmp/pr-noowner.json" "" "685" 1 "Could not parse the workflow event payload" same absent
+
+    if ! git --git-dir="$r29_bare" log --format=%B refs/heads/opencode/issue42-older-owner 2>/dev/null \
+      | grep -qF 'Co-authored-by: Userfrom1995'; then
+      r29_bad="${r29_bad} issue-match-rewrote-older-branch"
+    fi
+
+    r29_gitlog_failure() {
+      local work="$r29_tmp/work-gitlog" before after out rc
+      rm -rf "$work"
+      if ! git clone -q "$r29_bare" "$work" 2>/dev/null; then
+        r29_bad="${r29_bad} gitlog(clone-failed)"
+        return
+      fi
+      before="$(git --git-dir="$r29_bare" rev-parse refs/heads/opencode/issue582-owner 2>/dev/null || true)"
+      git -C "$work" update-ref -d refs/remotes/origin/main || {
+        r29_bad="${r29_bad} gitlog(delete-main-ref-failed)"
+        return
+      }
+      mkdir -p "$work/home"
+      out="$( cd "$work" && \
+        env -i PATH="$r29_bin:/usr/bin:/bin" HOME="$work/home" \
+        GITHUB_REPOSITORY="Userfrom1995/RandomLabs" GITHUB_EVENT_PATH="$r29_tmp/event-pr.json" \
+        GITHUB_EVENT_NAME="issue_comment" GITHUB_ACTOR="Userfrom1995" \
+        GITHUB_WORKSPACE="$work" GITHUB_REF="refs/heads/main" GITHUB_REF_NAME="main" \
+        CI="true" GH_TOKEN="audit-token" \
+        R29_GH_LOG="$work/gh.log" R29_PR_JSON="$r29_tmp/pr-owner.json" R29_LIST_JSON="" \
+        R29_EXPECT_PR="685" R29_REPO="Userfrom1995/RandomLabs" \
+        bash "$R29_ABS" 2>&1 )"
+      rc=$?
+      after="$(git --git-dir="$r29_bare" rev-parse refs/heads/opencode/issue582-owner 2>/dev/null || true)"
+      if [ "$rc" -ne 1 ] || [ "$after" != "$before" ] \
+        || ! printf '%s' "$out" | grep -qF 'Could not read commits'; then
+        r29_bad="${r29_bad} gitlog-fail-open"
+      fi
+    }
+    r29_gitlog_failure
+
+    r29_mutant() {
+      local label="$1" transform="$2"
+      shift 2
+      local mut="$r29_tmp/mutant-${label}.sh"
+      sed "$transform" "$R29_ABS" > "$mut"
+      if cmp -s "$R29_ABS" "$mut"; then
+        r29_bad="${r29_bad} mutant(${label}-did-not-mutate)"
+        return
+      fi
+      if ! bash -n "$mut" 2>/dev/null; then
+        r29_bad="${r29_bad} mutant(${label}-syntax)"
+        return
+      fi
+      if r29_verify_case "$label" "$mut" "$@" 2>/dev/null; then
+        r29_bad="${r29_bad} mutant(${label}-escaped)"
+      fi
+    }
+
+    r29_mutant pr-number-guard 's/if \[ "\$is_pr" != "yes" \]; then/if true; then/' \
+      opencode/issue582-noowner "$r29_tmp/event-pr.json" "$r29_tmp/pr-noowner.json" "" "685" 0 "No leaked owner trailers" same absent
+    r29_mutant pr-namespace-narrow '0,/opencode\/\*)/s//opencode\/issue"$thread"-*)/' \
+      opencode/issue582-owner "$r29_tmp/event-pr.json" "$r29_tmp/pr-owner.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed absent
+    r29_mutant fork-identity 's/if \[ "\$cross_repo" != "false" \] || \[ "\$head_repo" != "\$repo" \]; then/if false; then/' \
+      opencode/issue582-fork "$r29_tmp/event-pr.json" "$r29_tmp/pr-fork.json" "" "685" 0 "No same-repository head" same present
+    r29_mutant pr-namespace '0,/opencode\/\*)/s//*)/' \
+      feature/human-owner "$r29_tmp/event-pr.json" "$r29_tmp/pr-human.json" "" "685" 1 "not an opencode/ lab branch" same present
+    r29_mutant issue-namespace 's/opencode\/issue"\$thread"-\*)/*)/' \
+      opencode/issue582-mismatch "$r29_tmp/event-issue.json" "$r29_tmp/pr-mismatch.json" "$r29_tmp/list-issue99.json" "99" 1 "Refusing to rewrite unexpected branch" same present
+    r29_mutant list-fork-filter 's/select(\.isCrossRepository == false/select(true/' \
+      opencode/issue42-newer-owner "$r29_tmp/event-issue.json" "$r29_tmp/pr-issue42-newer.json" "$r29_tmp/list-issue42.json" "201" 0 "Stripping 1 leaked owner trailer" changed absent
+    r29_mutant list-head-repo-filter 's/and \.headRepository\.nameWithOwner == \$repo//' \
+      opencode/issue42-newer-owner "$r29_tmp/event-issue.json" "$r29_tmp/pr-issue42-newer.json" "$r29_tmp/list-issue42.json" "201" 0 "Stripping 1 leaked owner trailer" changed absent
+    r29_mutant list-prefix 's/startswith(\$prefix)/startswith("opencode\/issue")/' \
+      opencode/issue42-newer-owner "$r29_tmp/event-issue.json" "$r29_tmp/pr-issue42-newer.json" "$r29_tmp/list-issue42.json" "201" 0 "Stripping 1 leaked owner trailer" changed absent
+    r29_mutant list-sort 's/| sort_by(\.createdAt) | last | \.number/| sort_by(.createdAt) | first | .number/' \
+      opencode/issue42-newer-owner "$r29_tmp/event-issue.json" "$r29_tmp/pr-issue42-newer.json" "$r29_tmp/list-issue42.json" "201" 0 "Stripping 1 leaked owner trailer" changed absent
+    r29_mutant sanitizer-broaden 's#sed "/^Co-authored-by: Userfrom1995.*/d"#sed "/^Co-authored-by:.*/d"#' \
+      opencode/issue582-mixed "$r29_tmp/event-pr.json" "$r29_tmp/pr-mixed.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed contributor
+  fi
+  rm -rf "$r29_tmp"
+fi
+if [ -z "$r29_bad" ]; then
+  check "R29" "trailer-strip thread binding: all nine hardcoded strip steps (research, architect, build, fix, design, design-ux, design-visual, design-motion, general) delegate to the shared script staged from the trusted default-branch checkout, under the actor gate with the job-scoped token, with each job's checkout ref and token pinned and the staging step ordered before the actor gate and agent and the strip step after the agent, and no inline filter-branch copy remains in those nine steps; the PR-comment path resolves the triggering PR's head directly (issue_comment on a PR and pull_request_review_comment) and sanitizes a Refs-only opencode/ branch without the issue-number naming guard, while the issue-to-linked-PR path keeps the strict opencode/issue<issue#>-* refusal; the issue lookup selects only same-repository open PRs under --limit 100 and keeps the newest matching branch; a non-same-repository head (a fork or deleted head) is a loud no-op, and the PR-comment path refuses to rewrite a branch outside the opencode/ lab namespace only when an owner trailer exists, exiting 0 loudly when there is nothing to strip, so a clean human OR fork PR cannot red; a failed git log fails closed; the functional sandbox (env -i with production-shaped event/actor context and exact PR-number binding) proves the Refs no-trailer incident exits 0 untouched, a Refs branch with an owner trailer is stripped, a clean human branch exits 0, human branches with an owner trailer are refused with the remote tip untouched, fork and deleted-head PRs are loud no-ops with the remote tip untouched, an issue-thread-mismatch is refused, a mixed owner-plus-contributor trailer preserves the contributor credit, the issue lookup filters cross-repository, non-same-repository, and prefix decoys and strips the newest matching branch, a review-comment payload resolves, a malformed event fails closed, and a missing origin/main fails closed; ten mutants (the pre-fix PR-number guard applied to the PR path, the narrowed PR namespace guard, each identity/namespace guard removed, the cross-repository and head-repository filters removed, the prefix widened, the sort reversed, and the sanitizer broadened) each fail a scenario alone (issue #689)" "ok"
+else
+  check "R29" "trailer-strip thread binding guard missing:${r29_bad} (issue #689: the script re-applied the issue-number naming guard to Refs PR threads, false-redding clean sessions, or the rewrite boundary widened beyond the triggering work)" "bad"
+fi
+summary="Silent-stall regression audit (R1-R29) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R28)
+  body="## Silent-stall regression audit FAILED (R1-R29)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, or R28 phase thread binding and build-push attribution). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, or R29 trailer-strip thread binding). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then

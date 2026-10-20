@@ -56,7 +56,7 @@ concurrency:
 #     busy thread the recent retry markers fall outside page 1, the cap reads
 #     0, and the loop never stops (issue #621). Use `?per_page=100` +
 #     `--paginate --slurp` piped through `jq '.[][] | ...'`.
-# These are audited by R1-R28 in auditor.yml (.github/scripts/silent-stall-audit.sh):
+# These are audited by R1-R29 in auditor.yml (.github/scripts/silent-stall-audit.sh):
 # R1-R6 cover the invariants above plus the free-tier model guard, R7 guards the
 # review-restore ownership gate (PR #412 head rewind), R8 guards the vendored
 # hardened runner (.github/actions/opencode-run, issue #422 A), R9 guards
@@ -86,7 +86,13 @@ concurrency:
 # phase thread binding and build-push attribution (retries/forwards bind to
 # the trigger thread and logical parent issue, never the newest open phase
 # PR; a same-branch tip move is attributed to a builder: commit with foreign
-# moves failing closed, issue #690).
+# moves failing closed, issue #690), and R29 guards trailer-strip thread
+# binding (all nine strip steps delegate to the shared script under the actor
+# gate with the job-scoped token; the PR-comment path sanitizes the triggering
+# PR head directly behind a same-repository check and a rewrite-only
+# opencode/ namespace guard, while the issue path keeps the strict
+# issue-number namespace refusal and filters its open-PR lookup to
+# same-repository PRs, issue #689).
 # =============================================================================
 
 jobs:
@@ -118,6 +124,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/lab-scripts"
           cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
           chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 
       - name: Actor write gate (issue #428)
@@ -292,9 +299,9 @@ jobs:
       - name: Strip owner Co-authored-by trailers from the PR branch
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
-          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          bash .github/scripts/strip-trailers.sh
+          bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"
 
   architect:
     if: |
@@ -326,6 +333,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/lab-scripts"
           cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
           chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 
       - name: Actor write gate (issue #428)
@@ -502,28 +510,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set +e
-          issue="${{ github.event.issue.number }}"
-          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
-            pr="$issue"
-          else
-            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
-              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
-          fi
-          [ -z "$pr" ] && exit 0
-          branch=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
-          [ -z "$branch" ] && exit 0
-          git fetch origin "refs/heads/$branch:refs/remotes/origin/prbranch" --quiet 2>/dev/null || exit 0
-          bad=$(git log --format=%B refs/remotes/origin/main..refs/remotes/origin/prbranch 2>/dev/null | grep -c 'Co-authored-by: Userfrom1995' || true)
-          if [ "$bad" -eq 0 ]; then
-            echo "No leaked owner trailers on $branch"
-            exit 0
-          fi
-          echo "Stripping $bad leaked Co-authored-by trailer(s) from $branch"
-          git checkout --detach refs/remotes/origin/prbranch --quiet
-          git filter-branch -f --msg-filter 'sed "/^Co-authored-by: Userfrom1995.*/d"' refs/remotes/origin/main..HEAD >/dev/null 2>&1
-          git push --force origin "HEAD:refs/heads/$branch" --quiet
-          echo "Trailers stripped and force-pushed to $branch"
+          bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
@@ -594,6 +581,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/lab-scripts"
           cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
           chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 
       - name: Actor write gate (issue #428)
@@ -1061,28 +1049,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set +e
-          issue="${{ github.event.issue.number }}"
-          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
-            pr="$issue"
-          else
-            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
-              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
-          fi
-          [ -z "$pr" ] && exit 0
-          branch=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
-          [ -z "$branch" ] && exit 0
-          git fetch origin "refs/heads/$branch:refs/remotes/origin/prbranch" --quiet 2>/dev/null || exit 0
-          bad=$(git log --format=%B refs/remotes/origin/main..refs/remotes/origin/prbranch 2>/dev/null | grep -c 'Co-authored-by: Userfrom1995' || true)
-          if [ "$bad" -eq 0 ]; then
-            echo "No leaked owner trailers on $branch"
-            exit 0
-          fi
-          echo "Stripping $bad leaked Co-authored-by trailer(s) from $branch"
-          git checkout --detach refs/remotes/origin/prbranch --quiet
-          git filter-branch -f --msg-filter 'sed "/^Co-authored-by: Userfrom1995.*/d"' refs/remotes/origin/main..HEAD >/dev/null 2>&1
-          git push --force origin "HEAD:refs/heads/$branch" --quiet
-          echo "Trailers stripped and force-pushed to $branch"
+          bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
@@ -1133,6 +1100,14 @@ jobs:
           # Full history: orphan-guard merge-base checks fail closed on
           # shallow clones and misroute healthy branches (issue #283).
           fetch-depth: 0
+
+      - name: "Stage lab helper scripts (issue #690)"
+        run: |
+          mkdir -p "$RUNNER_TEMP/lab-scripts"
+          cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
+          chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 
       - name: Actor write gate (issue #428)
         id: actor_gate
@@ -1287,21 +1262,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set +e
-          pr="${{ github.event.issue.number }}"
-          branch=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
-          [ -z "$branch" ] && exit 0
-          git fetch origin "refs/heads/$branch:refs/remotes/origin/prbranch" --quiet 2>/dev/null || exit 0
-          bad=$(git log --format=%B refs/remotes/origin/main..refs/remotes/origin/prbranch 2>/dev/null | grep -c 'Co-authored-by: Userfrom1995' || true)
-          if [ "$bad" -eq 0 ]; then
-            echo "No leaked owner trailers on $branch"
-            exit 0
-          fi
-          echo "Stripping $bad leaked Co-authored-by trailer(s) from $branch"
-          git checkout --detach refs/remotes/origin/prbranch --quiet
-          git filter-branch -f --msg-filter 'sed "/^Co-authored-by: Userfrom1995.*/d"' refs/remotes/origin/main..HEAD >/dev/null 2>&1
-          git push --force origin "HEAD:refs/heads/$branch" --quiet
-          echo "Trailers stripped and force-pushed to $branch"
+          bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
@@ -1346,6 +1307,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/lab-scripts"
           cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
           chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 
       - name: Actor write gate (issue #428)
@@ -1505,7 +1467,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash .github/scripts/strip-trailers.sh
+          bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
@@ -1547,6 +1509,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/lab-scripts"
           cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
           chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 
       - name: Actor write gate (issue #428)
@@ -1705,7 +1668,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash .github/scripts/strip-trailers.sh
+          bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
@@ -1747,6 +1710,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/lab-scripts"
           cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
           chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 
       - name: Actor write gate (issue #428)
@@ -1905,7 +1869,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash .github/scripts/strip-trailers.sh
+          bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
@@ -1947,6 +1911,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/lab-scripts"
           cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
           chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 
       - name: Actor write gate (issue #428)
@@ -2105,7 +2070,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash .github/scripts/strip-trailers.sh
+          bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
@@ -2194,6 +2159,14 @@ jobs:
           # shallow clones and misroute healthy branches (issue #283).
           fetch-depth: 0
 
+      - name: "Stage lab helper scripts (issue #690)"
+        run: |
+          mkdir -p "$RUNNER_TEMP/lab-scripts"
+          cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
+          chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
+
       - name: Actor write gate (issue #428)
         id: actor_gate
         shell: bash
@@ -2274,28 +2247,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set +e
-          issue="${{ github.event.issue.number }}"
-          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
-            pr="$issue"
-          else
-            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
-              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
-          fi
-          [ -z "$pr" ] && exit 0
-          branch=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
-          [ -z "$branch" ] && exit 0
-          git fetch origin "refs/heads/$branch:refs/remotes/origin/prbranch" --quiet 2>/dev/null || exit 0
-          bad=$(git log --format=%B refs/remotes/origin/main..refs/remotes/origin/prbranch 2>/dev/null | grep -c 'Co-authored-by: Userfrom1995' || true)
-          if [ "$bad" -eq 0 ]; then
-            echo "No leaked owner trailers on $branch"
-            exit 0
-          fi
-          echo "Stripping $bad leaked Co-authored-by trailer(s) from $branch"
-          git checkout --detach refs/remotes/origin/prbranch --quiet
-          git filter-branch -f --msg-filter 'sed "/^Co-authored-by: Userfrom1995.*/d"' refs/remotes/origin/main..HEAD >/dev/null 2>&1
-          git push --force origin "HEAD:refs/heads/$branch" --quiet
-          echo "Trailers stripped and force-pushed to $branch"
+          bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
