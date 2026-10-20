@@ -524,6 +524,33 @@ Public Surface / Web Track:                                              │
   functional mock-`gh` sandbox (schedule/dispatch close and delete, an
   issue-only no-op, loud PR-list/PR-close/branch-list/branch-delete
   failures, and a missing-token failure).
+- **Phase thread binding and build-push attribution (issue #690):** the
+  phase auto-retry and completion-forward steps used to resolve the newest
+  open `opencode/issue<N>-*` PR instead of the thread the session ran on. On
+  2026-10-18 the design retry migrated from #582 to #685, where the
+  per-thread counter read 0 and reset the budget, the design-completion
+  `/oc build this` landed on that in-test phase PR, and the build verify
+  read the Tester's authorized mid-run suite push as `pushed=yes`, so
+  recover-tag/trailer/held-CI bookkeeping ran against work the build never
+  made. `.github/scripts/resolve-thread-target.sh` resolves the event thread
+  (`thread`) and the logical parent issue parsed from an
+  `opencode/issue<N>-*` phase-PR head (`parent`); a plain issue is its own
+  parent, and an unresolvable PR head or gh failure exits non-zero so the
+  step fails closed. Retries bind `target` to the trigger thread and sum
+  retry markers on the trigger thread and the parent issue (a phase PR
+  shares the issue-wide budget); forwards target the parent issue, never the
+  newest phase PR. `.github/scripts/classify-build-push.sh` attributes a
+  same-branch tip move to a `builder:` commit in the `baseline..tip` range;
+  a `tester:`/foreign range or any fetch/tip failure reports `foreign` or
+  exits 2, which the verify treats as no-push (`::warning::`, no recover
+  tag), and the recover-tag step requires
+  `steps.verify.outputs.pushed == 'true'`. Regression-guarded by audit rule
+  R28, which parses every bound step from the same YAML GitHub runs
+  (duplicate keys rejected), pins the 12 helper call sites, both attribution
+  branches, and the recover-tag `if`, and executes both real helpers against
+  fixture events, an executable mock `gh`, and a local bare origin with
+  Builder/Tester commit subjects, plus mutation self-tests proving each
+  fixture matrix catches resolver/classifier reversion.
 - Concurrency - per-PR groups, queued execution:
 
 ```yaml
@@ -1241,7 +1268,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422) + the model fallback ladder (resolve-model.sh, model-ladder.txt, issue #591)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R27), per-OS findings poster, review-comment and tester-verdict publication evidence, tester marker publisher, CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R28), phase thread target resolution, build push attribution, per-OS findings poster, review-comment and tester-verdict publication evidence, tester marker publisher, CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
