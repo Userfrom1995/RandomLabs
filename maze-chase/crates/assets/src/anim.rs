@@ -24,13 +24,75 @@ pub fn pip_clip() -> Clip {
     }
 }
 
-/// Pip death: 4 frames at 0.12 s each, played once (not looped).
+/// Rill death: 4 frames at 0.10 s each, played once (not looped); the
+/// renderer then holds the final frame for the death window.
 pub fn death_clip() -> Clip {
     Clip {
         frames: &["death_0", "death_1", "death_2", "death_3"],
-        frame_s: 0.12,
+        frame_s: 0.1,
         looped: false,
     }
+}
+
+/// Sunseed halo pulse: one 7x7 -> 9x9 beat every 0.4 s.
+pub const SUNSEED_HALO_S: f32 = 0.4;
+
+/// Whether the wide sunseed halo is shown at `t` seconds.
+pub fn sunseed_halo_on(t: f32) -> bool {
+    if !t.is_finite() {
+        return false;
+    }
+    t.rem_euclid(SUNSEED_HALO_S) < SUNSEED_HALO_S * 0.5
+}
+
+/// Fright-mask style sequence: entry morph first, then normal or warning.
+pub fn fright_mask_id(elapsed: f32, t_left: f32) -> &'static str {
+    if !elapsed.is_finite() || elapsed < 0.0 {
+        return "fright_mask";
+    }
+    if elapsed < 0.25 {
+        return "fright_entry";
+    }
+    if fright_flash_on(t_left) {
+        "fright_mask_flash"
+    } else {
+        "fright_mask"
+    }
+}
+
+/// Frame index of the four-frame pickup burst at `elapsed` seconds.
+///
+/// Returns `None` once the one-shot has finished. Non-finite or negative
+/// input is treated as the first frame so renderers can stay branch-light.
+pub fn pickup_burst_frame(elapsed: f32) -> Option<usize> {
+    const STEP_S: f32 = 0.0667;
+    if !elapsed.is_finite() || elapsed < 0.0 {
+        return Some(0);
+    }
+    let frame = (elapsed / STEP_S).floor() as usize;
+    if frame >= 4 {
+        None
+    } else {
+        Some(frame)
+    }
+}
+
+/// Level-clear sweep progress in `0..=1`, or `None` before/after the 0.3 s
+/// band wipe. A caller maps this to the tile column crossing the board.
+pub fn level_clear_sweep(t: f32) -> Option<f32> {
+    const SWEEP_S: f32 = 0.3;
+    if !t.is_finite() || !(0.0..SWEEP_S).contains(&t) {
+        return None;
+    }
+    Some((t / SWEEP_S).clamp(0.0, 1.0))
+}
+
+/// How long the four-pixel turn spark lives after a reversal.
+pub const TURN_SPARK_S: f32 = 0.18;
+
+/// Whether the turn spark is visible at `elapsed` seconds.
+pub fn turn_spark_on(elapsed: f32) -> bool {
+    elapsed.is_finite() && (0.0..TURN_SPARK_S).contains(&elapsed)
 }
 
 /// Whether the fright-mask flash variant shows, given seconds of the turn left.
@@ -79,10 +141,10 @@ mod tests {
     fn death_clip_oneshot() {
         let c = death_clip();
         assert_eq!(c.frames.len(), 4);
-        assert!((c.frame_s - 0.12).abs() < 1e-6);
+        assert!((c.frame_s - 0.1).abs() < 1e-6);
         assert!(!c.looped);
-        // Full play length: 4 * 0.12 = 0.48 s.
-        assert!((c.frame_s * c.frames.len() as f32 - 0.48).abs() < 1e-6);
+        // Full play length: 4 * 0.10 = 0.40 s.
+        assert!((c.frame_s * c.frames.len() as f32 - 0.4).abs() < 1e-6);
     }
 
     #[test]
@@ -96,6 +158,37 @@ mod tests {
         assert!(fright_flash_on(1.4)); // 8.4 -> on
         assert!(!fright_flash_on(1.45)); // 8.7 -> off
         assert!(fright_flash_on(0.0));
+    }
+
+    #[test]
+    fn lanterndrift_helpers_are_bounded_and_pure() {
+        assert!(sunseed_halo_on(0.0));
+        assert!(!sunseed_halo_on(0.2));
+        assert!(sunseed_halo_on(0.4));
+        assert!(!sunseed_halo_on(f32::NAN));
+        assert!(!sunseed_halo_on(f32::INFINITY));
+
+        assert_eq!(fright_mask_id(0.0, 5.0), "fright_entry");
+        assert_eq!(fright_mask_id(0.24, 5.0), "fright_entry");
+        assert_eq!(fright_mask_id(0.25, 5.0), "fright_mask");
+        assert_eq!(fright_mask_id(1.0, 1.5), "fright_mask_flash");
+        assert_eq!(fright_mask_id(f32::NAN, 0.0), "fright_mask");
+
+        assert_eq!(pickup_burst_frame(0.0), Some(0));
+        assert_eq!(pickup_burst_frame(0.0667), Some(1));
+        assert_eq!(pickup_burst_frame(0.21), Some(3));
+        assert_eq!(pickup_burst_frame(0.27), None);
+        assert_eq!(pickup_burst_frame(f32::NAN), Some(0));
+
+        assert_eq!(level_clear_sweep(0.0), Some(0.0));
+        assert_eq!(level_clear_sweep(0.15), Some(0.5));
+        assert_eq!(level_clear_sweep(0.3), None);
+        assert_eq!(level_clear_sweep(-1.0), None);
+
+        assert!(turn_spark_on(0.0));
+        assert!(turn_spark_on(0.179));
+        assert!(!turn_spark_on(0.18));
+        assert!(!turn_spark_on(f32::NAN));
     }
 
     #[test]
