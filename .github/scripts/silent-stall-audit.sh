@@ -10980,8 +10980,10 @@ fi
 # the unique anchored step and pins its gate `if:`, `shell: bash`, exact env
 # map, the exact normalized run body, and the filter/token/loudness
 # semantics; negative self-tests mutate the real workflow and require each
-# semantic check to reject with the exact-text pin skipped (so the checks are
-# proven load-bearing rather than shadowed by the pin), plus one
+# semantic check to reject with the exact-text pin skipped, each check has a
+# mutant that only that check catches (the namespace check is isolated by a
+# namespace-only token), and the self-test enumeration is bound to its exact
+# expected value so dropping a case fails the audit itself; plus one
 # semantically-neutral mutation that only the exact pin can catch; and a
 # functional sandbox executes the real run body under the runner's
 # `bash -e -o pipefail` against an executable mock `gh` across a fixture
@@ -11138,8 +11140,11 @@ R27EXTRACT
       r27_bad="${r27_bad} maintainer.yml(r27-semantic-control-failed)"
     else
       # Negative self-tests: each mutant must be rejected by the semantic
-      # checks with the exact pin skipped, so deleting or weakening one of
-      # them (for example the namespace check) fails the audit itself.
+      # checks with the exact pin skipped, and each check has a mutant only it
+      # catches (the namespace check is isolated by namespace-token), so
+      # deleting or weakening one of them fails the audit itself. The
+      # enumeration is bound to its exact expected value below: dropping a
+      # case (for example hide-stderr) formerly left the audit green.
       r27_mutator() {
         python3 -I - "$1" "$2" "$3" <<'R27MUT'
 import sys
@@ -11163,6 +11168,8 @@ elif name == "no-pipefail":
     region = region.replace("set -euo pipefail", "set -u", 1)
 elif name == "owner-pat":
     region = region.replace("GH_TOKEN: ${{ github.token }}", "GH_TOKEN: ${{ secrets.OPENCODE_PAT }}", 1)
+elif name == "namespace-token":
+    region = region.replace('echo "stray cleanup complete"', 'echo "stray cleanup complete" # opencode/issue582', 1)
 elif name == "completion-change":
     region = region.replace('echo "stray cleanup complete"', 'echo "cleanup done"', 1)
 else:
@@ -11172,7 +11179,11 @@ if region == text[start:end]:
 open(dst, "w", encoding="utf-8").write(text[:start] + region + text[end:])
 R27MUT
       }
-      for r27_case in issue-prefix issue-prefix-add swallow-close hide-stderr no-pipefail owner-pat; do
+      r27_selftest_cases="issue-prefix issue-prefix-add swallow-close hide-stderr no-pipefail owner-pat namespace-token"
+      if [ "$r27_selftest_cases" != "issue-prefix issue-prefix-add swallow-close hide-stderr no-pipefail owner-pat namespace-token" ]; then
+        r27_bad="${r27_bad} maintainer.yml(r27-selftest-list-changed)"
+      fi
+      for r27_case in $r27_selftest_cases; do
         r27_mut_wf="$r27_tmp/mutant-$r27_case.yml"
         if ! r27_mutator "$R27_WF" "$r27_mut_wf" "$r27_case" >/dev/null 2>&1; then
           r27_bad="${r27_bad} maintainer.yml(r27-selftest-mutation:$r27_case)"
@@ -11258,6 +11269,10 @@ echo "mock: unexpected gh invocation: $*" >&2
 exit 92
 R27MOCK
       chmod +x "$r27_mock_bin/gh"
+      r27_mock_resolved=$(env -i "PATH=$r27_mock_bin:/usr/bin:/bin" bash --noprofile --norc -c 'command -v gh' 2>/dev/null || true)
+      if [ "$r27_mock_resolved" != "$r27_mock_bin/gh" ]; then
+        r27_bad="${r27_bad} maintainer.yml(r27-sandbox-mock-not-resolved)"
+      fi
 
       r27_run_case() {
         local name="$1" mode="$2" prs="$3" branches="$4" token="$5"
@@ -11277,7 +11292,7 @@ R27MOCK
         if [ "$token" = "yes" ]; then
           r27_env+=("GH_TOKEN=ghs_r27_fixture")
         fi
-        env -i "${r27_env[@]}" bash --noprofile --norc -e -o pipefail "$dir/work/step.sh" \
+        ( cd "$dir/work" && env -i "${r27_env[@]}" bash --noprofile --norc -e -o pipefail "$dir/work/step.sh" ) \
           > "$dir/stdout" 2> "$dir/stderr"
         return $?
       }
@@ -11335,7 +11350,7 @@ opencode/issue693-phase3' yes; then
   fi
 fi
 if [ -z "$r27_bad" ]; then
-  check "R27" "the Maintainer stray-PR cleanup targets ONLY the retired schedule/dispatch branch classes (never the live issue build namespace), authenticates every gh call with the job-scoped github.token, and fails loudly on auth or API errors across PR list, PR close, branch list, and branch delete; the unique anchored step (resolved from the parsed YAML with duplicate keys rejected, in the maintainer job) keeps its actor-write gate and bash shell, and the exact run body plus semantic namespace/token/loudness checks are proven load-bearing by mutation self-tests and an executable-mock sandbox (issue #699)" "ok"
+  check "R27" "the Maintainer stray-PR cleanup targets ONLY the retired schedule/dispatch branch classes (never the live issue build namespace), authenticates every gh call with the job-scoped github.token, and fails loudly on auth or API errors across PR list, PR close, branch list, and branch delete; the unique anchored step (resolved from the parsed YAML with duplicate keys rejected, in the maintainer job) keeps its actor-write gate and bash shell, and the exact run body plus semantic namespace/token/loudness checks are proven load-bearing by mutation self-tests (each check has a mutant only it catches, and the enumeration is bound to its exact expected list) and an executable-mock sandbox whose interception is proven via command -v before the matrix and which executes from its own temp work directory (issue #699)" "ok"
 else
   check "R27" "maintainer stray-PR cleanup boundary or loud-failure guard missing:${r27_bad} (issue #699: an unauthenticated no-op regressed silently, and authenticating the old filter would have closed every open build PR)" "bad"
 fi
