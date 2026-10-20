@@ -324,12 +324,25 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   170x64.
 - Desktop Xvfb `--probe 30` stays byte-identical to
   `docs/desktop-probe.ppm`
-  (sha256 `dcb33b7de14cbbd27205d07d707854eb574e1ccc938afca417eaf8d624088421`);
+  (sha256 `594436905ae88af354253764f8f724300e0d173d88bc06acabb47743a8ef4dc3`);
   the desktop E2E asserts the probe bytes. The committed gameplay
   capture `docs/desktop-gameplay.ppm` (sha256
   `f6040ea93bd09ba057016972fb3e8320ce45229667cbae635a97754200625068`)
   was recorded from the same Xvfb window pipeline after driving a play
   state, so the #658 evidence is a real gameplay frame, not the title.
+- Quality Council fix round (head `b6f82a24` family): the terminal play
+  path now forwards `reduced_motion` into the shared `Fx` (bitmap, cell,
+  and atlas paths), the title/pause cards clear an opaque one-cell ring
+  before painting, and the desktop title/pause cards stage over the
+  board center instead of the page center. Regression coverage: a live
+  PTY run with `reduced_motion = true` (no sunseed halo glyph), a
+  card-ring grid test, and desktop board-center tests. `docs/design.md`
+  now records the shipped scope and an accepted-simplifications list
+  instead of the deferred design targets. Full workspace rerun: 559
+  passed / 0 failed across 61 targets; `docs/desktop-probe.ppm`
+  recaptured (sha256
+  `594436905ae88af354253764f8f724300e0d173d88bc06acabb47743a8ef4dc3`)
+  and the desktop E2E is byte-identical.
 - Linux terminal compatibility harness: five kitty/xterm rows were
   re-executed at `14b939d9` (binary sha256
   `c81890e8d27c8f6914a8decf3df14ca02a9314fd2a9b70bf94991ca714821e9b`,
