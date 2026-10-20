@@ -117,6 +117,15 @@ impl Game {
         self.state_t
     }
 
+    /// Total engine time in seconds (fixed 120 Hz ticks).
+    ///
+    /// Renderers sample this clock for presentation-only animation so the
+    /// cadence is independent of the display refresh rate and freezes with
+    /// the simulation when the game is paused.
+    pub fn elapsed(&self) -> f32 {
+        self.tick_count as f32 * tuning::STEP
+    }
+
     /// Drain the event log since the last call.
     pub fn take_events(&mut self) -> Vec<String> {
         core::mem::take(&mut self.events)
@@ -665,6 +674,18 @@ mod tests {
         with_fx.fx.pickup(1.0, 2.0);
         with_fx.fx.turn(3.0, 4.0);
         assert_eq!(base.canonical(), with_fx.canonical());
+    }
+
+    #[test]
+    fn engine_clock_advances_by_fixed_ticks() {
+        let mut game = Game::new(5, 1);
+        assert_eq!(game.elapsed(), 0.0);
+        for _ in 0..120 {
+            game.tick(tuning::STEP);
+        }
+        assert!((game.elapsed() - 1.0).abs() < 1e-4, "120 ticks = 1 s");
+        // The effect clocks ride the same tick.
+        assert_eq!(game.elapsed(), game.tick_count as f32 * tuning::STEP);
     }
 
     #[test]

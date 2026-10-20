@@ -152,19 +152,20 @@ pub fn relish_icon_index(level: u32) -> usize {
 
 /// Render the full game frame: maze, pickups, relish, wardens, Pip.
 ///
-/// `frame_no` drives honest animation (mouth chomp, sunseed pulse, fright
-/// flash blink). `flash` enables the fright-warning blink; accessibility
-/// callers pass `false` to hold the hollow warning mask (honors reduced-flash).
-pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) -> PixelFrame {
+/// All animation samples the engine clock (`Game::elapsed`), so the cadence
+/// is independent of the display refresh rate and freezes while paused.
+/// `flash` enables the fright-warning blink; accessibility callers pass
+/// `false` to hold the hollow warning mask (honors reduced-flash).
+pub fn render(game: &Game, theme: &Theme, ppt: u32, flash: bool) -> PixelFrame {
     let ppt = ppt.max(MIN_PPT) as i32;
     let scale = sprite_scale(ppt);
     let mut frame = PixelFrame::blank((WIDTH * ppt) as u32, (HEIGHT * ppt) as u32, theme.bg);
     let crumb_field = game.maze.dot_bytes();
     paint_tiles(&mut frame, game, theme, ppt, &crumb_field);
-    paint_sunseeds(&mut frame, game, theme, ppt, scale, frame_no);
-    paint_relish(&mut frame, game, theme, ppt, scale, frame_no);
-    paint_wardens(&mut frame, game, theme, ppt, scale, frame_no, flash);
-    paint_pip(&mut frame, game, theme, ppt, scale, frame_no);
+    paint_sunseeds(&mut frame, game, theme, ppt, scale);
+    paint_relish(&mut frame, game, theme, ppt, scale);
+    paint_wardens(&mut frame, game, theme, ppt, scale, flash);
+    paint_pip(&mut frame, game, theme, ppt, scale);
     paint_pickup_burst(&mut frame, game, theme, ppt, scale);
     paint_turn_spark(&mut frame, game, theme, ppt, scale);
     paint_golden_lily(&mut frame, game, theme, scale);
@@ -317,17 +318,10 @@ fn paint_tiles(frame: &mut PixelFrame, game: &Game, theme: &Theme, ppt: i32, cru
 
 /// Pulsing sunseed glyphs, painted after the pond so the overflow is
 /// never clipped by a later-painted neighbour wall.
-fn paint_sunseeds(
-    frame: &mut PixelFrame,
-    game: &Game,
-    theme: &Theme,
-    ppt: i32,
-    scale: i32,
-    frame_no: u64,
-) {
+fn paint_sunseeds(frame: &mut PixelFrame, game: &Game, theme: &Theme, ppt: i32, scale: i32) {
     let crumb_field = game.maze.dot_bytes();
     let stride = (WIDTH * HEIGHT) as usize;
-    let glyph = if anim::sunseed_halo(frame_no) {
+    let glyph = if anim::sunseed_halo(game.elapsed()) {
         &sprites::SUNSEED_B
     } else {
         &sprites::SUNSEED_A
@@ -350,24 +344,13 @@ fn paint_sunseeds(
 }
 
 /// Relish icon placement (spawns, bob-animates, expires).
-fn paint_relish(
-    frame: &mut PixelFrame,
-    game: &Game,
-    theme: &Theme,
-    ppt: i32,
-    scale: i32,
-    frame_no: u64,
-) {
+fn paint_relish(frame: &mut PixelFrame, game: &Game, theme: &Theme, ppt: i32, scale: i32) {
     if !game.relish.active {
         return;
     }
     let (rtx, rty) = tuning::RELISH_TILE;
     let icon = &sprites::RELISH_ICONS[relish_icon_index(game.level)];
-    let bob = if (frame_no / 30).is_multiple_of(2) {
-        0
-    } else {
-        -1
-    };
+    let bob = anim::relish_bob(game.elapsed());
     paint_glyph(
         frame,
         icon,
@@ -385,7 +368,6 @@ fn paint_wardens(
     theme: &Theme,
     ppt: i32,
     scale: i32,
-    _frame_no: u64,
     flash: bool,
 ) {
     let fright = game.wardens.fright_active();
@@ -478,14 +460,7 @@ pub fn eyes_rows(dir: maze_chase_engine::actors::Dir) -> Vec<String> {
 }
 
 /// Pip (death clip while dying, chomp cycle in play).
-fn paint_pip(
-    frame: &mut PixelFrame,
-    game: &Game,
-    theme: &Theme,
-    ppt: i32,
-    scale: i32,
-    frame_no: u64,
-) {
+fn paint_pip(frame: &mut PixelFrame, game: &Game, theme: &Theme, ppt: i32, scale: i32) {
     let (pcx, pcy) = (
         (game.player.x * ppt as f32) as i32,
         (game.player.y * ppt as f32) as i32,
@@ -502,7 +477,7 @@ fn paint_pip(
         );
         return;
     }
-    let phase = game.fx.gulp_phase().unwrap_or((frame_no / 5) as usize % 3);
+    let phase = game.fx.chomp_phase();
     let facing = facing_of(game.player.dir);
     let rows = sprites::pip_facing_rows(phase, facing, art_rung(ppt));
     let refs: Vec<&str> = rows.iter().map(|s| s.as_str()).collect();
@@ -540,49 +515,92 @@ mod tests {
     #[test]
     fn frame_dimensions_follow_ppt() {
         let g = fresh();
-        let f = render(&g, &themes::DUSK_POND, 8, 0, true);
+        let f = render(&g, &themes::DUSK_POND, 8, true);
         assert_eq!((f.w, f.h), (28 * 8, 31 * 8));
-        let small = render(&g, &themes::DUSK_POND, 2, 0, true);
+        let small = render(&g, &themes::DUSK_POND, 2, true);
         assert_eq!((small.w, small.h), (28 * 6, 31 * 6));
     }
 
     #[test]
     fn walls_and_crumbs_are_painted() {
         let g = fresh();
-        let f = render(&g, &themes::DUSK_POND, 8, 0, true);
+        let f = render(&g, &themes::DUSK_POND, 8, true);
         // Corner (0,0) is a wall: face color present.
         assert!(f.count(themes::DUSK_POND.wall) > 100);
         assert!(f.count(themes::DUSK_POND.wall_inner) > 100);
         // Fresh maze still holds hundreds of crumbs.
         assert!(f.count(themes::DUSK_POND.crumb) > 200);
-        // Sunseeds pulse in both phases.
-        let a = render(&g, &themes::DUSK_POND, 8, 0, true);
-        let b = render(&g, &themes::DUSK_POND, 8, 24, true);
-        assert_ne!(a.px, b.px, "sunseed halo must animate");
+        // The sunseed halo rides the engine clock, not a render counter.
+        let a = render(&g, &themes::DUSK_POND, 8, true);
+        let mut later = fresh();
+        later.tick_count = 24; // 0.2 s: the halo flips phase.
+        let b = render(&later, &themes::DUSK_POND, 8, true);
+        assert_ne!(a.px, b.px, "sunseed halo must animate on engine time");
+    }
+
+    #[test]
+    fn animation_samples_the_engine_clock_not_a_render_counter() {
+        let theme = themes::DUSK_POND;
+        // Identical game state always renders identical pixels.
+        let g = fresh();
+        let a = render(&g, &theme, 8, true);
+        assert_eq!(a, render(&g, &theme, 8, true));
+
+        // Sunseed halo: 0.2 s flips the phase on the engine clock.
+        let mut sun = fresh();
+        let before = render(&sun, &theme, 8, true);
+        sun.tick_count = 24;
+        assert_ne!(before.px, render(&sun, &theme, 8, true).px);
+
+        // Relish bob: the shared 4 s triangle, not a frame counter.
+        let mut relish = fresh();
+        relish.relish.active = true;
+        let bob0 = render(&relish, &theme, 8, true);
+        relish.tick_count = 60; // 0.5 s -> bob +1
+        assert_ne!(bob0.px, render(&relish, &theme, 8, true).px);
+
+        // Idle Rill holds the open mouth across engine time.
+        let mut idle = fresh();
+        let mouth0 = render(&idle, &theme, 8, true);
+        idle.tick_count = 720; // 6 s
+        assert_eq!(mouth0, render(&idle, &theme, 8, true));
+
+        // Moving Rill chomps at 12 fps off the same clock.
+        let mut moving = fresh();
+        moving.fx.set_moving(true);
+        let phase0 = render(&moving, &theme, 8, true);
+        moving.fx.advance(1.0 / 12.0);
+        assert_ne!(phase0.px, render(&moving, &theme, 8, true).px);
+        moving.fx.set_moving(false);
+        assert_eq!(
+            mouth0.px,
+            render(&moving, &theme, 8, true).px,
+            "stopping returns Rill to the open mouth"
+        );
     }
 
     #[test]
     fn pip_and_wardens_are_painted() {
         let g = fresh();
-        let f = render(&g, &themes::DUSK_POND, 8, 0, true);
+        let f = render(&g, &themes::DUSK_POND, 8, true);
         assert!(f.count(themes::DUSK_POND.pip) > 10);
         assert!(f.count(themes::DUSK_POND.bram) > 5);
         assert!(f.count(themes::DUSK_POND.kessa) > 5);
         // Deterministic: same frame twice, identical bytes.
-        let again = render(&g, &themes::DUSK_POND, 8, 0, true);
+        let again = render(&g, &themes::DUSK_POND, 8, true);
         assert_eq!(f, again);
     }
 
     #[test]
     fn fright_masks_replace_bodies() {
         let g = fresh();
-        let plain = render(&g, &themes::DUSK_POND, 8, 0, true);
+        let plain = render(&g, &themes::DUSK_POND, 8, true);
         assert!(plain.count(themes::DUSK_POND.bram) > 5);
         // The mask glyph carries no body fill (`o`): Bram's hunt colors
         // vanish under the pale mask while housed wardens keep theirs.
         let mut g = fresh();
         g.wardens.start_fright(6.0);
-        let f = render(&g, &themes::DUSK_POND, 8, 0, true);
+        let f = render(&g, &themes::DUSK_POND, 8, true);
         assert_eq!(f.count(themes::DUSK_POND.bram), 0);
         assert!(f.count(themes::DUSK_POND.kessa) > 5);
         // The eye overlay is still painted inside the mask, so dazed
@@ -595,10 +613,10 @@ mod tests {
     fn effect_windows_paint_then_expire() {
         let theme = themes::DUSK_POND;
         let mut g = fresh();
-        let base = render(&g, &theme, 8, 0, true);
+        let base = render(&g, &theme, 8, true);
 
         g.fx.pickup(g.player.x, g.player.y);
-        let burst = render(&g, &theme, 8, 0, true);
+        let burst = render(&g, &theme, 8, true);
         assert_ne!(
             base.px, burst.px,
             "pickup burst must paint on the pickup grid"
@@ -610,19 +628,19 @@ mod tests {
             "the burst must paint over Pip, not under the sprite"
         );
         g.fx.advance(0.3);
-        assert_eq!(render(&g, &theme, 8, 0, true), base, "burst expires");
+        assert_eq!(render(&g, &theme, 8, true), base, "burst expires");
 
         g.fx.turn(g.player.x, g.player.y);
-        let spark = render(&g, &theme, 8, 0, true);
+        let spark = render(&g, &theme, 8, true);
         assert_ne!(base.px, spark.px, "turn spark must paint at the corner");
         g.fx.advance(0.2);
-        assert_eq!(render(&g, &theme, 8, 0, true), base, "spark expires");
+        assert_eq!(render(&g, &theme, 8, true), base, "spark expires");
 
         g.fx.spare_wick();
-        let lily = render(&g, &theme, 8, 0, true);
+        let lily = render(&g, &theme, 8, true);
         assert_ne!(base.px, lily.px, "spare wick must bloom");
         g.fx.advance(0.6);
-        assert_eq!(render(&g, &theme, 8, 0, true), base, "lily bloom expires");
+        assert_eq!(render(&g, &theme, 8, true), base, "lily bloom expires");
     }
 
     #[test]
@@ -634,7 +652,7 @@ mod tests {
             if elapsed > 0.0 {
                 g.tick(elapsed);
             }
-            render(&g, &theme, 8, 0, true)
+            render(&g, &theme, 8, true)
         };
         let early = render_at(0.0);
         let sweeping = render_at(0.1);
@@ -668,7 +686,7 @@ mod tests {
             if t > 0.0 {
                 g.tick(t);
             }
-            frames.push(render(&g, &theme, 8, 0, true).px);
+            frames.push(render(&g, &theme, 8, true).px);
         }
         assert_eq!(frames[0], frames[1], "0.0 and 0.05 hold frame 0");
         assert_ne!(frames[1], frames[2], "0.1 starts frame 1");
@@ -685,11 +703,13 @@ mod tests {
         for _ in 0..60 {
             g.tick(1.0 / 120.0);
         }
-        let held = render(&g, &theme, 8, 0, true);
-        for _ in 0..12 {
+        let held = render(&g, &theme, 8, true);
+        // 0.5 s + 0.4 s lands on the same sunseed-halo phase, so only the
+        // death animation can change the pixels.
+        for _ in 0..48 {
             g.tick(1.0 / 120.0);
         }
-        let later = render(&g, &theme, 8, 0, true);
+        let later = render(&g, &theme, 8, true);
         assert_eq!(held, later, "the death clip holds its last frame");
     }
 
@@ -699,12 +719,12 @@ mod tests {
         let theme = themes::DUSK_POND;
         let mut g = fresh();
         g.player.dir = Dir::Up;
-        let up = render(&g, &theme, 8, 0, true);
+        let up = render(&g, &theme, 8, true);
         g.player.dir = Dir::Down;
-        let down = render(&g, &theme, 8, 0, true);
+        let down = render(&g, &theme, 8, true);
         assert_ne!(up.px, down.px, "up and down are authored, not one rotation");
         // The 21x21 rung selects the high-detail sheet.
-        let high = render(&g, &theme, 21, 0, true);
+        let high = render(&g, &theme, 21, true);
         assert_eq!(high.w, (WIDTH * 21) as u32);
         assert!(high.count(theme.pip) > 20);
     }
@@ -724,7 +744,7 @@ mod tests {
         let mut g = fresh();
         for dir in [Dir::Right, Dir::Left, Dir::Up, Dir::Down] {
             g.player.dir = dir;
-            let f = render(&g, &themes::DUSK_POND, 8, 3, true);
+            let f = render(&g, &themes::DUSK_POND, 8, true);
             assert!(f.count(themes::DUSK_POND.pip) > 10, "{dir:?}");
         }
     }

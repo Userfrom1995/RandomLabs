@@ -160,6 +160,21 @@ impl Effects {
         (frame < GULP_FRAMES).then_some(frame)
     }
 
+    /// Mouth phase in play: 0..=2 at 12 fps while moving, or during a gulp.
+    ///
+    /// The phase is derived from the fixed tick clock, so it runs at the
+    /// same 12 fps on every refresh rate. An idle Rill, a paused board, and
+    /// the death or level-clear windows hold the open mouth (phase 0).
+    pub fn chomp_phase(&self) -> usize {
+        if let Some(phase) = self.gulp_phase() {
+            return phase;
+        }
+        if !self.moving {
+            return 0;
+        }
+        ((self.hop_t / GULP_FRAME_S) as usize) % GULP_FRAMES
+    }
+
     /// Current Golden Lily frame, if the spare-wick bloom is live.
     pub fn lily_frame(&self) -> Option<usize> {
         let anchor = self.lily?;
@@ -251,6 +266,43 @@ mod tests {
         assert_eq!(fx.hop_frame(), Some(1));
         fx.set_moving(false);
         assert_eq!(fx.hop_frame(), None);
+    }
+
+    #[test]
+    fn chomp_runs_at_twelve_fps_only_while_moving() {
+        let mut fx = Effects::new();
+        // Idle Rill holds the open mouth no matter how long the board lives.
+        fx.advance(2.5);
+        assert_eq!(fx.chomp_phase(), 0);
+        fx.set_moving(true);
+        assert_eq!(fx.chomp_phase(), 0);
+        fx.advance(GULP_FRAME_S + 0.001);
+        assert_eq!(fx.chomp_phase(), 1);
+        fx.advance(GULP_FRAME_S + 0.001);
+        assert_eq!(fx.chomp_phase(), 2);
+        fx.advance(GULP_FRAME_S + 0.001);
+        assert_eq!(fx.chomp_phase(), 0);
+        // Stopping (pause, clear, death) freezes on the open mouth.
+        fx.advance(GULP_FRAME_S * 2.0);
+        assert_eq!(fx.chomp_phase(), 2);
+        fx.set_moving(false);
+        assert_eq!(fx.chomp_phase(), 0);
+    }
+
+    #[test]
+    fn chomp_prefers_a_live_gulp() {
+        let mut fx = Effects::new();
+        fx.set_moving(true);
+        fx.pickup(1.0, 1.0);
+        assert_eq!(fx.chomp_phase(), 0);
+        fx.advance(GULP_FRAME_S + 0.001);
+        assert_eq!(fx.chomp_phase(), 1);
+        fx.advance(GULP_FRAME_S + 0.001);
+        assert_eq!(fx.gulp_phase(), Some(2));
+        fx.advance(GULP_FRAME_S);
+        assert_eq!(fx.gulp_phase(), None);
+        fx.advance(GULP_FRAME_S);
+        assert_eq!(fx.chomp_phase(), 1, "the moving chomp resumes after a gulp");
     }
 
     #[test]

@@ -155,7 +155,6 @@ fn bitmap_png_is_a_valid_png_for_every_tier() {
         &b.game,
         b.theme(),
         maze_chase_terminal::raster::DEFAULT_PPT,
-        b.frame_no,
         true,
     );
     let six = maze_chase_terminal::sixel::encode(&frame, 64);

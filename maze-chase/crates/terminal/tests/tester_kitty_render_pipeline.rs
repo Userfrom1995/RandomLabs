@@ -1174,14 +1174,14 @@ fn eaten_sunseed_leaves_the_desired_set_and_maps_to_an_exact_delete() {
     let mut game = Game::new(7, 1);
     let built = atlas::Atlas::build(theme, 8);
     let tile_id = 1000 + (22 * 28 + 2) as u32; // bottom-left sunseed (2, 22)
-    let before = atlas::placements(&game, 8, 0, false, &built);
+    let before = atlas::placements(&game, 8, false, &built);
     let sun = before
         .iter()
         .find(|p| p.id == tile_id)
         .expect("sunseed placement before eating");
     assert_eq!(sun.z, 1, "sunseeds stack at z=1");
     assert_eq!(game.maze.eat_at(2, 22), Some(Pickup::Energizer));
-    let after = atlas::placements(&game, 8, 0, false, &built);
+    let after = atlas::placements(&game, 8, false, &built);
     assert!(
         !after.iter().any(|p| p.id == tile_id),
         "an eaten sunseed must leave the desired placement set"

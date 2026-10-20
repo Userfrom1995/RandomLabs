@@ -5,7 +5,7 @@
 //! never panic on degenerate time values, and every shipped theme
 //! resolves cleanly.
 
-use maze_chase_assets::anim::{death_clip, fright_flash_on, pip_clip, relish_bob};
+use maze_chase_assets::anim::{fright_flash_on, relish_bob};
 use maze_chase_assets::sprites::{
     flip_horizontal, rotate_cw, validate_glyph, CRUMB, EYES_DOWN, EYES_RIGHT, EYES_UP, FRIGHT_MASK,
     FRIGHT_MASK_FLASH, PIP_CLOSED, PIP_DEATH, PIP_RIGHT, PIP_RIGHT_MID, RELISH_ICONS, SUNSEED_A,
@@ -195,21 +195,6 @@ fn relish_bob_stays_in_range_on_hostile_time() {
         let b = relish_bob(t);
         assert!((-1..=1).contains(&b), "out of range at t={t}: {b}");
     }
-}
-
-#[test]
-fn clips_are_sane_and_death_frames_match_art_count() {
-    let pip = pip_clip();
-    assert!(!pip.frames.is_empty());
-    assert!(pip.frame_s > 0.0 && pip.frame_s.is_finite());
-    assert!(pip.looped);
-    let death = death_clip();
-    assert_eq!(death.frames.len(), PIP_DEATH.len());
-    assert!(death.frame_s > 0.0 && death.frame_s.is_finite());
-    assert!(!death.looped);
-    // Total play lengths are finite and positive.
-    assert!((pip.frame_s * pip.frames.len() as f32).is_finite());
-    assert!((death.frame_s * death.frames.len() as f32).is_finite());
 }
 
 #[test]

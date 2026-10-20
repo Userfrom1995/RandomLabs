@@ -129,7 +129,7 @@ pub fn paint(text: &str, fg: Rgb, bg: Rgb, truecolor: bool) -> String {
 }
 
 /// Pip mouth for a heading (two cells wide in compact rooms).
-fn pip_text(game: &Game, frame_no: u64) -> &'static str {
+fn pip_text(game: &Game) -> &'static str {
     use maze_chase_engine::actors::Dir;
     if game.state == GameState::Dying {
         return match anim::death_frame(game.state_elapsed()) {
@@ -139,11 +139,7 @@ fn pip_text(game: &Game, frame_no: u64) -> &'static str {
             _ => "()",
         };
     }
-    let closed = game
-        .fx
-        .gulp_phase()
-        .map(|phase| phase == 2)
-        .unwrap_or((frame_no / 5) % 3 == 2);
+    let closed = game.fx.chomp_phase() == 2;
     match game.player.dir {
         Dir::Right => {
             if closed {
@@ -179,13 +175,7 @@ fn pip_text(game: &Game, frame_no: u64) -> &'static str {
 /// Render the board area of a layout into spans. The caller positions the
 /// rows at `layout.board`; rows outside the board are bg-filled to the
 /// full window width so resizes never leave stale glyphs.
-pub fn render_board(
-    game: &Game,
-    theme: &Theme,
-    layout: &Layout,
-    frame_no: u64,
-    flash: bool,
-) -> Screen {
+pub fn render_board(game: &Game, theme: &Theme, layout: &Layout, flash: bool) -> Screen {
     let cw = layout.cell_cols as usize;
     let ch = layout.cell_rows as usize;
     let cols = layout.cols as usize;
@@ -212,7 +202,7 @@ pub fn render_board(
         overlay.insert(
             maze_chase_engine::tuning::RELISH_TILE,
             (
-                if (frame_no / 30).is_multiple_of(2) {
+                if game.elapsed().rem_euclid(4.0) < 2.0 {
                     "<>"
                 } else {
                     "<<"
@@ -246,7 +236,7 @@ pub fn render_board(
         overlay.insert(t, (text, color));
     }
     let pip_tile = tile_of(game.player.x, game.player.y);
-    overlay.insert(pip_tile, (pip_text(game, frame_no), theme.pip));
+    overlay.insert(pip_tile, (pip_text(game), theme.pip));
     // Effect cues on the cell rung: the pickup ripple is the two static
     // states the motion table allows, the turn spark a committed-corner
     // marker, and the spare wick a crown over the board center. They paint
@@ -330,7 +320,7 @@ pub fn render_board(
                     let i = (ty * WIDTH + tx) as usize;
                     if field.get(stride + i).copied().unwrap_or(0) == 1 {
                         let s = fit_width(
-                            if anim::sunseed_halo(frame_no) {
+                            if anim::sunseed_halo(game.elapsed()) {
                                 "○○"
                             } else {
                                 "●●"
@@ -428,7 +418,7 @@ mod tests {
     fn board_covers_layout_and_holds_actors() {
         let theme = &themes::DUSK_POND;
         let l = layout::compute(100, 40);
-        let s = render_board(&game(), theme, &l, 0, true);
+        let s = render_board(&game(), theme, &l, true);
         assert_eq!(s.rows.len(), 40);
         let ansi = s.to_ansi(true);
         assert!(ansi.contains("38;2;"), "truecolor SGR present");
@@ -447,7 +437,7 @@ mod tests {
         for (cols, rows) in [(62u16, 35u16), (100, 40), (200, 100)] {
             let l = layout::compute(cols, rows);
             assert!(!l.too_small, "{cols}x{rows}");
-            let s = render_board(&game(), theme, &l, 0, true);
+            let s = render_board(&game(), theme, &l, true);
             assert_eq!(s.rows.len(), rows as usize, "{cols}x{rows} row count");
             for (i, row) in s.rows.iter().enumerate() {
                 let width: usize = row.iter().map(|sp| sp.text.chars().count()).sum();
@@ -470,7 +460,7 @@ mod tests {
         let theme = &themes::DUSK_POND;
         let l = layout::compute(200, 100);
         assert_eq!((l.cell_cols, l.cell_rows), (7, 3));
-        let s = render_board(&game(), theme, &l, 0, true);
+        let s = render_board(&game(), theme, &l, true);
         let text: Vec<String> = s
             .rows
             .iter()
@@ -487,7 +477,7 @@ mod tests {
     fn legacy_tier_folds_to_16_colors() {
         let theme = &themes::DUSK_POND;
         let l = layout::compute(100, 40);
-        let s = render_board(&game(), theme, &l, 0, true);
+        let s = render_board(&game(), theme, &l, true);
         let ansi = s.to_ansi(false);
         assert!(!ansi.contains("38;2;"), "no 24-bit codes in legacy");
         assert!(ansi.contains("\x1b["), "SGR still present");
@@ -510,7 +500,7 @@ mod tests {
             legacy_ansi.contains("\x1b[40m"),
             "legacy base bg folded and painted: {legacy_ansi:?}"
         );
-        let board = render_board(&game(), theme, &layout::compute(100, 40), 0, true);
+        let board = render_board(&game(), theme, &layout::compute(100, 40), true);
         assert!(
             board.to_ansi(true).contains("\x1b[48;2;14;30;28m"),
             "board rows carry the base background"
@@ -523,21 +513,21 @@ mod tests {
         let l = layout::compute(100, 40);
         let mut g = game();
         g.wardens.start_fright(6.0);
-        let entry = render_board(&g, theme, &l, 0, true).to_ansi(true);
+        let entry = render_board(&g, theme, &l, true).to_ansi(true);
         assert!(entry.contains("FF"), "the entry morph draws flat cells");
         assert!(!entry.contains("##"), "entry is not the hollow variant");
 
         g.wardens.fright_t = 5.5;
-        let steady = render_board(&g, theme, &l, 0, true).to_ansi(true);
+        let steady = render_board(&g, theme, &l, true).to_ansi(true);
         assert!(steady.contains("FF"), "the steady mask shows");
         assert!(!steady.contains("##"));
 
         g.wardens.fright_t = 1.3;
-        let flash = render_board(&g, theme, &l, 0, true).to_ansi(true);
+        let flash = render_board(&g, theme, &l, true).to_ansi(true);
         assert!(flash.contains("##"), "the flash phase shows");
 
         g.wardens.fright_t = 5.5;
-        let reduced = render_board(&g, theme, &l, 0, false).to_ansi(true);
+        let reduced = render_board(&g, theme, &l, false).to_ansi(true);
         assert!(
             reduced.contains("##"),
             "reduced flash holds the hollow warning mask"
@@ -550,14 +540,36 @@ mod tests {
         let theme = &themes::DUSK_POND;
         let l = layout::compute(100, 40);
         let (rx, ry) = maze_chase_engine::tuning::RELISH_TILE;
+
+        // Positive control: with no hunter on the tile the relish paints,
+        // and its two states follow the shared 4 s engine phase.
+        let mut visible = game();
+        visible.relish.active = true;
+        let uncovered = render_board(&visible, theme, &l, true).to_ansi(true);
+        assert!(
+            uncovered.contains("<>") || uncovered.contains("<<"),
+            "the relish must paint when no hunter covers its tile"
+        );
+        visible.tick_count = 240; // 2.0 s: the phase flips
+        let later = render_board(&visible, theme, &l, true).to_ansi(true);
+        assert_ne!(uncovered, later, "the relish bob follows the engine clock");
+        let mut hidden = game();
+        hidden.tick_count = 240;
+        assert_ne!(
+            later,
+            render_board(&hidden, theme, &l, true).to_ansi(true),
+            "with everything else equal, the relish is what changed"
+        );
+
+        // A hunter standing on the relish tile replaces the relish glyph.
         let mut g = game();
         g.relish.active = true;
         g.wardens.wardens[0].state = WardenState::Active;
         g.wardens.wardens[0].actor.x = rx as f32 + 0.5;
         g.wardens.wardens[0].actor.y = ry as f32 + 0.5;
-        let with_hunter = render_board(&g, theme, &l, 0, true).to_ansi(true);
+        let with_hunter = render_board(&g, theme, &l, true).to_ansi(true);
         g.relish.active = false;
-        let without_relish = render_board(&g, theme, &l, 0, true).to_ansi(true);
+        let without_relish = render_board(&g, theme, &l, true).to_ansi(true);
         assert_eq!(
             with_hunter, without_relish,
             "a hunter on the relish tile must hide the relish"
@@ -571,12 +583,12 @@ mod tests {
         g.kill_player();
         g.tick(0.9);
         assert_eq!(
-            pip_text(&g, 0),
+            pip_text(&g),
             "()",
             "the held death frame keeps a visible bubble"
         );
         let l = layout::compute(100, 40);
-        let ansi = render_board(&g, &themes::DUSK_POND, &l, 0, true).to_ansi(true);
+        let ansi = render_board(&g, &themes::DUSK_POND, &l, true).to_ansi(true);
         assert!(
             ansi.contains("()"),
             "the cell tier renders the held bubble instead of a blank"
@@ -595,16 +607,16 @@ mod tests {
         }
         g.tick(maze_chase_engine::tuning::STEP);
         assert_eq!(g.state, GameState::Clearing);
-        let early = render_board(&g, theme, &l, 0, true).to_ansi(true);
+        let early = render_board(&g, theme, &l, true).to_ansi(true);
         assert!(early.contains("▓▓"), "the sweep band must paint");
 
         g.tick(0.4);
-        let banner = render_board(&g, theme, &l, 0, true).to_ansi(true);
+        let banner = render_board(&g, theme, &l, true).to_ansi(true);
         assert!(banner.contains("YY"), "the lily banner must paint");
         assert!(!banner.contains("▓▓"), "the sweep has passed");
 
         g.tick(1.0);
-        let late = render_board(&g, theme, &l, 0, true).to_ansi(true);
+        let late = render_board(&g, theme, &l, true).to_ansi(true);
         assert!(!late.contains("▓▓") && !late.contains("YY"));
     }
 
