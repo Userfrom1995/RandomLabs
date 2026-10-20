@@ -440,11 +440,11 @@ base without repaint); degrade to 15 Hz above 128 KiB/s sustained 1 s.
 Sixel: the transmit is the whole board raster and its encoded size is
 content-dependent; the committed xterm VT340 rows measure 25.3 KiB
 mean Sixel payload per playing transmit (29.5 KiB mean wire frame,
-29.6 KiB peak); the forced row ran 89 transmits in 4.59 s at 19.4 fps
-and 573 KiB/s of payload, with 45.1 KiB mean payload per transmit
-through the resize phases, well inside the encoder's
-2 MiB per-frame budget (a
-smaller-palette retry, then a cell fallback for that frame). The tier
+29.6 KiB peak); the forced row ran 88 transmits in 4.63 s at 19.0 fps
+and 561 KiB/s of wire traffic (480 KiB/s of Sixel payload), with
+43.4 KiB mean payload per transmit through the resize phases, well
+inside the encoder's 2 MiB per-frame budget (a smaller-palette retry,
+then a cell fallback for that frame). The tier
 paces at 24 Hz and backpressure stretches the transmit interval to
 1.5x the smoothed write cost (doubled above an 8 MiB/s byte flood,
 capped at 200 ms), so a slow PTY throttles instead of being flooded;
