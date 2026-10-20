@@ -14147,7 +14147,13 @@ fi
 #      entire-first-line plus bot-authorship predicate shape as R21;
 #   4. a functional harness extracts the real sweep predicate and freshness
 #      decision block and executes them against genuine and hostile payloads,
-#      and executes the real publisher against mock post/fetch outcomes.
+#      and executes the real publisher against mock post/fetch outcomes;
+#   5. the signed-verdict post step's parsed run block is pinned whole-region
+#      line-exact and executed behaviorally (good approve, fix, and INCOMPLETE
+#      decisions post and verify; a failed post, missing id, failed re-fetch,
+#      wrong author, and body mismatch each exit nonzero), so a one-line
+#      `exit 0` flip or a `false &&` guard prefix can no longer publish the
+#      approval marker without a signed verdict (issue #713 review round 2).
 # Review-gated residual: the surrounding sweep control flow is still
 # review-gated, as documented in R21. Honest limit: like R21, the head time is
 # the later of committer dates and force-push events, so a fast-forward push of
@@ -14406,6 +14412,57 @@ fi
 echo "ok=true" >> "$GITHUB_OUTPUT"
 R30MARKER
 }
+# Whole-region exact pin for the signed-verdict post step's parsed run block
+# (issue #713 review round 2). The post step's `exit 1` lines are what make
+# the marker's `steps.post-result.outcome == 'success'` gate fail closed: a
+# one-line `exit 0` flip (or a deleted author/body check) would otherwise
+# publish the approval marker without a signed Quality Council comment. This
+# is the same normalized whole-region pin the marker block uses, plus the
+# behavioral harness below executes the block against mock post/fetch
+# outcomes and asserts the nonzero exits.
+r30_expected_post_block() {
+  cat <<'R30POST'
+if [ ! -f /tmp/evaluator-decision.json ]; then
+echo "::error::No evaluator decision file found; the verify step above should have failed closed (issue #713)."
+exit 1
+fi
+action=$(jq -r '.action // "unknown"' /tmp/evaluator-decision.json 2>/dev/null || echo "unknown")
+score=$(jq -r '.score // "N/A"' /tmp/evaluator-decision.json 2>/dev/null || echo "N/A")
+summary=$(jq -r '.summary // .critique // "Evaluation complete. See `.github/agents/evaluator.md` for rubric details."' /tmp/evaluator-decision.json 2>/dev/null || echo "Evaluation complete.")
+if [ "$action" = "approve-eval" ]; then
+body="Quality Council APPROVED - Score ${score}/10. ${summary} - The Evaluator confirms the deliverable passes all 5 dimensions (aggregate at least 9.8). Passing to Hephaestus (Maintainer) for final merge. - The Quality Council (Evaluator)"
+elif [ "$action" = "fix" ]; then
+body="Quality Council REJECTION - Score ${score}/10. ${summary} - The Evaluator requires fixes before the deliverable can proceed to the Maintainer. Hephaestus will route the next step once the findings are applied. - The Quality Council (Evaluator)"
+else
+body="Quality Council INCOMPLETE - Action: ${action}. Score: ${score}. ${summary} - The Quality Council (Evaluator)"
+fi
+echo "Posting evaluation result to PR/issue..."
+response=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments" -f body="$body" 2>&1) || {
+echo "::error::Posting the Quality Council result failed; refusing to publish an approval marker without its signed verdict (issue #713)."
+exit 1
+}
+comment_id=$(printf '%s' "$response" | jq -r '.id // empty' 2>/dev/null || true)
+if [ -z "$comment_id" ]; then
+echo "::error::The GitHub API accepted the Quality Council result but returned no comment id; cannot verify it persisted (issue #713)."
+exit 1
+fi
+fetched=$(gh api "repos/${{ github.repository }}/issues/comments/${comment_id}" 2>&1) || {
+echo "::error::Could not re-fetch the Quality Council result comment ${comment_id}; refusing to hand an unverified verdict onward (issue #713)."
+exit 1
+}
+author=$(printf '%s' "$fetched" | jq -r '.user.login // empty' 2>/dev/null || true)
+fetched_body=$(printf '%s' "$fetched" | jq -r '.body // empty' 2>/dev/null | tr -d '\r' || true)
+if [ "$author" != "github-actions[bot]" ]; then
+echo "::error::Quality Council result comment ${comment_id} is authored by '${author}', not github-actions[bot] (issue #713)."
+exit 1
+fi
+if [ "$fetched_body" != "$body" ]; then
+echo "::error::Quality Council result comment ${comment_id} does not carry the exact signed body; refusing to hand an unverified verdict onward (issue #713)."
+exit 1
+fi
+echo "Verified bot-authored Quality Council result comment ${comment_id}."
+R30POST
+}
 if [ ! -f "$R30_WF" ]; then
   r30_bad="${r30_bad} opencode-eval.yml(missing)"
 elif [ ! -f "$r30_struct_dir/marker.run" ] || [ ! -f "$r30_struct_dir/post.run" ] || [ ! -f "$r30_struct_dir/forward.run" ]; then
@@ -14434,6 +14491,19 @@ else
     r30_bad="${r30_bad} eval.yml(marker-run-block-extraction-empty)"
   elif [ "$r30_marker_region" != "$r30_marker_expect" ]; then
     r30_bad="${r30_bad} eval.yml(marker-run-block-not-exact)"
+  fi
+  r30_post_region=$(printf '%s\n' "$r30_post_block" \
+    | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+    | grep -vE '^#|^$' || true)
+  r30_post_expect=$(r30_expected_post_block \
+    | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+    | grep -vE '^#|^$' || true)
+  if [ -z "$r30_post_expect" ]; then
+    r30_bad="${r30_bad} eval.yml(post-expected-missing)"
+  elif [ -z "$r30_post_region" ]; then
+    r30_bad="${r30_bad} eval.yml(post-run-block-extraction-empty)"
+  elif [ "$r30_post_region" != "$r30_post_expect" ]; then
+    r30_bad="${r30_bad} eval.yml(post-run-block-not-exact)"
   fi
 fi
 r30_pat_block=""
@@ -14732,6 +14802,147 @@ R30_MOCK_PUBLISHER
               [ "$r30_mc_approve_calls" = "713 9.9" ] || r30_bad="${r30_bad} eval.yml(marker-behavioral-approve-publisher-args='${r30_mc_approve_calls}')"
             fi
           fi
+          # Review round 2: execute the parsed signed-verdict post run block
+          # under the production shell form with a mock `gh` and decision-file
+          # fixtures. A `fix` and an INCOMPLETE decision must post the signed
+          # result and verify it; a failed post, a missing comment id, a failed
+          # re-fetch, a wrong author, and a body mismatch must each exit
+          # nonzero (so `steps.post-result.outcome` is not success and the
+          # marker step cannot publish), and no path may write ok=true.
+          if [ -z "$r30_post_block" ]; then
+            r30_bad="${r30_bad} eval.yml(post-behavioral-block-missing)"
+          elif ! command -v jq >/dev/null 2>&1; then
+            r30_bad="${r30_bad} eval.yml(post-behavioral-jq-missing)"
+          else
+            r30_post_bin="$r30_tmp/post-bin"
+            mkdir -p "$r30_post_bin"
+            cat > "$r30_post_bin/gh" <<'R30_POST_MOCK'
+#!/usr/bin/env bash
+r30_cfg="$(cd "$(dirname "$0")/.." && pwd)/post.cfg"
+fail_post=0
+fail_fetch=0
+no_id=0
+author="github-actions[bot]"
+force_body=""
+posted_file=""
+calls_file=""
+# shellcheck disable=SC1090
+. "$r30_cfg"
+case "$*" in
+  *"/issues/comments/"*)
+    printf 'fetch\n' >> "$calls_file"
+    if [ "$fail_fetch" = "1" ]; then
+      echo "mock gh: re-fetch failed" >&2
+      exit 1
+    fi
+    if [ -n "$force_body" ]; then
+      body=$(cat "$force_body" 2>/dev/null || true)
+    else
+      body=$(cat "$posted_file" 2>/dev/null || true)
+    fi
+    jq -n --arg a "$author" --arg b "$body" '{user:{login:$a},body:$b}'
+    ;;
+  *"/issues/"*"/comments"*)
+    printf 'post\n' >> "$calls_file"
+    if [ "$fail_post" = "1" ]; then
+      echo "mock gh: post failed" >&2
+      exit 1
+    fi
+    for r30_arg in "$@"; do
+      case "$r30_arg" in
+        body=*) printf '%s' "${r30_arg#body=}" > "$posted_file" ;;
+      esac
+    done
+    if [ "$no_id" = "1" ]; then
+      printf '{}\n'
+    else
+      printf '{"id":54321}\n'
+    fi
+    ;;
+  *)
+    printf 'unexpected\n' >> "$calls_file"
+    echo "mock gh: unexpected invocation: $*" >&2
+    exit 1
+    ;;
+esac
+R30_POST_MOCK
+            chmod +x "$r30_post_bin/gh"
+            if [ "$(PATH="$r30_post_bin:$PATH" command -v gh)" != "$r30_post_bin/gh" ]; then
+              r30_bad="${r30_bad} eval.yml(post-behavioral-mock-not-intercepted)"
+            else
+              r30_other_body="$r30_tmp/post-other-body.txt"
+              printf 'Quality Council APPROVED but not the exact body.\n' > "$r30_other_body"
+              r30_post_case() {
+                r30_ptc_name="$1"; r30_ptc_decision="$2"; r30_ptc_want_rc="$3"; r30_ptc_want_calls="$4"; shift 4
+                r30_ptc_dir="$r30_tmp/post-case-$r30_ptc_name"
+                mkdir -p "$r30_ptc_dir"
+                r30_ptc_decision_file="$r30_ptc_dir/decision.json"
+                if [ "$r30_ptc_decision" != "absent" ]; then
+                  printf '%s\n' "$r30_ptc_decision" > "$r30_ptc_decision_file"
+                fi
+                r30_ptc_posted="$r30_ptc_dir/posted"
+                r30_ptc_calls="$r30_ptc_dir/calls"
+                r30_ptc_out="$r30_ptc_dir/github-output"
+                : > "$r30_ptc_calls"
+                : > "$r30_ptc_out"
+                {
+                  printf 'fail_post="0"\n'
+                  printf 'fail_fetch="0"\n'
+                  printf 'no_id="0"\n'
+                  printf 'author="github-actions[bot]"\n'
+                  printf 'force_body=""\n'
+                  printf 'posted_file=%q\n' "$r30_ptc_posted"
+                  printf 'calls_file=%q\n' "$r30_ptc_calls"
+                  for r30_kv in "$@"; do printf '%s\n' "$r30_kv"; done
+                } > "$r30_tmp/post.cfg"
+                printf '%s\n' "$r30_post_block" \
+                  | sed -e "s#/tmp/evaluator-decision.json#$r30_ptc_decision_file#g" \
+                        -e 's#\${{ github\.repository }}#RandomLabs/RandomLabs#g' \
+                        -e 's#\${{ github\.event\.issue\.number }}#713#g' > "$r30_ptc_dir/run.sh"
+                if grep -q '\${{' "$r30_ptc_dir/run.sh" 2>/dev/null; then
+                  r30_bad="${r30_bad} eval.yml(post-behavioral-${r30_ptc_name}-unsubstituted-expression)"
+                else
+                  ( cd "$r30_tmp" && env -u GITHUB_TOKEN -u GH_TOKEN -u GH_API_TOKEN \
+                      PATH="$r30_post_bin:$PATH" GITHUB_OUTPUT="$r30_ptc_out" \
+                      bash --noprofile --norc -eo pipefail "$r30_ptc_dir/run.sh" ) >"$r30_ptc_dir/stdout" 2>&1
+                  r30_ptc_rc=$?
+                  if [ "$r30_ptc_rc" -ne "$r30_ptc_want_rc" ]; then
+                    r30_bad="${r30_bad} eval.yml(post-behavioral-${r30_ptc_name}-rc=${r30_ptc_rc},want=${r30_ptc_want_rc})"
+                  fi
+                  r30_ptc_actual_calls=$(tr '\n' ' ' < "$r30_ptc_calls" 2>/dev/null | sed 's/[[:space:]]*$//' || true)
+                  if [ "$r30_ptc_actual_calls" != "$r30_ptc_want_calls" ]; then
+                    r30_bad="${r30_bad} eval.yml(post-behavioral-${r30_ptc_name}-calls='${r30_ptc_actual_calls}',want='${r30_ptc_want_calls}')"
+                  fi
+                  r30_ptc_ok=$(grep -c '^ok=true$' "$r30_ptc_out" 2>/dev/null || true)
+                  [ "${r30_ptc_ok:-0}" -eq 0 ] || r30_bad="${r30_bad} eval.yml(post-behavioral-${r30_ptc_name}-unexpected-ok-true)"
+                fi
+              }
+              r30_post_case approve '{"action":"approve-eval","score":9.9,"summary":"All five dimensions verified."}' 0 "post fetch"
+              r30_post_case fix '{"action":"fix","score":8.1,"summary":"Two dimensions below the gate."}' 0 "post fetch"
+              r30_post_case incomplete '{not-json' 0 "post fetch"
+              r30_post_case absent absent 1 ""
+              r30_post_case post-failure '{"action":"approve-eval","score":9.9}' 1 "post" 'fail_post="1"'
+              r30_post_case missing-id '{"action":"approve-eval","score":9.9}' 1 "post" 'no_id="1"'
+              r30_post_case refetch-failure '{"action":"approve-eval","score":9.9}' 1 "post fetch" 'fail_fetch="1"'
+              r30_post_case wrong-author '{"action":"approve-eval","score":9.9}' 1 "post fetch" 'author="mallory"'
+              r30_post_case body-mismatch '{"action":"approve-eval","score":9.9}' 1 "post fetch" "force_body=$r30_other_body"
+              r30_post_approve_first=$(head -n1 "$r30_tmp/post-case-approve/posted" 2>/dev/null || true)
+              case "$r30_post_approve_first" in
+                "Quality Council APPROVED - Score 9.9/10."*) : ;;
+                *) r30_bad="${r30_bad} eval.yml(post-behavioral-approve-body='${r30_post_approve_first}')" ;;
+              esac
+              r30_post_fix_first=$(head -n1 "$r30_tmp/post-case-fix/posted" 2>/dev/null || true)
+              case "$r30_post_fix_first" in
+                "Quality Council REJECTION - Score 8.1/10."*) : ;;
+                *) r30_bad="${r30_bad} eval.yml(post-behavioral-fix-body='${r30_post_fix_first}')" ;;
+              esac
+              r30_post_incomplete_first=$(head -n1 "$r30_tmp/post-case-incomplete/posted" 2>/dev/null || true)
+              case "$r30_post_incomplete_first" in
+                "Quality Council INCOMPLETE - Action: unknown. Score: N/A."*) : ;;
+                *) r30_bad="${r30_bad} eval.yml(post-behavioral-incomplete-body='${r30_post_incomplete_first}')" ;;
+              esac
+            fi
+          fi
         fi
         rm -rf "$r30_tmp"
       fi
@@ -14739,7 +14950,7 @@ R30_MOCK_PUBLISHER
   fi
 fi
 if [ -z "$r30_bad" ]; then
-  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml publishes a canonical bot-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates AND only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as bot-authored with the exact body (a failed post, missing id, or mismatched re-fetch fails closed and blocks the marker), the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head, not older than the tester approval, and not superseded by a newer bot-authored Quality Council rejection or a newer owner /oc eval trigger, with the R21 shape anchor; genuine and hostile payloads plus the real publisher post/fetch outcomes are executed in a sandbox, and the marker run block is resolved from the strict YAML parse and pinned whole-region line-exact then executed behaviorally against decision and publisher fixtures so a one-line neutering cannot pass (issue #713)" "ok"
+  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml publishes a canonical bot-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates AND only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as bot-authored with the exact body (a failed post, missing id, or mismatched re-fetch fails closed and blocks the marker), the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head, not older than the tester approval, and not superseded by a newer bot-authored Quality Council rejection or a newer owner /oc eval trigger, with the R21 shape anchor; genuine and hostile payloads plus the real publisher post/fetch outcomes are executed in a sandbox, and the marker run block is resolved from the strict YAML parse and pinned whole-region line-exact then executed behaviorally against decision and publisher fixtures, the signed-verdict post run block is likewise resolved from the strict parse, pinned whole-region line-exact, and executed against mock post/fetch outcomes (a failed post, missing id, failed re-fetch, wrong author, and body mismatch each exit nonzero and no path writes ok=true), so a one-line neutering cannot pass (issue #713)" "ok"
 else
   check "R30" "eval verdict publication and PAT merge gate guard missing:${r30_bad} (issue #713: a workflow-touching PR could merge through the PAT sweep with no binding Evaluator verdict)" "bad"
 fi
