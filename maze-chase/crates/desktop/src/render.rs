@@ -242,7 +242,7 @@ mod tests {
     use maze_chase_engine::actors::Dir;
 
     fn theme() -> &'static Theme {
-        &themes::EMBER_WARREN
+        &themes::DUSK_POND
     }
 
     fn hud<'a>() -> Hud<'a> {
@@ -412,7 +412,7 @@ mod menu_tests {
     use super::*;
 
     fn theme() -> &'static Theme {
-        &maze_chase_assets::themes::EMBER_WARREN
+        &maze_chase_assets::themes::DUSK_POND
     }
 
     #[test]

@@ -988,7 +988,10 @@ fn leaving_kitty_tier_frees_the_whole_frame_image_without_placements() {
                 tail(&seen)
             )
         });
-    assert!(rel_at < dcs_at, "the release must precede the first Sixel DCS");
+    assert!(
+        rel_at < dcs_at,
+        "the release must precede the first Sixel DCS"
+    );
     let apcs = apc_params(&seen[..rel_at]);
     assert!(
         apcs.iter()
@@ -1167,7 +1170,7 @@ fn eaten_sunseed_leaves_the_desired_set_and_maps_to_an_exact_delete() {
     use maze_chase_engine::maze::Pickup;
     use maze_chase_terminal::{atlas, kitty};
 
-    let theme = themes::by_id("ember-warren").expect("ember-warren theme");
+    let theme = themes::by_id("dusk-pond").expect("dusk-pond theme");
     let mut game = Game::new(7, 1);
     let built = atlas::Atlas::build(theme, 8);
     let tile_id = 1000 + (22 * 28 + 2) as u32; // bottom-left sunseed (2, 22)

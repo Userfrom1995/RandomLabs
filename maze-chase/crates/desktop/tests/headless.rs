@@ -19,7 +19,7 @@ fn scripted_run(seed: u64) -> (u32, Vec<Vec<u32>>) {
 /// (one heading per 90 ticks). Different steering must visibly diverge
 /// the hunt: this is the harness's input-sensitivity check.
 fn scripted_run_with(seed: u64, wants: &[Dir]) -> (u32, Vec<Vec<u32>>) {
-    let theme = &themes::EMBER_WARREN;
+    let theme = &themes::DUSK_POND;
     let mut game = Game::new(seed, 1);
     let mut frames = Vec::new();
     for tick in 0..1200 {

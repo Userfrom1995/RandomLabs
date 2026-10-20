@@ -368,7 +368,7 @@ mod tests {
 
     #[test]
     fn board_covers_layout_and_holds_actors() {
-        let theme = &themes::EMBER_WARREN;
+        let theme = &themes::DUSK_POND;
         let l = layout::compute(100, 40);
         let s = render_board(&game(), theme, &l, 0, true);
         assert_eq!(s.rows.len(), 40);
@@ -385,7 +385,7 @@ mod tests {
         // renderer emits one character per terminal column at any
         // continuous tile scale (2x1 floor through 7x3 at 200x100), so a
         // row can never overflow the window and clip the right wall.
-        let theme = &themes::EMBER_WARREN;
+        let theme = &themes::DUSK_POND;
         for (cols, rows) in [(62u16, 35u16), (100, 40), (200, 100)] {
             let l = layout::compute(cols, rows);
             assert!(!l.too_small, "{cols}x{rows}");
@@ -409,7 +409,7 @@ mod tests {
     fn tall_tile_walls_fill_every_sub_row() {
         // At a 7x3 scale a wall tile is a 7-char block on all three of
         // its sub-rows: no hollow bands inside wall runs.
-        let theme = &themes::EMBER_WARREN;
+        let theme = &themes::DUSK_POND;
         let l = layout::compute(200, 100);
         assert_eq!((l.cell_cols, l.cell_rows), (7, 3));
         let s = render_board(&game(), theme, &l, 0, true);
@@ -427,7 +427,7 @@ mod tests {
 
     #[test]
     fn legacy_tier_folds_to_16_colors() {
-        let theme = &themes::EMBER_WARREN;
+        let theme = &themes::DUSK_POND;
         let l = layout::compute(100, 40);
         let s = render_board(&game(), theme, &l, 0, true);
         let ansi = s.to_ansi(false);
@@ -441,10 +441,10 @@ mod tests {
         // background equals the theme base background still emits the
         // explicit background SGR, so a light terminal default can never
         // hide the theme's text.
-        let theme = &themes::EMBER_WARREN;
+        let theme = &themes::DUSK_POND;
         let true_ansi = paint("x", theme.text, theme.bg, true);
         assert!(
-            true_ansi.contains("\x1b[48;2;24;16;12m"),
+            true_ansi.contains("\x1b[48;2;14;30;28m"),
             "truecolor base bg painted: {true_ansi:?}"
         );
         let legacy_ansi = paint("x", theme.text, theme.bg, false);
@@ -454,14 +454,14 @@ mod tests {
         );
         let board = render_board(&game(), theme, &layout::compute(100, 40), 0, true);
         assert!(
-            board.to_ansi(true).contains("\x1b[48;2;24;16;12m"),
+            board.to_ansi(true).contains("\x1b[48;2;14;30;28m"),
             "board rows carry the base background"
         );
     }
 
     #[test]
     fn fright_masks_show_in_cells() {
-        let theme = &themes::EMBER_WARREN;
+        let theme = &themes::DUSK_POND;
         let mut g = game();
         g.wardens.start_fright(6.0);
         let l = layout::compute(100, 40);

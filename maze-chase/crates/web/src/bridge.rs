@@ -265,6 +265,12 @@ pub extern "C" fn mc_theme_count() -> u32 {
     WebSession::theme_count()
 }
 
+/// Copy the active theme's display name to `out` (capacity `cap`).
+#[no_mangle]
+pub extern "C" fn mc_theme_name(out: *mut u8, cap: u32) -> u32 {
+    write_bytes(out, cap, session().theme().name.as_bytes())
+}
+
 /// Set theme by index (ignored when out of range).
 #[no_mangle]
 pub extern "C" fn mc_set_theme(index: u32) {
@@ -646,6 +652,19 @@ mod tests {
         assert_eq!(mc_score_count(), 2);
         mc_scores_clear();
         assert_eq!(mc_score_count(), 0);
+    }
+
+    #[test]
+    fn theme_name_round_trips_and_clips() {
+        mc_set_theme(0);
+        let mut buf = [0u8; 32];
+        let n = mc_theme_name(buf.as_mut_ptr(), 32) as usize;
+        assert_eq!(&buf[..n], b"Dusk Pond");
+        // A short cap clips rather than overflowing.
+        let mut tiny = [0u8; 4];
+        assert_eq!(mc_theme_name(tiny.as_mut_ptr(), 4), 4);
+        assert_eq!(&tiny, b"Dusk");
+        assert_eq!(mc_theme_name(std::ptr::null_mut(), 8), 0);
     }
 
     #[test]

@@ -74,8 +74,36 @@ pub fn preset(d: Difficulty) -> EnginePreset {
     }
 }
 
-/// Known theme ids accepted by [`Settings::validate`].
-pub const KNOWN_THEMES: [&str; 3] = ["ember-warren", "abyss-lantern", "parchment-dawn"];
+/// Launch theme ids in cycle order.
+pub const KNOWN_THEMES: [&str; 3] = ["dusk-pond", "morning-shallows", "moonwake"];
+
+/// Map a legacy pre-refresh theme id to its Pondwake successor.
+///
+/// Returns `None` for canonical ids and unknown strings; callers keep the
+/// canonical id as-is and let [`Settings::validate`] explain unknowns.
+pub fn canonical_theme_id(id: &str) -> Option<&'static str> {
+    match id {
+        "ember-warren" => Some("dusk-pond"),
+        "abyss-lantern" => Some("moonwake"),
+        "parchment-dawn" => Some("morning-shallows"),
+        _ => None,
+    }
+}
+
+/// Player-facing label for a launch or legacy theme id.
+pub fn theme_label(id: &str) -> String {
+    match canonical_theme_id(id).unwrap_or(id) {
+        "dusk-pond" => "Dusk Pond".to_string(),
+        "morning-shallows" => "Morning Shallows".to_string(),
+        "moonwake" => "Moonwake".to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// Whether `id` is a known launch or legacy theme id.
+pub fn is_known_theme_id(id: &str) -> bool {
+    KNOWN_THEMES.contains(&id) || canonical_theme_id(id).is_some()
+}
 
 /// Player-facing settings (audio, theme, accessibility).
 #[derive(Clone, PartialEq, Debug)]
@@ -93,7 +121,7 @@ pub struct Settings {
 
 impl Settings {
     /// Default settings for one difficulty. Volumes are 0.8 / 0.7 / 0.9,
-    /// unmuted, theme `"ember-warren"`, contrast / fps flags off; only
+    /// unmuted, theme `"dusk-pond"`, contrast / fps flags off; only
     /// `reduced_flash` varies (on for Cozy, off otherwise).
     pub fn for_difficulty(d: Difficulty) -> Self {
         Self {
@@ -102,7 +130,7 @@ impl Settings {
             music: 0.7,
             sfx: 0.9,
             mute: false,
-            theme: "ember-warren".to_string(),
+            theme: "dusk-pond".to_string(),
             reduced_flash: matches!(d, Difficulty::Cozy),
             high_contrast: false,
             show_fps: false,
@@ -124,7 +152,7 @@ impl Settings {
         }
         if self.theme.trim().is_empty() {
             problems.push("theme id must be non-empty".to_string());
-        } else if !KNOWN_THEMES.contains(&self.theme.as_str()) {
+        } else if !is_known_theme_id(&self.theme) {
             problems.push(format!(
                 "unknown theme '{}' (known: {})",
                 self.theme,
@@ -154,7 +182,7 @@ mod tests {
         assert!((s.music - 0.7).abs() < 1e-6);
         assert!((s.sfx - 0.9).abs() < 1e-6);
         assert!(!s.mute);
-        assert_eq!(s.theme, "ember-warren");
+        assert_eq!(s.theme, "dusk-pond");
         assert!(!s.reduced_flash);
         assert!(!s.high_contrast);
         assert!(!s.show_fps);

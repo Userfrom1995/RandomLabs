@@ -81,7 +81,7 @@ fn corrupt_config_files_never_kill_boot() {
 
 #[test]
 fn tiny_and_zero_windows_never_panic() {
-    let theme = &themes::EMBER_WARREN;
+    let theme = &themes::DUSK_POND;
     let game = Game::new(99, 1);
     // render_play: zero sizes report None, tiny sizes draw the too-small card.
     assert!(render::render_play(&game, theme, sample_hud(), 0, 0).is_none());
@@ -101,7 +101,7 @@ fn tiny_and_zero_windows_never_panic() {
 
 #[test]
 fn frame_border_with_oversize_thickness_never_panics() {
-    let theme = &themes::EMBER_WARREN;
+    let theme = &themes::DUSK_POND;
     let mut f = Frame::blank(10, 10, theme.bg).unwrap();
     // Thickness far beyond the frame must clamp, never bleed or panic.
     f.border(0, 0, 10, 10, 99, theme.wall);
@@ -190,7 +190,7 @@ fn desktop_cli_stays_strict() {
 
 #[test]
 fn ppm_screenshot_has_valid_header() {
-    let theme = &themes::EMBER_WARREN;
+    let theme = &themes::DUSK_POND;
     let game = Game::new(99, 1);
     let frame = render::render_play(&game, theme, sample_hud(), 1100, 760).unwrap();
     let ppm = frame.to_ppm();

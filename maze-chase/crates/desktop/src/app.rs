@@ -135,10 +135,10 @@ impl App {
         app
     }
 
-    /// Theme for the current settings (unknown ids fall back to Ember).
+    /// Theme for the current settings (unknown ids fall back to Dusk Pond).
     pub fn theme(&self) -> &'static maze_chase_assets::themes::Theme {
         maze_chase_assets::themes::by_id(&self.settings.theme)
-            .unwrap_or(&maze_chase_assets::themes::EMBER_WARREN)
+            .unwrap_or(&maze_chase_assets::themes::DUSK_POND)
     }
 
     fn save_settings(&self) {
@@ -766,7 +766,7 @@ mod tests {
         assert_eq!(app.screens.current, ScreenId::Paused);
         let frame = app.render(1100, 760).unwrap();
         // Board geometry still paints under the pause panel.
-        let wall = maze_chase_assets::themes::EMBER_WARREN.wall;
+        let wall = maze_chase_assets::themes::DUSK_POND.wall;
         assert!(frame.count(wall) > 100);
         let _ = std::fs::remove_dir_all(&app.dir);
     }

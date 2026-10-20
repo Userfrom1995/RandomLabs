@@ -27,9 +27,9 @@ relish bonuses on a 70/170 schedule with level tiers, pursuer stages,
 spare wick, death/respawn, level flow, gatehouse counters with idle
 release, four extra mode rulesets, seeded streams, replay log, state
 hash, 19-row verify harness green). The identity system is original art
-and sound data with settings: 11x11 Pip and warden sprites with
+and sound data with settings: 11x11 Rill and warden sprites with
 shape-distinct accents, fright masks, eye pairs, six relish icons,
-three contrast-checked themes, every engine event routed to an audio
+the three contrast-checked Pondwake themes, every engine event routed to an audio
 cue with five original tunes, and difficulty/keymap/persistence with
 honest engine presets. The terminal game (`crates/terminal`) plays the
 full hunt fullscreen: Kitty pixel graphics, Sixel pixels after a live
@@ -70,7 +70,7 @@ and the parity gate in `docs/parity.md`.
 - **Identity system** (`crates/assets`, `crates/audio`,
   `crates/config`, done): original 11x11 sprite glyphs with a
   shared legend and derived facings, animation clips and flash/bob
-  timing, three contrast-checked themes, every engine event routed to
+  timing, the three contrast-checked Pondwake themes, every engine event routed to
   an audio cue with five original tunes and synthesized SFX recipes
   behind a backend-agnostic `Audio` trait, and difficulty presets
   (Cozy/Classic-from-L1, Standard/Classic-from-L2, Harsh/Sprint), keymap
