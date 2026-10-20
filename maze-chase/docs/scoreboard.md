@@ -313,6 +313,15 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   1.99.0 toolchain to sha256 `68e331b2...` (206,711 bytes, second clean
   build byte-identical), and `tester-regression.js` (fright HUD ABI and
   drain assertions) plus `wasm-smoke.js` are ALL GREEN.
+- Tester verification round (head `e78035c57`): the full workspace run
+  recorded 552 passed / 0 failed across 60 targets, with harness 47/47,
+  `maze-chase-verify` 19/19 (golden replay `23c17f89734e`, 0.2 us/tick),
+  `cargo fmt --all --check` clean, and the committed wasm
+  `68e331b2...` (206,711 bytes) matching `docs/web.md`. The cold
+  headless-chromium `browser-e2e.js` passed 51/51 assertions with zero
+  console errors, the desktop `--probe 90` stayed byte-identical to
+  `docs/desktop-probe.ppm`, and the terminal PTY ran live at 143x64 and
+  170x64.
 - Desktop Xvfb `--probe 30` stays byte-identical to
   `docs/desktop-probe.ppm`
   (sha256 `dcb33b7de14cbbd27205d07d707854eb574e1ccc938afca417eaf8d624088421`);
