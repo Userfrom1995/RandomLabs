@@ -41,7 +41,7 @@ Golden Lily bloom; the desktop and browser canvases add score floaters,
 and the web settings panel shows the active theme name. Accessibility gates (text/bg,
 fright/wall, eyes/wall, hunter separation, light/dark) pass, the golden
 replay digest is unchanged (`23c17f89734e`), and the wasm rebuild is
-committed (`346ef9b8...`, 206,295 bytes). The title and pause surfaces
+committed (`68e331b2...`, 206,711 bytes). The title and pause surfaces
 now stage the live game: terminal and desktop paint a dimmed attract
 board behind centered cards, the browser overlays a fixed title card
 with a visible Start action and a header Pause control, and the pause
@@ -74,7 +74,7 @@ rows.
 Workspace gates: public count 550 across 59 targets (the full rerun
 remains the Tester's gate), harness contract 47/47, `maze-chase-verify`
 19/19 (`23c17f89734e`; `perf-headless` 0.2-0.4 us/tick on CI reruns),
-wasm sha256 `346ef9b8...`, `cargo fmt --all --check` clean, and clippy
+wasm sha256 `68e331b2...`, `cargo fmt --all --check` clean, and clippy
 reports only the pre-existing engine style lints.
 
 Delegation ledger (round 5): no subagents were dispatched; the primary
@@ -1157,4 +1157,19 @@ Next: Phase 5 (sound design overhaul).
   Tester, matching `docs/scoreboard.md`. Documentation-only change; no code,
   wasm, or evidence was touched. Single-file fix with the file already open,
   so no subagents were dispatched. No registry skill matched; none loaded.
+  - the Fixer
+
+- 2026-10-20 (fixer, Pondwake Tester round on `f00dffdb`): exported the
+  missing `mc_fright_segments` bridge entry (`crates/web/src/bridge.rs`),
+  so the browser HUD countdown drains instead of throwing inside
+  `updateHud`'s swallowing catch. Rebuilt the wasm with the recorded
+  Rust 1.99.0 toolchain (rustc commit `b940084d7`) to sha256
+  `68e331b279f1a86379b47ce27d172d9e58895835ccfb87c2bede238b77dd1374`
+  (206,711 bytes), reproduced byte-identically by a second clean build,
+  and refreshed the current-state hash and size claims in `docs/web.md`,
+  `docs/release.md`, `docs/feature-matrix.md`, and this file's summary
+  and gates paragraphs. `tester-regression.js` (including the new fright
+  HUD ABI section) and `wasm-smoke.js` are ALL GREEN. Single-file code
+  fix, so no subagents were dispatched. No registry skill matched; none
+  loaded.
   - the Fixer
