@@ -113,12 +113,13 @@ fn paint_glyph(
     }
 }
 
-/// Right-facing Pip glyph for a mouth phase (0 open, 1 mid, 2 closed).
-fn pip_glyph(phase: usize) -> &'static [&'static str] {
-    match phase % 3 {
-        0 => &sprites::PIP_RIGHT,
-        1 => &sprites::PIP_RIGHT_MID,
-        _ => &sprites::PIP_CLOSED,
+/// Engine heading mapped onto the shared authored-sheet selector.
+fn facing_of(dir: Dir) -> sprites::Facing {
+    match dir {
+        Dir::Right => sprites::Facing::Right,
+        Dir::Left => sprites::Facing::Left,
+        Dir::Up => sprites::Facing::Up,
+        Dir::Down => sprites::Facing::Down,
     }
 }
 
@@ -223,19 +224,17 @@ pub fn render_board(game: &Game, theme: &Theme, frame_no: u64, flash: bool) -> F
         );
     }
 
-    // One 300 ms lantern sweep across the board while the level clear is
-    // playing (presentation only).
-    if game.state == GameState::Clearing {
-        if let Some(p) = anim::level_clear_sweep(game.state_elapsed()) {
-            let band = (PPT * 2) as u32;
-            let x = (p * frame.w as f32) as u32;
-            let tint = mix(theme.bg, theme.accent, 0.45);
-            for bx in x..(x + band).min(frame.w) {
-                for y in 0..frame.h as i32 {
-                    frame.set(bx as i32, y, tint);
-                }
-            }
-        }
+    // One pickup ripple per crumb or sunseed, below the actors.
+    if let Some((anchor, idx)) = game.fx.pickup_burst() {
+        paint_glyph(
+            &mut frame,
+            &sprites::PICKUP_BURST[idx],
+            (anchor.x * PPT as f32) as i32,
+            (anchor.y * PPT as f32) as i32,
+            theme.accent,
+            theme.text,
+            theme.eyes,
+        );
     }
 
     // Wardens under Pip (Pip paints last).
@@ -317,35 +316,116 @@ pub fn render_board(game: &Game, theme: &Theme, frame_no: u64, flash: bool) -> F
         (game.player.y * PPT as f32) as i32,
     );
     if game.state == GameState::Dying {
-        // Four frames at 100 ms each at the 60 fps render cadence.
-        let clip: &[&str] = sprites::PIP_DEATH[(frame_no as usize / 6) % 4];
+        let clip: &[&str] = sprites::PIP_DEATH[anim::death_frame(game.state_elapsed())];
         paint_glyph(
             &mut frame, clip, pcx, pcy, theme.pip, theme.text, theme.eyes,
         );
     } else {
-        let phase = (frame_no / 5) as usize % 3;
-        let right = pip_glyph(phase);
-        // Derive the facing from the stored right-facing art, mirroring
-        // the documented sprite transforms (never duplicate art).
-        let facing: Vec<String> = match game.player.dir {
-            Dir::Right => right.iter().map(|s| s.to_string()).collect(),
-            Dir::Left => sprites::flip_horizontal(right),
-            Dir::Down => sprites::rotate_cw(right),
-            Dir::Up => {
-                let down = sprites::rotate_cw(right);
-                let d2: Vec<&str> = down.iter().map(|s| s.as_str()).collect();
-                let up1 = sprites::rotate_cw(&d2);
-                let u1: Vec<&str> = up1.iter().map(|s| s.as_str()).collect();
-                sprites::rotate_cw(&u1)
-            }
-        };
-        let refs: Vec<&str> = facing.iter().map(|s| s.as_str()).collect();
+        let phase = game.fx.gulp_phase().unwrap_or((frame_no / 5) as usize % 3);
+        let rows = sprites::pip_facing_rows(phase, facing_of(game.player.dir), 11);
+        let refs: Vec<&str> = rows.iter().map(|s| s.as_str()).collect();
+        let hop = game.fx.hop_frame().map(sprites::hop_offset).unwrap_or(0);
         paint_glyph(
-            &mut frame, &refs, pcx, pcy, theme.pip, theme.text, theme.eyes,
+            &mut frame,
+            &refs,
+            pcx,
+            pcy + hop,
+            theme.pip,
+            theme.text,
+            theme.eyes,
         );
     }
 
+    // Committed-turn spark above Pip, then the spare-wick bloom.
+    if let Some(anchor) = game.fx.turn_spark() {
+        paint_glyph(
+            &mut frame,
+            &sprites::TURN_SPARK,
+            (anchor.x * PPT as f32) as i32,
+            (anchor.y * PPT as f32) as i32,
+            theme.text,
+            theme.text,
+            theme.text,
+        );
+    }
+    if let Some(idx) = game.fx.lily_frame() {
+        paint_glyph(
+            &mut frame,
+            &sprites::GOLDEN_LILY[idx],
+            (BOARD_W / 2) as i32,
+            (BOARD_H / 2) as i32,
+            theme.accent,
+            theme.text,
+            theme.eyes,
+        );
+    }
+
+    // Lantern sweep after the actors, then the lily-crown banner, exactly
+    // like the shared raster.
+    if game.state == GameState::Clearing {
+        if let Some(p) = anim::level_clear_sweep(game.state_elapsed()) {
+            let band = (PPT * 2) as u32;
+            let x = (p * frame.w as f32) as u32;
+            let tint = mix(theme.bg, theme.accent, 0.45);
+            for bx in x..(x + band).min(frame.w) {
+                for y in 0..frame.h as i32 {
+                    frame.set(bx as i32, y, tint);
+                }
+            }
+        }
+        if anim::level_clear_banner_on(game.state_elapsed()) {
+            paint_glyph(
+                &mut frame,
+                &sprites::LILY_CROWN,
+                (BOARD_W / 2) as i32,
+                (BOARD_H / 2) as i32,
+                theme.accent,
+                theme.text,
+                theme.eyes,
+            );
+        }
+    }
+
+    // Rising score floaters on an opaque plate (desktop and web only).
+    for (floater, progress) in game.fx.floaters() {
+        paint_floater(&mut frame, &floater, progress, theme);
+    }
+
     frame
+}
+
+/// One floater: 5x7 numerals rising 8 px over 500 ms on an opaque plate.
+fn paint_floater(
+    frame: &mut Frame,
+    floater: &maze_chase_engine::effects::Floater,
+    progress: f32,
+    theme: &Theme,
+) {
+    const PPT: i32 = BOARD_PPT as i32;
+    let text = floater.points.to_string();
+    let rise = (progress * 8.0) as i32;
+    let cx = (floater.x * PPT as f32) as i32;
+    let cy = (floater.y * PPT as f32) as i32 - rise;
+    let w = text.chars().count() as i32 * 6 - 1;
+    let x0 = cx - w / 2;
+    let y0 = cy - 3;
+    for y in y0 - 1..y0 + 8 {
+        for x in x0 - 1..x0 + w + 1 {
+            frame.set(x, y, theme.bg);
+        }
+    }
+    for (i, ch) in text.chars().enumerate() {
+        let digit = ch.to_digit(10).unwrap_or(0) as usize;
+        let glyph = &sprites::DIGITS[digit];
+        let x = x0 + i as i32 * 6;
+        for (gy, row) in glyph.iter().enumerate() {
+            for (gx, ink) in row.bytes().enumerate() {
+                if ink == b'#' {
+                    frame.set(x + gx as i32, y0 + gy as i32, theme.text);
+                }
+            }
+        }
+    }
 }
 
 /// Integer-fit of the board inside a canvas: whole-pixel scale plus the
@@ -512,6 +592,64 @@ mod tests {
             let f = render_board(&g, &themes::DUSK_POND, 3, true);
             assert!(f.count(themes::DUSK_POND.pip) > 10, "{dir:?}");
         }
+    }
+
+    #[test]
+    fn effects_and_death_follow_the_shared_clocks() {
+        let theme = themes::DUSK_POND;
+        let mut g = fresh();
+        let base = render_board(&g, &theme, 0, true);
+        g.fx.pickup(g.player.x + 1.0, g.player.y);
+        assert_ne!(render_board(&g, &theme, 0, true).px, base.px);
+        g.fx.advance(0.3);
+        assert_eq!(render_board(&g, &theme, 0, true).px, base.px);
+
+        g.fx.turn(g.player.x, g.player.y);
+        assert_ne!(render_board(&g, &theme, 0, true).px, base.px);
+        g.fx.advance(0.2);
+        g.fx.spare_wick();
+        assert_ne!(render_board(&g, &theme, 0, true).px, base.px);
+        g.fx.advance(0.6);
+        assert_eq!(render_board(&g, &theme, 0, true).px, base.px);
+
+        // Death: 100 ms frames from the state clock, then hold frame 3.
+        let mut g = fresh();
+        g.kill_player();
+        for _ in 0..60 {
+            g.tick(1.0 / 120.0);
+        }
+        let held = render_board(&g, &theme, 0, true);
+        for _ in 0..12 {
+            g.tick(1.0 / 120.0);
+        }
+        assert_eq!(render_board(&g, &theme, 0, true), held);
+    }
+
+    #[test]
+    fn up_and_down_use_authored_sheets() {
+        let theme = themes::DUSK_POND;
+        let mut g = fresh();
+        g.player.dir = Dir::Up;
+        let up = render_board(&g, &theme, 0, true);
+        g.player.dir = Dir::Down;
+        let down = render_board(&g, &theme, 0, true);
+        assert_ne!(up.px, down.px);
+    }
+
+    #[test]
+    fn level_clear_sweep_paints_after_the_actors() {
+        let theme = themes::DUSK_POND;
+        let mut g = fresh();
+        g.state = GameState::Clearing;
+        for _ in 0..18 {
+            g.tick(1.0 / 120.0);
+        }
+        let f = render_board(&g, &theme, 0, true);
+        let p = anim::level_clear_sweep(g.state_elapsed()).expect("sweep window");
+        let x = (p * f.w as f32) as i32;
+        let tint = mix(theme.bg, theme.accent, 0.45);
+        assert_eq!(f.get(x + 1, 0), Some((tint.0, tint.1, tint.2, 255)));
+        assert_eq!(f.get(x + 1, 1), Some((tint.0, tint.1, tint.2, 255)));
     }
 
     #[test]
