@@ -641,12 +641,16 @@ fn overlay_pause(
         .unwrap_or(0)
         + 48;
     let h = font::text_height(entries.len() + 1, 2) + 40;
-    let x = frame.w as i32 / 2 - w as i32 / 2;
-    let mut y = frame.h as i32 / 2 - h as i32 / 2;
+    // The pause card stages over the frozen board, not the middle of the
+    // page: wide windows carry a right-hand HUD, so page center is not
+    // board center.
+    let (cx, cy) = crate::render::stage_center(frame.w, frame.h);
+    let x = cx - w as i32 / 2;
+    let mut y = cy - h as i32 / 2;
     frame.rect(x, y, w, h, theme.bg);
     frame.border(x, y, w, h, 2, theme.accent);
     y += 16;
-    frame.text_centered("PAUSED", frame.w as i32 / 2, y, 2, theme.accent, None);
+    frame.text_centered("PAUSED", cx, y, 2, theme.accent, None);
     y += font::LINE as i32 * 2 + 8;
     for (i, e) in entries.iter().enumerate() {
         let color = if i == screens.pause_menu {
@@ -654,7 +658,7 @@ fn overlay_pause(
         } else {
             theme.text
         };
-        frame.text_centered(e, frame.w as i32 / 2, y, 2, color, None);
+        frame.text_centered(e, cx, y, 2, color, None);
         y += font::LINE as i32 * 2 + 4;
     }
 }
@@ -709,6 +713,43 @@ mod tests {
             let frame = app.render(1100, 760).unwrap();
             assert_eq!((frame.w, frame.h), (1100, 760));
         }
+        let _ = std::fs::remove_dir_all(&app.dir);
+    }
+
+    #[test]
+    fn pause_card_stages_over_the_board_not_the_page() {
+        let mut app = test_app("pause-card");
+        app.screens.show(ScreenId::Paused);
+        let (w, h) = (1440u32, 900u32);
+        let frame = app.render(w, h).unwrap();
+        let entries: Vec<String> = screens::PauseItem::ALL
+            .iter()
+            .enumerate()
+            .map(|(i, m)| {
+                if i == app.screens.pause_menu {
+                    format!("> {}", m.label())
+                } else {
+                    format!("  {}", m.label())
+                }
+            })
+            .collect();
+        let card_w = entries
+            .iter()
+            .map(|e| crate::font::text_width(e, 2))
+            .max()
+            .unwrap_or(0)
+            + 48;
+        let card_h = crate::font::text_height(entries.len() + 1, 2) + 40;
+        let theme = app.theme();
+        let (cx, cy) = crate::render::stage_center(w, h);
+        let x = cx - card_w as i32 / 2;
+        let y = cy - card_h as i32 / 2;
+        assert_eq!(
+            frame.get(x, y),
+            Some(crate::frame::pack(theme.accent)),
+            "pause card origin must sit on the board center"
+        );
+        assert_ne!(x, w as i32 / 2 - card_w as i32 / 2, "not page-centered");
         let _ = std::fs::remove_dir_all(&app.dir);
     }
 
