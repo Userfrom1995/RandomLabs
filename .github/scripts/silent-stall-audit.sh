@@ -15,7 +15,9 @@
 # issue #620: transient provider FreeTierError rejection / bounded
 # same-model retry; and by issue #653: transient provider 429/5xx terminal
 # deaths / bounded same-model retry plus the provider-stall inactivity
-# watchdog; the maintainer runner's only allowed step conditional is
+# watchdog; and by issue #669: the provider's 403 abusive-traffic egress-IP
+# block / named unconditional fast-fail with fresh-run recovery; the
+# maintainer runner's only allowed step conditional is
 # the shared actor-write gate, issue #696), the R16 shallow-workspace PAT merge guard (issue #602:
 # a depth-limited opencode CLI
 # session fetch re-shallows the Maintainer checkout, and merge-base-dependent
@@ -1314,6 +1316,34 @@ fi
 #      modified non-comment line anywhere in the block fails
 #      `${label}(run-block-not-exact)` alone; the region pins above remain
 #      for precise failure labels.
+#   8. issue #669: both runner paths also carry a NAMED blocked-egress-IP
+#      fast-fail. The provider rejects a runner's egress IP with HTTP 403 and
+#      one of two observed FreeTierError terminal forms (`Forbidden, OpenCode
+#      Free Model Gateway Detect Abuse Traffic`, or the long "OpenCode's free
+#      models aren't available from your current network ..." message), in
+#      `AI_APICallError:`/`APIError:`/`Error:` prefix forms. That class is
+#      deliberately NOT retried: both 2026-10-18 incidents died on the
+#      session's first provider call within 8-20 seconds, consistent with the
+#      runner's egress IP already being blocked at job start, so a same-runner
+#      retry would hit the same IP. A `grep -q` early exit can SIGPIPE `tail`
+#      (141) whenever the 40-line window exceeds the 64 KiB pipe buffer, the
+#      detection is wrapped `( set +o pipefail; ... )` and bootstrapped in
+#      both paths; the classification sits ahead of the exit-shape split so
+#      BOTH shapes are covered and exits 1 unconditionally (never `exit
+#      "$status"`, which would conclude the exit-0 shape green), prints a
+#      canonical `::error::` naming the class and the fresh-run recovery
+#      (crash-parity triage re-dispatches onto a new runner), consumes no
+#      retry budget, and never advances the ladder. The detector is executed
+#      functionally like the #591/#620/#653 pair (both terminal forms and all
+#      three prefix forms match; indented tool-call echo / responseBody
+#      envelope / trailing suffix / phrase variant / uppercase / stale
+#      beyond the tail window do not; the tail-window lower-bound pair), and
+#      the behavioral matrix adds `ip-block`, `ip-block0`, `ip-block7`, and
+#      `ip-block-stderr`: exactly one attempt on the first rung, no recorded
+#      backoff, no rung advance, rc 1, and the canonical message for both
+#      exit shapes, a non-1 provider status, and a stderr-carried line. The
+#      exact run-block pins and the pipefail-safe detector count now include
+#      the new detector (four).
 r15_bad=""
 # Review round 18 (issue #653 test integrity): every R15 step/run-block pin
 # used to extract its subject textually, so a block scalar carrying a decoy
@@ -2277,6 +2307,9 @@ freetier_error_terminal() {
 transient_http_error_terminal() {
 ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Rate limit exceeded\. Please try again later\.|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout)\.?$" )
 }
+ip_block_error_terminal() {
+( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic|OpenCode's free models aren't available from your current network because we've detected abusive traffic from this IP address\. This isn't related to your account\. If you're on a VPN or proxy, turn it off and try again, or subscribe to OpenCode Go at https://opencode\.ai/go to keep building\.)$" )
+}
 hang_idle_seconds="${HANG_IDLE_SECONDS:-600}"
 hang_poll_seconds="${HANG_POLL_SECONDS:-30}"
 case "$hang_idle_seconds" in ''|*[!0-9]*) hang_idle_seconds=600 ;; esac
@@ -2353,6 +2386,11 @@ exit 1
 fi
 if [ "$tee_status" -ne 0 ]; then
 echo "::error::could not capture the opencode log for model '$model' (tee exit $tee_status); failing loudly instead of risking a blind advance."
+rm -f "$log" "$fifo" "$hang_flag"
+exit 1
+fi
+if ip_block_error_terminal "$log"; then
+echo "::error::provider blocked this runner's egress IP (HTTP 403 abusive-traffic classification, issue #669) on model '$model'; this is not retryable from the same runner. Fresh-run recovery: a re-dispatch lands on a new runner with a new egress IP (the crash-parity triage already re-dispatches review/test/lab, and the Maintainer schedule covers its own arm)."
 rm -f "$log" "$fifo" "$hang_flag"
 exit 1
 fi
@@ -2446,6 +2484,9 @@ freetier_error_terminal() {
 transient_http_error_terminal() {
 ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Rate limit exceeded\. Please try again later\.|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout)\.?$" )
 }
+ip_block_error_terminal() {
+( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic|OpenCode's free models aren't available from your current network because we've detected abusive traffic from this IP address\. This isn't related to your account\. If you're on a VPN or proxy, turn it off and try again, or subscribe to OpenCode Go at https://opencode\.ai/go to keep building\.)$" )
+}
 hang_idle_seconds="${HANG_IDLE_SECONDS:-600}"
 hang_poll_seconds="${HANG_POLL_SECONDS:-30}"
 case "$hang_idle_seconds" in ''|*[!0-9]*) hang_idle_seconds=600 ;; esac
@@ -2522,6 +2563,11 @@ exit 1
 fi
 if [ "$tee_status" -ne 0 ]; then
 echo "::error::could not capture the Maintainer opencode log for model '$model' (tee exit $tee_status); failing loudly instead of risking a blind advance."
+rm -f "$log" "$fifo" "$hang_flag"
+exit 1
+fi
+if ip_block_error_terminal "$log"; then
+echo "::error::provider blocked this runner's egress IP (HTTP 403 abusive-traffic classification, issue #669) on model '$model'; this is not retryable from the same runner. Fresh-run recovery: a re-dispatch lands on a new runner with a new egress IP (the crash-parity triage already re-dispatches review/test/lab, and the Maintainer schedule covers its own arm)."
 rm -f "$log" "$fifo" "$hang_flag"
 exit 1
 fi
@@ -2627,10 +2673,10 @@ r15_freetier_pins() {
   [ "$(grep -cE '^[[:space:]]*if \[ "\$tee_status" -ne 0 \]; then$' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(tee-guard-decoyed-or-missing)"
   # The live detectors must carry the pipefail-safe wrap (issue #653 review
   # F1): the exact `( set +o pipefail; tail -n 40 "$1" | grep -qE` shape,
-  # three times (model/freetier/transient-http). The functional big-window
-  # fixtures below prove the semantics; this pin catches a shape drift or a
-  # partial unwrap cheaply.
-  [ "$(grep -cE '^[[:space:]]*\( set \+o pipefail; tail -n 40 "\$1" \| grep -qE' "$f" || true)" = "3" ] || r15_bad="${r15_bad} ${label}(detectors-not-pipefail-safe-tail-scoped-live)"
+  # four times (model/freetier/transient-http/ip-block, issue #669). The
+  # functional big-window fixtures below prove the semantics; this pin catches
+  # a shape drift or a partial unwrap cheaply.
+  [ "$(grep -cE '^[[:space:]]*\( set \+o pipefail; tail -n 40 "\$1" \| grep -qE' "$f" || true)" = "4" ] || r15_bad="${r15_bad} ${label}(detectors-not-pipefail-safe-tail-scoped-live)"
   # Loud persistence, exact-form and branch-tied: each persistent-rejection
   # branch must end in the nonzero exit matching its own message, so a
   # compensated swap (one branch's loud exit moved to the other, with the
@@ -2666,6 +2712,22 @@ r15_freetier_pins() {
   [ "$n" = "1" ] || r15_bad="${r15_bad} ${label}(persistent-transient-http-exit-0-path-not-loud)"
   n=$(grep -A2 -F "persistent HTTP error on model '\$model' (exit \$status) after the bounded retry" "$f" | grep -cE '^[[:space:]]*exit "\$status"$' || true)
   [ "$n" = "1" ] || r15_bad="${r15_bad} ${label}(persistent-transient-http-exit-status-path-not-loud)"
+  # Issue #669 element-presence pins: the blocked-egress-IP class is a NAMED
+  # fast-fail, not a retry (the block is runner-specific; a same-runner retry
+  # would hit the same IP). Exactly one detector and exactly one wired
+  # classification ahead of the exit-shape split (so BOTH exit shapes are
+  # covered), the canonical message, and an unconditional loud `exit 1`
+  # immediately after it. The negative side (no retry budget, no backoff, no
+  # rung advance) is bound behaviorally by the ip-block scenarios: exactly one
+  # attempt on the first rung with no recorded sleep.
+  grep -qF 'ip_block_error_terminal() {' "$f" || r15_bad="${r15_bad} ${label}(no-ip-block-detector)"
+  fn=$(sed -n '/ip_block_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$f" | sed 's/^[[:space:]]*//')
+  printf '%s\n' "$fn" | grep -qF '( set +o pipefail; tail -n 40 "$1" | grep -qE' || r15_bad="${r15_bad} ${label}(ip-block-detector-not-pipefail-safe-tail-scoped)"
+  printf '%s\n' "$fn" | grep -qF "(Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic|OpenCode's free models aren't available from your current network because we've detected abusive traffic from this IP address\. This isn't related to your account\. If you're on a VPN or proxy, turn it off and try again, or subscribe to OpenCode Go at https://opencode\.ai/go to keep building\.)\$" || r15_bad="${r15_bad} ${label}(no-anchored-ip-block-terminal-form)"
+  [ "$(grep -cE '^[[:space:]]*if ip_block_error_terminal "\$log"; then$' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(ip-block-detector-not-wired-once)"
+  [ "$(grep -cF 'provider blocked this runner' "$f" || true)" = "1" ] || r15_bad="${r15_bad} ${label}(no-canonical-ip-block-message)"
+  n=$(grep -A2 -F "provider blocked this runner's egress IP" "$f" | grep -cE '^[[:space:]]*exit 1$' || true)
+  [ "$n" = "1" ] || r15_bad="${r15_bad} ${label}(ip-block-fast-fail-not-unconditional-exit-1)"
   grep -qF 'mkfifo "$fifo"' "$f" || r15_bad="${r15_bad} ${label}(no-fifo-capture-shape)"
   grep -qF 'mkfifo is unavailable on this runner' "$f" || r15_bad="${r15_bad} ${label}(no-loud-mkfifo-fallback)"
   grep -qF 'HANG_IDLE_SECONDS' "$f" || r15_bad="${r15_bad} ${label}(no-stall-idle-knob)"
@@ -3026,6 +3088,9 @@ sed -n '/model_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$MAIN_WF" > 
 # Issue #653: the transient-HTTP detector pair, extracted the same way.
 sed -n '/transient_http_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$ACTION_FILE" > "$r15_fn_dir/action-http.fn" 2>/dev/null || true
 sed -n '/transient_http_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$MAIN_WF" > "$r15_fn_dir/maint-http.fn" 2>/dev/null || true
+# Issue #669: the blocked-egress-IP detector pair, extracted the same way.
+sed -n '/ip_block_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$ACTION_FILE" > "$r15_fn_dir/action-ip.fn" 2>/dev/null || true
+sed -n '/ip_block_error_terminal() {/,/^[[:space:]]*}[[:space:]]*$/p' "$MAIN_WF" > "$r15_fn_dir/maint-ip.fn" 2>/dev/null || true
 cat > "$r15_fn_dir/terminal.txt" <<'R15EOF'
 AI_APICallError: OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building.
 APIError: OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building.
@@ -3168,6 +3233,53 @@ R15EOF
 for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40; do
   printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/http-window40.txt"
 done
+# Issue #669 functional fixtures for ip_block_error_terminal: both terminal
+# forms observed live (the short gateway message and the long network
+# message), in every prefix form the wrapper emits, must match; an indented
+# tool-call echo, the responseBody JSON envelope, a suffixed line, a phrase
+# variant, an uppercase line, and a line stale beyond the tail window must
+# not. The window lower-bound pair pins the window to exactly 40 lines here
+# too.
+cat > "$r15_fn_dir/ip-terminal.txt" <<'R15EOF'
+AI_APICallError: Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic
+APIError: Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic
+AI_APICallError: OpenCode's free models aren't available from your current network because we've detected abusive traffic from this IP address. This isn't related to your account. If you're on a VPN or proxy, turn it off and try again, or subscribe to OpenCode Go at https://opencode.ai/go to keep building.
+APIError: OpenCode's free models aren't available from your current network because we've detected abusive traffic from this IP address. This isn't related to your account. If you're on a VPN or proxy, turn it off and try again, or subscribe to OpenCode Go at https://opencode.ai/go to keep building.
+R15EOF
+cat > "$r15_fn_dir/ip-echo.txt" <<'R15EOF'
+  | AI_APICallError: Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic
+Here is prose quoting the provider line above.
+R15EOF
+cat > "$r15_fn_dir/ip-envelope.txt" <<'R15EOF'
+  responseBody: "{\"type\":\"error\",\"error\":{\"type\":\"FreeTierError\",\"message\":\"Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic\"}}",
+R15EOF
+cat > "$r15_fn_dir/ip-suffix.txt" <<'R15EOF'
+AI_APICallError: Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic (quoted from a tool result)
+R15EOF
+cat > "$r15_fn_dir/ip-phrase-variant.txt" <<'R15EOF'
+AI_APICallError: OpenCode's free models aren't available from your current network because we've detected unusual traffic from this IP address.
+R15EOF
+cat > "$r15_fn_dir/ip-upper.txt" <<'R15EOF'
+AI_APICallError: FORBIDDEN, OPENCODE FREE MODEL GATEWAY DETECT ABUSE TRAFFIC
+R15EOF
+cat > "$r15_fn_dir/ip-stale.txt" <<'R15EOF'
+AI_APICallError: Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic
+R15EOF
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45; do
+  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/ip-stale.txt"
+done
+cat > "$r15_fn_dir/ip-window39.txt" <<'R15EOF'
+AI_APICallError: Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic
+R15EOF
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39; do
+  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/ip-window39.txt"
+done
+cat > "$r15_fn_dir/ip-window40.txt" <<'R15EOF'
+AI_APICallError: Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic
+R15EOF
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40; do
+  printf 'healthy tail line %s\n' "$i" >> "$r15_fn_dir/ip-window40.txt"
+done
 # Review F2: pipe-buffer-sized tail windows. Every `shell: bash` step runs as
 # `bash --noprofile --norc -eo pipefail` (production), and `grep -q` exits at
 # the first match while `tail` may still be writing: once the 40-line window
@@ -3190,6 +3302,7 @@ r15_write_big_window() {
 r15_write_big_window "AI_APICallError: OpenCode's free tier can only be used from within OpenCode. Download it at https://opencode.ai and keep building." "$r15_fn_dir/ft-bigwindow.txt"
 r15_write_big_window "Model not found: a-free. Did you mean: b-free?" "$r15_fn_dir/mnf-bigwindow.txt"
 r15_write_big_window "AI_APICallError: Internal Server Error" "$r15_fn_dir/http-bigwindow.txt"
+r15_write_big_window "AI_APICallError: Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic" "$r15_fn_dir/ip-bigwindow.txt"
 r15_detector_case() {
   local got
   ( set +e; set -o pipefail; . "$1" >/dev/null 2>&1; freetier_error_terminal "$3" ) >/dev/null 2>&1
@@ -3212,6 +3325,14 @@ r15_http_detector_case() {
   got=$?
   if [ "$got" != "$2" ]; then
     r15_bad="${r15_bad} http-detector-functional($(basename "$1"),$(basename "$3"),rc=$got,want=$2)"
+  fi
+}
+r15_ip_detector_case() {
+  local got
+  ( set +e; set -o pipefail; . "$1" >/dev/null 2>&1; ip_block_error_terminal "$3" ) >/dev/null 2>&1
+  got=$?
+  if [ "$got" != "$2" ]; then
+    r15_bad="${r15_bad} ip-detector-functional($(basename "$1"),$(basename "$3"),rc=$got,want=$2)"
   fi
 }
 for r15_fn in "$r15_fn_dir/action.fn" "$r15_fn_dir/maint.fn"; do
@@ -3262,6 +3383,23 @@ for r15_fn in "$r15_fn_dir/action-http.fn" "$r15_fn_dir/maint-http.fn"; do
   r15_http_detector_case "$r15_fn" 0 "$r15_fn_dir/http-window39.txt"
   r15_http_detector_case "$r15_fn" 1 "$r15_fn_dir/http-window40.txt"
   r15_http_detector_case "$r15_fn" 0 "$r15_fn_dir/http-bigwindow.txt"
+done
+for r15_fn in "$r15_fn_dir/action-ip.fn" "$r15_fn_dir/maint-ip.fn"; do
+  if [ ! -s "$r15_fn" ]; then
+    r15_bad="${r15_bad} ip-detector-functional($(basename "$r15_fn"),empty)"
+    continue
+  fi
+  r15_ip_detector_case "$r15_fn" 0 "$r15_fn_dir/ip-terminal.txt"
+  r15_ip_detector_case "$r15_fn" 1 "$r15_fn_dir/ip-echo.txt"
+  r15_ip_detector_case "$r15_fn" 1 "$r15_fn_dir/ip-envelope.txt"
+  r15_ip_detector_case "$r15_fn" 1 "$r15_fn_dir/other.txt"
+  r15_ip_detector_case "$r15_fn" 1 "$r15_fn_dir/ip-suffix.txt"
+  r15_ip_detector_case "$r15_fn" 1 "$r15_fn_dir/ip-phrase-variant.txt"
+  r15_ip_detector_case "$r15_fn" 1 "$r15_fn_dir/ip-upper.txt"
+  r15_ip_detector_case "$r15_fn" 1 "$r15_fn_dir/ip-stale.txt"
+  r15_ip_detector_case "$r15_fn" 0 "$r15_fn_dir/ip-window39.txt"
+  r15_ip_detector_case "$r15_fn" 1 "$r15_fn_dir/ip-window40.txt"
+  r15_ip_detector_case "$r15_fn" 0 "$r15_fn_dir/ip-bigwindow.txt"
 done
 rm -rf "$r15_fn_dir"
 # Issue #620 loop-level behavioral test (review F5): static pins and a
@@ -3335,6 +3473,7 @@ r15_behavioral() {
      || ! bash -n "$block" 2>/dev/null \
      || ! grep -qF 'freetier_error_terminal() {' "$block" \
      || ! grep -qF 'transient_http_error_terminal() {' "$block" \
+     || ! grep -qF 'ip_block_error_terminal() {' "$block" \
      || ! grep -qF 'mkfifo "$fifo"' "$block" \
      || [ "$(grep -cF 'opencode github run' "$block" || true)" != "2" ] \
      || [ "$(grep -vE '^[[:space:]]*$' "$block" | tail -n 1 | grep -cE '^[[:space:]]*exit 1$' || true)" != "1" ]; then
@@ -3393,6 +3532,19 @@ case "${R15_SCENARIO}:${n}" in
   deep-advance:*) echo "APIError: ${ft}"; exit 0 ;;
   unclassified:*) echo "some unrelated provider failure"; exit 5 ;;
   unclassified9:*) echo "some unrelated provider failure"; exit 9 ;;
+  # Issue #669: a blocked-egress-IP death (both observed provider forms, both
+  # exit shapes, a provider status other than 1, and a stderr-carried line) is
+  # a NAMED fast-fail: exactly one attempt on the first rung, no backoff, no
+  # rung advance, and an unconditional rc 1 so the exit-0 shape can never
+  # conclude green.
+  ip-block:1) echo "AI_APICallError: Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic"; exit 1 ;;
+  ip-block:*) echo "healthy success"; exit 0 ;;
+  ip-block0:1) echo "APIError: OpenCode's free models aren't available from your current network because we've detected abusive traffic from this IP address. This isn't related to your account. If you're on a VPN or proxy, turn it off and try again, or subscribe to OpenCode Go at https://opencode.ai/go to keep building."; exit 0 ;;
+  ip-block0:*) echo "healthy success"; exit 0 ;;
+  ip-block7:1) echo "APIError: Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic"; exit 7 ;;
+  ip-block7:*) echo "healthy success"; exit 0 ;;
+  ip-block-stderr:1) echo "AI_APICallError: Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic" >&2; exit 1 ;;
+  ip-block-stderr:*) echo "healthy success"; exit 0 ;;
   # Issue #653 scenarios: transient 429/5xx recovery on both exit shapes,
   # persistent loudness on both shapes, provider stalls (write nothing, keep
   # the process alive through the real sleep so the watchdog must kill it),
@@ -3824,6 +3976,19 @@ R15MKFIFO
   r15_behavioral_case budget-rungs 1 "a-free a-free b-free" "persistent free-tier rejection" ""
   r15_behavioral_case unclassified 5 "a-free" "" ""
   r15_behavioral_case unclassified9 9 "a-free" "" ""
+  # Issue #669 behavioral matrix: the blocked-egress-IP class is fast-failed
+  # in BOTH runner paths. Both observed provider forms, both exit shapes, a
+  # provider status other than 1, and a stderr-carried line must each produce
+  # exactly ONE attempt on the first rung (no same-model retry, no rung
+  # advance), NO recorded backoff, rc 1 (unconditional, so the exit-0 shape
+  # cannot conclude green), and the canonical class message. A retry or rung
+  # advance shows extra attempts; a silent green shows rc 0; a relocated or
+  # dropped classification falls through to the generic unclassified branch
+  # and fails the canonical-output assertion.
+  r15_behavioral_case ip-block 1 "a-free" "provider blocked this runner" ""
+  r15_behavioral_case ip-block0 1 "a-free" "provider blocked this runner" ""
+  r15_behavioral_case ip-block7 1 "a-free" "provider blocked this runner" ""
+  r15_behavioral_case ip-block-stderr 1 "a-free" "provider blocked this runner" ""
   # Issue #653 behavioral matrix: transient 429/5xx recovery on BOTH exit
   # shapes (nonzero and exit-0 terminal), the incident's exact 429 wording,
   # persistent loudness on both shapes with the provider's own status
@@ -8779,6 +8944,10 @@ fi
 # the same tail + column-0 terminal anchoring as the #591 detector
 # so a transcript echo or the responseBody JSON envelope never
 # consumes the retry; a second rejection fails loudly.
+# BLOCKED-EGRESS-IP FAST-FAIL (issue #669): the provider also rejects
+# a runner's egress IP with HTTP 403 abusive-traffic errors; that class
+# is named, fast-failed, and never retried on the same runner (a
+# fresh run on a new runner is the recovery), see the detector below.
 candidates="${MODEL_CANDIDATES:-}"
 if [ -z "$candidates" ]; then
   echo "::error::No model candidates resolved; refusing to run the Maintainer (the resolve step did not produce a candidate chain)."
@@ -8825,6 +8994,23 @@ freetier_error_terminal() {
 # responseBody JSON envelope cannot match the anchored whole-line form.
 transient_http_error_terminal() {
   ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Rate limit exceeded\. Please try again later\.|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout)\.?$" )
+}
+# Blocked-egress-IP detector (issue #669), same tail + column-0
+# terminal anchoring as the #591/#620/#653 detectors: the provider
+# rejects the runner's egress IP with HTTP 403 and one of two
+# FreeTierError forms (`Forbidden, OpenCode Free Model Gateway Detect
+# Abuse Traffic`, or the long "OpenCode's free models aren't available
+# from your current network ..." message). Both 2026-10-18 incidents
+# hit on the session's FIRST provider call within 8-20 seconds, which
+# is consistent with the runner's egress IP already being blocked when
+# the job starts, so this class is deliberately FAST-FAILED rather
+# than retried: a same-model retry from the same runner would hit the
+# same IP. The canonical error below names the class and the fresh-run
+# recovery path; crash-parity triage already re-dispatches onto a new
+# runner (review/curator owner auto-retry, test/lab via Maintainer
+# workflow_run triage, the Maintainer via its recurring schedule).
+ip_block_error_terminal() {
+  ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic|OpenCode's free models aren't available from your current network because we've detected abusive traffic from this IP address\. This isn't related to your account\. If you're on a VPN or proxy, turn it off and try again, or subscribe to OpenCode Go at https://opencode\.ai/go to keep building\.)$" )
 }
 # Provider-stall watchdog knobs (issue #653): an attempt whose captured
 # log does not grow for HANG_IDLE_SECONDS (checked every
@@ -8924,6 +9110,17 @@ for model in $candidates; do
     fi
     if [ "$tee_status" -ne 0 ]; then
       echo "::error::could not capture the Maintainer opencode log for model '$model' (tee exit $tee_status); failing loudly instead of risking a blind advance."
+      rm -f "$log" "$fifo" "$hang_flag"
+      exit 1
+    fi
+    # Blocked-egress-IP fast-fail (issue #669): checked before the
+    # exit-shape split so BOTH shapes are classified, and exits 1
+    # unconditionally (never `exit "$status"`, which would conclude an
+    # exit-0 provider death green). No retry budget is consumed and no
+    # backoff is spent: the block is runner-specific, so a fresh run
+    # on a new runner is the recovery, not an in-job retry.
+    if ip_block_error_terminal "$log"; then
+      echo "::error::provider blocked this runner's egress IP (HTTP 403 abusive-traffic classification, issue #669) on model '$model'; this is not retryable from the same runner. Fresh-run recovery: a re-dispatch lands on a new runner with a new egress IP (the crash-parity triage already re-dispatches review/test/lab, and the Maintainer schedule covers its own arm)."
       rm -f "$log" "$fifo" "$hang_flag"
       exit 1
     fi
