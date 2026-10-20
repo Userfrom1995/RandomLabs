@@ -19,19 +19,25 @@
 # refused when it actually carries an owner trailer. With nothing to strip the
 # step exits 0 loudly, so a general request on a human PR cannot red. A fork or
 # deleted-head PR is likewise a loud no-op: nothing on this repository can be
-# attributed to it.
+# attributed to it. A head branch that no longer exists on origin (a closed or
+# merged PR) is a loud no-op too, while a failed remote query still fails
+# closed.
 #
 # Usage: strip-trailers.sh (reads GITHUB_EVENT_PATH, GITHUB_REPOSITORY, GH_TOKEN)
-# Exit:  0 = nothing to sanitize, a non-same-repository PR, or trailers stripped
+# Exit:  0 = nothing to sanitize, a non-same-repository PR, an absent head
+#            branch, or trailers stripped
 #        1 = the target branch cannot be proven to belong to this work, or its
-#            trailer state cannot be read
+#            metadata/trailer state cannot be read, or the rewrite cannot be
+#            pushed
 
 set -euo pipefail
 
 event_path="${GITHUB_EVENT_PATH:?GITHUB_EVENT_PATH is required}"
 repo="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 
-if ! jq -e . "$event_path" >/dev/null 2>&1; then
+# A valid non-object payload (an array, a string) has no event fields; a bare
+# `jq -e .` accepts it and then fails later with a raw jq error.
+if ! jq -e 'type == "object"' "$event_path" >/dev/null 2>&1; then
   echo "Could not parse the workflow event payload; refusing to rewrite history."
   exit 1
 fi
@@ -72,9 +78,14 @@ pr_json="$(gh pr view "$pr_number" --repo "$repo" --json headRefName,isCrossRepo
   echo "Could not resolve PR #$pr_number; refusing to rewrite history."
   exit 1
 }
-branch="$(printf '%s' "$pr_json" | jq -r '.headRefName // empty')"
-cross_repo="$(printf '%s' "$pr_json" | jq -r '.isCrossRepository | tostring')"
-head_repo="$(printf '%s' "$pr_json" | jq -r '.headRepository.nameWithOwner // empty')"
+# Extract the three identity fields in one strict pass: a malformed or
+# non-object payload must fail loudly instead of leaking a raw jq error (rc 5)
+# from each bare substitution.
+pr_fields="$(printf '%s' "$pr_json" | jq -er '[.headRefName // "", (.isCrossRepository | tostring), (.headRepository.nameWithOwner // "")] | @tsv')" || {
+  echo "Could not parse the PR metadata for #$pr_number; refusing to rewrite history."
+  exit 1
+}
+IFS=$'\t' read -r branch cross_repo head_repo <<< "$pr_fields"
 
 if [ -z "$branch" ]; then
   echo "PR #$pr_number has no resolvable head branch; refusing to rewrite history."
@@ -102,6 +113,21 @@ if [ "$is_pr" != "yes" ]; then
       exit 1
       ;;
   esac
+fi
+
+# Distinguish a definitively absent head (a closed/merged PR whose branch was
+# deleted: `ls-remote --exit-code` returns 2) from a transport/auth error. The
+# former has nothing to sanitize and must stay a loud no-op, not the false red
+# this issue is fixing; the latter must still fail closed.
+ls_rc=0
+git ls-remote --exit-code --heads origin "refs/heads/$branch" >/dev/null 2>&1 || ls_rc=$?
+if [ "$ls_rc" -eq 2 ]; then
+  echo "PR head branch '$branch' no longer exists on origin; nothing to sanitize."
+  exit 0
+fi
+if [ "$ls_rc" -ne 0 ]; then
+  echo "Could not query branch '$branch'; refusing to rewrite history."
+  exit 1
 fi
 
 git fetch origin "refs/heads/$branch:refs/remotes/origin/prbranch" --quiet || {
@@ -136,5 +162,8 @@ fi
 echo "Stripping $bad leaked owner trailer(s) from $branch."
 git checkout --detach refs/remotes/origin/prbranch --quiet
 git filter-branch -f --msg-filter 'sed "/^Co-authored-by: Userfrom1995.*/d"' refs/remotes/origin/main..HEAD >/dev/null
-git push --force origin "HEAD:refs/heads/$branch" --quiet
+if ! git push --force origin "HEAD:refs/heads/$branch" --quiet; then
+  echo "Could not update branch $branch after stripping trailers; refusing to report success."
+  exit 1
+fi
 echo "Trailers stripped and branch updated: $branch"
