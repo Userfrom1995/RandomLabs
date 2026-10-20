@@ -93,6 +93,24 @@ async function shot(ws, path) {
   assert(boot === 'Ready.', 'engine boots (boot-status Ready), got: ' + boot);
   const titleVisible = await evalJs(ws, `!document.getElementById('panel-title').hidden`);
   assert(titleVisible === true, 'title panel visible on boot');
+  const titleZones = await evalJs(ws, `(() => {
+    const desc = document.getElementById('title-desc');
+    const legend = document.getElementById('title-legend');
+    const goal = document.getElementById('title-goal');
+    return [
+      !!desc && desc.textContent.includes('Start game'),
+      !!legend && legend.textContent.includes('Bram the heron'),
+      !!goal && goal.textContent.includes('445'),
+    ];
+  })()`);
+  assert(titleZones[0] === true, 'title card carries the selected-item description strip');
+  assert(titleZones[1] === true, 'title card carries the warden legend');
+  assert(titleZones[2] === true, 'title card carries the goal line');
+  const descSwitches = await evalJs(ws, `(() => {
+    document.getElementById('btn-title-help').focus();
+    return document.getElementById('title-desc').textContent.includes('warden legend');
+  })()`);
+  assert(descSwitches === true, 'focusing a title action updates the description strip');
   const scrollY = await evalJs(ws, `window.scrollY`);
   assert(scrollY === 0, 'no focus-scroll on boot, scrollY=' + scrollY);
   const canvasBox = await evalJs(ws, `(() => { const c = document.getElementById('game-canvas'); const r = c.getBoundingClientRect(); return [r.width, r.height, c.width, c.height]; })()`);

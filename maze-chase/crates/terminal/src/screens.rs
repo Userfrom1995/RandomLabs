@@ -51,6 +51,17 @@ impl MenuItem {
             MenuItem::Quit => "Quit",
         }
     }
+
+    /// One-line description shown beside the selected title row.
+    pub fn description(self) -> &'static str {
+        match self {
+            MenuItem::Play => "start a hunt in the pond",
+            MenuItem::Help => "controls, rules, and the warden legend",
+            MenuItem::Scores => "the house best and recent runs",
+            MenuItem::Settings => "theme, access, and bindings",
+            MenuItem::Quit => "leave the pond",
+        }
+    }
 }
 
 /// Pause menu entries in order.

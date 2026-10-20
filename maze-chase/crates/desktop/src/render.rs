@@ -119,9 +119,7 @@ pub fn render_play(game: &Game, theme: &Theme, hud: Hud<'_>, w: u32, h: u32) -> 
     let fx = anim::Fx::dimmed(hud.flash, hud.reduced_motion, hud.dim_playfield, 0.0);
     let board = raster::render_opts(game, theme, BOARD_PPT, fx);
     f.blit_board(&board, lay.bx, lay.by, lay.scale);
-    if !hud.reduced_motion {
-        render_floaters(&mut f, game, theme, &lay);
-    }
+    render_floaters(&mut f, game, theme, &lay, hud.reduced_motion);
     f.border(
         lay.bx - 3,
         lay.by - 3,
@@ -135,7 +133,10 @@ pub fn render_play(game: &Game, theme: &Theme, hud: Hud<'_>, w: u32, h: u32) -> 
 }
 
 /// Rising score floaters on an opaque plate (desktop and web only).
-fn render_floaters(f: &mut Frame, game: &Game, theme: &Theme, lay: &Layout) {
+fn render_floaters(f: &mut Frame, game: &Game, theme: &Theme, lay: &Layout, reduced_motion: bool) {
+    if reduced_motion {
+        return;
+    }
     for (floater, progress) in game.fx.floaters() {
         let text = format!("{}", floater.points);
         let rise = (progress * 8.0) as i32;
@@ -184,13 +185,21 @@ fn render_floaters(f: &mut Frame, game: &Game, theme: &Theme, lay: &Layout) {
 
 /// Title attract board: the live playfield behind the title card, dimmed
 /// but never replaced by an empty field.
-pub fn render_attract(game: &Game, theme: &Theme, w: u32, h: u32, dim: f32) -> Option<Frame> {
+pub fn render_attract(
+    game: &Game,
+    theme: &Theme,
+    w: u32,
+    h: u32,
+    dim: f32,
+    flash: bool,
+    reduced_motion: bool,
+) -> Option<Frame> {
     let lay = layout(w, h);
     let mut f = Frame::blank(w, h, theme.bg)?;
     if lay.too_small {
         return Some(render_small(&mut f, theme));
     }
-    let fx = anim::Fx::dimmed(true, false, dim, dim);
+    let fx = anim::Fx::dimmed(flash, reduced_motion, dim, dim);
     let board = raster::render_opts(game, theme, BOARD_PPT, fx);
     f.blit_board(&board, lay.bx, lay.by, lay.scale);
     f.border(
@@ -206,7 +215,14 @@ pub fn render_attract(game: &Game, theme: &Theme, w: u32, h: u32, dim: f32) -> O
 
 /// Compose the menu card over an existing attract frame: opaque card,
 /// centered, with the three-zone title / rows / footer hierarchy.
-pub fn overlay_menu(f: &mut Frame, title: &str, lines: &[MenuLine], footer: &str, theme: &Theme) {
+pub fn overlay_menu(
+    f: &mut Frame,
+    title: &str,
+    lines: &[MenuLine],
+    details: &[(&str, Rgb)],
+    footer: &str,
+    theme: &Theme,
+) {
     // A compact card over the live attract board: the menu is one zone of
     // the title, not an opaque full-screen page.
     let row_w = lines
@@ -214,12 +230,19 @@ pub fn overlay_menu(f: &mut Frame, title: &str, lines: &[MenuLine], footer: &str
         .map(|l| font::text_width(&format!("> {}", l.text), 2))
         .max()
         .unwrap_or(0);
+    let detail_w = details
+        .iter()
+        .map(|(text, _)| font::text_width(text, 1))
+        .max()
+        .unwrap_or(0);
     let content_w = row_w
         .max(font::text_width(title, 4))
-        .max(font::text_width(footer, 1));
+        .max(font::text_width(footer, 1))
+        .max(detail_w);
     let row_h = font::LINE as i32 * 2 + 4;
     let title_h = font::text_height(1, 4);
     let footer_h = font::text_height(1, 1);
+    let details_h = details.len() as u32 * (font::LINE + 2) + 8;
     let cw = (content_w + PAD as u32 * 4)
         .max(340)
         .min(f.w.saturating_sub(PAD as u32 * 2))
@@ -228,13 +251,14 @@ pub fn overlay_menu(f: &mut Frame, title: &str, lines: &[MenuLine], footer: &str
         + title_h
         + PAD as u32
         + lines.len() as u32 * row_h as u32
+        + details_h
         + PAD as u32
         + footer_h
         + PAD as u32)
         .max(220)
         .min(f.h.saturating_sub(PAD as u32 * 2))
         .max(1);
-    if let Some(card) = render_menu(title, lines, footer, theme, cw, ch) {
+    if let Some(card) = render_menu_detailed(title, lines, details, footer, theme, cw, ch) {
         // Wide windows put the menu in the right-hand empty band while the
         // live attract board stays fully visible on the left.
         let lay = layout(f.w, f.h);
@@ -570,17 +594,38 @@ pub fn render_menu(
     w: u32,
     h: u32,
 ) -> Option<Frame> {
+    render_menu_detailed(title, lines, &[], footer, theme, w, h)
+}
+
+/// Compose a centered menu frame with the three-zone title content:
+/// title, rows, a selected-item description strip, and the warden legend
+/// plus goal line, kept above the footer at every window size.
+pub fn render_menu_detailed(
+    title: &str,
+    lines: &[MenuLine],
+    details: &[(&str, Rgb)],
+    footer: &str,
+    theme: &Theme,
+    w: u32,
+    h: u32,
+) -> Option<Frame> {
     let mut f = Frame::blank(w, h, theme.bg)?;
     let cx = w as i32 / 2;
     f.text_centered(title, cx, PAD * 2, 4, theme.accent, None);
-    // Vertical budget: rows stop before the footer line so a long menu
-    // on a short window truncates instead of painting over the footer
-    // (same windowed approach as the help scroll in `screens`).
+    // Vertical budget: rows stop before the description strip and the
+    // footer line so a long menu on a short window truncates instead of
+    // painting over them (same windowed approach as `screens`).
     let row_h = font::LINE as i32 * 2 + 4;
     let footer_y = h as i32 - PAD - font::text_height(1, 1) as i32;
+    let detail_h = if details.is_empty() {
+        0
+    } else {
+        details.len() as i32 * (font::LINE as i32 + 2) + 8
+    };
+    let row_bottom = footer_y - detail_h;
     let mut y = PAD * 2 + font::text_height(1, 4) as i32 + PAD;
     for line in lines {
-        if y + row_h / 2 > footer_y {
+        if y + row_h / 2 > row_bottom {
             break;
         }
         let row = if line.cursor {
@@ -595,6 +640,13 @@ pub fn render_menu(
         };
         f.text_centered(&row, cx, y, 2, color, None);
         y += font::LINE as i32 * 2 + 4;
+    }
+    if !details.is_empty() {
+        let mut dy = footer_y - detail_h + 8;
+        for (text, color) in details {
+            f.text_centered(text, cx, dy, 1, *color, None);
+            dy += font::LINE as i32 + 2;
+        }
     }
     let bw = w.saturating_sub(PAD as u32 * 2);
     let bh = h.saturating_sub(PAD as u32 * 2);
@@ -640,6 +692,26 @@ mod menu_tests {
         ];
         let c = render_menu("MAZE CHASE", &moved, "ARROWS + ENTER", theme(), 900, 700).unwrap();
         assert_ne!(a.px, c.px);
+        let detailed = render_menu_detailed(
+            "MAZE CHASE",
+            &lines,
+            &[
+                ("START A HUNT IN THE POND", theme().text),
+                (
+                    "BRAM HERON - KESSA PIKE - JORY SNAKE - NIB DRAGONFLY",
+                    theme().dim_text,
+                ),
+                ("CLEAR 445 CRUMBS; SUNSEEDS TURN THE HUNT", theme().accent),
+            ],
+            "ARROWS + ENTER",
+            theme(),
+            900,
+            700,
+        )
+        .unwrap();
+        assert_eq!((detailed.w, detailed.h), (900, 700));
+        assert!(detailed.count(theme().dim_text) > 0);
+        assert!(detailed.count(theme().text) > a.count(theme().text));
     }
 
     #[test]

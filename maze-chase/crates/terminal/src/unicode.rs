@@ -129,17 +129,17 @@ pub fn paint(text: &str, fg: Rgb, bg: Rgb, truecolor: bool) -> String {
 }
 
 /// Pip mouth for a heading (two cells wide in compact rooms).
-fn pip_text(game: &Game, reduced_motion: bool) -> &'static str {
+fn pip_text(game: &Game, reduced_motion: bool, reduced_flash: bool) -> &'static str {
     use maze_chase_engine::actors::Dir;
     if game.state == GameState::Dying {
-        return match anim::death_frame_for(game.state_elapsed(), reduced_motion) {
+        return match anim::death_frame_for(game.state_elapsed(), reduced_motion || reduced_flash) {
             0 => "><",
             1 => "++",
             2 => "..",
             _ => "()",
         };
     }
-    let closed = !reduced_motion && game.fx.chomp_phase() == 2;
+    let closed = !(reduced_motion || reduced_flash) && game.fx.chomp_phase() == 2;
     match game.player.dir {
         Dir::Right => {
             if closed {
@@ -183,7 +183,7 @@ pub fn render_board(game: &Game, theme: &Theme, layout: &Layout, flash: bool) ->
 /// exempt from `dim_playfield` so the pause hub keeps Rill and the wardens
 /// legible while the maze fades; the title passes `dim_actors` too.
 pub fn render_board_opts(game: &Game, theme: &Theme, layout: &Layout, opts: anim::Fx) -> Screen {
-    let flash = opts.flash;
+    let flash = opts.flash && !opts.reduced_motion;
     let dim = |c: Rgb, amount: f32| -> Rgb {
         if amount > 0.0 {
             maze_chase_assets::themes::mix(theme.bg, c, 1.0 - amount.clamp(0.0, 1.0))
@@ -269,13 +269,17 @@ pub fn render_board_opts(game: &Game, theme: &Theme, layout: &Layout, opts: anim
     let pip_tile = tile_of(game.player.x, game.player.y);
     overlay.insert(
         pip_tile,
-        (pip_text(game, opts.reduced_motion), pip_color, false),
+        (
+            pip_text(game, opts.reduced_motion, !opts.flash),
+            pip_color,
+            false,
+        ),
     );
     // Effect cues on the cell rung: the pickup ripple is the two static
     // states the motion table allows, the turn spark a committed-corner
     // marker, and the spare wick a crown over the board center. They paint
     // after Pip so a cue on the player tile is not swallowed.
-    if !opts.reduced_motion {
+    if !opts.reduced_motion && flash {
         if let Some((anchor, frame)) = game.fx.pickup_burst() {
             overlay.insert(
                 (anchor.x.floor() as i32, anchor.y.floor() as i32),
@@ -629,7 +633,7 @@ mod tests {
         g.kill_player();
         g.tick(0.9);
         assert_eq!(
-            pip_text(&g, false),
+            pip_text(&g, false, false),
             "()",
             "the held death frame keeps a visible bubble"
         );

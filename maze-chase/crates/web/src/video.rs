@@ -337,8 +337,8 @@ pub fn render_board_with(game: &Game, theme: &Theme, opts: anim::Fx) -> Frame {
         (game.player.y * PPT as f32) as i32,
     );
     if game.state == GameState::Dying {
-        let clip: &[&str] =
-            sprites::PIP_DEATH[anim::death_frame_for(game.state_elapsed(), opts.reduced_motion)];
+        let clip: &[&str] = sprites::PIP_DEATH
+            [anim::death_frame_for(game.state_elapsed(), opts.reduced_motion || !flash)];
         paint_glyph(
             &mut frame,
             clip,
@@ -373,7 +373,7 @@ pub fn render_board_with(game: &Game, theme: &Theme, opts: anim::Fx) -> Frame {
     }
 
     // Pickup ripple above Pip, so the player never hides it.
-    if !opts.reduced_motion {
+    if !opts.reduced_motion && flash {
         if let Some((anchor, idx)) = game.fx.pickup_burst() {
             paint_glyph(
                 &mut frame,
@@ -402,7 +402,11 @@ pub fn render_board_with(game: &Game, theme: &Theme, opts: anim::Fx) -> Frame {
         }
     }
     if let Some(idx) = game.fx.lily_frame() {
-        let idx = if opts.reduced_motion { 0 } else { idx };
+        let idx = if opts.reduced_motion || !flash {
+            0
+        } else {
+            idx
+        };
         paint_glyph(
             &mut frame,
             &sprites::GOLDEN_LILY[idx],

@@ -251,7 +251,7 @@ fn paint_pickup_burst(
     scale: i32,
     opts: anim::Fx,
 ) {
-    if opts.reduced_motion {
+    if opts.reduced_motion || !opts.flash {
         return;
     }
     let Some((anchor, idx)) = game.fx.pickup_burst() else {
@@ -308,7 +308,11 @@ fn paint_golden_lily(
     let Some(idx) = game.fx.lily_frame() else {
         return;
     };
-    let idx = if opts.reduced_motion { 0 } else { idx };
+    let idx = if opts.reduced_motion || !opts.flash {
+        0
+    } else {
+        idx
+    };
     paint_glyph(
         frame,
         &sprites::GOLDEN_LILY[idx],
@@ -612,8 +616,8 @@ fn paint_pip(
         (game.player.y * ppt as f32) as i32,
     );
     if game.state == maze_chase_engine::game::GameState::Dying {
-        let clip =
-            &sprites::PIP_DEATH[anim::death_frame_for(game.state_elapsed(), opts.reduced_motion)];
+        let clip = &sprites::PIP_DEATH
+            [anim::death_frame_for(game.state_elapsed(), opts.reduced_motion || !opts.flash)];
         paint_glyph(
             frame,
             clip,
