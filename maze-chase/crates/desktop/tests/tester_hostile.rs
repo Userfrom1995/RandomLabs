@@ -58,6 +58,7 @@ fn sample_hud() -> Hud<'static> {
         flash: true,
         fps: Some(60.0),
         tune: "OFF",
+        ticker: None,
     }
 }
 

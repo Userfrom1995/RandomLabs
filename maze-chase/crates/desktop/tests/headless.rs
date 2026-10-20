@@ -31,6 +31,7 @@ fn scripted_run_with(seed: u64, wants: &[Dir]) -> (u32, Vec<Vec<u32>>) {
                 flash: true,
                 fps: Some(60.0),
                 tune: "OFF",
+                ticker: None,
             };
             let frame = render::render_play(&game, theme, hud, 1100, 760).unwrap();
             frames.push(frame.px);

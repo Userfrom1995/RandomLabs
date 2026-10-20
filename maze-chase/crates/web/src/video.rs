@@ -132,7 +132,7 @@ fn relish_icon_index(level: u32) -> usize {
 ///
 /// `frame_no` drives honest animation (mouth chomp, sunseed pulse, fright
 /// flash blink). `flash` enables the fright-warning blink; accessibility
-/// callers pass `false` to hold the steady mask (honors reduced-flash).
+/// callers pass `false` to hold the hollow warning mask (honors reduced-flash).
 pub fn render_board(game: &Game, theme: &Theme, frame_no: u64, flash: bool) -> Frame {
     const PPT: i32 = BOARD_PPT as i32;
     let mut frame = Frame::blank(BOARD_W, BOARD_H, theme.bg);

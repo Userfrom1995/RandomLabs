@@ -63,14 +63,14 @@ pub fn sunseed_halo(frame_no: u64) -> bool {
 /// Fright-mask style sequence: entry morph first, then normal or warning.
 ///
 /// The entry morph holds for the first 250 ms of the turn; after that the
-/// steady mask shows, or the warning variant during the flash phase. A
-/// reduced-flash caller passes `f32::INFINITY` as `t_left` to hold the
-/// steady mask for the whole window.
+/// steady mask shows, or the hollow warning variant during the flash phase.
+/// A reduced-flash caller passes `f32::INFINITY` as `t_left` to hold the
+/// hollow warning mask for the whole window.
 pub fn fright_mask_id(elapsed: f32, t_left: f32) -> &'static str {
     if !elapsed.is_finite() || elapsed < 0.0 || elapsed < 0.25 {
         return "fright_entry";
     }
-    if fright_flash_on(t_left) {
+    if t_left.is_infinite() || fright_flash_on(t_left) {
         "fright_mask_flash"
     } else {
         "fright_mask"
@@ -179,8 +179,8 @@ mod tests {
         assert_eq!(fright_mask_id(f32::NAN, 0.0), "fright_entry");
         assert_eq!(
             fright_mask_id(1.0, f32::INFINITY),
-            "fright_mask",
-            "reduced flash holds the steady mask"
+            "fright_mask_flash",
+            "reduced flash holds the hollow warning mask"
         );
     }
 
