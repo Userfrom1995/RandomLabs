@@ -41,7 +41,14 @@ Golden Lily bloom; the desktop and browser canvases add score floaters,
 and the web settings panel shows the active theme name. Accessibility gates (text/bg,
 fright/wall, eyes/wall, hunter separation, light/dark) pass, the golden
 replay digest is unchanged (`23c17f89734e`), and the wasm rebuild is
-committed (`029352dc...`, 202,727 bytes).
+committed (`7545da6a...`, 206,252 bytes). The title and pause surfaces
+now stage the live game: terminal and desktop paint a dimmed attract
+board behind centered cards, the browser overlays a fixed title card
+with a visible Start action and a header Pause control, and the pause
+hub dims the playfield to 55 percent while keeping actors exempt.
+Screens, atlases, and the browser expose the 30-segment fright meter
+in its final 1.5 s, and reduced motion is a first-class persisted
+setting (with a high-contrast theme override) across all three layers.
 
 Real captures: five kitty/xterm Linux compatibility rows were
 re-executed on 2026-10-20 at code commit `14b939d9` (binary SHA-256
@@ -54,7 +61,8 @@ re-executed after the renderer fixes at `e938ce5a` (binary
 clean sources, `pause_select=1`) and is 139 transmits / 4.33 MiB. The
 two Ghostty rows remain the `90cb9b87` record and are labeled pre-fix
 in `docs/terminal-compat.md`; the final sign-off phase reruns them. The
-desktop title capture (`docs/desktop-probe.ppm`) is byte-identical, the
+desktop title capture (`docs/desktop-probe.ppm`, sha256
+`a5d4f892...`) was regenerated for the staged title, the
 desktop gameplay capture (`docs/desktop-gameplay.ppm`, 1100x760,
 sha256 `f6040ea9...`) was recorded from the same Xvfb `--probe` pipeline
 after driving a play session, the browser gameplay capture
@@ -63,10 +71,10 @@ wasm, and `browser-e2e.js` is ALL GREEN. macOS and Windows terminal rows
 stay with the per-OS testers; no claim here exceeds the executed Linux
 rows.
 
-Workspace gates: `cargo test --workspace --no-fail-fast` 535 passed / 0
-failed across 57 targets, harness contract 47/47, `maze-chase-verify`
+Workspace gates: `cargo test --workspace --no-fail-fast` 545 passed / 0
+failed across 58 targets, harness contract 47/47, `maze-chase-verify`
 19/19 (`23c17f89734e`; `perf-headless` 0.2-0.4 us/tick on CI reruns),
-wasm sha256 `029352dc...`, `cargo fmt --all --check` clean, and clippy
+wasm sha256 `7545da6a...`, `cargo fmt --all --check` clean, and clippy
 reports only the pre-existing engine style lints.
 
 Delegation ledger (round 5): no subagents were dispatched; the primary
@@ -1006,7 +1014,7 @@ Next: Phase 5 (sound design overhaul).
   Regenerated all eight Linux compatibility rows at code commit
   `90cb9b87` (binary `e5c9a284...`, clean sources), the desktop title
   PPM, and the browser gameplay PNG; `browser-e2e.js` ALL GREEN. Gates:
-  workspace 498/498 across 57 targets, harness contract 47/47, verify
+  workspace 498/498 across 58 targets, harness contract 47/47, verify
   19/19 (`23c17f89734e`), fmt clean, clippy only the pre-existing engine
   lints. Delegation ledger: the phase was implemented in the primary
   context across assets, renderers, config, docs, and captures; no
@@ -1018,7 +1026,7 @@ Next: Phase 5 (sound design overhaul).
   scaling at 16-20 ppt, made the cell tier paint cues over Pip,
   suppressed the new-level start floater, stopped the hop during death
   and clearing, freed the Kitty whole-frame image, and clamped score
-  floaters. Re-ran 514/514 across 57 targets, harness 47/47, verify
+  floaters. Re-ran 514/514 across 58 targets, harness 47/47, verify
   19/19 (`23c17f89734e`), fmt/clippy, rebuilt the wasm, recaptured the
   browser frame, and re-executed six Linux terminal rows at the new
   commit. Three subagents (docs audit, renderer review, evidence
@@ -1043,7 +1051,7 @@ Next: Phase 5 (sound design overhaul).
   evidence labels, OS qualification, probe/wasm hashes, and test counts,
   captured the desktop gameplay frame (`docs/desktop-gameplay.ppm`),
   and regenerated the browser gameplay capture. Verification: 525/525
-  across 57 targets, verify 19/19 (`23c17f89734e`), fmt and clippy
+  across 58 targets, verify 19/19 (`23c17f89734e`), fmt and clippy
   clean apart from the documented pre-existing lints, wasm sha256
   `61a72473...`, node smokes and `browser-e2e.js` ALL GREEN. No registry
   skill matched; none loaded.
@@ -1058,7 +1066,7 @@ Next: Phase 5 (sound design overhaul).
   test counts, completed the truncated scoreboard sentence, aligned the
   design and token transition durations with the shipped cuts and snaps,
   and qualified the remaining all-OS parity claims. Verification: 532/532
-  across 57 targets, harness 47/47, verify 19/19 (`23c17f89734e`), fmt
+  across 58 targets, harness 47/47, verify 19/19 (`23c17f89734e`), fmt
   clean, wasm sha256 `47afaaea...`. No registry skill matched; none
   loaded.
   - the Fixer
@@ -1071,8 +1079,8 @@ Next: Phase 5 (sound design overhaul).
   clock instead of render frames, the cell-relish test carries a positive
   control, the dead `Clip` API is gone, and the wasm plus every size,
   hash, and toolchain claim is rebuilt and requalified. Verification:
-  535/535 across 57 targets, harness 47/47, verify 19/19
-  (`23c17f89734e`), fmt clean, wasm sha256 `029352dc...` (202,727 bytes,
+  545/545 across 58 targets, harness 47/47, verify 19/19
+  (`23c17f89734e`), fmt clean, wasm sha256 `11f75cd2...` (206,253 bytes,
   reproduced byte-identically with rustc 1.99.0 commit `b940084d7`),
   node smokes and `browser-e2e.js` ALL GREEN, desktop E2E under Xvfb
   green. No registry skill matched; none loaded. Code commit `470a050f`.
@@ -1082,4 +1090,24 @@ Next: Phase 5 (sound design overhaul).
   and names the engine-clock sampling suite, matching
   `cargo test -p maze-chase-web -- --list`. Documentation-only change;
   no code, wasm, or evidence was touched.
+  - the Fixer
+- 2026-10-20 (fixer, Quality Council round on `dd55b7df`): closed the
+  eight binding findings on PR #707 while keeping the design of record.
+  The terminal and desktop title/pause surfaces now stage the live game
+  (dimmed attract board plus a centered card, 55 percent pause dim with
+  actors exempt); the browser title is a fixed first-view card with a
+  visible Start action and a persistent header Pause control; all layers
+  show the 30-segment fright meter only in the final 1.5 s (shape
+  differences keep it grayscale-safe) and name "THE TURN ENDS" under
+  reduced flash or reduced motion; reduced motion is persisted and gates
+  the sunseed halo, effects, and floaters; high contrast selects
+  MOONWAKE; asset ladders now carry 5x5 eyes and 11x11 relic icons at
+  the reachable rungs. Added atlas reduced-motion parity and chrome
+  fright-readout tests, regenerated the desktop title probe, rebuilt the
+  wasm, and extended browser E2E to 38 assertions (first-view CTA,
+  real clicks, mobile pause, settings persistence). Verification:
+  545/545 across 58 targets, harness 47/47, verify 19/19
+  (`23c17f89734e`), fmt clean, wasm sha256 `7545da6a...` (206,252
+  bytes, reproduced by a second clean build), browser E2E 38/38 green,
+  desktop E2E under Xvfb green. No registry skill matched; none loaded.
   - the Fixer

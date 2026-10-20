@@ -206,6 +206,9 @@ impl WebSession {
 
     /// Active theme, falling back to Dusk Pond on unknown ids.
     pub fn theme(&self) -> &'static Theme {
+        if self.settings.high_contrast {
+            return &themes::MOONWAKE;
+        }
         themes::by_id(self.settings.theme.as_str()).unwrap_or(&themes::DUSK_POND)
     }
 

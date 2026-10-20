@@ -40,8 +40,8 @@ Browser artifacts (Node 18+, committed `web/maze-chase.wasm`):
 - `node web/e2e/tester-regression.js`: `TESTER REGRESSION: ALL GREEN`
   (warden-chain wire domain, scores push/getter round-trip, hostile
   boundaries, determinism).
-- `web/e2e/browser-e2e.js` (headless chromium over CDP): 17
-  assertions in the current harness; 13/13 green at release sign-off
+- `web/e2e/browser-e2e.js` (headless chromium over CDP): 38
+  assertions in the current harness; 38/38 green on this tree
   (zero console errors, real ArrowUp scoring, pause/resume, touch
   swipe, 390x844 board visible, 60 FPS live), and the macOS native
   pass re-ran the current harness green. Not re-run in this audit
@@ -130,7 +130,7 @@ Windows native pass plus fix round, pre-Pondwake (tester run
   rendered title/play/pause/too-small/resize (9 pass; the 6 fails all
   shared the Release-key double-fire defect this pass found).
 - Desktop probe PPM byte-identical to the committed
-  `docs/desktop-probe.ppm` (pre-Pondwake file, sha256 `8de66bae...`; the current Pondwake file is `1b6f17cc...`); the packaged zip
+  `docs/desktop-probe.ppm` (pre-Pondwake file, sha256 `8de66bae...`; the current Pondwake file is `a5d4f892...`); the packaged zip
   `maze-chase-desktop-0.1.0-windows-x86_64.zip` (609,776 bytes)
   extracted a binary byte-identical to the release build.
 - Web node smokes and CDP browser E2E green.
@@ -243,7 +243,7 @@ Initial identity delivery, measured on the Linux build machine at code
 commit `90cb9b87` (kept as history):
 
 - `cargo test --workspace --no-fail-fast` (desktop E2E under the local
-  Xvfb): 498 passed, 0 failed across 57 test targets.
+  Xvfb): 498 passed, 0 failed across 58 test targets.
 - `cargo run --release --bin maze-chase-verify`: 19/19 checks, golden
   replay digest unchanged (`23c17f89734e`), `perf-headless` 0.1 us/tick.
 - Wasm rebuild sha256 `1abe2665...`; `wasm-smoke.js`,
@@ -254,7 +254,7 @@ Review fix rounds, measured on the same Linux machine at the head of
 this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
 
 - `cargo test --workspace --no-fail-fast` (desktop E2E under Xvfb):
-  535 passed, 0 failed across 57 test targets, including the new
+  545 passed, 0 failed across 58 test targets, including the new
   engine-clock, chomp-phase, 120 Hz ticker-age, renderer-clock, web-clock,
   effect-window, authored-facing, death-hold, sweep-order, mirrored-eye,
   death-boundary, fright-slot, cell-clear, cell-death-bubble,
@@ -269,15 +269,25 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   theme, renderer, or bridge code.
 - Wasm rebuild (`cargo build --release --target
   wasm32-unknown-unknown -p maze-chase-web`): sha256
-  `029352dc0f54d074f6de1a200174e30fec76652caf115ca9d223a2d8357f819e`,
-  committed as `web/maze-chase.wasm` (202,727 bytes; rebuilt
+  `11f75cd2c9bf3e4502ada166774be7b62895776600d38025f021394700a57327`,
+  committed as `web/maze-chase.wasm` (206,253 bytes; rebuilt
   byte-identically with rustc 1.99.0 commit `b940084d7`); `wasm-smoke.js`,
   `tester-regression.js`, and the real headless-chromium
   `browser-e2e.js` are ALL GREEN with zero console errors. The committed
   browser gameplay capture is `docs/web-gameplay.png` (1280x757).
+- Quality Council fix round (same head family, `dd55b7df`): staged
+  title and pause surfaces on terminal/desktop, a first-view browser
+  title card and header Pause control, a 30-segment shape-distinct
+  fright meter, persisted reduced motion, high-contrast MOONWAKE, and
+  the reachable 5x5 eye / 11x11 relish ladders. `browser-e2e.js` grew
+  to 38 assertions (first-view CTA and real Start click, mobile pause
+  and Resume clicks, reduced-motion/high-contrast persistence); the
+  workspace suite stayed at 545 passed across 58 targets, the desktop
+  title probe was regenerated, and the wasm rebuilt to sha256
+  `7545da6a...` (206,252 bytes) after a second clean build.
 - Desktop Xvfb `--probe 30` stays byte-identical to
   `docs/desktop-probe.ppm`
-  (sha256 `1b6f17cc7c2ea69fbd2f20881047c92fc53030a4e3d6a5f3ae624bb4293acf9d`);
+  (sha256 `a5d4f892150840c7498829341cc1ff1537727d88e598d0d534304db0413f8f0a`);
   the desktop E2E asserts the probe bytes. The committed gameplay
   capture `docs/desktop-gameplay.ppm` (sha256
   `f6040ea93bd09ba057016972fb3e8320ce45229667cbae635a97754200625068`)

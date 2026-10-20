@@ -28,6 +28,8 @@ fn scripted_run_with(seed: u64, wants: &[Dir]) -> (u32, Vec<Vec<u32>>) {
             let hud = Hud {
                 best: 0,
                 flash: true,
+                reduced_motion: false,
+                dim_playfield: 0.0,
                 fps: Some(60.0),
                 tune: "OFF",
                 ticker: None,

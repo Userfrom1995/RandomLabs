@@ -83,7 +83,7 @@ forces that state even with hardware present).
 
 Title (Play, How to play, High scores, Settings, Audio, Quit), Help
 (scrollable), High scores (machine top 10, shared with the terminal
-game), Settings (difficulty, theme, reduced flash, FPS readout,
+game), Settings (difficulty, theme, reduced flash, reduced motion, high contrast, FPS readout,
 keybinds, padbinds), Audio (master/music/SFX sliders plus mute),
 Keybinds and Padbinds (duplicate-safe capture, `Esc` cancels),
 Pause (resume or quit to title over the frozen board), Game over

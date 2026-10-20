@@ -10,8 +10,8 @@
 
 use crate::font;
 use crate::frame::Frame;
-use maze_chase_assets::sprites;
-use maze_chase_assets::themes::Theme;
+use maze_chase_assets::themes::{Rgb, Theme};
+use maze_chase_assets::{anim, sprites};
 use maze_chase_engine::game::{Game, GameState};
 use maze_chase_terminal::raster;
 
@@ -101,6 +101,8 @@ pub fn layout(w: u32, h: u32) -> Layout {
 pub struct Hud<'a> {
     pub best: u32,
     pub flash: bool,
+    pub reduced_motion: bool,
+    pub dim_playfield: f32,
     pub fps: Option<f32>,
     pub tune: &'a str,
     pub ticker: Option<&'a str>,
@@ -114,9 +116,12 @@ pub fn render_play(game: &Game, theme: &Theme, hud: Hud<'_>, w: u32, h: u32) -> 
     if lay.too_small {
         return Some(render_small(&mut f, theme));
     }
-    let board = raster::render(game, theme, BOARD_PPT, hud.flash);
+    let fx = anim::Fx::dimmed(hud.flash, hud.reduced_motion, hud.dim_playfield, 0.0);
+    let board = raster::render_opts(game, theme, BOARD_PPT, fx);
     f.blit_board(&board, lay.bx, lay.by, lay.scale);
-    render_floaters(&mut f, game, theme, &lay);
+    if !hud.reduced_motion {
+        render_floaters(&mut f, game, theme, &lay);
+    }
     f.border(
         lay.bx - 3,
         lay.by - 3,
@@ -173,6 +178,88 @@ fn render_floaters(f: &mut Frame, game: &Game, theme: &Theme, lay: &Layout) {
                 }
             }
             px += font::ADVANCE as i32 * scale as i32;
+        }
+    }
+}
+
+/// Title attract board: the live playfield behind the title card, dimmed
+/// but never replaced by an empty field.
+pub fn render_attract(game: &Game, theme: &Theme, w: u32, h: u32, dim: f32) -> Option<Frame> {
+    let lay = layout(w, h);
+    let mut f = Frame::blank(w, h, theme.bg)?;
+    if lay.too_small {
+        return Some(render_small(&mut f, theme));
+    }
+    let fx = anim::Fx::dimmed(true, false, dim, dim);
+    let board = raster::render_opts(game, theme, BOARD_PPT, fx);
+    f.blit_board(&board, lay.bx, lay.by, lay.scale);
+    f.border(
+        lay.bx - 3,
+        lay.by - 3,
+        lay.bw + 6,
+        lay.bh + 6,
+        2,
+        theme.wall_inner,
+    );
+    Some(f)
+}
+
+/// Compose the menu card over an existing attract frame: opaque card,
+/// centered, with the three-zone title / rows / footer hierarchy.
+pub fn overlay_menu(f: &mut Frame, title: &str, lines: &[MenuLine], footer: &str, theme: &Theme) {
+    // A compact card over the live attract board: the menu is one zone of
+    // the title, not an opaque full-screen page.
+    let row_w = lines
+        .iter()
+        .map(|l| font::text_width(&format!("> {}", l.text), 2))
+        .max()
+        .unwrap_or(0);
+    let content_w = row_w
+        .max(font::text_width(title, 4))
+        .max(font::text_width(footer, 1));
+    let row_h = font::LINE as i32 * 2 + 4;
+    let title_h = font::text_height(1, 4);
+    let footer_h = font::text_height(1, 1);
+    let cw = (content_w + PAD as u32 * 4)
+        .max(340)
+        .min(f.w.saturating_sub(PAD as u32 * 2))
+        .max(1);
+    let ch = (PAD as u32 * 2
+        + title_h
+        + PAD as u32
+        + lines.len() as u32 * row_h as u32
+        + PAD as u32
+        + footer_h
+        + PAD as u32)
+        .max(220)
+        .min(f.h.saturating_sub(PAD as u32 * 2))
+        .max(1);
+    if let Some(card) = render_menu(title, lines, footer, theme, cw, ch) {
+        // Wide windows put the menu in the right-hand empty band while the
+        // live attract board stays fully visible on the left.
+        let lay = layout(f.w, f.h);
+        let board_right = lay.bx + lay.bw as i32 + 6;
+        let right_space = f.w as i32 - board_right - PAD;
+        let ox = if right_space >= cw as i32 {
+            board_right + (right_space - cw as i32) / 2
+        } else {
+            (f.w as i32 - cw as i32) / 2
+        };
+        let oy = (f.h as i32 - ch as i32) / 2;
+        for y in 0..card.h as i32 {
+            for x in 0..card.w as i32 {
+                if let Some(v) = card.get(x, y) {
+                    f.set(
+                        ox + x,
+                        oy + y,
+                        Rgb(
+                            ((v >> 16) & 0xff) as u8,
+                            ((v >> 8) & 0xff) as u8,
+                            (v & 0xff) as u8,
+                        ),
+                    );
+                }
+            }
         }
     }
 }
@@ -241,7 +328,34 @@ fn render_hud(f: &mut Frame, game: &Game, theme: &Theme, hud: Hud<'_>, lay: &Lay
     };
     f.text(mode, x, y, s, theme.dim_text, None);
     step(&mut y);
-    if game.wardens.fright_active() {
+    if game.wardens.fright_flashing() {
+        let lit = anim::fright_bar_segments(game.wardens.fright_t).min(30) as u32;
+        if hud.flash && !hud.reduced_motion {
+            f.text("FRIGHT!", x, y, s, theme.fright, None);
+        } else {
+            f.text("THE TURN ENDS", x, y, s, theme.fright, None);
+        }
+        step(&mut y);
+        let seg_w = 5u32;
+        let gap = 2u32;
+        for i in 0..30u32 {
+            // Filled segments are full-height blocks; spent segments keep a
+            // half-height stub, so the drain reads in grayscale too.
+            let (c, h): (Rgb, u32) = if i < lit {
+                (theme.fright, 6)
+            } else {
+                (theme.wall_inner, 3)
+            };
+            f.rect(
+                x + i as i32 * (seg_w + gap) as i32,
+                y + (6 - h) as i32,
+                seg_w,
+                h,
+                c,
+            );
+        }
+        y += 6 + 6;
+    } else if game.wardens.fright_active() {
         f.text("FRIGHT!", x, y, s, theme.fright, None);
         step(&mut y);
     }
@@ -302,6 +416,8 @@ mod tests {
         Hud {
             best: 0,
             flash: true,
+            reduced_motion: false,
+            dim_playfield: 0.0,
             fps: None,
             tune: "OFF",
             ticker: None,

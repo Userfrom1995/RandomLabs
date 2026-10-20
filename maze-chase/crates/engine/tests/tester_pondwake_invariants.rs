@@ -36,7 +36,10 @@ struct Lcg(u64);
 
 impl Lcg {
     fn next(&mut self) -> u32 {
-        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.0 = self
+            .0
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         (self.0 >> 33) as u32
     }
 
@@ -96,7 +99,11 @@ fn long_scripted_sessions_stay_deterministic_and_bounded() {
                 let want = rng.dir();
                 a.step(1.0 / 120.0, want);
                 b.step(1.0 / 120.0, want);
-                assert_running_invariants(&a, board_total, &format!("{mode:?} seed {seed} step {i}"));
+                assert_running_invariants(
+                    &a,
+                    board_total,
+                    &format!("{mode:?} seed {seed} step {i}"),
+                );
                 assert!(
                     a.score >= last_score,
                     "{mode:?} seed {seed}: score decreased at step {i}"

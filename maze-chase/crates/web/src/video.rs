@@ -123,6 +123,16 @@ fn facing_of(dir: Dir) -> sprites::Facing {
     }
 }
 
+/// Eye-bubble rung: the 5x5 pair at the low/default board, the authored
+/// 7x7 pair once the tile grid is large enough to carry the trail.
+fn eye_rung(ppt: i32) -> u8 {
+    if ppt <= 8 {
+        5
+    } else {
+        7
+    }
+}
+
 /// Relish icon tier for a level: pairs of levels share one of six icons.
 fn relish_icon_index(level: u32) -> usize {
     ((level.saturating_sub(1) / 2) as usize).min(5)
@@ -135,7 +145,29 @@ fn relish_icon_index(level: u32) -> usize {
 /// enables the fright-warning blink; accessibility callers pass `false` to
 /// hold the hollow warning mask (honors reduced-flash).
 pub fn render_board(game: &Game, theme: &Theme, flash: bool) -> Frame {
+    render_board_with(game, theme, anim::Fx::new(flash, false))
+}
+
+/// Render with the full accessibility/staging option set (shared with the
+/// terminal rasterizer): reduced flash/motion plus the title and pause
+/// playfield dim while actors stay exempt on the pause hub.
+pub fn render_board_with(game: &Game, theme: &Theme, opts: anim::Fx) -> Frame {
     const PPT: i32 = BOARD_PPT as i32;
+    let flash = opts.flash && !opts.reduced_motion;
+    let dim_p = |c: Rgb| -> Rgb {
+        if opts.dim_playfield > 0.0 {
+            mix(theme.bg, c, 1.0 - opts.dim_playfield)
+        } else {
+            c
+        }
+    };
+    let dim_a = |c: Rgb| -> Rgb {
+        if opts.dim_actors > 0.0 {
+            mix(theme.bg, c, 1.0 - opts.dim_actors)
+        } else {
+            c
+        }
+    };
     let mut frame = Frame::blank(BOARD_W, BOARD_H, theme.bg);
     let crumb_field = game.maze.dot_bytes();
     let stride = (WIDTH * HEIGHT) as usize;
@@ -150,21 +182,21 @@ pub fn render_board(game: &Game, theme: &Theme, flash: bool) -> Frame {
                     // face in the wall tone (margin max(8/4,1) = 2).
                     for py in y0..y0 + PPT {
                         for px in x0..x0 + PPT {
-                            frame.set(px, py, theme.wall_inner);
+                            frame.set(px, py, dim_p(theme.wall_inner));
                         }
                     }
                     let m = (PPT / 4).max(1);
                     for py in y0 + m..y0 + PPT - m {
                         for px in x0 + m..x0 + PPT - m {
-                            frame.set(px, py, theme.wall);
+                            frame.set(px, py, dim_p(theme.wall));
                         }
                     }
                 }
                 Tile::Door => {
                     let mid = y0 + PPT / 2;
                     for px in x0..x0 + PPT {
-                        frame.set(px, mid, theme.accent);
-                        frame.set(px, mid - 1, theme.accent);
+                        frame.set(px, mid, dim_p(theme.accent));
+                        frame.set(px, mid - 1, dim_p(theme.accent));
                     }
                 }
                 Tile::House => {}
@@ -176,13 +208,16 @@ pub fn render_board(game: &Game, theme: &Theme, flash: bool) -> Frame {
                             &sprites::CRUMB,
                             x0 + PPT / 2,
                             y0 + PPT / 2,
-                            theme.crumb,
-                            theme.text,
-                            theme.eyes,
+                            dim_p(theme.crumb),
+                            dim_p(theme.text),
+                            dim_p(theme.eyes),
                         );
                     }
                     if crumb_field.get(stride + i).copied().unwrap_or(0) == 1 {
-                        let glyph: &[&str] = if anim::sunseed_halo(game.elapsed()) {
+                        let glyph: &[&str] = if !opts.reduced_motion
+                            && flash
+                            && anim::sunseed_halo(game.elapsed())
+                        {
                             &sprites::SUNSEED_B
                         } else {
                             &sprites::SUNSEED_A
@@ -192,9 +227,9 @@ pub fn render_board(game: &Game, theme: &Theme, flash: bool) -> Frame {
                             glyph,
                             x0 + PPT / 2,
                             y0 + PPT / 2,
-                            theme.sunseed,
-                            theme.sunseed,
-                            theme.eyes,
+                            dim_p(theme.sunseed),
+                            dim_p(theme.sunseed),
+                            dim_p(theme.eyes),
                         );
                     }
                 }
@@ -205,16 +240,21 @@ pub fn render_board(game: &Game, theme: &Theme, flash: bool) -> Frame {
     // Bonus relish on its tile while it waits.
     if game.relish.active {
         let (rtx, rty) = tuning::RELISH_TILE;
-        let icon: &[&str] = &sprites::RELISH_ICONS[relish_icon_index(game.level)];
-        let bob = anim::relish_bob(game.elapsed());
+        let rung = if PPT >= 21 { 11 } else { 7 };
+        let icon: &[&str] = sprites::relish_icon(relish_icon_index(game.level), rung);
+        let bob = if opts.reduced_motion {
+            0
+        } else {
+            anim::relish_bob(game.elapsed())
+        };
         paint_glyph(
             &mut frame,
             icon,
             rtx * PPT + PPT / 2,
             rty * PPT + PPT / 2 + bob,
-            theme.accent,
-            theme.text,
-            theme.eyes,
+            dim_p(theme.accent),
+            dim_p(theme.text),
+            dim_p(theme.eyes),
         );
     }
 
@@ -226,17 +266,23 @@ pub fn render_board(game: &Game, theme: &Theme, flash: bool) -> Frame {
     } else {
         f32::INFINITY
     };
-    let bodies = [theme.bram, theme.kessa, theme.jory, theme.nib];
+    let bodies = [
+        dim_a(theme.bram),
+        dim_a(theme.kessa),
+        dim_a(theme.jory),
+        dim_a(theme.nib),
+    ];
+    let eye_color = dim_a(theme.eyes);
+    let fright_color = dim_a(theme.fright);
+    let text_color = dim_a(theme.text);
     for warden in game.wardens.wardens.iter() {
         let cx = (warden.actor.x * PPT as f32) as i32;
         let cy = (warden.actor.y * PPT as f32) as i32;
         match warden.state {
             WardenState::Eyes => {
-                let eye_rows = sprites::eyes_rows(facing_of(warden.actor.dir));
+                let eye_rows = sprites::eyes_rows_for(facing_of(warden.actor.dir), eye_rung(PPT));
                 let eyes: Vec<&str> = eye_rows.iter().map(|s| s.as_str()).collect();
-                paint_glyph(
-                    &mut frame, &eyes, cx, cy, theme.eyes, theme.eyes, theme.eyes,
-                );
+                paint_glyph(&mut frame, &eyes, cx, cy, eye_color, eye_color, eye_color);
             }
             _ => {
                 let body_glyph: &[&str] = match warden.index {
@@ -256,19 +302,19 @@ pub fn render_board(game: &Game, theme: &Theme, flash: bool) -> Frame {
                         mask,
                         cx,
                         cy,
-                        theme.fright,
-                        theme.text,
-                        theme.eyes,
+                        fright_color,
+                        text_color,
+                        eye_color,
                     );
-                    let eye_rows = sprites::eyes_rows(facing_of(warden.actor.dir));
+                    let eye_rows =
+                        sprites::eyes_rows_for(facing_of(warden.actor.dir), eye_rung(PPT));
                     let eyes: Vec<&str> = eye_rows.iter().map(|s| s.as_str()).collect();
-                    paint_glyph(
-                        &mut frame, &eyes, cx, cy, theme.eyes, theme.eyes, theme.eyes,
-                    );
+                    paint_glyph(&mut frame, &eyes, cx, cy, eye_color, eye_color, eye_color);
                 } else {
-                    let body = bodies.get(warden.index).copied().unwrap_or(theme.bram);
-                    paint_glyph(&mut frame, body_glyph, cx, cy, body, theme.text, theme.eyes);
-                    let eye_rows = sprites::eyes_rows(facing_of(warden.actor.dir));
+                    let body = bodies.get(warden.index).copied().unwrap_or(bodies[0]);
+                    paint_glyph(&mut frame, body_glyph, cx, cy, body, text_color, eye_color);
+                    let eye_rows =
+                        sprites::eyes_rows_for(facing_of(warden.actor.dir), eye_rung(PPT));
                     let eyes: Vec<&str> = eye_rows.iter().map(|s| s.as_str()).collect();
                     // Eye overlay sits high on the 11-tall body.
                     paint_glyph(
@@ -276,9 +322,9 @@ pub fn render_board(game: &Game, theme: &Theme, flash: bool) -> Frame {
                         &eyes,
                         cx,
                         cy - 1,
-                        theme.eyes,
-                        theme.eyes,
-                        theme.eyes,
+                        eye_color,
+                        eye_color,
+                        eye_color,
                     );
                 }
             }
@@ -291,85 +337,113 @@ pub fn render_board(game: &Game, theme: &Theme, flash: bool) -> Frame {
         (game.player.y * PPT as f32) as i32,
     );
     if game.state == GameState::Dying {
-        let clip: &[&str] = sprites::PIP_DEATH[anim::death_frame(game.state_elapsed())];
+        let clip: &[&str] =
+            sprites::PIP_DEATH[anim::death_frame_for(game.state_elapsed(), opts.reduced_motion)];
         paint_glyph(
-            &mut frame, clip, pcx, pcy, theme.pip, theme.text, theme.eyes,
+            &mut frame,
+            clip,
+            pcx,
+            pcy,
+            dim_a(theme.pip),
+            dim_a(theme.text),
+            eye_color,
         );
     } else {
-        let phase = game.fx.chomp_phase();
+        let phase = if opts.reduced_motion {
+            0
+        } else {
+            game.fx.chomp_phase()
+        };
         let rows = sprites::pip_facing_rows(phase, facing_of(game.player.dir), 11);
         let refs: Vec<&str> = rows.iter().map(|s| s.as_str()).collect();
-        let hop = game.fx.hop_frame().map(sprites::hop_offset).unwrap_or(0);
+        let hop = if opts.reduced_motion {
+            0
+        } else {
+            game.fx.hop_frame().map(sprites::hop_offset).unwrap_or(0)
+        };
         paint_glyph(
             &mut frame,
             &refs,
             pcx,
             pcy + hop,
-            theme.pip,
-            theme.text,
-            theme.eyes,
+            dim_a(theme.pip),
+            dim_a(theme.text),
+            eye_color,
         );
     }
 
     // Pickup ripple above Pip, so the player never hides it.
-    if let Some((anchor, idx)) = game.fx.pickup_burst() {
-        paint_glyph(
-            &mut frame,
-            &sprites::PICKUP_BURST[idx],
-            (anchor.x * PPT as f32) as i32,
-            (anchor.y * PPT as f32) as i32,
-            theme.accent,
-            theme.text,
-            theme.eyes,
-        );
+    if !opts.reduced_motion {
+        if let Some((anchor, idx)) = game.fx.pickup_burst() {
+            paint_glyph(
+                &mut frame,
+                &sprites::PICKUP_BURST[idx],
+                (anchor.x * PPT as f32) as i32,
+                (anchor.y * PPT as f32) as i32,
+                dim_p(theme.accent),
+                dim_p(theme.text),
+                dim_p(theme.eyes),
+            );
+        }
     }
 
     // Committed-turn spark above Pip, then the spare-wick bloom.
-    if let Some(anchor) = game.fx.turn_spark() {
-        paint_glyph(
-            &mut frame,
-            &sprites::TURN_SPARK,
-            (anchor.x * PPT as f32) as i32,
-            (anchor.y * PPT as f32) as i32,
-            theme.text,
-            theme.text,
-            theme.text,
-        );
+    if !opts.reduced_motion {
+        if let Some(anchor) = game.fx.turn_spark() {
+            paint_glyph(
+                &mut frame,
+                &sprites::TURN_SPARK,
+                (anchor.x * PPT as f32) as i32,
+                (anchor.y * PPT as f32) as i32,
+                dim_p(theme.text),
+                dim_p(theme.text),
+                dim_p(theme.text),
+            );
+        }
     }
     if let Some(idx) = game.fx.lily_frame() {
+        let idx = if opts.reduced_motion { 0 } else { idx };
         paint_glyph(
             &mut frame,
             &sprites::GOLDEN_LILY[idx],
             (BOARD_W / 2) as i32,
             (BOARD_H / 2) as i32,
-            theme.accent,
-            theme.text,
-            theme.eyes,
+            dim_p(theme.accent),
+            dim_p(theme.text),
+            dim_p(theme.eyes),
         );
     }
 
     // Lantern sweep after the actors, then the lily-crown banner, exactly
     // like the shared raster.
     if game.state == GameState::Clearing {
-        if let Some(p) = anim::level_clear_sweep(game.state_elapsed()) {
-            let band = (PPT * 2) as u32;
-            let x = (p * frame.w as f32) as u32;
-            let tint = mix(theme.bg, theme.accent, 0.45);
-            for bx in x..(x + band).min(frame.w) {
-                for y in 0..frame.h as i32 {
-                    frame.set(bx as i32, y, tint);
+        let elapsed = game.state_elapsed();
+        if !opts.reduced_motion && flash {
+            if let Some(p) = anim::level_clear_sweep(elapsed) {
+                let band = (PPT * 2) as u32;
+                let x = (p * frame.w as f32) as u32;
+                let tint = mix(theme.bg, dim_p(theme.accent), 0.45);
+                for bx in x..(x + band).min(frame.w) {
+                    for y in 0..frame.h as i32 {
+                        frame.set(bx as i32, y, tint);
+                    }
                 }
             }
         }
-        if anim::level_clear_banner_on(game.state_elapsed()) {
+        let banner = if opts.reduced_motion || !flash {
+            elapsed.is_finite() && (0.0..1.2).contains(&elapsed)
+        } else {
+            anim::level_clear_banner_on(elapsed)
+        };
+        if banner {
             paint_glyph(
                 &mut frame,
                 &sprites::LILY_CROWN,
                 (BOARD_W / 2) as i32,
                 (BOARD_H / 2) as i32,
-                theme.accent,
-                theme.text,
-                theme.eyes,
+                dim_p(theme.accent),
+                dim_p(theme.text),
+                dim_p(theme.eyes),
             );
         }
     }

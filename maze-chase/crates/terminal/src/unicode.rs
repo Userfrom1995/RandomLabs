@@ -129,17 +129,17 @@ pub fn paint(text: &str, fg: Rgb, bg: Rgb, truecolor: bool) -> String {
 }
 
 /// Pip mouth for a heading (two cells wide in compact rooms).
-fn pip_text(game: &Game) -> &'static str {
+fn pip_text(game: &Game, reduced_motion: bool) -> &'static str {
     use maze_chase_engine::actors::Dir;
     if game.state == GameState::Dying {
-        return match anim::death_frame(game.state_elapsed()) {
+        return match anim::death_frame_for(game.state_elapsed(), reduced_motion) {
             0 => "><",
             1 => "++",
             2 => "..",
             _ => "()",
         };
     }
-    let closed = game.fx.chomp_phase() == 2;
+    let closed = !reduced_motion && game.fx.chomp_phase() == 2;
     match game.player.dir {
         Dir::Right => {
             if closed {
@@ -176,6 +176,30 @@ fn pip_text(game: &Game) -> &'static str {
 /// rows at `layout.board`; rows outside the board are bg-filled to the
 /// full window width so resizes never leave stale glyphs.
 pub fn render_board(game: &Game, theme: &Theme, layout: &Layout, flash: bool) -> Screen {
+    render_board_opts(game, theme, layout, anim::Fx::new(flash, false))
+}
+
+/// Render with the shared accessibility/staging options. Actor glyphs are
+/// exempt from `dim_playfield` so the pause hub keeps Rill and the wardens
+/// legible while the maze fades; the title passes `dim_actors` too.
+pub fn render_board_opts(game: &Game, theme: &Theme, layout: &Layout, opts: anim::Fx) -> Screen {
+    let flash = opts.flash;
+    let dim = |c: Rgb, amount: f32| -> Rgb {
+        if amount > 0.0 {
+            maze_chase_assets::themes::mix(theme.bg, c, 1.0 - amount.clamp(0.0, 1.0))
+        } else {
+            c
+        }
+    };
+    let wall = dim(theme.wall, opts.dim_playfield);
+    let accent = dim(theme.accent, opts.dim_playfield);
+    let sunseed = dim(theme.sunseed, opts.dim_playfield);
+    let crumb = dim(theme.crumb, opts.dim_playfield);
+    let actor_eyes = dim(theme.eyes, opts.dim_actors);
+    let actor_fright = dim(theme.fright, opts.dim_actors);
+    let pip_color = dim(theme.pip, opts.dim_actors);
+    let effect_accent = dim(theme.accent, opts.dim_playfield);
+    let effect_text = dim(theme.text, opts.dim_playfield);
     let cw = layout.cell_cols as usize;
     let ch = layout.cell_rows as usize;
     let cols = layout.cols as usize;
@@ -194,34 +218,41 @@ pub fn render_board(game: &Game, theme: &Theme, layout: &Layout, flash: bool) ->
         f32::INFINITY
     };
     let fright_mask = anim::fright_mask_id(fright_elapsed, flash_t_left);
-    let bodies = [theme.bram, theme.kessa, theme.jory, theme.nib];
+    let bodies = [
+        dim(theme.bram, opts.dim_actors),
+        dim(theme.kessa, opts.dim_actors),
+        dim(theme.jory, opts.dim_actors),
+        dim(theme.nib, opts.dim_actors),
+    ];
 
-    // Actor overlay lookup: tile -> (text, color).
-    let mut overlay = std::collections::BTreeMap::new();
+    // Overlay lookup: tile -> (text, color, playfield_dimmed).
+    let mut overlay: std::collections::BTreeMap<(i32, i32), (&'static str, Rgb, bool)> =
+        std::collections::BTreeMap::new();
     if game.relish.active {
         overlay.insert(
             maze_chase_engine::tuning::RELISH_TILE,
             (
-                if game.elapsed().rem_euclid(4.0) < 2.0 {
+                if opts.reduced_motion || game.elapsed().rem_euclid(4.0) < 2.0 {
                     "<>"
                 } else {
                     "<<"
                 },
-                theme.accent,
+                effect_accent,
+                true,
             ),
         );
     }
     for warden in game.wardens.wardens.iter() {
         let t = tile_of(warden.actor.x, warden.actor.y);
         let (text, color) = match warden.state {
-            WardenState::Eyes => ("''", theme.eyes),
+            WardenState::Eyes => ("''", actor_eyes),
             _ if fright && warden.state == WardenState::Active => (
                 if fright_mask == "fright_mask_flash" {
                     "##"
                 } else {
                     "FF"
                 },
-                theme.fright,
+                actor_fright,
             ),
             _ => {
                 let letter = match warden.index {
@@ -233,45 +264,55 @@ pub fn render_board(game: &Game, theme: &Theme, layout: &Layout, flash: bool) ->
                 (letter, bodies[warden.index])
             }
         };
-        overlay.insert(t, (text, color));
+        overlay.insert(t, (text, color, false));
     }
     let pip_tile = tile_of(game.player.x, game.player.y);
-    overlay.insert(pip_tile, (pip_text(game), theme.pip));
+    overlay.insert(
+        pip_tile,
+        (pip_text(game, opts.reduced_motion), pip_color, false),
+    );
     // Effect cues on the cell rung: the pickup ripple is the two static
     // states the motion table allows, the turn spark a committed-corner
     // marker, and the spare wick a crown over the board center. They paint
     // after Pip so a cue on the player tile is not swallowed.
-    if let Some((anchor, frame)) = game.fx.pickup_burst() {
-        overlay.insert(
-            (anchor.x.floor() as i32, anchor.y.floor() as i32),
-            (if frame < 2 { "++" } else { "**" }, theme.accent),
-        );
-    }
-    if let Some(anchor) = game.fx.turn_spark() {
-        overlay.insert(
-            (anchor.x.floor() as i32, anchor.y.floor() as i32),
-            ("::", theme.text),
-        );
+    if !opts.reduced_motion {
+        if let Some((anchor, frame)) = game.fx.pickup_burst() {
+            overlay.insert(
+                (anchor.x.floor() as i32, anchor.y.floor() as i32),
+                (if frame < 2 { "++" } else { "**" }, effect_accent, true),
+            );
+        }
+        if let Some(anchor) = game.fx.turn_spark() {
+            overlay.insert(
+                (anchor.x.floor() as i32, anchor.y.floor() as i32),
+                ("::", effect_text, true),
+            );
+        }
     }
     if game.fx.lily_live() {
         let cx = WIDTH / 2;
         let cy = HEIGHT / 2;
-        overlay.insert((cx, cy), ("YY", theme.accent));
+        overlay.insert((cx, cy), ("YY", effect_accent, true));
     }
     if game.state == GameState::Clearing {
         let elapsed = game.state_elapsed();
-        if anim::level_clear_sweep(elapsed).is_some() {
+        if flash && !opts.reduced_motion && anim::level_clear_sweep(elapsed).is_some() {
             let quantum = (elapsed * 12.0).floor() as i32;
             let start = (quantum * WIDTH / 4).clamp(0, WIDTH);
             let end = ((quantum + 1) * WIDTH / 4).clamp(0, WIDTH);
             for tx in start..end {
                 for ty in 0..HEIGHT {
-                    overlay.insert((tx, ty), ("▓▓", theme.accent));
+                    overlay.insert((tx, ty), ("▓▓", effect_accent, true));
                 }
             }
         }
-        if anim::level_clear_banner_on(elapsed) {
-            overlay.insert((WIDTH / 2, HEIGHT / 2), ("YY", theme.accent));
+        let banner = if opts.reduced_motion || !flash {
+            elapsed.is_finite() && (0.0..1.2).contains(&elapsed)
+        } else {
+            anim::level_clear_banner_on(elapsed)
+        };
+        if banner {
+            overlay.insert((WIDTH / 2, HEIGHT / 2), ("YY", effect_accent, true));
         }
     }
     for row in 0..rows {
@@ -299,19 +340,24 @@ pub fn render_board(game: &Game, theme: &Theme, layout: &Layout, flash: bool) ->
         let cell_text = |tx: i32, ty: i32, row_sub: usize, col_sub: usize| -> (char, Rgb, Rgb) {
             let pick = |s: &str| s.chars().nth(col_sub).unwrap_or(' ');
             let tile = game.maze.tile(tx, ty);
-            if let Some(&(text, color)) = overlay.get(&(tx, ty)) {
+            if let Some(&(text, color, playfield)) = overlay.get(&(tx, ty)) {
                 let t = fit_width(text, cw);
+                let color = if playfield {
+                    dim(color, opts.dim_playfield)
+                } else {
+                    color
+                };
                 return (pick(&t), color, theme.bg);
             }
             match tile {
                 Tile::Wall => {
                     // Full-block face in the wall tone; the bitmap
                     // tiers add bevel shading where pixels allow.
-                    (pick(&"█".repeat(cw)), theme.wall, theme.bg)
+                    (pick(&"█".repeat(cw)), wall, theme.bg)
                 }
                 Tile::Door => {
                     let s = fit_width("──", cw);
-                    (pick(&s), theme.accent, theme.bg)
+                    (pick(&s), accent, theme.bg)
                 }
                 Tile::House => (' ', theme.bg, theme.bg),
                 Tile::Dot | Tile::Energizer | Tile::Plain => {
@@ -320,7 +366,7 @@ pub fn render_board(game: &Game, theme: &Theme, layout: &Layout, flash: bool) ->
                     let i = (ty * WIDTH + tx) as usize;
                     if field.get(stride + i).copied().unwrap_or(0) == 1 {
                         let s = fit_width(
-                            if anim::sunseed_halo(game.elapsed()) {
+                            if flash && !opts.reduced_motion && anim::sunseed_halo(game.elapsed()) {
                                 "○○"
                             } else {
                                 "●●"
@@ -329,14 +375,14 @@ pub fn render_board(game: &Game, theme: &Theme, layout: &Layout, flash: bool) ->
                         );
                         (
                             if centered { pick(&s) } else { ' ' },
-                            if centered { theme.sunseed } else { theme.bg },
+                            if centered { sunseed } else { theme.bg },
                             theme.bg,
                         )
                     } else if field.get(i).copied().unwrap_or(0) == 1 {
                         let s = fit_width("· ", cw);
                         (
                             if centered { pick(&s) } else { ' ' },
-                            if centered { theme.crumb } else { theme.bg },
+                            if centered { crumb } else { theme.bg },
                             theme.bg,
                         )
                     } else {
@@ -583,7 +629,7 @@ mod tests {
         g.kill_player();
         g.tick(0.9);
         assert_eq!(
-            pip_text(&g),
+            pip_text(&g, false),
             "()",
             "the held death frame keeps a visible bubble"
         );

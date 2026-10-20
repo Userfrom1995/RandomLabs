@@ -269,7 +269,7 @@ impl Atlas {
         {
             glyphs.push((
                 slot::EYES + i,
-                raster::eyes_rows(dir),
+                raster::eyes_rows_for(dir, ppt as i32),
                 [theme.eyes, theme.eyes, theme.eyes],
             ));
         }
@@ -283,7 +283,9 @@ impl Atlas {
                 [theme.sunseed, theme.sunseed, theme.eyes],
             ));
         }
-        for (i, icon) in sprites::RELISH_ICONS.iter().enumerate() {
+        let relish_rung = if ppt >= 21 { 11 } else { 7 };
+        for i in 0..sprites::RELISH_ICONS.len() {
+            let icon = sprites::relish_icon(i, relish_rung);
             glyphs.push((
                 slot::RELISH + i,
                 icon.iter().map(|s| s.to_string()).collect(),
@@ -317,6 +319,8 @@ impl Atlas {
             let refs: Vec<&str> = rows.iter().map(|s| s.as_str()).collect();
             let draw_scale = if slot < slot::PIP_DEATH {
                 pip_scale
+            } else if (slot::RELISH..slot::RELISH + 6).contains(&slot) && ppt >= 21 {
+                1
             } else {
                 scale
             };
@@ -366,12 +370,20 @@ pub fn static_frame(game: &Game, theme: &Theme, ppt: u32) -> RgbaFrame {
 /// stack identically on the terminal and in [`compose`]. Animation reads
 /// the engine clock, so the layers share one cadence.
 pub fn placements(game: &Game, ppt: u32, flash: bool, atlas: &Atlas) -> Vec<Placement> {
+    placements_opts(game, ppt, atlas, anim::Fx::new(flash, false))
+}
+
+/// Placement list with accessibility options: reduced motion holds the
+/// sunseed halo, relic bob, pickup burst, turn spark, spare-wick frame and
+/// Pip's hop still, matching [`raster::render_opts`] pixel for pixel.
+pub fn placements_opts(game: &Game, ppt: u32, atlas: &Atlas, opts: anim::Fx) -> Vec<Placement> {
     let ppt = ppt.max(raster::MIN_PPT) as i32;
     let scale = atlas.scale;
+    let flash = opts.flash && !opts.reduced_motion;
     let mut out = Vec::new();
     let crumb_field = game.maze.dot_bytes();
     let stride = (WIDTH * HEIGHT) as usize;
-    let sunseed = if anim::sunseed_halo(game.elapsed()) {
+    let sunseed = if opts.flash && !opts.reduced_motion && anim::sunseed_halo(game.elapsed()) {
         slot::SUNSEED_B
     } else {
         slot::SUNSEED_A
@@ -394,7 +406,11 @@ pub fn placements(game: &Game, ppt: u32, flash: bool, atlas: &Atlas) -> Vec<Plac
     if game.relish.active {
         let (rtx, rty) = tuning::RELISH_TILE;
         let icon = raster::relish_icon_index(game.level);
-        let bob = anim::relish_bob(game.elapsed());
+        let bob = if opts.reduced_motion {
+            0
+        } else {
+            anim::relish_bob(game.elapsed())
+        };
         out.push(atlas.place(
             50,
             slot::RELISH + icon,
@@ -404,14 +420,16 @@ pub fn placements(game: &Game, ppt: u32, flash: bool, atlas: &Atlas) -> Vec<Plac
         ));
     }
 
-    if let Some((anchor, idx)) = game.fx.pickup_burst() {
-        out.push(atlas.place(
-            70,
-            slot::PICKUP_BURST + idx,
-            (anchor.x * ppt as f32) as i32,
-            (anchor.y * ppt as f32) as i32,
-            z::BURST,
-        ));
+    if !opts.reduced_motion {
+        if let Some((anchor, idx)) = game.fx.pickup_burst() {
+            out.push(atlas.place(
+                70,
+                slot::PICKUP_BURST + idx,
+                (anchor.x * ppt as f32) as i32,
+                (anchor.y * ppt as f32) as i32,
+                z::BURST,
+            ));
+        }
     }
 
     let fright = game.wardens.fright_active();
@@ -484,31 +502,41 @@ pub fn placements(game: &Game, ppt: u32, flash: bool, atlas: &Atlas) -> Vec<Plac
     if game.state == GameState::Dying {
         out.push(atlas.place(
             60,
-            slot::PIP_DEATH + anim::death_frame(game.state_elapsed()),
+            slot::PIP_DEATH + anim::death_frame_for(game.state_elapsed(), opts.reduced_motion),
             pcx,
             pcy,
             z::PIP,
         ));
     } else {
-        let phase = game.fx.chomp_phase();
-        let hop = game
-            .fx
-            .hop_frame()
-            .map(|pose| raster::hop_offset(ppt, pose))
-            .unwrap_or(0);
+        let phase = if opts.reduced_motion {
+            0
+        } else {
+            game.fx.chomp_phase()
+        };
+        let hop = if opts.reduced_motion {
+            0
+        } else {
+            game.fx
+                .hop_frame()
+                .map(|pose| raster::hop_offset(ppt, pose))
+                .unwrap_or(0)
+        };
         out.push(atlas.place(60, pip_slot(phase, game.player.dir), pcx, pcy + hop, z::PIP));
     }
 
-    if let Some(anchor) = game.fx.turn_spark() {
-        out.push(atlas.place(
-            71,
-            slot::TURN_SPARK,
-            (anchor.x * ppt as f32) as i32,
-            (anchor.y * ppt as f32) as i32,
-            z::SPARK,
-        ));
+    if !opts.reduced_motion {
+        if let Some(anchor) = game.fx.turn_spark() {
+            out.push(atlas.place(
+                71,
+                slot::TURN_SPARK,
+                (anchor.x * ppt as f32) as i32,
+                (anchor.y * ppt as f32) as i32,
+                z::SPARK,
+            ));
+        }
     }
     if let Some(idx) = game.fx.lily_frame() {
+        let idx = if opts.reduced_motion { 0 } else { idx };
         out.push(atlas.place(
             72,
             slot::GOLDEN_LILY + idx,
@@ -737,6 +765,26 @@ mod tests {
                 );
                 assert_frames_eq(&got, &want, &format!("ppt {ppt} dying step {step}"));
             }
+        }
+    }
+
+    #[test]
+    fn reduced_motion_placements_match_full_raster() {
+        for ppt in [6, 8, 21] {
+            let mut game = Game::new(7, 1);
+            let theme = themes::DUSK_POND;
+            let atlas = atlas_for(ppt);
+            game.fx.pickup(game.player.x, game.player.y);
+            game.fx.turn(game.player.x + 0.25, game.player.y);
+            game.fx.spare_wick();
+            let opts = anim::Fx::new(true, true);
+            let want = RgbaFrame::from_rgb(&raster::render_opts(&game, &theme, ppt, opts));
+            let got = compose(
+                &static_frame(&game, &theme, ppt),
+                &atlas,
+                &placements_opts(&game, ppt, &atlas, opts),
+            );
+            assert_frames_eq(&got, &want, &format!("ppt {ppt} reduced motion"));
         }
     }
 
