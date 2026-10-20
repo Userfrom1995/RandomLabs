@@ -14133,27 +14133,50 @@ fi
 # `/oc approve-test` verdict. A workflow-touching PR could therefore merge
 # with no binding Evaluator verdict: the agent merge path was the only eval
 # consumer, and the sweep bypasses the agent. Properties:
-#   1. opencode-eval.yml publishes a canonical, bot-authored first-line eval
-#      verdict marker only from an approve-eval decision that already passed
-#      the decision-file and evidence gates; the shared publisher is read from
-#      the run's own workflow commit (never the PR head) and re-fetches the
-#      posted comment by id, verifying bot authorship and the exact first line
-#      (mirrors the issue #629 tester marker contract);
+#   1. opencode-eval.yml captures the checked-out head and triggering comment
+#      id after checkout, and publishes a canonical, bot-authored first-line
+#      eval-verdict marker only from an approve-eval decision that already
+#      passed the decision-file and evidence gates, only after the signed
+#      Quality Council verdict comment was posted and verified, and only while
+#      the PR head and latest non-bot eval trigger are still the ones this run
+#      examined; the marker body carries both bindings, and the shared
+#      publisher is read from the run's own workflow commit (never the PR
+#      head), re-fetches the posted comment by id, and verifies bot
+#      authorship, the exact first line, and both bindings (mirrors the issue
+#      #629 tester marker contract);
 #   2. the forward `/oc maintainer` handoff is gated on a verified marker, so a
 #      failed publication fails the job closed instead of handing over a
 #      verdict the sweep cannot see;
 #   3. the PAT merge sweep requires a fresh eval marker bound to the current
-#      head and not older than the tester approval, with the same
-#      entire-first-line plus bot-authorship predicate shape as R21;
+#      head and to the latest eval trigger (both /oc eval and /opencode eval,
+#      ordered by comment id so same-second events are caught), not older than
+#      the tester approval, not superseded by a newer bot-authored Quality
+#      Council rejection, with the same entire-first-line plus bot-authorship
+#      predicate shape as R21; it re-reads comments and the head immediately
+#      before merging to close the mergeability-loop TOCTOU window, and both
+#      merge commands carry --match-head-commit;
 #   4. a functional harness extracts the real sweep predicate and freshness
-#      decision block and executes them against genuine and hostile payloads,
-#      and executes the real publisher against mock post/fetch outcomes;
-#   5. the signed-verdict post step's parsed run block is pinned whole-region
-#      line-exact and executed behaviorally (good approve, fix, and INCOMPLETE
-#      decisions post and verify; a failed post, missing id, failed re-fetch,
-#      wrong author, and body mismatch each exit nonzero), so a one-line
-#      `exit 0` flip or a `false &&` guard prefix can no longer publish the
-#      approval marker without a signed verdict (issue #713 review round 2).
+#      decision block and executes them against genuine and hostile payloads
+#      (different head, missing/malformed bindings, stale trigger, same-second
+#      trigger and rejection, result-comment exclusion, collaborator
+#      /opencode eval), and executes the real publisher against mock
+#      post/fetch outcomes including head and trigger mismatches;
+#   5. the bind, signed-verdict post, and marker run blocks are pinned
+#      whole-region line-exact and executed behaviorally (good approve, fix,
+#      and INCOMPLETE decisions post and verify; a failed post, missing id,
+#      failed re-fetch, wrong author, body mismatch, moved head, stale
+#      trigger, and missing bindings each exit nonzero), so a one-line
+#      `exit 0` flip, a `false &&` guard prefix, or a neutered binding guard
+#      can no longer publish an unverified or stale approval marker (issue
+#      #713 review rounds 2-3);
+#   6. the eval workflow is resolved from the strict YAML parse with its
+#      workflow and eval-job key surfaces pinned (workflow/job defaults, env,
+#      container, strategy, and continue-on-error overrides rejected) and its
+#      exact step sequence pinned, so an injected shell wrapper or an extra
+#      step that rewrites the decision file or posts a decoy marker cannot
+#      pass; every freshness variable is pinned to exactly one live
+#      assignment, and structural mutation self-tests prove each escape is
+#      detected (issue #713 review round 3).
 # Review-gated residual: the surrounding sweep control flow is still
 # review-gated, as documented in R21. Honest limit: like R21, the head time is
 # the later of committer dates and force-push events, so a fast-forward push of
@@ -14164,6 +14187,15 @@ R30_WF=".github/workflows/opencode-eval.yml"
 R30_PUBLISHER=".github/scripts/publish-eval-marker.sh"
 R30_MARKER="eval-verdict: approve-eval"
 r30_bad=""
+# Review round 3 (issue #713 finding 3): initialize every extracted block
+# before the structural branch. A missing, renamed, or duplicated step makes
+# the extraction branch fail, and the harness below dereferences these under
+# `set -u`; an unset variable used to crash the audit instead of failing the
+# rule closed.
+r30_bind_block=""
+r30_marker_block=""
+r30_post_block=""
+r30_fwd_block=""
 # Review round (issue #713 test integrity): the marker/post/forward checks
 # used to be textual greps over a sed-extracted step region, so a one-line
 # neutering of the marker step's control flow (a deleted `exit 0`, a deleted
@@ -14181,6 +14213,7 @@ if [ -z "$r30_struct_dir" ]; then
   r30_bad="${r30_bad} structural(mkdtemp-failed)"
 else
   r30_struct_out=$(R30_STRUCT_DIR="$r30_struct_dir" python3 -I - <<'R30PY'
+import copy
 import os
 import sys
 
@@ -14194,6 +14227,29 @@ STRUCT = os.environ.get("R30_STRUCT_DIR", "")
 EXPECTED_POST_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success'"
 EXPECTED_MARKER_IF = EXPECTED_POST_IF + " && steps.post-result.outcome == 'success'"
 EXPECTED_FORWARD_IF = EXPECTED_POST_IF + " && steps.marker.outputs.ok == 'true'"
+BIND_NAME = "Bind eval to the checked-out head (eval binding)"
+MARKER_NAME = "Publish eval approval marker (bot-authored)"
+POST_NAME = "Post Quality Council result as bot (never as owner, never with /oc prefix)"
+FORWARD_NAME = "Forward evaluator decision to Maintainer (owner PAT handoff)"
+EVAL_STEP_NAMES = [
+    "Get PR info",
+    "Checkout repository (PR head)",
+    BIND_NAME,
+    "Actor write gate (issue",
+    "Configure git identity",
+    "Read deliverable context",
+    "Clear runtime decision",
+    "Restore the vendored runner when the checked-out head predates it",
+    "Run evaluator agent",
+    "Verify evaluator decided",
+    "Enforce live-execution evidence gate",
+    POST_NAME,
+    MARKER_NAME,
+    FORWARD_NAME,
+    "Push evaluator memory to dedicated branch",
+]
+WORKFLOW_KEYS = {"name", "on", "permissions", "concurrency", "jobs"}
+EVAL_JOB_KEYS = {"if", "runs-on", "timeout-minutes", "steps"}
 problems = []
 
 
@@ -14227,75 +14283,100 @@ def load(path):
         return yaml.load(handle, Loader=StrictLoader)
 
 
-def steps_of(doc):
-    jobs = doc.get("jobs") if isinstance(doc, dict) else None
-    found = []
-    if isinstance(jobs, dict):
-        for job in jobs.values():
-            if isinstance(job, dict) and isinstance(job.get("steps"), list):
-                found.extend(job["steps"])
-    return found
-
-
 def write(name, value):
     if STRUCT and isinstance(value, str):
         with open(os.path.join(STRUCT, name), "w") as handle:
             handle.write(value)
 
 
-def resolve(steps, name, label):
+def resolve(steps, name, label, sink):
     hits = [step for step in steps if isinstance(step, dict) and step.get("name") == name]
     if len(hits) != 1:
-        problems.append("eval.yml(%s-step-not-unique)" % label)
+        sink.append("eval.yml(%s-step-not-unique)" % label)
         return None
     return hits[0]
 
 
-def check_keys(step, label, expected_id, expected_if):
+def check_keys(step, label, expected_id, expected_if, output, sink):
     if step.get("id") != expected_id:
-        problems.append("eval.yml(%s-id-not-%s)" % (label, expected_id))
+        sink.append("eval.yml(%s-id-not-%s)" % (label, expected_id))
     if step.get("if") != expected_if:
-        problems.append("eval.yml(%s-gate-not-exact)" % label)
+        sink.append("eval.yml(%s-gate-not-exact)" % label)
     for key in ("continue-on-error", "shell", "timeout-minutes", "working-directory"):
         if key in step:
-            problems.append("eval.yml(%s-%s-override)" % (label, key))
+            sink.append("eval.yml(%s-%s-override)" % (label, key))
     env = step.get("env")
     if (
         not isinstance(env, dict)
         or set(env) != {"GH_TOKEN"}
         or env.get("GH_TOKEN") != "${{ github.token }}"
     ):
-        problems.append("eval.yml(%s-env-not-github-token)" % label)
+        sink.append("eval.yml(%s-env-not-github-token)" % label)
     run = step.get("run")
     if not isinstance(run, str) or not run.strip():
-        problems.append("eval.yml(%s-run-missing)" % label)
+        sink.append("eval.yml(%s-run-missing)" % label)
         return
-    write(label + ".run", run)
+    if output:
+        write(label + ".run", run)
 
 
-try:
-    doc = load(".github/workflows/opencode-eval.yml")
-except Exception as exc:
-    problems.append("eval.yml(yaml-parse-error:%s)" % exc)
-    doc = None
+def check_bind(step, output, sink):
+    if step is None:
+        return
+    if step.get("id") != "eval-bind":
+        sink.append("eval.yml(bind-id-not-eval-bind)")
+    if set(step) != {"name", "id", "run"}:
+        sink.append("eval.yml(bind-keys-not-exact)")
+    run = step.get("run")
+    if not isinstance(run, str) or not run.strip():
+        sink.append("eval.yml(bind-run-missing)")
+        return
+    if output:
+        write("bind.run", run)
 
-if doc is not None:
-    steps = steps_of(doc)
-    marker = resolve(steps, "Publish eval approval marker (bot-authored)", "marker")
-    post = resolve(
-        steps,
-        "Post Quality Council result as bot (never as owner, never with /oc prefix)",
-        "post",
-    )
-    forward = resolve(
-        steps,
-        "Forward evaluator decision to Maintainer (owner PAT handoff)",
-        "forward",
-    )
+
+def validate(doc, output, sink):
+    if not isinstance(doc, dict):
+        sink.append("eval.yml(yaml-not-mapping)")
+        return
+    top_keys = set(doc)
+    if True in top_keys:
+        top_keys.discard(True)
+        top_keys.add("on")
+    if top_keys != WORKFLOW_KEYS:
+        sink.append("eval.yml(workflow-keys-not-exact)")
+    for planted in ("defaults", "env"):
+        if planted in doc:
+            sink.append("eval.yml(workflow-%s-override)" % planted)
+    jobs = doc.get("jobs")
+    if not isinstance(jobs, dict) or set(jobs) != {"eval"}:
+        sink.append("eval.yml(jobs-not-exact-eval)")
+        return
+    job = jobs["eval"]
+    if not isinstance(job, dict):
+        sink.append("eval.yml(eval-job-not-mapping)")
+        return
+    if set(job) != EVAL_JOB_KEYS:
+        sink.append("eval.yml(eval-job-keys-not-exact)")
+    for planted in ("defaults", "env", "container", "strategy", "continue-on-error"):
+        if planted in job:
+            sink.append("eval.yml(eval-job-%s-override)" % planted)
+    steps = job.get("steps")
+    if not isinstance(steps, list):
+        sink.append("eval.yml(eval-steps-not-list)")
+        return
+    names = [step.get("name") if isinstance(step, dict) else None for step in steps]
+    if names != EVAL_STEP_NAMES:
+        sink.append("eval.yml(eval-step-sequence-not-exact)")
+    bind = resolve(steps, BIND_NAME, "bind", sink)
+    marker = resolve(steps, MARKER_NAME, "marker", sink)
+    post = resolve(steps, POST_NAME, "post", sink)
+    forward = resolve(steps, FORWARD_NAME, "forward", sink)
+    check_bind(bind, output, sink)
     if marker is not None:
-        check_keys(marker, "marker", "marker", EXPECTED_MARKER_IF)
+        check_keys(marker, "marker", "marker", EXPECTED_MARKER_IF, output, sink)
     if post is not None:
-        check_keys(post, "post", "post-result", EXPECTED_POST_IF)
+        check_keys(post, "post", "post-result", EXPECTED_POST_IF, output, sink)
         post_run = post.get("run") if isinstance(post.get("run"), str) else ""
         required = (
             (
@@ -14309,21 +14390,22 @@ if doc is not None:
                 "post-no-bot-author-check",
             ),
             ('if [ "$fetched_body" != "$body" ]; then', "post-no-exact-body-check"),
+            ('body="${body//$\'\\r\'/}"', "post-no-crlf-normalization"),
         )
         for needle, label in required:
             if needle not in post_run:
-                problems.append("eval.yml(%s)" % label)
+                sink.append("eval.yml(%s)" % label)
         if "set +e" in post_run:
-            problems.append("eval.yml(post-set-plus-e-disables-fail-closed)")
+            sink.append("eval.yml(post-set-plus-e-disables-fail-closed)")
         if "gh issue comment" in post_run:
-            problems.append("eval.yml(post-hollow-green-issue-comment)")
+            sink.append("eval.yml(post-hollow-green-issue-comment)")
     if forward is not None:
         if forward.get("if") != EXPECTED_FORWARD_IF:
-            problems.append("eval.yml(forward-gate-not-marker-gated)")
+            sink.append("eval.yml(forward-gate-not-marker-gated)")
         forward_run = forward.get("run")
         if not isinstance(forward_run, str) or "/oc maintainer" not in forward_run:
-            problems.append("eval.yml(forward-maintainer-mapping-missing)")
-        else:
+            sink.append("eval.yml(forward-maintainer-mapping-missing)")
+        elif output:
             write("forward.run", forward_run)
     if marker is not None and post is not None and forward is not None:
         order = sorted(
@@ -14334,14 +14416,159 @@ if doc is not None:
             ]
         )
         if [label for _, label in order] != ["post", "marker", "forward"]:
-            problems.append("eval.yml(step-order-not-post-marker-forward)")
+            sink.append("eval.yml(step-order-not-post-marker-forward)")
         post_ids = [
             step
             for step in steps
             if isinstance(step, dict) and step.get("id") == "post-result"
         ]
         if len(post_ids) != 1 or post_ids[0] is not post:
-            problems.append("eval.yml(post-result-id-not-unique-or-not-post-step)")
+            sink.append("eval.yml(post-result-id-not-unique-or-not-post-step)")
+
+
+def step_index(document, name):
+    steps = document["jobs"]["eval"]["steps"]
+    for index, step in enumerate(steps):
+        if isinstance(step, dict) and step.get("name") == name:
+            return index
+    return -1
+
+
+def step_at(document, name):
+    index = step_index(document, name)
+    if index < 0:
+        raise KeyError(name)
+    return document["jobs"]["eval"]["steps"][index]
+
+
+try:
+    doc = load(".github/workflows/opencode-eval.yml")
+except Exception as exc:
+    problems.append("eval.yml(yaml-parse-error:%s)" % exc)
+    doc = None
+
+if doc is not None:
+    validate(doc, True, problems)
+    mutants = []
+
+    def add_mutant(label, mutate, needle):
+        mutants.append((label, mutate, needle))
+
+    add_mutant(
+        "workflow-defaults",
+        lambda d: d.__setitem__(
+            "defaults", {"run": {"shell": "bash .github/scripts/eval-shell-wrapper.sh {0}"}}
+        ),
+        "workflow-defaults-override",
+    )
+    add_mutant(
+        "workflow-env",
+        lambda d: d.__setitem__("env", {"EVAL_OVERRIDE": "1"}),
+        "workflow-env-override",
+    )
+    add_mutant(
+        "job-defaults",
+        lambda d: d["jobs"]["eval"].__setitem__(
+            "defaults", {"run": {"shell": "bash .github/scripts/eval-shell-wrapper.sh {0}"}}
+        ),
+        "eval-job-defaults-override",
+    )
+    add_mutant(
+        "job-env",
+        lambda d: d["jobs"]["eval"].__setitem__("env", {"EVAL_OVERRIDE": "1"}),
+        "eval-job-env-override",
+    )
+    add_mutant(
+        "job-container",
+        lambda d: d["jobs"]["eval"].__setitem__("container", "node:20"),
+        "eval-job-container-override",
+    )
+    add_mutant(
+        "job-strategy",
+        lambda d: d["jobs"]["eval"].__setitem__("strategy", {"matrix": {"os": ["x"]}}),
+        "eval-job-strategy-override",
+    )
+    add_mutant(
+        "job-continue-on-error",
+        lambda d: d["jobs"]["eval"].__setitem__("continue-on-error", True),
+        "eval-job-continue-on-error-override",
+    )
+    add_mutant(
+        "extra-step-before-post",
+        lambda d: d["jobs"]["eval"]["steps"].insert(
+            step_index(d, POST_NAME),
+            {
+                "name": "Rewrite decision before post",
+                "run": "echo '{\"action\":\"approve-eval\",\"score\":9.9}' > /tmp/evaluator-decision.json",
+            },
+        ),
+        "eval-step-sequence-not-exact",
+    )
+    add_mutant(
+        "extra-step-after-marker",
+        lambda d: d["jobs"]["eval"]["steps"].insert(
+            step_index(d, MARKER_NAME) + 1,
+            {
+                "name": "Publish decoy marker",
+                "run": "gh issue comment 713 --body 'eval-verdict: approve-eval'",
+            },
+        ),
+        "eval-step-sequence-not-exact",
+    )
+    add_mutant(
+        "renamed-marker",
+        lambda d: step_at(d, MARKER_NAME).__setitem__("name", "Publish marker"),
+        "marker-step-not-unique",
+    )
+    add_mutant(
+        "duplicate-marker",
+        lambda d: d["jobs"]["eval"]["steps"].append(
+            copy.deepcopy(step_at(d, MARKER_NAME))
+        ),
+        "marker-step-not-unique",
+    )
+    add_mutant(
+        "marker-if",
+        lambda d: step_at(d, MARKER_NAME).__setitem__("if", "always()"),
+        "marker-gate-not-exact",
+    )
+    add_mutant(
+        "post-if",
+        lambda d: step_at(d, POST_NAME).__setitem__("if", "always()"),
+        "post-gate-not-exact",
+    )
+    add_mutant(
+        "forward-if",
+        lambda d: step_at(d, FORWARD_NAME).__setitem__("if", "always()"),
+        "forward-gate-not-marker-gated",
+    )
+    add_mutant(
+        "marker-continue-on-error",
+        lambda d: step_at(d, MARKER_NAME).__setitem__("continue-on-error", True),
+        "marker-continue-on-error-override",
+    )
+    add_mutant(
+        "bind-missing",
+        lambda d: d["jobs"]["eval"]["steps"].pop(step_index(d, BIND_NAME)),
+        "eval-step-sequence-not-exact",
+    )
+    if step_index(doc, BIND_NAME) >= 0:
+        add_mutant(
+            "bind-id",
+            lambda d: step_at(d, BIND_NAME).__setitem__("id", "decoy"),
+            "bind-id-not-eval-bind",
+        )
+    for label, mutate, needle in mutants:
+        mutant = copy.deepcopy(doc)
+        local = []
+        try:
+            mutate(mutant)
+            validate(mutant, False, local)
+        except Exception:
+            problems.append("eval.yml(structural-self-test-%s)" % label)
+            continue
+        if not any(needle in problem for problem in local):
+            problems.append("eval.yml(structural-self-test-%s)" % label)
 
 sys.stdout.write("\n".join(problems))
 R30PY
@@ -14363,6 +14590,19 @@ else
   grep -qF "''|*[!0-9]*)" "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-numeric-target-guard)"
   grep -qF 'if [ -z "$repo" ]; then' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-repo-guard)"
   grep -qF 'if [ -z "$comment_id" ]; then' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-comment-id-guard)"
+  # Issue #713 review round 3 finding 1: the publisher takes and validates the
+  # evaluated head and trigger, embeds both in the marker body, and verifies
+  # the re-fetched values, so a marker can never bind to a different head or
+  # run than the one requested.
+  grep -qF 'eval_head="${3:-}"' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-eval-head-arg)"
+  grep -qF 'eval_trigger="${4:-}"' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-eval-trigger-arg)"
+  grep -qF 'case "$eval_head" in' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-eval-head-sha-guard)"
+  grep -qF 'if [ "${#eval_head}" -ne 40 ] && [ "${#eval_head}" -ne 64 ]; then' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-eval-head-length-guard)"
+  grep -qF 'case "$eval_trigger" in' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-eval-trigger-guard)"
+  grep -qF '"eval-head: ${eval_head}"' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-eval-head-binding-in-body)"
+  grep -qF '"eval-trigger: ${eval_trigger}"' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-eval-trigger-binding-in-body)"
+  grep -qF 'if [ "$fetched_head" != "$eval_head" ]; then' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-fetched-head-verification)"
+  grep -qF 'if [ "$fetched_trigger" != "$eval_trigger" ]; then' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-fetched-trigger-verification)"
   grep -qF 'GITHUB_ACTIONS' "$R30_PUBLISHER" && r30_bad="${r30_bad} publisher(references-GITHUB_ACTIONS)"
   grep -qF 'MOCK_' "$R30_PUBLISHER" && r30_bad="${r30_bad} publisher(references-MOCK)"
   grep -qF 'Userfrom1995' "$R30_PUBLISHER" && r30_bad="${r30_bad} publisher(hardcodes-repo-slug)"
@@ -14377,6 +14617,13 @@ fi
 # `ok=true` write, and a changed `.action` default, all of which the old
 # substring greps accepted. The functional harness below additionally proves
 # reachability by executing the block across decision fixtures.
+r30_expected_bind_block() {
+  cat <<'R30BIND'
+eval_sha=$(git rev-parse HEAD)
+echo "eval_sha=$eval_sha" >> "$GITHUB_OUTPUT"
+echo "eval_trigger=${{ github.event.comment.id }}" >> "$GITHUB_OUTPUT"
+R30BIND
+}
 r30_expected_marker_block() {
   cat <<'R30MARKER'
 echo "ok=false" >> "$GITHUB_OUTPUT"
@@ -14393,6 +14640,23 @@ exit 0
 fi
 score=$(jq -r '.score // "N/A"' /tmp/evaluator-decision.json 2>/dev/null || echo "N/A")
 pr="${{ github.event.issue.number }}"
+eval_sha="${{ steps.eval-bind.outputs.eval_sha }}"
+trigger="${{ github.event.comment.id }}"
+if [ -z "$eval_sha" ] || [ -z "$trigger" ]; then
+echo "::error::Evaluated head or trigger id missing; refusing to publish an unbound eval verdict (issue #713)."
+exit 1
+fi
+current_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null || echo "")
+if [ -z "$current_sha" ] || [ "$current_sha" != "$eval_sha" ]; then
+echo "::error::PR #$pr head moved from $eval_sha to ${current_sha:-unknown}; refusing to publish a stale eval verdict (issue #713)."
+exit 1
+fi
+latest_trigger=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null \
+| jq -r '[.[][] | select((.user.login | endswith("[bot]") | not) and (((.body | startswith("/oc eval")) and ((.body | startswith("/oc eval result")) | not)) or ((.body | startswith("/opencode eval")) and ((.body | startswith("/opencode eval result")) | not))))] | last | .id // empty' 2>/dev/null || echo "")
+if [ -z "$latest_trigger" ] || [ "$latest_trigger" != "$trigger" ]; then
+echo "::error::A newer eval trigger (${latest_trigger:-unknown}) exists since this run started; refusing to publish a stale eval verdict (issue #713)."
+exit 1
+fi
 publisher="${RUNNER_TEMP:-/tmp}/publish-eval-marker.sh"
 rm -f "$publisher"
 if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-eval-marker.sh" 2>/dev/null; then
@@ -14405,7 +14669,7 @@ if [ ! -s "$publisher" ]; then
 echo "::error::Eval marker publisher absent from workflow commit ${GITHUB_SHA}; refusing to hand an unverified verdict to the merge sweep (issue #713, fail closed)."
 exit 1
 fi
-if ! bash "$publisher" "$pr" "$score"; then
+if ! bash "$publisher" "$pr" "$score" "$eval_sha" "$trigger"; then
 echo "::error::Eval approval marker publication failed; the PAT merge sweep would never recognize this verdict (issue #713). Failing closed."
 exit 1
 fi
@@ -14436,6 +14700,7 @@ body="Quality Council REJECTION - Score ${score}/10. ${summary} - The Evaluator 
 else
 body="Quality Council INCOMPLETE - Action: ${action}. Score: ${score}. ${summary} - The Quality Council (Evaluator)"
 fi
+body="${body//$'\r'/}"
 echo "Posting evaluation result to PR/issue..."
 response=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments" -f body="$body" 2>&1) || {
 echo "::error::Posting the Quality Council result failed; refusing to publish an approval marker without its signed verdict (issue #713)."
@@ -14465,20 +14730,52 @@ R30POST
 }
 if [ ! -f "$R30_WF" ]; then
   r30_bad="${r30_bad} opencode-eval.yml(missing)"
-elif [ ! -f "$r30_struct_dir/marker.run" ] || [ ! -f "$r30_struct_dir/post.run" ] || [ ! -f "$r30_struct_dir/forward.run" ]; then
-  r30_bad="${r30_bad} opencode-eval.yml(marker-post-or-forward-step-missing-or-renamed)"
+elif [ ! -f "$r30_struct_dir/bind.run" ] || [ ! -f "$r30_struct_dir/marker.run" ] || [ ! -f "$r30_struct_dir/post.run" ] || [ ! -f "$r30_struct_dir/forward.run" ]; then
+  r30_bad="${r30_bad} opencode-eval.yml(bind-marker-post-or-forward-step-missing-or-renamed)"
 else
+  r30_bind_block=$(cat "$r30_struct_dir/bind.run" 2>/dev/null || true)
   r30_marker_block=$(cat "$r30_struct_dir/marker.run" 2>/dev/null || true)
   r30_post_block=$(cat "$r30_struct_dir/post.run" 2>/dev/null || true)
   r30_fwd_block=$(cat "$r30_struct_dir/forward.run" 2>/dev/null || true)
+  # Issue #713 review round 3 finding 1: the eval verdict must be bound to the
+  # head it evaluated and the trigger that started the run, so the marker and
+  # the sweep can never merge a head the Evaluator never examined.
+  printf '%s\n' "$r30_bind_block" | grep -qF 'eval_sha=$(git rev-parse HEAD)' || r30_bad="${r30_bad} eval.yml(bind-no-head-capture)"
+  printf '%s\n' "$r30_bind_block" | grep -qF 'echo "eval_sha=$eval_sha" >> "$GITHUB_OUTPUT"' || r30_bad="${r30_bad} eval.yml(bind-no-head-output)"
+  printf '%s\n' "$r30_bind_block" | grep -qF 'echo "eval_trigger=${{ github.event.comment.id }}" >> "$GITHUB_OUTPUT"' || r30_bad="${r30_bad} eval.yml(bind-no-trigger-output)"
   printf '%s\n' "$r30_marker_block" | grep -qF 'git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-eval-marker.sh" 2>/dev/null; then' || r30_bad="${r30_bad} eval.yml(no-publisher-workflow-commit-probe)"
   printf '%s\n' "$r30_marker_block" | grep -qF 'git show "${GITHUB_SHA}:.github/scripts/publish-eval-marker.sh" > "$publisher" 2>/dev/null || rm -f "$publisher"' || r30_bad="${r30_bad} eval.yml(no-publisher-workflow-commit-extraction)"
   printf '%s\n' "$r30_marker_block" | grep -q 'bash \.github/scripts/publish-eval-marker\.sh' && r30_bad="${r30_bad} eval.yml(head-workspace-publisher-invocation)"
   printf '%s\n' "$r30_marker_block" | grep -qF 'if [ ! -s "$publisher" ]; then' || r30_bad="${r30_bad} eval.yml(no-fail-closed-on-missing-publisher)"
   printf '%s\n' "$r30_marker_block" | grep -qF 'if [ "$action" != "approve-eval" ]; then' || r30_bad="${r30_bad} eval.yml(no-approve-eval-only-guard)"
-  printf '%s\n' "$r30_marker_block" | grep -qF 'if ! bash "$publisher" "$pr" "$score"; then' || r30_bad="${r30_bad} eval.yml(no-publisher-invocation)"
+  # Review round 3 finding 1: a marker may only be published while the PR head
+  # is still the evaluated head and the triggering comment is still the latest
+  # eval trigger. Each guard fails the step closed, so the forward handoff is
+  # gated off as well.
+  printf '%s\n' "$r30_marker_block" | grep -qF 'if [ -z "$eval_sha" ] || [ -z "$trigger" ]; then' || r30_bad="${r30_bad} eval.yml(no-missing-eval-binding-guard)"
+  printf '%s\n' "$r30_marker_block" | grep -qF 'if [ -z "$current_sha" ] || [ "$current_sha" != "$eval_sha" ]; then' || r30_bad="${r30_bad} eval.yml(no-eval-head-still-current-guard)"
+  printf '%s\n' "$r30_marker_block" | grep -qF 'gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq' || r30_bad="${r30_bad} eval.yml(no-eval-head-refetch)"
+  printf '%s\n' "$r30_marker_block" | grep -qF 'if [ -z "$latest_trigger" ] || [ "$latest_trigger" != "$trigger" ]; then' || r30_bad="${r30_bad} eval.yml(no-eval-trigger-still-latest-guard)"
+  printf '%s\n' "$r30_marker_block" | grep -qF 'startswith("/oc eval")' || r30_bad="${r30_bad} eval.yml(no-oc-eval-trigger-match)"
+  printf '%s\n' "$r30_marker_block" | grep -qF 'startswith("/opencode eval")' || r30_bad="${r30_bad} eval.yml(no-opencode-eval-trigger-match)"
+  printf '%s\n' "$r30_marker_block" | grep -qF 'endswith("[bot]") | not)' || r30_bad="${r30_bad} eval.yml(eval-trigger-not-non-bot)"
+  printf '%s\n' "$r30_marker_block" | grep -qF -- '--paginate --slurp' || r30_bad="${r30_bad} eval.yml(eval-trigger-read-not-paginated)"
+  printf '%s\n' "$r30_marker_block" | grep -qF 'if ! bash "$publisher" "$pr" "$score" "$eval_sha" "$trigger"; then' || r30_bad="${r30_bad} eval.yml(no-bound-publisher-invocation)"
   printf '%s\n' "$r30_marker_block" | grep -qF 'echo "ok=false" >> "$GITHUB_OUTPUT"' || r30_bad="${r30_bad} eval.yml(no-marker-ok-default)"
   [ "$(printf '%s\n' "$r30_marker_block" | grep -cF 'echo "ok=true" >> "$GITHUB_OUTPUT"' || true)" -ge 3 ] || r30_bad="${r30_bad} eval.yml(marker-ok-true-count-lt-3)"
+  r30_bind_region=$(printf '%s\n' "$r30_bind_block" \
+    | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+    | grep -vE '^#|^$' || true)
+  r30_bind_expect=$(r30_expected_bind_block \
+    | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+    | grep -vE '^#|^$' || true)
+  if [ -z "$r30_bind_expect" ]; then
+    r30_bad="${r30_bad} eval.yml(bind-expected-missing)"
+  elif [ -z "$r30_bind_region" ]; then
+    r30_bad="${r30_bad} eval.yml(bind-run-block-extraction-empty)"
+  elif [ "$r30_bind_region" != "$r30_bind_expect" ]; then
+    r30_bad="${r30_bad} eval.yml(bind-run-block-not-exact)"
+  fi
   r30_marker_region=$(printf '%s\n' "$r30_marker_block" \
     | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
     | grep -vE '^#|^$' || true)
@@ -14514,46 +14811,124 @@ else
   if [ -z "$r30_pat_block" ]; then
     r30_bad="${r30_bad} maintainer.yml(pat-merge-step-missing-or-renamed)"
   else
-    r30_eval_line=$(printf '%s\n' "$r30_pat_block" | sed 's/^[[:space:]]*//' | grep -vE '^#' | grep -F 'approve_eval_time=$(echo "$comments" | jq -r ' | head -1 || true)
-    [ "$(printf '%s\n' "$r30_pat_block" | grep -cF 'approve_eval_time=$(echo "$comments" | jq -r ')" -eq 1 ] || r30_bad="${r30_bad} maintainer.yml(eval-predicate-not-single-live-assignment)"
-    printf '%s\n' "$r30_eval_line" | grep -qF 'select(.user.login=="github-actions[bot]"' || r30_bad="${r30_bad} maintainer.yml(eval-predicate-no-bot-author)"
-    printf '%s\n' "$r30_eval_line" | grep -qF '(.body|split("\n")[0]|test("^`?eval-verdict: approve-eval`?[[:space:]]*$"))' || r30_bad="${r30_bad} maintainer.yml(eval-predicate-not-shape-anchored)"
-    printf '%s\n' "$r30_pat_block" | grep -qF 'contains("eval-verdict' && r30_bad="${r30_bad} maintainer.yml(unanchored-eval-verdict-contains)"
-    printf '%s\n' "$r30_pat_block" | grep -qF 'if [ -z "$approve_eval_time" ]; then' || r30_bad="${r30_bad} maintainer.yml(no-eval-marker-requirement)"
-    printf '%s\n' "$r30_pat_block" | grep -qF 'if [ "$approve_eval_time" \< "$head_push_time" ]; then' || r30_bad="${r30_bad} maintainer.yml(no-stale-eval-check)"
-    printf '%s\n' "$r30_pat_block" | grep -qF 'if [ "$approve_eval_time" \< "$approve_test_time" ]; then' || r30_bad="${r30_bad} maintainer.yml(no-eval-before-tester-check)"
-    # Review finding 1: a newer Evaluator rejection does not publish a marker,
-    # so the sweep must fail closed on a newer bot-authored rejection and on a
-    # newer owner /oc eval trigger (whose fresh verdict is still pending).
-    printf '%s\n' "$r30_pat_block" | grep -qF 'last_eval_reject_time=$(echo "$comments" | jq -r ' || r30_bad="${r30_bad} maintainer.yml(no-newer-eval-rejection-check)"
-    printf '%s\n' "$r30_pat_block" | grep -qF 'select(.user.login=="github-actions[bot]" and (.body | startswith("Quality Council REJECTION")))' || r30_bad="${r30_bad} maintainer.yml(eval-rejection-not-bot-anchored)"
-    printf '%s\n' "$r30_pat_block" | grep -qF 'if [ -n "$last_eval_reject_time" ] && [ "$last_eval_reject_time" \> "$approve_eval_time" ]; then' || r30_bad="${r30_bad} maintainer.yml(eval-rejection-not-superseding)"
-    printf '%s\n' "$r30_pat_block" | grep -qF 'last_eval_trigger_time=$(echo "$comments" | jq -r ' || r30_bad="${r30_bad} maintainer.yml(no-newer-eval-trigger-check)"
-    printf '%s\n' "$r30_pat_block" | grep -qF '.user.login=="${{ github.repository_owner }}" and (.body | startswith("/oc eval"))' || r30_bad="${r30_bad} maintainer.yml(eval-trigger-not-owner-anchored)"
-    printf '%s\n' "$r30_pat_block" | grep -qF 'if [ -n "$last_eval_trigger_time" ] && [ "$last_eval_trigger_time" \> "$approve_eval_time" ]; then' || r30_bad="${r30_bad} maintainer.yml(eval-trigger-not-superseding)"
+    # Issue #713 review round 3 finding 2: the pins are a function so mutation
+    # self-tests below prove each escape class is detected (an injected
+    # `approve_eval_time`/`approve_test_time` assignment, a dropped
+    # /opencode eval prefix, and a merge without --match-head-commit), rather
+    # than the pins merely existing.
+    r30_check_pat_block() {
+      local block="$1" bad="" eval_line=""
+      eval_line=$(printf '%s\n' "$block" | sed 's/^[[:space:]]*//' | grep -vE '^#' | grep -F 'eval_marker=$(echo "$comments" | jq -c ' | head -1 || true)
+      [ -n "$eval_line" ] || bad="${bad} maintainer.yml(eval-marker-selector-missing)"
+      [ "$(printf '%s\n' "$block" | grep -cF 'eval_marker=$(echo "$comments" | jq -c ')" -eq 1 ] || bad="${bad} maintainer.yml(eval-marker-selector-not-single-live-assignment)"
+      printf '%s\n' "$eval_line" | grep -qF 'select(.user.login=="github-actions[bot]"' || bad="${bad} maintainer.yml(eval-marker-no-bot-author)"
+      printf '%s\n' "$eval_line" | grep -qF '(.body|split("\n")[0]|test("^`?eval-verdict: approve-eval`?[[:space:]]*$"))' || bad="${bad} maintainer.yml(eval-marker-not-shape-anchored)"
+      printf '%s\n' "$block" | grep -qF 'contains("eval-verdict' && bad="${bad} maintainer.yml(unanchored-eval-verdict-contains)"
+      printf '%s\n' "$block" | grep -qF 'if [ -z "$eval_marker" ]; then' || bad="${bad} maintainer.yml(no-eval-marker-requirement)"
+      # A freshness variable may be assigned exactly once: an injected
+      # same-named assignment (approve_eval_time="2099-...") would otherwise
+      # override the parsed marker timestamp and bypass every staleness check.
+      local var
+      for var in approve_eval_time approve_test_time approve_eval_head approve_eval_trigger approve_eval_id; do
+        [ "$(printf '%s\n' "$block" | grep -cE "(^|[[:space:]])${var}=")" -eq 1 ] || bad="${bad} maintainer.yml(${var}-assignment-not-unique)"
+      done
+      printf '%s\n' "$block" | grep -qF 'approve_eval_time=$(printf' || bad="${bad} maintainer.yml(eval-marker-time-not-parsed)"
+      printf '%s\n' "$block" | grep -qF 'sub("^eval-head: "; "")' || bad="${bad} maintainer.yml(eval-head-not-parsed)"
+      printf '%s\n' "$block" | grep -qF 'sub("^eval-trigger: "; "")' || bad="${bad} maintainer.yml(eval-trigger-not-parsed)"
+      printf '%s\n' "$block" | grep -qF 'if [ -z "$head_sha" ] || [ "$approve_eval_head" != "$head_sha" ]; then' || bad="${bad} maintainer.yml(no-eval-head-binding-check)"
+      printf '%s\n' "$block" | grep -qF 'if [ "$approve_eval_time" \< "$head_push_time" ]; then' || bad="${bad} maintainer.yml(no-stale-eval-check)"
+      printf '%s\n' "$block" | grep -qF 'if [ "$approve_eval_time" \< "$approve_test_time" ]; then' || bad="${bad} maintainer.yml(no-eval-before-tester-check)"
+      # Supersession by comment id (monotonic), not timestamp: same-second
+      # triggers and rejections are ordered correctly, and both eval trigger
+      # spellings plus the result-comment exclusion are pinned.
+      printf '%s\n' "$block" | grep -qF 'latest_eval_trigger_id=$(echo "$comments" | jq -r ' || bad="${bad} maintainer.yml(no-newer-eval-trigger-check)"
+      printf '%s\n' "$block" | grep -qF 'endswith("[bot]") | not)' || bad="${bad} maintainer.yml(eval-trigger-not-non-bot)"
+      printf '%s\n' "$block" | grep -qF 'startswith("/oc eval")' || bad="${bad} maintainer.yml(eval-trigger-no-oc-prefix)"
+      printf '%s\n' "$block" | grep -qF 'startswith("/opencode eval")' || bad="${bad} maintainer.yml(eval-trigger-no-opencode-prefix)"
+      printf '%s\n' "$block" | grep -qF 'startswith("/oc eval result")' || bad="${bad} maintainer.yml(eval-trigger-no-oc-result-exclusion)"
+      printf '%s\n' "$block" | grep -qF 'startswith("/opencode eval result")' || bad="${bad} maintainer.yml(eval-trigger-no-opencode-result-exclusion)"
+      printf '%s\n' "$block" | grep -qF 'if [ -z "$latest_eval_trigger_id" ] || [ "$latest_eval_trigger_id" != "$approve_eval_trigger" ]; then' || bad="${bad} maintainer.yml(eval-trigger-not-id-bound)"
+      printf '%s\n' "$block" | grep -qF 'last_eval_reject_id=$(echo "$comments" | jq -r ' || bad="${bad} maintainer.yml(no-newer-eval-rejection-check)"
+      printf '%s\n' "$block" | grep -qF 'select(.user.login=="github-actions[bot]" and (.body | startswith("Quality Council REJECTION")))' || bad="${bad} maintainer.yml(eval-rejection-not-bot-anchored)"
+      printf '%s\n' "$block" | grep -qF 'if [ -n "$last_eval_reject_id" ] && [ "$last_eval_reject_id" -gt "$approve_eval_id" ]; then' || bad="${bad} maintainer.yml(eval-rejection-not-id-superseding)"
+      # TOCTOU: comments and head are re-read immediately before the merge and
+      # the same marker/trigger/rejection decision is re-asserted.
+      printf '%s\n' "$block" | grep -qF 'merge_comments=$(gh api ' || bad="${bad} maintainer.yml(no-pre-merge-comment-refetch)"
+      printf '%s\n' "$block" | grep -qF 'merge_head=$(gh pr view ' || bad="${bad} maintainer.yml(no-pre-merge-head-refetch)"
+      printf '%s\n' "$block" | grep -qF 'merge_marker_id=$(echo "$merge_comments"' || bad="${bad} maintainer.yml(no-pre-merge-marker-refetch)"
+      printf '%s\n' "$block" | grep -qF 'merge_reject_id=$(echo "$merge_comments"' || bad="${bad} maintainer.yml(no-pre-merge-rejection-refetch)"
+      printf '%s\n' "$block" | grep -qF 'merge_trigger_id=$(echo "$merge_comments"' || bad="${bad} maintainer.yml(no-pre-merge-trigger-refetch)"
+      printf '%s\n' "$block" | grep -qF 'if [ -z "$merge_comments" ] || [ "$merge_comments" = "[]" ] || [ -z "$merge_head" ] || [ "$merge_head" != "$head_sha" ]; then' || bad="${bad} maintainer.yml(no-pre-merge-head-or-comments-guard)"
+      printf '%s\n' "$block" | grep -qF 'if [ "$merge_marker_id" != "$approve_eval_id" ] || [ "$merge_trigger_id" != "$approve_eval_trigger" ]; then' || bad="${bad} maintainer.yml(no-pre-merge-marker-binding-guard)"
+      printf '%s\n' "$block" | grep -qF 'if [ -n "$merge_reject_id" ] && [ "$merge_reject_id" -gt "$merge_marker_id" ]; then' || bad="${bad} maintainer.yml(no-pre-merge-rejection-guard)"
+      [ "$(printf '%s\n' "$block" | grep -cF -- '--match-head-commit "$head_sha"')" -eq 2 ] || bad="${bad} maintainer.yml(merge-without-match-head-commit)"
+      printf '%s' "$bad"
+    }
+    r30_bad="${r30_bad}$(r30_check_pat_block "$r30_pat_block")"
+    r30_eval_line=$(printf '%s\n' "$r30_pat_block" | sed 's/^[[:space:]]*//' | grep -vE '^#' | grep -F 'eval_marker=$(echo "$comments" | jq -c ' | head -1 || true)
+    # Mutation self-tests: each demonstrated escape must be caught by the
+    # exact pin function above, not merely by a textual coincidence.
+    r30_mut="${r30_pat_block}"$'\n            approve_eval_time="2099-01-01T00:00:00Z"'
+    case "$(r30_check_pat_block "$r30_mut")" in
+      *approve_eval_time-assignment-not-unique*) : ;;
+      *) r30_bad="${r30_bad} maintainer.yml(self-test-eval-time-injection)" ;;
+    esac
+    r30_mut="${r30_pat_block}"$'\n            approve_test_time="2099-01-01T00:00:00Z"'
+    case "$(r30_check_pat_block "$r30_mut")" in
+      *approve_test_time-assignment-not-unique*) : ;;
+      *) r30_bad="${r30_bad} maintainer.yml(self-test-tester-time-injection)" ;;
+    esac
+    r30_mut="${r30_pat_block//\/opencode eval/\/oc eval}"
+    case "$(r30_check_pat_block "$r30_mut")" in
+      *eval-trigger-no-opencode-prefix*) : ;;
+      *) r30_bad="${r30_bad} maintainer.yml(self-test-opencode-trigger-prefix)" ;;
+    esac
+    r30_mut="${r30_pat_block//--match-head-commit \"\$head_sha\"/}"
+    case "$(r30_check_pat_block "$r30_mut")" in
+      *merge-without-match-head-commit*) : ;;
+      *) r30_bad="${r30_bad} maintainer.yml(self-test-match-head-commit)" ;;
+    esac
     r30_line_p() { printf '%s\n' "$r30_pat_block" | grep -nF -- "$1" | head -1 | cut -d: -f1; }
     r30_test_ln=$(r30_line_p 'approve_test_time=$(echo "$comments" | jq -r ')
-    r30_eval_ln=$(r30_line_p 'approve_eval_time=$(echo "$comments" | jq -r ')
     r30_head_ln=$(r30_line_p 'head_push_time=""')
+    r30_eval_ln=$(r30_line_p 'eval_marker=$(echo "$comments" | jq -c ')
+    r30_marker_req_ln=$(r30_line_p 'if [ -z "$eval_marker" ]; then')
     r30_stale_eval_ln=$(r30_line_p 'if [ "$approve_eval_time" \< "$head_push_time" ]; then')
     r30_order_ln=$(r30_line_p 'if [ "$approve_eval_time" \< "$approve_test_time" ]; then')
-    r30_reject_ln=$(r30_line_p 'last_eval_reject_time=$(echo "$comments" | jq -r ')
-    r30_trigger_ln=$(r30_line_p 'last_eval_trigger_time=$(echo "$comments" | jq -r ')
+    r30_trigger_ln=$(r30_line_p 'latest_eval_trigger_id=$(echo "$comments" | jq -r ')
+    r30_reject_ln=$(r30_line_p 'last_eval_reject_id=$(echo "$comments" | jq -r ')
+    r30_mergeable_ln=$(r30_line_p 'mergeable=$(gh pr view "$pr"')
+    r30_merge_comments_ln=$(r30_line_p 'merge_comments=$(gh api ')
     r30_merge_ln=$(r30_line_p 'gh pr merge "$pr"')
-    if [ -z "$r30_test_ln" ] || [ -z "$r30_eval_ln" ] || [ "$r30_test_ln" -ge "$r30_eval_ln" ]; then
-      r30_bad="${r30_bad} maintainer.yml(eval-verdict-not-after-tester-verdict:${r30_test_ln:-none}/${r30_eval_ln:-none})"
+    if [ -z "$r30_test_ln" ] || [ -z "$r30_head_ln" ] || [ "$r30_test_ln" -ge "$r30_head_ln" ]; then
+      r30_bad="${r30_bad} maintainer.yml(tester-verdict-not-before-head-time:${r30_test_ln:-none}/${r30_head_ln:-none})"
     fi
-    if [ -z "$r30_head_ln" ] || [ -z "$r30_stale_eval_ln" ] || [ "$r30_head_ln" -ge "$r30_stale_eval_ln" ]; then
-      r30_bad="${r30_bad} maintainer.yml(eval-not-head-bound-after-head-time:${r30_head_ln:-none}/${r30_stale_eval_ln:-none})"
+    if [ -z "$r30_head_ln" ] || [ -z "$r30_eval_ln" ] || [ "$r30_head_ln" -ge "$r30_eval_ln" ]; then
+      r30_bad="${r30_bad} maintainer.yml(eval-marker-not-after-head-time:${r30_head_ln:-none}/${r30_eval_ln:-none})"
     fi
-    if [ -z "$r30_order_ln" ] || [ -z "$r30_reject_ln" ] || [ "$r30_order_ln" -ge "$r30_reject_ln" ]; then
-      r30_bad="${r30_bad} maintainer.yml(eval-rejection-check-not-after-tester-order:${r30_order_ln:-none}/${r30_reject_ln:-none})"
+    if [ -z "$r30_eval_ln" ] || [ -z "$r30_marker_req_ln" ] || [ "$r30_eval_ln" -ge "$r30_marker_req_ln" ]; then
+      r30_bad="${r30_bad} maintainer.yml(eval-marker-selection-not-before-requirement:${r30_eval_ln:-none}/${r30_marker_req_ln:-none})"
     fi
-    if [ -z "$r30_reject_ln" ] || [ -z "$r30_trigger_ln" ] || [ "$r30_reject_ln" -ge "$r30_trigger_ln" ]; then
-      r30_bad="${r30_bad} maintainer.yml(eval-trigger-check-not-after-rejection:${r30_reject_ln:-none}/${r30_trigger_ln:-none})"
+    if [ -z "$r30_marker_req_ln" ] || [ -z "$r30_stale_eval_ln" ] || [ "$r30_marker_req_ln" -ge "$r30_stale_eval_ln" ]; then
+      r30_bad="${r30_bad} maintainer.yml(eval-head-binding-not-before-staleness:${r30_marker_req_ln:-none}/${r30_stale_eval_ln:-none})"
     fi
-    if [ -z "$r30_trigger_ln" ] || [ -z "$r30_merge_ln" ] || [ "$r30_trigger_ln" -ge "$r30_merge_ln" ]; then
-      r30_bad="${r30_bad} maintainer.yml(eval-supersession-not-before-merge:${r30_trigger_ln:-none}/${r30_merge_ln:-none})"
+    if [ -z "$r30_stale_eval_ln" ] || [ -z "$r30_order_ln" ] || [ "$r30_stale_eval_ln" -ge "$r30_order_ln" ]; then
+      r30_bad="${r30_bad} maintainer.yml(eval-before-tester-check-not-after-stale-check:${r30_stale_eval_ln:-none}/${r30_order_ln:-none})"
+    fi
+    if [ -z "$r30_order_ln" ] || [ -z "$r30_trigger_ln" ] || [ "$r30_order_ln" -ge "$r30_trigger_ln" ]; then
+      r30_bad="${r30_bad} maintainer.yml(eval-trigger-check-not-after-tester-order:${r30_order_ln:-none}/${r30_trigger_ln:-none})"
+    fi
+    if [ -z "$r30_trigger_ln" ] || [ -z "$r30_reject_ln" ] || [ "$r30_trigger_ln" -ge "$r30_reject_ln" ]; then
+      r30_bad="${r30_bad} maintainer.yml(eval-trigger-check-not-before-rejection:${r30_trigger_ln:-none}/${r30_reject_ln:-none})"
+    fi
+    if [ -z "$r30_reject_ln" ] || [ -z "$r30_mergeable_ln" ] || [ "$r30_reject_ln" -ge "$r30_mergeable_ln" ]; then
+      r30_bad="${r30_bad} maintainer.yml(eval-supersession-not-before-mergeability:${r30_reject_ln:-none}/${r30_mergeable_ln:-none})"
+    fi
+    if [ -z "$r30_mergeable_ln" ] || [ -z "$r30_merge_comments_ln" ] || [ "$r30_mergeable_ln" -ge "$r30_merge_comments_ln" ]; then
+      r30_bad="${r30_bad} maintainer.yml(pre-merge-refetch-not-after-mergeability:${r30_mergeable_ln:-none}/${r30_merge_comments_ln:-none})"
+    fi
+    if [ -z "$r30_merge_comments_ln" ] || [ -z "$r30_merge_ln" ] || [ "$r30_merge_comments_ln" -ge "$r30_merge_ln" ]; then
+      r30_bad="${r30_bad} maintainer.yml(pre-merge-refetch-not-before-merge:${r30_merge_comments_ln:-none}/${r30_merge_ln:-none})"
     fi
     if ! command -v jq >/dev/null 2>&1; then
       r30_bad="${r30_bad} maintainer.yml(functional-jq-missing)"
@@ -14564,7 +14939,7 @@ else
       if [ -z "$r30_tmp" ] || [ ! -d "$r30_tmp" ]; then
         r30_bad="${r30_bad} maintainer.yml(functional-sandbox-unavailable)"
       else
-        r30_start="jq -r '"
+        r30_start="jq -c '"
         r30_end="' 2>/dev/null"
         r30_jq="${r30_eval_line#*${r30_start}}"
         r30_jq="${r30_jq%%${r30_end}*}"
@@ -14573,20 +14948,23 @@ else
         else
           r30_pred_case() {
             r30_case_name="$1"; r30_case_want="$2"; r30_case_payload="$3"; r30_case_expect="${4:-}"
-            r30_case_out=$(printf '%s' "$r30_case_payload" | jq -r "$r30_jq" 2>/dev/null || true)
+            r30_case_out=$(printf '%s' "$r30_case_payload" | jq -c "$r30_jq" 2>/dev/null || true)
             if [ "$r30_case_want" = "match" ]; then
               if [ -z "$r30_case_out" ]; then
                 r30_bad="${r30_bad} maintainer.yml(functional-${r30_case_name}-no-match)"
-              elif [ "$r30_case_out" != "$r30_case_expect" ]; then
-                r30_bad="${r30_bad} maintainer.yml(functional-${r30_case_name}-wrong-timestamp)"
+              elif [ -n "$r30_case_expect" ]; then
+                case "$r30_case_out" in
+                  *"$r30_case_expect"*) : ;;
+                  *) r30_bad="${r30_bad} maintainer.yml(functional-${r30_case_name}-wrong-marker)" ;;
+                esac
               fi
             elif [ "$r30_case_want" = "none" ] && [ -n "$r30_case_out" ]; then
               r30_bad="${r30_bad} maintainer.yml(functional-${r30_case_name}-false-match)"
             fi
           }
-          r30_pred_case genuine-plain match '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:00:00Z","body":"eval-verdict: approve-eval\n\nMachine-published Evaluator approval verdict for PR #713"}]' 2026-10-20T15:00:00Z
-          r30_pred_case genuine-backticked match '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:05:00Z","body":"`eval-verdict: approve-eval`\n\nScore 9.9/10"}]' 2026-10-20T15:05:00Z
-          r30_pred_case newest-genuine-wins match '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:00:00Z","body":"eval-verdict: approve-eval\nfirst round"},{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:10:00Z","body":"eval-verdict: approve-eval\nsecond round"}]' 2026-10-20T15:10:00Z
+          r30_pred_case genuine-plain match '[{"id":1001,"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:00:00Z","body":"eval-verdict: approve-eval\n\neval-head: 1111111111111111111111111111111111111111\neval-trigger: 555"}]' 'eval-head'
+          r30_pred_case genuine-backticked match '[{"id":1002,"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:05:00Z","body":"`eval-verdict: approve-eval`\n\neval-head: 1111111111111111111111111111111111111111\neval-trigger: 555\n\nScore 9.9/10"}]' '9.9/10'
+          r30_pred_case newest-genuine-wins match '[{"id":1003,"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:00:00Z","body":"eval-verdict: approve-eval\nfirst round"},{"id":1004,"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:10:00Z","body":"eval-verdict: approve-eval\nsecond round"}]' 'second round'
           r30_pred_case quoted-mid-prose none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:00:00Z","body":"The Council returned `eval-verdict: approve-eval` at 15:00Z."}]' ''
           r30_pred_case quoted-own-line none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:00:00Z","body":"Status:\n- eval-verdict: approve-eval"}]' ''
           r30_pred_case owner-authored none '[{"user":{"login":"Userfrom1995"},"created_at":"2026-10-20T15:00:00Z","body":"eval-verdict: approve-eval"}]' ''
@@ -14597,50 +14975,166 @@ else
           r30_pred_case line-two none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:00:00Z","body":"Council result:\neval-verdict: approve-eval"}]' ''
           r30_pred_case leading-space none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:00:00Z","body":" eval-verdict: approve-eval"}]' ''
         fi
-        r30_decide_start=$(printf '%s\n' "$r30_pat_block" | grep -nF 'head_push_time=""' | head -1 | cut -d: -f1)
-        r30_trigger_start=$(printf '%s\n' "$r30_pat_block" | grep -nF 'last_eval_trigger_time=$(echo "$comments"' | head -1 | cut -d: -f1)
-        r30_decide_end=$(printf '%s\n' "$r30_pat_block" | awk -v s="$r30_trigger_start" 'NR>=s && /^[[:space:]]*fi[[:space:]]*$/ { print NR; exit }')
-        if [ -z "$r30_decide_start" ] || [ -z "$r30_trigger_start" ] || [ -z "$r30_decide_end" ]; then
+        r30_decide_start=$(printf '%s\n' "$r30_pat_block" | grep -nF 'eval_marker=$(echo "$comments" | jq -c ' | head -1 | cut -d: -f1)
+        r30_reject_start=$(printf '%s\n' "$r30_pat_block" | grep -nF 'last_eval_reject_id=$(echo "$comments"' | head -1 | cut -d: -f1)
+        r30_decide_end=$(printf '%s\n' "$r30_pat_block" | awk -v s="$r30_reject_start" 'NR>=s && /^[[:space:]]*fi[[:space:]]*$/ { print NR; exit }')
+        if [ -z "$r30_decide_start" ] || [ -z "$r30_reject_start" ] || [ -z "$r30_decide_end" ]; then
           r30_bad="${r30_bad} maintainer.yml(functional-eval-decision-block-extraction)"
         else
           r30_decide_block=$(printf '%s\n' "$r30_pat_block" | sed -n "${r30_decide_start},${r30_decide_end}p")
+          r30_json_comment() {
+            printf '{"id":%s,"user":{"login":"%s"},"created_at":"%s","body":"%s"}' "$1" "$2" "$3" "$4"
+          }
+          r30_marker_body() {
+            printf 'eval-verdict: approve-eval\\n\\neval-head: %s\\neval-trigger: %s\\n\\nMachine-published Evaluator approval verdict for PR #713' "$1" "$2"
+          }
+          r30_h_sha=1111111111111111111111111111111111111111
+          r30_other_sha=2222222222222222222222222222222222222222
+          r30_c_trigger_555=$(r30_json_comment 555 mockowner 2026-10-20T14:05:00Z '/oc eval')
+          r30_c_trigger_556=$(r30_json_comment 556 mockowner 2026-10-20T14:15:00Z '/oc eval')
+          r30_c_trigger_556_collab=$(r30_json_comment 556 collaborator 2026-10-20T14:15:00Z '/opencode eval')
+          r30_c_trigger_600_result=$(r30_json_comment 600 mockowner 2026-10-20T14:16:00Z '/oc eval result')
+          r30_c_trigger_556_same=$(r30_json_comment 556 mockowner 2026-10-20T14:10:00Z '/oc eval')
+          r30_c_trigger_556_foreign=$(r30_json_comment 556 mallory 2026-10-20T14:15:00Z '/oc eval')
+          r30_c_marker_fresh=$(r30_json_comment 1001 'github-actions[bot]' 2026-10-20T14:10:00Z "$(r30_marker_body "$r30_h_sha" 555)")
+          r30_c_marker_moved=$(r30_json_comment 1001 'github-actions[bot]' 2026-10-20T14:10:00Z "$(r30_marker_body "$r30_other_sha" 555)")
+          r30_c_marker_no_head=$(r30_json_comment 1001 'github-actions[bot]' 2026-10-20T14:10:00Z 'eval-verdict: approve-eval\n\neval-trigger: 555\n\nNo head binding')
+          r30_c_marker_bad_head=$(r30_json_comment 1001 'github-actions[bot]' 2026-10-20T14:10:00Z 'eval-verdict: approve-eval\n\neval-head: nope\neval-trigger: 555')
+          r30_c_marker_no_trigger=$(r30_json_comment 1001 'github-actions[bot]' 2026-10-20T14:10:00Z 'eval-verdict: approve-eval\n\neval-head: 1111111111111111111111111111111111111111')
+          r30_c_marker_stale=$(r30_json_comment 1001 'github-actions[bot]' 2026-10-20T13:58:00Z "$(r30_marker_body "$r30_h_sha" 555)")
+          r30_c_marker_before_tester=$(r30_json_comment 1001 'github-actions[bot]' 2026-10-20T14:04:00Z "$(r30_marker_body "$r30_h_sha" 555)")
+          r30_c_marker_backticked=$(r30_json_comment 1001 'github-actions[bot]' 2026-10-20T14:10:00Z "\`eval-verdict: approve-eval\`\\n\\neval-head: $r30_h_sha\\neval-trigger: 555")
+          r30_c_marker_trigger_556=$(r30_json_comment 1002 'github-actions[bot]' 2026-10-20T14:20:00Z "$(r30_marker_body "$r30_h_sha" 556)")
+          r30_c_marker_quoted=$(r30_json_comment 1001 'github-actions[bot]' 2026-10-20T14:10:00Z 'Status:\n- eval-verdict: approve-eval')
+          r30_c_marker_owner=$(r30_json_comment 1001 Userfrom1995 2026-10-20T14:10:00Z "$(r30_marker_body "$r30_h_sha" 555)")
+          r30_c_reject_1002=$(r30_json_comment 1002 'github-actions[bot]' 2026-10-20T14:10:00Z 'Quality Council REJECTION - Score 8.1/10.')
+          r30_c_reject_900=$(r30_json_comment 900 'github-actions[bot]' 2026-10-20T14:08:00Z 'Quality Council REJECTION - Score 8.1/10.')
           r30_head_case() {
-            r30_hc_name="$1"; r30_hc_pr="$2"; r30_hc_want="$3"
-            r30_hc_hct="$4"; r30_hc_hfpt="$5"; r30_hc_att="$6"; r30_hc_aev="$7"; r30_hc_comments="${8:-[]}"
+            r30_hc_name="$1"; r30_hc_want="$2"; r30_hc_sha="$3"; r30_hc_hpt="$4"; r30_hc_att="$5"; r30_hc_comments="${6:-[]}"
             r30_skipped=0
-            pr="$r30_hc_pr"
-            comments="$r30_hc_comments"
-            head_commit_time="$r30_hc_hct"
-            head_force_push_time="$r30_hc_hfpt"
+            pr=713
+            head_sha="$r30_hc_sha"
+            head_push_time="$r30_hc_hpt"
             approve_test_time="$r30_hc_att"
-            approve_eval_time="$r30_hc_aev"
+            comments="$r30_hc_comments"
+            eval_marker=""
+            approve_eval_time=""
+            approve_eval_id=""
+            approve_eval_head=""
+            approve_eval_trigger=""
+            latest_eval_trigger_id=""
+            last_eval_reject_id=""
             r30_body=$(printf '%s\n' "$r30_decide_block" \
-              | sed -e 's/^[[:space:]]*continue[[:space:]]*$/r30_skipped=1/' \
-                    -e 's/\${{ github\.repository_owner }}/mockowner/g')
+              | sed -e 's/^[[:space:]]*continue[[:space:]]*$/r30_skipped=1/')
             eval "$r30_body" >/dev/null 2>&1 || true
             if [ "$r30_skipped" != "$r30_hc_want" ]; then
               r30_bad="${r30_bad} maintainer.yml(functional-eval-head-${r30_hc_name}-skip=${r30_skipped},want=${r30_hc_want})"
             fi
           }
-          r30_rej_newer='[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T14:12:00Z","body":"Quality Council REJECTION - Score 8.1/10."}]'
-          r30_rej_older='[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T14:08:00Z","body":"Quality Council REJECTION - Score 8.1/10."}]'
-          r30_trigger_newer='[{"user":{"login":"mockowner"},"created_at":"2026-10-20T14:15:00Z","body":"/oc eval"}]'
-          r30_trigger_older='[{"user":{"login":"mockowner"},"created_at":"2026-10-20T14:08:00Z","body":"/oc eval"}]'
-          r30_foreign_newer='[{"user":{"login":"mallory"},"created_at":"2026-10-20T14:16:00Z","body":"/oc eval\nQuality Council REJECTION - forged"}]'
-          r30_head_case fresh 713 0 2026-10-20T14:00:00Z "" 2026-10-20T14:05:00Z 2026-10-20T14:10:00Z
-          r30_head_case stale-commit 713 1 2026-10-20T14:00:00Z "" 2026-10-20T14:05:00Z 2026-10-20T13:58:00Z
-          r30_head_case stale-force-push 42 1 2026-10-20T14:00:00Z 2026-10-20T14:06:00Z 2026-10-20T14:06:30Z 2026-10-20T14:05:30Z
-          r30_head_case force-push-before-verdict 713 0 2026-10-20T14:00:00Z 2026-10-20T13:50:00Z 2026-10-20T14:05:00Z 2026-10-20T14:10:00Z
-          r30_head_case same-second-head 42 0 2026-10-20T14:10:00Z "" 2026-10-20T14:10:00Z 2026-10-20T14:10:00Z
-          r30_head_case eval-before-tester 713 1 2026-10-20T14:00:00Z "" 2026-10-20T14:05:00Z 2026-10-20T14:04:00Z
-          r30_head_case eval-after-tester 42 0 2026-10-20T14:00:00Z "" 2026-10-20T14:05:00Z 2026-10-20T14:06:00Z
-          r30_head_case newer-eval-rejection 713 1 2026-10-20T14:00:00Z "" 2026-10-20T14:05:00Z 2026-10-20T14:10:00Z "$r30_rej_newer"
-          r30_head_case older-eval-rejection 42 0 2026-10-20T14:00:00Z "" 2026-10-20T14:05:00Z 2026-10-20T14:10:00Z "$r30_rej_older"
-          r30_head_case same-second-rejection 713 0 2026-10-20T14:00:00Z "" 2026-10-20T14:05:00Z 2026-10-20T14:10:00Z '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T14:10:00Z","body":"Quality Council REJECTION - Score 8.1/10."}]'
-          r30_head_case newer-eval-trigger 713 1 2026-10-20T14:00:00Z "" 2026-10-20T14:05:00Z 2026-10-20T14:10:00Z "$r30_trigger_newer"
-          r30_head_case older-eval-trigger 42 0 2026-10-20T14:00:00Z "" 2026-10-20T14:05:00Z 2026-10-20T14:10:00Z "$r30_trigger_older"
-          r30_head_case foreign-newer-actor 713 0 2026-10-20T14:00:00Z "" 2026-10-20T14:05:00Z 2026-10-20T14:10:00Z "$r30_foreign_newer"
-          r30_head_case rejection-and-trigger 42 1 2026-10-20T14:00:00Z "" 2026-10-20T14:05:00Z 2026-10-20T14:10:00Z '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T14:12:00Z","body":"Quality Council REJECTION - Score 8.1/10."},{"user":{"login":"mockowner"},"created_at":"2026-10-20T14:15:00Z","body":"/oc eval"}]'
+          r30_head_case fresh 0 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_fresh]"
+          r30_head_case different-head 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_moved]"
+          r30_head_case missing-head 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_no_head]"
+          r30_head_case malformed-head 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_bad_head]"
+          r30_head_case missing-trigger 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_no_trigger]"
+          r30_head_case stale-trigger 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_fresh,$r30_c_trigger_556]"
+          r30_head_case collaborator-opencode-trigger 0 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_trigger_556_collab,$r30_c_marker_trigger_556]"
+          r30_head_case result-trigger-ignored 0 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_fresh,$r30_c_trigger_600_result]"
+          r30_head_case same-second-trigger 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_fresh,$r30_c_trigger_556_same]"
+          r30_head_case same-second-rejection 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_fresh,$r30_c_reject_1002]"
+          r30_head_case older-rejection 0 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_fresh,$r30_c_reject_900]"
+          r30_head_case stale-time 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_stale]"
+          r30_head_case eval-before-tester 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_before_tester]"
+          r30_head_case backticked-marker 0 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_backticked]"
+          r30_head_case unprivileged-newer-trigger 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_fresh,$r30_c_trigger_556_foreign]"
+          r30_head_case quoted-marker 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_quoted]"
+          r30_head_case owner-marker 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_owner]"
+          r30_head_case no-marker 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555]"
+          # Review round 3 finding 6: the mergeability loop can sleep 30
+          # seconds, so comments and the head are re-read immediately before
+          # the merge. This executes the real pre-merge block against a mock
+          # gh and proves a rejection, a fresh marker, a fresh trigger, a moved
+          # head, empty comments, and a failed re-fetch each skip the merge.
+          r30_toctou_start=$(printf '%s\n' "$r30_pat_block" | grep -nF 'merge_comments=$(gh api ' | head -1 | cut -d: -f1)
+          r30_merge_echo_ln=$(printf '%s\n' "$r30_pat_block" | grep -nF 'echo "Attempting PAT-backed merge' | head -1 | cut -d: -f1)
+          if [ -n "$r30_toctou_start" ] && [ -n "$r30_merge_echo_ln" ]; then
+            r30_toctou_end=$((r30_merge_echo_ln - 1))
+          else
+            r30_toctou_end=""
+          fi
+          if [ -z "$r30_toctou_start" ] || [ -z "$r30_toctou_end" ] || [ "$r30_toctou_start" -ge "$r30_toctou_end" ]; then
+            r30_bad="${r30_bad} maintainer.yml(functional-toctou-block-extraction)"
+          else
+            r30_toctou_block=$(printf '%s\n' "$r30_pat_block" | sed -n "${r30_toctou_start},${r30_toctou_end}p")
+            r30_toctou_bin="$r30_tmp/toctou-bin"
+            mkdir -p "$r30_toctou_bin"
+            cat > "$r30_toctou_bin/gh" <<'R30_TOCTOU_MOCK'
+#!/usr/bin/env bash
+r30_cfg="$(cd "$(dirname "$0")/.." && pwd)/toctou-gh.cfg"
+merge_comments_file=""
+merge_head=""
+fail_fetch="0"
+# shellcheck disable=SC1090
+. "$r30_cfg"
+case "$*" in
+  "pr view "*) printf '%s\n' "$merge_head" ;;
+  "api "*)
+    if [ "$fail_fetch" = "1" ]; then exit 1; fi
+    jq -c '.[]' "$merge_comments_file" 2>/dev/null || true
+    ;;
+  *) echo "mock gh: unexpected invocation: $*" >&2; exit 1 ;;
+esac
+R30_TOCTOU_MOCK
+            chmod +x "$r30_toctou_bin/gh"
+            if [ "$(PATH="$r30_toctou_bin:$PATH" command -v gh)" != "$r30_toctou_bin/gh" ]; then
+              r30_bad="${r30_bad} maintainer.yml(functional-toctou-mock-not-intercepted)"
+            else
+              r30_toctou_comments_fresh="$r30_tmp/toctou-fresh.json"
+              printf '[{"id":555,"user":{"login":"mockowner"},"body":"/oc eval"},{"id":1001,"user":{"login":"github-actions[bot]"},"body":"eval-verdict: approve-eval"}]' > "$r30_toctou_comments_fresh"
+              r30_toctou_comments_marker="$r30_tmp/toctou-new-marker.json"
+              printf '[{"id":555,"user":{"login":"mockowner"},"body":"/oc eval"},{"id":1001,"user":{"login":"github-actions[bot]"},"body":"eval-verdict: approve-eval"},{"id":1002,"user":{"login":"github-actions[bot]"},"body":"eval-verdict: approve-eval"}]' > "$r30_toctou_comments_marker"
+              r30_toctou_comments_trigger="$r30_tmp/toctou-new-trigger.json"
+              printf '[{"id":555,"user":{"login":"mockowner"},"body":"/oc eval"},{"id":1001,"user":{"login":"github-actions[bot]"},"body":"eval-verdict: approve-eval"},{"id":556,"user":{"login":"mockowner"},"body":"/opencode eval"}]' > "$r30_toctou_comments_trigger"
+              r30_toctou_comments_reject="$r30_tmp/toctou-new-reject.json"
+              printf '[{"id":555,"user":{"login":"mockowner"},"body":"/oc eval"},{"id":1001,"user":{"login":"github-actions[bot]"},"body":"eval-verdict: approve-eval"},{"id":1002,"user":{"login":"github-actions[bot]"},"body":"Quality Council REJECTION - Score 8.1/10."}]' > "$r30_toctou_comments_reject"
+              r30_toctou_comments_empty="$r30_tmp/toctou-empty.json"
+              printf '[]' > "$r30_toctou_comments_empty"
+              r30_toctou_case() {
+                r30_tc_name="$1"; r30_tc_want="$2"; r30_tc_comments="$3"; r30_tc_head="$4"; r30_tc_fail="${5:-0}"
+                r30_skipped=0
+                pr=713
+                head_sha="$r30_h_sha"
+                approve_eval_id=1001
+                approve_eval_trigger=555
+                merge_comments=""
+                merge_head=""
+                merge_marker_id=""
+                merge_reject_id=""
+                merge_trigger_id=""
+                {
+                  printf 'merge_comments_file=%q\n' "$r30_tc_comments"
+                  printf 'merge_head=%q\n' "$r30_tc_head"
+                  printf 'fail_fetch=%q\n' "$r30_tc_fail"
+                } > "$r30_tmp/toctou-gh.cfg"
+                r30_tc_body=$(printf '%s\n' "$r30_toctou_block" \
+                  | sed -e 's/^[[:space:]]*continue[[:space:]]*$/r30_skipped=1/' \
+                        -e 's#\${{ github\.repository }}#RandomLabs/RandomLabs#g')
+                r30_tc_path="$PATH"
+                PATH="$r30_toctou_bin:$PATH"
+                eval "$r30_tc_body" >/dev/null 2>&1 || true
+                PATH="$r30_tc_path"
+                if [ "$r30_skipped" != "$r30_tc_want" ]; then
+                  r30_bad="${r30_bad} maintainer.yml(functional-toctou-${r30_tc_name}-skip=${r30_skipped},want=${r30_tc_want})"
+                fi
+              }
+              r30_toctou_case fresh 0 "$r30_toctou_comments_fresh" "$r30_h_sha"
+              r30_toctou_case head-moved 1 "$r30_toctou_comments_fresh" "$r30_other_sha"
+              r30_toctou_case new-marker 1 "$r30_toctou_comments_marker" "$r30_h_sha"
+              r30_toctou_case new-trigger 1 "$r30_toctou_comments_trigger" "$r30_h_sha"
+              r30_toctou_case new-rejection 1 "$r30_toctou_comments_reject" "$r30_h_sha"
+              r30_toctou_case empty-comments 1 "$r30_toctou_comments_empty" "$r30_h_sha"
+              r30_toctou_case refetch-failure 1 "$r30_toctou_comments_fresh" "$r30_h_sha" 1
+            fi
+          fi
         fi
         r30_mockdir="$r30_tmp/bin"
         r30_publisher_abs="$(pwd)/$R30_PUBLISHER"
@@ -14692,8 +15186,15 @@ R30_PUBLISHER_MOCK
           printf 'eval-verdict: approve-eval for PR #713\n' > "$r30_trailing"
           r30_line_two="$r30_tmp/line-two.txt"
           printf 'Council result:\neval-verdict: approve-eval\n' > "$r30_line_two"
+          r30_pub_sha=3333333333333333333333333333333333333333
+          r30_pub_other_sha=4444444444444444444444444444444444444444
+          r30_pub_trigger=555
+          r30_head_mismatch="$r30_tmp/head-mismatch.txt"
+          printf 'eval-verdict: approve-eval\n\neval-head: %s\neval-trigger: 555\n' "$r30_pub_other_sha" > "$r30_head_mismatch"
+          r30_trigger_mismatch="$r30_tmp/trigger-mismatch.txt"
+          printf 'eval-verdict: approve-eval\n\neval-head: %s\neval-trigger: 556\n' "$r30_pub_sha" > "$r30_trigger_mismatch"
           r30_pub_case() {
-            r30_pc_name="$1"; r30_pc_want="$2"; r30_pc_target="$3"; shift 3
+            r30_pc_name="$1"; r30_pc_want="$2"; r30_pc_target="$3"; r30_pc_head="$4"; r30_pc_trigger="$5"; shift 5
             {
               printf 'author="github-actions[bot]"\n'
               printf 'fail_post="0"\n'
@@ -14706,23 +15207,34 @@ R30_PUBLISHER_MOCK
             rm -f "$r30_tmp/posted-$r30_pc_name"
             r30_pc_out=$(cd "$r30_tmp" && env -u GITHUB_TOKEN -u GH_TOKEN -u GH_API_TOKEN \
               PATH="$r30_mockdir:$PATH" GITHUB_ACTIONS=true GITHUB_REPOSITORY="RandomLabs/RandomLabs" \
-              bash "$r30_publisher_abs" "$r30_pc_target" "9.9" 2>&1)
+              bash "$r30_publisher_abs" "$r30_pc_target" "9.9" "$r30_pc_head" "$r30_pc_trigger" 2>&1)
             r30_pc_rc=$?
             if [ "$r30_pc_rc" -ne "$r30_pc_want" ]; then
               r30_bad="${r30_bad} publisher(functional-${r30_pc_name}-rc=${r30_pc_rc},want=${r30_pc_want})"
               printf 'R30 publisher functional case %s failed (rc=%s, want=%s); output:\n%s\n' "$r30_pc_name" "$r30_pc_rc" "$r30_pc_want" "$r30_pc_out" >&2
             fi
           }
-          r30_pub_case good-marker 0 713
-          r30_pub_case prose-first 1 713 'fetch_mode="fixed"' "fixed_body_file=$r30_prose"
-          r30_pub_case trailing-prose 1 713 'fetch_mode="fixed"' "fixed_body_file=$r30_trailing"
-          r30_pub_case line-two 1 713 'fetch_mode="fixed"' "fixed_body_file=$r30_line_two"
-          r30_pub_case wrong-author 1 713 'author="Userfrom1995"'
-          r30_pub_case post-failure 1 713 'fail_post="1"'
-          r30_pub_case missing-id 1 713 'no_id="1"'
-          r30_pub_case bad-target 1 "abc"
+          r30_pub_case good-marker 0 713 "$r30_pub_sha" "$r30_pub_trigger"
+          r30_pub_case prose-first 1 713 "$r30_pub_sha" "$r30_pub_trigger" 'fetch_mode="fixed"' "fixed_body_file=$r30_prose"
+          r30_pub_case trailing-prose 1 713 "$r30_pub_sha" "$r30_pub_trigger" 'fetch_mode="fixed"' "fixed_body_file=$r30_trailing"
+          r30_pub_case line-two 1 713 "$r30_pub_sha" "$r30_pub_trigger" 'fetch_mode="fixed"' "fixed_body_file=$r30_line_two"
+          r30_pub_case wrong-author 1 713 "$r30_pub_sha" "$r30_pub_trigger" 'author="Userfrom1995"'
+          r30_pub_case post-failure 1 713 "$r30_pub_sha" "$r30_pub_trigger" 'fail_post="1"'
+          r30_pub_case missing-id 1 713 "$r30_pub_sha" "$r30_pub_trigger" 'no_id="1"'
+          r30_pub_case bad-target 1 "abc" "$r30_pub_sha" "$r30_pub_trigger"
+          r30_pub_case missing-head 1 713 "" "$r30_pub_trigger"
+          r30_pub_case malformed-head 1 713 "notahexsha" "$r30_pub_trigger"
+          r30_pub_case short-head 1 713 "1234" "$r30_pub_trigger"
+          r30_pub_case missing-trigger 1 713 "$r30_pub_sha" ""
+          r30_pub_case malformed-trigger 1 713 "$r30_pub_sha" "abc"
+          r30_pub_case fetched-head-mismatch 1 713 "$r30_pub_sha" "$r30_pub_trigger" 'fetch_mode="fixed"' "fixed_body_file=$r30_head_mismatch"
+          r30_pub_case fetched-trigger-mismatch 1 713 "$r30_pub_sha" "$r30_pub_trigger" 'fetch_mode="fixed"' "fixed_body_file=$r30_trigger_mismatch"
           r30_posted_first=$(head -n1 "$r30_tmp/posted-good-marker" 2>/dev/null || true)
           [ "$r30_posted_first" = "$R30_MARKER" ] || r30_bad="${r30_bad} publisher(functional-good-marker-posted-first-line='${r30_posted_first}')"
+          r30_posted_head=$(sed -n 's/^eval-head: //p' "$r30_tmp/posted-good-marker" 2>/dev/null | head -n1 || true)
+          [ "$r30_posted_head" = "$r30_pub_sha" ] || r30_bad="${r30_bad} publisher(functional-good-marker-posted-head='${r30_posted_head}')"
+          r30_posted_trigger=$(sed -n 's/^eval-trigger: //p' "$r30_tmp/posted-good-marker" 2>/dev/null | head -n1 || true)
+          [ "$r30_posted_trigger" = "$r30_pub_trigger" ] || r30_bad="${r30_bad} publisher(functional-good-marker-posted-trigger='${r30_posted_trigger}')"
           # Review finding 2 (marker reachability): executing the parsed marker
           # run block under the production shell form with mock decision files
           # and a mock publisher proves the guard, exit, and failure paths.
@@ -14753,8 +15265,40 @@ R30_MOCK_PUBLISHER
             if [ -z "$r30_mk_sha" ]; then
               r30_bad="${r30_bad} eval.yml(marker-behavioral-git-init-failed)"
             else
+              r30_mk_other_sha=5555555555555555555555555555555555555555
+              r30_mc_comments_fresh="$r30_tmp/marker-comments-fresh.json"
+              printf '[{"id":555,"user":{"login":"mockowner"},"body":"/oc eval"},{"id":1001,"user":{"login":"github-actions[bot]"},"body":"eval-verdict: approve-eval"}]' > "$r30_mc_comments_fresh"
+              r30_mc_comments_stale="$r30_tmp/marker-comments-stale.json"
+              printf '[{"id":555,"user":{"login":"mockowner"},"body":"/oc eval"},{"id":556,"user":{"login":"mockowner"},"body":"/oc eval"},{"id":1001,"user":{"login":"github-actions[bot]"},"body":"eval-verdict: approve-eval"}]' > "$r30_mc_comments_stale"
+              cat > "$r30_mk_bin/gh" <<'R30_MARKER_MOCK'
+#!/usr/bin/env bash
+r30_cfg="$(cd "$(dirname "$0")/.." && pwd)/marker-gh.cfg"
+current_head=""
+comments_file=""
+# shellcheck disable=SC1090
+. "$r30_cfg"
+case "$*" in
+  "pr view "*) printf '%s\n' "$current_head" ;;
+  "api "*"/comments?per_page=100"*)
+    if printf '%s\n' "$*" | grep -q -- '--slurp'; then
+      printf '[%s]\n' "$(cat "$comments_file" 2>/dev/null || echo '[]')"
+    else
+      printf '%s\n' "$(cat "$comments_file" 2>/dev/null || echo '[]')"
+    fi
+    ;;
+  *) echo "mock gh: unexpected invocation: $*" >&2; exit 1 ;;
+esac
+R30_MARKER_MOCK
+              chmod +x "$r30_mk_bin/gh"
+              if [ "$(PATH="$r30_mk_bin:$PATH" command -v gh)" != "$r30_mk_bin/gh" ]; then
+                r30_bad="${r30_bad} eval.yml(marker-behavioral-mock-not-intercepted)"
+              fi
               r30_marker_case() {
                 r30_mc_name="$1"; r30_mc_decision="$2"; r30_mc_pub_rc="$3"; r30_mc_want_rc="$4"; r30_mc_want_ok="$5"; r30_mc_want_calls="$6"
+                r30_mc_eval_sha="${7-$r30_mk_sha}"
+                r30_mc_trigger="${8-555}"
+                r30_mc_current="${9-$r30_mk_sha}"
+                r30_mc_comments="${10:-$r30_mc_comments_fresh}"
                 r30_mc_dir="$r30_tmp/marker-case-$r30_mc_name"
                 mkdir -p "$r30_mc_dir"
                 r30_mc_decision_file="$r30_mc_dir/decision.json"
@@ -14765,9 +15309,16 @@ R30_MOCK_PUBLISHER
                 : > "$r30_mc_calls"
                 r30_mc_out="$r30_mc_dir/github-output"
                 : > "$r30_mc_out"
+                {
+                  printf 'current_head=%q\n' "$r30_mc_current"
+                  printf 'comments_file=%q\n' "$r30_mc_comments"
+                } > "$r30_tmp/marker-gh.cfg"
                 printf '%s\n' "$r30_marker_block" \
                   | sed -e "s#/tmp/evaluator-decision.json#$r30_mc_decision_file#g" \
-                        -e 's/\${{ github\.event\.issue\.number }}/713/g' > "$r30_mc_dir/run.sh"
+                        -e 's/\${{ github\.event\.issue\.number }}/713/g' \
+                        -e "s#\${{ steps\.eval-bind\.outputs\.eval_sha }}#$r30_mc_eval_sha#g" \
+                        -e "s#\${{ github\.event\.comment\.id }}#$r30_mc_trigger#g" \
+                        -e 's#\${{ github\.repository }}#RandomLabs/RandomLabs#g' > "$r30_mc_dir/run.sh"
                 if grep -q '\${{' "$r30_mc_dir/run.sh" 2>/dev/null; then
                   r30_bad="${r30_bad} eval.yml(marker-behavioral-${r30_mc_name}-unsubstituted-expression)"
                 else
@@ -14798,8 +15349,12 @@ R30_MOCK_PUBLISHER
               r30_marker_case malformed-json '{not-json' 0 0 true 0
               r30_marker_case absent absent 0 0 true 0
               r30_marker_case publisher-failure '{"action":"approve-eval","score":9.9}' 1 1 false 1
+              r30_marker_case head-moved '{"action":"approve-eval","score":9.9}' 0 1 false 0 "" 555 "$r30_mk_other_sha" "$r30_mc_comments_fresh"
+              r30_marker_case trigger-stale '{"action":"approve-eval","score":9.9}' 0 1 false 0 "$r30_mk_sha" 555 "$r30_mk_sha" "$r30_mc_comments_stale"
+              r30_marker_case missing-bind-head '{"action":"approve-eval","score":9.9}' 0 1 false 0 "" 555 "$r30_mk_sha" "$r30_mc_comments_fresh"
+              r30_marker_case missing-bind-trigger '{"action":"approve-eval","score":9.9}' 0 1 false 0 "$r30_mk_sha" "" "$r30_mk_sha" "$r30_mc_comments_fresh"
               r30_mc_approve_calls=$(cat "$r30_tmp/marker-case-approve/calls" 2>/dev/null || true)
-              [ "$r30_mc_approve_calls" = "713 9.9" ] || r30_bad="${r30_bad} eval.yml(marker-behavioral-approve-publisher-args='${r30_mc_approve_calls}')"
+              [ "$r30_mc_approve_calls" = "713 9.9 $r30_mk_sha 555" ] || r30_bad="${r30_bad} eval.yml(marker-behavioral-approve-publisher-args='${r30_mc_approve_calls}')"
             fi
           fi
           # Review round 2: execute the parsed signed-verdict post run block
@@ -14950,7 +15505,7 @@ R30_POST_MOCK
   fi
 fi
 if [ -z "$r30_bad" ]; then
-  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml publishes a canonical bot-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates AND only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as bot-authored with the exact body (a failed post, missing id, or mismatched re-fetch fails closed and blocks the marker), the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head, not older than the tester approval, and not superseded by a newer bot-authored Quality Council rejection or a newer owner /oc eval trigger, with the R21 shape anchor; genuine and hostile payloads plus the real publisher post/fetch outcomes are executed in a sandbox, and the marker run block is resolved from the strict YAML parse and pinned whole-region line-exact then executed behaviorally against decision and publisher fixtures, the signed-verdict post run block is likewise resolved from the strict parse, pinned whole-region line-exact, and executed against mock post/fetch outcomes (a failed post, missing id, failed re-fetch, wrong author, and body mismatch each exit nonzero and no path writes ok=true), so a one-line neutering cannot pass (issue #713)" "ok"
+  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical bot-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as bot-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer bot-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval) plus the real publisher post/fetch outcomes (head and trigger mismatches included) are executed in a sandbox, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), so a one-line neutering, declarative poisoning, or extra step cannot pass (issue #713)" "ok"
 else
   check "R30" "eval verdict publication and PAT merge gate guard missing:${r30_bad} (issue #713: a workflow-touching PR could merge through the PAT sweep with no binding Evaluator verdict)" "bad"
 fi

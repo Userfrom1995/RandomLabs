@@ -59,6 +59,19 @@ jobs:
           ref: ${{ steps.pr-info.outputs.head_ref }}
           fetch-depth: 0
 
+      - name: Bind eval to the checked-out head (eval binding)
+        id: eval-bind
+        run: |
+          # Issue #713 review round 3: record the exact head this evaluation
+          # examines and the comment that triggered it. The marker publisher
+          # refuses to publish when the PR head moved or a newer eval trigger
+          # exists, and the PAT merge sweep requires the marker's eval-head to
+          # equal the PR's current head, so a verdict can never merge a head it
+          # did not evaluate.
+          eval_sha=$(git rev-parse HEAD)
+          echo "eval_sha=$eval_sha" >> "$GITHUB_OUTPUT"
+          echo "eval_trigger=${{ github.event.comment.id }}" >> "$GITHUB_OUTPUT"
+
       - name: Actor write gate (issue #428)
         id: actor_gate
         shell: bash
@@ -253,6 +266,10 @@ jobs:
           else
             body="Quality Council INCOMPLETE - Action: ${action}. Score: ${score}. ${summary} - The Quality Council (Evaluator)"
           fi
+          # Normalize both sides of the exact-body comparison (review round 3):
+          # the re-fetch strips CR, so a CRLF-bearing body would otherwise
+          # compare unequal against the local literal and false-red the gate.
+          body="${body//$'\r'/}"
 
           # Issue #713: the signed result must actually be on the thread before
           # any approval marker can be published, so the marker step is gated on
@@ -293,14 +310,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # Issue #713: the PAT merge sweep is the only automated path that can
-          # land .github/workflows/* PRs, so it now requires a fresh,
-          # head-bound eval approval marker alongside the tester verdict. This
-          # step publishes the canonical marker from the approve-eval machine
-          # handoff, only after the decision file and evidence gate passed, and
-          # the shared publisher re-fetches it by id (mirroring the tester
-          # marker contract, issue #629). The marker is posted with
-          # github.token (github-actions[bot]) and carries no /oc prefix:
-          # approve-eval is a decision action, never a trigger.
+          # land .github/workflows/* PRs, so it now requires a fresh eval
+          # approval marker bound to the evaluated head and trigger, alongside
+          # the tester verdict. This step publishes the canonical marker from
+          # the approve-eval machine handoff, only after the decision file,
+          # evidence gate, and signed verdict post passed, and only while the
+          # PR head and the latest eval trigger are still the ones this run
+          # evaluated. The shared publisher re-fetches the marker by id
+          # (mirroring the tester marker contract, issue #629). The marker is
+          # posted with github.token (github-actions[bot]) and carries no /oc
+          # prefix: approve-eval is a decision action, never a trigger.
           echo "ok=false" >> "$GITHUB_OUTPUT"
           if [ ! -f /tmp/evaluator-decision.json ]; then
             echo "No evaluator decision file; nothing to publish."
@@ -315,6 +334,23 @@ jobs:
           fi
           score=$(jq -r '.score // "N/A"' /tmp/evaluator-decision.json 2>/dev/null || echo "N/A")
           pr="${{ github.event.issue.number }}"
+          eval_sha="${{ steps.eval-bind.outputs.eval_sha }}"
+          trigger="${{ github.event.comment.id }}"
+          if [ -z "$eval_sha" ] || [ -z "$trigger" ]; then
+            echo "::error::Evaluated head or trigger id missing; refusing to publish an unbound eval verdict (issue #713)."
+            exit 1
+          fi
+          current_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null || echo "")
+          if [ -z "$current_sha" ] || [ "$current_sha" != "$eval_sha" ]; then
+            echo "::error::PR #$pr head moved from $eval_sha to ${current_sha:-unknown}; refusing to publish a stale eval verdict (issue #713)."
+            exit 1
+          fi
+          latest_trigger=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null \
+            | jq -r '[.[][] | select((.user.login | endswith("[bot]") | not) and (((.body | startswith("/oc eval")) and ((.body | startswith("/oc eval result")) | not)) or ((.body | startswith("/opencode eval")) and ((.body | startswith("/opencode eval result")) | not))))] | last | .id // empty' 2>/dev/null || echo "")
+          if [ -z "$latest_trigger" ] || [ "$latest_trigger" != "$trigger" ]; then
+            echo "::error::A newer eval trigger (${latest_trigger:-unknown}) exists since this run started; refusing to publish a stale eval verdict (issue #713)."
+            exit 1
+          fi
           publisher="${RUNNER_TEMP:-/tmp}/publish-eval-marker.sh"
           rm -f "$publisher"
           if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-eval-marker.sh" 2>/dev/null; then
@@ -327,7 +363,7 @@ jobs:
             echo "::error::Eval marker publisher absent from workflow commit ${GITHUB_SHA}; refusing to hand an unverified verdict to the merge sweep (issue #713, fail closed)."
             exit 1
           fi
-          if ! bash "$publisher" "$pr" "$score"; then
+          if ! bash "$publisher" "$pr" "$score" "$eval_sha" "$trigger"; then
             echo "::error::Eval approval marker publication failed; the PAT merge sweep would never recognize this verdict (issue #713). Failing closed."
             exit 1
           fi
