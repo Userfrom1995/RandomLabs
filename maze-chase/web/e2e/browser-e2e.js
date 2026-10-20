@@ -117,6 +117,7 @@ async function shot(ws, path) {
   assert(titleZones[0] === true, 'title card carries the selected-item description strip');
   assert(titleZones[1] === true, 'title card carries the warden legend');
   assert(titleZones[2] === true, 'title card carries the goal line');
+  await send(ws, 'Page.bringToFront');
   const descSwitches = await evalJs(ws, `(() => {
     document.getElementById('btn-title-help').focus();
     return document.getElementById('title-desc').textContent.includes('warden legend');
