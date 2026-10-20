@@ -278,12 +278,15 @@ pub fn overlay_menu(
         let board_right = lay.bx + lay.bw as i32 + 6;
         let right_space = f.w as i32 - board_right - PAD;
         let (board_cx, board_cy) = stage_center(f.w, f.h);
+        let max_ox = (f.w as i32 - cw as i32 - PAD).max(PAD);
+        let max_oy = (f.h as i32 - ch as i32 - PAD).max(PAD);
         let ox = if right_space >= cw as i32 {
             board_right + (right_space - cw as i32) / 2
         } else {
             board_cx - cw as i32 / 2
-        };
-        let oy = board_cy - ch as i32 / 2;
+        }
+        .clamp(PAD, max_ox);
+        let oy = (board_cy - ch as i32 / 2).clamp(PAD, max_oy);
         for y in 0..card.h as i32 {
             for x in 0..card.w as i32 {
                 if let Some(v) = card.get(x, y) {
@@ -781,6 +784,65 @@ mod menu_tests {
             "compact card center {card_cx} must track board center {board_cx}"
         );
         assert_ne!(card_cx, 900 / 2, "page center is not the board center");
+    }
+
+    #[test]
+    fn compact_title_card_stays_inside_the_minimum_window() {
+        let theme = theme();
+        let lines: Vec<MenuLine> = crate::screens::MenuItem::ALL
+            .iter()
+            .enumerate()
+            .map(|(i, m)| MenuLine::at(m.label(), i == 0))
+            .collect();
+        let details = [
+            (crate::screens::MenuItem::Play.description(), theme.text),
+            (
+                "BRAM HERON - KESSA PIKE - JORY SNAKE - NIB DRAGONFLY",
+                theme.dim_text,
+            ),
+            ("CLEAR 445 CRUMBS; SUNSEEDS TURN THE HUNT", theme.accent),
+        ];
+        let border = crate::frame::pack(theme.wall_inner);
+        for (w, h) in [(MIN_W, MIN_H), (601, MIN_H), (602, MIN_H)] {
+            let mut f = Frame::blank(w, h, theme.bg).unwrap();
+            overlay_menu(
+                &mut f,
+                "MAZE CHASE",
+                &lines,
+                &details,
+                "ARROWS/WASD + ENTER - BEST 12345",
+                theme,
+            );
+            let (mut min_x, mut max_x) = (i32::MAX, i32::MIN);
+            let (mut min_y, mut max_y) = (i32::MAX, i32::MIN);
+            for y in 0..f.h as i32 {
+                for x in 0..f.w as i32 {
+                    if f.get(x, y) == Some(border) {
+                        min_x = min_x.min(x);
+                        max_x = max_x.max(x);
+                        min_y = min_y.min(y);
+                        max_y = max_y.max(y);
+                    }
+                }
+            }
+            assert!(min_x <= max_x, "{w}x{h}: the card border must paint");
+            assert!(
+                min_x >= PAD,
+                "{w}x{h}: card border starts at {min_x}, left of the frame margin"
+            );
+            assert!(
+                max_x <= w as i32 - PAD,
+                "{w}x{h}: card border ends at {max_x}, past the frame margin"
+            );
+            assert!(
+                min_y >= PAD,
+                "{w}x{h}: card border starts at {min_y}, above the frame margin"
+            );
+            assert!(
+                max_y <= h as i32 - PAD,
+                "{w}x{h}: card border ends at {max_y}, below the frame margin"
+            );
+        }
     }
 
     #[test]
