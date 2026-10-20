@@ -186,9 +186,10 @@ only absurdly tiny pixel windows fall back to the floor and may
 overflow) and clamped to 6..21 pixels per tile so encode cost stays
 bounded (the cap bounds encode cost, not the on-screen scale: a large window
 draws the capped raster at its native size on the centered footprint). The
-21-pixels-per-tile rung selects Rill's authored 21x21 sheet; on Kitty that
-rung renders as one whole-frame image instead of the 11x11-based atlas, so
-the sprite scale stays exact. The
+21-pixels-per-tile rung selects Rill's authored 21x21 sheet; the Kitty
+atlas centers that 21-pixel sheet in the same 22-pixel cell used by the
+11x11 sheet at scale 2, so the rung keeps the quiet single-transmit atlas
+path instead of falling back to per-frame full-board images. The
 image is drawn on a centered footprint inside the board, mapped from the
 raster's pixel size through the detected window pixels: Kitty terminals
 scale the image into that footprint (which tracks the raster's aspect to

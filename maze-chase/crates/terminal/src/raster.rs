@@ -142,7 +142,7 @@ pub fn facing_of(dir: maze_chase_engine::actors::Dir) -> sprites::Facing {
 /// The 21x21 rung squashes 6 px and stretches 9 px; the 11x11 rung uses
 /// the proportional 3 px / 5 px pair.
 pub fn hop_offset(ppt: i32, frame: usize) -> i32 {
-    sprites::hop_offset_for_rung(frame, art_rung(ppt)) * sprite_scale(ppt)
+    sprites::hop_offset_for_rung(frame, art_rung(ppt)) * pip_scale(ppt)
 }
 
 /// Relish icon tier for a level: pairs of levels share one of six icons.
