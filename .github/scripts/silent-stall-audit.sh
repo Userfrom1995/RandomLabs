@@ -91,11 +91,22 @@
 # closed every open build PR; it now targets only the retired
 # schedule/dispatch branch classes, uses the job-scoped github.token, and
 # fails loudly on auth/API errors, with the filter boundary, token, exact
-# run body, and loud-failure behavior pinned structurally and behaviorally).
-# Wired into auditor.yml as the R1-R27 matrix.
+# run body, and loud-failure behavior pinned structurally and behaviorally),
+# and the R28 phase thread-binding and build-push attribution guard (issue
+# #690: the design/research/architect auto-retry and completion forward
+# resolvers bound to the newest open phase PR instead of the trigger thread,
+# resetting the retry counter and posting `/oc build this` onto an in-test
+# phase PR; the build verify also read a foreign Tester mid-run suite push as
+# its own. Retries and forwards now bind to the trigger thread / logical
+# parent issue, the counter accumulates per issue, and a same-branch tip move
+# is attributed to a `builder:` commit with foreign or unattributable moves
+# failing closed as no-push and recover-tag bookkeeping gated on a verified
+# own push; both helper scripts are executed against fixture events, a mock
+# `gh`, and a local bare origin with mutation self-tests).
+# Wired into auditor.yml as the R1-R28 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R27 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R28 audit the whole tree
 # (the review-restore guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
@@ -106,7 +117,8 @@
 # comment-read guard, the PAT merge approval binding, the tester
 # verdict publication contract, the maintainer memory publish
 # concurrency contract, the lab/fix agent cap-headroom contract, the
-# create-issue dedupe guard, and the maintainer stray-PR cleanup guard), so
+# create-issue dedupe guard, the maintainer stray-PR cleanup guard, and the
+# phase thread-binding plus build-push attribution guard), so
 # they trip on a
 # bad curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml/peros arm no
 # matter which file the audit was pointed at.
@@ -163,12 +175,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R27 PASS] $name: $desc"
+  [R1-R28 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R27 FAIL] $name: $desc"
+  [R1-R28 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -11354,16 +11366,475 @@ if [ -z "$r27_bad" ]; then
 else
   check "R27" "maintainer stray-PR cleanup boundary or loud-failure guard missing:${r27_bad} (issue #699: an unauthenticated no-op regressed silently, and authenticating the old filter would have closed every open build PR)" "bad"
 fi
-summary="Silent-stall regression audit (R1-R27) on ${WF}: ${pass} passed, ${fail} failed."
+
+# [R28] Phase thread binding and build-push attribution (issue #690): the
+# design completion forward and the design/research/architect auto-retry
+# resolvers used to bind to the NEWEST open phase PR (`opencode/issue<N>-*`)
+# instead of the thread the session was triggered on. On 2026-10-18 the design
+# retry moved from #582 to #685 (the per-thread counter read 0 and reset the
+# budget), the design-completion `/oc build this` landed on #685, and the
+# build verify then read the Tester's own mid-run suite push as `pushed=yes`,
+# running recover-tag/trailer/held-CI bookkeeping against work the build never
+# made. Properties:
+#   1. every phase auto-retry binds its target and counter to the ORIGINAL
+#      trigger thread and adds the logical parent issue so a phase PR thread
+#      shares the issue-wide retry budget;
+#   2. every phase completion forward targets the logical parent issue (the
+#      trigger thread for a plain issue; the parent issue for a phase PR);
+#   3. the build verify attributes a same-branch tip move to a `builder:`
+#      commit in the added range, failing closed as no-push when the move is
+#      foreign or cannot be attributed, and the recover-tag bookkeeping runs
+#      only for a verified own push.
+# The static pass resolves every step from the SAME parsed YAML GitHub runs
+# (strict loader, duplicate keys rejected) and pins the helper call sites.
+# The functional pass executes both real helper scripts against fixture
+# events, an executable mock `gh` (interception proven), and a local bare
+# origin whose commit subjects model Builder and Tester pushes; mutation
+# self-tests prove the fixture matrices are load-bearing (each mutant is
+# caught by at least one case). A wholesale rewrite of a bound step that
+# keeps every pinned call site is the documented diff-review boundary.
+r28_bad=""
+r28_tmp=$(mktemp -d 2>/dev/null || true)
+if [ -z "$r28_tmp" ] || [ ! -d "$r28_tmp" ]; then
+  r28_bad="${r28_bad} opencode.yml(r28-sandbox-tmp-unavailable)"
+else
+  r28_static_py="$r28_tmp/static.py"
+  cat > "$r28_static_py" <<'R28STATIC'
+import sys
+
+import yaml
+
+
+class DuplicateKey(Exception):
+    pass
+
+
+def walk(node):
+    if isinstance(node, yaml.MappingNode):
+        seen = set()
+        for key_node, value_node in node.value:
+            key = getattr(key_node, "value", None)
+            if key in seen:
+                raise DuplicateKey("duplicate-yaml-key:%s:line-%s" % (key, key_node.start_mark.line + 1))
+            seen.add(key)
+            walk(value_node)
+    elif isinstance(node, yaml.SequenceNode):
+        for child in node.value:
+            walk(child)
+
+
+def fail(token):
+    print(token, file=sys.stderr)
+    sys.exit(1)
+
+
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as handle:
+    text = handle.read()
+try:
+    tree = yaml.compose(text)
+    doc = yaml.safe_load(text)
+except Exception as exc:
+    fail("yaml-parse-error:%s" % exc)
+try:
+    walk(tree)
+except DuplicateKey as exc:
+    fail(str(exc))
+
+steps = []
+for job_name, job in (doc.get("jobs") or {}).items():
+    for index, step in enumerate((job or {}).get("steps") or []):
+        if isinstance(step, dict):
+            steps.append((job_name, index, step))
+
+
+def find(name):
+    hits = [(job, index, step) for (job, index, step) in steps if step.get("name") == name]
+    if len(hits) != 1:
+        fail("step-not-unique:%s:%d" % (name, len(hits)))
+    return hits[0]
+
+
+phase = {
+    "research": ("Verify research decided, else auto-retry", "Forward researcher decision"),
+    "architect": ("Verify architect decided, else auto-retry", "Forward architect decision"),
+    "design": ("Verify design decided, else auto-retry", "Forward design decision"),
+    "design-ux": ("Verify design-ux decided, else auto-retry", "Forward design-ux decision"),
+    "design-visual": ("Verify design-visual decided, else auto-retry", "Forward design-visual decision"),
+    "design-motion": ("Verify design-motion decided, else auto-retry", "Forward design-motion decision"),
+}
+for job, (verify_name, forward_name) in phase.items():
+    job_name, _, step = find(verify_name)
+    if job_name != job:
+        fail("verify-wrong-job:%s:%s" % (verify_name, job_name))
+    run = step.get("run") or ""
+    if "resolve-thread-target.sh thread" not in run:
+        fail("verify-thread-helper-missing:%s" % verify_name)
+    if 'target="$issue"' not in run:
+        fail("verify-target-not-thread:%s" % verify_name)
+    if run.count("target=") != 1:
+        fail("verify-target-assignment-count:%s:%d" % (verify_name, run.count("target=")))
+    if "resolve-thread-target.sh parent" not in run or 'count_retries "$parent"' not in run:
+        fail("verify-parent-counter-missing:%s" % verify_name)
+    if 'retries=$((retries + parent_retries))' not in run:
+        fail("verify-counter-union-missing:%s" % verify_name)
+    if run.count("/issues/$target/comments") != 1 or run.count("(auto-retry $n)") != 1:
+        fail("verify-retry-post-target:%s" % verify_name)
+    if run.count('gh issue comment "$target"') != 1:
+        fail("verify-escalation-target:%s" % verify_name)
+    if "gh pr list" in run or "sort_by(.createdAt) | last" in run:
+        fail("verify-newest-pr-resolver-back:%s" % verify_name)
+    job_name, _, step = find(forward_name)
+    if job_name != job:
+        fail("forward-wrong-job:%s:%s" % (forward_name, job_name))
+    run = step.get("run") or ""
+    if 'target=$(bash .github/scripts/resolve-thread-target.sh parent)' not in run:
+        fail("forward-parent-helper-missing:%s" % forward_name)
+    if run.count("target=") != 1:
+        fail("forward-target-assignment-count:%s:%d" % (forward_name, run.count("target=")))
+    if run.count('gh issue comment "$target"') < 1 or 'gh issue comment "$issue"' in run:
+        fail("forward-comment-target:%s" % forward_name)
+    if "gh pr list" in run or "sort_by(.createdAt) | last" in run:
+        fail("forward-newest-pr-resolver-back:%s" % forward_name)
+
+job_name, _, step = find("Verify build pushed, else auto-retry")
+if job_name != "build":
+    fail("build-verify-wrong-job:%s" % job_name)
+run = step.get("run") or ""
+if run.count("classify-build-push.sh") != 2:
+    fail("build-verify-attribution-count:%d" % run.count("classify-build-push.sh"))
+for branch_var in ("target_branch", "BASELINE_BRANCH"):
+    pattern = (
+        'attribution=$(bash .github/scripts/classify-build-push.sh "$BASELINE_HEAD" "$tip_now" "$%s"'
+        % branch_var
+    )
+    pos = run.find(pattern)
+    if pos < 0:
+        fail("build-verify-attribution-missing:%s" % branch_var)
+    window = run[pos:]
+    own = window.find('if [ "$attribution" = "own" ]; then')
+    if own < 0 or own > 400:
+        fail("build-verify-own-branch-missing:%s" % branch_var)
+    if 'pushed="yes"' not in window[:own + 200]:
+        fail("build-verify-own-not-pushed:%s" % branch_var)
+    if 'elif [ "$attribution" = "foreign" ]' not in window[:own + 900]:
+        fail("build-verify-foreign-branch-missing:%s" % branch_var)
+    if "failing closed as no-push" not in window[:own + 1400]:
+        fail("build-verify-fail-closed-missing:%s" % branch_var)
+
+job_name, _, step = find("Preserve build branch with recover tag")
+if job_name != "build":
+    fail("recover-tag-wrong-job:%s" % job_name)
+expected_if = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.pushed == 'true'"
+if step.get("if") != expected_if:
+    fail("recover-tag-gate-changed:%r" % (step.get("if"),))
+R28STATIC
+  r28_static_err="$r28_tmp/static.err"
+  if ! python3 -I "$r28_static_py" "$OPENCODE_WF" >"$r28_tmp/static.out" 2>"$r28_static_err"; then
+    r28_bad="${r28_bad} opencode.yml($(tr '\n' ';' < "$r28_static_err" | cut -c1-400))"
+  fi
+  # Static pins are load-bearing too: each mutant below reverts one wiring
+  # property (retry target, parent counter, forward target, forward post
+  # target, newest-PR backstop, attribution branch, recover-tag gate) and the
+  # static pass must reject every one. The generator exits non-zero on a
+  # mutation that no longer applies, so a changed source can never turn the
+  # matrix vacuously green.
+  mkdir -p "$r28_tmp/static-mutants"
+  if ! python3 -I - "$OPENCODE_WF" "$r28_tmp/static-mutants" <<'R28STATICMUT' >"$r28_tmp/static-mutants.log" 2>&1; then
+import sys
+
+src, outdir = sys.argv[1], sys.argv[2]
+text = open(src, encoding="utf-8").read()
+mutants = {
+    "verify-target": text.replace(
+        '          target="$issue"\n', '          target=$(echo 582)\n', 1
+    ),
+    "verify-counter": text.replace(
+        '            parent=$(bash .github/scripts/resolve-thread-target.sh parent) || parent=""\n',
+        '            parent="$issue"\n',
+        1,
+    ),
+    "verify-newest-pr": text.replace(
+        '          target="$issue"\n',
+        '          target="$issue"\n          target=$(gh pr list --repo x --json number)\n',
+        1,
+    ),
+    "forward-target": text.replace(
+        '          target=$(bash .github/scripts/resolve-thread-target.sh parent) || {\n',
+        '          target="$issue" || {\n',
+        1,
+    ),
+    "forward-comment": text.replace(
+        '            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc architect" || true',
+        '            gh issue comment "$issue" --repo "${{ github.repository }}" --body "/oc architect" || true',
+        1,
+    ),
+    "build-attribution": text.replace(
+        'if [ "$attribution" = "own" ]; then',
+        'if [ "$attribution" != "foreign" ]; then',
+        1,
+    ),
+    "recover-gate": text.replace(
+        "        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.pushed == 'true'\n",
+        "        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true'\n",
+        1,
+    ),
+}
+for name, body in mutants.items():
+    if body == text:
+        raise SystemExit("mutation-not-applied:%s" % name)
+    with open("%s/%s.yml" % (outdir, name), "w", encoding="utf-8") as handle:
+        handle.write(body)
+R28STATICMUT
+    r28_bad="${r28_bad} opencode.yml(static-mutant-generation-failed:$(tr '\n' ';' < "$r28_tmp/static-mutants.log" | cut -c1-200))"
+  else
+    for r28_wf_mutant in verify-target verify-counter verify-newest-pr forward-target forward-comment build-attribution recover-gate; do
+      if python3 -I "$r28_static_py" "$r28_tmp/static-mutants/$r28_wf_mutant.yml" >/dev/null 2>&1; then
+        r28_bad="${r28_bad} opencode.yml(${r28_wf_mutant}-not-caught)"
+      fi
+    done
+  fi
+
+  r28_root="$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd || true)"
+  r28_resolver="$r28_root/.github/scripts/resolve-thread-target.sh"
+  r28_classifier="$r28_root/.github/scripts/classify-build-push.sh"
+  if [ ! -f "$r28_resolver" ] || [ ! -f "$r28_classifier" ]; then
+    r28_bad="${r28_bad} scripts(missing:resolve=$([ -f "$r28_resolver" ] && echo no || echo yes),classify=$([ -f "$r28_classifier" ] && echo no || echo yes))"
+  else
+    mkdir -p "$r28_tmp/bin" "$r28_tmp/state" "$r28_tmp/home" "$r28_tmp/events"
+    cat > "$r28_tmp/bin/gh" <<'R28GH'
+#!/usr/bin/env bash
+set -euo pipefail
+state="${MOCK_STATE:?}"
+printf '%s\n' "$*" >> "$state/calls"
+if [ "$#" -ne 9 ] || [ "$1" != "pr" ] || [ "$2" != "view" ] || [ "$4" != "--repo" ] \
+  || [ "$6" != "--json" ] || [ "$7" != "headRefName" ] || [ "$8" != "--jq" ] || [ "$9" != ".headRefName" ]; then
+  echo "mock gh: unexpected argv: $*" >&2
+  exit 91
+fi
+[ "$(cat "$state/gh_mode" 2>/dev/null || echo ok)" = "ok" ] || { echo "mock gh: api failure" >&2; exit 1; }
+cat "$state/head_ref"
+R28GH
+    chmod +x "$r28_tmp/bin/gh"
+    r28_mock_resolved=$(env -i "PATH=$r28_tmp/bin:/usr/bin:/bin" bash --noprofile --norc -c 'command -v gh' 2>/dev/null || true)
+    [ "$r28_mock_resolved" = "$r28_tmp/bin/gh" ] || r28_bad="${r28_bad} scripts(r28-mock-not-resolved)"
+
+    printf '%s' '{"issue":{"number":582},"comment":{"body":"/oc design"}}' > "$r28_tmp/events/issue.json"
+    printf '%s' '{"issue":{"number":685,"pull_request":{"html_url":"https://github.com/x/y/pull/685"}},"comment":{"body":"/oc design"}}' > "$r28_tmp/events/pr.json"
+    printf '%s' '{"pull_request":{"number":685},"comment":{"body":"/oc design"}}' > "$r28_tmp/events/review.json"
+    printf '%s' '{"comment":{"body":"/oc design"}}' > "$r28_tmp/events/no-number.json"
+
+    r28_resolver_case() {
+      local name="$1" script="$2" event="$3" head="$4" mode="$5" arg="$6" want_rc="$7" want_out="$8" want_calls="$9"
+      local out rc calls
+      printf 'ok' > "$r28_tmp/state/gh_mode"
+      printf '%s\n' "$head" > "$r28_tmp/state/head_ref"
+      : > "$r28_tmp/state/calls"
+      out=$(cd "$r28_tmp" && env -i PATH="$r28_tmp/bin:/usr/bin:/bin" HOME="$r28_tmp/home" \
+        GITHUB_EVENT_PATH="$event" GITHUB_REPOSITORY="RandomLabs/RandomLabs" MOCK_STATE="$r28_tmp/state" \
+        bash --noprofile --norc -e -o pipefail "$script" "$arg" 2>"$r28_tmp/case-$name.err") && rc=0 || rc=$?
+      calls=$(wc -l < "$r28_tmp/state/calls" | tr -d ' ')
+      if [ "$rc" -ne "$want_rc" ]; then
+        echo "$name:rc=$rc,want=$want_rc"
+        return 1
+      fi
+      if [ -n "$want_out" ] && [ "$out" != "$want_out" ]; then
+        echo "$name:out='$out',want='$want_out'"
+        return 1
+      fi
+      if [ "$calls" -ne "$want_calls" ]; then
+        echo "$name:calls=$calls,want=$want_calls"
+        return 1
+      fi
+      return 0
+    }
+
+    r28_resolver_matrix() {
+      local script="$1" bad=""
+      r28_resolver_case t-issue "$script" "$r28_tmp/events/issue.json" "" ok thread 0 582 0 || bad="${bad} t-issue"
+      r28_resolver_case t-pr "$script" "$r28_tmp/events/pr.json" "" ok thread 0 685 0 || bad="${bad} t-pr"
+      r28_resolver_case t-review "$script" "$r28_tmp/events/review.json" "" ok thread 0 685 0 || bad="${bad} t-review"
+      r28_resolver_case p-issue "$script" "$r28_tmp/events/issue.json" "" ok parent 0 582 0 || bad="${bad} p-issue"
+      r28_resolver_case p-phase "$script" "$r28_tmp/events/pr.json" "opencode/issue582-20261018200149" ok parent 0 582 1 || bad="${bad} p-phase"
+      r28_resolver_case p-self "$script" "$r28_tmp/events/pr.json" "opencode/issue685-20261018200149" ok parent 0 685 1 || bad="${bad} p-self"
+      r28_resolver_case p-foreign "$script" "$r28_tmp/events/pr.json" "topic/user-change" ok parent 0 685 1 || bad="${bad} p-foreign"
+      r28_resolver_case p-nonnumeric "$script" "$r28_tmp/events/pr.json" "opencode/issues582-x" ok parent 0 685 1 || bad="${bad} p-nonnumeric"
+      r28_resolver_case p-leadingdash "$script" "$r28_tmp/events/pr.json" "opencode/issue-582-x" ok parent 0 685 1 || bad="${bad} p-leadingdash"
+      r28_resolver_case p-nonum "$script" "$r28_tmp/events/no-number.json" "" ok parent 1 "" 0 || bad="${bad} p-nonum"
+      r28_resolver_case bad-mode "$script" "$r28_tmp/events/issue.json" "" ok bogus 2 "" 0 || bad="${bad} bad-mode"
+      # gh failures (non-zero exit AND silence) must fail closed, never fall
+      # back to the thread: a phase PR whose head cannot be resolved must not
+      # receive a mis-targeted forward.
+      : > "$r28_tmp/state/head_ref"
+      local out rc
+      printf 'ok' > "$r28_tmp/state/gh_mode"
+      : > "$r28_tmp/state/calls"
+      out=$(cd "$r28_tmp" && env -i PATH="$r28_tmp/bin:/usr/bin:/bin" HOME="$r28_tmp/home" \
+        GITHUB_EVENT_PATH="$r28_tmp/events/pr.json" GITHUB_REPOSITORY="RandomLabs/RandomLabs" MOCK_STATE="$r28_tmp/state" \
+        bash --noprofile --norc -e -o pipefail "$script" parent 2>/dev/null) && rc=0 || rc=$?
+      [ "$rc" -ne 0 ] || bad="${bad} p-empty-head-fail-open"
+      if [ "$rc" -ne 0 ]; then
+        printf 'fail' > "$r28_tmp/state/gh_mode"
+        : > "$r28_tmp/state/calls"
+        out=$(cd "$r28_tmp" && env -i PATH="$r28_tmp/bin:/usr/bin:/bin" HOME="$r28_tmp/home" \
+          GITHUB_EVENT_PATH="$r28_tmp/events/pr.json" GITHUB_REPOSITORY="RandomLabs/RandomLabs" MOCK_STATE="$r28_tmp/state" \
+          bash --noprofile --norc -e -o pipefail "$script" parent 2>/dev/null) && rc=0 || rc=$?
+        [ "$rc" -ne 0 ] || bad="${bad} p-ghfail-fail-open"
+      fi
+      [ -n "$bad" ] && { echo "resolver:$bad"; return 1; }
+      return 0
+    }
+
+    if ! r28_resolver_matrix "$r28_resolver" > "$r28_tmp/resolver.out"; then
+      r28_bad="${r28_bad} resolve-thread-target.sh($(tr '\n' ';' < "$r28_tmp/resolver.out" | cut -c1-300))"
+    fi
+
+    mkdir -p "$r28_tmp/mutants"
+    printf '%s' "$(cat "$r28_resolver")" > "$r28_tmp/mutants/resolver-src"
+    python3 -I - "$r28_tmp/mutants/resolver-src" "$r28_tmp/mutants" <<'R28MUTRES'
+import sys
+src, outdir = sys.argv[1], sys.argv[2]
+text = open(src, encoding="utf-8").read()
+mutants = {
+    "resolver-m1": text.replace('parent="${parent%%-*}"', 'parent="$thread"'),
+    "resolver-m2": text.replace("printf '%s\\n' \"$parent\"", "printf '%s\\n' \"$head_ref\""),
+    "resolver-m3": text.replace(
+        '  echo "Could not resolve the head branch of PR #$thread; refusing to guess a forward target." >&2\n  exit 1',
+        '  printf \'%s\\n\' "$thread"\n  exit 0',
+    ),
+}
+for name, body in mutants.items():
+    if body == text:
+        raise SystemExit("mutation-not-applied:%s" % name)
+    with open("%s/%s.sh" % (outdir, name), "w", encoding="utf-8") as handle:
+        handle.write(body)
+R28MUTRES
+    for r28_mutant in resolver-m1 resolver-m2 resolver-m3; do
+      if [ -f "$r28_tmp/mutants/$r28_mutant.sh" ]; then
+        if r28_resolver_matrix "$r28_tmp/mutants/$r28_mutant.sh" > "$r28_tmp/$r28_mutant.out" 2>&1; then
+          r28_bad="${r28_bad} scripts(${r28_mutant}-not-caught)"
+        fi
+      else
+        r28_bad="${r28_bad} scripts(${r28_mutant}-not-created)"
+      fi
+    done
+
+    r28_git="$r28_tmp/git"
+    mkdir -p "$r28_git" "$r28_tmp/home"
+    if git -c init.defaultBranch=main init --bare --quiet "$r28_git/origin.git" 2>/dev/null \
+      && git clone --quiet "$r28_git/origin.git" "$r28_git/work" 2>/dev/null; then
+      git -C "$r28_git/work" config user.email "github-actions[bot]@users.noreply.github.com"
+      git -C "$r28_git/work" config user.name "github-actions[bot]"
+      (
+        cd "$r28_git/work" || exit 1
+        git checkout -q -b opencode/issue582-phase
+        git commit -q --allow-empty -m 'builder: baseline'
+        git push -q origin HEAD
+      ) || r28_bad="${r28_bad} scripts(r28-git-baseline-failed)"
+      r28_base=$(git -C "$r28_git/work" rev-parse HEAD 2>/dev/null || true)
+      if [ -n "$r28_base" ]; then
+        (
+          cd "$r28_git/work" || exit 1
+          git checkout -q -B tester-only "$r28_base"
+          git commit -q --allow-empty -m 'tester: suite authoring'
+          git push -q origin HEAD
+          git checkout -q -B builder-only "$r28_base"
+          git commit -q --allow-empty -m 'builder: phase work'
+          git push -q origin HEAD
+          git checkout -q -B builder-then-tester "$r28_base"
+          git commit -q --allow-empty -m 'builder: phase work'
+          git commit -q --allow-empty -m 'tester: suite authoring'
+          git push -q origin HEAD
+        ) || r28_bad="${r28_bad} scripts(r28-git-fixtures-failed)"
+        r28_tester_tip=$(git -C "$r28_git/work" rev-parse tester-only 2>/dev/null || true)
+        r28_builder_tip=$(git -C "$r28_git/work" rev-parse builder-only 2>/dev/null || true)
+        r28_both_tip=$(git -C "$r28_git/work" rev-parse builder-then-tester 2>/dev/null || true)
+
+        r28_classify_case() {
+          local name="$1" script="$2" baseline="$3" tip="$4" branch="$5" want_rc="$6" want_out="$7"
+          local out rc
+          out=$(cd "$r28_git/work" && env -i PATH="/usr/bin:/bin" HOME="$r28_tmp/home" \
+            bash --noprofile --norc -e -o pipefail "$script" "$baseline" "$tip" "$branch" 2>/dev/null) && rc=0 || rc=$?
+          if [ "$rc" -ne "$want_rc" ]; then
+            echo "$name:rc=$rc,want=$want_rc"
+            return 1
+          fi
+          if [ -n "$want_out" ] && [ "$out" != "$want_out" ]; then
+            echo "$name:out='$out',want='$want_out'"
+            return 1
+          fi
+          return 0
+        }
+
+        r28_classify_matrix() {
+          local script="$1" bad=""
+          r28_classify_case foreign "$script" "$r28_base" "$r28_tester_tip" tester-only 0 foreign || bad="${bad} foreign"
+          r28_classify_case own "$script" "$r28_base" "$r28_builder_tip" builder-only 0 own || bad="${bad} own"
+          r28_classify_case both "$script" "$r28_base" "$r28_both_tip" builder-then-tester 0 own || bad="${bad} both"
+          r28_classify_case no-baseline-foreign "$script" "" "$r28_tester_tip" tester-only 0 foreign || bad="${bad} no-baseline-foreign"
+          r28_classify_case no-baseline-own "$script" "" "$r28_builder_tip" builder-only 0 own || bad="${bad} no-baseline-own"
+          r28_classify_case same-tip "$script" "$r28_tester_tip" "$r28_tester_tip" tester-only 0 foreign || bad="${bad} same-tip"
+          r28_classify_case missing-branch "$script" "$r28_base" "$r28_tester_tip" no-such-branch 2 "" || bad="${bad} missing-branch"
+          r28_classify_case unknown-tip "$script" "$r28_base" "0123456789012345678901234567890123456789" tester-only 2 "" || bad="${bad} unknown-tip"
+          [ -n "$bad" ] && { echo "classify:$bad"; return 1; }
+          return 0
+        }
+
+        if ! r28_classify_matrix "$r28_classifier" > "$r28_tmp/classify.out"; then
+          r28_bad="${r28_bad} classify-build-push.sh($(tr '\n' ';' < "$r28_tmp/classify.out" | cut -c1-300))"
+        fi
+
+        printf '%s' "$(cat "$r28_classifier")" > "$r28_tmp/mutants/classifier-src"
+        python3 -I - "$r28_tmp/mutants/classifier-src" "$r28_tmp/mutants" <<'R28MUTCLASS'
+import sys
+src, outdir = sys.argv[1], sys.argv[2]
+text = open(src, encoding="utf-8").read()
+mutants = {
+    "classifier-m1": text.replace("grep -qE '^builder:'", "grep -qE '^tester:'"),
+    "classifier-m2": text.replace("  printf 'own\\n'\nelse\n  printf 'foreign\\n'\nfi", "  printf 'foreign\\n'\nelse\n  printf 'foreign\\n'\nfi"),
+    "classifier-m3": text.replace("  printf 'own\\n'\nelse\n  printf 'foreign\\n'\nfi", "  printf 'own\\n'\nelse\n  printf 'own\\n'\nfi"),
+    "classifier-m4": text.replace(
+        '  echo "Could not fetch $branch for push attribution." >&2\n  exit 2',
+        '  printf \'own\\n\'\n  exit 0',
+    ),
+}
+for name, body in mutants.items():
+    if body == text:
+        raise SystemExit("mutation-not-applied:%s" % name)
+    with open("%s/%s.sh" % (outdir, name), "w", encoding="utf-8") as handle:
+        handle.write(body)
+R28MUTCLASS
+        for r28_mutant in classifier-m1 classifier-m2 classifier-m3 classifier-m4; do
+          if [ -f "$r28_tmp/mutants/$r28_mutant.sh" ]; then
+            if r28_classify_matrix "$r28_tmp/mutants/$r28_mutant.sh" > "$r28_tmp/$r28_mutant.out" 2>&1; then
+              r28_bad="${r28_bad} scripts(${r28_mutant}-not-caught)"
+            fi
+          else
+            r28_bad="${r28_bad} scripts(${r28_mutant}-not-created)"
+          fi
+        done
+      fi
+    else
+      r28_bad="${r28_bad} scripts(r28-git-sandbox-unavailable)"
+    fi
+  fi
+fi
+rm -rf "$r28_tmp"
+if [ -z "$r28_bad" ]; then
+  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected, and both real helper scripts are executed against fixture events, an executable mock gh, and a local bare origin with mutation self-tests proving each fixture matrix load-bearing (issue #690)" "ok"
+else
+  check "R28" "phase thread binding or build-push attribution guard missing:${r28_bad} (issue #690: a design retry/forward migrated to the newest phase PR and the build verify read a foreign Tester push as its own)" "bad"
+fi
+summary="Silent-stall regression audit (R1-R28) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R27)
+  body="## Silent-stall regression audit FAILED (R1-R28)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, or R27 stray-PR cleanup boundary). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, or R28 phase thread binding and build-push attribution). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
