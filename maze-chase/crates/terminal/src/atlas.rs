@@ -363,20 +363,15 @@ pub fn static_frame(game: &Game, theme: &Theme, ppt: u32) -> RgbaFrame {
 /// Every moving sprite for the current frame, in paint order (sunseeds,
 /// relish, wardens and their eyes, then Pip). Each sprite carries its
 /// explicit kitty stacking layer (see [`z`]), so overlapping sprites
-/// stack identically on the terminal and in [`compose`].
-pub fn placements(
-    game: &Game,
-    ppt: u32,
-    frame_no: u64,
-    flash: bool,
-    atlas: &Atlas,
-) -> Vec<Placement> {
+/// stack identically on the terminal and in [`compose`]. Animation reads
+/// the engine clock, so the layers share one cadence.
+pub fn placements(game: &Game, ppt: u32, flash: bool, atlas: &Atlas) -> Vec<Placement> {
     let ppt = ppt.max(raster::MIN_PPT) as i32;
     let scale = atlas.scale;
     let mut out = Vec::new();
     let crumb_field = game.maze.dot_bytes();
     let stride = (WIDTH * HEIGHT) as usize;
-    let sunseed = if anim::sunseed_halo(frame_no) {
+    let sunseed = if anim::sunseed_halo(game.elapsed()) {
         slot::SUNSEED_B
     } else {
         slot::SUNSEED_A
@@ -399,11 +394,7 @@ pub fn placements(
     if game.relish.active {
         let (rtx, rty) = tuning::RELISH_TILE;
         let icon = raster::relish_icon_index(game.level);
-        let bob = if (frame_no / 30).is_multiple_of(2) {
-            0
-        } else {
-            -1
-        };
+        let bob = anim::relish_bob(game.elapsed());
         out.push(atlas.place(
             50,
             slot::RELISH + icon,
@@ -499,7 +490,7 @@ pub fn placements(
             z::PIP,
         ));
     } else {
-        let phase = game.fx.gulp_phase().unwrap_or((frame_no / 5) as usize % 3);
+        let phase = game.fx.chomp_phase();
         let hop = game
             .fx
             .hop_frame()
@@ -640,7 +631,7 @@ mod tests {
         let mut game = Game::new(11, 1);
         game.wardens.start_fright(6.0);
         let has = |game: &Game, slot: usize| {
-            placements(game, 8, 0, true, &atlas)
+            placements(game, 8, true, &atlas)
                 .iter()
                 .any(|p| p.slot == slot)
         };
@@ -669,61 +660,66 @@ mod tests {
             let mut game = Game::new(11, 1);
             let theme = themes::DUSK_POND;
             let atlas = atlas_for(ppt);
-            for frame_no in [0u64, 7, 33, 99] {
+            for step in 0..4 {
                 for flash in [false, true] {
-                    let want =
-                        RgbaFrame::from_rgb(&raster::render(&game, &theme, ppt, frame_no, flash));
+                    let want = RgbaFrame::from_rgb(&raster::render(&game, &theme, ppt, flash));
                     let base = static_frame(&game, &theme, ppt);
-                    let parts = placements(&game, ppt, frame_no, flash, &atlas);
+                    let parts = placements(&game, ppt, flash, &atlas);
                     let got = compose(&base, &atlas, &parts);
-                    assert_frames_eq(
-                        &got,
-                        &want,
-                        &format!("ppt {ppt} frame {frame_no} flash {flash}"),
-                    );
+                    assert_frames_eq(&got, &want, &format!("ppt {ppt} step {step} flash {flash}"));
+                }
+                // Advance the engine clock so the sunseed halo, relish bob
+                // and mouth phases are all exercised on shared time.
+                for _ in 0..24 {
+                    game.tick(maze_chase_engine::tuning::STEP);
                 }
             }
             // Fright entry, steady and flashing masks must compose to the
             // same pixels as the raster: the mask glyph alone is not the
             // whole mask, the eye overlay stays on top.
             game.wardens.start_fright(6.0);
-            for frame_no in [0u64, 30, 120, 700] {
+            for step in 0..4 {
                 for flash in [false, true] {
-                    let want =
-                        RgbaFrame::from_rgb(&raster::render(&game, &theme, ppt, frame_no, flash));
+                    let want = RgbaFrame::from_rgb(&raster::render(&game, &theme, ppt, flash));
                     let got = compose(
                         &static_frame(&game, &theme, ppt),
                         &atlas,
-                        &placements(&game, ppt, frame_no, flash, &atlas),
+                        &placements(&game, ppt, flash, &atlas),
                     );
                     assert_frames_eq(
                         &got,
                         &want,
-                        &format!("ppt {ppt} fright frame {frame_no} flash {flash}"),
+                        &format!("ppt {ppt} fright step {step} flash {flash}"),
                     );
+                }
+                for _ in 0..24 {
+                    game.tick(maze_chase_engine::tuning::STEP);
                 }
             }
             // Effects: pickup burst, turn spark and the spare-wick bloom.
             game.fx.pickup(game.player.x, game.player.y);
             game.fx.turn(game.player.x + 0.25, game.player.y);
             game.fx.spare_wick();
-            for frame_no in [0u64, 4, 12] {
-                let want = RgbaFrame::from_rgb(&raster::render(&game, &theme, ppt, frame_no, true));
+            for step in 0..3 {
+                let want = RgbaFrame::from_rgb(&raster::render(&game, &theme, ppt, true));
                 let got = compose(
                     &static_frame(&game, &theme, ppt),
                     &atlas,
-                    &placements(&game, ppt, frame_no, true, &atlas),
+                    &placements(&game, ppt, true, &atlas),
                 );
-                assert_frames_eq(&got, &want, &format!("ppt {ppt} effects frame {frame_no}"));
+                assert_frames_eq(&got, &want, &format!("ppt {ppt} effects step {step}"));
+                for _ in 0..4 {
+                    game.tick(maze_chase_engine::tuning::STEP);
+                }
             }
             // Move Pip and animate the death clip; wardens and relish
             // stay where they are, which still exercises overlay order.
             game.player.x += 0.5;
-            let want = RgbaFrame::from_rgb(&raster::render(&game, &theme, ppt, 12, false));
+            let want = RgbaFrame::from_rgb(&raster::render(&game, &theme, ppt, false));
             let got = compose(
                 &static_frame(&game, &theme, ppt),
                 &atlas,
-                &placements(&game, ppt, 12, false, &atlas),
+                &placements(&game, ppt, false, &atlas),
             );
             assert_frames_eq(&got, &want, &format!("ppt {ppt} moved pip"));
 
@@ -733,12 +729,11 @@ mod tests {
                 for _ in 0..2 {
                     game.tick(1.0 / 120.0);
                 }
-                let frame_no = 400 + step as u64 * 7;
-                let want = RgbaFrame::from_rgb(&raster::render(&game, &theme, ppt, frame_no, true));
+                let want = RgbaFrame::from_rgb(&raster::render(&game, &theme, ppt, true));
                 let got = compose(
                     &static_frame(&game, &theme, ppt),
                     &atlas,
-                    &placements(&game, ppt, frame_no, true, &atlas),
+                    &placements(&game, ppt, true, &atlas),
                 );
                 assert_frames_eq(&got, &want, &format!("ppt {ppt} dying step {step}"));
             }
@@ -765,11 +760,11 @@ mod tests {
                 game.wardens.wardens[1].actor.x = x0 + sep;
                 game.wardens.wardens[1].actor.y = y0;
                 game.wardens.wardens[1].state = WardenState::Active;
-                let want = RgbaFrame::from_rgb(&raster::render(&game, &theme, ppt, 12, false));
+                let want = RgbaFrame::from_rgb(&raster::render(&game, &theme, ppt, false));
                 let got = compose(
                     &static_frame(&game, &theme, ppt),
                     &atlas,
-                    &placements(&game, ppt, 12, false, &atlas),
+                    &placements(&game, ppt, false, &atlas),
                 );
                 assert_frames_eq(&got, &want, &format!("ppt {ppt} sep {sep}"));
             }

@@ -327,7 +327,7 @@ pub extern "C" fn mc_set_sfx(v: f32) {
     }
 }
 
-/// 1 when reduced-flash is on (steady fright mask).
+/// 1 when reduced-flash is on (steady hollow warning mask).
 #[no_mangle]
 pub extern "C" fn mc_reduced_flash() -> u32 {
     u32::from(session().settings().reduced_flash)
@@ -574,12 +574,7 @@ pub extern "C" fn mc_frame(w: u32, h: u32) -> *const u8 {
         return std::ptr::null();
     }
     let s = session();
-    let board = video::render_board(
-        s.game(),
-        s.theme(),
-        s.frame_no(),
-        !s.settings().reduced_flash,
-    );
+    let board = video::render_board(s.game(), s.theme(), !s.settings().reduced_flash);
     let bg = s.theme().bg;
     drop(s);
     let fit = video::fit_canvas(w, h);

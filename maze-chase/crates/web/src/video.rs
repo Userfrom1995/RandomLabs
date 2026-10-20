@@ -130,10 +130,11 @@ fn relish_icon_index(level: u32) -> usize {
 
 /// Render the full board frame: maze, pickups, relish, wardens, Pip.
 ///
-/// `frame_no` drives honest animation (mouth chomp, sunseed pulse, fright
-/// flash blink). `flash` enables the fright-warning blink; accessibility
-/// callers pass `false` to hold the hollow warning mask (honors reduced-flash).
-pub fn render_board(game: &Game, theme: &Theme, frame_no: u64, flash: bool) -> Frame {
+/// Animation samples the engine clock, so the cadence is independent of
+/// the display refresh rate and freezes with the simulation. `flash`
+/// enables the fright-warning blink; accessibility callers pass `false` to
+/// hold the hollow warning mask (honors reduced-flash).
+pub fn render_board(game: &Game, theme: &Theme, flash: bool) -> Frame {
     const PPT: i32 = BOARD_PPT as i32;
     let mut frame = Frame::blank(BOARD_W, BOARD_H, theme.bg);
     let crumb_field = game.maze.dot_bytes();
@@ -181,7 +182,7 @@ pub fn render_board(game: &Game, theme: &Theme, frame_no: u64, flash: bool) -> F
                         );
                     }
                     if crumb_field.get(stride + i).copied().unwrap_or(0) == 1 {
-                        let glyph: &[&str] = if anim::sunseed_halo(frame_no) {
+                        let glyph: &[&str] = if anim::sunseed_halo(game.elapsed()) {
                             &sprites::SUNSEED_B
                         } else {
                             &sprites::SUNSEED_A
@@ -205,11 +206,7 @@ pub fn render_board(game: &Game, theme: &Theme, frame_no: u64, flash: bool) -> F
     if game.relish.active {
         let (rtx, rty) = tuning::RELISH_TILE;
         let icon: &[&str] = &sprites::RELISH_ICONS[relish_icon_index(game.level)];
-        let bob = if (frame_no / 30).is_multiple_of(2) {
-            0
-        } else {
-            -1
-        };
+        let bob = anim::relish_bob(game.elapsed());
         paint_glyph(
             &mut frame,
             icon,
@@ -299,7 +296,7 @@ pub fn render_board(game: &Game, theme: &Theme, frame_no: u64, flash: bool) -> F
             &mut frame, clip, pcx, pcy, theme.pip, theme.text, theme.eyes,
         );
     } else {
-        let phase = game.fx.gulp_phase().unwrap_or((frame_no / 5) as usize % 3);
+        let phase = game.fx.chomp_phase();
         let rows = sprites::pip_facing_rows(phase, facing_of(game.player.dir), 11);
         let refs: Vec<&str> = rows.iter().map(|s| s.as_str()).collect();
         let hop = game.fx.hop_frame().map(sprites::hop_offset).unwrap_or(0);
@@ -527,7 +524,7 @@ mod tests {
     #[test]
     fn board_dimensions_exact() {
         let g = fresh();
-        let f = render_board(&g, &themes::DUSK_POND, 0, true);
+        let f = render_board(&g, &themes::DUSK_POND, true);
         assert_eq!((f.w, f.h), (BOARD_W, BOARD_H));
         assert_eq!((f.w, f.h), (224, 248));
         assert_eq!(f.px.len(), 224 * 248 * 4);
@@ -536,7 +533,7 @@ mod tests {
     #[test]
     fn walls_and_crumbs_painted() {
         let g = fresh();
-        let f = render_board(&g, &themes::DUSK_POND, 0, true);
+        let f = render_board(&g, &themes::DUSK_POND, true);
         assert!(f.count(themes::DUSK_POND.wall) > 100);
         assert!(f.count(themes::DUSK_POND.wall_inner) > 100);
         assert!(f.count(themes::DUSK_POND.crumb) > 200);
@@ -544,33 +541,74 @@ mod tests {
 
     #[test]
     fn sunseed_animates() {
-        let g = fresh();
-        let a = render_board(&g, &themes::DUSK_POND, 0, true);
-        let b = render_board(&g, &themes::DUSK_POND, 24, true);
+        let mut g = fresh();
+        let a = render_board(&g, &themes::DUSK_POND, true);
+        g.tick_count = 24; // 0.2 s on the engine clock
+        let b = render_board(&g, &themes::DUSK_POND, true);
         assert_ne!(a.px, b.px, "sunseed halo must animate");
+    }
+
+    #[test]
+    fn animation_samples_the_engine_clock() {
+        let theme = themes::DUSK_POND;
+        let g = fresh();
+        let a = render_board(&g, &theme, true);
+        assert_eq!(a, render_board(&g, &theme, true), "same clock, same pixels");
+
+        // Sunseed halo flips 200 ms into the 400 ms cycle.
+        let mut sun = fresh();
+        let before = render_board(&sun, &theme, true);
+        sun.tick_count = 24;
+        assert_ne!(before.px, render_board(&sun, &theme, true).px);
+
+        // Relish bob rides the shared 4 s engine phase.
+        let mut relish = fresh();
+        relish.relish.active = true;
+        let bob0 = render_board(&relish, &theme, true);
+        relish.tick_count = 60; // 0.5 s -> +1
+        assert_ne!(bob0.px, render_board(&relish, &theme, true).px);
+
+        // Idle Rill holds the open mouth across engine time.
+        let mut idle = fresh();
+        let mouth0 = render_board(&idle, &theme, true);
+        idle.tick_count = 720;
+        assert_eq!(mouth0, render_board(&idle, &theme, true));
+
+        // Moving Rill chomps at 12 fps off the same clock.
+        let mut moving = fresh();
+        moving.fx.set_moving(true);
+        let phase0 = render_board(&moving, &theme, true);
+        moving.fx.advance(1.0 / 12.0);
+        assert_ne!(phase0.px, render_board(&moving, &theme, true).px);
+        moving.fx.set_moving(false);
+        assert_eq!(
+            mouth0.px,
+            render_board(&moving, &theme, true).px,
+            "stopping returns Rill to the open mouth"
+        );
     }
 
     #[test]
     fn pip_and_wardens_painted_and_deterministic() {
         let g = fresh();
-        let f = render_board(&g, &themes::DUSK_POND, 0, true);
+        let f = render_board(&g, &themes::DUSK_POND, true);
         assert!(f.count(themes::DUSK_POND.pip) > 10);
         assert!(f.count(themes::DUSK_POND.bram) > 5);
         assert!(f.count(themes::DUSK_POND.kessa) > 5);
-        let again = render_board(&g, &themes::DUSK_POND, 0, true);
+        let again = render_board(&g, &themes::DUSK_POND, true);
         assert_eq!(f, again);
     }
 
     #[test]
     fn fright_masks_replace_active_bodies() {
         let g = fresh();
-        let plain = render_board(&g, &themes::DUSK_POND, 0, true);
+        let plain = render_board(&g, &themes::DUSK_POND, true);
         assert!(plain.count(themes::DUSK_POND.bram) > 5);
         // The mask glyph carries no body fill (`o`): Bram's hunt colors
         // vanish under the pale mask while housed wardens keep theirs.
         let mut g = fresh();
         g.wardens.start_fright(6.0);
-        let f = render_board(&g, &themes::DUSK_POND, 0, true);
+        let f = render_board(&g, &themes::DUSK_POND, true);
         assert_eq!(f.count(themes::DUSK_POND.bram), 0);
         assert!(f.count(themes::DUSK_POND.kessa) > 5);
     }
@@ -580,7 +618,7 @@ mod tests {
         for dir in [Dir::Right, Dir::Left, Dir::Up, Dir::Down] {
             let mut g = fresh();
             g.player.dir = dir;
-            let f = render_board(&g, &themes::DUSK_POND, 3, true);
+            let f = render_board(&g, &themes::DUSK_POND, true);
             assert!(f.count(themes::DUSK_POND.pip) > 10, "{dir:?}");
         }
     }
@@ -589,9 +627,9 @@ mod tests {
     fn effects_and_death_follow_the_shared_clocks() {
         let theme = themes::DUSK_POND;
         let mut g = fresh();
-        let base = render_board(&g, &theme, 0, true);
+        let base = render_board(&g, &theme, true);
         g.fx.pickup(g.player.x, g.player.y);
-        let burst = render_board(&g, &theme, 0, true);
+        let burst = render_board(&g, &theme, true);
         assert_ne!(burst.px, base.px);
         let (px, py) = (
             (g.player.x * BOARD_PPT as f32) as i32,
@@ -603,15 +641,15 @@ mod tests {
             "the burst must paint over Pip, not under the sprite"
         );
         g.fx.advance(0.3);
-        assert_eq!(render_board(&g, &theme, 0, true).px, base.px);
+        assert_eq!(render_board(&g, &theme, true).px, base.px);
 
         g.fx.turn(g.player.x, g.player.y);
-        assert_ne!(render_board(&g, &theme, 0, true).px, base.px);
+        assert_ne!(render_board(&g, &theme, true).px, base.px);
         g.fx.advance(0.2);
         g.fx.spare_wick();
-        assert_ne!(render_board(&g, &theme, 0, true).px, base.px);
+        assert_ne!(render_board(&g, &theme, true).px, base.px);
         g.fx.advance(0.6);
-        assert_eq!(render_board(&g, &theme, 0, true).px, base.px);
+        assert_eq!(render_board(&g, &theme, true).px, base.px);
 
         // Death: 100 ms frames from the state clock, then hold frame 3.
         let mut g = fresh();
@@ -619,11 +657,12 @@ mod tests {
         for _ in 0..60 {
             g.tick(1.0 / 120.0);
         }
-        let held = render_board(&g, &theme, 0, true);
-        for _ in 0..12 {
+        let held = render_board(&g, &theme, true);
+        // 0.5 s + 0.4 s lands on the same sunseed-halo phase.
+        for _ in 0..48 {
             g.tick(1.0 / 120.0);
         }
-        assert_eq!(render_board(&g, &theme, 0, true), held);
+        assert_eq!(render_board(&g, &theme, true), held);
     }
 
     #[test]
@@ -636,7 +675,7 @@ mod tests {
             if t > 0.0 {
                 g.tick(t);
             }
-            frames.push(render_board(&g, &theme, 0, true).px);
+            frames.push(render_board(&g, &theme, true).px);
         }
         assert_eq!(frames[0], frames[1], "0.0 and 0.05 hold frame 0");
         assert_ne!(frames[1], frames[2], "0.1 starts frame 1");
@@ -675,9 +714,9 @@ mod tests {
             set
         };
         g.wardens.wardens[0].actor.dir = Dir::Left;
-        let left = eye_positions(&render_board(&g, &theme, 0, true));
+        let left = eye_positions(&render_board(&g, &theme, true));
         g.wardens.wardens[0].actor.dir = Dir::Right;
-        let right = eye_positions(&render_board(&g, &theme, 0, true));
+        let right = eye_positions(&render_board(&g, &theme, true));
         assert!(
             !right.is_empty(),
             "the right-facing eye pixels must be found"
@@ -696,9 +735,9 @@ mod tests {
         let theme = themes::DUSK_POND;
         let mut g = fresh();
         g.player.dir = Dir::Up;
-        let up = render_board(&g, &theme, 0, true);
+        let up = render_board(&g, &theme, true);
         g.player.dir = Dir::Down;
-        let down = render_board(&g, &theme, 0, true);
+        let down = render_board(&g, &theme, true);
         assert_ne!(up.px, down.px);
     }
 
@@ -710,7 +749,7 @@ mod tests {
         for _ in 0..18 {
             g.tick(1.0 / 120.0);
         }
-        let f = render_board(&g, &theme, 0, true);
+        let f = render_board(&g, &theme, true);
         let p = anim::level_clear_sweep(g.state_elapsed()).expect("sweep window");
         let x = (p * f.w as f32) as i32;
         let tint = mix(theme.bg, theme.accent, 0.45);
@@ -850,8 +889,8 @@ mod tests {
     #[test]
     fn golden_determinism_across_theme_and_bg_pixel() {
         let g = fresh();
-        let a = render_board(&g, &themes::MORNING_SHALLOWS, 7, true);
-        let b = render_board(&g, &themes::MORNING_SHALLOWS, 7, true);
+        let a = render_board(&g, &themes::MORNING_SHALLOWS, true);
+        let b = render_board(&g, &themes::MORNING_SHALLOWS, true);
         assert_eq!(a, b);
         // Tile (13,13) is gatehouse interior: nothing paints over it.
         let (x, y) = (13 * BOARD_PPT as i32 + 4, 13 * BOARD_PPT as i32 + 4);

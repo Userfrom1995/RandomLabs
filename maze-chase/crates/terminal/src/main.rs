@@ -772,13 +772,7 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
         ));
     }
 
-    let desired = atlas::placements(
-        &app.game,
-        ppt,
-        app.frame_no,
-        !app.settings.reduced_flash,
-        atlas,
-    );
+    let desired = atlas::placements(&app.game, ppt, !app.settings.reduced_flash, atlas);
     let (cell_w, cell_h) = maze_chase_terminal::geometry::detect_cell_px().unwrap_or((
         maze_chase_terminal::geometry::NOMINAL_CELL_W_PX,
         maze_chase_terminal::geometry::NOMINAL_CELL_H_PX,
@@ -987,7 +981,6 @@ fn render_frame(
                         &app.game,
                         theme,
                         app.layout.ppt(),
-                        app.frame_no,
                         !app.settings.reduced_flash,
                     );
                     let encoded = sixel::encode(&frame, 64);
@@ -1000,7 +993,6 @@ fn render_frame(
                             &app.game,
                             theme,
                             &app.layout,
-                            app.frame_no,
                             !app.settings.reduced_flash,
                         );
                         for (i, row) in screen.rows.iter().enumerate() {
@@ -1027,7 +1019,6 @@ fn render_frame(
                     &app.game,
                     theme,
                     &app.layout,
-                    app.frame_no,
                     !app.settings.reduced_flash,
                 );
                 for (i, row) in screen.rows.iter().enumerate() {

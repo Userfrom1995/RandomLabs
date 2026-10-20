@@ -1,38 +1,8 @@
-//! Pure animation tables for Maze Chase (no I/O, no timing sources).
+//! Pure animation helpers for Maze Chase (no I/O, no timing sources).
 //!
-//! A [`Clip`] references glyphs by string ID (keys such as `"pip_right_open"`
-//! resolve to the art in [`crate::sprites`]). Helpers like
-//! [`fright_flash_on`], [`fright_mask_id`], and [`relish_bob`] are pure
-//! functions of time so they are trivially testable.
-
-/// A looping (or one-shot) sequence of glyph-ID frames.
-pub struct Clip {
-    /// Glyph ID keys, e.g. `"pip_right_open"`.
-    pub frames: &'static [&'static str],
-    /// Seconds each frame is shown.
-    pub frame_s: f32,
-    /// Whether the sequence repeats.
-    pub looped: bool,
-}
-
-/// Pip chomp: 3-frame mouth cycle at 12 fps, looped.
-pub fn pip_clip() -> Clip {
-    Clip {
-        frames: &["pip_right_open", "pip_right_mid", "pip_closed"],
-        frame_s: 1.0 / 12.0,
-        looped: true,
-    }
-}
-
-/// Rill death: 4 frames at 0.10 s each, played once (not looped); the
-/// renderer then holds the final frame for the death window.
-pub fn death_clip() -> Clip {
-    Clip {
-        frames: &["death_0", "death_1", "death_2", "death_3"],
-        frame_s: 0.1,
-        looped: false,
-    }
-}
+//! Every helper is a pure function of engine time so it is trivially
+//! testable, and every renderer samples the same engine clock instead of
+//! owning a refresh-rate-dependent counter.
 
 /// Seconds per death-sink frame (4 frames, 100 ms each).
 pub const DEATH_FRAME_S: f32 = 0.1;
@@ -51,13 +21,13 @@ pub fn death_frame(elapsed: f32) -> usize {
     ((elapsed / DEATH_FRAME_S) as usize).min(crate::sprites::PIP_DEATH.len() - 1)
 }
 
-/// Sunseed halo phase at a render frame.
+/// Sunseed halo phase at `t` seconds of engine time.
 ///
-/// The two 7x7 sheets alternate every 24 frames at the 60 fps cadence
-/// (400 ms per state, matching the design's halo period). Every renderer
-/// calls this shared helper instead of re-deriving the cadence.
-pub fn sunseed_halo(frame_no: u64) -> bool {
-    (frame_no / 24) % 2 == 1
+/// The two 7x7 sheets alternate every 200 ms across the design's 400 ms
+/// period, independent of the render refresh rate. Non-finite input holds
+/// the first sheet so a renderer never panics on a bad clock.
+pub fn sunseed_halo(t: f32) -> bool {
+    t.is_finite() && t.rem_euclid(0.4) < 0.2
 }
 
 /// Fright-mask style sequence: entry morph first, then normal or warning.
@@ -129,26 +99,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn pip_clip_chomps_looped() {
-        let c = pip_clip();
-        assert_eq!(c.frames, &["pip_right_open", "pip_right_mid", "pip_closed"]);
-        assert!((c.frame_s - 1.0 / 12.0).abs() < 1e-6);
-        assert!(c.looped);
-        // 12 fps: three frames cover a quarter second.
-        assert!((c.frame_s * 3.0 - 0.25).abs() < 1e-6);
-    }
-
-    #[test]
-    fn death_clip_oneshot() {
-        let c = death_clip();
-        assert_eq!(c.frames.len(), 4);
-        assert!((c.frame_s - 0.1).abs() < 1e-6);
-        assert!(!c.looped);
-        // Full play length: 4 * 0.10 = 0.40 s.
-        assert!((c.frame_s * c.frames.len() as f32 - 0.4).abs() < 1e-6);
-    }
-
-    #[test]
     fn fright_flash_window_and_blink() {
         // Outside the warning window: always off.
         assert!(!fright_flash_on(2.0));
@@ -162,12 +112,15 @@ mod tests {
     }
 
     #[test]
-    fn sunseed_halo_alternates_every_twenty_four_frames() {
-        assert!(!sunseed_halo(0));
-        assert!(!sunseed_halo(23));
-        assert!(sunseed_halo(24));
-        assert!(sunseed_halo(47));
-        assert!(!sunseed_halo(48));
+    fn sunseed_halo_alternates_every_two_hundred_milliseconds() {
+        assert!(sunseed_halo(0.0));
+        assert!(sunseed_halo(0.199));
+        assert!(!sunseed_halo(0.2));
+        assert!(!sunseed_halo(0.399));
+        assert!(sunseed_halo(0.4));
+        assert!(sunseed_halo(0.6 - 0.001));
+        assert!(!sunseed_halo(f32::NAN));
+        assert!(!sunseed_halo(f32::INFINITY));
     }
 
     #[test]
