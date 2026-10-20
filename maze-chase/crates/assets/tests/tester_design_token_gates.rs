@@ -69,7 +69,7 @@ fn metric(block: &str, name: &str) -> f32 {
         + marker.len();
     let end = at
         + block[at..]
-            .find(|c: char| c == ',' || c == '}' || c == '\n')
+            .find([',', '}', '\n'])
             .expect("metric terminator");
     block[at..end]
         .trim()
@@ -134,11 +134,11 @@ fn pondwake_palette_gates_hold() {
     );
     for id in THEMES {
         let t = theme(pond, id);
-        let bg = slot(&t, "bg");
-        let wall = slot(&t, "wall");
-        let text = slot(&t, "text");
-        let fright = slot(&t, "fright");
-        let eyes = slot(&t, "eyes");
+        let bg = slot(t, "bg");
+        let wall = slot(t, "wall");
+        let text = slot(t, "text");
+        let fright = slot(t, "fright");
+        let eyes = slot(t, "eyes");
 
         let text_bg = contrast(text, bg);
         assert!(
@@ -160,7 +160,7 @@ fn pondwake_palette_gates_hold() {
             eyes_wall >= 3.0,
             "{id}: eyes/wall {eyes_wall:.2} below the 3.0 gate"
         );
-        let d = min_hunter_distance(&t);
+        let d = min_hunter_distance(t);
         assert!(
             d >= 60.0,
             "{id}: hunter pairwise minimum {d:.2} below the 60 gate"
@@ -182,11 +182,11 @@ fn pondwake_metrics_match_recomputation() {
     let pond = balanced_block(TOKENS, "\"pondwake_themes\":");
     for id in THEMES {
         let t = theme(pond, id);
-        let bg = slot(&t, "bg");
-        let wall = slot(&t, "wall");
-        let text = slot(&t, "text");
-        let fright = slot(&t, "fright");
-        let eyes = slot(&t, "eyes");
+        let bg = slot(t, "bg");
+        let wall = slot(t, "wall");
+        let text = slot(t, "text");
+        let fright = slot(t, "fright");
+        let eyes = slot(t, "eyes");
 
         let checks = [
             ("text_bg", contrast(text, bg), 0.01f32),
@@ -195,16 +195,16 @@ fn pondwake_metrics_match_recomputation() {
             ("fright_wall", contrast(fright, wall), 0.01),
             ("eyes_bg", contrast(eyes, bg), 0.01),
             ("eyes_wall", contrast(eyes, wall), 0.01),
-            ("hunter_min_distance", min_hunter_distance(&t), 0.05),
+            ("hunter_min_distance", min_hunter_distance(t), 0.05),
         ];
         for (name, computed, tol) in checks {
-            let claimed = metric(&t, name);
+            let claimed = metric(t, name);
             assert!(
                 (claimed - computed).abs() <= tol,
                 "{id}: metric {name} claims {claimed} but recomputes to {computed:.4}"
             );
         }
-        let claimed_lum = metric(&t, "bg_luminance");
+        let claimed_lum = metric(t, "bg_luminance");
         let recomputed = luminance(bg);
         assert!(
             (claimed_lum - recomputed).abs() <= 0.001,

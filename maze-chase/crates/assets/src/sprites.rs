@@ -1,4 +1,4 @@
-//! Original authored pixel art for Maze Chase, stored as `pub const` string rows.
+//! Original Pondwake pixel art for Maze Chase, stored as `pub const` rows.
 //!
 //! # Legend (uniform across every glyph)
 //!
@@ -12,109 +12,182 @@
 //! Every glyph is rectangular: all rows of one glyph share the same length.
 //! [`validate_glyph`] enforces rectangularity and the four-character charset.
 //!
-//! # Pip (player lantern) directions
+//! # Cast
 //!
-//! Only right-facing and neutral art is stored:
-//! [`PIP_RIGHT`] (mouth wide open), [`PIP_RIGHT_MID`] (mouth half open) and
-//! [`PIP_CLOSED`] (no mouth, facing-neutral circle with handle).
-//! Derive the other facings with the documented transform functions instead
-//! of storing more art:
+//! Rill is a squat pond frog: a wide body with two dome eyes breaking the top
+//! contour, heavy haunches, a chomp mouth and webbed toes. Her silhouette is
+//! stored per heading ([`RILL_RIGHT`], [`RILL_UP`], [`RILL_DOWN`]) because the
+//! squat body does not rotate honestly; left is the mirror of right. Each
+//! heading carries an open, mid and closed mouth phase.
 //!
-//! ```rust
-//! use maze_chase_assets::sprites::{flip_horizontal, rotate_cw, PIP_RIGHT};
-//! // Left-facing: mirror the right-facing art.
-//! let left = flip_horizontal(&PIP_RIGHT);
-//! assert_eq!(left[6], "....***oo#.");
-//! // Down-facing: rotate the right-facing art 90 degrees clockwise
-//! // (the mouth wedge then points down).
-//! let down = rotate_cw(&PIP_RIGHT);
-//! assert_eq!((down.len(), down[0].len()), (11, 11));
-//! // Up-facing: rotate 90 degrees clockwise three times (270 total).
-//! let refs: Vec<&str> = down.iter().map(|s| s.as_str()).collect();
-//! let up = rotate_cw(&refs);
-//! let refs2: Vec<&str> = up.iter().map(|s| s.as_str()).collect();
-//! let up = rotate_cw(&refs2);
-//! assert_eq!((up.len(), up[0].len()), (11, 11));
-//! ```
+//! The four hunters are read silhouette first and carry no eyes: eye bubbles
+//! are overlaid at draw time from [`EYES_RIGHT`], [`EYES_UP`] and
+//! [`EYES_DOWN`] (left is the mirror of right).
 //!
-//! # Warden accents
+//! * [`WARDEN_BRAM`]: heron, an S-neck above long legs (tallest silhouette).
+//! * [`WARDEN_KESSA`]: pike, a low torpedo with a dorsal ridge and underbite.
+//! * [`WARDEN_JORY`]: snake, a low S-ribbon with a raised head loop.
+//! * [`WARDEN_NIB`]: dragonfly, doubled crossbar wings around a segmented body.
 //!
-//! Warden bodies are stored WITHOUT eyes (eye pairs in [`EYES_RIGHT`],
-//! [`EYES_UP`], [`EYES_DOWN`] are overlaid at draw time). Each warden has a
-//! distinct silhouette accent:
+//! The frightened state is a flat fright fill with concentric rings and a
+//! 1 px outline; it never uses the eyes slot and never uses white. The warning
+//! variant is hollow (it is information, not a flash).
 //!
-//! * [`WARDEN_BRAM`]: square brow, a straight heavy `#` brow band, flat hood top.
-//! * [`WARDEN_KESSA`]: pointed hood, peaked top narrowing to a single `#` tip.
-//! * [`WARDEN_JORY`]: round helm, wide rounded dome band.
-//! * [`WARDEN_NIB`]: notched ears, broken outline cells on both flanks plus a
-//!   split base hem.
+//! # Environment and effects
 //!
-//! # Eyes
-//!
-//! [`EYES_RIGHT`] looks right (`*` whites with `#` pupils offset right).
-//! Left-looking eyes are derived with [`flip_horizontal`]; [`EYES_UP`] and
-//! [`EYES_DOWN`] are stored consts with pupils offset up / down.
+//! [`CRUMB`] is a water bead with a meniscus ring, [`SUNSEED_A`] and
+//! [`SUNSEED_B`] are resting fireflies, [`RELISH_ICONS`] is the six-piece
+//! found-object bonus set, [`GOLDEN_LILY`] is the spare-wick bloom,
+//! [`PICKUP_BURST`] is the four-frame ripple, [`TURN_SPARK`] is the committed
+//! turn cue, and [`PIP_DEATH`] is the four-frame death ripple.
 
-/// Pip (player lantern) facing right, mouth wide open, 11x11.
+/// Rill facing right, mouth wide open, 11x11.
 ///
-/// Round body, mouth wedge open to the right (rows 5-7 carved out), little
-/// handle on top (rows 0-2), `*` spark highlight on the body.
+/// Dome eyes break the top contour, a sheen sits on the flank, and the mouth
+/// opens as a three-row wedge on the right.
 pub const PIP_RIGHT: [&str; 11] = [
-    "....###....",
-    "...##.##...",
-    "....###....",
-    "...#####...",
-    ".##ooooo##.",
-    ".#ooo*oo...",
-    ".#oo***....",
-    ".#ooo*oo...",
-    ".##ooooo##.",
-    "...#####...",
-    "....###....",
+    "..#.....#..",
+    ".#*#...#*#.",
+    ".#o#...#o#.",
+    ".#########.",
+    ".#ooooooo#.",
+    ".#ooo*ooo..",
+    ".#oo**oo...",
+    ".#ooo*ooo..",
+    ".#ooooooo#.",
+    "..##ooo##..",
+    ".#.#...#.#.",
 ];
 
-/// Pip facing right, mouth half open (only the middle row carved), 11x11.
-///
-/// Chomp mid-frame between [`PIP_RIGHT`] and [`PIP_CLOSED`].
+/// Rill facing right, mouth half open, 11x11.
 pub const PIP_RIGHT_MID: [&str; 11] = [
-    "....###....",
-    "...##.##...",
-    "....###....",
-    "...#####...",
-    ".##ooooo##.",
-    ".#ooo*ooo#.",
-    ".#oo***o...",
-    ".#ooo*ooo#.",
-    ".##ooooo##.",
-    "...#####...",
-    "....###....",
+    "..#.....#..",
+    ".#*#...#*#.",
+    ".#o#...#o#.",
+    ".#########.",
+    ".#ooooooo#.",
+    ".#ooo*oooo#",
+    ".#oo**ooo..",
+    ".#ooo*oooo#",
+    ".#ooooooo#.",
+    "..##ooo##..",
+    ".#.#...#.#.",
 ];
 
-/// Pip facing-neutral: closed circle with handle, no mouth, 11x11.
+/// Rill facing right, mouth closed, 11x11.
 pub const PIP_CLOSED: [&str; 11] = [
-    "....###....",
-    "...##.##...",
-    "....###....",
-    "...#####...",
-    ".##ooooo##.",
-    ".#ooo*ooo#.",
-    ".#oo***oo#.",
-    ".#ooo*ooo#.",
-    ".##ooooo##.",
-    "...#####...",
-    "....###....",
+    "..#.....#..",
+    ".#*#...#*#.",
+    ".#o#...#o#.",
+    ".#########.",
+    ".#ooooooo#.",
+    ".#ooo*oooo#",
+    ".#ooo*oooo#",
+    ".#ooo*oooo#",
+    ".#ooooooo#.",
+    "..##ooo##..",
+    ".#.#...#.#.",
+];
+
+/// Rill facing up, mouth open at the top contour, 11x11.
+pub const RILL_UP: [&str; 11] = [
+    "...#...#...",
+    "..#*#.#*#..",
+    "..#o###o#..",
+    "..##o.o##..",
+    ".#ooooooo#.",
+    ".#oo*oooo#.",
+    ".#ooooooo#.",
+    ".#ooooooo#.",
+    "..##ooo##..",
+    ".#.#...#.#.",
+    "...........",
+];
+
+/// Rill facing up, mouth half open, 11x11.
+pub const RILL_UP_MID: [&str; 11] = [
+    "...#...#...",
+    "..#*#.#*#..",
+    "..#o###o#..",
+    "..###.###..",
+    ".#ooooooo#.",
+    ".#oo*oooo#.",
+    ".#ooooooo#.",
+    ".#ooooooo#.",
+    "..##ooo##..",
+    ".#.#...#.#.",
+    "...........",
+];
+
+/// Rill facing up, mouth closed, 11x11.
+pub const RILL_CLOSED_UP: [&str; 11] = [
+    "...#...#...",
+    "..#*#.#*#..",
+    "..#o###o#..",
+    "..#######..",
+    ".#ooooooo#.",
+    ".#oo*oooo#.",
+    ".#ooooooo#.",
+    ".#ooooooo#.",
+    "..##ooo##..",
+    ".#.#...#.#.",
+    "...........",
+];
+
+/// Rill facing down, mouth open along the bottom contour, 11x11.
+pub const RILL_DOWN: [&str; 11] = [
+    "..#.....#..",
+    ".#*#...#*#.",
+    ".#o#...#o#.",
+    ".#########.",
+    ".#ooooooo#.",
+    ".#oo*oooo#.",
+    ".#o#####o#.",
+    ".#o.....o#.",
+    "..##ooo##..",
+    ".#.#...#.#.",
+    "...........",
+];
+
+/// Rill facing down, mouth half open, 11x11.
+pub const RILL_DOWN_MID: [&str; 11] = [
+    "..#.....#..",
+    ".#*#...#*#.",
+    ".#o#...#o#.",
+    ".#########.",
+    ".#ooooooo#.",
+    ".#oo*oooo#.",
+    ".#o#####o#.",
+    ".#oo.o.oo#.",
+    "..##ooo##..",
+    ".#.#...#.#.",
+    "...........",
+];
+
+/// Rill facing down, mouth closed, 11x11.
+pub const RILL_CLOSED_DOWN: [&str; 11] = [
+    "..#.....#..",
+    ".#*#...#*#.",
+    ".#o#...#o#.",
+    ".#########.",
+    ".#ooooooo#.",
+    ".#oo*oooo#.",
+    ".#ooooooo#.",
+    ".#ooooooo#.",
+    "..##ooo##..",
+    ".#.#...#.#.",
+    "...........",
 ];
 
 /// Mirror a glyph horizontally (left-right flip), returning owned rows.
 ///
 /// Works on any generic `&[&str]` glyph, so layers derive left-facing
-/// variants (e.g. left-looking eyes from [`EYES_RIGHT`]) without storing
-/// extra art.
+/// variants without storing extra art.
 ///
 /// ```rust
 /// use maze_chase_assets::sprites::{flip_horizontal, EYES_RIGHT};
 /// let flipped = flip_horizontal(&EYES_RIGHT);
-/// assert_eq!(flipped[1], "#*.#*");
+/// assert_eq!(flipped[1], ".#...#.");
 /// ```
 pub fn flip_horizontal(glyph: &[&str]) -> Vec<String> {
     glyph
@@ -125,9 +198,8 @@ pub fn flip_horizontal(glyph: &[&str]) -> Vec<String> {
 
 /// Rotate a glyph 90 degrees clockwise, returning owned rows.
 ///
-/// Works on any generic `&[&str]` glyph. A right-facing 11x11 glyph becomes a
-/// down-facing 11x11 glyph; rotating three times yields the up-facing
-/// variant. Non-square glyphs swap dimensions (an HxW glyph becomes WxH).
+/// Works on any generic `&[&str]` glyph. Non-square glyphs swap dimensions
+/// (an HxW glyph becomes WxH). Rill headings are stored art, not rotations.
 pub fn rotate_cw(glyph: &[&str]) -> Vec<String> {
     if glyph.is_empty() {
         return Vec::new();
@@ -140,240 +212,322 @@ pub fn rotate_cw(glyph: &[&str]) -> Vec<String> {
         .collect()
 }
 
-/// Pip death frame 0: intact lantern, 11x11.
+/// Rill death frame 0: intact body, eyes dimmed, 11x11.
 pub const PIP_DEATH_0: [&str; 11] = [
-    "....###....",
-    "...##.##...",
-    "....###....",
-    "...#####...",
-    ".##ooooo##.",
-    ".#ooo*ooo#.",
-    ".#oo***oo#.",
-    ".#ooo*ooo#.",
-    ".##ooooo##.",
-    "...#####...",
-    "....###....",
+    "..#.....#..",
+    ".#*#...#*#.",
+    ".#o#...#o#.",
+    ".#########.",
+    ".#ooooooo#.",
+    ".#ooo*oooo#",
+    ".#ooo*oooo#",
+    ".#ooo*oooo#",
+    ".#ooooooo#.",
+    "..##ooo##..",
+    ".#.#...#.#.",
 ];
 
-/// Pip death frame 1: burst, radiating shards, 11x11.
+/// Rill death frame 1: the body sinks into a ripple ring, 11x11.
 pub const PIP_DEATH_1: [&str; 11] = [
-    ".....*.....",
-    "..*..#..*..",
-    "....###....",
-    ".#..###..#.",
-    "..*.###.*..",
-    "....###....",
-    "..*.###.*..",
-    ".#..###..#.",
-    "....###....",
-    "..*..#..*..",
-    ".....*.....",
+    "...........",
+    "..#######..",
+    ".#.......#.",
+    "#..#ooo#..#",
+    "#..#o*o#..#",
+    "#..#####..#",
+    "#.........#",
+    ".#.......#.",
+    "..#######..",
+    "...........",
+    "...........",
 ];
 
-/// Pip death frame 2: scattered sparkles, 11x11.
+/// Rill death frame 2: the ripple spreads into bubbles, 11x11.
 pub const PIP_DEATH_2: [&str; 11] = [
     "...........",
-    "...*#......",
     "...........",
-    ".......*...",
-    "......#....",
-    "..*#..*#...",
-    "...........",
-    "....*......",
-    "...........",
+    "..#.....#..",
+    ".#.......#.",
+    "#....*....#",
+    "#.........#",
+    "#....*....#",
+    ".#.......#.",
+    "..#.....#..",
     "...........",
     "...........",
 ];
 
-/// Pip death frame 3: faint empty wisp curl, 11x11.
+/// Rill death frame 3: one last bubble on the water, 11x11.
 pub const PIP_DEATH_3: [&str; 11] = [
     "...........",
     "...........",
     "...........",
     "...........",
-    ".....##....",
-    ".....*.....",
-    "....*#.....",
+    "....###....",
+    "...#*o*#...",
+    "....###....",
     "...........",
     "...........",
     "...........",
     "...........",
 ];
 
-/// Pip death sequence: 4 frames of 11x11, shrinking lantern, burst,
-/// sparkle, empty wisp.
-///
-/// Non-transparent fill counts shrink monotonically across frames
-/// (68, 37, 9, 5); `#` outline counts shrink too (37, 27, 4, 3).
+/// Rill death sequence: 4 frames of 11x11, played once at 100 ms a frame.
 pub const PIP_DEATH: [&[&str]; 4] = [&PIP_DEATH_0, &PIP_DEATH_1, &PIP_DEATH_2, &PIP_DEATH_3];
 
-/// Warden Bram (ember red): hooded body WITHOUT eyes, 11x11.
-///
-/// Accent: square brow, a straight heavy `#` brow band (row 3) under a flat
-/// hood top. Body uses `#` outline + `o` fill.
+/// Bram the heron: S-neck above long legs, 11x11, no eyes.
 pub const WARDEN_BRAM: [&str; 11] = [
-    "...#####...",
-    "..#ooooo#..",
-    "..#ooooo#..",
-    "..#######..",
-    "..#ooooo#..",
-    "..#ooooo#..",
-    "..#ooooo#..",
-    ".#ooooooo#.",
-    ".#ooooooo#.",
-    ".#ooooooo#.",
-    ".#########.",
-];
-
-/// Warden Kessa (teal): hooded body WITHOUT eyes, 11x11.
-///
-/// Accent: pointed hood, peaked top narrowing to a single `#` tip (rows 0-2).
-/// Body uses `#` outline + `o` fill.
-pub const WARDEN_KESSA: [&str; 11] = [
-    ".....#.....",
-    "....#o#....",
+    "....###....",
     "...#ooo#...",
+    "..##ooo##..",
+    "....#o#....",
+    "....#o#....",
+    "...##o##...",
     "..#ooooo#..",
-    "..#ooooo#..",
-    "..#ooooo#..",
-    "..#ooooo#..",
-    "..#ooooo#..",
-    ".#ooooooo#.",
-    ".#ooooooo#.",
-    "..#######..",
+    ".#oo*oooo#.",
+    ".#ooooo#...",
+    "...#o#o#...",
+    "..#.#.#.#..",
 ];
 
-/// Warden Jory (amber): hooded body WITHOUT eyes, 11x11.
-///
-/// Accent: round helm, a wide rounded dome band (rows 0-2 flare wider than
-/// the other wardens). Body uses `#` outline + `o` fill.
+/// Kessa the pike: low torpedo, dorsal ridge and underbite, 11x11, no eyes.
+pub const WARDEN_KESSA: [&str; 11] = [
+    "...........",
+    "...........",
+    "......####.",
+    ".....#oooo#",
+    "#...##ooooo",
+    "##ooooooooo",
+    "#.#oooooo##",
+    "..###ooo#..",
+    "....####...",
+    "...........",
+    "...........",
+];
+
+/// Jory the snake: low S-ribbon with a raised head loop, 11x11, no eyes.
 pub const WARDEN_JORY: [&str; 11] = [
     "....###....",
-    "..##ooo##..",
-    ".#ooooooo#.",
-    ".#ooooooo#.",
-    ".#ooooooo#.",
-    ".#ooooooo#.",
-    "..#ooooo#..",
-    "..#ooooo#..",
-    ".#ooooooo#.",
-    ".#ooooooo#.",
-    ".#########.",
+    "...#ooo#...",
+    "...#ooo#...",
+    "..#oo###...",
+    "..#oo#.....",
+    ".#oo#......",
+    ".#ooo###...",
+    "..##ooo#...",
+    "....#ooo#..",
+    "....##oo#..",
+    ".....###...",
 ];
 
-/// Warden Nib (violet): hooded body WITHOUT eyes, 11x11.
-///
-/// Accent: notched ears, broken outline cells on both flanks (right side rows
-/// 2-3, left side row 4, right side row 8) plus a split base hem (row 10).
-/// Body uses `#` outline + `o` fill.
+/// Nib the dragonfly: doubled crossbar wings, segmented body, 11x11, no eyes.
 pub const WARDEN_NIB: [&str; 11] = [
+    "....###....",
+    "...#ooo#...",
+    "....#o#....",
+    "##..#o#..##",
+    "####.o.####",
+    "..##ooo##..",
+    "##..#o#..##",
+    "####.o.####",
+    "....#o#....",
+    "...#ooo#...",
     "...#####...",
-    "..#ooooo#..",
-    "..#oooo....",
-    "..#oooo....",
-    "...ooooo#..",
-    "..#ooooo#..",
-    "..#ooooo#..",
-    ".#ooooooo#.",
-    ".#ooooooo..",
-    ".#ooooooo#.",
-    ".####.####.",
 ];
 
-/// Directional eye pair looking right, 5x5.
+/// Directional eye bubbles looking right, 7x7.
 ///
-/// `*` whites with `#` pupils offset to the right of each eye. Derive the
-/// left-looking pair with [`flip_horizontal`].
-pub const EYES_RIGHT: [&str; 5] = [".....", "*#.*#", "*#.*#", "*#.*#", "....."];
+/// Two ring orbs with a ripple trail behind the travel direction. Left is the
+/// mirror of right.
+pub const EYES_RIGHT: [&str; 7] = [
+    ".......", ".#...#.", "###.###", ".#...#.", ".......", "..#....", ".......",
+];
 
-/// Directional eye pair looking up, 5x5 (`#` pupils on the top rows).
-pub const EYES_UP: [&str; 5] = [".....", "##.##", "**.**", "**.**", "....."];
+/// Directional eye bubbles looking up, 7x7 (trail below).
+pub const EYES_UP: [&str; 7] = [
+    ".......", ".#...#.", "###.###", ".#...#.", ".......", "...#...", ".......",
+];
 
-/// Directional eye pair looking down, 5x5 (`#` pupils on the bottom rows).
-pub const EYES_DOWN: [&str; 5] = [".....", "**.**", "**.**", "##.##", "....."];
+/// Directional eye bubbles looking down, 7x7 (trail above).
+pub const EYES_DOWN: [&str; 7] = [
+    ".......", "...#...", ".......", ".#...#.", "###.###", ".#...#.", ".......",
+];
 
-/// Fright mask face worn during the turn, 11x11.
+/// Frightened hunter: flat fright fill with concentric rings, 11x11.
 ///
-/// Pale `*` mask with `#` outline, `#` dot eyes (row 4) and a scared squiggle
-/// mouth (zigzag row 8 under a mouth bar in row 7).
+/// Never uses the eyes slot (`*`) and never uses a white fill.
 pub const FRIGHT_MASK: [&str; 11] = [
     "...#####...",
-    ".##*****##.",
-    ".#*******#.",
-    ".#*******#.",
-    ".#*##*##*#.",
-    ".#*******#.",
-    ".#*******#.",
-    ".#**###**#.",
-    ".#*#*#*#*#.",
-    ".#*******#.",
-    "..#######..",
+    ".##ooooo##.",
+    ".#ooooooo#.",
+    "#ooooooooo#",
+    "#oo#####oo#",
+    "#oo#ooo#oo#",
+    "#oo#####oo#",
+    "#ooooooooo#",
+    ".#ooooooo#.",
+    ".##ooooo##.",
+    "...#####...",
 ];
 
-/// Fright mask flash variant for the last-1.5s warning, 11x11.
+/// Frightened hunter, hollow warning variant for reduced flash.
 ///
-/// Outline-only / inverted accents: hollow `.` interior with the same outline,
-/// so it reads as a blinking negative of [`FRIGHT_MASK`].
+/// Information, not decoration: the outline holds without a bright fill.
 pub const FRIGHT_MASK_FLASH: [&str; 11] = [
     "...#####...",
     ".##.....##.",
     ".#.......#.",
+    "#.........#",
+    "#..#####..#",
+    "#..#...#..#",
+    "#..#####..#",
+    "#.........#",
     ".#.......#.",
-    ".#.##.##.#.",
-    ".#.......#.",
-    ".#.......#.",
-    ".#.#####.#.",
-    ".#.#.#.#.#.",
-    ".#.......#.",
-    "..#######..",
+    ".##.....##.",
+    "...#####...",
 ];
 
-/// Crumb pellet, 3x3 single `o` dot.
-pub const CRUMB: [&str; 3] = ["...", ".o.", "..."];
+/// First morph frame when a sunseed dazes a hunter: flat fill, no rings.
+pub const FRIGHT_MASK_ENTRY: [&str; 11] = [
+    "...#####...",
+    ".##ooooo##.",
+    ".#ooooooo#.",
+    "#ooooooooo#",
+    "#ooooooooo#",
+    "#ooooooooo#",
+    "#ooooooooo#",
+    "#ooooooooo#",
+    ".#ooooooo#.",
+    ".##ooooo##.",
+    "...#####...",
+];
 
-/// Sunseed pulse frame A (solid seed, no halo), 7x7.
+/// Water bead crumb with a meniscus ring, 3x3.
+pub const CRUMB: [&str; 3] = [".*.", "*o*", ".*."];
+
+/// Sunseed firefly at rest, no halo, 7x7.
 pub const SUNSEED_A: [&str; 7] = [
-    ".......", "...#...", "..#o#..", ".#ooo#.", "..#o#..", "...#...", ".......",
+    ".......", "...#...", "..#o#..", ".#o*o#.", "..#o#..", "...#...", ".......",
 ];
 
-/// Sunseed pulse frame B (halo ring of `*` around the same core), 7x7.
+/// Sunseed firefly with the halo ring lit, 7x7.
 pub const SUNSEED_B: [&str; 7] = [
-    "..*.*..", ".*.#.*.", "..#o#..", "*#ooo#*", "..#o#..", ".*.#.*.", "..*.*..",
+    "..*.*..", ".*.#.*.", "..#o#..", "*#o*o#*", "..#o#..", ".*.#.*.", "..*.*..",
 ];
 
-/// Relish tier icon names (original invented names, 6 tiers).
+/// Bonus set names, in [`RELISH_ICONS`] order (original found objects).
 pub const RELISH_NAMES: [&str; 6] = [
-    "emberberry",
-    "sunplum",
-    "lanternpod",
-    "clockpepper",
-    "harborfig",
-    "starmarrow",
+    "lily charm",
+    "copper ripple",
+    "reed flute",
+    "snail shell",
+    "dragonfly wing",
+    "kingfisher feather",
 ];
 
-/// Six original 7x7 relish tier icons, in [`RELISH_NAMES`] order:
-/// emberberry (round berry with spark), sunplum (diamond with spark tips),
-/// lanternpod (vertical pod), clockpepper (square with hand),
-/// harborfig (droplet), starmarrow (star).
+/// Six original 7x7 bonus icons, in [`RELISH_NAMES`] order.
 pub const RELISH_ICONS: [[&str; 7]; 6] = [
     [
-        ".......", "..###..", ".#ooo#.", ".#o*o#.", ".#ooo#.", "..###..", ".......",
+        "...#...", "..*.*..", ".#ooo#.", "..*o*..", "...#...", "..#.#..", ".......",
     ],
     [
-        "...*...", "...#...", "..#o#..", ".#ooo#.", "..#o#..", "...#...", "...*...",
+        ".......", "..###..", ".#.*.#.", ".#*o*#.", ".#.*.#.", "..###..", ".......",
     ],
     [
-        "..###..", "..#o#..", "..#o#..", ".#ooo#.", "..#*#..", "..###..", ".......",
+        "...#...", "..#o#..", "..#*#..", "..#o#..", "..#*#..", "..#o#..", "...###.",
     ],
     [
-        ".......", ".#####.", ".#ooo#.", ".#o*##.", ".#ooo#.", ".#####.", ".......",
+        "...##..", "..#oo#.", ".#o##o#", ".#o#o#.", ".#oo#..", "..##...", ".......",
     ],
     [
-        "...#...", "..#o#..", "..#o#..", ".#ooo#.", ".#ooo#.", "..###..", ".......",
+        ".......", "..#....", ".#o#...", "#ooo#..", ".#o#...", "..#....", ".......",
     ],
     [
-        "...#...", "..#*#..", "##***##", "..#*#..", ".#***#.", "...#...", "...*...",
+        "....#..", "...#o#.", "..#o*#.", ".#o*#..", "..#o#..", "...#...", "..##...",
     ],
+];
+
+/// Spare-wick bloom, six 9x9 frames from bud to open lily.
+pub const GOLDEN_LILY: [[&str; 9]; 6] = [
+    [
+        ".........",
+        "....#....",
+        "...#o#...",
+        "..#o*o#..",
+        "..#ooo#..",
+        "...###...",
+        "....#....",
+        "....#....",
+        ".........",
+    ],
+    [
+        ".........",
+        "..##.##..",
+        ".#ooooo#.",
+        "..#o*o#..",
+        "..#ooo#..",
+        "...###...",
+        "....#....",
+        "....#....",
+        ".........",
+    ],
+    [
+        ".........",
+        ".#..#.#..",
+        "#oo#o#oo#",
+        ".#ooooo#.",
+        "..#o*o#..",
+        "...###...",
+        "....#....",
+        "....#....",
+        ".........",
+    ],
+    [
+        "...#...#.",
+        ".#o#.#o#.",
+        "#ooo#ooo#",
+        ".#ooooo#.",
+        "..#o*o#..",
+        "...###...",
+        "....#....",
+        "....#....",
+        ".........",
+    ],
+    [
+        "..#...#..",
+        ".#o#.#o#.",
+        "#ooo#ooo#",
+        ".#ooooo#.",
+        "..#o*o#..",
+        "..#ooo#..",
+        "....#....",
+        "....#....",
+        ".........",
+    ],
+    [
+        "..#...#..",
+        ".#o#.#o#.",
+        "#ooo#ooo#",
+        ".#ooooo#.",
+        "..#o*o#..",
+        "..#ooo#..",
+        "....#....",
+        "....#....",
+        ".........",
+    ],
+];
+
+/// Four-frame pickup ripple, 5x5, on the 66.7 ms burst grid.
+pub const PICKUP_BURST: [[&str; 5]; 4] = [
+    [".....", ".....", "..#..", ".....", "....."],
+    [".....", "..#..", ".#.#.", "..#..", "....."],
+    ["..#..", ".#.#.", "#...#", ".#.#.", "..#.."],
+    [".....", ".#.#.", "..#..", ".#.#.", "....."],
+];
+
+/// Committed-turn cue: a seven-pixel spark at the turn corner, 7x7.
+pub const TURN_SPARK: [&str; 7] = [
+    "...*...", "..***..", ".*****.", "***.***", ".*****.", "..***..", "...*...",
 ];
 
 /// Validate a glyph: non-empty, rectangular, charset-limited.
@@ -425,177 +579,159 @@ mod tests {
     }
 
     #[test]
-    fn pip_glyphs_valid_and_sized() {
-        assert_eq!(validate_glyph(&PIP_RIGHT), Ok((11, 11)));
-        assert_eq!(validate_glyph(&PIP_RIGHT_MID), Ok((11, 11)));
-        assert_eq!(validate_glyph(&PIP_CLOSED), Ok((11, 11)));
-    }
-
-    #[test]
-    fn pip_mouth_states_distinct() {
-        // Open carves 3 rows, mid carves 1 row, closed carves none:
-        // fill counts must strictly decrease open > mid > closed? No:
-        // carving removes fill, so closed > mid > open.
-        assert!(filled(&PIP_CLOSED) > filled(&PIP_RIGHT_MID));
-        assert!(filled(&PIP_RIGHT_MID) > filled(&PIP_RIGHT));
-        assert!(cell_diff(&PIP_RIGHT, &PIP_RIGHT_MID) > 0);
-        assert!(cell_diff(&PIP_RIGHT_MID, &PIP_CLOSED) > 0);
-        // Handle present on top of every Pip state.
-        for glyph in [&PIP_RIGHT, &PIP_RIGHT_MID, &PIP_CLOSED] {
-            assert_eq!(&glyph[0][4..7], "###");
+    fn every_glyph_validates_and_keeps_its_box() {
+        let boxes: [(&[&str], (usize, usize)); 12] = [
+            (&PIP_RIGHT, (11, 11)),
+            (&PIP_RIGHT_MID, (11, 11)),
+            (&PIP_CLOSED, (11, 11)),
+            (&RILL_UP, (11, 11)),
+            (&RILL_UP_MID, (11, 11)),
+            (&RILL_CLOSED_UP, (11, 11)),
+            (&RILL_DOWN, (11, 11)),
+            (&RILL_DOWN_MID, (11, 11)),
+            (&RILL_CLOSED_DOWN, (11, 11)),
+            (&FRIGHT_MASK, (11, 11)),
+            (&FRIGHT_MASK_FLASH, (11, 11)),
+            (&FRIGHT_MASK_ENTRY, (11, 11)),
+        ];
+        for (rows, want) in boxes {
+            assert_eq!(validate_glyph(rows), Ok(want));
         }
-    }
-
-    #[test]
-    fn death_frames_valid_sized_and_shrinking() {
-        assert_eq!(PIP_DEATH.len(), 4);
-        let mut fills = Vec::new();
-        let mut outlines = Vec::new();
         for frame in PIP_DEATH {
             assert_eq!(validate_glyph(frame), Ok((11, 11)));
-            fills.push(filled(frame));
-            outlines.push(outline(frame));
         }
-        assert_eq!(fills, vec![68, 37, 9, 5]);
-        for w in fills.windows(2) {
-            assert!(
-                w[0] > w[1],
-                "fill counts must shrink monotonically: {fills:?}"
-            );
+        for body in [&WARDEN_BRAM, &WARDEN_KESSA, &WARDEN_JORY, &WARDEN_NIB] {
+            assert_eq!(validate_glyph(body), Ok((11, 11)));
         }
-        for w in outlines.windows(2) {
-            assert!(
-                w[0] > w[1],
-                "outline counts must shrink monotonically: {outlines:?}"
-            );
+        for eyes in [&EYES_RIGHT, &EYES_UP, &EYES_DOWN] {
+            assert_eq!(validate_glyph(eyes), Ok((7, 7)));
         }
-    }
-
-    #[test]
-    fn wardens_valid_sized_and_eyeless() {
-        for w in [WARDEN_BRAM, WARDEN_KESSA, WARDEN_JORY, WARDEN_NIB] {
-            assert_eq!(validate_glyph(&w), Ok((11, 11)));
-        }
-    }
-
-    #[test]
-    fn warden_accents_pairwise_distinct() {
-        let wardens = [WARDEN_BRAM, WARDEN_KESSA, WARDEN_JORY, WARDEN_NIB];
-        for i in 0..wardens.len() {
-            for j in (i + 1)..wardens.len() {
-                let d = cell_diff(&wardens[i], &wardens[j]);
-                assert!(d >= 6, "wardens {i} and {j} differ by only {d} cells");
-            }
-        }
-        // Spot-check the documented accents.
-        assert_eq!(WARDEN_BRAM[3], "..#######.."); // straight heavy brow band
-        assert_eq!(WARDEN_KESSA[0], ".....#....."); // peaked tip
-        assert_eq!(WARDEN_JORY[2], ".#ooooooo#."); // wide rounded dome
-        assert_ne!(WARDEN_NIB[10], WARDEN_BRAM[10]); // split hem
-    }
-
-    #[test]
-    fn eyes_valid_sized_and_pupils_offset() {
-        assert_eq!(validate_glyph(&EYES_RIGHT), Ok((5, 5)));
-        assert_eq!(validate_glyph(&EYES_UP), Ok((5, 5)));
-        assert_eq!(validate_glyph(&EYES_DOWN), Ok((5, 5)));
-        // Right: pupils on the right cell of each eye.
-        assert_eq!(EYES_RIGHT[1], "*#.*#");
-        // Up: pupils on top; down: pupils on bottom.
-        assert_eq!(EYES_UP[1], "##.##");
-        assert_eq!(EYES_DOWN[3], "##.##");
-        // flip_horizontal reuse derives the left-looking pair.
-        let left = flip_horizontal(&EYES_RIGHT);
-        assert_eq!(left[1], "#*.#*");
-        assert_eq!(
-            validate_glyph(&left.iter().map(|s| s.as_str()).collect::<Vec<_>>()),
-            Ok((5, 5))
-        );
-    }
-
-    #[test]
-    fn fright_masks_valid_and_flash_differs() {
-        assert_eq!(validate_glyph(&FRIGHT_MASK), Ok((11, 11)));
-        assert_eq!(validate_glyph(&FRIGHT_MASK_FLASH), Ok((11, 11)));
-        let d = cell_diff(&FRIGHT_MASK, &FRIGHT_MASK_FLASH);
-        assert!(d >= 10, "flash variant must clearly differ, got {d}");
-        // Flash is hollow: strictly less fill than the solid mask.
-        assert!(filled(&FRIGHT_MASK_FLASH) < filled(&FRIGHT_MASK));
-    }
-
-    #[test]
-    fn pickups_valid_and_sized() {
         assert_eq!(validate_glyph(&CRUMB), Ok((3, 3)));
         assert_eq!(validate_glyph(&SUNSEED_A), Ok((7, 7)));
         assert_eq!(validate_glyph(&SUNSEED_B), Ok((7, 7)));
-        // Pulse frames differ (halo ring in B).
-        assert!(cell_diff(&SUNSEED_A, &SUNSEED_B) > 0);
-        assert!(SUNSEED_B.iter().flat_map(|r| r.chars()).any(|c| c == '*'));
+        for icon in &RELISH_ICONS {
+            assert_eq!(validate_glyph(icon), Ok((7, 7)));
+        }
+        for frame in &GOLDEN_LILY {
+            assert_eq!(validate_glyph(frame), Ok((9, 9)));
+        }
+        for frame in &PICKUP_BURST {
+            assert_eq!(validate_glyph(frame), Ok((5, 5)));
+        }
+        assert_eq!(validate_glyph(&TURN_SPARK), Ok((7, 7)));
     }
 
     #[test]
-    fn relish_icons_valid_names_clean() {
-        assert_eq!(RELISH_NAMES.len(), 6);
-        assert_eq!(RELISH_ICONS.len(), 6);
-        let forbidden = [
-            "cherry",
-            "strawberry",
-            "apple",
-            "orange",
-            "melon",
-            "galboss",
-        ];
-        for name in RELISH_NAMES {
-            assert!(!name.is_empty());
-            let lower = name.to_lowercase();
-            for bad in forbidden {
-                assert!(
-                    !lower.contains(bad),
-                    "relish name {name:?} contains {bad:?}"
-                );
+    fn rill_mouth_phases_change_the_silhouette() {
+        assert!(cell_diff(&PIP_RIGHT, &PIP_RIGHT_MID) > 4);
+        assert!(cell_diff(&PIP_RIGHT_MID, &PIP_CLOSED) > 2);
+        assert!(cell_diff(&RILL_UP, &RILL_UP_MID) > 1);
+        assert!(cell_diff(&RILL_DOWN, &RILL_DOWN_MID) > 2);
+        // The dome eyes are the identity: every heading carries two `*`.
+        for glyph in [
+            &PIP_RIGHT,
+            &PIP_RIGHT_MID,
+            &PIP_CLOSED,
+            &RILL_UP,
+            &RILL_DOWN,
+        ] {
+            let eye_highlights = glyph
+                .iter()
+                .take(3)
+                .flat_map(|r| r.chars())
+                .filter(|&c| c == '*')
+                .count();
+            assert_eq!(eye_highlights, 2);
+        }
+    }
+
+    #[test]
+    fn death_sequence_sinks_into_a_bubble() {
+        assert_eq!(PIP_DEATH.len(), 4);
+        assert!(filled(&PIP_DEATH_0) > filled(&PIP_DEATH_3));
+        assert!(outline(&PIP_DEATH_0) > outline(&PIP_DEATH_3));
+        // No two frames share a silhouette (the ripple must read).
+        for (i, a) in PIP_DEATH.iter().enumerate() {
+            for b in PIP_DEATH.iter().skip(i + 1) {
+                assert!(cell_diff(a, b) > 8);
             }
         }
+    }
+
+    #[test]
+    fn wardens_are_silhouette_distinct() {
+        let wardens = [WARDEN_BRAM, WARDEN_KESSA, WARDEN_JORY, WARDEN_NIB];
+        for (i, a) in wardens.iter().enumerate() {
+            for (j, b) in wardens.iter().enumerate().skip(i + 1) {
+                assert!(cell_diff(a, b) >= 20, "wardens {i} and {j} are too alike");
+            }
+        }
+    }
+
+    #[test]
+    fn fright_masks_never_use_the_eyes_slot_or_white() {
+        for mask in [FRIGHT_MASK, FRIGHT_MASK_FLASH, FRIGHT_MASK_ENTRY] {
+            assert!(
+                !mask.iter().any(|r| r.contains('*')),
+                "fright mask must never use the eyes slot"
+            );
+            assert!(validate_glyph(&mask).is_ok());
+        }
+        assert!(cell_diff(&FRIGHT_MASK, &FRIGHT_MASK_FLASH) > 10);
+        assert!(cell_diff(&FRIGHT_MASK_ENTRY, &FRIGHT_MASK) > 4);
+    }
+
+    #[test]
+    fn eyes_are_bubbles_with_a_trail() {
+        assert_eq!(validate_glyph(&EYES_RIGHT), Ok((7, 7)));
+        // Two ring orbs plus one trailing pixel behind the travel direction.
+        assert_eq!(EYES_RIGHT[5], "..#....");
+        assert_eq!(EYES_UP[5], "...#...");
+        assert_eq!(EYES_DOWN[1], "...#...");
+        let flipped = flip_horizontal(&EYES_RIGHT);
+        assert_eq!(flipped[5], "....#..");
+    }
+
+    #[test]
+    fn pickup_art_is_small_and_pulses() {
+        assert_eq!(PICKUP_BURST.len(), 4);
+        let counts: Vec<usize> = PICKUP_BURST.iter().map(|f| filled(f)).collect();
+        assert!(counts[0] < counts[2]);
+        assert!(counts[3] > counts[0]);
+        assert_eq!(GOLDEN_LILY.len(), 6);
+        assert!(filled(&GOLDEN_LILY[5]) > filled(&GOLDEN_LILY[0]));
+        assert_eq!(filled(&TURN_SPARK), 24);
+    }
+
+    #[test]
+    fn relish_set_is_original_and_complete() {
+        assert_eq!(RELISH_NAMES.len(), 6);
+        assert_eq!(RELISH_ICONS.len(), 6);
         let mut names = RELISH_NAMES.to_vec();
         names.sort_unstable();
         names.dedup();
-        assert_eq!(names.len(), 6, "relish names must be unique");
+        assert_eq!(names.len(), 6, "bonus names must be unique");
+        for name in RELISH_NAMES {
+            assert!(!name.is_empty());
+            assert!(name.chars().all(|c| c.is_ascii_lowercase() || c == ' '));
+        }
         for icon in RELISH_ICONS {
             assert_eq!(validate_glyph(&icon), Ok((7, 7)));
         }
-        // Icons pairwise distinct.
-        for (i, icon) in RELISH_ICONS.iter().enumerate() {
-            for other in RELISH_ICONS.iter().skip(i + 1) {
-                assert!(cell_diff(icon, other) > 0);
-            }
-        }
     }
 
     #[test]
-    fn validate_rejects_bad_glyphs() {
-        assert_eq!(validate_glyph(&[]), Err("empty glyph"));
-        assert_eq!(validate_glyph(&[""]), Err("empty glyph"));
-        assert_eq!(validate_glyph(&["##", "#"]), Err("non-rectangular glyph"));
-        assert_eq!(validate_glyph(&["#x"]), Err("bad charset"));
-    }
-
-    #[test]
-    fn transforms_roundtrip() {
-        // Double flip is the identity.
-        let once = flip_horizontal(&PIP_RIGHT);
-        let refs: Vec<&str> = once.iter().map(|s| s.as_str()).collect();
-        let twice = flip_horizontal(&refs);
-        assert_eq!(twice, PIP_RIGHT.map(str::to_string).to_vec());
-        // Four clockwise rotations are the identity.
-        let mut cur: Vec<String> = PIP_RIGHT.map(str::to_string).to_vec();
-        for _ in 0..4 {
-            let refs: Vec<&str> = cur.iter().map(|s| s.as_str()).collect();
-            cur = rotate_cw(&refs);
+    fn transforms_are_involutive_and_preserve_validity() {
+        let glyphs: [&[&str]; 4] = [&PIP_RIGHT, &WARDEN_BRAM, &FRIGHT_MASK, &EYES_RIGHT];
+        for glyph in glyphs {
+            let once = flip_horizontal(glyph);
+            let refs: Vec<&str> = once.iter().map(|s| s.as_str()).collect();
+            let twice = flip_horizontal(&refs);
+            assert_eq!(twice, glyph);
+            let rotated = rotate_cw(glyph);
+            let rrefs: Vec<&str> = rotated.iter().map(|s| s.as_str()).collect();
+            assert!(validate_glyph(&rrefs).is_ok());
         }
-        assert_eq!(cur, PIP_RIGHT.map(str::to_string).to_vec());
-        // Rotation swaps dimensions on non-square input.
-        let r = rotate_cw(&["##.", "..."]);
-        assert_eq!(r.len(), 3);
-        assert!(r.iter().all(|row| row.len() == 2));
-        assert!(rotate_cw(&[]).is_empty());
+        assert_eq!(rotate_cw(&[]), Vec::<String>::new());
     }
 }

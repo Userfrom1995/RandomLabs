@@ -29,9 +29,9 @@ fn every_shipped_glyph_validates() {
     assert_eq!(validate_glyph(&WARDEN_KESSA), Ok((11, 11)));
     assert_eq!(validate_glyph(&WARDEN_JORY), Ok((11, 11)));
     assert_eq!(validate_glyph(&WARDEN_NIB), Ok((11, 11)));
-    assert_eq!(validate_glyph(&EYES_RIGHT), Ok((5, 5)));
-    assert_eq!(validate_glyph(&EYES_UP), Ok((5, 5)));
-    assert_eq!(validate_glyph(&EYES_DOWN), Ok((5, 5)));
+    assert_eq!(validate_glyph(&EYES_RIGHT), Ok((7, 7)));
+    assert_eq!(validate_glyph(&EYES_UP), Ok((7, 7)));
+    assert_eq!(validate_glyph(&EYES_DOWN), Ok((7, 7)));
     assert_eq!(validate_glyph(&FRIGHT_MASK), Ok((11, 11)));
     assert_eq!(validate_glyph(&FRIGHT_MASK_FLASH), Ok((11, 11)));
     assert_eq!(validate_glyph(&CRUMB), Ok((3, 3)));
@@ -224,4 +224,7 @@ fn themes_resolve_and_reject_unknown() {
     assert!(themes::by_id("no-such-theme").is_none());
     assert!(themes::by_id("").is_none());
     assert!(themes::by_id("Ember Warren").is_none());
+    // Legacy settings ids migrate to the Pondwake launch themes.
+    assert_eq!(themes::by_id("ember-warren").unwrap().id, "dusk-pond");
+    assert_eq!(themes::by_id("abyss-lantern").unwrap().id, "moonwake");
 }
