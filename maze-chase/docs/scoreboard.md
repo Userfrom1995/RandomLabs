@@ -251,7 +251,7 @@ commit `90cb9b87` (kept as history):
   `browser-e2e.js` ALL GREEN with zero console errors.
 
 Review fix round, measured on the same Linux machine at code commit
-`7dcb9089` (the head of this PR):
+`14b939d9` (the head of this PR):
 
 - `cargo test --workspace --no-fail-fast` (desktop E2E under Xvfb):
   514 passed, 0 failed across 57 test targets, including the new
@@ -276,13 +276,13 @@ Review fix round, measured on the same Linux machine at code commit
   (sha256 `1b6f17cc7c2ea69fbd2f20881047c92fc53030a4e3d6a5f3ae624bb4293acf9d`);
   the desktop E2E asserts the probe bytes.
 - Linux terminal compatibility harness: the six kitty/xterm rows were
-  re-executed at `7dcb9089` (binary sha256
-  `9f71c883c3853edca6a99c3ed0d7aa8711aa2a290e665a35d1a02723212b0271`,
+  re-executed at `14b939d9` (binary sha256
+  `c81890e8d27c8f6914a8decf3df14ca02a9314fd2a9b70bf94991ca714821e9b`,
   `sources_dirty=false`): kitty auto and forced cells, xterm light and
   dark, and xterm VT340 forced and auto. Every row records
-  `disposition: pass`; kitty-graphics rows carry 165.0-175.0 KiB per
+  `disposition: pass`; kitty-graphics rows carry 169.6-175.0 KiB per
   session with 163-271 exact sprite-palette pixels in the playing
-  capture, and the Sixel rows carry 138 transmits / 3.91 MiB. The two
+  capture, and the Sixel rows carry 137 transmits / 4.27 MiB. The two
   Ghostty rows remain the `90cb9b87` record and are labeled pre-fix in
   `docs/terminal-compat.md`; the final sign-off phase reruns them. The
   evidence bundles under `tools/compat/evidence/` and their screenshots
