@@ -115,6 +115,7 @@ pub fn render_play(game: &Game, theme: &Theme, hud: Hud<'_>, w: u32, h: u32) -> 
     }
     let board = raster::render(game, theme, BOARD_PPT, hud.frame_no, hud.flash);
     f.blit_board(&board, lay.bx, lay.by, lay.scale);
+    render_floaters(&mut f, game, theme, &lay);
     f.border(
         lay.bx - 3,
         lay.by - 3,
@@ -125,6 +126,48 @@ pub fn render_play(game: &Game, theme: &Theme, hud: Hud<'_>, w: u32, h: u32) -> 
     );
     render_hud(&mut f, game, theme, hud, &lay);
     Some(f)
+}
+
+/// Rising score floaters on an opaque plate (desktop and web only).
+fn render_floaters(f: &mut Frame, game: &Game, theme: &Theme, lay: &Layout) {
+    for (floater, progress) in game.fx.floaters() {
+        let text = format!("{}", floater.points);
+        let rise = (progress * 8.0) as i32;
+        let x = lay.bx + (floater.x * BOARD_PPT as f32) as i32 * lay.scale as i32;
+        let y = lay.by + (floater.y * BOARD_PPT as f32) as i32 * lay.scale as i32
+            - rise * lay.scale as i32;
+        let scale = lay.scale.max(1);
+        let tw = font::text_width(&text, scale);
+        let th = font::text_height(1, scale);
+        let mut px = x - tw as i32 / 2;
+        let py = y - th as i32 / 2;
+        f.rect(
+            px - scale as i32,
+            py - scale as i32,
+            tw + 2 * scale,
+            th + 2 * scale,
+            theme.bg,
+        );
+        for ch in text.chars() {
+            let rows = font::rows_for(ch);
+            for (gy, row) in rows.iter().enumerate() {
+                for (gx, ink) in row.bytes().enumerate() {
+                    if ink == b'#' {
+                        for dy in 0..scale {
+                            for dx in 0..scale {
+                                f.set(
+                                    px + gx as i32 * scale as i32 + dx as i32,
+                                    py + gy as i32 * scale as i32 + dy as i32,
+                                    theme.text,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            px += font::ADVANCE as i32 * scale as i32;
+        }
+    }
 }
 
 fn render_small(f: &mut Frame, theme: &Theme) -> Frame {

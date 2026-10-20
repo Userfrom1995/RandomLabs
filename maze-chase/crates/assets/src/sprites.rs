@@ -16,9 +16,10 @@
 //!
 //! Rill is a squat pond frog: a wide body with two dome eyes breaking the top
 //! contour, heavy haunches, a chomp mouth and webbed toes. Her silhouette is
-//! stored per heading ([`RILL_RIGHT`], [`RILL_UP`], [`RILL_DOWN`]) because the
+//! stored per heading ([`PIP_RIGHT`], [`RILL_UP`], [`RILL_DOWN`]) because the
 //! squat body does not rotate honestly; left is the mirror of right. Each
-//! heading carries an open, mid and closed mouth phase.
+//! heading carries an open, mid and closed mouth phase at both the 11x11 and
+//! 21x21 rungs ([`pip_facing_rows`]).
 //!
 //! The four hunters are read silhouette first and carry no eyes: eye bubbles
 //! are overlaid at draw time from [`EYES_RIGHT`], [`EYES_UP`] and
@@ -178,6 +179,326 @@ pub const RILL_CLOSED_DOWN: [&str; 11] = [
     ".#.#...#.#.",
     "...........",
 ];
+
+/// Rill right open, 21x21.
+pub const RILL21_RIGHT_OPEN: [&str; 21] = [
+    ".....##.......##.....",
+    "....#**#.....#**#....",
+    "....#oo#.....#oo#....",
+    "....#oo#.....#oo#....",
+    "....#############....",
+    "...#ooooooooooooo#...",
+    "..#ooooooooooooooo#..",
+    "..#ooo*o*ooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#oooo*oooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..##ooooooooooooo##..",
+    "...#oooooooooooooo...",
+    "....##oooooooooo.....",
+    ".....#oooooooo#......",
+    ".....#o#..#o#........",
+    "....#.#....#.#.......",
+    ".....................",
+];
+
+/// Rill right mid, 21x21.
+pub const RILL21_RIGHT_MID: [&str; 21] = [
+    ".....##.......##.....",
+    "....#**#.....#**#....",
+    "....#oo#.....#oo#....",
+    "....#oo#.....#oo#....",
+    "....#############....",
+    "...#ooooooooooooo#...",
+    "..#ooooooooooooooo#..",
+    "..#ooo*o*ooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#oooo*oooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..##ooooooooooooo##..",
+    "...#ooooooooooooo....",
+    "....##ooooooooooo....",
+    ".....#oooooooo#......",
+    ".....#o#..#o#........",
+    "....#.#....#.#.......",
+    ".....................",
+];
+
+/// Rill right closed, 21x21.
+pub const RILL21_RIGHT_CLOSED: [&str; 21] = [
+    ".....##.......##.....",
+    "....#**#.....#**#....",
+    "....#oo#.....#oo#....",
+    "....#oo#.....#oo#....",
+    "....#############....",
+    "...#ooooooooooooo#...",
+    "..#ooooooooooooooo#..",
+    "..#ooo*o*ooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#oooo*oooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..##ooooooooooooo##..",
+    "...#ooooooooooooo#...",
+    "....##ooooooooo##....",
+    ".....#oooooooo#......",
+    ".....#o#..#o#........",
+    "....#.#....#.#.......",
+    ".....................",
+];
+
+/// Rill up open, 21x21.
+pub const RILL21_UP_OPEN: [&str; 21] = [
+    "....####...####......",
+    "...#.**#...#**#......",
+    "...#.oo#...#oo#......",
+    "...#.oo#####oo#......",
+    "....#ooo#.#ooo#......",
+    ".....#oo#.#oo#.......",
+    "....###########......",
+    "...#ooooooooooo#.....",
+    "..#ooooooooooooo#....",
+    "..#ooooo*ooooooo#....",
+    "..#ooooooooooooo#....",
+    "..#ooooooooooooo#....",
+    "..#ooooooooooooo#....",
+    "..#ooooooooooooo#....",
+    "..##ooooooooooo##....",
+    "...#ooooooooooo#.....",
+    "....##ooooooo##......",
+    ".....#ooo#ooo#.......",
+    "....#.#..#..#.#......",
+    ".....#....#..#.......",
+    ".....................",
+];
+
+/// Rill up mid, 21x21.
+pub const RILL21_UP_MID: [&str; 21] = [
+    "....####...####......",
+    "...#.**#...#**#......",
+    "...#.oo#...#oo#......",
+    "...#.oo#####oo#......",
+    "....#oo#####oo#......",
+    ".....#oo###oo#.......",
+    "....###########......",
+    "...#ooooooooooo#.....",
+    "..#ooooooooooooo#....",
+    "..#ooooo*ooooooo#....",
+    "..#ooooooooooooo#....",
+    "..#ooooooooooooo#....",
+    "..#ooooooooooooo#....",
+    "..#ooooooooooooo#....",
+    "..##ooooooooooo##....",
+    "...#ooooooooooo#.....",
+    "....##ooooooo##......",
+    ".....#ooo#ooo#.......",
+    "....#.#..#..#.#......",
+    ".....#....#..#.......",
+    ".....................",
+];
+
+/// Rill up closed, 21x21.
+pub const RILL21_UP_CLOSED: [&str; 21] = [
+    "....####...####......",
+    "...#.**#...#**#......",
+    "...#.oo#...#oo#......",
+    "...#.oo#####oo#......",
+    "....#ooooooooo#......",
+    ".....#ooooooo#.......",
+    "....###########......",
+    "...#ooooooooooo#.....",
+    "..#ooooooooooooo#....",
+    "..#ooooo*ooooooo#....",
+    "..#ooooooooooooo#....",
+    "..#ooooooooooooo#....",
+    "..#ooooooooooooo#....",
+    "..#ooooooooooooo#....",
+    "..##ooooooooooo##....",
+    "...#ooooooooooo#.....",
+    "....##ooooooo##......",
+    ".....#ooo#ooo#.......",
+    "....#.#..#..#.#......",
+    ".....#....#..#.......",
+    ".....................",
+];
+
+/// Rill down open, 21x21.
+pub const RILL21_DOWN_OPEN: [&str; 21] = [
+    ".....##.......##.....",
+    "....#**#.....#**#....",
+    "....#oo#.....#oo#....",
+    "....#oo#.....#oo#....",
+    "....#############....",
+    "...#ooooooooooooo#...",
+    "..#ooooooooooooooo#..",
+    "..#ooo*o*ooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#oooo*oooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..##ooooooooooooo##..",
+    "..#...............#..",
+    "..#...............#..",
+    "..##.............##..",
+    "...#.............#...",
+    "....#.#.......#.#....",
+    ".....................",
+    ".....................",
+];
+
+/// Rill down mid, 21x21.
+pub const RILL21_DOWN_MID: [&str; 21] = [
+    ".....##.......##.....",
+    "....#**#.....#**#....",
+    "....#oo#.....#oo#....",
+    "....#oo#.....#oo#....",
+    "....#############....",
+    "...#ooooooooooooo#...",
+    "..#ooooooooooooooo#..",
+    "..#ooo*o*ooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#oooo*oooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..##ooooooooooooo##..",
+    "..#ooooooooooooooo#..",
+    "..#....ooooooo....#..",
+    "..##..ooooooooo..##..",
+    "...#..ooooooooo..#...",
+    "....#.#.......#.#....",
+    ".....................",
+    ".....................",
+];
+
+/// Rill down closed, 21x21.
+pub const RILL21_DOWN_CLOSED: [&str; 21] = [
+    ".....##.......##.....",
+    "....#**#.....#**#....",
+    "....#oo#.....#oo#....",
+    "....#oo#.....#oo#....",
+    "....#############....",
+    "...#ooooooooooooo#...",
+    "..#ooooooooooooooo#..",
+    "..#ooo*o*ooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#oooo*oooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..##ooooooooooooo##..",
+    "..#ooooooooooooooo#..",
+    "..#ooooooooooooooo#..",
+    "..##ooooooooooooo##..",
+    "...#ooooooooooooo#...",
+    "....#.#.......#.#....",
+    ".....................",
+    ".....................",
+];
+
+/// The heading Rill's stored sheets face.
+///
+/// The squat body rotates badly, so right, up and down are authored glyphs
+/// and left is derived by mirroring right. Renderers map their engine
+/// `Dir` onto this enum so every layer selects the same sheet.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Facing {
+    Right,
+    Left,
+    Up,
+    Down,
+}
+
+/// Rill's right-facing mouth-phase sheet at the requested art rung.
+///
+/// The 11x11 rung is the shipped baseline; the 21x21 rung adds a belly
+/// seam, a throat pulse, dome-eye detail and 1 px toe webbing.
+pub fn pip_right_rows(phase: usize, rung: u8) -> &'static [&'static str] {
+    let high = rung >= 21;
+    match (phase % 3, high) {
+        (0, false) => &PIP_RIGHT,
+        (1, false) => &PIP_RIGHT_MID,
+        (2, false) => &PIP_CLOSED,
+        (0, true) => &RILL21_RIGHT_OPEN,
+        (1, true) => &RILL21_RIGHT_MID,
+        _ => &RILL21_RIGHT_CLOSED,
+    }
+}
+
+/// Facing rows for one mouth phase at the requested art rung (11 or 21).
+///
+/// Shared by the terminal raster, the sprite atlas, the desktop layer and
+/// the browser canvas: right is authored, left is the mirror of right,
+/// and up/down read their own telling glyphs instead of rotating the
+/// right-facing sheet.
+pub fn pip_facing_rows(phase: usize, facing: Facing, rung: u8) -> Vec<String> {
+    let high = rung >= 21;
+    let rows: &[&str] = match (facing, high) {
+        (Facing::Right, false) => pip_right_rows(phase, 11),
+        (Facing::Up, false) => match phase % 3 {
+            0 => &RILL_UP,
+            1 => &RILL_UP_MID,
+            _ => &RILL_CLOSED_UP,
+        },
+        (Facing::Down, false) => match phase % 3 {
+            0 => &RILL_DOWN,
+            1 => &RILL_DOWN_MID,
+            _ => &RILL_CLOSED_DOWN,
+        },
+        (Facing::Left, false) => {
+            return flip_horizontal(pip_right_rows(phase, 11));
+        }
+        (Facing::Right, true) => pip_right_rows(phase, 21),
+        (Facing::Up, true) => match phase % 3 {
+            0 => &RILL21_UP_OPEN,
+            1 => &RILL21_UP_MID,
+            _ => &RILL21_UP_CLOSED,
+        },
+        (Facing::Down, true) => match phase % 3 {
+            0 => &RILL21_DOWN_OPEN,
+            1 => &RILL21_DOWN_MID,
+            _ => &RILL21_DOWN_CLOSED,
+        },
+        (Facing::Left, true) => {
+            return flip_horizontal(pip_right_rows(phase, 21));
+        }
+    };
+    rows.iter().map(|s| s.to_string()).collect()
+}
+
+/// Hop displacement in art pixels for pose 0 (squash) or 1 (stretch).
+///
+/// The 11x11 rung uses the proportional 3 px / 5 px pair; the 21x21 rung
+/// uses the full 6 px squash and 9 px stretch from the motion spec.
+pub fn hop_offset(frame: usize) -> i32 {
+    if frame == 0 {
+        3
+    } else {
+        -5
+    }
+}
+
+/// Hop displacement for an explicit art rung.
+pub fn hop_offset_for_rung(frame: usize, rung: u8) -> i32 {
+    if rung >= 21 {
+        if frame == 0 {
+            6
+        } else {
+            -9
+        }
+    } else {
+        hop_offset(frame)
+    }
+}
 
 /// Mirror a glyph horizontally (left-right flip), returning owned rows.
 ///
@@ -528,6 +849,57 @@ pub const PICKUP_BURST: [[&str; 5]; 4] = [
 /// Committed-turn cue: a seven-pixel spark at the turn corner, 7x7.
 pub const TURN_SPARK: [&str; 7] = [
     "...*...", "..***..", ".*****.", "***.***", ".*****.", "..***..", "...*...",
+];
+
+/// Level-clear lily-crown banner: one 9x9 bloom held over the board.
+pub const LILY_CROWN: [&str; 9] = [
+    "..#...#..",
+    ".#o#.#o#.",
+    "#oo#o#oo#",
+    ".#ooooo#.",
+    "..#o*o#..",
+    "..#ooo#..",
+    "...###...",
+    "....#....",
+    ".........",
+];
+
+/// 5x7 numerals for desktop and web score floaters, glyphs 0-9.
+///
+/// Terminal floaters stay off (no raster digits in a terminal font
+/// stack); the terminal bitmap tiers tint effect art with the theme
+/// accent instead.
+pub const DIGITS: [[&str; 7]; 10] = [
+    [
+        ".###.", "#...#", "#..##", "#.#.#", "##..#", "#...#", ".###.",
+    ],
+    [
+        "..#..", ".##..", "..#..", "..#..", "..#..", "..#..", ".###.",
+    ],
+    [
+        ".###.", "#...#", "....#", "...#.", "..#..", ".#...", "#####",
+    ],
+    [
+        "####.", "....#", "....#", ".###.", "....#", "....#", "####.",
+    ],
+    [
+        "...#.", "..##.", ".#.#.", "#..#.", "#####", "...#.", "...#.",
+    ],
+    [
+        "#####", "#....", "####.", "....#", "....#", "#...#", ".###.",
+    ],
+    [
+        ".###.", "#....", "#....", "####.", "#...#", "#...#", ".###.",
+    ],
+    [
+        "#####", "....#", "...#.", "..#..", ".#...", ".#...", ".#...",
+    ],
+    [
+        ".###.", "#...#", "#...#", ".###.", "#...#", "#...#", ".###.",
+    ],
+    [
+        ".###.", "#...#", "#...#", ".####", "....#", "....#", ".###.",
+    ],
 ];
 
 /// Validate a glyph: non-empty, rectangular, charset-limited.

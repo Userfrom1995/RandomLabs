@@ -34,6 +34,23 @@ pub fn death_clip() -> Clip {
     }
 }
 
+/// Seconds per death-sink frame (4 frames, 100 ms each).
+pub const DEATH_FRAME_S: f32 = 0.1;
+
+/// Death-sink frame index at `elapsed` seconds into the death window.
+///
+/// The clip is one-shot: every renderer holds the final frame after 400 ms
+/// instead of looping the intact body back in. `kill_player` resets the
+/// engine's state clock, so the clip always starts at frame 0 regardless of
+/// the global render frame counter. Negative or non-finite input reads as
+/// frame 0 so a renderer never panics on a bad clock.
+pub fn death_frame(elapsed: f32) -> usize {
+    if !elapsed.is_finite() || elapsed < 0.0 {
+        return 0;
+    }
+    ((elapsed / DEATH_FRAME_S) as usize).min(crate::sprites::PIP_DEATH.len() - 1)
+}
+
 /// Sunseed halo pulse: one 7x7 -> 9x9 beat every 0.4 s.
 pub const SUNSEED_HALO_S: f32 = 0.4;
 
@@ -85,6 +102,14 @@ pub fn level_clear_sweep(t: f32) -> Option<f32> {
         return None;
     }
     Some((t / SWEEP_S).clamp(0.0, 1.0))
+}
+
+/// Whether the level-clear lily-crown banner is up at `elapsed` seconds.
+///
+/// The 300 ms sweep lands first; the 9x9 lily crown holds for the next
+/// 900 ms of the 2.0 s clear window.
+pub fn level_clear_banner_on(elapsed: f32) -> bool {
+    elapsed.is_finite() && (0.0..0.9).contains(&elapsed)
 }
 
 /// How long the four-pixel turn spark lives after a reversal.

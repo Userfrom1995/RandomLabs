@@ -204,7 +204,7 @@ impl WebSession {
         self.frame_no
     }
 
-    /// Active theme, falling back to Ember Warren on unknown ids.
+    /// Active theme, falling back to Dusk Pond on unknown ids.
     pub fn theme(&self) -> &'static Theme {
         themes::by_id(self.settings.theme.as_str()).unwrap_or(&themes::DUSK_POND)
     }

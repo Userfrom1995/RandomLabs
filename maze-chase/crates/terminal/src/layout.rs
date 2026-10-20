@@ -1,4 +1,4 @@
-//! Fullscreen canvas layout: fit the 28x31 warren plus HUD into any window.
+//! Fullscreen canvas layout: fit the 28x31 pond plus HUD into any window.
 //!
 //! The board is `cell_cols` x `cell_rows` terminal cells per tile, chosen
 //! continuously: the solver scans the documented tile-scale grid (2 to 8

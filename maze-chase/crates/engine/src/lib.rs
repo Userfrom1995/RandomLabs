@@ -20,6 +20,7 @@
 //! seeded stream while personalities hunt.
 
 pub mod actors;
+pub mod effects;
 pub mod game;
 pub mod ghosts;
 pub mod maze;
@@ -34,5 +35,6 @@ pub mod tuning;
 pub mod verify;
 
 pub use actors::{Actor, Dir, TickInput};
+pub use effects::{Effects, Floater};
 pub use game::Game;
 pub use maze::Maze;

@@ -59,12 +59,26 @@ impl PixelFrame {
     }
 }
 
-/// Sprite art is authored on an 8-pixel tile grid; when the raster is
-/// taken at a larger real cell size, each sprite pixel becomes a
-/// `scale`x`scale` block so the art stays crisp instead of shrinking
-/// relative to the tile (issue #673).
+/// Art rung selected for a pixels-per-tile choice.
+///
+/// The 11x11 sheet is the baseline; at 21 px per tile and above the
+/// high-detail 21x21 sheet carries a belly seam, a throat pulse and 1 px
+/// toe webbing. Both rungs are authored data, never upscales.
+pub fn art_rung(ppt: i32) -> u8 {
+    if ppt >= 21 {
+        21
+    } else {
+        11
+    }
+}
+
+/// Sprite art is authored on an 8-pixel tile grid at the 11x11 rung and a
+/// 21-pixel grid at the 21x21 rung; when the raster is taken at a larger
+/// real cell size, each sprite pixel becomes a `scale`x`scale` block so
+/// the art stays crisp instead of shrinking relative to the tile.
 pub(crate) fn sprite_scale(ppt: i32) -> i32 {
-    (ppt / 8).max(1)
+    let rung = art_rung(ppt) as i32;
+    (ppt / rung).max(1)
 }
 
 /// Paint one legend glyph centered at pixel `(cx, cy)`, each glyph pixel
@@ -103,13 +117,23 @@ fn paint_glyph(
     }
 }
 
-/// Right-facing Pip glyph for a mouth phase (0 open, 1 mid, 2 closed).
-fn pip_glyph(phase: usize) -> &'static [&'static str] {
-    match phase % 3 {
-        0 => &sprites::PIP_RIGHT,
-        1 => &sprites::PIP_RIGHT_MID,
-        _ => &sprites::PIP_CLOSED,
+/// Engine heading mapped onto the authored sheet selector.
+pub fn facing_of(dir: maze_chase_engine::actors::Dir) -> sprites::Facing {
+    use maze_chase_engine::actors::Dir;
+    match dir {
+        Dir::Right => sprites::Facing::Right,
+        Dir::Left => sprites::Facing::Left,
+        Dir::Up => sprites::Facing::Up,
+        Dir::Down => sprites::Facing::Down,
     }
+}
+
+/// Hop displacement in board pixels for pose 0 (squash) or 1 (stretch).
+///
+/// The 21x21 rung squashes 6 px and stretches 9 px; the 11x11 rung uses
+/// the proportional 3 px / 5 px pair.
+pub fn hop_offset(ppt: i32, frame: usize) -> i32 {
+    sprites::hop_offset_for_rung(frame, art_rung(ppt)) * sprite_scale(ppt)
 }
 
 /// Relish icon tier for a level: pairs of levels share one of six icons.
@@ -130,29 +154,88 @@ pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) 
     paint_tiles(&mut frame, game, theme, ppt, &crumb_field);
     paint_sunseeds(&mut frame, game, theme, ppt, scale, frame_no);
     paint_relish(&mut frame, game, theme, ppt, scale, frame_no);
+    paint_pickup_burst(&mut frame, game, theme, ppt, scale);
     paint_wardens(&mut frame, game, theme, ppt, scale, frame_no, flash);
     paint_pip(&mut frame, game, theme, ppt, scale, frame_no);
-    paint_level_clear(&mut frame, game, theme, ppt);
+    paint_turn_spark(&mut frame, game, theme, ppt, scale);
+    paint_golden_lily(&mut frame, game, theme, scale);
+    paint_level_clear(&mut frame, game, theme, ppt, scale);
     frame
 }
 
 /// One 300 ms lantern sweep across the board while the level clear is
 /// playing. Presentation only: the engine state is untouched.
-fn paint_level_clear(frame: &mut PixelFrame, game: &Game, theme: &Theme, ppt: i32) {
+fn paint_level_clear(frame: &mut PixelFrame, game: &Game, theme: &Theme, ppt: i32, scale: i32) {
     if game.state != maze_chase_engine::game::GameState::Clearing {
         return;
     }
-    let Some(p) = anim::level_clear_sweep(game.state_elapsed()) else {
-        return;
-    };
-    let band = (ppt * 2).max(2);
-    let x = (p * frame.w as f32) as i32;
-    let tint = mix(theme.bg, theme.accent, 0.45);
-    for bx in x..(x + band).min(frame.w as i32) {
-        for y in 0..frame.h as i32 {
-            frame.set(bx, y, tint);
+    if let Some(p) = anim::level_clear_sweep(game.state_elapsed()) {
+        let band = (ppt * 2).max(2);
+        let x = (p * frame.w as f32) as i32;
+        let tint = mix(theme.bg, theme.accent, 0.45);
+        for bx in x..(x + band).min(frame.w as i32) {
+            for y in 0..frame.h as i32 {
+                frame.set(bx, y, tint);
+            }
         }
     }
+    if anim::level_clear_banner_on(game.state_elapsed()) {
+        let cx = (frame.w / 2) as i32;
+        let cy = (frame.h / 2) as i32;
+        paint_glyph(
+            frame,
+            &sprites::LILY_CROWN,
+            cx,
+            cy,
+            scale,
+            [theme.accent, theme.text, theme.eyes],
+        );
+    }
+}
+
+/// One burst per crumb or sunseed pickup, on the 66.7 ms four-frame grid.
+fn paint_pickup_burst(frame: &mut PixelFrame, game: &Game, theme: &Theme, ppt: i32, scale: i32) {
+    let Some((anchor, idx)) = game.fx.pickup_burst() else {
+        return;
+    };
+    paint_glyph(
+        frame,
+        &sprites::PICKUP_BURST[idx],
+        (anchor.x * ppt as f32) as i32,
+        (anchor.y * ppt as f32) as i32,
+        scale,
+        [theme.accent, theme.text, theme.eyes],
+    );
+}
+
+/// Committed-turn spark at the corner tile, painted above Pip.
+fn paint_turn_spark(frame: &mut PixelFrame, game: &Game, theme: &Theme, ppt: i32, scale: i32) {
+    let Some(anchor) = game.fx.turn_spark() else {
+        return;
+    };
+    paint_glyph(
+        frame,
+        &sprites::TURN_SPARK,
+        (anchor.x * ppt as f32) as i32,
+        (anchor.y * ppt as f32) as i32,
+        scale,
+        [theme.text, theme.text, theme.text],
+    );
+}
+
+/// Spare-wick bloom: six 9x9 frames held over the board center.
+fn paint_golden_lily(frame: &mut PixelFrame, game: &Game, theme: &Theme, scale: i32) {
+    let Some(idx) = game.fx.lily_frame() else {
+        return;
+    };
+    paint_glyph(
+        frame,
+        &sprites::GOLDEN_LILY[idx],
+        (frame.w / 2) as i32,
+        (frame.h / 2) as i32,
+        scale,
+        [theme.accent, theme.text, theme.eyes],
+    );
 }
 
 /// Static board layer for the placement pipeline: walls, gate, house,
@@ -170,7 +253,7 @@ pub fn render_static(game: &Game, theme: &Theme, ppt: u32) -> PixelFrame {
 
 /// Wall, gate, house, and crumb painting shared by both board layers.
 /// Sunseeds are a separate pass (below) so their 11-px glyphs, which
-/// overflow a small tile, paint above the warren exactly like every
+/// overflow a small tile, paint above the pond exactly like every
 /// other sprite; both the full-frame and placement paths share that
 /// order, which is what makes the compositor pixel-identical.
 fn paint_tiles(frame: &mut PixelFrame, game: &Game, theme: &Theme, ppt: i32, crumb_field: &[u8]) {
@@ -229,7 +312,7 @@ pub fn sunseed_halo(frame_no: u64) -> bool {
     (frame_no / 24) % 2 == 1
 }
 
-/// Pulsing sunseed glyphs, painted after the warren so the overflow is
+/// Pulsing sunseed glyphs, painted after the pond so the overflow is
 /// never clipped by a later-painted neighbour wall.
 fn paint_sunseeds(
     frame: &mut PixelFrame,
@@ -411,8 +494,7 @@ fn paint_pip(
         (game.player.y * ppt as f32) as i32,
     );
     if game.state == maze_chase_engine::game::GameState::Dying {
-        // Four frames at 100 ms each at the 60 fps render cadence.
-        let clip = &sprites::PIP_DEATH[(frame_no as usize / 6) % 4];
+        let clip = &sprites::PIP_DEATH[anim::death_frame(game.state_elapsed())];
         paint_glyph(
             frame,
             clip,
@@ -423,14 +505,20 @@ fn paint_pip(
         );
         return;
     }
-    let phase = (frame_no / 5) as usize % 3;
-    let facing = pip_facing_rows(phase, game.player.dir);
-    let refs: Vec<&str> = facing.iter().map(|s| s.as_str()).collect();
+    let phase = game.fx.gulp_phase().unwrap_or((frame_no / 5) as usize % 3);
+    let facing = facing_of(game.player.dir);
+    let rows = sprites::pip_facing_rows(phase, facing, art_rung(ppt));
+    let refs: Vec<&str> = rows.iter().map(|s| s.as_str()).collect();
+    let hop = game
+        .fx
+        .hop_frame()
+        .map(|pose| hop_offset(ppt, pose))
+        .unwrap_or(0);
     paint_glyph(
         frame,
         &refs,
         pcx,
-        pcy,
+        pcy + hop,
         scale,
         [theme.pip, theme.text, theme.eyes],
     );
@@ -440,20 +528,7 @@ fn paint_pip(
 /// right-facing art with the documented transforms (never duplicate
 /// art). Shared by the full-frame raster and the sprite atlas.
 pub fn pip_facing_rows(phase: usize, dir: maze_chase_engine::actors::Dir) -> Vec<String> {
-    use maze_chase_engine::actors::Dir;
-    let right = pip_glyph(phase);
-    match dir {
-        Dir::Right => right.iter().map(|s| s.to_string()).collect(),
-        Dir::Left => sprites::flip_horizontal(right),
-        Dir::Down => sprites::rotate_cw(right),
-        Dir::Up => {
-            let down = sprites::rotate_cw(right);
-            let d2: Vec<&str> = down.iter().map(|s| s.as_str()).collect();
-            let up1 = sprites::rotate_cw(&d2);
-            let u1: Vec<&str> = up1.iter().map(|s| s.as_str()).collect();
-            sprites::rotate_cw(&u1)
-        }
-    }
+    sprites::pip_facing_rows(phase, facing_of(dir), 11)
 }
 
 #[cfg(test)]
@@ -517,6 +592,92 @@ mod tests {
         // hunters remain readable without borrowing a body fill.
         assert!(f.count(themes::DUSK_POND.eyes) > 0);
         assert!(plain.count(themes::DUSK_POND.eyes) > 0);
+    }
+
+    #[test]
+    fn effect_windows_paint_then_expire() {
+        let theme = themes::DUSK_POND;
+        let mut g = fresh();
+        let base = render(&g, &theme, 8, 0, true);
+
+        g.fx.pickup(g.player.x + 1.0, g.player.y);
+        let burst = render(&g, &theme, 8, 0, true);
+        assert_ne!(
+            base.px, burst.px,
+            "pickup burst must paint on the pickup grid"
+        );
+        g.fx.advance(0.3);
+        assert_eq!(render(&g, &theme, 8, 0, true), base, "burst expires");
+
+        g.fx.turn(g.player.x, g.player.y);
+        let spark = render(&g, &theme, 8, 0, true);
+        assert_ne!(base.px, spark.px, "turn spark must paint at the corner");
+        g.fx.advance(0.2);
+        assert_eq!(render(&g, &theme, 8, 0, true), base, "spark expires");
+
+        g.fx.spare_wick();
+        let lily = render(&g, &theme, 8, 0, true);
+        assert_ne!(base.px, lily.px, "spare wick must bloom");
+        g.fx.advance(0.6);
+        assert_eq!(render(&g, &theme, 8, 0, true), base, "lily bloom expires");
+    }
+
+    #[test]
+    fn level_clear_sweep_and_banner_paint_then_hold() {
+        let theme = themes::DUSK_POND;
+        let mut g = fresh();
+        g.state = maze_chase_engine::game::GameState::Clearing;
+        let early = render(&g, &theme, 8, 0, true);
+        let mut later = fresh();
+        later.state = maze_chase_engine::game::GameState::Clearing;
+        for _ in 0..60 {
+            later.tick(1.0 / 120.0);
+        }
+        let swept = render(&later, &theme, 8, 0, true);
+        assert_ne!(early.px, swept.px, "the sweep must move across the board");
+        // The lily-crown banner is only up for the first 900 ms.
+        let mut after = fresh();
+        after.state = maze_chase_engine::game::GameState::Clearing;
+        for _ in 0..120 {
+            after.tick(1.0 / 120.0);
+        }
+        let held = render(&after, &theme, 8, 0, true);
+        assert!(
+            held.count(theme.accent) < early.count(theme.accent),
+            "banner must not stay for the whole clear window"
+        );
+    }
+
+    #[test]
+    fn death_clip_holds_the_final_frame_instead_of_looping() {
+        let theme = themes::DUSK_POND;
+        let mut g = fresh();
+        g.kill_player();
+        for _ in 0..60 {
+            g.tick(1.0 / 120.0);
+        }
+        let held = render(&g, &theme, 8, 0, true);
+        for _ in 0..12 {
+            g.tick(1.0 / 120.0);
+        }
+        let later = render(&g, &theme, 8, 0, true);
+        assert_eq!(held, later, "the death clip holds its last frame");
+    }
+
+    #[test]
+    fn up_and_down_use_their_authored_sheets() {
+        use maze_chase_engine::actors::Dir;
+        let theme = themes::DUSK_POND;
+        let mut g = fresh();
+        g.player.dir = Dir::Up;
+        let up = render(&g, &theme, 8, 0, true);
+        g.player.dir = Dir::Down;
+        let down = render(&g, &theme, 8, 0, true);
+        assert_ne!(up.px, down.px, "up and down are authored, not one rotation");
+        // The 21x21 rung selects the high-detail sheet.
+        let high = render(&g, &theme, 21, 0, true);
+        assert_eq!(high.w, (WIDTH * 21) as u32);
+        assert!(high.count(theme.pip) > 20);
     }
 
     #[test]
