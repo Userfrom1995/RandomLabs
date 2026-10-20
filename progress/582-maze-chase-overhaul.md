@@ -71,7 +71,7 @@ wasm, and `browser-e2e.js` is ALL GREEN. macOS and Windows terminal rows
 stay with the per-OS testers; no claim here exceeds the executed Linux
 rows.
 
-Workspace gates: `cargo test --workspace --no-fail-fast` 549 passed / 0
+Workspace gates: `cargo test --workspace --no-fail-fast` 550 passed / 0
 failed across 59 targets, harness contract 47/47, `maze-chase-verify`
 19/19 (`23c17f89734e`; `perf-headless` 0.2-0.4 us/tick on CI reruns),
 wasm sha256 `69d5a55c...`, `cargo fmt --all --check` clean, and clippy
@@ -1129,4 +1129,22 @@ Next: Phase 5 (sound design overhaul).
   second clean build byte-identical), browser E2E 42/42 green, and the
   desktop Xvfb probe recaptured to `dcb33b7d...` (30-frame capture,
   byte-stable on rerun). No registry skill matched; none loaded.
+  - the Fixer
+
+- 2026-10-20 (fixer, Pondwake review round 10 on `b2c81dcb`): gated
+  browser score floaters on reduced motion. The web renderer now routes
+  its floater loop through `paint_floaters(..., reduced_motion)` with the
+  same early return as the desktop `render_floaters`, and a behavioral
+  test renders a live floater under `Fx::new(true, true)` and asserts it
+  is absent (while the default-motion render paints it). The terminal
+  reduced-flash registry test still passes unchanged; the web suite is
+  now 51 tests and the workspace public count moves to 550 across 59
+  targets. Verification on the pushed tree: targeted web and terminal
+  suites green, harness 47/47, `maze-chase-verify` 19/19
+  (`23c17f89734e`), fmt clean, wasm rebuilt to sha256
+  `346ef9b8074e0a69c918d858624887f84694a2357c75de052ca77d47230e519d`
+  (206,295 bytes, second clean build byte-identical), node smokes and
+  the 42-assertion browser E2E all green. The full workspace suite is the Tester's
+  run (this sandbox lacks the ALSA headers for `alsa-sys`). No registry
+  skill matched; none loaded.
   - the Fixer
