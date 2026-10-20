@@ -11389,20 +11389,43 @@ fi
 # runs (strict loader, duplicate keys rejected) and pins each parsed step's
 # exact `if:`, `id`, env key/value map, step key set (so no shell, continue-
 # on-error, timeout, or working-directory override can ride along), and
-# normalized `run:` body (comment and blank lines dropped): the six phase
-# verify bodies from one canonical phase template, the six forwards, the full
-# build verify, and the full recover-tag body. It separately pins the exact
-# attribution invocations (including the fail-closed `|| true)` closure) and
-# proves no `pushed="yes"` exists inside a foreign-attribution branch.
+# normalized `run:` body (comment and blank lines dropped unless a blank or
+# comment line terminates a shell continuation, where it is load-bearing):
+# the six phase verify bodies from one canonical phase template, the six
+# forwards, the full
+# build verify, and the full recover-tag body. Every `steps.<id>` a pinned
+# step consumes is then resolved inside its owning job to exactly one step
+# with the expected identity (actor_gate must be the actor-write-gate step,
+# opencode must be the composite agent step, baseline must be the baseline
+# capture that writes the three consumed outputs, and verify-phase/verify
+# must be their bound steps) and must precede its consumer, because a renamed
+# id silently empties the expression and flips the step to its fallback
+# branch. The gate, agent, and baseline steps are additionally bound to their
+# exact key surface, `if`, env (including the per-job GATE_LABEL), and
+# executable output lines, so a skipped decoy carrying the id cannot shadow
+# the real step, and each phase/build job's step list must contain exactly
+# one actor gate and one composite agent step, and composite `uses:` paths
+# are normalized before counting so a dot-segment alias cannot hide a second
+# agent. The baseline run body is pinned exactly, the agent step's env,
+# timeout, and continue-on-error are pinned (no owner PAT can reach the agent
+# process, no silent cap change), and each bound job's key set, runs-on,
+# timeout, and trigger `if` are pinned exactly. Job-level continue-on-error is
+# rejected on every bound job for the same reason. It separately pins the
+# exact attribution
+# invocations (including the fail-closed `|| true)` closure) and proves no
+# `pushed="yes"` exists inside a foreign-attribution branch.
 # The functional pass executes both real helper scripts against fixture
 # events, an executable mock `gh` (interception proven), and a local bare
-# origin whose commit subjects model Builder and Tester pushes; mutation
-# self-tests prove both the exact pins and the fixture matrices are
-# load-bearing (a foreign-branch pushed="yes", a verify or forward
-# `if: false`, a retry-target rebind, a retry-counter reset, a fail-open
-# attribution closure, an env token swap, a renamed verify id, a raised
-# retry cap, a recover `exit 0`, and added shell or continue-on-error keys
-# each fail the static pass alone).
+# origin whose commit subjects model Builder and Tester pushes; 52 mutation
+# self-tests (45 workflow static-pin mutants plus 7 helper-fixture mutants)
+# prove both the exact pins and the fixture matrices are load-bearing (a
+# foreign-branch pushed="yes", a verify or forward `if: false`, a
+# retry-target rebind, a retry-counter reset, a fail-open attribution
+# closure, an env token swap, a renamed verify/baseline/actor-gate id, a
+# skipped decoy gate/agent/baseline, a commented-out baseline output, a
+# raised retry cap, a job-level `if: false` or continue-on-error, a recover
+# `exit 0`, and added shell or step-level continue-on-error keys each fail
+# the static pass alone).
 r28_bad=""
 r28_tmp=$(mktemp -d 2>/dev/null || true)
 if [ -z "$r28_tmp" ] || [ ! -d "$r28_tmp" ]; then
@@ -11466,12 +11489,22 @@ def find(name):
 
 
 def norm(run_text):
+    # Blank and comment lines are dropped so cosmetic edits do not fail the
+    # pins, EXCEPT when the previous kept line ends with a shell continuation
+    # backslash: there the blank/comment line is semantically load-bearing
+    # (it terminates the continuation), so a one-line insert could otherwise
+    # rewrite the command while the normalized body still matched.
     lines = []
+    continued = False
     for raw in run_text.splitlines():
         stripped = raw.strip()
         if not stripped or stripped.startswith("#"):
+            if continued:
+                lines.append(raw.rstrip())
+                continued = False
             continue
         lines.append(raw.rstrip())
+        continued = raw.rstrip().endswith("\\")
     return "\n".join(lines)
 
 
@@ -11489,6 +11522,132 @@ def expect_step(name, job, keys, if_value, env, body, expected_id=None):
         fail("step-env-changed:%s:%r" % (name, step.get("env")))
     if norm(step.get("run") or "") != norm(body):
         fail("step-run-changed:%s" % name)
+
+
+ACTOR_GATE_RUN = "bash .github/scripts/actor-write-gate.sh"
+OPENCODE_USES = "./.github/actions/opencode-run"
+AGENT_IF = "steps.actor_gate.outputs.run == 'true'"
+AGENT_ENV = {
+    "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}",
+    "GITHUB_TOKEN": "${{ github.token }}",
+}
+# The baseline body is pinned exactly: its output lines alone can be
+# kept while the values are forced (for example branch="main"), or the
+# writes can be made unreachable, and either way the verify env goes
+# empty/foreign and reads any pre-existing tip as this session's push.
+BASELINE_BODY = r"""issue="${{ github.event.issue.number }}"
+# Resolve the build's target branch SERVER-SIDE (issue #135). The
+# agent may fetch/checkout any branch mid-session (resume orientation
+# does exactly that), so the later verify step must compare the SAME
+# branch's remote tips against each other instead of trusting mutable
+# local checkout state. This mirrors the proven FIX-job pattern.
+is_pr="${{ github.event.issue.pull_request != null }}"
+pr_branch=""
+if [ "$is_pr" = "true" ]; then
+  pr_branch=$(gh pr view "$issue" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+else
+  pr_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
+    --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
+fi
+head_before=""
+if [ -n "$pr_branch" ]; then
+  head_before=$(git ls-remote origin "refs/heads/$pr_branch" 2>/dev/null | cut -f1)
+fi
+if [ -z "$head_before" ]; then
+  # Fresh build with no remote branch yet: fall back to current HEAD (main).
+  head_before=$(git rev-parse HEAD 2>/dev/null || echo "")
+fi
+# ALL known tips among this issue's branch pattern (multiline). The
+# verify step treats the set as "pre-existing state": any tip NOT in
+# it is a genuine push. A single-sha snapshot cannot do that - with
+# several stale branches per issue (the norm after retry rounds) a
+# sha-sorted pick would differ from whichever stale branch the agent
+# checked out, and an unpushed session would read as pushed.
+pattern_tips=$(git ls-remote origin "refs/heads/opencode/issue${issue}-*" 2>/dev/null | cut -f1 | sort -u)
+{
+  echo "branch=$pr_branch"
+  echo "head_before=$head_before"
+  echo "pattern_tips<<TIPS_EOF"
+  echo "$pattern_tips"
+  echo "TIPS_EOF"
+} >> "$GITHUB_OUTPUT"
+tip_count=$(printf '%s' "$pattern_tips" | grep -c . || true)
+echo "Build baseline: branch='${pr_branch:-<none yet>}' head_before=$head_before pattern_tips=${tip_count:-0}"
+"""
+_ANY = object()
+
+
+def norm_uses(value):
+    """Normalize an action `uses:` path the way the runner resolves it."""
+    if not isinstance(value, str):
+        return value
+    parts = []
+    for part in value.replace("\\", "/").split("/"):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            if parts:
+                parts.pop()
+            continue
+        parts.append(part)
+    return "/".join(parts)
+
+
+def count_job_steps(job, key, value):
+    return sum(1 for (job_name, _, step) in steps
+               if job_name == job and step.get(key) == value)
+
+
+def count_job_uses(job, value):
+    return sum(1 for (job_name, _, step) in steps
+               if job_name == job and norm_uses(step.get("uses")) == norm_uses(value))
+
+
+def resolve_ref(job, step_id, expected_name=None, expected_uses=None, expected_keys=None,
+                expected_if=_ANY, expected_env=_ANY, expected_scalars=None,
+                run_exact=None, run_markers=(), run_lines=(), before_index=None):
+    """Resolve a `steps.<id>` reference to the exact step it names.
+
+    A pinned expression string is worthless if the id it references has been
+    renamed or shadowed: the expression then resolves to an empty output at
+    runtime and the bound step silently takes its fallback branch. Every id
+    consumed by a pinned step must therefore resolve to exactly one step in
+    the same job with the expected identity (name, action, key surface, `if`,
+    env, and run shape) and must precede its consumer. A decoy carrying the
+    id but skipping itself (`if: false`) would otherwise reproduce exactly the
+    green-no-op class this rule exists to stop.
+    """
+    hits = [(index, step) for (job_name, index, step) in steps
+            if job_name == job and step.get("id") == step_id]
+    if len(hits) != 1:
+        fail("referenced-id-not-unique:%s:%s:%d" % (job, step_id, len(hits)))
+    index, step = hits[0]
+    if expected_name is not None and step.get("name") != expected_name:
+        fail("referenced-id-wrong-step:%s:%s:%r" % (job, step_id, step.get("name")))
+    if expected_uses is not None and norm_uses(step.get("uses")) != norm_uses(expected_uses):
+        fail("referenced-id-wrong-uses:%s:%s:%r" % (job, step_id, step.get("uses")))
+    if expected_keys is not None and set(step.keys()) != set(expected_keys):
+        fail("referenced-id-key-surface:%s:%s:%s" % (job, step_id, sorted(step.keys())))
+    if expected_if is not _ANY and step.get("if") != expected_if:
+        fail("referenced-id-if-changed:%s:%s:%r" % (job, step_id, step.get("if")))
+    if expected_env is not _ANY and (step.get("env") or {}) != expected_env:
+        fail("referenced-id-env-changed:%s:%s:%r" % (job, step_id, step.get("env")))
+    for scalar_key, scalar_value in (expected_scalars or {}).items():
+        if step.get(scalar_key) != scalar_value:
+            fail("referenced-id-scalar-changed:%s:%s:%s:%r"
+                 % (job, step_id, scalar_key, step.get(scalar_key)))
+    if run_exact is not None and norm(step.get("run") or "") != run_exact:
+        fail("referenced-id-run-changed:%s:%s" % (job, step_id))
+    body = norm(step.get("run") or "")
+    for marker in run_markers:
+        if marker not in body:
+            fail("referenced-id-missing-output:%s:%s:%s" % (job, step_id, marker))
+    stripped_lines = {line.strip() for line in body.splitlines()}
+    for line in run_lines:
+        if line not in stripped_lines:
+            fail("referenced-id-missing-line:%s:%s:%s" % (job, step_id, line))
+    if before_index is not None and index >= before_index:
+        fail("referenced-id-after-consumer:%s:%s" % (job, step_id))
 
 
 VERIFY_TMPL = r"""if [ "${AGENT_GATE:-}" != "true" ]; then
@@ -11811,10 +11970,67 @@ for job, (verify_name, forward_name) in phase.items():
     expect_step(forward_name, job, FORWARD_KEYS, FORWARD_IF, FORWARD_ENV, forward_body)
     if "gh pr list" in forward_body or "sort_by(.createdAt) | last" in forward_body:
         fail("forward-newest-pr-resolver-back:%s" % forward_name)
+    # The verify/forward expressions consume these ids; bind each to the exact
+    # step it must name inside this job (issue #690 review round 3). A renamed
+    # id resolves to empty at runtime, silently turning a crash into a green
+    # denial or a no-op handoff while every text pin above stays green.
+    _, verify_index, _ = find(verify_name)
+    _, forward_index, _ = find(forward_name)
+    gate_env = {
+        "GH_TOKEN": "${{ github.token }}",
+        "GATE_EVENT": "${{ github.event_name }}",
+        "GATE_ACTOR": "${{ github.actor }}",
+        "GATE_LABEL": job,
+    }
+    resolve_ref(job, "actor_gate", expected_name="Actor write gate (issue",
+                expected_keys=("name", "id", "shell", "env", "run"),
+                expected_if=None, expected_env=gate_env,
+                run_exact=ACTOR_GATE_RUN, before_index=verify_index)
+    if count_job_steps(job, "run", ACTOR_GATE_RUN) != 1:
+        fail("actor-gate-step-duplicated:%s" % job)
+    resolve_ref(job, "opencode", expected_uses=OPENCODE_USES, expected_if=AGENT_IF,
+                expected_env=AGENT_ENV,
+                expected_scalars={"continue-on-error": True, "timeout-minutes": 60},
+                before_index=verify_index)
+    if count_job_uses(job, OPENCODE_USES) != 1:
+        fail("agent-step-duplicated:%s" % job)
+    resolve_ref(job, "verify-phase", expected_name=verify_name, before_index=forward_index)
 
 expect_step("Verify build pushed, else auto-retry", "build", ("name", "id", "env", "run"),
             None, BUILD_ENV, BUILD_VERIFY, "verify")
 job_name, _, build_step = find("Verify build pushed, else auto-retry")
+_, build_verify_index, _ = find("Verify build pushed, else auto-retry")
+_, recover_index, _ = find("Preserve build branch with recover tag")
+# Same identity binding for the build job: a renamed baseline or actor-gate id
+# makes the verify env empty and lets any pre-existing PR tip read as a push
+# (the #135 false positive and the #690 symptom) while the text pins stay
+# green. The baseline must precede the verify and write exactly the three
+# outputs the env consumes as executable lines (a commented-out echo or a
+# skipped baseline would leave those env values empty).
+build_gate_env = {
+    "GH_TOKEN": "${{ github.token }}",
+    "GATE_EVENT": "${{ github.event_name }}",
+    "GATE_ACTOR": "${{ github.actor }}",
+    "GATE_LABEL": "build",
+}
+resolve_ref("build", "actor_gate", expected_name="Actor write gate (issue",
+            expected_keys=("name", "id", "shell", "env", "run"),
+            expected_if=None, expected_env=build_gate_env,
+            run_exact=ACTOR_GATE_RUN, before_index=build_verify_index)
+if count_job_steps("build", "run", ACTOR_GATE_RUN) != 1:
+    fail("actor-gate-step-duplicated:build")
+resolve_ref("build", "opencode", expected_uses=OPENCODE_USES, expected_if=AGENT_IF,
+            expected_env=AGENT_ENV,
+            expected_scalars={"continue-on-error": True, "timeout-minutes": 105},
+            before_index=build_verify_index)
+if count_job_uses("build", OPENCODE_USES) != 1:
+    fail("agent-step-duplicated:build")
+expect_step("Capture build baseline", "build", ("name", "id", "env", "run"),
+            None, {"GH_TOKEN": "${{ github.token }}"}, BASELINE_BODY, "baseline")
+resolve_ref("build", "baseline", expected_name="Capture build baseline",
+            before_index=build_verify_index)
+resolve_ref("build", "verify", expected_name="Verify build pushed, else auto-retry",
+            before_index=recover_index)
 build_lines = norm(build_step.get("run") or "").splitlines()
 
 expected_calls = [
@@ -11856,11 +12072,70 @@ expect_step("Preserve build branch with recover tag", "build", ("name", "if", "e
 
 if doc.get("env") is not None or doc.get("defaults") is not None:
     fail("workflow-effective-override")
+# A job-level `if: false` (or any rewritten trigger gate) skips the whole
+# job: no verify, no auto-retry, a green run, and nothing for the Maintainer's
+# workflow_run failure triage to see. Pin the parsed trigger scalar exactly.
+JOB_IFS = {
+    "research": "startsWith(github.event.comment.body, '/oc research') ||\n"
+                "startsWith(github.event.comment.body, '/opencode research')\n",
+    "architect": "startsWith(github.event.comment.body, '/oc architect') ||\n"
+                 "startsWith(github.event.comment.body, '/oc plan') ||\n"
+                 "startsWith(github.event.comment.body, '/opencode architect') ||\n"
+                 "startsWith(github.event.comment.body, '/opencode plan')\n",
+    "design": "(startsWith(github.event.comment.body, '/oc design') ||\n"
+              " startsWith(github.event.comment.body, '/opencode design')) &&\n"
+              "!startsWith(github.event.comment.body, '/oc design-ux') &&\n"
+              "!startsWith(github.event.comment.body, '/oc design-visual') &&\n"
+              "!startsWith(github.event.comment.body, '/oc design-motion') &&\n"
+              "!startsWith(github.event.comment.body, '/opencode design-ux') &&\n"
+              "!startsWith(github.event.comment.body, '/opencode design-visual') &&\n"
+              "!startsWith(github.event.comment.body, '/opencode design-motion')\n",
+    "design-ux": "startsWith(github.event.comment.body, '/oc design-ux') ||\n"
+                 "startsWith(github.event.comment.body, '/opencode design-ux')\n",
+    "design-visual": "startsWith(github.event.comment.body, '/oc design-visual') ||\n"
+                     "startsWith(github.event.comment.body, '/opencode design-visual')\n",
+    "design-motion": "startsWith(github.event.comment.body, '/oc design-motion') ||\n"
+                     "startsWith(github.event.comment.body, '/opencode design-motion')\n",
+    "build": "!startsWith(github.event.comment.body, '/oc review') &&\n"
+             "!startsWith(github.event.comment.body, '/oc approve') &&\n"
+             "!startsWith(github.event.comment.body, '/opencode review') &&\n"
+             "(contains(github.event.comment.body, ' /oc build') ||\n"
+             " startsWith(github.event.comment.body, '/oc build') ||\n"
+             " contains(github.event.comment.body, ' /oc continue') ||\n"
+             " startsWith(github.event.comment.body, '/oc continue') ||\n"
+             " contains(github.event.comment.body, ' /opencode build') ||\n"
+             " startsWith(github.event.comment.body, '/opencode build') ||\n"
+             " contains(github.event.comment.body, ' /opencode continue') ||\n"
+             " startsWith(github.event.comment.body, '/opencode continue'))\n",
+}
+JOB_KEYS = {
+    "research": ("if", "runs-on", "steps", "timeout-minutes"),
+    "architect": ("if", "runs-on", "steps", "timeout-minutes"),
+    "design": ("concurrency", "if", "runs-on", "steps", "timeout-minutes"),
+    "design-ux": ("concurrency", "if", "runs-on", "steps", "timeout-minutes"),
+    "design-visual": ("concurrency", "if", "runs-on", "steps", "timeout-minutes"),
+    "design-motion": ("concurrency", "if", "runs-on", "steps", "timeout-minutes"),
+    "build": ("concurrency", "if", "runs-on", "steps", "timeout-minutes"),
+}
+JOB_TIMEOUTS = {"research": 75, "architect": 75, "design": 75, "design-ux": 75,
+                "design-visual": 75, "design-motion": 75, "build": 120}
 for bound_job in sorted(set(phase) | {"build"}):
     bound_doc = (doc.get("jobs") or {}).get(bound_job)
     if not isinstance(bound_doc, dict):
         fail("bound-job-missing:%s" % bound_job)
-    for bad_key in ("defaults", "env", "container", "strategy"):
+    if set(bound_doc.keys()) != set(JOB_KEYS[bound_job]):
+        fail("job-key-surface:%s:%s" % (bound_job, sorted(bound_doc.keys())))
+    if bound_doc.get("if") != JOB_IFS[bound_job]:
+        fail("job-if-changed:%s" % bound_job)
+    if bound_doc.get("runs-on") != "ubuntu-latest":
+        fail("job-runs-on-changed:%s" % bound_job)
+    if bound_doc.get("timeout-minutes") != JOB_TIMEOUTS[bound_job]:
+        fail("job-timeout-changed:%s" % bound_job)
+    # A job-level continue-on-error swallows a real failure (a failed build
+    # verify or phase verify) and reports the job green, so the Maintainer's
+    # workflow_run failure triage never fires. Any YAML spelling of the key
+    # (block, flow, quoted, explicit-key) parses to this same name.
+    for bad_key in ("defaults", "env", "container", "strategy", "continue-on-error"):
         if bad_key in bound_doc:
             fail("job-effective-override:%s:%s" % (bound_job, bad_key))
 R28STATIC
@@ -11873,9 +12148,13 @@ R28STATIC
   # forward gates, verify id, env tokens, forward target and post target,
   # newest-PR backstop, build env baseline, attribution branch and fail-open
   # closure, foreign pushed=yes, added continue-on-error/shell keys,
-  # recover-tag gate, and recover body) and the static pass must reject every
-  # one. The generator exits non-zero on a mutation that no longer applies,
-  # so a changed source can never turn the matrix vacuously green.
+  # recover-tag gate, and recover body; a renamed baseline or actor-gate id
+  # that empties a consumed expression; a skipped decoy gate/agent/baseline;
+  # a rewritten or unreachable baseline body; an owner PAT, a shortened cap,
+  # or a disabled agent; a path-aliased shadow agent; a widened job surface;
+  # and a job-level if/continue-on-error) and the static pass must reject
+  # every one. The generator exits non-zero on a mutation that no longer
+  # applies, so a changed source can never turn the matrix vacuously green.
   mkdir -p "$r28_tmp/static-mutants"
   if ! python3 -I - "$OPENCODE_WF" "$r28_tmp/static-mutants" <<'R28STATICMUT' >"$r28_tmp/static-mutants.log" 2>&1; then
 import os
@@ -12001,6 +12280,151 @@ mutants = {
                             '  research:\n    env:\n      BASH_ENV: /tmp/evil\n    if: |\n'),
     "build-job-defaults": sub('  build:\n    if: |\n',
                               '  build:\n    defaults:\n      run:\n        shell: sh\n    if: |\n'),
+    "build-baseline-id": sub(
+        '      - name: Capture build baseline\n        id: baseline\n',
+        '      - name: Capture build baseline\n        id: baseline-source\n',
+    ),
+    "phase-actor-gate-id": sub(
+        '      - name: Actor write gate (issue #428)\n'
+        '        id: actor_gate\n'
+        '        shell: bash\n'
+        '        env:\n'
+        '          GH_TOKEN: ${{ github.token }}\n'
+        '          GATE_EVENT: ${{ github.event_name }}\n'
+        '          GATE_ACTOR: ${{ github.actor }}\n'
+        '          GATE_LABEL: research\n',
+        '      - name: Actor write gate (issue #428)\n'
+        '        id: gate\n'
+        '        shell: bash\n'
+        '        env:\n'
+        '          GH_TOKEN: ${{ github.token }}\n'
+        '          GATE_EVENT: ${{ github.event_name }}\n'
+        '          GATE_ACTOR: ${{ github.actor }}\n'
+        '          GATE_LABEL: research\n',
+    ),
+    "research-job-continue-on-error": sub_first(
+        '    timeout-minutes: 75\n    steps:\n',
+        '    timeout-minutes: 75\n    continue-on-error: true\n    steps:\n',
+    ),
+    "build-job-continue-on-error": sub(
+        '    timeout-minutes: 120\n    steps:\n',
+        '    timeout-minutes: 120\n    continue-on-error: true\n    steps:\n',
+    ),
+    "phase-gate-if-false": sub(
+        '          GATE_ACTOR: ${{ github.actor }}\n          GATE_LABEL: research\n'
+        '        run: bash .github/scripts/actor-write-gate.sh\n',
+        '          GATE_ACTOR: ${{ github.actor }}\n          GATE_LABEL: research\n'
+        '        if: false\n        run: bash .github/scripts/actor-write-gate.sh\n',
+    ),
+    "phase-gate-duplicate": sub(
+        '          GATE_LABEL: research\n'
+        '        run: bash .github/scripts/actor-write-gate.sh\n'
+        '\n      - name: Configure git identity\n',
+        '          GATE_LABEL: research\n'
+        '        run: bash .github/scripts/actor-write-gate.sh\n'
+        '      - name: Decoy gate\n'
+        '        run: bash .github/scripts/actor-write-gate.sh\n'
+        '\n      - name: Configure git identity\n',
+    ),
+    "phase-opencode-if-false": sub(
+        '      - name: Run opencode researcher agent\n'
+        '        id: opencode\n'
+        '        if: steps.actor_gate.outputs.run == \'true\'\n',
+        '      - name: Run opencode researcher agent\n'
+        '        id: opencode\n'
+        '        if: false\n',
+    ),
+    "phase-opencode-duplicate": sub(
+        '      - name: Verify research decided, else auto-retry\n',
+        '      - uses: ./.github/actions/opencode-run\n\n'
+        '      - name: Verify research decided, else auto-retry\n',
+    ),
+    "build-baseline-if-false": sub(
+        '      - name: Capture build baseline\n        id: baseline\n        env:\n',
+        '      - name: Capture build baseline\n        id: baseline\n        if: false\n        env:\n',
+    ),
+    "build-baseline-comment-markers": sub(
+        '            echo "branch=$pr_branch"\n',
+        '            # echo "branch=$pr_branch"\n',
+    ),
+    "research-job-if-false": sub(
+        "  research:\n    if: |\n"
+        "      startsWith(github.event.comment.body, '/oc research') ||\n"
+        "      startsWith(github.event.comment.body, '/opencode research')\n",
+        '  research:\n    if: false\n',
+    ),
+    "build-job-if-false": sub(
+        "  build:\n    if: |\n"
+        "      !startsWith(github.event.comment.body, '/oc review') &&\n"
+        "      !startsWith(github.event.comment.body, '/oc approve') &&\n"
+        "      !startsWith(github.event.comment.body, '/opencode review') &&\n"
+        "      (contains(github.event.comment.body, ' /oc build') ||\n"
+        "       startsWith(github.event.comment.body, '/oc build') ||\n"
+        "       contains(github.event.comment.body, ' /oc continue') ||\n"
+        "       startsWith(github.event.comment.body, '/oc continue') ||\n"
+        "       contains(github.event.comment.body, ' /opencode build') ||\n"
+        "       startsWith(github.event.comment.body, '/opencode build') ||\n"
+        "       contains(github.event.comment.body, ' /opencode continue') ||\n"
+        "       startsWith(github.event.comment.body, '/opencode continue'))\n",
+        '  build:\n    if: false\n',
+    ),
+    "build-baseline-body-main": sub(
+        '            pr_branch=$(gh pr view "$issue" --repo "${{ github.repository }}" --json headRefName --jq \'.headRefName\' 2>/dev/null || echo "")\n',
+        '            pr_branch="main"\n',
+    ),
+    "phase-agent-alias": sub(
+        '      - name: Verify research decided, else auto-retry\n',
+        '      - uses: ./.github/actions/opencode-run/.\n\n'
+        '      - name: Verify research decided, else auto-retry\n',
+    ),
+    "phase-agent-pat": sub(
+        "      - name: Run opencode researcher agent\n"
+        "        id: opencode\n"
+        "        if: steps.actor_gate.outputs.run == 'true'\n"
+        "        continue-on-error: true\n"
+        "        timeout-minutes: 60\n"
+        "        uses: ./.github/actions/opencode-run\n"
+        "        env:\n"
+        "          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}\n"
+        "          GITHUB_TOKEN: ${{ github.token }}\n",
+        "      - name: Run opencode researcher agent\n"
+        "        id: opencode\n"
+        "        if: steps.actor_gate.outputs.run == 'true'\n"
+        "        continue-on-error: true\n"
+        "        timeout-minutes: 60\n"
+        "        uses: ./.github/actions/opencode-run\n"
+        "        env:\n"
+        "          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}\n"
+        "          GITHUB_TOKEN: ${{ secrets.OPENCODE_PAT }}\n",
+    ),
+    "phase-agent-timeout": sub(
+        "      - name: Run opencode researcher agent\n"
+        "        id: opencode\n"
+        "        if: steps.actor_gate.outputs.run == 'true'\n"
+        "        continue-on-error: true\n"
+        "        timeout-minutes: 60\n",
+        "      - name: Run opencode researcher agent\n"
+        "        id: opencode\n"
+        "        if: steps.actor_gate.outputs.run == 'true'\n"
+        "        continue-on-error: true\n"
+        "        timeout-minutes: 5\n",
+    ),
+    "research-job-permissions": sub_first(
+        '    timeout-minutes: 75\n    steps:\n',
+        '    permissions: write-all\n    timeout-minutes: 75\n    steps:\n',
+    ),
+    "research-job-runs-on": sub_first(
+        '    runs-on: ubuntu-latest\n    timeout-minutes: 75\n    steps:\n',
+        '    runs-on: macos-latest\n    timeout-minutes: 75\n    steps:\n',
+    ),
+    "research-job-timeout": sub_first(
+        '    timeout-minutes: 75\n    steps:\n',
+        '    timeout-minutes: 150\n    steps:\n',
+    ),
+    "build-baseline-blank-continuation": sub(
+        '            pr_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \\\n              --jq \'[.[] | select(.headRefName | startswith("opencode/issue\'"${issue}"\'-"))] | sort_by(.createdAt) | last | .headRefName\' 2>/dev/null || echo "")\n',
+        '            pr_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \\\n\n              --jq \'[.[] | select(.headRefName | startswith("opencode/issue\'"${issue}"\'-"))] | sort_by(.createdAt) | last | .headRefName\' 2>/dev/null || echo "")\n',
+    ),
 }
 
 for name, body in mutants.items():
@@ -12012,7 +12436,7 @@ print("\n".join(sorted(mutants)))
 R28STATICMUT
     r28_bad="${r28_bad} opencode.yml(static-mutant-generation-failed:$(tr '\n' ';' < "$r28_tmp/static-mutants.log" | cut -c1-200))"
   else
-    r28_wf_mutant_list="verify-target verify-counter verify-newest-pr verify-retries-reset verify-cap verify-env-token verify-id verify-continue-on-error forward-target forward-comment forward-if forward-event-number forward-env-token build-if build-env-branch build-attribution build-fail-open build-pushed-foreign build-continue-on-error recover-gate recover-exit recover-shell workflow-env research-job-env build-job-defaults"
+    r28_wf_mutant_list="verify-target verify-counter verify-newest-pr verify-retries-reset verify-cap verify-env-token verify-id verify-continue-on-error forward-target forward-comment forward-if forward-event-number forward-env-token build-if build-env-branch build-attribution build-fail-open build-pushed-foreign build-continue-on-error recover-gate recover-exit recover-shell workflow-env research-job-env build-job-defaults build-baseline-id phase-actor-gate-id research-job-continue-on-error build-job-continue-on-error phase-gate-if-false phase-gate-duplicate phase-opencode-if-false phase-opencode-duplicate build-baseline-if-false build-baseline-comment-markers research-job-if-false build-job-if-false build-baseline-body-main phase-agent-alias phase-agent-pat phase-agent-timeout research-job-permissions research-job-runs-on research-job-timeout build-baseline-blank-continuation"
     # Bind the generator's mutation set to the list executed below: a mutant
     # added (or dropped) in only one place would otherwise silently shrink
     # the load-bearing matrix without tripping any other check.
@@ -12252,7 +12676,7 @@ R28MUTCLASS
 fi
 rm -rf "$r28_tmp"
 if [ -z "$r28_bad" ]; then
-  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected and its exact if/id/env/key set and normalized run body pinned, the attribution calls are pinned including their fail-closed closure with no pushed=yes inside a foreign branch, both real helper scripts are executed against fixture events, an executable mock gh, and a local bare origin with Builder/Tester commit subjects, and 25 mutation self-tests prove the static pins and both fixture matrices load-bearing (issue #690)" "ok"
+  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected and its exact if/id/env/key set and normalized run body pinned, every consumed steps.<id> resolves in its owning job to the expected step identity (actor gate, agent, baseline, verify-phase, verify) ahead of its consumer with the resolved gate/agent/baseline steps bound to their exact key surface, if, env, and executable output lines so a skipped decoy cannot shadow them, every bound job's key set, runs-on, timeout, and trigger if scalar are pinned exactly, the agent env/timeout/continue-on-error are pinned, composite uses paths are path-normalized before counting, the baseline run body is pinned exactly, job-level continue-on-error is rejected on every bound job, the attribution calls are pinned including their fail-closed closure with no pushed=yes inside a foreign branch, both real helper scripts are executed against fixture events, an executable mock gh, and a local bare origin with Builder/Tester commit subjects, and 52 mutation self-tests (45 workflow static-pin mutants plus 7 helper-fixture mutants) prove the static pins and both fixture matrices load-bearing (issue #690)" "ok"
 else
   check "R28" "phase thread binding or build-push attribution guard missing:${r28_bad} (issue #690: a design retry/forward migrated to the newest phase PR and the build verify read a foreign Tester push as its own)" "bad"
 fi

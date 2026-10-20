@@ -548,18 +548,27 @@ Public Surface / Web Track:                                              │
   R28, which parses every bound step from the same YAML GitHub runs
   (duplicate keys rejected) and pins each step's exact `if:`, `id`, env map,
   key set, and normalized `run:` body (all six phase verifies, all six
-  forwards, the full build verify, the full recover-tag body), the exact
-  attribution calls with their fail-closed closure, and the absence of any
-  `pushed=yes` inside a foreign branch, and rejects workflow- and
-  job-level `env`/`defaults`/`container`/`strategy` overrides around the
-  bound jobs; it executes both real helpers
+  forwards, the full build verify, the full recover-tag body), resolves
+  every consumed `steps.<id>` inside its owning job to exactly one step with
+  the expected identity ahead of its consumer (the actor-write-gate step,
+  the composite agent step, the baseline capture that writes the three
+  consumed outputs, and the bound verify-phase/verify steps), rejects
+  workflow- and job-level `env`/`defaults`/`container`/`strategy` overrides
+  plus job-level `continue-on-error` around the bound jobs, pins the exact
+  attribution calls with their fail-closed closure, and asserts the absence
+  of any `pushed=yes` inside a foreign branch; it executes both real helpers
   against fixture events, an executable mock `gh`, and a local bare origin
-  with Builder/Tester commit subjects, and 25 mutation self-tests prove the
+  with Builder/Tester commit subjects, and 52 mutation self-tests (45
+  workflow static-pin mutants plus 7 helper-fixture mutants) prove the
   static pins and both fixture matrices load-bearing (a foreign-branch
   `pushed=yes`, a verify or forward `if: false`, a retry-target rebind, a
   retry-counter reset, a fail-open attribution closure, an env token swap, a
-  renamed verify id, a raised retry cap, a recover `exit 0`, and added shell
-  or continue-on-error keys each fail alone).
+  renamed verify/baseline/actor-gate id, a skipped decoy gate/agent/baseline,
+  a path-aliased shadow agent, a rewritten baseline body, a commented-out
+  baseline output, an owner PAT in the agent env, a shortened agent cap, a
+  raised retry cap, a job-level `if: false`, `permissions`, `runs-on`,
+  `timeout-minutes`, or `continue-on-error`, a recover `exit 0`, and added
+  shell or step-level `continue-on-error` keys each fail alone).
 - Concurrency - per-PR groups, queued execution:
 
 ```yaml
