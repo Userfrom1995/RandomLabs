@@ -102,7 +102,7 @@ The game picks the best tier its terminal proves, best first:
     unidentifiable terminal; keys typed during the probe are replayed,
     never swallowed. Kitty keyboard enhancement is enabled for
    disambiguated input. Measured on kitty 0.32.2 (2026-10-20): 21
-   transmits and 165.0 KiB of PNG payload for a whole session, playing
+   transmits and 169.6 KiB of PNG payload for a whole session, playing
    at 20.6 frames/s with a 6.1 KiB mean frame (before this pipeline: a
     historical 1642 transmits and 348.6 MiB, not re-derivable from the
     regenerated JSONs).
@@ -114,7 +114,7 @@ The game picks the best tier its terminal proves, best first:
    budget, then the game starts regardless, and keys typed while the
    probe waits are replayed, never swallowed), or via `--tier sixel` on
    known Sixel terminals (foot, contour, mlterm, Sixel-build xterm).
-   Measured on xterm 390: 138 transmits / 3.91 MiB per session.
+   Measured on xterm 390: 137 transmits / 4.27 MiB per session.
 3. **truecolor-cells**: 24-bit Unicode board (solid-block walls, dotted
    crumbs, letter wardens in theme colors, facing Rill mouth) with
    synchronized tear-free frames. The WezTerm, foot-fallback, iTerm2,
