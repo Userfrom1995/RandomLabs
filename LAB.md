@@ -506,6 +506,24 @@ Public Surface / Web Track:                                              │
   independent-verification escapes E1-E4, Q4/Q5, L06/L07, P1/P2,
   M05/M07/M15-M17/M19-M21 and the round-3b boundary probes; a job-level
   `if` on the handler's job remains review-gated).
+- **Stray-PR cleanup boundary (issue #699):** the hardcoded "Remove
+  maintainer stray PRs and branches" step in `maintainer.yml` ran `gh`
+  without a token, so it was a silent no-op, and its branch filter was broad
+  enough that simply authenticating it would have closed every open build PR
+  (the Maintainer never opens PRs, but builders do). The step now targets
+  only the retired `opencode/schedule-*` and `opencode/dispatch-*` classes,
+  authenticates with the job-scoped `${{ github.token }}` (never the owner
+  PAT), and fails loudly on auth or API errors instead of swallowing them:
+  no `|| true`, no stderr redirection, `set -euo pipefail`, and a non-zero
+  exit leaves the job red. Regression-guarded by audit rule R27, which
+  resolves the step from the parsed YAML (duplicate keys rejected), requires
+  exactly one step with the exact name in the `maintainer` job, its
+  actor-write-gate `if:`, `shell: bash`, exactly the `GH_TOKEN` env mapping,
+  the exact schedule/dispatch prefixes and no others, the loud-failure
+  markers, and the exact normalized run body, plus mutation self-tests and a
+  functional mock-`gh` sandbox (schedule/dispatch close and delete, an
+  issue-only no-op, loud PR-list/PR-close/branch-list/branch-delete
+  failures, and a missing-token failure).
 - Concurrency - per-PR groups, queued execution:
 
 ```yaml
@@ -1223,7 +1241,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422) + the model fallback ladder (resolve-model.sh, model-ladder.txt, issue #591)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R26), per-OS findings poster, review-comment and tester-verdict publication evidence, tester marker publisher, CI approval sweep, PR recovery, trailer strip
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R27), per-OS findings poster, review-comment and tester-verdict publication evidence, tester marker publisher, CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
