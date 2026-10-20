@@ -74,8 +74,9 @@ script. The Windows setup exe additionally takes
 `.github/workflows/pet-release.yml` builds all three OS families
 natively (Windows exe plus setup, macOS app plus pkg plus dmg, Linux
 deb plus rpm plus an AppImage when the release runner provides
-appimagetool), runs the headless logic smoke plus payload
-verification with the scripts below, and publishes a versioned
+appimagetool), runs the headless logic smoke plus the payload
+checks described below (the Windows setup is name/version checked
+only unless `-Install` is passed), and publishes a versioned
 GitHub Release (`desktop-pet-vX.Y.Z`) with every artifact plus a
 merged `SHA256SUMS.txt`. Trigger: push a matching tag, or manual
 dispatch.
@@ -89,10 +90,12 @@ single source.
 by both the release pipeline and the per-OS testers. Each one runs
 the headless logic smoke (`version --porcelain` parity, `selftest`,
 `characters list`, a service start/status/switch/stop cycle with
-residue checks) against an isolated data dir, then verifies the
-just-built packages (control metadata plus payload contents, name
-carries the version). Pass `--install` on CI to really install and
-uninstall again and assert no autostart or tray residue survives:
+residue checks) against an isolated data dir, then inspects the
+just-built Linux and macOS packages (control metadata plus payload
+contents) and checks the Windows setup by name and version (every
+name carries the version). Pass `--install` (`-Install` on Windows)
+on CI to really install and uninstall again and assert no autostart
+or tray residue survives:
 
 ```sh
 # Linux (root): install the deb and rpm for real, then remove them
@@ -111,17 +114,19 @@ powershell -ExecutionPolicy Bypass -File pet\packaging\smoke-windows.ps1 `
 ```
 
 All three are fail-closed and headless by construction (no window is
-ever opened; installers are payload-inspected unless `--install` /
-`-Install` is passed on CI). Where an installer tool is absent they
-say so instead of passing silently. The honest-skip matrix is
-exact: off macOS the pkg gets a name check only (`pkgutil`, `xar`,
-and `hdiutil` are macOS-only); without `dpkg-deb` the deb gets a
-name check only; without `rpm` the rpm gets a name check only; a
-non-executable AppImage gets an existence check only. On the release
-runners (`windows-latest`, `macos-latest`, `ubuntu-latest`) every
-tool is present, so every payload check runs for real; the real
-install plus uninstall-clean check still runs only with `--install`
-(`-Install` on Windows).
+ever opened; Linux and macOS installers are payload-inspected, while
+the Windows setup is checked by name and version only, and its
+payload is exercised only when `-Install` is passed on CI). Where an
+installer tool is absent they say so instead of passing silently.
+The honest-skip matrix is exact: off macOS the pkg gets a name check
+only (`pkgutil`, `xar`, and `hdiutil` are macOS-only); without
+`dpkg-deb` the deb gets a name check only; without `rpm` the rpm gets
+a name check only; a non-executable AppImage gets an existence check
+only. On the release runners (`windows-latest`, `macos-latest`,
+`ubuntu-latest`) every required tool is present, so the Linux and
+macOS payload checks run for real; the Windows setup is still
+name/version checked only, and the real install plus uninstall-clean
+check runs only with `--install` (`-Install` on Windows).
 
 Every recipe is fail-closed (`set -euo pipefail` or
 `$ErrorActionPreference = Stop`), writes checksums, and runs the
@@ -205,8 +210,9 @@ matrix can never drift from the recipes.
 - `build-linux.sh` - Linux deb package and AppImage.
 - `build-rpm.sh` plus `desktop-pet.rpm.spec` - Linux rpm package.
 - `smoke-linux.sh` / `smoke-macos.sh` / `smoke-windows.ps1` - per-OS
-  payload plus selftest plus service-cycle smoke; the real install
-  plus uninstall-clean path runs when `--install` (`-Install` on
-  Windows) is passed.
+  selftest plus service-cycle smoke; Linux and macOS packages are
+  payload-inspected, the Windows setup is name/version checked only;
+  the real install plus uninstall-clean path runs when `--install`
+  (`-Install` on Windows) is passed.
 - `install.sh` / `uninstall.sh` - run-from-source install and clean removal (Linux/macOS).
 - `install.ps1` / `uninstall.ps1` - run-from-source install and clean removal (Windows).
