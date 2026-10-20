@@ -1376,6 +1376,28 @@ jobs:
               echo "PR #$pr eval verdict ($approve_eval_time) predates the tester approval ($approve_test_time); not merge-ready"
               continue
             fi
+            # Eval verdict supersession (issue #713): the selected approval
+            # marker must be the newest Evaluator verdict. A later /oc eval
+            # that ends in fix posts a Quality Council REJECTION and no
+            # marker, so the old approval would otherwise remain selected. A
+            # scheduled sweep can overlap the rejection-handling Maintainer
+            # run (per-PR vs global concurrency) and run before its /oc fix is
+            # posted, so the /oc fix guard above cannot see the rejection yet.
+            # Fail closed on a newer bot-authored rejection (an unprivileged
+            # actor cannot forge the bot identity) and on a newer owner
+            # /oc eval trigger (whose fresh verdict is still pending), so the
+            # sweep waits for the current verdict instead of merging on a
+            # stale approval.
+            last_eval_reject_time=$(echo "$comments" | jq -r '[.[] | select(.user.login=="github-actions[bot]" and (.body | startswith("Quality Council REJECTION")))] | last | .created_at // empty' 2>/dev/null || echo "")
+            if [ -n "$last_eval_reject_time" ] && [ "$last_eval_reject_time" \> "$approve_eval_time" ]; then
+              echo "PR #$pr has a newer eval rejection ($last_eval_reject_time > $approve_eval_time); not merge-ready"
+              continue
+            fi
+            last_eval_trigger_time=$(echo "$comments" | jq -r '[.[] | select(.user.login=="${{ github.repository_owner }}" and (.body | startswith("/oc eval")))] | last | .created_at // empty' 2>/dev/null || echo "")
+            if [ -n "$last_eval_trigger_time" ] && [ "$last_eval_trigger_time" \> "$approve_eval_time" ]; then
+              echo "PR #$pr has a newer /oc eval trigger ($last_eval_trigger_time > $approve_eval_time); awaiting the fresh eval verdict"
+              continue
+            fi
             # Mergeability re-query (issue #619): GitHub computes mergeability
             # on demand, and immediately after this sweep merges another PR
             # (advancing main) the next read answers UNKNOWN. Skipping on that
