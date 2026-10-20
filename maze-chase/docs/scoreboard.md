@@ -300,7 +300,8 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   score floaters under reduced motion through the same early-return
   helper pattern as the desktop, with a behavioral test that renders a
   live floater under `Fx::new(true, true)` and asserts its absence.
-  Web suite 51 tests; workspace suite 550 passed across 59 targets.
+  Web suite 51 tests; the public workspace count moves to 550 across 59
+  targets (the full rerun remains the Tester's gate).
   Wasm rebuilt to sha256 `346ef9b8...` (206,295 bytes, second clean
   build byte-identical); node smokes and the 42-assertion browser E2E
   are all green.
