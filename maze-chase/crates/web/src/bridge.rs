@@ -72,10 +72,10 @@ fn write_bytes(dst: *mut u8, cap: u32, src: &[u8]) -> u32 {
     n as u32
 }
 
-/// Bridge version the harness gates on (must be 1).
+/// Bridge version the harness gates on (must be 2).
 #[no_mangle]
 pub extern "C" fn mc_version() -> u32 {
-    1
+    2
 }
 
 /// Start (or restart) a run. `level` 0 selects the difficulty preset
@@ -641,7 +641,7 @@ mod tests {
     fn session_starts_clean() {
         // Statics are shared across tests in one binary: only assert the
         // API shape here, behavior lives in the session tests.
-        assert_eq!(mc_version(), 1);
+        assert_eq!(mc_version(), 2);
         assert!(mc_scratch_len() as usize >= SCRATCH_LEN);
         assert!(!mc_scratch().is_null());
     }

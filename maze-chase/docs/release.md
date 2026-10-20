@@ -60,7 +60,7 @@ The committed `web/maze-chase.wasm` is byte-reproducible from that
 exact command with the recorded toolchain (Rust 1.99.0, rustc commit
 `b940084d7eb6a299eb4bfeb8e34901bc051e7ac4`, which the artifact embeds;
 no `wasm-bindgen`, zero imports). It is 206,711 bytes with sha256
-`68e331b279f1a86379b47ce27d172d9e58895835ccfb87c2bede238b77dd1374`,
+`ae474117dcf4cf79e3c26609ae7df2369cbbc5ca6387f241c1f300eb5bbe36cb`,
 and a second clean build reproduces the same bytes. A different stable
 release may produce different bytes. The page gates on the bridge ABI
 version and fails loudly on the error card instead of misbehaving on a
@@ -105,7 +105,7 @@ one row each, and record the measured results in the scoreboard.
   so a clean checkout resolves identical dependency versions.
 - The tarball names carry the crate version read from `Cargo.toml` at
   stage time; the browser page carries the bridge ABI version
-  (`mc_version() == 1`).
+  (`mc_version() == 2`).
 
 ## Clean-checkout release checklist
 

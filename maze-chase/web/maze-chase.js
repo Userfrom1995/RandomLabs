@@ -7,7 +7,7 @@
  * owns the simulation, screens, scores table logic, and settings blob.
  *
  * BINDING CONTRACT NOTES (must match the Rust side exactly):
- * - mc_version()->u32 must equal 1.
+ * - mc_version()->u32 must equal 2.
  * - mc_reset takes (seed_lo:u32, seed_hi:u32, level:u32, mode:u32). JS numbers
  *   cannot hold a u64 precisely, hence the split seed. Start uses the
  *   sentinel level=0, mode=99 meaning "use current difficulty preset"
@@ -35,7 +35,7 @@
  *   `python -m http.server` on Windows, in maze-chase/).
  */
 (function () {
-  var EXPECT_VERSION = 1;
+  var EXPECT_VERSION = 2;
   var NO_CHANGE = 0xFFFFFFFF;
 
   // Key id table: e.code -> mc_key id.
@@ -148,12 +148,13 @@
         exp = mod.instance ? mod.instance.exports : mod.exports || mod;
         var need = ['mc_version', 'mc_reset', 'mc_step', 'mc_frame', 'mc_frame_len',
           'mc_key', 'mc_swipe', 'mc_press', 'mc_goto', 'mc_rebind', 'mc_binding', 'mc_screen',
-          'mc_scratch', 'mc_scratch_len', 'mc_theme_name', 'memory'];
+          'mc_scratch', 'mc_scratch_len', 'mc_theme_name', 'mc_fright_segments',
+          'memory'];
         for (var i = 0; i < need.length; i++) {
           if (typeof exp[need[i]] === 'undefined') throw new Error('missing export: ' + need[i]);
         }
         var v = exp.mc_version() >>> 0;
-        if (v !== EXPECT_VERSION) throw new Error('version mismatch: wasm=' + v + ' harness=1');
+        if (v !== EXPECT_VERSION) throw new Error('version mismatch: wasm=' + v + ' harness=' + EXPECT_VERSION);
         importSettings();
         importScores();
         syncSettingsUI();
@@ -399,7 +400,10 @@
       applyVolumes();
       // Settings labels follow Rust (single source of truth).
       var th = exp.mc_theme() >>> 0, thc = exp.mc_theme_count() >>> 0;
-      txt('theme-label', themeName() + ' (' + (th + 1) + '/' + thc + ')');
+      var hc = exp.mc_high_contrast() >>> 0;
+      txt('theme-label', hc
+        ? 'Moonwake (high contrast)'
+        : themeName() + ' (' + (th + 1) + '/' + thc + ')');
       var d = exp.mc_difficulty() >>> 0;
       txt('diff-label', DIFF_NAMES[d] || ('Difficulty ' + d));
     } catch (e) { /* ignore */ }
