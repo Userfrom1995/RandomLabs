@@ -330,13 +330,13 @@ class TestCollectorHonestyGates(unittest.TestCase):
             "color_type": 6,
             "palette": None,
             "stride": 8,
-            # pip #FFE182 (exact) then an off-by-one red that must not
+            # Rill #7ED957 (exact) then an off-by-one red that must not
             # count as anything.
-            "rows": bytes([255, 225, 130, 255, 250, 225, 130, 255]),
+            "rows": bytes([126, 217, 87, 255, 250, 217, 87, 255]),
         }
         census = collect.sprite_census(decoded)
         self.assertEqual(census["pixels"], 1)
-        self.assertEqual(census["by_color"]["pip"], 1)
+        self.assertEqual(census["by_color"]["rill"], 1)
         self.assertEqual(census["by_color"]["bram"], 0)
 
     def test_kitty_pass_without_visible_sprites_is_downgraded(self):
@@ -381,7 +381,7 @@ class TestCollectorHonestyGates(unittest.TestCase):
         # One exact pip pixel on an otherwise dark board, plus the paused
         # checkpoint every real session takes (the pause-surface claim is
         # part of a kitty-graphics pass).
-        playing_png = make_rgb_png(2, 2, [24, 16, 12] * 3 + [255, 225, 130])
+        playing_png = make_rgb_png(2, 2, [24, 16, 12] * 3 + [126, 217, 87])
         paused_png = make_rgb_png(
             100, 100, [24, 16, 12] * 9000 + [230, 230, 230] * 1000
         )
@@ -397,7 +397,7 @@ class TestCollectorHonestyGates(unittest.TestCase):
             ["playing"],
         )
         playing = next(p for p in row["phases"] if p["name"] == "playing")
-        self.assertEqual(playing["sprite_census"]["by_color"]["pip"], 1)
+        self.assertEqual(playing["sprite_census"]["by_color"]["rill"], 1)
 
 
     def test_bitmap_pass_without_a_playing_capture_is_downgraded(self):
@@ -458,7 +458,7 @@ class TestCollectorHonestyGates(unittest.TestCase):
                 os.path.join(self.tmp, f"run-notier-{tier_name}"),
                 screenshot_name="playing.png",
                 create_png=make_rgb_png(
-                    2, 2, [24, 16, 12] * 3 + [255, 225, 130]),
+                    2, 2, [24, 16, 12] * 3 + [126, 217, 87]),
                 transcript=b"\x1b[?2026h\x1b[2J\x1b[?2026l",
                 checkpoint="playing",
             )
@@ -492,7 +492,7 @@ class TestCollectorHonestyGates(unittest.TestCase):
         run_dir = make_run_dir(
             os.path.join(self.tmp, "run-tier-named"),
             screenshot_name="playing.png",
-            create_png=make_rgb_png(2, 2, [24, 16, 12] * 3 + [255, 225, 130]),
+            create_png=make_rgb_png(2, 2, [24, 16, 12] * 3 + [126, 217, 87]),
             transcript=(
                 b"\x1b[?2026h\x1b[2J\x1b[?2026l"
                 b"\x1b[1;1HVIDEO  sixel\r\n"
@@ -521,7 +521,7 @@ class TestCollectorHonestyGates(unittest.TestCase):
         run_dir = make_run_dir(
             os.path.join(self.tmp, "run-windows-notier"),
             screenshot_name="playing.png",
-            create_png=make_rgb_png(2, 2, [24, 16, 12] * 3 + [255, 225, 130]),
+            create_png=make_rgb_png(2, 2, [24, 16, 12] * 3 + [126, 217, 87]),
             transcript=b"",
             checkpoint="playing",
             meta_extra={"transcript": None},
@@ -554,7 +554,7 @@ class TestCollectorHonestyGates(unittest.TestCase):
         run_dir = make_run_dir(
             os.path.join(self.tmp, "run-playing-case"),
             screenshot_name="Playing.png",
-            create_png=make_rgb_png(2, 2, [24, 16, 12] * 3 + [255, 225, 130]),
+            create_png=make_rgb_png(2, 2, [24, 16, 12] * 3 + [126, 217, 87]),
             transcript=(
                 b"\x1b[?2026h\x1b[2J\x1b[?2026l"
                 b"\x1b[1;1HVIDEO  sixel\r\n"
@@ -743,7 +743,7 @@ class TestCollectorHonestyGates(unittest.TestCase):
     def test_bitmap_blank_playing_capture_is_downgraded(self):
         # One sprite pixel cannot rescue a playing surface that is
         # otherwise one flat color: the board itself is blank.
-        pixels = [24, 16, 12] * 9999 + [255, 225, 130]
+        pixels = [24, 16, 12] * 9999 + [126, 217, 87]
         png = make_rgb_png(100, 100, pixels)
         transcript = (
             b"\x1b[?2026h"
@@ -803,7 +803,7 @@ class TestCollectorHonestyGates(unittest.TestCase):
         resize-phase capture under the given phase-name casing."""
         mixed = make_rgb_png(
             100, 100,
-            [24, 16, 12] * 5000 + [230, 230, 230] * 4999 + [255, 225, 130],
+            [24, 16, 12] * 5000 + [230, 230, 230] * 4999 + [126, 217, 87],
         )
         flat = make_rgb_png(100, 100, [24, 16, 12] * (100 * 100))
         transcript = b"\x1b[1;1HVIDEO  sixel\r\n" + b" " * 200
@@ -919,7 +919,7 @@ class TestCollectorHonestyGates(unittest.TestCase):
             b"\x1b[1;1HPAUSED RESUME QUIT TO TITLE"
         )
         transcript = playing + paused
-        playing_px = [24, 16, 12] * 5000 + [230, 230, 230] * 4999 + [255, 225, 130]
+        playing_px = [24, 16, 12] * 5000 + [230, 230, 230] * 4999 + [126, 217, 87]
         paused_px = [24, 16, 12] * 9500 + [230, 230, 230] * 500
         run_dir = make_run_dir(
             os.path.join(self.tmp, "run"),
@@ -966,7 +966,7 @@ class TestCollectorHonestyGates(unittest.TestCase):
             + b"\x1b[?2026l\x1b[1;1HPAUSED"
             + b" " * 200
         )
-        png = make_rgb_png(100, 100, [24, 16, 12] * 9999 + [255, 225, 130])
+        png = make_rgb_png(100, 100, [24, 16, 12] * 9999 + [126, 217, 87])
         run_dir = make_run_dir(
             os.path.join(self.tmp, "run"),
             screenshot_name="paused.png",
@@ -1006,7 +1006,7 @@ class TestCollectorHonestyGates(unittest.TestCase):
         if playing_png is None:
             playing_png = make_rgb_png(
                 100, 100,
-                [24, 16, 12] * 5000 + [230, 230, 230] * 4999 + [255, 225, 130],
+                [24, 16, 12] * 5000 + [230, 230, 230] * 4999 + [126, 217, 87],
             )
         run_dir = make_run_dir(
             os.path.join(self.tmp, "run"),
@@ -1040,7 +1040,7 @@ class TestCollectorHonestyGates(unittest.TestCase):
         # slice; the media-first gate skipped it. The capture still
         # carries a sprite pixel, so a pass is refused.
         paused_png = make_rgb_png(
-            100, 100, [24, 16, 12] * 9999 + [255, 225, 130]
+            100, 100, [24, 16, 12] * 9999 + [126, 217, 87]
         )
         row = self._kitty_paused_row(
             paused_png,
@@ -1150,7 +1150,7 @@ class TestCollectorHonestyGates(unittest.TestCase):
         )
         png = make_rgb_png(
             100, 100,
-            [24, 16, 12] * 5000 + [230, 230, 230] * 4999 + [255, 225, 130],
+            [24, 16, 12] * 5000 + [230, 230, 230] * 4999 + [126, 217, 87],
         )
         run_dir = make_run_dir(
             os.path.join(self.tmp, "run-no-paused"),
