@@ -6,9 +6,9 @@
 - **Branch:** opencode/issue582-20261018121223 (this roadmap PR); each phase runs
   on its own `opencode/issue582-overhaul-phase-<n>-<slug>` branch
 - **Status:** in-progress
-- **Updated:** 2026-10-19
-- **Active Phase:** Phase 3: Terminal Render Pipeline and Compatibility Proof
-  (Complete, ready for review; macOS matrix rows stay with the per-OS testers)
+- **Updated:** 2026-10-20
+- **Active Phase:** Phase 4: Visual Identity Redesign
+  (Complete, ready for review; real Linux terminal captures refreshed)
 - **Blueprint:** `ideas/2026-10-18-maze-chase-overhaul.md`
 - **Findings ledger:** `progress/582-maze-chase-overhaul-findings.md` (created in
   Phase 1; every reassessment gap lives here until resolved or documented)
@@ -18,7 +18,7 @@
 - Phase 1: Product Reassessment and Real-Terminal Truth: [x] real-terminal driver harness (`maze-chase/tools/compat/`: `run-linux.sh`, `run-macos.sh`, `run-windows.ps1`, `drive.sh`, `collect.py`, `README.md`), [x] reproduce the Owner's Ghostty and Kitty findings on current main with recorded evidence (kitty reply-loop flood plus input delayed past the session, Ghostty mis-routing despite its kitty-graphics support; eight executed Linux rows in `maze-chase/tools/compat/evidence/`), [x] critical reassessment of engine, layers, and docs claims (four parallel sweeps; Section B of the ledger), [x] findings ledger with every gap (`progress/582-maze-chase-overhaul-findings.md`), [x] honest compatibility matrix scaffold `maze-chase/docs/terminal-compat.md` (executed rows plus named executors for host-pending rows), [ ] new sub-issues routed through the Maintainer (proposed set in ledger Section C; filing is the Maintainer's next step, not done in this PR) (PR 1 target, Refs #582, Refs #655, Refs #661)
 - Phase 2: Dynamic Terminal Layout and Full-Window Composition: [x] geometry model with cell pixel size (`crates/terminal/src/geometry.rs`; TIOCGWINSZ pixel fields on Unix, console font on Windows, nominal 8x16 fallback), [x] pure layout solver (2..8 x 1..4 scale grid at the 2x1 compact floor with coverage-first selection; side panel, HUD band, hint-only by fit; exact 62x35 card; golden plans 200x60 -> 7x1 and 62x80 -> 2x2), [x] bounded centered image rendering at the real pixel geometry (raster fit to the board's pixel box; image footprint mapped through the window pixels, so Kitty never stretches and the Sixel raster stays inside the board's pixel box whenever the box can host the 6-ppt legibility floor, and absurdly tiny pixel windows keep the documented floor and may overflow; 8-ppt nominal fallback), [x] continuous cell-tier scales (`unicode::fit_width`/`center_rows` at any scale), [x] resize contract with same-frame repaint and stale-placement kill (`ESC[2J` plus Kitty delete-all in the new frame; pinned by `tests/plan_contract.rs`), [x] tier-aware too-small card (reads `layout.min_cols/min_rows`; exact 62x35 boundary pinned), [ ] real-emulator resize proof on Linux and macOS (the PTY proof landed with this PR; the real rows are per-OS tester work, no emulator exists on the build machine) (PR 2 target, Refs #582, Refs #656)
 - Phase 3: Terminal Render Pipeline and Compatibility Proof: [x] bounded live Kitty probe with byte replay plus the Sixel DA1 probe (the probe requires both the transmit and placement replies before it reads a verdict; Ghostty 1.3.1 answers the probe when one is sent, and its rows select the graphics path from `TERM_PROGRAM=ghostty`/`TERM=xterm-ghostty` without probing), [x] atlas plus placement composition with full-frame fallback (static layer and sprite atlas once per change, stable-id placement diffs, single-placement `d=i` deletes, explicit `z` stacking layers, DEFLATE PNG), [x] dirty-change detection and wall-clock pacing with backpressure (visual-change key, per-tier rates, 8 MiB/s byte ceiling, 1 Hz idle keepalive), [x] Sixel path hardening (64-color cap, 2 MiB frame ceiling with smaller-palette retry and an honest `cells-fallback` trace mode), [x] capability-aware probe plus write-path watchdog (`OK`/`ENOENT` replies decide kitty support; `q=2` keeps steady transmits silent, and the watchdog drops a tier after 3 failed frame writes with the reason recorded), [x] `MAZE_CHASE_TRACE` JSONL evidence mode (plan, frame mode/placements/static/atlas/encode time, skips, probe results), [x] kitty and ghostty rows signed on Linux plus conventional terminals (kitty and Ghostty both `kitty-graphics` pass at 21 transmits / 156.1-160.1 KiB per session with sprite visibility proven by capture census; xterm auto and xterm dark both pass on cells, the light row at 6.2% white at worst and 1.7% while playing after the theme-canvas fix; the VT340 sixel rows pass at 140-141 transmits / 3.39-3.41 MiB, and every row records its generating build commit plus binary SHA-256 in its `build` block), [ ] macOS matrix rows signed by the macOS Tester (PR 3 target, Refs #582, Refs #655)
-- Phase 4: Visual Identity Redesign: [ ] Design Council direction consumed (dispatched by the Maintainer before this phase), [ ] resolution-aware character and environment art, [ ] effects and animation system, [ ] refreshed themes with accessibility tests green, [ ] all three layers integrated with real captures (PR 4 target, Refs #582, Closes #658)
+- Phase 4: Visual Identity Redesign: [x] Design Council direction consumed (dispatched by the Maintainer before this phase), [x] resolution-aware character and environment art, [x] effects and animation system, [x] refreshed themes with accessibility tests green, [x] all three layers integrated with real captures (PR 4 target, Refs #582, Closes #658)
 - Phase 5: Sound Design Overhaul: [ ] new musical score with one BPM source, [ ] soft short effect bank, [ ] mix architecture with fades and safe defaults, [ ] terminal chime policy default-off, [ ] per-layer real-host review and settings round-trip (PR 5 target, Refs #582, Closes #659)
 - Phase 6: Release Engineering and Multi-Platform Distribution: [ ] version single source plus tag parity gate, [ ] Linux deb and rpm plus tarballs for both layers, [ ] Windows installer plus zip, [ ] macOS app plus dmg plus tarball, [ ] install/launch/uninstall smoke scripts, [ ] `maze-chase-release.yml` pipeline via the Lab Engineer, [ ] release candidate artifacts on the official Releases page, [ ] install/upgrade/uninstall docs (PR 6 target, Refs #582, Closes #657)
 - Phase 7: Game-First Web Experience and Subpages: [ ] `maze-chase/index.html` boots directly into the game with no clutter, [ ] downloads, install, docs, compatibility, releases subpages, [ ] rendered docs on Pages with link checks, [ ] deployed-URL browser E2E including mobile (PR 7 target, Refs #582, Closes #660)
@@ -26,69 +26,47 @@
 
 ## Current step
 
-Phase 3 landed on the workflow-bound branch
-`opencode/issue582-20261018233137`. The kitty tier boots from a
-bounded live probe (200 ms, keys replayed; a verdict is only read once
-both the transmit and placement replies arrived) and paints through a
-static board layer plus a transparent sprite atlas transmitted with
-real DEFLATE PNG, moving stable-id placements each frame with explicit
-`z` stacking layers (static 0; sunseeds 1; relish 2; per-warden body
-and eyes bands 3..10 in raster paint order; Pip 11), so no terminal's
-equal-z tie-breaking can hide the sprites. Steady transmits are silent (`q=2`), so the old
-per-transmit `OK` reply loop cannot spin input. Pacing is wall-clock
-per tier (30 Hz kitty, 24 Hz sixel, 60 Hz cells) with visual-change
-skipping, a 1 Hz idle keepalive, an EWMA byte-rate backpressure delay,
-and an 8 MiB/s ceiling. Sixel keeps its full-frame path with a
-64-color palette cap and a 2 MiB frame ceiling. Ghostty 1.3.1 answers
-the live probe when one is sent (direct pty experiment via
-`maze-chase/tools/compat/probe-graphics.py`, 2026-10-19: both replies
-recorded), and its rows select `kitty-graphics` from
-`TERM_PROGRAM=ghostty` without probing; `MAZE_CHASE_TRACE` records the
-plan, probe answers, per-frame mode and counts, encode time, and skips
-for the harness.
+Phase 4 (visual identity redesign) is implemented on
+`opencode/issue582-20261019234242`. The Pondwake direction from
+`docs/design.md` is live in the shared art: Rill the pond frog and the
+four hunter silhouettes at 11x11 and 21x21, the fright mask and eye
+overlay, 3x3 crumb beads, 7x7 sunseeds with the 400 ms halo, the
+pickup-burst/death-sweep/turn-spark clips, and the three contrast-checked
+themes (`dusk-pond`, `morning-shallows`, `moonwake`) with legacy-id
+migration on load. The terminal raster, desktop renderer, and browser
+canvas all draw the same assets with the fright entry morph, 100 ms
+death cadence, 300 ms level-clear sweep, and mask eyes; the web settings
+panel shows the active theme name. Accessibility gates (text/bg,
+fright/wall, eyes/wall, hunter separation, light/dark) pass, the golden
+replay digest is unchanged (`23c17f89734e`), and the wasm rebuild is
+committed (`1abe2665...`).
 
-Measured on this build (all eight Linux rows regenerated 2026-10-19
-from the release binary built at `8f16a3f6`, binary SHA-256
-`9ebf8f4c32d82b62278f5d5920b968b426d6c304b85a9e64e12fd68a46a2d6c4`,
-Rust sources clean; every row records that identity in its own `build`
-block): kitty 0.32.2 observes
-`kitty-graphics` and passes the full session at 21 transmits /
-156.1 KiB of PNG payload (the pre-pipeline flood is a historical 1642
-transmits / 348.6 MiB, killed), playing 98 frames in 4.77 s (20.6 fps)
-at a 6.0 KiB mean frame; Ghostty 1.3.1 passes both rows at 21 /
-160.1 KiB, playing 21.8-22.0 fps at a 6.0 KiB mean frame, and its
-playing captures carry 406-412 sprite-palette pixels (the earlier
-build hid every sprite behind the board on Ghostty: zero sprite
-pixels, cause of the explicit-z fix); xterm 390 in VT340 mode passes
-at 140-141 sixel transmits / 3.39-3.41 MiB; the default-background xterm row
-now passes too: every painted run carries the theme's background
-explicitly, so its worst capture is 6.2% white and the playing capture
-is 1.7% (the former 7-of-10 >=98% white defect is pinned by a Unicode
-backend regression test). The pause surface releases the kitty board
-and atlas before painting its text menu (collect.py refuses a kitty
-`pass` when the paused capture still carries sprite pixels, or when
-the phase list does not carry exactly one paused checkpoint), and
-bitmap capture gates reject a playing/resized/refit surface that is
->=90% one color; on every bitmap tier a `pass` with no decodable
-playing capture is refused, and the forced-tier rows record
-`pause_select: 1` so the second row of an emulator never commits a
-byte-identical paused capture. The Ghostty probe claim cites committed
-raw reply captures (`maze-chase/tools/compat/probe-captures/`) with
-the exact commands and hashes.
-Workspace tests pass, `maze-chase-verify` 19/19 with golden
-`23c17f89734e` intact. The macOS matrix rows are the one open Phase 3
-item and stay with the per-OS testers. Next: Phase 4 (visual identity
-redesign), gated on the Design Council's direction.
+Real captures were regenerated on 2026-10-20 with the Linux compatibility
+harness at code commit `90cb9b87` (binary SHA-256
+`e5c9a284df71afe37413cb3e3047cfb2ce887cf81ad729feecb92ac3dfd0202a`,
+clean Rust sources): all eight Linux rows pass (kitty and Ghostty at
+21 transmits / 167.1-175.0 KiB per session with 171-271 sprite-palette
+pixels in the playing capture; xterm light/dark on legacy cells; xterm
+VT340 forced and auto on Sixel at 143-144 transmits / 4.58-4.60 MiB).
+The desktop title capture (`docs/desktop-probe.ppm`) and the browser
+gameplay capture (`docs/web-gameplay.png`, 1280x757) are committed, and
+`browser-e2e.js` is ALL GREEN. macOS and Windows terminal rows stay with
+the per-OS testers; no claim here exceeds the executed Linux rows.
+
+Workspace gates: `cargo test --workspace --no-fail-fast` 498 passed / 0
+failed across 57 targets, harness contract 47/47, `maze-chase-verify`
+19/19, `cargo fmt --all --check` clean, and clippy reports only the
+pre-existing engine style lints. Next: Phase 5 (sound design overhaul).
 
 ## Next steps
 
-- Builder: Phase 3 (render pipeline and compatibility proof) landed with
-  this PR; Phase 4 (visual identity redesign) starts from the merged tip
-  once the Design Council direction is binding.
-- Maintainer: dispatch the Design Council pass (`/oc design`, specialists as
-  needed) after this roadmap lands, timed to complete before Phase 4 build;
-  file the Phase 1 findings as linked sub-issues prioritized into the remaining
-  phases; keep #582 open until the Final Phase ledger is complete.
+- Builder: Phase 4 (visual identity redesign) landed with this PR; Phase 5
+  (sound design overhaul) starts from the merged tip once its Design
+  Council audio pass is binding.
+- Maintainer: dispatch the Phase 5 Design Council pass (`/oc design`,
+  specialists as needed); file the Phase 1 findings as linked sub-issues
+  prioritized into the remaining phases; keep #582 open until the Final
+  Phase ledger is complete.
 - Per-OS testers: Phase 2 (Linux plus macOS emulator proof), Phase 3 (matrix
   signing on all three OSes), Phase 6 (native package install/uninstall), and
   the Final Phase re-verification.
@@ -996,3 +974,23 @@ redesign), gated on the Design Council's direction.
   contract, fmt, and clippy. No registry skill matched the round; none
   loaded.
   - the Fixer
+- 2026-10-20 (builder, Phase 4 on `opencode/issue582-20261019234242`):
+  implemented the full Pondwake visual system from the binding design:
+  Rill 11x11/21x21 with dome eyes and facing set, four hunter
+  silhouettes (heron S-neck, pike dorsal ridge, snake head loop,
+  dragonfly crossbar), fright masks with a separate eye overlay, 3x3
+  crumb beads, 7x7 sunseeds with the 400 ms halo, golden lily, hop,
+  gulp, death-sink, pickup burst, fright morph, level-clear sweep, turn
+  spark, and the three Pondwake palettes with legacy-id migration. The
+  same raster drives terminal, desktop, and web; accessibility and token
+  mirror gates are green and the golden replay digest is unchanged.
+  Regenerated all eight Linux compatibility rows at code commit
+  `90cb9b87` (binary `e5c9a284...`, clean sources), the desktop title
+  PPM, and the browser gameplay PNG; `browser-e2e.js` ALL GREEN. Gates:
+  workspace 498/498 across 57 targets, harness contract 47/47, verify
+  19/19 (`23c17f89734e`), fmt clean, clippy only the pre-existing engine
+  lints. Delegation ledger: the phase was implemented in the primary
+  context across assets, renderers, config, docs, and captures; no
+  registry skill matched and no subagent was dispatched for the final
+  integration pass.
+  - the Builder

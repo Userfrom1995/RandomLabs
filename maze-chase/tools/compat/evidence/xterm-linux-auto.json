@@ -11,14 +11,14 @@
   "disposition": "pass",
   "unverified_reason": null,
   "build": {
-    "commit": "8f16a3f6a277a7247f11c51c977eb96be6aebf33",
-    "commit_short": "8f16a3f6a277",
-    "binary_sha256": "9ebf8f4c32d82b62278f5d5920b968b426d6c304b85a9e64e12fd68a46a2d6c4",
+    "commit": "90cb9b87f11cae952f2093b3b81b8db01d7f27e5",
+    "commit_short": "90cb9b87f11c",
+    "binary_sha256": "e5c9a284df71afe37413cb3e3047cfb2ce887cf81ad729feecb92ac3dfd0202a",
     "sources_dirty": false
   },
   "pause_select": 0,
   "runner": {
-    "host": "runnervmxehtw",
+    "host": "runnervm8k3b6",
     "id": "compat-harness"
   },
   "geometry": {
@@ -69,8 +69,8 @@
     "resize_exercised": true
   },
   "extra_env": [],
-  "started_at": "2026-10-19T20:52:58Z",
-  "ended_at": "2026-10-19T20:53:21Z",
+  "started_at": "2026-10-20T00:27:51Z",
+  "ended_at": "2026-10-20T00:28:13Z",
   "exit": {
     "code": 0,
     "killed": false,
@@ -80,18 +80,18 @@
   "phases": [
     {
       "name": "title",
-      "bytes": 10107,
-      "at_ms": 1792443181401,
+      "bytes": 14960,
+      "at_ms": 1792456073537,
       "screenshot": "screenshots/title.png",
       "frames": {
-        "count": 2,
-        "bytes_mean": 4852,
+        "count": 3,
+        "bytes_mean": 4851,
         "bytes_max": 4854
       },
       "surfaces": {
         "title_video_line": {
-          "paints": 2,
-          "first_byte": 3489
+          "paints": 3,
+          "first_byte": 3492
         }
       },
       "layout": {
@@ -99,7 +99,7 @@
         "addressed_cols_max": 0,
         "addressed_rows_min": 0,
         "addressed_rows_max": 39,
-        "moves": 81
+        "moves": 121
       },
       "kitty": {
         "transmits": 1,
@@ -123,7 +123,7 @@
       "sprite_census": {
         "pixels": 0,
         "by_color": {
-          "pip": 0,
+          "rill": 0,
           "sunseed": 0,
           "bram": 0,
           "kessa": 0,
@@ -134,25 +134,25 @@
     },
     {
       "name": "playing",
-      "bytes": 1900640,
-      "at_ms": 1792443186076,
+      "bytes": 1848516,
+      "at_ms": 1792456078130,
       "screenshot": "screenshots/playing.png",
-      "duration_ms": 4675,
-      "bytes_per_s": 406554,
+      "duration_ms": 4593,
+      "bytes_per_s": 402463,
       "frames": {
-        "count": 146,
-        "bytes_mean": 13018,
-        "bytes_max": 13064
+        "count": 142,
+        "bytes_mean": 13017,
+        "bytes_max": 13062
       },
-      "frames_per_s": 31.2,
+      "frames_per_s": 30.9,
       "layout": {
         "addressed_cols_min": 0,
         "addressed_cols_max": 8,
         "addressed_rows_min": 0,
         "addressed_rows_max": 39,
-        "moves": 6278
+        "moves": 6106
       },
-      "screenshot_sha256": "fe2cc26e4b334ac7abe0cf9eac11da536cc9f1aa5ae781ca0894cfa2b5964031",
+      "screenshot_sha256": "3fba22c4b941ed903b9d4c1257de852be473fb7ef87f0035aaf3772cd57fc992",
       "screenshot_width": 604,
       "screenshot_height": 524,
       "white_share": 0.0166,
@@ -160,7 +160,7 @@
       "sprite_census": {
         "pixels": 0,
         "by_color": {
-          "pip": 0,
+          "rill": 0,
           "sunseed": 0,
           "bram": 0,
           "kessa": 0,
@@ -171,21 +171,21 @@
     },
     {
       "name": "resized-wide",
-      "bytes": 1331094,
-      "at_ms": 1792443187645,
+      "bytes": 1331178,
+      "at_ms": 1792456079655,
       "screenshot": "screenshots/resized-wide.png",
-      "duration_ms": 1569,
-      "bytes_per_s": 848370,
+      "duration_ms": 1525,
+      "bytes_per_s": 872903,
       "frames": {
         "count": 47,
-        "bytes_mean": 28321,
+        "bytes_mean": 28322,
         "bytes_max": 28362
       },
-      "frames_per_s": 30.0,
+      "frames_per_s": 30.8,
       "surfaces": {
         "playing_hud": {
           "paints": 47,
-          "first_byte": 1938687
+          "first_byte": 1891416
         }
       },
       "layout": {
@@ -195,7 +195,7 @@
         "addressed_rows_max": 62,
         "moves": 3666
       },
-      "screenshot_sha256": "e2ac5ca9f3a9faced0e6305f1b5b398959e987941205c0d1b103d3c9b20b5db9",
+      "screenshot_sha256": "fa4859105ab8569cff618a576c02fe3e63f52e315285125940d8c588e5bb2ac1",
       "screenshot_width": 858,
       "screenshot_height": 832,
       "white_share": 0.0251,
@@ -203,7 +203,7 @@
       "sprite_census": {
         "pixels": 0,
         "by_color": {
-          "pip": 0,
+          "rill": 0,
           "sunseed": 0,
           "bram": 0,
           "kessa": 0,
@@ -214,23 +214,23 @@
     },
     {
       "name": "too-small",
-      "bytes": 110884,
-      "at_ms": 1792443189176,
+      "bytes": 108574,
+      "at_ms": 1792456081156,
       "screenshot": "screenshots/too-small.png",
-      "duration_ms": 1531,
-      "bytes_per_s": 72425,
+      "duration_ms": 1501,
+      "bytes_per_s": 72334,
       "frames": {
-        "count": 48,
+        "count": 47,
         "bytes_mean": 2310,
         "bytes_max": 2314
       },
-      "frames_per_s": 31.4,
+      "frames_per_s": 31.3,
       "layout": {
         "addressed_cols_min": 0,
         "addressed_cols_max": 0,
         "addressed_rows_min": 0,
         "addressed_rows_max": 22,
-        "moves": 1104
+        "moves": 1081
       },
       "screenshot_sha256": "aa94ee14325746b509fa2612504e489b7ac6501f1454346933bd2b7917e394d5",
       "screenshot_width": 480,
@@ -240,7 +240,7 @@
       "sprite_census": {
         "pixels": 0,
         "by_color": {
-          "pip": 0,
+          "rill": 0,
           "sunseed": 0,
           "bram": 0,
           "kessa": 0,
@@ -251,21 +251,21 @@
     },
     {
       "name": "refit",
-      "bytes": 1330246,
-      "at_ms": 1792443190742,
+      "bytes": 1330346,
+      "at_ms": 1792456082688,
       "screenshot": "screenshots/refit.png",
-      "duration_ms": 1566,
-      "bytes_per_s": 849454,
+      "duration_ms": 1532,
+      "bytes_per_s": 868372,
       "frames": {
         "count": 47,
-        "bytes_mean": 28303,
-        "bytes_max": 28362
+        "bytes_mean": 28305,
+        "bytes_max": 28366
       },
-      "frames_per_s": 30.0,
+      "frames_per_s": 30.7,
       "surfaces": {
         "playing_hud": {
           "paints": 47,
-          "first_byte": 3380641
+          "first_byte": 3331112
         }
       },
       "layout": {
@@ -275,15 +275,15 @@
         "addressed_rows_max": 62,
         "moves": 3666
       },
-      "screenshot_sha256": "e84e04ef479bf397205b75f8a87f3f02b28eafcc20be30a1ee6227cc4c6675fb",
+      "screenshot_sha256": "7f336c85223df23d246672c41fa5a62dbe98e953033a0021b93fd2cd5bdbfd29",
       "screenshot_width": 858,
       "screenshot_height": 832,
       "white_share": 0.0251,
-      "dominant_share": 0.8879,
+      "dominant_share": 0.888,
       "sprite_census": {
         "pixels": 0,
         "by_color": {
-          "pip": 0,
+          "rill": 0,
           "sunseed": 0,
           "bram": 0,
           "kessa": 0,
@@ -295,28 +295,28 @@
     {
       "name": "paused",
       "bytes": 20562,
-      "at_ms": 1792443191845,
+      "at_ms": 1792456083753,
       "screenshot": "screenshots/paused.png",
-      "duration_ms": 1103,
-      "bytes_per_s": 18641,
+      "duration_ms": 1065,
+      "bytes_per_s": 19307,
       "frames": {
         "count": 2,
         "bytes_mean": 10281,
         "bytes_max": 10283
       },
-      "frames_per_s": 1.8,
+      "frames_per_s": 1.9,
       "surfaces": {
         "paused": {
           "paints": 2,
-          "first_byte": 4687789
+          "first_byte": 4638392
         },
         "pause_resume": {
           "paints": 2,
-          "first_byte": 4688116
+          "first_byte": 4638719
         },
         "pause_quit": {
           "paints": 2,
-          "first_byte": 4688275
+          "first_byte": 4638878
         }
       },
       "layout": {
@@ -326,7 +326,7 @@
         "addressed_rows_max": 62,
         "moves": 126
       },
-      "screenshot_sha256": "5dff76e8dfcc8aec9cde8c707b00ae8a2a3c0394a652e341d422310713979a76",
+      "screenshot_sha256": "331123a057151d858962eaa09db98642fc0a801bbbc92853caf3c6dc971726fc",
       "screenshot_width": 858,
       "screenshot_height": 832,
       "white_share": 0.0225,
@@ -334,7 +334,7 @@
       "sprite_census": {
         "pixels": 0,
         "by_color": {
-          "pip": 0,
+          "rill": 0,
           "sunseed": 0,
           "bram": 0,
           "kessa": 0,
@@ -346,32 +346,32 @@
     {
       "name": "title-return",
       "bytes": 30841,
-      "at_ms": 1792443193146,
+      "at_ms": 1792456085011,
       "screenshot": "screenshots/title-return.png",
-      "duration_ms": 1301,
-      "bytes_per_s": 23705,
+      "duration_ms": 1258,
+      "bytes_per_s": 24515,
       "frames": {
         "count": 3,
         "bytes_mean": 10280,
         "bytes_max": 10283
       },
-      "frames_per_s": 2.3,
+      "frames_per_s": 2.4,
       "surfaces": {
         "paused": {
           "paints": 1,
-          "first_byte": 4708347
+          "first_byte": 4658950
         },
         "pause_resume": {
           "paints": 1,
-          "first_byte": 4708674
+          "first_byte": 4659277
         },
         "pause_quit": {
           "paints": 1,
-          "first_byte": 4708833
+          "first_byte": 4659436
         },
         "title_video_line": {
           "paints": 2,
-          "first_byte": 4719925
+          "first_byte": 4670528
         }
       },
       "layout": {
@@ -389,7 +389,7 @@
       "sprite_census": {
         "pixels": 0,
         "by_color": {
-          "pip": 0,
+          "rill": 0,
           "sunseed": 0,
           "bram": 0,
           "kessa": 0,
@@ -401,24 +401,24 @@
     {
       "name": "help",
       "bytes": 30843,
-      "at_ms": 1792443194450,
+      "at_ms": 1792456086269,
       "screenshot": "screenshots/help.png",
-      "duration_ms": 1304,
-      "bytes_per_s": 23652,
+      "duration_ms": 1258,
+      "bytes_per_s": 24517,
       "frames": {
         "count": 3,
         "bytes_mean": 10281,
         "bytes_max": 10284
       },
-      "frames_per_s": 2.3,
+      "frames_per_s": 2.4,
       "surfaces": {
         "help": {
           "paints": 2,
-          "first_byte": 4747838
+          "first_byte": 4698441
         },
         "title_video_line": {
           "paints": 1,
-          "first_byte": 4740483
+          "first_byte": 4691086
         }
       },
       "layout": {
@@ -436,7 +436,7 @@
       "sprite_census": {
         "pixels": 0,
         "by_color": {
-          "pip": 0,
+          "rill": 0,
           "sunseed": 0,
           "bram": 0,
           "kessa": 0,
@@ -448,24 +448,24 @@
     {
       "name": "scores",
       "bytes": 41124,
-      "at_ms": 1792443196752,
+      "at_ms": 1792456088518,
       "screenshot": "screenshots/scores.png",
-      "duration_ms": 2302,
-      "bytes_per_s": 17864,
+      "duration_ms": 2249,
+      "bytes_per_s": 18285,
       "frames": {
         "count": 4,
         "bytes_mean": 10281,
         "bytes_max": 10283
       },
-      "frames_per_s": 1.7,
+      "frames_per_s": 1.8,
       "surfaces": {
         "scores": {
           "paints": 2,
-          "first_byte": 4790587
+          "first_byte": 4741190
         },
         "title_video_line": {
           "paints": 2,
-          "first_byte": 4771330
+          "first_byte": 4721933
         }
       },
       "layout": {
@@ -483,7 +483,7 @@
       "sprite_census": {
         "pixels": 0,
         "by_color": {
-          "pip": 0,
+          "rill": 0,
           "sunseed": 0,
           "bram": 0,
           "kessa": 0,
@@ -495,24 +495,24 @@
     {
       "name": "settings",
       "bytes": 41128,
-      "at_ms": 1792443199053,
+      "at_ms": 1792456090764,
       "screenshot": "screenshots/settings.png",
-      "duration_ms": 2301,
-      "bytes_per_s": 17873,
+      "duration_ms": 2246,
+      "bytes_per_s": 18311,
       "frames": {
         "count": 4,
         "bytes_mean": 10282,
         "bytes_max": 10285
       },
-      "frames_per_s": 1.7,
+      "frames_per_s": 1.8,
       "surfaces": {
         "settings": {
           "paints": 2,
-          "first_byte": 4831068
+          "first_byte": 4781671
         },
         "title_video_line": {
           "paints": 2,
-          "first_byte": 4812454
+          "first_byte": 4763057
         }
       },
       "layout": {
@@ -522,15 +522,15 @@
         "addressed_rows_max": 62,
         "moves": 252
       },
-      "screenshot_sha256": "9e641d44d514a83430d6f76fba0a72ca36595c65b751c92053127ca32460ce9b",
+      "screenshot_sha256": "0f484092e9c9d06a4775d21e333ef405bdec043dc1a96a9844aa7c016550f9c9",
       "screenshot_width": 858,
       "screenshot_height": 832,
-      "white_share": 0.0264,
+      "white_share": 0.0263,
       "dominant_share": 0.9736,
       "sprite_census": {
         "pixels": 0,
         "by_color": {
-          "pip": 0,
+          "rill": 0,
           "sunseed": 0,
           "bram": 0,
           "kessa": 0,
@@ -542,10 +542,10 @@
     {
       "name": "tail",
       "bytes": 20642,
-      "at_ms": 1792443201998,
+      "at_ms": 1792456093676,
       "screenshot": null,
-      "duration_ms": 2945,
-      "bytes_per_s": 7009,
+      "duration_ms": 2912,
+      "bytes_per_s": 7088,
       "frames": {
         "count": 2,
         "bytes_mean": 10281,
@@ -555,7 +555,7 @@
       "surfaces": {
         "title_video_line": {
           "paints": 2,
-          "first_byte": 4853582
+          "first_byte": 4804185
         }
       },
       "layout": {
@@ -568,12 +568,12 @@
     }
   ],
   "protocol_totals": {
-    "transcript_bytes": 4868111,
-    "transcript_sha256": "e4dba9357758fab4ebcb2367f29f9a940e747fdeae2a901f9f6e2ab45795fdf2",
+    "transcript_bytes": 4818714,
+    "transcript_sha256": "4136bd264e78412713afd3a372a2ba7e9b41bce245135fe13b32d3e791c1ba3f",
     "frames": {
-      "count": 308,
-      "bytes_mean": 15803,
-      "bytes_max": 28362
+      "count": 304,
+      "bytes_mean": 15849,
+      "bytes_max": 28366
     },
     "kitty": {
       "transmits": 1,
@@ -597,18 +597,18 @@
   "trace": {
     "present": true,
     "path": "session/trace.jsonl",
-    "sha256": "b32f819b2b9cd8517ce445f2883b60c5e027f21da6bf0995639dcc9001f30a89",
-    "records": 19,
+    "sha256": "d89c5e22dc4167964cc8f32351c730eb303b2b00774485da97fb14ef8b25780a",
+    "records": 20,
     "malformed_lines": 0,
     "kinds": {
       "start": 1,
       "plan": 4,
       "probe": 2,
-      "skip": 12
+      "skip": 13
     }
   },
   "notes": [
     "session driven by tools/compat/drive.sh on a real xterm window"
   ],
-  "generated_at": "2026-10-19T20:53:22Z"
+  "generated_at": "2026-10-20T00:28:13Z"
 }
