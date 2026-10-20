@@ -236,3 +236,49 @@ guard. The full gates re-run on the Linux build machine:
   origin instead of the board origin at natural size, and the Kitty
   display uses the footprint instead of the stretched full board box.
   Pinned by unit tests plus PTY placement/IHDR assertions.
+
+## 2026-10-20 (overhaul: Pondwake visual identity)
+
+The Pondwake visual identity (#582, issue #658), measured on the Linux
+build machine at code commit `90cb9b87`:
+
+- `cargo test --workspace --no-fail-fast` (desktop E2E under the local
+  Xvfb): 498 passed, 0 failed across 57 test targets. The art, theme,
+  migration, effects, and token-mirror suites are included.
+- `cargo run --release --bin maze-chase-verify`: 19/19 checks, golden
+  replay digest unchanged (`23c17f89734e`), `perf-headless` 0.1 us/tick
+  for 12k ticks.
+- `cargo fmt --all --check` clean; `cargo clippy --workspace
+  --all-targets` reports only the documented pre-existing engine style
+  lints (six lib warnings plus the rng test lint), none from the new
+  art, theme, renderer, or bridge code.
+- Wasm rebuild (`cargo build --release --target
+  wasm32-unknown-unknown -p maze-chase-web`): sha256
+  `1abe2665eb8ed95e5296002f001c633bf252e663f71a74b97c8412d25f653468`,
+  committed as `web/maze-chase.wasm`; `wasm-smoke.js`,
+  `tester-regression.js`, and the real headless-chromium
+  `browser-e2e.js` are ALL GREEN with zero console errors. The committed
+  browser gameplay capture is `docs/web-gameplay.png` (1280x757).
+- Desktop Xvfb `--probe 30` regenerated `docs/desktop-probe.ppm`
+  (sha256 `1b6f17cc7c2ea69fbd2f20881047c92fc53030a4e3d6a5f3ae624bb4293acf9d`);
+  the desktop E2E asserts the probe bytes.
+- Linux terminal compatibility harness, all eight rows executed on real
+  emulators against the release binary built at commit `90cb9b87`
+  (binary sha256
+  `e5c9a284df71afe37413cb3e3047cfb2ce887cf81ad729feecb92ac3dfd0202a`,
+  `sources_dirty=false`): kitty 0.32.2 auto and forced cells, Ghostty
+  1.3.1 auto and forced kitty, xterm 390 light and dark, and xterm VT340
+  forced and auto. Every row records `disposition: pass`; kitty and
+  Ghostty each carry 21 transmits / 167.1-175.0 KiB per session with
+  171-271 exact sprite-palette pixels in the playing capture; Sixel rows
+  carry 143-144 transmits / 4.58-4.60 MiB. The evidence bundles under
+  `tools/compat/evidence/` and their screenshots are the committed
+  capture set.
+- Terminal sprite census was updated from the retired Ember Warren
+  palette to the Dusk Pond theme palette (Rill, sunseed, and the four
+  hunters) so a hidden-sprite regression is still detected by exact RGB;
+  the harness contract suite stays 47/47.
+
+macOS and Windows terminal rows remain with their per-OS testers; this
+section claims only the executed Linux rows plus the local desktop and
+browser captures.

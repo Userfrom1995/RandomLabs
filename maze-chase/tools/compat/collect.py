@@ -488,9 +488,9 @@ def white_share(decoded):
     return 0.0
 
 
-# Sprite palette of the default Ember Warren theme
-# (maze_chase_assets::themes::EMBER_WARREN): the body colors of Pip,
-# sunseeds, and the four wardens. A kitty-graphics `pass` needs at least
+# Sprite palette of the default Dusk Pond theme
+# (maze_chase_assets::themes::DUSK_POND): the body colors of Rill,
+# sunseeds, and the four hunters. A kitty-graphics `pass` needs at least
 # one of these pixels visible in a playing capture: a valid screenshot of
 # the static board layer alone can decode while every sprite placement
 # sits hidden behind the opaque board (the equal-z Ghostty collapse), so
@@ -499,12 +499,12 @@ def white_share(decoded):
 # fright masks are excluded because they are white/near-white and would
 # collide with the light-background check.
 SPRITE_COLORS = (
-    ("pip", (255, 225, 130)),
-    ("sunseed", (255, 215, 120)),
-    ("bram", (230, 70, 40)),
-    ("kessa", (60, 200, 180)),
-    ("jory", (240, 180, 60)),
-    ("nib", (170, 120, 230)),
+    ("rill", (0x7E, 0xD9, 0x57)),
+    ("sunseed", (0xF2, 0xC1, 0x4E)),
+    ("bram", (0x5F, 0x87, 0xB8)),
+    ("kessa", (0x3E, 0x9B, 0x6E)),
+    ("jory", (0xF2, 0x5E, 0x4A)),
+    ("nib", (0xBE, 0x8B, 0x2A)),
 )
 
 
@@ -592,7 +592,7 @@ def sprite_census(decoded):
     Alpha is deliberately ignored (screen capture can leave it zero,
     same as `white_share`, and the game never paints a transparent
     pixel whose RGB equals a sprite color). The palette is the default
-    Ember Warren theme; the harness always drives a fresh default-theme
+    Dusk Pond theme; the harness always drives a fresh default-theme
     config, and a pass on another theme would downgrade loudly instead
     of passing quietly."""
     counts = {name: 0 for name, _ in SPRITE_COLORS}
