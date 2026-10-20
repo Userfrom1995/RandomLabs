@@ -53,8 +53,8 @@ Title (Start, Help, Scores, Settings), Help, Scores (machine top-10
 with rank/name/score/level), Settings (volumes, reduced flash, reduced motion, high contrast, theme,
 difficulty, mute, key remap), Pause (Resume, Restart, Quit to title),
 Game over (score/level/best, name entry when the run qualifies, Play
-again). The canvas behind the panels shows the live board: the attract
-demo on title, the frozen hunt on pause, the final board on game over.
+again). The canvas behind the panels shows the game board: the fresh
+board on title, the frozen hunt on pause, the final board on game over.
 
 ## Audio
 
@@ -96,8 +96,8 @@ mode, dots, FPS, tune, fright/relish badges) is DOM, updated at 4 Hz.
 Two honest display notes, both engine-faithful, not harness bugs: a
 fresh board reads Dots 448 with Score 10 because Rill's spawn crumb is
 eaten at construction (the engine banks the 10 silently, event-free);
-and the attract demo behind the title panel is a real fresh engine game,
-so the HUD previews that state until you press Start.
+and the fresh board behind the title panel is a real engine game, so
+the HUD previews that state until you press Start.
 
 ## Verification
 
@@ -114,8 +114,12 @@ so the HUD previews that state until you press Start.
   paints varied pixels, real button click starts play, real ArrowUp
   keypresses score, P pauses and Resume returns, touch swipe keeps the
   game alive, mobile viewport (390 by 844) shows the board near the
-  top. Rerun any time from `maze-chase/`: `node web/e2e/wasm-smoke.js`
-  then (with the http server plus CDP chromium up, see
+  top. A boot-gate E2E serves hand-built stale modules through a
+  page-level `fetch` override and proves both a missing
+  `mc_fright_segments` export and an ABI version skew land on the error
+  card instead of Ready. Rerun any time from `maze-chase/`:
+  `node web/e2e/wasm-smoke.js`, `node web/e2e/boot-gate-e2e.js`, then
+  (with the http server plus CDP chromium up, see
   `web/e2e/README.md`) `node web/e2e/browser-e2e.js`.
 
 ## Troubleshooting
@@ -144,10 +148,10 @@ cp target/wasm32-unknown-unknown/release/maze_chase_web.wasm maze-chase/web/maze
 
 The committed `web/maze-chase.wasm` is that exact artifact: 206,711
 bytes, sha256
-`68e331b279f1a86379b47ce27d172d9e58895835ccfb87c2bede238b77dd1374`,
+`ae474117dcf4cf79e3c26609ae7df2369cbbc5ca6387f241c1f300eb5bbe36cb`,
 built with Rust 1.99.0 (rustc commit
 `b940084d7eb6a299eb4bfeb8e34901bc051e7ac4`, embedded in the artifact);
 a second clean build reproduces the same bytes, while a different
-stable release may not. The bridge ABI version (`mc_version() == 1`)
+stable release may not. The bridge ABI version (`mc_version() == 2`)
 gates the harness: mismatched pairs fail loudly on the error card
 instead of misbehaving.

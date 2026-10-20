@@ -84,18 +84,19 @@ discipline).
 First run, per layer:
 
 - Terminal: launch, then Enter on Play starts the hunt (2 interactions,
-  under 1.5 s). The title is an overlay over a live attract board;
-  Up/Down select and Enter activates. Esc at the title quits (same as
-  the Quit row); Quit is a title row and Quit to title is a pause row,
-  both applied immediately.
+  under 1.5 s). The title is an overlay over the fresh game board,
+  dimmed behind the card. Up/Down select and Enter activates. Esc at
+  the title quits (same as the Quit row); Quit is a title row and Quit
+  to title is a pause row, both applied immediately.
 - Desktop: double-click, then Enter on Play (2 interactions, under 2 s).
 - Web: page open, then the Start button (2 interactions, playable under
   2.5 s on a 10 Mbps link).
 - Mobile: tap Start, then one swipe (2 touches); the D-pad and swipe pad
   are visible whenever touch is present.
 
-Screens and states. Attract (runs behind the title dimmed 40 percent;
-pause stages the frozen board dimmed 55 percent), title overlay (three zones: live attract board left, menu
+Screens and states. Attract (the fresh game board behind the title,
+dimmed 40 percent; a static backdrop, not a running demo), title overlay
+(three zones: fresh board left, menu
 with per-item description strip right, warden legend plus goal line
 bottom: "clear 445 crumbs; sunseeds turn the hunt"), play HUD (score,
 best, wicks, level, dots with completion bar, fright and relish badges,
@@ -110,8 +111,8 @@ settings), pause hub (frozen board dimmed 55 percent, actors exempt
 from dimming and held at 3:1 or better against the dimmed board; Resume
 and Quit to title; M mutes during play, while reduced motion, reduced
 flash, and high contrast are Settings rows on every layer, applied live
-and persisted), how-to-play (static pages; Enter from any page starts a
-hunt), scores,
+and persisted), how-to-play (static pages; Confirm/Back returns to the
+title), scores,
 settings (four tabs: Game, Sound, Access, Controls; live-apply; theme
 and difficulty apply next hunt), game over (score, crumbs cleared,
 warden-eats, best, rank; name entry on web), too-small card (states
@@ -147,8 +148,8 @@ Hostile input. Key mash: run-start limited to one per 500 ms, menus
 coalesce repeat at 10 Hz. Quit and restart apply immediately (no confirm
 dialog ships in this release). Resize mid-menu preserves surface and
 selection; resize mid-pause repaints the overlay with the board frozen.
-Browser Back pushes one history guard so Back pauses instead of
-leaving; a second Back within 2 s leaves. Touch: `touch-action: none`
+Browser Back leaves the page (no history guard ships); use the header
+Pause control to stay in the hunt. Touch: `touch-action: none`
 on the board, 44 px minimum targets. Denied localStorage: session-only
 chip. Terminal below the floor: too-small card with the run preserved.
 Gamepad unplug: auto-pause within 100 ms. SIGINT terminates the
@@ -277,7 +278,8 @@ above. These are the simplifications accepted for this release:
   flash, and high contrast are Settings rows on every layer (no R/V/C
   chords); the three-interaction accessibility path is a target, not a
   shipped shortcut; how-to-play pages are static text (no scripted
-  mini-boards); no achievement toasts ship.
+  mini-boards); the browser history guard is not shipped (Back leaves
+  the page; use the header Pause control); no achievement toasts ship.
 - Environment: wall faces are two-tone bevels with a single accent gate
   line; no moss flecks, vertical joints or offset courses, caustic
   dither, lily-ring reed door, or tunnel pipe/current/entry ripple.
@@ -442,10 +444,10 @@ static silhouette states.
 
 Reduced-flash registry (shipped): fright warning, death, sunseed halo,
 pickup bursts, the level-clear sweep and banner, the extra-life Golden
-Lily, and attract-board animation. Reduced-motion registry (shipped):
-the same sources plus chomp/hop and relish bob, turn sparks, score
-floaters, and the staged title/pause board. Deferred sources are listed
-under accepted simplifications and are not shipped, so they are not in
+Lily. Reduced-motion registry (shipped):
+the same sources plus chomp/hop and relish bob, turn sparks, and score
+floaters. Deferred sources are listed under accepted simplifications
+and are not shipped, so they are not in
 the registry. Tests: the render-code registry test fails on any
 unlisted brightness call site; a capture test renders 180 frames of the
 warning window with reduced flash on and asserts no pixel above 0.85

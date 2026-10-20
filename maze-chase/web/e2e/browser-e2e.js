@@ -326,7 +326,7 @@ async function shot(ws, path) {
   assert(clearedText.includes('No scores yet'), 'clear empties the table in-page');
 
   // Settings theme panel: the label is read from Rust (single source of
-  // truth), the cycle button repaints the attract board, and the choice
+  // truth), the cycle button repaints the title board, and the choice
   // persists through the settings blob and a reload. The baseline is
   // normalized first because a prior run may have left a stored theme.
   await send(ws, 'Page.navigate', { url: PAGE });
@@ -375,6 +375,8 @@ async function shot(ws, path) {
     c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true }));
   })()`);
   await sleep(400);
+  assert((await themeLabel()) === 'Moonwake (high contrast)',
+    'high contrast labels the effective Moonwake theme');
   const a11yBlob = await evalJs(ws, `localStorage.getItem('maze-chase-settings')`);
   const a11yText = a11yBlob ? Buffer.from(a11yBlob, 'base64').toString('utf8') : '';
   assert(/^reduced_motion = true$/m.test(a11yText), 'reduced_motion persists in the settings blob, got: ' + JSON.stringify(a11yText.split('\n').filter((l) => l.startsWith('reduced_motion'))));
@@ -392,6 +394,8 @@ async function shot(ws, path) {
     c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true }));
   })()`);
   await sleep(300);
+  assert((await themeLabel()) === 'Dusk Pond (1/3)',
+    'clearing high contrast restores the stored theme label');
 
   const realErrors = errors.filter((e) => !/AudioContext|audio|user gesture/i.test(e));
   console.log('console/log errors:', realErrors.length ? realErrors : '(none)');
