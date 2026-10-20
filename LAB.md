@@ -616,20 +616,27 @@ Public Surface / Web Track:                                              │
   same-named origin branch. The PR-comment path rewrites only `opencode/`
   lab branches, but a branch with zero owner trailers exits 0 loudly before
   that refusal, so a clean human or fork PR cannot red. Regression-guarded by
-  audit rule R29, which pins all nine workflow invocations, their trusted
-  checkout ref and staged order, and rejects inline copies in those nine
-  steps, then executes the real script against a mock `gh` and a local bare
-  origin in an isolated environment (Refs no-trailer exit 0 untouched, Refs
-  owner-trailer strip, clean human exit 0, human branches with an owner
-  trailer refused, fork/deleted-head PRs loud no-ops with the remote
-  untouched, issue-mismatch refused, contributor trailer preserved,
+  audit rule R29, which pins all nine workflow invocations, their exact
+  trusted-checkout `with:` surface (an added `repository`, a shallower
+  `fetch-depth`, or disabled credentials is rejected) and staged order, and
+  rejects inline copies in those nine steps, then executes the real script
+  against a mock `gh` and a local bare origin in an isolated environment
+  (Refs no-trailer exit 0 untouched, Refs owner-trailer strip, clean human
+  exit 0, human branches with an owner trailer refused, fork/deleted-head
+  PRs loud no-ops with the remote untouched, an absent head branch a loud
+  no-op, issue-mismatch refused, contributor trailer preserved,
   cross-repository and same-repo/head-repository/prefix decoys filtered,
-  newest match selected, review-comment payload resolves, malformed event
-  and git-log failure fail closed) and whose ten mutants (the pre-fix
-  PR-number guard applied to the PR path, the narrowed PR namespace guard,
-  each identity/namespace guard removed, the cross-repository and
-  head-repository filters removed, the prefix widened, the sort reversed,
-  and the sanitizer broadened) each fail a scenario alone.
+  newest match selected, both review-comment rewrite shapes and review-path
+  no-ops exercised, malformed and non-object event payloads, malformed PR
+  metadata, a failed PR list, a failed PR view, a rejected strip push, and a
+  git-log failure all fail closed) with every case snapshotting the whole
+  remote so only the target branch may ever move, and whose fourteen mutants
+  (the pre-fix PR-number guard applied to the PR path, the narrowed PR
+  namespace guard, each identity/namespace guard removed, the
+  cross-repository and head-repository filters removed, the prefix widened,
+  the sort reversed, the sanitizer broadened, a review-comment event-name
+  shortcut, a rejected push or failed list failing open, and a main
+  force-push) each fail a scenario alone.
 - Concurrency - per-PR groups, queued execution:
 
 ```yaml
@@ -709,7 +716,9 @@ Your PAT is used ONLY by hardcoded workflow steps, for exactly these things:
   `opencode/` lab namespace only when it actually carries an owner trailer
   (a clean branch exits 0 loudly, so a human PR cannot red). The issue path
   keeps its strict namespace refusal and filters its open-PR lookup to
-  same-repository PRs under `--limit 100` (issue #689, audit R29).
+  same-repository PRs under `--limit 100`; a head branch that no longer
+  exists on origin is a loud no-op while a failed remote query still fails
+  closed (issue #689, audit R29).
 
 ## 8. Worker rules (all agents)
 

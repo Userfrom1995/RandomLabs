@@ -11664,8 +11664,8 @@ fi
 # events, an executable mock `gh` (interception proven), and a local bare
 # origin whose commit subjects model Builder and Tester pushes, including a
 # 1500-commit large-range fixture and a branch-without-helpers staging
-# fixture; 63 mutation
-# self-tests (55 workflow static-pin mutants plus 8 helper-fixture mutants)
+# fixture; 64 mutation
+# self-tests (56 workflow static-pin mutants plus 8 helper-fixture mutants)
 # prove both the exact pins and the fixture matrices are load-bearing (a
 # foreign-branch pushed="yes", a verify or forward `if: false`, a
 # retry-target rebind, a retry-counter reset, a fail-open attribution
@@ -12516,32 +12516,38 @@ if forward_build_index <= build_verify_index:
 
 # Post-agent steps may only execute the staged copies. Scan by helper
 # basename so a `./`, `bash -c`, `source`, absolute, or quoted spelling cannot
-# evade the ban while running the agent-mutable workspace copy.
-for (bound_job_name, _, bound_step) in steps:
-    if bound_step.get("name") == STAGE_NAME:
-        continue
-    bound_body = "\n".join(line for line in norm(bound_step.get("run") or "").splitlines()
-                           if not line.strip().startswith("#"))
-    for helper in ("resolve-thread-target.sh", "classify-build-push.sh", "strip-trailers.sh"):
-        remaining = bound_body
-        while helper in remaining:
-            at = remaining.index(helper)
-            if not remaining[:at].endswith("$RUNNER_TEMP/lab-scripts/"):
-                fail("untrusted-helper-invocation:%s:%s:%s"
-                     % (bound_job_name, bound_step.get("name"), helper))
-            remaining = remaining[at + len(helper):]
-    # The staging directory is a trust boundary, not just an invocation path:
-    # a reviewed extra step could glob-copy the agent-mutable workspace
-    # helpers over the staged copies (no helper basename to trip the scan
-    # above) or redirect into the directory. Ban any copy verb or redirect
-    # that targets it outside the one staging step.
-    for line in bound_body.splitlines():
-        if "$RUNNER_TEMP/lab-scripts" not in line:
+# evade the ban while running the agent-mutable workspace copy. Every step is
+# scanned, not only the bound ones: a reviewed extra step that rewrites the
+# staged copy would otherwise be invisible to this guard.
+for job_name, job_doc in (doc.get("jobs") or {}).items():
+    for bound_step in ((job_doc or {}).get("steps") or []):
+        if bound_step.get("name") == STAGE_NAME:
             continue
-        if re.search(r"(^|[^A-Za-z0-9_])(cp|mv|install|rsync|ln|tee|dd)([^A-Za-z0-9_]|$)", line) \
-                or re.search(r">>?\s*\"?\$RUNNER_TEMP/lab-scripts", line):
-            fail("staged-helper-overwrite:%s:%s"
-                 % (bound_job_name, bound_step.get("name")))
+        bound_body = "\n".join(line for line in norm(bound_step.get("run") or "").splitlines()
+                               if not line.strip().startswith("#"))
+        for helper in ("resolve-thread-target.sh", "classify-build-push.sh", "strip-trailers.sh"):
+            remaining = bound_body
+            while helper in remaining:
+                at = remaining.index(helper)
+                if not remaining[:at].endswith("$RUNNER_TEMP/lab-scripts/"):
+                    fail("untrusted-helper-invocation:%s:%s:%s"
+                         % (job_name, bound_step.get("name"), helper))
+                remaining = remaining[at + len(helper):]
+        # The staging directory is a trust boundary, not just an invocation
+        # path: a reviewed extra step could copy the agent-mutable workspace
+        # helpers over the staged copies or edit them in place (sed -i,
+        # perl -i, truncate, rm, chmod, a Python open-write), and a redirect
+        # can overwrite them too. Ban every writer outside the one staging
+        # step. The source helpers are covered as well so a pre-staging step
+        # cannot tamper with the tree that is about to be staged.
+        for line in bound_body.splitlines():
+            if "$RUNNER_TEMP/lab-scripts" not in line and ".github/scripts/" not in line:
+                continue
+            if re.search(r"(^|[^A-Za-z0-9_])(cp|mv|install|rsync|ln|tee|dd|sed|perl|truncate|rm|chmod)([^A-Za-z0-9_]|$)", line) \
+                    or re.search(r"(^|[^A-Za-z0-9_])open\s*\(", line) \
+                    or re.search(r">>?\s*\"?\$RUNNER_TEMP/lab-scripts", line):
+                fail("staged-helper-overwrite:%s:%s"
+                     % (job_name, bound_step.get("name")))
 
 if doc.get("permissions") != EXPECTED_PERMISSIONS:
     fail("workflow-permissions-changed:%r" % (doc.get("permissions"),))
@@ -12991,6 +12997,12 @@ mutants = {
         '        run: cp .github/scripts/*.sh "$RUNNER_TEMP/lab-scripts/"\n'
         '      - name: Verify research decided, else auto-retry\n',
     ),
+    "stage-inplace-tamper": sub(
+        '      - name: Verify research decided, else auto-retry\n',
+        '      - name: Tamper staged strip helper\n'
+        '        run: sed -i \'s/exit 1/exit 0/g\' "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"\n'
+        '      - name: Verify research decided, else auto-retry\n',
+    ),
     "build-different-branch-no-tipmove": sub(
         "            elif [ -n \"$tip_now\" ] && ! printf '%s\\n' \"$PATTERN_TIPS\" | grep -qxF \"$tip_now\"; then\n",
         "            elif [ -n \"$tip_now\" ]; then\n",
@@ -13016,7 +13028,7 @@ print("\n".join(sorted(mutants)))
 R28STATICMUT
     r28_bad="${r28_bad} opencode.yml(static-mutant-generation-failed:$(tr '\n' ';' < "$r28_tmp/static-mutants.log" | cut -c1-200))"
   else
-    r28_wf_mutant_list="verify-target verify-counter verify-newest-pr verify-retries-reset verify-cap verify-env-token verify-id verify-continue-on-error forward-target forward-comment forward-if forward-event-number forward-env-token build-if build-env-branch build-attribution build-fail-open build-pushed-foreign build-continue-on-error recover-gate recover-exit recover-shell workflow-env research-job-env build-job-defaults build-baseline-id phase-actor-gate-id research-job-continue-on-error build-job-continue-on-error phase-gate-if-false phase-gate-duplicate phase-opencode-if-false phase-opencode-duplicate build-baseline-if-false build-baseline-comment-markers research-job-if-false build-job-if-false build-baseline-body-main phase-agent-alias phase-agent-pat phase-agent-timeout research-job-permissions research-job-runs-on research-job-timeout build-baseline-blank-continuation stage-body-changed stage-name-changed stage-direct-path stage-overwrite-copy forward-builder-body-helper build-baseline-fail-open build-baseline-git-fail-open build-different-branch-no-tipmove permissions-pr-none forward-builder-gate"
+    r28_wf_mutant_list="verify-target verify-counter verify-newest-pr verify-retries-reset verify-cap verify-env-token verify-id verify-continue-on-error forward-target forward-comment forward-if forward-event-number forward-env-token build-if build-env-branch build-attribution build-fail-open build-pushed-foreign build-continue-on-error recover-gate recover-exit recover-shell workflow-env research-job-env build-job-defaults build-baseline-id phase-actor-gate-id research-job-continue-on-error build-job-continue-on-error phase-gate-if-false phase-gate-duplicate phase-opencode-if-false phase-opencode-duplicate build-baseline-if-false build-baseline-comment-markers research-job-if-false build-job-if-false build-baseline-body-main phase-agent-alias phase-agent-pat phase-agent-timeout research-job-permissions research-job-runs-on research-job-timeout build-baseline-blank-continuation stage-body-changed stage-name-changed stage-direct-path stage-overwrite-copy stage-inplace-tamper forward-builder-body-helper build-baseline-fail-open build-baseline-git-fail-open build-different-branch-no-tipmove permissions-pr-none forward-builder-gate"
     # Bind the generator's mutation set to the list executed below: a mutant
     # added (or dropped) in only one place would otherwise silently shrink
     # the load-bearing matrix without tripping any other check.
@@ -13335,7 +13347,7 @@ R28MUTCLASS
 fi
 rm -rf "$r28_tmp"
 if [ -z "$r28_bad" ]; then
-  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected and its exact if/id/env/key set and normalized run body pinned, every consumed steps.<id> resolves in its owning job to the expected step identity (actor gate, agent, baseline, verify-phase, verify) ahead of its consumer with the resolved gate/agent/baseline steps bound to their exact key surface, if, env, and executable output lines so a skipped decoy cannot shadow them, every bound job's key set, runs-on, timeout, and trigger if scalar are pinned exactly, the agent env/timeout/continue-on-error are pinned, composite uses paths are path-normalized before counting, the baseline run body is pinned exactly, job-level continue-on-error is rejected on every bound job, the attribution calls are pinned including their fail-closed closure with no pushed=yes inside a foreign branch, both merge-decision helper scripts plus the strip script are staged from the trusted default-branch checkout into RUNNER_TEMP before the agent starts and every post-agent step invokes the staged copy (never the agent-mutable workspace copy, which an in-flight branch may not even contain), the baseline fails loudly on a nonzero gh or git status (capture-first, so a failed ls-remote is never swallowed as branch-absent), so an empty branch means only a successful no-PR query, and no non-staging step may write into the staged-helper directory, the workflow-level permissions block is pinned exactly, the build forward is gated on a verified own push, the classifier reads subjects through a here-string so a large builder batch cannot SIGPIPE into a false foreign verdict, both real helper scripts are executed against fixture events (including an unparseable payload that must fail closed), an executable mock gh, and a local bare origin with Builder/Tester commit subjects (including a 1500-commit large-range fixture and a branch-without-helpers staging fixture), and 63 mutation self-tests (55 workflow static-pin mutants plus 8 helper-fixture mutants) prove the static pins and both fixture matrices load-bearing (issue #690)" "ok"
+  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected and its exact if/id/env/key set and normalized run body pinned, every consumed steps.<id> resolves in its owning job to the expected step identity (actor gate, agent, baseline, verify-phase, verify) ahead of its consumer with the resolved gate/agent/baseline steps bound to their exact key surface, if, env, and executable output lines so a skipped decoy cannot shadow them, every bound job's key set, runs-on, timeout, and trigger if scalar are pinned exactly, the agent env/timeout/continue-on-error are pinned, composite uses paths are path-normalized before counting, the baseline run body is pinned exactly, job-level continue-on-error is rejected on every bound job, the attribution calls are pinned including their fail-closed closure with no pushed=yes inside a foreign branch, both merge-decision helper scripts plus the strip script are staged from the trusted default-branch checkout into RUNNER_TEMP before the agent starts and every post-agent step invokes the staged copy (never the agent-mutable workspace copy, which an in-flight branch may not even contain), the baseline fails loudly on a nonzero gh or git status (capture-first, so a failed ls-remote is never swallowed as branch-absent), so an empty branch means only a successful no-PR query, and no step outside the staging step may copy over, in-place edit (sed -i, perl -i, truncate, rm, chmod, a Python open-write), or redirect into the staged-helper directory, or edit the source helpers before staging, the workflow-level permissions block is pinned exactly, the build forward is gated on a verified own push, the classifier reads subjects through a here-string so a large builder batch cannot SIGPIPE into a false foreign verdict, both real helper scripts are executed against fixture events (including an unparseable payload that must fail closed), an executable mock gh, and a local bare origin with Builder/Tester commit subjects (including a 1500-commit large-range fixture and a branch-without-helpers staging fixture), and 64 mutation self-tests (56 workflow static-pin mutants plus 8 helper-fixture mutants) prove the static pins and both fixture matrices load-bearing (issue #690)" "ok"
 else
   check "R28" "phase thread binding or build-push attribution guard missing:${r28_bad} (issue #690: a design retry/forward migrated to the newest phase PR and the build verify read a foreign Tester push as its own)" "bad"
 fi
@@ -13363,22 +13375,32 @@ fi
 # gate with the job-scoped token, and no inline filter-branch copy remains in
 # those nine steps (the lab workflow keeps its separate R11-guarded strip).
 #
-# The rule pins all nine workflow invocations and the event-shape parsing
-# statically, then functionally executes the real script in a sandbox against
-# an executable mock gh and a local bare origin across the whole matrix: a
-# Refs PR thread with no trailers exits 0 without a rewrite (the incident),
-# the same thread with one owner trailer is stripped, a clean human branch
-# exits 0, human branches with an owner trailer are refused, fork and
-# deleted-head PRs are loud no-ops with the remote tip untouched, an
+# The rule pins all nine workflow invocations, the exact trusted-checkout
+# `with:` surface (an added repository, a shallower fetch-depth, or disabled
+# credentials would source the runner and the staged helper elsewhere), and
+# the event-shape parsing statically, then functionally executes the real
+# script in a sandbox against an executable mock gh and a local bare origin
+# across the whole matrix: a Refs PR thread with no trailers exits 0 without a
+# rewrite (the incident), the same thread with one owner trailer is stripped,
+# a clean human branch exits 0, human branches with an owner trailer are
+# refused, fork and deleted-head PRs are loud no-ops with the remote tip
+# untouched, an absent head branch is a loud no-op, an
 # issue-thread-mismatch is refused, a mixed
 # owner-plus-contributor trailer preserves the contributor, the issue lookup
 # filters cross-repository, non-same-repository, and prefix decoys and strips
-# the newest matching branch, a
-# pull_request_review_comment payload resolves, a malformed event fails
-# closed, and a missing origin/main fails closed. Mutation self-tests
+# the newest matching branch, both review-comment rewrite shapes (owner and
+# mixed trailers) are exercised end-to-end, a malformed or non-object event
+# payload fails closed, a malformed PR payload fails closed, a failed PR list
+# or PR view fails closed, a rejected strip push fails closed with the remote
+# untouched, and a missing origin/main fails closed. Every case snapshots every
+# remote head before and after: a case that should not rewrite must leave the
+# WHOLE remote untouched, and a stripping case may move only its target branch,
+# so a stray force-push of main is caught. Mutation self-tests
 # re-introduce the pre-fix PR-number guard, narrow and widen each
 # identity/namespace guard, remove the cross-repository and head-repository
-# filters, widen the prefix, reverse the sort, and broaden the sanitizer; each
+# filters, widen the prefix, reverse the sort, broaden the sanitizer, shortcut
+# the review-comment path on the event name, fail open on a rejected push or a
+# failed list, and force-push main; each
 # mutant must fail a scenario alone, so a future rewrite cannot keep the audit
 # green while the false-red returns or the rewrite boundary widens.
 R29_SCRIPT=".github/scripts/strip-trailers.sh"
@@ -13400,6 +13422,14 @@ else
   grep -qF 'No same-repository head' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-non-repo-noop)"
   grep -qF 'opencode/*)' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-pr-namespace-guard)"
   grep -qF 'refs/remotes/origin/main..HEAD' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-base-preserving-range)"
+  grep -qF 'type == "object"' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-object-event-guard)"
+  grep -qF 'Could not list open PRs' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-pr-list-fail-closed)"
+  grep -qF 'Could not resolve PR #' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-pr-view-fail-closed)"
+  grep -qF 'Could not parse the PR metadata' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-pr-metadata-fail-closed)"
+  grep -qF -- '--exit-code --heads' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-ls-remote-probe)"
+  grep -qF 'no longer exists on origin' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-absent-head-noop)"
+  grep -qF 'Could not query branch' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-remote-query-fail-closed)"
+  grep -qF 'Could not update branch' "$R29_SCRIPT" || r29_bad="${r29_bad} script(no-push-fail-closed)"
   if grep -qF 'R29_' "$R29_SCRIPT"; then
     r29_bad="${r29_bad} script(references-audit-harness)"
   fi
@@ -13409,7 +13439,9 @@ r29_tmp=$(mktemp -d 2>/dev/null || true)
 if [ -z "$r29_tmp" ] || [ ! -d "$r29_tmp" ]; then
   r29_bad="${r29_bad} sandbox(tmp-unavailable)"
 else
-  if ! python3 -I - "${OPENCODE_WF:-.github/workflows/opencode.yml}" <<'R29WIRING' >"$r29_tmp/wiring.log" 2>&1; then
+  r29_wf="${OPENCODE_WF:-.github/workflows/opencode.yml}"
+  r29_wiring_py="$r29_tmp/r29-wiring.py"
+  cat > "$r29_wiring_py" <<'R29WIRING'
 import sys
 
 import yaml
@@ -13495,10 +13527,14 @@ for job_name, steps in found.items():
     if len(checkouts) != 1:
         raise SystemExit("strip-checkout-count:%s" % job_name)
     with_map = checkouts[0].get("with") or {}
-    if with_map.get("ref") != "${{ github.event.repository.default_branch || github.ref_name }}":
-        raise SystemExit("strip-checkout-ref:%s" % job_name)
-    if with_map.get("token") != "${{ github.token }}":
-        raise SystemExit("strip-checkout-token:%s" % job_name)
+    expected_with = {
+        "persist-credentials": True,
+        "token": "${{ github.token }}",
+        "ref": "${{ github.event.repository.default_branch || github.ref_name }}",
+        "fetch-depth": 0,
+    }
+    if with_map != expected_with:
+        raise SystemExit("strip-checkout-surface:%s:%r" % (job_name, sorted(with_map)))
     agents = []
     for candidate in job_steps:
         uses = str(candidate.get("uses") or "").strip()
@@ -13517,7 +13553,28 @@ text = open(path, encoding="utf-8").read()
 if "git filter-branch" in text:
     raise SystemExit("inline-strip-implementation")
 R29WIRING
+  if ! python3 -I "$r29_wiring_py" "$r29_wf" >"$r29_tmp/wiring.log" 2>&1; then
     r29_bad="${r29_bad} workflow-wiring"
+  fi
+  # The trusted-checkout pin must reject any extra `with:` key: an added
+  # `repository:` clones the runner, the gate script, and the staged strip
+  # helper from another repository, while `fetch-depth: 1` or
+  # `persist-credentials: false` changes the same trust surface.
+  if ! python3 -I - "$r29_wf" "$r29_tmp/wiring-checkout.yml" <<'R29WIRMUT' >"$r29_tmp/wiring-mut.log" 2>&1; then
+import sys
+
+src, dst = sys.argv[1], sys.argv[2]
+text = open(src, encoding="utf-8").read()
+old = "          ref: ${{ github.event.repository.default_branch || github.ref_name }}\n"
+if text.count(old) != 9:
+    raise SystemExit("wiring-mutation-anchor-count=%d" % text.count(old))
+new = old + "          repository: evil/RandomLabs\n"
+with open(dst, "w", encoding="utf-8") as handle:
+    handle.write(text.replace(old, new, 1))
+R29WIRMUT
+    r29_bad="${r29_bad} workflow-wiring-mutant-generation"
+  elif python3 -I "$r29_wiring_py" "$r29_tmp/wiring-checkout.yml" >/dev/null 2>&1; then
+    r29_bad="${r29_bad} workflow-wiring-mutant(checkout-surface-escaped)"
   fi
   R29_ABS="$(cd "$(dirname "$R29_SCRIPT")" && pwd)/$(basename "$R29_SCRIPT")"
   r29_bin="$r29_tmp/bin"
@@ -13529,6 +13586,10 @@ set -euo pipefail
 printf '%s\n' "$*" >> "${R29_GH_LOG:?}"
 case "${1:-} ${2:-}" in
   "pr view")
+    if [ "${R29_GH_FAIL:-}" = "view" ]; then
+      echo "mock gh: injected view failure" >&2
+      exit 71
+    fi
     if [ "$#" -ne 7 ] || [ "$4" != "--repo" ] || [ "$5" != "${R29_REPO:?}" ] \
       || [ "$6" != "--json" ] || [ "$7" != "headRefName,isCrossRepository,headRepository" ]; then
       echo "mock gh: unexpected pr view argv: $*" >&2
@@ -13541,6 +13602,10 @@ case "${1:-} ${2:-}" in
     cat "${R29_PR_JSON:?}"
     ;;
   "pr list")
+    if [ "${R29_GH_FAIL:-}" = "list" ]; then
+      echo "mock gh: injected list failure" >&2
+      exit 72
+    fi
     if [ "$#" -ne 10 ] || [ "$3" != "--repo" ] || [ "$4" != "${R29_REPO:?}" ] \
       || [ "$5" != "--state" ] || [ "$6" != "open" ] \
       || [ "$7" != "--limit" ] || [ "$8" != "100" ] \
@@ -13559,6 +13624,35 @@ esac
 R29GH
   chmod +x "$r29_bin/gh"
 
+  # Seed (or reseed) one sandbox branch. Mutants that rewrite a branch need a
+  # pristine trailer-bearing tip per run; without the reseed a later mutant
+  # would fail merely because an earlier case already stripped the branch,
+  # which would make the mutation matrix vacuously green.
+  r29_seed_branch() {
+    local name="$1" trailer="$2"
+    (
+      cd "$r29_tmp/seed" || exit 1
+      git checkout -q main || exit 1
+      git checkout -q -B "$name" main || exit 1
+      printf '%s\n' "$name" > branch.txt
+      git add branch.txt
+      case "$trailer" in
+        owner)
+          git commit -q -m "feat: $name" -m "Co-authored-by: Userfrom1995 <owner@example.com>" || exit 1
+          ;;
+        mixed)
+          git commit -q -m "feat: $name" \
+            -m "Co-authored-by: Userfrom1995 <owner@example.com>" \
+            -m "Co-authored-by: Jane Contributor <jane@example.com>" || exit 1
+          ;;
+        *)
+          git commit -q -m "feat: $name" || exit 1
+          ;;
+      esac
+      git push -q --force origin "HEAD:refs/heads/$name" || exit 1
+    )
+  }
+
   r29_build() {
     git init --bare -q "$r29_bare" || return 1
     git --git-dir="$r29_bare" symbolic-ref HEAD refs/heads/main || return 1
@@ -13574,39 +13668,21 @@ R29GH
       git add base.txt
       git commit -q -m "base"
       git push -q origin HEAD:main || exit 1
-      r29_branch() {
-        local name="$1" trailer="$2"
-        git checkout -q main || exit 1
-        git checkout -q -b "$name" || exit 1
-        printf '%s\n' "$name" > branch.txt
-        git add branch.txt
-        case "$trailer" in
-          owner)
-            git commit -q -m "feat: $name" -m "Co-authored-by: Userfrom1995 <owner@example.com>" || exit 1
-            ;;
-          mixed)
-            git commit -q -m "feat: $name" \
-              -m "Co-authored-by: Userfrom1995 <owner@example.com>" \
-              -m "Co-authored-by: Jane Contributor <jane@example.com>" || exit 1
-            ;;
-          *)
-            git commit -q -m "feat: $name" || exit 1
-            ;;
-        esac
-        git push -q origin "HEAD:refs/heads/$name" || exit 1
-      }
-      r29_branch opencode/issue582-noowner none
-      r29_branch opencode/issue582-owner owner
-      r29_branch opencode/issue582-deleted-head owner
-      r29_branch feature/human-owner owner
-      r29_branch feature/human-clean none
-      r29_branch opencode/issue582-fork owner
-      r29_branch opencode/issue582-mismatch owner
-      r29_branch opencode/issue582-review none
-      r29_branch opencode/issue582-mixed mixed
-      r29_branch opencode/issue42-newer-owner owner
-      r29_branch opencode/issue42-older-owner owner
     ) || return 1
+    r29_seed_branch opencode/issue582-noowner none || return 1
+    r29_seed_branch opencode/issue582-owner owner || return 1
+    r29_seed_branch opencode/issue582-deleted-head owner || return 1
+    r29_seed_branch feature/human-owner owner || return 1
+    r29_seed_branch feature/human-clean none || return 1
+    r29_seed_branch opencode/issue582-fork owner || return 1
+    r29_seed_branch opencode/issue582-mismatch owner || return 1
+    r29_seed_branch opencode/issue582-review none || return 1
+    r29_seed_branch opencode/issue582-review-owner owner || return 1
+    r29_seed_branch opencode/issue582-review-mixed mixed || return 1
+    r29_seed_branch opencode/issue582-mixed mixed || return 1
+    r29_seed_branch opencode/issue582-pushfail owner || return 1
+    r29_seed_branch opencode/issue42-newer-owner owner || return 1
+    r29_seed_branch opencode/issue42-older-owner owner || return 1
     return 0
   }
 
@@ -13614,6 +13690,8 @@ R29GH
   printf '%s\n' '{"issue":{"number":42}}' > "$r29_tmp/event-issue.json"
   printf '%s\n' '{"pull_request":{"number":685}}' > "$r29_tmp/event-review.json"
   printf '%s\n' 'this is not json' > "$r29_tmp/event-malformed.json"
+  printf '%s\n' '[]' > "$r29_tmp/event-array.json"
+  printf '%s\n' '"x"' > "$r29_tmp/event-string.json"
   printf '%s\n' '{"headRefName":"opencode/issue582-noowner","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-noowner.json"
   printf '%s\n' '{"headRefName":"opencode/issue582-owner","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-owner.json"
   printf '%s\n' '{"headRefName":"feature/human-owner","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-human.json"
@@ -13621,23 +13699,36 @@ R29GH
   printf '%s\n' '{"headRefName":"opencode/issue582-fork","isCrossRepository":true,"headRepository":{"nameWithOwner":"someone/RandomLabs"}}' > "$r29_tmp/pr-fork.json"
   printf '%s\n' '{"headRefName":"opencode/issue582-mismatch","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-mismatch.json"
   printf '%s\n' '{"headRefName":"opencode/issue582-review","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-review.json"
+  printf '%s\n' '{"headRefName":"opencode/issue582-review-owner","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-review-owner.json"
   printf '%s\n' '{"headRefName":"opencode/issue582-mixed","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-mixed.json"
+  printf '%s\n' '{"headRefName":"opencode/issue582-review-mixed","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-review-mixed.json"
   printf '%s\n' '{"headRefName":"opencode/issue582-deleted-head","isCrossRepository":false,"headRepository":null}' > "$r29_tmp/pr-deleted-head.json"
+  printf '%s\n' '{"headRefName":"opencode/issue582-gone","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-gone.json"
+  printf '%s\n' '{"headRefName":"opencode/issue582-pushfail","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-pushfail.json"
+  printf '%s\n' '[]' > "$r29_tmp/pr-array.json"
   printf '%s\n' '{"headRefName":"opencode/issue42-newer-owner","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}' > "$r29_tmp/pr-issue42-newer.json"
   printf '%s\n' '[{"number":199,"headRefName":"opencode/issue42-newer-owner","createdAt":"2026-01-07T00:00:00Z","isCrossRepository":true,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}},{"number":198,"headRefName":"opencode/issue42-newer-owner","createdAt":"2026-01-08T00:00:00Z","isCrossRepository":false,"headRepository":{"nameWithOwner":"someone/RandomLabs"}},{"number":200,"headRefName":"opencode/issue42-newer-owner","createdAt":"2026-01-04T00:00:00Z","isCrossRepository":true,"headRepository":{"nameWithOwner":"someone/RandomLabs"}},{"number":201,"headRefName":"opencode/issue42-newer-owner","createdAt":"2026-01-03T00:00:00Z","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}},{"number":202,"headRefName":"opencode/issue42-older-owner","createdAt":"2026-01-02T00:00:00Z","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}},{"number":203,"headRefName":"feature/other","createdAt":"2026-01-05T00:00:00Z","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}},{"number":204,"headRefName":"opencode/issue420-owner","createdAt":"2026-01-06T00:00:00Z","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}]' > "$r29_tmp/list-issue42.json"
   printf '%s\n' '[{"number":99,"headRefName":"opencode/issue42-match","createdAt":"2026-01-01T00:00:00Z","isCrossRepository":false,"headRepository":{"nameWithOwner":"Userfrom1995/RandomLabs"}}]' > "$r29_tmp/list-issue99.json"
 
   r29_verify_case() {
-    local label="$1" script="$2" branch="$3" event="$4" json="$5" list="$6" expect_pr="$7" want_rc="$8" want_msg="$9" want_tip="${10}" want_trailer="${11}"
-    local work="$r29_tmp/work-$label" before after out rc ok=0 log_out event_name
+    local label="$1" script="$2" branch="$3" event="$4" json="$5" list="$6" expect_pr="$7" want_rc="$8" want_msg="$9" want_tip="${10}" want_trailer="${11}" gh_fail="${12:-}" reject_push="${13:-}"
+    local work="$r29_tmp/work-$label" before_all after_all before after out rc ok=0 log_out event_name expected
     rm -rf "$work"
     git clone -q "$r29_bare" "$work" 2>/dev/null || return 1
-    before="$(git --git-dir="$r29_bare" rev-parse "refs/heads/$branch" 2>/dev/null)" || return 1
+    # The whole remote is the invariant: a force-push of main (or any other
+    # branch) is destructive even when the named target branch looks right.
+    before_all="$(git --git-dir="$r29_bare" for-each-ref --format='%(refname) %(objectname)' refs/heads | sort)"
+    before="$(git --git-dir="$r29_bare" rev-parse "refs/heads/$branch" 2>/dev/null || true)"
     case "$event" in
+      */event-malformed.json|*/event-array.json|*/event-string.json) event_name="issue_comment" ;;
       */event-review.json) event_name="pull_request_review_comment" ;;
       *) event_name="issue_comment" ;;
     esac
     mkdir -p "$work/home"
+    if [ "$reject_push" = "yes" ]; then
+      printf '#!/bin/sh\necho "audit: push rejected" >&2\nexit 1\n' > "$r29_bare/hooks/pre-receive"
+      chmod +x "$r29_bare/hooks/pre-receive"
+    fi
     out="$( cd "$work" && \
       env -i PATH="$r29_bin:/usr/bin:/bin" HOME="$work/home" \
       GITHUB_REPOSITORY="Userfrom1995/RandomLabs" GITHUB_EVENT_PATH="$event" \
@@ -13645,17 +13736,31 @@ R29GH
       GITHUB_WORKSPACE="$work" GITHUB_REF="refs/heads/main" GITHUB_REF_NAME="main" \
       CI="true" GH_TOKEN="audit-token" \
       R29_GH_LOG="$work/gh.log" R29_PR_JSON="$json" R29_LIST_JSON="$list" \
+      R29_GH_FAIL="$gh_fail" \
       R29_EXPECT_PR="$expect_pr" R29_REPO="Userfrom1995/RandomLabs" \
       bash "$script" 2>&1 )"
     rc=$?
-    after="$(git --git-dir="$r29_bare" rev-parse "refs/heads/$branch" 2>/dev/null)" || return 1
+    if [ "$reject_push" = "yes" ]; then
+      rm -f "$r29_bare/hooks/pre-receive"
+    fi
+    after_all="$(git --git-dir="$r29_bare" for-each-ref --format='%(refname) %(objectname)' refs/heads | sort)"
+    after="$(git --git-dir="$r29_bare" rev-parse "refs/heads/$branch" 2>/dev/null || true)"
     [ "$rc" -eq "$want_rc" ] || ok=1
     if [ -n "$want_msg" ]; then
       printf '%s' "$out" | grep -qF -- "$want_msg" || ok=1
     fi
     case "$want_tip" in
-      same) [ "$after" = "$before" ] || ok=1 ;;
-      changed) [ "$after" != "$before" ] || ok=1 ;;
+      same)
+        [ "$after_all" = "$before_all" ] || ok=1
+        ;;
+      changed)
+        # Exactly the target branch may move, and only to the new tip.
+        expected="$(printf '%s\n' "$before_all" | sed "s|^refs/heads/$branch .*|refs/heads/$branch $after|")"
+        [ "$after_all" = "$expected" ] || ok=1
+        if [ -z "$after" ] || [ "$after" = "$before" ]; then
+          ok=1
+        fi
+        ;;
     esac
     log_out="$(git --git-dir="$r29_bare" log --format=%B "refs/heads/$branch" 2>/dev/null || true)"
     case "$want_trailer" in
@@ -13673,6 +13778,7 @@ R29GH
           ok=1
         fi
         ;;
+      none) ;;
     esac
     if [ "$ok" -ne 0 ]; then
       echo "R29 case failed: ${label} (rc=${rc}, want=${want_rc}, tip=${want_tip}, output=$(printf '%s' "$out" | tr '\n' '|'))" >&2
@@ -13704,7 +13810,18 @@ R29GH
     r29_case issue-unexpected-refused opencode/issue582-mismatch "$r29_tmp/event-issue.json" "$r29_tmp/pr-mismatch.json" "$r29_tmp/list-issue99.json" "99" 1 "Refusing to rewrite unexpected branch" same present
     r29_case issue-matching-strips opencode/issue42-newer-owner "$r29_tmp/event-issue.json" "$r29_tmp/pr-issue42-newer.json" "$r29_tmp/list-issue42.json" "201" 0 "Stripping 1 leaked owner trailer" changed absent
     r29_case review-comment-refs opencode/issue582-review "$r29_tmp/event-review.json" "$r29_tmp/pr-review.json" "" "685" 0 "No leaked owner trailers" same absent
+    r29_case review-comment-strips opencode/issue582-review-owner "$r29_tmp/event-review.json" "$r29_tmp/pr-review-owner.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed absent
+    r29_case review-comment-mixed opencode/issue582-review-mixed "$r29_tmp/event-review.json" "$r29_tmp/pr-review-mixed.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed contributor
+    r29_case review-comment-fork-skips opencode/issue582-fork "$r29_tmp/event-review.json" "$r29_tmp/pr-fork.json" "" "685" 0 "No same-repository head" same present
+    r29_case review-comment-deleted-head-skips opencode/issue582-deleted-head "$r29_tmp/event-review.json" "$r29_tmp/pr-deleted-head.json" "" "685" 0 "No same-repository head" same present
+    r29_case deleted-branch-skips opencode/issue582-gone "$r29_tmp/event-pr.json" "$r29_tmp/pr-gone.json" "" "685" 0 "no longer exists on origin" same none
+    r29_case list-failure-refused opencode/issue42-newer-owner "$r29_tmp/event-issue.json" "" "$r29_tmp/list-issue42.json" "201" 1 "Could not list open PRs" same none "list"
+    r29_case view-failure-refused opencode/issue582-owner "$r29_tmp/event-pr.json" "" "" "685" 1 "Could not resolve PR" same none "view"
+    r29_case push-failure-refused opencode/issue582-pushfail "$r29_tmp/event-pr.json" "$r29_tmp/pr-pushfail.json" "" "685" 1 "Could not update branch" same present "" "yes"
     r29_case malformed-event-refused opencode/issue582-noowner "$r29_tmp/event-malformed.json" "$r29_tmp/pr-noowner.json" "" "685" 1 "Could not parse the workflow event payload" same absent
+    r29_case array-event-refused opencode/issue582-noowner "$r29_tmp/event-array.json" "$r29_tmp/pr-noowner.json" "" "685" 1 "Could not parse the workflow event payload" same absent
+    r29_case string-event-refused opencode/issue582-noowner "$r29_tmp/event-string.json" "$r29_tmp/pr-noowner.json" "" "685" 1 "Could not parse the workflow event payload" same absent
+    r29_case array-pr-metadata-refused opencode/issue582-noowner "$r29_tmp/event-pr.json" "$r29_tmp/pr-array.json" "" "685" 1 "Could not parse the PR metadata" same absent
 
     if ! git --git-dir="$r29_bare" log --format=%B refs/heads/opencode/issue42-older-owner 2>/dev/null \
       | grep -qF 'Co-authored-by: Userfrom1995'; then
@@ -13712,12 +13829,13 @@ R29GH
     fi
 
     r29_gitlog_failure() {
-      local work="$r29_tmp/work-gitlog" before after out rc
+      local work="$r29_tmp/work-gitlog" before_all after_all before after out rc
       rm -rf "$work"
       if ! git clone -q "$r29_bare" "$work" 2>/dev/null; then
         r29_bad="${r29_bad} gitlog(clone-failed)"
         return
       fi
+      before_all="$(git --git-dir="$r29_bare" for-each-ref --format='%(refname) %(objectname)' refs/heads | sort)"
       before="$(git --git-dir="$r29_bare" rev-parse refs/heads/opencode/issue582-owner 2>/dev/null || true)"
       git -C "$work" update-ref -d refs/remotes/origin/main || {
         r29_bad="${r29_bad} gitlog(delete-main-ref-failed)"
@@ -13734,13 +13852,26 @@ R29GH
         R29_EXPECT_PR="685" R29_REPO="Userfrom1995/RandomLabs" \
         bash "$R29_ABS" 2>&1 )"
       rc=$?
+      after_all="$(git --git-dir="$r29_bare" for-each-ref --format='%(refname) %(objectname)' refs/heads | sort)"
       after="$(git --git-dir="$r29_bare" rev-parse refs/heads/opencode/issue582-owner 2>/dev/null || true)"
-      if [ "$rc" -ne 1 ] || [ "$after" != "$before" ] \
+      if [ "$rc" -ne 1 ] || [ "$after_all" != "$before_all" ] || [ "$after" != "$before" ] \
         || ! printf '%s' "$out" | grep -qF 'Could not read commits'; then
         r29_bad="${r29_bad} gitlog-fail-open"
       fi
     }
     r29_gitlog_failure
+
+    r29_check_mutant() {
+      local label="$1" mut="$2"
+      shift 2
+      if ! bash -n "$mut" 2>/dev/null; then
+        r29_bad="${r29_bad} mutant(${label}-syntax)"
+        return
+      fi
+      if r29_verify_case "$label" "$mut" "$@" 2>/dev/null; then
+        r29_bad="${r29_bad} mutant(${label}-escaped)"
+      fi
+    }
 
     r29_mutant() {
       local label="$1" transform="$2"
@@ -13751,17 +13882,39 @@ R29GH
         r29_bad="${r29_bad} mutant(${label}-did-not-mutate)"
         return
       fi
-      if ! bash -n "$mut" 2>/dev/null; then
-        r29_bad="${r29_bad} mutant(${label}-syntax)"
+      r29_check_mutant "$label" "$mut" "$@"
+    }
+
+    # Exact literal replacement, for multi-line fail-closed blocks that a sed
+    # range would express unreadably. The anchor must match exactly once.
+    r29_mutant_literal() {
+      local label="$1" old="$2" new="$3"
+      shift 3
+      local mut="$r29_tmp/mutant-${label}.sh"
+      if ! python3 -I - "$R29_ABS" "$mut" "$old" "$new" >/dev/null 2>&1 <<'R29MUTLIT'
+import sys
+src, dst, old, new = sys.argv[1:5]
+text = open(src, encoding="utf-8").read()
+count = text.count(old)
+if count != 1:
+    raise SystemExit("mutant-anchor-count=%d" % count)
+with open(dst, "w", encoding="utf-8") as handle:
+    handle.write(text.replace(old, new))
+R29MUTLIT
+      then
+        r29_bad="${r29_bad} mutant(${label}-did-not-mutate)"
         return
       fi
-      if r29_verify_case "$label" "$mut" "$@" 2>/dev/null; then
-        r29_bad="${r29_bad} mutant(${label}-escaped)"
-      fi
+      r29_check_mutant "$label" "$mut" "$@"
+    }
+
+    r29_reset() {
+      r29_seed_branch "$1" "$2" || r29_bad="${r29_bad} sandbox(reset-failed:$1)"
     }
 
     r29_mutant pr-number-guard 's/if \[ "\$is_pr" != "yes" \]; then/if true; then/' \
       opencode/issue582-noowner "$r29_tmp/event-pr.json" "$r29_tmp/pr-noowner.json" "" "685" 0 "No leaked owner trailers" same absent
+    r29_reset opencode/issue582-owner owner
     r29_mutant pr-namespace-narrow '0,/opencode\/\*)/s//opencode\/issue"$thread"-*)/' \
       opencode/issue582-owner "$r29_tmp/event-pr.json" "$r29_tmp/pr-owner.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed absent
     r29_mutant fork-identity 's/if \[ "\$cross_repo" != "false" \] || \[ "\$head_repo" != "\$repo" \]; then/if false; then/' \
@@ -13770,21 +13923,55 @@ R29GH
       feature/human-owner "$r29_tmp/event-pr.json" "$r29_tmp/pr-human.json" "" "685" 1 "not an opencode/ lab branch" same present
     r29_mutant issue-namespace 's/opencode\/issue"\$thread"-\*)/*)/' \
       opencode/issue582-mismatch "$r29_tmp/event-issue.json" "$r29_tmp/pr-mismatch.json" "$r29_tmp/list-issue99.json" "99" 1 "Refusing to rewrite unexpected branch" same present
+    r29_reset opencode/issue42-newer-owner owner
     r29_mutant list-fork-filter 's/select(\.isCrossRepository == false/select(true/' \
       opencode/issue42-newer-owner "$r29_tmp/event-issue.json" "$r29_tmp/pr-issue42-newer.json" "$r29_tmp/list-issue42.json" "201" 0 "Stripping 1 leaked owner trailer" changed absent
+    r29_reset opencode/issue42-newer-owner owner
     r29_mutant list-head-repo-filter 's/and \.headRepository\.nameWithOwner == \$repo//' \
       opencode/issue42-newer-owner "$r29_tmp/event-issue.json" "$r29_tmp/pr-issue42-newer.json" "$r29_tmp/list-issue42.json" "201" 0 "Stripping 1 leaked owner trailer" changed absent
+    r29_reset opencode/issue42-newer-owner owner
     r29_mutant list-prefix 's/startswith(\$prefix)/startswith("opencode\/issue")/' \
       opencode/issue42-newer-owner "$r29_tmp/event-issue.json" "$r29_tmp/pr-issue42-newer.json" "$r29_tmp/list-issue42.json" "201" 0 "Stripping 1 leaked owner trailer" changed absent
+    r29_reset opencode/issue42-newer-owner owner
     r29_mutant list-sort 's/| sort_by(\.createdAt) | last | \.number/| sort_by(.createdAt) | first | .number/' \
       opencode/issue42-newer-owner "$r29_tmp/event-issue.json" "$r29_tmp/pr-issue42-newer.json" "$r29_tmp/list-issue42.json" "201" 0 "Stripping 1 leaked owner trailer" changed absent
+    r29_reset opencode/issue582-mixed mixed
     r29_mutant sanitizer-broaden 's#sed "/^Co-authored-by: Userfrom1995.*/d"#sed "/^Co-authored-by:.*/d"#' \
       opencode/issue582-mixed "$r29_tmp/event-pr.json" "$r29_tmp/pr-mixed.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed contributor
+
+    # The review-comment path is a distinct event shape: an early return gated
+    # on GITHUB_EVENT_NAME must fail the review rewrite case.
+    r29_reset opencode/issue582-review-owner owner
+    r29_mutant review-event-shortcut '/^git fetch origin/i\if [ "${GITHUB_EVENT_NAME:-}" = "pull_request_review_comment" ]; then echo "No leaked owner trailers on $branch."; exit 0; fi' \
+      opencode/issue582-review-owner "$r29_tmp/event-review.json" "$r29_tmp/pr-review-owner.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed absent
+
+    # A failed strip push must never conclude green with the trailer still on
+    # the branch.
+    r29_reset opencode/issue582-pushfail owner
+    r29_mutant_literal push-fail-open '  echo "Could not update branch $branch after stripping trailers; refusing to report success."
+  exit 1
+fi' '  echo "Could not update branch $branch after stripping trailers; refusing to report success."
+fi' \
+      opencode/issue582-pushfail "$r29_tmp/event-pr.json" "$r29_tmp/pr-pushfail.json" "" "685" 1 "Could not update branch" same present "" "yes"
+
+    # A failed PR-list or PR-view query must fail closed rather than read as
+    # "no PR" / parse an empty payload silently.
+    r29_reset opencode/issue42-newer-owner owner
+    r29_mutant_literal list-fail-open '    echo "Could not list open PRs for issue #$thread; refusing to rewrite history."
+    exit 1
+  }' '    echo "Could not list open PRs for issue #$thread; refusing to rewrite history."
+  }' \
+      opencode/issue42-newer-owner "$r29_tmp/event-issue.json" "" "$r29_tmp/list-issue42.json" "201" 1 "Could not list open PRs" same none "list"
+    # Destructive pushes must be caught anywhere on the remote, not only on
+    # the named target branch. This mutant runs last because it moves main.
+    r29_reset opencode/issue582-owner owner
+    r29_mutant force-push-main '$a git push --force origin "HEAD:refs/heads/main" --quiet' \
+      opencode/issue582-owner "$r29_tmp/event-pr.json" "$r29_tmp/pr-owner.json" "" "685" 0 "Stripping 1 leaked owner trailer" changed absent
   fi
   rm -rf "$r29_tmp"
 fi
 if [ -z "$r29_bad" ]; then
-  check "R29" "trailer-strip thread binding: all nine hardcoded strip steps (research, architect, build, fix, design, design-ux, design-visual, design-motion, general) delegate to the shared script staged from the trusted default-branch checkout, under the actor gate with the job-scoped token, with each job's checkout ref and token pinned and the staging step ordered before the actor gate and agent and the strip step after the agent, and no inline filter-branch copy remains in those nine steps; the PR-comment path resolves the triggering PR's head directly (issue_comment on a PR and pull_request_review_comment) and sanitizes a Refs-only opencode/ branch without the issue-number naming guard, while the issue-to-linked-PR path keeps the strict opencode/issue<issue#>-* refusal; the issue lookup selects only same-repository open PRs under --limit 100 and keeps the newest matching branch; a non-same-repository head (a fork or deleted head) is a loud no-op, and the PR-comment path refuses to rewrite a branch outside the opencode/ lab namespace only when an owner trailer exists, exiting 0 loudly when there is nothing to strip, so a clean human OR fork PR cannot red; a failed git log fails closed; the functional sandbox (env -i with production-shaped event/actor context and exact PR-number binding) proves the Refs no-trailer incident exits 0 untouched, a Refs branch with an owner trailer is stripped, a clean human branch exits 0, human branches with an owner trailer are refused with the remote tip untouched, fork and deleted-head PRs are loud no-ops with the remote tip untouched, an issue-thread-mismatch is refused, a mixed owner-plus-contributor trailer preserves the contributor credit, the issue lookup filters cross-repository, non-same-repository, and prefix decoys and strips the newest matching branch, a review-comment payload resolves, a malformed event fails closed, and a missing origin/main fails closed; ten mutants (the pre-fix PR-number guard applied to the PR path, the narrowed PR namespace guard, each identity/namespace guard removed, the cross-repository and head-repository filters removed, the prefix widened, the sort reversed, and the sanitizer broadened) each fail a scenario alone (issue #689)" "ok"
+  check "R29" "trailer-strip thread binding: all nine hardcoded strip steps (research, architect, build, fix, design, design-ux, design-visual, design-motion, general) delegate to the shared script staged from the trusted default-branch checkout, under the actor gate with the job-scoped token, with each job's exact checkout with: surface (repository, ref, token, persist-credentials, fetch-depth) pinned so the runner and the staged helper can only come from this repository, and the staging step ordered before the actor gate and agent and the strip step after the agent, and no inline filter-branch copy remains in those nine steps; the PR-comment path resolves the triggering PR's head directly (issue_comment on a PR and pull_request_review_comment) and sanitizes a Refs-only opencode/ branch without the issue-number naming guard, while the issue-to-linked-PR path keeps the strict opencode/issue<issue#>-* refusal; the issue lookup selects only same-repository open PRs under --limit 100 and keeps the newest matching branch; a non-same-repository head (a fork or deleted head) is a loud no-op, and the PR-comment path refuses to rewrite a branch outside the opencode/ lab namespace only when an owner trailer exists, exiting 0 loudly when there is nothing to strip, so a clean human OR fork PR cannot red; a failed git log fails closed; the functional sandbox (env -i with production-shaped event/actor context and exact PR-number binding) proves the Refs no-trailer incident exits 0 untouched, a Refs branch with an owner trailer is stripped, a clean human branch exits 0, human branches with an owner trailer are refused with the remote tip untouched, fork and deleted-head PRs are loud no-ops with the remote tip untouched, an issue-thread-mismatch is refused, a mixed owner-plus-contributor trailer preserves the contributor credit, the issue lookup filters cross-repository, non-same-repository, and prefix decoys and strips the newest matching branch, both review-comment rewrite shapes (owner-trailer strip and mixed owner-plus-contributor strip) and review-path fork/deleted-head no-ops are exercised, an absent head branch is a loud no-op, a malformed or non-object event payload fails closed, a malformed PR payload fails closed, a failed PR list or PR view fails closed, a rejected strip push fails closed with the remote untouched, and a missing origin/main fails closed; every case snapshots the whole remote and permits only the target branch to move (a stray main force-push is caught); fourteen mutants (the pre-fix PR-number guard applied to the PR path, the narrowed PR namespace guard, each identity/namespace guard removed, the cross-repository and head-repository filters removed, the prefix widened, the sort reversed, the sanitizer broadened, the review-comment path shortcut on the event name, a rejected push or a failed list failing open, and a main force-push) each fail a scenario alone (issue #689)" "ok"
 else
   check "R29" "trailer-strip thread binding guard missing:${r29_bad} (issue #689: the script re-applied the issue-number naming guard to Refs PR threads, false-redding clean sessions, or the rewrite boundary widened beyond the triggering work)" "bad"
 fi
