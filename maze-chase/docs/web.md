@@ -23,7 +23,8 @@ python3 -m http.server 8000   # Windows: python -m http.server 8000
 
 On GitHub Pages the committed build plays from the project hub: open
 the hub `index.html`, press Play. The shipped artifact is
-`maze-chase/web/maze-chase.wasm` (about 190 KB, zero imports, fully
+`maze-chase/web/maze-chase.wasm` (about 198 KiB / 202,627 bytes, zero
+imports, fully
 self-contained), built reproducibly (see below); `web/maze-chase.js` is
 the harness (plain script, no bundler, no external resources, works
 offline once served).
@@ -100,7 +101,7 @@ so the HUD previews that state until you press Start.
 
 ## Verification
 
-- `cargo test -p maze-chase-web`: 47 tests (board composition and
+- `cargo test -p maze-chase-web`: 49 tests (board composition and
   determinism, canvas fit/blit math, keyboard/touch mapping, rebind
   steal rules, score table, cue/SFX/tune routing, session flow,
   hostile bridge probes).

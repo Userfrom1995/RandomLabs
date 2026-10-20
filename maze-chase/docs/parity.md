@@ -50,13 +50,14 @@ match; the map is ours.
 |---|---|---|---|---|
 | Same engine, no gameplay branches in layer code | maps input to `TickInput`, renders `Game` + `GameEvent`s | same | same | signed (review-enforced rule, see matrix) |
 | Full menu/help/scores/settings/pause flows | `screens` + `chrome`, top-10 machine scores | `screens`, shares `~/.maze-chase` scores with terminal | DOM screens, localStorage top-10 | signed |
-| Per-layer E2E green on this release | headless suite (layout sweep, full session, resize) plus PTY sessions | headless suite + Xvfb `--probe` PPM plus a real-GUI drive | node smoke + tester regression + CDP browser E2E | signed on Linux, macOS, and Windows (native runs recorded below and in `scoreboard.md`) |
+| Per-layer E2E green on this release | headless suite (layout sweep, full session, resize) plus PTY sessions | headless suite + Xvfb `--probe` PPM plus a real-GUI drive | node smoke + tester regression + CDP browser E2E | Linux current on this tree; macOS and Windows pre-Pondwake, with fresh reruns tracked in the final sign-off (native runs recorded below and in `scoreboard.md`) |
 | Board pixels agree across layers | same composer; bitmap tiers rasterize at the detected cell geometry (bounded) | same composer at the fixed 8-ppt reference | mirrors the shared 8-ppt reference (frame-determinism test) | signed |
 
 ## Native proof record
 
-The per-layer E2E and packaged-artifact rows above are signed from
-three independent runs on their own operating systems; the measured
+The per-layer E2E and packaged-artifact rows above are signed on Linux
+on this tree; the macOS and Windows runs below are the pre-Pondwake
+record, with fresh reruns tracked in the final sign-off. The measured
 numbers sit in the dated sections of `scoreboard.md`.
 
 - **macOS** (tester run 39068848280, macOS 26.6.2 arm64, vehicle PR

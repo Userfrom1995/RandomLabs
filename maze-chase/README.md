@@ -188,6 +188,7 @@ tests: headless engine suites with golden replay hashes, escape-sequence
 capture for terminal backends, real GUI drives plus per-OS runners for
 desktop, headless-chromium CDP keyboard and touch runs for WASM, and a
 release scoreboard publishing measured tick cost, suite totals, and frame
-budgets. Parity is verified on all three operating systems; the #552
-Python reference game is retired in favor of this game, kept as the
-reference implementation.
+budgets. Parity is verified on Linux on this tree; macOS and Windows were
+verified pre-Pondwake, with fresh reruns tracked in the final sign-off.
+The #552 Python reference game is retired in favor of this game, kept as
+the reference implementation.

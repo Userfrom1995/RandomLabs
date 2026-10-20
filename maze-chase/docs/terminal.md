@@ -212,7 +212,7 @@ Settings live in `~/.maze-chase/settings.txt` (human-readable
 `key = value`, shared with the other layers): difficulty (Cozy,
 Standard, Harsh: honest engine presets only), theme (dusk-pond,
 morning-shallows, moonwake; legacy ids migrate), master/music/SFX levels, mute,
-reduced flashing (holds the steady fright mask instead of blinking),
+reduced flashing (holds the hollow warning mask instead of blinking),
 and the full keymap. High scores live in `~/.maze-chase/scores.txt`
 (top 10, `score | level | mode | date`); corrupt lines are skipped,
 never fatal. A path replaced with a FIFO is refused on read and write
