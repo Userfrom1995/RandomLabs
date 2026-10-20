@@ -1237,3 +1237,17 @@ Next: Phase 5 (sound design overhaul).
   `maze-chase-verify` 19/19 (`23c17f89734e`), fmt clean, clippy limited to
   the six pre-existing engine lints; wasm unchanged at `68e331b2...`.
   - the Fixer
+
+- 2026-10-20 (fixer, Pondwake docs-consistency round on `f51b4dc8`): aligned
+  `docs/design.md` with the shipped interactions and effects. The first-run
+  terminal row now states that Esc at the title quits, matching
+  `crates/terminal/src/app.rs:303-305` and `docs/terminal.md:67`; the happy
+  path and transition inventory start play on Enter/Start rather than a
+  direction key; reduced flash holds the hollow warning mask returned by
+  `anim::fright_mask_id`; and the web loading lines describe the shipped
+  `Loading engine...` boot-status line in the title card instead of a
+  pulsing-crumb progress line inside the board. Documentation-only change;
+  no code, wasm, or evidence was touched. A single-area docs fix with the
+  file already open, so no subagents were dispatched. No registry skill
+  matched; none loaded.
+  - the Fixer
