@@ -65,21 +65,26 @@ Public Surface / Web Track:                                              │
                                                                  │               │
                                                                  ▼               ▼
                                                    Fixer / Lab Engineer (/oc fix)  Tester (/oc test)
-                                                                                 │
-                                                                         ┌───────┴───────┐
-                                                                   (tests fail)     (approved by Tester)
-                                                                         │               │
-                                                                         ▼               ▼
-                                                           Fixer / Lab Engineer (/oc fix)  Evaluator (/oc eval)
-                                                                                         │
-                                                                                  ┌───────┴───────┐
-                                                                          (rejected)     (approved)
-                                                                                │               │
-                                                                                ▼               ▼
-                                                                  Maintainer (/oc maintainer)  Maintainer (/oc maintainer -> merge)
-                                                                                │               │
-                                                                                ▼               ▼
-                                                                          Fixer (/oc fix)  (merge PR & close)
+                                                                                            │
+                                                                            ┌───────────────┴───────────────┐
+                                                                       (tests fail)                (approved by Tester)
+                                                                            │                               │
+                                                                            ▼                               ▼
+                                                             Fixer / Lab Engineer (/oc fix)    Maintainer (/oc maintainer)
+                                                                                                            │
+                                                                                                    (routes /oc eval)
+                                                                                                            │
+                                                                                                            ▼
+                                                                                                   Evaluator (/oc eval)
+                                                                                                            │
+                                                                                          ┌─────────────────┴─────────────────┐
+                                                                                     (rejected)                          (approved)
+                                                                                          │                                   │
+                                                                                          ▼                                   ▼
+                                                                             Maintainer (/oc maintainer)     Maintainer (/oc maintainer -> merge)
+                                                                                          │                                   │
+                                                                                          ▼                                   ▼
+                                                                                   Fixer (/oc fix)                    (merge PR & close)
 ```
 
 - **Flexible Pipeline Routing**: In both tracks, `[Researcher]` (algorithmic/mathematical research) and `[Architect]` (system architecture blueprints) are invoked whenever Hephaestus determines that research or design planning is warranted before implementation by the Builder or Lab Engineer.
@@ -903,7 +908,7 @@ personality, CHANGELOG) is direct-commit.
 | `ideate.yml` | On-demand Ideator - posts candidates on the Brainstorm Board and notifies Maintainer; no PAT in agent env |
 | `curator.yml` | Public surface & README custodian: scheduled (6h) / dispatch / /oc curate audits and surgical PRs |
 | `auditor.yml` | The Auditor: daily schedule + `/oc auditor` → runs `.github/scripts/silent-stall-audit.sh` over `opencode.yml`, audits CI/CD and model health, posts the summary on the `lab-health` board, opens bug issues |
-| `opencode-eval.yml` | Evaluator (binding quality gate after Tester): reads deliverable, invokes swarm subagents, writes `/tmp/evaluator-decision.json`, posts its signed verdict as a bot comment, and hands off with `/oc maintainer` via hardcoded PAT step; the Maintainer decides merge, fix, or lab |
+| `opencode-eval.yml` | Evaluator (binding quality gate after Tester): reads deliverable, invokes swarm subagents, writes `/tmp/evaluator-decision.json`; the workflow posts the signed verdict as a bot comment, and its hardcoded PAT step hands off with `/oc maintainer`; the Maintainer decides merge, fix, or lab |
 | `opencode-peros-test.yml` | Per-OS real-user testers: `test-linux` (ubuntu), `test-macos` (macos), `test-windows` (windows, bash shell); native every-command/flag testing feeding the Tester; findings reports are a file contract (`/tmp/random-lab-findings.md`) posted and verified by the workflow (issue #608); macOS/Windows agent steps run 120 minutes under 150-minute jobs and salvage a signed partial report behind a provenance banner when they die without a decision file (issue #692); no PAT in agent env |
 | `pages.yml` | Unchanged - Pages deploy + PR previews |
 
