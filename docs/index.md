@@ -102,7 +102,10 @@ pushes to forks (guidance only).
   provider failure classes are each retried once on the same model before
   they can drop a wake-up or kill a gate: a free-tier rejection, a stalled
   attempt (which the runner's watchdog aborts instead of letting it burn the
-  step timeout), and a 429/5xx terminal rejection; when the whole ladder is dead the agent
+  step timeout), and a 429/5xx terminal rejection. A provider 403
+  abusive-traffic egress-IP block is not retried: it is classified by name
+  and fast-failed, since a fresh run gets a new runner and a new IP. When the
+  whole ladder is dead the agent
   step fails loudly instead of a hollow green; the general arm
   reds its run so failure triage fires, and the Maintainer, self-excluded from
   failure triage, is surfaced by its recurring schedule.
