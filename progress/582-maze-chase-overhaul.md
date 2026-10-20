@@ -28,35 +28,61 @@
 
 Phase 4 (visual identity redesign) is implemented on
 `opencode/issue582-20261019234242`. The Pondwake direction from
-`docs/design.md` is live in the shared art: Rill the pond frog and the
-four hunter silhouettes at 11x11 and 21x21, the fright mask and eye
+`docs/design.md` is live in the shared art: Rill the pond frog at 11x11 and
+21x21 plus the four hunter silhouettes at 11x11, the fright mask and eye
 overlay, 3x3 crumb beads, 7x7 sunseeds with the 400 ms halo, the
-pickup-burst/death-sweep/turn-spark clips, and the three contrast-checked
+pickup-burst/death-sink/turn-spark clips, and the three contrast-checked
 themes (`dusk-pond`, `morning-shallows`, `moonwake`) with legacy-id
-migration on load. The terminal raster, desktop renderer, and browser
-canvas all draw the same assets with the fright entry morph, 100 ms
-death cadence, 300 ms level-clear sweep, and mask eyes; the web settings
-panel shows the active theme name. Accessibility gates (text/bg,
+migration on load. The terminal raster and atlas, desktop renderer, and
+browser canvas all draw the same assets in the same order with the
+fright entry morph, 100 ms death cadence, 300 ms level-clear sweep and
+lily-crown banner, mask eyes, hop/gulp, score floaters, pickup burst,
+turn spark, and Golden Lily bloom; the web settings panel shows the
+active theme name. Accessibility gates (text/bg,
 fright/wall, eyes/wall, hunter separation, light/dark) pass, the golden
 replay digest is unchanged (`23c17f89734e`), and the wasm rebuild is
-committed (`1abe2665...`).
+committed (`e3ffbe0d...`).
 
-Real captures were regenerated on 2026-10-20 with the Linux compatibility
-harness at code commit `90cb9b87` (binary SHA-256
-`e5c9a284df71afe37413cb3e3047cfb2ce887cf81ad729feecb92ac3dfd0202a`,
-clean Rust sources): all eight Linux rows pass (kitty and Ghostty at
-21 transmits / 167.1-175.0 KiB per session with 171-271 sprite-palette
-pixels in the playing capture; xterm light/dark on legacy cells; xterm
-VT340 forced and auto on Sixel at 143-144 transmits / 4.58-4.60 MiB).
-The desktop title capture (`docs/desktop-probe.ppm`) and the browser
-gameplay capture (`docs/web-gameplay.png`, 1280x757) are committed, and
-`browser-e2e.js` is ALL GREEN. macOS and Windows terminal rows stay with
-the per-OS testers; no claim here exceeds the executed Linux rows.
+Real captures: the six kitty/xterm Linux compatibility rows were
+re-executed on 2026-10-20 at code commit `7dcb9089` (binary SHA-256
+`9f71c883c3853edca6a99c3ed0d7aa8711aa2a290e665a35d1a02723212b0271`,
+clean Rust sources), and all pass (kitty and Ghostty at 21 transmits /
+165.0-175.0 KiB per session with 163-271 sprite-palette pixels in the
+playing capture; xterm light/dark on legacy cells; xterm VT340 forced
+and auto on Sixel at 138 transmits / 3.91 MiB). The two Ghostty rows
+remain the `90cb9b87` record and are labeled pre-fix in
+`docs/terminal-compat.md`; the final sign-off phase reruns them. The
+desktop title capture (`docs/desktop-probe.ppm`) is byte-identical, the
+browser gameplay capture (`docs/web-gameplay.png`, 1280x757) was
+regenerated from the current wasm, and `browser-e2e.js` is ALL GREEN.
+macOS and Windows terminal rows stay with the per-OS testers; no claim
+here exceeds the executed Linux rows.
 
-Workspace gates: `cargo test --workspace --no-fail-fast` 498 passed / 0
+Workspace gates: `cargo test --workspace --no-fail-fast` 514 passed / 0
 failed across 57 targets, harness contract 47/47, `maze-chase-verify`
-19/19, `cargo fmt --all --check` clean, and clippy reports only the
-pre-existing engine style lints. Next: Phase 5 (sound design overhaul).
+19/19 (`23c17f89734e`; `perf-headless` 0.2-0.4 us/tick on CI reruns),
+wasm sha256 `e3ffbe0d...`, `cargo fmt --all --check` clean, and clippy
+reports only the pre-existing engine style lints.
+
+Delegation ledger (review fix round, code commit `7dcb9089`):
+- Launch: a general subagent audited every public doc and progress claim
+  against code, evidence, and the fresh test run; an explore subagent
+  reviewed the renderer diff for clock, paint-order, facing, atlas, and
+  Kitty-clearing defects; a second general subagent recomputed every
+  quoted terminal-compat number from the evidence JSONs.
+- Return: docs audit found the stale wasm hash, 498/0.1 claims, native
+  run labels, terminal payload ranges, and two stale source-doc numbers;
+  code review found the unreachable 21 ppt cap, the 16-20 ppt sprite
+  scale regression, cell-tier cues hidden under Pip, the level-start
+  floater, clearing hop, and the retained whole-frame image; evidence
+  audit found the Sixel mean/rate and Ghostty max-frame mislabels.
+- Verification: the Builder fixed the cap and scale, reordered the cell
+  overlays, suppressed the start floater, stopped the hop, freed image
+  1, clamped floaters, added the reachability and effect-window tests,
+  re-ran the full suite/verify/fmt/clippy, regenerated the wasm and web
+  capture, and re-executed all six Linux rows. The two Ghostty rows are
+  explicitly left to the final per-OS rerun rather than claimed fresh.
+Next: Phase 5 (sound design overhaul).
 
 ## Next steps
 
@@ -982,8 +1008,9 @@ pre-existing engine style lints. Next: Phase 5 (sound design overhaul).
   crumb beads, 7x7 sunseeds with the 400 ms halo, golden lily, hop,
   gulp, death-sink, pickup burst, fright morph, level-clear sweep, turn
   spark, and the three Pondwake palettes with legacy-id migration. The
-  same raster drives terminal, desktop, and web; accessibility and token
-  mirror gates are green and the golden replay digest is unchanged.
+  terminal raster and atlas, desktop renderer, and web canvas draw the
+  same assets in the same stack order; accessibility and token mirror
+  gates are green and the golden replay digest is unchanged.
   Regenerated all eight Linux compatibility rows at code commit
   `90cb9b87` (binary `e5c9a284...`, clean sources), the desktop title
   PPM, and the browser gameplay PNG; `browser-e2e.js` ALL GREEN. Gates:
@@ -991,6 +1018,19 @@ pre-existing engine style lints. Next: Phase 5 (sound design overhaul).
   19/19 (`23c17f89734e`), fmt clean, clippy only the pre-existing engine
   lints. Delegation ledger: the phase was implemented in the primary
   context across assets, renderers, config, docs, and captures; no
-  registry skill matched and no subagent was dispatched for the final
-  integration pass.
+  registry skill matched and no subagent was dispatched for the initial
+  integration pass (the review fix round's ledger is in Current step).
+- 2026-10-20 (builder, Phase 4 review fix round at `7dcb9089`): closed
+  the Reviewer's blocking findings and three delegated audits. Added the
+  reachable 21 ppt rung with per-rung Pip scale, restored 11x11 sprite
+  scaling at 16-20 ppt, made the cell tier paint cues over Pip,
+  suppressed the new-level start floater, stopped the hop during death
+  and clearing, freed the Kitty whole-frame image, and clamped score
+  floaters. Re-ran 514/514 across 57 targets, harness 47/47, verify
+  19/19 (`23c17f89734e`), fmt/clippy, rebuilt the wasm, recaptured the
+  browser frame, and re-executed six Linux terminal rows at the new
+  commit. Three subagents (docs audit, renderer review, evidence
+  recomputation) were launched and their findings verified in the
+  primary context; the two Ghostty rows remain pre-fix and are tracked
+  for the final per-OS rerun.
   - the Builder

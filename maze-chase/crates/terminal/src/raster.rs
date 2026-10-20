@@ -77,8 +77,17 @@ pub fn art_rung(ppt: i32) -> u8 {
 /// real cell size, each sprite pixel becomes a `scale`x`scale` block so
 /// the art stays crisp instead of shrinking relative to the tile.
 pub(crate) fn sprite_scale(ppt: i32) -> i32 {
-    let rung = art_rung(ppt) as i32;
-    (ppt / rung).max(1)
+    (ppt / 8).max(1)
+}
+
+/// Scale for Rill's sheet: the 11x11 grid at its 8-pixel baseline, the
+/// 21x21 grid at its own 21-pixel baseline.
+pub(crate) fn pip_scale(ppt: i32) -> i32 {
+    if art_rung(ppt) == 21 {
+        (ppt / 21).max(1)
+    } else {
+        sprite_scale(ppt)
+    }
 }
 
 /// Paint one legend glyph centered at pixel `(cx, cy)`, each glyph pixel
@@ -519,7 +528,7 @@ fn paint_pip(
         &refs,
         pcx,
         pcy + hop,
-        scale,
+        pip_scale(ppt),
         [theme.pip, theme.text, theme.eyes],
     );
 }

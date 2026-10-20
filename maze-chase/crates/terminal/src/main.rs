@@ -665,9 +665,11 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
         kitty.invalidate();
     }
 
-    if !kitty.placements {
-        // Probe proved graphics but not placements: keep the proven
-        // whole-frame path, still silent (q=2) to protect input.
+    if !kitty.placements || ppt >= 21 {
+        // Probe proved graphics but not placements, or the 21 ppt rung
+        // selected the authored high-detail sheet (its cell grid is not
+        // uniform with the 11x11 effect art): keep the proven whole-frame
+        // path, still silent (q=2) to protect input.
         out.push_str(&kg::delete_escape(1));
         let png = app.bitmap_png();
         out.push_str(&kg::display_escape_id(
@@ -716,6 +718,7 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
     if kitty.clearing {
         kitty.clearing = false;
         out.push_str(kg::delete_all_escape());
+        out.push_str(&kg::free_image_escape(1));
         kitty.invalidate();
     }
 

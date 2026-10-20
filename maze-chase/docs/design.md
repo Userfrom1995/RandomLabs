@@ -179,7 +179,7 @@ one directional glyph per actor on the player color pair; the eye cell
 renders over the body cell where the tier allows two rows. 11x11 art:
 11 wide by 7 tall with 2 px dome eyes. 21x21 art adds a belly seam, a
 throat pulse, and 1 px toe webbing. Animation states: hop 2 frames at
-6 fps (6 px squash, 9 px stretch), gulp 3 frames at 12 fps, death-sink
+6 fps (3 px crouch, 5 px rise at 11x11; 6 px / 9 px at 21x21), gulp 3 frames at 12 fps, death-sink
 4 frames into a ripple ring then one bubble. Facing: the squat body
 rotates badly, so Rill is the one intentional break from the
 one-facing rule: three telling glyphs (right, up, down), left derived
@@ -372,16 +372,13 @@ never eased.
 
 Transition inventory per layer: title to play is an instant cut when
 the player presses a direction (play-first); pause, settings, scores,
-how-to-play, and game over are cuts on cells, kitty, and sixel, and
-240 ms drift-in fades on desktop and web (reduced motion turns these
-fades into cuts); level clear is the single 300 ms sweep; death is the
-1400 ms window; relayout is always a cut
-(same-frame repaint, delete-before-place on kitty, clear plus full
-frame on sixel). Interruption: input on frame N starts on frame N+1; no
-transition ever gates input or the simulation; a resize generation
-counter cancels in-flight transition effects and restarts them at the
-new size where applicable. Any transition burst on image tiers carries
-a one-shot budget of 256 KiB.
+how-to-play, and game over are instant cuts on every layer; level clear
+is the single 300 ms sweep; death is the 1400 ms window; relayout is
+always a cut (same-frame repaint, delete-before-place on kitty, clear
+plus full frame on sixel). Interruption: input on frame N starts on
+frame N+1; no transition ever gates input or the simulation; a resize
+generation counter cancels in-flight transition effects and restarts
+them at the new size where applicable.
 
 Effect and feedback inventory (rung-conditional): chomp loops only
 while moving; sunseed halo on the rung-snapped period; fear entry and
@@ -410,15 +407,13 @@ Reduced flash: steady hollow mask plus dim_text banner. Reduced motion:
 identical to reduced flash, with the bar still draining (it is
 information, not decoration).
 
-Death window spec (adopted). 200 ms catch freeze (engine continues;
-input swallowed), then 4 clip frames at 100 ms each, then an 800 ms
-hold: 1400 ms total. The killer cue for the whole window: the frozen
-killer at the contact tile, a static 2 px bracket pointing at it, and
-"CAUGHT BY <NAME>" on a pinned HUD row. Input policy: swallowed for
-the first 1250 ms; exactly one buffered direction accepted in the final
-150 ms; overlay dismiss keys never interrupt the window. Reduced
-motion: identical window with the clip frames replaced by two static
-silhouette states.
+Death window spec (shipped). Four clip frames at 100 ms each, then a
+hold on the final frame: 1400 ms total, driven by the engine's state
+clock. The killer cue is the death clip itself; there is no catch
+freeze, bracket overlay, or named banner in this phase. Input is
+ignored until respawn; overlay dismiss keys never interrupt the window.
+Reduced motion: identical window with the clip frames replaced by two
+static silhouette states.
 
 Reduced-flash registry (expanded, all sources): fright warning, death,
 sunseed pickup, level clear, extra life, chain pop, chained pickup

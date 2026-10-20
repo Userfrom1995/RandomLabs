@@ -235,9 +235,11 @@ pub fn render_board(
             ),
         );
     }
+    overlay.insert(pip_tile, (pip_text(game, frame_no), theme.pip));
     // Effect cues on the cell rung: the pickup ripple is the two static
     // states the motion table allows, the turn spark a committed-corner
-    // marker, and the spare wick a crown over the board center.
+    // marker, and the spare wick a crown over the board center. They paint
+    // after Pip so a cue on the player tile is not swallowed.
     if let Some((anchor, frame)) = game.fx.pickup_burst() {
         overlay.insert(
             (anchor.x.floor() as i32, anchor.y.floor() as i32),
@@ -255,8 +257,6 @@ pub fn render_board(
         let cy = HEIGHT / 2;
         overlay.insert((cx, cy), ("YY", theme.accent));
     }
-    overlay.insert(pip_tile, (pip_text(game, frame_no), theme.pip));
-
     for row in 0..rows {
         let mut spans: Vec<Span> = Vec::new();
         let mut line = String::new();

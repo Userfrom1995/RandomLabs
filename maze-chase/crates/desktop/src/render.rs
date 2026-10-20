@@ -139,8 +139,14 @@ fn render_floaters(f: &mut Frame, game: &Game, theme: &Theme, lay: &Layout) {
         let scale = lay.scale.max(1);
         let tw = font::text_width(&text, scale);
         let th = font::text_height(1, scale);
-        let mut px = x - tw as i32 / 2;
-        let py = y - th as i32 / 2;
+        let mut px = (x - tw as i32 / 2).clamp(
+            lay.bx + scale as i32,
+            lay.bx + lay.bw as i32 - tw as i32 - scale as i32,
+        );
+        let py = (y - th as i32 / 2).clamp(
+            lay.by + scale as i32,
+            lay.by + lay.bh as i32 - th as i32 - scale as i32,
+        );
         f.rect(
             px - scale as i32,
             py - scale as i32,
