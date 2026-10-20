@@ -3,7 +3,8 @@
 # Triggers: version tags (desktop-pet-v*) plus manual dispatch.
 # Jobs: three native builders (windows-latest builds exe plus Inno Setup
 # setup exe; macos-latest builds app plus .pkg plus .dmg; ubuntu-latest
-# builds .deb plus AppImage plus .rpm), each running the bundle selftest
+# builds .deb plus .rpm, plus an AppImage when appimagetool is available),
+# each running the bundle selftest
 # and its per-OS smoke script natively BEFORE upload; one publish job
 # merges SHA256SUMS.txt and creates the versioned GitHub Release.
 # No binaries are ever checked in; the Pages hub download matrix points
@@ -216,7 +217,7 @@ jobs:
             echo "[pet-release] no tag ref (dispatch or branch run), package version $VERSION"
           fi
 
-      - name: Build deb plus AppImage plus rpm
+      - name: Build deb plus rpm (AppImage when appimagetool is available)
         shell: bash
         run: |
           set -euo pipefail
@@ -324,13 +325,22 @@ jobs:
             TAG="desktop-pet-v${VERSION}"
           fi
           NOTES="$(mktemp)"
+          # The AppImage is optional: pet/packaging/build-linux.sh skips it
+          # when appimagetool is absent, so the notes must claim only the
+          # artifacts this run actually produced (issue #721).
+          APPIMAGE_NOTE=""
+          if compgen -G "release-assets/DesktopPet-*-x86_64.AppImage" >/dev/null; then
+            APPIMAGE_NOTE=", DesktopPet-$VERSION-x86_64.AppImage (chmod +x the AppImage)"
+          else
+            echo "[pet-release] no AppImage asset in this run; notes omit the AppImage"
+          fi
           cat > "$NOTES" <<EOF
           Desktop Pet $VERSION - ready-to-use installers plus run-from-source.
 
           Artifacts:
           - Windows: desktop-pet.exe, desktop-pet-setup-$VERSION.exe (unsigned: SmartScreen may warn, choose More info plus Run anyway)
           - macOS: DesktopPet-$VERSION.pkg, DesktopPet-$VERSION.dmg (unsigned: Gatekeeper may block, right-click plus Open)
-          - Linux: desktop-pet_${VERSION}_amd64.deb, desktop-pet-*.rpm, DesktopPet-$VERSION-x86_64.AppImage (chmod +x the AppImage)
+          - Linux: desktop-pet_${VERSION}_amd64.deb, desktop-pet-*.rpm${APPIMAGE_NOTE}
 
           Verify downloads:
           \`\`\`
@@ -343,6 +353,10 @@ jobs:
           # on the existing tag.
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" --clobber release-assets/*
+            # A re-run can carry a different asset shape (for example an
+            # AppImage built after appimagetool was installed), so refresh
+            # the notes alongside the assets to keep the claim truthful.
+            gh release edit "$TAG" --notes-file "$NOTES"
             echo "[pet-release] refreshed existing release $TAG"
           else
             gh release create "$TAG" --title "Desktop Pet $VERSION" --notes-file "$NOTES" release-assets/*
