@@ -260,18 +260,6 @@ fn display_at(bytes: &[u8], rows: u32, cols: u32, cursor: (u16, u16)) -> bool {
         }
         from = end;
     }
-    // The 21 ppt rung renders through the whole-frame path: one combined
-    // transmit-and-place escape (`a=T`, image id 1) at the same cursor.
-    let whole = format!(",r={rows},c={cols},i=1,");
-    let mut from = 0;
-    while let Some(i) = text[from..].find("\x1b_Ga=T,f=100") {
-        let i = from + i;
-        let end = text[i..].find("\x1b\\").unwrap_or(text.len() - i) + i;
-        if text[i..end].contains(&whole) && cursor_before(&text, i, &want) {
-            return true;
-        }
-        from = end;
-    }
     false
 }
 
