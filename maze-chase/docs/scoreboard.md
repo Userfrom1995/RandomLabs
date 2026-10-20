@@ -243,7 +243,7 @@ Initial identity delivery, measured on the Linux build machine at code
 commit `90cb9b87` (kept as history):
 
 - `cargo test --workspace --no-fail-fast` (desktop E2E under the local
-  Xvfb): 498 passed, 0 failed across 58 test targets.
+  Xvfb): 498 passed, 0 failed across 57 test targets.
 - `cargo run --release --bin maze-chase-verify`: 19/19 checks, golden
   replay digest unchanged (`23c17f89734e`), `perf-headless` 0.1 us/tick.
 - Wasm rebuild sha256 `1abe2665...`; `wasm-smoke.js`,
@@ -254,7 +254,7 @@ Review fix rounds, measured on the same Linux machine at the head of
 this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
 
 - `cargo test --workspace --no-fail-fast` (desktop E2E under Xvfb):
-  545 passed, 0 failed across 58 test targets, including the new
+  535 passed, 0 failed across 57 test targets, including the new
   engine-clock, chomp-phase, 120 Hz ticker-age, renderer-clock, web-clock,
   effect-window, authored-facing, death-hold, sweep-order, mirrored-eye,
   death-boundary, fright-slot, cell-clear, cell-death-bubble,
@@ -269,8 +269,8 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   theme, renderer, or bridge code.
 - Wasm rebuild (`cargo build --release --target
   wasm32-unknown-unknown -p maze-chase-web`): sha256
-  `11f75cd2c9bf3e4502ada166774be7b62895776600d38025f021394700a57327`,
-  committed as `web/maze-chase.wasm` (206,253 bytes; rebuilt
+  `029352dc0f54d074f6de1a200174e30fec76652caf115ca9d223a2d8357f819e`,
+  committed as `web/maze-chase.wasm` (202,727 bytes; rebuilt
   byte-identically with rustc 1.99.0 commit `b940084d7`); `wasm-smoke.js`,
   `tester-regression.js`, and the real headless-chromium
   `browser-e2e.js` are ALL GREEN with zero console errors. The committed
