@@ -251,10 +251,11 @@ commit `90cb9b87` (kept as history):
   `browser-e2e.js` ALL GREEN with zero console errors.
 
 Review fix rounds, measured on the same Linux machine at the head of
-this PR (round 5 code commit `0cdb8d36`):
+this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
 
 - `cargo test --workspace --no-fail-fast` (desktop E2E under Xvfb):
-  532 passed, 0 failed across 57 test targets, including the new
+  535 passed, 0 failed across 57 test targets, including the new
+  engine-clock, chomp-phase, 120 Hz ticker-age, renderer-clock, web-clock,
   effect-window, authored-facing, death-hold, sweep-order, mirrored-eye,
   death-boundary, fright-slot, cell-clear, cell-death-bubble,
   cell-relish-order, desktop-ticker, and Kitty image-one tests.
@@ -268,8 +269,9 @@ this PR (round 5 code commit `0cdb8d36`):
   theme, renderer, or bridge code.
 - Wasm rebuild (`cargo build --release --target
   wasm32-unknown-unknown -p maze-chase-web`): sha256
-  `47afaaeab5283e8f610ff0a88b4512d7b79e5810d85a8cc0696d61733b7c405f`,
-  committed as `web/maze-chase.wasm`; `wasm-smoke.js`,
+  `029352dc0f54d074f6de1a200174e30fec76652caf115ca9d223a2d8357f819e`,
+  committed as `web/maze-chase.wasm` (202,727 bytes; rebuilt
+  byte-identically with rustc 1.99.0 commit `b940084d7`); `wasm-smoke.js`,
   `tester-regression.js`, and the real headless-chromium
   `browser-e2e.js` are ALL GREEN with zero console errors. The committed
   browser gameplay capture is `docs/web-gameplay.png` (1280x757).

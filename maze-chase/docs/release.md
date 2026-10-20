@@ -57,9 +57,14 @@ cp target/wasm32-unknown-unknown/release/maze_chase_web.wasm web/maze-chase.wasm
 ```
 
 The committed `web/maze-chase.wasm` is byte-reproducible from that
-exact command on stock stable Rust (no `wasm-bindgen`, zero imports);
-the page gates on the bridge ABI version and fails loudly on the
-error card instead of misbehaving on a mismatch. Play it by serving
+exact command with the recorded toolchain (Rust 1.99.0, rustc commit
+`b940084d7eb6a299eb4bfeb8e34901bc051e7ac4`, which the artifact embeds;
+no `wasm-bindgen`, zero imports). It is 202,727 bytes with sha256
+`029352dc0f54d074f6de1a200174e30fec76652caf115ca9d223a2d8357f819e`,
+and a second clean build reproduces the same bytes. A different stable
+release may produce different bytes. The page gates on the bridge ABI
+version and fails loudly on the error card instead of misbehaving on a
+mismatch. Play it by serving
 the directory over http (`python3 -m http.server 8931`, or
 `python -m http.server 8931` on Windows, inside `maze-chase/`, then
 open `play.html`); browsers refuse `.wasm` over `file://`.

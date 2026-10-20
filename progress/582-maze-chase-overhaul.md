@@ -36,12 +36,12 @@ themes (`dusk-pond`, `morning-shallows`, `moonwake`) with legacy-id
 migration on load. The terminal raster and atlas, desktop renderer, and
 browser canvas all draw the same assets in the same order with the
 fright entry morph, 100 ms death cadence, 300 ms level-clear sweep and
-lily-crown banner, mask eyes, hop/gulp, score floaters, pickup burst,
-turn spark, and Golden Lily bloom; the web settings panel shows the
-active theme name. Accessibility gates (text/bg,
+lily-crown banner, mask eyes, hop/gulp, pickup burst, turn spark, and
+Golden Lily bloom; the desktop and browser canvases add score floaters,
+and the web settings panel shows the active theme name. Accessibility gates (text/bg,
 fright/wall, eyes/wall, hunter separation, light/dark) pass, the golden
 replay digest is unchanged (`23c17f89734e`), and the wasm rebuild is
-committed (`47afaaea...`).
+committed (`029352dc...`, 202,727 bytes).
 
 Real captures: five kitty/xterm Linux compatibility rows were
 re-executed on 2026-10-20 at code commit `14b939d9` (binary SHA-256
@@ -63,10 +63,10 @@ wasm, and `browser-e2e.js` is ALL GREEN. macOS and Windows terminal rows
 stay with the per-OS testers; no claim here exceeds the executed Linux
 rows.
 
-Workspace gates: `cargo test --workspace --no-fail-fast` 532 passed / 0
+Workspace gates: `cargo test --workspace --no-fail-fast` 535 passed / 0
 failed across 57 targets, harness contract 47/47, `maze-chase-verify`
 19/19 (`23c17f89734e`; `perf-headless` 0.2-0.4 us/tick on CI reruns),
-wasm sha256 `47afaaea...`, `cargo fmt --all --check` clean, and clippy
+wasm sha256 `029352dc...`, `cargo fmt --all --check` clean, and clippy
 reports only the pre-existing engine style lints.
 
 Delegation ledger (round 5): no subagents were dispatched; the primary
@@ -1061,4 +1061,19 @@ Next: Phase 5 (sound design overhaul).
   across 57 targets, harness 47/47, verify 19/19 (`23c17f89734e`), fmt
   clean, wasm sha256 `47afaaea...`. No registry skill matched; none
   loaded.
+  - the Fixer
+- 2026-10-20 (fixer, Phase 4 review round 6 on `88ee1467`): applied the
+  Reviewer's round-6 findings on PR #707. Every renderer now samples the
+  engine animation clock (`Game::elapsed`, `Effects::chomp_phase`), so the
+  sunseed halo flips every 200 ms, the relish bob rides the shared 4 s
+  phase, and the 12 fps chomp holds an open mouth at rest on terminal,
+  desktop, and browser. The terminal and desktop tickers age on a seconds
+  clock instead of render frames, the cell-relish test carries a positive
+  control, the dead `Clip` API is gone, and the wasm plus every size,
+  hash, and toolchain claim is rebuilt and requalified. Verification:
+  535/535 across 57 targets, harness 47/47, verify 19/19
+  (`23c17f89734e`), fmt clean, wasm sha256 `029352dc...` (202,727 bytes,
+  reproduced byte-identically with rustc 1.99.0 commit `b940084d7`),
+  node smokes and `browser-e2e.js` ALL GREEN, desktop E2E under Xvfb
+  green. No registry skill matched; none loaded. Code commit `470a050f`.
   - the Fixer
