@@ -62,7 +62,7 @@ clean sources, `pause_select=1`) and is 139 transmits / 4.33 MiB. The
 two Ghostty rows remain the `90cb9b87` record and are labeled pre-fix
 in `docs/terminal-compat.md`; the final sign-off phase reruns them. The
 desktop title capture (`docs/desktop-probe.ppm`, sha256
-`dcb33b7d...`) was regenerated for the three-zone title, the
+`59443690...`) was regenerated for the board-centered stage card, the
 desktop gameplay capture (`docs/desktop-gameplay.ppm`, 1100x760,
 sha256 `f6040ea9...`) was recorded from the same Xvfb `--probe` pipeline
 after driving a play session, the browser gameplay capture
@@ -71,8 +71,8 @@ wasm, and `browser-e2e.js` is ALL GREEN. macOS and Windows terminal rows
 stay with the per-OS testers; no claim here exceeds the executed Linux
 rows.
 
-Workspace gates: public count 552 across 60 targets (full rerun executed
-by the Tester at `e78035c57`), harness contract 47/47, `maze-chase-verify`
+Workspace gates: public count 559 across 61 targets (full workspace rerun
+on this head), harness contract 47/47, `maze-chase-verify`
 19/19 (`23c17f89734e`; `perf-headless` 0.2-0.4 us/tick on CI reruns),
 wasm sha256 `68e331b2...`, `cargo fmt --all --check` clean, and clippy
 reports only the pre-existing engine style lints.
@@ -1215,4 +1215,25 @@ Next: Phase 5 (sound design overhaul).
   or evidence was touched. A single-area docs fix with the files already
   open, so no subagents were dispatched. No registry skill matched; none
   loaded.
+  - the Fixer
+
+- 2026-10-20 (fixer, Quality Council round on `b6f82a24`): applied the four
+  blocking findings from the 9.4/10 rejection. The terminal play path now
+  forwards `reduced_motion` through `App::fx()` into the shared `Fx` for the
+  bitmap, Sixel-fallback cell, and full-repaint cell paths, and
+  `bitmap_png` uses `render_opts`; a live truecolor PTY test seeds
+  `reduced_motion = true` and fails on any sunseed halo glyph while the
+  motion-enabled control requires one (mutation-verified against the pre-fix
+  path). `paint_card` clears a window-clamped one-cell `theme.bg` ring
+  before the border, covering both title and pause cards (grid regression
+  test). Desktop `stage_center()` now centers the pause card and the compact
+  title card over the board instead of the page (board-center unit tests
+  plus a paused-frame border test), and `docs/desktop-probe.ppm` was
+  recaptured byte-identically under Xvfb. `docs/design.md` now records the
+  shipped scope with an accepted-simplifications section (interaction,
+  environment, assets, effects/accessibility) and the feature matrix row is
+  scoped to shipped art; the reduced-flash registry lists only shipped
+  sources. Full workspace rerun: 559 passed / 0 failed across 61 targets,
+  `maze-chase-verify` 19/19 (`23c17f89734e`), fmt clean, clippy limited to
+  the six pre-existing engine lints; wasm unchanged at `68e331b2...`.
   - the Fixer

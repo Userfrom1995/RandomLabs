@@ -76,26 +76,26 @@ deliberation record with the reasons they lost.
 
 ## UX flows: Waylight
 
-Waylight merges the two UX proposals: play-first boot (a directional
-key starts the hunt immediately) inside the Waystation information
+Waylight merges the two UX proposals: play-first boot (Enter on
+terminal/desktop, Start on web) inside the Waystation information
 grammar (three-zone title, description strips, repair cards, exit
 discipline).
 
 First run, per layer:
 
-- Terminal: launch, then ONE arrow starts play (2 interactions, under
-  1.5 s). The title is an overlay over a live attract board; a hint
-  strip names "any direction key starts, H help, S scores, Esc
-  settings". Esc at the title is a no-op (accidental-quit prevention);
-  quitting is only reachable from the pause hub behind a 1 s confirm.
-- Desktop: double-click, then an arrow (2 interactions, under 2 s).
-- Web: page open, then any key or a board click (2 interactions,
-  playable under 2.5 s on a 10 Mbps link).
-- Mobile: tap, then one swipe (2 touches); the D-pad and swipe pad are
-  visible whenever touch is present.
+- Terminal: launch, then Enter on Play starts the hunt (2 interactions,
+  under 1.5 s). The title is an overlay over a live attract board;
+  Up/Down select and Enter activates. Esc at the title is a no-op
+  (accidental-quit prevention); Quit is a title row and Quit to title is
+  a pause row, both applied immediately.
+- Desktop: double-click, then Enter on Play (2 interactions, under 2 s).
+- Web: page open, then the Start button (2 interactions, playable under
+  2.5 s on a 10 Mbps link).
+- Mobile: tap Start, then one swipe (2 touches); the D-pad and swipe pad
+  are visible whenever touch is present.
 
-Screens and states. Attract (runs behind every non-play surface dimmed
-40 percent), title overlay (three zones: live attract board left, menu
+Screens and states. Attract (runs behind the title dimmed 40 percent;
+pause stages the frozen board dimmed 55 percent), title overlay (three zones: live attract board left, menu
 with per-item description strip right, warden legend plus goal line
 bottom: "clear 445 crumbs; sunseeds turn the hunt"), play HUD (score,
 best, wicks, level, dots with completion bar, fright and relish badges,
@@ -107,10 +107,11 @@ to pause/help plus the wide-window side panel (96 columns and above,
 where best and the sound chip also return); no addition introduces a
 fourth HUD row; frame diagnostics hidden by default and reachable from
 settings), pause hub (frozen board dimmed 55 percent, actors exempt
-from dimming and held at 3:1 or better against the dimmed board; quick
-chords M mute, R reduced motion, V reduced flash, C high contrast,
-applied live and persisted), how-to-play (pages with scripted live
-mini-board demonstrations; Enter from any page starts a hunt), scores,
+from dimming and held at 3:1 or better against the dimmed board; Resume
+and Quit to title; M mutes during play, while reduced motion, reduced
+flash, and high contrast are Settings rows on every layer, applied live
+and persisted), how-to-play (static pages; Enter from any page starts a
+hunt), scores,
 settings (four tabs: Game, Sound, Access, Controls; live-apply; theme
 and difficulty apply next hunt), game over (score, crumbs cleared,
 warden-eats, best, rank; name entry on web), too-small card (states
@@ -143,23 +144,24 @@ Reduce window or Fullscreen, never a silent freeze. Forced-tier
 garbage: restart guidance without `--tier`.
 
 Hostile input. Key mash: run-start limited to one per 500 ms, menus
-coalesce repeat at 10 Hz. Destructive edges (quit, restart, name
-confirm): a 300 to 500 ms guard. Resize mid-menu preserves surface and
+coalesce repeat at 10 Hz. Quit and restart apply immediately (no confirm
+dialog ships in this release). Resize mid-menu preserves surface and
 selection; resize mid-pause repaints the overlay with the board frozen.
 Browser Back pushes one history guard so Back pauses instead of
 leaving; a second Back within 2 s leaves. Touch: `touch-action: none`
 on the board, 44 px minimum targets. Denied localStorage: session-only
 chip. Terminal below the floor: too-small card with the run preserved.
-Gamepad unplug: auto-pause within 100 ms. SIGINT is trapped into the
-quit confirm instead of killing the process mid-run.
+Gamepad unplug: auto-pause within 100 ms. SIGINT terminates the
+session; no quit-confirm trap ships in this release.
 
-Accessibility. Pause is the universal hub; M, R, V, C are bare-key
-chords (terminal control chords are consumed by the tty, so the design
-deliberately avoids Ctrl combinations). The pure accessibility path is
-three interactions (Esc, Settings, Access). Every motion and flash has
-a first-class reduced path (below). Achievement toasts teach sunseed,
-chain, relish, and spare wick exactly once each; they are pinned to a
-HUD row and never cover the board.
+Accessibility. Pause is the universal hub; M is the bare-key mute chord
+(terminal control chords are consumed by the tty, so the design
+deliberately avoids Ctrl combinations), and reduced motion, reduced
+flash, and high contrast are Settings rows on every layer. Every
+motion and flash has a first-class reduced path (below). No dedicated
+accessibility shortcut or achievement-toast path ships in this
+release; the three-interaction target and the one-time teaching
+toasts are recorded under accepted simplifications.
 
 Web information architecture. The game page opens directly into the
 game: full-viewport board, loader inside the board rectangle, title
@@ -209,42 +211,37 @@ rejected because it collapses the prey and predator moods the palette
 encodes; the binding gate stays on hunter pairs (60+) and on the eyes
 slot (below).
 
-Frightened state: predators bloat with concentric light rings filled
-flat with the theme fright color plus a darker 1 px outline; the mask
-fill NEVER uses the eyes slot (separate fill rule), never white. Last
-1.5 s: steady-state change plus the HUD countdown bar (spec in motion);
-any body pulse is capped at 2 to 3 Hz and eye-sized. Reduced flash:
-inner ring held steady plus banner "THE TURN ENDS". Eyes-travel-home:
-bubble-orbs with a ripple trail pointing along travel, drawn with the
-eyes slot directly on the board, hence the eyes contrast gate (below).
-Gate-exit and revive: bubble-up 6 frames at 12 fps; reduced motion
-falls back to a 2-frame fade.
+Frightened state: predators wear the entry, steady, or warning fright
+mask; the mask fill NEVER uses the eyes slot (separate fill rule),
+never white. Last 1.5 s: steady-state change plus the HUD countdown bar
+(spec in motion). Reduced flash: the steady mask is held. Eyes return:
+the eyes overlay drifts home to the house, drawn with the eyes slot
+directly on the board, hence the eyes contrast gate (below). The
+bubble-orbs/ripple trail and the 6-frame bubble-up revive are deferred
+design targets (see accepted simplifications below).
 
-Environment. Stone banks with 1 px sculpted floor-facing edges (2 px at
-21x21), moss flecks, vertical joints every 2 tiles and offset courses
-every 3; water floor with caustic dither at 21x21 only; gatehouse lily
-ring with a reed door (a two-state shape change: barred and unbarred);
-tunnel as a submerged pipe with a current line and a 2-frame entry
-ripple (cells and kitty only; sixel gets a static entry frame); crumbs
-are water beads 3x3 with a meniscus ring; sunseeds are resting
-fireflies 7x7 with a two-frame halo on the rung-snapped period (400 ms
-base; 416.7 ms at the 24/12 Hz snap, see motion). Bonus set: Lily
-Charm, Copper Ripple, Reed Flute, Snail Shell, Dragonfly Wing,
-Kingfisher Feather (7x7 low, 11x11 high, 1 px bob). Wall readability:
-dark themes use bright stone edges on indigo
+Environment (shipped). Stone banks with a two-tone bevel (inner fill
+plus a 1 px sculpted wall face; 2 px at 21x21); water floor without a
+caustic dither; the gatehouse gate drawn as a single accent lintel;
+tunnel tiles are plain water. Crumbs are water beads 3x3 with a
+meniscus ring; sunseeds are resting fireflies 7x7 with a two-frame halo
+on the rung-snapped period (400 ms base; 416.7 ms at the 24/12 Hz snap,
+see motion). Bonus set: Lily Charm, Copper Ripple, Reed Flute, Snail
+Shell, Dragonfly Wing, Kingfisher Feather (7x7 low, 11x11 high, 1 px
+bob). Wall readability: dark themes use bright stone edges on indigo
 water; light themes use wet dark stone on pale sand-water; legacy
 rungs use `#` walls and `%` interiors on ANSI pairs.
 
-Effects vocabulary. Pickup burst 4 frames of a 3x3 expanding ring on a
-66.7 ms grid, one burst per crumb pickup (chained pickups step the same
-grid and register as one aggregate flash source); chomp 3 frames at
-12 fps as a cheek swell; fright morph 2 frames; death ripple then
-bubble (window spec in motion); level clear is one 300 ms sweep of the
-board plus a 9x9 lily-crown banner; extra life Golden Lily 6 frames 9x9
-at 12 fps; score floaters are desktop/web-only 5x7 numerals rising 8 px
-over 500 ms on an opaque plate (plate contrast 4.5:1 or better so float
-text over a sunseed never falls below the text gate); terminal floats
-stay off (no raster digits in the terminal font stack).
+Effects vocabulary (shipped). Pickup burst 4 frames of a 3x3 expanding
+ring on a 66.7 ms grid, one burst per crumb pickup; chomp 3 frames at
+12 fps as a cheek swell; fright morph uses the entry, steady, and
+warning masks; death clip 4 frames then hold (window spec in motion);
+level clear is one 300 ms sweep of the board plus a 9x9 lily-crown
+banner; extra life Golden Lily 6 frames 9x9 at 12 fps; score floaters
+are desktop/web-only 5x7 numerals rising 8 px over 500 ms on an opaque
+plate (plate contrast 4.5:1 or better so float text over a sunseed
+never falls below the text gate); terminal floats stay off (no raster
+digits in the terminal font stack).
 
 Fidelity ladder rules:
 
@@ -264,10 +261,35 @@ Fidelity ladder rules:
 4. Web DOM chrome and desktop menu composition: CSS and the 5x7
    desktop font; wordmark "MAZE CHASE" everywhere.
 
-What does not survive every rung (accepted and documented): caustics
-and feather barbs below 21x21; ring-bloom depth below 11x11; floaters
-below truecolor; per-frame particles on sixel (never shipped there:
-static or pre-rendered frames only).
+What does not survive every rung (accepted and documented): feather
+barbs below 21x21; ring-bloom depth below 11x11; floaters below
+truecolor; per-frame particles on sixel (never shipped there: static or
+pre-rendered frames only).
+
+### Accepted simplifications (shipped this release)
+
+The shipped build is authoritative over the deferred design targets
+above. These are the simplifications accepted for this release:
+
+- Interaction: Enter/Start begins play (no direction-key start on the
+  title); quit applies immediately from the title or the pause hub (no
+  1 s confirm); M mutes during play, while reduced motion, reduced
+  flash, and high contrast are Settings rows on every layer (no R/V/C
+  chords); the three-interaction accessibility path is a target, not a
+  shipped shortcut; how-to-play pages are static text (no scripted
+  mini-boards); no achievement toasts ship.
+- Environment: wall faces are two-tone bevels with a single accent gate
+  line; no moss flecks, vertical joints or offset courses, caustic
+  dither, lily-ring reed door, or tunnel pipe/current/entry ripple.
+- Assets: hunters use one silhouette each with shared eyes and fright
+  masks (no roam/fright/warning/respawn sheets); no 5-frame firefly
+  swarm; no 6-frame bubble-up revive (the eyes overlay returns); no
+  16-piece wall grammar.
+- Effects and accessibility: the shipped reduced-flash and reduced-motion
+  sources are the ones in the registry below; chain pops, tunnel
+  smear/ripple, the level-clear wall pulse, the firefly swarm, idle
+  hunter micro-loops, caustic dither, eyes trails, the web loader pulse,
+  and overlay fades are not shipped (screen changes are cuts).
 
 Palettes. All 15 slots, uppercase hex. The three launch themes:
 
@@ -317,12 +339,16 @@ bold yellow. Wall and interior, crumbs, and sunseeds map to their
 nearest ANSI pairs; the fallback keeps all four hunters distinct and
 Rill's pair distinct from every hunter pair.
 
-Asset inventory: Rill sheet (11x11 and 21x21, 2/3/4 frames), four
-hunter sheets (roam, fright, warning, respawn: 4/2/2/6), bubble eyes
-5x5 and 7x7, crumbs 3x3, sunseeds 7x7 (2 frames), bonus icons x6
-(7x7 and 11x11), Golden Lily 9x9 (6 frames), wall grammar 16 pieces,
-effects 5 clips, firefly swarm 5 frames (level clear, cells and kitty
-only).
+Asset inventory (shipped): Rill 11x11 in three poses (right, mid,
+closed) for right/up/down plus left mirrors, and nine 21x21 sheets for
+the image rungs; four single-silhouette hunter bodies (Bram, Kessa,
+Jory, Nib) with shared eyes overlays (5x5 and 7x7) and entry, steady,
+and warning fright masks; crumbs 3x3; sunseeds 7x7 (2 frames); six
+found-object bonus icons (7x7 and 11x11); Golden Lily 9x9 (6 frames);
+pickup ripple 3x3 (4 frames); turn spark 7x7; lily-crown banner 9x9;
+runtime wall bevels. Deferred design targets (see accepted
+simplifications above): the 4/2/2/6 hunter sheets, the 5-frame firefly
+swarm, the 6-frame bubble-up revive, and the 16-piece wall grammar.
 
 Typography. Terminal: the terminal's own mono font, box-drawing and
 half-block glyphs only; no raster type. Desktop: the shipped 5x7 pixel
@@ -414,20 +440,19 @@ ignored until respawn; overlay dismiss keys never interrupt the window.
 Reduced motion: identical window with the clip frames replaced by two
 static silhouette states.
 
-Reduced-flash registry (expanded, all sources): fright warning, death,
-sunseed pickup, level clear, extra life, chain pop, chained pickup
-bursts (aggregate flash risk), the always-on sunseed halo, tunnel
-speed smear and entry ripple, the level-clear wall pulse, the firefly
-swarm, idle hunter micro-loops (heron throat pulse, dragonfly wing
-loop, snake head sway), the web loader pulse, and attract-board
-animation. Reduced-motion registry: score floaters, caustic dither,
-firefly swarm, attract board, loader motion, eyes trails, turn sparks,
-idle micro-loops, overlay fades (desktop and web; become cuts). Tests:
-the render-code registry test fails on any
+Reduced-flash registry (shipped): fright warning, death, sunseed halo,
+pickup bursts, the level-clear sweep and banner, the extra-life Golden
+Lily, and attract-board animation. Reduced-motion registry (shipped):
+the same sources plus chomp/hop and relish bob, turn sparks, score
+floaters, and the staged title/pause board. Deferred sources are listed
+under accepted simplifications and are not shipped, so they are not in
+the registry. Tests: the render-code registry test fails on any
 unlisted brightness call site; a capture test renders 180 frames of the
 warning window with reduced flash on and asserts no pixel above 0.85
 luminance outside eyes and highlights and adjacent-frame delta of 8 or
-less in reduced flash and reduced motion.
+less in reduced flash and reduced motion; a live PTY test starts a real
+run with `reduced_motion = true` and fails if any sunseed halo glyph
+appears.
 
 Budgets in KiB/s per rung, with the shared skip and degrade contract.
 Cells (legacy and truecolor): steady ceiling 64 KiB/s, full-frame
@@ -468,8 +493,8 @@ engine frozen. Pause freezes the engine on key-down before any dim.
 Input: no transition gates input; terminals filter to key-press events
 only (Kitty sends press and release); exactly one input buffer; menu
 repeat is 300 ms initial and 80 ms thereafter; rebind consumes exactly
-one keydown; Q asks a 1 s confirm; SIGINT opens the quit confirm
-instead of terminating.
+one keydown; quit applies immediately and SIGINT terminates the session
+(no quit-confirm trap ships in this release).
 
 Tester checks (real hosts, concrete observations):
 
