@@ -157,7 +157,7 @@ fast path rather than a capability gap). Both rows pass on Ghostty
 
 ## Layout and resize
 
-The 28x31 warren plus HUD fits windows from 62x35 up, and every window
+The 28x31 pond maze plus HUD fits windows from 62x35 up, and every window
 size gets a plan fitted for it: the layout solver scans the tile scale
 grid (2 to 8 columns per tile, 1 to 4 rows per tile; the 2x1 compact
 scale is the floor) and keeps the plan that covers the most of the

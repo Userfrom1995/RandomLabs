@@ -130,7 +130,7 @@ Windows native pass plus fix round, pre-Pondwake (tester run
   rendered title/play/pause/too-small/resize (9 pass; the 6 fails all
   shared the Release-key double-fire defect this pass found).
 - Desktop probe PPM byte-identical to the committed
-  `docs/desktop-probe.ppm` (sha256 `8de66bae...`); the packaged zip
+  `docs/desktop-probe.ppm` (pre-Pondwake file, sha256 `8de66bae...`; the current Pondwake file is `1b6f17cc...`); the packaged zip
   `maze-chase-desktop-0.1.0-windows-x86_64.zip` (609,776 bytes)
   extracted a binary byte-identical to the release build.
 - Web node smokes and CDP browser E2E green.
@@ -250,12 +250,13 @@ commit `90cb9b87` (kept as history):
   `tester-regression.js`, and the real headless-chromium
   `browser-e2e.js` ALL GREEN with zero console errors.
 
-Review fix round, measured on the same Linux machine at code commit
-`14b939d9` (the head of this PR):
+Review fix rounds, measured on the same Linux machine at the head of
+this PR (round 2 landed on `14b939d9`):
 
 - `cargo test --workspace --no-fail-fast` (desktop E2E under Xvfb):
-  514 passed, 0 failed across 57 test targets, including the new
-  effect-window, authored-facing, death-hold, and sweep-order tests.
+  525 passed, 0 failed across 57 test targets, including the new
+  effect-window, authored-facing, death-hold, sweep-order, mirrored-eye,
+  death-boundary, fright-slot, cell-clear, and Kitty image-one tests.
 - `cargo run --release --bin maze-chase-verify`: 19/19 checks, golden
   replay digest unchanged (`23c17f89734e`); `perf-headless` 0.2-0.4 us/tick
   across CI reruns (the release machine measured 0.1;
@@ -266,7 +267,7 @@ Review fix round, measured on the same Linux machine at code commit
   theme, renderer, or bridge code.
 - Wasm rebuild (`cargo build --release --target
   wasm32-unknown-unknown -p maze-chase-web`): sha256
-  `e3ffbe0db57569d4026dee31a6b5b269eed55e4388008f2115232635bdfcd742`,
+  `61a72473c7591b48d55010592c58d15234f2875e6b66c5178f59116ad2c78530`,
   committed as `web/maze-chase.wasm`; `wasm-smoke.js`,
   `tester-regression.js`, and the real headless-chromium
   `browser-e2e.js` are ALL GREEN with zero console errors. The committed
@@ -274,7 +275,11 @@ Review fix round, measured on the same Linux machine at code commit
 - Desktop Xvfb `--probe 30` stays byte-identical to
   `docs/desktop-probe.ppm`
   (sha256 `1b6f17cc7c2ea69fbd2f20881047c92fc53030a4e3d6a5f3ae624bb4293acf9d`);
-  the desktop E2E asserts the probe bytes.
+  the desktop E2E asserts the probe bytes. The committed gameplay
+  capture `docs/desktop-gameplay.ppm` (sha256
+  `abed89190516d5b1fab94ea6f52a918b5de803956832c19c01d9845b2307628d`)
+  was recorded from the same Xvfb window pipeline after driving a play
+  state, so the #658 evidence is a real gameplay frame, not the title.
 - Linux terminal compatibility harness: the six kitty/xterm rows were
   re-executed at `14b939d9` (binary sha256
   `c81890e8d27c8f6914a8decf3df14ca02a9314fd2a9b70bf94991ca714821e9b`,

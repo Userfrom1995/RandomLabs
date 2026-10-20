@@ -197,7 +197,7 @@ pub fn render_board(
     let field = game.maze.dot_bytes();
     let stride = (WIDTH * HEIGHT) as usize;
     let fright = game.wardens.fright_active();
-    let flash_on = flash && game.wardens.fright_t <= 1.5 && (frame_no / 6).is_multiple_of(2);
+    let flash_on = flash && anim::fright_flash_on(game.wardens.fright_t);
     let bodies = [theme.bram, theme.kessa, theme.jory, theme.nib];
 
     // Actor overlay lookup: tile -> (text, color).
@@ -256,6 +256,22 @@ pub fn render_board(
         let cx = WIDTH / 2;
         let cy = HEIGHT / 2;
         overlay.insert((cx, cy), ("YY", theme.accent));
+    }
+    if game.state == GameState::Clearing {
+        let elapsed = game.state_elapsed();
+        if anim::level_clear_sweep(elapsed).is_some() {
+            let quantum = (elapsed * 12.0).floor() as i32;
+            let start = (quantum * WIDTH / 4).clamp(0, WIDTH);
+            let end = ((quantum + 1) * WIDTH / 4).clamp(0, WIDTH);
+            for tx in start..end {
+                for ty in 0..HEIGHT {
+                    overlay.insert((tx, ty), ("▓▓", theme.accent));
+                }
+            }
+        }
+        if anim::level_clear_banner_on(elapsed) {
+            overlay.insert((WIDTH / 2, HEIGHT / 2), ("YY", theme.accent));
+        }
     }
     for row in 0..rows {
         let mut spans: Vec<Span> = Vec::new();
@@ -495,9 +511,34 @@ mod tests {
     }
 
     #[test]
+    fn level_clear_reaches_the_cell_rung() {
+        let theme = &themes::DUSK_POND;
+        let l = layout::compute(100, 40);
+        let mut g = game();
+        for y in 0..HEIGHT {
+            for x in 0..WIDTH {
+                g.maze.eat_at(x, y);
+            }
+        }
+        g.tick(maze_chase_engine::tuning::STEP);
+        assert_eq!(g.state, GameState::Clearing);
+        let early = render_board(&g, theme, &l, 0, true).to_ansi(true);
+        assert!(early.contains("▓▓"), "the sweep band must paint");
+
+        g.tick(0.4);
+        let banner = render_board(&g, theme, &l, 0, true).to_ansi(true);
+        assert!(banner.contains("YY"), "the lily banner must paint");
+        assert!(!banner.contains("▓▓"), "the sweep has passed");
+
+        g.tick(0.6);
+        let late = render_board(&g, theme, &l, 0, true).to_ansi(true);
+        assert!(!late.contains("▓▓") && !late.contains("YY"));
+    }
+
+    #[test]
     fn ansi16_folds_sanely() {
         assert_eq!(ansi16(Rgb(255, 255, 255)), 97);
         assert_eq!(ansi16(Rgb(0, 0, 0)), 30);
-        assert!(ansi16(Rgb(232, 110, 40)) == 33 || ansi16(Rgb(232, 110, 40)) == 91);
+        assert_eq!(ansi16(themes::DUSK_POND.accent), 93);
     }
 }

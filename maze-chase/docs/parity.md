@@ -78,7 +78,7 @@ numbers sit in the dated sections of `scoreboard.md`.
   with regression contracts executed red on the pre-fix head and
   green on the fixed head by the independent Quality Council round
   (`approve-eval` 9.8/10).
-- **Linux** (this release pass): 407 tests passed / 0 failed across 45
+- **Linux** (pre-Pondwake release pass): 407 tests passed / 0 failed across 45
   targets, `maze-chase-verify` 19/19, terminal and desktop tarballs
   staged, installed to a scratch prefix, and probed, node smokes, and
   real-browser CDP E2E all green.

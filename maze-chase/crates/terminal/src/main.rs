@@ -453,6 +453,7 @@ struct KittyRenderer {
     force_all: bool,
     /// True while the whole-frame clear (sweep and banner) owns the board.
     clearing: bool,
+    whole_frame: bool,
 }
 
 impl KittyRenderer {
@@ -465,6 +466,7 @@ impl KittyRenderer {
             placed: Vec::new(),
             force_all: true,
             clearing: false,
+            whole_frame: false,
         }
     }
 
@@ -664,12 +666,15 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
         out.push_str(&kg::free_image_escape(kg::ATLAS_IMAGE_ID));
         kitty.invalidate();
     }
+    if fresh && kitty.placements && kitty.whole_frame {
+        out.push_str(kg::delete_all_escape());
+        out.push_str(&kg::free_image_escape(1));
+        kitty.whole_frame = false;
+    }
 
     if !kitty.placements {
-        // Probe proved graphics but not placements, or the 21 ppt rung
-        // selected the authored high-detail sheet (its cell grid is not
-        // uniform with the 11x11 effect art): keep the proven whole-frame
-        // path, still silent (q=2) to protect input.
+        // The probe proved graphics but not placements: keep the proven
+        // whole-frame path, still silent (q=2) to protect input.
         out.push_str(&kg::delete_escape(1));
         let png = app.bitmap_png();
         out.push_str(&kg::display_escape_id(
@@ -678,6 +683,7 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
             img.w as u32,
             Some(1),
         ));
+        kitty.whole_frame = true;
         return FrameStats {
             mode: "frame",
             ..FrameStats::default()
@@ -710,6 +716,7 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
             img.w as u32,
             Some(1),
         ));
+        kitty.whole_frame = true;
         return FrameStats {
             mode: "frame",
             ..FrameStats::default()
@@ -719,6 +726,7 @@ fn kitty_frame(app: &App, out: &mut String, fresh: bool, kitty: &mut KittyRender
         kitty.clearing = false;
         out.push_str(kg::delete_all_escape());
         out.push_str(&kg::free_image_escape(1));
+        kitty.whole_frame = false;
         kitty.invalidate();
     }
 
@@ -872,8 +880,9 @@ fn compose_frame(
         out.push_str(&maze_chase_terminal::kitty::free_image_escape(
             maze_chase_terminal::kitty::ATLAS_IMAGE_ID,
         ));
-        if !kitty.placements {
+        if kitty.whole_frame || !kitty.placements {
             out.push_str(&maze_chase_terminal::kitty::free_image_escape(1));
+            kitty.whole_frame = false;
         }
     }
     render_frame(app, out, fresh, kitty)
@@ -890,6 +899,7 @@ fn compose_frame(
 fn note_failed_frame_write(fresh: &mut bool, kitty: &mut KittyRenderer) {
     *fresh = true;
     kitty.invalidate();
+    kitty.whole_frame = true;
 }
 
 /// Render one full frame into `out` (caller flushes).
@@ -1041,11 +1051,12 @@ fn render_frame(
                 out.push_str(&maze_chase_terminal::kitty::free_image_escape(
                     maze_chase_terminal::kitty::ATLAS_IMAGE_ID,
                 ));
-                if !kitty.placements {
-                    // The probe proved graphics but not placements, so
-                    // the board is a whole-frame display under image id
-                    // 1; release that layer too or it covers the menu.
+                if kitty.whole_frame || !kitty.placements {
+                    // The whole-board layer lives under image id 1 (the
+                    // no-placements path, or a clear window that ended on
+                    // a menu); release it or it covers the menu.
                     out.push_str(&maze_chase_terminal::kitty::free_image_escape(1));
+                    kitty.whole_frame = false;
                 }
                 // The screen-change path already invalidated the renderer
                 // when this surface was entered; the release bytes above
@@ -1073,11 +1084,12 @@ fn render_frame(
                 out.push_str(&maze_chase_terminal::kitty::free_image_escape(
                     maze_chase_terminal::kitty::ATLAS_IMAGE_ID,
                 ));
-                if !kitty.placements {
-                    // The probe proved graphics but not placements, so
-                    // the board is a whole-frame display under image id
-                    // 1; release that layer too.
+                if kitty.whole_frame || !kitty.placements {
+                    // The whole-board layer lives under image id 1 (the
+                    // no-placements path, or a clear window that ended on
+                    // a menu); release it.
                     out.push_str(&maze_chase_terminal::kitty::free_image_escape(1));
+                    kitty.whole_frame = false;
                 }
                 kitty.invalidate();
             }
@@ -1820,6 +1832,69 @@ mod tests {
             frame.contains("PAUSED") && frame.contains("Resume"),
             "the pause menu must paint"
         );
+    }
+
+    #[test]
+    fn pausing_during_the_clear_window_frees_image_one() {
+        use maze_chase_engine::game::GameState;
+        use maze_chase_terminal::kitty;
+        use maze_chase_terminal::screens::ScreenId;
+        let env = vec![("KITTY_WINDOW_ID".to_string(), "1".to_string())];
+        let mut app = App::new(100, 40, &env, std::path::PathBuf::from("."));
+        app.screens.show(ScreenId::Playing);
+        app.game.state = GameState::Clearing;
+        let mut renderer = KittyRenderer::new(true);
+        let mut frame = String::new();
+        compose_frame(&mut app, &mut frame, true, &mut renderer, false);
+        assert!(frame.contains(",i=1,m="), "the clear window uses image 1");
+        assert!(renderer.whole_frame);
+
+        app.screens.show(ScreenId::Paused);
+        let mut pause = String::new();
+        compose_frame(&mut app, &mut pause, true, &mut renderer, false);
+        assert!(
+            pause.contains(&kitty::free_image_escape(1)),
+            "pausing mid-clear must free the whole-frame image"
+        );
+        assert!(!renderer.whole_frame);
+        assert!(!pause.contains(",i=1,m="));
+    }
+
+    #[test]
+    fn a_failed_clear_exit_frees_image_one_on_the_retry() {
+        use maze_chase_engine::game::GameState;
+        use maze_chase_terminal::kitty;
+        use maze_chase_terminal::screens::ScreenId;
+        let env = vec![("KITTY_WINDOW_ID".to_string(), "1".to_string())];
+        let mut app = App::new(100, 40, &env, std::path::PathBuf::from("."));
+        app.screens.show(ScreenId::Playing);
+        app.game.state = GameState::Clearing;
+        let mut renderer = KittyRenderer::new(true);
+        let mut frame = String::new();
+        compose_frame(&mut app, &mut frame, true, &mut renderer, false);
+        assert!(renderer.whole_frame);
+
+        app.game.state = GameState::Play;
+        let mut exit_frame = String::new();
+        compose_frame(&mut app, &mut exit_frame, false, &mut renderer, false);
+        assert!(
+            exit_frame.contains(&kitty::free_image_escape(1)),
+            "leaving the clear window must free image 1"
+        );
+        assert!(!renderer.whole_frame);
+
+        // The exit frame never reached the terminal.
+        let mut fresh = false;
+        note_failed_frame_write(&mut fresh, &mut renderer);
+        assert!(renderer.whole_frame);
+        let mut retry = String::new();
+        compose_frame(&mut app, &mut retry, fresh, &mut renderer, false);
+        assert!(
+            retry.contains(&kitty::free_image_escape(1)),
+            "the retry must free the image the failed frame left behind"
+        );
+        assert!(!retry.contains(",i=1,m="), "the retry must use placements");
+        assert!(!renderer.whole_frame);
     }
 
     #[test]

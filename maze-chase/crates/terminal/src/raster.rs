@@ -163,9 +163,9 @@ pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) 
     paint_tiles(&mut frame, game, theme, ppt, &crumb_field);
     paint_sunseeds(&mut frame, game, theme, ppt, scale, frame_no);
     paint_relish(&mut frame, game, theme, ppt, scale, frame_no);
-    paint_pickup_burst(&mut frame, game, theme, ppt, scale);
     paint_wardens(&mut frame, game, theme, ppt, scale, frame_no, flash);
     paint_pip(&mut frame, game, theme, ppt, scale, frame_no);
+    paint_pickup_burst(&mut frame, game, theme, ppt, scale);
     paint_turn_spark(&mut frame, game, theme, ppt, scale);
     paint_golden_lily(&mut frame, game, theme, scale);
     paint_level_clear(&mut frame, game, theme, ppt, scale);
@@ -391,11 +391,11 @@ fn paint_wardens(
     theme: &Theme,
     ppt: i32,
     scale: i32,
-    frame_no: u64,
+    _frame_no: u64,
     flash: bool,
 ) {
     let fright = game.wardens.fright_active();
-    let flash_on = flash && (game.wardens.fright_t <= 1.5) && (frame_no / 6).is_multiple_of(2);
+    let flash_on = flash && anim::fright_flash_on(game.wardens.fright_t);
     let bodies = [theme.bram, theme.kessa, theme.jory, theme.nib];
     for warden in game.wardens.wardens.iter() {
         let cx = (warden.actor.x * ppt as f32) as i32;
@@ -479,14 +479,7 @@ fn paint_wardens(
 /// The eye pair for a facing (left is the mirror of right, never
 /// duplicated art).
 pub fn eyes_rows(dir: maze_chase_engine::actors::Dir) -> Vec<String> {
-    use maze_chase_engine::actors::Dir;
-    let rows: &[&str] = match dir {
-        Dir::Up => &sprites::EYES_UP,
-        Dir::Down => &sprites::EYES_DOWN,
-        Dir::Right => &sprites::EYES_RIGHT,
-        Dir::Left => return sprites::flip_horizontal(&sprites::EYES_RIGHT),
-    };
-    rows.iter().map(|s| s.to_string()).collect()
+    sprites::eyes_rows(facing_of(dir))
 }
 
 /// Pip (death clip while dying, chomp cycle in play).
@@ -609,11 +602,17 @@ mod tests {
         let mut g = fresh();
         let base = render(&g, &theme, 8, 0, true);
 
-        g.fx.pickup(g.player.x + 1.0, g.player.y);
+        g.fx.pickup(g.player.x, g.player.y);
         let burst = render(&g, &theme, 8, 0, true);
         assert_ne!(
             base.px, burst.px,
             "pickup burst must paint on the pickup grid"
+        );
+        let (px, py) = ((g.player.x * 8.0) as i32, (g.player.y * 8.0) as i32);
+        assert_eq!(
+            burst.get(px, py),
+            Some(theme.text),
+            "the burst must paint over Pip, not under the sprite"
         );
         g.fx.advance(0.3);
         assert_eq!(render(&g, &theme, 8, 0, true), base, "burst expires");
@@ -655,6 +654,25 @@ mod tests {
             held.count(theme.accent) < early.count(theme.accent),
             "banner must not stay for the whole clear window"
         );
+    }
+
+    #[test]
+    fn death_frame_boundaries_are_exact() {
+        let theme = themes::DUSK_POND;
+        let mut frames = Vec::new();
+        for t in [0.0f32, 0.05, 0.1, 0.2, 0.4] {
+            let mut g = fresh();
+            g.kill_player();
+            if t > 0.0 {
+                g.tick(t);
+            }
+            frames.push(render(&g, &theme, 8, 0, true).px);
+        }
+        assert_eq!(frames[0], frames[1], "0.0 and 0.05 hold frame 0");
+        assert_ne!(frames[1], frames[2], "0.1 starts frame 1");
+        assert_ne!(frames[2], frames[3], "0.2 starts frame 2");
+        assert_ne!(frames[3], frames[4], "0.4 holds the final frame");
+        assert_ne!(frames[0], frames[4], "the first and last frames differ");
     }
 
     #[test]

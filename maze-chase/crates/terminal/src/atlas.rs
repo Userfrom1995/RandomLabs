@@ -8,7 +8,7 @@
 //! a few kilobytes of placement commands instead of a full-board PNG,
 //! and unchanged pixels are never re-sent.
 //!
-//! The atlas is a 6x6 grid of 11x11-glyph cells (34 used) with the same
+//! The atlas is an 8x6 grid of 11x11-glyph cells (46 used) with the same
 //! art and palettes as [`crate::raster`], authored on the 8-pixel tile
 //! grid so it stays crisp at larger cell sizes. [`compose`] renders the
 //! static layer plus placements on the CPU for parity tests against the
@@ -97,10 +97,10 @@ pub mod z {
     pub const fn eyes(warden: usize) -> u32 {
         5 + 2 * warden as u32
     }
-    /// Pickup burst (above the board, below the actors).
-    pub const BURST: u32 = 3;
+    /// Pickup burst (above Pip, so the player never hides it).
+    pub const BURST: u32 = 13;
     /// Pip, the player sprite (above every warden).
-    pub const PIP: u32 = 13;
+    pub const PIP: u32 = 12;
     /// Committed-turn spark (above Pip).
     pub const SPARK: u32 = 14;
     /// Spare-wick Golden Lily (above the spark).
@@ -424,7 +424,7 @@ pub fn placements(
     }
 
     let fright = game.wardens.fright_active();
-    let flash_on = flash && (game.wardens.fright_t <= 1.5) && (frame_no / 6).is_multiple_of(2);
+    let flash_on = flash && anim::fright_flash_on(game.wardens.fright_t);
     for warden in game.wardens.wardens.iter() {
         let cx = (warden.actor.x * ppt as f32) as i32;
         let cy = (warden.actor.y * ppt as f32) as i32;
@@ -631,6 +631,35 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn fright_slots_follow_the_shared_clock() {
+        let atlas = atlas_for(8);
+        let mut game = Game::new(11, 1);
+        game.wardens.start_fright(6.0);
+        let has = |game: &Game, slot: usize| {
+            placements(game, 8, 0, true, &atlas)
+                .iter()
+                .any(|p| p.slot == slot)
+        };
+
+        game.wardens.fright_t = 5.5;
+        assert!(has(&game, slot::FRIGHT), "steady mask");
+        assert!(!has(&game, slot::FRIGHT_FLASH));
+        assert!(!has(&game, slot::FRIGHT_ENTRY));
+
+        game.wardens.fright_t = 1.3; // 2.5 Hz phase on
+        assert!(has(&game, slot::FRIGHT_FLASH), "flash on");
+        assert!(!has(&game, slot::FRIGHT));
+
+        game.wardens.fright_t = 1.1; // 2.5 Hz phase off
+        assert!(has(&game, slot::FRIGHT), "flash off");
+        assert!(!has(&game, slot::FRIGHT_FLASH));
+
+        game.wardens.fright_t = 5.9; // 0.1 s into the turn
+        assert!(has(&game, slot::FRIGHT_ENTRY), "entry morph");
+        assert!(!has(&game, slot::FRIGHT));
     }
 
     #[test]
