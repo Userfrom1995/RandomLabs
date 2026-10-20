@@ -176,6 +176,45 @@ async function shot(ws, path) {
   const clearedText = await evalJs(ws, `document.getElementById('scores-body').textContent`);
   assert(clearedText.includes('No scores yet'), 'clear empties the table in-page');
 
+  // Settings theme panel: the label is read from Rust (single source of
+  // truth), the cycle button repaints the attract board, and the choice
+  // persists through the settings blob and a reload. The baseline is
+  // normalized first because a prior run may have left a stored theme.
+  await send(ws, 'Page.navigate', { url: PAGE });
+  await sleep(2500);
+  await evalJs(ws, `document.getElementById('btn-title-settings').click()`);
+  await sleep(400);
+  const themeLabel = () => evalJs(ws, `document.getElementById('theme-label').textContent`);
+  const canvasHash = () => evalJs(ws, `(() => { const d = document.getElementById('game-canvas').toDataURL(); let h = 0; for (let i = 0; i < d.length; i++) h = (h * 31 + d.charCodeAt(i)) | 0; return h; })()`);
+  let label = await themeLabel();
+  for (let i = 0; i < 3 && !String(label).startsWith('Dusk Pond'); i++) {
+    await evalJs(ws, `document.getElementById('btn-theme').click()`);
+    await sleep(300);
+    label = await themeLabel();
+  }
+  assert(label === 'Dusk Pond (1/3)', 'theme label starts on the canonical Dusk Pond row, got: ' + label);
+  const duskHash = await canvasHash();
+  await evalJs(ws, `document.getElementById('btn-theme').click()`);
+  await sleep(400);
+  assert((await themeLabel()) === 'Morning Shallows (2/3)', 'theme cycle advances to Morning Shallows');
+  await evalJs(ws, `document.getElementById('btn-theme').click()`);
+  await sleep(400);
+  assert((await themeLabel()) === 'Moonwake (3/3)', 'theme cycle advances to Moonwake');
+  const moonHash = await canvasHash();
+  assert(moonHash !== duskHash, 'a theme change repaints the board canvas');
+  const themeBlob = await evalJs(ws, `localStorage.getItem('maze-chase-settings')`);
+  const themeText = themeBlob ? Buffer.from(themeBlob, 'base64').toString('utf8') : '';
+  assert(/^theme = moonwake$/m.test(themeText), 'stored settings blob carries the canonical theme id, got: ' + JSON.stringify(themeText.split('\n').filter((l) => l.startsWith('theme'))));
+  await send(ws, 'Page.navigate', { url: PAGE });
+  await sleep(2500);
+  await evalJs(ws, `document.getElementById('btn-title-settings').click()`);
+  await sleep(400);
+  assert((await themeLabel()) === 'Moonwake (3/3)', 'theme choice persists across a reload');
+  // Leave the shipped default for any later pass.
+  await evalJs(ws, `document.getElementById('btn-theme').click()`);
+  await sleep(400);
+  assert((await themeLabel()) === 'Dusk Pond (1/3)', 'theme returns to the default row');
+
   const realErrors = errors.filter((e) => !/AudioContext|audio|user gesture/i.test(e));
   console.log('console/log errors:', realErrors.length ? realErrors : '(none)');
   assert(realErrors.length === 0, 'zero console errors');

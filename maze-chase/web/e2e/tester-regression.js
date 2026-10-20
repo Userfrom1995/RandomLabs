@@ -103,5 +103,135 @@ if (!fs.existsSync(wasmPath)) {
   for (let t = 16; t < 1500; t += 16) { e.mc_step(t); f.mc_step(t); }
   assert(e.mc_score() === f.mc_score(), 'deterministic scores match (' + e.mc_score() + ')');
 
+  // 5. Theme and settings matrix against the shipped bytes: the cycle
+  // order, canonical persistence, legacy-id migration, unknown-id
+  // canonicalization, and corrupt-blob rejection are all Rust-owned.
+  const boot = async () => (await WebAssembly.instantiate(mod, {})).exports;
+  const themeNameOf = (x) => {
+    const p = x.mc_scratch() >>> 0, c = x.mc_scratch_len() >>> 0;
+    const n = x.mc_theme_name(p, c) >>> 0;
+    return Buffer.from(x.memory.buffer, p, n).toString('utf8');
+  };
+  const blobOf = (x) => {
+    const n = x.mc_settings_len() >>> 0;
+    const p = x.mc_scratch() >>> 0, c = Math.min(n, x.mc_scratch_len() >>> 0);
+    const k = x.mc_settings_read(p, c) >>> 0;
+    return Buffer.from(x.memory.buffer, p, k).toString('utf8');
+  };
+  const writeBlob = (x, text) => {
+    const b = Buffer.from(text, 'utf8');
+    const p = x.mc_scratch() >>> 0;
+    new Uint8Array(x.memory.buffer, p, b.length).set(b);
+    return x.mc_settings_write(p, b.length) >>> 0;
+  };
+  const t = await boot();
+  assert(t.mc_theme() === 0 && t.mc_theme_count() === 3, 'fresh theme is Dusk Pond 1 of 3');
+  assert(t.mc_press(8) === 1 && t.mc_theme() === 1, 'theme cycle advances to Morning Shallows');
+  assert(t.mc_press(8) === 1 && t.mc_theme() === 2, 'theme cycle advances to Moonwake');
+  assert(t.mc_press(8) === 1 && t.mc_theme() === 0, 'theme cycle wraps to Dusk Pond');
+  t.mc_set_theme(2);
+  const saved = blobOf(t);
+  assert(/^theme = moonwake$/m.test(saved), 'theme persists its canonical id');
+  t.mc_set_theme(99);
+  assert(t.mc_theme() === 2, 'out-of-range theme setter is ignored');
+  const legacy = await boot();
+  assert(writeBlob(legacy, 'theme = abyss-lantern\n') === 1, 'legacy settings blob applies');
+  assert(legacy.mc_theme() === 2 && themeNameOf(legacy) === 'Moonwake',
+    'legacy abyss-lantern migrates to Moonwake, got: ' + themeNameOf(legacy));
+  assert(/^theme = moonwake$/m.test(blobOf(legacy)), 'legacy id is rewritten canonically');
+  const unknown = await boot();
+  assert(writeBlob(unknown, 'theme = not-a-theme\n') === 1, 'unknown theme blob still applies');
+  assert(unknown.mc_theme() === 0 && themeNameOf(unknown) === 'Dusk Pond',
+    'unknown theme falls back to Dusk Pond');
+  assert(/^theme = dusk-pond$/m.test(blobOf(unknown)), 'unknown id is repaired on save');
+  const corrupt = await boot();
+  corrupt.mc_set_theme(2);
+  assert(writeBlob(corrupt, 'difficulty = nonsense\n') === 0, 'corrupt blob is rejected');
+  assert(corrupt.mc_theme() === 2, 'rejected blob keeps the live settings');
+
+  // 6. Score-table name hygiene through the shipped exports: the empty
+  // name fallback is Rill, names trim and cap at 12 characters, and a
+  // zero score never qualifies.
+  const sc = await boot();
+  sc.mc_scores_clear();
+  const pushName = (x, name, score, level) => {
+    const b = Buffer.from(name, 'utf8');
+    const p = x.mc_scratch() >>> 0;
+    new Uint8Array(x.memory.buffer, p, b.length).set(b);
+    return x.mc_scores_push(p, b.length, score, level) >>> 0;
+  };
+  assert(pushName(sc, '   ', 500, 2) === 1, 'whitespace-only name is accepted');
+  assert(sc.mc_score_count() === 1, 'one row stored');
+  const readName = (x, i) => {
+    const p = x.mc_scratch() >>> 0, c = Math.min(x.mc_scratch_len() >>> 0, 256);
+    const n = x.mc_score_get_name(i, p, c) >>> 0;
+    return Buffer.from(x.memory.buffer, p, n).toString('utf8');
+  };
+  assert(readName(sc, 0) === 'Rill', 'empty name falls back to Rill, got: ' + readName(sc, 0));
+  assert(pushName(sc, '  LongWardenName  ', 400, 3) === 1, 'long padded name is accepted');
+  assert(readName(sc, 1) === 'LongWardenNa', 'name trims and caps at 12 chars, got: ' + readName(sc, 1));
+  assert(pushName(sc, 'Zero', 0, 1) === 0, 'zero score never qualifies');
+  assert(sc.mc_score_count() === 2, 'rejected zero score adds no row');
+  assert(sc.mc_score_get_score(0) >= sc.mc_score_get_score(1), 'table stays score-descending');
+
+  // 7. Hostile session fuzz against the shipped bytes: 4000 deterministic
+  // wall-clock steps with random keys, buttons, and screen jumps. The
+  // session must never trap, never lose score except across a restart,
+  // never exceed the board's 448 remaining pickups, and two fresh
+  // instances driven by the same seed sequence must agree exactly.
+  const snapshot = (x) => JSON.stringify({
+    screen: x.mc_screen() >>> 0, score: x.mc_score() >>> 0, lives: x.mc_lives() >>> 0,
+    level: x.mc_level() >>> 0, dots: x.mc_dots_left() >>> 0, mode: x.mc_mode() >>> 0,
+    fright: x.mc_fright_active() >>> 0, frame: x.mc_frame_no() >>> 0,
+    theme: x.mc_theme() >>> 0, muted: x.mc_muted() >>> 0,
+  });
+  const fuzz = async (seed) => {
+    const x = await boot();
+    x.mc_reset(seed, 0, 0, 0);
+    let rng = (seed * 2654435761) >>> 0;
+    const next = () => { rng = (rng * 1664525 + 1013904223) >>> 0; return rng; };
+    let now = 1000;
+    let lastScore = x.mc_score() >>> 0;
+    let lastDots = x.mc_dots_left() >>> 0;
+    let violation = null;
+    for (let i = 0; i < 4000 && violation === null; i++) {
+      now = (now + (next() % 40)) >>> 0;
+      x.mc_step(now);
+      if (next() % 5 === 0) x.mc_key(next() % 40, next() % 3);
+      if (next() % 37 === 0) x.mc_press(next() % 14);
+      if (next() % 89 === 0) x.mc_goto(next() % 8);
+      const score = x.mc_score() >>> 0;
+      const dots = x.mc_dots_left() >>> 0;
+      const restarted = dots === 448 && lastDots < 448;
+      if (score < lastScore && !restarted) {
+        violation = `score fell ${lastScore} -> ${score} at step ${i} outside a restart`;
+      } else if (dots > 448) {
+        violation = `dots ${dots} exceeds the board at step ${i}`;
+      } else if ((x.mc_lives() >>> 0) > 3) {
+        violation = `lives over the cap at step ${i}`;
+      }
+      lastScore = score;
+      lastDots = dots;
+    }
+    return { violation, snapshot: snapshot(x) };
+  };
+  for (const seed of [1, 7, 424242, 0xDEADBEEF]) {
+    const first = await fuzz(seed);
+    const second = await fuzz(seed);
+    assert(first.violation === null, `seed ${seed}: hostile session holds (${first.violation || 'no violation'})`);
+    assert(first.snapshot === second.snapshot, `seed ${seed}: identical sessions agree`);
+  }
+  const wrap = await boot();
+  wrap.mc_reset(5, 0, 0, 0);
+  wrap.mc_step(0xFFFFFFFF); wrap.mc_step(0); wrap.mc_step(1); wrap.mc_step(0xFFFFFFFF);
+  assert((wrap.mc_frame_no() >>> 0) === 4, 'wrapped timestamps still advance one frame each');
+  let frameGrid = true;
+  for (let w = 1; w <= 40; w++) {
+    for (let h = 1; h <= 40; h++) {
+      frameGrid = frameGrid && typeof wrap.mc_frame(w, h) === 'number';
+    }
+  }
+  assert(frameGrid, 'mc_frame returns a pointer across the 1..40 size grid');
+
   console.log('TESTER REGRESSION: ALL GREEN');
 })();
