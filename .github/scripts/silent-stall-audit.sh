@@ -111,11 +111,18 @@
 # path now resolves the triggering PR head directly behind a same-repository
 # plus opencode/ identity check while the issue path keeps the strict
 # issue-number namespace refusal, proven by a functional sandbox with mutation
-# self-tests).
-# Wired into auditor.yml as the R1-R29 matrix.
+# self-tests), and the R30 evaluator verdict publication plus PAT merge gate
+# guard (issue #713: the PAT sweep is the only automated path that can land
+# workflow-touching PRs and it enforced only the tester verdict, so
+# opencode-eval.yml now publishes a canonical bot-authored first-line
+# `eval-verdict: approve-eval` marker from the approve-eval machine handoff
+# and the sweep requires a fresh marker bound to the current head, with
+# genuine/hostile predicate cases, the freshness decision matrix, and the
+# publisher post/fetch outcomes executed functionally).
+# Wired into auditor.yml as the R1-R30 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R29 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R30 audit the whole tree
 # (the review-restore guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
@@ -185,12 +192,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R29 PASS] $name: $desc"
+  [R1-R30 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R29 FAIL] $name: $desc"
+  [R1-R30 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -14120,16 +14127,293 @@ if [ -z "$r29_bad" ]; then
 else
   check "R29" "trailer-strip thread binding guard missing:${r29_bad} (issue #689: the script re-applied the issue-number naming guard to Refs PR threads, false-redding clean sessions, or the rewrite boundary widened beyond the triggering work)" "bad"
 fi
-summary="Silent-stall regression audit (R1-R29) on ${WF}: ${pass} passed, ${fail} failed."
+# [R30] Evaluator verdict publication and PAT merge gate (issue #713): the
+# PAT-backed merge sweep is the only automated path that can land
+# `.github/workflows/*` PRs, and it enforced only a fresh, head-bound
+# `/oc approve-test` verdict. A workflow-touching PR could therefore merge
+# with no binding Evaluator verdict: the agent merge path was the only eval
+# consumer, and the sweep bypasses the agent. Properties:
+#   1. opencode-eval.yml publishes a canonical, bot-authored first-line eval
+#      verdict marker only from an approve-eval decision that already passed
+#      the decision-file and evidence gates; the shared publisher is read from
+#      the run's own workflow commit (never the PR head) and re-fetches the
+#      posted comment by id, verifying bot authorship and the exact first line
+#      (mirrors the issue #629 tester marker contract);
+#   2. the forward `/oc maintainer` handoff is gated on a verified marker, so a
+#      failed publication fails the job closed instead of handing over a
+#      verdict the sweep cannot see;
+#   3. the PAT merge sweep requires a fresh eval marker bound to the current
+#      head and not older than the tester approval, with the same
+#      entire-first-line plus bot-authorship predicate shape as R21;
+#   4. a functional harness extracts the real sweep predicate and freshness
+#      decision block and executes them against genuine and hostile payloads,
+#      and executes the real publisher against mock post/fetch outcomes.
+# Review-gated residual: the surrounding sweep control flow is still
+# review-gated, as documented in R21. Honest limit: like R21, the head time is
+# the later of committer dates and force-push events, so a fast-forward push of
+# commits with forged older dates after a verdict would not stale it; the
+# lab's bot pushes create fresh-dated commits, so this is outside the bot
+# trust model.
+R30_WF=".github/workflows/opencode-eval.yml"
+R30_PUBLISHER=".github/scripts/publish-eval-marker.sh"
+R30_MARKER="eval-verdict: approve-eval"
+r30_bad=""
+if [ ! -f "$R30_PUBLISHER" ]; then
+  r30_bad="${r30_bad} publish-eval-marker.sh(missing)"
+else
+  bash -n "$R30_PUBLISHER" 2>/dev/null || r30_bad="${r30_bad} publisher(syntax)"
+  [ -x "$R30_PUBLISHER" ] || r30_bad="${r30_bad} publisher(not-executable)"
+  grep -qF 'marker="eval-verdict: approve-eval"' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-marker-literal)"
+  grep -qF 'if [ "$fetched_first" != "$marker" ]; then' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-post-fetch-first-line-check)"
+  grep -qF 'if [ "$author" != "github-actions[bot]" ]; then' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-bot-author-check)"
+  grep -qF 'issues/comments/${comment_id}' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-re-fetch-verification)"
+  grep -qF 'Verified bot-authored eval approval marker' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-verified-terminal-marker)"
+  grep -qF "''|*[!0-9]*)" "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-numeric-target-guard)"
+  grep -qF 'if [ -z "$repo" ]; then' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-repo-guard)"
+  grep -qF 'if [ -z "$comment_id" ]; then' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-comment-id-guard)"
+  grep -qF 'GITHUB_ACTIONS' "$R30_PUBLISHER" && r30_bad="${r30_bad} publisher(references-GITHUB_ACTIONS)"
+  grep -qF 'MOCK_' "$R30_PUBLISHER" && r30_bad="${r30_bad} publisher(references-MOCK)"
+  grep -qF 'Userfrom1995' "$R30_PUBLISHER" && r30_bad="${r30_bad} publisher(hardcodes-repo-slug)"
+  grep -qF 'RandomLabs/' "$R30_PUBLISHER" && r30_bad="${r30_bad} publisher(hardcodes-repo-slug)"
+  case "$R30_MARKER" in
+    /oc*) r30_bad="${r30_bad} publisher(marker-must-not-be-a-slash-oc-trigger)" ;;
+  esac
+fi
+if [ ! -f "$R30_WF" ]; then
+  r30_bad="${r30_bad} opencode-eval.yml(missing)"
+else
+  r30_marker_block=$(sed -n '/- name: Publish eval approval marker (bot-authored)/,/^      - name: /p' "$R30_WF" 2>/dev/null || true)
+  r30_fwd_block=$(sed -n '/- name: Forward evaluator decision to Maintainer (owner PAT handoff)/,/^      - name: /p' "$R30_WF" 2>/dev/null || true)
+  if [ -z "$r30_marker_block" ] || [ -z "$r30_fwd_block" ]; then
+    r30_bad="${r30_bad} opencode-eval.yml(marker-or-forward-step-missing-or-renamed)"
+  else
+    printf '%s\n' "$r30_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success'" || r30_bad="${r30_bad} eval.yml(marker-gate-not-exact)"
+    printf '%s\n' "$r30_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF 'GH_TOKEN: ${{ github.token }}' || r30_bad="${r30_bad} eval.yml(marker-not-github-token)"
+    printf '%s\n' "$r30_marker_block" | grep -q 'secrets\.' && r30_bad="${r30_bad} eval.yml(marker-references-secrets)"
+    printf '%s\n' "$r30_marker_block" | grep -qF 'git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-eval-marker.sh" 2>/dev/null; then' || r30_bad="${r30_bad} eval.yml(no-publisher-workflow-commit-probe)"
+    printf '%s\n' "$r30_marker_block" | grep -qF 'git show "${GITHUB_SHA}:.github/scripts/publish-eval-marker.sh" > "$publisher" 2>/dev/null || rm -f "$publisher"' || r30_bad="${r30_bad} eval.yml(no-publisher-workflow-commit-extraction)"
+    printf '%s\n' "$r30_marker_block" | grep -q 'bash \.github/scripts/publish-eval-marker\.sh' && r30_bad="${r30_bad} eval.yml(head-workspace-publisher-invocation)"
+    printf '%s\n' "$r30_marker_block" | grep -qF 'if [ ! -s "$publisher" ]; then' || r30_bad="${r30_bad} eval.yml(no-fail-closed-on-missing-publisher)"
+    printf '%s\n' "$r30_marker_block" | grep -qF 'if [ "$action" != "approve-eval" ]; then' || r30_bad="${r30_bad} eval.yml(no-approve-eval-only-guard)"
+    printf '%s\n' "$r30_marker_block" | grep -qF 'if ! bash "$publisher" "$pr" "$score"; then' || r30_bad="${r30_bad} eval.yml(no-publisher-invocation)"
+    printf '%s\n' "$r30_marker_block" | grep -qF 'echo "ok=false" >> "$GITHUB_OUTPUT"' || r30_bad="${r30_bad} eval.yml(no-marker-ok-default)"
+    [ "$(printf '%s\n' "$r30_marker_block" | grep -cF 'echo "ok=true" >> "$GITHUB_OUTPUT"' || true)" -ge 3 ] || r30_bad="${r30_bad} eval.yml(marker-ok-true-count-lt-3)"
+    r30_fwd_gate=$(printf '%s\n' "$r30_fwd_block" | sed 's/^[[:space:]]*//' | grep -m1 '^if:' || true)
+    printf '%s\n' "$r30_fwd_gate" | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success' && steps.marker.outputs.ok == 'true'" || r30_bad="${r30_bad} eval.yml(forward-gate-not-marker-gated)"
+    printf '%s\n' "$r30_fwd_block" | grep -qF '/oc maintainer' || r30_bad="${r30_bad} eval.yml(forward-maintainer-mapping-missing)"
+    r30_line() { grep -nF -- "$1" "$R30_WF" | head -1 | cut -d: -f1; }
+    r30_ev_ln=$(r30_line '- name: Enforce live-execution evidence gate')
+    r30_marker_ln=$(r30_line '- name: Publish eval approval marker (bot-authored)')
+    r30_fwd_ln=$(r30_line '- name: Forward evaluator decision to Maintainer (owner PAT handoff)')
+    if [ -z "$r30_ev_ln" ] || [ -z "$r30_marker_ln" ] || [ -z "$r30_fwd_ln" ] || [ "$r30_ev_ln" -ge "$r30_marker_ln" ] || [ "$r30_marker_ln" -ge "$r30_fwd_ln" ]; then
+      r30_bad="${r30_bad} eval.yml(step-order:${r30_ev_ln:-none}/${r30_marker_ln:-none}/${r30_fwd_ln:-none})"
+    fi
+  fi
+fi
+r30_pat_block=""
+if [ ! -f "$MAIN_WF" ]; then
+  r30_bad="${r30_bad} maintainer.yml(missing)"
+else
+  r30_pat_block=$(sed -n '/- name: PAT-backed merge for approved workflow-touching PRs/,/^      - name: /p' "$MAIN_WF" 2>/dev/null || true)
+  if [ -z "$r30_pat_block" ]; then
+    r30_bad="${r30_bad} maintainer.yml(pat-merge-step-missing-or-renamed)"
+  else
+    r30_eval_line=$(printf '%s\n' "$r30_pat_block" | sed 's/^[[:space:]]*//' | grep -vE '^#' | grep -F 'approve_eval_time=$(echo "$comments" | jq -r ' | head -1 || true)
+    [ "$(printf '%s\n' "$r30_pat_block" | grep -cF 'approve_eval_time=$(echo "$comments" | jq -r ')" -eq 1 ] || r30_bad="${r30_bad} maintainer.yml(eval-predicate-not-single-live-assignment)"
+    printf '%s\n' "$r30_eval_line" | grep -qF 'select(.user.login=="github-actions[bot]"' || r30_bad="${r30_bad} maintainer.yml(eval-predicate-no-bot-author)"
+    printf '%s\n' "$r30_eval_line" | grep -qF '(.body|split("\n")[0]|test("^`?eval-verdict: approve-eval`?[[:space:]]*$"))' || r30_bad="${r30_bad} maintainer.yml(eval-predicate-not-shape-anchored)"
+    printf '%s\n' "$r30_pat_block" | grep -qF 'contains("eval-verdict' && r30_bad="${r30_bad} maintainer.yml(unanchored-eval-verdict-contains)"
+    printf '%s\n' "$r30_pat_block" | grep -qF 'if [ -z "$approve_eval_time" ]; then' || r30_bad="${r30_bad} maintainer.yml(no-eval-marker-requirement)"
+    printf '%s\n' "$r30_pat_block" | grep -qF 'if [ "$approve_eval_time" \< "$head_push_time" ]; then' || r30_bad="${r30_bad} maintainer.yml(no-stale-eval-check)"
+    printf '%s\n' "$r30_pat_block" | grep -qF 'if [ "$approve_eval_time" \< "$approve_test_time" ]; then' || r30_bad="${r30_bad} maintainer.yml(no-eval-before-tester-check)"
+    r30_line_p() { printf '%s\n' "$r30_pat_block" | grep -nF -- "$1" | head -1 | cut -d: -f1; }
+    r30_test_ln=$(r30_line_p 'approve_test_time=$(echo "$comments" | jq -r ')
+    r30_eval_ln=$(r30_line_p 'approve_eval_time=$(echo "$comments" | jq -r ')
+    r30_head_ln=$(r30_line_p 'head_push_time=""')
+    r30_stale_eval_ln=$(r30_line_p 'if [ "$approve_eval_time" \< "$head_push_time" ]; then')
+    r30_order_ln=$(r30_line_p 'if [ "$approve_eval_time" \< "$approve_test_time" ]; then')
+    r30_merge_ln=$(r30_line_p 'gh pr merge "$pr"')
+    if [ -z "$r30_test_ln" ] || [ -z "$r30_eval_ln" ] || [ "$r30_test_ln" -ge "$r30_eval_ln" ]; then
+      r30_bad="${r30_bad} maintainer.yml(eval-verdict-not-after-tester-verdict:${r30_test_ln:-none}/${r30_eval_ln:-none})"
+    fi
+    if [ -z "$r30_head_ln" ] || [ -z "$r30_stale_eval_ln" ] || [ "$r30_head_ln" -ge "$r30_stale_eval_ln" ]; then
+      r30_bad="${r30_bad} maintainer.yml(eval-not-head-bound-after-head-time:${r30_head_ln:-none}/${r30_stale_eval_ln:-none})"
+    fi
+    if [ -z "$r30_order_ln" ] || [ -z "$r30_merge_ln" ] || [ "$r30_order_ln" -ge "$r30_merge_ln" ]; then
+      r30_bad="${r30_bad} maintainer.yml(eval-order-check-not-before-merge:${r30_order_ln:-none}/${r30_merge_ln:-none})"
+    fi
+    if ! command -v jq >/dev/null 2>&1; then
+      r30_bad="${r30_bad} maintainer.yml(functional-jq-missing)"
+    elif [ -z "$r30_eval_line" ]; then
+      r30_bad="${r30_bad} maintainer.yml(functional-predicate-missing)"
+    else
+      r30_tmp=$(mktemp -d 2>/dev/null || true)
+      if [ -z "$r30_tmp" ] || [ ! -d "$r30_tmp" ]; then
+        r30_bad="${r30_bad} maintainer.yml(functional-sandbox-unavailable)"
+      else
+        r30_start="jq -r '"
+        r30_end="' 2>/dev/null"
+        r30_jq="${r30_eval_line#*${r30_start}}"
+        r30_jq="${r30_jq%%${r30_end}*}"
+        if [ -z "$r30_jq" ] || [ "$r30_jq" = "$r30_eval_line" ]; then
+          r30_bad="${r30_bad} maintainer.yml(functional-predicate-extraction)"
+        else
+          r30_pred_case() {
+            r30_case_name="$1"; r30_case_want="$2"; r30_case_payload="$3"; r30_case_expect="${4:-}"
+            r30_case_out=$(printf '%s' "$r30_case_payload" | jq -r "$r30_jq" 2>/dev/null || true)
+            if [ "$r30_case_want" = "match" ]; then
+              if [ -z "$r30_case_out" ]; then
+                r30_bad="${r30_bad} maintainer.yml(functional-${r30_case_name}-no-match)"
+              elif [ "$r30_case_out" != "$r30_case_expect" ]; then
+                r30_bad="${r30_bad} maintainer.yml(functional-${r30_case_name}-wrong-timestamp)"
+              fi
+            elif [ "$r30_case_want" = "none" ] && [ -n "$r30_case_out" ]; then
+              r30_bad="${r30_bad} maintainer.yml(functional-${r30_case_name}-false-match)"
+            fi
+          }
+          r30_pred_case genuine-plain match '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:00:00Z","body":"eval-verdict: approve-eval\n\nMachine-published Evaluator approval verdict for PR #713"}]' 2026-10-20T15:00:00Z
+          r30_pred_case genuine-backticked match '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:05:00Z","body":"`eval-verdict: approve-eval`\n\nScore 9.9/10"}]' 2026-10-20T15:05:00Z
+          r30_pred_case newest-genuine-wins match '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:00:00Z","body":"eval-verdict: approve-eval\nfirst round"},{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:10:00Z","body":"eval-verdict: approve-eval\nsecond round"}]' 2026-10-20T15:10:00Z
+          r30_pred_case quoted-mid-prose none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:00:00Z","body":"The Council returned `eval-verdict: approve-eval` at 15:00Z."}]' ''
+          r30_pred_case quoted-own-line none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:00:00Z","body":"Status:\n- eval-verdict: approve-eval"}]' ''
+          r30_pred_case owner-authored none '[{"user":{"login":"Userfrom1995"},"created_at":"2026-10-20T15:00:00Z","body":"eval-verdict: approve-eval"}]' ''
+          r30_pred_case trailing-prose none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:00:00Z","body":"eval-verdict: approve-eval for PR #713"}]' ''
+          r30_pred_case wrong-verdict none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:00:00Z","body":"eval-verdict: fix"}]' ''
+          r30_pred_case line-two none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:00:00Z","body":"Council result:\neval-verdict: approve-eval"}]' ''
+          r30_pred_case leading-space none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-20T15:00:00Z","body":" eval-verdict: approve-eval"}]' ''
+        fi
+        r30_decide_start=$(printf '%s\n' "$r30_pat_block" | grep -nF 'head_push_time=""' | head -1 | cut -d: -f1)
+        r30_order_start=$(printf '%s\n' "$r30_pat_block" | grep -nF 'if [ "$approve_eval_time" \< "$approve_test_time" ]; then' | head -1 | cut -d: -f1)
+        r30_decide_end=$(printf '%s\n' "$r30_pat_block" | awk -v s="$r30_order_start" 'NR>=s && /^[[:space:]]*fi[[:space:]]*$/ { print NR; exit }')
+        if [ -z "$r30_decide_start" ] || [ -z "$r30_decide_end" ]; then
+          r30_bad="${r30_bad} maintainer.yml(functional-eval-decision-block-extraction)"
+        else
+          r30_decide_block=$(printf '%s\n' "$r30_pat_block" | sed -n "${r30_decide_start},${r30_decide_end}p")
+          r30_head_case() {
+            r30_hc_name="$1"; r30_hc_hct="$2"; r30_hc_hfpt="$3"; r30_hc_att="$4"; r30_hc_aev="$5"; r30_hc_want="$6"
+            r30_skipped=0
+            pr="1"
+            comments="[]"
+            head_commit_time="$r30_hc_hct"
+            head_force_push_time="$r30_hc_hfpt"
+            approve_test_time="$r30_hc_att"
+            approve_eval_time="$r30_hc_aev"
+            r30_body=$(printf '%s\n' "$r30_decide_block" | sed 's/^[[:space:]]*continue[[:space:]]*$/r30_skipped=1/')
+            eval "$r30_body" >/dev/null 2>&1 || true
+            if [ "$r30_skipped" != "$r30_hc_want" ]; then
+              r30_bad="${r30_bad} maintainer.yml(functional-eval-head-${r30_hc_name}-skip=${r30_skipped},want=${r30_hc_want})"
+            fi
+          }
+          r30_head_case fresh 2026-10-20T14:00:00Z "" 2026-10-20T14:05:00Z 2026-10-20T14:10:00Z 0
+          r30_head_case stale-commit 2026-10-20T14:00:00Z "" 2026-10-20T14:05:00Z 2026-10-20T13:58:00Z 1
+          r30_head_case stale-force-push 2026-10-20T14:00:00Z 2026-10-20T14:06:00Z 2026-10-20T14:06:30Z 2026-10-20T14:05:30Z 1
+          r30_head_case force-push-before-verdict 2026-10-20T14:00:00Z 2026-10-20T13:50:00Z 2026-10-20T14:05:00Z 2026-10-20T14:10:00Z 0
+          r30_head_case same-second-head 2026-10-20T14:10:00Z "" 2026-10-20T14:10:00Z 2026-10-20T14:10:00Z 0
+          r30_head_case eval-before-tester 2026-10-20T14:00:00Z "" 2026-10-20T14:05:00Z 2026-10-20T14:04:00Z 1
+          r30_head_case eval-after-tester 2026-10-20T14:00:00Z "" 2026-10-20T14:05:00Z 2026-10-20T14:06:00Z 0
+        fi
+        r30_mockdir="$r30_tmp/bin"
+        r30_publisher_abs="$(pwd)/$R30_PUBLISHER"
+        mkdir -p "$r30_mockdir"
+        cat > "$r30_mockdir/gh" <<'R30_PUBLISHER_MOCK'
+#!/usr/bin/env bash
+r30_cfg="$(cd "$(dirname "$0")/.." && pwd)/case.cfg"
+author="github-actions[bot]"
+fail_post="0"
+no_id="0"
+fetch_mode="posted"
+fixed_body_file=""
+posted_file=""
+# shellcheck disable=SC1090
+. "$r30_cfg"
+case "$*" in
+  *"/issues/comments/"*)
+    if [ "$fetch_mode" = "fixed" ]; then
+      jq -n --arg a "$author" --arg b "$(cat "$fixed_body_file" 2>/dev/null || true)" '{user:{login:$a},html_url:"https://example.invalid/comment",body:$b}'
+    else
+      jq -n --arg a "$author" --arg b "$(cat "$posted_file" 2>/dev/null || true)" '{user:{login:$a},html_url:"https://example.invalid/comment",body:$b}'
+    fi
+    ;;
+  *)
+    if [ "$fail_post" = "1" ]; then
+      echo "mock gh: post failed" >&2
+      exit 1
+    fi
+    for r30_arg in "$@"; do
+      case "$r30_arg" in
+        body=*) printf '%s' "${r30_arg#body=}" > "$posted_file" ;;
+      esac
+    done
+    if [ "$no_id" = "1" ]; then
+      printf '{}\n'
+    else
+      printf '{"id":54321}\n'
+    fi
+    ;;
+esac
+R30_PUBLISHER_MOCK
+        chmod +x "$r30_mockdir/gh"
+        if [ "$(PATH="$r30_mockdir:$PATH" command -v gh)" != "$r30_mockdir/gh" ]; then
+          r30_bad="${r30_bad} publisher(functional-mock-not-intercepted)"
+        else
+          r30_prose="$r30_tmp/prose-first.txt"
+          printf 'Quality Council approved with notes.\n\neval-verdict: approve-eval\n\n- The Quality Council (Evaluator)\n' > "$r30_prose"
+          r30_trailing="$r30_tmp/trailing-prose.txt"
+          printf 'eval-verdict: approve-eval for PR #713\n' > "$r30_trailing"
+          r30_line_two="$r30_tmp/line-two.txt"
+          printf 'Council result:\neval-verdict: approve-eval\n' > "$r30_line_two"
+          r30_pub_case() {
+            r30_pc_name="$1"; r30_pc_want="$2"; r30_pc_target="$3"; shift 3
+            {
+              printf 'author="github-actions[bot]"\n'
+              printf 'fail_post="0"\n'
+              printf 'no_id="0"\n'
+              printf 'fetch_mode="posted"\n'
+              printf 'fixed_body_file=""\n'
+              printf 'posted_file=%q\n' "$r30_tmp/posted-$r30_pc_name"
+              for r30_kv in "$@"; do printf '%s\n' "$r30_kv"; done
+            } > "$r30_tmp/case.cfg"
+            rm -f "$r30_tmp/posted-$r30_pc_name"
+            r30_pc_out=$(cd "$r30_tmp" && env -u GITHUB_TOKEN -u GH_TOKEN -u GH_API_TOKEN \
+              PATH="$r30_mockdir:$PATH" GITHUB_ACTIONS=true GITHUB_REPOSITORY="RandomLabs/RandomLabs" \
+              bash "$r30_publisher_abs" "$r30_pc_target" "9.9" 2>&1)
+            r30_pc_rc=$?
+            if [ "$r30_pc_rc" -ne "$r30_pc_want" ]; then
+              r30_bad="${r30_bad} publisher(functional-${r30_pc_name}-rc=${r30_pc_rc},want=${r30_pc_want})"
+              printf 'R30 publisher functional case %s failed (rc=%s, want=%s); output:\n%s\n' "$r30_pc_name" "$r30_pc_rc" "$r30_pc_want" "$r30_pc_out" >&2
+            fi
+          }
+          r30_pub_case good-marker 0 713
+          r30_pub_case prose-first 1 713 'fetch_mode="fixed"' "fixed_body_file=$r30_prose"
+          r30_pub_case trailing-prose 1 713 'fetch_mode="fixed"' "fixed_body_file=$r30_trailing"
+          r30_pub_case line-two 1 713 'fetch_mode="fixed"' "fixed_body_file=$r30_line_two"
+          r30_pub_case wrong-author 1 713 'author="Userfrom1995"'
+          r30_pub_case post-failure 1 713 'fail_post="1"'
+          r30_pub_case missing-id 1 713 'no_id="1"'
+          r30_pub_case bad-target 1 "abc"
+          r30_posted_first=$(head -n1 "$r30_tmp/posted-good-marker" 2>/dev/null || true)
+          [ "$r30_posted_first" = "$R30_MARKER" ] || r30_bad="${r30_bad} publisher(functional-good-marker-posted-first-line='${r30_posted_first}')"
+        fi
+        rm -rf "$r30_tmp"
+      fi
+    fi
+  fi
+fi
+if [ -z "$r30_bad" ]; then
+  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml publishes a canonical bot-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates (publisher read from this run's own workflow commit, re-fetched and verified by id), the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head and not older than the tester approval with the R21 shape anchor; genuine and hostile payloads plus the real publisher post/fetch outcomes are executed in a sandbox (issue #713)" "ok"
+else
+  check "R30" "eval verdict publication and PAT merge gate guard missing:${r30_bad} (issue #713: a workflow-touching PR could merge through the PAT sweep with no binding Evaluator verdict)" "bad"
+fi
+summary="Silent-stall regression audit (R1-R30) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R29)
+  body="## Silent-stall regression audit FAILED (R1-R30)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, or R29 trailer-strip thread binding). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, or R30 evaluator verdict publication and PAT merge gate binding). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
