@@ -11413,19 +11413,32 @@ fi
 # rejected on every bound job for the same reason. It separately pins the
 # exact attribution
 # invocations (including the fail-closed `|| true)` closure) and proves no
-# `pushed="yes"` exists inside a foreign-attribution branch.
+# `pushed="yes"` exists inside a foreign-attribution branch. Both helpers are
+# staged from the trusted default-branch checkout into `$RUNNER_TEMP` before
+# the agent starts, every post-agent step must invoke the staged copy (the
+# workspace copy may be absent on an in-flight branch and is agent-mutable),
+# and the build baseline fails loudly on a nonzero `gh` status so an API
+# failure can never read as "no PR at baseline" and flip the verify into its
+# new-branch `pushed=yes` path. The workflow-level `permissions` block is
+# pinned exactly (a `pull-requests: none` change breaks the baseline and the
+# verify misreports), the build forward is gated on a verified own push, and
+# the classifier reads the subject list through a here-string so a large
+# builder batch can never SIGPIPE its writer into a false `foreign` verdict.
 # The functional pass executes both real helper scripts against fixture
 # events, an executable mock `gh` (interception proven), and a local bare
-# origin whose commit subjects model Builder and Tester pushes; 52 mutation
-# self-tests (45 workflow static-pin mutants plus 7 helper-fixture mutants)
+# origin whose commit subjects model Builder and Tester pushes, including a
+# 1500-commit large-range fixture and a branch-without-helpers staging
+# fixture; 61 mutation
+# self-tests (53 workflow static-pin mutants plus 8 helper-fixture mutants)
 # prove both the exact pins and the fixture matrices are load-bearing (a
 # foreign-branch pushed="yes", a verify or forward `if: false`, a
 # retry-target rebind, a retry-counter reset, a fail-open attribution
 # closure, an env token swap, a renamed verify/baseline/actor-gate id, a
 # skipped decoy gate/agent/baseline, a commented-out baseline output, a
 # raised retry cap, a job-level `if: false` or continue-on-error, a recover
-# `exit 0`, and added shell or step-level continue-on-error keys each fail
-# the static pass alone).
+# `exit 0`, a dropped or direct workspace helper invocation, a fail-open
+# baseline, a widened permissions block, an ungated build forward, and added
+# shell or step-level continue-on-error keys each fail the static pass alone).
 r28_bad=""
 r28_tmp=$(mktemp -d 2>/dev/null || true)
 if [ -z "$r28_tmp" ] || [ ! -d "$r28_tmp" ]; then
@@ -11488,6 +11501,14 @@ def find(name):
     return hits[0]
 
 
+def find_in_job(name, job):
+    hits = [(index, step) for (job_name, index, step) in steps
+            if job_name == job and step.get("name") == name]
+    if len(hits) != 1:
+        fail("step-not-unique-in-job:%s:%s:%d" % (job, name, len(hits)))
+    return hits[0]
+
+
 def norm(run_text):
     # Blank and comment lines are dropped so cosmetic edits do not fail the
     # pins, EXCEPT when the previous kept line ends with a shell continuation
@@ -11508,10 +11529,7 @@ def norm(run_text):
     return "\n".join(lines)
 
 
-def expect_step(name, job, keys, if_value, env, body, expected_id=None):
-    job_name, _, step = find(name)
-    if job_name != job:
-        fail("step-wrong-job:%s:%s" % (name, job_name))
+def check_step(job, name, step, keys, if_value, env, body, expected_id=None):
     if set(step.keys()) != set(keys):
         fail("step-key-surface:%s:%s" % (name, sorted(step.keys())))
     if step.get("id") != expected_id:
@@ -11522,6 +11540,20 @@ def expect_step(name, job, keys, if_value, env, body, expected_id=None):
         fail("step-env-changed:%s:%r" % (name, step.get("env")))
     if norm(step.get("run") or "") != norm(body):
         fail("step-run-changed:%s" % name)
+
+
+def expect_step(name, job, keys, if_value, env, body, expected_id=None):
+    job_name, index, step = find(name)
+    if job_name != job:
+        fail("step-wrong-job:%s:%s" % (name, job_name))
+    check_step(job, name, step, keys, if_value, env, body, expected_id)
+    return index
+
+
+def expect_job_step(name, job, keys, if_value, env, body, expected_id=None):
+    index, step = find_in_job(name, job)
+    check_step(job, name, step, keys, if_value, env, body, expected_id)
+    return index
 
 
 ACTOR_GATE_RUN = "bash .github/scripts/actor-write-gate.sh"
@@ -11543,11 +11575,22 @@ BASELINE_BODY = r"""issue="${{ github.event.issue.number }}"
 # local checkout state. This mirrors the proven FIX-job pattern.
 is_pr="${{ github.event.issue.pull_request != null }}"
 pr_branch=""
+# Fail loudly on a nonzero gh status: an API/rate-limit failure used
+# to be swallowed as an empty baseline, and the verify then took its
+# "new branch" fallback and reported a pre-existing PR tip as this
+# session's push (the #690 false positive). An empty branch now means
+# only "the query succeeded and found no PR at baseline".
 if [ "$is_pr" = "true" ]; then
-  pr_branch=$(gh pr view "$issue" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+  pr_branch=$(gh pr view "$issue" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName') || {
+    echo "::error::Could not resolve the PR branch for issue #$issue at baseline; refusing to guess a build baseline."
+    exit 1
+  }
 else
   pr_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
-    --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
+    --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefName') || {
+    echo "::error::Could not list open PRs for issue #$issue at baseline; refusing to guess a build baseline."
+    exit 1
+  }
 fi
 head_before=""
 if [ -n "$pr_branch" ]; then
@@ -11661,7 +11704,7 @@ if [ -f /tmp/random-lab-decision.json ]; then
   echo "Decision file present; @@PHASE@@ phase produced a handoff."
   exit 0
 fi
-issue=$(bash .github/scripts/resolve-thread-target.sh thread) || {
+issue=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" thread) || {
   echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
   echo "handled=true" >> "$GITHUB_OUTPUT"
   exit 1
@@ -11675,7 +11718,7 @@ if [ "$outcome" != "success" ]; then
     printf '%s' "$retries"
   }
   retries=$(count_retries "$issue")
-  parent=$(bash .github/scripts/resolve-thread-target.sh parent) || parent=""
+  parent=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || parent=""
   if [ -z "$parent" ]; then
     echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
     echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -11709,7 +11752,7 @@ fi
 echo "::error::@@DISP@@ step reported success but wrote no decision file (silent no-op); failing loudly instead of exiting green."
 exit 1"""
 
-FORWARD_RESEARCH = r"""target=$(bash .github/scripts/resolve-thread-target.sh parent) || {
+FORWARD_RESEARCH = r"""target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {
   echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
   exit 1
 }
@@ -11727,7 +11770,7 @@ else
   gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
 fi"""
 
-FORWARD_ARCHITECT = r"""target=$(bash .github/scripts/resolve-thread-target.sh parent) || {
+FORWARD_ARCHITECT = r"""target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {
   echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
   exit 1
 }
@@ -11745,7 +11788,7 @@ else
   gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
 fi"""
 
-FORWARD_DESIGN_TMPL = r"""target=$(bash .github/scripts/resolve-thread-target.sh parent) || {
+FORWARD_DESIGN_TMPL = r"""target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {
   echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
   exit 1
 }
@@ -11766,13 +11809,26 @@ else
   gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
 fi"""
 
-BUILD_VERIFY = r"""if [ "${AGENT_GATE:-}" != "true" ]; then
+BUILD_VERIFY = r"""# Terminal third outcome for a gate skip (issue #428): the agent step
+# never started, so "no push" is a DENIAL, not a crash. A denial must
+# not post an owner auto-retry (that would launder the unprivileged
+# trigger under an admin identity) and must not escalate. The bounded
+# retry below only runs for a privileged trigger whose agent actually
+# started and then failed to push.
+if [ "${AGENT_GATE:-}" != "true" ]; then
   echo "::notice::Actor write gate skipped the build agent (issue #428): denial is not a crash - no auto-retry, no escalation."
   echo "outcome=skipped" >> "$GITHUB_OUTPUT"
   echo "pushed=unknown" >> "$GITHUB_OUTPUT"
   exit 0
 fi
+
 issue="${{ github.event.issue.number }}"
+
+# Like-for-like push detection on server-resolved state (issue #135).
+# NEVER trust `git branch --show-current` as the target: the agent is
+# contractually allowed to checkout branches mid-session, and a
+# session that dies right after checking out the PR branch must not
+# read as "pushed" (the false positive that silenced two D3 retries).
 pushed="no"
 is_pr="${{ github.event.issue.pull_request != null }}"
 target_branch=""
@@ -11782,11 +11838,17 @@ else
   target_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
     --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
 fi
+
 if [ -n "$target_branch" ]; then
   tip_now=$(git ls-remote origin "refs/heads/$target_branch" 2>/dev/null | cut -f1)
   if [ -n "$BASELINE_BRANCH" ] && [ "$target_branch" = "$BASELINE_BRANCH" ]; then
+    # Same branch as baseline: a push happened iff its remote tip
+    # moved AND the added range carries a builder: commit. A foreign
+    # mid-run push (the Tester's authorized suite push on 2026-10-18)
+    # moves the tip too, and treating it as this session's push ran
+    # the post-push bookkeeping against work the build never made.
     if [ -n "$tip_now" ] && [ -n "$BASELINE_HEAD" ] && [ "$tip_now" != "$BASELINE_HEAD" ]; then
-      attribution=$(bash .github/scripts/classify-build-push.sh "$BASELINE_HEAD" "$tip_now" "$target_branch" 2>/dev/null || true)
+      attribution=$(bash "$RUNNER_TEMP/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$target_branch" 2>/dev/null || true)
       if [ "$attribution" = "own" ]; then
         pushed="yes"
         echo "Build pushed successfully: $target_branch moved $BASELINE_HEAD -> $tip_now (builder commit attributed)"
@@ -11798,13 +11860,25 @@ if [ -n "$target_branch" ]; then
     else
       echo "No push detected on target branch $target_branch (tip=${tip_now:-<none>}, baseline=$BASELINE_HEAD)"
     fi
-  elif [ -n "$tip_now" ]; then
+  elif [ -n "$tip_now" ] && ! printf '%s\n' "$PATTERN_TIPS" | grep -qxF "$tip_now"; then
+    # A DIFFERENT branch now carries this issue's open PR (the agent
+    # created it mid-run). A tip that existed at baseline is stale
+    # state, not this session's push: the baseline step fails loudly
+    # on a query failure, so an empty/different branch here is a
+    # genuine new branch and its tip must not be pre-existing.
     pushed="yes"
     echo "Build pushed successfully: new branch $target_branch at $tip_now"
   else
-    echo "Target branch $target_branch has no remote tip yet; no push detected"
+    echo "No push detected on target branch $target_branch (tip=${tip_now:-<none>} matches pre-existing state or is absent)"
   fi
 elif [ -z "$BASELINE_BRANCH" ]; then
+  # Fresh build from a plain issue with no open PR at either end:
+  # success means this issue's own branch pattern gained a new tip.
+  # Branch IDENTITY is taken from the local checkout only when it
+  # matches this issue's own naming pattern; a foreign checkout
+  # (builder resume orientation fetches arbitrary branches) must
+  # read as no-push, so its pre-existing remote tip can never be
+  # mistaken for evidence of a push (issue #135).
   checked_out=$(git branch --show-current 2>/dev/null || echo "")
   branch=""
   case "$checked_out" in
@@ -11812,6 +11886,10 @@ elif [ -z "$BASELINE_BRANCH" ]; then
   esac
   if [ -n "$branch" ] && [ "$branch" != "main" ]; then
     tip_now=$(git ls-remote origin "refs/heads/$branch" 2>/dev/null | cut -f1)
+    # A push is a tip that is NOT one of the pre-existing tips for
+    # this issue's pattern. Membership (not single-sha compare):
+    # stale retry-round branches all count as pre-existing state, so
+    # checking one of them out and dying still reads as "no push".
     if [ -n "$tip_now" ] && ! printf '%s\n' "$PATTERN_TIPS" | grep -qxF "$tip_now"; then
       pushed="yes"
       echo "Build pushed successfully: new branch $branch at $tip_now"
@@ -11826,7 +11904,9 @@ else
   echo "Baseline branch $BASELINE_BRANCH lost its open PR mid-run; comparing raw tips."
   tip_now=$(git ls-remote origin "refs/heads/$BASELINE_BRANCH" 2>/dev/null | cut -f1)
   if [ -n "$tip_now" ] && [ "$tip_now" != "$BASELINE_HEAD" ]; then
-    attribution=$(bash .github/scripts/classify-build-push.sh "$BASELINE_HEAD" "$tip_now" "$BASELINE_BRANCH" 2>/dev/null || true)
+    # Issue #690: attribute the move to a builder: commit; a foreign
+    # push on the lost-PR branch is not this session's work either.
+    attribution=$(bash "$RUNNER_TEMP/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$BASELINE_BRANCH" 2>/dev/null || true)
     if [ "$attribution" = "own" ]; then
       pushed="yes"
       echo "Build pushed successfully: $BASELINE_BRANCH moved $BASELINE_HEAD -> $tip_now (builder commit attributed)"
@@ -11839,7 +11919,14 @@ else
     echo "No push detected on $BASELINE_BRANCH (tip=${tip_now:-<none>}, baseline=$BASELINE_HEAD)"
   fi
 fi
+
 if [ "$pushed" = "yes" ]; then
+  # PR-existence gate (issue #436): a push without an open PR leaves
+  # work with no review target, so /oc review answers "no linked pull
+  # request found". A BUILD run is only accepted when an open PR for
+  # this issue exists after the push. When the trigger itself is a PR,
+  # that PR is the target; otherwise resolve via the issue branch
+  # pattern, server-side (never local checkout state).
   pr_check=""
   if [ "$is_pr" = "true" ]; then
     pr_state_check=$(gh pr view "$issue" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
@@ -11857,9 +11944,15 @@ if [ "$pushed" = "yes" ]; then
   fi
   echo "::warning::Build pushed branch state but no open PR exists for issue #$issue; treating as incomplete so the run auto-retries instead of forwarding a review with no target."
   echo "pushed=false" >> "$GITHUB_OUTPUT"
+  # Fall through to the bounded auto-retry below with the same
+  # counter the no-push path uses.
 else
   echo "pushed=false" >> "$GITHUB_OUTPUT"
 fi
+
+# Robust retry counter: never fall back to 0 on an API/rate-limit
+# failure, which would make the cap never trip and loop forever. Only
+# count retries the API actually returned; on failure, stop retrying.
 retries=$(gh api "repos/${{ github.repository }}/issues/$issue/comments?per_page=100" --paginate --slurp 2>/dev/null \
   | jq '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc build this (auto-retry")))] | length' 2>/dev/null || true)
 if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
@@ -11874,7 +11967,8 @@ if [ "$retries" -lt 3 ]; then
   exit 0
 fi
 echo "::error::Build agent finished without pushing after 4 attempts (1 initial + 3 auto-retries). Manual intervention required."
-exit 1"""
+exit 1
+"""
 
 RECOVER_TAG = r"""set +e
 issue="${{ github.event.issue.number }}"
@@ -11902,6 +11996,51 @@ else
 fi
 exit 0"""
 
+FORWARD_BUILD = r"""issue="${{ github.event.issue.number }}"
+pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
+  --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null || echo "")
+target="${pr:-$issue}"
+
+# Orphan guard: a build branch that no longer shares any history with main
+# cannot be merged with --rebase and would rewrite main as a single orphan
+# root. Route to the Maintainer to re-link instead of forwarding for merge.
+# Resolve the build branch from the PR head ref (not the local checkout, which
+# may be main or detached) so the check is reliable.
+build_branch=$(gh pr view "$target" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+if [ -n "$build_branch" ]; then
+  git fetch origin main --quiet 2>/dev/null || true
+  git fetch origin "+refs/heads/$build_branch:refs/buildbranch" --quiet 2>/dev/null || true
+  if [ -z "$(git merge-base origin/main refs/buildbranch 2>/dev/null)" ]; then
+    echo "Branch $build_branch has NO common ancestor with main - cannot be merged safely."
+    echo "Routing to Maintainer (/oc maintainer) to re-link history."
+    gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+    exit 0
+  fi
+fi
+
+if [ ! -f /tmp/random-lab-decision.json ]; then
+  echo "No decision file found. Notifying Maintainer (/oc maintainer)"
+  gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+  exit 0
+fi
+
+action=$(jq -r '.action' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+
+if [ "$action" = "review" ]; then
+  echo "Build complete! Handing over to Reviewer (/oc review)"
+  gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc review" || true
+elif [ "$action" = "continue" ]; then
+  echo "Build in progress. Triggering /oc continue"
+  gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc continue" || true
+elif [ "$action" = "maintainer" ]; then
+  echo "Build finished. Notifying Maintainer (/oc maintainer)"
+  gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+else
+  echo "Unknown action: $action. Notifying Maintainer (/oc maintainer)"
+  gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+fi
+"""
+
 VERIFY_ENV = {
     "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
     "AGENT_GATE": "${{ steps.actor_gate.outputs.run }}",
@@ -11919,6 +12058,25 @@ VERIFY_KEYS = ("name", "id", "if", "env", "run")
 FORWARD_KEYS = ("name", "if", "env", "run")
 FORWARD_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'"
 RECOVER_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.pushed == 'true'"
+FORWARD_BUILD_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.pushed == 'true'"
+# Helper scripts are staged from the trusted default-branch checkout into
+# $RUNNER_TEMP before the agent starts (issue #690 review round 3). Post-agent
+# steps must never run the workspace copy: an in-flight build branch predating
+# this PR has no helper files (a healthy phase would die at its handoff), and a
+# branch copy is agent-mutable, so a builder: commit could rewrite the code the
+# post-agent step executes.
+STAGE_NAME = "Stage lab helper scripts (issue #690)"
+STAGE_BODY = r"""mkdir -p "$RUNNER_TEMP/lab-scripts"
+cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
+cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
+chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
+"""
+EXPECTED_PERMISSIONS = {
+    "contents": "write",
+    "pull-requests": "write",
+    "issues": "write",
+    "actions": "write",
+}
 
 VERIFY_PHASES = {
     "research": ("researcher", "research", "Researcher",
@@ -11976,6 +12134,19 @@ for job, (verify_name, forward_name) in phase.items():
     # denial or a no-op handoff while every text pin above stays green.
     _, verify_index, _ = find(verify_name)
     _, forward_index, _ = find(forward_name)
+    # Staged helper copies (issue #690 review round 3): every post-agent step
+    # must run the trusted default-branch copy, never the agent-mutated
+    # workspace. A branch predating this PR has no helper files at all, and a
+    # branch copy is agent-mutable.
+    stage_index = expect_job_step(STAGE_NAME, job, ("name", "run"), None, {}, STAGE_BODY)
+    checkout_index, _ = find_in_job("Checkout repository", job)
+    gate_index, _ = find_in_job("Actor write gate (issue", job)
+    if stage_index <= checkout_index:
+        fail("stage-before-checkout:%s" % job)
+    if stage_index >= gate_index:
+        fail("stage-after-gate:%s" % job)
+    if stage_index >= verify_index:
+        fail("stage-after-verify:%s" % job)
     gate_env = {
         "GH_TOKEN": "${{ github.token }}",
         "GATE_EVENT": "${{ github.event_name }}",
@@ -12001,6 +12172,15 @@ expect_step("Verify build pushed, else auto-retry", "build", ("name", "id", "env
 job_name, _, build_step = find("Verify build pushed, else auto-retry")
 _, build_verify_index, _ = find("Verify build pushed, else auto-retry")
 _, recover_index, _ = find("Preserve build branch with recover tag")
+build_stage_index = expect_job_step(STAGE_NAME, "build", ("name", "run"), None, {}, STAGE_BODY)
+build_checkout_index, _ = find_in_job("Checkout repository", "build")
+build_gate_index, _ = find_in_job("Actor write gate (issue", "build")
+if build_stage_index <= build_checkout_index:
+    fail("stage-before-checkout:build")
+if build_stage_index >= build_gate_index:
+    fail("stage-after-gate:build")
+if build_stage_index >= build_verify_index:
+    fail("stage-after-verify:build")
 # Same identity binding for the build job: a renamed baseline or actor-gate id
 # makes the verify env empty and lets any pre-existing PR tip read as a push
 # (the #135 false positive and the #690 symptom) while the text pins stay
@@ -12034,8 +12214,8 @@ resolve_ref("build", "verify", expected_name="Verify build pushed, else auto-ret
 build_lines = norm(build_step.get("run") or "").splitlines()
 
 expected_calls = [
-    'attribution=$(bash .github/scripts/classify-build-push.sh "$BASELINE_HEAD" "$tip_now" "$target_branch" 2>/dev/null || true)',
-    'attribution=$(bash .github/scripts/classify-build-push.sh "$BASELINE_HEAD" "$tip_now" "$BASELINE_BRANCH" 2>/dev/null || true)',
+    'attribution=$(bash "$RUNNER_TEMP/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$target_branch" 2>/dev/null || true)',
+    'attribution=$(bash "$RUNNER_TEMP/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$BASELINE_BRANCH" 2>/dev/null || true)',
 ]
 attribution_calls = [line.strip() for line in build_lines if "classify-build-push.sh" in line]
 if sorted(attribution_calls) != sorted(expected_calls):
@@ -12070,6 +12250,37 @@ if "|| echo" in "\n".join(attribution_calls):
 expect_step("Preserve build branch with recover tag", "build", ("name", "if", "env", "run"),
             RECOVER_IF, RECOVER_ENV, RECOVER_TAG)
 
+# The build forward is gated on a verified own push (issue #690 review round
+# 3 follow-up): verify exhausting its retries exits 1 with pushed=false, and
+# `always()` used to let this forward post the agent's stale decision anyway.
+# Its whole run body is pinned too: it is a post-agent step, so an unpinned
+# body could execute the agent-mutable workspace helper or retarget the
+# forward while every other pin stayed green.
+forward_build_index = expect_job_step("Forward builder decision", "build",
+                                      ("name", "if", "env", "run"), FORWARD_BUILD_IF,
+                                      FORWARD_ENV, FORWARD_BUILD)
+if forward_build_index <= build_verify_index:
+    fail("forward-builder-before-verify")
+
+# Post-agent steps may only execute the staged copies. Scan by helper
+# basename so a `./`, `bash -c`, `source`, absolute, or quoted spelling cannot
+# evade the ban while running the agent-mutable workspace copy.
+for (bound_job_name, _, bound_step) in steps:
+    if bound_step.get("name") == STAGE_NAME:
+        continue
+    bound_body = "\n".join(line for line in norm(bound_step.get("run") or "").splitlines()
+                           if not line.strip().startswith("#"))
+    for helper in ("resolve-thread-target.sh", "classify-build-push.sh"):
+        remaining = bound_body
+        while helper in remaining:
+            at = remaining.index(helper)
+            if not remaining[:at].endswith("$RUNNER_TEMP/lab-scripts/"):
+                fail("untrusted-helper-invocation:%s:%s:%s"
+                     % (bound_job_name, bound_step.get("name"), helper))
+            remaining = remaining[at + len(helper):]
+
+if doc.get("permissions") != EXPECTED_PERMISSIONS:
+    fail("workflow-permissions-changed:%r" % (doc.get("permissions"),))
 if doc.get("env") is not None or doc.get("defaults") is not None:
     fail("workflow-effective-override")
 # A job-level `if: false` (or any rewritten trigger gate) skips the whole
@@ -12208,7 +12419,7 @@ FORWARD_RESEARCH = ("      - name: Forward researcher decision\n"
 mutants = {
     "verify-target": sub_first('          target="$issue"\n', '          target=$(echo 582)\n'),
     "verify-counter": sub_first(
-        '            parent=$(bash .github/scripts/resolve-thread-target.sh parent) || parent=""\n',
+        '            parent=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || parent=""\n',
         '            parent="$issue"\n',
     ),
     "verify-newest-pr": sub_first(
@@ -12228,7 +12439,7 @@ mutants = {
     "verify-id": sub_first('        id: verify-phase\n', '        id: verify-phase-2\n'),
     "verify-continue-on-error": after(RESEARCH_VERIFY, '        continue-on-error: true\n'),
     "forward-target": sub_first(
-        '          target=$(bash .github/scripts/resolve-thread-target.sh parent) || {\n',
+        '          target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {\n',
         '          target="$issue" || {\n',
     ),
     "forward-comment": sub_first(
@@ -12369,7 +12580,10 @@ mutants = {
         '  build:\n    if: false\n',
     ),
     "build-baseline-body-main": sub(
-        '            pr_branch=$(gh pr view "$issue" --repo "${{ github.repository }}" --json headRefName --jq \'.headRefName\' 2>/dev/null || echo "")\n',
+        '            pr_branch=$(gh pr view "$issue" --repo "${{ github.repository }}" --json headRefName --jq \'.headRefName\') || {\n'
+        '              echo "::error::Could not resolve the PR branch for issue #$issue at baseline; refusing to guess a build baseline."\n'
+        '              exit 1\n'
+        '            }\n',
         '            pr_branch="main"\n',
     ),
     "phase-agent-alias": sub(
@@ -12422,8 +12636,58 @@ mutants = {
         '    timeout-minutes: 150\n    steps:\n',
     ),
     "build-baseline-blank-continuation": sub(
-        '            pr_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \\\n              --jq \'[.[] | select(.headRefName | startswith("opencode/issue\'"${issue}"\'-"))] | sort_by(.createdAt) | last | .headRefName\' 2>/dev/null || echo "")\n',
-        '            pr_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \\\n\n              --jq \'[.[] | select(.headRefName | startswith("opencode/issue\'"${issue}"\'-"))] | sort_by(.createdAt) | last | .headRefName\' 2>/dev/null || echo "")\n',
+        '            pr_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \\\n              --jq \'[.[] | select(.headRefName | startswith("opencode/issue\'"${issue}"\'-"))] | sort_by(.createdAt) | last | .headRefName\') || {\n',
+        '            pr_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \\\n\n              --jq \'[.[] | select(.headRefName | startswith("opencode/issue\'"${issue}"\'-"))] | sort_by(.createdAt) | last | .headRefName\') || {\n',
+    ),
+    "stage-body-changed": sub_first(
+        '          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"\n',
+        '          # classifier not staged\n',
+    ),
+    "stage-name-changed": sub_first(
+        '      - name: "Stage lab helper scripts (issue #690)"\n',
+        '      - name: Stage helper scripts\n',
+    ),
+    "stage-direct-path": sub_first(
+        '          issue=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" thread) || {\n',
+        '          issue=$(bash .github/scripts/resolve-thread-target.sh thread) || {\n',
+    ),
+    "forward-builder-body-helper": sub(
+        '          target="${pr:-$issue}"\n',
+        '          target=$(bash ./.github/scripts/resolve-thread-target.sh parent)\n',
+    ),
+    "build-baseline-fail-open": sub(
+        '          if [ "$is_pr" = "true" ]; then\n'
+        '            pr_branch=$(gh pr view "$issue" --repo "${{ github.repository }}" --json headRefName --jq \'.headRefName\') || {\n'
+        '              echo "::error::Could not resolve the PR branch for issue #$issue at baseline; refusing to guess a build baseline."\n'
+        '              exit 1\n'
+        '            }\n'
+        '          else\n'
+        '            pr_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \\\n'
+        '              --jq \'[.[] | select(.headRefName | startswith("opencode/issue\'"${issue}"\'-"))] | sort_by(.createdAt) | last | .headRefName\') || {\n'
+        '              echo "::error::Could not list open PRs for issue #$issue at baseline; refusing to guess a build baseline."\n'
+        '              exit 1\n'
+        '            }\n'
+        '          fi\n',
+        '          if [ "$is_pr" = "true" ]; then\n'
+        '            pr_branch=$(gh pr view "$issue" --repo "${{ github.repository }}" --json headRefName --jq \'.headRefName\' 2>/dev/null || echo "")\n'
+        '          else\n'
+        '            pr_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \\\n'
+        '              --jq \'[.[] | select(.headRefName | startswith("opencode/issue\'"${issue}"\'-"))] | sort_by(.createdAt) | last | .headRefName\' 2>/dev/null || echo "")\n'
+        '          fi\n',
+    ),
+    "build-different-branch-no-tipmove": sub(
+        "            elif [ -n \"$tip_now\" ] && ! printf '%s\\n' \"$PATTERN_TIPS\" | grep -qxF \"$tip_now\"; then\n",
+        "            elif [ -n \"$tip_now\" ]; then\n",
+    ),
+    "permissions-pr-none": sub(
+        '  pull-requests: write\n',
+        '  pull-requests: none\n',
+    ),
+    "forward-builder-gate": sub(
+        "      - name: Forward builder decision\n"
+        "        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.pushed == 'true'\n",
+        "      - name: Forward builder decision\n"
+        "        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true'\n",
     ),
 }
 
@@ -12436,7 +12700,7 @@ print("\n".join(sorted(mutants)))
 R28STATICMUT
     r28_bad="${r28_bad} opencode.yml(static-mutant-generation-failed:$(tr '\n' ';' < "$r28_tmp/static-mutants.log" | cut -c1-200))"
   else
-    r28_wf_mutant_list="verify-target verify-counter verify-newest-pr verify-retries-reset verify-cap verify-env-token verify-id verify-continue-on-error forward-target forward-comment forward-if forward-event-number forward-env-token build-if build-env-branch build-attribution build-fail-open build-pushed-foreign build-continue-on-error recover-gate recover-exit recover-shell workflow-env research-job-env build-job-defaults build-baseline-id phase-actor-gate-id research-job-continue-on-error build-job-continue-on-error phase-gate-if-false phase-gate-duplicate phase-opencode-if-false phase-opencode-duplicate build-baseline-if-false build-baseline-comment-markers research-job-if-false build-job-if-false build-baseline-body-main phase-agent-alias phase-agent-pat phase-agent-timeout research-job-permissions research-job-runs-on research-job-timeout build-baseline-blank-continuation"
+    r28_wf_mutant_list="verify-target verify-counter verify-newest-pr verify-retries-reset verify-cap verify-env-token verify-id verify-continue-on-error forward-target forward-comment forward-if forward-event-number forward-env-token build-if build-env-branch build-attribution build-fail-open build-pushed-foreign build-continue-on-error recover-gate recover-exit recover-shell workflow-env research-job-env build-job-defaults build-baseline-id phase-actor-gate-id research-job-continue-on-error build-job-continue-on-error phase-gate-if-false phase-gate-duplicate phase-opencode-if-false phase-opencode-duplicate build-baseline-if-false build-baseline-comment-markers research-job-if-false build-job-if-false build-baseline-body-main phase-agent-alias phase-agent-pat phase-agent-timeout research-job-permissions research-job-runs-on research-job-timeout build-baseline-blank-continuation stage-body-changed stage-name-changed stage-direct-path forward-builder-body-helper build-baseline-fail-open build-different-branch-no-tipmove permissions-pr-none forward-builder-gate"
     # Bind the generator's mutation set to the list executed below: a mutant
     # added (or dropped) in only one place would otherwise silently shrink
     # the load-bearing matrix without tripping any other check.
@@ -12457,6 +12721,50 @@ R28STATICMUT
     r28_bad="${r28_bad} scripts(missing:resolve=$([ -f "$r28_resolver" ] && echo no || echo yes),classify=$([ -f "$r28_classifier" ] && echo no || echo yes))"
   else
     mkdir -p "$r28_tmp/bin" "$r28_tmp/state" "$r28_tmp/home" "$r28_tmp/events"
+    # Branch-without-helpers regression fixture (issue #690 review round 3):
+    # execute the staged-helper step in a checkout that carries the helpers,
+    # then delete the workspace copies to model an in-flight branch that
+    # predates this PR (open PR #707's head had neither file). The staged
+    # copies must still resolve and attribute; post-agent steps never touch
+    # the workspace copy.
+    r28_stage_ws="$r28_tmp/stage-ws"
+    r28_stage_temp="$r28_tmp/stage-temp"
+    mkdir -p "$r28_stage_ws/.github/scripts"
+    cp "$r28_resolver" "$r28_stage_ws/.github/scripts/resolve-thread-target.sh"
+    cp "$r28_classifier" "$r28_stage_ws/.github/scripts/classify-build-push.sh"
+    if python3 -I - "$OPENCODE_WF" "$r28_tmp/stage-body.sh" <<'R28STAGEEXTRACT' >"$r28_tmp/stage-extract.log" 2>&1; then
+import sys
+
+import yaml
+
+doc = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+hits = [step for job in (doc.get("jobs") or {}).values()
+        for step in ((job or {}).get("steps") or [])
+        if step.get("name") == "Stage lab helper scripts (issue #690)"]
+if len(hits) != 7:
+    raise SystemExit("stage-step-count=%d" % len(hits))
+bodies = {step.get("run") for step in hits}
+if len(bodies) != 1:
+    raise SystemExit("stage-bodies-diverge")
+with open(sys.argv[2], "w", encoding="utf-8") as handle:
+    handle.write(bodies.pop())
+R28STAGEEXTRACT
+      if ! ( cd "$r28_stage_ws" && env -i PATH="/usr/bin:/bin" HOME="$r28_tmp/home" \
+        RUNNER_TEMP="$r28_stage_temp" bash --noprofile --norc -e -o pipefail "$r28_tmp/stage-body.sh" ) >"$r28_tmp/stage-run.log" 2>&1; then
+        r28_bad="${r28_bad} scripts(stage-step-run-failed:$(tr '\n' ';' < "$r28_tmp/stage-run.log" | cut -c1-200))"
+      fi
+      if [ ! -x "$r28_stage_temp/lab-scripts/resolve-thread-target.sh" ] \
+        || [ ! -x "$r28_stage_temp/lab-scripts/classify-build-push.sh" ]; then
+        r28_bad="${r28_bad} scripts(staged-copies-missing)"
+      fi
+      rm -rf "$r28_stage_ws/.github/scripts"
+      if [ ! -x "$r28_stage_temp/lab-scripts/resolve-thread-target.sh" ] \
+        || [ ! -x "$r28_stage_temp/lab-scripts/classify-build-push.sh" ]; then
+        r28_bad="${r28_bad} scripts(staged-helper-depends-on-workspace)"
+      fi
+    else
+      r28_bad="${r28_bad} scripts(stage-body-extract-failed:$(tr '\n' ';' < "$r28_tmp/stage-extract.log" | cut -c1-200))"
+    fi
     cat > "$r28_tmp/bin/gh" <<'R28GH'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -12543,6 +12851,11 @@ R28GH
     if ! r28_resolver_matrix "$r28_resolver" > "$r28_tmp/resolver.out"; then
       r28_bad="${r28_bad} resolve-thread-target.sh($(tr '\n' ';' < "$r28_tmp/resolver.out" | cut -c1-300))"
     fi
+    if [ -x "$r28_stage_temp/lab-scripts/resolve-thread-target.sh" ]; then
+      if ! r28_resolver_matrix "$r28_stage_temp/lab-scripts/resolve-thread-target.sh" > "$r28_tmp/staged-resolver.out"; then
+        r28_bad="${r28_bad} resolve-thread-target.sh(staged:$(tr '\n' ';' < "$r28_tmp/staged-resolver.out" | cut -c1-300))"
+      fi
+    fi
 
     mkdir -p "$r28_tmp/mutants"
     printf '%s' "$(cat "$r28_resolver")" > "$r28_tmp/mutants/resolver-src"
@@ -12600,10 +12913,20 @@ R28MUTRES
           git commit -q --allow-empty -m 'builder: phase work'
           git commit -q --allow-empty -m 'tester: suite authoring'
           git push -q origin HEAD
+          # Large-range fixture (issue #690 review round 3): the subject list
+          # must exceed the 64 KiB pipe buffer so a `grep -q` reader SIGPIPEs
+          # a piped writer. The helper reads a here-string, so every commit is
+          # still attributed.
+          git checkout -q -B builder-large "$r28_base"
+          for i in $(seq 1 1500); do
+            git commit -q --allow-empty -m "builder: large push item $i $(printf 'x%.0s' {1..200})"
+          done
+          git push -q origin HEAD
         ) || r28_bad="${r28_bad} scripts(r28-git-fixtures-failed)"
         r28_tester_tip=$(git -C "$r28_git/work" rev-parse tester-only 2>/dev/null || true)
         r28_builder_tip=$(git -C "$r28_git/work" rev-parse builder-only 2>/dev/null || true)
         r28_both_tip=$(git -C "$r28_git/work" rev-parse builder-then-tester 2>/dev/null || true)
+        r28_large_tip=$(git -C "$r28_git/work" rev-parse builder-large 2>/dev/null || true)
 
         r28_classify_case() {
           local name="$1" script="$2" baseline="$3" tip="$4" branch="$5" want_rc="$6" want_out="$7"
@@ -12626,6 +12949,7 @@ R28MUTRES
           r28_classify_case foreign "$script" "$r28_base" "$r28_tester_tip" tester-only 0 foreign || bad="${bad} foreign"
           r28_classify_case own "$script" "$r28_base" "$r28_builder_tip" builder-only 0 own || bad="${bad} own"
           r28_classify_case both "$script" "$r28_base" "$r28_both_tip" builder-then-tester 0 own || bad="${bad} both"
+          r28_classify_case large-own "$script" "$r28_base" "$r28_large_tip" builder-large 0 own || bad="${bad} large-own"
           r28_classify_case no-baseline-foreign "$script" "" "$r28_tester_tip" tester-only 0 foreign || bad="${bad} no-baseline-foreign"
           r28_classify_case no-baseline-own "$script" "" "$r28_builder_tip" builder-only 0 own || bad="${bad} no-baseline-own"
           r28_classify_case same-tip "$script" "$r28_tester_tip" "$r28_tester_tip" tester-only 0 foreign || bad="${bad} same-tip"
@@ -12637,6 +12961,11 @@ R28MUTRES
 
         if ! r28_classify_matrix "$r28_classifier" > "$r28_tmp/classify.out"; then
           r28_bad="${r28_bad} classify-build-push.sh($(tr '\n' ';' < "$r28_tmp/classify.out" | cut -c1-300))"
+        fi
+        if [ -x "$r28_stage_temp/lab-scripts/classify-build-push.sh" ]; then
+          if ! r28_classify_matrix "$r28_stage_temp/lab-scripts/classify-build-push.sh" > "$r28_tmp/staged-classify.out"; then
+            r28_bad="${r28_bad} classify-build-push.sh(staged:$(tr '\n' ';' < "$r28_tmp/staged-classify.out" | cut -c1-300))"
+          fi
         fi
 
         printf '%s' "$(cat "$r28_classifier")" > "$r28_tmp/mutants/classifier-src"
@@ -12652,6 +12981,10 @@ mutants = {
         '  echo "Could not fetch $branch for push attribution." >&2\n  exit 2',
         '  printf \'own\\n\'\n  exit 0',
     ),
+    "classifier-m5": text.replace(
+        "if grep -qE '^builder:' <<< \"$subjects\"; then",
+        "if printf '%s\\n' \"$subjects\" | grep -qE '^builder:'; then",
+    ),
 }
 for name, body in mutants.items():
     if body == text:
@@ -12659,7 +12992,7 @@ for name, body in mutants.items():
     with open("%s/%s.sh" % (outdir, name), "w", encoding="utf-8") as handle:
         handle.write(body)
 R28MUTCLASS
-        for r28_mutant in classifier-m1 classifier-m2 classifier-m3 classifier-m4; do
+        for r28_mutant in classifier-m1 classifier-m2 classifier-m3 classifier-m4 classifier-m5; do
           if [ -f "$r28_tmp/mutants/$r28_mutant.sh" ]; then
             if r28_classify_matrix "$r28_tmp/mutants/$r28_mutant.sh" > "$r28_tmp/$r28_mutant.out" 2>&1; then
               r28_bad="${r28_bad} scripts(${r28_mutant}-not-caught)"
@@ -12676,7 +13009,7 @@ R28MUTCLASS
 fi
 rm -rf "$r28_tmp"
 if [ -z "$r28_bad" ]; then
-  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected and its exact if/id/env/key set and normalized run body pinned, every consumed steps.<id> resolves in its owning job to the expected step identity (actor gate, agent, baseline, verify-phase, verify) ahead of its consumer with the resolved gate/agent/baseline steps bound to their exact key surface, if, env, and executable output lines so a skipped decoy cannot shadow them, every bound job's key set, runs-on, timeout, and trigger if scalar are pinned exactly, the agent env/timeout/continue-on-error are pinned, composite uses paths are path-normalized before counting, the baseline run body is pinned exactly, job-level continue-on-error is rejected on every bound job, the attribution calls are pinned including their fail-closed closure with no pushed=yes inside a foreign branch, both real helper scripts are executed against fixture events, an executable mock gh, and a local bare origin with Builder/Tester commit subjects, and 52 mutation self-tests (45 workflow static-pin mutants plus 7 helper-fixture mutants) prove the static pins and both fixture matrices load-bearing (issue #690)" "ok"
+  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected and its exact if/id/env/key set and normalized run body pinned, every consumed steps.<id> resolves in its owning job to the expected step identity (actor gate, agent, baseline, verify-phase, verify) ahead of its consumer with the resolved gate/agent/baseline steps bound to their exact key surface, if, env, and executable output lines so a skipped decoy cannot shadow them, every bound job's key set, runs-on, timeout, and trigger if scalar are pinned exactly, the agent env/timeout/continue-on-error are pinned, composite uses paths are path-normalized before counting, the baseline run body is pinned exactly, job-level continue-on-error is rejected on every bound job, the attribution calls are pinned including their fail-closed closure with no pushed=yes inside a foreign branch, both real helper scripts are staged from the trusted default-branch checkout into RUNNER_TEMP before the agent starts and every post-agent step invokes the staged copy (never the agent-mutable workspace copy, which an in-flight branch may not even contain), the baseline fails loudly on a nonzero gh status so an empty branch means only a successful no-PR query, the workflow-level permissions block is pinned exactly, the build forward is gated on a verified own push, the classifier reads subjects through a here-string so a large builder batch cannot SIGPIPE into a false foreign verdict, both real helper scripts are executed against fixture events, an executable mock gh, and a local bare origin with Builder/Tester commit subjects (including a 1500-commit large-range fixture and a branch-without-helpers staging fixture), and 61 mutation self-tests (53 workflow static-pin mutants plus 8 helper-fixture mutants) prove the static pins and both fixture matrices load-bearing (issue #690)" "ok"
 else
   check "R28" "phase thread binding or build-push attribution guard missing:${r28_bad} (issue #690: a design retry/forward migrated to the newest phase PR and the build verify read a foreign Tester push as its own)" "bad"
 fi

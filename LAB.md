@@ -544,11 +544,25 @@ Public Surface / Web Track:                                              │
   a `tester:`/foreign range or any fetch/tip failure reports `foreign` or
   exits 2, which the verify treats as no-push (`::warning::`, no recover
   tag), and the recover-tag step requires
-  `steps.verify.outputs.pushed == 'true'`. Regression-guarded by audit rule
+  `steps.verify.outputs.pushed == 'true'`. Both helpers are staged from the
+  trusted default-branch checkout into `$RUNNER_TEMP/lab-scripts/` before
+  the agent starts, and every post-agent step invokes the staged copy: the
+  workspace copy may be absent on an in-flight branch predating this PR and
+  is agent-mutable; any run body outside the staging steps that names a
+  helper basename without the `$RUNNER_TEMP/lab-scripts/` prefix is
+  rejected in any spelling. The build baseline fails loudly on a nonzero `gh`
+  status (an empty branch means only a successful no-PR query), the
+  new-branch fallback requires a tip absent from the baseline pattern set,
+  the workflow-level `permissions` block is pinned exactly, the build
+  forward is gated on a verified own push, and the classifier reads
+  subjects through a here-string so a large builder batch cannot SIGPIPE
+  into a false `foreign` verdict. Regression-guarded by audit rule
   R28, which parses every bound step from the same YAML GitHub runs
   (duplicate keys rejected) and pins each step's exact `if:`, `id`, env map,
   key set, and normalized `run:` body (all six phase verifies, all six
-  forwards, the full build verify, the full recover-tag body), resolves
+  phase forwards, the full build verify, the full build forward, the full
+  recover-tag body, and the seven helper-staging steps, each running after
+  checkout and before the actor gate), resolves
   every consumed `steps.<id>` inside its owning job to exactly one step with
   the expected identity ahead of its consumer (the actor-write-gate step,
   the composite agent step, the baseline capture that writes the three
@@ -558,17 +572,22 @@ Public Surface / Web Track:                                              │
   attribution calls with their fail-closed closure, and asserts the absence
   of any `pushed=yes` inside a foreign branch; it executes both real helpers
   against fixture events, an executable mock `gh`, and a local bare origin
-  with Builder/Tester commit subjects, and 52 mutation self-tests (45
-  workflow static-pin mutants plus 7 helper-fixture mutants) prove the
-  static pins and both fixture matrices load-bearing (a foreign-branch
+  with Builder/Tester commit subjects, including a 1500-commit large-range
+  fixture and a branch-without-helpers staging fixture, and 61 mutation
+  self-tests (53 workflow static-pin mutants plus 8 helper-fixture
+  mutants) prove the static pins and both fixture matrices load-bearing
+  (a foreign-branch
   `pushed=yes`, a verify or forward `if: false`, a retry-target rebind, a
   retry-counter reset, a fail-open attribution closure, an env token swap, a
   renamed verify/baseline/actor-gate id, a skipped decoy gate/agent/baseline,
   a path-aliased shadow agent, a rewritten baseline body, a commented-out
   baseline output, an owner PAT in the agent env, a shortened agent cap, a
   raised retry cap, a job-level `if: false`, `permissions`, `runs-on`,
-  `timeout-minutes`, or `continue-on-error`, a recover `exit 0`, and added
-  shell or step-level `continue-on-error` keys each fail alone).
+  `timeout-minutes`, or `continue-on-error`, a recover `exit 0`, a dropped
+  or direct workspace helper invocation, a fail-open baseline, a widened
+  `permissions` block, an ungated build forward, a different-branch
+  `pushed=yes` without a new tip, and added shell or step-level
+  `continue-on-error` keys each fail alone).
 - Concurrency - per-PR groups, queued execution:
 
 ```yaml
