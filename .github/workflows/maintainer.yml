@@ -299,6 +299,10 @@ jobs:
           # the same tail + column-0 terminal anchoring as the #591 detector
           # so a transcript echo or the responseBody JSON envelope never
           # consumes the retry; a second rejection fails loudly.
+          # BLOCKED-EGRESS-IP FAST-FAIL (issue #669): the provider also rejects
+          # a runner's egress IP with HTTP 403 abusive-traffic errors; that class
+          # is named, fast-failed, and never retried on the same runner (a
+          # fresh run on a new runner is the recovery), see the detector below.
           candidates="${MODEL_CANDIDATES:-}"
           if [ -z "$candidates" ]; then
             echo "::error::No model candidates resolved; refusing to run the Maintainer (the resolve step did not produce a candidate chain)."
@@ -345,6 +349,23 @@ jobs:
           # responseBody JSON envelope cannot match the anchored whole-line form.
           transient_http_error_terminal() {
             ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Rate limit exceeded\. Please try again later\.|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout)\.?$" )
+          }
+          # Blocked-egress-IP detector (issue #669), same tail + column-0
+          # terminal anchoring as the #591/#620/#653 detectors: the provider
+          # rejects the runner's egress IP with HTTP 403 and one of two
+          # FreeTierError forms (`Forbidden, OpenCode Free Model Gateway Detect
+          # Abuse Traffic`, or the long "OpenCode's free models aren't available
+          # from your current network ..." message). Both 2026-10-18 incidents
+          # hit on the session's FIRST provider call within 8-20 seconds, which
+          # is consistent with the runner's egress IP already being blocked when
+          # the job starts, so this class is deliberately FAST-FAILED rather
+          # than retried: a same-model retry from the same runner would hit the
+          # same IP. The canonical error below names the class and the fresh-run
+          # recovery path; crash-parity triage already re-dispatches onto a new
+          # runner (review/curator owner auto-retry, test/lab via Maintainer
+          # workflow_run triage, the Maintainer via its recurring schedule).
+          ip_block_error_terminal() {
+            ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Forbidden, OpenCode Free Model Gateway Detect Abuse Traffic|OpenCode's free models aren't available from your current network because we've detected abusive traffic from this IP address\. This isn't related to your account\. If you're on a VPN or proxy, turn it off and try again, or subscribe to OpenCode Go at https://opencode\.ai/go to keep building\.)$" )
           }
           # Provider-stall watchdog knobs (issue #653): an attempt whose captured
           # log does not grow for HANG_IDLE_SECONDS (checked every
@@ -444,6 +465,17 @@ jobs:
               fi
               if [ "$tee_status" -ne 0 ]; then
                 echo "::error::could not capture the Maintainer opencode log for model '$model' (tee exit $tee_status); failing loudly instead of risking a blind advance."
+                rm -f "$log" "$fifo" "$hang_flag"
+                exit 1
+              fi
+              # Blocked-egress-IP fast-fail (issue #669): checked before the
+              # exit-shape split so BOTH shapes are classified, and exits 1
+              # unconditionally (never `exit "$status"`, which would conclude an
+              # exit-0 provider death green). No retry budget is consumed and no
+              # backoff is spent: the block is runner-specific, so a fresh run
+              # on a new runner is the recovery, not an in-job retry.
+              if ip_block_error_terminal "$log"; then
+                echo "::error::provider blocked this runner's egress IP (HTTP 403 abusive-traffic classification, issue #669) on model '$model'; this is not retryable from the same runner. Fresh-run recovery: a re-dispatch lands on a new runner with a new egress IP (the crash-parity triage already re-dispatches review/test/lab, and the Maintainer schedule covers its own arm)."
                 rm -f "$log" "$fifo" "$hang_flag"
                 exit 1
               fi
