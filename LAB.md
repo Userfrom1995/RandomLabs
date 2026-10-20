@@ -1053,9 +1053,9 @@ rejects a runner's egress IP with HTTP 403 and a `FreeTierError` body, in two
 observed terminal forms (`Forbidden, OpenCode Free Model Gateway Detect Abuse
 Traffic`, and the long "OpenCode's free models aren't available from your
 current network ..." message) under `AI_APICallError:`/`APIError:` prefixes.
-All four 2026-10-18 incidents (lab run 39378762068, maintainer run
-39165526719, and earlier 39127259752/39144091490) died on the session's first
-provider call within 8-20 seconds, so the runner's egress IP was already
+All four incidents (2026-10-18: 39127259752, 39144091490, 39165526719;
+2026-10-20: 39378762068) died on the session's first provider call within
+8-20 seconds, so the runner's egress IP was already
 blocked when the job started: a same-runner retry would hit the same IP, and
 the proven recovery is a fresh run on a new runner (crash-parity triage
 re-dispatches review/test/lab; the Maintainer's recurring schedule covers its
@@ -1071,7 +1071,7 @@ functionally over both terminal forms and all three prefixes, plus the
 echo/envelope/suffix/phrase-variant/uppercase/stale no-match matrix and the
 tail-window 39/40 boundary, and the behavioral matrix adds `ip-block`,
 `ip-block0`, `ip-block7`, and `ip-block-stderr`: exactly one attempt on the
-first rung, no recorded backoff, no rung advance, rc 1, and the canonical
+first rung, no retry budget consumed, no rung advance, rc 1, and the canonical
 message for both exit shapes, a non-1 provider status, and a stderr-carried
 line.
 
