@@ -71,10 +71,13 @@ fn production(source: &str) -> &str {
     }
 }
 
-/// Function that encloses byte `index`, from its signature line through its
-/// closing top-level brace.
-fn enclosing_fn(source: &str, index: usize) -> &str {
-    let mut start = 0;
+/// Local call context: up to 60 lines before and 15 lines after the call,
+/// clamped to the enclosing function body. The signature is excluded so a
+/// parameter named `reduced_flash` cannot satisfy the gate on its own, while
+/// a helper derived earlier in the function (the `flash_t_left` INFINITY
+/// sentinel) stays inside the window.
+fn call_context(source: &str, index: usize) -> &str {
+    let mut fn_start = 0;
     let mut offset = 0;
     for line in source.split_inclusive('\n') {
         if offset > index {
@@ -82,15 +85,40 @@ fn enclosing_fn(source: &str, index: usize) -> &str {
         }
         let trimmed = line.trim_start();
         if trimmed.starts_with("fn ") || trimmed.starts_with("pub fn ") {
-            start = offset;
+            fn_start = offset;
         }
         offset += line.len();
     }
-    let end = source[start..]
-        .find("\n}\n")
-        .map(|at| start + at + 1)
-        .unwrap_or(source.len());
-    &source[start..end]
+    let body_start = source[fn_start..]
+        .find('{')
+        .map(|at| fn_start + at + 1)
+        .unwrap_or(fn_start);
+    let line_start = source[..index].rfind('\n').map(|at| at + 1).unwrap_or(0);
+    let mut ctx_start = line_start.max(body_start);
+    for _ in 0..60 {
+        if ctx_start <= body_start {
+            break;
+        }
+        let search_end = ctx_start.saturating_sub(1).max(body_start);
+        match source[body_start..search_end].rfind('\n') {
+            Some(at) => ctx_start = body_start + at + 1,
+            None => {
+                ctx_start = body_start;
+                break;
+            }
+        }
+    }
+    let mut ctx_end = index;
+    for _ in 0..15 {
+        match source[ctx_end..].find('\n') {
+            Some(at) => ctx_end += at + 1,
+            None => {
+                ctx_end = source.len();
+                break;
+            }
+        }
+    }
+    &source[ctx_start..ctx_end]
 }
 
 fn called_names(source: &str, prefix: &str) -> Vec<String> {
@@ -122,10 +150,10 @@ fn every_renderer_animation_call_is_accessibility_gated() {
         for (relative, source) in &sources {
             for (index, _) in source.match_indices(&needle) {
                 seen += 1;
-                let body = enclosing_fn(source, index);
+                let context = call_context(source, index);
                 assert!(
-                    gates.iter().any(|gate| body.contains(gate)),
-                    "{relative}: {needle} at byte {index} is not gated by any of {gates:?}:\n{body}"
+                    gates.iter().any(|gate| context.contains(gate)),
+                    "{relative}: {needle} at byte {index} is not gated by any of {gates:?}:\n{context}"
                 );
             }
         }
@@ -137,10 +165,10 @@ fn every_renderer_animation_call_is_accessibility_gated() {
         for (relative, source) in &sources {
             for (index, _) in source.match_indices(&needle) {
                 seen += 1;
-                let body = enclosing_fn(source, index);
+                let context = call_context(source, index);
                 assert!(
-                    gates.iter().any(|gate| body.contains(gate)),
-                    "{relative}: {needle} at byte {index} is not gated by any of {gates:?}:\n{body}"
+                    gates.iter().any(|gate| context.contains(gate)),
+                    "{relative}: {needle} at byte {index} is not gated by any of {gates:?}:\n{context}"
                 );
             }
         }
@@ -169,13 +197,18 @@ fn every_renderer_animation_call_is_accessibility_gated() {
 fn attract_board_passes_the_live_accessibility_flags() {
     let app_source = read("../desktop/src/app.rs");
     let app = production(&app_source);
+    let start = app
+        .find("render::render_attract(")
+        .expect("desktop title must compose the attract board");
+    let rest = &app[start..];
+    let call = &rest[..rest.find(')').expect("unterminated render_attract call")];
     assert!(
-        app.contains("!self.settings.reduced_flash"),
-        "title attract board must pass the reduced-flash setting"
+        call.contains("!self.settings.reduced_flash"),
+        "title attract call must pass the reduced-flash setting, got: {call}"
     );
     assert!(
-        app.contains("self.settings.reduced_motion"),
-        "title attract board must pass the reduced-motion setting"
+        call.contains("self.settings.reduced_motion"),
+        "title attract call must pass the reduced-motion setting, got: {call}"
     );
     let render_source = read("../desktop/src/render.rs");
     let render = production(&render_source);
@@ -261,6 +294,62 @@ fn assert_reduced_window(opts: Fx, label: &str) {
 fn reduced_flash_and_motion_hold_a_stable_bright_window() {
     assert_reduced_window(Fx::new(false, false), "reduced flash");
     assert_reduced_window(Fx::new(true, true), "reduced motion");
+}
+
+#[test]
+fn reduced_flash_holds_the_two_state_death_window() {
+    let count_states = |flash: bool, reduced_motion: bool| {
+        let mut game = Game::new(1, 1);
+        game.kill_player();
+        let mut states: Vec<raster::PixelFrame> = Vec::new();
+        for _ in 0..4 {
+            let frame = raster::render_opts(
+                &game,
+                &DUSK_POND,
+                raster::DEFAULT_PPT,
+                Fx::new(flash, reduced_motion),
+            );
+            if !states.iter().any(|seen| seen == &frame) {
+                states.push(frame);
+            }
+            game.tick(0.1);
+        }
+        states.len()
+    };
+    assert_eq!(
+        count_states(false, false),
+        2,
+        "reduced flash must hold two static death states, not the four-frame clip"
+    );
+    assert_eq!(
+        count_states(true, false),
+        4,
+        "full flash must still run the four-frame death clip"
+    );
+}
+
+#[test]
+fn reduced_flash_keeps_the_fright_mask_center_hollow() {
+    let theme = &DUSK_POND;
+    let mut game = Game::new(1, 1);
+    game.wardens.start_fright(6.0);
+    game.wardens.fright_t = 3.0;
+    let warden = &game.wardens.wardens[0];
+    let ppt = raster::DEFAULT_PPT;
+    let cx = (warden.actor.x * ppt as f32) as i32;
+    let cy = (warden.actor.y * ppt as f32) as i32;
+    let reduced = raster::render_opts(&game, theme, ppt, Fx::new(false, false));
+    let solid = raster::render_opts(&game, theme, ppt, Fx::new(true, false));
+    assert_ne!(
+        reduced.get(cx, cy),
+        solid.get(cx, cy),
+        "reduced flash must show the hollow warning mask, not the solid mask"
+    );
+    let center = reduced.get(cx, cy);
+    assert!(
+        center == Some(theme.bg) || center == Some(theme.crumb) || center == Some(theme.sunseed),
+        "the hollow warning mask center must show the board layer, got {center:?}"
+    );
 }
 
 #[test]

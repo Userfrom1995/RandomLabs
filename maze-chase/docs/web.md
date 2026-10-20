@@ -115,9 +115,10 @@ the HUD previews that state until you press Start.
   keypresses score, P pauses and Resume returns, touch swipe keeps the
   game alive, mobile viewport (390 by 844) shows the board near the
   top. A boot-gate E2E serves hand-built stale modules through a
-  page-level `fetch` override and proves both a missing
-  `mc_fright_segments` export and an ABI version skew land on the error
-  card instead of Ready. Rerun any time from `maze-chase/`:
+  page-level `fetch` override and proves an ABI version skew plus a
+  missing export from each first-frame group (fright, HUD flash,
+  reduced-motion/high-contrast settings, theme, difficulty) lands on the
+  error card instead of Ready. Rerun any time from `maze-chase/`:
   `node web/e2e/wasm-smoke.js`, `node web/e2e/boot-gate-e2e.js`, then
   (with the http server plus CDP chromium up, see
   `web/e2e/README.md`) `node web/e2e/browser-e2e.js`.
@@ -140,10 +141,13 @@ the HUD previews that state until you press Start.
 Stock stable Rust, no `wasm-bindgen`, no extra tooling: the `.wasm`
 is byte-reproducible from a clean checkout with the recorded toolchain.
 
-```
+From the repository root:
+
+```sh
+cd maze-chase
 rustup target add wasm32-unknown-unknown
 cargo build --release --target wasm32-unknown-unknown -p maze-chase-web
-cp target/wasm32-unknown-unknown/release/maze_chase_web.wasm maze-chase/web/maze-chase.wasm
+cp target/wasm32-unknown-unknown/release/maze_chase_web.wasm web/maze-chase.wasm
 ```
 
 The committed `web/maze-chase.wasm` is that exact artifact: 206,711

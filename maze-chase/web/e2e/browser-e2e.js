@@ -140,11 +140,14 @@ async function shot(ws, path) {
     const c = card.getBoundingClientRect(), b = btn.getBoundingClientRect();
     const hit = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2);
     const cx = c.x + c.width / 2, cy = c.y + c.height / 2;
+    const hb = document.querySelector('header').getBoundingClientRect();
+    const contentCenter = hb.bottom + (innerHeight - hb.bottom) / 2;
     return [c.x, c.y, c.width, c.height, b.x, b.y, b.width, b.height,
       (hit === btn || btn.contains(hit)) ? 1 : 0,
       Math.abs(cx - document.documentElement.clientWidth / 2) < 2 ? 1 : 0,
-      Math.abs(cy - innerHeight / 2) < 2 ? 1 : 0,
-      document.documentElement.clientWidth, innerHeight];
+      Math.abs(cy - contentCenter) < 2 ? 1 : 0,
+      document.documentElement.clientWidth, innerHeight,
+      c.y >= hb.bottom + 8 ? 1 : 0, hb.bottom];
   })()`);
   console.log('first view card/cta:', JSON.stringify(firstView));
   assert(firstView[0] >= 0 && firstView[1] >= 0 &&
@@ -156,7 +159,36 @@ async function shot(ws, path) {
     firstView[5] + firstView[7] <= firstView[12],
     'Start CTA fully inside the first viewport');
   assert(firstView[8] === 1, 'Start CTA receives the hit test at its center');
-  assert(firstView[9] === 1 && firstView[10] === 1, 'title card is centered in the viewport');
+  assert(firstView[9] === 1 && firstView[10] === 1, 'title card is centered in the content area below the header');
+  assert(firstView[13] === 1, 'title card clears the sticky header, header bottom=' + firstView[14]);
+
+  // Title card clears the sticky header on every small viewport, with its
+  // heading hit-testable and the card centered in the space below it.
+  for (const [vw, vh] of [[320, 480], [360, 640], [375, 667], [390, 844]]) {
+    await send(ws, 'Emulation.setDeviceMetricsOverride', { width: vw, height: vh, deviceScaleFactor: 2, mobile: true });
+    await sleep(350);
+    const fit = await evalJs(ws, `(() => {
+      const card = document.getElementById('panel-title');
+      const h = document.querySelector('header');
+      const heading = card.querySelector('h2');
+      const hb = h.getBoundingClientRect(), cb = card.getBoundingClientRect();
+      const tb = heading.getBoundingClientRect();
+      const hit = document.elementFromPoint(tb.x + tb.width / 2, tb.y + tb.height / 2);
+      const contentCenter = hb.bottom + (innerHeight - hb.bottom) / 2;
+      return [hb.bottom, cb.top, cb.bottom, innerHeight, innerWidth,
+        cb.top >= hb.bottom + 8 ? 1 : 0,
+        cb.top >= 0 && cb.bottom <= innerHeight ? 1 : 0,
+        (hit && card.contains(hit)) ? 1 : 0,
+        Math.abs((cb.top + cb.bottom) / 2 - contentCenter) < 2 ? 1 : 0];
+    })()`);
+    assert(fit[5] === 1, `title card clears the sticky header at ${vw}x${vh} (header ${fit[0]}, card ${fit[1]})`);
+    assert(fit[6] === 1, `title card is inside the viewport at ${vw}x${vh} (card ${fit[1]}..${fit[2]}, viewport ${fit[3]})`);
+    assert(fit[7] === 1, `title heading is hit-testable at ${vw}x${vh}`);
+    assert(fit[8] === 1, `title card is centered below the header at ${vw}x${vh}`);
+  }
+  await send(ws, 'Emulation.clearDeviceMetricsOverride');
+  await sleep(400);
+
 
   // Canvas pixels are really the game (sample the data URL: must vary).
   const pxVar = await evalJs(ws, `(() => {
@@ -297,6 +329,24 @@ async function shot(ws, path) {
   })()`);
   assert(mobilePaused[0] === 1, 'real click opens the pause dialog on mobile');
   assert(mobilePaused[1] === 1, 'mobile pause dialog fits the viewport');
+  const pauseA11y = await evalJs(ws, `(() => {
+    const p = document.getElementById('panel-pause');
+    const b = document.getElementById('btn-mute');
+    const r = b.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    return [p.getAttribute('aria-modal'), b.hidden ? 0 : 1,
+      r.top >= 0 && r.bottom <= innerHeight ? 1 : 0,
+      (hit === b || b.contains(hit)) ? 1 : 0, b.textContent];
+  })()`);
+  console.log('pause a11y/header reach:', JSON.stringify(pauseA11y));
+  assert(pauseA11y[0] === null, 'pause dialog does not claim aria-modal while header controls stay reachable');
+  assert(pauseA11y[1] === 1 && pauseA11y[2] === 1 && pauseA11y[3] === 1,
+    'header mute control stays visible and hit-testable while paused');
+  await evalJs(ws, `document.getElementById('btn-mute').click()`);
+  await sleep(150);
+  const muteText = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
+  assert(muteText !== pauseA11y[4], 'header mute stays functional while paused');
+  await evalJs(ws, `document.getElementById('btn-mute').click()`);
   const resumePt = await evalJs(ws, `(() => { const r = document.getElementById('btn-resume').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`);
   await send(ws, 'Input.dispatchMouseEvent', { type: 'mousePressed', x: resumePt[0], y: resumePt[1], button: 'left', clickCount: 1 });
   await send(ws, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: resumePt[0], y: resumePt[1], button: 'left', clickCount: 1 });
@@ -377,6 +427,33 @@ async function shot(ws, path) {
   await sleep(400);
   assert((await themeLabel()) === 'Moonwake (high contrast)',
     'high contrast labels the effective Moonwake theme');
+  const hcHash = await canvasHash();
+  await evalJs(ws, `(() => {
+    const c = document.getElementById('chk-contrast');
+    c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+  await sleep(400);
+  assert((await themeLabel()) === 'Dusk Pond (1/3)',
+    'clearing high contrast restores the stored Dusk Pond theme');
+  const duskMotionHash = await canvasHash();
+  assert(hcHash !== duskMotionHash,
+    'high contrast really repaints the canvas to the Moonwake theme');
+  await evalJs(ws, `document.getElementById('btn-theme').click()`);
+  await sleep(300);
+  await evalJs(ws, `document.getElementById('btn-theme').click()`);
+  await sleep(400);
+  assert((await themeLabel()) === 'Moonwake (3/3)',
+    'the manual cycle reaches Moonwake with reduced motion still on');
+  const moonMotionHash = await canvasHash();
+  assert(hcHash === moonMotionHash,
+    'high contrast renders the effective Moonwake theme, not just a label');
+  await evalJs(ws, `document.getElementById('btn-theme').click()`);
+  await sleep(300);
+  await evalJs(ws, `(() => {
+    const c = document.getElementById('chk-contrast');
+    c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+  await sleep(400);
   const a11yBlob = await evalJs(ws, `localStorage.getItem('maze-chase-settings')`);
   const a11yText = a11yBlob ? Buffer.from(a11yBlob, 'base64').toString('utf8') : '';
   assert(/^reduced_motion = true$/m.test(a11yText), 'reduced_motion persists in the settings blob, got: ' + JSON.stringify(a11yText.split('\n').filter((l) => l.startsWith('reduced_motion'))));

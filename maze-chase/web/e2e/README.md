@@ -16,14 +16,15 @@ on failure and print `ALL GREEN` on success.
   `wasm-smoke.js`.
 - `boot-gate-e2e.js [page-url] [debug-port]`: serves hand-built stale
   wasm through a page-level `fetch` override and asserts the error card
-  for a version-1 module missing `mc_fright_segments` and for a
-  version-1 module carrying every old export (ABI skew), with the boot
+  for a version-1 module missing `mc_fright_segments`, an ABI version
+  skew, and an ABI-2 module missing one export from each first-frame
+  group (fright flash, reduced flash, theme, difficulty), with the boot
   status never reaching Ready.
 - `browser-e2e.js [page-url] [debug-port]`: drives the served
   `play.html` in headless chromium over CDP with node's built-in
   WebSocket (boot with zero console errors, title visible, canvas
   pixels, real button click to play, real ArrowUp keypresses scoring,
-  P pause plus Resume, touch swipe, mobile 390x844 viewport, scores
+  P pause plus Resume, touch swipe, mobile 390x844 viewport plus sticky-header clearance at 320x480, 360x640, 375x667, and 390x844, scores
   panel restoring a persisted row across reload plus in-page clear,
   gameplay screenshots to the system temp directory (`os.tmpdir()`,
   `mc-e2e-*.png`).
@@ -41,6 +42,6 @@ node web/e2e/browser-e2e.js
 
 The wasm must match the harness: rebuild with
 `cargo build --release --target wasm32-unknown-unknown -p maze-chase-web`
-and copy the artifact to `maze-chase/web/maze-chase.wasm` first (see
+and copy the artifact to `web/maze-chase.wasm` first (see
 `docs/web.md`). The page gates on `mc_version() == 2`, so skew fails
 loudly instead of half-working.

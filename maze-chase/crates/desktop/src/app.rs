@@ -201,7 +201,14 @@ impl App {
             Event::PauseGame | Event::ResumeGame => self.apply_tune(),
             Event::Quit => self.quit = true,
             Event::QuitToTitle => {
+                let p = preset(self.settings.difficulty);
+                self.seed_counter = self.seed_counter.wrapping_add(1);
+                let seed = fresh_seed().wrapping_add(self.seed_counter);
+                self.game = Game::with_mode(seed, p.start_level, p.mode);
+                self.pending_dir = None;
+                self.acc = 0.0;
                 self.was_running = false;
+                self.ticker = None;
                 self.screens.show(ScreenId::Title);
                 self.apply_tune();
             }
@@ -467,6 +474,9 @@ impl App {
                     !self.settings.reduced_flash,
                     self.settings.reduced_motion,
                 )?;
+                if render::too_small(w, h) {
+                    return Some(frame);
+                }
                 let details = [
                     (selected.description(), theme.text),
                     (
@@ -750,6 +760,46 @@ mod tests {
             "pause card origin must sit on the board center"
         );
         assert_ne!(x, w as i32 / 2 - card_w as i32 / 2, "not page-centered");
+        let _ = std::fs::remove_dir_all(&app.dir);
+    }
+
+    #[test]
+    fn too_small_title_skips_the_menu_overlay() {
+        let app = test_app("too-small-title");
+        let (w, h) = (300u32, 200u32);
+        assert!(crate::render::too_small(w, h));
+        let frame = app.render(w, h).unwrap();
+        let bare = crate::render::render_attract(
+            &app.game,
+            app.theme(),
+            w,
+            h,
+            0.40,
+            !app.settings.reduced_flash,
+            app.settings.reduced_motion,
+        )
+        .unwrap();
+        assert_eq!(
+            frame.px, bare.px,
+            "the too-small card must not be covered by the title menu"
+        );
+        let _ = std::fs::remove_dir_all(&app.dir);
+    }
+
+    #[test]
+    fn quit_to_title_restores_a_fresh_board() {
+        let mut app = test_app("quit-fresh");
+        app.on_action(Action::Confirm);
+        app.tick(FIXED_DT);
+        assert!(app.game.tick_count > 0);
+        app.game.score = 4321;
+        app.game.lives = 0;
+        app.apply_event(Event::QuitToTitle);
+        assert_eq!(app.screens.current, ScreenId::Title);
+        assert_eq!(app.game.tick_count, 0, "title attract starts unmoved");
+        assert_eq!(app.game.score, 10, "the fresh board banks its spawn crumb");
+        assert!(app.game.lives > 0, "a fresh board restores lives");
+        assert!(!app.was_running);
         let _ = std::fs::remove_dir_all(&app.dir);
     }
 
