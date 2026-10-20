@@ -23,7 +23,7 @@ python3 -m http.server 8000   # Windows: python -m http.server 8000
 
 On GitHub Pages the committed build plays from the project hub: open
 the hub `index.html`, press Play. The shipped artifact is
-`maze-chase/web/maze-chase.wasm` (about 198 KiB / 202,627 bytes, zero
+`maze-chase/web/maze-chase.wasm` (about 198 KiB / 202,727 bytes, zero
 imports, fully
 self-contained), built reproducibly (see below); `web/maze-chase.js` is
 the harness (plain script, no bundler, no external resources, works
@@ -133,7 +133,7 @@ so the HUD previews that state until you press Start.
 ## Reproducible builds
 
 Stock stable Rust, no `wasm-bindgen`, no extra tooling: the `.wasm`
-must be byte-reproducible from a clean checkout.
+is byte-reproducible from a clean checkout with the recorded toolchain.
 
 ```
 rustup target add wasm32-unknown-unknown
@@ -141,6 +141,12 @@ cargo build --release --target wasm32-unknown-unknown -p maze-chase-web
 cp target/wasm32-unknown-unknown/release/maze_chase_web.wasm maze-chase/web/maze-chase.wasm
 ```
 
-The committed `web/maze-chase.wasm` is that exact artifact. The bridge
-ABI version (`mc_version() == 1`) gates the harness: mismatched pairs
-fail loudly on the error card instead of misbehaving.
+The committed `web/maze-chase.wasm` is that exact artifact: 202,727
+bytes, sha256
+`029352dc0f54d074f6de1a200174e30fec76652caf115ca9d223a2d8357f819e`,
+built with Rust 1.99.0 (rustc commit
+`b940084d7eb6a299eb4bfeb8e34901bc051e7ac4`, embedded in the artifact);
+a second clean build reproduces the same bytes, while a different
+stable release may not. The bridge ABI version (`mc_version() == 1`)
+gates the harness: mismatched pairs fail loudly on the error card
+instead of misbehaving.
