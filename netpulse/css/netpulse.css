@@ -141,7 +141,7 @@ body.np-body {
 
 .np-kv {
   display: grid;
-  grid-template-columns: minmax(140px, auto) 1fr;
+  grid-template-columns: minmax(140px, 40%) minmax(0, 1fr);
   gap: 6px 12px;
   margin: 10px 0;
   font-size: 0.93rem;
