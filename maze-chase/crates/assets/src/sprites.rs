@@ -92,6 +92,7 @@ pub const PIP_CLOSED: [&str; 11] = [
 
 /// Rill facing up, mouth open at the top contour, 11x11.
 pub const RILL_UP: [&str; 11] = [
+    "...........",
     "...#...#...",
     "..#*#.#*#..",
     "..#o###o#..",
@@ -102,11 +103,11 @@ pub const RILL_UP: [&str; 11] = [
     ".#ooooooo#.",
     "..##ooo##..",
     ".#.#...#.#.",
-    "...........",
 ];
 
 /// Rill facing up, mouth half open, 11x11.
 pub const RILL_UP_MID: [&str; 11] = [
+    "...........",
     "...#...#...",
     "..#*#.#*#..",
     "..#o###o#..",
@@ -117,11 +118,11 @@ pub const RILL_UP_MID: [&str; 11] = [
     ".#ooooooo#.",
     "..##ooo##..",
     ".#.#...#.#.",
-    "...........",
 ];
 
 /// Rill facing up, mouth closed, 11x11.
 pub const RILL_CLOSED_UP: [&str; 11] = [
+    "...........",
     "...#...#...",
     "..#*#.#*#..",
     "..#o###o#..",
@@ -132,11 +133,11 @@ pub const RILL_CLOSED_UP: [&str; 11] = [
     ".#ooooooo#.",
     "..##ooo##..",
     ".#.#...#.#.",
-    "...........",
 ];
 
 /// Rill facing down, mouth open along the bottom contour, 11x11.
 pub const RILL_DOWN: [&str; 11] = [
+    "...........",
     "..#.....#..",
     ".#*#...#*#.",
     ".#o#...#o#.",
@@ -147,11 +148,11 @@ pub const RILL_DOWN: [&str; 11] = [
     ".#o.....o#.",
     "..##ooo##..",
     ".#.#...#.#.",
-    "...........",
 ];
 
 /// Rill facing down, mouth half open, 11x11.
 pub const RILL_DOWN_MID: [&str; 11] = [
+    "...........",
     "..#.....#..",
     ".#*#...#*#.",
     ".#o#...#o#.",
@@ -162,11 +163,11 @@ pub const RILL_DOWN_MID: [&str; 11] = [
     ".#oo.o.oo#.",
     "..##ooo##..",
     ".#.#...#.#.",
-    "...........",
 ];
 
 /// Rill facing down, mouth closed, 11x11.
 pub const RILL_CLOSED_DOWN: [&str; 11] = [
+    "...........",
     "..#.....#..",
     ".#*#...#*#.",
     ".#o#...#o#.",
@@ -177,7 +178,6 @@ pub const RILL_CLOSED_DOWN: [&str; 11] = [
     ".#ooooooo#.",
     "..##ooo##..",
     ".#.#...#.#.",
-    "...........",
 ];
 
 /// Rill right open, 21x21.
@@ -1107,6 +1107,28 @@ mod tests {
     }
 
     #[test]
+    fn rill_11_sheets_share_a_baseline() {
+        let sheets: [&[&str]; 9] = [
+            &PIP_RIGHT,
+            &PIP_RIGHT_MID,
+            &PIP_CLOSED,
+            &RILL_UP,
+            &RILL_UP_MID,
+            &RILL_CLOSED_UP,
+            &RILL_DOWN,
+            &RILL_DOWN_MID,
+            &RILL_CLOSED_DOWN,
+        ];
+        for sheet in sheets {
+            let low = sheet
+                .iter()
+                .rposition(|row| row.chars().any(|ch| ch != '.'))
+                .expect("a Rill sheet must draw something");
+            assert_eq!(low, 10, "every 11x11 Rill sheet must land on row 10");
+        }
+    }
+
+    #[test]
     fn rill_21_sheets_share_a_baseline() {
         let sheets: [&[&str]; 9] = [
             &RILL21_RIGHT_OPEN,
@@ -1130,9 +1152,9 @@ mod tests {
 
     #[test]
     fn golden_lily_frames_are_all_distinct() {
-        for a in 0..GOLDEN_LILY.len() {
-            for b in (a + 1)..GOLDEN_LILY.len() {
-                assert_ne!(GOLDEN_LILY[a], GOLDEN_LILY[b], "lily frames {a} and {b}");
+        for (a, left) in GOLDEN_LILY.iter().enumerate() {
+            for (b, right) in GOLDEN_LILY.iter().enumerate().skip(a + 1) {
+                assert_ne!(left, right, "lily frames {a} and {b}");
             }
         }
     }
