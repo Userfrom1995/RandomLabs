@@ -1,42 +1,43 @@
-# Maintainer State - 2026-10-20 06:14Z
+# Maintainer State - 2026-10-20 07:12Z
 
 ## Last checkpoint
-- Maintainer run: https://github.com/Userfrom1995/RandomLabs/actions/runs/39378807984 (06:09:14Z failure-triage wake on the Lab Engineer 403; one lab retry on #708, one ping on #669).
-- Decision: `[{"action": "lab", "pr": 708}, {"action": "ping", "target": 669}]`.
+- Maintainer run: https://github.com/Userfrom1995/RandomLabs/actions/runs/39384239328 (the 07:05:00Z `/oc maintainer` wake on #708; zero dispatch, one status tick).
+- Decision: `[]`.
 - Main tip: `c24b7ddb3048461610ab747b8cb9b536c9d80b6d` (unchanged since the 01:18:50Z #706 PAT rebase merge).
 
 ## Landed (2026-10-20)
-- **#706 MERGED** 01:18:50Z as `c24b7ddb` (owner-PAT rebase sweep; workflow-touching), head `18c7c144`, branch kept intact. `Closes #699` closed #699 at 01:18:52Z. The merged cleanup step is live and its first live pass deleted exactly the three retired `opencode/schedule-*`/`opencode/dispatch-*` branches (verified gone via `git ls-remote`; every `opencode/issue*` branch intact).
+- **#706 MERGED** 01:18:50Z as `c24b7ddb` (owner-PAT rebase sweep; workflow-touching), head `18c7c144`, branch kept intact. `Closes #699` closed #699 at 01:18:52Z. The merged cleanup step is live and its first live pass deleted exactly the three retired `opencode/schedule-*`/`opencode/dispatch-*` branches (verified gone; every `opencode/issue*` branch intact).
 - **#670 MERGED** 2026-10-19 23:42:32Z as `ebb9d6d2`; **#693 MERGED** 23:40:47Z as `951a00bf`.
 
-## Live pipeline (verified this tick 06:10-06:15Z)
-- **#708 Lab fix round RETRY DISPATCHED** (`Closes #690`): head `fa60d53a` (MERGEABLE/CLEAN). Review round 3 (06:09:03Z) closed the F1/F2/F3 of rounds 1-2 but returned three new blockers: F1 the two new helpers execute from the agent-mutated checkout (stage them from the trusted default-branch checkout for every post-agent call, update R28 pins, add a branch-without-helpers fixture); F2 a silent baseline `gh` failure bypasses attribution and still yields `pushed=yes` (fail loudly, treat empty branch as no-PR only on command success, pin workflow-level `permissions` plus a `pull-requests: none` mutant); F3 `classify-build-push.sh` SIGPIPE under `set -euo pipefail` can misreport a Builder push as foreign (use herestring `grep -qE '^builder:' <<< "$subjects"` and add a large-range fixture); plus a non-blocking `Forward builder decision` gate on `pushed == 'true'`. The owner's `/oc lab` at 06:09:11Z died at 06:09:35Z with the #669 provider 403 (no decision file, fail-closed verify red); this run re-dispatched `lab` on a fresh runner. If the retry 403s again, stop retrying and treat #669 as the blocker.
-- **#707 Phase 4 build PR, REVIEW ROUND 5 LIVE** (`Refs #582`, `Closes #658`): head `e291265d` (MERGEABLE/CLEAN), the round-4 Fixer close-out. opencode-review 39377365711 has been in the reviewer agent step since 05:54:05Z (inside its caps), no verdict yet; head unchanged. On verdict: findings -> Fixer; approval -> Tester (full workspace suite, harness contract, real captures) plus macOS/Windows per-OS rows -> Quality Council; only a current-head `approve-eval` permits the merge. Intermediate phase: after the merge, #582 and #655 stay open and Phase 5 (sound design, #659) chains.
-- **#669 provider 403 class, PRIORITIZED**: exact class of the failed lab run (fourth live occurrence; prior 2026-10-18 lab 39127259752, test 39144091490, maintainer 39165526719). It now takes the FIRST lab slot after #690 lands (PR #708), ahead of #689 and #709; the fix must classify this exact terminal 403 line in both runner paths with the #591/#620/#653 anchoring and R15 pinning. #689 (cosmetic strip-trailers false-red) follows, then #709 (docs drift).
+## Live pipeline (verified this tick 07:05-07:12Z)
+- **#708 Lab fix round LANDED; REVIEW ROUND 4 LIVE** (`Closes #690`): head `7ec879c1` (MERGEABLE/CLEAN), four lab commits at 07:03:59Z pushed via the PAT step at 07:04:52Z after the wrapper's expected App-token rejection (lab run 39379242907 SUCCESS 07:04:57Z). The round closes all three round-3 findings: (F1) both helpers staged from the trusted checkout into `$RUNNER_TEMP/lab-scripts/` immediately after checkout and before the actor gate in all seven bound jobs, every post-agent invocation uses the staged copy, and R28 rejects any workspace-path helper mention; (F2) `Capture build baseline` fails loudly on a nonzero `gh` status, the different-branch fallback requires a tip absent from the baseline pattern set, and the workflow-level `permissions` block is pinned with a `pull-requests: none` mutant; (F3) the classifier reads subjects through a here-string (large-range fixture raised to 1500 commits); plus the non-blocking `Forward builder decision` gate on `steps.verify.outputs.pushed == 'true'`. Verified on a fresh archive export of the head: `.github/scripts/silent-stall-audit.sh` 28 passed, 0 failed, exit 0, empty stderr; R28 banner count is 61 mutation self-tests (53 static + 8 helper). Review round 4 (opencode-review 39384225782) has been live on exactly `7ec879c1` since 07:04:59Z (checkout completed 07:05:03Z, after the PAT push), agent step in progress, no verdict yet. The queued review run 39384239299 is the `/oc maintainer` comment cohort, skip-only. On verdict: findings -> `lab`; approval -> read-only infra Tester -> machine marker -> PAT sweep -> verify `Closes #690` + Pages -> then #669, #689, #709.
+- **#707 Phase 4 build PR, FIX ROUND 5 LIVE** (`Refs #582`, `Closes #658`): head `e291265d` (MERGEABLE/CLEAN). Review round 5 (39377365711, succeeded) posted four blocking findings at 06:52:46Z; the Fixer round (opencode 39382982591) has been live on exactly that head since 06:53:05Z, agent step in progress, inside its 120/180 caps. On its push: fresh review -> Tester (full workspace suite, harness contract, real captures) plus macOS/Windows per-OS rows -> Quality Council. Only a current-head `approve-eval` permits the merge; intermediate phase, so #582 and #655 stay open and Phase 5 (sound design, #659) chains after the merge.
+- **#669 provider 403 class, NEXT LAB SLOT**: stays first in the lab queue after #690 lands (PR #708), ahead of #689 and #709. It touches the same runner regions in `.github/workflows/opencode.yml` and `maintainer.yml` as #708, so no parallel branch. The fix must classify the exact terminal 403 line in both runner paths with the #591/#620/#653 anchoring and R15 pinning.
 - **#690 stays OPEN** and closes with #708's merge. **Maze Chase children (#655, #657-#661, #671-#683)**: open until their phase PRs merge; #655 waits on the macOS matrix rows.
 - **#698 clean-skip lane**: still unexercised; needs a bot-actor `pull_request` event on a non-workflow PR.
 - No closed-unmerged PR needs recovery (every recent closed PR merged; newest #706).
 
 ## Health and audits
-- Failed/timed-out/startup-failure runs in the newest 200: exactly the one 06:09:14Z Lab Engineer 403. Zero held `action_required` runs repo-wide.
-- Trigger allowlist exact 18/18 item-for-item (`maintainer.yml:38` vs the 22 live workflow names minus maintainer itself, Dependabot Updates, Dependency Graph, pages-build-deployment).
-- Pages green on main (`c24b7ddb`, 39377379679 at 05:54:44Z), on the #707 head `e291265d` (39377216969 at 05:52:25Z), and on the #708 head `fa60d53a` (39373843943 at 05:14:38Z).
+- Failed/timed-out/startup-failure runs in the newest 100: zero. Zero held `action_required` runs repo-wide.
+- Trigger allowlist exact 18/18 item-for-item (`maintainer.yml` `on.workflow_run.workflows` vs the 19 live workflow names minus maintainer itself; no live workflow outside the list, no listed workflow missing).
+- Pages green on main (`c24b7ddb`, 39384242173 at 07:05:05Z), on the #708 head `7ec879c1` (39384227161 at 07:04:57Z), and on the #707 head `e291265d` (39377216969 at 05:52:25Z).
 - 23 open issues, all mapped; two open PRs (#707, #708); zero untriaged.
-- Auditor daily report (2026-10-20, run 39366552474) concluded healthy: R1-R27 27/27 green on main `c24b7ddb`; #709 its only finding.
+- Branch state: #708 MERGEABLE/CLEAN at `7ec879c1`; #707 MERGEABLE/CLEAN at `e291265d`.
+- Auditor daily report (2026-10-20, run 39366552474) still the newest daily health post: R1-R27 27/27 green on main `c24b7ddb`.
 
 ## Decisions and rationale
-- `lab` on #708: the review round-3 F1/F2/F3 blockers are outstanding and the first lab attempt died in 24 seconds on a single-runner network 403 before doing any work. A fresh re-dispatch is the documented recovery for the #669 class (and the alternative - waiting - stalls #690 for no benefit). One retry only: a second 403 on a fresh runner means the class is the blocker, not the runner.
-- `ping` on #669: records the fourth live occurrence, the exact 403 line and run link, the detector gap (#620 matches only the other FreeTierError phrase), the one-retry recovery, and the sequencing change (#669 first after #690, then #689, then #709).
-- No review dispatch on #707 (round 5 already live on exactly `e291265d`); no merge (no current-head Tester/eval verdict). No create/close/recover/ideate; no emergency (production is not halted: #707's review is live and the 403 is a single-runner network block). Session read-only apart from the `.maintainer/` output files: gh/API reads, `git ls-remote`, run/job queries, the allowlist audit. No branch commands, commits, pushes, or merges.
+- `[]`: both lanes already have a live round on exactly their current heads - #708's review round 4 started seconds after the lab's PAT push, #707's Fixer round started seconds after the round-5 findings - and neither PR carries a current-head Tester or eval verdict, so no merge is due and no duplicate dispatch is warranted. A status tick on #708 records the lab's round-3 closure, the verified 28/0 audit, and the binding gate chain.
+- No `lab` on #669 yet: deliberately sequenced behind #690 because both rewrite the same runner regions in `opencode.yml`/`maintainer.yml`; a parallel branch would conflict and #708 is one review round from landing. #689 and #709 follow for the same serialization reason (#708 touches `AGENTS.md`/`LAB.md`).
+- No review dispatch on #707 (round 5's `/oc fix` already started the Fixer); no create/close/recover/ideate; no emergency (production is not halted). Session read-only apart from the `.maintainer/` output files: gh/API reads, `git ls-remote`, `git archive` audit on the #708 head, run/job queries, the allowlist audit. No branch commands, commits, pushes, or merges.
 
 ## Watch list
-1. **#708 lab retry**: second 403 -> stand down and escalate #669 as the blocker; on a push -> fresh review -> read-only infra Tester -> machine marker -> PAT sweep -> verify `Closes #690` + Pages -> then #669, #689, #709.
-2. **#707 review round 5 on `e291265d`**: verdict -> Fixer or Tester plus per-OS rows -> Quality Council -> merge only on `approve-eval`.
+1. **#708 review round 4 on `7ec879c1`**: findings -> `lab`; approval -> read-only infra Tester -> machine marker -> PAT sweep -> verify `Closes #690` + Pages -> then #669, #689, #709.
+2. **#707 Fixer round 5 on `e291265d`**: push -> fresh review -> Tester plus per-OS rows -> Quality Council -> merge only on `approve-eval`, then `Closes #658` + Pages and Phase 5 (#659).
 3. **#669 first lab slot after #690**: verify the 403 terminal line is classified and R15-pinned in both runner paths.
 4. **#698 clean-skip**: do not fabricate events; wait for a natural bot-actor PR event.
 5. **Pages** on every main advance and every PR head push.
 
 ## Pointers
-- Long-form run narrative: `logs/2026-10-20.md`, run 39378807984 entry (and earlier 2026-10-20 entries for the #706 merge, the #707 review rounds 1-5, and the #708 lab rounds).
+- Long-form run narrative: `logs/2026-10-20.md`, run 39384239328 entry (and earlier 2026-10-20 entries for the #706 merge, the #707 fix rounds 1-5, and the #708 lab rounds 1-4).
 - Maintainer prompt: `.github/agents/maintainer.md`.
-- Open lanes: #708 lab retry (head `fa60d53a`), #707 review round 5 live on `e291265d`, #669 next lab slot after #690, #689 then #709, #698 clean-skip lane (unexercised), #655 macOS rows.
+- Open lanes: #708 review round 4 on `7ec879c1`, #707 Fixer round 5 on `e291265d`, #669 next lab slot after #690, then #689 and #709, #698 clean-skip lane (unexercised), #655 macOS rows.
