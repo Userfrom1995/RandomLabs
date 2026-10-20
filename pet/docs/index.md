@@ -247,9 +247,12 @@ binaries are built from documented recipes, never downloaded blind:
   (`python -m pet version --porcelain`), never a copied literal.
 - Versioned artifacts ship on GitHub Releases
   (`desktop-pet-vX.Y.Z`) via `.github/workflows/pet-release.yml`,
-  which builds all three OS families natively and smokes each
-  artifact (install, selftest, service cycle, uninstall-clean)
-  before publish. Release binaries are unsigned
+  which builds all three OS families natively and runs a headless
+  smoke before publish: version parity, selftest, a service
+  start/status/stop cycle, and package payload verification always
+  run, while the real install plus uninstall-clean path runs only
+  with `--install` / `-Install`; the uploaded service plist is
+  checksummed but not smoked. Release binaries are unsigned
   (SmartScreen/Gatekeeper/`chmod +x` notes in `packaging/README.md`);
   always verify against the release `SHA256SUMS.txt`.
 - Run-from-source shortcut scripts: `packaging/install.sh` and
