@@ -357,6 +357,7 @@ fn kitty_render_pipeline_z_layers_quiet_transmits_and_exact_deletes() {
     let mut atlas_tx = false;
     let mut static_place_z0 = false;
     let mut zs: BTreeSet<u32> = BTreeSet::new();
+    let mut pip_z: Option<u32> = None;
     let mut exact_deletes = 0usize;
     for params in &apcs {
         let kvs = kv(params);
@@ -393,7 +394,11 @@ fn kitty_render_pipeline_z_layers_quiet_transmits_and_exact_deletes() {
                         Some("2"),
                         "steady-state placement must stay silent: {params}"
                     );
-                    zs.insert(z.parse::<u32>().expect("numeric z"));
+                    let z = z.parse::<u32>().expect("numeric z");
+                    zs.insert(z);
+                    if get(&kvs, "p") == Some("60") {
+                        pip_z = Some(z);
+                    }
                 }
                 if get(&kvs, "i") == Some(STATIC_IMAGE_ID) && get(&kvs, "p") == Some("1") {
                     assert_eq!(
@@ -433,10 +438,14 @@ fn kitty_render_pipeline_z_layers_quiet_transmits_and_exact_deletes() {
     assert!(atlas_tx, "no atlas transmit seen");
     assert!(static_place_z0, "static placement with z=0 never seen");
     assert!(zs.contains(&1), "no sunseed placement at z=1; zs={zs:?}");
-    assert!(zs.contains(&11), "no Pip placement at z=11; zs={zs:?}");
+    assert_eq!(
+        pip_z,
+        Some(12),
+        "the Pip placement id 60 must stack at z=12 (above eyes(3)=11); zs={zs:?}"
+    );
     assert!(
-        zs.iter().any(|z| (3..=10).contains(z)),
-        "no warden placement in z=3..=10; zs={zs:?}"
+        zs.iter().any(|z| (4..=11).contains(z)),
+        "no warden body/eyes placement in z=4..=11; zs={zs:?}"
     );
     assert!(
         exact_deletes >= 5,
