@@ -88,6 +88,9 @@ When introducing a new agent or modifying roles, you must ensure the entire team
    - Prohibit unauthorized calls (e.g., Tester cannot self-merge or call Builder directly).
 3. **Synchronize Call Flow Diagrams**:
    - Update the ASCII team call flow diagrams across all documentation sites (`LAB.md`, `AGENTS.md`, `docs/index.md`, and `docs/index.html`) to accurately map the new agent's flow and handoff paths.
+4. **Handoff-Trigger Consistency**:
+   - Any change to a handoff trigger (what an agent or a hardcoded step actually posts, for example `/oc test` or `/oc maintainer`) MUST update `LAB.md`, `AGENTS.md`, `.github/agents/REGISTRY.md`, and every affected agent prompt in the same PR.
+   - Document the trigger that a workflow really posts, never a decision action name: a decision action such as `approve-eval` is not a `/oc` trigger unless a hardcoded step posts it as one.
 
 ---
 
@@ -127,5 +130,6 @@ Before submitting a PR for a new agent, verify:
 - [ ] Workflow YAML created or updated with `GITHUB_TOKEN: ${{ github.token }}` (no PAT in agent env).
 - [ ] Main event bus `opencode.yml` updated with exclusion guards if applicable.
 - [ ] Prompts of existing agents updated with squad awareness and calling permissions.
+- [ ] Every documented handoff trigger matches what the workflows actually post (`LAB.md`, `AGENTS.md`, `REGISTRY.md`, affected prompts); decision action names are never written as `/oc` triggers.
 - [ ] Universal documentation updated (`README.md`, `index.html`, `docs/index.html`, `docs/index.md`, `LAB.md`, `AGENTS.md`).
 - [ ] All em dashes purged from documentation and prompt files.
