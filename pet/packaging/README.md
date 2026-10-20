@@ -73,10 +73,12 @@ script. The Windows setup exe additionally takes
 
 `.github/workflows/pet-release.yml` builds all three OS families
 natively (Windows exe plus setup, macOS app plus pkg plus dmg, Linux
-deb plus AppImage plus rpm), smokes each artifact with the scripts
-below, and publishes a versioned GitHub Release
-(`desktop-pet-vX.Y.Z`) with every artifact plus a merged
-`SHA256SUMS.txt`. Trigger: push a matching tag, or manual dispatch.
+deb plus rpm plus an AppImage when the release runner provides
+appimagetool), runs the headless logic smoke plus payload
+verification with the scripts below, and publishes a versioned
+GitHub Release (`desktop-pet-vX.Y.Z`) with every artifact plus a
+merged `SHA256SUMS.txt`. Trigger: push a matching tag, or manual
+dispatch.
 The publish job refuses to run when the tag disagrees with
 `pet/__init__.py`, so the release version can never drift from the
 single source.
@@ -117,7 +119,9 @@ and `hdiutil` are macOS-only); without `dpkg-deb` the deb gets a
 name check only; without `rpm` the rpm gets a name check only; a
 non-executable AppImage gets an existence check only. On the release
 runners (`windows-latest`, `macos-latest`, `ubuntu-latest`) every
-tool is present, so every check runs for real.
+tool is present, so every payload check runs for real; the real
+install plus uninstall-clean check still runs only with `--install`
+(`-Install` on Windows).
 
 Every recipe is fail-closed (`set -euo pipefail` or
 `$ErrorActionPreference = Stop`), writes checksums, and runs the
@@ -156,7 +160,7 @@ show the current version as an example):
 | Windows 10/11 | `packaging/build-windows.ps1` | `dist/desktop-pet.exe` | Registry Run key for start at login; notifications render in the speech bubble |
 | macOS 13+ | `packaging/build-macos.sh` | `dist/DesktopPet-1.5.0.pkg`, `dist/DesktopPet-1.5.0.dmg` | App bundle (tray-friendly, no dock icon); pkg installs the app only, login service via `startup on --service`; `osascript` notifications where allowed |
 | macOS 13+ | `packaging/build.sh` | `dist/desktop-pet` | LaunchAgent plist for start at login; `osascript` notifications where allowed |
-| Linux (X11/Wayland) | `packaging/build-linux.sh` | `dist/desktop-pet_1.5.0_amd64.deb`, `dist/DesktopPet-1.5.0-x86_64.AppImage` | Desktop entry plus disabled-by-default XDG autostart; `notify-send` notifications where installed |
+| Linux (X11/Wayland) | `packaging/build-linux.sh` | `dist/desktop-pet_1.5.0_amd64.deb`, `dist/DesktopPet-1.5.0-x86_64.AppImage` | Desktop entry plus disabled-by-default XDG autostart (AppImage needs appimagetool); `notify-send` notifications where installed |
 | Linux (Fedora/RHEL/openSUSE) | `packaging/build-rpm.sh` | `dist/desktop-pet-1.5.0-1.<arch>.rpm` | Same payload as the deb; `notify-send` notifications where installed |
 | Linux (X11/Wayland) | `packaging/build.sh` | `dist/desktop-pet` | XDG autostart entry for start at login; `notify-send` notifications where installed |
 
@@ -201,6 +205,8 @@ matrix can never drift from the recipes.
 - `build-linux.sh` - Linux deb package and AppImage.
 - `build-rpm.sh` plus `desktop-pet.rpm.spec` - Linux rpm package.
 - `smoke-linux.sh` / `smoke-macos.sh` / `smoke-windows.ps1` - per-OS
-  install plus selftest plus service-cycle plus uninstall-clean smoke.
+  payload plus selftest plus service-cycle smoke; the real install
+  plus uninstall-clean path runs when `--install` (`-Install` on
+  Windows) is passed.
 - `install.sh` / `uninstall.sh` - run-from-source install and clean removal (Linux/macOS).
 - `install.ps1` / `uninstall.ps1` - run-from-source install and clean removal (Windows).
