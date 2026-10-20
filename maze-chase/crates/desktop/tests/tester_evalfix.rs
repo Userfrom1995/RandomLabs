@@ -12,7 +12,7 @@ use maze_chase_desktop::render::{self, Hud, MenuLine};
 use maze_chase_engine::game::Game;
 
 fn theme() -> &'static maze_chase_assets::themes::Theme {
-    &themes::EMBER_WARREN
+    &themes::DUSK_POND
 }
 
 fn hud() -> Hud<'static> {

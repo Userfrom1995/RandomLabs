@@ -9,8 +9,9 @@
 //! Glyph legend (see `maze_chase_assets::sprites`): `.` transparent,
 //! `#` outline, `o` body fill (actor color), `*` highlight / white.
 
+use maze_chase_assets::anim;
 use maze_chase_assets::sprites;
-use maze_chase_assets::themes::{Rgb, Theme};
+use maze_chase_assets::themes::{mix, Rgb, Theme};
 use maze_chase_engine::game::Game;
 use maze_chase_engine::ghosts::WardenState;
 use maze_chase_engine::maze::{Tile, HEIGHT, WIDTH};
@@ -131,7 +132,27 @@ pub fn render(game: &Game, theme: &Theme, ppt: u32, frame_no: u64, flash: bool) 
     paint_relish(&mut frame, game, theme, ppt, scale, frame_no);
     paint_wardens(&mut frame, game, theme, ppt, scale, frame_no, flash);
     paint_pip(&mut frame, game, theme, ppt, scale, frame_no);
+    paint_level_clear(&mut frame, game, theme, ppt);
     frame
+}
+
+/// One 300 ms lantern sweep across the board while the level clear is
+/// playing. Presentation only: the engine state is untouched.
+fn paint_level_clear(frame: &mut PixelFrame, game: &Game, theme: &Theme, ppt: i32) {
+    if game.state != maze_chase_engine::game::GameState::Clearing {
+        return;
+    }
+    let Some(p) = anim::level_clear_sweep(game.state_elapsed()) else {
+        return;
+    };
+    let band = (ppt * 2).max(2);
+    let x = (p * frame.w as f32) as i32;
+    let tint = mix(theme.bg, theme.accent, 0.45);
+    for bx in x..(x + band).min(frame.w as i32) {
+        for y in 0..frame.h as i32 {
+            frame.set(bx, y, tint);
+        }
+    }
 }
 
 /// Static board layer for the placement pipeline: walls, gate, house,
@@ -153,6 +174,7 @@ pub fn render_static(game: &Game, theme: &Theme, ppt: u32) -> PixelFrame {
 /// other sprite; both the full-frame and placement paths share that
 /// order, which is what makes the compositor pixel-identical.
 fn paint_tiles(frame: &mut PixelFrame, game: &Game, theme: &Theme, ppt: i32, crumb_field: &[u8]) {
+    let scale = sprite_scale(ppt);
     for ty in 0..HEIGHT {
         for tx in 0..WIDTH {
             let x0 = tx * ppt;
@@ -186,12 +208,14 @@ fn paint_tiles(frame: &mut PixelFrame, game: &Game, theme: &Theme, ppt: i32, cru
                 Tile::Dot | Tile::Energizer | Tile::Plain => {
                     let i = (ty * WIDTH + tx) as usize;
                     if crumb_field.get(i).copied().unwrap_or(0) == 1 {
-                        let cx = x0 + ppt / 2;
-                        let cy = y0 + ppt / 2;
-                        frame.set(cx, cy, theme.crumb);
-                        if ppt >= 8 {
-                            frame.set(cx - 1, cy, theme.crumb);
-                        }
+                        paint_glyph(
+                            frame,
+                            &sprites::CRUMB,
+                            x0 + ppt / 2,
+                            y0 + ppt / 2,
+                            scale,
+                            [theme.crumb, theme.text, theme.eyes],
+                        );
                     }
                 }
             }
@@ -305,7 +329,11 @@ fn paint_wardens(
                     _ => &sprites::WARDEN_NIB,
                 };
                 if fright && warden.state == WardenState::Active {
-                    let mask: &[&str] = if flash_on {
+                    let morph = !game.wardens.fright_total.is_finite()
+                        || game.wardens.fright_total - game.wardens.fright_t < 0.25;
+                    let mask: &[&str] = if morph {
+                        &sprites::FRIGHT_MASK_ENTRY
+                    } else if flash_on {
                         &sprites::FRIGHT_MASK_FLASH
                     } else {
                         &sprites::FRIGHT_MASK
@@ -317,6 +345,18 @@ fn paint_wardens(
                         cy,
                         scale,
                         [theme.fright, theme.text, theme.eyes],
+                    );
+                    // Eye bubbles stay readable inside the mask; they are
+                    // information, not decoration.
+                    let eyes = eyes_rows(warden.actor.dir);
+                    let refs: Vec<&str> = eyes.iter().map(|s| s.as_str()).collect();
+                    paint_glyph(
+                        frame,
+                        &refs,
+                        cx,
+                        cy,
+                        scale,
+                        [theme.eyes, theme.eyes, theme.eyes],
                     );
                 } else {
                     paint_glyph(
@@ -371,7 +411,8 @@ fn paint_pip(
         (game.player.y * ppt as f32) as i32,
     );
     if game.state == maze_chase_engine::game::GameState::Dying {
-        let clip = &sprites::PIP_DEATH[(frame_no as usize / 8) % 4];
+        // Four frames at 100 ms each at the 60 fps render cadence.
+        let clip = &sprites::PIP_DEATH[(frame_no as usize / 6) % 4];
         paint_glyph(
             frame,
             clip,
@@ -427,52 +468,55 @@ mod tests {
     #[test]
     fn frame_dimensions_follow_ppt() {
         let g = fresh();
-        let f = render(&g, &themes::EMBER_WARREN, 8, 0, true);
+        let f = render(&g, &themes::DUSK_POND, 8, 0, true);
         assert_eq!((f.w, f.h), (28 * 8, 31 * 8));
-        let small = render(&g, &themes::EMBER_WARREN, 2, 0, true);
+        let small = render(&g, &themes::DUSK_POND, 2, 0, true);
         assert_eq!((small.w, small.h), (28 * 6, 31 * 6));
     }
 
     #[test]
     fn walls_and_crumbs_are_painted() {
         let g = fresh();
-        let f = render(&g, &themes::EMBER_WARREN, 8, 0, true);
+        let f = render(&g, &themes::DUSK_POND, 8, 0, true);
         // Corner (0,0) is a wall: face color present.
-        assert!(f.count(themes::EMBER_WARREN.wall) > 100);
-        assert!(f.count(themes::EMBER_WARREN.wall_inner) > 100);
+        assert!(f.count(themes::DUSK_POND.wall) > 100);
+        assert!(f.count(themes::DUSK_POND.wall_inner) > 100);
         // Fresh maze still holds hundreds of crumbs.
-        assert!(f.count(themes::EMBER_WARREN.crumb) > 200);
+        assert!(f.count(themes::DUSK_POND.crumb) > 200);
         // Sunseeds pulse in both phases.
-        let a = render(&g, &themes::EMBER_WARREN, 8, 0, true);
-        let b = render(&g, &themes::EMBER_WARREN, 8, 24, true);
+        let a = render(&g, &themes::DUSK_POND, 8, 0, true);
+        let b = render(&g, &themes::DUSK_POND, 8, 24, true);
         assert_ne!(a.px, b.px, "sunseed halo must animate");
     }
 
     #[test]
     fn pip_and_wardens_are_painted() {
         let g = fresh();
-        let f = render(&g, &themes::EMBER_WARREN, 8, 0, true);
-        assert!(f.count(themes::EMBER_WARREN.pip) > 10);
-        assert!(f.count(themes::EMBER_WARREN.bram) > 5);
-        assert!(f.count(themes::EMBER_WARREN.kessa) > 5);
+        let f = render(&g, &themes::DUSK_POND, 8, 0, true);
+        assert!(f.count(themes::DUSK_POND.pip) > 10);
+        assert!(f.count(themes::DUSK_POND.bram) > 5);
+        assert!(f.count(themes::DUSK_POND.kessa) > 5);
         // Deterministic: same frame twice, identical bytes.
-        let again = render(&g, &themes::EMBER_WARREN, 8, 0, true);
+        let again = render(&g, &themes::DUSK_POND, 8, 0, true);
         assert_eq!(f, again);
     }
 
     #[test]
     fn fright_masks_replace_bodies() {
         let g = fresh();
-        let plain = render(&g, &themes::EMBER_WARREN, 8, 0, true);
-        assert!(plain.count(themes::EMBER_WARREN.bram) > 5);
+        let plain = render(&g, &themes::DUSK_POND, 8, 0, true);
+        assert!(plain.count(themes::DUSK_POND.bram) > 5);
         // The mask glyph carries no body fill (`o`): Bram's hunt colors
         // vanish under the pale mask while housed wardens keep theirs.
         let mut g = fresh();
         g.wardens.start_fright(6.0);
-        let f = render(&g, &themes::EMBER_WARREN, 8, 0, true);
-        assert_eq!(f.count(themes::EMBER_WARREN.bram), 0);
-        assert!(f.count(themes::EMBER_WARREN.kessa) > 5);
-        assert!(f.count(themes::EMBER_WARREN.eyes) > plain.count(themes::EMBER_WARREN.eyes));
+        let f = render(&g, &themes::DUSK_POND, 8, 0, true);
+        assert_eq!(f.count(themes::DUSK_POND.bram), 0);
+        assert!(f.count(themes::DUSK_POND.kessa) > 5);
+        // The eye overlay is still painted inside the mask, so dazed
+        // hunters remain readable without borrowing a body fill.
+        assert!(f.count(themes::DUSK_POND.eyes) > 0);
+        assert!(plain.count(themes::DUSK_POND.eyes) > 0);
     }
 
     #[test]
@@ -490,8 +534,8 @@ mod tests {
         let mut g = fresh();
         for dir in [Dir::Right, Dir::Left, Dir::Up, Dir::Down] {
             g.player.dir = dir;
-            let f = render(&g, &themes::EMBER_WARREN, 8, 3, true);
-            assert!(f.count(themes::EMBER_WARREN.pip) > 10, "{dir:?}");
+            let f = render(&g, &themes::DUSK_POND, 8, 3, true);
+            assert!(f.count(themes::DUSK_POND.pip) > 10, "{dir:?}");
         }
     }
 }

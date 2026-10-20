@@ -257,7 +257,7 @@ mod tests {
         use maze_chase_assets::themes;
         use maze_chase_engine::game::Game;
         let g = Game::new(3, 1);
-        let f = raster::render(&g, &themes::EMBER_WARREN, 8, 0, true);
+        let f = raster::render(&g, &themes::DUSK_POND, 8, 0, true);
         let s = encode(&f, 64);
         assert!(s.len() < 256 * 1024, "len={}", s.len());
     }

@@ -60,7 +60,7 @@ live in [docs/release.md](release.md).
 
 | Keys | Action |
 |---|---|
-| Arrows or WASD | steer Pip (remappable) |
+| Arrows or WASD | steer Rill (remappable) |
 | P or Esc (in game) | pause menu |
 | M | mute toggle (works everywhere) |
 | Enter | confirm / select |
@@ -116,14 +116,14 @@ The game picks the best tier its terminal proves, best first:
    known Sixel terminals (foot, contour, mlterm, Sixel-build xterm).
    Measured on xterm 390: 140-141 transmits / 3.39-3.41 MiB per session.
 3. **truecolor-cells**: 24-bit Unicode board (solid-block walls, dotted
-   crumbs, letter wardens in theme colors, facing Pip mouth) with
+   crumbs, letter wardens in theme colors, facing Rill mouth) with
    synchronized tear-free frames. The WezTerm, foot-fallback, iTerm2,
    and VS Code path.
 4. **legacy-cells**: the same board folded to the 16 ANSI colors for
    conventional terminals. Fully playable: the only difference is
    palette depth, and every painted run carries the theme's own
    background, so a terminal with a light default (an unconfigured
-   xterm) renders the Ember Warren canvas instead of vanishing into
+   xterm) renders the Dusk Pond canvas instead of vanishing into
    white (the compatibility matrix records the committed default-light
    xterm row and its dark-background twin, both passing).
 
@@ -205,8 +205,8 @@ board origin.
 
 Settings live in `~/.maze-chase/settings.txt` (human-readable
 `key = value`, shared with the other layers): difficulty (Cozy,
-Standard, Harsh: honest engine presets only), theme (ember-warren,
-abyss-lantern, parchment-dawn), master/music/SFX levels, mute,
+Standard, Harsh: honest engine presets only), theme (dusk-pond,
+morning-shallows, moonwake; legacy ids migrate), master/music/SFX levels, mute,
 reduced flashing (holds the steady fright mask instead of blinking),
 and the full keymap. High scores live in `~/.maze-chase/scores.txt`
 (top 10, `score | level | mode | date`); corrupt lines are skipped,

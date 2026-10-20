@@ -13,34 +13,58 @@ Clear the maze."
 
 ## Cast
 
-The player is **Pip**, a hungry courier lantern outrunning the maze
-wardens. Four wardens, each with a distinct hunting style and a
-color-plus-shape read (shape accents keep them distinguishable for
-color-blind players):
+The player is **Rill**, a squat pond frog with two dome eyes breaking the
+top of the silhouette. Rill crosses the old pond at dusk while four
+predators patrol the water. Each hunter reads by shape first and color
+second, so the cast survives the legacy cell rung:
 
-| Warden | Style (target function) | Hue | Shape accent |
-|---|---|---|---|
-| Bram | Leader: targets Pip's tile directly; enrages late-level | ember red | square brow |
-| Kessa | Ambusher: targets 4 tiles ahead of Pip's heading | teal | pointed hood |
-| Jory | Flanker: mirrors Bram across a pivot 2 tiles ahead of Pip | amber | round helm |
-| Nib | Lurker: hunts Pip while far, retreats to corner when close | violet | notched ear |
+| Hunter | Kind | Style (target function) | Hue | Shape accent |
+|---|---|---|---|---|
+| Bram | heron | Leader: targets Rill's tile directly; enrages late-level | slate blue | S-neck above long legs |
+| Kessa | pike | Ambusher: targets 4 tiles ahead of Rill's heading | river green | dorsal ridge and underbite |
+| Jory | snake | Flanker: mirrors Bram across a pivot 2 tiles ahead of Rill | coral | raised head loop |
+| Nib | dragonfly | Lurker: hunts Rill while far, retreats to a corner when close | brass amber | doubled crossbar wings |
 
-Scatter corners are the four maze corners, one per warden. Frightened
-wardens share a pale mask face with a flash warning in the last 1.5 s;
-eaten wardens become directional eyes drifting home to the house door.
+Scatter corners are the four maze corners, one per hunter. Frightened
+hunters bloat into concentric rings filled flat with the theme fright
+color (never white, never the eyes slot); the last 1.5 s adds a steady
+shape change and the HUD countdown, with a hollow warning mask under
+reduced flash. Eaten hunters become directional eye bubbles drifting home
+to the gatehouse door.
 
-Backstory (one paragraph, shown on the title screen): Pip carries light
-through the old warren each night while the wardens doze in the gatehouse;
-gobbling a sunseed (energizer) turns the tables until the light burns out.
-Clear every crumb, mind the tunnel drafts, and do not get caught.
+Backstory (one paragraph, shown on the title screen): Rill crosses the
+old pond each dusk while the wardens doze in the gatehouse; gobbling a
+sunseed dazes them until the glow fades. Clear every crumb, mind the
+tunnel drafts, and do not get caught.
 
 ## Terminology allowlist
 
 Pellets are **crumbs**, energizers are **sunseeds**, bonus items are
-**relishes** (authored tier icons, values rising with depth), the ghost
-house is the **gatehouse**, extra life is a **spare wick**, fright is the
-**turn** (as in "turning the tables"). UI copy and code identifiers use
-only these terms plus the cast names above.
+**relishes** (Lily Charm, Copper Ripple, Reed Flute, Snail Shell,
+Dragonfly Wing, Kingfisher Feather), the ghost house is the
+**gatehouse**, extra life is a **spare wick**, fright is the **turn**
+(as in "turning the tables"). UI copy and code identifiers use only
+these terms plus the cast names above.
+
+## Visual identity
+
+The shipped direction is **Pondwake** (Waylight interaction, Lantern
+Drift motion), recorded with its tokens in `docs/design.md` and
+`docs/design-tokens.json`. The three launch themes are **Dusk Pond**
+(dark default), **Morning Shallows** (light), and **Moonwake** (high
+contrast); all three clear the text, fright, eyes, and hunter-separation
+gates in `crates/assets/src/themes.rs`. Settings saved with the earlier
+palette ids (`ember-warren`, `abyss-lantern`, `parchment-dawn`) migrate
+to the matching Pondwake theme on load.
+
+Rill's sheet is 11x11 with three mouth phases, three telling facings
+(right, up, down; left is the horizontal mirror), and a four-frame
+death-sink into a bubble. The hunters use one 11x11 silhouette each,
+plus directional 7x7 eye bubbles, a fright mask, and a hollow warning
+mask. The environment uses water-bead crumbs, resting-firefly sunseeds
+with a two-frame halo, six 7x7 relish icons, a six-frame 9x9 Golden
+Lily, a four-frame pickup burst, turn sparks, and a Lantern Drift
+level-clear sweep.
 
 ## Maze authorship log
 
@@ -57,21 +81,20 @@ only these terms plus the cast names above.
   coordinates, start/mouth tiles) coincide, as the behavior spec demands.
   Loaded at compile time via `include_str!` so the engine stays
   dependency-free and WASM-safe.
-- Sprite and audio authorship (authored 2026-10-16, all
-  original hand-authored data in-repo, no external sources):
-  `crates/assets/src/sprites.rs` (Pip 11x11 three mouth phases with
-  transform-derived facings, four 11x11 wardens with the accents above,
-  5x5 eye pairs, fright mask plus hollow flash, crumb/sunseed frames,
-  six 7x7 relish icons: emberberry, sunplum, lanternpod, clockpepper,
-  harborfig, starmarrow), `crates/assets/src/themes.rs` (Ember Warren,
-  Abyss Lantern, Parchment Dawn, all WCAG 4.5+ text contrast),
-  `crates/audio/src/score.rs` (five original tunes plus four SFX
-  recipes, synthesized locally by layers, no audio files),
-  `docs/design.md` plus `docs/design-tokens.json` (visual language,
-  palette cross-checked by test).
+- Sprite and audio authorship (authored 2026-10-16, refreshed for Pondwake; all original hand-authored data in-repo, no external
+  sources): `crates/assets/src/sprites.rs` (Rill 11x11 mouth and facings,
+  four silhouette-first hunters, 7x7 eye bubbles, ring fright mask plus
+  hollow warning mask, water-bead crumbs, firefly sunseeds, six relish
+  icons, Golden Lily, pickup burst, turn spark, death sink),
+  `crates/assets/src/anim.rs` (Lantern Drift clips and registries),
+  `crates/assets/src/themes.rs` (Dusk Pond, Morning Shallows, Moonwake,
+  all WCAG 4.5+ text contrast), `crates/audio/src/score.rs` (five
+  original tunes plus four SFX recipes, synthesized locally by layers, no
+  audio files), `docs/design.md` plus `docs/design-tokens.json` (visual
+  language, palette cross-checked by test).
 
 ## Brand marks
 
 Wordmark is plain text ("MAZE CHASE") in the theme font; no logo image
-implies any external character. Theme palettes are original (launch theme
-plus alternates ship with the Design Council tokens).
+implies any external character. Theme palettes are original Pondwake
+tokens.

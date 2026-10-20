@@ -14,8 +14,9 @@
 //! `#` outline, `o` body fill (actor color), `*` highlight. Alpha is always
 //! 255 (fully opaque).
 
+use maze_chase_assets::anim;
 use maze_chase_assets::sprites;
-use maze_chase_assets::themes::{Rgb, Theme};
+use maze_chase_assets::themes::{mix, Rgb, Theme};
 use maze_chase_engine::actors::Dir;
 use maze_chase_engine::game::{Game, GameState};
 use maze_chase_engine::ghosts::WardenState;
@@ -168,10 +169,15 @@ pub fn render_board(game: &Game, theme: &Theme, frame_no: u64, flash: bool) -> F
                 Tile::Dot | Tile::Energizer | Tile::Plain => {
                     let i = (ty * WIDTH + tx) as usize;
                     if crumb_field.get(i).copied().unwrap_or(0) == 1 {
-                        let cx = x0 + PPT / 2;
-                        let cy = y0 + PPT / 2;
-                        frame.set(cx, cy, theme.crumb);
-                        frame.set(cx - 1, cy, theme.crumb);
+                        paint_glyph(
+                            &mut frame,
+                            &sprites::CRUMB,
+                            x0 + PPT / 2,
+                            y0 + PPT / 2,
+                            theme.crumb,
+                            theme.text,
+                            theme.eyes,
+                        );
                     }
                     if crumb_field.get(stride + i).copied().unwrap_or(0) == 1 {
                         // Sunseed pulse: halo frame alternates every ~0.4 s
@@ -217,6 +223,21 @@ pub fn render_board(game: &Game, theme: &Theme, frame_no: u64, flash: bool) -> F
         );
     }
 
+    // One 300 ms lantern sweep across the board while the level clear is
+    // playing (presentation only).
+    if game.state == GameState::Clearing {
+        if let Some(p) = anim::level_clear_sweep(game.state_elapsed()) {
+            let band = (PPT * 2) as u32;
+            let x = (p * frame.w as f32) as u32;
+            let tint = mix(theme.bg, theme.accent, 0.45);
+            for bx in x..(x + band).min(frame.w) {
+                for y in 0..frame.h as i32 {
+                    frame.set(bx as i32, y, tint);
+                }
+            }
+        }
+    }
+
     // Wardens under Pip (Pip paints last).
     let fright = game.wardens.fright_active();
     let flash_on = flash
@@ -243,7 +264,11 @@ pub fn render_board(game: &Game, theme: &Theme, frame_no: u64, flash: bool) -> F
                     _ => &sprites::WARDEN_NIB,
                 };
                 if fright && warden.state == WardenState::Active {
-                    let mask: &[&str] = if flash_on {
+                    let morph = !game.wardens.fright_total.is_finite()
+                        || game.wardens.fright_total - game.wardens.fright_t < 0.25;
+                    let mask: &[&str] = if morph {
+                        &sprites::FRIGHT_MASK_ENTRY
+                    } else if flash_on {
                         &sprites::FRIGHT_MASK_FLASH
                     } else {
                         &sprites::FRIGHT_MASK
@@ -257,6 +282,12 @@ pub fn render_board(game: &Game, theme: &Theme, frame_no: u64, flash: bool) -> F
                         theme.text,
                         theme.eyes,
                     );
+                    let eyes: &[&str] = match warden.actor.dir {
+                        Dir::Up => &sprites::EYES_UP,
+                        Dir::Down => &sprites::EYES_DOWN,
+                        _ => &sprites::EYES_RIGHT,
+                    };
+                    paint_glyph(&mut frame, eyes, cx, cy, theme.eyes, theme.eyes, theme.eyes);
                 } else {
                     let body = bodies.get(warden.index).copied().unwrap_or(theme.bram);
                     paint_glyph(&mut frame, body_glyph, cx, cy, body, theme.text, theme.eyes);
@@ -286,7 +317,8 @@ pub fn render_board(game: &Game, theme: &Theme, frame_no: u64, flash: bool) -> F
         (game.player.y * PPT as f32) as i32,
     );
     if game.state == GameState::Dying {
-        let clip: &[&str] = sprites::PIP_DEATH[(frame_no as usize / 8) % 4];
+        // Four frames at 100 ms each at the 60 fps render cadence.
+        let clip: &[&str] = sprites::PIP_DEATH[(frame_no as usize / 6) % 4];
         paint_glyph(
             &mut frame, clip, pcx, pcy, theme.pip, theme.text, theme.eyes,
         );
@@ -424,7 +456,7 @@ mod tests {
     #[test]
     fn board_dimensions_exact() {
         let g = fresh();
-        let f = render_board(&g, &themes::EMBER_WARREN, 0, true);
+        let f = render_board(&g, &themes::DUSK_POND, 0, true);
         assert_eq!((f.w, f.h), (BOARD_W, BOARD_H));
         assert_eq!((f.w, f.h), (224, 248));
         assert_eq!(f.px.len(), 224 * 248 * 4);
@@ -433,43 +465,43 @@ mod tests {
     #[test]
     fn walls_and_crumbs_painted() {
         let g = fresh();
-        let f = render_board(&g, &themes::EMBER_WARREN, 0, true);
-        assert!(f.count(themes::EMBER_WARREN.wall) > 100);
-        assert!(f.count(themes::EMBER_WARREN.wall_inner) > 100);
-        assert!(f.count(themes::EMBER_WARREN.crumb) > 200);
+        let f = render_board(&g, &themes::DUSK_POND, 0, true);
+        assert!(f.count(themes::DUSK_POND.wall) > 100);
+        assert!(f.count(themes::DUSK_POND.wall_inner) > 100);
+        assert!(f.count(themes::DUSK_POND.crumb) > 200);
     }
 
     #[test]
     fn sunseed_animates() {
         let g = fresh();
-        let a = render_board(&g, &themes::EMBER_WARREN, 0, true);
-        let b = render_board(&g, &themes::EMBER_WARREN, 24, true);
+        let a = render_board(&g, &themes::DUSK_POND, 0, true);
+        let b = render_board(&g, &themes::DUSK_POND, 24, true);
         assert_ne!(a.px, b.px, "sunseed halo must animate");
     }
 
     #[test]
     fn pip_and_wardens_painted_and_deterministic() {
         let g = fresh();
-        let f = render_board(&g, &themes::EMBER_WARREN, 0, true);
-        assert!(f.count(themes::EMBER_WARREN.pip) > 10);
-        assert!(f.count(themes::EMBER_WARREN.bram) > 5);
-        assert!(f.count(themes::EMBER_WARREN.kessa) > 5);
-        let again = render_board(&g, &themes::EMBER_WARREN, 0, true);
+        let f = render_board(&g, &themes::DUSK_POND, 0, true);
+        assert!(f.count(themes::DUSK_POND.pip) > 10);
+        assert!(f.count(themes::DUSK_POND.bram) > 5);
+        assert!(f.count(themes::DUSK_POND.kessa) > 5);
+        let again = render_board(&g, &themes::DUSK_POND, 0, true);
         assert_eq!(f, again);
     }
 
     #[test]
     fn fright_masks_replace_active_bodies() {
         let g = fresh();
-        let plain = render_board(&g, &themes::EMBER_WARREN, 0, true);
-        assert!(plain.count(themes::EMBER_WARREN.bram) > 5);
+        let plain = render_board(&g, &themes::DUSK_POND, 0, true);
+        assert!(plain.count(themes::DUSK_POND.bram) > 5);
         // The mask glyph carries no body fill (`o`): Bram's hunt colors
         // vanish under the pale mask while housed wardens keep theirs.
         let mut g = fresh();
         g.wardens.start_fright(6.0);
-        let f = render_board(&g, &themes::EMBER_WARREN, 0, true);
-        assert_eq!(f.count(themes::EMBER_WARREN.bram), 0);
-        assert!(f.count(themes::EMBER_WARREN.kessa) > 5);
+        let f = render_board(&g, &themes::DUSK_POND, 0, true);
+        assert_eq!(f.count(themes::DUSK_POND.bram), 0);
+        assert!(f.count(themes::DUSK_POND.kessa) > 5);
     }
 
     #[test]
@@ -477,8 +509,8 @@ mod tests {
         for dir in [Dir::Right, Dir::Left, Dir::Up, Dir::Down] {
             let mut g = fresh();
             g.player.dir = dir;
-            let f = render_board(&g, &themes::EMBER_WARREN, 3, true);
-            assert!(f.count(themes::EMBER_WARREN.pip) > 10, "{dir:?}");
+            let f = render_board(&g, &themes::DUSK_POND, 3, true);
+            assert!(f.count(themes::DUSK_POND.pip) > 10, "{dir:?}");
         }
     }
 
@@ -614,12 +646,12 @@ mod tests {
     #[test]
     fn golden_determinism_across_theme_and_bg_pixel() {
         let g = fresh();
-        let a = render_board(&g, &themes::PARCHMENT_DAWN, 7, true);
-        let b = render_board(&g, &themes::PARCHMENT_DAWN, 7, true);
+        let a = render_board(&g, &themes::MORNING_SHALLOWS, 7, true);
+        let b = render_board(&g, &themes::MORNING_SHALLOWS, 7, true);
         assert_eq!(a, b);
         // Tile (13,13) is gatehouse interior: nothing paints over it.
         let (x, y) = (13 * BOARD_PPT as i32 + 4, 13 * BOARD_PPT as i32 + 4);
-        let t = themes::PARCHMENT_DAWN;
+        let t = themes::MORNING_SHALLOWS;
         assert_eq!(
             a.get(x, y),
             Some((t.bg.0, t.bg.1, t.bg.2, 255)),

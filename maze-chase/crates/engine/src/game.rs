@@ -108,6 +108,11 @@ impl Game {
         self.player.want = dir;
     }
 
+    /// Seconds spent in the current `state` (death or level-clear window).
+    pub fn state_elapsed(&self) -> f32 {
+        self.state_t
+    }
+
     /// Drain the event log since the last call.
     pub fn take_events(&mut self) -> Vec<String> {
         core::mem::take(&mut self.events)

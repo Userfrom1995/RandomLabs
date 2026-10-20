@@ -391,10 +391,10 @@ impl App {
             .map(|(t, _)| t.as_str())
     }
 
-    /// Theme for the active settings (falls back to ember-warren).
+    /// Theme for the active settings (falls back to Dusk Pond).
     pub fn theme(&self) -> &'static maze_chase_assets::themes::Theme {
         maze_chase_assets::themes::by_id(self.settings.theme.as_str())
-            .unwrap_or(&maze_chase_assets::themes::EMBER_WARREN)
+            .unwrap_or(&maze_chase_assets::themes::DUSK_POND)
     }
 
     /// Render a bitmap PNG of the current game frame (Kitty/Sixel tiers)

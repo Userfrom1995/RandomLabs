@@ -57,7 +57,7 @@ from proprietary sources, ROMs, ripped sprites, or copied timing tables.
 ## Naming rationale
 
 The project title "Maze Chase" is a generic English description of the
-genre (chasing through a maze), not a brand. Character names (Pip, Bram,
+genre (chasing through a maze), not a brand. Character names (Rill, Bram,
 Kessa, Jory, Nib) are invented diminutives with no external referent; see
 `identity.md`. Internal module names (`engine`, `ghosts`, `tuning`,
 `verify`) are descriptive engineering terms.

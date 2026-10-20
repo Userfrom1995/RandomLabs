@@ -35,13 +35,13 @@ Enter/Space activates the focused button):
 
 | Key | Play | Menus |
 |---|---|---|
-| Arrows / WASD | Steer Pip | Move button focus |
+| Arrows / WASD | Steer Rill | Move button focus |
 | P or Esc | Pause | Back |
 | M | Mute toggle | Mute toggle |
 | Enter / Space | - | Activate focused button |
 
 Touch: swipe on the board to steer (24 px deadzone, dominant axis
-wins, so taps never turn Pip); an on-screen direction pad appears on
+wins, so taps never turn Rill); an on-screen direction pad appears on
 coarse pointers (or via "Toggle touch pad"); tapping a panel's primary
 button activates it. There is no gamepad API on the web layer by design:
 keyboard plus touch is the full control scheme (see the matrix).
@@ -72,7 +72,7 @@ Both persist in `localStorage` (`maze-chase-settings` holds the exact
 config blob the native layers write to disk; `maze-chase-scores` holds
 the table rows). Corrupt blobs are ignored with Rust defaults kept, and
 private browsing simply does not persist. The name entry caps at 12
-characters and falls back to "Pip" when blank.
+characters and falls back to "Rill" when blank.
 
 Key remap policy differs from desktop in one documented way: the shared
 config rejects duplicate bindings, and every hardware key is bound by
@@ -93,7 +93,7 @@ centered rather than reflowing. HUD text (score, best, wicks, level,
 mode, dots, FPS, tune, fright/relish badges) is DOM, updated at 4 Hz.
 
 Two honest display notes, both engine-faithful, not harness bugs: a
-fresh board reads Dots 448 with Score 10 because Pip's spawn crumb is
+fresh board reads Dots 448 with Score 10 because Rill's spawn crumb is
 eaten at construction (the engine banks the 10 silently, event-free);
 and the attract demo behind the title panel is a real fresh engine game,
 so the HUD previews that state until you press Start.

@@ -124,11 +124,13 @@ pub fn load(text: &str) -> (Settings, Keymap, Vec<String>) {
             "theme" => {
                 if value.is_empty() {
                     problems.push(format!(
-                        "line {}: empty theme; keeping default 'ember-warren'",
+                        "line {}: empty theme; keeping default 'dusk-pond'",
                         lineno + 1
                     ));
                 } else {
-                    settings.theme = value.to_string();
+                    settings.theme = super::settings::canonical_theme_id(value)
+                        .unwrap_or(value)
+                        .to_string();
                 }
             }
             "reduced_flash" => match parse_bool(value) {
@@ -292,7 +294,7 @@ mod tests {
         s.music = 0.0;
         s.sfx = 1.0;
         s.mute = true;
-        s.theme = "abyss-lantern".to_string();
+        s.theme = "moonwake".to_string();
         s.high_contrast = true;
         s.show_fps = true;
         let m = rebound_map();
@@ -305,7 +307,7 @@ mod tests {
     #[test]
     fn round_trip_second_profile() {
         let mut s = Settings::for_difficulty(Difficulty::Harsh);
-        s.theme = "parchment-dawn".to_string();
+        s.theme = "morning-shallows".to_string();
         s.master = 0.55;
         let m = Keymap::defaults();
         let (s2, m2, problems) = load(&save(&s, &m));
