@@ -19,7 +19,7 @@ console.log('wasm bytes:', bytes.length);
   const e = inst.exports;
   const assert = (c, m) => { if (!c) { console.error('FAIL:', m); process.exit(1); } };
   const u = (v) => v >>> 0; // wasm i32 results arrive signed; compare unsigned.
-  assert(e.mc_version() === 1, 'version');
+  assert(e.mc_version() === 2, 'version');
   assert(e.mc_screen() === 0, 'boots on title');
   assert(e.mc_poll_music() === 1, 'title music queued');
   assert(u(e.mc_poll_music()) === 0xFFFFFFFF, 'music drains once');
