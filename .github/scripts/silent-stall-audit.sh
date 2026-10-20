@@ -11385,14 +11385,24 @@ fi
 #      commit in the added range, failing closed as no-push when the move is
 #      foreign or cannot be attributed, and the recover-tag bookkeeping runs
 #      only for a verified own push.
-# The static pass resolves every step from the SAME parsed YAML GitHub runs
-# (strict loader, duplicate keys rejected) and pins the helper call sites.
+# The static pass resolves every bound step from the SAME parsed YAML GitHub
+# runs (strict loader, duplicate keys rejected) and pins each parsed step's
+# exact `if:`, `id`, env key/value map, step key set (so no shell, continue-
+# on-error, timeout, or working-directory override can ride along), and
+# normalized `run:` body (comment and blank lines dropped): the six phase
+# verify bodies from one canonical phase template, the six forwards, the full
+# build verify, and the full recover-tag body. It separately pins the exact
+# attribution invocations (including the fail-closed `|| true)` closure) and
+# proves no `pushed="yes"` exists inside a foreign-attribution branch.
 # The functional pass executes both real helper scripts against fixture
 # events, an executable mock `gh` (interception proven), and a local bare
 # origin whose commit subjects model Builder and Tester pushes; mutation
-# self-tests prove the fixture matrices are load-bearing (each mutant is
-# caught by at least one case). A wholesale rewrite of a bound step that
-# keeps every pinned call site is the documented diff-review boundary.
+# self-tests prove both the exact pins and the fixture matrices are
+# load-bearing (a foreign-branch pushed="yes", a verify or forward
+# `if: false`, a retry-target rebind, a retry-counter reset, a fail-open
+# attribution closure, an env token swap, a renamed verify id, a raised
+# retry cap, a recover `exit 0`, and added shell or continue-on-error keys
+# each fail the static pass alone).
 r28_bad=""
 r28_tmp=$(mktemp -d 2>/dev/null || true)
 if [ -z "$r28_tmp" ] || [ ! -d "$r28_tmp" ]; then
@@ -11455,6 +11465,326 @@ def find(name):
     return hits[0]
 
 
+def norm(run_text):
+    lines = []
+    for raw in run_text.splitlines():
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        lines.append(raw.rstrip())
+    return "\n".join(lines)
+
+
+def expect_step(name, job, keys, if_value, env, body, expected_id=None):
+    job_name, _, step = find(name)
+    if job_name != job:
+        fail("step-wrong-job:%s:%s" % (name, job_name))
+    if set(step.keys()) != set(keys):
+        fail("step-key-surface:%s:%s" % (name, sorted(step.keys())))
+    if step.get("id") != expected_id:
+        fail("step-id-changed:%s:%r" % (name, step.get("id")))
+    if step.get("if") != if_value:
+        fail("step-if-changed:%s:%r" % (name, step.get("if")))
+    if (step.get("env") or {}) != env:
+        fail("step-env-changed:%s:%r" % (name, step.get("env")))
+    if norm(step.get("run") or "") != norm(body):
+        fail("step-run-changed:%s" % name)
+
+
+VERIFY_TMPL = r"""if [ "${AGENT_GATE:-}" != "true" ]; then
+  echo "::notice::Actor write gate skipped the @@GATE@@ agent (issue #428): denial is not a crash - no auto-retry, no escalation."
+  echo "outcome=skipped" >> "$GITHUB_OUTPUT"
+  echo "handled=true" >> "$GITHUB_OUTPUT"
+  exit 0
+fi
+outcome="${{ steps.opencode.outcome }}"
+if [ -f /tmp/random-lab-decision.json ]; then
+  echo "Decision file present; @@PHASE@@ phase produced a handoff."
+  exit 0
+fi
+issue=$(bash .github/scripts/resolve-thread-target.sh thread) || {
+  echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
+  echo "handled=true" >> "$GITHUB_OUTPUT"
+  exit 1
+}
+target="$issue"
+if [ "$outcome" != "success" ]; then
+  echo "::error::@@DISP@@ step finished with outcome '$outcome' and no decision file (@@DETAIL@@)."
+  count_retries() {
+    retries=$(gh api "repos/${{ github.repository }}/issues/$1/comments?per_page=100" --paginate --slurp 2>/dev/null \
+      | jq '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc @@CMD@@ (auto-retry")))] | length' 2>/dev/null || true)
+    printf '%s' "$retries"
+  }
+  retries=$(count_retries "$issue")
+  parent=$(bash .github/scripts/resolve-thread-target.sh parent) || parent=""
+  if [ -z "$parent" ]; then
+    echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
+    echo "handled=true" >> "$GITHUB_OUTPUT"
+    exit 1
+  fi
+  if [ "$parent" != "$issue" ]; then
+    parent_retries=$(count_retries "$parent")
+    if [ -n "$retries" ] && [ -n "$parent_retries" ]; then
+      retries=$((retries + parent_retries))
+    else
+      retries=""
+    fi
+  fi
+  if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
+    echo "::error::Could not enumerate prior auto-retries on #$target (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
+    echo "handled=true" >> "$GITHUB_OUTPUT"
+    exit 1
+  fi
+  if [ "$retries" -lt 3 ]; then
+    n=$((retries + 1))
+    echo "Posting auto-retry $n"
+    echo "handled=true" >> "$GITHUB_OUTPUT"
+    gh api "repos/${{ github.repository }}/issues/$target/comments" -f body="/oc @@CMD@@ (auto-retry $n)"
+    exit 0
+  fi
+  echo "@@DEAD@@ dead after 4 attempts (1 initial + 3 auto-retries); notifying Maintainer."
+  echo "handled=true" >> "$GITHUB_OUTPUT"
+  gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+  exit 1
+fi
+echo "::error::@@DISP@@ step reported success but wrote no decision file (silent no-op); failing loudly instead of exiting green."
+exit 1"""
+
+FORWARD_RESEARCH = r"""target=$(bash .github/scripts/resolve-thread-target.sh parent) || {
+  echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
+  exit 1
+}
+if [ ! -f /tmp/random-lab-decision.json ]; then
+  echo "No decision file found. Notifying Maintainer (/oc maintainer)"
+  gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+  exit 0
+fi
+action=$(jq -r '.action' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+if [ "$action" = "architect" ]; then
+  echo "Researcher spec complete! Handing over to Architect (/oc architect)"
+  gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc architect" || true
+else
+  echo "Unknown action: $action. Notifying Maintainer (/oc maintainer)"
+  gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+fi"""
+
+FORWARD_ARCHITECT = r"""target=$(bash .github/scripts/resolve-thread-target.sh parent) || {
+  echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
+  exit 1
+}
+if [ ! -f /tmp/random-lab-decision.json ]; then
+  echo "No decision file found. Notifying Maintainer (/oc maintainer)"
+  gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+  exit 0
+fi
+action=$(jq -r '.action' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+if [ "$action" = "build" ]; then
+  echo "Architect plan complete! Handing over to Builder (/oc build this)"
+  gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc build this" || true
+else
+  echo "Unknown action: $action. Notifying Maintainer (/oc maintainer)"
+  gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+fi"""
+
+FORWARD_DESIGN_TMPL = r"""target=$(bash .github/scripts/resolve-thread-target.sh parent) || {
+  echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
+  exit 1
+}
+if [ ! -f /tmp/random-lab-decision.json ]; then
+  echo "No decision file found. Notifying Maintainer (/oc maintainer)"
+  gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+  exit 0
+fi
+action=$(jq -r '.action' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+if [ "$action" = "build" ]; then
+  echo "@@DONE@@"
+  gh issue comment "$target" --repo "${{ github.repository }}" --body "@@BUILD@@" || true
+elif [ "$action" = "continue" ]; then
+  echo "@@CONTMSG@@"
+  gh issue comment "$target" --repo "${{ github.repository }}" --body "@@CONT@@" || true
+else
+  echo "Unknown action: $action. Notifying Maintainer (/oc maintainer)"
+  gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+fi"""
+
+BUILD_VERIFY = r"""if [ "${AGENT_GATE:-}" != "true" ]; then
+  echo "::notice::Actor write gate skipped the build agent (issue #428): denial is not a crash - no auto-retry, no escalation."
+  echo "outcome=skipped" >> "$GITHUB_OUTPUT"
+  echo "pushed=unknown" >> "$GITHUB_OUTPUT"
+  exit 0
+fi
+issue="${{ github.event.issue.number }}"
+pushed="no"
+is_pr="${{ github.event.issue.pull_request != null }}"
+target_branch=""
+if [ "$is_pr" = "true" ]; then
+  target_branch=$(gh pr view "$issue" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+else
+  target_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
+    --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
+fi
+if [ -n "$target_branch" ]; then
+  tip_now=$(git ls-remote origin "refs/heads/$target_branch" 2>/dev/null | cut -f1)
+  if [ -n "$BASELINE_BRANCH" ] && [ "$target_branch" = "$BASELINE_BRANCH" ]; then
+    if [ -n "$tip_now" ] && [ -n "$BASELINE_HEAD" ] && [ "$tip_now" != "$BASELINE_HEAD" ]; then
+      attribution=$(bash .github/scripts/classify-build-push.sh "$BASELINE_HEAD" "$tip_now" "$target_branch" 2>/dev/null || true)
+      if [ "$attribution" = "own" ]; then
+        pushed="yes"
+        echo "Build pushed successfully: $target_branch moved $BASELINE_HEAD -> $tip_now (builder commit attributed)"
+      elif [ "$attribution" = "foreign" ]; then
+        echo "::warning::Remote tip on $target_branch moved $BASELINE_HEAD -> $tip_now without a builder: commit in the added range; treating it as a foreign push, not this session's work."
+      else
+        echo "::warning::Could not attribute the tip move on $target_branch ($BASELINE_HEAD -> $tip_now); failing closed as no-push."
+      fi
+    else
+      echo "No push detected on target branch $target_branch (tip=${tip_now:-<none>}, baseline=$BASELINE_HEAD)"
+    fi
+  elif [ -n "$tip_now" ]; then
+    pushed="yes"
+    echo "Build pushed successfully: new branch $target_branch at $tip_now"
+  else
+    echo "Target branch $target_branch has no remote tip yet; no push detected"
+  fi
+elif [ -z "$BASELINE_BRANCH" ]; then
+  checked_out=$(git branch --show-current 2>/dev/null || echo "")
+  branch=""
+  case "$checked_out" in
+    opencode/issue${issue}-*) branch="$checked_out" ;;
+  esac
+  if [ -n "$branch" ] && [ "$branch" != "main" ]; then
+    tip_now=$(git ls-remote origin "refs/heads/$branch" 2>/dev/null | cut -f1)
+    if [ -n "$tip_now" ] && ! printf '%s\n' "$PATTERN_TIPS" | grep -qxF "$tip_now"; then
+      pushed="yes"
+      echo "Build pushed successfully: new branch $branch at $tip_now"
+    else
+      echo "No push detected: $branch tip matches pre-existing state for issue #$issue"
+    fi
+  fi
+  if [ "$pushed" = "no" ]; then
+    echo "No push detected for issue #$issue (eligible branch: ${branch:-<none matches issue pattern>}, checked out: ${checked_out:-<none>})"
+  fi
+else
+  echo "Baseline branch $BASELINE_BRANCH lost its open PR mid-run; comparing raw tips."
+  tip_now=$(git ls-remote origin "refs/heads/$BASELINE_BRANCH" 2>/dev/null | cut -f1)
+  if [ -n "$tip_now" ] && [ "$tip_now" != "$BASELINE_HEAD" ]; then
+    attribution=$(bash .github/scripts/classify-build-push.sh "$BASELINE_HEAD" "$tip_now" "$BASELINE_BRANCH" 2>/dev/null || true)
+    if [ "$attribution" = "own" ]; then
+      pushed="yes"
+      echo "Build pushed successfully: $BASELINE_BRANCH moved $BASELINE_HEAD -> $tip_now (builder commit attributed)"
+    elif [ "$attribution" = "foreign" ]; then
+      echo "::warning::Remote tip on $BASELINE_BRANCH moved $BASELINE_HEAD -> $tip_now without a builder: commit in the added range; treating it as a foreign push, not this session's work."
+    else
+      echo "::warning::Could not attribute the tip move on $BASELINE_BRANCH ($BASELINE_HEAD -> $tip_now); failing closed as no-push."
+    fi
+  else
+    echo "No push detected on $BASELINE_BRANCH (tip=${tip_now:-<none>}, baseline=$BASELINE_HEAD)"
+  fi
+fi
+if [ "$pushed" = "yes" ]; then
+  pr_check=""
+  if [ "$is_pr" = "true" ]; then
+    pr_state_check=$(gh pr view "$issue" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
+    if [ "$pr_state_check" = "OPEN" ]; then
+      pr_check="$issue"
+    fi
+  else
+    pr_check=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
+      --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null || echo "")
+  fi
+  if [ -n "$pr_check" ] && [ "$pr_check" != "null" ]; then
+    echo "pushed=true" >> "$GITHUB_OUTPUT"
+    echo "Open PR #$pr_check present for issue #$issue; build accepted."
+    exit 0
+  fi
+  echo "::warning::Build pushed branch state but no open PR exists for issue #$issue; treating as incomplete so the run auto-retries instead of forwarding a review with no target."
+  echo "pushed=false" >> "$GITHUB_OUTPUT"
+else
+  echo "pushed=false" >> "$GITHUB_OUTPUT"
+fi
+retries=$(gh api "repos/${{ github.repository }}/issues/$issue/comments?per_page=100" --paginate --slurp 2>/dev/null \
+  | jq '[.[][] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc build this (auto-retry")))] | length' 2>/dev/null || true)
+if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
+  echo "::error::Could not enumerate prior auto-retries on #$issue (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
+  exit 1
+fi
+if [ "$retries" -lt 3 ]; then
+  n=$((retries + 1))
+  echo "Posting auto-retry $n"
+  echo "retry=true" >> "$GITHUB_OUTPUT"
+  gh api "repos/${{ github.repository }}/issues/$issue/comments" -f body="/oc build this (auto-retry $n)"
+  exit 0
+fi
+echo "::error::Build agent finished without pushing after 4 attempts (1 initial + 3 auto-retries). Manual intervention required."
+exit 1"""
+
+RECOVER_TAG = r"""set +e
+issue="${{ github.event.issue.number }}"
+branch=$(git branch --show-current 2>/dev/null || echo "")
+if [ -z "$branch" ] || [ "$branch" = "main" ]; then
+  echo "Not on a feature branch; nothing to preserve."
+  exit 0
+fi
+pr=$(gh pr list --repo "${{ github.repository }}" --state all --json number,headRefName \
+  --jq '[.[] | select(.headRefName == "'"$branch"'")] | .[0].number' 2>/dev/null || echo "")
+if [ -z "$pr" ]; then
+  echo "No PR found for branch $branch; skipping recover tag."
+  exit 0
+fi
+tip=$(git ls-remote origin "refs/heads/$branch" | awk '{print $1}')
+if [ -z "$tip" ]; then
+  echo "Branch $branch has no remote tip yet; skipping recover tag."
+  exit 0
+fi
+git tag -f "recover/$pr" "$tip"
+if git push --force origin "refs/tags/recover/$pr" --quiet 2>/dev/null; then
+  echo "Tagged recover/$pr -> $tip (commits preserved for recovery)"
+else
+  echo "recover/$pr tag push failed (non-fatal); recovery still possible if branch survives"
+fi
+exit 0"""
+
+VERIFY_ENV = {
+    "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
+    "AGENT_GATE": "${{ steps.actor_gate.outputs.run }}",
+}
+FORWARD_ENV = {"GH_TOKEN": "${{ secrets.OPENCODE_PAT }}"}
+BUILD_ENV = {
+    "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
+    "AGENT_GATE": "${{ steps.actor_gate.outputs.run }}",
+    "BASELINE_BRANCH": "${{ steps.baseline.outputs.branch }}",
+    "BASELINE_HEAD": "${{ steps.baseline.outputs.head_before }}",
+    "PATTERN_TIPS": "${{ steps.baseline.outputs.pattern_tips }}",
+}
+RECOVER_ENV = {"GH_TOKEN": "${{ github.token }}"}
+VERIFY_KEYS = ("name", "id", "if", "env", "run")
+FORWARD_KEYS = ("name", "if", "env", "run")
+FORWARD_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'"
+RECOVER_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.pushed == 'true'"
+
+VERIFY_PHASES = {
+    "research": ("researcher", "research", "Researcher",
+                 "crashed mid-run, e.g. Provider finish_reason: network_error / APIError",
+                 "Researcher"),
+    "architect": ("architect", "architect", "Architect",
+                  "crashed mid-run, e.g. Provider finish_reason: network_error / APIError",
+                  "Architect"),
+    "design": ("design", "design", "Design", "crashed mid-run", "Design council"),
+    "design-ux": ("design-ux", "design-ux", "Design-ux", "crashed mid-run", "Design-ux"),
+    "design-visual": ("design-visual", "design-visual", "Design-visual", "crashed mid-run", "Design-visual"),
+    "design-motion": ("design-motion", "design-motion", "Design-motion", "crashed mid-run", "Design-motion"),
+}
+FORWARD_LITERALS = {"research": FORWARD_RESEARCH, "architect": FORWARD_ARCHITECT}
+FORWARD_PARAMS = {
+    "design": ("Design complete! Handing over to Builder (/oc build this)", "/oc build this",
+               "Design needs another round (/oc design)", "/oc design"),
+    "design-ux": ("UX pass complete! Handing over to Builder (/oc build this)", "/oc build this",
+                  "UX pass needs another round (/oc design-ux)", "/oc design-ux"),
+    "design-visual": ("Visual pass complete! Handing over to Builder (/oc build this)", "/oc build this",
+                      "Visual pass needs another round (/oc design-visual)", "/oc design-visual"),
+    "design-motion": ("Motion pass complete! Handing over to Builder (/oc build this)", "/oc build this",
+                      "Motion pass needs another round (/oc design-motion)", "/oc design-motion"),
+}
+
 phase = {
     "research": ("Verify research decided, else auto-retry", "Forward researcher decision"),
     "architect": ("Verify architect decided, else auto-retry", "Forward architect decision"),
@@ -11464,131 +11794,214 @@ phase = {
     "design-motion": ("Verify design-motion decided, else auto-retry", "Forward design-motion decision"),
 }
 for job, (verify_name, forward_name) in phase.items():
-    job_name, _, step = find(verify_name)
-    if job_name != job:
-        fail("verify-wrong-job:%s:%s" % (verify_name, job_name))
-    run = step.get("run") or ""
-    if "resolve-thread-target.sh thread" not in run:
-        fail("verify-thread-helper-missing:%s" % verify_name)
-    if 'target="$issue"' not in run:
-        fail("verify-target-not-thread:%s" % verify_name)
-    if run.count("target=") != 1:
-        fail("verify-target-assignment-count:%s:%d" % (verify_name, run.count("target=")))
-    if "resolve-thread-target.sh parent" not in run or 'count_retries "$parent"' not in run:
-        fail("verify-parent-counter-missing:%s" % verify_name)
-    if 'retries=$((retries + parent_retries))' not in run:
-        fail("verify-counter-union-missing:%s" % verify_name)
-    if run.count("/issues/$target/comments") != 1 or run.count("(auto-retry $n)") != 1:
-        fail("verify-retry-post-target:%s" % verify_name)
-    if run.count('gh issue comment "$target"') != 1:
-        fail("verify-escalation-target:%s" % verify_name)
-    if "gh pr list" in run or "sort_by(.createdAt) | last" in run:
+    gate, cmd, disp, detail, dead = VERIFY_PHASES[job]
+    expected = (VERIFY_TMPL.replace("@@GATE@@", gate).replace("@@PHASE@@", job)
+                .replace("@@DISP@@", disp).replace("@@DETAIL@@", detail)
+                .replace("@@CMD@@", cmd).replace("@@DEAD@@", dead))
+    expect_step(verify_name, job, VERIFY_KEYS, "always()", VERIFY_ENV, expected, "verify-phase")
+    if "gh pr list" in expected or "sort_by(.createdAt) | last" in expected:
         fail("verify-newest-pr-resolver-back:%s" % verify_name)
-    job_name, _, step = find(forward_name)
-    if job_name != job:
-        fail("forward-wrong-job:%s:%s" % (forward_name, job_name))
-    run = step.get("run") or ""
-    if 'target=$(bash .github/scripts/resolve-thread-target.sh parent)' not in run:
-        fail("forward-parent-helper-missing:%s" % forward_name)
-    if run.count("target=") != 1:
-        fail("forward-target-assignment-count:%s:%d" % (forward_name, run.count("target=")))
-    if run.count('gh issue comment "$target"') < 1 or 'gh issue comment "$issue"' in run:
-        fail("forward-comment-target:%s" % forward_name)
-    if "gh pr list" in run or "sort_by(.createdAt) | last" in run:
+    if job in FORWARD_LITERALS:
+        forward_body = FORWARD_LITERALS[job]
+    else:
+        done, build, contmsg, cont = FORWARD_PARAMS[job]
+        forward_body = (FORWARD_DESIGN_TMPL.replace("@@DONE@@", done)
+                        .replace("@@BUILD@@", build).replace("@@CONTMSG@@", contmsg)
+                        .replace("@@CONT@@", cont))
+    expect_step(forward_name, job, FORWARD_KEYS, FORWARD_IF, FORWARD_ENV, forward_body)
+    if "gh pr list" in forward_body or "sort_by(.createdAt) | last" in forward_body:
         fail("forward-newest-pr-resolver-back:%s" % forward_name)
 
-job_name, _, step = find("Verify build pushed, else auto-retry")
-if job_name != "build":
-    fail("build-verify-wrong-job:%s" % job_name)
-run = step.get("run") or ""
-if run.count("classify-build-push.sh") != 2:
-    fail("build-verify-attribution-count:%d" % run.count("classify-build-push.sh"))
-for branch_var in ("target_branch", "BASELINE_BRANCH"):
-    pattern = (
-        'attribution=$(bash .github/scripts/classify-build-push.sh "$BASELINE_HEAD" "$tip_now" "$%s"'
-        % branch_var
-    )
-    pos = run.find(pattern)
-    if pos < 0:
-        fail("build-verify-attribution-missing:%s" % branch_var)
-    window = run[pos:]
-    own = window.find('if [ "$attribution" = "own" ]; then')
-    if own < 0 or own > 400:
-        fail("build-verify-own-branch-missing:%s" % branch_var)
-    if 'pushed="yes"' not in window[:own + 200]:
-        fail("build-verify-own-not-pushed:%s" % branch_var)
-    if 'elif [ "$attribution" = "foreign" ]' not in window[:own + 900]:
-        fail("build-verify-foreign-branch-missing:%s" % branch_var)
-    if "failing closed as no-push" not in window[:own + 1400]:
-        fail("build-verify-fail-closed-missing:%s" % branch_var)
+expect_step("Verify build pushed, else auto-retry", "build", ("name", "id", "env", "run"),
+            None, BUILD_ENV, BUILD_VERIFY, "verify")
+job_name, _, build_step = find("Verify build pushed, else auto-retry")
+build_lines = norm(build_step.get("run") or "").splitlines()
 
-job_name, _, step = find("Preserve build branch with recover tag")
-if job_name != "build":
-    fail("recover-tag-wrong-job:%s" % job_name)
-expected_if = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.pushed == 'true'"
-if step.get("if") != expected_if:
-    fail("recover-tag-gate-changed:%r" % (step.get("if"),))
+expected_calls = [
+    'attribution=$(bash .github/scripts/classify-build-push.sh "$BASELINE_HEAD" "$tip_now" "$target_branch" 2>/dev/null || true)',
+    'attribution=$(bash .github/scripts/classify-build-push.sh "$BASELINE_HEAD" "$tip_now" "$BASELINE_BRANCH" 2>/dev/null || true)',
+]
+attribution_calls = [line.strip() for line in build_lines if "classify-build-push.sh" in line]
+if sorted(attribution_calls) != sorted(expected_calls):
+    fail("build-verify-attribution-calls:%r" % (attribution_calls,))
+
+foreign_elif = 'elif [ "$attribution" = "foreign" ]; then'
+foreign_branches = 0
+for index, line in enumerate(build_lines):
+    if line.strip() != foreign_elif:
+        continue
+    foreign_branches += 1
+    indent = len(line) - len(line.lstrip())
+    closing = None
+    for cursor in range(index + 1, len(build_lines)):
+        if build_lines[cursor].strip() == "fi" and len(build_lines[cursor]) - len(build_lines[cursor].lstrip()) == indent:
+            closing = cursor
+            break
+    if closing is None:
+        fail("build-verify-foreign-unterminated:%d" % index)
+    if any('pushed="yes"' in build_lines[cursor] for cursor in range(index, closing + 1)):
+        fail("build-verify-foreign-assigns-pushed:%d" % index)
+if foreign_branches != 2:
+    fail("build-verify-foreign-branch-count:%d" % foreign_branches)
+own_assignments = sum(1 for line in build_lines if 'pushed="yes"' in line)
+if own_assignments != 4:
+    fail("build-verify-own-assignment-count:%d" % own_assignments)
+if sum(1 for line in build_lines if "failing closed as no-push" in line) != 2:
+    fail("build-verify-fail-closed-count")
+if "|| echo" in "\n".join(attribution_calls):
+    fail("build-verify-attribution-fail-open")
+
+expect_step("Preserve build branch with recover tag", "build", ("name", "if", "env", "run"),
+            RECOVER_IF, RECOVER_ENV, RECOVER_TAG)
 R28STATIC
   r28_static_err="$r28_tmp/static.err"
   if ! python3 -I "$r28_static_py" "$OPENCODE_WF" >"$r28_tmp/static.out" 2>"$r28_static_err"; then
     r28_bad="${r28_bad} opencode.yml($(tr '\n' ';' < "$r28_static_err" | cut -c1-400))"
   fi
   # Static pins are load-bearing too: each mutant below reverts one wiring
-  # property (retry target, parent counter, forward target, forward post
-  # target, newest-PR backstop, attribution branch, recover-tag gate) and the
-  # static pass must reject every one. The generator exits non-zero on a
-  # mutation that no longer applies, so a changed source can never turn the
-  # matrix vacuously green.
+  # property (retry target, parent counter, retry reset and cap, verify and
+  # forward gates, verify id, env tokens, forward target and post target,
+  # newest-PR backstop, build env baseline, attribution branch and fail-open
+  # closure, foreign pushed=yes, added continue-on-error/shell keys,
+  # recover-tag gate, and recover body) and the static pass must reject every
+  # one. The generator exits non-zero on a mutation that no longer applies,
+  # so a changed source can never turn the matrix vacuously green.
   mkdir -p "$r28_tmp/static-mutants"
   if ! python3 -I - "$OPENCODE_WF" "$r28_tmp/static-mutants" <<'R28STATICMUT' >"$r28_tmp/static-mutants.log" 2>&1; then
+import os
 import sys
 
 src, outdir = sys.argv[1], sys.argv[2]
 text = open(src, encoding="utf-8").read()
+
+
+def sub(old, new):
+    found = text.count(old)
+    if found != 1:
+        raise SystemExit("mutation-anchor-count=%d:%s" % (found, old.splitlines()[0][:70]))
+    return text.replace(old, new)
+
+
+def sub_first(old, new):
+    found = text.count(old)
+    if found < 1:
+        raise SystemExit("mutation-anchor-missing:%s" % old.splitlines()[0][:70])
+    return text.replace(old, new, 1)
+
+
+def after(anchor, inserted):
+    found = text.count(anchor)
+    if found != 1:
+        raise SystemExit("mutation-anchor-count=%d:%s" % (found, anchor.splitlines()[0][:70]))
+    return text.replace(anchor, anchor + inserted)
+
+
+def after_first(anchor, inserted):
+    found = text.count(anchor)
+    if found < 1:
+        raise SystemExit("mutation-anchor-missing:%s" % anchor.splitlines()[0][:70])
+    return text.replace(anchor, anchor + inserted, 1)
+
+
+RESEARCH_VERIFY = "      - name: Verify research decided, else auto-retry\n        id: verify-phase\n        if: always()\n"
+BUILD_VERIFY = "      - name: Verify build pushed, else auto-retry\n        id: verify\n        env:\n"
+RECOVER_RUN = ("      - name: Preserve build branch with recover tag\n"
+                "        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.pushed == 'true'\n"
+                "        env:\n          GH_TOKEN: ${{ github.token }}\n"
+                "        run: |\n          set +e\n          issue=\"${{ github.event.issue.number }}\"\n")
+RECOVER_HEAD = ("      - name: Preserve build branch with recover tag\n"
+                "        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.pushed == 'true'\n"
+                "        env:\n          GH_TOKEN: ${{ github.token }}\n")
+FORWARD_RESEARCH = ("      - name: Forward researcher decision\n"
+                    "        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'\n"
+                    "        env:\n          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}\n")
+
 mutants = {
-    "verify-target": text.replace(
-        '          target="$issue"\n', '          target=$(echo 582)\n', 1
-    ),
-    "verify-counter": text.replace(
+    "verify-target": sub_first('          target="$issue"\n', '          target=$(echo 582)\n'),
+    "verify-counter": sub_first(
         '            parent=$(bash .github/scripts/resolve-thread-target.sh parent) || parent=""\n',
         '            parent="$issue"\n',
-        1,
     ),
-    "verify-newest-pr": text.replace(
+    "verify-newest-pr": sub_first(
         '          target="$issue"\n',
         '          target="$issue"\n          target=$(gh pr list --repo x --json number)\n',
-        1,
     ),
-    "forward-target": text.replace(
+    "verify-retries-reset": after_first(
+        '            retries=$((retries + parent_retries))\n', '            retries=0\n',
+    ),
+    "verify-cap": sub_first(
+        '            if [ "$retries" -lt 3 ]; then\n', '            if [ "$retries" -lt 30 ]; then\n',
+    ),
+    "verify-env-token": sub_first(
+        '          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}\n          AGENT_GATE:',
+        '          GH_TOKEN: ${{ github.token }}\n          AGENT_GATE:',
+    ),
+    "verify-id": sub_first('        id: verify-phase\n', '        id: verify-phase-2\n'),
+    "verify-continue-on-error": after(RESEARCH_VERIFY, '        continue-on-error: true\n'),
+    "forward-target": sub_first(
         '          target=$(bash .github/scripts/resolve-thread-target.sh parent) || {\n',
         '          target="$issue" || {\n',
-        1,
     ),
-    "forward-comment": text.replace(
+    "forward-comment": sub_first(
         '            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc architect" || true',
         '            gh issue comment "$issue" --repo "${{ github.repository }}" --body "/oc architect" || true',
-        1,
     ),
-    "build-attribution": text.replace(
-        'if [ "$attribution" = "own" ]; then',
-        'if [ "$attribution" != "foreign" ]; then',
-        1,
+    "forward-if": sub_first(
+        "        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'\n",
+        "        if: false\n",
     ),
-    "recover-gate": text.replace(
-        "        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.pushed == 'true'\n",
-        "        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true'\n",
-        1,
+    "forward-event-number": sub_first(
+        '            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc build this" || true\n',
+        '            gh issue comment "${{ github.event.issue.number }}" --repo "${{ github.repository }}" --body "/oc build this" || true\n',
     ),
+    "forward-env-token": sub(FORWARD_RESEARCH, FORWARD_RESEARCH.replace('${{ secrets.OPENCODE_PAT }}', '${{ github.token }}')),
+    "build-if": sub(BUILD_VERIFY, BUILD_VERIFY.replace(
+        '        id: verify\n        env:\n',
+        '        id: verify\n        if: false\n        env:\n',
+    )),
+    "build-env-branch": sub(
+        '          BASELINE_BRANCH: ${{ steps.baseline.outputs.branch }}\n',
+        '          BASELINE_BRANCH: ""\n',
+    ),
+    "build-attribution": sub_first(
+        'if [ "$attribution" = "own" ]; then', 'if [ "$attribution" != "foreign" ]; then',
+    ),
+    "build-fail-open": sub_first(
+        '"$target_branch" 2>/dev/null || true)', '"$target_branch" 2>/dev/null || echo own)',
+    ),
+    "build-pushed-foreign": after_first(
+        '                elif [ "$attribution" = "foreign" ]; then\n', '                  pushed="yes"\n',
+    ),
+    "build-continue-on-error": sub(BUILD_VERIFY, BUILD_VERIFY.replace(
+        '        id: verify\n        env:\n',
+        '        id: verify\n        continue-on-error: true\n        env:\n',
+    )),
+    "recover-gate": sub(RECOVER_HEAD,
+                        RECOVER_HEAD.replace(
+                            " && steps.verify.outputs.pushed == 'true'", "")),
+    "recover-exit": sub(RECOVER_RUN, RECOVER_RUN.replace(
+        '        run: |\n          set +e\n',
+        '        run: |\n          exit 0\n          set +e\n',
+    )),
+    "recover-shell": sub(RECOVER_HEAD + '        run: |\n',
+                         RECOVER_HEAD + '        shell: sh\n        run: |\n'),
 }
+
 for name, body in mutants.items():
     if body == text:
         raise SystemExit("mutation-not-applied:%s" % name)
-    with open("%s/%s.yml" % (outdir, name), "w", encoding="utf-8") as handle:
+    with open(os.path.join(outdir, name + ".yml"), "w", encoding="utf-8") as handle:
         handle.write(body)
+print("\n".join(sorted(mutants)))
 R28STATICMUT
     r28_bad="${r28_bad} opencode.yml(static-mutant-generation-failed:$(tr '\n' ';' < "$r28_tmp/static-mutants.log" | cut -c1-200))"
   else
-    for r28_wf_mutant in verify-target verify-counter verify-newest-pr forward-target forward-comment build-attribution recover-gate; do
+    for r28_wf_mutant in \
+      verify-target verify-counter verify-newest-pr verify-retries-reset verify-cap \
+      verify-env-token verify-id verify-continue-on-error forward-target forward-comment \
+      forward-if forward-event-number forward-env-token build-if build-env-branch \
+      build-attribution build-fail-open build-pushed-foreign build-continue-on-error \
+      recover-gate recover-exit recover-shell; do
       if python3 -I "$r28_static_py" "$r28_tmp/static-mutants/$r28_wf_mutant.yml" >/dev/null 2>&1; then
         r28_bad="${r28_bad} opencode.yml(${r28_wf_mutant}-not-caught)"
       fi
@@ -11821,7 +12234,7 @@ R28MUTCLASS
 fi
 rm -rf "$r28_tmp"
 if [ -z "$r28_bad" ]; then
-  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected, and both real helper scripts are executed against fixture events, an executable mock gh, and a local bare origin with mutation self-tests proving each fixture matrix load-bearing (issue #690)" "ok"
+  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected and its exact if/id/env/key set and normalized run body pinned, the attribution calls are pinned including their fail-closed closure with no pushed=yes inside a foreign branch, both real helper scripts are executed against fixture events, an executable mock gh, and a local bare origin with Builder/Tester commit subjects, and 22 mutation self-tests prove the static pins and both fixture matrices load-bearing (issue #690)" "ok"
 else
   check "R28" "phase thread binding or build-push attribution guard missing:${r28_bad} (issue #690: a design retry/forward migrated to the newest phase PR and the build verify read a foreign Tester push as its own)" "bad"
 fi
