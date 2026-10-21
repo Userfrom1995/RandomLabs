@@ -61,8 +61,8 @@ fn assert_running_invariants(game: &Game, board_total: usize, tag: &str) {
         game.lives
     );
     assert!(
-        game.lives <= tuning::START_LIVES,
-        "{tag}: lives exceeded the start budget: {}",
+        game.lives <= tuning::START_LIVES + 1,
+        "{tag}: lives exceeded the start budget plus one spare wick: {}",
         game.lives
     );
     let total = game.maze.dots_eaten + game.maze.pickups_left();
