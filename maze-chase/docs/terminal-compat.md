@@ -22,7 +22,7 @@ did not execute.
 ## Executed rows (Linux, harness on this build)
 
 All rows ran on 2026-10-21 at checkout
-`36ca9af2771c363e6b331b77d74b6990c3a19926` (release
+`96dc2be2dd4f90498a362c30a587af91b4690f73` (release
 `maze-chase-terminal`, SHA-256
 `ce3b1f91a78f00cbd72d09bd6132b367d027fd504e1e27d56e08ec9bd9f53f86`,
 Rust sources clean); every row below is from that same binary and every
