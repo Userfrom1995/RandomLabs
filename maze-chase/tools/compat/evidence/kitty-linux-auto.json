@@ -735,7 +735,7 @@
   },
   "notes": [
     "session driven by tools/compat/drive.sh on a real kitty window",
-    "paused-phase media at paused is checkpoint-boundary attribution; the paused capture has no sprite pixels and is 90% to 99.9% one color, so the menu panel is visible"
+    "paused-phase media at paused is checkpoint-boundary attribution; the paused capture carries 200 sprite pixels at 66.32% one color, so the menu panel is visible"
   ],
   "generated_at": "2026-10-21T07:14:40Z",
   "sprite_visibility": {

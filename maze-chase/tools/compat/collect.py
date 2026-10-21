@@ -1027,13 +1027,14 @@ def main():
             kit = phase.get("kitty") or {}
             media = int(kit.get("transmits", 0)) + int(kit.get("placements", 0))
             share = float(phase.get("dominant_share") or 0.0)
+            census = int((phase.get("sprite_census") or {}).get("pixels", 0))
             surfaces = phase.get("surfaces") or {}
             pause_paints = int((surfaces.get("paused") or {}).get("paints", 0))
             if not phase.get("screenshot"):
                 paused_missing.append(phase["name"])
             elif pause_paints < 1:
                 paused_bad.append(phase["name"])
-            elif not (0.55 <= share < 1.0):
+            elif not (0.55 <= share < 1.0) or census < 4:
                 paused_bad.append(phase["name"])
             elif media > 0:
                 # Checkpoint offsets can lag the last playing frame, so a
@@ -1046,8 +1047,9 @@ def main():
             reasons = []
             if paused_bad:
                 reasons.append(
-                    "the paused capture never painted the PAUSED card or is "
-                    "not a non-flat panel ("
+                    "the paused capture never painted the PAUSED card, is "
+                    "not a non-flat panel, or carries fewer than 4 sprite "
+                    "pixels ("
                     + ", ".join(paused_bad)
                     + ")"
                 )
@@ -1061,12 +1063,18 @@ def main():
                 "recorded partial by collect.py: " + "; ".join(reasons)
             )
         elif proven:
+            phase = next(p for p in paused_phases if p["name"] in proven)
+            share = float(phase.get("dominant_share") or 0.0)
+            census = int((phase.get("sprite_census") or {}).get("pixels", 0))
             notes.append(
                 "paused-phase media at "
                 + ", ".join(proven)
                 + " is checkpoint-boundary attribution; the paused capture "
-                "has no sprite pixels and is 90% to 99.9% one color, so "
-                "the menu panel is visible"
+                + "carries "
+                + str(census)
+                + " sprite pixels at "
+                + format(share, ".2%")
+                + " one color, so the menu panel is visible"
             )
     # Sprite-visibility honesty on the kitty-graphics tier: placements
     # round-tripping through the terminal proves the protocol, not that

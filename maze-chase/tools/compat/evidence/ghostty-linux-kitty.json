@@ -701,7 +701,7 @@
   },
   "notes": [
     "session driven by tools/compat/drive.sh on a real ghostty window (paused capture taken with the menu cursor on \"Quit to title\", so same-emulator rows never commit byte-identical pause images)",
-    "paused-phase media at paused is checkpoint-boundary attribution; the paused capture has no sprite pixels and is 90% to 99.9% one color, so the menu panel is visible"
+    "paused-phase media at paused is checkpoint-boundary attribution; the paused capture carries 20 sprite pixels at 71.12% one color, so the menu panel is visible"
   ],
   "generated_at": "2026-10-21T07:16:53Z",
   "sprite_visibility": {
