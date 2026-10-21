@@ -654,13 +654,6 @@ fn paint_pip(
     );
 }
 
-/// Pip rows for one mouth phase and facing, derived from the stored
-/// right-facing art with the documented transforms (never duplicate
-/// art). Shared by the full-frame raster and the sprite atlas.
-pub fn pip_facing_rows(phase: usize, dir: maze_chase_engine::actors::Dir) -> Vec<String> {
-    sprites::pip_facing_rows(phase, facing_of(dir), 11)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

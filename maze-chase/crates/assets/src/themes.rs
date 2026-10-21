@@ -291,14 +291,13 @@ mod tests {
                 ("dim_text", t.dim_text),
                 ("accent", t.accent),
             ];
-            assert!(
-                tokens.contains(&format!("\"{}\"", t.id)),
-                "tokens missing theme {}",
-                t.id
-            );
+            let start = tokens
+                .find(&format!("\"{}\": {{", t.id))
+                .unwrap_or_else(|| panic!("tokens missing theme {}", t.id));
+            let theme = &tokens[start..];
             for (slot, color) in pairs {
                 assert!(
-                    tokens.contains(&format!("\"{slot}\": \"{}\"", hex(color))),
+                    theme.contains(&format!("\"{slot}\": \"{}\"", hex(color))),
                     "tokens mismatch on {}.{slot} (want {})",
                     t.id,
                     hex(color)
