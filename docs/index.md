@@ -65,10 +65,9 @@ pushes to forks (guidance only).
 
 - **First run**: dispatch the Maintainer once from the Actions tab
   (`maintainer` → Run workflow) - or `bash setup.sh --dispatch`.
-- **Approval duty (first ~14 days)**: GitHub may hold workflow runs on the
-  bot's PRs; `opencode.yml` auto-approves held runs after every push. If it
-  cannot, a comment asks for one manual click - approve it and the loop
-  resumes.
+- **Approval duty**: GitHub may hold workflow runs on the bot's PRs;
+  `opencode.yml` auto-approves held runs after every push. If it cannot, a
+  comment asks for one manual click - approve it and the loop resumes.
 - **Talk to it** with `/oc` comments on issues/PRs:
   `/oc build …`, `/oc continue`, `/oc fix`, `/oc review`, `/oc approve`,
   `/oc decline`, `/oc help` - see AGENTS.md for the exact modes.
