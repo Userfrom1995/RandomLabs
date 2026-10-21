@@ -276,7 +276,10 @@ impl Screens {
                         self.show(ScreenId::Title);
                         return Event::SettingsCommitted;
                     }
-                    _ => self.adjust_notify(),
+                    _ => {
+                        self.adjust_notify();
+                        return Event::SettingsCommitted;
+                    }
                 },
                 Action::Back => {
                     self.show(ScreenId::Title);
@@ -289,7 +292,10 @@ impl Screens {
                 Action::Down => Self::move_cursor(&mut self.audio_row, AudioRow::ALL.len(), false),
                 Action::Confirm => {
                     match AudioRow::ALL[Self::clamp_idx(self.audio_row, AudioRow::ALL.len())] {
-                        AudioRow::Mute => self.adjust_notify(),
+                        AudioRow::Mute => {
+                            self.adjust_notify();
+                            return Event::SettingsCommitted;
+                        }
                         AudioRow::Back => {
                             self.show(ScreenId::Title);
                             return Event::SettingsCommitted;
@@ -718,6 +724,42 @@ mod tests {
         s.settings_row = SettingsRow::ALL.len() - 1;
         assert_eq!(s.press(Action::Confirm), Event::SettingsCommitted);
         assert_eq!(s.current, ScreenId::Title);
+    }
+
+    #[test]
+    fn settings_and_mute_toggles_commit_immediately() {
+        let mut s = screens();
+        s.show(ScreenId::Settings);
+        let toggles = [
+            (SettingsRow::ReducedFlash, s.settings.reduced_flash),
+            (SettingsRow::ReducedMotion, s.settings.reduced_motion),
+            (SettingsRow::HighContrast, s.settings.high_contrast),
+            (SettingsRow::ShowFps, s.settings.show_fps),
+        ];
+        for (row, before) in toggles {
+            s.settings_row = SettingsRow::ALL.iter().position(|r| *r == row).unwrap();
+            assert_eq!(
+                s.press(Action::Confirm),
+                Event::SettingsCommitted,
+                "{row:?}"
+            );
+            let after = match row {
+                SettingsRow::ReducedFlash => s.settings.reduced_flash,
+                SettingsRow::ReducedMotion => s.settings.reduced_motion,
+                SettingsRow::HighContrast => s.settings.high_contrast,
+                SettingsRow::ShowFps => s.settings.show_fps,
+                _ => unreachable!(),
+            };
+            assert_ne!(after, before, "{row:?} must apply on the press");
+        }
+        s.show(ScreenId::Audio);
+        s.audio_row = AudioRow::ALL
+            .iter()
+            .position(|r| *r == AudioRow::Mute)
+            .unwrap();
+        let before = s.settings.mute;
+        assert_eq!(s.press(Action::Confirm), Event::SettingsCommitted);
+        assert_ne!(s.settings.mute, before);
     }
 
     #[test]
