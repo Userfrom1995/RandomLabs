@@ -45,6 +45,42 @@ fn fright_badge_covers_the_whole_active_window() {
 }
 
 #[test]
+fn fright_readout_matches_the_requested_width_at_every_edge() {
+    for reduced in [false, true] {
+        let label = if reduced { "THE TURN ENDS " } else { "FRIGHT " };
+        let label_len = label.chars().count();
+        for max_width in 0..=80 {
+            let game = active_fright(1.2);
+            let readout =
+                fright_readout(&game, reduced, max_width).expect("active fright must read out");
+            if max_width > label_len {
+                assert_eq!(
+                    readout.chars().count(),
+                    max_width,
+                    "width {max_width} reduced={reduced} must fill exactly, got {readout:?}"
+                );
+                assert!(
+                    readout.starts_with(label),
+                    "width {max_width} reduced={reduced} must keep its label, got {readout:?}"
+                );
+                let bars: String = readout.chars().skip(label_len).collect();
+                assert!(
+                    bars.chars().all(|c| c == '█' || c == '░'),
+                    "width {max_width} reduced={reduced} must draw only meter cells, got {readout:?}"
+                );
+            } else {
+                assert_eq!(
+                    readout,
+                    label.trim_end(),
+                    "width {max_width} reduced={reduced} has no room for a meter; the label \
+                     must stay intact for the caller to clip"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn fright_meter_still_joins_only_for_the_final_tail() {
     let early = active_fright(3.0);
     let early_readout = fright_readout(&early, false, 26).expect("early badge");
