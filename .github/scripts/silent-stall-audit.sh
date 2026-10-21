@@ -15105,6 +15105,11 @@ def validate_maintainer(doc, sink):
         sink.append("maintainer.yml(post-maintainer-comment-step-not-unique)")
         return
     post = hits[0]
+    # The run body is pinned below; reject any extra step key as well, so a
+    # shell/uses/continue-on-error/timeout override cannot change how the
+    # pinned body executes while the body itself stays exact.
+    if set(post) != {"name", "if", "env", "run"}:
+        sink.append("maintainer.yml(post-maintainer-comment-keys-not-exact)")
     if post.get("if") != "always() && steps.actor_gate.outputs.run == 'true'":
         sink.append("maintainer.yml(post-maintainer-comment-if-not-exact)")
     env = post.get("env")
@@ -15613,6 +15618,16 @@ if maintainer_doc is not None:
             for p in maintainer_local
         ):
             problems.append("maintainer.yml(structural-self-test-post-block-rewrite)")
+        post_keys_mutant = copy.deepcopy(maintainer_doc)
+        for step in post_keys_mutant["jobs"]["maintainer"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == MAINTAINER_POST_NAME:
+                step["shell"] = "bash"
+        post_keys_local = []
+        validate_maintainer(post_keys_mutant, post_keys_local)
+        if not any(
+            "post-maintainer-comment-keys-not-exact" in p for p in post_keys_local
+        ):
+            problems.append("maintainer.yml(structural-self-test-post-keys-override)")
     except Exception:
         problems.append("maintainer.yml(structural-self-test-post-marker-decoy)")
 
