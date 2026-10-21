@@ -1413,3 +1413,18 @@ Next: Phase 5 (sound design overhaul).
   --all --check` clean. No subagents were dispatched (two focused
   fixes); no registry skill matched.
   - the Fixer
+
+- 2026-10-21 (fixer, review round 21 on `f33d372d`): the title and pause
+  cards now use the same scroll-body plus pinned-footer structure as the
+  other screen panels, so the first-run Start action and the pause Resume
+  action stay inside the viewport at 320-wide and landscape-phone sizes,
+  and the title body resets to its top when it reopens. The small-viewport
+  browser loop adds 320x568 plus primary-CTA bounds and hit-testing, a
+  Help-and-back cycle asserts the title body reopens at scrollTop 0, and a
+  new 480x320 pause check covers the clipped-Resume case. Corrected the
+  compatibility contract comment to describe its four-sprite-pixel paused
+  fixture. Verification: `node web/e2e/browser-e2e.js` 146/146 `ALL GREEN`
+  with zero console errors; compatibility harness 49/49; `node --check`
+  clean. No subagents were dispatched (two focused files); no registry
+  skill matched.
+  - the Fixer
