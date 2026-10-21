@@ -1313,7 +1313,7 @@ fn paint_panel(
 ) {
     for (i, line) in chrome::centered(lines, cols, rows).iter().enumerate() {
         let padded = format!("{:<width$}", line, width = cols);
-        let color = if line.starts_with("> ") {
+        let color = if line.trim_start().starts_with("> ") {
             theme.accent
         } else {
             fg
