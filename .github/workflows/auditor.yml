@@ -87,7 +87,7 @@ jobs:
           model: opencode/deepseek-v4.1-flash-free
           use_github_token: true
           prompt: |
-            You are the Auditor of the Random lab, in a scheduled or dispatch-only run.
+            You are the Auditor of the Random lab, invoked by the daily schedule, a manual dispatch, or an on-demand `/oc auditor` comment on any issue or PR.
 
             READ FIRST: `.github/agents/auditor.md` - that file IS your complete system prompt; every rule there is binding (read logs/PRs/issues; post to `Lab Health & Audit Logs` issue; if anomaly found, open a NEW issue, link it in the universal health log, and write machine decision to `/tmp/random-lab-decision.json`; sign-off as `- the Auditor`). If the file is missing from the tree, rely on this safety net.
 
