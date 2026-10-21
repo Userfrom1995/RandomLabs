@@ -439,7 +439,20 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   resume with P and Esc from the focused Resume action, mute toggling with
   M, and ArrowDown moving focus off the auto-focused Start. The harness
   now passes 200/200 assertions with `E2E: ALL GREEN` and zero console
-  errors. The full workspace carries 581 tests across 63 targets: 577
-  passed, 0 failed, and four desktop window E2E tests are blocked by this
-  sandbox's missing libxkbcommon-x11; the Tester owns the final full
-  rerun.
+  errors. The full workspace carried 581 tests across 63 targets in this
+  round: 577 passed, 0 failed, and four desktop window E2E tests were
+  blocked by this sandbox's missing libxkbcommon-x11. The Tester's final
+  rerun at `61f96564` recorded 582 passed / 0 failed across 63 targets.
+
+- Tester final rerun (head `61f96564`): the shipped artifacts were
+  exercised live on all three layers and the full suite re-ran under
+  Xvfb. `cargo test --workspace --no-fail-fast` records 582 passed / 0
+  failed across 63 targets (581 plus the new live windowed
+  settings-toggle test), `web/e2e/browser-e2e.js` passes 214/214
+  assertions with `E2E: ALL GREEN` and zero console errors, the boot-gate
+  E2E passes 30/30, the harness contract is 49/49, `maze-chase-verify` is
+  19/19 (golden replay `23c17f89734e`), and `cargo fmt --all --check` is
+  clean. Live evidence: the terminal release binary ran a truecolor PTY
+  at 143x64; the desktop `--probe 90` reproduced `docs/desktop-probe.ppm`
+  byte-for-byte (`9abc9150...`); the committed wasm is `022761a1...`
+  (207,338 bytes).
