@@ -15554,6 +15554,27 @@ def validate_maintainer(doc, sink):
     if not isinstance(steps, list):
         sink.append("maintainer.yml(steps-not-list)")
         return
+    # Issue #713 review round 11: an extra job is an extra execution surface,
+    # and a job named like the maintainer one is not needed. Pin the job set
+    # and the action surface (only the reviewed checkout and cache actions)
+    # so a newly added job or composite action cannot carry the owner PAT and
+    # reach a merge or any other side effect outside the pinned steps.
+    if set(jobs) != {"maintainer"}:
+        sink.append("maintainer.yml(extra-job)")
+    job_steps = [
+        step
+        for job in jobs.values()
+        if isinstance(job, dict) and isinstance(job.get("steps"), list)
+        for step in job["steps"]
+    ]
+    for step in job_steps:
+        if not isinstance(step, dict):
+            continue
+        if "uses" in step and step.get("uses") not in {
+            "actions/checkout@v6",
+            "actions/cache@v4",
+        }:
+            sink.append("maintainer.yml(uses-not-sanctioned)")
     # Issue #713 review round 8 hardening: the bot-token Post Maintainer
     # comment step can post arbitrary agent prose, so extend the marker-literal
     # ban to every maintainer step. Only the PAT merge sweep (the consumer,
@@ -15571,6 +15592,38 @@ def validate_maintainer(doc, sink):
         )
         if name != PAT_STEP_NAME and "eval-verdict" in marker_norm:
             sink.append("maintainer.yml(decoy-marker-literal-outside-pat-sweep)")
+    # Issue #713 review round 11: the merge path was name-keyed, so a newly
+    # inserted owner-PAT step could merge any open PR (including a
+    # workflow-touching one) with no tester approval and no eval marker while
+    # R12 only required the actor gate and R30 only pinned the named sweep.
+    # The reviewer demonstrated exactly that step. Reject a merge invocation
+    # in every step of every job other than the unique pinned PAT sweep;
+    # comment lines are ignored, quote/backslash word splitting is
+    # normalized, and a path-qualified, quiet, or prefixed invocation
+    # (`/usr/bin/gh`, `command gh`, `env ... gh`, `sudo -E gh`) is still
+    # caught because the command word is matched at a token boundary.
+    for step in job_steps:
+        if not isinstance(step, dict) or step.get("name") == PAT_STEP_NAME:
+            continue
+        merge_body = step.get("run")
+        if not isinstance(merge_body, str):
+            continue
+        merge_scan = re.sub(
+            r"[\"'\\]",
+            "",
+            "\n".join(
+                line
+                for line in merge_body.splitlines()
+                if not line.lstrip().startswith("#")
+            ),
+        )
+        if re.search(
+            r"(?i)(?:^|[^A-Za-z0-9_])(?:[^\s;&|(){}]*/)?gh\s+pr\s+merge\b"
+            r"|pulls/[^/\s]+/merge\b"
+            r"|mergePullRequest",
+            merge_scan,
+        ):
+            sink.append("maintainer.yml(merge-outside-pat-sweep)")
     # Issue #713 review round 10: resolve the PAT sweep step from the same
     # strict parse the merge gate executes, pin its key surface, and hand its
     # parsed run scalar to the shell rule for the whole-body exact comparison.
@@ -16302,6 +16355,83 @@ if maintainer_doc is not None:
                 problems.append(
                     "maintainer.yml(structural-self-test-pat-%s)" % needle
                 )
+        # Issue #713 review round 11: the reviewer's exact unreviewed
+        # fast-path step (a gated owner-PAT merge before the pinned sweep)
+        # must be rejected by the merge-outside-pat-sweep scan, and a quoted
+        # word-splitting spelling of the command must be caught by the same
+        # normalized scan. A vacuous scan therefore fails the audit itself.
+        merge_guard_mutants = []
+        extra_merge_mutant = copy.deepcopy(maintainer_doc)
+        extra_merge_mutant["jobs"]["maintainer"]["steps"].insert(
+            0,
+            {
+                "name": "Merge open workflow PRs (unreviewed fast path)",
+                "if": "always() && steps.actor_gate.outputs.run == 'true'",
+                "env": {"GH_TOKEN": "${{ secrets.OPENCODE_PAT }}"},
+                "run": (
+                    "set -euo pipefail\n"
+                    'gh pr merge 713 --repo x --rebase --match-head-commit abc\n'
+                ),
+            },
+        )
+        merge_guard_mutants.append(extra_merge_mutant)
+        split_merge_mutant = copy.deepcopy(maintainer_doc)
+        split_merge_mutant["jobs"]["maintainer"]["steps"].insert(
+            0,
+            {
+                "name": "Merge open PRs quietly",
+                "run": 'g"h" pr merge 713 --repo x --rebase\n',
+            },
+        )
+        merge_guard_mutants.append(split_merge_mutant)
+        for merged_run in (
+            "/usr/bin/gh pr merge 713 --repo x --rebase\n",
+            "command gh pr merge 713 --repo x --rebase\n",
+            "env GH_TOKEN=x sudo -E gh pr merge 713 --repo x --rebase\n",
+            "gh api -X PUT repos/x/pulls/713/merge -f merge_method=rebase\n",
+            "gh api graphql -f query='mutation { mergePullRequest(input:{pullRequestId:\"x\"}) { clientMutationId } }'\n",
+        ):
+            variant = copy.deepcopy(maintainer_doc)
+            variant["jobs"]["maintainer"]["steps"].insert(
+                0,
+                {"name": "Merge probe", "run": merged_run},
+            )
+            merge_guard_mutants.append(variant)
+        for mutant in merge_guard_mutants:
+            merge_guard_local = []
+            validate_maintainer(mutant, merge_guard_local)
+            if not any(
+                "merge-outside-pat-sweep" in p for p in merge_guard_local
+            ):
+                problems.append(
+                    "maintainer.yml(structural-self-test-merge-outside-pat-sweep)"
+                )
+        extra_job_mutant = copy.deepcopy(maintainer_doc)
+        extra_job_mutant["jobs"]["sneaky"] = {
+            "runs-on": "ubuntu-latest",
+            "steps": [
+                {
+                    "name": "Merge quietly",
+                    "run": "gh pr merge 713 --repo x --rebase\n",
+                }
+            ],
+        }
+        extra_job_local = []
+        validate_maintainer(extra_job_mutant, extra_job_local)
+        if not any("extra-job" in p for p in extra_job_local):
+            problems.append("maintainer.yml(structural-self-test-extra-job)")
+        uses_mutant = copy.deepcopy(maintainer_doc)
+        uses_mutant["jobs"]["maintainer"]["steps"].insert(
+            0,
+            {
+                "name": "Unreviewed action",
+                "uses": "evil/merge-action@v1",
+            },
+        )
+        uses_local = []
+        validate_maintainer(uses_mutant, uses_local)
+        if not any("uses-not-sanctioned" in p for p in uses_local):
+            problems.append("maintainer.yml(structural-self-test-uses-not-sanctioned)")
     except Exception:
         problems.append("maintainer.yml(structural-self-test-post-marker-decoy)")
 
@@ -17769,7 +17899,7 @@ R30_POST_MOCK
   fi
 fi
 if [ -z "$r30_bad" ]; then
-  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical bot-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as bot-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer bot-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, the Run evaluator agent step structurally bound to the vendored runner with no run/shell, an exact if/env/with and model pin, the prompt SHA-256, and the 105-minute cap, the Clear runtime decision, Verify evaluator decided, and Enforce live-execution evidence gate run blocks pinned whole-region line-exact with decision and evidence rewrite mutation self-tests and a decision/evidence write ban outside the evaluator agent, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval) plus the real publisher post/fetch outcomes (head and trigger mismatches included) are executed in a sandbox, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), every owner-PAT run block (the forward handoff, the pre-gate Get PR info read, the deliverable-context read, and the final evaluator memory push) is pinned whole-region line-exact with its exact key surface and an env of exactly the owner PAT and the eval marker literal banned, and no step other than the marker step may carry the eval marker literal and no step outside the three sanctioned comment posters may issue a comment post (all pins are mutation-self-tested, so a decoy approval marker cannot be injected into any token-bearing step body), and the pre-decision execution context is pinned so no PR-head code runs before the verdict (the checkout action is exactly actions/checkout@v6 with its exact with block and may appear only in the Checkout repository (PR head) step, the vendored runner may appear only in the Run evaluator agent step, every other uses step is rejected, the actor gate executes only the script staged from the workflow commit, the vendored runner is always restored from the workflow commit with no early-exit trust, the Configure git identity step is exactly the two git config lines with no extra key, the workflow permissions map and the eval job's if, runs-on, and timeout values are pinned, the decision/evidence write ban covers pathlib write_text/write_bytes and Path(...).open plus os.replace/os.rename and shutil copy/move spellings, and the checkout, actor-gate, configure, and restore blocks are mutation-self-tested), review round 8 hardens the remaining execution inputs: the evaluator and tester system prompts are staged from \`\${GITHUB_SHA}\` into RUNNER_TEMP before the agent and both prompt files plus both staging bodies are SHA-256 pinned (the PR-head editions are never read) and the Tester agent prompt must reference the staged copy, the workflow name and concurrency policy are pinned, the publisher is whole-file SHA-256 pinned with a second-PR functional fixture and a target-gated-append mutation self-test, the extracted decision and pre-merge blocks reject control transfer and execute in subshells (so a planted exit cannot silence this rule), the Post Maintainer comment poster is pinned whole-region with the eval marker literal banned outside the PAT sweep, and head_sha plus the two-step head_push_time binding are pinned; so a one-line neutering, declarative poisoning, or extra step cannot pass (issue #713)" "ok"
+  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical bot-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as bot-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer bot-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, the Run evaluator agent step structurally bound to the vendored runner with no run/shell, an exact if/env/with and model pin, the prompt SHA-256, and the 105-minute cap, the Clear runtime decision, Verify evaluator decided, and Enforce live-execution evidence gate run blocks pinned whole-region line-exact with decision and evidence rewrite mutation self-tests and a decision/evidence write ban outside the evaluator agent, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval) plus the real publisher post/fetch outcomes (head and trigger mismatches included) are executed in a sandbox, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), every owner-PAT run block (the forward handoff, the pre-gate Get PR info read, the deliverable-context read, and the final evaluator memory push) is pinned whole-region line-exact with its exact key surface and an env of exactly the owner PAT and the eval marker literal banned, and no step other than the marker step may carry the eval marker literal and no step outside the three sanctioned comment posters may issue a comment post (all pins are mutation-self-tested, so a decoy approval marker cannot be injected into any token-bearing step body), and the pre-decision execution context is pinned so no PR-head code runs before the verdict (the checkout action is exactly actions/checkout@v6 with its exact with block and may appear only in the Checkout repository (PR head) step, the vendored runner may appear only in the Run evaluator agent step, every other uses step is rejected, the actor gate executes only the script staged from the workflow commit, the vendored runner is always restored from the workflow commit with no early-exit trust, the Configure git identity step is exactly the two git config lines with no extra key, the workflow permissions map and the eval job's if, runs-on, and timeout values are pinned, the decision/evidence write ban covers pathlib write_text/write_bytes and Path(...).open plus os.replace/os.rename and shutil copy/move spellings, and the checkout, actor-gate, configure, and restore blocks are mutation-self-tested), review round 8 hardens the remaining execution inputs: the evaluator and tester system prompts are staged from \`\${GITHUB_SHA}\` into RUNNER_TEMP before the agent and both prompt files plus both staging bodies are SHA-256 pinned (the PR-head editions are never read) and the Tester agent prompt must reference the staged copy, the workflow name and concurrency policy are pinned, the publisher is whole-file SHA-256 pinned with a second-PR functional fixture and a target-gated-append mutation self-test, the extracted decision and pre-merge blocks reject control transfer and execute in subshells (so a planted exit cannot silence this rule), the Post Maintainer comment poster is pinned whole-region with the eval marker literal banned outside the PAT sweep, and head_sha plus the two-step head_push_time binding are pinned, and no maintainer step other than the pinned PAT sweep may carry a gh pr merge (or REST/GraphQL merge) invocation, so a newly inserted owner-PAT merge step, including the reviewer's unreviewed fast path and a quoted word-split spelling, fails the audit; so a one-line neutering, declarative poisoning, or extra step cannot pass (issue #713)" "ok"
 else
   check "R30" "eval verdict publication and PAT merge gate guard missing:${r30_bad} (issue #713: a workflow-touching PR could merge through the PAT sweep with no binding Evaluator verdict)" "bad"
 fi
