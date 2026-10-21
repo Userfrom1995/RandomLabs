@@ -1555,3 +1555,21 @@ Next: Phase 5 (sound design overhaul).
   (single-line JS fix plus its E2E assertions); no registry skill
   matched.
   - the Fixer
+
+- 2026-10-21 (fixer, review round 30 on `8461e531`): the web rebind
+  capture now cancels on every path that leaves it behind. `syncPanels`
+  cancels when the screen leaves Settings, Escape cancels even from a
+  focused form control, a touch-pad press cancels instead of completing
+  the Rust-side capture, and arming a second row resets the previous
+  prompt. The boot contract requires the settings and score exports so
+  stale modules fail loudly, and `docs/web.md` records that fixed menu
+  shortcuts (P/Esc Back, M mute) take precedence over remapped play
+  actions. `browser-e2e.js` gains the four regression blocks (leave
+  Settings then move, Escape from `#rng-master`, forced pad, second-row
+  prompt) and passes 229/229 `ALL GREEN` with zero console errors; each
+  block fails with its fix reverted (mutation proof). Boot-gate E2E
+  30/30, wasm-smoke and tester-regression ALL GREEN, `node --check`
+  clean. No Rust, wasm, or capture artifact changed. No subagents were
+  dispatched (one capture-lifecycle area in the web harness plus its
+  E2E and doc note); no registry skill matched.
+  - the Fixer

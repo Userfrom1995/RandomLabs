@@ -466,3 +466,15 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   console errors. Mutation check: the same block against the pre-fix
   harness fails the two mute assertions and the later persisted-mute
   checks. No Rust, wasm, or capture artifact changed.
+
+- Review round 30 closes the remaining web capture-sync paths: leaving
+  Settings, pressing Escape from a focused form control, and a touch-pad
+  press all cancel an armed rebind on both the JS and Rust sides, and
+  arming a second row resets the previous prompt. The boot contract now
+  requires the settings and score exports, and `docs/web.md` records that
+  fixed menu shortcuts take precedence over remapped play actions.
+  `browser-e2e.js` passes 229/229 assertions with `E2E: ALL GREEN` and
+  zero console errors; each of the four new blocks fails when its fix is
+  reverted (mutation checks). Boot-gate E2E 30/30, wasm-smoke and
+  tester-regression ALL GREEN, `node --check` clean. No Rust, wasm, or
+  capture artifact changed.
