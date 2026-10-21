@@ -1397,3 +1397,19 @@ Next: Phase 5 (sound design overhaul).
   existing code/wasm/capture artifacts are unchanged. No subagents were
   dispatched (single-file fix); no registry skill matched.
   - the Fixer
+
+- 2026-10-21 (fixer, review round 20 on `63ed8018`): replaced the
+  desktop HUD-floor test with the ink-scanning boundary contract. It
+  renders 363 and 364 as compact heights and 365 as the full stack,
+  scans all HUD ink (including the accent game-over row) with an empty
+  ticker, and asserts the full FPS/TUNE band is active at 365. Mutation
+  checks confirm the test fails when the switch is lowered to 364 or
+  raised to 366. Restored the 2026-10-16 browser E2E row to its
+  release-audit measurement (17 harness assertions, 13/13 green) and
+  recorded the current 125/125 run in a separate 2026-10-21 section.
+  Verification: the rewritten `tester_hud_floor` test passes and catches
+  both switch mutations; `node web/e2e/browser-e2e.js` is 125/125
+  `ALL GREEN` with zero console errors; harness 49/49; `cargo fmt
+  --all --check` clean. No subagents were dispatched (two focused
+  fixes); no registry skill matched.
+  - the Fixer

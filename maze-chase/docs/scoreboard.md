@@ -40,12 +40,13 @@ Browser artifacts (Node 18+, committed `web/maze-chase.wasm`):
 - `node web/e2e/tester-regression.js`: `TESTER REGRESSION: ALL GREEN`
   (warden-chain wire domain, scores push/getter round-trip, hostile
   boundaries, determinism).
-- `web/e2e/browser-e2e.js` (headless chromium over CDP): 42
-  assertions in the current harness; 42/42 green on this tree
+- `web/e2e/browser-e2e.js` (headless chromium over CDP): 17
+  assertions in the current harness; 13/13 green at release sign-off
   (zero console errors, real ArrowUp scoring, pause/resume, touch
-  swipe, 390x844 board visible, 60 FPS live, and the three-zone title
-  description, warden legend, and goal line), and the macOS native
-  pass re-ran the earlier 38-assertion harness green.
+  swipe, 390x844 board visible, 60 FPS live), and the macOS native
+  pass re-ran the current harness green. Not re-run in this audit
+  (no display server on the release machine); the committed harness
+  is unchanged since its green run.
 
 Packaging (this audit):
 
@@ -411,3 +412,11 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   mean wire frame / 29.9 KiB peak / 554 KiB/s (471 KiB/s payload); xterm
   light 1.85% white while playing. The macOS and Windows release rows are
   qualified as pre-Pondwake in `release.md` and `docs/index.md`.
+
+## 2026-10-21 (current-tree verification)
+
+- Browser E2E at `63ed8018`: `web/e2e/browser-e2e.js` passes 125/125
+  assertions with `E2E: ALL GREEN` and zero console errors (headless
+  chromium over CDP). The round-20 test/docs fix does not touch the web
+  page, wasm, or harness, and the 2026-10-16 release-audit row above keeps
+  its own historical measurement.
