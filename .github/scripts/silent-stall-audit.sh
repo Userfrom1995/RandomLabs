@@ -14235,6 +14235,11 @@ fi
 # trust model.
 R30_WF=".github/workflows/opencode-eval.yml"
 R30_PUBLISHER=".github/scripts/publish-eval-marker.sh"
+# Issue #713 review round 8: the publisher used to be pinned only by grep
+# fragments, so an appended target-gated post that forged markers for other
+# PRs kept every fragment green. This reviewed SHA-256 pins the whole file;
+# a legitimate publisher change updates the constant in the same PR.
+R30_PUBLISHER_SHA256="de7bb03907eb0eb58453a23d32fcc48b83e5eec696cdc56f60835e5975de1e2f"
 R30_MARKER="eval-verdict: approve-eval"
 r30_bad=""
 # Review round 3 (issue #713 finding 3): initialize every extracted block
@@ -14293,6 +14298,7 @@ EXPECTED_MARKER_IF = EXPECTED_POST_IF + " && steps.post-result.outcome == 'succe
 EXPECTED_FORWARD_IF = EXPECTED_POST_IF + " && steps.marker.outputs.ok == 'true'"
 BIND_NAME = "Bind eval to the checked-out head (eval binding)"
 CHECKOUT_NAME = "Checkout repository (PR head)"
+STAGE_PROMPT_NAME = "Stage the evaluator system prompt from the workflow commit"
 ACTOR_NAME = "Actor write gate (issue #428)"
 CONFIGURE_NAME = "Configure git identity"
 RESTORE_NAME = "Restore the vendored runner from the workflow commit"
@@ -14303,6 +14309,11 @@ PRINFO_NAME = "Get PR info"
 CONTEXT_NAME = "Read deliverable context"
 MEMORY_NAME = "Push evaluator memory to dedicated branch"
 AGENT_NAME = "Run evaluator agent"
+TEST_WF = ".github/workflows/opencode-test.yml"
+TEST_STAGE_NAME = "Stage the tester system prompt from the workflow commit"
+MAINTAINER_WF = ".github/workflows/maintainer.yml"
+PAT_STEP_NAME = "PAT-backed merge for approved workflow-touching PRs"
+MAINTAINER_POST_NAME = "Post Maintainer comment"
 VERIFY_NAME = "Verify evaluator decided"
 EVIDENCE_NAME = "Enforce live-execution evidence gate"
 CLEAR_NAME = "Clear runtime decision"
@@ -14318,6 +14329,23 @@ EXPECTED_PERMISSIONS = {
     "pull-requests": "write",
     "issues": "write",
 }
+EXPECTED_WORKFLOW_NAME = "opencode-eval"
+EXPECTED_CONCURRENCY = {
+    "group": "opencode-eval-${{ github.event.issue.number }}",
+    "queue": "max",
+    "cancel-in-progress": False,
+}
+# Issue #713 review round 8: the agent prompt files are the gate's actual
+# instructions. The workflow stages them from the workflow commit into
+# RUNNER_TEMP so the PR head's edition is never read, and these reviewed
+# constants pin both the staged source content and the staging step bodies.
+# A legitimate prompt or staging-step change updates the matching constant in
+# the same PR.
+EXPECTED_EVAL_PROMPT_SHA256 = "dbe5fd80e6ecaf6dfee84a1f6f6441d75ea4ce1ef7ea662d5debc61fc07a8467"
+EXPECTED_TEST_PROMPT_SHA256 = "e8d8f6dba7071a7af9e16b54ac339f735cf239da03be9dba49a2b2f77ac98824"
+EXPECTED_STAGE_PROMPT_BLOCK_SHA256 = "527dbbca42a84e28e0bffda1dd2c7f21f83d80bcfe3035b27f45261065734547"
+EXPECTED_TEST_STAGE_PROMPT_BLOCK_SHA256 = "e0c4b5fa07824eeafcaf75c946f0f60f0e12e9105a57f22625e7cb82a6c81114"
+EXPECTED_MAINTAINER_POST_BLOCK_SHA256 = "a3b907775fe95c3c892b911d7602df2a56fbf89ee87d834ee5c039fb4ab4bf1e"
 EXPECTED_JOB_IF = (
     "github.event.issue.pull_request != null && ( "
     "startsWith(github.event.comment.body, '/oc eval') || "
@@ -14351,7 +14379,7 @@ EXPECTED_ACTOR_ENV = {
 # The prompt is the evaluator's actual contract. Pin its SHA-256 so a workflow
 # edit cannot silently replace the Council's instructions while keeping the
 # step shape; a legitimate prompt change updates this constant in the same PR.
-EXPECTED_PROMPT_SHA256 = "b454e3b17c7a9984e213e53b77024b9482019a4172e7ef80b653d5d3a0178d40"
+EXPECTED_PROMPT_SHA256 = "ea0d9f227358cee6f39bc1dba75ed693e10b1823bc2191472d56317c016ab5be"
 WRITE_TARGET_RE = re.compile(
     r"(?:>>?|tee(?:\s+-a)?)\s*[\"']?/tmp/(?:evaluator-decision|live-run-evidence)\.json"
 )
@@ -14380,6 +14408,7 @@ SANCTIONED_COMMENTERS = {POST_NAME, MARKER_NAME, FORWARD_NAME}
 EVAL_STEP_NAMES = [
     PRINFO_NAME,
     CHECKOUT_NAME,
+    STAGE_PROMPT_NAME,
     BIND_NAME,
     ACTOR_NAME,
     CONFIGURE_NAME,
@@ -14433,6 +14462,43 @@ def write(name, value):
     if STRUCT and isinstance(value, str):
         with open(os.path.join(STRUCT, name), "w") as handle:
             handle.write(value)
+
+
+def normalized_sha(text):
+    lines = [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    return hashlib.sha256("\n".join(lines).encode()).hexdigest()
+
+
+def file_sha256(path):
+    try:
+        with open(path, "rb") as handle:
+            return hashlib.sha256(handle.read()).hexdigest()
+    except OSError:
+        return ""
+
+
+def check_prompt_stage_step(step, label, expected_sha, output_name, sink):
+    if step is None:
+        return
+    # Issue #713 review round 8: the agent's real system prompt is a file in
+    # the checkout, so a PR editing it could rewrite the gate's instructions
+    # while every other pin stayed green. The staging step must be exactly the
+    # name+run shape (no env/uses/if override) and its parsed run body must
+    # match the reviewed SHA-256, with the source content pinned separately.
+    if set(step) != {"name", "run"}:
+        sink.append("%s-keys-not-exact)" % label)
+    run = step.get("run")
+    if not isinstance(run, str) or not run.strip():
+        sink.append("%s-run-missing)" % label)
+        return
+    if normalized_sha(run) != expected_sha:
+        sink.append("%s-run-block-not-exact)" % label)
+    if output_name:
+        write(output_name, run)
 
 
 def resolve(steps, name, label, sink):
@@ -14710,6 +14776,14 @@ def validate(doc, output, sink):
     # when it runs.
     if doc.get("permissions") != EXPECTED_PERMISSIONS:
         sink.append("eval.yml(workflow-permissions-not-exact)")
+    # Issue #713 review round 8 hardening: pin the workflow identity and its
+    # concurrency group so a rename cannot escape the Maintainer's
+    # workflow_run failure-triage allowlist, and a widened cancel policy
+    # cannot drop queued eval runs.
+    if doc.get("name") != EXPECTED_WORKFLOW_NAME:
+        sink.append("eval.yml(workflow-name-not-opencode-eval)")
+    if doc.get("concurrency") != EXPECTED_CONCURRENCY:
+        sink.append("eval.yml(workflow-concurrency-not-exact)")
     jobs = doc.get("jobs")
     if not isinstance(jobs, dict) or set(jobs) != {"eval"}:
         sink.append("eval.yml(jobs-not-exact-eval)")
@@ -14738,6 +14812,7 @@ def validate(doc, output, sink):
         sink.append("eval.yml(eval-step-sequence-not-exact)")
     bind = resolve(steps, BIND_NAME, "bind", sink)
     checkout = resolve(steps, CHECKOUT_NAME, "checkout", sink)
+    stage_prompt = resolve(steps, STAGE_PROMPT_NAME, "prompt-stage", sink)
     actor = resolve(steps, ACTOR_NAME, "actor", sink)
     configure = resolve(steps, CONFIGURE_NAME, "configure", sink)
     restore = resolve(steps, RESTORE_NAME, "restore", sink)
@@ -14752,6 +14827,25 @@ def validate(doc, output, sink):
     evidence = resolve(steps, EVIDENCE_NAME, "evidence", sink)
     clear = resolve(steps, CLEAR_NAME, "clear", sink)
     check_bind(bind, output, sink)
+    # Issue #713 review round 8: the evaluator's real system prompt is staged
+    # from the workflow commit before the actor gate and agent, so a PR edit to
+    # .github/agents/evaluator.md can never rewrite the Council's instructions.
+    check_prompt_stage_step(
+        stage_prompt,
+        "eval.yml(prompt-stage",
+        EXPECTED_STAGE_PROMPT_BLOCK_SHA256,
+        "stage-prompt.run" if output else "",
+        sink,
+    )
+    if stage_prompt is not None:
+        if checkout is not None and steps.index(stage_prompt) < steps.index(checkout):
+            sink.append("eval.yml(prompt-stage-not-after-checkout)")
+        if actor is not None and steps.index(stage_prompt) > steps.index(actor):
+            sink.append("eval.yml(prompt-stage-not-before-actor-gate)")
+        if agent is not None and steps.index(stage_prompt) > steps.index(agent):
+            sink.append("eval.yml(prompt-stage-not-before-agent)")
+    if file_sha256(".github/agents/evaluator.md") != EXPECTED_EVAL_PROMPT_SHA256:
+        sink.append("agents.yml(evaluator-prompt-not-reviewed)")
     # Issue #713 review round 7: no PR-head code may execute before the
     # evaluator decision. The checkout action is pinned by identity and `with`
     # block, the actor gate runs only the staged workflow-commit script, and
@@ -14924,6 +15018,113 @@ def validate(doc, output, sink):
         ]
         if len(post_ids) != 1 or post_ids[0] is not post:
             sink.append("eval.yml(post-result-id-not-unique-or-not-post-step)")
+
+
+def validate_test(doc, sink):
+    if not isinstance(doc, dict):
+        sink.append("test.yml(yaml-not-mapping)")
+        return
+    jobs = doc.get("jobs")
+    if not isinstance(jobs, dict) or not isinstance(jobs.get("test"), dict):
+        sink.append("test.yml(test-job-missing)")
+        return
+    steps = jobs["test"].get("steps")
+    if not isinstance(steps, list):
+        sink.append("test.yml(test-steps-not-list)")
+        return
+    hits = [
+        (index, step)
+        for index, step in enumerate(steps)
+        if isinstance(step, dict) and step.get("name") == TEST_STAGE_NAME
+    ]
+    if len(hits) != 1:
+        sink.append("test.yml(prompt-stage-step-not-unique)")
+        return
+    stage_index, stage = hits[0]
+    check_prompt_stage_step(
+        stage,
+        "test.yml(prompt-stage",
+        EXPECTED_TEST_STAGE_PROMPT_BLOCK_SHA256,
+        "",
+        sink,
+    )
+    if file_sha256(".github/agents/tester.md") != EXPECTED_TEST_PROMPT_SHA256:
+        sink.append("agents.yml(tester-prompt-not-reviewed)")
+    agent = [
+        index
+        for index, step in enumerate(steps)
+        if isinstance(step, dict) and step.get("id") == "test"
+    ]
+    if len(agent) != 1:
+        sink.append("test.yml(agent-step-not-unique)")
+    else:
+        if stage_index > agent[0]:
+            sink.append("test.yml(prompt-stage-not-before-agent)")
+        # The staging step is only load-bearing if the agent is actually told
+        # to read the staged copy. Pin that reference, so a workflow edit
+        # cannot point the Tester back at the PR-controlled prompt.
+        agent_step = steps[agent[0]]
+        agent_with = agent_step.get("with")
+        agent_prompt = agent_with.get("prompt") if isinstance(agent_with, dict) else None
+        if (
+            not isinstance(agent_prompt, str)
+            or "${RUNNER_TEMP}/lab-prompts/tester.md" not in agent_prompt
+        ):
+            sink.append("test.yml(agent-prompt-not-staged)")
+
+
+def validate_maintainer(doc, sink):
+    if not isinstance(doc, dict):
+        sink.append("maintainer.yml(yaml-not-mapping)")
+        return
+    jobs = doc.get("jobs")
+    if not isinstance(jobs, dict) or not isinstance(jobs.get("maintainer"), dict):
+        sink.append("maintainer.yml(maintainer-job-missing)")
+        return
+    steps = jobs["maintainer"].get("steps")
+    if not isinstance(steps, list):
+        sink.append("maintainer.yml(steps-not-list)")
+        return
+    # Issue #713 review round 8 hardening: the bot-token Post Maintainer
+    # comment step can post arbitrary agent prose, so extend the marker-literal
+    # ban to every maintainer step. Only the PAT merge sweep (the consumer,
+    # which must read the literal to anchor the verdict shape) may carry it.
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        name = step.get("name")
+        run = step.get("run")
+        if isinstance(run, str) and name != PAT_STEP_NAME and "eval-verdict" in run:
+            sink.append("maintainer.yml(decoy-marker-literal-outside-pat-sweep)")
+    hits = [
+        step
+        for step in steps
+        if isinstance(step, dict) and step.get("name") == MAINTAINER_POST_NAME
+    ]
+    if len(hits) != 1:
+        sink.append("maintainer.yml(post-maintainer-comment-step-not-unique)")
+        return
+    post = hits[0]
+    if post.get("if") != "always() && steps.actor_gate.outputs.run == 'true'":
+        sink.append("maintainer.yml(post-maintainer-comment-if-not-exact)")
+    env = post.get("env")
+    expected_target = (
+        "${{ github.event.pull_request.number || github.event.issue.number || "
+        "inputs.issue_number || inputs.pr_number || '' }}"
+    )
+    if (
+        not isinstance(env, dict)
+        or set(env) != {"GH_TOKEN", "OC_TARGET"}
+        or env.get("GH_TOKEN") != "${{ github.token }}"
+        or env.get("OC_TARGET") != expected_target
+    ):
+        sink.append("maintainer.yml(post-maintainer-comment-env-not-exact)")
+    run = post.get("run")
+    if not isinstance(run, str) or not run.strip():
+        sink.append("maintainer.yml(post-maintainer-comment-run-missing)")
+        return
+    if normalized_sha(run) != EXPECTED_MAINTAINER_POST_BLOCK_SHA256:
+        sink.append("maintainer.yml(post-maintainer-comment-run-block-not-exact)")
 
 
 def step_index(document, name):
@@ -15294,6 +15495,39 @@ if doc is not None:
         lambda d: d["permissions"].__setitem__("contents", "read"),
         "workflow-permissions-not-exact",
     )
+    # Issue #713 review round 8: the prompt staging step and the workflow
+    # identity are now part of the gate. A staging body that reads the PR-head
+    # file, an extra step key, a missing staging step, a renamed workflow, or a
+    # changed concurrency policy must each fail the structural pass alone.
+    add_mutant(
+        "prompt-stage-rewrite",
+        lambda d: step_at(d, STAGE_PROMPT_NAME).__setitem__(
+            "run",
+            step_at(d, STAGE_PROMPT_NAME)["run"]
+            + "cat .github/agents/evaluator.md > /dev/null\n",
+        ),
+        "prompt-stage-run-block-not-exact",
+    )
+    add_mutant(
+        "prompt-stage-env",
+        lambda d: step_at(d, STAGE_PROMPT_NAME).__setitem__("env", {"X": "1"}),
+        "prompt-stage-keys-not-exact",
+    )
+    add_mutant(
+        "prompt-stage-removed",
+        lambda d: d["jobs"]["eval"]["steps"].pop(step_index(d, STAGE_PROMPT_NAME)),
+        "eval-step-sequence-not-exact",
+    )
+    add_mutant(
+        "workflow-name",
+        lambda d: d.__setitem__("name", "renamed-eval"),
+        "workflow-name-not-opencode-eval",
+    )
+    add_mutant(
+        "workflow-concurrency",
+        lambda d: d["concurrency"].__setitem__("cancel-in-progress", True),
+        "workflow-concurrency-not-exact",
+    )
     add_mutant(
         "job-if",
         lambda d: d["jobs"]["eval"].__setitem__("if", "true"),
@@ -15321,6 +15555,67 @@ if doc is not None:
         if not any(needle in problem for problem in local):
             problems.append("eval.yml(structural-self-test-%s)" % label)
 
+# Issue #713 review round 8: the Tester prompt is staged the same way (the
+# Tester approval is an eval prerequisite), and the maintainer comment poster
+# is pinned so it can never publish a decoy eval marker. Both documents are
+# resolved from the same strict loader, and each pin has a mutation self-test.
+try:
+    test_doc = load(TEST_WF)
+except Exception as exc:
+    problems.append("test.yml(yaml-parse-error:%s)" % exc)
+    test_doc = None
+if test_doc is not None:
+    validate_test(test_doc, problems)
+    try:
+        test_mutant = copy.deepcopy(test_doc)
+        for step in test_mutant["jobs"]["test"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == TEST_STAGE_NAME:
+                step["run"] = step["run"] + "cat .github/agents/tester.md > /dev/null\n"
+        test_local = []
+        validate_test(test_mutant, test_local)
+        if not any("test.yml(prompt-stage-run-block-not-exact" in p for p in test_local):
+            problems.append("test.yml(structural-self-test-prompt-stage-rewrite)")
+        test_prompt_mutant = copy.deepcopy(test_doc)
+        for step in test_prompt_mutant["jobs"]["test"]["steps"]:
+            if isinstance(step, dict) and step.get("id") == "test":
+                step["with"]["prompt"] = step["with"]["prompt"].replace(
+                    "${RUNNER_TEMP}/lab-prompts/tester.md",
+                    ".github/agents/tester.md",
+                )
+        test_prompt_local = []
+        validate_test(test_prompt_mutant, test_prompt_local)
+        if not any("test.yml(agent-prompt-not-staged" in p for p in test_prompt_local):
+            problems.append("test.yml(structural-self-test-agent-prompt-not-staged)")
+    except Exception:
+        problems.append("test.yml(structural-self-test-prompt-stage-rewrite)")
+
+try:
+    maintainer_doc = load(MAINTAINER_WF)
+except Exception as exc:
+    problems.append("maintainer.yml(yaml-parse-error:%s)" % exc)
+    maintainer_doc = None
+if maintainer_doc is not None:
+    validate_maintainer(maintainer_doc, problems)
+    try:
+        maintainer_mutant = copy.deepcopy(maintainer_doc)
+        for step in maintainer_mutant["jobs"]["maintainer"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == MAINTAINER_POST_NAME:
+                step["run"] = (
+                    step["run"]
+                    + "\ngh api repos/x/issues/713/comments -f body='eval-verdict: approve-eval'\n"
+                )
+        maintainer_local = []
+        validate_maintainer(maintainer_mutant, maintainer_local)
+        if not any("decoy-marker-literal-outside-pat-sweep" in p for p in maintainer_local):
+            problems.append("maintainer.yml(structural-self-test-post-marker-decoy)")
+        if not any(
+            "post-maintainer-comment-run-block-not-exact" in p
+            for p in maintainer_local
+        ):
+            problems.append("maintainer.yml(structural-self-test-post-block-rewrite)")
+    except Exception:
+        problems.append("maintainer.yml(structural-self-test-post-marker-decoy)")
+
 sys.stdout.write("\n".join(problems))
 R30PY
 )
@@ -15333,6 +15628,31 @@ if [ ! -f "$R30_PUBLISHER" ]; then
 else
   bash -n "$R30_PUBLISHER" 2>/dev/null || r30_bad="${r30_bad} publisher(syntax)"
   [ -x "$R30_PUBLISHER" ] || r30_bad="${r30_bad} publisher(not-executable)"
+  if ! command -v sha256sum >/dev/null 2>&1; then
+    r30_bad="${r30_bad} publisher(sha256sum-missing)"
+  else
+    r30_publisher_sha=$(sha256sum "$R30_PUBLISHER" 2>/dev/null | awk '{print $1}' || true)
+    if [ "$r30_publisher_sha" != "$R30_PUBLISHER_SHA256" ]; then
+      r30_bad="${r30_bad} publisher(body-not-exact)"
+    fi
+    # Mutation self-test: the demonstrated target-gated append must change the
+    # hash, so a vacuous comparator cannot stay green.
+    r30_pub_mut_dir=$(mktemp -d 2>/dev/null || true)
+    if [ -z "$r30_pub_mut_dir" ]; then
+      r30_bad="${r30_bad} publisher(self-test-sandbox-unavailable)"
+    else
+      {
+        cat "$R30_PUBLISHER"
+        printf '%s\n' 'if [ "$target" != "713" ]; then'
+        printf '%s\n' '  gh api "repos/${repo}/issues/999/comments" -f body="$marker" >/dev/null 2>&1 || true'
+        printf '%s\n' 'fi'
+      } > "$r30_pub_mut_dir/publisher.sh"
+      r30_pub_mut_sha=$(sha256sum "$r30_pub_mut_dir/publisher.sh" 2>/dev/null | awk '{print $1}' || true)
+      [ -n "$r30_pub_mut_sha" ] && [ "$r30_pub_mut_sha" != "$R30_PUBLISHER_SHA256" ] \
+        || r30_bad="${r30_bad} publisher(self-test-decoy-not-caught)"
+      rm -rf "$r30_pub_mut_dir"
+    fi
+  fi
   grep -qF 'marker="eval-verdict: approve-eval"' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-marker-literal)"
   grep -qF 'if [ "$fetched_first" != "$marker" ]; then' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-post-fetch-first-line-check)"
   grep -qF 'if [ "$author" != "github-actions[bot]" ]; then' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-bot-author-check)"
@@ -15858,9 +16178,13 @@ else
       # same-named assignment (approve_eval_time="2099-...") would otherwise
       # override the parsed marker timestamp and bypass every staleness check.
       local var
-      for var in approve_eval_time approve_test_time approve_eval_head approve_eval_trigger approve_eval_id; do
+      for var in approve_eval_time approve_test_time approve_eval_head approve_eval_trigger approve_eval_id head_sha; do
         [ "$(printf '%s\n' "$block" | grep -cE "(^|[[:space:]])${var}=")" -eq 1 ] || bad="${bad} maintainer.yml(${var}-assignment-not-unique)"
       done
+      # head_push_time is deliberately assigned twice: an empty initializer and
+      # the single max-reduction that binds the approval to the head's last
+      # push. Anything else would let a second write bypass that binding.
+      [ "$(printf '%s\n' "$block" | grep -cE '(^|[[:space:]])head_push_time=')" -eq 2 ] || bad="${bad} maintainer.yml(head_push_time-assignment-not-unique)"
       printf '%s\n' "$block" | grep -qF 'approve_eval_time=$(printf' || bad="${bad} maintainer.yml(eval-marker-time-not-parsed)"
       printf '%s\n' "$block" | grep -qF 'sub("^eval-head: "; "")' || bad="${bad} maintainer.yml(eval-head-not-parsed)"
       printf '%s\n' "$block" | grep -qF 'sub("^eval-trigger: "; "")' || bad="${bad} maintainer.yml(eval-trigger-not-parsed)"
@@ -16011,6 +16335,37 @@ else
           r30_bad="${r30_bad} maintainer.yml(functional-eval-decision-block-extraction)"
         else
           r30_decide_block=$(printf '%s\n' "$r30_pat_block" | sed -n "${r30_decide_start},${r30_decide_end}p")
+          # Issue #713 review round 8: the extracted block is maintainer.yml
+          # code, and executing it with `eval` in the audit's own shell let an
+          # inserted `exit 0` end the whole audit before R30 reported. Reject
+          # any control transfer outright and execute every extracted block in
+          # a subshell below, so a planted exit cannot silence the rule.
+          r30_has_control_transfer() {
+            # set +o pipefail: grep -q exits at the first match and can SIGPIPE
+            # the upstream grep -v on a large block; with the audit's pipefail
+            # that reads as no-match and a planted control transfer escapes.
+            ( set +o pipefail
+              printf '%s\n' "$1" | grep -vE '^[[:space:]]*#' \
+                | grep -qE '(^|[[:space:];])(exit|return|break)([[:space:]]|;|$)' )
+          }
+          if r30_has_control_transfer "$r30_decide_block"; then
+            r30_bad="${r30_bad} maintainer.yml(eval-decision-block-control-transfer)"
+          fi
+          r30_ct_mut="${r30_decide_block}"$'\n            if [ -n "${r30_decide_block:-}" ]; then exit 0; fi'
+          r30_has_control_transfer "$r30_ct_mut" \
+            || r30_bad="${r30_bad} maintainer.yml(self-test-control-transfer-not-caught)"
+          # SIGPIPE self-test: a match on the first line of an 80 KiB block
+          # must still read as a match under the audit's pipefail.
+          r30_ct_big="exit 0"$'\n'"$(printf 'echo x\n%.0s' {1..10000})"
+          r30_has_control_transfer "$r30_ct_big" \
+            || r30_bad="${r30_bad} maintainer.yml(self-test-control-transfer-pipefail)"
+          # Prove the subshell wrapper itself contains a top-level exit: the
+          # audit must continue past a block that terminates its own shell.
+          r30_subshell_probe=0
+          ( set +e; eval 'exit 0' ) >/dev/null 2>&1 || true
+          r30_subshell_probe=1
+          [ "$r30_subshell_probe" = "1" ] \
+            || r30_bad="${r30_bad} maintainer.yml(self-test-subshell-isolation)"
           r30_json_comment() {
             printf '{"id":%s,"user":{"login":"%s"},"created_at":"%s","body":"%s"}' "$1" "$2" "$3" "$4"
           }
@@ -16053,9 +16408,13 @@ else
             approve_eval_trigger=""
             latest_eval_trigger_id=""
             last_eval_reject_id=""
+            r30_hc_skipfile="$r30_tmp/skip-eval-head-$r30_hc_name"
+            rm -f "$r30_hc_skipfile"
             r30_body=$(printf '%s\n' "$r30_decide_block" \
-              | sed -e 's/^[[:space:]]*continue[[:space:]]*$/r30_skipped=1/')
-            eval "$r30_body" >/dev/null 2>&1 || true
+              | sed -e "s#^[[:space:]]*continue[[:space:]]*\$#printf '1' > '$r30_hc_skipfile'#")
+            r30_skipped=0
+            ( set +e; eval "$r30_body" ) >/dev/null 2>&1 || true
+            [ ! -f "$r30_hc_skipfile" ] || r30_skipped=1
             if [ "$r30_skipped" != "$r30_hc_want" ]; then
               r30_bad="${r30_bad} maintainer.yml(functional-eval-head-${r30_hc_name}-skip=${r30_skipped},want=${r30_hc_want})"
             fi
@@ -16098,6 +16457,12 @@ else
             r30_bad="${r30_bad} maintainer.yml(functional-toctou-block-extraction)"
           else
             r30_toctou_block=$(printf '%s\n' "$r30_pat_block" | sed -n "${r30_toctou_start},${r30_toctou_end}p")
+            if r30_has_control_transfer "$r30_toctou_block"; then
+              r30_bad="${r30_bad} maintainer.yml(functional-toctou-control-transfer)"
+            fi
+            r30_tc_ct_mut="${r30_toctou_block}"$'\n              if [ -n "${r30_toctou_block:-}" ]; then exit 0; fi'
+            r30_has_control_transfer "$r30_tc_ct_mut" \
+              || r30_bad="${r30_bad} maintainer.yml(self-test-toctou-control-transfer-not-caught)"
             r30_toctou_bin="$r30_tmp/toctou-bin"
             mkdir -p "$r30_toctou_bin"
             cat > "$r30_toctou_bin/gh" <<'R30_TOCTOU_MOCK'
@@ -16148,13 +16513,16 @@ R30_TOCTOU_MOCK
                   printf 'merge_head=%q\n' "$r30_tc_head"
                   printf 'fail_fetch=%q\n' "$r30_tc_fail"
                 } > "$r30_tmp/toctou-gh.cfg"
+                r30_tc_skipfile="$r30_tmp/skip-toctou-$r30_tc_name"
+                rm -f "$r30_tc_skipfile"
                 r30_tc_body=$(printf '%s\n' "$r30_toctou_block" \
-                  | sed -e 's/^[[:space:]]*continue[[:space:]]*$/r30_skipped=1/' \
+                  | sed -e "s#^[[:space:]]*continue[[:space:]]*\$#printf '1' > '$r30_tc_skipfile'#" \
                         -e 's#\${{ github\.repository }}#RandomLabs/RandomLabs#g')
                 r30_tc_path="$PATH"
                 PATH="$r30_toctou_bin:$PATH"
-                eval "$r30_tc_body" >/dev/null 2>&1 || true
+                ( set +e; eval "$r30_tc_body" ) >/dev/null 2>&1 || true
                 PATH="$r30_tc_path"
+                [ ! -f "$r30_tc_skipfile" ] || r30_skipped=1
                 if [ "$r30_skipped" != "$r30_tc_want" ]; then
                   r30_bad="${r30_bad} maintainer.yml(functional-toctou-${r30_tc_name}-skip=${r30_skipped},want=${r30_tc_want})"
                 fi
@@ -16249,6 +16617,9 @@ R30_PUBLISHER_MOCK
             fi
           }
           r30_pub_case good-marker 0 713 "$r30_pub_sha" "$r30_pub_trigger"
+          # Issue #713 review round 8: a second PR number must behave identically,
+          # so a target-gated forged post or a PR=713 hardcode cannot pass.
+          r30_pub_case good-marker-second-pr 0 714 "$r30_pub_sha" "$r30_pub_trigger"
           r30_pub_case prose-first 1 713 "$r30_pub_sha" "$r30_pub_trigger" 'fetch_mode="fixed"' "fixed_body_file=$r30_prose"
           r30_pub_case trailing-prose 1 713 "$r30_pub_sha" "$r30_pub_trigger" 'fetch_mode="fixed"' "fixed_body_file=$r30_trailing"
           r30_pub_case line-two 1 713 "$r30_pub_sha" "$r30_pub_trigger" 'fetch_mode="fixed"' "fixed_body_file=$r30_line_two"
@@ -16539,7 +16910,7 @@ R30_POST_MOCK
   fi
 fi
 if [ -z "$r30_bad" ]; then
-  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical bot-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as bot-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer bot-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, the Run evaluator agent step structurally bound to the vendored runner with no run/shell, an exact if/env/with and model pin, the prompt SHA-256, and the 105-minute cap, the Clear runtime decision, Verify evaluator decided, and Enforce live-execution evidence gate run blocks pinned whole-region line-exact with decision and evidence rewrite mutation self-tests and a decision/evidence write ban outside the evaluator agent, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval) plus the real publisher post/fetch outcomes (head and trigger mismatches included) are executed in a sandbox, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), every owner-PAT run block (the forward handoff, the pre-gate Get PR info read, the deliverable-context read, and the final evaluator memory push) is pinned whole-region line-exact with its exact key surface and an env of exactly the owner PAT and the eval marker literal banned, and no step other than the marker step may carry the eval marker literal and no step outside the three sanctioned comment posters may issue a comment post (all pins are mutation-self-tested, so a decoy approval marker cannot be injected into any token-bearing step body), and the pre-decision execution context is pinned so no PR-head code runs before the verdict (the checkout action is exactly actions/checkout@v6 with its exact with block and may appear only in the Checkout repository (PR head) step, the vendored runner may appear only in the Run evaluator agent step, every other uses step is rejected, the actor gate executes only the script staged from the workflow commit, the vendored runner is always restored from the workflow commit with no early-exit trust, the Configure git identity step is exactly the two git config lines with no extra key, the workflow permissions map and the eval job's if, runs-on, and timeout values are pinned, the decision/evidence write ban covers pathlib write_text/write_bytes and Path(...).open plus os.replace/os.rename and shutil copy/move spellings, and the checkout, actor-gate, configure, and restore blocks are mutation-self-tested), so a one-line neutering, declarative poisoning, or extra step cannot pass (issue #713)" "ok"
+  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical bot-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as bot-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer bot-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, the Run evaluator agent step structurally bound to the vendored runner with no run/shell, an exact if/env/with and model pin, the prompt SHA-256, and the 105-minute cap, the Clear runtime decision, Verify evaluator decided, and Enforce live-execution evidence gate run blocks pinned whole-region line-exact with decision and evidence rewrite mutation self-tests and a decision/evidence write ban outside the evaluator agent, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval) plus the real publisher post/fetch outcomes (head and trigger mismatches included) are executed in a sandbox, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), every owner-PAT run block (the forward handoff, the pre-gate Get PR info read, the deliverable-context read, and the final evaluator memory push) is pinned whole-region line-exact with its exact key surface and an env of exactly the owner PAT and the eval marker literal banned, and no step other than the marker step may carry the eval marker literal and no step outside the three sanctioned comment posters may issue a comment post (all pins are mutation-self-tested, so a decoy approval marker cannot be injected into any token-bearing step body), and the pre-decision execution context is pinned so no PR-head code runs before the verdict (the checkout action is exactly actions/checkout@v6 with its exact with block and may appear only in the Checkout repository (PR head) step, the vendored runner may appear only in the Run evaluator agent step, every other uses step is rejected, the actor gate executes only the script staged from the workflow commit, the vendored runner is always restored from the workflow commit with no early-exit trust, the Configure git identity step is exactly the two git config lines with no extra key, the workflow permissions map and the eval job's if, runs-on, and timeout values are pinned, the decision/evidence write ban covers pathlib write_text/write_bytes and Path(...).open plus os.replace/os.rename and shutil copy/move spellings, and the checkout, actor-gate, configure, and restore blocks are mutation-self-tested), review round 8 hardens the remaining execution inputs: the evaluator and tester system prompts are staged from \`\${GITHUB_SHA}\` into RUNNER_TEMP before the agent and both prompt files plus both staging bodies are SHA-256 pinned (the PR-head editions are never read) and the Tester agent prompt must reference the staged copy, the workflow name and concurrency policy are pinned, the publisher is whole-file SHA-256 pinned with a second-PR functional fixture and a target-gated-append mutation self-test, the extracted decision and pre-merge blocks reject control transfer and execute in subshells (so a planted exit cannot silence this rule), the Post Maintainer comment poster is pinned whole-region with the eval marker literal banned outside the PAT sweep, and head_sha plus the two-step head_push_time binding are pinned; so a one-line neutering, declarative poisoning, or extra step cannot pass (issue #713)" "ok"
 else
   check "R30" "eval verdict publication and PAT merge gate guard missing:${r30_bad} (issue #713: a workflow-touching PR could merge through the PAT sweep with no binding Evaluator verdict)" "bad"
 fi
