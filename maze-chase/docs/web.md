@@ -23,7 +23,7 @@ python3 -m http.server 8000   # Windows: python -m http.server 8000
 
 On GitHub Pages the committed build plays from the project hub: open
 the hub `index.html`, press Play. The shipped artifact is
-`maze-chase/web/maze-chase.wasm` (about 202 KiB / 206,711 bytes, zero
+`maze-chase/web/maze-chase.wasm` (about 203 KiB / 207,338 bytes, zero
 imports, fully
 self-contained), built reproducibly (see below); `web/maze-chase.js` is
 the harness (plain script, no bundler, no external resources, works
@@ -91,10 +91,11 @@ clips), integer-scaled and letterboxed onto the canvas backing store,
 which tracks CSS size times DPR (capped at 2). Resize and orientation
 changes re-fit live; below the 280 px CSS minimum the board clips
 centered rather than reflowing. HUD text (score, best, wicks, level,
-mode, dots, FPS, tune, fright/relish badges) is DOM, updated at 4 Hz.
+mode, pickups with a completion bar, tune, fright/relish badges) is DOM,
+updated at 4 Hz; frame diagnostics stay hidden until enabled in Settings.
 
 Two honest display notes, both engine-faithful, not harness bugs: a
-fresh board reads Dots 448 with Score 10 because Rill's spawn crumb is
+fresh board reads Pickups 448/449 with Score 10 because Rill's spawn crumb is
 eaten at construction (the engine banks the 10 silently, event-free);
 and the fresh board behind the title panel is a real engine game, so
 the HUD previews that state until you press Start.
@@ -150,11 +151,11 @@ cargo build --release --target wasm32-unknown-unknown -p maze-chase-web
 cp target/wasm32-unknown-unknown/release/maze_chase_web.wasm web/maze-chase.wasm
 ```
 
-The committed `web/maze-chase.wasm` is that exact artifact: 206,711
+The committed `web/maze-chase.wasm` is that exact artifact: 207,338
 bytes, sha256
-`ae474117dcf4cf79e3c26609ae7df2369cbbc5ca6387f241c1f300eb5bbe36cb`,
-built with Rust 1.99.0 (rustc commit
-`b940084d7eb6a299eb4bfeb8e34901bc051e7ac4`, embedded in the artifact);
+`022761a11a5dba4bd8b6831f301453e2dcdbddaa35f014ba83d16cf8f6fbfd1f`,
+built with Rust 1.99.1 (rustc commit
+`58cf8f9c35b355199727627d07ae34a4e2846d67`, embedded in the artifact);
 a second clean build reproduces the same bytes, while a different
 stable release may not. The bridge ABI version (`mc_version() == 2`)
 gates the harness: mismatched pairs fail loudly on the error card

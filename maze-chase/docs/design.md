@@ -98,7 +98,7 @@ Screens and states. Attract (the fresh game board behind the title,
 dimmed 40 percent; a static backdrop, not a running demo), title overlay
 (three zones: fresh board left, menu
 with per-item description strip right, warden legend plus goal line
-bottom: "clear 445 crumbs; sunseeds turn the hunt"), play HUD (score,
+bottom: "clear 445 crumbs + 4 sunseeds; sunseeds turn the hunt"), play HUD (score,
 best, wicks, level, dots with completion bar, fright and relish badges,
 sound chip; fit at the 62x35 compact floor: the three HUD rows carry
 score, wicks, level, the dots completion bar, and the fright and relish

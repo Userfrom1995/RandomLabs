@@ -57,10 +57,10 @@ cp target/wasm32-unknown-unknown/release/maze_chase_web.wasm web/maze-chase.wasm
 ```
 
 The committed `web/maze-chase.wasm` is byte-reproducible from that
-exact command with the recorded toolchain (Rust 1.99.0, rustc commit
-`b940084d7eb6a299eb4bfeb8e34901bc051e7ac4`, which the artifact embeds;
-no `wasm-bindgen`, zero imports). It is 206,711 bytes with sha256
-`ae474117dcf4cf79e3c26609ae7df2369cbbc5ca6387f241c1f300eb5bbe36cb`,
+exact command with the recorded toolchain (Rust 1.99.1, rustc commit
+`58cf8f9c35b355199727627d07ae34a4e2846d67`, which the artifact embeds;
+no `wasm-bindgen`, zero imports). It is 207,338 bytes with sha256
+`022761a11a5dba4bd8b6831f301453e2dcdbddaa35f014ba83d16cf8f6fbfd1f`,
 and a second clean build reproduces the same bytes. A different stable
 release may produce different bytes. The page gates on the bridge ABI
 version and fails loudly on the error card instead of misbehaving on a

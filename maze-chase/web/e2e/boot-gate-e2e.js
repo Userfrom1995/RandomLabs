@@ -57,7 +57,7 @@ const NAMES = [
   'mc_screen', 'mc_scratch', 'mc_scratch_len', 'mc_theme_name',
   'mc_fright_segments', 'mc_fright_flash', 'mc_reduced_flash',
   'mc_reduced_motion', 'mc_high_contrast', 'mc_theme', 'mc_theme_count',
-  'mc_difficulty',
+  'mc_difficulty', 'mc_dots_total', 'mc_show_fps',
 ];
 
 function staleWasmB64(version, opts) {
@@ -100,6 +100,8 @@ const staleV2NoHudFlash = staleWasmB64(2, { omit: 'mc_fright_flash' });
 const staleV2NoReducedFlash = staleWasmB64(2, { omit: 'mc_reduced_flash' });
 const staleV2NoTheme = staleWasmB64(2, { omit: 'mc_theme' });
 const staleV2NoDifficulty = staleWasmB64(2, { omit: 'mc_difficulty' });
+const staleV2NoDotsTotal = staleWasmB64(2, { omit: 'mc_dots_total' });
+const staleV2NoShowFps = staleWasmB64(2, { omit: 'mc_show_fps' });
 
 (async () => {
   const listRes = await fetch(`http://localhost:${DEBUG_PORT}/json/list`).then((r) => r.json());
@@ -121,6 +123,8 @@ const staleV2NoDifficulty = staleWasmB64(2, { omit: 'mc_difficulty' });
         'reduced-flash': '${staleV2NoReducedFlash}',
         'theme': '${staleV2NoTheme}',
         'difficulty': '${staleV2NoDifficulty}',
+        'dots-total': '${staleV2NoDotsTotal}',
+        'show-fps': '${staleV2NoShowFps}',
       };
       const b64 = modules[mode] || '${staleV1NoFright}';
       const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -191,6 +195,8 @@ const staleV2NoDifficulty = staleWasmB64(2, { omit: 'mc_difficulty' });
     ['reduced-flash', 'mc_reduced_flash'],
     ['theme', 'mc_theme'],
     ['difficulty', 'mc_difficulty'],
+    ['dots-total', 'mc_dots_total'],
+    ['show-fps', 'mc_show_fps'],
   ];
   for (const [mode, exportName] of groupCases) {
     const url = new URL(PAGE);

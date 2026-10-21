@@ -150,7 +150,8 @@
           'mc_key', 'mc_swipe', 'mc_press', 'mc_goto', 'mc_rebind', 'mc_binding', 'mc_screen',
           'mc_scratch', 'mc_scratch_len', 'mc_theme_name', 'mc_fright_segments',
           'mc_fright_flash', 'mc_reduced_flash', 'mc_reduced_motion', 'mc_high_contrast',
-          'mc_theme', 'mc_theme_count', 'mc_difficulty', 'memory'];
+          'mc_theme', 'mc_theme_count', 'mc_difficulty', 'mc_dots_total',
+          'mc_show_fps', 'memory'];
         for (var i = 0; i < need.length; i++) {
           if (typeof exp[need[i]] === 'undefined') throw new Error('missing export: ' + need[i]);
         }
@@ -345,10 +346,16 @@
       var ae0 = document.activeElement;
       if (ae0 && ae0.tagName === 'BUTTON') ae0.blur();
     }
+    // Every screen panel opens scrolled to its top; the action row is a
+    // pinned footer outside that scroll area, so Back is always reachable.
+    var pid = SCREEN_PANELS[s];
+    if (pid) {
+      var body = document.querySelector('#' + pid + ' .panel-scroll');
+      if (body) body.scrollTop = 0;
+    }
     // Move keyboard focus to the new panel's primary button when focus was on body.
     // preventScroll keeps the board in view: focusing must never yank the
     // page away from the canvas on load or on small screens.
-    var pid = SCREEN_PANELS[s];
     if (pid && (document.activeElement === document.body || document.activeElement === null)) {
       var prim = document.querySelector('#' + pid + ' [data-primary]');
       if (prim && prim.focus) {
@@ -368,7 +375,17 @@
       txt('hud-level', String(exp.mc_level() >>> 0));
       var m = exp.mc_mode() >>> 0;
       txt('hud-mode', MODE_NAMES[m] || ('Mode ' + m));
-      txt('hud-dots', String(exp.mc_dots_left() >>> 0));
+      var left = exp.mc_dots_left() >>> 0;
+      var total = exp.mc_dots_total() >>> 0;
+      txt('hud-dots', String(left));
+      var dotsBar = $('hud-dots-bar');
+      var dotsFill = $('hud-dots-fill');
+      if (dotsBar && dotsFill) {
+        var cleared = Math.max(0, total - left);
+        dotsBar.setAttribute('aria-valuemax', String(total || 0));
+        dotsBar.setAttribute('aria-valuenow', String(cleared));
+        dotsFill.style.width = (total ? (cleared * 100 / total) : 0) + '%';
+      }
       var fr = exp.mc_fright_active() >>> 0;
       var meter = $('fright-meter');
       var frel = $('hud-fright');
@@ -394,7 +411,12 @@
         rel.hidden = !ra;
         if (ra) txt('hud-relish', 'RELISH +' + (exp.mc_relish_value() >>> 0));
       }
+      var showFps = (exp.mc_show_fps() >>> 0) !== 0;
       txt('hud-fps', String(fpsShown));
+      var fpsLabel = $('hud-fps-label');
+      if (fpsLabel) fpsLabel.hidden = !showFps;
+      var fpsValue = $('hud-fps');
+      if (fpsValue) fpsValue.hidden = !showFps;
       txt('hud-tune', lastTuneText);
       var muted = (exp.mc_muted() >>> 0) !== 0;
       txt('btn-mute', muted ? 'Unmute' : 'Mute');
@@ -430,6 +452,7 @@
       $('chk-flash').checked = (exp.mc_reduced_flash() >>> 0) !== 0;
       $('chk-motion').checked = (exp.mc_reduced_motion() >>> 0) !== 0;
       $('chk-contrast').checked = (exp.mc_high_contrast() >>> 0) !== 0;
+      $('chk-fps').checked = (exp.mc_show_fps() >>> 0) !== 0;
     } catch (e) { /* ignore */ }
   }
 
@@ -875,6 +898,12 @@
       if (!exp) return;
       try { exp.mc_set_high_contrast($('chk-contrast').checked ? 1 : 0); } catch (e) { /* ignore */ }
       saveSettings();
+    });
+    $('chk-fps').addEventListener('change', function () {
+      if (!exp) return;
+      try { exp.mc_set_show_fps($('chk-fps').checked ? 1 : 0); } catch (e) { /* ignore */ }
+      saveSettings();
+      updateHud();
     });
     // D-pad.
     padBind($('pad-up'), 1);
