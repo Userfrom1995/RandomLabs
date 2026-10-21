@@ -432,3 +432,14 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   reopens at its top. The full workspace rerun under Xvfb is 579 passed /
   0 failed across 63 targets, harness 49/49, and `maze-chase-verify`
   19/19 (golden replay `23c17f89734e`).
+
+- Review round 23 restores the documented keyboard controls from focused
+  panel actions: P, Esc, and M now reach the session from a focused button
+  or scroll region, and `web/e2e/browser-e2e.js` proves pause with P,
+  resume with P and Esc from the focused Resume action, mute toggling with
+  M, and ArrowDown moving focus off the auto-focused Start. The harness
+  now passes 200/200 assertions with `E2E: ALL GREEN` and zero console
+  errors. The full workspace carries 581 tests across 63 targets: 577
+  passed, 0 failed, and four desktop window E2E tests are blocked by this
+  sandbox's missing libxkbcommon-x11; the Tester owns the final full
+  rerun.

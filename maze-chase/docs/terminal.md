@@ -101,9 +101,9 @@ The game picks the best tier its terminal proves, best first:
     `TERM=xterm-ghostty`) or when the live probe answers on an
     unidentifiable terminal; keys typed during the probe are replayed,
     never swallowed. Kitty keyboard enhancement is enabled for
-   disambiguated input. Measured on kitty 0.32.2 (2026-10-20): 21
-   transmits and 169.6 KiB of PNG payload for a whole session, playing
-   at 20.6 frames/s with a 6.1 KiB mean frame (before this pipeline: a
+   disambiguated input. Measured on kitty 0.32.2 (2026-10-21): 21
+   transmits and 169.9 KiB of PNG payload for a whole session, playing
+   at 21.6 frames/s with a 6.2 KiB mean frame (before this pipeline: a
     historical 1642 transmits and 348.6 MiB, not re-derivable from the
     regenerated JSONs).
 2. **sixel**: true pixels through a hand-rolled Sixel encoder (palette

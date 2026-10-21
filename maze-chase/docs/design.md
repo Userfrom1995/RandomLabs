@@ -235,7 +235,7 @@ water; light themes use wet dark stone on pale sand-water; legacy
 rungs use `#` walls and `%` interiors on ANSI pairs.
 
 Effects vocabulary (shipped). Pickup burst 4 frames of a 3x3 expanding
-ring on a 66.7 ms grid, one burst per crumb pickup; chomp 3 frames at
+ring on a 66.7 ms grid, one burst per pickup (crumb or sunseed); chomp 3 frames at
 12 fps as a cheek swell; fright morph uses the entry, steady, and
 warning masks; death clip 4 frames then hold (window spec in motion);
 level clear is one 300 ms sweep of the board plus a 9x9 lily-crown
@@ -382,7 +382,7 @@ Per-rung duration table (frame counts exact):
 |---|---|---|---|---|---|
 | Chomp phases | 5f each | 10f each | 2/2/3 quanta (233 ms) | 2 quanta each (250 ms) | 1 quantum (250 ms cycle) |
 | Fright morph | 15f | 30f | 8 quanta (266.7 ms) | 6 quanta (250 ms) | 3 quanta (250 ms) |
-| Death window | 12 + 6x4 + 48f = 1400 ms | 24 + 12x4 + 96f = 1400 ms | 6 + 3x4 + 24 quanta = 1400 ms | 34 quanta (1416.7 ms) | 17 quanta (1416.7 ms) |
+| Death window | 6x4 + 60f = 84f (1400 ms) | 12x4 + 120f = 168f (1400 ms) | 3x4 + 30 quanta = 42 quanta (1400 ms) | 34 quanta (1416.7 ms) | 17 quanta (1416.7 ms) |
 | Level clear sweep | 18f (300 ms) | 36f | 9 quanta | 7 quanta (291.7 ms) | 4 quanta (333.3 ms) |
 | Banner | 54f (900 ms) | 108f | 27 quanta | 22 quanta (916.7 ms) | 11 quanta (916.7 ms) |
 | Sunseed halo | 24f (400 ms) | 48f | 12 quanta | 10 quanta (416.7 ms) | 5 quanta (416.7 ms) |
@@ -412,8 +412,8 @@ Effect and feedback inventory (rung-conditional): chomp loops only
 while moving; sunseed halo on the rung-snapped period; fear entry and
 exit per the fright warning spec below; hunter readability is carried
 by a mandatory facing asymmetry of 2 px or more on every rung, plus a
-committed-turn cue that lasts to the next junction: a 7x7 glyph spark
-at the turn corner on cells, kitty, desktop, and web, recolored to the
+committed-turn cue: a 180 ms 7x7 glyph spark at the turn corner on
+cells, kitty, desktop, and web, recolored to the
 theme text color under fright (never body color), static facing notch
 only on sixel. Wisps are cut entirely (they showed history, not
 intent). Eyes return as the shared overlay (the 3-frame ripple trail

@@ -66,18 +66,15 @@ session, the browser gameplay capture (`docs/web-gameplay.png`,
 current wasm `022761a1...`, and `browser-e2e.js` is ALL GREEN. macOS and Windows terminal rows stay with the per-OS
 testers; no claim here exceeds the executed Linux rows.
 
-Workspace gates: public count 579 across 63 targets (full workspace
-rerun under Xvfb: 579 passed / 0 failed), harness contract 49/49,
+Workspace gates: public count 581 across 63 targets (full workspace here:
+577 passed, 0 failed, and four desktop window E2E tests blocked by the
+sandbox's missing libxkbcommon-x11; the last full CI rebuild was
+579/579), harness contract 49/49,
 `maze-chase-verify` 19/19 (`23c17f89734e`; `perf-headless` 0.2-0.4
 us/tick on CI reruns), wasm sha256 `022761a1...` (207,338 bytes),
 `cargo fmt --all --check` clean, and clippy reports only the
 pre-existing engine style lints.
 
-Delegation ledger (round 5): no subagents were dispatched; the primary
-context applied the cell-tier death and flash, desktop ticker, claim,
-relish-order, and shared-digit findings directly, re-ran the 532-test
-workspace, harness 47/47, verify, fmt, clippy, and rebuilt the wasm
-(`47afaaea...`). No registry skill matched; none loaded.
 Next: Phase 5 (sound design overhaul).
 
 ## Next steps
@@ -1455,4 +1452,30 @@ Next: Phase 5 (sound design overhaul).
   measurements. Verification: compatibility harness 49/49; docs-only
   change, so no code, wasm, or capture artifacts changed. No subagents
   were dispatched; no registry skill matched.
+  - the Fixer
+
+- 2026-10-21 (fixer, review round 23 focused-control regression on
+  `ca5aa182`): restored the web
+  keyboard contract from focused controls. P/Esc/M are handled before the
+  panel focus guard, P maps to the menu Back action, arrows move focus from
+  buttons/body while a focused scroll region keeps native scrolling, and
+  blank-name Save now records the Rust-side "Rill" fallback. Desktop
+  settings toggles and the Audio mute row return `SettingsCommitted`, so
+  the live settings and `settings.txt` update on the press. Corrected the
+  kitty and Ghostty evidence numbers, the terminal crate name, the
+  death-window decomposition, the turn-spark duration, and the pickup-burst
+  wording; removed the stale round-5 ledger from the current step. Test
+  hardening: the lives invariant allows the spare wick, the theme token
+  check is scoped per theme block, and the dead raster `pip_facing_rows`
+  wrapper is gone. Verification: browser E2E 200/200 `ALL GREEN` with zero
+  console errors; full workspace 581 tests across 63 targets with 577
+  passed and the four desktop window E2E tests sandbox-blocked by missing
+  libxkbcommon-x11; harness 49/49; verify 19/19 (`23c17f89734e`);
+  wasm-smoke, tester-regression, and boot-gate E2E ALL GREEN; fmt clean;
+  clippy only the documented engine lints. Delegation ledger: two explore
+  subagents launched (docs-claim verification and web focus-path audit);
+  the docs agent returned no usable report, so the primary re-verified
+  every number from the committed JSONs and code, and the focus audit's
+  in-scope findings were applied and pinned by the new E2E assertions. No
+  registry skill matched; none loaded.
   - the Fixer
