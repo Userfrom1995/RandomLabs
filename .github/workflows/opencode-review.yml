@@ -238,6 +238,7 @@ jobs:
         if: steps.pr-info.outputs.is_pr == 'true' && always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/local/bin:/usr/bin:/bin
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           # Env indirection (audit R10): the trigger-comment timestamp reaches
           # the publication-evidence script as data, never expanded into the
@@ -476,6 +477,7 @@ jobs:
         if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/local/bin:/usr/bin:/bin
         run: |
           set +e
           decision="/tmp/random-lab-decision.json"
@@ -504,6 +506,7 @@ jobs:
         if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/local/bin:/usr/bin:/bin
         run: |
           pr="${{ github.event.issue.number }}"
           if [ ! -f /tmp/random-lab-decision.json ]; then

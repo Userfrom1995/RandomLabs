@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# publish-eval-marker.sh - publish the canonical Evaluator approval marker as a
-# bot-authored comment and verify it persisted (issue #713).
+# publish-eval-marker.sh - publish the canonical Evaluator approval marker as an
+# owner-PAT-authored comment and verify it persisted (issue #713).
 #
 # Why this exists: the PAT merge sweep in maintainer.yml is the only automated
 # path that can land .github/workflows/* PRs, and it used to gate only on a
@@ -25,12 +25,14 @@
 # evaluate.
 #
 # Usage: publish-eval-marker.sh <pr-number> <score> <eval-head> <eval-trigger>
-# Env:   GH_TOKEN           required; the workflow passes github.token (never
-#                           the owner PAT) so the comment is authored by
-#                           github-actions[bot]
+# Env:   GH_TOKEN           required; the workflow passes the owner PAT so the
+#                           comment is authored by the repository owner. The
+#                           evaluator agent holds only the read-only App token
+#                           (issue #713 review round 13), so a PR-controlled
+#                           script cannot forge an owner-authored marker.
 #        GITHUB_REPOSITORY  repo slug (owner/name), set by Actions
 #
-# Exit 0 only when the marker was posted and re-fetches as a bot-authored
+# Exit 0 only when the marker was posted and re-fetches as an owner-authored
 # comment whose first line is exactly the marker, whose eval-head and
 # eval-trigger bindings match the requested values, and whose whole body is
 # byte-identical to the composed body. Every other path exits 1 loudly so the
@@ -54,6 +56,7 @@ eval_head="${3:-}"
 eval_trigger="${4:-}"
 repo="${GITHUB_REPOSITORY:-}"
 marker="eval-verdict: approve-eval"
+expected_author="${GITHUB_REPOSITORY_OWNER:-${repo%%/*}}"
 
 if [ -z "$repo" ]; then
   echo "::error::publish-eval-marker.sh: GITHUB_REPOSITORY is empty; cannot resolve the repo slug."
@@ -142,8 +145,8 @@ fetched_trigger_count=$(printf '%s\n' "$fetched_body" | grep -c '^eval-trigger: 
 fetched_head=$(printf '%s' "$fetched_body" | sed -n 's/^eval-head: //p' | head -n1 || true)
 fetched_trigger=$(printf '%s' "$fetched_body" | sed -n 's/^eval-trigger: //p' | head -n1 || true)
 
-if [ "$author" != "github-actions[bot]" ]; then
-  echo "::error::publish-eval-marker.sh: posted marker comment ${comment_id} is authored by '${author}', not github-actions[bot]; the merge sweep's R30 predicate requires bot authorship (issue #713)."
+if [ -z "$expected_author" ] || [ "$author" != "$expected_author" ]; then
+  echo "::error::publish-eval-marker.sh: posted marker comment ${comment_id} is authored by '${author}', not the repository owner '${expected_author:-unknown}'; the merge sweep's R30 predicate requires owner authorship (issue #713 review round 13)."
   exit 1
 fi
 if [ "$fetched_first" != "$marker" ]; then
@@ -167,4 +170,4 @@ if [ "$fetched_trigger" != "$eval_trigger" ]; then
   exit 1
 fi
 
-echo "Verified bot-authored eval approval marker comment ${comment_id} on #${target} (eval-head ${eval_head}, eval-trigger ${eval_trigger}): ${html_url}"
+echo "Verified owner-authored eval approval marker comment ${comment_id} on #${target} (eval-head ${eval_head}, eval-trigger ${eval_trigger}): ${html_url}"
