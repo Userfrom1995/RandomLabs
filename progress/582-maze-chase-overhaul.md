@@ -66,10 +66,8 @@ session, the browser gameplay capture (`docs/web-gameplay.png`,
 current wasm `022761a1...`, and `browser-e2e.js` is ALL GREEN. macOS and Windows terminal rows stay with the per-OS
 testers; no claim here exceeds the executed Linux rows.
 
-Workspace gates: public count 581 across 63 targets (full workspace here:
-577 passed, 0 failed, and four desktop window E2E tests blocked by the
-sandbox's missing libxkbcommon-x11; the last full CI rebuild was
-579/579), harness contract 49/49,
+Workspace gates: 582 tests across 63 targets, 582 passed / 0 failed in
+the Tester's final full rerun at `61f96564`, harness contract 49/49,
 `maze-chase-verify` 19/19 (`23c17f89734e`; `perf-headless` 0.2-0.4
 us/tick on CI reruns), wasm sha256 `022761a1...` (207,338 bytes),
 `cargo fmt --all --check` clean, and clippy reports only the
@@ -1527,4 +1525,17 @@ Next: Phase 5 (sound design overhaul).
   Verification: browser E2E 214/214 `ALL GREEN` with zero console errors;
   wasm-smoke and tester-regression green; wasm unchanged at `022761a1...`
   (207,338 bytes). No subagents were dispatched; no registry skill matched.
+  - the Fixer
+
+- 2026-10-21 (fixer, Tester count refresh on `61f96564`): refreshed the
+  current-state counts to the Tester's final full rerun. `index.html`,
+  `docs/feature-matrix.md`, and this file's gates paragraph now record 582
+  tests across 63 targets and 582 passed / 0 failed (581 plus the new live
+  windowed settings-toggle test). `docs/scoreboard.md` gains the dated
+  Tester rerun entry, and its round-23 entry keeps its own 581 and 200/200
+  measurements as history while pointing at the completed rerun. Current
+  browser E2E counts read 214/214. Docs-only: no code, wasm, capture, or
+  evidence changed. Verification: documentation cross-check against the
+  Tester's signed report; no subagents were dispatched (single-area docs
+  refresh); no registry skill matched.
   - the Fixer
