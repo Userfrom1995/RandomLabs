@@ -32,6 +32,9 @@ pub const MIN_W: u32 = BOARD_W + HUD_W + PAD as u32 * 3;
 pub const MIN_H: u32 = BOARD_H + PAD as u32 * 4;
 /// HUD text scale (5x7 face doubled for window viewing distance).
 pub const HUD_SCALE: u32 = 2;
+/// Smallest window height where the full HUD stack (including the
+/// optional FPS and TUNE rows and a game-over row) clears the hint bar.
+const FULL_HUD_MIN_H: u32 = 363;
 
 /// Fitted play layout for a `w`x`h` window.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -326,12 +329,16 @@ fn render_small(f: &mut Frame, theme: &Theme) -> Frame {
     out
 }
 
-fn render_hud(f: &mut Frame, game: &Game, theme: &Theme, hud: Hud<'_>, lay: &Layout) {
+fn render_hud(f: &mut Frame, game: &Game, theme: &Theme, hud: Hud<'_>, lay: &Layout) -> i32 {
     let s = HUD_SCALE;
     let mut y = lay.hy;
     let x = lay.hx;
+    // Compact windows use a tighter line step and omit the optional
+    // diagnostics rows; the full stack does not fit at the 492x296 floor.
+    let compact = f.h < FULL_HUD_MIN_H;
+    let step_add = if compact { 1 } else { 6 };
     let step = |y: &mut i32| {
-        *y += font::LINE as i32 * s as i32 + 6;
+        *y += font::LINE as i32 * s as i32 + step_add;
     };
     f.text("SCORE", x, y, s, theme.dim_text, None);
     step(&mut y);
@@ -440,19 +447,21 @@ fn render_hud(f: &mut Frame, game: &Game, theme: &Theme, hud: Hud<'_>, lay: &Lay
         f.text("GAME OVER", x, y, s, theme.accent, None);
         step(&mut y);
     }
-    if let Some(fps) = hud.fps {
-        f.text(
-            &format!("{} FPS", fps.round() as u32),
-            x,
-            y,
-            s,
-            theme.dim_text,
-            None,
-        );
+    if !compact {
+        if let Some(fps) = hud.fps {
+            f.text(
+                &format!("{} FPS", fps.round() as u32),
+                x,
+                y,
+                s,
+                theme.dim_text,
+                None,
+            );
+            step(&mut y);
+        }
+        f.text(&format!("TUNE {}", hud.tune), x, y, s, theme.dim_text, None);
         step(&mut y);
     }
-    f.text(&format!("TUNE {}", hud.tune), x, y, s, theme.dim_text, None);
-    step(&mut y);
     // Bottom hint bar spans the full window width; a fresh event ticker
     // replaces the static control hint.
     let hint = hud
@@ -466,6 +475,9 @@ fn render_hud(f: &mut Frame, game: &Game, theme: &Theme, hud: Hud<'_>, lay: &Lay
         theme.dim_text,
         None,
     );
+    // Every painted row steps immediately after itself, so the current y
+    // is one step past the last row's origin.
+    y - step_add + font::text_height(1, s) as i32
 }
 
 #[cfg(test)]
@@ -601,6 +613,43 @@ mod tests {
         // of the banner path (frame still valid either way).
         let fresh = render_play(&Game::new(11, 1), theme(), hud(), 1100, 760).unwrap();
         assert_eq!((fresh.w, fresh.h), (1100, 760));
+    }
+
+    #[test]
+    fn minimum_window_hud_clears_the_hint_bar() {
+        let mut game = Game::new(7, 1);
+        game.wardens.start_fright(6.0);
+        game.wardens.fright_t = 1.2;
+        game.relish.active = true;
+        game.relish.value = 1000;
+        let lay = layout(MIN_W, MIN_H);
+        let mut f = Frame::blank(MIN_W, MIN_H, theme().bg).unwrap();
+        let bottom = render_hud(
+            &mut f,
+            &game,
+            theme(),
+            Hud {
+                fps: Some(60.0),
+                ..hud()
+            },
+            &lay,
+        );
+        let hint_top = MIN_H as i32 - PAD - font::text_height(1, 1) as i32;
+        assert!(
+            bottom <= hint_top,
+            "HUD bottom {bottom} must clear the hint bar at {hint_top}"
+        );
+        let bg = crate::frame::pack(theme().bg);
+        let hint_bottom = hint_top + font::text_height(1, 1) as i32;
+        for y in hint_bottom..MIN_H as i32 {
+            for x in lay.hx..MIN_W as i32 - PAD {
+                assert_eq!(
+                    f.get(x, y),
+                    Some(bg),
+                    "HUD paints below the hint bar at ({x},{y})"
+                );
+            }
+        }
     }
 }
 
@@ -743,7 +792,10 @@ mod menu_tests {
                     "BRAM HERON - KESSA PIKE - JORY SNAKE - NIB DRAGONFLY",
                     theme().dim_text,
                 ),
-                ("CLEAR 445 CRUMBS; SUNSEEDS TURN THE HUNT", theme().accent),
+                (
+                    "CLEAR 445 CRUMBS + 4 SUNSEEDS; SUNSEEDS TURN THE HUNT",
+                    theme().accent,
+                ),
             ],
             "ARROWS + ENTER",
             theme(),
@@ -825,7 +877,10 @@ mod menu_tests {
                 "BRAM HERON - KESSA PIKE - JORY SNAKE - NIB DRAGONFLY",
                 theme.dim_text,
             ),
-            ("CLEAR 445 CRUMBS; SUNSEEDS TURN THE HUNT", theme.accent),
+            (
+                "CLEAR 445 CRUMBS + 4 SUNSEEDS; SUNSEEDS TURN THE HUNT",
+                theme.accent,
+            ),
         ];
         let border = crate::frame::pack(theme.wall_inner);
         for (w, h) in [(MIN_W, MIN_H), (601, MIN_H), (602, MIN_H)] {

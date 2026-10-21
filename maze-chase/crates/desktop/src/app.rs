@@ -483,7 +483,10 @@ impl App {
                         "BRAM HERON - KESSA PIKE - JORY SNAKE - NIB DRAGONFLY",
                         theme.dim_text,
                     ),
-                    ("CLEAR 445 CRUMBS; SUNSEEDS TURN THE HUNT", theme.accent),
+                    (
+                        "CLEAR 445 CRUMBS + 4 SUNSEEDS; SUNSEEDS TURN THE HUNT",
+                        theme.accent,
+                    ),
                 ];
                 render::overlay_menu(&mut frame, "MAZE CHASE", &lines, &details, footer, theme);
                 Some(frame)
