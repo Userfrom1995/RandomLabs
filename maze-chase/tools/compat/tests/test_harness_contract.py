@@ -913,9 +913,10 @@ class TestCollectorHonestyGates(unittest.TestCase):
         self.assertEqual(playing["dominant_share"], 0.8999)
 
     def test_kitty_paused_media_with_menu_capture_stays_pass(self):
-        # A paused capture with no sprite pixels and >=90% one color is
-        # the text menu on a solid background, so trailing placements
-        # attributed to the paused slice are checkpoint-boundary noise.
+        # A paused capture with four sprite-palette pixels and >=90% one
+        # color is the text menu on a solid background, so trailing
+        # placements attributed to the paused slice are checkpoint-boundary
+        # noise (the census still proves the paused slice is not a board).
         playing = (
             b"\x1b[1;1HVIDEO  kitty-graphics\r\n"
             b"\x1b_Ga=p,i=3,p=1,x=0,y=0,w=1120,h=1240,c=140,r=62,z=0,C=1,q=2\x1b\\"
