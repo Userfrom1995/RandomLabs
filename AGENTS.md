@@ -229,7 +229,7 @@ Public Surface / Web Track:                                              │
 - **Brainstorm Board**: Pinned issue labeled `brainstorm` - a living collaboration space for candidate projects where the Owner, collaborators, and community contributors can freely propose and discuss ideas without opening formal issues.
 - **On-Demand Ideation & Single-Pick Rule**: The Ideator (`ideate.yml`) is an on-demand creative consultant summoned ONLY when the Owner or Maintainer explicitly requests fresh project proposals (or via `/oc ideate`). It NEVER runs on an automatic idle loop. When summoned, it posts 2-3 ambitious candidates to the Brainstorm Board. The Maintainer (or Owner) may select at most ONE candidate to develop, after which ideation immediately pauses.
 - **Standby on Idle**: When all in-flight PRs and issues are completed and merged, the lab enters standby mode (`decision: []`). It does NOT auto-trigger ideation or invent new work; it waits quietly for the next issue, comment, or Owner directive.
-- **Lab Health**: Pinned issue labeled `lab-health` - universal audit logs. The Auditor (`auditor.yml`, daily schedule) posts health summaries here. If anomalies are found, the Auditor opens new bug issues, tags the Maintainer, and links them on the health board.
+- **Lab Health**: Pinned issue labeled `lab-health` - universal audit logs. The Auditor (`auditor.yml`, daily schedule, manual dispatch, or `/oc auditor` on demand) posts health summaries here. If anomalies are found, the Auditor opens new bug issues, tags the Maintainer, and links them on the health board.
 - `idea.yml` was retired; nothing creates project issues except the Maintainer.
 
 ## GitHub Pages site
