@@ -396,7 +396,14 @@ impl Screens {
         let s = &self.settings;
         vec![
             ("Difficulty".into(), s.difficulty.as_str().into()),
-            ("Theme".into(), theme_label(&s.theme)),
+            (
+                "Theme".into(),
+                if s.high_contrast {
+                    "Moonwake (high contrast)".into()
+                } else {
+                    theme_label(&s.theme)
+                },
+            ),
             ("Master volume".into(), format!("{:.0}%", s.master * 100.0)),
             ("Music volume".into(), format!("{:.0}%", s.music * 100.0)),
             ("SFX volume".into(), format!("{:.0}%", s.sfx * 100.0)),
@@ -527,6 +534,9 @@ mod tests {
             .unwrap();
         s.adjust(Dir::Right);
         assert!(s.settings.high_contrast);
+        assert!(s
+            .settings_lines()
+            .contains(&("Theme".into(), "Moonwake (high contrast)".into())));
         // Volumes clamp at the rails.
         s.settings_row = 2;
         for _ in 0..20 {

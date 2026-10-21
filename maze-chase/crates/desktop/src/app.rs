@@ -446,7 +446,7 @@ impl App {
                     ticker: self.ticker(),
                 };
                 let mut frame = render::render_play(&self.game, theme, hud, w, h)?;
-                if self.screens.current == ScreenId::Paused {
+                if self.screens.current == ScreenId::Paused && !render::too_small(w, h) {
                     overlay_pause(&mut frame, &self.screens, theme);
                 }
                 Some(frame)
@@ -763,6 +763,38 @@ mod tests {
             "pause card origin must sit on the board center"
         );
         assert_ne!(x, w as i32 / 2 - card_w as i32 / 2, "not page-centered");
+        let _ = std::fs::remove_dir_all(&app.dir);
+    }
+
+    #[test]
+    fn too_small_pause_skips_the_menu_overlay() {
+        let mut app = test_app("too-small-pause");
+        app.on_action(Action::Confirm);
+        app.on_action(Action::Pause);
+        assert_eq!(app.screens.current, ScreenId::Paused);
+        let (w, h) = (300u32, 200u32);
+        assert!(crate::render::too_small(w, h));
+        let frame = app.render(w, h).unwrap();
+        let bare = render::render_play(
+            &app.game,
+            app.theme(),
+            Hud {
+                best: 0,
+                flash: true,
+                reduced_motion: false,
+                dim_playfield: 0.55,
+                fps: None,
+                tune: "OFF",
+                ticker: None,
+            },
+            w,
+            h,
+        )
+        .unwrap();
+        assert_eq!(
+            frame.px, bare.px,
+            "the too-small card must not be covered by the pause menu"
+        );
         let _ = std::fs::remove_dir_all(&app.dir);
     }
 

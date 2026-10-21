@@ -512,7 +512,11 @@ impl Screens {
             ),
             (
                 "THEME".into(),
-                maze_chase_config::settings::theme_label(&self.settings.theme).to_uppercase(),
+                if self.settings.high_contrast {
+                    "MOONWAKE (HIGH CONTRAST)".into()
+                } else {
+                    maze_chase_config::settings::theme_label(&self.settings.theme).to_uppercase()
+                },
             ),
             ("REDUCED FLASH".into(), on_off(self.settings.reduced_flash)),
             (
@@ -706,6 +710,10 @@ mod tests {
             .unwrap();
         s.press(Action::Confirm);
         assert!(s.settings.high_contrast);
+        assert!(s
+            .settings_lines()
+            .iter()
+            .any(|(l, v)| l == "THEME" && v == "MOONWAKE (HIGH CONTRAST)"));
         // Exit commits.
         s.settings_row = SettingsRow::ALL.len() - 1;
         assert_eq!(s.press(Action::Confirm), Event::SettingsCommitted);
