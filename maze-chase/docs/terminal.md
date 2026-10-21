@@ -164,7 +164,7 @@ grid (2 to 8 columns per tile, 1 to 4 rows per tile; the 2x1 compact
 scale is the floor) and keeps the plan that covers the most of the
 window, breaking ties by tile squareness, chrome, area, and width.
 Every scale gets the best chrome it can host: a right-hand side panel with score, best, lives, level, mode
-clock, tune, tier, and controls when the board leaves room, a two-row
+clock, tune, tier, and controls when the board leaves room, a three-row
 HUD band above the board when only rows are tight, or just the bottom
 hint line in the tightest rooms. Wide-short rooms reach wide-short
 scales (7x1, 8x1) and tall rooms reach tall ones (2x2 through 4 rows)
