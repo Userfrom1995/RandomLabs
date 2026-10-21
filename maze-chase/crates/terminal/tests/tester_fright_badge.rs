@@ -60,7 +60,7 @@ fn fright_meter_still_joins_only_for_the_final_tail() {
     assert_eq!(late_readout.chars().count(), 26);
 
     let reduced = fright_readout(&late, true, 26).expect("reduced-flash tail banner");
-    assert!(reduced.starts_with("TURN ENDS "), "got {reduced:?}");
+    assert!(reduced.starts_with("THE TURN ENDS "), "got {reduced:?}");
     assert_eq!(reduced.chars().count(), 26);
 }
 

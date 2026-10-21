@@ -1317,3 +1317,17 @@ Next: Phase 5 (sound design overhaul).
   formatted, and ran every gate above. No registry skill matched; none
   loaded.
   - the Fixer
+
+- 2026-10-20 (fixer, Round 16 review on `ddfbb5a6`): closed both
+  findings. `docs/design-tokens.json` `accessibility.notes` now records
+  the shipped reduced-flash variants (hollow warning mask held, death and
+  halo held, pickup bursts cut, level-clear sweep and banner cut, Golden
+  Lily held) instead of claiming every source is held steady. The
+  terminal reduced-flash banner is back to `THE TURN ENDS` in
+  `chrome::fright_readout`, matching desktop and web; the width-aware
+  bar still fits the 26-cell side panel (14 + 12) and the 62-column
+  Sprint top bar (19 + 14 + 29). Targeted verification: terminal lib 122
+  passed and `tester_fright_badge` 3 passed, JSON parses clean. No
+  subagents were dispatched; the primary context edited and tested both
+  files. No registry skill matched; none loaded.
+  - the Fixer

@@ -56,7 +56,7 @@ pub fn fright_readout(game: &Game, reduced_flash: bool, max_width: usize) -> Opt
         return Some("FRIGHT!".to_string());
     }
     let label = if reduced_flash {
-        "TURN ENDS "
+        "THE TURN ENDS "
     } else {
         "FRIGHT "
     };
@@ -408,7 +408,7 @@ mod tests {
         assert_eq!(readout.matches('█').count(), 15);
         assert_eq!(readout.matches('░').count(), 4);
         let reduced = fright_readout(&g, true, 26).expect("reduced banner");
-        assert!(reduced.starts_with("TURN ENDS "));
+        assert!(reduced.starts_with("THE TURN ENDS "));
         assert_eq!(reduced.chars().count(), 26);
         g.wardens.fright_t = 2.0;
         let early = fright_readout(&g, false, 26).expect("badge before the warning tail");
