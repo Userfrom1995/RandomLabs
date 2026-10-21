@@ -5773,7 +5773,7 @@ else
     r19_seq_want=$(cat <<'R19_SEQ'
 Get PR info
 Checkout repository (PR head)
-Actor write gate (issue #428)
+"Actor write gate (issue #428)"
 Skip review for non-PR issue
 Record checked-out PR head
 Arm workspace push detector
@@ -6382,6 +6382,189 @@ continue
 fi
 R21HEAD
 }
+# Issue #713 review round 10: pin the ENTIRE PAT sweep run body, not only the
+# head-push binding region. The round-9 region pin ended at the tester
+# stale-check `fi`, so a quoted writer (`eval "head_push_time=0"`) inserted
+# after it kept the uniqueness count and the region pin green while defeating
+# the eval staleness and TOCTOU checks. The whole body comparison makes every
+# inserted or rewritten line fail, at the demonstrated location and anywhere
+# else. The mutation self-test below inserts that exact spelling after the
+# tester stale-check `fi` and requires the comparison to reject it.
+pat_expected_block() {
+  cat <<'PATSWEEP'
+set -euo pipefail
+git config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
+for cfg in $(git config --local --name-only --get-regexp '^includeIf\.gitdir:.*\.path$' 2>/dev/null); do
+git config --local --unset-all "$cfg" 2>/dev/null || true
+done
+if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+echo "Workspace is shallow; restoring full history before merge-base checks (issue #602)"
+git fetch origin main --unshallow --quiet 2>/dev/null \
+|| git fetch origin main --quiet 2>/dev/null || true
+if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+echo "::warning::Workspace is still shallow after the unshallow attempt; a linked workflow PR may be skipped as an orphan this run (issue #602)"
+fi
+else
+git fetch origin main --quiet 2>/dev/null || true
+fi
+prs=$(gh pr list --repo "${{ github.repository }}" --state open --json number --jq '.[].number' 2>/dev/null || true)
+if [ -z "$prs" ]; then
+echo "No open PRs to consider for PAT merge"
+exit 0
+fi
+for pr in $prs; do
+echo "--- Evaluating PR #$pr for PAT-backed workflow merge ---"
+head_ref=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || continue)
+[ -z "$head_ref" ] && continue
+git fetch origin "$head_ref" --quiet 2>/dev/null || continue
+if ! git diff --name-only "origin/main...origin/$head_ref" 2>/dev/null | grep -qE '^\.github/workflows/'; then
+echo "PR #$pr does not touch workflows; skipping PAT merge"
+continue
+fi
+echo "PR #$pr touches workflows; checking approval and mergeability"
+head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null || echo "")
+if [ -n "$head_sha" ]; then
+git fetch origin "$head_sha" --quiet 2>/dev/null || true
+if [ -z "$(git merge-base origin/main "$head_sha" 2>/dev/null)" ]; then
+echo "PR #$pr has no common ancestor with main (orphan); skipping direct merge, requires re-link"
+continue
+fi
+else
+if [ -z "$(git merge-base origin/main "origin/$head_ref" 2>/dev/null)" ]; then
+echo "PR #$pr has no common ancestor with main (orphan); skipping direct merge"
+continue
+fi
+fi
+comments=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --jq '.[]' 2>/dev/null | jq -s '.' 2>/dev/null || echo "[]")
+approve_test_time=$(echo "$comments" | jq -r '[.[] | select(.user.login=="github-actions[bot]" and (.body|split("\n")[0]|test("^`?/oc approve-test`?[[:space:]]*$")))] | last | .created_at // empty' 2>/dev/null || echo "")
+if [ -z "$approve_test_time" ]; then
+echo "PR #$pr has no /oc approve-test verdict (first-line marker); not merge-ready"
+continue
+fi
+head_commit_time=$(gh api "repos/${{ github.repository }}/pulls/$pr/commits?per_page=100" --paginate --jq '.[].commit.committer.date' 2>/dev/null | sort | tail -1 || true)
+head_force_push_time=$(gh api "repos/${{ github.repository }}/issues/$pr/timeline?per_page=100" --paginate --jq '.[] | select(.event=="head_ref_force_pushed") | .created_at' 2>/dev/null | sort | tail -1 || true)
+head_push_time=""
+for candidate in "$head_commit_time" "$head_force_push_time"; do
+[ -n "$candidate" ] || continue
+if [ -z "$head_push_time" ] || [ "$candidate" \> "$head_push_time" ]; then
+head_push_time="$candidate"
+fi
+done
+if [ -z "$head_push_time" ]; then
+echo "::warning::PR #$pr head push time could not be established; cannot bind the approval to the head; skipping"
+continue
+fi
+if [ "$approve_test_time" \< "$head_push_time" ]; then
+echo "PR #$pr approval ($approve_test_time) predates the last head push ($head_push_time); stale approval, not merge-ready"
+continue
+fi
+last_fix_time=$(echo "$comments" | jq -r '[.[] | select(.body | startswith("/oc fix"))] | last | .created_at // empty' 2>/dev/null || echo "")
+if [ -n "$last_fix_time" ] && [ "$last_fix_time" \> "$approve_test_time" ]; then
+echo "PR #$pr has /oc fix after approve-test ($last_fix_time > $approve_test_time); not merge-ready"
+continue
+fi
+eval_marker=$(echo "$comments" | jq -c '[.[] | select(.user.login=="github-actions[bot]" and (.body|split("\n")[0]|test("^`?eval-verdict: approve-eval`?[[:space:]]*$")))] | last // empty' 2>/dev/null || echo "")
+if [ -z "$eval_marker" ]; then
+echo "PR #$pr has no eval approval marker (first-line marker); not merge-ready"
+continue
+fi
+approve_eval_time=$(printf '%s' "$eval_marker" | jq -r '.created_at // empty' 2>/dev/null || echo "")
+approve_eval_id=$(printf '%s' "$eval_marker" | jq -r '.id // empty' 2>/dev/null || echo "")
+approve_eval_head=$(printf '%s' "$eval_marker" | jq -r '[.body // "" | split("\n")[] | select(startswith("eval-head: "))] | if length == 1 then (.[0] | sub("^eval-head: "; "")) else empty end' 2>/dev/null || echo "")
+approve_eval_trigger=$(printf '%s' "$eval_marker" | jq -r '[.body // "" | split("\n")[] | select(startswith("eval-trigger: "))] | if length == 1 then (.[0] | sub("^eval-trigger: "; "")) else empty end' 2>/dev/null || echo "")
+if [ "$(printf '%s' "$eval_marker" | jq -r '[.body // "" | split("\n")[] | select(startswith("eval-head: "))] | length' 2>/dev/null || echo 0)" -ne 1 ] \
+|| [ "$(printf '%s' "$eval_marker" | jq -r '[.body // "" | split("\n")[] | select(startswith("eval-trigger: "))] | length' 2>/dev/null || echo 0)" -ne 1 ]; then
+echo "PR #$pr eval marker does not carry exactly one eval-head and one eval-trigger binding; not merge-ready"
+continue
+fi
+if ! printf '%s' "$approve_eval_head" | grep -qE '^[0-9a-f]{40}$|^[0-9a-f]{64}$'; then
+echo "PR #$pr eval marker has no valid eval-head binding; not merge-ready"
+continue
+fi
+if ! printf '%s' "$approve_eval_trigger" | grep -qE '^[0-9]+$'; then
+echo "PR #$pr eval marker has no valid eval-trigger binding; not merge-ready"
+continue
+fi
+if ! printf '%s' "$approve_eval_id" | grep -qE '^[0-9]+$'; then
+echo "PR #$pr eval marker has no valid comment id; not merge-ready"
+continue
+fi
+if [ -z "$head_sha" ] || [ "$approve_eval_head" != "$head_sha" ]; then
+echo "PR #$pr eval marker is bound to $approve_eval_head, not the current head ${head_sha:-unknown}; stale eval verdict, not merge-ready"
+continue
+fi
+if [ "$approve_eval_time" \< "$head_push_time" ]; then
+echo "PR #$pr eval verdict ($approve_eval_time) predates the last head push ($head_push_time); stale eval verdict, not merge-ready"
+continue
+fi
+if [ "$approve_eval_time" \< "$approve_test_time" ]; then
+echo "PR #$pr eval verdict ($approve_eval_time) predates the tester approval ($approve_test_time); not merge-ready"
+continue
+fi
+latest_eval_trigger_id=$(echo "$comments" | jq -r '[.[] | select((.user.login | endswith("[bot]") | not) and (((.body | startswith("/oc eval")) and ((.body | startswith("/oc eval result")) | not)) or ((.body | startswith("/opencode eval")) and ((.body | startswith("/opencode eval result")) | not))))] | last | .id // empty' 2>/dev/null || echo "")
+if [ -z "$latest_eval_trigger_id" ] || [ "$latest_eval_trigger_id" != "$approve_eval_trigger" ]; then
+echo "PR #$pr eval marker came from trigger ${approve_eval_trigger:-unknown}, latest eval trigger is ${latest_eval_trigger_id:-unknown}; awaiting the fresh eval verdict"
+continue
+fi
+last_eval_reject_id=$(echo "$comments" | jq -r '[.[] | select(.user.login=="github-actions[bot]" and (.body | startswith("Quality Council REJECTION")))] | last | .id // empty' 2>/dev/null || echo "")
+if [ -n "$last_eval_reject_id" ] && [ "$last_eval_reject_id" -gt "$approve_eval_id" ]; then
+echo "PR #$pr has a newer eval rejection (comment $last_eval_reject_id > $approve_eval_id); not merge-ready"
+continue
+fi
+mergeable=$(gh pr view "$pr" --repo "${{ github.repository }}" --json mergeable --jq '.mergeable' 2>/dev/null || echo "")
+for _ in 1 2 3 4 5 6; do
+[ "$mergeable" = "UNKNOWN" ] || break
+sleep 5
+mergeable=$(gh pr view "$pr" --repo "${{ github.repository }}" --json mergeable --jq '.mergeable' 2>/dev/null || echo "")
+done
+echo "PR #$pr mergeable=$mergeable approve-test=$approve_test_time approve-eval=$approve_eval_time head-push=$head_push_time"
+if [ "$mergeable" != "MERGEABLE" ]; then
+echo "PR #$pr not MERGEABLE ($mergeable); skipping"
+continue
+fi
+merge_comments=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --jq '.[]' 2>/dev/null | jq -s '.' 2>/dev/null || echo "")
+merge_head=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null || echo "")
+merge_marker_id=$(echo "$merge_comments" | jq -r '[.[] | select(.user.login=="github-actions[bot]" and (.body|split("\n")[0]|test("^`?eval-verdict: approve-eval`?[[:space:]]*$")))] | last | .id // empty' 2>/dev/null || echo "")
+merge_reject_id=$(echo "$merge_comments" | jq -r '[.[] | select(.user.login=="github-actions[bot]" and (.body | startswith("Quality Council REJECTION")))] | last | .id // empty' 2>/dev/null || echo "")
+merge_trigger_id=$(echo "$merge_comments" | jq -r '[.[] | select((.user.login | endswith("[bot]") | not) and (((.body | startswith("/oc eval")) and ((.body | startswith("/oc eval result")) | not)) or ((.body | startswith("/opencode eval")) and ((.body | startswith("/opencode eval result")) | not))))] | last | .id // empty' 2>/dev/null || echo "")
+if [ -z "$merge_comments" ] || [ "$merge_comments" = "[]" ] || [ -z "$merge_head" ] || [ "$merge_head" != "$head_sha" ]; then
+echo "PR #$pr head moved or comments could not be re-read immediately before the merge; skipping"
+continue
+fi
+if [ "$merge_marker_id" != "$approve_eval_id" ] || [ "$merge_trigger_id" != "$approve_eval_trigger" ]; then
+echo "PR #$pr eval marker or trigger changed immediately before the merge; awaiting the fresh eval verdict"
+continue
+fi
+if [ -n "$merge_reject_id" ] && [ "$merge_reject_id" -gt "$merge_marker_id" ]; then
+echo "PR #$pr has a newer eval rejection immediately before the merge; not merge-ready"
+continue
+fi
+echo "Attempting PAT-backed merge for PR #$pr (workflow-touching, approved)"
+if gh pr merge "$pr" --repo "${{ github.repository }}" --rebase --match-head-commit "$head_sha" 2>&1 || \
+gh pr merge "$pr" --repo "${{ github.repository }}" --merge --match-head-commit "$head_sha" 2>&1; then
+echo "Successfully merged PR #$pr via PAT"
+git fetch origin main --quiet 2>/dev/null || true
+else
+echo "::warning::PAT merge failed for PR #$pr (may need owner click or further checks)"
+fi
+done
+echo "PAT merge sweep complete"
+PATSWEEP
+}
+pat_norm_region() {
+  sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -vE '^#|^$' || true
+}
+pat_block_exact() {
+  [ -n "$(printf '%s\n' "$2" | pat_norm_region)" ] \
+    && [ "$(printf '%s\n' "$1" | pat_norm_region)" = "$(printf '%s\n' "$2" | pat_norm_region)" ]
+}
+pat_eval_mutation() {
+  awk '
+    { print }
+    index($0, "approve_test_time") && index($0, "head_push_time") { stale=1 }
+    stale && /^[[:space:]]*fi[[:space:]]*$/ { print "eval \"head_push_time=0\""; stale=0 }
+  '
+}
 r21_bad=""
 if [ ! -f "$MAIN_WF" ]; then
   r21_bad=" maintainer.yml(missing)"
@@ -6390,6 +6573,21 @@ else
   if [ -z "$r21_pat_block" ]; then
     r21_bad="${r21_bad} maintainer.yml(pat-merge-step-missing-or-renamed)"
   else
+    # Issue #713 review round 10: the entire run body, not merely the
+    # head-push window, must match the reviewed body. The sed extraction
+    # carries the next step header, so isolate the run scalar first.
+    r21_pat_body=$(printf '%s\n' "$r21_pat_block" | awk \
+      '/^        run: \|/ { f=1; next } f && /^      - name: / { exit } f { print }')
+    r21_pat_expect=$(pat_expected_block)
+    if [ -z "$(printf '%s\n' "$r21_pat_expect" | pat_norm_region)" ]; then
+      r21_bad="${r21_bad} maintainer.yml(pat-body-expected-missing)"
+    elif [ -z "$(printf '%s\n' "$r21_pat_body" | pat_norm_region)" ] \
+      || ! pat_block_exact "$r21_pat_body" "$r21_pat_expect"; then
+      r21_bad="${r21_bad} maintainer.yml(pat-merge-run-block-not-exact)"
+    fi
+    r21_pat_mut=$(printf '%s\n' "$r21_pat_body" | pat_eval_mutation)
+    pat_block_exact "$r21_pat_mut" "$r21_pat_expect" \
+      && r21_bad="${r21_bad} maintainer.yml(self-test-pat-eval-writer-not-caught)"
     # 1. Shape-anchored verdict predicate present verbatim; the unanchored
     #    contains() form is banned.
     r21_approve_line=$(printf '%s\n' "$r21_pat_block" | sed 's/^[[:space:]]*//' | grep -vE '^#' | grep -F 'approve_test_time=$(echo "$comments" | jq -r ' | head -1 || true)
@@ -6427,8 +6625,15 @@ else
       r21_bad="${r21_bad} maintainer.yml(head-push-binding-block-not-exact)"
     fi
     printf '%s\n' "$r21_pat_block" | grep -vE '^[[:space:]]*#' \
-      | grep -qE '(printf[[:space:]]+-v|read|declare|typeset|export)[[:space:]][^#]*head_push_time' \
+      | grep -qE '(printf[[:space:]]+-v|read|declare|typeset|export)[[:space:]][^#]*head_push_time|(eval|let|source|\.)[[:space:]]+[^#]*head_push_time=' \
       && r21_bad="${r21_bad} maintainer.yml(head_push_time-alternate-writer)"
+    # The extended vocabulary is load-bearing: the demonstrated quoted `eval`
+    # assignment spelling must match it (the whole-body pin above catches it
+    # too), while the sweep's own prose ("stale eval verdict ... head-push")
+    # must not false-positive.
+    printf '%s\n' 'eval "head_push_time=0"' \
+      | grep -qE '(printf[[:space:]]+-v|read|declare|typeset|export)[[:space:]][^#]*head_push_time|(eval|let|source|\.)[[:space:]]+[^#]*head_push_time=' \
+      || r21_bad="${r21_bad} maintainer.yml(self-test-eval-writer-vocabulary)"
     # Mutation self-test: the demonstrated writer-spelling injection must
     # break the exact pin (a vacuous comparator cannot stay green).
     r21_head_mut=$(printf '%s\n' "$r21_pat_block" \
@@ -14444,6 +14649,35 @@ EXPECTED_TEST_PROMPT_SHA256 = "e8d8f6dba7071a7af9e16b54ac339f735cf239da03be9dba4
 EXPECTED_TEST_AGENT_PROMPT_SHA256 = "d6b6ef74f468b0c13bc034bffbefd4729a4a35ee230c5a6e5822d9717795c931"
 EXPECTED_STAGE_PROMPT_BLOCK_SHA256 = "527dbbca42a84e28e0bffda1dd2c7f21f83d80bcfe3035b27f45261065734547"
 EXPECTED_TEST_STAGE_PROMPT_BLOCK_SHA256 = "e0c4b5fa07824eeafcaf75c946f0f60f0e12e9105a57f22625e7cb82a6c81114"
+# Issue #713 review round 10: the round-9 test/review PR-head isolation was
+# only validated for the eval arm, so a one-line revert to the legacy bare
+# gate invocation (or a restore early exit that trusts the checked-out
+# runner) stayed green. Resolve both steps from this strict parse, pin their
+# exact key surfaces and run bodies, and require the agent's
+# OPENCODE_DISABLE_PROJECT_CONFIG env. The actor/restore bodies are identical
+# across the two arms (comments excluded), and a legitimate change updates
+# these constants in the same PR.
+REVIEW_WF = ".github/workflows/opencode-review.yml"
+ARM_ACTOR_NAME = "Actor write gate (issue #428)"
+ARM_RESTORE_NAME = "Restore the vendored runner when the checked-out head predates it"
+EXPECTED_ARM_ACTOR_KEYS = {"name", "id", "shell", "env", "run"}
+EXPECTED_ARM_ACTOR_BLOCK_SHA256 = "194c8b58365de523905f0f129a56fe069885983e0fad3dfebd73b73b777d6f39"
+EXPECTED_ARM_RESTORE_BLOCK_SHA256 = "ce0ee77c6894163548a4bafa8ddc39e1ef26752a42e6b583364ec11ac1c9d2b1"
+EXPECTED_TEST_ACTOR_ENV = {
+    "GH_TOKEN": "${{ github.token }}",
+    "GATE_EVENT": "${{ github.event_name }}",
+    "GATE_ACTOR": "${{ github.actor }}",
+    "GATE_LABEL": "test",
+}
+EXPECTED_REVIEW_ACTOR_ENV = {
+    "GH_TOKEN": "${{ github.token }}",
+    "GATE_EVENT": "${{ github.event_name }}",
+    "GATE_ACTOR": "${{ github.actor }}",
+    "GATE_LABEL": "review",
+}
+EXPECTED_TEST_RESTORE_KEYS = {"name", "run"}
+EXPECTED_REVIEW_RESTORE_KEYS = {"name", "if", "run"}
+EXPECTED_REVIEW_RESTORE_IF = "steps.pr-info.outputs.is_pr == 'true'"
 EXPECTED_MAINTAINER_POST_BLOCK_SHA256 = "a3b907775fe95c3c892b911d7602df2a56fbf89ee87d834ee5c039fb4ab4bf1e"
 EXPECTED_JOB_IF = (
     "github.event.issue.pull_request != null && ( "
@@ -15122,6 +15356,103 @@ def validate(doc, output, sink):
             sink.append("eval.yml(post-result-id-not-unique-or-not-post-step)")
 
 
+def validate_arm(
+    doc,
+    label,
+    job_name,
+    actor_env,
+    restore_keys,
+    restore_if,
+    agent_id,
+    sink,
+):
+    if not isinstance(doc, dict):
+        sink.append("%s(yaml-not-mapping)" % label)
+        return
+    jobs = doc.get("jobs")
+    if not isinstance(jobs, dict) or not isinstance(jobs.get(job_name), dict):
+        sink.append("%s(%s-job-missing)" % (label, job_name))
+        return
+    steps = jobs[job_name].get("steps")
+    if not isinstance(steps, list):
+        sink.append("%s(steps-not-list)" % label)
+        return
+    actor_hits = [
+        step
+        for step in steps
+        if isinstance(step, dict) and step.get("name") == ARM_ACTOR_NAME
+    ]
+    if len(actor_hits) != 1:
+        sink.append("%s(actor-gate-step-not-unique)" % label)
+    else:
+        actor = actor_hits[0]
+        if set(actor) != EXPECTED_ARM_ACTOR_KEYS:
+            sink.append("%s(actor-gate-keys-not-exact)" % label)
+        if actor.get("id") != "actor_gate":
+            sink.append("%s(actor-gate-id-not-exact)" % label)
+        if actor.get("shell") != "bash":
+            sink.append("%s(actor-gate-shell-not-exact)" % label)
+        if actor.get("env") != actor_env:
+            sink.append("%s(actor-gate-env-not-exact)" % label)
+        actor_run = actor.get("run")
+        if not isinstance(actor_run, str) or not actor_run.strip():
+            sink.append("%s(actor-gate-run-missing)" % label)
+        else:
+            if normalized_sha(actor_run) != EXPECTED_ARM_ACTOR_BLOCK_SHA256:
+                sink.append("%s(actor-gate-run-block-not-exact)" % label)
+            if "bash .github/scripts/actor-write-gate.sh" in actor_run:
+                sink.append("%s(actor-gate-runs-head-script)" % label)
+            if (
+                'git show "${GITHUB_SHA}:.github/scripts/actor-write-gate.sh"'
+                not in actor_run
+            ):
+                sink.append(
+                    "%s(actor-gate-not-staged-from-workflow-commit)" % label
+                )
+            if "exit 1" not in actor_run:
+                sink.append("%s(actor-gate-no-fail-closed-absence)" % label)
+    restore_hits = [
+        step
+        for step in steps
+        if isinstance(step, dict) and step.get("name") == ARM_RESTORE_NAME
+    ]
+    if len(restore_hits) != 1:
+        sink.append("%s(restore-step-not-unique)" % label)
+    else:
+        restore = restore_hits[0]
+        if set(restore) != restore_keys:
+            sink.append("%s(restore-keys-not-exact)" % label)
+        if restore_if is not None and restore.get("if") != restore_if:
+            sink.append("%s(restore-if-not-exact)" % label)
+        restore_run = restore.get("run")
+        if not isinstance(restore_run, str) or not restore_run.strip():
+            sink.append("%s(restore-run-missing)" % label)
+        else:
+            if normalized_sha(restore_run) != EXPECTED_ARM_RESTORE_BLOCK_SHA256:
+                sink.append("%s(restore-run-block-not-exact)" % label)
+            if (
+                "if [ -f .github/actions/opencode-run/action.yml ]; then"
+                in restore_run
+            ):
+                sink.append("%s(restore-early-exit-trusts-head-runner)" % label)
+            if re.search(r"(?m)^\s*exit\s+0\s*$", restore_run):
+                sink.append("%s(restore-early-exit)" % label)
+    agents = [
+        step
+        for step in steps
+        if isinstance(step, dict) and step.get("id") == agent_id
+    ]
+    if len(agents) != 1:
+        sink.append("%s(agent-step-not-unique)" % label)
+    else:
+        agent_env = agents[0].get("env")
+        if (
+            not isinstance(agent_env, dict)
+            or agent_env.get("OPENCODE_DISABLE_PROJECT_CONFIG") != "true"
+        ):
+            sink.append("%s(agent-env-project-config-enabled)" % label)
+
+
 def validate_test(doc, sink):
     if not isinstance(doc, dict):
         sink.append("test.yml(yaml-not-mapping)")
@@ -15134,6 +15465,16 @@ def validate_test(doc, sink):
     if not isinstance(steps, list):
         sink.append("test.yml(test-steps-not-list)")
         return
+    validate_arm(
+        doc,
+        "test.yml",
+        "test",
+        EXPECTED_TEST_ACTOR_ENV,
+        EXPECTED_TEST_RESTORE_KEYS,
+        None,
+        "test",
+        sink,
+    )
     hits = [
         (index, step)
         for index, step in enumerate(steps)
@@ -15183,6 +15524,24 @@ def validate_test(doc, sink):
             sink.append("test.yml(agent-prompt-not-exact)")
 
 
+def validate_review(doc, sink):
+    # Issue #713 review round 10: opencode-review.yml runs first in the gate
+    # chain and was the one PR-head arm with no validator at all. The same
+    # staged gate, unconditional runner restore, and project-config opt-out
+    # are pinned so a revert cannot silently execute PR-head code with the
+    # job token.
+    validate_arm(
+        doc,
+        "review.yml",
+        "review",
+        EXPECTED_REVIEW_ACTOR_ENV,
+        EXPECTED_REVIEW_RESTORE_KEYS,
+        EXPECTED_REVIEW_RESTORE_IF,
+        "review",
+        sink,
+    )
+
+
 def validate_maintainer(doc, sink):
     if not isinstance(doc, dict):
         sink.append("maintainer.yml(yaml-not-mapping)")
@@ -15212,6 +15571,36 @@ def validate_maintainer(doc, sink):
         )
         if name != PAT_STEP_NAME and "eval-verdict" in marker_norm:
             sink.append("maintainer.yml(decoy-marker-literal-outside-pat-sweep)")
+    # Issue #713 review round 10: resolve the PAT sweep step from the same
+    # strict parse the merge gate executes, pin its key surface, and hand its
+    # parsed run scalar to the shell rule for the whole-body exact comparison.
+    # The sed-extracted body alone could be shadowed by a YAML decoy block
+    # scalar or a `run: |2` spelling.
+    pat_hits = [
+        step
+        for step in steps
+        if isinstance(step, dict) and step.get("name") == PAT_STEP_NAME
+    ]
+    if len(pat_hits) != 1:
+        sink.append("maintainer.yml(pat-merge-step-not-unique)")
+    else:
+        pat = pat_hits[0]
+        if set(pat) != {"name", "if", "env", "run"}:
+            sink.append("maintainer.yml(pat-merge-keys-not-exact)")
+        if pat.get("if") != "always() && steps.actor_gate.outputs.run == 'true'":
+            sink.append("maintainer.yml(pat-merge-if-not-exact)")
+        pat_env = pat.get("env")
+        if (
+            not isinstance(pat_env, dict)
+            or set(pat_env) != {"GH_TOKEN"}
+            or pat_env.get("GH_TOKEN") != "${{ secrets.OPENCODE_PAT }}"
+        ):
+            sink.append("maintainer.yml(pat-merge-env-not-exact)")
+        pat_run = pat.get("run")
+        if not isinstance(pat_run, str) or not pat_run.strip():
+            sink.append("maintainer.yml(pat-merge-run-missing)")
+        else:
+            write("pat.run", pat_run)
     hits = [
         step
         for step in steps
@@ -15721,8 +16110,115 @@ if test_doc is not None:
         validate_test(test_prompt_rewrite_mutant, test_prompt_rewrite_local)
         if not any("test.yml(agent-prompt-not-exact" in p for p in test_prompt_rewrite_local):
             problems.append("test.yml(structural-self-test-agent-prompt-not-exact)")
+        # Issue #713 review round 10: the round-9 PR-head isolation must not be
+        # revertible without R30 going red. Each demonstrated revert is run
+        # through the real validator and must produce its named tag.
+        test_actor_revert = copy.deepcopy(test_doc)
+        for step in test_actor_revert["jobs"]["test"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == ARM_ACTOR_NAME:
+                step["run"] = "bash .github/scripts/actor-write-gate.sh"
+        test_actor_local = []
+        validate_test(test_actor_revert, test_actor_local)
+        if not any(
+            "test.yml(actor-gate-runs-head-script" in p for p in test_actor_local
+        ):
+            problems.append("test.yml(structural-self-test-actor-head-script)")
+        test_restore_revert = copy.deepcopy(test_doc)
+        for step in test_restore_revert["jobs"]["test"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == ARM_RESTORE_NAME:
+                step["run"] = (
+                    "if [ -f .github/actions/opencode-run/action.yml ]; then\n"
+                    "  exit 0\n"
+                    "fi\n" + step["run"]
+                )
+        test_restore_local = []
+        validate_test(test_restore_revert, test_restore_local)
+        if not any("test.yml(restore-early-exit" in p for p in test_restore_local):
+            problems.append("test.yml(structural-self-test-restore-early-exit)")
+        test_env_revert = copy.deepcopy(test_doc)
+        for step in test_env_revert["jobs"]["test"]["steps"]:
+            if isinstance(step, dict) and step.get("id") == "test":
+                step["env"].pop("OPENCODE_DISABLE_PROJECT_CONFIG", None)
+        test_env_local = []
+        validate_test(test_env_revert, test_env_local)
+        if not any(
+            "test.yml(agent-env-project-config-enabled" in p
+            for p in test_env_local
+        ):
+            problems.append("test.yml(structural-self-test-agent-env-project-config)")
+        test_actor_keys_revert = copy.deepcopy(test_doc)
+        for step in test_actor_keys_revert["jobs"]["test"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == ARM_ACTOR_NAME:
+                step["continue-on-error"] = True
+        test_actor_keys_local = []
+        validate_test(test_actor_keys_revert, test_actor_keys_local)
+        if not any(
+            "test.yml(actor-gate-keys-not-exact" in p
+            for p in test_actor_keys_local
+        ):
+            problems.append("test.yml(structural-self-test-actor-keys-override)")
     except Exception:
         problems.append("test.yml(structural-self-test-prompt-stage-rewrite)")
+
+try:
+    review_doc = load(REVIEW_WF)
+except Exception as exc:
+    problems.append("review.yml(yaml-parse-error:%s)" % exc)
+    review_doc = None
+if review_doc is not None:
+    validate_review(review_doc, problems)
+    try:
+        review_actor_revert = copy.deepcopy(review_doc)
+        for step in review_actor_revert["jobs"]["review"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == ARM_ACTOR_NAME:
+                step["run"] = "bash .github/scripts/actor-write-gate.sh"
+        review_actor_local = []
+        validate_review(review_actor_revert, review_actor_local)
+        if not any(
+            "review.yml(actor-gate-runs-head-script" in p
+            for p in review_actor_local
+        ):
+            problems.append("review.yml(structural-self-test-actor-head-script)")
+        review_restore_revert = copy.deepcopy(review_doc)
+        for step in review_restore_revert["jobs"]["review"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == ARM_RESTORE_NAME:
+                step["run"] = (
+                    "if [ -f .github/actions/opencode-run/action.yml ]; then\n"
+                    "  exit 0\n"
+                    "fi\n" + step["run"]
+                )
+        review_restore_local = []
+        validate_review(review_restore_revert, review_restore_local)
+        if not any(
+            "review.yml(restore-early-exit" in p for p in review_restore_local
+        ):
+            problems.append("review.yml(structural-self-test-restore-early-exit)")
+        review_env_revert = copy.deepcopy(review_doc)
+        for step in review_env_revert["jobs"]["review"]["steps"]:
+            if isinstance(step, dict) and step.get("id") == "review":
+                step["env"].pop("OPENCODE_DISABLE_PROJECT_CONFIG", None)
+        review_env_local = []
+        validate_review(review_env_revert, review_env_local)
+        if not any(
+            "review.yml(agent-env-project-config-enabled" in p
+            for p in review_env_local
+        ):
+            problems.append(
+                "review.yml(structural-self-test-agent-env-project-config)"
+            )
+        review_actor_keys_revert = copy.deepcopy(review_doc)
+        for step in review_actor_keys_revert["jobs"]["review"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == ARM_ACTOR_NAME:
+                step["continue-on-error"] = True
+        review_actor_keys_local = []
+        validate_review(review_actor_keys_revert, review_actor_keys_local)
+        if not any(
+            "review.yml(actor-gate-keys-not-exact" in p
+            for p in review_actor_keys_local
+        ):
+            problems.append("review.yml(structural-self-test-actor-keys-override)")
+    except Exception:
+        problems.append("review.yml(structural-self-test-actor-head-script)")
 
 try:
     maintainer_doc = load(MAINTAINER_WF)
@@ -15774,6 +16270,38 @@ if maintainer_doc is not None:
             "post-maintainer-comment-keys-not-exact" in p for p in post_keys_local
         ):
             problems.append("maintainer.yml(structural-self-test-post-keys-override)")
+        # Issue #713 review round 10: the parsed PAT step's declarative surface
+        # is load-bearing too. A continue-on-error mutes a failed merge and a
+        # global token breaks the workflow-file merge capability.
+        pat_guard_mutants = []
+        pat_keys_mutant = copy.deepcopy(maintainer_doc)
+        for step in pat_keys_mutant["jobs"]["maintainer"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == PAT_STEP_NAME:
+                step["continue-on-error"] = True
+        pat_guard_mutants.append(
+            (pat_keys_mutant, "pat-merge-keys-not-exact")
+        )
+        pat_env_mutant = copy.deepcopy(maintainer_doc)
+        for step in pat_env_mutant["jobs"]["maintainer"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == PAT_STEP_NAME:
+                step["env"]["GH_TOKEN"] = "${{ github.token }}"
+        pat_guard_mutants.append(
+            (pat_env_mutant, "pat-merge-env-not-exact")
+        )
+        pat_if_mutant = copy.deepcopy(maintainer_doc)
+        for step in pat_if_mutant["jobs"]["maintainer"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == PAT_STEP_NAME:
+                step["if"] = "always()"
+        pat_guard_mutants.append(
+            (pat_if_mutant, "pat-merge-if-not-exact")
+        )
+        for mutant, needle in pat_guard_mutants:
+            pat_guard_local = []
+            validate_maintainer(mutant, pat_guard_local)
+            if not any(needle in p for p in pat_guard_local):
+                problems.append(
+                    "maintainer.yml(structural-self-test-pat-%s)" % needle
+                )
     except Exception:
         problems.append("maintainer.yml(structural-self-test-post-marker-decoy)")
 
@@ -16186,8 +16714,8 @@ r30_owner_pin() {
 }
 if [ ! -f "$R30_WF" ]; then
   r30_bad="${r30_bad} opencode-eval.yml(missing)"
-elif [ ! -f "$r30_struct_dir/bind.run" ] || [ ! -f "$r30_struct_dir/marker.run" ] || [ ! -f "$r30_struct_dir/post.run" ] || [ ! -f "$r30_struct_dir/forward.run" ] || [ ! -f "$r30_struct_dir/prinfo.run" ] || [ ! -f "$r30_struct_dir/context.run" ] || [ ! -f "$r30_struct_dir/memory.run" ] || [ ! -f "$r30_struct_dir/verify.run" ] || [ ! -f "$r30_struct_dir/evidence.run" ] || [ ! -f "$r30_struct_dir/clear.run" ] || [ ! -f "$r30_struct_dir/actor.run" ] || [ ! -f "$r30_struct_dir/configure.run" ] || [ ! -f "$r30_struct_dir/restore.run" ]; then
-  r30_bad="${r30_bad} opencode-eval.yml(bind-marker-post-forward-prinfo-context-memory-verify-evidence-clear-actor-configure-restore-step-missing-or-renamed)"
+elif [ ! -f "$r30_struct_dir/bind.run" ] || [ ! -f "$r30_struct_dir/marker.run" ] || [ ! -f "$r30_struct_dir/post.run" ] || [ ! -f "$r30_struct_dir/forward.run" ] || [ ! -f "$r30_struct_dir/prinfo.run" ] || [ ! -f "$r30_struct_dir/context.run" ] || [ ! -f "$r30_struct_dir/memory.run" ] || [ ! -f "$r30_struct_dir/verify.run" ] || [ ! -f "$r30_struct_dir/evidence.run" ] || [ ! -f "$r30_struct_dir/clear.run" ] || [ ! -f "$r30_struct_dir/actor.run" ] || [ ! -f "$r30_struct_dir/configure.run" ] || [ ! -f "$r30_struct_dir/restore.run" ] || [ ! -f "$r30_struct_dir/pat.run" ]; then
+  r30_bad="${r30_bad} eval-or-maintainer(bind-marker-post-forward-prinfo-context-memory-verify-evidence-clear-actor-configure-restore-or-pat-step-missing-or-renamed)"
 else
   r30_bind_block=$(cat "$r30_struct_dir/bind.run" 2>/dev/null || true)
   r30_marker_block=$(cat "$r30_struct_dir/marker.run" 2>/dev/null || true)
@@ -16202,6 +16730,7 @@ else
   r30_actor_block=$(cat "$r30_struct_dir/actor.run" 2>/dev/null || true)
   r30_configure_block=$(cat "$r30_struct_dir/configure.run" 2>/dev/null || true)
   r30_restore_block=$(cat "$r30_struct_dir/restore.run" 2>/dev/null || true)
+  r30_pat_parsed=$(cat "$r30_struct_dir/pat.run" 2>/dev/null || true)
   # Issue #713 review round 3 finding 1: the eval verdict must be bound to the
   # head it evaluated and the trigger that started the run, so the marker and
   # the sweep can never merge a head the Evaluator never examined.
@@ -16389,9 +16918,27 @@ else
       if [ -z "$head_expect" ] || [ -z "$head_region" ] || [ "$head_region" != "$head_expect" ]; then
         bad="${bad} maintainer.yml(head-push-binding-block-not-exact)"
       fi
+      # Issue #713 review round 10: the head-push region ends at the tester
+      # stale-check `fi`, so a writer inserted after it (the demonstrated
+      # `eval "head_push_time=0"`) kept the region pin and the line count
+      # green. Pin the ENTIRE run body line-exact instead, and extend the
+      # alternate-writer ban to eval/let/source/dot so the quoted spelling is
+      # rejected by name even if the exact pin regresses.
+      local pat_body
+      pat_body=$(printf '%s\n' "$block" | awk \
+        '/^        run: \|/ { f=1; next } f && /^      - name: / { exit } f { print }')
+      if [ -z "$(pat_expected_block | pat_norm_region)" ]; then
+        bad="${bad} maintainer.yml(pat-body-expected-missing)"
+      elif [ -z "$(printf '%s\n' "$pat_body" | pat_norm_region)" ] \
+        || ! pat_block_exact "$pat_body" "$(pat_expected_block)"; then
+        bad="${bad} maintainer.yml(pat-merge-run-block-not-exact)"
+      fi
       printf '%s\n' "$block" | grep -vE '^[[:space:]]*#' \
-        | grep -qE '(printf[[:space:]]+-v|read|declare|typeset|export)[[:space:]][^#]*head_push_time' \
+        | grep -qE '(printf[[:space:]]+-v|read|declare|typeset|export)[[:space:]][^#]*head_push_time|(eval|let|source|\.)[[:space:]]+[^#]*head_push_time=' \
         && bad="${bad} maintainer.yml(head_push_time-alternate-writer)"
+      printf '%s\n' 'eval "head_push_time=0"' \
+        | grep -qE '(printf[[:space:]]+-v|read|declare|typeset|export)[[:space:]][^#]*head_push_time|(eval|let|source|\.)[[:space:]]+[^#]*head_push_time=' \
+        || bad="${bad} maintainer.yml(self-test-eval-writer-vocabulary)"
       printf '%s\n' "$block" | grep -qF 'approve_eval_time=$(printf' || bad="${bad} maintainer.yml(eval-marker-time-not-parsed)"
       printf '%s\n' "$block" | grep -qF 'sub("^eval-head: "; "")' || bad="${bad} maintainer.yml(eval-head-not-parsed)"
       printf '%s\n' "$block" | grep -qF 'sub("^eval-trigger: "; "")' || bad="${bad} maintainer.yml(eval-trigger-not-parsed)"
@@ -16433,6 +16980,20 @@ else
       printf '%s' "$bad"
     }
     r30_bad="${r30_bad}$(r30_check_pat_block "$r30_pat_block")"
+    # The sed extraction above is pinned whole-body, and this parsed-YAML copy
+    # is the authoritative one: a YAML decoy block scalar or the `run: |2`
+    # spelling can shadow the sed view but not the scalar GitHub executes.
+    if [ -z "$(printf '%s\n' "$r30_pat_parsed" | pat_norm_region)" ]; then
+      r30_bad="${r30_bad} maintainer.yml(pat-merge-parsed-run-missing)"
+    elif ! pat_block_exact "$r30_pat_parsed" "$(pat_expected_block)"; then
+      r30_bad="${r30_bad} maintainer.yml(pat-merge-parsed-run-not-exact)"
+    fi
+    # Round-10 mutation self-test: the demonstrated writer after the tester
+    # stale-check `fi` must break the whole-body pin, so a vacuous comparison
+    # cannot stay green.
+    r30_pat_mut=$(printf '%s\n' "$r30_pat_parsed" | pat_eval_mutation)
+    pat_block_exact "$r30_pat_mut" "$(pat_expected_block)" \
+      && r30_bad="${r30_bad} maintainer.yml(self-test-pat-eval-writer-not-caught)"
     r30_eval_line=$(printf '%s\n' "$r30_pat_block" | sed 's/^[[:space:]]*//' | grep -vE '^#' | grep -F 'eval_marker=$(echo "$comments" | jq -c ' | head -1 || true)
     # Mutation self-tests: each demonstrated escape must be caught by the
     # exact pin function above, not merely by a textual coincidence.
@@ -16468,6 +17029,13 @@ else
     case "$(r30_check_pat_block "$r30_mut")" in
       *head-push-binding-block-not-exact*|*head_push_time-alternate-writer*) : ;;
       *) r30_bad="${r30_bad} maintainer.yml(self-test-head-push-writer-not-caught)" ;;
+    esac
+    # Issue #713 review round 10: the demonstrated quoted eval writer after
+    # the tester stale-check `fi` must trip the whole-body pin.
+    r30_mut=$(printf '%s\n' "$r30_pat_block" | pat_eval_mutation)
+    case "$(r30_check_pat_block "$r30_mut")" in
+      *pat-merge-run-block-not-exact*|*head_push_time-alternate-writer*) : ;;
+      *) r30_bad="${r30_bad} maintainer.yml(self-test-pat-eval-writer-not-caught)" ;;
     esac
     r30_mut="${r30_pat_block//\/opencode eval/\/oc eval}"
     case "$(r30_check_pat_block "$r30_mut")" in

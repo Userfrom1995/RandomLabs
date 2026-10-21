@@ -67,7 +67,7 @@ jobs:
           fi
           echo "Staged .github/agents/tester.md from workflow commit ${GITHUB_SHA} at ${prompt_file}; the PR-head edition is never read."
 
-      - name: Actor write gate (issue #428)
+      - name: "Actor write gate (issue #428)"
         id: actor_gate
         shell: bash
         env:
