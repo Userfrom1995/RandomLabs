@@ -83,8 +83,10 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          # Headless logic smoke always runs; when the setup exe exists its
-          # payload is verified too (install path runs on CI with -Install).
+          # Headless logic smoke always runs. CI passes -Setup but never
+          # -Install, so the setup check covers only its existence plus the
+          # version in its filename; payload verification, install, and
+          # uninstall-clean run only under -Install, which CI does not pass.
           powershell -ExecutionPolicy Bypass -File pet\packaging\smoke-windows.ps1
           $setup = Get-ChildItem dist/desktop-pet-setup-*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($setup) {
