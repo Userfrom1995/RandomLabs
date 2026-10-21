@@ -474,6 +474,107 @@ async function shot(ws, path) {
   assert((await themeLabel()) === 'Dusk Pond (1/3)',
     'clearing high contrast restores the stored theme label');
 
+  // Every screen panel is a viewport overlay with a pinned action row:
+  // Help, Scores, and Settings must open fully on-screen with their primary
+  // control hit-testable at both the mobile and desktop viewports. Game over
+  // is measured synchronously (the render loop would hide a non-current
+  // screen) so its footer geometry is covered without faking a run.
+  async function panelGeometry(id, primaryId) {
+    return evalJs(ws, `(() => {
+      const p = document.getElementById(${JSON.stringify(id)});
+      const a = p.querySelector('.panel-actions');
+      const b = document.getElementById(${JSON.stringify(primaryId)});
+      const r = p.getBoundingClientRect(), ar = a ? a.getBoundingClientRect() : r;
+      const br = b.getBoundingClientRect();
+      const hit = document.elementFromPoint(br.x + br.width / 2, br.y + br.height / 2);
+      return [r.top, r.bottom, ar.bottom, br.bottom, innerHeight, innerWidth,
+        r.left, r.right, br.top, br.left, br.right,
+        (hit === b || b.contains(hit)) ? 1 : 0,
+        r.top >= 0 && r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight ? 1 : 0,
+        ar.bottom <= innerHeight ? 1 : 0,
+        !!p.querySelector('.panel-scroll') ? 1 : 0];
+    })()`);
+  }
+  for (const [vw, vh] of [[1440, 900], [390, 844]]) {
+    await send(ws, 'Emulation.setDeviceMetricsOverride', { width: vw, height: vh, deviceScaleFactor: 2, mobile: vw < 700 });
+    await sleep(400);
+    for (const [btn, panel, primary, label] of [
+      ['btn-title-help', 'panel-help', 'btn-help-back', 'Help'],
+      ['btn-title-scores', 'panel-scores', 'btn-scores-back', 'Scores'],
+      ['btn-title-settings', 'panel-settings', 'btn-settings-back', 'Settings'],
+    ]) {
+      await evalJs(ws, `window.__mazeExports.mc_press(1)`);
+      await sleep(150);
+      await evalJs(ws, `document.getElementById(${JSON.stringify(btn)}).click()`);
+      await sleep(250);
+      const g = await panelGeometry(panel, primary);
+      console.log(`${label} panel ${vw}x${vh}:`, JSON.stringify(g));
+      assert(g[12] === 1, `${label} panel is fully inside ${vw}x${vh} (${g[0]}..${g[1]} of ${g[4]})`);
+      assert(g[13] === 1 && g[3] <= g[4], `${label} action row is pinned on-screen at ${vw}x${vh}`);
+      assert(g[11] === 1, `${label} primary action is hit-testable at ${vw}x${vh}`);
+      assert(g[14] === 1, `${label} body is a scroll region at ${vw}x${vh}`);
+    }
+    // Game over: the rAF loop would immediately re-hide it, so flip the
+    // attribute, measure, and restore in one synchronous evaluation.
+    const over = await evalJs(ws, `(() => {
+      const p = document.getElementById('panel-over');
+      const was = p.hidden;
+      p.hidden = false;
+      const a = p.querySelector('.panel-actions');
+      const b = document.getElementById('btn-over-restart');
+      const r = p.getBoundingClientRect(), ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
+      const hit = document.elementFromPoint(br.x + br.width / 2, br.y + br.height / 2);
+      p.hidden = was;
+      return [r.top, r.bottom, ar.bottom, br.bottom, innerHeight, innerWidth,
+        r.left, r.right, (hit === b || b.contains(hit)) ? 1 : 0,
+        r.top >= 0 && r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight ? 1 : 0,
+        ar.bottom <= innerHeight ? 1 : 0, !!p.querySelector('.panel-scroll') ? 1 : 0];
+    })()`);
+    console.log(`Game over panel ${vw}x${vh}:`, JSON.stringify(over));
+    assert(over[9] === 1, `Game over panel is fully inside ${vw}x${vh} (${over[0]}..${over[1]} of ${over[4]})`);
+    assert(over[10] === 1 && over[3] <= over[4], `Game over action row is pinned on-screen at ${vw}x${vh}`);
+    assert(over[8] === 1, `Game over primary action is hit-testable at ${vw}x${vh}`);
+    assert(over[11] === 1, `Game over body is a scroll region at ${vw}x${vh}`);
+  }
+  await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+  await sleep(400);
+  const mobileHud = await evalJs(ws, `(() => {
+    const h = document.getElementById('hud');
+    const d = document.getElementById('hud-dots-bar');
+    const f = document.getElementById('hud-fps');
+    const r = h.getBoundingClientRect(), dr = d.getBoundingClientRect();
+    return [r.top, r.bottom, innerHeight, dr.width, f.hidden ? 0 : 1,
+      getComputedStyle(f).display, (window.__mazeExports.mc_dots_total() >>> 0),
+      (window.__mazeExports.mc_show_fps() >>> 0)];
+  })()`);
+  console.log('mobile HUD geometry:', JSON.stringify(mobileHud));
+  assert(mobileHud[1] <= mobileHud[2], `mobile HUD fits above the fold (${mobileHud[1]} <= ${mobileHud[2]})`);
+  assert(mobileHud[3] > 100, 'dots completion bar has real width on mobile');
+  assert(mobileHud[4] === 0 && mobileHud[5] === 'none', 'frame diagnostics are hidden by default');
+  assert(mobileHud[6] === 449, 'pickups total reports the full 445 crumbs plus 4 sunseeds');
+  assert(mobileHud[7] === 0, 'frame-diagnostics setting starts off');
+  await evalJs(ws, `(() => {
+    const f = document.getElementById('chk-fps');
+    f.checked = true; f.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+  await sleep(400);
+  const fpsOn = await evalJs(ws, `(() => {
+    const f = document.getElementById('hud-fps');
+    return [f.hidden ? 0 : 1, getComputedStyle(f).display,
+      (window.__mazeExports.mc_show_fps() >>> 0)];
+  })()`);
+  assert(fpsOn[0] === 1 && fpsOn[1] !== 'none' && fpsOn[2] === 1,
+    'Settings frame diagnostics reveal the FPS row');
+  await evalJs(ws, `(() => {
+    const f = document.getElementById('chk-fps');
+    f.checked = false; f.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+  await sleep(400);
+  assert((await evalJs(ws, `document.getElementById('hud-fps').hidden`)) === true,
+    'frame diagnostics hide again when switched off');
+  await send(ws, 'Emulation.clearDeviceMetricsOverride');
+  await sleep(400);
+
   const realErrors = errors.filter((e) => !/AudioContext|audio|user gesture/i.test(e));
   console.log('console/log errors:', realErrors.length ? realErrors : '(none)');
   assert(realErrors.length === 0, 'zero console errors');

@@ -195,6 +195,12 @@ pub extern "C" fn mc_dots_left() -> u32 {
     session().game().dots_left() as u32
 }
 
+/// Total pickups on a fresh level (crumbs plus sunseeds).
+#[no_mangle]
+pub extern "C" fn mc_dots_total() -> u32 {
+    session().game().maze.total_pickups() as u32
+}
+
 /// 1 while a fright window runs.
 #[no_mangle]
 pub extern "C" fn mc_fright_active() -> u32 {
@@ -367,6 +373,18 @@ pub extern "C" fn mc_high_contrast() -> u32 {
 #[no_mangle]
 pub extern "C" fn mc_set_high_contrast(on: u32) {
     session().settings_mut().high_contrast = on != 0;
+}
+
+/// 1 when frame diagnostics are shown in the web HUD.
+#[no_mangle]
+pub extern "C" fn mc_show_fps() -> u32 {
+    u32::from(session().settings().show_fps)
+}
+
+/// Set frame diagnostics visibility.
+#[no_mangle]
+pub extern "C" fn mc_set_show_fps(on: u32) {
+    session().settings_mut().show_fps = on != 0;
 }
 
 /// Scratch buffer for blob/name transfers (4096 bytes).
