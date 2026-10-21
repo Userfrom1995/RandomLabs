@@ -291,10 +291,20 @@ mod tests {
                 ("dim_text", t.dim_text),
                 ("accent", t.accent),
             ];
+            let marker = format!("\"{}\": {{", t.id);
             let start = tokens
-                .find(&format!("\"{}\": {{", t.id))
+                .find(&marker)
                 .unwrap_or_else(|| panic!("tokens missing theme {}", t.id));
-            let theme = &tokens[start..];
+            let pond = tokens
+                .find("\"pondwake_themes\":")
+                .expect("tokens missing the pondwake_themes companion");
+            assert!(
+                start < pond,
+                "theme {} must be in the themes map, not pondwake_themes",
+                t.id
+            );
+            let end = start + tokens[start..].find('}').expect("theme object must close") + 1;
+            let theme = &tokens[start..end];
             for (slot, color) in pairs {
                 assert!(
                     theme.contains(&format!("\"{slot}\": \"{}\"", hex(color))),
