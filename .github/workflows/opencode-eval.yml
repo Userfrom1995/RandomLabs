@@ -27,9 +27,9 @@ concurrency:
 jobs:
   eval:
     # Triggered explicitly by /oc eval (called after Tester approval in the pipeline).
-    # Result comments never retrigger: they post as github-actions[bot] WITHOUT a
-    # leading /oc prefix, and this guard excludes any legacy "/oc eval result" body
-    # so a rejection can never self-dispatch an infinite eval loop.
+    # Result comments never retrigger: they post with the owner PAT WITHOUT a
+    # leading /oc prefix, and this guard excludes any legacy "/oc eval result"
+    # body so a rejection can never self-dispatch an infinite eval loop.
     if: |
       github.event.issue.pull_request != null && (
         startsWith(github.event.comment.body, '/oc eval') ||
@@ -340,7 +340,7 @@ jobs:
           # Issue #713: the signed result must actually be on the thread before
           # any approval marker can be published, so the marker step is gated on
           # this step's outcome. Post through the API, capture the comment id,
-          # and re-fetch it to verify bot authorship and the exact body; a
+          # and re-fetch it to verify owner authorship and the exact body; a
           # failed or unverifiable post fails this step closed instead of
           # leaving an approval marker without its signed verdict.
           echo "Posting evaluation result to PR/issue..."
@@ -501,5 +501,11 @@ jobs:
           git commit -m "evaluator: update memory branch with evaluation turn for PR ${{ github.event.issue.number }}" || true
           # The App token is read-only now, so authenticate this best-effort
           # push with the owner PAT explicitly (issue #713 review round 13).
+          # checkout v6 stores the App-token extraheader in a RUNNER_TEMP
+          # config referenced via includeIf.gitdir:*; a plain unset cannot
+          # remove it, so clear those includes as the maintainer sweep does.
           git config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
+          for cfg in $(git config --local --name-only --get-regexp '^includeIf\.gitdir:.*\.path$' 2>/dev/null); do
+            git config --local --unset-all "$cfg" 2>/dev/null || true
+          done
           git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" evaluator/logs --force-with-lease || true

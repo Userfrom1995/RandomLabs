@@ -15089,7 +15089,7 @@ EXPECTED_CONCURRENCY = {
 # constants pin both the staged source content and the staging step bodies.
 # A legitimate prompt or staging-step change updates the matching constant in
 # the same PR.
-EXPECTED_EVAL_PROMPT_SHA256 = "dbe5fd80e6ecaf6dfee84a1f6f6441d75ea4ce1ef7ea662d5debc61fc07a8467"
+EXPECTED_EVAL_PROMPT_SHA256 = "9c6559f33ac16486c5e47a98e7bf9cc1950fc6427918d9ee0bca83e75753a942"
 EXPECTED_TEST_PROMPT_SHA256 = "e8d8f6dba7071a7af9e16b54ac339f735cf239da03be9dba49a2b2f77ac98824"
 # Issue #713 review round 9: the Tester agent's with.prompt scalar is part of
 # the gate contract too (it carries the live-execution and decision-file
@@ -17403,6 +17403,9 @@ echo "- Action: $(jq -r '.action // \"unknown\"' /tmp/evaluator-decision.json 2>
 git add lab/memory/evaluator/
 git commit -m "evaluator: update memory branch with evaluation turn for PR ${{ github.event.issue.number }}" || true
 git config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
+for cfg in $(git config --local --name-only --get-regexp '^includeIf\.gitdir:.*\.path$' 2>/dev/null); do
+git config --local --unset-all "$cfg" 2>/dev/null || true
+done
 git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" evaluator/logs --force-with-lease || true
 R30MEMORY
 }
