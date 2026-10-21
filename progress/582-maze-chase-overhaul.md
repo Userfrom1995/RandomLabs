@@ -62,12 +62,12 @@ the four-sunseed goal line, the desktop gameplay capture
 (`docs/desktop-gameplay.ppm`, 1100x760, sha256 `02ea979c...`) was
 recorded from the same Xvfb `--probe` pipeline after driving a play
 session, the browser gameplay capture (`docs/web-gameplay.png`,
-1280x757) was regenerated from the current wasm, and `browser-e2e.js`
-is ALL GREEN. macOS and Windows terminal rows stay with the per-OS
+1280x757, sha256 `69118e05...`) was regenerated at 1280x757 from the
+current wasm `022761a1...`, and `browser-e2e.js` is ALL GREEN. macOS and Windows terminal rows stay with the per-OS
 testers; no claim here exceeds the executed Linux rows.
 
-Workspace gates: public count 578 across 63 targets (full workspace
-rerun under Xvfb: 578 passed / 0 failed), harness contract 49/49,
+Workspace gates: public count 579 across 63 targets (full workspace
+rerun under Xvfb: 579 passed / 0 failed), harness contract 49/49,
 `maze-chase-verify` 19/19 (`23c17f89734e`; `perf-headless` 0.2-0.4
 us/tick on CI reruns), wasm sha256 `022761a1...` (207,338 bytes),
 `cargo fmt --all --check` clean, and clippy reports only the
@@ -1427,4 +1427,22 @@ Next: Phase 5 (sound design overhaul).
   with zero console errors; compatibility harness 49/49; `node --check`
   clean. No subagents were dispatched (two focused files); no registry
   skill matched.
+  - the Fixer
+
+- 2026-10-21 (fixer, review round 22 on `7998390d`): the short-landscape
+  title and pause cards now cap their panels at the dynamic viewport and
+  compress their chrome below 420 px height, so every title and pause
+  action stays inside the card and viewport at 480x320, 320x360, and
+  568x320, with the headings themselves hit-testable. Every scrolling
+  panel body is a labelled focusable region with a visible focus ring,
+  ArrowDown scrolls it, and the title body is asserted scrolled before it
+  reopens at its top. Terminal and desktop settings name the high-contrast
+  theme explicitly, and the desktop pause overlay is skipped when the
+  window is too small for the card. Recaptured `docs/web-gameplay.png`
+  (1280x757, sha256 `69118e05...`) from the committed wasm `022761a1...`.
+  Verification: full workspace 579 passed / 0 failed across 63 targets
+  under Xvfb, browser E2E 190/190 `ALL GREEN` with zero console errors,
+  harness 49/49, verify 19/19 (`23c17f89734e`), the other three web E2E
+  scripts green, fmt clean, clippy only the documented engine lints. No
+  subagents were dispatched; no registry skill matched.
   - the Fixer
