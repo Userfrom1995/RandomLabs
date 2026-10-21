@@ -456,3 +456,13 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   at 143x64; the desktop `--probe 90` reproduced `docs/desktop-probe.ppm`
   byte-for-byte (`9abc9150...`); the committed wasm is `022761a1...`
   (207,338 bytes).
+
+- Review round 29 fixes the web rebind capture state: an unmapped key
+  (for example `F1`) during a rebind capture now cancels the Rust-side
+  capture as well as the visible UI, so the next key still performs its
+  shortcut instead of completing the abandoned capture. `browser-e2e.js`
+  arms the Pause row, presses `F1`, then proves `M` still toggles mute;
+  the harness passes 218/218 assertions with `E2E: ALL GREEN` and zero
+  console errors. Mutation check: the same block against the pre-fix
+  harness fails the two mute assertions and the later persisted-mute
+  checks. No Rust, wasm, or capture artifact changed.
