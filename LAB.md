@@ -1066,15 +1066,21 @@ summary) and `AI_APICallError: Internal Server Error` (no trailing period; on
 maintainer 39110680183/39110681392 all died on it within 91-199 seconds,
 alongside maintainer 39104695066, whose attempt 1 died the same way at
 07:37:52Z and whose re-run recovered), plus the standard `Bad Gateway` /
-`Service Unavailable` / `Gateway Timeout` phrases. Both runner paths retry the SAME model exactly once per arm on an
+`Service Unavailable` / `Gateway Timeout` phrases, and (issue #717) the
+retryable upstream-endpoint form `AI_APICallError: Upstream request failed:
+Endpoint is unavailable.` (statusCode 429, `type: server_error`; matched by
+its bounded `Upstream request failed: ` phrase family). Both runner paths
+retry the SAME model exactly once per arm on an
 anchored terminal line of that shape (same tail + column-0 form as the
 #591/#620 detectors, so the summary line, a transcript echo, a phrase
 variant, or the envelope never consumes the retry) after a 30-second
 backoff; a second terminal rejection fails loudly, propagating the
-provider's own exit status on the nonzero path. The stall budget, the HTTP
-budget, and the free-tier budget are independent of one another (the HTTP
-and stall budgets are shared across ladder rungs, like the free-tier one),
-each capped at one retry. R15 is extended to enforce all of it: the #653 detector is
+provider's own exit status on the nonzero path. A persistent upstream-endpoint
+occurrence does not advance the ladder: every rung resolves through the same
+free-model gateway, so the fresh-run re-dispatch is the recovery lane. The
+stall budget, the HTTP budget, and the free-tier budget are independent of
+one another (the HTTP and stall budgets are shared across ladder rungs, like
+the free-tier one), each capped at one retry. R15 is extended to enforce all of it: the #653 detector is
 executed functionally over its accept/reject matrix plus the tail-window
 39/40 boundary, and the behavioral matrix adds HTTP recovery on both exit
 shapes (backoff value-scoped and wait-ordered, so a backgrounded, revalued,
