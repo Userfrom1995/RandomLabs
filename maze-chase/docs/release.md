@@ -4,9 +4,10 @@ One set of instructions that rebuilds every shippable artifact from a
 clean checkout: the engine checks, all three publication layers, every
 packaging script, and the committed WebAssembly blob. Follow this file
 top to bottom on a fresh machine and you get the release. The verified
-release executed these steps on Linux, macOS, and Windows; the measured
-record lives in [scoreboard.md](scoreboard.md) and the signed parity
-gate in [parity.md](parity.md).
+release executed these steps on Linux on this tree; the macOS and Windows
+runs are the pre-Pondwake record, with fresh reruns tracked in the final
+sign-off. The measured record lives in [scoreboard.md](scoreboard.md)
+and the signed parity gate in [parity.md](parity.md).
 
 ## Toolchain
 

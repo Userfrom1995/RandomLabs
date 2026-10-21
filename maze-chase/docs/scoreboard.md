@@ -351,9 +351,9 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   after the renderer fixes at `e938ce5a` (binary
   `e06807bc1f4c0d3fb98552d436c5f4222b28d97cc25ea685d639475154bdc7e0`,
   `sources_dirty=false`, `pause_select=1`). Every row records
-  `disposition: pass`; kitty-graphics rows carry 169.6-175.0 KiB per
+  `disposition: pass`; kitty-graphics rows carry 169.9-175.4 KiB per
   session with 163-271 exact sprite-palette pixels in the playing
-  capture, and the VT340 rows carry 137-139 transmits / 4.27-4.33 MiB.
+  capture, and the VT340 rows carry 137-138 transmits / 4.25-4.31 MiB.
   The two Ghostty rows remain the `90cb9b87` record and are labeled
   pre-fix in `docs/terminal-compat.md`; the final sign-off phase reruns
   them. The evidence bundles under `tools/compat/evidence/` and their
@@ -404,3 +404,16 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   (PAUSED paint plus 0.55 <= dominant < 1.0). The wasm rebuild is
   `022761a1...` (207,338 bytes, second clean build byte-identical) on
   rustc 1.99.1 commit `58cf8f9c3`.
+- Tester HUD-floor round (head `3b05525c` plus this fix): the committed
+  `tester_hud_floor` pixel test caught the full desktop HUD's TUNE row
+  painting through the bottom hint bar at the old 363 px compact/full
+  switch. The full stack now starts at 365 px (363-364 use the compact
+  stack), and the pixel tests pin both sides of the switch. Public
+  workspace rerun under Xvfb: 578 passed / 0 failed across 63 targets;
+  harness 49/49; `maze-chase-verify` 19/19 (golden replay `23c17f89734e`);
+  all four web E2E scripts green. Current-state evidence claims corrected
+  against the committed JSONs: kitty rows 169.9-175.4 KiB per session;
+  VT340 rows 137-138 transmits / 4.25-4.31 MiB; Sixel playing 29.7 KiB
+  mean wire frame / 29.9 KiB peak / 554 KiB/s (471 KiB/s payload); xterm
+  light 1.85% white while playing. The macOS and Windows release rows are
+  qualified as pre-Pondwake in `release.md` and `docs/index.md`.
