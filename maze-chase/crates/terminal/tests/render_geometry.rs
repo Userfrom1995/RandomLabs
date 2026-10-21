@@ -31,7 +31,7 @@ const PLAYING_HINT: &str = "Arrows/WASD move";
 const WINDOW_COLS: u16 = 62;
 const WINDOW_ROWS: u16 = 35;
 const BOARD_X: usize = 3;
-const BOARD_Y: usize = 2;
+const BOARD_Y: usize = 3;
 /// Maze row 4 is `#..........................#`: border walls, dot corridor.
 const ROW_TY: usize = 4;
 

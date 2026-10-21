@@ -4,7 +4,7 @@
 //! 1. `live_kitty_goldens_cover_wide_and_tall_rooms` - the two plans the
 //!    F1 fix exists for, driven through the shipped binary on a real PTY:
 //!    200x60 settles on the 7x1 wide band (board 196x31 at (2, 15)) and
-//!    62x80 on the 2x2 tall band (board 56x62 at (3, 9)). The exact Kitty
+//!    62x80 on the 2x2 tall band (board 56x62 at (3, 10)). The exact Kitty
 //!    display footprint and the centered cursor position are pinned from
 //!    the wire bytes, and the `MAZE_CHASE_TRACE` plan record must carry
 //!    the new pixel/image fields the fix added.
@@ -537,7 +537,7 @@ fn live_kitty_goldens_cover_wide_and_tall_rooms() {
     let _ = std::fs::remove_file(&wide_trace);
 
     // 62x80: the old solver settled at 35% coverage; the fixed one lands
-    // on 2x2 band, board (3, 9, 56, 62).
+    // on 2x2 band, board (3, 10, 56, 62).
     let tall_trace = std::env::temp_dir().join(format!(
         "maze-chase-goldens-tall-{}.jsonl",
         std::process::id()
@@ -546,8 +546,8 @@ fn live_kitty_goldens_cover_wide_and_tall_rooms() {
     let mut tall = Session::start("tall", 62, 80, 0, 0, "kitty", Some(&tall_trace));
     tall.reach_playing(HINT_MARKER);
     assert!(
-        tall.wait_display(62, 56, (10, 4), Duration::from_secs(10)),
-        "62x80 never painted the 2x2 band footprint r=62,c=56 at cursor (10,4); tail: {}",
+        tall.wait_display(62, 56, (11, 4), Duration::from_secs(10)),
+        "62x80 never painted the 2x2 band footprint r=62,c=56 at cursor (11,4); tail: {}",
         tail(&tall.out)
     );
     let plans = plan_records(&tall_trace);

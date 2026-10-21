@@ -1,11 +1,11 @@
-//! Tester round-11 contract: the fright badge is HUD information for the
-//! whole active window, while the 30-segment countdown meter joins only for
-//! the final 1.5 s. The design of record lists the fright badge as part of
-//! the play HUD (`docs/design.md`), and the desktop HUD already paints it.
+//! Fright badge contract: the badge names the active window, and the
+//! final 1.5 s shows a fixed 30-segment meter that drains by glyph as
+//! well as brightness. The design of record lists the fright badge and
+//! the 30-segment countdown as part of the play HUD (`docs/design.md`).
 
 use maze_chase_engine::game::Game;
 use maze_chase_terminal::app::App;
-use maze_chase_terminal::chrome::{fright_readout, side_panel, top_bar};
+use maze_chase_terminal::chrome::{fright_lines, fright_readout, side_panel, top_bar};
 use std::path::PathBuf;
 
 fn active_fright(t_left: f32) -> Game {
@@ -24,7 +24,7 @@ fn fright_badge_covers_the_whole_active_window() {
         "3.0 s left is outside the final 1.5 s warning tail"
     );
 
-    let readout = fright_readout(&game, false, 26)
+    let readout = fright_readout(&game, false)
         .expect("active fright must show a HUD badge before the final 1.5 s");
     assert!(
         readout.contains("FRIGHT"),
@@ -37,7 +37,7 @@ fn fright_badge_covers_the_whole_active_window() {
         "wide-window side panel must carry the active fright badge: {panel:?}"
     );
 
-    let bar = top_bar(&game, 0, false, 62);
+    let bar = top_bar(&game, 0, false, 56);
     assert!(
         bar.iter().any(|line| line.contains("FRIGHT")),
         "compact top bar must carry the active fright badge: {bar:?}"
@@ -45,59 +45,61 @@ fn fright_badge_covers_the_whole_active_window() {
 }
 
 #[test]
-fn fright_readout_matches_the_requested_width_at_every_edge() {
-    for reduced in [false, true] {
-        let label = if reduced { "THE TURN ENDS " } else { "FRIGHT " };
-        let label_len = label.chars().count();
-        for max_width in 0..=80 {
-            let game = active_fright(1.2);
-            let readout =
-                fright_readout(&game, reduced, max_width).expect("active fright must read out");
-            if max_width > label_len {
-                assert_eq!(
-                    readout.chars().count(),
-                    max_width,
-                    "width {max_width} reduced={reduced} must fill exactly, got {readout:?}"
-                );
-                assert!(
-                    readout.starts_with(label),
-                    "width {max_width} reduced={reduced} must keep its label, got {readout:?}"
-                );
-                let bars: String = readout.chars().skip(label_len).collect();
-                assert!(
-                    bars.chars().all(|c| c == '█' || c == '░'),
-                    "width {max_width} reduced={reduced} must draw only meter cells, got {readout:?}"
-                );
-            } else {
-                assert_eq!(
-                    readout,
-                    label.trim_end(),
-                    "width {max_width} reduced={reduced} has no room for a meter; the label \
-                     must stay intact for the caller to clip"
-                );
-            }
-        }
+fn fright_meter_is_thirty_shape_distinct_segments() {
+    let late = active_fright(1.2);
+    let readout = fright_readout(&late, false).expect("tail readout");
+    assert_eq!(
+        readout.matches('█').count() + readout.matches('░').count(),
+        30,
+        "the meter is always exactly 30 segments, got {readout:?}"
+    );
+    assert!(
+        readout.contains('█') && readout.contains('░'),
+        "the half-drained meter needs filled and empty glyphs, got {readout:?}"
+    );
+    assert_eq!(readout.matches('█').count(), 24);
+
+    let reduced = fright_readout(&late, true).expect("reduced-flash tail banner");
+    assert!(reduced.starts_with("THE TURN ENDS "), "got {reduced:?}");
+    assert_eq!(reduced.matches('█').count(), 24);
+    assert_eq!(reduced.matches('░').count(), 6);
+
+    let mut previous = 31;
+    let mut t = 1.5f32;
+    while t > 0.0 {
+        let game = active_fright(t);
+        let line = fright_readout(&game, false).expect("tail readout");
+        let lit = line.matches('█').count();
+        assert!(lit <= 30, "t={t} lit={lit} readout={line:?}");
+        assert!(
+            lit <= previous,
+            "t={t} meter must drain, got {lit} after {previous}"
+        );
+        assert_eq!(
+            line.matches('█').count() + line.matches('░').count(),
+            30,
+            "t={t} must keep 30 segments, got {line:?}"
+        );
+        previous = lit;
+        t -= 0.05;
     }
 }
 
 #[test]
-fn fright_meter_still_joins_only_for_the_final_tail() {
-    let early = active_fright(3.0);
-    let early_readout = fright_readout(&early, false, 26).expect("early badge");
-    assert!(
-        !early_readout.contains('█') && !early_readout.contains('░'),
-        "the 30-segment meter must stay out of the early window, got {early_readout:?}"
-    );
-
+fn fright_lines_wrap_the_fixed_meter_inside_a_narrow_panel() {
     let late = active_fright(1.2);
-    let late_readout = fright_readout(&late, false, 26).expect("tail readout");
-    assert_eq!(late_readout.matches('█').count(), 15);
-    assert_eq!(late_readout.matches('░').count(), 4);
-    assert_eq!(late_readout.chars().count(), 26);
-
-    let reduced = fright_readout(&late, true, 26).expect("reduced-flash tail banner");
-    assert!(reduced.starts_with("THE TURN ENDS "), "got {reduced:?}");
-    assert_eq!(reduced.chars().count(), 26);
+    for reduced in [false, true] {
+        let lines = fright_lines(&late, reduced, 26);
+        assert!(
+            lines.iter().all(|line| line.chars().count() <= 26),
+            "{lines:?}"
+        );
+        let bar: String = lines.iter().skip(1).cloned().collect();
+        assert_eq!(bar.matches('█').count(), 24, "{lines:?}");
+        assert_eq!(bar.matches('░').count(), 6, "{lines:?}");
+    }
+    let early = active_fright(3.0);
+    assert_eq!(fright_lines(&early, false, 26), vec!["FRIGHT!".to_string()]);
 }
 
 fn app_dir(name: &str) -> PathBuf {
@@ -129,6 +131,7 @@ fn fright_readout_fits_the_rendered_side_panel_and_top_bar() {
         panel.iter().all(|line| line.chars().count() <= 26),
         "every side-panel line must fit 26 cells: {panel:?}"
     );
+    assert!(panel.iter().any(|l| l.starts_with("DOTS")), "{panel:?}");
 
     let compact_dir = app_dir("compact");
     let mut compact = App::new(62, 35, &[], compact_dir.clone());
@@ -145,7 +148,12 @@ fn fright_readout_fits_the_rendered_side_panel_and_top_bar() {
         "every top-bar line must fit {} cells: {lines:?}",
         bar.w
     );
-    assert!(lines[1].contains("TURN ENDS"), "got {:?}", lines[1]);
+    assert!(lines[2].contains("TURN ENDS"), "got {:?}", lines[2]);
+    assert!(lines[1].contains("DOTS"), "got {:?}", lines[1]);
+    assert_eq!(
+        lines[1].matches('█').count() + lines[1].matches('░').count(),
+        30
+    );
 
     let _ = std::fs::remove_dir_all(dir);
     let _ = std::fs::remove_dir_all(compact_dir);
