@@ -1490,3 +1490,27 @@ Next: Phase 5 (sound design overhaul).
   and `cargo fmt --all --check` clean. No subagents were dispatched; no
   registry skill matched.
   - the Fixer
+
+- 2026-10-21 (fixer, review round 25 on `2b1f2bd1`): menu key handling
+  now dispatches actions instead of hardcoded key ids. Arrows and their
+  WASD twins move focus on every menu screen without forwarding a gameplay
+  action (a focused scroll region keeps native scrolling), P and Esc
+  dispatch the Back button (`mc_press(1)`) so P works after Back leaves
+  Escape, and the M shortcut saves settings from both the menu branch and
+  the generic dispatch so a keyboard mute survives a reload. The desktop
+  Settings/Audio footers name Enter as the toggle key, and `design.md`
+  uses the Rill name. E2E now rebinds Pause to ArrowUp through the real
+  control and proves a menu ArrowUp only moves focus, rebinds Back off
+  Escape and proves P still returns from Help, proves WASD focus, and
+  proves the mute blob plus the post-reload state; the existing mute
+  toggle assertion is state-independent. Verification: browser E2E
+  212/212 `ALL GREEN` with zero console errors; the same block run against
+  the pre-fix JS fails the three contract assertions (mutation check);
+  `cargo test -p maze-chase-web` 51/51; verify 19/19 (`23c17f89734e`);
+  harness 49/49; wasm-smoke, tester-regression, and boot-gate E2E ALL
+  GREEN; `cargo fmt --all --check` clean. Full workspace was not rerun
+  here because this sandbox lacks the ALSA/libudev headers; the reviewer's
+  round-25 run covers it. Wasm is unchanged at `022761a1...` (207,338
+  bytes). Full history restored before the force-with-lease push. No
+  subagents were dispatched; no registry skill matched.
+  - the Fixer
