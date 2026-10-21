@@ -374,3 +374,16 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   shipped no-history-guard Back behavior. Full workspace rerun: 568
   passed / 0 failed across 61 targets; verify 19/19; all four web E2E
   scripts green.
+- Tester verification round (head `23c10464` plus this selection-accent
+  fix): the live run recorded 571 passed / 1 failed across 62 result
+  lines, the only failure the intentional
+  `selected_settings_row_uses_the_theme_accent` PTY test; `paint_panel`
+  now trims the centering padding before testing the `"> "` cursor
+  marker, so the selected Settings/Help/Scores/Rebind row paints in
+  `theme.accent`. With the fix applied the public workspace count is 572
+  passed / 0 failed across 62 targets; harness 47/47; `maze-chase-verify`
+  19/19 (golden replay `23c17f89734e`, 0.2 us/tick); `cargo fmt
+  --all --check` clean; the committed wasm is unchanged at
+  `ae474117...` (206,711 bytes); the desktop probe is byte-identical to
+  `docs/desktop-probe.ppm`; all four web E2E scripts are green with zero
+  console errors.

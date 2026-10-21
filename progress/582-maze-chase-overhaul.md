@@ -71,8 +71,9 @@ wasm, and `browser-e2e.js` is ALL GREEN. macOS and Windows terminal rows
 stay with the per-OS testers; no claim here exceeds the executed Linux
 rows.
 
-Workspace gates: public count 568 across 61 targets (full workspace rerun
-on this head under Xvfb), harness contract 47/47, `maze-chase-verify`
+Workspace gates: public count 572 across 62 targets (the Tester's live
+run recorded 571 passed / 1 intentionally failing selection-accent test
+at `23c10464`; this fix turns it green), harness contract 47/47, `maze-chase-verify`
 19/19 (`23c17f89734e`; `perf-headless` 0.2-0.4 us/tick on CI reruns),
 wasm sha256 `ae474117...`, `cargo fmt --all --check` clean, and clippy
 reports only the pre-existing engine style lints.
@@ -1330,4 +1331,23 @@ Next: Phase 5 (sound design overhaul).
   passed and `tester_fright_badge` 3 passed, JSON parses clean. No
   subagents were dispatched; the primary context edited and tested both
   files. No registry skill matched; none loaded.
+  - the Fixer
+
+- 2026-10-21 (fixer, Tester selection-accent finding on `23c10464`):
+  `paint_panel` now checks `line.trim_start().starts_with("> ")` after
+  `chrome::centered` pads the line, so the selected Settings, Help,
+  Scores, and Rebind rows paint in `theme.accent` like the title and
+  pause selections. The Tester's failing
+  `selected_settings_row_uses_the_theme_accent` PTY test and the control
+  `title_selection_uses_the_theme_accent` both pass on the shipped
+  binary, and the high-contrast repaint/persist and fright-readout width
+  tests stay green. Public counts refreshed to 572 tests across 62
+  targets in `index.html`, `docs/feature-matrix.md`,
+  `docs/scoreboard.md`, and the gates paragraph above. Verification:
+  targeted terminal PTY suite green, harness 47/47, verify 19/19
+  (`23c17f89734e`), fmt clean, clippy only the documented pre-existing
+  engine lints, wasm unchanged `ae474117...` (206,711 bytes), desktop
+  probe byte-identical, web E2E scripts green. No subagents were
+  dispatched (one-file fix plus count refresh); no registry skill
+  matched.
   - the Fixer
