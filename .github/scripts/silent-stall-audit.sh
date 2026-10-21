@@ -4551,8 +4551,12 @@ else
     printf '%s\n' "$r17_block" | grep -qF 'rm -f /tmp/random-lab-decision.json /tmp/random-lab-findings.md' || r17_bad="${r17_bad} arm-${r17_os}(no-findings-clear)"
     printf '%s\n' "$r17_block" | grep -qF 'the COMPLETE findings report as Markdown to `/tmp/random-lab-findings.md`' || r17_bad="${r17_bad} arm-${r17_os}(prompt-not-file-based)"
     printf '%s\n' "$r17_block" | grep -qF '[ -s /tmp/random-lab-findings.md ] || missing="${missing} findings-report"' || r17_bad="${r17_bad} arm-${r17_os}(verify-not-requiring-findings-file)"
-    printf '%s\n' "$r17_block" | grep -qF 'if [ "$need_poster" = "true" ]; then' || r17_bad="${r17_bad} arm-${r17_os}(no-poster-restore-for-older-heads)"
-    printf '%s\n' "$r17_block" | grep -qF 'git archive "${GITHUB_SHA}" -- .github/scripts/post-peros-findings.sh' || r17_bad="${r17_bad} arm-${r17_os}(no-poster-archive-restore)"
+    printf '%s\n' "$r17_block" | grep -qF 'for artifact in .github/actions/opencode-run .github/scripts/post-peros-findings.sh; do' || r17_bad="${r17_bad} arm-${r17_os}(no-unconditional-runner-poster-restore)"
+    printf '%s\n' "$r17_block" | grep -qF 'git archive "${GITHUB_SHA}" -- "$artifact" | tar -x' || r17_bad="${r17_bad} arm-${r17_os}(no-archive-restore)"
+    printf '%s\n' "$r17_block" | grep -qF 'rm -rf "$artifact"' || r17_bad="${r17_bad} arm-${r17_os}(no-pr-head-copy-replace)"
+    if printf '%s\n' "$r17_block" | grep -qF 'nothing to restore'; then
+      r17_bad="${r17_bad} arm-${r17_os}(trusts-present-head-copy)"
+    fi
     printf '%s\n' "$r17_block" | grep -qE '^          bash \.github/scripts/post-peros-findings\.sh '"${r17_os}"' "\$TARGET"$' || r17_bad="${r17_bad} arm-${r17_os}(no-shared-post-step)"
     printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'" || r17_bad="${r17_bad} arm-${r17_os}(post-step-gate-not-exact)"
     # The gate and the github.token env must live on the post step itself, in
@@ -4848,6 +4852,283 @@ R17_MOCK
     fi
   fi
 fi
+# Issue #713 Tester finding: the per-OS arms read their system prompts from
+# the checked-out PR head, so a PR could rewrite its own testing instructions
+# and post a forged eval approval marker. Each arm now stages the reviewed
+# prompt from this run's workflow commit into RUNNER_TEMP and points the agent
+# at the staged copy. The same trust boundary applies to the actor gate (which
+# runs before the agent) and to the vendored runner and findings poster (which
+# execute with the job's token), so all three are pinned to this run's
+# workflow commit as well. Parse the workflow structurally (never raw text) and
+# pin the staging body, the staged reference, the prompt SHA-256, the
+# project-config opt-out, the staged gate body, and the unconditional
+# runner/poster restore. Mutation self-tests below prove each pin load-bearing.
+r17_stage_out=$(R17_LINUX_BLOCK_SHA="98243bff9fdf39653211086006a18275cb9d5a3bf50e23833555cf9492a36935" \
+  R17_MACOS_BLOCK_SHA="b4b54c75c61bceb87716136ad027cde6e6f6a84653ab6ef4e5af6d4390aad012" \
+  R17_WINDOWS_BLOCK_SHA="56267c9b1e7bcc9284e53f18dc36b16bfed8b65af967fbe215392a31ae2890cc" \
+  R17_LINUX_PROMPT_SHA="03ec48753dd116e4df425f729b53568428990397883b8deb5acbda521fbfb732" \
+  R17_MACOS_PROMPT_SHA="c7e0a7d3dbaef162a152e98db92133f8b5b5c79d33c7fabcfad5f6c43fd90923" \
+  R17_WINDOWS_PROMPT_SHA="9be7969c6a321a41682322c20c3b5af07559a63a7d0e59ff874fd7e8d475647d" \
+  R17_GATE_BLOCK_SHA="6e53d7337e64f289668809158a2eb5cf401ed53c415e0f2791788a5b0ccf71bb" \
+  R17_RESTORE_BLOCK_SHA="b7dcef7c1bdc10034cf01a77f55f7834dcbee8dda774042db5112a96ae94b301" \
+  python3 -I - <<'R17STAGEPY'
+import copy
+import hashlib
+import os
+
+import yaml
+
+PEROS = ".github/workflows/opencode-peros-test.yml"
+GATE_NAME = "Actor write gate (issue"
+RESTORE_NAME = "Restore the vendored runner and findings poster from the workflow commit"
+GATE_BLOCK_SHA = os.environ["R17_GATE_BLOCK_SHA"]
+RESTORE_BLOCK_SHA = os.environ["R17_RESTORE_BLOCK_SHA"]
+EXPECTED = (
+    ("test-linux", "Linux", "test", "tester-linux.md",
+     os.environ["R17_LINUX_BLOCK_SHA"], os.environ["R17_LINUX_PROMPT_SHA"]),
+    ("test-macos", "macOS", "test", "tester-macos.md",
+     os.environ["R17_MACOS_BLOCK_SHA"], os.environ["R17_MACOS_PROMPT_SHA"]),
+    ("test-windows", "Windows", "test", "tester-windows.md",
+     os.environ["R17_WINDOWS_BLOCK_SHA"], os.environ["R17_WINDOWS_PROMPT_SHA"]),
+)
+
+
+def normalized_sha(text):
+    lines = [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    return hashlib.sha256("\n".join(lines).encode()).hexdigest()
+
+
+def file_sha256(path):
+    try:
+        with open(path, "rb") as handle:
+            return hashlib.sha256(handle.read()).hexdigest()
+    except OSError:
+        return ""
+
+
+def stage_name(label):
+    return "Stage the %s tester system prompt from the workflow commit" % label
+
+
+def validate(doc, expected):
+    out = []
+    jobs = (doc or {}).get("jobs") if isinstance(doc, dict) else None
+    if not isinstance(jobs, dict):
+        return ["peros-staging(jobs-not-mapping)"]
+    for job_id, label, agent_id, prompt, block_sha, prompt_sha in expected:
+        job = jobs.get(job_id)
+        steps = job.get("steps") if isinstance(job, dict) else None
+        if not isinstance(steps, list):
+            out.append("peros-staging(%s:steps-missing)" % label)
+            continue
+        stage_hits = [
+            index
+            for index, step in enumerate(steps)
+            if isinstance(step, dict) and step.get("name") == stage_name(label)
+        ]
+        if len(stage_hits) != 1:
+            out.append(
+                "peros-staging(%s:stage-step-count=%d)" % (label, len(stage_hits))
+            )
+            continue
+        stage_index = stage_hits[0]
+        stage = steps[stage_index]
+        if set(stage) != {"name", "run"}:
+            out.append("peros-staging(%s:stage-keys-not-exact)" % label)
+        run = stage.get("run")
+        if not isinstance(run, str) or not run.strip():
+            out.append("peros-staging(%s:stage-run-missing)" % label)
+        else:
+            if normalized_sha(run) != block_sha:
+                out.append("peros-staging(%s:stage-block-not-exact)" % label)
+            needles = (
+                'git show "${GITHUB_SHA}:.github/agents/%s"' % prompt,
+                'if [ ! -s "$prompt_file" ]; then',
+                "exit 1",
+                "RUNNER_TEMP:-/tmp",
+                'git cat-file -e "${GITHUB_SHA}:.github/agents/%s"' % prompt,
+            )
+            for needle in needles:
+                if needle not in run:
+                    out.append(
+                        "peros-staging(%s:stage-missing:%s)" % (label, needle)
+                    )
+        agents = [
+            index
+            for index, step in enumerate(steps)
+            if isinstance(step, dict) and step.get("id") == agent_id
+        ]
+        if len(agents) != 1:
+            out.append(
+                "peros-staging(%s:agent-step-count=%d)" % (label, len(agents))
+            )
+            continue
+        agent_index = agents[0]
+        agent = steps[agent_index]
+        checkouts = [
+            index
+            for index, step in enumerate(steps)
+            if isinstance(step, dict) and step.get("name") == "Checkout repository"
+        ]
+        actors = [
+            index
+            for index, step in enumerate(steps)
+            if isinstance(step, dict) and step.get("name") == GATE_NAME
+        ]
+        restores = [
+            index
+            for index, step in enumerate(steps)
+            if isinstance(step, dict) and step.get("name") == RESTORE_NAME
+        ]
+        if len(checkouts) != 1 or len(actors) != 1 or len(restores) != 1:
+            out.append(
+                "peros-staging(%s:checkout-actor-restore-count)" % label
+            )
+        elif not (
+            checkouts[0] < stage_index < actors[0] < restores[0] < agent_index
+        ):
+            out.append("peros-staging(%s:stage-order)" % label)
+        if len(actors) == 1:
+            actor = steps[actors[0]]
+            actor_run = actor.get("run")
+            expected_gate_env = {
+                "GH_TOKEN": "${{ github.token }}",
+                "GATE_EVENT": "${{ github.event_name }}",
+                "GATE_ACTOR": "${{ github.actor }}",
+                "GATE_LABEL": label.lower() + " test",
+            }
+            if (
+                set(actor) != {"name", "id", "shell", "env", "run"}
+                or actor.get("id") != "actor_gate"
+                or actor.get("shell") != "bash"
+                or actor.get("env") != expected_gate_env
+            ):
+                out.append("peros-staging(%s:gate-keys-not-exact)" % label)
+            if (
+                not isinstance(actor_run, str)
+                or normalized_sha(actor_run) != GATE_BLOCK_SHA
+            ):
+                out.append("peros-staging(%s:gate-block-not-exact)" % label)
+            elif "bash .github/scripts/actor-write-gate.sh" in actor_run:
+                out.append("peros-staging(%s:gate-runs-head-copy)" % label)
+        if len(restores) == 1:
+            restore = steps[restores[0]]
+            restore_run = restore.get("run")
+            if set(restore) != {"name", "run"}:
+                out.append("peros-staging(%s:restore-keys-not-exact)" % label)
+            if (
+                not isinstance(restore_run, str)
+                or normalized_sha(restore_run) != RESTORE_BLOCK_SHA
+            ):
+                out.append("peros-staging(%s:restore-block-not-exact)" % label)
+        if agent.get("uses") != "./.github/actions/opencode-run":
+            out.append("peros-staging(%s:agent-not-vendored-runner)" % label)
+        if agent.get("if") != "steps.actor_gate.outputs.run == 'true'":
+            out.append("peros-staging(%s:agent-gate-not-exact)" % label)
+        env = agent.get("env")
+        expected_agent_env = {
+            "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}",
+            "GITHUB_TOKEN": "${{ github.token }}",
+            "OPENCODE_DISABLE_PROJECT_CONFIG": "true",
+        }
+        if not isinstance(env, dict) or env != expected_agent_env:
+            out.append("peros-staging(%s:agent-env-not-exact)" % label)
+        if isinstance(env, dict) and "OPENCODE_PAT" in env:
+            out.append("peros-staging(%s:agent-carries-owner-pat)" % label)
+        if (
+            not isinstance(env, dict)
+            or env.get("OPENCODE_DISABLE_PROJECT_CONFIG") != "true"
+        ):
+            out.append("peros-staging(%s:project-config-enabled)" % label)
+        with_block = agent.get("with")
+        prompt_scalar = with_block.get("prompt") if isinstance(with_block, dict) else None
+        if (
+            not isinstance(prompt_scalar, str)
+            or "${RUNNER_TEMP}/lab-prompts/%s" % prompt not in prompt_scalar
+        ):
+            out.append("peros-staging(%s:agent-prompt-not-staged)" % label)
+        elif "READ FIRST: `.github/agents/%s`" % prompt in prompt_scalar:
+            out.append("peros-staging(%s:agent-reads-head-prompt)" % label)
+        if file_sha256(".github/agents/%s" % prompt) != prompt_sha:
+            out.append("peros-prompts(%s:unreviewed)" % prompt)
+    return out
+
+
+problems = []
+try:
+    with open(PEROS, encoding="utf-8") as handle:
+        doc = yaml.safe_load(handle)
+except Exception as exc:
+    problems.append("opencode-peros-test.yml(yaml-parse-error:%s)" % exc)
+    doc = None
+
+if isinstance(doc, dict):
+    problems.extend(validate(doc, EXPECTED))
+    # Mutation self-tests: a removed staging step, a reverted agent prompt
+    # reference, a rewritten staging body, a dropped project-config opt-out, a
+    # gate reverted to the PR-head copy, and a rewritten restore body must each
+    # fail the validator alone.
+    mutant = copy.deepcopy(doc)
+    mutant["jobs"]["test-macos"]["steps"] = [
+        step
+        for step in mutant["jobs"]["test-macos"]["steps"]
+        if not (isinstance(step, dict) and step.get("name") == stage_name("macOS"))
+    ]
+    if not any("stage-step-count=0" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-stage-removed)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-linux"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "test":
+            step["with"]["prompt"] = "READ FIRST: `.github/agents/tester-linux.md`\n"
+    if not any("agent-prompt-not-staged" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-agent-prompt-reverted)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-windows"]["steps"]:
+        if isinstance(step, dict) and step.get("name") == stage_name("Windows"):
+            step["run"] = step.get("run", "") + "cat .github/agents/tester-windows.md >/dev/null\n"
+    if not any("stage-block-not-exact" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-stage-body-rewritten)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-linux"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "test":
+            step["env"].pop("OPENCODE_DISABLE_PROJECT_CONFIG", None)
+    if not any("project-config-enabled" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-project-config-removed)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-linux"]["steps"]:
+        if isinstance(step, dict) and step.get("name") == GATE_NAME:
+            step["run"] = "bash .github/scripts/actor-write-gate.sh\n"
+    if not any("gate-block-not-exact" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-gate-reverted)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-windows"]["steps"]:
+        if isinstance(step, dict) and step.get("name") == RESTORE_NAME:
+            step["run"] = step.get("run", "") + "true\n"
+    if not any("restore-block-not-exact" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-restore-rewritten)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-macos"]["steps"]:
+        if isinstance(step, dict) and step.get("id") == "test":
+            step["env"]["GITHUB_TOKEN"] = "${{ secrets.OPENCODE_PAT }}"
+    if not any("agent-env-not-exact" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-agent-token-swapped)")
+    mutant = copy.deepcopy(doc)
+    for step in mutant["jobs"]["test-windows"]["steps"]:
+        if isinstance(step, dict) and step.get("name") == GATE_NAME:
+            step["env"]["GH_TOKEN"] = "${{ secrets.OPENCODE_PAT }}"
+    if not any("gate-keys-not-exact" in p for p in validate(mutant, EXPECTED)):
+        problems.append("peros-staging(self-test-gate-token-swapped)")
+
+print("\n".join(problems))
+R17STAGEPY
+)
+if [ -n "$r17_stage_out" ]; then
+  r17_bad="${r17_bad} ${r17_stage_out//$'\n'/ }"
+fi
 for r17_prompt in tester-linux.md tester-macos.md tester-windows.md; do
   r17_path=".github/agents/${r17_prompt}"
   if [ ! -f "$r17_path" ]; then
@@ -4858,7 +5139,7 @@ for r17_prompt in tester-linux.md tester-macos.md tester-windows.md; do
   grep -qF 'Findings Report Contract' "$r17_path" || r17_bad="${r17_bad} ${r17_prompt}(no-contract-marker)"
 done
 if [ -z "$r17_bad" ]; then
-  check "R17" "all three per-OS arms clear, require, post, and verify the signed /tmp/random-lab-findings.md report (bot-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract (issue #608)" "ok"
+  check "R17" "all three per-OS arms stage their system prompt and actor gate from this run's workflow commit into RUNNER_TEMP and unconditionally restore the vendored runner and findings poster from that commit (pinned staging, gate, and restore bodies; staged reference; prompt SHA-256; project-config opt-out; exact gate wiring; the PR-head prompt, gate, runner, and poster are never executed), clear, require, post, and verify the signed /tmp/random-lab-findings.md report (bot-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract (issues #608, #713)" "ok"
 else
   check "R17" "per-OS findings-report contract missing:${r17_bad} (issue #608: a PR-creating arm run drops the report and only the run log has it)" "bad"
 fi
@@ -5773,6 +6054,7 @@ else
     r19_seq_want=$(cat <<'R19_SEQ'
 Get PR info
 Checkout repository (PR head)
+Stage the reviewer system prompt from the workflow commit
 "Actor write gate (issue #428)"
 Skip review for non-PR issue
 Record checked-out PR head
@@ -14596,6 +14878,7 @@ EXPECTED_FORWARD_IF = EXPECTED_POST_IF + " && steps.marker.outputs.ok == 'true'"
 BIND_NAME = "Bind eval to the checked-out head (eval binding)"
 CHECKOUT_NAME = "Checkout repository (PR head)"
 STAGE_PROMPT_NAME = "Stage the evaluator system prompt from the workflow commit"
+REVIEW_STAGE_PROMPT_NAME = "Stage the reviewer system prompt from the workflow commit"
 ACTOR_NAME = "Actor write gate (issue #428)"
 CONFIGURE_NAME = "Configure git identity"
 RESTORE_NAME = "Restore the vendored runner from the workflow commit"
@@ -14682,6 +14965,14 @@ EXPECTED_TEST_PROMPT_SHA256 = "e8d8f6dba7071a7af9e16b54ac339f735cf239da03be9dba4
 EXPECTED_TEST_AGENT_PROMPT_SHA256 = "d6b6ef74f468b0c13bc034bffbefd4729a4a35ee230c5a6e5822d9717795c931"
 EXPECTED_STAGE_PROMPT_BLOCK_SHA256 = "527dbbca42a84e28e0bffda1dd2c7f21f83d80bcfe3035b27f45261065734547"
 EXPECTED_TEST_STAGE_PROMPT_BLOCK_SHA256 = "e0c4b5fa07824eeafcaf75c946f0f60f0e12e9105a57f22625e7cb82a6c81114"
+# Issue #713 Tester finding: the review arm read reviewer.md from the PR head,
+# so a PR could rewrite its own review instructions and post a forged eval
+# approval marker. The review workflow stages the reviewed prompt from the
+# workflow commit, and these constants pin the source content, the staging
+# body, and the agent scalar that points at the staged copy.
+EXPECTED_REVIEW_PROMPT_SHA256 = "80d1021913646997c599a077aa34782f41e02eb72731984fb87a9f4006c21808"
+EXPECTED_REVIEW_STAGE_PROMPT_BLOCK_SHA256 = "5600d2d6e520998d4529fe347fa51fc2cfde81dba6c47afe612209aa4a2d7b45"
+EXPECTED_REVIEW_AGENT_PROMPT_SHA256 = "1a7b055054bb4b261240fdfc966561fba37c93be81cf8a830fec8ac686875dc1"
 # Issue #713 review round 10: the round-9 test/review PR-head isolation was
 # only validated for the eval arm, so a one-line revert to the legacy bare
 # gate invocation (or a restore early exit that trusts the checked-out
@@ -15573,6 +15864,87 @@ def validate_review(doc, sink):
         "review",
         sink,
     )
+    # Issue #713 Tester finding: reviewer.md is PR-controlled, so the review
+    # arm now stages it from this run's workflow commit and the agent reads
+    # only the staged copy. Pin the staging body, the staged reference, the
+    # source SHA-256, and the project-config opt-out; without these, a PR
+    # could rewrite its own review instructions to post a forged eval marker.
+    if not isinstance(doc, dict):
+        return
+    jobs = doc.get("jobs")
+    if not isinstance(jobs, dict) or not isinstance(jobs.get("review"), dict):
+        return
+    steps = jobs["review"].get("steps")
+    if not isinstance(steps, list):
+        return
+    stage_hits = [
+        (index, step)
+        for index, step in enumerate(steps)
+        if isinstance(step, dict)
+        and step.get("name") == REVIEW_STAGE_PROMPT_NAME
+    ]
+    if len(stage_hits) != 1:
+        sink.append("review.yml(prompt-stage-step-not-unique)")
+    else:
+        stage_index, stage = stage_hits[0]
+        check_prompt_stage_step(
+            stage,
+            "review.yml(prompt-stage",
+            EXPECTED_REVIEW_STAGE_PROMPT_BLOCK_SHA256,
+            "",
+            sink,
+        )
+        agents = [
+            index
+            for index, step in enumerate(steps)
+            if isinstance(step, dict) and step.get("id") == "review"
+        ]
+        if len(agents) != 1:
+            sink.append("review.yml(agent-step-not-unique)")
+        else:
+            agent_index = agents[0]
+            checkouts = [
+                index
+                for index, step in enumerate(steps)
+                if isinstance(step, dict) and step.get("name") == CHECKOUT_NAME
+            ]
+            actors = [
+                index
+                for index, step in enumerate(steps)
+                if isinstance(step, dict) and step.get("name") == ARM_ACTOR_NAME
+            ]
+            if len(checkouts) != 1 or len(actors) != 1:
+                sink.append("review.yml(checkout-or-actor-step-not-unique)")
+            elif not (checkouts[0] < stage_index < actors[0] < agent_index):
+                sink.append("review.yml(prompt-stage-order)")
+            agent = steps[agent_index]
+            agent_env = agent.get("env")
+            if (
+                not isinstance(agent_env, dict)
+                or agent_env.get("OPENCODE_DISABLE_PROJECT_CONFIG") != "true"
+            ):
+                sink.append("review.yml(agent-env-project-config-enabled)")
+            agent_with = agent.get("with")
+            agent_prompt = (
+                agent_with.get("prompt") if isinstance(agent_with, dict) else None
+            )
+            if (
+                not isinstance(agent_prompt, str)
+                or "${RUNNER_TEMP}/lab-prompts/reviewer.md" not in agent_prompt
+            ):
+                sink.append("review.yml(agent-prompt-not-staged)")
+            else:
+                if "READ FIRST: `.github/agents/reviewer.md`" in agent_prompt:
+                    sink.append("review.yml(agent-reads-head-prompt)")
+                if "fall back to the safety net and AGENTS.md rules" in agent_prompt:
+                    sink.append("review.yml(agent-falls-back-to-head-agents)")
+                if (
+                    hashlib.sha256(agent_prompt.encode()).hexdigest()
+                    != EXPECTED_REVIEW_AGENT_PROMPT_SHA256
+                ):
+                    sink.append("review.yml(agent-prompt-not-exact)")
+    if file_sha256(".github/agents/reviewer.md") != EXPECTED_REVIEW_PROMPT_SHA256:
+        sink.append("agents.yml(reviewer-prompt-not-reviewed)")
 
 
 def validate_maintainer(doc, sink):
@@ -16322,6 +16694,73 @@ if review_doc is not None:
             for p in review_actor_keys_local
         ):
             problems.append("review.yml(structural-self-test-actor-keys-override)")
+        # Issue #713 Tester finding: the reviewer prompt staging is part of the
+        # gate. A staging body that reads the PR-head file, a missing staging
+        # step, a reverted agent reference, and a restored AGENTS.md fallback
+        # must each fail the structural pass alone.
+        review_stage_rewrite = copy.deepcopy(review_doc)
+        for step in review_stage_rewrite["jobs"]["review"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == REVIEW_STAGE_PROMPT_NAME:
+                step["run"] = (
+                    step.get("run", "")
+                    + "cat .github/agents/reviewer.md > /dev/null\n"
+                )
+        review_stage_local = []
+        validate_review(review_stage_rewrite, review_stage_local)
+        if not any(
+            "review.yml(prompt-stage-run-block-not-exact)" in p
+            for p in review_stage_local
+        ):
+            problems.append("review.yml(structural-self-test-prompt-stage-rewrite)")
+        review_stage_removed = copy.deepcopy(review_doc)
+        review_stage_removed["jobs"]["review"]["steps"] = [
+            step
+            for step in review_stage_removed["jobs"]["review"]["steps"]
+            if not (
+                isinstance(step, dict)
+                and step.get("name") == REVIEW_STAGE_PROMPT_NAME
+            )
+        ]
+        review_stage_removed_local = []
+        validate_review(review_stage_removed, review_stage_removed_local)
+        if not any(
+            "review.yml(prompt-stage-step-not-unique)" in p
+            for p in review_stage_removed_local
+        ):
+            problems.append("review.yml(structural-self-test-prompt-stage-removed)")
+        review_prompt_revert = copy.deepcopy(review_doc)
+        for step in review_prompt_revert["jobs"]["review"]["steps"]:
+            if isinstance(step, dict) and step.get("id") == "review":
+                step["with"]["prompt"] = (
+                    "READ FIRST: `.github/agents/reviewer.md` - that file IS "
+                    "your complete system prompt; every rule there is binding.\n"
+                )
+        review_prompt_local = []
+        validate_review(review_prompt_revert, review_prompt_local)
+        if not any(
+            "review.yml(agent-prompt-not-staged)" in p for p in review_prompt_local
+        ):
+            problems.append("review.yml(structural-self-test-agent-prompt-reverted)")
+        review_fallback_revert = copy.deepcopy(review_doc)
+        for step in review_fallback_revert["jobs"]["review"]["steps"]:
+            if isinstance(step, dict) and step.get("id") == "review":
+                step["with"]["prompt"] = (
+                    "READ FIRST: the reviewer system prompt staged from this run's "
+                    "workflow commit at `${RUNNER_TEMP}/lab-prompts/reviewer.md` "
+                    "(RUNNER_TEMP is set in your environment) - that file IS your "
+                    "complete system prompt; every rule there is binding. If "
+                    "reviewer.md is missing from the tree, fall back to the safety "
+                    "net and AGENTS.md rules.\n"
+                )
+        review_fallback_local = []
+        validate_review(review_fallback_revert, review_fallback_local)
+        if not any(
+            "review.yml(agent-falls-back-to-head-agents)" in p
+            for p in review_fallback_local
+        ):
+            problems.append(
+                "review.yml(structural-self-test-agent-fallback-restored)"
+            )
     except Exception:
         problems.append("review.yml(structural-self-test-actor-head-script)")
 

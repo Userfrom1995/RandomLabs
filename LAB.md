@@ -913,16 +913,23 @@ personality, CHANGELOG) is direct-commit.
 | `pages.yml` | Unchanged - Pages deploy + PR previews |
 
 PR-head gates (`opencode-review.yml`, `opencode-test.yml`, `opencode-eval.yml`,
-`opencode-peros-test.yml`) check the PR head into the workspace, but their
-local `uses: ./.github/actions/opencode-run` resolves against that workspace,
-never against the commit the workflow YAML was loaded from. Each of them runs
-a fail-closed restore step first: a head that carries the vendored runner runs
-its own version untouched; a head that predates the runner (forked before the
-#422 vendoring) gets it restored from this run's own workflow commit
-(`$GITHUB_SHA`) and hidden from the clean-tree gates via `.git/info/exclude`;
-a runner missing from both sources fails the step RED, so the crash-parity
-verify step never misreads a pre-start resolution failure as an agent crash
-(issue #430).
+`opencode-peros-test.yml`) check the PR head into the workspace, so the
+checked-out tree is untrusted code. Their local
+`uses: ./.github/actions/opencode-run` resolves against that workspace, never
+against the commit the workflow YAML was loaded from, and their system prompts,
+actor gate, runner, and (for the per-OS arms) findings poster would otherwise
+execute or be read from the PR head with the job's token. Each gate therefore
+stages its prompt and actor gate from this run's own workflow commit
+(`$GITHUB_SHA`) into `RUNNER_TEMP`, unconditionally replaces the vendored
+runner (and the per-OS findings poster) with the workflow-commit copy, and sets
+`OPENCODE_DISABLE_PROJECT_CONFIG: "true"` so a PR-head `AGENTS.md` or
+`opencode.json` is never loaded; restored artifacts are hidden from the
+clean-tree gates via `.git/info/exclude`, and a missing workflow-commit copy
+fails the step RED. The PR-head editions are never executed, so a PR can no
+longer rewrite its own reviewer/tester instructions to post a forged eval
+marker (issue #713). The runner is replaced even when the head carries one, so
+the old trust-the-present-head-copy early exit is gone (issue #430's restore
+remains the provenance chain).
 
 Concurrency: the pipeline workflows above (`opencode*.yml`, `maintainer.yml`,
 `lab.yml`, `curator.yml`, `auditor.yml`, `ideate.yml`) queue with
