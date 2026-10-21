@@ -101,7 +101,11 @@ pushes to forks (guidance only).
   provider failure classes are each retried once on the same model before
   they can drop a wake-up or kill a gate: a free-tier rejection, a stalled
   attempt (which the runner's watchdog aborts instead of letting it burn the
-  step timeout), and a 429/5xx terminal rejection. A provider 403
+  step timeout), and a 429/5xx terminal rejection, including the retryable
+  upstream-endpoint form `AI_APICallError: Upstream request failed: Endpoint
+  is unavailable.` A persistent upstream-endpoint failure does not advance the
+  ladder: every rung shares the same gateway, so a fresh run is the recovery
+  lane. A provider 403
   abusive-traffic egress-IP block is not retried: it is classified by name
   and fast-failed, since a fresh run gets a new runner and a new IP. When the
   whole ladder is dead the agent
