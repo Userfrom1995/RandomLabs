@@ -151,7 +151,7 @@
           'mc_scratch', 'mc_scratch_len', 'mc_theme_name', 'mc_fright_segments',
           'mc_fright_flash', 'mc_reduced_flash', 'mc_reduced_motion', 'mc_high_contrast',
           'mc_theme', 'mc_theme_count', 'mc_difficulty', 'mc_dots_total',
-          'mc_show_fps', 'memory'];
+          'mc_show_fps', 'mc_set_show_fps', 'memory'];
         for (var i = 0; i < need.length; i++) {
           if (typeof exp[need[i]] === 'undefined') throw new Error('missing export: ' + need[i]);
         }
