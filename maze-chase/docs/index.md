@@ -36,5 +36,7 @@ One cohesive product view; no milestone counters or sprint references.
   totals, per-OS E2E results, frame budgets, and the native proof
   record.
 - [#552 parity checklist](parity.md): every pinned reference behavior
-  mapped to its engine table and verify row, fully signed on the
-  Linux, macOS, and Windows runs, with the retirement step recorded.
+  mapped to its engine table and verify row, fully signed on the Linux
+  run on this tree; the macOS and Windows runs are pre-Pondwake, with
+  fresh reruns tracked in the final sign-off, and the retirement step
+  is recorded.

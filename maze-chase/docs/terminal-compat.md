@@ -130,7 +130,7 @@ capture that is >=90% one color on the bitmap tiers (a blank board).
 - Light-background terminals render identically to dark ones: the game
   now paints the theme's own background on every painted run (the cell
   tiers no longer rely on the terminal's default background), so the
-  committed default-light xterm row passes with a 1.7% white playing
+  committed default-light xterm row passes with a 1.85% white playing
   capture and 6.2% at worst, and its dark twin renders the same canvas.
   The former defect (seven >=98% white captures with the cream chrome
   text invisible) is pinned by the Unicode backend regression test.

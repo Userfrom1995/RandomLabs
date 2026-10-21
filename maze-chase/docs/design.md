@@ -467,9 +467,9 @@ place, on a z-layered base image contract where deletion reveals the
 base without repaint); degrade to 15 Hz above 128 KiB/s sustained 1 s.
 Sixel: the transmit is the whole board raster and its encoded size is
 content-dependent; the committed xterm VT340 rows measure 25.3 KiB
-mean Sixel payload per playing transmit (29.5 KiB mean wire frame,
-29.6 KiB peak); the forced row ran 88 transmits in 4.63 s at 19.0 fps
-and 561 KiB/s of wire traffic (480 KiB/s of Sixel payload), with
+mean Sixel payload per playing transmit (29.7 KiB mean wire frame,
+29.9 KiB peak); the forced row ran 88 transmits in 4.72 s at 18.6 fps
+and 554 KiB/s of wire traffic (471 KiB/s of Sixel payload), with
 43.4 KiB mean payload per transmit through the resize phases, well
 inside the encoder's 2 MiB per-frame budget (a smaller-palette retry,
 then a cell fallback for that frame). The tier
