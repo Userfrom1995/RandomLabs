@@ -34,7 +34,9 @@ pub const MIN_H: u32 = BOARD_H + PAD as u32 * 4;
 pub const HUD_SCALE: u32 = 2;
 /// Smallest window height where the full HUD stack (including the
 /// optional FPS and TUNE rows and a game-over row) clears the hint bar.
-const FULL_HUD_MIN_H: u32 = 363;
+/// At the old 363 px switch the TUNE row's face reached the hint line;
+/// the tallest stack needs 365.
+const FULL_HUD_MIN_H: u32 = 365;
 
 /// Fitted play layout for a `w`x`h` window.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
