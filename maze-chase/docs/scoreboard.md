@@ -387,7 +387,7 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   `ae474117...` (206,711 bytes); the desktop probe is byte-identical to
   `docs/desktop-probe.ppm`; all four web E2E scripts are green with zero
   console errors.
-- Quality Council fix round (head `96dc2be2`): the web screen panels are
+- Quality Council fix round (head `88a3f78b`): the web screen panels are
   fixed overlays with scrollable bodies and pinned action rows (Settings
   fits at 390x844 and 1440x900), the mobile HUD correctly outranks
   `aside#hud dl`, and both HUDs now carry pickups/completion and relish;
