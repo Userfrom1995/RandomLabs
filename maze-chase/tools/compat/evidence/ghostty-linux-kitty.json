@@ -11,8 +11,8 @@
   "disposition": "pass",
   "unverified_reason": null,
   "build": {
-    "commit": "36ca9af2771c363e6b331b77d74b6990c3a19926",
-    "commit_short": "36ca9af2771c",
+    "commit": "96dc2be2dd4f90498a362c30a587af91b4690f73",
+    "commit_short": "96dc2be2dd4f",
     "binary_sha256": "ce3b1f91a78f00cbd72d09bd6132b367d027fd504e1e27d56e08ec9bd9f53f86",
     "sources_dirty": false
   },
@@ -69,8 +69,8 @@
     "resize_exercised": true
   },
   "extra_env": [],
-  "started_at": "2026-10-21T06:52:19Z",
-  "ended_at": "2026-10-21T06:52:45Z",
+  "started_at": "2026-10-21T07:16:27Z",
+  "ended_at": "2026-10-21T07:16:53Z",
   "exit": {
     "code": 0,
     "killed": false,
@@ -81,7 +81,7 @@
     {
       "name": "title",
       "bytes": 99021,
-      "at_ms": 1792565541919,
+      "at_ms": 1792566989836,
       "screenshot": "screenshots/title.png",
       "frames": {
         "count": 4,
@@ -131,28 +131,28 @@
     },
     {
       "name": "playing",
-      "bytes": 687564,
-      "at_ms": 1792565546793,
+      "bytes": 682575,
+      "at_ms": 1792566994708,
       "screenshot": "screenshots/playing.png",
-      "duration_ms": 4874,
-      "bytes_per_s": 141067,
+      "duration_ms": 4872,
+      "bytes_per_s": 140101,
       "frames": {
-        "count": 105,
-        "bytes_mean": 6548,
+        "count": 104,
+        "bytes_mean": 6563,
         "bytes_max": 17640
       },
-      "frames_per_s": 21.5,
+      "frames_per_s": 21.3,
       "layout": {
         "addressed_cols_min": 7,
         "addressed_cols_max": 76,
         "addressed_rows_min": 0,
         "addressed_rows_max": 34,
-        "moves": 4264
+        "moves": 4224
       },
       "kitty": {
         "transmits": 17,
-        "placements": 484,
-        "deletes": 458,
+        "placements": 480,
+        "deletes": 454,
         "queries": 0,
         "chunked": true,
         "payload_bytes": 155860,
@@ -163,7 +163,7 @@
           "h": 496
         }
       },
-      "screenshot_sha256": "b67505d7f46b1ef07c1c2185879d59e1dc58e9554805bd7f57c59b3fd5034e9b",
+      "screenshot_sha256": "4133e95e74ff12d89ff1e3146cec01ee4017874d4b1f67f3b11b29a9a70e4d55",
       "screenshot_width": 704,
       "screenshot_height": 644,
       "white_share": 0.0014,
@@ -182,28 +182,28 @@
     },
     {
       "name": "resized-wide",
-      "bytes": 307493,
-      "at_ms": 1792565548593,
+      "bytes": 307265,
+      "at_ms": 1792566996526,
       "screenshot": "screenshots/resized-wide.png",
-      "duration_ms": 1800,
-      "bytes_per_s": 170829,
+      "duration_ms": 1818,
+      "bytes_per_s": 169012,
       "frames": {
         "count": 42,
-        "bytes_mean": 7321,
+        "bytes_mean": 7315,
         "bytes_max": 19702
       },
-      "frames_per_s": 23.3,
+      "frames_per_s": 23.1,
       "layout": {
         "addressed_cols_min": 0,
         "addressed_cols_max": 97,
         "addressed_rows_min": 0,
         "addressed_rows_max": 46,
-        "moves": 1726
+        "moves": 1724
       },
       "kitty": {
         "transmits": 2,
-        "placements": 214,
-        "deletes": 203,
+        "placements": 212,
+        "deletes": 201,
         "queries": 0,
         "chunked": true,
         "payload_bytes": 11868,
@@ -214,18 +214,18 @@
           "h": 496
         }
       },
-      "screenshot_sha256": "18217ff807a98ad84d0efd138341a307673560a8030237600b028e87d0143f82",
+      "screenshot_sha256": "2c0be2eeebe54b4d45666f5e032e70ed9e7e7ffb7179b39e5b36e763aba63c0d",
       "screenshot_width": 1001,
       "screenshot_height": 1024,
       "white_share": 0.0006,
       "dominant_share": 0.4264,
       "sprite_census": {
-        "pixels": 186,
+        "pixels": 185,
         "by_color": {
           "rill": 31,
           "sunseed": 48,
           "bram": 37,
-          "kessa": 22,
+          "kessa": 21,
           "jory": 28,
           "nib": 20
         }
@@ -233,28 +233,28 @@
     },
     {
       "name": "too-small",
-      "bytes": 96109,
-      "at_ms": 1792565550213,
+      "bytes": 86656,
+      "at_ms": 1792566998128,
       "screenshot": "screenshots/too-small.png",
-      "duration_ms": 1620,
-      "bytes_per_s": 59326,
+      "duration_ms": 1602,
+      "bytes_per_s": 54092,
       "frames": {
-        "count": 35,
-        "bytes_mean": 2745,
+        "count": 33,
+        "bytes_mean": 2625,
         "bytes_max": 6964
       },
-      "frames_per_s": 21.6,
+      "frames_per_s": 20.6,
       "layout": {
         "addressed_cols_min": 0,
         "addressed_cols_max": 81,
         "addressed_rows_min": 0,
         "addressed_rows_max": 46,
-        "moves": 740
+        "moves": 680
       },
       "kitty": {
         "transmits": 0,
-        "placements": 8,
-        "deletes": 9,
+        "placements": 4,
+        "deletes": 5,
         "queries": 0,
         "chunked": false,
         "payload_bytes": 0,
@@ -281,28 +281,28 @@
     },
     {
       "name": "refit",
-      "bytes": 292349,
-      "at_ms": 1792565552006,
+      "bytes": 299766,
+      "at_ms": 1792566999951,
       "screenshot": "screenshots/refit.png",
-      "duration_ms": 1793,
-      "bytes_per_s": 163050,
+      "duration_ms": 1823,
+      "bytes_per_s": 164435,
       "frames": {
-        "count": 39,
-        "bytes_mean": 7496,
-        "bytes_max": 19704
+        "count": 40,
+        "bytes_mean": 7494,
+        "bytes_max": 19705
       },
-      "frames_per_s": 21.8,
+      "frames_per_s": 21.9,
       "layout": {
         "addressed_cols_min": 0,
         "addressed_cols_max": 97,
         "addressed_rows_min": 0,
         "addressed_rows_max": 46,
-        "moves": 1658
+        "moves": 1702
       },
       "kitty": {
         "transmits": 2,
-        "placements": 270,
-        "deletes": 259,
+        "placements": 278,
+        "deletes": 267,
         "queries": 0,
         "chunked": true,
         "payload_bytes": 11868,
@@ -313,19 +313,19 @@
           "h": 496
         }
       },
-      "screenshot_sha256": "4e9502ab41cc7c8e8629990acdaaa956673f0421eb2a4b6217bef51f8b5e8444",
+      "screenshot_sha256": "c5ce7bbfb90236ae4c2bd8a0aa41e573d93fa5c172aab20255a73f926dace7a9",
       "screenshot_width": 1001,
       "screenshot_height": 1024,
       "white_share": 0.0006,
-      "dominant_share": 0.4262,
+      "dominant_share": 0.4263,
       "sprite_census": {
-        "pixels": 208,
+        "pixels": 200,
         "by_color": {
           "rill": 31,
-          "sunseed": 60,
+          "sunseed": 48,
           "bram": 40,
           "kessa": 37,
-          "jory": 20,
+          "jory": 24,
           "nib": 20
         }
       }
@@ -333,10 +333,10 @@
     {
       "name": "paused",
       "bytes": 119394,
-      "at_ms": 1792565554395,
+      "at_ms": 1792567002373,
       "screenshot": "screenshots/paused.png",
-      "duration_ms": 2389,
-      "bytes_per_s": 49976,
+      "duration_ms": 2422,
+      "bytes_per_s": 49295,
       "frames": {
         "count": 5,
         "bytes_mean": 23878,
@@ -346,20 +346,20 @@
       "surfaces": {
         "paused": {
           "paints": 4,
-          "first_byte": 1517486
+          "first_byte": 1510233
         },
         "pause_resume": {
           "paints": 4,
-          "first_byte": 1517626
+          "first_byte": 1510373
         },
         "pause_quit": {
           "paints": 4,
-          "first_byte": 1517695
+          "first_byte": 1510442
         }
       },
       "layout": {
         "addressed_cols_min": 0,
-        "addressed_cols_max": 76,
+        "addressed_cols_max": 77,
         "addressed_rows_min": 0,
         "addressed_rows_max": 59,
         "moves": 338
@@ -375,7 +375,7 @@
         "payload_chunks": 0,
         "first_transmit_png": null
       },
-      "screenshot_sha256": "c426f25446676c57dc0f8b80f606f2e2d66b5c682697f590f267dfed4f89ead0",
+      "screenshot_sha256": "bfe19f825fceffaf8587dac0994043e9a85c27c0ce20ace973235815e8b63bee",
       "screenshot_width": 1001,
       "screenshot_height": 1024,
       "white_share": 0.0006,
@@ -395,10 +395,10 @@
     {
       "name": "title-return",
       "bytes": 63288,
-      "at_ms": 1792565555701,
+      "at_ms": 1792567003669,
       "screenshot": "screenshots/title-return.png",
-      "duration_ms": 1306,
-      "bytes_per_s": 48459,
+      "duration_ms": 1296,
+      "bytes_per_s": 48833,
       "frames": {
         "count": 2,
         "bytes_mean": 31644,
@@ -408,7 +408,7 @@
       "surfaces": {
         "title_video_line": {
           "paints": 2,
-          "first_byte": 1633099
+          "first_byte": 1625846
         }
       },
       "layout": {
@@ -449,10 +449,10 @@
     {
       "name": "help",
       "bytes": 54137,
-      "at_ms": 1792565557201,
+      "at_ms": 1792567005154,
       "screenshot": "screenshots/help.png",
-      "duration_ms": 1500,
-      "bytes_per_s": 36091,
+      "duration_ms": 1485,
+      "bytes_per_s": 36455,
       "frames": {
         "count": 3,
         "bytes_mean": 18045,
@@ -462,11 +462,11 @@
       "surfaces": {
         "help": {
           "paints": 2,
-          "first_byte": 1700368
+          "first_byte": 1693115
         },
         "title_video_line": {
           "paints": 1,
-          "first_byte": 1696325
+          "first_byte": 1689072
         }
       },
       "layout": {
@@ -507,10 +507,10 @@
     {
       "name": "scores",
       "bytes": 117423,
-      "at_ms": 1792565559760,
+      "at_ms": 1792567007694,
       "screenshot": "screenshots/scores.png",
-      "duration_ms": 2559,
-      "bytes_per_s": 45886,
+      "duration_ms": 2540,
+      "bytes_per_s": 46229,
       "frames": {
         "count": 5,
         "bytes_mean": 23484,
@@ -520,11 +520,11 @@
       "surfaces": {
         "scores": {
           "paints": 2,
-          "first_byte": 1819468
+          "first_byte": 1812215
         },
         "title_video_line": {
           "paints": 3,
-          "first_byte": 1750524
+          "first_byte": 1743271
         }
       },
       "layout": {
@@ -564,25 +564,25 @@
     },
     {
       "name": "settings",
-      "bytes": 85812,
-      "at_ms": 1792565562263,
+      "bytes": 117425,
+      "at_ms": 1792567010195,
       "screenshot": "screenshots/settings.png",
-      "duration_ms": 2503,
-      "bytes_per_s": 34283,
+      "duration_ms": 2501,
+      "bytes_per_s": 46951,
       "frames": {
-        "count": 4,
-        "bytes_mean": 21453,
+        "count": 5,
+        "bytes_mean": 23485,
         "bytes_max": 31675
       },
-      "frames_per_s": 1.6,
+      "frames_per_s": 2.0,
       "surfaces": {
         "settings": {
           "paints": 2,
-          "first_byte": 1904352
+          "first_byte": 1928712
         },
         "title_video_line": {
-          "paints": 2,
-          "first_byte": 1867947
+          "paints": 3,
+          "first_byte": 1860694
         }
       },
       "layout": {
@@ -590,7 +590,7 @@
         "addressed_cols_max": 82,
         "addressed_rows_min": 0,
         "addressed_rows_max": 59,
-        "moves": 316
+        "moves": 414
       },
       "kitty": {
         "transmits": 0,
@@ -623,10 +623,10 @@
     {
       "name": "tail",
       "bytes": 94986,
-      "at_ms": 1792565565298,
+      "at_ms": 1792567013194,
       "screenshot": null,
-      "duration_ms": 3035,
-      "bytes_per_s": 31296,
+      "duration_ms": 2999,
+      "bytes_per_s": 31672,
       "frames": {
         "count": 3,
         "bytes_mean": 31633,
@@ -636,7 +636,7 @@
       "surfaces": {
         "title_video_line": {
           "paints": 3,
-          "first_byte": 1953759
+          "first_byte": 1978119
         }
       },
       "layout": {
@@ -660,17 +660,17 @@
     }
   ],
   "protocol_totals": {
-    "transcript_bytes": 2017576,
-    "transcript_sha256": "36e594964bf26ab61410c4006879f5cc86daf8fbe3ad3c6ec287d25744ab241f",
+    "transcript_bytes": 2041936,
+    "transcript_sha256": "a3dfd7363c9ed221e33e8162b45b0d4e0bbde922b3f463a9af75b05cec024fed",
     "frames": {
-      "count": 247,
-      "bytes_mean": 8167,
+      "count": 246,
+      "bytes_mean": 8299,
       "bytes_max": 31675
     },
     "kitty": {
       "transmits": 21,
-      "placements": 982,
-      "deletes": 965,
+      "placements": 980,
+      "deletes": 963,
       "queries": 0,
       "chunked": true,
       "payload_bytes": 179596,
@@ -689,13 +689,13 @@
   "trace": {
     "present": true,
     "path": "session/trace.jsonl",
-    "sha256": "c314e6d3f8bf01c155368affd0558d6d8697f7c714681e1aa042ac97ceb23aa1",
-    "records": 269,
+    "sha256": "c6e191a1b3e726e2561daf749d54081c80e4fd41f3e7f1c2a1a872e2e728ab1f",
+    "records": 268,
     "malformed_lines": 0,
     "kinds": {
       "start": 1,
       "plan": 6,
-      "frame": 247,
+      "frame": 246,
       "skip": 15
     }
   },
@@ -703,7 +703,7 @@
     "session driven by tools/compat/drive.sh on a real ghostty window (paused capture taken with the menu cursor on \"Quit to title\", so same-emulator rows never commit byte-identical pause images)",
     "paused-phase media at paused is checkpoint-boundary attribution; the paused capture has no sprite pixels and is 90% to 99.9% one color, so the menu panel is visible"
   ],
-  "generated_at": "2026-10-21T06:52:45Z",
+  "generated_at": "2026-10-21T07:16:53Z",
   "sprite_visibility": {
     "playing_captures_with_sprites": [
       "playing"
