@@ -1489,12 +1489,13 @@ remote tip).
 - **First run**: dispatch the Maintainer once (Actions → `maintainer` → Run
   workflow) - it seeds `maintainer/logs`, checks the board, and processes
   whatever is in flight.
-- **Onboarding (14-day approval duty)**: while the bot's PRs exist, GitHub
+- **Onboarding (workflow-approval duty)**: while the bot's PRs exist, GitHub
   requires the owner to approve workflow runs on them. `opencode.yml`
   auto-approves held runs after each push (head-scoped polling plus a
   terminal repo-wide sweep over all held runs, shared script
   `.github/scripts/approve-held-runs.sh`); if it cannot, a comment asks for a
-  manual click. After roughly 14 days of activity GitHub stops requiring it.
+  manual click, and the loop resumes after that click. This duty does not
+  expire: approve whenever the sweep asks.
 - **Talking to the lab**: `/oc build …`, `/oc fix`, `/oc review`,
   `/oc continue`, `/oc approve|decline`, `/oc help` - see AGENTS.md.
 - **One-command setup**: `bash setup.sh` (creates/verifies everything,

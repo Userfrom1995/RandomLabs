@@ -139,7 +139,7 @@ fi
 
 echo
 echo "== Onboarding =="
-echo "• For the first ~14 days, GitHub may hold workflow runs on the bot's PRs."
+echo "• GitHub holds workflow runs on the bot's PRs; approve them when asked."
 echo "  opencode.yml auto-approves held runs after every push; if it cannot, a"
 echo "  comment asks you to click Approve - do that once and the loop resumes."
 echo "• Talk to the lab with /oc comments: /oc build …, /oc continue, /oc fix,"
