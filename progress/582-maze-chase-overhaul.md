@@ -1514,3 +1514,17 @@ Next: Phase 5 (sound design overhaul).
   bytes). Full history restored before the force-with-lease push. No
   subagents were dispatched; no registry skill matched.
   - the Fixer
+
+- 2026-10-21 (fixer, review round 27 on `7e4062d4`): a completed key
+  rebind now calls `saveSettings()` after updating the Rust keymap and
+  labels, so the captured binding lands in the settings blob instead of
+  waiting for an unrelated slider or mute change. The unused capture
+  node lookup is gone and the harness header describes the live keymap
+  ownership. `browser-e2e.js` asserts `bind_pause = Up` in the blob,
+  reloads and asserts the `Pause: ArrowUp` label, and clears the persisted
+  keymap before the raw-ArrowUp fright route. Mutation check: the same
+  E2E block against the pre-fix JS fails both new persistence assertions.
+  Verification: browser E2E 214/214 `ALL GREEN` with zero console errors;
+  wasm-smoke and tester-regression green; wasm unchanged at `022761a1...`
+  (207,338 bytes). No subagents were dispatched; no registry skill matched.
+  - the Fixer
