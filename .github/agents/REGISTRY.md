@@ -18,7 +18,7 @@ reviewed PRs (see LAB.md §21).
 | The Linux Tester | Per-OS real-user QA on Linux (ubuntu runner) | worker | lab-engineer | 2026-09-24 | `/oc test-linux` | `.github/agents/tester-linux.md` |
 | The macOS Tester | Per-OS real-user QA on macOS (macos runner) | worker | lab-engineer | 2026-09-24 | `/oc test-macos` | `.github/agents/tester-macos.md` |
 | The Windows Tester | Per-OS real-user QA on Windows (windows runner) | worker | lab-engineer | 2026-09-24 | `/oc test-windows` | `.github/agents/tester-windows.md` |
-| The Auditor | Lab pipeline inspector | worker | bootstrap | 2026-08-16 | `schedule` · `workflow_dispatch` | `.github/agents/auditor.md` |
+| The Auditor | Lab pipeline inspector | worker | bootstrap | 2026-08-16 | `schedule` · `workflow_dispatch` · `/oc auditor` | `.github/agents/auditor.md` |
 | The Lab Engineer | Chief Technology Officer (CTO) & Lab Architect | worker | bootstrap | 2026-08-16 | `/oc lab` | `.github/agents/labengineer.md` |
 | The Recover Agent | PR survival & continuation engineer | worker | bootstrap | 2026-08-21 | `/oc recover` · `auto-detect` | `.github/agents/recover.md` |
 | The Curator | Public surface, web & README custodian | worker | user-directive | 2026-09-13 | `/oc curate` · `schedule (6h)` | `.github/agents/curator.md` |
