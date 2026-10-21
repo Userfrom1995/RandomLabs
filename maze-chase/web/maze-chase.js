@@ -16,14 +16,15 @@
  *   mc_rebind(99) (never forwarded as mc_key) to cancel capture. Chosen
  *   because 99 is outside the action range 0..7 and can never collide with a
  *   real arm request.
- * - Rebind action labels 0..7 are a harness-side assumption:
- *   0 Up, 1 Down, 2 Left, 3 Right, 4 Confirm, 5 Cancel, 6 Pause, 7 Mute.
+ * - Rebind action labels 0..7 mirror Rust `Action::ALL`:
+ *   0 Up, 1 Down, 2 Left, 3 Right, 4 Pause, 5 Confirm, 6 Back, 7 Mute.
  *   The Rust side completes capture on the next forwarded mc_key.
- * - Menu key ownership: in non-playing screens arrows move DOM focus and
- *   Enter/Space click the focused button (DOM owns menu activation, so
- *   Enter/Space are NOT forwarded there); P/Esc/M are always forwarded via
- *   mc_key so Rust handles pause/back/mute. While playing, every handled key
- *   is forwarded and DOM activation is suppressed.
+ * - Menu key ownership: in non-playing screens arrows and their WASD twins
+ *   move DOM focus and Enter/Space click the focused button (DOM owns menu
+ *   activation, so Enter/Space are NOT forwarded there); P dispatches the
+ *   Back button and M the Mute action, so Rust handles back/mute without
+ *   depending on the rebound keymap. While playing, every handled key is
+ *   forwarded and DOM activation is suppressed.
  * - Tap (short touch without move on the canvas) equals Enter: it clicks the
  *   visible panel's [data-primary] button, and does nothing while playing.
  * - Canvas clip behavior: the Rust frame is exactly w*h*4 RGBA with
@@ -701,22 +702,28 @@
     if (inField(e.target)) return; // never trap keys inside the name input field.
     var playing = isPlaying();
     var onBody = e.target === document.body || e.target === canvas;
-    // Menus: P/Esc/M are global from buttons and scroll regions, so a
-    // focused primary action can never swallow the documented keys. P is
-    // the menu Back key (docs/web.md controls table), matching Esc.
+    // Menus: P is the menu Back action and M the mute shortcut, global from
+    // buttons and scroll regions so a focused primary action can never
+    // swallow the documented keys. Escape backs out too, like the Back
+    // button, rather than relying on its current keymap binding.
     if (!playing && (id === 11 || id === 12 || id === 13)) {
       e.preventDefault();
-      var mid = id === 12 ? 11 : id;
-      if (exp) { try { exp.mc_key(mid, 1); exp.mc_key(mid, 0); } catch (err) { /* ignore */ } }
+      if (id === 13) {
+        if (exp) { try { exp.mc_key(13, 1); exp.mc_key(13, 0); } catch (err) { /* ignore */ } }
+        saveSettings();
+      } else if (exp) {
+        try { exp.mc_press(1); } catch (err) { /* ignore */ }
+      }
       return;
     }
-    // Menus: arrows move focus from buttons/body; a focused scroll region
-    // keeps the browser's native scrolling.
+    // Menus: arrows and their WASD twins move focus from buttons/body; a
+    // focused scroll region keeps the browser's native scrolling. Never
+    // dispatch a gameplay action here, or a rebound key would fire its
+    // bound action instead of moving focus.
     var inScroll = !!(e.target.classList && e.target.classList.contains('panel-scroll'));
-    if (!playing && id >= 1 && id <= 4 && !inScroll) {
+    if (!playing && id >= 1 && id <= 8 && !(inScroll && id <= 4)) {
       e.preventDefault();
-      if (exp) { try { exp.mc_key(id, 1); } catch (err) { /* ignore */ } }
-      moveFocus((id === 2 || id === 4) ? 1 : -1);
+      moveFocus((id === 2 || id === 4 || id === 7 || id === 8) ? 1 : -1);
       return;
     }
     if (!playing && !onBody) return;
@@ -736,6 +743,7 @@
       return;
     }
     if (exp) { try { exp.mc_key(id, 1); } catch (err) { /* ignore */ } }
+    if (id === 13) saveSettings();
     if (playing || onBody) e.preventDefault();
   }
   function onKeyUp(e) {

@@ -328,18 +328,106 @@ async function shot(ws, path) {
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyM', key: 'm' });
   await sleep(500);
   const muteAfter = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
-  assert(muteAfter === 'Unmute' && muteAfter !== muteBefore,
+  assert(muteAfter !== muteBefore,
     'M toggles mute from the focused pause action, got: ' + muteBefore + ' -> ' + muteAfter);
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyM', key: 'm' });
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyM', key: 'm' });
   await sleep(500);
   const muteRestored = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
-  assert(muteRestored === 'Mute', 'M toggles mute back, got: ' + muteRestored);
+  assert(muteRestored === muteBefore, 'M toggles mute back, got: ' + muteRestored);
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'Escape', key: 'Escape', windowsVirtualKeyCode: 27 });
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'Escape', key: 'Escape', windowsVirtualKeyCode: 27 });
   await sleep(300);
   const resumedAfterMute = await evalJs(ws, `document.getElementById('panel-pause').hidden`);
   assert(resumedAfterMute === true, 'Esc resumes after the mute checks');
+
+  // Round-25 keyboard contract: menu arrows never dispatch a rebound
+  // gameplay action, P dispatches the Back *button* even after Back leaves
+  // Escape, WASD twins move focus, and the M shortcut persists its mute.
+  const tapKey = async (code, key, vk) => {
+    await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code, key, windowsVirtualKeyCode: vk });
+    await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code, key, windowsVirtualKeyCode: vk });
+    await sleep(180);
+  };
+  await tapKey('Escape', 'Escape', 27);
+  await sleep(250);
+  await evalJs(ws, `document.getElementById('btn-pause-quit').click()`);
+  await sleep(300);
+  assert((await evalJs(ws, `!document.getElementById('panel-title').hidden`)) === true,
+    'quit returns to the title for the keyboard contract checks');
+  // Start from defaults so a persisted custom keymap from an earlier pass
+  // cannot make the rebind captures conflict.
+  await evalJs(ws, `localStorage.removeItem('maze-chase-settings')`);
+  await send(ws, 'Page.navigate', { url: PAGE });
+  await sleep(2500);
+  await evalJs(ws, `document.getElementById('btn-title-settings').click()`);
+  await sleep(300);
+  // Rebind Pause to ArrowUp through the real rebind control.
+  await evalJs(ws, `document.querySelectorAll('#rebind-list button')[4].click()`);
+  await tapKey('ArrowUp', 'ArrowUp', 38);
+  const pauseBinding = await evalJs(ws, `document.querySelectorAll('#rebind-list button')[4].textContent`);
+  assert(pauseBinding.includes('ArrowUp'), 'the rebind control captures ArrowUp for Pause, got: ' + pauseBinding);
+  await evalJs(ws, `document.getElementById('btn-settings-back').click()`);
+  await sleep(250);
+  // On the pause hub, the rebound Pause key must only move focus.
+  await evalJs(ws, `document.getElementById('btn-start').click()`);
+  await sleep(500);
+  await evalJs(ws, `document.getElementById('btn-pause').click()`);
+  await sleep(300);
+  const pauseBefore = await evalJs(ws, `[!document.getElementById('panel-pause').hidden, document.activeElement && document.activeElement.id]`);
+  await tapKey('ArrowUp', 'ArrowUp', 38);
+  const pauseAfter = await evalJs(ws, `[!document.getElementById('panel-pause').hidden, document.activeElement && document.activeElement.id]`);
+  assert(pauseBefore[0] === true, 'the pause hub is open before the rebound-arrow check');
+  assert(pauseAfter[0] === true, 'a rebound Pause on ArrowUp never fires from menu focus movement');
+  assert(pauseAfter[1] !== pauseBefore[1],
+    'ArrowUp still moves focus on the pause hub, got: ' + pauseBefore[1] + ' -> ' + pauseAfter[1]);
+  await evalJs(ws, `document.getElementById('btn-resume').click()`);
+  await sleep(300);
+  // Rebind Back off Escape (to Space, freeing Escape) while Pause keeps
+  // ArrowUp, then prove the documented P shortcut still backs out.
+  await evalJs(ws, `document.getElementById('btn-pause').click()`);
+  await sleep(250);
+  await evalJs(ws, `document.getElementById('btn-pause-quit').click()`);
+  await sleep(300);
+  await evalJs(ws, `document.getElementById('btn-title-settings').click()`);
+  await sleep(300);
+  await evalJs(ws, `document.querySelectorAll('#rebind-list button')[6].click()`);
+  await tapKey('Space', ' ', 32);
+  const backBinding = await evalJs(ws, `document.querySelectorAll('#rebind-list button')[6].textContent`);
+  assert(backBinding.includes('Space'), 'the rebind control moves Back off Escape to Space, got: ' + backBinding);
+  await evalJs(ws, `document.getElementById('btn-settings-back').click()`);
+  await sleep(250);
+  await evalJs(ws, `document.getElementById('btn-title-help').click()`);
+  await sleep(250);
+  assert((await evalJs(ws, `!document.getElementById('panel-help').hidden`)) === true,
+    'Help opens before the P/Back check');
+  await tapKey('KeyP', 'p', 80);
+  assert((await evalJs(ws, `document.getElementById('panel-help').hidden`)) === true,
+    'P dispatches the Back action even when Escape is no longer bound to Back');
+  // WASD twins move focus without firing their (movement) actions.
+  await evalJs(ws, `document.getElementById('btn-start').focus()`);
+  await tapKey('KeyS', 's', 83);
+  const wasdFocus = await evalJs(ws, `document.activeElement && document.activeElement.id`);
+  assert(wasdFocus === 'btn-title-help',
+    'S moves focus from Start to the next title action like ArrowDown, got: ' + wasdFocus);
+  // Reload drops the in-memory keymap; M must now write the settings blob
+  // and the mute must survive the next reload.
+  await send(ws, 'Page.navigate', { url: PAGE });
+  await sleep(2500);
+  await tapKey('KeyM', 'm', 77);
+  await sleep(700);
+  const muteBlob = await evalJs(ws, `localStorage.getItem('maze-chase-settings')`);
+  const muteBlobText = muteBlob ? Buffer.from(muteBlob, 'base64').toString('utf8') : '';
+  assert(/^mute = true$/m.test(muteBlobText),
+    'M persists the mute in the settings blob, got: ' + JSON.stringify(muteBlobText.split('\n').filter((l) => l.startsWith('mute'))));
+  await send(ws, 'Page.navigate', { url: PAGE });
+  await sleep(2500);
+  const muteReloaded = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
+  assert(muteReloaded === 'Unmute', 'keyboard mute survives a reload, got: ' + muteReloaded);
+  await tapKey('KeyM', 'm', 77);
+  await sleep(700);
+  const muteOff = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
+  assert(muteOff === 'Mute', 'M restores the unmuted state, got: ' + muteOff);
 
   // Fright HUD: the badge announces the active window for its whole
   // duration; the 30-segment meter joins only for the final 1.5 s tail.
