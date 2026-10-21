@@ -208,7 +208,7 @@ euclidean distance 60 or better) and the minimum measured distance is
 Player-versus-hunter separation relies on shape identity (the critique's
 shape-accent clause): the frog's squat dome-eyed body plan reads
 against all four predator silhouettes even when hue collapses, at the
-legacy rung included. Forcing a 3:1 pip-versus-hunter hue pair was
+legacy rung included. Forcing a 3:1 Rill-versus-hunter hue pair was
 rejected because it collapses the prey and predator moods the palette
 encodes; the binding gate stays on hunter pairs (60+) and on the eyes
 slot (below).

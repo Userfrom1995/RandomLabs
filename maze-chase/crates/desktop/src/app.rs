@@ -532,7 +532,7 @@ impl App {
                 render::render_menu(
                     "SETTINGS",
                     &lines,
-                    "LEFT/RIGHT ADJUST - ESC BACK",
+                    "LEFT/RIGHT ADJUST - ENTER TOGGLE - ESC BACK",
                     theme,
                     w,
                     h,
@@ -552,7 +552,14 @@ impl App {
                         MenuLine::at(&text, i == self.screens.audio_row)
                     })
                     .collect();
-                render::render_menu("AUDIO", &lines, "LEFT/RIGHT ADJUST - ESC BACK", theme, w, h)
+                render::render_menu(
+                    "AUDIO",
+                    &lines,
+                    "LEFT/RIGHT ADJUST - ENTER TOGGLE - ESC BACK",
+                    theme,
+                    w,
+                    h,
+                )
             }
             ScreenId::Rebind => {
                 let lines: Vec<MenuLine> = Action::ALL
