@@ -557,7 +557,17 @@ for r12_path in .github/workflows/*.yml; do
     r12_bad="${r12_bad} ${r12_name}(no-gate-wiring)"
     continue
   fi
+  # Issue #713 review round 7: the eval arm stages the gate script from this
+  # run's own workflow commit and executes only the staged copy, because the
+  # checked-out PR head is untrusted code that runs before any pinned step can
+  # verify the decision. Count that trusted-staging shape as a gate, but only
+  # when the exact workflow-commit staging line is present: a bare
+  # `bash "$gate_script"` without it does not count.
   r12_gates=$(grep -c 'bash \.github/scripts/actor-write-gate\.sh' "$r12_path" || true)
+  if grep -qF 'git show "${GITHUB_SHA}:.github/scripts/actor-write-gate.sh"' "$r12_path"; then
+    r12_staged_gates=$(grep -cF 'bash "$gate_script"' "$r12_path" || true)
+    r12_gates=$((r12_gates + r12_staged_gates))
+  fi
   if [ "$r12_gates" -lt "$r12_agents" ]; then
     r12_bad="${r12_bad} ${r12_name}(gates=${r12_gates}<agents=${r12_agents})"
   fi
@@ -14200,7 +14210,18 @@ fi
 #      whole-region line-exact with decision/evidence rewrite mutation
 #      self-tests, while any step other than the evaluator agent that
 #      redirects or writes the decision or evidence files fails the audit, so
-#      a one-line rewrite cannot turn a real fix verdict into an approval.
+#      a one-line rewrite cannot turn a real fix verdict into an approval;
+#   8. the eval job never executes PR-head code before the decision (issue
+#      #713 review round 7): the checkout step is pinned to
+#      actions/checkout@v6 with its exact `with` block and every other `uses`
+#      step is rejected, the actor write gate is staged from the workflow
+#      commit and only that copy is executed, and the vendored runner is
+#      always replaced with the workflow commit's copy (the early exit that
+#      trusted a present head action.yml is gone), so a PR editing the gate
+#      script or the vendored action cannot run its own code in its own eval
+#      run; the decision/evidence write ban also covers
+#      pathlib.Path(...).write_text/write_bytes, and the checkout shape, the
+#      gate block, and the restore block are mutation-self-tested.
 # Review-gated residual: the surrounding sweep control flow is still
 # review-gated, as documented in R21. Honest limit: like R21, the head time is
 # the later of committer dates and force-push events, so a fast-forward push of
@@ -14226,6 +14247,8 @@ r30_memory_block=""
 r30_verify_block=""
 r30_evidence_block=""
 r30_clear_block=""
+r30_actor_block=""
+r30_restore_block=""
 # Review round (issue #713 test integrity): the marker/post/forward checks
 # used to be textual greps over a sed-extracted step region, so a one-line
 # neutering of the marker step's control flow (a deleted `exit 0`, a deleted
@@ -14263,6 +14286,9 @@ EXPECTED_POST_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.
 EXPECTED_MARKER_IF = EXPECTED_POST_IF + " && steps.post-result.outcome == 'success'"
 EXPECTED_FORWARD_IF = EXPECTED_POST_IF + " && steps.marker.outputs.ok == 'true'"
 BIND_NAME = "Bind eval to the checked-out head (eval binding)"
+CHECKOUT_NAME = "Checkout repository (PR head)"
+ACTOR_NAME = "Actor write gate (issue #428)"
+RESTORE_NAME = "Restore the vendored runner from the workflow commit"
 MARKER_NAME = "Publish eval approval marker (bot-authored)"
 POST_NAME = "Post Quality Council result as bot (never as owner, never with /oc prefix)"
 FORWARD_NAME = "Forward evaluator decision to Maintainer (owner PAT handoff)"
@@ -14289,6 +14315,18 @@ EXPECTED_AGENT_WITH = {
     "model": "opencode/deepseek-v4.1-flash-free",
     "use_github_token": True,
 }
+EXPECTED_CHECKOUT_WITH = {
+    "persist-credentials": True,
+    "token": "${{ github.token }}",
+    "ref": "${{ steps.pr-info.outputs.head_ref }}",
+    "fetch-depth": 0,
+}
+EXPECTED_ACTOR_ENV = {
+    "GH_TOKEN": "${{ github.token }}",
+    "GATE_EVENT": "${{ github.event_name }}",
+    "GATE_ACTOR": "${{ github.actor }}",
+    "GATE_LABEL": "eval",
+}
 # The prompt is the evaluator's actual contract. Pin its SHA-256 so a workflow
 # edit cannot silently replace the Council's instructions while keeping the
 # step shape; a legitimate prompt change updates this constant in the same PR.
@@ -14305,16 +14343,19 @@ SED_TARGET_RE = re.compile(
 PY_WRITE_RE = re.compile(
     r"open\(\s*[\"']?/tmp/(?:evaluator-decision|live-run-evidence)\.json[\"']?\s*,\s*[\"'][wax]"
 )
+PYLIB_WRITE_RE = re.compile(
+    r"(?:pathlib\.)?Path\(\s*[\"']?/tmp/(?:evaluator-decision|live-run-evidence)\.json[\"']?\s*\)\s*\.\s*write_(?:text|bytes)\s*\("
+)
 SANCTIONED_COMMENTERS = {POST_NAME, MARKER_NAME, FORWARD_NAME}
 EVAL_STEP_NAMES = [
     PRINFO_NAME,
-    "Checkout repository (PR head)",
+    CHECKOUT_NAME,
     BIND_NAME,
-    "Actor write gate (issue",
+    ACTOR_NAME,
     "Configure git identity",
     CONTEXT_NAME,
     "Clear runtime decision",
-    "Restore the vendored runner when the checked-out head predates it",
+    RESTORE_NAME,
     "Run evaluator agent",
     "Verify evaluator decided",
     "Enforce live-execution evidence gate",
@@ -14408,6 +14449,75 @@ def check_bind(step, output, sink):
         return
     if output:
         write("bind.run", run)
+
+
+def check_checkout_step(step, sink):
+    if step is None:
+        return
+    # Issue #713 review round 7: a repo-local or swapped checkout action runs
+    # before every pinned step and can prepend a PATH directory (planting a
+    # fake jq/gh) or otherwise rewrite the run. Only the marketplace
+    # actions/checkout@v6 with this exact `with` block is allowed.
+    if set(step) != {"name", "uses", "with"}:
+        sink.append("eval.yml(checkout-keys-not-exact)")
+    if step.get("uses") != "actions/checkout@v6":
+        sink.append("eval.yml(checkout-uses-not-actions-checkout-v6)")
+    with_block = step.get("with")
+    if not isinstance(with_block, dict) or with_block != EXPECTED_CHECKOUT_WITH:
+        sink.append("eval.yml(checkout-with-not-exact)")
+
+
+def check_actor_step(step, output, sink):
+    if step is None:
+        return
+    if set(step) != {"name", "id", "shell", "env", "run"}:
+        sink.append("eval.yml(actor-keys-not-exact)")
+    if step.get("id") != "actor_gate":
+        sink.append("eval.yml(actor-id-not-actor_gate)")
+    if step.get("shell") != "bash":
+        sink.append("eval.yml(actor-shell-not-bash)")
+    env = step.get("env")
+    if not isinstance(env, dict) or env != EXPECTED_ACTOR_ENV:
+        sink.append("eval.yml(actor-env-not-exact)")
+    run = step.get("run")
+    if not isinstance(run, str) or not run.strip():
+        sink.append("eval.yml(actor-run-missing)")
+        return
+    # The gate decides whether the evaluator may run and executes before any
+    # pinned step can verify the checkout, so it must run the staged
+    # workflow-commit copy, never bash on the PR head's script.
+    if 'git show "${GITHUB_SHA}:.github/scripts/actor-write-gate.sh"' not in run:
+        sink.append("eval.yml(actor-not-staged-from-workflow-commit)")
+    if 'bash "$gate_script"' not in run:
+        sink.append("eval.yml(actor-runs-unstaged-script)")
+    if "bash .github/scripts/actor-write-gate.sh" in run:
+        sink.append("eval.yml(actor-runs-head-script)")
+    if output:
+        write("actor.run", run)
+
+
+def check_restore_step(step, output, sink):
+    if step is None:
+        return
+    # Issue #713 review round 7: the checked-out head's vendored runner is
+    # untrusted code. The step must always replace it from the workflow commit
+    # and may never take the old early-exit path that trusted a present head
+    # action.yml (a PR editing only that file would then run its own action
+    # with the job token and could publish a decoy marker).
+    if set(step) != {"name", "run"}:
+        sink.append("eval.yml(restore-keys-not-exact)")
+    run = step.get("run")
+    if not isinstance(run, str) or not run.strip():
+        sink.append("eval.yml(restore-run-missing)")
+        return
+    if 'git archive "${GITHUB_SHA}" -- .github/actions/opencode-run' not in run:
+        sink.append("eval.yml(restore-not-from-workflow-commit)")
+    if "if [ -f .github/actions/opencode-run/action.yml ]; then" in run:
+        sink.append("eval.yml(restore-early-exit-trusts-head-runner)")
+    if re.search(r"(?m)^\s*exit\s+0\s*$", run):
+        sink.append("eval.yml(restore-early-exit)")
+    if output:
+        write("restore.run", run)
 
 
 def check_owner_pat_step(step, label, expected_id, expected_if, output_name, sink):
@@ -14567,6 +14677,9 @@ def validate(doc, output, sink):
     if names != EVAL_STEP_NAMES:
         sink.append("eval.yml(eval-step-sequence-not-exact)")
     bind = resolve(steps, BIND_NAME, "bind", sink)
+    checkout = resolve(steps, CHECKOUT_NAME, "checkout", sink)
+    actor = resolve(steps, ACTOR_NAME, "actor", sink)
+    restore = resolve(steps, RESTORE_NAME, "restore", sink)
     marker = resolve(steps, MARKER_NAME, "marker", sink)
     post = resolve(steps, POST_NAME, "post", sink)
     forward = resolve(steps, FORWARD_NAME, "forward", sink)
@@ -14578,6 +14691,13 @@ def validate(doc, output, sink):
     evidence = resolve(steps, EVIDENCE_NAME, "evidence", sink)
     clear = resolve(steps, CLEAR_NAME, "clear", sink)
     check_bind(bind, output, sink)
+    # Issue #713 review round 7: no PR-head code may execute before the
+    # evaluator decision. The checkout action is pinned by identity and `with`
+    # block, the actor gate runs only the staged workflow-commit script, and
+    # the vendored runner is always restored from the workflow commit.
+    check_checkout_step(checkout, sink)
+    check_actor_step(actor, "actor.run" if output else "", sink)
+    check_restore_step(restore, "restore.run" if output else "", sink)
     # Issue #713 review round 6: the evaluator's decision provenance is part of
     # the gate. The agent step is structurally bound (the vendored runner, not
     # a substitute `run:` body; exact env/with/model/timeout and the prompt
@@ -14644,12 +14764,31 @@ def validate(doc, output, sink):
         # Issue #713 review round 6 (defense in depth behind the exact-body
         # pins): only the evaluator agent may produce the decision and evidence
         # files. Any other step that redirects into or copies over either path
-        # could turn a real fix verdict into an approval.
+        # could turn a real fix verdict into an approval. Round 7 extends the
+        # ban to pathlib write_text/write_bytes, the spelling a restore-step
+        # pre-seed used to bypass the open()/redirect patterns.
         if step_name != AGENT_NAME and any(
             pattern.search(run)
-            for pattern in (WRITE_TARGET_RE, COPY_TARGET_RE, SED_TARGET_RE, PY_WRITE_RE)
+            for pattern in (
+                WRITE_TARGET_RE,
+                COPY_TARGET_RE,
+                SED_TARGET_RE,
+                PY_WRITE_RE,
+                PYLIB_WRITE_RE,
+            )
         ):
             sink.append("eval.yml(decision-source-write-outside-agent)")
+    # Issue #713 review round 7: reject any action other than the pinned
+    # checkout and the vendored runner. A repo-local checkout substitute runs
+    # before every pinned step and could prepend a PATH directory or rewrite
+    # the workspace.
+    sanctioned_uses = {"actions/checkout@v6", "./.github/actions/opencode-run"}
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        uses = step.get("uses")
+        if isinstance(uses, str) and uses not in sanctioned_uses:
+            sink.append("eval.yml(unsanctioned-uses-step)")
     if marker is not None:
         check_keys(marker, "marker", "marker", EXPECTED_MARKER_IF, output, sink)
     if post is not None:
@@ -14967,6 +15106,55 @@ if doc is not None:
         ),
         "decision-source-write-outside-agent",
     )
+    # Issue #713 review round 7: prove the execution-context pins are
+    # load-bearing. A repo-local checkout substitute, a swapped checkout
+    # token, a gate that runs the PR-head script, a restore step that trusts a
+    # present head runner, and a pathlib decision pre-seed must each fail the
+    # structural pass alone.
+    add_mutant(
+        "checkout-uses-replaced",
+        lambda d: step_at(d, CHECKOUT_NAME).__setitem__(
+            "uses", "./.evil/checkout"
+        ),
+        "checkout-uses-not-actions-checkout-v6",
+    )
+    add_mutant(
+        "checkout-with-token",
+        lambda d: step_at(d, CHECKOUT_NAME)["with"].__setitem__(
+            "token", "${{ secrets.OPENCODE_PAT }}"
+        ),
+        "checkout-with-not-exact",
+    )
+    add_mutant(
+        "actor-head-script",
+        lambda d: step_at(d, ACTOR_NAME).__setitem__(
+            "run",
+            step_at(d, ACTOR_NAME)["run"].replace(
+                'bash "$gate_script"', "bash .github/scripts/actor-write-gate.sh"
+            ),
+        ),
+        "actor-runs-head-script",
+    )
+    add_mutant(
+        "restore-early-exit",
+        lambda d: step_at(d, RESTORE_NAME).__setitem__(
+            "run",
+            "if [ -f .github/actions/opencode-run/action.yml ]; then\n"
+            'echo "Vendored runner present on the checked-out head; nothing to restore."\n'
+            "exit 0\n"
+            "fi\n" + step_at(d, RESTORE_NAME)["run"],
+        ),
+        "restore-early-exit",
+    )
+    add_mutant(
+        "restore-pathlib-decision-write",
+        lambda d: step_at(d, RESTORE_NAME).__setitem__(
+            "run",
+            step_at(d, RESTORE_NAME)["run"]
+            + "python3 -c \"import pathlib; pathlib.Path('/tmp/evaluator-decision.json').write_text('{\\\"action\\\":\\\"approve-eval\\\"}')\"\n",
+        ),
+        "decision-source-write-outside-agent",
+    )
     for label, mutate, needle in mutants:
         mutant = copy.deepcopy(doc)
         local = []
@@ -15236,6 +15424,52 @@ r30_expected_clear_block() {
 rm -f /tmp/evaluator-decision.json /tmp/live-run-evidence.json
 R30CLEAR
 }
+# Issue #713 review round 7: the actor gate and the runner restore execute
+# before the evaluator decision, so their parsed run blocks are pinned
+# whole-region too. The gate must run the staged workflow-commit script (never
+# the PR head's), and the restore must always replace the checked-out runner
+# with the workflow commit's copy (the old early exit that trusted a present
+# head action.yml let a PR only editing action.yml run its own code in its own
+# eval run).
+r30_expected_actor_block() {
+  cat <<'R30ACTOR'
+set -o pipefail
+gate_script="${RUNNER_TEMP:-/tmp}/lab-scripts/actor-write-gate.sh"
+mkdir -p "$(dirname "$gate_script")"
+rm -f "$gate_script"
+if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/actor-write-gate.sh" 2>/dev/null; then
+git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
+fi
+if git cat-file -e "${GITHUB_SHA}:.github/scripts/actor-write-gate.sh" 2>/dev/null; then
+git show "${GITHUB_SHA}:.github/scripts/actor-write-gate.sh" > "$gate_script" 2>/dev/null || rm -f "$gate_script"
+fi
+if [ ! -s "$gate_script" ]; then
+echo "::error::Actor write gate script absent from workflow commit ${GITHUB_SHA}; refusing to execute the PR-head copy (issue #713, fail closed)."
+exit 1
+fi
+bash "$gate_script"
+R30ACTOR
+}
+r30_expected_restore_block() {
+  cat <<'R30RESTORE'
+set -o pipefail
+if ! git cat-file -e "${GITHUB_SHA}:.github/actions/opencode-run/action.yml" 2>/dev/null; then
+git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
+fi
+if ! git cat-file -e "${GITHUB_SHA}:.github/actions/opencode-run/action.yml" 2>/dev/null; then
+echo "::error::Vendored runner absent from workflow commit ${GITHUB_SHA}; the agent gate cannot run (fail closed)."
+exit 1
+fi
+rm -rf .github/actions/opencode-run
+git archive "${GITHUB_SHA}" -- .github/actions/opencode-run | tar -x
+printf '%s\n' ".github/actions/opencode-run/" >> "$(git rev-parse --git-path info/exclude)"
+if [ ! -f .github/actions/opencode-run/action.yml ]; then
+echo "::error::Runner restore from ${GITHUB_SHA} did not yield action.yml (fail closed)."
+exit 1
+fi
+echo "Restored .github/actions/opencode-run from workflow commit ${GITHUB_SHA}; the checked-out edition is never executed."
+R30RESTORE
+}
 r30_expected_evidence_block() {
   cat <<'R30EVIDENCE'
 action=$(jq -r '.action // empty' /tmp/evaluator-decision.json 2>/dev/null || echo "")
@@ -15290,8 +15524,8 @@ r30_owner_pin() {
 }
 if [ ! -f "$R30_WF" ]; then
   r30_bad="${r30_bad} opencode-eval.yml(missing)"
-elif [ ! -f "$r30_struct_dir/bind.run" ] || [ ! -f "$r30_struct_dir/marker.run" ] || [ ! -f "$r30_struct_dir/post.run" ] || [ ! -f "$r30_struct_dir/forward.run" ] || [ ! -f "$r30_struct_dir/prinfo.run" ] || [ ! -f "$r30_struct_dir/context.run" ] || [ ! -f "$r30_struct_dir/memory.run" ] || [ ! -f "$r30_struct_dir/verify.run" ] || [ ! -f "$r30_struct_dir/evidence.run" ] || [ ! -f "$r30_struct_dir/clear.run" ]; then
-  r30_bad="${r30_bad} opencode-eval.yml(bind-marker-post-forward-prinfo-context-memory-verify-evidence-clear-step-missing-or-renamed)"
+elif [ ! -f "$r30_struct_dir/bind.run" ] || [ ! -f "$r30_struct_dir/marker.run" ] || [ ! -f "$r30_struct_dir/post.run" ] || [ ! -f "$r30_struct_dir/forward.run" ] || [ ! -f "$r30_struct_dir/prinfo.run" ] || [ ! -f "$r30_struct_dir/context.run" ] || [ ! -f "$r30_struct_dir/memory.run" ] || [ ! -f "$r30_struct_dir/verify.run" ] || [ ! -f "$r30_struct_dir/evidence.run" ] || [ ! -f "$r30_struct_dir/clear.run" ] || [ ! -f "$r30_struct_dir/actor.run" ] || [ ! -f "$r30_struct_dir/restore.run" ]; then
+  r30_bad="${r30_bad} opencode-eval.yml(bind-marker-post-forward-prinfo-context-memory-verify-evidence-clear-actor-restore-step-missing-or-renamed)"
 else
   r30_bind_block=$(cat "$r30_struct_dir/bind.run" 2>/dev/null || true)
   r30_marker_block=$(cat "$r30_struct_dir/marker.run" 2>/dev/null || true)
@@ -15303,6 +15537,8 @@ else
   r30_verify_block=$(cat "$r30_struct_dir/verify.run" 2>/dev/null || true)
   r30_evidence_block=$(cat "$r30_struct_dir/evidence.run" 2>/dev/null || true)
   r30_clear_block=$(cat "$r30_struct_dir/clear.run" 2>/dev/null || true)
+  r30_actor_block=$(cat "$r30_struct_dir/actor.run" 2>/dev/null || true)
+  r30_restore_block=$(cat "$r30_struct_dir/restore.run" 2>/dev/null || true)
   # Issue #713 review round 3 finding 1: the eval verdict must be bound to the
   # head it evaluated and the trigger that started the run, so the marker and
   # the sweep can never merge a head the Evaluator never examined.
@@ -15410,6 +15646,18 @@ else
   r30_block_exact "$r30_evidence_mut" "$(r30_expected_evidence_block)" && r30_bad="${r30_bad} eval.yml(evidence-self-test-evidence-rewrite-not-caught)"
   r30_clear_mut="${r30_clear_block}"$'\n          cp /tmp/approval.json /tmp/evaluator-decision.json'
   r30_block_exact "$r30_clear_mut" "$(r30_expected_clear_block)" && r30_bad="${r30_bad} eval.yml(clear-self-test-decision-rewrite-not-caught)"
+  # Issue #713 review round 7: pin the pre-decision execution context. The
+  # actor gate runs the staged workflow-commit script, and the restore step
+  # always replaces the checked-out runner from the workflow commit. The
+  # mutation self-tests append the exact head-script invocation and the
+  # pathlib decision pre-seed the review demonstrated, so a vacuous comparator
+  # cannot stay green.
+  r30_owner_pin actor "$r30_actor_block" "$(r30_expected_actor_block)"
+  r30_owner_pin restore "$r30_restore_block" "$(r30_expected_restore_block)"
+  r30_actor_mut="${r30_actor_block}"$'\n          bash .github/scripts/actor-write-gate.sh'
+  r30_block_exact "$r30_actor_mut" "$(r30_expected_actor_block)" && r30_bad="${r30_bad} eval.yml(actor-self-test-head-script-not-caught)"
+  r30_restore_mut="${r30_restore_block}"$'\n          python3 -c "import pathlib; pathlib.Path('\''/tmp/evaluator-decision.json'\'').write_text('\''{"action":"approve-eval"}'\'')"'
+  r30_block_exact "$r30_restore_mut" "$(r30_expected_restore_block)" && r30_bad="${r30_bad} eval.yml(restore-self-test-decision-rewrite-not-caught)"
   for r30_owner_block in "$r30_prinfo_block" "$r30_context_block" "$r30_memory_block"; do
     printf '%s\n' "$r30_owner_block" | grep -qF 'eval-verdict' && r30_bad="${r30_bad} eval.yml(owner-pat-step-marker-literal)"
     printf '%s\n' "$r30_owner_block" | grep -qF 'gh issue comment' && r30_bad="${r30_bad} eval.yml(owner-pat-step-comment-post)"
@@ -15623,9 +15871,9 @@ else
           r30_c_reject_1002=$(r30_json_comment 1002 'github-actions[bot]' 2026-10-20T14:10:00Z 'Quality Council REJECTION - Score 8.1/10.')
           r30_c_reject_900=$(r30_json_comment 900 'github-actions[bot]' 2026-10-20T14:08:00Z 'Quality Council REJECTION - Score 8.1/10.')
           r30_head_case() {
-            r30_hc_name="$1"; r30_hc_want="$2"; r30_hc_sha="$3"; r30_hc_hpt="$4"; r30_hc_att="$5"; r30_hc_comments="${6:-[]}"
+            r30_hc_name="$1"; r30_hc_want="$2"; r30_hc_sha="$3"; r30_hc_hpt="$4"; r30_hc_att="$5"; r30_hc_comments="${6:-[]}"; r30_hc_pr="${7:-713}"
             r30_skipped=0
-            pr=713
+            pr="$r30_hc_pr"
             head_sha="$r30_hc_sha"
             head_push_time="$r30_hc_hpt"
             approve_test_time="$r30_hc_att"
@@ -15645,6 +15893,10 @@ else
             fi
           }
           r30_head_case fresh 0 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_fresh]"
+          # Issue #713 review round 7: run a mergeable case on a second PR
+          # number, so a `[ "$pr" = "713" ]` gate that disables the checks for
+          # every real PR fails the audit.
+          r30_head_case fresh-second-pr 0 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_fresh]" 42
           r30_head_case different-head 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_moved]"
           r30_head_case missing-head 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_no_head]"
           r30_head_case malformed-head 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_bad_head]"
@@ -15712,9 +15964,9 @@ R30_TOCTOU_MOCK
               r30_toctou_comments_empty="$r30_tmp/toctou-empty.json"
               printf '[]' > "$r30_toctou_comments_empty"
               r30_toctou_case() {
-                r30_tc_name="$1"; r30_tc_want="$2"; r30_tc_comments="$3"; r30_tc_head="$4"; r30_tc_fail="${5:-0}"
+                r30_tc_name="$1"; r30_tc_want="$2"; r30_tc_comments="$3"; r30_tc_head="$4"; r30_tc_fail="${5:-0}"; r30_tc_pr="${6:-713}"
                 r30_skipped=0
-                pr=713
+                pr="$r30_tc_pr"
                 head_sha="$r30_h_sha"
                 approve_eval_id=1001
                 approve_eval_trigger=555
@@ -15740,6 +15992,7 @@ R30_TOCTOU_MOCK
                 fi
               }
               r30_toctou_case fresh 0 "$r30_toctou_comments_fresh" "$r30_h_sha"
+              r30_toctou_case fresh-second-pr 0 "$r30_toctou_comments_fresh" "$r30_h_sha" 0 42
               r30_toctou_case head-moved 1 "$r30_toctou_comments_fresh" "$r30_other_sha"
               r30_toctou_case new-marker 1 "$r30_toctou_comments_marker" "$r30_h_sha"
               r30_toctou_case new-trigger 1 "$r30_toctou_comments_trigger" "$r30_h_sha"
@@ -16118,7 +16371,7 @@ R30_POST_MOCK
   fi
 fi
 if [ -z "$r30_bad" ]; then
-  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical bot-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as bot-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer bot-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, the Run evaluator agent step structurally bound to the vendored runner with no run/shell, an exact if/env/with and model pin, the prompt SHA-256, and the 105-minute cap, the Clear runtime decision, Verify evaluator decided, and Enforce live-execution evidence gate run blocks pinned whole-region line-exact with decision and evidence rewrite mutation self-tests and a decision/evidence write ban outside the evaluator agent, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval) plus the real publisher post/fetch outcomes (head and trigger mismatches included) are executed in a sandbox, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), every owner-PAT run block (the forward handoff, the pre-gate Get PR info read, the deliverable-context read, and the final evaluator memory push) is pinned whole-region line-exact with its exact key surface and an env of exactly the owner PAT and the eval marker literal banned, and no step other than the marker step may carry the eval marker literal and no step outside the three sanctioned comment posters may issue a comment post (all pins are mutation-self-tested, so a decoy approval marker cannot be injected into any token-bearing step body), so a one-line neutering, declarative poisoning, or extra step cannot pass (issue #713)" "ok"
+  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical bot-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as bot-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer bot-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, the Run evaluator agent step structurally bound to the vendored runner with no run/shell, an exact if/env/with and model pin, the prompt SHA-256, and the 105-minute cap, the Clear runtime decision, Verify evaluator decided, and Enforce live-execution evidence gate run blocks pinned whole-region line-exact with decision and evidence rewrite mutation self-tests and a decision/evidence write ban outside the evaluator agent, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval) plus the real publisher post/fetch outcomes (head and trigger mismatches included) are executed in a sandbox, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), every owner-PAT run block (the forward handoff, the pre-gate Get PR info read, the deliverable-context read, and the final evaluator memory push) is pinned whole-region line-exact with its exact key surface and an env of exactly the owner PAT and the eval marker literal banned, and no step other than the marker step may carry the eval marker literal and no step outside the three sanctioned comment posters may issue a comment post (all pins are mutation-self-tested, so a decoy approval marker cannot be injected into any token-bearing step body), and the pre-decision execution context is pinned so no PR-head code runs before the verdict (the checkout action is exactly actions/checkout@v6 with its exact with block, every other uses step is rejected, the actor gate executes only the script staged from the workflow commit, the vendored runner is always restored from the workflow commit with no early-exit trust, the decision/evidence write ban covers pathlib write_text/write_bytes, and the checkout, actor-gate, and restore blocks are mutation-self-tested), so a one-line neutering, declarative poisoning, or extra step cannot pass (issue #713)" "ok"
 else
   check "R30" "eval verdict publication and PAT merge gate guard missing:${r30_bad} (issue #713: a workflow-touching PR could merge through the PAT sweep with no binding Evaluator verdict)" "bad"
 fi
