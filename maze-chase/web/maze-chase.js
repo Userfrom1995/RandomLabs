@@ -701,6 +701,24 @@
     if (inField(e.target)) return; // never trap keys inside the name input field.
     var playing = isPlaying();
     var onBody = e.target === document.body || e.target === canvas;
+    // Menus: P/Esc/M are global from buttons and scroll regions, so a
+    // focused primary action can never swallow the documented keys. P is
+    // the menu Back key (docs/web.md controls table), matching Esc.
+    if (!playing && (id === 11 || id === 12 || id === 13)) {
+      e.preventDefault();
+      var mid = id === 12 ? 11 : id;
+      if (exp) { try { exp.mc_key(mid, 1); exp.mc_key(mid, 0); } catch (err) { /* ignore */ } }
+      return;
+    }
+    // Menus: arrows move focus from buttons/body; a focused scroll region
+    // keeps the browser's native scrolling.
+    var inScroll = !!(e.target.classList && e.target.classList.contains('panel-scroll'));
+    if (!playing && id >= 1 && id <= 4 && !inScroll) {
+      e.preventDefault();
+      if (exp) { try { exp.mc_key(id, 1); } catch (err) { /* ignore */ } }
+      moveFocus((id === 2 || id === 4) ? 1 : -1);
+      return;
+    }
     if (!playing && !onBody) return;
     // While playing, Esc/P pause via mc_press(2) (single toggle; NOT also
     // forwarded as mc_key, which would double-toggle). In menus they fall
@@ -719,10 +737,6 @@
     }
     if (exp) { try { exp.mc_key(id, 1); } catch (err) { /* ignore */ } }
     if (playing || onBody) e.preventDefault();
-    // Menus: arrows also move DOM focus between visible buttons.
-    if (!playing && id >= 1 && id <= 4) {
-      moveFocus((id === 2 || id === 4) ? 1 : -1);
-    }
   }
   function onKeyUp(e) {
     var id = CODE_TO_ID[e.code];
@@ -865,7 +879,6 @@
     $('btn-save-score').addEventListener('click', function () {
       if (!exp) return;
       var name = $('name-input').value.slice(0, 12);
-      if (!name) return;
       var w = scratchWriteUtf8(name);
       try { exp.mc_score_add(w.ptr, w.len); } catch (e) { /* ignore */ }
       exportScores();
