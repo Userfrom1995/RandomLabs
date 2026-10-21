@@ -1244,6 +1244,12 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          # Issue #713 review round 13: the Maintainer agent prepends
+          # $HOME/.opencode/bin (agent-controlled) to PATH and the agent is
+          # required to execute PR content, so this owner-PAT merge sweep must
+          # never resolve gh/python3/git/jq from the agent's PATH. Pin the
+          # system directories, as the owner-PAT trigger step does.
+          PATH: /usr/local/bin:/usr/bin:/bin
         run: |
           set -euo pipefail
           # Remove actions/checkout credential injection so PAT operations authenticate correctly
@@ -1356,13 +1362,15 @@ jobs:
             # only automated path that can land workflow-touching PRs, so the
             # binding Quality Council gate is enforced here too. The canonical
             # marker is published by opencode-eval.yml from the approve-eval
-            # machine handoff and carries the same entire-first-line plus
-            # bot-authorship shape as the tester verdict (R21), so quoted or
-            # summarized mentions can never count. The marker also records the
+            # machine handoff and carries the same entire-first-line shape as
+            # the tester verdict (R21), but is owner-authored (the evaluator
+            # agent holds only a read-only App token, issue #713 review round
+            # 13), so quoted, summarized, or bot-forged mentions can never
+            # count. The marker also records the
             # evaluated head and triggering comment (review round 3), so the
             # sweep binds the verdict to the work it actually examined instead
             # of trusting timestamps alone.
-            eval_marker=$(echo "$comments" | jq -c '[.[] | select(.user.login=="github-actions[bot]" and (.body|split("\n")[0]|test("^`?eval-verdict: approve-eval`?[[:space:]]*$")))] | last // empty' 2>/dev/null || echo "")
+            eval_marker=$(echo "$comments" | jq -c '[.[] | select(.user.login=="${{ github.repository_owner }}" and (.body|split("\n")[0]|test("^`?eval-verdict: approve-eval`?[[:space:]]*$")))] | last // empty' 2>/dev/null || echo "")
             if [ -z "$eval_marker" ]; then
               echo "PR #$pr has no eval approval marker (first-line marker); not merge-ready"
               continue
@@ -1422,7 +1430,7 @@ jobs:
             # both /oc eval and /opencode eval from any non-bot actor start the
             # eval workflow, and comment ids are monotonic, so an id mismatch
             # catches same-second triggers that a timestamp compare misses.
-            # Fail closed on a newer bot-authored rejection and on any newer
+            # Fail closed on a newer owner-authored rejection and on any newer
             # trigger (whose fresh verdict is still pending), so the sweep
             # waits for the current verdict instead of merging on a stale one.
             latest_eval_trigger_id=$(echo "$comments" | jq -r '[.[] | select((.user.login | endswith("[bot]") | not) and (((.body | startswith("/oc eval")) and ((.body | startswith("/oc eval result")) | not)) or ((.body | startswith("/opencode eval")) and ((.body | startswith("/opencode eval result")) | not))))] | last | .id // empty' 2>/dev/null || echo "")
@@ -1430,7 +1438,7 @@ jobs:
               echo "PR #$pr eval marker came from trigger ${approve_eval_trigger:-unknown}, latest eval trigger is ${latest_eval_trigger_id:-unknown}; awaiting the fresh eval verdict"
               continue
             fi
-            last_eval_reject_id=$(echo "$comments" | jq -r '[.[] | select(.user.login=="github-actions[bot]" and (.body | startswith("Quality Council REJECTION")))] | last | .id // empty' 2>/dev/null || echo "")
+            last_eval_reject_id=$(echo "$comments" | jq -r '[.[] | select(.user.login=="${{ github.repository_owner }}" and (.body | startswith("Quality Council REJECTION")))] | last | .id // empty' 2>/dev/null || echo "")
             if [ -n "$last_eval_reject_id" ] && [ "$last_eval_reject_id" -gt "$approve_eval_id" ]; then
               echo "PR #$pr has a newer eval rejection (comment $last_eval_reject_id > $approve_eval_id); not merge-ready"
               continue
@@ -1459,8 +1467,8 @@ jobs:
             # rejection and head checks; any API failure fails closed.
             merge_comments=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --jq '.[]' 2>/dev/null | jq -s '.' 2>/dev/null || echo "")
             merge_head=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null || echo "")
-            merge_marker_id=$(echo "$merge_comments" | jq -r '[.[] | select(.user.login=="github-actions[bot]" and (.body|split("\n")[0]|test("^`?eval-verdict: approve-eval`?[[:space:]]*$")))] | last | .id // empty' 2>/dev/null || echo "")
-            merge_reject_id=$(echo "$merge_comments" | jq -r '[.[] | select(.user.login=="github-actions[bot]" and (.body | startswith("Quality Council REJECTION")))] | last | .id // empty' 2>/dev/null || echo "")
+            merge_marker_id=$(echo "$merge_comments" | jq -r '[.[] | select(.user.login=="${{ github.repository_owner }}" and (.body|split("\n")[0]|test("^`?eval-verdict: approve-eval`?[[:space:]]*$")))] | last | .id // empty' 2>/dev/null || echo "")
+            merge_reject_id=$(echo "$merge_comments" | jq -r '[.[] | select(.user.login=="${{ github.repository_owner }}" and (.body | startswith("Quality Council REJECTION")))] | last | .id // empty' 2>/dev/null || echo "")
             merge_trigger_id=$(echo "$merge_comments" | jq -r '[.[] | select((.user.login | endswith("[bot]") | not) and (((.body | startswith("/oc eval")) and ((.body | startswith("/oc eval result")) | not)) or ((.body | startswith("/opencode eval")) and ((.body | startswith("/opencode eval result")) | not))))] | last | .id // empty' 2>/dev/null || echo "")
             if [ -z "$merge_comments" ] || [ "$merge_comments" = "[]" ] || [ -z "$merge_head" ] || [ "$merge_head" != "$head_sha" ]; then
               echo "PR #$pr head moved or comments could not be re-read immediately before the merge; skipping"

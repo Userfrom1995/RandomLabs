@@ -5,9 +5,15 @@ on:
     types: [created]
 
 permissions:
-  contents: write
-  pull-requests: write
-  issues: write
+  # Issue #713 review round 13: the evaluator executes the PR's shipped code,
+  # so its token must be read-only. The workflow's write operations (the
+  # signed verdict, the approval marker, the maintainer handoff, and the
+  # evaluator memory push) all run in hardcoded post-agent steps with the
+  # owner PAT, never with this App token, and the marker is owner-authored so
+  # a PR-controlled agent in any arm cannot forge it.
+  contents: read
+  pull-requests: read
+  issues: read
 
 concurrency:
   # Issue #601: every comment on the PR spawns a run (including the workflow's
@@ -46,6 +52,7 @@ jobs:
         id: pr-info
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/local/bin:/usr/bin:/bin
         run: |
           pr="${{ github.event.issue.number }}"
           head_ref=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName')
@@ -141,6 +148,7 @@ jobs:
         if: steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/local/bin:/usr/bin:/bin
         run: |
           pr="${{ github.event.issue.number }}"
           head_ref=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
@@ -228,6 +236,7 @@ jobs:
         if: always()
         env:
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
+          PATH: /usr/local/bin:/usr/bin:/bin
         run: |
           # Terminal third outcome for a gate skip (issue #428): the evaluator
           # step never started, so a missing decision file is a DENIAL, not a
@@ -260,6 +269,8 @@ jobs:
       - name: Enforce live-execution evidence gate
         id: evidence-gate
         if: always() && steps.verify-eval.outputs.has_decision == 'true'
+        env:
+          PATH: /usr/local/bin:/usr/bin:/bin
         run: |
           # Hard gate against green-but-never-ran approvals (PR #389 precedent):
           # an approve-eval verdict requires /tmp/live-run-evidence.json with at
@@ -291,11 +302,12 @@ jobs:
           fi
           echo "Evidence gate passed: $good non-test command(s) recorded against the deliverable."
 
-      - name: Post Quality Council result as bot (never as owner, never with /oc prefix)
+      - name: Post Quality Council result (owner PAT, never with /oc prefix)
         id: post-result
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/local/bin:/usr/bin:/bin
         run: |
           if [ ! -f /tmp/evaluator-decision.json ]; then
             echo "::error::No evaluator decision file found; the verify step above should have failed closed (issue #713)."
@@ -308,10 +320,11 @@ jobs:
           summary=$(jq -r '.summary // .critique // "Evaluation complete. See `.github/agents/evaluator.md` for rubric details."' /tmp/evaluator-decision.json 2>/dev/null || echo "Evaluation complete.")
 
           # The binding mechanism: post the Quality Council result back to the PR.
-          # Bot identity (GITHUB_TOKEN, github-actions[bot]) plus no leading /oc
-          # prefix: result comments must neither impersonate the owner nor match
-          # any workflow trigger (eval guard above, general exclusion, maintainer
-          # bot-ignore). The Maintainer surveys comments fresh; it needs no /oc.
+          # Owner identity (OPENCODE_PAT) plus no leading /oc prefix: result
+          # comments are owner-authored so a PR-controlled bot token cannot
+          # forge an eval marker, and they never match a workflow trigger (eval
+          # guard above, general exclusion). The Maintainer surveys comments
+          # fresh; it needs no /oc.
           if [ "$action" = "approve-eval" ]; then
             body="Quality Council APPROVED - Score ${score}/10. ${summary} - The Evaluator confirms the deliverable passes all 5 dimensions (aggregate at least 9.8). Passing to Hephaestus (Maintainer) for final merge. - The Quality Council (Evaluator)"
           elif [ "$action" = "fix" ]; then
@@ -346,21 +359,22 @@ jobs:
           }
           author=$(printf '%s' "$fetched" | jq -r '.user.login // empty' 2>/dev/null || true)
           fetched_body=$(printf '%s' "$fetched" | jq -r '.body // empty' 2>/dev/null | tr -d '\r' || true)
-          if [ "$author" != "github-actions[bot]" ]; then
-            echo "::error::Quality Council result comment ${comment_id} is authored by '${author}', not github-actions[bot] (issue #713)."
+          if [ "$author" != "${{ github.repository_owner }}" ]; then
+            echo "::error::Quality Council result comment ${comment_id} is authored by '${author}', not the repository owner (issue #713)."
             exit 1
           fi
           if [ "$fetched_body" != "$body" ]; then
             echo "::error::Quality Council result comment ${comment_id} does not carry the exact signed body; refusing to hand an unverified verdict onward (issue #713)."
             exit 1
           fi
-          echo "Verified bot-authored Quality Council result comment ${comment_id}."
+          echo "Verified owner-authored Quality Council result comment ${comment_id}."
 
-      - name: Publish eval approval marker (bot-authored)
+      - name: Publish eval approval marker (owner-PAT-signed)
         id: marker
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success' && steps.post-result.outcome == 'success'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/local/bin:/usr/bin:/bin
         run: |
           # Issue #713: the PAT merge sweep is the only automated path that can
           # land .github/workflows/* PRs, so it now requires a fresh eval
@@ -371,8 +385,10 @@ jobs:
           # PR head and the latest eval trigger are still the ones this run
           # evaluated. The shared publisher re-fetches the marker by id
           # (mirroring the tester marker contract, issue #629). The marker is
-          # posted with github.token (github-actions[bot]) and carries no /oc
-          # prefix: approve-eval is a decision action, never a trigger.
+          # posted with the owner PAT and carries no /oc prefix: approve-eval is
+          # a decision action, never a trigger. Owner authorship is the trust
+          # anchor (issue #713 review round 13): the evaluator agent holds only
+          # the read-only App token, so PR-controlled code cannot forge it.
           echo "ok=false" >> "$GITHUB_OUTPUT"
           if [ ! -f /tmp/evaluator-decision.json ]; then
             echo "No evaluator decision file; nothing to publish."
@@ -437,6 +453,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success' && steps.marker.outputs.ok == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/local/bin:/usr/bin:/bin
         run: |
           pr="${{ github.event.issue.number }}"
           if [ ! -f /tmp/evaluator-decision.json ]; then
@@ -470,6 +487,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/local/bin:/usr/bin:/bin
         run: |
           # Push evaluation memory (rubric updates, attack vectors, evaluation logs) to the Evaluator's dedicated branch.
           git checkout -b evaluator/logs 2>/dev/null || git checkout evaluator/logs || true
@@ -481,4 +499,7 @@ jobs:
           echo "- Action: $(jq -r '.action // \"unknown\"' /tmp/evaluator-decision.json 2>/dev/null || echo \"unknown\")" >> lab/memory/evaluator/eval-log.md
           git add lab/memory/evaluator/
           git commit -m "evaluator: update memory branch with evaluation turn for PR ${{ github.event.issue.number }}" || true
-          git push origin evaluator/logs --force-with-lease || true
+          # The App token is read-only now, so authenticate this best-effort
+          # push with the owner PAT explicitly (issue #713 review round 13).
+          git config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" evaluator/logs --force-with-lease || true
