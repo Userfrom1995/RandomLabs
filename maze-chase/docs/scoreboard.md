@@ -415,8 +415,10 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
 
 ## 2026-10-21 (current-tree verification)
 
-- Browser E2E at `63ed8018`: `web/e2e/browser-e2e.js` passes 125/125
-  assertions with `E2E: ALL GREEN` and zero console errors (headless
-  chromium over CDP). The round-20 test/docs fix does not touch the web
-  page, wasm, or harness, and the 2026-10-16 release-audit row above keeps
-  its own historical measurement.
+- Browser E2E with the round-21 title/pause viewport assertions:
+  `web/e2e/browser-e2e.js` passes 146/146 assertions with `E2E: ALL GREEN`
+  and zero console errors (headless chromium over CDP). The small-viewport
+  loop now also drives 320x568 and asserts the title's primary CTA is fully
+  inside the viewport and hit-testable, the title body reopens at its top,
+  and the 480x320 pause card is checked the same way; the 2026-10-16
+  release-audit row above keeps its own historical measurement.
