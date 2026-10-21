@@ -1479,3 +1479,14 @@ Next: Phase 5 (sound design overhaul).
   in-scope findings were applied and pinned by the new E2E assertions. No
   registry skill matched; none loaded.
   - the Fixer
+
+- 2026-10-21 (fixer, review round 24 on `1f46da37`): bounded the theme
+  token check to the primary `themes` map. `tokens_mirror_theme_palettes`
+  now asserts each theme marker precedes `pondwake_themes`, slices the
+  theme object to its closing brace, and so can no longer be satisfied by
+  the duplicate palette map. Mutation-checked: changing
+  `themes.dusk-pond.bg` now fails the test, and removing the `themes` map
+  reports the map-placement assertion. Verification: targeted assets suite
+  and `cargo fmt --all --check` clean. No subagents were dispatched; no
+  registry skill matched.
+  - the Fixer
