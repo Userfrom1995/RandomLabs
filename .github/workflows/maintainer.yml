@@ -1369,8 +1369,17 @@ jobs:
             fi
             approve_eval_time=$(printf '%s' "$eval_marker" | jq -r '.created_at // empty' 2>/dev/null || echo "")
             approve_eval_id=$(printf '%s' "$eval_marker" | jq -r '.id // empty' 2>/dev/null || echo "")
-            approve_eval_head=$(printf '%s' "$eval_marker" | jq -r '[.body // "" | split("\n")[] | select(startswith("eval-head: "))] | last // empty | sub("^eval-head: "; "")' 2>/dev/null || echo "")
-            approve_eval_trigger=$(printf '%s' "$eval_marker" | jq -r '[.body // "" | split("\n")[] | select(startswith("eval-trigger: "))] | last // empty | sub("^eval-trigger: "; "")' 2>/dev/null || echo "")
+            # Review round 9: the publisher verifies binding lines from a
+            # singleton extraction too, so a marker with more than one
+            # eval-head/eval-trigger line is rejected on both sides instead of
+            # being read first by one and last by the other.
+            approve_eval_head=$(printf '%s' "$eval_marker" | jq -r '[.body // "" | split("\n")[] | select(startswith("eval-head: "))] | if length == 1 then (.[0] | sub("^eval-head: "; "")) else empty end' 2>/dev/null || echo "")
+            approve_eval_trigger=$(printf '%s' "$eval_marker" | jq -r '[.body // "" | split("\n")[] | select(startswith("eval-trigger: "))] | if length == 1 then (.[0] | sub("^eval-trigger: "; "")) else empty end' 2>/dev/null || echo "")
+            if [ "$(printf '%s' "$eval_marker" | jq -r '[.body // "" | split("\n")[] | select(startswith("eval-head: "))] | length' 2>/dev/null || echo 0)" -ne 1 ] \
+              || [ "$(printf '%s' "$eval_marker" | jq -r '[.body // "" | split("\n")[] | select(startswith("eval-trigger: "))] | length' 2>/dev/null || echo 0)" -ne 1 ]; then
+              echo "PR #$pr eval marker does not carry exactly one eval-head and one eval-trigger binding; not merge-ready"
+              continue
+            fi
             if ! printf '%s' "$approve_eval_head" | grep -qE '^[0-9a-f]{40}$|^[0-9a-f]{64}$'; then
               echo "PR #$pr eval marker has no valid eval-head binding; not merge-ready"
               continue

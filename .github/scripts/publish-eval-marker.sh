@@ -32,14 +32,24 @@
 #
 # Exit 0 only when the marker was posted and re-fetches as a bot-authored
 # comment whose first line is exactly the marker, whose eval-head and
-# eval-trigger bindings match the requested values, and whose body is otherwise
-# present. Every other path exits 1 loudly so the fail-closed eval forward
-# chain never hands an unverified verdict to the merge sweep.
+# eval-trigger bindings match the requested values, and whose whole body is
+# byte-identical to the composed body. Every other path exits 1 loudly so the
+# fail-closed eval forward chain never hands an unverified verdict to the
+# merge sweep.
+#
+# Issue #713 review round 9: score is a single-line numeric field (the
+# evaluator's 0-10 rubric score) that used to be interpolated unchecked, and
+# the publisher verified the FIRST eval-head/eval-trigger lines while the
+# merge sweep parsed the LAST. A newline-bearing score could therefore inject
+# a second binding that the publisher's first-line check ignored while the
+# sweep honored it. Score is now validated, the composed and re-fetched
+# bodies must each carry exactly one binding line of each kind, and the whole
+# re-fetched body must equal the composed body.
 
 set -u
 
 target="${1:-}"
-score="${2:-N/A}"
+score="${2:-}"
 eval_head="${3:-}"
 eval_trigger="${4:-}"
 repo="${GITHUB_REPOSITORY:-}"
@@ -75,6 +85,20 @@ case "$eval_trigger" in
     ;;
 esac
 
+# Score is display text inside the marker body. It must be a single-line
+# numeric rubric score (issue #713 review round 9): accepting arbitrary text
+# let a newline split it into additional `eval-head:`/`eval-trigger:` lines.
+case "$score" in
+  ''|*[!0-9.]*|*.*.*)
+    echo "::error::publish-eval-marker.sh: score '$score' is not a single-line numeric score."
+    exit 1
+    ;;
+esac
+if ! printf '%s' "$score" | grep -qE '^[0-9]{1,3}(\.[0-9]{1,3})?$'; then
+  echo "::error::publish-eval-marker.sh: score '$score' is not a plain numeric rubric score."
+  exit 1
+fi
+
 body=$(printf '%s\n' \
   "$marker" \
   '' \
@@ -82,6 +106,12 @@ body=$(printf '%s\n' \
   "eval-trigger: ${eval_trigger}" \
   '' \
   "Machine-published Evaluator approval verdict for PR #${target} (Quality Council score: ${score}/10, evaluated head ${eval_head}, trigger comment ${eval_trigger}): the evaluator decision file passed the workflow gates. Published by the opencode-eval workflow (issue #713) so the merge sweep's first-line eval-verdict anchor is guaranteed by the workflow rather than by agent prose formatting.")
+
+if [ "$(printf '%s\n' "$body" | grep -c '^eval-head: ')" -ne 1 ] \
+  || [ "$(printf '%s\n' "$body" | grep -c '^eval-trigger: ')" -ne 1 ]; then
+  echo "::error::publish-eval-marker.sh: composed marker body does not carry exactly one eval-head and one eval-trigger binding line (issue #713 review round 9)."
+  exit 1
+fi
 
 response=$(gh api "repos/${repo}/issues/${target}/comments" -f body="$body" 2>&1) || {
   echo "::error::publish-eval-marker.sh: posting the eval approval marker to #${target} failed: ${response}"
@@ -103,6 +133,12 @@ author=$(printf '%s' "$fetched" | jq -r '.user.login // empty' 2>/dev/null || tr
 html_url=$(printf '%s' "$fetched" | jq -r '.html_url // empty' 2>/dev/null || true)
 fetched_body=$(printf '%s' "$fetched" | jq -r '.body // empty' 2>/dev/null | tr -d '\r' || true)
 fetched_first=$(printf '%s' "$fetched_body" | head -n1 || true)
+# Issue #713 review round 9: the sweep parses the LAST binding lines while the
+# publisher used to verify the FIRST. Require exactly one of each before
+# extracting, so last == first by construction and injected duplicates can
+# never pass one reader and steer the other.
+fetched_head_count=$(printf '%s\n' "$fetched_body" | grep -c '^eval-head: ' || true)
+fetched_trigger_count=$(printf '%s\n' "$fetched_body" | grep -c '^eval-trigger: ' || true)
 fetched_head=$(printf '%s' "$fetched_body" | sed -n 's/^eval-head: //p' | head -n1 || true)
 fetched_trigger=$(printf '%s' "$fetched_body" | sed -n 's/^eval-trigger: //p' | head -n1 || true)
 
@@ -112,6 +148,14 @@ if [ "$author" != "github-actions[bot]" ]; then
 fi
 if [ "$fetched_first" != "$marker" ]; then
   echo "::error::publish-eval-marker.sh: posted marker comment ${comment_id} does not carry the exact '${marker}' first line (fetched first line: '${fetched_first}'); the merge sweep would not recognize the verdict (issue #713)."
+  exit 1
+fi
+if [ "$fetched_head_count" -ne 1 ] || [ "$fetched_trigger_count" -ne 1 ]; then
+  echo "::error::publish-eval-marker.sh: posted marker comment ${comment_id} carries ${fetched_head_count} eval-head and ${fetched_trigger_count} eval-trigger binding lines; exactly one of each is required (issue #713 review round 9)."
+  exit 1
+fi
+if [ "$fetched_body" != "$body" ]; then
+  echo "::error::publish-eval-marker.sh: posted marker comment ${comment_id} body differs from the composed body; refusing to certify a marker that was altered in flight (issue #713 review round 9)."
   exit 1
 fi
 if [ "$fetched_head" != "$eval_head" ]; then
