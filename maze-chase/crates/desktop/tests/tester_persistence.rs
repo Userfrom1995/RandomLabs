@@ -45,3 +45,43 @@ fn first_settings_commit_creates_the_config_directory() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn settings_and_mute_toggle_presses_apply_and_persist_immediately() {
+    use maze_chase_desktop::screens::{AudioRow, ScreenId, SettingsRow};
+    let dir = fresh_dir_path("live-toggle");
+    let mut app = App::with_audio(dir.clone(), Box::new(NullSink::new()), false);
+    app.screens.show(ScreenId::Settings);
+    app.screens.settings_row = SettingsRow::ALL
+        .iter()
+        .position(|r| *r == SettingsRow::ReducedMotion)
+        .unwrap();
+    assert!(!app.settings.reduced_motion);
+    app.on_action(Action::Confirm);
+    assert!(
+        app.settings.reduced_motion,
+        "a toggle press must update the live settings"
+    );
+    let (persisted, _, _) = persist::load_from(&dir.join("settings.txt"));
+    assert!(
+        persisted.reduced_motion,
+        "a toggle press must persist immediately"
+    );
+    app.screens.show(ScreenId::Audio);
+    app.screens.audio_row = AudioRow::ALL
+        .iter()
+        .position(|r| *r == AudioRow::Mute)
+        .unwrap();
+    assert!(!app.settings.mute);
+    app.on_action(Action::Confirm);
+    assert!(
+        app.settings.mute,
+        "the Audio mute row must update the live settings"
+    );
+    let (persisted, _, _) = persist::load_from(&dir.join("settings.txt"));
+    assert!(
+        persisted.mute,
+        "the Audio mute row must persist immediately"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
