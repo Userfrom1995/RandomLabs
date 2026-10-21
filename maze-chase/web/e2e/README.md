@@ -24,10 +24,12 @@ on failure and print `ALL GREEN` on success.
   `play.html` in headless chromium over CDP with node's built-in
   WebSocket (boot with zero console errors, title visible, canvas
   pixels, real button click to play, real ArrowUp keypresses scoring,
-  P pause plus Resume, touch swipe, mobile 390x844 viewport plus sticky-header clearance at 320x480, 360x640, 375x667, and 390x844, scores
-  panel restoring a persisted row across reload plus in-page clear,
-  gameplay screenshots to the system temp directory (`os.tmpdir()`,
-  `mc-e2e-*.png`).
+  P pause plus Resume, touch swipe, mobile 390x844 viewport plus
+  sticky-header clearance and primary-CTA bounds/hit-testing at 320x480,
+  320x568, 360x640, 375x667, and 390x844, a scrolled title reopening at its
+  top, the 480x320 pause Resume bound/hit test, scores panel restoring a
+  persisted row across reload plus in-page clear, gameplay screenshots to
+  the system temp directory (`os.tmpdir()`, `mc-e2e-*.png`).
 
 Setup for the browser run (two shells, from `maze-chase/`):
 
