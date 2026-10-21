@@ -118,7 +118,7 @@ open it with any image viewer (`xdg-open
 maze-chase/docs/desktop-probe.ppm` on Linux) to preview the title
 frame without building. The committed gameplay capture
 `docs/desktop-gameplay.ppm` (P6 binary PPM, 1100x760, 2508016 bytes,
-sha256 `f6040ea93bd09ba057016972fb3e8320ce45229667cbae635a97754200625068`)
+sha256 `02ea979c910ddca2feea3a0731e812cae0cb8bd0f05416eb3d3fc8b32bd1390f`)
 comes from the same window pipeline after driving a play state under
 Xvfb (Return to start, then Right and Down to steer) before the probe
 saved the frame, so the board, HUD, and actors are all visible.

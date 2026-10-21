@@ -21,33 +21,25 @@ did not execute.
 
 ## Executed rows (Linux, harness on this build)
 
-All rows ran on 2026-10-20. The kitty rows and the xterm auto/dark rows
-(five of the eight) were re-executed at checkout
-`14b939d93b5e` (release `maze-chase-terminal`, SHA-256
-`c81890e8d27c8f6914a8decf3df14ca02a9314fd2a9b70bf94991ca714821e9b`,
-Rust sources clean). The forced xterm sixel row was re-executed after
-the renderer fixes at checkout
-`e938ce5a9883efca0c839447e29051d1a4c78810` (release
+All rows ran on 2026-10-21 at checkout
+`36ca9af2771c363e6b331b77d74b6990c3a19926` (release
 `maze-chase-terminal`, SHA-256
-`e06807bc1f4c0d3fb98552d436c5f4222b28d97cc25ea685d639475154bdc7e0`,
-Rust sources clean). The two Ghostty rows were recorded earlier at
-`90cb9b87f11cae952f2093b3b81b8db01d7f27e5` (binary
-`e5c9a284df71afe37413cb3e3047cfb2ce887cf81ad729feecb92ac3dfd0202a`)
-and are marked as such in the table; their rerun is tracked in the
-final sign-off phase. Every number below re-derives from the named JSON
-and uses true binary units (KiB = 1024 B, MiB = 1024^2 B). Every row
-records its identity in its own `build` block (`build.commit`,
-`build.binary_sha256`, `build.sources_dirty`). The recorded commit is
-the checkout when the row ran; because a `--skip-build` run can reuse a
-binary built at an earlier commit, the binary SHA-256 is authoritative.
-Each bundle therefore names the exact binary that produced it instead
-of implying the current head did. The kitty forced-tier row and the
-forced xterm sixel row record `pause_select: 1`: they move the pause
-menu cursor to "Quit to title" before the paused checkpoint, so a
-forced-tier rerun of an emulator never commits a byte-identical paused
-capture (their `events.log` files show the extra Down key at its byte
-offset). The xterm VT340 auto row keeps pause_select 0; the forced
-sixel row's cursor move keeps the two paused captures distinct.
+`ce3b1f91a78f00cbd72d09bd6132b367d027fd504e1e27d56e08ec9bd9f53f86`,
+Rust sources clean); every row below is from that same binary and every
+row records `build.sources_dirty: false`. Every number below re-derives
+from the named JSON and uses true binary units (KiB = 1024 B, MiB =
+1024^2 B). Each row records its identity in its own `build` block
+(`build.commit`, `build.binary_sha256`, `build.sources_dirty`). The
+recorded commit is the checkout when the row ran; because a
+`--skip-build` run can reuse a binary built at an earlier commit, the
+binary SHA-256 is authoritative. Each bundle therefore names the exact
+binary that produced it instead of implying the current head did. The
+forced kitty truecolor row, the forced Ghostty kitty row, and the forced
+xterm sixel row record `pause_select: 1`: they move the pause menu
+cursor to "Quit to title" before the paused checkpoint, so a forced-tier
+rerun of an emulator never commits a byte-identical paused capture
+(their `events.log` files show the extra Down key at its byte offset).
+The auto rows keep pause_select 0.
 
 The kitty-graphics `pass` rows also carry a
 sprite-palette census per capture (`sprite_census` in each phase,
@@ -59,26 +51,27 @@ with no decodable playing capture at all, so a menu-only capture set can
 never sign one. On Linux and macOS, a `pass` whose transcript never names
 the active video tier is refused outright, because the bitmap gates are
 keyed on the observed tier (Windows rows carry no transcript by design and
-are graded from the process record and the capture set). Independently of
-the placement count, it refuses a kitty-graphics `pass` whose
-paused capture carries sprite pixels, has no decodable capture, or
-is not a near-solid text panel (at least 90% and less than 100% one
-color), or whose phase list does not carry exactly one paused
-checkpoint (the fixed session always takes exactly one, so a missing
-or duplicated checkpoint is refused as unverifiable pause evidence).
-It also refuses a playing, resized, or refit capture that is
->=90% one color on the bitmap tiers (a blank board).
+are graded from the process record and the capture set). The pause hub
+deliberately freezes the 55%-dimmed board with the actors exempt, so a
+current paused capture is allowed to carry sprite pixels and sit between
+55% and 100% one color: the collector requires the PAUSED card paint in
+the paused transcript slice, a non-flat paused capture
+(`0.55 <= dominant_share < 1.0`), and exactly one paused checkpoint, and
+still refuses a paused capture with no decodable screenshot
+(`missing_paused_capture`) or an unpainted deck pane
+(`missing_paused_panel`). It also refuses a playing, resized, or refit
+capture that is >=90% one color on the bitmap tiers (a blank board).
 
 | terminal | version | tier requested | tier observed | disposition | notes | evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| kitty | 0.32.2 | auto | kitty-graphics | pass | full session, clean exit; 1.72 MiB transcript. The playing phase ran 98 frames in 4.75 s (20.6 fps); mean frame 6.1 KiB, max 15.2 KiB; its capture carries 163 sprite-palette pixels. For the whole session: 21 transmits / 169.6 KiB PNG payload, 879 placements and 859 deletes. The paused capture is a solid text panel (99.9% one color, zero sprite pixels) and the paused phase has zero transmits and zero placements (3 deletes release the board and atlas) | `kitty-linux-auto.json` |
-| kitty (forced cells) | 0.32.2 | truecolor | truecolor-cells | pass | full session, clean exit, pause and menus work (8.19 MiB transcript); the playing phase ran 149 frames at 31.3 fps | `kitty-linux-truecolor.json` |
-| Ghostty (pre-fix round, rerun tracked) | 1.3.1 | auto | kitty-graphics | pass | recorded at `90cb9b87`; full session, clean exit; 1.42 MiB transcript. `TERM_PROGRAM=ghostty` proves capability, so this row skips the probe (its trace carries no probe record); playing 98 frames in 4.68 s (20.9 fps), 17 transmits / 152.1 KiB during the phase; for the whole session 21 transmits / 175.0 KiB, 867 placements and 850 deletes; mean frame 6.3 KiB, playing max 16.9 KiB (18.9 KiB is the session-wide maximum in the refit phase). The playing capture carries 271 sprite-palette pixels, so sprites render on the terminal that used to hide them | `ghostty-linux-auto.json` |
-| Ghostty (forced kitty, pre-fix round, rerun tracked) | 1.3.1 | kitty | kitty-graphics | pass | recorded at `90cb9b87`; full session, clean exit; 1.44 MiB transcript. 21 transmits / 175.0 KiB for the session, playing 101 frames in 4.66 s (21.7 fps) at a 6.2 KiB mean frame; the playing capture census is 271 sprite pixels. The forced row confirms the environment identification is not masking a capability gap. The paused capture is a solid text panel (92.2% one color, zero sprite pixels) with zero transmits and six placements (nine deletes release the board and atlas) in that phase | `ghostty-linux-kitty.json` |
-| xterm | 390 | auto | legacy-cells | pass | full session, clean exit; 4.65 MiB transcript. The default light background no longer washes the row out: every painted run carries the theme's own canvas, so the worst capture is 6.2% white (too-small) and the playing capture is 1.7% white (before the fix this row was 7 of 10 captures at >=98% white and was downgraded). The bounded Kitty probe is visible in this row (1x1 transmit plus cleanup) and correctly falls through to cells | `xterm-linux-auto.json` |
-| xterm (dark background) | 390, `-bg black -fg white` | auto | legacy-cells | pass | full session, clean exit; 4.65 MiB transcript. The dark twin of the light row: both passes render the same theme canvas now, so a future background-suppression regression shows up as the light row diverging again | `xterm-dark-linux-auto.json` |
-| xterm (VT340 mode, forced) | 390, `-ti vt340 -bg black -fg white` | sixel | sixel | pass | 139 Sixel transmits / 4.33 MiB payload (31.9 KiB mean per transmit); the playing checkpoint ran 88 transmits in 4.63 s (19.0 fps) at a 25.3 KiB mean Sixel payload (29.5 KiB mean wire frame; 561 KiB/s wire, 480 KiB/s payload); full session 5.53 MiB. The Sixel palette quantizes the capture so the exact-RGB sprite census is not claimed here; the resized-wide capture is 29.2% one color, so the former blank checkpoint still proves the board. The paused checkpoint uses the changed menu selection, so it is distinct from the auto VT340 row | `xterm-linux-sixel.json` |
-| xterm (VT340 mode, auto) | 390, `-ti vt340 -bg black -fg white` | auto | sixel | pass | the DA1 probe answered and the game upgraded itself from legacy-cells to sixel (`tier_requested=auto`); full session (137 Sixel transmits / 4.27 MiB); the Kitty probe is sent first (its 1x1 transmit plus cleanup appear in this row's kitty totals) and the session still upgrades through Sixel, so this is the row that exercises the Sixel probe path | `xterm-vt340-linux-auto.json` |
+| kitty | 0.32.2 | auto | kitty-graphics | pass | full session, clean exit; 2.32 MiB transcript. The playing phase ran 103 frames in 4.81 s (21.4 fps); mean frame 6.2 KiB, max 15.4 KiB; its capture carries 153 sprite-palette pixels. For the whole session: 21 transmits / 169.9 KiB PNG payload, 938 placements and 918 deletes. The paused capture freezes the dimmed board and the PAUSED card (66.3% one color, 200 sprite pixels); the paused phase has zero transmits and zero placements (3 deletes release the board and atlas) | `kitty-linux-auto.json` |
+| kitty (forced cells) | 0.32.2 | truecolor | truecolor-cells | pass | full session, clean exit, pause and menus work (8.73 MiB transcript); the playing phase ran 154 frames in 4.83 s (31.9 fps); zero kitty transmits for the whole session, as expected on the forced cell tier. The paused capture uses the changed menu selection and carries the frozen board (66.2% one color, 200 sprite pixels) | `kitty-linux-truecolor.json` |
+| Ghostty | 1.3.1 | auto | kitty-graphics | pass | full session, clean exit; 1.94 MiB transcript. `TERM_PROGRAM=ghostty` proves capability, so this row skips the probe (its trace carries no probe record); playing 107 frames in 4.90 s (21.9 fps), 17 transmits / 152.2 KiB during the phase; for the whole session 21 transmits / 175.4 KiB, 997 placements and 980 deletes; mean frame 6.4 KiB, playing max 17.2 KiB (19.2 KiB is the session-wide maximum in the refit phase). The playing capture carries 217 sprite-palette pixels, so sprites render on the terminal that used to hide them. The paused capture carries the frozen board (71.1% one color, 20 sprite pixels) with zero transmits and six placements (nine deletes release the board and atlas) in that phase | `ghostty-linux-auto.json` |
+| Ghostty (forced kitty) | 1.3.1 | kitty | kitty-graphics | pass | full session, clean exit; 1.92 MiB transcript. 21 transmits / 175.4 KiB for the session, playing 105 frames in 4.87 s (21.5 fps) at a 6.4 KiB mean frame; the playing capture census is 217 sprite pixels. The forced row confirms the environment identification is not masking a capability gap. The paused capture uses the changed menu selection and carries the frozen board (71.1% one color, 20 sprite pixels) with zero transmits and six placements (nine deletes release the board and atlas) in that phase | `ghostty-linux-kitty.json` |
+| xterm | 390 | auto | legacy-cells | pass | full session, clean exit; 5.01 MiB transcript. The default light background no longer washes the row out: every painted run carries the theme's own canvas, so the worst capture is 6.2% white (too-small) and the playing capture is 1.9% white (before the fix this row was 7 of 10 captures at >=98% white and was downgraded). The bounded Kitty probe is visible in this row (1x1 transmit plus cleanup) and correctly falls through to cells | `xterm-linux-auto.json` |
+| xterm (dark background) | 390, `-bg black -fg white` | auto | legacy-cells | pass | full session, clean exit; 5.01 MiB transcript. The dark twin of the light row: both passes render the same theme canvas now (worst capture 1.5% white, playing 0.4% white), so a future background-suppression regression shows up as the light row diverging again | `xterm-dark-linux-auto.json` |
+| xterm (VT340 mode, forced) | 390, `-ti vt340 -bg black -fg white` | sixel | sixel | pass | 136 Sixel transmits / 4.22 MiB payload (32.6 KiB mean per transmit); the playing checkpoint ran 88 transmits in 4.72 s (18.7 fps) at a 25.3 KiB mean Sixel payload (29.7 KiB mean wire frame; 568 KiB/s wire, 474 KiB/s payload); full session 5.88 MiB. The Sixel palette quantizes the capture so the exact-RGB sprite census is not claimed here; the resized-wide capture is 29.1% one color, so the former blank checkpoint still proves the board. The paused checkpoint uses the changed menu selection and carries the frozen board (89.1% one color, 520 sprite pixels), so it is distinct from the auto VT340 row | `xterm-linux-sixel.json` |
+| xterm (VT340 mode, auto) | 390, `-ti vt340 -bg black -fg white` | auto | sixel | pass | the DA1 probe answered and the game upgraded itself from legacy-cells to sixel (`tier_requested=auto`); full session (136 Sixel transmits / 4.22 MiB); playing 88 frames in 4.72 s (18.6 fps); the Kitty probe is sent first (its 1x1 transmit plus cleanup appear in this row's kitty totals) and the session still upgrades through Sixel, so this is the row that exercises the Sixel probe path. The paused capture keeps the frozen board (89.1% one color, 520 sprite pixels) | `xterm-vt340-linux-auto.json` |
 
 ## Rows awaiting their host
 
@@ -101,23 +94,22 @@ It also refuses a playing, resized, or refit capture that is
   steady transmits are silent (`q=2`), so replies cannot spin the input
   loop. Both rows exit cleanly, and their playing captures prove sprite
   visibility by census (no equal-z tie-break can hide the atlas).
-  Measured cost is 21 transmits and 169.6-175.0 KiB of PNG payload per
+  Measured cost is 21 transmits and 169.9-175.4 KiB of PNG payload per
   session, against the pre-pipeline flood (a historical 1642 transmits
-  and 348.6 MiB, not re-derivable from the regenerated JSONs). The
-  pause surface releases the board and atlas before
-  painting its text menu, and the collector refuses a kitty `pass` whose
-  paused capture carries sprite pixels, has no decodable capture, or is
-  not a near-solid text panel (at least 90% and less than 100% one
-  color), or whose phase list does not carry exactly one paused
-  checkpoint; on every bitmap tier it also refuses a `pass` with no
-  decodable playing capture, or (on Linux and macOS, whose sessions carry
-  a transcript) one whose transcript never names the
+  and 348.6 MiB, not re-derivable from the regenerated JSONs). The pause
+  hub freezes the 55%-dimmed board with the actors exempt and transmits
+  no new frame image; the collector therefore accepts sprite pixels in
+  the paused capture but requires the PAUSED card paint, a non-flat
+  capture (`0.55 <= dominant_share < 1.0`), a decodable screenshot, and
+  exactly one paused checkpoint. On every bitmap tier it also refuses a
+  `pass` with no decodable playing capture, or (on Linux and macOS, whose
+  sessions carry a transcript) one whose transcript never names the
   active video tier.
 - `sixel` is fully playable on a real Sixel terminal. The encoder caps
   its palette at 64 colors and a frame at 2 MiB (with a smaller-palette
   retry and a cell fallback), and the tier paces at 24 Hz with
-  byte-rate backpressure. A whole session is 137-139 transmits /
-  4.27-4.33 MiB across the two VT340 rows.
+  byte-rate backpressure. A whole session is 136 transmits /
+  4.22 MiB across the two VT340 rows.
 - `legacy-cells` and `truecolor-cells` are fully playable on every
   executed cell row (kitty forced cells, xterm default-light, xterm
   dark).
