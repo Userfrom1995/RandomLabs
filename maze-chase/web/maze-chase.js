@@ -154,7 +154,10 @@
           'mc_scratch', 'mc_scratch_len', 'mc_theme_name', 'mc_fright_segments',
           'mc_fright_flash', 'mc_reduced_flash', 'mc_reduced_motion', 'mc_high_contrast',
           'mc_theme', 'mc_theme_count', 'mc_difficulty', 'mc_dots_total',
-          'mc_show_fps', 'mc_set_show_fps', 'memory'];
+          'mc_show_fps', 'mc_set_show_fps', 'mc_settings_len', 'mc_settings_read',
+          'mc_settings_write', 'mc_score_count', 'mc_score_get_score',
+          'mc_score_get_level', 'mc_score_get_name', 'mc_can_add_score',
+          'mc_score_add', 'mc_scores_clear', 'mc_scores_push', 'memory'];
         for (var i = 0; i < need.length; i++) {
           if (typeof exp[need[i]] === 'undefined') throw new Error('missing export: ' + need[i]);
         }
@@ -337,6 +340,7 @@
   }
 
   function syncPanels(s) {
+    if (s !== 3) cancelRebind();
     Object.keys(SCREEN_PANELS).forEach(function (k) {
       $(SCREEN_PANELS[k]).hidden = (Number(k) !== s);
     });
@@ -670,6 +674,16 @@
     armedRebind = -1;
   }
 
+  // Cancel both sides of an armed capture: the Rust session (99) and the
+  // visible prompt. Leaving Settings must never leave the capture live, or
+  // the next movement key silently rebinds Pause.
+  function cancelRebind() {
+    if (armedRebind < 0) return;
+    try { if (exp) exp.mc_rebind(99); } catch (err) { /* ignore */ }
+    disarmRebind();
+    refreshBindingLabels();
+  }
+
   // Show the live Rust-side binding on every rebind button (mc_binding
   // returns the first web-mappable key id, 0 when unmappable). Called at
   // boot and after every capture, since steals can move other rows too.
@@ -687,17 +701,19 @@
   function onKeyDown(e) {
     unlockAudio();
     var id = CODE_TO_ID[e.code];
-    // Rebind capture: next keydown completes it (Rust side). Never trap typing.
-    if (armedRebind >= 0 && !inField(e.target)) {
+    // Rebind capture: next keydown completes it (Rust side). Escape cancels
+    // even from a focused form control; other keys inside a field return to
+    // native handling so typing and slider arrows are never trapped.
+    if (armedRebind >= 0 && (e.code === 'Escape' || !inField(e.target))) {
       e.preventDefault();
       if (e.code === 'Escape' || !id) {
-        try { exp.mc_rebind(99); } catch (err) { /* ignore */ }
-      } else if (exp) {
-        try { exp.mc_key(id, 1); exp.mc_key(id, 0); } catch (err) { /* ignore */ }
+        cancelRebind();
+      } else {
+        if (exp) { try { exp.mc_key(id, 1); exp.mc_key(id, 0); } catch (err) { /* ignore */ } }
+        disarmRebind();
+        refreshBindingLabels();
+        saveSettings();
       }
-      disarmRebind();
-      refreshBindingLabels();
-      saveSettings();
       return;
     }
     if (!id) return; // unmapped key: leave to the browser.
@@ -778,7 +794,13 @@
   }
 
   function padBind(btn, id) {
-    var down = function (e) { e.preventDefault(); unlockAudio(); if (exp) { try { exp.mc_key(id, 1); } catch (err) {} } };
+    var down = function (e) {
+      e.preventDefault(); unlockAudio();
+      // A live capture owns the next key press: cancel it instead of
+      // completing the Rust-side rebind behind the prompt's back.
+      if (armedRebind >= 0) { cancelRebind(); return; }
+      if (exp) { try { exp.mc_key(id, 1); } catch (err) {} }
+    };
     var up = function (e) { e.preventDefault(); if (exp) { try { exp.mc_key(id, 0); } catch (err) {} } };
     btn.addEventListener('touchstart', down, { passive: false });
     btn.addEventListener('touchend', up, { passive: false });
@@ -947,6 +969,7 @@
         var prev = 0;
         try { prev = exp.mc_rebind(a) >>> 0; } catch (e) { /* ignore */ }
         armedRebind = a;
+        refreshBindingLabels();
         b.textContent = 'press a key... (Esc cancels)';
         b.focus();
         if (prev >= 1 && prev <= 13) b.dataset.prev = ID_TO_LABEL[prev];
