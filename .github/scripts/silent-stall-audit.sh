@@ -6353,6 +6353,35 @@ fi
 # timestamp, so a fast-forward push of commits with forged older dates after
 # a verdict would not stale it; the lab's bot pushes create fresh-dated
 # commits, so this is outside the bot trust model.
+#
+# Issue #713 review round 9: pin the ENTIRE head-push binding region exact.
+# The old uniqueness check counted `head_push_time=` assignment lines, which
+# a writer-spelling injection (`printf -v head_push_time ...`) bypassed: it
+# could overwrite the computed time after the max-reducer and defeat every
+# staleness check while the pin stayed green. Alternate writer spellings are
+# rejected and the whole region is compared, so no inserted or rewritten line
+# can alter the bound push time.
+r21_expected_head_push_block() {
+  cat <<'R21HEAD'
+head_commit_time=$(gh api "repos/${{ github.repository }}/pulls/$pr/commits?per_page=100" --paginate --jq '.[].commit.committer.date' 2>/dev/null | sort | tail -1 || true)
+head_force_push_time=$(gh api "repos/${{ github.repository }}/issues/$pr/timeline?per_page=100" --paginate --jq '.[] | select(.event=="head_ref_force_pushed") | .created_at' 2>/dev/null | sort | tail -1 || true)
+head_push_time=""
+for candidate in "$head_commit_time" "$head_force_push_time"; do
+[ -n "$candidate" ] || continue
+if [ -z "$head_push_time" ] || [ "$candidate" \> "$head_push_time" ]; then
+head_push_time="$candidate"
+fi
+done
+if [ -z "$head_push_time" ]; then
+echo "::warning::PR #$pr head push time could not be established; cannot bind the approval to the head; skipping"
+continue
+fi
+if [ "$approve_test_time" \< "$head_push_time" ]; then
+echo "PR #$pr approval ($approve_test_time) predates the last head push ($head_push_time); stale approval, not merge-ready"
+continue
+fi
+R21HEAD
+}
 r21_bad=""
 if [ ! -f "$MAIN_WF" ]; then
   r21_bad=" maintainer.yml(missing)"
@@ -6379,6 +6408,39 @@ else
     [ "$(printf '%s\n' "$r21_pat_block" | grep -cF 'sort | tail -1')" -eq 2 ] || r21_bad="${r21_bad} maintainer.yml(head-time-reduction-not-pinned)"
     printf '%s\n' "$r21_pat_block" | grep -qF 'if [ -z "$head_push_time" ]; then' || r21_bad="${r21_bad} maintainer.yml(no-head-time-fail-closed)"
     printf '%s\n' "$r21_pat_block" | grep -qF 'if [ "$approve_test_time" \< "$head_push_time" ]; then' || r21_bad="${r21_bad} maintainer.yml(no-stale-verdict-check)"
+    # Whole-region exact pin of the head-push binding (issue #713 review round
+    # 9), plus an explicit alternate-writer ban. A `printf -v head_push_time`
+    # (or read/declare/typeset/export) line inside the region would overwrite
+    # the computed max after the reducer and defeat every staleness check
+    # while the old `head_push_time=` line count stayed at two.
+    r21_head_region=$(printf '%s\n' "$r21_pat_block" | awk '
+      /^[[:space:]]*head_commit_time=/ { f=1 }
+      f { print }
+      f && /stale approval, not merge-ready/ { g=1 }
+      g && /^[[:space:]]*fi[[:space:]]*$/ { exit }' \
+      | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -vE '^#|^$' || true)
+    r21_head_expect=$(r21_expected_head_push_block \
+      | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -vE '^#|^$')
+    if [ -z "$r21_head_expect" ]; then
+      r21_bad="${r21_bad} maintainer.yml(head-push-expected-missing)"
+    elif [ -z "$r21_head_region" ] || [ "$r21_head_region" != "$r21_head_expect" ]; then
+      r21_bad="${r21_bad} maintainer.yml(head-push-binding-block-not-exact)"
+    fi
+    printf '%s\n' "$r21_pat_block" | grep -vE '^[[:space:]]*#' \
+      | grep -qE '(printf[[:space:]]+-v|read|declare|typeset|export)[[:space:]][^#]*head_push_time' \
+      && r21_bad="${r21_bad} maintainer.yml(head_push_time-alternate-writer)"
+    # Mutation self-test: the demonstrated writer-spelling injection must
+    # break the exact pin (a vacuous comparator cannot stay green).
+    r21_head_mut=$(printf '%s\n' "$r21_pat_block" \
+      | sed 's/head_push_time="\$candidate"/printf -v head_push_time "%s" "$candidate"/')
+    r21_head_mut_region=$(printf '%s\n' "$r21_head_mut" | awk '
+      /^[[:space:]]*head_commit_time=/ { f=1 }
+      f { print }
+      f && /stale approval, not merge-ready/ { g=1 }
+      g && /^[[:space:]]*fi[[:space:]]*$/ { exit }' \
+      | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -vE '^#|^$' || true)
+    [ "$r21_head_mut_region" != "$r21_head_expect" ] \
+      || r21_bad="${r21_bad} maintainer.yml(self-test-head-push-writer-not-caught)"
     r21_line() { printf '%s\n' "$r21_pat_block" | grep -nF -- "$1" | head -1 | cut -d: -f1; }
     r21_approve_ln=$(r21_line 'approve_test_time=$(echo "$comments" | jq -r ')
     r21_commit_ln=$(r21_line 'head_commit_time=$(gh api "repos/${{ github.repository }}/pulls/$pr/commits?per_page=100"')
@@ -6445,15 +6507,45 @@ else
         if [ -z "$r21_decide_block" ]; then
           r21_bad="${r21_bad} maintainer.yml(functional-decision-block-extraction)"
         else
+          # Issue #713 review round 9: this block is maintainer.yml code, and
+          # executing it with `eval` in the audit's own shell let an inserted
+          # `exit 0` end the whole audit before R21 reported. Reject any
+          # control transfer outright and execute in a subshell as well, so a
+          # planted exit can neither truncate the audit nor silence the rule.
+          r21_has_control_transfer() {
+            # set +o pipefail: grep -q exits at the first match and can SIGPIPE
+            # the upstream grep -v; with the audit's pipefail that reads as
+            # no-match and a planted control transfer escapes.
+            ( set +o pipefail
+              printf '%s\n' "$1" | grep -vE '^[[:space:]]*#' \
+                | grep -qE '(^|[[:space:];])(exit|return|break)([[:space:]]|;|$)' )
+          }
+          if r21_has_control_transfer "$r21_decide_block"; then
+            r21_bad="${r21_bad} maintainer.yml(functional-head-block-control-transfer)"
+          fi
+          # Mutation self-test: a planted `exit 0` must be caught.
+          r21_ct_mut="${r21_decide_block}"$'\n            if [ -n "${r21_decide_block:-}" ]; then exit 0; fi'
+          r21_has_control_transfer "$r21_ct_mut" \
+            || r21_bad="${r21_bad} maintainer.yml(self-test-control-transfer-not-caught)"
           r21_head_case() {
             r21_hc_name="$1"; r21_hc_hct="$2"; r21_hc_hfpt="$3"; r21_hc_att="$4"; r21_hc_want="$5"
             r21_skipped=0
             pr="1"
+            # Seed `comments` production-shaped: the real sweep always has it
+            # set, so a writer-spelling injection gated on its presence must
+            # execute under the harness too.
+            comments='[]'
             head_commit_time="$r21_hc_hct"
             head_force_push_time="$r21_hc_hfpt"
             approve_test_time="$r21_hc_att"
-            r21_body=$(printf '%s\n' "$r21_decide_block" | sed 's/^[[:space:]]*continue[[:space:]]*$/r21_skipped=1/')
-            eval "$r21_body" >/dev/null 2>&1 || true
+            # A subshell cannot set the parent's skip flag, so transfer the
+            # decision through a file (mirroring R30's extracted blocks).
+            r21_skipfile="$r21_tmp/skip-head-$r21_hc_name"
+            rm -f "$r21_skipfile"
+            r21_body=$(printf '%s\n' "$r21_decide_block" \
+              | sed -e "s#^[[:space:]]*continue[[:space:]]*\$#printf '1' > '$r21_skipfile'#")
+            ( set +e; eval "$r21_body" ) >/dev/null 2>&1 || true
+            [ ! -f "$r21_skipfile" ] || r21_skipped=1
             if [ "$r21_skipped" != "$r21_hc_want" ]; then
               r21_bad="${r21_bad} maintainer.yml(functional-head-${r21_hc_name}-skip=${r21_skipped},want=${r21_hc_want})"
             fi
@@ -14239,7 +14331,7 @@ R30_PUBLISHER=".github/scripts/publish-eval-marker.sh"
 # fragments, so an appended target-gated post that forged markers for other
 # PRs kept every fragment green. This reviewed SHA-256 pins the whole file;
 # a legitimate publisher change updates the constant in the same PR.
-R30_PUBLISHER_SHA256="de7bb03907eb0eb58453a23d32fcc48b83e5eec696cdc56f60835e5975de1e2f"
+R30_PUBLISHER_SHA256="d2784d347e90d6b3218227c73c79d82104497fe61b278526fb535a8e4c789f77"
 R30_MARKER="eval-verdict: approve-eval"
 r30_bad=""
 # Review round 3 (issue #713 finding 3): initialize every extracted block
@@ -14343,6 +14435,13 @@ EXPECTED_CONCURRENCY = {
 # the same PR.
 EXPECTED_EVAL_PROMPT_SHA256 = "dbe5fd80e6ecaf6dfee84a1f6f6441d75ea4ce1ef7ea662d5debc61fc07a8467"
 EXPECTED_TEST_PROMPT_SHA256 = "e8d8f6dba7071a7af9e16b54ac339f735cf239da03be9dba49a2b2f77ac98824"
+# Issue #713 review round 9: the Tester agent's with.prompt scalar is part of
+# the gate contract too (it carries the live-execution and decision-file
+# instructions). Pin it by SHA-256 instead of a substring check, so a workflow
+# edit cannot replace the staged-prompt reference or the approval contract
+# while the step shape stays valid. A legitimate prompt change updates this
+# constant in the same PR.
+EXPECTED_TEST_AGENT_PROMPT_SHA256 = "d6b6ef74f468b0c13bc034bffbefd4729a4a35ee230c5a6e5822d9717795c931"
 EXPECTED_STAGE_PROMPT_BLOCK_SHA256 = "527dbbca42a84e28e0bffda1dd2c7f21f83d80bcfe3035b27f45261065734547"
 EXPECTED_TEST_STAGE_PROMPT_BLOCK_SHA256 = "e0c4b5fa07824eeafcaf75c946f0f60f0e12e9105a57f22625e7cb82a6c81114"
 EXPECTED_MAINTAINER_POST_BLOCK_SHA256 = "a3b907775fe95c3c892b911d7602df2a56fbf89ee87d834ee5c039fb4ab4bf1e"
@@ -14358,6 +14457,9 @@ EXPECTED_JOB_TIMEOUT = 120
 EXPECTED_AGENT_ENV = {
     "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}",
     "GITHUB_TOKEN": "${{ github.token }}",
+    # Issue #713 review round 9: the PR-head checkout is untrusted, so the
+    # agent must never auto-load its AGENTS.md/opencode.json project config.
+    "OPENCODE_DISABLE_PROJECT_CONFIG": "true",
 }
 EXPECTED_AGENT_WITH = {
     "variant": "max",
@@ -15071,6 +15173,14 @@ def validate_test(doc, sink):
             or "${RUNNER_TEMP}/lab-prompts/tester.md" not in agent_prompt
         ):
             sink.append("test.yml(agent-prompt-not-staged)")
+        # Issue #713 review round 9: pin the whole Tester agent prompt scalar,
+        # not just the staged-prompt reference, so the live-execution and
+        # decision-file contract cannot be rewritten behind the pin.
+        elif (
+            hashlib.sha256(agent_prompt.encode()).hexdigest()
+            != EXPECTED_TEST_AGENT_PROMPT_SHA256
+        ):
+            sink.append("test.yml(agent-prompt-not-exact)")
 
 
 def validate_maintainer(doc, sink):
@@ -15094,7 +15204,13 @@ def validate_maintainer(doc, sink):
             continue
         name = step.get("name")
         run = step.get("run")
-        if isinstance(run, str) and name != PAT_STEP_NAME and "eval-verdict" in run:
+        # Review round 9: normalize quotes/whitespace/plus/backslashes before
+        # the scan, so a split-literal spelling ("eval-" + "verdict") cannot
+        # smuggle the marker literal past the exact substring check.
+        marker_norm = (
+            re.sub(r"[\s\"'+\\]", "", run) if isinstance(run, str) else ""
+        )
+        if name != PAT_STEP_NAME and "eval-verdict" in marker_norm:
             sink.append("maintainer.yml(decoy-marker-literal-outside-pat-sweep)")
     hits = [
         step
@@ -15591,6 +15707,20 @@ if test_doc is not None:
         validate_test(test_prompt_mutant, test_prompt_local)
         if not any("test.yml(agent-prompt-not-staged" in p for p in test_prompt_local):
             problems.append("test.yml(structural-self-test-agent-prompt-not-staged)")
+        # Issue #713 review round 9: the Tester agent prompt is pinned by
+        # SHA-256, so a rewrite that keeps the staged-prompt reference must
+        # still be caught.
+        test_prompt_rewrite_mutant = copy.deepcopy(test_doc)
+        for step in test_prompt_rewrite_mutant["jobs"]["test"]["steps"]:
+            if isinstance(step, dict) and step.get("id") == "test":
+                step["with"]["prompt"] = step["with"]["prompt"].replace(
+                    'output {"action":"maintainer"}',
+                    'output {"action":"fix"}',
+                )
+        test_prompt_rewrite_local = []
+        validate_test(test_prompt_rewrite_mutant, test_prompt_rewrite_local)
+        if not any("test.yml(agent-prompt-not-exact" in p for p in test_prompt_rewrite_local):
+            problems.append("test.yml(structural-self-test-agent-prompt-not-exact)")
     except Exception:
         problems.append("test.yml(structural-self-test-prompt-stage-rewrite)")
 
@@ -15613,6 +15743,22 @@ if maintainer_doc is not None:
         validate_maintainer(maintainer_mutant, maintainer_local)
         if not any("decoy-marker-literal-outside-pat-sweep" in p for p in maintainer_local):
             problems.append("maintainer.yml(structural-self-test-post-marker-decoy)")
+        # Review round 9: a split-literal marker spelling must be caught by the
+        # normalized scan even though the exact substring is absent.
+        maintainer_split_mutant = copy.deepcopy(maintainer_doc)
+        for step in maintainer_split_mutant["jobs"]["maintainer"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == MAINTAINER_POST_NAME:
+                step["run"] = (
+                    step["run"]
+                    + '\nbody = "eval-" + "verdict: approve-eval"\n'
+                )
+        maintainer_split_local = []
+        validate_maintainer(maintainer_split_mutant, maintainer_split_local)
+        if not any(
+            "decoy-marker-literal-outside-pat-sweep" in p
+            for p in maintainer_split_local
+        ):
+            problems.append("maintainer.yml(structural-self-test-split-marker-decoy)")
         if not any(
             "post-maintainer-comment-run-block-not-exact" in p
             for p in maintainer_local
@@ -15689,6 +15835,17 @@ else
   grep -qF '"eval-trigger: ${eval_trigger}"' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-eval-trigger-binding-in-body)"
   grep -qF 'if [ "$fetched_head" != "$eval_head" ]; then' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-fetched-head-verification)"
   grep -qF 'if [ "$fetched_trigger" != "$eval_trigger" ]; then' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-fetched-trigger-verification)"
+  # Issue #713 review round 9: score is validated as a single-line numeric
+  # field, both the composed and re-fetched bodies must carry exactly one
+  # binding line of each kind, and the whole re-fetched body must equal the
+  # composed body, so the publisher and sweep can never read different
+  # bindings from the same comment.
+  grep -qF 'case "$score" in' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-score-guard)"
+  grep -qF 'is not a single-line numeric score' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-score-format-guard)"
+  grep -qF 'composed marker body does not carry exactly one eval-head and one eval-trigger binding line' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-composed-binding-cardinality-guard)"
+  grep -qF 'fetched_head_count' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-fetched-binding-cardinality-guard)"
+  grep -qF 'if [ "$fetched_body" != "$body" ]; then' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-fetched-body-equality-check)"
+  grep -qF 'body differs from the composed body' "$R30_PUBLISHER" || r30_bad="${r30_bad} publisher(no-body-equality-message)"
   grep -qF 'GITHUB_ACTIONS' "$R30_PUBLISHER" && r30_bad="${r30_bad} publisher(references-GITHUB_ACTIONS)"
   grep -qF 'MOCK_' "$R30_PUBLISHER" && r30_bad="${r30_bad} publisher(references-MOCK)"
   grep -qF 'Userfrom1995' "$R30_PUBLISHER" && r30_bad="${r30_bad} publisher(hardcodes-repo-slug)"
@@ -15721,6 +15878,12 @@ fi
 action=$(jq -r '.action // empty' /tmp/evaluator-decision.json 2>/dev/null || echo "")
 if [ "$action" != "approve-eval" ]; then
 echo "Decision '$action' is not an approval; no eval marker to publish."
+echo "ok=true" >> "$GITHUB_OUTPUT"
+exit 0
+fi
+ev=/tmp/live-run-evidence.json
+if [ -f "$ev" ] && jq -e '.scope == "unrunnable"' "$ev" >/dev/null 2>&1; then
+echo "Evidence declares scope=unrunnable; this is an escalation, not an approval; no eval approval marker published."
 echo "ok=true" >> "$GITHUB_OUTPUT"
 exit 0
 fi
@@ -16050,6 +16213,9 @@ else
   printf '%s\n' "$r30_marker_block" | grep -q 'bash \.github/scripts/publish-eval-marker\.sh' && r30_bad="${r30_bad} eval.yml(head-workspace-publisher-invocation)"
   printf '%s\n' "$r30_marker_block" | grep -qF 'if [ ! -s "$publisher" ]; then' || r30_bad="${r30_bad} eval.yml(no-fail-closed-on-missing-publisher)"
   printf '%s\n' "$r30_marker_block" | grep -qF 'if [ "$action" != "approve-eval" ]; then' || r30_bad="${r30_bad} eval.yml(no-approve-eval-only-guard)"
+  # Review round 9: a scope=unrunnable evidence file is an escalation, never a
+  # mergeable approval; the marker step must skip publication for it.
+  printf '%s\n' "$r30_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF "if [ -f \"\$ev\" ] && jq -e '.scope == \"unrunnable\"' \"\$ev\" >/dev/null 2>&1; then" || r30_bad="${r30_bad} eval.yml(no-unrunnable-marker-exclusion)"
   # Review round 3 finding 1: a marker may only be published while the PR head
   # is still the evaluated head and the triggering comment is still the latest
   # eval trigger. Each guard fails the step closed, so the forward handoff is
@@ -16188,6 +16354,12 @@ else
       printf '%s\n' "$eval_line" | grep -qF 'select(.user.login=="github-actions[bot]"' || bad="${bad} maintainer.yml(eval-marker-no-bot-author)"
       printf '%s\n' "$eval_line" | grep -qF '(.body|split("\n")[0]|test("^`?eval-verdict: approve-eval`?[[:space:]]*$"))' || bad="${bad} maintainer.yml(eval-marker-not-shape-anchored)"
       printf '%s\n' "$block" | grep -qF 'contains("eval-verdict' && bad="${bad} maintainer.yml(unanchored-eval-verdict-contains)"
+      # Review round 9: a split-literal contains() spelling (for example
+      # `contains("eval-" + "verdict")`) evades the exact grep while meaning
+      # the same thing. Normalize quotes/whitespace/plus/backslashes before
+      # the scan so the unanchored form family stays banned.
+      r30_contains_norm=$(printf '%s\n' "$block" | tr -d '[:space:]"'\''+\\')
+      printf '%s' "$r30_contains_norm" | grep -qF 'contains(eval-verdict' && bad="${bad} maintainer.yml(unanchored-eval-verdict-contains)"
       printf '%s\n' "$block" | grep -qF 'if [ -z "$eval_marker" ]; then' || bad="${bad} maintainer.yml(no-eval-marker-requirement)"
       # A freshness variable may be assigned exactly once: an injected
       # same-named assignment (approve_eval_time="2099-...") would otherwise
@@ -16200,9 +16372,37 @@ else
       # the single max-reduction that binds the approval to the head's last
       # push. Anything else would let a second write bypass that binding.
       [ "$(printf '%s\n' "$block" | grep -cE '(^|[[:space:]])head_push_time=')" -eq 2 ] || bad="${bad} maintainer.yml(head_push_time-assignment-not-unique)"
+      # Issue #713 review round 9: the line-count check above is blind to
+      # alternate writer spellings (`printf -v head_push_time ...`), which can
+      # overwrite the computed max after the reducer and defeat every
+      # staleness check. Pin the whole head-push binding region exact and ban
+      # those spellings outright.
+      local head_region head_expect
+      head_region=$(printf '%s\n' "$block" | awk '
+        /^[[:space:]]*head_commit_time=/ { f=1 }
+        f { print }
+        f && /stale approval, not merge-ready/ { g=1 }
+        g && /^[[:space:]]*fi[[:space:]]*$/ { exit }' \
+        | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -vE '^#|^$' || true)
+      head_expect=$(r21_expected_head_push_block \
+        | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -vE '^#|^$')
+      if [ -z "$head_expect" ] || [ -z "$head_region" ] || [ "$head_region" != "$head_expect" ]; then
+        bad="${bad} maintainer.yml(head-push-binding-block-not-exact)"
+      fi
+      printf '%s\n' "$block" | grep -vE '^[[:space:]]*#' \
+        | grep -qE '(printf[[:space:]]+-v|read|declare|typeset|export)[[:space:]][^#]*head_push_time' \
+        && bad="${bad} maintainer.yml(head_push_time-alternate-writer)"
       printf '%s\n' "$block" | grep -qF 'approve_eval_time=$(printf' || bad="${bad} maintainer.yml(eval-marker-time-not-parsed)"
       printf '%s\n' "$block" | grep -qF 'sub("^eval-head: "; "")' || bad="${bad} maintainer.yml(eval-head-not-parsed)"
       printf '%s\n' "$block" | grep -qF 'sub("^eval-trigger: "; "")' || bad="${bad} maintainer.yml(eval-trigger-not-parsed)"
+      # Issue #713 review round 9: the sweep and publisher must use the SAME
+      # singleton extraction. The sweep parses the LAST binding line, so a
+      # duplicate injected through the score field could pass the publisher's
+      # first-line check and steer the sweep. Both sides now require exactly
+      # one binding line of each kind and the sweep extracts that singleton.
+      printf '%s\n' "$block" | grep -qF 'if length == 1 then (.[0] | sub("^eval-head: "; "")) else empty end' || bad="${bad} maintainer.yml(eval-head-not-singleton-parsed)"
+      printf '%s\n' "$block" | grep -qF 'if length == 1 then (.[0] | sub("^eval-trigger: "; "")) else empty end' || bad="${bad} maintainer.yml(eval-trigger-not-singleton-parsed)"
+      printf '%s\n' "$block" | grep -qF 'eval marker does not carry exactly one eval-head and one eval-trigger binding' || bad="${bad} maintainer.yml(eval-binding-cardinality-guard-missing)"
       printf '%s\n' "$block" | grep -qF 'if [ -z "$head_sha" ] || [ "$approve_eval_head" != "$head_sha" ]; then' || bad="${bad} maintainer.yml(no-eval-head-binding-check)"
       printf '%s\n' "$block" | grep -qF 'if [ "$approve_eval_time" \< "$head_push_time" ]; then' || bad="${bad} maintainer.yml(no-stale-eval-check)"
       printf '%s\n' "$block" | grep -qF 'if [ "$approve_eval_time" \< "$approve_test_time" ]; then' || bad="${bad} maintainer.yml(no-eval-before-tester-check)"
@@ -16245,6 +16445,29 @@ else
     case "$(r30_check_pat_block "$r30_mut")" in
       *approve_test_time-assignment-not-unique*) : ;;
       *) r30_bad="${r30_bad} maintainer.yml(self-test-tester-time-injection)" ;;
+    esac
+    # Issue #713 review round 9: a split-literal unanchored contains() must be
+    # caught by the normalized scan (the exact grep alone misses it).
+    r30_mut="${r30_pat_block}"$'\n            r30_decoy=$(echo "$comments" | jq -r \'.[] | select(.body | contains("eval-" + "verdict")) | .id\')'
+    case "$(r30_check_pat_block "$r30_mut")" in
+      *unanchored-eval-verdict-contains*) : ;;
+      *) r30_bad="${r30_bad} maintainer.yml(self-test-split-eval-verdict-contains-not-caught)" ;;
+    esac
+    # Issue #713 review round 9: the sweep's singleton binding extraction is
+    # load-bearing, so a one-token weakening back to `>= 1` must be caught.
+    r30_mut="${r30_pat_block/length == 1/length >= 1}"
+    case "$(r30_check_pat_block "$r30_mut")" in
+      *eval-head-not-singleton-parsed*) : ;;
+      *) r30_bad="${r30_bad} maintainer.yml(self-test-eval-binding-singleton-not-caught)" ;;
+    esac
+    # Issue #713 review round 9: the demonstrated `printf -v` writer-spelling
+    # injection must be caught by the whole-block pin / alternate-writer ban,
+    # not merely by the old `head_push_time=` line count.
+    r30_mut=$(printf '%s\n' "$r30_pat_block" \
+      | sed 's/head_push_time="\$candidate"/printf -v head_push_time "%s" "$candidate"/')
+    case "$(r30_check_pat_block "$r30_mut")" in
+      *head-push-binding-block-not-exact*|*head_push_time-alternate-writer*) : ;;
+      *) r30_bad="${r30_bad} maintainer.yml(self-test-head-push-writer-not-caught)" ;;
     esac
     r30_mut="${r30_pat_block//\/opencode eval/\/oc eval}"
     case "$(r30_check_pat_block "$r30_mut")" in
@@ -16576,6 +16799,10 @@ case "$*" in
     fi
     ;;
   *)
+    # Record the post target so the fixture is target-bound (issue #713
+    # review round 9): a publisher hardcoding PR 713 or posting a decoy to a
+    # second target must be observable instead of passing on rc alone.
+    printf '%s\n' "$*" > "$(cd "$(dirname "$0")/.." && pwd)/post-url"
     if [ "$fail_post" = "1" ]; then
       echo "mock gh: post failed" >&2
       exit 1
@@ -16621,10 +16848,10 @@ R30_PUBLISHER_MOCK
               printf 'posted_file=%q\n' "$r30_tmp/posted-$r30_pc_name"
               for r30_kv in "$@"; do printf '%s\n' "$r30_kv"; done
             } > "$r30_tmp/case.cfg"
-            rm -f "$r30_tmp/posted-$r30_pc_name"
+            rm -f "$r30_tmp/posted-$r30_pc_name" "$r30_tmp/post-url"
             r30_pc_out=$(cd "$r30_tmp" && env -u GITHUB_TOKEN -u GH_TOKEN -u GH_API_TOKEN \
               PATH="$r30_mockdir:$PATH" GITHUB_ACTIONS=true GITHUB_REPOSITORY="RandomLabs/RandomLabs" \
-              bash "$r30_publisher_abs" "$r30_pc_target" "9.9" "$r30_pc_head" "$r30_pc_trigger" 2>&1)
+              bash "$r30_publisher_abs" "$r30_pc_target" "${R30_PUB_SCORE:-9.9}" "$r30_pc_head" "$r30_pc_trigger" 2>&1)
             r30_pc_rc=$?
             if [ "$r30_pc_rc" -ne "$r30_pc_want" ]; then
               r30_bad="${r30_bad} publisher(functional-${r30_pc_name}-rc=${r30_pc_rc},want=${r30_pc_want})"
@@ -16635,6 +16862,44 @@ R30_PUBLISHER_MOCK
           # Issue #713 review round 8: a second PR number must behave identically,
           # so a target-gated forged post or a PR=713 hardcode cannot pass.
           r30_pub_case good-marker-second-pr 0 714 "$r30_pub_sha" "$r30_pub_trigger"
+          # Issue #713 review round 9: the second-PR fixture is target-bound.
+          # The mock records the post URL, so a decoy post to another issue is
+          # observable instead of passing on rc alone.
+          r30_second_pr_url=$(cat "$r30_tmp/post-url" 2>/dev/null || true)
+          case "$r30_second_pr_url" in
+            *"/issues/714/comments"*) : ;;
+            *) r30_bad="${r30_bad} publisher(functional-second-pr-post-not-target-bound)" ;;
+          esac
+          # Score injection: a newline-bearing score must be rejected before it
+          # can split into a second binding line.
+          R30_PUB_SCORE=$'9.9\neval-head: 9999999999999999999999999999999999999999'
+          r30_pub_case score-injection 1 713 "$r30_pub_sha" "$r30_pub_trigger"
+          unset R30_PUB_SCORE
+          # Duplicate fetched binding: even a score-safe body with two
+          # eval-head lines must be rejected (defense in depth behind the
+          # score guard), since the sweep used to read the last one.
+          r30_dup_head="$r30_tmp/duplicate-head.txt"
+          printf 'eval-verdict: approve-eval\n\neval-head: %s\neval-head: %s\neval-trigger: 555\n' "$r30_pub_sha" "$r30_pub_other_sha" > "$r30_dup_head"
+          r30_pub_case duplicate-head 1 713 "$r30_pub_sha" "$r30_pub_trigger" 'fetch_mode="fixed"' "fixed_body_file=$r30_dup_head"
+          # Target-gated mutant self-test: append the demonstrated decoy post
+          # and prove the target-bound URL assertion observes it, so the
+          # second-PR fixture is load-bearing against a PR=713 hardcode.
+          r30_pub_target_mut="$r30_tmp/publisher-target-gated.sh"
+          {
+            cat "$R30_PUBLISHER"
+            printf '%s\n' 'if [ "$target" != "713" ]; then'
+            printf '%s\n' '  gh api "repos/${repo}/issues/999/comments" -f body="$marker" >/dev/null 2>&1 || true'
+            printf '%s\n' 'fi'
+          } > "$r30_pub_target_mut"
+          r30_saved_publisher_abs="$r30_publisher_abs"
+          r30_publisher_abs="$r30_pub_target_mut"
+          r30_pub_case target-gated-mutant 0 714 "$r30_pub_sha" "$r30_pub_trigger"
+          r30_publisher_abs="$r30_saved_publisher_abs"
+          r30_mutant_url=$(cat "$r30_tmp/post-url" 2>/dev/null || true)
+          case "$r30_mutant_url" in
+            *"/issues/999/comments"*) : ;;
+            *) r30_bad="${r30_bad} publisher(self-test-target-gated-append-not-observed)" ;;
+          esac
           r30_pub_case prose-first 1 713 "$r30_pub_sha" "$r30_pub_trigger" 'fetch_mode="fixed"' "fixed_body_file=$r30_prose"
           r30_pub_case trailing-prose 1 713 "$r30_pub_sha" "$r30_pub_trigger" 'fetch_mode="fixed"' "fixed_body_file=$r30_trailing"
           r30_pub_case line-two 1 713 "$r30_pub_sha" "$r30_pub_trigger" 'fetch_mode="fixed"' "fixed_body_file=$r30_line_two"
@@ -16719,11 +16984,16 @@ R30_MARKER_MOCK
                 r30_mc_trigger="${8-555}"
                 r30_mc_current="${9-$r30_mk_sha}"
                 r30_mc_comments="${10:-$r30_mc_comments_fresh}"
+                r30_mc_evidence="${11:-}"
                 r30_mc_dir="$r30_tmp/marker-case-$r30_mc_name"
                 mkdir -p "$r30_mc_dir"
                 r30_mc_decision_file="$r30_mc_dir/decision.json"
                 if [ "$r30_mc_decision" != "absent" ]; then
                   printf '%s\n' "$r30_mc_decision" > "$r30_mc_decision_file"
+                fi
+                r30_mc_evidence_file="$r30_mc_dir/evidence.json"
+                if [ -n "$r30_mc_evidence" ]; then
+                  printf '%s\n' "$r30_mc_evidence" > "$r30_mc_evidence_file"
                 fi
                 r30_mc_calls="$r30_mc_dir/calls"
                 : > "$r30_mc_calls"
@@ -16735,6 +17005,7 @@ R30_MARKER_MOCK
                 } > "$r30_tmp/marker-gh.cfg"
                 printf '%s\n' "$r30_marker_block" \
                   | sed -e "s#/tmp/evaluator-decision.json#$r30_mc_decision_file#g" \
+                        -e "s#/tmp/live-run-evidence.json#$r30_mc_evidence_file#g" \
                         -e 's/\${{ github\.event\.issue\.number }}/713/g' \
                         -e "s#\${{ steps\.eval-bind\.outputs\.eval_sha }}#$r30_mc_eval_sha#g" \
                         -e "s#\${{ github\.event\.comment\.id }}#$r30_mc_trigger#g" \
@@ -16764,6 +17035,11 @@ R30_MARKER_MOCK
                 fi
               }
               r30_marker_case approve '{"action":"approve-eval","score":9.9}' 0 0 true 1
+              # Issue #713 review round 9: a scope=unrunnable evidence file is
+              # an escalation, never a mergeable approval. The marker must not
+              # be published (zero publisher calls) while the handoff still
+              # runs (ok=true), mirroring the Tester arm.
+              r30_marker_case unrunnable '{"action":"approve-eval","score":9.9}' 0 0 true 0 "$r30_mk_sha" 555 "$r30_mk_sha" "$r30_mc_comments_fresh" '{"scope":"unrunnable","reason":"the environment cannot run the shipped artifact for this validation-only PR"}'
               r30_marker_case fix '{"action":"fix","score":8.1}' 0 0 true 0
               r30_marker_case missing-action '{"score":9.9}' 0 0 true 0
               r30_marker_case malformed-json '{not-json' 0 0 true 0

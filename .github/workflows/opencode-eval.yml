@@ -201,6 +201,10 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
+          # Review round 9: the checked-out PR head is untrusted, so opencode
+          # must not auto-load its AGENTS.md/opencode.json project config. The
+          # staged workflow-commit prompt below is the only instruction source.
+          OPENCODE_DISABLE_PROJECT_CONFIG: "true"
         with:
           variant: max
           model: opencode/deepseek-v4.1-flash-free
@@ -378,6 +382,17 @@ jobs:
           action=$(jq -r '.action // empty' /tmp/evaluator-decision.json 2>/dev/null || echo "")
           if [ "$action" != "approve-eval" ]; then
             echo "Decision '$action' is not an approval; no eval marker to publish."
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Review round 9: a scope=unrunnable evidence file is the documented
+          # escalation shape (mirrors opencode-test.yml). It is never an
+          # approval, so it must not publish a mergeable marker even when the
+          # evaluator returned approve-eval; the forward handoff still runs
+          # (ok=true) so the Maintainer can triage the escalation.
+          ev=/tmp/live-run-evidence.json
+          if [ -f "$ev" ] && jq -e '.scope == "unrunnable"' "$ev" >/dev/null 2>&1; then
+            echo "Evidence declares scope=unrunnable; this is an escalation, not an approval; no eval approval marker published."
             echo "ok=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi

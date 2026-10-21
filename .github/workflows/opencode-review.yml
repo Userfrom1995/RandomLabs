@@ -74,7 +74,30 @@ jobs:
           GATE_EVENT: ${{ github.event_name }}
           GATE_ACTOR: ${{ github.actor }}
           GATE_LABEL: review
-        run: bash .github/scripts/actor-write-gate.sh
+        run: |
+          set -o pipefail
+          # Issue #713 review round 9: execute the gate from this run's own
+          # workflow commit, never the checked-out PR head (the same
+          # trust-boundary fix the eval arm already carries). The gate decides
+          # whether the Reviewer may run, and it executes before any pinned
+          # step can verify the checkout: a PR editing
+          # .github/scripts/actor-write-gate.sh would otherwise run arbitrary
+          # code in its own review run with issues: write. A missing
+          # workflow-commit copy fails closed.
+          gate_script="${RUNNER_TEMP:-/tmp}/lab-scripts/actor-write-gate.sh"
+          mkdir -p "$(dirname "$gate_script")"
+          rm -f "$gate_script"
+          if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/actor-write-gate.sh" 2>/dev/null; then
+            git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
+          fi
+          if git cat-file -e "${GITHUB_SHA}:.github/scripts/actor-write-gate.sh" 2>/dev/null; then
+            git show "${GITHUB_SHA}:.github/scripts/actor-write-gate.sh" > "$gate_script" 2>/dev/null || rm -f "$gate_script"
+          fi
+          if [ ! -s "$gate_script" ]; then
+            echo "::error::Actor write gate script absent from workflow commit ${GITHUB_SHA}; refusing to execute the PR-head copy (issue #713 review round 9, fail closed)."
+            exit 1
+          fi
+          bash "$gate_script"
 
       - name: Skip review for non-PR issue
         if: steps.actor_gate.outputs.run == 'true' && steps.pr-info.outputs.is_pr != 'true'
@@ -138,17 +161,17 @@ jobs:
           # before the agent starts with "Can't find 'action.yml' ... under
           # .../opencode-run" - and the crash-parity verify step misreads that
           # pre-start failure as a mid-stream agent crash, burning the whole
-          # auto-retry budget on a gate that never ran (issue #430). Restore the
-          # runner from this run's own workflow commit instead.
-          if [ -f .github/actions/opencode-run/action.yml ]; then
-            echo "Vendored runner present on the checked-out head; nothing to restore."
-            exit 0
-          fi
+          # auto-retry budget on a gate that never ran (issue #430). Issue #713
+          # review round 9: always replace the checked-out copy with this run's
+          # workflow-commit copy. The PR head's runner is untrusted code that
+          # would otherwise execute with the job's token before any pinned step
+          # can verify the decision; the old early exit that trusted a present
+          # head action.yml is gone.
           if ! git cat-file -e "${GITHUB_SHA}:.github/actions/opencode-run/action.yml" 2>/dev/null; then
             git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
           fi
           if ! git cat-file -e "${GITHUB_SHA}:.github/actions/opencode-run/action.yml" 2>/dev/null; then
-            echo "::error::Vendored runner absent from the checked-out head and from workflow commit ${GITHUB_SHA}; the agent gate cannot run (fail closed)."
+            echo "::error::Vendored runner absent from workflow commit ${GITHUB_SHA}; the agent gate cannot run (fail closed)."
             exit 1
           fi
           rm -rf .github/actions/opencode-run
@@ -158,7 +181,7 @@ jobs:
             echo "::error::Runner restore from ${GITHUB_SHA} did not yield action.yml (fail closed)."
             exit 1
           fi
-          echo "Restored .github/actions/opencode-run from workflow commit ${GITHUB_SHA}; the checked-out head predates the vendored runner."
+          echo "Restored .github/actions/opencode-run from workflow commit ${GITHUB_SHA}; the checked-out edition is never executed."
 
       - name: Run opencode reviewer
         id: review
@@ -169,6 +192,9 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
+          # Review round 9: the checked-out PR head is untrusted, so opencode
+          # must not auto-load its AGENTS.md/opencode.json project config.
+          OPENCODE_DISABLE_PROJECT_CONFIG: "true"
         with:
           variant: max
           model: opencode/deepseek-v4.1-flash-free
