@@ -520,7 +520,6 @@ fn hash_settings(h: &mut impl std::hash::Hasher, s: &maze_chase_config::settings
     s.reduced_flash.hash(h);
     s.reduced_motion.hash(h);
     s.high_contrast.hash(h);
-    s.show_fps.hash(h);
 }
 
 /// The visible-state signature that lets idle surfaces skip frames.
@@ -1051,7 +1050,14 @@ fn render_frame(
             paint_staged_board(app, out, theme, truecolor, 0.55, 0.0);
             paint_card(
                 out,
-                &chrome::paused(app.screens.pause_menu),
+                &chrome::paused(
+                    app.screens.pause_menu,
+                    app.scores
+                        .first()
+                        .map(|s| s.score)
+                        .unwrap_or(0)
+                        .max(app.game.score),
+                ),
                 theme,
                 truecolor,
                 cols,

@@ -123,7 +123,7 @@ pub fn top_bar(game: &Game, _best: u32, reduced_flash: bool, max_width: usize) -
     let left = game.dots_left();
     let mut dots = format!("DOTS {} {}/{}", dots_bar(game, 30), left, total);
     if game.relish.active {
-        let relish = format!("  RELISH +{}", game.relish.value);
+        let relish = format!("  R+{}", game.relish.value);
         if dots.chars().count() + relish.chars().count() <= max_width {
             dots.push_str(&relish);
         }
@@ -339,8 +339,12 @@ pub fn rebind_list(
 }
 
 /// Pause menu lines.
-pub fn paused(selected: usize) -> Vec<String> {
-    let mut lines = vec!["PAUSED".to_string(), "".to_string()];
+pub fn paused(selected: usize, best: u32) -> Vec<String> {
+    let mut lines = vec![
+        "PAUSED".to_string(),
+        format!("BEST   {best:06}"),
+        "".to_string(),
+    ];
     for (i, item) in PauseItem::ALL.iter().enumerate() {
         let cursor = if i == selected { "> " } else { "  " };
         lines.push(format!("{cursor}{}", item.label()));
@@ -379,6 +383,26 @@ mod tests {
     use super::*;
     use crate::screens::SettingsRow;
     use maze_chase_engine::game::Game;
+
+    #[test]
+    fn compact_pause_hub_carries_the_best_score() {
+        let lines = paused(1, 12_340);
+        assert_eq!(lines[0], "PAUSED");
+        assert_eq!(lines[1], "BEST   012340");
+        assert!(lines.iter().any(|l| l == "  Resume"));
+    }
+
+    #[test]
+    fn compact_band_keeps_an_active_relish_badge() {
+        let mut g = Game::new(1, 1);
+        g.relish.active = true;
+        g.relish.value = 1000;
+        let width = crate::layout::compute(62, 35).top_bar.unwrap().w as usize;
+        let bar = top_bar(&g, 0, false, width);
+        assert_eq!(width, 56);
+        assert!(bar[1].contains("R+1000"), "got {:?}", bar[1]);
+        assert!(bar[1].chars().count() <= width, "got {:?}", bar[1]);
+    }
 
     #[test]
     fn hud_bars_render() {
