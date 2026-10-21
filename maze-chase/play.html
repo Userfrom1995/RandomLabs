@@ -87,9 +87,19 @@
     transform: translate(-50%, -50%);
     width: min(560px, calc(100vw - 24px));
     max-height: calc(100vh - var(--header-h, 0px) - 24px);
-    overflow: auto; margin: 0;
+    display: flex; flex-direction: column;
+    overflow: hidden; margin: 0; padding: 0;
     border: 1px solid #2a3350; box-shadow: 0 24px 80px #000c;
-    background: var(--panel); border-radius: 16px; padding: 20px 24px;
+    background: var(--panel); border-radius: 16px;
+  }
+  section.overlay-card .panel-scroll {
+    flex: 1 1 auto; min-height: 0; overflow: auto; padding: 20px 24px 8px;
+  }
+  section.overlay-card .title-actions,
+  section.overlay-card .pause-actions {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+    flex: 0 0 auto; margin: 0; padding: 10px 24px 14px;
+    border-top: 1px solid #2a3350; background: var(--panel);
   }
   section.overlay-card h2 { font-size: 1.9rem; letter-spacing: 0.02em; margin: 0 0 4px; }
   .title-kicker {
@@ -100,9 +110,7 @@
   .title-desc { margin: 0 0 8px; color: var(--teal); font-weight: 600; }
   .title-legend { margin: 0; color: var(--muted); font-size: 0.9rem; }
   .title-goal { margin: 2px 0 10px; color: var(--accent); font-weight: 600; }
-  .title-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0; }
   .title-actions .primary { margin-right: 6px; }
-  .pause-actions { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 0; }
   .fright-meter { margin-top: 10px; }
   .fright-meter .badge { margin-top: 0; }
   .fright-segs { display: flex; gap: 2px; margin-top: 6px; }
@@ -117,7 +125,9 @@
     box-shadow: inset 0 0 0 1px #10203a;
   }
   @media (max-width: 760px) {
-    section.overlay-card { padding: 16px 18px; }
+    section.overlay-card .panel-scroll { padding: 16px 18px 8px; }
+    section.overlay-card .title-actions,
+    section.overlay-card .pause-actions { padding: 10px 18px 14px; }
     section.overlay-card h2 { font-size: 1.55rem; }
     .title-actions button { flex: 1 1 44%; }
     .title-actions .primary { flex-basis: 100%; }
@@ -209,15 +219,18 @@
   </div>
 
   <section class="panel overlay-card" id="panel-title" aria-label="Title">
-    <p class="title-kicker">A Pondwake arcade original</p>
-    <h2>Maze Chase</h2>
-    <p class="title-lede">You are Rill, a pond frog. Clear every crumb, dodge
-    the wardens Bram, Kessa, Jory and Nib, and grab a sunseed to turn the
-    hunt around.</p>
-    <p class="title-desc" id="title-desc">Start game: begin a hunt in the pond.</p>
-    <p class="title-legend" id="title-legend">Wardens: Bram the heron, Kessa the
-    pike, Jory the snake, and Nib the dragonfly.</p>
-    <p class="title-goal" id="title-goal">Clear 445 crumbs plus 4 sunseeds; sunseeds turn the hunt.</p>
+    <div class="panel-scroll">
+      <p class="title-kicker">A Pondwake arcade original</p>
+      <h2>Maze Chase</h2>
+      <p class="title-lede">You are Rill, a pond frog. Clear every crumb, dodge
+      the wardens Bram, Kessa, Jory and Nib, and grab a sunseed to turn the
+      hunt around.</p>
+      <p class="title-desc" id="title-desc">Start game: begin a hunt in the pond.</p>
+      <p class="title-legend" id="title-legend">Wardens: Bram the heron, Kessa the
+      pike, Jory the snake, and Nib the dragonfly.</p>
+      <p class="title-goal" id="title-goal">Clear 445 crumbs plus 4 sunseeds; sunseeds turn the hunt.</p>
+      <p class="note" id="boot-status">Loading engine...</p>
+    </div>
     <p class="title-actions">
       <button type="button" class="primary" id="btn-start" data-primary
         data-desc="Start game: begin a hunt in the pond.">Start game</button>
@@ -228,7 +241,6 @@
       <button type="button" id="btn-title-settings"
         data-desc="Settings: theme, access, and bindings.">Settings</button>
     </p>
-    <p class="note" id="boot-status">Loading engine...</p>
   </section>
 
   <section class="panel panel-screen" id="panel-help" hidden aria-label="Help">
@@ -284,9 +296,11 @@
 
   <section class="panel overlay-card" id="panel-pause" hidden aria-label="Paused"
            role="dialog">
-    <p class="title-kicker">The pond holds its breath</p>
-    <h2>Paused</h2>
-    <p class="note">Rill and the wardens freeze exactly where they were.</p>
+    <div class="panel-scroll">
+      <p class="title-kicker">The pond holds its breath</p>
+      <h2>Paused</h2>
+      <p class="note">Rill and the wardens freeze exactly where they were.</p>
+    </div>
     <p class="pause-actions">
       <button type="button" class="primary" id="btn-resume" data-primary>Resume</button>
       <button type="button" id="btn-pause-restart">Restart</button>
