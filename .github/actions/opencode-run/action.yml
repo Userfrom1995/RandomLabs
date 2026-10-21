@@ -232,16 +232,23 @@ runs:
         freetier_error_terminal() {
           ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?OpenCode's free tier can only be used from within OpenCode\. Download it at https://opencode\.ai and keep building\.?$" )
         }
-        # Transient HTTP-error detector (issue #653), same tail + column-0
-        # terminal anchoring as the #591/#620 detectors: the 2026-10-18
-        # evidence shows the provider's terminal line for a 429/5xx death is
-        # `AI_APICallError: Rate limit exceeded. Please try again later.` or
-        # `AI_APICallError: Internal Server Error` (plus the standard gateway
-        # phrases), bare at column 0, while the `AI_RetryError: Failed after 3
-        # attempts. Last error: ...` summary, a transcript echo, and the
-        # responseBody JSON envelope cannot match the anchored whole-line form.
+        # Transient HTTP-error detector (issues #653, #717), same tail +
+        # column-0 terminal anchoring as the #591/#620 detectors: the observed
+        # terminal forms are `AI_APICallError: Rate limit exceeded. Please try
+        # again later.`, `AI_APICallError: Internal Server Error`, the standard
+        # gateway phrases, and the retryable upstream-endpoint form
+        # `AI_APICallError: Upstream request failed: Endpoint is unavailable.`
+        # (statusCode 429, type server_error; matched by its bounded
+        # `Upstream request failed: ` phrase family, never by a bare
+        # `AI_APICallError:` prefix), bare at column 0, while the
+        # `AI_RetryError: Failed after 3 attempts. Last error: ...` summary, a
+        # transcript echo, and the responseBody JSON envelope cannot match the
+        # anchored whole-line form. A persistent occurrence after the one
+        # bounded same-model retry fails loudly on that model and does NOT
+        # advance the ladder: every rung shares this gateway, so a fresh-run
+        # re-dispatch (crash parity) is the recovery lane.
         transient_http_error_terminal() {
-          ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Rate limit exceeded\. Please try again later\.|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout)\.?$" )
+          ( set +o pipefail; tail -n 40 "$1" | grep -qE "^(AI_APICallError: |APIError: |Error: )?(Rate limit exceeded\. Please try again later\.|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout|Upstream request failed: [A-Za-z0-9_.',-]+( [A-Za-z0-9_.',-]+)*)\.?$" )
         }
         # Blocked-egress-IP detector (issue #669), same tail + column-0
         # terminal anchoring as the #591/#620/#653 detectors: the provider
