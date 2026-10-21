@@ -486,13 +486,14 @@ async function shot(ws, path) {
       const b = document.getElementById(${JSON.stringify(primaryId)});
       const r = p.getBoundingClientRect(), ar = a ? a.getBoundingClientRect() : r;
       const br = b.getBoundingClientRect();
+      const hb = document.querySelector('header').getBoundingClientRect();
       const hit = document.elementFromPoint(br.x + br.width / 2, br.y + br.height / 2);
       return [r.top, r.bottom, ar.bottom, br.bottom, innerHeight, innerWidth,
         r.left, r.right, br.top, br.left, br.right,
         (hit === b || b.contains(hit)) ? 1 : 0,
         r.top >= 0 && r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight ? 1 : 0,
         ar.bottom <= innerHeight ? 1 : 0,
-        !!p.querySelector('.panel-scroll') ? 1 : 0];
+        !!p.querySelector('.panel-scroll') ? 1 : 0, hb.bottom];
     })()`);
   }
   for (const [vw, vh] of [[1440, 900], [390, 844]]) {
@@ -513,6 +514,7 @@ async function shot(ws, path) {
       assert(g[13] === 1 && g[3] <= g[4], `${label} action row is pinned on-screen at ${vw}x${vh}`);
       assert(g[11] === 1, `${label} primary action is hit-testable at ${vw}x${vh}`);
       assert(g[14] === 1, `${label} body is a scroll region at ${vw}x${vh}`);
+      assert(g[0] >= g[15] + 8, `${label} panel clears the sticky header at ${vw}x${vh} (header ${g[15]}, panel ${g[0]})`);
     }
     // Game over: the rAF loop would immediately re-hide it, so flip the
     // attribute, measure, and restore in one synchronous evaluation.
@@ -523,18 +525,20 @@ async function shot(ws, path) {
       const a = p.querySelector('.panel-actions');
       const b = document.getElementById('btn-over-restart');
       const r = p.getBoundingClientRect(), ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
+      const hb = document.querySelector('header').getBoundingClientRect();
       const hit = document.elementFromPoint(br.x + br.width / 2, br.y + br.height / 2);
       p.hidden = was;
       return [r.top, r.bottom, ar.bottom, br.bottom, innerHeight, innerWidth,
         r.left, r.right, (hit === b || b.contains(hit)) ? 1 : 0,
         r.top >= 0 && r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight ? 1 : 0,
-        ar.bottom <= innerHeight ? 1 : 0, !!p.querySelector('.panel-scroll') ? 1 : 0];
+        ar.bottom <= innerHeight ? 1 : 0, !!p.querySelector('.panel-scroll') ? 1 : 0, hb.bottom];
     })()`);
     console.log(`Game over panel ${vw}x${vh}:`, JSON.stringify(over));
     assert(over[9] === 1, `Game over panel is fully inside ${vw}x${vh} (${over[0]}..${over[1]} of ${over[4]})`);
     assert(over[10] === 1 && over[3] <= over[4], `Game over action row is pinned on-screen at ${vw}x${vh}`);
     assert(over[8] === 1, `Game over primary action is hit-testable at ${vw}x${vh}`);
     assert(over[11] === 1, `Game over body is a scroll region at ${vw}x${vh}`);
+    assert(over[0] >= over[12] + 8, `Game over panel clears the sticky header at ${vw}x${vh} (header ${over[12]}, panel ${over[0]})`);
   }
   await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
   await sleep(400);
@@ -542,13 +546,28 @@ async function shot(ws, path) {
     const h = document.getElementById('hud');
     const d = document.getElementById('hud-dots-bar');
     const f = document.getElementById('hud-fps');
+    const dl = h.querySelector('dl');
+    const meter = document.getElementById('fright-meter');
+    const relish = document.getElementById('hud-relish');
+    const segs = document.getElementById('fright-segs');
+    const wasMeter = meter.hidden, wasRelish = relish.hidden, segsHtml = segs.innerHTML;
+    meter.hidden = false;
+    relish.hidden = false;
+    if (!segs.children.length) {
+      segs.innerHTML = Array.from({ length: 30 }, () => '<span class="on"></span>').join('');
+    }
     const r = h.getBoundingClientRect(), dr = d.getBoundingClientRect();
+    const tracks = getComputedStyle(dl).gridTemplateColumns.split(' ').filter(Boolean).length;
+    meter.hidden = wasMeter;
+    relish.hidden = wasRelish;
+    segs.innerHTML = segsHtml;
     return [r.top, r.bottom, innerHeight, dr.width, f.hidden ? 0 : 1,
       getComputedStyle(f).display, (window.__mazeExports.mc_dots_total() >>> 0),
-      (window.__mazeExports.mc_show_fps() >>> 0)];
+      (window.__mazeExports.mc_show_fps() >>> 0), tracks];
   })()`);
   console.log('mobile HUD geometry:', JSON.stringify(mobileHud));
   assert(mobileHud[1] <= mobileHud[2], `mobile HUD fits above the fold (${mobileHud[1]} <= ${mobileHud[2]})`);
+  assert(mobileHud[8] === 4, `mobile HUD uses the four-column layout (got ${mobileHud[8]} tracks)`);
   assert(mobileHud[3] > 100, 'dots completion bar has real width on mobile');
   assert(mobileHud[4] === 0 && mobileHud[5] === 'none', 'frame diagnostics are hidden by default');
   assert(mobileHud[6] === 449, 'pickups total reports the full 445 crumbs plus 4 sunseeds');
