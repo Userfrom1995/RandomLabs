@@ -72,7 +72,7 @@ jobs:
           echo "eval_sha=$eval_sha" >> "$GITHUB_OUTPUT"
           echo "eval_trigger=${{ github.event.comment.id }}" >> "$GITHUB_OUTPUT"
 
-      - name: Actor write gate (issue #428)
+      - name: "Actor write gate (issue #428)"
         id: actor_gate
         shell: bash
         env:
@@ -80,7 +80,29 @@ jobs:
           GATE_EVENT: ${{ github.event_name }}
           GATE_ACTOR: ${{ github.actor }}
           GATE_LABEL: eval
-        run: bash .github/scripts/actor-write-gate.sh
+        run: |
+          set -o pipefail
+          # Issue #713 review round 7: execute the gate from this run's own
+          # workflow commit, never the checked-out PR head. The gate decides
+          # whether the evaluator may run, and it executes before any pinned
+          # step can verify the checkout: a PR editing
+          # .github/scripts/actor-write-gate.sh would otherwise run arbitrary
+          # code in its own eval run with issues: write and could publish a
+          # decoy approval marker. A missing workflow-commit copy fails closed.
+          gate_script="${RUNNER_TEMP:-/tmp}/lab-scripts/actor-write-gate.sh"
+          mkdir -p "$(dirname "$gate_script")"
+          rm -f "$gate_script"
+          if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/actor-write-gate.sh" 2>/dev/null; then
+            git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
+          fi
+          if git cat-file -e "${GITHUB_SHA}:.github/scripts/actor-write-gate.sh" 2>/dev/null; then
+            git show "${GITHUB_SHA}:.github/scripts/actor-write-gate.sh" > "$gate_script" 2>/dev/null || rm -f "$gate_script"
+          fi
+          if [ ! -s "$gate_script" ]; then
+            echo "::error::Actor write gate script absent from workflow commit ${GITHUB_SHA}; refusing to execute the PR-head copy (issue #713, fail closed)."
+            exit 1
+          fi
+          bash "$gate_script"
 
       - name: Configure git identity
         run: |
@@ -109,24 +131,24 @@ jobs:
       - name: Clear runtime decision
         run: rm -f /tmp/evaluator-decision.json /tmp/live-run-evidence.json
 
-      - name: Restore the vendored runner when the checked-out head predates it
+      - name: Restore the vendored runner from the workflow commit
         run: |
           set -o pipefail
           # Local `uses: ./.github/actions/opencode-run` resolves against this
           # workspace (the PR head), never against the ref this workflow file was
-          # loaded from, so a branch forked before the runner was vendored dies
-          # before the agent starts with "Can't find 'action.yml' ... under
-          # .../opencode-run" (issue #430). Restore the runner from this run's
-          # own workflow commit instead.
-          if [ -f .github/actions/opencode-run/action.yml ]; then
-            echo "Vendored runner present on the checked-out head; nothing to restore."
-            exit 0
-          fi
+          # loaded from, so a branch forked before the runner was vendored died
+          # before the agent started with "Can't find 'action.yml' ... under
+          # .../opencode-run" (issue #430). Always replace the checked-out copy
+          # with the one from this run's own workflow commit: the PR head's copy
+          # is untrusted code that would otherwise execute with the job's token
+          # before any pinned step can verify the decision (issue #713 review
+          # round 7). The old early exit that trusted a present head runner is
+          # deliberately gone; only the workflow-commit copy is ever executed.
           if ! git cat-file -e "${GITHUB_SHA}:.github/actions/opencode-run/action.yml" 2>/dev/null; then
             git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
           fi
           if ! git cat-file -e "${GITHUB_SHA}:.github/actions/opencode-run/action.yml" 2>/dev/null; then
-            echo "::error::Vendored runner absent from the checked-out head and from workflow commit ${GITHUB_SHA}; the agent gate cannot run (fail closed)."
+            echo "::error::Vendored runner absent from workflow commit ${GITHUB_SHA}; the agent gate cannot run (fail closed)."
             exit 1
           fi
           rm -rf .github/actions/opencode-run
@@ -136,7 +158,7 @@ jobs:
             echo "::error::Runner restore from ${GITHUB_SHA} did not yield action.yml (fail closed)."
             exit 1
           fi
-          echo "Restored .github/actions/opencode-run from workflow commit ${GITHUB_SHA}; the checked-out head predates the vendored runner."
+          echo "Restored .github/actions/opencode-run from workflow commit ${GITHUB_SHA}; the checked-out edition is never executed."
 
       - name: Run evaluator agent
         id: evaluator
