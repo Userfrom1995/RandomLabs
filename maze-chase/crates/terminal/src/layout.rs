@@ -9,7 +9,7 @@
 //! per-column derivation skipped wide-short scales like 7x1 and 2x2,
 //! leaving most of a wide or tall window empty).
 //! Chrome adapts to the room the board leaves: a right side panel on wide
-//! rooms, a two-row HUD band above the board when the board's own width
+//! rooms, a three-row HUD band above the board when the board's own width
 //! leaves no panel room, and nothing but the bottom hint line in tight
 //! rooms. Windows below the supported 62x35 minimum draw a centered
 //! "window too small" card instead of a clipped board; the card's numbers

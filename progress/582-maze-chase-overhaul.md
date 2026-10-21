@@ -6,7 +6,7 @@
 - **Branch:** opencode/issue582-20261018121223 (this roadmap PR); each phase runs
   on its own `opencode/issue582-overhaul-phase-<n>-<slug>` branch
 - **Status:** in-progress
-- **Updated:** 2026-10-20
+- **Updated:** 2026-10-21
 - **Active Phase:** Phase 4: Visual Identity Redesign
   (Complete, ready for review; real Linux terminal captures refreshed)
 - **Blueprint:** `ideas/2026-10-18-maze-chase-overhaul.md`
@@ -41,7 +41,7 @@ Golden Lily bloom; the desktop and browser canvases add score floaters,
 and the web settings panel shows the active theme name. Accessibility gates (text/bg,
 fright/wall, eyes/wall, hunter separation, light/dark) pass, the golden
 replay digest is unchanged (`23c17f89734e`), and the wasm rebuild is
-committed (`ae474117...`, 206,711 bytes). The title and pause surfaces
+committed (`022761a1...`, 207,338 bytes). The title and pause surfaces
 now stage the live game: terminal and desktop paint a dimmed fresh
 board behind centered cards, the browser overlays a fixed title card
 with a visible Start action and a header Pause control, and the pause
@@ -50,33 +50,28 @@ Screens, atlases, and the browser expose the 30-segment fright meter
 in its final 1.5 s, and reduced motion is a first-class persisted
 setting (with a high-contrast theme override) across all three layers.
 
-Real captures: five kitty/xterm Linux compatibility rows were
-re-executed on 2026-10-20 at code commit `14b939d9` (binary SHA-256
-`c81890e8d27c8f6914a8decf3df14ca02a9314fd2a9b70bf94991ca714821e9b`,
-clean Rust sources), and all pass (kitty at 21 transmits / 169.6-175.0
-KiB per session; xterm light/dark on legacy cells; xterm VT340 auto on
-Sixel at 137 transmits / 4.27 MiB). The forced xterm sixel row was
-re-executed after the renderer fixes at `e938ce5a` (binary
-`e06807bc1f4c0d3fb98552d436c5f4222b28d97cc25ea685d639475154bdc7e0`,
-clean sources, `pause_select=1`) and is 139 transmits / 4.33 MiB. The
-two Ghostty rows remain the `90cb9b87` record and are labeled pre-fix
-in `docs/terminal-compat.md`; the final sign-off phase reruns them. The
-desktop title capture (`docs/desktop-probe.ppm`, sha256
-`59443690...`) was regenerated for the board-centered stage card, the
-desktop gameplay capture (`docs/desktop-gameplay.ppm`, 1100x760,
-sha256 `f6040ea9...`) was recorded from the same Xvfb `--probe` pipeline
-after driving a play session, the browser gameplay capture
-(`docs/web-gameplay.png`, 1280x757) was regenerated from the current
-wasm, and `browser-e2e.js` is ALL GREEN. macOS and Windows terminal rows
-stay with the per-OS testers; no claim here exceeds the executed Linux
-rows.
+Real captures: eight Linux compatibility rows were re-executed on
+2026-10-21 at code commit `96dc2be2` (binary SHA-256
+`ce3b1f91a78f00cbd72d09bd6132b367d027fd504e1e27d56e08ec9bd9f53f86`,
+clean Rust sources), and all pass (kitty at 21 transmits / 169.9-175.4
+KiB per session; xterm light/dark on legacy cells at 4.98 MiB; both
+VT340 Sixel rows at 137-138 transmits / 4.25-4.31 MiB), including both
+Ghostty rows and every forced tier. The desktop title capture
+(`docs/desktop-probe.ppm`, sha256 `9abc9150...`) was regenerated for
+the four-sunseed goal line, the desktop gameplay capture
+(`docs/desktop-gameplay.ppm`, 1100x760, sha256 `02ea979c...`) was
+recorded from the same Xvfb `--probe` pipeline after driving a play
+session, the browser gameplay capture (`docs/web-gameplay.png`,
+1280x757) was regenerated from the current wasm, and `browser-e2e.js`
+is ALL GREEN. macOS and Windows terminal rows stay with the per-OS
+testers; no claim here exceeds the executed Linux rows.
 
-Workspace gates: public count 572 across 62 targets (the Tester's live
-run recorded 571 passed / 1 intentionally failing selection-accent test
-at `23c10464`; this fix turns it green), harness contract 47/47, `maze-chase-verify`
-19/19 (`23c17f89734e`; `perf-headless` 0.2-0.4 us/tick on CI reruns),
-wasm sha256 `ae474117...`, `cargo fmt --all --check` clean, and clippy
-reports only the pre-existing engine style lints.
+Workspace gates: public count 576 across 62 targets (full workspace
+rerun under Xvfb: 576 passed / 0 failed), harness contract 49/49,
+`maze-chase-verify` 19/19 (`23c17f89734e`; `perf-headless` 0.2-0.4
+us/tick on CI reruns), wasm sha256 `022761a1...` (207,338 bytes),
+`cargo fmt --all --check` clean, and clippy reports only the
+pre-existing engine style lints.
 
 Delegation ledger (round 5): no subagents were dispatched; the primary
 context applied the cell-tier death and flash, desktop ticker, claim,
@@ -1350,4 +1345,29 @@ Next: Phase 5 (sound design overhaul).
   probe byte-identical, web E2E scripts green. No subagents were
   dispatched (one-file fix plus count refresh); no registry skill
   matched.
+  - the Fixer
+
+- 2026-10-21 (fixer, Quality Council/review fix round on `4af36efc`):
+  closed the seven blocking findings and the should-fix list. The compact
+  terminal pause hub now carries BEST (`chrome::paused(selected, best)`,
+  wired from the score table and live score) and the 56-column band
+  abbreviates an active relish badge to `R+1000` instead of dropping it.
+  The desktop HUD uses a compact line step below 363 px and omits the
+  optional FPS/TUNE rows, so the full stack (fright, relish, game over)
+  clears the hint bar at the 492x296 floor, pinned by a rendered-bottom
+  test. The web error card keeps its red border at higher specificity;
+  browser E2E now asserts header clearance for every screen panel and
+  the four-column HUD with fright and relish visible. The compatibility
+  matrix and evidence notes were regenerated from the eight committed
+  `96dc2be2` JSONs; the pause gate now requires at least four sprite
+  pixels, with a near-blank fixture downgraded. The scoreboard names
+  `96dc2be2`, current counts read 576/62 with harness 49/49 and wasm
+  `022761a1...` (207,338 bytes), and the desktop probe was recaptured
+  (`9abc9150...`) for the four-sunseed goal line. Verification: full
+  workspace 576 passed / 0 failed across 62 targets under Xvfb, harness
+  49/49, `maze-chase-verify` 19/19, fmt clean, clippy only the
+  documented pre-existing lints, node smokes and all four web E2E
+  scripts green. No subagents were dispatched; the primary context
+  edited, formatted, and ran every gate above. No registry skill
+  matched; none loaded.
   - the Fixer
