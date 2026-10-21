@@ -14171,6 +14171,12 @@ fi
 #      `false &&` guard prefix, a neutered binding guard, or a decoy eval
 #      marker injected into the forward handoff can no longer publish an
 #      unverified or stale approval marker (issue #713 review rounds 2-4);
+#      every other owner-PAT run block is pinned whole-region too (the
+#      pre-gate Get PR info read, the post-gate deliverable-context read, and
+#      the final evaluator memory push, with their exact key surfaces and an
+#      env of exactly the owner PAT), and no step other than the marker step
+#      may carry the eval marker literal, so a decoy marker appended to any
+#      token-bearing step body fails the audit (issue #713 review round 5);
 #   6. the eval workflow is resolved from the strict YAML parse with its
 #      workflow and eval-job key surfaces pinned (workflow/job defaults, env,
 #      container, strategy, and continue-on-error overrides rejected) and its
@@ -14178,7 +14184,7 @@ fi
 #      step that rewrites the decision file or posts a decoy marker cannot
 #      pass; every freshness variable is pinned to exactly one live
 #      assignment, and structural mutation self-tests prove each escape is
-#      detected (issue #713 review round 3).
+#      detected (issue #713 review rounds 3-5).
 # Review-gated residual: the surrounding sweep control flow is still
 # review-gated, as documented in R21. Honest limit: like R21, the head time is
 # the later of committer dates and force-push events, so a fast-forward push of
@@ -14198,6 +14204,9 @@ r30_bind_block=""
 r30_marker_block=""
 r30_post_block=""
 r30_fwd_block=""
+r30_prinfo_block=""
+r30_context_block=""
+r30_memory_block=""
 # Review round (issue #713 test integrity): the marker/post/forward checks
 # used to be textual greps over a sed-extracted step region, so a one-line
 # neutering of the marker step's control flow (a deleted `exit 0`, a deleted
@@ -14236,13 +14245,20 @@ BIND_NAME = "Bind eval to the checked-out head (eval binding)"
 MARKER_NAME = "Publish eval approval marker (bot-authored)"
 POST_NAME = "Post Quality Council result as bot (never as owner, never with /oc prefix)"
 FORWARD_NAME = "Forward evaluator decision to Maintainer (owner PAT handoff)"
+PRINFO_NAME = "Get PR info"
+CONTEXT_NAME = "Read deliverable context"
+MEMORY_NAME = "Push evaluator memory to dedicated branch"
+MARKER_LITERAL = "eval-verdict"
+EXPECTED_CONTEXT_IF = "steps.actor_gate.outputs.run == 'true'"
+EXPECTED_MEMORY_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true'"
+SANCTIONED_COMMENTERS = {POST_NAME, MARKER_NAME, FORWARD_NAME}
 EVAL_STEP_NAMES = [
-    "Get PR info",
+    PRINFO_NAME,
     "Checkout repository (PR head)",
     BIND_NAME,
     "Actor write gate (issue",
     "Configure git identity",
-    "Read deliverable context",
+    CONTEXT_NAME,
     "Clear runtime decision",
     "Restore the vendored runner when the checked-out head predates it",
     "Run evaluator agent",
@@ -14251,7 +14267,7 @@ EVAL_STEP_NAMES = [
     POST_NAME,
     MARKER_NAME,
     FORWARD_NAME,
-    "Push evaluator memory to dedicated branch",
+    MEMORY_NAME,
 ]
 WORKFLOW_KEYS = {"name", "on", "permissions", "concurrency", "jobs"}
 EVAL_JOB_KEYS = {"if", "runs-on", "timeout-minutes", "steps"}
@@ -14340,6 +14356,38 @@ def check_bind(step, output, sink):
         write("bind.run", run)
 
 
+def check_owner_pat_step(step, label, expected_id, expected_if, output_name, sink):
+    if step is None:
+        return
+    expected_keys = {"name", "env", "run"}
+    if expected_id is not None:
+        expected_keys.add("id")
+    if expected_if is not None:
+        expected_keys.add("if")
+    if set(step) != expected_keys:
+        sink.append("eval.yml(%s-keys-not-exact)" % label)
+    if expected_id is not None and step.get("id") != expected_id:
+        sink.append("eval.yml(%s-id-not-%s)" % (label, expected_id))
+    if expected_if is not None and step.get("if") != expected_if:
+        sink.append("eval.yml(%s-gate-not-exact)" % label)
+    for key in ("continue-on-error", "shell", "timeout-minutes", "working-directory"):
+        if key in step:
+            sink.append("eval.yml(%s-%s-override)" % (label, key))
+    env = step.get("env")
+    if (
+        not isinstance(env, dict)
+        or set(env) != {"GH_TOKEN"}
+        or env.get("GH_TOKEN") != "${{ secrets.OPENCODE_PAT }}"
+    ):
+        sink.append("eval.yml(%s-env-not-owner-pat)" % label)
+    run = step.get("run")
+    if not isinstance(run, str) or not run.strip():
+        sink.append("eval.yml(%s-run-missing)" % label)
+        return
+    if output_name:
+        write(output_name, run)
+
+
 def validate(doc, output, sink):
     if not isinstance(doc, dict):
         sink.append("eval.yml(yaml-not-mapping)")
@@ -14377,7 +14425,48 @@ def validate(doc, output, sink):
     marker = resolve(steps, MARKER_NAME, "marker", sink)
     post = resolve(steps, POST_NAME, "post", sink)
     forward = resolve(steps, FORWARD_NAME, "forward", sink)
+    prinfo = resolve(steps, PRINFO_NAME, "prinfo", sink)
+    context = resolve(steps, CONTEXT_NAME, "context", sink)
+    memory = resolve(steps, MEMORY_NAME, "memory", sink)
     check_bind(bind, output, sink)
+    check_owner_pat_step(
+        prinfo, "prinfo", "pr-info", None, "prinfo.run" if output else "", sink
+    )
+    check_owner_pat_step(
+        context, "context", "context", EXPECTED_CONTEXT_IF, "context.run" if output else "", sink
+    )
+    check_owner_pat_step(
+        memory, "memory", None, EXPECTED_MEMORY_IF, "memory.run" if output else "", sink
+    )
+    # Issue #713 review round 5: every token-bearing step is now pinned, not
+    # just bind/marker/post/forward. The pre-gate Get PR info and the
+    # post-gate Read deliverable context and memory push carry the owner PAT
+    # and were the surviving decoy-marker sinks (the memory push also runs on
+    # a fix verdict and runs last). As defense in depth, no step except the
+    # marker step may carry the eval marker literal, and no step outside the
+    # three sanctioned comment posters may issue a comment post.
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        run = step.get("run")
+        if not isinstance(run, str):
+            continue
+        step_name = step.get("name")
+        if step_name != MARKER_NAME and MARKER_LITERAL in run:
+            sink.append("eval.yml(decoy-marker-literal-outside-marker-step)")
+        if step_name not in SANCTIONED_COMMENTERS and (
+            "gh issue comment" in run
+            or "gh pr comment" in run
+            or (
+                "gh api" in run
+                and "/comments" in run
+                and any(
+                    flag in run
+                    for flag in ("-f body=", "--field body=", "-F body=", "--raw-field body=")
+                )
+            )
+        ):
+            sink.append("eval.yml(comment-post-outside-sanctioned-step)")
     if marker is not None:
         check_keys(marker, "marker", "marker", EXPECTED_MARKER_IF, output, sink)
     if post is not None:
@@ -14563,6 +14652,45 @@ if doc is not None:
             "GH_TOKEN", "${{ github.token }}"
         ),
         "forward-env-not-owner-pat",
+    )
+    add_mutant(
+        "prinfo-env-token",
+        lambda d: step_at(d, PRINFO_NAME)["env"].__setitem__(
+            "GH_TOKEN", "${{ github.token }}"
+        ),
+        "prinfo-env-not-owner-pat",
+    )
+    add_mutant(
+        "context-env-token",
+        lambda d: step_at(d, CONTEXT_NAME)["env"].__setitem__(
+            "GH_TOKEN", "${{ github.token }}"
+        ),
+        "context-env-not-owner-pat",
+    )
+    add_mutant(
+        "memory-env-token",
+        lambda d: step_at(d, MEMORY_NAME)["env"].__setitem__(
+            "GH_TOKEN", "${{ github.token }}"
+        ),
+        "memory-env-not-owner-pat",
+    )
+    add_mutant(
+        "memory-decoy-marker",
+        lambda d: step_at(d, MEMORY_NAME).__setitem__(
+            "run",
+            step_at(d, MEMORY_NAME)["run"]
+            + "GH_TOKEN=\"${{ github.token }}\" gh issue comment 713 --body 'eval-verdict: approve-eval'\n",
+        ),
+        "decoy-marker-literal-outside-marker-step",
+    )
+    add_mutant(
+        "prinfo-comment-post",
+        lambda d: step_at(d, PRINFO_NAME).__setitem__(
+            "run",
+            step_at(d, PRINFO_NAME)["run"]
+            + "gh issue comment 713 --body '/oc maintainer'\n",
+        ),
+        "comment-post-outside-sanctioned-step",
     )
     add_mutant(
         "forward-shell",
@@ -14782,15 +14910,82 @@ gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"
 fi
 R30FWD
 }
+# Issue #713 review round 5: the remaining owner-PAT run blocks are pinned
+# whole-region too. Get PR info runs BEFORE the actor gate, and the context
+# read and the memory push run on both verdicts; each carried the owner PAT
+# with an unpinned body, so an appended decoy eval-marker comment there
+# survived the round-4 forward pin and could merge a rejected head (the memory
+# push runs last and also runs on a fix verdict). The normalized line
+# comparison below is the load-bearing guard; the marker-literal and
+# comment-post bans in the structural pass are defense in depth.
+r30_expected_prinfo_block() {
+  cat <<'R30PRINFO'
+pr="${{ github.event.issue.number }}"
+head_ref=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName')
+echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+R30PRINFO
+}
+r30_expected_context_block() {
+  cat <<'R30CONTEXT'
+pr="${{ github.event.issue.number }}"
+head_ref=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+approval_comments=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --slurp 2>/dev/null \
+| jq '[.[][] | select(.body | contains("/oc approve-test"))] | length' 2>/dev/null || echo "0")
+echo "approval_comments=$approval_comments" >> "$GITHUB_OUTPUT"
+branch="${head_ref:-main}"
+git fetch origin "$branch" --quiet 2>/dev/null || true
+R30CONTEXT
+}
+r30_expected_memory_block() {
+  cat <<'R30MEMORY'
+git checkout -b evaluator/logs 2>/dev/null || git checkout evaluator/logs || true
+mkdir -p lab/memory/evaluator
+echo "# Evaluator Memory Update - $(date -Iseconds)" >> lab/memory/evaluator/eval-log.md
+echo "- PR: ${{ github.event.issue.number }}" >> lab/memory/evaluator/eval-log.md
+echo "- Score: $(jq -r '.score // \"N/A\"' /tmp/evaluator-decision.json 2>/dev/null || echo \"N/A\")" >> lab/memory/evaluator/eval-log.md
+echo "- Action: $(jq -r '.action // \"unknown\"' /tmp/evaluator-decision.json 2>/dev/null || echo \"unknown\")" >> lab/memory/evaluator/eval-log.md
+git add lab/memory/evaluator/
+git commit -m "evaluator: update memory branch with evaluation turn for PR ${{ github.event.issue.number }}" || true
+git push origin evaluator/logs --force-with-lease || true
+R30MEMORY
+}
+# Shared normalized whole-region comparison for the owner-PAT blocks. The
+# mutation self-test inside r30_owner_pin appends a decoy line and requires the
+# comparison to reject it, so a vacuous comparator cannot stay green.
+r30_norm_region() {
+  sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -vE '^#|^$' || true
+}
+r30_block_exact() {
+  [ -n "$(printf '%s\n' "$2" | r30_norm_region)" ] \
+    && [ "$(printf '%s\n' "$1" | r30_norm_region)" = "$(printf '%s\n' "$2" | r30_norm_region)" ]
+}
+r30_owner_pin() {
+  local label="$1" actual="$2" expected="$3" mutated=""
+  if [ -z "$(printf '%s\n' "$expected" | r30_norm_region)" ]; then
+    r30_bad="${r30_bad} eval.yml(${label}-expected-missing)"
+  elif [ -z "$(printf '%s\n' "$actual" | r30_norm_region)" ]; then
+    r30_bad="${r30_bad} eval.yml(${label}-run-block-extraction-empty)"
+  elif ! r30_block_exact "$actual" "$expected"; then
+    r30_bad="${r30_bad} eval.yml(${label}-run-block-not-exact)"
+  fi
+  mutated="${actual}"$'\n          GH_TOKEN="${{ github.token }}" gh issue comment "${{ github.event.issue.number }}" --repo "${{ github.repository }}" --body "eval-verdict: approve-eval"'
+  if r30_block_exact "$mutated" "$expected"; then
+    r30_bad="${r30_bad} eval.yml(${label}-self-test-decoy-not-caught)"
+  fi
+}
 if [ ! -f "$R30_WF" ]; then
   r30_bad="${r30_bad} opencode-eval.yml(missing)"
-elif [ ! -f "$r30_struct_dir/bind.run" ] || [ ! -f "$r30_struct_dir/marker.run" ] || [ ! -f "$r30_struct_dir/post.run" ] || [ ! -f "$r30_struct_dir/forward.run" ]; then
-  r30_bad="${r30_bad} opencode-eval.yml(bind-marker-post-or-forward-step-missing-or-renamed)"
+elif [ ! -f "$r30_struct_dir/bind.run" ] || [ ! -f "$r30_struct_dir/marker.run" ] || [ ! -f "$r30_struct_dir/post.run" ] || [ ! -f "$r30_struct_dir/forward.run" ] || [ ! -f "$r30_struct_dir/prinfo.run" ] || [ ! -f "$r30_struct_dir/context.run" ] || [ ! -f "$r30_struct_dir/memory.run" ]; then
+  r30_bad="${r30_bad} opencode-eval.yml(bind-marker-post-forward-prinfo-context-memory-step-missing-or-renamed)"
 else
   r30_bind_block=$(cat "$r30_struct_dir/bind.run" 2>/dev/null || true)
   r30_marker_block=$(cat "$r30_struct_dir/marker.run" 2>/dev/null || true)
   r30_post_block=$(cat "$r30_struct_dir/post.run" 2>/dev/null || true)
   r30_fwd_block=$(cat "$r30_struct_dir/forward.run" 2>/dev/null || true)
+  r30_prinfo_block=$(cat "$r30_struct_dir/prinfo.run" 2>/dev/null || true)
+  r30_context_block=$(cat "$r30_struct_dir/context.run" 2>/dev/null || true)
+  r30_memory_block=$(cat "$r30_struct_dir/memory.run" 2>/dev/null || true)
   # Issue #713 review round 3 finding 1: the eval verdict must be bound to the
   # head it evaluated and the trigger that started the run, so the marker and
   # the sweep can never merge a head the Evaluator never examined.
@@ -14879,6 +15074,17 @@ else
   # vacuous comparison (always-exact) cannot keep the audit green either.
   r30_fwd_mut="${r30_fwd_block}"$'\n          decoy_head="${{ steps.eval-bind.outputs.eval_sha }}"'
   r30_fwd_exact "$r30_fwd_mut" && r30_bad="${r30_bad} eval.yml(forward-self-test-decoy-not-caught)"
+  # Review round 5: the pre-gate Get PR info, the post-gate context read, and
+  # the final memory push are owner-PAT steps. Pin each body whole-region and
+  # ban the decoy marker literal and any comment post outright.
+  r30_owner_pin prinfo "$r30_prinfo_block" "$(r30_expected_prinfo_block)"
+  r30_owner_pin context "$r30_context_block" "$(r30_expected_context_block)"
+  r30_owner_pin memory "$r30_memory_block" "$(r30_expected_memory_block)"
+  for r30_owner_block in "$r30_prinfo_block" "$r30_context_block" "$r30_memory_block"; do
+    printf '%s\n' "$r30_owner_block" | grep -qF 'eval-verdict' && r30_bad="${r30_bad} eval.yml(owner-pat-step-marker-literal)"
+    printf '%s\n' "$r30_owner_block" | grep -qF 'gh issue comment' && r30_bad="${r30_bad} eval.yml(owner-pat-step-comment-post)"
+    printf '%s\n' "$r30_owner_block" | grep -qF 'gh pr comment' && r30_bad="${r30_bad} eval.yml(owner-pat-step-comment-post)"
+  done
 fi
 r30_pat_block=""
 if [ ! -f "$MAIN_WF" ]; then
@@ -15582,7 +15788,7 @@ R30_POST_MOCK
   fi
 fi
 if [ -z "$r30_bad" ]; then
-  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical bot-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as bot-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer bot-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval) plus the real publisher post/fetch outcomes (head and trigger mismatches included) are executed in a sandbox, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), the owner-PAT forward handoff run block is pinned whole-region line-exact with its owner-PAT env surface pinned and the eval marker literal banned (so a decoy approval marker cannot be injected there; the pin is mutation-self-tested), so a one-line neutering, declarative poisoning, or extra step cannot pass (issue #713)" "ok"
+  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical bot-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as bot-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer bot-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval) plus the real publisher post/fetch outcomes (head and trigger mismatches included) are executed in a sandbox, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), every owner-PAT run block (the forward handoff, the pre-gate Get PR info read, the deliverable-context read, and the final evaluator memory push) is pinned whole-region line-exact with its exact key surface and an env of exactly the owner PAT and the eval marker literal banned, and no step other than the marker step may carry the eval marker literal (all pins are mutation-self-tested, so a decoy approval marker cannot be injected into any token-bearing step body), so a one-line neutering, declarative poisoning, or extra step cannot pass (issue #713)" "ok"
 else
   check "R30" "eval verdict publication and PAT merge gate guard missing:${r30_bad} (issue #713: a workflow-touching PR could merge through the PAT sweep with no binding Evaluator verdict)" "bad"
 fi
