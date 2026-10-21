@@ -327,7 +327,7 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   (sha256 `594436905ae88af354253764f8f724300e0d173d88bc06acabb47743a8ef4dc3`);
   the desktop E2E asserts the probe bytes. The committed gameplay
   capture `docs/desktop-gameplay.ppm` (sha256
-  `f6040ea93bd09ba057016972fb3e8320ce45229667cbae635a97754200625068`)
+  `02ea979c910ddca2feea3a0731e812cae0cb8bd0f05416eb3d3fc8b32bd1390f`)
   was recorded from the same Xvfb window pipeline after driving a play
   state, so the #658 evidence is a real gameplay frame, not the title.
 - Quality Council fix round (head `b6f82a24` family): the terminal play
@@ -387,3 +387,20 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   `ae474117...` (206,711 bytes); the desktop probe is byte-identical to
   `docs/desktop-probe.ppm`; all four web E2E scripts are green with zero
   console errors.
+- Quality Council fix round (head `36ca9af2`): the web screen panels are
+  fixed overlays with scrollable bodies and pinned action rows (Settings
+  fits at 390x844 and 1440x900), the mobile HUD correctly outranks
+  `aside#hud dl`, and both HUDs now carry pickups/completion and relish;
+  frame diagnostics moved behind a Settings checkbox. The terminal band
+  grows to three rows, the fright meter is a fixed 30 shape-distinct
+  segments, and the compact title card stages board-left/menu-right.
+  Public workspace rerun: 573 passed / 0 failed across 62 targets;
+  compat collector suite 48/48; `maze-chase-verify` 19/19 (golden replay
+  `23c17f89734e`); all four web E2E scripts green. The compat harness
+  re-ran all eight Linux rows at this checkout (binary
+  `ce3b1f91a78f00cbd72d09bd6132b367d027fd504e1e27d56e08ec9bd9f53f86`,
+  `sources_dirty=false`), all `pass`, including both Ghostty rows and
+  all forced tiers; the pause gate now accepts the frozen dimmed board
+  (PAUSED paint plus 0.55 <= dominant < 1.0). The wasm rebuild is
+  `022761a1...` (207,338 bytes, second clean build byte-identical) on
+  rustc 1.99.1 commit `58cf8f9c3`.
