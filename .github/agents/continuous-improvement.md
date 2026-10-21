@@ -28,7 +28,8 @@ the evidence must be written down where the next run can use it.
 - **Lab Engineer (shipping run)** - verifies items 1-2 on the branch
   before handoff and posts item 3 on the parent tracker. Phase PRs use
   `Refs #N` (never `Closes #N`) until the mandate is fully met.
-- **Auditor (daily watch)** - the scheduled audit is the regression
+- **Auditor (scheduled, dispatch, and on-demand watch)** - the audit
+  (daily schedule, manual dispatch, or `/oc auditor`) is the regression
   net: failed runs, model drift, silent stalls, and doc truth get
   flagged to the health board with reproduction and a proposed fix.
   Auditor findings that touch a gate or this loop route to the Lab
