@@ -1072,8 +1072,8 @@ Endpoint is unavailable.` (statusCode 429, `type: server_error`; matched by
 its bounded `Upstream request failed: ` phrase family). Both runner paths
 retry the SAME model exactly once per arm on an
 anchored terminal line of that shape (same tail + column-0 form as the
-#591/#620 detectors, so the summary line, a transcript echo, a phrase
-variant, or the envelope never consumes the retry) after a 30-second
+#591/#620 detectors, so the summary line, a transcript echo, an out-of-family
+phrase variant, or the envelope never consumes the retry) after a 30-second
 backoff; a second terminal rejection fails loudly, propagating the
 provider's own exit status on the nonzero path. A persistent upstream-endpoint
 occurrence does not advance the ladder: every rung resolves through the same
