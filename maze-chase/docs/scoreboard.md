@@ -422,3 +422,13 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   inside the viewport and hit-testable, the title body reopens at its top,
   and the 480x320 pause card is checked the same way; the 2026-10-16
   release-audit row above keeps its own historical measurement.
+
+- Review round 22 hardens those same short-landscape surfaces:
+  `web/e2e/browser-e2e.js` now passes 190/190 assertions with
+  `E2E: ALL GREEN` and zero console errors. The title and pause loops
+  cover 480x320, 320x360, and 568x320 with every action inside the card
+  and viewport and the heading itself hit-testable; the scrolling panel
+  bodies are keyboard-scrollable labelled regions and the title body
+  reopens at its top. The full workspace rerun under Xvfb is 579 passed /
+  0 failed across 63 targets, harness 49/49, and `maze-chase-verify`
+  19/19 (golden replay `23c17f89734e`).
