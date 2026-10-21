@@ -382,6 +382,87 @@ async function shot(ws, path) {
   const muteRestoredAfterUnmapped = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
   assert(muteRestoredAfterUnmapped === 'Mute',
     'M restores the unmuted state after the unmapped-key check, got: ' + muteRestoredAfterUnmapped);
+  // Round 30: an armed capture cannot survive leaving Settings. Back out,
+  // Start, and hold ArrowUp: the movement key must reach the engine and the
+  // Pause binding must stay P (no bind_pause = Up in the blob).
+  await evalJs(ws, `document.querySelectorAll('#rebind-list button')[4].click()`);
+  const armedBeforeLeave = await evalJs(ws, `document.querySelectorAll('#rebind-list button')[4].textContent`);
+  assert(armedBeforeLeave.includes('press a key'),
+    'the Pause row is armed before leaving Settings, got: ' + armedBeforeLeave);
+  await evalJs(ws, `document.getElementById('btn-settings-back').click()`);
+  await sleep(300);
+  await evalJs(ws, `document.getElementById('btn-start').click()`);
+  await sleep(500);
+  const scoreBeforeLeave = await evalJs(ws, `document.getElementById('hud-score').textContent`);
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'ArrowUp', key: 'ArrowUp' });
+  await sleep(1500);
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'ArrowUp', key: 'ArrowUp' });
+  await sleep(200);
+  const scoreAfterLeave = await evalJs(ws, `document.getElementById('hud-score').textContent`);
+  assert(Number(scoreAfterLeave) > Number(scoreBeforeLeave),
+    'the movement key reaches the engine after leaving Settings, got: ' + scoreBeforeLeave + ' -> ' + scoreAfterLeave);
+  const pauseAfterLeave = await evalJs(ws, `window.__mazeExports.mc_binding(4) >>> 0`);
+  assert(pauseAfterLeave === 12,
+    'leaving Settings cancels the armed capture (Pause stays P), got key id ' + pauseAfterLeave);
+  const leaveBlob = await evalJs(ws, `localStorage.getItem('maze-chase-settings')`);
+  const leaveBlobText = leaveBlob ? Buffer.from(leaveBlob, 'base64').toString('utf8') : '';
+  assert(!/^bind_pause = Up$/m.test(leaveBlobText),
+    'the abandoned capture never persists bind_pause = Up');
+  await tapKey('KeyP', 'p', 80);
+  await sleep(300);
+  assert((await evalJs(ws, `!document.getElementById('panel-pause').hidden`)) === true,
+    'P pauses after the leave-Settings movement check');
+  await evalJs(ws, `document.getElementById('btn-pause-quit').click()`);
+  await sleep(300);
+  await evalJs(ws, `document.getElementById('btn-title-settings').click()`);
+  await sleep(300);
+  // Escape cancels a capture even when a form control has focus, and the
+  // next key is not consumed by a stale capture.
+  await evalJs(ws, `document.querySelectorAll('#rebind-list button')[4].click()`);
+  await evalJs(ws, `document.getElementById('rng-master').focus()`);
+  await tapKey('Escape', 'Escape', 27);
+  const escFromFieldLabel = await evalJs(ws, `document.querySelectorAll('#rebind-list button')[4].textContent`);
+  assert(escFromFieldLabel.includes('Pause: P'),
+    'Escape cancels the capture from a focused form control, got: ' + escFromFieldLabel);
+  await evalJs(ws, `document.getElementById('rng-master').blur()`);
+  const muteBeforeEscField = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
+  await tapKey('KeyM', 'm', 77);
+  await sleep(500);
+  const muteAfterEscField = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
+  assert(muteAfterEscField !== muteBeforeEscField,
+    'the key after an Escape-from-field cancel is not consumed, got: ' + muteBeforeEscField + ' -> ' + muteAfterEscField);
+  await tapKey('KeyM', 'm', 77);
+  await sleep(500);
+  // A touch pad press cancels an armed capture instead of completing the
+  // Rust-side rebind behind the prompt's back.
+  await evalJs(ws, `document.body.classList.add('pad-force')`);
+  await evalJs(ws, `document.querySelectorAll('#rebind-list button')[4].click()`);
+  await evalJs(ws, `document.getElementById('pad-down').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))`);
+  await sleep(150);
+  const padBinding = await evalJs(ws, `window.__mazeExports.mc_binding(4) >>> 0`);
+  assert(padBinding === 12, 'a pad press leaves the Pause binding at P, got key id ' + padBinding);
+  const padLabel = await evalJs(ws, `document.querySelectorAll('#rebind-list button')[4].textContent`);
+  assert(padLabel.includes('Pause: P'), 'a pad press clears the capture prompt, got: ' + padLabel);
+  const muteBeforePad = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
+  await tapKey('KeyM', 'm', 77);
+  await sleep(500);
+  const muteAfterPad = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
+  assert(muteAfterPad !== muteBeforePad,
+    'no capture remains after a pad press, got: ' + muteBeforePad + ' -> ' + muteAfterPad);
+  await tapKey('KeyM', 'm', 77);
+  await sleep(500);
+  await evalJs(ws, `document.body.classList.remove('pad-force')`);
+  // Arming a second row resets the previous row's prompt.
+  await evalJs(ws, `document.querySelectorAll('#rebind-list button')[4].click()`);
+  await evalJs(ws, `document.querySelectorAll('#rebind-list button')[6].click()`);
+  const promptRows = await evalJs(ws, `(() => {
+    const rows = Array.from(document.querySelectorAll('#rebind-list button'));
+    return [rows.filter((b) => b.textContent.includes('press a key')).length,
+      rows[4].textContent, rows[6].textContent];
+  })()`);
+  assert(promptRows[0] === 1 && promptRows[1].includes('Pause: P') && promptRows[2].includes('press a key'),
+    'only the newest armed row carries the capture prompt, got: ' + JSON.stringify(promptRows));
+  await tapKey('Escape', 'Escape', 27);
   // Rebind Pause to ArrowUp through the real rebind control.
   await evalJs(ws, `document.querySelectorAll('#rebind-list button')[4].click()`);
   await tapKey('ArrowUp', 'ArrowUp', 38);

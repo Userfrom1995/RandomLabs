@@ -58,6 +58,10 @@ const NAMES = [
   'mc_fright_segments', 'mc_fright_flash', 'mc_reduced_flash',
   'mc_reduced_motion', 'mc_high_contrast', 'mc_theme', 'mc_theme_count',
   'mc_difficulty', 'mc_dots_total', 'mc_show_fps', 'mc_set_show_fps',
+  'mc_settings_len', 'mc_settings_read', 'mc_settings_write',
+  'mc_score_count', 'mc_score_get_score', 'mc_score_get_level',
+  'mc_score_get_name', 'mc_can_add_score', 'mc_score_add',
+  'mc_scores_clear', 'mc_scores_push',
 ];
 
 function staleWasmB64(version, opts) {

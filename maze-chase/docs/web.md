@@ -41,6 +41,10 @@ Enter/Space activates the focused button):
 | M | Mute toggle | Mute toggle |
 | Enter / Space | - | Activate focused button |
 
+Menu shortcuts take precedence over remapped play actions: while a menu is
+open, P/Esc always Back out and M always toggles mute, whatever those keys
+are bound to in play. Leaving Settings cancels an armed key capture.
+
 Touch: swipe on the board to steer (24 px deadzone, dominant axis
 wins, so taps never turn Rill); an on-screen direction pad appears on
 coarse pointers (or via "Toggle touch pad"); tapping a panel's primary
