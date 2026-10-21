@@ -6,7 +6,7 @@ any proprietary work. The #552 Python game is a feel reference only.
 
 ## Title
 
-**Maze Chase** (binary crates: `maze-chase-term` for the terminal game;
+**Maze Chase** (binary crates: `maze-chase-terminal` for the terminal game;
 desktop and WASM binaries named per layer in their build phases). A generic
 descriptive title: a chase through a maze. Tagline: "Outrun the wardens.
 Clear the maze."
