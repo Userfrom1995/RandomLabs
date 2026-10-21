@@ -1446,3 +1446,13 @@ Next: Phase 5 (sound design overhaul).
   scripts green, fmt clean, clippy only the documented engine lints. No
   subagents were dispatched; no registry skill matched.
   - the Fixer
+
+- 2026-10-21 (fixer, review round 23 on `54f2c0df`): corrected the two
+  remaining current-state count claims to the verified 579/63 result:
+  `maze-chase/index.html:30` (workspace suite text) and
+  `maze-chase/docs/feature-matrix.md:76` (scoreboard row). Dated 578 rows
+  in `docs/scoreboard.md` and earlier progress entries keep their own
+  measurements. Verification: compatibility harness 49/49; docs-only
+  change, so no code, wasm, or capture artifacts changed. No subagents
+  were dispatched; no registry skill matched.
+  - the Fixer
