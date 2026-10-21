@@ -367,6 +367,17 @@ async function shot(ws, path) {
   await tapKey('ArrowUp', 'ArrowUp', 38);
   const pauseBinding = await evalJs(ws, `document.querySelectorAll('#rebind-list button')[4].textContent`);
   assert(pauseBinding.includes('ArrowUp'), 'the rebind control captures ArrowUp for Pause, got: ' + pauseBinding);
+  const pauseBlob = await evalJs(ws, `localStorage.getItem('maze-chase-settings')`);
+  const pauseBlobText = pauseBlob ? Buffer.from(pauseBlob, 'base64').toString('utf8') : '';
+  assert(/^bind_pause = Up$/m.test(pauseBlobText),
+    'the rebind capture persists the Pause binding in the settings blob, got: ' + JSON.stringify(pauseBlobText.split('\n').filter((l) => l.startsWith('bind_pause'))));
+  await send(ws, 'Page.navigate', { url: PAGE });
+  await sleep(2500);
+  await evalJs(ws, `document.getElementById('btn-title-settings').click()`);
+  await sleep(300);
+  const pauseBindingReloaded = await evalJs(ws, `document.querySelectorAll('#rebind-list button')[4].textContent`);
+  assert(pauseBindingReloaded.includes('ArrowUp'),
+    'the Pause binding survives a reload, got: ' + pauseBindingReloaded);
   await evalJs(ws, `document.getElementById('btn-settings-back').click()`);
   await sleep(250);
   // On the pause hub, the rebound Pause key must only move focus.
@@ -410,8 +421,9 @@ async function shot(ws, path) {
   const wasdFocus = await evalJs(ws, `document.activeElement && document.activeElement.id`);
   assert(wasdFocus === 'btn-title-help',
     'S moves focus from Start to the next title action like ArrowDown, got: ' + wasdFocus);
-  // Reload drops the in-memory keymap; M must now write the settings blob
-  // and the mute must survive the next reload.
+  // The persisted keymap (Pause on ArrowUp, Back on Space) restores on
+  // reload; M must also write the settings blob and the mute must survive
+  // the next reload.
   await send(ws, 'Page.navigate', { url: PAGE });
   await sleep(2500);
   await tapKey('KeyM', 'm', 77);
@@ -428,6 +440,13 @@ async function shot(ws, path) {
   await sleep(700);
   const muteOff = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
   assert(muteOff === 'Mute', 'M restores the unmuted state, got: ' + muteOff);
+
+  // The fright route drives raw key id 1 (ArrowUp); clear the persisted
+  // keymap (Pause on ArrowUp) and reboot so the route's movement keys are
+  // not consumed by the rebind.
+  await evalJs(ws, `localStorage.removeItem('maze-chase-settings')`);
+  await send(ws, 'Page.navigate', { url: PAGE });
+  await sleep(2500);
 
   // Fright HUD: the badge announces the active window for its whole
   // duration; the 30-segment meter joins only for the final 1.5 s tail.

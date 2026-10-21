@@ -22,9 +22,10 @@
  * - Menu key ownership: in non-playing screens arrows and their WASD twins
  *   move DOM focus and Enter/Space click the focused button (DOM owns menu
  *   activation, so Enter/Space are NOT forwarded there); P dispatches the
- *   Back button and M the Mute action, so Rust handles back/mute without
- *   depending on the rebound keymap. While playing, every handled key is
- *   forwarded and DOM activation is suppressed.
+ *   Back button and M forwards its key to the live keymap (default Mute),
+ *   so a focused control cannot swallow either. While playing, P/Esc toggle
+ *   pause and every other handled key is forwarded; DOM activation is
+ *   suppressed.
  * - Tap (short touch without move on the canvas) equals Enter: it clicks the
  *   visible panel's [data-primary] button, and does nothing while playing.
  * - Canvas clip behavior: the Rust frame is exactly w*h*4 RGBA with
@@ -693,9 +694,9 @@
       } else if (id && exp) {
         try { exp.mc_key(id, 1); exp.mc_key(id, 0); } catch (err) { /* ignore */ }
       }
-      var b = document.querySelectorAll('#rebind-list button')[armedRebind];
       disarmRebind();
       refreshBindingLabels();
+      saveSettings();
       return;
     }
     if (!id) return; // unmapped key: leave to the browser.
