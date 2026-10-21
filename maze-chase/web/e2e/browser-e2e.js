@@ -162,10 +162,10 @@ async function shot(ws, path) {
   assert(firstView[9] === 1 && firstView[10] === 1, 'title card is centered in the content area below the header');
   assert(firstView[13] === 1, 'title card clears the sticky header, header bottom=' + firstView[14]);
 
-  // Title card clears the sticky header on every small viewport, with its
-  // heading and primary CTA hit-testable, the card centered in the space
-  // below it, and the pinned action row fully inside the viewport.
-  for (const [vw, vh] of [[320, 480], [320, 568], [360, 640], [375, 667], [390, 844]]) {
+  // Title card clears the sticky header on every small viewport (including
+  // short landscape), with its heading itself hit-testable and every action
+  // inside both the card and the viewport.
+  for (const [vw, vh] of [[320, 480], [320, 568], [320, 360], [360, 640], [375, 667], [390, 844], [480, 320], [568, 320]]) {
     await send(ws, 'Emulation.setDeviceMetricsOverride', { width: vw, height: vh, deviceScaleFactor: 2, mobile: true });
     await sleep(350);
     const fit = await evalJs(ws, `(() => {
@@ -179,29 +179,55 @@ async function shot(ws, path) {
       const br = b.getBoundingClientRect();
       const bhit = document.elementFromPoint(br.x + br.width / 2, br.y + br.height / 2);
       const contentCenter = hb.bottom + (innerHeight - hb.bottom) / 2;
+      const buttons = Array.from(card.querySelectorAll('.title-actions button'));
+      const buttonsFit = buttons.length > 0 && buttons.every((btn) => {
+        const r = btn.getBoundingClientRect();
+        return r.top >= cb.top && r.bottom <= cb.bottom &&
+          r.left >= cb.left && r.right <= cb.right &&
+          r.top >= 0 && r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight;
+      });
       return [hb.bottom, cb.top, cb.bottom, innerHeight, innerWidth,
         cb.top >= hb.bottom + 8 ? 1 : 0,
         cb.top >= 0 && cb.bottom <= innerHeight ? 1 : 0,
-        (hit && card.contains(hit)) ? 1 : 0,
+        (hit === heading || heading.contains(hit)) ? 1 : 0,
         Math.abs((cb.top + cb.bottom) / 2 - contentCenter) < 2 ? 1 : 0,
         br.top, br.left, br.right, br.bottom,
         br.top >= 0 && br.left >= 0 && br.right <= innerWidth && br.bottom <= innerHeight ? 1 : 0,
-        (bhit === b || b.contains(bhit)) ? 1 : 0];
+        (bhit === b || b.contains(bhit)) ? 1 : 0,
+        buttonsFit ? 1 : 0];
     })()`);
     assert(fit[5] === 1, `title card clears the sticky header at ${vw}x${vh} (header ${fit[0]}, card ${fit[1]})`);
     assert(fit[6] === 1, `title card is inside the viewport at ${vw}x${vh} (card ${fit[1]}..${fit[2]}, viewport ${fit[3]})`);
-    assert(fit[7] === 1, `title heading is hit-testable at ${vw}x${vh}`);
+    assert(fit[7] === 1, `title heading itself is hit-testable at ${vw}x${vh}`);
     assert(fit[8] === 1, `title card is centered below the header at ${vw}x${vh}`);
     assert(fit[13] === 1,
       `title primary CTA is fully inside ${vw}x${vh} (${fit[9]}..${fit[12]})`);
     assert(fit[14] === 1, `title primary CTA is hit-testable at ${vw}x${vh}`);
+    assert(fit[15] === 1, `every title action is inside the card and ${vw}x${vh}`);
   }
 
   // A title card scrolled on a phone must reopen at its top after leaving
-  // and coming back (Start -> Pause -> Quit in the round-21 review).
+  // and coming back (Start -> Pause -> Quit in the round-21 review). The
+  // body is a labeled focus region, so arrows scroll it from the keyboard.
   await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 320, height: 480, deviceScaleFactor: 2, mobile: true });
   await sleep(350);
+  const scrollRegion = await evalJs(ws, `(() => {
+    const body = document.querySelector('#panel-title .panel-scroll');
+    body.focus();
+    return [document.activeElement === body ? 1 : 0, body.getAttribute('tabindex'),
+      body.getAttribute('role'), body.getAttribute('aria-label') || ''];
+  })()`);
+  assert(scrollRegion[0] === 1 && scrollRegion[1] === '0' && scrollRegion[2] === 'region',
+    'title body is a focusable scroll region');
+  assert(scrollRegion[3].length > 0, 'title scroll region carries an aria-label');
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'ArrowDown', key: 'ArrowDown', windowsVirtualKeyCode: 40 });
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'ArrowDown', key: 'ArrowDown', windowsVirtualKeyCode: 40 });
+  await sleep(250);
+  const titleScrolled = await evalJs(ws, `document.querySelector('#panel-title .panel-scroll').scrollTop`);
+  assert(titleScrolled > 0, 'arrow keys scroll the focused title body, scrollTop=' + titleScrolled);
   await evalJs(ws, `document.querySelector('#panel-title .panel-scroll').scrollTop = 999`);
+  const preClickScroll = await evalJs(ws, `document.querySelector('#panel-title .panel-scroll').scrollTop`);
+  assert(preClickScroll > 0, 'title body is scrolled before the reopen check, scrollTop=' + preClickScroll);
   await evalJs(ws, `document.getElementById('btn-title-help').click()`);
   await sleep(250);
   await evalJs(ws, `document.getElementById('btn-help-back').click()`);
@@ -383,30 +409,46 @@ async function shot(ws, path) {
   assert((await evalJs(ws, `document.getElementById('panel-pause').hidden`)) === true, 'mobile Resume returns to play');
   await shot(ws, `${SHOT_DIR}/mc-e2e-mobile.png`);
 
-  // Landscape phone: the pause card's pinned Resume action must stay inside
-  // the viewport and hit-testable even when the card body itself scrolls.
-  await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 480, height: 320, deviceScaleFactor: 2, mobile: true });
-  await sleep(350);
-  await evalJs(ws, `document.getElementById('btn-pause').click()`);
-  await sleep(300);
-  const landscapePause = await evalJs(ws, `(() => {
-    const p = document.getElementById('panel-pause');
-    const b = document.getElementById('btn-resume');
-    const r = p.getBoundingClientRect(), br = b.getBoundingClientRect();
-    const hit = document.elementFromPoint(br.x + br.width / 2, br.y + br.height / 2);
-    return [p.hidden ? 0 : 1, br.top, br.bottom, r.top, r.bottom, innerHeight,
-      br.top >= 0 && br.left >= 0 && br.right <= innerWidth && br.bottom <= innerHeight ? 1 : 0,
-      (hit === b || b.contains(hit)) ? 1 : 0];
-  })()`);
-  console.log('landscape pause resume:', JSON.stringify(landscapePause));
-  assert(landscapePause[0] === 1, 'landscape pause dialog opens');
-  assert(landscapePause[6] === 1,
-    `pause Resume is fully inside 480x320 (${landscapePause[1]}..${landscapePause[2]} in card ${landscapePause[3]}..${landscapePause[4]} of ${landscapePause[5]})`);
-  assert(landscapePause[7] === 1, 'pause Resume is hit-testable at 480x320');
-  await evalJs(ws, `document.getElementById('btn-resume').click()`);
-  await sleep(300);
-  assert((await evalJs(ws, `document.getElementById('panel-pause').hidden`)) === true,
-    'landscape Resume returns to play');
+  // Short landscape phones: the pause card keeps its heading and every
+  // action inside both the card and the viewport, with Resume hit-testable.
+  for (const [vw, vh] of [[480, 320], [320, 360], [568, 320]]) {
+    await send(ws, 'Emulation.setDeviceMetricsOverride', { width: vw, height: vh, deviceScaleFactor: 2, mobile: true });
+    await sleep(350);
+    await evalJs(ws, `document.getElementById('btn-pause').click()`);
+    await sleep(300);
+    const landscapePause = await evalJs(ws, `(() => {
+      const p = document.getElementById('panel-pause');
+      const h = p.querySelector('h2');
+      const b = document.getElementById('btn-resume');
+      const r = p.getBoundingClientRect(), br = b.getBoundingClientRect();
+      const hr = h.getBoundingClientRect();
+      const hit = document.elementFromPoint(br.x + br.width / 2, br.y + br.height / 2);
+      const hhit = document.elementFromPoint(hr.x + hr.width / 2, hr.y + hr.height / 2);
+      const buttons = Array.from(p.querySelectorAll('.pause-actions button'));
+      const buttonsFit = buttons.length > 0 && buttons.every((btn) => {
+        const q = btn.getBoundingClientRect();
+        return q.top >= r.top && q.bottom <= r.bottom &&
+          q.left >= r.left && q.right <= r.right &&
+          q.top >= 0 && q.left >= 0 && q.right <= innerWidth && q.bottom <= innerHeight;
+      });
+      return [p.hidden ? 0 : 1, br.top, br.bottom, r.top, r.bottom, innerHeight,
+        br.top >= 0 && br.left >= 0 && br.right <= innerWidth && br.bottom <= innerHeight ? 1 : 0,
+        (hit === b || b.contains(hit)) ? 1 : 0,
+        (hhit === h || h.contains(hhit)) ? 1 : 0,
+        buttonsFit ? 1 : 0, innerWidth];
+    })()`);
+    console.log(`short landscape pause ${vw}x${vh}:`, JSON.stringify(landscapePause));
+    assert(landscapePause[0] === 1, `pause dialog opens at ${vw}x${vh}`);
+    assert(landscapePause[6] === 1,
+      `pause Resume is fully inside ${vw}x${vh} (${landscapePause[1]}..${landscapePause[2]} in card ${landscapePause[3]}..${landscapePause[4]} of ${landscapePause[5]})`);
+    assert(landscapePause[7] === 1, `pause Resume is hit-testable at ${vw}x${vh}`);
+    assert(landscapePause[8] === 1, `pause heading itself is hit-testable at ${vw}x${vh}`);
+    assert(landscapePause[9] === 1, `every pause action is inside the card and ${vw}x${vh}`);
+    await evalJs(ws, `document.getElementById('btn-resume').click()`);
+    await sleep(300);
+    assert((await evalJs(ws, `document.getElementById('panel-pause').hidden`)) === true,
+      `pause Resume returns to play at ${vw}x${vh}`);
+  }
   await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
   await sleep(300);
 
