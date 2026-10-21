@@ -266,6 +266,127 @@ fn resize_window(display: &str, wid: u64, w: u32, h: u32) {
     }
 }
 
+fn temp_config_dir(tag: &str) -> PathBuf {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    let dir = std::env::temp_dir().join(format!("maze-chase-tester-e2e-{tag}-{nanos}"));
+    std::fs::create_dir_all(&dir).expect("create the temp config dir");
+    dir
+}
+
+/// Poll `settings.txt` until it carries `needle`, proving the toggle
+/// committed on the press while the window is still live (not on Back).
+fn wait_for_setting(dir: &Path, needle: &str, child: &mut Child) {
+    let file = dir.join("settings.txt");
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if let Ok(text) = std::fs::read_to_string(&file) {
+            if text.lines().any(|l| l.trim() == needle) {
+                return;
+            }
+        }
+        if let Some(status) = child.try_wait().expect("poll the live game") {
+            panic!("the game exited ({status}) before {needle:?} was persisted");
+        }
+        assert!(
+            Instant::now() < deadline,
+            "{needle:?} never reached settings.txt: {:?}",
+            std::fs::read_to_string(&file)
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn windowed_settings_toggles_persist_on_the_press() {
+    if !have_tool("xdotool") {
+        eprintln!("skip: xdotool is not installed");
+        return;
+    }
+    let Some(x) = XvfbSession::start(24, false) else {
+        eprintln!("skip: Xvfb is not installed or cannot start");
+        return;
+    };
+    let dir = temp_config_dir("live-settings");
+    let mut cmd = x.game();
+    cmd.args(["--no-pad", "--dir"]).arg(&dir);
+    let mut child = cmd
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn maze-chase-desktop");
+    let wid = find_window(&x.display());
+    let wid_arg = wid.to_string();
+    let focus = xdotool(&x.display(), &["windowfocus", "--sync", &wid_arg]);
+    assert!(
+        focus.status.success(),
+        "xdotool windowfocus must succeed: {}",
+        String::from_utf8_lossy(&focus.stderr)
+    );
+    std::thread::sleep(Duration::from_millis(500));
+    // Title (PLAY selected) -> SETTINGS, then Difficulty -> HighContrast.
+    let nav = xdotool(
+        &x.display(),
+        &[
+            "key", "--window", &wid_arg, "Down", "Down", "Down", "Return", "Down", "Down", "Down",
+            "Down", "Return",
+        ],
+    );
+    assert!(
+        nav.status.success(),
+        "the settings navigation must be delivered: {}",
+        String::from_utf8_lossy(&nav.stderr)
+    );
+    wait_for_setting(&dir, "high_contrast = true", &mut child);
+    // Back to the title (cursor resets to PLAY), open AUDIO, toggle MUTE.
+    let audio = xdotool(
+        &x.display(),
+        &[
+            "key", "--window", &wid_arg, "Escape", "Down", "Down", "Down", "Down", "Return",
+        ],
+    );
+    assert!(
+        audio.status.success(),
+        "the audio navigation must be delivered: {}",
+        String::from_utf8_lossy(&audio.stderr)
+    );
+    std::thread::sleep(Duration::from_millis(200));
+    let mute = xdotool(
+        &x.display(),
+        &[
+            "key", "--window", &wid_arg, "Down", "Down", "Down", "Return",
+        ],
+    );
+    assert!(
+        mute.status.success(),
+        "the mute press must be delivered: {}",
+        String::from_utf8_lossy(&mute.stderr)
+    );
+    wait_for_setting(&dir, "mute = true", &mut child);
+    // Back to the title, then QUIT via the menu: a clean windowed exit.
+    let _ = xdotool(&x.display(), &["key", "--window", &wid_arg, "Escape"]);
+    std::thread::sleep(Duration::from_millis(200));
+    let _ = xdotool(
+        &x.display(),
+        &[
+            "key", "--window", &wid_arg, "Down", "Down", "Down", "Down", "Down",
+        ],
+    );
+    std::thread::sleep(Duration::from_millis(100));
+    let _ = xdotool(&x.display(), &["key", "--window", &wid_arg, "Return"]);
+    let (code, _) = wait_bounded(child, Duration::from_secs(60), "the live settings session");
+    assert_eq!(
+        code,
+        Some(0),
+        "the live settings session must quit cleanly through the menu"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[test]
 #[cfg(target_os = "linux")]
 fn no_display_is_a_loud_nonzero_failure() {
