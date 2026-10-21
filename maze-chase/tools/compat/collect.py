@@ -990,13 +990,14 @@ def main():
                 "capture entered the bundle; a bitmap-tier pass must rest "
                 "on the rendered playing surface, not only its menus"
             )
-    # Pause-surface honesty (Evaluator E1): the pause menu is a text
-    # panel, so a kitty-graphics paused phase must have released the
-    # board instead of re-placing it above the menu. The check is
-    # capture-first: even a paused phase with no new media can still
-    # carry the previous playing frame's placements on screen, so the
-    # paused capture itself must prove a text panel (no sprite-palette
-    # pixels and a near-solid background that is not completely flat).
+    # Pause-surface honesty (Evaluator E1, revised for the frozen-board
+    # design): the pause hub is a text card over the frozen, 55%-dimmed
+    # board with actors exempt from dimming, so a paused capture may
+    # legitimately carry sprite pixels. The check is capture-first and
+    # still refuses a pass when the card never reached the wire: the
+    # paused slice must paint PAUSED and the capture must be a real,
+    # non-flat panel (0.55 <= dominant < 1.0). A leftover playing frame
+    # with no pause card has no PAUSED paint and fails.
     # The fixed session always takes exactly one paused checkpoint
     # (drive.sh, run-windows.ps1), so a kitty-graphics pass whose phase
     # list has zero (or several) paused entries cannot silently skip the
@@ -1025,13 +1026,14 @@ def main():
         for phase in paused_phases:
             kit = phase.get("kitty") or {}
             media = int(kit.get("transmits", 0)) + int(kit.get("placements", 0))
-            census = phase.get("sprite_census") or {}
             share = float(phase.get("dominant_share") or 0.0)
+            surfaces = phase.get("surfaces") or {}
+            pause_paints = int((surfaces.get("paused") or {}).get("paints", 0))
             if not phase.get("screenshot"):
                 paused_missing.append(phase["name"])
-            elif census.get("pixels", 0) > 0:
+            elif pause_paints < 1:
                 paused_bad.append(phase["name"])
-            elif not (0.90 <= share < 1.0):
+            elif not (0.55 <= share < 1.0):
                 paused_bad.append(phase["name"])
             elif media > 0:
                 # Checkpoint offsets can lag the last playing frame, so a
@@ -1044,8 +1046,8 @@ def main():
             reasons = []
             if paused_bad:
                 reasons.append(
-                    "the paused capture still carries sprite pixels or is "
-                    "not a near-solid menu panel ("
+                    "the paused capture never painted the PAUSED card or is "
+                    "not a non-flat panel ("
                     + ", ".join(paused_bad)
                     + ")"
                 )

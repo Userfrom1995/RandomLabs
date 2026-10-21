@@ -954,10 +954,10 @@ class TestCollectorHonestyGates(unittest.TestCase):
             f"missing attribution note in {row['notes']}",
         )
 
-    def test_kitty_paused_phase_with_media_is_downgraded(self):
-        # The pause menu is text; a paused phase that still places the
-        # opaque board can cover it. The collector refuses to sign that
-        # shape even when the sprite census looks healthy.
+    def test_kitty_paused_media_without_a_playing_capture_is_downgraded(self):
+        # The paused slice may carry board media (the frozen-board hub),
+        # but a bitmap pass still needs a playing capture: a bundle made
+        # only of menu surfaces cannot sign the rendered playing surface.
         transcript = (
             b"\x1b[1;1HVIDEO  kitty-graphics\r\n"
             b"\x1b[?2026h\x1b[2J"
@@ -989,19 +989,20 @@ class TestCollectorHonestyGates(unittest.TestCase):
             row = json.load(fh)
         self.assertEqual(row["disposition"], "partial")
         self.assertTrue(
-            any("still carries sprite pixels or is not a near-solid menu panel"
-                in note for note in row["notes"]),
-            f"missing pause-surface reason in {row['notes']}",
+            any("no decodable playing capture" in note
+                for note in row["notes"]),
+            f"missing playing-capture reason in {row['notes']}",
         )
 
-    def _kitty_paused_row(self, paused_png, *, paused_events, playing_png=None):
+    def _kitty_paused_row(self, paused_png, *, paused_events, playing_png=None,
+                          paused_text=b"PAUSED RESUME QUIT TO TITLE"):
         """Shared shape for the capture-first paused-gate cases: a
         playing slice with one board placement, then a paused slice."""
         playing = (
             b"\x1b[1;1HVIDEO  kitty-graphics\r\n"
             b"\x1b_Ga=p,i=3,p=1,x=0,y=0,w=1120,h=1240,c=140,r=62,z=0,C=1,q=2\x1b\\"
         )
-        paused = b"\x1b[1;1HPAUSED RESUME QUIT TO TITLE" + b" " * 200
+        paused = b"\x1b[1;1H" + paused_text + b" " * 200
         transcript = playing + paused
         if playing_png is None:
             playing_png = make_rgb_png(
@@ -1034,11 +1035,11 @@ class TestCollectorHonestyGates(unittest.TestCase):
                   encoding="utf-8") as fh:
             return json.load(fh)
 
-    def test_kitty_paused_zero_media_but_sprite_capture_is_downgraded(self):
-        # A regression that keeps the previous playing frame's board
-        # composed emits no new transmit or placement in the paused
-        # slice; the media-first gate skipped it. The capture still
-        # carries a sprite pixel, so a pass is refused.
+    def test_kitty_paused_zero_media_with_frozen_board_stays_pass(self):
+        # The pause hub freezes the dimmed board and exempts actors, so a
+        # sprite pixel in the paused capture is expected. The PAUSED card
+        # paint plus a non-flat capture prove the surface; no new media is
+        # a normal checkpoint-boundary shape, not a failure.
         paused_png = make_rgb_png(
             100, 100, [24, 16, 12] * 9999 + [126, 217, 87]
         )
@@ -1047,21 +1048,37 @@ class TestCollectorHonestyGates(unittest.TestCase):
             paused_events=("200\tcheckpoint\tpaused\t200\t"
                            "session/screenshots/paused.png\n"),
         )
-        self.assertEqual(row["disposition"], "partial")
+        self.assertEqual(row["disposition"], "pass")
         paused = next(p for p in row["phases"] if p["name"] == "paused")
         kit = paused.get("kitty") or {}
         self.assertEqual(kit.get("transmits", 0), 0)
         self.assertEqual(kit.get("placements", 0), 0)
         self.assertGreater(paused["sprite_census"]["pixels"], 0)
+        self.assertEqual(paused["surfaces"]["paused"]["paints"], 1)
+
+    def test_kitty_paused_capture_without_the_card_is_downgraded(self):
+        # A stale playing frame left on screen after the pause key never
+        # paints the PAUSED card. Even with a valid capture, a pass cannot
+        # claim the pause surface.
+        paused_png = make_rgb_png(
+            100, 100, [24, 16, 12] * 9999 + [126, 217, 87]
+        )
+        row = self._kitty_paused_row(
+            paused_png,
+            paused_events=("200\tcheckpoint\tpaused\t200\t"
+                           "session/screenshots/paused.png\n"),
+            paused_text=b"FRIGHT!",
+        )
+        self.assertEqual(row["disposition"], "partial")
         self.assertTrue(
-            any("still carries sprite pixels or is not a near-solid menu panel"
-                in note for note in row["notes"]),
-            f"missing capture-first pause reason in {row['notes']}",
+            any("never painted the PAUSED card" in note
+                for note in row["notes"]),
+            f"missing card-first pause reason in {row['notes']}",
         )
 
     def test_kitty_paused_completely_flat_capture_is_downgraded(self):
         # A 100% flat capture cannot distinguish a menu panel from a
-        # blank screen, so the accepted share range is [90%, 100%).
+        # blank screen, so the accepted share range is [55%, 100%).
         paused_png = make_rgb_png(100, 100, [24, 16, 12] * (100 * 100))
         row = self._kitty_paused_row(
             paused_png,
@@ -1072,7 +1089,7 @@ class TestCollectorHonestyGates(unittest.TestCase):
         paused = next(p for p in row["phases"] if p["name"] == "paused")
         self.assertEqual(paused["dominant_share"], 1.0)
         self.assertTrue(
-            any("still carries sprite pixels or is not a near-solid menu panel"
+            any("never painted the PAUSED card or is not a non-flat panel"
                 in note for note in row["notes"]),
             f"missing flat-capture pause reason in {row['notes']}",
         )
@@ -1092,10 +1109,10 @@ class TestCollectorHonestyGates(unittest.TestCase):
         )
 
     def test_kitty_paused_share_at_the_lower_bound_stays_pass(self):
-        # The accepted band is [90%, 100%): the narrowest acceptable menu
-        # panel is exactly 90% one color.
+        # The accepted band is [55%, 100%): the frozen, 55%-dimmed board
+        # leaves the dominant background at exactly that share.
         paused_png = make_rgb_png(
-            100, 100, [24, 16, 12] * 9000 + [230, 230, 230] * 1000
+            100, 100, [24, 16, 12] * 5500 + [230, 230, 230] * 4500
         )
         row = self._kitty_paused_row(
             paused_png,
@@ -1104,12 +1121,12 @@ class TestCollectorHonestyGates(unittest.TestCase):
         )
         self.assertEqual(row["disposition"], "pass")
         paused = next(p for p in row["phases"] if p["name"] == "paused")
-        self.assertEqual(paused["dominant_share"], 0.9)
+        self.assertEqual(paused["dominant_share"], 0.55)
 
     def test_kitty_paused_share_below_the_lower_bound_is_downgraded(self):
-        # 89.99% one color is a board, not a menu panel.
+        # 54.99% one color is an unmounted or stale board, not the hub.
         paused_png = make_rgb_png(
-            100, 100, [24, 16, 12] * 8999 + [230, 230, 230] * 1001
+            100, 100, [24, 16, 12] * 5499 + [230, 230, 230] * 4501
         )
         row = self._kitty_paused_row(
             paused_png,
@@ -1118,14 +1135,14 @@ class TestCollectorHonestyGates(unittest.TestCase):
         )
         self.assertEqual(row["disposition"], "partial")
         paused = next(p for p in row["phases"] if p["name"] == "paused")
-        self.assertEqual(paused["dominant_share"], 0.8999)
+        self.assertEqual(paused["dominant_share"], 0.5499)
 
     def test_kitty_paused_share_rounding_cannot_cross_the_gate(self):
-        # A true 89.9975% share rounds up to 0.9000 at four decimals;
+        # A true 54.9975% share rounds up to 0.5500 at four decimals;
         # the recorded share truncates downward, so it fails the gate
         # instead of being accepted by a rounding artifact.
         paused_png = make_rgb_png(
-            200, 200, [24, 16, 12] * 35999 + [230, 230, 230] * 4001
+            200, 200, [24, 16, 12] * 21999 + [230, 230, 230] * 18001
         )
         row = self._kitty_paused_row(
             paused_png,
@@ -1134,7 +1151,7 @@ class TestCollectorHonestyGates(unittest.TestCase):
         )
         self.assertEqual(row["disposition"], "partial")
         paused = next(p for p in row["phases"] if p["name"] == "paused")
-        self.assertEqual(paused["dominant_share"], 0.8999)
+        self.assertEqual(paused["dominant_share"], 0.5499)
 
     def test_kitty_pass_without_a_paused_checkpoint_is_downgraded(self):
         # The fixed session always takes the paused checkpoint, so a
