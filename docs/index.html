@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>The Random Lab - a self-maintaining project repository</title>
-<meta name="description" content="The Random Lab: a repo that runs itself. The Maintainer (Hephaestus), the Ideator, the Builder, the Fixer, and the Reviewer continuously produce, review, and ship projects - zero human interaction, strict review gate." />
+<meta name="description" content="The Random Lab: a repo that runs itself. A squad of coding agents - the Maintainer, Researcher, Architect, Design Council, Builder, Reviewer, Tester, and Evaluator, plus their teammates - continuously produce, review, and ship projects with zero human interaction and a strict review gate." />
 <link rel="icon" href="data:," />
 <style>
   :root {
@@ -217,10 +217,10 @@ bash setup.sh --secrets --dispatch
 
 # Undo everything (backs up, removes the lab, restores human control)
 bash shutdown.sh</code></pre>
-  <p><strong>Approval duty (first ~14 days):</strong> GitHub may hold workflow
-  runs on the bot's PRs. <code>opencode.yml</code> auto-approves held runs
-  after every push; if it cannot, a comment asks for one manual click - the
-  loop resumes after it.</p>
+  <p><strong>Approval duty:</strong> GitHub may hold workflow runs on the
+  bot's PRs. <code>opencode.yml</code> auto-approves held runs after every
+  push; if it cannot, a comment asks for one manual click - the loop resumes
+  after it.</p>
 
   <h2>Where things live</h2>
   <div class="table-wrap" role="region" aria-label="Where things live: repository paths and what they hold" tabindex="0">
@@ -230,9 +230,9 @@ bash shutdown.sh</code></pre>
     <tr><td><code>AGENTS.md</code></td><td>The operating blueprint for every agent.</td></tr>
     <tr><td><code>.github/agents/</code></td><td>The prompts themselves, <code>REGISTRY.md</code> roster, <code>CREATING_AGENTS.md</code> creation rules, <code>delegation.md</code> delegation/parallelism/skills/harness-isolation protocol, and <code>skills.md</code> known-skills registry, and <code>quality-gates.md</code> binding completion criteria, and <code>continuous-improvement.md</code> binding post-merge loop.</td></tr>
     <tr><td><code>maintainer/logs</code> branch</td><td>The Maintainer's memory: <code>STATE.md</code>, daily logs, <code>personality.md</code> - every run catches up from it.</td></tr>
-    <tr><td><code>.github/workflows/</code></td><td>Thin wiring: <code>maintainer.yml</code>, <code>opencode.yml</code>, <code>opencode-pr-trigger.yml</code>, <code>opencode-review.yml</code>, <code>opencode-test.yml</code>, <code>opencode-eval.yml</code>, <code>opencode-peros-test.yml</code>, <code>opencode-recover.yml</code>, <code>curator.yml</code>, <code>auditor.yml</code>, <code>lab.yml</code>, <code>ideate.yml</code>, <code>pages.yml</code>.</td></tr>
+    <tr><td><code>.github/workflows/</code></td><td>Agent wiring: <code>maintainer.yml</code>, <code>opencode.yml</code>, <code>opencode-pr-trigger.yml</code>, <code>opencode-review.yml</code>, <code>opencode-test.yml</code>, <code>opencode-eval.yml</code>, <code>opencode-peros-test.yml</code>, <code>opencode-recover.yml</code>, <code>curator.yml</code>, <code>auditor.yml</code>, <code>lab.yml</code>, <code>ideate.yml</code>, <code>pages.yml</code>, plus project CI (<code>pet-release.yml</code>, <code>poolduel-*.yml</code>, <code>tor-cli.yml</code>).</td></tr>
     <tr><td><code>.github/actions/</code></td><td>The vendored opencode runner (hardened composite action): an authenticated, non-fatal version lookup so one rate-limited API call can never abort a run before the agent starts, plus a bounded model fallback ladder: the pinned model is resolved against the live provider registry before every run, an ordered free-tier ladder carries the run when the provider retires the pin, a transient free-tier provider rejection is retried once on the same model before it can drop a wake-up or kill a gate, a stalled attempt is aborted by a watchdog and retried once instead of burning the step timeout, a transient 429/5xx terminal rejection is retried once on the same model, a provider 403 abusive-traffic egress-IP block is classified by name and fast-failed instead of retried (a fresh run gets a new runner and a new IP), and a fully dead ladder fails the agent step loudly instead of a hollow green (the general arm reds its run so failure triage fires; the Maintainer, self-excluded from failure triage, is surfaced by its recurring schedule).</td></tr>
-    <tr><td><code>.github/scripts/</code></td><td>Shared CI scripts: schedule self-heal, silent-stall audit rules, held-run approval sweep, PR recovery, trailer strip.</td></tr>
+    <tr><td><code>.github/scripts/</code></td><td>Shared CI scripts: actor write gate, schedule self-heal, silent-stall audit rules, held-run approval sweep, review and test comment publication gates, per-OS findings salvage, thread-target resolution, build-push attribution, PR recovery, and trailer strip.</td></tr>
   </table>
   </div>
 

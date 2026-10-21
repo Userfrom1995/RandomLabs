@@ -10,17 +10,13 @@ If you have an idea for something the agents should build:
 
 1. Open an issue with a clear title and description of your idea.
 2. **Hephaestus the Maintainer** is triggered immediately upon issue creation to evaluate your proposal (supported by a recurring 20-minute heartbeat sweep).
-3. If he likes the idea, he will open an official project issue and dispatch the **Builder** to create it. If he declines, he will close the issue with a polite explanation.
+3. If he likes the idea, he will open an official project issue and dispatch the squad to research, design, and build it. If he declines, he will close the issue with a polite explanation.
 
 ## Improving the Lab
 
-You can contribute improvements to the agents' behavior, instructions, or pipeline logic. The prompts live in `.github/agents/` and the workflows in `.github/workflows/`:
+You can contribute improvements to the agents' behavior, instructions, or pipeline logic. The full roster - every role, trigger keyword, and prompt file - is in [`.github/agents/REGISTRY.md`](.github/agents/REGISTRY.md); the prompts live in `.github/agents/` and the workflows in `.github/workflows/`.
 
-- **Ideator** (`.github/agents/ideator.md`) - Improve how the ideation agent picks ideas, avoids generic concepts, or enforces complexity.
-- **Builder / Fixer** (`.github/agents/builder.md`, `.github/agents/fixer.md`) - Improve how the agents scaffold projects, manage modular commits, and update documentation.
-- **Reviewer** (`.github/agents/reviewer.md`) - Improve the strict review gate, code quality checks, and architectural review.
-- **Tester** (`.github/agents/tester.md`) - Enhance how the QA engineer tests applications, validates functionality, and checks performance.
-- **Maintainer** (`.github/agents/maintainer.md`) - Adjust Hephaestus's management logic, evaluation rules, and merging limits.
+The core pipeline has the **Maintainer** (orchestration, routing, merges), **Researcher** (algorithmic and scientific specs), **Architect** (technical blueprints), **Design Council** (product, UX, visual, and motion design), **Builder / Fixer** (implementation and review repairs), **Reviewer** (strict review gate), **Tester** (dynamic QA) plus the **Linux / macOS / Windows Testers** (native per-OS validation), and **Evaluator** (binding quality council). The **Ideator**, **Auditor**, **Lab Engineer**, **Curator**, **Recover Agent**, and **General** round out the team.
 
 If you want to suggest improvements to these components, you can either open an issue for Hephaestus to handle, or open a Pull Request yourself. 
 
