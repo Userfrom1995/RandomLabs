@@ -107,7 +107,8 @@ screen, the sound chip to pause/help, and the four-sigil warden roster
 to pause/help plus the wide-window side panel (96 columns and above,
 where best and the sound chip also return); no addition introduces a
 fourth HUD row; frame diagnostics hidden by default and reachable from
-settings), pause hub (frozen board dimmed 55 percent, actors exempt
+the desktop and browser settings, while the terminal has no FPS overlay),
+pause hub (frozen board dimmed 55 percent, actors exempt
 from dimming and held at 3:1 or better against the dimmed board; Resume
 and Quit to title; M mutes during play, while reduced motion, reduced
 flash, and high contrast are Settings rows on every layer, applied live
