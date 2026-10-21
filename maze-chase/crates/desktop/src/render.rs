@@ -366,6 +366,26 @@ fn render_hud(f: &mut Frame, game: &Game, theme: &Theme, hud: Hud<'_>, lay: &Lay
         None,
     );
     step(&mut y);
+    let total = game.maze.total_pickups().max(1);
+    f.text("PICKUPS", x, y, s, theme.dim_text, None);
+    step(&mut y);
+    f.text(
+        &format!("{}/{}", game.dots_left(), total),
+        x,
+        y,
+        s,
+        theme.text,
+        None,
+    );
+    y += font::LINE as i32 * s as i32 + 2;
+    let cleared = total.saturating_sub(game.dots_left());
+    let bar_w = HUD_W - 24;
+    let filled = (cleared * bar_w as usize)
+        .div_ceil(total)
+        .min(bar_w as usize) as u32;
+    f.rect(x, y, bar_w, 6, theme.wall_inner);
+    f.rect(x, y, filled, 6, theme.accent);
+    y += 6 + 8;
     let mode = match game.mode {
         maze_chase_engine::modes::GameMode::Classic => "CLASSIC",
         maze_chase_engine::modes::GameMode::TimeAttack => "TIME ATTACK",

@@ -51,7 +51,7 @@ pub const PANEL_GAP: u16 = 2;
 /// Side panel width in columns.
 pub const SIDE_PANEL_COLS: u16 = 26;
 /// HUD band height in rows when the panel does not fit.
-pub const BAND_ROWS: u16 = 2;
+pub const BAND_ROWS: u16 = 3;
 
 /// Largest tile scale the cell tier considers.
 pub const MAX_CELL_COLS: u16 = 8;
@@ -483,7 +483,7 @@ mod tests {
             l.board,
             Rect {
                 x: 3,
-                y: 2,
+                y: 3,
                 w: 56,
                 h: 31
             }
@@ -491,7 +491,7 @@ mod tests {
         assert!(l.top_bar.is_some());
         assert_eq!(l.chrome, Chrome::Band);
         assert!(l.side.is_none());
-        assert_eq!(l.hint.y, 33);
+        assert_eq!(l.hint.y, 34);
         assert_eq!(l.hint.w, 56);
     }
 
@@ -700,12 +700,12 @@ mod tests {
             tall.board,
             Rect {
                 x: 3,
-                y: 9,
+                y: 10,
                 w: 56,
                 h: 62
             }
         );
-        assert_eq!(tall.hint.y, 71);
+        assert_eq!(tall.hint.y, 72);
 
         // The rest of the checked-in golden set: every column family the
         // solver can pick (2..8) and every row family (1..4) has a pinned

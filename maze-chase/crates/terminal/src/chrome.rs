@@ -47,8 +47,9 @@ pub fn too_small_card(cols: u16, rows: u16, min_cols: u16, min_rows: u16) -> Vec
 /// The badge names the fright for as long as the window is active. The
 /// 30-segment countdown joins only in the final 1.5 s, and the banner
 /// replaces the flashing instruction for reduced-flash players
-/// (information, not decoration).
-pub fn fright_readout(game: &Game, reduced_flash: bool, max_width: usize) -> Option<String> {
+/// (information, not decoration). Segments differ by glyph as well as
+/// brightness so the drain reads in grayscale.
+pub fn fright_readout(game: &Game, reduced_flash: bool) -> Option<String> {
     if !game.wardens.fright_active() {
         return None;
     }
@@ -60,48 +61,91 @@ pub fn fright_readout(game: &Game, reduced_flash: bool, max_width: usize) -> Opt
     } else {
         "FRIGHT "
     };
-    let bar_w = max_width.saturating_sub(label.chars().count());
-    if bar_w == 0 {
-        return Some(label.trim_end().to_string());
-    }
-    let lit = (anim::fright_bar_segments(game.wardens.fright_t) * bar_w / 30).min(bar_w);
-    let bar = format!("{}{}", "█".repeat(lit), "░".repeat(bar_w - lit));
-    Some(format!("{label}{bar}"))
+    Some(format!("{label}{}", fright_bar(game)))
 }
 
-/// Compact top HUD bar (narrow windows): two lines, each clipped to
-/// `max_width` cells.
-pub fn top_bar(game: &Game, best: u32, reduced_flash: bool, max_width: usize) -> [String; 2] {
+/// The 30-segment fright bar, filled from the left.
+fn fright_bar(game: &Game) -> String {
+    let lit = anim::fright_bar_segments(game.wardens.fright_t).min(30);
+    (0..30).map(|i| if i < lit { '█' } else { '░' }).collect()
+}
+
+/// Fright lines for a panel that may be narrower than the 30 segments.
+/// The label takes the first line; the segments wrap evenly beneath it.
+pub fn fright_lines(game: &Game, reduced_flash: bool, width: usize) -> Vec<String> {
+    let Some(readout) = fright_readout(game, reduced_flash) else {
+        return Vec::new();
+    };
+    if readout.chars().count() <= width || width == 0 {
+        return vec![readout];
+    }
+    let split = readout
+        .chars()
+        .position(|c| c == '█' || c == '░')
+        .unwrap_or(readout.chars().count());
+    let label: String = readout.chars().take(split).collect();
+    let bar: Vec<char> = readout.chars().skip(split).collect();
+    if bar.is_empty() {
+        return vec![label.trim_end().to_string()];
+    }
+    let rows = bar.len().div_ceil(width);
+    let chunk = bar.len().div_ceil(rows);
+    let mut lines = vec![label.trim_end().to_string()];
+    for c in bar.chunks(chunk) {
+        lines.push(c.iter().collect());
+    }
+    lines
+}
+
+/// Dots completion bar glyph run: `width` cells, `cleared/total` filled.
+fn dots_bar(game: &Game, width: usize) -> String {
+    if width == 0 {
+        return String::new();
+    }
+    let total = game.maze.total_pickups().max(1);
+    let left = game.dots_left();
+    let cleared = total.saturating_sub(left);
+    let filled = (cleared * width).div_ceil(total).min(width);
+    format!("{}{}", "█".repeat(filled), "░".repeat(width - filled))
+}
+
+/// Compact top HUD bar (narrow windows): three lines, each clipped to
+/// `max_width` cells. Best moves to the pause hub so the compact rows can
+/// carry score, wicks, level, the dots bar, and the fright/relish badges.
+pub fn top_bar(game: &Game, _best: u32, reduced_flash: bool, max_width: usize) -> [String; 3] {
     let state = match game.state {
         GameState::Play => "",
         GameState::Dying => "  OUCH",
         GameState::Clearing => "  CLEAR!",
         GameState::Over => "  GAME OVER",
     };
+    let total = game.maze.total_pickups().max(1);
+    let left = game.dots_left();
+    let mut dots = format!("DOTS {} {}/{}", dots_bar(game, 30), left, total);
+    if game.relish.active {
+        let relish = format!("  RELISH +{}", game.relish.value);
+        if dots.chars().count() + relish.chars().count() <= max_width {
+            dots.push_str(&relish);
+        }
+    }
     let mode = game.mode.as_str().to_uppercase();
     let clock = mode_clock(game);
-    let prefix = if clock.is_empty() {
-        format!("MODE {mode}  ")
+    let mode_line = if clock.is_empty() {
+        format!("MODE {mode}")
     } else {
-        format!("MODE {mode} {clock}  ")
+        format!("MODE {mode} {clock}")
     };
+    let fright = fright_readout(game, reduced_flash);
     let lines = [
         format!(
-            "SCORE {:06}  BEST {:06}  LIVES {}  LEVEL {:02}{}",
+            "SCORE {:06}  WICKS {}  LEVEL {:02}{}",
             game.score,
-            best.max(game.score),
             game.lives.max(0),
             game.level,
             state
         ),
-        match fright_readout(
-            game,
-            reduced_flash,
-            max_width.saturating_sub(prefix.chars().count()),
-        ) {
-            Some(readout) => format!("{prefix}{readout}"),
-            None => prefix.trim_end().to_string(),
-        },
+        dots,
+        fright.unwrap_or(mode_line),
     ];
     lines.map(|line| line.chars().take(max_width).collect())
 }
@@ -127,11 +171,17 @@ pub fn side_panel(
     if !clock.is_empty() {
         lines.push(format!("CLOCK  {clock}"));
     }
-    if let Some(readout) =
-        fright_readout(game, reduced_flash, crate::layout::SIDE_PANEL_COLS as usize)
-    {
-        lines.push(readout);
+    let total = game.maze.total_pickups().max(1);
+    lines.push(format!("DOTS   {}/{}", game.dots_left(), total));
+    lines.push(dots_bar(game, 24));
+    if game.relish.active {
+        lines.push(format!("RELISH +{}", game.relish.value));
     }
+    lines.extend(fright_lines(
+        game,
+        reduced_flash,
+        crate::layout::SIDE_PANEL_COLS as usize,
+    ));
     lines.push("".to_string());
     lines.push(format!("TUNE   {tune}"));
     lines.push(format!("VIDEO  {tier}"));
@@ -192,7 +242,7 @@ pub fn title(
         lines.push(format!("degraded: {t}"));
     }
     lines.push("Bram heron · Kessa pike · Jory snake · Nib dragonfly".to_string());
-    lines.push("clear 445 crumbs; sunseeds turn the hunt".to_string());
+    lines.push("clear 445 crumbs + 4 sunseeds; sunseeds turn the hunt".to_string());
     lines
 }
 
@@ -335,7 +385,8 @@ mod tests {
         let g = Game::new(1, 1);
         let bar = top_bar(&g, 0, false, 62);
         assert!(bar[0].contains("SCORE"));
-        assert!(bar[0].contains("LIVES"));
+        assert!(bar[0].contains("WICKS"));
+        assert!(bar[1].contains("DOTS"));
         let panel = side_panel(&g, 500, "title", "truecolor-cells", false);
         assert!(panel.iter().any(|l| l.contains("500")));
         assert!(panel.iter().any(|l| l.contains("truecolor-cells")));
@@ -349,7 +400,9 @@ mod tests {
         assert!(t.iter().any(|l| l.contains("Play")));
         assert!(t.iter().any(|l| l.contains("start a hunt in the pond")));
         assert!(t.iter().any(|l| l.contains("Bram heron")));
-        assert!(t.iter().any(|l| l.contains("clear 445 crumbs")));
+        assert!(t
+            .iter()
+            .any(|l| l.contains("clear 445 crumbs + 4 sunseeds")));
         assert!(t.iter().any(|l| l.contains("kitty-graphics")));
         let h = help(0, 35);
         assert!(h.iter().any(|l| l.contains("wardens")));
@@ -402,20 +455,21 @@ mod tests {
         let mut g = Game::new(1, 1);
         g.wardens.start_fright(6.0);
         g.wardens.fright_t = 1.2;
-        let readout = fright_readout(&g, false, 26).expect("meter in the final window");
+        let readout = fright_readout(&g, false).expect("meter in the final window");
         assert!(readout.starts_with("FRIGHT "));
-        assert_eq!(readout.chars().count(), 26);
-        assert_eq!(readout.matches('█').count(), 15);
-        assert_eq!(readout.matches('░').count(), 4);
-        let reduced = fright_readout(&g, true, 26).expect("reduced banner");
+        assert_eq!(readout.chars().count(), 7 + 30);
+        assert_eq!(readout.matches('█').count(), 24);
+        assert_eq!(readout.matches('░').count(), 6);
+        let reduced = fright_readout(&g, true).expect("reduced banner");
         assert!(reduced.starts_with("THE TURN ENDS "));
-        assert_eq!(reduced.chars().count(), 26);
+        assert_eq!(reduced.matches('█').count(), 24);
+        assert_eq!(reduced.matches('░').count(), 6);
         g.wardens.fright_t = 2.0;
-        let early = fright_readout(&g, false, 26).expect("badge before the warning tail");
+        let early = fright_readout(&g, false).expect("badge before the warning tail");
         assert_eq!(early, "FRIGHT!");
         assert!(!early.contains('█') && !early.contains('░'));
         g.wardens.fright_t = 0.0;
-        assert!(fright_readout(&g, false, 26).is_none());
+        assert!(fright_readout(&g, false).is_none());
     }
 
     #[test]
@@ -434,11 +488,16 @@ mod tests {
 
         g.mode = GameMode::Sprint;
         g.mode_t = 60.0;
-        let bar = top_bar(&g, 0, true, 62);
+        let bar = top_bar(&g, 0, true, 56);
         assert!(
-            bar.iter().all(|l| l.chars().count() <= 62),
-            "compact top bar lines must fit a 62-column window: {bar:?}"
+            bar.iter().all(|l| l.chars().count() <= 56),
+            "compact top bar lines must fit a 56-column band: {bar:?}"
         );
-        assert!(bar[1].contains("TURN ENDS"), "got {:?}", bar[1]);
+        assert!(bar[2].contains("TURN ENDS"), "got {:?}", bar[2]);
+        assert!(bar[1].contains("DOTS"), "got {:?}", bar[1]);
+        assert_eq!(
+            bar[1].matches('█').count() + bar[1].matches('░').count(),
+            30
+        );
     }
 }

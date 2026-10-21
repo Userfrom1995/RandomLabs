@@ -1056,7 +1056,10 @@ fn render_frame(
                 truecolor,
                 cols,
                 rows,
-                theme.accent,
+                CardStyle {
+                    fg: theme.accent,
+                    right: false,
+                },
             );
         }
         ScreenId::Title => {
@@ -1082,7 +1085,10 @@ fn render_frame(
                 truecolor,
                 cols,
                 rows,
-                theme.text,
+                CardStyle {
+                    fg: theme.text,
+                    right: true,
+                },
             );
         }
         _ => {
@@ -1142,10 +1148,17 @@ fn paint_staged_board(
     }
 }
 
-/// Centered opaque card over the dimmed board. Lines are padded to the
-/// card width and each row is cleared with the theme background, so the
-/// playfield stays visible around the card instead of being replaced by
-/// a blank text page.
+/// Opaque card over the dimmed board. Lines are padded to the card width
+/// and each row is cleared with the theme background, so the playfield
+/// stays visible around the card instead of being replaced by a blank
+/// text page. `right` stages the title menu in the right-hand band with
+/// the live board visible on the left whenever the window has room;
+/// narrow windows fall back to the centered compact card.
+struct CardStyle {
+    fg: maze_chase_assets::themes::Rgb,
+    right: bool,
+}
+
 fn paint_card(
     out: &mut String,
     lines: &[String],
@@ -1153,8 +1166,9 @@ fn paint_card(
     truecolor: bool,
     cols: usize,
     rows: usize,
-    fg: maze_chase_assets::themes::Rgb,
+    style: CardStyle,
 ) {
+    let CardStyle { fg, right } = style;
     let widest = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0);
     let card_w = (widest + 4).min(cols.saturating_sub(2)).max(12);
     let inner = card_w.saturating_sub(2);
@@ -1165,7 +1179,11 @@ fn paint_card(
         paint_panel(out, lines, theme, truecolor, cols, rows, fg);
         return;
     }
-    let x = (cols - card_w) / 2;
+    let x = if right && cols >= card_w + 24 {
+        cols - card_w - 2
+    } else {
+        (cols - card_w) / 2
+    };
     let y = (rows - card_h) / 2;
     // Opaque one-cell ring: the card sits over the frozen board, and the
     // board keeps its actors and pickups on the rows around the card. The
@@ -2196,7 +2214,18 @@ mod tests {
         for row in 0..rows {
             paint_line(&mut out, row as u16, 0, &"X".repeat(cols));
         }
-        paint_card(&mut out, &lines, theme, true, cols, rows, theme.accent);
+        paint_card(
+            &mut out,
+            &lines,
+            theme,
+            true,
+            cols,
+            rows,
+            CardStyle {
+                fg: theme.accent,
+                right: false,
+            },
+        );
         let grid = paint_grid(&out, cols, rows);
         // widest 8 -> card_w 12, card_h 4, origin (4, 3); ring (3, 2) 14x6.
         assert_eq!(grid[3][4], '┌');
@@ -2222,11 +2251,71 @@ mod tests {
     }
 
     #[test]
+    fn title_card_stages_right_of_the_board_when_the_window_has_room() {
+        let theme = &maze_chase_assets::themes::DUSK_POND;
+        let lines = vec!["MAZE CHASE".to_string(), "> PLAY".to_string()];
+        let mut out = String::new();
+        paint_card(
+            &mut out,
+            &lines,
+            theme,
+            true,
+            120,
+            40,
+            CardStyle {
+                fg: theme.text,
+                right: true,
+            },
+        );
+        let grid = paint_grid(&out, 120, 40);
+        let corner = grid
+            .iter()
+            .enumerate()
+            .find_map(|(y, row)| row.iter().position(|c| *c == '┌').map(|x| (x, y)))
+            .expect("title card must paint its top-left corner");
+        assert!(
+            corner.0 > 60,
+            "wide title card must sit board-left/menu-right, got x={}",
+            corner.0
+        );
+        let mut centered = String::new();
+        paint_card(
+            &mut centered,
+            &lines,
+            theme,
+            true,
+            120,
+            40,
+            CardStyle {
+                fg: theme.text,
+                right: false,
+            },
+        );
+        let cgrid = paint_grid(&centered, 120, 40);
+        let cx = cgrid
+            .iter()
+            .find_map(|row| row.iter().position(|c| *c == '┌'))
+            .expect("centered card corner");
+        assert!(cx < 60, "non-title cards stay centered, got x={cx}");
+    }
+
+    #[test]
     fn paint_card_ring_clamps_to_a_minimum_window() {
         let theme = &maze_chase_assets::themes::DUSK_POND;
         let lines = vec!["PAUSED".to_string(), "> RESUME".to_string()];
         let mut out = String::new();
-        paint_card(&mut out, &lines, theme, false, 12, 4, theme.accent);
+        paint_card(
+            &mut out,
+            &lines,
+            theme,
+            false,
+            12,
+            4,
+            CardStyle {
+                fg: theme.accent,
+                right: false,
+            },
+        );
         let grid = paint_grid(&out, 12, 4);
         assert_eq!(grid[0][0], '┌', "the clamped ring must not move the card");
         assert_eq!(grid[3][0], '└');
