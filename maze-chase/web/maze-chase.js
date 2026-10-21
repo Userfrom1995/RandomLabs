@@ -12,10 +12,11 @@
  *   cannot hold a u64 precisely, hence the split seed. Start uses the
  *   sentinel level=0, mode=99 meaning "use current difficulty preset"
  *   (Rust implements the preset mapping).
- * - mc_rebind cancel: while armed, this harness intercepts Escape and calls
- *   mc_rebind(99) (never forwarded as mc_key) to cancel capture. Chosen
- *   because 99 is outside the action range 0..7 and can never collide with a
- *   real arm request.
+ * - mc_rebind cancel: while armed, this harness intercepts Escape (and any
+ *   key with no web key id) and calls mc_rebind(99) (never forwarded as
+ *   mc_key) to cancel capture, so the visible UI and the Rust capture never
+ *   diverge. Chosen because 99 is outside the action range 0..7 and can
+ *   never collide with a real arm request.
  * - Rebind action labels 0..7 mirror Rust `Action::ALL`:
  *   0 Up, 1 Down, 2 Left, 3 Right, 4 Pause, 5 Confirm, 6 Back, 7 Mute.
  *   The Rust side completes capture on the next forwarded mc_key.
@@ -689,9 +690,9 @@
     // Rebind capture: next keydown completes it (Rust side). Never trap typing.
     if (armedRebind >= 0 && !inField(e.target)) {
       e.preventDefault();
-      if (e.code === 'Escape' || id === 11) {
+      if (e.code === 'Escape' || !id) {
         try { exp.mc_rebind(99); } catch (err) { /* ignore */ }
-      } else if (id && exp) {
+      } else if (exp) {
         try { exp.mc_key(id, 1); exp.mc_key(id, 0); } catch (err) { /* ignore */ }
       }
       disarmRebind();
