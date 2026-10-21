@@ -117,12 +117,33 @@ async function shot(ws, path) {
   assert(titleZones[0] === true, 'title card carries the selected-item description strip');
   assert(titleZones[1] === true, 'title card carries the warden legend');
   assert(titleZones[2] === true, 'title card carries the goal line');
+  // Keyboard focus contract: boot auto-focuses Start, ArrowDown moves off it,
+  // and P/Esc/M keep working from a focused panel action (round-23 review).
+  const bootFocus = await evalJs(ws, `document.activeElement && document.activeElement.id`);
+  assert(bootFocus === 'btn-start', 'title auto-focuses Start, got: ' + bootFocus);
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'ArrowDown', key: 'ArrowDown', windowsVirtualKeyCode: 40 });
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'ArrowDown', key: 'ArrowDown', windowsVirtualKeyCode: 40 });
+  await sleep(150);
+  const focusMoved = await evalJs(ws, `document.activeElement && document.activeElement.id`);
+  assert(focusMoved !== 'btn-start' && focusMoved !== '',
+    'ArrowDown moves focus off the auto-focused Start, got: ' + focusMoved);
+  await evalJs(ws, `document.getElementById('btn-start').focus()`);
   await send(ws, 'Page.bringToFront');
   const descSwitches = await evalJs(ws, `(() => {
     document.getElementById('btn-title-help').focus();
     return document.getElementById('title-desc').textContent.includes('warden legend');
   })()`);
   assert(descSwitches === true, 'focusing a title action updates the description strip');
+  // P is the documented menu Back key, not only Esc.
+  await evalJs(ws, `document.getElementById('btn-title-help').click()`);
+  await sleep(200);
+  const helpOpen = await evalJs(ws, `!document.getElementById('panel-help').hidden`);
+  assert(helpOpen === true, 'Help opens from the title action');
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyP', key: 'p' });
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyP', key: 'p' });
+  await sleep(200);
+  const helpClosedByP = await evalJs(ws, `document.getElementById('panel-help').hidden`);
+  assert(helpClosedByP === true, 'P backs out of Help');
   const scrollY = await evalJs(ws, `window.scrollY`);
   assert(scrollY === 0, 'no focus-scroll on boot, scrollY=' + scrollY);
   const canvasBox = await evalJs(ws, `(() => { const c = document.getElementById('game-canvas'); const r = c.getBoundingClientRect(); return [r.width, r.height, c.width, c.height]; })()`);
@@ -271,16 +292,54 @@ async function shot(ws, path) {
   assert(Number(score1) > Number(score0), 'real keyboard input moves Pip and scores');
   await shot(ws, `${SHOT_DIR}/mc-e2e-play.png`);
 
-  // Pause via the P key, resume via the button.
+  // Pause via the P key; focus lands on Resume. The old handler dropped
+  // P/Esc/M whenever a panel button had focus, so prove all three work.
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyP', key: 'p' });
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyP', key: 'p' });
   await sleep(300);
   const paused = await evalJs(ws, `!document.getElementById('panel-pause').hidden`);
   assert(paused === true, 'P pauses with visible pause panel');
-  await evalJs(ws, `document.getElementById('btn-resume').click()`);
+  const pauseFocus = await evalJs(ws, `document.activeElement && document.activeElement.id`);
+  assert(pauseFocus === 'btn-resume', 'pause focuses the Resume action, got: ' + pauseFocus);
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyP', key: 'p' });
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyP', key: 'p' });
   await sleep(300);
-  const resumed = await evalJs(ws, `document.getElementById('panel-pause').hidden`);
-  assert(resumed === true, 'resume returns to play');
+  const resumedByP = await evalJs(ws, `document.getElementById('panel-pause').hidden`);
+  assert(resumedByP === true, 'P resumes from the focused Resume button');
+
+  // Pause again, then Esc resumes from the same focused button.
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyP', key: 'p' });
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyP', key: 'p' });
+  await sleep(300);
+  const pausedAgain = await evalJs(ws, `!document.getElementById('panel-pause').hidden`);
+  assert(pausedAgain === true, 'P pauses again');
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'Escape', key: 'Escape', windowsVirtualKeyCode: 27 });
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'Escape', key: 'Escape', windowsVirtualKeyCode: 27 });
+  await sleep(300);
+  const resumedByEsc = await evalJs(ws, `document.getElementById('panel-pause').hidden`);
+  assert(resumedByEsc === true, 'Esc resumes from the pause hub');
+
+  // M toggles mute from the focused pause action (also dropped before).
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyP', key: 'p' });
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyP', key: 'p' });
+  await sleep(300);
+  const muteBefore = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyM', key: 'm' });
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyM', key: 'm' });
+  await sleep(500);
+  const muteAfter = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
+  assert(muteAfter === 'Unmute' && muteAfter !== muteBefore,
+    'M toggles mute from the focused pause action, got: ' + muteBefore + ' -> ' + muteAfter);
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyM', key: 'm' });
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyM', key: 'm' });
+  await sleep(500);
+  const muteRestored = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
+  assert(muteRestored === 'Mute', 'M toggles mute back, got: ' + muteRestored);
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'Escape', key: 'Escape', windowsVirtualKeyCode: 27 });
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'Escape', key: 'Escape', windowsVirtualKeyCode: 27 });
+  await sleep(300);
+  const resumedAfterMute = await evalJs(ws, `document.getElementById('panel-pause').hidden`);
+  assert(resumedAfterMute === true, 'Esc resumes after the mute checks');
 
   // Fright HUD: the badge announces the active window for its whole
   // duration; the 30-segment meter joins only for the final 1.5 s tail.
