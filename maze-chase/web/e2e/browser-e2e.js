@@ -362,6 +362,26 @@ async function shot(ws, path) {
   await sleep(2500);
   await evalJs(ws, `document.getElementById('btn-title-settings').click()`);
   await sleep(300);
+  // An unmapped key (F1) during rebind capture must cancel the Rust capture
+  // too, or the next key (M) is swallowed by the stale capture (round 29).
+  await evalJs(ws, `document.querySelectorAll('#rebind-list button')[4].click()`);
+  const armedPauseLabel = await evalJs(ws, `document.querySelectorAll('#rebind-list button')[4].textContent`);
+  assert(armedPauseLabel.includes('press a key'),
+    'the Pause row is armed before the unmapped-key check, got: ' + armedPauseLabel);
+  await tapKey('F1', 'F1', 112);
+  const cancelledPauseLabel = await evalJs(ws, `document.querySelectorAll('#rebind-list button')[4].textContent`);
+  assert(cancelledPauseLabel.includes('Pause: P'),
+    'an unmapped key cancels the rebind capture, got: ' + cancelledPauseLabel);
+  await tapKey('KeyM', 'm', 77);
+  await sleep(500);
+  const muteAfterUnmapped = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
+  assert(muteAfterUnmapped === 'Unmute',
+    'the key after an unmapped rebind key still toggles mute, got: ' + muteAfterUnmapped);
+  await tapKey('KeyM', 'm', 77);
+  await sleep(500);
+  const muteRestoredAfterUnmapped = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
+  assert(muteRestoredAfterUnmapped === 'Mute',
+    'M restores the unmuted state after the unmapped-key check, got: ' + muteRestoredAfterUnmapped);
   // Rebind Pause to ArrowUp through the real rebind control.
   await evalJs(ws, `document.querySelectorAll('#rebind-list button')[4].click()`);
   await tapKey('ArrowUp', 'ArrowUp', 38);
