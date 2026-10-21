@@ -1386,3 +1386,14 @@ Next: Phase 5 (sound design overhaul).
   the documented engine lints, all four web E2E scripts green. No
   subagents were dispatched; no registry skill matched.
   - the Fixer
+
+- 2026-10-21 (fixer, review round 19 evidence consistency on `1a97dfe1`):
+  replaced the mixed-round scoreboard paragraph with the committed
+  `96dc2be2` record: all eight Linux rows re-executed at that checkout
+  (binary `ce3b1f91...`, `sources_dirty=false`), both Ghostty rows
+  included, and the playing sprite census range corrected from
+  163-271 to 153-217. Dated rows keep their own measurements.
+  Verification: compatibility harness 49/49; docs-only change, so the
+  existing code/wasm/capture artifacts are unchanged. No subagents were
+  dispatched (single-file fix); no registry skill matched.
+  - the Fixer

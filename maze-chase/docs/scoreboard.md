@@ -343,21 +343,15 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   recaptured (sha256
   `594436905ae88af354253764f8f724300e0d173d88bc06acabb47743a8ef4dc3`)
   and the desktop E2E is byte-identical.
-- Linux terminal compatibility harness: five kitty/xterm rows were
-  re-executed at `14b939d9` (binary sha256
-  `c81890e8d27c8f6914a8decf3df14ca02a9314fd2a9b70bf94991ca714821e9b`,
-  `sources_dirty=false`): kitty auto and forced cells, xterm light and
-  dark, and xterm VT340 auto. The forced xterm sixel row was re-executed
-  after the renderer fixes at `e938ce5a` (binary
-  `e06807bc1f4c0d3fb98552d436c5f4222b28d97cc25ea685d639475154bdc7e0`,
-  `sources_dirty=false`, `pause_select=1`). Every row records
-  `disposition: pass`; kitty-graphics rows carry 169.9-175.4 KiB per
-  session with 163-271 exact sprite-palette pixels in the playing
-  capture, and the VT340 rows carry 137-138 transmits / 4.25-4.31 MiB.
-  The two Ghostty rows remain the `90cb9b87` record and are labeled
-  pre-fix in `docs/terminal-compat.md`; the final sign-off phase reruns
-  them. The evidence bundles under `tools/compat/evidence/` and their
-  screenshots are the committed capture set.
+- Linux terminal compatibility harness: all eight rows were re-executed at
+  `96dc2be2` (binary sha256
+  `ce3b1f91a78f00cbd72d09bd6132b367d027fd504e1e27d56e08ec9bd9f53f86`,
+  `sources_dirty=false`), both Ghostty rows and every forced tier included.
+  Every row records `disposition: pass`; kitty-graphics rows carry
+  169.9-175.4 KiB per session with 153-217 exact sprite-palette pixels in
+  the playing capture, and the VT340 rows carry 137-138 transmits /
+  4.25-4.31 MiB. The evidence bundles under `tools/compat/evidence/` and
+  their screenshots are the committed capture set.
 - Terminal sprite census was updated from the retired Ember Warren
   palette to the Dusk Pond theme palette (Rill, sunseed, and the four
   hunters).
