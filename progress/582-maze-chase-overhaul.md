@@ -1539,3 +1539,19 @@ Next: Phase 5 (sound design overhaul).
   Tester's signed report; no subagents were dispatched (single-area docs
   refresh); no registry skill matched.
   - the Fixer
+
+- 2026-10-21 (fixer, review round 29 on `c2d04bc5`): an unmapped key
+  during a web rebind capture now cancels the Rust-side capture too.
+  `onKeyDown` sends `mc_rebind(99)` whenever the pressed key has no web
+  key id, so the visible UI and the session capture can no longer diverge
+  and the next key (`M`, a movement key) performs its own action instead
+  of completing the abandoned capture. `browser-e2e.js` arms the Pause
+  row, presses `F1`, asserts the row returns to `Pause: P`, and proves
+  `M` still toggles mute and restores it. Verification: browser E2E
+  218/218 `ALL GREEN` with zero console errors; the same block against
+  the pre-fix harness fails the two mute assertions and the later
+  persisted-mute checks (mutation proof); `node --check` clean. No Rust,
+  wasm, or capture artifact changed. No subagents were dispatched
+  (single-line JS fix plus its E2E assertions); no registry skill
+  matched.
+  - the Fixer
