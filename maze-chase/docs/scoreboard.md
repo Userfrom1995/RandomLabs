@@ -1,7 +1,7 @@
 # Release scoreboard
 
-Measured results for the packaged release, recorded from real runs on
-the release machine (Linux x86_64, stable Rust 1.99.0) plus the two
+Measured results for the packaged artifacts, recorded from real runs
+on the release machine (Linux x86_64, stable Rust 1.99.0) plus the two
 native per-OS passes (macOS arm64 and Windows Server 2025). No number
 here is estimated: every figure names the command or run that produced
 it. Rerun the commands in `docs/release.md` on another machine and
@@ -547,9 +547,16 @@ it stays with the per-OS release sign-off, as recorded in
 
 ## 2026-10-22 (release packaging, Linux x86_64)
 
-Measured on this tree under stable Rust 1.99.0, workspace version
-0.1.0. macOS and Windows packaging was not run on this container and is
-not claimed here.
+Measured from the `maze-chase/` tree at commit `396c8653` (workspace
+version 0.1.0) with `SOURCE_DATE_EPOCH=1792685485` on
+`runnervm8k3b6.bud053t52tnuhdprn10wdjgwhf.gx.internal.cloudapp.net`
+(Ubuntu 24.04.5 LTS, Linux 6.17.0-1022-azure, x86_64) under stable Rust
+1.99.0 (`b940084d7eb6a299eb4bfeb8e34901bc051e7ac4`), rpmbuild 4.18.2,
+and dpkg-deb 1.22.6. These are this host's measured bytes: the tarball
+digests reproduce across hosts with the pinned inputs, while the RPM
+header records this build host and the deb digest is tied to the dpkg
+toolchain above, so both are host-bound. macOS and Windows packaging was
+not run on this container and is not claimed here.
 
 Version and tag contract:
 
@@ -564,20 +571,21 @@ Linux stage (`packaging/release/stage-linux.sh`, run twice):
 
 | Artifact | SHA-256 |
 |---|---|
-| `maze-chase-terminal_0.1.0_amd64.deb` | `45f9e6263bc0a198e9a4a7c141fbb4d72603f5b971d8cbb7ae09d9bdb616cae7` |
-| `maze-chase-desktop_0.1.0_amd64.deb` | `1a8eb80544c2a6dc6b84943311c2f81db9134668c708328c3d6be68f8474753d` |
-| `maze-chase-terminal-0.1.0-1.x86_64.rpm` | `11e1d15b96e10542131488163b5ddcc111027179a47789cc555c332d43432d03` |
-| `maze-chase-desktop-0.1.0-1.x86_64.rpm` | `046e2dc8d8e2ae78d244f01996a3f337345ad8771b64b66f179536db8e123daf` |
-| `maze-chase-terminal-0.1.0-linux-x86_64.tar.gz` | `673d1576daf9e2ab078a8c73a75eb1d6cdd2cb69be9b2f50f96599779706bc44` |
-| `maze-chase-desktop-0.1.0-linux-x86_64.tar.gz` | `69ed0219abef1520d83956d2344fd37ad74d7a622b6b738e5d87dc45f49891d9` |
+| `maze-chase-terminal_0.1.0_amd64.deb` | `cf63b8b4d10a91de9a53f788fc7ef6a556e844d96129c38e999351d0880bc162` |
+| `maze-chase-desktop_0.1.0_amd64.deb` | `e2c9e375565e441f0b05909a8a2c49353d66aa98d80d544df87058be7ed1c2aa` |
+| `maze-chase-terminal-0.1.0-1.x86_64.rpm` | `615b22f22ed419de9eee5c959e11477ad35b60778f438daaf19f4c70901c0652` |
+| `maze-chase-desktop-0.1.0-1.x86_64.rpm` | `f430a06318a307fed404fb73376f52d3062d0ace0acd9f33ba953a77fff7a1c5` |
+| `maze-chase-terminal-0.1.0-linux-x86_64.tar.gz` | `68deb2172d4834b2d4d7c1797da703be5335b3aeae725c589cf6200ee70dae71` |
+| `maze-chase-desktop-0.1.0-linux-x86_64.tar.gz` | `330a5d48c04426335aa81f85fbabd8e44b6e42538a64f0ac8ec2dc1197ebdbf0` |
 
 `packaging/release/smoke-linux.sh` unpacked both deb and rpm payloads,
 ran each binary's `--version` and `--help`, and installed, ran, and
 uninstalled both tarballs in a scratch prefix through the installers
-extracted from the archives. A second full stage produced the same
-SHA-256 manifest byte for byte, and the tarball writer's digest test
-holds under umask 022 and 077. The tarballs carry the binary, the
-install/uninstall scripts, the launch guide, and the MIT license.
+extracted from the archives. A second full stage on the same host
+produced the same SHA-256 manifest byte for byte, and the tarball
+writer's digest test holds under umask 022 and 077. The tarballs carry
+the binary, the install/uninstall scripts, the launch guide, and the
+MIT license.
 
 Desktop loop and frame budget (`cargo test -p maze-chase-desktop`, 89
 lib tests plus the integration suites, all green): an 8K window is
