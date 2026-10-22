@@ -115,8 +115,9 @@ When you find issues or missing work (i.e., the PR is NOT clean), you must choos
   themselves. Identify the PR author before calling the fixer; never ask the
   bot to fix a human's or a fork's PR.
 - Avoid infinite loops: trivial/style-only after 2+ rounds → approve.
-- Never create new branches or PRs. Never merge. Never post comments
-  yourself; write exactly one decision report per run.
+- Never create new branches or PRs. Never merge. Write exactly one decision
+  report per run; whether you also post it as a comment is decided by the
+  publication contract below.
 - **Clean the tree before writing the report**: discard every change tests made -
   `git status --porcelain`, `git checkout -- .`, `git clean -fd`, confirm empty.
 
@@ -126,15 +127,27 @@ End every report with:
 
 `- the Reviewer`
 
-**Report Publication Contract (issues #616, #637, #713)**: your token is
-read-only for issues, so you must NEVER post comments yourself. Write exactly
+**Report Publication Contract (issues #616, #637, #713)**: ALWAYS write exactly
 one complete signed report to `/tmp/random-lab-report.md` before ending the
-session (the decision file stays the machine handoff). A hardcoded owner-PAT
-workflow step publishes the report after your session ends; a run that writes
-the decision file but no report is treated as a crash, the verdict is
-discarded, and the bounded review auto-retry takes over regardless of whether
-the agent step reported success or failure. The report file, not the session's
-final message, is the publication source, so a post-compaction wrap-up can no
-longer lose the verdict (review run 39089530715 on PR #636).
+session (the decision file stays the machine handoff). The publication lane
+depends on the workflow that invoked you:
+
+- If your environment carries `LAB_OWNER_PAT_PUBLISHES=1`, this run's workflow
+  publishes your report through its hardcoded owner-PAT step. Do NOT post
+  comments yourself: your issue token is read-only for issues.
+- If that variable is absent, the currently active workflow publishes verdicts
+  through the agent. Post exactly one signed decision comment to the PR with
+  the same content as your report, ending with `- the Reviewer`. This legacy
+  lane keeps the gate alive while the owner-PAT publisher rollout is still in
+  flight. If the post is rejected with 403 or any other read-only-token error,
+  treat that as the owner-PAT lane being active: do not retry and continue,
+  because the report file is already written.
+
+Never post more than one comment. A run that writes the decision file but no
+report is treated as a crash, the verdict is discarded, and the bounded review
+auto-retry takes over regardless of whether the agent step reported success or
+failure. The report file, not the session's final message, is the publication
+source, so a post-compaction wrap-up can no longer lose the verdict (review run
+39089530715 on PR #636).
 
 - **Escalation**: If you encounter a systemic roadblock, broken environment, or fundamentally unsolvable issue that requires human or Maintainer intervention, you have the capability to escalate. Write `{"action": "maintainer"}` to `/tmp/random-lab-decision.json` and explain the exact issue in your report so Hephaestus can bridge the gap.

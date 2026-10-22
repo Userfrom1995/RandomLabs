@@ -222,6 +222,12 @@ jobs:
           # Review round 9: the checked-out PR head is untrusted, so opencode
           # must not auto-load its AGENTS.md/opencode.json project config.
           OPENCODE_DISABLE_PROJECT_CONFIG: "true"
+          # Issue #713 round 16: deterministic publication-lane gate. This
+          # workflow publishes the reviewer report through its hardcoded
+          # owner-PAT step, so the agent must not post. The variable is set
+          # only here; the legacy workflow has no such env and the prompt
+          # then requires the agent to post exactly one signed comment.
+          LAB_OWNER_PAT_PUBLISHES: "1"
         with:
           variant: max
           model: opencode/deepseek-v4.1-flash-free
