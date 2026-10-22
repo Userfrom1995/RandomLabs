@@ -544,3 +544,43 @@ and exercises every mix path through the real sinks and browser. A
 real-speaker listening review on macOS and Windows is not claimed here;
 it stays with the per-OS release sign-off, as recorded in
 `docs/parity.md` and the final-phase checklist.
+
+## 2026-10-22 (release packaging, Linux x86_64)
+
+Measured on this tree under stable Rust 1.99.0, workspace version
+0.1.0. macOS and Windows packaging was not run on this container and is
+not claimed here.
+
+Version and tag contract:
+
+- `[workspace.package] version = "0.1.0"` is the single source; all
+  seven crates inherit version, edition, and license. `Cargo.lock`
+  records the engine at 0.1.0.
+- `packaging/release/check-tag.sh` accepts `maze-chase-v0.1.0` and
+  `maze-chase-v0.1.0-rc.1`, rejects `maze-chase-v0.2.0`, and reports a
+  branch ref as a non-release.
+
+Linux stage (`packaging/release/stage-linux.sh`, run twice):
+
+| Artifact | SHA-256 |
+|---|---|
+| `maze-chase-terminal_0.1.0_amd64.deb` | `0e3b291356da257bb1f52003ab9cf48f66ef0f48ab42bc0aea873ab83de33e13` |
+| `maze-chase-desktop_0.1.0_amd64.deb` | `0e80049edbf9a1ff1d65c69e7d5dc375a361d5c8ec2e1fa2feeb16eb108891f7` |
+| `maze-chase-terminal-0.1.0-1.x86_64.rpm` | `b63a9a79670f0ca62c2e1af97735365ed9632d10a78d7c532cba2b0bc86147ee` |
+| `maze-chase-desktop-0.1.0-1.x86_64.rpm` | `7197355904b2ef6371cfea4598a74651225352907f257f19916a671ee1671acc` |
+| `maze-chase-terminal-0.1.0-linux-x86_64.tar.gz` | `09d0dfcd97087d307839a4d809837cf0012829d7222a7c61354f4da1b799c875` |
+| `maze-chase-desktop-0.1.0-linux-x86_64.tar.gz` | `5a52aa78e8b4dba785644fbea139611587bb087d6c608e68ac9f2f2398564219` |
+
+`packaging/release/smoke-linux.sh` unpacked both deb and rpm payloads,
+ran each binary's `--version` and `--help`, and installed, ran, and
+uninstalled both tarballs in a scratch prefix. A second full stage
+produced the same SHA-256 manifest byte for byte. The tarballs carry
+the binary, launch guide, and MIT license.
+
+Desktop loop and frame budget (`cargo test -p maze-chase-desktop`, 85
+lib tests plus the integration suites, all green): an 8K window is
+bounded to at most 16,777,216 rendered pixels with its aspect ratio
+kept and is scaled on presentation; static screens schedule no frames;
+Playing and `--probe` schedule continuous 16 ms frames. The committed
+probe and gameplay captures remain byte-identical after the change.
+
