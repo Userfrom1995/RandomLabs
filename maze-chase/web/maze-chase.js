@@ -7,7 +7,7 @@
  * owns the simulation, screens, scores table logic, and settings blob.
  *
  * BINDING CONTRACT NOTES (must match the Rust side exactly):
- * - mc_version()->u32 must equal 2.
+ * - mc_version()->u32 must equal 3.
  * - mc_reset takes (seed_lo:u32, seed_hi:u32, level:u32, mode:u32). JS numbers
  *   cannot hold a u64 precisely, hence the split seed. Start uses the
  *   sentinel level=0, mode=99 meaning "use current difficulty preset"
@@ -171,6 +171,9 @@
         if (v !== EXPECT_VERSION) throw new Error('version mismatch: wasm=' + v + ' harness=' + EXPECT_VERSION);
         importSettings();
         importScores();
+        // If audio was unlocked before the wasm booted, apply the imported
+        // settings now; otherwise the unlock path primes them.
+        primeVolumes();
         syncSettingsUI();
         refreshBindingLabels();
         sizeCanvas();
@@ -474,7 +477,10 @@
   var AC = null, gMaster = null, gMusic = null, gSfx = null;
   var tuneJob = null;
   var tuneGainCache = {};
+  var sfxGainCache = {};
+  var volumesPrimed = false;
   var MUSIC_CEILING = 0.32;
+  var SFX_CEILING = 0.50;
 
   // Test/E2E seam: the page never reads these, the browser harness does.
   function syncAudioDebug() {
@@ -483,7 +489,13 @@
         state: AC ? AC.state : 'none',
         music: musicState,
         tune: tuneJob ? tuneJob.id : -1,
-        loop: !!(tuneJob && tuneJob.loop)
+        loop: !!(tuneJob && tuneJob.loop),
+        gains: {
+          master: gMaster ? gMaster.gain.value : 0,
+          music: gMusic ? gMusic.gain.value : 0,
+          sfx: gSfx ? gSfx.gain.value : 0,
+          primed: volumesPrimed
+        }
       };
     } catch (e) { /* ignore */ }
   }
@@ -520,13 +532,19 @@
       updateAudioChip();
       return;
     }
+    // Start every bus at zero and apply the saved mix before any sound is
+    // scheduled: a muted or low-volume session must never leak full gain
+    // during the first fade.
     gMaster = AC.createGain();
     gMusic = AC.createGain();
     gSfx = AC.createGain();
+    gMaster.gain.setValueAtTime(0, AC.currentTime);
+    gMusic.gain.setValueAtTime(0, AC.currentTime);
+    gSfx.gain.setValueAtTime(0, AC.currentTime);
     gMusic.connect(gMaster);
     gSfx.connect(gMaster);
     gMaster.connect(AC.destination);
-    applyVolumes();
+    primeVolumes();
     // The title loop is queued by the session before the first gesture:
     // poll now that the context exists so the pending music is not lost.
     pollMusic();
@@ -556,8 +574,28 @@
     param.linearRampToValueAtTime(target, t + Math.max(0.01, secs));
   }
 
+  // Apply the saved mix instantly. The first application must not ramp
+  // from the bus defaults: the title starts 60 ms after unlock, so a ramp
+  // would play it at full gain while a muted session fades to zero.
+  function primeVolumes() {
+    if (!AC || !exp) return false;
+    try {
+      var t = AC.currentTime;
+      var muted = (exp.mc_muted() >>> 0) !== 0;
+      gMaster.gain.cancelScheduledValues(t);
+      gMaster.gain.setValueAtTime(muted ? 0 : exp.mc_master(), t);
+      gMusic.gain.cancelScheduledValues(t);
+      gMusic.gain.setValueAtTime(exp.mc_music(), t);
+      gSfx.gain.cancelScheduledValues(t);
+      gSfx.gain.setValueAtTime(exp.mc_sfx(), t);
+      volumesPrimed = true;
+      return true;
+    } catch (e) { return false; }
+  }
+
   function applyVolumes() {
     if (!AC || !exp) return;
+    if (!volumesPrimed && primeVolumes()) return;
     try {
       var muted = (exp.mc_muted() >>> 0) !== 0;
       var fade = fadeSeconds();
@@ -603,6 +641,11 @@
     g.connect(dest);
     var o = C.createOscillator();
     o.type = p.type;
+    // Seed the frequency before the scheduled start: a future
+    // setValueAtTime leaves the oscillator on the 440 Hz default for the
+    // first render quantum, which detunes the onset and shifts the
+    // partial's phase relative to the fundamental.
+    o.frequency.value = Math.max(20, f0);
     o.frequency.setValueAtTime(Math.max(20, f0), t);
     o.frequency.linearRampToValueAtTime(Math.max(20, f1), t + Math.max(0.01, dur));
     o.connect(g);
@@ -620,6 +663,7 @@
       h.connect(dest);
       var ho = C.createOscillator();
       ho.type = 'sine';
+      ho.frequency.value = Math.max(20, f0 * p.ratio);
       ho.frequency.setValueAtTime(Math.max(20, f0 * p.ratio), t);
       ho.frequency.linearRampToValueAtTime(Math.max(20, f1 * p.ratio), t + Math.max(0.01, dur));
       ho.connect(h);
@@ -629,16 +673,132 @@
     return nodes;
   }
 
-  function playSfx(cue) {
-    if (!AC) return;
+  // Model the exact oscillator phase at 44.1 kHz: envelope-only sums assume
+  // every partial peaks in phase, but real sine/triangle pairs cancel, so
+  // the old model overestimated peaks by 1.3-1.4x. Rendering the scheduled
+  // oscillators at sample level gives each recipe the same normalization
+  // the desktop gets from its rendered PCM.
+  var MODEL_SR = 44100;
+
+  function modelEnv(t, start, dur, gain, p) {
+    var attack = Math.min(p.attack, dur * 0.4);
+    var atk = Math.max(0.002, attack);
+    var peak = Math.max(0.0002, gain);
+    var endT = start + Math.max(0.02, dur);
+    var decayEnd = Math.max(0.0001, gain * Math.exp(-p.decay * Math.max(0, dur - attack)));
+    if (t < start) return 0;
+    if (t < start + atk) return 0.0001 + (peak - 0.0001) * ((t - start) / atk);
+    if (t < endT) {
+      var f = (t - (start + atk)) / Math.max(1e-9, endT - (start + atk));
+      return peak * Math.pow(decayEnd / peak, f);
+    }
+    if (t < endT + 0.02) {
+      return decayEnd * Math.pow(0.0001 / decayEnd, (t - endT) / 0.02);
+    }
+    return 0;
+  }
+
+  function modelPhase(t, start, dur, f0, f1) {
+    var dt = t - start;
+    if (dt <= 0) return 0;
+    var fT = Math.max(0.01, dur);
+    var d = Math.min(dt, fT);
+    var phase = 2 * Math.PI * (f0 * d + 0.5 * (f1 - f0) / fT * d * d);
+    if (dt > fT) phase += 2 * Math.PI * f1 * (dt - fT);
+    return phase;
+  }
+
+  function modelWave(type, phase) {
+    if (type === 'triangle') return (2 / Math.PI) * Math.asin(Math.sin(phase));
+    return Math.sin(phase);
+  }
+
+  function modelTone(out, voice, f0, f1, start, dur, gain) {
+    var p = voiceParams(voice);
+    var tail = start + Math.max(0.02, dur) + 0.02;
+    var i0 = Math.max(0, Math.floor(start * MODEL_SR));
+    var i1 = Math.min(out.length - 1, Math.ceil(tail * MODEL_SR));
+    var fA = Math.max(20, f0);
+    var fB = Math.max(20, f1);
+    var partialA = p.ratio > 0 ? Math.max(20, f0 * p.ratio) : 0;
+    var partialB = p.ratio > 0 ? Math.max(20, f1 * p.ratio) : 0;
+    var partialGain = gain * p.mix;
+    for (var i = i0; i <= i1; i++) {
+      var t = i / MODEL_SR;
+      var env = modelEnv(t, start, dur, gain, p);
+      if (env <= 0) continue;
+      out[i] += modelWave(p.type, modelPhase(t, start, dur, fA, fB)) * env;
+      if (partialA > 0 && partialGain > 0) {
+        var penv = modelEnv(t, start, dur, partialGain, p);
+        out[i] += Math.sin(modelPhase(t, start, dur, partialA, partialB)) * penv;
+      }
+    }
+  }
+
+  function modelPeak(notes, seconds) {
+    var n = Math.max(1, Math.ceil(seconds * MODEL_SR) + 1);
+    var out = new Float32Array(n);
+    for (var i = 0; i < notes.length; i++) {
+      var nt = notes[i];
+      if (!(nt.dur > 0) || !(nt.gain > 0)) continue;
+      modelTone(out, nt.voice, nt.f0, nt.f1, nt.start, nt.dur, nt.gain);
+    }
+    var peak = 0;
+    for (i = 0; i < n; i++) {
+      var a = Math.abs(out[i]);
+      if (a > peak) peak = a;
+    }
+    return peak;
+  }
+
+  // Per-recipe normalization: render every tone at sample level and scale
+  // the recipe so the loudest overlap lands on the 0.50 SFX bus ceiling
+  // instead of a blanket 0.5 multiplier (desktop normalizes its rendered
+  // PCM the same way).
+  function sfxGain(cue) {
+    if (sfxGainCache[cue] !== undefined) return sfxGainCache[cue];
+    var gain = 1;
+    try {
+      var count = exp.mc_sfx_tone_count(cue) >>> 0;
+      if (count > 0) {
+        var notes = [], end = 0;
+        for (var i = 0; i < count; i++) {
+          var ms = exp.mc_sfx_tone_field(cue, i, 3) >>> 0;
+          var delay = exp.mc_sfx_tone_field(cue, i, 4) >>> 0;
+          var toneGain = exp.mc_sfx_tone_field(cue, i, 5);
+          if (!(ms > 0) || !(toneGain > 0)) continue;
+          var start = delay / 1000;
+          var dur = ms / 1000;
+          notes.push({
+            voice: exp.mc_sfx_tone_field(cue, i, 7) >>> 0,
+            f0: exp.mc_sfx_tone_field(cue, i, 1),
+            f1: exp.mc_sfx_tone_field(cue, i, 2),
+            start: start,
+            dur: dur,
+            gain: toneGain
+          });
+          if (start + dur + 0.02 > end) end = start + dur + 0.02;
+        }
+        var peak = modelPeak(notes, end);
+        if (peak > 0) gain = (SFX_CEILING * 0.98) / peak;
+      }
+    } catch (e) { gain = 1; }
+    sfxGainCache[cue] = gain;
+    return gain;
+  }
+
+  function playSfx(cue, dest, ctx, at) {
+    var C = ctx || AC;
+    if (!C) return;
     var count = 0;
     try { count = exp.mc_sfx_tone_count(cue) >>> 0; } catch (e) { return; }
     if (!count) return; // cue has no SFX component.
-    var t0 = AC.currentTime + 0.005;
+    var t0 = (at === undefined ? C.currentTime : at) + 0.005;
     var variation = 0;
     try { variation = exp.mc_sfx_tone_field(cue, 0, 6) || 0; } catch (e) { /* ignore */ }
-    crumbTick++;
+    if (at === undefined) crumbTick++;
     var pitch = variation > 0 ? 1 + ((crumbTick % 5) - 2) * variation : 1;
+    var recipeGain = sfxGain(cue);
     for (var i = 0; i < count; i++) {
       var voice, f0, f1, ms, delay, gain;
       try {
@@ -647,10 +807,10 @@
         f1 = exp.mc_sfx_tone_field(cue, i, 2) * pitch;
         ms = exp.mc_sfx_tone_field(cue, i, 3) >>> 0;
         delay = exp.mc_sfx_tone_field(cue, i, 4) >>> 0;
-        gain = exp.mc_sfx_tone_field(cue, i, 5) * 0.5;
+        gain = exp.mc_sfx_tone_field(cue, i, 5) * recipeGain;
       } catch (e) { return; }
       if (!(ms > 0) || !(gain > 0)) continue;
-      playVoice(voice, f0, f1, t0 + delay / 1000, ms / 1000, gain, gSfx);
+      playVoice(voice, f0, f1, t0 + delay / 1000, ms / 1000, gain, dest || gSfx, ctx);
     }
   }
 
@@ -662,9 +822,8 @@
     return 108;
   }
 
-  // Conservative per-tune normalization: the loudest possible sum of
-  // envelope * (fundamental + partial) across every active note, scaled
-  // so the web music bus honors the shared 0.32 ceiling instead of
+  // Per-tune normalization: sample-render the scheduled notes at 16 kHz and
+  // scale so the web music bus honors the shared 0.32 ceiling instead of
   // riding raw velocity (the desktop normalizes rendered PCM the same way).
   function tuneGain(id) {
     if (tuneGainCache[id] !== undefined) return tuneGainCache[id];
@@ -673,38 +832,29 @@
       var len = exp.mc_tune_len(id) >>> 0;
       if (len > 0) {
         var beatSec = 60 / tuneBpm();
-        var starts = [], durs = [], voices = [], vels = [];
-        var cursors = [0, 0, 0, 0], end = 0, i, t;
+        var notes = [], cursors = [0, 0, 0, 0], end = 0, i;
         for (i = 0; i < len; i++) {
           var beats = exp.mc_tune_beats(id, i);
           if (!(beats > 0)) beats = 0.5;
           var track = exp.mc_tune_meta(id, i, 1) >>> 0;
           if (track > 3) track = 3;
-          starts.push(cursors[track] * beatSec);
-          durs.push(beats * beatSec);
-          voices.push(exp.mc_tune_meta(id, i, 0) >>> 0);
-          vels.push(exp.mc_tune_meta(id, i, 2));
+          var dur = beats * beatSec;
+          var midi = exp.mc_tune_midi(id, i) >>> 0;
+          var velocity = exp.mc_tune_meta(id, i, 2);
+          if (midi > 0 && velocity > 0) {
+            notes.push({
+              voice: exp.mc_tune_meta(id, i, 0) >>> 0,
+              f0: midiHz(midi),
+              f1: midiHz(midi),
+              start: cursors[track] * beatSec,
+              dur: dur,
+              gain: velocity
+            });
+          }
           cursors[track] += beats;
           if (cursors[track] * beatSec > end) end = cursors[track] * beatSec;
         }
-        var peak = 0;
-        // The voice holds its decayed level for the 20 ms release tail, so
-        // the active window is dur + 20 ms and the envelope freezes at dur.
-        for (t = 0; t < end + 0.02; t += 1 / 960) {
-          var sum = 0;
-          for (i = 0; i < len; i++) {
-            if (!(vels[i] > 0)) continue;
-            var dt = t - starts[i];
-            if (dt < 0 || dt >= durs[i] + 0.02) continue;
-            var p = voiceParams(voices[i]);
-            var envT = Math.min(dt, durs[i]);
-            var attack = Math.min(p.attack, durs[i] * 0.4);
-            var env = attack > 0 ? Math.min(1, envT / attack) : 1;
-            env *= Math.exp(-p.decay * Math.max(0, envT - attack));
-            sum += vels[i] * env * (1 + (p.ratio > 0 ? p.mix : 0));
-          }
-          if (sum > peak) peak = sum;
-        }
+        var peak = modelPeak(notes, end + 0.02);
         if (peak > 0) gain = (MUSIC_CEILING * 0.98) / peak;
       }
     } catch (e) { gain = 1; }
@@ -871,6 +1021,30 @@
     out.connect(ctx.destination);
     var job = { id: id, loop: false, nextIter: 0, timer: null, out: out, gain: tuneGain(id), nodes: [] };
     scheduleTuneIteration(job, 0, ctx);
+    return ctx.startRendering().then(function (buf) {
+      var data = buf.getChannelData(0), peak = 0;
+      for (var i = 0; i < data.length; i++) {
+        var a = Math.abs(data[i]);
+        if (a > peak) peak = a;
+      }
+      return peak;
+    }).catch(function () { return -1; });
+  };
+
+  // Offline E2E seam: render one SFX recipe through the real playSfx
+  // envelope and return its peak, proving the 0.50 bus ceiling.
+  window.__mcRenderSfxPeak = function (cue, seconds) {
+    var OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!exp || !OAC) return Promise.resolve(-1);
+    var secs = seconds > 0 ? seconds : 2;
+    var ctx;
+    try { ctx = new OAC(1, Math.ceil(44100 * secs), 44100); } catch (e) { return Promise.resolve(-1); }
+    var out = ctx.createGain();
+    out.gain.setValueAtTime(1, 0);
+    out.connect(ctx.destination);
+    var saved = crumbTick;
+    playSfx(cue, out, ctx, 0);
+    crumbTick = saved;
     return ctx.startRendering().then(function (buf) {
       var data = buf.getChannelData(0), peak = 0;
       for (var i = 0; i < data.length; i++) {

@@ -147,11 +147,19 @@ async function shot(ws, path) {
     for (let id = 0; id <= 4; id++) peaks.push(await window.__mcRenderTunePeak(id, 8));
     return peaks;
   })()`);
-  const peakBad = tunePeaks.filter((p) => !(p >= 0) || p > 0.3201);
+  const peakBad = tunePeaks.filter((p) => !(p >= 0.30) || p > 0.3201);
   assert(peakBad.length === 0,
-    'web tunes stay under the 0.32 music ceiling, got: ' + JSON.stringify(tunePeaks));
-  assert(tunePeaks.every((p) => p > 0.01),
-    'web tunes are audible offline, got: ' + JSON.stringify(tunePeaks));
+    'web tunes are normalized to the 0.32 music ceiling, got: ' + JSON.stringify(tunePeaks));
+  // Offline SFX render through the real playSfx envelope: the loudest
+  // layered recipes (relish, spare wick, sprint) must reach the 0.50 ceiling.
+  const sfxPeaks = await evalJs(ws, `(async () => {
+    const peaks = [];
+    for (const cue of [6, 10, 14]) peaks.push(await window.__mcRenderSfxPeak(cue, 3));
+    return peaks;
+  })()`);
+  const sfxBad = sfxPeaks.filter((p) => !(p >= 0.44) || p > 0.5001);
+  assert(sfxBad.length === 0,
+    'web SFX recipes normalize to the 0.50 SFX ceiling, got: ' + JSON.stringify(sfxPeaks));
   // Keyboard focus contract: ArrowDown moves off Start, and P/Esc/M keep
   // working from a focused panel action (round-23 review).
   await evalJs(ws, `document.getElementById('btn-start').focus()`);
@@ -316,6 +324,9 @@ async function shot(ws, path) {
   await sleep(300);
   const screen = await evalJs(ws, `(() => { const s = []; return document.getElementById('panel-title').hidden; })()`);
   assert(screen === true, 'title panel hides after Start (playing)');
+  const startedAudio = await evalJs(ws, `window.__mcAudio || null`);
+  assert(startedAudio && startedAudio.music === 0 && startedAudio.tune === -1,
+    'Start stops the title loop instead of layering over it, got: ' + JSON.stringify(startedAudio));
   const score0 = await evalJs(ws, `document.getElementById('hud-score').textContent`);
   // Hold ArrowUp for 2.5s of real play.
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'ArrowUp', key: 'ArrowUp' });
@@ -333,6 +344,9 @@ async function shot(ws, path) {
   await sleep(300);
   const paused = await evalJs(ws, `!document.getElementById('panel-pause').hidden`);
   assert(paused === true, 'P pauses with visible pause panel');
+  const pausedAudio = await evalJs(ws, `window.__mcAudio || null`);
+  assert(pausedAudio && pausedAudio.music === 0 && pausedAudio.tune === -1,
+    'Pause stops the old loop job (no bleed under the pause card), got: ' + JSON.stringify(pausedAudio));
   const pauseFocus = await evalJs(ws, `document.activeElement && document.activeElement.id`);
   assert(pauseFocus === 'btn-resume', 'pause focuses the Resume action, got: ' + pauseFocus);
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyP', key: 'p' });
@@ -389,6 +403,9 @@ async function shot(ws, path) {
   await sleep(300);
   assert((await evalJs(ws, `!document.getElementById('panel-title').hidden`)) === true,
     'quit returns to the title for the keyboard contract checks');
+  const quitAudio = await evalJs(ws, `window.__mcAudio || null`);
+  assert(quitAudio && quitAudio.music === 1 && quitAudio.tune === 0 && quitAudio.loop === true,
+    'quit restarts the title loop as a fresh job, got: ' + JSON.stringify(quitAudio));
   // Start from defaults so a persisted custom keymap from an earlier pass
   // cannot make the rebind captures conflict.
   await evalJs(ws, `localStorage.removeItem('maze-chase-settings')`);
@@ -1010,6 +1027,57 @@ async function shot(ws, path) {
     'frame diagnostics hide again when switched off');
   await send(ws, 'Emulation.clearDeviceMetricsOverride');
   await sleep(400);
+
+  // Persisted mix must be on the buses before any sound: a muted or
+  // low-volume reload must never leak the bus defaults through a fade.
+  const clickChip = async () => {
+    const pt = await evalJs(ws, `(() => { const r = document.getElementById('btn-audio').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`);
+    await send(ws, 'Input.dispatchMouseEvent', { type: 'mousePressed', x: pt[0], y: pt[1], button: 'left', clickCount: 1 });
+    await send(ws, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: pt[0], y: pt[1], button: 'left', clickCount: 1 });
+  };
+  await send(ws, 'Page.navigate', { url: PAGE });
+  await sleep(2200);
+  await evalJs(ws, `localStorage.removeItem('maze-chase-settings')`);
+  await send(ws, 'Page.navigate', { url: PAGE });
+  await sleep(2500);
+  await evalJs(ws, `document.getElementById('btn-mute').click()`);
+  await sleep(400);
+  await send(ws, 'Page.navigate', { url: PAGE });
+  await sleep(2500);
+  await clickChip();
+  await sleep(80);
+  const mutePrime = await evalJs(ws, `window.__mcAudio || null`);
+  assert(mutePrime && mutePrime.gains && mutePrime.gains.primed === true && mutePrime.gains.master === 0,
+    'persisted mute is applied before the first sound, got: ' + JSON.stringify(mutePrime));
+  await sleep(400);
+  const mutePlay = await evalJs(ws, `window.__mcAudio || null`);
+  assert(mutePlay && mutePlay.state === 'running' && mutePlay.music === 1 && mutePlay.tune === 0 &&
+    Math.abs(mutePlay.gains.master) < 1e-6 && Math.abs(mutePlay.gains.music - 0.6) < 1e-6,
+    'muted title starts silently with the saved 60% music target, got: ' + JSON.stringify(mutePlay));
+
+  // Low persisted levels must be on the buses immediately, not ramped in.
+  await send(ws, 'Page.navigate', { url: PAGE });
+  await sleep(2200);
+  await evalJs(ws, `localStorage.removeItem('maze-chase-settings')`);
+  await send(ws, 'Page.navigate', { url: PAGE });
+  await sleep(2500);
+  await evalJs(ws, `document.getElementById('btn-title-settings').click()`);
+  await sleep(250);
+  await evalJs(ws, `(() => {
+    const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); };
+    set('rng-master', 20); set('rng-music', 10); set('rng-sfx', 5);
+  })()`);
+  await sleep(300);
+  await send(ws, 'Page.navigate', { url: PAGE });
+  await sleep(2500);
+  await clickChip();
+  await sleep(80);
+  const lowPrime = await evalJs(ws, `window.__mcAudio || null`);
+  const lowOk = lowPrime && lowPrime.gains && lowPrime.gains.primed === true &&
+    Math.abs(lowPrime.gains.master - 0.2) < 1e-6 &&
+    Math.abs(lowPrime.gains.music - 0.1) < 1e-6 &&
+    Math.abs(lowPrime.gains.sfx - 0.05) < 1e-6;
+  assert(lowOk, 'persisted low mix is primed before the title starts, got: ' + JSON.stringify(lowPrime));
 
   const realErrors = errors.filter((e) => !/AudioContext|audio|user gesture/i.test(e));
   console.log('console/log errors:', realErrors.length ? realErrors : '(none)');
