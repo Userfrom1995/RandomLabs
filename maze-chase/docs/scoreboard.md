@@ -525,7 +525,7 @@ reproduced byte-for-byte by a second release build):
 - `node web/e2e/boot-gate-e2e.js`: `BOOT-GATE-E2E: ALL GREEN` (33
   assertions, including the new layered-sound export gate).
 - `node web/e2e/browser-e2e.js` (headless chromium over CDP):
-  `E2E: ALL GREEN` (278 assertions, zero console errors), including the
+  `E2E: ALL GREEN` (279 assertions, zero console errors), including the
   pre-gesture audio chip, its retirement after unlock, the 60/80 music
   and SFX defaults, volume persistence, every warden chain pitch under
   the SFX ceiling, and the mute confirmation settling its target first.

@@ -1758,3 +1758,12 @@ Linux synth and browser evidence.
   are absent; the Tester's 594 / 0 full-workspace run on this product
   tree stands).
   - the Fixer
+
+- 2026-10-22 (fixer, Tester docs round on `ec6b4c71`): updated the
+  scoreboard's browser evidence line from 278 to the shipped 279
+  assertions. Re-ran `node web/e2e/browser-e2e.js` against the served
+  page and the committed wasm: `E2E: ALL GREEN`, 279 `ok` lines, zero
+  console errors. Documentation-only round; no product code changed.
+  Delegation ledger: primary-only (a single stale count). Skills: no
+  registry skill matched.
+  - the Fixer
