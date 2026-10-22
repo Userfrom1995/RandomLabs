@@ -219,8 +219,9 @@ Public Surface / Web Track:                                              │
   reads the helper from this run's workflow commit
   (`git show "${{ github.workflow_sha }}:.github/scripts/<helper>"` in
   `opencode.yml`, where `GITHUB_SHA` can be the PR head on review-comment
-  runs, and `git show "${GITHUB_SHA}:.github/scripts/<helper>"` in
-  `maintainer.yml`, where it always equals the workflow commit; piped to
+  runs, and `git show "${TRUSTED_SHA}:.github/scripts/<helper>"` in
+  `maintainer.yml`, where `TRUSTED_SHA` is the freshly fetched
+  default-branch tip the actor-gate step publishes as a step output; piped to
   `bash -s`) and fails closed if the read fails, so neither the agent-mutable
   workspace copy nor the sudo-replaceable `/opt/lab-scripts/` staged copy is
   executed (the pre-agent staging step is defense in depth); R28 (all steps) and R30
@@ -229,6 +230,30 @@ Public Surface / Web Track:                                              │
   workflow's non-PR skip notice now posts with the job-scoped `github.token`
   and its body never begins with `/oc review`, so a mis-resolved thread can
   no longer self-retrigger the reviewer; R30 pins the notice's env and body.
+- **Maintainer PR-merge-ref trust anchor (issue #713 round 26)**: on
+  `pull_request` runs `GITHUB_SHA` is the PR merge commit, so the
+  Maintainer's actor gate and its post-agent helper/prompt reads anchored
+  to it were influenceable by the PR under review (the round-25 claim that
+  `${GITHUB_SHA}` there "always equals the workflow commit" was wrong for
+  this event). The actor-gate step now fetches the repository default
+  branch (`TRUSTED_REF: ${{ github.event.repository.default_branch }}`,
+  `git fetch --quiet origin "${TRUSTED_REF}"`, no depth limit, so no new
+  shallow boundary is planted ahead of the merge sweep; issue #602),
+  verifies `FETCH_HEAD`, publishes `trusted_sha` as a step output
+  (runner-captured before the agent starts, so the agent cannot tamper
+  with it), stages `.github/scripts/actor-write-gate.sh` from that commit
+  into `$RUNNER_TEMP` and executes only the staged copy (fail closed on an
+  unreadable or empty stage); the stage step stages `approve-held-runs.sh`
+  and the Maintainer prompt (`.github/agents/maintainer.md` into
+  `$RUNNER_TEMP/lab-prompts/`) from the same commit; the approve step
+  reads the helper via `git show "${TRUSTED_SHA}:..."` instead of
+  `${GITHUB_SHA}`. The R12/R23/R26/R30 pins moved with it (the staged gate
+  body, the memory-step allowed-gating clause, the pre-handler manifest,
+  and the approve read, env, and SHA-256), the workspace
+  `actor-write-gate.sh` SHA pin is retired (workspace execution now fails
+  closed as handler-pre-script-unexpected), and a new R30 mutant reverting
+  the approve read to `${GITHUB_SHA}` must trip
+  `untrusted-helper-invocation`.
 - **Merge capability**: Workflow-file PRs require `workflows` scope, which `GITHUB_TOKEN` cannot grant via `permissions:` (valid `GITHUB_TOKEN` scopes are `actions`, `contents`, `pull-requests`, etc.; `workflows` is App/PAT only). The mutating workflows (`lab.yml`, `maintainer.yml`, `opencode.yml`, `opencode-recover.yml`) push via the PAT-backed runner step (`https://x-access-token:${OPENCODE_PAT}@github.com/...` with credential-injection cleanup), and merges of PRs touching `.github/workflows/*` must likewise use the PAT or an owner click. Read-only agents (Reviewer, Tester, Auditor, Ideator) carry no extra scope. Without a PAT merge, infra PR merges fail with "refusing to allow a GitHub App to create or update workflow ... without workflows permission" (observed on PR #139; flagged in #120). The opencode CLI wrapper additionally performs its own end-of-session push of the checked-out branch with the checkout App token, so on workflow-touching branches that internal push is rejected by the same rule (one rejection comment plus a masked `continue-on-error` step failure; the PAT-backed runner step is the authoritative push). That rejection is expected noise, not agent misbehavior (lab run 39024455956, 2026-10-17). The PAT merge sweep additionally restores full history when the workspace is shallow before its merge-base linkage checks: the opencode CLI session bootstrap re-shallows the checkout with depth-limited fetches, and on a shallow workspace both the three-dot workflow diff and the orphan guard fail closed, silently skipping a legitimately linked workflow PR (issue #602, guarded by audit rule R16).
 - In-progress continuation: When a build requires additional phases (`Status: in-progress`), the workflow triggers `/oc continue`.
 
