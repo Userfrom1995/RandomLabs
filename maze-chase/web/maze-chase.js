@@ -71,6 +71,7 @@
   };
   var FRIGHT_SEGMENTS = 30;
   var WARDEN_CUE = 4; // WardenEaten: pitch doubling lives in Rust (mc_sfx_from/to already carry the chain arm); mc_last_chain is display-only.
+  var CUE_MUTE_TOGGLE = 22; // MuteToggle: apply the new mix before the confirmation cue.
   var SETTINGS_KEY = 'maze-chase-settings';
   var SCORES_KEY = 'maze-chase-scores';
 
@@ -477,7 +478,6 @@
   var AC = null, gMaster = null, gMusic = null, gSfx = null;
   var tuneJob = null;
   var tuneGainCache = {};
-  var sfxGainCache = {};
   var volumesPrimed = false;
   var MUSIC_CEILING = 0.32;
   var SFX_CEILING = 0.50;
@@ -751,12 +751,16 @@
     return peak;
   }
 
-  // Per-recipe normalization: render every tone at sample level and scale
-  // the recipe so the loudest overlap lands on the 0.50 SFX bus ceiling
-  // instead of a blanket 0.5 multiplier (desktop normalizes its rendered
-  // PCM the same way).
-  function sfxGain(cue) {
-    if (sfxGainCache[cue] !== undefined) return sfxGainCache[cue];
+  // Per-recipe normalization: render every tone at sample level with the
+  // exact pitch this play will use and scale the recipe so the loudest
+  // overlap lands just under the 0.50 SFX bus ceiling instead of a
+  // blanket 0.5 multiplier (desktop normalizes its rendered PCM the same
+  // way and lands on the ceiling; the browser keeps a small headroom for
+  // its band-limited oscillators).
+  // Never cached across plays: `mc_sfx_tone_field` already carries the
+  // warden chain pitch (up to 8x) and the crumb variation, so a gain
+  // normalized for one play is wrong for the next pitched one.
+  function sfxGain(cue, pitch) {
     var gain = 1;
     try {
       var count = exp.mc_sfx_tone_count(cue) >>> 0;
@@ -771,8 +775,8 @@
           var dur = ms / 1000;
           notes.push({
             voice: exp.mc_sfx_tone_field(cue, i, 7) >>> 0,
-            f0: exp.mc_sfx_tone_field(cue, i, 1),
-            f1: exp.mc_sfx_tone_field(cue, i, 2),
+            f0: exp.mc_sfx_tone_field(cue, i, 1) * pitch,
+            f1: exp.mc_sfx_tone_field(cue, i, 2) * pitch,
             start: start,
             dur: dur,
             gain: toneGain
@@ -780,14 +784,16 @@
           if (start + dur + 0.02 > end) end = start + dur + 0.02;
         }
         var peak = modelPeak(notes, end);
-        if (peak > 0) gain = (SFX_CEILING * 0.999) / peak;
+        // 1.5% headroom: the sample model assumes an ideal triangle, while
+        // the browser's band-limited Pluck can peak ~1.2% above it. The
+        // conservative target keeps every chain pitch under the ceiling.
+        if (peak > 0) gain = (SFX_CEILING * 0.985) / peak;
       }
     } catch (e) { gain = 1; }
-    sfxGainCache[cue] = gain;
     return gain;
   }
 
-  function playSfx(cue, dest, ctx, at) {
+  function playSfx(cue, dest, ctx, at, pitchOverride) {
     var C = ctx || AC;
     if (!C) return;
     var count = 0;
@@ -797,8 +803,10 @@
     var variation = 0;
     try { variation = exp.mc_sfx_tone_field(cue, 0, 6) || 0; } catch (e) { /* ignore */ }
     if (at === undefined) crumbTick++;
-    var pitch = variation > 0 ? 1 + ((crumbTick % 5) - 2) * variation : 1;
-    var recipeGain = sfxGain(cue);
+    var pitch = pitchOverride !== undefined
+      ? Math.max(0.01, pitchOverride)
+      : (variation > 0 ? 1 + ((crumbTick % 5) - 2) * variation : 1);
+    var recipeGain = sfxGain(cue, pitch);
     for (var i = 0; i < count; i++) {
       var voice, f0, f1, ms, delay, gain;
       try {
@@ -822,7 +830,7 @@
     return 108;
   }
 
-  // Per-tune normalization: sample-render the scheduled notes at 16 kHz and
+  // Per-tune normalization: sample-render the scheduled notes at 44.1 kHz and
   // scale so the web music bus honors the shared 0.32 ceiling instead of
   // riding raw velocity (the desktop normalizes rendered PCM the same way).
   function tuneGain(id) {
@@ -1032,8 +1040,10 @@
   };
 
   // Offline E2E seam: render one SFX recipe through the real playSfx
-  // envelope and return its peak, proving the 0.50 bus ceiling.
-  window.__mcRenderSfxPeak = function (cue, seconds) {
+  // envelope and return its peak, proving the 0.50 bus ceiling. An
+  // optional pitch override renders a warden chain arm exactly as the
+  // live tone fields would.
+  window.__mcRenderSfxPeak = function (cue, seconds, pitch) {
     var OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     if (!exp || !OAC) return Promise.resolve(-1);
     var secs = seconds > 0 ? seconds : 2;
@@ -1043,7 +1053,7 @@
     out.gain.setValueAtTime(1, 0);
     out.connect(ctx.destination);
     var saved = crumbTick;
-    playSfx(cue, out, ctx, 0);
+    playSfx(cue, out, ctx, 0, pitch);
     crumbTick = saved;
     return ctx.startRendering().then(function (buf) {
       var data = buf.getChannelData(0), peak = 0;
@@ -1061,6 +1071,17 @@
       isMusic = (exp.mc_cue_is_music(cue) >>> 0) !== 0;
       tune = exp.mc_cue_tune(cue) >>> 0;
     } catch (e) { /* ignore */ }
+    // Mirror the desktop: settle the new mix before the confirmation
+    // cue, so unmuting is audible instead of starting at master 0.
+    if (cue === CUE_MUTE_TOGGLE) {
+      primeVolumes();
+      // Test/E2E seam: the target scheduled before the confirmation cue
+      // (AudioParam.value can lag a scheduled event by one render quantum,
+      // so read the target, not the live param).
+      try {
+        window.__mcMuteCueTarget = (exp.mc_muted() >>> 0) !== 0 ? 0 : exp.mc_master();
+      } catch (e) { /* ignore */ }
+    }
     if (isMusic) startSting(tune); // one-shot sting; loops are driven by mc_poll_music.
     else playSfx(cue);
     if (cue > 0 && cue < CUE_NAMES.length && CUE_NAMES[cue] && !isMusic) {
