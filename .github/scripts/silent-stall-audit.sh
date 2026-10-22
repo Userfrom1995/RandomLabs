@@ -13254,8 +13254,8 @@ if [ -f /tmp/random-lab-decision.json ]; then
   echo "Decision file present; @@PHASE@@ phase produced a handoff."
   exit 0
 fi
-resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
-  echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to auto-retry."
+resolver=$(git show "${{ github.workflow_sha }}:.github/scripts/resolve-thread-target.sh") || {
+  echo "::error::Could not read resolve-thread-target.sh from workflow commit ${{ github.workflow_sha }}; refusing to auto-retry."
   echo "handled=true" >> "$GITHUB_OUTPUT"
   exit 1
 }
@@ -13307,8 +13307,8 @@ fi
 echo "::error::@@DISP@@ step reported success but wrote no decision file (silent no-op); failing loudly instead of exiting green."
 exit 1"""
 
-FORWARD_RESEARCH = r"""resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
-  echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to post a mis-targeted trigger."
+FORWARD_RESEARCH = r"""resolver=$(git show "${{ github.workflow_sha }}:.github/scripts/resolve-thread-target.sh") || {
+  echo "::error::Could not read resolve-thread-target.sh from workflow commit ${{ github.workflow_sha }}; refusing to post a mis-targeted trigger."
   exit 1
 }
 target=$(printf '%s\n' "$resolver" | bash -s -- parent) || {
@@ -13329,8 +13329,8 @@ else
   gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
 fi"""
 
-FORWARD_ARCHITECT = r"""resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
-  echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to post a mis-targeted trigger."
+FORWARD_ARCHITECT = r"""resolver=$(git show "${{ github.workflow_sha }}:.github/scripts/resolve-thread-target.sh") || {
+  echo "::error::Could not read resolve-thread-target.sh from workflow commit ${{ github.workflow_sha }}; refusing to post a mis-targeted trigger."
   exit 1
 }
 target=$(printf '%s\n' "$resolver" | bash -s -- parent) || {
@@ -13351,8 +13351,8 @@ else
   gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
 fi"""
 
-FORWARD_DESIGN_TMPL = r"""resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
-  echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to post a mis-targeted trigger."
+FORWARD_DESIGN_TMPL = r"""resolver=$(git show "${{ github.workflow_sha }}:.github/scripts/resolve-thread-target.sh") || {
+  echo "::error::Could not read resolve-thread-target.sh from workflow commit ${{ github.workflow_sha }}; refusing to post a mis-targeted trigger."
   exit 1
 }
 target=$(printf '%s\n' "$resolver" | bash -s -- parent) || {
@@ -13390,7 +13390,7 @@ if [ "${AGENT_GATE:-}" != "true" ]; then
 fi
 
 issue="${{ github.event.issue.number }}"
-classifier=$(git show "${GITHUB_SHA}:.github/scripts/classify-build-push.sh" 2>/dev/null || true)
+classifier=$(git show "${{ github.workflow_sha }}:.github/scripts/classify-build-push.sh" 2>/dev/null || true)
 
 # Like-for-like push detection on server-resolved state (issue #135).
 # NEVER trust `git branch --show-current` as the target: the agent is
@@ -13986,7 +13986,7 @@ def trusted_helper_body(body):
             at = line.find(helper)
             while at != -1:
                 if not re.search(
-                    r'^\s*[A-Za-z_][A-Za-z0-9_]*=\$\(git show "\$\{GITHUB_SHA\}:\.github/scripts/$',
+                    r'^\s*[A-Za-z_][A-Za-z0-9_]*=\$\(git show "\$\{\{ github\.workflow_sha \}\}:\.github/scripts/$',
                     line[:at],
                 ):
                     return False
@@ -14001,7 +14001,7 @@ def trusted_helper_body(body):
 if trusted_helper_body('bash "/opt/lab-scripts/resolve-thread-target.sh" thread'):
     fail("self-test-untrusted-helper-not-caught")
 if not trusted_helper_body(
-    'resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {\n'
+    'resolver=$(git show "${{ github.workflow_sha }}:.github/scripts/resolve-thread-target.sh") || {\n'
     '  exit 1\n'
     '}\n'
     'issue=$(printf \'%s\\n\' "$resolver" | bash -s -- thread) || {'
@@ -14365,7 +14365,7 @@ mutants = {
         '      - name: Stage helper scripts\n',
     ),
     "stage-direct-path": sub_first(
-        '          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {\n',
+        '          resolver=$(git show "${{ github.workflow_sha }}:.github/scripts/resolve-thread-target.sh") || {\n',
         '          issue=$(bash .github/scripts/resolve-thread-target.sh thread) || {\n',
     ),
     "forward-builder-body-helper": sub(
@@ -14471,7 +14471,7 @@ mutants = {
         '',
     ),
     "staged-approve-invocation": sub_first(
-        'approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh")',
+        'approve=$(git show "${{ github.workflow_sha }}:.github/scripts/approve-held-runs.sh")',
         'approve=$(cat .github/scripts/approve-held-runs.sh)',
     ),
     "opencode-bin-shim-plant": sub(
@@ -15016,8 +15016,8 @@ for job_name, steps in found.items():
         line for line in (step.get("run") or "").splitlines() if line.strip()
     )
     expected_strip_body = "\n".join((
-        'strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {',
-        '  echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."',
+        'strip=$(git show "${{ github.workflow_sha }}:.github/scripts/strip-trailers.sh") || {',
+        '  echo "::error::Could not read strip-trailers.sh from workflow commit ${{ github.workflow_sha }}; refusing to execute a mutable helper."',
         '  exit 1',
         '}',
         'printf \'%s\\n\' "$strip" | bash -s',

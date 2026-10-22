@@ -226,8 +226,8 @@ jobs:
             exit 0
           fi
 
-          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
-            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to auto-retry."
+          resolver=$(git show "${{ github.workflow_sha }}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${{ github.workflow_sha }}; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
           }
@@ -323,8 +323,8 @@ jobs:
           # the newest open phase PR. On 2026-10-18 this forward resolved #685
           # (an in-test phase PR of #582) and the resulting /oc build bound a
           # fresh session to that PR's approved head.
-          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
-            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to post a mis-targeted trigger."
+          resolver=$(git show "${{ github.workflow_sha }}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${{ github.workflow_sha }}; refusing to post a mis-targeted trigger."
             exit 1
           }
           target=$(printf '%s\n' "$resolver" | bash -s -- parent) || {
@@ -362,8 +362,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {
-            echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+          strip=$(git show "${{ github.workflow_sha }}:.github/scripts/strip-trailers.sh") || {
+            echo "::error::Could not read strip-trailers.sh from workflow commit ${{ github.workflow_sha }}; refusing to execute a mutable helper."
             exit 1
           }
           printf '%s\n' "$strip" | bash -s
@@ -501,8 +501,8 @@ jobs:
             exit 0
           fi
 
-          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
-            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to auto-retry."
+          resolver=$(git show "${{ github.workflow_sha }}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${{ github.workflow_sha }}; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
           }
@@ -597,8 +597,8 @@ jobs:
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
-          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
-            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to post a mis-targeted trigger."
+          resolver=$(git show "${{ github.workflow_sha }}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${{ github.workflow_sha }}; refusing to post a mis-targeted trigger."
             exit 1
           }
           target=$(printf '%s\n' "$resolver" | bash -s -- parent) || {
@@ -636,8 +636,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {
-            echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+          strip=$(git show "${{ github.workflow_sha }}:.github/scripts/strip-trailers.sh") || {
+            echo "::error::Could not read strip-trailers.sh from workflow commit ${{ github.workflow_sha }}; refusing to execute a mutable helper."
             exit 1
           }
           printf '%s\n' "$strip" | bash -s
@@ -685,8 +685,8 @@ jobs:
           # Shared self-healing logic (issue #137): head-scoped polling plus a
           # terminal repo-wide sweep that also clears runs held on intermediate
           # head SHAs, which head-scoped polling can never match again.
-          approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh") || {
-            echo "::error::Could not read approve-held-runs.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+          approve=$(git show "${{ github.workflow_sha }}:.github/scripts/approve-held-runs.sh") || {
+            echo "::error::Could not read approve-held-runs.sh from workflow commit ${{ github.workflow_sha }}; refusing to execute a mutable helper."
             exit 1
           }
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
@@ -972,7 +972,7 @@ jobs:
           fi
 
           issue="${{ github.event.issue.number }}"
-          classifier=$(git show "${GITHUB_SHA}:.github/scripts/classify-build-push.sh" 2>/dev/null || true)
+          classifier=$(git show "${{ github.workflow_sha }}:.github/scripts/classify-build-push.sh" 2>/dev/null || true)
 
           # Like-for-like push detection on server-resolved state (issue #135).
           # NEVER trust `git branch --show-current` as the target: the agent is
@@ -1314,8 +1314,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {
-            echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+          strip=$(git show "${{ github.workflow_sha }}:.github/scripts/strip-trailers.sh") || {
+            echo "::error::Could not read strip-trailers.sh from workflow commit ${{ github.workflow_sha }}; refusing to execute a mutable helper."
             exit 1
           }
           printf '%s\n' "$strip" | bash -s
@@ -1363,8 +1363,8 @@ jobs:
           # Shared self-healing logic (issue #137): head-scoped polling plus a
           # terminal repo-wide sweep that also clears runs held on intermediate
           # head SHAs, which head-scoped polling can never match again.
-          approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh") || {
-            echo "::error::Could not read approve-held-runs.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+          approve=$(git show "${{ github.workflow_sha }}:.github/scripts/approve-held-runs.sh") || {
+            echo "::error::Could not read approve-held-runs.sh from workflow commit ${{ github.workflow_sha }}; refusing to execute a mutable helper."
             exit 1
           }
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
@@ -1613,8 +1613,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {
-            echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+          strip=$(git show "${{ github.workflow_sha }}:.github/scripts/strip-trailers.sh") || {
+            echo "::error::Could not read strip-trailers.sh from workflow commit ${{ github.workflow_sha }}; refusing to execute a mutable helper."
             exit 1
           }
           printf '%s\n' "$strip" | bash -s
@@ -1656,8 +1656,8 @@ jobs:
           # Shared self-healing logic (issue #137): head-scoped polling plus a
           # terminal repo-wide sweep that also clears runs held on intermediate
           # head SHAs, which head-scoped polling can never match again.
-          approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh") || {
-            echo "::error::Could not read approve-held-runs.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+          approve=$(git show "${{ github.workflow_sha }}:.github/scripts/approve-held-runs.sh") || {
+            echo "::error::Could not read approve-held-runs.sh from workflow commit ${{ github.workflow_sha }}; refusing to execute a mutable helper."
             exit 1
           }
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
@@ -1781,8 +1781,8 @@ jobs:
             echo "Decision file present; design phase produced a handoff."
             exit 0
           fi
-          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
-            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to auto-retry."
+          resolver=$(git show "${{ github.workflow_sha }}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${{ github.workflow_sha }}; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
           }
@@ -1874,8 +1874,8 @@ jobs:
           # the newest open phase PR. This forward resolved #685 (an in-test
           # phase PR of #582) and posted /oc build there, binding a fresh build
           # session to the approved head.
-          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
-            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to post a mis-targeted trigger."
+          resolver=$(git show "${{ github.workflow_sha }}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${{ github.workflow_sha }}; refusing to post a mis-targeted trigger."
             exit 1
           }
           target=$(printf '%s\n' "$resolver" | bash -s -- parent) || {
@@ -1913,8 +1913,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {
-            echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+          strip=$(git show "${{ github.workflow_sha }}:.github/scripts/strip-trailers.sh") || {
+            echo "::error::Could not read strip-trailers.sh from workflow commit ${{ github.workflow_sha }}; refusing to execute a mutable helper."
             exit 1
           }
           printf '%s\n' "$strip" | bash -s
@@ -1959,8 +1959,8 @@ jobs:
             pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
               --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
-          approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh") || {
-            echo "::error::Could not read approve-held-runs.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+          approve=$(git show "${{ github.workflow_sha }}:.github/scripts/approve-held-runs.sh") || {
+            echo "::error::Could not read approve-held-runs.sh from workflow commit ${{ github.workflow_sha }}; refusing to execute a mutable helper."
             exit 1
           }
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
@@ -2078,8 +2078,8 @@ jobs:
             echo "Decision file present; design-ux phase produced a handoff."
             exit 0
           fi
-          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
-            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to auto-retry."
+          resolver=$(git show "${{ github.workflow_sha }}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${{ github.workflow_sha }}; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
           }
@@ -2170,8 +2170,8 @@ jobs:
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
-          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
-            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to post a mis-targeted trigger."
+          resolver=$(git show "${{ github.workflow_sha }}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${{ github.workflow_sha }}; refusing to post a mis-targeted trigger."
             exit 1
           }
           target=$(printf '%s\n' "$resolver" | bash -s -- parent) || {
@@ -2209,8 +2209,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {
-            echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+          strip=$(git show "${{ github.workflow_sha }}:.github/scripts/strip-trailers.sh") || {
+            echo "::error::Could not read strip-trailers.sh from workflow commit ${{ github.workflow_sha }}; refusing to execute a mutable helper."
             exit 1
           }
           printf '%s\n' "$strip" | bash -s
@@ -2255,8 +2255,8 @@ jobs:
             pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
               --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
-          approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh") || {
-            echo "::error::Could not read approve-held-runs.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+          approve=$(git show "${{ github.workflow_sha }}:.github/scripts/approve-held-runs.sh") || {
+            echo "::error::Could not read approve-held-runs.sh from workflow commit ${{ github.workflow_sha }}; refusing to execute a mutable helper."
             exit 1
           }
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
@@ -2374,8 +2374,8 @@ jobs:
             echo "Decision file present; design-visual phase produced a handoff."
             exit 0
           fi
-          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
-            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to auto-retry."
+          resolver=$(git show "${{ github.workflow_sha }}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${{ github.workflow_sha }}; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
           }
@@ -2466,8 +2466,8 @@ jobs:
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
-          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
-            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to post a mis-targeted trigger."
+          resolver=$(git show "${{ github.workflow_sha }}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${{ github.workflow_sha }}; refusing to post a mis-targeted trigger."
             exit 1
           }
           target=$(printf '%s\n' "$resolver" | bash -s -- parent) || {
@@ -2505,8 +2505,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {
-            echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+          strip=$(git show "${{ github.workflow_sha }}:.github/scripts/strip-trailers.sh") || {
+            echo "::error::Could not read strip-trailers.sh from workflow commit ${{ github.workflow_sha }}; refusing to execute a mutable helper."
             exit 1
           }
           printf '%s\n' "$strip" | bash -s
@@ -2551,8 +2551,8 @@ jobs:
             pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
               --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
-          approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh") || {
-            echo "::error::Could not read approve-held-runs.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+          approve=$(git show "${{ github.workflow_sha }}:.github/scripts/approve-held-runs.sh") || {
+            echo "::error::Could not read approve-held-runs.sh from workflow commit ${{ github.workflow_sha }}; refusing to execute a mutable helper."
             exit 1
           }
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
@@ -2670,8 +2670,8 @@ jobs:
             echo "Decision file present; design-motion phase produced a handoff."
             exit 0
           fi
-          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
-            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to auto-retry."
+          resolver=$(git show "${{ github.workflow_sha }}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${{ github.workflow_sha }}; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
           }
@@ -2762,8 +2762,8 @@ jobs:
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
-          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
-            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to post a mis-targeted trigger."
+          resolver=$(git show "${{ github.workflow_sha }}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${{ github.workflow_sha }}; refusing to post a mis-targeted trigger."
             exit 1
           }
           target=$(printf '%s\n' "$resolver" | bash -s -- parent) || {
@@ -2801,8 +2801,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {
-            echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+          strip=$(git show "${{ github.workflow_sha }}:.github/scripts/strip-trailers.sh") || {
+            echo "::error::Could not read strip-trailers.sh from workflow commit ${{ github.workflow_sha }}; refusing to execute a mutable helper."
             exit 1
           }
           printf '%s\n' "$strip" | bash -s
@@ -2847,8 +2847,8 @@ jobs:
             pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
               --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
-          approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh") || {
-            echo "::error::Could not read approve-held-runs.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+          approve=$(git show "${{ github.workflow_sha }}:.github/scripts/approve-held-runs.sh") || {
+            echo "::error::Could not read approve-held-runs.sh from workflow commit ${{ github.workflow_sha }}; refusing to execute a mutable helper."
             exit 1
           }
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
@@ -3038,8 +3038,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {
-            echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+          strip=$(git show "${{ github.workflow_sha }}:.github/scripts/strip-trailers.sh") || {
+            echo "::error::Could not read strip-trailers.sh from workflow commit ${{ github.workflow_sha }}; refusing to execute a mutable helper."
             exit 1
           }
           printf '%s\n' "$strip" | bash -s
@@ -3087,8 +3087,8 @@ jobs:
           # Shared self-healing logic (issue #137): head-scoped polling plus a
           # terminal repo-wide sweep that also clears runs held on intermediate
           # head SHAs, which head-scoped polling can never match again.
-          approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh") || {
-            echo "::error::Could not read approve-held-runs.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+          approve=$(git show "${{ github.workflow_sha }}:.github/scripts/approve-held-runs.sh") || {
+            echo "::error::Could not read approve-held-runs.sh from workflow commit ${{ github.workflow_sha }}; refusing to execute a mutable helper."
             exit 1
           }
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
