@@ -251,7 +251,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
-          PATH: /usr/local/bin:/usr/bin:/bin
+          PATH: /usr/bin:/bin
           TARGET: ${{ github.event.issue.number }}
         run: |
           # Issue #713: the tester agent executes PR-controlled code, so its
@@ -293,7 +293,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.evidence-gate.outcome == 'success' && steps.publish-report.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
-          PATH: /usr/local/bin:/usr/bin:/bin
+          PATH: /usr/bin:/bin
           # Env indirection (audit R10): the trigger timestamp reaches the
           # publication checker as data, never expanded into the shell text.
           SINCE: ${{ github.event.comment.created_at }}
@@ -358,7 +358,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
-          PATH: /usr/local/bin:/usr/bin:/bin
+          PATH: /usr/bin:/bin
         run: |
           # Issue #629/#713: the merge sweep's first-line anchor (R21) is
           # satisfied by a workflow-published canonical marker instead of
@@ -415,7 +415,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
-          PATH: /usr/local/bin:/usr/bin:/bin
+          PATH: /usr/bin:/bin
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
         run: |
           pr="${{ github.event.issue.number }}"

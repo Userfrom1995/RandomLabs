@@ -58,6 +58,27 @@ jobs:
           ref: ${{ steps.pr-info.outputs.head_ref }}
           fetch-depth: 0
 
+      - name: Capture the trusted pre-agent PATH for owner-PAT steps
+        id: trusted_path
+        run: |
+          set -o pipefail
+          # Issue #713 round 16: the owner-PAT post-agent steps used to inherit
+          # the runner PATH after the tester ran, including the
+          # $HOME/.opencode/bin entry the vendored runner appends to
+          # $GITHUB_PATH. A PR-planted gh there would then execute with the
+          # owner PAT. Capture the PATH now, before any agent code runs, and
+          # drop the known user-writable tool directories so every post-agent
+          # PAT step resolves its tools from the pre-agent environment.
+          clean=$(printf '%s' "$PATH" | tr ':' '\n' \
+            | grep -vF -e "$HOME/.opencode/bin" -e "$HOME/.local/bin" -e "$HOME/.cargo/bin" -e "$HOME/.dotnet/tools" -e "$HOME/.config/composer/vendor/bin" \
+            | paste -sd: -)
+          if [ -z "$clean" ]; then
+            echo "::error::Could not derive a trusted pre-agent PATH (issue #713, fail closed)."
+            exit 1
+          fi
+          echo "path=$clean" >> "$GITHUB_OUTPUT"
+          echo "Captured the pre-agent PATH for owner-PAT steps."
+
       - name: Stage the Linux tester system prompt from the workflow commit
         run: |
           set -o pipefail
@@ -214,6 +235,7 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
+          PATH: ${{ steps.trusted_path.outputs.path }}
         run: |
           # Issue #608: the workflow, not the session's final message, owns
           # the findings comment. The shared script fails closed when the
@@ -245,6 +267,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
+          PATH: ${{ steps.trusted_path.outputs.path }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
           # Issue #612: under Git Bash on windows-latest, MSYS2 path conversion
           # rewrites any argv that looks like a POSIX absolute path before the
@@ -322,6 +345,27 @@ jobs:
           token: ${{ github.token }}
           ref: ${{ steps.pr-info.outputs.head_ref }}
           fetch-depth: 0
+
+      - name: Capture the trusted pre-agent PATH for owner-PAT steps
+        id: trusted_path
+        run: |
+          set -o pipefail
+          # Issue #713 round 16: the owner-PAT post-agent steps used to inherit
+          # the runner PATH after the tester ran, including the
+          # $HOME/.opencode/bin entry the vendored runner appends to
+          # $GITHUB_PATH. A PR-planted gh there would then execute with the
+          # owner PAT. Capture the PATH now, before any agent code runs, and
+          # drop the known user-writable tool directories so every post-agent
+          # PAT step resolves its tools from the pre-agent environment.
+          clean=$(printf '%s' "$PATH" | tr ':' '\n' \
+            | grep -vF -e "$HOME/.opencode/bin" -e "$HOME/.local/bin" -e "$HOME/.cargo/bin" -e "$HOME/.dotnet/tools" -e "$HOME/.config/composer/vendor/bin" \
+            | paste -sd: -)
+          if [ -z "$clean" ]; then
+            echo "::error::Could not derive a trusted pre-agent PATH (issue #713, fail closed)."
+            exit 1
+          fi
+          echo "path=$clean" >> "$GITHUB_OUTPUT"
+          echo "Captured the pre-agent PATH for owner-PAT steps."
 
       - name: Stage the macOS tester system prompt from the workflow commit
         run: |
@@ -482,6 +526,7 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
+          PATH: ${{ steps.trusted_path.outputs.path }}
         run: |
           # Issue #692: run 39170578536 died at the agent-step cap with 5 of
           # 9 planned passes still open, so no decision file existed, the
@@ -546,6 +591,7 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
+          PATH: ${{ steps.trusted_path.outputs.path }}
         run: |
           # Issue #608: the workflow, not the session's final message, owns
           # the findings comment. The shared script fails closed when the
@@ -577,6 +623,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
+          PATH: ${{ steps.trusted_path.outputs.path }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
           # Issue #612: uniform with the other per-OS forwarders; inert here,
           # load-bearing on the windows-latest arm (see the Linux forwarder).
@@ -647,6 +694,27 @@ jobs:
           token: ${{ github.token }}
           ref: ${{ steps.pr-info.outputs.head_ref }}
           fetch-depth: 0
+
+      - name: Capture the trusted pre-agent PATH for owner-PAT steps
+        id: trusted_path
+        run: |
+          set -o pipefail
+          # Issue #713 round 16: the owner-PAT post-agent steps used to inherit
+          # the runner PATH after the tester ran, including the
+          # $HOME/.opencode/bin entry the vendored runner appends to
+          # $GITHUB_PATH. A PR-planted gh there would then execute with the
+          # owner PAT. Capture the PATH now, before any agent code runs, and
+          # drop the known user-writable tool directories so every post-agent
+          # PAT step resolves its tools from the pre-agent environment.
+          clean=$(printf '%s' "$PATH" | tr ':' '\n' \
+            | grep -vF -e "$HOME/.opencode/bin" -e "$HOME/.local/bin" -e "$HOME/.cargo/bin" -e "$HOME/.dotnet/tools" -e "$HOME/.config/composer/vendor/bin" \
+            | paste -sd: -)
+          if [ -z "$clean" ]; then
+            echo "::error::Could not derive a trusted pre-agent PATH (issue #713, fail closed)."
+            exit 1
+          fi
+          echo "path=$clean" >> "$GITHUB_OUTPUT"
+          echo "Captured the pre-agent PATH for owner-PAT steps."
 
       - name: Stage the Windows tester system prompt from the workflow commit
         run: |
@@ -806,6 +874,7 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
+          PATH: ${{ steps.trusted_path.outputs.path }}
         run: |
           # Issue #692: same salvage contract as the macOS arm (see the macOS
           # salvage step): the fail-closed verify above stays red and only a
@@ -863,6 +932,7 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
+          PATH: ${{ steps.trusted_path.outputs.path }}
         run: |
           # Issue #608: the workflow, not the session's final message, owns
           # the findings comment. The shared script fails closed when the
@@ -894,6 +964,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
+          PATH: ${{ steps.trusted_path.outputs.path }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
           # Issue #612: the live regression. Under Git Bash on windows-latest,
           # MSYS2 path conversion rewrote the --body value "/oc maintainer"

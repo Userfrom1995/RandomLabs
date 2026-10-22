@@ -233,7 +233,7 @@ Public Surface / Web Track:                                              │
   no `continue-on-error`,
   exactly the two token env keys with both token env
   expressions intact plus the pinned system PATH
-  `/usr/local/bin:/usr/bin:/bin` (the runner's default PATH includes
+  `/usr/bin:/bin` (the runner's default PATH includes
   user-writable directories such as `/home/runner/.local/bin`,
   `/home/runner/.cargo/bin`, and `/home/runner/.dotnet/tools` where a
   pre-handler repo script could plant a `gh`/`python3` shim; review finding
