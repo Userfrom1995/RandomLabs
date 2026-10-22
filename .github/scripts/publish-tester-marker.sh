@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
 # publish-tester-marker.sh - publish the canonical Tester approval marker as a
-# bot-authored comment and verify it persisted (issue #629).
+# owner-authored comment and verify it persisted (issue #629).
 #
 # Why this exists: the PAT merge sweep recognizes a tester verdict only when
 # the `/oc approve-test` marker is the ENTIRE first line of a
-# github-actions[bot] comment (issue #619, audit rule R21). The Tester's own
+# repository-owner comment (issue #619, audit rule R21). The Tester's own
 # published report is prose-first in practice (PR #628 comment 6240760500:
 # "All green. Posting the decision comment." on line 1, the marker on line 3),
 # which silently stalls every workflow-touching PR because no App-token merge
@@ -18,12 +18,12 @@
 # and no marker is ever posted for an escalation or an unpublished verdict.
 #
 # Usage: publish-tester-marker.sh <pr-number> <evidence-scope>
-# Env:   GH_TOKEN           required; the workflow passes github.token (never
-#                           the owner PAT) so the comment is authored by
-#                           github-actions[bot]
+# Env:   GH_TOKEN           required; the workflow passes the owner PAT
+#                           (never exposed to the agent) so the comment is
+#                           owner-authored (issue #713)
 #        GITHUB_REPOSITORY  repo slug (owner/name), set by Actions
 #
-# Exit 0 only when the marker was posted and re-fetches as a bot-authored
+# Exit 0 only when the marker was posted and re-fetches as an owner-authored
 # comment whose first line is exactly the marker. Every other path exits 1
 # loudly so the fail-closed verify/forward chain in opencode-test.yml never
 # reports a false green.
@@ -33,6 +33,7 @@ set -u
 target="${1:-}"
 scope="${2:-}"
 repo="${GITHUB_REPOSITORY:-}"
+owner="${GITHUB_REPOSITORY_OWNER:-${repo%%/*}}"
 
 if [ -z "$repo" ]; then
   echo "::error::publish-tester-marker.sh: GITHUB_REPOSITORY is empty; cannot resolve the repo slug."
@@ -71,8 +72,8 @@ author=$(printf '%s' "$fetched" | jq -r '.user.login // empty' 2>/dev/null || tr
 html_url=$(printf '%s' "$fetched" | jq -r '.html_url // empty' 2>/dev/null || true)
 fetched_first=$(printf '%s' "$fetched" | jq -r '.body // empty' 2>/dev/null | tr -d '\r' | head -n1 || true)
 
-if [ "$author" != "github-actions[bot]" ]; then
-  echo "::error::publish-tester-marker.sh: posted marker comment ${comment_id} is authored by '${author}', not github-actions[bot]; the merge sweep's R21 predicate requires bot authorship (issue #629)."
+if [ "$author" != "$owner" ]; then
+  echo "::error::publish-tester-marker.sh: posted marker comment ${comment_id} is authored by '${author}', not the repository owner '${owner}'; the merge sweep's R21 predicate requires owner authorship (issues #629, #713)."
   exit 1
 fi
 if [ "$fetched_first" != "/oc approve-test" ]; then
@@ -80,4 +81,4 @@ if [ "$fetched_first" != "/oc approve-test" ]; then
   exit 1
 fi
 
-echo "Verified bot-authored tester approval marker comment ${comment_id} on #${target}: ${html_url}"
+echo "Verified owner-authored tester approval marker comment ${comment_id} on #${target}: ${html_url}"

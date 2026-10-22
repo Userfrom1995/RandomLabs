@@ -1313,15 +1313,19 @@ jobs:
             # SHAPE. The marker must be the ENTIRE first line of the comment,
             # optionally wrapped in backticks (the Tester's live verdicts post
             # "`/oc approve-test`" or "/oc approve-test" as line 1). The old
-            # unanchored contains() match accepted any bot comment that merely
+            # unanchored contains() match accepted any comment that merely
             # QUOTED the phrase: the Maintainer's own decisions summary on #618
             # quoted #609's approval while describing that other PR, and the
             # sweep read it as #618's verdict and merged a workflow-touching PR
             # with no review verdict and no read-only test (run 39059718673,
             # 18:55:19Z; #618's first verdicts arrived later: review 19:00:08Z,
             # read-only test 19:08:19Z). A first-line anchor makes quoted or
-            # summarized mentions unmatchable.
-            approve_test_time=$(echo "$comments" | jq -r '[.[] | select(.user.login=="github-actions[bot]" and (.body|split("\n")[0]|test("^`?/oc approve-test`?[[:space:]]*$")))] | last | .created_at // empty' 2>/dev/null || echo "")
+            # summarized mentions unmatchable. The marker is owner-authored
+            # since issue #713 (the tester agent holds only a read-only issues
+            # token; the hardcoded owner-PAT step publishes it); legacy
+            # bot-authored markers on in-flight PRs still count because the
+            # default-branch workflow cannot be rewritten by a PR.
+            approve_test_time=$(echo "$comments" | jq -r '[.[] | select((.user.login=="{{ github.repository_owner }}" or .user.login=="github-actions[bot]") and (.body|split("\n")[0]|test("^`?/oc approve-test`?[[:space:]]*$")))] | last | .created_at // empty' 2>/dev/null || echo "")
             if [ -z "$approve_test_time" ]; then
               echo "PR #$pr has no /oc approve-test verdict (first-line marker); not merge-ready"
               continue

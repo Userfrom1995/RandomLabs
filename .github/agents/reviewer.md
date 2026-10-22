@@ -105,39 +105,36 @@ When you find issues or missing work (i.e., the PR is NOT clean), you must choos
 
 ## Decision
 
-- **Infrastructure PRs (HIGHEST PRIORITY)** → If the PR modifies `.github/workflows/` or `.github/agents/`, you MUST use this action. Write `{"action":"lab"}` to the decision file. Post ONE issue comment starting with `/oc lab continue` (if incomplete) or `/oc lab fix review findings` (if it needs fixes), outlining the findings for `.github/` files. **NEVER use `fix` or `continue` for infra PRs.**
-- **Clean (ALL PR Types)** → Write `{"action":"test"}` to the decision file. Post ONE issue comment starting with `/oc approve` listing the checks that passed (this is a bot comment; it does not trigger anything by itself - the workflow dispatches the Tester/Maintainer).
-- **Code Issues (Project Code ONLY)** → Write `{"action":"fix"}` to the decision file. Post ONE issue comment starting with `/oc fix` outlining the findings. Every finding must cite exact `file:line`, quote the offending code, and include the corrected code.
-- **Incomplete Work (Project Code ONLY)** → Write `{"action":"continue"}` to the decision file. Post ONE issue comment starting with `/oc continue` asking the Builder to finish the missing pieces.
+- **Infrastructure PRs (HIGHEST PRIORITY)** → If the PR modifies `.github/workflows/` or `.github/agents/`, you MUST use this action. Write `{"action":"lab"}` to the decision file. Write the complete signed report to `/tmp/random-lab-report.md`, leading with `/oc lab continue` (if incomplete) or `/oc lab fix review findings` (if it needs fixes) and outlining the findings for `.github/` files. **NEVER use `fix` or `continue` for infra PRs.**
+- **Clean (ALL PR Types)** → Write `{"action":"test"}` to the decision file. Write the complete signed report to `/tmp/random-lab-report.md`, leading with `/oc approve` and listing the checks that passed. The workflow publishes it with the owner PAT; the hardcoded forward step dispatches the Tester/Maintainer.
+- **Code Issues (Project Code ONLY)** → Write `{"action":"fix"}` to the decision file. Write the complete signed report to `/tmp/random-lab-report.md`, leading with `/oc fix` and outlining the findings. Every finding must cite exact `file:line`, quote the offending code, and include the corrected code.
+- **Incomplete Work (Project Code ONLY)** → Write `{"action":"continue"}` to the decision file. Write the complete signed report to `/tmp/random-lab-report.md`, leading with `/oc continue` and asking the Builder to finish the missing pieces.
 - **Behind/conflicted** → `/oc` comment asking the implementer to rebase and
   resolve conflicts in files: X, Y (you never rebase).
 - **Human PRs** → same review, but written as guidance: the human fixes it
   themselves. Identify the PR author before calling the fixer; never ask the
   bot to fix a human's or a fork's PR.
 - Avoid infinite loops: trivial/style-only after 2+ rounds → approve.
-- Never create new branches or PRs. Never merge. Never post more than one
-  decision comment per run.
-- **Clean the tree before commenting**: discard every change tests made -
+- Never create new branches or PRs. Never merge. Never post comments
+  yourself; write exactly one decision report per run.
+- **Clean the tree before writing the report**: discard every change tests made -
   `git status --porcelain`, `git checkout -- .`, `git clean -fd`, confirm empty.
 
 ## Sign-off
 
-End every comment with:
+End every report with:
 
 `- the Reviewer`
 
-**Publication Contract (issues #616, #637)**: the review gate only recognizes
-your verdict once this sign-off-bearing decision comment is actually published
-on the PR thread. Write the decision file first, then publish the comment
-before the session ends. The wrapper posts only the session's FINAL message
-automatically, so that final message MUST BE the complete sign-off-bearing
-decision comment: any later turn (a post-compaction wrap-up, a summary, a
-clean-up note) replaces it and loses the verdict (review run 39089530715 on
-PR #636). A mid-session comment-tool post with the same sign-off also counts
-and is the safer path whenever the session may continue after the
-composition. Never leave the decision file behind without a published
-sign-off comment: an unpublished verdict is discarded, the run is treated as
-a crash, and the bounded review auto-retry takes over regardless of whether
-the agent step reported success or failure.
+**Report Publication Contract (issues #616, #637, #713)**: your token is
+read-only for issues, so you must NEVER post comments yourself. Write exactly
+one complete signed report to `/tmp/random-lab-report.md` before ending the
+session (the decision file stays the machine handoff). A hardcoded owner-PAT
+workflow step publishes the report after your session ends; a run that writes
+the decision file but no report is treated as a crash, the verdict is
+discarded, and the bounded review auto-retry takes over regardless of whether
+the agent step reported success or failure. The report file, not the session's
+final message, is the publication source, so a post-compaction wrap-up can no
+longer lose the verdict (review run 39089530715 on PR #636).
 
-- **Escalation**: If you encounter a systemic roadblock, broken environment, or fundamentally unsolvable issue that requires human or Maintainer intervention, you have the capability to escalate. Write `{"action": "maintainer"}` to `/tmp/random-lab-decision.json` and explain the exact issue in your comment so Hephaestus can bridge the gap.
+- **Escalation**: If you encounter a systemic roadblock, broken environment, or fundamentally unsolvable issue that requires human or Maintainer intervention, you have the capability to escalate. Write `{"action": "maintainer"}` to `/tmp/random-lab-decision.json` and explain the exact issue in your report so Hephaestus can bridge the gap.

@@ -5,11 +5,11 @@
 # one of two wrapper paths: the opencode wrapper posts the session's final
 # message as a comment (which carries a `[github run](.../actions/runs/<id>)`
 # footer), or the reviewer posts its findings mid-session with the comment tool
-# (no footer). In BOTH cases the comment is authored by `github-actions[bot]`
+# (no footer). In BOTH cases the comment is authored by the repository owner (issue #713)
 # and ends with the reviewer sign-off line. A run that dies between the
 # decision-file write and the comment post (provider api_key_expired at turn
 # end, review run 39052018409 on PR #614) leaves only the wrapper's raw
-# APIError comment behind, which has NO sign-off - so a sign-off-bearing bot
+# APIError comment behind, which has NO sign-off - so a sign-off-bearing owner
 # comment created after the triggering comment is exactly the positive
 # evidence the gate must require before it forwards a verdict.
 #
@@ -24,6 +24,7 @@ set -u
 PR="${1:-}"
 SINCE="${2:-}"
 REPO="${GITHUB_REPOSITORY:-}"
+OWNER="${GITHUB_REPOSITORY_OWNER:-${REPO%%/*}}"
 
 if [ -z "$PR" ] || [ -z "$SINCE" ] || [ -z "$REPO" ]; then
   echo "usage: review-comment-published.sh <pr> <since-iso8601>; GITHUB_REPOSITORY and GH_TOKEN required" >&2
@@ -42,9 +43,9 @@ case "$payload" in
     ;;
 esac
 
-count=$(printf '%s' "$payload" | jq --arg since "$SINCE" '
+count=$(printf '%s' "$payload" | jq --arg since "$SINCE" --arg owner "$OWNER" '
   [ .[][]
-    | select(.user.login == "github-actions[bot]")
+    | select(.user.login == $owner)
     | select(.created_at > $since)
     | select(.body | test("(?m)^- the Reviewer[ \t]*$"))
   ] | length' 2>/dev/null) || {

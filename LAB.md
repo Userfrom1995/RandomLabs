@@ -128,8 +128,8 @@ Public Surface / Web Track:                                              │
   39036858261, PR #606 on issue #582). Each arm session writes the COMPLETE
   signed report to `/tmp/random-lab-findings.md`; the fail-closed verify step
   requires it alongside the decision file; the shared script
-  `.github/scripts/post-peros-findings.sh` posts it as `github-actions[bot]`
-  and re-fetches the comment by id to verify authorship, sign-off, and the
+  `.github/scripts/post-peros-findings.sh` posts it through the owner PAT and
+  re-fetches the comment by id to verify owner authorship, sign-off, and the
   exact body; and the decision forward is gated on that step's success, so an
   unverified report can never conclude an arm green. Line endings are
   normalized to LF on both sides of the exact-body comparison and an
@@ -710,8 +710,11 @@ Your PAT is used ONLY by hardcoded workflow steps, for exactly these things:
 - No agent ever receives the PAT (no `OPENCODE_PAT` in any agent env;
   checkouts use `${{ github.token }}` everywhere - agents can't read your PAT
   from git config either).
-- Agents always comment/commit as `github-actions[bot]`; never on the owner's
-  behalf; never reveal the owner's identity.
+- Agents always comment/commit as `github-actions[bot]`; never reveal the
+  owner's identity. The sole exception is the reviewed hardcoded post-agent
+  step (issue #713), which receives the owner PAT and posts the Tester,
+  reviewer, and per-OS signed reports plus their markers as the owner; no
+  agent-executed code ever sees that PAT.
 - A hardcoded "clean tree" step in the implementer workflow prevents the
   action's auto-commit from leaking a `Co-authored-by: <owner>` trailer into
   pushed commits, and every `opencode.yml` agent job's sanitize step delegates
@@ -768,7 +771,7 @@ Your PAT is used ONLY by hardcoded workflow steps, for exactly these things:
   (owner PAT) → the Fixer runs.
 - Human PRs → the review is posted and the human is asked to fix it (never a
   Fixer call). Fork PRs: never - guidance only (see §23).
-- Clean → posts `/oc approve: <message>` → the Tester is dispatched via `/oc test`.
+- Clean → writes its signed report; the workflow's owner-PAT step posts `/oc approve: <message>` → the Tester is dispatched via `/oc test`. The reviewer agent runs with `issues: read` and never posts comments itself (issue #713).
 - Rebuttal etiquette: honest evaluation, withdraw valid pushbacks,
   2×-then-apply, approve trivial leftovers after 2+ rounds.
 - No merge step - the Maintainer merges.
@@ -778,9 +781,10 @@ Your PAT is used ONLY by hardcoded workflow steps, for exactly these things:
 - Triggered by `/oc test` after the Reviewer approves, executing under high-thinking rigor.
 - Focuses on E2E functionality, dynamic simulation, and performance of the running application (headless Playwright/Puppeteer browser tests for web UI; stress, fuzz, and memory checks for engines/CLIs).
 - **Test Authoring & Commit Authorization**: Authorized to author permanent regression and E2E test suites in project test directories (`tests/`, `e2e/`, etc.) and commit them directly to the PR branch under `tester: ...`.
-- **Strict Separation of Concerns**: The Tester never touches production application logic. If a test fails, the failing test is committed and pushed so the bug is reproducible, and the Tester posts `/oc fix: <details>` → the Fixer runs.
+- **Strict Separation of Concerns**: The Tester never touches production application logic. If a test fails, the failing test is committed and pushed so the bug is reproducible, and the Tester writes a signed findings report so the workflow's owner-PAT step posts `/oc fix: <details>` → the Fixer runs.
+- **Read-only issues token**: the Tester agent runs with `issues: read` and does not post comments; a hardcoded owner-PAT step publishes its signed report and the `/oc approve-test` marker (issue #713).
 - **Infrastructure PR Guard**: If the diff touches `.github/workflows/`, `.github/agents/`, `AGENTS.md`, or `LAB.md`, the Tester operates strictly read-only (never commits/pushes), validates infrastructure dynamically, and routes issues to `/oc lab`.
-- If clean and all tests pass, the Tester commits any new test suites, pushes, and posts `/oc approve-test` -> the test workflow notifies the Maintainer (`/oc maintainer`), which routes the binding Evaluator gate (`/oc eval`) and merges after `approve-eval`.
+- If clean and all tests pass, the Tester commits any new test suites, pushes, and writes its signed approval report; the workflow publishes `/oc approve-test` -> the test workflow notifies the Maintainer (`/oc maintainer`), which routes the binding Evaluator gate (`/oc eval`) and merges after `approve-eval`.
 
 ## 12. Human PR playbook
 
@@ -1609,7 +1613,7 @@ remote tip).
   post-compaction wrap-up replaced the composed verdict; review run
   39089530715 on PR #636) had its verdict discarded by a fail-loud branch
   with no auto-retry. The verify step now requires positive publication
-  evidence - a github-actions[bot] comment created after the trigger whose
+  evidence - an owner-authored comment created after the trigger whose
   body carries the reviewer sign-off line
   (`.github/scripts/review-comment-published.sh`) - discards unpublished
   verdicts before the retry and forward paths, treats a provably unpublished
@@ -1660,13 +1664,14 @@ remote tip).
   #614's read-only verdict (comment 6240507941, 20:27:01Z) surfaced the same
   prose-first shape. `opencode-test.yml` now
   requires positive publication evidence
-  (`.github/scripts/test-comment-published.sh`: a github-actions[bot] comment
+  (`.github/scripts/test-comment-published.sh`: an owner-authored comment
   created after the trigger whose body carries the `- the Tester` sign-off),
   discards an unpublished or unverifiable maintainer verdict before the
   forward path, and
   the workflow then publishes the canonical marker itself
   (`.github/scripts/publish-tester-marker.sh`: first line exactly
-  `/oc approve-test`, bot-authored, re-fetched and verified by id) from the
+  `/oc approve-test`, owner-authored through the owner PAT, re-fetched and
+  verified by id) from the
   evidence-gated machine handoff - never for a non-maintainer decision and
   never for a `scope=unrunnable` escalation. The R21 anchor is therefore
   guaranteed by construction instead of agent prose formatting, and R21 is
