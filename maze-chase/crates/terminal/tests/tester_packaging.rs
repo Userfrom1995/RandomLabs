@@ -245,6 +245,47 @@ fn release_docs_crosslink_only_committed_files() {
 }
 
 #[test]
+fn release_tag_gate_is_fail_closed() {
+    let gate = maze_root()
+        .join("packaging")
+        .join("release")
+        .join("check-tag.sh");
+    let version = crate_version();
+    let run = |args: &[&str]| {
+        Command::new("bash")
+            .arg(&gate)
+            .args(args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .expect("spawn check-tag.sh")
+    };
+
+    let stable = format!("maze-chase-v{version}");
+    let candidate = format!("maze-chase-v{version}-rc.1");
+    let bad_rc = format!("maze-chase-v{version}-rc.1junk");
+    let ahead = format!("maze-chase-v{version}-next");
+    assert!(run(&[&stable]).status.success(), "stable tag must pass");
+    assert!(run(&[&candidate]).status.success(), "rc tag must pass");
+    assert!(
+        !run(&[&bad_rc]).status.success(),
+        "non-numeric rc must fail"
+    );
+    assert!(!run(&[&ahead]).status.success(), "ahead tag must fail");
+    assert!(
+        !run(&["main"]).status.success(),
+        "a branch needs --allow-branch"
+    );
+    let branch = run(&["main", "--allow-branch"]);
+    assert!(branch.status.success(), "an explicit branch build may pass");
+    assert!(
+        String::from_utf8_lossy(&branch.stdout).contains(&version),
+        "branch builds must still report the workspace version"
+    );
+}
+
+#[test]
 fn packaging_matrix_version_matches_crate() {
     let version = crate_version();
     let release = std::fs::read_to_string(maze_root().join("docs").join("release.md")).unwrap();
