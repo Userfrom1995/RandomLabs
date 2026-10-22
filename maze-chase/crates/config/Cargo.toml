@@ -1,9 +1,8 @@
 [package]
 name = "maze-chase-config"
-version = "0.1.0"
-edition = "2021"
-description = "Layer-neutral settings, keymap, and persistence for Maze Chase (maps difficulty to shipped engine modes only)"
-license = "MIT"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [lib]
 name = "maze_chase_config"
