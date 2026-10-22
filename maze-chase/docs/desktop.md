@@ -8,7 +8,23 @@ by default), so both layers share configuration and the leaderboard.
 
 ## Install
 
-Rust 1.85+ with cargo. System needs:
+Pick the artifact for your OS from the release page (or build one with
+the commands below). Every download is checksummed with
+`SHA256SUMS.txt`; [release.md](release.md) covers upgrading,
+uninstalling, and clearing saved settings.
+
+- **Linux**: `maze-chase-desktop_<version>_<arch>.deb`,
+  `maze-chase-desktop-<version>-1.<arch>.rpm`, or the portable tarball.
+  `sudo dpkg -i <deb>` or `sudo rpm -i <rpm>` installs the game, menu
+  entry, and icon system-wide; the tarball's `install-linux.sh` installs
+  per-user.
+- **Windows**: `maze-chase-desktop-<version>-windows-x86_64-setup.exe`
+  installs per-user with no administrator prompt (Start Menu and optional
+  desktop shortcut, standard uninstaller). The zip is portable.
+- **macOS**: open the dmg and drag `Maze Chase.app` to Applications, or
+  extract the tarball.
+
+To build from source, use Rust 1.85+ with cargo. System needs:
 
 - **Linux**: `sudo apt-get install libasound2-dev libudev-dev`
   (build-time ALSA headers for audio, udev headers for gamepad
@@ -32,13 +48,17 @@ Build and install from the repo root (`RandomLabs/`):
 bash maze-chase/packaging/desktop/linux-tarball.sh
 bash maze-chase/packaging/desktop/install-linux.sh
 # From a tarball instead:
-bash maze-chase/packaging/desktop/install-linux.sh --tarball maze-chase/dist/maze-chase-desktop-0.1.0-linux-x86_64.tar.gz --prefix /tmp/mcprefix
+bash maze-chase/packaging/desktop/install-linux.sh --tarball maze-chase/dist/maze-chase-desktop-<version>-linux-x86_64.tar.gz --prefix /tmp/mcprefix
 
-# Windows (on a Windows machine): zipped .exe plus docs
-powershell -ExecutionPolicy Bypass -File maze-chase/packaging/desktop/windows-zip.ps1
+# Native packages (on the matching host):
+bash maze-chase/packaging/desktop/build-deb.sh
+bash maze-chase/packaging/desktop/build-rpm.sh
 
-# macOS (on a Mac): Maze Chase.app bundle
-bash maze-chase/packaging/desktop/macos-app.sh
+# Windows (on a Windows machine): zip plus per-user installer
+powershell -ExecutionPolicy Bypass -File maze-chase/packaging/desktop/windows-installer.ps1
+
+# macOS (on a Mac): app, tarball, and dmg
+bash maze-chase/packaging/desktop/macos-dmg.sh
 ```
 
 Or run uninstalled during development (cargo commands run from inside
@@ -66,6 +86,16 @@ The window opens at 1100x760 and rescales live: the board renders at an
 integer magnification with a side HUD, and windows too small for scale 1
 show a too-small card instead of a clipped game. `F` toggles
 borderless fullscreen at runtime.
+
+Window sizing is in physical pixels, so a HiDPI display renders at its
+real density instead of at the logical size, and a display change
+re-reads the scale factor and repaints. Frames stay bounded: a window
+larger than the 16.7M-pixel software budget renders at the largest
+proportional size inside it and is scaled up on presentation, with a
+one-time stderr reason and a `(scaled render)` title suffix rather than
+a silent freeze. The event loop only runs continuous frames while
+playing (or while `--probe` counts down); menus, help, scores, settings,
+pause, and game-over wait for input, so an idle window uses no CPU.
 
 ## Controls
 

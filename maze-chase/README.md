@@ -7,10 +7,11 @@ project; the in-repo Python game (`pacman/`, issue #552) is a behavioral
 feel reference, never a code source. Clean-room rules live in
 `docs/legal.md`.
 
-Current status: **playable on Linux, macOS, and Windows; packaging is
-dev-grade (built binaries, no installers), and the open tracking issue
-#582 carries the release overhaul through installers, signed packages,
-and a final re-verification of every claim.** The terminal layer's
+Current status: **playable on Linux, macOS, and Windows; release
+packaging now covers Linux deb/rpm/tarballs, a per-user Windows
+installer plus zip, and a macOS app, dmg, and tarball (unsigned), and
+the open tracking issue #582 carries native per-OS release verification
+and the final re-verification of every claim.** The terminal layer's
 real-emulator truth is recorded in
 [docs/terminal-compat.md](docs/terminal-compat.md) with committed
 evidence and outstanding findings in
@@ -48,10 +49,11 @@ Play the terminal game: `cargo run --release -p maze-chase-terminal`.
 Play the desktop game: `cargo run --release -p maze-chase-desktop`.
 Play the browser game: serve `maze-chase/` over http and open `play.html`
 (browsers refuse `.wasm` over `file://`).
-Ship a release: follow `docs/release.md` (engine checks, layer builds,
-`packaging/terminal` and `packaging/desktop` scripts per OS, committed
-reproducible `.wasm`); measured results land in `docs/scoreboard.md`
-and the parity gate in `docs/parity.md`.
+Ship a release: follow `docs/release.md` (workspace version and tag
+parity, engine checks, layer builds, per-OS package staging and smoke,
+the committed reproducible `.wasm`, install/upgrade/uninstall); measured
+results land in `docs/scoreboard.md` and the parity gate in
+`docs/parity.md`.
 
 ## What it is
 
@@ -76,9 +78,8 @@ and the parity gate in `docs/parity.md`.
   (Cozy/Classic-from-L1, Standard/Classic-from-L2, Harsh/Sprint), keymap
   with duplicate-safe rebinds, and a human-readable settings file.
   Design language pinned in `docs/design.md` plus `design-tokens.json`.
-- **Terminal game** (`crates/terminal`, done, [launch docs](docs/terminal.md)): dev-grade package
-  (built binary plus tarball and install scripts; installers are release-engineering work) with
-  a fullscreen canvas layout engine, magnification that fills the window,
+- **Terminal game** (`crates/terminal`, done, [launch docs](docs/terminal.md)): Linux deb, rpm,
+  and tarball plus a Windows zip, with a fullscreen canvas layout engine, magnification that fills the window,
   Kitty plus Sixel plus Unicode tiers with detection and auto-degrade
   watchdog, dynamic resize, title/help/scores/settings/key-rebind/pause
   surfaces, machine high scores, and opt-in BEL plus ticker sound.
@@ -88,9 +89,11 @@ and the parity gate in `docs/parity.md`.
   geometry), keyboard plus gamepad input with duplicate-safe
   remap screens, title/help/scores/settings/audio/keybinds/padbinds/pause
   surfaces, machine high scores shared with the terminal game, rodio
-  synthesized effects and tunes with silent fallback, per-OS packaging
-  (Linux tarball plus install script, Windows zip, macOS app bundle), and a
-  `--probe` frame-run plus screenshot mode for display-free verification.
+  synthesized effects and tunes with silent fallback, per-OS packages
+  (Linux deb/rpm/tarball, a per-user Windows installer plus zip, and a
+  macOS app/dmg/tarball), a HiDPI-aware bounded render path, and a
+  `--probe` frame-run plus screenshot mode for display-free
+  verification.
 - **Browser game** (`crates/web` 0.1.0 plus `play.html` plus
   `web/maze-chase.js`, done, [launch docs](docs/web.md)): the same hunt
   as dependency-free WebAssembly behind a plain C ABI (no wasm-bindgen;

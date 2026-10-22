@@ -1,17 +1,49 @@
 # Terminal Game
 
-The fullscreen terminal publication layer for Maze Chase: one dev-grade
-terminal package (`maze-chase-terminal`) running the shared deterministic engine
-with a fullscreen canvas, four render tiers, live resize, menus, help,
-high scores, settings with key rebinding, and launch docs (this file).
+The fullscreen terminal publication layer for Maze Chase: the
+`maze-chase-terminal` game running the shared deterministic engine with
+a fullscreen canvas, four render tiers, live resize, menus, help, high
+scores, settings with key rebinding, and launch docs (this file).
 
 ## Install and launch
 
-Prerequisites: a Rust toolchain (1.80 or newer) and a real terminal
-(not a pipe: the game needs raw mode and window-size queries).
+Every release ships `maze-chase-terminal` as a Debian package, an RPM,
+a portable tarball on Linux and macOS, and a zip on Windows. Pick the
+artifact for your OS from the release page; `SHA256SUMS.txt` verifies
+the download. [release.md](release.md) covers upgrading, uninstalling,
+and clearing saved settings.
+
+Debian/Ubuntu:
 
 ```sh
-cd maze-chase
+sudo dpkg -i maze-chase-terminal_<version>_<arch>.deb
+maze-chase-terminal
+sudo apt-get remove maze-chase-terminal
+```
+
+Fedora/RHEL:
+
+```sh
+sudo rpm -i maze-chase-terminal-<version>-1.<arch>.rpm
+maze-chase-terminal
+sudo rpm -e maze-chase-terminal
+```
+
+Portable tarball, no root:
+
+```sh
+mkdir maze-chase-terminal && tar -xzf maze-chase-terminal-<version>-<os>-<arch>.tar.gz -C maze-chase-terminal
+cd maze-chase-terminal
+./install-linux.sh              # $HOME/.local, prints the --version probe
+./uninstall-linux.sh
+```
+
+Windows: extract `maze-chase-terminal-<version>-windows-x86_64.zip` and
+run `maze-chase-terminal.exe`.
+
+To build from source, use Rust 1.80 or newer and run from `maze-chase/`:
+
+```sh
 cargo build --release -p maze-chase-terminal
 ./target/release/maze-chase-terminal
 ```
@@ -40,21 +72,12 @@ Install it on `PATH` with `cargo install --path crates/terminal` from
 `maze-chase/`, then launch with `maze-chase-terminal` anywhere
 (`maze-chase-terminal.exe` on Windows).
 
-Portable package (Unix, from the repo root): the tarball script builds
-the release binary and stages a versioned archive into
-`maze-chase/dist/` (never committed), and the installer unpacks it
-into a prefix with a `--version` probe at the end:
-
-```sh
-bash maze-chase/packaging/terminal/linux-tarball.sh
-bash maze-chase/packaging/terminal/install-linux.sh --tarball maze-chase/dist/maze-chase-terminal-0.1.0-linux-x86_64.tar.gz
-```
-
-The tarball name records the machine that built it; build one per
-release OS instead of relabeling. Windows installs via the
-`cargo install` line above (binary:
-`%CARGO_HOME%\bin\maze-chase-terminal.exe`). Full per-OS release steps
-live in [docs/release.md](release.md).
+Packaging scripts build the release binary and stage versioned
+packages into `maze-chase/dist/` (never committed): `build-deb.sh`,
+`build-rpm.sh`, `linux-tarball.sh` / `macos-tarball.sh`, and
+`windows-zip.ps1`. Each name records its real build host; never relabel
+a cross-OS archive. Full per-OS release steps live in
+[release.md](release.md).
 
 ## Controls
 
