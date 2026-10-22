@@ -125,6 +125,7 @@ jobs:
           cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
           chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 
       - name: Actor write gate (issue #428)
@@ -175,6 +176,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
+          PATH: /usr/bin:/bin
         run: |
           # Terminal third outcome for a gate skip (issue #428): the agent step
           # never started, so "failed + no decision file" is a DENIAL, not a
@@ -261,6 +263,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR. On 2026-10-18 this forward resolved #685
@@ -334,6 +337,7 @@ jobs:
           cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
           chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 
       - name: Actor write gate (issue #428)
@@ -384,6 +388,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
+          PATH: /usr/bin:/bin
         run: |
           # Terminal third outcome for a gate skip (issue #428): the agent step
           # never started, so "failed + no decision file" is a DENIAL, not a
@@ -471,6 +476,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
@@ -517,6 +523,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           set +e
           issue="${{ github.event.issue.number }}"
@@ -530,7 +537,7 @@ jobs:
           # terminal repo-wide sweep that also clears runs held on intermediate
           # head SHAs, which head-scoped polling can never match again.
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash .github/scripts/approve-held-runs.sh
+            bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
 
   build:
     if: |
@@ -582,6 +589,7 @@ jobs:
           cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
           chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 
       - name: Actor write gate (issue #428)
@@ -704,6 +712,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           set +e
           branch=$(git branch --show-current 2>/dev/null || echo "")
@@ -745,6 +754,7 @@ jobs:
           BASELINE_BRANCH: ${{ steps.baseline.outputs.branch }}
           BASELINE_HEAD: ${{ steps.baseline.outputs.head_before }}
           PATTERN_TIPS: ${{ steps.baseline.outputs.pattern_tips }}
+          PATH: /usr/bin:/bin
         run: |
           # Terminal third outcome for a gate skip (issue #428): the agent step
           # never started, so "no push" is a DENIAL, not a crash. A denial must
@@ -945,6 +955,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           issue="${{ github.event.issue.number }}"
           # Consume the verify step's SERVER-SIDE verdict (issue #135); do not
@@ -990,6 +1001,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.pushed == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           issue="${{ github.event.issue.number }}"
           pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
@@ -1056,6 +1068,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           set +e
           issue="${{ github.event.issue.number }}"
@@ -1069,7 +1082,7 @@ jobs:
           # terminal repo-wide sweep that also clears runs held on intermediate
           # head SHAs, which head-scoped polling can never match again.
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash .github/scripts/approve-held-runs.sh
+            bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
 
   fix:
     if: |
@@ -1107,6 +1120,7 @@ jobs:
           cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
           chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 
       - name: Actor write gate (issue #428)
@@ -1184,6 +1198,7 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           BASELINE_HEAD: ${{ steps.baseline.outputs.head_before }}
+          PATH: /usr/bin:/bin
         run: |
           # Terminal third outcome for a gate skip (issue #428): the agent step
           # never started, so "no push" is a DENIAL, not a crash. A denial must
@@ -1243,6 +1258,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           gh issue comment "${{ github.event.issue.number }}" \
             --repo "${{ github.repository }}" \
@@ -1269,6 +1285,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           set +e
           pr="${{ github.event.issue.number }}"
@@ -1276,7 +1293,7 @@ jobs:
           # terminal repo-wide sweep that also clears runs held on intermediate
           # head SHAs, which head-scoped polling can never match again.
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash .github/scripts/approve-held-runs.sh
+            bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
 
   design:
     if: |
@@ -1308,6 +1325,7 @@ jobs:
           cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
           chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 
       - name: Actor write gate (issue #428)
@@ -1358,6 +1376,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
+          PATH: /usr/bin:/bin
         run: |
           if [ "${AGENT_GATE:-}" != "true" ]; then
             echo "::notice::Actor write gate skipped the design agent (issue #428): denial is not a crash - no auto-retry, no escalation."
@@ -1427,6 +1446,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR. This forward resolved #685 (an in-test
@@ -1474,6 +1494,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           set +e
           issue="${{ github.event.issue.number }}"
@@ -1484,7 +1505,7 @@ jobs:
               --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash .github/scripts/approve-held-runs.sh
+            bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
 
   design-ux:
     if: |
@@ -1510,6 +1531,7 @@ jobs:
           cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
           chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 
       - name: Actor write gate (issue #428)
@@ -1560,6 +1582,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
+          PATH: /usr/bin:/bin
         run: |
           if [ "${AGENT_GATE:-}" != "true" ]; then
             echo "::notice::Actor write gate skipped the design-ux agent (issue #428): denial is not a crash - no auto-retry, no escalation."
@@ -1629,6 +1652,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
@@ -1675,6 +1699,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           set +e
           issue="${{ github.event.issue.number }}"
@@ -1685,7 +1710,7 @@ jobs:
               --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash .github/scripts/approve-held-runs.sh
+            bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
 
   design-visual:
     if: |
@@ -1711,6 +1736,7 @@ jobs:
           cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
           chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 
       - name: Actor write gate (issue #428)
@@ -1761,6 +1787,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
+          PATH: /usr/bin:/bin
         run: |
           if [ "${AGENT_GATE:-}" != "true" ]; then
             echo "::notice::Actor write gate skipped the design-visual agent (issue #428): denial is not a crash - no auto-retry, no escalation."
@@ -1830,6 +1857,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
@@ -1876,6 +1904,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           set +e
           issue="${{ github.event.issue.number }}"
@@ -1886,7 +1915,7 @@ jobs:
               --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash .github/scripts/approve-held-runs.sh
+            bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
 
   design-motion:
     if: |
@@ -1912,6 +1941,7 @@ jobs:
           cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
           chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 
       - name: Actor write gate (issue #428)
@@ -1962,6 +1992,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
+          PATH: /usr/bin:/bin
         run: |
           if [ "${AGENT_GATE:-}" != "true" ]; then
             echo "::notice::Actor write gate skipped the design-motion agent (issue #428): denial is not a crash - no auto-retry, no escalation."
@@ -2031,6 +2062,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
@@ -2077,6 +2109,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           set +e
           issue="${{ github.event.issue.number }}"
@@ -2087,7 +2120,7 @@ jobs:
               --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash .github/scripts/approve-held-runs.sh
+            bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
 
   general:
     if: |
@@ -2165,6 +2198,7 @@ jobs:
           cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
           cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
+          cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
           chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 
       - name: Actor write gate (issue #428)
@@ -2228,6 +2262,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           gh issue comment "${{ github.event.issue.number }}" \
             --repo "${{ github.repository }}" \
@@ -2254,6 +2289,7 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PATH: /usr/bin:/bin
         run: |
           set +e
           issue="${{ github.event.issue.number }}"
@@ -2267,5 +2303,5 @@ jobs:
           # terminal repo-wide sweep that also clears runs held on intermediate
           # head SHAs, which head-scoped polling can never match again.
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash .github/scripts/approve-held-runs.sh
+            bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
           exit 0

@@ -4876,9 +4876,19 @@ R17_MOCK
       printf '`eval-verdict: approve-eval`\n\nFinding one.\n\n- the Linux Tester\n' > "$r17_eval_backticked"
       r17_eval_trailing="$r17_tmp/eval-marker-trailing.md"
       printf 'eval-verdict: approve-eval   \n\nFinding one.\n\n- the Linux Tester\n' > "$r17_eval_trailing"
-      r17_case eval-marker-plain 1 linux "$r17_eval_plain"
-      r17_case eval-marker-backticked 1 linux "$r17_eval_backticked"
-      r17_case eval-marker-trailing 1 linux "$r17_eval_trailing"
+      r17_case eval-marker-plain 1 linux "$r17_eval_plain" "posted_capture=$r17_tmp/eval-marker-plain-posted.md"
+      r17_case eval-marker-backticked 1 linux "$r17_eval_backticked" "posted_capture=$r17_tmp/eval-marker-backticked-posted.md"
+      r17_case eval-marker-trailing 1 linux "$r17_eval_trailing" "posted_capture=$r17_tmp/eval-marker-trailing-posted.md"
+      # Prove the refusal happens BEFORE gh runs: a captured body would mean
+      # the marker-leading report was posted and could be consumed as an
+      # owner-authored eval approval.
+      for r17_eval_posted in "$r17_tmp/eval-marker-plain-posted.md" \
+        "$r17_tmp/eval-marker-backticked-posted.md" \
+        "$r17_tmp/eval-marker-trailing-posted.md"; do
+        if [ -e "$r17_eval_posted" ]; then
+          r17_bad="${r17_bad} script(functional-$(basename "$r17_eval_posted")-reached-gh)"
+        fi
+      done
       r17_case crlf-fetch-linux 0 linux "$r17_good_linux" 'crlf_fetch="1"'
       r17_case crlf-report-plain-windows 0 windows "$r17_crlf_windows"
       r17_case crlf-report-windows 0 windows "$r17_crlf_windows" 'crlf_fetch="1"' "posted_capture=$r17_tmp/posted-crlf-report.md"
@@ -4929,9 +4939,9 @@ r17_stage_rc=0
 r17_stage_out=$(R17_LINUX_BLOCK_SHA="98243bff9fdf39653211086006a18275cb9d5a3bf50e23833555cf9492a36935" \
   R17_MACOS_BLOCK_SHA="b4b54c75c61bceb87716136ad027cde6e6f6a84653ab6ef4e5af6d4390aad012" \
   R17_WINDOWS_BLOCK_SHA="56267c9b1e7bcc9284e53f18dc36b16bfed8b65af967fbe215392a31ae2890cc" \
-  R17_LINUX_PROMPT_SHA="4f2c73e688fbc80e0095c65871dfe27654d3ce87ebbdcad8242115cf17e2e548" \
-  R17_MACOS_PROMPT_SHA="143a3ee0853acde232922442710dd7f1e7e5ad46502d95738ae21087496c3b40" \
-  R17_WINDOWS_PROMPT_SHA="7d58d7509296117a5a16ab1213c0864ce08dad245fe46ea06884805dd7071199" \
+  R17_LINUX_PROMPT_SHA="e31603ef83ca056b6f33609540164a263f1a8232a2b555e64a2f3f3a8b5d95b4" \
+  R17_MACOS_PROMPT_SHA="560d055e684aaa6fa392c9965c6d8cdecb188e3b0c8898725bd6080c40046a06" \
+  R17_WINDOWS_PROMPT_SHA="74fd48c31dbc8171e575d1fd687d7a92955a8394d91a7ef334f2df84318ebc6e" \
   R17_LINUX_AGENT_PROMPT_SHA="a3c8663b91850d863e303d64e63d0ed1d832f6d493c8b8a6b849a709bd32dc2e" \
   R17_MACOS_AGENT_PROMPT_SHA="e1eb647835a2715c2201cbdc31a2f222b9ef89041e6934b81e6962f33d4b5838" \
   R17_WINDOWS_AGENT_PROMPT_SHA="0f06dc4efd692b56f174fea385bc1b0cf8fdb7d9e39ea827925ce4917ac960d7" \
@@ -5045,7 +5055,7 @@ def stage_name(label):
 TRUSTED_PATH_STEP_NAME = "Capture the trusted pre-agent PATH for owner-PAT steps"
 TRUSTED_PATH_EXPR = "${{ steps.trusted_path.outputs.path }}"
 EXPECTED_TRUSTED_PATH_BLOCK_SHA256 = (
-    "ef4cf87de3cf02f71b6828b0b6b8c590fb018bd2b6e605570e69f4dba51144d3"
+    "a25b739f094fc25272d2c93c3efa087b75254237deac79fa0831a3831ecdfcbf"
 )
 # Issue #713 review round 19 (F7): the macOS capture must walk the whole
 # non-system dependency graph, not just the tools' direct dependencies, and
@@ -7167,9 +7177,11 @@ continue
 fi
 fi
 comments=$(gh api "repos/${{ github.repository }}/issues/$pr/comments?per_page=100" --paginate --jq '.[]' 2>/dev/null | jq -s '.' 2>/dev/null || echo "[]")
-approve_test_time=$(echo "$comments" | jq -r '[.[] | select((.user.login=="{{ github.repository_owner }}" or .user.login=="github-actions[bot]") and (.body|split("\n")[0]|test("^`?/oc approve-test`?[[:space:]]*$")))] | last | .created_at // empty' 2>/dev/null || echo "")
-if [ -z "$approve_test_time" ]; then
-echo "PR #$pr has no /oc approve-test verdict (first-line marker); not merge-ready"
+approve_test_info=$(echo "$comments" | jq -r '[.[] | select(.user.login=="${{ github.repository_owner }}" and (.body|split("\n")[0]|test("^`?/oc approve-test`?[[:space:]]*$")))] | last | if . == null then empty else "\(.created_at // "") \(.id // "")" end' 2>/dev/null || echo "")
+approve_test_time=${approve_test_info%% *}
+approve_test_id=${approve_test_info##* }
+if [ -z "$approve_test_time" ] || ! printf '%s' "$approve_test_id" | grep -qE '^[0-9]+$'; then
+echo "PR #$pr has no owner-authored /oc approve-test verdict (first-line marker); not merge-ready"
 continue
 fi
 head_commit_time=$(gh api "repos/${{ github.repository }}/pulls/$pr/commits?per_page=100" --paginate --jq '.[].commit.committer.date' 2>/dev/null | sort | tail -1 || true)
@@ -7243,8 +7255,8 @@ if [ "$approve_eval_time" \< "$head_push_time" ]; then
 echo "PR #$pr eval verdict ($approve_eval_time) predates the last head push ($head_push_time); stale eval verdict, not merge-ready"
 continue
 fi
-if [ "$approve_eval_time" \< "$approve_test_time" ]; then
-echo "PR #$pr eval verdict ($approve_eval_time) predates the tester approval ($approve_test_time); not merge-ready"
+if [ "$approve_eval_id" -le "$approve_test_id" ]; then
+echo "PR #$pr eval verdict (comment $approve_eval_id) is not newer than the tester approval (comment $approve_test_id); not merge-ready"
 continue
 fi
 latest_eval_trigger_id=$(echo "$comments" | jq -r '[.[] | select((.user.login | endswith("[bot]") | not) and (((.body | startswith("/oc eval")) and ((.body | startswith("/oc eval result")) | not)) or ((.body | startswith("/opencode eval")) and ((.body | startswith("/opencode eval result")) | not))))] | last | .id // empty' 2>/dev/null || echo "")
@@ -7336,10 +7348,15 @@ else
       && r21_bad="${r21_bad} maintainer.yml(self-test-pat-eval-writer-not-caught)"
     # 1. Shape-anchored verdict predicate present verbatim; the unanchored
     #    contains() form is banned.
-    r21_approve_line=$(printf '%s\n' "$r21_pat_block" | sed 's/^[[:space:]]*//' | grep -vE '^#' | grep -F 'approve_test_time=$(echo "$comments" | jq -r ' | head -1 || true)
-    [ "$(printf '%s\n' "$r21_pat_block" | grep -cF 'approve_test_time=$(echo "$comments" | jq -r ')" -eq 1 ] || r21_bad="${r21_bad} maintainer.yml(verdict-predicate-not-single-live-assignment)"
-    printf '%s\n' "$r21_approve_line" | grep -qF 'select((.user.login=="{{ github.repository_owner }}" or .user.login=="github-actions[bot]")' || r21_bad="${r21_bad} maintainer.yml(verdict-predicate-no-authorship)"
+    r21_approve_line=$(printf '%s\n' "$r21_pat_block" | sed 's/^[[:space:]]*//' | grep -vE '^#' | grep -F 'approve_test_info=$(echo "$comments" | jq -r ' | head -1 || true)
+    [ "$(printf '%s\n' "$r21_pat_block" | grep -cF 'approve_test_info=$(echo "$comments" | jq -r ')" -eq 1 ] || r21_bad="${r21_bad} maintainer.yml(verdict-predicate-not-single-live-assignment)"
+    printf '%s\n' "$r21_approve_line" | grep -qF 'select(.user.login=="${{ github.repository_owner }}" and' || r21_bad="${r21_bad} maintainer.yml(verdict-predicate-no-owner-authorship)"
+    printf '%s\n' "$r21_pat_block" | grep -qF 'or .user.login=="github-actions[bot]"' && r21_bad="${r21_bad} maintainer.yml(verdict-predicate-allows-bot-forgery)"
     printf '%s\n' "$r21_approve_line" | grep -qF '(.body|split("\n")[0]|test("^`?/oc approve-test`?[[:space:]]*$"))' || r21_bad="${r21_bad} maintainer.yml(verdict-predicate-not-shape-anchored)"
+    printf '%s\n' "$r21_pat_block" | grep -qF 'approve_test_time=${approve_test_info%% *}' || r21_bad="${r21_bad} maintainer.yml(no-verdict-time-split)"
+    printf '%s\n' "$r21_pat_block" | grep -qF 'approve_test_id=${approve_test_info##* }' || r21_bad="${r21_bad} maintainer.yml(no-verdict-id-split)"
+    printf '%s\n' "$r21_pat_block" | grep -qF 'if [ "$approve_eval_id" -le "$approve_test_id" ]; then' || r21_bad="${r21_bad} maintainer.yml(no-strict-id-supersession)"
+    printf '%s\n' "$r21_pat_block" | grep -qF '[ "$approve_eval_time" \< "$approve_test_time" ]' && r21_bad="${r21_bad} maintainer.yml(same-second-time-supersession-restored)"
     printf '%s\n' "$r21_pat_block" | grep -qF 'contains("/oc approve-test")' && r21_bad="${r21_bad} maintainer.yml(unanchored-approve-test-contains)"
     # 2. Head-binding: both head-time sources, the max reducer, the
     #    fail-closed guard, and the stale-verdict check, ordered after the
@@ -7393,7 +7410,7 @@ else
     [ "$r21_head_mut_region" != "$r21_head_expect" ] \
       || r21_bad="${r21_bad} maintainer.yml(self-test-head-push-writer-not-caught)"
     r21_line() { printf '%s\n' "$r21_pat_block" | grep -nF -- "$1" | head -1 | cut -d: -f1; }
-    r21_approve_ln=$(r21_line 'approve_test_time=$(echo "$comments" | jq -r ')
+    r21_approve_ln=$(r21_line 'approve_test_info=$(echo "$comments" | jq -r ')
     r21_commit_ln=$(r21_line 'head_commit_time=$(gh api "repos/${{ github.repository }}/pulls/$pr/commits?per_page=100"')
     r21_reducer_ln=$(r21_line 'head_push_time=""')
     r21_stale_ln=$(r21_line 'if [ "$approve_test_time" \< "$head_push_time" ]; then')
@@ -7426,6 +7443,10 @@ else
         r21_end="' 2>/dev/null"
         r21_jq="${r21_approve_line#*${r21_start}}"
         r21_jq="${r21_jq%%${r21_end}*}"
+        # The workflow expression is substituted by GitHub before jq runs; the
+        # fixture harness substitutes the same owner so the predicate it
+        # executes is the one production executes.
+        r21_jq="${r21_jq//'${{ github.repository_owner }}'/Userfrom1995}"
         r21_decide_block=$(printf '%s\n' "$r21_pat_block" | awk '
           /^[[:space:]]*head_push_time=""/ { f=1 }
           f { print }
@@ -7447,13 +7468,14 @@ else
               r21_bad="${r21_bad} maintainer.yml(functional-${r21_case_name}-false-match)"
             fi
           }
-          r21_pred_case genuine-backticked match '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T18:50:48Z","body":"`/oc approve-test`\n\nInfrastructure PR #609 at `88cd5bc9`"}]' 2026-10-17T18:50:48Z
-          r21_pred_case genuine-plain match '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T19:00:28Z","body":"/oc approve-test\nAll checks passed."}]' 2026-10-17T19:00:28Z
-          r21_pred_case newest-genuine-wins match '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T18:50:48Z","body":"/oc approve-test\nfirst read-only round"},{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T19:08:19Z","body":"`/oc approve-test`\nsecond read-only round"}]' 2026-10-17T19:08:19Z
-          r21_pred_case quoted-mid-prose none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T18:55:04Z","body":"#609 cleared the read-only infra test (`/oc approve-test` 18:50:48Z)."}]' ''
-          r21_pred_case quoted-own-line none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T18:55:04Z","body":"Status:\n- `/oc approve-test` 18:50:48Z on #609"}]' ''
-          r21_pred_case owner-authored none '[{"user":{"login":"Userfrom1995"},"created_at":"2026-10-17T18:50:48Z","body":"`/oc approve-test`"}]' ''
-          r21_pred_case trailing-prose none '[{"user":{"login":"github-actions[bot]"},"created_at":"2026-10-17T18:50:48Z","body":"`/oc approve-test` for PR #609"}]' ''
+          r21_pred_case genuine-backticked match '[{"user":{"login":"Userfrom1995"},"id":101,"created_at":"2026-10-17T18:50:48Z","body":"`/oc approve-test`\n\nInfrastructure PR #609 at `88cd5bc9`"}]' '2026-10-17T18:50:48Z 101'
+          r21_pred_case genuine-plain match '[{"user":{"login":"Userfrom1995"},"id":102,"created_at":"2026-10-17T19:00:28Z","body":"/oc approve-test\nAll checks passed."}]' '2026-10-17T19:00:28Z 102'
+          r21_pred_case newest-genuine-wins match '[{"user":{"login":"Userfrom1995"},"id":101,"created_at":"2026-10-17T18:50:48Z","body":"/oc approve-test\nfirst read-only round"},{"user":{"login":"Userfrom1995"},"id":103,"created_at":"2026-10-17T19:08:19Z","body":"`/oc approve-test`\nsecond read-only round"}]' '2026-10-17T19:08:19Z 103'
+          r21_pred_case quoted-mid-prose none '[{"user":{"login":"Userfrom1995"},"id":104,"created_at":"2026-10-17T18:55:04Z","body":"#609 cleared the read-only infra test (`/oc approve-test` 18:50:48Z)."}]' ''
+          r21_pred_case quoted-own-line none '[{"user":{"login":"Userfrom1995"},"id":105,"created_at":"2026-10-17T18:55:04Z","body":"Status:\n- `/oc approve-test` 18:50:48Z on #609"}]' ''
+          r21_pred_case bot-forged-plain none '[{"user":{"login":"github-actions[bot]"},"id":106,"created_at":"2026-10-17T18:50:48Z","body":"/oc approve-test"}]' ''
+          r21_pred_case bot-forged-backticked none '[{"user":{"login":"github-actions[bot]"},"id":107,"created_at":"2026-10-17T18:50:48Z","body":"`/oc approve-test`"}]' ''
+          r21_pred_case trailing-prose none '[{"user":{"login":"Userfrom1995"},"id":108,"created_at":"2026-10-17T18:50:48Z","body":"`/oc approve-test` for PR #609"}]' ''
         fi
         if [ -z "$r21_decide_block" ]; then
           r21_bad="${r21_bad} maintainer.yml(functional-decision-block-extraction)"
@@ -7514,7 +7536,7 @@ else
   fi
 fi
 if [ -z "$r21_bad" ]; then
-  check "R21" "PAT merge approval is shape-anchored and head-bound: the verdict marker must be the comment's entire first line (optionally backticked), the verdict must not predate the head's last push (commit committer dates plus head_ref_force_pushed events, fail closed when unavailable), and mergeable=UNKNOWN is re-queried a bounded number of times, all pinned by the extracted single-live-assignment predicate with exact returned timestamps, the extracted-decision functional cases, and both head-time max-reductions (issue #619)" "ok"
+  check "R21" "PAT merge approval is shape-anchored and head-bound: the verdict marker must be the repository OWNER's comment and its entire first line (optionally backticked), the captured time and comment id must both be present and numeric, a same-second eval marker never ties (id-ordered supersession), the verdict must not predate the head's last push (commit committer dates plus head_ref_force_pushed events, fail closed when unavailable), and mergeable=UNKNOWN is re-queried a bounded number of times, all pinned by the extracted single-live-assignment predicate with exact returned timestamps, the extracted-decision functional cases, and both head-time max-reductions (issue #619)" "ok"
 else
   check "R21" "PAT merge approval-binding guard missing:${r21_bad} (issue #619: an unanchored contains() match merged an unreviewed workflow PR off a quoted marker, and the approved lane stalled on mergeable=UNKNOWN)" "bad"
 fi
@@ -9843,6 +9865,7 @@ for index, other in enumerate(target_job.get("steps") or []):
 expected_pre_names = [
     "Checkout repository",
     "Actor write gate (issue",
+    "Stage lab helper scripts from the workflow commit (issue #713)",
     "Configure git identity",
     "Load Maintainer memory (maintainer/logs)",
     "Build run notification",
@@ -10082,10 +10105,21 @@ R26EXTRACT
 ### 0 name=Checkout repository | uses=actions/checkout@v6 | with={"fetch-depth": 0, "persist-credentials": true, "token": "${{ github.token }}"}
 ### 1 name=Actor write gate (issue | id=actor_gate | shell=bash | env={"GATE_ACTOR": "${{ github.actor }}", "GATE_EVENT": "${{ github.event_name }}", "GATE_LABEL": "maintainer", "GH_TOKEN": "${{ github.token }}"}
 bash .github/scripts/actor-write-gate.sh
-### 2 name=Configure git identity
+### 2 name=Stage lab helper scripts from the workflow commit (issue #713)
+mkdir -p "$RUNNER_TEMP/lab-scripts"
+# The workspace checkout is the PR head and the agent can rewrite it;
+# stage the helper from THIS run's workflow commit instead (the same
+# pattern the eval and per-OS arms use for their trusted inputs).
+if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh" 2>/dev/null; then
+  git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
+fi
+git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh" > "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
+chmod +x "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
+test -s "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
+### 3 name=Configure git identity
 git config --global user.name "Hephaestus (Maintainer)"
 git config --global user.email "github-actions[bot]@users.noreply.github.com"
-### 3 name=Load Maintainer memory (maintainer/logs)
+### 4 name=Load Maintainer memory (maintainer/logs)
 mkdir -p .maintainer/memory/logs
 git fetch origin maintainer/logs:refs/remotes/origin/logs --quiet || echo "no memory branch yet (first run)"
 for f in STATE.md personality.md REGISTRY.md; do
@@ -10100,7 +10134,7 @@ for d in 0 1 2 3 4 5 6; do
   fi
 done
 ls -la .maintainer/memory .maintainer/memory/logs 2>/dev/null
-### 4 name=Build run notification
+### 5 name=Build run notification
 {
   echo "WORKFLOW: ${{ github.workflow }}"
   echo "REPO: ${{ github.repository }}"
@@ -10129,9 +10163,9 @@ ls -la .maintainer/memory .maintainer/memory/logs 2>/dev/null
 } > .maintainer/notification.txt
 echo "--- notification ---"
 cat .maintainer/notification.txt
-### 5 name=Record main SHA before | id=pre_agent
+### 6 name=Record main SHA before | id=pre_agent
 echo "sha=$(git ls-remote origin main | awk '{print $1}')" >> $GITHUB_OUTPUT
-### 6 name=Get opencode version | id=opencode_version | shell=bash | continue-on-error=True | env={"GH_TOKEN": "${{ github.token }}"}
+### 7 name=Get opencode version | id=opencode_version | shell=bash | continue-on-error=True | env={"GH_TOKEN": "${{ github.token }}"}
 # Authenticated (5000 req/hour, per-repo) so shared-runner-IP
 # unauthenticated rate limits (60 req/hour) stop applying.
 # Retry loop with backoff; the `|| true` keeps `pipefail` from
@@ -10148,8 +10182,8 @@ for attempt in 1 2 3; do
 done
 echo "version=${VERSION:-latest}" >> $GITHUB_OUTPUT
 echo "resolved opencode version: ${VERSION:-latest}"
-### 7 name=Cache opencode | id=opencode_cache | uses=actions/cache@v4 | with={"key": "opencode-${{ runner.os }}-${{ runner.arch }}-${{ steps.opencode_version.outputs.version }}", "path": "~/.opencode/bin"}
-### 8 name=Verify cached opencode binary (poisoned-cache guard) | id=opencode_verify | shell=bash
+### 8 name=Cache opencode | id=opencode_cache | uses=actions/cache@v4 | with={"key": "opencode-${{ runner.os }}-${{ runner.arch }}-${{ steps.opencode_version.outputs.version }}", "path": "~/.opencode/bin"}
+### 9 name=Verify cached opencode binary (poisoned-cache guard) | id=opencode_verify | shell=bash
 # Same guard as the vendored composite action: a poisoned cache
 # entry restores fine but holds no binary, which used to surface
 # as "opencode: command not found" (exit 127) under
@@ -10159,14 +10193,14 @@ if [ -x "$HOME/.opencode/bin/opencode" ]; then
 else
   echo "present=false" >> "$GITHUB_OUTPUT"
 fi
-### 9 name=Install opencode | if=steps.opencode_cache.outputs.cache-hit != 'true' || steps.opencode_verify.outputs.present != 'true' | shell=bash
+### 10 name=Install opencode | if=steps.opencode_cache.outputs.cache-hit != 'true' || steps.opencode_verify.outputs.present != 'true' | shell=bash
 curl -fsSL --retry 3 --retry-delay 10 https://opencode.ai/install | bash
 test -x "$HOME/.opencode/bin/opencode"
-### 10 name=Add opencode to PATH | shell=bash
+### 11 name=Add opencode to PATH | shell=bash
 echo "$HOME/.opencode/bin" >> $GITHUB_PATH
-### 11 name=Resolve model (bounded fallback ladder) | id=model_ladder | shell=bash | env={"REQUESTED_MODEL": "opencode/deepseek-v4.1-flash-free"}
+### 12 name=Resolve model (bounded fallback ladder) | id=model_ladder | shell=bash | env={"REQUESTED_MODEL": "opencode/deepseek-v4.1-flash-free"}
 bash .github/actions/opencode-run/resolve-model.sh
-### 12 name=Run Maintainer agent | id=maintainer_run | if=steps.actor_gate.outputs.run == 'true' | shell=bash | continue-on-error=True | timeout-minutes=60 | env={"GITHUB_TOKEN": "${{ github.token }}", "MODEL_CANDIDATES": "${{ steps.model_ladder.outputs.candidates }}", "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}", "PROMPT": "You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.\n\nREAD FIRST: `.github/agents/maintainer.md` - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below.\n\nYou also have, on disk:\n- `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.\n- `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, progress/*.md) and act on everything that needs you.\n\nSAFETY NET (always binding): you NEVER post comments with \"/oc\" (a hardcoded step posts triggers for you); you never create issues or PRs and never push feature code to main or PR branches; you NEVER run git commit, git push, git checkout -b, or any branch command yourself; and you NEVER edit .github/workflows/**, .github/agents/**, opencode.json, AGENTS.md, or LAB.md as part of routine work - ALL infra, workflow, agent, and model changes route through {\"action\": \"lab\"} (the Lab Engineer). The ONLY exception is the emergency revival contract: after a dispatched lab run demonstrably failed (or lab.yml itself cannot execute because its own model is dead/rate-limited) AND production is fully halted, you MAY write .maintainer/emergency.json and leave your .github/workflows/*.yml edits UNCOMMITTED in the tree for the hardcoded PAT step to verify, commit, and push. Without a valid declaration file, any protected-path edits you leave behind are reverted automatically and never pushed. Otherwise you only write the output files below; everything you write is later committed to the maintainer/logs branch by hardcoded steps. Never print or reference any PAT or secret.\n\nOUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):\n1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | research | design | build | lab | auditor | curate | fix | ideate | recover | ping | test | eval. One entry max per PR/issue. Empty array [] is fine - do not invent work.\n2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Hephaestus, the Maintainer` (a hardcoded step appends it if missing).\n3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.\n4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).\n5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.\n6. `.maintainer/emergency.json` - ONLY under the emergency revival contract above (a failed/broken lab attempt you can link + production halted): exactly {\"reason\": \"...\", \"lab_run\": \"<failing lab run URL>\", \"production_stopped\": true}. Omit the file entirely in every other run - its presence unlocks a direct push to main.\n\nWhen you finish, print a one-line summary of what you decided (the decision list is the deliverable).\n", "USE_GITHUB_TOKEN": "true", "VARIANT": "max"}
+### 13 name=Run Maintainer agent | id=maintainer_run | if=steps.actor_gate.outputs.run == 'true' | shell=bash | continue-on-error=True | timeout-minutes=60 | env={"GITHUB_TOKEN": "${{ github.token }}", "MODEL_CANDIDATES": "${{ steps.model_ladder.outputs.candidates }}", "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}", "PROMPT": "You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.\n\nREAD FIRST: `.github/agents/maintainer.md` - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below.\n\nYou also have, on disk:\n- `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.\n- `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, progress/*.md) and act on everything that needs you.\n\nSAFETY NET (always binding): you NEVER post comments with \"/oc\" (a hardcoded step posts triggers for you); you never create issues or PRs and never push feature code to main or PR branches; you NEVER run git commit, git push, git checkout -b, or any branch command yourself; and you NEVER edit .github/workflows/**, .github/agents/**, opencode.json, AGENTS.md, or LAB.md as part of routine work - ALL infra, workflow, agent, and model changes route through {\"action\": \"lab\"} (the Lab Engineer). The ONLY exception is the emergency revival contract: after a dispatched lab run demonstrably failed (or lab.yml itself cannot execute because its own model is dead/rate-limited) AND production is fully halted, you MAY write .maintainer/emergency.json and leave your .github/workflows/*.yml edits UNCOMMITTED in the tree for the hardcoded PAT step to verify, commit, and push. Without a valid declaration file, any protected-path edits you leave behind are reverted automatically and never pushed. Otherwise you only write the output files below; everything you write is later committed to the maintainer/logs branch by hardcoded steps. Never print or reference any PAT or secret.\n\nOUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):\n1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | research | design | build | lab | auditor | curate | fix | ideate | recover | ping | test | eval. One entry max per PR/issue. Empty array [] is fine - do not invent work.\n2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Hephaestus, the Maintainer` (a hardcoded step appends it if missing).\n3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.\n4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).\n5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.\n6. `.maintainer/emergency.json` - ONLY under the emergency revival contract above (a failed/broken lab attempt you can link + production halted): exactly {\"reason\": \"...\", \"lab_run\": \"<failing lab run URL>\", \"production_stopped\": true}. Omit the file entirely in every other run - its presence unlocks a direct push to main.\n\nWhen you finish, print a one-line summary of what you decided (the decision list is the deliverable).\n", "USE_GITHUB_TOKEN": "true", "VARIANT": "max"}
 # opencode CLI does not natively recognize workflow_run events (it only supports
 # issue_comment, pull_request_review_comment, issues, pull_request, schedule, workflow_dispatch).
 # For workflow_run triggers, present the event as workflow_dispatch so opencode handles
@@ -10460,7 +10494,7 @@ for model in $candidates; do
 done
 echo "::error::Maintainer exhausted every model rung ($candidates) with 'Model not found' (issue #591 fallback ladder is dead); failing loudly so the run is visible to health audit and triage."
 exit 1
-### 13 name=Verify Maintainer wrote its decision contract (loud failure, issue | id=verify_agent | if=always() | shell=bash | env={"AGENT_GATE": "${{ steps.actor_gate.outputs.run }}", "AGENT_OUTCOME": "${{ steps.maintainer_run.outcome }}"}
+### 14 name=Verify Maintainer wrote its decision contract (loud failure, issue | id=verify_agent | if=always() | shell=bash | env={"AGENT_GATE": "${{ steps.actor_gate.outputs.run }}", "AGENT_OUTCOME": "${{ steps.maintainer_run.outcome }}"}
 # Terminal third outcome (issues #428/#696): an actor-write-gate
 # denial means the agent step never started, so "skipped + no
 # decision file" is a deliberate clean skip, not a crash. This step
@@ -10488,7 +10522,7 @@ if [ -f .maintainer/decision.json ]; then
 fi
 echo "::error::Maintainer agent finished with outcome '$AGENT_OUTCOME' and no .maintainer/decision.json (model-resolution death, provider error, or crash). Failing loudly instead of concluding green without triage."
 exit 1
-### 14 name=Remove maintainer stray PRs and branches (the Maintainer never opens PRs) | if=always() && steps.actor_gate.outputs.run == 'true' | shell=bash | env={"GH_TOKEN": "${{ github.token }}"}
+### 15 name=Remove maintainer stray PRs and branches (the Maintainer never opens PRs) | if=always() && steps.actor_gate.outputs.run == 'true' | shell=bash | env={"GH_TOKEN": "${{ github.token }}"}
 set -euo pipefail
 repo="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 stray_prs=$(gh pr list --author app/github-actions --state open --json number,headRefName \
@@ -10508,7 +10542,7 @@ while IFS= read -r br; do
   gh api -X DELETE "repos/${repo}/git/refs/heads/${enc}"
 done < "$branch_list"
 echo "stray cleanup complete"
-### 15 name=Emergency-gated commit and push of workflow model updates to main | if=always() && steps.actor_gate.outputs.run == 'true' | env={"GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_AUTHOR_NAME": "Hephaestus (Maintainer)", "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_COMMITTER_NAME": "Hephaestus (Maintainer)"}
+### 16 name=Emergency-gated commit and push of workflow model updates to main | if=always() && steps.actor_gate.outputs.run == 'true' | env={"GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_AUTHOR_NAME": "Hephaestus (Maintainer)", "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_COMMITTER_NAME": "Hephaestus (Maintainer)", "PATH": "/usr/bin:/bin"}
 dirty=$(git status --porcelain -- .github/workflows .github/agents opencode.json AGENTS.md LAB.md 2>/dev/null || true)
 if [ -z "$dirty" ]; then
   echo "No protected-path modifications left by the Maintainer; nothing to do."
@@ -10580,7 +10614,7 @@ git push "https://x-access-token:${{ secrets.OPENCODE_PAT }}@github.com/${{ gith
 }
 echo "EMERGENCY_GATE=pushed" >> "$GITHUB_ENV"
 echo "Emergency revival pushed to main as Hephaestus (Maintainer)."
-### 16 name=Commit Maintainer memory (maintainer/logs) | if=always() && steps.actor_gate.outputs.run == 'true'
+### 17 name=Commit Maintainer memory (maintainer/logs) | if=always() && steps.actor_gate.outputs.run == 'true'
 # Issue #647: bounded 3-attempt fetch-recompose-push loop with
 # keep-both log semantics and loud diagnostics. The old single-shot,
 # fully-quiet rebase fallback lost a session's whole memory silently
@@ -10709,7 +10743,7 @@ if [ "$memory_pushed" != "1" ]; then
 fi
 echo "memory pushed to maintainer/logs"
 rm -rf "$bundle"
-### 17 name=Post Maintainer comment | if=always() && steps.actor_gate.outputs.run == 'true' | env={"GH_TOKEN": "${{ github.token }}", "OC_TARGET": "${{ github.event.pull_request.number || github.event.issue.number || inputs.issue_number || inputs.pr_number || '' }}"}
+### 18 name=Post Maintainer comment | if=always() && steps.actor_gate.outputs.run == 'true' | env={"GH_TOKEN": "${{ github.token }}", "OC_TARGET": "${{ github.event.pull_request.number || github.event.issue.number || inputs.issue_number || inputs.pr_number || '' }}"}
 python3 - <<'PY'
 import json, os, subprocess
 repo = os.environ["GITHUB_REPOSITORY"]
@@ -10763,6 +10797,7 @@ for t, body, is_main_comment in posts:
     )
     print(f"posted comment on #{t}")
 PY
+
 R26PRE
 )
     [ "$r26_premanifest_actual" = "$r26_premanifest_expected" ] || r26_bad="${r26_bad} maintainer.yml(pre-handler-block-changed)"
@@ -13523,14 +13558,19 @@ fi
 VERIFY_ENV = {
     "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
     "AGENT_GATE": "${{ steps.actor_gate.outputs.run }}",
+    "PATH": "/usr/bin:/bin",
 }
-FORWARD_ENV = {"GH_TOKEN": "${{ secrets.OPENCODE_PAT }}"}
+FORWARD_ENV = {
+    "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
+    "PATH": "/usr/bin:/bin",
+}
 BUILD_ENV = {
     "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
     "AGENT_GATE": "${{ steps.actor_gate.outputs.run }}",
     "BASELINE_BRANCH": "${{ steps.baseline.outputs.branch }}",
     "BASELINE_HEAD": "${{ steps.baseline.outputs.head_before }}",
     "PATTERN_TIPS": "${{ steps.baseline.outputs.pattern_tips }}",
+    "PATH": "/usr/bin:/bin",
 }
 RECOVER_ENV = {"GH_TOKEN": "${{ github.token }}"}
 VERIFY_KEYS = ("name", "id", "if", "env", "run")
@@ -13549,6 +13589,7 @@ STAGE_BODY = r"""mkdir -p "$RUNNER_TEMP/lab-scripts"
 cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
 cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
 cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
+cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
 chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
 """
 EXPECTED_PERMISSIONS = {
@@ -13753,7 +13794,8 @@ for job_name, job_doc in (doc.get("jobs") or {}).items():
             continue
         bound_body = "\n".join(line for line in norm(bound_step.get("run") or "").splitlines()
                                if not line.strip().startswith("#"))
-        for helper in ("resolve-thread-target.sh", "classify-build-push.sh", "strip-trailers.sh"):
+        for helper in ("resolve-thread-target.sh", "classify-build-push.sh", "strip-trailers.sh",
+                       "approve-held-runs.sh"):
             remaining = bound_body
             while helper in remaining:
                 at = remaining.index(helper)
@@ -13845,6 +13887,43 @@ for bound_job in sorted(set(phase) | {"build"}):
     for bad_key in ("defaults", "env", "container", "strategy", "continue-on-error"):
         if bad_key in bound_doc:
             fail("job-effective-override:%s:%s" % (bound_job, bad_key))
+
+# Issue #713 review round 20 (F8): every step carrying the owner PAT must
+# resolve its tools from the pinned system PATH (the runner prepends the
+# agent-writable $HOME/.opencode/bin), and the only approve-held-runs.sh
+# invocation allowed is the staged copy restored from the workflow commit.
+owner_pat_steps = 0
+for job_name, job_doc in (doc.get("jobs") or {}).items():
+    for step in ((job_doc or {}).get("steps") or []):
+        env = step.get("env")
+        if not isinstance(env, dict):
+            continue
+        if not any(isinstance(value, str) and "secrets.OPENCODE_PAT" in value
+                   for value in env.values()):
+            continue
+        owner_pat_steps += 1
+        if env.get("PATH") != "/usr/bin:/bin":
+            fail("owner-pat-step-path-not-pinned:%s:%s" % (job_name, step.get("name")))
+        body = "\n".join(line for line in norm(step.get("run") or "").splitlines()
+                         if not line.strip().startswith("#"))
+        for line in body.splitlines():
+            if "approve-held-runs.sh" in line \
+                    and 'bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"' not in line:
+                fail("untrusted-approve-held-runs-invocation:%s:%s"
+                     % (job_name, step.get("name")))
+if owner_pat_steps != 27:
+    fail("owner-pat-step-count:%d,want=27" % owner_pat_steps)
+# Tree-wide: no workflow step may plant an executable in the agent-writable
+# PATH directory the runner appends ($HOME/.opencode/bin). That shim would be
+# resolved by any owner-PAT step whose PATH was not pinned and is exactly how
+# the escaped class executes.
+for job_name, job_doc in (doc.get("jobs") or {}).items():
+    for step in ((job_doc or {}).get("steps") or []):
+        body = "\n".join(line for line in norm(step.get("run") or "").splitlines()
+                         if not line.strip().startswith("#"))
+        if re.search(r"(?:^|[;&|]\s*|\s)(?:cp|mv|install|tee|ln|rsync)\b[^\n]*\$HOME/\.opencode/bin", body) \
+                or re.search(r">\s*\"?\$HOME/\.opencode/bin", body):
+            fail("opencode-bin-shim-plant:%s:%s" % (job_name, step.get("name")))
 R28STATIC
   r28_static_err="$r28_tmp/static.err"
   if ! python3 -I "$r28_static_py" "$OPENCODE_WF" >"$r28_tmp/static.out" 2>"$r28_static_err"; then
@@ -14245,6 +14324,20 @@ mutants = {
         '  pull-requests: write\n',
         '  pull-requests: none\n',
     ),
+    "owner-pat-path-dropped": sub_first(
+        '          PATH: /usr/bin:/bin\n',
+        '',
+    ),
+    "staged-approve-invocation": sub_first(
+        '            bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"',
+        '            bash .github/scripts/approve-held-runs.sh',
+    ),
+    "opencode-bin-shim-plant": sub(
+        '      - name: Verify research decided, else auto-retry\n',
+        '      - name: Refresh gh shim\n'
+        '        run: cp /tmp/gh "$HOME/.opencode/bin/gh"\n'
+        '      - name: Verify research decided, else auto-retry\n',
+    ),
     "forward-builder-gate": sub(
         "      - name: Forward builder decision\n"
         "        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.pushed == 'true'\n",
@@ -14262,7 +14355,7 @@ print("\n".join(sorted(mutants)))
 R28STATICMUT
     r28_bad="${r28_bad} opencode.yml(static-mutant-generation-failed:$(tr '\n' ';' < "$r28_tmp/static-mutants.log" | cut -c1-200))"
   else
-    r28_wf_mutant_list="verify-target verify-counter verify-newest-pr verify-retries-reset verify-cap verify-env-token verify-id verify-continue-on-error forward-target forward-comment forward-if forward-event-number forward-env-token build-if build-env-branch build-attribution build-fail-open build-pushed-foreign build-continue-on-error recover-gate recover-exit recover-shell workflow-env research-job-env build-job-defaults build-baseline-id phase-actor-gate-id research-job-continue-on-error build-job-continue-on-error phase-gate-if-false phase-gate-duplicate phase-opencode-if-false phase-opencode-duplicate build-baseline-if-false build-baseline-comment-markers research-job-if-false build-job-if-false build-baseline-body-main phase-agent-alias phase-agent-pat phase-agent-timeout research-job-permissions research-job-runs-on research-job-timeout build-baseline-blank-continuation stage-body-changed stage-name-changed stage-direct-path stage-overwrite-copy stage-inplace-tamper stage-inplace-indirect forward-builder-body-helper build-baseline-fail-open build-baseline-git-fail-open build-different-branch-no-tipmove permissions-pr-none forward-builder-gate"
+    r28_wf_mutant_list="verify-target verify-counter verify-newest-pr verify-retries-reset verify-cap verify-env-token verify-id verify-continue-on-error forward-target forward-comment forward-if forward-event-number forward-env-token build-if build-env-branch build-attribution build-fail-open build-pushed-foreign build-continue-on-error recover-gate recover-exit recover-shell workflow-env research-job-env build-job-defaults build-baseline-id phase-actor-gate-id research-job-continue-on-error build-job-continue-on-error phase-gate-if-false phase-gate-duplicate phase-opencode-if-false phase-opencode-duplicate build-baseline-if-false build-baseline-comment-markers research-job-if-false build-job-if-false build-baseline-body-main phase-agent-alias phase-agent-pat phase-agent-timeout research-job-permissions research-job-runs-on research-job-timeout build-baseline-blank-continuation stage-body-changed stage-name-changed stage-direct-path stage-overwrite-copy stage-inplace-tamper stage-inplace-indirect forward-builder-body-helper build-baseline-fail-open build-baseline-git-fail-open build-different-branch-no-tipmove permissions-pr-none forward-builder-gate owner-pat-path-dropped staged-approve-invocation opencode-bin-shim-plant"
     # Bind the generator's mutation set to the list executed below: a mutant
     # added (or dropped) in only one place would otherwise silently shrink
     # the load-bearing matrix without tripping any other check.
@@ -14280,8 +14373,10 @@ R28STATICMUT
   r28_resolver="$r28_root/.github/scripts/resolve-thread-target.sh"
   r28_classifier="$r28_root/.github/scripts/classify-build-push.sh"
   r28_stripper="$r28_root/.github/scripts/strip-trailers.sh"
-  if [ ! -f "$r28_resolver" ] || [ ! -f "$r28_classifier" ] || [ ! -f "$r28_stripper" ]; then
-    r28_bad="${r28_bad} scripts(missing:resolve=$([ -f "$r28_resolver" ] && echo no || echo yes),classify=$([ -f "$r28_classifier" ] && echo no || echo yes),strip=$([ -f "$r28_stripper" ] && echo no || echo yes))"
+  r28_approver="$r28_root/.github/scripts/approve-held-runs.sh"
+  if [ ! -f "$r28_resolver" ] || [ ! -f "$r28_classifier" ] || [ ! -f "$r28_stripper" ] \
+    || [ ! -f "$r28_approver" ]; then
+    r28_bad="${r28_bad} scripts(missing:resolve=$([ -f "$r28_resolver" ] && echo no || echo yes),classify=$([ -f "$r28_classifier" ] && echo no || echo yes),strip=$([ -f "$r28_stripper" ] && echo no || echo yes),approve=$([ -f "$r28_approver" ] && echo no || echo yes))"
   else
     mkdir -p "$r28_tmp/bin" "$r28_tmp/state" "$r28_tmp/home" "$r28_tmp/events"
     # Branch-without-helpers regression fixture (issue #690 review round 3):
@@ -14296,6 +14391,7 @@ R28STATICMUT
     cp "$r28_resolver" "$r28_stage_ws/.github/scripts/resolve-thread-target.sh"
     cp "$r28_classifier" "$r28_stage_ws/.github/scripts/classify-build-push.sh"
     cp "$r28_stripper" "$r28_stage_ws/.github/scripts/strip-trailers.sh"
+    cp "$r28_approver" "$r28_stage_ws/.github/scripts/approve-held-runs.sh"
     if python3 -I - "$OPENCODE_WF" "$r28_tmp/stage-body.sh" <<'R28STAGEEXTRACT' >"$r28_tmp/stage-extract.log" 2>&1; then
 import sys
 
@@ -14319,13 +14415,15 @@ R28STAGEEXTRACT
       fi
       if [ ! -x "$r28_stage_temp/lab-scripts/resolve-thread-target.sh" ] \
         || [ ! -x "$r28_stage_temp/lab-scripts/classify-build-push.sh" ] \
-        || [ ! -x "$r28_stage_temp/lab-scripts/strip-trailers.sh" ]; then
+        || [ ! -x "$r28_stage_temp/lab-scripts/strip-trailers.sh" ] \
+        || [ ! -x "$r28_stage_temp/lab-scripts/approve-held-runs.sh" ]; then
         r28_bad="${r28_bad} scripts(staged-copies-missing)"
       fi
       rm -rf "$r28_stage_ws/.github/scripts"
       if [ ! -x "$r28_stage_temp/lab-scripts/resolve-thread-target.sh" ] \
         || [ ! -x "$r28_stage_temp/lab-scripts/classify-build-push.sh" ] \
-        || [ ! -x "$r28_stage_temp/lab-scripts/strip-trailers.sh" ]; then
+        || [ ! -x "$r28_stage_temp/lab-scripts/strip-trailers.sh" ] \
+        || [ ! -x "$r28_stage_temp/lab-scripts/approve-held-runs.sh" ]; then
         r28_bad="${r28_bad} scripts(staged-helper-depends-on-workspace)"
       fi
     else
@@ -15409,9 +15507,12 @@ PAT_STEP_NAME = "PAT-backed merge for approved workflow-touching PRs"
 # sequence; the widened scan below is defense in depth. The names are the
 # parsed scalars (YAML strips the ` #<n>` suffix as a comment). A legitimate
 # maintainer step change updates this constant in the same PR.
+MAINTAINER_STAGE_NAME = "Stage lab helper scripts from the workflow commit (issue #713)"
+EXPECTED_MAINTAINER_STAGE_SHA256 = "6e506386ceff0f33ba2cc97fe486f839059047e1e8a55f54cdfb7aff2c44767c"
 EXPECTED_MAINTAINER_STEP_NAMES = [
     "Checkout repository",
     "Actor write gate (issue",
+    "Stage lab helper scripts from the workflow commit (issue #713)",
     "Configure git identity",
     "Load Maintainer memory (maintainer/logs)",
     "Build run notification",
@@ -16606,6 +16707,59 @@ def validate_maintainer(doc, sink):
             sink.append("maintainer.yml(pat-merge-run-missing)")
         else:
             write("pat.run", pat_run)
+    # Issue #713 review round 20 (F8): the owner-PAT steps must not resolve
+    # tools from the agent-controlled PATH, and no step may execute the
+    # agent-mutable workspace copy of approve-held-runs.sh.
+    stage_hits = [
+        step
+        for step in steps
+        if isinstance(step, dict) and step.get("name") == MAINTAINER_STAGE_NAME
+    ]
+    if len(stage_hits) != 1:
+        sink.append("maintainer.yml(stage-step-not-unique)")
+    else:
+        stage = stage_hits[0]
+        if set(stage) != {"name", "run"}:
+            sink.append("maintainer.yml(stage-keys-not-exact)")
+        if (
+            normalized_sha(stage.get("run") or "")
+            != EXPECTED_MAINTAINER_STAGE_SHA256
+        ):
+            sink.append("maintainer.yml(stage-run-not-exact)")
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        step_env = step.get("env")
+        if isinstance(step_env, dict) and any(
+            isinstance(value, str) and "secrets.OPENCODE_PAT" in value
+            for value in step_env.values()
+        ):
+            if step_env.get("PATH") != "/usr/bin:/bin":
+                sink.append(
+                    "maintainer.yml(owner-pat-step-path-not-pinned:%s)"
+                    % step.get("name")
+                )
+        step_run = step.get("run")
+        if not isinstance(step_run, str):
+            continue
+        for line in step_run.splitlines():
+            if line.lstrip().startswith("#"):
+                continue
+            if "approve-held-runs.sh" in line and step.get("name") != MAINTAINER_STAGE_NAME:
+                if re.search(r"(^|[\s;&|\\])bash\s", line) \
+                        and 'bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"' not in line:
+                    sink.append(
+                        "maintainer.yml(untrusted-approve-held-runs-invocation:%s)"
+                        % step.get("name")
+                    )
+        if re.search(
+            r"(?:^|[;&|]\s*|\s)(?:cp|mv|install|tee|ln|rsync)\b[^\n]*\$HOME/\.opencode/bin"
+            r"|>\s*\"?\$HOME/\.opencode/bin",
+            step_run,
+        ):
+            sink.append(
+                "maintainer.yml(opencode-bin-shim-plant:%s)" % step.get("name")
+            )
     hits = [
         step
         for step in steps
@@ -17490,6 +17644,54 @@ if maintainer_doc is not None:
         validate_maintainer(uses_mutant, uses_local)
         if not any("uses-not-sanctioned" in p for p in uses_local):
             problems.append("maintainer.yml(structural-self-test-uses-not-sanctioned)")
+        # Issue #713 review round 20 (F8): dropping the owner-PAT PATH pin,
+        # reverting to the workspace approve-held-runs.sh, or planting a gh
+        # shim into the agent-writable PATH directory must each fail alone.
+        owner_pat_path_mutant = copy.deepcopy(maintainer_doc)
+        for step in owner_pat_path_mutant["jobs"]["maintainer"]["steps"]:
+            if isinstance(step, dict) and step.get("name", "").startswith(
+                "Approve held CI runs (PR or repo-wide sweep)"
+            ):
+                step["env"].pop("PATH", None)
+        owner_pat_path_local = []
+        validate_maintainer(owner_pat_path_mutant, owner_pat_path_local)
+        if not any(
+            "owner-pat-step-path-not-pinned" in p for p in owner_pat_path_local
+        ):
+            problems.append(
+                "maintainer.yml(structural-self-test-owner-pat-path)"
+            )
+        workspace_approve_mutant = copy.deepcopy(maintainer_doc)
+        for step in workspace_approve_mutant["jobs"]["maintainer"]["steps"]:
+            if isinstance(step, dict) and step.get("run") and \
+                    "approve-held-runs.sh" in step.get("run", ""):
+                step["run"] = step["run"].replace(
+                    'bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"',
+                    "bash .github/scripts/approve-held-runs.sh",
+                )
+        workspace_approve_local = []
+        validate_maintainer(workspace_approve_mutant, workspace_approve_local)
+        if not any(
+            "untrusted-approve-held-runs-invocation" in p
+            for p in workspace_approve_local
+        ):
+            problems.append(
+                "maintainer.yml(structural-self-test-approve-workspace-copy)"
+            )
+        shim_mutant = copy.deepcopy(maintainer_doc)
+        shim_mutant["jobs"]["maintainer"]["steps"].insert(
+            2,
+            {
+                "name": "Refresh gh shim",
+                "run": 'cp /tmp/gh "$HOME/.opencode/bin/gh"\n',
+            },
+        )
+        shim_local = []
+        validate_maintainer(shim_mutant, shim_local)
+        if not any("opencode-bin-shim-plant" in p for p in shim_local):
+            problems.append(
+                "maintainer.yml(structural-self-test-opencode-bin-shim)"
+            )
         # Issue #713 review round 12: any inserted or renamed step must fail
         # the exact-sequence pin, so a reviewer's new owner-PAT merge step (or
         # the real sweep renamed with an exact-name decoy left behind) cannot
@@ -18138,9 +18340,21 @@ else
       # same-named assignment (approve_eval_time="2099-...") would otherwise
       # override the parsed marker timestamp and bypass every staleness check.
       local var
-      for var in approve_eval_time approve_test_time approve_eval_head approve_eval_trigger approve_eval_id head_sha; do
+      for var in approve_test_info approve_test_time approve_test_id approve_eval_time approve_eval_head approve_eval_trigger approve_eval_id head_sha; do
         [ "$(printf '%s\n' "$block" | grep -cE "(^|[[:space:]])${var}=")" -eq 1 ] || bad="${bad} maintainer.yml(${var}-assignment-not-unique)"
       done
+      # Issue #713 review round 20 (F9): the tester verdict is the OWNER's
+      # comment only (the test/review arms hold a bot token, so a bot-authored
+      # marker can be forged by a PR-rewritten workflow), and the eval marker
+      # must be strictly newer by comment id so a same-second tie cannot pass
+      # on a wall-clock comparison.
+      local test_line=""
+      test_line=$(printf '%s\n' "$block" | sed 's/^[[:space:]]*//' | grep -vE '^#' | grep -F 'approve_test_info=$(echo "$comments" | jq -r ' | head -1 || true)
+      [ -n "$test_line" ] || bad="${bad} maintainer.yml(tester-verdict-predicate-missing)"
+      printf '%s\n' "$test_line" | grep -qF 'select(.user.login=="${{ github.repository_owner }}" and' || bad="${bad} maintainer.yml(tester-verdict-not-owner-authored)"
+      printf '%s\n' "$block" | grep -qF 'or .user.login=="github-actions[bot]"' && bad="${bad} maintainer.yml(tester-verdict-allows-bot-forgery)"
+      printf '%s\n' "$block" | grep -qF 'approve_test_time=${approve_test_info%% *}' || bad="${bad} maintainer.yml(no-tester-time-split)"
+      printf '%s\n' "$block" | grep -qF 'approve_test_id=${approve_test_info##* }' || bad="${bad} maintainer.yml(no-tester-id-split)"
       # head_push_time is deliberately assigned twice: an empty initializer and
       # the single max-reduction that binds the approval to the head's last
       # push. Anything else would let a second write bypass that binding.
@@ -18206,7 +18420,8 @@ else
       printf '%s\n' "$block" | grep -qF 'contains(", evaluated head " + $head + ", trigger comment " + $trigger + "): the evaluator decision file passed the workflow gates.")' || bad="${bad} maintainer.yml(eval-marker-binding-echo-not-pinned)"
       printf '%s\n' "$block" | grep -qF 'if [ -z "$head_sha" ] || [ "$approve_eval_head" != "$head_sha" ]; then' || bad="${bad} maintainer.yml(no-eval-head-binding-check)"
       printf '%s\n' "$block" | grep -qF 'if [ "$approve_eval_time" \< "$head_push_time" ]; then' || bad="${bad} maintainer.yml(no-stale-eval-check)"
-      printf '%s\n' "$block" | grep -qF 'if [ "$approve_eval_time" \< "$approve_test_time" ]; then' || bad="${bad} maintainer.yml(no-eval-before-tester-check)"
+      printf '%s\n' "$block" | grep -qF 'if [ "$approve_eval_id" -le "$approve_test_id" ]; then' || bad="${bad} maintainer.yml(no-id-strict-eval-supersession)"
+      printf '%s\n' "$block" | grep -qF '[ "$approve_eval_time" \< "$approve_test_time" ]' && bad="${bad} maintainer.yml(same-second-time-supersession-restored)"
       # Supersession by comment id (monotonic), not timestamp: same-second
       # triggers and rejections are ordered correctly, and both eval trigger
       # spellings plus the result-comment exclusion are pinned.
@@ -18261,6 +18476,23 @@ else
       *approve_test_time-assignment-not-unique*) : ;;
       *) r30_bad="${r30_bad} maintainer.yml(self-test-tester-time-injection)" ;;
     esac
+    r30_mut="${r30_pat_block}"$'\n            approve_test_info="2099-01-01T00:00:00Z 1"'
+    case "$(r30_check_pat_block "$r30_mut")" in
+      *approve_test_info-assignment-not-unique*) : ;;
+      *) r30_bad="${r30_bad} maintainer.yml(self-test-tester-info-injection)" ;;
+    esac
+    # Issue #713 review round 20 (F9): restoring the bot-authorship
+    # alternative or a wall-clock supersession must be caught by name.
+    r30_mut=$(printf '%s\n' "$r30_pat_block" | sed 's/select(\.user.login=="${{ github.repository_owner }}" and/select((.user.login=="${{ github.repository_owner }}" or .user.login=="github-actions[bot]") and/')
+    case "$(r30_check_pat_block "$r30_mut")" in
+      *tester-verdict-not-owner-authored*|*tester-verdict-allows-bot-forgery*) : ;;
+      *) r30_bad="${r30_bad} maintainer.yml(self-test-bot-forged-tester-marker-not-caught)" ;;
+    esac
+    r30_mut=$(printf '%s\n' "$r30_pat_block" | sed 's/if \[ "\$approve_eval_id" -le "\$approve_test_id" \]; then/if [ "$approve_eval_time" \\< "$approve_test_time" ]; then/')
+    case "$(r30_check_pat_block "$r30_mut")" in
+      *same-second-time-supersession-restored*|*no-id-strict-eval-supersession*) : ;;
+      *) r30_bad="${r30_bad} maintainer.yml(self-test-wallclock-supersession-not-caught)" ;;
+    esac
     # Issue #713 review round 9: a split-literal unanchored contains() must be
     # caught by the normalized scan (the exact grep alone misses it).
     r30_mut="${r30_pat_block}"$'\n            r30_decoy=$(echo "$comments" | jq -r \'.[] | select(.body | contains("eval-" + "verdict")) | .id\')'
@@ -18311,12 +18543,12 @@ else
       *) r30_bad="${r30_bad} maintainer.yml(self-test-match-head-commit)" ;;
     esac
     r30_line_p() { printf '%s\n' "$r30_pat_block" | grep -nF -- "$1" | head -1 | cut -d: -f1; }
-    r30_test_ln=$(r30_line_p 'approve_test_time=$(echo "$comments" | jq -r ')
+    r30_test_ln=$(r30_line_p 'approve_test_info=$(echo "$comments" | jq -r ')
     r30_head_ln=$(r30_line_p 'head_push_time=""')
     r30_eval_ln=$(r30_line_p 'eval_marker=$(echo "$comments" | jq -c ')
     r30_marker_req_ln=$(r30_line_p 'if [ -z "$eval_marker" ]; then')
     r30_stale_eval_ln=$(r30_line_p 'if [ "$approve_eval_time" \< "$head_push_time" ]; then')
-    r30_order_ln=$(r30_line_p 'if [ "$approve_eval_time" \< "$approve_test_time" ]; then')
+    r30_order_ln=$(r30_line_p 'if [ "$approve_eval_id" -le "$approve_test_id" ]; then')
     r30_trigger_ln=$(r30_line_p 'latest_eval_trigger_id=$(echo "$comments" | jq -r ')
     r30_reject_ln=$(r30_line_p 'last_eval_reject_id=$(echo "$comments" | jq -r ')
     r30_mergeable_ln=$(r30_line_p 'mergeable=$(gh pr view "$pr"')
@@ -18471,12 +18703,13 @@ else
           r30_c_reject_1002=$(r30_json_comment 1002 'mockowner' 2026-10-20T14:10:00Z 'Quality Council REJECTION - Score 8.1/10.')
           r30_c_reject_900=$(r30_json_comment 900 'mockowner' 2026-10-20T14:08:00Z 'Quality Council REJECTION - Score 8.1/10.')
           r30_head_case() {
-            r30_hc_name="$1"; r30_hc_want="$2"; r30_hc_sha="$3"; r30_hc_hpt="$4"; r30_hc_att="$5"; r30_hc_comments="${6:-[]}"; r30_hc_pr="${7:-713}"
+            r30_hc_name="$1"; r30_hc_want="$2"; r30_hc_sha="$3"; r30_hc_hpt="$4"; r30_hc_att="$5"; r30_hc_comments="${6:-[]}"; r30_hc_pr="${7:-713}"; r30_hc_tid="${8:-900}"
             r30_skipped=0
             pr="$r30_hc_pr"
             head_sha="$r30_hc_sha"
             head_push_time="$r30_hc_hpt"
             approve_test_time="$r30_hc_att"
+            approve_test_id="$r30_hc_tid"
             comments="$r30_hc_comments"
             eval_marker=""
             approve_eval_time=""
@@ -18513,7 +18746,11 @@ else
           r30_head_case same-second-rejection 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_fresh,$r30_c_reject_1002]"
           r30_head_case older-rejection 0 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_fresh,$r30_c_reject_900]"
           r30_head_case stale-time 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_stale]"
-          r30_head_case eval-before-tester 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_before_tester]"
+          r30_head_case eval-before-tester 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_before_tester]" 713 1002
+          # Issue #713 review round 20 (F9): two comments created in the same
+          # second cannot be ordered by wall clock; the comment id decides.
+          r30_head_case same-second-id-tie 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:10:00Z "[$r30_c_trigger_555,$r30_c_marker_fresh]" 713 1001
+          r30_head_case same-second-id-newer 0 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:10:00Z "[$r30_c_trigger_555,$r30_c_marker_fresh]" 713 999
           r30_head_case backticked-marker 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_backticked]"
           r30_head_case noncanonical-marker 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_noncanonical]"
           r30_head_case wrong-pr-marker 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_wrong_pr]"
