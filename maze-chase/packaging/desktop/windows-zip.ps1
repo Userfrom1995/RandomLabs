@@ -4,8 +4,9 @@
 #   powershell -ExecutionPolicy Bypass -File maze-chase/packaging/desktop/windows-zip.ps1
 #
 # Output: dist/maze-chase-desktop-<version>-windows-x86_64.zip with the
-# .exe plus the launch guide. The desktop game has no DLL dependencies
-# beyond the Windows runtime that ships with supported systems.
+# .exe, the launch guide, and the license. The binary links the static
+# MSVC runtime (common.ps1 sets +crt-static), so the zip needs no VC++
+# redistributable on the target machine.
 $ErrorActionPreference = "Stop"
 . (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..\common.ps1")
 
@@ -23,8 +24,10 @@ $exe = Join-Path $Root "target\release\maze-chase-desktop.exe"
 if (-not (Test-Path $exe)) {
     throw "missing release binary: $exe"
 }
+Assert-StaticCrt @($exe)
 Copy-Item $exe $stage
 Copy-Item (Join-Path $Root "docs\desktop.md") (Join-Path $stage "README-desktop.md")
+Copy-Item (Join-Path $RepoRoot "LICENSE") (Join-Path $stage "LICENSE")
 
 $zip = Join-Path $Dist "maze-chase-desktop-$Version-windows-x86_64.zip"
 New-ReproducibleZip -Stage $stage -Out $zip

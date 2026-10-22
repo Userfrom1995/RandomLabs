@@ -27,6 +27,7 @@ $exe = Join-Path $Root "target\release\maze-chase-desktop.exe"
 if (-not (Test-Path $exe)) {
     throw "missing release binary: $exe"
 }
+Assert-StaticCrt @($exe)
 Copy-Item $exe $stage
 Copy-Item (Join-Path $Root "docs\desktop.md") (Join-Path $stage "README-desktop.md")
 Copy-Item (Join-Path $RepoRoot "LICENSE") (Join-Path $stage "LICENSE")

@@ -41,6 +41,9 @@ try {
         Expand-Archive -Path $zip -DestinationPath $dest
         $exe = Join-Path $dest "maze-chase-$name.exe"
         if (-not (Test-Path $exe)) { throw "$zip does not contain maze-chase-$name.exe" }
+        if (-not (Test-Path (Join-Path $dest "LICENSE"))) {
+            throw "$zip does not contain LICENSE"
+        }
         $version = (& $exe --version 2>&1 | Out-String).Trim()
         if ($version -notmatch [regex]::Escape($Version)) {
             throw "$zip reports '$version', expected version $Version"
@@ -76,6 +79,9 @@ try {
             }
             $installedExe = Join-Path $target "maze-chase-desktop.exe"
             if (-not (Test-Path $installedExe)) { throw "installer did not place the exe" }
+            if (-not (Test-Path (Join-Path $target "LICENSE"))) {
+                throw "installer did not place LICENSE"
+            }
             $version = (& $installedExe --version 2>&1 | Out-String).Trim()
             if ($version -notmatch [regex]::Escape($Version)) {
                 throw "installed binary reports '$version', expected $Version"
