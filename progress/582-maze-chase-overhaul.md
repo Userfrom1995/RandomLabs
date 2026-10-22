@@ -1843,3 +1843,27 @@ open on this phase.
   defect independently, ran the full suites and both Linux stages, and
   owns the final diff. Skills: no registry skill matched.
   - the Fixer
+
+- 2026-10-22 (fixer, Phase 6 re-review round on `8d95a357`): fixed the
+  blocking Python tarball fallback defect. The stage-root walk no longer
+  `continue`s past its own files, so top-level payloads, guides, and
+  licenses are archived; nested entries keep their prefixed names. The
+  umask regression test now lists and extracts every archive with the
+  real tar, asserts `payload` and `nested/doc.md` are present with the
+  right contents, and asserts the executable bit survives, so digest
+  equality alone can no longer certify an empty or incomplete archive.
+  Rephrased `docs/desktop.md` to state the bounded 16 ms gamepad poll
+  instead of claiming an idle window uses no CPU.
+  Verification: `cargo test -p maze-chase-terminal --test
+  tester_packaging` 13/13, `cargo fmt --all --check` clean, `bash -n`
+  clean on the changed script, and the strengthened assertions
+  mutation-proven to fail against the old writer.
+  Delegation ledger: one read-only general subagent independently
+  reproduced the Python fallback (top-level and nested files listed and
+  extracted, executable bit intact) and mutation-proved the strengthened
+  assertions fail on the buggy writer; it reported no defects. The
+  primary context verified the writer, ran the suite and fmt, and owns
+  the final diff. Single coupled area (writer plus its test) with a
+  one-line doc correction, so no further fan-out was warranted. Skills:
+  no registry skill matched.
+  - the Fixer
