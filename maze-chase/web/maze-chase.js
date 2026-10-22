@@ -472,10 +472,25 @@
 
   // ---------- audio ----------
   var AC = null, gMaster = null, gMusic = null, gSfx = null;
-  var tuneTimer = null, tuneJob = null;
+  var tuneJob = null;
+  var tuneGainCache = {};
+  var MUSIC_CEILING = 0.32;
+
+  // Test/E2E seam: the page never reads these, the browser harness does.
+  function syncAudioDebug() {
+    try {
+      window.__mcAudio = {
+        state: AC ? AC.state : 'none',
+        music: musicState,
+        tune: tuneJob ? tuneJob.id : -1,
+        loop: !!(tuneJob && tuneJob.loop)
+      };
+    } catch (e) { /* ignore */ }
+  }
 
   function updateAudioChip() {
     var chip = $('btn-audio');
+    syncAudioDebug();
     if (!chip) return;
     var supported = !!(window.AudioContext || window.webkitAudioContext);
     var asleep = !AC || AC.state !== 'running';
@@ -512,6 +527,9 @@
     gSfx.connect(gMaster);
     gMaster.connect(AC.destination);
     applyVolumes();
+    // The title loop is queued by the session before the first gesture:
+    // poll now that the context exists so the pending music is not lost.
+    pollMusic();
     try { AC.resume().then(updateAudioChip, updateAudioChip); } catch (e) { /* ignore */ }
     updateAudioChip();
   }
@@ -555,7 +573,7 @@
     switch (voice) {
       case 1: return { type: 'sine', ratio: 2.00, mix: 0.10, attack: 0.003, decay: 7.0 };
       case 2: return { type: 'triangle', ratio: 2.00, mix: 0.18, attack: 0.030, decay: 2.2 };
-      case 3: return { type: 'sawtooth', ratio: 0.50, mix: 0.28, attack: 0.080, decay: 1.2 };
+      case 3: return { type: 'sine', ratio: 0.50, mix: 0.28, attack: 0.080, decay: 1.2 };
       case 4: return { type: 'sine', ratio: 2.01, mix: 0.26, attack: 0.005, decay: 4.0 };
       case 5: return { type: 'sine', ratio: 2.76, mix: 0.24, attack: 0.006, decay: 2.6 };
       case 6: return { type: 'triangle', ratio: 0.00, mix: 0.00, attack: 0.004, decay: 5.0 };
@@ -563,33 +581,52 @@
     }
   }
 
-  function playVoice(voice, f0, f1, t, dur, gain, dest) {
+  // One voice family: a fundamental plus an optional partial, shaped by
+  // the shared attack and decay envelope. `ctx` defaults to the live
+  // context (the offline E2E hook passes its own). Returns the started
+  // oscillators so scheduled tunes can stop them on a transition.
+  function playVoice(voice, f0, f1, t, dur, gain, dest, ctx) {
+    var C = ctx || AC;
+    if (!C) return null;
     var p = voiceParams(voice);
     var attack = Math.min(p.attack, dur * 0.4);
-    var g = AC.createGain();
+    // Match the desktop envelope's exponential decay: the note reaches
+    // exp(-decay * (dur - attack)) at its end instead of a fixed ramp.
+    var decayEnd = Math.max(0.0001, gain * Math.exp(-p.decay * Math.max(0, dur - attack)));
+    var nodes = [];
+    var g = C.createGain();
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(Math.max(0.0002, gain), t + Math.max(0.002, attack));
-    g.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.02, dur));
+    var endT = t + Math.max(0.02, dur);
+    g.gain.exponentialRampToValueAtTime(decayEnd, endT);
+    g.gain.exponentialRampToValueAtTime(0.0001, endT + 0.02);
     g.connect(dest);
-    var o = AC.createOscillator();
+    var o = C.createOscillator();
     o.type = p.type;
     o.frequency.setValueAtTime(Math.max(20, f0), t);
     o.frequency.linearRampToValueAtTime(Math.max(20, f1), t + Math.max(0.01, dur));
     o.connect(g);
-    try { o.start(t); o.stop(t + dur + 0.02); } catch (e) { /* ignore */ }
+    try { o.start(t); o.stop(endT + 0.02); } catch (e) { /* ignore */ }
+    nodes.push(o);
     if (p.ratio > 0 && p.mix > 0) {
-      var h = AC.createGain();
+      var h = C.createGain();
       h.gain.setValueAtTime(0.0001, t);
       h.gain.linearRampToValueAtTime(Math.max(0.0002, gain * p.mix), t + Math.max(0.002, attack));
-      h.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.02, dur));
+      h.gain.exponentialRampToValueAtTime(
+        Math.max(0.0001, gain * p.mix * Math.exp(-p.decay * Math.max(0, dur - attack))),
+        endT
+      );
+      h.gain.exponentialRampToValueAtTime(0.0001, endT + 0.02);
       h.connect(dest);
-      var ho = AC.createOscillator();
+      var ho = C.createOscillator();
       ho.type = 'sine';
       ho.frequency.setValueAtTime(Math.max(20, f0 * p.ratio), t);
       ho.frequency.linearRampToValueAtTime(Math.max(20, f1 * p.ratio), t + Math.max(0.01, dur));
       ho.connect(h);
-      try { ho.start(t); ho.stop(t + dur + 0.02); } catch (e) { /* ignore */ }
+      try { ho.start(t); ho.stop(endT + 0.02); } catch (e) { /* ignore */ }
+      nodes.push(ho);
     }
+    return nodes;
   }
 
   function playSfx(cue) {
@@ -617,10 +654,6 @@
     }
   }
 
-  function scheduleNote(midi, t, dur, voice, velocity) {
-    playVoice(voice, midiHz(midi), midiHz(midi), t, dur, velocity, gMusic);
-  }
-
   function tuneBpm() {
     try {
       var b = exp.mc_tune_bpm();
@@ -629,7 +662,67 @@
     return 108;
   }
 
-  function scheduleTuneIteration(job, t0) {
+  // Conservative per-tune normalization: the loudest possible sum of
+  // envelope * (fundamental + partial) across every active note, scaled
+  // so the web music bus honors the shared 0.32 ceiling instead of
+  // riding raw velocity (the desktop normalizes rendered PCM the same way).
+  function tuneGain(id) {
+    if (tuneGainCache[id] !== undefined) return tuneGainCache[id];
+    var gain = 1;
+    try {
+      var len = exp.mc_tune_len(id) >>> 0;
+      if (len > 0) {
+        var beatSec = 60 / tuneBpm();
+        var starts = [], durs = [], voices = [], vels = [];
+        var cursors = [0, 0, 0, 0], end = 0, i, t;
+        for (i = 0; i < len; i++) {
+          var beats = exp.mc_tune_beats(id, i);
+          if (!(beats > 0)) beats = 0.5;
+          var track = exp.mc_tune_meta(id, i, 1) >>> 0;
+          if (track > 3) track = 3;
+          starts.push(cursors[track] * beatSec);
+          durs.push(beats * beatSec);
+          voices.push(exp.mc_tune_meta(id, i, 0) >>> 0);
+          vels.push(exp.mc_tune_meta(id, i, 2));
+          cursors[track] += beats;
+          if (cursors[track] * beatSec > end) end = cursors[track] * beatSec;
+        }
+        var peak = 0;
+        // The voice holds its decayed level for the 20 ms release tail, so
+        // the active window is dur + 20 ms and the envelope freezes at dur.
+        for (t = 0; t < end + 0.02; t += 1 / 960) {
+          var sum = 0;
+          for (i = 0; i < len; i++) {
+            if (!(vels[i] > 0)) continue;
+            var dt = t - starts[i];
+            if (dt < 0 || dt >= durs[i] + 0.02) continue;
+            var p = voiceParams(voices[i]);
+            var envT = Math.min(dt, durs[i]);
+            var attack = Math.min(p.attack, durs[i] * 0.4);
+            var env = attack > 0 ? Math.min(1, envT / attack) : 1;
+            env *= Math.exp(-p.decay * Math.max(0, envT - attack));
+            sum += vels[i] * env * (1 + (p.ratio > 0 ? p.mix : 0));
+          }
+          if (sum > peak) peak = sum;
+        }
+        if (peak > 0) gain = (MUSIC_CEILING * 0.98) / peak;
+      }
+    } catch (e) { gain = 1; }
+    tuneGainCache[id] = gain;
+    return gain;
+  }
+
+  function scheduleNote(midi, t, dur, voice, velocity, job, ctx) {
+    var nodes = playVoice(voice, midiHz(midi), midiHz(midi), t, dur,
+      velocity * (job.gain || 1), job.out, ctx);
+    if (nodes) {
+      for (var i = 0; i < nodes.length; i++) {
+        job.nodes.push({ node: nodes[i], end: t + dur + 0.02 });
+      }
+    }
+  }
+
+  function scheduleTuneIteration(job, t0, ctx) {
     var len = 0;
     try { len = exp.mc_tune_len(job.id) >>> 0; } catch (e) { return t0 + 0.1; }
     var beatSec = 60 / tuneBpm();
@@ -647,46 +740,146 @@
       if (!(beats > 0)) beats = 0.5;
       if (track > 3) track = 3;
       var dur = beats * beatSec;
-      if (midi > 0 && velocity > 0) scheduleNote(midi, t0 + cursors[track], dur, voice, velocity);
+      if (midi > 0 && velocity > 0) scheduleNote(midi, t0 + cursors[track], dur, voice, velocity, job, ctx);
       cursors[track] += dur;
       if (t0 + cursors[track] > end) end = t0 + cursors[track];
     }
     return end;
   }
 
+  function releaseTune(job) {
+    if (!job || !AC) return;
+    var t = AC.currentTime;
+    try {
+      job.out.gain.cancelScheduledValues(t);
+      job.out.gain.setValueAtTime(job.out.gain.value, t);
+      job.out.gain.linearRampToValueAtTime(0.0001, t + 0.02);
+    } catch (e) { /* ignore */ }
+    setTimeout(function () {
+      try { job.out.disconnect(); } catch (e) { /* ignore */ }
+    }, 80);
+  }
+
   function pumpTuneJob(job) {
     if (!tuneJob || tuneJob !== job || !AC) return;
+    // A background-throttled tab can leave nextIter in the past; jump it to
+    // the present instead of scheduling a huge catch-up burst.
+    if (job.nextIter < AC.currentTime) job.nextIter = AC.currentTime + 0.02;
     var horizon = AC.currentTime + 0.5;
-    while (job.nextIter < horizon) {
+    var guard = 0;
+    while (job.nextIter < horizon && guard++ < 4) {
       var end = scheduleTuneIteration(job, job.nextIter);
+      if (end <= job.nextIter) end = job.nextIter + 0.1;
       job.nextIter = end;
       if (!job.loop) break;
     }
+    var now = AC.currentTime;
+    job.nodes = job.nodes.filter(function (n) { return n.end > now; });
     if (job.loop) {
       var wait = Math.max(50, (job.nextIter - AC.currentTime - 0.25) * 1000);
       job.timer = setTimeout(function () { pumpTuneJob(job); }, wait);
     } else {
       var stopIn = Math.max(50, (job.nextIter - AC.currentTime + 0.12) * 1000);
       job.timer = setTimeout(function () {
-        if (tuneJob === job) tuneJob = null;
+        if (tuneJob === job) {
+          tuneJob = null;
+          releaseTune(job);
+          syncAudioDebug();
+        }
       }, stopIn);
     }
   }
 
+  // Stings get their own output on the music bus so they overlap the
+  // active loop (desktop uses a separate stings sink for the same reason)
+  // and never stop it.
+  function startSting(id) {
+    if (!AC) return;
+    var len = 0;
+    try { len = exp.mc_tune_len(id) >>> 0; } catch (e) { return; }
+    if (!len) return;
+    var out = AC.createGain();
+    out.gain.setValueAtTime(1, AC.currentTime);
+    out.connect(gMusic);
+    var job = { id: id, loop: false, nextIter: AC.currentTime + 0.01, timer: null, out: out, gain: tuneGain(id), nodes: [] };
+    var end = scheduleTuneIteration(job, job.nextIter);
+    job.timer = setTimeout(function () {
+      releaseTune(job);
+      for (var i = 0; i < job.nodes.length; i++) {
+        try { job.nodes[i].node.stop(AC.currentTime); } catch (e) { /* ignore */ }
+      }
+    }, Math.max(50, (end - AC.currentTime + 0.12) * 1000));
+  }
+
   function startTune(id, loop) {
     if (!AC) return;
+    var len = 0;
+    try { len = exp.mc_tune_len(id) >>> 0; } catch (e) { return; }
+    if (!len) return;
     stopTune();
     var dataLoop = false;
     try { dataLoop = (exp.mc_tune_looped(id) >>> 0) !== 0; } catch (e) { /* ignore */ }
-    var job = { id: id, loop: !!loop && dataLoop, nextIter: AC.currentTime + 0.06, timer: null };
+    var out = AC.createGain();
+    out.gain.setValueAtTime(1, AC.currentTime);
+    out.connect(gMusic);
+    var job = {
+      id: id,
+      loop: !!loop && dataLoop,
+      nextIter: AC.currentTime + 0.06,
+      timer: null,
+      out: out,
+      gain: tuneGain(id),
+      nodes: []
+    };
     tuneJob = job;
+    syncAudioDebug();
     pumpTuneJob(job);
   }
+
   function stopTune() {
-    if (tuneTimer) { clearTimeout(tuneTimer); tuneTimer = null; }
-    if (tuneJob && tuneJob.timer) clearTimeout(tuneJob.timer);
+    if (!tuneJob) return;
+    var old = tuneJob;
     tuneJob = null;
+    if (old.timer) clearTimeout(old.timer);
+    if (AC) {
+      var t = AC.currentTime;
+      try {
+        old.out.gain.cancelScheduledValues(t);
+        old.out.gain.setValueAtTime(old.out.gain.value, t);
+        old.out.gain.linearRampToValueAtTime(0.0001, t + 0.02);
+      } catch (e) { /* ignore */ }
+      for (var i = 0; i < old.nodes.length; i++) {
+        try { old.nodes[i].node.stop(t + 0.03); } catch (e) { /* already stopped */ }
+      }
+      setTimeout(function () {
+        try { old.out.disconnect(); } catch (e) { /* ignore */ }
+      }, 80);
+    }
+    syncAudioDebug();
   }
+
+  // Offline E2E seam: render one scheduler iteration of a tune through the
+  // real voice graph and return its peak, proving the bus ceiling.
+  window.__mcRenderTunePeak = function (id, seconds) {
+    var OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!exp || !OAC) return Promise.resolve(-1);
+    var secs = seconds > 0 ? seconds : 6;
+    var ctx;
+    try { ctx = new OAC(1, Math.ceil(44100 * secs), 44100); } catch (e) { return Promise.resolve(-1); }
+    var out = ctx.createGain();
+    out.gain.setValueAtTime(1, 0);
+    out.connect(ctx.destination);
+    var job = { id: id, loop: false, nextIter: 0, timer: null, out: out, gain: tuneGain(id), nodes: [] };
+    scheduleTuneIteration(job, 0, ctx);
+    return ctx.startRendering().then(function (buf) {
+      var data = buf.getChannelData(0), peak = 0;
+      for (var i = 0; i < data.length; i++) {
+        var a = Math.abs(data[i]);
+        if (a > peak) peak = a;
+      }
+      return peak;
+    }).catch(function () { return -1; });
+  };
 
   function onCue(cue) {
     var isMusic = false, tune = 0;
@@ -694,7 +887,7 @@
       isMusic = (exp.mc_cue_is_music(cue) >>> 0) !== 0;
       tune = exp.mc_cue_tune(cue) >>> 0;
     } catch (e) { /* ignore */ }
-    if (isMusic) startTune(tune, false); // one-shot sting; loops are driven by mc_poll_music.
+    if (isMusic) startSting(tune); // one-shot sting; loops are driven by mc_poll_music.
     else playSfx(cue);
     if (cue > 0 && cue < CUE_NAMES.length && CUE_NAMES[cue] && !isMusic) {
       lastTuneText = musicState === 1 ? 'TITLE' : musicState === 2 ? 'FRIGHT' : 'OFF';
@@ -710,6 +903,9 @@
     } catch (e) { /* ignore */ }
   }
   function pollMusic() {
+    // Keep the pending music poll for the unlock: draining it before the
+    // AudioContext exists would store the state with no tune job.
+    if (!AC) return;
     try {
       var m = exp.mc_poll_music() >>> 0;
       if (m === NO_CHANGE || m === musicState) return;

@@ -57,7 +57,7 @@ let onConsole = null;
 let onLog = null;
 
 async function evalJs(ws, expr) {
-  const r = await send(ws, 'Runtime.evaluate', { expression: expr, returnByValue: true });
+  const r = await send(ws, 'Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true });
   if (r.exceptionDetails) throw new Error('eval threw: ' + JSON.stringify(r.exceptionDetails).slice(0, 300));
   return r.result.value;
 }
@@ -123,10 +123,38 @@ async function shot(ws, path) {
   })()`);
   assert(chip && chip[0] === false && chip[1] === 'BUTTON' && /tap to wake/i.test(chip[2]),
     'audio unlock chip is visible before the first gesture, got: ' + JSON.stringify(chip));
-  // Keyboard focus contract: boot auto-focuses Start, ArrowDown moves off it,
-  // and P/Esc/M keep working from a focused panel action (round-23 review).
+  // Boot focus is read before any gesture so the assertion proves the page
+  // itself focused Start, not the script restoring it later.
   const bootFocus = await evalJs(ws, `document.activeElement && document.activeElement.id`);
   assert(bootFocus === 'btn-start', 'title auto-focuses Start, got: ' + bootFocus);
+  // The chip is the first trusted gesture (before any key event), so the
+  // retirement assertion cannot pass via a keydown that woke audio instead.
+  const chipPt = await evalJs(ws, `(() => { const r = document.getElementById('btn-audio').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`);
+  await send(ws, 'Input.dispatchMouseEvent', { type: 'mousePressed', x: chipPt[0], y: chipPt[1], button: 'left', clickCount: 1 });
+  await send(ws, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: chipPt[0], y: chipPt[1], button: 'left', clickCount: 1 });
+  await sleep(600);
+  const chipHidden = await evalJs(ws, `document.getElementById('btn-audio').hidden`);
+  assert(chipHidden === true, 'audio unlock chip retires once the context is awake');
+  const audioAfterChip = await evalJs(ws, `window.__mcAudio || null`);
+  assert(audioAfterChip && audioAfterChip.state === 'running',
+    'the chip click starts the audio context, got: ' + JSON.stringify(audioAfterChip));
+  assert(audioAfterChip.music === 1 && audioAfterChip.tune === 0 && audioAfterChip.loop === true,
+    'title music starts after the first gesture, got: ' + JSON.stringify(audioAfterChip));
+  // Offline render through the real scheduler: the web music bus must honor
+  // the documented 0.32 ceiling for every tune.
+  const tunePeaks = await evalJs(ws, `(async () => {
+    const peaks = [];
+    for (let id = 0; id <= 4; id++) peaks.push(await window.__mcRenderTunePeak(id, 8));
+    return peaks;
+  })()`);
+  const peakBad = tunePeaks.filter((p) => !(p >= 0) || p > 0.3201);
+  assert(peakBad.length === 0,
+    'web tunes stay under the 0.32 music ceiling, got: ' + JSON.stringify(tunePeaks));
+  assert(tunePeaks.every((p) => p > 0.01),
+    'web tunes are audible offline, got: ' + JSON.stringify(tunePeaks));
+  // Keyboard focus contract: ArrowDown moves off Start, and P/Esc/M keep
+  // working from a focused panel action (round-23 review).
+  await evalJs(ws, `document.getElementById('btn-start').focus()`);
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'ArrowDown', key: 'ArrowDown', windowsVirtualKeyCode: 40 });
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'ArrowDown', key: 'ArrowDown', windowsVirtualKeyCode: 40 });
   await sleep(150);
@@ -134,10 +162,6 @@ async function shot(ws, path) {
   assert(focusMoved !== 'btn-start' && focusMoved !== '',
     'ArrowDown moves focus off the auto-focused Start, got: ' + focusMoved);
   await evalJs(ws, `document.getElementById('btn-start').focus()`);
-  await evalJs(ws, `document.getElementById('btn-audio').click()`);
-  await sleep(500);
-  const chipHidden = await evalJs(ws, `document.getElementById('btn-audio').hidden`);
-  assert(chipHidden === true, 'audio unlock chip retires once the context is awake');
   await send(ws, 'Page.bringToFront');
   const descSwitches = await evalJs(ws, `(() => {
     document.getElementById('btn-title-help').focus();
