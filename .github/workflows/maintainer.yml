@@ -297,6 +297,12 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
+          # Issue #743 follow-on: the Maintainer prompt is staged outside this
+          # workspace under $RUNNER_TEMP/lab-prompts, so grant its
+          # external_directory read via the supported OPENCODE_PERMISSION
+          # channel. This stays correct when the project-config opt-out lands
+          # (issue #745), which would otherwise disable the repo permission.
+          OPENCODE_PERMISSION: '{"external_directory":{"*":"allow"}}'
           VARIANT: max
           MODEL_CANDIDATES: ${{ steps.model_ladder.outputs.candidates }}
           USE_GITHUB_TOKEN: "true"
