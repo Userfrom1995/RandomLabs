@@ -5,7 +5,8 @@
 #   bash maze-chase/packaging/terminal/linux-tarball.sh
 #
 # Output: dist/maze-chase-terminal-<version>-<os>-<arch>.tar.gz with the
-# binary plus the launch guide. No system dependencies: the terminal
+# binary, the install/uninstall scripts, and the launch guide. No system
+# dependencies: the terminal
 # game only needs crossterm (pure Rust) and a real terminal at runtime.
 # The tarball name records the release machine (linux-x86_64,
 # darwin-arm64, ...); cross-OS tarballs are never produced. On GNU tar
@@ -24,6 +25,8 @@ cargo build --release -p maze-chase-terminal --manifest-path "$ROOT/Cargo.toml"
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
 install -m 0755 "$ROOT/target/release/maze-chase-terminal" "$STAGE/maze-chase-terminal"
+install -m 0755 "$HERE/install-linux.sh" "$STAGE/install-linux.sh"
+install -m 0755 "$HERE/uninstall-linux.sh" "$STAGE/uninstall-linux.sh"
 install -m 0644 "$ROOT/docs/terminal.md" "$STAGE/README-terminal.md"
 install -m 0644 "$REPO_ROOT/LICENSE" "$STAGE/LICENSE"
 

@@ -23,6 +23,7 @@ workspace_version() {
     /^\[/ { inside = 0 }
     inside && $1 == "version" {
       value = $3
+      gsub(/\r/, "", value)
       gsub(/"/, "", value)
       print value
       exit
@@ -112,19 +113,67 @@ write_checksums() {
   )
 }
 
-# Build a byte-stable tar.gz on GNU tar (Linux) and a documented
-# best-effort archive elsewhere (bsdtar cannot express every metadata
-# pin). Callers record the resulting digest either way.
+# Build a byte-stable tar.gz. GNU tar pins every metadata field in one
+# pass; macOS hosts (bsdtar) cannot express the same pins, so a small
+# Python writer produces the same sorted, fixed-metadata gzip stream.
+# A host with neither tool fails loudly: a non-deterministic archive
+# must never be quietly published as reproducible.
 reproducible_targz() {
   local stage="$1" out="$2"
   rm -f "$out"
+  # The top-level entry inherits the stage directory mode; pin it so the
+  # caller's umask cannot change the archive bytes.
+  chmod 0755 "$stage"
   if tar --version 2>/dev/null | grep -q 'GNU tar'; then
     tar --sort=name \
       --mtime="@${SOURCE_DATE_EPOCH}" \
       --owner=0 --group=0 --numeric-owner \
+      --mode='u+rwX,go+rX,go-w' \
       -cf - -C "$stage" . | gzip -9n >"$out"
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 - "$stage" "$out" "$SOURCE_DATE_EPOCH" <<'PY'
+import gzip
+import os
+import sys
+import tarfile
+
+stage, out, epoch = sys.argv[1], sys.argv[2], int(sys.argv[3])
+entries = []
+for root, dirs, files in os.walk(stage):
+    dirs.sort()
+    files.sort()
+    rel_root = os.path.relpath(root, stage)
+    if rel_root == ".":
+        entries.append((".", root, True))
+        continue
+    entries.append((rel_root, root, True))
+    for name in files:
+        entries.append((os.path.join(rel_root, name), os.path.join(root, name), False))
+entries.sort(key=lambda entry: entry[0])
+
+with open(out, "wb") as raw:
+    with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0, compresslevel=9) as gz:
+        with tarfile.open(fileobj=gz, mode="w", format=tarfile.PAX_FORMAT) as tf:
+            for arcname, path, is_dir in entries:
+                info = tarfile.TarInfo(arcname)
+                info.mtime = epoch
+                info.uid = info.gid = 0
+                info.uname = info.gname = ""
+                if is_dir:
+                    info.type = tarfile.DIRTYPE
+                    info.mode = 0o755
+                    info.size = 0
+                    tf.addfile(info)
+                else:
+                    info.type = tarfile.REGTYPE
+                    info.mode = 0o755 if os.stat(path).st_mode & 0o111 else 0o644
+                    info.size = os.path.getsize(path)
+                    with open(path, "rb") as source:
+                        tf.addfile(info, source)
+PY
   else
-    COPYFILE_DISABLE=1 tar -czf "$out" -C "$stage" .
+    echo "error: reproducible tarballs need GNU tar or python3" >&2
+    return 1
   fi
 }
 

@@ -41,6 +41,13 @@ if ($env:SOURCE_DATE_EPOCH -and $env:SOURCE_DATE_EPOCH -match '^\d+$') {
         $SourceDateEpoch = [int64]$stamp
     }
 }
+# ZipArchiveEntry timestamps reject dates before 1980-01-01. A missing
+# SOURCE_DATE_EPOCH on a non-git tree would leave the epoch at 0 (1970)
+# and make every zip reproducible-writer call throw.
+if ($SourceDateEpoch -lt 315532800) {
+    Write-Warning "SOURCE_DATE_EPOCH is $SourceDateEpoch (before 1980-01-01); clamping zip timestamps to 315532800"
+    $SourceDateEpoch = 315532800
+}
 
 function Get-Sha256 {
     param([string]$Path)

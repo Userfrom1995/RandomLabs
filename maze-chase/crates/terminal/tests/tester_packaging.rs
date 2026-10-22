@@ -285,6 +285,220 @@ fn release_tag_gate_is_fail_closed() {
     );
 }
 
+fn scratch_dir(name: &str) -> PathBuf {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    let dir = std::env::temp_dir().join(format!(
+        "maze-chase-packaging-{}-{name}-{nanos}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("create scratch dir");
+    dir
+}
+
+#[test]
+fn check_tag_gate_tolerates_a_crlf_workspace_manifest() {
+    // Windows checkouts with core.autocrlf=true deliver CRLF manifests;
+    // the parity gate must read the version without the carriage return.
+    let root = scratch_dir("crlf-tag");
+    let release = root.join("packaging").join("release");
+    std::fs::create_dir_all(&release).unwrap();
+    std::fs::copy(
+        maze_root().join("packaging").join("common.sh"),
+        root.join("packaging").join("common.sh"),
+    )
+    .unwrap();
+    std::fs::copy(
+        maze_root()
+            .join("packaging")
+            .join("release")
+            .join("check-tag.sh"),
+        release.join("check-tag.sh"),
+    )
+    .unwrap();
+    let manifest = "[workspace]\nmembers = []\n\n[workspace.package]\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\n";
+    std::fs::write(
+        root.join("Cargo.toml"),
+        manifest.replace('\n', "\r\n").as_bytes(),
+    )
+    .unwrap();
+    let gate = release.join("check-tag.sh");
+    let run = |tag: &str| {
+        Command::new("bash")
+            .arg(&gate)
+            .arg(tag)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .expect("spawn check-tag.sh against the CRLF manifest")
+    };
+    let ok = run("maze-chase-v0.1.0");
+    assert!(
+        ok.status.success(),
+        "a CRLF manifest must still match the tag, stderr: {}",
+        String::from_utf8_lossy(&ok.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&ok.stdout).contains("0.1.0"),
+        "the reported workspace version must have no carriage return: {}",
+        String::from_utf8_lossy(&ok.stdout)
+    );
+    assert!(
+        !run("maze-chase-v0.2.0").status.success(),
+        "a CRLF manifest must not defeat the mismatch gate"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn reproducible_tarball_digest_ignores_the_caller_umask() {
+    let root = scratch_dir("umask-tar");
+    let common = maze_root().join("packaging").join("common.sh");
+    // The stage itself must be created under the umask under test: a
+    // pre-created 0755 stage would hide a missing stage-mode pin, and
+    // pre-created 0644 files would hide a missing tar --mode pin.
+    let build = |mask: &str, stage: &PathBuf, out: &PathBuf, path: Option<&str>| {
+        let mut cmd = Command::new("bash");
+        cmd.arg("-c")
+            .arg(
+                "umask \"$1\"; stage=\"$3\"; rm -rf \"$stage\"; mkdir -p \"$stage/nested\"; \
+                 printf 'payload\\n' > \"$stage/payload\"; chmod +x \"$stage/payload\"; \
+                 printf 'docs\\n' > \"$stage/nested/doc.md\"; . \"$2\"; \
+                 reproducible_targz \"$stage\" \"$4\"",
+            )
+            .arg("build")
+            .arg(mask)
+            .arg(&common)
+            .arg(stage)
+            .arg(out)
+            .env("SOURCE_DATE_EPOCH", "1700000000")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        if let Some(path) = path {
+            cmd.env("PATH", path);
+        }
+        let status = cmd.output().expect("spawn reproducible_targz");
+        assert!(
+            status.status.success(),
+            "tarball build under umask {mask} failed: {}",
+            String::from_utf8_lossy(&status.stderr)
+        );
+        std::fs::read(out).expect("read staged tarball")
+    };
+    let wide = build(
+        "022",
+        &root.join("stage-022"),
+        &root.join("umask-022.tar.gz"),
+        None,
+    );
+    let tight = build(
+        "077",
+        &root.join("stage-077"),
+        &root.join("umask-077.tar.gz"),
+        None,
+    );
+    assert_eq!(
+        wide, tight,
+        "the archive bytes must not depend on the caller's umask"
+    );
+    // macOS has bsdtar, not GNU tar: force the Python writer and prove it
+    // is deterministic too, with the same umask matrix.
+    let fake_bin = root.join("fakebin");
+    std::fs::create_dir_all(&fake_bin).unwrap();
+    let fake_tar = fake_bin.join("tar");
+    std::fs::write(&fake_tar, b"#!/bin/sh\nexit 1\n").unwrap();
+    std::fs::set_permissions(&fake_tar, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let path = format!("{}:/usr/bin:/bin", fake_bin.display());
+    let py_wide = build(
+        "022",
+        &root.join("py-stage-022"),
+        &root.join("py-umask-022.tar.gz"),
+        Some(&path),
+    );
+    let py_tight = build(
+        "077",
+        &root.join("py-stage-077"),
+        &root.join("py-umask-077.tar.gz"),
+        Some(&path),
+    );
+    assert_eq!(
+        py_wide, py_tight,
+        "the Python fallback must not depend on the caller's umask"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn tarballs_ship_the_documented_installers_and_smoke_uses_them() {
+    for layer in ["terminal", "desktop"] {
+        let body = std::fs::read_to_string(
+            maze_root()
+                .join("packaging")
+                .join(layer)
+                .join("linux-tarball.sh"),
+        )
+        .unwrap();
+        for script in ["install-linux.sh", "uninstall-linux.sh"] {
+            assert!(
+                body.contains(&format!("\"$STAGE/{script}\"")),
+                "{layer} tarball must stage {script} so the launch guide works"
+            );
+        }
+    }
+    let smoke = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("release")
+            .join("smoke-linux.sh"),
+    )
+    .unwrap();
+    assert!(
+        smoke.contains("cd \"$unpack\"") && smoke.contains("./install-linux.sh"),
+        "smoke must exercise the installer extracted from the tarball"
+    );
+    let macos = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("release")
+            .join("smoke-macos.sh"),
+    )
+    .unwrap();
+    assert!(
+        macos.contains("maze-chase-terminal-*") && macos.contains("maze-chase-desktop-*"),
+        "macOS smoke must classify terminal and desktop tarballs separately"
+    );
+}
+
+#[test]
+fn release_workflow_binds_new_tags_to_the_built_commit() {
+    let body = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("release")
+            .join("maze-chase-release.yml"),
+    )
+    .unwrap();
+    assert_eq!(
+        body.matches("--target \"$GITHUB_SHA\"").count(),
+        2,
+        "both prerelease and stable create paths must target the tested commit"
+    );
+    assert!(
+        body.contains("TAG_SHA") && body.contains("not the tested commit"),
+        "an existing tag must be proven to point at the built commit before refresh"
+    );
+    assert!(
+        body.contains("--exit-code --tags")
+            && body.contains("exists but its commit cannot be resolved"),
+        "a tag without a release must be validated or fail closed"
+    );
+}
+
 #[test]
 fn packaging_matrix_version_matches_crate() {
     let version = crate_version();

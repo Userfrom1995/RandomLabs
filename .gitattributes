@@ -3,6 +3,11 @@
 # bash -n gates and Git Bash execution (Windows tester note on issue #515).
 *.sh text eol=lf
 
+# The release tag gate reads the workspace version from this manifest.
+# A CRLF checkout on a Windows runner would otherwise make the version
+# "0.1.0\r" and fail tag parity before any build starts.
+maze-chase/Cargo.toml text eol=lf
+
 # Keep include_str!-embedded sources LF on every checkout. The wasm build
 # embeds these working-tree bytes verbatim, and a CRLF checkout under
 # core.autocrlf=true silently changed the committed web/maze-chase.wasm
