@@ -91,6 +91,7 @@ pub enum SettingsRow {
     Music,
     Sfx,
     Mute,
+    Chime,
     ReducedFlash,
     ReducedMotion,
     HighContrast,
@@ -99,13 +100,14 @@ pub enum SettingsRow {
 }
 
 impl SettingsRow {
-    pub const ALL: [SettingsRow; 11] = [
+    pub const ALL: [SettingsRow; 12] = [
         SettingsRow::Difficulty,
         SettingsRow::Theme,
         SettingsRow::Master,
         SettingsRow::Music,
         SettingsRow::Sfx,
         SettingsRow::Mute,
+        SettingsRow::Chime,
         SettingsRow::ReducedFlash,
         SettingsRow::ReducedMotion,
         SettingsRow::HighContrast,
@@ -245,6 +247,10 @@ impl Screens {
                         self.settings.mute = !self.settings.mute;
                         Event::SettingsCommitted
                     }
+                    SettingsRow::Chime => {
+                        self.settings.terminal_chime = !self.settings.terminal_chime;
+                        Event::SettingsCommitted
+                    }
                     SettingsRow::ReducedFlash => {
                         self.settings.reduced_flash = !self.settings.reduced_flash;
                         Event::SettingsCommitted
@@ -363,6 +369,9 @@ impl Screens {
             SettingsRow::Mute => {
                 self.settings.mute = !self.settings.mute;
             }
+            SettingsRow::Chime => {
+                self.settings.terminal_chime = !self.settings.terminal_chime;
+            }
             SettingsRow::ReducedFlash => {
                 self.settings.reduced_flash = !self.settings.reduced_flash;
             }
@@ -410,6 +419,14 @@ impl Screens {
             (
                 "Mute".into(),
                 if s.mute { "on".into() } else { "off".into() },
+            ),
+            (
+                "Terminal chime".into(),
+                if s.terminal_chime {
+                    "on".into()
+                } else {
+                    "off".into()
+                },
             ),
             (
                 "Reduced flashing".into(),
