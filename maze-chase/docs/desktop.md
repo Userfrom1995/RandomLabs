@@ -96,9 +96,10 @@ from level 1, Standard is Classic from level 2, Harsh is Sprint
 ## Audio
 
 Layered one-shot effects and the five original multi-track tunes
-synthesize at runtime (44.1 kHz) from the shared audio data: six voice
-families build short plucks, drops, reeds, drones, glass, and bells,
-and the music runs at the single shared 108 BPM with swung eighths.
+synthesize at runtime (44.1 kHz) from the shared audio data: seven
+voice families build mallet plucks, drops, reeds, drones, glass,
+bells, and dry plucks, and the music runs at the single shared 108 BPM
+with swung eighths.
 The title lead, counterline, and drop accents schedule on separate
 track lanes. Music defaults to 60 percent and SFX to 80 percent;
 master, music, and SFX gain changes fade over 120 ms, and mute silences
