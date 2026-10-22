@@ -19,7 +19,7 @@ console.log('wasm bytes:', bytes.length);
   const e = inst.exports;
   const assert = (c, m) => { if (!c) { console.error('FAIL:', m); process.exit(1); } };
   const u = (v) => v >>> 0; // wasm i32 results arrive signed; compare unsigned.
-  assert(e.mc_version() === 2, 'version');
+  assert(e.mc_version() === 3, 'version');
   assert(e.mc_screen() === 0, 'boots on title');
   assert(e.mc_poll_music() === 1, 'title music queued');
   assert(u(e.mc_poll_music()) === 0xFFFFFFFF, 'music drains once');
@@ -53,9 +53,17 @@ console.log('wasm bytes:', bytes.length);
   const px2 = Buffer.from(f.memory.buffer.slice(ptr2, ptr2 + f.mc_frame_len()));
   assert(px.equals(px2), 'frames are bit-identical across instances');
   // Audio tables resolve from real audio-crate data.
-  assert(e.mc_tune_bpm() === 132, 'tempo mirrors desktop');
-  assert(e.mc_tune_len(0) === 20, 'title loop has 20 notes, got ' + e.mc_tune_len(0));
+  assert(e.mc_tune_bpm() === 108, 'single 108 BPM tempo');
+  assert(e.mc_fade_ms() === 120, 'live fades are 120 ms');
+  assert(e.mc_tune_len(0) >= 20, 'title loop has lead notes, got ' + e.mc_tune_len(0));
+  assert(e.mc_tune_meta(0, 0, 1) === 0, 'title lead starts on track 0');
+  var tracks = new Set();
+  for (let i = 0; i < e.mc_tune_len(0); i++) tracks.add(e.mc_tune_meta(0, i, 1));
+  assert(tracks.size === 3, 'title carries lead, counterline and drop accents');
   assert(u(e.mc_sfx_wave(1)) !== 0xFFFFFFFF, 'crumb has an SFX recipe');
+  assert(u(e.mc_sfx_tone_count(1)) >= 2, 'crumb is a layered pluck');
+  assert(u(e.mc_sfx_tone_count(6)) >= 3, 'relish is a sparkling triad');
+  assert(u(e.mc_sfx_tone_field(1, 0, 7)) === 6, 'crumb uses the dry pluck voice');
   assert(u(e.mc_sfx_wave(8)) === 0xFFFFFFFF, 'death sting is music-only');
   assert(e.mc_cue_is_music(8) === 1 && e.mc_cue_tune(8) === 2, 'death maps to sting 2');
   assert(e.mc_theme_count() >= 3, 'three themes ship');

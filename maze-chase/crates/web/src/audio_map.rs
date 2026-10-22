@@ -7,7 +7,8 @@
 
 use maze_chase_audio::cue::Cue;
 use maze_chase_audio::score::{
-    self, Sfx, Tune, Wave, CLEAR_JINGLE, DEATH_STING, FRIGHT_LOOP, GAMEOVER_STING, TITLE_LOOP,
+    self, presentation_beats, Sfx, Tone, Tune, Voice, Wave, CLEAR_JINGLE, DEATH_STING, FRIGHT_LOOP,
+    GAMEOVER_STING, TEMPO, TITLE_LOOP,
 };
 use maze_chase_audio::sink::TuneId;
 
@@ -59,10 +60,9 @@ pub const CUE_MUTE_TOGGLE: u32 = 22;
 /// Highest cue code.
 pub const CUE_MAX: u32 = 22;
 
-/// Presentation tempo in beats per minute. Tune data carries beats only;
-/// the layer chooses the tempo: this mirrors the desktop synth's
-/// `TUNE_BPM` so loops feel identical across layers.
-pub const TUNE_BPM: f32 = 132.0;
+/// Presentation tempo in beats per minute: the shared audio-crate
+/// [`TEMPO`]. No layer owns a second BPM value.
+pub const TUNE_BPM: f32 = TEMPO;
 
 /// Map a [`Cue`] to its stable wire code.
 pub fn cue_code(cue: Cue) -> u32 {
@@ -148,6 +148,49 @@ pub fn wave_code(wave: Wave) -> u32 {
         Wave::Triangle => 1,
         Wave::Sine => 2,
         Wave::Noise => 3,
+    }
+}
+
+/// Tune metadata field for note `i`: 0 voice code, 1 track, 2 velocity.
+/// Returns 0.0 for out-of-range ids/indices.
+pub fn tune_meta_for_id(id: u32, i: u32, field: u32) -> f32 {
+    let Some(note) = tune_for_id(id).and_then(|t| t.notes.get(i as usize).copied()) else {
+        return 0.0;
+    };
+    match field {
+        0 => note.voice.code() as f32,
+        1 => note.track as f32,
+        2 => note.velocity,
+        _ => 0.0,
+    }
+}
+
+/// Presentation length of note `i` after swung eighths (0.0 out of range).
+pub fn tune_note_beats(id: u32, i: u32) -> f32 {
+    tune_for_id(id)
+        .map(|tune| presentation_beats(&tune, i as usize))
+        .unwrap_or(0.0)
+}
+
+/// Stable voice code for the wire (0 mallet, 1 drop, 2 reed, 3 drone,
+/// 4 glass, 5 bell, 6 pluck).
+pub fn voice_code(voice: Voice) -> u32 {
+    voice.code() as u32
+}
+
+/// Tone layer field: 0 wave, 1 from Hz, 2 to Hz, 3 ms, 4 delay ms,
+/// 5 gain, 6 variation, 7 voice code.
+pub fn tone_field(tone: Tone, sfx: Sfx, field: u32) -> f32 {
+    match field {
+        0 => wave_code(tone.voice.wave()) as f32,
+        1 => tone.from_hz * sfx.pitch,
+        2 => tone.to_hz * sfx.pitch,
+        3 => tone.ms as f32,
+        4 => tone.delay_ms as f32,
+        5 => tone.gain,
+        6 => sfx.variation,
+        7 => voice_code(tone.voice) as f32,
+        _ => 0.0,
     }
 }
 
@@ -274,7 +317,10 @@ mod tests {
             let tune = tune_for_id(id).expect("tune exists");
             assert!(!tune.notes.is_empty());
             for note in tune.notes {
-                assert!((21..=108).contains(&note.midi), "midi range");
+                assert!(
+                    note.midi == 0 || (21..=108).contains(&note.midi),
+                    "midi range"
+                );
                 assert!(note.beats > 0.0, "positive beats");
             }
         }
@@ -288,10 +334,11 @@ mod tests {
         // Chain arm is engine domain 0..=3; out-of-range clamps, never wraps.
         let low = sfx_for_code(CUE_WARDEN_EATEN, 0).expect("sfx");
         let high = sfx_for_code(CUE_WARDEN_EATEN, 3).expect("sfx");
-        assert_eq!(low.from_hz, 400.0);
-        assert_eq!(high.from_hz, 3200.0);
-        assert!(high.from_hz > low.from_hz, "chain raises pitch");
-        assert_eq!(sfx_for_code(CUE_WARDEN_EATEN, 9).unwrap().from_hz, 3200.0);
+        let hz = |sfx: Sfx| sfx.first().unwrap().from_hz * sfx.pitch;
+        assert_eq!(hz(low), 400.0);
+        assert_eq!(hz(high), 3200.0);
+        assert!(hz(high) > hz(low), "chain raises pitch");
+        assert_eq!(hz(sfx_for_code(CUE_WARDEN_EATEN, 9).unwrap()), 3200.0);
         assert!(sfx_for_code(CUE_DEATH, 1).is_none(), "stings use tunes");
         assert!(sfx_for_code(0, 1).is_none());
         assert!(sfx_for_code(99, 1).is_none());

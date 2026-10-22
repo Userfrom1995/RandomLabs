@@ -72,10 +72,10 @@ fn write_bytes(dst: *mut u8, cap: u32, src: &[u8]) -> u32 {
     n as u32
 }
 
-/// Bridge version the harness gates on (must be 2).
+/// Bridge version the harness gates on (must be 3).
 #[no_mangle]
 pub extern "C" fn mc_version() -> u32 {
-    2
+    3
 }
 
 /// Start (or restart) a run. `level` 0 selects the difficulty preset
@@ -531,40 +531,59 @@ pub extern "C" fn mc_last_chain() -> u32 {
     session().last_chain().min(3) as u32 + 1
 }
 
-/// SFX waveform code (0 square, 1 triangle, 2 sine, 3 noise;
-/// `0xFFFF_FFFF` when the cue has no SFX recipe).
+/// SFX waveform code for the first tone (0 square, 1 triangle, 2 sine,
+/// 3 noise; `0xFFFF_FFFF` when the cue has no SFX recipe).
 #[no_mangle]
 pub extern "C" fn mc_sfx_wave(code: u32) -> u32 {
-    match audio_map::sfx_for_code(code, session().last_chain()) {
-        Some(sfx) => audio_map::wave_code(sfx.wave),
+    match audio_map::sfx_for_code(code, session().last_chain()).and_then(|sfx| sfx.first()) {
+        Some(tone) => audio_map::wave_code(tone.voice.wave()),
         None => 0xFFFF_FFFF,
     }
 }
 
-/// SFX start frequency in Hz (0.0 when no recipe).
+/// First-tone start frequency in Hz (0.0 when no recipe).
 #[no_mangle]
 pub extern "C" fn mc_sfx_from(code: u32) -> f32 {
-    match audio_map::sfx_for_code(code, session().last_chain()) {
-        Some(sfx) => sfx.from_hz,
-        None => 0.0,
-    }
+    audio_map::sfx_for_code(code, session().last_chain())
+        .and_then(|sfx| sfx.first().map(|tone| tone.from_hz * sfx.pitch))
+        .unwrap_or(0.0)
 }
 
-/// SFX end frequency in Hz (0.0 when no recipe).
+/// First-tone end frequency in Hz (0.0 when no recipe).
 #[no_mangle]
 pub extern "C" fn mc_sfx_to(code: u32) -> f32 {
-    match audio_map::sfx_for_code(code, session().last_chain()) {
-        Some(sfx) => sfx.to_hz,
-        None => 0.0,
-    }
+    audio_map::sfx_for_code(code, session().last_chain())
+        .and_then(|sfx| sfx.first().map(|tone| tone.to_hz * sfx.pitch))
+        .unwrap_or(0.0)
 }
 
-/// SFX length in ms (0 when no recipe).
+/// Whole-recipe length in ms including layered delays (0 when no recipe).
 #[no_mangle]
 pub extern "C" fn mc_sfx_ms(code: u32) -> u32 {
     match audio_map::sfx_for_code(code, session().last_chain()) {
-        Some(sfx) => sfx.ms,
+        Some(sfx) => sfx.ms(),
         None => 0,
+    }
+}
+
+/// Number of layered tones in a cue's SFX recipe (0 when none).
+#[no_mangle]
+pub extern "C" fn mc_sfx_tone_count(code: u32) -> u32 {
+    match audio_map::sfx_for_code(code, session().last_chain()) {
+        Some(sfx) => sfx.tones.len() as u32,
+        None => 0,
+    }
+}
+
+/// One field of one SFX tone layer (see [`audio_map::tone_field`]).
+#[no_mangle]
+pub extern "C" fn mc_sfx_tone_field(code: u32, i: u32, field: u32) -> f32 {
+    match audio_map::sfx_for_code(code, session().last_chain()) {
+        Some(sfx) => match sfx.tones.get(i as usize) {
+            Some(tone) => audio_map::tone_field(*tone, sfx, field),
+            None => 0.0,
+        },
+        None => 0.0,
     }
 }
 
@@ -589,13 +608,18 @@ pub extern "C" fn mc_tune_midi(id: u32, i: u32) -> u32 {
     }
 }
 
-/// Tune note length in beats (0.0 when out of range).
+/// Tune note presentation length in beats after swung eighths (0.0 when
+/// out of range).
 #[no_mangle]
 pub extern "C" fn mc_tune_beats(id: u32, i: u32) -> f32 {
-    match audio_map::tune_for_id(id) {
-        Some(tune) => tune.notes.get(i as usize).map(|n| n.beats).unwrap_or(0.0),
-        None => 0.0,
-    }
+    audio_map::tune_note_beats(id, i)
+}
+
+/// Tune metadata field: 0 voice code, 1 track, 2 velocity (0.0 out of
+/// range).
+#[no_mangle]
+pub extern "C" fn mc_tune_meta(id: u32, i: u32, field: u32) -> f32 {
+    audio_map::tune_meta_for_id(id, i, field)
 }
 
 /// 1 when the tune loops.
@@ -607,10 +631,16 @@ pub extern "C" fn mc_tune_looped(id: u32) -> u32 {
     }
 }
 
-/// Presentation tempo in beats per minute (mirrors the desktop synth).
+/// Presentation tempo in beats per minute (the shared audio-crate TEMPO).
 #[no_mangle]
 pub extern "C" fn mc_tune_bpm() -> f32 {
     audio_map::TUNE_BPM
+}
+
+/// Live level fade duration in milliseconds (shared by every layer).
+#[no_mangle]
+pub extern "C" fn mc_fade_ms() -> u32 {
+    maze_chase_audio::score::FADE_MS
 }
 
 /// Paint the board scaled into a `w`x`h` RGBA buffer and return its
@@ -659,7 +689,7 @@ mod tests {
     fn session_starts_clean() {
         // Statics are shared across tests in one binary: only assert the
         // API shape here, behavior lives in the session tests.
-        assert_eq!(mc_version(), 2);
+        assert_eq!(mc_version(), 3);
         assert!(mc_scratch_len() as usize >= SCRATCH_LEN);
         assert!(!mc_scratch().is_null());
     }
