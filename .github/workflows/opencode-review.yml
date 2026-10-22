@@ -30,6 +30,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
+          PATH: /usr/bin:/bin
         run: |
           pr="${{ github.event.issue.number }}"
           is_pr="${{ github.event.issue.pull_request != null }}"
@@ -130,6 +131,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
+          PATH: /usr/bin:/bin
         run: |
           gh issue comment "${{ github.event.issue.number }}" \
             --repo "${{ github.repository }}" \
@@ -142,31 +144,6 @@ jobs:
           oid=$(git rev-parse --verify HEAD 2>/dev/null || echo "")
           echo "oid=$oid" >> "$GITHUB_OUTPUT"
           echo "Checked-out PR head: ${oid:-<none>}"
-
-      - name: Arm workspace push detector
-        if: steps.pr-info.outputs.is_pr == 'true'
-        run: |
-          # PR #412 head-rewind follow-up: the local branch ref is only a PROXY
-          # for "this workspace pushed" - `git pull --ff-only` and `git reset
-          # --hard origin/<branch>` fast-forward it onto someone else's commit
-          # without ever pushing. A pre-push hook records the real event, so the
-          # restore gate below needs the push itself, not a proxy that a plain
-          # fetch/pull can fake. The hook appends one line per pushed ref in
-          # git's own stdin format (<local ref> <local sha> <remote ref>
-          # <remote sha>), so the marker records WHICH commit this workspace
-          # pushed, not merely THAT it pushed once - an existence-only marker
-          # survives a later external push and would still rewind it. The
-          # marker lives in RUNNER_TEMP because the reviewer's clean-tree step
-          # would delete anything inside the checkout. The hook fires before
-          # the remote accepts, so a push rejected later still leaves a line
-          # whose local sha never landed; the chain check below then fails and
-          # the run skips cleanup - safe direction (rogue garbage stays,
-          # nobody's work is destroyed).
-          hooks="$(git rev-parse --git-path hooks)"
-          mkdir -p "$hooks"
-          printf '#!/bin/sh\ncat >> "${RUNNER_TEMP:-/tmp}/review-workspace-pushed"\nexit 0\n' > "$hooks/pre-push"
-          chmod +x "$hooks/pre-push"
-          echo "pre-push detector armed at $hooks/pre-push"
 
       - name: Configure git identity
         if: steps.pr-info.outputs.is_pr == 'true'
@@ -430,111 +407,51 @@ jobs:
           echo "::error::Reviewer step reported success but wrote no decision file (silent no-op); failing loudly instead of exiting green."
           exit 1
 
-      - name: Restore PR head only when this run's own agent moved it
+      - name: Detect unexpected PR head movement (reviewer is read-only)
         if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true'
         env:
-          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
-          GIT_NO_REPLACE_OBJECTS: "1"
+          GH_TOKEN: ${{ github.token }}
+          PATH: /usr/bin:/bin
           PR: ${{ github.event.issue.number }}
           BRANCH: ${{ steps.pr-info.outputs.head_ref }}
           RECORDED: ${{ steps.pr-info.outputs.head_oid }}
           CHECKOUT_OID: ${{ steps.checkout-head.outputs.oid }}
           REPO: ${{ github.repository }}
         run: |
+          # The Reviewer is contractually read-only and the review job declares
+          # `contents: read`, so nothing in this workflow can move a branch.
+          # This step only observes a head that moved while the review ran (a
+          # concurrent Fixer, Builder, or owner push); it never pushes, so the
+          # PR #412 head-rewind class cannot recur here. The read-only job
+          # permission and this no-push body are pinned by audit rule R7.
+          #
           # Every value is read from env, never via an expression macro inside
           # the script: macros are expanded into the shell text before bash
           # starts, so a contributor-controlled branch name containing $(...)
-          # would execute here with the PAT in scope (GitHub "script
-          # injections"). env: passes the same values as data.
+          # would execute here (GitHub "script injections"). env: passes the
+          # same values as data.
           pr="$PR"
           branch="$BRANCH"
           recorded="$RECORDED"
           checkout_oid="$CHECKOUT_OID"
 
           if [ -z "$branch" ] || [ -z "$checkout_oid" ]; then
-            echo "Branch or checked-out OID unknown; skipping restore."
+            echo "Branch or checked-out OID unknown; skipping head observation."
             exit 0
           fi
 
           actual=$(gh pr view "$pr" --repo "$REPO" --json headRefOid --jq '.headRefOid' 2>/dev/null || echo "")
           if [ -z "$actual" ]; then
-            echo "::warning::Could not read the live head of PR #$pr; refusing to push blind."
+            echo "::warning::Could not read the live head of PR #$pr for observation."
             exit 0
           fi
 
           if [ "$actual" = "$checkout_oid" ]; then
-            echo "PR head unchanged ($checkout_oid); nothing to restore."
+            echo "PR head unchanged ($checkout_oid); nothing to observe."
             exit 0
           fi
 
-          # Ownership gate (PR #412 head rewind). The previous version compared
-          # the live head against a snapshot captured when this run STARTED and
-          # force-pushed that snapshot back, so every push that landed while a
-          # review was still running (Fixer, Builder, owner) was silently
-          # reverted at run end. The Reviewer is contractually read-only, so the
-          # only head movement this step may undo is one made from THIS
-          # workspace. Four independent signals are required, all of them:
-          #   1. this workspace pushed at all (the pre-push marker exists), and
-          #   2. the live head IS that push: the marker records the pushed
-          #      commit, so the last pushed SHA must still equal the live head
-          #      (a marker that only proved "a push happened" would survive a
-          #      later external push and rewind it), and
-          #   3. the local ref agrees (it advanced past the checked-out OID up
-          #      to the live head), and
-          #   4. the pushes form an unbroken chain from the checked-out head to
-          #      the live head (no external commit in between).
-          # The local ref alone is a false-positive proxy: a plain `git pull
-          # --ff-only` or `git reset --hard origin/<branch>` advances it onto
-          # someone else's commit without pushing, and rewinding on that basis
-          # would delete exactly the external work this gate exists to protect.
-          marker="${RUNNER_TEMP:-/tmp}/review-workspace-pushed"
-          marker_sha=""
-          chain_ok="no"
-          if [ -f "$marker" ]; then
-            # Walk every push this workspace made to this branch, in order, and
-            # require an unbroken chain: the first push's remote side must be
-            # the checked-out head, each push must start where the previous one
-            # ended, and the last pushed commit must be the live head. That
-            # proves every commit in checkout..actual was pushed from this
-            # workspace, so restoring to checkout_oid can only drop our own
-            # commits - never an external one that landed in between. Without
-            # the chain, an external push that this workspace pulled and then
-            # pushed on top of is indistinguishable from a pure rogue push.
-            chain_ok=$(awk -v r="refs/heads/$branch" -v want="$checkout_oid" -v live="$actual" '
-              $3 == r {
-                if (n == 0) { if ($4 != want) bad = 1 }
-                else if ($4 != prev) { bad = 1 }
-                prev = $2; n++; last = $2
-              }
-              END {
-                if (n > 0 && !bad && last == live) print "yes"; else print "no"
-              }' "$marker" 2>/dev/null || echo "no")
-            marker_sha=$(awk -v r="refs/heads/$branch" '$3 == r { h = $2 } END { print h }' "$marker" 2>/dev/null || echo "")
-          fi
-          local_head=$(git rev-parse --verify "refs/heads/$branch" 2>/dev/null || git rev-parse HEAD 2>/dev/null || echo "")
-
-          if [ -z "$marker_sha" ]; then
-            echo "::notice::PR #$pr head moved outside this run (no push from this workspace; start snapshot ${recorded:-?}, checkout $checkout_oid, live $actual, local ${local_head:-?}); leaving the head untouched."
-            exit 0
-          fi
-
-          if [ "$marker_sha" != "$actual" ] || [ "$chain_ok" != "yes" ]; then
-            echo "::notice::PR #$pr head not provably this workspace's own push (marker ${marker_sha:-?}, chain ${chain_ok}, start snapshot ${recorded:-?}, checkout $checkout_oid, live $actual, local ${local_head:-?}); leaving the head untouched."
-            exit 0
-          fi
-
-          if [ "$local_head" != "$actual" ] || [ "$local_head" = "$checkout_oid" ]; then
-            echo "::notice::PR #$pr head no longer matches this workspace's own push (start snapshot ${recorded:-?}, checkout $checkout_oid, live $actual, local ${local_head:-?}); leaving the head untouched."
-            exit 0
-          fi
-
-          echo "This run's agent moved $branch ($checkout_oid -> $actual); restoring to $checkout_oid"
-          if git push --force-with-lease="refs/heads/$branch:$actual" origin "$checkout_oid:refs/heads/$branch"; then
-            git reset --hard "$checkout_oid" --quiet 2>/dev/null || true
-            echo "PR head restored to $checkout_oid"
-          else
-            echo "::warning::Restore rejected: $branch moved again after $actual; keeping the newer head."
-          fi
+          echo "::notice::PR #$pr head moved during the review (start snapshot ${recorded:-?}, checkout $checkout_oid, live $actual); the review job is read-only and leaves the head untouched."
 
       - name: Force lab routing for infrastructure PRs
         if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success'
