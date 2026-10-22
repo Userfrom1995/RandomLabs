@@ -6,14 +6,18 @@ on:
 
 permissions:
   # Issue #713 review round 13: the evaluator executes the PR's shipped code,
-  # so its token must be read-only. The workflow's write operations (the
-  # signed verdict, the approval marker, the maintainer handoff, and the
-  # evaluator memory push) all run in hardcoded post-agent steps with the
-  # owner PAT, never with this App token, and the marker is owner-authored so
-  # a PR-controlled agent in any arm cannot forge it.
+  # so its token must stay read-only for repository contents and pull
+  # requests. Issue #743: `opencode github run` reacts to the triggering
+  # comment and posts its session summary at exit, so the token also needs
+  # issues: write or the session dies at bootstrap with HTTP 403. The
+  # workflow's write operations (the signed verdict, the approval marker, the
+  # maintainer handoff, and the evaluator memory push) all run in hardcoded
+  # post-agent steps with the owner PAT, never with this App token, and the
+  # marker is owner-authored so a PR-controlled agent in any arm cannot
+  # forge it.
   contents: read
   pull-requests: read
-  issues: read
+  issues: write
 
 concurrency:
   # Issue #601: every comment on the PR spawns a run (including the workflow's
@@ -512,8 +516,10 @@ jobs:
           # posted with the owner PAT and carries no /oc prefix: approve-eval is
           # a decision action, never a trigger. Owner authorship is the trust
           # anchor (issue #713 review round 13): the evaluator agent holds only
-          # the read-only App token, so PR-controlled code cannot post a
-          # comment as the repository owner. Residual (issue #713 round 17):
+          # a bot-scoped App token that can write issues for the CLI session
+          # (issue #743) but cannot author a comment as the repository owner,
+          # so PR-controlled code cannot forge an owner-authored verdict.
+          # Residual (issue #713 round 17):
           # the evaluator's decision and evidence files live on the agent's
           # writable /tmp, so PR-controlled subprocesses can overwrite them
           # after the evaluator's final write; the run nonce binds them to this

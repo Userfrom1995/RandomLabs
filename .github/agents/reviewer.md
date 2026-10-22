@@ -166,17 +166,19 @@ fi
 ```
 
 - `owner-pat`: this run's workflow publishes your report through its hardcoded
-  owner-PAT step. Do NOT post comments yourself; your issue token is
-  read-only.
+  owner-PAT step. Do NOT post comments yourself. The job token can write
+  issues for the CLI's session bookkeeping (issue #743), so a successful post
+  is not evidence that posting is allowed: only the owner-PAT step publishes
+  the verdict, and the workflow verifies owner authorship before accepting it.
 - `agent-posts`: the running workflow has no owner-PAT publisher. Post exactly
   one signed decision comment to the PR with the same content as your report,
   ending with `- the Reviewer`. It must not lead with `/oc`, `/opencode`, or
   `eval-verdict:` (see the report lead rule above); the workflow's hardcoded
   forward step, not your comment, posts the trigger. This legacy lane keeps
   the gate alive while the owner-PAT publisher rollout is still in flight. If
-  the post is rejected with 403 or any other read-only-token error, treat that
-  as the owner-PAT lane being active: do not retry and continue, because the
-  report file is already written.
+  the post is rejected with 403 (for example a legacy workflow whose token is
+  still read-only), treat that as the owner-PAT lane being active: do not
+  retry and continue, because the report file is already written.
 
 Never post more than one comment. A run that writes the decision file but no
 report is treated as a crash, the verdict is discarded, and the bounded review

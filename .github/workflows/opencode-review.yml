@@ -23,7 +23,13 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
-      issues: read
+      # Issue #743: `opencode github run` reacts to the triggering comment and
+      # posts its session summary at exit, so the agent's job token needs
+      # issues: write or the session dies at bootstrap with HTTP 403. The
+      # Reviewer still cannot move a branch (contents: read), and every
+      # verdict publication stays in the owner-PAT step below, so a PR still
+      # cannot forge a signed review.
+      issues: write
     steps:
       - name: Get PR info
         id: pr-info
@@ -273,7 +279,7 @@ jobs:
 
             SAFETY NET (always binding): you NEVER write code, commit, push, rebase, merge, or create branches/branches/PRs; you are strictly read-only; you may run tests for verification only, and you MUST clean the working tree (`git checkout -- .`, `git clean -fd`, confirm `git status --porcelain` empty) before posting.
             Before ending the run, you MUST write the machine handoff decision to `/tmp/random-lab-decision.json`: `{"action":"test"}` for approval, `{"action":"fix"}` when project code changes are required, `{"action":"continue"}` when project work is incomplete, `{"action":"lab"}` when infrastructure/workflow changes are required, or `{"action":"maintainer"}` to escalate intractable issues. The hardcoded workflow step reads this file; it never parses prose.
-            You MUST write ONE plain text decision report to `/tmp/random-lab-report.md` containing your full review, findings, or approval, ending with your sign-off line `- the Reviewer` as the last non-blank line. Do NOT post comments yourself: your token is read-only for issues (issue #713), and a hardcoded workflow step publishes your report with the owner PAT after you finish. The report file is the publication contract; the workflow verifies it before anything is posted.
+            You MUST write ONE plain text decision report to `/tmp/random-lab-report.md` containing your full review, findings, or approval, ending with your sign-off line `- the Reviewer` as the last non-blank line. Do NOT post comments yourself. The job token can write issues for the CLI's session bookkeeping (issue #743), so a successful post is not evidence that posting is allowed: only the hardcoded owner-PAT workflow step publishes your report after you finish. The report file is the publication contract; the workflow verifies it before anything is posted.
 
       - name: Publish reviewer decision report (owner PAT)
         id: publish-report
@@ -309,11 +315,13 @@ jobs:
           PATH: /usr/bin:/bin
           TARGET: ${{ github.event.issue.number }}
         run: |
-          # Issue #713: the reviewer agent executes PR-controlled code, so its
-          # job token is read-only for issues. The reviewer writes its signed
-          # report to a file; this hardcoded owner-PAT step owns the comment
-          # post. The PAT never reaches the agent step, so a PR cannot forge a
-          # signed review comment with the job token.
+          # Issue #713: the reviewer agent executes PR-controlled code, and its
+          # job token holds issues: write only so the CLI session can start
+          # (issue #743). The reviewer writes its signed report to a file;
+          # this hardcoded owner-PAT step owns the comment post. The PAT never
+          # reaches the agent step, and the publisher verifies owner
+          # authorship, so a PR cannot forge a signed review comment with the
+          # job token.
           if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "No decision file; the verify step below handles the crash."
             exit 0
