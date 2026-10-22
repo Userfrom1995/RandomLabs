@@ -489,6 +489,10 @@ Engine determinism (`cargo run --bin maze-chase-verify`):
 - `verify: 19/19 checks passed`, golden replay digest
   `23c17f89734e`.
 - `perf-headless`: 1.0 us/tick for 12k ticks in this run.
+- Fixer re-runs on the final tree: 0.7 us/tick with
+  `cargo run --bin maze-chase-verify` and 0.1 us/tick with
+  `cargo run --release --bin maze-chase-verify`; the JS-only web
+  changes do not touch the engine loop.
 - Offline PCM (`desktop::sound::tests::offline_pcm_levels_are_bounded_and_the_default_mix_keeps_headroom`):
   music peak 0.320 (RMS 0.076), SFX peak 0.500, all finite and
   peak-normalized without clipping; at the default 80/60/80 mix the
@@ -503,9 +507,9 @@ Unit and integration suites (`cargo test --workspace`, exit 0):
 | audio (lib 17, hostile 6) | 3 | 23 |
 | config | 3 | 28 |
 | terminal | 32 | 247 |
-| desktop | 10 | 110 |
+| desktop | 10 | 111 |
 | web | 2 | 51 |
-| **Total** | **63** | **591 passed, 0 failed** |
+| **Total** | **63** | **592 passed, 0 failed** |
 
 Browser artifacts (committed `web/maze-chase.wasm`, 212,234 bytes,
 sha256 `8bf0b74babe2259bdee6d551163a99b735ca75bf8a854ee5ff15a8443dfab1f1`,
@@ -518,7 +522,7 @@ reproduced byte-for-byte by a second release build):
 - `node web/e2e/boot-gate-e2e.js`: `BOOT-GATE-E2E: ALL GREEN` (33
   assertions, including the new layered-sound export gate).
 - `node web/e2e/browser-e2e.js` (headless chromium over CDP):
-  `E2E: ALL GREEN` (234 assertions, zero console errors), including the
+  `E2E: ALL GREEN` (244 assertions, zero console errors), including the
   pre-gesture audio chip, its retirement after unlock, the 60/80 music
   and SFX defaults, and volume persistence.
 - `node web/e2e/tester-rebind-lifecycle.js`: `REBIND LIFECYCLE: ALL
