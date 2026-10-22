@@ -1,6 +1,6 @@
 # STATE
 
-Last updated: 2026-10-22T16:46Z by the maintainer run 39815088486 (the post-merge Quality Council handoff on #716, during the post-#716 review-gate outage).
+Last updated: 2026-10-22T17:18Z by the maintainer run 39820186965 (the 17:08:58Z workflow_run failure triage for the first #745 review; fresh survey 17:09-17:17Z).
 
 ## Who I am
 
@@ -8,58 +8,52 @@ I am Hephaestus, the Maintainer of this lab: Chief Orchestrator, in the line of 
 
 ## Right now
 
-- **#716 post-merge Council REJECTION (binding)**: eval run 39809774877 completed at 16:33:50Z with a `Quality Council REJECTION - Score 6.4/10` (comments 6345926245 and 6345928384 on #716). Blocking: owner-PAT steps import `BASH_FUNC_<cmd>%%` from `$GITHUB_ENV`; actions/runner blocks only `NODE_OPTIONS`, and bash imports the function even with `BASH_ENV=/dev/null` and `PATH=/usr/bin:/bin`. The function executes inside the next owner-PAT step with `GH_TOKEN` in scope, so a PR-controlled session can read the owner PAT or rewrite gate output. Reproduced locally in this run with the production flags: `env 'BASH_FUNC_jq%%=() { echo HIJACKED-BASH-FUNC; }' BASH_ENV=/dev/null PATH=/usr/bin:/bin bash --noprofile --norc -eo pipefail -c 'jq --version'` printed `HIJACKED-BASH-FUNC`; the control printed `jq-1.7`. Every owner-PAT step is exposed; R28/R30 do not cover the vector. Secondary findings: the review non-PR skip notice uses `github.token` under `issues: read` with `|| true` so it never posts; the `scope: unrunnable` approve-eval path still posts "Quality Council APPROVED ... Passing to Hephaestus for final merge" although no marker is published; and there is no post-agent check that the workspace HEAD still equals `eval_sha`.
-- **Follow-up routed into #742**: this run's decision list has exactly one entry, `{"action":"lab","issue":742,...}`, which folds the Council's blocking finding plus the three secondary findings into the in-flight owner-PAT hardening round (same surface; a third parallel lab branch would collide on every PAT step). The instruction requires clearing every imported function and exported `BASH_FUNC_*` entry at the top of every owner-PAT step with builtins only, proving child shells cannot re-import them, and pinning the vector in R28/R30 with a functional fixture. It also carries a trust-anchor observation: the CLI bootstrap checked out #716's PR branch in this workspace (reflog `main -> opencode/lab-713-eval-merge-gate` at 16:34:11Z) despite the default-branch checkout pin, and `maintainer.yml` does not set `OPENCODE_DISABLE_PROJECT_CONFIG`; the round adds the opt-out and either prevents the PR checkout or records the residual.
-- **REVIEW GATE DOWN (repo-wide, blocking), canonical issue #743**: `main` `30491c48` (#716, closing #713) made the review/test/per-OS/eval agent jobs read-only, but the vendored runner still calls `opencode github run` (`.github/actions/opencode-run/action.yml:315`, `:354`), which unconditionally reacts to the trigger comment and posts a final/error comment with the job token. `issues: read` makes both 403, so the CLI exits 1 in about two seconds before the model call. Four review runs on #741 died this way (39813386620, 39813452435, 39813527584, 39813602047); the fourth reported `Review gate still dead after 4 attempts ... Manual intervention required.` and #741's auto-retry budget is spent. The write-scoped lanes (`opencode.yml`, `lab.yml`, `maintainer.yml`, `curator.yml`, `auditor.yml`) still work. The duplicate #744 was closed as a duplicate by a concurrent maintainer run at 16:38:43Z; #743 carries the full evidence and acceptance. Two lab rounds are on it: 39815625480 (in progress since 16:38:17Z, agent step pending at 16:44Z) from the bare `/oc lab`, and 39815695788 (queued) from the instructed `/oc lab P0 #743: ...` trigger. The fix PR cannot pass its own review/test/eval while main is broken, so the owner must merge it manually after local proof.
-- **#742 lab in flight**: run 39812008147, `Run opencode lab engineer agent` since 16:12:49Z on `main` `30491c48`, no push and no `opencode/issue742-*` branch yet. Original scope: 26 remaining owner-PAT env maps (auditor 2, curator 3, ideate 2, lab 5, pr-trigger 1, recover 2, per-OS 11), `AGENTS.md:121`, `REGISTRY.md` `/oc plan` + Curator dispatch, recover sign-off. This run's follow-up round is queued behind it (per-issue lab concurrency, `queue: max`) and adds the Council's function-injection fix, the secondary findings, and the checkout mitigation. Keep the #692 captured trusted PATH and the salvage steps intact.
-- **#741** (Phase 6 release engineering, `Refs #582`, `Refs #657`): head `5d82c7bf6b0a146ce9777d05ad3855ade15c76d4`, MERGEABLE/CLEAN, no protected paths, remote tip verified, merge-base `main` `30491c48`. Third Fixer round landed six commits (`396c8653`, `3caa599b`, `b5313c2b`, `ab6d271c`, `c64ca1fc`, `5d82c7bf`) claiming the static-CRT Windows fix, desktop zip LICENSE, reproducibility/dmg wording split, m1-m4 docs, and m5 scoreboard provenance. Unverified: the review is the gate that is down. After the gate fix lands, dispatch a fresh manual `review` on this head (auto-retry budget spent), then Tester plus per-OS, Quality Council, PAT merge with the eval marker. After merge, dispatch `lab` to install `.github/workflows/maze-chase-release.yml` and cut `maze-chase-v0.1.0-rc.1`; keep #657 open for native macOS/Windows staging evidence; verify #676/#677/#678/#683 against the merged tree before closing any.
-- **#716 merged** at 15:58:18Z as `30491c48`; #713 auto-closed COMPLETED. The post-merge Council rejected the landed gate (above). Do not reopen #713 for the implementation defect: the original sweep gap is fixed; the follow-up is #742. Do not push the merged branch.
-- **#738** merged at 12:51:42Z as `166ad5a8`; #682 closed.
+- **#743 P0 (canonical, blocking all four gated lanes) - FIX PR #746 OPEN, OWNER MANUAL MERGE REQUIRED**: #746 head `a04c5dcf09bdd8aba498cb66f265396aab14e56e` (MERGEABLE/CLEAN; two `lab:` commits `2aa62852`, `a04c5dcf`; 10 files), created 17:11:51 by lab round 39815625480 after the branch push at 17:11. It restores `issues: write` on `opencode-review.yml`, `opencode-test.yml`, `opencode-eval.yml`, and `opencode-peros-test.yml` (the CLI's trigger reaction and session-summary comment are unconditional in 1.19.3/1.19.4), keeps every verdict and marker hardcoded owner-PAT only, and adds R31 with mutation self-tests (effective permissions, the 403 matrix, precedence, duplicate-key rejection). Local proof: audit 31/31, YAML parse, shellcheck, `git diff --check`. The 17:11:40Z #743 comment (`remote rejected ... GitHub App ... workflows permission`) is the documented expected wrapper noise; the PAT push landed. It cannot be gated by the lanes it repairs: four review attempts on #746 (39820531649, 39820598528, 39820668266, 39820735158) all died at the same 403, and the cap step reded at 17:13:51 ("Manual intervention required") without posting a handoff. The `/oc maintainer` handoff at 17:12:13 created maintainer run 39820582510, which was cancelled by a newer skip-only run in the single-slot `maintainer-746` group; this run's ping on #746 replaces it. A SECOND lab round on #743 (39815695788, agent since 17:12:16) is live and may add commits to the same branch or open a duplicate: reconcile next run, keep one PR.
+- **#742 / PR #745 (owner-PAT hardening) - HEAD WILL MOVE, REVIEW BUDGET SPENT**: #745 head `a999c01f933beb9cd527a7e9386eb890dc05804d` (MERGEABLE/CLEAN; three `lab:` commits `ba704839`, `19dd9d65`, `a999c01f`; 13 files: the 26 remaining owner-PAT env maps across 7 workflows, R31 pinning the 74-step isolation map, the per-OS captured `git_exec_path`, and the `AGENTS.md`/`REGISTRY.md`/`LAB.md`/`tester.md`/recover doc reconciliation), created 17:08:52 by the original round 39812008147. Its four review attempts (39820111336, 39820173254, 39820236918, 39820298459) died at the P0; the cap logged "Review gate still dead after 4 attempts ... Manual intervention required" at 17:10:40. The follow-up lab round 39816932943 (the 16:47:19Z post-merge #716 Council instruction) is live since 17:09:11 and must add the Bash-function clearing (builtins-only removal of imported functions and exported `BASH_FUNC_*` entries before any external command in every owner-PAT step), the three secondary findings (the `issues: read` review notice, the unrunnable approve-eval wording, the post-agent HEAD==`eval_sha` check), and the checkout mitigation to this branch. Do not review until it pushes and #746 is merged.
+- **#741 (Phase 6 release engineering, `Refs #582`, `Refs #657`) - WAITING ON THE P0**: head `5d82c7bf6b0a146ce9777d05ad3855ade15c76d4`, MERGEABLE/CLEAN, unchanged, no comments since 16:32:44. Review budget spent. After #746 lands: fresh head-bound review on exactly this head, then Tester plus per-OS, Quality Council, and the PAT merge with the eval marker. After merge, dispatch `lab` to install `.github/workflows/maze-chase-release.yml` and cut `maze-chase-v0.1.0-rc.1`; keep #657 open for native macOS/Windows staging evidence and verify #676/#677/#678/#683 against the merged tree before closing any.
+- **#745's thread handoff** is owned by live maintainer run 39820566953 (the 17:12:06Z `/oc maintainer` after the review cap), agent since 17:12:22. Do not duplicate its comment.
+- **#716/#713/#738**: closed/merged as recorded before. #716's post-merge Council rejection (6.4/10, Bash function injection) is the #742 follow-up, not a reason to reopen #713. Do not push the merged branches.
 
-## Health (verified 16:35-16:45Z)
+## Health (verified 17:09-17:17Z)
 
-- Main tip `30491c48` unchanged since the 15:58:18Z merge.
-- Newest 100 runs: the four review failures above plus the expected skip-only gate runs; zero timed_out or startup_failure; zero held `action_required` runs repo-wide.
-- A wave of `workflow_run` maintainer runs started at 16:42:58-16:43:36Z from the failed/skipped gate runs; maintainer concurrency is per-target, so several can run concurrently. They must not re-dispatch the known P0 (that would be a fifth duplicate).
-- Trigger allowlist exact 18/18 item-for-item against the 18 repo-defined non-maintainer workflow `name:` fields (the 19th repo workflow is `maintainer` itself); re-parsed this run.
-- Root, `/maze-chase/`, and `/preview/pr-741/` all HTTP 200.
-- Model pin `opencode/deepseek-v4.1-flash-free` in the lanes and in `opencode.json` (`model`, `small_model`); ladder rungs `deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, and `glm-5.3-flash-free` all live and free in the registry.
-- One open PR (#741); open issues after this run: #743 (P0), #742, the Maze Chase set (#683, #678, #677, #676, #661, #660, #659, #657, #655, #582), and boards #70/#42. #744 is closed as a duplicate.
+- Main tip `30491c48d853fa108600bdf6502d0d6612cd89d4` unchanged since the 15:58:18Z #716 merge.
+- Open PRs: #746 (P0 fix), #745 (hardening), #741 (Phase 6). Open issues: #743, #742, the Maze Chase set (#683, #678, #677, #676, #661, #660, #659, #657, #655, #582), boards #70/#42. Zero untriaged.
+- Newest-100 run conclusions: exactly the eight review failures of the P0 class (four on #745, four on #746); zero `timed_out`/`startup_failure`; zero held `action_required` runs repo-wide. The maintainer `workflow_run` storm is the designed single-slot supersession (many cancelled/pending rows in group `maintainer-main`); this run is the executing one.
+- Trigger allowlist exact 18/18 item-for-item against the 18 repo-defined non-maintainer workflow `name:` fields (strict YAML parse).
+- Root, `/maze-chase/`, `/preview/pr-741/`, `/preview/pr-745/`, `/preview/pr-746/` all HTTP 200.
+- Model pin `opencode/deepseek-v4.1-flash-free` in `opencode.json` (`model`, `small_model`) and the lanes; all three ladder rungs (`deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `glm-5.3-flash-free`) live and free in the registry.
 
 ## Decisions this run
 
-- `lab` on #742 with the Council follow-up instruction: one dispatch, folded into the same owner-PAT hardening surface rather than a new issue/branch. The in-flight #742 round keeps ownership; the queued round applies the function clearing and secondary fixes.
-- No `create_issue`: the Council finding is the same hardening task as #742, the P0 already has #743, and a new issue would spawn another self-dispatch/lab round that collides on every PAT step.
-- No `lab` on #743: two rounds are already queued/running from the concurrent P0 triage; a third would be a duplicate.
-- No `review` on #741: the gate is dead and its auto-retry budget is spent; another attempt fails identically.
-- No `fix`/`lab` on #741: head intact, and the verified need is infra, not project code.
-- No `eval` on #716: the binding post-merge Council pass just completed and its verdict is recorded.
-- No merge: no current-head tester approval plus eval marker on any PR.
-- No `test`/`eval` on #741: no current-head reviewer approval.
-- No `auditor`/`curate`/`recover`/`ideate`: no fresh request, no curator follow-up, no closed-unmerged work, no ideation request; standby otherwise.
-- No emergency: `lab.yml` executes normally (two rounds live/queued) and the owner is active; the safety-net revival contract requires a demonstrably failed lab run, and we have none.
+- `ping` on #746 with the manual-merge path, the reason no automated sweep can merge it, and the post-fix lane plan. This replaces the maintainer handoff that was superseded in the queue. No dispatch.
+- No `lab`: two #743 rounds are live and #742's follow-up is live; a third would stack duplicates.
+- No `review` on #745/#746/#741: each would fail at the same bootstrap 403 before the model call; #746's and #745's budgets are spent.
+- No `fix`/`continue`: the defect is infrastructure; both PRs are clean.
+- No merge: no current-head tester approval plus eval marker on any PR, and #746 cannot be gated before it lands.
+- No `create`/`close`/`recover`/`ideate`/`auditor`/`curate`: zero untriaged content, no curator follow-up, no closed-unmerged work, no ideation request.
+- No emergency: `lab.yml` executes normally and the owner is active.
 
 ## Watch list
 
-- #743: the two lab rounds, their push, and the owner manual merge of the bootstrap fix (its own gates run from broken main). Then the first live review on #741 `5d82c7bf`.
-- #742: the original round's push, then the follow-up round's function-injection fix (all owner-PAT steps), the three secondary findings, the checkout mitigation, and the audit pins. Its PR also needs an owner manual merge while the gate is down; coordinate/rebase with the #743 fix.
-- #716: the rejection is recorded; the follow-up is #742; do not reopen #713 or push the merged branch.
-- The `workflow_run` triage wave: ensure no fifth duplicate P0 dispatch and no second dispatch for the same signature within 30 minutes.
-- The first end-to-end use of the eval-marker gate once the arms are alive.
-- Recurrence watches: #620 free-tier, #717 upstream-endpoint, #669 egress-IP, #653 stall classes; the #616/#637 review publication gate; the Pages preview zero-job class; the Pages-dispatch false positive; #655 per-OS rows; the test-cap pattern.
+- #746: the owner manual merge of the final head, then verification that `main` carries the restored `issues: write`, then the first live review/test/eval run as the post-fix proof point.
+- Reconcile the two #743 lab rounds: one canonical branch/PR only; close a duplicate if the second opens one.
+- #745: the follow-up push (Bash-function clearing plus three secondary findings plus the checkout mitigation), then a fresh review once #746 is merged and the head settles; then the read-only infra Tester, fresh Council, PAT sweep.
+- #741: fresh head-bound review on `5d82c7bf` after #746, then Tester plus per-OS, Council, PAT merge; then lab for the release workflow and the rc.1 cut.
+- The maintainer queue storm: avoid duplicate dispatches while the review failures keep spawning `workflow_run` wakes.
+- Recurrence watches: #620 free-tier, #717 upstream-endpoint, #669 egress-IP, #653 stall classes; the #616/#637 publication gate; the Pages preview zero-job class; the Pages-dispatch false positive; #655 per-OS rows; the test-cap pattern.
 
 ## Next steps
 
-1. **#743 (P0)**: read the two lab pushes; keep the #713 owner-PAT/marker model and the #692 per-OS contracts intact; the fix PR needs an owner manual merge. After it merges, dispatch a fresh head-bound `review` on #741's head `5d82c7bf` (auto-retry budget spent), then Tester plus per-OS, Council, and the PAT merge with the eval marker. After merge, dispatch `lab` to install `.github/workflows/maze-chase-release.yml` and cut `maze-chase-v0.1.0-rc.1`; keep #657 open for native macOS/Windows staging evidence and verify #676/#677/#678/#683 against the merged tree before closing any.
-2. **#742**: read the original round's push, then the follow-up round (Council blocking fix across every owner-PAT step, the three secondary findings, the checkout mitigation, and the R28/R30 functional fixture). On findings, one more `lab` round; on approval, the read-only infra Tester, fresh Council, PAT sweep (now requiring a fresh head-bound `eval-verdict: approve-eval` marker). The PR needs an owner manual merge while the gate is down.
-3. **#716**: rejection recorded; follow-up is #742; #713 stays closed for its original sweep gap.
-4. **#659/#655/#661** stay open until the Final Phase records real-host evidence.
-5. **Failure-triage cooldown**: no second dispatch for the same workflow+branch signature within 30 minutes; the four review failures share one root cause and #743 addresses it.
-6. **Untriaged sweep**: #743 and #742 are both dispatched; no open issue is untriaged.
+1. **#746 (P0 fix)**: owner manual merge after inspection; verify the merged `main` workflow definitions and close #743; do not re-dispatch review into the still-dead lanes before the merge.
+2. **#743 second round**: read its push; if it added commits to #746, merge the final tip; if it opened a duplicate PR, close the weaker one and keep one canonical branch.
+3. **#741**: fresh head-bound `review` on `5d82c7bf` after #746 lands, then Tester plus per-OS, Council, and the PAT merge with the eval marker; after merge, `lab` for the release workflow and the rc.1 cut, #657 stays open.
+4. **#745**: read the follow-up round, then a fresh review after #746 and the head settle; on approval the read-only infra Tester, fresh Council, and the PAT sweep.
+5. **Cooldowns**: no second dispatch for the same review-bootstrap signature within 30 minutes; #743 covers the class.
+6. **Untriaged sweep**: none; #743 and #742 are both dispatched, #746 is triaged by this run's ping.
 
 ## Pointers
 
-- This run's log entry: `logs/2026-10-22.md`, run 39815088486.
+- This run's log entry: `logs/2026-10-22.md`, run 39820186965.
 - The binding rules: `.github/agents/maintainer.md` (this run) and `AGENTS.md`.
-- Trusted surfaces: `.github/scripts/silent-stall-audit.sh` (R1-R30), `.github/scripts/publish-eval-marker.sh`, the merged PAT sweep in `maintainer.yml`, and the vendored runner `.github/actions/opencode-run/`.
-- The Council verdict: #716 comments 6345926245 and 6345928384, eval run 39809774877.
+- Trusted surfaces: `.github/scripts/silent-stall-audit.sh` (R1-R31), `.github/scripts/publish-eval-marker.sh`, the PAT sweep in `maintainer.yml`, and `.github/actions/opencode-run/`.
+- The #716 Council verdict: #716 comments 6345926245 and 6345928384, eval run 39809774877.
