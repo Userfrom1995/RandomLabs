@@ -156,7 +156,7 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
-          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GH_TOKEN: ${{ github.token }}
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
@@ -185,7 +185,7 @@ jobs:
         run: |
           gh issue comment "${{ github.event.issue.number }}" \
             --repo "${{ github.repository }}" \
-            --body "/oc review was requested on this issue, but no linked pull request was found. Review only runs on PR branches. If this issue has an open PR, ensure the branch follows the naming convention \`opencode/issue<N>-<slug>\`." || true
+            --body "Review was requested on this issue, but no linked pull request was found. Review only runs on PR branches. If this issue has an open PR, ensure the branch follows the naming convention \`opencode/issue<N>-<slug>\`." || true
 
       - name: Record checked-out PR head
         id: checkout-head
