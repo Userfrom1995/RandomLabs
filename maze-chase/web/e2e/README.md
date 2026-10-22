@@ -17,9 +17,10 @@ on failure and print `ALL GREEN` on success.
 - `boot-gate-e2e.js [page-url] [debug-port]`: serves hand-built stale
   wasm through a page-level `fetch` override and asserts the error card
   for a version-1 module missing `mc_fright_segments`, an ABI version
-  skew, and an ABI-2 module missing one export from each first-frame
-  group (fright flash, reduced flash, theme, difficulty), with the boot
-  status never reaching Ready.
+  skew, and an ABI-3 module missing one export from each first-frame
+  group (fright flash, reduced flash, theme, difficulty) or the layered
+  sound table (`mc_sfx_tone_count`), with the boot status never reaching
+  Ready.
 - `browser-e2e.js [page-url] [debug-port]`: drives the served
   `play.html` in headless chromium over CDP with node's built-in
   WebSocket (boot with zero console errors, title visible, canvas
@@ -45,5 +46,5 @@ node web/e2e/browser-e2e.js
 The wasm must match the harness: rebuild with
 `cargo build --release --target wasm32-unknown-unknown -p maze-chase-web`
 and copy the artifact to `web/maze-chase.wasm` first (see
-`docs/web.md`). The page gates on `mc_version() == 2`, so skew fails
+`docs/web.md`). The page gates on `mc_version() == 3`, so skew fails
 loudly instead of half-working.

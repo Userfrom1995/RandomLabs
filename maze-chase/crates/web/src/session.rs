@@ -934,7 +934,8 @@ mod tests {
         assert_eq!(s.last_chain().min(3) as u32 + 1, 1, "wire chain 1");
         let low = audio_map::sfx_for_code(audio_map::CUE_WARDEN_EATEN, s.last_chain())
             .expect("warden sfx");
-        assert_eq!(low.from_hz, 400.0, "first warden plays 400 Hz, not 800");
+        let hz = |sfx: maze_chase_audio::score::Sfx| sfx.first().unwrap().from_hz * sfx.pitch;
+        assert_eq!(hz(low), 400.0, "first warden plays 400 Hz, not 800");
 
         let mut s2 = session();
         s2.push_engine_event("warden:1600");
@@ -942,6 +943,6 @@ mod tests {
         assert_eq!(s2.last_chain().min(3) as u32 + 1, 4, "wire chain 4");
         let high = audio_map::sfx_for_code(audio_map::CUE_WARDEN_EATEN, s2.last_chain())
             .expect("warden sfx");
-        assert_eq!(high.from_hz, 3200.0, "top chain plays 3200 Hz, not 12800");
+        assert_eq!(hz(high), 3200.0, "top chain plays 3200 Hz, not 12800");
     }
 }
