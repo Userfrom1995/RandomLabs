@@ -141,7 +141,14 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Clear runtime decision and findings
-        run: rm -f /tmp/random-lab-decision.json /tmp/random-lab-findings.md
+        run: |
+          rm -f /tmp/random-lab-decision.json /tmp/random-lab-findings.md
+          nonce=$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')
+          if [ -z "$nonce" ]; then
+            echo "::error::Could not generate the run-bound contract nonce; refusing to start an unbound per-OS test session (issue #713 round 16)."
+            exit 1
+          fi
+          echo "LAB_RUN_NONCE=$nonce" >> "$GITHUB_ENV"
 
       - name: Restore the vendored runner and findings poster from the workflow commit
         run: |
@@ -221,6 +228,10 @@ jobs:
           missing=""
           [ -f /tmp/random-lab-decision.json ] || missing="${missing} decision-file"
           [ -s /tmp/random-lab-findings.md ] || missing="${missing} findings-report"
+          if [ -z "$missing" ] && [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+            echo "::error::Tester decision file does not carry this run's contract nonce; failing closed (issue #713 round 16)."
+            exit 1
+          fi
           if [ -z "$missing" ]; then
             echo "Linux tester decision and findings report present."
             exit 0
@@ -278,6 +289,10 @@ jobs:
           # construction, and audit rule R18 guards both.
           MSYS_NO_PATHCONV: "1"
         run: |
+          if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+            echo "::error::Tester decision file lost this run's contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."
+            exit 1
+          fi
           action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           target="${{ github.event.issue.number }}"
           is_pr="false"
@@ -429,7 +444,14 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Clear runtime decision and findings
-        run: rm -f /tmp/random-lab-decision.json /tmp/random-lab-findings.md
+        run: |
+          rm -f /tmp/random-lab-decision.json /tmp/random-lab-findings.md
+          nonce=$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')
+          if [ -z "$nonce" ]; then
+            echo "::error::Could not generate the run-bound contract nonce; refusing to start an unbound per-OS test session (issue #713 round 16)."
+            exit 1
+          fi
+          echo "LAB_RUN_NONCE=$nonce" >> "$GITHUB_ENV"
 
       - name: Restore the vendored runner and findings poster from the workflow commit
         run: |
@@ -512,6 +534,10 @@ jobs:
           missing=""
           [ -f /tmp/random-lab-decision.json ] || missing="${missing} decision-file"
           [ -s /tmp/random-lab-findings.md ] || missing="${missing} findings-report"
+          if [ -z "$missing" ] && [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+            echo "::error::Tester decision file does not carry this run's contract nonce; failing closed (issue #713 round 16)."
+            exit 1
+          fi
           if [ -z "$missing" ]; then
             echo "macOS tester decision and findings report present."
             exit 0
@@ -629,6 +655,10 @@ jobs:
           # load-bearing on the windows-latest arm (see the Linux forwarder).
           MSYS_NO_PATHCONV: "1"
         run: |
+          if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+            echo "::error::Tester decision file lost this run's contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."
+            exit 1
+          fi
           action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           target="${{ github.event.issue.number }}"
           is_pr="false"
@@ -778,7 +808,14 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Clear runtime decision and findings
-        run: rm -f /tmp/random-lab-decision.json /tmp/random-lab-findings.md
+        run: |
+          rm -f /tmp/random-lab-decision.json /tmp/random-lab-findings.md
+          nonce=$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')
+          if [ -z "$nonce" ]; then
+            echo "::error::Could not generate the run-bound contract nonce; refusing to start an unbound per-OS test session (issue #713 round 16)."
+            exit 1
+          fi
+          echo "LAB_RUN_NONCE=$nonce" >> "$GITHUB_ENV"
 
       - name: Restore the vendored runner and findings poster from the workflow commit
         run: |
@@ -860,6 +897,10 @@ jobs:
           missing=""
           [ -f /tmp/random-lab-decision.json ] || missing="${missing} decision-file"
           [ -s /tmp/random-lab-findings.md ] || missing="${missing} findings-report"
+          if [ -z "$missing" ] && [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+            echo "::error::Tester decision file does not carry this run's contract nonce; failing closed (issue #713 round 16)."
+            exit 1
+          fi
           if [ -z "$missing" ]; then
             echo "Windows tester decision and findings report present."
             exit 0
@@ -974,6 +1015,10 @@ jobs:
           # conversion-proof fix. Audit rule R18 guards both.
           MSYS_NO_PATHCONV: "1"
         run: |
+          if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+            echo "::error::Tester decision file lost this run's contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."
+            exit 1
+          fi
           action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           target="${{ github.event.issue.number }}"
           is_pr="false"

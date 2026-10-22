@@ -107,7 +107,14 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Clear runtime decision
-        run: rm -f /tmp/random-lab-decision.json /tmp/live-run-evidence.json
+        run: |
+          rm -f /tmp/random-lab-decision.json /tmp/live-run-evidence.json
+          nonce=$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')
+          if [ -z "$nonce" ]; then
+            echo "::error::Could not generate the run-bound contract nonce; refusing to start an unbound test session (issue #713 round 16)."
+            exit 1
+          fi
+          echo "LAB_RUN_NONCE=$nonce" >> "$GITHUB_ENV"
 
       - name: Restore the vendored runner when the checked-out head predates it
         run: |
@@ -195,6 +202,10 @@ jobs:
           # finish the job green with no decision file and silently stall the
           # pipeline. Any missing decision file is a hard failure.
           if [ -f /tmp/random-lab-decision.json ]; then
+            if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+              echo "::error::Tester decision file does not carry this run's contract nonce; refusing to trust a file that PR-executed code may have written (issue #713 round 16)."
+              exit 1
+            fi
             echo "Tester decision file present; gate produced a verdict (step outcome: $outcome)."
             exit 0
           fi
@@ -216,6 +227,10 @@ jobs:
             echo "No decision file; verify step above already failed the job closed."
             exit 0
           fi
+          if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+            echo "::error::Tester decision file does not carry this run's contract nonce; refusing to enforce or forward a tampered verdict (issue #713 round 16)."
+            exit 1
+          fi
           action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           if [ "$action" != "maintainer" ]; then
             echo "Gate applies to approvals only (action='$action'); nothing to enforce."
@@ -224,6 +239,10 @@ jobs:
           ev=/tmp/live-run-evidence.json
           if [ ! -f "$ev" ]; then
             echo "::error::Tester wrote an approval without /tmp/live-run-evidence.json. Live-execution proof is mandatory (see tester.md 'The Live-Execution Proof'). Approval blocked."
+            exit 1
+          fi
+          if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' "$ev" 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+            echo "::error::Live-execution evidence does not carry this run's contract nonce; refusing to trust a file that PR-executed code may have written (issue #713 round 16). Approval blocked."
             exit 1
           fi
           # Documented escapes: infra PRs (validation commands, no app to run)
@@ -313,6 +332,10 @@ jobs:
             echo "No decision file; verify step above already failed the job closed."
             exit 0
           fi
+          if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+            echo "::error::Tester decision file does not carry this run's contract nonce; refusing to enforce or forward a tampered verdict (issue #713 round 16)."
+            exit 1
+          fi
           action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           if [ "$action" != "maintainer" ]; then
             echo "Publication gate applies to maintainer decisions only (action='$action'); nothing to verify."
@@ -375,6 +398,10 @@ jobs:
             echo "ok=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+            echo "::error::Tester decision file lost this run's contract nonce before marker publication; refusing to sign a tampered verdict (issue #713 round 16)."
+            exit 1
+          fi
           action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           if [ "$action" != "maintainer" ]; then
             echo "Decision '$action' is not an approval; no marker to publish."
@@ -421,6 +448,10 @@ jobs:
           pr="${{ github.event.issue.number }}"
           if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "::error::No decision file found; verify step above already failed the job closed."
+            exit 1
+          fi
+          if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+            echo "::error::Tester decision file lost this run's contract nonce before the Maintainer handoff; refusing to forward a tampered verdict (issue #713 round 16)."
             exit 1
           fi
           

@@ -4670,6 +4670,13 @@ else
       v && $0 == "        if: always()" { if_ok=1 }
       v && $0 ~ /^[[:space:]]*(continue-on-error|shell|working-directory):/ { bad=1 }
       END { exit((seen && id_ok && if_ok && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(verify-step-weakened)"
+    # Issue #713 round 16: /tmp is writable by PR-executed code, so every
+    # per-OS arm binds its decision file to the trusted pre-agent nonce. The
+    # clear step generates it; the verify and forward re-check it.
+    printf '%s\n' "$r17_block" | sed -n '/- name: Clear runtime decision and findings/,/^      - name: /p' | grep -qF 'od -An -tx1 -N16 /dev/urandom' || r17_bad="${r17_bad} arm-${r17_os}(clear-no-nonce-generation)"
+    printf '%s\n' "$r17_block" | sed -n '/- name: Clear runtime decision and findings/,/^      - name: /p' | grep -qF 'LAB_RUN_NONCE=$nonce' || r17_bad="${r17_bad} arm-${r17_os}(clear-no-nonce-export)"
+    printf '%s\n' "$r17_block" | sed -n '/- name: Verify test decided, else fail closed/,/^      - name: /p' | grep -qF 'run_nonce' || r17_bad="${r17_bad} arm-${r17_os}(verify-no-nonce-check)"
+    [ "$(printf '%s\n' "$r17_block" | grep -cF 'run_nonce' || true)" -ge 2 ] || r17_bad="${r17_bad} arm-${r17_os}(forward-no-nonce-check)"
   done
 fi
 if [ ! -f "$R17_SCRIPT" ]; then
@@ -4684,6 +4691,11 @@ else
   grep -qF 'if [ "$fetched_body" != "$expected_body" ]' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-body-equality-check)"
   grep -qF 'issues/comments/${comment_id}' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-re-fetch-verification)"
   grep -qF 'Verified owner-authored' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-verified-terminal-marker)"
+  # Issue #713 round 16: the parallel tester lane anchors its verdict to the
+  # first line of an owner-authored post, so the findings poster must refuse
+  # report content whose first non-blank line is a command trigger.
+  grep -qF 'first_line=$(awk' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-first-line-trigger-guard)"
+  grep -qF "'/oc'|'/oc '*|'/opencode'|'/opencode '*)" "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-trigger-prefix-ban)"
   # Harness-detection ban and exact sign-off assignments (independent-verifier
   # findings P1-P4): the poster must not branch on CI-only env or hardcode the
   # production repo slug (the functional test runs with realistic values), and
@@ -4885,9 +4897,9 @@ r17_stage_rc=0
 r17_stage_out=$(R17_LINUX_BLOCK_SHA="98243bff9fdf39653211086006a18275cb9d5a3bf50e23833555cf9492a36935" \
   R17_MACOS_BLOCK_SHA="b4b54c75c61bceb87716136ad027cde6e6f6a84653ab6ef4e5af6d4390aad012" \
   R17_WINDOWS_BLOCK_SHA="56267c9b1e7bcc9284e53f18dc36b16bfed8b65af967fbe215392a31ae2890cc" \
-  R17_LINUX_PROMPT_SHA="03ec48753dd116e4df425f729b53568428990397883b8deb5acbda521fbfb732" \
-  R17_MACOS_PROMPT_SHA="c7e0a7d3dbaef162a152e98db92133f8b5b5c79d33c7fabcfad5f6c43fd90923" \
-  R17_WINDOWS_PROMPT_SHA="9be7969c6a321a41682322c20c3b5af07559a63a7d0e59ff874fd7e8d475647d" \
+  R17_LINUX_PROMPT_SHA="1758bc9133d5559f12fe0ac6c2d0f9cd5502a5c56989e8dce223cedb78a5c2da" \
+  R17_MACOS_PROMPT_SHA="2385ad6d6dec47ed69577631bec8d64a7508941db9474764e235ee99ffbc7ba4" \
+  R17_WINDOWS_PROMPT_SHA="982b2bef32af2f8f9a16976e85aed8924023b8a45e1280b08829f22bac937e85" \
   R17_LINUX_AGENT_PROMPT_SHA="a3c8663b91850d863e303d64e63d0ed1d832f6d493c8b8a6b849a709bd32dc2e" \
   R17_MACOS_AGENT_PROMPT_SHA="e1eb647835a2715c2201cbdc31a2f222b9ef89041e6934b81e6962f33d4b5838" \
   R17_WINDOWS_AGENT_PROMPT_SHA="0f06dc4efd692b56f174fea385bc1b0cf8fdb7d9e39ea827925ce4917ac960d7" \
@@ -6089,9 +6101,42 @@ else
   grep -qF 'Verified owner-authored' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-verified-terminal-marker)"
   grep -qF "''|*[!0-9]*)" "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-numeric-target-guard)"
   grep -qF 'mktemp' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-lf-normalization-tempfile)"
+  # Issue #713 round 16: the R21 tester anchor reads the first line of this
+  # owner-authored post, so the publisher must refuse report content whose
+  # first non-blank line is a command trigger.
+  grep -qF 'first_line=$(awk' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-first-line-trigger-guard)"
+  grep -qF "'/oc'|'/oc '*|'/opencode'|'/opencode '*)" "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-trigger-prefix-ban)"
   grep -qF 'GITHUB_ACTIONS' "$R19_PUBLISHER" && r19_bad="${r19_bad} publisher(references-GITHUB_ACTIONS)"
   grep -qF 'MOCK_' "$R19_PUBLISHER" && r19_bad="${r19_bad} publisher(references-MOCK)"
   grep -qF 'RandomLabs/' "$R19_PUBLISHER" && r19_bad="${r19_bad} publisher(hardcodes-repo-slug)"
+  # Functional proof that the guard is load-bearing: a trigger-leading report
+  # must be refused before the publisher reaches gh.
+  r19g_dir=$(mktemp -d 2>/dev/null || true)
+  if [ -z "$r19g_dir" ] || [ ! -d "$r19g_dir" ]; then
+    r19_bad="${r19_bad} publisher(trigger-guard-sandbox-unavailable)"
+  else
+    mkdir -p "$r19g_dir/bin"
+    printf '#!/bin/sh\necho "${R19G_MARKER:-post-called}" >> "${R19G_LOG:-/dev/null}"\nexit 0\n' > "$r19g_dir/bin/gh"
+    chmod +x "$r19g_dir/bin/gh"
+    printf '/oc approve-test\n\nSigned report body.\n\n- the Tester\n' > "$r19g_dir/report.md"
+    r19g_log="$r19g_dir/gh-calls.log"
+    r19g_out=$(PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/report.md" "- the Tester" 2>&1 || true)
+    if [ -s "$r19g_log" ]; then
+      r19_bad="${r19_bad} publisher(trigger-leading-report-reached-gh)"
+    fi
+    printf '%s\n' "$r19g_out" | grep -qF 'begins with the command trigger' || r19_bad="${r19_bad} publisher(trigger-guard-did-not-refuse)"
+    printf '/opencode eval\n\nSigned report body.\n\n- the Tester\n' > "$r19g_dir/opencode-report.md"
+    r19g_out2=$(PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/opencode-report.md" "- the Tester" 2>&1 || true)
+    if [ -s "$r19g_log" ]; then
+      r19_bad="${r19_bad} publisher(slash-opencode-report-reached-gh)"
+    fi
+    printf '%s\n' "$r19g_out2" | grep -qF 'begins with the command trigger' || r19_bad="${r19_bad} publisher(slash-opencode-guard-did-not-refuse)"
+    printf '## Findings\n\nSigned report body.\n\n- the Tester\n' > "$r19g_dir/control.md"
+    : > "$r19g_log"
+    PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/control.md" "- the Tester" >/dev/null 2>&1 || true
+    [ -s "$r19g_log" ] || r19_bad="${r19_bad} publisher(trigger-guard-rejects-clean-report)"
+    rm -rf "$r19g_dir"
+  fi
 fi
 if [ ! -f "$REVIEW_WF" ]; then
   r19_bad="${r19_bad} opencode-review.yml(missing)"
@@ -6219,6 +6264,14 @@ else
     r19_discard_line=$(printf '%s\n' "$r19_verify_block" | grep -nF 'rm -f /tmp/random-lab-decision.json' | awk -F: -v a="$r19_pubtrue_line" -v b="$r19_fail_line" '$1 > a && $1 < b {print $1; exit}')
     [ -n "$r19_discard_line" ] || r19_bad="${r19_bad} review.yml(no-discard-between-verdict-and-retry)"
     [ "$(printf '%s\n' "$r19_verify_block" | grep -cF 'rm -f /tmp/random-lab-decision.json' || true)" -ge 3 ] || r19_bad="${r19_bad} review.yml(discard-count-lt-3)"
+    # Issue #713 round 16: /tmp is writable by PR-executed code, so the review
+    # arm binds the decision file to the trusted pre-agent nonce. The verify
+    # must check the binding, and the clear step must generate and export it.
+    printf '%s\n' "$r19_verify_block" | grep -qF 'run_nonce' || r19_bad="${r19_bad} review.yml(no-decision-nonce-check)"
+    printf '%s\n' "$r19_verify_block" | grep -qF 'LAB_RUN_NONCE' || r19_bad="${r19_bad} review.yml(no-nonce-env-check)"
+    r19_clear_block=$(sed -n '/- name: Clear runtime decision/,/^      - name: /p' "$REVIEW_WF" 2>/dev/null || true)
+    printf '%s\n' "$r19_clear_block" | grep -qF 'LAB_RUN_NONCE=$nonce' || r19_bad="${r19_bad} review.yml(clear-step-no-nonce-export)"
+    printf '%s\n' "$r19_clear_block" | grep -qF 'od -An -tx1 -N16 /dev/urandom' || r19_bad="${r19_bad} review.yml(clear-step-no-nonce-generation)"
     # F7/F8 (review round 2): static expression pins. The sandbox substitutes
     # the identity macros (${{ github.event.issue.number }},
     # ${{ github.repository_owner }}, ${{ github.repository }}) with sandbox
@@ -6295,6 +6348,7 @@ else
         printf '%s\n' "$r19_fwd_block" | sed 's/^[[:space:]]*//' | grep -qxF "$r19_body" || r19_bad="${r19_bad} review.yml(forward-body-not-exact)"
       done
       printf '%s\n' "$r19_fwd_block" | grep -qE '^[[:space:]]*(shell|continue-on-error|defaults):' && r19_bad="${r19_bad} review.yml(forward-step-attribute-override)"
+      printf '%s\n' "$r19_fwd_block" | grep -qF 'run_nonce' || r19_bad="${r19_bad} review.yml(forward-no-nonce-check)"
       printf '%s\n' "$r19_fwd_block" | grep -qxF '          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}' || r19_bad="${r19_bad} review.yml(forward-gh-token-not-PAT)"
     else
       r19_bad="${r19_bad} review.yml(forward-step-missing)"
@@ -7466,6 +7520,18 @@ else
     r22_fwd_ln=$(r22_line '- name: Forward tester decision')
     if [ -z "$r22_ev_ln" ] || [ -z "$r22_pub_ln" ] || [ -z "$r22_marker_ln" ] || [ -z "$r22_fwd_ln" ] || [ "$r22_ev_ln" -ge "$r22_pub_ln" ] || [ "$r22_pub_ln" -ge "$r22_marker_ln" ] || [ "$r22_marker_ln" -ge "$r22_fwd_ln" ]; then
       r22_bad="${r22_bad} test.yml(step-order:${r22_ev_ln:-none}/${r22_pub_ln:-none}/${r22_marker_ln:-none}/${r22_fwd_ln:-none})"
+    # Issue #713 round 16: /tmp is writable by PR-executed code, so the test
+    # arm binds the decision and evidence files to the trusted pre-agent
+    # nonce. The clear step generates it; every consumer re-checks it.
+    r22_clear_block=$(sed -n '/- name: Clear runtime decision/,/^      - name: /p' "$R22_WF" 2>/dev/null || true)
+    printf '%s\n' "$r22_clear_block" | grep -qF 'od -An -tx1 -N16 /dev/urandom' || r22_bad="${r22_bad} test.yml(clear-no-nonce-generation)"
+    printf '%s\n' "$r22_clear_block" | grep -qF 'LAB_RUN_NONCE=$nonce' || r22_bad="${r22_bad} test.yml(clear-no-nonce-export)"
+    r22_test_verify=$(sed -n '/- name: Verify test decided, else fail closed/,/^      - name: /p' "$R22_WF" 2>/dev/null || true)
+    printf '%s\n' "$r22_test_verify" | grep -qF 'run_nonce' || r22_bad="${r22_bad} test.yml(verify-no-decision-nonce-check)"
+    r22_evidence_block=$(sed -n '/- name: Enforce live-execution evidence gate/,/^      - name: /p' "$R22_WF" 2>/dev/null || true)
+    printf '%s\n' "$r22_evidence_block" | grep -qF 'run_nonce' || r22_bad="${r22_bad} test.yml(evidence-no-nonce-check)"
+    printf '%s\n' "$r22_marker_block" | grep -qF 'run_nonce' || r22_bad="${r22_bad} test.yml(marker-no-nonce-check)"
+    printf '%s\n' "$r22_fwd_block" | grep -qF 'run_nonce' || r22_bad="${r22_bad} test.yml(forward-no-nonce-check)"
     fi
   fi
 fi
@@ -15251,8 +15317,8 @@ EXPECTED_CONCURRENCY = {
 # constants pin both the staged source content and the staging step bodies.
 # A legitimate prompt or staging-step change updates the matching constant in
 # the same PR.
-EXPECTED_EVAL_PROMPT_SHA256 = "9c6559f33ac16486c5e47a98e7bf9cc1950fc6427918d9ee0bca83e75753a942"
-EXPECTED_TEST_PROMPT_SHA256 = "5d24c0807bad3c93632ac26f7131225a68709cd560d5c7604b534ce6beb34529"
+EXPECTED_EVAL_PROMPT_SHA256 = "052b5858361546c124d284e144a4e4f26559a67018838f30700b597c34585639"
+EXPECTED_TEST_PROMPT_SHA256 = "fe07c7ccf0238f8329f1ddc17a6ca039cc6896ebf1830198192de6f8956ff604"
 # Issue #713 review round 9: the Tester agent's with.prompt scalar is part of
 # the gate contract too (it carries the live-execution and decision-file
 # instructions). Pin it by SHA-256 instead of a substring check, so a workflow
@@ -15267,7 +15333,7 @@ EXPECTED_TEST_STAGE_PROMPT_BLOCK_SHA256 = "e0c4b5fa07824eeafcaf75c946f0f60f0e12e
 # approval marker. The review workflow stages the reviewed prompt from the
 # workflow commit, and these constants pin the source content, the staging
 # body, and the agent scalar that points at the staged copy.
-EXPECTED_REVIEW_PROMPT_SHA256 = "f5eeeb03a5dea3be52e5ba82dd5532d44741c7426ae94dd21ebc5b9270fac288"
+EXPECTED_REVIEW_PROMPT_SHA256 = "2f7c1f3de570c3347298a0443dd5b406c93c17bc4e1d062a589b7b7b071b3cb7"
 EXPECTED_REVIEW_STAGE_PROMPT_BLOCK_SHA256 = "5600d2d6e520998d4529fe347fa51fc2cfde81dba6c47afe612209aa4a2d7b45"
 EXPECTED_REVIEW_AGENT_PROMPT_SHA256 = "881b8d09f99b4003a449557167197961b83f049ae761cb987e1a1033e233ee92"
 # Issue #713 review round 10: the round-9 test/review PR-head isolation was
@@ -17398,6 +17464,10 @@ echo "No evaluator decision file; nothing to publish."
 echo "ok=true" >> "$GITHUB_OUTPUT"
 exit 0
 fi
+if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+echo "::error::Evaluator decision file lost this run's contract nonce before marker publication; refusing to sign a tampered verdict (issue #713 round 16)."
+exit 1
+fi
 action=$(jq -r '.action // empty' /tmp/evaluator-decision.json 2>/dev/null || echo "")
 if [ "$action" != "approve-eval" ]; then
 echo "Decision '$action' is not an approval; no eval marker to publish."
@@ -17462,6 +17532,10 @@ if [ ! -f /tmp/evaluator-decision.json ]; then
 echo "::error::No evaluator decision file found; the verify step above should have failed closed (issue #713)."
 exit 1
 fi
+if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+echo "::error::Evaluator decision file lost this run's contract nonce before the verdict post; refusing to publish a tampered verdict (issue #713 round 16)."
+exit 1
+fi
 action=$(jq -r '.action // "unknown"' /tmp/evaluator-decision.json 2>/dev/null || echo "unknown")
 score=$(jq -r '.score // "N/A"' /tmp/evaluator-decision.json 2>/dev/null || echo "N/A")
 summary=$(jq -r '.summary // .critique // "Evaluation complete. See `.github/agents/evaluator.md` for rubric details."' /tmp/evaluator-decision.json 2>/dev/null || echo "Evaluation complete.")
@@ -17512,6 +17586,10 @@ r30_expected_fwd_block() {
 pr="${{ github.event.issue.number }}"
 if [ ! -f /tmp/evaluator-decision.json ]; then
 echo "::error::No evaluator decision file found; verify step above already failed the job closed."
+exit 1
+fi
+if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+echo "::error::Evaluator decision file lost this run's contract nonce before the Maintainer handoff; refusing to forward a tampered verdict (issue #713 round 16)."
 exit 1
 fi
 action=$(jq -r '.action // "unknown"' /tmp/evaluator-decision.json 2>/dev/null || echo "unknown")
@@ -17587,6 +17665,11 @@ exit 0
 fi
 outcome="${{ steps.evaluator.outcome }}"
 if [ -f /tmp/evaluator-decision.json ]; then
+if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+echo "::error::Evaluator decision file does not carry this run's contract nonce; refusing to trust a file that PR-executed code may have written (issue #713 round 16)."
+echo "has_decision=false" >> "$GITHUB_OUTPUT"
+exit 1
+fi
 echo "Evaluator decision file present; gate produced a verdict (step outcome: $outcome)."
 echo "has_decision=true" >> "$GITHUB_OUTPUT"
 action=$(jq -r '.action // "unknown"' /tmp/evaluator-decision.json 2>/dev/null || echo "unknown")
@@ -17601,6 +17684,12 @@ R30VERIFY
 r30_expected_clear_block() {
   cat <<'R30CLEAR'
 rm -f /tmp/evaluator-decision.json /tmp/live-run-evidence.json
+nonce=$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')
+if [ -z "$nonce" ]; then
+echo "::error::Could not generate the run-bound contract nonce; refusing to start an unbound eval session (issue #713 round 16)."
+exit 1
+fi
+echo "LAB_RUN_NONCE=$nonce" >> "$GITHUB_ENV"
 R30CLEAR
 }
 # Issue #713 review round 7: the actor gate and the runner restore execute
@@ -17669,6 +17758,10 @@ fi
 ev=/tmp/live-run-evidence.json
 if [ ! -f "$ev" ]; then
 echo "::error::Evaluator approved without /tmp/live-run-evidence.json. End-user execution proof is mandatory (evaluator.md section 6). Approval blocked."
+exit 1
+fi
+if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' "$ev" 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+echo "::error::Live-execution evidence does not carry this run's contract nonce; refusing to trust a file that PR-executed code may have written (issue #713 round 16). Approval blocked."
 exit 1
 fi
 if jq -e '.scope == "unrunnable" and ((.reason // "") | length > 20)' "$ev" >/dev/null 2>&1; then
