@@ -64,10 +64,11 @@ board on title, the frozen hunt on pause, the final board on game over.
 
 Sound starts on the first click, keypress, or touch (browser autoplay
 policy; the harness unlocks the AudioContext on the first gesture). A
-visible "Sound is asleep - tap to wake" chip sits below the canvas until
-the context is running and retires after that first gesture, so a
-blocked context is never silent without an affordance. Every cue the
-engine emits is synthesized from the audio crate's own data: layered
+visible "Sound is asleep - tap to wake" chip sits at the top of the
+title card until the context is running and retires after that first
+gesture, so a blocked context is never silent without an affordance.
+Every cue the engine emits is synthesized from the audio crate's own
+data: layered
 SFX recipes (voice, start/end frequency, length, delay, gain, and crumb
 variation) with pitch doubling per warden chain, and the five original
 multi-track tunes (title and fright loops plus death/clear/game-over
@@ -112,7 +113,7 @@ the HUD previews that state until you press Start.
 
 ## Verification
 
-- `cargo test -p maze-chase-web`: 51 tests (board composition and
+- `cargo test -p maze-chase-web`: 52 tests (board composition and
   determinism, canvas fit/blit math, keyboard/touch mapping, rebind
   steal rules, score table, cue/SFX/tune routing, session flow,
   hostile bridge probes, engine-clock sampling, reduced-motion floater
@@ -125,9 +126,10 @@ the HUD previews that state until you press Start.
   paints varied pixels, real button click starts play, real ArrowUp
   keypresses score, P pauses and Resume returns, touch swipe keeps the
   game alive, mobile viewport (390 by 844) shows the board near the
-  top. A boot-gate E2E serves hand-built stale modules through a
-  page-level `fetch` override and proves an ABI version skew plus a
-  missing export from each first-frame group (fright, HUD flash,
+  top, and the unlock chip is fully on-screen and hit-testable at
+  390x844 and 320x480. A boot-gate E2E serves hand-built stale modules
+  through a page-level `fetch` override and proves an ABI version skew
+  plus a missing export from each first-frame group (fright, HUD flash,
   reduced-motion/high-contrast settings, theme, difficulty) lands on the
   error card instead of Ready. Rerun any time from `maze-chase/`:
   `node web/e2e/wasm-smoke.js`, `node web/e2e/boot-gate-e2e.js`, then
@@ -140,8 +142,9 @@ the HUD previews that state until you press Start.
   from disk. Serve the directory over http (above) and reload.
 - "Version mismatch": the page and the `.wasm` disagree. Rebuild the
   crate (below) so `web/maze-chase.wasm` matches `web/maze-chase.js`.
-- Silent audio: the browser blocked the context (look for the HUD
-  note), or volumes are at zero in Settings.
+- Silent audio: the browser blocked the context (tap the "Sound is
+  asleep - tap to wake" chip in the title card), or volumes are at zero
+  in Settings.
 - Tiny board on a huge monitor: the canvas follows its container up to
   DPR 2; widen the window and it re-fits.
 - Lost scores after clearing browser data: expected; the table lives in

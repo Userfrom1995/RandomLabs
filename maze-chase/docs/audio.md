@@ -127,14 +127,17 @@ visual twin for every cue still plays.
 - Desktop tests measure offline PCM for every tune and SFX: finite
   samples, peak-normalized to each bus ceiling, and 0.154/0.320 peaks at
   the documented 80/60/80 default mix. They also pin the summed-output
-  limiter at a 100/100 mix, the 120 ms fades, the null-sink fallback,
-  and the sting cue mapping. Terminal tests pin the opt-in BEL,
+  limiter at a 100/100 mix, a nonzero fade constant (the exact 120 ms is
+  pinned by the audio and config suites), the null-sink fallback, and
+  the sting cue mapping. Terminal tests pin the opt-in BEL,
   mute/chime gating, settings persistence, and the ticker; visual twins
   are rendered from game state and never depend on the audio gates.
 - Web tests pin the ABI exports, first-tone legacy views, tune metadata,
   and routed cues; `wasm-smoke`, `boot-gate-e2e`, and `browser-e2e`
   exercise the shipped artifact, including the unlock chip, the
-  persisted 60/80 mix, loop-stop transitions, the 0.32/0.50 offline
+  persisted 35/45 mix, loop-stop transitions, the 0.32/0.50 offline
   peaks, the summed-output limiter at 100/100, the live mix-row labels,
-  every warden chain pitch (including two same-tick cues at different
-  arms), and the persisted mute/low-volume startup.
+  every warden chain pitch, and the persisted mute/low-volume startup.
+  The web session unit test pins two same-tick warden cues at different
+  chain arms; the browser harnesses cover the chain pitches, not
+  same-tick cue ordering.

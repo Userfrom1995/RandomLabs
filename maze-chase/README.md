@@ -132,8 +132,9 @@ and the parity gate in `docs/parity.md`.
   totals, E2E evidence per OS, frame budgets, and the native proof
   record.
 - `docs/parity.md` - #552 parity checklist mapping every pinned
-  reference behavior to its engine table and verify row, fully signed
-  with the retirement step recorded.
+  reference behavior to its engine table and verify row, with the
+  per-layer sound row's macOS/Windows real-speaker review deferred to
+  the Final Phase and the retirement step recorded.
 
 ## Clean-room rule
 

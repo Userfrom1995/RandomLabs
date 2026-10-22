@@ -31,9 +31,9 @@ on failure and print `ALL GREEN` on success.
   320x568, 360x640, 375x667, and 390x844, a scrolled title reopening at its
   top, the 480x320 pause Resume bound/hit test, scores panel restoring a
   persisted row across reload plus in-page clear, the three labeled mixer
-  rows, the unlock chip's full first-viewport geometry at 390x844, the
-  summed-output limiter at 100/100, gameplay screenshots to the system
-  temp directory (`os.tmpdir()`, `mc-e2e-*.png`).
+  rows, the unlock chip's full first-viewport geometry at 390x844 and
+  320x480, the summed-output limiter at 100/100, gameplay screenshots to
+  the system temp directory (`os.tmpdir()`, `mc-e2e-*.png`).
 - `tester-rebind-lifecycle.js [page-url] [debug-port]`: pins the rebind
   capture lifecycle around Settings form controls at the shipped page and
   wasm (Escape always cancels an armed capture, field keys leave it armed,
