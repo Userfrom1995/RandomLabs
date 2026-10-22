@@ -1,8 +1,8 @@
 [package]
 name = "maze-chase-audio"
-version = "0.1.0"
-edition = "2021"
-license = "MIT"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 description = "Zero-dependency audio cues, original music/SFX data, and test sinks for Maze Chase"
 
 [lib]
