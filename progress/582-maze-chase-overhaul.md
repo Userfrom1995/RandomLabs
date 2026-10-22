@@ -1867,3 +1867,37 @@ open on this phase.
   one-line doc correction, so no further fan-out was warranted. Skills:
   no registry skill matched.
   - the Fixer
+
+- 2026-10-22 (fixer, Phase 6 third review round on `3df6835f`): applied
+  the remaining release-gate findings. Windows release binaries link
+  the static MSVC CRT (`common.ps1` appends
+  `-C target-feature=+crt-static` and every build path proves it with
+  dumpbin), the desktop zip ships `LICENSE`, and the Windows smoke
+  checks the license in both zips and the installed tree. The release
+  guide separates tarball/zip determinism and states the dmg is not
+  byte-reproducible, shows the per-user and system-wide tarball
+  install/uninstall pair, points Windows uninstall at Settings > Apps,
+  and treats the 0.1.0 candidate as future work; the desktop guide's
+  macOS command matches the dmg script, and both layer guides no longer
+  present an unpublished release as live. The scoreboard records its
+  measured commit `d1b0dc88`, epoch, host, toolchain, and the RPM
+  build-host caveat.
+  Verification: `cargo test -p maze-chase-terminal --test
+  tester_packaging` 15/15 (the static CRT and license assertions were
+  mutation-proven to fail on their removal), `cargo fmt --all --check`
+  clean, `bash -n` over every packaging script, a pwsh AST parse of the
+  changed PowerShell scripts, a mocked dumpbin matrix (clean, dynamic,
+  failing status), `stage-linux.sh` twice with byte-identical
+  SHA256SUMS at the named commit, and `sha256sum -c` on the staged set.
+  Delegation ledger: two read-only general subagents ran in parallel.
+  The docs audit checked B1, m1-m5, native claims, shell flags, and em
+  dashes against the scripts; it returned PASS for the edits, plus the
+  scoreboard input defect and one "launcher" wording defect (both
+  fixed). The Windows audit parsed every changed ps1 under pwsh, ran a
+  mocked dumpbin matrix plus a stage inheritance check, and found the
+  first static assertions comment-satisfiable and the unquoted vswhere
+  glob (both fixed; mutation-proven). The primary context verified
+  every reported defect, ran the packaging suite, both Linux stages,
+  and the manifest check, and owns the final diff. Skills: no registry
+  skill matched.
+  - the Fixer
