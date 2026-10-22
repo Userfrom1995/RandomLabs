@@ -57,6 +57,19 @@ fi
 trap 'rm -f "$normalized_report"' EXIT
 tr -d '\r' < "$report" > "$normalized_report"
 
+# Issue #713 round 16: the PAT merge sweep anchors the tester verdict to the
+# first line of an owner-authored comment, and this publisher posts arbitrary
+# agent-written report content under the owner PAT. A report whose first
+# non-blank line is a command trigger would therefore be consumable as a
+# forged owner-authored verdict. Refuse it before it reaches the API.
+first_line=$(awk 'NF { line=$0; sub(/^[[:space:]]+/, "", line); print line; exit }' "$normalized_report")
+case "$first_line" in
+  '/oc'|'/oc '*|'/opencode'|'/opencode '*)
+    echo "::error::publish-agent-report.sh: report '$report' begins with the command trigger '$first_line'; refusing to publish a report that could be consumed as a verdict trigger (issue #713)."
+    exit 1
+    ;;
+esac
+
 last_line=$(awk 'NF { line=$0 } END { print line }' "$normalized_report")
 if [ "$last_line" != "$signoff" ]; then
   echo "::error::publish-agent-report.sh: report '$report' does not end with the required sign-off '$signoff' (last non-blank line: '$last_line'); refusing to post an unsigned report (issue #713)."

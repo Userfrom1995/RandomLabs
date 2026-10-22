@@ -176,7 +176,14 @@ jobs:
 
       - name: Clear runtime decision
         if: steps.pr-info.outputs.is_pr == 'true'
-        run: rm -f /tmp/random-lab-decision.json
+        run: |
+          rm -f /tmp/random-lab-decision.json
+          nonce=$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')
+          if [ -z "$nonce" ]; then
+            echo "::error::Could not generate the run-bound contract nonce; refusing to start an unbound review session (issue #713 round 16)."
+            exit 1
+          fi
+          echo "LAB_RUN_NONCE=$nonce" >> "$GITHUB_ENV"
 
       - name: Restore the vendored runner when the checked-out head predates it
         if: steps.pr-info.outputs.is_pr == 'true'
@@ -311,6 +318,12 @@ jobs:
 
           pr="${{ github.event.issue.number }}"
           outcome="${{ steps.review.outcome }}"
+
+          if [ -f /tmp/random-lab-decision.json ] && [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+            rm -f /tmp/random-lab-decision.json
+            echo "::error::Reviewer decision file does not carry this run's contract nonce; discarding it as untrusted because /tmp is writable by PR-executed code (issue #713 round 16)."
+            exit 1
+          fi
 
           # Publication evidence (issue #616): a present decision file is only
           # a verdict once the reviewer's decision comment itself is on the
@@ -568,6 +581,10 @@ jobs:
           pr="${{ github.event.issue.number }}"
           if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "::error::No decision file found; verify step above already failed the job closed."
+            exit 1
+          fi
+          if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+            echo "::error::Reviewer decision file lost this run's contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."
             exit 1
           fi
           
