@@ -8,7 +8,7 @@
 - **Status:** in-progress
 - **Updated:** 2026-10-22
 - **Active Phase:** Phase 6: Release Engineering and Multi-Platform Distribution
-  (in progress; Linux package scripts plus reproducible Linux artifacts verified, native macOS/Windows runs and the release pipeline pending)
+  (implementation complete, ready for review; native macOS/Windows packaging, the installed release workflow, and the official release candidate remain with the Lab Engineer and native arms)
 - **Blueprint:** `ideas/2026-10-18-maze-chase-overhaul.md`
 - **Findings ledger:** `progress/582-maze-chase-overhaul-findings.md` (created in
   Phase 1; every reassessment gap lives here until resolved or documented)
