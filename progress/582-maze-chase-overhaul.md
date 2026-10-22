@@ -42,15 +42,17 @@ desktop), so a 100/100 mix stays at or below full scale.
 The mix now defaults to music 60 percent and SFX 80 percent, with
 master/music/SFX gain changes fading over 120 ms and mute acting on both
 buses. The terminal BEL chime is opt-in (`terminal_chime`, default
-false) with a Settings row, and flashes are pushed before the mute and
-chime gates, so visual twins never disappear. The desktop rodio sink
-tracks both buses, schedules tune tracks, and falls back to a null sink.
+false) with a Settings row, and visual flashes are rendered from game
+state independently of the mute and chime gates, so visual twins never
+disappear. The desktop rodio sink tracks both buses, schedules tune
+tracks, and falls back to a null sink.
 The browser ABI is version 3 with `mc_sfx_tone_count`,
 `mc_sfx_tone_field`, `mc_tune_meta`, and `mc_fade_ms`; the harness
 schedules layered tones and track lanes, fades its gains, and shows a
-"Sound is asleep - tap to wake" chip in the title card's first viewport
-until the context runs. The Settings mixer is three labeled rows with
-live percents, and the cue queue snapshots each warden chain so two
+"Sound is asleep - tap to wake" chip at the top of the title card's
+first viewport until the context runs. The Settings mixer is three
+labeled rows with live percents, and the cue queue snapshots each
+warden chain so two
 same-tick eats render their own ladder arms. Legacy
 first-tone views stay for older callers. `docs/audio.md` records the
 identity, mix, per-layer synthesis, and accessibility contract.
@@ -62,7 +64,7 @@ failed across 63 targets; `maze-chase-verify` 19/19 with golden
 100/100 mix bounded at or below full scale; wasm 212,438 bytes, sha256
 `5bcceec8356d8659d53405c593df744ba3c980c8b31582358313a53f5a2f72db`,
 reproduced by a second release build; wasm-smoke,
-tester-regression, boot-gate (33 assertions), browser E2E (278
+tester-regression, boot-gate (33 assertions), browser E2E (279
 assertions, zero console errors), tester-audio (17 checks), and rebind
 lifecycle all green;
 `cargo fmt --all --check` clean; clippy reports only the pre-existing
@@ -1725,4 +1727,34 @@ Linux synth and browser evidence.
   wasm-smoke, tester-regression, boot-gate (33), browser E2E (278, zero
   console errors), tester-audio (17 checks), and rebind lifecycle ALL
   GREEN; `node --check` clean.
+  - the Fixer
+
+- 2026-10-22 (fixer, Tester fix round on `9c7dfa58`): fixed the one
+  blocking tester finding and the seven documentation-truthfulness
+  corrections. The "Sound is asleep - tap to wake" chip now leads the
+  title card's scroll region, above the kicker and heading, so the
+  pinned action row can never cover it and the scroll box cannot clip
+  it; the Tester's 320x480 assertion passes with the full 44 px
+  rectangle on-screen and `elementFromPoint` resolving to the chip (the
+  same holds at 320x360, 480x320, and 568x320). Docs now match the
+  shipped evidence: the README parity note defers the sound row's
+  macOS/Windows real-speaker review, `docs/web.md` records 52 web tests
+  plus the chip's title-card placement and points blocked audio at the
+  chip instead of the missing-WebAudio HUD note, `docs/audio.md` names
+  the persisted 35/45 mix, attributes same-tick warden cues to the web
+  session unit test rather than the browser harnesses, and scopes the
+  desktop fade assertion (the exact 120 ms lives in the audio and
+  config suites). The current-step ledger also drops the dead
+  flash-queue wording and moves the browser total to 279 assertions.
+  Delegation ledger: primary-only round (one chip layout move plus
+  documentation corrections in the same files; parallel subagents
+  would have collided). Skills: no registry skill matched.
+  Verification: browser E2E 279 assertions ALL GREEN with zero console
+  errors; wasm-smoke, tester-regression, boot-gate (33 checks),
+  tester-audio (17 checks), and rebind lifecycle ALL GREEN; `cargo fmt
+  --all --check` clean; `cargo test` for audio/config/terminal/web/
+  engine passed 440 / 0 failed across 49 targets (the desktop crate
+  cannot link in this container because the ALSA development headers
+  are absent; the Tester's 594 / 0 full-workspace run on this product
+  tree stands).
   - the Fixer
