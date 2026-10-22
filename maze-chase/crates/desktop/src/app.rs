@@ -218,6 +218,10 @@ impl App {
             Event::SettingsCommitted => {
                 self.settings = self.screens.settings.clone();
                 self.sync_audio();
+                // Static screens no longer draw continuously, so mute and
+                // volume commits that arrive through a screen row must
+                // settle the fade in the input path, not on a later frame.
+                self.audio.tick(FADE_SECS);
                 self.save_settings();
             }
             Event::RebindFailed(_) => self.save_settings(),
@@ -307,8 +311,12 @@ impl App {
                     self.screens.adjust(action == Action::Left);
                     // Commit live so slider moves give immediate audible
                     // feedback and persist without waiting for Back.
+                    // Static screens no longer draw continuously, so settle
+                    // the fade here instead of waiting for an unrelated
+                    // redraw to advance it.
                     self.settings = self.screens.settings.clone();
                     self.sync_audio();
+                    self.audio.tick(FADE_SECS);
                     self.save_settings();
                 } else {
                     let event = self.screens.press(action);
@@ -325,25 +333,36 @@ impl App {
         }
     }
 
-    /// Drain gamepad hardware into actions (called once per frame).
-    pub fn poll_pad(&mut self) {
+    /// True when the gamepad backend itself is missing (`--no-pad` or no
+    /// OS backend). Static screens skip their poll timer in that state.
+    pub fn pad_backend_missing(&self) -> bool {
+        self.pad.backend_missing()
+    }
+
+    /// Drain gamepad hardware into actions. Returns true when a button
+    /// was consumed or a screen changed, so the window backend can
+    /// request a redraw without polling continuously.
+    pub fn poll_pad(&mut self) -> bool {
         if self.screens.current == ScreenId::PadBind && self.screens.pad_capture.is_some() {
             // Capture mode consumes raw buttons, not mapped actions.
             let mut raw = Vec::new();
             if let Some(g) = self.pad_gilrs_events() {
                 raw = g;
             }
+            let consumed = !raw.is_empty();
             for b in raw {
                 self.on_pad_button(b);
                 if self.screens.pad_capture.is_none() {
                     break;
                 }
             }
-            return;
+            return consumed;
         }
         let events = self.pad.drain(&self.padmap);
+        let mut changed = false;
         for ev in events {
             if ev.pressed {
+                changed = true;
                 self.on_pad_button_action(ev.action);
             }
         }
@@ -352,6 +371,7 @@ impl App {
                 self.pending_dir = Some(dir);
             }
         }
+        changed
     }
 
     /// Raw pressed buttons since the last drain (capture path).
@@ -847,6 +867,55 @@ mod tests {
             "unmuted SFX bus is already at the saved level, got {}",
             s.sfx_gain
         );
+    }
+
+    #[test]
+    fn audio_slider_settles_the_fade_without_a_continuous_frame() {
+        let dir = test_dir("audio-slider-fade");
+        let state = std::sync::Arc::new(std::sync::Mutex::new(GainState::default()));
+        let mut app = App::with_audio(dir.clone(), Box::new(GainSink(state.clone())), false);
+        app.screens.show(ScreenId::Audio);
+        let before = state.lock().unwrap().sfx_gain;
+        // Left/Right on the Audio screen commits the new mix; static
+        // screens no longer draw continuously, so the fade must settle
+        // inside the input path itself.
+        app.on_action(Action::Left);
+        let s = state.lock().unwrap();
+        let target_sfx = s.master * s.sfx;
+        let target_music = s.master * s.music;
+        assert!(
+            (s.sfx_gain - target_sfx).abs() < 1e-6,
+            "sfx gain must reach {target_sfx}, got {}",
+            s.sfx_gain
+        );
+        assert!(
+            (s.music_gain - target_music).abs() < 1e-6,
+            "music gain must reach {target_music}, got {}",
+            s.music_gain
+        );
+        assert_ne!(s.sfx_gain, before, "the slider must move the live mix");
+        drop(s);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn audio_mute_confirm_settles_the_fade_without_a_continuous_frame() {
+        let dir = test_dir("audio-mute-fade");
+        let state = std::sync::Arc::new(std::sync::Mutex::new(GainState::default()));
+        let mut app = App::with_audio(dir.clone(), Box::new(GainSink(state.clone())), false);
+        app.screens.show(ScreenId::Audio);
+        app.screens.audio_row = crate::screens::AudioRow::Mute as usize;
+        assert!(!app.settings.mute, "the fixture starts unmuted");
+        // Confirm on the Mute row commits through SettingsCommitted, the
+        // same static-screen path the slider used to be the only fix for.
+        app.on_action(Action::Confirm);
+        assert!(app.settings.mute, "Confirm on Mute must toggle the setting");
+        let s = state.lock().unwrap();
+        assert!(s.muted, "the sink must receive the muted state");
+        assert_eq!(s.sfx_gain, 0.0, "muted SFX must be silent immediately");
+        assert_eq!(s.music_gain, 0.0, "muted music must be silent immediately");
+        drop(s);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -211,6 +211,12 @@ pub struct PadEvent {
 pub struct PadPoll {
     gilrs: Option<Gilrs>,
     stick: (f32, f32),
+    /// Button events a hardware-free test injects instead of gilrs.
+    #[cfg(test)]
+    injected: Vec<PadEvent>,
+    /// A test stub represents an available backend even without gilrs.
+    #[cfg(test)]
+    injected_backend: bool,
 }
 
 impl PadPoll {
@@ -220,6 +226,10 @@ impl PadPoll {
         Self {
             gilrs: Gilrs::new().ok(),
             stick: (0.0, 0.0),
+            #[cfg(test)]
+            injected: Vec::new(),
+            #[cfg(test)]
+            injected_backend: false,
         }
     }
 
@@ -228,11 +238,30 @@ impl PadPoll {
         Self {
             gilrs: None,
             stick: (0.0, 0.0),
+            #[cfg(test)]
+            injected: Vec::new(),
+            #[cfg(test)]
+            injected_backend: false,
+        }
+    }
+
+    /// Hardware-free poller that returns the queued events once.
+    #[cfg(test)]
+    pub fn with_events(events: Vec<PadEvent>) -> Self {
+        Self {
+            gilrs: None,
+            stick: (0.0, 0.0),
+            injected: events,
+            injected_backend: true,
         }
     }
 
     /// True when the backend itself is missing.
     pub fn backend_missing(&self) -> bool {
+        #[cfg(test)]
+        if self.injected_backend {
+            return false;
+        }
         self.gilrs.is_none()
     }
 
@@ -259,6 +288,8 @@ impl PadPoll {
     /// motion updates the cached deflection (read via [`stick_dir`]).
     pub fn drain(&mut self, map: &PadMap) -> Vec<PadEvent> {
         let mut out = Vec::new();
+        #[cfg(test)]
+        out.append(&mut self.injected);
         let gilrs = match self.gilrs.as_mut() {
             None => return out,
             Some(g) => g,
