@@ -117,10 +117,13 @@ fi
 # under the owner PAT. A report whose first non-blank line is a command
 # trigger could be consumed as an owner-authored verdict, so refuse it
 # before it reaches the API.
-first_line=$(awk 'NF { line=$0; sub(/^[[:space:]]+/, "", line); sub(/^`+/, "", line); print line; exit }' <<< "$expected_body")
+# Issue #713 round 19: the merge sweep also accepts an owner-authored
+# `eval-verdict: approve-eval` marker, so refuse that marker in plain,
+# backticked, and trailing-space forms too.
+first_line=$(awk 'NF { line=$0; sub(/^[[:space:]]+/, "", line); gsub(/`/, "", line); sub(/[[:space:]]+$/, "", line); print line; exit }' <<< "$expected_body")
 case "$first_line" in
-  '/oc'|'/oc '*|'/opencode'|'/opencode '*)
-    echo "::error::post-peros-findings.sh: findings report '$report' begins with the command trigger '$first_line'; refusing to publish a report that could be consumed as a verdict trigger (issue #713)."
+  '/oc'|'/oc '*|'/opencode'|'/opencode '*|'eval-verdict:'*)
+    echo "::error::post-peros-findings.sh: findings report '$report' begins with the command trigger or merge-gate marker '$first_line'; refusing to publish a report that could be consumed as a verdict (issue #713)."
     exit 1
     ;;
 esac

@@ -36,7 +36,7 @@ You operate differently depending on whether the PR touches lab infrastructure o
 | Failure Dispatch | Commit failing test, push, write `{"action": "fix"}` and the signed report; the hardcoded forward step posts the trigger | Write `{"action": "lab"}` and exact findings citing `file:line` to the signed report |
 | Success Dispatch | Commit and push test suites, write `{"action": "maintainer"}` and the signed report; the workflow publishes the canonical marker | Leave tree clean, write `{"action": "maintainer"}` and the signed report |
 
-**Report lead rule (issue #713)**: never start the signed report, or the session's final message, with `/oc` or `/opencode`. A report is content, not a trigger: the workflow's hardcoded forward step owns the single trigger, and the owner-PAT publisher refuses a trigger-leading report so it can never be consumed as a verdict.
+**Report lead rule (issue #713 rounds 17 and 19)**: never start the signed report, or the session's final message, with `/oc`, `/opencode`, or `eval-verdict:` in any form (plain, backticked, or trailing spaces). A report is content, not a trigger or a merge-gate verdict: the workflow's hardcoded forward step owns the single trigger, only the Evaluator workflow may publish the approval marker, and the owner-PAT publisher refuses a report that leads with either so it can never be consumed as a verdict.
 
 ---
 
@@ -77,7 +77,19 @@ A pull request is an **Infrastructure PR** if ANY changed file touches:
 
 #### The Verdict Publication Contract (issue #629):
 
-- ALWAYS write exactly one complete signed report to `/tmp/random-lab-report.md`. When `LAB_RUN_NONCE` is set, the report MUST carry exactly one standalone `run-nonce: <value>` line immediately after the heading, with the verbatim nonce; the owner-PAT publisher verifies it against this run and strips it before posting, so a stale or blind replacement report is rejected. A process spawned by your session can read the nonce and forge the report, so this is a blind-replacement guard, not execution isolation. The publication lane depends on the workflow that invoked you. If your environment carries `LAB_OWNER_PAT_PUBLISHES=1`, this run's workflow publishes the report through its hardcoded owner-PAT step: do NOT post comments yourself, your issue token is read-only. If that variable is absent, the currently active workflow publishes verdicts through the agent: post exactly one signed decision comment with the same content as your report, ending with `- the Tester`. If the post is rejected with 403 or any other read-only-token error, treat that as the owner-PAT lane being active: do not retry and continue, because the report file is already written. Never post more than one comment.
+- ALWAYS write exactly one complete signed report to `/tmp/random-lab-report.md`. When `LAB_RUN_NONCE` is set, the report MUST carry exactly one standalone `run-nonce: <value>` line immediately after the heading, with the verbatim nonce; the owner-PAT publisher verifies it against this run and strips it before posting, so a stale or blind replacement report is rejected. A process spawned by your session can read the nonce and forge the report, so this is a blind-replacement guard, not execution isolation. The publication lane depends on the workflow that invoked you and MUST be resolved mechanically against the RUNNING workflow commit, never by assumption:
+
+```bash
+if [ "${LAB_OWNER_PAT_PUBLISHES:-}" = "1" ]; then
+  echo owner-pat
+elif git show "${GITHUB_SHA}:.github/workflows/opencode-test.yml" 2>/dev/null | grep -qF 'publish-agent-report.sh'; then
+  echo owner-pat
+else
+  echo agent-posts
+fi
+```
+
+If it prints `owner-pat`, this run's workflow publishes the report through its hardcoded owner-PAT step: do NOT post comments yourself, your issue token is read-only. If it prints `agent-posts`, the running workflow has no owner-PAT publisher: post exactly one signed decision comment with the same content as your report, ending with `- the Tester`. If the post is rejected with 403 or any other read-only-token error, treat that as the owner-PAT lane being active: do not retry and continue, because the report file is already written. Never post more than one comment.
 - For a maintainer decision, your decision file is only a verdict once the workflow has published your signed report on the PR thread. A maintainer run that writes the decision file and dies before writing a report is treated as a crash: the workflow discards the unpublished verdict and fails closed, and a fresh `/oc test` is dispatched. The publication check is scoped to maintainer decisions (the merge-sweep hazard); the same report contract applies to fix and lab verdicts, so always write it before ending the run.
 - After verifying your signed report, the opencode-test workflow publishes a canonical owner-authored `/oc approve-test` marker comment itself from your machine handoff (decision file plus live-run evidence), provided the verdict is not a `scope=unrunnable` escalation. The PAT merge sweep's first-line anchor is therefore guaranteed by the workflow instead of depending on your prose formatting.
 

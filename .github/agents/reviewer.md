@@ -108,11 +108,11 @@ When you find issues or missing work (i.e., the PR is NOT clean), you must choos
 ## Decision
 
 - **Infrastructure PRs (HIGHEST PRIORITY)** → If the PR modifies `.github/workflows/` or `.github/agents/`, you MUST use this action. Write `{"action":"lab"}` to the decision file. Write the complete signed report to `/tmp/random-lab-report.md`, opening with a plain heading and outlining the findings for `.github/` files. **NEVER use `fix` or `continue` for infra PRs.**
-- **Clean (ALL PR Types)** → Write `{"action":"test"}` to the decision file. Write the complete signed report to `/tmp/random-lab-report.md`, opening with a plain heading and listing the checks that passed. The workflow publishes it with the owner PAT; the hardcoded forward step dispatches the Tester/Maintainer.
+- **Clean (ALL PR Types)** → Write `{"action":"test"}` to the decision file. Write the complete signed report to `/tmp/random-lab-report.md`, opening with a plain heading and listing the checks that passed. The owner-PAT lane publishes it; in the legacy agent-posts lane you post it yourself as exactly one signed comment (see the publication contract). The hardcoded forward step dispatches the Tester/Maintainer.
 - **Code Issues (Project Code ONLY)** → Write `{"action":"fix"}` to the decision file. Write the complete signed report to `/tmp/random-lab-report.md`, opening with a plain heading and outlining the findings. Every finding must cite exact `file:line`, quote the offending code, and include the corrected code.
 - **Incomplete Work (Project Code ONLY)** → Write `{"action":"continue"}` to the decision file. Write the complete signed report to `/tmp/random-lab-report.md`, opening with a plain heading and asking the Builder to finish the missing pieces.
 
-**Report lead rule (issue #713 round 17): NEVER start a report (first non-blank line) with `/oc` or `/opencode`, in either publication lane.** A report is content, not a trigger: the workflow's hardcoded forward step posts the single `/oc` trigger for the decision. An owner-authored report that led with a trigger would be consumed as a verdict and could double-dispatch another agent; `publish-agent-report.sh` refuses such a report before posting.
+**Report lead rule (issue #713 rounds 17 and 19): NEVER start a report (first non-blank line) with `/oc`, `/opencode`, or `eval-verdict:` in any form (plain, backticked, or trailing spaces), in either publication lane.** A report is content, not a trigger or a merge-gate verdict: the workflow's hardcoded forward step posts the single `/oc` trigger for the decision, and only `publish-eval-marker.sh` may emit the Evaluator approval marker. An owner-authored report that led with a trigger or the merge marker would be consumed as a verdict; `publish-agent-report.sh` refuses such a report before posting.
 - **Behind/conflicted** → `/oc` comment asking the implementer to rebase and
   resolve conflicts in files: X, Y (you never rebase).
 - **Human PRs** → same review, but written as guidance: the human fixes it
@@ -151,20 +151,32 @@ verifies it against this run and removes the line before posting, so a stale or
 blind replacement report is rejected. A process spawned by your session can
 read the nonce and forge the report, so this is a blind-replacement guard, not
 execution isolation. The publication lane depends on the workflow that invoked
-you:
+you and MUST be resolved mechanically against the RUNNING workflow commit, never
+by assumption (a PR-head prompt can be read by an older workflow that has no
+publisher, which is how review run 39096590198 lost its verdict):
 
-- If your environment carries `LAB_OWNER_PAT_PUBLISHES=1`, this run's workflow
-  publishes your report through its hardcoded owner-PAT step. Do NOT post
-  comments yourself: your issue token is read-only for issues.
-- If that variable is absent, the currently active workflow publishes verdicts
-  through the agent. Post exactly one signed decision comment to the PR with
-  the same content as your report, ending with `- the Reviewer`. It must not
-  lead with `/oc` or `/opencode` (see the report lead rule above); the
-  workflow's hardcoded forward step, not your comment, posts the trigger.
-  This legacy lane keeps the gate alive while the owner-PAT publisher rollout
-  is still in flight. If the post is rejected with 403 or any other
-  read-only-token error, treat that as the owner-PAT lane being active: do not
-  retry and continue, because the report file is already written.
+```bash
+if [ "${LAB_OWNER_PAT_PUBLISHES:-}" = "1" ]; then
+  echo owner-pat
+elif git show "${GITHUB_SHA}:.github/workflows/opencode-review.yml" 2>/dev/null | grep -qF 'publish-agent-report.sh'; then
+  echo owner-pat
+else
+  echo agent-posts
+fi
+```
+
+- `owner-pat`: this run's workflow publishes your report through its hardcoded
+  owner-PAT step. Do NOT post comments yourself; your issue token is
+  read-only.
+- `agent-posts`: the running workflow has no owner-PAT publisher. Post exactly
+  one signed decision comment to the PR with the same content as your report,
+  ending with `- the Reviewer`. It must not lead with `/oc`, `/opencode`, or
+  `eval-verdict:` (see the report lead rule above); the workflow's hardcoded
+  forward step, not your comment, posts the trigger. This legacy lane keeps
+  the gate alive while the owner-PAT publisher rollout is still in flight. If
+  the post is rejected with 403 or any other read-only-token error, treat that
+  as the owner-PAT lane being active: do not retry and continue, because the
+  report file is already written.
 
 Never post more than one comment. A run that writes the decision file but no
 report is treated as a crash, the verdict is discarded, and the bounded review

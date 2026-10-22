@@ -4688,7 +4688,9 @@ else
   # first line of an owner-authored post, so the findings poster must refuse
   # report content whose first non-blank line is a command trigger.
   grep -qF 'first_line=$(awk' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-first-line-trigger-guard)"
-  grep -qF "'/oc'|'/oc '*|'/opencode'|'/opencode '*)" "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-trigger-prefix-ban)"
+  grep -qF "'/oc'|'/oc '*|'/opencode'|'/opencode '*|'eval-verdict:'*)" "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-trigger-or-marker-prefix-ban)"
+  grep -qF 'gsub(/`/' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-backtick-normalization)"
+  grep -qF 'sub(/[[:space:]]+$/, "", line)' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-trailing-space-normalization)"
   # Issue #713 round 18: the findings report is bound to this run's nonce so
   # a stale or blind replacement is refused before the owner-PAT post.
   grep -qF 'run-nonce:' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-report-nonce-contract)"
@@ -4864,6 +4866,19 @@ R17_MOCK
       r17_case good-windows 0 windows "$r17_good_windows"
       r17_case unsigned-windows 1 windows "$r17_unsigned"
       r17_case wrong-author-windows 1 windows "$r17_good_windows" 'author="github-actions[bot]"'
+      # Issue #713 review round 19: the owner-PAT findings poster must refuse
+      # the merge-gate marker lead in plain, backticked, and trailing-space
+      # forms, or a per-OS report could be consumed as an owner-authored eval
+      # approval. The clean control above proves the guard is not blanket.
+      r17_eval_plain="$r17_tmp/eval-marker-plain.md"
+      printf 'eval-verdict: approve-eval\n\nFinding one.\n\n- the Linux Tester\n' > "$r17_eval_plain"
+      r17_eval_backticked="$r17_tmp/eval-marker-backticked.md"
+      printf '`eval-verdict: approve-eval`\n\nFinding one.\n\n- the Linux Tester\n' > "$r17_eval_backticked"
+      r17_eval_trailing="$r17_tmp/eval-marker-trailing.md"
+      printf 'eval-verdict: approve-eval   \n\nFinding one.\n\n- the Linux Tester\n' > "$r17_eval_trailing"
+      r17_case eval-marker-plain 1 linux "$r17_eval_plain"
+      r17_case eval-marker-backticked 1 linux "$r17_eval_backticked"
+      r17_case eval-marker-trailing 1 linux "$r17_eval_trailing"
       r17_case crlf-fetch-linux 0 linux "$r17_good_linux" 'crlf_fetch="1"'
       r17_case crlf-report-plain-windows 0 windows "$r17_crlf_windows"
       r17_case crlf-report-windows 0 windows "$r17_crlf_windows" 'crlf_fetch="1"' "posted_capture=$r17_tmp/posted-crlf-report.md"
@@ -4914,9 +4929,9 @@ r17_stage_rc=0
 r17_stage_out=$(R17_LINUX_BLOCK_SHA="98243bff9fdf39653211086006a18275cb9d5a3bf50e23833555cf9492a36935" \
   R17_MACOS_BLOCK_SHA="b4b54c75c61bceb87716136ad027cde6e6f6a84653ab6ef4e5af6d4390aad012" \
   R17_WINDOWS_BLOCK_SHA="56267c9b1e7bcc9284e53f18dc36b16bfed8b65af967fbe215392a31ae2890cc" \
-  R17_LINUX_PROMPT_SHA="cbd9217cdccb515418223802139d8cb86e6f961043c64eff30c78dc2d7fbecc0" \
-  R17_MACOS_PROMPT_SHA="617d11fa0302ffec9cd793dbe4610beacda28965a27e3437dd8c23031d7c0e79" \
-  R17_WINDOWS_PROMPT_SHA="c5df860f8350571188c0c83ddd1e5f51b6030d564ebd134b8ad4ab6809f597fd" \
+  R17_LINUX_PROMPT_SHA="4f2c73e688fbc80e0095c65871dfe27654d3ce87ebbdcad8242115cf17e2e548" \
+  R17_MACOS_PROMPT_SHA="143a3ee0853acde232922442710dd7f1e7e5ad46502d95738ae21087496c3b40" \
+  R17_WINDOWS_PROMPT_SHA="7d58d7509296117a5a16ab1213c0864ce08dad245fe46ea06884805dd7071199" \
   R17_LINUX_AGENT_PROMPT_SHA="a3c8663b91850d863e303d64e63d0ed1d832f6d493c8b8a6b849a709bd32dc2e" \
   R17_MACOS_AGENT_PROMPT_SHA="e1eb647835a2715c2201cbdc31a2f222b9ef89041e6934b81e6962f33d4b5838" \
   R17_WINDOWS_AGENT_PROMPT_SHA="0f06dc4efd692b56f174fea385bc1b0cf8fdb7d9e39ea827925ce4917ac960d7" \
@@ -6126,7 +6141,9 @@ else
   # owner-authored post, so the publisher must refuse report content whose
   # first non-blank line is a command trigger.
   grep -qF 'first_line=$(awk' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-first-line-trigger-guard)"
-  grep -qF "'/oc'|'/oc '*|'/opencode'|'/opencode '*)" "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-trigger-prefix-ban)"
+  grep -qF "'/oc'|'/oc '*|'/opencode'|'/opencode '*|'eval-verdict:'*)" "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-trigger-or-marker-prefix-ban)"
+  grep -qF 'gsub(/`/' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-backtick-normalization)"
+  grep -qF 'sub(/[[:space:]]+$/, "", line)' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-trailing-space-normalization)"
   grep -qF 'GITHUB_ACTIONS' "$R19_PUBLISHER" && r19_bad="${r19_bad} publisher(references-GITHUB_ACTIONS)"
   grep -qF 'MOCK_' "$R19_PUBLISHER" && r19_bad="${r19_bad} publisher(references-MOCK)"
   grep -qF 'RandomLabs/' "$R19_PUBLISHER" && r19_bad="${r19_bad} publisher(hardcodes-repo-slug)"
@@ -6158,6 +6175,30 @@ else
       r19_bad="${r19_bad} publisher(backticked-marker-report-reached-gh)"
     fi
     printf '%s\n' "$r19g_out3" | grep -qF 'begins with the command trigger' || r19_bad="${r19_bad} publisher(backticked-marker-guard-did-not-refuse)"
+    # Issue #713 review round 19: the owner-PAT report publishers must also
+    # refuse the merge-gate marker, in plain, backticked, and trailing-space
+    # forms, or a report could be consumed as an owner-authored eval approval.
+    printf 'eval-verdict: approve-eval\n\nSigned report body.\n\n- the Tester\n' > "$r19g_dir/eval-marker.md"
+    : > "$r19g_log"
+    r19g_out5=$(PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/eval-marker.md" "- the Tester" 2>&1 || true)
+    if [ -s "$r19g_log" ]; then
+      r19_bad="${r19_bad} publisher(eval-marker-report-reached-gh)"
+    fi
+    printf '%s\n' "$r19g_out5" | grep -qF 'begins with the command trigger or merge-gate marker' || r19_bad="${r19_bad} publisher(eval-marker-guard-did-not-refuse)"
+    printf '`eval-verdict: approve-eval`\n\nSigned report body.\n\n- the Tester\n' > "$r19g_dir/eval-marker-backticked.md"
+    : > "$r19g_log"
+    r19g_out6=$(PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/eval-marker-backticked.md" "- the Tester" 2>&1 || true)
+    if [ -s "$r19g_log" ]; then
+      r19_bad="${r19_bad} publisher(backticked-eval-marker-report-reached-gh)"
+    fi
+    printf '%s\n' "$r19g_out6" | grep -qF 'begins with the command trigger or merge-gate marker' || r19_bad="${r19_bad} publisher(backticked-eval-marker-guard-did-not-refuse)"
+    printf 'eval-verdict: approve-eval   \n\nSigned report body.\n\n- the Tester\n' > "$r19g_dir/eval-marker-trailing.md"
+    : > "$r19g_log"
+    r19g_out7=$(PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/eval-marker-trailing.md" "- the Tester" 2>&1 || true)
+    if [ -s "$r19g_log" ]; then
+      r19_bad="${r19_bad} publisher(trailing-space-eval-marker-report-reached-gh)"
+    fi
+    printf '%s\n' "$r19g_out7" | grep -qF 'begins with the command trigger or merge-gate marker' || r19_bad="${r19_bad} publisher(trailing-space-eval-marker-guard-did-not-refuse)"
     printf '## Findings\n\nSigned report body.\n\n- the Tester\n' > "$r19g_dir/control.md"
     : > "$r19g_log"
     PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/control.md" "- the Tester" >/dev/null 2>&1 || true
@@ -7122,6 +7163,21 @@ continue
 fi
 if ! printf '%s' "$approve_eval_id" | grep -qE '^[0-9]+$'; then
 echo "PR #$pr eval marker has no valid comment id; not merge-ready"
+continue
+fi
+eval_marker_shape=$(printf '%s' "$eval_marker" | jq -r --arg pr "$pr" --arg head "$approve_eval_head" --arg trigger "$approve_eval_trigger" '
+(.body // "") | split("\n") as $lines
+| if ($lines | length) >= 6
+and $lines[0] == "eval-verdict: approve-eval"
+and $lines[1] == ""
+and $lines[2] == ("eval-head: " + $head)
+and $lines[3] == ("eval-trigger: " + $trigger)
+and $lines[4] == ""
+and ($lines[5] | startswith("Machine-published Evaluator approval verdict for PR #" + $pr + " (Quality Council score: "))
+and ($lines[5] | contains(", evaluated head " + $head + ", trigger comment " + $trigger + "): the evaluator decision file passed the workflow gates."))
+then "ok" else "" end' 2>/dev/null || echo "")
+if [ "$eval_marker_shape" != "ok" ]; then
+echo "PR #$pr eval marker does not carry the canonical machine-published body shape; not merge-ready"
 continue
 fi
 if [ -z "$head_sha" ] || [ "$approve_eval_head" != "$head_sha" ]; then
@@ -15362,7 +15418,7 @@ EXPECTED_CONCURRENCY = {
 # A legitimate prompt or staging-step change updates the matching constant in
 # the same PR.
 EXPECTED_EVAL_PROMPT_SHA256 = "e6a67aeec6454a748e370671e209dde3619a837d0c1e34de52b6a4fbbbf7002b"
-EXPECTED_TEST_PROMPT_SHA256 = "2dc5024f075e24fdb5af61bc405997513d0e53a457bf88df7be01cb8f78cbd96"
+EXPECTED_TEST_PROMPT_SHA256 = "0027baa9117e742c44e91197fd5fc20cc8ce51e3470d2a465da078944f247d0e"
 # Issue #713 review round 9: the Tester agent's with.prompt scalar is part of
 # the gate contract too (it carries the live-execution and decision-file
 # instructions). Pin it by SHA-256 instead of a substring check, so a workflow
@@ -15377,7 +15433,7 @@ EXPECTED_TEST_STAGE_PROMPT_BLOCK_SHA256 = "e0c4b5fa07824eeafcaf75c946f0f60f0e12e
 # approval marker. The review workflow stages the reviewed prompt from the
 # workflow commit, and these constants pin the source content, the staging
 # body, and the agent scalar that points at the staged copy.
-EXPECTED_REVIEW_PROMPT_SHA256 = "d08362d8707e7190325c85cb50b1519f3edce3f386ee813fab226c19b54eda8b"
+EXPECTED_REVIEW_PROMPT_SHA256 = "9d90a238a5b9e8cbdaac57fedc1759ba5783781d552758a1db2587f6c21a69e8"
 EXPECTED_REVIEW_STAGE_PROMPT_BLOCK_SHA256 = "5600d2d6e520998d4529fe347fa51fc2cfde81dba6c47afe612209aa4a2d7b45"
 EXPECTED_REVIEW_AGENT_PROMPT_SHA256 = "881b8d09f99b4003a449557167197961b83f049ae761cb987e1a1033e233ee92"
 # Issue #713 review round 10: the round-9 test/review PR-head isolation was
@@ -18083,6 +18139,16 @@ else
       printf '%s\n' "$block" | grep -qF 'if length == 1 then (.[0] | sub("^eval-head: "; "")) else empty end' || bad="${bad} maintainer.yml(eval-head-not-singleton-parsed)"
       printf '%s\n' "$block" | grep -qF 'if length == 1 then (.[0] | sub("^eval-trigger: "; "")) else empty end' || bad="${bad} maintainer.yml(eval-trigger-not-singleton-parsed)"
       printf '%s\n' "$block" | grep -qF 'eval marker does not carry exactly one eval-head and one eval-trigger binding' || bad="${bad} maintainer.yml(eval-binding-cardinality-guard-missing)"
+      # Issue #713 review round 19: the only legitimate producer is the
+      # publisher, so the sweep also requires the canonical machine body:
+      # marker, blank, singleton bindings, blank, and the canonical paragraph
+      # echoing this PR, head, and trigger. The whole-body pin above catches
+      # any rewrite; these needles keep the semantic guard named when it is
+      # weakened in isolation.
+      printf '%s\n' "$block" | grep -qF 'eval_marker_shape=$(printf' || bad="${bad} maintainer.yml(eval-marker-canonical-shape-missing)"
+      printf '%s\n' "$block" | grep -qF 'eval marker does not carry the canonical machine-published body shape' || bad="${bad} maintainer.yml(eval-marker-canonical-shape-guard-missing)"
+      printf '%s\n' "$block" | grep -qF '$lines[5] | startswith("Machine-published Evaluator approval verdict for PR #" + $pr + " (Quality Council score: ")' || bad="${bad} maintainer.yml(eval-marker-canonical-paragraph-not-pinned)"
+      printf '%s\n' "$block" | grep -qF 'contains(", evaluated head " + $head + ", trigger comment " + $trigger + "): the evaluator decision file passed the workflow gates.")' || bad="${bad} maintainer.yml(eval-marker-binding-echo-not-pinned)"
       printf '%s\n' "$block" | grep -qF 'if [ -z "$head_sha" ] || [ "$approve_eval_head" != "$head_sha" ]; then' || bad="${bad} maintainer.yml(no-eval-head-binding-check)"
       printf '%s\n' "$block" | grep -qF 'if [ "$approve_eval_time" \< "$head_push_time" ]; then' || bad="${bad} maintainer.yml(no-stale-eval-check)"
       printf '%s\n' "$block" | grep -qF 'if [ "$approve_eval_time" \< "$approve_test_time" ]; then' || bad="${bad} maintainer.yml(no-eval-before-tester-check)"
@@ -18153,6 +18219,15 @@ else
     case "$(r30_check_pat_block "$r30_mut")" in
       *eval-head-not-singleton-parsed*) : ;;
       *) r30_bad="${r30_bad} maintainer.yml(self-test-eval-binding-singleton-not-caught)" ;;
+    esac
+    # Issue #713 review round 19: the canonical machine-body guard is
+    # load-bearing. Deleting the whole shape check must be caught by name (the
+    # exact pin also catches it, but the named needle proves the specific
+    # defense is still present and checked).
+    r30_mut=$(printf '%s\n' "$r30_pat_block" | sed '/eval_marker_shape=\$(printf/,/^[[:space:]]*fi$/d')
+    case "$(r30_check_pat_block "$r30_mut")" in
+      *eval-marker-canonical-shape-missing*) : ;;
+      *) r30_bad="${r30_bad} maintainer.yml(self-test-eval-marker-shape-not-caught)" ;;
     esac
     # Issue #713 review round 9: the demonstrated `printf -v` writer-spelling
     # injection must be caught by the whole-block pin / alternate-writer ban,
@@ -18313,7 +18388,7 @@ else
             printf '{"id":%s,"user":{"login":"%s"},"created_at":"%s","body":"%s"}' "$1" "$2" "$3" "$4"
           }
           r30_marker_body() {
-            printf 'eval-verdict: approve-eval\\n\\neval-head: %s\\neval-trigger: %s\\n\\nMachine-published Evaluator approval verdict for PR #713' "$1" "$2"
+            printf 'eval-verdict: approve-eval\\n\\neval-head: %s\\neval-trigger: %s\\n\\nMachine-published Evaluator approval verdict for PR #%s (Quality Council score: 9.9/10, evaluated head %s, trigger comment %s): the evaluator decision file passed the workflow gates.' "$1" "$2" "${3:-713}" "$1" "$2"
           }
           r30_h_sha=1111111111111111111111111111111111111111
           r30_other_sha=2222222222222222222222222222222222222222
@@ -18324,6 +18399,10 @@ else
           r30_c_trigger_556_same=$(r30_json_comment 556 mockowner 2026-10-20T14:10:00Z '/oc eval')
           r30_c_trigger_556_foreign=$(r30_json_comment 556 mallory 2026-10-20T14:15:00Z '/oc eval')
           r30_c_marker_fresh=$(r30_json_comment 1001 'mockowner' 2026-10-20T14:10:00Z "$(r30_marker_body "$r30_h_sha" 555)")
+          r30_c_marker_fresh_42=$(r30_json_comment 1001 'mockowner' 2026-10-20T14:10:00Z "$(r30_marker_body "$r30_h_sha" 555 42)")
+          r30_c_marker_noncanonical=$(r30_json_comment 1001 'mockowner' 2026-10-20T14:10:00Z "eval-verdict: approve-eval\\n\\neval-head: $r30_h_sha\\neval-trigger: 555\\n\\nScore 9.9/10")
+          r30_c_marker_wrong_pr=$(r30_json_comment 1001 'mockowner' 2026-10-20T14:10:00Z "$(r30_marker_body "$r30_h_sha" 555 714)")
+          r30_c_marker_no_blank=$(r30_json_comment 1001 'mockowner' 2026-10-20T14:10:00Z "eval-verdict: approve-eval\\neval-head: $r30_h_sha\\neval-trigger: 555")
           r30_c_marker_moved=$(r30_json_comment 1001 'mockowner' 2026-10-20T14:10:00Z "$(r30_marker_body "$r30_other_sha" 555)")
           r30_c_marker_no_head=$(r30_json_comment 1001 'mockowner' 2026-10-20T14:10:00Z 'eval-verdict: approve-eval\n\neval-trigger: 555\n\nNo head binding')
           r30_c_marker_bad_head=$(r30_json_comment 1001 'mockowner' 2026-10-20T14:10:00Z 'eval-verdict: approve-eval\n\neval-head: nope\neval-trigger: 555')
@@ -18367,7 +18446,7 @@ else
           # Issue #713 review round 7: run a mergeable case on a second PR
           # number, so a `[ "$pr" = "713" ]` gate that disables the checks for
           # every real PR fails the audit.
-          r30_head_case fresh-second-pr 0 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_fresh]" 42
+          r30_head_case fresh-second-pr 0 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_fresh_42]" 42
           r30_head_case different-head 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_moved]"
           r30_head_case missing-head 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_no_head]"
           r30_head_case malformed-head 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_bad_head]"
@@ -18380,7 +18459,10 @@ else
           r30_head_case older-rejection 0 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_fresh,$r30_c_reject_900]"
           r30_head_case stale-time 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_stale]"
           r30_head_case eval-before-tester 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_before_tester]"
-          r30_head_case backticked-marker 0 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_backticked]"
+          r30_head_case backticked-marker 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_backticked]"
+          r30_head_case noncanonical-marker 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_noncanonical]"
+          r30_head_case wrong-pr-marker 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_wrong_pr]"
+          r30_head_case marker-no-blank 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_no_blank]"
           r30_head_case unprivileged-newer-trigger 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_fresh,$r30_c_trigger_556_foreign]"
           r30_head_case quoted-marker 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_quoted]"
           r30_head_case bot-marker 1 "$r30_h_sha" 2026-10-20T14:00:00Z 2026-10-20T14:05:00Z "[$r30_c_trigger_555,$r30_c_marker_bot]"
