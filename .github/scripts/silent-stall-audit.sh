@@ -6567,8 +6567,8 @@ fi
 if [ -f .github/agents/reviewer.md ]; then
   # Whole-line pins (review round 3 minor): substring greps are satisfiable
   # by a decoy sentence; the operative contract lines are pinned exactly.
-  grep -qxF '**Report Publication Contract (issues #616, #637, #713)**: your token is' .github/agents/reviewer.md || r19_bad="${r19_bad} reviewer.md(no-publication-contract)"
-  grep -qxF 'workflow step publishes the report after your session ends; a run that writes' .github/agents/reviewer.md || r19_bad="${r19_bad} reviewer.md(no-report-file-rule)"
+  grep -qxF '**Report Publication Contract (issues #616, #637, #713)**: ALWAYS write exactly' .github/agents/reviewer.md || r19_bad="${r19_bad} reviewer.md(no-publication-contract)"
+  grep -qxF 'one complete signed report to `/tmp/random-lab-report.md` before ending the' .github/agents/reviewer.md || r19_bad="${r19_bad} reviewer.md(no-report-file-rule)"
 else
   r19_bad="${r19_bad} reviewer.md(missing)"
 fi
@@ -15148,7 +15148,7 @@ EXPECTED_CONCURRENCY = {
 # A legitimate prompt or staging-step change updates the matching constant in
 # the same PR.
 EXPECTED_EVAL_PROMPT_SHA256 = "9c6559f33ac16486c5e47a98e7bf9cc1950fc6427918d9ee0bca83e75753a942"
-EXPECTED_TEST_PROMPT_SHA256 = "b5e8297887260f4325dbaec6c6ce713efd31f35cc4c990a67507e17eed27077d"
+EXPECTED_TEST_PROMPT_SHA256 = "5d24c0807bad3c93632ac26f7131225a68709cd560d5c7604b534ce6beb34529"
 # Issue #713 review round 9: the Tester agent's with.prompt scalar is part of
 # the gate contract too (it carries the live-execution and decision-file
 # instructions). Pin it by SHA-256 instead of a substring check, so a workflow
@@ -15163,7 +15163,7 @@ EXPECTED_TEST_STAGE_PROMPT_BLOCK_SHA256 = "e0c4b5fa07824eeafcaf75c946f0f60f0e12e
 # approval marker. The review workflow stages the reviewed prompt from the
 # workflow commit, and these constants pin the source content, the staging
 # body, and the agent scalar that points at the staged copy.
-EXPECTED_REVIEW_PROMPT_SHA256 = "fe89c483f6a576c247ffe12eac0d6b16dba22c77bc9835379d9fddaf99c15eb9"
+EXPECTED_REVIEW_PROMPT_SHA256 = "f5eeeb03a5dea3be52e5ba82dd5532d44741c7426ae94dd21ebc5b9270fac288"
 EXPECTED_REVIEW_STAGE_PROMPT_BLOCK_SHA256 = "5600d2d6e520998d4529fe347fa51fc2cfde81dba6c47afe612209aa4a2d7b45"
 EXPECTED_REVIEW_AGENT_PROMPT_SHA256 = "881b8d09f99b4003a449557167197961b83f049ae761cb987e1a1033e233ee92"
 # Issue #713 review round 10: the round-9 test/review PR-head isolation was
