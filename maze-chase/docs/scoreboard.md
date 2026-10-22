@@ -478,3 +478,61 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   reverted (mutation checks). Boot-gate E2E 30/30, wasm-smoke and
   tester-regression ALL GREEN, `node --check` clean. No Rust, wasm, or
   capture artifact changed.
+
+## 2026-10-22 (sound overhaul, Linux x86_64)
+
+Measured on this tree under stable Rust 1.99.0. Earlier dated sections
+remain as history and were not edited.
+
+Engine determinism (`cargo run --bin maze-chase-verify`):
+
+- `verify: 19/19 checks passed`, golden replay digest
+  `23c17f89734e`.
+- `perf-headless`: 1.0 us/tick for 12k ticks in this run.
+- Offline PCM (`desktop::sound::tests::offline_pcm_levels_are_bounded_and_the_default_mix_keeps_headroom`):
+  music peak 0.320 (RMS 0.076), SFX peak 0.500, all finite and
+  peak-normalized without clipping; at the default 80/60/80 mix the
+  music peaks at 0.154 and SFX at 0.320.
+
+Unit and integration suites (`cargo test --workspace`, exit 0):
+
+| Crate | Suites | Passed |
+|---|---|---|
+| engine | 9 | 90 |
+| assets | 4 | 42 |
+| audio (lib 16, hostile 6) | 3 | 22 |
+| config | 3 | 28 |
+| terminal | 32 | 247 |
+| desktop | 10 | 109 |
+| web | 2 | 51 |
+| **Total** | **63** | **589 passed, 0 failed** |
+
+Browser artifacts (committed `web/maze-chase.wasm`, 212,255 bytes,
+sha256 `cc7708fa24723cf511db2f854e814941309b9684eb194c3adeb9e8f6171926b8`,
+reproduced byte-for-byte by a second release build):
+
+- `node web/e2e/wasm-smoke.js`: `NODE SMOKE: ALL GREEN` (ABI 3, shared
+  108 BPM, layered tone tables, per-note track metadata, hostile
+  boundary probes).
+- `node web/e2e/tester-regression.js`: `TESTER REGRESSION: ALL GREEN`.
+- `node web/e2e/boot-gate-e2e.js`: `BOOT-GATE-E2E: ALL GREEN` (33
+  assertions, including the new layered-sound export gate).
+- `node web/e2e/browser-e2e.js` (headless chromium over CDP):
+  `E2E: ALL GREEN` (234 assertions, zero console errors), including the
+  pre-gesture audio chip, its retirement after unlock, the 60/80 music
+  and SFX defaults, and volume persistence.
+- `node web/e2e/tester-rebind-lifecycle.js`: `REBIND LIFECYCLE: ALL
+  GREEN`.
+
+Style and lints:
+
+- `cargo fmt --all --check`: clean.
+- `cargo clippy --workspace --all-targets`: only the six pre-existing
+  engine style lints remain; the audio, desktop, and web crates are
+  clean.
+
+Audio evidence boundary: the Linux runner measures the synthesized PCM
+and exercises every mix path through the real sinks and browser. A
+real-speaker listening review on macOS and Windows is not claimed here;
+it stays with the per-OS release sign-off, as recorded in
+`docs/parity.md` and the final-phase checklist.

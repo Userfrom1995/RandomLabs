@@ -6,9 +6,9 @@
 - **Branch:** opencode/issue582-20261018121223 (this roadmap PR); each phase runs
   on its own `opencode/issue582-overhaul-phase-<n>-<slug>` branch
 - **Status:** in-progress
-- **Updated:** 2026-10-21
-- **Active Phase:** Phase 4: Visual Identity Redesign
-  (Complete, ready for review; real Linux terminal captures refreshed)
+- **Updated:** 2026-10-22
+- **Active Phase:** Phase 5: Sound Design Overhaul
+  (Complete, ready for review; Linux synth plus browser evidence, native speaker sign-off tracked for the Final Phase)
 - **Blueprint:** `ideas/2026-10-18-maze-chase-overhaul.md`
 - **Findings ledger:** `progress/582-maze-chase-overhaul-findings.md` (created in
   Phase 1; every reassessment gap lives here until resolved or documented)
@@ -19,69 +19,55 @@
 - Phase 2: Dynamic Terminal Layout and Full-Window Composition: [x] geometry model with cell pixel size (`crates/terminal/src/geometry.rs`; TIOCGWINSZ pixel fields on Unix, console font on Windows, nominal 8x16 fallback), [x] pure layout solver (2..8 x 1..4 scale grid at the 2x1 compact floor with coverage-first selection; side panel, HUD band, hint-only by fit; exact 62x35 card; golden plans 200x60 -> 7x1 and 62x80 -> 2x2), [x] bounded centered image rendering at the real pixel geometry (raster fit to the board's pixel box; image footprint mapped through the window pixels, so Kitty never stretches and the Sixel raster stays inside the board's pixel box whenever the box can host the 6-ppt legibility floor, and absurdly tiny pixel windows keep the documented floor and may overflow; 8-ppt nominal fallback), [x] continuous cell-tier scales (`unicode::fit_width`/`center_rows` at any scale), [x] resize contract with same-frame repaint and stale-placement kill (`ESC[2J` plus Kitty delete-all in the new frame; pinned by `tests/plan_contract.rs`), [x] tier-aware too-small card (reads `layout.min_cols/min_rows`; exact 62x35 boundary pinned), [ ] real-emulator resize proof on Linux and macOS (the PTY proof landed with this PR; the real rows are per-OS tester work, no emulator exists on the build machine) (PR 2 target, Refs #582, Refs #656)
 - Phase 3: Terminal Render Pipeline and Compatibility Proof: [x] bounded live Kitty probe with byte replay plus the Sixel DA1 probe (the probe requires both the transmit and placement replies before it reads a verdict; Ghostty 1.3.1 answers the probe when one is sent, and its rows select the graphics path from `TERM_PROGRAM=ghostty`/`TERM=xterm-ghostty` without probing), [x] atlas plus placement composition with full-frame fallback (static layer and sprite atlas once per change, stable-id placement diffs, single-placement `d=i` deletes, explicit `z` stacking layers, DEFLATE PNG), [x] dirty-change detection and wall-clock pacing with backpressure (visual-change key, per-tier rates, 8 MiB/s byte ceiling, 1 Hz idle keepalive), [x] Sixel path hardening (64-color cap, 2 MiB frame ceiling with smaller-palette retry and an honest `cells-fallback` trace mode), [x] capability-aware probe plus write-path watchdog (`OK`/`ENOENT` replies decide kitty support; `q=2` keeps steady transmits silent, and the watchdog drops a tier after 3 failed frame writes with the reason recorded), [x] `MAZE_CHASE_TRACE` JSONL evidence mode (plan, frame mode/placements/static/atlas/encode time, skips, probe results), [x] kitty and ghostty rows signed on Linux plus conventional terminals (kitty and Ghostty both `kitty-graphics` pass at 21 transmits / 156.1-160.1 KiB per session in the Phase 3 round (pre-Pondwake; the Phase 4 rows are 169.9-175.4 KiB) with sprite visibility proven by capture census; xterm auto and xterm dark both pass on cells, the light row at 6.2% white at worst and 1.7% while playing after the theme-canvas fix; the VT340 sixel rows pass at 140-141 transmits / 3.39-3.41 MiB in the Phase 3 round (Phase 4: 137-138 / 4.25-4.31 MiB), and every row records its generating build commit plus binary SHA-256 in its `build` block), [ ] macOS matrix rows signed by the macOS Tester (PR 3 target, Refs #582, Refs #655)
 - Phase 4: Visual Identity Redesign: [x] Design Council direction consumed (dispatched by the Maintainer before this phase), [x] resolution-aware character and environment art, [x] effects and animation system, [x] refreshed themes with accessibility tests green, [x] all three layers integrated with real captures (PR 4 target, Refs #582, Closes #658)
-- Phase 5: Sound Design Overhaul: [ ] new musical score with one BPM source, [ ] soft short effect bank, [ ] mix architecture with fades and safe defaults, [ ] terminal chime policy default-off, [ ] per-layer real-host review and settings round-trip (PR 5 target, Refs #582, Closes #659)
+- Phase 5: Sound Design Overhaul: [x] new musical score with one BPM source (`TEMPO = 108`, five multi-track tunes with swung eighths and per-note track lanes), [x] soft short layered effect bank across seven voice families (40 ms crumb pluck with variation, rising warden ladder, sparkling relish triad, spare-wick bell), [x] mix architecture with 120 ms fades and safe defaults (music 60%, SFX 80%, master 80%, peak-normalized buses), [x] terminal chime policy default-off with a persistent Settings row and visual twins independent of mute, [x] per-layer settings round-trip on Linux (desktop synth PCM plus null sink, terminal BEL plus ticker, browser chip plus persisted sliders) with native macOS/Windows speaker review tracked for the Final Phase (PR 5 target, Refs #582, Closes #659)
 - Phase 6: Release Engineering and Multi-Platform Distribution: [ ] version single source plus tag parity gate, [ ] Linux deb and rpm plus tarballs for both layers, [ ] Windows installer plus zip, [ ] macOS app plus dmg plus tarball, [ ] install/launch/uninstall smoke scripts, [ ] `maze-chase-release.yml` pipeline via the Lab Engineer, [ ] release candidate artifacts on the official Releases page, [ ] install/upgrade/uninstall docs (PR 6 target, Refs #582, Closes #657)
 - Phase 7: Game-First Web Experience and Subpages: [ ] `maze-chase/index.html` boots directly into the game with no clutter, [ ] downloads, install, docs, compatibility, releases subpages, [ ] rendered docs on Pages with link checks, [ ] deployed-URL browser E2E including mobile (PR 7 target, Refs #582, Closes #660)
 - Final Phase: Full-Product Verification and Release Sign-Off: [ ] full terminal matrix re-signed on the released artifacts, [ ] per-OS install/upgrade/uninstall from release artifacts, [ ] deployed Pages E2E for the game and every subpage, [ ] audio and visual craft evaluated on real captures, [ ] reassessment ledger fully resolved or documented, [ ] stable `maze-chase-v1.0.0` release cut, [ ] hub, README, and docs unified (Final PR, Refs #582, Closes #655, Closes #661, Closes #582)
 
 ## Current step
 
-Phase 4 (visual identity redesign) is implemented on
-`opencode/issue582-20261019234242`. The Pondwake direction from
-`docs/design.md` is live in the shared art: Rill the pond frog at 11x11 and
-21x21 plus the four hunter silhouettes at 11x11, the fright mask and eye
-overlay, 3x3 crumb beads, 7x7 sunseeds with the 400 ms halo, the
-pickup-burst/death-sink/turn-spark clips, and the three contrast-checked
-themes (`dusk-pond`, `morning-shallows`, `moonwake`) with legacy-id
-migration on load. The terminal raster and atlas, desktop renderer, and
-browser canvas all draw the same assets in the same order with the
-fright entry morph, 100 ms death cadence, 300 ms level-clear sweep and
-lily-crown banner, mask eyes, hop/gulp, pickup burst, turn spark, and
-Golden Lily bloom; the desktop and browser canvases add score floaters,
-and the web settings panel shows the active theme name. Accessibility gates (text/bg,
-fright/wall, eyes/wall, hunter separation, light/dark) pass, the golden
-replay digest is unchanged (`23c17f89734e`), and the wasm rebuild is
-committed (`022761a1...`, 207,338 bytes). The title and pause surfaces
-now stage the live game: terminal and desktop paint a dimmed fresh
-board behind centered cards, the browser overlays a fixed title card
-with a visible Start action and a header Pause control, and the pause
-hub dims the playfield to 55 percent while keeping actors exempt.
-Screens, atlases, and the browser expose the 30-segment fright meter
-in its final 1.5 s, and reduced motion is a first-class persisted
-setting (with a high-contrast theme override) across all three layers.
+Phase 5 (sound design overhaul) is implemented on this branch. One
+`TEMPO` of 108 BPM now drives five original multi-track tunes (title,
+fright, death, clear, game-over) with swung eighths and independent
+track lanes. Notes carry voice, velocity, and a track index, and rests
+are explicit. The shared score also owns seven voice families (mallet,
+drop, reed, drone, glass, bell, pluck), a layered SFX bank with delay,
+gain, and variation, pitch doubling per warden chain, and 40 ms crumb
+plucks. Rendered PCM is peak-normalized to 0.32 for music and 0.50 for
+SFX, so overlapping layers never clip.
 
-Real captures: eight Linux compatibility rows were re-executed on
-2026-10-21 at code commit `96dc2be2` (binary SHA-256
-`ce3b1f91a78f00cbd72d09bd6132b367d027fd504e1e27d56e08ec9bd9f53f86`,
-clean Rust sources), and all pass (kitty at 21 transmits / 169.9-175.4
-KiB per session; xterm light/dark on legacy cells at 4.98 MiB; both
-VT340 Sixel rows at 137-138 transmits / 4.25-4.31 MiB), including both
-Ghostty rows and every forced tier. The desktop title capture
-(`docs/desktop-probe.ppm`, sha256 `9abc9150...`) was regenerated for
-the four-sunseed goal line, the desktop gameplay capture
-(`docs/desktop-gameplay.ppm`, 1100x760, sha256 `02ea979c...`) was
-recorded from the same Xvfb `--probe` pipeline after driving a play
-session, the browser gameplay capture (`docs/web-gameplay.png`,
-1280x757, sha256 `69118e05...`) was regenerated at 1280x757 from the
-current wasm `022761a1...`, and `browser-e2e.js` is ALL GREEN. macOS and Windows terminal rows stay with the per-OS
-testers; no claim here exceeds the executed Linux rows.
+The mix now defaults to music 60 percent and SFX 80 percent, with
+master/music/SFX gain changes fading over 120 ms and mute acting on both
+buses. The terminal BEL chime is opt-in (`terminal_chime`, default
+false) with a Settings row, and flashes are pushed before the mute and
+chime gates, so visual twins never disappear. The desktop rodio sink
+tracks both buses, schedules tune tracks, and falls back to a null sink.
+The browser ABI is version 3 with `mc_sfx_tone_count`,
+`mc_sfx_tone_field`, `mc_tune_meta`, and `mc_fade_ms`; the harness
+schedules layered tones and track lanes, fades its gains, and shows a
+"Sound is asleep - tap to wake" chip until the context runs. Legacy
+first-tone views stay for older callers. `docs/audio.md` records the
+identity, mix, per-layer synthesis, and accessibility contract.
 
-Workspace gates: 582 tests across 63 targets, 582 passed / 0 failed in
-the Tester's final full rerun at `61f96564`, harness contract 49/49,
-`maze-chase-verify` 19/19 (`23c17f89734e`; `perf-headless` 0.2-0.4
-us/tick on CI reruns), wasm sha256 `022761a1...` (207,338 bytes),
-`cargo fmt --all --check` clean, and clippy reports only the
-pre-existing engine style lints.
-
-Next: Phase 5 (sound design overhaul).
+Verification on this tree: `cargo test --workspace` 589 passed / 0
+failed across 63 targets; `maze-chase-verify` 19/19 with golden
+`23c17f89734e`; offline PCM peaks 0.154 (music) and 0.320 (SFX) at the
+default 80/60/80 mix; wasm 212,255 bytes, sha256
+`cc7708fa...`, reproduced by a second release build; wasm-smoke,
+tester-regression, boot-gate (33 assertions), browser E2E (234
+assertions, zero console errors), and rebind lifecycle all green;
+`cargo fmt --all --check` clean; clippy reports only the pre-existing
+engine style lints. Native macOS and Windows speaker listening stays
+with the per-OS release sign-off; no claim here exceeds the executed
+Linux synth and browser evidence.
 
 ## Next steps
 
-- Builder: Phase 4 (visual identity redesign) landed with this PR; Phase 5
-  (sound design overhaul) starts from the merged tip once its Design
-  Council audio pass is binding.
-- Maintainer: dispatch the Phase 5 Design Council pass (`/oc design`,
-  specialists as needed); file the Phase 1 findings as linked sub-issues
+- Builder: Phase 5 (sound design overhaul) landed with this PR; Phase 6
+  (release engineering) starts from the merged tip.
+- Maintainer: merge Phase 5 after review and evaluation, then dispatch
+  Phase 6 (release engineering) and keep the per-OS speaker checks on the
+  Final Phase checklist; file the Phase 1 findings as linked sub-issues
   prioritized into the remaining phases; keep #582 open until the Final
   Phase ledger is complete.
 - Per-OS testers: Phase 2 (Linux plus macOS emulator proof), Phase 3 (matrix
@@ -1573,3 +1559,25 @@ Next: Phase 5 (sound design overhaul).
   dispatched (one capture-lifecycle area in the web harness plus its
   E2E and doc note); no registry skill matched.
   - the Fixer
+
+- 2026-10-22 (builder, Phase 5 on `opencode/issue582-20261021232750`):
+  replaced the duplicated 132 BPM tunes with one `TEMPO = 108` source and
+  five multi-track scores (swung eighths, per-note voice/velocity/track),
+  added the seven-voice layered SFX bank, peak-normalized both buses, and
+  moved the mix to 80/60/80 with 120 ms fades. The terminal chime is now
+  opt-in (`terminal_chime`, default false) with a Settings row, and
+  flashes fire before the mute/chime gates. The desktop sink renders
+  tracks and layered tones and falls back to a null sink; the browser ABI
+  is version 3 with tone, track, and fade queries plus the first-gesture
+  unlock chip. Commits: `c9226dd1` (shared score and mix), `67c221ae`
+  (terminal chime), `bc63f97b` (desktop sink), `38d7b046` (web ABI,
+  harness, wasm, E2E). Verification: `cargo test --workspace` 589 passed
+  / 0 failed across 63 targets; verify 19/19 (`23c17f89734e`);
+  `perf-headless` 0.8 us/tick; offline PCM 0.154 music / 0.320 SFX at the
+  default mix; wasm 212,255 bytes, sha256 `cc7708fa...`, reproducible on a
+  second build; wasm-smoke, tester-regression, boot-gate (33), browser
+  E2E (234, zero console errors), and rebind lifecycle all green; fmt
+  clean; clippy only the six pre-existing engine lints. Native macOS and
+  Windows speaker listening remains in the Final Phase. No subagents were
+  dispatched; no registry skill matched.
+  - the Builder

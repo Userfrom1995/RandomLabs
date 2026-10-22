@@ -95,11 +95,16 @@ from level 1, Standard is Classic from level 2, Harsh is Sprint
 
 ## Audio
 
-One-shot effects and the five original tunes synthesize at runtime
-(44.1 kHz) from the shared audio data: square/sine/triangle/noise
-sweeps for effects, sine-plus-harmonic notes at 132 BPM for music.
-On machines with no audio device the game starts silently instead of
-failing; the Audio screen still records every level.
+Layered one-shot effects and the five original multi-track tunes
+synthesize at runtime (44.1 kHz) from the shared audio data: six voice
+families build short plucks, drops, reeds, drones, glass, and bells,
+and the music runs at the single shared 108 BPM with swung eighths.
+The title lead, counterline, and drop accents schedule on separate
+track lanes. Music defaults to 60 percent and SFX to 80 percent;
+master, music, and SFX gain changes fade over 120 ms, and mute silences
+both buses without removing visual feedback. On machines with no audio
+device the game starts silently instead of failing; the Audio screen
+still records every level.
 
 ## Verification without a display
 

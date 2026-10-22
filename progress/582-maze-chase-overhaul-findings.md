@@ -242,7 +242,10 @@ Severity tag: `overclaim` where public text exceeds reality.
    title tune plays loudly by default, and the terminal layer routes a
    chime through BEL plus a ticker by default (Phase 5: Sound Design
   Overhaul; matches the
-   Owner's sound findings).
+   Owner's sound findings). RESOLVED in Phase 5: one `TEMPO = 108`
+   source drives five multi-track tunes and every layer; music defaults
+   to 60 percent and SFX to 80 percent; the terminal BEL chime is opt-in
+   and off by default, while the ticker always narrates.
 4. `reduced_flash` suppresses only one of the three flash sources used
    by the renderer (Phase 4: Visual Identity Redesign).
 5. Minimum-size token mismatch: the layout floor is 62x35
@@ -329,7 +332,10 @@ named phase; Phase 1 files them, later phases close them.
 10. Fright mask must consume `theme.fright` (Phase 4: Visual Identity Redesign).
 11. `reduced_flash` must cover every flash source (Phase 4: Visual Identity Redesign).
 12. Audio baseline: single BPM source, quieter defaults, terminal chime
-    default-off (Phase 5: Sound Design Overhaul).
+    default-off (Phase 5: Sound Design Overhaul). RESOLVED in Phase 5:
+    `crates/audio` owns the tempo and voice/track data, all three layers
+    consume it, `docs/audio.md` records the 60/80 mix, and the chime flag
+    defaults false with a persistent Settings row.
 13. Release-claims sweep: hub, README, and docs say only what the
     evidence ledger shows; Windows E2E re-signing only after the harness
     is fixed (Phase 6: Release Engineering and Phase 7: Game-First Web
