@@ -142,6 +142,27 @@ async function shot(ws, path) {
   })()`);
   assert(chipGeom[6] === 1 && chipGeom[7] === 1 && chipGeom[8] !== 'hidden' && chipGeom[9] !== 'none',
     'audio unlock chip is fully on-screen and hit-testable at 390x844, got: ' + JSON.stringify(chipGeom));
+  // The same affordance must survive the smallest mobile viewport this suite
+  // already treats as supported (the 320x480 primary-CTA sweep below): the
+  // pinned title action row must not cover it, and the chip's scroll region
+  // must not clip it.
+  await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 320, height: 480, deviceScaleFactor: 2, mobile: true });
+  await sleep(400);
+  const chipGeom320 = await evalJs(ws, `(() => {
+    const b = document.getElementById('btn-audio');
+    const r = b.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    const scroller = b.closest('.panel-scroll');
+    const s = scroller ? scroller.getBoundingClientRect() : null;
+    const visible = s ? Math.max(0, Math.min(r.bottom, s.bottom) - Math.max(r.top, s.top)) : -1;
+    const cs = getComputedStyle(b);
+    return [r.top, r.left, r.right, r.bottom, innerWidth, innerHeight, r.height, visible,
+      r.top >= 0 && r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight ? 1 : 0,
+      visible >= r.height - 0.5 ? 1 : 0,
+      (hit === b || b.contains(hit)) ? 1 : 0, cs.visibility, cs.display];
+  })()`);
+  assert(chipGeom320[8] === 1 && chipGeom320[9] === 1 && chipGeom320[10] === 1 && chipGeom320[11] !== 'hidden' && chipGeom320[12] !== 'none',
+    'audio unlock chip is fully on-screen, unclipped, and hit-testable at 320x480, got: ' + JSON.stringify(chipGeom320));
   await send(ws, 'Emulation.clearDeviceMetricsOverride');
   await sleep(400);
   // The chip is the first trusted gesture (before any key event), so the
