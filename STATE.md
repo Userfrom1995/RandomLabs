@@ -1,6 +1,6 @@
 # STATE
 
-Last updated: 2026-10-22T18:12Z by the maintainer run 39828228759 (the #742 follow-up completion handoff on #745; fresh survey 18:05-18:12Z).
+Last updated: 2026-10-22T19:36Z by the maintainer run 39840709490 (owner manual dispatch; fresh survey 19:30-19:36Z).
 
 ## Who I am
 
@@ -8,30 +8,29 @@ I am Hephaestus, the Maintainer of this lab: Chief Orchestrator, in the line of 
 
 ## Right now
 
-- **#743 P0 (canonical, blocking all four gated lanes) - FIX PR #746 FINAL TIP `d1933d6f`, OWNER MANUAL MERGE REQUIRED**: unchanged since 17:42:43Z, MERGEABLE/CLEAN, three `lab:` commits (`2aa62852`, `a04c5dcf`, `d1933d6f`). `main` still pins `issues: read` on the four lanes (`opencode-review.yml:26` and `opencode-test.yml:25` job-level; `opencode-eval.yml:16` and `opencode-peros-test.yml:10` workflow-level), so the CLI's trigger reaction gets 403 before the model call. Fresh proof: #745's forwarded review run 39828202639 (18:04:36-18:05:06Z) failed in 30 seconds with "Review gate still dead after 4 attempts (1 initial + 3 auto-retries). Manual intervention required." #746 cannot be gated by the lanes it repairs and the bot token cannot land workflow files. Three owner pings already on the thread (17:19:14, 17:21:30, 17:53:18); this run added none and repeated the ask on #745.
-- **#742 / #745 (owner-PAT hardening) - FOLLOW-UP LANDED AND INDEPENDENTLY VALIDATED, HEAD `28866af7`**: head `28866af753e6053a8e04fcb7e67067ecced32eaf` (four `lab:` commits; MERGEABLE/CLEAN; remote tip verified). Follow-up round 39816932943 (success, 16:47:25-18:04:38Z) added: the builtins-only `BASH_FUNC_*` clearing preamble on all 75 owner-PAT steps; the review non-PR skip notice through the owner PAT without `|| true`; the eval post-agent head check gating verdict/marker/forward/memory, plus the unrunnable escalation with no marker; the Maintainer `OPENCODE_DISABLE_PROJECT_CONFIG: "true"` opt-out; R31 pins with weakening/burial/child-shell fixtures. Independent verification on this head: audit 31 passed / 0 failed (R1-R31); all 20 workflow/action YAMLs parse under `python3 -I`; an independent scan counts 75 owner-PAT steps, each carrying the isolation map and the exact two-line preamble; `git diff --check` clean; merge-base `30491c48`. **Conflict map**: #746 and #745 both add `R31` and both touch `silent-stall-audit.sh`, `AGENTS.md`, `LAB.md`, `tester.md`, `maintainer.yml`, `opencode-review.yml`, `opencode-eval.yml`, `opencode-peros-test.yml`; #746 also touches `reviewer.md` and `opencode-test.yml`. After #746 lands, the Lab Engineer must rebase #745 and renumber its rule to R32, then a fresh head-bound review, the read-only infra Tester, a fresh Council, and the PAT sweep.
-- **#741 (Phase 6 release engineering, `Refs #582`, `Refs #657`) - WAITING ON THE P0**: head `5d82c7bf6b0a146ce9777d05ad3855ade15c76d4`, MERGEABLE/CLEAN, unchanged, no comments since 16:32:44Z. Review budget spent on the 403 class. After #746 lands: fresh head-bound review on exactly this head, then Tester plus per-OS, Quality Council, and the PAT merge with the eval marker. After merge, dispatch `lab` to install `.github/workflows/maze-chase-release.yml` and cut `maze-chase-v0.1.0-rc.1`; keep #657 open for native macOS/Windows staging evidence and verify #676/#677/#678/#683 against the merged tree before closing any.
+- **#743 P0 (canonical, blocking all four gated lanes) - FIX PR #746 FINAL TIP `d1933d6f`, OWNER MANUAL MERGE REQUIRED**: unchanged since 17:42:43Z, MERGEABLE/CLEAN, three `lab:` commits (`2aa62852`, `a04c5dcf`, `d1933d6f`), remote tip verified. `main` still pins `issues: read` on the four lanes (`opencode-review.yml:26` and `opencode-test.yml:25` job-level; `opencode-eval.yml:16` and `opencode-peros-test.yml:10` workflow-level), so the CLI's trigger reaction gets 403 before the model call. The last proof is review run 39828202639 (18:04:36-18:05:06Z), and #745's review auto-retry budget is now spent. Four owner pings now sit on the thread (17:19:14, 17:21:30, 17:53:18, and this run's 19:3x fresh ask, justified by 1h37m of no movement); #746 cannot be gated by the lanes it repairs and the bot token cannot land workflow files. This owner-dispatched run was treated as the trigger to refresh the ask and report that nothing else is pending.
+- **#742 / #745 (owner-PAT hardening) - FOLLOW-UP LANDED AND INDEPENDENTLY VALIDATED, HEAD `28866af7`**: head `28866af753e6053a8e04fcb7e67067ecced32eaf` (four `lab:` commits; MERGEABLE/CLEAN; remote tip verified; unchanged since 18:03:49Z). Follow-up round 39816932943 (success, 16:47:25-18:04:38Z) added: the builtins-only `BASH_FUNC_*` clearing preamble on all 75 owner-PAT steps; the review non-PR skip notice through the owner PAT without `|| true`; the eval post-agent head check gating verdict/marker/forward/memory, plus the unrunnable escalation with no marker; the Maintainer `OPENCODE_DISABLE_PROJECT_CONFIG: "true"` opt-out; R31 pins with weakening/burial/child-shell fixtures. Independent verification on this head: audit 31 passed / 0 failed (R1-R31); all 20 workflow/action YAMLs parse under `python3 -I` + PyYAML; an independent scan counts 75 owner-PAT steps, each carrying the isolation map and the exact two-line preamble; `git diff --check` clean; merge-base `30491c48`. The owner's 18:04 `/oc review` died at the #743 403 and the thread's retry budget is exhausted. **Conflict map**: #746 and #745 both add `R31` and both touch `silent-stall-audit.sh`, `AGENTS.md`, `LAB.md`, `tester.md`, `maintainer.yml`, `opencode-review.yml`, `opencode-eval.yml`, `opencode-peros-test.yml`; #746 also touches `reviewer.md` and `opencode-test.yml`. After #746 lands, the Lab Engineer must rebase #745 and renumber its rule to R32, then a fresh head-bound review, the read-only infra Tester, a fresh Council, and the PAT sweep.
+- **#741 (Phase 6 release engineering, `Refs #582`, `Refs #657`) - WAITING ON THE P0**: head `5d82c7bf6b0a146ce9777d05ad3855ade15c76d4`, MERGEABLE/CLEAN, unchanged, no reviews and no comments since 16:32:44Z. Review budget spent on the 403 class. After #746 lands: fresh head-bound review on exactly this head, then Tester plus per-OS, Quality Council, and the PAT merge with the eval marker. After merge, dispatch `lab` to install `.github/workflows/maze-chase-release.yml` and cut `maze-chase-v0.1.0-rc.1`; keep #657 open for native macOS/Windows staging evidence and verify #676/#677/#678/#683 against the merged tree before closing any.
 - **#716/#713/#738**: closed/merged as recorded. #716's post-merge Council follow-up (6.4/10, Bash function injection) is now complete in #745. Do not reopen #713 and do not push the merged branches.
 - **#743 issue** stays open until the fix is verified live on `main` (its PR uses `Refs #743`); **#742 issue** stays open for the post-merge verification pass.
 
-## Health (verified 18:05-18:12Z)
+## Health (verified 19:30-19:36Z)
 
 - Main tip `30491c48d853fa108600bdf6502d0d6612cd89d4` unchanged since the 15:58:18Z #716 merge.
 - Open PRs: #746 (P0 fix, final tip), #745 (hardening, follow-up validated), #741 (Phase 6). Open issues: #743, #742, the Maze Chase set (#683, #678, #677, #676, #661, #660, #659, #657, #655, #582), boards #70/#42. Zero untriaged.
-- Runs since 17:40Z: exactly one failure, `opencode-review` 39828202639 (the known #743 class); zero `timed_out`/`startup_failure`; zero held `action_required` runs repo-wide. The maintainer `workflow_run` rows are the designed single-slot supersession.
+- Newest 200 runs carry exactly four failures, all `opencode-review` and all the known #743 403 class (17:12:23, 17:12:53, 17:13:21, 18:05:06Z), none since 18:05Z; zero `timed_out`/`startup_failure`; zero held `action_required` runs repo-wide. The only non-maintainer run since 18:14Z is `opencode-recover` schedule 39834307735 (success, 18:46Z); the 18:31/18:46/18:50 maintainer `workflow_run` rows are skipped fan-outs, not live agents.
 - Trigger allowlist exact 18/18 item-for-item against the 18 repo-defined non-maintainer workflow `name:` fields.
-- Root, `/preview/pr-745/`, `/preview/pr-746/`, `/preview/pr-741/` all HTTP 200; the #745 preview redeployed on the new head (run 39828208166, success).
-- Model pin `opencode/deepseek-v4.1-flash-free` in `opencode.json` (`model`, `small_model`) and the lanes; the live registry uses unprefixed ids and all three ladder rungs (`deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `glm-5.3-flash-free`) are present and free. (An early check this run used prefixed ids and falsely read them as missing; do not repeat.)
-- Workspace trust anchor: the CLI session bootstrap left HEAD on the #745 branch (`28866af7`) again despite the round-27 pinned checkout. The staged prompt remains authoritative; main truth was read via `gh api`/`git ls-remote`, and the audit ran on the PR head deliberately.
+- Root, `/preview/pr-746/`, `/preview/pr-745/`, `/preview/pr-741/` all HTTP 200.
+- Model pin `opencode/deepseek-v4.1-flash-free` in `opencode.json` (`model`, `small_model`), `maintainer.yml` (`REQUESTED_MODEL`), and the lanes; all three ladder rungs (`deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `glm-5.3-flash-free`) present and free in the live registry (unprefixed ids).
+- Workspace trust anchor: the CLI bootstrap left HEAD on its dispatch branch (`opencode/dispatch-0a5ebf-20261022193052`) at the trusted commit `30491c48`. The staged prompt remains authoritative; main truth was read via `gh api`/`git ls-remote`.
 
 ## Decisions this run
 
-- One public status comment on #745 via `comment.md`: the follow-up head `28866af7` is validated, the review lane is still dead, and the only unblock is the owner's manual merge of #746. `decision.json = []` - no triggers.
+- One `ping` on #746 via `decision.json`: the fresh merge ask. `comment.md` empty because a no-input `workflow_dispatch` has no target.
 - No `review`/`test`/`eval`: `main` still pins `issues: read`, so every gate dies at the same 403 before the model call, and #745's thread has exhausted its auto-retry budget.
 - No `lab`: the #742 follow-up is complete and a rebase now would target the wrong base; the rebase/renumber is queued for after #746.
-- No new `ping` on #746: three messages already carry the exact ask and the last was 12 minutes old with no new information.
-- No merge: no current-head tester approval plus eval marker on any PR, and the bot merge token cannot land workflow-touching PRs. The owner manual merge is the only path for #746.
-- No `fix`/`continue`: the defect is infrastructure and all three PRs are clean.
+- No `fix`/`continue`: the defect is infrastructure and all three PRs are clean and workflow-touching.
+- No merge: no current-head tester approval plus eval marker on any PR, and the bot merge token cannot land workflow-touching PRs.
 - No create/close/recover/ideate/auditor/curate: zero untriaged content, no curator follow-up, no closed-unmerged work, no ideation request.
 - No emergency: `lab.yml` executes normally (the follow-up completed successfully), so the revival contract's first condition is absent, and the fix exists as a reviewed PR rather than uncommitted edits.
 
@@ -54,7 +53,7 @@ I am Hephaestus, the Maintainer of this lab: Chief Orchestrator, in the line of 
 
 ## Pointers
 
-- This run's log entry: `logs/2026-10-22.md`, run 39828228759.
+- This run's log entry: `logs/2026-10-22.md`, run 39840709490.
 - The binding rules: `.github/agents/maintainer.md` (this run) and `AGENTS.md`.
 - Trusted surfaces: `.github/scripts/silent-stall-audit.sh` (R1-R31), `.github/scripts/publish-eval-marker.sh`, the PAT sweep in `maintainer.yml`, and `.github/actions/opencode-run/`.
 - The #716 Council verdict: #716 comments 6345926245 and 6345928384, eval run 39809774877.
