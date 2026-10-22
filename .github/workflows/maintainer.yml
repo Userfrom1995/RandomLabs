@@ -1404,6 +1404,27 @@ jobs:
               echo "PR #$pr eval marker has no valid comment id; not merge-ready"
               continue
             fi
+            # Canonical publication shape (issue #713 review round 19): the
+            # only legitimate producer is publish-eval-marker.sh, and every
+            # free-form owner-PAT report poster now refuses a marker lead,
+            # but this is defense in depth. Require the exact machine body
+            # structure and binding echo, so a report that merely happens to
+            # start with the marker string can never pass.
+            eval_marker_shape=$(printf '%s' "$eval_marker" | jq -r --arg pr "$pr" --arg head "$approve_eval_head" --arg trigger "$approve_eval_trigger" '
+              (.body // "") | split("\n") as $lines
+              | if ($lines | length) >= 6
+                  and $lines[0] == "eval-verdict: approve-eval"
+                  and $lines[1] == ""
+                  and $lines[2] == ("eval-head: " + $head)
+                  and $lines[3] == ("eval-trigger: " + $trigger)
+                  and $lines[4] == ""
+                  and ($lines[5] | startswith("Machine-published Evaluator approval verdict for PR #" + $pr + " (Quality Council score: "))
+                  and ($lines[5] | contains(", evaluated head " + $head + ", trigger comment " + $trigger + "): the evaluator decision file passed the workflow gates."))
+                then "ok" else "" end' 2>/dev/null || echo "")
+            if [ "$eval_marker_shape" != "ok" ]; then
+              echo "PR #$pr eval marker does not carry the canonical machine-published body shape; not merge-ready"
+              continue
+            fi
             # Eval head binding (issue #713 review round 3): a marker only
             # counts for the exact head the Evaluator checked out. A newer
             # push stales it even when its timestamps look fresh.

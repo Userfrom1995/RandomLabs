@@ -91,10 +91,13 @@ fi
 # agent-written report content under the owner PAT. A report whose first
 # non-blank line is a command trigger would therefore be consumable as a
 # forged owner-authored verdict. Refuse it before it reaches the API.
-first_line=$(awk 'NF { line=$0; sub(/^[[:space:]]+/, "", line); sub(/^`+/, "", line); print line; exit }' <<< "$expected_body")
+# Issue #713 round 19: the sweep also accepts an owner-authored
+# `eval-verdict: approve-eval` marker, so the same guard must refuse the
+# merge-gate marker in plain, backticked, and trailing-space forms.
+first_line=$(awk 'NF { line=$0; sub(/^[[:space:]]+/, "", line); gsub(/`/, "", line); sub(/[[:space:]]+$/, "", line); print line; exit }' <<< "$expected_body")
 case "$first_line" in
-  '/oc'|'/oc '*|'/opencode'|'/opencode '*)
-    echo "::error::publish-agent-report.sh: report '$report' begins with the command trigger '$first_line'; refusing to publish a report that could be consumed as a verdict trigger (issue #713)."
+  '/oc'|'/oc '*|'/opencode'|'/opencode '*|'eval-verdict:'*)
+    echo "::error::publish-agent-report.sh: report '$report' begins with the command trigger or merge-gate marker '$first_line'; refusing to publish a report that could be consumed as a verdict (issue #713)."
     exit 1
     ;;
 esac
