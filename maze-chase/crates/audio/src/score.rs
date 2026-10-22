@@ -328,7 +328,10 @@ pub fn presentation_beats(tune: &Tune, index: usize) -> f32 {
     }
     let mut run_index = 0usize;
     for prev in tune.notes[..index].iter().rev() {
-        if prev.track != note.track || (prev.beats - 0.5).abs() > 1e-6 {
+        if prev.track != note.track {
+            continue;
+        }
+        if (prev.beats - 0.5).abs() > 1e-6 {
             break;
         }
         run_index += 1;
@@ -351,7 +354,7 @@ pub fn presentation_beats(tune: &Tune, index: usize) -> f32 {
     let run_len = run_index + 1 + run_after;
     if run_len % 2 == 1 && run_index + 1 == run_len {
         0.5
-    } else if run_index.is_multiple_of(2) {
+    } else if (run_index & 1) == 0 {
         SWING_LONG
     } else {
         SWING_SHORT
@@ -755,6 +758,28 @@ mod tests {
             .position(|n| (n.beats - 0.5).abs() > 1e-6 && n.track == 0);
         assert!(idx.is_none(), "title lead is pure eighths");
         assert!((presentation_beats(&CLEAR_JINGLE, 2) - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn swing_run_ignores_interleaved_lanes() {
+        // Track 1 interleaves between track 0's eighths: the swing scan
+        // must skip the foreign lane instead of treating it as a run break.
+        static NOTES: [Note; 4] = [
+            n(60, 0.5, Voice::Mallet, 0.8, 0),
+            n(40, 0.5, Voice::Drone, 0.5, 1),
+            n(62, 0.5, Voice::Mallet, 0.8, 0),
+            n(64, 0.5, Voice::Mallet, 0.8, 0),
+        ];
+        let tune = Tune {
+            name: "interleaved",
+            notes: &NOTES,
+            looped: false,
+        };
+        assert!((presentation_beats(&tune, 0) - SWING_LONG).abs() < 1e-6);
+        assert!((presentation_beats(&tune, 1) - 0.5).abs() < 1e-6);
+        assert!((presentation_beats(&tune, 2) - SWING_SHORT).abs() < 1e-6);
+        assert!((presentation_beats(&tune, 3) - 0.5).abs() < 1e-6);
+        assert!((track_beats(&tune, 0) - 1.5).abs() < 1e-6);
     }
 
     #[test]

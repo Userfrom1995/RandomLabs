@@ -180,7 +180,8 @@ fn settings_persist_across_sessions() {
         }
         a.on_key(key(KeyCode::Enter)); // mute toggle
         assert!(a.screens.settings.mute);
-        for _ in 0..3 {
+        // Mute is row 5 and Back is the last row (11): six steps, not three.
+        for _ in 0..6 {
             a.on_key(key(KeyCode::Down));
         }
         a.on_key(key(KeyCode::Enter)); // Back commits + saves

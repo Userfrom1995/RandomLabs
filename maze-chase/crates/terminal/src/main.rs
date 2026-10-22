@@ -517,6 +517,7 @@ fn hash_settings(h: &mut impl std::hash::Hasher, s: &maze_chase_config::settings
     s.music.to_bits().hash(h);
     s.sfx.to_bits().hash(h);
     s.mute.hash(h);
+    s.terminal_chime.hash(h);
     s.reduced_flash.hash(h);
     s.reduced_motion.hash(h);
     s.high_contrast.hash(h);
@@ -2089,10 +2090,17 @@ mod tests {
             "a difficulty edit on the Settings screen must repaint"
         );
 
+        app.screens.settings.terminal_chime = !app.screens.settings.terminal_chime;
+        let after_chime = frame_key(&app);
+        assert_ne!(
+            after_difficulty, after_chime,
+            "a chime edit on the Settings screen must repaint"
+        );
+
         app.screens.settings.theme = "moonwake".to_string();
         let after_theme = frame_key(&app);
         assert_ne!(
-            after_difficulty, after_theme,
+            after_chime, after_theme,
             "a theme edit on the Settings screen must repaint"
         );
 
