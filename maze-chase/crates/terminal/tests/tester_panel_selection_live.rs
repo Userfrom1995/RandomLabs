@@ -249,13 +249,13 @@ impl Session {
     fn select_high_contrast(&mut self) {
         self.open_settings();
         self.clear();
-        for _ in 0..8 {
+        for _ in 0..9 {
             self.write(b"\x1b[B");
             std::thread::sleep(Duration::from_millis(120));
         }
         assert!(
             self.wait(b"> High contrast", Duration::from_secs(5)),
-            "eight Downs did not reach High contrast; tail: {}",
+            "nine Downs did not reach High contrast; tail: {}",
             tail(&self.out)
         );
         self.settle();

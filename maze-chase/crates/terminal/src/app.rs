@@ -213,6 +213,7 @@ impl App {
         self.chime.set_music(self.settings.music);
         self.chime.set_sfx(self.settings.sfx);
         self.chime.set_muted(self.settings.mute);
+        self.chime.set_chime(self.settings.terminal_chime);
     }
 
     fn start_game(&mut self) {
