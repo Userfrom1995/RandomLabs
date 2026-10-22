@@ -1,13 +1,16 @@
-# Maze Chase: reproducible build and release guide
+# Maze Chase: reproducible build, packaging, and release guide
 
-One set of instructions that rebuilds every shippable artifact from a
-clean checkout: the engine checks, all three publication layers, every
-packaging script, and the committed WebAssembly blob. Follow this file
-top to bottom on a fresh machine and you get the release. The verified
-release executed these steps on Linux on this tree; the macOS and Windows
-runs are the pre-Pondwake record, with fresh reruns tracked in the final
-sign-off. The measured record lives in [scoreboard.md](scoreboard.md)
-and the signed parity gate in [parity.md](parity.md).
+One set of instructions that rebuilds and ships every artifact from a
+clean checkout: the engine checks, all three layers, the native
+packages, and the committed WebAssembly blob. The version comes from one
+place, and a release tag can never publish software built from a
+different version.
+
+The Linux packaging and smoke rows were executed on the release
+container for this tree. The macOS and Windows rows are built and signed
+by their native release jobs; no Linux run claims those artifacts. The
+measured record lives in [scoreboard.md](scoreboard.md) and the signed
+parity gate in [parity.md](parity.md).
 
 ## Toolchain
 
@@ -15,16 +18,17 @@ and the signed parity gate in [parity.md](parity.md).
   edition 2021 with no pinned nightly features.
 - For the browser build: `rustup target add wasm32-unknown-unknown`.
 - For the browser E2E: Node 22+ (the CDP harnesses use the built-in
-  WebSocket; no npm packages) plus a headless chromium; serving uses `python3 -m http.server` (`python -m
-  http.server` on Windows).
-- System libraries:
-  - **Linux**: `sudo apt-get install libasound2-dev libudev-dev`
-    (build-time ALSA headers for desktop audio, udev headers for
-    gamepad input) plus `libxkbcommon0 libxkbcommon-x11-0` (winit
-    runtime; most distributions already ship them). The terminal
-    game and the engine need nothing beyond
-    the Rust toolchain on any OS.
-  - **Windows / macOS**: nothing beyond the Rust toolchain.
+  WebSocket; no npm packages) plus a headless chromium; serving uses
+  `python3 -m http.server` (`python -m http.server` on Windows).
+- Debian/Ubuntu packaging: `dpkg-dev`, `rpm`, `rpm2cpio`, `cpio`, plus
+  `libasound2-dev` and `libudev-dev` for the desktop build. Fedora/RHEL
+  hosts only need the `rpm-build` equivalent of the RPM tools.
+- macOS packaging: `hdiutil` (part of macOS) and the Xcode command line
+  tools. Windows packaging: Inno Setup 6 (`iscc.exe`), installed by the
+  release job.
+- No cross-OS relabeling is allowed: the Windows zip and installer are
+  built on Windows, the app and dmg on macOS, and the deb/rpm/tarballs
+  on the matching Linux architecture.
 
 ## Verify the engine first
 
@@ -32,7 +36,7 @@ From `maze-chase/`:
 
 ```sh
 cargo test --workspace
-cargo run --bin maze-chase-verify
+cargo run --release --bin maze-chase-verify
 ```
 
 `cargo test` runs every crate suite (engine, assets, audio, config,
@@ -44,8 +48,37 @@ the [feature matrix](feature-matrix.md) and the
 [scoreboard](scoreboard.md) record the expected results.
 
 `cargo fmt --check` must be clean; `cargo clippy --workspace` must
-introduce no new warnings (six pre-existing engine lints from clippy
-1.99 are documented in the scoreboard and left untouched).
+introduce no new warnings (the pre-existing engine lints are documented
+in the scoreboard and left untouched).
+
+## Version and tag contract
+
+`maze-chase/Cargo.toml` owns the version:
+
+```toml
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+```
+
+Every crate inherits it with `version.workspace = true`,
+`edition.workspace = true`, and `license.workspace = true`. Packaging
+scripts read the workspace version, so the binary, the package
+metadata, the archive names, and the docs cannot drift.
+
+A release tag is exactly `maze-chase-v<workspace version>`; a candidate
+adds a numeric suffix such as `maze-chase-v0.1.0-rc.1`. Before any
+build, the pipeline runs:
+
+```sh
+bash maze-chase/packaging/release/check-tag.sh "$GITHUB_REF_NAME"
+```
+
+The gate fails closed on a mismatch, accepts the `-rc.N` form only
+against the same workspace version, and treats a branch ref as a
+non-release (a dispatch build is not a tag). Never move or reuse a
+published tag.
 
 ## Build each layer
 
@@ -65,10 +98,10 @@ no `wasm-bindgen`, zero imports). It is 212,438 bytes with sha256
 and a second clean build reproduces the same bytes. A different stable
 release may produce different bytes. The page gates on the bridge ABI
 version and fails loudly on the error card instead of misbehaving on a
-mismatch. Play it by serving
-the directory over http (`python3 -m http.server 8931`, or
-`python -m http.server 8931` on Windows, inside `maze-chase/`, then
-open `play.html`); browsers refuse `.wasm` over `file://`.
+mismatch. Play it by serving the directory over http
+(`python3 -m http.server 8931`, or `python -m http.server 8931` on
+Windows, inside `maze-chase/`, then open `play.html`); browsers refuse
+`.wasm` over `file://`.
 
 Smoke each binary:
 
@@ -79,45 +112,187 @@ node web/e2e/wasm-smoke.js
 node web/e2e/tester-regression.js
 ```
 
-## Packaging matrix
+## Artifact matrix
 
-Every script is runnable from the repo root (`RandomLabs/`) and stages
-into `maze-chase/dist/` (git-ignored scratch, never committed).
+Every script runs from the repo root (`RandomLabs/`) and stages into
+`maze-chase/dist/` (git-ignored scratch, never committed). The
+`<version>` in every name is the workspace version. The version segment
+in RPM names is `1.<arch>` because it is `<version>-1.<arch>.rpm` on
+disk.
 
-| Layer | OS | Script | Artifact |
+| Layer | OS | Command (native host) | Artifact |
 |---|---|---|---|
-| Terminal | Linux / macOS (build on the release machine; the name records it) | `maze-chase/packaging/terminal/linux-tarball.sh` | `dist/maze-chase-terminal-0.1.0-<os>-<arch>.tar.gz` (binary + launch docs) |
-| Terminal | any Unix | `maze-chase/packaging/terminal/install-linux.sh [--tarball FILE] [--prefix DIR]` | installs to `$HOME/.local` by default, ends with a `--version` probe |
-| Terminal | Windows | `cargo install --path maze-chase/crates/terminal` (documented fallback; crossterm is portable, no script yet) | `%CARGO_HOME%/bin/maze-chase-terminal.exe` |
-| Desktop | Linux | `maze-chase/packaging/desktop/linux-tarball.sh` + `install-linux.sh [--tarball FILE] [--prefix DIR]` | `dist/maze-chase-desktop-0.1.0-linux-x86_64.tar.gz` (binary, `.desktop`, XPM icon, launch docs) |
-| Desktop | Windows (run on Windows) | `maze-chase/packaging/desktop/windows-zip.ps1` | `dist/maze-chase-desktop-0.1.0-windows-x86_64.zip` (`.exe` + launch docs) |
-| Desktop | macOS (run on a Mac) | `maze-chase/packaging/desktop/macos-app.sh` | `dist/Maze Chase.app` (bundle + `Info.plist`; unsigned, right-click Open on first launch) |
-| Browser | any (GitHub Pages serves `main`) | commit `web/maze-chase.wasm` built by the command above | live at `maze-chase/play.html` with `play.html` + `web/maze-chase.js` |
+| Terminal | Linux | `packaging/terminal/build-deb.sh` | `dist/maze-chase-terminal_<version>_<debarch>.deb` |
+| Terminal | Linux | `packaging/terminal/build-rpm.sh` | `dist/maze-chase-terminal-<version>-1.<rpmarch>.rpm` |
+| Terminal | Linux or macOS | `packaging/terminal/linux-tarball.sh` / `macos-tarball.sh` | `dist/maze-chase-terminal-<version>-<os>-<arch>.tar.gz` |
+| Terminal | Windows | `packaging/terminal/windows-zip.ps1` | `dist/maze-chase-terminal-<version>-windows-x86_64.zip` |
+| Desktop | Linux | `packaging/desktop/build-deb.sh` | `dist/maze-chase-desktop_<version>_<debarch>.deb` |
+| Desktop | Linux | `packaging/desktop/build-rpm.sh` | `dist/maze-chase-desktop-<version>-1.<rpmarch>.rpm` |
+| Desktop | Linux or macOS | `packaging/desktop/linux-tarball.sh` / `macos-tarball.sh` | `dist/maze-chase-desktop-<version>-<os>-<arch>.tar.gz` |
+| Desktop | Windows | `packaging/desktop/windows-zip.ps1` | `dist/maze-chase-desktop-<version>-windows-x86_64.zip` |
+| Desktop | Windows | `packaging/desktop/windows-installer.ps1` | `dist/maze-chase-desktop-<version>-windows-x86_64-setup.exe` |
+| Desktop | macOS | `packaging/desktop/macos-app.sh` | `dist/Maze Chase.app` |
+| Desktop | macOS | `packaging/desktop/macos-dmg.sh` | `dist/maze-chase-desktop-<version>-macos-<arch>.dmg` |
+| Browser | any (Pages serves `main`) | the wasm command above | live at `maze-chase/play.html` |
 
-Per-OS artifacts must be built on their own OS: a Linux runner cannot
-produce the Windows zip or the macOS bundle, and no cross-OS tarball
-is ever relabeled. Release from three machines (or three CI runners),
-one row each, and record the measured results in the scoreboard.
+The tar archives are deterministic: they are created with
+`SOURCE_DATE_EPOCH` (the release job uses the commit timestamp), sorted
+entry order, fixed owner and modes, and no gzip timestamp. The Windows
+zip is deterministic the same way. Building any host's set twice on the
+same commit produces byte-identical files; the checksum manifest is the
+proof.
 
-## Versions
+`packaging/release/stage-linux.sh` builds, smokes, and checksums all six
+Linux artifacts at once and reports `SHA256SUMS.txt`.
+`stage-macos.sh [--probe]` and `stage-windows.ps1 [-Install] [-Probe]`
+do the same for their natives. Their smoke harnesses are the contract:
+`smoke-linux.sh` unpacks each deb/rpm and runs the binary from the
+payload, installs and uninstalls the tarballs, and checks `--version`
+and `--help`; `smoke-macos.sh` checks the bundle's `Info.plist`,
+version, dmg mount, and tarball; `smoke-windows.ps1` extracts the zips,
+runs the binaries, and, with `-Install`, silently installs the setup,
+launches the installed binary, uninstalls, and confirms the files are
+gone. `-Probe` / `--probe` additionally drives one real windowed frame
+where the runner provides a display.
 
-- Engine `0.3.0`; assets, audio, config, terminal, desktop, web each
-  `0.1.0` (see each `crates/*/Cargo.toml`). `Cargo.lock` is committed,
-  so a clean checkout resolves identical dependency versions.
-- The tarball names carry the crate version read from `Cargo.toml` at
-  stage time; the browser page carries the bridge ABI version
-  (`mc_version() == 3`).
+## Install, upgrade, uninstall
+
+### Linux, terminal
+
+Debian/Ubuntu:
+
+```sh
+sudo dpkg -i maze-chase-terminal_<version>_<debarch>.deb
+maze-chase-terminal --version
+sudo apt-get remove maze-chase-terminal
+```
+
+Fedora/RHEL:
+
+```sh
+sudo rpm -i maze-chase-terminal-<version>-1.<rpmarch>.rpm
+maze-chase-terminal --version
+sudo rpm -e maze-chase-terminal
+```
+
+Upgrade with `sudo dpkg -i <newer deb>` or `sudo rpm -U <newer rpm>`.
+The tarball path needs no root:
+
+```sh
+mkdir maze-chase-terminal && tar -xzf maze-chase-terminal-<version>-linux-<arch>.tar.gz -C maze-chase-terminal
+cd maze-chase-terminal
+./install-linux.sh              # $HOME/.local, prints the --version probe
+./install-linux.sh --prefix /opt/maze-chase
+./uninstall-linux.sh            # removes the launcher and program
+```
+
+### Linux, desktop
+
+```sh
+sudo dpkg -i maze-chase-desktop_<version>_<debarch>.deb
+# or: sudo rpm -i maze-chase-desktop-<version>-1.<rpmarch>.rpm
+maze-chase-desktop --version
+sudo apt-get remove maze-chase-desktop   # or: sudo rpm -e maze-chase-desktop
+```
+
+The desktop package installs `/usr/bin/maze-chase-desktop`, the desktop
+entry, and the icon, and its removal scripts refresh the desktop and
+icon caches. The tarball installs per-user with the same
+`install-linux.sh` / `uninstall-linux.sh` pair.
+
+### macOS, desktop
+
+Open the dmg and drag `Maze Chase.app` to Applications, or extract the
+tarball and copy `Maze Chase.app` there. The app is unsigned, so the
+first launch needs a right-click Open (or System Settings, Privacy &
+Security, Open Anyway). Upgrade by replacing the app; uninstall by
+moving it to the Bin. Letting macOS keep its settings is normal; remove
+`~/Library/Application Support/maze-chase` to clear progress and
+settings.
+
+### macOS, terminal
+
+Extract the terminal tarball and run its `install-linux.sh` (the script
+is portable to macOS) or run the binary in place. Remove the installed
+launcher and binary with `uninstall-linux.sh`, adding
+`--purge-config` to remove saved settings.
+
+### Windows, desktop
+
+Run `maze-chase-desktop-<version>-windows-x86_64-setup.exe`. The
+installer is per-user, asks for no administrator rights, and offers
+Start Menu and optional desktop shortcuts. Upgrade by running the newer
+setup over the old install; uninstall from Settings, Apps, or the Start
+Menu entry. The zip is the portable option: extract it and run
+`maze-chase-desktop.exe`; delete the folder to remove it. SmartScreen
+may warn because the binary is unsigned: choose More info, then Run
+anyway.
+
+### Windows, terminal
+
+Extract `maze-chase-terminal-<version>-windows-x86_64.zip` and run
+`maze-chase-terminal.exe`, or `cargo install --path maze-chase/crates/terminal`
+from a checkout. Delete the extracted folder to uninstall.
+
+### Clearing settings
+
+Both layers keep settings and scores in `~/.maze-chase` (`$HOME` on
+Linux and macOS, `%USERPROFILE%\.maze-chase` on Windows). The uninstall
+scripts only remove launchers and programs unless `--purge-config` is
+passed, and the Windows installer keeps user data on uninstall by
+default so an upgrade or reinstall keeps progress.
+
+## Release pipeline
+
+`packaging/release/maze-chase-release.yml` is the workflow source (the
+Lab Engineer installs it as `.github/workflows/maze-chase-release.yml`).
+It runs on a `maze-chase-v*` tag or manual dispatch:
+
+1. Each native job checks tag/version parity, installs its packaging
+   tools, runs `cargo test --workspace` plus `maze-chase-verify`, and
+   stages its host's artifacts.
+2. The smoke scripts run on the same host; Windows does a real silent
+   install, launch, and uninstall, and macOS drives a real frame with
+   `--probe`.
+3. Each job uploads its payloads and `SHA256SUMS.txt`.
+4. The publish job downloads every payload, removes the per-host
+   manifests, re-hashes the complete set into one `SHA256SUMS.txt`, and
+   creates the GitHub Release (prerelease for `-rc.N` tags). A dispatch
+   build refreshes `maze-chase-v<version>-rc.1`; a tag build publishes
+   that exact tag.
+
+Verify a download with:
+
+```sh
+sha256sum -c SHA256SUMS.txt          # Linux
+shasum -a 256 -c SHA256SUMS.txt      # macOS
+Get-FileHash -Algorithm SHA256 <file> # Windows PowerShell
+```
+
+The release notes state the unsigned status. Windows SmartScreen and
+macOS Gatekeeper warnings are expected; they are not a signature claim.
+
+### Candidate and final releases
+
+The phase candidate is tagged `maze-chase-v0.1.0-rc.1` and published as
+a prerelease. The Final Phase re-runs every per-OS install/upgrade/
+uninstall row against those artifacts, re-signs the terminal matrix,
+then bumps the workspace version to `1.0.0` and cuts
+`maze-chase-v1.0.0` as a stable release. No stable tag is cut while a
+binding check is open.
 
 ## Clean-checkout release checklist
 
 1. Fresh `git clone`, toolchain plus system libraries above.
 2. `cargo test --workspace` green, `maze-chase-verify` 19/19 green.
 3. The three layer builds above, all four smoke probes green.
-4. Stage every applicable packaging row on its native OS.
-5. Re-run the per-layer E2E (terminal headless, desktop headless plus
+4. Tag parity passes for the intended tag.
+5. Stage every applicable packaging row on its native OS and run its
+   smoke harness; keep each host's `SHA256SUMS.txt`.
+6. Re-run the per-layer E2E (terminal headless, desktop headless plus
    `--probe`, node smoke plus browser CDP) and append the measured
    numbers to the [scoreboard](scoreboard.md).
-6. Confirm the [feature matrix](feature-matrix.md) cross-cutting rows
+7. Confirm the [feature matrix](feature-matrix.md) cross-cutting rows
    and the [parity checklist](parity.md) that gated the #552 Python
    reference retirement (a separate, explicit step: nothing in
    `pacman/` is touched by any packaging script here).
