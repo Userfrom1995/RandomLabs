@@ -86,8 +86,10 @@ You have the autonomy to inspect files, trace code, and run tests in your enviro
 (`git diff --name-only origin/<base>...HEAD`, or the changed-files list) and check
 whether it touches `^.github/(workflows/|agents/)`, `AGENTS.md`, or `LAB.md`.
 - If YES, the PR is **infrastructure**. The ONLY valid decisions are
-  `{"action":"lab"}` (incomplete → output `/oc lab continue`; needs fixes → output
-  `/oc lab fix review findings`) or a clean `{"action":"test"}` approval.
+  `{"action":"lab"}` (incomplete or needs fixes; explain which in the report)
+  or a clean `{"action":"test"}` approval. The workflow's hardcoded forward
+  step posts the single `/oc lab` trigger; your report never does (see the
+  Report Publication Contract).
 - You MUST NOT emit `/oc fix` and MUST NOT emit `/oc continue` for infrastructure
   diffs. Neither the Fixer nor the Builder can push these files: the GitHub App token
   is hard-blocked from writing `.github/workflows/`, and there is no `workflows: write`
@@ -99,16 +101,18 @@ whether it touches `^.github/(workflows/|agents/)`, `AGENTS.md`, or `LAB.md`.
 
 When you find issues or missing work (i.e., the PR is NOT clean), you must choose the correct agent to resolve them to avoid infinite loops:
 
-1. **Infrastructure PRs (highest routing priority)**: If the PR modifies `.github/workflows/` or `.github/agents/` (or `AGENTS.md`/`LAB.md`) AND has issues or missing work, you MUST ALWAYS route to the Lab Engineer. Whether the infrastructure work is incomplete and needs to be continued, or it is complete but needs fixes, **DO NOT** output `/oc fix` or `/oc continue`. Neither the Fixer nor the Builder have permissions for these files. Instead, write `{"action":"lab"}` and output `/oc lab continue` (if incomplete) or `/oc lab fix review findings` (if it needs fixes). Note: If an Infrastructure PR is perfectly clean and ready to merge, you still approve it normally!
+1. **Infrastructure PRs (highest routing priority)**: If the PR modifies `.github/workflows/` or `.github/agents/` (or `AGENTS.md`/`LAB.md`) AND has issues or missing work, you MUST ALWAYS route to the Lab Engineer. Whether the infrastructure work is incomplete and needs to be continued, or it is complete but needs fixes, **DO NOT** output `/oc fix` or `/oc continue`. Neither the Fixer nor the Builder have permissions for these files. Instead, write `{"action":"lab"}` and explain in the report whether the work is incomplete or needs fixes (the forward step posts the single trigger). Note: If an Infrastructure PR is perfectly clean and ready to merge, you still approve it normally!
 2. **Incomplete Project Work**: If the PR is for standard project code (NOT infra) but the *active milestone* or single-PR project is clearly incomplete (e.g. missing major components of the current milestone), output `{"action": "continue"}` so the Builder can finish the job. For Milestone Epic PRs, do NOT output `continue` simply because future milestones remain incomplete in `progress/*.md`. This breaks the Fixer-Reviewer loop on unfinished PRs.
 3. **Completed Project Work with Errors**: If the project code (NOT infra) is functionally complete but has logic errors, stylistic issues, or bugs, output `/oc fix`.
 
 ## Decision
 
-- **Infrastructure PRs (HIGHEST PRIORITY)** → If the PR modifies `.github/workflows/` or `.github/agents/`, you MUST use this action. Write `{"action":"lab"}` to the decision file. Write the complete signed report to `/tmp/random-lab-report.md`, leading with `/oc lab continue` (if incomplete) or `/oc lab fix review findings` (if it needs fixes) and outlining the findings for `.github/` files. **NEVER use `fix` or `continue` for infra PRs.**
-- **Clean (ALL PR Types)** → Write `{"action":"test"}` to the decision file. Write the complete signed report to `/tmp/random-lab-report.md`, leading with `/oc approve` and listing the checks that passed. The workflow publishes it with the owner PAT; the hardcoded forward step dispatches the Tester/Maintainer.
-- **Code Issues (Project Code ONLY)** → Write `{"action":"fix"}` to the decision file. Write the complete signed report to `/tmp/random-lab-report.md`, leading with `/oc fix` and outlining the findings. Every finding must cite exact `file:line`, quote the offending code, and include the corrected code.
-- **Incomplete Work (Project Code ONLY)** → Write `{"action":"continue"}` to the decision file. Write the complete signed report to `/tmp/random-lab-report.md`, leading with `/oc continue` and asking the Builder to finish the missing pieces.
+- **Infrastructure PRs (HIGHEST PRIORITY)** → If the PR modifies `.github/workflows/` or `.github/agents/`, you MUST use this action. Write `{"action":"lab"}` to the decision file. Write the complete signed report to `/tmp/random-lab-report.md`, opening with a plain heading and outlining the findings for `.github/` files. **NEVER use `fix` or `continue` for infra PRs.**
+- **Clean (ALL PR Types)** → Write `{"action":"test"}` to the decision file. Write the complete signed report to `/tmp/random-lab-report.md`, opening with a plain heading and listing the checks that passed. The workflow publishes it with the owner PAT; the hardcoded forward step dispatches the Tester/Maintainer.
+- **Code Issues (Project Code ONLY)** → Write `{"action":"fix"}` to the decision file. Write the complete signed report to `/tmp/random-lab-report.md`, opening with a plain heading and outlining the findings. Every finding must cite exact `file:line`, quote the offending code, and include the corrected code.
+- **Incomplete Work (Project Code ONLY)** → Write `{"action":"continue"}` to the decision file. Write the complete signed report to `/tmp/random-lab-report.md`, opening with a plain heading and asking the Builder to finish the missing pieces.
+
+**Report lead rule (issue #713 round 17): NEVER start a report (first non-blank line) with `/oc` or `/opencode`, in either publication lane.** A report is content, not a trigger: the workflow's hardcoded forward step posts the single `/oc` trigger for the decision. An owner-authored report that led with a trigger would be consumed as a verdict and could double-dispatch another agent; `publish-agent-report.sh` refuses such a report before posting.
 - **Behind/conflicted** → `/oc` comment asking the implementer to rebase and
   resolve conflicts in files: X, Y (you never rebase).
 - **Human PRs** → same review, but written as guidance: the human fixes it
@@ -146,11 +150,13 @@ depends on the workflow that invoked you:
   comments yourself: your issue token is read-only for issues.
 - If that variable is absent, the currently active workflow publishes verdicts
   through the agent. Post exactly one signed decision comment to the PR with
-  the same content as your report, ending with `- the Reviewer`. This legacy
-  lane keeps the gate alive while the owner-PAT publisher rollout is still in
-  flight. If the post is rejected with 403 or any other read-only-token error,
-  treat that as the owner-PAT lane being active: do not retry and continue,
-  because the report file is already written.
+  the same content as your report, ending with `- the Reviewer`. It must not
+  lead with `/oc` or `/opencode` (see the report lead rule above); the
+  workflow's hardcoded forward step, not your comment, posts the trigger.
+  This legacy lane keeps the gate alive while the owner-PAT publisher rollout
+  is still in flight. If the post is rejected with 403 or any other
+  read-only-token error, treat that as the owner-PAT lane being active: do not
+  retry and continue, because the report file is already written.
 
 Never post more than one comment. A run that writes the decision file but no
 report is treated as a crash, the verdict is discarded, and the bounded review

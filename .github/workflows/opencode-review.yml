@@ -250,7 +250,7 @@ jobs:
 
       - name: Publish reviewer decision report (owner PAT)
         id: publish-report
-        if: steps.pr-info.outputs.is_pr == 'true' && always()
+        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
@@ -271,22 +271,20 @@ jobs:
             echo "::error::Reviewer decision file is present but /tmp/random-lab-report.md is missing or empty; refusing to forward an unpublished verdict (issue #713)."
             exit 1
           fi
-          publisher=$(mktemp "${RUNNER_TEMP:-/tmp}/publish-agent-report.XXXXXX") || {
-            echo "::error::Could not create a secure staging path for the report publisher (issue #713, fail closed)."
-            exit 1
-          }
-          trap 'rm -f "$publisher"' EXIT
+          # Issue #713 round 17: execute the trusted workflow-commit script
+          # directly from memory through a pipe. Staging it into a file under
+          # $RUNNER_TEMP after the agent runs would let a background process
+          # left by PR-controlled code replace it before this owner-PAT step
+          # executes it.
           if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-agent-report.sh" 2>/dev/null; then
             git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
           fi
-          if git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-agent-report.sh" 2>/dev/null; then
-            git show "${GITHUB_SHA}:.github/scripts/publish-agent-report.sh" > "$publisher" 2>/dev/null || rm -f "$publisher"
-          fi
-          if [ ! -s "$publisher" ]; then
+          publisher=$(git show "${GITHUB_SHA}:.github/scripts/publish-agent-report.sh" 2>/dev/null) || publisher=""
+          if [ -z "$publisher" ]; then
             echo "::error::Report publisher absent from workflow commit ${GITHUB_SHA}; refusing to forward an unpublished verdict (issue #713, fail closed)."
             exit 1
           fi
-          if ! bash "$publisher" "$TARGET" "$report" "- the Reviewer"; then
+          if ! printf '%s' "$publisher" | bash -s -- "$TARGET" "$report" "- the Reviewer"; then
             echo "::error::Reviewer report publication failed; refusing to forward an unpublished verdict (issue #713)."
             exit 1
           fi
@@ -340,23 +338,20 @@ jobs:
           # reviewing it. Exit 2 means verification itself failed: that is NOT
           # evidence of a crash, so it must neither auto-retry a
           # possibly-published review nor forward an unverified verdict.
-          evidence_script=$(mktemp "${RUNNER_TEMP:-/tmp}/review-comment-published.XXXXXX") || {
-            echo "::error::Could not create a secure staging path for the publication-evidence checker (issue #713, fail closed)."
-            exit 1
-          }
+          # Issue #713 round 17: read the trusted workflow-commit checker into
+          # memory and pipe it to bash; never materialize it in an
+          # agent-writable path that a background process could replace.
           if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/review-comment-published.sh" 2>/dev/null; then
             git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
           fi
-          if git cat-file -e "${GITHUB_SHA}:.github/scripts/review-comment-published.sh" 2>/dev/null; then
-            git show "${GITHUB_SHA}:.github/scripts/review-comment-published.sh" > "$evidence_script" 2>/dev/null || rm -f "$evidence_script"
-          fi
-          if [ ! -s "$evidence_script" ]; then
+          evidence_script=$(git show "${GITHUB_SHA}:.github/scripts/review-comment-published.sh" 2>/dev/null) || evidence_script=""
+          if [ -z "$evidence_script" ]; then
             rm -f /tmp/random-lab-decision.json
             echo "::error::Publication-evidence script absent from workflow commit ${GITHUB_SHA}; refusing to forward an unverified verdict (issue #616, fail closed)."
             exit 1
           fi
           pub_rc=0
-          bash "$evidence_script" "$pr" "$SINCE" || pub_rc=$?
+          printf '%s' "$evidence_script" | bash -s -- "$pr" "$SINCE" || pub_rc=$?
           published="false"
           case "$pub_rc" in
             0) published="true" ;;
