@@ -23,7 +23,7 @@ python3 -m http.server 8000   # Windows: python -m http.server 8000
 
 On GitHub Pages the committed build plays from the project hub: open
 the hub `index.html`, press Play. The shipped artifact is
-`maze-chase/web/maze-chase.wasm` (about 207 KiB / 212,234 bytes, zero
+`maze-chase/web/maze-chase.wasm` (about 207 KiB / 212,438 bytes, zero
 imports, fully
 self-contained), built reproducibly (see below); `web/maze-chase.js` is
 the harness (plain script, no bundler, no external resources, works
@@ -161,9 +161,9 @@ cargo build --release --target wasm32-unknown-unknown -p maze-chase-web
 cp target/wasm32-unknown-unknown/release/maze_chase_web.wasm web/maze-chase.wasm
 ```
 
-The committed `web/maze-chase.wasm` is that exact artifact: 212,234
+The committed `web/maze-chase.wasm` is that exact artifact: 212,438
 bytes, sha256
-`8bf0b74babe2259bdee6d551163a99b735ca75bf8a854ee5ff15a8443dfab1f1`,
+`5bcceec8356d8659d53405c593df744ba3c980c8b31582358313a53f5a2f72db`,
 built with Rust 1.99.0 (rustc commit
 `b940084d7eb6a299eb4bfeb8e34901bc051e7ac4`, embedded in the artifact);
 a second clean build reproduces the same bytes, while a different

@@ -32,7 +32,8 @@ Unit and integration suites (`cargo test --workspace`, exit 0):
 | doc-tests, remaining binaries | 8 | 0 |
 | **Total** | **30** | **344 passed, 0 failed** |
 
-Browser artifacts (Node 18+, committed `web/maze-chase.wasm`):
+Browser artifacts (Node 22+ for the CDP harnesses via the built-in
+WebSocket, no npm packages; committed `web/maze-chase.wasm`):
 
 - `node web/e2e/wasm-smoke.js`: `NODE SMOKE: ALL GREEN` (zero
   imports, boot/reset/steering/scoring live, bit-identical frames
@@ -165,10 +166,12 @@ Windows native pass plus fix round, pre-Pondwake (tester run
 
 Windows and macOS packaged artifacts plus their per-layer E2E runs
 executed on their native operating systems (the dated section above
-records the measured numbers). With them, every
-[parity checklist](parity.md) row is signed; the #552 reference game
-was retired in favor of this game by the Maintainer's explicit step
-after this verified release merged.
+records the measured numbers). With them, the [parity checklist](parity.md)
+rows signed at that point cover the simulation, layer, and per-layer E2E
+requirements; the later sound row records Linux synth and browser
+evidence and defers macOS/Windows real-speaker review to the Final
+Phase. The #552 reference game was retired in favor of this game by the
+Maintainer's explicit step after this verified release merged.
 
 ## 2026-10-18 (overhaul: dynamic layout and full-window composition)
 
@@ -507,12 +510,12 @@ Unit and integration suites (`cargo test --workspace`, exit 0):
 | audio (lib 17, hostile 6) | 3 | 23 |
 | config | 3 | 28 |
 | terminal | 32 | 247 |
-| desktop | 10 | 111 |
-| web | 2 | 51 |
-| **Total** | **63** | **592 passed, 0 failed** |
+| desktop | 10 | 112 |
+| web | 2 | 52 |
+| **Total** | **63** | **594 passed, 0 failed** |
 
-Browser artifacts (committed `web/maze-chase.wasm`, 212,234 bytes,
-sha256 `8bf0b74babe2259bdee6d551163a99b735ca75bf8a854ee5ff15a8443dfab1f1`,
+Browser artifacts (committed `web/maze-chase.wasm`, 212,438 bytes,
+sha256 `5bcceec8356d8659d53405c593df744ba3c980c8b31582358313a53f5a2f72db`,
 reproduced byte-for-byte by a second release build):
 
 - `node web/e2e/wasm-smoke.js`: `NODE SMOKE: ALL GREEN` (ABI 3, shared
@@ -522,7 +525,7 @@ reproduced byte-for-byte by a second release build):
 - `node web/e2e/boot-gate-e2e.js`: `BOOT-GATE-E2E: ALL GREEN` (33
   assertions, including the new layered-sound export gate).
 - `node web/e2e/browser-e2e.js` (headless chromium over CDP):
-  `E2E: ALL GREEN` (247 assertions, zero console errors), including the
+  `E2E: ALL GREEN` (278 assertions, zero console errors), including the
   pre-gesture audio chip, its retirement after unlock, the 60/80 music
   and SFX defaults, volume persistence, every warden chain pitch under
   the SFX ceiling, and the mute confirmation settling its target first.
