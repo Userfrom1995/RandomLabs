@@ -145,10 +145,11 @@ for root, dirs, files in os.walk(stage):
     rel_root = os.path.relpath(root, stage)
     if rel_root == ".":
         entries.append((".", root, True))
-        continue
-    entries.append((rel_root, root, True))
+    else:
+        entries.append((rel_root, root, True))
     for name in files:
-        entries.append((os.path.join(rel_root, name), os.path.join(root, name), False))
+        arcname = name if rel_root == "." else os.path.join(rel_root, name)
+        entries.append((arcname, os.path.join(root, name), False))
 entries.sort(key=lambda entry: entry[0])
 
 with open(out, "wb") as raw:
