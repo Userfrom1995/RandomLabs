@@ -500,15 +500,15 @@ Unit and integration suites (`cargo test --workspace`, exit 0):
 |---|---|---|
 | engine | 9 | 90 |
 | assets | 4 | 42 |
-| audio (lib 16, hostile 6) | 3 | 22 |
+| audio (lib 17, hostile 6) | 3 | 23 |
 | config | 3 | 28 |
 | terminal | 32 | 247 |
-| desktop | 10 | 109 |
+| desktop | 10 | 110 |
 | web | 2 | 51 |
-| **Total** | **63** | **589 passed, 0 failed** |
+| **Total** | **63** | **591 passed, 0 failed** |
 
-Browser artifacts (committed `web/maze-chase.wasm`, 212,255 bytes,
-sha256 `cc7708fa24723cf511db2f854e814941309b9684eb194c3adeb9e8f6171926b8`,
+Browser artifacts (committed `web/maze-chase.wasm`, 212,234 bytes,
+sha256 `8bf0b74babe2259bdee6d551163a99b735ca75bf8a854ee5ff15a8443dfab1f1`,
 reproduced byte-for-byte by a second release build):
 
 - `node web/e2e/wasm-smoke.js`: `NODE SMOKE: ALL GREEN` (ABI 3, shared

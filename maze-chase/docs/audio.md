@@ -34,9 +34,13 @@ Seven voice families generate every sound:
 - `Mallet`: short sine pluck with a soft harmonic.
 - `Drop`: quick falling sine blip.
 - `Reed`: hollow triangle with a breathy edge.
-- `Drone`: low sine plus subharmonic.
+- `Drone`: low sine fundamental with a subharmonic at ratio 0.50
+  (mix 0.28), an 80 ms attack, and a 1.2 exponential decay to the
+  note end.
 - `Glass`: bright sine with a slow decay.
 - `Bell`: warm sine pair with a long tail.
+- `Pluck`: dry triangle pluck with no harmonic partial, a 4 ms
+  attack, and a 5.0 exponential decay.
 
 Rendered PCM is peak-normalized to the bus ceiling, so overlapping
 layers never clip; the music bus peaks at 0.32 and the SFX bus at 0.50
@@ -59,8 +63,8 @@ sprint, time-up, eyes, and every menu cue have their own layers.
 | Mute | off | on/off | Silences both buses, keeps visuals |
 | Fade | 120 ms | fixed | Applied to every gain change |
 
-The previous loud default is gone: music starts at 60 percent and
-effects at 80 percent, with master at full. Slider moves fade over
+The previous loud default is gone: master starts at 80 percent, music
+at 60 percent, and effects at 80 percent. Slider moves fade over
 120 ms rather than jumping. Mute is a bus change, not a pause, and the
 visual twin for every cue still plays.
 
@@ -69,9 +73,9 @@ visual twin for every cue still plays.
 - **Terminal** (`crates/terminal/src/chime.rs`): an opt-in BEL chime,
   off by default, marks sharp beats. The status-line ticker always
   narrates the run, independent of the chime, mute, or volume. The
-  Settings screen carries a persistent `Terminal chime` row; flashes
-  are pushed before the mute and chime gates so the visual twin never
-  disappears.
+  Settings screen carries a persistent `Terminal chime` row; visual
+  flashes are rendered by the playing surface from game state, so the
+  visual twin never depends on the mute or chime gates.
 - **Desktop** (`crates/desktop/src/sound.rs`): rodio renders the shared
   recipes at 44.1 kHz. The sink tracks music and SFX gain separately,
   applies 120 ms fades on a timer, and schedules tune track lanes with

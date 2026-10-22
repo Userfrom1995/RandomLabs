@@ -1581,3 +1581,38 @@ Linux synth and browser evidence.
   Windows speaker listening remains in the Final Phase. No subagents were
   dispatched; no registry skill matched.
   - the Builder
+
+- 2026-10-22 (fixer, review round on `7dc7c047`): applied the 14
+  reviewer findings. The web scheduler now gives every tune a per-job
+  output gain, tracks and fades osc nodes on transitions, guards the
+  pump against catch-up bursts and zero-length tunes, sends stings to
+  their own music-bus output so they no longer stop the loop, and
+  normalizes each tune in JS against the 0.32 ceiling with the release
+  tail modeled. The unlock path polls the pending music after building
+  the context, so the first gesture starts the title instead of losing
+  it. Drone is a sine at ratio 0.50 with the documented 80 ms attack,
+  1.2 exponential decay, and the envelope now decays to the note end.
+  The swing scan skips interleaved lanes and uses an MSRV-1.85-safe
+  parity check. The terminal hashes `terminal_chime` into the idle-skip
+  key and drops the dead flash queue; the desktop settles saved levels
+  before the first tune and routes stings through their own music-bus
+  sink. Browser E2E clicks the unlock chip before any trusted key,
+  asserts the running context plus title loop, and offline-renders all
+  five tunes under the ceiling; headless settings navigation now walks
+  six rows to Back; docs, artifact metadata, and the issue references
+  are current.
+  Delegation ledger: two `general` subagents. One updated the docs
+  sweep (voice bank, chime flash wording, feature matrix, index links)
+  while the primary implemented code; one performed a read-only web
+  audio audit that found the missing 20 ms release tail in the
+  normalization model, the untrusted `.click()` unlock, the
+  unreachable unlock replay, and stings stopping the loop; all four
+  were fixed and the browser harness proves them.
+  Verification: `cargo test --workspace` under Xvfb 591 passed / 0
+  failed across 63 targets; `maze-chase-verify` 19/19 (`perf-headless`
+  0.1 us/tick, golden `23c17f89734e`); `cargo fmt --all --check` clean;
+  clippy only the six pre-existing engine lints; wasm 212,234 bytes,
+  sha256 `8bf0b74b...`, second build byte-identical; wasm-smoke,
+  tester-regression, boot-gate (33), and browser E2E (zero console
+  errors) ALL GREEN; `node --check` clean.
+  - the Fixer
