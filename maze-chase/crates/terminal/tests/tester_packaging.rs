@@ -43,24 +43,22 @@ fn read_script(name: &str) -> String {
 }
 
 fn crate_version() -> String {
-    let text = std::fs::read_to_string(manifest_dir().join("Cargo.toml"))
-        .expect("terminal Cargo.toml must be readable");
-    for line in text.lines() {
-        let line = line.trim();
-        if let Some(rest) = line.strip_prefix("version") {
-            let rest = rest.trim().trim_start_matches('=').trim();
-            let v = rest.trim_matches('"');
-            if !v.is_empty() {
-                return v.to_string();
-            }
-        }
-    }
-    panic!("version not found in terminal Cargo.toml");
+    // The crate inherits [workspace.package] in maze-chase/Cargo.toml, so
+    // the compiled package version is the single-source value a release
+    // tag must match.
+    env!("CARGO_PKG_VERSION").to_string()
 }
 
 #[test]
 fn packaging_scripts_exist_and_are_executable() {
-    for name in ["linux-tarball.sh", "install-linux.sh"] {
+    for name in [
+        "linux-tarball.sh",
+        "macos-tarball.sh",
+        "install-linux.sh",
+        "uninstall-linux.sh",
+        "build-deb.sh",
+        "build-rpm.sh",
+    ] {
         let path = packaging_script(name);
         assert!(path.is_file(), "{name} must exist at {}", path.display());
         let mode = std::fs::metadata(&path)
@@ -76,7 +74,14 @@ fn packaging_scripts_exist_and_are_executable() {
 
 #[test]
 fn packaging_scripts_pass_bash_syntax_check() {
-    for name in ["linux-tarball.sh", "install-linux.sh"] {
+    for name in [
+        "linux-tarball.sh",
+        "macos-tarball.sh",
+        "install-linux.sh",
+        "uninstall-linux.sh",
+        "build-deb.sh",
+        "build-rpm.sh",
+    ] {
         let out = Command::new("bash")
             .args(["-n", &packaging_script(name).to_string_lossy()])
             .stdin(Stdio::null())
@@ -97,17 +102,27 @@ fn tarball_script_keeps_staging_contract() {
         body.contains("set -euo pipefail"),
         "tarball script must run in strict mode"
     );
+    let common = std::fs::read_to_string(maze_root().join("packaging").join("common.sh"))
+        .expect("the shared packaging contract must be readable");
     assert!(
-        body.contains("crates/terminal/Cargo.toml"),
-        "tarball name must derive the version from Cargo.toml"
+        body.contains("common.sh"),
+        "the tarball script must source the shared packaging contract"
     );
     assert!(
-        body.contains("uname -s") && body.contains("uname -m"),
-        "tarball name must record the build machine os-arch"
+        common.contains("workspace_version") && common.contains("workspace\\.package"),
+        "the version must come from the workspace [workspace.package] table"
     );
     assert!(
-        body.contains("tar -czf"),
-        "tarball script must stage a compressed artifact"
+        body.contains("maze-chase-terminal-$VERSION-$HOST_OS-$HOST_ARCH.tar.gz"),
+        "tarball name must carry version plus host os-arch"
+    );
+    assert!(
+        common.contains("uname -s") && common.contains("uname -m"),
+        "the host os-arch must come from the build machine"
+    );
+    assert!(
+        body.contains("reproducible_targz") && common.contains("tar --sort=name"),
+        "tarball script must stage a reproducible compressed artifact"
     );
     assert!(
         body.contains("--version"),
