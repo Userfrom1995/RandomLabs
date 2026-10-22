@@ -137,16 +137,20 @@ disk.
 | Desktop | macOS | `packaging/desktop/macos-dmg.sh` | `dist/maze-chase-desktop-<version>-macos-<arch>.dmg` |
 | Browser | any (Pages serves `main`) | the wasm command above | live at `maze-chase/play.html` |
 
-The tar archives are deterministic: they are created with
-`SOURCE_DATE_EPOCH` (the release job uses the commit timestamp), sorted
-entry order, fixed owner and modes (the stage directory mode is pinned
-so the caller's umask cannot leak into the archive), and no gzip
-timestamp. GNU tar does this directly on Linux; macOS falls back to a
-Python `tarfile` writer with the same pins, and a host with neither tool
-fails loudly instead of publishing an unpinned archive. The Windows zip is
-deterministic the same way. Building any host's set twice on the same
-commit produces byte-identical files; the checksum manifest is the
-proof.
+The tar archives and Windows zips are deterministic. The tarballs are
+created with `SOURCE_DATE_EPOCH` (the release job uses the commit
+timestamp), sorted entry order, fixed owner and modes (the stage
+directory mode is pinned so the caller's umask cannot leak into the
+archive), and no gzip timestamp. GNU tar does this directly on Linux;
+macOS falls back to a Python `tarfile` writer with the same pins, and a
+host with neither tool fails loudly instead of publishing an unpinned
+archive. The Windows zips sort their entries and stamp each one with
+`SOURCE_DATE_EPOCH`. The macOS disk image is not byte-reproducible
+because `hdiutil` records image metadata, so the release publishes its
+SHA-256 instead of claiming identical rebuilds. Rebuilding a host's
+tarballs or zips twice on the same commit in the same toolchain
+environment produces byte-identical archives; the checksum manifest
+verifies the published bytes.
 
 `packaging/release/stage-linux.sh` builds, smokes, and checksums all six
 Linux artifacts at once and reports `SHA256SUMS.txt`.
@@ -182,14 +186,15 @@ sudo rpm -e maze-chase-terminal
 ```
 
 Upgrade with `sudo dpkg -i <newer deb>` or `sudo rpm -U <newer rpm>`.
-The tarball path needs no root:
+The tarball path needs no root for the default per-user install:
 
 ```sh
 mkdir maze-chase-terminal && tar -xzf maze-chase-terminal-<version>-linux-<arch>.tar.gz -C maze-chase-terminal
 cd maze-chase-terminal
-./install-linux.sh              # $HOME/.local, prints the --version probe
-./install-linux.sh --prefix /opt/maze-chase
-./uninstall-linux.sh            # removes the launcher and program
+./install-linux.sh                                  # $HOME/.local, prints the --version probe
+sudo ./install-linux.sh --prefix /opt/maze-chase    # system-wide
+./uninstall-linux.sh                                # removes the $HOME/.local install
+sudo ./uninstall-linux.sh --prefix /opt/maze-chase  # removes the /opt install
 ```
 
 ### Linux, desktop
@@ -219,7 +224,7 @@ moving it to the Bin. Letting macOS keep its settings is normal; remove
 
 Extract the terminal tarball and run its `install-linux.sh` (the script
 is portable to macOS) or run the binary in place. Remove the installed
-launcher and binary with `uninstall-linux.sh`, adding
+binary and launch doc with `uninstall-linux.sh`, adding
 `--purge-config` to remove saved settings.
 
 ### Windows, desktop
@@ -227,8 +232,9 @@ launcher and binary with `uninstall-linux.sh`, adding
 Run `maze-chase-desktop-<version>-windows-x86_64-setup.exe`. The
 installer is per-user, asks for no administrator rights, and offers
 Start Menu and optional desktop shortcuts. Upgrade by running the newer
-setup over the old install; uninstall from Settings, Apps, or the Start
-Menu entry. The zip is the portable option: extract it and run
+setup over the old install; uninstall from Settings > Apps (the setup
+registers a standard uninstaller). The zip is the portable option:
+extract it and run
 `maze-chase-desktop.exe`; delete the folder to remove it. SmartScreen
 may warn because the binary is unsigned: choose More info, then Run
 anyway.
@@ -279,10 +285,11 @@ macOS Gatekeeper warnings are expected; they are not a signature claim.
 
 ### Candidate and stable releases
 
-The 0.1.0 candidate is tagged `maze-chase-v0.1.0-rc.1` and published as
-a prerelease. Before the stable release, re-run every per-OS install,
-upgrade, and uninstall row against those artifacts and re-sign the
-terminal matrix. Then bump the workspace version to `1.0.0` and cut
+The 0.1.0 candidate will be tagged `maze-chase-v0.1.0-rc.1` and
+published as a prerelease once the release workflow is installed.
+Before the stable release, re-run every per-OS install, upgrade, and
+uninstall row against those artifacts and re-sign the terminal matrix.
+Then bump the workspace version to `1.0.0` and cut
 `maze-chase-v1.0.0` as a stable release. No stable tag is cut while a
 binding check is open.
 

@@ -8,10 +8,10 @@ scores, settings with key rebinding, and launch docs (this file).
 ## Install and launch
 
 Every release ships `maze-chase-terminal` as a Debian package, an RPM,
-a portable tarball on Linux and macOS, and a zip on Windows. Pick the
-artifact for your OS from the release page; `SHA256SUMS.txt` verifies
-the download. [release.md](release.md) covers upgrading, uninstalling,
-and clearing saved settings.
+a portable tarball on Linux and macOS, and a zip on Windows. Once a
+release is published, pick the artifact for your OS from its page;
+`SHA256SUMS.txt` verifies the download. [release.md](release.md) covers
+upgrading, uninstalling, and clearing saved settings.
 
 Debian/Ubuntu:
 
