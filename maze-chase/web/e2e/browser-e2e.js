@@ -127,6 +127,23 @@ async function shot(ws, path) {
   // itself focused Start, not the script restoring it later.
   const bootFocus = await evalJs(ws, `document.activeElement && document.activeElement.id`);
   assert(bootFocus === 'btn-start', 'title auto-focuses Start, got: ' + bootFocus);
+  // The unlock chip must be fully inside the 390x844 first viewport and
+  // hit-testable at its center, not merely present in the document.
+  await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+  await sleep(400);
+  const chipGeom = await evalJs(ws, `(() => {
+    const b = document.getElementById('btn-audio');
+    const r = b.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    const cs = getComputedStyle(b);
+    return [r.top, r.left, r.right, r.bottom, innerWidth, innerHeight,
+      r.top >= 0 && r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight ? 1 : 0,
+      (hit === b || b.contains(hit)) ? 1 : 0, cs.visibility, cs.display];
+  })()`);
+  assert(chipGeom[6] === 1 && chipGeom[7] === 1 && chipGeom[8] !== 'hidden' && chipGeom[9] !== 'none',
+    'audio unlock chip is fully on-screen and hit-testable at 390x844, got: ' + JSON.stringify(chipGeom));
+  await send(ws, 'Emulation.clearDeviceMetricsOverride');
+  await sleep(400);
   // The chip is the first trusted gesture (before any key event), so the
   // retirement assertion cannot pass via a keydown that woke audio instead.
   const chipPt = await evalJs(ws, `(() => { const r = document.getElementById('btn-audio').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`);
