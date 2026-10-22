@@ -146,6 +146,7 @@ jobs:
                   echo "::error::Could not pin the install name of the trusted $lib copy (issue #713, fail closed)."
                   exit 1
                 }
+                echo "trusted-tool copy: ${lib_base} (from ${lib})"
                 seen="$seen $lib_base"
                 queue=$(printf '%s\n%s\n' "$queue" "$(printf '%s\n' "$nested" | awk 'NR > 1 { print $1 }')")
               done
@@ -591,6 +592,7 @@ jobs:
                   echo "::error::Could not pin the install name of the trusted $lib copy (issue #713, fail closed)."
                   exit 1
                 }
+                echo "trusted-tool copy: ${lib_base} (from ${lib})"
                 seen="$seen $lib_base"
                 queue=$(printf '%s\n%s\n' "$queue" "$(printf '%s\n' "$nested" | awk 'NR > 1 { print $1 }')")
               done
@@ -1093,6 +1095,7 @@ jobs:
                   echo "::error::Could not pin the install name of the trusted $lib copy (issue #713, fail closed)."
                   exit 1
                 }
+                echo "trusted-tool copy: ${lib_base} (from ${lib})"
                 seen="$seen $lib_base"
                 queue=$(printf '%s\n%s\n' "$queue" "$(printf '%s\n' "$nested" | awk 'NR > 1 { print $1 }')")
               done
