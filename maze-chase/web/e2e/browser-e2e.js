@@ -138,6 +138,8 @@ async function shot(ws, path) {
   const audioAfterChip = await evalJs(ws, `window.__mcAudio || null`);
   assert(audioAfterChip && audioAfterChip.state === 'running',
     'the chip click starts the audio context, got: ' + JSON.stringify(audioAfterChip));
+  assert(audioAfterChip.limiter === true,
+    'the live master chain carries the summed-output limiter, got: ' + JSON.stringify(audioAfterChip));
   assert(audioAfterChip.music === 1 && audioAfterChip.tune === 0 && audioAfterChip.loop === true,
     'title music starts after the first gesture, got: ' + JSON.stringify(audioAfterChip));
   // Offline render through the real scheduler: the web music bus must honor
@@ -168,6 +170,11 @@ async function shot(ws, path) {
   const chainBad = chainPeaks.filter((p) => !(p >= 0.45) || p > 0.5001);
   assert(chainBad.length === 0,
     'every warden chain pitch re-normalizes under the 0.50 SFX ceiling, got: ' + JSON.stringify(chainPeaks));
+  // Summed output: four loudest recipes overlap at a 100/100 mix through
+  // the real master limiter; the rendered output must stay at full scale.
+  const mixPeak = await evalJs(ws, `window.__mcRenderMixPeak([4, 6, 10, 14], 3)`);
+  assert(mixPeak > 0 && mixPeak <= 1.0,
+    'master limiter keeps four simultaneous loud recipes at <= full scale, got: ' + mixPeak);
   // Keyboard focus contract: ArrowDown moves off Start, and P/Esc/M keep
   // working from a focused panel action (round-23 review).
   await evalJs(ws, `document.getElementById('btn-start').focus()`);

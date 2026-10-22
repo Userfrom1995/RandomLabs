@@ -32,6 +32,26 @@ pub const MUSIC_PEAK: f32 = 0.32;
 /// Shortest edge fade that removes a click without dulling the attack.
 const EDGE_SECS: f32 = 0.01;
 
+/// Headroom scale for the summed output. Every source is normalized to its
+/// bus ceiling, so the worst-case sum is the active source count times
+/// that ceiling times the live bus gain. When that exceeds full scale,
+/// both buses scale down together instead of letting the device mixer
+/// clip. Pure and deterministic for the offline mix test.
+pub(crate) fn mix_limit_scale(
+    music_sources: usize,
+    sfx_sources: usize,
+    music_gain: f32,
+    sfx_gain: f32,
+) -> f32 {
+    let worst =
+        music_sources as f32 * MUSIC_PEAK * music_gain + sfx_sources as f32 * SFX_PEAK * sfx_gain;
+    if worst > 1.0 {
+        1.0 / worst
+    } else {
+        1.0
+    }
+}
+
 /// MIDI key to Hz (A4 = 440).
 pub fn midi_hz(m: u8) -> f32 {
     440.0 * 2.0f32.powf((m as f32 - 69.0) / 12.0)
@@ -230,6 +250,7 @@ pub struct RodioSink {
     tune: TuneId,
     sfx_gain: f32,
     music_gain: f32,
+    mix_scale: f32,
     play_seq: u64,
 }
 
@@ -254,6 +275,7 @@ impl RodioSink {
             tune: TuneId::None,
             sfx_gain: 1.0,
             music_gain: 1.0,
+            mix_scale: 1.0,
             play_seq: 0,
         };
         sink.apply_gains_now();
@@ -281,36 +303,52 @@ impl RodioSink {
         }
     }
 
+    fn refresh_mix_scale(&mut self) {
+        let music_sources = self.music.len().saturating_add(self.stings.len());
+        self.mix_scale = mix_limit_scale(
+            music_sources,
+            self.sfx.len(),
+            self.music_gain,
+            self.sfx_gain,
+        );
+    }
+
     fn apply_gains_now(&mut self) {
         self.sfx_gain = self.target_sfx();
         self.music_gain = self.target_music();
-        self.sfx.set_volume(self.sfx_gain);
-        self.music.set_volume(self.music_gain);
-        self.stings.set_volume(self.music_gain);
+        self.refresh_mix_scale();
+        self.write_sink_volumes();
     }
 
     fn apply_gains(&mut self) {
-        self.sfx.set_volume(self.sfx_gain);
-        self.music.set_volume(self.music_gain);
-        self.stings.set_volume(self.music_gain);
+        self.refresh_mix_scale();
+        self.write_sink_volumes();
     }
 
-    fn push_sfx(&self, samples: Vec<f32>) {
+    fn write_sink_volumes(&mut self) {
+        self.sfx.set_volume(self.sfx_gain * self.mix_scale);
+        self.music.set_volume(self.music_gain * self.mix_scale);
+        self.stings.set_volume(self.music_gain * self.mix_scale);
+    }
+
+    fn push_sfx(&mut self, samples: Vec<f32>) {
         if samples.is_empty() {
             return;
         }
         let src = SamplesBuffer::new(1, RATE, samples);
         self.sfx.append(src);
         self.sfx.play();
+        self.apply_gains();
     }
 
-    fn push_sting(&self, samples: Vec<f32>) {
+    fn push_sting(&mut self, samples: Vec<f32>) {
         if samples.is_empty() {
             return;
         }
         let src = SamplesBuffer::new(1, RATE, samples);
         self.stings.append(src);
         self.stings.play();
+        self.apply_gains();
     }
 }
 
@@ -367,10 +405,10 @@ impl Audio for RodioSink {
                 match Sink::try_new(handle) {
                     Ok(fresh) => {
                         self.music = fresh;
-                        self.music.set_volume(self.music_gain);
                         let src = SamplesBuffer::new(1, RATE, samples).repeat_infinite();
                         self.music.append(src);
                         self.music.play();
+                        self.apply_gains();
                     }
                     Err(_) => self.tune = TuneId::None,
                 }
@@ -381,6 +419,7 @@ impl Audio for RodioSink {
     fn stop_music(&mut self) {
         self.tune = TuneId::None;
         self.music.stop();
+        self.apply_gains();
     }
 
     fn set_master(&mut self, v: f32) {
@@ -545,6 +584,53 @@ mod tests {
             "offline pcm: music peak {:.3} rms {:.3}; defaults {:.3}; sfx peak {:.3}; default {:.3}",
             music_peak, music_rms, mixed_music_peak, sfx_peak, mixed_sfx_peak
         );
+    }
+
+    #[test]
+    fn summed_output_limiter_keeps_a_full_mix_at_or_below_full_scale() {
+        // Four simultaneous SFX recipes plus a loop and a sting at a
+        // 100/100 user mix: without the summed-output scale this is well
+        // above full scale, with it the rendered sum stays bounded.
+        let cues = [
+            Cue::RelishEaten,
+            Cue::WardenEaten { chain: 3 },
+            Cue::ExtraLife,
+            Cue::SprintBonus,
+        ];
+        let mut renders: Vec<Vec<f32>> = cues
+            .iter()
+            .map(|cue| render_sfx_with(sfx_for_cue(*cue).expect("sfx recipe"), 0))
+            .collect();
+        renders.push(render_tune(TITLE_LOOP));
+        renders.push(render_tune(sting_for_cue(Cue::Death).expect("death sting")));
+
+        let sfx_count = cues.len();
+        let music_count = renders.len() - sfx_count;
+        let scale = mix_limit_scale(music_count, sfx_count, 1.0, 1.0);
+        assert!(scale < 1.0, "the fixture must exercise the limiter");
+        assert!(
+            (scale - 1.0 / (music_count as f32 * MUSIC_PEAK + sfx_count as f32 * SFX_PEAK)).abs()
+                < 1e-6
+        );
+
+        let n = renders.iter().map(Vec::len).max().unwrap_or(0);
+        let mut raw_peak = 0.0f32;
+        let mut limited_peak = 0.0f32;
+        for i in 0..n {
+            let sum: f32 = renders.iter().filter_map(|pcm| pcm.get(i)).sum();
+            raw_peak = raw_peak.max(sum.abs());
+            limited_peak = limited_peak.max((sum * scale).abs());
+        }
+        assert!(
+            raw_peak > 1.0,
+            "fixture must sum above full scale, got {raw_peak}"
+        );
+        assert!(
+            limited_peak <= 1.0 + 1e-4,
+            "summed output peaks {limited_peak} above full scale"
+        );
+        assert_eq!(mix_limit_scale(1, 0, 1.0, 0.0), 1.0);
+        assert_eq!(mix_limit_scale(0, 0, 1.0, 1.0), 1.0);
     }
 
     #[test]
