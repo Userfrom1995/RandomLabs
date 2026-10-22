@@ -45,11 +45,23 @@ Seven voice families generate every sound:
 - `Pluck`: dry triangle pluck with no harmonic partial, a 4 ms
   attack, and a 5.0 exponential decay.
 
-Rendered PCM is peak-normalized to the bus ceiling, so overlapping
-layers never clip; the music bus peaks at 0.32 and the SFX bus at 0.50
-before the user mix. The browser sample model keeps 1.5% headroom under
-the SFX ceiling because its band-limited oscillators can peak slightly
-above the ideal waveform model; the desktop render lands on the ceiling.
+Rendered PCM is peak-normalized to the bus ceiling, so the layers
+inside one recipe never clip; the music bus peaks at 0.32 and the SFX
+bus at 0.50 before the user mix. The browser sample model keeps 1.5%
+headroom under the SFX ceiling because its band-limited oscillators can
+peak slightly above the ideal waveform model; the desktop render lands
+on the ceiling.
+
+Overlap between separate recipes is bounded by a summed-output stage,
+not by the per-recipe normalization. The browser routes the summed
+music and SFX buses through a master limiter (a `DynamicsCompressorNode`
+followed by a soft-clip `WaveShaperNode`) before the destination. The
+desktop scales both buses down by the worst-case active source count
+(`active_music * 0.32 * music_gain + active_sfx * 0.50 * sfx_gain`) when
+that sum would exceed full scale, so four loud effects plus a loop and a
+sting at a 100/100 mix stay at or below 1.0. The web and desktop offline
+mix tests pin the bound; the desktop test also pins the pre-limiter sum
+above full scale.
 
 Effects are layered recipes rather than single sweeps. A recipe is a
 list of tones with voice, start and end frequency, length, delay, gain,
@@ -114,14 +126,15 @@ visual twin for every cue still plays.
   corruption handling, including the terminal chime flag.
 - Desktop tests measure offline PCM for every tune and SFX: finite
   samples, peak-normalized to each bus ceiling, and 0.154/0.320 peaks at
-  the documented 80/60/80 default mix. They also pin the 120 ms fades,
-  the null-sink fallback, and the sting cue mapping. Terminal tests pin
-  the opt-in BEL, mute/chime gating, settings persistence, and the
-  ticker; visual twins are rendered from game state and never depend on
-  the audio gates.
+  the documented 80/60/80 default mix. They also pin the summed-output
+  limiter at a 100/100 mix, the 120 ms fades, the null-sink fallback,
+  and the sting cue mapping. Terminal tests pin the opt-in BEL,
+  mute/chime gating, settings persistence, and the ticker; visual twins
+  are rendered from game state and never depend on the audio gates.
 - Web tests pin the ABI exports, first-tone legacy views, tune metadata,
   and routed cues; `wasm-smoke`, `boot-gate-e2e`, and `browser-e2e`
   exercise the shipped artifact, including the unlock chip, the
   persisted 60/80 mix, loop-stop transitions, the 0.32/0.50 offline
-  peaks, every warden chain pitch, and the persisted mute/low-volume
-  startup.
+  peaks, the summed-output limiter at 100/100, the live mix-row labels,
+  every warden chain pitch (including two same-tick cues at different
+  arms), and the persisted mute/low-volume startup.

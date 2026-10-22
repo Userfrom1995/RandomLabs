@@ -475,7 +475,7 @@
   }
 
   // ---------- audio ----------
-  var AC = null, gMaster = null, gMusic = null, gSfx = null;
+  var AC = null, gMaster = null, gMusic = null, gSfx = null, limiter = null;
   var tuneJob = null;
   var tuneGainCache = {};
   var volumesPrimed = false;
@@ -490,6 +490,7 @@
         music: musicState,
         tune: tuneJob ? tuneJob.id : -1,
         loop: !!(tuneJob && tuneJob.loop),
+        limiter: !!limiter,
         gains: {
           master: gMaster ? gMaster.gain.value : 0,
           music: gMusic ? gMusic.gain.value : 0,
@@ -507,6 +508,46 @@
     var supported = !!(window.AudioContext || window.webkitAudioContext);
     var asleep = !AC || AC.state !== 'running';
     chip.hidden = !supported || !asleep;
+  }
+
+  // Master bus: the summed music and SFX feed a compressor and a
+  // soft-clip stage before the destination, so several loud recipes
+  // overlapping at a 100/100 mix can never push the output past full
+  // scale. The compressor handles sustained overlap; the waveshaper
+  // bounds the attack window before its gain reduction settles.
+  function limiterCurve() {
+    var n = 2048, curve = new Float32Array(n);
+    for (var i = 0; i < n; i++) {
+      var x = (i * 2) / (n - 1) - 1;
+      var a = Math.abs(x);
+      var y = a <= 0.7 ? a : 0.7 + 0.3 * Math.tanh((a - 0.7) / 0.3);
+      curve[i] = x < 0 ? -y : y;
+    }
+    return curve;
+  }
+
+  function buildMasterChain(ctx) {
+    var master = ctx.createGain();
+    var music = ctx.createGain();
+    var sfx = ctx.createGain();
+    music.connect(master);
+    sfx.connect(master);
+    var comp = null;
+    if (typeof ctx.createDynamicsCompressor === 'function') {
+      comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -6;
+      comp.knee.value = 0;
+      comp.ratio.value = 20;
+      comp.attack.value = 0;
+      comp.release.value = 0.25;
+      master.connect(comp);
+    }
+    var clipper = ctx.createWaveShaper();
+    clipper.curve = limiterCurve();
+    clipper.oversample = '4x';
+    if (comp) comp.connect(clipper); else master.connect(clipper);
+    clipper.connect(ctx.destination);
+    return { master: master, music: music, sfx: sfx, limiter: comp || clipper };
   }
 
   function unlockAudio() {
@@ -535,15 +576,14 @@
     // Start every bus at zero and apply the saved mix before any sound is
     // scheduled: a muted or low-volume session must never leak full gain
     // during the first fade.
-    gMaster = AC.createGain();
-    gMusic = AC.createGain();
-    gSfx = AC.createGain();
+    var chain = buildMasterChain(AC);
+    gMaster = chain.master;
+    gMusic = chain.music;
+    gSfx = chain.sfx;
+    limiter = chain.limiter;
     gMaster.gain.setValueAtTime(0, AC.currentTime);
     gMusic.gain.setValueAtTime(0, AC.currentTime);
     gSfx.gain.setValueAtTime(0, AC.currentTime);
-    gMusic.connect(gMaster);
-    gSfx.connect(gMaster);
-    gMaster.connect(AC.destination);
     primeVolumes();
     // The title loop is queued by the session before the first gesture:
     // poll now that the context exists so the pending music is not lost.
@@ -1054,6 +1094,34 @@
     out.connect(ctx.destination);
     var saved = crumbTick;
     playSfx(cue, out, ctx, 0, pitch);
+    crumbTick = saved;
+    return ctx.startRendering().then(function (buf) {
+      var data = buf.getChannelData(0), peak = 0;
+      for (var i = 0; i < data.length; i++) {
+        var a = Math.abs(data[i]);
+        if (a > peak) peak = a;
+      }
+      return peak;
+    }).catch(function () { return -1; });
+  };
+
+  // Offline E2E seam: sum several shipped recipes at a full 100/100 mix
+  // through the real master chain and return its output peak. The limiter
+  // must hold the summed output at or below full scale.
+  window.__mcRenderMixPeak = function (cues, seconds) {
+    var OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!exp || !OAC) return Promise.resolve(-1);
+    var secs = seconds > 0 ? seconds : 3;
+    var ctx;
+    try { ctx = new OAC(1, Math.ceil(44100 * secs), 44100); } catch (e) { return Promise.resolve(-1); }
+    var chain = buildMasterChain(ctx);
+    chain.master.gain.setValueAtTime(1, 0);
+    chain.music.gain.setValueAtTime(1, 0);
+    chain.sfx.gain.setValueAtTime(1, 0);
+    var saved = crumbTick;
+    if (Array.isArray(cues)) {
+      for (var i = 0; i < cues.length; i++) playSfx(cues[i] >>> 0, chain.sfx, ctx, 0, 1);
+    }
     crumbTick = saved;
     return ctx.startRendering().then(function (buf) {
       var data = buf.getChannelData(0), peak = 0;
