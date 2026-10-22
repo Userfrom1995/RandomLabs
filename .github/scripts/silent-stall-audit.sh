@@ -6131,6 +6131,12 @@ else
       r19_bad="${r19_bad} publisher(slash-opencode-report-reached-gh)"
     fi
     printf '%s\n' "$r19g_out2" | grep -qF 'begins with the command trigger' || r19_bad="${r19_bad} publisher(slash-opencode-guard-did-not-refuse)"
+    printf '`/oc approve-test`\n\nSigned report body.\n\n- the Tester\n' > "$r19g_dir/backticked.md"
+    r19g_out3=$(PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/backticked.md" "- the Tester" 2>&1 || true)
+    if [ -s "$r19g_log" ]; then
+      r19_bad="${r19_bad} publisher(backticked-marker-report-reached-gh)"
+    fi
+    printf '%s\n' "$r19g_out3" | grep -qF 'begins with the command trigger' || r19_bad="${r19_bad} publisher(backticked-marker-guard-did-not-refuse)"
     printf '## Findings\n\nSigned report body.\n\n- the Tester\n' > "$r19g_dir/control.md"
     : > "$r19g_log"
     PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/control.md" "- the Tester" >/dev/null 2>&1 || true
