@@ -1,9 +1,9 @@
 [package]
 name = "maze-chase-engine"
-version = "0.3.0"
-edition = "2021"
-description = "Deterministic shared simulation engine for the Maze Chase game (Phase 3: ghost intelligence, scoring, progression)"
-license = "MIT"
+version.workspace = true
+edition.workspace = true
+description = "Deterministic shared simulation engine for the Maze Chase game"
+license.workspace = true
 
 [lib]
 name = "maze_chase_engine"
