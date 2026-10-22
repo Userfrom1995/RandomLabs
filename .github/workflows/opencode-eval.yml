@@ -265,7 +265,7 @@ jobs:
             # blind write can forge the decision. The trusted pre-agent step
             # generates LAB_RUN_NONCE; the evaluator must echo it into its
             # decision file, and every consumer re-checks the binding.
-            if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+            if [ -z "${LAB_RUN_NONCE:-}" ] || [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
               echo "::error::Evaluator decision file does not carry this run's contract nonce; refusing to trust a file that PR-executed code may have written (issue #713 round 16)."
               echo "has_decision=false" >> "$GITHUB_OUTPUT"
               exit 1
@@ -303,7 +303,7 @@ jobs:
             echo "::error::Evaluator approved without /tmp/live-run-evidence.json. End-user execution proof is mandatory (evaluator.md section 6). Approval blocked."
             exit 1
           fi
-          if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' "$ev" 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+          if [ -z "${LAB_RUN_NONCE:-}" ] || [ "$(jq -r '.run_nonce // empty' "$ev" 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
             echo "::error::Live-execution evidence does not carry this run's contract nonce; refusing to trust a file that PR-executed code may have written (issue #713 round 16). Approval blocked."
             exit 1
           fi
@@ -333,7 +333,7 @@ jobs:
             echo "::error::No evaluator decision file found; the verify step above should have failed closed (issue #713)."
             exit 1
           fi
-          if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+          if [ -z "${LAB_RUN_NONCE:-}" ] || [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
             echo "::error::Evaluator decision file lost this run's contract nonce before the verdict post; refusing to publish a tampered verdict (issue #713 round 16)."
             exit 1
           fi
@@ -425,7 +425,7 @@ jobs:
             echo "ok=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+          if [ -z "${LAB_RUN_NONCE:-}" ] || [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
             echo "::error::Evaluator decision file lost this run's contract nonce before marker publication; refusing to sign a tampered verdict (issue #713 round 16)."
             exit 1
           fi
@@ -477,6 +477,11 @@ jobs:
             echo "::error::Eval marker publisher absent from workflow commit ${GITHUB_SHA}; refusing to hand an unverified verdict to the merge sweep (issue #713, fail closed)."
             exit 1
           fi
+          publisher_sha=$(printf '%s\n' "$publisher" | sha256sum | awk '{print $1}')
+          if [ "$publisher_sha" != "010cd4a553ce48fbdb57c0168842dfdc0e416b4eeb5257d08f752d546a0affc7" ]; then
+            echo "::error::Eval marker publisher extracted from ${GITHUB_SHA} does not match the reviewed digest; refusing to execute an altered publisher (issue #713 round 21)."
+            exit 1
+          fi
           if ! printf '%s' "$publisher" | bash -s -- "$pr" "$score" "$eval_sha" "$trigger"; then
             echo "::error::Eval approval marker publication failed; the PAT merge sweep would never recognize this verdict (issue #713). Failing closed."
             exit 1
@@ -494,7 +499,7 @@ jobs:
             echo "::error::No evaluator decision file found; verify step above already failed the job closed."
             exit 1
           fi
-          if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+          if [ -z "${LAB_RUN_NONCE:-}" ] || [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
             echo "::error::Evaluator decision file lost this run's contract nonce before the Maintainer handoff; refusing to forward a tampered verdict (issue #713 round 16)."
             exit 1
           fi

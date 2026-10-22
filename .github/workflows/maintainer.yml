@@ -105,16 +105,20 @@ jobs:
 
       - name: "Stage lab helper scripts from the workflow commit (issue #713)"
         run: |
-          mkdir -p "$RUNNER_TEMP/lab-scripts"
+          # The staged copy lives in a root-owned directory so the agent can
+          # never replace the helper a post-agent owner-PAT step executes.
+          sudo install -d -o root -g root -m 0755 /opt/lab-scripts
           # The workspace checkout is the PR head and the agent can rewrite it;
           # stage the helper from THIS run's workflow commit instead (the same
           # pattern the eval and per-OS arms use for their trusted inputs).
           if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh" 2>/dev/null; then
             git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
           fi
-          git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh" > "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
-          chmod +x "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
-          test -s "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
+          approve_tmp=$(mktemp)
+          git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh" > "$approve_tmp"
+          sudo install -o root -g root -m 0755 "$approve_tmp" /opt/lab-scripts/approve-held-runs.sh
+          rm -f "$approve_tmp"
+          test -s /opt/lab-scripts/approve-held-runs.sh
 
       - name: Configure git identity
         run: |
@@ -1530,6 +1534,11 @@ jobs:
               echo "PR #$pr has a newer eval rejection immediately before the merge; not merge-ready"
               continue
             fi
+            merge_fix_id=$(echo "$merge_comments" | jq -r '[.[] | select(.body | startswith("/oc fix"))] | last | .id // empty' 2>/dev/null || echo "")
+            if [ -n "$merge_fix_id" ] && [ "$merge_fix_id" -gt "$approve_test_id" ]; then
+              echo "PR #$pr has a newer /oc fix immediately before the merge (comment $merge_fix_id > tester approval $approve_test_id); not merge-ready"
+              continue
+            fi
             echo "Attempting PAT-backed merge for PR #$pr (workflow-touching, approved)"
             if gh pr merge "$pr" --repo "${{ github.repository }}" --rebase --match-head-commit "$head_sha" 2>&1 || \
                gh pr merge "$pr" --repo "${{ github.repository }}" --merge --match-head-commit "$head_sha" 2>&1; then
@@ -1651,7 +1660,7 @@ jobs:
           # The staged copy was restored from this run's workflow commit before
           # the agent started; the workspace copy is agent-mutable and must
           # never execute under the owner PAT (issue #713 review round 20).
-          if [ ! -f "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh" ]; then
+          if [ ! -f "/opt/lab-scripts/approve-held-runs.sh" ]; then
             echo "::error::Staged approve-held-runs.sh is missing; refusing to execute the workspace copy under the owner PAT (issue #713)."
             exit 1
           fi
@@ -1661,4 +1670,4 @@ jobs:
           # also clears runs held on intermediate head SHAs, which head-scoped
           # polling can never match again.
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
+            bash "/opt/lab-scripts/approve-held-runs.sh"

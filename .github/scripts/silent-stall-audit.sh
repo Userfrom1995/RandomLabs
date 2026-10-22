@@ -7289,6 +7289,11 @@ if [ -n "$merge_reject_id" ] && [ "$merge_reject_id" -gt "$merge_marker_id" ]; t
 echo "PR #$pr has a newer eval rejection immediately before the merge; not merge-ready"
 continue
 fi
+merge_fix_id=$(echo "$merge_comments" | jq -r '[.[] | select(.body | startswith("/oc fix"))] | last | .id // empty' 2>/dev/null || echo "")
+if [ -n "$merge_fix_id" ] && [ "$merge_fix_id" -gt "$approve_test_id" ]; then
+echo "PR #$pr has a newer /oc fix immediately before the merge (comment $merge_fix_id > tester approval $approve_test_id); not merge-ready"
+continue
+fi
 echo "Attempting PAT-backed merge for PR #$pr (workflow-touching, approved)"
 if gh pr merge "$pr" --repo "${{ github.repository }}" --rebase --match-head-commit "$head_sha" 2>&1 || \
 gh pr merge "$pr" --repo "${{ github.repository }}" --merge --match-head-commit "$head_sha" 2>&1; then
@@ -10098,16 +10103,20 @@ R26EXTRACT
 ### 1 name=Actor write gate (issue | id=actor_gate | shell=bash | env={"GATE_ACTOR": "${{ github.actor }}", "GATE_EVENT": "${{ github.event_name }}", "GATE_LABEL": "maintainer", "GH_TOKEN": "${{ github.token }}"}
 bash .github/scripts/actor-write-gate.sh
 ### 2 name=Stage lab helper scripts from the workflow commit (issue #713)
-mkdir -p "$RUNNER_TEMP/lab-scripts"
+# The staged copy lives in a root-owned directory so the agent can
+# never replace the helper a post-agent owner-PAT step executes.
+sudo install -d -o root -g root -m 0755 /opt/lab-scripts
 # The workspace checkout is the PR head and the agent can rewrite it;
 # stage the helper from THIS run's workflow commit instead (the same
 # pattern the eval and per-OS arms use for their trusted inputs).
 if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh" 2>/dev/null; then
   git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
 fi
-git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh" > "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
-chmod +x "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
-test -s "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
+approve_tmp=$(mktemp)
+git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh" > "$approve_tmp"
+sudo install -o root -g root -m 0755 "$approve_tmp" /opt/lab-scripts/approve-held-runs.sh
+rm -f "$approve_tmp"
+test -s /opt/lab-scripts/approve-held-runs.sh
 ### 3 name=Configure git identity
 git config --global user.name "Hephaestus (Maintainer)"
 git config --global user.email "github-actions[bot]@users.noreply.github.com"
@@ -12920,7 +12929,7 @@ fi
 # origin whose commit subjects model Builder and Tester pushes, including a
 # 1500-commit large-range fixture and a branch-without-helpers staging
 # fixture; 65 mutation
-# self-tests (57 workflow static-pin mutants plus 8 helper-fixture mutants)
+# self-tests (58 workflow static-pin mutants plus 8 helper-fixture mutants)
 # prove both the exact pins and the fixture matrices are load-bearing (a
 # foreign-branch pushed="yes", a verify or forward `if: false`, a
 # retry-target rebind, a retry-counter reset, a fail-open attribution
@@ -13210,7 +13219,7 @@ if [ -f /tmp/random-lab-decision.json ]; then
   echo "Decision file present; @@PHASE@@ phase produced a handoff."
   exit 0
 fi
-issue=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" thread) || {
+issue=$(bash "/opt/lab-scripts/resolve-thread-target.sh" thread) || {
   echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
   echo "handled=true" >> "$GITHUB_OUTPUT"
   exit 1
@@ -13224,7 +13233,7 @@ if [ "$outcome" != "success" ]; then
     printf '%s' "$retries"
   }
   retries=$(count_retries "$issue")
-  parent=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || parent=""
+  parent=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || parent=""
   if [ -z "$parent" ]; then
     echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
     echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -13258,7 +13267,7 @@ fi
 echo "::error::@@DISP@@ step reported success but wrote no decision file (silent no-op); failing loudly instead of exiting green."
 exit 1"""
 
-FORWARD_RESEARCH = r"""target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {
+FORWARD_RESEARCH = r"""target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {
   echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
   exit 1
 }
@@ -13276,7 +13285,7 @@ else
   gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
 fi"""
 
-FORWARD_ARCHITECT = r"""target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {
+FORWARD_ARCHITECT = r"""target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {
   echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
   exit 1
 }
@@ -13294,7 +13303,7 @@ else
   gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
 fi"""
 
-FORWARD_DESIGN_TMPL = r"""target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {
+FORWARD_DESIGN_TMPL = r"""target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {
   echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
   exit 1
 }
@@ -13354,7 +13363,7 @@ if [ -n "$target_branch" ]; then
     # moves the tip too, and treating it as this session's push ran
     # the post-push bookkeeping against work the build never made.
     if [ -n "$tip_now" ] && [ -n "$BASELINE_HEAD" ] && [ "$tip_now" != "$BASELINE_HEAD" ]; then
-      attribution=$(bash "$RUNNER_TEMP/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$target_branch" 2>/dev/null || true)
+      attribution=$(bash "/opt/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$target_branch" 2>/dev/null || true)
       if [ "$attribution" = "own" ]; then
         pushed="yes"
         echo "Build pushed successfully: $target_branch moved $BASELINE_HEAD -> $tip_now (builder commit attributed)"
@@ -13412,7 +13421,7 @@ else
   if [ -n "$tip_now" ] && [ "$tip_now" != "$BASELINE_HEAD" ]; then
     # Issue #690: attribute the move to a builder: commit; a foreign
     # push on the lost-PR branch is not this session's work either.
-    attribution=$(bash "$RUNNER_TEMP/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$BASELINE_BRANCH" 2>/dev/null || true)
+    attribution=$(bash "/opt/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$BASELINE_BRANCH" 2>/dev/null || true)
     if [ "$attribution" = "own" ]; then
       pushed="yes"
       echo "Build pushed successfully: $BASELINE_BRANCH moved $BASELINE_HEAD -> $tip_now (builder commit attributed)"
@@ -13577,12 +13586,11 @@ FORWARD_BUILD_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.
 # branch copy is agent-mutable, so a builder: commit could rewrite the code the
 # post-agent step executes.
 STAGE_NAME = "Stage lab helper scripts (issue #690)"
-STAGE_BODY = r"""mkdir -p "$RUNNER_TEMP/lab-scripts"
-cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
-cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
-cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
-cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
-chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
+STAGE_BODY = r"""sudo install -d -o root -g root -m 0755 /opt/lab-scripts
+sudo install -o root -g root -m 0755 .github/scripts/resolve-thread-target.sh /opt/lab-scripts/
+sudo install -o root -g root -m 0755 .github/scripts/classify-build-push.sh /opt/lab-scripts/
+sudo install -o root -g root -m 0755 .github/scripts/strip-trailers.sh /opt/lab-scripts/
+sudo install -o root -g root -m 0755 .github/scripts/approve-held-runs.sh /opt/lab-scripts/
 """
 EXPECTED_PERMISSIONS = {
     "contents": "write",
@@ -13727,8 +13735,8 @@ resolve_ref("build", "verify", expected_name="Verify build pushed, else auto-ret
 build_lines = norm(build_step.get("run") or "").splitlines()
 
 expected_calls = [
-    'attribution=$(bash "$RUNNER_TEMP/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$target_branch" 2>/dev/null || true)',
-    'attribution=$(bash "$RUNNER_TEMP/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$BASELINE_BRANCH" 2>/dev/null || true)',
+    'attribution=$(bash "/opt/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$target_branch" 2>/dev/null || true)',
+    'attribution=$(bash "/opt/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$BASELINE_BRANCH" 2>/dev/null || true)',
 ]
 attribution_calls = [line.strip() for line in build_lines if "classify-build-push.sh" in line]
 if sorted(attribution_calls) != sorted(expected_calls):
@@ -13791,7 +13799,7 @@ for job_name, job_doc in (doc.get("jobs") or {}).items():
             remaining = bound_body
             while helper in remaining:
                 at = remaining.index(helper)
-                if not remaining[:at].endswith("$RUNNER_TEMP/lab-scripts/"):
+                if not remaining[:at].endswith("/opt/lab-scripts/"):
                     fail("untrusted-helper-invocation:%s:%s:%s"
                          % (job_name, bound_step.get("name"), helper))
                 remaining = remaining[at + len(helper):]
@@ -13802,10 +13810,10 @@ for job_name, job_doc in (doc.get("jobs") or {}).items():
         # can overwrite them too. Ban every writer outside the one staging
         # step. The source helpers are covered as well so a pre-staging step
         # cannot tamper with the tree that is about to be staged.
-        if "$RUNNER_TEMP/lab-scripts" in bound_body or ".github/scripts/" in bound_body:
+        if "/opt/lab-scripts" in bound_body or "$RUNNER_TEMP/lab-scripts" in bound_body or ".github/scripts/" in bound_body:
             if re.search(r"(^|[^A-Za-z0-9_])(cp|mv|install|rsync|ln|tee|dd|sed|perl|truncate|rm|chmod)([^A-Za-z0-9_]|$)", bound_body) \
                     or re.search(r"(^|[^A-Za-z0-9_])open\s*\(", bound_body) \
-                    or re.search(r">>?\s*\"?\$RUNNER_TEMP/lab-scripts", bound_body):
+                    or re.search(r">>?\s*\"?(?:\$RUNNER_TEMP|/opt)/lab-scripts", bound_body):
                 fail("staged-helper-overwrite:%s:%s"
                      % (job_name, bound_step.get("name")))
 
@@ -13900,7 +13908,7 @@ for job_name, job_doc in (doc.get("jobs") or {}).items():
                          if not line.strip().startswith("#"))
         for line in body.splitlines():
             if "approve-held-runs.sh" in line \
-                    and 'bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"' not in line:
+                    and 'bash "/opt/lab-scripts/approve-held-runs.sh"' not in line:
                 fail("untrusted-approve-held-runs-invocation:%s:%s"
                      % (job_name, step.get("name")))
 if owner_pat_steps != 27:
@@ -13986,7 +13994,7 @@ FORWARD_RESEARCH = ("      - name: Forward researcher decision\n"
 mutants = {
     "verify-target": sub_first('          target="$issue"\n', '          target=$(echo 582)\n'),
     "verify-counter": sub_first(
-        '            parent=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || parent=""\n',
+        '            parent=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || parent=""\n',
         '            parent="$issue"\n',
     ),
     "verify-newest-pr": sub_first(
@@ -14006,7 +14014,7 @@ mutants = {
     "verify-id": sub_first('        id: verify-phase\n', '        id: verify-phase-2\n'),
     "verify-continue-on-error": after(RESEARCH_VERIFY, '        continue-on-error: true\n'),
     "forward-target": sub_first(
-        '          target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {\n',
+        '          target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {\n',
         '          target="$issue" || {\n',
     ),
     "forward-comment": sub_first(
@@ -14207,15 +14215,19 @@ mutants = {
         '            pr_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \\\n\n              --jq \'[.[] | select(.headRefName | startswith("opencode/issue\'"${issue}"\'-"))] | sort_by(.createdAt) | last | .headRefName\') || {\n',
     ),
     "stage-body-changed": sub_first(
-        '          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"\n',
+        '          sudo install -o root -g root -m 0755 .github/scripts/classify-build-push.sh /opt/lab-scripts/\n',
         '          # classifier not staged\n',
+    ),
+    "stage-non-root-dir": sub_first(
+        '          sudo install -d -o root -g root -m 0755 /opt/lab-scripts\n',
+        '          mkdir -p "$RUNNER_TEMP/lab-scripts"\n',
     ),
     "stage-name-changed": sub_first(
         '      - name: "Stage lab helper scripts (issue #690)"\n',
         '      - name: Stage helper scripts\n',
     ),
     "stage-direct-path": sub_first(
-        '          issue=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" thread) || {\n',
+        '          issue=$(bash "/opt/lab-scripts/resolve-thread-target.sh" thread) || {\n',
         '          issue=$(bash .github/scripts/resolve-thread-target.sh thread) || {\n',
     ),
     "forward-builder-body-helper": sub(
@@ -14291,20 +14303,20 @@ mutants = {
     "stage-overwrite-copy": sub(
         '      - name: Verify research decided, else auto-retry\n',
         '      - name: Refresh staged helpers\n'
-        '        run: cp .github/scripts/*.sh "$RUNNER_TEMP/lab-scripts/"\n'
+        '        run: cp .github/scripts/*.sh "/opt/lab-scripts/"\n'
         '      - name: Verify research decided, else auto-retry\n',
     ),
     "stage-inplace-tamper": sub(
         '      - name: Verify research decided, else auto-retry\n',
         '      - name: Tamper staged strip helper\n'
-        '        run: sed -i \'s/exit 1/exit 0/g\' "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"\n'
+        '        run: sed -i \'s/exit 1/exit 0/g\' "/opt/lab-scripts/strip-trailers.sh"\n'
         '      - name: Verify research decided, else auto-retry\n',
     ),
     "stage-inplace-indirect": sub(
         '      - name: Verify research decided, else auto-retry\n',
         '      - name: Tamper staged strip helper\n'
         '        run: |\n'
-        '          cd "$RUNNER_TEMP/lab-scripts"\n'
+        '          cd /opt/lab-scripts\n'
         "          sed -i 's/exit 1/exit 0/g' strip-trailers.sh\n"
         '      - name: Verify research decided, else auto-retry\n',
     ),
@@ -14321,7 +14333,7 @@ mutants = {
         '',
     ),
     "staged-approve-invocation": sub_first(
-        '            bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"',
+        '            bash "/opt/lab-scripts/approve-held-runs.sh"',
         '            bash .github/scripts/approve-held-runs.sh',
     ),
     "opencode-bin-shim-plant": sub(
@@ -14347,7 +14359,7 @@ print("\n".join(sorted(mutants)))
 R28STATICMUT
     r28_bad="${r28_bad} opencode.yml(static-mutant-generation-failed:$(tr '\n' ';' < "$r28_tmp/static-mutants.log" | cut -c1-200))"
   else
-    r28_wf_mutant_list="verify-target verify-counter verify-newest-pr verify-retries-reset verify-cap verify-env-token verify-id verify-continue-on-error forward-target forward-comment forward-if forward-event-number forward-env-token build-if build-env-branch build-attribution build-fail-open build-pushed-foreign build-continue-on-error recover-gate recover-exit recover-shell workflow-env research-job-env build-job-defaults build-baseline-id phase-actor-gate-id research-job-continue-on-error build-job-continue-on-error phase-gate-if-false phase-gate-duplicate phase-opencode-if-false phase-opencode-duplicate build-baseline-if-false build-baseline-comment-markers research-job-if-false build-job-if-false build-baseline-body-main phase-agent-alias phase-agent-pat phase-agent-timeout research-job-permissions research-job-runs-on research-job-timeout build-baseline-blank-continuation stage-body-changed stage-name-changed stage-direct-path stage-overwrite-copy stage-inplace-tamper stage-inplace-indirect forward-builder-body-helper build-baseline-fail-open build-baseline-git-fail-open build-different-branch-no-tipmove permissions-pr-none forward-builder-gate owner-pat-path-dropped staged-approve-invocation opencode-bin-shim-plant"
+    r28_wf_mutant_list="verify-target verify-counter verify-newest-pr verify-retries-reset verify-cap verify-env-token verify-id verify-continue-on-error forward-target forward-comment forward-if forward-event-number forward-env-token build-if build-env-branch build-attribution build-fail-open build-pushed-foreign build-continue-on-error recover-gate recover-exit recover-shell workflow-env research-job-env build-job-defaults build-baseline-id phase-actor-gate-id research-job-continue-on-error build-job-continue-on-error phase-gate-if-false phase-gate-duplicate phase-opencode-if-false phase-opencode-duplicate build-baseline-if-false build-baseline-comment-markers research-job-if-false build-job-if-false build-baseline-body-main phase-agent-alias phase-agent-pat phase-agent-timeout research-job-permissions research-job-runs-on research-job-timeout build-baseline-blank-continuation stage-body-changed stage-name-changed stage-non-root-dir stage-direct-path stage-overwrite-copy stage-inplace-tamper stage-inplace-indirect forward-builder-body-helper build-baseline-fail-open build-baseline-git-fail-open build-different-branch-no-tipmove permissions-pr-none forward-builder-gate owner-pat-path-dropped staged-approve-invocation opencode-bin-shim-plant"
     # Bind the generator's mutation set to the list executed below: a mutant
     # added (or dropped) in only one place would otherwise silently shrink
     # the load-bearing matrix without tripping any other check.
@@ -14371,6 +14383,36 @@ R28STATICMUT
     r28_bad="${r28_bad} scripts(missing:resolve=$([ -f "$r28_resolver" ] && echo no || echo yes),classify=$([ -f "$r28_classifier" ] && echo no || echo yes),strip=$([ -f "$r28_stripper" ] && echo no || echo yes),approve=$([ -f "$r28_approver" ] && echo no || echo yes))"
   else
     mkdir -p "$r28_tmp/bin" "$r28_tmp/state" "$r28_tmp/home" "$r28_tmp/events"
+    # The real staging body installs into root-owned /opt/lab-scripts. The
+    # sandbox cannot own /opt, so a mock sudo maps that directory into the
+    # per-run temp tree and drops the root ownership flags. Interception is
+    # proven by the log the mock writes.
+    cat > "$r28_tmp/bin/sudo" <<'R28SUDO'
+#!/usr/bin/env bash
+set -euo pipefail
+dir="${R28_LAB_SCRIPTS_DIR:?}"
+log="${R28_SUDO_LOG:?}"
+printf '%s\n' "$*" >> "$log"
+if [ "$1" = "install" ]; then
+  shift
+fi
+args=()
+skip=0
+for arg in "$@"; do
+  if [ "$skip" = "1" ]; then
+    skip=0
+    continue
+  fi
+  case "$arg" in
+    -o|-g) skip=1 ;;
+    /opt/lab-scripts) args+=("$dir") ;;
+    /opt/lab-scripts/*) args+=("${dir}/${arg#/opt/lab-scripts/}") ;;
+    *) args+=("$arg") ;;
+  esac
+done
+exec install "${args[@]}"
+R28SUDO
+    chmod +x "$r28_tmp/bin/sudo"
     # Branch-without-helpers regression fixture (issue #690 review round 3):
     # execute the staged-helper step in a checkout that carries the helpers,
     # then delete the workspace copies to model an in-flight branch that
@@ -14401,9 +14443,14 @@ if len(bodies) != 1:
 with open(sys.argv[2], "w", encoding="utf-8") as handle:
     handle.write(bodies.pop())
 R28STAGEEXTRACT
-      if ! ( cd "$r28_stage_ws" && env -i PATH="/usr/bin:/bin" HOME="$r28_tmp/home" \
-        RUNNER_TEMP="$r28_stage_temp" bash --noprofile --norc -e -o pipefail "$r28_tmp/stage-body.sh" ) >"$r28_tmp/stage-run.log" 2>&1; then
+      if ! ( cd "$r28_stage_ws" && env -i PATH="$r28_tmp/bin:/usr/bin:/bin" HOME="$r28_tmp/home" \
+        RUNNER_TEMP="$r28_stage_temp" R28_LAB_SCRIPTS_DIR="$r28_stage_temp/lab-scripts" \
+        R28_SUDO_LOG="$r28_tmp/sudo.log" bash --noprofile --norc -e -o pipefail "$r28_tmp/stage-body.sh" ) >"$r28_tmp/stage-run.log" 2>&1; then
         r28_bad="${r28_bad} scripts(stage-step-run-failed:$(tr '\n' ';' < "$r28_tmp/stage-run.log" | cut -c1-200))"
+      fi
+      if [ ! -s "$r28_tmp/sudo.log" ] \
+        || ! grep -qF 'install' "$r28_tmp/sudo.log"; then
+        r28_bad="${r28_bad} scripts(stage-sudo-not-intercepted)"
       fi
       if [ ! -x "$r28_stage_temp/lab-scripts/resolve-thread-target.sh" ] \
         || [ ! -x "$r28_stage_temp/lab-scripts/classify-build-push.sh" ] \
@@ -14671,7 +14718,7 @@ R28MUTCLASS
 fi
 rm -rf "$r28_tmp"
 if [ -z "$r28_bad" ]; then
-  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected and its exact if/id/env/key set and normalized run body pinned, every consumed steps.<id> resolves in its owning job to the expected step identity (actor gate, agent, baseline, verify-phase, verify) ahead of its consumer with the resolved gate/agent/baseline steps bound to their exact key surface, if, env, and executable output lines so a skipped decoy cannot shadow them, every bound job's key set, runs-on, timeout, and trigger if scalar are pinned exactly, the agent env/timeout/continue-on-error are pinned, composite uses paths are path-normalized before counting, the baseline run body is pinned exactly, job-level continue-on-error is rejected on every bound job, the attribution calls are pinned including their fail-closed closure with no pushed=yes inside a foreign branch, both merge-decision helper scripts plus the strip script are staged from the trusted default-branch checkout into RUNNER_TEMP before the agent starts and every post-agent step invokes the staged copy (never the agent-mutable workspace copy, which an in-flight branch may not even contain), the baseline fails loudly on a nonzero gh or git status (capture-first, so a failed ls-remote is never swallowed as branch-absent), so an empty branch means only a successful no-PR query, and no step outside the staging step may copy over, in-place edit (sed -i, perl -i, truncate, rm, chmod, a Python open-write), or redirect into the staged-helper directory, or edit the source helpers before staging (the write ban is scoped to the whole step body, so a cd-then-relative edit cannot evade it), the workflow-level permissions block is pinned exactly, the build forward is gated on a verified own push, the classifier reads subjects through a here-string so a large builder batch cannot SIGPIPE into a false foreign verdict, both real helper scripts are executed against fixture events (including an unparseable payload that must fail closed), an executable mock gh, and a local bare origin with Builder/Tester commit subjects (including a 1500-commit large-range fixture and a branch-without-helpers staging fixture), and 65 mutation self-tests (57 workflow static-pin mutants plus 8 helper-fixture mutants) prove the static pins and both fixture matrices load-bearing (issue #690)" "ok"
+  check "R28" "phase auto-retry and forward targets bind to the trigger thread and its logical parent issue (never the newest open phase PR), retry counters accumulate per issue across the phase PR thread and its parent, and the build verify attributes a same-branch tip move to a builder: commit (foreign or unattributable moves fail closed as no-push) with recover-tag bookkeeping gated on a verified own push; every bound step is resolved from the parsed YAML with duplicate keys rejected and its exact if/id/env/key set and normalized run body pinned, every consumed steps.<id> resolves in its owning job to the expected step identity (actor gate, agent, baseline, verify-phase, verify) ahead of its consumer with the resolved gate/agent/baseline steps bound to their exact key surface, if, env, and executable output lines so a skipped decoy cannot shadow them, every bound job's key set, runs-on, timeout, and trigger if scalar are pinned exactly, the agent env/timeout/continue-on-error are pinned, composite uses paths are path-normalized before counting, the baseline run body is pinned exactly, job-level continue-on-error is rejected on every bound job, the attribution calls are pinned including their fail-closed closure with no pushed=yes inside a foreign branch, both merge-decision helper scripts plus the strip script are staged from the trusted default-branch checkout into root-owned /opt/lab-scripts (installed with sudo install -o root -g root -m 0755, so the agent can never replace a helper a post-agent owner-PAT step executes) before the agent starts and every post-agent step invokes the staged copy (never the agent-mutable workspace copy, which an in-flight branch may not even contain), the baseline fails loudly on a nonzero gh or git status (capture-first, so a failed ls-remote is never swallowed as branch-absent), so an empty branch means only a successful no-PR query, and no step outside the staging step may copy over, in-place edit (sed -i, perl -i, truncate, rm, chmod, a Python open-write), or redirect into the staged-helper directory, or edit the source helpers before staging (the write ban is scoped to the whole step body, so a cd-then-relative edit cannot evade it), the workflow-level permissions block is pinned exactly, the build forward is gated on a verified own push, the classifier reads subjects through a here-string so a large builder batch cannot SIGPIPE into a false foreign verdict, both real helper scripts are executed against fixture events (including an unparseable payload that must fail closed), an executable mock gh, and a local bare origin with Builder/Tester commit subjects (including a 1500-commit large-range fixture and a branch-without-helpers staging fixture), and 66 mutation self-tests (58 workflow static-pin mutants plus 8 helper-fixture mutants) prove the static pins and both fixture matrices load-bearing (issue #690)" "ok"
 else
   check "R28" "phase thread binding or build-push attribution guard missing:${r28_bad} (issue #690: a design retry/forward migrated to the newest phase PR and the build verify read a foreign Tester push as its own)" "bad"
 fi
@@ -14830,7 +14877,7 @@ for job_name, steps in found.items():
     body = "\n".join(
         line for line in (step.get("run") or "").splitlines() if line.strip()
     )
-    if body != 'bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"':
+    if body != 'bash "/opt/lab-scripts/strip-trailers.sh"':
         raise SystemExit("strip-step-body:%s" % job_name)
     stages = [
         candidate
@@ -14844,7 +14891,7 @@ for job_name, steps in found.items():
     stage_body = "\n".join(
         line for line in (stages[0].get("run") or "").splitlines() if line.strip()
     )
-    if 'cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"' not in stage_body:
+    if 'sudo install -o root -g root -m 0755 .github/scripts/strip-trailers.sh /opt/lab-scripts/' not in stage_body:
         raise SystemExit("strip-stage-copy:%s" % job_name)
     job_steps = ((doc.get("jobs") or {}).get(job_name) or {}).get("steps") or []
     checkouts = [s for s in job_steps if s.get("uses") == "actions/checkout@v6"]
@@ -15500,7 +15547,7 @@ PAT_STEP_NAME = "PAT-backed merge for approved workflow-touching PRs"
 # parsed scalars (YAML strips the ` #<n>` suffix as a comment). A legitimate
 # maintainer step change updates this constant in the same PR.
 MAINTAINER_STAGE_NAME = "Stage lab helper scripts from the workflow commit (issue #713)"
-EXPECTED_MAINTAINER_STAGE_SHA256 = "6e506386ceff0f33ba2cc97fe486f839059047e1e8a55f54cdfb7aff2c44767c"
+EXPECTED_MAINTAINER_STAGE_SHA256 = "f74b070b7b1f28807fdf1a116e8c6c1b84a15f282f01964c5f7cb669d3a2589d"
 EXPECTED_MAINTAINER_STEP_NAMES = [
     "Checkout repository",
     "Actor write gate (issue",
@@ -15528,6 +15575,41 @@ EXPECTED_MAINTAINER_STEP_NAMES = [
     "Dispatch ideator when asked",
     "Approve held CI runs (PR or repo-wide sweep)",
 ]
+# Issue #713 review round 22 (B1): the four remaining owner-PAT maintainer
+# steps were only covered by the sequence pin. A body rewrite could turn any
+# of them into a decoy publisher or merge path while the name and sequence
+# stayed exact. Pin each parsed key surface, if, env, and normalized body.
+EXPECTED_MAINTAINER_PINNED_STEPS = {
+    "Trigger pages deployment if main advanced": {
+        "keys": {"name", "if", "env", "run"},
+        "if": "always() && steps.actor_gate.outputs.run == 'true'",
+        "env": {"GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "PATH": "/usr/bin:/bin"},
+        "sha": "067100b41f78231fc3903b0eb7c94dce19057062c97f2ce73b8e4300dca72d60",
+    },
+    "Main integrity guard (prevent orphan or divergent main rewrite)": {
+        "keys": {"name", "if", "env", "run"},
+        "if": "always() && steps.actor_gate.outputs.run == 'true'",
+        "env": {"GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "PATH": "/usr/bin:/bin"},
+        "sha": "8a7baac02a29c6e0a6df75a798b55526d57f8ce5a3ad5d02190c9ecca7a440e8",
+    },
+    "Dispatch ideator when asked": {
+        "keys": {"name", "if", "env", "run"},
+        "if": "always() && steps.actor_gate.outputs.run == 'true'",
+        "env": {"GH_TOKEN": "${{ github.token }}"},
+        "sha": "21b1399f9e8456f26fe5e214ce3c4d3f7ebaee05ed9c7e0f513d0fbaf7984558",
+    },
+    "Approve held CI runs (PR or repo-wide sweep)": {
+        "keys": {"name", "continue-on-error", "if", "env", "run"},
+        "continue-on-error": True,
+        "if": "always() && steps.actor_gate.outputs.run == 'true'",
+        "env": {
+            "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
+            "PR_NUMBER": "${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number || '' }}",
+            "PATH": "/usr/bin:/bin",
+        },
+        "sha": "60e94626bd00cd052aac4332f3c9cf3a503c585ec1d4930ed850831198c2b11c",
+    },
+}
 MAINTAINER_POST_NAME = "Post Maintainer comment"
 VERIFY_NAME = "Verify evaluator decided"
 EVIDENCE_NAME = "Enforce live-execution evidence gate"
@@ -16802,6 +16884,41 @@ def validate_maintainer(doc, sink):
             sink.append("maintainer.yml(pat-merge-run-missing)")
         else:
             write("pat.run", pat_run)
+    # Issue #713 review round 22 (B1): pin every remaining owner-PAT step.
+    for pinned_name, pinned in EXPECTED_MAINTAINER_PINNED_STEPS.items():
+        pinned_hits = [
+            step for step in steps
+            if isinstance(step, dict) and step.get("name") == pinned_name
+        ]
+        if len(pinned_hits) != 1:
+            sink.append(
+                "maintainer.yml(owner-pat-step-not-unique:%s)" % pinned_name
+            )
+            continue
+        pinned_step = pinned_hits[0]
+        if set(pinned_step) != pinned["keys"]:
+            sink.append(
+                "maintainer.yml(owner-pat-step-keys-not-exact:%s)" % pinned_name
+            )
+        if pinned_step.get("if") != pinned["if"]:
+            sink.append(
+                "maintainer.yml(owner-pat-step-if-not-exact:%s)" % pinned_name
+            )
+        if pinned_step.get("env") != pinned["env"]:
+            sink.append(
+                "maintainer.yml(owner-pat-step-env-not-exact:%s)" % pinned_name
+            )
+        if "continue-on-error" in pinned and (
+            pinned_step.get("continue-on-error") != pinned["continue-on-error"]
+        ):
+            sink.append(
+                "maintainer.yml(owner-pat-step-continue-not-exact:%s)"
+                % pinned_name
+            )
+        if normalized_sha(pinned_step.get("run") or "") != pinned["sha"]:
+            sink.append(
+                "maintainer.yml(owner-pat-step-run-not-exact:%s)" % pinned_name
+            )
     # Issue #713 review round 20 (F8): the owner-PAT steps must not resolve
     # tools from the agent-controlled PATH, and no step may execute the
     # agent-mutable workspace copy of approve-held-runs.sh.
@@ -16842,7 +16959,7 @@ def validate_maintainer(doc, sink):
                 continue
             if "approve-held-runs.sh" in line and step.get("name") != MAINTAINER_STAGE_NAME:
                 if re.search(r"(^|[\s;&|\\])bash\s", line) \
-                        and 'bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"' not in line:
+                        and 'bash "/opt/lab-scripts/approve-held-runs.sh"' not in line:
                     sink.append(
                         "maintainer.yml(untrusted-approve-held-runs-invocation:%s)"
                         % step.get("name")
@@ -17834,7 +17951,7 @@ if maintainer_doc is not None:
             if isinstance(step, dict) and step.get("run") and \
                     "approve-held-runs.sh" in step.get("run", ""):
                 step["run"] = step["run"].replace(
-                    'bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"',
+                    'bash "/opt/lab-scripts/approve-held-runs.sh"',
                     "bash .github/scripts/approve-held-runs.sh",
                 )
         workspace_approve_local = []
@@ -17845,6 +17962,41 @@ if maintainer_doc is not None:
         ):
             problems.append(
                 "maintainer.yml(structural-self-test-approve-workspace-copy)"
+            )
+        # Issue #713 review round 22 (B1): appending a publisher or merge
+        # decoy to any pinned owner-PAT body must fail that step's body pin.
+        for pinned_name in EXPECTED_MAINTAINER_PINNED_STEPS:
+            pinned_mutant = copy.deepcopy(maintainer_doc)
+            for step in pinned_mutant["jobs"]["maintainer"]["steps"]:
+                if isinstance(step, dict) and step.get("name") == pinned_name:
+                    step["run"] = (
+                        step["run"]
+                        + "\nbash .github/scripts/publish-eval-marker.sh 713 9.9 abc 1\n"
+                    )
+            pinned_local = []
+            validate_maintainer(pinned_mutant, pinned_local)
+            if not any(
+                ("owner-pat-step-run-not-exact:%s" % pinned_name) in p
+                for p in pinned_local
+            ):
+                problems.append(
+                    "maintainer.yml(structural-self-test-pinned-step:%s)"
+                    % pinned_name
+                )
+        pinned_env_mutant = copy.deepcopy(maintainer_doc)
+        for step in pinned_env_mutant["jobs"]["maintainer"]["steps"]:
+            if isinstance(step, dict) and step.get(
+                "name"
+            ) == "Trigger pages deployment if main advanced":
+                step["env"]["GH_TOKEN"] = "${{ github.token }}"
+        pinned_env_local = []
+        validate_maintainer(pinned_env_mutant, pinned_env_local)
+        if not any(
+            "owner-pat-step-env-not-exact:Trigger pages deployment" in p
+            for p in pinned_env_local
+        ):
+            problems.append(
+                "maintainer.yml(structural-self-test-pinned-step-env)"
             )
         shim_mutant = copy.deepcopy(maintainer_doc)
         shim_mutant["jobs"]["maintainer"]["steps"].insert(
@@ -17989,7 +18141,7 @@ echo "No evaluator decision file; nothing to publish."
 echo "ok=true" >> "$GITHUB_OUTPUT"
 exit 0
 fi
-if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+if [ -z "${LAB_RUN_NONCE:-}" ] || [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
 echo "::error::Evaluator decision file lost this run's contract nonce before marker publication; refusing to sign a tampered verdict (issue #713 round 16)."
 exit 1
 fi
@@ -18032,6 +18184,11 @@ if [ -z "$publisher" ]; then
 echo "::error::Eval marker publisher absent from workflow commit ${GITHUB_SHA}; refusing to hand an unverified verdict to the merge sweep (issue #713, fail closed)."
 exit 1
 fi
+publisher_sha=$(printf '%s\n' "$publisher" | sha256sum | awk '{print $1}')
+if [ "$publisher_sha" != "010cd4a553ce48fbdb57c0168842dfdc0e416b4eeb5257d08f752d546a0affc7" ]; then
+echo "::error::Eval marker publisher extracted from ${GITHUB_SHA} does not match the reviewed digest; refusing to execute an altered publisher (issue #713 round 21)."
+exit 1
+fi
 if ! printf '%s' "$publisher" | bash -s -- "$pr" "$score" "$eval_sha" "$trigger"; then
 echo "::error::Eval approval marker publication failed; the PAT merge sweep would never recognize this verdict (issue #713). Failing closed."
 exit 1
@@ -18053,7 +18210,7 @@ if [ ! -f /tmp/evaluator-decision.json ]; then
 echo "::error::No evaluator decision file found; the verify step above should have failed closed (issue #713)."
 exit 1
 fi
-if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+if [ -z "${LAB_RUN_NONCE:-}" ] || [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
 echo "::error::Evaluator decision file lost this run's contract nonce before the verdict post; refusing to publish a tampered verdict (issue #713 round 16)."
 exit 1
 fi
@@ -18109,7 +18266,7 @@ if [ ! -f /tmp/evaluator-decision.json ]; then
 echo "::error::No evaluator decision file found; verify step above already failed the job closed."
 exit 1
 fi
-if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+if [ -z "${LAB_RUN_NONCE:-}" ] || [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
 echo "::error::Evaluator decision file lost this run's contract nonce before the Maintainer handoff; refusing to forward a tampered verdict (issue #713 round 16)."
 exit 1
 fi
@@ -18186,7 +18343,7 @@ exit 0
 fi
 outcome="${{ steps.evaluator.outcome }}"
 if [ -f /tmp/evaluator-decision.json ]; then
-if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+if [ -z "${LAB_RUN_NONCE:-}" ] || [ "$(jq -r '.run_nonce // empty' /tmp/evaluator-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
 echo "::error::Evaluator decision file does not carry this run's contract nonce; refusing to trust a file that PR-executed code may have written (issue #713 round 16)."
 echo "has_decision=false" >> "$GITHUB_OUTPUT"
 exit 1
@@ -18281,7 +18438,7 @@ if [ ! -f "$ev" ]; then
 echo "::error::Evaluator approved without /tmp/live-run-evidence.json. End-user execution proof is mandatory (evaluator.md section 6). Approval blocked."
 exit 1
 fi
-if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' "$ev" 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
+if [ -z "${LAB_RUN_NONCE:-}" ] || [ "$(jq -r '.run_nonce // empty' "$ev" 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
 echo "::error::Live-execution evidence does not carry this run's contract nonce; refusing to trust a file that PR-executed code may have written (issue #713 round 16). Approval blocked."
 exit 1
 fi
@@ -18980,6 +19137,8 @@ R30_TOCTOU_MOCK
               printf '[{"id":555,"user":{"login":"mockowner"},"body":"/oc eval"},{"id":1001,"user":{"login":"mockowner"},"body":"eval-verdict: approve-eval"},{"id":556,"user":{"login":"mockowner"},"body":"/opencode eval"}]' > "$r30_toctou_comments_trigger"
               r30_toctou_comments_reject="$r30_tmp/toctou-new-reject.json"
               printf '[{"id":555,"user":{"login":"mockowner"},"body":"/oc eval"},{"id":1001,"user":{"login":"mockowner"},"body":"eval-verdict: approve-eval"},{"id":1002,"user":{"login":"mockowner"},"body":"Quality Council REJECTION - Score 8.1/10."}]' > "$r30_toctou_comments_reject"
+              r30_toctou_comments_fix="$r30_tmp/toctou-new-fix.json"
+              printf '[{"id":555,"user":{"login":"mockowner"},"body":"/oc eval"},{"id":1001,"user":{"login":"mockowner"},"body":"eval-verdict: approve-eval"},{"id":1002,"user":{"login":"mockowner"},"body":"/oc fix (auto-retry 1)"}]' > "$r30_toctou_comments_fix"
               r30_toctou_comments_empty="$r30_tmp/toctou-empty.json"
               printf '[]' > "$r30_toctou_comments_empty"
               r30_toctou_case() {
@@ -18989,6 +19148,7 @@ R30_TOCTOU_MOCK
                 head_sha="$r30_h_sha"
                 approve_eval_id=1001
                 approve_eval_trigger=555
+                approve_test_id=900
                 merge_comments=""
                 merge_head=""
                 merge_marker_id=""
@@ -19020,6 +19180,7 @@ R30_TOCTOU_MOCK
               r30_toctou_case new-marker 1 "$r30_toctou_comments_marker" "$r30_h_sha"
               r30_toctou_case new-trigger 1 "$r30_toctou_comments_trigger" "$r30_h_sha"
               r30_toctou_case new-rejection 1 "$r30_toctou_comments_reject" "$r30_h_sha"
+              r30_toctou_case new-fix 1 "$r30_toctou_comments_fix" "$r30_h_sha"
               r30_toctou_case empty-comments 1 "$r30_toctou_comments_empty" "$r30_h_sha"
               r30_toctou_case refetch-failure 1 "$r30_toctou_comments_fresh" "$r30_h_sha" 1
             fi
@@ -19196,7 +19357,8 @@ R30_MOCK_PUBLISHER
               git -c user.email=auditor@example.invalid -c user.name="R30 Auditor" commit -q -m "mock publisher"
             ) >/dev/null 2>&1
             r30_mk_sha=$(cd "$r30_mk_repo" && git rev-parse HEAD 2>/dev/null || true)
-            if [ -z "$r30_mk_sha" ]; then
+            r30_mock_publisher_sha=$(sha256sum "$r30_mk_repo/.github/scripts/publish-eval-marker.sh" 2>/dev/null | awk '{print $1}' || true)
+            if [ -z "$r30_mk_sha" ] || [ -z "$r30_mock_publisher_sha" ]; then
               r30_bad="${r30_bad} eval.yml(marker-behavioral-git-init-failed)"
             else
               r30_mk_other_sha=5555555555555555555555555555555555555555
@@ -19259,11 +19421,15 @@ R30_MARKER_MOCK
                         -e "s#\${{ steps\.eval-bind\.outputs\.eval_sha }}#$r30_mc_eval_sha#g" \
                         -e "s#\${{ github\.event\.comment\.id }}#$r30_mc_trigger#g" \
                         -e 's#\${{ github\.repository }}#RandomLabs/RandomLabs#g' > "$r30_mc_dir/run.sh"
+                if [ "$r30_mc_name" != "digest-mismatch" ]; then
+                  sed -i "s#010cd4a553ce48fbdb57c0168842dfdc0e416b4eeb5257d08f752d546a0affc7#$r30_mock_publisher_sha#g" "$r30_mc_dir/run.sh"
+                fi
                 if grep -q '\${{' "$r30_mc_dir/run.sh" 2>/dev/null; then
                   r30_bad="${r30_bad} eval.yml(marker-behavioral-${r30_mc_name}-unsubstituted-expression)"
                 else
                   ( cd "$r30_mk_repo" && env -u GITHUB_TOKEN -u GH_TOKEN -u GH_API_TOKEN \
                       PATH="$r30_mk_bin:$PATH" GITHUB_SHA="$r30_mk_sha" \
+                      LAB_RUN_NONCE="sandboxnonce" \
                       RUNNER_TEMP="$r30_mc_dir" GITHUB_OUTPUT="$r30_mc_out" \
                       R30_CALLS="$r30_mc_calls" R30_PUBLISH_RC="$r30_mc_pub_rc" \
                       bash --noprofile --norc -eo pipefail "$r30_mc_dir/run.sh" ) >"$r30_mc_dir/stdout" 2>&1
@@ -19283,21 +19449,22 @@ R30_MARKER_MOCK
                   fi
                 fi
               }
-              r30_marker_case approve '{"action":"approve-eval","score":9.9}' 0 0 true 1
+              r30_marker_case approve '{"action":"approve-eval","score":9.9,"run_nonce":"sandboxnonce"}' 0 0 true 1
               # Issue #713 review round 9: a scope=unrunnable evidence file is
               # an escalation, never a mergeable approval. The marker must not
               # be published (zero publisher calls) while the handoff still
               # runs (ok=true), mirroring the Tester arm.
-              r30_marker_case unrunnable '{"action":"approve-eval","score":9.9}' 0 0 true 0 "$r30_mk_sha" 555 "$r30_mk_sha" "$r30_mc_comments_fresh" '{"scope":"unrunnable","reason":"the environment cannot run the shipped artifact for this validation-only PR"}'
-              r30_marker_case fix '{"action":"fix","score":8.1}' 0 0 true 0
-              r30_marker_case missing-action '{"score":9.9}' 0 0 true 0
-              r30_marker_case malformed-json '{not-json' 0 0 true 0
+              r30_marker_case unrunnable '{"action":"approve-eval","score":9.9,"run_nonce":"sandboxnonce"}' 0 0 true 0 "$r30_mk_sha" 555 "$r30_mk_sha" "$r30_mc_comments_fresh" '{"scope":"unrunnable","reason":"the environment cannot run the shipped artifact for this validation-only PR"}'
+              r30_marker_case fix '{"action":"fix","score":8.1,"run_nonce":"sandboxnonce"}' 0 0 true 0
+              r30_marker_case missing-action '{"score":9.9,"run_nonce":"sandboxnonce"}' 0 0 true 0
+              r30_marker_case malformed-json '{not-json' 0 1 false 0
               r30_marker_case absent absent 0 0 true 0
-              r30_marker_case publisher-failure '{"action":"approve-eval","score":9.9}' 1 1 false 1
-              r30_marker_case head-moved '{"action":"approve-eval","score":9.9}' 0 1 false 0 "" 555 "$r30_mk_other_sha" "$r30_mc_comments_fresh"
-              r30_marker_case trigger-stale '{"action":"approve-eval","score":9.9}' 0 1 false 0 "$r30_mk_sha" 555 "$r30_mk_sha" "$r30_mc_comments_stale"
-              r30_marker_case missing-bind-head '{"action":"approve-eval","score":9.9}' 0 1 false 0 "" 555 "$r30_mk_sha" "$r30_mc_comments_fresh"
-              r30_marker_case missing-bind-trigger '{"action":"approve-eval","score":9.9}' 0 1 false 0 "$r30_mk_sha" "" "$r30_mk_sha" "$r30_mc_comments_fresh"
+              r30_marker_case publisher-failure '{"action":"approve-eval","score":9.9,"run_nonce":"sandboxnonce"}' 1 1 false 1
+              r30_marker_case digest-mismatch '{"action":"approve-eval","score":9.9,"run_nonce":"sandboxnonce"}' 0 1 false 0
+              r30_marker_case head-moved '{"action":"approve-eval","score":9.9,"run_nonce":"sandboxnonce"}' 0 1 false 0 "" 555 "$r30_mk_other_sha" "$r30_mc_comments_fresh"
+              r30_marker_case trigger-stale '{"action":"approve-eval","score":9.9,"run_nonce":"sandboxnonce"}' 0 1 false 0 "$r30_mk_sha" 555 "$r30_mk_sha" "$r30_mc_comments_stale"
+              r30_marker_case missing-bind-head '{"action":"approve-eval","score":9.9,"run_nonce":"sandboxnonce"}' 0 1 false 0 "" 555 "$r30_mk_sha" "$r30_mc_comments_fresh"
+              r30_marker_case missing-bind-trigger '{"action":"approve-eval","score":9.9,"run_nonce":"sandboxnonce"}' 0 1 false 0 "$r30_mk_sha" "" "$r30_mk_sha" "$r30_mc_comments_fresh"
               r30_mc_approve_calls=$(cat "$r30_tmp/marker-case-approve/calls" 2>/dev/null || true)
               [ "$r30_mc_approve_calls" = "713 9.9 $r30_mk_sha 555" ] || r30_bad="${r30_bad} eval.yml(marker-behavioral-approve-publisher-args='${r30_mc_approve_calls}')"
             fi
@@ -19405,6 +19572,7 @@ R30_POST_MOCK
                 else
                   ( cd "$r30_tmp" && env -u GITHUB_TOKEN -u GH_TOKEN -u GH_API_TOKEN \
                       PATH="$r30_post_bin:$PATH" GITHUB_OUTPUT="$r30_ptc_out" \
+                      LAB_RUN_NONCE="sandboxnonce" \
                       bash --noprofile --norc -eo pipefail "$r30_ptc_dir/run.sh" ) >"$r30_ptc_dir/stdout" 2>&1
                   r30_ptc_rc=$?
                   if [ "$r30_ptc_rc" -ne "$r30_ptc_want_rc" ]; then
@@ -19418,15 +19586,16 @@ R30_POST_MOCK
                   [ "${r30_ptc_ok:-0}" -eq 0 ] || r30_bad="${r30_bad} eval.yml(post-behavioral-${r30_ptc_name}-unexpected-ok-true)"
                 fi
               }
-              r30_post_case approve '{"action":"approve-eval","score":9.9,"summary":"All five dimensions verified."}' 0 "post fetch"
-              r30_post_case fix '{"action":"fix","score":8.1,"summary":"Two dimensions below the gate."}' 0 "post fetch"
-              r30_post_case incomplete '{not-json' 0 "post fetch"
+              r30_post_case approve '{"action":"approve-eval","score":9.9,"summary":"All five dimensions verified.","run_nonce":"sandboxnonce"}' 0 "post fetch"
+              r30_post_case fix '{"action":"fix","score":8.1,"summary":"Two dimensions below the gate.","run_nonce":"sandboxnonce"}' 0 "post fetch"
+              r30_post_case incomplete '{"run_nonce":"sandboxnonce"}' 0 "post fetch"
+              r30_post_case malformed-json '{not-json' 1 ""
               r30_post_case absent absent 1 ""
-              r30_post_case post-failure '{"action":"approve-eval","score":9.9}' 1 "post" 'fail_post="1"'
-              r30_post_case missing-id '{"action":"approve-eval","score":9.9}' 1 "post" 'no_id="1"'
-              r30_post_case refetch-failure '{"action":"approve-eval","score":9.9}' 1 "post fetch" 'fail_fetch="1"'
-              r30_post_case wrong-author '{"action":"approve-eval","score":9.9}' 1 "post fetch" 'author="mallory"'
-              r30_post_case body-mismatch '{"action":"approve-eval","score":9.9}' 1 "post fetch" "force_body=$r30_other_body"
+              r30_post_case post-failure '{"action":"approve-eval","score":9.9,"run_nonce":"sandboxnonce"}' 1 "post" 'fail_post="1"'
+              r30_post_case missing-id '{"action":"approve-eval","score":9.9,"run_nonce":"sandboxnonce"}' 1 "post" 'no_id="1"'
+              r30_post_case refetch-failure '{"action":"approve-eval","score":9.9,"run_nonce":"sandboxnonce"}' 1 "post fetch" 'fail_fetch="1"'
+              r30_post_case wrong-author '{"action":"approve-eval","score":9.9,"run_nonce":"sandboxnonce"}' 1 "post fetch" 'author="mallory"'
+              r30_post_case body-mismatch '{"action":"approve-eval","score":9.9,"run_nonce":"sandboxnonce"}' 1 "post fetch" "force_body=$r30_other_body"
               r30_post_approve_first=$(head -n1 "$r30_tmp/post-case-approve/posted" 2>/dev/null || true)
               case "$r30_post_approve_first" in
                 "Quality Council APPROVED - Score 9.9/10."*) : ;;
