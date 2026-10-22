@@ -11,6 +11,14 @@ $Root = (Resolve-Path (Join-Path $PackagingDir "..")).Path
 $RepoRoot = (Resolve-Path (Join-Path $Root "..")).Path
 $Dist = Join-Path $Root "dist"
 
+# Rust's MSVC targets link the dynamic CRT by default, which assumes the
+# VC++ redistributable is installed. These per-user artifacts must start
+# on a clean Windows install, so link the static CRT for every Windows
+# build and let Assert-StaticCrt prove it below.
+if ($env:OS -eq "Windows_NT" -and $env:RUSTFLAGS -notmatch [regex]::Escape("-C target-feature=+crt-static")) {
+    $env:RUSTFLAGS = ("$env:RUSTFLAGS -C target-feature=+crt-static").Trim()
+}
+
 function Get-WorkspaceVersion {
     param([string]$Manifest = (Join-Path $Root "Cargo.toml"))
     $text = Get-Content -Raw $Manifest
@@ -52,6 +60,48 @@ if ($SourceDateEpoch -lt 315532800) {
 function Get-Sha256 {
     param([string]$Path)
     return (Get-FileHash -Algorithm SHA256 -Path $Path).Hash.ToLowerInvariant()
+}
+
+# Locate dumpbin from the MSVC toolchain. The windows-latest image has
+# Visual Studio installed but dumpbin is not on PATH by default.
+function Get-MsvcDumpbin {
+    $onPath = Get-Command dumpbin.exe -ErrorAction SilentlyContinue
+    if ($onPath) { return $onPath.Source }
+    $programFilesX86 = ${env:ProgramFiles(x86)}
+    if (-not $programFilesX86) { return $null }
+    $vswhere = Join-Path $programFilesX86 "Microsoft Visual Studio\Installer\vswhere.exe"
+    if (-not (Test-Path $vswhere)) { return $null }
+    $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    if ($LASTEXITCODE -ne 0 -or -not $vs) { return $null }
+    $vs = ($vs | Select-Object -First 1).Trim()
+    $tools = Join-Path $vs "VC\Tools\MSVC"
+    if (-not (Test-Path $tools)) { return $null }
+    return Get-ChildItem -Path $tools -Directory |
+        Sort-Object Name -Descending |
+        ForEach-Object { Join-Path $_.FullName "bin\Hostx64\x64\dumpbin.exe" } |
+        Where-Object { Test-Path $_ } |
+        Select-Object -First 1
+}
+
+# The release binaries link the static CRT so a clean machine needs no
+# VC++ redistributable. Prove it instead of trusting the build flag:
+# dumpbin reports VCRUNTIME/MSVCP when the dynamic CRT crept back in.
+function Assert-StaticCrt {
+    param([string[]]$Executables)
+    $dumpbin = Get-MsvcDumpbin
+    if (-not $dumpbin) {
+        throw "dumpbin not found; install the MSVC build tools to verify the static CRT"
+    }
+    foreach ($exe in $Executables) {
+        $deps = (& $dumpbin /nologo /dependents $exe | Out-String)
+        if ($LASTEXITCODE -ne 0) {
+            throw "dumpbin failed for $exe with exit code $LASTEXITCODE"
+        }
+        if ($deps -match '(?m)^\s+(VCRUNTIME|MSVCP)\d') {
+            throw "dynamic CRT dependency remains in $exe; the build must use -C target-feature=+crt-static"
+        }
+        Write-Host "static CRT verified: $exe"
+    }
 }
 
 function Write-Checksums {

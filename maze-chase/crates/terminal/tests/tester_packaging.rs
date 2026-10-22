@@ -556,6 +556,73 @@ fn release_workflow_binds_new_tags_to_the_built_commit() {
 }
 
 #[test]
+fn windows_artifacts_link_the_static_crt() {
+    // A clean Windows install has no VC++ redistributable, so the release
+    // binaries must link the static CRT and every build path must prove
+    // it with dumpbin instead of trusting the flag.
+    let common = std::fs::read_to_string(maze_root().join("packaging").join("common.ps1"))
+        .expect("common.ps1 must exist");
+    assert!(
+        common
+            .contains("$env:RUSTFLAGS = (\"$env:RUSTFLAGS -C target-feature=+crt-static\").Trim()"),
+        "common.ps1 must append +crt-static before every Windows build"
+    );
+    assert!(
+        common.contains("if ($deps -match '(?m)^\\s+(VCRUNTIME|MSVCP)\\d')"),
+        "common.ps1 must reject a dynamic CRT dependency on an actual dumpbin line"
+    );
+    for script in [
+        "terminal/windows-zip.ps1",
+        "desktop/windows-zip.ps1",
+        "desktop/windows-installer.ps1",
+    ] {
+        let body = std::fs::read_to_string(maze_root().join("packaging").join(script))
+            .unwrap_or_else(|e| panic!("{script} must be readable: {e}"));
+        assert!(
+            body.contains("Assert-StaticCrt @($exe)"),
+            "{script} must verify the static CRT before packaging"
+        );
+    }
+}
+
+#[test]
+fn windows_artifacts_ship_the_license() {
+    let desktop_zip = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("desktop")
+            .join("windows-zip.ps1"),
+    )
+    .unwrap();
+    assert!(
+        desktop_zip.contains("Join-Path $RepoRoot \"LICENSE\""),
+        "the documented desktop zip must ship LICENSE like the terminal zip"
+    );
+    let installer = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("desktop")
+            .join("windows-installer.iss"),
+    )
+    .unwrap();
+    assert!(
+        installer.contains("\\LICENSE\"; DestDir"),
+        "the installer must keep staging LICENSE"
+    );
+    let smoke = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("release")
+            .join("smoke-windows.ps1"),
+    )
+    .unwrap();
+    assert!(
+        smoke.contains("does not contain LICENSE") && smoke.contains("did not place LICENSE"),
+        "the Windows smoke must prove both zips and the installed tree carry LICENSE"
+    );
+}
+
+#[test]
 fn packaging_matrix_version_matches_crate() {
     let version = crate_version();
     let release = std::fs::read_to_string(maze_root().join("docs").join("release.md")).unwrap();
