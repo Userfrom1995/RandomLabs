@@ -11,3 +11,4 @@ path = "src/lib.rs"
 
 [dependencies]
 maze-chase-engine = { path = "../engine" }
+maze-chase-audio = { path = "../audio" }
