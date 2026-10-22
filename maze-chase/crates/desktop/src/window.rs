@@ -7,7 +7,7 @@
 //! hardware-free and fully tested; this file is the thin tested-by-
 //! per-OS-runners edge (plus [`Opts`] plumbing from [`crate::cli`]).
 
-use crate::app::App;
+use crate::app::{App, FIXED_DT};
 use crate::cli::Opts;
 use crate::frame::{Frame, MAX_PIXELS};
 use crate::input::winit_to_key;
@@ -29,6 +29,10 @@ const FULLSCREEN_SETTLE: Duration = Duration::from_secs(2);
 /// Target cadence for continuous frames (playing, and `--probe`).
 /// Static screens wait for input instead of spinning the event loop.
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
+
+/// Gamepad polling cadence. gilrs does not emit winit events, so static
+/// screens keep a bounded timer and redraw only when a button arrives.
+const PAD_POLL_INTERVAL: Duration = Duration::from_millis(16);
 
 /// Fatal window-bootstrap failure: reported on stderr with exit code 1.
 ///
@@ -138,11 +142,15 @@ struct Runner {
     fullscreen: bool,
     last: Instant,
     next_frame: Instant,
+    next_pad_poll: Instant,
+    continuous: bool,
     scaled_notice: bool,
     probe_left: Option<(u32, std::path::PathBuf)>,
     probe_gate: ProbeGate,
     last_frame: Option<crate::frame::Frame>,
     fatal: Option<BootFailure>,
+    #[cfg(test)]
+    redraw_requests: u32,
 }
 
 use winit::event_loop::OwnedDisplayHandle as DisplayHandle;
@@ -160,11 +168,44 @@ impl Runner {
             size: (1100, 760),
             last: Instant::now(),
             next_frame: Instant::now(),
+            next_pad_poll: Instant::now(),
+            continuous: false,
             scaled_notice: false,
             probe_gate: ProbeGate::Open,
             last_frame: None,
             fatal: None,
+            #[cfg(test)]
+            redraw_requests: 0,
         }
+    }
+
+    /// Request one redraw; the test counter proves timer-driven pad input
+    /// reaches the presentation path without a pending frame.
+    fn request_redraw(&mut self) {
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+        #[cfg(test)]
+        {
+            self.redraw_requests += 1;
+        }
+    }
+
+    /// Poll the gamepad on its bounded cadence and redraw only on input.
+    /// A missing backend schedules no work.
+    fn poll_pad_if_due(&mut self, now: Instant) -> bool {
+        if now < self.next_pad_poll {
+            return false;
+        }
+        self.next_pad_poll = now + PAD_POLL_INTERVAL;
+        if self.app.pad_backend_missing() {
+            return false;
+        }
+        if self.app.poll_pad() {
+            self.request_redraw();
+            return true;
+        }
+        false
     }
 
     fn ensure_surface(&mut self, event_loop: &ActiveEventLoop) {
@@ -243,9 +284,14 @@ impl Runner {
 
     fn draw(&mut self) {
         let now = Instant::now();
-        let dt = (now - self.last).as_secs_f64().clamp(0.0, 0.25);
+        // The first frame after a static screen starts at one fixed step:
+        // the wall gap since the last repaint must not be simulated.
+        let dt = if self.continuous {
+            (now - self.last).as_secs_f64().clamp(0.0, 0.25)
+        } else {
+            FIXED_DT
+        };
         self.last = now;
-        self.app.poll_pad();
         self.app.tick(dt);
         // The probe countdown runs per redraw request even when the
         // frame cannot be presented, so a headless stall cannot hang
@@ -259,15 +305,22 @@ impl Runner {
             }
         }
         let (rw, rh) = bounded_render_size(self.size.0, self.size.1);
-        if (rw, rh) != self.size && !self.scaled_notice {
-            eprintln!(
-                "maze-chase-desktop: window {}x{} exceeds the {} pixel render budget; rendering at {}x{} and scaling",
-                self.size.0, self.size.1, MAX_PIXELS, rw, rh
-            );
-            if let Some(window) = &self.window {
-                window.set_title("Maze Chase (scaled render)");
+        if (rw, rh) != self.size {
+            if !self.scaled_notice {
+                eprintln!(
+                    "maze-chase-desktop: window {}x{} exceeds the {} pixel render budget; rendering at {}x{} and scaling",
+                    self.size.0, self.size.1, MAX_PIXELS, rw, rh
+                );
+                if let Some(window) = &self.window {
+                    window.set_title("Maze Chase (scaled render)");
+                }
+                self.scaled_notice = true;
             }
-            self.scaled_notice = true;
+        } else if self.scaled_notice {
+            if let Some(window) = &self.window {
+                window.set_title("Maze Chase");
+            }
+            self.scaled_notice = false;
         }
         let Some(frame) = self.app.render(rw, rh) else {
             if self.fatal.is_none() {
@@ -289,6 +342,7 @@ impl Runner {
         blit_to_buffer(&frame, &mut buffer, self.size.0, self.size.1);
         buffer.present().ok();
         self.last_frame = Some(frame);
+        self.continuous = self.wants_continuous_frames();
     }
 
     /// Bounded verification countdown: persist the last screenshot and
@@ -300,19 +354,25 @@ impl Runner {
         self.app.screens.current == ScreenId::Playing || self.probe_left.is_some()
     }
 
+    /// The frame a probe writes: the last presented bounded frame when it
+    /// matches the current bounded size, otherwise a fresh bounded render.
+    fn probe_frame(&mut self) -> Option<crate::frame::Frame> {
+        let (rw, rh) = bounded_render_size(self.size.0, self.size.1);
+        self.last_frame
+            .take()
+            .filter(|f| (f.w, f.h) == (rw, rh))
+            .or_else(|| self.app.render(rw, rh))
+    }
+
     fn tick_probe(&mut self) {
         let Some((left, path)) = self.probe_left.clone() else {
             return;
         };
         if left <= 1 {
-            // Capture at the window's current size: a frame presented
-            // before a pending resize must not be written with stale
-            // dimensions (called only once; the session stops after).
-            let frame = self
-                .last_frame
-                .take()
-                .filter(|f| (f.w, f.h) == self.size)
-                .or_else(|| self.app.render(self.size.0, self.size.1));
+            // Capture at the bounded render size, the size frames are
+            // actually produced at: an 8K window must not re-render above
+            // MAX_PIXELS just because the probe wants a screenshot.
+            let frame = self.probe_frame();
             match frame {
                 Some(frame) => {
                     if let Err(e) = std::fs::write(&path, frame.to_ppm()) {
@@ -394,25 +454,34 @@ impl ApplicationHandler for Runner {
             event_loop.exit();
             return;
         }
-        let Some(window) = &self.window else {
+        if self.window.is_none() {
             self.ensure_surface(event_loop);
-            return;
-        };
-        if !self.wants_continuous_frames() {
-            event_loop.set_control_flow(ControlFlow::Wait);
             return;
         }
         let now = Instant::now();
+        // gilrs emits no winit events: poll on a bounded timer even when
+        // no frame is scheduled, and redraw only when a button arrived.
+        self.poll_pad_if_due(now);
+        if !self.wants_continuous_frames() {
+            if self.app.pad_backend_missing() {
+                event_loop.set_control_flow(ControlFlow::Wait);
+            } else {
+                event_loop.set_control_flow(ControlFlow::WaitUntil(self.next_pad_poll));
+            }
+            return;
+        }
         if now >= self.next_frame {
             if now.duration_since(self.last) > Duration::from_millis(100) {
                 // Do not fast-forward a paused or static session by the
                 // whole gap on its first continuous frame.
                 self.last = now;
             }
-            window.request_redraw();
+            self.request_redraw();
             self.next_frame = (self.next_frame + FRAME_INTERVAL).max(now + FRAME_INTERVAL);
         }
-        event_loop.set_control_flow(ControlFlow::WaitUntil(self.next_frame));
+        event_loop.set_control_flow(ControlFlow::WaitUntil(
+            self.next_frame.min(self.next_pad_poll),
+        ));
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -645,6 +714,43 @@ mod tests {
             0,
             "a clean loop exit stays 0"
         );
+    }
+
+    #[test]
+    fn pad_timer_advances_the_screen_and_requests_a_redraw() {
+        use crate::gamepad::PadEvent;
+        use maze_chase_config::Action;
+
+        let mut runner = test_runner(false, None);
+        runner.app.pad = crate::gamepad::PadPoll::with_events(vec![PadEvent {
+            action: Action::Down,
+            pressed: true,
+        }]);
+        runner.next_pad_poll = Instant::now() - Duration::from_millis(1);
+        assert_eq!(runner.app.screens.menu, 0, "title starts on the first row");
+        let redrawn = runner.poll_pad_if_due(Instant::now());
+        assert!(redrawn, "a pad press must request a redraw");
+        assert_eq!(
+            runner.app.screens.menu, 1,
+            "the pad press must reach the title screen with no frame pending"
+        );
+        assert_eq!(runner.redraw_requests, 1, "exactly one redraw requested");
+    }
+
+    #[test]
+    fn oversized_probe_captures_the_bounded_render_size() {
+        let mut runner = test_runner(false, None);
+        runner.size = (7680, 4320);
+        runner.last_frame = None;
+        let frame = runner.probe_frame().expect("probe must render a frame");
+        let (rw, rh) = bounded_render_size(7680, 4320);
+        assert!(
+            (frame.w, frame.h) == (rw, rh),
+            "probe capture must use the bounded render size, got {}x{}",
+            frame.w,
+            frame.h
+        );
+        assert!((frame.w as u64 * frame.h as u64) <= MAX_PIXELS);
     }
 
     #[test]
