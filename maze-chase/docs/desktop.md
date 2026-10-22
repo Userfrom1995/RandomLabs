@@ -8,10 +8,10 @@ by default), so both layers share configuration and the leaderboard.
 
 ## Install
 
-Pick the artifact for your OS from the release page (or build one with
-the commands below). Every download is checksummed with
-`SHA256SUMS.txt`; [release.md](release.md) covers upgrading,
-uninstalling, and clearing saved settings.
+Pick the artifact for your OS from the release page once a release is
+published (or build one with the commands below). Every download is
+checksummed with `SHA256SUMS.txt`; [release.md](release.md) covers
+upgrading, uninstalling, and clearing saved settings.
 
 - **Linux**: `maze-chase-desktop_<version>_<arch>.deb`,
   `maze-chase-desktop-<version>-1.<arch>.rpm`, or the portable tarball.
@@ -57,7 +57,7 @@ bash maze-chase/packaging/desktop/build-rpm.sh
 # Windows (on a Windows machine): zip plus per-user installer
 powershell -ExecutionPolicy Bypass -File maze-chase/packaging/desktop/windows-installer.ps1
 
-# macOS (on a Mac): app, tarball, and dmg
+# macOS (on a Mac): app and dmg (tarball: macos-tarball.sh)
 bash maze-chase/packaging/desktop/macos-dmg.sh
 ```
 
