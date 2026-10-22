@@ -124,9 +124,10 @@
 # the verify/evidence-gate blocks are pinned whole-region with rewrite
 # mutation self-tests, and no other step may write the decision or evidence
 # files, and the R31 agent bootstrap token-scope guard: every
-# comment-triggered agent lane must grant issues: write, with pull-requests:
-# write for review-comment reactions, so opencode github run can react and
-# post its session summary at exit).
+# comment-triggered agent lane must grant issues: write, every PR-gated lane
+# must also grant pull-requests: write, and review-comment lanes must grant
+# pull-requests: write, so opencode github run can react and post its session
+# summary at exit).
 # Wired into auditor.yml as the R1-R31 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
@@ -299,9 +300,12 @@ fi
 
 # [R7] Review-arm branch-read-only guard (PR #412 head-rewind regression): the
 # Reviewer never moves a branch. The job declares exactly `contents: read`,
-# `pull-requests: read`, and `issues: write` (issue #743: the opencode CLI
-# reacts to the triggering comment and posts its session summary at exit, so a
-# read-only issue token kills the session at bootstrap with HTTP 403); the
+# `pull-requests: write`, and `issues: write` (issue #743: the opencode CLI
+# reacts to the triggering comment and posts its session summary at exit; on a
+# PR thread both calls are authorized under pull requests, so issues write plus
+# pull-requests read still dies at bootstrap with HTTP 403, as runs 39843594629
+# and 39843603743 proved). Pull-requests write cannot merge (merge requires
+# Contents write), and contents read keeps every push path dead; the
 # workflow contains no push, force, or workspace-marker path; and the
 # post-agent head observer uses the job token with the pinned system PATH,
 # reports unexpected movement, and never pushes. This replaces the old
@@ -325,7 +329,7 @@ if [ -z "$observer_block" ]; then
 else
   review_perms=$(awk '/^    permissions:$/ { f=1; next } f && /^    [A-Za-z_-]+:/ { exit } f { print }' "$REVIEW_WF" 2>/dev/null | sed -e 's/^[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' | tr -d ' ' | tr '\n' ',')
   perms_ok="no"
-  [ "$review_perms" = "contents:read,pull-requests:read,issues:write," ] && perms_ok="yes"
+  [ "$review_perms" = "contents:read,pull-requests:write,issues:write," ] && perms_ok="yes"
   observer_token=$(printf '%s\n' "$observer_block" | grep -cF 'GH_TOKEN: ${{ github.token }}' || true)
   observer_path=$(printf '%s\n' "$observer_block" | grep -cF 'PATH: /usr/bin:/bin' || true)
   owner_token=$(printf '%s\n' "$observer_block" | grep -c 'OPENCODE_PAT' || true)
@@ -335,7 +339,7 @@ else
   force_lines=$(grep -cE -- '--force-with-lease|git[[:space:]]+push[^#]*--force' "$REVIEW_WF" || true)
   marker_lines=$(grep -c 'review-workspace-pushed\|pre-push' "$REVIEW_WF" || true)
   if [ "$perms_ok" = "yes" ] && [ "$observer_token" -gt 0 ] && [ "$observer_path" -gt 0 ] && [ "$owner_token" -eq 0 ] && [ "$push_lines" -eq 0 ] && [ "$force_lines" -eq 0 ] && [ "$marker_lines" -eq 0 ]; then
-    check "R7" "review job is branch-read-only (contents/pull-requests read, issues write for CLI bootstrap per issue #743), its head observer uses the job token with the pinned PATH, and the workflow contains no push, force, or workspace-marker path (PR #412 rewind class closed)" "ok"
+    check "R7" "review job is branch-read-only (contents read; pull-requests write and issues write only for the PR-thread CLI bootstrap per issue #743), its head observer uses the job token with the pinned PATH, and the workflow contains no push, force, or workspace-marker path (PR #412 rewind class closed; merge still requires Contents write)" "ok"
   else
     check "R7" "review arm not provably read-only in ${REVIEW_WF} (permissions=${review_perms:-?}, observer-token=${observer_token}, observer-path=${observer_path}, owner-token=${owner_token}, push-lines=${push_lines}, force-lines=${force_lines}, marker-lines=${marker_lines})" "bad"
   fi
@@ -15932,16 +15936,18 @@ EXPECTED_VERIFY_ENV = {
 }
 EXPECTED_EVIDENCE_ENV = {"PATH": SYSTEM_PATH}
 # Issue #713 review round 13: the evaluator executes the PR's shipped code, so
-# its App token must stay read-only for repository contents and pull requests.
+# its App token must stay read-only for repository contents (merging requires
+# Contents write, so pull-requests write cannot merge).
 # Issue #743: `opencode github run` reacts to the triggering comment and posts
-# its session summary at exit, so the token also needs issues: write or the
-# session dies at bootstrap with HTTP 403. Every verdict write (signed verdict,
-# marker, maintainer handoff, memory push) still runs in a hardcoded owner-PAT
-# step, and the marker is owner-authored so a PR-controlled agent cannot
-# forge it.
+# its session summary at exit. On a PR thread both calls are authorized under
+# pull requests: issues write plus pull-requests read still returned 403 on
+# runs 39843594629 and 39843603743, so the token needs pull-requests: write
+# and issues: write. Every verdict write (signed verdict, marker, maintainer
+# handoff, memory push) still runs in a hardcoded owner-PAT step, and the
+# marker is owner-authored so a PR-controlled agent cannot forge it.
 EXPECTED_PERMISSIONS = {
     "contents": "read",
-    "pull-requests": "read",
+    "pull-requests": "write",
     "issues": "write",
 }
 EXPECTED_WORKFLOW_NAME = "opencode-eval"
@@ -20358,7 +20364,7 @@ R30_POST_MOCK
   fi
 fi
 if [ -z "$r30_bad" ]; then
-  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical owner-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as owner-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer owner-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow's App token is read-only for contents and pull requests with issues write for the CLI bootstrap (issue #743), and every verdict write runs in an owner-PAT step, and it is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, the Run evaluator agent step structurally bound to the vendored runner with no run/shell, an exact if/env/with and model pin, the prompt SHA-256, and the 105-minute cap, the Clear runtime decision, Verify evaluator decided, and Enforce live-execution evidence gate run blocks pinned whole-region line-exact with decision and evidence rewrite mutation self-tests and a decision/evidence write ban outside the evaluator agent, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval, and noncanonical and wrong-PR marker bodies) are executed in a sandbox, and the sweep requires the canonical machine-published marker body (exact structure, singleton bindings, and the PR/head/trigger paragraph echo) as defense in depth, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), every owner-PAT run block (the forward handoff, the pre-gate Get PR info read, the deliverable-context read, and the final evaluator memory push) is pinned whole-region line-exact with its exact key surface and an env of exactly the owner PAT plus the pinned system PATH, and the eval marker literal banned, and no step other than the marker step may carry the eval marker literal and no step outside the three sanctioned comment posters may issue a comment post (all pins are mutation-self-tested, so a decoy approval marker cannot be injected into any token-bearing step body), and the pre-decision execution context is pinned so no PR-head code runs before the verdict (the checkout action is exactly actions/checkout@v6 with its exact with block and may appear only in the Checkout repository (PR head) step, the vendored runner may appear only in the Run evaluator agent step, every other uses step is rejected, the actor gate executes only the script staged from the workflow commit, the vendored runner is always restored from the workflow commit with no early-exit trust, the Configure git identity step is exactly the two git config lines with no extra key, the workflow permissions map and the eval job's if, runs-on, and timeout values are pinned, the decision/evidence write ban covers pathlib write_text/write_bytes and Path(...).open plus os.replace/os.rename and shutil copy/move spellings, and the checkout, actor-gate, configure, and restore blocks are mutation-self-tested), review round 8 hardens the remaining execution inputs: the evaluator and tester system prompts are staged from \`\${GITHUB_SHA}\` into RUNNER_TEMP before the agent and both prompt files plus both staging bodies are SHA-256 pinned (the PR-head editions are never read) and the Tester agent prompt must reference the staged copy, the workflow name and concurrency policy are pinned, the publisher is whole-file SHA-256 pinned with a second-PR functional fixture and a target-gated-append mutation self-test, the extracted decision and pre-merge blocks reject control transfer and execute in subshells (so a planted exit cannot silence this rule), the Post Maintainer comment poster is pinned whole-region with the eval marker literal banned outside the PAT sweep, and head_sha plus the two-step head_push_time binding are pinned, the maintainer job's exact ordered step sequence is pinned, so no inserted or renamed step can pass at all, and no maintainer step other than the pinned PAT sweep may carry a gh pr merge (or REST/GraphQL merge) invocation, including a path-qualified, command/env/sudo-prefixed, quoted word-split, gh-global-flag (\`gh -R x pr merge\`, \`gh --repo x pr merge\`, \`gh -Rcli/cli pr merge\`), expression-valued-repo, REST, or GraphQL spelling, so a newly inserted owner-PAT merge step, the reviewer's unreviewed fast path, or a renamed sweep with an exact-name decoy fails the audit; so a one-line neutering, declarative poisoning, or extra step cannot pass; the review arm is validated from the same strict parse as branch-read-only (exactly contents/pull-requests read with issues write for the CLI bootstrap, issue #743, no push or restore marker in any run, and a unique post-agent head observer with the job token, the pinned system PATH, and an exact pinned body), every owner-PAT step in the review and test arms must pin /usr/bin:/bin (the Tester's review-restore omission class), and the observer, permissions, cross-step push, and PATH pins each carry mutation self-tests, and the Maintainer workspace is pinned to the trusted default branch (exact {name, uses, with} checkout surface, with remove and redirect mutants tripping checkout-with-not-exact), so a pull_request run cannot auto-load the PR merge tree's AGENTS.md/opencode.json/plugins (issue #713 review round 27) (issue #713)" "ok"
+  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical owner-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as owner-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer owner-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow's App token stays read-only for contents while pull-requests write and issues write cover the PR-thread CLI bootstrap (issue #743; merge still requires Contents write), and every verdict write runs in an owner-PAT step, and it is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, the Run evaluator agent step structurally bound to the vendored runner with no run/shell, an exact if/env/with and model pin, the prompt SHA-256, and the 105-minute cap, the Clear runtime decision, Verify evaluator decided, and Enforce live-execution evidence gate run blocks pinned whole-region line-exact with decision and evidence rewrite mutation self-tests and a decision/evidence write ban outside the evaluator agent, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval, and noncanonical and wrong-PR marker bodies) are executed in a sandbox, and the sweep requires the canonical machine-published marker body (exact structure, singleton bindings, and the PR/head/trigger paragraph echo) as defense in depth, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), every owner-PAT run block (the forward handoff, the pre-gate Get PR info read, the deliverable-context read, and the final evaluator memory push) is pinned whole-region line-exact with its exact key surface and an env of exactly the owner PAT plus the pinned system PATH, and the eval marker literal banned, and no step other than the marker step may carry the eval marker literal and no step outside the three sanctioned comment posters may issue a comment post (all pins are mutation-self-tested, so a decoy approval marker cannot be injected into any token-bearing step body), and the pre-decision execution context is pinned so no PR-head code runs before the verdict (the checkout action is exactly actions/checkout@v6 with its exact with block and may appear only in the Checkout repository (PR head) step, the vendored runner may appear only in the Run evaluator agent step, every other uses step is rejected, the actor gate executes only the script staged from the workflow commit, the vendored runner is always restored from the workflow commit with no early-exit trust, the Configure git identity step is exactly the two git config lines with no extra key, the workflow permissions map and the eval job's if, runs-on, and timeout values are pinned, the decision/evidence write ban covers pathlib write_text/write_bytes and Path(...).open plus os.replace/os.rename and shutil copy/move spellings, and the checkout, actor-gate, configure, and restore blocks are mutation-self-tested), review round 8 hardens the remaining execution inputs: the evaluator and tester system prompts are staged from \`\${GITHUB_SHA}\` into RUNNER_TEMP before the agent and both prompt files plus both staging bodies are SHA-256 pinned (the PR-head editions are never read) and the Tester agent prompt must reference the staged copy, the workflow name and concurrency policy are pinned, the publisher is whole-file SHA-256 pinned with a second-PR functional fixture and a target-gated-append mutation self-test, the extracted decision and pre-merge blocks reject control transfer and execute in subshells (so a planted exit cannot silence this rule), the Post Maintainer comment poster is pinned whole-region with the eval marker literal banned outside the PAT sweep, and head_sha plus the two-step head_push_time binding are pinned, the maintainer job's exact ordered step sequence is pinned, so no inserted or renamed step can pass at all, and no maintainer step other than the pinned PAT sweep may carry a gh pr merge (or REST/GraphQL merge) invocation, including a path-qualified, command/env/sudo-prefixed, quoted word-split, gh-global-flag (\`gh -R x pr merge\`, \`gh --repo x pr merge\`, \`gh -Rcli/cli pr merge\`), expression-valued-repo, REST, or GraphQL spelling, so a newly inserted owner-PAT merge step, the reviewer's unreviewed fast path, or a renamed sweep with an exact-name decoy fails the audit; so a one-line neutering, declarative poisoning, or extra step cannot pass; the review arm is validated from the same strict parse as branch-read-only (exactly contents read with pull-requests write and issues write for the PR-thread CLI bootstrap, issue #743, no push or restore marker in any run, and a unique post-agent head observer with the job token, the pinned system PATH, and an exact pinned body), every owner-PAT step in the review and test arms must pin /usr/bin:/bin (the Tester's review-restore omission class), and the observer, permissions, cross-step push, and PATH pins each carry mutation self-tests, and the Maintainer workspace is pinned to the trusted default branch (exact {name, uses, with} checkout surface, with remove and redirect mutants tripping checkout-with-not-exact), so a pull_request run cannot auto-load the PR merge tree's AGENTS.md/opencode.json/plugins (issue #713 review round 27) (issue #713)" "ok"
 else
   check "R30" "eval verdict publication and PAT merge gate guard missing:${r30_bad} (issue #713: a workflow-touching PR could merge through the PAT sweep with no binding Evaluator verdict)" "bad"
 fi
@@ -20367,17 +20373,24 @@ fi
 # reacts to the triggering comment and posts its session summary at exit on
 # every non-dispatch path, so an issue_comment-triggered agent lane needs
 # `issues: write` or the session dies at bootstrap with HTTP 403 before doing
-# any work. The #713 rollout pinned the review, test, eval, and per-OS lanes to
-# `issues: read` and broke every one of them. This rule resolves each agent
-# job's EFFECTIVE permissions from a strict (duplicate-key-rejecting) YAML
-# parse, job-level over workflow-level, models the CLI bootstrap writes
-# (issue-comment reaction plus final summary comment; pull-request-review
-# comment reaction plus summary comment; issue and pull-request reactions), and
-# requires a successful bootstrap for every comment trigger on every lane that
-# runs the vendored runner with the job token. The four #713 lanes must exist
-# and each is mutation-self-tested back to `issues: read`, so a read-only pin
-# can never silently return. Non-comment triggers (schedule, dispatch) are
-# exempt because the CLI only reacts to comment events.
+# any work. A PR thread adds a second requirement: both the trigger-comment
+# reaction and the summary POST are authorized under pull requests, so issues
+# write plus pull-requests read still returns 403 (review runs 39843594629 and
+# 39843603743, issue #743 second round). The #713 rollout pinned the review,
+# test, eval, and per-OS lanes to `issues: read` and broke every one of them;
+# granting only issues write then left them dead on PR threads. This rule
+# resolves each agent job's EFFECTIVE permissions from a strict
+# (duplicate-key-rejecting) YAML parse, job-level over workflow-level, models
+# the CLI bootstrap writes (issue-comment reaction plus final summary comment,
+# with both issues write and pull-requests write required on a PR thread;
+# pull-request-review comment reaction plus summary comment; issue and
+# pull-request reactions), and requires a successful bootstrap for every
+# comment trigger on every lane that runs the vendored runner with the job
+# token. The four #713 lanes are PR-gated by construction, must exist, and each
+# is mutation-self-tested back to `issues: read` and separately to
+# `pull-requests: read`, so either read-only pin can never silently return.
+# Non-comment triggers (schedule, dispatch) are exempt because the CLI only
+# reacts to comment events.
 r31_out=$(python3 -I - <<'PY'
 import copy
 import glob
@@ -20391,6 +20404,9 @@ COHORT = [
     ".github/workflows/opencode-eval.yml",
     ".github/workflows/opencode-peros-test.yml",
 ]
+# Issue #743 second round: all four #713 lanes are PR-gated, so their
+# issue_comment bootstrap runs on a pull request and needs pull-requests write.
+PR_THREAD_COHORT = set(COHORT)
 COMMENT_EVENTS = (
     "issue_comment",
     "pull_request_review_comment",
@@ -20473,13 +20489,18 @@ def grants_write(perms, scope):
     return resolved.get("all") == "write" or resolved.get(scope) == "write"
 
 
-def simulate_bootstrap(perms, event):
+def simulate_bootstrap(perms, event, pr_thread=False):
     issues = grants_write(perms, "issues")
     pull_requests = grants_write(perms, "pull-requests")
     results = {}
     if event == "issue_comment":
-        results["reaction"] = 200 if issues else 403
-        results["comment"] = 201 if issues else 403
+        # Issue #743 second round: a comment on a pull request is a
+        # pull-request resource for App authorization. The lanes ship both
+        # scopes; require both so narrowing either one is caught (issues write
+        # alone was proven insufficient by runs 39843594629 and 39843603743).
+        allowed = issues and pull_requests if pr_thread else issues
+        results["reaction"] = 200 if allowed else 403
+        results["comment"] = 201 if allowed else 403
     elif event == "pull_request_review_comment":
         results["reaction"] = 200 if pull_requests else 403
         results["comment"] = 201 if issues else 403
@@ -20503,7 +20524,7 @@ def is_agent_step(step):
     return with_block.get("use_github_token") not in (False, "false", None)
 
 
-def validate_doc(doc, label, require_agent=False):
+def validate_doc(doc, label, require_agent=False, pr_thread=False):
     problems = []
     events = [event for event in workflow_events(doc) if event in COMMENT_EVENTS]
     jobs = doc.get("jobs") if isinstance(doc.get("jobs"), dict) else {}
@@ -20525,7 +20546,7 @@ def validate_doc(doc, label, require_agent=False):
                 problems.append("%s:%s(no-explicit-permissions)" % (label, job_name))
                 continue
             for event in events:
-                results = simulate_bootstrap(perms, event)
+                results = simulate_bootstrap(perms, event, pr_thread)
                 for request, status in results.items():
                     if status >= 400:
                         problems.append(
@@ -20562,39 +20583,64 @@ try:
         (
             {"issues": "write", "pull-requests": "read"},
             "issue_comment",
+            False,
             {"reaction": 200, "comment": 201},
         ),
         (
             {"issues": "read", "pull-requests": "read"},
             "issue_comment",
+            False,
+            {"reaction": 403, "comment": 403},
+        ),
+        (
+            {"issues": "write", "pull-requests": "read"},
+            "issue_comment",
+            True,
+            {"reaction": 403, "comment": 403},
+        ),
+        (
+            {"issues": "write", "pull-requests": "write"},
+            "issue_comment",
+            True,
+            {"reaction": 200, "comment": 201},
+        ),
+        (
+            {"issues": "read", "pull-requests": "write"},
+            "issue_comment",
+            True,
             {"reaction": 403, "comment": 403},
         ),
         (
             {"issues": "write", "pull-requests": "read"},
             "pull_request_review_comment",
+            False,
             {"reaction": 403, "comment": 201},
         ),
         (
             {"issues": "write", "pull-requests": "write"},
             "pull_request_review_comment",
+            False,
             {"reaction": 200, "comment": 201},
         ),
         (
             {"issues": "read"},
             "issues",
+            False,
             {"reaction": 403, "comment": 403},
         ),
         (
             {"issues": "write"},
             "pull_request",
+            False,
             {"reaction": 200, "comment": 201},
         ),
     ]
-    for perms, event, expected in matrix:
-        actual = simulate_bootstrap(perms, event)
+    for perms, event, pr_thread, expected in matrix:
+        actual = simulate_bootstrap(perms, event, pr_thread)
         if actual != expected:
             problems.append(
-                "self-test-model:%s=%r" % (event, actual)
+                "self-test-model:%s:%s=%r"
+                % (event, "pr" if pr_thread else "issue", actual)
             )
     # Effective-permission precedence: job-level overrides workflow-level, an
     # explicit empty job map means no scopes, and a missing job map inherits.
@@ -20620,8 +20666,8 @@ try:
         problems.append("self-test-events:list-form")
     if workflow_events(load_text("on:\n  issue_comment: {}\n")) != ["issue_comment"]:
         problems.append("self-test-events:mapping-form")
-    # The four #713 lanes must exist and be caught when reverted to the
-    # read-only pin that broke them.
+    # The four #713 lanes must exist, are PR-gated, and must be caught when
+    # either bootstrap scope is reverted to read.
     for path in COHORT:
         if not os.path.exists(path):
             problems.append("%s(missing)" % path)
@@ -20631,28 +20677,41 @@ try:
         except Exception as exc:  # noqa: BLE001 - fail closed on any parse error
             problems.append("%s(parse:%s)" % (path, type(exc).__name__))
             continue
-        problems.extend(validate_doc(doc, path, require_agent=True))
-        mutated = copy.deepcopy(doc)
-        jobs = mutated.get("jobs") if isinstance(mutated.get("jobs"), dict) else {}
-        for job in jobs.values():
-            if not isinstance(job, dict):
-                continue
-            if not any(is_agent_step(step) for step in job.get("steps") or []):
-                continue
-            if isinstance(job.get("permissions"), dict):
-                job["permissions"]["issues"] = "read"
-            else:
-                workflow_perms = mutated.get("permissions")
-                if isinstance(workflow_perms, dict):
-                    workflow_perms["issues"] = "read"
+        pr_thread = path in PR_THREAD_COHORT
+        problems.extend(
+            validate_doc(doc, path, require_agent=True, pr_thread=pr_thread)
+        )
+        for scope, marker in (
+            ("issues", "self-test-issues-read-not-caught"),
+            ("pull-requests", "self-test-pull-requests-read-not-caught"),
+        ):
+            mutated = copy.deepcopy(doc)
+            jobs = (
+                mutated.get("jobs") if isinstance(mutated.get("jobs"), dict) else {}
+            )
+            for job in jobs.values():
+                if not isinstance(job, dict):
+                    continue
+                if not any(is_agent_step(step) for step in job.get("steps") or []):
+                    continue
+                if isinstance(job.get("permissions"), dict):
+                    job["permissions"][scope] = "read"
                 else:
-                    mutated["permissions"] = {
-                        "contents": "read",
-                        "pull-requests": "read",
-                        "issues": "read",
-                    }
-        if not validate_doc(mutated, path, require_agent=True):
-            problems.append("%s(self-test-issues-read-not-caught)" % path)
+                    workflow_perms = mutated.get("permissions")
+                    if isinstance(workflow_perms, dict):
+                        workflow_perms[scope] = "read"
+                    else:
+                        mutated["permissions"] = {
+                            "contents": "read",
+                            "pull-requests": (
+                                "write" if scope == "issues" else "read"
+                            ),
+                            "issues": "read" if scope == "issues" else "write",
+                        }
+            if not validate_doc(
+                mutated, path, require_agent=True, pr_thread=pr_thread
+            ):
+                problems.append("%s(%s)" % (path, marker))
     # Tree-wide: every other comment-triggered agent lane is held to the same
     # bootstrap contract (this is why lab/auditor/curator/ideate/recover already
     # carry issues: write).
@@ -20690,10 +20749,10 @@ PY
 )
 case "$r31_out" in
   OK)
-    check "R31" "every comment-triggered agent lane grants issues: write (and pull-requests: write for review-comment reactions) so opencode github run can react to the trigger and post its session summary at exit; effective permissions are resolved job-over-workflow from a strict duplicate-key-rejecting YAML parse, the model is proven against the 403 read-only matrix, and all four #713 lanes are mutation-self-tested back to issues: read as well as opencode.yml's pull-request-review-comment reaction path (issue #743)" "ok"
+    check "R31" "every comment-triggered agent lane grants issues: write, and the four PR-gated #713 lanes also grant pull-requests: write, so opencode github run can react to the trigger and post its session summary at exit (issues write alone still returned 403 on PR threads); effective permissions are resolved job-over-workflow from a strict duplicate-key-rejecting YAML parse, the model is proven against the 403 matrix (including the issues-write/pull-requests-read PR-thread evidence), and all four #713 lanes are mutation-self-tested back to issues: read and separately to pull-requests: read, as well as opencode.yml's pull-request-review-comment reaction path (issue #743)" "ok"
     ;;
   *)
-    check "R31" "agent bootstrap token scope guard missing: ${r31_out} (issue #743: a read-only issue token kills every comment-triggered session with HTTP 403; the pre-fix review/test/eval/per-OS pins are the regression)" "bad"
+    check "R31" "agent bootstrap token scope guard missing: ${r31_out} (issue #743: a read-only issues or pull-requests token kills every comment-triggered session with HTTP 403; the pre-fix review/test/eval/per-OS pins are the regression)" "bad"
     ;;
 esac
 
@@ -20706,7 +20765,7 @@ if [ "$fail" -gt 0 ]; then
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, or R31 agent bootstrap token scope). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, or R31 agent bootstrap token scope (issues write on every comment lane plus pull-requests write on the PR-gated lanes)). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then

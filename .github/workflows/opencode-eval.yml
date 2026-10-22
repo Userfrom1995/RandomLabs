@@ -6,17 +6,20 @@ on:
 
 permissions:
   # Issue #713 review round 13: the evaluator executes the PR's shipped code,
-  # so its token must stay read-only for repository contents and pull
-  # requests. Issue #743: `opencode github run` reacts to the triggering
-  # comment and posts its session summary at exit, so the token also needs
-  # issues: write or the session dies at bootstrap with HTTP 403. The
-  # workflow's write operations (the signed verdict, the approval marker, the
-  # maintainer handoff, and the evaluator memory push) all run in hardcoded
-  # post-agent steps with the owner PAT, never with this App token, and the
-  # marker is owner-authored so a PR-controlled agent in any arm cannot
-  # forge it.
+  # so its token must stay read-only for repository contents. Issue #743:
+  # `opencode github run` reacts to the triggering comment and posts its
+  # session summary at exit. On a PR thread both bootstrap calls are
+  # authorized under pull requests: review runs 39843594629 and 39843603743
+  # carried issues: write plus pull-requests: read and were rejected 403 at
+  # the reaction and the summary POST, so this token also needs
+  # pull-requests: write and issues: write. Merging a PR requires Contents
+  # write, so the evaluator still cannot merge. The workflow's write
+  # operations (the signed verdict, the approval marker, the maintainer
+  # handoff, and the evaluator memory push) all run in hardcoded post-agent
+  # steps with the owner PAT, never with this App token, and the marker is
+  # owner-authored so a PR-controlled agent in any arm cannot forge it.
   contents: read
-  pull-requests: read
+  pull-requests: write
   issues: write
 
 concurrency:
