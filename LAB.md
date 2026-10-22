@@ -771,7 +771,7 @@ Your PAT is used ONLY by hardcoded workflow steps, for exactly these things:
   (owner PAT) → the Fixer runs.
 - Human PRs → the review is posted and the human is asked to fix it (never a
   Fixer call). Fork PRs: never - guidance only (see §23).
-- Clean → writes its signed report; the workflow's owner-PAT step posts `/oc approve: <message>` → the Tester is dispatched via `/oc test`. The reviewer agent runs with `issues: read` and never posts comments itself (issue #713).
+- Clean → writes its signed report; the workflow's owner-PAT step posts that signed report and the hardcoded forward step posts the single `/oc test` trigger. The report never leads with `/oc` or `/opencode` (issue #713 round 17). The reviewer agent runs with `issues: read` and never posts comments itself (issue #713).
 - Rebuttal etiquette: honest evaluation, withdraw valid pushbacks,
   2×-then-apply, approve trivial leftovers after 2+ rounds.
 - No merge step - the Maintainer merges.
@@ -781,7 +781,7 @@ Your PAT is used ONLY by hardcoded workflow steps, for exactly these things:
 - Triggered by `/oc test` after the Reviewer approves, executing under high-thinking rigor.
 - Focuses on E2E functionality, dynamic simulation, and performance of the running application (headless Playwright/Puppeteer browser tests for web UI; stress, fuzz, and memory checks for engines/CLIs).
 - **Test Authoring & Commit Authorization**: Authorized to author permanent regression and E2E test suites in project test directories (`tests/`, `e2e/`, etc.) and commit them directly to the PR branch under `tester: ...`.
-- **Strict Separation of Concerns**: The Tester never touches production application logic. If a test fails, the failing test is committed and pushed so the bug is reproducible, and the Tester writes a signed findings report so the workflow's owner-PAT step posts `/oc fix: <details>` → the Fixer runs.
+- **Strict Separation of Concerns**: The Tester never touches production application logic. If a test fails, the failing test is committed and pushed so the bug is reproducible, and the Tester writes a signed findings report; the workflow's owner-PAT step posts that report and the hardcoded forward step posts `/oc fix` → the Fixer runs. The report never leads with a trigger (issue #713 round 17).
 - **Read-only issues token**: the Tester agent runs with `issues: read` and does not post comments; a hardcoded owner-PAT step publishes its signed report and the `/oc approve-test` marker (issue #713).
 - **Infrastructure PR Guard**: If the diff touches `.github/workflows/`, `.github/agents/`, `AGENTS.md`, or `LAB.md`, the Tester operates strictly read-only (never commits/pushes), validates infrastructure dynamically, and routes issues to `/oc lab`.
 - If clean and all tests pass, the Tester commits any new test suites, pushes, and writes its signed approval report; the workflow publishes `/oc approve-test` -> the test workflow notifies the Maintainer (`/oc maintainer`), which routes the binding Evaluator gate (`/oc eval`) and merges after `approve-eval`.
