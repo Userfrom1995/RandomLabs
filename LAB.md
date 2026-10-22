@@ -204,7 +204,11 @@ Public Surface / Web Track:                                              │
   branch does not yet exist). Audit rule R30 pins the rewritten memory body and
   the exact env maps, and `check_arm_surface` pins the test/review workflow and
   job key sets (no workflow/job `env`, `defaults`, `container`, `strategy`, or
-  `continue-on-error`), each with mutation self-tests.
+  `continue-on-error`), each with mutation self-tests. R30 also executes the
+  real extracted memory body from a workspace carrying live pre-commit and
+  pre-push hooks against a local bare origin, requires the hooks not to fire
+  while the remote tip advances, and proves the fixture live with a
+  workspace-reusing control body whose hook must fire.
 - **Merge capability**: Workflow-file PRs require `workflows` scope, which `GITHUB_TOKEN` cannot grant via `permissions:` (valid `GITHUB_TOKEN` scopes are `actions`, `contents`, `pull-requests`, etc.; `workflows` is App/PAT only). The mutating workflows (`lab.yml`, `maintainer.yml`, `opencode.yml`, `opencode-recover.yml`) push via the PAT-backed runner step (`https://x-access-token:${OPENCODE_PAT}@github.com/...` with credential-injection cleanup), and merges of PRs touching `.github/workflows/*` must likewise use the PAT or an owner click. Read-only agents (Reviewer, Tester, Auditor, Ideator) carry no extra scope. Without a PAT merge, infra PR merges fail with "refusing to allow a GitHub App to create or update workflow ... without workflows permission" (observed on PR #139; flagged in #120). The opencode CLI wrapper additionally performs its own end-of-session push of the checked-out branch with the checkout App token, so on workflow-touching branches that internal push is rejected by the same rule (one rejection comment plus a masked `continue-on-error` step failure; the PAT-backed runner step is the authoritative push). That rejection is expected noise, not agent misbehavior (lab run 39024455956, 2026-10-17). The PAT merge sweep additionally restores full history when the workspace is shallow before its merge-base linkage checks: the opencode CLI session bootstrap re-shallows the checkout with depth-limited fetches, and on a shallow workspace both the three-dot workflow diff and the orphan guard fail closed, silently skipping a legitimately linked workflow PR (issue #602, guarded by audit rule R16).
 - In-progress continuation: When a build requires additional phases (`Status: in-progress`), the workflow triggers `/oc continue`.
 
