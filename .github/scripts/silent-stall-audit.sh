@@ -5045,7 +5045,22 @@ def stage_name(label):
 TRUSTED_PATH_STEP_NAME = "Capture the trusted pre-agent PATH for owner-PAT steps"
 TRUSTED_PATH_EXPR = "${{ steps.trusted_path.outputs.path }}"
 EXPECTED_TRUSTED_PATH_BLOCK_SHA256 = (
-    "d97911b73d6ba64d1d911962c259dd945203f9e6724c9443c19f8decf8a8a465"
+    "ef4cf87de3cf02f71b6828b0b6b8c590fb018bd2b6e605570e69f4dba51144d3"
+)
+# Issue #713 review round 19 (F7): the macOS capture must walk the whole
+# non-system dependency graph, not just the tools' direct dependencies, and
+# it must retarget every trusted copy's dependency references into the
+# trusted directory (re-signing the modified Mach-O images), so a transitive
+# Homebrew dylib can never be loaded after the agent had a chance to replace
+# it. The whole-region SHA pin is the load-bearing guard; these needles keep
+# the recursion property visible even if the expected literal is regenerated
+# in lockstep with a one-level rewrite.
+TRUSTED_PATH_RECURSION_NEEDLES = (
+    'while [ -n "$queue" ]',
+    'nested=$(otool -L "$lib" 2>/dev/null)',
+    'install_name_tool -id',
+    'install_name_tool -change',
+    'codesign --force --sign -',
 )
 
 
@@ -5087,6 +5102,12 @@ def validate(doc, expected):
             ):
                 out.append(
                     "peros-staging(%s:trusted-path-block-not-exact)" % label
+                )
+            elif not all(
+                needle in path_run for needle in TRUSTED_PATH_RECURSION_NEEDLES
+            ):
+                out.append(
+                    "peros-staging(%s:trusted-path-not-recursive)" % label
                 )
         stage_hits = [
             index
@@ -5386,6 +5407,40 @@ if isinstance(doc, dict):
             step["env"]["GH_TOKEN"] = "${{ secrets.OPENCODE_PAT }}"
     if not any("gate-keys-not-exact" in p for p in validate(mutant, EXPECTED)):
         problems.append("peros-staging(self-test-gate-token-swapped)")
+    # Issue #713 review round 19 (F7): the structural recursion check must
+    # stay load-bearing even if a future edit regenerates the whole-region
+    # SHA in lockstep with a one-level rewrite. Rebind the expected SHA to
+    # the mutated block so only the recursion property can fail this test.
+    mutant = copy.deepcopy(doc)
+    for job_id in ("test-linux", "test-macos", "test-windows"):
+        for step in mutant["jobs"][job_id]["steps"]:
+            if (
+                isinstance(step, dict)
+                and step.get("name") == TRUSTED_PATH_STEP_NAME
+            ):
+                step["run"] = step["run"].replace(
+                    'nested=$(otool -L "$lib" 2>/dev/null)',
+                    'nested=""',
+                )
+    saved_trusted_path_sha = EXPECTED_TRUSTED_PATH_BLOCK_SHA256
+    EXPECTED_TRUSTED_PATH_BLOCK_SHA256 = normalized_sha(
+        next(
+            step["run"]
+            for step in mutant["jobs"]["test-macos"]["steps"]
+            if isinstance(step, dict)
+            and step.get("name") == TRUSTED_PATH_STEP_NAME
+        )
+    )
+    try:
+        if not any(
+            "trusted-path-not-recursive" in p
+            for p in validate(mutant, EXPECTED)
+        ):
+            problems.append(
+                "peros-staging(self-test-trusted-path-not-recursive)"
+            )
+    finally:
+        EXPECTED_TRUSTED_PATH_BLOCK_SHA256 = saved_trusted_path_sha
 
 print("\n".join(problems))
 R17STAGEPY
@@ -5409,7 +5464,7 @@ for r17_prompt in tester-linux.md tester-macos.md tester-windows.md; do
   grep -qF 'Findings Report Contract' "$r17_path" || r17_bad="${r17_bad} ${r17_prompt}(no-contract-marker)"
 done
 if [ -z "$r17_bad" ]; then
-  check "R17" "all three per-OS arms stage their system prompt and actor gate from this run's workflow commit into RUNNER_TEMP and unconditionally restore the vendored runner and findings poster from that commit (pinned staging, gate, and restore bodies; staged reference; prompt SHA-256; project-config opt-out; exact gate wiring; the PR-head prompt, gate, runner, and poster are never executed), clear, require, post, and verify the signed /tmp/random-lab-findings.md report (owner-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract; the findings poster also refuses a trigger- or eval-marker-leading report in plain, backticked, or trailing-space form (issue #713 round 19; behaviorally proven) (issues #608, #713)" "ok"
+  check "R17" "all three per-OS arms stage their system prompt and actor gate from this run's workflow commit into RUNNER_TEMP and unconditionally restore the vendored runner and findings poster from that commit (pinned staging, gate, and restore bodies; staged reference; prompt SHA-256; project-config opt-out; exact gate wiring; the PR-head prompt, gate, runner, and poster are never executed), the macOS trusted-tool copy walks the whole non-system dependency graph and retargets every trusted copy's dependency references into the trusted directory (re-signing the modified Mach-O images, with a mutation self-test proving the recursion check load-bearing), clear, require, post, and verify the signed /tmp/random-lab-findings.md report (owner-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract; the findings poster also refuses a trigger- or eval-marker-leading report in plain, backticked, or trailing-space form (issue #713 round 19; behaviorally proven) (issues #608, #713)" "ok"
 else
   check "R17" "per-OS findings-report contract missing:${r17_bad} (issue #608: a PR-creating arm run drops the report and only the run log has it)" "bad"
 fi

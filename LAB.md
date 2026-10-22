@@ -147,9 +147,12 @@ Public Surface / Web Track:                                              │
   `/opt/pipx_bin`, and `/usr/local/.ghcup/bin` as mode 777, so a PR-head
   script could plant a shim a post-agent owner-PAT step would run); macOS
   installs `gh` and `jq` under the runner-owned Homebrew prefix, so those
-  binaries and their non-system dylibs are copied into a root-owned,
-  non-writable directory before the agent starts and that directory is
-  prepended to the captured PATH; Windows has no POSIX ownership mode bits,
+  binaries and their entire non-system dependency graph are copied into a
+  root-owned, non-writable directory before the agent starts, every trusted
+  copy's dependency references are retargeted into that directory with
+  `install_name_tool` (and the modified Mach-O images re-signed), and that
+  directory is prepended to the captured PATH; Windows has no POSIX
+  ownership mode bits,
   so it keeps the `$HOME` filter and the platform ACL model is the documented
   residual, with execution isolation as the real boundary; and the capture
   fails closed unless it still resolves `gh`, `jq`, and `git`, with every
