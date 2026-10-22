@@ -18837,6 +18837,79 @@ else
   r30_owner_pin prinfo "$r30_prinfo_block" "$(r30_expected_prinfo_block)"
   r30_owner_pin context "$r30_context_block" "$(r30_expected_context_block)"
   r30_owner_pin memory "$r30_memory_block" "$(r30_expected_memory_block)"
+  # Review round 23: the memory publish must run outside the agent-writable
+  # checkout with hooks neutralized. Execute the real extracted body from a
+  # workspace whose pre-commit and pre-push hooks are live, require them to
+  # stay unfired, and prove the fixture live with a control body that reuses
+  # the workspace. A body that regresses to the old checkout shape leaves the
+  # marker and fails the audit.
+  r30_memtest=$(mktemp -d)
+  r30_mem_origin="$r30_memtest/origin.git"
+  r30_mem_work="$r30_memtest/workspace"
+  r30_mem_seed="$r30_memtest/seed"
+  r30_mem_marker="$r30_memtest/hook-ran"
+  r30_mem_body="$r30_memtest/body.sh"
+  r30_mem_control="$r30_memtest/control.sh"
+  mkdir -p "$r30_memtest/home" "$r30_memtest/tmp"
+  git init -q --bare "$r30_mem_origin"
+  git init -q "$r30_mem_work"
+  git init -q "$r30_mem_seed"
+  mkdir -p "$r30_mem_work/.git/hooks" "$r30_mem_seed/lab/memory/evaluator"
+  cat > "$r30_mem_work/.git/hooks/pre-commit" <<'R30MEMHOOK'
+#!/bin/sh
+echo hook-ran > "$R30_MEM_HOOK_MARKER"
+R30MEMHOOK
+  cp "$r30_mem_work/.git/hooks/pre-commit" "$r30_mem_work/.git/hooks/pre-push"
+  chmod +x "$r30_mem_work/.git/hooks/pre-commit" "$r30_mem_work/.git/hooks/pre-push"
+  printf 'seed\n' > "$r30_mem_seed/lab/memory/evaluator/eval-log.md"
+  git -C "$r30_mem_seed" add -A
+  git -C "$r30_mem_seed" -c user.name=seed -c user.email=seed@example.com commit -qm seed
+  git -C "$r30_mem_seed" branch -M evaluator/logs
+  git -C "$r30_mem_seed" remote add origin "$r30_mem_origin"
+  git -C "$r30_mem_seed" push -q origin evaluator/logs
+  r30_mem_before=$(git -C "$r30_mem_origin" rev-parse refs/heads/evaluator/logs 2>/dev/null || true)
+  printf '%s\n' "$r30_memory_block" \
+    | sed -e "s#https://x-access-token:\${GH_TOKEN}@github.com/\${{ github.repository }}.git#$r30_mem_origin#" \
+          -e 's#\${{ github.event.issue.number }}#716#g' \
+          -e "s#/tmp/evaluator-decision.json#$r30_memtest/decision.json#g" \
+    > "$r30_mem_body"
+  printf '{"score":9.5,"action":"approve-eval"}\n' > "$r30_memtest/decision.json"
+  printf 'control\n' > "$r30_mem_work/control.txt"
+  ( cd "$r30_mem_work" \
+    && env -i PATH=/usr/bin:/bin HOME="$r30_memtest/home" TMPDIR="$r30_memtest/tmp" \
+         R30_MEM_HOOK_MARKER="$r30_mem_marker" \
+         git add control.txt \
+    && env -i PATH=/usr/bin:/bin HOME="$r30_memtest/home" TMPDIR="$r30_memtest/tmp" \
+         R30_MEM_HOOK_MARKER="$r30_mem_marker" \
+         git -c user.name=control -c user.email=control@example.com commit -qm control ) >/dev/null 2>&1
+  [ -f "$r30_mem_marker" ] || r30_bad="${r30_bad} eval.yml(memory-hook-fixture-not-live)"
+  rm -f "$r30_mem_marker"
+  ( cd "$r30_mem_work" \
+    && env -i PATH=/usr/bin:/bin HOME="$r30_memtest/home" TMPDIR="$r30_memtest/tmp" \
+         GH_TOKEN=dummy R30_MEM_HOOK_MARKER="$r30_mem_marker" \
+         bash -e "$r30_mem_body" ) >/dev/null 2>&1
+  [ -f "$r30_mem_marker" ] && r30_bad="${r30_bad} eval.yml(memory-push-executes-workspace-hooks)"
+  r30_mem_after=$(git -C "$r30_mem_origin" rev-parse refs/heads/evaluator/logs 2>/dev/null || true)
+  if [ -z "$r30_mem_after" ] || [ "$r30_mem_after" = "$r30_mem_before" ]; then
+    r30_bad="${r30_bad} eval.yml(memory-push-did-not-advance-remote)"
+  fi
+  # Mutation control: reuse the workspace and drop hook neutralization; the
+  # planted hook must fire, proving the functional test load-bearing.
+  rm -f "$r30_mem_marker"
+  printf '%s\n' "$r30_memory_block" \
+    | sed -e 's#^work=\$(mktemp -d)$#work="$PWD"#' \
+          -e '/^git -C "\$work" config core.hooksPath \/dev\/null$/d' \
+          -e '/^trap /d' \
+          -e "s#https://x-access-token:\${GH_TOKEN}@github.com/\${{ github.repository }}.git#$r30_mem_origin#" \
+          -e 's#\${{ github.event.issue.number }}#716#g' \
+          -e "s#/tmp/evaluator-decision.json#$r30_memtest/decision.json#g" \
+    > "$r30_mem_control"
+  ( cd "$r30_mem_work" \
+    && env -i PATH=/usr/bin:/bin HOME="$r30_memtest/home" TMPDIR="$r30_memtest/tmp" \
+         GH_TOKEN=dummy R30_MEM_HOOK_MARKER="$r30_mem_marker" \
+         bash -e "$r30_mem_control" ) >/dev/null 2>&1
+  [ -f "$r30_mem_marker" ] || r30_bad="${r30_bad} eval.yml(memory-hook-self-test-not-caught)"
+  rm -rf "$r30_memtest"
   # Issue #713 review round 6: pin the decision-verification and evidence-gate
   # blocks whole-region. The mutation self-tests append a decision (or
   # evidence) rewrite line and require the comparison to reject it, so a
