@@ -1469,7 +1469,10 @@ lab-health board at the cap. The counter and the forwarded issue number reach
 the shell only through `env:` mappings, never as an inline `${{ }}` expansion
 inside a `run:` block (audit R10). The older comment arms keep their
 auto-retry caps (`opencode.yml`, `opencode-review.yml`, and the curator's
-comment arm); the newer comment arms (`auditor.yml`, `ideate.yml`, `lab.yml`)
+comment arm); a posted review retry is a green handoff rather than a red run
+(the verify step writes `retry=true` before the retry POST and both forward
+steps are gated on its absence, issue #743); the newer comment arms
+(`auditor.yml`, `ideate.yml`, `lab.yml`)
 fail closed on purpose so the `workflow_run` failure trigger summons the
 Maintainer. `opencode-recover.yml`'s schedule arm is the fully scripted
 20-minute detector (no agent) and needs no such retry; the Maintainer's own

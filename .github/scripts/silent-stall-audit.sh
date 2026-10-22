@@ -6084,7 +6084,15 @@ fi
 #      fail-loud branch may exist after it); a verification failure (exit
 #      2) neither forwards nor auto-retries a possibly-published review;
 #   4. the force-lab-routing and forward steps are gated on the verify
-#      step's success, so no forward path survives an inconclusive verify;
+#      step's success AND on the absence of a posted auto-retry, so no
+#      forward path survives an inconclusive verify and a healthy retry
+#      handoff is not turned into a red run by the missing-decision check
+#      (issue #743, duplicate #744 retry-lane finding: review runs
+#      39820531649, 39820598528, and 39820668266 each posted the retry and
+#      then failed in "Forward reviewer decision"); the retry marker is
+#      written immediately before the auto-retry POST and is regressed by a
+#      behavioral assertion on the real extracted verify block plus mutation
+#      self-tests that remove the marker and the gate guard;
 #   5. a functional test executes the real script against an executable mock
 #      `gh` (interception asserted, credentials scrubbed, per-case payload
 #      from a sandbox config file, sandbox outside the repo tree) across
@@ -6151,7 +6159,25 @@ fi
 # branch and the two forward steps are statically pinned, not executed.
 r19_bad=""
 R19_SCRIPT=".github/scripts/review-comment-published.sh"
-R19_VERDICT_GATE="if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success'"
+R19_VERDICT_GATE="if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success' && steps.verify-review.outputs.retry != 'true'"
+# Issue #743 retry-lane predicates (duplicate #744 finding). A posted
+# auto-retry is a successful handoff, so the verify step must mark the run
+# (`retry=true` written immediately before the retry POST) and both
+# downstream steps must carry the retry guard. Without this, the retry is
+# posted and the job still reds in "Forward reviewer decision" on the
+# missing decision file. Shared by the shipped-workflow check and the
+# mutation self-tests below so removal of either piece fails the audit.
+r19_retry_marker_ok() {
+  local f="$1" w p
+  [ "$(grep -cF 'echo "retry=true" >> "$GITHUB_OUTPUT"' "$f" 2>/dev/null || true)" -eq 1 ] || return 1
+  w=$(grep -nxF '              echo "retry=true" >> "$GITHUB_OUTPUT"' "$f" 2>/dev/null | head -1 | cut -d: -f1)
+  p=$(grep -nxF '              gh api "repos/${{ github.repository }}/issues/$pr/comments" -f body="/oc review (auto-retry $n)"' "$f" 2>/dev/null | head -1 | cut -d: -f1)
+  [ -n "$w" ] && [ -n "$p" ] && [ "$w" -eq $((p - 1)) ]
+}
+r19_retry_gate_ok() {
+  local f="$1"
+  [ "$(grep -cF "$R19_VERDICT_GATE" "$f" 2>/dev/null || true)" -eq 2 ]
+}
 # F5 (review round 1): the verify step's exact name line, computed from its
 # unique step id below and reused by both the static extraction and the
 # property-6 behavioral extraction.
@@ -6483,12 +6509,28 @@ else
     r19_missing_block=$(printf '%s\n' "$r19_verify_block" | awk 'index($0, "if [ -z \"$evidence_script\" ]; then") {f=1} f {print} f && $0 ~ /^[[:space:]]*fi[[:space:]]*$/ {exit}')
     printf '%s\n' "$r19_missing_block" | grep -qE '^[[:space:]]*exit 1$' || r19_bad="${r19_bad} review.yml(missing-script-not-fail-closed)"
     printf '%s\n' "$r19_missing_block" | grep -qE '^[[:space:]]*exit 0$' && r19_bad="${r19_bad} review.yml(missing-script-exits-0)"
-    # No forward path survives an inconclusive verify: both the infra
-    # override and the decision forward carry the exact verify-success gate.
-    r19_gated=$(grep -cF "if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success'" "$REVIEW_WF" || true)
-    [ "$r19_gated" -eq 2 ] || r19_bad="${r19_bad} review.yml(verify-gated-forward-count=${r19_gated},want=2)"
+    # No forward path survives an inconclusive verify, and no forwarded path
+    # runs after a successful retry handoff (issue #743, duplicate #744): both
+    # the infra override and the decision forward carry the exact verdict gate
+    # plus the retry guard, and the verify step marks the retry immediately
+    # before the POST.
+    r19_retry_marker_ok "$REVIEW_WF" || r19_bad="${r19_bad} review.yml(retry-marker-not-before-post)"
+    r19_retry_gate_ok "$REVIEW_WF" || r19_bad="${r19_bad} review.yml(retry-gated-forward-count-not-2)"
     printf '%s\n' "$(grep -A1 -F -- '- name: Force lab routing for infrastructure PRs' "$REVIEW_WF" | tail -1 | sed 's/^[[:space:]]*//')" | grep -qxF "$R19_VERDICT_GATE" || r19_bad="${r19_bad} review.yml(force-lab-step-not-gated)"
     printf '%s\n' "$(grep -A1 -F -- '- name: Forward reviewer decision' "$REVIEW_WF" | tail -1 | sed 's/^[[:space:]]*//')" | grep -qxF "$R19_VERDICT_GATE" || r19_bad="${r19_bad} review.yml(forward-step-not-gated)"
+    # Mutation self-tests: each load-bearing retry-lane piece is proven
+    # catchable by the SAME predicate applied to the shipped file above, so a
+    # refactor that neuters the check itself is caught too.
+    r19_mut_dir=$(mktemp -d 2>/dev/null || true)
+    if [ -z "$r19_mut_dir" ] || [ ! -d "$r19_mut_dir" ]; then
+      r19_bad="${r19_bad} review.yml(retry-mutation-sandbox-unavailable)"
+    else
+      grep -vF 'echo "retry=true" >> "$GITHUB_OUTPUT"' "$REVIEW_WF" > "$r19_mut_dir/no-marker.yml" 2>/dev/null || true
+      r19_retry_marker_ok "$r19_mut_dir/no-marker.yml" && r19_bad="${r19_bad} review.yml(mutation-retry-marker-removal-not-caught)"
+      sed "s/ && steps.verify-review.outputs.retry != 'true'//g" "$REVIEW_WF" > "$r19_mut_dir/no-gate.yml" 2>/dev/null || true
+      r19_retry_gate_ok "$r19_mut_dir/no-gate.yml" && r19_bad="${r19_bad} review.yml(mutation-retry-gate-removal-not-caught)"
+      rm -rf "$r19_mut_dir"
+    fi
     # F21 (review round 4): the forward path and the job's step sequence are
     # pinned. The forward step must post exactly the five canonical triggers
     # (an edit such as /oc test -> /oc fix silently misroutes every approved
@@ -6812,8 +6854,9 @@ R19P_GH
             "$r19p_tmp/bin/gh" api "repos/mockrepo/issues/614/comments" -f body="/oc review (auto-retry 1)" > /dev/null 2>&1 || true
           grep -qF -- "/oc review (auto-retry 1)" "$r19p_tmp/posts" 2>/dev/null || r19_bad="${r19_bad} verify-behavioral(mock-probe-failed)"
           r19p_case() {
-            local name="$1" want_rc="$2" ev_rc="$3" outcome="$4" dec_before="$5" dec_after="$6" payload="$7" enum_fail="$8" want_post="$9" gate="${10}" want_re="${11:-}" post_fail="${12:-}"
+            local name="$1" want_rc="$2" ev_rc="$3" outcome="$4" dec_before="$5" dec_after="$6" payload="$7" enum_fail="$8" want_post="$9" gate="${10}" want_re="${11:-}" post_fail="${12:-}" want_retry="${13:-0}"
             : > "$r19p_tmp/posts"
+            : > "$r19p_tmp/run/github_output"
             if [ "$dec_before" = "1" ]; then
               printf '{"action":"lab"}\n' > "$r19p_tmp/decision.json"
             else
@@ -6852,6 +6895,15 @@ R19P_GH
             if [ -n "$want_re" ] && ! grep -qE "$want_re" "$r19p_tmp/out" 2>/dev/null; then
               r19_bad="${r19_bad} verify-behavioral(${name}:missing-output)"
             fi
+            # Issue #743 retry lane (duplicate #744): a taken retry branch
+            # must mark the step so the retry-gated forward steps stay
+            # skipped; a non-retry path must never write the marker (which
+            # would silently suppress a real verdict forward).
+            if [ "$want_retry" = "1" ]; then
+              grep -qxF 'retry=true' "$r19p_tmp/run/github_output" 2>/dev/null || r19_bad="${r19_bad} verify-behavioral(${name}:missing-retry-marker)"
+            else
+              grep -qxF 'retry=true' "$r19p_tmp/run/github_output" 2>/dev/null && r19_bad="${r19_bad} verify-behavioral(${name}:unexpected-retry-marker)"
+            fi
           }
           r19p_case published-verdict 0 0 success 1 1 "$r19p_tmp/p0.json" 0 "" true "gate produced a verdict"
           # F12 (review round 3): the outcome quadrants. The #616 incident
@@ -6860,17 +6912,17 @@ R19P_GH
           # must fire, while a published verdict must survive a failed agent
           # step untouched.
           r19p_case failure-published-verdict 0 0 failure 1 1 "$r19p_tmp/p0.json" 0 "" true "gate produced a verdict"
-          r19p_case success-unpublished 0 1 success 1 0 "$r19p_tmp/p0.json" 0 "/oc review (auto-retry 1)" true "Posting auto-retry 1"
+          r19p_case success-unpublished 0 1 success 1 0 "$r19p_tmp/p0.json" 0 "/oc review (auto-retry 1)" true "Posting auto-retry 1" "" 1
           # F11 (review round 3): a rejected retry POST must fail the step
           # loudly (the runner's bash -e), never fall through to exit 0 with
           # the retry silently lost.
-          r19p_case success-unpublished-post-fail 1 1 success 1 0 "$r19p_tmp/p0.json" 0 "" true "Posting auto-retry 1" 1
-          r19p_case failure-unpublished-verdict 0 1 failure 1 0 "$r19p_tmp/p0.json" 0 "/oc review (auto-retry 1)" true "Posting auto-retry 1"
-          r19p_case success-unpublished-prior 0 1 success 1 0 "$r19p_tmp/p1.json" 0 "/oc review (auto-retry 2)" true "Posting auto-retry 2"
-          r19p_case success-unpublished-prior2 0 1 success 1 0 "$r19p_tmp/p2.json" 0 "/oc review (auto-retry 3)" true "Posting auto-retry 3"
-          r19p_case success-unpublished-foreign-marker 0 1 success 1 0 "$r19p_tmp/p-foreign.json" 0 "/oc review (auto-retry 1)" true "Posting auto-retry 1"
-          r19p_case success-unpublished-embedded-marker 0 1 success 1 0 "$r19p_tmp/p-embedded.json" 0 "/oc review (auto-retry 1)" true "Posting auto-retry 1"
-          r19p_case crash-no-verdict 0 1 failure 0 0 "$r19p_tmp/p0.json" 0 "/oc review (auto-retry 1)" true "crashed mid-run"
+          r19p_case success-unpublished-post-fail 1 1 success 1 0 "$r19p_tmp/p0.json" 0 "" true "Posting auto-retry 1" 1 1
+          r19p_case failure-unpublished-verdict 0 1 failure 1 0 "$r19p_tmp/p0.json" 0 "/oc review (auto-retry 1)" true "Posting auto-retry 1" "" 1
+          r19p_case success-unpublished-prior 0 1 success 1 0 "$r19p_tmp/p1.json" 0 "/oc review (auto-retry 2)" true "Posting auto-retry 2" "" 1
+          r19p_case success-unpublished-prior2 0 1 success 1 0 "$r19p_tmp/p2.json" 0 "/oc review (auto-retry 3)" true "Posting auto-retry 3" "" 1
+          r19p_case success-unpublished-foreign-marker 0 1 success 1 0 "$r19p_tmp/p-foreign.json" 0 "/oc review (auto-retry 1)" true "Posting auto-retry 1" "" 1
+          r19p_case success-unpublished-embedded-marker 0 1 success 1 0 "$r19p_tmp/p-embedded.json" 0 "/oc review (auto-retry 1)" true "Posting auto-retry 1" "" 1
+          r19p_case crash-no-verdict 0 1 failure 0 0 "$r19p_tmp/p0.json" 0 "/oc review (auto-retry 1)" true "crashed mid-run" "" 1
           r19p_case cap-reached 1 1 failure 0 0 "$r19p_tmp/p3.json" 0 "" true "still dead after 4 attempts"
           r19p_case enumeration-failure 1 1 failure 0 0 "$r19p_tmp/p0.json" 1 "" true "Could not enumerate"
           r19p_case unverifiable 1 2 success 1 0 "$r19p_tmp/p0.json" 0 "" true "Could not verify"
@@ -6891,7 +6943,7 @@ else
   r19_bad="${r19_bad} reviewer.md(missing)"
 fi
 if [ -z "$r19_bad" ]; then
-  check "R19" "review forwarding requires published decision-comment evidence: the shared script accepts only an owner-authored, post-trigger, reviewer-signed comment (exit 0/1/2), the verify step extracts it from this run's own workflow commit, discards unpublished verdicts before the retry and forward paths and runs the same bounded auto-retry regardless of the agent outcome (issue #637), fails closed on inconclusive verification, both forward steps are verify-success gated, the verify step is bound to its unique id: verify-review and its single run key, the retry POST line, enumeration URL, counter predicate, PR-number binding, missing-evidence fail-closed exit, step if: line, AGENT_GATE mapping, and owner-PAT GH_TOKEN, workflow-commit provenance probe/extraction and evidence invocation as exact whole lines with GITHUB_SHA-reassignment and HEAD-provenance bans, the absence of shell/continue-on-error/defaults overrides at step, job, and workflow level, the forward step's five exact trigger bodies, PAT token, and absent attribute overrides, the review job's exact step sequence, and the absence of harness/env fingerprints and fail-fast bypasses (including quoted set +e) are pinned statically, the shared owner-PAT report publisher is pinned statically (pre/post sign-off, owner authorship, exact-body re-fetch, numeric target, LF-normalization tempfile, no sandbox fingerprints; issue #713), and refuses a report whose first non-blank line is a command trigger or the eval merge marker in plain, backticked, or trailing-space form (issue #713 round 19; behaviorally proven), and the real extracted verify block is executed under the runner's bash -e default in a production-shaped env (GITHUB_ACTIONS/GITHUB_REPOSITORY set, ambient CI vars sanitized) with GITHUB_SHA pointing at the good evidence stub and a poisoned workspace tip against an endpoint-bound mock gh across the published, crash/unpublished, outcome-quadrant, rejected-POST, cap/denial/lookalike matrix with an argument-validating evidence stub and the retry cap pinned to exactly 3 (issues #616, #637)" "ok"
+  check "R19" "review forwarding requires published decision-comment evidence: the shared script accepts only an owner-authored, post-trigger, reviewer-signed comment (exit 0/1/2), the verify step extracts it from this run's own workflow commit, discards unpublished verdicts before the retry and forward paths and runs the same bounded auto-retry regardless of the agent outcome (issue #637), fails closed on inconclusive verification, both forward steps are verify-success gated AND retry-gated (a posted auto-retry is never red-ed by the missing-decision forward; issue #743, duplicate #744), the retry marker is pinned immediately before the retry POST and asserted behaviorally (present exactly when the retry branch is taken) with mutation self-tests for marker and gate removal, the verify step is bound to its unique id: verify-review and its single run key, the retry POST line, enumeration URL, counter predicate, PR-number binding, missing-evidence fail-closed exit, step if: line, AGENT_GATE mapping, and owner-PAT GH_TOKEN, workflow-commit provenance probe/extraction and evidence invocation as exact whole lines with GITHUB_SHA-reassignment and HEAD-provenance bans, the absence of shell/continue-on-error/defaults overrides at step, job, and workflow level, the forward step's five exact trigger bodies, PAT token, and absent attribute overrides, the review job's exact step sequence, and the absence of harness/env fingerprints and fail-fast bypasses (including quoted set +e) are pinned statically, the shared owner-PAT report publisher is pinned statically (pre/post sign-off, owner authorship, exact-body re-fetch, numeric target, LF-normalization tempfile, no sandbox fingerprints; issue #713), and refuses a report whose first non-blank line is a command trigger or the eval merge marker in plain, backticked, or trailing-space form (issue #713 round 19; behaviorally proven), and the real extracted verify block is executed under the runner's bash -e default in a production-shaped env (GITHUB_ACTIONS/GITHUB_REPOSITORY set, ambient CI vars sanitized) with GITHUB_SHA pointing at the good evidence stub and a poisoned workspace tip against an endpoint-bound mock gh across the published, crash/unpublished, outcome-quadrant, rejected-POST, cap/denial/lookalike matrix with an argument-validating evidence stub and the retry cap pinned to exactly 3 (issues #616, #637)" "ok"
 else
   check "R19" "review-comment publication-evidence guard missing:${r19_bad} (issues #616/#637: an unread verdict can be forwarded, or a lost success+unpublished verdict can skip the bounded auto-retry)" "bad"
 fi
