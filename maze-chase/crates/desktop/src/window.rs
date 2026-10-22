@@ -9,7 +9,9 @@
 
 use crate::app::App;
 use crate::cli::Opts;
+use crate::frame::{Frame, MAX_PIXELS};
 use crate::input::winit_to_key;
+use crate::screens::ScreenId;
 use softbuffer::{Context, Surface};
 use std::num::NonZeroU32;
 use std::sync::Arc;
@@ -24,6 +26,10 @@ use winit::window::{Fullscreen, Window, WindowId};
 /// the fullscreen resize before capturing at the size the window has.
 const FULLSCREEN_SETTLE: Duration = Duration::from_secs(2);
 
+/// Target cadence for continuous frames (playing, and `--probe`).
+/// Static screens wait for input instead of spinning the event loop.
+const FRAME_INTERVAL: Duration = Duration::from_millis(16);
+
 /// Fatal window-bootstrap failure: reported on stderr with exit code 1.
 ///
 /// Every variant used to be a silent `event_loop.exit()`, so a broken
@@ -37,6 +43,8 @@ enum BootFailure {
     Context(String),
     /// softbuffer could not create the presentation surface.
     Surface(String),
+    /// The game could not produce a frame at the bounded render size.
+    Render(String),
 }
 
 impl BootFailure {
@@ -46,6 +54,7 @@ impl BootFailure {
             Self::Window(e) => format!("cannot create the game window ({e})"),
             Self::Context(e) => format!("cannot create the display context ({e})"),
             Self::Surface(e) => format!("cannot create the presentation surface ({e})"),
+            Self::Render(e) => format!("cannot render a frame ({e})"),
         }
     }
 }
@@ -128,6 +137,8 @@ struct Runner {
     size: (u32, u32),
     fullscreen: bool,
     last: Instant,
+    next_frame: Instant,
+    scaled_notice: bool,
     probe_left: Option<(u32, std::path::PathBuf)>,
     probe_gate: ProbeGate,
     last_frame: Option<crate::frame::Frame>,
@@ -148,6 +159,8 @@ impl Runner {
             context: None,
             size: (1100, 760),
             last: Instant::now(),
+            next_frame: Instant::now(),
+            scaled_notice: false,
             probe_gate: ProbeGate::Open,
             last_frame: None,
             fatal: None,
@@ -174,6 +187,11 @@ impl Runner {
                 ProbeGate::arm(fullscreen_probe, monitor_size(&window), Instant::now());
             window.set_fullscreen(Some(Fullscreen::Borderless(None)));
         }
+        // Window sizing is in physical pixels: the requested inner size is
+        // logical, so HiDPI displays must start the surface at the scaled
+        // physical size or the first frames render at half density.
+        let inner = window.inner_size();
+        self.size = (inner.width.max(1), inner.height.max(1));
         let context = match Context::new(event_loop.owned_display_handle()) {
             Ok(context) => context,
             Err(e) => {
@@ -240,7 +258,25 @@ impl Runner {
                 return;
             }
         }
-        let Some(frame) = self.app.render(self.size.0, self.size.1) else {
+        let (rw, rh) = bounded_render_size(self.size.0, self.size.1);
+        if (rw, rh) != self.size && !self.scaled_notice {
+            eprintln!(
+                "maze-chase-desktop: window {}x{} exceeds the {} pixel render budget; rendering at {}x{} and scaling",
+                self.size.0, self.size.1, MAX_PIXELS, rw, rh
+            );
+            if let Some(window) = &self.window {
+                window.set_title("Maze Chase (scaled render)");
+            }
+            self.scaled_notice = true;
+        }
+        let Some(frame) = self.app.render(rw, rh) else {
+            if self.fatal.is_none() {
+                self.fatal = Some(BootFailure::Render(format!(
+                    "no frame at {}x{} (window {}x{})",
+                    rw, rh, self.size.0, self.size.1
+                )));
+            }
+            self.app.quit = true;
             return;
         };
         let (Some(surface), Some(_)) = (self.surface.as_mut(), self.window.as_ref()) else {
@@ -250,16 +286,20 @@ impl Runner {
         let Ok(mut buffer) = surface.buffer_mut() else {
             return;
         };
-        let n = (self.size.0 as usize * self.size.1 as usize)
-            .min(buffer.len())
-            .min(frame.px.len());
-        buffer[..n].copy_from_slice(&frame.px[..n]);
+        blit_to_buffer(&frame, &mut buffer, self.size.0, self.size.1);
         buffer.present().ok();
         self.last_frame = Some(frame);
     }
 
     /// Bounded verification countdown: persist the last screenshot and
     /// stop the loop when the frame budget runs out.
+    /// Playing needs continuous simulation frames; the probe countdown
+    /// needs frames to advance. Every other screen is static until an
+    /// event arrives.
+    fn wants_continuous_frames(&self) -> bool {
+        self.app.screens.current == ScreenId::Playing || self.probe_left.is_some()
+    }
+
     fn tick_probe(&mut self) {
         let Some((left, path)) = self.probe_left.clone() else {
             return;
@@ -293,6 +333,48 @@ impl Runner {
     }
 }
 
+/// Bound the game's render size to [`MAX_PIXELS`]. A window larger than
+/// the budget is rendered at the largest proportional size inside it and
+/// scaled up on presentation, so an 8K/HiDPI display never allocates an
+/// unbounded software frame or freezes silently.
+fn bounded_render_size(w: u32, h: u32) -> (u32, u32) {
+    let (w, h) = (w.max(1), h.max(1));
+    let pixels = w as u64 * h as u64;
+    if pixels <= MAX_PIXELS {
+        return (w, h);
+    }
+    let ratio = (MAX_PIXELS as f64 / pixels as f64).sqrt();
+    (
+        ((w as f64 * ratio).floor() as u32).max(1),
+        ((h as f64 * ratio).floor() as u32).max(1),
+    )
+}
+
+/// Present a frame, nearest-neighbor scaling when the bounded render
+/// size is smaller than the window.
+fn blit_to_buffer(frame: &Frame, buffer: &mut [u32], w: u32, h: u32) {
+    let (w, h) = (w.max(1), h.max(1));
+    if (frame.w, frame.h) == (w, h) {
+        let n = frame.px.len().min(buffer.len());
+        buffer[..n].copy_from_slice(&frame.px[..n]);
+        return;
+    }
+    let dw = w as usize;
+    let dh = h as usize;
+    for y in 0..dh {
+        let sy = (y as u64 * frame.h as u64 / h as u64) as usize;
+        let row = sy * frame.w as usize;
+        for x in 0..dw {
+            let di = y * dw + x;
+            if di >= buffer.len() {
+                return;
+            }
+            let sx = (x as u64 * frame.w as u64 / w as u64) as usize;
+            buffer[di] = frame.px[row + sx];
+        }
+    }
+}
+
 fn resize_surface(surface: &mut Surface<DisplayHandle, Arc<Window>>, size: (u32, u32)) {
     if let (Some(w), Some(h)) = (NonZeroU32::new(size.0), NonZeroU32::new(size.1)) {
         surface.resize(w, h).ok();
@@ -302,6 +384,9 @@ fn resize_surface(surface: &mut Surface<DisplayHandle, Arc<Window>>, size: (u32,
 impl ApplicationHandler for Runner {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         self.ensure_surface(event_loop);
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
@@ -309,11 +394,25 @@ impl ApplicationHandler for Runner {
             event_loop.exit();
             return;
         }
-        if let Some(window) = &self.window {
-            window.request_redraw();
-        } else {
+        let Some(window) = &self.window else {
             self.ensure_surface(event_loop);
+            return;
+        };
+        if !self.wants_continuous_frames() {
+            event_loop.set_control_flow(ControlFlow::Wait);
+            return;
         }
+        let now = Instant::now();
+        if now >= self.next_frame {
+            if now.duration_since(self.last) > Duration::from_millis(100) {
+                // Do not fast-forward a paused or static session by the
+                // whole gap on its first continuous frame.
+                self.last = now;
+            }
+            window.request_redraw();
+            self.next_frame = (self.next_frame + FRAME_INTERVAL).max(now + FRAME_INTERVAL);
+        }
+        event_loop.set_control_flow(ControlFlow::WaitUntil(self.next_frame));
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -322,11 +421,25 @@ impl ApplicationHandler for Runner {
             WindowEvent::Resized(size) => {
                 self.size = (size.width.max(1), size.height.max(1));
                 self.probe_gate.note_resize(self.size);
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            WindowEvent::ScaleFactorChanged { .. } => {
+                if let Some(window) = &self.window {
+                    let size = window.inner_size();
+                    self.size = (size.width.max(1), size.height.max(1));
+                    self.probe_gate.note_resize(self.size);
+                    window.request_redraw();
+                }
             }
             WindowEvent::RedrawRequested => self.draw(),
             WindowEvent::KeyboardInput { event, .. } => {
                 if event.state != ElementState::Pressed {
                     return;
+                }
+                if let Some(window) = &self.window {
+                    window.request_redraw();
                 }
                 if event.physical_key == PhysicalKey::Code(KeyCode::KeyF) {
                     self.toggle_fullscreen();
@@ -355,7 +468,7 @@ pub fn run(app: App, opts: Opts) -> i32 {
             return 1;
         }
     };
-    event_loop.set_control_flow(ControlFlow::Poll);
+    event_loop.set_control_flow(ControlFlow::Wait);
     let mut runner = Runner::new(app, opts);
     if runner.opts.no_pad {
         runner.app.pad = crate::gamepad::PadPoll::absent();
@@ -407,6 +520,48 @@ mod tests {
 
     fn temp_probe_path(suffix: &str) -> PathBuf {
         std::env::temp_dir().join(format!("{}.ppm", tag(suffix)))
+    }
+
+    #[test]
+    fn bounded_render_keeps_normal_windows_exact() {
+        assert_eq!(bounded_render_size(1100, 760), (1100, 760));
+        assert_eq!(bounded_render_size(0, 0), (1, 1));
+    }
+
+    #[test]
+    fn bounded_render_fits_an_8k_window_inside_the_budget() {
+        let (w, h) = bounded_render_size(7680, 4320);
+        assert!((w as u64 * h as u64) <= MAX_PIXELS);
+        assert!(
+            w > 5000 && h > 3000,
+            "kept most of the 8K resolution: {w}x{h}"
+        );
+        assert!(
+            (w as f64 / h as f64 - 7680.0 / 4320.0).abs() < 0.01,
+            "kept the aspect ratio: {w}x{h}"
+        );
+    }
+
+    #[test]
+    fn blit_scales_a_small_frame_across_the_window() {
+        let mut frame = Frame::blank(2, 1, Rgb(0, 0, 0)).expect("2x1 frame");
+        frame.px[0] = 0x00112233;
+        frame.px[1] = 0x00445566;
+        let mut buffer = vec![0u32; 4];
+        blit_to_buffer(&frame, &mut buffer, 4, 1);
+        assert_eq!(buffer, vec![0x00112233, 0x00112233, 0x00445566, 0x00445566]);
+    }
+
+    #[test]
+    fn continuous_frames_are_needed_only_while_playing_or_probing() {
+        let mut runner = test_runner(false, None);
+        assert!(!runner.wants_continuous_frames(), "title waits for input");
+        runner.app.screens.current = ScreenId::Playing;
+        assert!(runner.wants_continuous_frames());
+        runner.app.screens.current = ScreenId::Paused;
+        assert!(!runner.wants_continuous_frames());
+        runner.probe_left = Some((2, temp_probe_path("continuous")));
+        assert!(runner.wants_continuous_frames(), "probe counts frames");
     }
 
     #[test]
