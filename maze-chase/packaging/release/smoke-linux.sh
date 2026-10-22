@@ -126,9 +126,15 @@ for tarball in "${TARBALLS[@]+"${TARBALLS[@]}"}"; do
   tar -xzf "$tarball" -C "$unpack"
   check_version "$unpack/maze-chase-$name" "$tarball"
   # Install, launch from the prefix, then uninstall and prove removal.
-  bash "$ROOT/packaging/$name/install-linux.sh" --tarball "$tarball" --prefix "$prefix" >/dev/null
+  # Exercise the installer shipped inside the archive, the path the
+  # launch guide tells users to run, not the repository copy.
+  [ -x "$unpack/install-linux.sh" ] || {
+    echo "smoke: $tarball lacks install-linux.sh" >&2
+    exit 1
+  }
+  ( cd "$unpack" && ./install-linux.sh --prefix "$prefix" ) >/dev/null
   check_version "$prefix/bin/maze-chase-$name" "$tarball installed"
-  bash "$ROOT/packaging/$name/uninstall-linux.sh" --prefix "$prefix" >/dev/null
+  ( cd "$unpack" && ./uninstall-linux.sh --prefix "$prefix" ) >/dev/null
   [ ! -e "$prefix/bin/maze-chase-$name" ] || {
     echo "smoke: $name uninstall left the binary behind" >&2
     exit 1

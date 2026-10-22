@@ -281,15 +281,40 @@ jobs:
           may warn on first launch (More info, then Run anyway); macOS
           Gatekeeper needs a right-click Open the first time.
           EOF
+          # A tag can exist without a release, so validate its commit
+          # before either the refresh or the create path. gh resolves
+          # annotated tags to their commit; if that lookup fails, use
+          # ls-remote to distinguish "no tag" from "tag but no answer"
+          # and fail closed on the latter.
+          TAG_SHA=""
+          if ! TAG_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG}" --jq .sha 2>/dev/null)"; then
+            rc=0
+            git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1 || rc=$?
+            if [ "$rc" -eq 0 ]; then
+              echo "error: release tag $TAG exists but its commit cannot be resolved" >&2
+              exit 1
+            fi
+            if [ "$rc" -ne 2 ]; then
+              echo "error: cannot check whether release tag $TAG exists" >&2
+              exit 1
+            fi
+            TAG_SHA=""
+          fi
+          if [ -n "$TAG_SHA" ] && [ "$TAG_SHA" != "$GITHUB_SHA" ]; then
+            echo "error: release tag $TAG points at $TAG_SHA, not the tested commit $GITHUB_SHA" >&2
+            exit 1
+          fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" --clobber release-assets/*
             gh release edit "$TAG" --notes-file "$NOTES"
             echo "[maze-chase-release] refreshed $TAG"
           else
+            # Bind the new tag to the commit the artifacts were built
+            # from: on a branch dispatch the default branch is not it.
             if [ "$PRERELEASE" = "true" ]; then
-              gh release create "$TAG" --title "Maze Chase $VERSION" --notes-file "$NOTES" --prerelease release-assets/*
+              gh release create "$TAG" --target "$GITHUB_SHA" --title "Maze Chase $VERSION" --notes-file "$NOTES" --prerelease release-assets/*
             else
-              gh release create "$TAG" --title "Maze Chase $VERSION" --notes-file "$NOTES" release-assets/*
+              gh release create "$TAG" --target "$GITHUB_SHA" --title "Maze Chase $VERSION" --notes-file "$NOTES" release-assets/*
             fi
             echo "[maze-chase-release] published $TAG"
           fi

@@ -38,7 +38,7 @@ EOF
 cat >"$TOPDIR/SPECS/maze-chase-terminal.spec" <<EOF
 Name:           maze-chase-terminal
 Version:        $VERSION
-Release:        1%{?dist}
+Release:        1
 Summary:        Original fullscreen terminal maze-chase game
 License:        MIT
 URL:            https://github.com/Userfrom1995/RandomLabs/tree/main/maze-chase

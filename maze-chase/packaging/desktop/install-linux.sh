@@ -29,9 +29,13 @@ if [ -n "$TARBALL" ]; then
 fi
 
 # Local mode installs the release binary from the workspace target dir.
+# A tarball install never falls back: a malformed archive must fail
+# instead of silently installing a developer build.
 LOCAL_BIN="$ROOT/target/release/maze-chase-desktop"
 BIN="$WORK/maze-chase-desktop"
-[ -f "$BIN" ] || BIN="$LOCAL_BIN"
+if [ -z "$TARBALL" ] && [ ! -f "$BIN" ]; then
+  BIN="$LOCAL_BIN"
+fi
 
 mkdir -p "$PREFIX/bin" "$PREFIX/share/applications" \
   "$PREFIX/share/icons/hicolor/11x11/apps" "$PREFIX/share/doc/maze-chase"

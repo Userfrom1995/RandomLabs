@@ -43,7 +43,7 @@ EOF
 cat >"$TOPDIR/SPECS/maze-chase-desktop.spec" <<EOF
 Name:           maze-chase-desktop
 Version:        $VERSION
-Release:        1%{?dist}
+Release:        1
 Summary:        Original desktop maze-chase game
 License:        MIT
 URL:            https://github.com/Userfrom1995/RandomLabs/tree/main/maze-chase
@@ -51,6 +51,7 @@ BuildArch:      $ARCH
 Requires:       alsa-lib
 Requires:       libxkbcommon
 Requires:       libxkbcommon-x11
+Requires:       systemd-libs
 
 %description
 Maze Chase is an original maze-chase game on a shared deterministic Rust
@@ -66,6 +67,22 @@ controls, and live resize.
 rm -rf %{buildroot}
 mkdir -p %{buildroot}
 cp -a %{_sourcedir}/payload/. %{buildroot}/
+
+%post
+if command -v update-desktop-database >/dev/null 2>&1; then
+  update-desktop-database /usr/share/applications >/dev/null 2>&1 || :
+fi
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+  gtk-update-icon-cache -q /usr/share/icons/hicolor >/dev/null 2>&1 || :
+fi
+
+%postun
+if command -v update-desktop-database >/dev/null 2>&1; then
+  update-desktop-database /usr/share/applications >/dev/null 2>&1 || :
+fi
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+  gtk-update-icon-cache -q /usr/share/icons/hicolor >/dev/null 2>&1 || :
+fi
 
 %files
 /usr/bin/maze-chase-desktop

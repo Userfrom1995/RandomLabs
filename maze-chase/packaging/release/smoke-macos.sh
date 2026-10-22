@@ -98,6 +98,32 @@ for tarball in "${TARBALLS[@]+"${TARBALLS[@]}"}"; do
   unpack="$WORK/tar-$(basename "$tarball")"
   mkdir -p "$unpack"
   tar -xzf "$tarball" -C "$unpack"
-  check_app "$unpack/Maze Chase.app" "$tarball"
+  # A macOS stage passes both tarballs: the desktop one carries the .app
+  # bundle and the terminal one carries the plain binary. Classify by
+  # name instead of looking for a bundle in every archive.
+  case "$(basename "$tarball")" in
+    maze-chase-terminal-*)
+      exe="$unpack/maze-chase-terminal"
+      [ -x "$exe" ] || {
+        echo "smoke: $tarball has no terminal binary" >&2
+        exit 1
+      }
+      out="$("$exe" --version 2>&1)"
+      case "$out" in
+        *"$VERSION"*) echo "smoke: $tarball --version -> $out" ;;
+        *)
+          echo "smoke: $tarball reports '$out', expected $VERSION" >&2
+          exit 1
+          ;;
+      esac
+      ;;
+    maze-chase-desktop-*)
+      check_app "$unpack/Maze Chase.app" "$tarball"
+      ;;
+    *)
+      echo "smoke: cannot identify tarball layer: $tarball" >&2
+      exit 1
+      ;;
+  esac
   echo "smoke: ok $tarball"
 done
