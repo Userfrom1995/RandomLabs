@@ -247,7 +247,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
-          PATH: /usr/local/bin:/usr/bin:/bin
+          PATH: /usr/bin:/bin
           TARGET: ${{ github.event.issue.number }}
         run: |
           # Issue #713: the reviewer agent executes PR-controlled code, so its
@@ -289,7 +289,7 @@ jobs:
         if: steps.pr-info.outputs.is_pr == 'true' && always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
-          PATH: /usr/local/bin:/usr/bin:/bin
+          PATH: /usr/bin:/bin
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           GIT_NO_REPLACE_OBJECTS: "1"
           # Env indirection (audit R10): the trigger-comment timestamp reaches
@@ -533,7 +533,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
-          PATH: /usr/local/bin:/usr/bin:/bin
+          PATH: /usr/bin:/bin
         run: |
           set +e
           decision="/tmp/random-lab-decision.json"
@@ -563,7 +563,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
-          PATH: /usr/local/bin:/usr/bin:/bin
+          PATH: /usr/bin:/bin
         run: |
           pr="${{ github.event.issue.number }}"
           if [ ! -f /tmp/random-lab-decision.json ]; then
