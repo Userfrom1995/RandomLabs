@@ -5030,7 +5030,7 @@ def stage_name(label):
 TRUSTED_PATH_STEP_NAME = "Capture the trusted pre-agent PATH for owner-PAT steps"
 TRUSTED_PATH_EXPR = "${{ steps.trusted_path.outputs.path }}"
 EXPECTED_TRUSTED_PATH_BLOCK_SHA256 = (
-    "91a1e353329e4cad6ed9fcfb697d07cba8342269eff7c75c7a3d1c2b0f060d67"
+    "d97911b73d6ba64d1d911962c259dd945203f9e6724c9443c19f8decf8a8a465"
 )
 
 
