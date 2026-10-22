@@ -1012,6 +1012,7 @@ version = "0.1.0"
 name = "maze-chase-config"
 version = "0.1.0"
 dependencies = [
+ "maze-chase-audio",
  "maze-chase-engine",
 ]
 

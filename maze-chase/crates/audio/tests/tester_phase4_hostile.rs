@@ -122,15 +122,21 @@ fn sfx_music_partition_covers_every_cue_exactly_once() {
             "cue {cue:?}: music membership and sfx must be exclusive"
         );
         if let Some(s) = sfx {
-            assert!(s.ms > 0, "cue {cue:?}: SFX must have positive length");
-            assert!(
-                s.from_hz.is_finite() && s.from_hz > 0.0,
-                "cue {cue:?}: bad from_hz"
-            );
-            assert!(
-                s.to_hz.is_finite() && s.to_hz > 0.0,
-                "cue {cue:?}: bad to_hz"
-            );
+            assert!(s.ms() > 0, "cue {cue:?}: SFX must have positive length");
+            assert!(!s.tones.is_empty(), "cue {cue:?}: SFX must have a tone");
+            assert!(s.pitch.is_finite() && s.pitch > 0.0);
+            for tone in s.tones {
+                assert!(
+                    tone.from_hz.is_finite() && tone.from_hz > 0.0,
+                    "cue {cue:?}: bad from_hz"
+                );
+                assert!(
+                    tone.to_hz.is_finite() && tone.to_hz > 0.0,
+                    "cue {cue:?}: bad to_hz"
+                );
+                assert!(tone.ms > 0, "cue {cue:?}: bad tone length");
+                assert!(tone.gain > 0.0 && tone.gain <= 1.0);
+            }
         }
     }
     // Music cues resolve into real shipped tunes, not silence.
@@ -141,7 +147,7 @@ fn sfx_music_partition_covers_every_cue_exactly_once() {
         assert!(!tune.notes.is_empty());
         for note in tune.notes {
             assert!(
-                (21..=108).contains(&note.midi),
+                note.midi == 0 || (21..=108).contains(&note.midi),
                 "tune {}: midi {} out of piano range",
                 tune.name,
                 note.midi

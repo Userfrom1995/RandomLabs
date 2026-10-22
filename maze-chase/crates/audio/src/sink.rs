@@ -6,7 +6,10 @@
 //! [`tune_for_id`].
 
 use crate::cue::Cue;
-use crate::score::{Tune, FRIGHT_LOOP, TITLE_LOOP};
+use crate::score::{Tune, FADE_MS, FRIGHT_LOOP, TITLE_LOOP};
+
+/// Live level fade duration in seconds (shared by every backend).
+pub const FADE_SECS: f32 = FADE_MS as f32 / 1000.0;
 
 /// Looping music slot. `None` means silence.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -34,6 +37,11 @@ pub enum Event {
 }
 
 /// Playback backend: one-shot cues plus one looping music slot.
+///
+/// Volume setters record the target level; backends that can fade call
+/// [`Audio::tick`] once per frame so live changes glide over
+/// [`FADE_SECS`] instead of jumping. Sinks without a fade stage keep the
+/// default no-op tick.
 pub trait Audio {
     fn play(&mut self, cue: Cue);
     fn start_music(&mut self, id: TuneId);
@@ -46,6 +54,8 @@ pub trait Audio {
     fn music(&self) -> f32;
     fn sfx(&self) -> f32;
     fn muted(&self) -> bool;
+    /// Advance the live mix by `dt` seconds (default: nothing to fade).
+    fn tick(&mut self, _dt: f32) {}
 }
 
 fn clamp01(v: f32) -> f32 {
