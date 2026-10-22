@@ -505,6 +505,14 @@ jobs:
             if [ "$retries" -lt 3 ]; then
               n=$((retries + 1))
               echo "Posting auto-retry $n"
+              # Issue #743 (duplicate #744 retry-lane finding): a posted retry
+              # is a successful handoff, not a verdict. Mark the step so the
+              # force-lab and forward steps below stay skipped for this run;
+              # otherwise their missing-decision check reds the job after the
+              # retry was already queued, and the failure triage treats a
+              # healthy retry as a dead gate. The queued retry run carries
+              # the work, mirroring the build/fix retry contract.
+              echo "retry=true" >> "$GITHUB_OUTPUT"
               gh api "repos/${{ github.repository }}/issues/$pr/comments" -f body="/oc review (auto-retry $n)"
               exit 0
             fi
@@ -562,7 +570,7 @@ jobs:
           echo "::notice::PR #$pr head moved during the review (start snapshot ${recorded:-?}, checkout $checkout_oid, live $actual); the review job is read-only and leaves the head untouched."
 
       - name: Force lab routing for infrastructure PRs
-        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success'
+        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success' && steps.verify-review.outputs.retry != 'true'
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
@@ -617,7 +625,7 @@ jobs:
           fi
 
       - name: Forward reviewer decision
-        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success'
+        if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true' && steps.verify-review.outcome == 'success' && steps.verify-review.outputs.retry != 'true'
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
