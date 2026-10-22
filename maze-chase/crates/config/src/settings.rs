@@ -7,6 +7,7 @@
 //! constants are duplicated here, so replays stay portable: the same
 //! (seed, level, mode) triple reproduces the same simulation on any layer.
 
+use maze_chase_audio::score::{DEFAULT_MASTER, DEFAULT_MUSIC, DEFAULT_SFX};
 use maze_chase_engine::modes::GameMode;
 
 /// Player-facing difficulty.
@@ -113,6 +114,8 @@ pub struct Settings {
     pub music: f32,
     pub sfx: f32,
     pub mute: bool,
+    /// Opt-in terminal BEL chime (default OFF; terminals stay silent).
+    pub terminal_chime: bool,
     pub theme: String,
     pub reduced_flash: bool,
     pub reduced_motion: bool,
@@ -121,16 +124,18 @@ pub struct Settings {
 }
 
 impl Settings {
-    /// Default settings for one difficulty. Volumes are 0.8 / 0.7 / 0.9,
-    /// unmuted, theme `"dusk-pond"`, contrast / motion / fps flags off;
-    /// only `reduced_flash` varies (on for Cozy, off otherwise).
+    /// Default settings for one difficulty. Volumes are 0.8 / 0.6 / 0.8,
+    /// unmuted, theme `"dusk-pond"`, contrast / motion / fps flags off and
+    /// the terminal BEL chime OFF (opt-in); only `reduced_flash` varies
+    /// (on for Cozy, off otherwise).
     pub fn for_difficulty(d: Difficulty) -> Self {
         Self {
             difficulty: d,
-            master: 0.8,
-            music: 0.7,
-            sfx: 0.9,
+            master: DEFAULT_MASTER,
+            music: DEFAULT_MUSIC,
+            sfx: DEFAULT_SFX,
             mute: false,
+            terminal_chime: false,
             theme: "dusk-pond".to_string(),
             reduced_flash: matches!(d, Difficulty::Cozy),
             reduced_motion: false,
@@ -181,9 +186,17 @@ mod tests {
         assert_eq!(s.difficulty, Difficulty::Standard);
         assert_eq!(s.validate(), Vec::<String>::new());
         assert!((s.master - 0.8).abs() < 1e-6);
-        assert!((s.music - 0.7).abs() < 1e-6);
-        assert!((s.sfx - 0.9).abs() < 1e-6);
+        assert!((s.music - 0.6).abs() < 1e-6);
+        assert!((s.sfx - 0.8).abs() < 1e-6);
         assert!(!s.mute);
+        assert!(!s.terminal_chime, "terminal chime is opt-in");
+        // The design tokens are the machine companion of the binding mix.
+        let tokens = include_str!("../../../docs/design-tokens.json");
+        assert!(tokens.contains("\"music\": 60"));
+        assert!(tokens.contains("\"sfx\": 80"));
+        assert!(tokens.contains("\"chime_default\": \"off\""));
+        assert!(tokens.contains("\"tempo_bpm\": 108"));
+        assert!(tokens.contains("\"fade_ms\": 120"));
         assert_eq!(s.theme, "dusk-pond");
         assert!(!s.reduced_flash);
         assert!(!s.reduced_motion);

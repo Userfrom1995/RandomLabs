@@ -2,8 +2,8 @@
 //!
 //! Format: one `key = value` per line. Blank lines and `#` comments are
 //! skipped. Known scalar keys are `difficulty`, `master`, `music`, `sfx`,
-//! `mute`, `theme`, `reduced_flash`, `reduced_motion`, `high_contrast`,
-//! `show_fps`; per-action keys are `bind_<action>` with a comma list
+//! `mute`, `terminal_chime`, `theme`, `reduced_flash`, `reduced_motion`,
+//! `high_contrast`, `show_fps`; per-action keys are `bind_<action>` with a comma list
 //! (`bind_up = Up,W`).
 //! [`load`] never fails: unknown keys are ignored with a warning entry,
 //! malformed values keep the default with an error entry, and missing keys
@@ -41,6 +41,7 @@ pub fn save(s: &Settings, map: &Keymap) -> String {
     out.push_str(&format!("music = {}\n", s.music));
     out.push_str(&format!("sfx = {}\n", s.sfx));
     out.push_str(&format!("mute = {}\n", s.mute));
+    out.push_str(&format!("terminal_chime = {}\n", s.terminal_chime));
     out.push_str(&format!("theme = {}\n", s.theme));
     out.push_str(&format!("reduced_flash = {}\n", s.reduced_flash));
     out.push_str(&format!("reduced_motion = {}\n", s.reduced_motion));
@@ -121,6 +122,14 @@ pub fn load(text: &str) -> (Settings, Keymap, Vec<String>) {
                     "line {}: bad mute {value:?}; keeping default {}",
                     lineno + 1,
                     Settings::default().mute
+                )),
+            },
+            "terminal_chime" => match parse_bool(value) {
+                Some(b) => settings.terminal_chime = b,
+                None => problems.push(format!(
+                    "line {}: bad terminal_chime {value:?}; keeping default {}",
+                    lineno + 1,
+                    Settings::default().terminal_chime
                 )),
             },
             "theme" => {
