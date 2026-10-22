@@ -62,7 +62,7 @@ tr -d '\r' < "$report" > "$normalized_report"
 # agent-written report content under the owner PAT. A report whose first
 # non-blank line is a command trigger would therefore be consumable as a
 # forged owner-authored verdict. Refuse it before it reaches the API.
-first_line=$(awk 'NF { line=$0; sub(/^[[:space:]]+/, "", line); print line; exit }' "$normalized_report")
+first_line=$(awk 'NF { line=$0; sub(/^[[:space:]]+/, "", line); sub(/^`+/, "", line); print line; exit }' "$normalized_report")
 case "$first_line" in
   '/oc'|'/oc '*|'/opencode'|'/opencode '*)
     echo "::error::publish-agent-report.sh: report '$report' begins with the command trigger '$first_line'; refusing to publish a report that could be consumed as a verdict trigger (issue #713)."

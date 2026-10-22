@@ -91,7 +91,7 @@ tr -d '\r' < "$report" > "$normalized_report"
 # under the owner PAT. A report whose first non-blank line is a command
 # trigger could be consumed as an owner-authored verdict, so refuse it
 # before it reaches the API.
-first_line=$(awk 'NF { line=$0; sub(/^[[:space:]]+/, "", line); print line; exit }' "$normalized_report")
+first_line=$(awk 'NF { line=$0; sub(/^[[:space:]]+/, "", line); sub(/^`+/, "", line); print line; exit }' "$normalized_report")
 case "$first_line" in
   '/oc'|'/oc '*|'/opencode'|'/opencode '*)
     echo "::error::post-peros-findings.sh: findings report '$report' begins with the command trigger '$first_line'; refusing to publish a report that could be consumed as a verdict trigger (issue #713)."
