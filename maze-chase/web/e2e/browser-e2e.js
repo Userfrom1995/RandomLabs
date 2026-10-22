@@ -147,7 +147,7 @@ async function shot(ws, path) {
     for (let id = 0; id <= 4; id++) peaks.push(await window.__mcRenderTunePeak(id, 8));
     return peaks;
   })()`);
-  const peakBad = tunePeaks.filter((p) => !(p >= 0.30) || p > 0.3201);
+  const peakBad = tunePeaks.filter((p) => !(p >= 0.318) || p > 0.3201);
   assert(peakBad.length === 0,
     'web tunes are normalized to the 0.32 music ceiling, got: ' + JSON.stringify(tunePeaks));
   // Offline SFX render through the real playSfx envelope: the loudest
@@ -157,7 +157,7 @@ async function shot(ws, path) {
     for (const cue of [6, 10, 14]) peaks.push(await window.__mcRenderSfxPeak(cue, 3));
     return peaks;
   })()`);
-  const sfxBad = sfxPeaks.filter((p) => !(p >= 0.44) || p > 0.5001);
+  const sfxBad = sfxPeaks.filter((p) => !(p >= 0.498) || p > 0.5001);
   assert(sfxBad.length === 0,
     'web SFX recipes normalize to the 0.50 SFX ceiling, got: ' + JSON.stringify(sfxPeaks));
   // Keyboard focus contract: ArrowDown moves off Start, and P/Esc/M keep

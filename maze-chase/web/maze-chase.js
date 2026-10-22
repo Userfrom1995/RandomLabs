@@ -780,7 +780,7 @@
           if (start + dur + 0.02 > end) end = start + dur + 0.02;
         }
         var peak = modelPeak(notes, end);
-        if (peak > 0) gain = (SFX_CEILING * 0.98) / peak;
+        if (peak > 0) gain = (SFX_CEILING * 0.999) / peak;
       }
     } catch (e) { gain = 1; }
     sfxGainCache[cue] = gain;
@@ -855,7 +855,7 @@
           if (cursors[track] * beatSec > end) end = cursors[track] * beatSec;
         }
         var peak = modelPeak(notes, end + 0.02);
-        if (peak > 0) gain = (MUSIC_CEILING * 0.98) / peak;
+        if (peak > 0) gain = (MUSIC_CEILING * 0.999) / peak;
       }
     } catch (e) { gain = 1; }
     tuneGainCache[id] = gain;
