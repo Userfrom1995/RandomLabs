@@ -148,7 +148,8 @@ pub struct WebSession {
     settings: Settings,
     keymap: Keymap,
     scores: Scores,
-    cues: VecDeque<u32>,
+    /// Queued cues with the warden chain snapshotted at emission time.
+    cues: VecDeque<(u32, u8)>,
     music_want: u32,
     music_pending: Option<u32>,
     capture: Option<Action>,
@@ -286,11 +287,15 @@ impl WebSession {
     }
 
     fn push_cue(&mut self, code: u32) {
+        self.push_cue_with_chain(code, 0);
+    }
+
+    fn push_cue_with_chain(&mut self, code: u32, chain: u8) {
         if code == 0 {
             return;
         }
         if self.cues.len() < CUE_CAP {
-            self.cues.push_back(code);
+            self.cues.push_back((code, chain.min(3)));
         }
     }
 
@@ -304,15 +309,29 @@ impl WebSession {
         let Some(cue) = cue_for_event(event) else {
             return;
         };
+        let code = audio_map::cue_code(cue);
         if let Cue::WardenEaten { chain } = cue {
             self.last_chain = chain.min(3);
+            // Snapshot the chain with the cue: two warden eats can land in
+            // one engine tick, and each tone-field read after its poll must
+            // resolve the arm in force when that cue was emitted.
+            self.push_cue_with_chain(code, self.last_chain);
+            return;
         }
-        self.push_cue(audio_map::cue_code(cue));
+        self.push_cue(code);
     }
 
     /// Drain one queued cue code, or 0 when empty.
     pub fn poll_cue(&mut self) -> u32 {
-        self.cues.pop_front().unwrap_or(0)
+        match self.cues.pop_front() {
+            Some((code, chain)) => {
+                if code == audio_map::CUE_WARDEN_EATEN {
+                    self.last_chain = chain;
+                }
+                code
+            }
+            None => 0,
+        }
     }
 
     /// Drain a pending loop-music change, or [`MUSIC_NO_CHANGE`].
@@ -944,5 +963,31 @@ mod tests {
         let high = audio_map::sfx_for_code(audio_map::CUE_WARDEN_EATEN, s2.last_chain())
             .expect("warden sfx");
         assert_eq!(hz(high), 3200.0, "top chain plays 3200 Hz, not 12800");
+    }
+
+    #[test]
+    fn same_tick_warden_cues_keep_their_own_chain_arm() {
+        // Two warden eats can arrive in one engine tick. The queue must
+        // snapshot each chain so both cues render their ladder arm instead
+        // of both resolving the last chain stored by the tick.
+        let mut s = session();
+        s.push_engine_event("warden:200");
+        s.push_engine_event("warden:1600");
+        assert_eq!(
+            s.last_chain(),
+            3,
+            "latest chain is visible before the drain"
+        );
+
+        assert_eq!(s.poll_cue(), audio_map::CUE_WARDEN_EATEN);
+        let low = audio_map::sfx_for_code(audio_map::CUE_WARDEN_EATEN, s.last_chain())
+            .expect("first warden sfx");
+        let hz = |sfx: maze_chase_audio::score::Sfx| sfx.first().unwrap().from_hz * sfx.pitch;
+        assert_eq!(hz(low), 400.0, "the first cue restores its chain-0 arm");
+
+        assert_eq!(s.poll_cue(), audio_map::CUE_WARDEN_EATEN);
+        let high = audio_map::sfx_for_code(audio_map::CUE_WARDEN_EATEN, s.last_chain())
+            .expect("second warden sfx");
+        assert_eq!(hz(high), 3200.0, "the second cue restores its chain-3 arm");
     }
 }
