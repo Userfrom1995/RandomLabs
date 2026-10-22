@@ -45,7 +45,14 @@ case "$ARG" in
       exit 0
     fi
     case "$WANT" in
-      "$VERSION"-rc.[0-9]*)
+      "$VERSION"-rc.*)
+        RC="${WANT#"$VERSION"-rc.}"
+        case "$RC" in
+          "" | *[!0-9]*)
+            echo "tag/version parity failed: tag '$ARG' has a non-numeric rc suffix" >&2
+            exit 1
+            ;;
+        esac
         echo "tag parity OK: $ARG is a release candidate for workspace version $VERSION"
         exit 0
         ;;
