@@ -379,6 +379,7 @@ impl App {
         self.frame_no += 1;
         if dt > 0.0 && dt.is_finite() {
             self.clock_s += dt;
+            self.audio.tick(dt as f32);
             let fps = 1.0 / dt.max(1e-6);
             self.fps_ema += (fps - self.fps_ema) * 0.05;
         }

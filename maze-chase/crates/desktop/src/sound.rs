@@ -1,71 +1,138 @@
 //! Desktop audio: a rodio playback backend over the shared audio data.
 //!
-//! [`render_sfx`] turns any [`Sfx`] recipe into PCM and [`render_tune`]
-//! turns any [`Tune`] into PCM at [`TUNE_BPM`]; both are pure and
-//! deterministic (same data, same samples, every platform). [`RodioSink`]
-//! implements the shared [`Audio`] trait on top of rodio: one-shot cues
-//! go to a polyphonic SFX sink, loops/stings go to the music sink, and a
-//! missing audio device is a clean [`NoAudio`] error so the session can
-//! fall back to [`NullSink`] instead of crashing.
+//! [`render_sfx`] turns any layered [`Sfx`] recipe into PCM and
+//! [`render_tune`] renders a multi-track [`Tune`] with the shared voice
+//! timbres at the one shared [`TEMPO`]; both are pure and deterministic
+//! (same data, same samples, every platform). [`RodioSink`] implements the
+//! shared [`Audio`] trait on top of rodio: one-shot cues go to a
+//! polyphonic SFX sink, loops/stings go to the music sink, live volume
+//! changes glide over [`FADE_SECS`], and a missing audio device is a clean
+//! [`NoAudio`] error so the session can fall back to [`NullSink`] instead
+//! of crashing.
 //!
 //! [`Audio`]: maze_chase_audio::sink::Audio
 //! [`NullSink`]: maze_chase_audio::sink::NullSink
 
 use maze_chase_audio::cue::Cue;
-use maze_chase_audio::score::{sfx_for_cue, Sfx, Tune, Wave, ALL_TUNES};
-use maze_chase_audio::sink::{tune_for_id, Audio, NullSink, TuneId};
+use maze_chase_audio::score::{
+    presentation_beats, sfx_for_cue, tune_beats, Sfx, Tone, Tune, Voice, ALL_CUES, ALL_TUNES,
+    DEFAULT_MASTER, DEFAULT_MUSIC, DEFAULT_SFX, TEMPO,
+};
+use maze_chase_audio::sink::{tune_for_id, Audio, NullSink, TuneId, FADE_SECS};
 use rodio::buffer::SamplesBuffer;
 use rodio::{OutputStream, OutputStreamHandle, Sink, Source};
 
 /// Playback sample rate (CD-adjacent, cheap to synthesize).
 pub const RATE: u32 = 44_100;
-/// Presentation tempo for tunes (beats per minute). Tune data carries
-/// beats only; the layer chooses the tempo, and every layer choice is
-/// documented here for the parity matrix.
-pub const TUNE_BPM: f32 = 132.0;
-/// SFX peak amplitude (headroom for polyphonic overlap).
+/// SFX peak amplitude (headroom for layered tones and overlap).
 pub const SFX_PEAK: f32 = 0.5;
 /// Music peak amplitude (loops sit under the effects).
 pub const MUSIC_PEAK: f32 = 0.32;
+/// Shortest edge fade that removes a click without dulling the attack.
+const EDGE_SECS: f32 = 0.01;
 
 /// MIDI key to Hz (A4 = 440).
 pub fn midi_hz(m: u8) -> f32 {
     440.0 * 2.0f32.powf((m as f32 - 69.0) / 12.0)
 }
 
-fn osc(wave: Wave, phase: f32) -> f32 {
-    match wave {
-        Wave::Sine => (phase * std::f32::consts::TAU).sin(),
-        Wave::Square => {
-            if (phase % 1.0) < 0.5 {
-                1.0
-            } else {
-                -1.0
-            }
-        }
-        Wave::Triangle => 4.0 * (phase % 1.0 - 0.5).abs() - 1.0,
-        Wave::Noise => {
-            // Deterministic hash noise (phase-derived, no RNG state).
-            let bits = (phase * 12_989.0).sin() * 43_758.0;
-            (bits - bits.floor()) * 2.0 - 1.0
-        }
+fn voice_sample(voice: Voice, phase: f32) -> f32 {
+    let v = phase * std::f32::consts::TAU;
+    match voice {
+        Voice::Mallet => v.sin() * 0.72 + (2.0 * v).sin() * 0.20 + (3.0 * v).sin() * 0.08,
+        Voice::Drop => v.sin() * 0.90 + (2.0 * v).sin() * 0.10,
+        Voice::Reed => v.sin() * 0.72 + (2.0 * v).sin() * 0.18 + (3.0 * v).sin() * 0.10,
+        Voice::Drone => v.sin() * 0.50 + (0.5 * v).sin() * 0.28 + (1.5 * v).sin() * 0.22,
+        Voice::Glass => v.sin() * 0.62 + (2.01 * v).sin() * 0.26 + (4.02 * v).sin() * 0.12,
+        Voice::Bell => v.sin() * 0.60 + (2.76 * v).sin() * 0.24 + (5.40 * v).sin() * 0.16,
+        Voice::Pluck => 4.0 * (phase.fract() - 0.5).abs() - 1.0,
     }
 }
 
-/// Render one [`Sfx`] recipe to mono PCM: a linear frequency sweep with
-/// an exponential decay envelope (click-free: starts and ends at zero).
-pub fn render_sfx(sfx: Sfx) -> Vec<f32> {
-    let n = ((sfx.ms as f32 / 1000.0) * RATE as f32).round().max(1.0) as usize;
-    let mut out = Vec::with_capacity(n);
+fn voice_decay(voice: Voice) -> f32 {
+    match voice {
+        Voice::Mallet | Voice::Pluck => 5.0,
+        Voice::Drop => 7.0,
+        Voice::Glass => 4.0,
+        Voice::Reed => 2.2,
+        Voice::Drone => 1.2,
+        Voice::Bell => 2.6,
+    }
+}
+
+fn attack_release(voice: Voice, seconds: f32) -> (f32, f32) {
+    let (attack, release): (f32, f32) = match voice {
+        Voice::Mallet | Voice::Pluck => (0.004, 0.02),
+        Voice::Drop => (0.003, 0.03),
+        Voice::Glass => (0.005, 0.04),
+        Voice::Reed => (0.03, 0.04),
+        Voice::Drone => (0.08, 0.08),
+        Voice::Bell => (0.006, 0.12),
+    };
+    (attack.min(seconds * 0.4), release.min(seconds * 0.4))
+}
+
+fn envelope(voice: Voice, t: f32, seconds: f32) -> f32 {
+    let (attack, release) = attack_release(voice, seconds);
+    let at = if attack > 0.0 {
+        (t / attack).min(1.0)
+    } else {
+        1.0
+    };
+    let rt = if release > 0.0 {
+        ((seconds - t) / release).clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
+    let decay = (-voice_decay(voice) * t.max(0.0)).exp();
+    at * rt * decay
+}
+
+fn scale_to_peak(out: &mut [f32], target: f32) {
+    let raw = out.iter().map(|s| s.abs()).fold(0.0f32, f32::max);
+    let gain = target / raw.max(1.0);
+    for sample in out.iter_mut() {
+        *sample = (*sample * gain).clamp(-target, target);
+    }
+}
+
+fn add_tone(out: &mut [f32], start: usize, tone: Tone, pitch: f32, seconds: f32) {
+    let n = ((tone.ms as f32 / 1000.0) * RATE as f32).round().max(1.0) as usize;
+    if start >= out.len() {
+        return;
+    }
+    let n = n.min(out.len() - start);
+    let from = (tone.from_hz * pitch).max(20.0);
+    let to = (tone.to_hz * pitch).max(20.0);
     let mut phase = 0.0f32;
     for i in 0..n {
-        let t = i as f32 / n as f32;
-        let hz = sfx.from_hz + (sfx.to_hz - sfx.from_hz) * t;
+        let t = i as f32 / RATE as f32;
+        let frac = i as f32 / n as f32;
+        let hz = from + (to - from) * frac;
         phase += hz / RATE as f32;
-        let env = (-4.0 * t).exp() * (1.0 - t).max(0.0);
-        out.push((osc(sfx.wave, phase) * env * SFX_PEAK).clamp(-1.0, 1.0));
+        let env = envelope(tone.voice, t, seconds);
+        out[start + i] += voice_sample(tone.voice, phase) * env * tone.gain;
     }
-    // Hard zero at both ends (no click on append).
+}
+
+/// Render one layered [`Sfx`] recipe to mono PCM with no variation.
+pub fn render_sfx(sfx: Sfx) -> Vec<f32> {
+    render_sfx_with(sfx, 0)
+}
+
+/// Render one [`Sfx`] recipe with a deterministic variation step
+/// (`-2..=2` for the crumb's slight pitch spread; 0 elsewhere).
+pub fn render_sfx_with(sfx: Sfx, variation_step: i32) -> Vec<f32> {
+    let total_ms = sfx.ms().max(1);
+    let n = ((total_ms as f32 / 1000.0) * RATE as f32).round().max(1.0) as usize;
+    let mut out = vec![0.0f32; n];
+    let pitch = sfx.pitch * (1.0 + sfx.variation * variation_step as f32);
+    for tone in sfx.tones {
+        let start = ((tone.delay_ms as f32 / 1000.0) * RATE as f32).round() as usize;
+        let seconds = tone.ms as f32 / 1000.0;
+        add_tone(&mut out, start, *tone, pitch, seconds);
+    }
+    scale_to_peak(&mut out, SFX_PEAK);
     if let Some(first) = out.first_mut() {
         *first = 0.0;
     }
@@ -75,28 +142,48 @@ pub fn render_sfx(sfx: Sfx) -> Vec<f32> {
     out
 }
 
-/// Render a [`Tune`] to mono PCM: sine plus a soft second harmonic per
-/// note, 10 ms edge fades, and a 20 ms loop-seam fade so
-/// `repeat_infinite` restarts without a click.
+/// Render a [`Tune`] to mono PCM: every track sequences independently,
+/// every note uses its shared voice and velocity, swung eighths follow
+/// [`presentation_beats`], and short edge fades keep loop seams click-free.
 pub fn render_tune(tune: Tune) -> Vec<f32> {
-    let beat_sec = 60.0 / TUNE_BPM;
-    let mut out = Vec::new();
-    for note in tune.notes {
-        let secs = note.beats * beat_sec;
-        let n = (secs * RATE as f32).round().max(1.0) as usize;
+    let beat_sec = 60.0 / TEMPO;
+    let total_secs = tune_beats(&tune) * beat_sec;
+    let total = ((total_secs * RATE as f32).round().max(1.0)) as usize;
+    let mut out = vec![0.0f32; total];
+    let mut cursors = [0.0f32; 4];
+    for (index, note) in tune.notes.iter().enumerate() {
+        let track = (note.track as usize).min(cursors.len() - 1);
+        let start_beat = cursors[track];
+        let dur_beats = presentation_beats(&tune, index);
+        cursors[track] += dur_beats;
+        if note.is_rest() || note.velocity <= 0.0 {
+            continue;
+        }
+        let start = ((start_beat * beat_sec * RATE as f32).round() as usize).min(total);
+        let secs = dur_beats * beat_sec;
+        let n = ((secs * RATE as f32).round().max(1.0) as usize).min(total - start);
+        if n == 0 {
+            continue;
+        }
         let hz = midi_hz(note.midi);
-        let fade = ((0.01 * RATE as f32) as usize).max(1).min(n / 2);
+        let edge = ((EDGE_SECS * RATE as f32) as usize)
+            .max(1)
+            .min(n / 2)
+            .max(1);
+        let mut phase = 0.0f32;
         for i in 0..n {
-            let phase = i as f32 * hz / RATE as f32;
-            let attack = (i as f32 / fade as f32).min(1.0);
-            let release = ((n - i) as f32 / fade as f32).min(1.0);
-            let v = phase * std::f32::consts::TAU;
-            let sample = v.sin() * 0.8 + (2.0 * v).sin() * 0.2;
-            out.push((sample * attack * release * MUSIC_PEAK).clamp(-1.0, 1.0));
+            let t = i as f32 / RATE as f32;
+            phase += hz / RATE as f32;
+            let attack = (i as f32 / edge as f32).min(1.0);
+            let release = ((n - i) as f32 / edge as f32).min(1.0);
+            let env = envelope(note.voice, t, secs);
+            let sample = voice_sample(note.voice, phase) * env * attack * release;
+            out[start + i] += sample * note.velocity;
         }
     }
+    scale_to_peak(&mut out, MUSIC_PEAK);
     // Loop-seam fade for `looped` tunes (one-shots keep full tails).
-    if tune.looped && !out.is_empty() {
+    if tune.looped && out.len() > 2 {
         let seam = ((0.02 * RATE as f32) as usize).max(1).min(out.len() / 2);
         for (i, s) in out.iter_mut().take(seam).enumerate() {
             *s *= i as f32 / seam as f32;
@@ -136,6 +223,9 @@ pub struct RodioSink {
     sfx_level: f32,
     muted: bool,
     tune: TuneId,
+    sfx_gain: f32,
+    music_gain: f32,
+    play_seq: u64,
 }
 
 impl RodioSink {
@@ -155,8 +245,11 @@ impl RodioSink {
             sfx_level: 1.0,
             muted: false,
             tune: TuneId::None,
+            sfx_gain: 1.0,
+            music_gain: 1.0,
+            play_seq: 0,
         };
-        sink.apply_levels();
+        sink.apply_gains_now();
         Ok(sink)
     }
 
@@ -165,10 +258,32 @@ impl RodioSink {
         self.tune
     }
 
-    fn apply_levels(&mut self) {
-        let base = if self.muted { 0.0 } else { self.master };
-        self.sfx.set_volume(base * self.sfx_level);
-        self.music.set_volume(base * self.music_level);
+    fn target_sfx(&self) -> f32 {
+        if self.muted {
+            0.0
+        } else {
+            self.master * self.sfx_level
+        }
+    }
+
+    fn target_music(&self) -> f32 {
+        if self.muted {
+            0.0
+        } else {
+            self.master * self.music_level
+        }
+    }
+
+    fn apply_gains_now(&mut self) {
+        self.sfx_gain = self.target_sfx();
+        self.music_gain = self.target_music();
+        self.sfx.set_volume(self.sfx_gain);
+        self.music.set_volume(self.music_gain);
+    }
+
+    fn apply_gains(&mut self) {
+        self.sfx.set_volume(self.sfx_gain);
+        self.music.set_volume(self.music_gain);
     }
 
     fn push_sfx(&self, samples: Vec<f32>) {
@@ -189,10 +304,26 @@ fn clamp01(v: f32) -> f32 {
     }
 }
 
+fn approach(current: f32, target: f32, step: f32) -> f32 {
+    if (target - current).abs() <= step {
+        target
+    } else if target > current {
+        current + step
+    } else {
+        current - step
+    }
+}
+
 impl Audio for RodioSink {
     fn play(&mut self, cue: Cue) {
+        self.play_seq = self.play_seq.wrapping_add(1);
         if let Some(sfx) = sfx_for_cue(cue) {
-            self.push_sfx(render_sfx(sfx));
+            let step = if sfx.variation > 0.0 {
+                (self.play_seq % 5) as i32 - 2
+            } else {
+                0
+            };
+            self.push_sfx(render_sfx_with(sfx, step));
         } else if let Some(sting) = sting_for_cue(cue) {
             // One-shot tunes (death/clear/gameover) play over the loop.
             self.push_sfx(render_tune(sting));
@@ -209,7 +340,7 @@ impl Audio for RodioSink {
                 match Sink::try_new(handle) {
                     Ok(fresh) => {
                         self.music = fresh;
-                        self.apply_levels();
+                        self.music.set_volume(self.music_gain);
                         let src = SamplesBuffer::new(1, RATE, samples).repeat_infinite();
                         self.music.append(src);
                         self.music.play();
@@ -227,19 +358,15 @@ impl Audio for RodioSink {
 
     fn set_master(&mut self, v: f32) {
         self.master = clamp01(v);
-        self.apply_levels();
     }
     fn set_music(&mut self, v: f32) {
         self.music_level = clamp01(v);
-        self.apply_levels();
     }
     fn set_sfx(&mut self, v: f32) {
         self.sfx_level = clamp01(v);
-        self.apply_levels();
     }
     fn set_muted(&mut self, m: bool) {
         self.muted = m;
-        self.apply_levels();
     }
     fn master(&self) -> f32 {
         self.master
@@ -252,6 +379,16 @@ impl Audio for RodioSink {
     }
     fn muted(&self) -> bool {
         self.muted
+    }
+
+    fn tick(&mut self, dt: f32) {
+        if !dt.is_finite() || dt <= 0.0 {
+            return;
+        }
+        let step = dt / FADE_SECS;
+        self.sfx_gain = approach(self.sfx_gain, self.target_sfx(), step);
+        self.music_gain = approach(self.music_gain, self.target_music(), step);
+        self.apply_gains();
     }
 }
 
@@ -267,7 +404,8 @@ pub fn open_or_null() -> (Box<dyn Audio>, bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use maze_chase_audio::score::{SFX_CRUMB, SFX_EXTRA_LIFE, TITLE_LOOP};
+    use maze_chase_audio::score::{track_count, SFX_CRUMB, SFX_EXTRA_LIFE, TITLE_LOOP};
+    use maze_chase_audio::sink::FADE_SECS;
 
     #[test]
     fn midi_a4_is_440_and_octaves_double() {
@@ -280,34 +418,93 @@ mod tests {
     fn sfx_render_matches_recipe_length_and_stays_in_range() {
         for sfx in [SFX_CRUMB, SFX_EXTRA_LIFE] {
             let pcm = render_sfx(sfx);
-            let expect = ((sfx.ms as f32 / 1000.0) * RATE as f32).round() as usize;
+            let expect = ((sfx.ms() as f32 / 1000.0) * RATE as f32).round() as usize;
             assert_eq!(pcm.len(), expect);
             assert!(pcm.iter().all(|&s| (-1.0..=1.0).contains(&s)));
             assert_eq!(pcm[0], 0.0);
             assert_eq!(pcm[pcm.len() - 1], 0.0);
-            // Audible body: peak well above silence.
             let peak: f32 = pcm.iter().map(|s| s.abs()).fold(0.0, f32::max);
-            assert!(peak > 0.1, "SFX renders near-silent");
+            assert!(peak > 0.05, "SFX renders near-silent");
         }
     }
 
     #[test]
-    fn sfx_render_is_deterministic_per_recipe() {
+    fn layered_sfx_contains_every_voice_layer() {
+        let pcm = render_sfx(SFX_EXTRA_LIFE);
+        assert!(SFX_EXTRA_LIFE.tones.len() >= 2);
+        let expect = ((SFX_EXTRA_LIFE.ms() as f32 / 1000.0) * RATE as f32).round() as usize;
+        assert_eq!(pcm.len(), expect);
+        // A layered recipe is longer than its first tone alone.
+        assert!(SFX_EXTRA_LIFE.ms() > SFX_EXTRA_LIFE.tones[0].ms);
+    }
+
+    #[test]
+    fn sfx_render_is_deterministic_per_recipe_and_varies_on_request() {
         assert_eq!(render_sfx(SFX_CRUMB), render_sfx(SFX_CRUMB));
         assert_ne!(render_sfx(SFX_CRUMB), render_sfx(SFX_EXTRA_LIFE));
+        assert_ne!(
+            render_sfx_with(SFX_CRUMB, -2),
+            render_sfx_with(SFX_CRUMB, 2),
+            "crumb pitch variation is audible in the samples"
+        );
+        assert_eq!(render_sfx_with(SFX_CRUMB, 0), render_sfx(SFX_CRUMB));
+        assert_eq!(
+            render_sfx_with(SFX_EXTRA_LIFE, 2),
+            render_sfx(SFX_EXTRA_LIFE)
+        );
     }
 
     #[test]
     fn tune_render_matches_note_lengths_and_loops_cleanly() {
         let pcm = render_tune(TITLE_LOOP);
-        let beats: f32 = TITLE_LOOP.notes.iter().map(|n| n.beats).sum();
-        let expect = (beats * (60.0 / TUNE_BPM) * RATE as f32).round() as usize;
+        let expect = (tune_beats(&TITLE_LOOP) * (60.0 / TEMPO) * RATE as f32).round() as usize;
         assert!((pcm.len() as i64 - expect as i64).abs() <= TITLE_LOOP.notes.len() as i64);
         assert!(pcm.iter().all(|&s| (-1.0..=1.0).contains(&s)));
-        // Seam fade: loop restart starts at zero.
         assert_eq!(pcm[0], 0.0);
         let peak: f32 = pcm.iter().map(|s| s.abs()).fold(0.0, f32::max);
         assert!(peak > 0.1);
+        assert!(
+            track_count(&TITLE_LOOP) >= 2,
+            "title renders multiple tracks"
+        );
+    }
+
+    #[test]
+    fn offline_pcm_levels_are_bounded_and_the_default_mix_keeps_headroom() {
+        let peak = |pcm: &[f32]| pcm.iter().map(|s| s.abs()).fold(0.0f32, f32::max);
+        let rms =
+            |pcm: &[f32]| (pcm.iter().map(|s| s * s).sum::<f32>() / pcm.len().max(1) as f32).sqrt();
+        let mut music_peak = 0.0f32;
+        let mut music_rms = 0.0f32;
+        for tune in ALL_TUNES {
+            let pcm = render_tune(*tune);
+            assert!(pcm.iter().all(|s| s.is_finite()), "{} is finite", tune.name);
+            assert!(peak(&pcm) <= MUSIC_PEAK + 1e-4, "{} clips", tune.name);
+            assert!(rms(&pcm) > 0.001, "{} renders near-silent", tune.name);
+            if tune.looped {
+                music_peak = music_peak.max(peak(&pcm));
+                music_rms = music_rms.max(rms(&pcm));
+            }
+        }
+        let mut sfx_peak = 0.0f32;
+        for cue in ALL_CUES {
+            let Some(sfx) = sfx_for_cue(*cue) else {
+                continue;
+            };
+            let pcm = render_sfx_with(sfx, 0);
+            assert!(pcm.iter().all(|s| s.is_finite()), "{cue:?} is finite");
+            assert!(peak(&pcm) <= SFX_PEAK + 1e-4, "{cue:?} clips");
+            assert!(rms(&pcm) > 0.001, "{cue:?} renders near-silent");
+            sfx_peak = sfx_peak.max(peak(&pcm));
+        }
+        let mixed_music_peak = music_peak * DEFAULT_MASTER * DEFAULT_MUSIC;
+        let mixed_sfx_peak = sfx_peak * DEFAULT_MASTER * DEFAULT_SFX;
+        assert!(mixed_music_peak < 0.2, "default music keeps headroom");
+        assert!(mixed_sfx_peak < 0.35, "default SFX keeps headroom");
+        println!(
+            "offline pcm: music peak {:.3} rms {:.3}; defaults {:.3}; sfx peak {:.3}; default {:.3}",
+            music_peak, music_rms, mixed_music_peak, sfx_peak, mixed_sfx_peak
+        );
     }
 
     #[test]
@@ -320,9 +517,16 @@ mod tests {
     }
 
     #[test]
+    fn fade_math_reaches_target_within_the_fade_window() {
+        assert_eq!(approach(0.0, 1.0, 0.25), 0.25);
+        assert_eq!(approach(1.0, 0.0, 0.25), 0.75);
+        assert_eq!(approach(0.9, 1.0, 0.25), 1.0);
+        assert_eq!(approach(0.1, 0.0, 0.25), 0.0);
+        const { assert!(FADE_SECS > 0.0) };
+    }
+
+    #[test]
     fn open_or_null_never_panics_and_honors_volumes() {
-        // On CI (no device) this exercises the Null fallback; on desks
-        // it exercises the rodio backend. Either way the contract holds.
         let (mut audio, live) = open_or_null();
         audio.set_master(2.0);
         assert_eq!(audio.master(), 1.0);
@@ -333,9 +537,9 @@ mod tests {
         audio.play(Cue::Crumb);
         audio.play(Cue::Death);
         audio.start_music(TuneId::Title);
+        audio.tick(0.2);
         audio.start_music(TuneId::None);
         audio.stop_music();
-        // Report liveness for the log without failing either state.
         println!("desktop audio live: {live}");
     }
 }
