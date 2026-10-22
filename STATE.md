@@ -1,6 +1,6 @@
 # STATE
 
-Last updated: 2026-10-22T22:36Z by the maintainer run 39865016669 (the 22:26:46Z Lab Engineer `maintainer` handoff on PR #748, alongside the 22:26:53Z `opencode-pr-trigger` push wake; fresh survey 22:27-22:36Z).
+Last updated: 2026-10-22T23:48Z by the maintainer run 39873412962 (the `workflow_run` failure triage of opencode-review 39870971015, the exhausted retry-3 review of #748; fresh survey 23:42-23:50Z).
 
 ## Who I am
 
@@ -8,49 +8,50 @@ I am Hephaestus, the Maintainer of this lab: Chief Orchestrator, in the line of 
 
 ## Right now
 
-- **#743 P0 - FOLLOW-ON FIX #748 FINAL TIP `49ad1c3f` FULLY VERIFIED, STILL AWAITING THE OWNER'S EXPLICIT MERGE AUTHORIZATION**: PR #748 (`opencode/lab-743-staged-prompt-permission`, `Refs #743`) now carries three commits on `main` `08b8df67`; the queued Lab Engineer round 39860286714 completed success and pushed the final commit `49ad1c3f` (bounded-verification reviewer guidance plus the moved R30 prompt SHA pin). Independent verification this run from a fresh export: full `.github/scripts/silent-stall-audit.sh` = 31 passed, 0 failed, empty stderr; strict duplicate-key-rejecting YAML parse clean on all 19 workflows plus the composite action; the exact `OPENCODE_PERMISSION: '{"external_directory":{"*":"allow"}}'` grant on all six PR-gated agent steps (review, test, eval, 3x per-OS) plus the Maintainer's inline arm, with `OPENCODE_DISABLE_PROJECT_CONFIG: "true"` unchanged on the six gated lanes; `reviewer.md` SHA-256 `76dae5c8157b6b78f8d5688d0953daeb3ac46b85f010b4210b4999ed7bdd1a5f` matches the R30 pin; docs edits accurate; no owner PAT in any agent env; MERGEABLE/CLEAN with a fresh preview deploy. The PR cannot be gated by the lanes it repairs (they run from `main` `08b8df67`, which lacks the grant), so it needs the same explicit owner authorization path as #747. `comment.md` on #748 carries the final-tip verification and the standing merge ask.
-- **#748's pre-fix review cycle**: the 21:57:14Z review (run 39861295688) did real work, asked on `external_directory` at 22:22:29Z, and was killed by the #653 watchdog at 22:32:41Z; the verify step found no published verdict and posted `/oc review (auto-retry 1)` at 22:32:47Z (retry 1/3). The retry (run 39865747531) is live on `main` `08b8df67` and will most likely die at the same known ask; that is the class #748 fixes, not a new defect, and its failure triage must stand down.
-- **#745 (owner-PAT hardening, `Refs #742`) - CLEAN, DO NOT MERGE YET**: head `6c8c1504`, one commit on `08b8df67` (the rebase already landed via lab run 39852525801), MERGEABLE/CLEAN, untouched. It adds `OPENCODE_DISABLE_PROJECT_CONFIG: "true"` to the Maintainer arm, so it must not land before #748. After #748 merges: one short rebase if needed, keep this permission line, then ONE fresh head-bound review, the read-only infra Tester, a fresh Council, the PAT sweep; #742 closes on merge.
-- **#741 (Phase 6 release engineering, `Refs #582`, `Refs #657`) - BLOCKED ON #748**: head `5d82c7bf`, MERGEABLE/CLEAN, unchanged since 16:32:44Z. After #748 lands: ONE fresh head-bound review (budget spent), then Tester plus per-OS, the Quality Council, the PAT merge with the eval marker, the release-workflow lab dispatch, and the `maze-chase-v0.1.0-rc.1` cut, keeping #657 open.
-- **Issues**: 13 open, all mapped: #743 (P0 lane repair), #742 (until #745 merges), the Maze Chase set (#683/#678/#677/#676/#661/#660/#659/#657/#655/#582), boards #70/#42. Zero untriaged. No closed-unmerged PR needs recovery (the recent closed set is all merged).
-- **Concurrency**: this run 39865016669 was spawned by the Lab Engineer's 22:26:46Z `/oc maintainer` forward (its log shows `Forwarding to Maintainer (/oc maintainer) on #748` plus comment URL 6352674159). A second `/oc maintainer` at 22:26:53Z is `opencode-pr-trigger` run 39865018300's push wake (comment 6352675840). Neither is a manual owner directive; no merge authorization exists on the thread. Sibling maintainer runs are the schedule/failure fan-out; all skipped or superseded.
+- **#743 P0 - FIX #748 FINAL TIP `49ad1c3f` VERIFIED, AWAITING THE OWNER'S EXPLICIT MERGE AUTHORIZATION; the pre-fix review gate is now terminally dead**: PR #748 (`opencode/lab-743-staged-prompt-permission`, `Refs #743`) carries three commits on `main` `08b8df67` at head `49ad1c3f4a50df8d7c3f006265a8e7039b454ceb`, MERGEABLE/CLEAN, untouched since 22:26Z. The prior run verified the full audit at 31 passed / 0 failed with empty stderr, the strict duplicate-key-rejecting YAML parse on all workflows plus the composite action, the exact `OPENCODE_PERMISSION: '{"external_directory":{"*":"allow"}}'` grant on all six PR-gated agent steps plus the Maintainer arm, the unchanged `OPENCODE_DISABLE_PROJECT_CONFIG: "true"` on the six gated lanes, the `reviewer.md` SHA-256 pin match, and no owner PAT in any agent env. The PR cannot be gated by the lanes it repairs (they run from `main` `08b8df67`, which lacks the grant), so it needs the same explicit owner authorization path as #747.
+- **#748 review gate is terminal**: the retry-3 review (run 39870971015, triggered 23:18:59Z) did about eleven minutes of real work, asked `external_directory /tmp/*` at 23:30:34Z on pre-fix `main`, was killed by the #653 watchdog at 23:41:00Z after both hang attempts were consumed, published nothing (no decision file, no reviewer-signed comment), and the verify step red-ed with `Review gate still dead after 4 attempts (1 initial + 3 auto-retries). Manual intervention required.` This is the documented #743 class, not a new defect. A fresh review pre-merge is pointless; the grant takes effect after the merge.
+- **#745 (owner-PAT hardening, `Refs #742`) - CLEAN, DO NOT MERGE YET**: head `6c8c15044ad9a37dbb851867bd740ba17dcdbb87`, one commit on `08b8df67`, MERGEABLE/CLEAN, untouched. It adds `OPENCODE_DISABLE_PROJECT_CONFIG: "true"` to the Maintainer arm, so it must not land before #748. After #748 merges: keep the permission line, verify the Maintainer-arm opt-out closes the workspace project-config channel, then ONE fresh head-bound review, the read-only infra Tester, a fresh Council, the PAT sweep; #742 closes on merge.
+- **#741 (Phase 6 release engineering, `Refs #582`, `Refs #657`) - BLOCKED ON #748**: head `5d82c7bf6b0a146ce9777d05ad3855ade15c76d4`, MERGEABLE/CLEAN, unchanged since 16:32:44Z. After #748 lands: ONE fresh head-bound review (budget spent), then Tester plus per-OS, the Quality Council, the PAT merge with the eval marker, the release-workflow lab dispatch, and the `maze-chase-v0.1.0-rc.1` cut, keeping #657 open.
+- **Issues**: 13 open, all mapped: #743 (P0 lane repair), #742 (until #745 merges), the Maze Chase set (#683/#678/#677/#676/#661/#660/#659/#657/#655/#582), boards #70/#42. Zero untriaged. No closed-unmerged PR needs recovery (the recent closed set is all merged); no retired `opencode/schedule-*` / `opencode/dispatch-*` branch on the remote.
+- **Concurrency**: this run 39873412962 is the `workflow_run` failure wake (created 23:41:12Z). The 23:19Z maintainer fan-out runs were skipped or cancelled under the deliberate single pending slot. No agent session was spawned by this run.
 
-## Health (verified 22:27-22:36Z)
+## Health (verified 23:42-23:50Z)
 
-- Main tip `08b8df67` via `git ls-remote`; the workflow checkout pinned the default branch, then the opencode CLI's PR-session bootstrap checked the workspace out to the PR head `49ad1c3f` (reflog: `main` -> `opencode/lab-743-staged-prompt-permission` at 22:27:06Z). The staged prompt at `${RUNNER_TEMP}/lab-prompts/maintainer.md` is authoritative.
-- Open PRs: #748 (`49ad1c3f`), #745 (`6c8c1504`), #741 (`5d82c7bf`), all CLEAN. Zero held `action_required` runs repo-wide. No failure/timed_out/startup_failure in the last 150 runs.
-- Trigger allowlist in `maintainer.yml` on `main` re-read: 18 entries, matching the 18 repo-defined non-maintainer workflow names item-for-item (the 3 live GitHub-managed dynamic workflows are not repo workflows).
-- Pages: PR preview deploy for `49ad1c3f` (run 39865018299) succeeded; production unchanged on `08b8df67`; the earlier root/preview probes were green and no production deploy is due.
+- Main tip `08b8df671157b4cd78d3a1271fbd0627b150069d` via `git ls-remote`; unchanged.
+- Open PRs: #748 (`49ad1c3f`), #745 (`6c8c1504`), #741 (`5d82c7bf`), all MERGEABLE/CLEAN. Zero held `action_required` runs repo-wide. The only failure in the last 100 runs is the known review above; the maintainer cancellations are the deliberate single pending slot.
+- Trigger allowlist in `maintainer.yml`: 18 entries, matching the 18 repo-defined non-maintainer workflow names item-for-item (the 3 live GitHub-managed dynamic workflows are not repo workflows).
+- Pages: production deploy 39865029449 succeeded at 22:26:55Z on `08b8df67`; the `49ad1c3f` PR preview deploy 39865018299 succeeded. No production deploy is due while main is unchanged.
 - Model pins unchanged: `opencode/deepseek-v4.1-flash-free` for `model`, `small_model`, and `REQUESTED_MODEL`; ladder rungs `deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `glm-5.3-flash-free` all present and free in the live registry.
 
 ## Empirical notes (important for future runs)
 
-- A bare `/oc maintainer` authored by the owner account is usually machine-generated: this run had two, from the Lab Engineer's forward step and from `opencode-pr-trigger`'s push wake. Always verify the source in the producing run's log before reading one as a merge authorization.
-- The opencode CLI's PR-session bootstrap checks the workspace out to the PR head even when the workflow checkout is pinned to the default branch (reflog proof this run). The staged Maintainer prompt is unaffected (authoritative copy in `RUNNER_TEMP`), but the project-config channel (`AGENTS.md`/`opencode.json`/plugins) follows the workspace; #745 adds the Maintainer-arm `OPENCODE_DISABLE_PROJECT_CONFIG` opt-out. Verify that after #745 lands.
-- The #653 watchdog classifies a pending permission ask (no log growth) as a provider stall. A pending `external_directory` ask followed by 600s of silence is a session-setup deadlock, not a provider fault. #748's grant removes the ask on every staged-prompt arm.
-- A stalled/failed review attempt that published nothing yet the step outcome is failure consumes the review retry budget; a posted retry is a green handoff by design. #748's own retry is 1/3.
-- Do not post repeated "awaiting authorization" comments: the 22:19:59Z comment already carries the ask; this run's comment adds the final-tip verification only because the head changed. Future runs stay quiet until the head moves or the owner replies.
+- The review auto-retry loop posts `/oc review (auto-retry N)` as the owner through the workflow's hardcoded PAT step. Those are machine wakes, never manual replies or merge authorization. The #747 merge authorization was the owner's literal comment: `/oc maintainer, I approve it please merge.` Nothing equivalent exists on #748.
+- The retry budget on a review gate is 1 initial + 3 auto-retries, and it is now fully spent on #748. The gate ends terminal ("Manual intervention required.") instead of retrying forever; this is the designed crash parity, not a new fault.
+- The #653 watchdog classifies a pending permission ask (no log growth after the ask) as a provider stall. On pre-fix `main` that means two 600s kills per review attempt. The #748 grant removes the ask; do not re-trigger a gated lane before it lands.
+- The opencode CLI's PR-session bootstrap checks the workspace out to the PR head even when the workflow checkout is pinned to the default branch. The staged Maintainer prompt is unaffected (authoritative copy in `RUNNER_TEMP`), but the project-config channel (`AGENTS.md`/`opencode.json`/plugins) follows the workspace; #745 adds the Maintainer-arm opt-out. Verify that after #745 lands.
+- Do not post repeated "awaiting authorization" comments: the 22:37Z comment already carries the ask. Stay quiet until the head moves or the owner replies manually.
+- A scheduled failure wake for `opencode-review` on `main` with a missing decision file is the known #743 signature while #748 is open: stand down, no dispatch, no comment.
 
 ## Decisions this run
 
-- No dispatch: `decision.json` is `[]`. The P0 repair's final tip is verified and needs only the owner's merge authorization; every gated lane still lacks the grant until #748 lands; the review retry is live; the #745/#741 work is blocked behind #748.
-- One public comment via `comment.md` on the run target #748: the final-tip verification (`49ad1c3f`, 31/31 audit, YAML parse, grants on all seven arms, prompt-pin match), the machine-origin of the two `/oc maintainer` comments, the retry 1/3 burn on the pre-fix lane, and the standing explicit authorization request.
-- No `review`/`test`/`eval`/per-OS: they run from `main` `08b8df67` and still hit the ask; #748's review retry is already live.
-- No merge: the machine gates cannot come from the lanes this PR repairs, and no explicit owner authorization exists (the prior #747 path required one).
+- No dispatch: `decision.json` is `[]`; `comment.md` is empty. The failure triage stands down because the class is known and owned by the verified fix PR #748; every gated lane still lacks the grant until #748 lands; #748's review budget is exhausted; #745/#741 are blocked behind #748.
+- No comment: the thread already carries the standing authorization ask; machine auto-retry wakes are not owner replies.
+- No merge: no tester approval plus eval marker can exist while the lanes are broken, and no explicit owner authorization exists for #748.
+- No `review`/`test`/`eval`/per-OS: they run from pre-fix `main` and still hit the ask; #748's budget is spent and #741/#745 are blocked.
+- No `lab` duplicate: #748 already carries the complete, verified fix.
 - No `fix`/`continue`: #748/#745/#741 are infrastructure and workflow-touching (routing guard).
-- No `lab` duplicate: the lab round completed success with the full scope; nothing remains.
 - No create/close/recover/ideate/auditor/curate: zero untriaged content, no stranded work, no ideation request, no curator follow-up.
-- No emergency: `lab.yml` executes normally; the repair is a normal routed lab PR.
+- No emergency: `lab.yml` executes normally and production is not halted; the repair is a normal routed lab PR.
 
 ## Watch list
 
-- #748: on explicit owner authorization, verify the final head and merge with `--match-head-commit`, branch intact; then confirm `main` carries the grants on all seven arms.
-- #748 review retry 39865747531: expect the known ask death; failure triage stands down. Retry budget 1/3 used.
+- #748: on explicit owner authorization, verify the head and merge with `--match-head-commit`, branch intact; then confirm `main` carries the grants on all seven arms.
+- #748 review gate: terminal at 4/4 attempts; do not re-trigger pre-merge. Post-merge, the first fresh review is the live proof.
 - After #748 lands: live per-lane proof (review, test, eval, per-OS) before closing #743; fresh reviews of #741 `5d82c7bf` and #745 `6c8c1504`.
 - #745: keep the permission line, verify the Maintainer-arm opt-out closes the workspace project-config channel, then the full gate chain; #742 closes on merge.
 - #741: review -> test -> per-OS -> eval -> PAT merge -> release lab dispatch plus `maze-chase-v0.1.0-rc.1`; #657 open.
 - Recurrence watches: #620 free-tier, #717 upstream-endpoint, #669 egress-IP, #653 stall classes (including the permission-ask false positive), the #616/#637 publication gate, the Pages preview zero-job class, #655 per-OS rows, the test-cap pattern.
-- Deferred: the merge-capability docs reconciliation; the maintainer wake-displacement finding.
+- Deferred: the merge-capability docs reconciliation; the maintainer wake-displacement finding; a possible lower cap or lab routing for auto-retries on self-repairing infra PRs.
 
 ## Next steps
 
@@ -58,13 +59,13 @@ I am Hephaestus, the Maintainer of this lab: Chief Orchestrator, in the line of 
 2. **#743**: collect the per-lane live evidence (review, test, eval, per-OS) and close only when complete.
 3. **#741**: one fresh head-bound review after #748 lands; then Tester plus per-OS, Council, PAT merge with the eval marker, release lab dispatch, rc.1.
 4. **#745**: after #748, verify/rebase, then the full gate chain; close #742 on merge.
-5. **Health**: re-check the retry run; if a fresh failure class appears, triage it (the ask class is known).
+5. **Health**: if a new failure class appears, triage it; the ask class and the terminal review gate are known and owned by #748.
 
 ## Pointers
 
-- This run's log entry: `logs/2026-10-22.md`, run 39865016669.
-- Evidence runs: https://github.com/Userfrom1995/RandomLabs/actions/runs/39861295688 (pre-fix review, ask at 22:22:29Z, watchdog at 22:32:41Z), https://github.com/Userfrom1995/RandomLabs/actions/runs/39865747531 (review auto-retry 1), https://github.com/Userfrom1995/RandomLabs/actions/runs/39860286714 (final lab round, pushed `49ad1c3f`), https://github.com/Userfrom1995/RandomLabs/actions/runs/39865018300 (pr-trigger push wake).
-- Machine wake proof: lab run 39860286714 log (`Forwarding to Maintainer (/oc maintainer) on #748`, comment 6352674159) and pr-trigger log (comment 6352675840).
+- This run's log entry: `logs/2026-10-22.md`, run 39873412962.
+- Evidence runs: https://github.com/Userfrom1995/RandomLabs/actions/runs/39870971015 (retry-3 review, /tmp ask at 23:30:34Z, watchdog at 23:41:00Z, gate red after 4 attempts), https://github.com/Userfrom1995/RandomLabs/actions/runs/39860286714 (final lab round, pushed `49ad1c3f`), https://github.com/Userfrom1995/RandomLabs/actions/runs/39861295688 (initial pre-fix review).
+- Machine wake proof: the review workflow's verify step posts `/oc review (auto-retry N)` as the owner; the #747 precedent authorization is comment 6350814424 on PR #747 (`/oc maintainer, I approve it please merge.`).
 - The binding rules: `.github/agents/maintainer.md` (this run) and `AGENTS.md`.
 - Trusted surfaces: `.github/scripts/silent-stall-audit.sh` (R1-R31), `.github/scripts/publish-eval-marker.sh`, the PAT sweep in `maintainer.yml`, and `.github/actions/opencode-run/`.
 - The #716 Council verdict: #716 comments 6345926245 and 6345928384, eval run 39809774877.
