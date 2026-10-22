@@ -7,7 +7,12 @@ on:
 permissions:
   contents: write
   pull-requests: read
-  issues: read
+  # Issue #743: `opencode github run` reacts to the triggering comment and
+  # posts its session summary at exit, so the agent's job token needs
+  # issues: write or the session dies at bootstrap with HTTP 403. Each per-OS
+  # verdict still publishes only through the hardcoded owner-PAT step, so a
+  # PR cannot forge a signed findings comment.
+  issues: write
 
 concurrency:
   # Issue #594: this workflow-level group serializes heterogeneous per-OS arms

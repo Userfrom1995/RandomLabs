@@ -1499,9 +1499,10 @@ jobs:
             # marker is published by opencode-eval.yml from the approve-eval
             # machine handoff and carries the same entire-first-line shape as
             # the tester verdict (R21), but is owner-authored (the evaluator
-            # agent holds only a read-only App token, issue #713 review round
-            # 13), so quoted, summarized, or bot-forged mentions can never
-            # count. The marker also records the
+            # agent holds only a bot-scoped App token that can write issues for
+            # the CLI session but cannot author as the owner, issue #743;
+            # issue #713 review round 13), so quoted, summarized, or
+            # bot-forged mentions can never count. The marker also records the
             # evaluated head and triggering comment (review round 3), so the
             # sweep binds the verdict to the work it actually examined instead
             # of trusting timestamps alone.
