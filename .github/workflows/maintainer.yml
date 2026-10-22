@@ -655,6 +655,31 @@ jobs:
       - name: Emergency-gated commit and push of workflow model updates to main
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_AUTHOR_NAME: "Hephaestus (Maintainer)"
           GIT_AUTHOR_EMAIL: "github-actions[bot]@users.noreply.github.com"
@@ -940,6 +965,31 @@ jobs:
       - name: Run /oc triggers as owner
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           BOT_TOKEN: ${{ github.token }}
           PATH: /usr/bin:/bin
@@ -1261,6 +1311,31 @@ jobs:
       - name: PAT-backed merge for approved workflow-touching PRs
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           # Issue #713 review round 13: the Maintainer agent prepends
           # $HOME/.opencode/bin (agent-controlled) to PATH and the agent is
@@ -1553,6 +1628,31 @@ jobs:
       - name: Trigger pages deployment if main advanced
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
@@ -1567,6 +1667,31 @@ jobs:
       - name: Main integrity guard (prevent orphan or divergent main rewrite)
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
@@ -1649,6 +1774,31 @@ jobs:
         continue-on-error: true
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           # Env indirection (issue #422 residual, audit R10): run blocks must
           # never expand ${{ inputs.* }} inline against a step carrying the
@@ -1657,17 +1807,17 @@ jobs:
           PATH: /usr/bin:/bin
         run: |
           set +e
-          # The staged copy was restored from this run's workflow commit before
-          # the agent started; the workspace copy is agent-mutable and must
-          # never execute under the owner PAT (issue #713 review round 20).
-          if [ ! -f "/opt/lab-scripts/approve-held-runs.sh" ]; then
-            echo "::error::Staged approve-held-runs.sh is missing; refusing to execute the workspace copy under the owner PAT (issue #713)."
-            exit 1
-          fi
+          # Issue #713 review round 24: read the helper from this run's workflow
+          # commit and pipe it to bash. Neither the agent-mutable workspace copy
+          # nor a sudo-replaceable /opt copy can execute under the owner PAT.
           pr="${PR_NUMBER}"
           # Shared self-healing logic (issue #137): head-scoped polling when a
           # PR context resolves, then ALWAYS a terminal repo-wide sweep that
           # also clears runs held on intermediate head SHAs, which head-scoped
           # polling can never match again.
+          approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh") || {
+            echo "::error::Could not read approve-held-runs.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+            exit 1
+          }
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash "/opt/lab-scripts/approve-held-runs.sh"
+            bash -s <<< "$approve"

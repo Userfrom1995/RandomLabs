@@ -9493,10 +9493,44 @@ if env.get("PATH") != "/usr/bin:/bin":
     sys.exit(14)
 # Any EXTRA env key is an execution-shape change too (review finding F21: an
 # added BASH_ENV passed the old checks): the handler step must carry exactly
-# the two token variables and the pinned PATH.
-if set(env.keys()) != {"GH_TOKEN", "BOT_TOKEN", "PATH"}:
+# the sanitized owner-PAT isolation map plus the bot token. The map is
+# load-bearing here because the embedded handler runs with the owner PAT.
+ISO_ENV = {
+    "BASH_ENV": "/dev/null",
+    "ENV": "/dev/null",
+    "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES": "",
+    "GIT_ASKPASS": "/bin/false",
+    "GIT_COMMON_DIR": "${{ github.workspace }}/.git",
+    "GIT_CONFIG_COUNT": "0",
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_SYSTEM": "/dev/null",
+    "GIT_DIR": "${{ github.workspace }}/.git",
+    "GIT_EDITOR": "/bin/false",
+    "GIT_EXEC_PATH": "/usr/lib/git-core",
+    "GIT_EXTERNAL_DIFF": "",
+    "GIT_INDEX_FILE": "${{ github.workspace }}/.git/index",
+    "GIT_NAMESPACE": "",
+    "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects",
+    "GIT_PAGER": "/bin/cat",
+    "GIT_SEQUENCE_EDITOR": "/bin/false",
+    "GIT_SSH_COMMAND": "ssh",
+    "GIT_TERMINAL_PROMPT": "0",
+    "GIT_TEMPLATE_DIR": "/dev/null",
+    "GIT_WORK_TREE": "${{ github.workspace }}",
+    "LD_AUDIT": "",
+    "LD_LIBRARY_PATH": "",
+    "LD_PRELOAD": "",
+    "PATH": "/usr/bin:/bin",
+}
+if set(env.keys()) != set(ISO_ENV) | {"BOT_TOKEN"}:
     print("handler-step-env-keys-changed", file=sys.stderr)
     sys.exit(14)
+for iso_key, iso_value in ISO_ENV.items():
+    if env.get(iso_key) != iso_value:
+        print("handler-step-env-isolation-changed:%s" % iso_key, file=sys.stderr)
+        sys.exit(14)
 
 def step_runs():
     for job_name, job in (doc.get("jobs") or {}).items():
@@ -10545,7 +10579,7 @@ while IFS= read -r br; do
   gh api -X DELETE "repos/${repo}/git/refs/heads/${enc}"
 done < "$branch_list"
 echo "stray cleanup complete"
-### 16 name=Emergency-gated commit and push of workflow model updates to main | if=always() && steps.actor_gate.outputs.run == 'true' | env={"GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_AUTHOR_NAME": "Hephaestus (Maintainer)", "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_COMMITTER_NAME": "Hephaestus (Maintainer)", "PATH": "/usr/bin:/bin"}
+### 16 name=Emergency-gated commit and push of workflow model updates to main | if=always() && steps.actor_gate.outputs.run == 'true' | env={"BASH_ENV": "/dev/null", "ENV": "/dev/null", "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "GIT_ALTERNATE_OBJECT_DIRECTORIES": "", "GIT_ASKPASS": "/bin/false", "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_AUTHOR_NAME": "Hephaestus (Maintainer)", "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_COMMITTER_NAME": "Hephaestus (Maintainer)", "GIT_COMMON_DIR": "${{ github.workspace }}/.git", "GIT_CONFIG_COUNT": "0", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_SYSTEM": "/dev/null", "GIT_DIR": "${{ github.workspace }}/.git", "GIT_EDITOR": "/bin/false", "GIT_EXEC_PATH": "/usr/lib/git-core", "GIT_EXTERNAL_DIFF": "", "GIT_INDEX_FILE": "${{ github.workspace }}/.git/index", "GIT_NAMESPACE": "", "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects", "GIT_PAGER": "/bin/cat", "GIT_SEQUENCE_EDITOR": "/bin/false", "GIT_SSH_COMMAND": "ssh", "GIT_TEMPLATE_DIR": "/dev/null", "GIT_TERMINAL_PROMPT": "0", "GIT_WORK_TREE": "${{ github.workspace }}", "LD_AUDIT": "", "LD_LIBRARY_PATH": "", "LD_PRELOAD": "", "PATH": "/usr/bin:/bin"}
 dirty=$(git status --porcelain -- .github/workflows .github/agents opencode.json AGENTS.md LAB.md 2>/dev/null || true)
 if [ -z "$dirty" ]; then
   echo "No protected-path modifications left by the Maintainer; nothing to do."
@@ -10800,7 +10834,6 @@ for t, body, is_main_comment in posts:
     )
     print(f"posted comment on #{t}")
 PY
-
 R26PRE
 )
     [ "$r26_premanifest_actual" = "$r26_premanifest_expected" ] || r26_bad="${r26_bad} maintainer.yml(pre-handler-block-changed)"
@@ -13221,7 +13254,12 @@ if [ -f /tmp/random-lab-decision.json ]; then
   echo "Decision file present; @@PHASE@@ phase produced a handoff."
   exit 0
 fi
-issue=$(bash "/opt/lab-scripts/resolve-thread-target.sh" thread) || {
+resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
+  echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to auto-retry."
+  echo "handled=true" >> "$GITHUB_OUTPUT"
+  exit 1
+}
+issue=$(printf '%s\n' "$resolver" | bash -s -- thread) || {
   echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
   echo "handled=true" >> "$GITHUB_OUTPUT"
   exit 1
@@ -13235,7 +13273,7 @@ if [ "$outcome" != "success" ]; then
     printf '%s' "$retries"
   }
   retries=$(count_retries "$issue")
-  parent=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || parent=""
+  parent=$(printf '%s\n' "$resolver" | bash -s -- parent) || parent=""
   if [ -z "$parent" ]; then
     echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
     echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -13269,7 +13307,11 @@ fi
 echo "::error::@@DISP@@ step reported success but wrote no decision file (silent no-op); failing loudly instead of exiting green."
 exit 1"""
 
-FORWARD_RESEARCH = r"""target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {
+FORWARD_RESEARCH = r"""resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
+  echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to post a mis-targeted trigger."
+  exit 1
+}
+target=$(printf '%s\n' "$resolver" | bash -s -- parent) || {
   echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
   exit 1
 }
@@ -13287,7 +13329,11 @@ else
   gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
 fi"""
 
-FORWARD_ARCHITECT = r"""target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {
+FORWARD_ARCHITECT = r"""resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
+  echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to post a mis-targeted trigger."
+  exit 1
+}
+target=$(printf '%s\n' "$resolver" | bash -s -- parent) || {
   echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
   exit 1
 }
@@ -13305,7 +13351,11 @@ else
   gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
 fi"""
 
-FORWARD_DESIGN_TMPL = r"""target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {
+FORWARD_DESIGN_TMPL = r"""resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
+  echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to post a mis-targeted trigger."
+  exit 1
+}
+target=$(printf '%s\n' "$resolver" | bash -s -- parent) || {
   echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
   exit 1
 }
@@ -13340,6 +13390,7 @@ if [ "${AGENT_GATE:-}" != "true" ]; then
 fi
 
 issue="${{ github.event.issue.number }}"
+classifier=$(git show "${GITHUB_SHA}:.github/scripts/classify-build-push.sh" 2>/dev/null || true)
 
 # Like-for-like push detection on server-resolved state (issue #135).
 # NEVER trust `git branch --show-current` as the target: the agent is
@@ -13365,7 +13416,7 @@ if [ -n "$target_branch" ]; then
     # moves the tip too, and treating it as this session's push ran
     # the post-push bookkeeping against work the build never made.
     if [ -n "$tip_now" ] && [ -n "$BASELINE_HEAD" ] && [ "$tip_now" != "$BASELINE_HEAD" ]; then
-      attribution=$(bash "/opt/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$target_branch" 2>/dev/null || true)
+      attribution=$(printf '%s\n' "$classifier" | bash -s -- "$BASELINE_HEAD" "$tip_now" "$target_branch" 2>/dev/null || true)
       if [ "$attribution" = "own" ]; then
         pushed="yes"
         echo "Build pushed successfully: $target_branch moved $BASELINE_HEAD -> $tip_now (builder commit attributed)"
@@ -13423,7 +13474,7 @@ else
   if [ -n "$tip_now" ] && [ "$tip_now" != "$BASELINE_HEAD" ]; then
     # Issue #690: attribute the move to a builder: commit; a foreign
     # push on the lost-PR branch is not this session's work either.
-    attribution=$(bash "/opt/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$BASELINE_BRANCH" 2>/dev/null || true)
+    attribution=$(printf '%s\n' "$classifier" | bash -s -- "$BASELINE_HEAD" "$tip_now" "$BASELINE_BRANCH" 2>/dev/null || true)
     if [ "$attribution" = "own" ]; then
       pushed="yes"
       echo "Build pushed successfully: $BASELINE_BRANCH moved $BASELINE_HEAD -> $tip_now (builder commit attributed)"
@@ -13558,23 +13609,43 @@ else
 fi
 """
 
-VERIFY_ENV = {
+OWNER_PAT_ISO_ENV = {
+    "BASH_ENV": "/dev/null",
+    "ENV": "/dev/null",
     "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
-    "AGENT_GATE": "${{ steps.actor_gate.outputs.run }}",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES": "",
+    "GIT_ASKPASS": "/bin/false",
+    "GIT_COMMON_DIR": "${{ github.workspace }}/.git",
+    "GIT_CONFIG_COUNT": "0",
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_SYSTEM": "/dev/null",
+    "GIT_DIR": "${{ github.workspace }}/.git",
+    "GIT_EDITOR": "/bin/false",
+    "GIT_EXEC_PATH": "/usr/lib/git-core",
+    "GIT_EXTERNAL_DIFF": "",
+    "GIT_INDEX_FILE": "${{ github.workspace }}/.git/index",
+    "GIT_NAMESPACE": "",
+    "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects",
+    "GIT_PAGER": "/bin/cat",
+    "GIT_SEQUENCE_EDITOR": "/bin/false",
+    "GIT_SSH_COMMAND": "ssh",
+    "GIT_TERMINAL_PROMPT": "0",
+    "GIT_TEMPLATE_DIR": "/dev/null",
+    "GIT_WORK_TREE": "${{ github.workspace }}",
+    "LD_AUDIT": "",
+    "LD_LIBRARY_PATH": "",
+    "LD_PRELOAD": "",
     "PATH": "/usr/bin:/bin",
 }
-FORWARD_ENV = {
-    "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
-    "PATH": "/usr/bin:/bin",
-}
-BUILD_ENV = {
-    "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
-    "AGENT_GATE": "${{ steps.actor_gate.outputs.run }}",
-    "BASELINE_BRANCH": "${{ steps.baseline.outputs.branch }}",
-    "BASELINE_HEAD": "${{ steps.baseline.outputs.head_before }}",
-    "PATTERN_TIPS": "${{ steps.baseline.outputs.pattern_tips }}",
-    "PATH": "/usr/bin:/bin",
-}
+VERIFY_ENV = dict(OWNER_PAT_ISO_ENV)
+VERIFY_ENV["AGENT_GATE"] = "${{ steps.actor_gate.outputs.run }}"
+FORWARD_ENV = dict(OWNER_PAT_ISO_ENV)
+BUILD_ENV = dict(OWNER_PAT_ISO_ENV)
+BUILD_ENV["AGENT_GATE"] = "${{ steps.actor_gate.outputs.run }}"
+BUILD_ENV["BASELINE_BRANCH"] = "${{ steps.baseline.outputs.branch }}"
+BUILD_ENV["BASELINE_HEAD"] = "${{ steps.baseline.outputs.head_before }}"
+BUILD_ENV["PATTERN_TIPS"] = "${{ steps.baseline.outputs.pattern_tips }}"
 RECOVER_ENV = {"GH_TOKEN": "${{ github.token }}"}
 VERIFY_KEYS = ("name", "id", "if", "env", "run")
 FORWARD_KEYS = ("name", "if", "env", "run")
@@ -13737,10 +13808,10 @@ resolve_ref("build", "verify", expected_name="Verify build pushed, else auto-ret
 build_lines = norm(build_step.get("run") or "").splitlines()
 
 expected_calls = [
-    'attribution=$(bash "/opt/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$target_branch" 2>/dev/null || true)',
-    'attribution=$(bash "/opt/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$BASELINE_BRANCH" 2>/dev/null || true)',
+    "attribution=$(printf '%s\\n' \"$classifier\" | bash -s -- \"$BASELINE_HEAD\" \"$tip_now\" \"$target_branch\" 2>/dev/null || true)",
+    "attribution=$(printf '%s\\n' \"$classifier\" | bash -s -- \"$BASELINE_HEAD\" \"$tip_now\" \"$BASELINE_BRANCH\" 2>/dev/null || true)",
 ]
-attribution_calls = [line.strip() for line in build_lines if "classify-build-push.sh" in line]
+attribution_calls = [line.strip() for line in build_lines if line.strip().startswith("attribution=")]
 if sorted(attribution_calls) != sorted(expected_calls):
     fail("build-verify-attribution-calls:%r" % (attribution_calls,))
 
@@ -13796,15 +13867,6 @@ for job_name, job_doc in (doc.get("jobs") or {}).items():
             continue
         bound_body = "\n".join(line for line in norm(bound_step.get("run") or "").splitlines()
                                if not line.strip().startswith("#"))
-        for helper in ("resolve-thread-target.sh", "classify-build-push.sh", "strip-trailers.sh",
-                       "approve-held-runs.sh"):
-            remaining = bound_body
-            while helper in remaining:
-                at = remaining.index(helper)
-                if not remaining[:at].endswith("/opt/lab-scripts/"):
-                    fail("untrusted-helper-invocation:%s:%s:%s"
-                         % (job_name, bound_step.get("name"), helper))
-                remaining = remaining[at + len(helper):]
         # The staging directory is a trust boundary, not just an invocation
         # path: a reviewed extra step could copy the agent-mutable workspace
         # helpers over the staged copies or edit them in place (sed -i,
@@ -13890,10 +13952,64 @@ for bound_job in sorted(set(phase) | {"build"}):
         if bad_key in bound_doc:
             fail("job-effective-override:%s:%s" % (bound_job, bad_key))
 
-# Issue #713 review round 20 (F8): every step carrying the owner PAT must
-# resolve its tools from the pinned system PATH (the runner prepends the
-# agent-writable $HOME/.opencode/bin), and the only approve-held-runs.sh
-# invocation allowed is the staged copy restored from the workflow commit.
+# Issue #713 review round 24: every step carrying the owner PAT must carry
+# the exact sanitized env map (the three arms already did; the 27 build/fix/
+# phase steps did not), and no step may execute a helper by path. The helper
+# bodies are read from this run's workflow commit and piped to bash, so a
+# PR-controlled workspace copy and a sudo-replaceable /opt copy are inert.
+TRUSTED_HELPERS = (
+    "resolve-thread-target.sh",
+    "classify-build-push.sh",
+    "strip-trailers.sh",
+    "approve-held-runs.sh",
+)
+HELPER_EXECUTE_FORMS = {
+    "resolve-thread-target.sh": 'printf \'%s\\n\' "$resolver" | bash -s --',
+    "classify-build-push.sh": 'printf \'%s\\n\' "$classifier" | bash -s --',
+    "strip-trailers.sh": 'printf \'%s\\n\' "$strip" | bash -s',
+    "approve-held-runs.sh": 'bash -s <<< "$approve"',
+}
+
+def isolated_env(env):
+    return isinstance(env, dict) and all(
+        env.get(key) == value for key, value in OWNER_PAT_ISO_ENV.items()
+    )
+
+def trusted_helper_body(body):
+    for helper in TRUSTED_HELPERS:
+        if helper not in body:
+            continue
+        for line in body.splitlines():
+            # Diagnostic messages may name the helper; they never execute it.
+            if re.match(r'^\s*(?:echo|printf)\b', line) and "|" not in line:
+                continue
+            at = line.find(helper)
+            while at != -1:
+                if not re.search(
+                    r'^\s*[A-Za-z_][A-Za-z0-9_]*=\$\(git show "\$\{GITHUB_SHA\}:\.github/scripts/$',
+                    line[:at],
+                ):
+                    return False
+                at = line.find(helper, at + len(helper))
+        if HELPER_EXECUTE_FORMS[helper] not in body:
+            return False
+    return True
+
+# Mutation self-tests: a path invocation must be rejected, the shipped
+# trusted form must be accepted, and an env missing any isolation key must
+# be rejected, so a scan narrowed back to PATH alone fails the audit.
+if trusted_helper_body('bash "/opt/lab-scripts/resolve-thread-target.sh" thread'):
+    fail("self-test-untrusted-helper-not-caught")
+if not trusted_helper_body(
+    'resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {\n'
+    '  exit 1\n'
+    '}\n'
+    'issue=$(printf \'%s\\n\' "$resolver" | bash -s -- thread) || {'
+):
+    fail("self-test-trusted-helper-rejected")
+if isolated_env({"GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "PATH": "/usr/bin:/bin"}):
+    fail("self-test-owner-pat-isolation-not-caught")
+
 owner_pat_steps = 0
 for job_name, job_doc in (doc.get("jobs") or {}).items():
     for step in ((job_doc or {}).get("steps") or []):
@@ -13904,17 +14020,22 @@ for job_name, job_doc in (doc.get("jobs") or {}).items():
                    for value in env.values()):
             continue
         owner_pat_steps += 1
-        if env.get("PATH") != "/usr/bin:/bin":
-            fail("owner-pat-step-path-not-pinned:%s:%s" % (job_name, step.get("name")))
-        body = "\n".join(line for line in norm(step.get("run") or "").splitlines()
-                         if not line.strip().startswith("#"))
-        for line in body.splitlines():
-            if "approve-held-runs.sh" in line \
-                    and 'bash "/opt/lab-scripts/approve-held-runs.sh"' not in line:
-                fail("untrusted-approve-held-runs-invocation:%s:%s"
-                     % (job_name, step.get("name")))
+        if not isolated_env(env):
+            fail("owner-pat-step-env-not-isolated:%s:%s" % (job_name, step.get("name")))
 if owner_pat_steps != 27:
     fail("owner-pat-step-count:%d,want=27" % owner_pat_steps)
+# No step may execute a helper by path, whether or not it carries the owner
+# PAT: the strip/approve arms run with the job token, but a PR-rewritten
+# helper would still execute arbitrary code in a post-agent step.
+for job_name, job_doc in (doc.get("jobs") or {}).items():
+    for step in ((job_doc or {}).get("steps") or []):
+        if step.get("name") == STAGE_NAME:
+            continue
+        body = "\n".join(line for line in norm(step.get("run") or "").splitlines()
+                         if not line.strip().startswith("#"))
+        if not trusted_helper_body(body):
+            fail("untrusted-helper-invocation:%s:%s"
+                 % (job_name, step.get("name")))
 # Tree-wide: no workflow step may plant an executable in the agent-writable
 # PATH directory the runner appends ($HOME/.opencode/bin). That shim would be
 # resolved by any owner-PAT step whose PATH was not pinned and is exactly how
@@ -13966,6 +14087,17 @@ def sub_first(old, new):
     return text.replace(old, new, 1)
 
 
+def sub_after(anchor, old, new):
+    found = text.count(anchor)
+    if found != 1:
+        raise SystemExit("mutation-anchor-count=%d:%s" % (found, anchor.splitlines()[0][:70]))
+    at = text.index(anchor)
+    pos = text.find(old, at)
+    if pos == -1:
+        raise SystemExit("mutation-target-missing:%s" % old.strip()[:70])
+    return text[:pos] + new + text[pos + len(old):]
+
+
 def after(anchor, inserted):
     found = text.count(anchor)
     if found != 1:
@@ -13991,12 +14123,12 @@ RECOVER_HEAD = ("      - name: Preserve build branch with recover tag\n"
                 "        env:\n          GH_TOKEN: ${{ github.token }}\n")
 FORWARD_RESEARCH = ("      - name: Forward researcher decision\n"
                     "        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'\n"
-                    "        env:\n          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}\n")
+                    "        env:\n")
 
 mutants = {
     "verify-target": sub_first('          target="$issue"\n', '          target=$(echo 582)\n'),
     "verify-counter": sub_first(
-        '            parent=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || parent=""\n',
+        '            parent=$(printf \'%s\\n\' "$resolver" | bash -s -- parent) || parent=""\n',
         '            parent="$issue"\n',
     ),
     "verify-newest-pr": sub_first(
@@ -14016,7 +14148,7 @@ mutants = {
     "verify-id": sub_first('        id: verify-phase\n', '        id: verify-phase-2\n'),
     "verify-continue-on-error": after(RESEARCH_VERIFY, '        continue-on-error: true\n'),
     "forward-target": sub_first(
-        '          target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {\n',
+        '          target=$(printf \'%s\\n\' "$resolver" | bash -s -- parent) || {\n',
         '          target="$issue" || {\n',
     ),
     "forward-comment": sub_first(
@@ -14031,7 +14163,11 @@ mutants = {
         '            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc build this" || true\n',
         '            gh issue comment "${{ github.event.issue.number }}" --repo "${{ github.repository }}" --body "/oc build this" || true\n',
     ),
-    "forward-env-token": sub(FORWARD_RESEARCH, FORWARD_RESEARCH.replace('${{ secrets.OPENCODE_PAT }}', '${{ github.token }}')),
+    "forward-env-token": sub_after(
+        FORWARD_RESEARCH,
+        '          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}\n',
+        '          GH_TOKEN: ${{ github.token }}\n',
+    ),
     "build-if": sub(BUILD_VERIFY, BUILD_VERIFY.replace(
         '        id: verify\n        env:\n',
         '        id: verify\n        if: false\n        env:\n',
@@ -14229,7 +14365,7 @@ mutants = {
         '      - name: Stage helper scripts\n',
     ),
     "stage-direct-path": sub_first(
-        '          issue=$(bash "/opt/lab-scripts/resolve-thread-target.sh" thread) || {\n',
+        '          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {\n',
         '          issue=$(bash .github/scripts/resolve-thread-target.sh thread) || {\n',
     ),
     "forward-builder-body-helper": sub(
@@ -14335,8 +14471,8 @@ mutants = {
         '',
     ),
     "staged-approve-invocation": sub_first(
-        '            bash "/opt/lab-scripts/approve-held-runs.sh"',
-        '            bash .github/scripts/approve-held-runs.sh',
+        'approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh")',
+        'approve=$(cat .github/scripts/approve-held-runs.sh)',
     ),
     "opencode-bin-shim-plant": sub(
         '      - name: Verify research decided, else auto-retry\n',
@@ -14879,7 +15015,14 @@ for job_name, steps in found.items():
     body = "\n".join(
         line for line in (step.get("run") or "").splitlines() if line.strip()
     )
-    if body != 'bash "/opt/lab-scripts/strip-trailers.sh"':
+    expected_strip_body = "\n".join((
+        'strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {',
+        '  echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."',
+        '  exit 1',
+        '}',
+        'printf \'%s\\n\' "$strip" | bash -s',
+    ))
+    if body != expected_strip_body:
         raise SystemExit("strip-step-body:%s" % job_name)
     stages = [
         candidate
@@ -15586,51 +15729,6 @@ EXPECTED_MAINTAINER_STEP_NAMES = [
     "Dispatch ideator when asked",
     "Approve held CI runs (PR or repo-wide sweep)",
 ]
-# Issue #713 review round 22 (B1): the four remaining owner-PAT maintainer
-# steps were only covered by the sequence pin. A body rewrite could turn any
-# of them into a decoy publisher or merge path while the name and sequence
-# stayed exact. Pin each parsed key surface, if, env, and normalized body.
-EXPECTED_MAINTAINER_PINNED_STEPS = {
-    "Trigger pages deployment if main advanced": {
-        "keys": {"name", "if", "env", "run"},
-        "if": "always() && steps.actor_gate.outputs.run == 'true'",
-        "env": {"GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "PATH": "/usr/bin:/bin"},
-        "sha": "067100b41f78231fc3903b0eb7c94dce19057062c97f2ce73b8e4300dca72d60",
-    },
-    "Main integrity guard (prevent orphan or divergent main rewrite)": {
-        "keys": {"name", "if", "env", "run"},
-        "if": "always() && steps.actor_gate.outputs.run == 'true'",
-        "env": {"GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "PATH": "/usr/bin:/bin"},
-        "sha": "8a7baac02a29c6e0a6df75a798b55526d57f8ce5a3ad5d02190c9ecca7a440e8",
-    },
-    "Dispatch ideator when asked": {
-        "keys": {"name", "if", "env", "run"},
-        "if": "always() && steps.actor_gate.outputs.run == 'true'",
-        "env": {"GH_TOKEN": "${{ github.token }}"},
-        "sha": "21b1399f9e8456f26fe5e214ce3c4d3f7ebaee05ed9c7e0f513d0fbaf7984558",
-    },
-    "Approve held CI runs (PR or repo-wide sweep)": {
-        "keys": {"name", "continue-on-error", "if", "env", "run"},
-        "continue-on-error": True,
-        "if": "always() && steps.actor_gate.outputs.run == 'true'",
-        "env": {
-            "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
-            "PR_NUMBER": "${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number || '' }}",
-            "PATH": "/usr/bin:/bin",
-        },
-        "sha": "60e94626bd00cd052aac4332f3c9cf3a503c585ec1d4930ed850831198c2b11c",
-    },
-}
-MAINTAINER_POST_NAME = "Post Maintainer comment"
-VERIFY_NAME = "Verify evaluator decided"
-EVIDENCE_NAME = "Enforce live-execution evidence gate"
-CLEAR_NAME = "Clear runtime decision"
-MARKER_LITERAL = "eval-verdict"
-EXPECTED_CONTEXT_IF = "steps.actor_gate.outputs.run == 'true'"
-EXPECTED_MEMORY_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true'"
-EXPECTED_AGENT_IF = "steps.actor_gate.outputs.run == 'true'"
-EXPECTED_VERIFY_IF = "always()"
-EXPECTED_EVIDENCE_IF = "always() && steps.verify-eval.outputs.has_decision == 'true'"
 SYSTEM_PATH = "/usr/bin:/bin"
 # Issue #713 review round 23: a PR-controlled agent can append to
 # $GITHUB_ENV, and every later step inherits those values. The runner applies
@@ -15668,6 +15766,66 @@ OWNER_PAT_ISOLATION_ENV = {
     "LD_PRELOAD": "",
     "PATH": SYSTEM_PATH,
 }
+TRUSTED_HELPERS = (
+    "resolve-thread-target.sh",
+    "classify-build-push.sh",
+    "strip-trailers.sh",
+    "approve-held-runs.sh",
+)
+HELPER_EXECUTE_FORMS = {
+    "resolve-thread-target.sh": 'printf \'%s\\n\' "$resolver" | bash -s --',
+    "classify-build-push.sh": 'printf \'%s\\n\' "$classifier" | bash -s --',
+    "strip-trailers.sh": 'printf \'%s\\n\' "$strip" | bash -s',
+    "approve-held-runs.sh": 'bash -s <<< "$approve"',
+}
+
+# Issue #713 review round 22 (B1): the four remaining owner-PAT maintainer
+# steps were only covered by the sequence pin. A body rewrite could turn any
+# of them into a decoy publisher or merge path while the name and sequence
+# stayed exact. Pin each parsed key surface, if, env, and normalized body.
+APPROVE_HELD_ENV = dict(OWNER_PAT_ISOLATION_ENV)
+APPROVE_HELD_ENV["PR_NUMBER"] = "${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number || '' }}"
+EXPECTED_MAINTAINER_PINNED_STEPS = {
+    "Trigger pages deployment if main advanced": {
+        "keys": {"name", "if", "env", "run"},
+        "if": "always() && steps.actor_gate.outputs.run == 'true'",
+        "env": dict(OWNER_PAT_ISOLATION_ENV),
+        "sha": "067100b41f78231fc3903b0eb7c94dce19057062c97f2ce73b8e4300dca72d60",
+    },
+    "Main integrity guard (prevent orphan or divergent main rewrite)": {
+        "keys": {"name", "if", "env", "run"},
+        "if": "always() && steps.actor_gate.outputs.run == 'true'",
+        "env": dict(OWNER_PAT_ISOLATION_ENV),
+        "sha": "8a7baac02a29c6e0a6df75a798b55526d57f8ce5a3ad5d02190c9ecca7a440e8",
+    },
+    "Dispatch ideator when asked": {
+        "keys": {"name", "if", "env", "run"},
+        "if": "always() && steps.actor_gate.outputs.run == 'true'",
+        "env": {"GH_TOKEN": "${{ github.token }}"},
+        "sha": "21b1399f9e8456f26fe5e214ce3c4d3f7ebaee05ed9c7e0f513d0fbaf7984558",
+    },
+    "Approve held CI runs (PR or repo-wide sweep)": {
+        "keys": {"name", "continue-on-error", "if", "env", "run"},
+        "continue-on-error": True,
+        "if": "always() && steps.actor_gate.outputs.run == 'true'",
+        "env": APPROVE_HELD_ENV,
+        "sha": "227084719baa3ffda72f14654f9404b4135376279fa7a294bc436d5c627b4e00",
+    },
+}
+EXPECTED_REVIEW_SKIP_ENV = dict(OWNER_PAT_ISOLATION_ENV)
+EXPECTED_REVIEW_SKIP_ENV["GH_TOKEN"] = "${{ github.token }}"
+EXPECTED_REVIEW_SKIP_ENV["GIT_NO_REPLACE_OBJECTS"] = "1"
+EXPECTED_REVIEW_SKIP_SHA256 = "691db2d87441431d69102de9ec83c8331c9a7a077c5a0ff23433d80dc72f4050"
+MAINTAINER_POST_NAME = "Post Maintainer comment"
+VERIFY_NAME = "Verify evaluator decided"
+EVIDENCE_NAME = "Enforce live-execution evidence gate"
+CLEAR_NAME = "Clear runtime decision"
+MARKER_LITERAL = "eval-verdict"
+EXPECTED_CONTEXT_IF = "steps.actor_gate.outputs.run == 'true'"
+EXPECTED_MEMORY_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true'"
+EXPECTED_AGENT_IF = "steps.actor_gate.outputs.run == 'true'"
+EXPECTED_VERIFY_IF = "always()"
+EXPECTED_EVIDENCE_IF = "always() && steps.verify-eval.outputs.has_decision == 'true'"
 EXPECTED_VERIFY_ENV = {
     "AGENT_GATE": "${{ steps.actor_gate.outputs.run }}",
     "PATH": SYSTEM_PATH,
@@ -16798,6 +16956,44 @@ def validate_review(doc, sink):
         doc, "review", REVIEW_WORKFLOW_KEYS, REVIEW_JOB_KEYS, "review.yml", sink
     )
     check_owner_pat_paths(doc, "review.yml", sink)
+    # Issue #713 review round 24: the non-PR notice must use the job token
+    # (an owner-PAT comment creates an issue_comment event and re-triggers
+    # this workflow) and must never open with a /oc trigger. Pin its exact
+    # predicate, env, and body.
+    skip_hits = [
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and step.get("name") == "Skip review for non-PR issue"
+    ]
+    if len(skip_hits) != 1:
+        sink.append("review.yml(skip-notice-step-not-unique)")
+    else:
+        skip = skip_hits[0]
+        if set(skip) != {"name", "if", "env", "run"}:
+            sink.append("review.yml(skip-notice-keys-not-exact)")
+        if (
+            skip.get("if")
+            != "steps.actor_gate.outputs.run == 'true' && steps.pr-info.outputs.is_pr != 'true'"
+        ):
+            sink.append("review.yml(skip-notice-if-not-exact)")
+        if skip.get("env") != EXPECTED_REVIEW_SKIP_ENV:
+            sink.append("review.yml(skip-notice-env-not-exact)")
+        skip_run = skip.get("run")
+        if not isinstance(skip_run, str) or not skip_run.strip():
+            sink.append("review.yml(skip-notice-run-missing)")
+        else:
+            if normalized_sha(skip_run) != EXPECTED_REVIEW_SKIP_SHA256:
+                sink.append("review.yml(skip-notice-run-not-exact)")
+            if "/oc review" in skip_run or "/opencode" in skip_run:
+                sink.append("review.yml(skip-notice-posts-trigger)")
+        if (
+            dict(EXPECTED_REVIEW_SKIP_ENV, GH_TOKEN="${{ secrets.OPENCODE_PAT }}")
+            == EXPECTED_REVIEW_SKIP_ENV
+        ):
+            sink.append(
+                "review.yml(self-test-skip-notice-owner-pat-not-caught)"
+            )
     # Issue #713 Tester finding: the review arm is read-only by contract. Pin
     # the job permissions and the no-push workflow invariant, and resolve the
     # post-agent observer (job token, system PATH, no push, exact body).
@@ -17032,12 +17228,7 @@ def validate_maintainer(doc, sink):
         if pat.get("if") != "always() && steps.actor_gate.outputs.run == 'true'":
             sink.append("maintainer.yml(pat-merge-if-not-exact)")
         pat_env = pat.get("env")
-        if (
-            not isinstance(pat_env, dict)
-            or set(pat_env) != {"GH_TOKEN", "PATH"}
-            or pat_env.get("GH_TOKEN") != "${{ secrets.OPENCODE_PAT }}"
-            or pat_env.get("PATH") != "/usr/bin:/bin"
-        ):
+        if pat_env != OWNER_PAT_ISOLATION_ENV:
             sink.append("maintainer.yml(pat-merge-env-not-exact)")
         pat_run = pat.get("run")
         if not isinstance(pat_run, str) or not pat_run.strip():
@@ -17106,23 +17297,60 @@ def validate_maintainer(doc, sink):
             isinstance(value, str) and "secrets.OPENCODE_PAT" in value
             for value in step_env.values()
         ):
-            if step_env.get("PATH") != "/usr/bin:/bin":
+            missing = sorted(
+                key
+                for key, value in OWNER_PAT_ISOLATION_ENV.items()
+                if step_env.get(key) != value
+            )
+            if missing:
+                sink.append(
+                    "maintainer.yml(owner-pat-step-env-not-isolated:%s:%s)"
+                    % (step.get("name"), ",".join(missing))
+                )
+            if step_env.get("PATH") != SYSTEM_PATH:
                 sink.append(
                     "maintainer.yml(owner-pat-step-path-not-pinned:%s)"
                     % step.get("name")
                 )
+            # Mutation self-test: a PATH-only subset mask must be rejected by
+            # the same predicate the real check uses.
+            subset = {"GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "PATH": SYSTEM_PATH}
+            if all(
+                subset.get(key) == value
+                for key, value in OWNER_PAT_ISOLATION_ENV.items()
+            ):
+                sink.append("maintainer.yml(self-test-env-isolation-not-caught)")
         step_run = step.get("run")
         if not isinstance(step_run, str):
             continue
-        for line in step_run.splitlines():
-            if line.lstrip().startswith("#"):
-                continue
-            if "approve-held-runs.sh" in line and step.get("name") != MAINTAINER_STAGE_NAME:
-                if re.search(r"(^|[\s;&|\\])bash\s", line) \
-                        and 'bash "/opt/lab-scripts/approve-held-runs.sh"' not in line:
+        stripped_run = "\n".join(
+            line for line in step_run.splitlines()
+            if not line.lstrip().startswith("#")
+        )
+        if step.get("name") != MAINTAINER_STAGE_NAME:
+            for helper in TRUSTED_HELPERS:
+                if helper not in stripped_run:
+                    continue
+                for line in stripped_run.splitlines():
+                    # Diagnostic messages may name the helper; they never
+                    # execute it (a piped echo still falls through).
+                    if re.match(r'^\s*(?:echo|printf)\b', line) and "|" not in line:
+                        continue
+                    at = line.find(helper)
+                    while at != -1:
+                        if not re.search(
+                            r'^\s*[A-Za-z_][A-Za-z0-9_]*=\$\(git show "\$\{GITHUB_SHA\}:\.github/scripts/$',
+                            line[:at],
+                        ):
+                            sink.append(
+                                "maintainer.yml(untrusted-helper-invocation:%s:%s)"
+                                % (step.get("name"), helper)
+                            )
+                        at = line.find(helper, at + len(helper))
+                if HELPER_EXECUTE_FORMS[helper] not in stripped_run:
                     sink.append(
-                        "maintainer.yml(untrusted-approve-held-runs-invocation:%s)"
-                        % step.get("name")
+                        "maintainer.yml(trusted-helper-not-executed:%s:%s)"
+                        % (step.get("name"), helper)
                     )
         if re.search(
             r"(?:^|[;&|]\s*|\s)(?:cp|mv|install|tee|ln|rsync)\b[^\n]*\$HOME/\.opencode/bin"
@@ -17821,6 +18049,33 @@ if review_doc is not None:
             for p in review_actor_keys_local
         ):
             problems.append("review.yml(structural-self-test-actor-keys-override)")
+        # Issue #713 review round 24: reverting the non-PR notice to the owner
+        # PAT (which re-triggers this workflow) or opening its body with a
+        # trigger must each fail the audit alone.
+        review_skip_pat = copy.deepcopy(review_doc)
+        for step in review_skip_pat["jobs"]["review"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == "Skip review for non-PR issue":
+                step["env"]["GH_TOKEN"] = "${{ secrets.OPENCODE_PAT }}"
+        review_skip_pat_local = []
+        validate_review(review_skip_pat, review_skip_pat_local)
+        if not any(
+            "review.yml(skip-notice-env-not-exact)" in p
+            for p in review_skip_pat_local
+        ):
+            problems.append("review.yml(structural-self-test-skip-notice-pat)")
+        review_skip_trigger = copy.deepcopy(review_doc)
+        for step in review_skip_trigger["jobs"]["review"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == "Skip review for non-PR issue":
+                step["run"] = step["run"].replace(
+                    '--body "Review was requested', '--body "/oc review was requested'
+                )
+        review_skip_trigger_local = []
+        validate_review(review_skip_trigger, review_skip_trigger_local)
+        if not any(
+            "review.yml(skip-notice-run-not-exact)" in p
+            for p in review_skip_trigger_local
+        ):
+            problems.append("review.yml(structural-self-test-skip-notice-trigger)")
         # Issue #713 Tester finding: the reviewer prompt staging is part of the
         # gate. A staging body that reads the PR-head file, a missing staging
         # step, a reverted agent reference, and a restored AGENTS.md fallback
@@ -18177,13 +18432,13 @@ if maintainer_doc is not None:
             if isinstance(step, dict) and step.get("run") and \
                     "approve-held-runs.sh" in step.get("run", ""):
                 step["run"] = step["run"].replace(
-                    'bash "/opt/lab-scripts/approve-held-runs.sh"',
-                    "bash .github/scripts/approve-held-runs.sh",
+                    'approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh")',
+                    "approve=$(cat .github/scripts/approve-held-runs.sh)",
                 )
         workspace_approve_local = []
         validate_maintainer(workspace_approve_mutant, workspace_approve_local)
         if not any(
-            "untrusted-approve-held-runs-invocation" in p
+            "untrusted-helper-invocation" in p
             for p in workspace_approve_local
         ):
             problems.append(

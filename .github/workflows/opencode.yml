@@ -173,6 +173,31 @@ jobs:
         id: verify-phase
         if: always()
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           PATH: /usr/bin:/bin
@@ -201,7 +226,12 @@ jobs:
             exit 0
           fi
 
-          issue=$(bash "/opt/lab-scripts/resolve-thread-target.sh" thread) || {
+          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to auto-retry."
+            echo "handled=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          }
+          issue=$(printf '%s\n' "$resolver" | bash -s -- thread) || {
             echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
@@ -223,7 +253,7 @@ jobs:
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
-            parent=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || parent=""
+            parent=$(printf '%s\n' "$resolver" | bash -s -- parent) || parent=""
             if [ -z "$parent" ]; then
               echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
               echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -261,6 +291,31 @@ jobs:
       - name: Forward researcher decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
@@ -268,7 +323,11 @@ jobs:
           # the newest open phase PR. On 2026-10-18 this forward resolved #685
           # (an in-test phase PR of #582) and the resulting /oc build bound a
           # fresh session to that PR's approved head.
-          target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {
+          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to post a mis-targeted trigger."
+            exit 1
+          }
+          target=$(printf '%s\n' "$resolver" | bash -s -- parent) || {
             echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
             exit 1
           }
@@ -303,7 +362,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash "/opt/lab-scripts/strip-trailers.sh"
+          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {
+            echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+            exit 1
+          }
+          printf '%s\n' "$strip" | bash -s
 
   architect:
     if: |
@@ -384,6 +447,31 @@ jobs:
         id: verify-phase
         if: always()
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           PATH: /usr/bin:/bin
@@ -413,7 +501,12 @@ jobs:
             exit 0
           fi
 
-          issue=$(bash "/opt/lab-scripts/resolve-thread-target.sh" thread) || {
+          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to auto-retry."
+            echo "handled=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          }
+          issue=$(printf '%s\n' "$resolver" | bash -s -- thread) || {
             echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
@@ -435,7 +528,7 @@ jobs:
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
-            parent=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || parent=""
+            parent=$(printf '%s\n' "$resolver" | bash -s -- parent) || parent=""
             if [ -z "$parent" ]; then
               echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
               echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -473,13 +566,42 @@ jobs:
       - name: Forward architect decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
-          target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {
+          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to post a mis-targeted trigger."
+            exit 1
+          }
+          target=$(printf '%s\n' "$resolver" | bash -s -- parent) || {
             echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
             exit 1
           }
@@ -514,12 +636,41 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash "/opt/lab-scripts/strip-trailers.sh"
+          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {
+            echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+            exit 1
+          }
+          printf '%s\n' "$strip" | bash -s
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
@@ -534,8 +685,12 @@ jobs:
           # Shared self-healing logic (issue #137): head-scoped polling plus a
           # terminal repo-wide sweep that also clears runs held on intermediate
           # head SHAs, which head-scoped polling can never match again.
+          approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh") || {
+            echo "::error::Could not read approve-held-runs.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+            exit 1
+          }
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash "/opt/lab-scripts/approve-held-runs.sh"
+            bash -s <<< "$approve"
 
   build:
     if: |
@@ -708,6 +863,31 @@ jobs:
       - name: Preserve local commits if agent was killed before pushing
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
@@ -746,6 +926,31 @@ jobs:
       - name: Verify build pushed, else auto-retry
         id: verify
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           BASELINE_BRANCH: ${{ steps.baseline.outputs.branch }}
@@ -767,6 +972,7 @@ jobs:
           fi
 
           issue="${{ github.event.issue.number }}"
+          classifier=$(git show "${GITHUB_SHA}:.github/scripts/classify-build-push.sh" 2>/dev/null || true)
 
           # Like-for-like push detection on server-resolved state (issue #135).
           # NEVER trust `git branch --show-current` as the target: the agent is
@@ -792,7 +998,7 @@ jobs:
               # moves the tip too, and treating it as this session's push ran
               # the post-push bookkeeping against work the build never made.
               if [ -n "$tip_now" ] && [ -n "$BASELINE_HEAD" ] && [ "$tip_now" != "$BASELINE_HEAD" ]; then
-                attribution=$(bash "/opt/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$target_branch" 2>/dev/null || true)
+                attribution=$(printf '%s\n' "$classifier" | bash -s -- "$BASELINE_HEAD" "$tip_now" "$target_branch" 2>/dev/null || true)
                 if [ "$attribution" = "own" ]; then
                   pushed="yes"
                   echo "Build pushed successfully: $target_branch moved $BASELINE_HEAD -> $tip_now (builder commit attributed)"
@@ -850,7 +1056,7 @@ jobs:
             if [ -n "$tip_now" ] && [ "$tip_now" != "$BASELINE_HEAD" ]; then
               # Issue #690: attribute the move to a builder: commit; a foreign
               # push on the lost-PR branch is not this session's work either.
-              attribution=$(bash "/opt/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$BASELINE_BRANCH" 2>/dev/null || true)
+              attribution=$(printf '%s\n' "$classifier" | bash -s -- "$BASELINE_HEAD" "$tip_now" "$BASELINE_BRANCH" 2>/dev/null || true)
               if [ "$attribution" = "own" ]; then
                 pushed="yes"
                 echo "Build pushed successfully: $BASELINE_BRANCH moved $BASELINE_HEAD -> $tip_now (builder commit attributed)"
@@ -951,6 +1157,31 @@ jobs:
       - name: Diagnose silent build no-op and self-heal
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
@@ -997,6 +1228,31 @@ jobs:
       - name: Forward builder decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.pushed == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
@@ -1058,12 +1314,41 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash "/opt/lab-scripts/strip-trailers.sh"
+          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {
+            echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+            exit 1
+          }
+          printf '%s\n' "$strip" | bash -s
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
@@ -1078,8 +1363,12 @@ jobs:
           # Shared self-healing logic (issue #137): head-scoped polling plus a
           # terminal repo-wide sweep that also clears runs held on intermediate
           # head SHAs, which head-scoped polling can never match again.
+          approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh") || {
+            echo "::error::Could not read approve-held-runs.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+            exit 1
+          }
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash "/opt/lab-scripts/approve-held-runs.sh"
+            bash -s <<< "$approve"
 
   fix:
     if: |
@@ -1191,6 +1480,31 @@ jobs:
       - name: Verify fix pushed, else auto-retry
         id: verify
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           BASELINE_HEAD: ${{ steps.baseline.outputs.head_before }}
@@ -1253,6 +1567,31 @@ jobs:
       - name: Post /oc review to trigger Reviewer
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
@@ -1274,12 +1613,41 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash "/opt/lab-scripts/strip-trailers.sh"
+          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {
+            echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+            exit 1
+          }
+          printf '%s\n' "$strip" | bash -s
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
@@ -1288,8 +1656,12 @@ jobs:
           # Shared self-healing logic (issue #137): head-scoped polling plus a
           # terminal repo-wide sweep that also clears runs held on intermediate
           # head SHAs, which head-scoped polling can never match again.
+          approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh") || {
+            echo "::error::Could not read approve-held-runs.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+            exit 1
+          }
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash "/opt/lab-scripts/approve-held-runs.sh"
+            bash -s <<< "$approve"
 
   design:
     if: |
@@ -1369,6 +1741,31 @@ jobs:
         id: verify-phase
         if: always()
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           PATH: /usr/bin:/bin
@@ -1384,7 +1781,12 @@ jobs:
             echo "Decision file present; design phase produced a handoff."
             exit 0
           fi
-          issue=$(bash "/opt/lab-scripts/resolve-thread-target.sh" thread) || {
+          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to auto-retry."
+            echo "handled=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          }
+          issue=$(printf '%s\n' "$resolver" | bash -s -- thread) || {
             echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
@@ -1403,7 +1805,7 @@ jobs:
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
-            parent=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || parent=""
+            parent=$(printf '%s\n' "$resolver" | bash -s -- parent) || parent=""
             if [ -z "$parent" ]; then
               echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
               echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -1440,6 +1842,31 @@ jobs:
       - name: Forward design decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
@@ -1447,7 +1874,11 @@ jobs:
           # the newest open phase PR. This forward resolved #685 (an in-test
           # phase PR of #582) and posted /oc build there, binding a fresh build
           # session to the approved head.
-          target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {
+          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to post a mis-targeted trigger."
+            exit 1
+          }
+          target=$(printf '%s\n' "$resolver" | bash -s -- parent) || {
             echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
             exit 1
           }
@@ -1482,12 +1913,41 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash "/opt/lab-scripts/strip-trailers.sh"
+          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {
+            echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+            exit 1
+          }
+          printf '%s\n' "$strip" | bash -s
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
@@ -1499,8 +1959,12 @@ jobs:
             pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
               --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
+          approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh") || {
+            echo "::error::Could not read approve-held-runs.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+            exit 1
+          }
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash "/opt/lab-scripts/approve-held-runs.sh"
+            bash -s <<< "$approve"
 
   design-ux:
     if: |
@@ -1574,6 +2038,31 @@ jobs:
         id: verify-phase
         if: always()
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           PATH: /usr/bin:/bin
@@ -1589,7 +2078,12 @@ jobs:
             echo "Decision file present; design-ux phase produced a handoff."
             exit 0
           fi
-          issue=$(bash "/opt/lab-scripts/resolve-thread-target.sh" thread) || {
+          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to auto-retry."
+            echo "handled=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          }
+          issue=$(printf '%s\n' "$resolver" | bash -s -- thread) || {
             echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
@@ -1608,7 +2102,7 @@ jobs:
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
-            parent=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || parent=""
+            parent=$(printf '%s\n' "$resolver" | bash -s -- parent) || parent=""
             if [ -z "$parent" ]; then
               echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
               echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -1645,13 +2139,42 @@ jobs:
       - name: Forward design-ux decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
-          target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {
+          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to post a mis-targeted trigger."
+            exit 1
+          }
+          target=$(printf '%s\n' "$resolver" | bash -s -- parent) || {
             echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
             exit 1
           }
@@ -1686,12 +2209,41 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash "/opt/lab-scripts/strip-trailers.sh"
+          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {
+            echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+            exit 1
+          }
+          printf '%s\n' "$strip" | bash -s
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
@@ -1703,8 +2255,12 @@ jobs:
             pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
               --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
+          approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh") || {
+            echo "::error::Could not read approve-held-runs.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+            exit 1
+          }
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash "/opt/lab-scripts/approve-held-runs.sh"
+            bash -s <<< "$approve"
 
   design-visual:
     if: |
@@ -1778,6 +2334,31 @@ jobs:
         id: verify-phase
         if: always()
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           PATH: /usr/bin:/bin
@@ -1793,7 +2374,12 @@ jobs:
             echo "Decision file present; design-visual phase produced a handoff."
             exit 0
           fi
-          issue=$(bash "/opt/lab-scripts/resolve-thread-target.sh" thread) || {
+          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to auto-retry."
+            echo "handled=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          }
+          issue=$(printf '%s\n' "$resolver" | bash -s -- thread) || {
             echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
@@ -1812,7 +2398,7 @@ jobs:
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
-            parent=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || parent=""
+            parent=$(printf '%s\n' "$resolver" | bash -s -- parent) || parent=""
             if [ -z "$parent" ]; then
               echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
               echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -1849,13 +2435,42 @@ jobs:
       - name: Forward design-visual decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
-          target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {
+          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to post a mis-targeted trigger."
+            exit 1
+          }
+          target=$(printf '%s\n' "$resolver" | bash -s -- parent) || {
             echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
             exit 1
           }
@@ -1890,12 +2505,41 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash "/opt/lab-scripts/strip-trailers.sh"
+          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {
+            echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+            exit 1
+          }
+          printf '%s\n' "$strip" | bash -s
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
@@ -1907,8 +2551,12 @@ jobs:
             pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
               --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
+          approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh") || {
+            echo "::error::Could not read approve-held-runs.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+            exit 1
+          }
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash "/opt/lab-scripts/approve-held-runs.sh"
+            bash -s <<< "$approve"
 
   design-motion:
     if: |
@@ -1982,6 +2630,31 @@ jobs:
         id: verify-phase
         if: always()
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           PATH: /usr/bin:/bin
@@ -1997,7 +2670,12 @@ jobs:
             echo "Decision file present; design-motion phase produced a handoff."
             exit 0
           fi
-          issue=$(bash "/opt/lab-scripts/resolve-thread-target.sh" thread) || {
+          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to auto-retry."
+            echo "handled=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          }
+          issue=$(printf '%s\n' "$resolver" | bash -s -- thread) || {
             echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
@@ -2016,7 +2694,7 @@ jobs:
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
-            parent=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || parent=""
+            parent=$(printf '%s\n' "$resolver" | bash -s -- parent) || parent=""
             if [ -z "$parent" ]; then
               echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
               echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -2053,13 +2731,42 @@ jobs:
       - name: Forward design-motion decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
-          target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {
+          resolver=$(git show "${GITHUB_SHA}:.github/scripts/resolve-thread-target.sh") || {
+            echo "::error::Could not read resolve-thread-target.sh from workflow commit ${GITHUB_SHA}; refusing to post a mis-targeted trigger."
+            exit 1
+          }
+          target=$(printf '%s\n' "$resolver" | bash -s -- parent) || {
             echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
             exit 1
           }
@@ -2094,12 +2801,41 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash "/opt/lab-scripts/strip-trailers.sh"
+          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {
+            echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+            exit 1
+          }
+          printf '%s\n' "$strip" | bash -s
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
@@ -2111,8 +2847,12 @@ jobs:
             pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
               --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
+          approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh") || {
+            echo "::error::Could not read approve-held-runs.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+            exit 1
+          }
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash "/opt/lab-scripts/approve-held-runs.sh"
+            bash -s <<< "$approve"
 
   general:
     if: |
@@ -2252,6 +2992,31 @@ jobs:
       - name: Post /oc maintainer to trigger Maintainer
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
@@ -2273,12 +3038,41 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash "/opt/lab-scripts/strip-trailers.sh"
+          strip=$(git show "${GITHUB_SHA}:.github/scripts/strip-trailers.sh") || {
+            echo "::error::Could not read strip-trailers.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+            exit 1
+          }
+          printf '%s\n' "$strip" | bash -s
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
@@ -2293,6 +3087,10 @@ jobs:
           # Shared self-healing logic (issue #137): head-scoped polling plus a
           # terminal repo-wide sweep that also clears runs held on intermediate
           # head SHAs, which head-scoped polling can never match again.
+          approve=$(git show "${GITHUB_SHA}:.github/scripts/approve-held-runs.sh") || {
+            echo "::error::Could not read approve-held-runs.sh from workflow commit ${GITHUB_SHA}; refusing to execute a mutable helper."
+            exit 1
+          }
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash "/opt/lab-scripts/approve-held-runs.sh"
+            bash -s <<< "$approve"
           exit 0
