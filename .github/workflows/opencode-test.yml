@@ -190,6 +190,11 @@ jobs:
           # must not auto-load its AGENTS.md/opencode.json project config. The
           # staged workflow-commit prompt above is the only instruction source.
           OPENCODE_DISABLE_PROJECT_CONFIG: "true"
+          # Issue #743 follow-on: the staged prompt is outside this workspace
+          # and the opt-out above disables the repo permission allow, so grant
+          # external_directory via the supported OPENCODE_PERMISSION channel
+          # (applied after config load; it survives the opt-out).
+          OPENCODE_PERMISSION: '{"external_directory":{"*":"allow"}}'
           # Issue #713 round 16: deterministic publication-lane gate. This
           # workflow publishes the tester report through its hardcoded
           # owner-PAT step, so the agent must not post. The variable is set
