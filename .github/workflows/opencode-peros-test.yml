@@ -38,37 +38,13 @@ jobs:
       group: opencode-peros-linux-${{ github.event.issue.number }}
       cancel-in-progress: false
     steps:
-      - name: Get target ref
-        id: pr-info
-        env:
-          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
-          GIT_NO_REPLACE_OBJECTS: "1"
-        run: |
-          set +e
-          num="${{ github.event.issue.number }}"
-          is_pr="false"
-          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
-          if [ "$is_pr" = "true" ]; then
-            head_ref=$(gh pr view "$num" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "main")
-          else
-            head_ref=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName --jq '[.[] | select(.headRefName | startswith("opencode/issue'"$num"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
-            [ -z "$head_ref" ] && head_ref="main"
-          fi
-          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
-          echo "Target ref: $head_ref"
-
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          persist-credentials: true
-          token: ${{ github.token }}
-          ref: ${{ steps.pr-info.outputs.head_ref }}
-          fetch-depth: 0
-
       - name: Capture the trusted pre-agent PATH for owner-PAT steps
         id: trusted_path
         run: |
           set -o pipefail
+          # Issue #742: this capture runs before checkout and before every
+          # owner-PAT step, so both the pre-agent target lookup and the
+          # post-agent steps consume the same trusted PATH and git exec path.
           # Issue #713 round 16: the owner-PAT post-agent steps used to inherit
           # the runner PATH after the tester ran, including the
           # $HOME/.opencode/bin entry the vendored runner appends to
@@ -230,8 +206,69 @@ jobs:
             echo "::error::The trusted pre-agent PATH cannot resolve:$missing (issue #713, fail closed)."
             exit 1
           fi
+          git_exec=$(PATH="$clean" git --exec-path 2>/dev/null) || git_exec=""
+          if [ -z "$git_exec" ]; then
+            echo "::error::Could not resolve the trusted git exec path (issue #742, fail closed)."
+            exit 1
+          fi
+          echo "git_exec_path=$git_exec" >> "$GITHUB_OUTPUT"
           echo "path=$clean" >> "$GITHUB_OUTPUT"
           echo "Captured the pre-agent PATH for owner-PAT steps."
+
+      - name: Get target ref
+        id: pr-info
+        env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_NO_REPLACE_OBJECTS: "1"
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: ${{ steps.trusted_path.outputs.git_exec_path }}
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: ${{ steps.trusted_path.outputs.path }}
+        run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
+          set +e
+          num="${{ github.event.issue.number }}"
+          is_pr="false"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
+          if [ "$is_pr" = "true" ]; then
+            head_ref=$(gh pr view "$num" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "main")
+          else
+            head_ref=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName --jq '[.[] | select(.headRefName | startswith("opencode/issue'"$num"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
+            [ -z "$head_ref" ] && head_ref="main"
+          fi
+          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+          echo "Target ref: $head_ref"
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+          ref: ${{ steps.pr-info.outputs.head_ref }}
+          fetch-depth: 0
 
       - name: Stage the Linux tester system prompt from the workflow commit
         run: |
@@ -402,11 +439,38 @@ jobs:
         id: findings
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: ${{ steps.trusted_path.outputs.git_exec_path }}
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Issue #608: the workflow, not the session's final message, owns
           # the findings comment. The shared script fails closed when the
           # report is missing, unsigned, or the posted comment cannot be
@@ -431,6 +495,8 @@ jobs:
       - name: Forward Linux tester decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.findings.outcome == 'success'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
@@ -443,7 +509,32 @@ jobs:
           # per-OS forwarders); the stdin transport below is conversion-proof by
           # construction, and audit rule R18 guards both.
           MSYS_NO_PATHCONV: "1"
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: ${{ steps.trusted_path.outputs.git_exec_path }}
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
             echo "::error::Tester decision file lost this run's contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."
             exit 1
@@ -489,37 +580,13 @@ jobs:
       group: opencode-peros-macos-${{ github.event.issue.number }}
       cancel-in-progress: false
     steps:
-      - name: Get target ref
-        id: pr-info
-        env:
-          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
-          GIT_NO_REPLACE_OBJECTS: "1"
-        run: |
-          set +e
-          num="${{ github.event.issue.number }}"
-          is_pr="false"
-          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
-          if [ "$is_pr" = "true" ]; then
-            head_ref=$(gh pr view "$num" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "main")
-          else
-            head_ref=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName --jq '[.[] | select(.headRefName | startswith("opencode/issue'"$num"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
-            [ -z "$head_ref" ] && head_ref="main"
-          fi
-          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
-          echo "Target ref: $head_ref"
-
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          persist-credentials: true
-          token: ${{ github.token }}
-          ref: ${{ steps.pr-info.outputs.head_ref }}
-          fetch-depth: 0
-
       - name: Capture the trusted pre-agent PATH for owner-PAT steps
         id: trusted_path
         run: |
           set -o pipefail
+          # Issue #742: this capture runs before checkout and before every
+          # owner-PAT step, so both the pre-agent target lookup and the
+          # post-agent steps consume the same trusted PATH and git exec path.
           # Issue #713 round 16: the owner-PAT post-agent steps used to inherit
           # the runner PATH after the tester ran, including the
           # $HOME/.opencode/bin entry the vendored runner appends to
@@ -681,8 +748,69 @@ jobs:
             echo "::error::The trusted pre-agent PATH cannot resolve:$missing (issue #713, fail closed)."
             exit 1
           fi
+          git_exec=$(PATH="$clean" git --exec-path 2>/dev/null) || git_exec=""
+          if [ -z "$git_exec" ]; then
+            echo "::error::Could not resolve the trusted git exec path (issue #742, fail closed)."
+            exit 1
+          fi
+          echo "git_exec_path=$git_exec" >> "$GITHUB_OUTPUT"
           echo "path=$clean" >> "$GITHUB_OUTPUT"
           echo "Captured the pre-agent PATH for owner-PAT steps."
+
+      - name: Get target ref
+        id: pr-info
+        env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_NO_REPLACE_OBJECTS: "1"
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: ${{ steps.trusted_path.outputs.git_exec_path }}
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: ${{ steps.trusted_path.outputs.path }}
+        run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
+          set +e
+          num="${{ github.event.issue.number }}"
+          is_pr="false"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
+          if [ "$is_pr" = "true" ]; then
+            head_ref=$(gh pr view "$num" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "main")
+          else
+            head_ref=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName --jq '[.[] | select(.headRefName | startswith("opencode/issue'"$num"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
+            [ -z "$head_ref" ] && head_ref="main"
+          fi
+          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+          echo "Target ref: $head_ref"
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+          ref: ${{ steps.pr-info.outputs.head_ref }}
+          fetch-depth: 0
 
       - name: Stage the macOS tester system prompt from the workflow commit
         run: |
@@ -856,11 +984,38 @@ jobs:
         id: salvage
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'failure'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: ${{ steps.trusted_path.outputs.git_exec_path }}
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Issue #692: run 39170578536 died at the agent-step cap with 5 of
           # 9 planned passes still open, so no decision file existed, the
           # fail-closed verify above went red, and the file-contract report
@@ -917,11 +1072,38 @@ jobs:
         id: findings
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: ${{ steps.trusted_path.outputs.git_exec_path }}
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Issue #608: the workflow, not the session's final message, owns
           # the findings comment. The shared script fails closed when the
           # report is missing, unsigned, or the posted comment cannot be
@@ -946,6 +1128,8 @@ jobs:
       - name: Forward macOS tester decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.findings.outcome == 'success'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
@@ -953,7 +1137,32 @@ jobs:
           # Issue #612: uniform with the other per-OS forwarders; inert here,
           # load-bearing on the windows-latest arm (see the Linux forwarder).
           MSYS_NO_PATHCONV: "1"
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: ${{ steps.trusted_path.outputs.git_exec_path }}
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
             echo "::error::Tester decision file lost this run's contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."
             exit 1
@@ -997,37 +1206,13 @@ jobs:
       group: opencode-peros-windows-${{ github.event.issue.number }}
       cancel-in-progress: false
     steps:
-      - name: Get target ref
-        id: pr-info
-        env:
-          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
-          GIT_NO_REPLACE_OBJECTS: "1"
-        run: |
-          set +e
-          num="${{ github.event.issue.number }}"
-          is_pr="false"
-          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
-          if [ "$is_pr" = "true" ]; then
-            head_ref=$(gh pr view "$num" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "main")
-          else
-            head_ref=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName --jq '[.[] | select(.headRefName | startswith("opencode/issue'"$num"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
-            [ -z "$head_ref" ] && head_ref="main"
-          fi
-          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
-          echo "Target ref: $head_ref"
-
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          persist-credentials: true
-          token: ${{ github.token }}
-          ref: ${{ steps.pr-info.outputs.head_ref }}
-          fetch-depth: 0
-
       - name: Capture the trusted pre-agent PATH for owner-PAT steps
         id: trusted_path
         run: |
           set -o pipefail
+          # Issue #742: this capture runs before checkout and before every
+          # owner-PAT step, so both the pre-agent target lookup and the
+          # post-agent steps consume the same trusted PATH and git exec path.
           # Issue #713 round 16: the owner-PAT post-agent steps used to inherit
           # the runner PATH after the tester ran, including the
           # $HOME/.opencode/bin entry the vendored runner appends to
@@ -1189,8 +1374,69 @@ jobs:
             echo "::error::The trusted pre-agent PATH cannot resolve:$missing (issue #713, fail closed)."
             exit 1
           fi
+          git_exec=$(PATH="$clean" git --exec-path 2>/dev/null) || git_exec=""
+          if [ -z "$git_exec" ]; then
+            echo "::error::Could not resolve the trusted git exec path (issue #742, fail closed)."
+            exit 1
+          fi
+          echo "git_exec_path=$git_exec" >> "$GITHUB_OUTPUT"
           echo "path=$clean" >> "$GITHUB_OUTPUT"
           echo "Captured the pre-agent PATH for owner-PAT steps."
+
+      - name: Get target ref
+        id: pr-info
+        env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_NO_REPLACE_OBJECTS: "1"
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: ${{ steps.trusted_path.outputs.git_exec_path }}
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: ${{ steps.trusted_path.outputs.path }}
+        run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
+          set +e
+          num="${{ github.event.issue.number }}"
+          is_pr="false"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
+          if [ "$is_pr" = "true" ]; then
+            head_ref=$(gh pr view "$num" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "main")
+          else
+            head_ref=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName --jq '[.[] | select(.headRefName | startswith("opencode/issue'"$num"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
+            [ -z "$head_ref" ] && head_ref="main"
+          fi
+          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+          echo "Target ref: $head_ref"
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+          ref: ${{ steps.pr-info.outputs.head_ref }}
+          fetch-depth: 0
 
       - name: Stage the Windows tester system prompt from the workflow commit
         run: |
@@ -1363,11 +1609,38 @@ jobs:
         id: salvage
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'failure'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: ${{ steps.trusted_path.outputs.git_exec_path }}
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Issue #692: same salvage contract as the macOS arm (see the macOS
           # salvage step): the fail-closed verify above stays red and only a
           # signed, re-fetchable partial report is published, behind a
@@ -1417,11 +1690,38 @@ jobs:
         id: findings
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: ${{ steps.trusted_path.outputs.git_exec_path }}
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Issue #608: the workflow, not the session's final message, owns
           # the findings comment. The shared script fails closed when the
           # report is missing, unsigned, or the posted comment cannot be
@@ -1446,6 +1746,8 @@ jobs:
       - name: Forward Windows tester decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.findings.outcome == 'success'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
@@ -1457,7 +1759,32 @@ jobs:
           # disables that conversion; the stdin transport below is the primary,
           # conversion-proof fix. Audit rule R18 guards both.
           MSYS_NO_PATHCONV: "1"
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: ${{ steps.trusted_path.outputs.git_exec_path }}
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           if [ -n "${LAB_RUN_NONCE:-}" ] && [ "$(jq -r '.run_nonce // empty' /tmp/random-lab-decision.json 2>/dev/null || true)" != "$LAB_RUN_NONCE" ]; then
             echo "::error::Tester decision file lost this run's contract nonce before the handoff; refusing to forward a tampered verdict (issue #713 round 16)."
             exit 1

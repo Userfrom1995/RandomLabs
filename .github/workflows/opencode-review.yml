@@ -65,6 +65,8 @@ jobs:
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           pr="${{ github.event.issue.number }}"
           is_pr="${{ github.event.issue.pull_request != null }}"
           if [ "$is_pr" = "true" ]; then
@@ -164,7 +166,7 @@ jobs:
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
@@ -191,9 +193,11 @@ jobs:
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           gh issue comment "${{ github.event.issue.number }}" \
             --repo "${{ github.repository }}" \
-            --body "Review was requested on this issue, but no linked pull request was found. Review only runs on PR branches. If this issue has an open PR, ensure the branch follows the naming convention \`opencode/issue<N>-<slug>\`." || true
+            --body "Review was requested on this issue, but no linked pull request was found. Review only runs on PR branches. If this issue has an open PR, ensure the branch follows the naming convention \`opencode/issue<N>-<slug>\`."
 
       - name: Record checked-out PR head
         id: checkout-head
@@ -322,6 +326,8 @@ jobs:
           PATH: /usr/bin:/bin
           TARGET: ${{ github.event.issue.number }}
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Issue #713: the reviewer agent executes PR-controlled code, and its
           # job token holds issues: write only so the CLI session can start
           # (issue #743). The reviewer writes its signed report to a file;
@@ -394,6 +400,8 @@ jobs:
           # shell text.
           SINCE: ${{ github.event.comment.created_at }}
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Terminal third outcome for a gate skip (issue #428): the reviewer
           # step never started, so "failed + no decision file" is a DENIAL, not
           # a crash. A denial must not post an owner auto-retry (that would
@@ -608,6 +616,8 @@ jobs:
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           set +e
           decision="/tmp/random-lab-decision.json"
           if [ ! -f "$decision" ]; then
@@ -663,6 +673,8 @@ jobs:
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           pr="${{ github.event.issue.number }}"
           if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "::error::No decision file found; verify step above already failed the job closed."

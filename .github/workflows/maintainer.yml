@@ -303,6 +303,11 @@ jobs:
           # channel. This stays correct when the project-config opt-out lands
           # (issue #745), which would otherwise disable the repo permission.
           OPENCODE_PERMISSION: '{"external_directory":{"*":"allow"}}'
+          # Issue #742 follow-up: the checkout is pinned to the trusted default
+          # branch, but the CLI session bootstrap can still check out a PR
+          # branch. Never auto-load that tree's AGENTS.md/opencode.json or
+          # plugins; the staged maintainer prompt is the only instruction source.
+          OPENCODE_DISABLE_PROJECT_CONFIG: "true"
           VARIANT: max
           MODEL_CANDIDATES: ${{ steps.model_ladder.outputs.candidates }}
           USE_GITHUB_TOKEN: "true"
@@ -726,6 +731,8 @@ jobs:
           GIT_COMMITTER_EMAIL: "github-actions[bot]@users.noreply.github.com"
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           dirty=$(git status --porcelain -- .github/workflows .github/agents opencode.json AGENTS.md LAB.md 2>/dev/null || true)
           if [ -z "$dirty" ]; then
             echo "No protected-path modifications left by the Maintainer; nothing to do."
@@ -1033,6 +1040,8 @@ jobs:
           BOT_TOKEN: ${{ github.token }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           python3 -I - <<'PY'
           import json, os, re, subprocess, time
 
@@ -1383,6 +1392,8 @@ jobs:
           # system directories, as the owner-PAT trigger step does.
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           set -euo pipefail
           # Remove actions/checkout credential injection so PAT operations authenticate correctly
           # (checkout v6 stores App-token extraheader in RUNNER_TEMP; plain unset insufficient)
@@ -1696,6 +1707,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           new_sha=$(git ls-remote origin main | awk '{print $1}')
           if [ "${{ steps.pre_agent.outputs.sha }}" != "$new_sha" ] && [ -n "$new_sha" ]; then
             echo "Main branch advanced from ${{ steps.pre_agent.outputs.sha }} to $new_sha. Triggering pages.yml."
@@ -1735,6 +1748,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           pre="${{ steps.pre_agent.outputs.sha }}"
           if [ -z "$pre" ]; then
             echo "No pre-agent main SHA recorded; skipping integrity guard."
@@ -1847,6 +1862,8 @@ jobs:
           TRUSTED_SHA: ${{ steps.actor_gate.outputs.trusted_sha }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           set +e
           # Issue #713 review round 26: read the helper from the trusted
           # default-branch commit the actor-gate step fetched and published,

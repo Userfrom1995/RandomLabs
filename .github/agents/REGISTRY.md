@@ -10,7 +10,7 @@ reviewed PRs (see LAB.md §21).
 | Hephaestus | The Maintainer - brain/orchestrator | maintainer | bootstrap | 2026-08-12 | - (workflow triggers) | `.github/agents/maintainer.md` |
 | The Ideator | On-demand brainstorm candidate generator | worker | bootstrap | 2026-08-12 | `/oc ideate` · `workflow_dispatch` | `.github/agents/ideator.md` |
 | The Researcher | Scientific research & algorithm design | worker | bootstrap | 2026-08-16 | `/oc research` | `.github/agents/researcher.md` |
-| The Architect | Master technical strategist | worker | bootstrap | 2026-08-15 | `/oc architect` | `.github/agents/architect.md` |
+| The Architect | Master technical strategist | worker | bootstrap | 2026-08-15 | `/oc architect` · `/oc plan` | `.github/agents/architect.md` |
 | The Builder | Implements builds (resume mode) | worker | bootstrap | 2026-08-12 | `/oc build` · `/oc continue` | `.github/agents/builder.md` |
 | The Fixer | Applies reviewer findings | worker | bootstrap | 2026-08-12 | `/oc fix` | `.github/agents/fixer.md` |
 | The Reviewer | Strict quality gate; read-only | worker | bootstrap | 2026-08-12 | `/oc review` | `.github/agents/reviewer.md` |
@@ -21,7 +21,7 @@ reviewed PRs (see LAB.md §21).
 | The Auditor | Lab pipeline inspector | worker | bootstrap | 2026-08-16 | `schedule` · `workflow_dispatch` · `/oc auditor` | `.github/agents/auditor.md` |
 | The Lab Engineer | Chief Technology Officer (CTO) & Lab Architect | worker | bootstrap | 2026-08-16 | `/oc lab` | `.github/agents/labengineer.md` |
 | The Recover Agent | PR survival & continuation engineer | worker | bootstrap | 2026-08-21 | `/oc recover` · `auto-detect` | `.github/agents/recover.md` |
-| The Curator | Public surface, web & README custodian | worker | user-directive | 2026-09-13 | `/oc curate` · `schedule (6h)` | `.github/agents/curator.md` |
+| The Curator | Public surface, web & README custodian | worker | user-directive | 2026-09-13 | `/oc curate` · `schedule (6h)` · `workflow_dispatch` | `.github/agents/curator.md` |
 | The Evaluator | Autonomous Quality Council / Program Committee | worker | user-directive | 2026-09-22 | `/oc eval` | `.github/agents/evaluator.md` |
 | The Design Council | Product design orchestrator (UX, visual, motion deliberation) | worker | lab-engineer | 2026-10-03 | `/oc design` | `.github/agents/design-council.md` |
 | The Product Designer (UX) | UX research, user flows, usability | worker | lab-engineer | 2026-10-03 | `/oc design-ux` | `.github/agents/design-ux.md` |

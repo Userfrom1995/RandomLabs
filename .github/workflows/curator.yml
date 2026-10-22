@@ -101,6 +101,8 @@ jobs:
         id: verify-decision
         if: always()
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           # Env indirection (issue #422 residual, audit R10): a ${{ inputs.* }}
           # expanded inside the run block below executes as SHELL with this
@@ -108,7 +110,33 @@ jobs:
           # would inject. In an env: mapping the same expression is inert data.
           SELFHEAL_RETRY: ${{ inputs.selfheal_retry }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Terminal third outcome for a gate skip (issue #428): the curator
           # step never started, so a missing decision file is a DENIAL, not a
           # crash. This is the laundering point the gate exists to close: the
@@ -183,8 +211,36 @@ jobs:
       - name: Forward curator decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-decision.outcome == 'success'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "No decision file found (/tmp/random-lab-decision.json)."
             exit 0
@@ -228,8 +284,36 @@ jobs:
         continue-on-error: true
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           set +e
           target_pr=""
           if [ -f /tmp/random-lab-decision.json ]; then

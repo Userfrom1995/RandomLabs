@@ -56,7 +56,7 @@ concurrency:
 #     busy thread the recent retry markers fall outside page 1, the cap reads
 #     0, and the loop never stops (issue #621). Use `?per_page=100` +
 #     `--paginate --slurp` piped through `jq '.[][] | ...'`.
-# These are audited by R1-R30 in auditor.yml (.github/scripts/silent-stall-audit.sh):
+# These are audited by R1-R32 in auditor.yml (.github/scripts/silent-stall-audit.sh):
 # R1-R6 cover the invariants above plus the free-tier model guard, R7 guards the
 # review-restore ownership gate (PR #412 head rewind), R8 guards the vendored
 # hardened runner (.github/actions/opencode-run, issue #422 A), R9 guards
@@ -202,6 +202,8 @@ jobs:
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Terminal third outcome for a gate skip (issue #428): the agent step
           # never started, so "failed + no decision file" is a DENIAL, not a
           # crash. A denial must not post an owner auto-retry (that would
@@ -319,6 +321,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR. On 2026-10-18 this forward resolved #685
           # (an in-test phase PR of #582) and the resulting /oc build bound a
@@ -476,6 +480,8 @@ jobs:
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Terminal third outcome for a gate skip (issue #428): the agent step
           # never started, so "failed + no decision file" is a DENIAL, not a
           # crash. A denial must not post an owner auto-retry (that would
@@ -594,6 +600,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
@@ -674,6 +682,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           set +e
           issue="${{ github.event.issue.number }}"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
@@ -891,6 +901,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           set +e
           branch=$(git branch --show-current 2>/dev/null || echo "")
           if [ -z "$branch" ] || [ "$branch" = "main" ]; then
@@ -958,6 +970,8 @@ jobs:
           PATTERN_TIPS: ${{ steps.baseline.outputs.pattern_tips }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Terminal third outcome for a gate skip (issue #428): the agent step
           # never started, so "no push" is a DENIAL, not a crash. A denial must
           # not post an owner auto-retry (that would launder the unprivileged
@@ -1185,6 +1199,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           issue="${{ github.event.issue.number }}"
           # Consume the verify step's SERVER-SIDE verdict (issue #135); do not
           # recompute from local checkout state, which the agent may have moved.
@@ -1256,6 +1272,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           issue="${{ github.event.issue.number }}"
           pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
             --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null || echo "")
@@ -1352,6 +1370,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           set +e
           issue="${{ github.event.issue.number }}"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
@@ -1510,6 +1530,8 @@ jobs:
           BASELINE_HEAD: ${{ steps.baseline.outputs.head_before }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Terminal third outcome for a gate skip (issue #428): the agent step
           # never started, so "no push" is a DENIAL, not a crash. A denial must
           # not post an owner auto-retry (that would launder the unprivileged
@@ -1595,6 +1617,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           gh issue comment "${{ github.event.issue.number }}" \
             --repo "${{ github.repository }}" \
             --body "/oc review" || true
@@ -1651,6 +1675,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           set +e
           pr="${{ github.event.issue.number }}"
           # Shared self-healing logic (issue #137): head-scoped polling plus a
@@ -1770,6 +1796,8 @@ jobs:
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           if [ "${AGENT_GATE:-}" != "true" ]; then
             echo "::notice::Actor write gate skipped the design agent (issue #428): denial is not a crash - no auto-retry, no escalation."
             echo "outcome=skipped" >> "$GITHUB_OUTPUT"
@@ -1870,6 +1898,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR. This forward resolved #685 (an in-test
           # phase PR of #582) and posted /oc build there, binding a fresh build
@@ -1951,6 +1981,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           set +e
           issue="${{ github.event.issue.number }}"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
@@ -2067,6 +2099,8 @@ jobs:
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           if [ "${AGENT_GATE:-}" != "true" ]; then
             echo "::notice::Actor write gate skipped the design-ux agent (issue #428): denial is not a crash - no auto-retry, no escalation."
             echo "outcome=skipped" >> "$GITHUB_OUTPUT"
@@ -2167,6 +2201,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
@@ -2247,6 +2283,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           set +e
           issue="${{ github.event.issue.number }}"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
@@ -2363,6 +2401,8 @@ jobs:
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           if [ "${AGENT_GATE:-}" != "true" ]; then
             echo "::notice::Actor write gate skipped the design-visual agent (issue #428): denial is not a crash - no auto-retry, no escalation."
             echo "outcome=skipped" >> "$GITHUB_OUTPUT"
@@ -2463,6 +2503,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
@@ -2543,6 +2585,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           set +e
           issue="${{ github.event.issue.number }}"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
@@ -2659,6 +2703,8 @@ jobs:
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           if [ "${AGENT_GATE:-}" != "true" ]; then
             echo "::notice::Actor write gate skipped the design-motion agent (issue #428): denial is not a crash - no auto-retry, no escalation."
             echo "outcome=skipped" >> "$GITHUB_OUTPUT"
@@ -2759,6 +2805,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
@@ -2839,6 +2887,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           set +e
           issue="${{ github.event.issue.number }}"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
@@ -3020,6 +3070,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           gh issue comment "${{ github.event.issue.number }}" \
             --repo "${{ github.repository }}" \
             --body "/oc maintainer" || true
@@ -3076,6 +3128,8 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           set +e
           issue="${{ github.event.issue.number }}"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then

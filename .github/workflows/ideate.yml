@@ -83,6 +83,8 @@ jobs:
         id: verify-decision
         if: always()
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           # Env indirection (issue #422 residual, audit R10): never expand
           # ${{ inputs.selfheal_retry }} inside the run block below - inline
@@ -90,7 +92,33 @@ jobs:
           # mapping is inert data even when the value carries shell metachars.
           SELFHEAL_RETRY: ${{ inputs.selfheal_retry }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Terminal third outcome for a gate skip (issue #428): the ideator
           # step never started, so a failed step with no board output is a
           # DENIAL, not a crash. No fail-closed red, no self-heal re-dispatch,
@@ -138,8 +166,36 @@ jobs:
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.ideate.outcome == 'success'
         continue-on-error: true
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           board=$(gh api "repos/${{ github.repository }}/issues?state=open&labels=brainstorm" --jq '.[0].number' 2>/dev/null || echo "")
           if [ -n "$board" ] && [ "$board" != "null" ]; then
             gh issue comment "$board" --repo "${{ github.repository }}" --body "/oc maintainer" || echo "maintainer notification failed"

@@ -27,8 +27,36 @@ jobs:
     steps:
       - name: Post /oc maintainer as owner to wake up Maintainer
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           set -euo pipefail
           pr="${{ github.event.pull_request.number }}"
           echo "Posting /oc maintainer for PR #$pr"

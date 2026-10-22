@@ -63,6 +63,8 @@ jobs:
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           pr="${{ github.event.issue.number }}"
           head_ref=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName')
           echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
@@ -336,6 +338,8 @@ jobs:
           PATH: /usr/bin:/bin
           TARGET: ${{ github.event.issue.number }}
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Issue #713: the tester agent executes PR-controlled code, and its
           # job token holds issues: write only so the CLI session can start
           # (issue #743). The report is a file contract, and this hardcoded
@@ -463,6 +467,8 @@ jobs:
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Issue #629/#713: the merge sweep's first-line anchor (R21) is
           # satisfied by a workflow-published canonical marker instead of
           # agent prose compliance. This step runs only after the evidence gate
@@ -546,6 +552,8 @@ jobs:
           PATH: /usr/bin:/bin
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           pr="${{ github.event.issue.number }}"
           if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "::error::No decision file found; verify step above already failed the job closed."
