@@ -209,6 +209,23 @@ Public Surface / Web Track:                                              │
   pre-push hooks against a local bare origin, requires the hooks not to fire
   while the remote tip advances, and proves the fixture live with a
   workspace-reusing control body whose hook must fire.
+- **Owner-PAT environment map and trusted helper execution (issue #713 round 25)**:
+  every owner-PAT step in `opencode.yml` (27) and `maintainer.yml` now carries
+  the exact sanitized env map (the round-23 keys plus explicit workspace
+  `GIT_*` values), so an agent export can never reach a step that holds the
+  owner PAT; R28 pins the map on every owner-PAT step and the exact 27-step
+  count, and R30 pins the maintainer steps' maps. Post-agent helper execution
+  no longer touches a mutable copy: every verify/forward/approve/strip step
+  reads the helper from this run's workflow commit
+  (`git show "${GITHUB_SHA}:.github/scripts/<helper>"` piped to `bash -s`)
+  and fails closed if the read fails, so neither the agent-mutable workspace
+  copy nor the sudo-replaceable `/opt/lab-scripts/` staged copy is executed
+  (the pre-agent staging step is defense in depth); R28 (all steps) and R30
+  (maintainer) reject any helper basename outside its trusted capture line in
+  any spelling except a non-piped diagnostic `echo`/`printf`. The review
+  workflow's non-PR skip notice now posts with the job-scoped `github.token`
+  and its body never begins with `/oc review`, so a mis-resolved thread can
+  no longer self-retrigger the reviewer; R30 pins the notice's env and body.
 - **Merge capability**: Workflow-file PRs require `workflows` scope, which `GITHUB_TOKEN` cannot grant via `permissions:` (valid `GITHUB_TOKEN` scopes are `actions`, `contents`, `pull-requests`, etc.; `workflows` is App/PAT only). The mutating workflows (`lab.yml`, `maintainer.yml`, `opencode.yml`, `opencode-recover.yml`) push via the PAT-backed runner step (`https://x-access-token:${OPENCODE_PAT}@github.com/...` with credential-injection cleanup), and merges of PRs touching `.github/workflows/*` must likewise use the PAT or an owner click. Read-only agents (Reviewer, Tester, Auditor, Ideator) carry no extra scope. Without a PAT merge, infra PR merges fail with "refusing to allow a GitHub App to create or update workflow ... without workflows permission" (observed on PR #139; flagged in #120). The opencode CLI wrapper additionally performs its own end-of-session push of the checked-out branch with the checkout App token, so on workflow-touching branches that internal push is rejected by the same rule (one rejection comment plus a masked `continue-on-error` step failure; the PAT-backed runner step is the authoritative push). That rejection is expected noise, not agent misbehavior (lab run 39024455956, 2026-10-17). The PAT merge sweep additionally restores full history when the workspace is shallow before its merge-base linkage checks: the opencode CLI session bootstrap re-shallows the checkout with depth-limited fetches, and on a shallow workspace both the three-dot workflow diff and the orphan guard fail closed, silently skipping a legitimately linked workflow PR (issue #602, guarded by audit rule R16).
 - In-progress continuation: When a build requires additional phases (`Status: in-progress`), the workflow triggers `/oc continue`.
 
@@ -590,16 +607,15 @@ Public Surface / Web Track:                                              │
   a `tester:`/foreign range or any fetch/tip failure reports `foreign` or
   exits 2, which the verify treats as no-push (`::warning::`, no recover
   tag), and the recover-tag step requires
-  `steps.verify.outputs.pushed == 'true'`. Both helpers are staged from the
-  trusted default-branch checkout into root-owned `/opt/lab-scripts/`
-  (installed with `sudo install -o root -g root -m 0755`) before the agent
-  starts, and every post-agent step invokes the staged copy: the workspace
-  copy may be absent on an in-flight branch predating this PR and is
-  agent-mutable; any run body outside the staging steps that names a helper
-  basename without the `/opt/lab-scripts/` prefix is rejected in any
-  spelling, and no non-staging step may write into the directory (a copy
-  verb or redirect there is rejected, so a reviewed extra step can never
-  glob-copy workspace helpers over the staged copies). The
+  `steps.verify.outputs.pushed == 'true'`. Both helpers are read from this run's
+  workflow commit (`git show "${GITHUB_SHA}:.github/scripts/<helper>"`,
+  piped to `bash -s`) at the point of use (issue #713 review round 25), so
+  neither the agent-mutable workspace copy nor the sudo-replaceable
+  `/opt/lab-scripts/` copy is ever executed; the pre-agent root-owned
+  staging step is retained as defense in depth. Any run body that names a
+  helper basename outside its trusted `${GITHUB_SHA}` capture line is
+  rejected in any spelling, and no non-staging step may write into the
+  staged directory (a copy verb or redirect there is rejected). The
   build baseline fails loudly on a nonzero `gh` or `git` status
   (capture-first, so a failed `ls-remote` is never swallowed as "branch
   absent"; an empty branch means only a successful no-PR query), the
