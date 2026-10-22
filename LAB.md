@@ -217,10 +217,13 @@ Public Surface / Web Track:                                              │
   count, and R30 pins the maintainer steps' maps. Post-agent helper execution
   no longer touches a mutable copy: every verify/forward/approve/strip step
   reads the helper from this run's workflow commit
-  (`git show "${GITHUB_SHA}:.github/scripts/<helper>"` piped to `bash -s`)
-  and fails closed if the read fails, so neither the agent-mutable workspace
-  copy nor the sudo-replaceable `/opt/lab-scripts/` staged copy is executed
-  (the pre-agent staging step is defense in depth); R28 (all steps) and R30
+  (`git show "${{ github.workflow_sha }}:.github/scripts/<helper>"` in
+  `opencode.yml`, where `GITHUB_SHA` can be the PR head on review-comment
+  runs, and `git show "${GITHUB_SHA}:.github/scripts/<helper>"` in
+  `maintainer.yml`, where it always equals the workflow commit; piped to
+  `bash -s`) and fails closed if the read fails, so neither the agent-mutable
+  workspace copy nor the sudo-replaceable `/opt/lab-scripts/` staged copy is
+  executed (the pre-agent staging step is defense in depth); R28 (all steps) and R30
   (maintainer) reject any helper basename outside its trusted capture line in
   any spelling except a non-piped diagnostic `echo`/`printf`. The review
   workflow's non-PR skip notice now posts with the job-scoped `github.token`
@@ -608,12 +611,13 @@ Public Surface / Web Track:                                              │
   exits 2, which the verify treats as no-push (`::warning::`, no recover
   tag), and the recover-tag step requires
   `steps.verify.outputs.pushed == 'true'`. Both helpers are read from this run's
-  workflow commit (`git show "${GITHUB_SHA}:.github/scripts/<helper>"`,
-  piped to `bash -s`) at the point of use (issue #713 review round 25), so
+  workflow commit (`git show "${{ github.workflow_sha }}:.github/scripts/<helper>"`,
+  piped to `bash -s`, so a review-comment trigger cannot feed the step a
+  PR-authored helper) at the point of use (issue #713 review round 25), so
   neither the agent-mutable workspace copy nor the sudo-replaceable
   `/opt/lab-scripts/` copy is ever executed; the pre-agent root-owned
   staging step is retained as defense in depth. Any run body that names a
-  helper basename outside its trusted `${GITHUB_SHA}` capture line is
+  helper basename outside its trusted capture line is
   rejected in any spelling, and no non-staging step may write into the
   staged directory (a copy verb or redirect there is rejected). The
   build baseline fails loudly on a nonzero `gh` or `git` status
