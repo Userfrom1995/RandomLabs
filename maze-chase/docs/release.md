@@ -106,7 +106,7 @@ one row each, and record the measured results in the scoreboard.
   so a clean checkout resolves identical dependency versions.
 - The tarball names carry the crate version read from `Cargo.toml` at
   stage time; the browser page carries the bridge ABI version
-  (`mc_version() == 2`).
+  (`mc_version() == 3`).
 
 ## Clean-checkout release checklist
 

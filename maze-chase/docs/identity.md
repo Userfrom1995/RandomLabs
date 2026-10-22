@@ -81,7 +81,7 @@ level-clear sweep.
   coordinates, start/mouth tiles) coincide, as the behavior spec demands.
   Loaded at compile time via `include_str!` so the engine stays
   dependency-free and WASM-safe.
-- Sprite and audio authorship (authored 2026-10-16, refreshed for Pondwake; all original hand-authored data in-repo, no external
+- Sprite and audio authorship (authored 2026-10-16, refreshed for Pondwake and the sound overhaul; all original hand-authored data in-repo, no external
   sources): `crates/assets/src/sprites.rs` (Rill 11x11 mouth and facings,
   four silhouette-first hunters, 7x7 eye bubbles, ring fright mask plus
   hollow warning mask, water-bead crumbs, firefly sunseeds, six relish
@@ -89,8 +89,8 @@ level-clear sweep.
   `crates/assets/src/anim.rs` (Lantern Drift clips and registries),
   `crates/assets/src/themes.rs` (Dusk Pond, Morning Shallows, Moonwake,
   all WCAG 4.5+ text contrast), `crates/audio/src/score.rs` (five
-  original tunes plus four SFX recipes, synthesized locally by layers, no
-  audio files), `docs/design.md` plus `docs/design-tokens.json` (visual
+  original multi-track tunes at one 108 BPM source plus a layered SFX bank
+  across seven voice families, synthesized locally by layers, no audio files), `docs/design.md` plus `docs/design-tokens.json` (visual
   language, palette cross-checked by test).
 
 ## Brand marks
