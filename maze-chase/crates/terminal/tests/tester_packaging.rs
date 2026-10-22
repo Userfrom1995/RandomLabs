@@ -388,6 +388,62 @@ fn reproducible_tarball_digest_ignores_the_caller_umask() {
             "tarball build under umask {mask} failed: {}",
             String::from_utf8_lossy(&status.stderr)
         );
+        // Digest equality alone can be green on an empty or incomplete
+        // archive, so prove the real tar can list and unpack the content.
+        let listing = Command::new("tar")
+            .args(["-tzf", out.to_str().unwrap()])
+            .output()
+            .expect("list staged tarball");
+        assert!(
+            listing.status.success(),
+            "tar cannot list {out:?}: {}",
+            String::from_utf8_lossy(&listing.stderr)
+        );
+        let listing = String::from_utf8_lossy(&listing.stdout);
+        assert!(
+            listing.contains("payload"),
+            "top-level file missing from {out:?}:\n{listing}"
+        );
+        assert!(
+            listing.contains("nested/doc.md"),
+            "nested file missing from {out:?}:\n{listing}"
+        );
+        let unpack = out.with_extension("unpacked");
+        let _ = std::fs::remove_dir_all(&unpack);
+        std::fs::create_dir_all(&unpack).unwrap();
+        let extract = Command::new("tar")
+            .args([
+                "-xzf",
+                out.to_str().unwrap(),
+                "-C",
+                unpack.to_str().unwrap(),
+            ])
+            .output()
+            .expect("extract staged tarball");
+        assert!(
+            extract.status.success(),
+            "tar cannot extract {out:?}: {}",
+            String::from_utf8_lossy(&extract.stderr)
+        );
+        let payload = unpack.join("payload");
+        assert_eq!(
+            std::fs::read_to_string(&payload).expect("read extracted payload"),
+            "payload\n",
+            "the extracted payload must match the stage"
+        );
+        let mode = std::fs::metadata(&payload)
+            .expect("stat extracted payload")
+            .permissions()
+            .mode();
+        assert!(
+            mode & 0o111 != 0,
+            "payload must stay executable after extraction, mode {mode:o}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(unpack.join("nested").join("doc.md")).unwrap(),
+            "docs\n",
+            "the extracted nested doc must match the stage"
+        );
         std::fs::read(out).expect("read staged tarball")
     };
     let wide = build(
