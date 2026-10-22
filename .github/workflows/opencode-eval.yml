@@ -51,7 +51,32 @@ jobs:
       - name: Get PR info
         id: pr-info
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           PATH: /usr/bin:/bin
         run: |
           pr="${{ github.event.issue.number }}"
@@ -147,7 +172,32 @@ jobs:
         id: context
         if: steps.actor_gate.outputs.run == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           PATH: /usr/bin:/bin
         run: |
           pr="${{ github.event.issue.number }}"
@@ -326,7 +376,32 @@ jobs:
         id: post-result
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           PATH: /usr/bin:/bin
         run: |
           if [ ! -f /tmp/evaluator-decision.json ]; then
@@ -397,7 +472,32 @@ jobs:
         id: marker
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success' && steps.post-result.outcome == 'success'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           PATH: /usr/bin:/bin
         run: |
           # Issue #713: the PAT merge sweep is the only automated path that can
@@ -491,7 +591,32 @@ jobs:
       - name: Forward evaluator decision to Maintainer (owner PAT handoff)
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success' && steps.marker.outputs.ok == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           PATH: /usr/bin:/bin
         run: |
           pr="${{ github.event.issue.number }}"
@@ -529,26 +654,62 @@ jobs:
       - name: Push evaluator memory to dedicated branch
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
           PATH: /usr/bin:/bin
         run: |
-          # Push evaluation memory (rubric updates, attack vectors, evaluation logs) to the Evaluator's dedicated branch.
-          git checkout -b evaluator/logs 2>/dev/null || git checkout evaluator/logs || true
-          mkdir -p lab/memory/evaluator
-          # Record the evaluation turn for institutional memory.
-          echo "# Evaluator Memory Update - $(date -Iseconds)" >> lab/memory/evaluator/eval-log.md
-          echo "- PR: ${{ github.event.issue.number }}" >> lab/memory/evaluator/eval-log.md
-          echo "- Score: $(jq -r '.score // \"N/A\"' /tmp/evaluator-decision.json 2>/dev/null || echo \"N/A\")" >> lab/memory/evaluator/eval-log.md
-          echo "- Action: $(jq -r '.action // \"unknown\"' /tmp/evaluator-decision.json 2>/dev/null || echo \"unknown\")" >> lab/memory/evaluator/eval-log.md
-          git add lab/memory/evaluator/
-          git commit -m "evaluator: update memory branch with evaluation turn for PR ${{ github.event.issue.number }}" || true
-          # The App token is read-only now, so authenticate this best-effort
-          # push with the owner PAT explicitly (issue #713 review round 13).
-          # checkout v6 stores the App-token extraheader in a RUNNER_TEMP
-          # config referenced via includeIf.gitdir:*; a plain unset cannot
-          # remove it, so clear those includes as the maintainer sweep does.
-          git config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
-          for cfg in $(git config --local --name-only --get-regexp '^includeIf\.gitdir:.*\.path$' 2>/dev/null); do
-            git config --local --unset-all "$cfg" 2>/dev/null || true
-          done
-          git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" evaluator/logs --force-with-lease || true
+          # Issue #713 review round 23: the memory push must not execute
+          # PR-planted git hooks from the agent-writable checkout, and it must
+          # not inherit injected GIT_* execution variables. Build a fresh repo
+          # in a private temp directory, neutralize hooks, and push with the
+          # owner PAT explicitly. The branch is memory-only, so the push stays
+          # best-effort; a failure never blocks the verdict handoff above.
+          unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_NAMESPACE GIT_SSH_COMMAND GIT_ASKPASS GIT_EXTERNAL_DIFF GIT_EXEC_PATH
+          work=$(mktemp -d)
+          trap 'rm -rf "$work"' EXIT
+          git -C "$work" init -q
+          git -C "$work" config core.hooksPath /dev/null
+          token_url="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          expected=""
+          if git -C "$work" fetch --quiet --no-write-fetch-head "$token_url" "+refs/heads/evaluator/logs:refs/remotes/origin/evaluator/logs" 2>/dev/null; then
+            expected=$(git -C "$work" rev-parse refs/remotes/origin/evaluator/logs 2>/dev/null || true)
+            git -C "$work" checkout -q -B evaluator/logs refs/remotes/origin/evaluator/logs || true
+          else
+            git -C "$work" checkout -q --orphan evaluator/logs || true
+          fi
+          mkdir -p "$work/lab/memory/evaluator"
+          echo "# Evaluator Memory Update - $(date -Iseconds)" >> "$work/lab/memory/evaluator/eval-log.md"
+          echo "- PR: ${{ github.event.issue.number }}" >> "$work/lab/memory/evaluator/eval-log.md"
+          echo "- Score: $(jq -r '.score // "N/A"' /tmp/evaluator-decision.json 2>/dev/null || echo "N/A")" >> "$work/lab/memory/evaluator/eval-log.md"
+          echo "- Action: $(jq -r '.action // "unknown"' /tmp/evaluator-decision.json 2>/dev/null || echo "unknown")" >> "$work/lab/memory/evaluator/eval-log.md"
+          git -C "$work" add lab/memory/evaluator
+          git -C "$work" -c user.name="The Evaluator" -c user.email="github-actions[bot]@users.noreply.github.com" commit -m "evaluator: update memory branch with evaluation turn for PR ${{ github.event.issue.number }}" || true
+          if [ -n "$expected" ]; then
+            git -C "$work" push --force-with-lease="refs/heads/evaluator/logs:${expected}" "$token_url" HEAD:evaluator/logs || true
+          else
+            git -C "$work" push "$token_url" HEAD:evaluator/logs || true
+          fi

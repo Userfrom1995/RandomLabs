@@ -6306,7 +6306,9 @@ else
     # a hardcoded "true" would turn an unprivileged-trigger skip into the
     # crash signature and post an owner /oc review auto-retry under the PAT
     # (the issue #428 laundering the denial branch exists to prevent).
-    r19_step_header=$(sed -n "${r19_name_line},$((r19_name_line + 6))p" "$REVIEW_WF")
+    r19_header_end=$(awk -v s="$r19_name_line" 'NR > s && /^[[:space:]]*run: \|/ { print NR; exit }' "$REVIEW_WF")
+    [ -n "$r19_header_end" ] || r19_header_end=$((r19_name_line + 40))
+    r19_step_header=$(sed -n "${r19_name_line},$((r19_header_end - 1))p" "$REVIEW_WF")
     printf '%s\n' "$r19_step_header" | grep -qxF "        if: steps.pr-info.outputs.is_pr == 'true' && always()" || r19_bad="${r19_bad} review.yml(verify-if-not-exact)"
     printf '%s\n' "$r19_step_header" | grep -qxF '          AGENT_GATE: ${{ steps.actor_gate.outputs.run }}' || r19_bad="${r19_bad} review.yml(verify-gate-env-not-exact)"
     # F17-F19 (review round 4): struct-anchored extraction and execution
@@ -15537,6 +15539,15 @@ EXPECTED_TEST_STEP_NAMES = [
     "Publish tester approval marker (owner-PAT-signed)",
     "Forward tester decision",
 ]
+# Issue #713 review round 23: the per-step env pin only works when no higher
+# YAML layer can supply the same variable, so the test/review workflow and job
+# key surfaces reject workflow/job-level env (and every other effective
+# override) outright. A legitimate key change updates these sets in the same
+# PR.
+TEST_WORKFLOW_KEYS = {"name", "on", "concurrency", "jobs"}
+TEST_JOB_KEYS = {"if", "permissions", "runs-on", "timeout-minutes", "steps"}
+REVIEW_WORKFLOW_KEYS = {"name", "on", "concurrency", "jobs"}
+REVIEW_JOB_KEYS = {"if", "permissions", "runs-on", "timeout-minutes", "steps"}
 MAINTAINER_WF = ".github/workflows/maintainer.yml"
 PAT_STEP_NAME = "PAT-backed merge for approved workflow-touching PRs"
 # Issue #713 review round 12: the merge scan matched only `gh pr merge` with
@@ -15621,6 +15632,42 @@ EXPECTED_AGENT_IF = "steps.actor_gate.outputs.run == 'true'"
 EXPECTED_VERIFY_IF = "always()"
 EXPECTED_EVIDENCE_IF = "always() && steps.verify-eval.outputs.has_decision == 'true'"
 SYSTEM_PATH = "/usr/bin:/bin"
+# Issue #713 review round 23: a PR-controlled agent can append to
+# $GITHUB_ENV, and every later step inherits those values. The runner applies
+# a step's `env:` after the job/GITHUB_ENV layers, so pinning the isolation
+# variables at the step level neutralizes the injection for the token-bearing
+# steps. BASH_ENV/LD_* close code-loading; the GIT_* set closes git execution
+# and config redirection; GIT_DIR/WORK_TREE/INDEX/OBJECTS are pinned to this
+# checkout (the memory push unsets them before building its own fresh repo).
+OWNER_PAT_ISOLATION_ENV = {
+    "BASH_ENV": "/dev/null",
+    "ENV": "/dev/null",
+    "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES": "",
+    "GIT_ASKPASS": "/bin/false",
+    "GIT_COMMON_DIR": "${{ github.workspace }}/.git",
+    "GIT_CONFIG_COUNT": "0",
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_SYSTEM": "/dev/null",
+    "GIT_DIR": "${{ github.workspace }}/.git",
+    "GIT_EDITOR": "/bin/false",
+    "GIT_EXEC_PATH": "/usr/lib/git-core",
+    "GIT_EXTERNAL_DIFF": "",
+    "GIT_INDEX_FILE": "${{ github.workspace }}/.git/index",
+    "GIT_NAMESPACE": "",
+    "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects",
+    "GIT_PAGER": "/bin/cat",
+    "GIT_SEQUENCE_EDITOR": "/bin/false",
+    "GIT_SSH_COMMAND": "ssh",
+    "GIT_TERMINAL_PROMPT": "0",
+    "GIT_TEMPLATE_DIR": "/dev/null",
+    "GIT_WORK_TREE": "${{ github.workspace }}",
+    "LD_AUDIT": "",
+    "LD_LIBRARY_PATH": "",
+    "LD_PRELOAD": "",
+    "PATH": SYSTEM_PATH,
+}
 EXPECTED_VERIFY_ENV = {
     "AGENT_GATE": "${{ steps.actor_gate.outputs.run }}",
     "PATH": SYSTEM_PATH,
@@ -15889,13 +15936,15 @@ def check_keys(step, label, expected_id, expected_if, output, sink):
         if key in step:
             sink.append("eval.yml(%s-%s-override)" % (label, key))
     env = step.get("env")
-    if (
-        not isinstance(env, dict)
-        or set(env) != {"GH_TOKEN", "PATH"}
-        or env.get("GH_TOKEN") != "${{ secrets.OPENCODE_PAT }}"
-        or env.get("PATH") != SYSTEM_PATH
-    ):
-        sink.append("eval.yml(%s-env-not-owner-pat)" % label)
+    if not isinstance(env, dict) or env != OWNER_PAT_ISOLATION_ENV:
+        sink.append("eval.yml(%s-env-not-isolated-owner-pat)" % label)
+    if isinstance(env, dict):
+        mutated = dict(env)
+        mutated["BASH_ENV"] = "/tmp/agent-env"
+        if mutated == OWNER_PAT_ISOLATION_ENV:
+            sink.append(
+                "eval.yml(%s-self-test-env-isolation-not-caught)" % label
+            )
     run = step.get("run")
     if not isinstance(run, str) or not run.strip():
         sink.append("eval.yml(%s-run-missing)" % label)
@@ -16024,13 +16073,30 @@ def check_owner_pat_step(step, label, expected_id, expected_if, output_name, sin
         if key in step:
             sink.append("eval.yml(%s-%s-override)" % (label, key))
     env = step.get("env")
-    if (
-        not isinstance(env, dict)
-        or set(env) != {"GH_TOKEN", "PATH"}
-        or env.get("GH_TOKEN") != "${{ secrets.OPENCODE_PAT }}"
-        or env.get("PATH") != SYSTEM_PATH
-    ):
-        sink.append("eval.yml(%s-env-not-owner-pat)" % label)
+    if not isinstance(env, dict) or env != OWNER_PAT_ISOLATION_ENV:
+        sink.append("eval.yml(%s-env-not-isolated-owner-pat)" % label)
+    # Issue #713 review round 23 mutation self-tests: a step-level BASH_ENV,
+    # LD_PRELOAD, or LD_LIBRARY_PATH differing from the pinned value, and a
+    # removed isolation key, must each be rejected. Otherwise a vacuous env
+    # comparator could stay green while $GITHUB_ENV injection reaches the PAT.
+    if isinstance(env, dict):
+        for mutation in (
+            {"BASH_ENV": "/tmp/agent-env"},
+            {"LD_PRELOAD": "/tmp/agent.so"},
+            {"LD_LIBRARY_PATH": "/tmp/agent-lib"},
+        ):
+            mutated = dict(env)
+            mutated.update(mutation)
+            if mutated == OWNER_PAT_ISOLATION_ENV:
+                sink.append(
+                    "eval.yml(%s-self-test-env-isolation-not-caught)" % label
+                )
+        missing = dict(env)
+        missing.pop("GIT_CONFIG_GLOBAL", None)
+        if missing == OWNER_PAT_ISOLATION_ENV:
+            sink.append(
+                "eval.yml(%s-self-test-env-key-removal-not-caught)" % label
+            )
     run = step.get("run")
     if not isinstance(run, str) or not run.strip():
         sink.append("eval.yml(%s-run-missing)" % label)
@@ -16143,6 +16209,16 @@ def validate(doc, output, sink):
     for planted in ("defaults", "env"):
         if planted in doc:
             sink.append("eval.yml(workflow-%s-override)" % planted)
+    # Issue #713 review round 23 mutation self-test: a workflow-level env would
+    # sit above the step env pin and could reintroduce BASH_ENV injection.
+    mutated_wf = dict(doc)
+    mutated_wf["env"] = {"BASH_ENV": "/tmp/agent-env"}
+    mutated_top = set(mutated_wf)
+    if True in mutated_top:
+        mutated_top.discard(True)
+        mutated_top.add("on")
+    if mutated_top == WORKFLOW_KEYS:
+        sink.append("eval.yml(self-test-workflow-env-not-caught)")
     # Issue #713 review round 7 follow-up: the permission map was key-set only.
     # Pin its values, the eval job's trigger expression, runner, and timeout
     # so a one-line downgrade cannot silently change what the gate can do or
@@ -16167,6 +16243,12 @@ def validate(doc, output, sink):
         return
     if set(job) != EVAL_JOB_KEYS:
         sink.append("eval.yml(eval-job-keys-not-exact)")
+    # Issue #713 review round 23 mutation self-test: a job-level env would sit
+    # above the step env pin and could reintroduce BASH_ENV injection.
+    mutated_job = dict(job)
+    mutated_job["env"] = {"BASH_ENV": "/tmp/agent-env"}
+    if set(mutated_job) == EVAL_JOB_KEYS:
+        sink.append("eval.yml(self-test-job-env-not-caught)")
     if " ".join(str(job.get("if") or "").split()) != EXPECTED_JOB_IF:
         sink.append("eval.yml(eval-job-if-not-exact)")
     if job.get("runs-on") != EXPECTED_JOB_RUNS_ON:
@@ -16365,11 +16447,16 @@ def validate(doc, output, sink):
         forward_env = forward.get("env")
         if (
             not isinstance(forward_env, dict)
-            or set(forward_env) != {"GH_TOKEN", "PATH"}
-            or forward_env.get("GH_TOKEN") != "${{ secrets.OPENCODE_PAT }}"
-            or forward_env.get("PATH") != SYSTEM_PATH
+            or forward_env != OWNER_PAT_ISOLATION_ENV
         ):
-            sink.append("eval.yml(forward-env-not-owner-pat)")
+            sink.append("eval.yml(forward-env-not-isolated-owner-pat)")
+        if isinstance(forward_env, dict):
+            mutated = dict(forward_env)
+            mutated["BASH_ENV"] = "/tmp/agent-env"
+            if mutated == OWNER_PAT_ISOLATION_ENV:
+                sink.append(
+                    "eval.yml(forward-self-test-env-isolation-not-caught)"
+                )
         forward_run = forward.get("run")
         if not isinstance(forward_run, str) or "/oc maintainer" not in forward_run:
             sink.append("eval.yml(forward-maintainer-mapping-missing)")
@@ -16510,6 +16597,12 @@ def check_owner_pat_paths(doc, label, sink):
             )
         return False
 
+    def isolation_ok(candidate):
+        return isinstance(candidate, dict) and all(
+            candidate.get(key) == value
+            for key, value in OWNER_PAT_ISOLATION_ENV.items()
+        )
+
     jobs = doc.get("jobs") if isinstance(doc, dict) else None
     if not isinstance(jobs, dict):
         return
@@ -16523,11 +16616,72 @@ def check_owner_pat_paths(doc, label, sink):
             if not isinstance(step, dict) or not references_owner_pat(step):
                 continue
             env = step.get("env")
-            if not isinstance(env, dict) or env.get("PATH") != SYSTEM_PATH:
+            if not isinstance(env, dict):
                 sink.append(
                     "%s(owner-pat-step-without-pinned-path:%s)"
                     % (label, step.get("name"))
                 )
+                continue
+            if env.get("PATH") != SYSTEM_PATH:
+                sink.append(
+                    "%s(owner-pat-step-without-pinned-path:%s)"
+                    % (label, step.get("name"))
+                )
+            missing = sorted(
+                key
+                for key, value in OWNER_PAT_ISOLATION_ENV.items()
+                if env.get(key) != value
+            )
+            if missing:
+                sink.append(
+                    "%s(owner-pat-step-without-isolation-env:%s:%s)"
+                    % (label, step.get("name"), ",".join(missing))
+                )
+            # Mutation self-test: a BASH_ENV override must be rejected by the
+            # same predicate the real step uses, so a check narrowed to PATH
+            # alone cannot stay green.
+            mutated = dict(env) if isinstance(env, dict) else {}
+            mutated["BASH_ENV"] = "/tmp/agent-env"
+            if isolation_ok(mutated):
+                sink.append(
+                    "%s(self-test-env-isolation-not-caught:%s)"
+                    % (label, step.get("name"))
+                )
+
+
+def check_arm_surface(doc, job_name, workflow_keys, job_keys, label, sink):
+    # Issue #713 review round 23: the per-step isolation env only wins over
+    # $GITHUB_ENV when no workflow/job-level env can shadow it, and a
+    # defaults/container/strategy override can rewrite how the pinned steps
+    # execute. Pin both surfaces and prove the rejection with mutation
+    # self-tests (a workflow-level env and a job-level env must both fail).
+    top_keys = set(doc)
+    if True in top_keys:
+        top_keys.discard(True)
+        top_keys.add("on")
+    if top_keys != workflow_keys:
+        sink.append("%s(workflow-keys-not-exact)" % label)
+    for planted in ("defaults", "env"):
+        if planted in doc:
+            sink.append("%s(workflow-%s-override)" % (label, planted))
+    mutated_wf = dict(doc)
+    mutated_wf["env"] = {"BASH_ENV": "/tmp/agent-env"}
+    mutated_top = set(mutated_wf)
+    if True in mutated_top:
+        mutated_top.discard(True)
+        mutated_top.add("on")
+    if mutated_top == workflow_keys:
+        sink.append("%s(self-test-workflow-env-not-caught)" % label)
+    job = doc["jobs"][job_name]
+    if set(job) != job_keys:
+        sink.append("%s(job-keys-not-exact)" % label)
+    for planted in ("defaults", "env", "container", "strategy", "continue-on-error"):
+        if planted in job:
+            sink.append("%s(job-%s-override)" % (label, planted))
+    mutated_job = dict(job)
+    mutated_job["env"] = {"BASH_ENV": "/tmp/agent-env"}
+    if set(mutated_job) == job_keys:
+        sink.append("%s(self-test-job-env-not-caught)" % label)
 
 
 def validate_test(doc, sink):
@@ -16542,6 +16696,9 @@ def validate_test(doc, sink):
     if not isinstance(steps, list):
         sink.append("test.yml(test-steps-not-list)")
         return
+    check_arm_surface(
+        doc, "test", TEST_WORKFLOW_KEYS, TEST_JOB_KEYS, "test.yml", sink
+    )
     check_owner_pat_paths(doc, "test.yml", sink)
     actual_step_names = [
         step.get("name") if isinstance(step, dict) else None
@@ -16637,6 +16794,9 @@ def validate_review(doc, sink):
     steps = jobs["review"].get("steps")
     if not isinstance(steps, list):
         return
+    check_arm_surface(
+        doc, "review", REVIEW_WORKFLOW_KEYS, REVIEW_JOB_KEYS, "review.yml", sink
+    )
     check_owner_pat_paths(doc, "review.yml", sink)
     # Issue #713 Tester finding: the review arm is read-only by contract. Pin
     # the job permissions and the no-push workflow invariant, and resolve the
@@ -17129,28 +17289,28 @@ if doc is not None:
         lambda d: step_at(d, FORWARD_NAME)["env"].__setitem__(
             "GH_TOKEN", "${{ github.token }}"
         ),
-        "forward-env-not-owner-pat",
+        "forward-env-not-isolated-owner-pat",
     )
     add_mutant(
         "prinfo-env-token",
         lambda d: step_at(d, PRINFO_NAME)["env"].__setitem__(
             "GH_TOKEN", "${{ github.token }}"
         ),
-        "prinfo-env-not-owner-pat",
+        "prinfo-env-not-isolated-owner-pat",
     )
     add_mutant(
         "context-env-token",
         lambda d: step_at(d, CONTEXT_NAME)["env"].__setitem__(
             "GH_TOKEN", "${{ github.token }}"
         ),
-        "context-env-not-owner-pat",
+        "context-env-not-isolated-owner-pat",
     )
     add_mutant(
         "memory-env-token",
         lambda d: step_at(d, MEMORY_NAME)["env"].__setitem__(
             "GH_TOKEN", "${{ github.token }}"
         ),
-        "memory-env-not-owner-pat",
+        "memory-env-not-isolated-owner-pat",
     )
     add_mutant(
         "memory-decoy-marker",
@@ -17566,6 +17726,41 @@ if test_doc is not None:
             for p in test_pat_path_local
         ):
             problems.append("test.yml(structural-self-test-owner-pat-path)")
+        # Issue #713 review round 23: a step-level BASH_ENV override, a
+        # job-level env, and a workflow-level env must each fail the real
+        # validator. The first proves the per-step isolation pin; the last two
+        # prove no higher YAML layer can shadow it.
+        test_owner_env = copy.deepcopy(test_doc)
+        for step in test_owner_env["jobs"]["test"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == "Get PR info":
+                step["env"]["BASH_ENV"] = "/tmp/agent-env"
+        test_owner_env_local = []
+        validate_test(test_owner_env, test_owner_env_local)
+        if not any(
+            "test.yml(owner-pat-step-without-isolation-env" in p
+            for p in test_owner_env_local
+        ):
+            problems.append("test.yml(structural-self-test-owner-pat-env)")
+        test_job_env = copy.deepcopy(test_doc)
+        test_job_env["jobs"]["test"]["env"] = {"BASH_ENV": "/tmp/agent-env"}
+        test_job_env_local = []
+        validate_test(test_job_env, test_job_env_local)
+        if not any(
+            "test.yml(job-keys-not-exact" in p
+            or "test.yml(job-env-override" in p
+            for p in test_job_env_local
+        ):
+            problems.append("test.yml(structural-self-test-job-env)")
+        test_wf_env = copy.deepcopy(test_doc)
+        test_wf_env["env"] = {"BASH_ENV": "/tmp/agent-env"}
+        test_wf_env_local = []
+        validate_test(test_wf_env, test_wf_env_local)
+        if not any(
+            "test.yml(workflow-keys-not-exact" in p
+            or "test.yml(workflow-env-override" in p
+            for p in test_wf_env_local
+        ):
+            problems.append("test.yml(structural-self-test-workflow-env)")
     except Exception:
         problems.append("test.yml(structural-self-test-prompt-stage-rewrite)")
 
@@ -17752,6 +17947,37 @@ if review_doc is not None:
             for p in review_pat_path_local
         ):
             problems.append("review.yml(structural-self-test-owner-pat-path)")
+        review_owner_env = copy.deepcopy(review_doc)
+        for step in review_owner_env["jobs"]["review"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == "Get PR info":
+                step["env"]["BASH_ENV"] = "/tmp/agent-env"
+        review_owner_env_local = []
+        validate_review(review_owner_env, review_owner_env_local)
+        if not any(
+            "review.yml(owner-pat-step-without-isolation-env" in p
+            for p in review_owner_env_local
+        ):
+            problems.append("review.yml(structural-self-test-owner-pat-env)")
+        review_job_env = copy.deepcopy(review_doc)
+        review_job_env["jobs"]["review"]["env"] = {"BASH_ENV": "/tmp/agent-env"}
+        review_job_env_local = []
+        validate_review(review_job_env, review_job_env_local)
+        if not any(
+            "review.yml(job-keys-not-exact" in p
+            or "review.yml(job-env-override" in p
+            for p in review_job_env_local
+        ):
+            problems.append("review.yml(structural-self-test-job-env)")
+        review_wf_env = copy.deepcopy(review_doc)
+        review_wf_env["env"] = {"BASH_ENV": "/tmp/agent-env"}
+        review_wf_env_local = []
+        validate_review(review_wf_env, review_wf_env_local)
+        if not any(
+            "review.yml(workflow-keys-not-exact" in p
+            or "review.yml(workflow-env-override" in p
+            for p in review_wf_env_local
+        ):
+            problems.append("review.yml(structural-self-test-workflow-env)")
     except Exception:
         problems.append("review.yml(structural-self-test-actor-head-script)")
 
@@ -18312,19 +18538,31 @@ R30CONTEXT
 }
 r30_expected_memory_block() {
   cat <<'R30MEMORY'
-git checkout -b evaluator/logs 2>/dev/null || git checkout evaluator/logs || true
-mkdir -p lab/memory/evaluator
-echo "# Evaluator Memory Update - $(date -Iseconds)" >> lab/memory/evaluator/eval-log.md
-echo "- PR: ${{ github.event.issue.number }}" >> lab/memory/evaluator/eval-log.md
-echo "- Score: $(jq -r '.score // \"N/A\"' /tmp/evaluator-decision.json 2>/dev/null || echo \"N/A\")" >> lab/memory/evaluator/eval-log.md
-echo "- Action: $(jq -r '.action // \"unknown\"' /tmp/evaluator-decision.json 2>/dev/null || echo \"unknown\")" >> lab/memory/evaluator/eval-log.md
-git add lab/memory/evaluator/
-git commit -m "evaluator: update memory branch with evaluation turn for PR ${{ github.event.issue.number }}" || true
-git config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
-for cfg in $(git config --local --name-only --get-regexp '^includeIf\.gitdir:.*\.path$' 2>/dev/null); do
-git config --local --unset-all "$cfg" 2>/dev/null || true
-done
-git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" evaluator/logs --force-with-lease || true
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_NAMESPACE GIT_SSH_COMMAND GIT_ASKPASS GIT_EXTERNAL_DIFF GIT_EXEC_PATH
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+git -C "$work" init -q
+git -C "$work" config core.hooksPath /dev/null
+token_url="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+expected=""
+if git -C "$work" fetch --quiet --no-write-fetch-head "$token_url" "+refs/heads/evaluator/logs:refs/remotes/origin/evaluator/logs" 2>/dev/null; then
+expected=$(git -C "$work" rev-parse refs/remotes/origin/evaluator/logs 2>/dev/null || true)
+git -C "$work" checkout -q -B evaluator/logs refs/remotes/origin/evaluator/logs || true
+else
+git -C "$work" checkout -q --orphan evaluator/logs || true
+fi
+mkdir -p "$work/lab/memory/evaluator"
+echo "# Evaluator Memory Update - $(date -Iseconds)" >> "$work/lab/memory/evaluator/eval-log.md"
+echo "- PR: ${{ github.event.issue.number }}" >> "$work/lab/memory/evaluator/eval-log.md"
+echo "- Score: $(jq -r '.score // "N/A"' /tmp/evaluator-decision.json 2>/dev/null || echo "N/A")" >> "$work/lab/memory/evaluator/eval-log.md"
+echo "- Action: $(jq -r '.action // "unknown"' /tmp/evaluator-decision.json 2>/dev/null || echo "unknown")" >> "$work/lab/memory/evaluator/eval-log.md"
+git -C "$work" add lab/memory/evaluator
+git -C "$work" -c user.name="The Evaluator" -c user.email="github-actions[bot]@users.noreply.github.com" commit -m "evaluator: update memory branch with evaluation turn for PR ${{ github.event.issue.number }}" || true
+if [ -n "$expected" ]; then
+git -C "$work" push --force-with-lease="refs/heads/evaluator/logs:${expected}" "$token_url" HEAD:evaluator/logs || true
+else
+git -C "$work" push "$token_url" HEAD:evaluator/logs || true
+fi
 R30MEMORY
 }
 # Issue #713 review round 6: the evaluator's decision provenance is pinned.
