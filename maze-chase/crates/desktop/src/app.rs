@@ -272,8 +272,11 @@ impl App {
         if action == Action::Mute {
             self.settings.mute = !self.settings.mute;
             self.screens.settings.mute = self.settings.mute;
-            self.audio.play(maze_chase_audio::cue::Cue::MuteToggle);
+            // Apply the new mix before the confirmation cue so unmuting is
+            // audible (and muting does not first play a full-gain blip).
             self.sync_audio();
+            self.audio.tick(FADE_SECS);
+            self.audio.play(maze_chase_audio::cue::Cue::MuteToggle);
             self.save_settings();
             return;
         }
@@ -716,6 +719,7 @@ mod tests {
         muted: bool,
         music_gain: f32,
         sfx_gain: f32,
+        played_muted: Option<bool>,
     }
 
     impl Default for GainState {
@@ -727,6 +731,7 @@ mod tests {
                 muted: false,
                 music_gain: 1.0,
                 sfx_gain: 1.0,
+                played_muted: None,
             }
         }
     }
@@ -736,7 +741,10 @@ mod tests {
     struct GainSink(std::sync::Arc<std::sync::Mutex<GainState>>);
 
     impl Audio for GainSink {
-        fn play(&mut self, _cue: maze_chase_audio::cue::Cue) {}
+        fn play(&mut self, _cue: maze_chase_audio::cue::Cue) {
+            let mut s = self.0.lock().unwrap();
+            s.played_muted = Some(s.muted);
+        }
         fn start_music(&mut self, _id: TuneId) {}
         fn stop_music(&mut self) {}
         fn set_master(&mut self, v: f32) {
@@ -808,6 +816,37 @@ mod tests {
             s.music_gain
         );
         assert!((s.sfx_gain - 0.5 * 0.8).abs() < 1e-6);
+    }
+
+    #[test]
+    fn mute_toggle_applies_the_target_gain_before_the_confirmation_cue() {
+        let dir = test_dir("mute-cue");
+        let state = std::sync::Arc::new(std::sync::Mutex::new(GainState::default()));
+        let mut app = App::with_audio(dir, Box::new(GainSink(state.clone())), false);
+
+        app.on_action(Action::Mute);
+        let s = state.lock().unwrap();
+        assert_eq!(
+            s.played_muted,
+            Some(true),
+            "muting must silence the bus before the confirmation cue"
+        );
+        assert_eq!(s.sfx_gain, 0.0, "muted SFX bus is already silent");
+        assert_eq!(s.music_gain, 0.0, "muted music bus is already silent");
+        drop(s);
+
+        app.on_action(Action::Mute);
+        let s = state.lock().unwrap();
+        assert_eq!(
+            s.played_muted,
+            Some(false),
+            "unmuting must apply the saved gain before the confirmation cue"
+        );
+        assert!(
+            (s.sfx_gain - app.settings.master * app.settings.sfx).abs() < 1e-6,
+            "unmuted SFX bus is already at the saved level, got {}",
+            s.sfx_gain
+        );
     }
 
     #[test]

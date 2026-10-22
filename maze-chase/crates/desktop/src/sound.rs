@@ -91,7 +91,10 @@ fn envelope(voice: Voice, t: f32, seconds: f32) -> f32 {
 
 fn scale_to_peak(out: &mut [f32], target: f32) {
     let raw = out.iter().map(|s| s.abs()).fold(0.0f32, f32::max);
-    let gain = target / raw.max(1.0);
+    // Normalize to the ceiling instead of only attenuating loud renders:
+    // every tune and recipe must land on its bus ceiling, or the desktop
+    // and browser layers disagree on loudness for the same score data.
+    let gain = if raw > 1e-6 { target / raw } else { 0.0 };
     for sample in out.iter_mut() {
         *sample = (*sample * gain).clamp(-target, target);
     }
@@ -505,10 +508,16 @@ mod tests {
         for tune in ALL_TUNES {
             let pcm = render_tune(*tune);
             assert!(pcm.iter().all(|s| s.is_finite()), "{} is finite", tune.name);
-            assert!(peak(&pcm) <= MUSIC_PEAK + 1e-4, "{} clips", tune.name);
+            let tune_peak = peak(&pcm);
+            assert!(tune_peak <= MUSIC_PEAK + 1e-4, "{} clips", tune.name);
+            assert!(
+                (tune_peak - MUSIC_PEAK).abs() <= 1e-3,
+                "{} must normalize to the music ceiling, got {tune_peak}",
+                tune.name
+            );
             assert!(rms(&pcm) > 0.001, "{} renders near-silent", tune.name);
             if tune.looped {
-                music_peak = music_peak.max(peak(&pcm));
+                music_peak = music_peak.max(tune_peak);
                 music_rms = music_rms.max(rms(&pcm));
             }
         }
@@ -519,9 +528,14 @@ mod tests {
             };
             let pcm = render_sfx_with(sfx, 0);
             assert!(pcm.iter().all(|s| s.is_finite()), "{cue:?} is finite");
-            assert!(peak(&pcm) <= SFX_PEAK + 1e-4, "{cue:?} clips");
+            let cue_peak = peak(&pcm);
+            assert!(cue_peak <= SFX_PEAK + 1e-4, "{cue:?} clips");
+            assert!(
+                (cue_peak - SFX_PEAK).abs() <= 1e-3,
+                "{cue:?} must normalize to the SFX ceiling, got {cue_peak}"
+            );
             assert!(rms(&pcm) > 0.001, "{cue:?} renders near-silent");
-            sfx_peak = sfx_peak.max(peak(&pcm));
+            sfx_peak = sfx_peak.max(cue_peak);
         }
         let mixed_music_peak = music_peak * DEFAULT_MASTER * DEFAULT_MUSIC;
         let mixed_sfx_peak = sfx_peak * DEFAULT_MASTER * DEFAULT_SFX;
