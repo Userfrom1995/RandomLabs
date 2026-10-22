@@ -8,7 +8,7 @@
 - **Status:** in-progress
 - **Updated:** 2026-10-22
 - **Active Phase:** Phase 6: Release Engineering and Multi-Platform Distribution
-  (implementation complete, ready for review; native macOS/Windows packaging, the installed release workflow, and the official release candidate remain with the Lab Engineer and native arms)
+  (in-repo contract complete and ready for review; native macOS/Windows packaging, the installed release workflow, and the official release candidate remain pending with the Lab Engineer and native arms)
 - **Blueprint:** `ideas/2026-10-18-maze-chase-overhaul.md`
 - **Findings ledger:** `progress/582-maze-chase-overhaul-findings.md` (created in
   Phase 1; every reassessment gap lives here until resolved or documented)
@@ -20,7 +20,7 @@
 - Phase 3: Terminal Render Pipeline and Compatibility Proof: [x] bounded live Kitty probe with byte replay plus the Sixel DA1 probe (the probe requires both the transmit and placement replies before it reads a verdict; Ghostty 1.3.1 answers the probe when one is sent, and its rows select the graphics path from `TERM_PROGRAM=ghostty`/`TERM=xterm-ghostty` without probing), [x] atlas plus placement composition with full-frame fallback (static layer and sprite atlas once per change, stable-id placement diffs, single-placement `d=i` deletes, explicit `z` stacking layers, DEFLATE PNG), [x] dirty-change detection and wall-clock pacing with backpressure (visual-change key, per-tier rates, 8 MiB/s byte ceiling, 1 Hz idle keepalive), [x] Sixel path hardening (64-color cap, 2 MiB frame ceiling with smaller-palette retry and an honest `cells-fallback` trace mode), [x] capability-aware probe plus write-path watchdog (`OK`/`ENOENT` replies decide kitty support; `q=2` keeps steady transmits silent, and the watchdog drops a tier after 3 failed frame writes with the reason recorded), [x] `MAZE_CHASE_TRACE` JSONL evidence mode (plan, frame mode/placements/static/atlas/encode time, skips, probe results), [x] kitty and ghostty rows signed on Linux plus conventional terminals (kitty and Ghostty both `kitty-graphics` pass at 21 transmits / 156.1-160.1 KiB per session in the Phase 3 round (pre-Pondwake; the Phase 4 rows are 169.9-175.4 KiB) with sprite visibility proven by capture census; xterm auto and xterm dark both pass on cells, the light row at 6.2% white at worst and 1.7% while playing after the theme-canvas fix; the VT340 sixel rows pass at 140-141 transmits / 3.39-3.41 MiB in the Phase 3 round (Phase 4: 137-138 / 4.25-4.31 MiB), and every row records its generating build commit plus binary SHA-256 in its `build` block), [ ] macOS matrix rows signed by the macOS Tester (PR 3 target, Refs #582, Refs #655)
 - Phase 4: Visual Identity Redesign: [x] Design Council direction consumed (dispatched by the Maintainer before this phase), [x] resolution-aware character and environment art, [x] effects and animation system, [x] refreshed themes with accessibility tests green, [x] all three layers integrated with real captures (PR 4 target, Refs #582, Closes #658)
 - Phase 5: Sound Design Overhaul: [x] new musical score with one BPM source (`TEMPO = 108`, five multi-track tunes with swung eighths and per-note track lanes), [x] soft short layered effect bank across seven voice families (40 ms crumb pluck with variation, rising warden ladder, sparkling relish triad, spare-wick bell), [x] mix architecture with 120 ms fades and safe defaults (music 60%, SFX 80%, master 80%, peak-normalized buses), [x] terminal chime policy default-off with a persistent Settings row and visual twins independent of mute, [x] per-layer settings round-trip on Linux (desktop synth PCM plus null sink, terminal BEL plus ticker, browser chip plus persisted sliders) with native macOS/Windows speaker review tracked for the Final Phase (PR 5 target, Refs #582, Refs #659)
-- Phase 6: Release Engineering and Multi-Platform Distribution: [x] version single source plus tag parity gate (`[workspace.package]` 0.1.0, `packaging/release/check-tag.sh` fail-closed on a tag/version mismatch), [x] Linux deb and rpm plus tarballs for both layers (rebuilt twice byte-identically and smoke-tested on this container), [ ] Windows installer plus zip (scripts landed; native build and silent install/uninstall run pending), [ ] macOS app plus dmg plus tarball (scripts landed; native build and dmg mount pending), [x] install/launch/uninstall smoke scripts (`release/smoke-linux.sh` executed; macOS/Windows harnesses authored for their native arms), [ ] `maze-chase-release.yml` pipeline via the Lab Engineer (source staged at `packaging/release/maze-chase-release.yml`), [ ] release candidate artifacts on the official Releases page, [x] install/upgrade/uninstall docs (`docs/release.md` covers both layers on all three OSes, plus upgrade and settings clearing) (PR 6 target, Refs #582, Closes #657)
+- Phase 6: Release Engineering and Multi-Platform Distribution: [x] version single source plus tag parity gate (`[workspace.package]` 0.1.0, `packaging/release/check-tag.sh` fail-closed on a tag/version mismatch), [x] Linux deb and rpm plus tarballs for both layers (rebuilt twice byte-identically and smoke-tested on this container), [ ] Windows installer plus zip (scripts landed; native build and silent install/uninstall run pending), [ ] macOS app plus dmg plus tarball (scripts landed; native build and dmg mount pending), [x] install/launch/uninstall smoke scripts (`release/smoke-linux.sh` executed; macOS/Windows harnesses authored for their native arms), [ ] `maze-chase-release.yml` pipeline via the Lab Engineer (source staged at `packaging/release/maze-chase-release.yml`), [ ] release candidate artifacts on the official Releases page, [ ] install/upgrade/uninstall docs (`docs/release.md` covers both layers on all three OSes, plus upgrade and settings clearing; corrected this round, final sign-off waits for the release candidate artifacts) (PR 6 target, Refs #582, Refs #657)
 - Phase 7: Game-First Web Experience and Subpages: [ ] `maze-chase/index.html` boots directly into the game with no clutter, [ ] downloads, install, docs, compatibility, releases subpages, [ ] rendered docs on Pages with link checks, [ ] deployed-URL browser E2E including mobile (PR 7 target, Refs #582, Closes #660)
 - Final Phase: Full-Product Verification and Release Sign-Off: [ ] full terminal matrix re-signed on the released artifacts, [ ] per-OS install/upgrade/uninstall from release artifacts, [ ] deployed Pages E2E for the game and every subpage, [ ] audio and visual craft evaluated on real captures, [ ] reassessment ledger fully resolved or documented, [ ] stable `maze-chase-v1.0.0` release cut, [ ] hub, README, and docs unified (Final PR, Refs #582, Closes #655, Closes #661, Closes #582)
 
@@ -59,14 +59,14 @@ the full workspace tests and deterministic verifier, stages and smokes
 each host's packages, re-hashes the payloads, and creates or refreshes
 the tagged GitHub Release. The installed `.github/workflows/` copy,
 native per-OS packaging evidence, the official release candidate, and
-the install/upgrade/uninstall docs remain open on this phase.
+the final install-instruction sign-off against those artifacts remain
+open on this phase.
 
 ## Next steps
 
-- Builder: finish the Phase 6 remaining checklist for this PR: desktop
-  findings B.6-B.8, the install/upgrade/uninstall docs, and the native
-  packaging evidence the runners provide; the release pipeline source is
-  ready for the Lab Engineer.
+- Native arms: produce the macOS and Windows packaging evidence once the
+  release workflow is installed; the release pipeline source is ready for
+  the Lab Engineer.
 - Maintainer: merge Phase 6 when the release contract is complete, then
   dispatch the Lab Engineer to install the release workflow and cut
   `maze-chase-v0.1.0-rc.1`; keep the per-OS speaker checks on the Final
@@ -1776,6 +1776,12 @@ the install/upgrade/uninstall docs remain open on this phase.
   form, rejects 0.2.0, and reports a branch as no-tag. macOS and
   Windows builds were not run here (`iscc`/`hdiutil` absent) and are
   not claimed.
+  Delegation ledger (recorded in the fix round): no subagent record
+  exists for this round, so it is recorded as primary-only; the
+  delegation threshold plainly applied (independent packaging,
+  desktop, and docs units) and not parallelizing them is a process
+  gap, not a justified exception. The primary context built every
+  script and ran the Linux stage. Skills: no registry skill matched.
   - the Builder
 
 - 2026-10-22 (builder, Phase 6 desktop and docs round): fixed the
@@ -1796,4 +1802,44 @@ the install/upgrade/uninstall docs remain open on this phase.
   engine lints; `stage-linux.sh` rebuilt all six artifacts twice with
   byte-identical SHA256SUMS after the desktop change and the license
   additions.
+  Delegation ledger: again no subagent record exists, so the round is
+  recorded as primary-only; the same threshold applied (desktop idle
+  loop, packaging, and docs verification were independent units) and
+  not fanning them out is a process gap. The primary context ran the
+  desktop tests, fmt, clippy, and the two Linux stages. Skills: no
+  registry skill matched.
   - the Builder
+
+- 2026-10-22 (fixer, Phase 6 review round on `5d66637f`): applied every
+  reviewer finding. macOS smoke now classifies terminal and desktop
+  tarballs; both tarballs ship the install/uninstall scripts and both
+  installers fail instead of falling back to a developer build; the
+  smoke runs the extracted installers. The tag gate tolerates a CRLF
+  manifest, tarball writes pin the stage mode and use GNU tar or a
+  deterministic Python fallback (tested under umask 022 and 077, with a
+  mutation check proving the test fails without the pins), RPM specs
+  drop `%{?dist}`, the desktop RPM requires `systemd-libs` and refreshes
+  caches, and the PowerShell epoch clamps to 1980. The release workflow
+  binds new tags to `$GITHUB_SHA` and validates any existing tag before
+  refresh or create. Desktop pad input moved to a bounded timer,
+  `--probe` captures at the bounded render size, audio fades settle on
+  slider and mute commits, and the first continuous frame uses
+  `FIXED_DT`. Release/matrix/scoreboard claims now match the artifacts
+  and the digest table matches the restaged Linux set.
+  Verification: `cargo test --workspace` green (89 desktop lib tests
+  plus all integration suites, including windowed `--probe` against the
+  committed PPM under Xvfb), `maze-chase-verify` 19/19, `cargo fmt
+  --check` clean, clippy only the six pre-existing engine lints,
+  `stage-linux.sh` rebuilt twice with byte-identical SHA256SUMS, and the
+  packaging suite is 13/13.
+  Delegation ledger: three read-only general subagents ran in parallel.
+  The packaging audit reproduced the installers, tag binding, RPM and
+  umask paths and found the first umask test was not load-bearing (fixed
+  and mutation-proven) plus the tag-without-release corner (fixed). The
+  desktop audit ran the lib and integration suites and reproduced the
+  Audio Mute-row fade gap (fixed with a regression test). The docs audit
+  checked the digest table with `sha256sum -c`, cross-links, and every
+  claim against the tree. The primary context verified every reported
+  defect independently, ran the full suites and both Linux stages, and
+  owns the final diff. Skills: no registry skill matched.
+  - the Fixer
