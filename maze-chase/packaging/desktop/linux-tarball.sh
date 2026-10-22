@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Build the Linux desktop release and stage a portable tarball.
 #
-# Output: dist/maze-chase-desktop-<version>-linux-x86_64.tar.gz containing
-# the binary, the .desktop entry, the XPM icon, and the launch docs.
+# Output: dist/maze-chase-desktop-<version>-linux-<arch>.tar.gz containing
+# the binary, the .desktop entry, the XPM icon, and the launch guide.
 #
 # System needs (Debian/Ubuntu): sudo apt-get install libasound2-dev
 # libudev-dev (build-time ALSA headers for rodio, udev headers for
@@ -11,22 +11,24 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(cd "$HERE/../.." && pwd)"
-VERSION="$(grep '^version' "$ROOT/crates/desktop/Cargo.toml" | head -1 | cut -d'"' -f2)"
-DIST="$ROOT/dist"
-STAGE="$DIST/stage"
+# shellcheck source=maze-chase/packaging/common.sh
+. "$HERE/../common.sh"
+
+STAGE="$DIST/stage-desktop"
+TARBALL="$DIST/maze-chase-desktop-$VERSION-$HOST_OS-$HOST_ARCH.tar.gz"
 
 cargo build --release -p maze-chase-desktop --manifest-path "$ROOT/Cargo.toml"
 
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
-cp "$ROOT/target/release/maze-chase-desktop" "$STAGE/" 2>/dev/null \
-  || cp "$ROOT/../target/release/maze-chase-desktop" "$STAGE/"
-cp "$HERE/maze-chase.desktop" "$STAGE/"
-cp "$HERE/maze-chase.xpm" "$STAGE/"
-cp "$ROOT/docs/desktop.md" "$STAGE/README-desktop.md"
+install -m 0755 "$ROOT/target/release/maze-chase-desktop" "$STAGE/maze-chase-desktop"
+install -m 0644 "$HERE/maze-chase.desktop" "$STAGE/maze-chase.desktop"
+install -m 0644 "$HERE/maze-chase.xpm" "$STAGE/maze-chase.xpm"
+install -m 0644 "$ROOT/docs/desktop.md" "$STAGE/README-desktop.md"
+install -m 0644 "$REPO_ROOT/LICENSE" "$STAGE/LICENSE"
 
-TARBALL="$DIST/maze-chase-desktop-$VERSION-linux-x86_64.tar.gz"
-tar -czf "$TARBALL" -C "$STAGE" .
+mkdir -p "$DIST"
+reproducible_targz "$STAGE" "$TARBALL"
 echo "staged: $TARBALL"
+echo "sha256: $(sha256_file "$TARBALL")"
 tar -tzf "$TARBALL"

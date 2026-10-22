@@ -1,0 +1,295 @@
+# Maze Chase release pipeline source.
+#
+# This file is packaging-owned so the Builder can stage it with the
+# packaging scripts; the Lab Engineer installs it as
+# .github/workflows/maze-chase-release.yml (workflow changes route
+# through /oc lab). Once installed, dispatch it or push a
+# maze-chase-v<version> tag to build and publish the artifacts.
+#
+# Triggers: version tags (maze-chase-v*) plus manual dispatch.
+# Jobs: native Linux, macOS, and Windows builders run the layer tests,
+# the deterministic verifier, the packaging scripts, and the per-OS
+# smoke (including a real install/uninstall on Windows and a real
+# windowed probe on macOS and Linux where available); the publish job
+# re-hashes the payloads and creates or refreshes the GitHub Release.
+# Tag/version parity is fail-closed through packaging/release/check-tag.sh.
+#
+# Merges of PRs touching .github/workflows/* need an owner click or PAT
+# merge (see LAB.md "Merge capability").
+
+name: maze-chase-release
+
+on:
+  push:
+    tags:
+      - "maze-chase-v*"
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: "Publish as a prerelease"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: maze-chase-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-linux:
+    name: Linux packages plus smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tag and version parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            bash maze-chase/packaging/release/check-tag.sh "$GITHUB_REF_NAME"
+          else
+            bash maze-chase/packaging/release/check-tag.sh "$GITHUB_REF_NAME" --allow-branch
+          fi
+
+      - name: Install system tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq dpkg-dev rpm rpm2cpio cpio libasound2-dev libudev-dev
+
+      - name: Workspace tests and deterministic verifier
+        shell: bash
+        working-directory: maze-chase
+        run: |
+          set -euo pipefail
+          cargo test --workspace --no-fail-fast
+          cargo run --release --bin maze-chase-verify
+
+      - name: Stage Linux artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash maze-chase/packaging/release/stage-linux.sh
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: maze-chase-linux
+          path: |
+            maze-chase/dist/maze-chase-*-linux-*.tar.gz
+            maze-chase/dist/maze-chase-*_*.deb
+            maze-chase/dist/maze-chase-*-1.*.rpm
+            maze-chase/dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+  build-macos:
+    name: macOS packages plus smoke
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tag and version parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            bash maze-chase/packaging/release/check-tag.sh "$GITHUB_REF_NAME"
+          else
+            bash maze-chase/packaging/release/check-tag.sh "$GITHUB_REF_NAME" --allow-branch
+          fi
+
+      - name: Workspace tests and deterministic verifier
+        shell: bash
+        working-directory: maze-chase
+        run: |
+          set -euo pipefail
+          cargo test --workspace --no-fail-fast
+          cargo run --release --bin maze-chase-verify
+
+      - name: Stage macOS artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash maze-chase/packaging/release/stage-macos.sh --probe
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: maze-chase-macos
+          path: |
+            maze-chase/dist/maze-chase-*-macos-*.tar.gz
+            maze-chase/dist/maze-chase-*-macos-*.dmg
+            maze-chase/dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+  build-windows:
+    name: Windows packages plus smoke
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tag and version parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            bash maze-chase/packaging/release/check-tag.sh "$GITHUB_REF_NAME"
+          else
+            bash maze-chase/packaging/release/check-tag.sh "$GITHUB_REF_NAME" --allow-branch
+          fi
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not (Get-Command iscc.exe -ErrorAction SilentlyContinue)) {
+            choco install innosetup -y --no-progress
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+          }
+          iscc /? | Select-Object -First 2
+
+      - name: Workspace tests and deterministic verifier
+        shell: bash
+        working-directory: maze-chase
+        run: |
+          set -euo pipefail
+          cargo test --workspace --no-fail-fast
+          cargo run --release --bin maze-chase-verify
+
+      - name: Stage Windows artifacts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          powershell -ExecutionPolicy Bypass -File maze-chase/packaging/release/stage-windows.ps1 -Install
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: maze-chase-windows
+          path: |
+            maze-chase/dist/maze-chase-*-windows-x86_64.zip
+            maze-chase/dist/maze-chase-*-windows-x86_64-setup.exe
+            maze-chase/dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [build-linux, build-macos, build-windows]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Verify version and re-hash payloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(bash maze-chase/packaging/release/check-tag.sh "${GITHUB_REF_NAME:-}" --allow-branch | sed -n 's/.*workspace version //p')"
+          if [ -z "$VERSION" ]; then
+            VERSION="$(awk '/^\[workspace\.package\]/{f=1;next} /^\[/{f=0} f && $1=="version"{gsub(/"/,"",$3);print $3;exit}' maze-chase/Cargo.toml)"
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "error: cannot read the workspace version" >&2
+            exit 1
+          fi
+          echo "[maze-chase-release] version $VERSION"
+          ls -la release-assets/
+          rm -f release-assets/SHA256SUMS.txt
+          (
+            cd release-assets
+            sha256sum maze-chase-terminal-*.tar.gz \
+              maze-chase-desktop-*.tar.gz \
+              maze-chase-desktop-*.dmg \
+              maze-chase-*_*.deb \
+              maze-chase-*-1.*.rpm \
+              maze-chase-*-windows-x86_64.zip \
+              maze-chase-*-windows-x86_64-setup.exe > SHA256SUMS.txt
+          )
+          cat release-assets/SHA256SUMS.txt
+          test -s release-assets/SHA256SUMS.txt
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Create or refresh the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            TAG="$GITHUB_REF_NAME"
+          else
+            TAG="maze-chase-v${VERSION}-rc.1"
+          fi
+          PRERELEASE="true"
+          case "$TAG" in
+            *-rc.*) PRERELEASE="true" ;;
+            *)
+              if [ -n "${{ inputs.prerelease }}" ]; then
+                PRERELEASE="${{ inputs.prerelease }}"
+              else
+                PRERELEASE="false"
+              fi
+              ;;
+          esac
+          NOTES="$(mktemp)"
+          cat > "$NOTES" <<EOF
+          Maze Chase $VERSION
+
+          One shared deterministic Rust engine with three complete layers.
+
+          Artifacts:
+          - Linux terminal: maze-chase-terminal-${VERSION}-linux-*.tar.gz, maze-chase-terminal_${VERSION}_*.deb, maze-chase-terminal-${VERSION}-1.*.rpm
+          - Linux desktop: maze-chase-desktop-${VERSION}-linux-*.tar.gz, maze-chase-desktop_${VERSION}_*.deb, maze-chase-desktop-${VERSION}-1.*.rpm
+          - macOS desktop: maze-chase-desktop-${VERSION}-macos-*.dmg, maze-chase-desktop-${VERSION}-macos-*.tar.gz plus the terminal tarball
+          - Windows desktop: maze-chase-desktop-${VERSION}-windows-x86_64-setup.exe, maze-chase-desktop-${VERSION}-windows-x86_64.zip plus the terminal zip
+
+          Verify downloads with SHA256SUMS.txt:
+          \`\`\`
+          sha256sum -c SHA256SUMS.txt
+          \`\`\`
+          (use \`shasum -a 256 -c\` on macOS).
+
+          Install, upgrade, and uninstall instructions:
+          https://github.com/Userfrom1995/RandomLabs/blob/main/maze-chase/docs/release.md
+
+          The desktop and terminal binaries are unsigned. Windows SmartScreen
+          may warn on first launch (More info, then Run anyway); macOS
+          Gatekeeper needs a right-click Open the first time.
+          EOF
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" --clobber release-assets/*
+            gh release edit "$TAG" --notes-file "$NOTES"
+            echo "[maze-chase-release] refreshed $TAG"
+          else
+            if [ "$PRERELEASE" = "true" ]; then
+              gh release create "$TAG" --title "Maze Chase $VERSION" --notes-file "$NOTES" --prerelease release-assets/*
+            else
+              gh release create "$TAG" --title "Maze Chase $VERSION" --notes-file "$NOTES" release-assets/*
+            fi
+            echo "[maze-chase-release] published $TAG"
+          fi
