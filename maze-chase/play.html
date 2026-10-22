@@ -164,6 +164,20 @@
     background: #0c0f16; color: var(--ink); padding: 8px 12px; max-width: 220px;
   }
   input[type="range"] { width: 180px; accent-color: var(--accent); }
+  .mix-rows { display: grid; gap: 8px; margin: 4px 0 10px; }
+  .mix-row {
+    display: grid; grid-template-columns: 4.5rem minmax(0, 1fr) 3.25rem;
+    align-items: center; gap: 10px;
+  }
+  .mix-row label { margin: 0; white-space: nowrap; }
+  .mix-row input[type="range"] { width: 100%; min-width: 0; margin: 0; }
+  .mix-row output {
+    text-align: right; color: var(--muted); font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  @media (max-width: 420px) {
+    .mix-row { grid-template-columns: 3.75rem minmax(0, 1fr) 2.75rem; gap: 8px; }
+  }
   table.scores { border-collapse: collapse; width: 100%; max-width: 480px; }
   table.scores td, table.scores th { border-bottom: 1px solid #2a3350; padding: 6px 8px; text-align: left; }
   #rebind-list { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
@@ -298,11 +312,23 @@
   <section class="panel panel-screen" id="panel-settings" hidden aria-label="Settings">
     <div class="panel-scroll" tabindex="0" role="region" aria-label="Settings options">
       <h2>Settings</h2>
-      <p>
-        <label>Master <input type="range" id="rng-master" min="0" max="100" value="80" /></label>
-        <label>Music <input type="range" id="rng-music" min="0" max="100" value="60" /></label>
-        <label>SFX <input type="range" id="rng-sfx" min="0" max="100" value="80" /></label>
-      </p>
+      <div class="mix-rows" role="group" aria-label="Audio levels">
+        <div class="mix-row">
+          <label for="rng-master">Master</label>
+          <input type="range" id="rng-master" min="0" max="100" value="80" />
+          <output id="out-master" for="rng-master" aria-live="polite">80%</output>
+        </div>
+        <div class="mix-row">
+          <label for="rng-music">Music</label>
+          <input type="range" id="rng-music" min="0" max="100" value="60" />
+          <output id="out-music" for="rng-music" aria-live="polite">60%</output>
+        </div>
+        <div class="mix-row">
+          <label for="rng-sfx">SFX</label>
+          <input type="range" id="rng-sfx" min="0" max="100" value="80" />
+          <output id="out-sfx" for="rng-sfx" aria-live="polite">80%</output>
+        </div>
+      </div>
       <p>
         <label><input type="checkbox" id="chk-flash" /> Reduced flashing</label>
         <label><input type="checkbox" id="chk-motion" /> Reduced motion</label>

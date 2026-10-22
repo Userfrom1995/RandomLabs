@@ -443,6 +443,12 @@ async function shot(ws, path) {
   ]`);
   assert(audioDefaults[0] === 80 && audioDefaults[1] === 60 && audioDefaults[2] === 80,
     'settings expose the documented 80/60/80 master/music/SFX defaults, got: ' + JSON.stringify(audioDefaults));
+  const defaultMixLabels = await evalJs(ws, `['master', 'music', 'sfx'].map((k) => [
+    document.getElementById('rng-' + k).value,
+    document.getElementById('out-' + k).textContent.trim()
+  ])`);
+  assert(defaultMixLabels.every(([v, label]) => label === v + '%'),
+    'each mixer row prints its live percent, got: ' + JSON.stringify(defaultMixLabels));
   await evalJs(ws, `(() => {
     const m = document.getElementById('rng-music');
     const s = document.getElementById('rng-sfx');
@@ -454,6 +460,12 @@ async function shot(ws, path) {
   const audioText = audioBlob ? Buffer.from(audioBlob, 'base64').toString('utf8') : '';
   assert(/^music = 0\.35$/m.test(audioText), 'music volume persists, got: ' + JSON.stringify(audioText.split('\n').filter((l) => l.startsWith('music'))));
   assert(/^sfx = 0\.45$/m.test(audioText), 'SFX volume persists, got: ' + JSON.stringify(audioText.split('\n').filter((l) => l.startsWith('sfx'))));
+  const changedMixLabels = await evalJs(ws, `[
+    document.getElementById('out-music').textContent.trim(),
+    document.getElementById('out-sfx').textContent.trim()
+  ]`);
+  assert(changedMixLabels[0] === '35%' && changedMixLabels[1] === '45%',
+    'mixer percents follow live slider moves, got: ' + JSON.stringify(changedMixLabels));
   // An unmapped key (F1) during rebind capture must cancel the Rust capture
   // too, or the next key (M) is swallowed by the stale capture (round 29).
   await evalJs(ws, `document.querySelectorAll('#rebind-list button')[4].click()`);
@@ -953,7 +965,7 @@ async function shot(ws, path) {
         !!p.querySelector('.panel-scroll') ? 1 : 0, hb.bottom];
     })()`);
   }
-  for (const [vw, vh] of [[1440, 900], [390, 844]]) {
+  for (const [vw, vh] of [[1920, 1080], [1440, 900], [390, 844]]) {
     await send(ws, 'Emulation.setDeviceMetricsOverride', { width: vw, height: vh, deviceScaleFactor: 2, mobile: vw < 700 });
     await sleep(400);
     for (const [btn, panel, primary, label] of [
@@ -973,6 +985,36 @@ async function shot(ws, path) {
       assert(g[14] === 1, `${label} body is a scroll region at ${vw}x${vh}`);
       assert(g[0] >= g[15] + 8, `${label} panel clears the sticky header at ${vw}x${vh} (header ${g[15]}, panel ${g[0]})`);
     }
+    // The three mixer rows stay one line each with a visible label, a
+    // slider, and the live percent, in that order, at desktop and phone
+    // widths. Settings is the last panel opened above.
+    const mixRows = await evalJs(ws, `(() => Array.from(
+      document.querySelectorAll('#panel-settings .mix-row')
+    ).map((row) => {
+      const label = row.querySelector('label');
+      const range = row.querySelector('input[type="range"]');
+      const out = row.querySelector('output');
+      if (!label || !range || !out) return [0];
+      const lr = label.getBoundingClientRect(), rr = range.getBoundingClientRect();
+      const or = out.getBoundingClientRect(), rowRect = row.getBoundingClientRect();
+      const mid = (r) => (r.top + r.bottom) / 2;
+      const hit = document.elementFromPoint(rr.x + rr.width / 2, rr.y + rr.height / 2);
+      const shown = getComputedStyle(label).display !== 'none' && getComputedStyle(out).display !== 'none';
+      return [
+        1, shown ? 1 : 0,
+        Math.abs(mid(lr) - mid(rr)) < 3 && Math.abs(mid(rr) - mid(or)) < 3 ? 1 : 0,
+        lr.right <= rr.left + 1 && rr.right <= or.left + 1 ? 1 : 0,
+        rr.width > 60 ? 1 : 0,
+        lr.left >= rowRect.left - 1 && or.right <= rowRect.right + 1 ? 1 : 0,
+        (hit === range || range.contains(hit)) ? 1 : 0,
+        label.textContent.trim(), out.textContent.trim(), range.value
+      ];
+    }))()`);
+    console.log(`Mixer rows ${vw}x${vh}:`, JSON.stringify(mixRows));
+    assert(mixRows.length === 3, `three mixer rows exist at ${vw}x${vh}, got ${mixRows.length}`);
+    assert(mixRows.every((m) => m[0] === 1 && m[1] === 1 && m[2] === 1 && m[3] === 1
+      && m[4] === 1 && m[5] === 1 && m[6] === 1 && m[7] && m[8] === m[9] + '%'),
+    `mixer rows keep label, slider, and live percent on one line at ${vw}x${vh}, got: ${JSON.stringify(mixRows)}`);
     // Game over: the rAF loop would immediately re-hide it, so flip the
     // attribute, measure, and restore in one synchronous evaluation.
     const over = await evalJs(ws, `(() => {
