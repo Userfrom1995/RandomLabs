@@ -6,8 +6,8 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
-  issues: write
+  pull-requests: read
+  issues: read
 
 concurrency:
   # Issue #594: this workflow-level group serializes heterogeneous per-OS arms
@@ -35,6 +35,7 @@ jobs:
         id: pr-info
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_NO_REPLACE_OBJECTS: "1"
         run: |
           set +e
           num="${{ github.event.issue.number }}"
@@ -210,20 +211,40 @@ jobs:
         id: findings
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
+          GIT_NO_REPLACE_OBJECTS: "1"
         run: |
           # Issue #608: the workflow, not the session's final message, owns
           # the findings comment. The shared script fails closed when the
           # report is missing, unsigned, or the posted comment cannot be
-          # verified by id as bot-authored with the exact body; the decision
-          # forward below is gated on this step's success.
-          bash .github/scripts/post-peros-findings.sh linux "$TARGET"
+          # verified by id as owner-authored with the exact body; the decision
+          # forward below is gated on this step's success. Issue #713: the
+          # poster is re-staged from this run's workflow commit after the
+          # agent, so an agent that rewrites the workspace copy cannot turn
+          # this PAT-bearing step into an arbitrary comment poster.
+          poster=$(mktemp "${RUNNER_TEMP:-/tmp}/post-peros-findings.XXXXXX") || {
+            echo "::error::Could not create a secure staging path for the findings poster (issue #713, fail closed)."
+            exit 1
+          }
+          trap 'rm -f "$poster"' EXIT
+          if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
+            git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
+          fi
+          if git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
+            git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" > "$poster" 2>/dev/null || rm -f "$poster"
+          fi
+          if [ ! -s "$poster" ]; then
+            echo "::error::Findings poster absent from workflow commit ${GITHUB_SHA}; refusing to post an unverified report (issue #713, fail closed)."
+            exit 1
+          fi
+          bash "$poster" linux "$TARGET"
 
       - name: Forward Linux tester decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.findings.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_NO_REPLACE_OBJECTS: "1"
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
           # Issue #612: under Git Bash on windows-latest, MSYS2 path conversion
           # rewrites any argv that looks like a POSIX absolute path before the
@@ -279,6 +300,7 @@ jobs:
         id: pr-info
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_NO_REPLACE_OBJECTS: "1"
         run: |
           set +e
           num="${{ github.event.issue.number }}"
@@ -457,8 +479,9 @@ jobs:
         id: salvage
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'failure'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
+          GIT_NO_REPLACE_OBJECTS: "1"
         run: |
           # Issue #692: run 39170578536 died at the agent-step cap with 5 of
           # 9 planned passes still open, so no decision file existed, the
@@ -473,8 +496,8 @@ jobs:
           # completed verdict. Best effort by design: a report that fails
           # the strict checks (missing, unsigned, or unverifiable) is not
           # published, and the run stays red either way. The poster runs
-          # with github.token (never the owner PAT), exactly like the
-          # healthy-path post step. A decision file here means verify failed
+          # with the owner PAT (never the job GITHUB_TOKEN), exactly like
+          # the healthy-path post step, so the comment is owner-authored. A decision file here means verify failed
           # only because the report itself is missing or empty, so there is
           # nothing to salvage; the red run is covered by the failure triage.
           if [ -f /tmp/random-lab-decision.json ]; then
@@ -492,7 +515,25 @@ jobs:
             printf '%s\n\n' "> Failing run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             cat /tmp/random-lab-findings.md
           } > /tmp/random-lab-findings-salvage.md
-          if bash .github/scripts/post-peros-findings.sh macos "$TARGET" /tmp/random-lab-findings-salvage.md; then
+          # Issue #713: re-stage the strict poster from this run's workflow
+          # commit after the agent, so the PAT-bearing step never executes an
+          # agent-rewritten workspace copy.
+          poster=$(mktemp "${RUNNER_TEMP:-/tmp}/post-peros-findings.XXXXXX") || {
+            echo "::error::Could not create a secure staging path for the findings poster (issue #713, fail closed)."
+            exit 1
+          }
+          trap 'rm -f "$poster"' EXIT
+          if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
+            git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
+          fi
+          if git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
+            git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" > "$poster" 2>/dev/null || rm -f "$poster"
+          fi
+          if [ ! -s "$poster" ]; then
+            echo "::error::Findings poster absent from workflow commit ${GITHUB_SHA}; refusing to publish a salvage report (issue #713, fail closed)."
+            exit 1
+          fi
+          if bash "$poster" macos "$TARGET" /tmp/random-lab-findings-salvage.md; then
             echo "Salvaged partial macOS findings report; the run still concludes red."
           else
             echo "::warning::Partial macOS findings report exists but failed the strict poster checks (not signed or not verifiable); nothing was published."
@@ -502,20 +543,40 @@ jobs:
         id: findings
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
+          GIT_NO_REPLACE_OBJECTS: "1"
         run: |
           # Issue #608: the workflow, not the session's final message, owns
           # the findings comment. The shared script fails closed when the
           # report is missing, unsigned, or the posted comment cannot be
-          # verified by id as bot-authored with the exact body; the decision
-          # forward below is gated on this step's success.
-          bash .github/scripts/post-peros-findings.sh macos "$TARGET"
+          # verified by id as owner-authored with the exact body; the decision
+          # forward below is gated on this step's success. Issue #713: the
+          # poster is re-staged from this run's workflow commit after the
+          # agent, so an agent that rewrites the workspace copy cannot turn
+          # this PAT-bearing step into an arbitrary comment poster.
+          poster=$(mktemp "${RUNNER_TEMP:-/tmp}/post-peros-findings.XXXXXX") || {
+            echo "::error::Could not create a secure staging path for the findings poster (issue #713, fail closed)."
+            exit 1
+          }
+          trap 'rm -f "$poster"' EXIT
+          if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
+            git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
+          fi
+          if git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
+            git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" > "$poster" 2>/dev/null || rm -f "$poster"
+          fi
+          if [ ! -s "$poster" ]; then
+            echo "::error::Findings poster absent from workflow commit ${GITHUB_SHA}; refusing to post an unverified report (issue #713, fail closed)."
+            exit 1
+          fi
+          bash "$poster" macos "$TARGET"
 
       - name: Forward macOS tester decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.findings.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_NO_REPLACE_OBJECTS: "1"
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
           # Issue #612: uniform with the other per-OS forwarders; inert here,
           # load-bearing on the windows-latest arm (see the Linux forwarder).
@@ -564,6 +625,7 @@ jobs:
         id: pr-info
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_NO_REPLACE_OBJECTS: "1"
         run: |
           set +e
           num="${{ github.event.issue.number }}"
@@ -741,14 +803,16 @@ jobs:
         id: salvage
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'failure'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
+          GIT_NO_REPLACE_OBJECTS: "1"
         run: |
           # Issue #692: same salvage contract as the macOS arm (see the macOS
           # salvage step): the fail-closed verify above stays red and only a
           # signed, re-fetchable partial report is published, behind a
           # workflow-composed provenance banner, through the strict shared
-          # poster with github.token (never the owner PAT). Best effort: a
+          # poster with the owner PAT (never the job GITHUB_TOKEN), so the
+          # comment is owner-authored. Best effort: a
           # missing, unsigned, or unverifiable report publishes nothing. A
           # decision file here means verify failed only because the report
           # itself is missing or empty, so there is nothing to salvage; the
@@ -768,7 +832,25 @@ jobs:
             printf '%s\n\n' "> Failing run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             cat /tmp/random-lab-findings.md
           } > /tmp/random-lab-findings-salvage.md
-          if bash .github/scripts/post-peros-findings.sh windows "$TARGET" /tmp/random-lab-findings-salvage.md; then
+          # Issue #713: re-stage the strict poster from this run's workflow
+          # commit after the agent, so the PAT-bearing step never executes an
+          # agent-rewritten workspace copy.
+          poster=$(mktemp "${RUNNER_TEMP:-/tmp}/post-peros-findings.XXXXXX") || {
+            echo "::error::Could not create a secure staging path for the findings poster (issue #713, fail closed)."
+            exit 1
+          }
+          trap 'rm -f "$poster"' EXIT
+          if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
+            git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
+          fi
+          if git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
+            git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" > "$poster" 2>/dev/null || rm -f "$poster"
+          fi
+          if [ ! -s "$poster" ]; then
+            echo "::error::Findings poster absent from workflow commit ${GITHUB_SHA}; refusing to publish a salvage report (issue #713, fail closed)."
+            exit 1
+          fi
+          if bash "$poster" windows "$TARGET" /tmp/random-lab-findings-salvage.md; then
             echo "Salvaged partial Windows findings report; the run still concludes red."
           else
             echo "::warning::Partial Windows findings report exists but failed the strict poster checks (not signed or not verifiable); nothing was published."
@@ -778,20 +860,40 @@ jobs:
         id: findings
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           TARGET: ${{ github.event.issue.number }}
+          GIT_NO_REPLACE_OBJECTS: "1"
         run: |
           # Issue #608: the workflow, not the session's final message, owns
           # the findings comment. The shared script fails closed when the
           # report is missing, unsigned, or the posted comment cannot be
-          # verified by id as bot-authored with the exact body; the decision
-          # forward below is gated on this step's success.
-          bash .github/scripts/post-peros-findings.sh windows "$TARGET"
+          # verified by id as owner-authored with the exact body; the decision
+          # forward below is gated on this step's success. Issue #713: the
+          # poster is re-staged from this run's workflow commit after the
+          # agent, so an agent that rewrites the workspace copy cannot turn
+          # this PAT-bearing step into an arbitrary comment poster.
+          poster=$(mktemp "${RUNNER_TEMP:-/tmp}/post-peros-findings.XXXXXX") || {
+            echo "::error::Could not create a secure staging path for the findings poster (issue #713, fail closed)."
+            exit 1
+          }
+          trap 'rm -f "$poster"' EXIT
+          if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
+            git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
+          fi
+          if git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
+            git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" > "$poster" 2>/dev/null || rm -f "$poster"
+          fi
+          if [ ! -s "$poster" ]; then
+            echo "::error::Findings poster absent from workflow commit ${GITHUB_SHA}; refusing to post an unverified report (issue #713, fail closed)."
+            exit 1
+          fi
+          bash "$poster" windows "$TARGET"
 
       - name: Forward Windows tester decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.findings.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_NO_REPLACE_OBJECTS: "1"
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
           # Issue #612: the live regression. Under Git Bash on windows-latest,
           # MSYS2 path conversion rewrote the --body value "/oc maintainer"

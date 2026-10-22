@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # post-peros-findings.sh - post a per-OS tester's findings report as a
-# bot-authored comment on the target issue/PR and verify it persisted
+# owner-authored comment on the target issue/PR and verify it persisted
 # (issue #608).
 #
 # Why this exists: the per-OS arms depended on the opencode session's final
@@ -11,9 +11,9 @@
 # 39036858261, PR #606, target issue #582) and the Maintainer had to recover
 # it by hand. The report is now a file contract: the session writes
 # /tmp/random-lab-findings.md, and this script validates it (non-empty, last
-# non-blank line is the tester's sign-off), posts it as github-actions[bot],
-# and re-fetches the posted comment by id to verify authorship and the exact
-# body before the arm can conclude green.
+# non-blank line is the tester's sign-off), posts it with the owner PAT (never
+# exposed to the agent), and re-fetches the posted comment by id to verify
+# authorship and the exact body before the arm can conclude green.
 #
 # Line-ending contract (issue #612 follow-up, Windows arm run 39068849150 on
 # PR #632): Git Bash on windows-latest translates line endings of
@@ -27,12 +27,12 @@
 # fails closed.
 #
 # Usage: post-peros-findings.sh <linux|macos|windows> <target-number> [report-file]
-# Env:   GH_TOKEN           required; the workflow passes github.token (never
-#                           the owner PAT) so the comment is authored by
-#                           github-actions[bot]
+# Env:   GH_TOKEN           required; the workflow passes the owner PAT
+#                           (never exposed to the agent) so the comment is
+#                           owner-authored (issue #713)
 #        GITHUB_REPOSITORY  repo slug (owner/name), set by Actions
 #
-# Exit 0 only when the report exists, is signed, was posted by the bot, and
+# Exit 0 only when the report exists, is signed, was posted by the owner, and
 # re-fetches with the same body. Every other path exits 1 loudly so the
 # fail-closed verify/forward chain in opencode-peros-test.yml never reports
 # a false green.
@@ -43,6 +43,7 @@ os_label="${1:-}"
 target="${2:-}"
 report="${3:-/tmp/random-lab-findings.md}"
 repo="${GITHUB_REPOSITORY:-}"
+owner="${GITHUB_REPOSITORY_OWNER:-${repo%%/*}}"
 
 case "$os_label" in
   linux)   signoff="- the Linux Tester" ;;
@@ -113,8 +114,8 @@ fetched_body=$(printf '%s' "$fetched" | jq -r '.body // empty' 2>/dev/null | tr 
 fetched_last=$(printf '%s' "$fetched_body" | awk 'NF { line=$0 } END { print line }')
 expected_body="$(cat "$normalized_report")"
 
-if [ "$author" != "github-actions[bot]" ]; then
-  echo "::error::post-peros-findings.sh: posted findings comment ${comment_id} is authored by '${author}', not github-actions[bot] (issue #608)."
+if [ "$author" != "$owner" ]; then
+  echo "::error::post-peros-findings.sh: posted findings comment ${comment_id} is authored by '${author}', not the repository owner '${owner}' (issues #608, #713)."
   exit 1
 fi
 if [ "$fetched_last" != "$signoff" ]; then
@@ -126,4 +127,4 @@ if [ "$fetched_body" != "$expected_body" ]; then
   exit 1
 fi
 
-echo "Verified bot-authored ${os_label} findings comment ${comment_id} on #${target}: ${html_url}"
+echo "Verified owner-authored ${os_label} findings comment ${comment_id} on #${target}: ${html_url}"
