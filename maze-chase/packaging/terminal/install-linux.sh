@@ -8,7 +8,9 @@
 # Example:
 #   bash maze-chase/packaging/terminal/linux-tarball.sh
 #   bash maze-chase/packaging/terminal/install-linux.sh \
-#     --tarball maze-chase/dist/maze-chase-terminal-0.1.0-linux-x86_64.tar.gz
+#     --tarball maze-chase/dist/maze-chase-terminal-<version>-linux-x86_64.tar.gz
+#
+# Uninstall with uninstall-linux.sh in this directory.
 set -euo pipefail
 
 PREFIX="$HOME/.local"
@@ -23,6 +25,7 @@ while [ $# -gt 0 ]; do
 done
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$HERE/../.." && pwd)"
 WORK="$HERE"
 if [ -n "$TARBALL" ]; then
   WORK="$(mktemp -d)"
@@ -31,7 +34,7 @@ if [ -n "$TARBALL" ]; then
 fi
 
 # Local mode installs the release binary from the workspace target dir.
-LOCAL_BIN="$HERE/../../target/release/maze-chase-terminal"
+LOCAL_BIN="$ROOT/target/release/maze-chase-terminal"
 BIN="$WORK/maze-chase-terminal"
 [ -f "$BIN" ] || BIN="$LOCAL_BIN"
 
@@ -42,11 +45,11 @@ if [ ! -f "$BIN" ]; then
   exit 1
 fi
 
-cp "$BIN" "$PREFIX/bin/maze-chase-terminal"
-chmod +x "$PREFIX/bin/maze-chase-terminal"
+install -m 0755 "$BIN" "$PREFIX/bin/maze-chase-terminal"
 DOCS="$WORK/README-terminal.md"
-[ -f "$DOCS" ] || DOCS="$HERE/../../docs/terminal.md"
-[ -f "$DOCS" ] && cp "$DOCS" "$PREFIX/share/doc/maze-chase/README-terminal.md"
+[ -f "$DOCS" ] || DOCS="$ROOT/docs/terminal.md"
+[ -f "$DOCS" ] && install -m 0644 "$DOCS" "$PREFIX/share/doc/maze-chase/README-terminal.md"
 
 echo "installed maze-chase-terminal to $PREFIX/bin"
+echo "uninstall: bash $HERE/uninstall-linux.sh --prefix $PREFIX"
 "$PREFIX/bin/maze-chase-terminal" --version
