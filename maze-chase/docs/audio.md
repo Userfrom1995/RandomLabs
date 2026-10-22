@@ -1,9 +1,12 @@
 # Sound identity and mix
 
 One authored sound world shared by the terminal, desktop, and browser
-layers. Every tune, effect, and mix constant lives in
-`crates/audio/src/score.rs` and is synthesized at runtime from data:
-no samples, audio files, or external sound sources ship anywhere.
+layers. The shared score data, effect recipes, and mix defaults live in
+`crates/audio/src/score.rs`; each layer voices them with its own synth
+(the voice timbre tables and bus ceilings live in
+`crates/desktop/src/sound.rs` and `web/maze-chase.js`), all synthesized
+at runtime from data: no samples, audio files, or external sound
+sources ship anywhere.
 
 ## Musical identity
 
@@ -108,10 +111,14 @@ visual twin for every cue still plays.
 - `crates/config` tests pin the defaults, persistence round-trip, and
   corruption handling, including the terminal chime flag.
 - Desktop tests measure offline PCM for every tune and SFX: finite
-  samples, no clipping past the bus ceiling, and 0.154/0.320 peaks at
-  the documented 80/60/80 default mix. Terminal tests pin fades, null-sink
-  safety, opt-in BEL, settings rows, and visual twins under mute.
+  samples, peak-normalized to each bus ceiling, and 0.154/0.320 peaks at
+  the documented 80/60/80 default mix. They also pin the 120 ms fades,
+  the null-sink fallback, and the stings riding the music bus. Terminal
+  tests pin the opt-in BEL, mute/chime gating, settings persistence, and
+  the ticker; visual twins are rendered from game state and never
+  depend on the audio gates.
 - Web tests pin the ABI exports, first-tone legacy views, tune metadata,
   and routed cues; `wasm-smoke`, `boot-gate-e2e`, and `browser-e2e`
-  exercise the shipped artifact, including the unlock chip and the
-  persisted 60/80 mix.
+  exercise the shipped artifact, including the unlock chip, the
+  persisted 60/80 mix, loop-stop transitions, the 0.32/0.50 offline
+  peaks, and the persisted mute/low-volume startup.

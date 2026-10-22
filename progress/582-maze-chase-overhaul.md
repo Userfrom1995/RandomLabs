@@ -19,7 +19,7 @@
 - Phase 2: Dynamic Terminal Layout and Full-Window Composition: [x] geometry model with cell pixel size (`crates/terminal/src/geometry.rs`; TIOCGWINSZ pixel fields on Unix, console font on Windows, nominal 8x16 fallback), [x] pure layout solver (2..8 x 1..4 scale grid at the 2x1 compact floor with coverage-first selection; side panel, HUD band, hint-only by fit; exact 62x35 card; golden plans 200x60 -> 7x1 and 62x80 -> 2x2), [x] bounded centered image rendering at the real pixel geometry (raster fit to the board's pixel box; image footprint mapped through the window pixels, so Kitty never stretches and the Sixel raster stays inside the board's pixel box whenever the box can host the 6-ppt legibility floor, and absurdly tiny pixel windows keep the documented floor and may overflow; 8-ppt nominal fallback), [x] continuous cell-tier scales (`unicode::fit_width`/`center_rows` at any scale), [x] resize contract with same-frame repaint and stale-placement kill (`ESC[2J` plus Kitty delete-all in the new frame; pinned by `tests/plan_contract.rs`), [x] tier-aware too-small card (reads `layout.min_cols/min_rows`; exact 62x35 boundary pinned), [ ] real-emulator resize proof on Linux and macOS (the PTY proof landed with this PR; the real rows are per-OS tester work, no emulator exists on the build machine) (PR 2 target, Refs #582, Refs #656)
 - Phase 3: Terminal Render Pipeline and Compatibility Proof: [x] bounded live Kitty probe with byte replay plus the Sixel DA1 probe (the probe requires both the transmit and placement replies before it reads a verdict; Ghostty 1.3.1 answers the probe when one is sent, and its rows select the graphics path from `TERM_PROGRAM=ghostty`/`TERM=xterm-ghostty` without probing), [x] atlas plus placement composition with full-frame fallback (static layer and sprite atlas once per change, stable-id placement diffs, single-placement `d=i` deletes, explicit `z` stacking layers, DEFLATE PNG), [x] dirty-change detection and wall-clock pacing with backpressure (visual-change key, per-tier rates, 8 MiB/s byte ceiling, 1 Hz idle keepalive), [x] Sixel path hardening (64-color cap, 2 MiB frame ceiling with smaller-palette retry and an honest `cells-fallback` trace mode), [x] capability-aware probe plus write-path watchdog (`OK`/`ENOENT` replies decide kitty support; `q=2` keeps steady transmits silent, and the watchdog drops a tier after 3 failed frame writes with the reason recorded), [x] `MAZE_CHASE_TRACE` JSONL evidence mode (plan, frame mode/placements/static/atlas/encode time, skips, probe results), [x] kitty and ghostty rows signed on Linux plus conventional terminals (kitty and Ghostty both `kitty-graphics` pass at 21 transmits / 156.1-160.1 KiB per session in the Phase 3 round (pre-Pondwake; the Phase 4 rows are 169.9-175.4 KiB) with sprite visibility proven by capture census; xterm auto and xterm dark both pass on cells, the light row at 6.2% white at worst and 1.7% while playing after the theme-canvas fix; the VT340 sixel rows pass at 140-141 transmits / 3.39-3.41 MiB in the Phase 3 round (Phase 4: 137-138 / 4.25-4.31 MiB), and every row records its generating build commit plus binary SHA-256 in its `build` block), [ ] macOS matrix rows signed by the macOS Tester (PR 3 target, Refs #582, Refs #655)
 - Phase 4: Visual Identity Redesign: [x] Design Council direction consumed (dispatched by the Maintainer before this phase), [x] resolution-aware character and environment art, [x] effects and animation system, [x] refreshed themes with accessibility tests green, [x] all three layers integrated with real captures (PR 4 target, Refs #582, Closes #658)
-- Phase 5: Sound Design Overhaul: [x] new musical score with one BPM source (`TEMPO = 108`, five multi-track tunes with swung eighths and per-note track lanes), [x] soft short layered effect bank across seven voice families (40 ms crumb pluck with variation, rising warden ladder, sparkling relish triad, spare-wick bell), [x] mix architecture with 120 ms fades and safe defaults (music 60%, SFX 80%, master 80%, peak-normalized buses), [x] terminal chime policy default-off with a persistent Settings row and visual twins independent of mute, [x] per-layer settings round-trip on Linux (desktop synth PCM plus null sink, terminal BEL plus ticker, browser chip plus persisted sliders) with native macOS/Windows speaker review tracked for the Final Phase (PR 5 target, Refs #582, Closes #659)
+- Phase 5: Sound Design Overhaul: [x] new musical score with one BPM source (`TEMPO = 108`, five multi-track tunes with swung eighths and per-note track lanes), [x] soft short layered effect bank across seven voice families (40 ms crumb pluck with variation, rising warden ladder, sparkling relish triad, spare-wick bell), [x] mix architecture with 120 ms fades and safe defaults (music 60%, SFX 80%, master 80%, peak-normalized buses), [x] terminal chime policy default-off with a persistent Settings row and visual twins independent of mute, [x] per-layer settings round-trip on Linux (desktop synth PCM plus null sink, terminal BEL plus ticker, browser chip plus persisted sliders) with native macOS/Windows speaker review tracked for the Final Phase (PR 5 target, Refs #582, Refs #659)
 - Phase 6: Release Engineering and Multi-Platform Distribution: [ ] version single source plus tag parity gate, [ ] Linux deb and rpm plus tarballs for both layers, [ ] Windows installer plus zip, [ ] macOS app plus dmg plus tarball, [ ] install/launch/uninstall smoke scripts, [ ] `maze-chase-release.yml` pipeline via the Lab Engineer, [ ] release candidate artifacts on the official Releases page, [ ] install/upgrade/uninstall docs (PR 6 target, Refs #582, Closes #657)
 - Phase 7: Game-First Web Experience and Subpages: [ ] `maze-chase/index.html` boots directly into the game with no clutter, [ ] downloads, install, docs, compatibility, releases subpages, [ ] rendered docs on Pages with link checks, [ ] deployed-URL browser E2E including mobile (PR 7 target, Refs #582, Closes #660)
 - Final Phase: Full-Product Verification and Release Sign-Off: [ ] full terminal matrix re-signed on the released artifacts, [ ] per-OS install/upgrade/uninstall from release artifacts, [ ] deployed Pages E2E for the game and every subpage, [ ] audio and visual craft evaluated on real captures, [ ] reassessment ledger fully resolved or documented, [ ] stable `maze-chase-v1.0.0` release cut, [ ] hub, README, and docs unified (Final PR, Refs #582, Closes #655, Closes #661, Closes #582)
@@ -49,13 +49,15 @@ schedules layered tones and track lanes, fades its gains, and shows a
 first-tone views stay for older callers. `docs/audio.md` records the
 identity, mix, per-layer synthesis, and accessibility contract.
 
-Verification on this tree: `cargo test --workspace` 589 passed / 0
+Verification on this tree: `cargo test --workspace` 592 passed / 0
 failed across 63 targets; `maze-chase-verify` 19/19 with golden
-`23c17f89734e`; offline PCM peaks 0.154 (music) and 0.320 (SFX) at the
-default 80/60/80 mix; wasm 212,255 bytes, sha256
-`cc7708fa...`, reproduced by a second release build; wasm-smoke,
-tester-regression, boot-gate (33 assertions), browser E2E (234
-assertions, zero console errors), and rebind lifecycle all green;
+`23c17f89734e`; `perf-headless` 0.1 us/tick (release run); offline PCM peaks 0.154
+(music) and 0.320 (SFX) at the default 80/60/80 mix; wasm 212,234
+bytes, sha256
+`8bf0b74babe2259bdee6d551163a99b735ca75bf8a854ee5ff15a8443dfab1f1`,
+reproduced by a second release build; wasm-smoke,
+tester-regression, boot-gate (33 assertions), browser E2E (zero
+console errors), and rebind lifecycle all green;
 `cargo fmt --all --check` clean; clippy reports only the pre-existing
 engine style lints. Native macOS and Windows speaker listening stays
 with the per-OS release sign-off; no claim here exceeds the executed
@@ -1615,4 +1617,40 @@ Linux synth and browser evidence.
   sha256 `8bf0b74b...`, second build byte-identical; wasm-smoke,
   tester-regression, boot-gate (33), and browser E2E (zero console
   errors) ALL GREEN; `node --check` clean.
+  - the Fixer
+
+- 2026-10-22 (fixer, second review round on `bd9df3d1`): applied the
+  remaining reviewer findings. The web unlocks with every bus primed
+  from the saved master/music/SFX/mute values (nodes start at zero, so
+  a muted or low-volume reload never ramps the title from full gain),
+  the debug seam exposes the live gain values, and the E2E reloads a
+  muted and a low-volume profile and asserts the primed gains before
+  audio starts. Web tunes and SFX recipes now normalize through a
+  phase-aware sample model at the render sample rate (no blanket 0.5):
+  the model also exposed that a future `setValueAtTime` left each
+  oscillator on the 440 Hz default for the first render quantum, so
+  `playVoice` seeds the frequency before the scheduled start (the
+  onset detune and partial phase shift are gone). Offline render seams
+  and E2E ceilings cover all five tunes and relish, spare wick, and
+  sprint; desktop `scale_to_peak` now truly normalizes every tune and
+  recipe to its bus ceiling instead of only attenuating, and its tests
+  assert the ceiling is reached. Start/pause/quit E2E assertions pin the old loop
+  job stopped and the title job restarted. The mute confirmation cue
+  now plays after the new target gain is applied, with a spy-sink test.
+  Docs narrow the score/home sentence to shared data, attribute the
+  desktop/terminal tests correctly, add an audio row to the parity
+  checklist, and update the harness comment to ABI 3. The roadmap Phase
+  5 line now uses `Refs #659`; current-step evidence is 592 / 212,234 /
+  `8bf0b74b...` / 0.1 us/tick.
+  Delegation ledger: primary-only round (the findings were one
+  coherent audio-path change set; parallel subagents would have edited
+  the same scheduler and E2E files). Skills: no registry skill
+  matched.
+  Verification: `cargo test --workspace` under Xvfb 592 passed / 0
+  failed across 63 targets; `maze-chase-verify` 19/19 (golden
+  `23c17f89734e`, `perf-headless` 0.1 us/tick); `cargo fmt --all
+  --check` clean; wasm 212,234 bytes, sha256 `8bf0b74b...`, second
+  build byte-identical; wasm-smoke, tester-regression, boot-gate (33),
+  and browser E2E ALL GREEN with zero console errors; `node --check`
+  clean.
   - the Fixer
