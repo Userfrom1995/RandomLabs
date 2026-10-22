@@ -95,7 +95,9 @@ proportional size inside it and is scaled up on presentation, with a
 one-time stderr reason and a `(scaled render)` title suffix rather than
 a silent freeze. The event loop only runs continuous frames while
 playing (or while `--probe` counts down); menus, help, scores, settings,
-pause, and game-over wait for input, so an idle window uses no CPU.
+pause, and game-over schedule no continuous frames, and a bounded 16 ms
+gamepad poll redraws only on input, so an idle window does no continuous
+rendering.
 
 ## Controls
 
