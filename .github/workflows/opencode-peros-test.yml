@@ -75,13 +75,21 @@ jobs:
           # owner-PAT PATH, so an agent-planted gh there still ran with the
           # owner PAT. Keep only root-owned directories without group or world
           # write permission. macOS installs gh and jq under the runner-owned
-          # Homebrew prefix, so copy those tools (and jq's non-system dylibs)
-          # into a root-owned, non-writable directory before the agent starts
-          # and prepend that directory to the captured PATH. Windows has no
-          # POSIX ownership mode bits, so it keeps the $HOME filter and the
-          # platform ACL model is the documented residual; execution isolation
-          # remains the real boundary. Fail closed when the trusted tools
-          # cannot be prepared or do not resolve.
+          # Homebrew prefix, so copy those tools and their whole non-system
+          # dependency graph into a root-owned, non-writable directory before
+          # the agent starts and prepend that directory to the captured PATH.
+          # Issue #713 review round 19 (F7): a one-level otool walk missed
+          # transitive dylibs (jq -> libjq -> oniguruma), and an absolute
+          # install name in a copied dylib still resolved to the runner-owned
+          # Homebrew path, so the agent could replace that leaf before a
+          # post-agent owner-PAT step loaded it. Walk the entire non-system
+          # dependency graph, copy every leaf, retarget every trusted copy's
+          # dependency references into the trusted directory, and re-sign the
+          # modified Mach-O images; fail closed on any missing leaf. Windows
+          # has no POSIX ownership mode bits, so it keeps the $HOME filter and
+          # the platform ACL model is the documented residual; execution
+          # isolation remains the real boundary. Fail closed when the trusted
+          # tools cannot be prepared or do not resolve.
           trusted_root=""
           if [ "${RUNNER_OS:-Linux}" = "macOS" ]; then
             trusted_root=$(sudo -n mktemp -d /private/var/tmp/randomlabs-trusted-tools.XXXXXX 2>/dev/null) || {
@@ -110,19 +118,62 @@ jobs:
                 echo "::error::Could not read the macOS dynamic dependencies of $tool (issue #713, fail closed)."
                 exit 1
               fi
-              while IFS= read -r lib; do
+              queue=$(printf '%s\n' "$deps" | awk 'NR > 1 { print $1 }')
+              seen=""
+              while [ -n "$queue" ]; do
+                lib=$(printf '%s\n' "$queue" | sed -n '1p')
+                queue=$(printf '%s\n' "$queue" | sed -n '2,$p')
                 case "$lib" in
                   /usr/lib/*|/System/*|'') continue ;;
+                esac
+                lib_base=${lib##*/}
+                case " $seen " in
+                  *" $lib_base "*) continue ;;
                 esac
                 if [ ! -f "$lib" ]; then
                   echo "::error::The macOS dependency $lib of $tool is not a regular file (issue #713, fail closed)."
                   exit 1
                 fi
-                sudo -n install -m 0755 -o root -g wheel "$lib" "$trusted_root/lib/$(basename "$lib")" || {
+                if ! nested=$(otool -L "$lib" 2>/dev/null); then
+                  echo "::error::Could not read the macOS dynamic dependencies of $lib (issue #713, fail closed)."
+                  exit 1
+                fi
+                sudo -n install -m 0755 -o root -g wheel "$lib" "$trusted_root/lib/$lib_base" || {
                   echo "::error::Could not copy the macOS dependency $lib of $tool into the trusted tools directory (issue #713, fail closed)."
                   exit 1
                 }
-              done <<< "$(printf '%s\n' "$deps" | awk 'NR > 1 { print $1 }')"
+                sudo -n install_name_tool -id "$trusted_root/lib/$lib_base" "$trusted_root/lib/$lib_base" || {
+                  echo "::error::Could not pin the install name of the trusted $lib copy (issue #713, fail closed)."
+                  exit 1
+                }
+                seen="$seen $lib_base"
+                queue=$(printf '%s\n%s\n' "$queue" "$(printf '%s\n' "$nested" | awk 'NR > 1 { print $1 }')")
+              done
+              for trusted_file in "$trusted_root/$tool.real" "$trusted_root"/lib/*; do
+                [ -f "$trusted_file" ] || continue
+                if ! refs=$(otool -L "$trusted_file" 2>/dev/null); then
+                  echo "::error::Could not read the macOS dependencies of the trusted copy $trusted_file (issue #713, fail closed)."
+                  exit 1
+                fi
+                while IFS= read -r ref; do
+                  case "$ref" in
+                    /usr/lib/*|/System/*|"$trusted_root"/*|'') continue ;;
+                  esac
+                  ref_base=${ref##*/}
+                  if [ ! -f "$trusted_root/lib/$ref_base" ]; then
+                    echo "::error::The trusted copy $trusted_file references $ref with no trusted copy inside $trusted_root/lib (issue #713, fail closed)."
+                    exit 1
+                  fi
+                  sudo -n install_name_tool -change "$ref" "$trusted_root/lib/$ref_base" "$trusted_file" || {
+                    echo "::error::Could not retarget the macOS dependency $ref of $trusted_file into the trusted directory (issue #713, fail closed)."
+                    exit 1
+                  }
+                done <<< "$(printf '%s\n' "$refs" | awk 'NR > 1 { print $1 }')"
+                sudo -n codesign --force --sign - "$trusted_file" >/dev/null 2>&1 || {
+                  echo "::error::Could not re-sign the trusted macOS copy $trusted_file after retargeting its dependencies (issue #713, fail closed)."
+                  exit 1
+                }
+              done
               {
                 printf '#!/bin/sh\n'
                 printf 'DYLD_LIBRARY_PATH="%s/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"\n' "$trusted_root"
@@ -469,13 +520,21 @@ jobs:
           # owner-PAT PATH, so an agent-planted gh there still ran with the
           # owner PAT. Keep only root-owned directories without group or world
           # write permission. macOS installs gh and jq under the runner-owned
-          # Homebrew prefix, so copy those tools (and jq's non-system dylibs)
-          # into a root-owned, non-writable directory before the agent starts
-          # and prepend that directory to the captured PATH. Windows has no
-          # POSIX ownership mode bits, so it keeps the $HOME filter and the
-          # platform ACL model is the documented residual; execution isolation
-          # remains the real boundary. Fail closed when the trusted tools
-          # cannot be prepared or do not resolve.
+          # Homebrew prefix, so copy those tools and their whole non-system
+          # dependency graph into a root-owned, non-writable directory before
+          # the agent starts and prepend that directory to the captured PATH.
+          # Issue #713 review round 19 (F7): a one-level otool walk missed
+          # transitive dylibs (jq -> libjq -> oniguruma), and an absolute
+          # install name in a copied dylib still resolved to the runner-owned
+          # Homebrew path, so the agent could replace that leaf before a
+          # post-agent owner-PAT step loaded it. Walk the entire non-system
+          # dependency graph, copy every leaf, retarget every trusted copy's
+          # dependency references into the trusted directory, and re-sign the
+          # modified Mach-O images; fail closed on any missing leaf. Windows
+          # has no POSIX ownership mode bits, so it keeps the $HOME filter and
+          # the platform ACL model is the documented residual; execution
+          # isolation remains the real boundary. Fail closed when the trusted
+          # tools cannot be prepared or do not resolve.
           trusted_root=""
           if [ "${RUNNER_OS:-Linux}" = "macOS" ]; then
             trusted_root=$(sudo -n mktemp -d /private/var/tmp/randomlabs-trusted-tools.XXXXXX 2>/dev/null) || {
@@ -504,19 +563,62 @@ jobs:
                 echo "::error::Could not read the macOS dynamic dependencies of $tool (issue #713, fail closed)."
                 exit 1
               fi
-              while IFS= read -r lib; do
+              queue=$(printf '%s\n' "$deps" | awk 'NR > 1 { print $1 }')
+              seen=""
+              while [ -n "$queue" ]; do
+                lib=$(printf '%s\n' "$queue" | sed -n '1p')
+                queue=$(printf '%s\n' "$queue" | sed -n '2,$p')
                 case "$lib" in
                   /usr/lib/*|/System/*|'') continue ;;
+                esac
+                lib_base=${lib##*/}
+                case " $seen " in
+                  *" $lib_base "*) continue ;;
                 esac
                 if [ ! -f "$lib" ]; then
                   echo "::error::The macOS dependency $lib of $tool is not a regular file (issue #713, fail closed)."
                   exit 1
                 fi
-                sudo -n install -m 0755 -o root -g wheel "$lib" "$trusted_root/lib/$(basename "$lib")" || {
+                if ! nested=$(otool -L "$lib" 2>/dev/null); then
+                  echo "::error::Could not read the macOS dynamic dependencies of $lib (issue #713, fail closed)."
+                  exit 1
+                fi
+                sudo -n install -m 0755 -o root -g wheel "$lib" "$trusted_root/lib/$lib_base" || {
                   echo "::error::Could not copy the macOS dependency $lib of $tool into the trusted tools directory (issue #713, fail closed)."
                   exit 1
                 }
-              done <<< "$(printf '%s\n' "$deps" | awk 'NR > 1 { print $1 }')"
+                sudo -n install_name_tool -id "$trusted_root/lib/$lib_base" "$trusted_root/lib/$lib_base" || {
+                  echo "::error::Could not pin the install name of the trusted $lib copy (issue #713, fail closed)."
+                  exit 1
+                }
+                seen="$seen $lib_base"
+                queue=$(printf '%s\n%s\n' "$queue" "$(printf '%s\n' "$nested" | awk 'NR > 1 { print $1 }')")
+              done
+              for trusted_file in "$trusted_root/$tool.real" "$trusted_root"/lib/*; do
+                [ -f "$trusted_file" ] || continue
+                if ! refs=$(otool -L "$trusted_file" 2>/dev/null); then
+                  echo "::error::Could not read the macOS dependencies of the trusted copy $trusted_file (issue #713, fail closed)."
+                  exit 1
+                fi
+                while IFS= read -r ref; do
+                  case "$ref" in
+                    /usr/lib/*|/System/*|"$trusted_root"/*|'') continue ;;
+                  esac
+                  ref_base=${ref##*/}
+                  if [ ! -f "$trusted_root/lib/$ref_base" ]; then
+                    echo "::error::The trusted copy $trusted_file references $ref with no trusted copy inside $trusted_root/lib (issue #713, fail closed)."
+                    exit 1
+                  fi
+                  sudo -n install_name_tool -change "$ref" "$trusted_root/lib/$ref_base" "$trusted_file" || {
+                    echo "::error::Could not retarget the macOS dependency $ref of $trusted_file into the trusted directory (issue #713, fail closed)."
+                    exit 1
+                  }
+                done <<< "$(printf '%s\n' "$refs" | awk 'NR > 1 { print $1 }')"
+                sudo -n codesign --force --sign - "$trusted_file" >/dev/null 2>&1 || {
+                  echo "::error::Could not re-sign the trusted macOS copy $trusted_file after retargeting its dependencies (issue #713, fail closed)."
+                  exit 1
+                }
+              done
               {
                 printf '#!/bin/sh\n'
                 printf 'DYLD_LIBRARY_PATH="%s/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"\n' "$trusted_root"
@@ -920,13 +1022,21 @@ jobs:
           # owner-PAT PATH, so an agent-planted gh there still ran with the
           # owner PAT. Keep only root-owned directories without group or world
           # write permission. macOS installs gh and jq under the runner-owned
-          # Homebrew prefix, so copy those tools (and jq's non-system dylibs)
-          # into a root-owned, non-writable directory before the agent starts
-          # and prepend that directory to the captured PATH. Windows has no
-          # POSIX ownership mode bits, so it keeps the $HOME filter and the
-          # platform ACL model is the documented residual; execution isolation
-          # remains the real boundary. Fail closed when the trusted tools
-          # cannot be prepared or do not resolve.
+          # Homebrew prefix, so copy those tools and their whole non-system
+          # dependency graph into a root-owned, non-writable directory before
+          # the agent starts and prepend that directory to the captured PATH.
+          # Issue #713 review round 19 (F7): a one-level otool walk missed
+          # transitive dylibs (jq -> libjq -> oniguruma), and an absolute
+          # install name in a copied dylib still resolved to the runner-owned
+          # Homebrew path, so the agent could replace that leaf before a
+          # post-agent owner-PAT step loaded it. Walk the entire non-system
+          # dependency graph, copy every leaf, retarget every trusted copy's
+          # dependency references into the trusted directory, and re-sign the
+          # modified Mach-O images; fail closed on any missing leaf. Windows
+          # has no POSIX ownership mode bits, so it keeps the $HOME filter and
+          # the platform ACL model is the documented residual; execution
+          # isolation remains the real boundary. Fail closed when the trusted
+          # tools cannot be prepared or do not resolve.
           trusted_root=""
           if [ "${RUNNER_OS:-Linux}" = "macOS" ]; then
             trusted_root=$(sudo -n mktemp -d /private/var/tmp/randomlabs-trusted-tools.XXXXXX 2>/dev/null) || {
@@ -955,19 +1065,62 @@ jobs:
                 echo "::error::Could not read the macOS dynamic dependencies of $tool (issue #713, fail closed)."
                 exit 1
               fi
-              while IFS= read -r lib; do
+              queue=$(printf '%s\n' "$deps" | awk 'NR > 1 { print $1 }')
+              seen=""
+              while [ -n "$queue" ]; do
+                lib=$(printf '%s\n' "$queue" | sed -n '1p')
+                queue=$(printf '%s\n' "$queue" | sed -n '2,$p')
                 case "$lib" in
                   /usr/lib/*|/System/*|'') continue ;;
+                esac
+                lib_base=${lib##*/}
+                case " $seen " in
+                  *" $lib_base "*) continue ;;
                 esac
                 if [ ! -f "$lib" ]; then
                   echo "::error::The macOS dependency $lib of $tool is not a regular file (issue #713, fail closed)."
                   exit 1
                 fi
-                sudo -n install -m 0755 -o root -g wheel "$lib" "$trusted_root/lib/$(basename "$lib")" || {
+                if ! nested=$(otool -L "$lib" 2>/dev/null); then
+                  echo "::error::Could not read the macOS dynamic dependencies of $lib (issue #713, fail closed)."
+                  exit 1
+                fi
+                sudo -n install -m 0755 -o root -g wheel "$lib" "$trusted_root/lib/$lib_base" || {
                   echo "::error::Could not copy the macOS dependency $lib of $tool into the trusted tools directory (issue #713, fail closed)."
                   exit 1
                 }
-              done <<< "$(printf '%s\n' "$deps" | awk 'NR > 1 { print $1 }')"
+                sudo -n install_name_tool -id "$trusted_root/lib/$lib_base" "$trusted_root/lib/$lib_base" || {
+                  echo "::error::Could not pin the install name of the trusted $lib copy (issue #713, fail closed)."
+                  exit 1
+                }
+                seen="$seen $lib_base"
+                queue=$(printf '%s\n%s\n' "$queue" "$(printf '%s\n' "$nested" | awk 'NR > 1 { print $1 }')")
+              done
+              for trusted_file in "$trusted_root/$tool.real" "$trusted_root"/lib/*; do
+                [ -f "$trusted_file" ] || continue
+                if ! refs=$(otool -L "$trusted_file" 2>/dev/null); then
+                  echo "::error::Could not read the macOS dependencies of the trusted copy $trusted_file (issue #713, fail closed)."
+                  exit 1
+                fi
+                while IFS= read -r ref; do
+                  case "$ref" in
+                    /usr/lib/*|/System/*|"$trusted_root"/*|'') continue ;;
+                  esac
+                  ref_base=${ref##*/}
+                  if [ ! -f "$trusted_root/lib/$ref_base" ]; then
+                    echo "::error::The trusted copy $trusted_file references $ref with no trusted copy inside $trusted_root/lib (issue #713, fail closed)."
+                    exit 1
+                  fi
+                  sudo -n install_name_tool -change "$ref" "$trusted_root/lib/$ref_base" "$trusted_file" || {
+                    echo "::error::Could not retarget the macOS dependency $ref of $trusted_file into the trusted directory (issue #713, fail closed)."
+                    exit 1
+                  }
+                done <<< "$(printf '%s\n' "$refs" | awk 'NR > 1 { print $1 }')"
+                sudo -n codesign --force --sign - "$trusted_file" >/dev/null 2>&1 || {
+                  echo "::error::Could not re-sign the trusted macOS copy $trusted_file after retargeting its dependencies (issue #713, fail closed)."
+                  exit 1
+                }
+              done
               {
                 printf '#!/bin/sh\n'
                 printf 'DYLD_LIBRARY_PATH="%s/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"\n' "$trusted_root"
