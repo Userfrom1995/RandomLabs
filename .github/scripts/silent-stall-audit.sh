@@ -4516,7 +4516,7 @@ fi
 #   copy so the stored body is platform-stable, while a real content mismatch
 #   stays red. The functional-test mock carries `crlf_fetch` (CRLF-translated
 #   re-fetch output) and `posted_capture` (records the exact file handed to
-#   `gh api -F body=@...`) knobs, and the fixture set includes a CRLF report,
+#   `gh api` body argument) knobs, and the fixture set includes a CRLF report,
 #   a CRLF-translated LF re-fetch, a CRLF report posted on Windows, and a
 #   CRLF tampered body with an intact sign-off tail. The CRLF fixture is
 #   self-validating: the audit probes the mock directly and requires the
@@ -4689,6 +4689,10 @@ else
   # report content whose first non-blank line is a command trigger.
   grep -qF 'first_line=$(awk' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-first-line-trigger-guard)"
   grep -qF "'/oc'|'/oc '*|'/opencode'|'/opencode '*)" "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-trigger-prefix-ban)"
+  # Issue #713 round 18: the findings report is bound to this run's nonce so
+  # a stale or blind replacement is refused before the owner-PAT post.
+  grep -qF 'run-nonce:' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-report-nonce-contract)"
+  grep -qF 'expected_nonce="${LAB_RUN_NONCE:-}"' "$R17_SCRIPT" || r17_bad="${r17_bad} script(no-report-nonce-binding)"
   # Harness-detection ban and exact sign-off assignments (independent-verifier
   # findings P1-P4): the poster must not branch on CI-only env or hardcode the
   # production repo slug (the functional test runs with realistic values), and
@@ -4718,6 +4722,8 @@ else
     'pre-post-signoff:if [ "$last_line" != "$signoff" ]; then' \
     'bot-author:if [ "$author" != "$owner" ]; then' \
     'post-fetch-signoff:if [ "$fetched_last" != "$signoff" ]; then' \
+    'report-nonce:if [ "$nonce_count" -ne 1 ]; then' \
+    'report-nonce-value:if [ "$nonce_value" != "$expected_nonce" ]; then' \
     'body-equality:if [ "$fetched_body" != "$expected_body" ]; then'; do
     r17_guard_name="${r17_guard%%:*}"
     r17_guard_line="${r17_guard#*:}"
@@ -4777,12 +4783,10 @@ case "$*" in
       r17_posted=""
       for r17_arg in "$@"; do
         case "$r17_arg" in
-          body=@*) r17_posted="${r17_arg#body=@}" ;;
+          body=@*) cp "${r17_arg#body=@}" "$posted_capture" 2>/dev/null || true ;;
+          body=*) printf '%s' "${r17_arg#body=}" > "$posted_capture" ;;
         esac
       done
-      if [ -n "$r17_posted" ]; then
-        cp "$r17_posted" "$posted_capture" 2>/dev/null || true
-      fi
     fi
     if [ "$no_id" = "1" ]; then
       printf '{}\n'
@@ -4864,10 +4868,30 @@ R17_MOCK
       r17_case crlf-report-plain-windows 0 windows "$r17_crlf_windows"
       r17_case crlf-report-windows 0 windows "$r17_crlf_windows" 'crlf_fetch="1"' "posted_capture=$r17_tmp/posted-crlf-report.md"
       r17_case crlf-tampered-windows 1 windows "$r17_crlf_windows" "body_file=$r17_crlf_tampered" 'crlf_fetch="1"'
+      # Issue #713 round 18: a report is bound to this run's nonce. A matching
+      # nonce is verified and stripped before the owner-PAT post; a wrong,
+      # missing, or ambiguous nonce is refused before gh runs.
+      r17_nonce_report="$r17_tmp/nonce-report.md"
+      printf '## Findings\nrun-nonce: abc123\n\nFinding one.\n\n- the Linux Tester\n' > "$r17_nonce_report"
+      r17_nonce_stripped="$r17_tmp/nonce-report-stripped.md"
+      printf '## Findings\n\nFinding one.\n\n- the Linux Tester\n' > "$r17_nonce_stripped"
+      r17_double_nonce="$r17_tmp/double-nonce.md"
+      printf '## Findings\nrun-nonce: abc123\nrun-nonce: abc123\n\n- the Linux Tester\n' > "$r17_double_nonce"
+      LAB_RUN_NONCE=abc123 r17_case good-nonce 0 linux "$r17_nonce_report" "body_file=$r17_nonce_stripped"
+      LAB_RUN_NONCE=zzz r17_case wrong-nonce 1 linux "$r17_nonce_report" "posted_capture=$r17_tmp/nonce-wrong-posted.md"
+      if [ -e "$r17_tmp/nonce-wrong-posted.md" ]; then
+        r17_bad="${r17_bad} script(functional-wrong-nonce-reached-gh)"
+      fi
+      LAB_RUN_NONCE=abc123 r17_case missing-nonce 1 linux "$r17_good_linux"
+      LAB_RUN_NONCE=abc123 r17_case double-nonce 1 linux "$r17_double_nonce"
       # The normalized LF copy is what must reach the API (issue #612
-      # follow-up requirement b): the captured posted body must be
-      # byte-identical to the LF-normalized report, never the raw CRLF file.
-      if [ -f "$r17_tmp/posted-crlf-report.md" ] && cmp -s "$r17_tmp/posted-crlf-report.md" "$r17_crlf_windows_norm"; then
+      # follow-up requirement b): the captured posted body must match the
+      # LF-normalized report, never the raw CRLF file. The poster posts the
+      # in-memory snapshot, so trailing newlines are normalized away on both
+      # sides before the comparison.
+      r17_crlf_expected_body=$(cat "$r17_crlf_windows_norm")
+      r17_crlf_posted_body=$(cat "$r17_tmp/posted-crlf-report.md" 2>/dev/null || true)
+      if [ -f "$r17_tmp/posted-crlf-report.md" ] && [ "$r17_crlf_posted_body" = "$r17_crlf_expected_body" ]; then
         :
       else
         r17_bad="${r17_bad} script(functional-crlf-report-not-posted-as-normalized-lf)"
@@ -4890,9 +4914,9 @@ r17_stage_rc=0
 r17_stage_out=$(R17_LINUX_BLOCK_SHA="98243bff9fdf39653211086006a18275cb9d5a3bf50e23833555cf9492a36935" \
   R17_MACOS_BLOCK_SHA="b4b54c75c61bceb87716136ad027cde6e6f6a84653ab6ef4e5af6d4390aad012" \
   R17_WINDOWS_BLOCK_SHA="56267c9b1e7bcc9284e53f18dc36b16bfed8b65af967fbe215392a31ae2890cc" \
-  R17_LINUX_PROMPT_SHA="1758bc9133d5559f12fe0ac6c2d0f9cd5502a5c56989e8dce223cedb78a5c2da" \
-  R17_MACOS_PROMPT_SHA="2385ad6d6dec47ed69577631bec8d64a7508941db9474764e235ee99ffbc7ba4" \
-  R17_WINDOWS_PROMPT_SHA="982b2bef32af2f8f9a16976e85aed8924023b8a45e1280b08829f22bac937e85" \
+  R17_LINUX_PROMPT_SHA="cbd9217cdccb515418223802139d8cb86e6f961043c64eff30c78dc2d7fbecc0" \
+  R17_MACOS_PROMPT_SHA="617d11fa0302ffec9cd793dbe4610beacda28965a27e3437dd8c23031d7c0e79" \
+  R17_WINDOWS_PROMPT_SHA="c5df860f8350571188c0c83ddd1e5f51b6030d564ebd134b8ad4ab6809f597fd" \
   R17_LINUX_AGENT_PROMPT_SHA="a3c8663b91850d863e303d64e63d0ed1d832f6d493c8b8a6b849a709bd32dc2e" \
   R17_MACOS_AGENT_PROMPT_SHA="e1eb647835a2715c2201cbdc31a2f222b9ef89041e6934b81e6962f33d4b5838" \
   R17_WINDOWS_AGENT_PROMPT_SHA="0f06dc4efd692b56f174fea385bc1b0cf8fdb7d9e39ea827925ce4917ac960d7" \
@@ -5006,7 +5030,7 @@ def stage_name(label):
 TRUSTED_PATH_STEP_NAME = "Capture the trusted pre-agent PATH for owner-PAT steps"
 TRUSTED_PATH_EXPR = "${{ steps.trusted_path.outputs.path }}"
 EXPECTED_TRUSTED_PATH_BLOCK_SHA256 = (
-    "d0f0ebab0ae653354a08c92bf08e38264b833693c39ff3c3f60e106eff1c849f"
+    "91a1e353329e4cad6ed9fcfb697d07cba8342269eff7c75c7a3d1c2b0f060d67"
 )
 
 
@@ -6094,6 +6118,10 @@ else
   grep -qF 'Verified owner-authored' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-verified-terminal-marker)"
   grep -qF "''|*[!0-9]*)" "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-numeric-target-guard)"
   grep -qF 'mktemp' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-lf-normalization-tempfile)"
+  # Issue #713 round 18: the report is bound to this run's nonce so a stale
+  # or blind replacement is refused before the owner-PAT post.
+  grep -qF 'run-nonce:' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-report-nonce-contract)"
+  grep -qF 'expected_nonce="${LAB_RUN_NONCE:-}"' "$R19_PUBLISHER" || r19_bad="${r19_bad} publisher(no-report-nonce-binding)"
   # Issue #713 round 16: the R21 tester anchor reads the first line of this
   # owner-authored post, so the publisher must refuse report content whose
   # first non-blank line is a command trigger.
@@ -6134,6 +6162,14 @@ else
     : > "$r19g_log"
     PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/control.md" "- the Tester" >/dev/null 2>&1 || true
     [ -s "$r19g_log" ] || r19_bad="${r19_bad} publisher(trigger-guard-rejects-clean-report)"
+    # Issue #713 round 18: a wrong nonce must be refused before gh runs.
+    printf '## Findings\nrun-nonce: wrongnonce\n\nSigned report body.\n\n- the Tester\n' > "$r19g_dir/wrong-nonce.md"
+    : > "$r19g_log"
+    r19g_out4=$(PATH="$r19g_dir/bin:/usr/bin:/bin" GITHUB_REPOSITORY="mockowner/mockrepo" GITHUB_REPOSITORY_OWNER="mockowner" GH_TOKEN="x" LAB_RUN_NONCE="expectednonce" R19G_LOG="$r19g_log" bash "$R19_PUBLISHER" 716 "$r19g_dir/wrong-nonce.md" "- the Tester" 2>&1 || true)
+    if [ -s "$r19g_log" ]; then
+      r19_bad="${r19_bad} publisher(wrong-nonce-report-reached-gh)"
+    fi
+    printf '%s\n' "$r19g_out4" | grep -qF 'does not match this run' || r19_bad="${r19_bad} publisher(wrong-nonce-guard-did-not-refuse)"
     rm -rf "$r19g_dir"
   fi
 fi
@@ -15325,8 +15361,8 @@ EXPECTED_CONCURRENCY = {
 # constants pin both the staged source content and the staging step bodies.
 # A legitimate prompt or staging-step change updates the matching constant in
 # the same PR.
-EXPECTED_EVAL_PROMPT_SHA256 = "052b5858361546c124d284e144a4e4f26559a67018838f30700b597c34585639"
-EXPECTED_TEST_PROMPT_SHA256 = "fe07c7ccf0238f8329f1ddc17a6ca039cc6896ebf1830198192de6f8956ff604"
+EXPECTED_EVAL_PROMPT_SHA256 = "e6a67aeec6454a748e370671e209dde3619a837d0c1e34de52b6a4fbbbf7002b"
+EXPECTED_TEST_PROMPT_SHA256 = "2dc5024f075e24fdb5af61bc405997513d0e53a457bf88df7be01cb8f78cbd96"
 # Issue #713 review round 9: the Tester agent's with.prompt scalar is part of
 # the gate contract too (it carries the live-execution and decision-file
 # instructions). Pin it by SHA-256 instead of a substring check, so a workflow
@@ -15341,7 +15377,7 @@ EXPECTED_TEST_STAGE_PROMPT_BLOCK_SHA256 = "e0c4b5fa07824eeafcaf75c946f0f60f0e12e
 # approval marker. The review workflow stages the reviewed prompt from the
 # workflow commit, and these constants pin the source content, the staging
 # body, and the agent scalar that points at the staged copy.
-EXPECTED_REVIEW_PROMPT_SHA256 = "b2f5ed51dee63f640563d0ce8f2f393dd06cf602f54a0ac480929026d85dd9fc"
+EXPECTED_REVIEW_PROMPT_SHA256 = "d08362d8707e7190325c85cb50b1519f3edce3f386ee813fab226c19b54eda8b"
 EXPECTED_REVIEW_STAGE_PROMPT_BLOCK_SHA256 = "5600d2d6e520998d4529fe347fa51fc2cfde81dba6c47afe612209aa4a2d7b45"
 EXPECTED_REVIEW_AGENT_PROMPT_SHA256 = "881b8d09f99b4003a449557167197961b83f049ae761cb987e1a1033e233ee92"
 # Issue #713 review round 10: the round-9 test/review PR-head isolation was

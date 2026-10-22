@@ -140,7 +140,21 @@ Public Surface / Web Track:                                              │
   regression-guards the contract across all three arms and their prompt
   files. Round 13 also pins each per-OS agent step's `with.prompt` scalar by
   exact SHA-256 and each arm's exact ordered step sequence, and a staging
-  validator crash now fails closed instead of silently passing. **Cap headroom and partial-report salvage (issue #692)**: the macOS
+  validator crash now fails closed instead of silently passing. Each arm also
+  captures the trusted PATH before the agent starts: `$HOME` entries are
+  dropped and only root-owned directories without group or world write
+  permission are kept (the hosted runners expose `/usr/local/bin`,
+  `/opt/pipx_bin`, and `/usr/local/.ghcup/bin` as mode 777, so a PR-head
+  script could plant a shim a post-agent owner-PAT step would run); macOS
+  installs `gh` and `jq` under the runner-owned Homebrew prefix, so those
+  binaries and their non-system dylibs are copied into a root-owned,
+  non-writable directory before the agent starts and that directory is
+  prepended to the captured PATH; Windows has no POSIX ownership mode bits,
+  so it keeps the `$HOME` filter and the platform ACL model is the documented
+  residual, with execution isolation as the real boundary; and the capture
+  fails closed unless it still resolves `gh`, `jq`, and `git`, with every
+  post-agent owner-PAT step consuming that captured value instead of the
+  post-agent environment (round-18 review finding F3). **Cap headroom and partial-report salvage (issue #692)**: the macOS
   90-minute agent cap under the 120-minute job left the post-agent contract
   chain at the wire (run 39170578536: cap death, no decision file, the
   fail-closed verify red over `missing contract artifact(s): decision-file

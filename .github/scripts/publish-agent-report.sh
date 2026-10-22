@@ -61,12 +61,37 @@ tr -d '\r' < "$report" > "$normalized_report"
 # post can never satisfy the exact-body check.
 expected_body="$(cat "$normalized_report")"
 
+# Issue #713 round 18: bind the report to this run's contract nonce. A blind
+# or stale replacement cannot know LAB_RUN_NONCE; the publisher verifies the
+# standalone line, strips it from the posted body, and never republishes the
+# nonce. A process spawned by the agent can read the environment and forge
+# this, so it rejects a blind replacement, not a determined in-session writer.
+expected_nonce="${LAB_RUN_NONCE:-}"
+nonce_count=$(printf '%s\n' "$expected_body" | awk '/^[[:space:]]*run-nonce:[[:space:]]*/ { c++ } END { print c+0 }')
+nonce_value=$(printf '%s\n' "$expected_body" | awk '/^[[:space:]]*run-nonce:[[:space:]]*/ { line=$0; sub(/^[[:space:]]*run-nonce:[[:space:]]*/, "", line); print line; exit }')
+if [ -n "$expected_nonce" ]; then
+  if [ "$nonce_count" -ne 1 ]; then
+    echo "::error::publish-agent-report.sh: report '$report' must carry exactly one 'run-nonce: <value>' line for this run (found ${nonce_count}); refusing an unbound or ambiguous report (issue #713 round 18)."
+    exit 1
+  fi
+  if [ "$nonce_value" != "$expected_nonce" ]; then
+    echo "::error::publish-agent-report.sh: report '$report' carries a run nonce that does not match this run; refusing a stale or blind replacement report (issue #713 round 18)."
+    exit 1
+  fi
+  expected_body=$(printf '%s\n' "$expected_body" | awk '! /^[[:space:]]*run-nonce:[[:space:]]*/')
+else
+  if [ "$nonce_count" -ne 0 ]; then
+    echo "::error::publish-agent-report.sh: report '$report' carries a run nonce but this workflow lane did not issue one; refusing an unbound report (issue #713 round 18)."
+    exit 1
+  fi
+fi
+
 # Issue #713 round 16: the PAT merge sweep anchors the tester verdict to the
 # first line of an owner-authored comment, and this publisher posts arbitrary
 # agent-written report content under the owner PAT. A report whose first
 # non-blank line is a command trigger would therefore be consumable as a
 # forged owner-authored verdict. Refuse it before it reaches the API.
-first_line=$(awk 'NF { line=$0; sub(/^[[:space:]]+/, "", line); sub(/^`+/, "", line); print line; exit }' "$normalized_report")
+first_line=$(awk 'NF { line=$0; sub(/^[[:space:]]+/, "", line); sub(/^`+/, "", line); print line; exit }' <<< "$expected_body")
 case "$first_line" in
   '/oc'|'/oc '*|'/opencode'|'/opencode '*)
     echo "::error::publish-agent-report.sh: report '$report' begins with the command trigger '$first_line'; refusing to publish a report that could be consumed as a verdict trigger (issue #713)."
@@ -74,7 +99,7 @@ case "$first_line" in
     ;;
 esac
 
-last_line=$(awk 'NF { line=$0 } END { print line }' "$normalized_report")
+last_line=$(awk 'NF { line=$0 } END { print line }' <<< "$expected_body")
 if [ "$last_line" != "$signoff" ]; then
   echo "::error::publish-agent-report.sh: report '$report' does not end with the required sign-off '$signoff' (last non-blank line: '$last_line'); refusing to post an unsigned report (issue #713)."
   exit 1
