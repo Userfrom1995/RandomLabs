@@ -47,7 +47,9 @@ Seven voice families generate every sound:
 
 Rendered PCM is peak-normalized to the bus ceiling, so overlapping
 layers never clip; the music bus peaks at 0.32 and the SFX bus at 0.50
-before the user mix.
+before the user mix. The browser sample model keeps 1.5% headroom under
+the SFX ceiling because its band-limited oscillators can peak slightly
+above the ideal waveform model; the desktop render lands on the ceiling.
 
 Effects are layered recipes rather than single sweeps. A recipe is a
 list of tones with voice, start and end frequency, length, delay, gain,
@@ -113,12 +115,13 @@ visual twin for every cue still plays.
 - Desktop tests measure offline PCM for every tune and SFX: finite
   samples, peak-normalized to each bus ceiling, and 0.154/0.320 peaks at
   the documented 80/60/80 default mix. They also pin the 120 ms fades,
-  the null-sink fallback, and the stings riding the music bus. Terminal
-  tests pin the opt-in BEL, mute/chime gating, settings persistence, and
-  the ticker; visual twins are rendered from game state and never
-  depend on the audio gates.
+  the null-sink fallback, and the sting cue mapping. Terminal tests pin
+  the opt-in BEL, mute/chime gating, settings persistence, and the
+  ticker; visual twins are rendered from game state and never depend on
+  the audio gates.
 - Web tests pin the ABI exports, first-tone legacy views, tune metadata,
   and routed cues; `wasm-smoke`, `boot-gate-e2e`, and `browser-e2e`
   exercise the shipped artifact, including the unlock chip, the
   persisted 60/80 mix, loop-stop transitions, the 0.32/0.50 offline
-  peaks, and the persisted mute/low-volume startup.
+  peaks, every warden chain pitch, and the persisted mute/low-volume
+  startup.

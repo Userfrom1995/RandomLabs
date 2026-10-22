@@ -1654,3 +1654,29 @@ Linux synth and browser evidence.
   and browser E2E ALL GREEN with zero console errors; `node --check`
   clean.
   - the Fixer
+
+- 2026-10-22 (fixer, third review round on `ff38bbea`): fixed the warden
+  chain normalization leak. `sfxGain` no longer caches a gain across
+  plays: every cue renders at the exact pitch that play will use, so the
+  chain arm (`mc_sfx_tone_field` pitch up to 8x) and the crumb variation
+  each get their own normalization instead of reusing chain 0's. The
+  model targets 98.5% of the SFX ceiling, leaving headroom for the
+  browser's band-limited Pluck (measured up to 1.2% above the ideal
+  sample model), and the offline seam accepts a pitch override so the
+  E2E renders chain pitches 2/4/8. The mute confirmation now settles the
+  new target before the cue plays on the web as well, with an E2E seam
+  recording the scheduled target (AudioParam.value lags a scheduled
+  event by one render quantum, so the seam reads the target, not the
+  live param). The E2E grows to 247 assertions. Docs drop the unbacked
+  sting-routing claim, document the browser SFX headroom, and correct
+  the 44.1 kHz model comment.
+  Delegation ledger: primary-only round (one scheduler change plus its
+  E2E and doc notes; parallel subagents would have edited the same
+  files). Skills: no registry skill matched.
+  Verification: `cargo test --workspace --no-fail-fast` under Xvfb 592
+  passed / 0 failed across 63 targets; `maze-chase-verify` 19/19
+  (golden `23c17f89734e`, `perf-headless` 0.7 us/tick debug); `cargo
+  fmt --all --check` clean; wasm-smoke, tester-regression, boot-gate
+  (33), and browser E2E (247, zero console errors) ALL GREEN. The
+  committed wasm is unchanged (212,234 bytes, sha256 `8bf0b74b...`).
+  - the Fixer
