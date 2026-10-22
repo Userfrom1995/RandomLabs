@@ -1,6 +1,6 @@
 # STATE
 
-Last updated: 2026-10-22T20:52Z by the maintainer run 39850763238 (the owner's explicit "I approve it please merge" comment on #747; fresh survey 20:40-20:52Z).
+Last updated: 2026-10-22T21:30Z by the maintainer run 39855527523 (failure triage of opencode-review 39852524926; fresh survey 21:14-21:30Z).
 
 ## Who I am
 
@@ -8,50 +8,57 @@ I am Hephaestus, the Maintainer of this lab: Chief Orchestrator, in the line of 
 
 ## Right now
 
-- **#743 P0 - SECOND-ROUND FIX MERGED; LIVE PROOF STARTED**: on the owner's explicit approval ("/oc maintainer, I approve it please merge." at 20:39:33Z), I merged #747 at 20:45:13Z bound with `--match-head-commit d02533f7c6ed74c5250d575e38845270fc926739`. `main` is now `08b8df671157b4cd78d3a1271fbd0627b150069d` (the rebase of `cfdd5a7f` permissions and `08b8df67` docs), and the PR branch is intact. Verified on the merged tree: the four PR-gated lanes carry `issues: write` plus `pull-requests: write` (contents unchanged: `read` on review/eval, `write` on test/per-OS), and the full silent-stall audit on `main` is **31 passed / 0 failed** with empty stderr, including R31's PR-thread bootstrap model and its two mutation directions. The merge ran ahead of the tester and eval gates only because those gates are the lanes this PR repairs (their markers cannot exist before the fix lands); the general merge gates remain in force. **#743 stays open** until the review, test, eval, and per-OS lanes each demonstrate a live PR-thread session.
-- **#741 (Phase 6 release engineering, `Refs #582`, `Refs #657`) - FRESH REVIEW DISPATCHED THIS RUN**: head `5d82c7bf6b0a146ce9777d05ad3855ade15c76d4`, MERGEABLE/CLEAN after the main advance, unchanged since 16:32:44Z. Decision `review` with that exact head; no head-bound `/oc review` comment existed (only the 16:21 `/oc review` and its three auto-retries, plus the 19:50 triggers, all killed by the #743 403). The thread's auto-retry budget is spent, so a death on this attempt reds instead of retrying. On approval: Tester plus per-OS, Quality Council, the PAT merge with the eval marker, then `lab` for the release workflow and the `maze-chase-v0.1.0-rc.1` cut, keeping #657 open.
-- **#745 (owner-PAT hardening, `Refs #742`) - CONFLICTING AFTER THE MERGE, LAB REBASE DISPATCHED THIS RUN**: head `f85ab72d0cab6155830defde168f2407c448ed96`, now MERGEABLE=CONFLICTING / DIRTY. `git merge-tree` verifies exactly three conflicts with main: `.github/scripts/silent-stall-audit.sh`, `AGENTS.md`, `LAB.md`. Decision `lab` on #745 with the full scope: keep main's R31 (PR-thread bootstrap) and renumber this branch's owner-PAT isolation rule to R32, drop redundant permission hunks, preserve the 75 owner-PAT isolation maps, the builtins-only `BASH_FUNC_*` preamble, the per-OS captured trusted PATH and `git_exec_path`, the eval post-head check, the unrunnable escalation, the review skip-notice PAT fix, and the Maintainer project-config opt-out; re-run the full audit to green, `bash -n` and shellcheck, then push and forward the review. Then: ONE fresh head-bound review, the read-only infra Tester, a fresh Council, the PAT sweep. #742 closes after #745 merges.
-- **Issues**: 13 open, all mapped: #743 (P0, awaiting per-lane live proof), #742 (until #745 merges), the Maze Chase set (#683/#678/#677/#676/#661/#660/#659/#657/#655/#582) as tracked workstreams, boards #70/#42. Zero untriaged. No closed-unmerged PR needs recovery.
-- **Concurrency**: this run is the owner's `issue_comment` wake 39850763238 (20:39:36Z). The #747 merge itself fires a `pull_request: closed` maintainer wake; a sibling may survey the same post-merge state and add a duplicate review/lab trigger. Duplicates queue harmlessly (review and lab use `queue: max`; the lab per-issue group serializes).
+- **#743 P0 - BOOTSTRAP FIX PROVEN, NEW STAGED-PROMPT DEADLOCK, LAB DISPATCHED**: #747 is live on `main` `08b8df67` and the four PR-gated lanes carry `issues: write` plus `pull-requests: write`. The fresh review of #741 (run 39852524926) proved the bootstrap works: the CLI reacted to the trigger and created the session with no 403. It then deadlocked reading its trusted staged prompt: opencode evaluated `/home/runner/work/_temp/lab-prompts/*` as an `external_directory` permission `ask` because `OPENCODE_DISABLE_PROJECT_CONFIG: "true"` suppresses `opencode.json`'s allow, and an unattended run cannot answer an ask. Two attempts were killed by the #653 watchdog after 600s each (20:52-21:02Z and 21:03-21:13Z) and the gate red-ed with no verdict. This affects all six PR-gated agent steps (review/test/eval/per-OS) and is latent in the Maintainer arm once #745's opt-out lands. A `lab` round on #743 is dispatched with the exact log evidence, the six-site scope, the Maintainer-arm constraint, and the audit-guard requirement. #743 stays open until each of the four lanes proves a complete live session.
+- **#741 (Phase 6 release engineering, `Refs #582`, `Refs #657`) - BLOCKED ON THE #743 LANE REPAIR**: head `5d82c7bf6b0a146ce9777d05ad3855ade15c76d4`, MERGEABLE/CLEAN, unchanged since 16:32:44Z. The 20:52Z review died at the staged-prompt ask with no model work and no verdict; the retry budget is spent, so the next attempt must be a maintainer-posted `review` after the lab fix lands. Then: Tester plus per-OS, Quality Council, the PAT merge with the eval marker, the release-workflow lab dispatch, and the `maze-chase-v0.1.0-rc.1` cut, keeping #657 open.
+- **#745 (owner-PAT hardening, `Refs #742`) - REBASED CLEAN BUT MUST NOT MERGE YET**: head `6c8c15044ad9a37dbb851867bd740ba17dcdbb87`, one commit on `08b8df67`, MERGEABLE/CLEAN, remote tip verified. The rebase lab run 39852525801 succeeded (the CLI wrapper's 21:14:42 push rejection is the expected App-token noise; the PAT push moved the tip). A `/oc review` was forwarded at 21:14:52Z (run 39855705592, pending) and will hit the same staged-prompt stall. Risk: the PR adds `OPENCODE_DISABLE_PROJECT_CONFIG: "true"` to the Maintainer agent env, which would break the Maintainer's own staged-prompt read; the #743 fix must cover `maintainer.md`, then #745 needs one short rebase and a fresh review.
+- **Issues**: 13 open, all mapped: #743 (P0 lane repair), #742 (until #745 merges), the Maze Chase set (#683/#678/#677/#676/#661/#660/#659/#657/#655/#582) as tracked workstreams, boards #70/#42. Zero untriaged. No closed-unmerged PR needs recovery.
+- **Concurrency**: this run is the failure triage of review 39852524926 (21:13:48Z). The sibling maintainer wake from #745's lab forward (21:15:00Z, run 39855705562) and the pending #745 review may duplicate; the lab per-issue group serializes duplicates.
 
-## Health (verified 20:40-20:52Z)
+## Health (verified 21:14-21:30Z)
 
-- Main tip `08b8df67` (merged #747). Open PRs: exactly #741 (CLEAN) and #745 (DIRTY, rebase dispatched). #747 merged.
-- Zero held `action_required` runs repo-wide. Trigger allowlist in `maintainer.yml` is exact: the 18 repo-defined non-maintainer workflow names match item-for-item (19 live repo names minus `maintainer`).
-- Model pins unchanged on `main`: `opencode/deepseek-v4.1-flash-free` for `model`, `small_model`, and `REQUESTED_MODEL`; ladder rungs `deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `glm-5.3-flash-free` all present and free in the live registry.
-- Workspace HEAD is the trusted default-branch pre-merge commit `048e0145`; the staged prompt at `${RUNNER_TEMP}/lab-prompts/maintainer.md` remains authoritative. Main truth read via `gh`/`git ls-remote`/`git show origin/main`.
-- Pages: the merge advanced `main`, so the hardcoded "Trigger pages deployment if main advanced" step runs after this session and dispatches `pages.yml`. Verify the deploy next run.
+- Main tip `08b8df67`. Open PRs: #745 (CLEAN, review pending) and #741 (CLEAN). Zero held `action_required` runs repo-wide.
+- Trigger allowlist in `maintainer.yml` is exact: the 18 repo-defined non-maintainer workflow names match item-for-item (19 live repo names minus `maintainer`; the three GitHub-managed names are not repo workflows).
+- Pages: the post-merge deploy succeeded (39855698724 at 21:15:02Z) and the PR preview deploy 39855682925 succeeded.
+- Model pins unchanged: `opencode/deepseek-v4.1-flash-free` for `model`, `small_model`, and `REQUESTED_MODEL`; ladder rungs `deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `glm-5.3-flash-free` all present and free in the live registry.
+- The only failed run in the last 60 is review 39852524926 above; the many maintainer cancellations are the deliberate single pending slot, not failures.
+- Workspace HEAD is the trusted default-branch pre-merge commit `048e0145`; the staged prompt at `${RUNNER_TEMP}/lab-prompts/maintainer.md` is authoritative. Main truth read via `gh`, `git ls-remote`, and `git show origin/main`.
 
-## Empirical note (important for future runs)
+## Empirical notes (important for future runs)
 
-- The job-scoped `GITHUB_TOKEN` successfully merged #747, a workflow-touching PR, via `gh pr merge --rebase` (merge commit `08b8df67`, merged_by `app/github-actions`). This contradicts the long-standing note in STATE, AGENTS.md, and LAB.md that workflow-touching PRs can only be merged by owner click or the PAT sweep. The `workflows` permission wall empirically fires on pushes to workflow files, not on the merge API here. Policy gates (tester approval plus eval marker, R21/R30/R22) remain the binding protection; the capability claim in the docs needs reconciliation by the Lab Engineer in a calm window. Recorded, not acted on yet.
+- The #653 watchdog classifies a pending permission ask (no log growth) as a provider stall. A log line `asking { permission: "external_directory", ... }` followed by 600s of silence is a session-setup deadlock, not a provider fault. Read the log before assuming the provider class.
+- The job-scoped `GITHUB_TOKEN` merge of workflow PR #747 still contradicts the old docs claim that workflow-touching PRs can only merge by owner click or the PAT sweep. The docs reconciliation remains deferred until the P0 lane is calm.
 
 ## Decisions this run
 
-- `decision.json` = `review` #741 at `5d82c7bf`; `lab` #745 (rebase onto `08b8df67` with the R31/R32 reconciliation); `ping` #743 (merge status plus the per-lane closure criterion).
-- `comment.md` = the #747 merge confirmation on the event target (owner approval, head-bound merge, verified main audit, live-proof sequencing). Prose only, no trigger.
-- No `review`/`lab` on #747 (merged), no `test`/`eval`/per-OS yet (#741 needs the review first; #745 needs the rebase first), no `fix`/`continue` (routing guard on workflow-touching PRs), no merge (nothing else carries a current-head tester approval plus eval marker), no create/close/recover/ideate/auditor/curate (zero untriaged content, no stranded work, no ideation request, no curator follow-up), no emergency (`lab.yml` executes normally; no failed lab attempt, no halted production beyond the lanes already repaired).
+- `lab` #743: fix the staged-prompt `external_directory` ask deadlock across all six PR-gated agent steps, keep the project-config trust opt-out, cover the Maintainer arm for #745, add an audit regression guard, validate, one `Refs #743` PR.
+- `ping` #741: status, the exact deadlock evidence, and the do-not-re-trigger note.
+- `ping` #745: rebase verified, do-not-merge-yet risk (the Maintainer opt-out would reproduce the deadlock), sequencing after #743.
+- No `review`/`test`/`eval`/per-OS: every one would hang at the same ask until the fix lands (#745's forwarded review is already queued and will red).
+- No merge: no current-head tester approval plus eval marker anywhere; #745 also carries the Maintainer-arm risk above.
+- No create/close/recover/ideate/auditor/curate: zero untriaged content, no stranded work, no ideation request, no curator follow-up.
+- No emergency: `lab.yml` executes normally (the #745 rebase run 39852525801 succeeded); the repair is a normal routed lab PR.
 
 ## Watch list
 
-- #741: read the fresh review result; on approval dispatch `test`, then per-OS and `eval`, merge on `approve-eval`, then `lab` release workflow plus `maze-chase-v0.1.0-rc.1`, #657 open.
-- #745: read the rebased head; then ONE fresh head-bound review, the read-only infra Tester, a fresh Council, the PAT sweep; #742 closes on merge.
-- #743: record the live proof per lane: #741 review first, then test, eval, per-OS. Close only when all four have demonstrated a session.
-- Docs reconciliation: the empirical merge-capability note above goes to the Lab Engineer once the P0 lane is calm.
-- Deferred: the maintainer wake-displacement finding (a skip-only run displacing a real `/oc maintainer` wake under the single pending slot).
-- Recurrence watches: #620 free-tier, #717 upstream-endpoint, #669 egress-IP, #653 stall classes; the #616/#637 publication gate; the Pages preview zero-job class; the Pages-dispatch false positive; #655 per-OS rows; the test-cap pattern.
+- #743: read the fix PR; verify all six sites plus the Maintainer arm, the audit guard, and the green audit; then fresh reviews of #741 and #745.
+- #741: fresh review after the fix; then Tester plus per-OS, Council, PAT merge with the eval marker, release-workflow lab dispatch, rc.1 cut, #657 open.
+- #745: do not merge before the Maintainer-arm reachability fix; one short rebase after #743 lands; then fresh review, read-only infra Tester, fresh Council, PAT sweep; #742 closes on merge.
+- #743 closure only per-lane live proof: review, test, eval, per-OS.
+- Deferred: the merge-capability docs reconciliation; the maintainer wake-displacement finding.
+- Recurrence watches: #620 free-tier, #717 upstream-endpoint, #669 egress-IP, #653 stall classes (now including the permission-ask false positive), the #616/#637 publication gate, the Pages preview zero-job class, #655 per-OS rows, the test-cap pattern.
 
 ## Next steps
 
-1. **#741**: read the dispatched review; route `test` on approval, then per-OS plus Council, PAT merge with the eval marker, release-workflow lab dispatch, and the rc.1 cut.
-2. **#745**: verify the rebase preserved both R31 and R32 (audit green, 75 isolation maps, preamble), then the fresh head-bound review, the read-only infra Tester, a fresh Council, the PAT sweep.
-3. **#743**: collect the per-lane live evidence and close only when complete.
-4. **#742**: close after #745 merges.
-5. **Health**: verify the post-merge Pages deploy and the first live lane run; no new dispatch into the #743 403 class (the fix is now on main).
+1. **#743**: verify the fix PR covers review/test/eval/per-OS agent steps plus `maintainer.md`, the audit guard is green, then dispatch the fresh reviews.
+2. **#741**: review -> test -> per-OS -> eval -> PAT merge -> release lab dispatch plus rc.1.
+3. **#745**: after the fix, one short rebase (expect audit/lane conflicts), then the full gate chain; close #742 on merge.
+4. **#743**: collect the per-lane live evidence and close only when complete.
+5. **Health**: re-check the pending #745 review's outcome; if it red-ed at the ask, note it as expected and do not re-trigger before the fix.
 
 ## Pointers
 
-- This run's log entry: `logs/2026-10-22.md`, run 39850763238.
+- This run's log entry: `logs/2026-10-22.md`, run 39855527523.
+- Evidence run: https://github.com/Userfrom1995/RandomLabs/actions/runs/39852524926
 - The binding rules: `.github/agents/maintainer.md` (this run) and `AGENTS.md`.
 - Trusted surfaces: `.github/scripts/silent-stall-audit.sh` (R1-R31 on main), `.github/scripts/publish-eval-marker.sh`, the PAT sweep in `maintainer.yml`, and `.github/actions/opencode-run/`.
 - The #716 Council verdict: #716 comments 6345926245 and 6345928384, eval run 39809774877.
