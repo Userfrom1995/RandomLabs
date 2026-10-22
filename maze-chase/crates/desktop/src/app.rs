@@ -13,7 +13,7 @@ use crate::gamepad::{PadMap, PadPoll};
 use crate::render::{self, Hud, MenuLine};
 use crate::screens::{self, Event, ScreenId, Screens};
 use maze_chase_audio::cue::cue_for_event;
-use maze_chase_audio::sink::{Audio, TuneId};
+use maze_chase_audio::sink::{Audio, TuneId, FADE_SECS};
 use maze_chase_config::{persist, preset, Action, Key, Keymap, Settings};
 use maze_chase_engine::actors::Dir;
 use maze_chase_engine::game::{Game, GameState};
@@ -133,6 +133,9 @@ impl App {
             quit: false,
         };
         app.sync_audio();
+        // Settle the saved levels before the first tune starts: the fade
+        // step then cannot leak full volume for the first frames of play.
+        app.audio.tick(FADE_SECS);
         app.apply_tune();
         app
     }
@@ -703,6 +706,108 @@ mod tests {
     fn test_app(name: &str) -> App {
         let dir = test_dir(name);
         App::with_audio(dir, Box::new(NullSink::new()), false)
+    }
+
+    #[derive(Debug)]
+    struct GainState {
+        master: f32,
+        music: f32,
+        sfx: f32,
+        muted: bool,
+        music_gain: f32,
+        sfx_gain: f32,
+    }
+
+    impl Default for GainState {
+        fn default() -> Self {
+            Self {
+                master: 1.0,
+                music: 1.0,
+                sfx: 1.0,
+                muted: false,
+                music_gain: 1.0,
+                sfx_gain: 1.0,
+            }
+        }
+    }
+
+    /// Sink that applies the same fade arithmetic as the real backend so
+    /// the startup order can be asserted without an audio device.
+    struct GainSink(std::sync::Arc<std::sync::Mutex<GainState>>);
+
+    impl Audio for GainSink {
+        fn play(&mut self, _cue: maze_chase_audio::cue::Cue) {}
+        fn start_music(&mut self, _id: TuneId) {}
+        fn stop_music(&mut self) {}
+        fn set_master(&mut self, v: f32) {
+            self.0.lock().unwrap().master = v;
+        }
+        fn set_music(&mut self, v: f32) {
+            self.0.lock().unwrap().music = v;
+        }
+        fn set_sfx(&mut self, v: f32) {
+            self.0.lock().unwrap().sfx = v;
+        }
+        fn set_muted(&mut self, m: bool) {
+            self.0.lock().unwrap().muted = m;
+        }
+        fn master(&self) -> f32 {
+            self.0.lock().unwrap().master
+        }
+        fn music(&self) -> f32 {
+            self.0.lock().unwrap().music
+        }
+        fn sfx(&self) -> f32 {
+            self.0.lock().unwrap().sfx
+        }
+        fn muted(&self) -> bool {
+            self.0.lock().unwrap().muted
+        }
+        fn tick(&mut self, dt: f32) {
+            let mut s = self.0.lock().unwrap();
+            let (target_sfx, target_music) = if s.muted {
+                (0.0, 0.0)
+            } else {
+                (s.master * s.sfx, s.master * s.music)
+            };
+            s.sfx_gain = crate::sound::fade_gain(s.sfx_gain, target_sfx, dt);
+            s.music_gain = crate::sound::fade_gain(s.music_gain, target_music, dt);
+        }
+    }
+
+    #[test]
+    fn saved_levels_settle_before_the_first_tune() {
+        let dir = test_dir("startup-gain");
+        let settings = Settings {
+            mute: true,
+            music: 0.05,
+            ..Settings::default()
+        };
+        persist::save_to(&settings, &Keymap::defaults(), &dir.join(SETTINGS_FILE)).unwrap();
+        let state = std::sync::Arc::new(std::sync::Mutex::new(GainState::default()));
+        let _app = App::with_audio(dir, Box::new(GainSink(state.clone())), false);
+        let s = state.lock().unwrap();
+        assert_eq!(s.music_gain, 0.0, "muted startup must not leak music");
+        assert_eq!(s.sfx_gain, 0.0, "muted startup must not leak sfx");
+        drop(s);
+
+        let dir = test_dir("startup-gain-low");
+        let settings = Settings {
+            master: 0.5,
+            music: 0.05,
+            mute: false,
+            ..Settings::default()
+        };
+        persist::save_to(&settings, &Keymap::defaults(), &dir.join(SETTINGS_FILE)).unwrap();
+        let state = std::sync::Arc::new(std::sync::Mutex::new(GainState::default()));
+        let _app = App::with_audio(dir, Box::new(GainSink(state.clone())), false);
+        let s = state.lock().unwrap();
+        assert!(
+            (s.music_gain - 0.025).abs() < 1e-6,
+            "low music starts at the target, got {}",
+            s.music_gain
+        );
+        assert!((s.sfx_gain - 0.5 * 0.8).abs() < 1e-6);
     }
 
     #[test]

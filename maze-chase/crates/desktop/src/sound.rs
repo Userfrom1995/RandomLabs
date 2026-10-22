@@ -5,8 +5,10 @@
 //! timbres at the one shared [`TEMPO`]; both are pure and deterministic
 //! (same data, same samples, every platform). [`RodioSink`] implements the
 //! shared [`Audio`] trait on top of rodio: one-shot cues go to a
-//! polyphonic SFX sink, loops/stings go to the music sink, live volume
-//! changes glide over [`FADE_SECS`], and a missing audio device is a clean
+//! polyphonic SFX sink, loops and stings go to the music bus (the latter
+//! on their own sink so a transition can stop the loop without cutting
+//! the sting), live volume changes glide over [`FADE_SECS`], and a missing
+//! audio device is a clean
 //! [`NoAudio`] error so the session can fall back to [`NullSink`] instead
 //! of crashing.
 //!
@@ -15,8 +17,7 @@
 
 use maze_chase_audio::cue::Cue;
 use maze_chase_audio::score::{
-    presentation_beats, sfx_for_cue, tune_beats, Sfx, Tone, Tune, Voice, ALL_CUES, ALL_TUNES,
-    DEFAULT_MASTER, DEFAULT_MUSIC, DEFAULT_SFX, TEMPO,
+    presentation_beats, sfx_for_cue, tune_beats, Sfx, Tone, Tune, Voice, ALL_TUNES, TEMPO,
 };
 use maze_chase_audio::sink::{tune_for_id, Audio, NullSink, TuneId, FADE_SECS};
 use rodio::buffer::SamplesBuffer;
@@ -218,6 +219,7 @@ pub struct RodioSink {
     handle: OutputStreamHandle,
     sfx: Sink,
     music: Sink,
+    stings: Sink,
     master: f32,
     music_level: f32,
     sfx_level: f32,
@@ -229,17 +231,19 @@ pub struct RodioSink {
 }
 
 impl RodioSink {
-    /// Open the default output device with two sinks (SFX + music).
-    /// `Err(NoAudio)` on headless/voiceless machines: never panics.
+    /// Open the default output device with three sinks (SFX + loop +
+    /// stings). `Err(NoAudio)` on headless/voiceless machines: never panics.
     pub fn open() -> Result<Self, NoAudio> {
         let (stream, handle) = OutputStream::try_default().map_err(|_| NoAudio)?;
         let sfx = Sink::try_new(&handle).map_err(|_| NoAudio)?;
         let music = Sink::try_new(&handle).map_err(|_| NoAudio)?;
+        let stings = Sink::try_new(&handle).map_err(|_| NoAudio)?;
         let mut sink = Self {
             _stream: stream,
             handle,
             sfx,
             music,
+            stings,
             master: 1.0,
             music_level: 1.0,
             sfx_level: 1.0,
@@ -279,11 +283,13 @@ impl RodioSink {
         self.music_gain = self.target_music();
         self.sfx.set_volume(self.sfx_gain);
         self.music.set_volume(self.music_gain);
+        self.stings.set_volume(self.music_gain);
     }
 
     fn apply_gains(&mut self) {
         self.sfx.set_volume(self.sfx_gain);
         self.music.set_volume(self.music_gain);
+        self.stings.set_volume(self.music_gain);
     }
 
     fn push_sfx(&self, samples: Vec<f32>) {
@@ -293,6 +299,15 @@ impl RodioSink {
         let src = SamplesBuffer::new(1, RATE, samples);
         self.sfx.append(src);
         self.sfx.play();
+    }
+
+    fn push_sting(&self, samples: Vec<f32>) {
+        if samples.is_empty() {
+            return;
+        }
+        let src = SamplesBuffer::new(1, RATE, samples);
+        self.stings.append(src);
+        self.stings.play();
     }
 }
 
@@ -314,6 +329,14 @@ fn approach(current: f32, target: f32, step: f32) -> f32 {
     }
 }
 
+/// One fade step for the live volume glides (shared with the startup test).
+pub(crate) fn fade_gain(current: f32, target: f32, dt: f32) -> f32 {
+    if !dt.is_finite() || dt <= 0.0 {
+        return current;
+    }
+    approach(current, target, dt / FADE_SECS)
+}
+
 impl Audio for RodioSink {
     fn play(&mut self, cue: Cue) {
         self.play_seq = self.play_seq.wrapping_add(1);
@@ -325,8 +348,9 @@ impl Audio for RodioSink {
             };
             self.push_sfx(render_sfx_with(sfx, step));
         } else if let Some(sting) = sting_for_cue(cue) {
-            // One-shot tunes (death/clear/gameover) play over the loop.
-            self.push_sfx(render_tune(sting));
+            // One-shot tunes ride the music bus on their own sink so they
+            // overlap the loop and still follow the music volume.
+            self.push_sting(render_tune(sting));
         }
     }
 
@@ -385,9 +409,8 @@ impl Audio for RodioSink {
         if !dt.is_finite() || dt <= 0.0 {
             return;
         }
-        let step = dt / FADE_SECS;
-        self.sfx_gain = approach(self.sfx_gain, self.target_sfx(), step);
-        self.music_gain = approach(self.music_gain, self.target_music(), step);
+        self.sfx_gain = fade_gain(self.sfx_gain, self.target_sfx(), dt);
+        self.music_gain = fade_gain(self.music_gain, self.target_music(), dt);
         self.apply_gains();
     }
 }
@@ -404,7 +427,10 @@ pub fn open_or_null() -> (Box<dyn Audio>, bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use maze_chase_audio::score::{track_count, SFX_CRUMB, SFX_EXTRA_LIFE, TITLE_LOOP};
+    use maze_chase_audio::score::{
+        track_count, ALL_CUES, DEFAULT_MASTER, DEFAULT_MUSIC, DEFAULT_SFX, SFX_CRUMB,
+        SFX_EXTRA_LIFE, TITLE_LOOP,
+    };
     use maze_chase_audio::sink::FADE_SECS;
 
     #[test]
