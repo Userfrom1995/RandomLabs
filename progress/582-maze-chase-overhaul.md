@@ -7,8 +7,8 @@
   on its own `opencode/issue582-overhaul-phase-<n>-<slug>` branch
 - **Status:** in-progress
 - **Updated:** 2026-10-22
-- **Active Phase:** Phase 5: Sound Design Overhaul
-  (Complete, ready for review; Linux synth plus browser evidence, native speaker sign-off tracked for the Final Phase)
+- **Active Phase:** Phase 6: Release Engineering and Multi-Platform Distribution
+  (in progress; Linux package scripts plus reproducible Linux artifacts verified, native macOS/Windows runs and the release pipeline pending)
 - **Blueprint:** `ideas/2026-10-18-maze-chase-overhaul.md`
 - **Findings ledger:** `progress/582-maze-chase-overhaul-findings.md` (created in
   Phase 1; every reassessment gap lives here until resolved or documented)
@@ -20,65 +20,57 @@
 - Phase 3: Terminal Render Pipeline and Compatibility Proof: [x] bounded live Kitty probe with byte replay plus the Sixel DA1 probe (the probe requires both the transmit and placement replies before it reads a verdict; Ghostty 1.3.1 answers the probe when one is sent, and its rows select the graphics path from `TERM_PROGRAM=ghostty`/`TERM=xterm-ghostty` without probing), [x] atlas plus placement composition with full-frame fallback (static layer and sprite atlas once per change, stable-id placement diffs, single-placement `d=i` deletes, explicit `z` stacking layers, DEFLATE PNG), [x] dirty-change detection and wall-clock pacing with backpressure (visual-change key, per-tier rates, 8 MiB/s byte ceiling, 1 Hz idle keepalive), [x] Sixel path hardening (64-color cap, 2 MiB frame ceiling with smaller-palette retry and an honest `cells-fallback` trace mode), [x] capability-aware probe plus write-path watchdog (`OK`/`ENOENT` replies decide kitty support; `q=2` keeps steady transmits silent, and the watchdog drops a tier after 3 failed frame writes with the reason recorded), [x] `MAZE_CHASE_TRACE` JSONL evidence mode (plan, frame mode/placements/static/atlas/encode time, skips, probe results), [x] kitty and ghostty rows signed on Linux plus conventional terminals (kitty and Ghostty both `kitty-graphics` pass at 21 transmits / 156.1-160.1 KiB per session in the Phase 3 round (pre-Pondwake; the Phase 4 rows are 169.9-175.4 KiB) with sprite visibility proven by capture census; xterm auto and xterm dark both pass on cells, the light row at 6.2% white at worst and 1.7% while playing after the theme-canvas fix; the VT340 sixel rows pass at 140-141 transmits / 3.39-3.41 MiB in the Phase 3 round (Phase 4: 137-138 / 4.25-4.31 MiB), and every row records its generating build commit plus binary SHA-256 in its `build` block), [ ] macOS matrix rows signed by the macOS Tester (PR 3 target, Refs #582, Refs #655)
 - Phase 4: Visual Identity Redesign: [x] Design Council direction consumed (dispatched by the Maintainer before this phase), [x] resolution-aware character and environment art, [x] effects and animation system, [x] refreshed themes with accessibility tests green, [x] all three layers integrated with real captures (PR 4 target, Refs #582, Closes #658)
 - Phase 5: Sound Design Overhaul: [x] new musical score with one BPM source (`TEMPO = 108`, five multi-track tunes with swung eighths and per-note track lanes), [x] soft short layered effect bank across seven voice families (40 ms crumb pluck with variation, rising warden ladder, sparkling relish triad, spare-wick bell), [x] mix architecture with 120 ms fades and safe defaults (music 60%, SFX 80%, master 80%, peak-normalized buses), [x] terminal chime policy default-off with a persistent Settings row and visual twins independent of mute, [x] per-layer settings round-trip on Linux (desktop synth PCM plus null sink, terminal BEL plus ticker, browser chip plus persisted sliders) with native macOS/Windows speaker review tracked for the Final Phase (PR 5 target, Refs #582, Refs #659)
-- Phase 6: Release Engineering and Multi-Platform Distribution: [ ] version single source plus tag parity gate, [ ] Linux deb and rpm plus tarballs for both layers, [ ] Windows installer plus zip, [ ] macOS app plus dmg plus tarball, [ ] install/launch/uninstall smoke scripts, [ ] `maze-chase-release.yml` pipeline via the Lab Engineer, [ ] release candidate artifacts on the official Releases page, [ ] install/upgrade/uninstall docs (PR 6 target, Refs #582, Closes #657)
+- Phase 6: Release Engineering and Multi-Platform Distribution: [x] version single source plus tag parity gate (`[workspace.package]` 0.1.0, `packaging/release/check-tag.sh` fail-closed on a tag/version mismatch), [x] Linux deb and rpm plus tarballs for both layers (rebuilt twice byte-identically and smoke-tested on this container), [ ] Windows installer plus zip (scripts landed; native build and silent install/uninstall run pending), [ ] macOS app plus dmg plus tarball (scripts landed; native build and dmg mount pending), [x] install/launch/uninstall smoke scripts (`release/smoke-linux.sh` executed; macOS/Windows harnesses authored for their native arms), [ ] `maze-chase-release.yml` pipeline via the Lab Engineer (source staged at `packaging/release/maze-chase-release.yml`), [ ] release candidate artifacts on the official Releases page, [x] install/upgrade/uninstall docs (`docs/release.md` covers both layers on all three OSes, plus upgrade and settings clearing) (PR 6 target, Refs #582, Closes #657)
 - Phase 7: Game-First Web Experience and Subpages: [ ] `maze-chase/index.html` boots directly into the game with no clutter, [ ] downloads, install, docs, compatibility, releases subpages, [ ] rendered docs on Pages with link checks, [ ] deployed-URL browser E2E including mobile (PR 7 target, Refs #582, Closes #660)
 - Final Phase: Full-Product Verification and Release Sign-Off: [ ] full terminal matrix re-signed on the released artifacts, [ ] per-OS install/upgrade/uninstall from release artifacts, [ ] deployed Pages E2E for the game and every subpage, [ ] audio and visual craft evaluated on real captures, [ ] reassessment ledger fully resolved or documented, [ ] stable `maze-chase-v1.0.0` release cut, [ ] hub, README, and docs unified (Final PR, Refs #582, Closes #655, Closes #661, Closes #582)
 
 ## Current step
 
-Phase 5 (sound design overhaul) is implemented on this branch. One
-`TEMPO` of 108 BPM now drives five original multi-track tunes (title,
-fright, death, clear, game-over) with swung eighths and independent
-track lanes. Notes carry voice, velocity, and a track index, and rests
-are explicit. The shared score also owns seven voice families (mallet,
-drop, reed, drone, glass, bell, pluck), a layered SFX bank with delay,
-gain, and variation, pitch doubling per warden chain, and 40 ms crumb
-plucks. Rendered PCM is peak-normalized to 0.32 for music and 0.50 for
-SFX, so the layers inside one recipe never clip; separate overlapping
-recipes are bounded by a summed-output limiter (a WebAudio compressor
-plus soft clip on the master bus, and a ceiling-aware bus scale on
-desktop), so a 100/100 mix stays at or below full scale.
+Phase 6 (release engineering and multi-platform distribution) is in
+progress. `maze-chase/Cargo.toml` is the single version source
+(`[workspace.package] version = 0.1.0`; all seven crates inherit
+`version`, `edition`, and `license`), and
+`packaging/release/check-tag.sh` fails closed unless a
+`maze-chase-v<version>` tag (or its `-rc.N` form) matches the workspace
+version, so a tag can never ship software from a different version.
 
-The mix now defaults to music 60 percent and SFX 80 percent, with
-master/music/SFX gain changes fading over 120 ms and mute acting on both
-buses. The terminal BEL chime is opt-in (`terminal_chime`, default
-false) with a Settings row, and visual flashes are rendered from game
-state independently of the mute and chime gates, so visual twins never
-disappear. The desktop rodio sink tracks both buses, schedules tune
-tracks, and falls back to a null sink.
-The browser ABI is version 3 with `mc_sfx_tone_count`,
-`mc_sfx_tone_field`, `mc_tune_meta`, and `mc_fade_ms`; the harness
-schedules layered tones and track lanes, fades its gains, and shows a
-"Sound is asleep - tap to wake" chip at the top of the title card's
-first viewport until the context runs. The Settings mixer is three
-labeled rows with live percents, and the cue queue snapshots each
-warden chain so two
-same-tick eats render their own ladder arms. Legacy
-first-tone views stay for older callers. `docs/audio.md` records the
-identity, mix, per-layer synthesis, and accessibility contract.
+Both layers now have real Linux packages and tarballs. The scripts
+build `maze-chase-{terminal,desktop}_0.1.0_amd64.deb`,
+`maze-chase-{terminal,desktop}-0.1.0-1.x86_64.rpm`, and reproducible
+`-linux-x86_64.tar.gz` tarballs from one payload contract (binary at
+`/usr/bin`, license, docs; the desktop package also adds the desktop
+entry and icon, and the maintainer scripts refresh the desktop and icon
+caches). `release/smoke-linux.sh` unpacks every deb and rpm, runs
+`--version` and `--help`, and installs and uninstalls both tarballs in
+a scratch prefix; both stage runs produced byte-identical
+`SHA256SUMS.txt`, and all six Linux artifacts pass.
 
-Verification on this tree: `cargo test --workspace` 594 passed / 0
-failed across 63 targets; `maze-chase-verify` 19/19 with golden
-`23c17f89734e`; `perf-headless` 0.2 us/tick (release run); offline PCM peaks 0.154
-(music) and 0.320 (SFX) at the default 80/60/80 mix, with the summed
-100/100 mix bounded at or below full scale; wasm 212,438 bytes, sha256
-`5bcceec8356d8659d53405c593df744ba3c980c8b31582358313a53f5a2f72db`,
-reproduced by a second release build; wasm-smoke,
-tester-regression, boot-gate (33 assertions), browser E2E (279
-assertions, zero console errors), tester-audio (17 checks), and rebind
-lifecycle all green;
-`cargo fmt --all --check` clean; clippy reports only the pre-existing
-engine style lints. Native macOS and Windows speaker listening stays
-with the per-OS release sign-off; no claim here exceeds the executed
-Linux synth and browser evidence.
+The same contract exists for the other platforms: deterministic
+PowerShell zips for the terminal and desktop, an Inno Setup 6 per-user
+installer (`PrivilegesRequired=lowest`, no admin), a rewritten
+`.app` bundle with a real `Info.plist`, PkgInfo, license, and version,
+plus a dmg and tarball, and per-OS smoke harnesses
+(`release/smoke-macos.sh`, `release/smoke-windows.ps1`). Their builds
+need the native runners: `iscc` and `hdiutil` do not exist in this
+Linux container, so none of the macOS or Windows artifacts are claimed
+here. `packaging/release/maze-chase-release.yml` is staged for the Lab
+Engineer; it builds on native Linux, macOS, and Windows runners, runs
+the full workspace tests and deterministic verifier, stages and smokes
+each host's packages, re-hashes the payloads, and creates or refreshes
+the tagged GitHub Release. The installed `.github/workflows/` copy,
+native per-OS packaging evidence, the official release candidate, and
+the install/upgrade/uninstall docs remain open on this phase.
 
 ## Next steps
 
-- Builder: Phase 5 (sound design overhaul) landed with this PR; Phase 6
-  (release engineering) starts from the merged tip.
-- Maintainer: merge Phase 5 after review and evaluation, then dispatch
-  Phase 6 (release engineering) and keep the per-OS speaker checks on the
-  Final Phase checklist; file the Phase 1 findings as linked sub-issues
+- Builder: finish the Phase 6 remaining checklist for this PR: desktop
+  findings B.6-B.8, the install/upgrade/uninstall docs, and the native
+  packaging evidence the runners provide; the release pipeline source is
+  ready for the Lab Engineer.
+- Maintainer: merge Phase 6 when the release contract is complete, then
+  dispatch the Lab Engineer to install the release workflow and cut
+  `maze-chase-v0.1.0-rc.1`; keep the per-OS speaker checks on the Final
+  Phase checklist; file the Phase 1 findings as linked sub-issues
   prioritized into the remaining phases; keep #582 open until the Final
   Phase ledger is complete.
 - Per-OS testers: Phase 2 (Linux plus macOS emulator proof), Phase 3 (matrix
@@ -1767,3 +1759,41 @@ Linux synth and browser evidence.
   Delegation ledger: primary-only (a single stale count). Skills: no
   registry skill matched.
   - the Fixer
+
+- 2026-10-22 (builder, Phase 6 release engineering): made the workspace
+  version the single source (all seven crates inherit version 0.1.0,
+  edition 2021, and MIT) and added the fail-closed tag/version parity
+  gate. Added the shared packaging contract (`common.sh`, `common.ps1`),
+  real deb and rpm builds for both layers, deterministic tarballs and
+  zips, the per-user Inno Setup installer, the macOS app/dmg/tarball
+  chain, install/uninstall scripts with `--purge-config`, per-OS smoke
+  harnesses, staged native release pipeline source, and the Linux
+  stage/reproducibility check. Verification on this container:
+  `cargo metadata` refreshed the lock (engine 0.3.0 -> 0.1.0);
+  `stage-linux.sh` built all six Linux artifacts and `smoke-linux.sh`
+  passed every deb/rpm/tarball check; a second full stage produced
+  byte-identical SHA256SUMS. `check-tag.sh` accepts 0.1.0 and its rc
+  form, rejects 0.2.0, and reports a branch as no-tag. macOS and
+  Windows builds were not run here (`iscc`/`hdiutil` absent) and are
+  not claimed.
+  - the Builder
+
+- 2026-10-22 (builder, Phase 6 desktop and docs round): fixed the
+  desktop release findings. Frame rendering is bounded to 16.7M pixels
+  (an 8K window renders proportionally smaller and is nearest-neighbor
+  scaled on presentation, with a one-time stderr reason and a
+  `(scaled render)` title suffix instead of a silent freeze), the
+  surface starts at the physical inner size and repaints on
+  `ScaleFactorChanged` (HiDPI), and the event loop waits on static
+  screens while scheduling 16 ms frames only for Playing and `--probe`.
+  Added unit tests for the 8K bound, scaled presentation, and frame
+  scheduling. Rewrote the release, desktop, terminal, README, hub,
+  scoreboard, and feature-matrix claims around the real artifacts,
+  checksums, install/upgrade/uninstall, and the unsigned status.
+  Verification: `cargo test --workspace` 0 failed (all targets),
+  `maze-chase-verify` 19/19 with golden `23c17f89734e`,
+  `cargo fmt --all --check` clean, clippy only the six pre-existing
+  engine lints; `stage-linux.sh` rebuilt all six artifacts twice with
+  byte-identical SHA256SUMS after the desktop change and the license
+  additions.
+  - the Builder

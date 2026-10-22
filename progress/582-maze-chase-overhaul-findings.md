@@ -267,15 +267,33 @@ Severity tag: `overclaim` where public text exceeds reality.
    `window.rs:243-245` silently no-ops past it, so a large monitor plus
    HiDPI freezes the window with no message (Phase 6: Release
    Engineering and Multi-Platform Distribution target: honest
-   error plus streaming path).
+   error plus streaming path). RESOLVED in Phase 6: the window
+   bounds the render size to `MAX_PIXELS`, renders the largest
+   proportional frame inside it, and nearest-neighbor scales that
+   frame on presentation; the first scaled frame prints the exact
+   budget on stderr and adds a `(scaled render)` title suffix instead
+   of freezing, and an impossible render records a fatal reason and
+   exits 1. The 8K sizing and scaled presentation carry unit tests.
 7. No `scale_factor` handling anywhere in the desktop window sizing:
    HiDPI renders at logical size (Phase 6: Release Engineering and
-   Multi-Platform Distribution).
+   Multi-Platform Distribution). RESOLVED in Phase 6: the surface
+   starts at the physical `inner_size()` after the logical launch
+   size is applied, and `ScaleFactorChanged` re-reads the physical
+   size and repaints, so dense displays render at their real pixel
+   density.
 8. The desktop main loop busy-polls; CPU burns while idle (Phase 6:
-   Release Engineering and Multi-Platform Distribution).
+   Release Engineering and Multi-Platform Distribution). RESOLVED in
+   Phase 6: the loop waits for events; only Playing and a running
+   `--probe` schedule continuous frames (16 ms target), every static
+   screen waits for input, and resize/scale/key events request a
+   repaint.
 9. Packaging artifacts are dev-grade (raw binaries, no installers) and
    are oversold by the hub page (Phase 6: Release Engineering and
-   Multi-Platform Distribution).
+   Multi-Platform Distribution). RESOLVED in Phase 6: both layers ship
+   deb, rpm, tarballs, Windows zips, a per-user Inno Setup installer,
+   and a macOS app/dmg/tarball from version-checked, reproducible
+   staging scripts; the hub, README, and release guide describe those
+   artifacts and their unsigned status.
 
 ### Web layer
 
@@ -287,7 +305,9 @@ Severity tag: `overclaim` where public text exceeds reality.
     the open tracking issue for this overhaul (corrected this phase).
 12. The hub "installable package" wording exceeds the actual artifacts
     (Phase 6: Release Engineering and Phase 7: Game-First Web
-    Experience).
+    Experience). RESOLVED in Phase 6: the hub now names the deb/rpm/
+    tarball, per-user Windows installer, and macOS dmg/app it actually
+    ships and links the release guide, with no signed-release claim.
 13. The Windows E2E evidence behind the release claims was signed
     despite failing ConPTY sessions (Phase 6: Release Engineering; do
     not repeat signing
