@@ -34,7 +34,10 @@ are explicit. The shared score also owns seven voice families (mallet,
 drop, reed, drone, glass, bell, pluck), a layered SFX bank with delay,
 gain, and variation, pitch doubling per warden chain, and 40 ms crumb
 plucks. Rendered PCM is peak-normalized to 0.32 for music and 0.50 for
-SFX, so overlapping layers never clip.
+SFX, so the layers inside one recipe never clip; separate overlapping
+recipes are bounded by a summed-output limiter (a WebAudio compressor
+plus soft clip on the master bus, and a ceiling-aware bus scale on
+desktop), so a 100/100 mix stays at or below full scale.
 
 The mix now defaults to music 60 percent and SFX 80 percent, with
 master/music/SFX gain changes fading over 120 ms and mute acting on both
@@ -45,19 +48,23 @@ tracks both buses, schedules tune tracks, and falls back to a null sink.
 The browser ABI is version 3 with `mc_sfx_tone_count`,
 `mc_sfx_tone_field`, `mc_tune_meta`, and `mc_fade_ms`; the harness
 schedules layered tones and track lanes, fades its gains, and shows a
-"Sound is asleep - tap to wake" chip until the context runs. Legacy
+"Sound is asleep - tap to wake" chip in the title card's first viewport
+until the context runs. The Settings mixer is three labeled rows with
+live percents, and the cue queue snapshots each warden chain so two
+same-tick eats render their own ladder arms. Legacy
 first-tone views stay for older callers. `docs/audio.md` records the
 identity, mix, per-layer synthesis, and accessibility contract.
 
-Verification on this tree: `cargo test --workspace` 592 passed / 0
+Verification on this tree: `cargo test --workspace` 594 passed / 0
 failed across 63 targets; `maze-chase-verify` 19/19 with golden
-`23c17f89734e`; `perf-headless` 0.1 us/tick (release run); offline PCM peaks 0.154
-(music) and 0.320 (SFX) at the default 80/60/80 mix; wasm 212,234
-bytes, sha256
-`8bf0b74babe2259bdee6d551163a99b735ca75bf8a854ee5ff15a8443dfab1f1`,
+`23c17f89734e`; `perf-headless` 0.2 us/tick (release run); offline PCM peaks 0.154
+(music) and 0.320 (SFX) at the default 80/60/80 mix, with the summed
+100/100 mix bounded at or below full scale; wasm 212,438 bytes, sha256
+`5bcceec8356d8659d53405c593df744ba3c980c8b31582358313a53f5a2f72db`,
 reproduced by a second release build; wasm-smoke,
-tester-regression, boot-gate (33 assertions), browser E2E (zero
-console errors), and rebind lifecycle all green;
+tester-regression, boot-gate (33 assertions), browser E2E (278
+assertions, zero console errors), tester-audio (17 checks), and rebind
+lifecycle all green;
 `cargo fmt --all --check` clean; clippy reports only the pre-existing
 engine style lints. Native macOS and Windows speaker listening stays
 with the per-OS release sign-off; no claim here exceeds the executed
@@ -1679,4 +1686,43 @@ Linux synth and browser evidence.
   fmt --all --check` clean; wasm-smoke, tester-regression, boot-gate
   (33), and browser E2E (247, zero console errors) ALL GREEN. The
   committed wasm is unchanged (212,234 bytes, sha256 `8bf0b74b...`).
+  - the Fixer
+
+- 2026-10-22 (fixer, evaluator rejection round on `d37b38e5`): applied
+  all five blocking Quality Council findings. The Settings mixer is
+  three `.mix-row` grids (label, range, live percent output) instead of
+  one wrapping paragraph, with the slider handler and `syncSettingsUI`
+  keeping each percent current; the browser harness asserts all three
+  rows stay on one line with a visible label and value at 1920x1080,
+  1440x900, and 390x844. The unlock chip moved into the title card's
+  scroll region after the heading, and the 390x844 E2E now asserts its
+  rectangle is fully inside the viewport and hit-testable at its center.
+  The web master bus gained a `DynamicsCompressorNode` plus a soft-clip
+  `WaveShaperNode`, with `__mcRenderMixPeak` summing four loud recipes
+  at a 100/100 mix through the real chain (measured 0.719, under 1.0);
+  desktop gained `mix_limit_scale`, which ducks both buses by the
+  worst-case active source count, and an offline test sums four SFX,
+  a loop, and a sting at 100/100 (raw above 1.0, limited at or below
+  1.0). `docs/audio.md` now scopes "never clip" to a recipe and
+  documents the summed-output stage. `WebSession` queues `(code, chain)`
+  and `poll_cue` restores the snapshot, with a same-tick two-warden test
+  asserting 400 Hz then 3200 Hz instead of both resolving the last arm.
+  Docs were corrected to the actual evidence state: the parity header
+  and retirement note no longer claim every row is signed, the
+  scoreboard's native-proof paragraph names the sound row's deferred
+  macOS/Windows speaker review, the E2E README lists all six harnesses,
+  and Node 22+ is stated for the CDP harnesses. Totals refreshed to 594
+  tests across 63 targets, 278 browser assertions, wasm 212,438 bytes,
+  sha256 `5bcceec8356d8659d53405c593df744ba3c980c8b31582358313a53f5a2f72db`,
+  reproduced by a second build.
+  Delegation ledger: primary-only round (the five findings touched
+  shared web audio/session paths and the same harness files, so parallel
+  editors would have collided). Skills: no registry skill matched.
+  Verification: `cargo test --workspace --no-fail-fast` under Xvfb 594
+  passed / 0 failed across 63 targets; `maze-chase-verify` 19/19 (golden
+  `23c17f89734e`, `perf-headless` 0.2 us/tick release); `cargo fmt
+  --all --check` clean; clippy only the six pre-existing engine lints;
+  wasm-smoke, tester-regression, boot-gate (33), browser E2E (278, zero
+  console errors), tester-audio (17 checks), and rebind lifecycle ALL
+  GREEN; `node --check` clean.
   - the Fixer

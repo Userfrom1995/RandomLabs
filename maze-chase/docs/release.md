@@ -14,8 +14,8 @@ and the signed parity gate in [parity.md](parity.md).
 - Stable Rust 1.85 or newer (`rustc --version`). The workspace uses
   edition 2021 with no pinned nightly features.
 - For the browser build: `rustup target add wasm32-unknown-unknown`.
-- For the browser E2E: Node 18+ (no npm packages) plus a headless
-  chromium; serving uses `python3 -m http.server` (`python -m
+- For the browser E2E: Node 22+ (the CDP harnesses use the built-in
+  WebSocket; no npm packages) plus a headless chromium; serving uses `python3 -m http.server` (`python -m
   http.server` on Windows).
 - System libraries:
   - **Linux**: `sudo apt-get install libasound2-dev libudev-dev`
@@ -60,8 +60,8 @@ cp target/wasm32-unknown-unknown/release/maze_chase_web.wasm web/maze-chase.wasm
 The committed `web/maze-chase.wasm` is byte-reproducible from that
 exact command with the recorded toolchain (Rust 1.99.0, rustc commit
 `b940084d7eb6a299eb4bfeb8e34901bc051e7ac4`, which the artifact embeds;
-no `wasm-bindgen`, zero imports). It is 212,234 bytes with sha256
-`8bf0b74babe2259bdee6d551163a99b735ca75bf8a854ee5ff15a8443dfab1f1`,
+no `wasm-bindgen`, zero imports). It is 212,438 bytes with sha256
+`5bcceec8356d8659d53405c593df744ba3c980c8b31582358313a53f5a2f72db`,
 and a second clean build reproduces the same bytes. A different stable
 release may produce different bytes. The page gates on the bridge ABI
 version and fails loudly on the error card instead of misbehaving on a

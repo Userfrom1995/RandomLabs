@@ -1,13 +1,16 @@
 # #552 parity checklist
 
 What the Rust build had to prove before the #552 Python reference game
-(`pacman/`, issue #552) could be retired. Every row below is signed on
-real evidence: the simulation and layer rows from the in-repo verify
-and test suites, the per-layer E2E rows from native runs on Linux,
-macOS, and Windows. Retirement itself was a separate, explicit
-step that executed after this verified release landed: nothing in
-`pacman/` is touched by any build or packaging script here, and the
-Python game stayed functional through the whole migration.
+(`pacman/`, issue #552) could be retired. Every row below names its
+evidence: the simulation and layer rows are signed from the in-repo
+verify and test suites, the per-layer E2E rows record this tree's Linux
+runs plus the pre-Pondwake macOS and Windows runs (with fresh per-OS
+reruns tracked in the final sign-off), and the sound row records its
+remaining real-speaker review boundary explicitly instead of claiming
+it. Retirement itself was a separate, explicit step that executed after
+this verified release landed: nothing in `pacman/` is touched by any
+build or packaging script here, and the Python game stayed functional
+through the whole migration.
 
 Rule values below are feel references re-expressed as original Rust
 tables (`crates/engine/src/tuning.rs`) under the clean-room rules in
@@ -87,8 +90,9 @@ numbers sit in the dated sections of `scoreboard.md`.
 
 ## Retirement step
 
-- Every row is signed; the Maintainer's explicit retirement step
-  executed after this release merged: #552 was retired against this
-  checklist and the retirement was recorded in the issue.
+- Every row is signed or carries its explicit pending evidence
+  boundary; the Maintainer's explicit retirement step executed after
+  this release merged: #552 was retired against this checklist and the
+  retirement was recorded in the issue.
 - `pacman/` is untouched by this migration's scripts and PRs; the
   Python game kept working until the retirement decision executed.

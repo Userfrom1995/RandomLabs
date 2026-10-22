@@ -19,7 +19,9 @@
 //
 // Usage: node web/e2e/tester-regression.js [path-to-wasm]
 // Defaults to the shipped web/maze-chase.wasm. Exits nonzero on failure,
-// prints TESTER REGRESSION: ALL GREEN on success. Node 18+, no packages.
+// prints TESTER REGRESSION: ALL GREEN on success. Node 18+ for this
+// wasm-only harness (the CDP harnesses need Node 22+ for the built-in
+// WebSocket), no packages.
 const fs = require('fs');
 const path = require('path');
 
