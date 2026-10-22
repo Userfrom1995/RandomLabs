@@ -63,12 +63,18 @@ board on title, the frozen hunt on pause, the final board on game over.
 ## Audio
 
 Sound starts on the first click, keypress, or touch (browser autoplay
-policy; the harness unlocks the AudioContext on first gesture). Every
-cue the engine emits is synthesized from the audio crate's own data:
-SFX recipes (waveform plus frequency sweep plus length) per cue with
-pitch doubling per warden chain, and the five original tunes (title and
-fright loops plus death/clear/game-over stings) at the shared 132 BPM
-tempo. Master/music/SFX sliders and mute persist; if WebAudio is absent
+policy; the harness unlocks the AudioContext on the first gesture). A
+visible "Sound is asleep - tap to wake" chip sits below the canvas until
+the context is running and retires after that first gesture, so a
+blocked context is never silent without an affordance. Every cue the
+engine emits is synthesized from the audio crate's own data: layered
+SFX recipes (voice, start/end frequency, length, delay, gain, and crumb
+variation) with pitch doubling per warden chain, and the five original
+multi-track tunes (title and fright loops plus death/clear/game-over
+stings) at the shared 108 BPM tempo with swung eighths. Track lanes
+schedule the lead, counterline, and accents independently. Music
+defaults to 60 percent and SFX to 80 percent; gain changes fade over
+120 ms. Master/music/SFX sliders and mute persist; if WebAudio is absent
 the game plays silent with a note in the HUD.
 
 ## Settings and scores
@@ -155,12 +161,12 @@ cargo build --release --target wasm32-unknown-unknown -p maze-chase-web
 cp target/wasm32-unknown-unknown/release/maze_chase_web.wasm web/maze-chase.wasm
 ```
 
-The committed `web/maze-chase.wasm` is that exact artifact: 207,338
+The committed `web/maze-chase.wasm` is that exact artifact: 212,255
 bytes, sha256
-`022761a11a5dba4bd8b6831f301453e2dcdbddaa35f014ba83d16cf8f6fbfd1f`,
-built with Rust 1.99.1 (rustc commit
-`58cf8f9c35b355199727627d07ae34a4e2846d67`, embedded in the artifact);
+`cc7708fa24723cf511db2f854e814941309b9684eb194c3adeb9e8f6171926b8`,
+built with Rust 1.99.0 (rustc commit
+`b940084d7eb6a299eb4bfeb8e34901bc051e7ac4`, embedded in the artifact);
 a second clean build reproduces the same bytes, while a different
-stable release may not. The bridge ABI version (`mc_version() == 2`)
+stable release may not. The bridge ABI version (`mc_version() == 3`)
 gates the harness: mismatched pairs fail loudly on the error card
 instead of misbehaving.

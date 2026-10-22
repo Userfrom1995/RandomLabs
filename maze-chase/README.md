@@ -29,13 +29,13 @@ release, four extra mode rulesets, seeded streams, replay log, state
 hash, 19-row verify harness green). The identity system is original art
 and sound data with settings: 11x11 and 21x21 Rill plus 11x11 wardens with
 shape-distinct accents, fright masks, eye pairs, six relish icons,
-the three contrast-checked Pondwake themes, every engine event routed to an audio
-cue with five original tunes, and difficulty/keymap/persistence with
-honest engine presets. The terminal game (`crates/terminal`) plays the
+the three contrast-checked Pondwake themes, every engine event routed to a layered
+synthesized SFX bank plus five original multi-track tunes at a shared 108 BPM,
+and difficulty/keymap/persistence with honest engine presets. The terminal game (`crates/terminal`) plays the
 full hunt fullscreen: Kitty pixel graphics, Sixel pixels after a live
 probe, 24-bit and 16-color cell tiers with watchdog auto-degrade, live
 resize with magnification, title/help/scores/settings/rebind/pause
-surfaces, machine high scores, and BEL-plus-ticker sound. Install and
+surfaces, machine high scores, and opt-in BEL plus ticker sound. Install and
 launch details live in [docs/terminal.md](docs/terminal.md). The desktop
   game is covered in [docs/desktop.md](docs/desktop.md); the browser game
   plays from [play.html](play.html) and is covered in
@@ -71,7 +71,7 @@ and the parity gate in `docs/parity.md`.
   `crates/config`, done): original 11x11 and 21x21 sprite art with a
   shared legend and derived facings, animation clips and flash/bob
   timing, the three contrast-checked Pondwake themes, every engine event routed to
-  an audio cue with five original tunes and synthesized SFX recipes
+  every audio cue with layered synthesized SFX and five original multi-track tunes
   behind a backend-agnostic `Audio` trait, and difficulty presets
   (Cozy/Classic-from-L1, Standard/Classic-from-L2, Harsh/Sprint), keymap
   with duplicate-safe rebinds, and a human-readable settings file.
@@ -81,7 +81,7 @@ and the parity gate in `docs/parity.md`.
   a fullscreen canvas layout engine, magnification that fills the window,
   Kitty plus Sixel plus Unicode tiers with detection and auto-degrade
   watchdog, dynamic resize, title/help/scores/settings/key-rebind/pause
-  surfaces, machine high scores, and BEL-plus-ticker sound.
+  surfaces, machine high scores, and opt-in BEL plus ticker sound.
 - **Desktop game** (`crates/desktop`, done, [launch docs](docs/desktop.md)): windowed plus fullscreen
   GUI on the shared rasterizer core (the fixed 8-ppt reference raster;
   the terminal's bitmap tiers render the same art at the detected cell
@@ -98,7 +98,7 @@ and the parity gate in `docs/parity.md`.
   `cargo build --target wasm32-unknown-unknown`), canvas board at
   bitmap density with DPR-aware integer scaling, keyboard plus swipe
   plus d-pad with a remap screen, DOM title/help/scores/settings/pause
-  flows, WebAudio SFX plus the five tunes from the crate's own data
+  flows, WebAudio layered SFX plus the five multi-track tunes from the crate's own data
   with gesture unlock, localStorage scores and settings, and
   node plus headless-chromium E2E (`web/e2e/`).
 
@@ -123,6 +123,8 @@ and the parity gate in `docs/parity.md`.
   troubleshooting.
 - `docs/web.md` - browser install, launch, controls, canvas/audio,
   localStorage, reproducible `.wasm` builds, and troubleshooting.
+- `docs/audio.md` - the shared sound identity, score, mix defaults,
+  per-layer synthesis, and accessibility contract.
 - `docs/release.md` - reproducible build and release guide: toolchain,
   system libraries, layer builds, per-OS packaging matrix, and the
   clean-checkout release checklist.
@@ -161,7 +163,7 @@ escalated, never shipped on assumption.
   layout (`layout`), shared pixel raster plus Kitty/Sixel/Unicode tiers
   (`raster`, `kitty`, `sixel`, `unicode`, `backend` with watchdog),
   crossterm input mapping (`input`), machine high scores (`scores`),
-  BEL-plus-ticker audio (`chime`), menu/help/scores/settings/rebind
+  opt-in BEL chime plus ticker (`chime`), menu/help/scores/settings/rebind
   flows (`screens`, `chrome`), the session on the shared engine (`app`),
   and the `maze-chase-terminal` binary (`main`).
 - `crates/desktop` - the native desktop game: windowed/fullscreen GUI

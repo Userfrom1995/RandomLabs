@@ -18,6 +18,9 @@ One cohesive product view; no milestone counters or sprint references.
 - [Visual and interaction design](design.md) plus
   [design tokens](design-tokens.json): the glyph system, themes, motion,
   sound, and settings language every layer shares.
+- [Sound identity and mix](audio.md): the shared 108 BPM score, layered
+  SFX bank, default mix, live fades, per-layer synthesis, and the
+  accessibility twins for every cue.
 - [Terminal install and launch guide](terminal.md): install, controls,
   render tiers, layout, settings/scores files, and troubleshooting
   (`maze-chase-terminal`).

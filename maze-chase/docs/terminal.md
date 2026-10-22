@@ -212,7 +212,7 @@ Settings live in `~/.maze-chase/settings.txt` (human-readable
 `key = value`, shared with the other layers): difficulty (Cozy,
 Standard, Harsh: honest engine presets only), theme (dusk-pond,
 morning-shallows, moonwake; legacy ids migrate), master/music/SFX levels, mute,
-reduced flashing (holds the hollow warning mask instead of blinking),
+terminal chime (off by default), reduced flashing (holds the hollow warning mask instead of blinking),
 and the full keymap. High scores live in `~/.maze-chase/scores.txt`
 (top 10, `score | level | mode | date`); corrupt lines are skipped,
 never fatal. A path replaced with a FIFO is refused on read and write
@@ -222,12 +222,14 @@ files (per-machine arcade cabinets, shared accounts, testing).
 
 ## Sound in a terminal
 
-Terminals play no samples, so engine cues become terminal BELs for
-sharp beats (warden eaten, relish, death, extra life, level events)
-plus a status-line ticker narrating the run ("a relish ripens (worth
-500)", "the wardens flee!"). Volumes and mute are honored: muted or
-zero SFX means silence, while the ticker keeps narrating. Crumb ticks
-stay silent by design.
+Terminals play no samples. An opt-in BEL chime (off by default) marks
+sharp beats (warden eaten, relish, death, extra life, level events); the
+status-line ticker always narrates the run ("a relish ripens (worth
+500)", "the wardens flee!") and never depends on the chime. Volumes and
+mute are honored: muted or zero SFX means silence, while the ticker and
+the visual twins keep telling the story. Crumb ticks stay silent by
+design. Turning the chime on is a Settings row; the choice persists with
+the rest of the config.
 
 ## Troubleshooting
 
