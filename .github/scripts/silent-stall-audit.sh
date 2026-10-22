@@ -15983,7 +15983,7 @@ EXPECTED_TEST_STAGE_PROMPT_BLOCK_SHA256 = "e0c4b5fa07824eeafcaf75c946f0f60f0e12e
 # approval marker. The review workflow stages the reviewed prompt from the
 # workflow commit, and these constants pin the source content, the staging
 # body, and the agent scalar that points at the staged copy.
-EXPECTED_REVIEW_PROMPT_SHA256 = "21a831d8ad6716f7443b305419361bbe2d400d35d58c8f2aef3e11fed5b2c36e"
+EXPECTED_REVIEW_PROMPT_SHA256 = "76dae5c8157b6b78f8d5688d0953daeb3ac46b85f010b4210b4999ed7bdd1a5f"
 EXPECTED_REVIEW_STAGE_PROMPT_BLOCK_SHA256 = "5600d2d6e520998d4529fe347fa51fc2cfde81dba6c47afe612209aa4a2d7b45"
 EXPECTED_REVIEW_AGENT_PROMPT_SHA256 = "495a755789016f11c1a4654653a0481256d868bc33f7dcdcd695ce256b3b8c51"
 # Issue #713 review round 10: the round-9 test/review PR-head isolation was
