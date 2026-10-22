@@ -121,12 +121,11 @@ jobs:
 
       - name: "Stage lab helper scripts (issue #690)"
         run: |
-          mkdir -p "$RUNNER_TEMP/lab-scripts"
-          cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
-          chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
+          sudo install -d -o root -g root -m 0755 /opt/lab-scripts
+          sudo install -o root -g root -m 0755 .github/scripts/resolve-thread-target.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/classify-build-push.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/strip-trailers.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/approve-held-runs.sh /opt/lab-scripts/
 
       - name: Actor write gate (issue #428)
         id: actor_gate
@@ -202,7 +201,7 @@ jobs:
             exit 0
           fi
 
-          issue=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" thread) || {
+          issue=$(bash "/opt/lab-scripts/resolve-thread-target.sh" thread) || {
             echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
@@ -224,7 +223,7 @@ jobs:
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
-            parent=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || parent=""
+            parent=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || parent=""
             if [ -z "$parent" ]; then
               echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
               echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -269,7 +268,7 @@ jobs:
           # the newest open phase PR. On 2026-10-18 this forward resolved #685
           # (an in-test phase PR of #582) and the resulting /oc build bound a
           # fresh session to that PR's approved head.
-          target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {
+          target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {
             echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
             exit 1
           }
@@ -304,7 +303,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"
+          bash "/opt/lab-scripts/strip-trailers.sh"
 
   architect:
     if: |
@@ -333,12 +332,11 @@ jobs:
 
       - name: "Stage lab helper scripts (issue #690)"
         run: |
-          mkdir -p "$RUNNER_TEMP/lab-scripts"
-          cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
-          chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
+          sudo install -d -o root -g root -m 0755 /opt/lab-scripts
+          sudo install -o root -g root -m 0755 .github/scripts/resolve-thread-target.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/classify-build-push.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/strip-trailers.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/approve-held-runs.sh /opt/lab-scripts/
 
       - name: Actor write gate (issue #428)
         id: actor_gate
@@ -415,7 +413,7 @@ jobs:
             exit 0
           fi
 
-          issue=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" thread) || {
+          issue=$(bash "/opt/lab-scripts/resolve-thread-target.sh" thread) || {
             echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
@@ -437,7 +435,7 @@ jobs:
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
-            parent=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || parent=""
+            parent=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || parent=""
             if [ -z "$parent" ]; then
               echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
               echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -481,7 +479,7 @@ jobs:
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
-          target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {
+          target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {
             echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
             exit 1
           }
@@ -516,7 +514,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"
+          bash "/opt/lab-scripts/strip-trailers.sh"
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
@@ -537,7 +535,7 @@ jobs:
           # terminal repo-wide sweep that also clears runs held on intermediate
           # head SHAs, which head-scoped polling can never match again.
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
+            bash "/opt/lab-scripts/approve-held-runs.sh"
 
   build:
     if: |
@@ -585,12 +583,11 @@ jobs:
 
       - name: "Stage lab helper scripts (issue #690)"
         run: |
-          mkdir -p "$RUNNER_TEMP/lab-scripts"
-          cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
-          chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
+          sudo install -d -o root -g root -m 0755 /opt/lab-scripts
+          sudo install -o root -g root -m 0755 .github/scripts/resolve-thread-target.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/classify-build-push.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/strip-trailers.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/approve-held-runs.sh /opt/lab-scripts/
 
       - name: Actor write gate (issue #428)
         id: actor_gate
@@ -795,7 +792,7 @@ jobs:
               # moves the tip too, and treating it as this session's push ran
               # the post-push bookkeeping against work the build never made.
               if [ -n "$tip_now" ] && [ -n "$BASELINE_HEAD" ] && [ "$tip_now" != "$BASELINE_HEAD" ]; then
-                attribution=$(bash "$RUNNER_TEMP/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$target_branch" 2>/dev/null || true)
+                attribution=$(bash "/opt/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$target_branch" 2>/dev/null || true)
                 if [ "$attribution" = "own" ]; then
                   pushed="yes"
                   echo "Build pushed successfully: $target_branch moved $BASELINE_HEAD -> $tip_now (builder commit attributed)"
@@ -853,7 +850,7 @@ jobs:
             if [ -n "$tip_now" ] && [ "$tip_now" != "$BASELINE_HEAD" ]; then
               # Issue #690: attribute the move to a builder: commit; a foreign
               # push on the lost-PR branch is not this session's work either.
-              attribution=$(bash "$RUNNER_TEMP/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$BASELINE_BRANCH" 2>/dev/null || true)
+              attribution=$(bash "/opt/lab-scripts/classify-build-push.sh" "$BASELINE_HEAD" "$tip_now" "$BASELINE_BRANCH" 2>/dev/null || true)
               if [ "$attribution" = "own" ]; then
                 pushed="yes"
                 echo "Build pushed successfully: $BASELINE_BRANCH moved $BASELINE_HEAD -> $tip_now (builder commit attributed)"
@@ -1061,7 +1058,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"
+          bash "/opt/lab-scripts/strip-trailers.sh"
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
@@ -1082,7 +1079,7 @@ jobs:
           # terminal repo-wide sweep that also clears runs held on intermediate
           # head SHAs, which head-scoped polling can never match again.
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
+            bash "/opt/lab-scripts/approve-held-runs.sh"
 
   fix:
     if: |
@@ -1116,12 +1113,11 @@ jobs:
 
       - name: "Stage lab helper scripts (issue #690)"
         run: |
-          mkdir -p "$RUNNER_TEMP/lab-scripts"
-          cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
-          chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
+          sudo install -d -o root -g root -m 0755 /opt/lab-scripts
+          sudo install -o root -g root -m 0755 .github/scripts/resolve-thread-target.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/classify-build-push.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/strip-trailers.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/approve-held-runs.sh /opt/lab-scripts/
 
       - name: Actor write gate (issue #428)
         id: actor_gate
@@ -1278,7 +1274,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"
+          bash "/opt/lab-scripts/strip-trailers.sh"
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
@@ -1293,7 +1289,7 @@ jobs:
           # terminal repo-wide sweep that also clears runs held on intermediate
           # head SHAs, which head-scoped polling can never match again.
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
+            bash "/opt/lab-scripts/approve-held-runs.sh"
 
   design:
     if: |
@@ -1321,12 +1317,11 @@ jobs:
 
       - name: "Stage lab helper scripts (issue #690)"
         run: |
-          mkdir -p "$RUNNER_TEMP/lab-scripts"
-          cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
-          chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
+          sudo install -d -o root -g root -m 0755 /opt/lab-scripts
+          sudo install -o root -g root -m 0755 .github/scripts/resolve-thread-target.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/classify-build-push.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/strip-trailers.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/approve-held-runs.sh /opt/lab-scripts/
 
       - name: Actor write gate (issue #428)
         id: actor_gate
@@ -1389,7 +1384,7 @@ jobs:
             echo "Decision file present; design phase produced a handoff."
             exit 0
           fi
-          issue=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" thread) || {
+          issue=$(bash "/opt/lab-scripts/resolve-thread-target.sh" thread) || {
             echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
@@ -1408,7 +1403,7 @@ jobs:
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
-            parent=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || parent=""
+            parent=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || parent=""
             if [ -z "$parent" ]; then
               echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
               echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -1452,7 +1447,7 @@ jobs:
           # the newest open phase PR. This forward resolved #685 (an in-test
           # phase PR of #582) and posted /oc build there, binding a fresh build
           # session to the approved head.
-          target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {
+          target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {
             echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
             exit 1
           }
@@ -1487,7 +1482,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"
+          bash "/opt/lab-scripts/strip-trailers.sh"
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
@@ -1505,7 +1500,7 @@ jobs:
               --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
+            bash "/opt/lab-scripts/approve-held-runs.sh"
 
   design-ux:
     if: |
@@ -1527,12 +1522,11 @@ jobs:
 
       - name: "Stage lab helper scripts (issue #690)"
         run: |
-          mkdir -p "$RUNNER_TEMP/lab-scripts"
-          cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
-          chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
+          sudo install -d -o root -g root -m 0755 /opt/lab-scripts
+          sudo install -o root -g root -m 0755 .github/scripts/resolve-thread-target.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/classify-build-push.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/strip-trailers.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/approve-held-runs.sh /opt/lab-scripts/
 
       - name: Actor write gate (issue #428)
         id: actor_gate
@@ -1595,7 +1589,7 @@ jobs:
             echo "Decision file present; design-ux phase produced a handoff."
             exit 0
           fi
-          issue=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" thread) || {
+          issue=$(bash "/opt/lab-scripts/resolve-thread-target.sh" thread) || {
             echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
@@ -1614,7 +1608,7 @@ jobs:
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
-            parent=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || parent=""
+            parent=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || parent=""
             if [ -z "$parent" ]; then
               echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
               echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -1657,7 +1651,7 @@ jobs:
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
-          target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {
+          target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {
             echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
             exit 1
           }
@@ -1692,7 +1686,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"
+          bash "/opt/lab-scripts/strip-trailers.sh"
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
@@ -1710,7 +1704,7 @@ jobs:
               --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
+            bash "/opt/lab-scripts/approve-held-runs.sh"
 
   design-visual:
     if: |
@@ -1732,12 +1726,11 @@ jobs:
 
       - name: "Stage lab helper scripts (issue #690)"
         run: |
-          mkdir -p "$RUNNER_TEMP/lab-scripts"
-          cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
-          chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
+          sudo install -d -o root -g root -m 0755 /opt/lab-scripts
+          sudo install -o root -g root -m 0755 .github/scripts/resolve-thread-target.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/classify-build-push.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/strip-trailers.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/approve-held-runs.sh /opt/lab-scripts/
 
       - name: Actor write gate (issue #428)
         id: actor_gate
@@ -1800,7 +1793,7 @@ jobs:
             echo "Decision file present; design-visual phase produced a handoff."
             exit 0
           fi
-          issue=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" thread) || {
+          issue=$(bash "/opt/lab-scripts/resolve-thread-target.sh" thread) || {
             echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
@@ -1819,7 +1812,7 @@ jobs:
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
-            parent=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || parent=""
+            parent=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || parent=""
             if [ -z "$parent" ]; then
               echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
               echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -1862,7 +1855,7 @@ jobs:
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
-          target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {
+          target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {
             echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
             exit 1
           }
@@ -1897,7 +1890,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"
+          bash "/opt/lab-scripts/strip-trailers.sh"
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
@@ -1915,7 +1908,7 @@ jobs:
               --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
+            bash "/opt/lab-scripts/approve-held-runs.sh"
 
   design-motion:
     if: |
@@ -1937,12 +1930,11 @@ jobs:
 
       - name: "Stage lab helper scripts (issue #690)"
         run: |
-          mkdir -p "$RUNNER_TEMP/lab-scripts"
-          cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
-          chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
+          sudo install -d -o root -g root -m 0755 /opt/lab-scripts
+          sudo install -o root -g root -m 0755 .github/scripts/resolve-thread-target.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/classify-build-push.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/strip-trailers.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/approve-held-runs.sh /opt/lab-scripts/
 
       - name: Actor write gate (issue #428)
         id: actor_gate
@@ -2005,7 +1997,7 @@ jobs:
             echo "Decision file present; design-motion phase produced a handoff."
             exit 0
           fi
-          issue=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" thread) || {
+          issue=$(bash "/opt/lab-scripts/resolve-thread-target.sh" thread) || {
             echo "::error::Could not resolve the trigger thread; refusing to auto-retry."
             echo "handled=true" >> "$GITHUB_OUTPUT"
             exit 1
@@ -2024,7 +2016,7 @@ jobs:
               printf '%s' "$retries"
             }
             retries=$(count_retries "$issue")
-            parent=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || parent=""
+            parent=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || parent=""
             if [ -z "$parent" ]; then
               echo "::error::Could not resolve the logical parent issue of #$issue; refusing to auto-retry."
               echo "handled=true" >> "$GITHUB_OUTPUT"
@@ -2067,7 +2059,7 @@ jobs:
           # Issue #690: a phase forward targets the logical parent issue, never
           # the newest open phase PR (an in-test phase PR's head must not be
           # bound to a fresh build session).
-          target=$(bash "$RUNNER_TEMP/lab-scripts/resolve-thread-target.sh" parent) || {
+          target=$(bash "/opt/lab-scripts/resolve-thread-target.sh" parent) || {
             echo "::error::Could not resolve the forward target; refusing to post a mis-targeted trigger."
             exit 1
           }
@@ -2102,7 +2094,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"
+          bash "/opt/lab-scripts/strip-trailers.sh"
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
@@ -2120,7 +2112,7 @@ jobs:
               --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
+            bash "/opt/lab-scripts/approve-held-runs.sh"
 
   general:
     if: |
@@ -2194,12 +2186,11 @@ jobs:
 
       - name: "Stage lab helper scripts (issue #690)"
         run: |
-          mkdir -p "$RUNNER_TEMP/lab-scripts"
-          cp .github/scripts/resolve-thread-target.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/classify-build-push.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/strip-trailers.sh "$RUNNER_TEMP/lab-scripts/"
-          cp .github/scripts/approve-held-runs.sh "$RUNNER_TEMP/lab-scripts/"
-          chmod +x "$RUNNER_TEMP/lab-scripts/"*.sh
+          sudo install -d -o root -g root -m 0755 /opt/lab-scripts
+          sudo install -o root -g root -m 0755 .github/scripts/resolve-thread-target.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/classify-build-push.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/strip-trailers.sh /opt/lab-scripts/
+          sudo install -o root -g root -m 0755 .github/scripts/approve-held-runs.sh /opt/lab-scripts/
 
       - name: Actor write gate (issue #428)
         id: actor_gate
@@ -2282,7 +2273,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          bash "$RUNNER_TEMP/lab-scripts/strip-trailers.sh"
+          bash "/opt/lab-scripts/strip-trailers.sh"
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
@@ -2303,5 +2294,5 @@ jobs:
           # terminal repo-wide sweep that also clears runs held on intermediate
           # head SHAs, which head-scoped polling can never match again.
           APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
-            bash "$RUNNER_TEMP/lab-scripts/approve-held-runs.sh"
+            bash "/opt/lab-scripts/approve-held-runs.sh"
           exit 0

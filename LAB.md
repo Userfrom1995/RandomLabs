@@ -570,14 +570,15 @@ Public Surface / Web Track:                                              │
   exits 2, which the verify treats as no-push (`::warning::`, no recover
   tag), and the recover-tag step requires
   `steps.verify.outputs.pushed == 'true'`. Both helpers are staged from the
-  trusted default-branch checkout into `$RUNNER_TEMP/lab-scripts/` before
-  the agent starts, and every post-agent step invokes the staged copy: the
-  workspace copy may be absent on an in-flight branch predating this PR and
-  is agent-mutable; any run body outside the staging steps that names a
-  helper basename without the `$RUNNER_TEMP/lab-scripts/` prefix is
-  rejected in any spelling, and no non-staging step may write into the
-  directory (a copy verb or redirect there is rejected, so a reviewed extra
-  step can never glob-copy workspace helpers over the staged copies). The
+  trusted default-branch checkout into root-owned `/opt/lab-scripts/`
+  (installed with `sudo install -o root -g root -m 0755`) before the agent
+  starts, and every post-agent step invokes the staged copy: the workspace
+  copy may be absent on an in-flight branch predating this PR and is
+  agent-mutable; any run body outside the staging steps that names a helper
+  basename without the `/opt/lab-scripts/` prefix is rejected in any
+  spelling, and no non-staging step may write into the directory (a copy
+  verb or redirect there is rejected, so a reviewed extra step can never
+  glob-copy workspace helpers over the staged copies). The
   build baseline fails loudly on a nonzero `gh` or `git` status
   (capture-first, so a failed `ls-remote` is never swallowed as "branch
   absent"; an empty branch means only a successful no-PR query), the
