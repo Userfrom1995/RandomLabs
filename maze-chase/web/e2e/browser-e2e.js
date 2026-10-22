@@ -151,15 +151,23 @@ async function shot(ws, path) {
   assert(peakBad.length === 0,
     'web tunes are normalized to the 0.32 music ceiling, got: ' + JSON.stringify(tunePeaks));
   // Offline SFX render through the real playSfx envelope: the loudest
-  // layered recipes (relish, spare wick, sprint) must reach the 0.50 ceiling.
+  // layered recipes (warden, relish, spare wick, sprint) must reach the
+  // 0.50 ceiling, and every warden chain pitch must re-normalize per play
+  // instead of reusing an earlier chain's gain.
   const sfxPeaks = await evalJs(ws, `(async () => {
     const peaks = [];
-    for (const cue of [6, 10, 14]) peaks.push(await window.__mcRenderSfxPeak(cue, 3));
+    for (const cue of [4, 6, 10, 14]) peaks.push(await window.__mcRenderSfxPeak(cue, 3));
+    for (const pitch of [2, 4, 8]) peaks.push(await window.__mcRenderSfxPeak(4, 3, pitch));
     return peaks;
   })()`);
-  const sfxBad = sfxPeaks.filter((p) => !(p >= 0.498) || p > 0.5001);
-  assert(sfxBad.length === 0,
-    'web SFX recipes normalize to the 0.50 SFX ceiling, got: ' + JSON.stringify(sfxPeaks));
+  const recipePeaks = sfxPeaks.slice(0, 4);
+  const chainPeaks = sfxPeaks.slice(4);
+  const recipeBad = recipePeaks.filter((p) => !(p >= 0.49) || p > 0.5001);
+  assert(recipeBad.length === 0,
+    'web SFX recipes normalize to the 0.50 SFX ceiling, got: ' + JSON.stringify(recipePeaks));
+  const chainBad = chainPeaks.filter((p) => !(p >= 0.45) || p > 0.5001);
+  assert(chainBad.length === 0,
+    'every warden chain pitch re-normalizes under the 0.50 SFX ceiling, got: ' + JSON.stringify(chainPeaks));
   // Keyboard focus contract: ArrowDown moves off Start, and P/Esc/M keep
   // working from a focused panel action (round-23 review).
   await evalJs(ws, `document.getElementById('btn-start').focus()`);
@@ -374,13 +382,21 @@ async function shot(ws, path) {
   const muteBefore = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyM', key: 'm' });
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyM', key: 'm' });
-  await sleep(500);
+  await sleep(80);
+  const muteCueGain = await evalJs(ws, `window.__mcMuteCueTarget`);
+  assert(muteCueGain === 0,
+    'muting settles the target gain before the confirmation cue, got: ' + muteCueGain);
+  await sleep(420);
   const muteAfter = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
   assert(muteAfter !== muteBefore,
     'M toggles mute from the focused pause action, got: ' + muteBefore + ' -> ' + muteAfter);
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'KeyM', key: 'm' });
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', code: 'KeyM', key: 'm' });
-  await sleep(500);
+  await sleep(80);
+  const unmuteCueGain = await evalJs(ws, `window.__mcMuteCueTarget`);
+  assert(unmuteCueGain > 0.01,
+    'unmuting settles the saved master before the confirmation cue, got: ' + unmuteCueGain);
+  await sleep(420);
   const muteRestored = await evalJs(ws, `document.getElementById('btn-mute').textContent`);
   assert(muteRestored === muteBefore, 'M toggles mute back, got: ' + muteRestored);
   await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', code: 'Escape', key: 'Escape', windowsVirtualKeyCode: 27 });
