@@ -22,13 +22,15 @@ jobs:
     timeout-minutes: 120
     permissions:
       contents: read
-      pull-requests: read
       # Issue #743: `opencode github run` reacts to the triggering comment and
-      # posts its session summary at exit, so the agent's job token needs
-      # issues: write or the session dies at bootstrap with HTTP 403. The
-      # Reviewer still cannot move a branch (contents: read), and every
-      # verdict publication stays in the owner-PAT step below, so a PR still
-      # cannot forge a signed review.
+      # posts its session summary at exit. On a PR thread both bootstrap calls
+      # are authorized under pull requests: review runs 39843594629 and
+      # 39843603743 carried issues: write plus pull-requests: read and were
+      # rejected 403 at the reaction and the summary POST. The Reviewer still
+      # cannot move a branch or merge a PR (contents: read; merging requires
+      # Contents write), and every verdict publication stays in the owner-PAT
+      # step below, so a PR still cannot forge a signed review.
+      pull-requests: write
       issues: write
     steps:
       - name: Get PR info

@@ -6,12 +6,14 @@ on:
 
 permissions:
   contents: write
-  pull-requests: read
   # Issue #743: `opencode github run` reacts to the triggering comment and
-  # posts its session summary at exit, so the agent's job token needs
-  # issues: write or the session dies at bootstrap with HTTP 403. Each per-OS
-  # verdict still publishes only through the hardcoded owner-PAT step, so a
-  # PR cannot forge a signed findings comment.
+  # posts its session summary at exit. On a PR thread both bootstrap calls are
+  # authorized under pull requests: review runs 39843594629 and 39843603743
+  # carried issues: write plus pull-requests: read and were rejected 403 at
+  # the reaction and the summary POST. Each per-OS verdict still publishes only
+  # through the hardcoded owner-PAT step, so a PR cannot forge a signed
+  # findings comment.
+  pull-requests: write
   issues: write
 
 concurrency:
