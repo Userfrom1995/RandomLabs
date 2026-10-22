@@ -117,6 +117,12 @@ async function shot(ws, path) {
   assert(titleZones[0] === true, 'title card carries the selected-item description strip');
   assert(titleZones[1] === true, 'title card carries the warden legend');
   assert(titleZones[2] === true, 'title card carries the goal line');
+  const chip = await evalJs(ws, `(() => {
+    const b = document.getElementById('btn-audio');
+    return b ? [b.hidden, b.tagName, b.textContent.trim()] : null;
+  })()`);
+  assert(chip && chip[0] === false && chip[1] === 'BUTTON' && /tap to wake/i.test(chip[2]),
+    'audio unlock chip is visible before the first gesture, got: ' + JSON.stringify(chip));
   // Keyboard focus contract: boot auto-focuses Start, ArrowDown moves off it,
   // and P/Esc/M keep working from a focused panel action (round-23 review).
   const bootFocus = await evalJs(ws, `document.activeElement && document.activeElement.id`);
@@ -128,6 +134,10 @@ async function shot(ws, path) {
   assert(focusMoved !== 'btn-start' && focusMoved !== '',
     'ArrowDown moves focus off the auto-focused Start, got: ' + focusMoved);
   await evalJs(ws, `document.getElementById('btn-start').focus()`);
+  await evalJs(ws, `document.getElementById('btn-audio').click()`);
+  await sleep(500);
+  const chipHidden = await evalJs(ws, `document.getElementById('btn-audio').hidden`);
+  assert(chipHidden === true, 'audio unlock chip retires once the context is awake');
   await send(ws, 'Page.bringToFront');
   const descSwitches = await evalJs(ws, `(() => {
     document.getElementById('btn-title-help').focus();
@@ -362,6 +372,24 @@ async function shot(ws, path) {
   await sleep(2500);
   await evalJs(ws, `document.getElementById('btn-title-settings').click()`);
   await sleep(300);
+  const audioDefaults = await evalJs(ws, `[
+    Number(document.getElementById('rng-master').value),
+    Number(document.getElementById('rng-music').value),
+    Number(document.getElementById('rng-sfx').value),
+  ]`);
+  assert(audioDefaults[0] === 80 && audioDefaults[1] === 60 && audioDefaults[2] === 80,
+    'settings expose the documented 80/60/80 master/music/SFX defaults, got: ' + JSON.stringify(audioDefaults));
+  await evalJs(ws, `(() => {
+    const m = document.getElementById('rng-music');
+    const s = document.getElementById('rng-sfx');
+    m.value = 35; m.dispatchEvent(new Event('input', { bubbles: true }));
+    s.value = 45; s.dispatchEvent(new Event('input', { bubbles: true }));
+  })()`);
+  await sleep(300);
+  const audioBlob = await evalJs(ws, `localStorage.getItem('maze-chase-settings')`);
+  const audioText = audioBlob ? Buffer.from(audioBlob, 'base64').toString('utf8') : '';
+  assert(/^music = 0\.35$/m.test(audioText), 'music volume persists, got: ' + JSON.stringify(audioText.split('\n').filter((l) => l.startsWith('music'))));
+  assert(/^sfx = 0\.45$/m.test(audioText), 'SFX volume persists, got: ' + JSON.stringify(audioText.split('\n').filter((l) => l.startsWith('sfx'))));
   // An unmapped key (F1) during rebind capture must cancel the Rust capture
   // too, or the next key (M) is swallowed by the stale capture (round 29).
   await evalJs(ws, `document.querySelectorAll('#rebind-list button')[4].click()`);

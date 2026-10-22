@@ -62,6 +62,11 @@ const NAMES = [
   'mc_score_count', 'mc_score_get_score', 'mc_score_get_level',
   'mc_score_get_name', 'mc_can_add_score', 'mc_score_add',
   'mc_scores_clear', 'mc_scores_push',
+  'mc_poll_cue', 'mc_poll_music', 'mc_cue_is_music', 'mc_cue_tune', 'mc_last_chain',
+  'mc_muted', 'mc_master', 'mc_music', 'mc_sfx', 'mc_set_master', 'mc_set_music',
+  'mc_set_sfx', 'mc_sfx_wave', 'mc_sfx_from', 'mc_sfx_to', 'mc_sfx_ms',
+  'mc_sfx_tone_count', 'mc_sfx_tone_field', 'mc_tune_len', 'mc_tune_midi',
+  'mc_tune_beats', 'mc_tune_looped', 'mc_tune_bpm', 'mc_tune_meta', 'mc_fade_ms',
 ];
 
 function staleWasmB64(version, opts) {
@@ -107,6 +112,7 @@ const staleV2NoDifficulty = staleWasmB64(2, { omit: 'mc_difficulty' });
 const staleV2NoDotsTotal = staleWasmB64(2, { omit: 'mc_dots_total' });
 const staleV2NoShowFps = staleWasmB64(2, { omit: 'mc_show_fps' });
 const staleV2NoSetShowFps = staleWasmB64(2, { omit: 'mc_set_show_fps' });
+const staleV3NoTone = staleWasmB64(3, { omit: 'mc_sfx_tone_count' });
 
 (async () => {
   const listRes = await fetch(`http://localhost:${DEBUG_PORT}/json/list`).then((r) => r.json());
@@ -131,6 +137,7 @@ const staleV2NoSetShowFps = staleWasmB64(2, { omit: 'mc_set_show_fps' });
         'dots-total': '${staleV2NoDotsTotal}',
         'show-fps': '${staleV2NoShowFps}',
         'set-show-fps': '${staleV2NoSetShowFps}',
+        'audio-tones': '${staleV3NoTone}',
       };
       const b64 = modules[mode] || '${staleV1NoFright}';
       const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -191,10 +198,10 @@ const staleV2NoSetShowFps = staleWasmB64(2, { omit: 'mc_set_show_fps' });
   assert(state.hits >= 1, 'the version-1 module was actually fetched');
   assert(state.cardVisible, 'version skew reaches the error card');
   assert(state.reason ===
-    'Could not load the game engine (version mismatch: wasm=1 harness=2).',
+    'Could not load the game engine (version mismatch: wasm=1 harness=3).',
     'the error names both versions, got: ' + state.reason);
 
-  // An ABI-2 module missing one first-HUD or accessibility export must fail
+  // An ABI-3 module missing one first-HUD or accessibility export must fail
   // the boot gate instead of reaching Ready with a silently frozen HUD.
   const groupCases = [
     ['hud-flash', 'mc_fright_flash'],
@@ -204,6 +211,7 @@ const staleV2NoSetShowFps = staleWasmB64(2, { omit: 'mc_set_show_fps' });
     ['dots-total', 'mc_dots_total'],
     ['show-fps', 'mc_show_fps'],
     ['set-show-fps', 'mc_set_show_fps'],
+    ['audio-tones', 'mc_sfx_tone_count'],
   ];
   for (const [mode, exportName] of groupCases) {
     const url = new URL(PAGE);

@@ -38,7 +38,7 @@
  *   `python -m http.server` on Windows, in maze-chase/).
  */
 (function () {
-  var EXPECT_VERSION = 2;
+  var EXPECT_VERSION = 3;
   var NO_CHANGE = 0xFFFFFFFF;
 
   // Key id table: e.code -> mc_key id.
@@ -157,7 +157,13 @@
           'mc_show_fps', 'mc_set_show_fps', 'mc_settings_len', 'mc_settings_read',
           'mc_settings_write', 'mc_score_count', 'mc_score_get_score',
           'mc_score_get_level', 'mc_score_get_name', 'mc_can_add_score',
-          'mc_score_add', 'mc_scores_clear', 'mc_scores_push', 'memory'];
+          'mc_score_add', 'mc_scores_clear', 'mc_scores_push',
+          'mc_poll_cue', 'mc_poll_music', 'mc_cue_is_music', 'mc_cue_tune', 'mc_last_chain',
+          'mc_muted', 'mc_master', 'mc_music', 'mc_sfx', 'mc_set_master', 'mc_set_music',
+          'mc_set_sfx', 'mc_sfx_wave', 'mc_sfx_from', 'mc_sfx_to', 'mc_sfx_ms',
+          'mc_sfx_tone_count', 'mc_sfx_tone_field', 'mc_tune_len', 'mc_tune_midi',
+          'mc_tune_beats', 'mc_tune_looped', 'mc_tune_bpm', 'mc_tune_meta', 'mc_fade_ms',
+          'memory'];
         for (var i = 0; i < need.length; i++) {
           if (typeof exp[need[i]] === 'undefined') throw new Error('missing export: ' + need[i]);
         }
@@ -428,6 +434,7 @@
       var muted = (exp.mc_muted() >>> 0) !== 0;
       txt('btn-mute', muted ? 'Unmute' : 'Mute');
       applyVolumes();
+      updateAudioChip();
       // Settings labels follow Rust (single source of truth).
       var th = exp.mc_theme() >>> 0, thc = exp.mc_theme_count() >>> 0;
       var hc = exp.mc_high_contrast() >>> 0;
@@ -464,15 +471,30 @@
   }
 
   // ---------- audio ----------
-  var AC = null, gMaster = null, gMusic = null, gSfx = null, noiseBuf = null;
+  var AC = null, gMaster = null, gMusic = null, gSfx = null;
   var tuneTimer = null, tuneJob = null;
 
+  function updateAudioChip() {
+    var chip = $('btn-audio');
+    if (!chip) return;
+    var supported = !!(window.AudioContext || window.webkitAudioContext);
+    var asleep = !AC || AC.state !== 'running';
+    chip.hidden = !supported || !asleep;
+  }
+
   function unlockAudio() {
-    if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
+    if (AC) {
+      if (AC.state === 'suspended') {
+        try { AC.resume().then(updateAudioChip, updateAudioChip); } catch (e) { /* ignore */ }
+      }
+      updateAudioChip();
+      return;
+    }
     var Ctor = window.AudioContext || window.webkitAudioContext;
     if (!Ctor) {
       var note = $('audio-note');
       if (note) note.hidden = false;
+      updateAudioChip();
       return;
     }
     try {
@@ -480,6 +502,7 @@
     } catch (e) {
       var n2 = $('audio-note');
       if (n2) n2.hidden = false;
+      updateAudioChip();
       return;
     }
     gMaster = AC.createGain();
@@ -488,110 +511,180 @@
     gMusic.connect(gMaster);
     gSfx.connect(gMaster);
     gMaster.connect(AC.destination);
-    noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
-    var d = noiseBuf.getChannelData(0);
-    for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     applyVolumes();
+    try { AC.resume().then(updateAudioChip, updateAudioChip); } catch (e) { /* ignore */ }
+    updateAudioChip();
+  }
+
+  var crumbTick = 0;
+
+  function fadeSeconds() {
+    try {
+      var ms = exp.mc_fade_ms() >>> 0;
+      if (ms > 0 && ms < 2000) return ms / 1000;
+    } catch (e) { /* fall through */ }
+    return 0.12;
+  }
+
+  function rampParam(param, target, secs) {
+    var t = AC.currentTime;
+    var from = param.value;
+    if (Math.abs(from - target) < 0.002) {
+      param.setValueAtTime(target, t);
+      return;
+    }
+    param.cancelScheduledValues(t);
+    param.setValueAtTime(from, t);
+    param.linearRampToValueAtTime(target, t + Math.max(0.01, secs));
   }
 
   function applyVolumes() {
     if (!AC || !exp) return;
     try {
       var muted = (exp.mc_muted() >>> 0) !== 0;
-      gMaster.gain.value = muted ? 0 : exp.mc_master();
-      gMusic.gain.value = exp.mc_music();
-      gSfx.gain.value = exp.mc_sfx();
+      var fade = fadeSeconds();
+      rampParam(gMaster.gain, muted ? 0 : exp.mc_master(), fade);
+      rampParam(gMusic.gain, exp.mc_music(), fade);
+      rampParam(gSfx.gain, exp.mc_sfx(), fade);
     } catch (e) { /* ignore */ }
   }
 
   function midiHz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
 
-  function playSfx(cue) {
-    if (!AC) return;
-    var wave;
-    try { wave = exp.mc_sfx_wave(cue) >>> 0; } catch (e) { return; }
-    if (wave === NO_CHANGE) return; // cue has no SFX component.
-    var f0, f1, ms;
-    try {
-      f0 = exp.mc_sfx_from(cue);
-      f1 = exp.mc_sfx_to(cue);
-      ms = exp.mc_sfx_ms(cue) >>> 0;
-    } catch (e) { return; }
-    if (!(ms > 0)) return;
-    var t = AC.currentTime, dur = ms / 1000;
-    var g = AC.createGain();
-    g.gain.setValueAtTime(0.6, t);
-    g.gain.linearRampToValueAtTime(0.0001, t + dur);
-    g.connect(gSfx);
-    var src;
-    if (wave === 3) {
-      src = AC.createBufferSource();
-      src.buffer = noiseBuf;
-      src.loop = true;
-    } else {
-      src = AC.createOscillator();
-      src.type = wave === 0 ? 'square' : wave === 1 ? 'triangle' : 'sine';
-      src.frequency.setValueAtTime(Math.max(20, f0), t);
-      src.frequency.linearRampToValueAtTime(Math.max(20, f1), t + dur);
+  function voiceParams(voice) {
+    switch (voice) {
+      case 1: return { type: 'sine', ratio: 2.00, mix: 0.10, attack: 0.003, decay: 7.0 };
+      case 2: return { type: 'triangle', ratio: 2.00, mix: 0.18, attack: 0.030, decay: 2.2 };
+      case 3: return { type: 'sawtooth', ratio: 0.50, mix: 0.28, attack: 0.080, decay: 1.2 };
+      case 4: return { type: 'sine', ratio: 2.01, mix: 0.26, attack: 0.005, decay: 4.0 };
+      case 5: return { type: 'sine', ratio: 2.76, mix: 0.24, attack: 0.006, decay: 2.6 };
+      case 6: return { type: 'triangle', ratio: 0.00, mix: 0.00, attack: 0.004, decay: 5.0 };
+      default: return { type: 'triangle', ratio: 2.00, mix: 0.20, attack: 0.004, decay: 5.0 };
     }
-    src.connect(g);
-    try { src.start(t); src.stop(t + dur + 0.02); } catch (e) { /* ignore */ }
   }
 
-  function scheduleNote(midi, t, dur) {
-    var o = AC.createOscillator();
-    o.type = 'triangle';
-    o.frequency.value = midiHz(midi);
+  function playVoice(voice, f0, f1, t, dur, gain, dest) {
+    var p = voiceParams(voice);
+    var attack = Math.min(p.attack, dur * 0.4);
     var g = AC.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.5, t + 0.015);
-    g.gain.linearRampToValueAtTime(0.0001, t + Math.max(0.05, dur * 0.95));
+    g.gain.linearRampToValueAtTime(Math.max(0.0002, gain), t + Math.max(0.002, attack));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.02, dur));
+    g.connect(dest);
+    var o = AC.createOscillator();
+    o.type = p.type;
+    o.frequency.setValueAtTime(Math.max(20, f0), t);
+    o.frequency.linearRampToValueAtTime(Math.max(20, f1), t + Math.max(0.01, dur));
     o.connect(g);
-    g.connect(gMusic);
-    try { o.start(t); o.stop(t + dur); } catch (e) { /* ignore */ }
+    try { o.start(t); o.stop(t + dur + 0.02); } catch (e) { /* ignore */ }
+    if (p.ratio > 0 && p.mix > 0) {
+      var h = AC.createGain();
+      h.gain.setValueAtTime(0.0001, t);
+      h.gain.linearRampToValueAtTime(Math.max(0.0002, gain * p.mix), t + Math.max(0.002, attack));
+      h.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.02, dur));
+      h.connect(dest);
+      var ho = AC.createOscillator();
+      ho.type = 'sine';
+      ho.frequency.setValueAtTime(Math.max(20, f0 * p.ratio), t);
+      ho.frequency.linearRampToValueAtTime(Math.max(20, f1 * p.ratio), t + Math.max(0.01, dur));
+      ho.connect(h);
+      try { ho.start(t); ho.stop(t + dur + 0.02); } catch (e) { /* ignore */ }
+    }
   }
 
-  function pumpTune() {
-    if (!tuneJob || !AC) return;
-    var bpm = 132;
+  function playSfx(cue) {
+    if (!AC) return;
+    var count = 0;
+    try { count = exp.mc_sfx_tone_count(cue) >>> 0; } catch (e) { return; }
+    if (!count) return; // cue has no SFX component.
+    var t0 = AC.currentTime + 0.005;
+    var variation = 0;
+    try { variation = exp.mc_sfx_tone_field(cue, 0, 6) || 0; } catch (e) { /* ignore */ }
+    crumbTick++;
+    var pitch = variation > 0 ? 1 + ((crumbTick % 5) - 2) * variation : 1;
+    for (var i = 0; i < count; i++) {
+      var voice, f0, f1, ms, delay, gain;
+      try {
+        voice = exp.mc_sfx_tone_field(cue, i, 7) >>> 0;
+        f0 = exp.mc_sfx_tone_field(cue, i, 1) * pitch;
+        f1 = exp.mc_sfx_tone_field(cue, i, 2) * pitch;
+        ms = exp.mc_sfx_tone_field(cue, i, 3) >>> 0;
+        delay = exp.mc_sfx_tone_field(cue, i, 4) >>> 0;
+        gain = exp.mc_sfx_tone_field(cue, i, 5) * 0.5;
+      } catch (e) { return; }
+      if (!(ms > 0) || !(gain > 0)) continue;
+      playVoice(voice, f0, f1, t0 + delay / 1000, ms / 1000, gain, gSfx);
+    }
+  }
+
+  function scheduleNote(midi, t, dur, voice, velocity) {
+    playVoice(voice, midiHz(midi), midiHz(midi), t, dur, velocity, gMusic);
+  }
+
+  function tuneBpm() {
     try {
       var b = exp.mc_tune_bpm();
-      if (b > 0 && b < 400) bpm = b;
-    } catch (e) { /* default 132 */ }
-    var beatSec = 60 / bpm;
-    var horizon = AC.currentTime + 0.3;
-    var guard = 0;
-    while (tuneJob.nextT < horizon && guard++ < 64) {
-      var len = 0;
-      try { len = exp.mc_tune_len(tuneJob.id) >>> 0; } catch (e) { stopTune(); return; }
-      if (tuneJob.idx >= len) {
-        var looped = false;
-        try { looped = (exp.mc_tune_looped(tuneJob.id) >>> 0) !== 0; } catch (e) { /* ignore */ }
-        if (looped && tuneJob.loop) { tuneJob.idx = 0; continue; }
-        stopTune();
-        return;
-      }
-      var midi = 69, beats = 1;
+      if (b > 0 && b < 400) return b;
+    } catch (e) { /* fall through */ }
+    return 108;
+  }
+
+  function scheduleTuneIteration(job, t0) {
+    var len = 0;
+    try { len = exp.mc_tune_len(job.id) >>> 0; } catch (e) { return t0 + 0.1; }
+    var beatSec = 60 / tuneBpm();
+    var cursors = [0, 0, 0, 0];
+    var end = t0;
+    for (var i = 0; i < len; i++) {
+      var midi = 0, beats = 0, track = 0, voice = 0, velocity = 0;
       try {
-        midi = exp.mc_tune_midi(tuneJob.id, tuneJob.idx) >>> 0;
-        beats = exp.mc_tune_beats(tuneJob.id, tuneJob.idx);
-      } catch (e) { stopTune(); return; }
-      if (!(beats > 0)) beats = 1;
-      scheduleNote(midi, tuneJob.nextT, beats * beatSec);
-      tuneJob.nextT += beats * beatSec;
-      tuneJob.idx++;
+        midi = exp.mc_tune_midi(job.id, i) >>> 0;
+        beats = exp.mc_tune_beats(job.id, i);
+        track = exp.mc_tune_meta(job.id, i, 1) >>> 0;
+        voice = exp.mc_tune_meta(job.id, i, 0) >>> 0;
+        velocity = exp.mc_tune_meta(job.id, i, 2);
+      } catch (e) { return t0 + 0.1; }
+      if (!(beats > 0)) beats = 0.5;
+      if (track > 3) track = 3;
+      var dur = beats * beatSec;
+      if (midi > 0 && velocity > 0) scheduleNote(midi, t0 + cursors[track], dur, voice, velocity);
+      cursors[track] += dur;
+      if (t0 + cursors[track] > end) end = t0 + cursors[track];
+    }
+    return end;
+  }
+
+  function pumpTuneJob(job) {
+    if (!tuneJob || tuneJob !== job || !AC) return;
+    var horizon = AC.currentTime + 0.5;
+    while (job.nextIter < horizon) {
+      var end = scheduleTuneIteration(job, job.nextIter);
+      job.nextIter = end;
+      if (!job.loop) break;
+    }
+    if (job.loop) {
+      var wait = Math.max(50, (job.nextIter - AC.currentTime - 0.25) * 1000);
+      job.timer = setTimeout(function () { pumpTuneJob(job); }, wait);
+    } else {
+      var stopIn = Math.max(50, (job.nextIter - AC.currentTime + 0.12) * 1000);
+      job.timer = setTimeout(function () {
+        if (tuneJob === job) tuneJob = null;
+      }, stopIn);
     }
   }
 
   function startTune(id, loop) {
     if (!AC) return;
     stopTune();
-    tuneJob = { id: id, idx: 0, nextT: AC.currentTime + 0.06, loop: !!loop };
-    tuneTimer = setInterval(pumpTune, 80);
-    pumpTune();
+    var dataLoop = false;
+    try { dataLoop = (exp.mc_tune_looped(id) >>> 0) !== 0; } catch (e) { /* ignore */ }
+    var job = { id: id, loop: !!loop && dataLoop, nextIter: AC.currentTime + 0.06, timer: null };
+    tuneJob = job;
+    pumpTuneJob(job);
   }
   function stopTune() {
-    if (tuneTimer) { clearInterval(tuneTimer); tuneTimer = null; }
+    if (tuneTimer) { clearTimeout(tuneTimer); tuneTimer = null; }
+    if (tuneJob && tuneJob.timer) clearTimeout(tuneJob.timer);
     tuneJob = null;
   }
 
@@ -838,6 +931,8 @@
       try { new ResizeObserver(syncHeaderHeight).observe(header); } catch (e) { /* ignore */ }
     }
 
+    var audioChip = $('btn-audio');
+    if (audioChip) audioChip.addEventListener('click', unlockAudio);
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', onKeyUp);
     ['click', 'touchstart'].forEach(function (ev) {
