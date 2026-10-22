@@ -412,7 +412,13 @@ jobs:
           # posted with the owner PAT and carries no /oc prefix: approve-eval is
           # a decision action, never a trigger. Owner authorship is the trust
           # anchor (issue #713 review round 13): the evaluator agent holds only
-          # the read-only App token, so PR-controlled code cannot forge it.
+          # the read-only App token, so PR-controlled code cannot post a
+          # comment as the repository owner. Residual (issue #713 round 17):
+          # the evaluator's decision and evidence files live on the agent's
+          # writable /tmp, so PR-controlled subprocesses can overwrite them
+          # after the evaluator's final write; the run nonce binds them to this
+          # run's trusted start but does not provide execution isolation. This
+          # gate is only as strong as the agent's execution isolation.
           echo "ok=false" >> "$GITHUB_OUTPUT"
           if [ ! -f /tmp/evaluator-decision.json ]; then
             echo "No evaluator decision file; nothing to publish."
@@ -459,19 +465,19 @@ jobs:
             echo "::error::A newer eval trigger (${latest_trigger:-unknown}) exists since this run started; refusing to publish a stale eval verdict (issue #713)."
             exit 1
           fi
-          publisher="${RUNNER_TEMP:-/tmp}/publish-eval-marker.sh"
-          rm -f "$publisher"
+          # Issue #713 round 17: execute the trusted workflow-commit publisher
+          # from memory through a pipe; never stage it in an agent-writable
+          # path that a background process could replace before this
+          # owner-PAT step runs it.
           if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-eval-marker.sh" 2>/dev/null; then
             git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
           fi
-          if git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-eval-marker.sh" 2>/dev/null; then
-            git show "${GITHUB_SHA}:.github/scripts/publish-eval-marker.sh" > "$publisher" 2>/dev/null || rm -f "$publisher"
-          fi
-          if [ ! -s "$publisher" ]; then
+          publisher=$(git show "${GITHUB_SHA}:.github/scripts/publish-eval-marker.sh" 2>/dev/null) || publisher=""
+          if [ -z "$publisher" ]; then
             echo "::error::Eval marker publisher absent from workflow commit ${GITHUB_SHA}; refusing to hand an unverified verdict to the merge sweep (issue #713, fail closed)."
             exit 1
           fi
-          if ! bash "$publisher" "$pr" "$score" "$eval_sha" "$trigger"; then
+          if ! printf '%s' "$publisher" | bash -s -- "$pr" "$score" "$eval_sha" "$trigger"; then
             echo "::error::Eval approval marker publication failed; the PAT merge sweep would never recognize this verdict (issue #713). Failing closed."
             exit 1
           fi

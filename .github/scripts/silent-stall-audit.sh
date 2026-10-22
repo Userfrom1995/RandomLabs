@@ -4557,7 +4557,7 @@ else
     if printf '%s\n' "$r17_block" | grep -qF 'nothing to restore'; then
       r17_bad="${r17_bad} arm-${r17_os}(trusts-present-head-copy)"
     fi
-    printf '%s\n' "$r17_block" | grep -qE '^          bash "\$poster" '"${r17_os}"' "\$TARGET"$' || r17_bad="${r17_bad} arm-${r17_os}(no-shared-post-step)"
+    printf '%s\n' "$r17_block" | grep -qF "printf '%s' \"\$poster\" | bash -s -- ${r17_os} \"\$TARGET\"" || r17_bad="${r17_bad} arm-${r17_os}(no-shared-post-step)"
     printf '%s\n' "$r17_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success'" || r17_bad="${r17_bad} arm-${r17_os}(post-step-gate-not-exact)"
     # The gate and the github.token env must live on the post step itself, in
     # order (github.token, then the event-derived TARGET): a parked exact line
@@ -4616,22 +4616,15 @@ else
     # that executes an agent-rewritten copy would let the arm conclude green
     # with the report never posted or post arbitrary content with the PAT.
     r17_post_expected=$(printf '%s\n' \
-      'poster=$(mktemp "${RUNNER_TEMP:-/tmp}/post-peros-findings.XXXXXX") || {' \
-      'echo "::error::Could not create a secure staging path for the findings poster (issue #713, fail closed)."' \
-      'exit 1' \
-      '}' \
-      "trap 'rm -f \"\$poster\"' EXIT" \
       'if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then' \
       'git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true' \
       'fi' \
-      'if git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then' \
-      'git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" > "$poster" 2>/dev/null || rm -f "$poster"' \
-      'fi' \
-      'if [ ! -s "$poster" ]; then' \
+      'poster=$(git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null) || poster=""' \
+      'if [ -z "$poster" ]; then' \
       'echo "::error::Findings poster absent from workflow commit ${GITHUB_SHA}; refusing to post an unverified report (issue #713, fail closed)."' \
       'exit 1' \
       'fi' \
-      "bash \"\$poster\" ${r17_os} \"\$TARGET\"")
+      "printf '%s' \"\$poster\" | bash -s -- ${r17_os} \"\$TARGET\"")
     printf '%s\n' "$r17_block" | awk -v tag="      - name: Post ${r17_os_tag} tester findings report" -v expected="$r17_post_expected" '
       BEGIN { n=split(expected, lines, "\n"); want_count=n }
       $0 == tag { post=1; seen=1; next }
@@ -6214,11 +6207,11 @@ else
     # argument must be the real env indirection, never a literal that lets an
     # old signed comment satisfy the gate.
     printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/review-comment-published.sh" 2>/dev/null; then' || r19_bad="${r19_bad} review.yml(workflow-commit-probe-not-exact)"
-    printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'git show "${GITHUB_SHA}:.github/scripts/review-comment-published.sh" > "$evidence_script" 2>/dev/null || rm -f "$evidence_script"' || r19_bad="${r19_bad} review.yml(workflow-commit-extract-not-exact)"
+    printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'evidence_script=$(git show "${GITHUB_SHA}:.github/scripts/review-comment-published.sh" 2>/dev/null) || evidence_script=""' || r19_bad="${r19_bad} review.yml(workflow-commit-extract-not-exact)"
     printf '%s\n' "$r19_verify_block" | grep -q 'bash \.github/scripts/review-comment-published\.sh' && r19_bad="${r19_bad} review.yml(head-workspace-script-invocation)"
-    printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF 'bash "$evidence_script" "$pr" "$SINCE" || pub_rc=$?' || r19_bad="${r19_bad} review.yml(evidence-invocation-not-exact)"
+    printf '%s\n' "$r19_verify_block" | sed 's/^[[:space:]]*//' | grep -qxF "printf '%s' \"\$evidence_script\" | bash -s -- \"\$pr\" \"\$SINCE\" || pub_rc=\$?" || r19_bad="${r19_bad} review.yml(evidence-invocation-not-exact)"
     # Fail-closed when the script cannot be extracted.
-    printf '%s\n' "$r19_verify_block" | grep -qF 'if [ ! -s "$evidence_script" ]; then' || r19_bad="${r19_bad} review.yml(no-fail-closed-on-missing-script)"
+    printf '%s\n' "$r19_verify_block" | grep -qF 'if [ -z "$evidence_script" ]; then' || r19_bad="${r19_bad} review.yml(no-fail-closed-on-missing-script)"
     # Exit-code mapping: 0 published / 1 unpublished / anything else refuse.
     printf '%s\n' "$r19_verify_block" | grep -qF '0) published="true" ;;' || r19_bad="${r19_bad} review.yml(no-published-map)"
     printf '%s\n' "$r19_verify_block" | grep -qF '1) published="false" ;;' || r19_bad="${r19_bad} review.yml(no-unpublished-map)"
@@ -6233,7 +6226,7 @@ else
     # the published guard, published guard before its exit 0, and the discard
     # of an unpublished verdict between the guard and the retry block.
     r19_line() { printf '%s\n' "$r19_verify_block" | grep -nF -- "$1" | head -1 | cut -d: -f1; }
-    r19_ev_line=$(r19_line 'bash "$evidence_script" "$pr" "$SINCE" || pub_rc=$?')
+    r19_ev_line=$(r19_line "printf '%s' \"\$evidence_script\" | bash -s -- \"\$pr\" \"\$SINCE\" || pub_rc=\$?")
     r19_verdict_line=$(r19_line 'if [ -f /tmp/random-lab-decision.json ]; then')
     r19_pubtrue_line=$(r19_line 'if [ "$published" = "true" ]; then')
     r19_pubexit_line=$(r19_line 'Review decision file present and the decision comment is published; gate produced a verdict.')
@@ -6248,6 +6241,20 @@ else
     r19_unpubl_line=$(r19_line 'if [ "$unpublished_verdict" = "true" ]; then')
     r19_crash_line=$(r19_line 'if [ "$crash_signature" = "true" ]; then')
     r19_retries_line=$(r19_line 'retries=$(gh api')
+    # Issue #713 round 17 (B4/B5): the owner-PAT report publisher must stay
+    # actor-gated (a denied comment must never reach an owner-PAT post) and
+    # must execute the workflow-commit script from memory through a pipe. A
+    # re-introduced mktemp staging file in this step is exactly the B4
+    # arbitrary-code-execution class, so it fails even next to the pipe.
+    r19_pub_step=$(sed -n '/- name: Publish reviewer decision report (owner PAT)/,/^      - name: /p' "$REVIEW_WF" 2>/dev/null || true)
+    if [ -z "$r19_pub_step" ]; then
+      r19_bad="${r19_bad} review.yml(report-publish-step-missing)"
+    else
+      printf '%s\n' "$r19_pub_step" | sed 's/^[[:space:]]*//' | grep -qxF "if: steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true'" || r19_bad="${r19_bad} review.yml(report-publish-not-actor-gated)"
+      printf '%s\n' "$r19_pub_step" | grep -q 'mktemp' && r19_bad="${r19_bad} review.yml(report-publisher-tempfile-staging)"
+      printf '%s\n' "$r19_pub_step" | sed 's/^[[:space:]]*//' | grep -qxF 'publisher=$(git show "${GITHUB_SHA}:.github/scripts/publish-agent-report.sh" 2>/dev/null) || publisher=""' || r19_bad="${r19_bad} review.yml(report-publisher-not-workflow-commit-in-memory)"
+      printf '%s\n' "$r19_pub_step" | sed 's/^[[:space:]]*//' | grep -qxF "if ! printf '%s' \"\$publisher\" | bash -s -- \"\$TARGET\" \"\$report\" \"- the Reviewer\"; then" || r19_bad="${r19_bad} review.yml(report-publisher-invocation-not-pipe-form)"
+    fi
     if [ -z "$r19_ev_line" ] || [ -z "$r19_verdict_line" ] || [ "$r19_ev_line" -ge "$r19_verdict_line" ]; then
       r19_bad="${r19_bad} review.yml(evidence-not-before-verdict:${r19_ev_line:-none}/${r19_verdict_line:-none})"
     fi
@@ -6323,7 +6330,7 @@ else
     # sandbox (the stub is always committed there), so its fail-closed exit
     # must be pinned statically: an `exit 1` silently turned `exit 0` would
     # let the step report success with no verdict on record.
-    r19_missing_block=$(printf '%s\n' "$r19_verify_block" | awk 'index($0, "if [ ! -s \"$evidence_script\" ]; then") {f=1} f {print} f && $0 ~ /^[[:space:]]*fi[[:space:]]*$/ {exit}')
+    r19_missing_block=$(printf '%s\n' "$r19_verify_block" | awk 'index($0, "if [ -z \"$evidence_script\" ]; then") {f=1} f {print} f && $0 ~ /^[[:space:]]*fi[[:space:]]*$/ {exit}')
     printf '%s\n' "$r19_missing_block" | grep -qE '^[[:space:]]*exit 1$' || r19_bad="${r19_bad} review.yml(missing-script-not-fail-closed)"
     printf '%s\n' "$r19_missing_block" | grep -qE '^[[:space:]]*exit 0$' && r19_bad="${r19_bad} review.yml(missing-script-exits-0)"
     # No forward path survives an inconclusive verify: both the infra
@@ -7492,10 +7499,11 @@ else
     printf '%s\n' "$r22_pub_block" | sed 's/^[[:space:]]*//' | grep -qxF "if: always() && steps.actor_gate.outputs.run == 'true' && steps.evidence-gate.outcome == 'success' && steps.publish-report.outcome == 'success'" || r22_bad="${r22_bad} test.yml(publish-gate-not-exact)"
     printf '%s\n' "$r22_pub_block" | sed 's/^[[:space:]]*//' | grep -qxF 'SINCE: ${{ github.event.comment.created_at }}' || r22_bad="${r22_bad} test.yml(no-since-env)"
     printf '%s\n' "$r22_pub_block" | grep -qF 'git cat-file -e "${GITHUB_SHA}:.github/scripts/test-comment-published.sh" 2>/dev/null; then' || r22_bad="${r22_bad} test.yml(no-checker-workflow-commit-probe)"
-    printf '%s\n' "$r22_pub_block" | grep -qF 'git show "${GITHUB_SHA}:.github/scripts/test-comment-published.sh" > "$evidence_script" 2>/dev/null || rm -f "$evidence_script"' || r22_bad="${r22_bad} test.yml(no-checker-workflow-commit-extraction)"
+    printf '%s\n' "$r22_pub_block" | grep -qF 'evidence_script=$(git show "${GITHUB_SHA}:.github/scripts/test-comment-published.sh" 2>/dev/null) || evidence_script=""' || r22_bad="${r22_bad} test.yml(no-checker-workflow-commit-extraction)"
     printf '%s\n' "$r22_pub_block" | grep -q 'bash \.github/scripts/test-comment-published\.sh' && r22_bad="${r22_bad} test.yml(head-workspace-checker-invocation)"
-    printf '%s\n' "$r22_pub_block" | grep -qF 'bash "$evidence_script" "$pr" "$SINCE" || pub_rc=$?' || r22_bad="${r22_bad} test.yml(no-evidence-invocation)"
-    printf '%s\n' "$r22_pub_block" | grep -qF 'if [ ! -s "$evidence_script" ]; then' || r22_bad="${r22_bad} test.yml(no-fail-closed-on-missing-checker)"
+    printf '%s\n' "$r22_pub_block" | grep -qF "printf '%s' \"\$evidence_script\" | bash -s -- \"\$pr\" \"\$SINCE\" || pub_rc=\$?" || r22_bad="${r22_bad} test.yml(no-evidence-invocation)"
+    printf '%s\n' "$r22_pub_block" | grep -qF 'if [ -z "$evidence_script" ]; then' || r22_bad="${r22_bad} test.yml(no-fail-closed-on-missing-checker)"
+    printf '%s\n' "$r22_pub_block" | grep -q 'mktemp' && r22_bad="${r22_bad} test.yml(checker-tempfile-staging)"
     printf '%s\n' "$r22_pub_block" | grep -qF 'Tester wrote a decision file but no signed decision comment was published' || r22_bad="${r22_bad} test.yml(no-unpublished-branch)"
     printf '%s\n' "$r22_pub_block" | grep -qF 'Could not verify whether the Tester' || r22_bad="${r22_bad} test.yml(no-unverifiable-branch)"
     printf '%s\n' "$r22_pub_block" | grep -qF 'if [ "$action" != "maintainer" ]; then' || r22_bad="${r22_bad} test.yml(no-maintainer-scope-guard)"
@@ -7506,11 +7514,12 @@ else
     printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF 'GH_TOKEN: ${{ secrets.OPENCODE_PAT }}' || r22_bad="${r22_bad} test.yml(marker-not-owner-pat)"
     printf '%s\n' "$r22_marker_block" | grep -q 'github\.token' && r22_bad="${r22_bad} test.yml(marker-references-github-token)"
     printf '%s\n' "$r22_marker_block" | grep -qF 'git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-tester-marker.sh" 2>/dev/null; then' || r22_bad="${r22_bad} test.yml(no-publisher-workflow-commit-probe)"
-    printf '%s\n' "$r22_marker_block" | grep -qF 'git show "${GITHUB_SHA}:.github/scripts/publish-tester-marker.sh" > "$publisher" 2>/dev/null || rm -f "$publisher"' || r22_bad="${r22_bad} test.yml(no-publisher-workflow-commit-extraction)"
+    printf '%s\n' "$r22_marker_block" | grep -qF 'publisher=$(git show "${GITHUB_SHA}:.github/scripts/publish-tester-marker.sh" 2>/dev/null) || publisher=""' || r22_bad="${r22_bad} test.yml(no-publisher-workflow-commit-extraction)"
     printf '%s\n' "$r22_marker_block" | grep -q 'bash \.github/scripts/publish-tester-marker\.sh' && r22_bad="${r22_bad} test.yml(head-workspace-publisher-invocation)"
-    printf '%s\n' "$r22_marker_block" | grep -qF 'if [ ! -s "$publisher" ]; then' || r22_bad="${r22_bad} test.yml(no-fail-closed-on-missing-publisher)"
+    printf '%s\n' "$r22_marker_block" | grep -qF 'if [ -z "$publisher" ]; then' || r22_bad="${r22_bad} test.yml(no-fail-closed-on-missing-publisher)"
+    printf '%s\n' "$r22_marker_block" | grep -q 'mktemp' && r22_bad="${r22_bad} test.yml(marker-tempfile-staging)"
     printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qF "if [ -f \"\$ev\" ] && jq -e '.scope == \"unrunnable\"' \"\$ev\" >/dev/null 2>&1; then" || r22_bad="${r22_bad} test.yml(no-unrunnable-escalation-exclusion)"
-    printf '%s\n' "$r22_marker_block" | grep -qF 'if ! bash "$publisher" "$pr" "$scope"; then' || r22_bad="${r22_bad} test.yml(no-publisher-invocation)"
+    printf '%s\n' "$r22_marker_block" | grep -qF "if ! printf '%s' \"\$publisher\" | bash -s -- \"\$pr\" \"\$scope\"; then" || r22_bad="${r22_bad} test.yml(no-publisher-invocation)"
     printf '%s\n' "$r22_marker_block" | grep -qF 'echo "ok=false" >> "$GITHUB_OUTPUT"' || r22_bad="${r22_bad} test.yml(no-marker-ok-default)"
     [ "$(printf '%s\n' "$r22_marker_block" | grep -cF 'echo "ok=true" >> "$GITHUB_OUTPUT"' || true)" -ge 4 ] || r22_bad="${r22_bad} test.yml(marker-ok-true-count-lt-4)"
     # Forward gate: the exact conjunction on the forward step itself, so no
@@ -8419,22 +8428,15 @@ printf '%s\n' "> workflow published the partial report it left behind. Sections 
 printf '%s\n\n' "> Failing run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 cat /tmp/random-lab-findings.md
 } > /tmp/random-lab-findings-salvage.md
-poster=$(mktemp "${RUNNER_TEMP:-/tmp}/post-peros-findings.XXXXXX") || {
-echo "::error::Could not create a secure staging path for the findings poster (issue #713, fail closed)."
-exit 1
-}
-trap 'rm -f "$poster"' EXIT
 if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
 git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
 fi
-if git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
-git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" > "$poster" 2>/dev/null || rm -f "$poster"
-fi
-if [ ! -s "$poster" ]; then
+poster=$(git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null) || poster=""
+if [ -z "$poster" ]; then
 echo "::error::Findings poster absent from workflow commit ${GITHUB_SHA}; refusing to publish a salvage report (issue #713, fail closed)."
 exit 1
 fi
-if bash "$poster" @OS@ "$TARGET" /tmp/random-lab-findings-salvage.md; then
+if printf '%s' "$poster" | bash -s -- @OS@ "$TARGET" /tmp/random-lab-findings-salvage.md; then
 echo "Salvaged partial @TAG@ findings report; the run still concludes red."
 else
 echo "::warning::Partial @TAG@ findings report exists but failed the strict poster checks (not signed or not verifiable); nothing was published."
@@ -15339,7 +15341,7 @@ EXPECTED_TEST_STAGE_PROMPT_BLOCK_SHA256 = "e0c4b5fa07824eeafcaf75c946f0f60f0e12e
 # approval marker. The review workflow stages the reviewed prompt from the
 # workflow commit, and these constants pin the source content, the staging
 # body, and the agent scalar that points at the staged copy.
-EXPECTED_REVIEW_PROMPT_SHA256 = "2f7c1f3de570c3347298a0443dd5b406c93c17bc4e1d062a589b7b7b071b3cb7"
+EXPECTED_REVIEW_PROMPT_SHA256 = "b2f5ed51dee63f640563d0ce8f2f393dd06cf602f54a0ac480929026d85dd9fc"
 EXPECTED_REVIEW_STAGE_PROMPT_BLOCK_SHA256 = "5600d2d6e520998d4529fe347fa51fc2cfde81dba6c47afe612209aa4a2d7b45"
 EXPECTED_REVIEW_AGENT_PROMPT_SHA256 = "881b8d09f99b4003a449557167197961b83f049ae761cb987e1a1033e233ee92"
 # Issue #713 review round 10: the round-9 test/review PR-head isolation was
@@ -17505,19 +17507,15 @@ if [ -z "$latest_trigger" ] || [ "$latest_trigger" != "$trigger" ]; then
 echo "::error::A newer eval trigger (${latest_trigger:-unknown}) exists since this run started; refusing to publish a stale eval verdict (issue #713)."
 exit 1
 fi
-publisher="${RUNNER_TEMP:-/tmp}/publish-eval-marker.sh"
-rm -f "$publisher"
 if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-eval-marker.sh" 2>/dev/null; then
 git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
 fi
-if git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-eval-marker.sh" 2>/dev/null; then
-git show "${GITHUB_SHA}:.github/scripts/publish-eval-marker.sh" > "$publisher" 2>/dev/null || rm -f "$publisher"
-fi
-if [ ! -s "$publisher" ]; then
+publisher=$(git show "${GITHUB_SHA}:.github/scripts/publish-eval-marker.sh" 2>/dev/null) || publisher=""
+if [ -z "$publisher" ]; then
 echo "::error::Eval marker publisher absent from workflow commit ${GITHUB_SHA}; refusing to hand an unverified verdict to the merge sweep (issue #713, fail closed)."
 exit 1
 fi
-if ! bash "$publisher" "$pr" "$score" "$eval_sha" "$trigger"; then
+if ! printf '%s' "$publisher" | bash -s -- "$pr" "$score" "$eval_sha" "$trigger"; then
 echo "::error::Eval approval marker publication failed; the PAT merge sweep would never recognize this verdict (issue #713). Failing closed."
 exit 1
 fi
@@ -17836,9 +17834,10 @@ else
   printf '%s\n' "$r30_bind_block" | grep -qF 'echo "eval_sha=$eval_sha" >> "$GITHUB_OUTPUT"' || r30_bad="${r30_bad} eval.yml(bind-no-head-output)"
   printf '%s\n' "$r30_bind_block" | grep -qF 'echo "eval_trigger=${{ github.event.comment.id }}" >> "$GITHUB_OUTPUT"' || r30_bad="${r30_bad} eval.yml(bind-no-trigger-output)"
   printf '%s\n' "$r30_marker_block" | grep -qF 'git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-eval-marker.sh" 2>/dev/null; then' || r30_bad="${r30_bad} eval.yml(no-publisher-workflow-commit-probe)"
-  printf '%s\n' "$r30_marker_block" | grep -qF 'git show "${GITHUB_SHA}:.github/scripts/publish-eval-marker.sh" > "$publisher" 2>/dev/null || rm -f "$publisher"' || r30_bad="${r30_bad} eval.yml(no-publisher-workflow-commit-extraction)"
+  printf '%s\n' "$r30_marker_block" | grep -qF 'publisher=$(git show "${GITHUB_SHA}:.github/scripts/publish-eval-marker.sh" 2>/dev/null) || publisher=""' || r30_bad="${r30_bad} eval.yml(no-publisher-workflow-commit-extraction)"
   printf '%s\n' "$r30_marker_block" | grep -q 'bash \.github/scripts/publish-eval-marker\.sh' && r30_bad="${r30_bad} eval.yml(head-workspace-publisher-invocation)"
-  printf '%s\n' "$r30_marker_block" | grep -qF 'if [ ! -s "$publisher" ]; then' || r30_bad="${r30_bad} eval.yml(no-fail-closed-on-missing-publisher)"
+  printf '%s\n' "$r30_marker_block" | grep -qF 'if [ -z "$publisher" ]; then' || r30_bad="${r30_bad} eval.yml(no-fail-closed-on-missing-publisher)"
+  printf '%s\n' "$r30_marker_block" | grep -q 'mktemp' && r30_bad="${r30_bad} eval.yml(marker-tempfile-staging)"
   printf '%s\n' "$r30_marker_block" | grep -qF 'if [ "$action" != "approve-eval" ]; then' || r30_bad="${r30_bad} eval.yml(no-approve-eval-only-guard)"
   # Review round 9: a scope=unrunnable evidence file is an escalation, never a
   # mergeable approval; the marker step must skip publication for it.
@@ -17855,7 +17854,7 @@ else
   printf '%s\n' "$r30_marker_block" | grep -qF 'startswith("/opencode eval")' || r30_bad="${r30_bad} eval.yml(no-opencode-eval-trigger-match)"
   printf '%s\n' "$r30_marker_block" | grep -qF 'endswith("[bot]") | not)' || r30_bad="${r30_bad} eval.yml(eval-trigger-not-non-bot)"
   printf '%s\n' "$r30_marker_block" | grep -qF -- '--paginate --slurp' || r30_bad="${r30_bad} eval.yml(eval-trigger-read-not-paginated)"
-  printf '%s\n' "$r30_marker_block" | grep -qF 'if ! bash "$publisher" "$pr" "$score" "$eval_sha" "$trigger"; then' || r30_bad="${r30_bad} eval.yml(no-bound-publisher-invocation)"
+  printf '%s\n' "$r30_marker_block" | grep -qF "if ! printf '%s' \"\$publisher\" | bash -s -- \"\$pr\" \"\$score\" \"\$eval_sha\" \"\$trigger\"; then" || r30_bad="${r30_bad} eval.yml(no-bound-publisher-invocation)"
   printf '%s\n' "$r30_marker_block" | grep -qF 'echo "ok=false" >> "$GITHUB_OUTPUT"' || r30_bad="${r30_bad} eval.yml(no-marker-ok-default)"
   [ "$(printf '%s\n' "$r30_marker_block" | grep -cF 'echo "ok=true" >> "$GITHUB_OUTPUT"' || true)" -ge 3 ] || r30_bad="${r30_bad} eval.yml(marker-ok-true-count-lt-3)"
   r30_bind_region=$(printf '%s\n' "$r30_bind_block" \

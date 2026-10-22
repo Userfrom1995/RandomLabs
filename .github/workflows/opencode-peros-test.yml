@@ -256,22 +256,18 @@ jobs:
           # poster is re-staged from this run's workflow commit after the
           # agent, so an agent that rewrites the workspace copy cannot turn
           # this PAT-bearing step into an arbitrary comment poster.
-          poster=$(mktemp "${RUNNER_TEMP:-/tmp}/post-peros-findings.XXXXXX") || {
-            echo "::error::Could not create a secure staging path for the findings poster (issue #713, fail closed)."
-            exit 1
-          }
-          trap 'rm -f "$poster"' EXIT
+          # Issue #713 round 17: execute the trusted workflow-commit poster
+          # from memory through a pipe; never stage it in an agent-writable
+          # path that a background process could replace.
           if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
             git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
           fi
-          if git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
-            git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" > "$poster" 2>/dev/null || rm -f "$poster"
-          fi
-          if [ ! -s "$poster" ]; then
+          poster=$(git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null) || poster=""
+          if [ -z "$poster" ]; then
             echo "::error::Findings poster absent from workflow commit ${GITHUB_SHA}; refusing to post an unverified report (issue #713, fail closed)."
             exit 1
           fi
-          bash "$poster" linux "$TARGET"
+          printf '%s' "$poster" | bash -s -- linux "$TARGET"
 
       - name: Forward Linux tester decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.findings.outcome == 'success'
@@ -589,22 +585,18 @@ jobs:
           # Issue #713: re-stage the strict poster from this run's workflow
           # commit after the agent, so the PAT-bearing step never executes an
           # agent-rewritten workspace copy.
-          poster=$(mktemp "${RUNNER_TEMP:-/tmp}/post-peros-findings.XXXXXX") || {
-            echo "::error::Could not create a secure staging path for the findings poster (issue #713, fail closed)."
-            exit 1
-          }
-          trap 'rm -f "$poster"' EXIT
+          # Issue #713 round 17: execute the trusted workflow-commit poster
+          # from memory through a pipe; never stage it in an agent-writable
+          # path that a background process could replace.
           if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
             git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
           fi
-          if git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
-            git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" > "$poster" 2>/dev/null || rm -f "$poster"
-          fi
-          if [ ! -s "$poster" ]; then
+          poster=$(git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null) || poster=""
+          if [ -z "$poster" ]; then
             echo "::error::Findings poster absent from workflow commit ${GITHUB_SHA}; refusing to publish a salvage report (issue #713, fail closed)."
             exit 1
           fi
-          if bash "$poster" macos "$TARGET" /tmp/random-lab-findings-salvage.md; then
+          if printf '%s' "$poster" | bash -s -- macos "$TARGET" /tmp/random-lab-findings-salvage.md; then
             echo "Salvaged partial macOS findings report; the run still concludes red."
           else
             echo "::warning::Partial macOS findings report exists but failed the strict poster checks (not signed or not verifiable); nothing was published."
@@ -627,22 +619,18 @@ jobs:
           # poster is re-staged from this run's workflow commit after the
           # agent, so an agent that rewrites the workspace copy cannot turn
           # this PAT-bearing step into an arbitrary comment poster.
-          poster=$(mktemp "${RUNNER_TEMP:-/tmp}/post-peros-findings.XXXXXX") || {
-            echo "::error::Could not create a secure staging path for the findings poster (issue #713, fail closed)."
-            exit 1
-          }
-          trap 'rm -f "$poster"' EXIT
+          # Issue #713 round 17: execute the trusted workflow-commit poster
+          # from memory through a pipe; never stage it in an agent-writable
+          # path that a background process could replace.
           if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
             git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
           fi
-          if git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
-            git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" > "$poster" 2>/dev/null || rm -f "$poster"
-          fi
-          if [ ! -s "$poster" ]; then
+          poster=$(git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null) || poster=""
+          if [ -z "$poster" ]; then
             echo "::error::Findings poster absent from workflow commit ${GITHUB_SHA}; refusing to post an unverified report (issue #713, fail closed)."
             exit 1
           fi
-          bash "$poster" macos "$TARGET"
+          printf '%s' "$poster" | bash -s -- macos "$TARGET"
 
       - name: Forward macOS tester decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.findings.outcome == 'success'
@@ -945,22 +933,18 @@ jobs:
           # Issue #713: re-stage the strict poster from this run's workflow
           # commit after the agent, so the PAT-bearing step never executes an
           # agent-rewritten workspace copy.
-          poster=$(mktemp "${RUNNER_TEMP:-/tmp}/post-peros-findings.XXXXXX") || {
-            echo "::error::Could not create a secure staging path for the findings poster (issue #713, fail closed)."
-            exit 1
-          }
-          trap 'rm -f "$poster"' EXIT
+          # Issue #713 round 17: execute the trusted workflow-commit poster
+          # from memory through a pipe; never stage it in an agent-writable
+          # path that a background process could replace.
           if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
             git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
           fi
-          if git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
-            git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" > "$poster" 2>/dev/null || rm -f "$poster"
-          fi
-          if [ ! -s "$poster" ]; then
+          poster=$(git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null) || poster=""
+          if [ -z "$poster" ]; then
             echo "::error::Findings poster absent from workflow commit ${GITHUB_SHA}; refusing to publish a salvage report (issue #713, fail closed)."
             exit 1
           fi
-          if bash "$poster" windows "$TARGET" /tmp/random-lab-findings-salvage.md; then
+          if printf '%s' "$poster" | bash -s -- windows "$TARGET" /tmp/random-lab-findings-salvage.md; then
             echo "Salvaged partial Windows findings report; the run still concludes red."
           else
             echo "::warning::Partial Windows findings report exists but failed the strict poster checks (not signed or not verifiable); nothing was published."
@@ -983,22 +967,18 @@ jobs:
           # poster is re-staged from this run's workflow commit after the
           # agent, so an agent that rewrites the workspace copy cannot turn
           # this PAT-bearing step into an arbitrary comment poster.
-          poster=$(mktemp "${RUNNER_TEMP:-/tmp}/post-peros-findings.XXXXXX") || {
-            echo "::error::Could not create a secure staging path for the findings poster (issue #713, fail closed)."
-            exit 1
-          }
-          trap 'rm -f "$poster"' EXIT
+          # Issue #713 round 17: execute the trusted workflow-commit poster
+          # from memory through a pipe; never stage it in an agent-writable
+          # path that a background process could replace.
           if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
             git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
           fi
-          if git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then
-            git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" > "$poster" 2>/dev/null || rm -f "$poster"
-          fi
-          if [ ! -s "$poster" ]; then
+          poster=$(git show "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null) || poster=""
+          if [ -z "$poster" ]; then
             echo "::error::Findings poster absent from workflow commit ${GITHUB_SHA}; refusing to post an unverified report (issue #713, fail closed)."
             exit 1
           fi
-          bash "$poster" windows "$TARGET"
+          printf '%s' "$poster" | bash -s -- windows "$TARGET"
 
       - name: Forward Windows tester decision
         if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-test.outcome == 'success' && steps.findings.outcome == 'success'

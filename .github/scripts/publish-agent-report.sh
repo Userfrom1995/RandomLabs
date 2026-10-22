@@ -56,6 +56,10 @@ if [ -z "$normalized_report" ] || [ ! -f "$normalized_report" ]; then
 fi
 trap 'rm -f "$normalized_report"' EXIT
 tr -d '\r' < "$report" > "$normalized_report"
+# Issue #713 round 17: read the report once and use that exact value for both
+# the post and the re-fetch comparison, so a writer racing the file after the
+# post can never satisfy the exact-body check.
+expected_body="$(cat "$normalized_report")"
 
 # Issue #713 round 16: the PAT merge sweep anchors the tester verdict to the
 # first line of an owner-authored comment, and this publisher posts arbitrary
@@ -76,7 +80,7 @@ if [ "$last_line" != "$signoff" ]; then
   exit 1
 fi
 
-response=$(gh api "repos/${repo}/issues/${target}/comments" -F body=@"$normalized_report" 2>&1) || {
+response=$(gh api "repos/${repo}/issues/${target}/comments" --raw-field body="$expected_body" 2>&1) || {
   echo "::error::publish-agent-report.sh: posting the signed report to #${target} failed: ${response}"
   exit 1
 }
@@ -95,7 +99,6 @@ author=$(printf '%s' "$fetched" | jq -r '.user.login // empty' 2>/dev/null || tr
 html_url=$(printf '%s' "$fetched" | jq -r '.html_url // empty' 2>/dev/null || true)
 fetched_body=$(printf '%s' "$fetched" | jq -r '.body // empty' 2>/dev/null | tr -d '\r' || true)
 fetched_last=$(printf '%s' "$fetched_body" | awk 'NF { line=$0 } END { print line }')
-expected_body="$(cat "$normalized_report")"
 
 if [ "$author" != "$owner" ]; then
   echo "::error::publish-agent-report.sh: posted report comment ${comment_id} is authored by '${author}', not the repository owner '${owner}'; the workflow must publish with the owner PAT (issue #713)."

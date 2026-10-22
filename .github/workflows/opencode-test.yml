@@ -287,22 +287,17 @@ jobs:
             echo "::error::Tester decision file is present but /tmp/random-lab-report.md is missing or empty; refusing to forward an unpublished verdict (issue #713)."
             exit 1
           fi
-          publisher=$(mktemp "${RUNNER_TEMP:-/tmp}/publish-agent-report.XXXXXX") || {
-            echo "::error::Could not create a secure staging path for the report publisher (issue #713, fail closed)."
-            exit 1
-          }
-          trap 'rm -f "$publisher"' EXIT
+          # Issue #713 round 17: run the trusted workflow-commit script from
+          # memory through a pipe; never stage it in an agent-writable path.
           if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-agent-report.sh" 2>/dev/null; then
             git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
           fi
-          if git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-agent-report.sh" 2>/dev/null; then
-            git show "${GITHUB_SHA}:.github/scripts/publish-agent-report.sh" > "$publisher" 2>/dev/null || rm -f "$publisher"
-          fi
-          if [ ! -s "$publisher" ]; then
+          publisher=$(git show "${GITHUB_SHA}:.github/scripts/publish-agent-report.sh" 2>/dev/null) || publisher=""
+          if [ -z "$publisher" ]; then
             echo "::error::Report publisher absent from workflow commit ${GITHUB_SHA}; refusing to forward an unpublished verdict (issue #713, fail closed)."
             exit 1
           fi
-          if ! bash "$publisher" "$TARGET" "$report" "- the Tester"; then
+          if ! printf '%s' "$publisher" | bash -s -- "$TARGET" "$report" "- the Tester"; then
             echo "::error::Tester report publication failed; refusing to forward an unpublished verdict (issue #713)."
             exit 1
           fi
@@ -341,24 +336,20 @@ jobs:
             echo "Publication gate applies to maintainer decisions only (action='$action'); nothing to verify."
             exit 0
           fi
-          evidence_script=$(mktemp "${RUNNER_TEMP:-/tmp}/test-comment-published.XXXXXX") || {
-            echo "::error::Could not create a secure staging path for the publication-evidence checker (issue #713, fail closed)."
-            exit 1
-          }
-          trap 'rm -f "$evidence_script"' EXIT
+          # Issue #713 round 17: read the trusted workflow-commit checker into
+          # memory and pipe it to bash; never stage it in an agent-writable
+          # path that a background process could replace.
           if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/test-comment-published.sh" 2>/dev/null; then
             git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
           fi
-          if git cat-file -e "${GITHUB_SHA}:.github/scripts/test-comment-published.sh" 2>/dev/null; then
-            git show "${GITHUB_SHA}:.github/scripts/test-comment-published.sh" > "$evidence_script" 2>/dev/null || rm -f "$evidence_script"
-          fi
-          if [ ! -s "$evidence_script" ]; then
+          evidence_script=$(git show "${GITHUB_SHA}:.github/scripts/test-comment-published.sh" 2>/dev/null) || evidence_script=""
+          if [ -z "$evidence_script" ]; then
             rm -f /tmp/random-lab-decision.json
             echo "::error::Publication-evidence script absent from workflow commit ${GITHUB_SHA}; refusing to forward an unverified verdict (issue #629, fail closed)."
             exit 1
           fi
           pub_rc=0
-          bash "$evidence_script" "$pr" "$SINCE" || pub_rc=$?
+          printf '%s' "$evidence_script" | bash -s -- "$pr" "$SINCE" || pub_rc=$?
           case "$pub_rc" in
             0)
               echo "Tester decision comment published; the maintainer decision may proceed."
@@ -416,22 +407,18 @@ jobs:
           fi
           scope=$(jq -r '.scope // "standard"' "$ev" 2>/dev/null || echo "standard")
           pr="${{ github.event.issue.number }}"
-          publisher=$(mktemp "${RUNNER_TEMP:-/tmp}/publish-tester-marker.XXXXXX") || {
-            echo "::error::Could not create a secure staging path for the marker publisher (issue #713, fail closed)."
-            exit 1
-          }
-          trap 'rm -f "$publisher"' EXIT
+          # Issue #713 round 17: run the trusted workflow-commit publisher
+          # from memory through a pipe; never stage it in an agent-writable
+          # path that a background process could replace.
           if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-tester-marker.sh" 2>/dev/null; then
             git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
           fi
-          if git cat-file -e "${GITHUB_SHA}:.github/scripts/publish-tester-marker.sh" 2>/dev/null; then
-            git show "${GITHUB_SHA}:.github/scripts/publish-tester-marker.sh" > "$publisher" 2>/dev/null || rm -f "$publisher"
-          fi
-          if [ ! -s "$publisher" ]; then
+          publisher=$(git show "${GITHUB_SHA}:.github/scripts/publish-tester-marker.sh" 2>/dev/null) || publisher=""
+          if [ -z "$publisher" ]; then
             echo "::error::Marker publisher absent from workflow commit ${GITHUB_SHA}; refusing to hand an unpublished marker to the merge sweep (issue #629, fail closed)."
             exit 1
           fi
-          if ! bash "$publisher" "$pr" "$scope"; then
+          if ! printf '%s' "$publisher" | bash -s -- "$pr" "$scope"; then
             echo "::error::Tester approval marker publication failed; the merge sweep would never recognize this verdict (issue #629). Failing closed."
             exit 1
           fi
