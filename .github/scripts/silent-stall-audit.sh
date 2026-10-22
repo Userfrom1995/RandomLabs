@@ -2,7 +2,7 @@
 #
 # silent-stall-audit.sh - Static regression checks for the issue #122 silent-stall
 # hardening invariants (S1/S2/L1/L2), the R6 model free-tier guard, the R7
-# review-restore ownership guard (PR #412 head rewind), the R8 vendored
+# review-arm read-only guard (PR #412 head rewind), the R8 vendored
 # hardened runner guard, the R9 schedule/dispatch retry-parity guard
 # (issue #422), the R10 PAT-step input-indirection guard, the R11
 # post-agent PAT gate guard (both issue #422 residual hardening), the
@@ -128,7 +128,7 @@
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
 # R1-R6 are scoped to <path-to-opencode.yml>; R7-R30 audit the whole tree
-# (the review-restore guard, the vendored runner, every schedule/dispatch
+# (the review-arm read-only guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
 # group cohort, the model fallback
@@ -293,52 +293,45 @@ else
   check "R6" "non-free model pin found -> ${detail} (violates free-tier model guard)" "bad"
 fi
 
-# [R7] Review-restore ownership gate (PR #412 head-rewind regression): the
-# opencode-review restore step may only undo a head movement made from its own
-# workspace, and must push with a lease. The pre-fix version force-pushed the
-# snapshot captured at run START, so any push that landed while a review was
-# still running (Fixer, Builder, owner) was silently reverted when the run
-# ended - that is exactly how PR #412 lost 13 Fixer commits.
-# The gate needs FIVE properties: a local-ref ownership test, a lease, the
-# pre-push marker, a marker that records the PUSHED COMMIT (marker_sha) which
-# must equal the live head, and an unbroken push chain (chain_ok) proving no
-# external commit sits between the checked-out head and the live head - an
-# existence-only marker or a marker without the chain survives a later
-# external push and still rewinds it (Y2/Z2). A bare force push is banned
-# outright.
-# The marker closes the proxy hole: a local ref alone is advanced by a plain
-# `git pull --ff-only` / `git reset --hard origin/<b>` that never pushed, so
-# ref movement by itself still rewinds external work.
+# [R7] Review-arm read-only guard (PR #412 head-rewind regression): the
+# Reviewer is contractually read-only, so the review job must be incapable of
+# moving a branch. The job declares exactly `contents: read`,
+# `pull-requests: read`, and `issues: read`; the workflow contains no push,
+# force, or workspace-marker path; and the post-agent head observer uses the
+# job token with the pinned system PATH, reports unexpected movement, and never
+# pushes. This replaces the old conditional force-restore: that step could not
+# succeed under the read-only job token (its persisted checkout credential has
+# no write scope), and re-enabling it with the owner PAT would let a malicious
+# PR process spoof the workspace marker and rewind the branch, which is exactly
+# how PR #412 lost 13 Fixer commits. With no push capability the rewind class
+# cannot recur, and any reintroduced push or owner token in the observer fails
+# this rule.
 REVIEW_WF="$(dirname "$WF")/opencode-review.yml"
 if [ ! -f "$REVIEW_WF" ] && [ -f ".github/workflows/opencode-review.yml" ]; then
   REVIEW_WF=".github/workflows/opencode-review.yml"
 fi
-restore_block=""
+observer_block=""
 if [ -f "$REVIEW_WF" ]; then
-  restore_block=$(sed -n '/- name: Restore PR head/,/^      - name: /p' "$REVIEW_WF" 2>/dev/null || true)
+  observer_block=$(sed -n '/- name: Detect unexpected PR head movement (reviewer is read-only)/,/^      - name: /p' "$REVIEW_WF" 2>/dev/null || true)
 fi
-if [ -z "$restore_block" ]; then
-  check "R7" "restore step missing or renamed in ${REVIEW_WF} (head-rewind guard lost)" "bad"
+if [ -z "$observer_block" ]; then
+  check "R7" "read-only head observer missing or renamed in ${REVIEW_WF} (review-arm read-only guard lost)" "bad"
 else
-  owns_local=$(printf '%s\n' "$restore_block" | grep -c 'rev-parse --verify "refs/heads/' || true)
-  # Explicit lease form: `--force-with-lease=refs/heads/<branch>:<expected>`.
-  # A bare `--force-with-lease` fails safe but would never restore, so it does
-  # not satisfy the rule.
-  leased=$(printf '%s\n' "$restore_block" | grep -cE -- '--force-with-lease="?refs/heads/' || true)
-  marker=$(printf '%s\n' "$restore_block" | grep -c 'review-workspace-pushed' || true)
-  marker_sha=$(printf '%s\n' "$restore_block" | grep -c 'marker_sha' || true)
-  # Unbroken push chain: the marker's first push must start at the checked-out
-  # head, each push must link to the previous one, and the last pushed commit
-  # must be the live head - otherwise an external commit this workspace pulled
-  # and pushed on top of is silently rewound (Y2/Z2).
-  chain=$(printf '%s\n' "$restore_block" | grep -c 'chain_ok' || true)
-  # Bare force push in any argument order: `git push --force origin`,
-  # `git push origin --force`, or a trailing bare `git push --force`.
-  bare_force=$(printf '%s\n' "$restore_block" | grep -cE 'git push[^|&;]*--force([^-]|$)' || true)
-  if [ "$owns_local" -gt 0 ] && [ "$leased" -gt 0 ] && [ "$marker" -gt 0 ] && [ "$marker_sha" -gt 0 ] && [ "$chain" -gt 0 ] && [ "$bare_force" -eq 0 ]; then
-    check "R7" "review restore gates on an unbroken chain of this workspace's own pushes up to the live head (marker commit == live head + local ref) and pushes with an explicit lease (PR #412 rewind guard)" "ok"
+  review_perms=$(awk '/^    permissions:$/ { f=1; next } f && /^    [A-Za-z_-]+:/ { exit } f { print }' "$REVIEW_WF" 2>/dev/null | tr -d ' ' | tr '\n' ',')
+  perms_ok="no"
+  [ "$review_perms" = "contents:read,pull-requests:read,issues:read," ] && perms_ok="yes"
+  observer_token=$(printf '%s\n' "$observer_block" | grep -cF 'GH_TOKEN: ${{ github.token }}' || true)
+  observer_path=$(printf '%s\n' "$observer_block" | grep -cF 'PATH: /usr/bin:/bin' || true)
+  owner_token=$(printf '%s\n' "$observer_block" | grep -c 'OPENCODE_PAT' || true)
+  # No push capability anywhere in the review workflow: the Reviewer never
+  # moves a branch, and the old restore step must not return in any spelling.
+  push_lines=$(grep -cE 'git[[:space:]]+push' "$REVIEW_WF" || true)
+  force_lines=$(grep -cE -- '--force-with-lease|git[[:space:]]+push[^#]*--force' "$REVIEW_WF" || true)
+  marker_lines=$(grep -c 'review-workspace-pushed\|pre-push' "$REVIEW_WF" || true)
+  if [ "$perms_ok" = "yes" ] && [ "$observer_token" -gt 0 ] && [ "$observer_path" -gt 0 ] && [ "$owner_token" -eq 0 ] && [ "$push_lines" -eq 0 ] && [ "$force_lines" -eq 0 ] && [ "$marker_lines" -eq 0 ]; then
+    check "R7" "review job is read-only (contents/pull-requests/issues read), its head observer uses the job token with the pinned PATH, and the workflow contains no push, force, or workspace-marker path (PR #412 rewind class closed)" "ok"
   else
-    check "R7" "restore step in ${REVIEW_WF} missing local-ref ownership test (=${owns_local}), lease (=${leased}), push marker (=${marker}), marker commit check (=${marker_sha}), push chain (=${chain}), or force-pushes bare (=${bare_force})" "bad"
+    check "R7" "review arm not provably read-only in ${REVIEW_WF} (permissions=${review_perms:-?}, observer-token=${observer_token}, observer-path=${observer_path}, owner-token=${owner_token}, push-lines=${push_lines}, force-lines=${force_lines}, marker-lines=${marker_lines})" "bad"
   fi
 fi
 
@@ -6516,14 +6509,13 @@ Stage the reviewer system prompt from the workflow commit
 "Actor write gate (issue #428)"
 Skip review for non-PR issue
 Record checked-out PR head
-Arm workspace push detector
 Configure git identity
 Clear runtime decision
 Restore the vendored runner when the checked-out head predates it
 Run opencode reviewer
 Publish reviewer decision report (owner PAT)
 Verify review decided, else auto-retry
-Restore PR head only when this run's own agent moved it
+Detect unexpected PR head movement (reviewer is read-only)
 Force lab routing for infrastructure PRs
 Forward reviewer decision
 R19_SEQ
@@ -15621,6 +15613,24 @@ EXPECTED_REVIEW_ACTOR_ENV = {
 EXPECTED_TEST_RESTORE_KEYS = {"name", "run"}
 EXPECTED_REVIEW_RESTORE_KEYS = {"name", "if", "run"}
 EXPECTED_REVIEW_RESTORE_IF = "steps.pr-info.outputs.is_pr == 'true'"
+# Issue #713 Tester finding: the review arm's post-agent "restore" step carried
+# the owner PAT with no pinned PATH, so the reviewer agent could plant a
+# gh/git shim in the runner-writable .opencode/bin directory and exfiltrate the
+# token. The review arm is read-only by contract, so the force-push restore is
+# replaced with a read-only head observation: no owner PAT, a pinned system
+# PATH, and no push anywhere in the workflow. The observer's exact body is
+# pinned so a future edit cannot reintroduce a write path behind this rule.
+REVIEW_OBSERVER_NAME = "Detect unexpected PR head movement (reviewer is read-only)"
+EXPECTED_REVIEW_OBSERVER_ENV = {
+    "GH_TOKEN": "${{ github.token }}",
+    "PATH": SYSTEM_PATH,
+    "PR": "${{ github.event.issue.number }}",
+    "BRANCH": "${{ steps.pr-info.outputs.head_ref }}",
+    "RECORDED": "${{ steps.pr-info.outputs.head_oid }}",
+    "CHECKOUT_OID": "${{ steps.checkout-head.outputs.oid }}",
+    "REPO": "${{ github.repository }}",
+}
+EXPECTED_REVIEW_OBSERVER_BLOCK_SHA256 = "196946fe08a5bb20e8549704e559c7e638c0e1aeeeeb66a13b5a042cadccc878"
 EXPECTED_MAINTAINER_POST_BLOCK_SHA256 = "a3b907775fe95c3c892b911d7602df2a56fbf89ee87d834ee5c039fb4ab4bf1e"
 EXPECTED_JOB_IF = (
     "github.event.issue.pull_request != null && ( "
@@ -16399,6 +16409,45 @@ def validate_arm(
             sink.append("%s(agent-env-project-config-enabled)" % label)
 
 
+def check_owner_pat_paths(doc, label, sink):
+    # Issue #713 Tester finding: an owner-PAT step runs trusted shell with the
+    # token, so a PR-planted gh/git shim in a runner-writable PATH directory
+    # must never be reachable. Every owner-PAT step in the arm pins the system
+    # PATH; the review arm's dead restore step was the one omission. The scan
+    # walks the whole parsed step (env, run, with, name), so an alternate
+    # token spelling or a direct run-body reference cannot evade the PATH pin.
+    def references_owner_pat(value):
+        if isinstance(value, str):
+            return "OPENCODE_PAT" in value
+        if isinstance(value, list):
+            return any(references_owner_pat(item) for item in value)
+        if isinstance(value, dict):
+            return any(
+                references_owner_pat(key) or references_owner_pat(item)
+                for key, item in value.items()
+            )
+        return False
+
+    jobs = doc.get("jobs") if isinstance(doc, dict) else None
+    if not isinstance(jobs, dict):
+        return
+    for job in jobs.values():
+        if not isinstance(job, dict):
+            continue
+        steps = job.get("steps")
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if not isinstance(step, dict) or not references_owner_pat(step):
+                continue
+            env = step.get("env")
+            if not isinstance(env, dict) or env.get("PATH") != SYSTEM_PATH:
+                sink.append(
+                    "%s(owner-pat-step-without-pinned-path:%s)"
+                    % (label, step.get("name"))
+                )
+
+
 def validate_test(doc, sink):
     if not isinstance(doc, dict):
         sink.append("test.yml(yaml-not-mapping)")
@@ -16411,6 +16460,7 @@ def validate_test(doc, sink):
     if not isinstance(steps, list):
         sink.append("test.yml(test-steps-not-list)")
         return
+    check_owner_pat_paths(doc, "test.yml", sink)
     actual_step_names = [
         step.get("name") if isinstance(step, dict) else None
         for step in steps
@@ -16505,6 +16555,51 @@ def validate_review(doc, sink):
     steps = jobs["review"].get("steps")
     if not isinstance(steps, list):
         return
+    check_owner_pat_paths(doc, "review.yml", sink)
+    # Issue #713 Tester finding: the review arm is read-only by contract. Pin
+    # the job permissions and the no-push workflow invariant, and resolve the
+    # post-agent observer (job token, system PATH, no push, exact body).
+    if jobs["review"].get("permissions") != EXPECTED_PERMISSIONS:
+        sink.append("review.yml(permissions-not-read-only)")
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        step_run = step.get("run")
+        if not isinstance(step_run, str):
+            continue
+        if re.search(r"\bgit\s+push\b", step_run):
+            sink.append("review.yml(workflow-can-push)")
+        if "--force-with-lease" in step_run or "review-workspace-pushed" in step_run:
+            sink.append("review.yml(workflow-carries-restore-marker)")
+    observers = [
+        step
+        for step in steps
+        if isinstance(step, dict) and step.get("name") == REVIEW_OBSERVER_NAME
+    ]
+    if len(observers) != 1:
+        sink.append("review.yml(head-observer-step-not-unique)")
+    else:
+        observer = observers[0]
+        if set(observer) != {"name", "if", "env", "run"}:
+            sink.append("review.yml(head-observer-keys-not-exact)")
+        if (
+            observer.get("if")
+            != "steps.pr-info.outputs.is_pr == 'true' && always() && steps.actor_gate.outputs.run == 'true'"
+        ):
+            sink.append("review.yml(head-observer-if-not-exact)")
+        if observer.get("env") != EXPECTED_REVIEW_OBSERVER_ENV:
+            sink.append("review.yml(head-observer-env-not-exact)")
+        observer_run = observer.get("run")
+        if not isinstance(observer_run, str) or not observer_run.strip():
+            sink.append("review.yml(head-observer-run-missing)")
+        else:
+            if (
+                normalized_sha(observer_run)
+                != EXPECTED_REVIEW_OBSERVER_BLOCK_SHA256
+            ):
+                sink.append("review.yml(head-observer-run-not-exact)")
+            if re.search(r"\bgit\s+push\b", observer_run) or "--force" in observer_run:
+                sink.append("review.yml(head-observer-can-push)")
     stage_hits = [
         (index, step)
         for index, step in enumerate(steps)
@@ -17340,6 +17435,20 @@ if test_doc is not None:
             for p in test_actor_keys_local
         ):
             problems.append("test.yml(structural-self-test-actor-keys-override)")
+        # Issue #713 Tester finding (class closure): every owner-PAT step in
+        # the arm pins the system PATH, so the pre-agent preread cannot run a
+        # PR-planted shim either.
+        test_pat_path = copy.deepcopy(test_doc)
+        for step in test_pat_path["jobs"]["test"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == "Get PR info":
+                step["env"].pop("PATH", None)
+        test_pat_path_local = []
+        validate_test(test_pat_path, test_pat_path_local)
+        if not any(
+            "test.yml(owner-pat-step-without-pinned-path" in p
+            for p in test_pat_path_local
+        ):
+            problems.append("test.yml(structural-self-test-owner-pat-path)")
     except Exception:
         problems.append("test.yml(structural-self-test-prompt-stage-rewrite)")
 
@@ -17467,6 +17576,65 @@ if review_doc is not None:
             problems.append(
                 "review.yml(structural-self-test-agent-fallback-restored)"
             )
+        # Issue #713 Tester finding: the review arm's read-only/no-owner-PAT
+        # invariants are load-bearing, so each escape class is self-tested:
+        # an owner token in the observer, a push in the observer, a push in
+        # any other step, write-capable job permissions, and an owner-PAT step
+        # without the pinned system PATH.
+        review_observer_token = copy.deepcopy(review_doc)
+        for step in review_observer_token["jobs"]["review"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == REVIEW_OBSERVER_NAME:
+                step["env"]["GH_TOKEN"] = "${{ secrets.OPENCODE_PAT }}"
+        review_observer_token_local = []
+        validate_review(review_observer_token, review_observer_token_local)
+        if not any(
+            "review.yml(head-observer-env-not-exact" in p
+            for p in review_observer_token_local
+        ):
+            problems.append(
+                "review.yml(structural-self-test-observer-owner-token)"
+            )
+        review_observer_push = copy.deepcopy(review_doc)
+        for step in review_observer_push["jobs"]["review"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == REVIEW_OBSERVER_NAME:
+                step["run"] = step.get("run", "") + "\ngit push origin HEAD\n"
+        review_observer_push_local = []
+        validate_review(review_observer_push, review_observer_push_local)
+        if not any(
+            "review.yml(head-observer-run-not-exact)" in p
+            for p in review_observer_push_local
+        ):
+            problems.append("review.yml(structural-self-test-observer-push)")
+        review_step_push = copy.deepcopy(review_doc)
+        for step in review_step_push["jobs"]["review"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == "Record checked-out PR head":
+                step["run"] = step.get("run", "") + "\ngit push origin HEAD\n"
+        review_step_push_local = []
+        validate_review(review_step_push, review_step_push_local)
+        if not any(
+            "review.yml(workflow-can-push)" in p for p in review_step_push_local
+        ):
+            problems.append("review.yml(structural-self-test-workflow-push)")
+        review_perm_write = copy.deepcopy(review_doc)
+        review_perm_write["jobs"]["review"]["permissions"]["contents"] = "write"
+        review_perm_write_local = []
+        validate_review(review_perm_write, review_perm_write_local)
+        if not any(
+            "review.yml(permissions-not-read-only)" in p
+            for p in review_perm_write_local
+        ):
+            problems.append("review.yml(structural-self-test-permissions-write)")
+        review_pat_path = copy.deepcopy(review_doc)
+        for step in review_pat_path["jobs"]["review"]["steps"]:
+            if isinstance(step, dict) and step.get("name") == "Get PR info":
+                step["env"].pop("PATH", None)
+        review_pat_path_local = []
+        validate_review(review_pat_path, review_pat_path_local)
+        if not any(
+            "review.yml(owner-pat-step-without-pinned-path" in p
+            for p in review_pat_path_local
+        ):
+            problems.append("review.yml(structural-self-test-owner-pat-path)")
     except Exception:
         problems.append("review.yml(structural-self-test-actor-head-script)")
 
@@ -19283,7 +19451,7 @@ R30_POST_MOCK
   fi
 fi
 if [ -z "$r30_bad" ]; then
-  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical owner-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as owner-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer owner-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow runs with a read-only App token (contents/pull-requests/issues read) and every write runs in an owner-PAT step, and it is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, the Run evaluator agent step structurally bound to the vendored runner with no run/shell, an exact if/env/with and model pin, the prompt SHA-256, and the 105-minute cap, the Clear runtime decision, Verify evaluator decided, and Enforce live-execution evidence gate run blocks pinned whole-region line-exact with decision and evidence rewrite mutation self-tests and a decision/evidence write ban outside the evaluator agent, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval, and noncanonical and wrong-PR marker bodies) are executed in a sandbox, and the sweep requires the canonical machine-published marker body (exact structure, singleton bindings, and the PR/head/trigger paragraph echo) as defense in depth, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), every owner-PAT run block (the forward handoff, the pre-gate Get PR info read, the deliverable-context read, and the final evaluator memory push) is pinned whole-region line-exact with its exact key surface and an env of exactly the owner PAT plus the pinned system PATH, and the eval marker literal banned, and no step other than the marker step may carry the eval marker literal and no step outside the three sanctioned comment posters may issue a comment post (all pins are mutation-self-tested, so a decoy approval marker cannot be injected into any token-bearing step body), and the pre-decision execution context is pinned so no PR-head code runs before the verdict (the checkout action is exactly actions/checkout@v6 with its exact with block and may appear only in the Checkout repository (PR head) step, the vendored runner may appear only in the Run evaluator agent step, every other uses step is rejected, the actor gate executes only the script staged from the workflow commit, the vendored runner is always restored from the workflow commit with no early-exit trust, the Configure git identity step is exactly the two git config lines with no extra key, the workflow permissions map and the eval job's if, runs-on, and timeout values are pinned, the decision/evidence write ban covers pathlib write_text/write_bytes and Path(...).open plus os.replace/os.rename and shutil copy/move spellings, and the checkout, actor-gate, configure, and restore blocks are mutation-self-tested), review round 8 hardens the remaining execution inputs: the evaluator and tester system prompts are staged from \`\${GITHUB_SHA}\` into RUNNER_TEMP before the agent and both prompt files plus both staging bodies are SHA-256 pinned (the PR-head editions are never read) and the Tester agent prompt must reference the staged copy, the workflow name and concurrency policy are pinned, the publisher is whole-file SHA-256 pinned with a second-PR functional fixture and a target-gated-append mutation self-test, the extracted decision and pre-merge blocks reject control transfer and execute in subshells (so a planted exit cannot silence this rule), the Post Maintainer comment poster is pinned whole-region with the eval marker literal banned outside the PAT sweep, and head_sha plus the two-step head_push_time binding are pinned, the maintainer job's exact ordered step sequence is pinned, so no inserted or renamed step can pass at all, and no maintainer step other than the pinned PAT sweep may carry a gh pr merge (or REST/GraphQL merge) invocation, including a path-qualified, command/env/sudo-prefixed, quoted word-split, gh-global-flag (\`gh -R x pr merge\`, \`gh --repo x pr merge\`, \`gh -Rcli/cli pr merge\`), expression-valued-repo, REST, or GraphQL spelling, so a newly inserted owner-PAT merge step, the reviewer's unreviewed fast path, or a renamed sweep with an exact-name decoy fails the audit; so a one-line neutering, declarative poisoning, or extra step cannot pass (issue #713)" "ok"
+  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical owner-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as owner-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer owner-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow runs with a read-only App token (contents/pull-requests/issues read) and every write runs in an owner-PAT step, and it is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, the Run evaluator agent step structurally bound to the vendored runner with no run/shell, an exact if/env/with and model pin, the prompt SHA-256, and the 105-minute cap, the Clear runtime decision, Verify evaluator decided, and Enforce live-execution evidence gate run blocks pinned whole-region line-exact with decision and evidence rewrite mutation self-tests and a decision/evidence write ban outside the evaluator agent, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval, and noncanonical and wrong-PR marker bodies) are executed in a sandbox, and the sweep requires the canonical machine-published marker body (exact structure, singleton bindings, and the PR/head/trigger paragraph echo) as defense in depth, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), every owner-PAT run block (the forward handoff, the pre-gate Get PR info read, the deliverable-context read, and the final evaluator memory push) is pinned whole-region line-exact with its exact key surface and an env of exactly the owner PAT plus the pinned system PATH, and the eval marker literal banned, and no step other than the marker step may carry the eval marker literal and no step outside the three sanctioned comment posters may issue a comment post (all pins are mutation-self-tested, so a decoy approval marker cannot be injected into any token-bearing step body), and the pre-decision execution context is pinned so no PR-head code runs before the verdict (the checkout action is exactly actions/checkout@v6 with its exact with block and may appear only in the Checkout repository (PR head) step, the vendored runner may appear only in the Run evaluator agent step, every other uses step is rejected, the actor gate executes only the script staged from the workflow commit, the vendored runner is always restored from the workflow commit with no early-exit trust, the Configure git identity step is exactly the two git config lines with no extra key, the workflow permissions map and the eval job's if, runs-on, and timeout values are pinned, the decision/evidence write ban covers pathlib write_text/write_bytes and Path(...).open plus os.replace/os.rename and shutil copy/move spellings, and the checkout, actor-gate, configure, and restore blocks are mutation-self-tested), review round 8 hardens the remaining execution inputs: the evaluator and tester system prompts are staged from \`\${GITHUB_SHA}\` into RUNNER_TEMP before the agent and both prompt files plus both staging bodies are SHA-256 pinned (the PR-head editions are never read) and the Tester agent prompt must reference the staged copy, the workflow name and concurrency policy are pinned, the publisher is whole-file SHA-256 pinned with a second-PR functional fixture and a target-gated-append mutation self-test, the extracted decision and pre-merge blocks reject control transfer and execute in subshells (so a planted exit cannot silence this rule), the Post Maintainer comment poster is pinned whole-region with the eval marker literal banned outside the PAT sweep, and head_sha plus the two-step head_push_time binding are pinned, the maintainer job's exact ordered step sequence is pinned, so no inserted or renamed step can pass at all, and no maintainer step other than the pinned PAT sweep may carry a gh pr merge (or REST/GraphQL merge) invocation, including a path-qualified, command/env/sudo-prefixed, quoted word-split, gh-global-flag (\`gh -R x pr merge\`, \`gh --repo x pr merge\`, \`gh -Rcli/cli pr merge\`), expression-valued-repo, REST, or GraphQL spelling, so a newly inserted owner-PAT merge step, the reviewer's unreviewed fast path, or a renamed sweep with an exact-name decoy fails the audit; so a one-line neutering, declarative poisoning, or extra step cannot pass; the review arm is validated from the same strict parse as read-only (exactly contents/pull-requests/issues read, no push or restore marker in any run, and a unique post-agent head observer with the job token, the pinned system PATH, and an exact pinned body), every owner-PAT step in the review and test arms must pin /usr/bin:/bin (the Tester's review-restore omission class), and the observer, permissions, cross-step push, and PATH pins each carry mutation self-tests (issue #713)" "ok"
 else
   check "R30" "eval verdict publication and PAT merge gate guard missing:${r30_bad} (issue #713: a workflow-touching PR could merge through the PAT sweep with no binding Evaluator verdict)" "bad"
 fi
