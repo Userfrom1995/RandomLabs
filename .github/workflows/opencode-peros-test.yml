@@ -69,11 +69,100 @@ jobs:
           # owner PAT. Capture the PATH now, before any agent code runs, and
           # drop the known user-writable tool directories so every post-agent
           # PAT step resolves its tools from the pre-agent environment.
-          clean=$(printf '%s' "$PATH" | tr ':' '\n' \
-            | grep -vF -e "$HOME/.opencode/bin" -e "$HOME/.local/bin" -e "$HOME/.cargo/bin" -e "$HOME/.dotnet/tools" -e "$HOME/.config/composer/vendor/bin" \
-            | paste -sd: -)
+          # Issue #713 round 18: filtering only $HOME left world-writable
+          # runner directories (/usr/local/bin, /opt/pipx_bin, and
+          # /usr/local/.ghcup/bin are mode 777 on the hosted runners) in the
+          # owner-PAT PATH, so an agent-planted gh there still ran with the
+          # owner PAT. Keep only root-owned directories without group or world
+          # write permission. macOS installs gh and jq under the runner-owned
+          # Homebrew prefix, so copy those tools (and jq's non-system dylibs)
+          # into a root-owned, non-writable directory before the agent starts
+          # and prepend that directory to the captured PATH. Windows has no
+          # POSIX ownership mode bits, so it keeps the $HOME filter and the
+          # platform ACL model is the documented residual; execution isolation
+          # remains the real boundary. Fail closed when the trusted tools
+          # cannot be prepared or do not resolve.
+          trusted_root=""
+          if [ "${RUNNER_OS:-Linux}" = "macOS" ]; then
+            trusted_root=$(sudo -n mktemp -d /private/var/tmp/randomlabs-trusted-tools.XXXXXX 2>/dev/null) || {
+              echo "::error::Could not create a root-owned trusted tools directory on macOS (issue #713, fail closed)."
+              exit 1
+            }
+            sudo -n chmod 0755 "$trusted_root" || {
+              echo "::error::Could not lock down the trusted tools directory on macOS (issue #713, fail closed)."
+              exit 1
+            }
+            sudo -n install -d -m 0755 -o root -g wheel "$trusted_root/lib" || {
+              echo "::error::Could not create the trusted macOS library directory (issue #713, fail closed)."
+              exit 1
+            }
+            for tool in gh jq; do
+              tool_path=$(command -v "$tool" 2>/dev/null || true)
+              if [ -z "$tool_path" ]; then
+                echo "::error::The macOS trusted-tools copy cannot resolve $tool (issue #713, fail closed)."
+                exit 1
+              fi
+              sudo -n install -m 0755 -o root -g wheel "$tool_path" "$trusted_root/$tool.real" || {
+                echo "::error::Could not copy $tool into the trusted tools directory (issue #713, fail closed)."
+                exit 1
+              }
+              if ! deps=$(otool -L "$tool_path" 2>/dev/null); then
+                echo "::error::Could not read the macOS dynamic dependencies of $tool (issue #713, fail closed)."
+                exit 1
+              fi
+              while IFS= read -r lib; do
+                case "$lib" in
+                  /usr/lib/*|/System/*|'') continue ;;
+                esac
+                if [ ! -f "$lib" ]; then
+                  echo "::error::The macOS dependency $lib of $tool is not a regular file (issue #713, fail closed)."
+                  exit 1
+                fi
+                sudo -n install -m 0755 -o root -g wheel "$lib" "$trusted_root/lib/$(basename "$lib")" || {
+                  echo "::error::Could not copy the macOS dependency $lib of $tool into the trusted tools directory (issue #713, fail closed)."
+                  exit 1
+                }
+              done <<< "$(printf '%s\n' "$deps" | awk 'NR > 1 { print $1 }')"
+              {
+                printf '#!/bin/sh\n'
+                printf 'DYLD_LIBRARY_PATH="%s/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"\n' "$trusted_root"
+                printf 'export DYLD_LIBRARY_PATH\n'
+                printf 'exec "%s/%s.real" "$@"\n' "$trusted_root" "$tool"
+              } | sudo -n tee "$trusted_root/$tool" >/dev/null || {
+                echo "::error::Could not write the trusted $tool wrapper (issue #713, fail closed)."
+                exit 1
+              }
+              sudo -n chmod 0755 "$trusted_root/$tool" || {
+                echo "::error::Could not make the trusted $tool wrapper executable (issue #713, fail closed)."
+                exit 1
+              }
+            done
+          fi
+          clean=$(printf '%s\n' "$PATH" | tr ':' '\n' | while IFS= read -r dir; do
+            [ -n "$dir" ] || continue
+            case "$dir" in "$HOME"|"$HOME"/*) continue ;; esac
+            [ -d "$dir" ] || continue
+            meta=$(stat -L -c '%u %a' "$dir" 2>/dev/null || stat -L -f '%u %Lp' "$dir" 2>/dev/null) || continue
+            owner=${meta%% *}
+            mode=${meta#* }
+            [ "$owner" = "0" ] || continue
+            case "$mode" in ''|*[!0-7]*) continue ;; esac
+            if [ $(( 8#$mode & 022 )) -ne 0 ]; then continue; fi
+            printf '%s\n' "$dir"
+          done | paste -sd: -)
+          if [ -n "$trusted_root" ]; then
+            clean="$trusted_root${clean:+:$clean}"
+          fi
           if [ -z "$clean" ]; then
             echo "::error::Could not derive a trusted pre-agent PATH (issue #713, fail closed)."
+            exit 1
+          fi
+          missing=""
+          for tool in gh jq git; do
+            ( PATH="$clean"; command -v "$tool" >/dev/null 2>&1 ) || missing="$missing $tool"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::The trusted pre-agent PATH cannot resolve:$missing (issue #713, fail closed)."
             exit 1
           fi
           echo "path=$clean" >> "$GITHUB_OUTPUT"
@@ -368,11 +457,100 @@ jobs:
           # owner PAT. Capture the PATH now, before any agent code runs, and
           # drop the known user-writable tool directories so every post-agent
           # PAT step resolves its tools from the pre-agent environment.
-          clean=$(printf '%s' "$PATH" | tr ':' '\n' \
-            | grep -vF -e "$HOME/.opencode/bin" -e "$HOME/.local/bin" -e "$HOME/.cargo/bin" -e "$HOME/.dotnet/tools" -e "$HOME/.config/composer/vendor/bin" \
-            | paste -sd: -)
+          # Issue #713 round 18: filtering only $HOME left world-writable
+          # runner directories (/usr/local/bin, /opt/pipx_bin, and
+          # /usr/local/.ghcup/bin are mode 777 on the hosted runners) in the
+          # owner-PAT PATH, so an agent-planted gh there still ran with the
+          # owner PAT. Keep only root-owned directories without group or world
+          # write permission. macOS installs gh and jq under the runner-owned
+          # Homebrew prefix, so copy those tools (and jq's non-system dylibs)
+          # into a root-owned, non-writable directory before the agent starts
+          # and prepend that directory to the captured PATH. Windows has no
+          # POSIX ownership mode bits, so it keeps the $HOME filter and the
+          # platform ACL model is the documented residual; execution isolation
+          # remains the real boundary. Fail closed when the trusted tools
+          # cannot be prepared or do not resolve.
+          trusted_root=""
+          if [ "${RUNNER_OS:-Linux}" = "macOS" ]; then
+            trusted_root=$(sudo -n mktemp -d /private/var/tmp/randomlabs-trusted-tools.XXXXXX 2>/dev/null) || {
+              echo "::error::Could not create a root-owned trusted tools directory on macOS (issue #713, fail closed)."
+              exit 1
+            }
+            sudo -n chmod 0755 "$trusted_root" || {
+              echo "::error::Could not lock down the trusted tools directory on macOS (issue #713, fail closed)."
+              exit 1
+            }
+            sudo -n install -d -m 0755 -o root -g wheel "$trusted_root/lib" || {
+              echo "::error::Could not create the trusted macOS library directory (issue #713, fail closed)."
+              exit 1
+            }
+            for tool in gh jq; do
+              tool_path=$(command -v "$tool" 2>/dev/null || true)
+              if [ -z "$tool_path" ]; then
+                echo "::error::The macOS trusted-tools copy cannot resolve $tool (issue #713, fail closed)."
+                exit 1
+              fi
+              sudo -n install -m 0755 -o root -g wheel "$tool_path" "$trusted_root/$tool.real" || {
+                echo "::error::Could not copy $tool into the trusted tools directory (issue #713, fail closed)."
+                exit 1
+              }
+              if ! deps=$(otool -L "$tool_path" 2>/dev/null); then
+                echo "::error::Could not read the macOS dynamic dependencies of $tool (issue #713, fail closed)."
+                exit 1
+              fi
+              while IFS= read -r lib; do
+                case "$lib" in
+                  /usr/lib/*|/System/*|'') continue ;;
+                esac
+                if [ ! -f "$lib" ]; then
+                  echo "::error::The macOS dependency $lib of $tool is not a regular file (issue #713, fail closed)."
+                  exit 1
+                fi
+                sudo -n install -m 0755 -o root -g wheel "$lib" "$trusted_root/lib/$(basename "$lib")" || {
+                  echo "::error::Could not copy the macOS dependency $lib of $tool into the trusted tools directory (issue #713, fail closed)."
+                  exit 1
+                }
+              done <<< "$(printf '%s\n' "$deps" | awk 'NR > 1 { print $1 }')"
+              {
+                printf '#!/bin/sh\n'
+                printf 'DYLD_LIBRARY_PATH="%s/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"\n' "$trusted_root"
+                printf 'export DYLD_LIBRARY_PATH\n'
+                printf 'exec "%s/%s.real" "$@"\n' "$trusted_root" "$tool"
+              } | sudo -n tee "$trusted_root/$tool" >/dev/null || {
+                echo "::error::Could not write the trusted $tool wrapper (issue #713, fail closed)."
+                exit 1
+              }
+              sudo -n chmod 0755 "$trusted_root/$tool" || {
+                echo "::error::Could not make the trusted $tool wrapper executable (issue #713, fail closed)."
+                exit 1
+              }
+            done
+          fi
+          clean=$(printf '%s\n' "$PATH" | tr ':' '\n' | while IFS= read -r dir; do
+            [ -n "$dir" ] || continue
+            case "$dir" in "$HOME"|"$HOME"/*) continue ;; esac
+            [ -d "$dir" ] || continue
+            meta=$(stat -L -c '%u %a' "$dir" 2>/dev/null || stat -L -f '%u %Lp' "$dir" 2>/dev/null) || continue
+            owner=${meta%% *}
+            mode=${meta#* }
+            [ "$owner" = "0" ] || continue
+            case "$mode" in ''|*[!0-7]*) continue ;; esac
+            if [ $(( 8#$mode & 022 )) -ne 0 ]; then continue; fi
+            printf '%s\n' "$dir"
+          done | paste -sd: -)
+          if [ -n "$trusted_root" ]; then
+            clean="$trusted_root${clean:+:$clean}"
+          fi
           if [ -z "$clean" ]; then
             echo "::error::Could not derive a trusted pre-agent PATH (issue #713, fail closed)."
+            exit 1
+          fi
+          missing=""
+          for tool in gh jq git; do
+            ( PATH="$clean"; command -v "$tool" >/dev/null 2>&1 ) || missing="$missing $tool"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::The trusted pre-agent PATH cannot resolve:$missing (issue #713, fail closed)."
             exit 1
           fi
           echo "path=$clean" >> "$GITHUB_OUTPUT"
@@ -724,11 +902,100 @@ jobs:
           # owner PAT. Capture the PATH now, before any agent code runs, and
           # drop the known user-writable tool directories so every post-agent
           # PAT step resolves its tools from the pre-agent environment.
-          clean=$(printf '%s' "$PATH" | tr ':' '\n' \
-            | grep -vF -e "$HOME/.opencode/bin" -e "$HOME/.local/bin" -e "$HOME/.cargo/bin" -e "$HOME/.dotnet/tools" -e "$HOME/.config/composer/vendor/bin" \
-            | paste -sd: -)
+          # Issue #713 round 18: filtering only $HOME left world-writable
+          # runner directories (/usr/local/bin, /opt/pipx_bin, and
+          # /usr/local/.ghcup/bin are mode 777 on the hosted runners) in the
+          # owner-PAT PATH, so an agent-planted gh there still ran with the
+          # owner PAT. Keep only root-owned directories without group or world
+          # write permission. macOS installs gh and jq under the runner-owned
+          # Homebrew prefix, so copy those tools (and jq's non-system dylibs)
+          # into a root-owned, non-writable directory before the agent starts
+          # and prepend that directory to the captured PATH. Windows has no
+          # POSIX ownership mode bits, so it keeps the $HOME filter and the
+          # platform ACL model is the documented residual; execution isolation
+          # remains the real boundary. Fail closed when the trusted tools
+          # cannot be prepared or do not resolve.
+          trusted_root=""
+          if [ "${RUNNER_OS:-Linux}" = "macOS" ]; then
+            trusted_root=$(sudo -n mktemp -d /private/var/tmp/randomlabs-trusted-tools.XXXXXX 2>/dev/null) || {
+              echo "::error::Could not create a root-owned trusted tools directory on macOS (issue #713, fail closed)."
+              exit 1
+            }
+            sudo -n chmod 0755 "$trusted_root" || {
+              echo "::error::Could not lock down the trusted tools directory on macOS (issue #713, fail closed)."
+              exit 1
+            }
+            sudo -n install -d -m 0755 -o root -g wheel "$trusted_root/lib" || {
+              echo "::error::Could not create the trusted macOS library directory (issue #713, fail closed)."
+              exit 1
+            }
+            for tool in gh jq; do
+              tool_path=$(command -v "$tool" 2>/dev/null || true)
+              if [ -z "$tool_path" ]; then
+                echo "::error::The macOS trusted-tools copy cannot resolve $tool (issue #713, fail closed)."
+                exit 1
+              fi
+              sudo -n install -m 0755 -o root -g wheel "$tool_path" "$trusted_root/$tool.real" || {
+                echo "::error::Could not copy $tool into the trusted tools directory (issue #713, fail closed)."
+                exit 1
+              }
+              if ! deps=$(otool -L "$tool_path" 2>/dev/null); then
+                echo "::error::Could not read the macOS dynamic dependencies of $tool (issue #713, fail closed)."
+                exit 1
+              fi
+              while IFS= read -r lib; do
+                case "$lib" in
+                  /usr/lib/*|/System/*|'') continue ;;
+                esac
+                if [ ! -f "$lib" ]; then
+                  echo "::error::The macOS dependency $lib of $tool is not a regular file (issue #713, fail closed)."
+                  exit 1
+                fi
+                sudo -n install -m 0755 -o root -g wheel "$lib" "$trusted_root/lib/$(basename "$lib")" || {
+                  echo "::error::Could not copy the macOS dependency $lib of $tool into the trusted tools directory (issue #713, fail closed)."
+                  exit 1
+                }
+              done <<< "$(printf '%s\n' "$deps" | awk 'NR > 1 { print $1 }')"
+              {
+                printf '#!/bin/sh\n'
+                printf 'DYLD_LIBRARY_PATH="%s/lib${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"\n' "$trusted_root"
+                printf 'export DYLD_LIBRARY_PATH\n'
+                printf 'exec "%s/%s.real" "$@"\n' "$trusted_root" "$tool"
+              } | sudo -n tee "$trusted_root/$tool" >/dev/null || {
+                echo "::error::Could not write the trusted $tool wrapper (issue #713, fail closed)."
+                exit 1
+              }
+              sudo -n chmod 0755 "$trusted_root/$tool" || {
+                echo "::error::Could not make the trusted $tool wrapper executable (issue #713, fail closed)."
+                exit 1
+              }
+            done
+          fi
+          clean=$(printf '%s\n' "$PATH" | tr ':' '\n' | while IFS= read -r dir; do
+            [ -n "$dir" ] || continue
+            case "$dir" in "$HOME"|"$HOME"/*) continue ;; esac
+            [ -d "$dir" ] || continue
+            meta=$(stat -L -c '%u %a' "$dir" 2>/dev/null || stat -L -f '%u %Lp' "$dir" 2>/dev/null) || continue
+            owner=${meta%% *}
+            mode=${meta#* }
+            [ "$owner" = "0" ] || continue
+            case "$mode" in ''|*[!0-7]*) continue ;; esac
+            if [ $(( 8#$mode & 022 )) -ne 0 ]; then continue; fi
+            printf '%s\n' "$dir"
+          done | paste -sd: -)
+          if [ -n "$trusted_root" ]; then
+            clean="$trusted_root${clean:+:$clean}"
+          fi
           if [ -z "$clean" ]; then
             echo "::error::Could not derive a trusted pre-agent PATH (issue #713, fail closed)."
+            exit 1
+          fi
+          missing=""
+          for tool in gh jq git; do
+            ( PATH="$clean"; command -v "$tool" >/dev/null 2>&1 ) || missing="$missing $tool"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::The trusted pre-agent PATH cannot resolve:$missing (issue #713, fail closed)."
             exit 1
           fi
           echo "path=$clean" >> "$GITHUB_OUTPUT"

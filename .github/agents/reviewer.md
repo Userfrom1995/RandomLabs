@@ -138,12 +138,20 @@ Your `/tmp/random-lab-decision.json` MUST carry it as a top-level field:
 `printf '%s' "$LAB_RUN_NONCE"` and write it verbatim. If `LAB_RUN_NONCE` is absent (an older workflow lane), omit the field. The workflow discards a
 decision file that does not carry the current run's nonce, because `/tmp` is
 writable by PR-executed code and a blind write must never become the binding
-verdict in the handoff.
+verdict in the handoff. The nonce rejects a blind write, but a process spawned
+by your session can read `LAB_RUN_NONCE` and forge the handoff; it is not an
+execution-isolation boundary.
 
 **Report Publication Contract (issues #616, #637, #713)**: ALWAYS write exactly
 one complete signed report to `/tmp/random-lab-report.md` before ending the
-session (the decision file stays the machine handoff). The publication lane
-depends on the workflow that invoked you:
+session (the decision file stays the machine handoff). When `LAB_RUN_NONCE` is
+set, the report MUST carry exactly one standalone `run-nonce: <value>` line
+immediately after the heading, with the verbatim nonce. The owner-PAT publisher
+verifies it against this run and removes the line before posting, so a stale or
+blind replacement report is rejected. A process spawned by your session can
+read the nonce and forge the report, so this is a blind-replacement guard, not
+execution isolation. The publication lane depends on the workflow that invoked
+you:
 
 - If your environment carries `LAB_OWNER_PAT_PUBLISHES=1`, this run's workflow
   publishes your report through its hardcoded owner-PAT step. Do NOT post
