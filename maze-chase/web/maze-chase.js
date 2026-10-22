@@ -461,6 +461,13 @@
     } catch (e) { /* ignore */ }
   }
 
+  function syncMixLabels() {
+    ['master', 'music', 'sfx'].forEach(function (key) {
+      var input = $('rng-' + key), out = $('out-' + key);
+      if (input && out) out.textContent = Math.round(Number(input.value)) + '%';
+    });
+  }
+
   function syncSettingsUI() {
     if (!exp) return;
     try {
@@ -471,6 +478,7 @@
       $('chk-motion').checked = (exp.mc_reduced_motion() >>> 0) !== 0;
       $('chk-contrast').checked = (exp.mc_high_contrast() >>> 0) !== 0;
       $('chk-fps').checked = (exp.mc_show_fps() >>> 0) !== 0;
+      syncMixLabels();
     } catch (e) { /* ignore */ }
   }
 
@@ -1477,6 +1485,7 @@
         if (!exp) return;
         try { exp[fn](Number($(id).value) / 100); } catch (e) { /* ignore */ }
         saveSettings();
+        syncMixLabels();
         applyVolumes();
       });
     };
