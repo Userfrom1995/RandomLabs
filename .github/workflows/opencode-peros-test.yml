@@ -138,18 +138,24 @@ jobs:
               }
             done
           fi
-          clean=$(printf '%s\n' "$PATH" | tr ':' '\n' | while IFS= read -r dir; do
-            [ -n "$dir" ] || continue
-            case "$dir" in "$HOME"|"$HOME"/*) continue ;; esac
-            [ -d "$dir" ] || continue
-            meta=$(stat -L -c '%u %a' "$dir" 2>/dev/null || stat -L -f '%u %Lp' "$dir" 2>/dev/null) || continue
-            owner=${meta%% *}
-            mode=${meta#* }
-            [ "$owner" = "0" ] || continue
-            case "$mode" in ''|*[!0-7]*) continue ;; esac
-            if [ $(( 8#$mode & 022 )) -ne 0 ]; then continue; fi
-            printf '%s\n' "$dir"
-          done | paste -sd: -)
+          if [ "${RUNNER_OS:-Linux}" = "Windows" ]; then
+            clean=$(printf '%s' "$PATH" | tr ':' '\n' \
+              | grep -vF -e "$HOME/.opencode/bin" -e "$HOME/.local/bin" -e "$HOME/.cargo/bin" -e "$HOME/.dotnet/tools" -e "$HOME/.config/composer/vendor/bin" \
+              | paste -sd: -)
+          else
+            clean=$(printf '%s\n' "$PATH" | tr ':' '\n' | while IFS= read -r dir; do
+              [ -n "$dir" ] || continue
+              case "$dir" in "$HOME"|"$HOME"/*) continue ;; esac
+              [ -d "$dir" ] || continue
+              meta=$(stat -L -c '%u %a' "$dir" 2>/dev/null || stat -L -f '%u %Lp' "$dir" 2>/dev/null) || continue
+              owner=${meta%% *}
+              mode=${meta#* }
+              [ "$owner" = "0" ] || continue
+              case "$mode" in ''|*[!0-7]*) continue ;; esac
+              if [ $(( 8#$mode & 022 )) -ne 0 ]; then continue; fi
+              printf '%s\n' "$dir"
+            done | paste -sd: -)
+          fi
           if [ -n "$trusted_root" ]; then
             clean="$trusted_root${clean:+:$clean}"
           fi
@@ -526,18 +532,24 @@ jobs:
               }
             done
           fi
-          clean=$(printf '%s\n' "$PATH" | tr ':' '\n' | while IFS= read -r dir; do
-            [ -n "$dir" ] || continue
-            case "$dir" in "$HOME"|"$HOME"/*) continue ;; esac
-            [ -d "$dir" ] || continue
-            meta=$(stat -L -c '%u %a' "$dir" 2>/dev/null || stat -L -f '%u %Lp' "$dir" 2>/dev/null) || continue
-            owner=${meta%% *}
-            mode=${meta#* }
-            [ "$owner" = "0" ] || continue
-            case "$mode" in ''|*[!0-7]*) continue ;; esac
-            if [ $(( 8#$mode & 022 )) -ne 0 ]; then continue; fi
-            printf '%s\n' "$dir"
-          done | paste -sd: -)
+          if [ "${RUNNER_OS:-Linux}" = "Windows" ]; then
+            clean=$(printf '%s' "$PATH" | tr ':' '\n' \
+              | grep -vF -e "$HOME/.opencode/bin" -e "$HOME/.local/bin" -e "$HOME/.cargo/bin" -e "$HOME/.dotnet/tools" -e "$HOME/.config/composer/vendor/bin" \
+              | paste -sd: -)
+          else
+            clean=$(printf '%s\n' "$PATH" | tr ':' '\n' | while IFS= read -r dir; do
+              [ -n "$dir" ] || continue
+              case "$dir" in "$HOME"|"$HOME"/*) continue ;; esac
+              [ -d "$dir" ] || continue
+              meta=$(stat -L -c '%u %a' "$dir" 2>/dev/null || stat -L -f '%u %Lp' "$dir" 2>/dev/null) || continue
+              owner=${meta%% *}
+              mode=${meta#* }
+              [ "$owner" = "0" ] || continue
+              case "$mode" in ''|*[!0-7]*) continue ;; esac
+              if [ $(( 8#$mode & 022 )) -ne 0 ]; then continue; fi
+              printf '%s\n' "$dir"
+            done | paste -sd: -)
+          fi
           if [ -n "$trusted_root" ]; then
             clean="$trusted_root${clean:+:$clean}"
           fi
@@ -971,18 +983,24 @@ jobs:
               }
             done
           fi
-          clean=$(printf '%s\n' "$PATH" | tr ':' '\n' | while IFS= read -r dir; do
-            [ -n "$dir" ] || continue
-            case "$dir" in "$HOME"|"$HOME"/*) continue ;; esac
-            [ -d "$dir" ] || continue
-            meta=$(stat -L -c '%u %a' "$dir" 2>/dev/null || stat -L -f '%u %Lp' "$dir" 2>/dev/null) || continue
-            owner=${meta%% *}
-            mode=${meta#* }
-            [ "$owner" = "0" ] || continue
-            case "$mode" in ''|*[!0-7]*) continue ;; esac
-            if [ $(( 8#$mode & 022 )) -ne 0 ]; then continue; fi
-            printf '%s\n' "$dir"
-          done | paste -sd: -)
+          if [ "${RUNNER_OS:-Linux}" = "Windows" ]; then
+            clean=$(printf '%s' "$PATH" | tr ':' '\n' \
+              | grep -vF -e "$HOME/.opencode/bin" -e "$HOME/.local/bin" -e "$HOME/.cargo/bin" -e "$HOME/.dotnet/tools" -e "$HOME/.config/composer/vendor/bin" \
+              | paste -sd: -)
+          else
+            clean=$(printf '%s\n' "$PATH" | tr ':' '\n' | while IFS= read -r dir; do
+              [ -n "$dir" ] || continue
+              case "$dir" in "$HOME"|"$HOME"/*) continue ;; esac
+              [ -d "$dir" ] || continue
+              meta=$(stat -L -c '%u %a' "$dir" 2>/dev/null || stat -L -f '%u %Lp' "$dir" 2>/dev/null) || continue
+              owner=${meta%% *}
+              mode=${meta#* }
+              [ "$owner" = "0" ] || continue
+              case "$mode" in ''|*[!0-7]*) continue ;; esac
+              if [ $(( 8#$mode & 022 )) -ne 0 ]; then continue; fi
+              printf '%s\n' "$dir"
+            done | paste -sd: -)
+          fi
           if [ -n "$trusted_root" ]; then
             clean="$trusted_root${clean:+:$clean}"
           fi
