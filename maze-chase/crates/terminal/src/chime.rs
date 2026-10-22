@@ -2,12 +2,16 @@
 //!
 //! Terminals have no sample playback, so this sink implements the same
 //! [`Audio`](maze_chase_audio::sink::Audio) trait with honest terminal
-//! means: a BEL (`\x07`) for sharp one-shot cues when the effective SFX
-//! level is audible, a recorded flash request for fright/death beats that
-//! the app renders as a status-line highlight, and full volume/mute
-//! honoring from [`Settings`](maze_chase_config::settings::Settings).
-//! Music slots are tracked (title vs fright) and reported so the HUD can
-//! show the current tune; nothing pretends to play samples.
+//! means: an opt-in BEL (`\x07`) chime for sharp one-shot cues when the
+//! effective SFX level is audible, a recorded flash request for
+//! fright/death beats that the app renders as a status-line highlight, and
+//! full volume/mute honoring from
+//! [`Settings`](maze_chase_config::settings::Settings). The BEL chime is
+//! **default OFF** (`terminal_chime`), because an unexpected terminal bell
+//! is the classic annoying default; flashes are visual twins and therefore
+//! fire even when muted or silent. Music slots are tracked (title vs
+//! fright) and reported so the HUD can show the current tune; nothing
+//! pretends to play samples.
 
 use maze_chase_audio::cue::Cue;
 use maze_chase_audio::sink::{Audio, TuneId};
@@ -44,6 +48,7 @@ pub struct Chime {
     music: f32,
     sfx: f32,
     muted: bool,
+    chime: bool,
     tune: TuneId,
     /// BEL bytes waiting for the main loop to write.
     bells: usize,
@@ -60,6 +65,7 @@ impl Chime {
             music: 1.0,
             sfx: 1.0,
             muted: false,
+            chime: false,
             tune: TuneId::None,
             bells: 0,
             flashes: Vec::new(),
@@ -67,8 +73,18 @@ impl Chime {
         }
     }
 
-    fn audible(&self) -> bool {
-        !self.muted && self.master > 0.0 && self.sfx > 0.0
+    fn bells_audible(&self) -> bool {
+        self.chime && !self.muted && self.master > 0.0 && self.sfx > 0.0
+    }
+
+    /// Enable or disable the opt-in BEL chime (visual twins always fire).
+    pub fn set_chime(&mut self, on: bool) {
+        self.chime = on;
+    }
+
+    /// Whether the BEL chime is enabled.
+    pub fn chime(&self) -> bool {
+        self.chime
     }
 
     /// Drain pending BEL bytes (`\x07` per bell, capped per drain).
@@ -115,14 +131,11 @@ impl Audio for Chime {
             let excess = self.heard.len() - MAX_HEARD;
             self.heard.drain(..excess);
         }
-        if !self.audible() {
-            return;
-        }
-        if bell_for(cue) {
-            self.bells += 1;
-        }
         if flash_for(cue) {
             self.flashes.push(cue);
+        }
+        if self.bells_audible() && bell_for(cue) {
+            self.bells += 1;
         }
     }
 
@@ -174,6 +187,7 @@ mod tests {
     #[test]
     fn sharp_cues_ring_and_flash() {
         let mut c = Chime::new();
+        c.set_chime(true);
         c.play(Cue::Death);
         assert_eq!(c.take_bells(), "\x07");
         assert_eq!(c.take_flashes(), vec![Cue::Death]);
@@ -187,10 +201,15 @@ mod tests {
     #[test]
     fn mute_and_zero_levels_silence_everything() {
         let mut c = Chime::new();
+        c.set_chime(true);
         c.set_muted(true);
         c.play(Cue::Death);
         assert_eq!(c.take_bells(), "");
-        assert!(c.take_flashes().is_empty());
+        assert_eq!(
+            c.take_flashes(),
+            vec![Cue::Death],
+            "visual twin survives mute"
+        );
         // Still heard (HUD can show), just not sounded.
         assert_eq!(c.heard().len(), 1);
         c.set_muted(false);
@@ -205,6 +224,7 @@ mod tests {
     #[test]
     fn bells_cap_per_drain() {
         let mut c = Chime::new();
+        c.set_chime(true);
         for _ in 0..10 {
             c.play(Cue::Death);
         }
@@ -219,6 +239,22 @@ mod tests {
             c.play(Cue::Crumb);
         }
         assert_eq!(c.heard().len(), MAX_HEARD);
+    }
+
+    #[test]
+    fn chime_defaults_off_and_flashes_still_fire() {
+        let mut c = Chime::new();
+        assert!(!c.chime());
+        c.play(Cue::Death);
+        assert_eq!(c.take_bells(), "", "BEL is opt-in");
+        assert_eq!(
+            c.take_flashes(),
+            vec![Cue::Death],
+            "visual twin always fires"
+        );
+        c.set_chime(true);
+        c.play(Cue::Death);
+        assert_eq!(c.take_bells(), "\x07");
     }
 
     #[test]
