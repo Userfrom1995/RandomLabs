@@ -7,10 +7,12 @@ place, and a release tag can never publish software built from a
 different version.
 
 The Linux packaging and smoke rows were executed on the release
-container for this tree. The macOS and Windows rows are built and signed
-by their native release jobs; no Linux run claims those artifacts. The
-measured record lives in [scoreboard.md](scoreboard.md) and the signed
-parity gate in [parity.md](parity.md).
+container for this tree. The macOS and Windows rows are built and
+smoke-tested by their native release jobs once
+`.github/workflows/maze-chase-release.yml` is installed. They were not
+run for this change, so no macOS or Windows artifact is claimed here.
+The measured record lives in [scoreboard.md](scoreboard.md) and the
+signed parity gate in [parity.md](parity.md).
 
 ## Toolchain
 
@@ -137,9 +139,13 @@ disk.
 
 The tar archives are deterministic: they are created with
 `SOURCE_DATE_EPOCH` (the release job uses the commit timestamp), sorted
-entry order, fixed owner and modes, and no gzip timestamp. The Windows
-zip is deterministic the same way. Building any host's set twice on the
-same commit produces byte-identical files; the checksum manifest is the
+entry order, fixed owner and modes (the stage directory mode is pinned
+so the caller's umask cannot leak into the archive), and no gzip
+timestamp. GNU tar does this directly on Linux; macOS falls back to a
+Python `tarfile` writer with the same pins, and a host with neither tool
+fails loudly instead of publishing an unpinned archive. The Windows zip is
+deterministic the same way. Building any host's set twice on the same
+commit produces byte-identical files; the checksum manifest is the
 proof.
 
 `packaging/release/stage-linux.sh` builds, smokes, and checksums all six
@@ -207,8 +213,7 @@ tarball and copy `Maze Chase.app` there. The app is unsigned, so the
 first launch needs a right-click Open (or System Settings, Privacy &
 Security, Open Anyway). Upgrade by replacing the app; uninstall by
 moving it to the Bin. Letting macOS keep its settings is normal; remove
-`~/Library/Application Support/maze-chase` to clear progress and
-settings.
+`~/.maze-chase` to clear progress and settings.
 
 ### macOS, terminal
 
@@ -272,12 +277,12 @@ Get-FileHash -Algorithm SHA256 <file> # Windows PowerShell
 The release notes state the unsigned status. Windows SmartScreen and
 macOS Gatekeeper warnings are expected; they are not a signature claim.
 
-### Candidate and final releases
+### Candidate and stable releases
 
-The phase candidate is tagged `maze-chase-v0.1.0-rc.1` and published as
-a prerelease. The Final Phase re-runs every per-OS install/upgrade/
-uninstall row against those artifacts, re-signs the terminal matrix,
-then bumps the workspace version to `1.0.0` and cuts
+The 0.1.0 candidate is tagged `maze-chase-v0.1.0-rc.1` and published as
+a prerelease. Before the stable release, re-run every per-OS install,
+upgrade, and uninstall row against those artifacts and re-sign the
+terminal matrix. Then bump the workspace version to `1.0.0` and cut
 `maze-chase-v1.0.0` as a stable release. No stable tag is cut while a
 binding check is open.
 

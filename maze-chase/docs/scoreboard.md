@@ -564,23 +564,27 @@ Linux stage (`packaging/release/stage-linux.sh`, run twice):
 
 | Artifact | SHA-256 |
 |---|---|
-| `maze-chase-terminal_0.1.0_amd64.deb` | `0e3b291356da257bb1f52003ab9cf48f66ef0f48ab42bc0aea873ab83de33e13` |
-| `maze-chase-desktop_0.1.0_amd64.deb` | `0e80049edbf9a1ff1d65c69e7d5dc375a361d5c8ec2e1fa2feeb16eb108891f7` |
-| `maze-chase-terminal-0.1.0-1.x86_64.rpm` | `b63a9a79670f0ca62c2e1af97735365ed9632d10a78d7c532cba2b0bc86147ee` |
-| `maze-chase-desktop-0.1.0-1.x86_64.rpm` | `7197355904b2ef6371cfea4598a74651225352907f257f19916a671ee1671acc` |
-| `maze-chase-terminal-0.1.0-linux-x86_64.tar.gz` | `09d0dfcd97087d307839a4d809837cf0012829d7222a7c61354f4da1b799c875` |
-| `maze-chase-desktop-0.1.0-linux-x86_64.tar.gz` | `5a52aa78e8b4dba785644fbea139611587bb087d6c608e68ac9f2f2398564219` |
+| `maze-chase-terminal_0.1.0_amd64.deb` | `45f9e6263bc0a198e9a4a7c141fbb4d72603f5b971d8cbb7ae09d9bdb616cae7` |
+| `maze-chase-desktop_0.1.0_amd64.deb` | `1a8eb80544c2a6dc6b84943311c2f81db9134668c708328c3d6be68f8474753d` |
+| `maze-chase-terminal-0.1.0-1.x86_64.rpm` | `11e1d15b96e10542131488163b5ddcc111027179a47789cc555c332d43432d03` |
+| `maze-chase-desktop-0.1.0-1.x86_64.rpm` | `046e2dc8d8e2ae78d244f01996a3f337345ad8771b64b66f179536db8e123daf` |
+| `maze-chase-terminal-0.1.0-linux-x86_64.tar.gz` | `673d1576daf9e2ab078a8c73a75eb1d6cdd2cb69be9b2f50f96599779706bc44` |
+| `maze-chase-desktop-0.1.0-linux-x86_64.tar.gz` | `69ed0219abef1520d83956d2344fd37ad74d7a622b6b738e5d87dc45f49891d9` |
 
 `packaging/release/smoke-linux.sh` unpacked both deb and rpm payloads,
 ran each binary's `--version` and `--help`, and installed, ran, and
-uninstalled both tarballs in a scratch prefix. A second full stage
-produced the same SHA-256 manifest byte for byte. The tarballs carry
-the binary, launch guide, and MIT license.
+uninstalled both tarballs in a scratch prefix through the installers
+extracted from the archives. A second full stage produced the same
+SHA-256 manifest byte for byte, and the tarball writer's digest test
+holds under umask 022 and 077. The tarballs carry the binary, the
+install/uninstall scripts, the launch guide, and the MIT license.
 
-Desktop loop and frame budget (`cargo test -p maze-chase-desktop`, 85
+Desktop loop and frame budget (`cargo test -p maze-chase-desktop`, 89
 lib tests plus the integration suites, all green): an 8K window is
 bounded to at most 16,777,216 rendered pixels with its aspect ratio
-kept and is scaled on presentation; static screens schedule no frames;
-Playing and `--probe` schedule continuous 16 ms frames. The committed
+kept and is scaled on presentation; static screens schedule no frames
+but keep a bounded 16 ms gamepad poll that redraws only on input;
+Playing and `--probe` schedule continuous 16 ms frames; audio slider
+and mute commits settle their fades in the input path. The committed
 probe and gameplay captures remain byte-identical after the change.
 
