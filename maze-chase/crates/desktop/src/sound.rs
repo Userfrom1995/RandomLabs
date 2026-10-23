@@ -7,8 +7,8 @@
 //! shared [`Audio`] trait on top of rodio: one-shot cues go to a
 //! polyphonic SFX sink, loops and stings go to the music bus (the latter
 //! on their own sink so a transition can stop the loop without cutting
-//! the sting), live volume changes glide over [`FADE_SECS`], and a missing
-//! audio device is a clean
+//! the sting), live volume changes glide over [`FADE_SECS`] while static
+//! settings commits settle immediately, and a missing audio device is a clean
 //! [`NoAudio`] error so the session can fall back to [`NullSink`] instead
 //! of crashing.
 //!

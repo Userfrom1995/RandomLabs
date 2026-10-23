@@ -24,7 +24,7 @@ upgrading, uninstalling, and clearing saved settings.
 - **macOS**: open the dmg and drag `Maze Chase.app` to Applications, or
   extract the tarball.
 
-To build from source, use Rust 1.85+ with cargo. System needs:
+To build from source, use Rust 1.89+ with cargo. System needs:
 
 - **Linux**: `sudo apt-get install libasound2-dev libudev-dev`
   (build-time ALSA headers for audio, udev headers for gamepad
@@ -134,8 +134,9 @@ bells, and dry plucks, and the music runs at the single shared 108 BPM
 with swung eighths.
 The title lead, counterline, and drop accents schedule on separate
 track lanes. Music defaults to 60 percent and SFX to 80 percent;
-master, music, and SFX gain changes fade over 120 ms, and mute silences
-both buses without removing visual feedback. On machines with no audio
+master, music, and SFX gain changes take effect immediately on static
+screens and fade over 120 ms during play, and mute silences both buses
+without removing visual feedback. On machines with no audio
 device the game starts silently instead of failing; the Audio screen
 still records every level.
 
