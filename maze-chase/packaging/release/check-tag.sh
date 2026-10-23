@@ -9,6 +9,8 @@
 # match the workspace version exactly. A non-tag ref (a dispatch from a
 # branch) is accepted only with --allow-branch, and then it prints the
 # workspace version so the pipeline still labels artifacts identically.
+# --allow-branch takes precedence over the ref-name shape: a branch whose
+# name looks like a tag is still a branch.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -37,6 +39,15 @@ if [ -z "$ARG" ]; then
   exit 2
 fi
 
+# A branch can be named like a tag (for example a branch called
+# maze-chase-v0.1.0-rc.1). The caller knows the ref type, so
+# --allow-branch means this ref is a branch and its name shape must
+# never select the tag path.
+if [ "$ALLOW_BRANCH" -eq 1 ]; then
+  echo "no maze-chase release tag (ref '$ARG'); workspace version $VERSION"
+  exit 0
+fi
+
 case "$ARG" in
   maze-chase-v*)
     WANT="${ARG#maze-chase-v}"
@@ -61,10 +72,6 @@ case "$ARG" in
     exit 1
     ;;
   *)
-    if [ "$ALLOW_BRANCH" -eq 1 ]; then
-      echo "no maze-chase release tag (ref '$ARG'); workspace version $VERSION"
-      exit 0
-    fi
     echo "ref '$ARG' is not a maze-chase release tag" >&2
     exit 1
     ;;

@@ -24,14 +24,11 @@ on:
     tags:
       - "maze-chase-v*"
   workflow_dispatch:
-    inputs:
-      prerelease:
-        description: "Publish as a prerelease"
-        type: boolean
-        default: true
 
+# Only the publish job needs to create or edit the release; the native
+# build jobs only read the checkout and upload workflow artifacts.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: maze-chase-release-${{ github.ref }}
@@ -193,6 +190,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [build-linux, build-macos, build-windows]
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -240,22 +239,19 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          # A tag ref derives the classification from its own name; a
+          # branch dispatch is always a release candidate. A stable tag
+          # can therefore never be published as a prerelease.
           if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
             TAG="$GITHUB_REF_NAME"
+            case "$TAG" in
+              *-rc.*) PRERELEASE="true" ;;
+              *) PRERELEASE="false" ;;
+            esac
           else
             TAG="maze-chase-v${VERSION}-rc.1"
+            PRERELEASE="true"
           fi
-          PRERELEASE="true"
-          case "$TAG" in
-            *-rc.*) PRERELEASE="true" ;;
-            *)
-              if [ -n "${{ inputs.prerelease }}" ]; then
-                PRERELEASE="${{ inputs.prerelease }}"
-              else
-                PRERELEASE="false"
-              fi
-              ;;
-          esac
           NOTES="$(mktemp)"
           cat > "$NOTES" <<EOF
           Maze Chase $VERSION
@@ -305,8 +301,23 @@ jobs:
             exit 1
           fi
           if gh release view "$TAG" >/dev/null 2>&1; then
+            # Remove assets that are not in this verified set; an
+            # upload alone leaves a stale architecture's package
+            # published forever.
+            gh release view "$TAG" --json assets --jq '.assets[].name' \
+              > "$RUNNER_TEMP/release-existing-assets.txt"
+            while IFS= read -r asset; do
+              [ -n "$asset" ] || continue
+              if [ ! -f "release-assets/$asset" ]; then
+                gh release delete-asset "$TAG" "$asset" --yes
+              fi
+            done < "$RUNNER_TEMP/release-existing-assets.txt"
             gh release upload "$TAG" --clobber release-assets/*
-            gh release edit "$TAG" --notes-file "$NOTES"
+            if [ "$PRERELEASE" = "true" ]; then
+              gh release edit "$TAG" --notes-file "$NOTES" --prerelease
+            else
+              gh release edit "$TAG" --notes-file "$NOTES" --prerelease=false
+            fi
             echo "[maze-chase-release] refreshed $TAG"
           else
             # Bind the new tag to the commit the artifacts were built
