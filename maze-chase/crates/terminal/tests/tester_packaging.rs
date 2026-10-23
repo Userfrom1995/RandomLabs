@@ -283,6 +283,20 @@ fn release_tag_gate_is_fail_closed() {
         String::from_utf8_lossy(&branch.stdout).contains(&version),
         "branch builds must still report the workspace version"
     );
+    // A branch can be named like a tag. --allow-branch means the ref is
+    // a branch, so the name shape must never turn it into a tag check.
+    for tag_shaped in [&stable, &candidate, &ahead] {
+        let out = run(&[tag_shaped.as_str(), "--allow-branch"]);
+        assert!(
+            out.status.success(),
+            "branch {tag_shaped} must pass with --allow-branch, stderr: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert!(
+            String::from_utf8_lossy(&out.stdout).contains(&version),
+            "branch {tag_shaped} must report the workspace version"
+        );
+    }
 }
 
 fn scratch_dir(name: &str) -> PathBuf {
@@ -634,4 +648,103 @@ fn packaging_matrix_version_matches_crate() {
         release.contains("libudev-dev"),
         "release.md must document the udev prerequisite (ALSA/udev link gate)"
     );
+}
+
+#[test]
+fn linux_packages_ship_the_full_mit_license() {
+    let license = std::fs::read_to_string(maze_root().parent().unwrap().join("LICENSE"))
+        .expect("the repository LICENSE must be readable");
+    assert!(
+        license.contains("MIT License"),
+        "the repository LICENSE must carry the MIT text"
+    );
+    for layer in ["terminal", "desktop"] {
+        let deb = std::fs::read_to_string(
+            maze_root()
+                .join("packaging")
+                .join(layer)
+                .join("build-deb.sh"),
+        )
+        .unwrap();
+        assert!(
+            deb.contains("\"$REPO_ROOT/LICENSE\""),
+            "{layer} deb copyright must be built from the repository LICENSE"
+        );
+        assert!(
+            !deb.contains("RandomLabs contributors. MIT licensed."),
+            "{layer} deb must not ship a hand-written license stub"
+        );
+        let rpm = std::fs::read_to_string(
+            maze_root()
+                .join("packaging")
+                .join(layer)
+                .join("build-rpm.sh"),
+        )
+        .unwrap();
+        assert!(
+            rpm.contains("\"$REPO_ROOT/LICENSE\""),
+            "{layer} rpm payload must stage the repository LICENSE"
+        );
+        assert!(
+            rpm.contains(&format!(
+                "%license /usr/share/licenses/maze-chase-{layer}/LICENSE"
+            )),
+            "{layer} rpm must install the license through %license"
+        );
+        assert!(
+            !rpm.contains("RandomLabs contributors. MIT licensed."),
+            "{layer} rpm must not ship a hand-written license stub"
+        );
+    }
+    let smoke = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("release")
+            .join("smoke-linux.sh"),
+    )
+    .unwrap();
+    assert!(
+        smoke.contains("grep -q 'MIT License'")
+            && smoke.contains("usr/share/licenses/maze-chase-$name/LICENSE"),
+        "the Linux smoke must prove both package payloads carry the MIT text"
+    );
+}
+
+#[test]
+fn packaging_helpers_pin_a_safe_umask() {
+    // dpkg-deb rejects a 0700 control directory and generated payload
+    // files inherit the caller's umask, so the shared helper must reset
+    // it before any build script creates a stage.
+    let common = std::fs::read_to_string(maze_root().join("packaging").join("common.sh")).unwrap();
+    assert!(
+        common.lines().any(|line| line.trim() == "umask 022"),
+        "common.sh must pin a safe umask for every packaging script"
+    );
+    let dir = scratch_dir("umask-helper");
+    let out = Command::new("bash")
+        .arg("-c")
+        .arg("umask 077; . \"$1\"; mkdir -p \"$2/DEBIAN\"")
+        .arg("bash")
+        .arg(maze_root().join("packaging").join("common.sh"))
+        .arg(&dir)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .expect("spawn the packaging helper");
+    assert!(
+        out.status.success(),
+        "sourcing the packaging helper under umask 077 failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let mode = std::fs::metadata(dir.join("DEBIAN"))
+        .expect("stat the staged control directory")
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(
+        mode, 0o755,
+        "a 077 caller umask must not leak into the control directory"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
 }
