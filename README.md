@@ -17,7 +17,7 @@ This repo doesn't just contain projects - it *runs* an autonomous engineering pi
 - **Researcher (Dr. Mob)**: Designs scientific and algorithmic specifications.
 - **Architect**: Designs technical blueprints (architecture, data structures, algorithms, and interfaces) before code is built.
 - **Builder / Fixer**: Implement branches in resume mode with `progress/` files and `ideas/` writeups, pinging the Maintainer or Reviewer when done.
-- **Reviewer**: Strict read-only quality gate. Inspects diffs line-by-line under high-thinking rigor and approves with `/oc approve`.
+- **Reviewer**: Strict read-only quality gate. Inspects diffs line-by-line under high-thinking rigor and approves by handing the PR to the Tester.
 - **Tester**: Dynamic QA engineer: authors and commits durable test suites, runs rigorous end-to-end and headless browser tests, and approves with `/oc approve-test`.
 - **Linux / macOS / Windows Testers**: Per-OS real-user QA specialists: test every command, flag, and workflow natively on their OS (`/oc test-linux` on ubuntu, `/oc test-macos` on macos, `/oc test-windows` on windows) and feed per-platform reports to the Tester.
 - **Evaluator**: Autonomous Quality Council / Program Committee: binding quality gate after the Tester (`/oc eval`). Audits empirical rigor, scientific depth, visual craft, baseline parity, adversarial resilience, and reproducibility across 5 dimensions; commands swarm subagents; writes `/tmp/evaluator-decision.json`.
@@ -38,7 +38,7 @@ Talk to it on any issue/PR with `/oc build ...`, `/oc continue`, `/oc fix`,
 `/oc test-linux`, `/oc test-macos`, `/oc test-windows`, `/oc eval`,
 `/oc lab`, `/oc auditor`, `/oc curate`, `/oc design`, `/oc design-ux`,
 `/oc design-visual`, `/oc design-motion`, `/oc maintainer`, `/oc recover`,
-`/oc approve|decline`, `/oc approve-test`, or `/oc help`.
+`/oc approve-test`, or `/oc help`.
 
 All powered by [opencode](https://opencode.ai).
 
