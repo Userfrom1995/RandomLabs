@@ -213,7 +213,9 @@ bash setup.sh --secrets --dispatch
 /oc continue          # resume an in-progress build
 /oc fix               # consent to a review round applying findings
 /oc review            # request a review (also fully automatic on PR pushes)
-/oc approve · /oc decline · /oc help
+/oc test              # request dynamic QA on a reviewed PR
+/oc eval              # request the binding Quality Council verdict
+/oc help
 
 # Undo everything (backs up, removes the lab, restores human control)
 bash shutdown.sh</code></pre>

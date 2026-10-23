@@ -33,7 +33,8 @@ lab that maintains the whole repository).
   applies reviewer findings on review rounds.
 - **The Reviewer** - the strict, read-only quality gate. Every PR (bot or
   human, no exceptions) is reviewed against a hard checklist; findings are
-  code-first (`file:line` + corrected code); it approves with `/oc approve`.
+  code-first (`file:line` + corrected code); it approves and hands the PR
+  to the Tester.
 - **The Tester** - QA & Performance Engineer. Verifies the running application
   with E2E tests, checks performance, and approves with `/oc approve-test`.
 - **The Linux / macOS / Windows Testers** - per-OS real-user QA specialists. Test every command, flag, and workflow natively on their OS (`/oc test-linux` on ubuntu, `/oc test-macos` on macos, `/oc test-windows` on windows) and feed per-platform reports to the Tester.
@@ -69,8 +70,8 @@ pushes to forks (guidance only).
   `opencode.yml` auto-approves held runs after every push. If it cannot, a
   comment asks for one manual click - approve it and the loop resumes.
 - **Talk to it** with `/oc` comments on issues/PRs:
-  `/oc build …`, `/oc continue`, `/oc fix`, `/oc review`, `/oc approve`,
-  `/oc decline`, `/oc help` - see AGENTS.md for the exact modes.
+  `/oc build …`, `/oc continue`, `/oc fix`, `/oc review`, `/oc test`,
+  `/oc eval`, `/oc help` - see AGENTS.md for the exact modes.
 - **One-command setup**: `bash setup.sh` (validate/setup/secrets/dispatch).
 - **Undo everything**: `bash shutdown.sh` (backs up, removes the lab,
   restores human control).
