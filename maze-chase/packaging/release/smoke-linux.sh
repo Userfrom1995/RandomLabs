@@ -53,7 +53,9 @@ check_version() {
 }
 
 package_name() {
-  case "$1" in
+  # Classify by the artifact leaf name: a parent directory containing
+  # "terminal" must not relabel a desktop package.
+  case "$(basename "$1")" in
     *terminal*) echo terminal ;;
     *desktop*) echo desktop ;;
     *) echo unknown ;;
@@ -97,6 +99,9 @@ for rpm in "${RPMS[@]+"${RPMS[@]}"}"; do
     echo "smoke: missing rpm $rpm" >&2
     exit 1
   }
+  # The extraction subshell changes directory, so make a relative input
+  # absolute before rpm2cpio reads it.
+  rpm="$(cd "$(dirname "$rpm")" && pwd)/$(basename "$rpm")"
   name="$(package_name "$rpm")"
   [ "$name" != unknown ] || {
     echo "smoke: cannot identify layer from $rpm" >&2

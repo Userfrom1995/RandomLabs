@@ -748,3 +748,22 @@ fn packaging_helpers_pin_a_safe_umask() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn linux_smoke_resolves_relative_inputs_and_leaf_names() {
+    let smoke = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("release")
+            .join("smoke-linux.sh"),
+    )
+    .unwrap();
+    assert!(
+        smoke.contains("case \"$(basename \"$1\")\" in"),
+        "the Linux smoke must classify packages by leaf name, not a full path"
+    );
+    assert!(
+        smoke.contains("rpm=\"$(cd \"$(dirname \"$rpm\")\" && pwd)/$(basename \"$rpm\")\""),
+        "the Linux smoke must resolve a relative rpm before the extraction subshell"
+    );
+}
