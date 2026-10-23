@@ -36,7 +36,17 @@ New-Item -ItemType Directory -Force -Path $work | Out-Null
 try {
     foreach ($zip in $Zips) {
         if (-not (Test-Path $zip)) { throw "missing zip $zip" }
-        $name = if ($zip -match "terminal") { "terminal" } else { "desktop" }
+        # Classify by the artifact's leaf name: a directory containing
+        # "terminal" must not relabel a desktop zip, and an unknown name
+        # must fail closed instead of defaulting to desktop.
+        $leaf = Split-Path -Leaf $zip
+        if ($leaf -match '^maze-chase-terminal-') {
+            $name = "terminal"
+        } elseif ($leaf -match '^maze-chase-desktop-') {
+            $name = "desktop"
+        } else {
+            throw "cannot identify layer from $zip"
+        }
         $dest = Join-Path $work "zip-$name"
         Expand-Archive -Path $zip -DestinationPath $dest
         $exe = Join-Path $dest "maze-chase-$name.exe"
@@ -45,8 +55,8 @@ try {
             throw "$zip does not contain LICENSE"
         }
         $version = (& $exe --version 2>&1 | Out-String).Trim()
-        if ($version -notmatch [regex]::Escape($Version)) {
-            throw "$zip reports '$version', expected version $Version"
+        if ($version -ne "maze-chase-$name $Version") {
+            throw "$zip reports '$version', expected 'maze-chase-$name $Version'"
         }
         & $exe --help | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "$zip --help failed with $LASTEXITCODE" }
@@ -72,7 +82,7 @@ try {
             $uninstallLog = Join-Path $work "uninstall.log"
             $proc = Start-Process -FilePath $Installer -Wait -PassThru -ArgumentList @(
                 "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
-                "/DIR=$target", "/LOG=$installLog"
+                "/DIR=`"$target`"", "/LOG=`"$installLog`""
             )
             if ($proc.ExitCode -ne 0) {
                 throw "installer failed with exit code $($proc.ExitCode); see $installLog"
@@ -83,13 +93,13 @@ try {
                 throw "installer did not place LICENSE"
             }
             $version = (& $installedExe --version 2>&1 | Out-String).Trim()
-            if ($version -notmatch [regex]::Escape($Version)) {
-                throw "installed binary reports '$version', expected $Version"
+            if ($version -ne "maze-chase-desktop $Version") {
+                throw "installed binary reports '$version', expected 'maze-chase-desktop $Version'"
             }
             $uninstaller = Join-Path $target "unins000.exe"
             if (-not (Test-Path $uninstaller)) { throw "installer did not register an uninstaller" }
             $proc = Start-Process -FilePath $uninstaller -Wait -PassThru -ArgumentList @(
-                "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=$uninstallLog"
+                "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=`"$uninstallLog`""
             )
             if ($proc.ExitCode -ne 0) {
                 throw "uninstaller failed with exit code $($proc.ExitCode); see $uninstallLog"
