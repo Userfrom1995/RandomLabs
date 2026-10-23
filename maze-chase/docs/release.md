@@ -16,8 +16,9 @@ signed parity gate in [parity.md](parity.md).
 
 ## Toolchain
 
-- Stable Rust 1.85 or newer (`rustc --version`). The workspace uses
-  edition 2021 with no pinned nightly features.
+- Stable Rust 1.89 or newer (`rustc --version`). The workspace uses
+  edition 2021 with no pinned nightly features; the locked dependency
+  graph requires 1.89 for the desktop layer.
 - For the browser build: `rustup target add wasm32-unknown-unknown`.
 - For the browser E2E: Node 22+ (the CDP harnesses use the built-in
   WebSocket; no npm packages) plus a headless chromium; serving uses
@@ -26,11 +27,12 @@ signed parity gate in [parity.md](parity.md).
   `libasound2-dev` and `libudev-dev` for the desktop build. Fedora/RHEL
   hosts only need the `rpm-build` equivalent of the RPM tools.
 - macOS packaging: `hdiutil` (part of macOS) and the Xcode command line
-  tools. Windows packaging: Inno Setup 6 (`iscc.exe`), installed by the
-  release job.
+  tools. Windows packaging: Inno Setup 6.3 or newer (`iscc.exe`; the
+  installer uses `x64compatible`), installed by the release job.
 - No cross-OS relabeling is allowed: the Windows zip and installer are
-  built on Windows, the app and dmg on macOS, and the deb/rpm/tarballs
-  on the matching Linux architecture.
+  built on Windows, the app and dmg on macOS, and the deb/rpm on the
+  matching Linux architecture; the tarballs are built on the host named
+  in the artifact.
 
 ## Verify the engine first
 
@@ -116,11 +118,10 @@ node web/e2e/tester-regression.js
 
 ## Artifact matrix
 
-Every script runs from the repo root (`RandomLabs/`) and stages into
-`maze-chase/dist/` (git-ignored scratch, never committed). The
-`<version>` in every name is the workspace version. The version segment
-in RPM names is `1.<arch>` because it is `<version>-1.<arch>.rpm` on
-disk.
+Every script runs from `maze-chase/` and stages into `dist/`
+(git-ignored scratch, never committed). The `<version>` in every name is
+the workspace version. The version segment in RPM names is `1.<arch>`
+because it is `<version>-1.<arch>.rpm` on disk.
 
 | Layer | OS | Command (native host) | Artifact |
 |---|---|---|---|
@@ -186,7 +187,8 @@ sudo rpm -e maze-chase-terminal
 ```
 
 Upgrade with `sudo dpkg -i <newer deb>` or `sudo rpm -U <newer rpm>`.
-The tarball path needs no root for the default per-user install:
+The tarball path needs no root for the default per-user install; the
+system-wide option is explicit about `sudo`:
 
 ```sh
 mkdir maze-chase-terminal && tar -xzf maze-chase-terminal-<version>-linux-<arch>.tar.gz -C maze-chase-terminal
