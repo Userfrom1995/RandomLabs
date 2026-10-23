@@ -273,6 +273,16 @@ jobs:
           # containing only test/compile invocations, fails the gate red. The
           # job failure then reaches the Maintainer's workflow_run trigger for
           # a fresh /oc test dispatch (crash-parity pattern).
+          #
+          # Issue #742 review F6 (Tester arm): this step is the ONLY reader of
+          # the agent-writable evidence file. It latches its verified scope as
+          # a step output, and the marker consumes that latch instead of
+          # re-reading the file. A process spawned by the Tester can still
+          # rewrite /tmp/live-run-evidence.json after this step (the documented
+          # execution-isolation residual), but it can no longer change what the
+          # publication gate believes this step verified, so an escalation can
+          # never be swapped into an approval.
+          echo "scope=none" >> "$GITHUB_OUTPUT"
           if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "No decision file; verify step above already failed the job closed."
             exit 0
@@ -298,10 +308,12 @@ jobs:
           # Documented escapes: infra PRs (validation commands, no app to run)
           # and genuinely unrunnable environments must declare scope + reason.
           if jq -e '.scope == "unrunnable" and ((.reason // "") | length > 20)' "$ev" >/dev/null 2>&1; then
+            echo "scope=unrunnable" >> "$GITHUB_OUTPUT"
             echo "Evidence declares scope=unrunnable with a substantive reason; routing as escalation."
             exit 0
           fi
           if jq -e '.scope == "infra" and ((.checks // []) | length > 0)' "$ev" >/dev/null 2>&1; then
+            echo "scope=infra" >> "$GITHUB_OUTPUT"
             echo "Evidence declares scope=infra with validation checks recorded."
             exit 0
           fi
@@ -312,6 +324,8 @@ jobs:
             echo "::error::Live-execution evidence contains only test/compile commands (or is malformed). Running the unit suite is NOT executing the product. Approval blocked; see tester.md 'The Live-Execution Proof'."
             exit 1
           fi
+          echo "scope=commands" >> "$GITHUB_OUTPUT"
+          echo "commands=$good" >> "$GITHUB_OUTPUT"
           echo "Evidence gate passed: $good non-test command(s) recorded against the deliverable."
 
       - name: Publish tester decision report (owner PAT)
@@ -508,6 +522,10 @@ jobs:
           # reaches the agent step. The /oc maintainer handoff below keeps the
           # owner PAT because GITHUB_TOKEN-authored comments start no workflow
           # run.
+          #
+          # Issue #742 review F6 (Tester arm): the evidence scope comes from
+          # the gate's latch, never from the agent-writable evidence file, so a
+          # post-gate file swap can never turn an escalation into an approval.
           echo "ok=false" >> "$GITHUB_OUTPUT"
           if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "No decision file; nothing to publish."
@@ -524,13 +542,17 @@ jobs:
             echo "ok=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          ev=/tmp/live-run-evidence.json
-          if [ -f "$ev" ] && jq -e '.scope == "unrunnable"' "$ev" >/dev/null 2>&1; then
-            echo "Evidence declares scope=unrunnable; this is an escalation, not an approval; no approval marker published."
+          evidence_scope="${{ steps.evidence-gate.outputs.scope }}"
+          if [ "$evidence_scope" = "unrunnable" ]; then
+            echo "Evidence gate latched scope=unrunnable; this is an escalation, not an approval; no approval marker published."
             echo "ok=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          scope=$(jq -r '.scope // "standard"' "$ev" 2>/dev/null || echo "standard")
+          if [ "$evidence_scope" != "commands" ] && [ "$evidence_scope" != "infra" ]; then
+            echo "::error::Evidence gate latched scope '${evidence_scope:-unset}', which is not a mergeable approval scope; refusing to publish an approval marker (issue #742)."
+            exit 1
+          fi
+          scope="$evidence_scope"
           pr="${{ github.event.issue.number }}"
           # Issue #713 round 17: run the trusted workflow-commit publisher
           # from memory through a pipe; never stage it in an agent-writable

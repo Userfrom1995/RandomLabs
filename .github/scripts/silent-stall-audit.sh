@@ -7703,6 +7703,17 @@ fi
 #      depending on agent prose formatting (and never forged: the marker only
 #      exists behind the decision file, the evidence gate, and the published
 #      signed report).
+# Issue #742 review F6 (Tester arm): the evidence gate is the only reader of
+# the agent-writable /tmp/live-run-evidence.json; it latches its verified
+# scope (none/unrunnable/infra/commands) plus the checked non-test command
+# count as step outputs, and the marker consumes that latch, never the file.
+# The marker publishes only for the two verified approval scopes (commands
+# and infra); unrunnable stays an escalation and any other latch fails
+# closed, so a post-gate file swap can never turn an escalation into an
+# approval. The static pins are backed by a behavioral fixture that executes
+# the extracted marker block with the latch substituted and a deliberately
+# swapped evidence file, plus mutation self-tests for each latch emission and
+# the no-reread pin.
 # Review-gated residual boundary (same as R17/R19): the two workflow steps'
 # own control flow cannot be executed by a static audit, so an arbitrary
 # reshuffle that still passes every exact-form and ordering pin below is
@@ -7819,7 +7830,10 @@ else
     printf '%s\n' "$r22_marker_block" | grep -q 'bash \.github/scripts/publish-tester-marker\.sh' && r22_bad="${r22_bad} test.yml(head-workspace-publisher-invocation)"
     printf '%s\n' "$r22_marker_block" | grep -qF 'if [ -z "$publisher" ]; then' || r22_bad="${r22_bad} test.yml(no-fail-closed-on-missing-publisher)"
     printf '%s\n' "$r22_marker_block" | grep -q 'mktemp' && r22_bad="${r22_bad} test.yml(marker-tempfile-staging)"
-    printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qF "if [ -f \"\$ev\" ] && jq -e '.scope == \"unrunnable\"' \"\$ev\" >/dev/null 2>&1; then" || r22_bad="${r22_bad} test.yml(no-unrunnable-escalation-exclusion)"
+    printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF 'evidence_scope="${{ steps.evidence-gate.outputs.scope }}"' || r22_bad="${r22_bad} test.yml(marker-no-evidence-latch-consumption)"
+    printf '%s\n' "$r22_marker_block" | grep -qF '/tmp/live-run-evidence.json' && r22_bad="${r22_bad} test.yml(marker-rereads-agent-writable-evidence)"
+    printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF 'if [ "$evidence_scope" = "unrunnable" ]; then' || r22_bad="${r22_bad} test.yml(no-unrunnable-escalation-exclusion)"
+    printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF 'if [ "$evidence_scope" != "commands" ] && [ "$evidence_scope" != "infra" ]; then' || r22_bad="${r22_bad} test.yml(no-mergeable-scope-guard)"
     printf '%s\n' "$r22_marker_block" | grep -qF "if ! printf '%s' \"\$publisher\" | bash -s -- \"\$pr\" \"\$scope\"; then" || r22_bad="${r22_bad} test.yml(no-publisher-invocation)"
     printf '%s\n' "$r22_marker_block" | grep -qF 'echo "ok=false" >> "$GITHUB_OUTPUT"' || r22_bad="${r22_bad} test.yml(no-marker-ok-default)"
     [ "$(printf '%s\n' "$r22_marker_block" | grep -cF 'echo "ok=true" >> "$GITHUB_OUTPUT"' || true)" -ge 4 ] || r22_bad="${r22_bad} test.yml(marker-ok-true-count-lt-4)"
@@ -7848,6 +7862,28 @@ else
     printf '%s\n' "$r22_evidence_block" | grep -qF 'run_nonce' || r22_bad="${r22_bad} test.yml(evidence-no-nonce-check)"
     printf '%s\n' "$r22_marker_block" | grep -qF 'run_nonce' || r22_bad="${r22_bad} test.yml(marker-no-nonce-check)"
     printf '%s\n' "$r22_fwd_block" | grep -qF 'run_nonce' || r22_bad="${r22_bad} test.yml(forward-no-nonce-check)"
+    # Issue #742 review F6 (Tester arm): every latch emission is required
+    # exactly once by form, the marker must consume the latch and must not
+    # re-read the agent-writable evidence file, and each pin carries a
+    # mutation self-test that removes or replaces the guarded line and
+    # requires the pin to trip.
+    r22_has_scope_latch() {
+      printf '%s\n' "$1" | sed 's/^[[:space:]]*//' | grep -qxF "echo \"scope=$2\" >> \"\$GITHUB_OUTPUT\""
+    }
+    for r22_scope in none unrunnable infra commands; do
+      r22_has_scope_latch "$r22_evidence_block" "$r22_scope" || r22_bad="${r22_bad} test.yml(evidence-no-${r22_scope}-latch)"
+      r22_scope_mut=$(printf '%s\n' "$r22_evidence_block" | grep -vF "echo \"scope=${r22_scope}\" >> \"\$GITHUB_OUTPUT\"" || true)
+      r22_has_scope_latch "$r22_scope_mut" "$r22_scope" && r22_bad="${r22_bad} test.yml(evidence-${r22_scope}-latch-self-test-not-caught)"
+    done
+    printf '%s\n' "$r22_evidence_block" | sed 's/^[[:space:]]*//' | grep -qxF 'echo "commands=$good" >> "$GITHUB_OUTPUT"' || r22_bad="${r22_bad} test.yml(evidence-no-command-count-latch)"
+    r22_marker_clean_of_evidence() {
+      ! printf '%s\n' "$1" | grep -qF '/tmp/live-run-evidence.json'
+    }
+    r22_marker_clean_of_evidence "$r22_marker_block" || r22_bad="${r22_bad} test.yml(marker-rereads-agent-writable-evidence)"
+    r22_marker_reread_mut="${r22_marker_block}"$'\n          evidence_scope=$(jq -r '\''.scope // empty'\'' /tmp/live-run-evidence.json 2>/dev/null || true)'
+    r22_marker_clean_of_evidence "$r22_marker_reread_mut" && r22_bad="${r22_bad} test.yml(marker-reread-mutant-not-caught)"
+    r22_marker_latch_mut=$(printf '%s\n' "$r22_marker_block" | sed 's#^[[:space:]]*evidence_scope=.*#          evidence_scope=$(jq -r '\''.scope // empty'\'' /tmp/live-run-evidence.json 2>/dev/null || true)#')
+    printf '%s\n' "$r22_marker_latch_mut" | grep -qF 'steps.evidence-gate.outputs.scope' && r22_bad="${r22_bad} test.yml(marker-latch-replacement-mutant-not-caught)"
     fi
   fi
 fi
@@ -8043,13 +8079,120 @@ R22_PUBLISHER_MOCK
         r22_pub_case bad-target 1 "abc"
         r22_posted_first=$(head -n1 "$r22_tmp/posted-good-marker" 2>/dev/null || true)
         [ "$r22_posted_first" = "/oc approve-test" ] || r22_bad="${r22_bad} publisher(functional-good-marker-posted-first-line='${r22_posted_first}')"
+        # Issue #742 review F6 (Tester arm): execute the extracted marker run
+        # block with the evidence-gate latch expression substituted and a
+        # deliberately SWAPPED evidence file that always disagrees with the
+        # latch. The outcome must follow the latch: commands and infra publish,
+        # unrunnable refuses (escalation, no marker), and an unset/other latch
+        # fails closed. A marker that re-reads the file instead would publish
+        # on the unrunnable case and fail every assertion.
+        r22_swap_bin="$r22_tmp/swap-bin"
+        mkdir -p "$r22_swap_bin"
+        cat > "$r22_swap_bin/git" <<'R22_SWAP_GIT'
+#!/usr/bin/env bash
+case "$*" in
+  "cat-file -e "*) exit 0 ;;
+  "show "*) cat "$R22_SWAP_PUBLISHER" ;;
+  *) exit 0 ;;
+esac
+R22_SWAP_GIT
+        chmod +x "$r22_swap_bin/git"
+        if [ -z "$r22_marker_block" ]; then
+          r22_bad="${r22_bad} test.yml(swap-behavioral-marker-block-missing)"
+        elif [ "$(PATH="$r22_swap_bin:$PATH" command -v git)" != "$r22_swap_bin/git" ]; then
+          r22_bad="${r22_bad} test.yml(swap-behavioral-mock-not-intercepted)"
+        else
+          r22_swap_publisher="$r22_tmp/swap-publisher.sh"
+          cat > "$r22_swap_publisher" <<'R22_SWAP_PUBLISHER'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$R22_SWAP_CALLS"
+R22_SWAP_PUBLISHER
+          r22_marker_run=$(printf '%s\n' "$r22_marker_block" | awk '
+            /^        run: \|$/ { inrun=1; next }
+            inrun && /^      - name: / { exit }
+            inrun { print }
+          ')
+          if [ -z "$r22_marker_run" ]; then
+            r22_bad="${r22_bad} test.yml(swap-behavioral-marker-run-extraction-empty)"
+          else
+            r22_swap_case() {
+              r22_sc_name="$1"; r22_sc_latch="$2"; r22_sc_evidence="$3"; r22_sc_want_rc="$4"; r22_sc_want_calls="$5"; r22_sc_want_ok="$6"; r22_sc_want_args="$7"
+              r22_sc_dir="$r22_tmp/swap-$r22_sc_name"
+              mkdir -p "$r22_sc_dir"
+              printf '%s\n' '{"action":"maintainer","run_nonce":"sandboxnonce"}' > "$r22_sc_dir/decision.json"
+              printf '%s\n' "$r22_sc_evidence" > "$r22_sc_dir/evidence.json"
+              : > "$r22_sc_dir/calls"
+              : > "$r22_sc_dir/output"
+              printf '%s\n' "$r22_marker_run" \
+                | sed -e "s#/tmp/random-lab-decision.json#$r22_sc_dir/decision.json#g" \
+                      -e "s#\${{ steps\.evidence-gate\.outputs\.scope }}#$r22_sc_latch#g" \
+                      -e 's/\${{ github\.event\.issue\.number }}/745/g' > "$r22_sc_dir/run.sh"
+              if grep -q '\${{' "$r22_sc_dir/run.sh" 2>/dev/null; then
+                r22_bad="${r22_bad} test.yml(swap-behavioral-${r22_sc_name}-unsubstituted-expression)"
+              else
+                ( cd "$r22_sc_dir" && env -u GITHUB_TOKEN -u GH_TOKEN -u GH_API_TOKEN \
+                    PATH="$r22_swap_bin:$PATH" GITHUB_SHA="deadbeefdeadbeefdeadbeefdeadbeefdeadbeef" \
+                    LAB_RUN_NONCE="sandboxnonce" GITHUB_OUTPUT="$r22_sc_dir/output" \
+                    R22_SWAP_CALLS="$r22_sc_dir/calls" R22_SWAP_PUBLISHER="$r22_swap_publisher" \
+                    bash --noprofile --norc -eo pipefail "$r22_sc_dir/run.sh" ) >"$r22_sc_dir/stdout" 2>&1
+                r22_sc_rc=$?
+                if [ "$r22_sc_rc" -ne "$r22_sc_want_rc" ]; then
+                  r22_bad="${r22_bad} test.yml(swap-behavioral-${r22_sc_name}-rc=${r22_sc_rc},want=${r22_sc_want_rc})"
+                fi
+                r22_sc_call_count=$(wc -l < "$r22_sc_dir/calls" 2>/dev/null | tr -d ' ')
+                if [ "${r22_sc_call_count:-0}" -ne "$r22_sc_want_calls" ]; then
+                  r22_bad="${r22_bad} test.yml(swap-behavioral-${r22_sc_name}-publisher-calls=${r22_sc_call_count:-0},want=${r22_sc_want_calls})"
+                fi
+                if [ -n "$r22_sc_want_args" ]; then
+                  r22_sc_args=$(head -n1 "$r22_sc_dir/calls" 2>/dev/null || true)
+                  [ "$r22_sc_args" = "$r22_sc_want_args" ] || r22_bad="${r22_bad} test.yml(swap-behavioral-${r22_sc_name}-args='${r22_sc_args}',want='${r22_sc_want_args}')"
+                fi
+                r22_sc_ok=$(grep -c '^ok=true$' "$r22_sc_dir/output" 2>/dev/null || true)
+                if [ "$r22_sc_want_ok" = "true" ]; then
+                  [ "${r22_sc_ok:-0}" -eq 1 ] || r22_bad="${r22_bad} test.yml(swap-behavioral-${r22_sc_name}-no-ok-true)"
+                else
+                  [ "${r22_sc_ok:-0}" -eq 0 ] || r22_bad="${r22_bad} test.yml(swap-behavioral-${r22_sc_name}-unexpected-ok-true)"
+                fi
+              fi
+            }
+            r22_swap_case commands-ignores-file commands '{"scope":"unrunnable","reason":"swapped after the gate verified a non-test command","run_nonce":"sandboxnonce"}' 0 1 true '745 commands'
+            r22_swap_case unrunnable-ignores-file unrunnable '{"scope":"commands","run_nonce":"sandboxnonce","commands":[{"cmd":"./app --version","exit_code":0,"output_tail":"ok"}]}' 0 0 true ''
+            r22_swap_case infra-ignores-file infra '{"scope":"unrunnable","reason":"swapped after the gate verified infra checks","run_nonce":"sandboxnonce"}' 0 1 true '745 infra'
+            r22_swap_case unset-fails-closed '' '{"scope":"commands","run_nonce":"sandboxnonce","commands":[{"cmd":"./app --version","exit_code":0,"output_tail":"ok"}]}' 1 0 false ''
+            # Prove the swap fixture itself is load-bearing: a marker that
+            # re-reads the swapped evidence file instead of consuming the
+            # latch must publish on the unrunnable gate case, which is exactly
+            # the behavior the unrunnable-ignores-file assertion above rejects.
+            r22_swap_revert="$r22_tmp/swap-revert"
+            mkdir -p "$r22_swap_revert"
+            printf '%s\n' '{"action":"maintainer","run_nonce":"sandboxnonce"}' > "$r22_swap_revert/decision.json"
+            printf '%s\n' '{"scope":"commands","run_nonce":"sandboxnonce","commands":[{"cmd":"./app --version","exit_code":0,"output_tail":"ok"}]}' > "$r22_swap_revert/evidence.json"
+            : > "$r22_swap_revert/calls"
+            : > "$r22_swap_revert/output"
+            printf '%s\n' "$r22_marker_run" \
+              | sed -e "s#/tmp/random-lab-decision.json#$r22_swap_revert/decision.json#g" \
+                    -e "s#^[[:space:]]*evidence_scope=.*#          evidence_scope=\$(jq -r '.scope // empty' $r22_swap_revert/evidence.json 2>/dev/null || true)#" \
+                    -e 's/\${{ github\.event\.issue\.number }}/745/g' > "$r22_swap_revert/run.sh"
+            if grep -qF 'steps.evidence-gate.outputs.scope' "$r22_swap_revert/run.sh" 2>/dev/null; then
+              r22_bad="${r22_bad} test.yml(swap-behavioral-revert-mutant-not-applied)"
+            else
+              ( cd "$r22_swap_revert" && env -u GITHUB_TOKEN -u GH_TOKEN -u GH_API_TOKEN \
+                  PATH="$r22_swap_bin:$PATH" GITHUB_SHA="deadbeefdeadbeefdeadbeefdeadbeefdeadbeef" \
+                  LAB_RUN_NONCE="sandboxnonce" GITHUB_OUTPUT="$r22_swap_revert/output" \
+                  R22_SWAP_CALLS="$r22_swap_revert/calls" R22_SWAP_PUBLISHER="$r22_swap_publisher" \
+                  bash --noprofile --norc -eo pipefail "$r22_swap_revert/run.sh" ) >"$r22_swap_revert/stdout" 2>&1
+              r22_revert_calls=$(wc -l < "$r22_swap_revert/calls" 2>/dev/null | tr -d ' ')
+              [ "${r22_revert_calls:-0}" -eq 1 ] || r22_bad="${r22_bad} test.yml(swap-behavioral-revert-mutant-not-detected-publisher-calls=${r22_revert_calls:-0},want=1)"
+            fi
+          fi
+        fi
       fi
     fi
     rm -rf "$r22_tmp"
   fi
 fi
 if [ -z "$r22_bad" ]; then
-  check "R22" "tester maintainer decisions require positive publication evidence (owner-authored, post-trigger, tester-signed comment checked from this run's own workflow commit; unpublished and unverifiable verdicts are discarded and fail closed) and the workflow publishes the canonical owner-authored first-line /oc approve-test marker itself from the evidence-gated machine handoff (never for a non-maintainer decision or a scope=unrunnable escalation, re-fetched and verified by id), so the PAT merge sweep's R21 anchor is guaranteed by construction instead of agent prose formatting (issue #629)" "ok"
+  check "R22" "tester maintainer decisions require positive publication evidence (owner-authored, post-trigger, tester-signed comment checked from this run's own workflow commit; unpublished and unverifiable verdicts are discarded and fail closed) and the workflow publishes the canonical owner-authored first-line /oc approve-test marker itself from the evidence-gated machine handoff (never for a non-maintainer decision or a scope=unrunnable escalation, re-fetched and verified by id), so the PAT merge sweep's R21 anchor is guaranteed by construction instead of agent prose formatting; the live-execution evidence gate is the only reader of the agent-writable evidence file and latches its verified scope (none/unrunnable/infra/commands) plus the checked non-test command count as step outputs, the marker consumes that latch and never re-reads the file, publishing only for the verified commands and infra approval scopes (unrunnable stays an escalation and any other latch fails closed), and a behavioral fixture executes the extracted marker block with the latch substituted against a deliberately swapped evidence file so every outcome follows the latch and a post-gate swap can never approve, with mutation self-tests proving each latch emission and the no-reread pin load-bearing (issues #629 and #742 review F6)" "ok"
 else
   check "R22" "tester verdict publication guard missing:${r22_bad} (issue #629: a prose-first tester verdict silently stalls the PAT merge sweep and no publication-shape check existed)" "bad"
 fi
