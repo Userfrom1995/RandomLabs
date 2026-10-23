@@ -547,9 +547,9 @@ it stays with the per-OS release sign-off, as recorded in
 
 ## 2026-10-22 (release packaging, Linux x86_64)
 
-Measured from the `maze-chase/` tree at commit `396c8653` (workspace
-version 0.1.0) with `SOURCE_DATE_EPOCH=1792685485` on
-`runnervm8k3b6.bud053t52tnuhdprn10wdjgwhf.gx.internal.cloudapp.net`
+Measured from the `maze-chase/` tree at commit `6218b48f` (workspace
+version 0.1.0) with `SOURCE_DATE_EPOCH=1792748413` on
+`runnervm8k3b6.r5kosxifsywuxjr3drjtxcygpf.phxx.internal.cloudapp.net`
 (Ubuntu 24.04.5 LTS, Linux 6.17.0-1022-azure, x86_64) under stable Rust
 1.99.0 (`b940084d7eb6a299eb4bfeb8e34901bc051e7ac4`), rpmbuild 4.18.2,
 and dpkg-deb 1.22.6. These are this host's measured bytes: the tarball
@@ -571,12 +571,12 @@ Linux stage (`packaging/release/stage-linux.sh`, run twice):
 
 | Artifact | SHA-256 |
 |---|---|
-| `maze-chase-terminal_0.1.0_amd64.deb` | `cf63b8b4d10a91de9a53f788fc7ef6a556e844d96129c38e999351d0880bc162` |
-| `maze-chase-desktop_0.1.0_amd64.deb` | `e2c9e375565e441f0b05909a8a2c49353d66aa98d80d544df87058be7ed1c2aa` |
-| `maze-chase-terminal-0.1.0-1.x86_64.rpm` | `615b22f22ed419de9eee5c959e11477ad35b60778f438daaf19f4c70901c0652` |
-| `maze-chase-desktop-0.1.0-1.x86_64.rpm` | `f430a06318a307fed404fb73376f52d3062d0ace0acd9f33ba953a77fff7a1c5` |
-| `maze-chase-terminal-0.1.0-linux-x86_64.tar.gz` | `68deb2172d4834b2d4d7c1797da703be5335b3aeae725c589cf6200ee70dae71` |
-| `maze-chase-desktop-0.1.0-linux-x86_64.tar.gz` | `330a5d48c04426335aa81f85fbabd8e44b6e42538a64f0ac8ec2dc1197ebdbf0` |
+| `maze-chase-terminal_0.1.0_amd64.deb` | `8077e6e20ecd3bf1457a0d8214cdf9b2b650dde3108e889687c2949456da7124` |
+| `maze-chase-desktop_0.1.0_amd64.deb` | `e4f0210070dafdca278d030cec6a038a04b7cc59091bc460486d71ac1e877074` |
+| `maze-chase-terminal-0.1.0-1.x86_64.rpm` | `6283507b5f9152836802252048dba572445c31adb7d11391e07f1234b534abf0` |
+| `maze-chase-desktop-0.1.0-1.x86_64.rpm` | `0e2c28e8de55d5f542b1be8f4b0ede32df0be2b1b927261f9bc6bb5ccc92aa4a` |
+| `maze-chase-terminal-0.1.0-linux-x86_64.tar.gz` | `9b390b7a4c943da29e24ae0af5014d3a5d46c5d40a76725fdeade4fb9cb882e9` |
+| `maze-chase-desktop-0.1.0-linux-x86_64.tar.gz` | `58daf8aaa3d86ed02f398b8f27cbb6fc762cbbc802804b49c6304ad8bc56e1ec` |
 
 `packaging/release/smoke-linux.sh` unpacked both deb and rpm payloads,
 ran each binary's `--version` and `--help`, and installed, ran, and
