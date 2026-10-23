@@ -1880,7 +1880,7 @@ open on this phase.
   and treats the 0.1.0 candidate as future work; the desktop guide's
   macOS command matches the dmg script, and both layer guides no longer
   present an unpublished release as live. The scoreboard records its
-  measured commit `d1b0dc88`, epoch, host, toolchain, and the RPM
+  measured commit `396c8653`, epoch, host, toolchain, and the RPM
   build-host caveat.
   Verification: `cargo test -p maze-chase-terminal --test
   tester_packaging` 15/15 (the static CRT and license assertions were
@@ -1900,4 +1900,44 @@ open on this phase.
   every reported defect, ran the packaging suite, both Linux stages,
   and the manifest check, and owns the final diff. Skills: no registry
   skill matched.
+  - the Fixer
+
+- 2026-10-23 (fixer, Phase 6 fourth review round on `5d82c7bf`): applied
+  the two blocking findings plus every major and minor. Every Linux
+  package now ships the full MIT license: deb copyright files are the
+  repository LICENSE behind a package header and both RPMs install it
+  through %license, with the smoke asserting the MIT text. The release
+  matrix names `maze-chase/` as its working directory, so the documented
+  commands run. Feature-matrix row 78 no longer claims native rows ran.
+  `stage-linux.sh` names the RPM by this host's architecture, and
+  `common.sh` pins umask 022 so a 077 caller cannot break dpkg-deb.
+  The release workflow writes only in the publish job, derives
+  prerelease from the tag, corrects the flag on refresh, and removes
+  assets outside the verified set; check-tag treats --allow-branch as
+  authoritative. The Windows smoke classifies by leaf name, fails closed
+  on unknown names, compares the full version line, and quotes the
+  installer paths. Fade docs now match the immediate static-screen
+  settle, the scoreboard stops claiming gameplay byte-identity, the
+  Rust minima match the locked graph, the tarball/Inno/OS wording is
+  corrected, and the progress log's measured commit is `396c8653`.
+  Verification: `xvfb-run -a cargo test --workspace --no-fail-fast`
+  green (18/18 packaging tests), `maze-chase-verify` 19/19 with golden
+  replay `23c17f89734e`, `cargo fmt --all --check` clean, clippy only
+  the six pre-existing engine lints, `cargo +1.85.0 check --locked -p
+  maze-chase-terminal` and `cargo +1.89.0 check --locked -p
+  maze-chase-desktop` green, `stage-linux.sh` run twice under umask 022
+  and 077 with a byte-identical manifest, `sha256sum -c` green, and all
+  four package payloads extracted with the MIT text present.
+  Delegation ledger: two read-only general subagents ran in parallel.
+  The packaging verifier re-ran the payload, umask, tag, workflow,
+  PowerShell, and packaging-suite checks and returned PASS on every
+  finding; it also surfaced two Linux smoke robustness defects (a
+  relative RPM path broke inside the extraction subshell, and package
+  classification matched the full path), both fixed and pinned. The
+  docs verifier checked the eight documentation findings against the
+  scripts, code, and lockfile and returned PASS on all eight. The
+  primary context re-verified the matrix commands, native-claim,
+  fade, and gameplay wording, both toolchain minima, and the em-dash
+  scan, ran the full suites and both stages, and owns the final diff.
+  Skills: no registry skill matched.
   - the Fixer
