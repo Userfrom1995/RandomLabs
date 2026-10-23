@@ -31,7 +31,7 @@ This repo doesn't just contain projects - it *runs* an autonomous engineering pi
 - **First run:** dispatch the Maintainer once (Actions -> `maintainer`) or
   `bash setup.sh --dispatch`.
 - **Reset:** `bash shutdown.sh` (backs up and removes the lab).
-- Full architecture: [LAB.md](LAB.md) * [Lab docs](https://userfrom1995.github.io/RandomLabs/docs/) * [Agent prompts](.github/agents/REGISTRY.md)
+- Full architecture: [LAB.md](LAB.md) · [Lab docs](https://userfrom1995.github.io/RandomLabs/docs/) · [Agent prompts](.github/agents/REGISTRY.md)
 
 Talk to it on any issue/PR with `/oc build ...`, `/oc continue`, `/oc fix`,
 `/oc architect`, `/oc research`, `/oc ideate`, `/oc review`, `/oc test`,
