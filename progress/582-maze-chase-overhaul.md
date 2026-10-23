@@ -1880,7 +1880,7 @@ open on this phase.
   and treats the 0.1.0 candidate as future work; the desktop guide's
   macOS command matches the dmg script, and both layer guides no longer
   present an unpublished release as live. The scoreboard records its
-  measured commit `396c8653`, epoch, host, toolchain, and the RPM
+  measured commit `c22bc484`, epoch, host, toolchain, and the RPM
   build-host caveat.
   Verification: `cargo test -p maze-chase-terminal --test
   tester_packaging` 15/15 (the static CRT and license assertions were
@@ -1919,7 +1919,7 @@ open on this phase.
   installer paths. Fade docs now match the immediate static-screen
   settle, the scoreboard stops claiming gameplay byte-identity, the
   Rust minima match the locked graph, the tarball/Inno/OS wording is
-  corrected, and the progress log's measured commit is `396c8653`.
+  corrected, and the progress log's measured commit is `c22bc484`.
   Verification: `xvfb-run -a cargo test --workspace --no-fail-fast`
   green (18/18 packaging tests), `maze-chase-verify` 19/19 with golden
   replay `23c17f89734e`, `cargo fmt --all --check` clean, clippy only
