@@ -127,11 +127,20 @@
 # comment-triggered agent lane must grant issues: write, every PR-gated lane
 # must also grant pull-requests: write, and review-comment lanes must grant
 # pull-requests: write, so opencode github run can react and post its session
-# summary at exit).
-# Wired into auditor.yml as the R1-R31 matrix.
+# summary at exit), and the R32 owner-PAT environment isolation guard
+# (issue #742: 27 owner-PAT steps in auditor, curator, ideate, lab, pr-trigger,
+# recover, opencode-review (the non-PR skip notice), and the per-OS tester arms
+# still carried a partial or absent sanitized env, so any agent-exported
+# BASH_ENV/LD_*/GIT_* could reach an owner-PAT step; every owner-PAT step in the
+# tree now carries the exact isolation map, starts with a builtins-only
+# function-clearing preamble that neutralizes an agent-written BASH_FUNC_*
+# entry (with a functional hijack fixture), the per-OS arms publish and consume
+# a captured trusted PATH plus git exec path, and the per-workflow counts plus
+# the 75-step total are pinned with mutation self-tests).
+# Wired into auditor.yml as the R1-R32 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R31 audit the whole tree
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R32 audit the whole tree
 # (the review-arm read-only guard, the vendored runner, every schedule/dispatch
 # agent arm, dispatch-input indirection, the lab post-agent PAT gates, the
 # shared actor-write gate, the per-OS arm queue plus the comment-triggered
@@ -144,8 +153,8 @@
 # concurrency contract, the lab/fix agent cap-headroom contract, the
 # create-issue dedupe guard, the maintainer stray-PR cleanup guard, the
 # phase thread-binding plus build-push attribution guard, and the
-# trailer-strip thread-binding guard, and the agent bootstrap token-scope
-# guard), so
+# trailer-strip thread-binding guard, the agent bootstrap token-scope guard,
+# and the owner-PAT environment isolation guard), so
 # they trip on a
 # bad curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml/peros arm no
 # matter which file the audit was pointed at.
@@ -154,6 +163,12 @@
 # posted as a comment to the lab-health board.
 
 set -u
+# Issue #742 review F11: the audit must be hermetic under the ambient
+# environment. Fixtures that need a run nonce set it explicitly per command;
+# an inherited LAB_RUN_NONCE would change the expected nonce inside the real
+# scripts and fail R17/R19 for reasons that have nothing to do with the code
+# under test.
+unset LAB_RUN_NONCE || true
 
 # R26 audit-start checkout snapshot (review findings F22/F24): the R26
 # static scan below reads the repo root AFTER earlier rules have run, so a
@@ -186,6 +201,12 @@ WF="${1:-.github/workflows/opencode.yml}"
 HEALTH_ISSUE="${2:-}"
 REPO="${GITHUB_REPOSITORY:-}"
 
+# Issue #742 follow-up: every owner-PAT step starts with the function-clearing
+# preamble, which R32 pins separately. Body pins in R17/R21/R24/R26/R28/R30
+# normalize it away so the reviewed command bodies stay the load-bearing text.
+LAB_PAT_PREAMBLE_COMMENT='# Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).'
+LAB_PAT_PREAMBLE_LOOP='while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)'
+
 pass=0
 fail=0
 report=""
@@ -202,12 +223,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-  [R1-R31 PASS] $name: $desc"
+  [R1-R32 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-  [R1-R31 FAIL] $name: $desc"
+  [R1-R32 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -4585,9 +4606,25 @@ else
       seq == 1 { if ($0 == "id: findings") { seq=2 } else { bad=1; seq=9 }; next }
       seq == 2 { if ($0 == gate) { seq=3 } else { bad=1; seq=9 }; next }
       seq == 3 { if ($0 == "env:") { seq=4 } else { bad=1; seq=9 }; next }
-      seq == 4 { if ($0 == "GH_TOKEN: ${{ secrets.OPENCODE_PAT }}") { seq=5 } else { bad=1; seq=9 }; next }
-      seq == 5 { if ($0 == "TARGET: ${{ github.event.issue.number }}") { ok=1; seq=6 } else { bad=1; seq=9 }; next }
-      seq == 6 { if ($0 ~ /^continue-on-error:/) { bad=1 }; next }
+      seq == 4 {
+        if ($0 ~ /^run:/) { seq=6; next }
+        if ($0 ~ /^continue-on-error:/) { bad=1; next }
+        if ($0 == "GH_TOKEN: ${{ secrets.OPENCODE_PAT }}") {
+          if (token || target) { bad=1 }
+          token=1; next
+        }
+        if ($0 == "TARGET: ${{ github.event.issue.number }}") {
+          if (!token || target) { bad=1 }
+          target=1; next
+        }
+        if ($0 ~ /^[A-Za-z_][A-Za-z0-9_]*:/) { next }
+        bad=1; next
+      }
+      seq == 6 {
+        if ($0 ~ /^continue-on-error:/) { bad=1 }
+        if (token && target) { ok=1 }
+        next
+      }
       seq == 9 { next }
       END { exit((ok && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(post-step-sequence-broken)"
     # The forward gate must live on the forward step itself, the arm must carry
@@ -4626,6 +4663,7 @@ else
     # that executes an agent-rewritten copy would let the arm conclude green
     # with the report never posted or post arbitrary content with the PAT.
     r17_post_expected=$(printf '%s\n' \
+      "$LAB_PAT_PREAMBLE_LOOP" \
       'if ! git cat-file -e "${GITHUB_SHA}:.github/scripts/post-peros-findings.sh" 2>/dev/null; then' \
       'git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true' \
       'fi' \
@@ -4635,32 +4673,35 @@ else
       'exit 1' \
       'fi' \
       "printf '%s' \"\$poster\" | bash -s -- ${r17_os} \"\$TARGET\"")
-    printf '%s\n' "$r17_block" | awk -v tag="      - name: Post ${r17_os_tag} tester findings report" -v expected="$r17_post_expected" '
+    if [ "$r17_os" = "macos" ]; then r17_shell="        shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}"; else r17_shell="        shell: bash --noprofile --norc -p -e -o pipefail {0}"; fi
+    printf '%s\n' "$r17_block" | awk -v tag="      - name: Post ${r17_os_tag} tester findings report" -v expected="$r17_post_expected" -v shell="$r17_shell" '
       BEGIN { n=split(expected, lines, "\n"); want_count=n }
       $0 == tag { post=1; seen=1; next }
       post && $0 ~ /^      - / { post=0 }
-      post && $0 ~ /^[[:space:]]*(shell|working-directory):/ { bad=1 }
+      post && $0 ~ /^[[:space:]]*working-directory:/ { bad=1 }
+      post && $0 ~ /^[[:space:]]*shell:/ { if ($0 == shell) shell_ok=1; else bad=1 }
       post && $0 ~ /^        run:/ { run=1; run_seen=1; if ($0 != "        run: |") bad=1; next }
       run && $0 ~ /^      - / { run=0 }
       run { s=$0; sub(/^[[:space:]]+/, "", s); if (s == "" || s ~ /^#/) next; got++; if (s != lines[got]) bad=1 }
-      END { exit((seen && run_seen && !bad && got == want_count) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(post-run-body-modified)"
+      END { exit((seen && run_seen && shell_ok && !bad && got == want_count) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(post-run-body-modified)"
     # The forward step must not mask its own failures or re-shell itself (W3).
-    printf '%s\n' "$r17_block" | awk -v tag="      - name: Forward ${r17_os_tag} tester decision" '
+    printf '%s\n' "$r17_block" | awk -v tag="      - name: Forward ${r17_os_tag} tester decision" -v shell="$r17_shell" '
       $0 == tag { fwd=1; seen=1; next }
       fwd && $0 ~ /^      - / { fwd=0 }
-      fwd && $0 ~ /^[[:space:]]*(continue-on-error|shell|working-directory):/ { bad=1 }
-      END { exit((seen && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(forward-step-weakened)"
+      fwd && $0 ~ /^[[:space:]]*(continue-on-error|working-directory):/ { bad=1 }
+      fwd && $0 ~ /^[[:space:]]*shell:/ { if ($0 == shell) shell_ok=1; else bad=1 }
+      END { exit((seen && shell_ok && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(forward-step-weakened)"
     # Job-level defaults would silently re-shell every contract step when
     # pointed at a neutered shell (W3; the Windows arm's `shell: bash` default
     # is required because windows-latest defaults to pwsh, so any defaults
     # block must be exactly that safe form, and shell/working-directory
     # overrides are banned elsewhere in the arm).
-    printf '%s\n' "$r17_block" | awk '
+    printf '%s\n' "$r17_block" | awk -v shell="$r17_shell" '
       $0 == "    defaults:" { dcount++; line=1; next }
       line == 1 && $0 == "      run:" { line=2; next }
       line == 2 && $0 == "        shell: bash" { line=0; ok++; next }
       line > 0 { bad=1; line=0 }
-      $0 ~ /^[[:space:]]*shell:/ && $0 != "        shell: bash" { bad=1 }
+      $0 ~ /^[[:space:]]*shell:/ && $0 != "        shell: bash" && $0 != shell { bad=1 }
       $0 ~ /^[[:space:]]*working-directory:/ { bad=1 }
       END { exit((dcount == 0 || (dcount == 1 && ok == 1 && !bad)) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(unsafe-defaults-or-shell-override)"
     # The verify step must keep its exact id and always() gate, and must not
@@ -4988,9 +5029,9 @@ EXPECTED = (
 # change updates this map in the same PR.
 EXPECTED_STEP_NAMES = {
     "test-linux": [
+        "Capture the trusted pre-agent PATH for owner-PAT steps",
         "Get target ref",
         "Checkout repository",
-        "Capture the trusted pre-agent PATH for owner-PAT steps",
         "Stage the Linux tester system prompt from the workflow commit",
         "Actor write gate (issue",
         "Configure git identity",
@@ -5002,9 +5043,9 @@ EXPECTED_STEP_NAMES = {
         "Forward Linux tester decision",
     ],
     "test-macos": [
+        "Capture the trusted pre-agent PATH for owner-PAT steps",
         "Get target ref",
         "Checkout repository",
-        "Capture the trusted pre-agent PATH for owner-PAT steps",
         "Stage the macOS tester system prompt from the workflow commit",
         "Actor write gate (issue",
         "Configure git identity",
@@ -5017,9 +5058,9 @@ EXPECTED_STEP_NAMES = {
         "Forward macOS tester decision",
     ],
     "test-windows": [
+        "Capture the trusted pre-agent PATH for owner-PAT steps",
         "Get target ref",
         "Checkout repository",
-        "Capture the trusted pre-agent PATH for owner-PAT steps",
         "Stage the Windows tester system prompt from the workflow commit",
         "Actor write gate (issue",
         "Configure git identity",
@@ -5035,10 +5076,13 @@ EXPECTED_STEP_NAMES = {
 
 
 def normalized_sha(text):
+    preamble = 'while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)'
     lines = [
         line.strip()
         for line in text.splitlines()
-        if line.strip() and not line.strip().startswith("#")
+        if line.strip()
+        and not line.strip().startswith("#")
+        and line.strip() != preamble
     ]
     return hashlib.sha256("\n".join(lines).encode()).hexdigest()
 
@@ -5065,7 +5109,7 @@ def stage_name(label):
 TRUSTED_PATH_STEP_NAME = "Capture the trusted pre-agent PATH for owner-PAT steps"
 TRUSTED_PATH_EXPR = "${{ steps.trusted_path.outputs.path }}"
 EXPECTED_TRUSTED_PATH_BLOCK_SHA256 = (
-    "a25b739f094fc25272d2c93c3efa087b75254237deac79fa0831a3831ecdfcbf"
+    "cdcce649e1f56f7b43a453d8a104748ac08f1ca9193f027d30bc7198856dc0e1"
 )
 # Issue #713 review round 19 (F7): the macOS capture must walk the whole
 # non-system dependency graph, not just the tools' direct dependencies, and
@@ -5081,6 +5125,8 @@ TRUSTED_PATH_RECURSION_NEEDLES = (
     'install_name_tool -id',
     'install_name_tool -change',
     'codesign --force --sign -',
+    'git_exec=$(PATH="$clean" git --exec-path 2>/dev/null) || git_exec=""',
+    'echo "git_exec_path=$git_exec" >> "$GITHUB_OUTPUT"',
 )
 
 
@@ -5198,7 +5244,7 @@ def validate(doc, expected):
             out.append("peros-staging(%s:stage-order)" % label)
         elif (
             len(path_hits) == 1
-            and not (checkouts[0] < path_hits[0] < stage_index)
+            and not (path_hits[0] < checkouts[0] < stage_index)
         ):
             out.append("peros-staging(%s:trusted-path-order)" % label)
         if len(actors) == 1:
@@ -6375,7 +6421,9 @@ else
     [ "$r19_runkey_count" -eq 1 ] || r19_bad="${r19_bad} review.yml(run-key-count=${r19_runkey_count},want=1)"
     r19_step_end_line=$(awk -v s="$r19_name_line" 'NR > s && /^      - name: / { print NR; exit }' "$REVIEW_WF")
     [ -n "$r19_step_end_line" ] || r19_step_end_line=$(wc -l < "$REVIEW_WF" | tr -d '[:space:]')
-    sed -n "${r19_name_line},${r19_step_end_line}p" "$REVIEW_WF" | grep -qE '^[[:space:]]*(shell|continue-on-error|defaults):' && r19_bad="${r19_bad} review.yml(verify-step-attribute-override)"
+    r19_verify_region=$(sed -n "${r19_name_line},${r19_step_end_line}p" "$REVIEW_WF")
+    printf '%s\n' "$r19_verify_region" | grep -qE '^[[:space:]]*(continue-on-error|defaults):' && r19_bad="${r19_bad} review.yml(verify-step-attribute-override)"
+    printf '%s\n' "$r19_verify_region" | grep -qxF '        shell: bash --noprofile --norc -p -e -o pipefail {0}' || r19_bad="${r19_bad} review.yml(verify-step-shell-not-hardened)"
     awk '/^  review:$/ { f=1; next } f && /^  [A-Za-z_]+:/ { exit } f && /^    (defaults|shell|continue-on-error):/ { print }' "$REVIEW_WF" | grep -q . && r19_bad="${r19_bad} review.yml(job-run-attribute-override)"
     grep -qE '^defaults:' "$REVIEW_WF" && r19_bad="${r19_bad} review.yml(workflow-run-defaults-override)"
     printf '%s\n' "$r19_step_header" | grep -qxF '          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}' || r19_bad="${r19_bad} review.yml(verify-gh-token-not-PAT)"
@@ -6561,7 +6609,8 @@ else
         'gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"'; do
         printf '%s\n' "$r19_fwd_block" | sed 's/^[[:space:]]*//' | grep -qxF "$r19_body" || r19_bad="${r19_bad} review.yml(forward-body-not-exact)"
       done
-      printf '%s\n' "$r19_fwd_block" | grep -qE '^[[:space:]]*(shell|continue-on-error|defaults):' && r19_bad="${r19_bad} review.yml(forward-step-attribute-override)"
+      printf '%s\n' "$r19_fwd_block" | grep -qE '^[[:space:]]*(continue-on-error|defaults):' && r19_bad="${r19_bad} review.yml(forward-step-attribute-override)"
+      printf '%s\n' "$r19_fwd_block" | grep -qxF '        shell: bash --noprofile --norc -p -e -o pipefail {0}' || r19_bad="${r19_bad} review.yml(forward-step-shell-not-hardened)"
       printf '%s\n' "$r19_fwd_block" | grep -qF 'run_nonce' || r19_bad="${r19_bad} review.yml(forward-no-nonce-check)"
       printf '%s\n' "$r19_fwd_block" | grep -qxF '          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}' || r19_bad="${r19_bad} review.yml(forward-gh-token-not-PAT)"
     else
@@ -7382,8 +7431,18 @@ done
 echo "PAT merge sweep complete"
 PATSWEEP
 }
+# Issue #742 follow-up: every owner-PAT step starts with the function-clearing
+# preamble, which R32 pins separately. Body pins in R17/R21/R24/R26/R28/R30
+# normalize it away so the reviewed command bodies stay the load-bearing text.
+strip_lab_pat_preamble() {
+  awk -v comment="$LAB_PAT_PREAMBLE_COMMENT" -v loop="$LAB_PAT_PREAMBLE_LOOP" '
+    { trimmed=$0; sub(/^[[:space:]]+/, "", trimmed); sub(/[[:space:]]+$/, "", trimmed); if (trimmed == comment || trimmed == loop) next; print }
+  '
+}
 pat_norm_region() {
-  sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -vE '^#|^$' || true
+  awk -v comment="$LAB_PAT_PREAMBLE_COMMENT" -v loop="$LAB_PAT_PREAMBLE_LOOP" '
+    { trimmed=$0; sub(/^[[:space:]]+/, "", trimmed); sub(/[[:space:]]+$/, "", trimmed); if (trimmed == "" || trimmed ~ /^#/ || trimmed == comment || trimmed == loop) next; print trimmed }
+  '
 }
 pat_block_exact() {
   [ -n "$(printf '%s\n' "$2" | pat_norm_region)" ] \
@@ -7644,6 +7703,17 @@ fi
 #      depending on agent prose formatting (and never forged: the marker only
 #      exists behind the decision file, the evidence gate, and the published
 #      signed report).
+# Issue #742 review F6 (Tester arm): the evidence gate is the only reader of
+# the agent-writable /tmp/live-run-evidence.json; it latches its verified
+# scope (none/unrunnable/infra/commands) plus the checked non-test command
+# count as step outputs, and the marker consumes that latch, never the file.
+# The marker publishes only for the two verified approval scopes (commands
+# and infra); unrunnable stays an escalation and any other latch fails
+# closed, so a post-gate file swap can never turn an escalation into an
+# approval. The static pins are backed by a behavioral fixture that executes
+# the extracted marker block with the latch substituted and a deliberately
+# swapped evidence file, plus mutation self-tests for each latch emission and
+# the no-reread pin.
 # Review-gated residual boundary (same as R17/R19): the two workflow steps'
 # own control flow cannot be executed by a static audit, so an arbitrary
 # reshuffle that still passes every exact-form and ordering pin below is
@@ -7760,7 +7830,10 @@ else
     printf '%s\n' "$r22_marker_block" | grep -q 'bash \.github/scripts/publish-tester-marker\.sh' && r22_bad="${r22_bad} test.yml(head-workspace-publisher-invocation)"
     printf '%s\n' "$r22_marker_block" | grep -qF 'if [ -z "$publisher" ]; then' || r22_bad="${r22_bad} test.yml(no-fail-closed-on-missing-publisher)"
     printf '%s\n' "$r22_marker_block" | grep -q 'mktemp' && r22_bad="${r22_bad} test.yml(marker-tempfile-staging)"
-    printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qF "if [ -f \"\$ev\" ] && jq -e '.scope == \"unrunnable\"' \"\$ev\" >/dev/null 2>&1; then" || r22_bad="${r22_bad} test.yml(no-unrunnable-escalation-exclusion)"
+    printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF 'evidence_scope="${{ steps.evidence-gate.outputs.scope }}"' || r22_bad="${r22_bad} test.yml(marker-no-evidence-latch-consumption)"
+    printf '%s\n' "$r22_marker_block" | grep -qF '/tmp/live-run-evidence.json' && r22_bad="${r22_bad} test.yml(marker-rereads-agent-writable-evidence)"
+    printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF 'if [ "$evidence_scope" = "unrunnable" ]; then' || r22_bad="${r22_bad} test.yml(no-unrunnable-escalation-exclusion)"
+    printf '%s\n' "$r22_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF 'if [ "$evidence_scope" != "commands" ] && [ "$evidence_scope" != "infra" ]; then' || r22_bad="${r22_bad} test.yml(no-mergeable-scope-guard)"
     printf '%s\n' "$r22_marker_block" | grep -qF "if ! printf '%s' \"\$publisher\" | bash -s -- \"\$pr\" \"\$scope\"; then" || r22_bad="${r22_bad} test.yml(no-publisher-invocation)"
     printf '%s\n' "$r22_marker_block" | grep -qF 'echo "ok=false" >> "$GITHUB_OUTPUT"' || r22_bad="${r22_bad} test.yml(no-marker-ok-default)"
     [ "$(printf '%s\n' "$r22_marker_block" | grep -cF 'echo "ok=true" >> "$GITHUB_OUTPUT"' || true)" -ge 4 ] || r22_bad="${r22_bad} test.yml(marker-ok-true-count-lt-4)"
@@ -7789,6 +7862,28 @@ else
     printf '%s\n' "$r22_evidence_block" | grep -qF 'run_nonce' || r22_bad="${r22_bad} test.yml(evidence-no-nonce-check)"
     printf '%s\n' "$r22_marker_block" | grep -qF 'run_nonce' || r22_bad="${r22_bad} test.yml(marker-no-nonce-check)"
     printf '%s\n' "$r22_fwd_block" | grep -qF 'run_nonce' || r22_bad="${r22_bad} test.yml(forward-no-nonce-check)"
+    # Issue #742 review F6 (Tester arm): every latch emission is required
+    # exactly once by form, the marker must consume the latch and must not
+    # re-read the agent-writable evidence file, and each pin carries a
+    # mutation self-test that removes or replaces the guarded line and
+    # requires the pin to trip.
+    r22_has_scope_latch() {
+      printf '%s\n' "$1" | sed 's/^[[:space:]]*//' | grep -qxF "echo \"scope=$2\" >> \"\$GITHUB_OUTPUT\""
+    }
+    for r22_scope in none unrunnable infra commands; do
+      r22_has_scope_latch "$r22_evidence_block" "$r22_scope" || r22_bad="${r22_bad} test.yml(evidence-no-${r22_scope}-latch)"
+      r22_scope_mut=$(printf '%s\n' "$r22_evidence_block" | grep -vF "echo \"scope=${r22_scope}\" >> \"\$GITHUB_OUTPUT\"" || true)
+      r22_has_scope_latch "$r22_scope_mut" "$r22_scope" && r22_bad="${r22_bad} test.yml(evidence-${r22_scope}-latch-self-test-not-caught)"
+    done
+    printf '%s\n' "$r22_evidence_block" | sed 's/^[[:space:]]*//' | grep -qxF 'echo "commands=$good" >> "$GITHUB_OUTPUT"' || r22_bad="${r22_bad} test.yml(evidence-no-command-count-latch)"
+    r22_marker_clean_of_evidence() {
+      ! printf '%s\n' "$1" | grep -qF '/tmp/live-run-evidence.json'
+    }
+    r22_marker_clean_of_evidence "$r22_marker_block" || r22_bad="${r22_bad} test.yml(marker-rereads-agent-writable-evidence)"
+    r22_marker_reread_mut="${r22_marker_block}"$'\n          evidence_scope=$(jq -r '\''.scope // empty'\'' /tmp/live-run-evidence.json 2>/dev/null || true)'
+    r22_marker_clean_of_evidence "$r22_marker_reread_mut" && r22_bad="${r22_bad} test.yml(marker-reread-mutant-not-caught)"
+    r22_marker_latch_mut=$(printf '%s\n' "$r22_marker_block" | sed 's#^[[:space:]]*evidence_scope=.*#          evidence_scope=$(jq -r '\''.scope // empty'\'' /tmp/live-run-evidence.json 2>/dev/null || true)#')
+    printf '%s\n' "$r22_marker_latch_mut" | grep -qF 'steps.evidence-gate.outputs.scope' && r22_bad="${r22_bad} test.yml(marker-latch-replacement-mutant-not-caught)"
     fi
   fi
 fi
@@ -7984,13 +8079,120 @@ R22_PUBLISHER_MOCK
         r22_pub_case bad-target 1 "abc"
         r22_posted_first=$(head -n1 "$r22_tmp/posted-good-marker" 2>/dev/null || true)
         [ "$r22_posted_first" = "/oc approve-test" ] || r22_bad="${r22_bad} publisher(functional-good-marker-posted-first-line='${r22_posted_first}')"
+        # Issue #742 review F6 (Tester arm): execute the extracted marker run
+        # block with the evidence-gate latch expression substituted and a
+        # deliberately SWAPPED evidence file that always disagrees with the
+        # latch. The outcome must follow the latch: commands and infra publish,
+        # unrunnable refuses (escalation, no marker), and an unset/other latch
+        # fails closed. A marker that re-reads the file instead would publish
+        # on the unrunnable case and fail every assertion.
+        r22_swap_bin="$r22_tmp/swap-bin"
+        mkdir -p "$r22_swap_bin"
+        cat > "$r22_swap_bin/git" <<'R22_SWAP_GIT'
+#!/usr/bin/env bash
+case "$*" in
+  "cat-file -e "*) exit 0 ;;
+  "show "*) cat "$R22_SWAP_PUBLISHER" ;;
+  *) exit 0 ;;
+esac
+R22_SWAP_GIT
+        chmod +x "$r22_swap_bin/git"
+        if [ -z "$r22_marker_block" ]; then
+          r22_bad="${r22_bad} test.yml(swap-behavioral-marker-block-missing)"
+        elif [ "$(PATH="$r22_swap_bin:$PATH" command -v git)" != "$r22_swap_bin/git" ]; then
+          r22_bad="${r22_bad} test.yml(swap-behavioral-mock-not-intercepted)"
+        else
+          r22_swap_publisher="$r22_tmp/swap-publisher.sh"
+          cat > "$r22_swap_publisher" <<'R22_SWAP_PUBLISHER'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$R22_SWAP_CALLS"
+R22_SWAP_PUBLISHER
+          r22_marker_run=$(printf '%s\n' "$r22_marker_block" | awk '
+            /^        run: \|$/ { inrun=1; next }
+            inrun && /^      - name: / { exit }
+            inrun { print }
+          ')
+          if [ -z "$r22_marker_run" ]; then
+            r22_bad="${r22_bad} test.yml(swap-behavioral-marker-run-extraction-empty)"
+          else
+            r22_swap_case() {
+              r22_sc_name="$1"; r22_sc_latch="$2"; r22_sc_evidence="$3"; r22_sc_want_rc="$4"; r22_sc_want_calls="$5"; r22_sc_want_ok="$6"; r22_sc_want_args="$7"
+              r22_sc_dir="$r22_tmp/swap-$r22_sc_name"
+              mkdir -p "$r22_sc_dir"
+              printf '%s\n' '{"action":"maintainer","run_nonce":"sandboxnonce"}' > "$r22_sc_dir/decision.json"
+              printf '%s\n' "$r22_sc_evidence" > "$r22_sc_dir/evidence.json"
+              : > "$r22_sc_dir/calls"
+              : > "$r22_sc_dir/output"
+              printf '%s\n' "$r22_marker_run" \
+                | sed -e "s#/tmp/random-lab-decision.json#$r22_sc_dir/decision.json#g" \
+                      -e "s#\${{ steps\.evidence-gate\.outputs\.scope }}#$r22_sc_latch#g" \
+                      -e 's/\${{ github\.event\.issue\.number }}/745/g' > "$r22_sc_dir/run.sh"
+              if grep -q '\${{' "$r22_sc_dir/run.sh" 2>/dev/null; then
+                r22_bad="${r22_bad} test.yml(swap-behavioral-${r22_sc_name}-unsubstituted-expression)"
+              else
+                ( cd "$r22_sc_dir" && env -u GITHUB_TOKEN -u GH_TOKEN -u GH_API_TOKEN \
+                    PATH="$r22_swap_bin:$PATH" GITHUB_SHA="deadbeefdeadbeefdeadbeefdeadbeefdeadbeef" \
+                    LAB_RUN_NONCE="sandboxnonce" GITHUB_OUTPUT="$r22_sc_dir/output" \
+                    R22_SWAP_CALLS="$r22_sc_dir/calls" R22_SWAP_PUBLISHER="$r22_swap_publisher" \
+                    bash --noprofile --norc -eo pipefail "$r22_sc_dir/run.sh" ) >"$r22_sc_dir/stdout" 2>&1
+                r22_sc_rc=$?
+                if [ "$r22_sc_rc" -ne "$r22_sc_want_rc" ]; then
+                  r22_bad="${r22_bad} test.yml(swap-behavioral-${r22_sc_name}-rc=${r22_sc_rc},want=${r22_sc_want_rc})"
+                fi
+                r22_sc_call_count=$(wc -l < "$r22_sc_dir/calls" 2>/dev/null | tr -d ' ')
+                if [ "${r22_sc_call_count:-0}" -ne "$r22_sc_want_calls" ]; then
+                  r22_bad="${r22_bad} test.yml(swap-behavioral-${r22_sc_name}-publisher-calls=${r22_sc_call_count:-0},want=${r22_sc_want_calls})"
+                fi
+                if [ -n "$r22_sc_want_args" ]; then
+                  r22_sc_args=$(head -n1 "$r22_sc_dir/calls" 2>/dev/null || true)
+                  [ "$r22_sc_args" = "$r22_sc_want_args" ] || r22_bad="${r22_bad} test.yml(swap-behavioral-${r22_sc_name}-args='${r22_sc_args}',want='${r22_sc_want_args}')"
+                fi
+                r22_sc_ok=$(grep -c '^ok=true$' "$r22_sc_dir/output" 2>/dev/null || true)
+                if [ "$r22_sc_want_ok" = "true" ]; then
+                  [ "${r22_sc_ok:-0}" -eq 1 ] || r22_bad="${r22_bad} test.yml(swap-behavioral-${r22_sc_name}-no-ok-true)"
+                else
+                  [ "${r22_sc_ok:-0}" -eq 0 ] || r22_bad="${r22_bad} test.yml(swap-behavioral-${r22_sc_name}-unexpected-ok-true)"
+                fi
+              fi
+            }
+            r22_swap_case commands-ignores-file commands '{"scope":"unrunnable","reason":"swapped after the gate verified a non-test command","run_nonce":"sandboxnonce"}' 0 1 true '745 commands'
+            r22_swap_case unrunnable-ignores-file unrunnable '{"scope":"commands","run_nonce":"sandboxnonce","commands":[{"cmd":"./app --version","exit_code":0,"output_tail":"ok"}]}' 0 0 true ''
+            r22_swap_case infra-ignores-file infra '{"scope":"unrunnable","reason":"swapped after the gate verified infra checks","run_nonce":"sandboxnonce"}' 0 1 true '745 infra'
+            r22_swap_case unset-fails-closed '' '{"scope":"commands","run_nonce":"sandboxnonce","commands":[{"cmd":"./app --version","exit_code":0,"output_tail":"ok"}]}' 1 0 false ''
+            # Prove the swap fixture itself is load-bearing: a marker that
+            # re-reads the swapped evidence file instead of consuming the
+            # latch must publish on the unrunnable gate case, which is exactly
+            # the behavior the unrunnable-ignores-file assertion above rejects.
+            r22_swap_revert="$r22_tmp/swap-revert"
+            mkdir -p "$r22_swap_revert"
+            printf '%s\n' '{"action":"maintainer","run_nonce":"sandboxnonce"}' > "$r22_swap_revert/decision.json"
+            printf '%s\n' '{"scope":"commands","run_nonce":"sandboxnonce","commands":[{"cmd":"./app --version","exit_code":0,"output_tail":"ok"}]}' > "$r22_swap_revert/evidence.json"
+            : > "$r22_swap_revert/calls"
+            : > "$r22_swap_revert/output"
+            printf '%s\n' "$r22_marker_run" \
+              | sed -e "s#/tmp/random-lab-decision.json#$r22_swap_revert/decision.json#g" \
+                    -e "s#^[[:space:]]*evidence_scope=.*#          evidence_scope=\$(jq -r '.scope // empty' $r22_swap_revert/evidence.json 2>/dev/null || true)#" \
+                    -e 's/\${{ github\.event\.issue\.number }}/745/g' > "$r22_swap_revert/run.sh"
+            if grep -qF 'steps.evidence-gate.outputs.scope' "$r22_swap_revert/run.sh" 2>/dev/null; then
+              r22_bad="${r22_bad} test.yml(swap-behavioral-revert-mutant-not-applied)"
+            else
+              ( cd "$r22_swap_revert" && env -u GITHUB_TOKEN -u GH_TOKEN -u GH_API_TOKEN \
+                  PATH="$r22_swap_bin:$PATH" GITHUB_SHA="deadbeefdeadbeefdeadbeefdeadbeefdeadbeef" \
+                  LAB_RUN_NONCE="sandboxnonce" GITHUB_OUTPUT="$r22_swap_revert/output" \
+                  R22_SWAP_CALLS="$r22_swap_revert/calls" R22_SWAP_PUBLISHER="$r22_swap_publisher" \
+                  bash --noprofile --norc -eo pipefail "$r22_swap_revert/run.sh" ) >"$r22_swap_revert/stdout" 2>&1
+              r22_revert_calls=$(wc -l < "$r22_swap_revert/calls" 2>/dev/null | tr -d ' ')
+              [ "${r22_revert_calls:-0}" -eq 1 ] || r22_bad="${r22_bad} test.yml(swap-behavioral-revert-mutant-not-detected-publisher-calls=${r22_revert_calls:-0},want=1)"
+            fi
+          fi
+        fi
       fi
     fi
     rm -rf "$r22_tmp"
   fi
 fi
 if [ -z "$r22_bad" ]; then
-  check "R22" "tester maintainer decisions require positive publication evidence (owner-authored, post-trigger, tester-signed comment checked from this run's own workflow commit; unpublished and unverifiable verdicts are discarded and fail closed) and the workflow publishes the canonical owner-authored first-line /oc approve-test marker itself from the evidence-gated machine handoff (never for a non-maintainer decision or a scope=unrunnable escalation, re-fetched and verified by id), so the PAT merge sweep's R21 anchor is guaranteed by construction instead of agent prose formatting (issue #629)" "ok"
+  check "R22" "tester maintainer decisions require positive publication evidence (owner-authored, post-trigger, tester-signed comment checked from this run's own workflow commit; unpublished and unverifiable verdicts are discarded and fail closed) and the workflow publishes the canonical owner-authored first-line /oc approve-test marker itself from the evidence-gated machine handoff (never for a non-maintainer decision or a scope=unrunnable escalation, re-fetched and verified by id), so the PAT merge sweep's R21 anchor is guaranteed by construction instead of agent prose formatting; the live-execution evidence gate is the only reader of the agent-writable evidence file and latches its verified scope (none/unrunnable/infra/commands) plus the checked non-test command count as step outputs, the marker consumes that latch and never re-reads the file, publishing only for the verified commands and infra approval scopes (unrunnable stays an escalation and any other latch fails closed), and a behavioral fixture executes the extracted marker block with the latch substituted against a deliberately swapped evidence file so every outcome follows the latch and a post-gate swap can never approve, with mutation self-tests proving each latch emission and the no-reread pin load-bearing (issues #629 and #742 review F6)" "ok"
 else
   check "R22" "tester verdict publication guard missing:${r22_bad} (issue #629: a prose-first tester verdict silently stalls the PAT merge sweep and no publication-shape check existed)" "bad"
 fi
@@ -8650,12 +8852,15 @@ else
       printf '%s\n' "$r24_salv_body" | grep -qxF 'GH_TOKEN: ${{ secrets.OPENCODE_PAT }}' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-owner-pat-env)"
       printf '%s\n' "$r24_salv_body" | grep -qxF 'TARGET: ${{ github.event.issue.number }}' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-target-env)"
       printf '%s\n' "$r24_salv" | grep -qF 'github.token' && r24_bad="${r24_bad} arm-${r24_os}(salvage-carries-github-token)"
-      printf '%s\n' "$r24_salv" | grep -qE '^[[:space:]]*(continue-on-error|shell|working-directory):' && r24_bad="${r24_bad} arm-${r24_os}(salvage-yaml-key-override)"
+      printf '%s\n' "$r24_salv" | grep -qE '^[[:space:]]*(continue-on-error|working-directory):' && r24_bad="${r24_bad} arm-${r24_os}(salvage-yaml-key-override)"
+      if [ "$r24_os" = "macos" ]; then r24_shell='        shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}'; else r24_shell='        shell: bash --noprofile --norc -p -e -o pipefail {0}'; fi
+      printf '%s\n' "$r24_salv" | grep -qxF "$r24_shell" || r24_bad="${r24_bad} arm-${r24_os}(salvage-shell-not-hardened)"
       r24_salv_run=$(printf '%s\n' "$r24_salv" | awk '
         /^        run: \|$/ { s=1; next }
         s { print }')
       r24_salv_cmds=$(printf '%s\n' "$r24_salv_run" | sed 's/^[[:space:]]*//' | grep -vE '^(#.*)?$' || true)
       r24_expected=$(cat <<'R24EOF'
+while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
 if [ -f /tmp/random-lab-decision.json ]; then
 echo "Decision file present; nothing to salvage on this crashed-run path."
 exit 0
@@ -9538,8 +9743,8 @@ if "strategy" in target_job:
 if step.get("if") != "always() && steps.actor_gate.outputs.run == 'true'":
     print("handler-step-not-always-gated", file=sys.stderr)
     sys.exit(5)
-if "shell" in step:
-    print("handler-step-shell-set", file=sys.stderr)
+if step.get("shell") != "bash --noprofile --norc -p -e -o pipefail {0}":
+    print("handler-step-shell-not-hardened", file=sys.stderr)
     sys.exit(6)
 if "working-directory" in step:
     print("handler-step-working-directory-set", file=sys.stderr)
@@ -9572,24 +9777,33 @@ if env.get("PATH") != "/usr/bin:/bin":
 # load-bearing here because the embedded handler runs with the owner PAT.
 ISO_ENV = {
     "BASH_ENV": "/dev/null",
+    "DYLD_FRAMEWORK_PATH": "",
+    "DYLD_INSERT_LIBRARIES": "",
+    "DYLD_LIBRARY_PATH": "",
     "ENV": "/dev/null",
+    "GH_CONFIG_DIR": "/proc",
+    "GIT_CONFIG": "/dev/null",
+    "GIT_CONFIG_PARAMETERS": "",
+    "PS4": "+ ",
+    "PYTHONPATH": "",
+    "SHELLOPTS": "",
     "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES": "",
-    "GIT_ASKPASS": "/bin/false",
+    "GIT_ASKPASS": "/usr/bin/false",
     "GIT_COMMON_DIR": "${{ github.workspace }}/.git",
     "GIT_CONFIG_COUNT": "0",
     "GIT_CONFIG_GLOBAL": "/dev/null",
     "GIT_CONFIG_NOSYSTEM": "1",
     "GIT_CONFIG_SYSTEM": "/dev/null",
     "GIT_DIR": "${{ github.workspace }}/.git",
-    "GIT_EDITOR": "/bin/false",
+    "GIT_EDITOR": "/usr/bin/false",
     "GIT_EXEC_PATH": "/usr/lib/git-core",
     "GIT_EXTERNAL_DIFF": "",
     "GIT_INDEX_FILE": "${{ github.workspace }}/.git/index",
     "GIT_NAMESPACE": "",
     "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects",
     "GIT_PAGER": "/bin/cat",
-    "GIT_SEQUENCE_EDITOR": "/bin/false",
+    "GIT_SEQUENCE_EDITOR": "/usr/bin/false",
     "GIT_SSH_COMMAND": "ssh",
     "GIT_TERMINAL_PROMPT": "0",
     "GIT_TEMPLATE_DIR": "/dev/null",
@@ -10211,7 +10425,7 @@ R26EXTRACT
   # mock bin, and the pinned handler-step PATH (review finding F41), never
   # the ambient audit PATH.
   if [ -s "$r26_premanifest_out" ]; then
-    r26_premanifest_actual=$(cat "$r26_premanifest_out")
+    r26_premanifest_actual=$(strip_lab_pat_preamble < "$r26_premanifest_out")
     r26_premanifest_expected=$(cat <<'R26PRE'
 ### 0 name=Checkout repository | uses=actions/checkout@v6 | with={"fetch-depth": 0, "persist-credentials": true, "ref": "${{ github.event.repository.default_branch }}", "token": "${{ github.token }}"}
 ### 1 name=Actor write gate (issue | id=actor_gate | shell=bash | env={"GATE_ACTOR": "${{ github.actor }}", "GATE_EVENT": "${{ github.event_name }}", "GATE_LABEL": "maintainer", "GH_TOKEN": "${{ github.token }}", "TRUSTED_REF": "${{ github.event.repository.default_branch }}"}
@@ -10339,7 +10553,7 @@ test -x "$HOME/.opencode/bin/opencode"
 echo "$HOME/.opencode/bin" >> $GITHUB_PATH
 ### 12 name=Resolve model (bounded fallback ladder) | id=model_ladder | shell=bash | env={"REQUESTED_MODEL": "opencode/deepseek-v4.1-flash-free"}
 bash .github/actions/opencode-run/resolve-model.sh
-### 13 name=Run Maintainer agent | id=maintainer_run | if=steps.actor_gate.outputs.run == 'true' | shell=bash | continue-on-error=True | timeout-minutes=60 | env={"GITHUB_TOKEN": "${{ github.token }}", "MODEL_CANDIDATES": "${{ steps.model_ladder.outputs.candidates }}", "OPENCODE_PERMISSION": "{\"external_directory\":{\"*\":\"allow\"}}", "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}", "PROMPT": "You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.\n\nREAD FIRST: the Maintainer system prompt staged from this run's trusted default-branch commit at `${RUNNER_TEMP}/lab-prompts/maintainer.md` (RUNNER_TEMP is set in your environment) - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below. The checkout is pinned to the same trusted default-branch commit, but use the staged copy as the authoritative prompt; never substitute any other edition.\n\nYou also have, on disk:\n- `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.\n- `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, progress/*.md) and act on everything that needs you.\n\nSAFETY NET (always binding): you NEVER post comments with \"/oc\" (a hardcoded step posts triggers for you); you never create issues or PRs and never push feature code to main or PR branches; you NEVER run git commit, git push, git checkout -b, or any branch command yourself; and you NEVER edit .github/workflows/**, .github/agents/**, opencode.json, AGENTS.md, or LAB.md as part of routine work - ALL infra, workflow, agent, and model changes route through {\"action\": \"lab\"} (the Lab Engineer). The ONLY exception is the emergency revival contract: after a dispatched lab run demonstrably failed (or lab.yml itself cannot execute because its own model is dead/rate-limited) AND production is fully halted, you MAY write .maintainer/emergency.json and leave your .github/workflows/*.yml edits UNCOMMITTED in the tree for the hardcoded PAT step to verify, commit, and push. Without a valid declaration file, any protected-path edits you leave behind are reverted automatically and never pushed. Otherwise you only write the output files below; everything you write is later committed to the maintainer/logs branch by hardcoded steps. Never print or reference any PAT or secret.\n\nOUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):\n1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | research | design | build | lab | auditor | curate | fix | ideate | recover | ping | test | eval. One entry max per PR/issue. Empty array [] is fine - do not invent work.\n2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Hephaestus, the Maintainer` (a hardcoded step appends it if missing).\n3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.\n4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).\n5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.\n6. `.maintainer/emergency.json` - ONLY under the emergency revival contract above (a failed/broken lab attempt you can link + production halted): exactly {\"reason\": \"...\", \"lab_run\": \"<failing lab run URL>\", \"production_stopped\": true}. Omit the file entirely in every other run - its presence unlocks a direct push to main.\n\nWhen you finish, print a one-line summary of what you decided (the decision list is the deliverable).\n", "USE_GITHUB_TOKEN": "true", "VARIANT": "max"}
+### 13 name=Run Maintainer agent | id=maintainer_run | if=steps.actor_gate.outputs.run == 'true' | shell=bash | continue-on-error=True | timeout-minutes=60 | env={"GITHUB_TOKEN": "${{ github.token }}", "MODEL_CANDIDATES": "${{ steps.model_ladder.outputs.candidates }}", "OPENCODE_DISABLE_PROJECT_CONFIG": "true", "OPENCODE_PERMISSION": "{\"external_directory\":{\"*\":\"allow\"}}", "OPENROUTER_API_KEY": "${{ secrets.OPENROUTER_API_KEY }}", "PROMPT": "You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.\n\nREAD FIRST: the Maintainer system prompt staged from this run's trusted default-branch commit at `${RUNNER_TEMP}/lab-prompts/maintainer.md` (RUNNER_TEMP is set in your environment) - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below. The checkout is pinned to the same trusted default-branch commit, but use the staged copy as the authoritative prompt; never substitute any other edition.\n\nYou also have, on disk:\n- `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.\n- `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, progress/*.md) and act on everything that needs you.\n\nSAFETY NET (always binding): you NEVER post comments with \"/oc\" (a hardcoded step posts triggers for you); you never create issues or PRs and never push feature code to main or PR branches; you NEVER run git commit, git push, git checkout -b, or any branch command yourself; and you NEVER edit .github/workflows/**, .github/agents/**, opencode.json, AGENTS.md, or LAB.md as part of routine work - ALL infra, workflow, agent, and model changes route through {\"action\": \"lab\"} (the Lab Engineer). The ONLY exception is the emergency revival contract: after a dispatched lab run demonstrably failed (or lab.yml itself cannot execute because its own model is dead/rate-limited) AND production is fully halted, you MAY write .maintainer/emergency.json and leave your .github/workflows/*.yml edits UNCOMMITTED in the tree for the hardcoded PAT step to verify, commit, and push. Without a valid declaration file, any protected-path edits you leave behind are reverted automatically and never pushed. Otherwise you only write the output files below; everything you write is later committed to the maintainer/logs branch by hardcoded steps. Never print or reference any PAT or secret.\n\nOUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):\n1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | research | design | build | lab | auditor | curate | fix | ideate | recover | ping | test | eval. One entry max per PR/issue. Empty array [] is fine - do not invent work.\n2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Hephaestus, the Maintainer` (a hardcoded step appends it if missing).\n3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.\n4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).\n5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.\n6. `.maintainer/emergency.json` - ONLY under the emergency revival contract above (a failed/broken lab attempt you can link + production halted): exactly {\"reason\": \"...\", \"lab_run\": \"<failing lab run URL>\", \"production_stopped\": true}. Omit the file entirely in every other run - its presence unlocks a direct push to main.\n\nWhen you finish, print a one-line summary of what you decided (the decision list is the deliverable).\n", "USE_GITHUB_TOKEN": "true", "VARIANT": "max"}
 # opencode CLI does not natively recognize workflow_run events (it only supports
 # issue_comment, pull_request_review_comment, issues, pull_request, schedule, workflow_dispatch).
 # For workflow_run triggers, present the event as workflow_dispatch so opencode handles
@@ -10681,7 +10895,7 @@ while IFS= read -r br; do
   gh api -X DELETE "repos/${repo}/git/refs/heads/${enc}"
 done < "$branch_list"
 echo "stray cleanup complete"
-### 16 name=Emergency-gated commit and push of workflow model updates to main | if=always() && steps.actor_gate.outputs.run == 'true' | env={"BASH_ENV": "/dev/null", "ENV": "/dev/null", "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "GIT_ALTERNATE_OBJECT_DIRECTORIES": "", "GIT_ASKPASS": "/bin/false", "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_AUTHOR_NAME": "Hephaestus (Maintainer)", "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_COMMITTER_NAME": "Hephaestus (Maintainer)", "GIT_COMMON_DIR": "${{ github.workspace }}/.git", "GIT_CONFIG_COUNT": "0", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_SYSTEM": "/dev/null", "GIT_DIR": "${{ github.workspace }}/.git", "GIT_EDITOR": "/bin/false", "GIT_EXEC_PATH": "/usr/lib/git-core", "GIT_EXTERNAL_DIFF": "", "GIT_INDEX_FILE": "${{ github.workspace }}/.git/index", "GIT_NAMESPACE": "", "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects", "GIT_PAGER": "/bin/cat", "GIT_SEQUENCE_EDITOR": "/bin/false", "GIT_SSH_COMMAND": "ssh", "GIT_TEMPLATE_DIR": "/dev/null", "GIT_TERMINAL_PROMPT": "0", "GIT_WORK_TREE": "${{ github.workspace }}", "LD_AUDIT": "", "LD_LIBRARY_PATH": "", "LD_PRELOAD": "", "PATH": "/usr/bin:/bin"}
+### 16 name=Emergency-gated commit and push of workflow model updates to main | if=always() && steps.actor_gate.outputs.run == 'true' | shell=bash --noprofile --norc -p -e -o pipefail {0} | env={"BASH_ENV": "/dev/null", "DYLD_FRAMEWORK_PATH": "", "DYLD_INSERT_LIBRARIES": "", "DYLD_LIBRARY_PATH": "", "ENV": "/dev/null", "GH_CONFIG_DIR": "/proc", "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "GIT_ALTERNATE_OBJECT_DIRECTORIES": "", "GIT_ASKPASS": "/usr/bin/false", "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_AUTHOR_NAME": "Hephaestus (Maintainer)", "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_COMMITTER_NAME": "Hephaestus (Maintainer)", "GIT_COMMON_DIR": "${{ github.workspace }}/.git", "GIT_CONFIG": "/dev/null", "GIT_CONFIG_COUNT": "0", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_PARAMETERS": "", "GIT_CONFIG_SYSTEM": "/dev/null", "GIT_DIR": "${{ github.workspace }}/.git", "GIT_EDITOR": "/usr/bin/false", "GIT_EXEC_PATH": "/usr/lib/git-core", "GIT_EXTERNAL_DIFF": "", "GIT_INDEX_FILE": "${{ github.workspace }}/.git/index", "GIT_NAMESPACE": "", "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects", "GIT_PAGER": "/bin/cat", "GIT_SEQUENCE_EDITOR": "/usr/bin/false", "GIT_SSH_COMMAND": "ssh", "GIT_TEMPLATE_DIR": "/dev/null", "GIT_TERMINAL_PROMPT": "0", "GIT_WORK_TREE": "${{ github.workspace }}", "LD_AUDIT": "", "LD_LIBRARY_PATH": "", "LD_PRELOAD": "", "PATH": "/usr/bin:/bin", "PS4": "+ ", "PYTHONPATH": "", "SHELLOPTS": ""}
 dirty=$(git status --porcelain -- .github/workflows .github/agents opencode.json AGENTS.md LAB.md 2>/dev/null || true)
 if [ -z "$dirty" ]; then
   echo "No protected-path modifications left by the Maintainer; nothing to do."
@@ -11223,7 +11437,7 @@ return index'
     # stay for diagnostics. A future legitimate handler edit must update
     # this expected text in the same change, the intended audit coupling
     # already accepted for the loader body and the preamble window.
-    r26_full=$(printf '%s\n' "$r26_block" | awk 'NF { print }')
+    r26_full=$(printf '%s\n' "$r26_block" | awk 'NF { print }' | strip_lab_pat_preamble)
     r26_full_expected=$(cat <<'R26FULL'
 python3 -I - <<'PY'
 import json, os, re, subprocess, time
@@ -13155,11 +13369,16 @@ def norm(run_text):
     # pins, EXCEPT when the previous kept line ends with a shell continuation
     # backslash: there the blank/comment line is semantically load-bearing
     # (it terminates the continuation), so a one-line insert could otherwise
-    # rewrite the command while the normalized body still matched.
+    # rewrite the command while the normalized body still matched. The
+    # Issue #742 owner-PAT function-clearing preamble is pinned by R32 and
+    # normalized away here so every reviewed command body stays pinned.
+    preamble = 'while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)'
     lines = []
     continued = False
     for raw in run_text.splitlines():
         stripped = raw.strip()
+        if stripped == preamble:
+            continue
         if not stripped or stripped.startswith("#"):
             if continued:
                 lines.append(raw.rstrip())
@@ -13716,24 +13935,33 @@ fi
 
 OWNER_PAT_ISO_ENV = {
     "BASH_ENV": "/dev/null",
+    "DYLD_FRAMEWORK_PATH": "",
+    "DYLD_INSERT_LIBRARIES": "",
+    "DYLD_LIBRARY_PATH": "",
     "ENV": "/dev/null",
+    "GH_CONFIG_DIR": "/proc",
+    "GIT_CONFIG": "/dev/null",
+    "GIT_CONFIG_PARAMETERS": "",
+    "PS4": "+ ",
+    "PYTHONPATH": "",
+    "SHELLOPTS": "",
     "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES": "",
-    "GIT_ASKPASS": "/bin/false",
+    "GIT_ASKPASS": "/usr/bin/false",
     "GIT_COMMON_DIR": "${{ github.workspace }}/.git",
     "GIT_CONFIG_COUNT": "0",
     "GIT_CONFIG_GLOBAL": "/dev/null",
     "GIT_CONFIG_NOSYSTEM": "1",
     "GIT_CONFIG_SYSTEM": "/dev/null",
     "GIT_DIR": "${{ github.workspace }}/.git",
-    "GIT_EDITOR": "/bin/false",
+    "GIT_EDITOR": "/usr/bin/false",
     "GIT_EXEC_PATH": "/usr/lib/git-core",
     "GIT_EXTERNAL_DIFF": "",
     "GIT_INDEX_FILE": "${{ github.workspace }}/.git/index",
     "GIT_NAMESPACE": "",
     "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects",
     "GIT_PAGER": "/bin/cat",
-    "GIT_SEQUENCE_EDITOR": "/bin/false",
+    "GIT_SEQUENCE_EDITOR": "/usr/bin/false",
     "GIT_SSH_COMMAND": "ssh",
     "GIT_TERMINAL_PROMPT": "0",
     "GIT_TEMPLATE_DIR": "/dev/null",
@@ -13752,8 +13980,8 @@ BUILD_ENV["BASELINE_BRANCH"] = "${{ steps.baseline.outputs.branch }}"
 BUILD_ENV["BASELINE_HEAD"] = "${{ steps.baseline.outputs.head_before }}"
 BUILD_ENV["PATTERN_TIPS"] = "${{ steps.baseline.outputs.pattern_tips }}"
 RECOVER_ENV = {"GH_TOKEN": "${{ github.token }}"}
-VERIFY_KEYS = ("name", "id", "if", "env", "run")
-FORWARD_KEYS = ("name", "if", "env", "run")
+VERIFY_KEYS = ("name", "id", "if", "env", "run", "shell")
+FORWARD_KEYS = ("name", "if", "env", "run", "shell")
 FORWARD_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'"
 RECOVER_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.pushed == 'true'"
 FORWARD_BUILD_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.pushed == 'true'"
@@ -13866,7 +14094,7 @@ for job, (verify_name, forward_name) in phase.items():
         fail("agent-step-duplicated:%s" % job)
     resolve_ref(job, "verify-phase", expected_name=verify_name, before_index=forward_index)
 
-expect_step("Verify build pushed, else auto-retry", "build", ("name", "id", "env", "run"),
+expect_step("Verify build pushed, else auto-retry", "build", ("name", "id", "env", "run", "shell"),
             None, BUILD_ENV, BUILD_VERIFY, "verify")
 job_name, _, build_step = find("Verify build pushed, else auto-retry")
 _, build_verify_index, _ = find("Verify build pushed, else auto-retry")
@@ -13956,7 +14184,7 @@ expect_step("Preserve build branch with recover tag", "build", ("name", "if", "e
 # body could execute the agent-mutable workspace helper or retarget the
 # forward while every other pin stayed green.
 forward_build_index = expect_job_step("Forward builder decision", "build",
-                                      ("name", "if", "env", "run"), FORWARD_BUILD_IF,
+                                      ("name", "if", "env", "run", "shell"), FORWARD_BUILD_IF,
                                       FORWARD_ENV, FORWARD_BUILD)
 if forward_build_index <= build_verify_index:
     fail("forward-builder-before-verify")
@@ -14246,9 +14474,10 @@ mutants = {
     "verify-cap": sub_first(
         '            if [ "$retries" -lt 3 ]; then\n', '            if [ "$retries" -lt 30 ]; then\n',
     ),
-    "verify-env-token": sub_first(
-        '          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}\n          AGENT_GATE:',
-        '          GH_TOKEN: ${{ github.token }}\n          AGENT_GATE:',
+    "verify-env-token": sub_after(
+        RESEARCH_VERIFY,
+        '          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}\n',
+        '          GH_TOKEN: ${{ github.token }}\n',
     ),
     "verify-id": sub_first('        id: verify-phase\n', '        id: verify-phase-2\n'),
     "verify-continue-on-error": after(RESEARCH_VERIFY, '        continue-on-error: true\n'),
@@ -15747,7 +15976,7 @@ except Exception as exc:
     raise SystemExit(0)
 
 STRUCT = os.environ.get("R30_STRUCT_DIR", "")
-EXPECTED_POST_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success'"
+EXPECTED_POST_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success' && steps.head-check.outcome == 'success'"
 EXPECTED_MARKER_IF = EXPECTED_POST_IF + " && steps.post-result.outcome == 'success'"
 EXPECTED_FORWARD_IF = EXPECTED_POST_IF + " && steps.marker.outputs.ok == 'true'"
 BIND_NAME = "Bind eval to the checked-out head (eval binding)"
@@ -15835,6 +16064,7 @@ EXPECTED_MAINTAINER_STEP_NAMES = [
     "Approve held CI runs (PR or repo-wide sweep)",
 ]
 SYSTEM_PATH = "/usr/bin:/bin"
+HARDENED_SHELL = "bash --noprofile --norc -p -e -o pipefail {0}"
 # Issue #713 review round 23: a PR-controlled agent can append to
 # $GITHUB_ENV, and every later step inherits those values. The runner applies
 # a step's `env:` after the job/GITHUB_ENV layers, so pinning the isolation
@@ -15844,24 +16074,33 @@ SYSTEM_PATH = "/usr/bin:/bin"
 # checkout (the memory push unsets them before building its own fresh repo).
 OWNER_PAT_ISOLATION_ENV = {
     "BASH_ENV": "/dev/null",
+    "DYLD_FRAMEWORK_PATH": "",
+    "DYLD_INSERT_LIBRARIES": "",
+    "DYLD_LIBRARY_PATH": "",
     "ENV": "/dev/null",
+    "GH_CONFIG_DIR": "/proc",
+    "GIT_CONFIG": "/dev/null",
+    "GIT_CONFIG_PARAMETERS": "",
+    "PS4": "+ ",
+    "PYTHONPATH": "",
+    "SHELLOPTS": "",
     "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES": "",
-    "GIT_ASKPASS": "/bin/false",
+    "GIT_ASKPASS": "/usr/bin/false",
     "GIT_COMMON_DIR": "${{ github.workspace }}/.git",
     "GIT_CONFIG_COUNT": "0",
     "GIT_CONFIG_GLOBAL": "/dev/null",
     "GIT_CONFIG_NOSYSTEM": "1",
     "GIT_CONFIG_SYSTEM": "/dev/null",
     "GIT_DIR": "${{ github.workspace }}/.git",
-    "GIT_EDITOR": "/bin/false",
+    "GIT_EDITOR": "/usr/bin/false",
     "GIT_EXEC_PATH": "/usr/lib/git-core",
     "GIT_EXTERNAL_DIFF": "",
     "GIT_INDEX_FILE": "${{ github.workspace }}/.git/index",
     "GIT_NAMESPACE": "",
     "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects",
     "GIT_PAGER": "/bin/cat",
-    "GIT_SEQUENCE_EDITOR": "/bin/false",
+    "GIT_SEQUENCE_EDITOR": "/usr/bin/false",
     "GIT_SSH_COMMAND": "ssh",
     "GIT_TERMINAL_PROMPT": "0",
     "GIT_TEMPLATE_DIR": "/dev/null",
@@ -15896,14 +16135,16 @@ APPROVE_HELD_ENV["PR_NUMBER"] = "${{ github.event.pull_request.number || github.
 APPROVE_HELD_ENV["TRUSTED_SHA"] = "${{ steps.actor_gate.outputs.trusted_sha }}"
 EXPECTED_MAINTAINER_PINNED_STEPS = {
     "Trigger pages deployment if main advanced": {
-        "keys": {"name", "if", "env", "run"},
+        "keys": {"name", "if", "env", "run", "shell"},
         "if": "always() && steps.actor_gate.outputs.run == 'true'",
+        "shell": HARDENED_SHELL,
         "env": dict(OWNER_PAT_ISOLATION_ENV),
         "sha": "067100b41f78231fc3903b0eb7c94dce19057062c97f2ce73b8e4300dca72d60",
     },
     "Main integrity guard (prevent orphan or divergent main rewrite)": {
-        "keys": {"name", "if", "env", "run"},
+        "keys": {"name", "if", "env", "run", "shell"},
         "if": "always() && steps.actor_gate.outputs.run == 'true'",
+        "shell": HARDENED_SHELL,
         "env": dict(OWNER_PAT_ISOLATION_ENV),
         "sha": "8a7baac02a29c6e0a6df75a798b55526d57f8ce5a3ad5d02190c9ecca7a440e8",
     },
@@ -15914,25 +16155,33 @@ EXPECTED_MAINTAINER_PINNED_STEPS = {
         "sha": "21b1399f9e8456f26fe5e214ce3c4d3f7ebaee05ed9c7e0f513d0fbaf7984558",
     },
     "Approve held CI runs (PR or repo-wide sweep)": {
-        "keys": {"name", "continue-on-error", "if", "env", "run"},
+        "keys": {"name", "continue-on-error", "if", "env", "run", "shell"},
         "continue-on-error": True,
         "if": "always() && steps.actor_gate.outputs.run == 'true'",
         "env": APPROVE_HELD_ENV,
+        "shell": HARDENED_SHELL,
         "sha": "d68dfe4c7744bff258a28a521a0410c64a798dc0989c9bd75d583e237e5656a0",
     },
 }
 EXPECTED_REVIEW_SKIP_ENV = dict(OWNER_PAT_ISOLATION_ENV)
 EXPECTED_REVIEW_SKIP_ENV["GH_TOKEN"] = "${{ github.token }}"
 EXPECTED_REVIEW_SKIP_ENV["GIT_NO_REPLACE_OBJECTS"] = "1"
-EXPECTED_REVIEW_SKIP_SHA256 = "691db2d87441431d69102de9ec83c8331c9a7a077c5a0ff23433d80dc72f4050"
+EXPECTED_REVIEW_SKIP_SHA256 = "812bb3c06adb46ed0d21573df38b643869911ba7db3900fba226a12757fbf30e"
 MAINTAINER_POST_NAME = "Post Maintainer comment"
+HEAD_CHECK_NAME = "Check the workspace head still matches the evaluated head"
 VERIFY_NAME = "Verify evaluator decided"
 EVIDENCE_NAME = "Enforce live-execution evidence gate"
 CLEAR_NAME = "Clear runtime decision"
 MARKER_LITERAL = "eval-verdict"
 EXPECTED_CONTEXT_IF = "steps.actor_gate.outputs.run == 'true'"
-EXPECTED_MEMORY_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true'"
+EXPECTED_MEMORY_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.head-check.outcome == 'success'"
 EXPECTED_AGENT_IF = "steps.actor_gate.outputs.run == 'true'"
+EXPECTED_HEAD_CHECK_IF = "always() && steps.actor_gate.outputs.run == 'true'"
+EXPECTED_HEAD_CHECK_ENV = {
+    key: value
+    for key, value in OWNER_PAT_ISOLATION_ENV.items()
+    if key != "GH_TOKEN"
+}
 EXPECTED_VERIFY_IF = "always()"
 EXPECTED_EVIDENCE_IF = "always() && steps.verify-eval.outputs.has_decision == 'true'"
 EXPECTED_VERIFY_ENV = {
@@ -15968,7 +16217,7 @@ EXPECTED_CONCURRENCY = {
 # A legitimate prompt or staging-step change updates the matching constant in
 # the same PR.
 EXPECTED_EVAL_PROMPT_SHA256 = "e6a67aeec6454a748e370671e209dde3619a837d0c1e34de52b6a4fbbbf7002b"
-EXPECTED_TEST_PROMPT_SHA256 = "07029772f2e7eac500280ee4a5f7850f10153d9c23bacd911a20a224c10c379b"
+EXPECTED_TEST_PROMPT_SHA256 = "a11204469c4dde9b62c7fd812d012fb948a2854ac6ffea72bcb8cbd59bff15a5"
 # Issue #713 review round 9: the Tester agent's with.prompt scalar is part of
 # the gate contract too (it carries the live-execution and decision-file
 # instructions). Pin it by SHA-256 instead of a substring check, so a workflow
@@ -16111,6 +16360,7 @@ EVAL_STEP_NAMES = [
     "Clear runtime decision",
     RESTORE_NAME,
     "Run evaluator agent",
+    HEAD_CHECK_NAME,
     "Verify evaluator decided",
     "Enforce live-execution evidence gate",
     POST_NAME,
@@ -16160,10 +16410,13 @@ def write(name, value):
 
 
 def normalized_sha(text):
+    preamble = 'while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)'
     lines = [
         line.strip()
         for line in text.splitlines()
-        if line.strip() and not line.strip().startswith("#")
+        if line.strip()
+        and not line.strip().startswith("#")
+        and line.strip() != preamble
     ]
     return hashlib.sha256("\n".join(lines).encode()).hexdigest()
 
@@ -16209,9 +16462,11 @@ def check_keys(step, label, expected_id, expected_if, output, sink):
         sink.append("eval.yml(%s-id-not-%s)" % (label, expected_id))
     if step.get("if") != expected_if:
         sink.append("eval.yml(%s-gate-not-exact)" % label)
-    for key in ("continue-on-error", "shell", "timeout-minutes", "working-directory"):
+    for key in ("continue-on-error", "timeout-minutes", "working-directory"):
         if key in step:
             sink.append("eval.yml(%s-%s-override)" % (label, key))
+    if step.get("shell") != HARDENED_SHELL:
+        sink.append("eval.yml(%s-shell-not-hardened)" % label)
     env = step.get("env")
     if not isinstance(env, dict) or env != OWNER_PAT_ISOLATION_ENV:
         sink.append("eval.yml(%s-env-not-isolated-owner-pat)" % label)
@@ -16335,7 +16590,7 @@ def check_configure_step(step, output, sink):
 def check_owner_pat_step(step, label, expected_id, expected_if, output_name, sink):
     if step is None:
         return
-    expected_keys = {"name", "env", "run"}
+    expected_keys = {"name", "env", "run", "shell"}
     if expected_id is not None:
         expected_keys.add("id")
     if expected_if is not None:
@@ -16346,9 +16601,11 @@ def check_owner_pat_step(step, label, expected_id, expected_if, output_name, sin
         sink.append("eval.yml(%s-id-not-%s)" % (label, expected_id))
     if expected_if is not None and step.get("if") != expected_if:
         sink.append("eval.yml(%s-gate-not-exact)" % label)
-    for key in ("continue-on-error", "shell", "timeout-minutes", "working-directory"):
+    for key in ("continue-on-error", "timeout-minutes", "working-directory"):
         if key in step:
             sink.append("eval.yml(%s-%s-override)" % (label, key))
+    if step.get("shell") != HARDENED_SHELL:
+        sink.append("eval.yml(%s-shell-not-hardened)" % label)
     env = step.get("env")
     if not isinstance(env, dict) or env != OWNER_PAT_ISOLATION_ENV:
         sink.append("eval.yml(%s-env-not-isolated-owner-pat)" % label)
@@ -16445,20 +16702,31 @@ def check_clear_step(step, output, sink):
 
 
 def check_plain_step(
-    step, label, expected_id, expected_if, expected_env, output_name, sink
+    step,
+    label,
+    expected_id,
+    expected_if,
+    expected_env,
+    output_name,
+    sink,
+    expected_shell=None,
 ):
     if step is None:
         return
     expected_keys = {"name", "id", "if", "run"}
     if expected_env is not None:
         expected_keys.add("env")
+    if expected_shell is not None:
+        expected_keys.add("shell")
     if set(step) != expected_keys:
         sink.append("eval.yml(%s-keys-not-exact)" % label)
+    if expected_shell is not None and step.get("shell") != expected_shell:
+        sink.append("eval.yml(%s-shell-not-hardened)" % label)
     if step.get("id") != expected_id:
         sink.append("eval.yml(%s-id-not-%s)" % (label, expected_id))
     if step.get("if") != expected_if:
         sink.append("eval.yml(%s-gate-not-exact)" % label)
-    for key in ("continue-on-error", "shell", "timeout-minutes", "working-directory"):
+    for key in ("continue-on-error", "timeout-minutes", "working-directory"):
         if key in step:
             sink.append("eval.yml(%s-%s-override)" % (label, key))
     if expected_env is not None:
@@ -16555,6 +16823,7 @@ def validate(doc, output, sink):
     context = resolve(steps, CONTEXT_NAME, "context", sink)
     memory = resolve(steps, MEMORY_NAME, "memory", sink)
     agent = resolve(steps, AGENT_NAME, "agent", sink)
+    head_check = resolve(steps, HEAD_CHECK_NAME, "head-check", sink)
     verify = resolve(steps, VERIFY_NAME, "verify", sink)
     evidence = resolve(steps, EVIDENCE_NAME, "evidence", sink)
     clear = resolve(steps, CLEAR_NAME, "clear", sink)
@@ -16593,6 +16862,16 @@ def validate(doc, output, sink):
     # pinned.
     check_agent_step(agent, sink)
     check_clear_step(clear, output, sink)
+    check_plain_step(
+        head_check,
+        "head-check",
+        "head-check",
+        EXPECTED_HEAD_CHECK_IF,
+        EXPECTED_HEAD_CHECK_ENV,
+        "head-check.run" if output else "",
+        sink,
+        expected_shell=HARDENED_SHELL,
+    )
     check_plain_step(
         verify,
         "verify",
@@ -16718,9 +16997,11 @@ def validate(doc, output, sink):
     if forward is not None:
         if forward.get("if") != EXPECTED_FORWARD_IF:
             sink.append("eval.yml(forward-gate-not-marker-gated)")
-        for key in ("continue-on-error", "shell", "timeout-minutes", "working-directory"):
+        for key in ("continue-on-error", "timeout-minutes", "working-directory"):
             if key in forward:
                 sink.append("eval.yml(forward-%s-override)" % key)
+        if forward.get("shell") != HARDENED_SHELL:
+            sink.append("eval.yml(forward-shell-not-hardened)")
         forward_env = forward.get("env")
         if (
             not isinstance(forward_env, dict)
@@ -17075,10 +17356,10 @@ def validate_review(doc, sink):
         doc, "review", REVIEW_WORKFLOW_KEYS, REVIEW_JOB_KEYS, "review.yml", sink
     )
     check_owner_pat_paths(doc, "review.yml", sink)
-    # Issue #713 review round 24: the non-PR notice must use the job token
-    # (an owner-PAT comment creates an issue_comment event and re-triggers
-    # this workflow) and must never open with a /oc trigger. Pin its exact
-    # predicate, env, and body.
+    # Issue #742 follow-up: the non-PR notice must post with the owner PAT
+    # (the read-only job token cannot comment, and the old || true made the
+    # step a silent no-op) and must never open with a /oc trigger. Pin its
+    # exact predicate, env, and body.
     skip_hits = [
         step
         for step in steps
@@ -17089,8 +17370,10 @@ def validate_review(doc, sink):
         sink.append("review.yml(skip-notice-step-not-unique)")
     else:
         skip = skip_hits[0]
-        if set(skip) != {"name", "if", "env", "run"}:
+        if set(skip) != {"name", "if", "env", "run", "shell"}:
             sink.append("review.yml(skip-notice-keys-not-exact)")
+        if skip.get("shell") != HARDENED_SHELL:
+            sink.append("review.yml(skip-notice-shell-not-hardened)")
         if (
             skip.get("if")
             != "steps.actor_gate.outputs.run == 'true' && steps.pr-info.outputs.is_pr != 'true'"
@@ -17111,7 +17394,7 @@ def validate_review(doc, sink):
             == EXPECTED_REVIEW_SKIP_ENV
         ):
             sink.append(
-                "review.yml(self-test-skip-notice-owner-pat-not-caught)"
+                "review.yml(self-test-skip-notice-owner-token-not-caught)"
             )
     # Issue #713 Tester finding: the review arm never moves a branch. Pin the
     # job permissions and the no-push workflow invariant, and resolve the
@@ -17368,8 +17651,10 @@ def validate_maintainer(doc, sink):
         sink.append("maintainer.yml(pat-merge-step-not-unique)")
     else:
         pat = pat_hits[0]
-        if set(pat) != {"name", "if", "env", "run"}:
+        if set(pat) != {"name", "if", "env", "run", "shell"}:
             sink.append("maintainer.yml(pat-merge-keys-not-exact)")
+        if pat.get("shell") != HARDENED_SHELL:
+            sink.append("maintainer.yml(pat-merge-shell-not-hardened)")
         if pat.get("if") != "always() && steps.actor_gate.outputs.run == 'true'":
             sink.append("maintainer.yml(pat-merge-if-not-exact)")
         pat_env = pat.get("env")
@@ -17399,6 +17684,11 @@ def validate_maintainer(doc, sink):
         if pinned_step.get("if") != pinned["if"]:
             sink.append(
                 "maintainer.yml(owner-pat-step-if-not-exact:%s)" % pinned_name
+            )
+        if "shell" in pinned and pinned_step.get("shell") != pinned["shell"]:
+            sink.append(
+                "maintainer.yml(owner-pat-step-shell-not-hardened:%s)"
+                % pinned_name
             )
         if pinned_step.get("env") != pinned["env"]:
             sink.append(
@@ -17706,7 +17996,7 @@ if doc is not None:
     add_mutant(
         "forward-shell",
         lambda d: step_at(d, FORWARD_NAME).__setitem__("shell", "bash"),
-        "forward-shell-override",
+        "forward-shell-not-hardened",
     )
     add_mutant(
         "marker-continue-on-error",
@@ -18194,9 +18484,9 @@ if review_doc is not None:
             for p in review_actor_keys_local
         ):
             problems.append("review.yml(structural-self-test-actor-keys-override)")
-        # Issue #713 review round 24: reverting the non-PR notice to the owner
-        # PAT (which re-triggers this workflow) or opening its body with a
-        # trigger must each fail the audit alone.
+        # Issue #742 review F8: the job token now holds issues: write, so the
+        # non-PR notice must not carry the owner PAT; reinstating the owner
+        # PAT or opening its body with a trigger must each fail the audit.
         review_skip_pat = copy.deepcopy(review_doc)
         for step in review_skip_pat["jobs"]["review"]["steps"]:
             if isinstance(step, dict) and step.get("name") == "Skip review for non-PR issue":
@@ -18207,7 +18497,7 @@ if review_doc is not None:
             "review.yml(skip-notice-env-not-exact)" in p
             for p in review_skip_pat_local
         ):
-            problems.append("review.yml(structural-self-test-skip-notice-pat)")
+            problems.append("review.yml(structural-self-test-skip-notice-owner-token)")
         review_skip_trigger = copy.deepcopy(review_doc)
         for step in review_skip_trigger["jobs"]["review"]["steps"]:
             if isinstance(step, dict) and step.get("name") == "Skip review for non-PR issue":
@@ -18819,11 +19109,15 @@ echo "Decision '$action' is not an approval; no eval marker to publish."
 echo "ok=true" >> "$GITHUB_OUTPUT"
 exit 0
 fi
-ev=/tmp/live-run-evidence.json
-if [ -f "$ev" ] && jq -e '.scope == "unrunnable"' "$ev" >/dev/null 2>&1; then
+evidence_scope="${{ steps.evidence-gate.outputs.scope }}"
+if [ "$evidence_scope" = "unrunnable" ]; then
 echo "Evidence declares scope=unrunnable; this is an escalation, not an approval; no eval approval marker published."
 echo "ok=true" >> "$GITHUB_OUTPUT"
 exit 0
+fi
+if [ "$evidence_scope" != "commands" ] && [ "$evidence_scope" != "infra" ]; then
+echo "::error::Evidence gate latched scope '${evidence_scope:-unset}', which is not a mergeable approval scope; refusing to publish an eval approval marker (issue #742)."
+exit 1
 fi
 score=$(jq -r '.score // "N/A"' /tmp/evaluator-decision.json 2>/dev/null || echo "N/A")
 pr="${{ github.event.issue.number }}"
@@ -18885,7 +19179,10 @@ fi
 action=$(jq -r '.action // "unknown"' /tmp/evaluator-decision.json 2>/dev/null || echo "unknown")
 score=$(jq -r '.score // "N/A"' /tmp/evaluator-decision.json 2>/dev/null || echo "N/A")
 summary=$(jq -r '.summary // .critique // "Evaluation complete. See `.github/agents/evaluator.md` for rubric details."' /tmp/evaluator-decision.json 2>/dev/null || echo "Evaluation complete.")
-if [ "$action" = "approve-eval" ]; then
+evidence_scope="${{ steps.evidence-gate.outputs.scope }}"
+if [ "$action" = "approve-eval" ] && [ "$evidence_scope" = "unrunnable" ]; then
+body="Quality Council ESCALATION - Score ${score}/10. ${summary} - Live execution was declared unrunnable in this environment. This is NOT an approval and no merge marker was published; Hephaestus (Maintainer) will triage the escalation. - The Quality Council (Evaluator)"
+elif [ "$action" = "approve-eval" ]; then
 body="Quality Council APPROVED - Score ${score}/10. ${summary} - The Evaluator confirms the deliverable passes all 5 dimensions (aggregate at least 9.8). Passing to Hephaestus (Maintainer) for final merge. - The Quality Council (Evaluator)"
 elif [ "$action" = "fix" ]; then
 body="Quality Council REJECTION - Score ${score}/10. ${summary} - The Evaluator requires fixes before the deliverable can proceed to the Maintainer. Hephaestus will route the next step once the findings are applied. - The Quality Council (Evaluator)"
@@ -19013,6 +19310,26 @@ R30MEMORY
 # whole-region keeps a workflow edit from turning a real fix verdict into an
 # approval before the post/marker steps consume it. The structural pass above
 # also pins the agent step and bans decision/evidence writes elsewhere.
+r30_expected_head_check_block() {
+  cat <<'R30HEADCHECK'
+set -o pipefail
+expected="${{ steps.eval-bind.outputs.eval_sha }}"
+if [ -z "$expected" ]; then
+echo "::error::No evaluated head was captured before the evaluator ran; refusing to trust an unbound workspace (issue #742)."
+exit 1
+fi
+actual=$(/usr/bin/git rev-parse --verify HEAD 2>/dev/null || true)
+if [ -z "$actual" ]; then
+echo "::error::Could not resolve the workspace HEAD after the evaluator ran (issue #742)."
+exit 1
+fi
+if [ "$actual" != "$expected" ]; then
+echo "::error::Workspace HEAD moved from $expected to $actual during the evaluator session; refusing to publish a verdict from a moved workspace (issue #742)."
+exit 1
+fi
+echo "Workspace HEAD matches the evaluated head ($expected)."
+R30HEADCHECK
+}
 r30_expected_verify_block() {
   cat <<'R30VERIFY'
 if [ "${AGENT_GATE:-}" != "true" ]; then
@@ -19110,6 +19427,7 @@ r30_expected_evidence_block() {
   cat <<'R30EVIDENCE'
 action=$(jq -r '.action // empty' /tmp/evaluator-decision.json 2>/dev/null || echo "")
 if [ "$action" != "approve-eval" ]; then
+echo "scope=none" >> "$GITHUB_OUTPUT"
 echo "Gate applies to approve-eval only (action='$action'); rejections pass unblocked."
 exit 0
 fi
@@ -19123,10 +19441,12 @@ echo "::error::Live-execution evidence does not carry this run's contract nonce;
 exit 1
 fi
 if jq -e '.scope == "unrunnable" and ((.reason // "") | length > 20)' "$ev" >/dev/null 2>&1; then
+echo "scope=unrunnable" >> "$GITHUB_OUTPUT"
 echo "Evidence declares scope=unrunnable with a substantive reason; routing onward for Maintainer triage."
 exit 0
 fi
 if jq -e '.scope == "infra" and ((.checks // []) | length > 0)' "$ev" >/dev/null 2>&1; then
+echo "scope=infra" >> "$GITHUB_OUTPUT"
 echo "Evidence declares scope=infra with validation checks recorded."
 exit 0
 fi
@@ -19135,6 +19455,7 @@ if [ "${good:-0}" -lt 1 ]; then
 echo "::error::Live-execution evidence contains only test/compile commands. 'CLI hostile: go build/vet/test green' is NOT end-user execution (the exact PR #389 failure). Approval blocked."
 exit 1
 fi
+echo "scope=commands" >> "$GITHUB_OUTPUT"
 echo "Evidence gate passed: $good non-test command(s) recorded against the deliverable."
 R30EVIDENCE
 }
@@ -19142,7 +19463,7 @@ R30EVIDENCE
 # mutation self-test inside r30_owner_pin appends a decoy line and requires the
 # comparison to reject it, so a vacuous comparator cannot stay green.
 r30_norm_region() {
-  sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -vE '^#|^$' || true
+  sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -vE '^#|^$' | strip_lab_pat_preamble || true
 }
 r30_block_exact() {
   [ -n "$(printf '%s\n' "$2" | r30_norm_region)" ] \
@@ -19164,8 +19485,8 @@ r30_owner_pin() {
 }
 if [ ! -f "$R30_WF" ]; then
   r30_bad="${r30_bad} opencode-eval.yml(missing)"
-elif [ ! -f "$r30_struct_dir/bind.run" ] || [ ! -f "$r30_struct_dir/marker.run" ] || [ ! -f "$r30_struct_dir/post.run" ] || [ ! -f "$r30_struct_dir/forward.run" ] || [ ! -f "$r30_struct_dir/prinfo.run" ] || [ ! -f "$r30_struct_dir/context.run" ] || [ ! -f "$r30_struct_dir/memory.run" ] || [ ! -f "$r30_struct_dir/verify.run" ] || [ ! -f "$r30_struct_dir/evidence.run" ] || [ ! -f "$r30_struct_dir/clear.run" ] || [ ! -f "$r30_struct_dir/actor.run" ] || [ ! -f "$r30_struct_dir/configure.run" ] || [ ! -f "$r30_struct_dir/restore.run" ] || [ ! -f "$r30_struct_dir/pat.run" ]; then
-  r30_bad="${r30_bad} eval-or-maintainer(bind-marker-post-forward-prinfo-context-memory-verify-evidence-clear-actor-configure-restore-or-pat-step-missing-or-renamed)"
+elif [ ! -f "$r30_struct_dir/bind.run" ] || [ ! -f "$r30_struct_dir/marker.run" ] || [ ! -f "$r30_struct_dir/post.run" ] || [ ! -f "$r30_struct_dir/forward.run" ] || [ ! -f "$r30_struct_dir/prinfo.run" ] || [ ! -f "$r30_struct_dir/context.run" ] || [ ! -f "$r30_struct_dir/memory.run" ] || [ ! -f "$r30_struct_dir/head-check.run" ] || [ ! -f "$r30_struct_dir/verify.run" ] || [ ! -f "$r30_struct_dir/evidence.run" ] || [ ! -f "$r30_struct_dir/clear.run" ] || [ ! -f "$r30_struct_dir/actor.run" ] || [ ! -f "$r30_struct_dir/configure.run" ] || [ ! -f "$r30_struct_dir/restore.run" ] || [ ! -f "$r30_struct_dir/pat.run" ]; then
+  r30_bad="${r30_bad} eval-or-maintainer(bind-marker-post-forward-prinfo-context-memory-head-check-verify-evidence-clear-actor-configure-restore-or-pat-step-missing-or-renamed)"
 else
   r30_bind_block=$(cat "$r30_struct_dir/bind.run" 2>/dev/null || true)
   r30_marker_block=$(cat "$r30_struct_dir/marker.run" 2>/dev/null || true)
@@ -19174,6 +19495,7 @@ else
   r30_prinfo_block=$(cat "$r30_struct_dir/prinfo.run" 2>/dev/null || true)
   r30_context_block=$(cat "$r30_struct_dir/context.run" 2>/dev/null || true)
   r30_memory_block=$(cat "$r30_struct_dir/memory.run" 2>/dev/null || true)
+  r30_head_check_block=$(cat "$r30_struct_dir/head-check.run" 2>/dev/null || true)
   r30_verify_block=$(cat "$r30_struct_dir/verify.run" 2>/dev/null || true)
   r30_evidence_block=$(cat "$r30_struct_dir/evidence.run" 2>/dev/null || true)
   r30_clear_block=$(cat "$r30_struct_dir/clear.run" 2>/dev/null || true)
@@ -19195,7 +19517,19 @@ else
   printf '%s\n' "$r30_marker_block" | grep -qF 'if [ "$action" != "approve-eval" ]; then' || r30_bad="${r30_bad} eval.yml(no-approve-eval-only-guard)"
   # Review round 9: a scope=unrunnable evidence file is an escalation, never a
   # mergeable approval; the marker step must skip publication for it.
-  printf '%s\n' "$r30_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF "if [ -f \"\$ev\" ] && jq -e '.scope == \"unrunnable\"' \"\$ev\" >/dev/null 2>&1; then" || r30_bad="${r30_bad} eval.yml(no-unrunnable-marker-exclusion)"
+  printf '%s\n' "$r30_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF 'if [ "$evidence_scope" = "unrunnable" ]; then' || r30_bad="${r30_bad} eval.yml(no-unrunnable-marker-exclusion)"
+  # Issue #742 review F6: the evidence gate latches its verification result as
+  # a step output, and the publication steps consume the latch. No post or
+  # marker path may re-read the agent-writable evidence file, because an
+  # evaluator-spawned process can rewrite it after the gate has run (the
+  # documented execution-isolation residual). The marker additionally refuses
+  # any scope that is not a mergeable approval scope.
+  printf '%s\n' "$r30_evidence_block" | grep -qF 'echo "scope=unrunnable" >> "$GITHUB_OUTPUT"' || r30_bad="${r30_bad} eval.yml(evidence-no-unrunnable-latch)"
+  printf '%s\n' "$r30_evidence_block" | grep -qF 'echo "scope=commands" >> "$GITHUB_OUTPUT"' || r30_bad="${r30_bad} eval.yml(evidence-no-commands-latch)"
+  printf '%s\n' "$r30_post_block" | grep -qF 'steps.evidence-gate.outputs.scope' || r30_bad="${r30_bad} eval.yml(post-does-not-consume-evidence-latch)"
+  printf '%s\n' "$r30_marker_block" | grep -qF 'steps.evidence-gate.outputs.scope' || r30_bad="${r30_bad} eval.yml(marker-does-not-consume-evidence-latch)"
+  printf '%s\n' "$r30_post_block" | grep -qF '/tmp/live-run-evidence.json' && r30_bad="${r30_bad} eval.yml(post-rereads-agent-writable-evidence)"
+  printf '%s\n' "$r30_marker_block" | grep -qF '/tmp/live-run-evidence.json' && r30_bad="${r30_bad} eval.yml(marker-rereads-agent-writable-evidence)"
   # Review round 3 finding 1: a marker may only be published while the PR head
   # is still the evaluated head and the triggering comment is still the latest
   # eval trigger. Each guard fails the step closed, so the forward handoff is
@@ -19226,7 +19560,7 @@ else
   fi
   r30_marker_region=$(printf '%s\n' "$r30_marker_block" \
     | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
-    | grep -vE '^#|^$' || true)
+    | grep -vE '^#|^$' | strip_lab_pat_preamble || true)
   r30_marker_expect=$(r30_expected_marker_block \
     | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
     | grep -vE '^#|^$' || true)
@@ -19239,7 +19573,7 @@ else
   fi
   r30_post_region=$(printf '%s\n' "$r30_post_block" \
     | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
-    | grep -vE '^#|^$' || true)
+    | grep -vE '^#|^$' | strip_lab_pat_preamble || true)
   r30_post_expect=$(r30_expected_post_block \
     | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
     | grep -vE '^#|^$' || true)
@@ -19256,7 +19590,7 @@ else
   # fail here; the marker-literal ban is defense in depth behind the exact
   # pin, which is the load-bearing guard.
   r30_fwd_normalize() {
-    sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -vE '^#|^$' || true
+    sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -vE '^#|^$' | strip_lab_pat_preamble || true
   }
   r30_fwd_exact() {
     [ -n "$(r30_expected_fwd_block)" ] \
@@ -19356,6 +19690,13 @@ R30MEMHOOK
   # blocks whole-region. The mutation self-tests append a decision (or
   # evidence) rewrite line and require the comparison to reject it, so a
   # vacuous pin cannot stay green while a fix verdict becomes an approval.
+  r30_owner_pin head-check "$r30_head_check_block" "$(r30_expected_head_check_block)"
+  # Issue #742 review F5: an imported BASH_FUNC_git shadows the command name
+  # even with a pinned PATH, so the head check must call the absolute binary.
+  # The exact pin and this mutation self-test both reject a plain `git`.
+  printf '%s\n' "$r30_head_check_block" | grep -qF '/usr/bin/git rev-parse --verify HEAD' || r30_bad="${r30_bad} eval.yml(head-check-not-absolute-git)"
+  r30_head_check_mut=$(printf '%s\n' "$r30_head_check_block" | sed 's#/usr/bin/git rev-parse#git rev-parse#')
+  r30_block_exact "$r30_head_check_mut" "$(r30_expected_head_check_block)" && r30_bad="${r30_bad} eval.yml(head-check-self-test-imported-git-not-caught)"
   r30_owner_pin verify "$r30_verify_block" "$(r30_expected_verify_block)"
   r30_owner_pin evidence "$r30_evidence_block" "$(r30_expected_evidence_block)"
   r30_owner_pin clear "$r30_clear_block" "$(r30_expected_clear_block)"
@@ -19363,6 +19704,16 @@ R30MEMHOOK
   r30_block_exact "$r30_verify_mut" "$(r30_expected_verify_block)" && r30_bad="${r30_bad} eval.yml(verify-self-test-decision-rewrite-not-caught)"
   r30_evidence_mut="${r30_evidence_block}"$'\n          echo '\''{"scope":"infra","checks":["validation"]}'\'' > /tmp/live-run-evidence.json'
   r30_block_exact "$r30_evidence_mut" "$(r30_expected_evidence_block)" && r30_bad="${r30_bad} eval.yml(evidence-self-test-evidence-rewrite-not-caught)"
+  # Issue #742 review F6: prove the latch pins are load-bearing. Dropping the
+  # commands latch, or re-introducing an evidence-file read in either
+  # publication step, must fail the exact pin (the greps above are defense in
+  # depth, mutation-self-tested by these mutations).
+  r30_evidence_latch_mut=$(printf '%s\n' "$r30_evidence_block" | sed '/^echo "scope=commands" >> "\$GITHUB_OUTPUT"$/d')
+  r30_block_exact "$r30_evidence_latch_mut" "$(r30_expected_evidence_block)" && r30_bad="${r30_bad} eval.yml(evidence-self-test-latch-removal-not-caught)"
+  r30_post_reread_mut="${r30_post_block}"$'\n          evidence_scope=$(jq -r '\''.scope // empty'\'' /tmp/live-run-evidence.json 2>/dev/null || true)'
+  r30_block_exact "$r30_post_reread_mut" "$(r30_expected_post_block)" && r30_bad="${r30_bad} eval.yml(post-self-test-evidence-reread-not-caught)"
+  r30_marker_reread_mut="${r30_marker_block}"$'\n          evidence_scope=$(jq -r '\''.scope // empty'\'' /tmp/live-run-evidence.json 2>/dev/null || true)'
+  r30_block_exact "$r30_marker_reread_mut" "$(r30_expected_marker_block)" && r30_bad="${r30_bad} eval.yml(marker-self-test-evidence-reread-not-caught)"
   r30_clear_mut="${r30_clear_block}"$'\n          cp /tmp/approval.json /tmp/evaluator-decision.json'
   r30_block_exact "$r30_clear_mut" "$(r30_expected_clear_block)" && r30_bad="${r30_bad} eval.yml(clear-self-test-decision-rewrite-not-caught)"
   # Issue #713 review round 7: pin the pre-decision execution context. The
@@ -20159,6 +20510,18 @@ R30_MARKER_MOCK
                 if [ -n "$r30_mc_evidence" ]; then
                   printf '%s\n' "$r30_mc_evidence" > "$r30_mc_evidence_file"
                 fi
+                # Issue #742 review F6: the marker consumes the evidence gate's
+                # latched scope output. Model the successful gate that must
+                # have run before this step: commands by default, unrunnable
+                # for the escalation fixture.
+                r30_mc_scope="commands"
+                case "$r30_mc_evidence" in
+                  *'"scope":"unrunnable"'*|*'"scope": "unrunnable"'*) r30_mc_scope="unrunnable" ;;
+                  *'"scope":"infra"'*|*'"scope": "infra"'*) r30_mc_scope="infra" ;;
+                esac
+                if [ "$r30_mc_decision" = "absent" ]; then
+                  r30_mc_scope=""
+                fi
                 r30_mc_calls="$r30_mc_dir/calls"
                 : > "$r30_mc_calls"
                 r30_mc_out="$r30_mc_dir/github-output"
@@ -20170,6 +20533,7 @@ R30_MARKER_MOCK
                 printf '%s\n' "$r30_marker_block" \
                   | sed -e "s#/tmp/evaluator-decision.json#$r30_mc_decision_file#g" \
                         -e "s#/tmp/live-run-evidence.json#$r30_mc_evidence_file#g" \
+                        -e "s#\${{ steps\.evidence-gate\.outputs\.scope }}#$r30_mc_scope#g" \
                         -e 's/\${{ github\.event\.issue\.number }}/713/g' \
                         -e "s#\${{ steps\.eval-bind\.outputs\.eval_sha }}#$r30_mc_eval_sha#g" \
                         -e "s#\${{ github\.event\.comment\.id }}#$r30_mc_trigger#g" \
@@ -20317,6 +20681,7 @@ R30_POST_MOCK
                 } > "$r30_tmp/post.cfg"
                 printf '%s\n' "$r30_post_block" \
                   | sed -e "s#/tmp/evaluator-decision.json#$r30_ptc_decision_file#g" \
+                        -e 's#\${{ steps\.evidence-gate\.outputs\.scope }}#commands#g' \
                         -e 's#\${{ github\.repository }}#RandomLabs/RandomLabs#g' \
                         -e 's#\${{ github\.repository_owner }}#RandomLabs#g' \
                         -e 's#\${{ github\.event\.issue\.number }}#713#g' > "$r30_ptc_dir/run.sh"
@@ -20373,7 +20738,7 @@ R30_POST_MOCK
   fi
 fi
 if [ -z "$r30_bad" ]; then
-  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical owner-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as owner-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer owner-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow's App token stays read-only for contents while pull-requests write and issues write cover the PR-thread CLI bootstrap (issue #743; merge still requires Contents write), and every verdict write runs in an owner-PAT step, and it is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, the Run evaluator agent step structurally bound to the vendored runner with no run/shell, an exact if/env/with and model pin, the prompt SHA-256, and the 105-minute cap, the Clear runtime decision, Verify evaluator decided, and Enforce live-execution evidence gate run blocks pinned whole-region line-exact with decision and evidence rewrite mutation self-tests and a decision/evidence write ban outside the evaluator agent, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval, and noncanonical and wrong-PR marker bodies) are executed in a sandbox, and the sweep requires the canonical machine-published marker body (exact structure, singleton bindings, and the PR/head/trigger paragraph echo) as defense in depth, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), every owner-PAT run block (the forward handoff, the pre-gate Get PR info read, the deliverable-context read, and the final evaluator memory push) is pinned whole-region line-exact with its exact key surface and an env of exactly the owner PAT plus the pinned system PATH, and the eval marker literal banned, and no step other than the marker step may carry the eval marker literal and no step outside the three sanctioned comment posters may issue a comment post (all pins are mutation-self-tested, so a decoy approval marker cannot be injected into any token-bearing step body), and the pre-decision execution context is pinned so no PR-head code runs before the verdict (the checkout action is exactly actions/checkout@v6 with its exact with block and may appear only in the Checkout repository (PR head) step, the vendored runner may appear only in the Run evaluator agent step, every other uses step is rejected, the actor gate executes only the script staged from the workflow commit, the vendored runner is always restored from the workflow commit with no early-exit trust, the Configure git identity step is exactly the two git config lines with no extra key, the workflow permissions map and the eval job's if, runs-on, and timeout values are pinned, the decision/evidence write ban covers pathlib write_text/write_bytes and Path(...).open plus os.replace/os.rename and shutil copy/move spellings, and the checkout, actor-gate, configure, and restore blocks are mutation-self-tested), review round 8 hardens the remaining execution inputs: the evaluator and tester system prompts are staged from \`\${GITHUB_SHA}\` into RUNNER_TEMP before the agent and both prompt files plus both staging bodies are SHA-256 pinned (the PR-head editions are never read) and the Tester agent prompt must reference the staged copy, the workflow name and concurrency policy are pinned, the publisher is whole-file SHA-256 pinned with a second-PR functional fixture and a target-gated-append mutation self-test, the extracted decision and pre-merge blocks reject control transfer and execute in subshells (so a planted exit cannot silence this rule), the Post Maintainer comment poster is pinned whole-region with the eval marker literal banned outside the PAT sweep, and head_sha plus the two-step head_push_time binding are pinned, the maintainer job's exact ordered step sequence is pinned, so no inserted or renamed step can pass at all, and no maintainer step other than the pinned PAT sweep may carry a gh pr merge (or REST/GraphQL merge) invocation, including a path-qualified, command/env/sudo-prefixed, quoted word-split, gh-global-flag (\`gh -R x pr merge\`, \`gh --repo x pr merge\`, \`gh -Rcli/cli pr merge\`), expression-valued-repo, REST, or GraphQL spelling, so a newly inserted owner-PAT merge step, the reviewer's unreviewed fast path, or a renamed sweep with an exact-name decoy fails the audit; so a one-line neutering, declarative poisoning, or extra step cannot pass; the review arm is validated from the same strict parse as branch-read-only (exactly contents read with pull-requests write and issues write for the PR-thread CLI bootstrap, issue #743, no push or restore marker in any run, and a unique post-agent head observer with the job token, the pinned system PATH, and an exact pinned body), every owner-PAT step in the review and test arms must pin /usr/bin:/bin (the Tester's review-restore omission class), and the observer, permissions, cross-step push, and PATH pins each carry mutation self-tests, and the Maintainer workspace is pinned to the trusted default branch (exact {name, uses, with} checkout surface, with remove and redirect mutants tripping checkout-with-not-exact), so a pull_request run cannot auto-load the PR merge tree's AGENTS.md/opencode.json/plugins (issue #713 review round 27) (issue #713)" "ok"
+  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical owner-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as owner-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, a post-agent head check run with the isolation env (BASH_ENV/ENV at /dev/null, empty LD_*, workspace GIT_*) re-reads the workspace HEAD and gates the verdict, marker, forward, and memory steps on it, an approve-eval verdict with unrunnable live evidence is published as a Quality Council ESCALATION with no approval wording and no merge marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer owner-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow's App token stays read-only for contents while pull-requests write and issues write cover the PR-thread CLI bootstrap (issue #743; merge still requires Contents write), and every verdict write runs in an owner-PAT step, and the review arm's non-PR skip notice posts with the job token through a step without \`|| true\`, so a token or loudness regression fails, and the evidence gate latches its verified scope as a step output that the post and marker steps consume (never re-reading the agent-writable evidence file, so a post-gate rewrite cannot turn an escalation into an approval), and it is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, the Run evaluator agent step structurally bound to the vendored runner with no run/shell, an exact if/env/with and model pin, the prompt SHA-256, and the 105-minute cap, the post-agent head-check, Clear runtime decision, Verify evaluator decided, and Enforce live-execution evidence gate run blocks pinned whole-region line-exact with decision and evidence rewrite mutation self-tests and a decision/evidence write ban outside the evaluator agent, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval, and noncanonical and wrong-PR marker bodies) are executed in a sandbox, and the sweep requires the canonical machine-published marker body (exact structure, singleton bindings, and the PR/head/trigger paragraph echo) as defense in depth, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), every owner-PAT run block (the forward handoff, the pre-gate Get PR info read, the deliverable-context read, and the final evaluator memory push) is pinned whole-region line-exact with its exact key surface and an env of exactly the owner PAT plus the pinned system PATH, and the eval marker literal banned, and no step other than the marker step may carry the eval marker literal and no step outside the three sanctioned comment posters may issue a comment post (all pins are mutation-self-tested, so a decoy approval marker cannot be injected into any token-bearing step body), and the pre-decision execution context is pinned so no PR-head code runs before the verdict (the checkout action is exactly actions/checkout@v6 with its exact with block and may appear only in the Checkout repository (PR head) step, the vendored runner may appear only in the Run evaluator agent step, every other uses step is rejected, the actor gate executes only the script staged from the workflow commit, the vendored runner is always restored from the workflow commit with no early-exit trust, the Configure git identity step is exactly the two git config lines with no extra key, the workflow permissions map and the eval job's if, runs-on, and timeout values are pinned, the decision/evidence write ban covers pathlib write_text/write_bytes and Path(...).open plus os.replace/os.rename and shutil copy/move spellings, and the checkout, actor-gate, configure, and restore blocks are mutation-self-tested), review round 8 hardens the remaining execution inputs: the evaluator and tester system prompts are staged from \`\${GITHUB_SHA}\` into RUNNER_TEMP before the agent and both prompt files plus both staging bodies are SHA-256 pinned (the PR-head editions are never read) and the Tester agent prompt must reference the staged copy, the workflow name and concurrency policy are pinned, the publisher is whole-file SHA-256 pinned with a second-PR functional fixture and a target-gated-append mutation self-test, the extracted decision and pre-merge blocks reject control transfer and execute in subshells (so a planted exit cannot silence this rule), the Post Maintainer comment poster is pinned whole-region with the eval marker literal banned outside the PAT sweep, and head_sha plus the two-step head_push_time binding are pinned, the maintainer job's exact ordered step sequence is pinned, so no inserted or renamed step can pass at all, and no maintainer step other than the pinned PAT sweep may carry a gh pr merge (or REST/GraphQL merge) invocation, including a path-qualified, command/env/sudo-prefixed, quoted word-split, gh-global-flag (\`gh -R x pr merge\`, \`gh --repo x pr merge\`, \`gh -Rcli/cli pr merge\`), expression-valued-repo, REST, or GraphQL spelling, so a newly inserted owner-PAT merge step, the reviewer's unreviewed fast path, or a renamed sweep with an exact-name decoy fails the audit; so a one-line neutering, declarative poisoning, or extra step cannot pass; the review arm is validated from the same strict parse as branch-read-only (exactly contents read with pull-requests write and issues write for the PR-thread CLI bootstrap, issue #743, no push or restore marker in any run, and a unique post-agent head observer with the job token, the pinned system PATH, and an exact pinned body), every owner-PAT step in the review and test arms must pin /usr/bin:/bin (the Tester's review-restore omission class), and the observer, permissions, cross-step push, and PATH pins each carry mutation self-tests, and the Maintainer workspace is pinned to the trusted default branch (exact {name, uses, with} checkout surface, with remove and redirect mutants tripping checkout-with-not-exact), so a pull_request run cannot auto-load the PR merge tree's AGENTS.md/opencode.json/plugins (issue #713 review round 27) (issue #713)" "ok"
 else
   check "R30" "eval verdict publication and PAT merge gate guard missing:${r30_bad} (issue #713: a workflow-touching PR could merge through the PAT sweep with no binding Evaluator verdict)" "bad"
 fi
@@ -21131,16 +21496,646 @@ case "$r31_out" in
     ;;
 esac
 
-summary="Silent-stall regression audit (R1-R31) on ${WF}: ${pass} passed, ${fail} failed."
+# [R32] Owner-PAT environment isolation across every workflow (issue #742):
+# the machine-enforced owner-PAT environment landed in opencode.yml,
+# opencode-review.yml, opencode-test.yml, opencode-eval.yml, and maintainer.yml
+# (issue #713), but 27 owner-PAT steps in auditor.yml, curator.yml, ideate.yml,
+# lab.yml, opencode-pr-trigger.yml, opencode-recover.yml,
+# opencode-review.yml (the non-PR skip notice, which was a read-only-token
+# no-op behind `|| true`), and opencode-peros-test.yml still carried only a
+# partial env map (or, for the review notice, could not post at all). Every
+# owner-PAT step in the tree now carries the same sanitized map the R28/R30
+# cohort pins: BASH_ENV/ENV at /dev/null, empty LD_*, the workspace-scoped
+# GIT_* set (including a pinned GIT_EXEC_PATH), and a pinned PATH. Every one
+# also starts with a builtins-only preamble that clears every imported shell
+# function, because BASH_ENV=/dev/null does NOT stop bash from importing an
+# agent-written `BASH_FUNC_<cmd>%%` environment entry (GitHub's `$GITHUB_ENV`
+# supports that spelling and the imported function runs with the owner PAT in
+# scope); the functional fixture injects BASH_FUNC_git/jq/python3 and requires
+# the shipped preamble to clear them and their child-shell re-import. The
+# per-OS arms use their captured trusted PATH and captured git exec path
+# (issue #692) for every owner-PAT step, including the pre-agent target
+# lookup, which now runs after the capture so a runner-writable tool directory
+# can never hold the owner PAT. The rule is load-bearing: the per-workflow
+# owner-PAT step counts are pinned, removing BASH_ENV/GIT_* or adding any LD_*
+# value fails, an agent step carrying the owner PAT fails even if its env
+# otherwise looks sanitized, and a missing, weakened, or buried function
+# preamble fails. Mutation self-tests prove the predicates catch each class,
+# and the strict loader rejects duplicate mapping keys the way GitHub does.
+r32_bad=""
+r32_out=$(python3 -I - <<'R32PY'
+import copy
+import glob
+import os
+import re
+import subprocess
+import sys
+
+def fail(message):
+    sys.stdout.write(message)
+    raise SystemExit(0)
+
+try:
+    import yaml
+except Exception as exc:
+    fail("owner-pat-env(python-runtime:no-pyyaml:%s)" % exc)
+
+
+class StrictLoader(yaml.SafeLoader):
+    pass
+
+
+def strict_mapping(loader, node, deep=False):
+    loader.flatten_mapping(node)
+    mapping = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in mapping:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                "found duplicate key %r" % key,
+                key_node.start_mark,
+            )
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+StrictLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, strict_mapping
+)
+
+PAT = "${{ secrets.OPENCODE_PAT }}"
+PREAMBLE_COMMENT = "# Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only)."
+PREAMBLE_LOOP = 'while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)'
+SYSTEM_PATH = "/usr/bin:/bin"
+SYSTEM_GIT_EXEC = "/usr/lib/git-core"
+HARDENED_SHELL = "bash --noprofile --norc -p -e -o pipefail {0}"
+PEROS = "opencode-peros-test.yml"
+PEROS_PATH = "${{ steps.trusted_path.outputs.path }}"
+PEROS_GIT_EXEC = "${{ steps.trusted_path.outputs.git_exec_path }}"
+PEROS_CONFIG = {
+    "test-linux": "/proc",
+    "test-macos": "/usr/lib",
+    "test-windows": "C:/Windows/System32",
+}
+PEROS_SHELL = {
+    "test-linux": "bash --noprofile --norc -p -e -o pipefail {0}",
+    "test-macos": "/bin/bash --noprofile --norc -p -e -o pipefail {0}",
+    "test-windows": "bash --noprofile --norc -p -e -o pipefail {0}",
+}
+ISOLATION = {
+    "BASH_ENV": "/dev/null",
+    "DYLD_FRAMEWORK_PATH": "",
+    "DYLD_INSERT_LIBRARIES": "",
+    "DYLD_LIBRARY_PATH": "",
+    "ENV": "/dev/null",
+    "GIT_CONFIG": "/dev/null",
+    "GIT_CONFIG_PARAMETERS": "",
+    "PS4": "+ ",
+    "PYTHONPATH": "",
+    "SHELLOPTS": "",
+    "GH_TOKEN": PAT,
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES": "",
+    "GIT_ASKPASS": "/usr/bin/false",
+    "GIT_COMMON_DIR": "${{ github.workspace }}/.git",
+    "GIT_CONFIG_COUNT": "0",
+    "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_SYSTEM": "/dev/null",
+    "GIT_DIR": "${{ github.workspace }}/.git",
+    "GIT_EDITOR": "/usr/bin/false",
+    "GIT_EXTERNAL_DIFF": "",
+    "GIT_INDEX_FILE": "${{ github.workspace }}/.git/index",
+    "GIT_NAMESPACE": "",
+    "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects",
+    "GIT_PAGER": "/bin/cat",
+    "GIT_SEQUENCE_EDITOR": "/usr/bin/false",
+    "GIT_SSH_COMMAND": "ssh",
+    "GIT_TERMINAL_PROMPT": "0",
+    "GIT_TEMPLATE_DIR": "/dev/null",
+    "GIT_WORK_TREE": "${{ github.workspace }}",
+    "LD_AUDIT": "",
+    "LD_LIBRARY_PATH": "",
+    "LD_PRELOAD": "",
+}
+EXPECTED_COUNTS = {
+    "auditor.yml": 2,
+    "curator.yml": 3,
+    "ideate.yml": 2,
+    "lab.yml": 5,
+    "maintainer.yml": 6,
+    "opencode-eval.yml": 6,
+    "opencode-peros-test.yml": 11,
+    "opencode-pr-trigger.yml": 1,
+    "opencode-recover.yml": 2,
+    "opencode-review.yml": 5,
+    "opencode-test.yml": 4,
+    "opencode.yml": 27,
+}
+EXPECTED_TOTAL = 74
+
+
+def env_has_pat(env):
+    return isinstance(env, dict) and any(
+        isinstance(value, str) and PAT in value for value in env.values()
+    )
+
+
+def run_first_nonempty(run_text):
+    return [line.strip() for line in run_text.splitlines() if line.strip()][:2]
+
+
+def job_kind(job_name, job):
+    if job_name in PEROS_CONFIG:
+        return job_name
+    runs_on = str(job.get("runs-on") or "")
+    if "macos" in runs_on:
+        return "test-macos"
+    if "windows" in runs_on:
+        return "test-windows"
+    return "test-linux"
+
+
+def validate(docs):
+    out = []
+    counts = {}
+    total = 0
+    for name in sorted(docs):
+        doc = docs[name]
+        if not isinstance(doc, dict):
+            out.append("workflow-not-mapping:%s" % name)
+            continue
+        jobs = doc.get("jobs")
+        if not isinstance(jobs, dict):
+            continue
+        for job_name, job in jobs.items():
+            if not isinstance(job, dict):
+                continue
+            steps = job.get("steps")
+            if not isinstance(steps, list):
+                continue
+            kind = job_kind(job_name, job) if name == PEROS else "ubuntu"
+            # Issue #742 review F12: the per-OS trusted-PATH capture must run
+            # before every owner-PAT step, not merely exist. A later capture
+            # would leave the earlier lookups with an empty output while the
+            # env values still matched their pinned expressions.
+            if name == PEROS:
+                capture_idx = next(
+                    (
+                        index
+                        for index, candidate_step in enumerate(steps)
+                        if isinstance(candidate_step, dict)
+                        and candidate_step.get("id") == "trusted_path"
+                    ),
+                    None,
+                )
+                if capture_idx is None:
+                    out.append(
+                        "peros-trusted-path-capture-missing:%s" % job_name
+                    )
+                for index, candidate_step in enumerate(steps):
+                    if (
+                        capture_idx is not None
+                        and index < capture_idx
+                        and isinstance(candidate_step, dict)
+                        and env_has_pat(candidate_step.get("env"))
+                    ):
+                        out.append(
+                            "peros-owner-pat-step-before-trusted-path:%s:%s"
+                            % (job_name, candidate_step.get("name"))
+                        )
+            for step in steps:
+                if not isinstance(step, dict):
+                    continue
+                uses = step.get("uses")
+                if isinstance(uses, str) and "opencode-run" in uses.replace("\\", "/"):
+                    if env_has_pat(step.get("env")):
+                        out.append(
+                            "agent-env-carries-owner-pat:%s:%s"
+                            % (name, step.get("name"))
+                        )
+                env = step.get("env")
+                if not env_has_pat(env):
+                    continue
+                label = "%s:%s" % (name, step.get("name"))
+                total += 1
+                counts[name] = counts.get(name, 0) + 1
+                for key, value in ISOLATION.items():
+                    if env.get(key) != value:
+                        out.append(
+                            "owner-pat-step-missing-isolation:%s:%s"
+                            % (label, key)
+                        )
+                want_path = PEROS_PATH if kind != "ubuntu" else SYSTEM_PATH
+                want_exec = PEROS_GIT_EXEC if kind != "ubuntu" else SYSTEM_GIT_EXEC
+                want_config = (
+                    PEROS_CONFIG.get(kind, "/proc") if kind != "ubuntu" else "/proc"
+                )
+                want_shell = (
+                    PEROS_SHELL.get(kind, HARDENED_SHELL)
+                    if kind != "ubuntu"
+                    else HARDENED_SHELL
+                )
+                if env.get("PATH") != want_path:
+                    out.append("owner-pat-step-path-not-pinned:%s" % label)
+                if env.get("GIT_EXEC_PATH") != want_exec:
+                    out.append("owner-pat-step-git-exec-not-pinned:%s" % label)
+                if env.get("GH_CONFIG_DIR") != want_config:
+                    out.append("owner-pat-step-gh-config-not-pinned:%s" % label)
+                for key in env:
+                    if (
+                        isinstance(key, str)
+                        and key.startswith("LD_")
+                        and key not in ISOLATION
+                    ):
+                        out.append(
+                            "owner-pat-step-extra-ld:%s:%s" % (label, key)
+                        )
+                if step.get("shell") != want_shell:
+                    out.append("owner-pat-step-shell-not-hardened:%s" % label)
+                run_text = step.get("run")
+                if not isinstance(run_text, str) or not run_text.strip():
+                    out.append("owner-pat-step-run-missing:%s" % label)
+                elif run_first_nonempty(run_text) != [
+                    PREAMBLE_COMMENT,
+                    PREAMBLE_LOOP,
+                ]:
+                    out.append(
+                        "owner-pat-step-missing-function-preamble:%s" % label
+                    )
+    for name, want in EXPECTED_COUNTS.items():
+        got = counts.get(name, 0)
+        if got != want:
+            out.append("owner-pat-count:%s:%d,want=%d" % (name, got, want))
+    if total != EXPECTED_TOTAL:
+        out.append("owner-pat-total:%d,want=%d" % (total, EXPECTED_TOTAL))
+    return out
+
+
+docs = {}
+for path in sorted(glob.glob(".github/workflows/*.yml") + glob.glob(".github/workflows/*.yaml")):
+    name = os.path.basename(path)
+    try:
+        with open(path, encoding="utf-8") as handle:
+            docs[name] = yaml.load(handle, Loader=StrictLoader)
+    except Exception as exc:
+        docs[name] = None
+        docs.setdefault("_load_errors", []).append(
+            "workflow-load-failed:%s:%s" % (name, exc)
+        )
+
+problems = list(docs.pop("_load_errors", []) or [])
+problems.extend(validate(docs))
+
+
+def first_pat_step(candidate_docs, workflow):
+    for job_name, job in (candidate_docs.get(workflow) or {}).get("jobs", {}).items():
+        if not isinstance(job, dict):
+            continue
+        for step in job.get("steps", []) or []:
+            if isinstance(step, dict) and env_has_pat(step.get("env")):
+                return step
+    return None
+
+
+def expect(reason, mutate):
+    candidate = copy.deepcopy(docs)
+    mutate(candidate)
+    got = validate(candidate)
+    if not any(reason in problem for problem in got):
+        problems.append("self-test-not-caught:%s" % reason)
+
+
+def drop_key(workflow, key):
+    def mutate(candidate):
+        step = first_pat_step(candidate, workflow)
+        if step is not None:
+            step["env"].pop(key, None)
+
+    return mutate
+
+
+def set_key(workflow, key, value):
+    def mutate(candidate):
+        step = first_pat_step(candidate, workflow)
+        if step is not None:
+            step["env"][key] = value
+
+    return mutate
+
+
+for key in (
+    "BASH_ENV",
+    "ENV",
+    "SHELLOPTS",
+    "PS4",
+    "GIT_CONFIG",
+    "GIT_CONFIG_PARAMETERS",
+    "PYTHONPATH",
+    "DYLD_INSERT_LIBRARIES",
+    "GIT_DIR",
+):
+    expect(
+        "owner-pat-step-missing-isolation",
+        drop_key("auditor.yml", key),
+    )
+expect("owner-pat-step-missing-isolation", set_key("lab.yml", "LD_PRELOAD", "/tmp/agent-env"))
+def drop_gh_config(candidate):
+    step = first_pat_step(candidate, "opencode-peros-test.yml")
+    if step is not None:
+        step["env"].pop("GH_CONFIG_DIR", None)
+
+expect("owner-pat-step-gh-config-not-pinned", drop_gh_config)
+expect("owner-pat-step-missing-isolation", set_key("auditor.yml", "SHELLOPTS", "xtrace"))
+expect("owner-pat-step-missing-isolation", set_key("auditor.yml", "PS4", "$(id)"))
+expect("owner-pat-step-missing-isolation", set_key("auditor.yml", "GIT_CONFIG", "/tmp/evil"))
+expect("owner-pat-step-gh-config-not-pinned", set_key("auditor.yml", "GH_CONFIG_DIR", "/tmp/agent-gh"))
+expect("owner-pat-step-extra-ld", set_key("ideate.yml", "LD_SOMETHING", "1"))
+expect("owner-pat-step-path-not-pinned", set_key("opencode-recover.yml", "PATH", "/usr/local/bin:/usr/bin:/bin"))
+
+
+def drop_shell(candidate):
+    step = first_pat_step(candidate, "auditor.yml")
+    if step is not None:
+        step.pop("shell", None)
+
+
+expect("owner-pat-step-shell-not-hardened", drop_shell)
+
+
+def weaken_shell(candidate):
+    step = first_pat_step(candidate, "auditor.yml")
+    if step is not None:
+        step["shell"] = "bash --noprofile --norc -e -o pipefail {0}"
+
+
+expect("owner-pat-step-shell-not-hardened", weaken_shell)
+
+
+def peros_path_to_system(candidate):
+    for job in candidate["opencode-peros-test.yml"]["jobs"].values():
+        for step in job.get("steps", []):
+            if isinstance(step, dict) and env_has_pat(step.get("env")):
+                step["env"]["PATH"] = "/usr/bin:/bin"
+                return
+
+
+expect("owner-pat-step-path-not-pinned", peros_path_to_system)
+
+
+def peros_capture_after_owner_pat(candidate):
+    for job in candidate[PEROS]["jobs"].values():
+        steps = job.get("steps") or []
+        capture_index = next(
+            (
+                index
+                for index, step in enumerate(steps)
+                if isinstance(step, dict) and step.get("id") == "trusted_path"
+            ),
+            None,
+        )
+        if capture_index is None:
+            continue
+        capture_step = steps.pop(capture_index)
+        pat_index = next(
+            (
+                index
+                for index, step in enumerate(steps)
+                if isinstance(step, dict) and env_has_pat(step.get("env"))
+            ),
+            None,
+        )
+        if pat_index is not None:
+            steps.insert(pat_index + 1, capture_step)
+            return
+
+
+expect("peros-owner-pat-step-before-trusted-path", peros_capture_after_owner_pat)
+
+
+def peros_exec_to_system(candidate):
+    for job in candidate["opencode-peros-test.yml"]["jobs"].values():
+        for step in job.get("steps", []):
+            if isinstance(step, dict) and env_has_pat(step.get("env")):
+                step["env"]["GIT_EXEC_PATH"] = "/usr/lib/git-core"
+                return
+
+
+expect("owner-pat-step-git-exec-not-pinned", peros_exec_to_system)
+
+
+def peros_config_to_system(candidate):
+    for job_name, job in candidate["opencode-peros-test.yml"]["jobs"].items():
+        if job_name == "test-linux":
+            continue
+        for step in job.get("steps", []):
+            if isinstance(step, dict) and env_has_pat(step.get("env")):
+                step["env"]["GH_CONFIG_DIR"] = "/proc"
+                return
+
+
+expect("owner-pat-step-gh-config-not-pinned", peros_config_to_system)
+
+
+def peros_shell_to_generic(candidate):
+    for job in candidate["opencode-peros-test.yml"]["jobs"].values():
+        for step in job.get("steps", []):
+            if isinstance(step, dict) and env_has_pat(step.get("env")):
+                step["shell"] = "bash --noprofile --norc -e -o pipefail {0}"
+                return
+
+
+expect("owner-pat-step-shell-not-hardened", peros_shell_to_generic)
+
+
+def drop_one_pat(candidate):
+    step = first_pat_step(candidate, "opencode-pr-trigger.yml")
+    if step is not None:
+        step["env"]["GH_TOKEN"] = "${{ github.token }}"
+
+
+expect("owner-pat-count", drop_one_pat)
+
+
+def agent_gets_pat(candidate):
+    for job in candidate["opencode-test.yml"]["jobs"].values():
+        for step in job.get("steps", []):
+            if (
+                isinstance(step, dict)
+                and isinstance(step.get("uses"), str)
+                and "opencode-run" in step["uses"]
+            ):
+                step.setdefault("env", {})["GH_TOKEN"] = PAT
+                return
+
+
+expect("agent-env-carries-owner-pat", agent_gets_pat)
+
+
+def drop_preamble(candidate):
+    step = first_pat_step(candidate, "auditor.yml")
+    if step is not None:
+        lines = (step.get("run") or "").splitlines()
+        step["run"] = "\n".join(
+            line
+            for line in lines
+            if line.strip() not in (PREAMBLE_COMMENT, PREAMBLE_LOOP)
+        )
+
+
+expect("owner-pat-step-missing-function-preamble", drop_preamble)
+
+
+def weaken_preamble(candidate):
+    step = first_pat_step(candidate, "auditor.yml")
+    if step is not None:
+        step["run"] = (step.get("run") or "").replace(
+            "builtin unset -f", "unset -f", 1
+        )
+
+
+expect("owner-pat-step-missing-function-preamble", weaken_preamble)
+
+
+def bury_preamble(candidate):
+    step = first_pat_step(candidate, "auditor.yml")
+    if step is not None:
+        lines = (step.get("run") or "").splitlines()
+        pre = [
+            line
+            for line in lines
+            if line.strip() in (PREAMBLE_COMMENT, PREAMBLE_LOOP)
+        ]
+        rest = [
+            line
+            for line in lines
+            if line.strip() not in (PREAMBLE_COMMENT, PREAMBLE_LOOP)
+        ]
+        step["run"] = "\n".join(rest[:1] + pre + rest[1:])
+
+
+expect("owner-pat-step-missing-function-preamble", bury_preamble)
+
+
+def preamble_functional_probe():
+    out = []
+    step = first_pat_step(docs, "opencode.yml")
+    if step is None:
+        return ["preamble-functional-fixture-missing"]
+    first = run_first_nonempty(step.get("run") or "")
+    if first != [PREAMBLE_COMMENT, PREAMBLE_LOOP]:
+        return ["preamble-functional-preamble-missing"]
+    shipped = "\n".join(first)
+    probe = "\n".join(
+        [
+            "git --version",
+            "jq --version",
+            "python3 --version",
+            "bash -c 'git --version; jq --version; python3 --version'",
+            "env | grep -c '^BASH_FUNC_' || true",
+        ]
+    )
+    env = dict(os.environ)
+    env.pop("BASH_ENV", None)
+    env.pop("ENV", None)
+    env["BASH_FUNC_git%%"] = "() { echo HIJACK-git; }"
+    env["BASH_FUNC_jq%%"] = "() { echo HIJACK-jq; }"
+    env["BASH_FUNC_python3%%"] = "() { echo HIJACK-python3; }"
+    dirty = subprocess.run(
+        ["bash", "-c", probe], env=env, capture_output=True, text=True
+    )
+    clean = subprocess.run(
+        ["bash", "-c", shipped + "\n" + probe],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    for marker in ("HIJACK-git", "HIJACK-jq", "HIJACK-python3"):
+        if dirty.returncode != 0 or marker not in dirty.stdout:
+            out.append("preamble-functional-dirty-control-inert:%s" % marker)
+    if clean.returncode != 0:
+        out.append("preamble-functional-clean-shell-failed")
+    for marker in ("HIJACK-git", "HIJACK-jq", "HIJACK-python3"):
+        if marker in clean.stdout or marker in clean.stderr:
+            out.append("preamble-functional-hijack-survived:%s" % marker)
+    if clean.stdout.strip().splitlines()[-1:] != ["0"]:
+        out.append("preamble-functional-function-env-not-cleared")
+    # Issue #742 review F1/F2: the process-level launcher must ignore
+    # imported functions (including the preamble's own primitives) and must
+    # not execute a SHELLOPTS/PS4 payload before the script body. The plain
+    # shell is the dirty control; bash -p is the shipped defense.
+    hostile = dict(env)
+    hostile["BASH_FUNC_read%%"] = "() { return 1; }"
+    hostile["BASH_FUNC_builtin%%"] = "() { return 0; }"
+    hostile["SHELLOPTS"] = "xtrace"
+    hostile["PS4"] = "$(echo PWN-PS4 >&2)"
+    hardened_probe = "git --version; python3 -c 'print(1)'"
+    plain = subprocess.run(
+        ["bash", "-c", hardened_probe], env=hostile, capture_output=True, text=True
+    )
+    hardened = subprocess.run(
+        [
+            "bash",
+            "--noprofile",
+            "--norc",
+            "-p",
+            "-e",
+            "-o",
+            "pipefail",
+            "-c",
+            hardened_probe,
+        ],
+        env=hostile,
+        capture_output=True,
+        text=True,
+    )
+    if "HIJACK-git" not in plain.stdout or "PWN-PS4" not in plain.stderr:
+        out.append("launcher-functional-plain-control-inert")
+    if hardened.returncode != 0:
+        out.append("launcher-functional-hardened-shell-failed")
+    if "HIJACK-git" in hardened.stdout or "PWN-PS4" in hardened.stderr:
+        out.append("launcher-functional-hardened-shell-not-protected")
+    return out
+
+
+problems.extend(preamble_functional_probe())
+
+duplicate_caught = False
+try:
+    yaml.load("jobs:\n  a:\n    steps: []\n  a:\n    steps: []\n", Loader=StrictLoader)
+except yaml.YAMLError:
+    duplicate_caught = True
+if not duplicate_caught:
+    problems.append("self-test-duplicate-key-not-rejected")
+
+sys.stdout.write("\n".join(problems))
+R32PY
+)
+r32_rc=$?
+if [ "$r32_rc" -ne 0 ]; then
+  r32_bad="owner-pat-env(python-runtime:rc=$r32_rc)"
+fi
+if [ -n "$r32_out" ]; then
+  r32_bad="${r32_bad}${r32_out}"
+fi
+if [ -z "$r32_bad" ]; then
+  check "R32" "every owner-PAT step in the whole tree carries the sanitized isolation env (BASH_ENV/ENV/SHELLOPTS/PS4 at inert values, GIT_CONFIG and GIT_CONFIG_PARAMETERS closed, PYTHONPATH cleared, a pinned GH_CONFIG_DIR, empty LD_*/DYLD_*, the workspace-scoped GIT_* set including a pinned GIT_EXEC_PATH, and a pinned PATH; the per-OS arms use their captured trusted PATH and git exec path for every owner-PAT step), every owner-PAT step runs under a hardened bash -p launcher that ignores imported BASH_FUNC_* functions and pre-preamble SHELLOPTS/PS4, starts with the exact builtins-only preamble, the per-workflow owner-PAT counts and the 74-step total are pinned, a functional fixture proves the plain shell is hijacked by BASH_FUNC_git/read/builtin and by a PS4 payload while the shipped launcher is immune, the Python body fails closed on any runtime error, duplicate YAML mapping keys (merge keys included) are rejected, no agent step can carry the owner PAT, and mutation self-tests prove a removed isolation key (SHELLOPTS/PS4/GIT_CONFIG/GIT_CONFIG_PARAMETERS/PYTHONPATH/GH_CONFIG_DIR included), a non-empty or added LD_* value, a system PATH or GH_CONFIG_DIR in a per-OS arm, an unhardened shell, a missing/weakened/buried function preamble, and a lost owner-PAT step all fail the audit (issue #742)" "ok"
+else
+  check "R32" "owner-PAT environment isolation guard missing:${r32_bad} (issue #742: owner-PAT steps could inherit agent-exported BASH_ENV/LD_*/GIT_*/GH_CONFIG_DIR/PYTHONPATH, execute a BASH_FUNC_* or SHELLOPTS/PS4 payload, or lose a required isolation key)" "bad"
+fi
+
+
+summary="Silent-stall regression audit (R1-R32) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R31)
+  body="## Silent-stall regression audit FAILED (R1-R32)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, or R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, and the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included)). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 free-tier model pins, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, R11 post-agent PAT gates, R12 actor-write gate, R13 bot-created triage parity, R14 heterogeneous-group queue preservation, R15 model fallback ladder plus transient free-tier, 429/5xx, and provider-stall bounded retries, R16 shallow-workspace PAT merge guard, R17 per-OS findings-report contract, R18 Windows MSYS argv-conversion guard, R19 review-comment publication evidence, R20 paginated comment reads, R21 PAT merge approval binding, R22 tester verdict publication, R23 maintainer memory publish concurrency, R24 per-OS cap headroom and partial-report salvage, R25 lab/fix agent cap headroom, R26 create-issue dedupe, R27 stray-PR cleanup boundary, R28 phase thread binding and build-push attribution, R29 trailer-strip thread binding, R30 evaluator verdict publication, decision provenance, and PAT merge gate binding, or R31 agent bootstrap token scope plus staged-prompt reachability (issues write on every comment lane, pull-requests write on the PR-gated lanes, and the exact OPENCODE_PERMISSION external_directory grant with a same-job staging step on every staged-prompt agent, Maintainer arm included), or R32 owner-PAT environment isolation across every workflow). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then

@@ -39,23 +39,32 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
-          GIT_ASKPASS: /bin/false
+          GIT_ASKPASS: /usr/bin/false
           GIT_COMMON_DIR: ${{ github.workspace }}/.git
           GIT_CONFIG_COUNT: "0"
           GIT_CONFIG_GLOBAL: /dev/null
           GIT_CONFIG_NOSYSTEM: "1"
           GIT_CONFIG_SYSTEM: /dev/null
           GIT_DIR: ${{ github.workspace }}/.git
-          GIT_EDITOR: /bin/false
+          GIT_EDITOR: /usr/bin/false
           GIT_EXEC_PATH: /usr/lib/git-core
           GIT_EXTERNAL_DIFF: ""
           GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
           GIT_NAMESPACE: ""
           GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
           GIT_PAGER: /bin/cat
-          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SEQUENCE_EDITOR: /usr/bin/false
           GIT_SSH_COMMAND: ssh
           GIT_TERMINAL_PROMPT: "0"
           GIT_TEMPLATE_DIR: /dev/null
@@ -64,7 +73,10 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           pr="${{ github.event.issue.number }}"
           is_pr="${{ github.event.issue.pull_request != null }}"
           if [ "$is_pr" = "true" ]; then
@@ -165,23 +177,32 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ github.token }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
-          GIT_ASKPASS: /bin/false
+          GIT_ASKPASS: /usr/bin/false
           GIT_COMMON_DIR: ${{ github.workspace }}/.git
           GIT_CONFIG_COUNT: "0"
           GIT_CONFIG_GLOBAL: /dev/null
           GIT_CONFIG_NOSYSTEM: "1"
           GIT_CONFIG_SYSTEM: /dev/null
           GIT_DIR: ${{ github.workspace }}/.git
-          GIT_EDITOR: /bin/false
+          GIT_EDITOR: /usr/bin/false
           GIT_EXEC_PATH: /usr/lib/git-core
           GIT_EXTERNAL_DIFF: ""
           GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
           GIT_NAMESPACE: ""
           GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
           GIT_PAGER: /bin/cat
-          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SEQUENCE_EDITOR: /usr/bin/false
           GIT_SSH_COMMAND: ssh
           GIT_TERMINAL_PROMPT: "0"
           GIT_TEMPLATE_DIR: /dev/null
@@ -190,10 +211,13 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           gh issue comment "${{ github.event.issue.number }}" \
             --repo "${{ github.repository }}" \
-            --body "Review was requested on this issue, but no linked pull request was found. Review only runs on PR branches. If this issue has an open PR, ensure the branch follows the naming convention \`opencode/issue<N>-<slug>\`." || true
+            --body "Review was requested on this issue, but no linked pull request was found. Review only runs on PR branches. If this issue has an open PR, ensure the branch follows the naming convention \`opencode/issue<N>-<slug>\`."
 
       - name: Record checked-out PR head
         id: checkout-head
@@ -295,23 +319,32 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
-          GIT_ASKPASS: /bin/false
+          GIT_ASKPASS: /usr/bin/false
           GIT_COMMON_DIR: ${{ github.workspace }}/.git
           GIT_CONFIG_COUNT: "0"
           GIT_CONFIG_GLOBAL: /dev/null
           GIT_CONFIG_NOSYSTEM: "1"
           GIT_CONFIG_SYSTEM: /dev/null
           GIT_DIR: ${{ github.workspace }}/.git
-          GIT_EDITOR: /bin/false
+          GIT_EDITOR: /usr/bin/false
           GIT_EXEC_PATH: /usr/lib/git-core
           GIT_EXTERNAL_DIFF: ""
           GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
           GIT_NAMESPACE: ""
           GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
           GIT_PAGER: /bin/cat
-          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SEQUENCE_EDITOR: /usr/bin/false
           GIT_SSH_COMMAND: ssh
           GIT_TERMINAL_PROMPT: "0"
           GIT_TEMPLATE_DIR: /dev/null
@@ -321,7 +354,10 @@ jobs:
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
           TARGET: ${{ github.event.issue.number }}
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Issue #713: the reviewer agent executes PR-controlled code, and its
           # job token holds issues: write only so the CLI session can start
           # (issue #743). The reviewer writes its signed report to a file;
@@ -363,22 +399,31 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
-          GIT_ASKPASS: /bin/false
+          GIT_ASKPASS: /usr/bin/false
           GIT_COMMON_DIR: ${{ github.workspace }}/.git
           GIT_CONFIG_COUNT: "0"
           GIT_CONFIG_GLOBAL: /dev/null
           GIT_CONFIG_NOSYSTEM: "1"
           GIT_CONFIG_SYSTEM: /dev/null
           GIT_DIR: ${{ github.workspace }}/.git
-          GIT_EDITOR: /bin/false
+          GIT_EDITOR: /usr/bin/false
           GIT_EXEC_PATH: /usr/lib/git-core
           GIT_EXTERNAL_DIFF: ""
           GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
           GIT_NAMESPACE: ""
           GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
           GIT_PAGER: /bin/cat
-          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SEQUENCE_EDITOR: /usr/bin/false
           GIT_SSH_COMMAND: ssh
           GIT_TERMINAL_PROMPT: "0"
           GIT_TEMPLATE_DIR: /dev/null
@@ -393,7 +438,10 @@ jobs:
           # the publication-evidence script as data, never expanded into the
           # shell text.
           SINCE: ${{ github.event.comment.created_at }}
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Terminal third outcome for a gate skip (issue #428): the reviewer
           # step never started, so "failed + no decision file" is a DENIAL, not
           # a crash. A denial must not post an owner auto-retry (that would
@@ -582,23 +630,32 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
-          GIT_ASKPASS: /bin/false
+          GIT_ASKPASS: /usr/bin/false
           GIT_COMMON_DIR: ${{ github.workspace }}/.git
           GIT_CONFIG_COUNT: "0"
           GIT_CONFIG_GLOBAL: /dev/null
           GIT_CONFIG_NOSYSTEM: "1"
           GIT_CONFIG_SYSTEM: /dev/null
           GIT_DIR: ${{ github.workspace }}/.git
-          GIT_EDITOR: /bin/false
+          GIT_EDITOR: /usr/bin/false
           GIT_EXEC_PATH: /usr/lib/git-core
           GIT_EXTERNAL_DIFF: ""
           GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
           GIT_NAMESPACE: ""
           GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
           GIT_PAGER: /bin/cat
-          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SEQUENCE_EDITOR: /usr/bin/false
           GIT_SSH_COMMAND: ssh
           GIT_TERMINAL_PROMPT: "0"
           GIT_TEMPLATE_DIR: /dev/null
@@ -607,7 +664,10 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           set +e
           decision="/tmp/random-lab-decision.json"
           if [ ! -f "$decision" ]; then
@@ -637,23 +697,32 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
-          GIT_ASKPASS: /bin/false
+          GIT_ASKPASS: /usr/bin/false
           GIT_COMMON_DIR: ${{ github.workspace }}/.git
           GIT_CONFIG_COUNT: "0"
           GIT_CONFIG_GLOBAL: /dev/null
           GIT_CONFIG_NOSYSTEM: "1"
           GIT_CONFIG_SYSTEM: /dev/null
           GIT_DIR: ${{ github.workspace }}/.git
-          GIT_EDITOR: /bin/false
+          GIT_EDITOR: /usr/bin/false
           GIT_EXEC_PATH: /usr/lib/git-core
           GIT_EXTERNAL_DIFF: ""
           GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
           GIT_NAMESPACE: ""
           GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
           GIT_PAGER: /bin/cat
-          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SEQUENCE_EDITOR: /usr/bin/false
           GIT_SSH_COMMAND: ssh
           GIT_TERMINAL_PROMPT: "0"
           GIT_TEMPLATE_DIR: /dev/null
@@ -662,7 +731,10 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           pr="${{ github.event.issue.number }}"
           if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "::error::No decision file found; verify step above already failed the job closed."

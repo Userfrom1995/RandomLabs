@@ -61,7 +61,7 @@ jobs:
       - name: Clear runtime decision
         run: rm -f /tmp/random-lab-decision.json
 
-      - name: Silent-stall regression audit (R1-R30)
+      - name: Silent-stall regression audit (R1-R32)
         if: always()
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -101,14 +101,52 @@ jobs:
         id: verify-decision
         if: always()
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           # Env indirection (issue #422 residual, audit R10): never expand
           # ${{ inputs.selfheal_retry }} inside the run block below - inline
           # expansion is SHELL against this step's owner PAT env. The env
           # mapping is inert data even when the value carries shell metachars.
           SELFHEAL_RETRY: ${{ inputs.selfheal_retry }}
           AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /usr/bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /usr/bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /usr/bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: /usr/bin:/bin
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Terminal third outcome for a gate skip (issue #428): the auditor
           # step never started, so "failed + no decision file" is a DENIAL,
           # not a crash. No fail-closed red, no self-heal re-dispatch, no
@@ -157,8 +195,46 @@ jobs:
       - name: Forward auditor decision
         if: always() && steps.actor_gate.outputs.run == 'true'
         env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /usr/bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /usr/bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /usr/bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: /usr/bin:/bin
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "No decision file found (/tmp/random-lab-decision.json)."
             exit 0

@@ -61,22 +61,31 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
-          GIT_ASKPASS: /bin/false
+          GIT_ASKPASS: /usr/bin/false
           GIT_COMMON_DIR: ${{ github.workspace }}/.git
           GIT_CONFIG_COUNT: "0"
           GIT_CONFIG_GLOBAL: /dev/null
           GIT_CONFIG_NOSYSTEM: "1"
           GIT_CONFIG_SYSTEM: /dev/null
           GIT_DIR: ${{ github.workspace }}/.git
-          GIT_EDITOR: /bin/false
+          GIT_EDITOR: /usr/bin/false
           GIT_EXEC_PATH: /usr/lib/git-core
           GIT_EXTERNAL_DIFF: ""
           GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
           GIT_NAMESPACE: ""
           GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
           GIT_PAGER: /bin/cat
-          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SEQUENCE_EDITOR: /usr/bin/false
           GIT_SSH_COMMAND: ssh
           GIT_TERMINAL_PROMPT: "0"
           GIT_TEMPLATE_DIR: /dev/null
@@ -85,7 +94,10 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           pr="${{ github.event.issue.number }}"
           head_ref=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName')
           echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
@@ -182,22 +194,31 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
-          GIT_ASKPASS: /bin/false
+          GIT_ASKPASS: /usr/bin/false
           GIT_COMMON_DIR: ${{ github.workspace }}/.git
           GIT_CONFIG_COUNT: "0"
           GIT_CONFIG_GLOBAL: /dev/null
           GIT_CONFIG_NOSYSTEM: "1"
           GIT_CONFIG_SYSTEM: /dev/null
           GIT_DIR: ${{ github.workspace }}/.git
-          GIT_EDITOR: /bin/false
+          GIT_EDITOR: /usr/bin/false
           GIT_EXEC_PATH: /usr/lib/git-core
           GIT_EXTERNAL_DIFF: ""
           GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
           GIT_NAMESPACE: ""
           GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
           GIT_PAGER: /bin/cat
-          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SEQUENCE_EDITOR: /usr/bin/false
           GIT_SSH_COMMAND: ssh
           GIT_TERMINAL_PROMPT: "0"
           GIT_TEMPLATE_DIR: /dev/null
@@ -206,7 +227,10 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           pr="${{ github.event.issue.number }}"
           head_ref=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
           echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
@@ -300,6 +324,64 @@ jobs:
             - LIVE-EXECUTION PROOF (hard gate): before any approve-eval verdict you MUST write /tmp/live-run-evidence.json per evaluator.md section 6: {"commands":[{"cmd":"...","exit_code":0,"output_tail":"..."}]} with at least one NON-test command against the shipped entrypoint (or {"scope":"unrunnable","reason":"..."} if the environment truly cannot run it). The workflow blocks approve-eval (red run) if this file is missing or holds only test/compile commands.
             - End with a clean working tree (`git status --porcelain` must be empty at the end).
 
+      - name: Check the workspace head still matches the evaluated head
+        id: head-check
+        if: always() && steps.actor_gate.outputs.run == 'true'
+        env:
+          BASH_ENV: /dev/null
+          ENV: /dev/null
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
+          GIT_ASKPASS: /usr/bin/false
+          GIT_COMMON_DIR: ${{ github.workspace }}/.git
+          GIT_CONFIG_COUNT: "0"
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+          GIT_CONFIG_SYSTEM: /dev/null
+          GIT_DIR: ${{ github.workspace }}/.git
+          GIT_EDITOR: /usr/bin/false
+          GIT_EXEC_PATH: /usr/lib/git-core
+          GIT_EXTERNAL_DIFF: ""
+          GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
+          GIT_NAMESPACE: ""
+          GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
+          GIT_PAGER: /bin/cat
+          GIT_SEQUENCE_EDITOR: /usr/bin/false
+          GIT_SSH_COMMAND: ssh
+          GIT_TERMINAL_PROMPT: "0"
+          GIT_TEMPLATE_DIR: /dev/null
+          GIT_WORK_TREE: ${{ github.workspace }}
+          LD_AUDIT: ""
+          LD_LIBRARY_PATH: ""
+          LD_PRELOAD: ""
+          PATH: /usr/bin:/bin
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
+        run: |
+          set -o pipefail
+          expected="${{ steps.eval-bind.outputs.eval_sha }}"
+          if [ -z "$expected" ]; then
+            echo "::error::No evaluated head was captured before the evaluator ran; refusing to trust an unbound workspace (issue #742)."
+            exit 1
+          fi
+          actual=$(/usr/bin/git rev-parse --verify HEAD 2>/dev/null || true)
+          if [ -z "$actual" ]; then
+            echo "::error::Could not resolve the workspace HEAD after the evaluator ran (issue #742)."
+            exit 1
+          fi
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::Workspace HEAD moved from $expected to $actual during the evaluator session; refusing to publish a verdict from a moved workspace (issue #742)."
+            exit 1
+          fi
+          echo "Workspace HEAD matches the evaluated head ($expected)."
+
       - name: Verify evaluator decided
         id: verify-eval
         if: always()
@@ -355,8 +437,16 @@ jobs:
           # least one NON-test command against the shipped entrypoint. Missing
           # or test-only evidence fails the gate red; the job failure reaches
           # the Maintainer's workflow_run trigger for a fresh /oc eval.
+          #
+          # Issue #742 review F6: this step is the ONLY reader of the evidence
+          # file. It latches its decision as a step output, and the post and
+          # marker steps consume that latch. An evaluator-spawned process can
+          # still rewrite /tmp/live-run-evidence.json after this step (the
+          # documented execution-isolation residual), but it can no longer
+          # change what the publication gates believe the gate verified.
           action=$(jq -r '.action // empty' /tmp/evaluator-decision.json 2>/dev/null || echo "")
           if [ "$action" != "approve-eval" ]; then
+            echo "scope=none" >> "$GITHUB_OUTPUT"
             echo "Gate applies to approve-eval only (action='$action'); rejections pass unblocked."
             exit 0
           fi
@@ -370,10 +460,12 @@ jobs:
             exit 1
           fi
           if jq -e '.scope == "unrunnable" and ((.reason // "") | length > 20)' "$ev" >/dev/null 2>&1; then
+            echo "scope=unrunnable" >> "$GITHUB_OUTPUT"
             echo "Evidence declares scope=unrunnable with a substantive reason; routing onward for Maintainer triage."
             exit 0
           fi
           if jq -e '.scope == "infra" and ((.checks // []) | length > 0)' "$ev" >/dev/null 2>&1; then
+            echo "scope=infra" >> "$GITHUB_OUTPUT"
             echo "Evidence declares scope=infra with validation checks recorded."
             exit 0
           fi
@@ -382,31 +474,41 @@ jobs:
             echo "::error::Live-execution evidence contains only test/compile commands. 'CLI hostile: go build/vet/test green' is NOT end-user execution (the exact PR #389 failure). Approval blocked."
             exit 1
           fi
+          echo "scope=commands" >> "$GITHUB_OUTPUT"
           echo "Evidence gate passed: $good non-test command(s) recorded against the deliverable."
 
       - name: Post Quality Council result (owner PAT, never with /oc prefix)
         id: post-result
-        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success' && steps.head-check.outcome == 'success'
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
-          GIT_ASKPASS: /bin/false
+          GIT_ASKPASS: /usr/bin/false
           GIT_COMMON_DIR: ${{ github.workspace }}/.git
           GIT_CONFIG_COUNT: "0"
           GIT_CONFIG_GLOBAL: /dev/null
           GIT_CONFIG_NOSYSTEM: "1"
           GIT_CONFIG_SYSTEM: /dev/null
           GIT_DIR: ${{ github.workspace }}/.git
-          GIT_EDITOR: /bin/false
+          GIT_EDITOR: /usr/bin/false
           GIT_EXEC_PATH: /usr/lib/git-core
           GIT_EXTERNAL_DIFF: ""
           GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
           GIT_NAMESPACE: ""
           GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
           GIT_PAGER: /bin/cat
-          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SEQUENCE_EDITOR: /usr/bin/false
           GIT_SSH_COMMAND: ssh
           GIT_TERMINAL_PROMPT: "0"
           GIT_TEMPLATE_DIR: /dev/null
@@ -415,7 +517,10 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           if [ ! -f /tmp/evaluator-decision.json ]; then
             echo "::error::No evaluator decision file found; the verify step above should have failed closed (issue #713)."
             exit 1
@@ -429,6 +534,9 @@ jobs:
           action=$(jq -r '.action // "unknown"' /tmp/evaluator-decision.json 2>/dev/null || echo "unknown")
           score=$(jq -r '.score // "N/A"' /tmp/evaluator-decision.json 2>/dev/null || echo "N/A")
           summary=$(jq -r '.summary // .critique // "Evaluation complete. See `.github/agents/evaluator.md` for rubric details."' /tmp/evaluator-decision.json 2>/dev/null || echo "Evaluation complete.")
+          # Issue #742 review F6: consume the evidence gate's latched scope
+          # output; never re-read the agent-writable evidence file here.
+          evidence_scope="${{ steps.evidence-gate.outputs.scope }}"
 
           # The binding mechanism: post the Quality Council result back to the PR.
           # Owner identity (OPENCODE_PAT) plus no leading /oc prefix: result
@@ -436,7 +544,9 @@ jobs:
           # forge an eval marker, and they never match a workflow trigger (eval
           # guard above, general exclusion). The Maintainer surveys comments
           # fresh; it needs no /oc.
-          if [ "$action" = "approve-eval" ]; then
+          if [ "$action" = "approve-eval" ] && [ "$evidence_scope" = "unrunnable" ]; then
+            body="Quality Council ESCALATION - Score ${score}/10. ${summary} - Live execution was declared unrunnable in this environment. This is NOT an approval and no merge marker was published; Hephaestus (Maintainer) will triage the escalation. - The Quality Council (Evaluator)"
+          elif [ "$action" = "approve-eval" ]; then
             body="Quality Council APPROVED - Score ${score}/10. ${summary} - The Evaluator confirms the deliverable passes all 5 dimensions (aggregate at least 9.8). Passing to Hephaestus (Maintainer) for final merge. - The Quality Council (Evaluator)"
           elif [ "$action" = "fix" ]; then
             body="Quality Council REJECTION - Score ${score}/10. ${summary} - The Evaluator requires fixes before the deliverable can proceed to the Maintainer. Hephaestus will route the next step once the findings are applied. - The Quality Council (Evaluator)"
@@ -482,27 +592,36 @@ jobs:
 
       - name: Publish eval approval marker (owner-PAT-signed)
         id: marker
-        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success' && steps.post-result.outcome == 'success'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success' && steps.head-check.outcome == 'success' && steps.post-result.outcome == 'success'
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
-          GIT_ASKPASS: /bin/false
+          GIT_ASKPASS: /usr/bin/false
           GIT_COMMON_DIR: ${{ github.workspace }}/.git
           GIT_CONFIG_COUNT: "0"
           GIT_CONFIG_GLOBAL: /dev/null
           GIT_CONFIG_NOSYSTEM: "1"
           GIT_CONFIG_SYSTEM: /dev/null
           GIT_DIR: ${{ github.workspace }}/.git
-          GIT_EDITOR: /bin/false
+          GIT_EDITOR: /usr/bin/false
           GIT_EXEC_PATH: /usr/lib/git-core
           GIT_EXTERNAL_DIFF: ""
           GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
           GIT_NAMESPACE: ""
           GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
           GIT_PAGER: /bin/cat
-          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SEQUENCE_EDITOR: /usr/bin/false
           GIT_SSH_COMMAND: ssh
           GIT_TERMINAL_PROMPT: "0"
           GIT_TEMPLATE_DIR: /dev/null
@@ -511,7 +630,10 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Issue #713: the PAT merge sweep is the only automated path that can
           # land .github/workflows/* PRs, so it now requires a fresh eval
           # approval marker bound to the evaluated head and trigger, alongside
@@ -549,16 +671,21 @@ jobs:
             echo "ok=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Review round 9: a scope=unrunnable evidence file is the documented
-          # escalation shape (mirrors opencode-test.yml). It is never an
-          # approval, so it must not publish a mergeable marker even when the
-          # evaluator returned approve-eval; the forward handoff still runs
-          # (ok=true) so the Maintainer can triage the escalation.
-          ev=/tmp/live-run-evidence.json
-          if [ -f "$ev" ] && jq -e '.scope == "unrunnable"' "$ev" >/dev/null 2>&1; then
+          # Review round 9 / issue #742 review F6: scope=unrunnable is the
+          # documented escalation shape (mirrors opencode-test.yml). It is
+          # never an approval, so it must not publish a mergeable marker even
+          # when the evaluator returned approve-eval; the forward handoff still
+          # runs (ok=true) so the Maintainer can triage the escalation. Read
+          # the evidence gate's latched output, never the agent-writable file.
+          evidence_scope="${{ steps.evidence-gate.outputs.scope }}"
+          if [ "$evidence_scope" = "unrunnable" ]; then
             echo "Evidence declares scope=unrunnable; this is an escalation, not an approval; no eval approval marker published."
             echo "ok=true" >> "$GITHUB_OUTPUT"
             exit 0
+          fi
+          if [ "$evidence_scope" != "commands" ] && [ "$evidence_scope" != "infra" ]; then
+            echo "::error::Evidence gate latched scope '${evidence_scope:-unset}', which is not a mergeable approval scope; refusing to publish an eval approval marker (issue #742)."
+            exit 1
           fi
           score=$(jq -r '.score // "N/A"' /tmp/evaluator-decision.json 2>/dev/null || echo "N/A")
           pr="${{ github.event.issue.number }}"
@@ -603,27 +730,36 @@ jobs:
           echo "ok=true" >> "$GITHUB_OUTPUT"
 
       - name: Forward evaluator decision to Maintainer (owner PAT handoff)
-        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success' && steps.marker.outputs.ok == 'true'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success' && steps.head-check.outcome == 'success' && steps.marker.outputs.ok == 'true'
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
-          GIT_ASKPASS: /bin/false
+          GIT_ASKPASS: /usr/bin/false
           GIT_COMMON_DIR: ${{ github.workspace }}/.git
           GIT_CONFIG_COUNT: "0"
           GIT_CONFIG_GLOBAL: /dev/null
           GIT_CONFIG_NOSYSTEM: "1"
           GIT_CONFIG_SYSTEM: /dev/null
           GIT_DIR: ${{ github.workspace }}/.git
-          GIT_EDITOR: /bin/false
+          GIT_EDITOR: /usr/bin/false
           GIT_EXEC_PATH: /usr/lib/git-core
           GIT_EXTERNAL_DIFF: ""
           GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
           GIT_NAMESPACE: ""
           GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
           GIT_PAGER: /bin/cat
-          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SEQUENCE_EDITOR: /usr/bin/false
           GIT_SSH_COMMAND: ssh
           GIT_TERMINAL_PROMPT: "0"
           GIT_TEMPLATE_DIR: /dev/null
@@ -632,7 +768,10 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           pr="${{ github.event.issue.number }}"
           if [ ! -f /tmp/evaluator-decision.json ]; then
             echo "::error::No evaluator decision file found; verify step above already failed the job closed."
@@ -666,27 +805,36 @@ jobs:
           fi
 
       - name: Push evaluator memory to dedicated branch
-        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.head-check.outcome == 'success'
         env:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
-          GIT_ASKPASS: /bin/false
+          GIT_ASKPASS: /usr/bin/false
           GIT_COMMON_DIR: ${{ github.workspace }}/.git
           GIT_CONFIG_COUNT: "0"
           GIT_CONFIG_GLOBAL: /dev/null
           GIT_CONFIG_NOSYSTEM: "1"
           GIT_CONFIG_SYSTEM: /dev/null
           GIT_DIR: ${{ github.workspace }}/.git
-          GIT_EDITOR: /bin/false
+          GIT_EDITOR: /usr/bin/false
           GIT_EXEC_PATH: /usr/lib/git-core
           GIT_EXTERNAL_DIFF: ""
           GIT_INDEX_FILE: ${{ github.workspace }}/.git/index
           GIT_NAMESPACE: ""
           GIT_OBJECT_DIRECTORY: ${{ github.workspace }}/.git/objects
           GIT_PAGER: /bin/cat
-          GIT_SEQUENCE_EDITOR: /bin/false
+          GIT_SEQUENCE_EDITOR: /usr/bin/false
           GIT_SSH_COMMAND: ssh
           GIT_TERMINAL_PROMPT: "0"
           GIT_TEMPLATE_DIR: /dev/null
@@ -695,7 +843,10 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
+          # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
+          while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
           # Issue #713 review round 23: the memory push must not execute
           # PR-planted git hooks from the agent-writable checkout, and it must
           # not inherit injected GIT_* execution variables. Build a fresh repo
