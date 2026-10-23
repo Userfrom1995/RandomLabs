@@ -34,8 +34,11 @@ TERMINAL_TAR="$DIST/maze-chase-terminal-$VERSION-$HOST_OS-$HOST_ARCH.tar.gz"
 DESKTOP_TAR="$DIST/maze-chase-desktop-$VERSION-$HOST_OS-$HOST_ARCH.tar.gz"
 TERMINAL_DEB="$DIST/maze-chase-terminal_${VERSION}_$(deb_arch).deb"
 DESKTOP_DEB="$DIST/maze-chase-desktop_${VERSION}_$(deb_arch).deb"
-TERMINAL_RPM="$(find "$DIST" -maxdepth 1 -name "maze-chase-terminal-$VERSION-1.*.rpm" -type f | head -n 1)"
-DESKTOP_RPM="$(find "$DIST" -maxdepth 1 -name "maze-chase-desktop-$VERSION-1.*.rpm" -type f | head -n 1)"
+# Name the RPM by the architecture this host builds: a stale
+# same-version package for another architecture must never be picked by
+# a directory-order glob.
+TERMINAL_RPM="$DIST/maze-chase-terminal-$VERSION-1.$(rpm_arch).rpm"
+DESKTOP_RPM="$DIST/maze-chase-desktop-$VERSION-1.$(rpm_arch).rpm"
 
 ARTIFACTS=("$TERMINAL_TAR" "$DESKTOP_TAR" "$TERMINAL_DEB" "$DESKTOP_DEB" "$TERMINAL_RPM" "$DESKTOP_RPM")
 for artifact in "${ARTIFACTS[@]}"; do
