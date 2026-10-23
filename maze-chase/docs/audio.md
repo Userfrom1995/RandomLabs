@@ -78,12 +78,13 @@ sprint, time-up, eyes, and every menu cue have their own layers.
 | Music | 60% | 0-100% | Loops and stings |
 | SFX | 80% | 0-100% | One-shot recipes |
 | Mute | off | on/off | Silences both buses, keeps visuals |
-| Fade | 120 ms | fixed | Applied to every gain change |
+| Fade | 120 ms | fixed | Applied to live gain changes; static-screen commits settle immediately |
 
 The previous loud default is gone: master starts at 80 percent, music
-at 60 percent, and effects at 80 percent. Slider moves fade over
-120 ms rather than jumping. Mute is a bus change, not a pause, and the
-visual twin for every cue still plays.
+at 60 percent, and effects at 80 percent. Slider moves on the static
+settings screen settle immediately (no frame is scheduled); live fades
+still take 120 ms. Mute is a bus change, not a pause, and the visual
+twin for every cue still plays.
 
 ## Per-layer synthesis
 
@@ -95,9 +96,9 @@ visual twin for every cue still plays.
   visual twin never depends on the mute or chime gates.
 - **Desktop** (`crates/desktop/src/sound.rs`): rodio renders the shared
   recipes at 44.1 kHz. The sink tracks music and SFX gain separately,
-  applies 120 ms fades on a timer, and schedules tune track lanes with
-  a short loop-seam fade. A missing device opens a null sink instead of
-  failing.
+  applies 120 ms live fades (static-screen commits settle in the input
+  path), and schedules tune track lanes with a short loop-seam fade. A
+  missing device opens a null sink instead of failing.
 - **Browser** (`crates/web/src/audio_map.rs`, `web/maze-chase.js`): the
   page maps the same cue, tune, tone, and track data through the C ABI
   (`mc_sfx_tone_count`, `mc_sfx_tone_field`, `mc_tune_meta`,

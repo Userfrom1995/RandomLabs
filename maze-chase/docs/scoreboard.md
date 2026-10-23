@@ -594,5 +594,7 @@ kept and is scaled on presentation; static screens schedule no frames
 but keep a bounded 16 ms gamepad poll that redraws only on input;
 Playing and `--probe` schedule continuous 16 ms frames; audio slider
 and mute commits settle their fades in the input path. The committed
-probe and gameplay captures remain byte-identical after the change.
+probe capture remains byte-identical; the E2E asserts it. The
+illustrative gameplay capture was recorded from the same window
+pipeline before this loop change and is not claimed to be byte-identical.
 

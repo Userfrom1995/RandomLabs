@@ -41,7 +41,7 @@ cd maze-chase-terminal
 Windows: extract `maze-chase-terminal-<version>-windows-x86_64.zip` and
 run `maze-chase-terminal.exe`.
 
-To build from source, use Rust 1.80 or newer and run from `maze-chase/`:
+To build from source, use Rust 1.85 or newer and run from `maze-chase/`:
 
 ```sh
 cargo build --release -p maze-chase-terminal
