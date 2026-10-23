@@ -767,3 +767,58 @@ fn linux_smoke_resolves_relative_inputs_and_leaf_names() {
         "the Linux smoke must resolve a relative rpm before the extraction subshell"
     );
 }
+
+#[test]
+fn release_hardening_contracts_are_pinned() {
+    let workflow = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("release")
+            .join("maze-chase-release.yml"),
+    )
+    .unwrap();
+    assert!(
+        workflow.contains("*-rc.*) PRERELEASE=\"true\"") && !workflow.contains("inputs.prerelease"),
+        "prerelease must derive from the tag, never a manual input"
+    );
+    assert!(
+        workflow.contains("--prerelease=false"),
+        "a refresh must be able to correct the prerelease flag"
+    );
+    assert!(
+        workflow.contains("permissions:\n  contents: read")
+            && workflow.contains("permissions:\n      contents: write"),
+        "only the publish job may write contents"
+    );
+    assert!(
+        workflow.contains("gh release delete-asset"),
+        "a refresh must remove assets outside the verified set"
+    );
+    let stage = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("release")
+            .join("stage-linux.sh"),
+    )
+    .unwrap();
+    assert!(
+        stage.contains("maze-chase-terminal-$VERSION-1.$(rpm_arch).rpm")
+            && stage.contains("maze-chase-desktop-$VERSION-1.$(rpm_arch).rpm")
+            && !stage.contains("-1.*.rpm\" -type f | head"),
+        "the Linux stage must select the RPM by this host's architecture"
+    );
+    let smoke = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("release")
+            .join("smoke-windows.ps1"),
+    )
+    .unwrap();
+    assert!(
+        smoke.contains("$leaf = Split-Path -Leaf $zip")
+            && smoke.contains("cannot identify layer from")
+            && smoke.contains("$version -ne \"maze-chase-$name $Version\"")
+            && smoke.contains("\"/DIR=`\"$target`\"\""),
+        "the Windows smoke must classify by leaf, compare the full version, and quote /DIR"
+    );
+}
