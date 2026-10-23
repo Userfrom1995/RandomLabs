@@ -78,7 +78,14 @@ for deb in "${DEBS[@]+"${DEBS[@]}"}"; do
   root="$WORK/deb-$name"
   dpkg-deb -x "$deb" "$root"
   check_version "$root/usr/bin/maze-chase-$name" "$deb"
-  test -f "$root/usr/share/doc/maze-chase-$name/README.md"
+  test -f "$root/usr/share/doc/maze-chase-$name/README.md" || {
+    echo "smoke: $deb has no README.md" >&2
+    exit 1
+  }
+  grep -q 'MIT License' "$root/usr/share/doc/maze-chase-$name/copyright" || {
+    echo "smoke: $deb has no MIT license text" >&2
+    exit 1
+  }
   echo "smoke: ok $deb"
 done
 
@@ -106,7 +113,14 @@ for rpm in "${RPMS[@]+"${RPMS[@]}"}"; do
     rpm2cpio "$rpm" | cpio -idm --quiet
   )
   check_version "$root/usr/bin/maze-chase-$name" "$rpm"
-  test -f "$root/usr/share/doc/maze-chase-$name/README.md"
+  test -f "$root/usr/share/doc/maze-chase-$name/README.md" || {
+    echo "smoke: $rpm has no README.md" >&2
+    exit 1
+  }
+  grep -q 'MIT License' "$root/usr/share/licenses/maze-chase-$name/LICENSE" || {
+    echo "smoke: $rpm has no MIT license text" >&2
+    exit 1
+  }
   echo "smoke: ok $rpm"
 done
 

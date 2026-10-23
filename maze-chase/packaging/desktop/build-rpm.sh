@@ -27,18 +27,16 @@ mkdir -p "$TOPDIR/SPECS" \
   "$PAYLOAD/usr/bin" \
   "$PAYLOAD/usr/share/applications" \
   "$PAYLOAD/usr/share/icons/hicolor/11x11/apps" \
-  "$PAYLOAD/usr/share/doc/maze-chase-desktop"
+  "$PAYLOAD/usr/share/doc/maze-chase-desktop" \
+  "$PAYLOAD/usr/share/licenses/maze-chase-desktop"
 install -m 0755 "$ROOT/target/release/maze-chase-desktop" "$PAYLOAD/usr/bin/maze-chase-desktop"
 install -m 0644 "$HERE/maze-chase.desktop" "$PAYLOAD/usr/share/applications/maze-chase.desktop"
 install -m 0644 "$HERE/maze-chase.xpm" "$PAYLOAD/usr/share/icons/hicolor/11x11/apps/maze-chase.xpm"
 install -m 0644 "$ROOT/docs/desktop.md" "$PAYLOAD/usr/share/doc/maze-chase-desktop/README.md"
-cat >"$PAYLOAD/usr/share/doc/maze-chase-desktop/copyright" <<EOF
-Maze Chase desktop game $VERSION
-
-Copyright (c) RandomLabs contributors. MIT licensed.
-Original code, art, audio, names, and mazes; no proprietary assets.
-Source: https://github.com/Userfrom1995/RandomLabs/tree/main/maze-chase
-EOF
+# MIT requires the copyright notice and permission text in every
+# distributed copy; %license keeps the repository LICENSE installed.
+install -m 0644 "$REPO_ROOT/LICENSE" \
+  "$PAYLOAD/usr/share/licenses/maze-chase-desktop/LICENSE"
 
 cat >"$TOPDIR/SPECS/maze-chase-desktop.spec" <<EOF
 Name:           maze-chase-desktop
@@ -89,7 +87,7 @@ fi
 /usr/share/applications/maze-chase.desktop
 /usr/share/icons/hicolor/11x11/apps/maze-chase.xpm
 /usr/share/doc/maze-chase-desktop/README.md
-/usr/share/doc/maze-chase-desktop/copyright
+%license /usr/share/licenses/maze-chase-desktop/LICENSE
 
 %changelog
 * Thu Oct 22 2026 RandomLabs <github-actions[bot]@users.noreply.github.com> - $VERSION-1

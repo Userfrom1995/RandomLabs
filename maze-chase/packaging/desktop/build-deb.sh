@@ -33,13 +33,14 @@ install -m 0755 "$ROOT/target/release/maze-chase-desktop" "$STAGE/usr/bin/maze-c
 install -m 0644 "$HERE/maze-chase.desktop" "$STAGE/usr/share/applications/maze-chase.desktop"
 install -m 0644 "$HERE/maze-chase.xpm" "$STAGE/usr/share/icons/hicolor/11x11/apps/maze-chase.xpm"
 install -m 0644 "$ROOT/docs/desktop.md" "$STAGE/usr/share/doc/maze-chase-desktop/README.md"
-cat >"$STAGE/usr/share/doc/maze-chase-desktop/copyright" <<EOF
-Maze Chase desktop game $VERSION
-
-Copyright (c) RandomLabs contributors. MIT licensed.
-Original code, art, audio, names, and mazes; no proprietary assets.
-Source: https://github.com/Userfrom1995/RandomLabs/tree/main/maze-chase
-EOF
+# MIT requires the copyright notice and permission text in every
+# distributed copy, so the deb copyright file is the repository LICENSE
+# with a short package header, never a hand-written summary.
+{
+  printf 'Maze Chase desktop game %s\n\n' "$VERSION"
+  cat "$REPO_ROOT/LICENSE"
+} >"$STAGE/usr/share/doc/maze-chase-desktop/copyright"
+chmod 0644 "$STAGE/usr/share/doc/maze-chase-desktop/copyright"
 
 SIZE="$(du -sk "$STAGE/usr" | awk '{print $1}')"
 cat >"$STAGE/DEBIAN/control" <<EOF

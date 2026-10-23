@@ -24,16 +24,16 @@ PAYLOAD="$TOPDIR/SOURCES/payload"
 cargo build --release -p maze-chase-terminal --manifest-path "$ROOT/Cargo.toml"
 
 rm -rf "$TOPDIR"
-mkdir -p "$TOPDIR/SPECS" "$PAYLOAD/usr/bin" "$PAYLOAD/usr/share/doc/maze-chase-terminal"
+mkdir -p "$TOPDIR/SPECS" \
+  "$PAYLOAD/usr/bin" \
+  "$PAYLOAD/usr/share/doc/maze-chase-terminal" \
+  "$PAYLOAD/usr/share/licenses/maze-chase-terminal"
 install -m 0755 "$ROOT/target/release/maze-chase-terminal" "$PAYLOAD/usr/bin/maze-chase-terminal"
 install -m 0644 "$ROOT/docs/terminal.md" "$PAYLOAD/usr/share/doc/maze-chase-terminal/README.md"
-cat >"$PAYLOAD/usr/share/doc/maze-chase-terminal/copyright" <<EOF
-Maze Chase terminal game $VERSION
-
-Copyright (c) RandomLabs contributors. MIT licensed.
-Original code, art, audio, names, and mazes; no proprietary assets.
-Source: https://github.com/Userfrom1995/RandomLabs/tree/main/maze-chase
-EOF
+# MIT requires the copyright notice and permission text in every
+# distributed copy; %license keeps the repository LICENSE installed.
+install -m 0644 "$REPO_ROOT/LICENSE" \
+  "$PAYLOAD/usr/share/licenses/maze-chase-terminal/LICENSE"
 
 cat >"$TOPDIR/SPECS/maze-chase-terminal.spec" <<EOF
 Name:           maze-chase-terminal
@@ -63,7 +63,7 @@ cp -a %{_sourcedir}/payload/. %{buildroot}/
 %files
 /usr/bin/maze-chase-terminal
 /usr/share/doc/maze-chase-terminal/README.md
-/usr/share/doc/maze-chase-terminal/copyright
+%license /usr/share/licenses/maze-chase-terminal/LICENSE
 
 %changelog
 * Thu Oct 22 2026 RandomLabs <github-actions[bot]@users.noreply.github.com> - $VERSION-1

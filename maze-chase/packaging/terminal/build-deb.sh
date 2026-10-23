@@ -29,13 +29,14 @@ mkdir -p "$STAGE/DEBIAN" \
 
 install -m 0755 "$ROOT/target/release/maze-chase-terminal" "$STAGE/usr/bin/maze-chase-terminal"
 install -m 0644 "$ROOT/docs/terminal.md" "$STAGE/usr/share/doc/maze-chase-terminal/README.md"
-cat >"$STAGE/usr/share/doc/maze-chase-terminal/copyright" <<EOF
-Maze Chase terminal game $VERSION
-
-Copyright (c) RandomLabs contributors. MIT licensed.
-Original code, art, audio, names, and mazes; no proprietary assets.
-Source: https://github.com/Userfrom1995/RandomLabs/tree/main/maze-chase
-EOF
+# MIT requires the copyright notice and permission text in every
+# distributed copy, so the deb copyright file is the repository LICENSE
+# with a short package header, never a hand-written summary.
+{
+  printf 'Maze Chase terminal game %s\n\n' "$VERSION"
+  cat "$REPO_ROOT/LICENSE"
+} >"$STAGE/usr/share/doc/maze-chase-terminal/copyright"
+chmod 0644 "$STAGE/usr/share/doc/maze-chase-terminal/copyright"
 
 SIZE="$(du -sk "$STAGE/usr" | awk '{print $1}')"
 cat >"$STAGE/DEBIAN/control" <<EOF
