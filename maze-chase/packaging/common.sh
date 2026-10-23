@@ -8,6 +8,12 @@
 
 set -euo pipefail
 
+# dpkg-deb rejects a control directory that inherits a restrictive
+# caller umask (0700 is invalid), and generated payload files would
+# otherwise vary in mode. One shared pin keeps every package and
+# archive independent of the invoking shell.
+umask 022
+
 PACKAGING_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$PACKAGING_DIR/.." && pwd)"
 DIST="$ROOT/dist"
