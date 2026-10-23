@@ -86,6 +86,15 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           # Env indirection (issue #422 residual, audit R10): never expand
           # ${{ inputs.selfheal_retry }} inside the run block below - inline
           # expansion is SHELL against this step's owner PAT env. The env
@@ -116,6 +125,7 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
           while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
@@ -169,6 +179,15 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
           GIT_COMMON_DIR: ${{ github.workspace }}/.git
@@ -193,6 +212,7 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
           while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)

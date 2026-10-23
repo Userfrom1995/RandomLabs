@@ -163,6 +163,12 @@
 # posted as a comment to the lab-health board.
 
 set -u
+# Issue #742 review F11: the audit must be hermetic under the ambient
+# environment. Fixtures that need a run nonce set it explicitly per command;
+# an inherited LAB_RUN_NONCE would change the expected nonce inside the real
+# scripts and fail R17/R19 for reasons that have nothing to do with the code
+# under test.
+unset LAB_RUN_NONCE || true
 
 # R26 audit-start checkout snapshot (review findings F22/F24): the R26
 # static scan below reads the repo root AFTER earlier rules have run, so a
@@ -4667,32 +4673,35 @@ else
       'exit 1' \
       'fi' \
       "printf '%s' \"\$poster\" | bash -s -- ${r17_os} \"\$TARGET\"")
-    printf '%s\n' "$r17_block" | awk -v tag="      - name: Post ${r17_os_tag} tester findings report" -v expected="$r17_post_expected" '
+    if [ "$r17_os" = "macos" ]; then r17_shell="        shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}"; else r17_shell="        shell: bash --noprofile --norc -p -e -o pipefail {0}"; fi
+    printf '%s\n' "$r17_block" | awk -v tag="      - name: Post ${r17_os_tag} tester findings report" -v expected="$r17_post_expected" -v shell="$r17_shell" '
       BEGIN { n=split(expected, lines, "\n"); want_count=n }
       $0 == tag { post=1; seen=1; next }
       post && $0 ~ /^      - / { post=0 }
-      post && $0 ~ /^[[:space:]]*(shell|working-directory):/ { bad=1 }
+      post && $0 ~ /^[[:space:]]*working-directory:/ { bad=1 }
+      post && $0 ~ /^[[:space:]]*shell:/ { if ($0 == shell) shell_ok=1; else bad=1 }
       post && $0 ~ /^        run:/ { run=1; run_seen=1; if ($0 != "        run: |") bad=1; next }
       run && $0 ~ /^      - / { run=0 }
       run { s=$0; sub(/^[[:space:]]+/, "", s); if (s == "" || s ~ /^#/) next; got++; if (s != lines[got]) bad=1 }
-      END { exit((seen && run_seen && !bad && got == want_count) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(post-run-body-modified)"
+      END { exit((seen && run_seen && shell_ok && !bad && got == want_count) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(post-run-body-modified)"
     # The forward step must not mask its own failures or re-shell itself (W3).
-    printf '%s\n' "$r17_block" | awk -v tag="      - name: Forward ${r17_os_tag} tester decision" '
+    printf '%s\n' "$r17_block" | awk -v tag="      - name: Forward ${r17_os_tag} tester decision" -v shell="$r17_shell" '
       $0 == tag { fwd=1; seen=1; next }
       fwd && $0 ~ /^      - / { fwd=0 }
-      fwd && $0 ~ /^[[:space:]]*(continue-on-error|shell|working-directory):/ { bad=1 }
-      END { exit((seen && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(forward-step-weakened)"
+      fwd && $0 ~ /^[[:space:]]*(continue-on-error|working-directory):/ { bad=1 }
+      fwd && $0 ~ /^[[:space:]]*shell:/ { if ($0 == shell) shell_ok=1; else bad=1 }
+      END { exit((seen && shell_ok && !bad) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(forward-step-weakened)"
     # Job-level defaults would silently re-shell every contract step when
     # pointed at a neutered shell (W3; the Windows arm's `shell: bash` default
     # is required because windows-latest defaults to pwsh, so any defaults
     # block must be exactly that safe form, and shell/working-directory
     # overrides are banned elsewhere in the arm).
-    printf '%s\n' "$r17_block" | awk '
+    printf '%s\n' "$r17_block" | awk -v shell="$r17_shell" '
       $0 == "    defaults:" { dcount++; line=1; next }
       line == 1 && $0 == "      run:" { line=2; next }
       line == 2 && $0 == "        shell: bash" { line=0; ok++; next }
       line > 0 { bad=1; line=0 }
-      $0 ~ /^[[:space:]]*shell:/ && $0 != "        shell: bash" { bad=1 }
+      $0 ~ /^[[:space:]]*shell:/ && $0 != "        shell: bash" && $0 != shell { bad=1 }
       $0 ~ /^[[:space:]]*working-directory:/ { bad=1 }
       END { exit((dcount == 0 || (dcount == 1 && ok == 1 && !bad)) ? 0 : 1) }' || r17_bad="${r17_bad} arm-${r17_os}(unsafe-defaults-or-shell-override)"
     # The verify step must keep its exact id and always() gate, and must not
@@ -6412,7 +6421,9 @@ else
     [ "$r19_runkey_count" -eq 1 ] || r19_bad="${r19_bad} review.yml(run-key-count=${r19_runkey_count},want=1)"
     r19_step_end_line=$(awk -v s="$r19_name_line" 'NR > s && /^      - name: / { print NR; exit }' "$REVIEW_WF")
     [ -n "$r19_step_end_line" ] || r19_step_end_line=$(wc -l < "$REVIEW_WF" | tr -d '[:space:]')
-    sed -n "${r19_name_line},${r19_step_end_line}p" "$REVIEW_WF" | grep -qE '^[[:space:]]*(shell|continue-on-error|defaults):' && r19_bad="${r19_bad} review.yml(verify-step-attribute-override)"
+    r19_verify_region=$(sed -n "${r19_name_line},${r19_step_end_line}p" "$REVIEW_WF")
+    printf '%s\n' "$r19_verify_region" | grep -qE '^[[:space:]]*(continue-on-error|defaults):' && r19_bad="${r19_bad} review.yml(verify-step-attribute-override)"
+    printf '%s\n' "$r19_verify_region" | grep -qxF '        shell: bash --noprofile --norc -p -e -o pipefail {0}' || r19_bad="${r19_bad} review.yml(verify-step-shell-not-hardened)"
     awk '/^  review:$/ { f=1; next } f && /^  [A-Za-z_]+:/ { exit } f && /^    (defaults|shell|continue-on-error):/ { print }' "$REVIEW_WF" | grep -q . && r19_bad="${r19_bad} review.yml(job-run-attribute-override)"
     grep -qE '^defaults:' "$REVIEW_WF" && r19_bad="${r19_bad} review.yml(workflow-run-defaults-override)"
     printf '%s\n' "$r19_step_header" | grep -qxF '          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}' || r19_bad="${r19_bad} review.yml(verify-gh-token-not-PAT)"
@@ -6598,7 +6609,8 @@ else
         'gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"'; do
         printf '%s\n' "$r19_fwd_block" | sed 's/^[[:space:]]*//' | grep -qxF "$r19_body" || r19_bad="${r19_bad} review.yml(forward-body-not-exact)"
       done
-      printf '%s\n' "$r19_fwd_block" | grep -qE '^[[:space:]]*(shell|continue-on-error|defaults):' && r19_bad="${r19_bad} review.yml(forward-step-attribute-override)"
+      printf '%s\n' "$r19_fwd_block" | grep -qE '^[[:space:]]*(continue-on-error|defaults):' && r19_bad="${r19_bad} review.yml(forward-step-attribute-override)"
+      printf '%s\n' "$r19_fwd_block" | grep -qxF '        shell: bash --noprofile --norc -p -e -o pipefail {0}' || r19_bad="${r19_bad} review.yml(forward-step-shell-not-hardened)"
       printf '%s\n' "$r19_fwd_block" | grep -qF 'run_nonce' || r19_bad="${r19_bad} review.yml(forward-no-nonce-check)"
       printf '%s\n' "$r19_fwd_block" | grep -qxF '          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}' || r19_bad="${r19_bad} review.yml(forward-gh-token-not-PAT)"
     else
@@ -8697,7 +8709,9 @@ else
       printf '%s\n' "$r24_salv_body" | grep -qxF 'GH_TOKEN: ${{ secrets.OPENCODE_PAT }}' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-owner-pat-env)"
       printf '%s\n' "$r24_salv_body" | grep -qxF 'TARGET: ${{ github.event.issue.number }}' || r24_bad="${r24_bad} arm-${r24_os}(salvage-no-target-env)"
       printf '%s\n' "$r24_salv" | grep -qF 'github.token' && r24_bad="${r24_bad} arm-${r24_os}(salvage-carries-github-token)"
-      printf '%s\n' "$r24_salv" | grep -qE '^[[:space:]]*(continue-on-error|shell|working-directory):' && r24_bad="${r24_bad} arm-${r24_os}(salvage-yaml-key-override)"
+      printf '%s\n' "$r24_salv" | grep -qE '^[[:space:]]*(continue-on-error|working-directory):' && r24_bad="${r24_bad} arm-${r24_os}(salvage-yaml-key-override)"
+      if [ "$r24_os" = "macos" ]; then r24_shell='        shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}'; else r24_shell='        shell: bash --noprofile --norc -p -e -o pipefail {0}'; fi
+      printf '%s\n' "$r24_salv" | grep -qxF "$r24_shell" || r24_bad="${r24_bad} arm-${r24_os}(salvage-shell-not-hardened)"
       r24_salv_run=$(printf '%s\n' "$r24_salv" | awk '
         /^        run: \|$/ { s=1; next }
         s { print }')
@@ -9586,8 +9600,8 @@ if "strategy" in target_job:
 if step.get("if") != "always() && steps.actor_gate.outputs.run == 'true'":
     print("handler-step-not-always-gated", file=sys.stderr)
     sys.exit(5)
-if "shell" in step:
-    print("handler-step-shell-set", file=sys.stderr)
+if step.get("shell") != "bash --noprofile --norc -p -e -o pipefail {0}":
+    print("handler-step-shell-not-hardened", file=sys.stderr)
     sys.exit(6)
 if "working-directory" in step:
     print("handler-step-working-directory-set", file=sys.stderr)
@@ -9620,7 +9634,16 @@ if env.get("PATH") != "/usr/bin:/bin":
 # load-bearing here because the embedded handler runs with the owner PAT.
 ISO_ENV = {
     "BASH_ENV": "/dev/null",
+    "DYLD_FRAMEWORK_PATH": "",
+    "DYLD_INSERT_LIBRARIES": "",
+    "DYLD_LIBRARY_PATH": "",
     "ENV": "/dev/null",
+    "GH_CONFIG_DIR": "/proc",
+    "GIT_CONFIG": "/dev/null",
+    "GIT_CONFIG_PARAMETERS": "",
+    "PS4": "+ ",
+    "PYTHONPATH": "",
+    "SHELLOPTS": "",
     "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES": "",
     "GIT_ASKPASS": "/bin/false",
@@ -10729,7 +10752,7 @@ while IFS= read -r br; do
   gh api -X DELETE "repos/${repo}/git/refs/heads/${enc}"
 done < "$branch_list"
 echo "stray cleanup complete"
-### 16 name=Emergency-gated commit and push of workflow model updates to main | if=always() && steps.actor_gate.outputs.run == 'true' | env={"BASH_ENV": "/dev/null", "ENV": "/dev/null", "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "GIT_ALTERNATE_OBJECT_DIRECTORIES": "", "GIT_ASKPASS": "/bin/false", "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_AUTHOR_NAME": "Hephaestus (Maintainer)", "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_COMMITTER_NAME": "Hephaestus (Maintainer)", "GIT_COMMON_DIR": "${{ github.workspace }}/.git", "GIT_CONFIG_COUNT": "0", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_SYSTEM": "/dev/null", "GIT_DIR": "${{ github.workspace }}/.git", "GIT_EDITOR": "/bin/false", "GIT_EXEC_PATH": "/usr/lib/git-core", "GIT_EXTERNAL_DIFF": "", "GIT_INDEX_FILE": "${{ github.workspace }}/.git/index", "GIT_NAMESPACE": "", "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects", "GIT_PAGER": "/bin/cat", "GIT_SEQUENCE_EDITOR": "/bin/false", "GIT_SSH_COMMAND": "ssh", "GIT_TEMPLATE_DIR": "/dev/null", "GIT_TERMINAL_PROMPT": "0", "GIT_WORK_TREE": "${{ github.workspace }}", "LD_AUDIT": "", "LD_LIBRARY_PATH": "", "LD_PRELOAD": "", "PATH": "/usr/bin:/bin"}
+### 16 name=Emergency-gated commit and push of workflow model updates to main | if=always() && steps.actor_gate.outputs.run == 'true' | shell=bash --noprofile --norc -p -e -o pipefail {0} | env={"BASH_ENV": "/dev/null", "DYLD_FRAMEWORK_PATH": "", "DYLD_INSERT_LIBRARIES": "", "DYLD_LIBRARY_PATH": "", "ENV": "/dev/null", "GH_CONFIG_DIR": "/proc", "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}", "GIT_ALTERNATE_OBJECT_DIRECTORIES": "", "GIT_ASKPASS": "/bin/false", "GIT_AUTHOR_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_AUTHOR_NAME": "Hephaestus (Maintainer)", "GIT_COMMITTER_EMAIL": "github-actions[bot]@users.noreply.github.com", "GIT_COMMITTER_NAME": "Hephaestus (Maintainer)", "GIT_COMMON_DIR": "${{ github.workspace }}/.git", "GIT_CONFIG": "/dev/null", "GIT_CONFIG_COUNT": "0", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_PARAMETERS": "", "GIT_CONFIG_SYSTEM": "/dev/null", "GIT_DIR": "${{ github.workspace }}/.git", "GIT_EDITOR": "/bin/false", "GIT_EXEC_PATH": "/usr/lib/git-core", "GIT_EXTERNAL_DIFF": "", "GIT_INDEX_FILE": "${{ github.workspace }}/.git/index", "GIT_NAMESPACE": "", "GIT_OBJECT_DIRECTORY": "${{ github.workspace }}/.git/objects", "GIT_PAGER": "/bin/cat", "GIT_SEQUENCE_EDITOR": "/bin/false", "GIT_SSH_COMMAND": "ssh", "GIT_TEMPLATE_DIR": "/dev/null", "GIT_TERMINAL_PROMPT": "0", "GIT_WORK_TREE": "${{ github.workspace }}", "LD_AUDIT": "", "LD_LIBRARY_PATH": "", "LD_PRELOAD": "", "PATH": "/usr/bin:/bin", "PS4": "+ ", "PYTHONPATH": "", "SHELLOPTS": ""}
 dirty=$(git status --porcelain -- .github/workflows .github/agents opencode.json AGENTS.md LAB.md 2>/dev/null || true)
 if [ -z "$dirty" ]; then
   echo "No protected-path modifications left by the Maintainer; nothing to do."
@@ -13769,7 +13792,16 @@ fi
 
 OWNER_PAT_ISO_ENV = {
     "BASH_ENV": "/dev/null",
+    "DYLD_FRAMEWORK_PATH": "",
+    "DYLD_INSERT_LIBRARIES": "",
+    "DYLD_LIBRARY_PATH": "",
     "ENV": "/dev/null",
+    "GH_CONFIG_DIR": "/proc",
+    "GIT_CONFIG": "/dev/null",
+    "GIT_CONFIG_PARAMETERS": "",
+    "PS4": "+ ",
+    "PYTHONPATH": "",
+    "SHELLOPTS": "",
     "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES": "",
     "GIT_ASKPASS": "/bin/false",
@@ -13805,8 +13837,8 @@ BUILD_ENV["BASELINE_BRANCH"] = "${{ steps.baseline.outputs.branch }}"
 BUILD_ENV["BASELINE_HEAD"] = "${{ steps.baseline.outputs.head_before }}"
 BUILD_ENV["PATTERN_TIPS"] = "${{ steps.baseline.outputs.pattern_tips }}"
 RECOVER_ENV = {"GH_TOKEN": "${{ github.token }}"}
-VERIFY_KEYS = ("name", "id", "if", "env", "run")
-FORWARD_KEYS = ("name", "if", "env", "run")
+VERIFY_KEYS = ("name", "id", "if", "env", "run", "shell")
+FORWARD_KEYS = ("name", "if", "env", "run", "shell")
 FORWARD_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'"
 RECOVER_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.pushed == 'true'"
 FORWARD_BUILD_IF = "always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true' && steps.verify.outputs.pushed == 'true'"
@@ -13919,7 +13951,7 @@ for job, (verify_name, forward_name) in phase.items():
         fail("agent-step-duplicated:%s" % job)
     resolve_ref(job, "verify-phase", expected_name=verify_name, before_index=forward_index)
 
-expect_step("Verify build pushed, else auto-retry", "build", ("name", "id", "env", "run"),
+expect_step("Verify build pushed, else auto-retry", "build", ("name", "id", "env", "run", "shell"),
             None, BUILD_ENV, BUILD_VERIFY, "verify")
 job_name, _, build_step = find("Verify build pushed, else auto-retry")
 _, build_verify_index, _ = find("Verify build pushed, else auto-retry")
@@ -14009,7 +14041,7 @@ expect_step("Preserve build branch with recover tag", "build", ("name", "if", "e
 # body could execute the agent-mutable workspace helper or retarget the
 # forward while every other pin stayed green.
 forward_build_index = expect_job_step("Forward builder decision", "build",
-                                      ("name", "if", "env", "run"), FORWARD_BUILD_IF,
+                                      ("name", "if", "env", "run", "shell"), FORWARD_BUILD_IF,
                                       FORWARD_ENV, FORWARD_BUILD)
 if forward_build_index <= build_verify_index:
     fail("forward-builder-before-verify")
@@ -14299,9 +14331,10 @@ mutants = {
     "verify-cap": sub_first(
         '            if [ "$retries" -lt 3 ]; then\n', '            if [ "$retries" -lt 30 ]; then\n',
     ),
-    "verify-env-token": sub_first(
-        '          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}\n          AGENT_GATE:',
-        '          GH_TOKEN: ${{ github.token }}\n          AGENT_GATE:',
+    "verify-env-token": sub_after(
+        RESEARCH_VERIFY,
+        '          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}\n',
+        '          GH_TOKEN: ${{ github.token }}\n',
     ),
     "verify-id": sub_first('        id: verify-phase\n', '        id: verify-phase-2\n'),
     "verify-continue-on-error": after(RESEARCH_VERIFY, '        continue-on-error: true\n'),
@@ -15888,6 +15921,7 @@ EXPECTED_MAINTAINER_STEP_NAMES = [
     "Approve held CI runs (PR or repo-wide sweep)",
 ]
 SYSTEM_PATH = "/usr/bin:/bin"
+HARDENED_SHELL = "bash --noprofile --norc -p -e -o pipefail {0}"
 # Issue #713 review round 23: a PR-controlled agent can append to
 # $GITHUB_ENV, and every later step inherits those values. The runner applies
 # a step's `env:` after the job/GITHUB_ENV layers, so pinning the isolation
@@ -15897,7 +15931,16 @@ SYSTEM_PATH = "/usr/bin:/bin"
 # checkout (the memory push unsets them before building its own fresh repo).
 OWNER_PAT_ISOLATION_ENV = {
     "BASH_ENV": "/dev/null",
+    "DYLD_FRAMEWORK_PATH": "",
+    "DYLD_INSERT_LIBRARIES": "",
+    "DYLD_LIBRARY_PATH": "",
     "ENV": "/dev/null",
+    "GH_CONFIG_DIR": "/proc",
+    "GIT_CONFIG": "/dev/null",
+    "GIT_CONFIG_PARAMETERS": "",
+    "PS4": "+ ",
+    "PYTHONPATH": "",
+    "SHELLOPTS": "",
     "GH_TOKEN": "${{ secrets.OPENCODE_PAT }}",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES": "",
     "GIT_ASKPASS": "/bin/false",
@@ -15949,14 +15992,16 @@ APPROVE_HELD_ENV["PR_NUMBER"] = "${{ github.event.pull_request.number || github.
 APPROVE_HELD_ENV["TRUSTED_SHA"] = "${{ steps.actor_gate.outputs.trusted_sha }}"
 EXPECTED_MAINTAINER_PINNED_STEPS = {
     "Trigger pages deployment if main advanced": {
-        "keys": {"name", "if", "env", "run"},
+        "keys": {"name", "if", "env", "run", "shell"},
         "if": "always() && steps.actor_gate.outputs.run == 'true'",
+        "shell": HARDENED_SHELL,
         "env": dict(OWNER_PAT_ISOLATION_ENV),
         "sha": "067100b41f78231fc3903b0eb7c94dce19057062c97f2ce73b8e4300dca72d60",
     },
     "Main integrity guard (prevent orphan or divergent main rewrite)": {
-        "keys": {"name", "if", "env", "run"},
+        "keys": {"name", "if", "env", "run", "shell"},
         "if": "always() && steps.actor_gate.outputs.run == 'true'",
+        "shell": HARDENED_SHELL,
         "env": dict(OWNER_PAT_ISOLATION_ENV),
         "sha": "8a7baac02a29c6e0a6df75a798b55526d57f8ce5a3ad5d02190c9ecca7a440e8",
     },
@@ -15967,14 +16012,16 @@ EXPECTED_MAINTAINER_PINNED_STEPS = {
         "sha": "21b1399f9e8456f26fe5e214ce3c4d3f7ebaee05ed9c7e0f513d0fbaf7984558",
     },
     "Approve held CI runs (PR or repo-wide sweep)": {
-        "keys": {"name", "continue-on-error", "if", "env", "run"},
+        "keys": {"name", "continue-on-error", "if", "env", "run", "shell"},
         "continue-on-error": True,
         "if": "always() && steps.actor_gate.outputs.run == 'true'",
         "env": APPROVE_HELD_ENV,
+        "shell": HARDENED_SHELL,
         "sha": "d68dfe4c7744bff258a28a521a0410c64a798dc0989c9bd75d583e237e5656a0",
     },
 }
 EXPECTED_REVIEW_SKIP_ENV = dict(OWNER_PAT_ISOLATION_ENV)
+EXPECTED_REVIEW_SKIP_ENV["GH_TOKEN"] = "${{ github.token }}"
 EXPECTED_REVIEW_SKIP_ENV["GIT_NO_REPLACE_OBJECTS"] = "1"
 EXPECTED_REVIEW_SKIP_SHA256 = "812bb3c06adb46ed0d21573df38b643869911ba7db3900fba226a12757fbf30e"
 MAINTAINER_POST_NAME = "Post Maintainer comment"
@@ -16272,9 +16319,11 @@ def check_keys(step, label, expected_id, expected_if, output, sink):
         sink.append("eval.yml(%s-id-not-%s)" % (label, expected_id))
     if step.get("if") != expected_if:
         sink.append("eval.yml(%s-gate-not-exact)" % label)
-    for key in ("continue-on-error", "shell", "timeout-minutes", "working-directory"):
+    for key in ("continue-on-error", "timeout-minutes", "working-directory"):
         if key in step:
             sink.append("eval.yml(%s-%s-override)" % (label, key))
+    if step.get("shell") != HARDENED_SHELL:
+        sink.append("eval.yml(%s-shell-not-hardened)" % label)
     env = step.get("env")
     if not isinstance(env, dict) or env != OWNER_PAT_ISOLATION_ENV:
         sink.append("eval.yml(%s-env-not-isolated-owner-pat)" % label)
@@ -16398,7 +16447,7 @@ def check_configure_step(step, output, sink):
 def check_owner_pat_step(step, label, expected_id, expected_if, output_name, sink):
     if step is None:
         return
-    expected_keys = {"name", "env", "run"}
+    expected_keys = {"name", "env", "run", "shell"}
     if expected_id is not None:
         expected_keys.add("id")
     if expected_if is not None:
@@ -16409,9 +16458,11 @@ def check_owner_pat_step(step, label, expected_id, expected_if, output_name, sin
         sink.append("eval.yml(%s-id-not-%s)" % (label, expected_id))
     if expected_if is not None and step.get("if") != expected_if:
         sink.append("eval.yml(%s-gate-not-exact)" % label)
-    for key in ("continue-on-error", "shell", "timeout-minutes", "working-directory"):
+    for key in ("continue-on-error", "timeout-minutes", "working-directory"):
         if key in step:
             sink.append("eval.yml(%s-%s-override)" % (label, key))
+    if step.get("shell") != HARDENED_SHELL:
+        sink.append("eval.yml(%s-shell-not-hardened)" % label)
     env = step.get("env")
     if not isinstance(env, dict) or env != OWNER_PAT_ISOLATION_ENV:
         sink.append("eval.yml(%s-env-not-isolated-owner-pat)" % label)
@@ -16508,20 +16559,31 @@ def check_clear_step(step, output, sink):
 
 
 def check_plain_step(
-    step, label, expected_id, expected_if, expected_env, output_name, sink
+    step,
+    label,
+    expected_id,
+    expected_if,
+    expected_env,
+    output_name,
+    sink,
+    expected_shell=None,
 ):
     if step is None:
         return
     expected_keys = {"name", "id", "if", "run"}
     if expected_env is not None:
         expected_keys.add("env")
+    if expected_shell is not None:
+        expected_keys.add("shell")
     if set(step) != expected_keys:
         sink.append("eval.yml(%s-keys-not-exact)" % label)
+    if expected_shell is not None and step.get("shell") != expected_shell:
+        sink.append("eval.yml(%s-shell-not-hardened)" % label)
     if step.get("id") != expected_id:
         sink.append("eval.yml(%s-id-not-%s)" % (label, expected_id))
     if step.get("if") != expected_if:
         sink.append("eval.yml(%s-gate-not-exact)" % label)
-    for key in ("continue-on-error", "shell", "timeout-minutes", "working-directory"):
+    for key in ("continue-on-error", "timeout-minutes", "working-directory"):
         if key in step:
             sink.append("eval.yml(%s-%s-override)" % (label, key))
     if expected_env is not None:
@@ -16665,6 +16727,7 @@ def validate(doc, output, sink):
         EXPECTED_HEAD_CHECK_ENV,
         "head-check.run" if output else "",
         sink,
+        expected_shell=HARDENED_SHELL,
     )
     check_plain_step(
         verify,
@@ -16791,9 +16854,11 @@ def validate(doc, output, sink):
     if forward is not None:
         if forward.get("if") != EXPECTED_FORWARD_IF:
             sink.append("eval.yml(forward-gate-not-marker-gated)")
-        for key in ("continue-on-error", "shell", "timeout-minutes", "working-directory"):
+        for key in ("continue-on-error", "timeout-minutes", "working-directory"):
             if key in forward:
                 sink.append("eval.yml(forward-%s-override)" % key)
+        if forward.get("shell") != HARDENED_SHELL:
+            sink.append("eval.yml(forward-shell-not-hardened)")
         forward_env = forward.get("env")
         if (
             not isinstance(forward_env, dict)
@@ -17162,8 +17227,10 @@ def validate_review(doc, sink):
         sink.append("review.yml(skip-notice-step-not-unique)")
     else:
         skip = skip_hits[0]
-        if set(skip) != {"name", "if", "env", "run"}:
+        if set(skip) != {"name", "if", "env", "run", "shell"}:
             sink.append("review.yml(skip-notice-keys-not-exact)")
+        if skip.get("shell") != HARDENED_SHELL:
+            sink.append("review.yml(skip-notice-shell-not-hardened)")
         if (
             skip.get("if")
             != "steps.actor_gate.outputs.run == 'true' && steps.pr-info.outputs.is_pr != 'true'"
@@ -17180,11 +17247,11 @@ def validate_review(doc, sink):
             if "/oc review" in skip_run or "/opencode" in skip_run:
                 sink.append("review.yml(skip-notice-posts-trigger)")
         if (
-            dict(EXPECTED_REVIEW_SKIP_ENV, GH_TOKEN="${{ github.token }}")
+            dict(EXPECTED_REVIEW_SKIP_ENV, GH_TOKEN="${{ secrets.OPENCODE_PAT }}")
             == EXPECTED_REVIEW_SKIP_ENV
         ):
             sink.append(
-                "review.yml(self-test-skip-notice-read-token-not-caught)"
+                "review.yml(self-test-skip-notice-owner-token-not-caught)"
             )
     # Issue #713 Tester finding: the review arm never moves a branch. Pin the
     # job permissions and the no-push workflow invariant, and resolve the
@@ -17441,8 +17508,10 @@ def validate_maintainer(doc, sink):
         sink.append("maintainer.yml(pat-merge-step-not-unique)")
     else:
         pat = pat_hits[0]
-        if set(pat) != {"name", "if", "env", "run"}:
+        if set(pat) != {"name", "if", "env", "run", "shell"}:
             sink.append("maintainer.yml(pat-merge-keys-not-exact)")
+        if pat.get("shell") != HARDENED_SHELL:
+            sink.append("maintainer.yml(pat-merge-shell-not-hardened)")
         if pat.get("if") != "always() && steps.actor_gate.outputs.run == 'true'":
             sink.append("maintainer.yml(pat-merge-if-not-exact)")
         pat_env = pat.get("env")
@@ -17472,6 +17541,11 @@ def validate_maintainer(doc, sink):
         if pinned_step.get("if") != pinned["if"]:
             sink.append(
                 "maintainer.yml(owner-pat-step-if-not-exact:%s)" % pinned_name
+            )
+        if "shell" in pinned and pinned_step.get("shell") != pinned["shell"]:
+            sink.append(
+                "maintainer.yml(owner-pat-step-shell-not-hardened:%s)"
+                % pinned_name
             )
         if pinned_step.get("env") != pinned["env"]:
             sink.append(
@@ -17779,7 +17853,7 @@ if doc is not None:
     add_mutant(
         "forward-shell",
         lambda d: step_at(d, FORWARD_NAME).__setitem__("shell", "bash"),
-        "forward-shell-override",
+        "forward-shell-not-hardened",
     )
     add_mutant(
         "marker-continue-on-error",
@@ -18267,21 +18341,20 @@ if review_doc is not None:
             for p in review_actor_keys_local
         ):
             problems.append("review.yml(structural-self-test-actor-keys-override)")
-        # Issue #742 follow-up: the non-PR notice must post with the owner
-        # PAT (the read-only job token cannot comment, and the old || true
-        # made the step a silent no-op); reverting it to the job token or
-        # opening its body with a trigger must each fail the audit alone.
+        # Issue #742 review F8: the job token now holds issues: write, so the
+        # non-PR notice must not carry the owner PAT; reinstating the owner
+        # PAT or opening its body with a trigger must each fail the audit.
         review_skip_pat = copy.deepcopy(review_doc)
         for step in review_skip_pat["jobs"]["review"]["steps"]:
             if isinstance(step, dict) and step.get("name") == "Skip review for non-PR issue":
-                step["env"]["GH_TOKEN"] = "${{ github.token }}"
+                step["env"]["GH_TOKEN"] = "${{ secrets.OPENCODE_PAT }}"
         review_skip_pat_local = []
         validate_review(review_skip_pat, review_skip_pat_local)
         if not any(
             "review.yml(skip-notice-env-not-exact)" in p
             for p in review_skip_pat_local
         ):
-            problems.append("review.yml(structural-self-test-skip-notice-read-token)")
+            problems.append("review.yml(structural-self-test-skip-notice-owner-token)")
         review_skip_trigger = copy.deepcopy(review_doc)
         for step in review_skip_trigger["jobs"]["review"]["steps"]:
             if isinstance(step, dict) and step.get("name") == "Skip review for non-PR issue":
@@ -19101,7 +19174,7 @@ if [ -z "$expected" ]; then
 echo "::error::No evaluated head was captured before the evaluator ran; refusing to trust an unbound workspace (issue #742)."
 exit 1
 fi
-actual=$(git rev-parse --verify HEAD 2>/dev/null || true)
+actual=$(/usr/bin/git rev-parse --verify HEAD 2>/dev/null || true)
 if [ -z "$actual" ]; then
 echo "::error::Could not resolve the workspace HEAD after the evaluator ran (issue #742)."
 exit 1
@@ -21264,14 +21337,18 @@ r32_out=$(python3 -I - <<'R32PY'
 import copy
 import glob
 import os
+import re
 import subprocess
 import sys
+
+def fail(message):
+    sys.stdout.write(message)
+    raise SystemExit(0)
 
 try:
     import yaml
 except Exception as exc:
-    sys.stdout.write("owner-pat-env(python-runtime:no-pyyaml:%s)" % exc)
-    raise SystemExit(0)
+    fail("owner-pat-env(python-runtime:no-pyyaml:%s)" % exc)
 
 
 class StrictLoader(yaml.SafeLoader):
@@ -21279,6 +21356,7 @@ class StrictLoader(yaml.SafeLoader):
 
 
 def strict_mapping(loader, node, deep=False):
+    loader.flatten_mapping(node)
     mapping = {}
     for key_node, value_node in node.value:
         key = loader.construct_object(key_node, deep=deep)
@@ -21302,12 +21380,31 @@ PREAMBLE_COMMENT = "# Issue #742: clear command functions imported from an agent
 PREAMBLE_LOOP = 'while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)'
 SYSTEM_PATH = "/usr/bin:/bin"
 SYSTEM_GIT_EXEC = "/usr/lib/git-core"
+HARDENED_SHELL = "bash --noprofile --norc -p -e -o pipefail {0}"
 PEROS = "opencode-peros-test.yml"
 PEROS_PATH = "${{ steps.trusted_path.outputs.path }}"
 PEROS_GIT_EXEC = "${{ steps.trusted_path.outputs.git_exec_path }}"
+PEROS_CONFIG = {
+    "test-linux": "/proc",
+    "test-macos": "/usr/lib",
+    "test-windows": "C:/Windows/System32",
+}
+PEROS_SHELL = {
+    "test-linux": "bash --noprofile --norc -p -e -o pipefail {0}",
+    "test-macos": "/bin/bash --noprofile --norc -p -e -o pipefail {0}",
+    "test-windows": "bash --noprofile --norc -p -e -o pipefail {0}",
+}
 ISOLATION = {
     "BASH_ENV": "/dev/null",
+    "DYLD_FRAMEWORK_PATH": "",
+    "DYLD_INSERT_LIBRARIES": "",
+    "DYLD_LIBRARY_PATH": "",
     "ENV": "/dev/null",
+    "GIT_CONFIG": "/dev/null",
+    "GIT_CONFIG_PARAMETERS": "",
+    "PS4": "+ ",
+    "PYTHONPATH": "",
+    "SHELLOPTS": "",
     "GH_TOKEN": PAT,
     "GIT_ALTERNATE_OBJECT_DIRECTORIES": "",
     "GIT_ASKPASS": "/bin/false",
@@ -21342,14 +21439,11 @@ EXPECTED_COUNTS = {
     "opencode-peros-test.yml": 11,
     "opencode-pr-trigger.yml": 1,
     "opencode-recover.yml": 2,
-    "opencode-review.yml": 6,
+    "opencode-review.yml": 5,
     "opencode-test.yml": 4,
     "opencode.yml": 27,
 }
-try:
-    EXPECTED_TOTAL = int(os.environ.get("R32_EXPECTED_TOTAL", "75"))
-except ValueError:
-    EXPECTED_TOTAL = 75
+EXPECTED_TOTAL = 74
 
 
 def env_has_pat(env):
@@ -21360,6 +21454,17 @@ def env_has_pat(env):
 
 def run_first_nonempty(run_text):
     return [line.strip() for line in run_text.splitlines() if line.strip()][:2]
+
+
+def job_kind(job_name, job):
+    if job_name in PEROS_CONFIG:
+        return job_name
+    runs_on = str(job.get("runs-on") or "")
+    if "macos" in runs_on:
+        return "test-macos"
+    if "windows" in runs_on:
+        return "test-windows"
+    return "test-linux"
 
 
 def validate(docs):
@@ -21374,12 +21479,13 @@ def validate(docs):
         jobs = doc.get("jobs")
         if not isinstance(jobs, dict):
             continue
-        for job in jobs.values():
+        for job_name, job in jobs.items():
             if not isinstance(job, dict):
                 continue
             steps = job.get("steps")
             if not isinstance(steps, list):
                 continue
+            kind = job_kind(job_name, job) if name == PEROS else "ubuntu"
             for step in steps:
                 if not isinstance(step, dict):
                     continue
@@ -21402,12 +21508,22 @@ def validate(docs):
                             "owner-pat-step-missing-isolation:%s:%s"
                             % (label, key)
                         )
-                want_path = PEROS_PATH if name == PEROS else SYSTEM_PATH
-                want_exec = PEROS_GIT_EXEC if name == PEROS else SYSTEM_GIT_EXEC
+                want_path = PEROS_PATH if kind != "ubuntu" else SYSTEM_PATH
+                want_exec = PEROS_GIT_EXEC if kind != "ubuntu" else SYSTEM_GIT_EXEC
+                want_config = (
+                    PEROS_CONFIG.get(kind, "/proc") if kind != "ubuntu" else "/proc"
+                )
+                want_shell = (
+                    PEROS_SHELL.get(kind, HARDENED_SHELL)
+                    if kind != "ubuntu"
+                    else HARDENED_SHELL
+                )
                 if env.get("PATH") != want_path:
                     out.append("owner-pat-step-path-not-pinned:%s" % label)
                 if env.get("GIT_EXEC_PATH") != want_exec:
                     out.append("owner-pat-step-git-exec-not-pinned:%s" % label)
+                if env.get("GH_CONFIG_DIR") != want_config:
+                    out.append("owner-pat-step-gh-config-not-pinned:%s" % label)
                 for key in env:
                     if (
                         isinstance(key, str)
@@ -21417,6 +21533,8 @@ def validate(docs):
                         out.append(
                             "owner-pat-step-extra-ld:%s:%s" % (label, key)
                         )
+                if step.get("shell") != want_shell:
+                    out.append("owner-pat-step-shell-not-hardened:%s" % label)
                 run_text = step.get("run")
                 if not isinstance(run_text, str) or not run_text.strip():
                     out.append("owner-pat-step-run-missing:%s" % label)
@@ -21453,7 +21571,7 @@ problems.extend(validate(docs))
 
 
 def first_pat_step(candidate_docs, workflow):
-    for job in (candidate_docs.get(workflow) or {}).get("jobs", {}).values():
+    for job_name, job in (candidate_docs.get(workflow) or {}).get("jobs", {}).items():
         if not isinstance(job, dict):
             continue
         for step in job.get("steps", []) or []:
@@ -21488,13 +21606,52 @@ def set_key(workflow, key, value):
     return mutate
 
 
-expect("owner-pat-step-missing-isolation", drop_key("auditor.yml", "BASH_ENV"))
-expect("owner-pat-step-missing-isolation", drop_key("auditor.yml", "ENV"))
-expect("owner-pat-step-missing-isolation", drop_key("lab.yml", "GIT_DIR"))
+for key in (
+    "BASH_ENV",
+    "ENV",
+    "SHELLOPTS",
+    "PS4",
+    "GIT_CONFIG",
+    "GIT_CONFIG_PARAMETERS",
+    "PYTHONPATH",
+    "DYLD_INSERT_LIBRARIES",
+    "GIT_DIR",
+):
+    expect(
+        "owner-pat-step-missing-isolation",
+        drop_key("auditor.yml", key),
+    )
 expect("owner-pat-step-missing-isolation", set_key("lab.yml", "LD_PRELOAD", "/tmp/agent-env"))
-expect("owner-pat-step-missing-isolation", set_key("curator.yml", "LD_AUDIT", "/tmp/agent-audit"))
+def drop_gh_config(candidate):
+    step = first_pat_step(candidate, "opencode-peros-test.yml")
+    if step is not None:
+        step["env"].pop("GH_CONFIG_DIR", None)
+
+expect("owner-pat-step-gh-config-not-pinned", drop_gh_config)
+expect("owner-pat-step-missing-isolation", set_key("auditor.yml", "SHELLOPTS", "xtrace"))
+expect("owner-pat-step-missing-isolation", set_key("auditor.yml", "PS4", "$(id)"))
+expect("owner-pat-step-missing-isolation", set_key("auditor.yml", "GIT_CONFIG", "/tmp/evil"))
+expect("owner-pat-step-gh-config-not-pinned", set_key("auditor.yml", "GH_CONFIG_DIR", "/tmp/agent-gh"))
 expect("owner-pat-step-extra-ld", set_key("ideate.yml", "LD_SOMETHING", "1"))
 expect("owner-pat-step-path-not-pinned", set_key("opencode-recover.yml", "PATH", "/usr/local/bin:/usr/bin:/bin"))
+
+
+def drop_shell(candidate):
+    step = first_pat_step(candidate, "auditor.yml")
+    if step is not None:
+        step.pop("shell", None)
+
+
+expect("owner-pat-step-shell-not-hardened", drop_shell)
+
+
+def weaken_shell(candidate):
+    step = first_pat_step(candidate, "auditor.yml")
+    if step is not None:
+        step["shell"] = "bash --noprofile --norc -e -o pipefail {0}"
+
+
+expect("owner-pat-step-shell-not-hardened", weaken_shell)
 
 
 def peros_path_to_system(candidate):
@@ -21517,6 +21674,30 @@ def peros_exec_to_system(candidate):
 
 
 expect("owner-pat-step-git-exec-not-pinned", peros_exec_to_system)
+
+
+def peros_config_to_system(candidate):
+    for job_name, job in candidate["opencode-peros-test.yml"]["jobs"].items():
+        if job_name == "test-linux":
+            continue
+        for step in job.get("steps", []):
+            if isinstance(step, dict) and env_has_pat(step.get("env")):
+                step["env"]["GH_CONFIG_DIR"] = "/proc"
+                return
+
+
+expect("owner-pat-step-gh-config-not-pinned", peros_config_to_system)
+
+
+def peros_shell_to_generic(candidate):
+    for job in candidate["opencode-peros-test.yml"]["jobs"].values():
+        for step in job.get("steps", []):
+            if isinstance(step, dict) and env_has_pat(step.get("env")):
+                step["shell"] = "bash --noprofile --norc -e -o pipefail {0}"
+                return
+
+
+expect("owner-pat-step-shell-not-hardened", peros_shell_to_generic)
 
 
 def drop_one_pat(candidate):
@@ -21631,6 +21812,41 @@ def preamble_functional_probe():
             out.append("preamble-functional-hijack-survived:%s" % marker)
     if clean.stdout.strip().splitlines()[-1:] != ["0"]:
         out.append("preamble-functional-function-env-not-cleared")
+    # Issue #742 review F1/F2: the process-level launcher must ignore
+    # imported functions (including the preamble's own primitives) and must
+    # not execute a SHELLOPTS/PS4 payload before the script body. The plain
+    # shell is the dirty control; bash -p is the shipped defense.
+    hostile = dict(env)
+    hostile["BASH_FUNC_read%%"] = "() { return 1; }"
+    hostile["BASH_FUNC_builtin%%"] = "() { return 0; }"
+    hostile["SHELLOPTS"] = "xtrace"
+    hostile["PS4"] = "$(echo PWN-PS4 >&2)"
+    hardened_probe = "git --version; python3 -c 'print(1)'"
+    plain = subprocess.run(
+        ["bash", "-c", hardened_probe], env=hostile, capture_output=True, text=True
+    )
+    hardened = subprocess.run(
+        [
+            "bash",
+            "--noprofile",
+            "--norc",
+            "-p",
+            "-e",
+            "-o",
+            "pipefail",
+            "-c",
+            hardened_probe,
+        ],
+        env=hostile,
+        capture_output=True,
+        text=True,
+    )
+    if "HIJACK-git" not in plain.stdout or "PWN-PS4" not in plain.stderr:
+        out.append("launcher-functional-plain-control-inert")
+    if hardened.returncode != 0:
+        out.append("launcher-functional-hardened-shell-failed")
+    if "HIJACK-git" in hardened.stdout or "PWN-PS4" in hardened.stderr:
+        out.append("launcher-functional-hardened-shell-not-protected")
     return out
 
 
@@ -21647,14 +21863,19 @@ if not duplicate_caught:
 sys.stdout.write("\n".join(problems))
 R32PY
 )
+r32_rc=$?
+if [ "$r32_rc" -ne 0 ]; then
+  r32_bad="owner-pat-env(python-runtime:rc=$r32_rc)"
+fi
 if [ -n "$r32_out" ]; then
-  r32_bad="$r32_out"
+  r32_bad="${r32_bad}${r32_out}"
 fi
 if [ -z "$r32_bad" ]; then
-  check "R32" "every owner-PAT step in the whole tree carries the sanitized isolation env (BASH_ENV/ENV at /dev/null, empty LD_*, the workspace-scoped GIT_* set including a pinned GIT_EXEC_PATH, and a pinned PATH; the per-OS arms use their captured trusted PATH and git exec path for every owner-PAT step, including the pre-agent target lookup that now follows the capture), the per-workflow owner-PAT counts and the 75-step total are pinned, every owner-PAT step starts with the exact builtins-only function-clearing preamble, a functional BASH_FUNC_git/jq/python3 fixture proves the shipped preamble clears the imported functions (including in a child shell) while the dirty control hijacks, duplicate YAML mapping keys are rejected, no agent step can carry the owner PAT, and mutation self-tests prove a removed BASH_ENV/ENV/GIT_* key, a non-empty or added LD_* value, a system PATH in a per-OS arm, a per-OS trusted PATH outside it, a missing/weakened/buried function preamble, and a lost owner-PAT step all fail the audit (issue #742)" "ok"
+  check "R32" "every owner-PAT step in the whole tree carries the sanitized isolation env (BASH_ENV/ENV/SHELLOPTS/PS4 at inert values, GIT_CONFIG and GIT_CONFIG_PARAMETERS closed, PYTHONPATH cleared, a pinned GH_CONFIG_DIR, empty LD_*/DYLD_*, the workspace-scoped GIT_* set including a pinned GIT_EXEC_PATH, and a pinned PATH; the per-OS arms use their captured trusted PATH and git exec path for every owner-PAT step), every owner-PAT step runs under a hardened bash -p launcher that ignores imported BASH_FUNC_* functions and pre-preamble SHELLOPTS/PS4, starts with the exact builtins-only preamble, the per-workflow owner-PAT counts and the 74-step total are pinned, a functional fixture proves the plain shell is hijacked by BASH_FUNC_git/read/builtin and by a PS4 payload while the shipped launcher is immune, the Python body fails closed on any runtime error, duplicate YAML mapping keys (merge keys included) are rejected, no agent step can carry the owner PAT, and mutation self-tests prove a removed isolation key (SHELLOPTS/PS4/GIT_CONFIG/GIT_CONFIG_PARAMETERS/PYTHONPATH/GH_CONFIG_DIR included), a non-empty or added LD_* value, a system PATH or GH_CONFIG_DIR in a per-OS arm, an unhardened shell, a missing/weakened/buried function preamble, and a lost owner-PAT step all fail the audit (issue #742)" "ok"
 else
-  check "R32" "owner-PAT environment isolation guard missing:${r32_bad} (issue #742: 27 owner-PAT steps still carried a partial env map, so an agent-exported BASH_ENV/LD_*/GIT_* could reach a step holding the owner PAT, and an agent-written BASH_FUNC_* entry could still hijack a command inside it)" "bad"
+  check "R32" "owner-PAT environment isolation guard missing:${r32_bad} (issue #742: owner-PAT steps could inherit agent-exported BASH_ENV/LD_*/GIT_*/GH_CONFIG_DIR/PYTHONPATH, execute a BASH_FUNC_* or SHELLOPTS/PS4 payload, or lose a required isolation key)" "bad"
 fi
+
 
 summary="Silent-stall regression audit (R1-R32) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"

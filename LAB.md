@@ -227,11 +227,10 @@ Public Surface / Web Track:                                              │
   executed (the pre-agent staging step is defense in depth); R28 (all steps) and R30
   (maintainer) reject any helper basename outside its trusted capture line in
   any spelling except a non-piped diagnostic `echo`/`printf`. The review
-  workflow's non-PR skip notice now posts with the owner PAT (the read-only
-  job token cannot comment, and the old `|| true` made the step a silent
-  no-op) and its body never begins with `/oc review`, so a mis-resolved
-  thread can no longer self-retrigger the reviewer; R30 pins the notice's
-  env, body, and loud failure.
+  workflow's non-PR skip notice now posts with the job token (`issues:
+  write`; the owner PAT is not needed) and its body never begins with
+  `/oc review`, so a mis-resolved thread can no longer self-retrigger the
+  reviewer; R30 pins the notice's env, body, and loud failure.
 - **Maintainer PR-merge-ref trust anchor (issue #713 round 26)**: on
   `pull_request` runs `GITHUB_SHA` is the PR merge commit, so the
   Maintainer's actor gate and its post-agent helper/prompt reads anchored

@@ -122,6 +122,15 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           # Env indirection (issue #422 residual, audit R10): a ${{ inputs.* }}
           # expanded inside the run block below executes as SHELL with this
           # step's owner PAT in env, so a value like 0"; touch /tmp/PWNED; echo "
@@ -153,6 +162,7 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
           while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
@@ -224,6 +234,15 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
           GIT_COMMON_DIR: ${{ github.workspace }}/.git
@@ -248,6 +267,7 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
           while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
@@ -277,6 +297,15 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_AUTHOR_NAME: "The Lab Engineer (CTO)"
           GIT_AUTHOR_EMAIL: "github-actions[bot]@users.noreply.github.com"
           GIT_COMMITTER_NAME: "The Lab Engineer (CTO)"
@@ -308,6 +337,7 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
           while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
@@ -422,6 +452,15 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           # Env indirection (issue #422 residual, audit R10): run blocks read
           # $ISSUE_NUMBER from here instead of expanding ${{ inputs.* }} inline.
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
@@ -449,6 +488,7 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
           while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
@@ -492,6 +532,15 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           # Env indirection (issue #422 residual, audit R10): run blocks read
           # $ISSUE_NUMBER from here instead of expanding ${{ inputs.* }} inline.
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
@@ -519,6 +568,7 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: /usr/bin:/bin
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
           while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)

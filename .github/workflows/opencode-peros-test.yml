@@ -221,6 +221,15 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
@@ -246,6 +255,7 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: ${{ steps.trusted_path.outputs.path }}
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
           while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
@@ -442,6 +452,15 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
@@ -468,6 +487,7 @@ jobs:
           LD_AUDIT: ""
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
           while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
@@ -498,6 +518,15 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /proc
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
@@ -532,6 +561,7 @@ jobs:
           LD_AUDIT: ""
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
           while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
@@ -763,6 +793,15 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /usr/lib
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
@@ -788,6 +827,7 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: ${{ steps.trusted_path.outputs.path }}
+        shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
           while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
@@ -987,6 +1027,15 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /usr/lib
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
@@ -1013,6 +1062,7 @@ jobs:
           LD_AUDIT: ""
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
+        shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
           while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
@@ -1075,6 +1125,15 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /usr/lib
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
@@ -1101,6 +1160,7 @@ jobs:
           LD_AUDIT: ""
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
+        shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
           while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
@@ -1131,6 +1191,15 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: /usr/lib
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
@@ -1160,6 +1229,7 @@ jobs:
           LD_AUDIT: ""
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
+        shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
           while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
@@ -1389,6 +1459,15 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: C:/Windows/System32
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_NO_REPLACE_OBJECTS: "1"
           GIT_ALTERNATE_OBJECT_DIRECTORIES: ""
           GIT_ASKPASS: /bin/false
@@ -1414,6 +1493,7 @@ jobs:
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
           PATH: ${{ steps.trusted_path.outputs.path }}
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
           while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
@@ -1612,6 +1692,15 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: C:/Windows/System32
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
@@ -1638,6 +1727,7 @@ jobs:
           LD_AUDIT: ""
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
           while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
@@ -1693,6 +1783,15 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: C:/Windows/System32
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           TARGET: ${{ github.event.issue.number }}
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
@@ -1719,6 +1818,7 @@ jobs:
           LD_AUDIT: ""
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
           while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
@@ -1749,6 +1849,15 @@ jobs:
           BASH_ENV: /dev/null
           ENV: /dev/null
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          SHELLOPTS: ""
+          PS4: "+ "
+          GIT_CONFIG: /dev/null
+          GIT_CONFIG_PARAMETERS: ""
+          PYTHONPATH: ""
+          GH_CONFIG_DIR: C:/Windows/System32
+          DYLD_INSERT_LIBRARIES: ""
+          DYLD_LIBRARY_PATH: ""
+          DYLD_FRAMEWORK_PATH: ""
           GIT_NO_REPLACE_OBJECTS: "1"
           PATH: ${{ steps.trusted_path.outputs.path }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
@@ -1782,6 +1891,7 @@ jobs:
           LD_AUDIT: ""
           LD_LIBRARY_PATH: ""
           LD_PRELOAD: ""
+        shell: bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           # Issue #742: clear command functions imported from an agent-written BASH_FUNC_* entry before any external command (builtins only).
           while IFS= read -r __lab_pat_fn; do builtin unset -f "$__lab_pat_fn"; done < <(builtin compgen -A function)
