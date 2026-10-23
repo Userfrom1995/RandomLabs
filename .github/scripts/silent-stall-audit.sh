@@ -18966,11 +18966,15 @@ echo "Decision '$action' is not an approval; no eval marker to publish."
 echo "ok=true" >> "$GITHUB_OUTPUT"
 exit 0
 fi
-ev=/tmp/live-run-evidence.json
-if [ -f "$ev" ] && jq -e '.scope == "unrunnable"' "$ev" >/dev/null 2>&1; then
+evidence_scope="${{ steps.evidence-gate.outputs.scope }}"
+if [ "$evidence_scope" = "unrunnable" ]; then
 echo "Evidence declares scope=unrunnable; this is an escalation, not an approval; no eval approval marker published."
 echo "ok=true" >> "$GITHUB_OUTPUT"
 exit 0
+fi
+if [ "$evidence_scope" != "commands" ] && [ "$evidence_scope" != "infra" ]; then
+echo "::error::Evidence gate latched scope '${evidence_scope:-unset}', which is not a mergeable approval scope; refusing to publish an eval approval marker (issue #742)."
+exit 1
 fi
 score=$(jq -r '.score // "N/A"' /tmp/evaluator-decision.json 2>/dev/null || echo "N/A")
 pr="${{ github.event.issue.number }}"
@@ -19032,10 +19036,7 @@ fi
 action=$(jq -r '.action // "unknown"' /tmp/evaluator-decision.json 2>/dev/null || echo "unknown")
 score=$(jq -r '.score // "N/A"' /tmp/evaluator-decision.json 2>/dev/null || echo "N/A")
 summary=$(jq -r '.summary // .critique // "Evaluation complete. See `.github/agents/evaluator.md` for rubric details."' /tmp/evaluator-decision.json 2>/dev/null || echo "Evaluation complete.")
-evidence_scope=""
-if [ -f /tmp/live-run-evidence.json ]; then
-evidence_scope=$(jq -r '.scope // empty' /tmp/live-run-evidence.json 2>/dev/null || true)
-fi
+evidence_scope="${{ steps.evidence-gate.outputs.scope }}"
 if [ "$action" = "approve-eval" ] && [ "$evidence_scope" = "unrunnable" ]; then
 body="Quality Council ESCALATION - Score ${score}/10. ${summary} - Live execution was declared unrunnable in this environment. This is NOT an approval and no merge marker was published; Hephaestus (Maintainer) will triage the escalation. - The Quality Council (Evaluator)"
 elif [ "$action" = "approve-eval" ]; then
@@ -19283,6 +19284,7 @@ r30_expected_evidence_block() {
   cat <<'R30EVIDENCE'
 action=$(jq -r '.action // empty' /tmp/evaluator-decision.json 2>/dev/null || echo "")
 if [ "$action" != "approve-eval" ]; then
+echo "scope=none" >> "$GITHUB_OUTPUT"
 echo "Gate applies to approve-eval only (action='$action'); rejections pass unblocked."
 exit 0
 fi
@@ -19296,10 +19298,12 @@ echo "::error::Live-execution evidence does not carry this run's contract nonce;
 exit 1
 fi
 if jq -e '.scope == "unrunnable" and ((.reason // "") | length > 20)' "$ev" >/dev/null 2>&1; then
+echo "scope=unrunnable" >> "$GITHUB_OUTPUT"
 echo "Evidence declares scope=unrunnable with a substantive reason; routing onward for Maintainer triage."
 exit 0
 fi
 if jq -e '.scope == "infra" and ((.checks // []) | length > 0)' "$ev" >/dev/null 2>&1; then
+echo "scope=infra" >> "$GITHUB_OUTPUT"
 echo "Evidence declares scope=infra with validation checks recorded."
 exit 0
 fi
@@ -19308,6 +19312,7 @@ if [ "${good:-0}" -lt 1 ]; then
 echo "::error::Live-execution evidence contains only test/compile commands. 'CLI hostile: go build/vet/test green' is NOT end-user execution (the exact PR #389 failure). Approval blocked."
 exit 1
 fi
+echo "scope=commands" >> "$GITHUB_OUTPUT"
 echo "Evidence gate passed: $good non-test command(s) recorded against the deliverable."
 R30EVIDENCE
 }
@@ -19369,7 +19374,19 @@ else
   printf '%s\n' "$r30_marker_block" | grep -qF 'if [ "$action" != "approve-eval" ]; then' || r30_bad="${r30_bad} eval.yml(no-approve-eval-only-guard)"
   # Review round 9: a scope=unrunnable evidence file is an escalation, never a
   # mergeable approval; the marker step must skip publication for it.
-  printf '%s\n' "$r30_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF "if [ -f \"\$ev\" ] && jq -e '.scope == \"unrunnable\"' \"\$ev\" >/dev/null 2>&1; then" || r30_bad="${r30_bad} eval.yml(no-unrunnable-marker-exclusion)"
+  printf '%s\n' "$r30_marker_block" | sed 's/^[[:space:]]*//' | grep -qxF 'if [ "$evidence_scope" = "unrunnable" ]; then' || r30_bad="${r30_bad} eval.yml(no-unrunnable-marker-exclusion)"
+  # Issue #742 review F6: the evidence gate latches its verification result as
+  # a step output, and the publication steps consume the latch. No post or
+  # marker path may re-read the agent-writable evidence file, because an
+  # evaluator-spawned process can rewrite it after the gate has run (the
+  # documented execution-isolation residual). The marker additionally refuses
+  # any scope that is not a mergeable approval scope.
+  printf '%s\n' "$r30_evidence_block" | grep -qF 'echo "scope=unrunnable" >> "$GITHUB_OUTPUT"' || r30_bad="${r30_bad} eval.yml(evidence-no-unrunnable-latch)"
+  printf '%s\n' "$r30_evidence_block" | grep -qF 'echo "scope=commands" >> "$GITHUB_OUTPUT"' || r30_bad="${r30_bad} eval.yml(evidence-no-commands-latch)"
+  printf '%s\n' "$r30_post_block" | grep -qF 'steps.evidence-gate.outputs.scope' || r30_bad="${r30_bad} eval.yml(post-does-not-consume-evidence-latch)"
+  printf '%s\n' "$r30_marker_block" | grep -qF 'steps.evidence-gate.outputs.scope' || r30_bad="${r30_bad} eval.yml(marker-does-not-consume-evidence-latch)"
+  printf '%s\n' "$r30_post_block" | grep -qF '/tmp/live-run-evidence.json' && r30_bad="${r30_bad} eval.yml(post-rereads-agent-writable-evidence)"
+  printf '%s\n' "$r30_marker_block" | grep -qF '/tmp/live-run-evidence.json' && r30_bad="${r30_bad} eval.yml(marker-rereads-agent-writable-evidence)"
   # Review round 3 finding 1: a marker may only be published while the PR head
   # is still the evaluated head and the triggering comment is still the latest
   # eval trigger. Each guard fails the step closed, so the forward handoff is
@@ -19531,6 +19548,12 @@ R30MEMHOOK
   # evidence) rewrite line and require the comparison to reject it, so a
   # vacuous pin cannot stay green while a fix verdict becomes an approval.
   r30_owner_pin head-check "$r30_head_check_block" "$(r30_expected_head_check_block)"
+  # Issue #742 review F5: an imported BASH_FUNC_git shadows the command name
+  # even with a pinned PATH, so the head check must call the absolute binary.
+  # The exact pin and this mutation self-test both reject a plain `git`.
+  printf '%s\n' "$r30_head_check_block" | grep -qF '/usr/bin/git rev-parse --verify HEAD' || r30_bad="${r30_bad} eval.yml(head-check-not-absolute-git)"
+  r30_head_check_mut=$(printf '%s\n' "$r30_head_check_block" | sed 's#/usr/bin/git rev-parse#git rev-parse#')
+  r30_block_exact "$r30_head_check_mut" "$(r30_expected_head_check_block)" && r30_bad="${r30_bad} eval.yml(head-check-self-test-imported-git-not-caught)"
   r30_owner_pin verify "$r30_verify_block" "$(r30_expected_verify_block)"
   r30_owner_pin evidence "$r30_evidence_block" "$(r30_expected_evidence_block)"
   r30_owner_pin clear "$r30_clear_block" "$(r30_expected_clear_block)"
@@ -19538,6 +19561,16 @@ R30MEMHOOK
   r30_block_exact "$r30_verify_mut" "$(r30_expected_verify_block)" && r30_bad="${r30_bad} eval.yml(verify-self-test-decision-rewrite-not-caught)"
   r30_evidence_mut="${r30_evidence_block}"$'\n          echo '\''{"scope":"infra","checks":["validation"]}'\'' > /tmp/live-run-evidence.json'
   r30_block_exact "$r30_evidence_mut" "$(r30_expected_evidence_block)" && r30_bad="${r30_bad} eval.yml(evidence-self-test-evidence-rewrite-not-caught)"
+  # Issue #742 review F6: prove the latch pins are load-bearing. Dropping the
+  # commands latch, or re-introducing an evidence-file read in either
+  # publication step, must fail the exact pin (the greps above are defense in
+  # depth, mutation-self-tested by these mutations).
+  r30_evidence_latch_mut=$(printf '%s\n' "$r30_evidence_block" | sed '/^echo "scope=commands" >> "\$GITHUB_OUTPUT"$/d')
+  r30_block_exact "$r30_evidence_latch_mut" "$(r30_expected_evidence_block)" && r30_bad="${r30_bad} eval.yml(evidence-self-test-latch-removal-not-caught)"
+  r30_post_reread_mut="${r30_post_block}"$'\n          evidence_scope=$(jq -r '\''.scope // empty'\'' /tmp/live-run-evidence.json 2>/dev/null || true)'
+  r30_block_exact "$r30_post_reread_mut" "$(r30_expected_post_block)" && r30_bad="${r30_bad} eval.yml(post-self-test-evidence-reread-not-caught)"
+  r30_marker_reread_mut="${r30_marker_block}"$'\n          evidence_scope=$(jq -r '\''.scope // empty'\'' /tmp/live-run-evidence.json 2>/dev/null || true)'
+  r30_block_exact "$r30_marker_reread_mut" "$(r30_expected_marker_block)" && r30_bad="${r30_bad} eval.yml(marker-self-test-evidence-reread-not-caught)"
   r30_clear_mut="${r30_clear_block}"$'\n          cp /tmp/approval.json /tmp/evaluator-decision.json'
   r30_block_exact "$r30_clear_mut" "$(r30_expected_clear_block)" && r30_bad="${r30_bad} eval.yml(clear-self-test-decision-rewrite-not-caught)"
   # Issue #713 review round 7: pin the pre-decision execution context. The
@@ -20334,6 +20367,18 @@ R30_MARKER_MOCK
                 if [ -n "$r30_mc_evidence" ]; then
                   printf '%s\n' "$r30_mc_evidence" > "$r30_mc_evidence_file"
                 fi
+                # Issue #742 review F6: the marker consumes the evidence gate's
+                # latched scope output. Model the successful gate that must
+                # have run before this step: commands by default, unrunnable
+                # for the escalation fixture.
+                r30_mc_scope="commands"
+                case "$r30_mc_evidence" in
+                  *'"scope":"unrunnable"'*|*'"scope": "unrunnable"'*) r30_mc_scope="unrunnable" ;;
+                  *'"scope":"infra"'*|*'"scope": "infra"'*) r30_mc_scope="infra" ;;
+                esac
+                if [ "$r30_mc_decision" = "absent" ]; then
+                  r30_mc_scope=""
+                fi
                 r30_mc_calls="$r30_mc_dir/calls"
                 : > "$r30_mc_calls"
                 r30_mc_out="$r30_mc_dir/github-output"
@@ -20345,6 +20390,7 @@ R30_MARKER_MOCK
                 printf '%s\n' "$r30_marker_block" \
                   | sed -e "s#/tmp/evaluator-decision.json#$r30_mc_decision_file#g" \
                         -e "s#/tmp/live-run-evidence.json#$r30_mc_evidence_file#g" \
+                        -e "s#\${{ steps\.evidence-gate\.outputs\.scope }}#$r30_mc_scope#g" \
                         -e 's/\${{ github\.event\.issue\.number }}/713/g' \
                         -e "s#\${{ steps\.eval-bind\.outputs\.eval_sha }}#$r30_mc_eval_sha#g" \
                         -e "s#\${{ github\.event\.comment\.id }}#$r30_mc_trigger#g" \
@@ -20492,6 +20538,7 @@ R30_POST_MOCK
                 } > "$r30_tmp/post.cfg"
                 printf '%s\n' "$r30_post_block" \
                   | sed -e "s#/tmp/evaluator-decision.json#$r30_ptc_decision_file#g" \
+                        -e 's#\${{ steps\.evidence-gate\.outputs\.scope }}#commands#g' \
                         -e 's#\${{ github\.repository }}#RandomLabs/RandomLabs#g' \
                         -e 's#\${{ github\.repository_owner }}#RandomLabs#g' \
                         -e 's#\${{ github\.event\.issue\.number }}#713#g' > "$r30_ptc_dir/run.sh"
@@ -20548,7 +20595,7 @@ R30_POST_MOCK
   fi
 fi
 if [ -z "$r30_bad" ]; then
-  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical owner-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as owner-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, a post-agent head check run with the isolation env (BASH_ENV/ENV at /dev/null, empty LD_*, workspace GIT_*) re-reads the workspace HEAD and gates the verdict, marker, forward, and memory steps on it, an approve-eval verdict with unrunnable live evidence is published as a Quality Council ESCALATION with no approval wording and no merge marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer owner-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow's App token stays read-only for contents while pull-requests write and issues write cover the PR-thread CLI bootstrap (issue #743; merge still requires Contents write), and every verdict write runs in an owner-PAT step, and the review arm's non-PR skip notice posts with the owner PAT through a step without \`|| true\`, so a token or loudness regression fails, and it is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, the Run evaluator agent step structurally bound to the vendored runner with no run/shell, an exact if/env/with and model pin, the prompt SHA-256, and the 105-minute cap, the post-agent head-check, Clear runtime decision, Verify evaluator decided, and Enforce live-execution evidence gate run blocks pinned whole-region line-exact with decision and evidence rewrite mutation self-tests and a decision/evidence write ban outside the evaluator agent, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval, and noncanonical and wrong-PR marker bodies) are executed in a sandbox, and the sweep requires the canonical machine-published marker body (exact structure, singleton bindings, and the PR/head/trigger paragraph echo) as defense in depth, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), every owner-PAT run block (the forward handoff, the pre-gate Get PR info read, the deliverable-context read, and the final evaluator memory push) is pinned whole-region line-exact with its exact key surface and an env of exactly the owner PAT plus the pinned system PATH, and the eval marker literal banned, and no step other than the marker step may carry the eval marker literal and no step outside the three sanctioned comment posters may issue a comment post (all pins are mutation-self-tested, so a decoy approval marker cannot be injected into any token-bearing step body), and the pre-decision execution context is pinned so no PR-head code runs before the verdict (the checkout action is exactly actions/checkout@v6 with its exact with block and may appear only in the Checkout repository (PR head) step, the vendored runner may appear only in the Run evaluator agent step, every other uses step is rejected, the actor gate executes only the script staged from the workflow commit, the vendored runner is always restored from the workflow commit with no early-exit trust, the Configure git identity step is exactly the two git config lines with no extra key, the workflow permissions map and the eval job's if, runs-on, and timeout values are pinned, the decision/evidence write ban covers pathlib write_text/write_bytes and Path(...).open plus os.replace/os.rename and shutil copy/move spellings, and the checkout, actor-gate, configure, and restore blocks are mutation-self-tested), review round 8 hardens the remaining execution inputs: the evaluator and tester system prompts are staged from \`\${GITHUB_SHA}\` into RUNNER_TEMP before the agent and both prompt files plus both staging bodies are SHA-256 pinned (the PR-head editions are never read) and the Tester agent prompt must reference the staged copy, the workflow name and concurrency policy are pinned, the publisher is whole-file SHA-256 pinned with a second-PR functional fixture and a target-gated-append mutation self-test, the extracted decision and pre-merge blocks reject control transfer and execute in subshells (so a planted exit cannot silence this rule), the Post Maintainer comment poster is pinned whole-region with the eval marker literal banned outside the PAT sweep, and head_sha plus the two-step head_push_time binding are pinned, the maintainer job's exact ordered step sequence is pinned, so no inserted or renamed step can pass at all, and no maintainer step other than the pinned PAT sweep may carry a gh pr merge (or REST/GraphQL merge) invocation, including a path-qualified, command/env/sudo-prefixed, quoted word-split, gh-global-flag (\`gh -R x pr merge\`, \`gh --repo x pr merge\`, \`gh -Rcli/cli pr merge\`), expression-valued-repo, REST, or GraphQL spelling, so a newly inserted owner-PAT merge step, the reviewer's unreviewed fast path, or a renamed sweep with an exact-name decoy fails the audit; so a one-line neutering, declarative poisoning, or extra step cannot pass; the review arm is validated from the same strict parse as branch-read-only (exactly contents read with pull-requests write and issues write for the PR-thread CLI bootstrap, issue #743, no push or restore marker in any run, and a unique post-agent head observer with the job token, the pinned system PATH, and an exact pinned body), every owner-PAT step in the review and test arms must pin /usr/bin:/bin (the Tester's review-restore omission class), and the observer, permissions, cross-step push, and PATH pins each carry mutation self-tests, and the Maintainer workspace is pinned to the trusted default branch (exact {name, uses, with} checkout surface, with remove and redirect mutants tripping checkout-with-not-exact), so a pull_request run cannot auto-load the PR merge tree's AGENTS.md/opencode.json/plugins (issue #713 review round 27) (issue #713)" "ok"
+  check "R30" "the binding Evaluator gate is machine-enforced in the PAT merge sweep: opencode-eval.yml captures the checked-out head and triggering comment id, and publishes a canonical owner-authored first-line eval-verdict marker only from an approve-eval decision that passed the decision-file and evidence gates, only after the signed Quality Council verdict comment was posted, re-fetched by id, and verified as owner-authored with the exact body, and only while the PR head and latest non-bot /oc eval or /opencode eval trigger are unchanged (the marker carries eval-head and eval-trigger and the publisher re-verifies both); the forward handoff is gated on a verified marker, a post-agent head check run with the isolation env (BASH_ENV/ENV at /dev/null, empty LD_*, workspace GIT_*) re-reads the workspace HEAD and gates the verdict, marker, forward, and memory steps on it, an approve-eval verdict with unrunnable live evidence is published as a Quality Council ESCALATION with no approval wording and no merge marker, and the sweep requires a fresh marker bound to the current head and the latest eval trigger by comment id (same-second events included), not older than the tester approval, not superseded by a newer owner-authored Quality Council rejection, re-reads comments and the head immediately before merging to close the mergeability-loop TOCTOU window, and merges with --match-head-commit; the eval workflow's App token stays read-only for contents while pull-requests write and issues write cover the PR-thread CLI bootstrap (issue #743; merge still requires Contents write), and every verdict write runs in an owner-PAT step, and the review arm's non-PR skip notice posts with the job token through a step without \`|| true\`, so a token or loudness regression fails, and the evidence gate latches its verified scope as a step output that the post and marker steps consume (never re-reading the agent-writable evidence file, so a post-gate rewrite cannot turn an escalation into an approval), and it is resolved from a strict YAML parse with its workflow and job key surfaces pinned (defaults/env/container/strategy/continue-on-error overrides rejected), its exact step sequence pinned so no extra step can rewrite the decision file or post a decoy marker, the Run evaluator agent step structurally bound to the vendored runner with no run/shell, an exact if/env/with and model pin, the prompt SHA-256, and the 105-minute cap, the post-agent head-check, Clear runtime decision, Verify evaluator decided, and Enforce live-execution evidence gate run blocks pinned whole-region line-exact with decision and evidence rewrite mutation self-tests and a decision/evidence write ban outside the evaluator agent, and every freshness variable pinned to exactly one live assignment, with structural mutation self-tests proving each escape is caught; genuine and hostile payloads (different head, missing or malformed bindings, stale trigger, same-second trigger and rejection, result-comment exclusion, collaborator /opencode eval, and noncanonical and wrong-PR marker bodies) are executed in a sandbox, and the sweep requires the canonical machine-published marker body (exact structure, singleton bindings, and the PR/head/trigger paragraph echo) as defense in depth, and the bind, marker, and post run blocks are resolved from the strict parse, pinned whole-region line-exact, and executed behaviorally (moved head, stale trigger, missing bindings, failed publication, and every post failure each exit nonzero and no path writes ok=true), every owner-PAT run block (the forward handoff, the pre-gate Get PR info read, the deliverable-context read, and the final evaluator memory push) is pinned whole-region line-exact with its exact key surface and an env of exactly the owner PAT plus the pinned system PATH, and the eval marker literal banned, and no step other than the marker step may carry the eval marker literal and no step outside the three sanctioned comment posters may issue a comment post (all pins are mutation-self-tested, so a decoy approval marker cannot be injected into any token-bearing step body), and the pre-decision execution context is pinned so no PR-head code runs before the verdict (the checkout action is exactly actions/checkout@v6 with its exact with block and may appear only in the Checkout repository (PR head) step, the vendored runner may appear only in the Run evaluator agent step, every other uses step is rejected, the actor gate executes only the script staged from the workflow commit, the vendored runner is always restored from the workflow commit with no early-exit trust, the Configure git identity step is exactly the two git config lines with no extra key, the workflow permissions map and the eval job's if, runs-on, and timeout values are pinned, the decision/evidence write ban covers pathlib write_text/write_bytes and Path(...).open plus os.replace/os.rename and shutil copy/move spellings, and the checkout, actor-gate, configure, and restore blocks are mutation-self-tested), review round 8 hardens the remaining execution inputs: the evaluator and tester system prompts are staged from \`\${GITHUB_SHA}\` into RUNNER_TEMP before the agent and both prompt files plus both staging bodies are SHA-256 pinned (the PR-head editions are never read) and the Tester agent prompt must reference the staged copy, the workflow name and concurrency policy are pinned, the publisher is whole-file SHA-256 pinned with a second-PR functional fixture and a target-gated-append mutation self-test, the extracted decision and pre-merge blocks reject control transfer and execute in subshells (so a planted exit cannot silence this rule), the Post Maintainer comment poster is pinned whole-region with the eval marker literal banned outside the PAT sweep, and head_sha plus the two-step head_push_time binding are pinned, the maintainer job's exact ordered step sequence is pinned, so no inserted or renamed step can pass at all, and no maintainer step other than the pinned PAT sweep may carry a gh pr merge (or REST/GraphQL merge) invocation, including a path-qualified, command/env/sudo-prefixed, quoted word-split, gh-global-flag (\`gh -R x pr merge\`, \`gh --repo x pr merge\`, \`gh -Rcli/cli pr merge\`), expression-valued-repo, REST, or GraphQL spelling, so a newly inserted owner-PAT merge step, the reviewer's unreviewed fast path, or a renamed sweep with an exact-name decoy fails the audit; so a one-line neutering, declarative poisoning, or extra step cannot pass; the review arm is validated from the same strict parse as branch-read-only (exactly contents read with pull-requests write and issues write for the PR-thread CLI bootstrap, issue #743, no push or restore marker in any run, and a unique post-agent head observer with the job token, the pinned system PATH, and an exact pinned body), every owner-PAT step in the review and test arms must pin /usr/bin:/bin (the Tester's review-restore omission class), and the observer, permissions, cross-step push, and PATH pins each carry mutation self-tests, and the Maintainer workspace is pinned to the trusted default branch (exact {name, uses, with} checkout surface, with remove and redirect mutants tripping checkout-with-not-exact), so a pull_request run cannot auto-load the PR merge tree's AGENTS.md/opencode.json/plugins (issue #713 review round 27) (issue #713)" "ok"
 else
   check "R30" "eval verdict publication and PAT merge gate guard missing:${r30_bad} (issue #713: a workflow-touching PR could merge through the PAT sweep with no binding Evaluator verdict)" "bad"
 fi
@@ -21486,6 +21533,35 @@ def validate(docs):
             if not isinstance(steps, list):
                 continue
             kind = job_kind(job_name, job) if name == PEROS else "ubuntu"
+            # Issue #742 review F12: the per-OS trusted-PATH capture must run
+            # before every owner-PAT step, not merely exist. A later capture
+            # would leave the earlier lookups with an empty output while the
+            # env values still matched their pinned expressions.
+            if name == PEROS:
+                capture_idx = next(
+                    (
+                        index
+                        for index, candidate_step in enumerate(steps)
+                        if isinstance(candidate_step, dict)
+                        and candidate_step.get("id") == "trusted_path"
+                    ),
+                    None,
+                )
+                if capture_idx is None:
+                    out.append(
+                        "peros-trusted-path-capture-missing:%s" % job_name
+                    )
+                for index, candidate_step in enumerate(steps):
+                    if (
+                        capture_idx is not None
+                        and index < capture_idx
+                        and isinstance(candidate_step, dict)
+                        and env_has_pat(candidate_step.get("env"))
+                    ):
+                        out.append(
+                            "peros-owner-pat-step-before-trusted-path:%s:%s"
+                            % (job_name, candidate_step.get("name"))
+                        )
             for step in steps:
                 if not isinstance(step, dict):
                     continue
@@ -21663,6 +21739,36 @@ def peros_path_to_system(candidate):
 
 
 expect("owner-pat-step-path-not-pinned", peros_path_to_system)
+
+
+def peros_capture_after_owner_pat(candidate):
+    for job in candidate[PEROS]["jobs"].values():
+        steps = job.get("steps") or []
+        capture_index = next(
+            (
+                index
+                for index, step in enumerate(steps)
+                if isinstance(step, dict) and step.get("id") == "trusted_path"
+            ),
+            None,
+        )
+        if capture_index is None:
+            continue
+        capture_step = steps.pop(capture_index)
+        pat_index = next(
+            (
+                index
+                for index, step in enumerate(steps)
+                if isinstance(step, dict) and env_has_pat(step.get("env"))
+            ),
+            None,
+        )
+        if pat_index is not None:
+            steps.insert(pat_index + 1, capture_step)
+            return
+
+
+expect("peros-owner-pat-step-before-trusted-path", peros_capture_after_owner_pat)
 
 
 def peros_exec_to_system(candidate):

@@ -437,8 +437,16 @@ jobs:
           # least one NON-test command against the shipped entrypoint. Missing
           # or test-only evidence fails the gate red; the job failure reaches
           # the Maintainer's workflow_run trigger for a fresh /oc eval.
+          #
+          # Issue #742 review F6: this step is the ONLY reader of the evidence
+          # file. It latches its decision as a step output, and the post and
+          # marker steps consume that latch. An evaluator-spawned process can
+          # still rewrite /tmp/live-run-evidence.json after this step (the
+          # documented execution-isolation residual), but it can no longer
+          # change what the publication gates believe the gate verified.
           action=$(jq -r '.action // empty' /tmp/evaluator-decision.json 2>/dev/null || echo "")
           if [ "$action" != "approve-eval" ]; then
+            echo "scope=none" >> "$GITHUB_OUTPUT"
             echo "Gate applies to approve-eval only (action='$action'); rejections pass unblocked."
             exit 0
           fi
@@ -452,10 +460,12 @@ jobs:
             exit 1
           fi
           if jq -e '.scope == "unrunnable" and ((.reason // "") | length > 20)' "$ev" >/dev/null 2>&1; then
+            echo "scope=unrunnable" >> "$GITHUB_OUTPUT"
             echo "Evidence declares scope=unrunnable with a substantive reason; routing onward for Maintainer triage."
             exit 0
           fi
           if jq -e '.scope == "infra" and ((.checks // []) | length > 0)' "$ev" >/dev/null 2>&1; then
+            echo "scope=infra" >> "$GITHUB_OUTPUT"
             echo "Evidence declares scope=infra with validation checks recorded."
             exit 0
           fi
@@ -464,6 +474,7 @@ jobs:
             echo "::error::Live-execution evidence contains only test/compile commands. 'CLI hostile: go build/vet/test green' is NOT end-user execution (the exact PR #389 failure). Approval blocked."
             exit 1
           fi
+          echo "scope=commands" >> "$GITHUB_OUTPUT"
           echo "Evidence gate passed: $good non-test command(s) recorded against the deliverable."
 
       - name: Post Quality Council result (owner PAT, never with /oc prefix)
@@ -523,10 +534,9 @@ jobs:
           action=$(jq -r '.action // "unknown"' /tmp/evaluator-decision.json 2>/dev/null || echo "unknown")
           score=$(jq -r '.score // "N/A"' /tmp/evaluator-decision.json 2>/dev/null || echo "N/A")
           summary=$(jq -r '.summary // .critique // "Evaluation complete. See `.github/agents/evaluator.md` for rubric details."' /tmp/evaluator-decision.json 2>/dev/null || echo "Evaluation complete.")
-          evidence_scope=""
-          if [ -f /tmp/live-run-evidence.json ]; then
-            evidence_scope=$(jq -r '.scope // empty' /tmp/live-run-evidence.json 2>/dev/null || true)
-          fi
+          # Issue #742 review F6: consume the evidence gate's latched scope
+          # output; never re-read the agent-writable evidence file here.
+          evidence_scope="${{ steps.evidence-gate.outputs.scope }}"
 
           # The binding mechanism: post the Quality Council result back to the PR.
           # Owner identity (OPENCODE_PAT) plus no leading /oc prefix: result
@@ -661,16 +671,21 @@ jobs:
             echo "ok=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Review round 9: a scope=unrunnable evidence file is the documented
-          # escalation shape (mirrors opencode-test.yml). It is never an
-          # approval, so it must not publish a mergeable marker even when the
-          # evaluator returned approve-eval; the forward handoff still runs
-          # (ok=true) so the Maintainer can triage the escalation.
-          ev=/tmp/live-run-evidence.json
-          if [ -f "$ev" ] && jq -e '.scope == "unrunnable"' "$ev" >/dev/null 2>&1; then
+          # Review round 9 / issue #742 review F6: scope=unrunnable is the
+          # documented escalation shape (mirrors opencode-test.yml). It is
+          # never an approval, so it must not publish a mergeable marker even
+          # when the evaluator returned approve-eval; the forward handoff still
+          # runs (ok=true) so the Maintainer can triage the escalation. Read
+          # the evidence gate's latched output, never the agent-writable file.
+          evidence_scope="${{ steps.evidence-gate.outputs.scope }}"
+          if [ "$evidence_scope" = "unrunnable" ]; then
             echo "Evidence declares scope=unrunnable; this is an escalation, not an approval; no eval approval marker published."
             echo "ok=true" >> "$GITHUB_OUTPUT"
             exit 0
+          fi
+          if [ "$evidence_scope" != "commands" ] && [ "$evidence_scope" != "infra" ]; then
+            echo "::error::Evidence gate latched scope '${evidence_scope:-unset}', which is not a mergeable approval scope; refusing to publish an eval approval marker (issue #742)."
+            exit 1
           fi
           score=$(jq -r '.score // "N/A"' /tmp/evaluator-decision.json 2>/dev/null || echo "N/A")
           pr="${{ github.event.issue.number }}"
