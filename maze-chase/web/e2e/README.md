@@ -1,6 +1,6 @@
 # Web layer E2E scripts
 
-Six durable, dependency-free harnesses (Node 22+ for the CDP harnesses, which
+Seven durable, dependency-free harnesses (Node 22+ for the CDP harnesses, which
 use the built-in WebSocket; no npm packages) that
 prove the browser layer against the real artifacts. All exit nonzero
 on failure and print `ALL GREEN` on success.
@@ -23,7 +23,7 @@ on failure and print `ALL GREEN` on success.
   sound table (`mc_sfx_tone_count`), with the boot status never reaching
   Ready.
 - `browser-e2e.js [page-url] [debug-port]`: drives the served
-  `play.html` in headless chromium over CDP with node's built-in
+  `index.html` in headless chromium over CDP with node's built-in
   WebSocket (boot with zero console errors, title visible, canvas
   pixels, real button click to play, real ArrowUp keypresses scoring,
   P pause plus Resume, touch swipe, mobile 390x844 viewport plus
@@ -42,6 +42,14 @@ on failure and print `ALL GREEN` on success.
   cue, every warden chain arm, the crumb pitch-variation arms, the four
   loud SFX ceiling recipes, and a live title loop across multiple
   scheduler iterations through the shipped page.
+- `site-e2e.js [base-url] [debug-port]`: crawls the shipped site over
+  HTTP and in chromium (every page's title, one h1, shared navigation,
+  active item, no raw markdown links, no horizontal overflow at desktop
+  and 390x844, every internal link and fragment resolving), boots the
+  game-first `index.html`, starts a run, pauses, resumes, and verifies
+  the mobile board minimum and title-card bounds with zero console
+  errors. Runs unchanged against a local server or the deployed preview
+  URL; record the deployed command and result in `progress/`.
 
 Setup for the browser run (two shells, from `maze-chase/`):
 
@@ -49,10 +57,15 @@ Setup for the browser run (two shells, from `maze-chase/`):
 python3 -m http.server 8931   # Windows: python -m http.server 8931
 chromium --headless=new --disable-gpu --no-sandbox \
   --remote-debugging-port=9331 --window-size=1280,900 \
-  http://localhost:8931/play.html
+  http://localhost:8931/index.html
 node web/e2e/boot-gate-e2e.js
 node web/e2e/browser-e2e.js
+node web/e2e/site-e2e.js
 ```
+
+The site harness also accepts a deployed base URL, for example
+`node web/e2e/site-e2e.js https://<owner>.github.io/<repo>/preview/pr-<N>/maze-chase/`
+(with chromium launched against `about:blank` and the same debug port).
 
 The wasm must match the harness: rebuild with
 `cargo build --release --target wasm32-unknown-unknown -p maze-chase-web`

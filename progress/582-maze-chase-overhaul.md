@@ -7,8 +7,9 @@
   on its own `opencode/issue582-overhaul-phase-<n>-<slug>` branch
 - **Status:** in-progress
 - **Updated:** 2026-10-24
-- **Active Phase:** Phase 6: Release Engineering and Multi-Platform Distribution
-  (in-repo contract complete and ready for review; native macOS/Windows packaging, the installed release workflow, and the official release candidate remain pending with the Lab Engineer and native arms)
+- **Active Phase:** Phase 7: Game-First Web Experience and Subpages
+  (game-first page, subpages, rendered docs, link checks, and local site E2E
+  complete on the phase branch; the deployed Pages preview run and review are pending)
 - **Blueprint:** `ideas/2026-10-18-maze-chase-overhaul.md`
 - **Findings ledger:** `progress/582-maze-chase-overhaul-findings.md` (created in
   Phase 1; every reassessment gap lives here until resolved or documented)
@@ -21,58 +22,61 @@
 - Phase 4: Visual Identity Redesign: [x] Design Council direction consumed (dispatched by the Maintainer before this phase), [x] resolution-aware character and environment art, [x] effects and animation system, [x] refreshed themes with accessibility tests green, [x] all three layers integrated with real captures (PR 4 target, Refs #582, Closes #658)
 - Phase 5: Sound Design Overhaul: [x] new musical score with one BPM source (`TEMPO = 108`, five multi-track tunes with swung eighths and per-note track lanes), [x] soft short layered effect bank across seven voice families (40 ms crumb pluck with variation, rising warden ladder, sparkling relish triad, spare-wick bell), [x] mix architecture with 120 ms fades and safe defaults (music 60%, SFX 80%, master 80%, peak-normalized buses), [x] terminal chime policy default-off with a persistent Settings row and visual twins independent of mute, [x] per-layer settings round-trip on Linux (desktop synth PCM plus null sink, terminal BEL plus ticker, browser chip plus persisted sliders) with native macOS/Windows speaker review tracked for the Final Phase (PR 5 target, Refs #582, Refs #659)
 - Phase 6: Release Engineering and Multi-Platform Distribution: [x] version single source plus tag parity gate (`[workspace.package]` 0.1.0, `packaging/release/check-tag.sh` fail-closed on a tag/version mismatch), [x] Linux deb and rpm plus tarballs for both layers (rebuilt twice byte-identically and smoke-tested on this container), [ ] Windows installer plus zip (scripts landed; native build and silent install/uninstall run pending), [ ] macOS app plus dmg plus tarball (scripts landed; native build and dmg mount pending), [x] install/launch/uninstall smoke scripts (`release/smoke-linux.sh` executed; macOS/Windows harnesses authored for their native arms), [ ] `maze-chase-release.yml` pipeline via the Lab Engineer (source staged at `packaging/release/maze-chase-release.yml`), [ ] release candidate artifacts on the official Releases page, [ ] install/upgrade/uninstall docs (`docs/release.md` covers both layers on all three OSes, plus upgrade and settings clearing; corrected this round, final sign-off waits for the release candidate artifacts) (PR 6 target, Refs #582, Refs #657)
-- Phase 7: Game-First Web Experience and Subpages: [ ] `maze-chase/index.html` boots directly into the game with no clutter, [ ] downloads, install, docs, compatibility, releases subpages, [ ] rendered docs on Pages with link checks, [ ] deployed-URL browser E2E including mobile (PR 7 target, Refs #582, Closes #660)
+- Phase 7: Game-First Web Experience and Subpages: [x] `maze-chase/index.html` boots directly into the game with no clutter (`play.html` redirects with query/hash intact), [x] downloads, install, docs, compatibility, releases subpages with one shared shell and navigation, [x] rendered docs on Pages with a source-freshness marker plus internal link and fragment checks, [ ] deployed-URL browser E2E including mobile (local run ALL GREEN; preview run pending the PR; PR 7 target, Refs #582, Closes #660)
 - Final Phase: Full-Product Verification and Release Sign-Off: [ ] full terminal matrix re-signed on the released artifacts, [ ] per-OS install/upgrade/uninstall from release artifacts, [ ] deployed Pages E2E for the game and every subpage, [ ] audio and visual craft evaluated on real captures, [ ] reassessment ledger fully resolved or documented, [ ] stable `maze-chase-v1.0.0` release cut, [ ] hub, README, and docs unified (Final PR, Refs #582, Closes #655, Closes #661, Closes #582)
 
 ## Current step
 
-Phase 6 (release engineering and multi-platform distribution) is in
-progress. `maze-chase/Cargo.toml` is the single version source
-(`[workspace.package] version = 0.1.0`; all seven crates inherit
-`version`, `edition`, and `license`), and
-`packaging/release/check-tag.sh` fails closed unless a
-`maze-chase-v<version>` tag (or its `-rc.N` form) matches the workspace
-version, so a tag can never ship software from a different version.
+Phase 7 (game-first web experience and subpages) is implemented on
+`opencode/issue582-20261024225156`. `maze-chase/index.html` is the
+complete game: the engine boots directly at the project URL, the title,
+help, scores, settings, pause, and game-over surfaces are unchanged, and
+the header carries a compact Site menu instead of a distribution block.
+`play.html` is a redirect that preserves `?seed=` and `#hash` for old
+bookmarks. `install.html`, `downloads.html`, `compatibility.html`, and
+`releases.html` carry the secondary detail under one `site.css` shell and
+one six-link navigation, with the same honest split between built Linux
+packages and native rows that ship once the release workflow is
+installed. `compatibility.html` names only executed Linux rows as passes
+and keeps the macOS, Windows, and unrun Linux terminals under awaiting
+host, with the browser's Chromium-verified shape separated from the
+expected-but-unsigned Firefox and Safari shape.
 
-Both layers now have real Linux packages and tarballs. The scripts
-build `maze-chase-{terminal,desktop}_0.1.0_amd64.deb`,
-`maze-chase-{terminal,desktop}-0.1.0-1.x86_64.rpm`, and reproducible
-`-linux-x86_64.tar.gz` tarballs from one payload contract (binary at
-`/usr/bin`, license, docs; the desktop package also adds the desktop
-entry and icon, and the maintainer scripts refresh the desktop and icon
-caches). `release/smoke-linux.sh` unpacks every deb and rpm, runs
-`--version` and `--help`, and installs and uninstalls both tarballs in
-a scratch prefix; both stage runs produced byte-identical
-`SHA256SUMS.txt`, and all six Linux artifacts pass.
+The docs are now rendered pages. `tools/site/render-docs.mjs` converts
+every `docs/*.md` into a committed `docs/*.html` page with a sidebar,
+heading anchors, tables, code blocks, images, and `.md` links rewritten
+to `.html`. Every generated page carries a byte-length plus FNV-1a
+source marker; `--check` regenerates in memory and verifies the marker,
+then crawls every internal site link and fragment. A fresh `--check` run
+reports 15 docs current and 398 internal links verified. The Rust
+`tester_site` suite re-derives each marker without Node, rejects raw
+markdown links, and walks the same links from disk. The packaging
+crosslink and docs-language suites moved to the new surfaces, and the
+serve-guidance pairing now covers the new pages.
 
-The same contract exists for the other platforms: deterministic
-PowerShell zips for the terminal and desktop, an Inno Setup 6 per-user
-installer (`PrivilegesRequired=lowest`, no admin), a rewritten
-`.app` bundle with a real `Info.plist`, PkgInfo, license, and version,
-plus a dmg and tarball, and per-OS smoke harnesses
-(`release/smoke-macos.sh`, `release/smoke-windows.ps1`). Their builds
-need the native runners: `iscc` and `hdiutil` do not exist in this
-Linux container, so none of the macOS or Windows artifacts are claimed
-here. `packaging/release/maze-chase-release.yml` is staged for the Lab
-Engineer; it builds on native Linux, macOS, and Windows runners, runs
-the full workspace tests and deterministic verifier, stages and smokes
-each host's packages, re-hashes the payloads, and creates or refreshes
-the tagged GitHub Release. The installed `.github/workflows/` copy,
-native per-OS packaging evidence, the official release candidate, and
-the final install-instruction sign-off against those artifacts remain
-open on this phase.
+`web/e2e/site-e2e.js` crawls the served site over HTTP and in headless
+chromium, checks every page title, single h1, shared navigation, active
+item, no raw markdown, and no horizontal overflow at 1280x900 and
+390x844, then boots the game, starts a run, pauses, resumes, and checks
+the mobile board minimum and title-card bounds with zero console errors.
+The local run is ALL GREEN at 156 assertions; the existing browser E2E
+is also green at 279 assertions against the new game-first page. The
+remaining Phase 7 gate is the same site harness against the deployed
+Pages preview for this PR, which requires the PR to exist.
 
 ## Next steps
 
-- Native arms: produce the macOS and Windows packaging evidence once the
-  release workflow is installed; the release pipeline source is ready for
-  the Lab Engineer.
-- Maintainer: merge Phase 6 when the release contract is complete, then
-  dispatch the Lab Engineer to install the release workflow and cut
-  `maze-chase-v0.1.0-rc.1`; keep the per-OS speaker checks on the Final
-  Phase checklist; file the Phase 1 findings as linked sub-issues
-  prioritized into the remaining phases; keep #582 open until the Final
-  Phase ledger is complete.
+- Builder: push the phase branch, open the PR (`Refs #582`, `Closes #660`),
+  and run `web/e2e/site-e2e.js` against the deployed preview URL
+  (`/preview/pr-<N>/maze-chase/`); record the command, assertion count, and
+  screenshots in this file and `docs/web.md` before handing off.
+- Reviewer and Tester: check the game-first page at desktop and 390x844,
+  every subpage, the rendered docs, the redirect, and the honest native-row
+  status. The Tester owns the browser E2E evidence across the local and
+  deployed shapes.
+- Maintainer: keep the Phase 6 release-workflow installation and native
+  packaging evidence on the Final Phase checklist; keep #582 open until the
+  final release ledger is complete.
 - Per-OS testers: Phase 2 (Linux plus macOS emulator proof), Phase 3 (matrix
   signing on all three OSes), Phase 6 (native package install/uninstall), and
   the Final Phase re-verification.
@@ -2027,3 +2031,29 @@ open on this phase.
   fmt, clippy, both stages, and the manifest check, and owns the final
   diff. Skills: no registry skill matched.
   - the Fixer
+
+
+- 2026-10-24 (builder, Phase 7 on `opencode/issue582-20261024225156`): the
+  game-first web experience landed. `maze-chase/index.html` is the complete
+  playable page with a compact Site menu; `play.html` forwards to it with
+  the query and fragment intact; `install.html`, `downloads.html`,
+  `compatibility.html`, and `releases.html` carry the secondary detail
+  under one `site.css` shell and one navigation, with built Linux rows
+  separated from native rows that ship with the release workflow.
+  `tools/site/render-docs.mjs` renders all 15 docs into committed HTML
+  pages with a sidebar and source-freshness markers, rewrites markdown
+  links, and verifies every internal link and fragment in `--check` mode.
+  `tester_site.rs` re-derives every marker in Rust and walks the shipped
+  links from disk; the packaging crosslink and docs-language suites moved
+  to the new surfaces. `web/e2e/site-e2e.js` checks every page at desktop
+  and 390x844, boots the game, starts, pauses, and resumes.
+  Verification: `render-docs.mjs --check` 15 docs current with 398 links;
+  `tester_site` 6/6; `tester_packaging` 27/27; docs-language green; local
+  `site-e2e.js` ALL GREEN (156 assertions); `browser-e2e.js` ALL GREEN
+  (279 assertions); `cargo fmt --check` clean. The workspace suite and the
+  deployed-preview run are recorded after this entry when they land.
+  Delegation ledger: the primary context built the pages, renderer, tests,
+  and harness, ran the local browser passes, and owns the final diff; no
+  read-only subagent was needed for this focused static-surface change.
+  Skills: no registry skill matched.
+  - the Builder

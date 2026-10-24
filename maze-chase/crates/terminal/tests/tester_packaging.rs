@@ -341,45 +341,69 @@ fn release_docs_crosslink_only_committed_files() {
             "release.md link target {anchor} must exist"
         );
     }
-    let hub = std::fs::read_to_string(maze_root().join("index.html")).unwrap();
-    for anchor in ["docs/release.md", "docs/scoreboard.md", "docs/parity.md"] {
-        assert!(hub.contains(anchor), "hub must link {anchor}");
-    }
-    // Every relative docs link in the hub must resolve to a committed file.
-    for token in hub.split('"') {
-        let Some(rel) = token.strip_prefix("docs/") else {
-            continue;
-        };
-        if rel.contains(':') || rel.is_empty() {
-            continue;
-        }
+    // The rendered docs hub and the releases/downloads pages are the
+    // user-facing paths into the release audit docs after the game-first
+    // split. They link the rendered .html pages, never raw markdown.
+    let docs_hub = std::fs::read_to_string(maze_root().join("docs/index.html"))
+        .expect("the rendered docs hub must be committed");
+    for anchor in ["release.html", "scoreboard.html", "parity.html"] {
         assert!(
-            maze_root().join(token).is_file(),
-            "hub link {token} must resolve to a committed file"
+            docs_hub.contains(anchor),
+            "rendered docs hub must link {anchor}"
+        );
+        assert!(
+            maze_root().join("docs").join(anchor).is_file(),
+            "rendered docs hub link target {anchor} must exist"
+        );
+    }
+    for page in ["downloads.html", "releases.html"] {
+        let html = std::fs::read_to_string(maze_root().join(page)).unwrap();
+        for anchor in [
+            "docs/release.html",
+            "docs/scoreboard.html",
+            "docs/parity.html",
+        ] {
+            assert!(html.contains(anchor), "{page} must link {anchor}");
+            assert!(
+                maze_root().join(anchor).is_file(),
+                "{page} link target {anchor} must exist"
+            );
+        }
+    }
+    // The game-first page never carries distribution copy.
+    let hub = std::fs::read_to_string(maze_root().join("index.html")).unwrap();
+    for clutter in ["release-status", "Linux packages", "SHA256SUMS"] {
+        assert!(
+            !hub.contains(clutter),
+            "the game-first index.html must not carry distribution clutter ({clutter})"
         );
     }
 }
 
 #[test]
-fn hub_and_readme_do_not_claim_unbuilt_native_artifacts() {
-    // The hub is the first user-facing surface. The Play call to action
-    // must come before the release status, the status must stay short and
-    // user-facing, and it must separate the built Linux packages from the
-    // native macOS/Windows rows that only ship once the release workflow
-    // is installed. The review rounds found the block both buried the
-    // game and claimed native artifacts that were never built.
+fn downloads_and_readme_do_not_claim_unbuilt_native_artifacts() {
+    // The downloads page is the distribution surface. Its status block
+    // must stay short and user-facing, and it must separate the built
+    // Linux packages from the native macOS/Windows rows that only ship
+    // once the release workflow is installed. The game-first page carries
+    // no status block at all, so the hunt is the first thing a visitor sees.
     let hub = std::fs::read_to_string(maze_root().join("index.html")).unwrap();
-    let play = hub
-        .find("<a class=\"play\"")
-        .expect("hub must carry the Play call to action");
-    let status_open = hub
-        .find("<div class=\"status\">")
-        .expect("hub must carry a release status block");
     assert!(
-        play < status_open,
-        "the Play call to action must precede the status block"
+        !hub.contains("release-status"),
+        "the game-first page must not bury the game under a release status block"
     );
-    let status_html = hub[status_open..]
+    let downloads = std::fs::read_to_string(maze_root().join("downloads.html")).unwrap();
+    let status_open = downloads
+        .find("<div class=\"callout\" id=\"release-status\">")
+        .expect("downloads must carry a release status block");
+    let play = downloads
+        .find("id=\"artifacts\"")
+        .expect("downloads must carry the artifact matrix");
+    assert!(
+        status_open < play,
+        "the release status must precede the artifact matrix"
+    );
+    let status_html = downloads[status_open..]
         .split_once("</div>")
         .expect("the status block must close")
         .0;
