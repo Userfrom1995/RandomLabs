@@ -54,9 +54,12 @@ try {
         if (-not (Test-Path (Join-Path $dest "LICENSE"))) {
             throw "$zip does not contain LICENSE"
         }
-        $version = (& $exe --version 2>&1 | Out-String).Trim()
-        if ($version -ne "maze-chase-$name $Version") {
-            throw "$zip reports '$version', expected 'maze-chase-$name $Version'"
+        # PowerShell variable names are case-insensitive: capturing the
+        # reported version in `$version` would overwrite the workspace
+        # `$Version` from common.ps1, so compare through a distinct name.
+        $reported = (& $exe --version 2>&1 | Out-String).Trim()
+        if ($reported -ne "maze-chase-$name $Version") {
+            throw "$zip reports '$reported', expected 'maze-chase-$name $Version'"
         }
         & $exe --help | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "$zip --help failed with $LASTEXITCODE" }
@@ -92,9 +95,9 @@ try {
             if (-not (Test-Path (Join-Path $target "LICENSE"))) {
                 throw "installer did not place LICENSE"
             }
-            $version = (& $installedExe --version 2>&1 | Out-String).Trim()
-            if ($version -ne "maze-chase-desktop $Version") {
-                throw "installed binary reports '$version', expected 'maze-chase-desktop $Version'"
+            $reported = (& $installedExe --version 2>&1 | Out-String).Trim()
+            if ($reported -ne "maze-chase-desktop $Version") {
+                throw "installed binary reports '$reported', expected 'maze-chase-desktop $Version'"
             }
             $uninstaller = Join-Path $target "unins000.exe"
             if (-not (Test-Path $uninstaller)) { throw "installer did not register an uninstaller" }
