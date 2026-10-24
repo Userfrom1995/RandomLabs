@@ -34,7 +34,7 @@ This repo doesn't just contain projects - it *runs* an autonomous engineering pi
 - Full architecture: [LAB.md](LAB.md) · [Lab docs](https://userfrom1995.github.io/RandomLabs/docs/) · [Agent prompts](.github/agents/REGISTRY.md)
 
 Talk to it on any issue/PR with `/oc build ...`, `/oc continue`, `/oc fix`,
-`/oc architect`, `/oc research`, `/oc ideate`, `/oc review`, `/oc test`,
+`/oc architect`, `/oc plan`, `/oc research`, `/oc ideate`, `/oc review`, `/oc test`,
 `/oc test-linux`, `/oc test-macos`, `/oc test-windows`, `/oc eval`,
 `/oc lab`, `/oc auditor`, `/oc curate`, `/oc design`, `/oc design-ux`,
 `/oc design-visual`, `/oc design-motion`, `/oc maintainer`, `/oc recover`,
