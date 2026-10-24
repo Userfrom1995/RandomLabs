@@ -79,13 +79,16 @@ adds a numeric suffix such as `maze-chase-v0.1.0-rc.1`. Before any
 build, the pipeline runs:
 
 ```sh
+# tag ref (release)
 bash maze-chase/packaging/release/check-tag.sh "$GITHUB_REF_NAME"
+# branch dispatch (non-release)
+bash maze-chase/packaging/release/check-tag.sh "$GITHUB_REF_NAME" --allow-branch
 ```
 
 The gate fails closed on a mismatch, accepts the `-rc.N` form only
 against the same workspace version, and treats a branch ref as a
-non-release (a dispatch build is not a tag). Never move or reuse a
-published tag.
+non-release (a dispatch build is not a tag, so it must pass
+`--allow-branch`). Never move or reuse a published tag.
 
 ## Build each layer
 
