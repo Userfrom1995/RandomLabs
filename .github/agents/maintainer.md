@@ -118,6 +118,8 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
   {"action": "ping", "target": 40, "message": "…"} ]
 ```
 
+   - At most one entry per action per PR/issue; distinct actions (for example
+     `test` plus the three per-OS actions) may target the same PR in one run.
    - `review` → `/oc review (head <sha>)` - for PRs whose work looks complete
      and whose current head does not already carry a `/oc review (head <sha>)`
      comment (dedupe against existing comments, not against a push trigger).
@@ -169,8 +171,9 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
 
 ## Merging (your job)
 
-- When the Tester has approved a PR (`/oc approve-test` by `github-actions[bot]`
-  on that PR, NO newer `/oc fix` findings after it, AND the Evaluator has
+- When the Tester has approved a PR (the owner-authored `/oc approve-test`
+  marker published by the test workflow on that PR, NO newer `/oc fix`
+  findings after it, AND the Evaluator has
   returned `approve-eval` via the eval workflow's `/oc maintainer` handoff), merge it:
   `gh pr merge <N> --repo <owner>/<repo> --rebase` (if rebase fails due to non-linear history or merge commits, fall back to `gh pr merge <N> --repo <owner>/<repo> --merge`).
   **Do NOT use `--delete-branch`**: PR branches must always remain intact after merging for archival, history, and reference purposes.

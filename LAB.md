@@ -781,8 +781,9 @@ re-surveys the entire repo fresh and may act on multiple things in one run.
 
 - One hardcoded step (owner PAT, step-scoped) iterates the list, dedupes each
   trigger against existing comments, and posts the `/oc` comments. Max one
-  trigger per PR per run; global actions happen after PR-specific dispatch;
-  dedup before every posting.
+  trigger per action per PR per run, so distinct actions (for example `test`
+  plus the three per-OS actions) may target the same PR; global actions happen
+  after PR-specific dispatch; dedup before every posting.
 
 ## 7. PAT & identity rules (the hard lines)
 
@@ -1604,7 +1605,7 @@ remote tip).
   manual click, and the loop resumes after that click. This duty does not
   expire: approve whenever the sweep asks.
 - **Talking to the lab**: `/oc build …`, `/oc fix`, `/oc review`,
-  `/oc continue`, `/oc help` - see AGENTS.md.
+  `/oc continue`, `/oc test`, `/oc help` - see AGENTS.md.
 - **One-command setup**: `bash setup.sh` (creates/verifies everything,
   optionally writes secrets, prints onboarding).
 - **Undo everything**: `bash shutdown.sh` (backs up and removes the lab,
