@@ -15,7 +15,7 @@ New-Item -ItemType Directory -Force -Path $Dist | Out-Null
 if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
 New-Item -ItemType Directory -Force -Path $stage | Out-Null
 
-cargo build --release -p maze-chase-desktop --manifest-path (Join-Path $Root "Cargo.toml")
+cargo build --release --locked -p maze-chase-desktop --manifest-path (Join-Path $Root "Cargo.toml")
 if ($LASTEXITCODE -ne 0) {
     throw "cargo build failed with exit code $LASTEXITCODE"
 }

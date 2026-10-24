@@ -44,7 +44,7 @@ run `maze-chase-terminal.exe`.
 To build from source, use Rust 1.85 or newer and run from `maze-chase/`:
 
 ```sh
-cargo build --release -p maze-chase-terminal
+cargo build --release --locked -p maze-chase-terminal
 ./target/release/maze-chase-terminal
 ```
 

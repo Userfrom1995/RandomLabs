@@ -15,7 +15,7 @@
 #![cfg(unix)]
 
 use std::os::unix::fs::PermissionsExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 fn manifest_dir() -> PathBuf {
@@ -252,6 +252,15 @@ fn installer_refuses_a_tarball_without_the_layer_binary() {
             !out.status.success(),
             "{layer} installer accepted a tarball without maze-chase-{layer}: {}",
             String::from_utf8_lossy(&out.stdout)
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            stderr.contains("tarball") && stderr.contains("no maze-chase-"),
+            "{layer} installer must name the tarball in its missing-binary error, got: {stderr}"
+        );
+        assert!(
+            !prefix.exists(),
+            "{layer} installer must validate the payload before creating prefix directories"
         );
         assert!(
             !prefix
@@ -857,6 +866,44 @@ fn packaging_helpers_pin_a_safe_umask() {
 }
 
 #[test]
+fn checksum_manifest_is_sorted_independently_of_argument_order() {
+    let dir = scratch_dir("checksum-sort");
+    std::fs::create_dir_all(&dir).unwrap();
+    for name in ["z-last.deb", "m-middle.rpm", "a-first.tar.gz"] {
+        std::fs::write(dir.join(name), format!("payload {name}\n")).unwrap();
+    }
+    let out = Command::new("bash")
+        .arg("-c")
+        .arg(
+            ". \"$1\"; write_checksums \"$2\" z-last.deb a-first.tar.gz m-middle.rpm; cat \"$2/SHA256SUMS.txt\"",
+        )
+        .arg("bash")
+        .arg(maze_root().join("packaging").join("common.sh"))
+        .arg(&dir)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .expect("spawn the checksum helper");
+    assert!(
+        out.status.success(),
+        "write_checksums failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let manifest = String::from_utf8_lossy(&out.stdout);
+    let names: Vec<&str> = manifest
+        .lines()
+        .map(|line| line.split_whitespace().nth(1).unwrap_or(""))
+        .collect();
+    assert_eq!(
+        names,
+        ["a-first.tar.gz", "m-middle.rpm", "z-last.deb"],
+        "the checksum manifest must be sorted by artifact name, got: {manifest}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn linux_smoke_resolves_relative_inputs_and_leaf_names() {
     let smoke = std::fs::read_to_string(
         maze_root()
@@ -928,4 +975,219 @@ fn release_hardening_contracts_are_pinned() {
             && smoke.contains("\"/DIR=`\"$target`\"\""),
         "the Windows smoke must classify by leaf, compare the full version, and quote /DIR"
     );
+}
+
+fn sha256_file(path: &Path) -> String {
+    for (program, args) in [("sha256sum", &[][..]), ("shasum", &["-a", "256"][..])] {
+        let mut command = Command::new(program);
+        command.args(args).arg(path);
+        if let Ok(output) = command.output() {
+            if output.status.success() {
+                let text = String::from_utf8_lossy(&output.stdout);
+                if let Some(digest) = text.split_whitespace().next() {
+                    return digest.to_string();
+                }
+            }
+        }
+    }
+    panic!("need sha256sum or shasum to verify the committed wasm");
+}
+
+fn grouped_digits(value: usize) -> String {
+    let digits = value.to_string();
+    let head = digits.len() % 3;
+    let mut grouped = String::new();
+    if head > 0 {
+        grouped.push_str(&digits[..head]);
+    }
+    for index in (head..digits.len()).step_by(3) {
+        if !grouped.is_empty() {
+            grouped.push(',');
+        }
+        grouped.push_str(&digits[index..index + 3]);
+    }
+    grouped
+}
+
+#[test]
+fn committed_wasm_matches_every_documented_artifact_claim() {
+    let wasm = maze_root().join("web").join("maze-chase.wasm");
+    let bytes = std::fs::read(&wasm).expect("committed web/maze-chase.wasm must exist");
+    let size = bytes.len();
+    let hash = sha256_file(&wasm);
+    let grouped = grouped_digits(size);
+
+    let release = std::fs::read_to_string(maze_root().join("docs").join("release.md")).unwrap();
+    for doc in ["release.md", "web.md", "scoreboard.md", "feature-matrix.md"] {
+        let body = std::fs::read_to_string(maze_root().join("docs").join(doc)).unwrap();
+        assert!(
+            body.contains(&hash),
+            "{doc} must cite the committed wasm sha256 {hash}"
+        );
+        assert!(
+            body.contains(&grouped) || body.contains(&size.to_string()),
+            "{doc} must cite the committed wasm size {grouped}"
+        );
+        assert!(
+            !body.contains("5bcceec8356d8659d53405c593df744ba3c980c8b31582358313a53f5a2f72db"),
+            "{doc} still advertises the superseded wasm digest"
+        );
+    }
+    assert!(
+        release.contains("1.99.0") && release.contains("check-wasm.sh"),
+        "release.md must name the recorded toolchain and the wasm rebuild gate"
+    );
+    assert!(
+        release.contains("cargo run --release --locked --bin maze-chase-verify"),
+        "release.md's verifier command must use the locked dependency graph"
+    );
+}
+
+#[test]
+fn release_check_wasm_script_rebuilds_with_the_locked_toolchain() {
+    let path = maze_root()
+        .join("packaging")
+        .join("release")
+        .join("check-wasm.sh");
+    assert!(
+        path.is_file(),
+        "check-wasm.sh must exist at {}",
+        path.display()
+    );
+    let mode = std::fs::metadata(&path)
+        .expect("stat check-wasm.sh")
+        .permissions()
+        .mode();
+    assert!(
+        mode & 0o111 != 0,
+        "check-wasm.sh must be executable (mode {mode:o})"
+    );
+    let body = std::fs::read_to_string(&path).unwrap();
+    for needle in [
+        "RECORDED_RUST=\"1.99.0\"",
+        "--locked",
+        "CARGO_TARGET_DIR",
+        "cmp -s",
+        "sha256_file",
+    ] {
+        assert!(
+            body.contains(needle),
+            "check-wasm.sh must keep {needle} in its rebuild contract"
+        );
+    }
+    let status = Command::new("bash")
+        .arg("-n")
+        .arg(&path)
+        .status()
+        .expect("bash -n check-wasm.sh");
+    assert!(status.success(), "check-wasm.sh must pass bash -n");
+}
+
+#[test]
+fn committed_wasm_rebuilds_byte_identically_on_the_recorded_toolchain() {
+    let Ok(rustc) = Command::new("rustc").arg("--version").output() else {
+        eprintln!("skipping wasm rebuild: rustc is unavailable");
+        return;
+    };
+    let version = String::from_utf8_lossy(&rustc.stdout);
+    if !rustc.status.success() || !version.contains("1.99.0") {
+        eprintln!("skipping wasm rebuild: rustc is {version}");
+        return;
+    }
+    let Ok(targets) = Command::new("rustup")
+        .args(["target", "list", "--installed"])
+        .output()
+    else {
+        eprintln!("skipping wasm rebuild: rustup is unavailable");
+        return;
+    };
+    if !targets.status.success()
+        || !String::from_utf8_lossy(&targets.stdout)
+            .lines()
+            .any(|line| line.trim() == "wasm32-unknown-unknown")
+    {
+        eprintln!("skipping wasm rebuild: wasm32-unknown-unknown is not installed");
+        return;
+    }
+    let out = Command::new("bash")
+        .arg(
+            maze_root()
+                .join("packaging")
+                .join("release")
+                .join("check-wasm.sh"),
+        )
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .expect("spawn check-wasm.sh");
+    assert!(
+        out.status.success(),
+        "the committed wasm must match a clean rebuild:\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+#[test]
+fn release_workflow_pins_the_toolchain_and_locked_dependencies() {
+    let workflow = std::fs::read_to_string(
+        maze_root()
+            .join("packaging")
+            .join("release")
+            .join("maze-chase-release.yml"),
+    )
+    .unwrap();
+    assert_eq!(
+        workflow
+            .matches("rustup toolchain install 1.99.0 --profile minimal --no-self-update")
+            .count(),
+        3,
+        "every native job must pin the recorded toolchain"
+    );
+    assert_eq!(
+        workflow
+            .matches("cargo test --workspace --no-fail-fast --locked")
+            .count(),
+        3,
+        "every native job must test the locked dependency graph"
+    );
+    assert_eq!(
+        workflow
+            .matches("cargo run --release --locked --bin maze-chase-verify")
+            .count(),
+        3,
+        "every native job must run the verifier from the locked graph"
+    );
+    for token in [
+        "toolchain-linux.txt",
+        "toolchain-macos.txt",
+        "toolchain-windows.txt",
+        "missing toolchain record",
+        "bash maze-chase/packaging/release/check-wasm.sh",
+    ] {
+        assert!(
+            workflow.contains(token),
+            "the release workflow must keep {token}"
+        );
+    }
+    for script in [
+        "terminal/build-deb.sh",
+        "terminal/build-rpm.sh",
+        "terminal/linux-tarball.sh",
+        "desktop/build-deb.sh",
+        "desktop/build-rpm.sh",
+        "desktop/linux-tarball.sh",
+        "desktop/macos-app.sh",
+    ] {
+        let body = std::fs::read_to_string(maze_root().join("packaging").join(script)).unwrap();
+        assert!(
+            body.contains("cargo build --release --locked -p"),
+            "{script} must build from the locked dependency graph"
+        );
+        assert!(
+            !body.contains("cargo build --release -p"),
+            "{script} still has an unlocked cargo build"
+        );
+    }
 }

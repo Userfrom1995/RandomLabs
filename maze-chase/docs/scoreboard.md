@@ -514,8 +514,8 @@ Unit and integration suites (`cargo test --workspace`, exit 0):
 | web | 2 | 52 |
 | **Total** | **63** | **594 passed, 0 failed** |
 
-Browser artifacts (committed `web/maze-chase.wasm`, 212,438 bytes,
-sha256 `5bcceec8356d8659d53405c593df744ba3c980c8b31582358313a53f5a2f72db`,
+Browser artifacts (committed `web/maze-chase.wasm`, 212,472 bytes,
+sha256 `d6dd16bf8038ae5cbde4a81209e4835391dd4ace8a5e3eb1ef37d6b191c62ac0`,
 reproduced byte-for-byte by a second release build):
 
 - `node web/e2e/wasm-smoke.js`: `NODE SMOKE: ALL GREEN` (ABI 3, shared
@@ -535,9 +535,10 @@ reproduced byte-for-byte by a second release build):
 Style and lints:
 
 - `cargo fmt --all --check`: clean.
-- `cargo clippy --workspace --all-targets`: only the six pre-existing
-  engine style lints remain; the audio, desktop, and web crates are
-  clean.
+- `cargo clippy --workspace --all-targets`: seven engine warnings
+  remain (six library style lints plus the test-only
+  `unusual_byte_groupings` warning at `crates/engine/src/rng.rs:125`);
+  the audio, desktop, and web crates are clean.
 
 Audio evidence boundary: the Linux runner measures the synthesized PCM
 and exercises every mix path through the real sinks and browser. A
@@ -552,7 +553,8 @@ version 0.1.0) with `SOURCE_DATE_EPOCH=1792748413` on
 `runnervm8k3b6.r5kosxifsywuxjr3drjtxcygpf.phxx.internal.cloudapp.net`
 (Ubuntu 24.04.5 LTS, Linux 6.17.0-1022-azure, x86_64) under stable Rust
 1.99.0 (`b940084d7eb6a299eb4bfeb8e34901bc051e7ac4`), rpmbuild 4.18.2,
-and dpkg-deb 1.22.6. These are this host's measured bytes: the tarball
+and dpkg-deb 1.22.6. The epoch is this measurement's fixed timestamp,
+not the commit timestamp. These are this host's measured bytes: the tarball
 digests reproduce across hosts with the pinned inputs, while the RPM
 header records this build host and the deb digest is tied to the dpkg
 toolchain above, so both are host-bound. macOS and Windows packaging was
