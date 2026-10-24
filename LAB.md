@@ -755,7 +755,8 @@ concurrency:
   Repo-wide items (schedule, dispatch without PR) serialize on the
   `global` group.
 - No scoping of decisions - every run has full repo-wide vision and authority;
-  per-run safety comes from fresh re-survey + dedup + one-trigger-per-PR-per-run.
+  per-run safety comes from fresh re-survey + dedup + one trigger per action per
+  PR per run.
 - Workers get per-issue concurrency groups with `queue: max` (same-PR builds
   never overlap; a queued real trigger cannot be displaced by a skip-only
   comment run and duplicate triggers queue FIFO; different PRs build in
