@@ -42,12 +42,16 @@ if [ -z "$TARBALL" ] && [ ! -f "$BIN" ]; then
   BIN="$LOCAL_BIN"
 fi
 
-mkdir -p "$PREFIX/bin" "$PREFIX/share/doc/maze-chase"
-
 if [ ! -f "$BIN" ]; then
-  echo "no maze-chase-terminal binary in $WORK (build first or pass --tarball)" >&2
+  if [ -n "$TARBALL" ]; then
+    echo "no maze-chase-terminal binary in tarball $TARBALL" >&2
+  else
+    echo "no maze-chase-terminal binary in $WORK (build first, or pass --tarball)" >&2
+  fi
   exit 1
 fi
+
+mkdir -p "$PREFIX/bin" "$PREFIX/share/doc/maze-chase"
 
 install -m 0755 "$BIN" "$PREFIX/bin/maze-chase-terminal"
 DOCS="$WORK/README-terminal.md"
@@ -55,5 +59,5 @@ DOCS="$WORK/README-terminal.md"
 [ -f "$DOCS" ] && install -m 0644 "$DOCS" "$PREFIX/share/doc/maze-chase/README-terminal.md"
 
 echo "installed maze-chase-terminal to $PREFIX/bin"
-echo "uninstall: bash $HERE/uninstall-linux.sh --prefix $PREFIX"
+printf 'uninstall: bash %q --prefix %q\n' "$HERE/uninstall-linux.sh" "$PREFIX"
 "$PREFIX/bin/maze-chase-terminal" --version

@@ -37,13 +37,17 @@ if [ -z "$TARBALL" ] && [ ! -f "$BIN" ]; then
   BIN="$LOCAL_BIN"
 fi
 
-mkdir -p "$PREFIX/bin" "$PREFIX/share/applications" \
-  "$PREFIX/share/icons/hicolor/11x11/apps" "$PREFIX/share/doc/maze-chase"
-
 if [ ! -f "$BIN" ]; then
-  echo "no maze-chase-desktop binary in $WORK (build first or pass --tarball)" >&2
+  if [ -n "$TARBALL" ]; then
+    echo "no maze-chase-desktop binary in tarball $TARBALL" >&2
+  else
+    echo "no maze-chase-desktop binary in $WORK (build first, or pass --tarball)" >&2
+  fi
   exit 1
 fi
+
+mkdir -p "$PREFIX/bin" "$PREFIX/share/applications" \
+  "$PREFIX/share/icons/hicolor/11x11/apps" "$PREFIX/share/doc/maze-chase"
 
 install -m 0755 "$BIN" "$PREFIX/bin/maze-chase-desktop"
 install -m 0644 "$WORK/maze-chase.desktop" "$PREFIX/share/applications/maze-chase.desktop"
@@ -56,5 +60,5 @@ if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$PREFIX/share/applications" >/dev/null 2>&1 || true
 fi
 echo "installed maze-chase-desktop to $PREFIX/bin"
-echo "uninstall: bash $HERE/uninstall-linux.sh --prefix $PREFIX"
+printf 'uninstall: bash %q --prefix %q\n' "$HERE/uninstall-linux.sh" "$PREFIX"
 "$PREFIX/bin/maze-chase-desktop" --version
