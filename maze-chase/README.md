@@ -7,11 +7,13 @@ project; the in-repo Python game (`pacman/`, issue #552) is a behavioral
 feel reference, never a code source. Clean-room rules live in
 `docs/legal.md`.
 
-Current status: **playable on Linux, macOS, and Windows; release
-packaging now covers Linux deb/rpm/tarballs, a per-user Windows
-installer plus zip, and a macOS app, dmg, and tarball (unsigned), and
-the open tracking issue #582 carries native per-OS release verification
-and the final re-verification of every claim.** The terminal layer's
+Current status: **playable on Linux, macOS, and Windows. The Linux
+release packages (deb, rpm, tarballs) are built and smoke-tested; the
+packaging scripts cover a per-user Windows installer plus zip and a
+macOS app, dmg, and tarball (unsigned), and those native artifacts ship
+once the release workflow is installed. The open tracking issue #582
+carries native per-OS release verification and the final re-verification
+of every claim.** The terminal layer's
 real-emulator truth is recorded in
 [docs/terminal-compat.md](docs/terminal-compat.md) with committed
 evidence and outstanding findings in
