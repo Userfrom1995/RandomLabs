@@ -11374,7 +11374,7 @@ for d in decisions:
     # must go out with the owner credential. Handled here (never
     # via an agent-run gh call, never via /oc comment) because no
     # agent env may hold the PAT.
-    SWEEP_ALLOWLIST = ("poolduel-m1", "poolduel-m2", "poolduel-m9", "poolduel-m10-soak", "tor-cli", "pet-release")
+    SWEEP_ALLOWLIST = ("poolduel-m1", "poolduel-m2", "poolduel-m9", "poolduel-m10-soak", "tor-cli", "pet-release", "maze-chase-release")
     if action == "sweep":
         wf = d.get("workflow", "")
         ref = d.get("ref", "") or "main"
