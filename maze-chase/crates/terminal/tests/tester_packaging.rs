@@ -361,6 +361,99 @@ fn release_docs_crosslink_only_committed_files() {
 }
 
 #[test]
+fn hub_and_readme_do_not_claim_unbuilt_native_artifacts() {
+    // The hub is the first user-facing surface. The Play call to action
+    // must come before the release status, the status must stay short and
+    // user-facing, and it must separate the built Linux packages from the
+    // native macOS/Windows rows that only ship once the release workflow
+    // is installed. The review rounds found the block both buried the
+    // game and claimed native artifacts that were never built.
+    let hub = std::fs::read_to_string(maze_root().join("index.html")).unwrap();
+    let play = hub
+        .find("<a class=\"play\"")
+        .expect("hub must carry the Play call to action");
+    let status_open = hub
+        .find("<div class=\"status\">")
+        .expect("hub must carry a release status block");
+    assert!(
+        play < status_open,
+        "the Play call to action must precede the status block"
+    );
+    let status_html = hub[status_open..]
+        .split_once("</div>")
+        .expect("the status block must close")
+        .0;
+    let status = status_html
+        .split('<')
+        .map(|piece| piece.split_once('>').map(|(_, text)| text).unwrap_or(piece))
+        .collect::<Vec<_>>()
+        .join(" ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(
+        status.contains("Linux packages") && status.contains("built and smoke-tested"),
+        "the status must report the Linux packages as built and smoke-tested: {status}"
+    );
+    assert!(
+        status.contains("ship once the release workflow is installed"),
+        "the status must mark the native rows as pending the release workflow: {status}"
+    );
+    for overclaim in [
+        "built and signed",
+        "built and smoked by the native release job",
+        "Windows zip was built",
+    ] {
+        assert!(
+            !status.contains(overclaim),
+            "the status must not claim unbuilt native artifacts ({overclaim}): {status}"
+        );
+    }
+    for qa_copy in [
+        "passed",
+        "assertions",
+        "harness",
+        "E2E",
+        "pre-Pondwake",
+        "Tester final rerun",
+        "commit ",
+    ] {
+        assert!(
+            !status.contains(qa_copy),
+            "the status must stay user-facing, found {qa_copy}: {status}"
+        );
+    }
+    let words = status.split_whitespace().count();
+    assert!(
+        words <= 120,
+        "the status block must stay compact, found {words} words: {status}"
+    );
+
+    let readme = std::fs::read_to_string(maze_root().join("README.md"))
+        .unwrap()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(
+        readme.contains("Linux release packages (deb, rpm, tarballs) are built and smoke-tested"),
+        "the README must report the Linux packages as built and smoke-tested"
+    );
+    assert!(
+        readme.contains("those native artifacts ship once the release workflow is installed"),
+        "the README must mark the native rows as pending the release workflow"
+    );
+    for overclaim in [
+        "built and signed",
+        "built and smoked by the native release job",
+    ] {
+        assert!(
+            !readme.contains(overclaim),
+            "the README must not claim unbuilt native artifacts ({overclaim})"
+        );
+    }
+}
+
+#[test]
 fn release_tag_gate_is_fail_closed() {
     let gate = maze_root()
         .join("packaging")
