@@ -514,8 +514,8 @@ Unit and integration suites (`cargo test --workspace`, exit 0):
 | web | 2 | 52 |
 | **Total** | **63** | **594 passed, 0 failed** |
 
-Browser artifacts (committed `web/maze-chase.wasm`, 212,472 bytes,
-sha256 `d6dd16bf8038ae5cbde4a81209e4835391dd4ace8a5e3eb1ef37d6b191c62ac0`,
+Browser artifacts (committed `web/maze-chase.wasm`, 212,438 bytes,
+sha256 `5bcceec8356d8659d53405c593df744ba3c980c8b31582358313a53f5a2f72db`,
 reproduced byte-for-byte by a second release build):
 
 - `node web/e2e/wasm-smoke.js`: `NODE SMOKE: ALL GREEN` (ABI 3, shared
@@ -535,10 +535,9 @@ reproduced byte-for-byte by a second release build):
 Style and lints:
 
 - `cargo fmt --all --check`: clean.
-- `cargo clippy --workspace --all-targets`: seven engine warnings
-  remain (six library style lints plus the test-only
-  `unusual_byte_groupings` warning at `crates/engine/src/rng.rs:125`);
-  the audio, desktop, and web crates are clean.
+- `cargo clippy --workspace --all-targets`: only the six pre-existing
+  engine style lints remain; the audio, desktop, and web crates are
+  clean.
 
 Audio evidence boundary: the Linux runner measures the synthesized PCM
 and exercises every mix path through the real sinks and browser. A
@@ -553,12 +552,13 @@ version 0.1.0) with `SOURCE_DATE_EPOCH=1792748413` on
 `runnervm8k3b6.r5kosxifsywuxjr3drjtxcygpf.phxx.internal.cloudapp.net`
 (Ubuntu 24.04.5 LTS, Linux 6.17.0-1022-azure, x86_64) under stable Rust
 1.99.0 (`b940084d7eb6a299eb4bfeb8e34901bc051e7ac4`), rpmbuild 4.18.2,
-and dpkg-deb 1.22.6. The epoch is this measurement's fixed timestamp,
-not the commit timestamp. These are this host's measured bytes: the tarball
-digests reproduce across hosts with the pinned inputs, while the RPM
-header records this build host and the deb digest is tied to the dpkg
-toolchain above, so both are host-bound. macOS and Windows packaging was
-not run on this container and is not claimed here.
+and dpkg-deb 1.22.6. The epoch is this measurement's fixed timestamp
+(the commit's author timestamp), not its committer timestamp. These are
+this host's measured bytes: the tarball digests reproduce twice on this
+host with the pinned inputs, while cross-host byte identity is not
+claimed; the RPM header records this build host and the deb digest is
+tied to the dpkg toolchain above, so both are host-bound. macOS and
+Windows packaging was not run on this container and is not claimed here.
 
 Version and tag contract:
 
@@ -600,3 +600,64 @@ probe capture remains byte-identical; the E2E asserts it. The
 illustrative gameplay capture was recorded from the same window
 pipeline before this loop change and is not claimed to be byte-identical.
 
+## 2026-10-24 (browser artifact and full-suite rerun, Linux x86_64)
+
+Measured from the `maze-chase/` tree at head `85ff5a19` (workspace
+version 0.1.0); the committed wasm first appears at `32a8364c`. The
+Linux stage used `SOURCE_DATE_EPOCH=1792748413` on `runnervmtai0g`
+(Ubuntu 24.04.5 LTS, Linux 6.17.0-1022-azure, x86_64) under stable Rust
+1.99.0 (`b940084d7eb6a299eb4bfeb8e34901bc051e7ac4`), rpmbuild 4.18.2,
+and dpkg-deb 1.22.6. This section records the post-unification browser
+artifact and the rerun on this tree; the 2026-10-22 sections keep their
+own 594-test table and package digests (the latter at `829885d01`).
+macOS and Windows
+packaging was not run on this container and is not claimed here.
+
+Browser artifact (committed `web/maze-chase.wasm`, rebuilt with
+`cargo build --release --locked --target wasm32-unknown-unknown -p
+maze-chase-web` on the recorded toolchain): 212,472 bytes, sha256
+`d6dd16bf8038ae5cbde4a81209e4835391dd4ace8a5e3eb1ef37d6b191c62ac0`.
+`packaging/release/check-wasm.sh` reproduces the committed bytes from a
+clean scratch rebuild and fails closed on a mismatch.
+
+- `node web/e2e/wasm-smoke.js`: `NODE SMOKE: ALL GREEN`.
+- `node web/e2e/tester-regression.js`: `TESTER REGRESSION: ALL GREEN`.
+- `node web/e2e/boot-gate-e2e.js`: `BOOT-GATE-E2E: ALL GREEN` (33
+  assertions).
+- `node web/e2e/browser-e2e.js` (headless chromium over CDP):
+  `E2E: ALL GREEN` (279 assertions, zero console errors).
+- `node web/e2e/tester-rebind-lifecycle.js`: `REBIND LIFECYCLE: ALL
+  GREEN`.
+- `node web/e2e/tester-audio-e2e.js`: `TESTER AUDIO E2E: ALL GREEN`
+  (17 checks).
+
+Unit and integration suites (`cargo test --workspace --no-fail-fast
+--locked`): 63 targets, 620 passed, 0 failed.
+
+Style and lints:
+
+- `cargo fmt --all --check`: clean.
+- `cargo clippy --workspace --all-targets`: seven engine warnings
+  remain (six library style lints plus the test-only
+  `unusual_byte_groupings` warning at `crates/engine/src/rng.rs:125`);
+  the audio, desktop, and web crates are clean.
+
+Linux stage (`packaging/release/stage-linux.sh`, run twice):
+
+| Artifact | SHA-256 |
+|---|---|
+| `maze-chase-terminal_0.1.0_amd64.deb` | `4c573f6f74c7ab4cd097a3844f7c95cc76cfb91594dcf68b17a95fbdd1b8f6ee` |
+| `maze-chase-desktop_0.1.0_amd64.deb` | `229be715cc78211fa566b5e9c261aa1399ec7d5c65a16c2245c36e59e50d2c5d` |
+| `maze-chase-terminal-0.1.0-1.x86_64.rpm` | `cc591eee9ff5bb74e7457c40b46520601599b0cb8b11735ecb07c7f6a0769e73` |
+| `maze-chase-desktop-0.1.0-1.x86_64.rpm` | `6a6542c731d82e912d75800908675309a6e05fcda9b67c3b6b9086d303028485` |
+| `maze-chase-terminal-0.1.0-linux-x86_64.tar.gz` | `aeb402eb001262881f8e2ebffb75f0419c987d2a483b29020974fb14c9afc0ac` |
+| `maze-chase-desktop-0.1.0-linux-x86_64.tar.gz` | `20136625311bd5e343de980bb494611ad8154f646640fbc9fa20e17ac8710125` |
+
+The second full stage reproduced the same `SHA256SUMS.txt` byte for
+byte, `sha256sum -c` passed all six artifacts, and `smoke-linux.sh`
+unpacked both deb and rpm payloads, ran each binary's `--version` and
+`--help`, and installed, ran, and uninstalled both tarballs through the
+installers extracted from the archives. The tarball digests reproduce
+twice on this host with the pinned inputs; the deb is tied to the dpkg
+toolchain above and the RPM header records this build host, so both are
+host-bound. Cross-host byte identity is not claimed.
