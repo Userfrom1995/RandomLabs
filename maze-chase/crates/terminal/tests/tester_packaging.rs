@@ -209,6 +209,113 @@ fn installer_refuses_missing_tarball_without_silent_success() {
 }
 
 #[test]
+fn installer_refuses_a_tarball_without_the_layer_binary() {
+    // The tarball path must never fall back to target/release: a
+    // malformed archive (here, one with a README and no game binary)
+    // must fail even when a developer build exists in the workspace.
+    for layer in ["terminal", "desktop"] {
+        let root = scratch_dir(&format!("missing-binary-{layer}"));
+        let payload = root.join("payload");
+        std::fs::create_dir_all(&payload).unwrap();
+        std::fs::write(payload.join("README.md"), "not a game\n").unwrap();
+        let tarball = root.join("broken.tar.gz");
+        let status = Command::new("tar")
+            .args([
+                "-czf",
+                tarball.to_str().unwrap(),
+                "-C",
+                payload.to_str().unwrap(),
+                ".",
+            ])
+            .status()
+            .expect("create malformed tarball");
+        assert!(status.success(), "tar failed to create the fixture");
+        let installer = maze_root()
+            .join("packaging")
+            .join(layer)
+            .join("install-linux.sh");
+        let prefix = root.join("prefix");
+        let out = Command::new("bash")
+            .arg(&installer)
+            .args([
+                "--tarball",
+                tarball.to_str().unwrap(),
+                "--prefix",
+                prefix.to_str().unwrap(),
+            ])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .expect("spawn installer");
+        assert!(
+            !out.status.success(),
+            "{layer} installer accepted a tarball without maze-chase-{layer}: {}",
+            String::from_utf8_lossy(&out.stdout)
+        );
+        assert!(
+            !prefix
+                .join("bin")
+                .join(format!("maze-chase-{layer}"))
+                .exists(),
+            "{layer} installer must not install a fallback developer binary"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+}
+
+#[test]
+fn release_matrix_commands_resolve_from_the_documented_directory() {
+    // The matrix preamble names the working directory; every command in
+    // the table must exist when run from there (the earlier guide ran
+    // from the repo root and did not).
+    let release = std::fs::read_to_string(maze_root().join("docs").join("release.md")).unwrap();
+    let matrix = release
+        .split_once("## Artifact matrix")
+        .expect("release.md must carry the artifact matrix")
+        .1
+        .split_once("\n## ")
+        .expect("the matrix section must end")
+        .0;
+    assert!(
+        matrix.contains("Every script runs from `maze-chase/`"),
+        "the matrix preamble must name its working directory"
+    );
+    let mut checked = 0;
+    for row in matrix.lines().filter(|line| line.starts_with('|')) {
+        let cells: Vec<&str> = row.split('|').collect();
+        if cells.len() < 5 {
+            continue;
+        }
+        let mut last_dir = String::new();
+        for token in cells[3].split('`') {
+            if !(token.ends_with(".sh") || token.ends_with(".ps1")) {
+                continue;
+            }
+            let path = if token.contains('/') {
+                last_dir = token
+                    .rsplit_once('/')
+                    .map(|(dir, _)| dir.to_string())
+                    .unwrap_or_default();
+                maze_root().join(token)
+            } else {
+                maze_root().join(&last_dir).join(token)
+            };
+            assert!(
+                path.is_file(),
+                "matrix command {token} must resolve at {}",
+                path.display()
+            );
+            checked += 1;
+        }
+    }
+    assert!(
+        checked >= 12,
+        "expected the full native artifact matrix, checked {checked} commands"
+    );
+}
+
+#[test]
 fn release_docs_crosslink_only_committed_files() {
     let docs = maze_root().join("docs");
     for name in ["release.md", "parity.md", "scoreboard.md"] {
