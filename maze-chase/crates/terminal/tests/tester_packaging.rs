@@ -1017,6 +1017,8 @@ fn committed_wasm_matches_every_documented_artifact_claim() {
     let hash = sha256_file(&wasm);
     let grouped = grouped_digits(size);
 
+    const HISTORICAL_WASM: &str =
+        "5bcceec8356d8659d53405c593df744ba3c980c8b31582358313a53f5a2f72db";
     let release = std::fs::read_to_string(maze_root().join("docs").join("release.md")).unwrap();
     for doc in ["release.md", "web.md", "scoreboard.md", "feature-matrix.md"] {
         let body = std::fs::read_to_string(maze_root().join("docs").join(doc)).unwrap();
@@ -1028,10 +1030,18 @@ fn committed_wasm_matches_every_documented_artifact_claim() {
             body.contains(&grouped) || body.contains(&size.to_string()),
             "{doc} must cite the committed wasm size {grouped}"
         );
-        assert!(
-            !body.contains("5bcceec8356d8659d53405c593df744ba3c980c8b31582358313a53f5a2f72db"),
-            "{doc} still advertises the superseded wasm digest"
-        );
+        // The superseded digest may survive only in the dated 2026-10-22
+        // scoreboard section, which keeps its own measurement provenance;
+        // every current-artifact claim must carry the committed bytes.
+        if let Some(offset) = body.find(HISTORICAL_WASM) {
+            let section_start = body[..offset].rfind("\n## ").map_or(0, |index| index + 1);
+            let section = &body[section_start..];
+            let header = section.lines().next().unwrap_or_default();
+            assert!(
+                doc == "scoreboard.md" && header.starts_with("## 2026-10-22"),
+                "{doc} advertises the superseded wasm digest outside a historical section: {header}"
+            );
+        }
     }
     assert!(
         release.contains("1.99.0") && release.contains("check-wasm.sh"),
