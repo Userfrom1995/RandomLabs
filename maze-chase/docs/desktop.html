@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<!-- generated from docs/desktop.md; source-bytes: 10118; source-fnv: 8cce417009df85a7 -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Maze Chase docs: Desktop guide</title>
+<link rel="icon" href="../web/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="../site.css" />
+</head>
+<body class="site">
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <a class="brand" href="../index.html">Maze Chase <span>starring Rill the pond frog</span></a>
+  <nav class="site-nav" aria-label="Maze Chase site">
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../downloads.html">Downloads</a>
+    <a href="../compatibility.html">Compatibility</a>
+    <a href="../releases.html">Releases</a>
+    <a href="./">Docs</a>
+  </nav>
+</header>
+<main class="wrap" id="main">
+  <div class="docs-shell">
+    <aside class="docs-nav">
+      <p>All documents</p>
+      <ul>
+<li><a href="index.html">Docs home</a></li>
+<li><a href="web.html">Browser guide</a></li>
+<li><a href="desktop.html" aria-current="page">Desktop guide</a></li>
+<li><a href="terminal.html">Terminal guide</a></li>
+<li><a href="terminal-compat.html">Terminal compatibility</a></li>
+<li><a href="feature-matrix.html">Feature matrix</a></li>
+<li><a href="parity.html">Parity checklist</a></li>
+<li><a href="scoreboard.html">Release scoreboard</a></li>
+<li><a href="release.html">Release guide</a></li>
+<li><a href="design.html">Design language</a></li>
+<li><a href="identity.html">Identity and naming</a></li>
+<li><a href="audio.html">Sound identity</a></li>
+<li><a href="research.html">Mechanics research</a></li>
+<li><a href="behavior-spec.html">Behavior reference</a></li>
+<li><a href="legal.html">Clean-room log</a></li>
+      </ul>
+      <p>Project</p>
+      <ul>
+        <li><a href="../index.html">Play the game</a></li>
+        <li><a href="../releases.html">Release notes</a></li>
+        <li><a href="../downloads.html">Downloads</a></li>
+      </ul>
+    </aside>
+    <article class="doc">
+<h1 id="maze-chase-desktop-install-and-launch-guide">Maze Chase: desktop install and launch guide</h1>
+<p>The native desktop game (<code>maze-chase-desktop</code>): a windowed/fullscreen GUI on the shared deterministic engine, with keyboard plus gamepad input, pixel menus, machine high scores, and synthesized audio. Settings and scores live in the same directory as the terminal game (<code>~/.maze-chase</code> by default), so both layers share configuration and the leaderboard.</p>
+<h2 id="install">Install</h2>
+<p>Pick the artifact for your OS from the release page once a release is published (or build one with the commands below). Every download is checksummed with <code>SHA256SUMS.txt</code>; <a href="release.html">release.md</a> covers upgrading, uninstalling, and clearing saved settings.</p>
+<ul>
+<li><strong>Linux</strong>: <code>maze-chase-desktop_&lt;version&gt;_&lt;arch&gt;.deb</code>, <code>maze-chase-desktop-&lt;version&gt;-1.&lt;arch&gt;.rpm</code>, or the portable tarball. <code>sudo dpkg -i &lt;deb&gt;</code> or <code>sudo rpm -i &lt;rpm&gt;</code> installs the game, menu entry, and icon system-wide; the tarball's <code>install-linux.sh</code> installs per-user.</li>
+<li><strong>Windows</strong>: <code>maze-chase-desktop-&lt;version&gt;-windows-x86_64-setup.exe</code> installs per-user with no administrator prompt (Start Menu and optional desktop shortcut, standard uninstaller). The zip is portable.</li>
+<li><strong>macOS</strong>: open the dmg and drag <code>Maze Chase.app</code> to Applications, or extract the tarball.</li>
+</ul>
+<p>To build from source, use Rust 1.89+ with cargo. System needs:</p>
+<ul>
+<li><strong>Linux</strong>: <code>sudo apt-get install libasound2-dev libudev-dev</code> (build-time ALSA headers for audio, udev headers for gamepad input) plus <code>libxkbcommon0 libxkbcommon-x11-0</code> (winit runtime for window creation and keyboard handling). Most desktop distributions already ship the xkbcommon pair; the ALSA and udev headers are the packages a fresh build machine is likely missing.</li>
+<li><strong>Windows</strong>: nothing beyond the Rust toolchain (WASAPI audio and Win32 windowing need no extra installs). The zip ships an unsigned <code>.exe</code>: the first launch shows the SmartScreen &quot;Windows protected your PC&quot; prompt (choose More info, then Run anyway), and Windows remembers the choice after that.</li>
+<li><strong>macOS</strong>: nothing beyond the Rust toolchain (CoreAudio and AppKit need no extra installs). The bundle is unsigned: first launch needs right-click Open, then Gatekeeper remembers it.</li>
+</ul>
+<p>Build and install from the repo root (<code>RandomLabs/</code>):</p>
+<pre><code class="language-sh"># Linux: release tarball plus install into $HOME/.local
+bash maze-chase/packaging/desktop/linux-tarball.sh
+bash maze-chase/packaging/desktop/install-linux.sh
+# From a tarball instead:
+bash maze-chase/packaging/desktop/install-linux.sh --tarball maze-chase/dist/maze-chase-desktop-&lt;version&gt;-linux-x86_64.tar.gz --prefix /tmp/mcprefix
+
+# Native packages (on the matching host):
+bash maze-chase/packaging/desktop/build-deb.sh
+bash maze-chase/packaging/desktop/build-rpm.sh
+
+# Windows (on a Windows machine): zip plus per-user installer
+powershell -ExecutionPolicy Bypass -File maze-chase/packaging/desktop/windows-installer.ps1
+
+# macOS (on a Mac): app and dmg (tarball: macos-tarball.sh)
+bash maze-chase/packaging/desktop/macos-dmg.sh</code></pre>
+<p>Or run uninstalled during development (cargo commands run from inside <code>maze-chase/</code>, the workspace root):</p>
+<pre><code class="language-sh">cargo run --release -p maze-chase-desktop -- --help</code></pre>
+<h2 id="launch">Launch</h2>
+<pre><code class="language-sh">maze-chase-desktop [OPTIONS]        # Linux / macOS
+maze-chase-desktop.exe [OPTIONS]    # Windows (from the zip; same options)
+
+Options:
+  --fullscreen                 start fullscreen
+  --no-pad                     ignore gamepads
+  --dir &lt;path&gt;                 config/scores directory (default ~/.maze-chase)
+  --probe &lt;frames&gt; &lt;shot.ppm&gt;  render N frames, save a screenshot, exit
+  --help / --version</code></pre>
+<p>The window opens at 1100x760 and rescales live: the board renders at an integer magnification with a side HUD, and windows too small for scale 1 show a too-small card instead of a clipped game. <code>F</code> toggles borderless fullscreen at runtime.</p>
+<p>Window sizing is in physical pixels, so a HiDPI display renders at its real density instead of at the logical size, and a display change re-reads the scale factor and repaints. Frames stay bounded: a window larger than the 16.7M-pixel software budget renders at the largest proportional size inside it and is scaled up on presentation, with a one-time stderr reason and a <code>(scaled render)</code> title suffix rather than a silent freeze. The event loop only runs continuous frames while playing (or while <code>--probe</code> counts down); menus, help, scores, settings, pause, and game-over schedule no continuous frames, and a bounded 16 ms gamepad poll redraws only on input, so an idle window does no continuous rendering.</p>
+<h2 id="controls">Controls</h2>
+<p>Keyboard (physical codes, layout-independent; remappable in Settings/Keybinds): arrows or WASD steer, <code>P</code> pauses, <code>M</code> mutes, <code>F</code> fullscreen, <code>Esc</code> menus/back.</p>
+<p>Gamepad (remappable in Settings/Padbinds): left stick or D-pad steers, South/A confirms, East/B backs out, North/Y mutes, Start pauses. Sticks use a 0.35 deadzone; the dominant axis wins on diagonals. With no pad connected the game plays identically on keyboard (<code>--no-pad</code> forces that state even with hardware present).</p>
+<h2 id="screens">Screens</h2>
+<p>Title (Play, How to play, High scores, Settings, Audio, Quit), Help (scrollable), High scores (machine top 10, shared with the terminal game), Settings (difficulty, theme, reduced flash, reduced motion, high contrast, FPS readout, keybinds, padbinds), Audio (master/music/SFX sliders plus mute), Keybinds and Padbinds (duplicate-safe capture, <code>Esc</code> cancels), Pause (resume or quit to title over the frozen board), Game over (score, level, rank).</p>
+<p>Difficulty presets are honest engine configurations: Cozy is Classic from level 1, Standard is Classic from level 2, Harsh is Sprint (single wick). Volumes apply live while sliders move.</p>
+<h2 id="audio">Audio</h2>
+<p>Layered one-shot effects and the five original multi-track tunes synthesize at runtime (44.1 kHz) from the shared audio data: seven voice families build mallet plucks, drops, reeds, drones, glass, bells, and dry plucks, and the music runs at the single shared 108 BPM with swung eighths. The title lead, counterline, and drop accents schedule on separate track lanes. Music defaults to 60 percent and SFX to 80 percent; master, music, and SFX gain changes take effect immediately on static screens and fade over 120 ms during play, and mute silences both buses without removing visual feedback. On machines with no audio device the game starts silently instead of failing; the Audio screen still records every level.</p>
+<h2 id="verification-without-a-display">Verification without a display</h2>
+<p><code>--probe</code> opens the window, presents N real frames through the OS compositor path, writes the last frame as binary PPM, and exits 0:</p>
+<pre><code class="language-sh">xvfb-run -a maze-chase-desktop --no-pad --probe 90 /tmp/shot.ppm</code></pre>
+<p>CI and per-OS runners use this to prove the window path end to end. A committed sample from that pipeline ships in this repo (<code>docs/desktop-probe.ppm</code>: P6 binary PPM, 1100x760, 2508016 bytes, captured with <code>xvfb-run -a maze-chase-desktop --no-pad --probe 30</code>); open it with any image viewer (<code>xdg-open maze-chase/docs/desktop-probe.ppm</code> on Linux) to preview the title frame without building. The committed gameplay capture <code>docs/desktop-gameplay.ppm</code> (P6 binary PPM, 1100x760, 2508016 bytes, sha256 <code>02ea979c910ddca2feea3a0731e812cae0cb8bd0f05416eb3d3fc8b32bd1390f</code>) comes from the same window pipeline after driving a play state under Xvfb (Return to start, then Right and Down to steer) before the probe saved the frame, so the board, HUD, and actors are all visible.</p>
+<p><code>--fullscreen --probe</code> waits for the window manager to apply the borderless-fullscreen resize before it captures, so the PPM carries the display dimensions instead of the launch window's 1100x760 (the wait is bounded at two seconds, so a window manager that never resizes cannot hang the run; the capture is then re-rendered at the size the window actually has). Borderless fullscreen is a window-manager feature: a bare X server with no WM never resizes, so start a WM inside Xvfb when verifying fullscreen captures:</p>
+<pre><code class="language-sh">Xvfb :99 -screen 0 1280x1024x24 &amp;
+DISPLAY=:99 openbox &amp;
+DISPLAY=:99 maze-chase-desktop --no-pad --fullscreen --probe 30 /tmp/shot.ppm
+# the PPM header carries the display size: P6 1280 1024 ...</code></pre>
+<p>If the window or the software surface cannot be created at all, the game prints the backend reason on stderr and exits 1: no silent success with no window and no screenshot.</p>
+<p>The 5x7 HUD face, the framebuffer, the board rasterizer, input mapping, pad parsing, the synth, and the screens all carry unit tests (<code>cargo test -p maze-chase-desktop</code>); <code>tests/headless.rs</code> replays a scripted run and asserts pixel-identical output across seeds.</p>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<ul>
+<li><code>cannot open a display</code>: run inside a desktop session (or Xvfb for probes). Wayland and X11 both work through winit.</li>
+<li><code>cannot create the game window</code>, <code>cannot create the display context</code>, or <code>cannot create the presentation surface</code>: the display or window manager refused the window or the software surface; the game prints the backend reason on stderr and exits 1. Run on a desktop session, and add a window manager inside Xvfb for fullscreen probes (see above).</li>
+<li><code>libxkbcommon-x11.so could not be loaded</code> (Linux): install <code>libxkbcommon0 libxkbcommon-x11-0</code>.</li>
+<li>ALSA <code>cannot find card</code> spew on voiceless machines: harmless stderr from the audio backend while it falls back to silence.</li>
+<li><code>alsa-sys build failed</code> at compile time (Linux): install <code>libasound2-dev</code> and rebuild.</li>
+<li>No gamepad appears: check the OS sees it first (<code>/dev/input</code>, Game Controllers, System Information); the Padbinds screen only lists OS-present devices.</li>
+<li>Window too small card: drag larger; the minimum is 492x296 for the board at scale 1 plus the HUD.</li>
+</ul>
+<h2 id="reproducible-builds">Reproducible builds</h2>
+<p>Pin the toolchain (<code>rustc --version</code> is recorded in release notes), <code>cargo build --release --locked -p maze-chase-desktop</code> from a clean checkout (inside <code>maze-chase/</code>), then the per-OS staging script above. The engine, assets, audio, and config crates are dependency-light on purpose; the desktop crate adds exactly four third-party crates (winit, softbuffer, gilrs, rodio), all pinned in <code>maze-chase/Cargo.lock</code>.</p>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span>Maze Chase is an original game. MIT licensed.</span>
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../releases.html">Releases</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs">GitHub</a>
+    <span class="sep"></span>
+    <span>Tracking issue <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">#582</a></span>
+  </div>
+</footer>
+</body>
+</html>

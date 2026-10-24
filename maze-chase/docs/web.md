@@ -1,6 +1,6 @@
 # Maze Chase: browser install and launch guide
 
-Play the same engine in a browser tab: `maze-chase/play.html` drives the
+Play the same engine in a browser tab: `maze-chase/index.html` drives the
 `maze-chase-web` Rust crate compiled to WebAssembly, with keyboard plus
 touch controls, DPR-aware canvas sizing, and WebAudio sound. No gameplay
 logic lives in the page or the harness: the `.wasm` owns the session,
@@ -16,13 +16,15 @@ The page must be served over http: browsers refuse `fetch()` of the
 a blank page) when the engine cannot load.
 
 ```
-# Inside maze-chase/ (serves play.html at /play.html):
+# Inside maze-chase/ (serves the game at /index.html):
 python3 -m http.server 8000   # Windows: python -m http.server 8000
-# Open http://localhost:8000/play.html
+# Open http://localhost:8000/index.html
 ```
 
-On GitHub Pages the committed build plays from the project hub: open
-the hub `index.html`, press Play. The shipped artifact is
+On GitHub Pages the game opens directly at the project URL:
+`maze-chase/index.html` is the playable page, and the site subpages carry
+installation, downloads, compatibility, releases, and documentation. The
+shipped artifact is
 `maze-chase/web/maze-chase.wasm` (about 207 KiB / 212,472 bytes, zero
 imports, fully
 self-contained), built reproducibly (see below); `web/maze-chase.js` is
@@ -134,12 +136,15 @@ the HUD previews that state until you press Start.
   error card instead of Ready. Rerun any time from `maze-chase/`:
   `node web/e2e/wasm-smoke.js`, `node web/e2e/boot-gate-e2e.js`, then
   (with the http server plus CDP chromium up, see
-  `web/e2e/README.md`) `node web/e2e/browser-e2e.js`.
+  `web/e2e/README.md`) `node web/e2e/browser-e2e.js` and
+  `node web/e2e/site-e2e.js`. The site harness also runs unchanged against
+  the deployed Pages preview base URL, where it crawls every subpage and
+  rendered doc for broken links and verifies the game-first boot at
+  390 by 844.
 
 ## Troubleshooting
 
-- Error card "Could not load the game engine": you opened `play.html`
-  from disk. Serve the directory over http (above) and reload.
+- Error card "Could not load the game engine": you opened `index.html` from disk. Serve the directory over http (above) and reload.
 - "Version mismatch": the page and the `.wasm` disagree. Rebuild the
   crate (below) so `web/maze-chase.wasm` matches `web/maze-chase.js`.
 - Silent audio: the browser blocked the context (tap the "Sound is

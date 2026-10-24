@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<!-- generated from docs/index.md; source-bytes: 2550; source-fnv: 41d67bf72047ffa6 -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Maze Chase docs: Docs home</title>
+<link rel="icon" href="../web/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="../site.css" />
+</head>
+<body class="site">
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <a class="brand" href="../index.html">Maze Chase <span>starring Rill the pond frog</span></a>
+  <nav class="site-nav" aria-label="Maze Chase site">
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../downloads.html">Downloads</a>
+    <a href="../compatibility.html">Compatibility</a>
+    <a href="../releases.html">Releases</a>
+    <a href="./">Docs</a>
+  </nav>
+</header>
+<main class="wrap" id="main">
+  <div class="docs-shell">
+    <aside class="docs-nav">
+      <p>All documents</p>
+      <ul>
+<li><a href="index.html" aria-current="page">Docs home</a></li>
+<li><a href="web.html">Browser guide</a></li>
+<li><a href="desktop.html">Desktop guide</a></li>
+<li><a href="terminal.html">Terminal guide</a></li>
+<li><a href="terminal-compat.html">Terminal compatibility</a></li>
+<li><a href="feature-matrix.html">Feature matrix</a></li>
+<li><a href="parity.html">Parity checklist</a></li>
+<li><a href="scoreboard.html">Release scoreboard</a></li>
+<li><a href="release.html">Release guide</a></li>
+<li><a href="design.html">Design language</a></li>
+<li><a href="identity.html">Identity and naming</a></li>
+<li><a href="audio.html">Sound identity</a></li>
+<li><a href="research.html">Mechanics research</a></li>
+<li><a href="behavior-spec.html">Behavior reference</a></li>
+<li><a href="legal.html">Clean-room log</a></li>
+      </ul>
+      <p>Project</p>
+      <ul>
+        <li><a href="../index.html">Play the game</a></li>
+        <li><a href="../releases.html">Release notes</a></li>
+        <li><a href="../downloads.html">Downloads</a></li>
+      </ul>
+    </aside>
+    <article class="doc">
+<h1 id="maze-chase-docs">Maze Chase docs</h1>
+<p>Unified product documentation for the Maze-Chase Rust game (issue #582). One cohesive product view; no milestone counters or sprint references.</p>
+<ul>
+<li><a href="research.html">Mechanics and stack research</a>: the #552-feel basis, the behavioral contract the engine must meet, and the selected Rust stack with rejected alternatives.</li>
+<li><a href="legal.html">Clean-room log and legal guardrails</a>: sources consulted, flagged items with mitigations, naming rationale, release obligations.</li>
+<li><a href="identity.html">Identity: naming, branding, maze authorship</a>: the title, cast, terminology allowlist, and the maze authorship log.</li>
+<li><a href="behavior-spec.html">#552 behavior reference spec</a>: pinned measured values (maze geometry, speeds, clocks, chains, counters) with their #552 source modules.</li>
+<li><a href="feature-matrix.html">Feature-completeness matrix</a>: the shared binding tracker, one row per mechanic across the engine and all three layers.</li>
+<li><a href="design.html">Visual and interaction design</a> plus <a href="design-tokens.json">design tokens</a>: the glyph system, themes, motion, sound, and settings language every layer shares.</li>
+<li><a href="audio.html">Sound identity and mix</a>: the shared 108 BPM score, layered SFX bank, default mix, live fades, per-layer synthesis, and the accessibility twins for every cue.</li>
+<li><a href="terminal.html">Terminal install and launch guide</a>: install, controls, render tiers, layout, settings/scores files, and troubleshooting (<code>maze-chase-terminal</code>).</li>
+<li><a href="desktop.html">Desktop install and launch guide</a>: install, controls, gamepad, settings/audio, per-OS packaging, <code>--probe</code> verification with the committed sample screenshot (<code>desktop-probe.ppm</code>), and troubleshooting (<code>maze-chase-desktop</code>).</li>
+<li><a href="web.html">Browser install and launch guide</a>: serving <code>index.html</code> over http, keyboard plus touch controls, DPR-aware canvas, WebAudio unlock, localStorage settings/scores, reproducible <code>.wasm</code> builds, and troubleshooting (browser layer).</li>
+<li><a href="release.html">Reproducible build and release guide</a>: toolchain plus system libraries, engine checks, layer builds, the per-OS packaging matrix, and the clean-checkout release checklist.</li>
+<li><a href="scoreboard.html">Release scoreboard</a>: measured tick cost, suite totals, per-OS E2E results, frame budgets, and the native proof record.</li>
+<li><a href="parity.html">#552 parity checklist</a>: every pinned reference behavior mapped to its engine table and verify row, fully signed on the Linux run on this tree; the macOS and Windows runs are pre-Pondwake, with fresh reruns tracked in the final sign-off, and the retirement step is recorded.</li>
+</ul>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span>Maze Chase is an original game. MIT licensed.</span>
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../releases.html">Releases</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs">GitHub</a>
+    <span class="sep"></span>
+    <span>Tracking issue <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">#582</a></span>
+  </div>
+</footer>
+</body>
+</html>

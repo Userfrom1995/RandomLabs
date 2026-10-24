@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<!-- generated from docs/terminal.md; source-bytes: 13028; source-fnv: be02f06fef8bde01 -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Maze Chase docs: Terminal guide</title>
+<link rel="icon" href="../web/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="../site.css" />
+</head>
+<body class="site">
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <a class="brand" href="../index.html">Maze Chase <span>starring Rill the pond frog</span></a>
+  <nav class="site-nav" aria-label="Maze Chase site">
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../downloads.html">Downloads</a>
+    <a href="../compatibility.html">Compatibility</a>
+    <a href="../releases.html">Releases</a>
+    <a href="./">Docs</a>
+  </nav>
+</header>
+<main class="wrap" id="main">
+  <div class="docs-shell">
+    <aside class="docs-nav">
+      <p>All documents</p>
+      <ul>
+<li><a href="index.html">Docs home</a></li>
+<li><a href="web.html">Browser guide</a></li>
+<li><a href="desktop.html">Desktop guide</a></li>
+<li><a href="terminal.html" aria-current="page">Terminal guide</a></li>
+<li><a href="terminal-compat.html">Terminal compatibility</a></li>
+<li><a href="feature-matrix.html">Feature matrix</a></li>
+<li><a href="parity.html">Parity checklist</a></li>
+<li><a href="scoreboard.html">Release scoreboard</a></li>
+<li><a href="release.html">Release guide</a></li>
+<li><a href="design.html">Design language</a></li>
+<li><a href="identity.html">Identity and naming</a></li>
+<li><a href="audio.html">Sound identity</a></li>
+<li><a href="research.html">Mechanics research</a></li>
+<li><a href="behavior-spec.html">Behavior reference</a></li>
+<li><a href="legal.html">Clean-room log</a></li>
+      </ul>
+      <p>Project</p>
+      <ul>
+        <li><a href="../index.html">Play the game</a></li>
+        <li><a href="../releases.html">Release notes</a></li>
+        <li><a href="../downloads.html">Downloads</a></li>
+      </ul>
+    </aside>
+    <article class="doc">
+<h1 id="terminal-game">Terminal Game</h1>
+<p>The fullscreen terminal publication layer for Maze Chase: the <code>maze-chase-terminal</code> game running the shared deterministic engine with a fullscreen canvas, four render tiers, live resize, menus, help, high scores, settings with key rebinding, and launch docs (this file).</p>
+<h2 id="install-and-launch">Install and launch</h2>
+<p>Every release ships <code>maze-chase-terminal</code> as a Debian package, an RPM, a portable tarball on Linux and macOS, and a zip on Windows. Once a release is published, pick the artifact for your OS from its page; <code>SHA256SUMS.txt</code> verifies the download. <a href="release.html">release.md</a> covers upgrading, uninstalling, and clearing saved settings.</p>
+<p>Debian/Ubuntu:</p>
+<pre><code class="language-sh">sudo dpkg -i maze-chase-terminal_&lt;version&gt;_&lt;arch&gt;.deb
+maze-chase-terminal
+sudo apt-get remove maze-chase-terminal</code></pre>
+<p>Fedora/RHEL:</p>
+<pre><code class="language-sh">sudo rpm -i maze-chase-terminal-&lt;version&gt;-1.&lt;arch&gt;.rpm
+maze-chase-terminal
+sudo rpm -e maze-chase-terminal</code></pre>
+<p>Portable tarball, no root:</p>
+<pre><code class="language-sh">mkdir maze-chase-terminal &amp;&amp; tar -xzf maze-chase-terminal-&lt;version&gt;-&lt;os&gt;-&lt;arch&gt;.tar.gz -C maze-chase-terminal
+cd maze-chase-terminal
+./install-linux.sh              # $HOME/.local, prints the --version probe
+./uninstall-linux.sh</code></pre>
+<p>Windows: extract <code>maze-chase-terminal-&lt;version&gt;-windows-x86_64.zip</code> and run <code>maze-chase-terminal.exe</code>.</p>
+<p>To build from source, use Rust 1.85 or newer and run from <code>maze-chase/</code>:</p>
+<pre><code class="language-sh">cargo build --release --locked -p maze-chase-terminal
+./target/release/maze-chase-terminal</code></pre>
+<p>Or run unoptimized straight from source:</p>
+<pre><code class="language-sh">cargo run --release -p maze-chase-terminal</code></pre>
+<p>Useful flags:</p>
+<pre><code class="language-sh">maze-chase-terminal --tier legacy      # force the conventional-terminal tier
+maze-chase-terminal --tier truecolor  # force 24-bit cells (skip detection)
+maze-chase-terminal --tier sixel      # force Sixel pixels (needs support)
+maze-chase-terminal --tier kitty      # force Kitty graphics (needs support)
+maze-chase-terminal --dir ~/.maze-chase   # config/scores directory (default)
+maze-chase-terminal --help            # all options
+
+# Windows (cargo install): the binary carries the .exe suffix
+maze-chase-terminal.exe --tier legacy</code></pre>
+<p>Install it on <code>PATH</code> with <code>cargo install --path crates/terminal</code> from <code>maze-chase/</code>, then launch with <code>maze-chase-terminal</code> anywhere (<code>maze-chase-terminal.exe</code> on Windows).</p>
+<p>Packaging scripts build the release binary and stage versioned packages into <code>maze-chase/dist/</code> (never committed): <code>build-deb.sh</code>, <code>build-rpm.sh</code>, <code>linux-tarball.sh</code> / <code>macos-tarball.sh</code>, and <code>windows-zip.ps1</code>. Each name records its real build host; never relabel a cross-OS archive. Full per-OS release steps live in <a href="release.html">release.md</a>.</p>
+<h2 id="controls">Controls</h2>
+<table><thead><tr><th>Keys</th><th>Action</th></tr></thead><tbody>
+<tr><td>Arrows or WASD</td><td>steer Rill (remappable)</td></tr>
+<tr><td>P or Esc (in game)</td><td>pause menu</td></tr>
+<tr><td>M</td><td>mute toggle (works everywhere)</td></tr>
+<tr><td>Enter</td><td>confirm / select</td></tr>
+<tr><td>Esc</td><td>back (quits from the title)</td></tr>
+<tr><td>Up/Down, Left/Right</td><td>menus: move, change values</td></tr>
+</tbody></table>
+<p>Every binding except the fixed arrows/WASD twins is rebindable in Settings, then Key bindings: pick an action, press Enter, press the new key. Conflicts are refused with the reason shown; nothing ever binds two actions to one key.</p>
+<p>Input parsing has one known boundary. The event source is crossterm's global parser, which buffers an unrecognized private CSI sequence (for example <code>ESC [ ? 99999 h</code>) and delivers no key events until a completion byte such as <code>u</code> arrives. The game never sees those keys, so it cannot time the buffer out; if typing suddenly stops after a stray escape sequence, send <code>u</code> to complete the sequence and input resumes. The behavior is pinned by a PTY regression test (<code>tester_kitty_render_pipeline.rs</code>) so this note cannot drift from the shipped binary.</p>
+<h2 id="render-tiers">Render tiers</h2>
+<p>The game picks the best tier its terminal proves, best first:</p>
+<ol>
+<li><strong>kitty-graphics</strong>: true pixel art (the original 11x11 sprites, beveled walls, pulsing sunseeds). The static board layer (walls, gate, house, crumbs) and the transparent sprite atlas are transmitted with real DEFLATE PNG (<code>a=t</code>) once per change, then each frame moves per-entity placements (<code>a=p</code>, source rectangles, stable placement ids, explicit per-warden <code>z</code> stacking layers) over them; a full-frame transmit is the fallback when the bounded live probe reports no placement support. Steady transmits are silent (<code>q=2</code>) so <code>OK</code> replies can never spin the event loop; the probe's answers feed the tier choice and frame write failures feed the watchdog. The tier engages on positive environment proof (<code>KITTY_WINDOW_ID</code>, <code>TERM=xterm-kitty</code>, <code>TERM_PROGRAM=kitty|ghostty</code>, <code>TERM=xterm-ghostty</code>) or when the live probe answers on an unidentifiable terminal; keys typed during the probe are replayed, never swallowed. Kitty keyboard enhancement is enabled for disambiguated input. Measured on kitty 0.32.2 (2026-10-21): 21 transmits and 169.9 KiB of PNG payload for a whole session, playing at 21.6 frames/s with a 6.2 KiB mean frame (before this pipeline: a historical 1642 transmits and 348.6 MiB, not re-derivable from the regenerated JSONs).</li>
+<li><strong>sixel</strong>: true pixels through a hand-rolled Sixel encoder (palette registers, six-row bands, run-length rows). The palette is capped at 64 colors and a frame at 2 MiB (smaller-palette retry, then a cell fallback), and the tier paces at 24 Hz with byte-rate backpressure. Engages after the terminal answers the DA1 probe at startup (250 ms budget, then the game starts regardless, and keys typed while the probe waits are replayed, never swallowed), or via <code>--tier sixel</code> on known Sixel terminals (foot, contour, mlterm, Sixel-build xterm). Measured on xterm 390: 137-138 transmits / 4.25-4.31 MiB per session across the two VT340 rows.</li>
+<li><strong>truecolor-cells</strong>: 24-bit Unicode board (solid-block walls, dotted crumbs, letter wardens in theme colors, facing Rill mouth) with synchronized tear-free frames. The WezTerm, foot-fallback, iTerm2, and VS Code path.</li>
+<li><strong>legacy-cells</strong>: the same board folded to the 16 ANSI colors for conventional terminals. Fully playable: the only difference is palette depth, and every painted run carries the theme's own background, so a terminal with a light default (an unconfigured xterm) renders the Dusk Pond canvas instead of vanishing into white (the compatibility matrix records the committed default-light xterm row and its dark-background twin, both passing).</li>
+</ol>
+<p>A watchdog drops one tier per failure burst (3 strikes) and records why; the title screen shows the active tier and the downgrade trail, so a fallback is always explained, never silent. In steady state it watches the output path: a terminal that stops accepting frame writes triggers the downgrade. It cannot see a terminal silently mis-compositing placements, which is why every placement carries an explicit <code>z</code> stacking layer instead of relying on equal-z tie-breaking. The title screen always names the tier in use (<code>video tier: ...</code>), and the wide-window side panel carries a <code>VIDEO</code> line; the narrow top bar and the menus (help, scores, settings) do not.</p>
+<p>Ghostty note: Ghostty 1.3.1 implements the Kitty graphics protocol and answers the live probe when one is sent: a direct pty experiment with the game's exact probe request (<code>tools/compat/probe-graphics.py</code>, 2026-10-19) recorded both replies (<code>i=..;OK</code> and <code>i=..,p=..;OK</code>), and the raw capture is committed under <code>tools/compat/probe-captures/</code> together with the exact command and its SHA-256 (<code>ghostty-1.3.1.bin</code>, byte-identical to kitty's reply capture because both answer the same protocol frames with the protocol's own acknowledgement form). Because <code>TERM_PROGRAM=ghostty</code> / <code>TERM=xterm-ghostty</code> already prove the capability, the auto and forced rows select the graphics path from the environment without probing (their traces carry no probe record, a fast path rather than a capability gap). Both rows pass on Ghostty 1.3.1 with sprite visibility proven by the capture census (<code>../tools/compat/evidence/ghostty-linux-auto.json</code> and <code>ghostty-linux-kitty.json</code>).</p>
+<h2 id="layout-and-resize">Layout and resize</h2>
+<p>The 28x31 pond maze plus HUD fits windows from 62x35 up, and every window size gets a plan fitted for it: the layout solver scans the tile scale grid (2 to 8 columns per tile, 1 to 4 rows per tile; the 2x1 compact scale is the floor) and keeps the plan that covers the most of the window, breaking ties by tile squareness, chrome, area, and width. Every scale gets the best chrome it can host: a right-hand side panel with score, best, lives, level, mode clock, tune, tier, and controls when the board leaves room, a three-row HUD band above the board when only rows are tight, or just the bottom hint line in the tightest rooms. Wide-short rooms reach wide-short scales (7x1, 8x1) and tall rooms reach tall ones (2x2 through 4 rows) instead of collapsing to a single derived diagonal: the fitted plan uses the best scale the grid can place, and the measured sweep floor is 280/1000 at 399x62. Smaller windows get an honest &quot;too small&quot; card naming the exact minimum. Resizing re-fits live, including mid-run, and the simulation never restarts on resize: the frame is cleared and repainted in one step, so no stale board fragments survive the change (on the Kitty tier the old image placement is deleted in the same frame). The render loop re-reads the real window size every frame and re-fits on any difference, so a window change is applied even when the terminal delivers its resize signal in the same batch as a keypress.</p>
+<p>On the pixel tiers the board rasterizes at the detected cell pixel size, bounded so the raster's natural pixel size fits the board's pixel box (whenever the box can host even the 6-pixels-per-tile legibility floor; only absurdly tiny pixel windows fall back to the floor and may overflow) and clamped to 6..21 pixels per tile so encode cost stays bounded (the cap bounds encode cost, not the on-screen scale: a large window draws the capped raster at its native size on the centered footprint). The 21-pixels-per-tile rung selects Rill's authored 21x21 sheet; the Kitty atlas centers that 21-pixel sheet in the same 22-pixel cell used by the 11x11 sheet at scale 2, so the rung keeps the quiet single-transmit atlas path instead of falling back to per-frame full-board images. The image is drawn on a centered footprint inside the board, mapped from the raster's pixel size through the detected window pixels: Kitty terminals scale the image into that footprint (which tracks the raster's aspect to within a cell of rounding per axis, so the art is never stretched across the whole board), and the Sixel raster paints from the centered image origin at its natural size, so, in every window that can host the 6-pixels-per-tile legibility floor, it stays inside the board box instead of bleeding into the hint line or hugging a corner of a larger box.</p>
+<p>Terminals that report no pixel size keep the proven 8-pixels-per-tile nominal raster, exactly as before: Kitty stretches it across the full board box, while the Sixel path paints it at its natural size from the board origin.</p>
+<h2 id="settings-and-scores">Settings and scores</h2>
+<p>Settings live in <code>~/.maze-chase/settings.txt</code> (human-readable <code>key = value</code>, shared with the other layers): difficulty (Cozy, Standard, Harsh: honest engine presets only), theme (dusk-pond, morning-shallows, moonwake; legacy ids migrate), master/music/SFX levels, mute, terminal chime (off by default), reduced flashing (holds the hollow warning mask instead of blinking), and the full keymap. High scores live in <code>~/.maze-chase/scores.txt</code> (top 10, <code>score | level | mode | date</code>); corrupt lines are skipped, never fatal. A path replaced with a FIFO is refused on read and write (defaults or an empty table plus a notice), so a hostile or half-restored config directory cannot block startup. Pass <code>--dir</code> to relocate both files (per-machine arcade cabinets, shared accounts, testing).</p>
+<h2 id="sound-in-a-terminal">Sound in a terminal</h2>
+<p>Terminals play no samples. An opt-in BEL chime (off by default) marks sharp beats (warden eaten, relish, death, extra life, level events); the status-line ticker always narrates the run (&quot;a relish ripens (worth 500)&quot;, &quot;the wardens flee!&quot;) and never depends on the chime. Volumes and mute are honored: muted or zero SFX means silence, while the ticker and the visual twins keep telling the story. Crumb ticks stay silent by design. Turning the chime on is a Settings row; the choice persists with the rest of the config.</p>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<ul>
+<li><code>cannot take over the terminal</code>: stdout is piped or there is no TTY. Run inside a real terminal emulator.</li>
+<li>Garbage escapes on screen: a forced tier the terminal lacks. Restart without <code>--tier</code> and let detection pick; the title shows the tier.</li>
+<li>No Sixel where expected: the DA1 probe timed out (some multiplexers swallow replies). Force with <code>--tier sixel</code>; if pixels appear, the terminal supports it and future runs can keep the flag.</li>
+<li>Tiny window card: enlarge past 62x35; the game re-fits without restarting the run.</li>
+</ul>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span>Maze Chase is an original game. MIT licensed.</span>
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../releases.html">Releases</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs">GitHub</a>
+    <span class="sep"></span>
+    <span>Tracking issue <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">#582</a></span>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<!-- generated from docs/design.md; source-bytes: 37239; source-fnv: cb0af3eeb9aa2d6d -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Maze Chase docs: Design language</title>
+<link rel="icon" href="../web/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="../site.css" />
+</head>
+<body class="site">
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <a class="brand" href="../index.html">Maze Chase <span>starring Rill the pond frog</span></a>
+  <nav class="site-nav" aria-label="Maze Chase site">
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../downloads.html">Downloads</a>
+    <a href="../compatibility.html">Compatibility</a>
+    <a href="../releases.html">Releases</a>
+    <a href="./">Docs</a>
+  </nav>
+</header>
+<main class="wrap" id="main">
+  <div class="docs-shell">
+    <aside class="docs-nav">
+      <p>All documents</p>
+      <ul>
+<li><a href="index.html">Docs home</a></li>
+<li><a href="web.html">Browser guide</a></li>
+<li><a href="desktop.html">Desktop guide</a></li>
+<li><a href="terminal.html">Terminal guide</a></li>
+<li><a href="terminal-compat.html">Terminal compatibility</a></li>
+<li><a href="feature-matrix.html">Feature matrix</a></li>
+<li><a href="parity.html">Parity checklist</a></li>
+<li><a href="scoreboard.html">Release scoreboard</a></li>
+<li><a href="release.html">Release guide</a></li>
+<li><a href="design.html" aria-current="page">Design language</a></li>
+<li><a href="identity.html">Identity and naming</a></li>
+<li><a href="audio.html">Sound identity</a></li>
+<li><a href="research.html">Mechanics research</a></li>
+<li><a href="behavior-spec.html">Behavior reference</a></li>
+<li><a href="legal.html">Clean-room log</a></li>
+      </ul>
+      <p>Project</p>
+      <ul>
+        <li><a href="../index.html">Play the game</a></li>
+        <li><a href="../releases.html">Release notes</a></li>
+        <li><a href="../downloads.html">Downloads</a></li>
+      </ul>
+    </aside>
+    <article class="doc">
+<h1 id="design-maze-chase-overhaul">Design: Maze Chase Overhaul</h1>
+<p>This is the single visual and interaction source of truth for every publication layer (terminal, desktop, web). It was produced by a full Design Council deliberation (four rounds: propose, critique, revise, converge) and supersedes the prior direction in full. Companion machine file: <code>design-tokens.json</code>. The palette hexes that mirror <code>crates/assets/src/themes.rs</code> stay untouched in the <code>themes</code> section until the visual implementation lands them together with the Rust originals (the mirror test reads the tokens file with substring checks).</p>
+<p>Chosen direction: Pondwake (identity), Waylight (interaction), Lantern Drift (motion). Runner-up: Paper Tailor, Ember Cadence, guided Waystation.</p>
+<h2 id="user-summary">User summary</h2>
+<p>The user is a player in one of three postures:</p>
+<ul>
+<li>SSH tinkerer: plays from a real terminal (Kitty, Ghostty, xterm, sixel or legacy cells) in 5 to 15 minute breaks, possibly on a light background, sometimes over a slow link.</li>
+<li>Web first-timer: opens the game page in a desktop browser, 2 to 5 minutes in the first session, decides whether the game is worth downloading.</li>
+<li>One-thumb commuter: plays in a mobile browser, 60 to 180 seconds, sound usually off, touch only.</li>
+</ul>
+<p>Top three tasks for every posture:</p>
+<ol>
+<li>Start hunting without ceremony: first playable input within two interactions and under 2.5 s on any layer.</li>
+<li>Steer confidently: readable hunters, readable player, honest input response, no accidental quits or restarts.</li>
+<li>See progress acknowledged fast: score feedback, best-score context, and a clear next goal at every moment.</li>
+</ol>
+<h2 id="chosen-direction-pondwake">Chosen direction: Pondwake</h2>
+<p>World and identity. The player is Rill, a young pond frog who wakes at dusk to eat the day's water beads before the pond goes cold. The four hunters are pond predators that work the shallows after sundown: a heron (leader), a pike (ambusher), a snake (flanker), and a dragonfly (lurker). A sunseed burst of light dazes a predator until the glow sinks. Clean-room statement: generic pond fauna plus light; nothing echoes a proprietary maze-chase cast, silhouette, or prop; the eyes drifting home are a flat bubble overlay, never stalks; bonus icons are non-fruit found objects.</p>
+<p>Rationale. The council chose Pondwake because it is the only direction that ships a complete identity at every rung of the fidelity ladder with measured contrast headroom, a frog-versus-predator silhouette split that survives the legacy 16-color rung, and a light-safe theme set. Every other direction left at least one rung or one accessibility gate structurally unresolved (Paper Tailor's fright mask failed the board-contrast gate on all three themes; its rescue hexes are recorded below for the exhibit).</p>
+<h2 id="runner-up-paper-tailor">Runner-up: Paper Tailor</h2>
+<p>Tuck, a folded-paper crane on a night cutting-room floor, hunted by tailor tools (shears, thimble, spool, awl). The council kept the full proposal as the runner-up exhibit: its fold-crease art direction and tool silhouettes passed the clean-room review, but it lost on three recorded counts. First, its fright mask fill failed fright-versus-wall contrast on every theme (1.89, 1.87, 1.62 where 3.0 is the gate); the rescue hexes the council computed (#2C2A38 for the mask body, #2A0D16 for its outline) are preserved here for any future resurrection. Second, the crane's diagonal wing geometry requires a 21x21-authored cast to read at all, pricing the legacy rung out of the first implementation. Third, the tailored-tool hunter set lacks a light-background-safe theme without a second palette pass. Motion and UX runner-up halves: Ember Cadence (integer-lattice quantization) and guided Waystation (ceremony-first onboarding) are described in the deliberation record with the reasons they lost.</p>
+<h2 id="ux-flows-waylight">UX flows: Waylight</h2>
+<p>Waylight merges the two UX proposals: play-first boot (Enter on terminal/desktop, Start on web) inside the Waystation information grammar (three-zone title, description strips, repair cards, exit discipline).</p>
+<p>First run, per layer:</p>
+<ul>
+<li>Terminal: launch, then Enter on Play starts the hunt (2 interactions, under 1.5 s). The title is an overlay over the fresh game board, dimmed behind the card. Up/Down select and Enter activates. Esc at the title quits (same as the Quit row); Quit is a title row and Quit to title is a pause row, both applied immediately.</li>
+<li>Desktop: double-click, then Enter on Play (2 interactions, under 2 s).</li>
+<li>Web: page open, then the Start button (2 interactions, playable under 2.5 s on a 10 Mbps link).</li>
+<li>Mobile: tap Start, then one swipe (2 touches); the D-pad and swipe pad are visible whenever touch is present.</li>
+</ul>
+<p>Screens and states. Attract (the fresh game board behind the title, dimmed 40 percent; a static backdrop, not a running demo), title overlay (three zones: fresh board left, menu with per-item description strip right, warden legend plus goal line bottom: &quot;clear 445 crumbs + 4 sunseeds; sunseeds turn the hunt&quot;), play HUD (score, best, wicks, level, dots with completion bar, fright and relish badges, sound chip; fit at the 62x35 compact floor: the three HUD rows carry score, wicks, level, the dots completion bar, and the fright and relish badges while active, while best moves to the pause hub and the scores screen, the sound chip to pause/help, and the four-sigil warden roster to pause/help plus the wide-window side panel (96 columns and above, where best and the sound chip also return); no addition introduces a fourth HUD row; frame diagnostics hidden by default and reachable from the desktop and browser settings, while the terminal has no FPS overlay), pause hub (frozen board dimmed 55 percent, actors exempt from dimming and held at 3:1 or better against the dimmed board; Resume and Quit to title; M mutes during play, while reduced motion, reduced flash, and high contrast are Settings rows on every layer, applied live and persisted), how-to-play (static pages; Confirm/Back returns to the title), scores, settings (four tabs: Game, Sound, Access, Controls; live-apply; theme and difficulty apply next hunt), game over (score, crumbs cleared, warden-eats, best, rank; name entry on web), too-small card (states the current size and the floor, run preserved), web loading (a boot-status line in the title card), audio unlock chip, error surfaces.</p>
+<p>Happy path. Title to play is instant on one Enter/Start press. During play every input gets a visible response within one frame budget: the player sprite turns, the turn caret moves, the crumb counter ticks. Pause freezes the engine on key-down before any dim. Resume is a cut on every layer. Score changes snap instantly. Fright entry is a steady mask change plus a HUD countdown bar; the reversion frame lands exactly when the bar empties.</p>
+<p>Empty states. No scores: &quot;The board is empty. The first hunt claims rank 1.&quot; Fresh config: defaults apply with a one-time welcome line (Cozy-friendly), never a modal. Fresh browser storage: defaults, sound locked until a gesture. No gamepad: &quot;connect one and it appears here live.&quot;</p>
+<p>Error states, each a repair card naming cause, effect, and a one-key fix. Corrupt settings: renamed to <code>.bak</code> plus an on-screen notice. Corrupt score rows: skipped with a count. Unwritable config directory: session-only banner. WASM fetch failure: a card that maps file://, 404, and offline cases to exact fixes. WASM version mismatch: names both versions. WebAudio blocked: chip that retries on the next gesture. Framebuffer pixel cap exceeded (desktop): card offering Reduce window or Fullscreen, never a silent freeze. Forced-tier garbage: restart guidance without <code>--tier</code>.</p>
+<p>Hostile input. Key mash: run-start limited to one per 500 ms, menus coalesce repeat at 10 Hz. Quit and restart apply immediately (no confirm dialog ships in this release). Resize mid-menu preserves surface and selection; resize mid-pause repaints the overlay with the board frozen. Browser Back leaves the page (no history guard ships); use the header Pause control to stay in the hunt. Touch: <code>touch-action: none</code> on the board, 44 px minimum targets. Denied localStorage: session-only chip. Terminal below the floor: too-small card with the run preserved. Gamepad unplug: auto-pause within 100 ms. SIGINT terminates the session; no quit-confirm trap ships in this release.</p>
+<p>Accessibility. Pause is the universal hub; M is the bare-key mute chord (terminal control chords are consumed by the tty, so the design deliberately avoids Ctrl combinations), and reduced motion, reduced flash, and high contrast are Settings rows on every layer. Every motion and flash has a first-class reduced path (below). No dedicated accessibility shortcut or achievement-toast path ships in this release; the three-interaction target and the one-time teaching toasts are recorded under accepted simplifications.</p>
+<p>Web information architecture. The game page opens directly into the game: full-viewport board, boot-status line in the title card, title overlay, no prose. Downloads, install, docs, compatibility, and releases are dedicated subpages. The pause hub carries a &quot;Get the full game&quot; row to the downloads chooser (two questions: surface, then OS; explicit confirm; never auto-download). Play-to-install is four interactions. Docs render as HTML with link checks; compatibility carries the verified matrix with named evidence.</p>
+<h2 id="visual-system-pondwake">Visual system: Pondwake</h2>
+<p>Character sheet. Rill is a squat wide body with heavy haunches and two dome eyes breaking the top contour (the identity). Legacy cell rung: one directional glyph per actor on the player color pair; the eye cell renders over the body cell where the tier allows two rows. 11x11 art: 11 wide by 7 tall with 2 px dome eyes. 21x21 art adds a belly seam, a throat pulse, and 1 px toe webbing. Animation states: hop 2 frames at 6 fps (3 px crouch, 5 px rise at 11x11; 6 px / 9 px at 21x21), gulp 3 frames at 12 fps, death-sink 4 frames into a ripple ring then one bubble. Facing: the squat body rotates badly, so Rill is the one intentional break from the one-facing rule: three telling glyphs (right, up, down), left derived by flip; <code>rotate_cw</code> stays reserved for overlay cells.</p>
+<p>Hunter sheets, silhouette first, read at blocky cell rendering:</p>
+<ul>
+<li>Heron (leader, slate blue, <code>bram</code> slot): S-neck above long legs, tallest silhouette, folded neck loop; movement personality: direct, cuts corners late.</li>
+<li>Pike (ambusher, river green, <code>kessa</code> slot): low torpedo with a dorsal ridge and underbite jaw; personality: sits and lunges.</li>
+<li>Snake (flanker, coral, <code>jory</code> slot): low S-ribbon with a raised head loop; personality: shadows and cuts off.</li>
+<li>Dragonfly (lurker, brass amber, <code>nib</code> slot): doubled crossbar wings; personality: drifts and pounces.</li>
+</ul>
+<p>Each hunter carries a shape accent at every rung (heron neck S, pike dorsal ridge, snake head loop, dragonfly crossbar). Hunter-versus- hunter color separation is enforced by the existing test (pairwise RGB euclidean distance 60 or better) and the minimum measured distance is 75.85 (Dusk Pond), 72.62 (Morning Shallows), 95.04 (Moonwake). Player-versus-hunter separation relies on shape identity (the critique's shape-accent clause): the frog's squat dome-eyed body plan reads against all four predator silhouettes even when hue collapses, at the legacy rung included. Forcing a 3:1 Rill-versus-hunter hue pair was rejected because it collapses the prey and predator moods the palette encodes; the binding gate stays on hunter pairs (60+) and on the eyes slot (below).</p>
+<p>Frightened state: predators wear the entry, steady, or warning fright mask; the mask fill NEVER uses the eyes slot (separate fill rule), never white. Last 1.5 s: steady-state change plus the HUD countdown bar (spec in motion). Reduced flash: the hollow warning mask is held. Eyes return: the eyes overlay drifts home to the house, drawn with the eyes slot directly on the board, hence the eyes contrast gate (below). The bubble-orbs/ripple trail and the 6-frame bubble-up revive are deferred design targets (see accepted simplifications below).</p>
+<p>Environment (shipped). Stone banks with a two-tone bevel (inner fill plus a 1 px sculpted wall face; 2 px at 21x21); water floor without a caustic dither; the gatehouse gate drawn as a single accent lintel; tunnel tiles are plain water. Crumbs are water beads 3x3 with a meniscus ring; sunseeds are resting fireflies 7x7 with a two-frame halo on the rung-snapped period (400 ms base; 416.7 ms at the 24/12 Hz snap, see motion). Bonus set: Lily Charm, Copper Ripple, Reed Flute, Snail Shell, Dragonfly Wing, Kingfisher Feather (7x7 low, 11x11 high, 1 px bob). Wall readability: dark themes use bright stone edges on indigo water; light themes use wet dark stone on pale sand-water; legacy rungs use <code>#</code> walls and <code>%</code> interiors on ANSI pairs.</p>
+<p>Effects vocabulary (shipped). Pickup burst 4 frames of a 3x3 expanding ring on a 66.7 ms grid, one burst per pickup (crumb or sunseed); chomp 3 frames at 12 fps as a cheek swell; fright morph uses the entry, steady, and warning masks; death clip 4 frames then hold (window spec in motion); level clear is one 300 ms sweep of the board plus a 9x9 lily-crown banner; extra life Golden Lily 6 frames 9x9 at 12 fps; score floaters are desktop/web-only 5x7 numerals rising 8 px over 500 ms on an opaque plate (plate contrast 4.5:1 or better so float text over a sunseed never falls below the text gate); terminal floats stay off (no raster digits in the terminal font stack).</p>
+<p>Fidelity ladder rules:</p>
+<ol>
+<li>Legacy cells: 16 ANSI colors plus terminal palette variance; every painted run carries the theme's own background explicitly, so light and dark terminal defaults both read; hunters differentiate by boldness plus hue pairs (bold blue / green / red / yellow class mappings per theme); player is the bright player pair.</li>
+<li>Truecolor cells plus half-block detail: 24-bit color; actors and walls down-sample to 1x2 subcells; half-block wall highlight row.</li>
+<li>Image tiers (sixel, kitty) plus desktop plus web canvas: the same rasterized pixel art everywhere, from the same asset data. Kitty transmits the static atlas once (&lt;= 256 KiB) and per-entity placements after that; sixel repaints full frames at its own cadence. Desktop renders that raster directly; the web canvas re-composes the same authored art at its own pixel-per-tile.</li>
+<li>Web DOM chrome and desktop menu composition: CSS and the 5x7 desktop font; wordmark &quot;MAZE CHASE&quot; everywhere.</li>
+</ol>
+<p>What does not survive every rung (accepted and documented): feather barbs below 21x21; ring-bloom depth below 11x11; floaters below truecolor; per-frame particles on sixel (never shipped there: static or pre-rendered frames only).</p>
+<h3 id="accepted-simplifications-shipped-this-release">Accepted simplifications (shipped this release)</h3>
+<p>The shipped build is authoritative over the deferred design targets above. These are the simplifications accepted for this release:</p>
+<ul>
+<li>Interaction: Enter/Start begins play (no direction-key start on the title); quit applies immediately from the title or the pause hub (no 1 s confirm); M mutes during play, while reduced motion, reduced flash, and high contrast are Settings rows on every layer (no R/V/C chords); the three-interaction accessibility path is a target, not a shipped shortcut; how-to-play pages are static text (no scripted mini-boards); the browser history guard is not shipped (Back leaves the page; use the header Pause control); no achievement toasts ship.</li>
+<li>Environment: wall faces are two-tone bevels with a single accent gate line; no moss flecks, vertical joints or offset courses, caustic dither, lily-ring reed door, or tunnel pipe/current/entry ripple.</li>
+<li>Assets: hunters use one silhouette each with shared eyes and fright masks (no roam/fright/warning/respawn sheets); no 5-frame firefly swarm; no 6-frame bubble-up revive (the eyes overlay returns); no 16-piece wall grammar.</li>
+<li>Effects and accessibility: the shipped reduced-flash and reduced-motion sources are the ones in the registry below; chain pops, tunnel smear/ripple, the level-clear wall pulse, the firefly swarm, idle hunter micro-loops, caustic dither, eyes trails, the web loader pulse, and overlay fades are not shipped (screen changes are cuts).</li>
+</ul>
+<p>Palettes. All 15 slots, uppercase hex. The three launch themes:</p>
+<table><thead><tr><th>Slot</th><th>Dusk Pond (dark default)</th><th>Morning Shallows (light)</th><th>Moonwake (high contrast)</th></tr></thead><tbody>
+<tr><td>bg</td><td>#0E1E1C</td><td>#F4F7F2</td><td>#06080C</td></tr>
+<tr><td>wall</td><td>#38856F</td><td>#2C7A5B</td><td>#26A088</td></tr>
+<tr><td>wall_inner</td><td>#1C4A40</td><td>#A8C9B8</td><td>#0F4A3E</td></tr>
+<tr><td>crumb</td><td>#9FB59B</td><td>#7A8A80</td><td>#B9C7D1</td></tr>
+<tr><td>sunseed</td><td>#F2C14E</td><td>#A86408</td><td>#FFD84D</td></tr>
+<tr><td>pip (Rill)</td><td>#7ED957</td><td>#2F9E4F</td><td>#6BE86B</td></tr>
+<tr><td>bram (Heron)</td><td>#5F87B8</td><td>#3B5C8F</td><td>#5FA8FF</td></tr>
+<tr><td>kessa (Pike)</td><td>#3E9B6E</td><td>#1F7A4D</td><td>#35D06A</td></tr>
+<tr><td>jory (Snake)</td><td>#F25E4A</td><td>#C74A33</td><td>#FF6B4A</td></tr>
+<tr><td>nib (Dragonfly)</td><td>#BE8B2A</td><td>#8A6A1C</td><td>#FFC93C</td></tr>
+<tr><td>fright</td><td>#C8F2EA</td><td>#241238</td><td>#E8FFF8</td></tr>
+<tr><td>eyes</td><td>#D8F4E8</td><td>#16201D</td><td>#E0FFF6</td></tr>
+<tr><td>text</td><td>#E8F0E6</td><td>#1B2A33</td><td>#F2F7F5</td></tr>
+<tr><td>dim_text</td><td>#9FB3A6</td><td>#5C6F66</td><td>#A9BFB8</td></tr>
+<tr><td>accent</td><td>#F0B45A</td><td>#B35A2B</td><td>#7FE8FF</td></tr>
+</tbody></table>
+<p>Measured metrics (WCAG formula, recomputed by the council):</p>
+<ul>
+<li>text/bg: 14.77 / 13.63 / 18.51 (gate 4.5, all pass)</li>
+<li>wall/bg: 3.89 / 4.81 / 6.17</li>
+<li>fright/bg: 14.20 / 15.95 / 19.17</li>
+<li>fright/wall: 3.65 / 3.32 / 3.11 (gate 3.0, all pass; this gate is the fix that retired Paper Tailor)</li>
+<li>eyes/bg: 14.76 / 15.44 / 18.90 (gate 3.0, all pass)</li>
+<li>eyes/wall: 3.79 / 3.21 / 3.06 (gate 3.0, all pass; the eyes slot renders directly on the board in the eyes-travel-home state, so both bounds are binding)</li>
+<li>hunter pairwise minimum RGB distance: 75.85 / 72.62 / 95.04 (gate 60, all pass)</li>
+<li>crumb/bg: 7.83 / 3.37 / 11.60; sunseed/bg: 10.25 / 4.33 / 14.49</li>
+<li>background luminance: 0.0111 (dark) / 0.9217 (light) / 0.0024 (dark)</li>
+</ul>
+<p>The eye slot fix (dark-on-dark and light-on-light previously at 1.03 to 1.08:1) is the corrected-hex change from the critique: #0B1418, #F4F1FF, and #0A0E14 are retired.</p>
+<p>Legacy 16-color fallback, per theme, hunters as hue pairs with bold distinction: Dusk Pond hunters bold blue / green / bold red / yellow; Morning Shallows bold blue / green / red / yellow; Moonwake bright blue / bold green / bright red / bold yellow. Wall and interior, crumbs, and sunseeds map to their nearest ANSI pairs; the fallback keeps all four hunters distinct and Rill's pair distinct from every hunter pair.</p>
+<p>Asset inventory (shipped): Rill 11x11 in three poses (right, mid, closed) for right/up/down plus left mirrors, and nine 21x21 sheets for the image rungs; four single-silhouette hunter bodies (Bram, Kessa, Jory, Nib) with shared eyes overlays (5x5 and 7x7) and entry, steady, and warning fright masks; crumbs 3x3; sunseeds 7x7 (2 frames); six found-object bonus icons (7x7 and 11x11); Golden Lily 9x9 (6 frames); pickup ripple 3x3 (4 frames); turn spark 7x7; lily-crown banner 9x9; runtime wall bevels. Deferred design targets (see accepted simplifications above): the 4/2/2/6 hunter sheets, the 5-frame firefly swarm, the 6-frame bubble-up revive, and the 16-piece wall grammar.</p>
+<p>Typography. Terminal: the terminal's own mono font, box-drawing and half-block glyphs only; no raster type. Desktop: the shipped 5x7 pixel font for HUD and menus. Web: system-ui CSS stack; wordmark &quot;MAZE CHASE&quot; with wide tracking. Product name and crate paths are unchanged.</p>
+<h2 id="motion-spec-lantern-drift-revised">Motion spec: Lantern Drift (revised)</h2>
+<p>Leading language: Lantern Drift, revised into a hybrid. Gameplay positions interpolate continuously at the finest quantum each layer can pay for (identity-preserving; half-tile snapping at 17 Hz was measured by the critic to beat against the 12 fps chomp and read as flicker, so the cell rung keeps tile-locked actors). Ambient motion is quantized and rung-snapped; transitions are cuts on every shipped layer (band wipes remain an image-tier option). Every duration below is stated once in milliseconds and snapped per rung to whole frames (60/120 Hz) or whole transmits (30/24/12 Hz); no fractional quantum ever ships.</p>
+<p>Engine windows the motion design fits (unchanged engine, presentation only): player 8.5 tiles/s, hunters 8.16, fright hunters 5.06, eyes 12.24, house exit 4.49; death 1.4 s; level clear 2.0 s; fright duration 6.0 s falling to 0 by level 11; reversion warning 1.5 s; relish 9.5 s; spare wick at 10,000.</p>
+<p>Per-rung duration table (frame counts exact):</p>
+<table><thead><tr><th>Element</th><th>60 Hz</th><th>120 Hz</th><th>30 Hz</th><th>24 Hz</th><th>12 Hz</th></tr></thead><tbody>
+<tr><td>Chomp phases</td><td>5f each</td><td>10f each</td><td>2/2/3 quanta (233 ms)</td><td>2 quanta each (250 ms)</td><td>1 quantum (250 ms cycle)</td></tr>
+<tr><td>Fright morph</td><td>15f</td><td>30f</td><td>8 quanta (266.7 ms)</td><td>6 quanta (250 ms)</td><td>3 quanta (250 ms)</td></tr>
+<tr><td>Death window</td><td>6x4 + 60f = 84f (1400 ms)</td><td>12x4 + 120f = 168f (1400 ms)</td><td>3x4 + 30 quanta = 42 quanta (1400 ms)</td><td>34 quanta (1416.7 ms)</td><td>17 quanta (1416.7 ms)</td></tr>
+<tr><td>Level clear sweep</td><td>18f (300 ms)</td><td>36f</td><td>9 quanta</td><td>7 quanta (291.7 ms)</td><td>4 quanta (333.3 ms)</td></tr>
+<tr><td>Banner</td><td>54f (900 ms)</td><td>108f</td><td>27 quanta</td><td>22 quanta (916.7 ms)</td><td>11 quanta (916.7 ms)</td></tr>
+<tr><td>Sunseed halo</td><td>24f (400 ms)</td><td>48f</td><td>12 quanta</td><td>10 quanta (416.7 ms)</td><td>5 quanta (416.7 ms)</td></tr>
+<tr><td>Pickup burst</td><td>4f grid (66.7 ms)</td><td>8f</td><td>2 quanta</td><td>static 2-state</td><td>static 2-state</td></tr>
+<tr><td>Score count-up</td><td>instant</td><td>instant</td><td>instant</td><td>instant</td><td>instant</td></tr>
+<tr><td>Overlay fade</td><td>cut</td><td>cut</td><td>cut</td><td>cut</td><td>cut</td></tr>
+</tbody></table>
+<p>Easing table (named, no unnamed easings anywhere): drift-in (0.22, 1, 0.36, 1) for entrances on desktop and web; drift-out (0.64, 0, 0.78, 0) for exits; drift-sway (0.45, 0.05, 0.55, 0.95) for ambient loops; drift-settle (0.16, 1, 0.3, 1) for pickups; lantern-q8 (smoothstep quantized to 8 levels) for ambient brightness; linear for gameplay positions, always: interpolation of engine state is exact and never eased.</p>
+<p>Transition inventory per layer: title to play is an instant cut on Enter (Start on web); pause, settings, scores, how-to-play, and game over are instant cuts on every layer; level clear is the single 300 ms sweep; death is the 1400 ms window; relayout is always a cut (same-frame repaint, delete-before-place on kitty, clear plus full frame on sixel). Interruption: input on frame N starts on frame N+1; no transition ever gates input or the simulation; a resize generation counter cancels in-flight transition effects and restarts them at the new size where applicable.</p>
+<p>Effect and feedback inventory (rung-conditional): chomp loops only while moving; sunseed halo on the rung-snapped period; fear entry and exit per the fright warning spec below; hunter readability is carried by a mandatory facing asymmetry of 2 px or more on every rung, plus a committed-turn cue: a 180 ms 7x7 glyph spark at the turn corner on cells, kitty, desktop, and web, recolored to the theme text color under fright (never body color), static facing notch only on sixel. Wisps are cut entirely (they showed history, not intent). Eyes return as the shared overlay (the 3-frame ripple trail and the 6-frame bubble-up revive are deferred targets, not shipped). Gate state is a two-state door shape change (barred and unbarred); the optional accent blend pulse is not shipped, so it registers no flash source. Key press acknowledgment, focus, and press states render within one frame budget on every layer; error text never shakes.</p>
+<p>Fright warning spec (adopted). Entry is a steady-state change: the mask fills with the fright color at entry and holds. The primary warning is the HUD countdown bar: it drains in 30 segments (3 frames per segment at 60 Hz, 90 frames total for the 1.5 s reversion window) and hits empty on the exact reversion frame. The bar is grayscale-safe: filled versus empty segments differ by glyph (block, half-block, dot) and by a 3:1 or better segment contrast, never brightness alone. Optional body pulse capped at 2 to 3 Hz, eye-sized, registered as a flash source. Reduced flash: steady hollow mask. Reduced motion: identical to reduced flash, with the bar still draining (it is information, not decoration).</p>
+<p>Death window spec (shipped). Four clip frames at 100 ms each, then a hold on the final frame: 1400 ms total, driven by the engine's state clock. The killer cue is the death clip itself; there is no catch freeze, bracket overlay, or named banner in this phase. Input is ignored until respawn; overlay dismiss keys never interrupt the window. Reduced motion: identical window with the clip frames replaced by two static silhouette states.</p>
+<p>Reduced-flash registry (shipped): fright warning, death, sunseed halo, pickup bursts, the level-clear sweep and banner, the extra-life Golden Lily. Reduced-motion registry (shipped): the same sources plus chomp/hop and relish bob, turn sparks, and score floaters. Deferred sources are listed under accepted simplifications and are not shipped, so they are not in the registry. Tests: the render-code registry test fails on any unlisted brightness call site; a capture test renders 180 frames of the warning window with reduced flash on and asserts no pixel above 0.85 luminance outside eyes and highlights and adjacent-frame delta of 8 or less in reduced flash and reduced motion; a live PTY test starts a real run with <code>reduced_motion = true</code> and fails if any sunseed halo glyph appears.</p>
+<p>Budgets in KiB/s per rung, with the shared skip and degrade contract. Cells (legacy and truecolor): steady ceiling 64 KiB/s, full-frame ceiling 48 KiB per frame, degrade to 30 Hz when sustained traffic exceeds 512 KiB/s for 1 s. Kitty: atlas 256 KiB once; steady placement traffic ceiling 64 KiB/s (about 150 B per entity move, delete plus place, on a z-layered base image contract where deletion reveals the base without repaint); degrade to 15 Hz above 128 KiB/s sustained 1 s. Sixel: the transmit is the whole board raster and its encoded size is content-dependent; the committed xterm VT340 rows measure 25.3 KiB mean Sixel payload per playing transmit (29.7 KiB mean wire frame, 29.9 KiB peak); the forced row ran 88 transmits in 4.72 s at 18.6 fps and 554 KiB/s of wire traffic (471 KiB/s of Sixel payload), with 43.4 KiB mean payload per transmit through the resize phases, well inside the encoder's 2 MiB per-frame budget (a smaller-palette retry, then a cell fallback for that frame). The tier paces at 24 Hz and backpressure stretches the transmit interval to 1.5x the smoothed write cost (doubled above an 8 MiB/s byte flood, capped at 200 ms), so a slow PTY throttles instead of being flooded; at ppt 12 or higher sixel clamps mover motion to 0.5 tiles per transmitted frame on the low-density cast, so a mover never aliases further than that quantum; sixel carries static or pre-rendered frames only, never per-frame animated particles. Desktop: dirty-rect software framebuffer, p99 frame 8.3 ms, effects add at most 20 percent fill. Web: 60 fps, at most one allocation per frame, a flat heap over 60 s; degrade to 30 Hz only after 10 consecutive frames of 20 ms or more, and the fallback is visible: the dirty-rect canvas bridge is a launch requirement for the web release, and until it lands a persistent quality chip says &quot;degraded renderer&quot; (never silent). Shared contract: a rung degrades after 1 s above threshold, shows a transient quality chip that pins to the HUD row after 5 s, and recovers upward after 10 s under threshold.</p>
+<p>Resize and input contracts. Resize repaints the same frame with stale-placement kill (kitty deletes all live placements first; sixel clears; cells redraw), relayout never animates, and a resize landing mid-transition or mid-pause repaints to the target state with the engine frozen. Pause freezes the engine on key-down before any dim. Input: no transition gates input; terminals filter to key-press events only (Kitty sends press and release); exactly one input buffer; menu repeat is 300 ms initial and 80 ms thereafter; rebind consumes exactly one keydown; quit applies immediately and SIGINT terminates the session (no quit-confirm trap ships in this release).</p>
+<p>Tester checks (real hosts, concrete observations):</p>
+<ol>
+<li>Kitty and Ghostty at a full window: title idle bytes are zero, exactly one atlas transmit occurs, placement traffic stays at or below 64 KiB/s, P paints within one frame, and quit exits before the shell prompt returns (this falsifies the current reply-loop flood).</li>
+<li>Sixel (xterm VT340) plus kitty through several resizes: exactly one board and chrome composition per frame, delete-before-place ordering visible in the trace, and sustained fright traffic at or below 512 KiB/s.</li>
+<li>Legacy and truecolor cells at the exact 62x35 boundary: a hunter crossing changes at most its own rows, sustained traffic at or below 512 KiB/s, and with reduced flash on, no pixel above 0.85 luminance outside eyes and highlights while the fright bar drains to empty on the reversion frame in both dark and light terminals.</li>
+</ol>
+<p>Named recommendation outside engine scope: the engine's 0.35-tile turn buffer (about 41 ms) is tight against human timing jitter; the council routed this to the architecture reassessment tracker as a recorded recommendation. The layers never fake or hide input latency; the committed-turn cue exists to make accepted turns legible, not to pad the buffer.</p>
+<h2 id="sound-identity-binding-for-the-sound-overhaul">Sound identity (binding for the sound overhaul)</h2>
+<p>One tempo source: a single <code>TEMPO</code> constant (no duplicated BPM) at 108 BPM with swung eighths, replacing the 132 BPM value duplicated in three places. The score is pond at dusk: a soft mallet pluck lead (triangle with fast decay), water-drop blips, and a reed-flute counterline; fright is a low rising drone with a pulse, resolved by a two-note fall; death is a sinking glissando, never a buzzer; clear is an ascending three-note figure; game over is a low settled cadence. SFX bank: crumb is a 40 ms soft pluck with slight pitch variation; the chain is a rising pitch ladder; sunseed is a two-note rise; relish is a sparkling triad; spare wick is a warm bell. Mix: separate master, music, and SFX levels plus mute, live-applied with 120 ms fades; defaults are conservative (music 60 percent, SFX 80 percent); the terminal BEL chime is default OFF and opt-in; the web audio unlock is a chip tied to the first gesture. Every audio cue keeps a visual twin (the existing event-to-cue mapping is the checklist), and no cue flashes.</p>
+<h2 id="deliberation-record">Deliberation record</h2>
+<p>Round 1 (Propose). Each specialist produced two complete directions. UX: Wicklight (play-first overlays) and Waystation (guided first hunt). Visual: Paper Tailor and Pondwake, with full three-theme palettes and metrics. Motion: Ember Cadence (integer-lattice quantization) and Lantern Drift (continuous interpolation with oversampled ambience).</p>
+<p>Round 2 (Critique, cross-assigned and adversarial). The UX critic recomputed every palette number, blocked the Pondwake eyes slot (1.03 to 1.08:1 against the board), blocked the Paper Daylight player at 1.18:1, and dissented on the web 30 Hz fallback shipping silently and on brightness-only warning cues. The Visual critic proved the Ember Cadence integer-lattice arithmetic false (fractional quanta at 30 and 12 Hz), ruled the 8-step dissolve undrawable (4 legend chars, 3 paint colors, no opacity), priced kitty fades as full-board transmits (about 1.6 MiB per fade against a 64 KiB/s budget), flagged the 3x3 caret as rung-inconsistent, required the kitty z-layered base contract, and demanded the expanded flash and motion registries. The Motion critic dissented on guards (frames gating input), the missing degrade thresholds, the death narrative under reduced motion, and the HUD roster that cannot fit at 62x35.</p>
+<p>Round 3 (Revise). UX revised to Waylight (play-first boot merged with the Waystation card grammar), answering every critique point, including the Motion critic's HUD-roster dissent (resolved by fit, not by shrinking: the 62x35 compact HUD carries the live set and relocates best, the sound chip, and the warden roster to pause/help and the wide-window side panel, with no fourth HUD row, stated in the play HUD description). Visual revised to Pondwake with corrected palettes (the eyes-slot fixes shipped in this artifact) and retired Paper Tailor with rescue hexes recorded. Motion: the revision subagent returned empty twice (recorded in the delegation ledger); the final motion spec above was composed in primary context from the recorded critique resolutions, which is why several fixes (tile-locked cell actors, knots, cuts on image tiers, the expanded registries, budgets in KiB/s) read as adopted rulings rather than proposals.</p>
+<p>Round 4 (Converge). Unanimity-minus-one: the full package is Pondwake plus Waylight plus Lantern Drift (revised); the named runner-up package is Paper Tailor plus Ember Cadence plus guided Waystation. The council chair broke no tie; the dissent is recorded below.</p>
+<p>Delegation ledger (round by round):</p>
+<ul>
+<li>Round 1 (Propose): the UX and motion specialist swarms returned (Wicklight plus Waystation; Ember Cadence plus Lantern Drift); the visual swarm returned empty twice and was recovered by a split parts-A pass plus two palette follow-ups (one of those also returned empty once, then succeeded).</li>
+<li>Round 2 (Critique): the UX and visual critic swarms returned; the motion critic returned empty twice and succeeded on a leaner third prompt; the three verbatim dissents are recorded below.</li>
+<li>Round 3 (Revise): the UX revision returned (Waylight, point-by-point responses) and the visual revision returned (Pondwake revised, with corrected palettes and the Paper Tailor rescue hexes); the motion revision returned empty twice (once in the retry session, once on the shipping dispatch) and was composed in primary context from the recorded critique resolutions.</li>
+<li>Round 4 (Converge): the chair synthesized in primary context from the returned rounds; the final motion spec, the hybrid ruling, and the dissent framing are primary-composed because the motion revision never returned.</li>
+<li>Primary context verified: the corrected Pondwake palette metrics recomputed from the recorded critique constraints (the visual revision's hexes were lost when the retry session died in Round 3) and the artifact cross-checked against the tokens file.</li>
+<li>Skills: no registry skill matched this run's domains (no opencode configuration, agent, or plugin edits); none loaded, per delegation.md section 5.</li>
+</ul>
+<p>Dissent log. Verbatim dissent from Round 2, condensed to the recorded positions: the UX specialist dissents on shipping any layer with a hidden quality downgrade, on any warning cue that survives only as brightness, and on onboarding that withholds the goal for the sake of speed; the council accepted all three as binding constraints (visible quality chip, grayscale-safe bar, legend plus goal line on the title). The Visual specialist dissents on continuous interpolation claims that measured sub-tile accuracy cannot support, and on drawing transitions the glyph grammar cannot express; both were adopted (tile-locked cell actors, no dissolves on cells). The Motion specialist dissents on gameplay motion that abandons simulation honesty; the adopted hybrid keeps exact interpolation on desktop, web, and kitty, and quantizes only where the medium enforces it. The losing-direction dissent from round 4 (chair-composed from the specialists' recorded positions, since the motion revision subagent returned empty twice): &quot;Paper Tailor should not be discarded as merely second-best: its fold-crease lighting solves the fright-state silhouette problem at the art level rather than the palette level, and its tool-signage world gives the bonus set names that teach the fiction in one glance, a property Pondwake buys only with the legend line. Ember Cadence's auditable integer timing should remain the council's fallback if Lantern Drift's continuous-rung budgets fail their kill criteria on real hosts, and guided Waystation's first-run walkthrough remains the strongest answer for total beginners that the play-first boot serves less patiently.&quot; The dissent ships unedited as required.</p>
+<h2 id="acceptance-checklist">Acceptance checklist</h2>
+<p>The Reviewer and Evaluator can verify each item against this artifact and the tokens file:</p>
+<ol>
+<li><code>crates/assets/src/themes.rs</code> mirror test stays green (the legacy <code>themes</code> section of <code>design-tokens.json</code> is untouched until the visual implementation lands the Rust values together).</li>
+<li>Every palette gate recomputed and asserted: text/bg 4.5 or better, fright versus wall 3.0 or better, eyes versus bg and eyes versus wall 3.0 or better, hunter pairwise distance 60 or better, per theme.</li>
+<li>Fright mask never uses a white fill and never uses the eyes slot; both dark and light themes carry a readable mask.</li>
+<li>Reduced flash covers every listed source and reduced motion covers every listed source, with the registry test and the 180-frame capture test green.</li>
+<li>All budgets state in KiB/s with the shared degrade contract, and the real-host tester checks above pass on their exact hosts (Kitty and Ghostty, xterm sixel, legacy and truecolor cells).</li>
+<li>First playable input within two interactions on every layer, with the empty, error, and hostile-input states above reachable and correct.</li>
+<li>Sound: one tempo source, chime default off, volume and mute controls live on every layer, no flashing cues.</li>
+<li>Single unified product documentation view: no internal progress counters, no sprint language, zero em dashes.</li>
+</ol>
+<ul>
+<li>the Design Council</li>
+</ul>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span>Maze Chase is an original game. MIT licensed.</span>
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../releases.html">Releases</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs">GitHub</a>
+    <span class="sep"></span>
+    <span>Tracking issue <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">#582</a></span>
+  </div>
+</footer>
+</body>
+</html>
