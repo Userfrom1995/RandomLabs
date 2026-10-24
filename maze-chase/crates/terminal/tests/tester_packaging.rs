@@ -1025,6 +1025,23 @@ fn release_hardening_contracts_are_pinned() {
     )
     .unwrap();
     assert!(
+        workflow.contains("libxkbcommon-x11-0"),
+        "the Linux release job must install the winit XKB runtime for the Xvfb-gated probe"
+    );
+    let installed = std::fs::read_to_string(
+        maze_root()
+            .parent()
+            .unwrap()
+            .join(".github")
+            .join("workflows")
+            .join("maze-chase-release.yml"),
+    )
+    .expect("the installed release workflow must be readable");
+    assert_eq!(
+        workflow, installed,
+        "the installed release workflow must stay byte-identical to the packaging source"
+    );
+    assert!(
         workflow.contains("*-rc.*) PRERELEASE=\"true\"") && !workflow.contains("inputs.prerelease"),
         "prerelease must derive from the tag, never a manual input"
     );
