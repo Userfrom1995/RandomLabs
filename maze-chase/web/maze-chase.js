@@ -144,7 +144,7 @@
     var primary = 'web/maze-chase.wasm';
     var dir = scriptDir();
     var fallback = dir ? dir + 'maze-chase.wasm' : 'maze-chase.wasm';
-    // Primary is relative to the page (maze-chase/play.html -> maze-chase/web/...);
+    // Primary is relative to the page (maze-chase/index.html -> maze-chase/web/...);
     // fallback is relative to this script's own directory (same file, robust to
     // pages served from a different base path).
     return fetchWasm(primary).catch(function () { return fetchWasm(fallback); })
@@ -187,7 +187,7 @@
         showError('Could not load the game engine (' + (err && err.message ? err.message : err) + ').',
           'Hint: this page must be served over http so the browser can fetch web/maze-chase.wasm ' +
           '(run `python3 -m http.server` (`python -m http.server` on Windows) inside maze-chase/ ' +
-          'and open maze-chase/play.html). ' +
+          'and open maze-chase/index.html). ' +
           'The engine file is built by the maze-chase-web Rust crate.');
       });
   }

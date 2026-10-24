@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Install Maze Chase in the browser, as a terminal game, or as a desktop app on Linux, Windows, and macOS. Commands for packages, tarballs, source builds, upgrades, and uninstall." />
+<title>Maze Chase - Install</title>
+<link rel="icon" href="web/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="site.css" />
+</head>
+<body class="site">
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <a class="brand" href="index.html">Maze Chase <span>starring Rill the pond frog</span></a>
+  <nav class="site-nav" aria-label="Maze Chase site">
+    <a href="index.html">Play</a>
+    <a href="install.html" aria-current="page">Install</a>
+    <a href="downloads.html">Downloads</a>
+    <a href="compatibility.html">Compatibility</a>
+    <a href="releases.html">Releases</a>
+    <a href="docs/">Docs</a>
+  </nav>
+</header>
+
+<main class="wrap" id="main">
+  <div class="hero">
+    <p class="eyebrow">Install</p>
+    <h1>One game, three ways to play</h1>
+    <p class="lede">Open the browser build with no install, or take the same
+    deterministic engine to a terminal or a native window. Settings and scores
+    move with you through the shared <code>~/.maze-chase</code> directory on
+    native layers.</p>
+  </div>
+
+  <h2 id="browser">Browser</h2>
+  <p>The WebAssembly build is the complete game: no account, no download, and
+  no gameplay code in the page. Open <a href="index.html">the game page</a>
+  and press Start.</p>
+  <p>To run it from a checkout instead, serve the directory over HTTP. Browsers
+  refuse to fetch <code>.wasm</code> over <code>file://</code>:</p>
+<pre><code>cd maze-chase
+python3 -m http.server 8000   # Windows: python -m http.server 8000
+# Open http://localhost:8000/index.html</code></pre>
+  <p>To rebuild the engine blob after changing Rust code:</p>
+<pre><code>rustup target add wasm32-unknown-unknown
+cargo build --release --locked --target wasm32-unknown-unknown -p maze-chase-web
+cp target/wasm32-unknown-unknown/release/maze_chase_web.wasm web/maze-chase.wasm</code></pre>
+
+  <h2 id="terminal">Terminal game</h2>
+  <p>The terminal layer needs no window system. At least 62 columns by 35 rows
+  are required; Kitty graphics, Sixel, truecolor cells, and legacy cells are
+  detected automatically. The full matrix is on
+  <a href="compatibility.html">Compatibility</a>.</p>
+
+  <h3 id="terminal-linux">Linux</h3>
+  <p>Debian or Ubuntu, from a staged deb:</p>
+<pre><code>sudo dpkg -i maze-chase-terminal_&lt;version&gt;_&lt;arch&gt;.deb
+maze-chase-terminal --version
+sudo apt-get remove maze-chase-terminal</code></pre>
+  <p>Fedora or RHEL, from a staged rpm:</p>
+<pre><code>sudo rpm -i maze-chase-terminal-&lt;version&gt;-1.&lt;arch&gt;.rpm
+maze-chase-terminal --version
+sudo rpm -e maze-chase-terminal</code></pre>
+  <p>The tarball installs per-user without root by default:</p>
+<pre><code>mkdir maze-chase-terminal
+tar -xzf maze-chase-terminal-&lt;version&gt;-linux-&lt;arch&gt;.tar.gz -C maze-chase-terminal
+cd maze-chase-terminal
+./install-linux.sh                                  # installs into $HOME/.local
+sudo ./install-linux.sh --prefix /opt/maze-chase    # system-wide
+./uninstall-linux.sh                                # removes the user install
+sudo ./uninstall-linux.sh --prefix /opt/maze-chase  # removes the /opt install</code></pre>
+
+  <h3 id="terminal-windows">Windows</h3>
+  <p>Extract <code>maze-chase-terminal-&lt;version&gt;-windows-x86_64.zip</code>
+  and run <code>maze-chase-terminal.exe</code> from Windows Terminal or
+  conhost. Windows Terminal with a truecolor profile is the recommended host.
+  Delete the extracted folder to uninstall.</p>
+
+  <h3 id="terminal-macos">macOS</h3>
+  <p>Extract the terminal tarball and run its <code>install-linux.sh</code>
+  (the script is portable), or run the binary in place. Remove the installed
+  binary and launch doc with <code>uninstall-linux.sh</code>, adding
+  <code>--purge-config</code> to remove saved settings.</p>
+
+  <h2 id="desktop">Desktop app</h2>
+  <p>The desktop layer adds a windowed or fullscreen presentation, a side HUD,
+  gamepad input, and pixel menus. It shares settings and scores with the
+  terminal layer.</p>
+
+  <h3 id="desktop-linux">Linux</h3>
+<pre><code>sudo dpkg -i maze-chase-desktop_&lt;version&gt;_&lt;arch&gt;.deb
+# or: sudo rpm -i maze-chase-desktop-&lt;version&gt;-1.&lt;arch&gt;.rpm
+maze-chase-desktop --version
+sudo apt-get remove maze-chase-desktop
+# or: sudo rpm -e maze-chase-desktop</code></pre>
+  <p>The package installs <code>/usr/bin/maze-chase-desktop</code>, the desktop
+  entry, and the icon. The tarball uses the same
+  <code>install-linux.sh</code> / <code>uninstall-linux.sh</code> pair as the
+  terminal layer.</p>
+
+  <h3 id="desktop-windows">Windows</h3>
+  <p>Run
+  <code>maze-chase-desktop-&lt;version&gt;-windows-x86_64-setup.exe</code>.
+  The installer is per-user, asks for no administrator rights, and offers Start
+  Menu and optional desktop shortcuts. The zip is the portable option: extract
+  it and run <code>maze-chase-desktop.exe</code>. SmartScreen may warn because
+  the binary is unsigned; choose More info, then Run anyway.</p>
+
+  <h3 id="desktop-macos">macOS</h3>
+  <p>Open the dmg and drag <code>Maze Chase.app</code> to Applications, or
+  extract the tarball and copy the app there. The app is unsigned, so the first
+  launch needs a right-click Open, or System Settings, Privacy &amp; Security,
+  Open Anyway. Upgrade by replacing the app; uninstall by moving it to the
+  Bin.</p>
+
+  <h2 id="launch">Launch and options</h2>
+<pre><code>maze-chase-terminal [OPTIONS]
+maze-chase-desktop [OPTIONS]
+
+--dir &lt;path&gt;                 config and scores directory (default ~/.maze-chase)
+--version / --help
+# desktop also:
+--fullscreen                 start fullscreen
+--no-pad                     ignore gamepads
+--probe &lt;frames&gt; &lt;shot.ppm&gt;  render frames, save a screenshot, exit</code></pre>
+  <p>In the desktop window, <code>F</code> toggles borderless fullscreen. A
+  window too small for scale 1 shows a too-small card instead of a clipped
+  board.</p>
+
+  <h2 id="upgrade">Upgrade and remove</h2>
+  <p>Upgrade a deb with <code>sudo dpkg -i &lt;newer deb&gt;</code> and an rpm
+  with <code>sudo rpm -U &lt;newer rpm&gt;</code>. On Windows, run the newer
+  setup over the old install; the zip is replaced by extracting the new
+  version. Replace the macOS app with the new one.</p>
+  <p>Uninstalling keeps settings and scores by default. Both layers store them
+  in <code>~/.maze-chase</code> (<code>%USERPROFILE%\.maze-chase</code> on
+  Windows); pass <code>--purge-config</code> to the install scripts, or remove
+  that directory, to clear them. The Windows installer keeps user data on
+  uninstall so an upgrade or reinstall preserves progress.</p>
+
+  <h2 id="source">Build from source</h2>
+  <p>Stable Rust 1.89 or newer is required. Linux desktop builds also need
+  ALSA and udev headers plus the xkbcommon runtime:</p>
+<pre><code>sudo apt-get install libasound2-dev libudev-dev libxkbcommon0 libxkbcommon-x11-0</code></pre>
+<pre><code>cd maze-chase
+cargo test --workspace --locked
+cargo run --release --locked --bin maze-chase-verify
+cargo build --release --locked -p maze-chase-terminal
+cargo build --release --locked -p maze-chase-desktop</code></pre>
+  <p>The full toolchain pins, native packaging commands, reproducibility
+  contract, and clean-checkout checklist live in the
+  <a href="docs/release.html">release guide</a>. Native macOS and Windows
+  packages are built on their own hosts; no artifact is relabeled across
+  operating systems.</p>
+</main>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span>Maze Chase is an original game. MIT licensed.</span>
+    <a href="index.html">Play</a>
+    <a href="downloads.html">Downloads</a>
+    <a href="compatibility.html">Compatibility</a>
+    <a href="releases.html">Releases</a>
+    <a href="docs/">Documentation</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs">GitHub</a>
+    <span class="sep"></span>
+    <span>Tracking issue <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">#582</a></span>
+  </div>
+</footer>
+</body>
+</html>

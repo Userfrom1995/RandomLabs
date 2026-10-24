@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Maze Chase compatibility: verified terminal emulators and graphics tiers, the 62 by 35 floor, browser support, desktop support, and known limitations." />
+<title>Maze Chase - Compatibility</title>
+<link rel="icon" href="web/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="site.css" />
+</head>
+<body class="site">
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <a class="brand" href="index.html">Maze Chase <span>starring Rill the pond frog</span></a>
+  <nav class="site-nav" aria-label="Maze Chase site">
+    <a href="index.html">Play</a>
+    <a href="install.html">Install</a>
+    <a href="downloads.html">Downloads</a>
+    <a href="compatibility.html" aria-current="page">Compatibility</a>
+    <a href="releases.html">Releases</a>
+    <a href="docs/">Docs</a>
+  </nav>
+</header>
+
+<main class="wrap" id="main">
+  <div class="hero">
+    <p class="eyebrow">Compatibility</p>
+    <h1>Where the hunt runs</h1>
+    <p class="lede">The browser build runs in any modern browser. The terminal
+    layer detects its graphics tier at launch and degrades to cells when a
+    richer protocol is not available. This page separates what has been
+    executed and recorded from what is still waiting for its host.</p>
+  </div>
+
+  <div class="callout teal">
+    <p><strong>How to read this page.</strong> A verified row is a recorded
+    session from the compatibility harness: the game boots, plays, resizes,
+    pauses, and exits, and the evidence bundle, screenshots, and transcript are
+    committed with the tree. The executed rows below ran on Linux at checkout
+    <code>96dc2be2</code> against the release terminal binary with SHA-256
+    <code>ce3b1f91</code>. Rows marked <em>awaiting host</em> have not been run
+    and are not claimed.</p>
+  </div>
+
+  <h2 id="verified">Verified terminal rows</h2>
+  <table>
+    <caption>Executed Linux sessions, same build, same choreography</caption>
+    <thead>
+      <tr><th>Terminal</th><th>Version</th><th>Tier observed</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Kitty</td><td>0.32.2</td><td>kitty-graphics</td><td><span class="status ok">Pass</span></td></tr>
+      <tr><td>Kitty, forced cells</td><td>0.32.2</td><td>truecolor-cells</td><td><span class="status ok">Pass</span></td></tr>
+      <tr><td>Ghostty</td><td>1.3.1</td><td>kitty-graphics</td><td><span class="status ok">Pass</span></td></tr>
+      <tr><td>Ghostty, forced Kitty</td><td>1.3.1</td><td>kitty-graphics</td><td><span class="status ok">Pass</span></td></tr>
+      <tr><td>xterm</td><td>390</td><td>legacy-cells</td><td><span class="status ok">Pass</span></td></tr>
+      <tr><td>xterm, dark background</td><td>390</td><td>legacy-cells</td><td><span class="status ok">Pass</span></td></tr>
+      <tr><td>xterm, VT340 mode, forced</td><td>390</td><td>sixel</td><td><span class="status ok">Pass</span></td></tr>
+      <tr><td>xterm, VT340 mode, auto</td><td>390</td><td>sixel</td><td><span class="status ok">Pass</span></td></tr>
+    </tbody>
+  </table>
+  <p>The forced rows prove the detected tier is not masking a capability gap.
+  Sprite pixels are censused in playing captures on the bitmap tiers, and the
+  pause hub captures are checked for the frozen board and the PAUSED card. The
+  full measurements, frame rates, payload sizes, and evidence names are in the
+  <a href="docs/terminal-compat.html">terminal compatibility matrix</a>.</p>
+
+  <h2 id="awaiting">Rows awaiting their host</h2>
+  <table>
+    <caption>Not executed: these rows make no pass claim</caption>
+    <thead>
+      <tr><th>Terminal</th><th>Host</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Apple Terminal</td><td>macOS</td><td><span class="status wait">Awaiting macOS host</span></td></tr>
+      <tr><td>iTerm2</td><td>macOS</td><td><span class="status wait">Awaiting macOS host</span></td></tr>
+      <tr><td>Ghostty</td><td>macOS</td><td><span class="status wait">Awaiting macOS host</span></td></tr>
+      <tr><td>Windows Terminal</td><td>Windows</td><td><span class="status wait">Awaiting Windows host</span></td></tr>
+      <tr><td>conhost</td><td>Windows</td><td><span class="status wait">Awaiting Windows host</span></td></tr>
+      <tr><td>WezTerm, foot, contour, mlterm</td><td>Linux</td><td><span class="status wait">Harness profile needed</span></td></tr>
+    </tbody>
+  </table>
+  <p>The shared engine, input, and session layers have native macOS and
+  Windows test runs elsewhere in the suite. That is not the same as a signed
+  terminal matrix row, so those terminals stay in this table until their
+  harness runs.</p>
+
+  <h2 id="tiers">Graphics tiers</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>kitty-graphics</h3>
+      <p>The richest tier. The board and sprite atlas transmit as PNG once per
+      change, and moving sprites ride as placements with explicit stacking.
+      Enables the full density and effect set.</p>
+    </div>
+    <div class="card">
+      <h3>sixel</h3>
+      <p>A 64-color quantized raster path for terminals such as xterm in VT340
+      mode. Paced with byte-rate backpressure and a cell fallback for frames
+      that exceed its budget.</p>
+    </div>
+    <div class="card">
+      <h3>truecolor-cells</h3>
+      <p>Blocks of Unicode half-cells with 24-bit color. No image protocol is
+      needed, so this tier works in most modern terminals.</p>
+    </div>
+    <div class="card">
+      <h3>legacy-cells</h3>
+      <p>The widest fallback. 256-color half-cell rendering keeps the maze,
+      actors, and HUD readable in a plain terminal.</p>
+    </div>
+  </div>
+  <p>Detection uses environment evidence and a bounded live probe. An
+  unidentifiable terminal is probed; if it does not answer, the game stays on
+  cells. Kitty keyboard enhancement is requested when available, and keys typed
+  during the probe are replayed, never swallowed.</p>
+
+  <h2 id="browser">Browser support</h2>
+  <p>The browser layer is verified by an automated headless Chromium suite:
+  boot with zero console errors, a started run, real key input, pause and
+  resume, touch swipes, and a mobile viewport at 390 by 844 and 320 by 480.
+  Chromium-based desktop and mobile browsers are the signed shape. Firefox and
+  Safari use the same standard WebAssembly, Canvas, and WebAudio APIs and are
+  expected to work, but they are not yet in the signed matrix.</p>
+  <p>The canvas keeps a 280 px CSS minimum; below that the board clips centered
+  instead of reflowing. Touch controls use a 24 px swipe deadzone and an
+  on-screen direction pad on coarse pointers. There is no gamepad API on the
+  web layer by design: keyboard plus touch is the full control scheme.</p>
+
+  <h2 id="desktop">Desktop support</h2>
+  <p>The desktop window is exercised on Linux, including headless render and
+  Xvfb probes, fullscreen toggling, resize and HiDPI handling, and gamepad
+  polling. Linux deb, rpm, and tarball packages are built and smoke-tested with
+  their uninstall paths. The Windows installer and zip and the macOS app and
+  dmg are produced and smoked by their native release jobs once the release
+  workflow is installed; no cross-OS relabel is used. See
+  <a href="downloads.html">Downloads</a> for current artifact status.</p>
+
+  <h2 id="limits">Known limitations</h2>
+  <ul>
+    <li>The terminal event source holds an unrecognized private CSI sequence
+    until a completion byte arrives, so a malformed escape can delay key
+    delivery. This is documented in the
+    <a href="docs/terminal.html">terminal guide</a> and pinned by a regression
+    test.</li>
+    <li>Native binaries are unsigned: SmartScreen and Gatekeeper warnings are
+    expected on first launch.</li>
+    <li>The video watchdog watches the frame write path. A terminal that
+    silently mis-composites cannot be detected; explicit stacking layers are
+    used so overlapping sprites cannot depend on a terminal's tie-break.</li>
+    <li>Light and dark terminal backgrounds render the same theme canvas. A
+    terminal that forces its own background color over painted cells is outside
+    the verified rows.</li>
+  </ul>
+  <p>Report a terminal or browser that is missing: open an issue with the
+  terminal name and version, the observed tier, and a screenshot. The harness
+  scripts are in <code>tools/compat/</code>.</p>
+</main>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span>Maze Chase is an original game. MIT licensed.</span>
+    <a href="index.html">Play</a>
+    <a href="install.html">Install</a>
+    <a href="downloads.html">Downloads</a>
+    <a href="releases.html">Releases</a>
+    <a href="docs/">Documentation</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs">GitHub</a>
+    <span class="sep"></span>
+    <span>Tracking issue <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">#582</a></span>
+  </div>
+</footer>
+</body>
+</html>
