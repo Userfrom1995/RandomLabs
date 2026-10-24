@@ -1064,9 +1064,11 @@ fn release_hardening_contracts_are_pinned() {
     assert!(
         smoke.contains("$leaf = Split-Path -Leaf $zip")
             && smoke.contains("cannot identify layer from")
-            && smoke.contains("$version -ne \"maze-chase-$name $Version\"")
+            && smoke.contains("$reported -ne \"maze-chase-$name $Version\"")
+            && smoke.contains("$reported -ne \"maze-chase-desktop $Version\"")
+            && !smoke.contains("$version = ")
             && smoke.contains("\"/DIR=`\"$target`\"\""),
-        "the Windows smoke must classify by leaf, compare the full version, and quote /DIR"
+        "the Windows smoke must classify by leaf, compare the full version without clobbering $Version, and quote /DIR"
     );
 }
 
