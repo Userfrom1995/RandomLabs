@@ -998,7 +998,7 @@ personality, CHANGELOG) is direct-commit.
 | `maintainer.yml` | The brain: triggers, per-PR concurrency, memory-branch handling, decision list → hardcoded PAT step, 60-min timeout |
 | `opencode-pr-trigger.yml` | PR opened/synchronize → posts `/oc maintainer` as owner (PAT) on every non-draft same-repo PR (fork PRs get no secrets, so the section 12 guidance-only path applies), waking the Maintainer, which then decides review/continue/merge (the `/oc review (head <sha>)` comment is posted by `maintainer.yml`) |
 | `opencode.yml` | Build / Fix / Design Council / General modes (prompts from files; `/oc continue`; per-issue concurrency; clean-tree + sanitize; extended approve-CI with stable-head polling; no end-of-run dispatches; the Fix mode agent step runs 120 minutes under a 180-minute job so the rebase/push/decision chain always has headroom, issue #701) |
-| `opencode-review.yml` | Reviewer (prompts from file); human-vs-bot fix behavior; `/oc approve` → `/oc test` → Tester `/oc approve-test` → `/oc maintainer` (then the Maintainer routes the Evaluator gate via `/oc eval` and merges after `approve-eval`); a reviewer `maintainer` decision escalates directly via `/oc maintainer`; ownership-gated restore-head; short `/oc fix` trigger |
+| `opencode-review.yml` | Reviewer (prompts from file); human-vs-bot fix behavior; reviewer clean report published by the workflow followed by `/oc test` → Tester `/oc approve-test` → `/oc maintainer` (then the Maintainer routes the Evaluator gate via `/oc eval` and merges after `approve-eval`); a reviewer `maintainer` decision escalates directly via `/oc maintainer`; ownership-gated restore-head; short `/oc fix` trigger |
 | `opencode-test.yml` | Tester gate: `/oc test` (the per-OS `/oc test-linux`, `/oc test-macos`, `/oc test-windows` aliases route to `opencode-peros-test.yml`) → dynamic real-user and code-expert testing of the PR head, durable test commits as `tester:`, `/oc approve-test` → notifies the Maintainer; infrastructure PRs run strictly read-only |
 | `opencode-recover.yml` | Recovery: `detect` job (schedule + PR-close auto-detect) resurrects closed/orphaned build PRs via `recover.sh`; `recover` job runs the Recover Agent on `/oc recover`. Tags `recover/<pr>` and re-links orphans onto `main` (never rewriting `main`) |
 | `lab.yml` | Lab Engineer (CTO): `/oc lab` on an issue or PR → infrastructure builds, workflow repairs, agent creation, model switches; the agent step runs 150 minutes under a 180-minute job so the post-agent chain always has headroom (issue #701); the PAT-backed runner step pushes the branch and opens the PR; handoff via `/tmp/random-lab-decision.json` |
@@ -1604,7 +1604,7 @@ remote tip).
   manual click, and the loop resumes after that click. This duty does not
   expire: approve whenever the sweep asks.
 - **Talking to the lab**: `/oc build …`, `/oc fix`, `/oc review`,
-  `/oc continue`, `/oc approve|decline`, `/oc help` - see AGENTS.md.
+  `/oc continue`, `/oc help` - see AGENTS.md.
 - **One-command setup**: `bash setup.sh` (creates/verifies everything,
   optionally writes secrets, prints onboarding).
 - **Undo everything**: `bash shutdown.sh` (backs up and removes the lab,

@@ -126,7 +126,7 @@ fi
 echo
 echo "== Branch protection on main (requires admin - apply manually or via API) =="
 echo "  • Require a pull request before merging"
-echo "  • Require approvals: the Reviewer's /oc approve is the gate (bot merges approved PRs only)"
+echo "  • Require approvals: the Reviewer's clean report is the gate (the bot merges only reviewed, approved PRs)"
 echo "  • Do NOT require status checks on bot runs you want to stay auto (held runs are auto-approved)"
 echo
 
@@ -143,7 +143,7 @@ echo "• GitHub holds workflow runs on the bot's PRs; approve them when asked."
 echo "  opencode.yml auto-approves held runs after every push; if it cannot, a"
 echo "  comment asks you to click Approve - do that once and the loop resumes."
 echo "• Talk to the lab with /oc comments: /oc build …, /oc continue, /oc fix,"
-echo "  /oc review, /oc approve|decline, /oc help (see AGENTS.md)."
+echo "  /oc review, /oc test, /oc help (see AGENTS.md)."
 echo "• Undo anytime: bash shutdown.sh"
 echo
 echo "Setup/validation done."
