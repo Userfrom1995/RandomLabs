@@ -8,13 +8,13 @@ const fs = require('fs');
 const os = require('os');
 
 // Usage: node web/e2e/browser-e2e.js [page-url] [debug-port]
-//   page-url defaults to http://localhost:8931/play.html
+//   page-url defaults to http://localhost:8931/index.html
 //   (serve maze-chase/ first: `python3 -m http.server 8931` inside it;
 //   Windows: `python -m http.server 8931`)
 //   debug-port defaults to 9331: launch chromium first with
 //   `--headless=new --remote-debugging-port=9331 --window-size=1280,900 <page-url>`
 const DEBUG_PORT = Number(process.argv[3] || 9331);
-const PAGE = process.argv[2] || 'http://localhost:8931/play.html';
+const PAGE = process.argv[2] || 'http://localhost:8931/index.html';
 const SHOT_DIR = os.tmpdir();
 
 if (typeof WebSocket === 'undefined') {
@@ -78,7 +78,7 @@ async function shot(ws, path) {
   };
   // Find the page target (chromium launched with about:blank + our page open).
   const listRes = await fetch(`http://localhost:${DEBUG_PORT}/json/list`).then((r) => r.json());
-  const page = listRes.find((t) => t.url.includes('play.html')) || listRes.find((t) => t.type === 'page');
+  const page = listRes.find((t) => t.url.includes('index.html')) || listRes.find((t) => t.type === 'page');
   if (!page) throw new Error('no page target; got: ' + JSON.stringify(listRes.map((t) => t.url)));
   const ws = await connect(page.webSocketDebuggerUrl);
   await send(ws, 'Log.enable', {});

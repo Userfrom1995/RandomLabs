@@ -7,12 +7,12 @@
 // own AudioContext before boot; the page never reads the wrapper.
 //
 // Usage: node web/e2e/tester-audio-e2e.js [page-url] [debug-port]
-//   page-url defaults to http://127.0.0.1:8931/play.html
+//   page-url defaults to http://127.0.0.1:8931/index.html
 //   (serve maze-chase/ first: `python3 -m http.server 8931` inside it)
 //   debug-port defaults to 9331: launch chromium first with
 //   `--headless=new --remote-debugging-port=9331 --window-size=1280,900 <page-url>`
 const DEBUG_PORT = Number(process.argv[3] || 9331);
-const PAGE = process.argv[2] || 'http://127.0.0.1:8931/play.html';
+const PAGE = process.argv[2] || 'http://127.0.0.1:8931/index.html';
 
 if (typeof WebSocket === 'undefined') {
   console.error('AUDIO-E2E FAIL: global WebSocket not found; run with Node 22+.');
@@ -64,7 +64,7 @@ const SFX_MAX = 0.5001;
 
 (async () => {
   const listRes = await fetch(`http://127.0.0.1:${DEBUG_PORT}/json/list`).then((r) => r.json());
-  const page = listRes.find((t) => t.url.includes('play.html')) || listRes.find((t) => t.type === 'page');
+  const page = listRes.find((t) => t.url.includes('index.html')) || listRes.find((t) => t.type === 'page');
   if (!page) throw new Error('no page target; got: ' + JSON.stringify(listRes.map((t) => t.url)));
   const ws = await connect(page.webSocketDebuggerUrl);
   let checks = 0;

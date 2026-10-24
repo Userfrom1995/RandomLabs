@@ -34,6 +34,10 @@ fn shell_files() -> Vec<PathBuf> {
     vec![
         maze_root().join("index.html"),
         maze_root().join("play.html"),
+        maze_root().join("install.html"),
+        maze_root().join("downloads.html"),
+        maze_root().join("compatibility.html"),
+        maze_root().join("releases.html"),
     ]
 }
 
@@ -151,6 +155,8 @@ fn serve_guidance_pairs_the_windows_python() {
         root.join("docs/release.md"),
         root.join("web/e2e/README.md"),
         root.join("play.html"),
+        root.join("index.html"),
+        root.join("install.html"),
         root.join("web/e2e/browser-e2e.js"),
         root.join("web/maze-chase.js"),
     ];
