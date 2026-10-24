@@ -1708,7 +1708,8 @@ open on this phase.
   and Node 22+ is stated for the CDP harnesses. Totals refreshed to 594
   tests across 63 targets, 278 browser assertions, wasm 212,438 bytes,
   sha256 `5bcceec8356d8659d53405c593df744ba3c980c8b31582358313a53f5a2f72db`,
-  reproduced by a second build.
+  reproduced by a second build (superseded by the version-unified
+  rebuild; `docs/release.md` records the current artifact).
   Delegation ledger: primary-only round (the five findings touched
   shared web audio/session paths and the same harness files, so parallel
   editors would have collided). Skills: no registry skill matched.
@@ -1880,8 +1881,8 @@ open on this phase.
   and treats the 0.1.0 candidate as future work; the desktop guide's
   macOS command matches the dmg script, and both layer guides no longer
   present an unpublished release as live. The scoreboard records its
-  measured commit `c22bc484`, epoch, host, toolchain, and the RPM
-  build-host caveat.
+  measured commit, epoch, host, toolchain, and the RPM build-host
+  caveat.
   Verification: `cargo test -p maze-chase-terminal --test
   tester_packaging` 15/15 (the static CRT and license assertions were
   mutation-proven to fail on their removal), `cargo fmt --all --check`
@@ -1919,7 +1920,7 @@ open on this phase.
   installer paths. Fade docs now match the immediate static-screen
   settle, the scoreboard stops claiming gameplay byte-identity, the
   Rust minima match the locked graph, the tarball/Inno/OS wording is
-  corrected, and the progress log's measured commit is `c22bc484`.
+  corrected, and the scoreboard's measured commit is `cac1a72b`.
   Verification: `xvfb-run -a cargo test --workspace --no-fail-fast`
   green (18/18 packaging tests), `maze-chase-verify` 19/19 with golden
   replay `23c17f89734e`, `cargo fmt --all --check` clean, clippy only
@@ -1940,4 +1941,49 @@ open on this phase.
   fade, and gameplay wording, both toolchain minima, and the em-dash
   scan, ran the full suites and both stages, and owns the final diff.
   Skills: no registry skill matched.
+  - the Fixer
+
+- 2026-10-24 (fixer, Phase 6 fifth review round on `fb7ebf5f`): applied
+  the Quality Council rejection. The committed browser artifact was
+  stale after the 0.3.0 -> 0.1.0 unification: rebuilt it on the recorded
+  Rust 1.99.0 (`b940084d7`) to 212,472 bytes, sha256
+  `d6dd16bf8038ae5cbde4a81209e4835391dd4ace8a5e3eb1ef37d6b191c62ac0`,
+  and updated every current-artifact claim; the earlier progress entry
+  is marked superseded. `packaging/release/check-wasm.sh` now rebuilds
+  from source in a scratch target directory with `--locked` and fails
+  closed on a byte mismatch, the Linux release job runs it, and a new
+  packaging test pins the documented hash/size to the committed bytes.
+  The release workflow now pins Rust 1.99.0 in all three native jobs,
+  records rustc/cargo plus the runner image in `dist/toolchain-<os>.txt`,
+  folds those records into the release notes (failing if any is missing),
+  and passes `--locked` on every test, verifier, and packaging build.
+  The hub now puts the Play CTA above a short user-facing status block
+  (no test counts, commit hashes, or QA labels), and both Linux
+  installers validate the payload before creating prefix directories,
+  name the tarball in a missing-binary error, and quote the uninstall
+  hint. Also corrected the RPM/deb reproducibility wording, the rc
+  refresh condition, the clippy count (seven: six library lints plus
+  the test-only rng grouping), the scoreboard epoch provenance sentence,
+  and added a sorted-checksum mutation test. ALSA absence noise was
+  already documented.
+  Verification: `xvfb-run -a cargo test --workspace --no-fail-fast`
+  620 passed / 0 failed across 63 targets; `maze-chase-verify` 19/19;
+  `cargo fmt --all --check` clean; clippy seven pre-existing engine
+  warnings; `check-wasm.sh` passes and its stale-detection was
+  mutation-proven; `stage-linux.sh` run twice with byte-identical
+  SHA256SUMS and `sha256sum -c` green; terminal/desktop tarball
+  installs probe `--version`; all packaging scripts pass `bash -n` and
+  the PowerShell scripts parse.
+  Delegation ledger: two read-only general subagents ran in parallel.
+  The artifact/release verifier rebuilt and mutation-tested the wasm
+  guard, audited every workflow pin/upload/note/`--locked` path, and
+  found two docs contradictions (the deb-reproducibility wording and an
+  unlocked verifier command), both fixed and re-tested. The
+  hub/installer verifier measured Play at 231px (1920x1080) and 308px
+  (390x844) in Chromium, confirmed no QA copy or dead docs links, and
+  reproduced the installer ordering, tarball-naming, quoting, and
+  valid-archive paths, reporting no defects. The primary context
+  rebuilt and hashed the artifact, ran the full suite, verifier,
+  formatter, clippy, both staged Linux runs, and the installer probes,
+  and owns the final diff. Skills: no registry skill matched.
   - the Fixer
