@@ -6,7 +6,7 @@
 - **Branch:** opencode/issue582-20261018121223 (this roadmap PR); each phase runs
   on its own `opencode/issue582-overhaul-phase-<n>-<slug>` branch
 - **Status:** in-progress
-- **Updated:** 2026-10-22
+- **Updated:** 2026-10-24
 - **Active Phase:** Phase 6: Release Engineering and Multi-Platform Distribution
   (in-repo contract complete and ready for review; native macOS/Windows packaging, the installed release workflow, and the official release candidate remain pending with the Lab Engineer and native arms)
 - **Blueprint:** `ideas/2026-10-18-maze-chase-overhaul.md`
@@ -1845,7 +1845,7 @@ open on this phase.
   owns the final diff. Skills: no registry skill matched.
   - the Fixer
 
-- 2026-10-22 (fixer, Phase 6 re-review round on `8d95a357`): fixed the
+- 2026-10-22 (fixer, Phase 6 re-review round, pre-rebase head): fixed the
   blocking Python tarball fallback defect. The stage-root walk no longer
   `continue`s past its own files, so top-level payloads, guides, and
   licenses are archived; nested entries keep their prefixed names. The
@@ -1869,7 +1869,7 @@ open on this phase.
   no registry skill matched.
   - the Fixer
 
-- 2026-10-22 (fixer, Phase 6 third review round on `3df6835f`): applied
+- 2026-10-22 (fixer, Phase 6 third review round, pre-rebase head): applied
   the remaining release-gate findings. Windows release binaries link
   the static MSVC CRT (`common.ps1` appends
   `-C target-feature=+crt-static` and every build path proves it with
@@ -1903,7 +1903,7 @@ open on this phase.
   skill matched.
   - the Fixer
 
-- 2026-10-23 (fixer, Phase 6 fourth review round on `5d82c7bf`): applied
+- 2026-10-23 (fixer, Phase 6 fourth review round, pre-rebase head): applied
   the two blocking findings plus every major and minor. Every Linux
   package now ships the full MIT license: deb copyright files are the
   repository LICENSE behind a package header and both RPMs install it
@@ -1920,7 +1920,8 @@ open on this phase.
   installer paths. Fade docs now match the immediate static-screen
   settle, the scoreboard stops claiming gameplay byte-identity, the
   Rust minima match the locked graph, the tarball/Inno/OS wording is
-  corrected, and the scoreboard's measured commit is `cac1a72b`.
+  corrected, and the scoreboard's pre-rebase measured commit was
+  `cac1a72b` (the rebase later rebound it to `829885d01`).
   Verification: `xvfb-run -a cargo test --workspace --no-fail-fast`
   green (18/18 packaging tests), `maze-chase-verify` 19/19 with golden
   replay `23c17f89734e`, `cargo fmt --all --check` clean, clippy only
@@ -1943,7 +1944,7 @@ open on this phase.
   Skills: no registry skill matched.
   - the Fixer
 
-- 2026-10-24 (fixer, Phase 6 fifth review round on `fb7ebf5f`): applied
+- 2026-10-24 (fixer, Phase 6 fifth review round, pre-rebase head): applied
   the Quality Council rejection. The committed browser artifact was
   stale after the 0.3.0 -> 0.1.0 unification: rebuilt it on the recorded
   Rust 1.99.0 (`b940084d7`) to 212,472 bytes, sha256
@@ -1986,4 +1987,43 @@ open on this phase.
   rebuilt and hashed the artifact, ran the full suite, verifier,
   formatter, clippy, both staged Linux runs, and the installer probes,
   and owns the final diff. Skills: no registry skill matched.
+  - the Fixer
+
+- 2026-10-24 (fixer, Phase 6 sixth review round on `85ff5a19`): applied
+  the fifth review's evidence and honesty findings. The hub status now
+  separates the built and smoke-tested Linux packages from the Windows
+  and macOS artifacts that ship once the release workflow is installed,
+  and drops the per-OS QA tracker link; the README carries the same
+  distinction. The scoreboard keeps the 2026-10-22 historical values
+  (212,438-byte wasm, six lints, 594 tests) and gains a 2026-10-24
+  section bound to `85ff5a19` with the rebuilt 212,472-byte wasm, the
+  620-test rerun, seven lint warnings, the node/browser smoke results,
+  and the current stage digests. The cross-host tarball sentence is
+  narrowed to same-host reproducibility, the epoch is labeled the
+  author timestamp rather than the committer timestamp, the feature
+  matrix reports the 620-test suite, and the release guide shows the
+  `--allow-branch` dispatch invocation. Historical progress entries
+  drop the unreachable pre-rebase hashes and label the old measured
+  commit as pre-rebase.
+  Verification: `packaging/release/check-wasm.sh` reproduces the
+  committed wasm (212,472 bytes, `d6dd16bf`); `cargo test -p
+  maze-chase-terminal --test tester_packaging --locked` 26/26;
+  `xvfb-run -a cargo test --workspace --no-fail-fast --locked` 620
+  passed / 0 failed across 63 targets; `cargo run --release --locked
+  --bin maze-chase-verify` 19/19 with golden replay `23c17f89734e`;
+  `cargo fmt --all --check` clean; clippy seven pre-existing engine
+  warnings; two `stage-linux.sh` runs with a byte-identical
+  `SHA256SUMS.txt` and a green `sha256sum -c`; the node smokes and the
+  headless browser E2E green (279 assertions).
+  Delegation ledger: two read-only general subagents ran in parallel.
+  The docs audit checked every finding against the changed files and
+  surfaced the stale `README.md` status sentence (fixed) plus the
+  missing round entry (this entry). The evidence audit independently
+  rebuilt the wasm, ran two Linux stages with the documented epoch,
+  matched all six digests, reran the node and CDP harnesses (33, 279,
+  10, and 17 checks), and reproduced the 620-test suite and seven-lint
+  count; it found no defects. The primary context made and reviewed
+  every edit, ran the packaging and workspace suites, the verifier,
+  fmt, clippy, both stages, and the manifest check, and owns the final
+  diff. Skills: no registry skill matched.
   - the Fixer
