@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<!-- generated from docs/identity.md; source-bytes: 5414; source-fnv: 61f868c097a63d15 -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Maze Chase docs: Identity and naming</title>
+<link rel="icon" href="../web/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="../site.css" />
+</head>
+<body class="site">
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <a class="brand" href="../index.html">Maze Chase <span>starring Rill the pond frog</span></a>
+  <nav class="site-nav" aria-label="Maze Chase site">
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../downloads.html">Downloads</a>
+    <a href="../compatibility.html">Compatibility</a>
+    <a href="../releases.html">Releases</a>
+    <a href="./">Docs</a>
+  </nav>
+</header>
+<main class="wrap" id="main">
+  <div class="docs-shell">
+    <aside class="docs-nav">
+      <p>All documents</p>
+      <ul>
+<li><a href="index.html">Docs home</a></li>
+<li><a href="web.html">Browser guide</a></li>
+<li><a href="desktop.html">Desktop guide</a></li>
+<li><a href="terminal.html">Terminal guide</a></li>
+<li><a href="terminal-compat.html">Terminal compatibility</a></li>
+<li><a href="feature-matrix.html">Feature matrix</a></li>
+<li><a href="parity.html">Parity checklist</a></li>
+<li><a href="scoreboard.html">Release scoreboard</a></li>
+<li><a href="release.html">Release guide</a></li>
+<li><a href="design.html">Design language</a></li>
+<li><a href="identity.html" aria-current="page">Identity and naming</a></li>
+<li><a href="audio.html">Sound identity</a></li>
+<li><a href="research.html">Mechanics research</a></li>
+<li><a href="behavior-spec.html">Behavior reference</a></li>
+<li><a href="legal.html">Clean-room log</a></li>
+      </ul>
+      <p>Project</p>
+      <ul>
+        <li><a href="../index.html">Play the game</a></li>
+        <li><a href="../releases.html">Release notes</a></li>
+        <li><a href="../downloads.html">Downloads</a></li>
+      </ul>
+    </aside>
+    <article class="doc">
+<h1 id="identity-naming-branding-and-maze-authorship">Identity: Naming, Branding, and Maze Authorship</h1>
+<p>Original identity for the Maze-Chase Rust game. Every name, maze, sprite, and sound in this project is authored here; nothing is carried over from any proprietary work. The #552 Python game is a feel reference only.</p>
+<h2 id="title">Title</h2>
+<p><strong>Maze Chase</strong> (binary crates: <code>maze-chase-terminal</code> for the terminal game; desktop and WASM binaries named per layer in their build phases). A generic descriptive title: a chase through a maze. Tagline: &quot;Outrun the wardens. Clear the maze.&quot;</p>
+<h2 id="cast">Cast</h2>
+<p>The player is <strong>Rill</strong>, a squat pond frog with two dome eyes breaking the top of the silhouette. Rill crosses the old pond at dusk while four predators patrol the water. Each hunter reads by shape first and color second, so the cast survives the legacy cell rung:</p>
+<table><thead><tr><th>Hunter</th><th>Kind</th><th>Style (target function)</th><th>Hue</th><th>Shape accent</th></tr></thead><tbody>
+<tr><td>Bram</td><td>heron</td><td>Leader: targets Rill's tile directly; enrages late-level</td><td>slate blue</td><td>S-neck above long legs</td></tr>
+<tr><td>Kessa</td><td>pike</td><td>Ambusher: targets 4 tiles ahead of Rill's heading</td><td>river green</td><td>dorsal ridge and underbite</td></tr>
+<tr><td>Jory</td><td>snake</td><td>Flanker: mirrors Bram across a pivot 2 tiles ahead of Rill</td><td>coral</td><td>raised head loop</td></tr>
+<tr><td>Nib</td><td>dragonfly</td><td>Lurker: hunts Rill while far, retreats to a corner when close</td><td>brass amber</td><td>doubled crossbar wings</td></tr>
+</tbody></table>
+<p>Scatter corners are the four maze corners, one per hunter. Frightened hunters bloat into concentric rings filled flat with the theme fright color (never white, never the eyes slot); the last 1.5 s adds a steady shape change and the HUD countdown, with a hollow warning mask under reduced flash. Eaten hunters become directional eye bubbles drifting home to the gatehouse door.</p>
+<p>Backstory (one paragraph, shown on the title screen): Rill crosses the old pond each dusk while the wardens doze in the gatehouse; gobbling a sunseed dazes them until the glow fades. Clear every crumb, mind the tunnel drafts, and do not get caught.</p>
+<h2 id="terminology-allowlist">Terminology allowlist</h2>
+<p>Pellets are <strong>crumbs</strong>, energizers are <strong>sunseeds</strong>, bonus items are <strong>relishes</strong> (Lily Charm, Copper Ripple, Reed Flute, Snail Shell, Dragonfly Wing, Kingfisher Feather), the ghost house is the <strong>gatehouse</strong>, extra life is a <strong>spare wick</strong>, fright is the <strong>turn</strong> (as in &quot;turning the tables&quot;). UI copy and code identifiers use only these terms plus the cast names above.</p>
+<h2 id="visual-identity">Visual identity</h2>
+<p>The shipped direction is <strong>Pondwake</strong> (Waylight interaction, Lantern Drift motion), recorded with its tokens in <code>docs/design.md</code> and <code>docs/design-tokens.json</code>. The three launch themes are <strong>Dusk Pond</strong> (dark default), <strong>Morning Shallows</strong> (light), and <strong>Moonwake</strong> (high contrast); all three clear the text, fright, eyes, and hunter-separation gates in <code>crates/assets/src/themes.rs</code>. Settings saved with the earlier palette ids (<code>ember-warren</code>, <code>abyss-lantern</code>, <code>parchment-dawn</code>) migrate to the matching Pondwake theme on load.</p>
+<p>Rill's 11x11 baseline and 21x21 high-detail sheets carry three mouth phases, three telling facings (right, up, down; left is the horizontal mirror), and a four-frame death-sink into a bubble. The hunters use one 11x11 silhouette each, plus directional 7x7 eye bubbles, a fright mask, and a hollow warning mask. The environment uses water-bead crumbs, resting-firefly sunseeds with a two-frame halo, six 7x7 relish icons, a six-frame 9x9 Golden Lily, a four-frame pickup burst, turn sparks, and a Lantern Drift level-clear sweep.</p>
+<h2 id="maze-authorship-log">Maze authorship log</h2>
+<ul>
+<li>#552 reference maze (28x31, symmetric, tunnel row 14, 282 crumbs plus 4 sunseeds, gatehouse center): authored in-repo for <code>pacman/</code>; used here only as a feel and verification reference. NOT copied into this project.</li>
+<li>Rust launch maze &quot;Ember Warren&quot; (<code>maze-chase/levels/ember-warren.maze</code>, authored 2026-10-16): 28x31, left-right symmetric, tunnel row 14, gatehouse center with door tiles at columns 13-14, 445 crumbs plus 4 corner sunseeds, flood fill from (13, 23) reaches all 449 pickups. Differs tile-by-tile from the #552 reference in the top pillar rhythm, the row-11 cross corridor, the gatehouse flanks, and the south-center vault; only the functional anchors (dimensions, tunnel row, gatehouse coordinates, start/mouth tiles) coincide, as the behavior spec demands. Loaded at compile time via <code>include_str!</code> so the engine stays dependency-free and WASM-safe.</li>
+<li>Sprite and audio authorship (authored 2026-10-16, refreshed for Pondwake and the sound overhaul; all original hand-authored data in-repo, no external sources): <code>crates/assets/src/sprites.rs</code> (Rill 11x11 mouth and facings, four silhouette-first hunters, 7x7 eye bubbles, ring fright mask plus hollow warning mask, water-bead crumbs, firefly sunseeds, six relish icons, Golden Lily, pickup burst, turn spark, death sink), <code>crates/assets/src/anim.rs</code> (Lantern Drift clips and registries), <code>crates/assets/src/themes.rs</code> (Dusk Pond, Morning Shallows, Moonwake, all WCAG 4.5+ text contrast), <code>crates/audio/src/score.rs</code> (five original multi-track tunes at one 108 BPM source plus a layered SFX bank across seven voice families, synthesized locally by layers, no audio files), <code>docs/design.md</code> plus <code>docs/design-tokens.json</code> (visual language, palette cross-checked by test).</li>
+</ul>
+<h2 id="brand-marks">Brand marks</h2>
+<p>Wordmark is plain text (&quot;MAZE CHASE&quot;) in the theme font; no logo image implies any external character. Theme palettes are original Pondwake tokens.</p>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span>Maze Chase is an original game. MIT licensed.</span>
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../releases.html">Releases</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs">GitHub</a>
+    <span class="sep"></span>
+    <span>Tracking issue <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">#582</a></span>
+  </div>
+</footer>
+</body>
+</html>

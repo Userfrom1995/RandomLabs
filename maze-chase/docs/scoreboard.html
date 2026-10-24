@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<!-- generated from docs/scoreboard.md; source-bytes: 36891; source-fnv: bae4f2ba5bcf86e5 -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Maze Chase docs: Release scoreboard</title>
+<link rel="icon" href="../web/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="../site.css" />
+</head>
+<body class="site">
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <a class="brand" href="../index.html">Maze Chase <span>starring Rill the pond frog</span></a>
+  <nav class="site-nav" aria-label="Maze Chase site">
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../downloads.html">Downloads</a>
+    <a href="../compatibility.html">Compatibility</a>
+    <a href="../releases.html">Releases</a>
+    <a href="./">Docs</a>
+  </nav>
+</header>
+<main class="wrap" id="main">
+  <div class="docs-shell">
+    <aside class="docs-nav">
+      <p>All documents</p>
+      <ul>
+<li><a href="index.html">Docs home</a></li>
+<li><a href="web.html">Browser guide</a></li>
+<li><a href="desktop.html">Desktop guide</a></li>
+<li><a href="terminal.html">Terminal guide</a></li>
+<li><a href="terminal-compat.html">Terminal compatibility</a></li>
+<li><a href="feature-matrix.html">Feature matrix</a></li>
+<li><a href="parity.html">Parity checklist</a></li>
+<li><a href="scoreboard.html" aria-current="page">Release scoreboard</a></li>
+<li><a href="release.html">Release guide</a></li>
+<li><a href="design.html">Design language</a></li>
+<li><a href="identity.html">Identity and naming</a></li>
+<li><a href="audio.html">Sound identity</a></li>
+<li><a href="research.html">Mechanics research</a></li>
+<li><a href="behavior-spec.html">Behavior reference</a></li>
+<li><a href="legal.html">Clean-room log</a></li>
+      </ul>
+      <p>Project</p>
+      <ul>
+        <li><a href="../index.html">Play the game</a></li>
+        <li><a href="../releases.html">Release notes</a></li>
+        <li><a href="../downloads.html">Downloads</a></li>
+      </ul>
+    </aside>
+    <article class="doc">
+<h1 id="release-scoreboard">Release scoreboard</h1>
+<p>Measured results for the packaged artifacts, recorded from real runs on the release machine (Linux x86_64, stable Rust 1.99.0) plus the two native per-OS passes (macOS arm64 and Windows Server 2025). No number here is estimated: every figure names the command or run that produced it. Rerun the commands in <code>docs/release.md</code> on another machine and append a new dated section rather than editing these rows.</p>
+<h2 id="2026-10-16-linux-x86-64-release-audit">2026-10-16 (Linux x86_64, release audit)</h2>
+<p>Engine determinism (<code>cargo run --bin maze-chase-verify</code>):</p>
+<ul>
+<li><code>verify: 19/19 checks passed</code> (all rows in <code>verify.rs</code>, including the two pinned golden replay hashes).</li>
+<li><code>perf-headless</code>: 0.8 us/tick for 12k ticks (100 simulated seconds), against the 8,333 us frame budget of the 120 Hz timestep. That is four orders of magnitude of headroom: the simulation can never be the frame bottleneck on any of the three layers.</li>
+</ul>
+<p>Unit and integration suites (<code>cargo test --workspace</code>, exit 0):</p>
+<table><thead><tr><th>Crate</th><th>Suites</th><th>Passed</th></tr></thead><tbody>
+<tr><td>engine (lib 45, golden 2, hostile 12 + 12, quiescence 2)</td><td>6</td><td>73</td></tr>
+<tr><td>assets (lib 20, hostile 11, doc 2)</td><td>3</td><td>33</td></tr>
+<tr><td>audio (lib 13, hostile 6)</td><td>2</td><td>19</td></tr>
+<tr><td>config (lib 18, hostile 8)</td><td>2</td><td>26</td></tr>
+<tr><td>terminal (lib 62, headless 6, CLI strictness 4, hostile 6)</td><td>4</td><td>78</td></tr>
+<tr><td>desktop (lib 55, headless 3, eval-fix 6, hostile 8)</td><td>4</td><td>72</td></tr>
+<tr><td>web (lib 43)</td><td>1</td><td>43</td></tr>
+<tr><td>doc-tests, remaining binaries</td><td>8</td><td>0</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>30</strong></td><td><strong>344 passed, 0 failed</strong></td></tr>
+</tbody></table>
+<p>Browser artifacts (Node 22+ for the CDP harnesses via the built-in WebSocket, no npm packages; committed <code>web/maze-chase.wasm</code>):</p>
+<ul>
+<li><code>node web/e2e/wasm-smoke.js</code>: <code>NODE SMOKE: ALL GREEN</code> (zero imports, boot/reset/steering/scoring live, bit-identical frames across instances, audio tables, hostile boundary probes).</li>
+<li><code>node web/e2e/tester-regression.js</code>: <code>TESTER REGRESSION: ALL GREEN</code> (warden-chain wire domain, scores push/getter round-trip, hostile boundaries, determinism).</li>
+<li><code>web/e2e/browser-e2e.js</code> (headless chromium over CDP): 17 assertions in the current harness; 13/13 green at release sign-off (zero console errors, real ArrowUp scoring, pause/resume, touch swipe, 390x844 board visible, 60 FPS live), and the macOS native pass re-ran the current harness green. Not re-run in this audit (no display server on the release machine); the committed harness is unchanged since its green run.</li>
+</ul>
+<p>Packaging (this audit):</p>
+<ul>
+<li>Terminal tarball (<code>packaging/terminal/linux-tarball.sh</code>): staged <code>dist/maze-chase-terminal-0.1.0-linux-x86_64.tar.gz</code>, contents listed by the script, ends with a <code>--version</code> probe.</li>
+<li>Terminal install (<code>install-linux.sh --tarball ... --prefix /tmp/mc-terminal-prefix</code>): installed and re-probed <code>--version</code> clean.</li>
+<li>Desktop Linux tarball plus installer: scripted and documented; release-build plus Xvfb <code>--probe</code> run was green at release sign-off (<code>docs/desktop-probe.ppm</code> committed), and recaptured in review round 9 after the title zones landed (Xvfb probe 30 bytes stable across runs).</li>
+<li>Windows zip and macOS bundle: scripts shipped, must be staged on their native OSes (see below).</li>
+</ul>
+<p>Style and lints:</p>
+<ul>
+<li><code>cargo fmt --check</code>: clean.</li>
+<li><code>cargo clippy --workspace --all-targets</code>: only the six pre-existing engine lints from clippy 1.99 remain (untouched <code>maze.rs</code>/<code>rng.rs</code>/<code>sha256.rs</code> style notes, present since the engine was written; consensus-critical code is not churned for style). This audit fixed the only two layer-test lints (<code>assert_eq!</code> with a boolean in terminal headless, <code>chunks_exact(3)</code> over an exactly-sized buffer in desktop eval-fix); both suites re-run green after the fix.</li>
+</ul>
+<h2 id="2026-10-18-cross-platform-release-verification">2026-10-18 (cross-platform release verification)</h2>
+<p>The verified release: both native per-OS passes on their real operating systems plus a fresh Linux rebuild of this exact tree.</p>
+<p>Linux release machine (this pass, Rust 1.99.0):</p>
+<ul>
+<li><code>cargo test --workspace --no-fail-fast</code>: 407 passed, 0 failed across 45 test targets (the 2026-10-16 table above records the earlier 344-pass run; the difference is the tester regression suites that landed since).</li>
+<li><code>cargo run --release --bin maze-chase-verify</code>: <code>verify: 19/19 checks passed</code>, golden replay <code>23c17f89734e</code>, <code>perf-headless</code> 0.2 us/tick.</li>
+<li>Wasm rebuild (<code>cargo build --release --target wasm32-unknown-unknown -p maze-chase-web</code>): sha256 <code>5ec2a05af55f7256a5603f7047446d319f342303d0194d8f2f8920f1ee9dea87</code>, byte-identical to the committed <code>web/maze-chase.wasm</code>.</li>
+<li><code>node web/e2e/wasm-smoke.js</code> and <code>tester-regression.js</code>: ALL GREEN. Real headless-chromium CDP <code>browser-e2e.js</code>: ALL GREEN (scoring 20 to 30, pause/resume, touch swipe, mobile viewport, persisted scores row, zero console errors).</li>
+<li>Packaging smoke: terminal tarball staged, installed to a scratch prefix, <code>--version</code> probed; desktop tarball staged, installed, and a real Xvfb <code>--probe 30</code> rendered a 1100x760 PPM.</li>
+<li><code>cargo fmt --all --check</code> clean; <code>cargo clippy --workspace --all-targets</code> reports only the six documented pre-existing engine lints plus the pre-existing rng test lint.</li>
+</ul>
+<p>macOS native pass, pre-Pondwake (tester run 39068848280, macOS 26.6.2 arm64):</p>
+<ul>
+<li><code>cargo test --workspace --no-fail-fast</code>: 398 passed, 0 failed across 41 targets; <code>maze-chase-verify</code> 19/19, golden <code>23c17f89734e</code>, 0.1 us/tick.</li>
+<li>Terminal PTY E2E: 28/28 (full session with termios restore, probe window cases, tier precedence, live resize recovery, corrupt-config boot, <code>--dir</code> with spaces, game-over score persistence).</li>
+<li>Desktop: <code>--probe 30</code>, <code>--probe 90</code>, and fullscreen probes exit 0 with real PPMs; a real GUI drive (osascript) created settings plus padmap files, changed difficulty, and quit cleanly.</li>
+<li>Packaging: <code>macos-app.sh</code> staged <code>Maze Chase.app</code> (Info.plist, bundle hash matching the release binary, probe exit 0); the terminal tarball staged, installed, and driven in a full PTY session.</li>
+<li>Web: wasm rebuild byte-identical (sha256 <code>5ec2a05a...</code>), node smokes green, CDP browser E2E green. Three new PTY regressions committed on the vehicle (PR #631).</li>
+</ul>
+<p>Windows native pass plus fix round, pre-Pondwake (tester run 39068849150, Windows Server 2025 with real ConPTY, vehicle PR #632):</p>
+<ul>
+<li><code>cargo test --workspace --no-fail-fast</code>: 374 passed, 0 failed across 41 targets; <code>maze-chase-verify</code> 19/19, golden <code>23c17f89734e</code>.</li>
+<li>Terminal CLI matrix green in Git Bash and pwsh; ConPTY sessions rendered title/play/pause/too-small/resize (9 pass; the 6 fails all shared the Release-key double-fire defect this pass found).</li>
+<li>Desktop probe PPM byte-identical to the committed <code>docs/desktop-probe.ppm</code> (pre-Pondwake file, sha256 <code>8de66bae...</code>; the Pondwake file at that pass was <code>a5d4f892...</code>); the packaged zip <code>maze-chase-desktop-0.1.0-windows-x86_64.zip</code> (609,776 bytes) extracted a binary byte-identical to the release build.</li>
+<li>Web node smokes and CDP browser E2E green.</li>
+<li>The three defects the pass found (terminal Release-key double fire, desktop <code>--probe</code> option order, CRLF wasm drift) are fixed in the merged vehicle: the fix contracts (<code>tester_windows_key_release.rs</code>, <code>tester_windows_probe_order.rs</code>, <code>tester_windows_checkout_bytes.rs</code>, <code>tester_key_kind_filter.rs</code>) were executed red on the pre-fix head and green on the fixed head by the Quality Council (<code>approve-eval</code> 9.8/10), and the root <code>.gitattributes</code> pins the <code>include_str!</code> sources to LF so a CRLF checkout can never reintroduce the wasm drift.</li>
+</ul>
+<h2 id="frame-budgets-design-with-measured-anchors">Frame budgets (design, with measured anchors)</h2>
+<ul>
+<li>Engine tick: 0.8 us measured (above). At 120 Hz the simulation costs about 0.01% of the frame budget; every layer can spend its frame on presentation.</li>
+<li>Terminal: 60 fps loop with watchdog auto-degrade (measured implicitly by the headless layout sweep and the tier ladder tests; the CI terminal tests claim no wall-clock FPS because CI terminals have no comparable clock; the compatibility harness measures it on a real terminal).</li>
+<li>Desktop: fixed 120 Hz session matching the engine timestep; Xvfb <code>--probe</code> run rendered real titled frames to PPM.</li>
+<li>Browser: 60 FPS live in the CDP run (release evidence); the canvas composer mirrors the shared 8-ppt reference raster with a frame-determinism test (<code>web::video</code>, <code>web::bridge</code> hostile probes).</li>
+</ul>
+<h2 id="native-os-proof-completed-2026-10-18">Native-OS proof (completed 2026-10-18)</h2>
+<p>Windows and macOS packaged artifacts plus their per-layer E2E runs executed on their native operating systems (the dated section above records the measured numbers). With them, the <a href="parity.html">parity checklist</a> rows signed at that point cover the simulation, layer, and per-layer E2E requirements; the later sound row records Linux synth and browser evidence and defers macOS/Windows real-speaker review to the Final Phase. The #552 reference game was retired in favor of this game by the Maintainer's explicit step after this verified release merged.</p>
+<h2 id="2026-10-18-overhaul-dynamic-layout-and-full-window-composition">2026-10-18 (overhaul: dynamic layout and full-window composition)</h2>
+<p>The dynamic-layout overhaul (#582), measured on the Linux build machine:</p>
+<ul>
+<li><code>cargo test --workspace --no-fail-fast</code>: 430 passed, 0 failed across 51 targets. This includes the new PTY resize-contract and trace tests in <code>crates/terminal/tests/plan_contract.rs</code>. The desktop window E2E ran under the local Xvfb (system libasound2, libudev, libxkbcommon-x11, xvfb packages present).</li>
+<li><code>cargo run --release --bin maze-chase-verify</code>: 19/19 checks, the golden replay digest unchanged (<code>23c17f89734e</code>), <code>perf-headless</code> 0.2 us/tick for 12k ticks.</li>
+<li><code>cargo fmt --all --check</code> clean; <code>cargo clippy --workspace --all-targets</code> reports only the pre-existing engine style lints documented above (maze.rs/rng.rs/sha256.rs), none from the terminal crate.</li>
+<li>Layout solver: continuous tile scales 1 to 8 columns by 1 to 4 rows plus the 2x1 floor, chrome fitted in priority order (side panel, HUD band, hint only), single too-small card below the exact 62x35 minimum. PTY sessions pin the planned scales: 62x35 to 2x1 band, 100x40 to 3x1 band, 140x70 to 5x2 band, 170x64 to 5x2 side panel, 200x100 to 7x3 band.</li>
+<li>Resize contract: a live resize repaints from scratch in one frame; asserted on the shipped binary on the Kitty tier, where that frame must carry <code>ESC[2J</code>, then <code>ESC_Ga=d</code> (delete every placement), then the re-display, in exactly that order.</li>
+<li>Trace mode: <code>MAZE_CHASE_TRACE</code> emits <code>start</code>/<code>plan</code>/<code>frame</code> JSONL; the launch plan at 62x35 and the post-resize plan at 100x40 are asserted, so the compatibility harness collector has machine evidence available.</li>
+<li>Real-emulator resize rows (Linux kitty/Ghostty/xterm and the macOS arm) stay with the per-OS testers: no emulator is installed on this build machine, and no claim here exceeds the PTY evidence above.</li>
+</ul>
+<h2 id="2026-10-18-overhaul-follow-up-tester-round-on-656">2026-10-18 (overhaul follow-up: tester round on #656)</h2>
+<p>The Linux Tester's real-PTY round on the dynamic-layout build returned three blocking findings; all three are fixed with committed tests. The review round after the fix then enforced the 2x1 compact floor on the pixel path (a 1x2 side-panel plan used to tie the 2x2 minimal plan at 80x63 with 8x6 cells and win the chrome tie-break; pinned by <code>layout::tests::pixel_path_never_drops_below_the_compact_floor</code>), reconciled the scoring and raster claims across the blueprint, the terminal docs, and the module header, and tightened the squareness guard. The full gates re-run on the Linux build machine:</p>
+<ul>
+<li><code>cargo test --workspace --no-fail-fast</code> (desktop E2E under Xvfb): 451 passed, 0 failed across 47 test binaries plus 7 doc-test suites (the Tester's committed live-golden suite adds 4 tests and the 47th binary on top of the 447 measured through the review rounds).</li>
+<li><code>cargo run --release --bin maze-chase-verify</code>: 19/19 checks, the golden replay digest unchanged (<code>23c17f89734e</code>).</li>
+<li><code>cargo fmt --all --check</code> clean; clippy reports only the pre-existing warnings from <code>main</code> (the engine style lints plus the design-token test's suggestion lints), none from this branch's files.</li>
+<li>Solver (F1): the 2..8 x 1..4 scale grid (the 2x1 compact floor) is scanned and picked coverage-first (ties: squareness, chrome, area, width); goldens 200x60 -&gt; 7x1 band and 62x80 -&gt; 2x2 band are pinned, and the pixel-path floor too (a 1x2 side-panel plan used to tie 2x2 at 80x63 with 8x6 cells). A 62..400 x 35..120 sweep holds the measured coverage floor (280/1000 at 399x62). The pinned scales in the section above all still hold.</li>
+<li>Bitmap tiers (F2/F3): the raster is drawn on a centered footprint bounded by the board's pixel box; Sixel paints from the centered origin instead of the board origin at natural size, and the Kitty display uses the footprint instead of the stretched full board box. Pinned by unit tests plus PTY placement/IHDR assertions.</li>
+</ul>
+<h2 id="2026-10-20-overhaul-pondwake-visual-identity">2026-10-20 (overhaul: Pondwake visual identity)</h2>
+<p>Initial identity delivery, measured on the Linux build machine at code commit <code>90cb9b87</code> (kept as history):</p>
+<ul>
+<li><code>cargo test --workspace --no-fail-fast</code> (desktop E2E under the local Xvfb): 498 passed, 0 failed across 57 test targets.</li>
+<li><code>cargo run --release --bin maze-chase-verify</code>: 19/19 checks, golden replay digest unchanged (<code>23c17f89734e</code>), <code>perf-headless</code> 0.1 us/tick.</li>
+<li>Wasm rebuild sha256 <code>1abe2665...</code>; <code>wasm-smoke.js</code>, <code>tester-regression.js</code>, and the real headless-chromium <code>browser-e2e.js</code> ALL GREEN with zero console errors.</li>
+</ul>
+<p>Review fix rounds, measured on the same Linux machine at the head of this PR (round 6 reviewed head <code>88ee1467</code>, code commit <code>470a050f</code>):</p>
+<ul>
+<li><code>cargo test --workspace --no-fail-fast</code> (desktop E2E under Xvfb): 535 passed, 0 failed across 57 test targets, including the new engine-clock, chomp-phase, 120 Hz ticker-age, renderer-clock, web-clock, effect-window, authored-facing, death-hold, sweep-order, mirrored-eye, death-boundary, fright-slot, cell-clear, cell-death-bubble, cell-relish-order, desktop-ticker, and Kitty image-one tests.</li>
+<li><code>cargo run --release --bin maze-chase-verify</code>: 19/19 checks, golden replay digest unchanged (<code>23c17f89734e</code>); <code>perf-headless</code> 0.2-0.4 us/tick across CI reruns (the release machine measured 0.1; the gate is the verify pass, not the host's absolute rate).</li>
+<li><code>cargo fmt --all --check</code> clean; <code>cargo clippy --workspace --all-targets</code> reports only the documented pre-existing engine style lints (six lib warnings plus the rng test lint), none from the art, theme, renderer, or bridge code.</li>
+<li>Wasm rebuild (<code>cargo build --release --target wasm32-unknown-unknown -p maze-chase-web</code>): sha256 <code>029352dc0f54d074f6de1a200174e30fec76652caf115ca9d223a2d8357f819e</code>, committed as <code>web/maze-chase.wasm</code> (202,727 bytes; rebuilt byte-identically with rustc 1.99.0 commit <code>b940084d7</code>); <code>wasm-smoke.js</code>, <code>tester-regression.js</code>, and the real headless-chromium <code>browser-e2e.js</code> are ALL GREEN with zero console errors. The committed browser gameplay capture is <code>docs/web-gameplay.png</code> (1280x757).</li>
+<li>Quality Council fix round (same head family, <code>dd55b7df</code>): staged title and pause surfaces on terminal/desktop, a first-view browser title card and header Pause control, a 30-segment shape-distinct fright meter, persisted reduced motion, high-contrast MOONWAKE, and the reachable 5x5 eye / 11x11 relish ladders. <code>browser-e2e.js</code> grew to 38 assertions (first-view CTA and real Start click, mobile pause and Resume clicks, reduced-motion/high-contrast persistence); the workspace suite stayed at 545 passed across 58 targets, the desktop title probe was regenerated, and the wasm rebuilt to sha256 <code>7545da6a...</code> (206,252 bytes) after a second clean build.</li>
+<li>Review round 9 (same head family): the three-zone title now carries a selected-item description strip plus the warden legend and goal line on terminal, desktop, and web, and the reduced-flash contract gates the pickup burst, golden lily, and death hold on terminal raster, atlas, cell tier, desktop attract board, and browser renderer. New <code>tester_reduced_flash.rs</code> enumerates every brightness call site and proves a 180-frame fright window is pixel-stable under reduced flash and reduced motion. Workspace suite 549 passed across 59 targets; wasm rebuilt to sha256 <code>69d5a55c...</code> (206,288 bytes, second clean build byte-identical); the browser E2E now carries 42 assertions and is all green.</li>
+<li>Review round 10 (same head family): the browser renderer now strips score floaters under reduced motion through the same early-return helper pattern as the desktop, with a behavioral test that renders a live floater under <code>Fx::new(true, true)</code> and asserts its absence. Web suite 51 tests; the public workspace count moves to 550 across 59 targets (the full rerun remains the Tester's gate). Wasm rebuilt to sha256 <code>346ef9b8...</code> (206,295 bytes, second clean build byte-identical); node smokes and the 42-assertion browser E2E are all green.</li>
+<li>Tester round (head <code>f00dffdb</code>): the browser fright HUD calls <code>mc_fright_segments</code>, which the bridge did not export; the resulting <code>TypeError</code> was swallowed by <code>updateHud</code>'s catch, freezing the badge, meter, and later HUD rows for the whole fright window. The bridge now exports the countdown, the wasm was rebuilt with the recorded Rust 1.99.0 toolchain to sha256 <code>68e331b2...</code> (206,711 bytes, second clean build byte-identical), and <code>tester-regression.js</code> (fright HUD ABI and drain assertions) plus <code>wasm-smoke.js</code> are ALL GREEN.</li>
+<li>Tester verification round (head <code>e78035c57</code>): the full workspace run recorded 552 passed / 0 failed across 60 targets, with harness 47/47, <code>maze-chase-verify</code> 19/19 (golden replay <code>23c17f89734e</code>, 0.2 us/tick), <code>cargo fmt --all --check</code> clean, and the committed wasm <code>68e331b2...</code> (206,711 bytes) matching <code>docs/web.md</code>. The cold headless-chromium <code>browser-e2e.js</code> passed 51/51 assertions with zero console errors, the desktop <code>--probe 90</code> stayed byte-identical to <code>docs/desktop-probe.ppm</code>, and the terminal PTY ran live at 143x64 and 170x64.</li>
+<li>Desktop Xvfb <code>--probe 30</code> stays byte-identical to <code>docs/desktop-probe.ppm</code> (sha256 <code>594436905ae88af354253764f8f724300e0d173d88bc06acabb47743a8ef4dc3</code>); the desktop E2E asserts the probe bytes. The committed gameplay capture <code>docs/desktop-gameplay.ppm</code> (sha256 <code>02ea979c910ddca2feea3a0731e812cae0cb8bd0f05416eb3d3fc8b32bd1390f</code>) was recorded from the same Xvfb window pipeline after driving a play state, so the #658 evidence is a real gameplay frame, not the title.</li>
+<li>Quality Council fix round (head <code>b6f82a24</code> family): the terminal play path now forwards <code>reduced_motion</code> into the shared <code>Fx</code> (bitmap, cell, and atlas paths), the title/pause cards clear an opaque one-cell ring before painting, and the desktop title/pause cards stage over the board center instead of the page center. Regression coverage: a live PTY run with <code>reduced_motion = true</code> (no sunseed halo glyph), a card-ring grid test, and desktop board-center tests. <code>docs/design.md</code> now records the shipped scope and an accepted-simplifications list instead of the deferred design targets. Full workspace rerun: 559 passed / 0 failed across 61 targets; <code>docs/desktop-probe.ppm</code> recaptured (sha256 <code>594436905ae88af354253764f8f724300e0d173d88bc06acabb47743a8ef4dc3</code>) and the desktop E2E is byte-identical.</li>
+<li>Linux terminal compatibility harness: all eight rows were re-executed at <code>96dc2be2</code> (binary sha256 <code>ce3b1f91a78f00cbd72d09bd6132b367d027fd504e1e27d56e08ec9bd9f53f86</code>, <code>sources_dirty=false</code>), both Ghostty rows and every forced tier included. Every row records <code>disposition: pass</code>; kitty-graphics rows carry 169.9-175.4 KiB per session with 153-217 exact sprite-palette pixels in the playing capture, and the VT340 rows carry 137-138 transmits / 4.25-4.31 MiB. The evidence bundles under <code>tools/compat/evidence/</code> and their screenshots are the committed capture set.</li>
+<li>Terminal sprite census was updated from the retired Ember Warren palette to the Dusk Pond theme palette (Rill, sunseed, and the four hunters).</li>
+<li>Round 14 review fix (head <code>620b3d32</code>): the desktop compact title card clamps inside the frame at the 492x296 floor (production three-detail regression test), and the window-floor doc matches. The web bridge ABI moves to 2, the boot gate requires <code>mc_fright_segments</code>, and the rebuilt wasm is <code>ae474117...</code> (206,711 bytes, second clean build byte-identical); <code>boot-gate-e2e.js</code> proves stale version-1 modules reach the error card for both the missing export and version skew. The high-contrast label names the effective Moonwake theme, the cell tier keeps chomp and turn sparks under reduced flash, and the docs describe the static fresh title board, static help pages, and the shipped no-history-guard Back behavior. Full workspace rerun: 568 passed / 0 failed across 61 targets; verify 19/19; all four web E2E scripts green.</li>
+<li>Tester verification round (head <code>23c10464</code> plus this selection-accent fix): the live run recorded 571 passed / 1 failed across 62 result lines, the only failure the intentional <code>selected_settings_row_uses_the_theme_accent</code> PTY test; <code>paint_panel</code> now trims the centering padding before testing the <code>&quot;&gt; &quot;</code> cursor marker, so the selected Settings/Help/Scores/Rebind row paints in <code>theme.accent</code>. With the fix applied the public workspace count is 572 passed / 0 failed across 62 targets; harness 47/47; <code>maze-chase-verify</code> 19/19 (golden replay <code>23c17f89734e</code>, 0.2 us/tick); <code>cargo fmt --all --check</code> clean; the committed wasm is unchanged at <code>ae474117...</code> (206,711 bytes); the desktop probe is byte-identical to <code>docs/desktop-probe.ppm</code>; all four web E2E scripts are green with zero console errors.</li>
+<li>Quality Council fix round (head <code>96dc2be2</code>): the web screen panels are fixed overlays with scrollable bodies and pinned action rows (Settings fits at 390x844 and 1440x900), the mobile HUD correctly outranks <code>aside#hud dl</code>, and both HUDs now carry pickups/completion and relish; frame diagnostics moved behind a Settings checkbox. The terminal band grows to three rows, the fright meter is a fixed 30 shape-distinct segments, and the compact title card stages board-left/menu-right. Public workspace rerun: 573 passed / 0 failed across 62 targets; compat collector suite 48/48; <code>maze-chase-verify</code> 19/19 (golden replay <code>23c17f89734e</code>); all four web E2E scripts green. The compat harness re-ran all eight Linux rows at this checkout (binary <code>ce3b1f91a78f00cbd72d09bd6132b367d027fd504e1e27d56e08ec9bd9f53f86</code>, <code>sources_dirty=false</code>), all <code>pass</code>, including both Ghostty rows and all forced tiers; the pause gate now accepts the frozen dimmed board (PAUSED paint plus 0.55 &lt;= dominant &lt; 1.0). The wasm rebuild is <code>022761a1...</code> (207,338 bytes, second clean build byte-identical) on rustc 1.99.1 commit <code>58cf8f9c3</code>.</li>
+<li>Tester HUD-floor round (head <code>3b05525c</code> plus this fix): the committed <code>tester_hud_floor</code> pixel test caught the full desktop HUD's TUNE row painting through the bottom hint bar at the old 363 px compact/full switch. The full stack now starts at 365 px (363-364 use the compact stack), and the pixel tests pin both sides of the switch. Public workspace rerun under Xvfb: 578 passed / 0 failed across 63 targets; harness 49/49; <code>maze-chase-verify</code> 19/19 (golden replay <code>23c17f89734e</code>); all four web E2E scripts green. Current-state evidence claims corrected against the committed JSONs: kitty rows 169.9-175.4 KiB per session; VT340 rows 137-138 transmits / 4.25-4.31 MiB; Sixel playing 29.7 KiB mean wire frame / 29.9 KiB peak / 554 KiB/s (471 KiB/s payload); xterm light 1.85% white while playing. The macOS and Windows release rows are qualified as pre-Pondwake in <code>release.md</code> and <code>docs/index.md</code>.</li>
+</ul>
+<h2 id="2026-10-21-current-tree-verification">2026-10-21 (current-tree verification)</h2>
+<ul>
+<li>Browser E2E with the round-21 title/pause viewport assertions: <code>web/e2e/browser-e2e.js</code> passes 146/146 assertions with <code>E2E: ALL GREEN</code> and zero console errors (headless chromium over CDP). The small-viewport loop now also drives 320x568 and asserts the title's primary CTA is fully inside the viewport and hit-testable, the title body reopens at its top, and the 480x320 pause card is checked the same way; the 2026-10-16 release-audit row above keeps its own historical measurement.</li>
+</ul>
+<ul>
+<li>Review round 22 hardens those same short-landscape surfaces: <code>web/e2e/browser-e2e.js</code> now passes 190/190 assertions with <code>E2E: ALL GREEN</code> and zero console errors. The title and pause loops cover 480x320, 320x360, and 568x320 with every action inside the card and viewport and the heading itself hit-testable; the scrolling panel bodies are keyboard-scrollable labelled regions and the title body reopens at its top. The full workspace rerun under Xvfb is 579 passed / 0 failed across 63 targets, harness 49/49, and <code>maze-chase-verify</code> 19/19 (golden replay <code>23c17f89734e</code>).</li>
+</ul>
+<ul>
+<li>Review round 23 restores the documented keyboard controls from focused panel actions: P, Esc, and M now reach the session from a focused button or scroll region, and <code>web/e2e/browser-e2e.js</code> proves pause with P, resume with P and Esc from the focused Resume action, mute toggling with M, and ArrowDown moving focus off the auto-focused Start. The harness now passes 200/200 assertions with <code>E2E: ALL GREEN</code> and zero console errors. The full workspace carried 581 tests across 63 targets in this round: 577 passed, 0 failed, and four desktop window E2E tests were blocked by this sandbox's missing libxkbcommon-x11. The Tester's final rerun at <code>61f96564</code> recorded 582 passed / 0 failed across 63 targets.</li>
+</ul>
+<ul>
+<li>Tester final rerun (head <code>61f96564</code>): the shipped artifacts were exercised live on all three layers and the full suite re-ran under Xvfb. <code>cargo test --workspace --no-fail-fast</code> records 582 passed / 0 failed across 63 targets (581 plus the new live windowed settings-toggle test), <code>web/e2e/browser-e2e.js</code> passes 214/214 assertions with <code>E2E: ALL GREEN</code> and zero console errors, the boot-gate E2E passes 30/30, the harness contract is 49/49, <code>maze-chase-verify</code> is 19/19 (golden replay <code>23c17f89734e</code>), and <code>cargo fmt --all --check</code> is clean. Live evidence: the terminal release binary ran a truecolor PTY at 143x64; the desktop <code>--probe 90</code> reproduced <code>docs/desktop-probe.ppm</code> byte-for-byte (<code>9abc9150...</code>); the committed wasm is <code>022761a1...</code> (207,338 bytes).</li>
+</ul>
+<ul>
+<li>Review round 29 fixes the web rebind capture state: an unmapped key (for example <code>F1</code>) during a rebind capture now cancels the Rust-side capture as well as the visible UI, so the next key still performs its shortcut instead of completing the abandoned capture. <code>browser-e2e.js</code> arms the Pause row, presses <code>F1</code>, then proves <code>M</code> still toggles mute; the harness passes 218/218 assertions with <code>E2E: ALL GREEN</code> and zero console errors. Mutation check: the same block against the pre-fix harness fails the two mute assertions and the later persisted-mute checks. No Rust, wasm, or capture artifact changed.</li>
+</ul>
+<ul>
+<li>Review round 30 closes the remaining web capture-sync paths: leaving Settings, pressing Escape from a focused form control, and a touch-pad press all cancel an armed rebind on both the JS and Rust sides, and arming a second row resets the previous prompt. The boot contract now requires the settings and score exports, and <code>docs/web.md</code> records that fixed menu shortcuts take precedence over remapped play actions. <code>browser-e2e.js</code> passes 229/229 assertions with <code>E2E: ALL GREEN</code> and zero console errors; each of the four new blocks fails when its fix is reverted (mutation checks). Boot-gate E2E 30/30, wasm-smoke and tester-regression ALL GREEN, <code>node --check</code> clean. No Rust, wasm, or capture artifact changed.</li>
+</ul>
+<h2 id="2026-10-22-sound-overhaul-linux-x86-64">2026-10-22 (sound overhaul, Linux x86_64)</h2>
+<p>Measured on this tree under stable Rust 1.99.0. Earlier dated sections remain as history and were not edited.</p>
+<p>Engine determinism (<code>cargo run --bin maze-chase-verify</code>):</p>
+<ul>
+<li><code>verify: 19/19 checks passed</code>, golden replay digest <code>23c17f89734e</code>.</li>
+<li><code>perf-headless</code>: 1.0 us/tick for 12k ticks in this run.</li>
+<li>Fixer re-runs on the final tree: 0.7 us/tick with <code>cargo run --bin maze-chase-verify</code> and 0.1 us/tick with <code>cargo run --release --bin maze-chase-verify</code>; the JS-only web changes do not touch the engine loop.</li>
+<li>Offline PCM (<code>desktop::sound::tests::offline_pcm_levels_are_bounded_and_the_default_mix_keeps_headroom</code>): music peak 0.320 (RMS 0.076), SFX peak 0.500, all finite and peak-normalized without clipping; at the default 80/60/80 mix the music peaks at 0.154 and SFX at 0.320.</li>
+</ul>
+<p>Unit and integration suites (<code>cargo test --workspace</code>, exit 0):</p>
+<table><thead><tr><th>Crate</th><th>Suites</th><th>Passed</th></tr></thead><tbody>
+<tr><td>engine</td><td>9</td><td>90</td></tr>
+<tr><td>assets</td><td>4</td><td>42</td></tr>
+<tr><td>audio (lib 17, hostile 6)</td><td>3</td><td>23</td></tr>
+<tr><td>config</td><td>3</td><td>28</td></tr>
+<tr><td>terminal</td><td>32</td><td>247</td></tr>
+<tr><td>desktop</td><td>10</td><td>112</td></tr>
+<tr><td>web</td><td>2</td><td>52</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>63</strong></td><td><strong>594 passed, 0 failed</strong></td></tr>
+</tbody></table>
+<p>Browser artifacts (committed <code>web/maze-chase.wasm</code>, 212,438 bytes, sha256 <code>5bcceec8356d8659d53405c593df744ba3c980c8b31582358313a53f5a2f72db</code>, reproduced byte-for-byte by a second release build):</p>
+<ul>
+<li><code>node web/e2e/wasm-smoke.js</code>: <code>NODE SMOKE: ALL GREEN</code> (ABI 3, shared 108 BPM, layered tone tables, per-note track metadata, hostile boundary probes).</li>
+<li><code>node web/e2e/tester-regression.js</code>: <code>TESTER REGRESSION: ALL GREEN</code>.</li>
+<li><code>node web/e2e/boot-gate-e2e.js</code>: <code>BOOT-GATE-E2E: ALL GREEN</code> (33 assertions, including the new layered-sound export gate).</li>
+<li><code>node web/e2e/browser-e2e.js</code> (headless chromium over CDP): <code>E2E: ALL GREEN</code> (279 assertions, zero console errors), including the pre-gesture audio chip, its retirement after unlock, the 60/80 music and SFX defaults, volume persistence, every warden chain pitch under the SFX ceiling, and the mute confirmation settling its target first.</li>
+<li><code>node web/e2e/tester-rebind-lifecycle.js</code>: <code>REBIND LIFECYCLE: ALL GREEN</code>.</li>
+</ul>
+<p>Style and lints:</p>
+<ul>
+<li><code>cargo fmt --all --check</code>: clean.</li>
+<li><code>cargo clippy --workspace --all-targets</code>: only the six pre-existing engine style lints remain; the audio, desktop, and web crates are clean.</li>
+</ul>
+<p>Audio evidence boundary: the Linux runner measures the synthesized PCM and exercises every mix path through the real sinks and browser. A real-speaker listening review on macOS and Windows is not claimed here; it stays with the per-OS release sign-off, as recorded in <code>docs/parity.md</code> and the final-phase checklist.</p>
+<h2 id="2026-10-22-release-packaging-linux-x86-64">2026-10-22 (release packaging, Linux x86_64)</h2>
+<p>Measured from the <code>maze-chase/</code> tree at commit <code>829885d01</code> (workspace version 0.1.0) with <code>SOURCE_DATE_EPOCH=1792748413</code> on <code>runnervm8k3b6.r5kosxifsywuxjr3drjtxcygpf.phxx.internal.cloudapp.net</code> (Ubuntu 24.04.5 LTS, Linux 6.17.0-1022-azure, x86_64) under stable Rust 1.99.0 (<code>b940084d7eb6a299eb4bfeb8e34901bc051e7ac4</code>), rpmbuild 4.18.2, and dpkg-deb 1.22.6. The epoch is this measurement's fixed timestamp (the commit's author timestamp), not its committer timestamp. These are this host's measured bytes: the tarball digests reproduce twice on this host with the pinned inputs, while cross-host byte identity is not claimed; the RPM header records this build host and the deb digest is tied to the dpkg toolchain above, so both are host-bound. macOS and Windows packaging was not run on this container and is not claimed here.</p>
+<p>Version and tag contract:</p>
+<ul>
+<li><code>[workspace.package] version = &quot;0.1.0&quot;</code> is the single source; all seven crates inherit version, edition, and license. <code>Cargo.lock</code> records the engine at 0.1.0.</li>
+<li><code>packaging/release/check-tag.sh</code> accepts <code>maze-chase-v0.1.0</code> and <code>maze-chase-v0.1.0-rc.1</code>, rejects <code>maze-chase-v0.2.0</code>, and reports a branch ref as a non-release.</li>
+</ul>
+<p>Linux stage (<code>packaging/release/stage-linux.sh</code>, run twice):</p>
+<table><thead><tr><th>Artifact</th><th>SHA-256</th></tr></thead><tbody>
+<tr><td><code>maze-chase-terminal_0.1.0_amd64.deb</code></td><td><code>8077e6e20ecd3bf1457a0d8214cdf9b2b650dde3108e889687c2949456da7124</code></td></tr>
+<tr><td><code>maze-chase-desktop_0.1.0_amd64.deb</code></td><td><code>e4f0210070dafdca278d030cec6a038a04b7cc59091bc460486d71ac1e877074</code></td></tr>
+<tr><td><code>maze-chase-terminal-0.1.0-1.x86_64.rpm</code></td><td><code>6283507b5f9152836802252048dba572445c31adb7d11391e07f1234b534abf0</code></td></tr>
+<tr><td><code>maze-chase-desktop-0.1.0-1.x86_64.rpm</code></td><td><code>0e2c28e8de55d5f542b1be8f4b0ede32df0be2b1b927261f9bc6bb5ccc92aa4a</code></td></tr>
+<tr><td><code>maze-chase-terminal-0.1.0-linux-x86_64.tar.gz</code></td><td><code>9b390b7a4c943da29e24ae0af5014d3a5d46c5d40a76725fdeade4fb9cb882e9</code></td></tr>
+<tr><td><code>maze-chase-desktop-0.1.0-linux-x86_64.tar.gz</code></td><td><code>58daf8aaa3d86ed02f398b8f27cbb6fc762cbbc802804b49c6304ad8bc56e1ec</code></td></tr>
+</tbody></table>
+<p><code>packaging/release/smoke-linux.sh</code> unpacked both deb and rpm payloads, ran each binary's <code>--version</code> and <code>--help</code>, and installed, ran, and uninstalled both tarballs in a scratch prefix through the installers extracted from the archives. A second full stage on the same host produced the same SHA-256 manifest byte for byte, and the tarball writer's digest test holds under umask 022 and 077. The tarballs carry the binary, the install/uninstall scripts, the launch guide, and the MIT license.</p>
+<p>Desktop loop and frame budget (<code>cargo test -p maze-chase-desktop</code>, 89 lib tests plus the integration suites, all green): an 8K window is bounded to at most 16,777,216 rendered pixels with its aspect ratio kept and is scaled on presentation; static screens schedule no frames but keep a bounded 16 ms gamepad poll that redraws only on input; Playing and <code>--probe</code> schedule continuous 16 ms frames; audio slider and mute commits settle their fades in the input path. The committed probe capture remains byte-identical; the E2E asserts it. The illustrative gameplay capture was recorded from the same window pipeline before this loop change and is not claimed to be byte-identical.</p>
+<h2 id="2026-10-24-browser-artifact-and-full-suite-rerun-linux-x86-64">2026-10-24 (browser artifact and full-suite rerun, Linux x86_64)</h2>
+<p>Measured from the <code>maze-chase/</code> tree at head <code>85ff5a19</code> (workspace version 0.1.0); the committed wasm first appears at <code>32a8364c</code>. The Linux stage used <code>SOURCE_DATE_EPOCH=1792748413</code> on <code>runnervmtai0g</code> (Ubuntu 24.04.5 LTS, Linux 6.17.0-1022-azure, x86_64) under stable Rust 1.99.0 (<code>b940084d7eb6a299eb4bfeb8e34901bc051e7ac4</code>), rpmbuild 4.18.2, and dpkg-deb 1.22.6. This section records the post-unification browser artifact and the rerun on this tree; the 2026-10-22 sections keep their own 594-test table and package digests (the latter at <code>829885d01</code>). macOS and Windows packaging was not run on this container and is not claimed here.</p>
+<p>Browser artifact (committed <code>web/maze-chase.wasm</code>, rebuilt with <code>cargo build --release --locked --target wasm32-unknown-unknown -p maze-chase-web</code> on the recorded toolchain): 212,472 bytes, sha256 <code>d6dd16bf8038ae5cbde4a81209e4835391dd4ace8a5e3eb1ef37d6b191c62ac0</code>. <code>packaging/release/check-wasm.sh</code> reproduces the committed bytes from a clean scratch rebuild and fails closed on a mismatch.</p>
+<ul>
+<li><code>node web/e2e/wasm-smoke.js</code>: <code>NODE SMOKE: ALL GREEN</code>.</li>
+<li><code>node web/e2e/tester-regression.js</code>: <code>TESTER REGRESSION: ALL GREEN</code>.</li>
+<li><code>node web/e2e/boot-gate-e2e.js</code>: <code>BOOT-GATE-E2E: ALL GREEN</code> (33 assertions).</li>
+<li><code>node web/e2e/browser-e2e.js</code> (headless chromium over CDP): <code>E2E: ALL GREEN</code> (279 assertions, zero console errors).</li>
+<li><code>node web/e2e/tester-rebind-lifecycle.js</code>: <code>REBIND LIFECYCLE: ALL GREEN</code>.</li>
+<li><code>node web/e2e/tester-audio-e2e.js</code>: <code>TESTER AUDIO E2E: ALL GREEN</code> (17 checks).</li>
+</ul>
+<p>Unit and integration suites (<code>cargo test --workspace --no-fail-fast --locked</code>): 63 targets, 620 passed, 0 failed.</p>
+<p>Style and lints:</p>
+<ul>
+<li><code>cargo fmt --all --check</code>: clean.</li>
+<li><code>cargo clippy --workspace --all-targets</code>: seven engine warnings remain (six library style lints plus the test-only <code>unusual_byte_groupings</code> warning at <code>crates/engine/src/rng.rs:125</code>); the audio, desktop, and web crates are clean.</li>
+</ul>
+<p>Linux stage (<code>packaging/release/stage-linux.sh</code>, run twice):</p>
+<table><thead><tr><th>Artifact</th><th>SHA-256</th></tr></thead><tbody>
+<tr><td><code>maze-chase-terminal_0.1.0_amd64.deb</code></td><td><code>4c573f6f74c7ab4cd097a3844f7c95cc76cfb91594dcf68b17a95fbdd1b8f6ee</code></td></tr>
+<tr><td><code>maze-chase-desktop_0.1.0_amd64.deb</code></td><td><code>229be715cc78211fa566b5e9c261aa1399ec7d5c65a16c2245c36e59e50d2c5d</code></td></tr>
+<tr><td><code>maze-chase-terminal-0.1.0-1.x86_64.rpm</code></td><td><code>cc591eee9ff5bb74e7457c40b46520601599b0cb8b11735ecb07c7f6a0769e73</code></td></tr>
+<tr><td><code>maze-chase-desktop-0.1.0-1.x86_64.rpm</code></td><td><code>6a6542c731d82e912d75800908675309a6e05fcda9b67c3b6b9086d303028485</code></td></tr>
+<tr><td><code>maze-chase-terminal-0.1.0-linux-x86_64.tar.gz</code></td><td><code>aeb402eb001262881f8e2ebffb75f0419c987d2a483b29020974fb14c9afc0ac</code></td></tr>
+<tr><td><code>maze-chase-desktop-0.1.0-linux-x86_64.tar.gz</code></td><td><code>20136625311bd5e343de980bb494611ad8154f646640fbc9fa20e17ac8710125</code></td></tr>
+</tbody></table>
+<p>The second full stage reproduced the same <code>SHA256SUMS.txt</code> byte for byte, <code>sha256sum -c</code> passed all six artifacts, and <code>smoke-linux.sh</code> unpacked both deb and rpm payloads, ran each binary's <code>--version</code> and <code>--help</code>, and installed, ran, and uninstalled both tarballs through the installers extracted from the archives. The tarball digests reproduce twice on this host with the pinned inputs; the deb is tied to the dpkg toolchain above and the RPM header records this build host, so both are host-bound. Cross-host byte identity is not claimed.</p>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span>Maze Chase is an original game. MIT licensed.</span>
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../releases.html">Releases</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs">GitHub</a>
+    <span class="sep"></span>
+    <span>Tracking issue <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">#582</a></span>
+  </div>
+</footer>
+</body>
+</html>

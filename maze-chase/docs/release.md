@@ -114,7 +114,7 @@ release may produce different bytes. The page gates on the bridge ABI
 version and fails loudly on the error card instead of misbehaving on a
 mismatch. Play it by serving the directory over http
 (`python3 -m http.server 8931`, or `python -m http.server 8931` on
-Windows, inside `maze-chase/`, then open `play.html`); browsers refuse
+Windows, inside `maze-chase/`, then open `index.html`); browsers refuse
 `.wasm` over `file://`.
 
 Smoke each binary:
@@ -146,7 +146,7 @@ because it is `<version>-1.<arch>.rpm` on disk.
 | Desktop | Windows | `packaging/desktop/windows-installer.ps1` | `dist/maze-chase-desktop-<version>-windows-x86_64-setup.exe` |
 | Desktop | macOS | `packaging/desktop/macos-app.sh` | `dist/Maze Chase.app` |
 | Desktop | macOS | `packaging/desktop/macos-dmg.sh` | `dist/maze-chase-desktop-<version>-macos-<arch>.dmg` |
-| Browser | any (Pages serves `main`) | the wasm command above | live at `maze-chase/play.html` |
+| Browser | any (Pages serves `main`) | the wasm command above | live at `maze-chase/index.html` |
 
 The tar archives and Windows zips are deterministic. The tarballs are
 created with `SOURCE_DATE_EPOCH` (the release job uses the commit

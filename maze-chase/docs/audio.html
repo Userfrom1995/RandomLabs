@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<!-- generated from docs/audio.md; source-bytes: 7194; source-fnv: 8f94f934f438b839 -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Maze Chase docs: Sound identity</title>
+<link rel="icon" href="../web/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="../site.css" />
+</head>
+<body class="site">
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <a class="brand" href="../index.html">Maze Chase <span>starring Rill the pond frog</span></a>
+  <nav class="site-nav" aria-label="Maze Chase site">
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../downloads.html">Downloads</a>
+    <a href="../compatibility.html">Compatibility</a>
+    <a href="../releases.html">Releases</a>
+    <a href="./">Docs</a>
+  </nav>
+</header>
+<main class="wrap" id="main">
+  <div class="docs-shell">
+    <aside class="docs-nav">
+      <p>All documents</p>
+      <ul>
+<li><a href="index.html">Docs home</a></li>
+<li><a href="web.html">Browser guide</a></li>
+<li><a href="desktop.html">Desktop guide</a></li>
+<li><a href="terminal.html">Terminal guide</a></li>
+<li><a href="terminal-compat.html">Terminal compatibility</a></li>
+<li><a href="feature-matrix.html">Feature matrix</a></li>
+<li><a href="parity.html">Parity checklist</a></li>
+<li><a href="scoreboard.html">Release scoreboard</a></li>
+<li><a href="release.html">Release guide</a></li>
+<li><a href="design.html">Design language</a></li>
+<li><a href="identity.html">Identity and naming</a></li>
+<li><a href="audio.html" aria-current="page">Sound identity</a></li>
+<li><a href="research.html">Mechanics research</a></li>
+<li><a href="behavior-spec.html">Behavior reference</a></li>
+<li><a href="legal.html">Clean-room log</a></li>
+      </ul>
+      <p>Project</p>
+      <ul>
+        <li><a href="../index.html">Play the game</a></li>
+        <li><a href="../releases.html">Release notes</a></li>
+        <li><a href="../downloads.html">Downloads</a></li>
+      </ul>
+    </aside>
+    <article class="doc">
+<h1 id="sound-identity-and-mix">Sound identity and mix</h1>
+<p>One authored sound world shared by the terminal, desktop, and browser layers. The shared score data, effect recipes, and mix defaults live in <code>crates/audio/src/score.rs</code>; each layer voices them with its own synth (the voice timbre tables and bus ceilings live in <code>crates/desktop/src/sound.rs</code> and <code>web/maze-chase.js</code>), all synthesized at runtime from data: no samples, audio files, or external sound sources ship anywhere.</p>
+<h2 id="musical-identity">Musical identity</h2>
+<p>The score is pond-at-dusk: a mallet lead over still water, a quiet reed counterline, and small water-drop accents. Everything derives from one tempo, <code>TEMPO = 108</code> BPM. Swing is applied to consecutive same-track eighth notes in pairs (long-short) without changing the bar length, so the three layers hear the same groove.</p>
+<p>Five original tunes cover the whole arc:</p>
+<ul>
+<li><code>TITLE_LOOP</code>: three tracks (mallet lead, reed counterline, drop accents), looping.</li>
+<li><code>FRIGHT_LOOP</code>: a low rising drone, a reed pulse, and a two-note fall, looping.</li>
+<li><code>DEATH_STING</code>: a sinking glass glissando over a low drone.</li>
+<li><code>CLEAR_JINGLE</code>: exactly three rising notes closing on a warm bell.</li>
+<li><code>GAMEOVER_STING</code>: a settled low reed cadence over a drone.</li>
+</ul>
+<p>Each note carries a voice, length, velocity, and track lane. The lanes are scheduled independently, so the lead, counterline, and accents keep their own timing and loop seams.</p>
+<h2 id="voice-and-effect-bank">Voice and effect bank</h2>
+<p>Seven voice families generate every sound:</p>
+<ul>
+<li><code>Mallet</code>: short sine pluck with a soft harmonic.</li>
+<li><code>Drop</code>: quick falling sine blip.</li>
+<li><code>Reed</code>: hollow triangle with a breathy edge.</li>
+<li><code>Drone</code>: low sine fundamental with a subharmonic at ratio 0.50 (mix 0.28), an 80 ms attack, and a 1.2 exponential decay to the note end.</li>
+<li><code>Glass</code>: bright sine with a slow decay.</li>
+<li><code>Bell</code>: warm sine pair with a long tail.</li>
+<li><code>Pluck</code>: dry triangle pluck with no harmonic partial, a 4 ms attack, and a 5.0 exponential decay.</li>
+</ul>
+<p>Rendered PCM is peak-normalized to the bus ceiling, so the layers inside one recipe never clip; the music bus peaks at 0.32 and the SFX bus at 0.50 before the user mix. The browser sample model keeps 1.5% headroom under the SFX ceiling because its band-limited oscillators can peak slightly above the ideal waveform model; the desktop render lands on the ceiling.</p>
+<p>Overlap between separate recipes is bounded by a summed-output stage, not by the per-recipe normalization. The browser routes the summed music and SFX buses through a master limiter (a <code>DynamicsCompressorNode</code> followed by a soft-clip <code>WaveShaperNode</code>) before the destination. The desktop scales both buses down by the worst-case active source count (<code>active_music * 0.32 * music_gain + active_sfx * 0.50 * sfx_gain</code>) when that sum would exceed full scale, so four loud effects plus a loop and a sting at a 100/100 mix stay at or below 1.0. The web and desktop offline mix tests pin the bound; the desktop test also pins the pre-limiter sum above full scale.</p>
+<p>Effects are layered recipes rather than single sweeps. A recipe is a list of tones with voice, start and end frequency, length, delay, gain, and an optional per-play variation. Crumbs, for example, use a 40 ms soft pluck with slight pitch variation; the warden chain doubles the whole recipe per link; relish, sunseed, spare wick, respawn, refill, sprint, time-up, eyes, and every menu cue have their own layers.</p>
+<h2 id="default-mix-and-live-changes">Default mix and live changes</h2>
+<table><thead><tr><th>Control</th><th>Default</th><th>Range</th><th>Behavior</th></tr></thead><tbody>
+<tr><td>Master</td><td>80%</td><td>0-100%</td><td>Scales both buses</td></tr>
+<tr><td>Music</td><td>60%</td><td>0-100%</td><td>Loops and stings</td></tr>
+<tr><td>SFX</td><td>80%</td><td>0-100%</td><td>One-shot recipes</td></tr>
+<tr><td>Mute</td><td>off</td><td>on/off</td><td>Silences both buses, keeps visuals</td></tr>
+<tr><td>Fade</td><td>120 ms</td><td>fixed</td><td>Applied to live gain changes; static-screen commits settle immediately</td></tr>
+</tbody></table>
+<p>The previous loud default is gone: master starts at 80 percent, music at 60 percent, and effects at 80 percent. Slider moves on the static settings screen settle immediately (no frame is scheduled); live fades still take 120 ms. Mute is a bus change, not a pause, and the visual twin for every cue still plays.</p>
+<h2 id="per-layer-synthesis">Per-layer synthesis</h2>
+<ul>
+<li><strong>Terminal</strong> (<code>crates/terminal/src/chime.rs</code>): an opt-in BEL chime, off by default, marks sharp beats. The status-line ticker always narrates the run, independent of the chime, mute, or volume. The Settings screen carries a persistent <code>Terminal chime</code> row; visual flashes are rendered by the playing surface from game state, so the visual twin never depends on the mute or chime gates.</li>
+<li><strong>Desktop</strong> (<code>crates/desktop/src/sound.rs</code>): rodio renders the shared recipes at 44.1 kHz. The sink tracks music and SFX gain separately, applies 120 ms live fades (static-screen commits settle in the input path), and schedules tune track lanes with a short loop-seam fade. A missing device opens a null sink instead of failing.</li>
+<li><strong>Browser</strong> (<code>crates/web/src/audio_map.rs</code>, <code>web/maze-chase.js</code>): the page maps the same cue, tune, tone, and track data through the C ABI (<code>mc_sfx_tone_count</code>, <code>mc_sfx_tone_field</code>, <code>mc_tune_meta</code>, <code>mc_fade_ms</code>). WebAudio schedules every tone and lane, applies the same fades, and shows a &quot;Sound is asleep - tap to wake&quot; chip until the context is running. Without WebAudio the game plays silent with a visible note in the HUD.</li>
+</ul>
+<h2 id="accessibility-and-truthfulness">Accessibility and truthfulness</h2>
+<ul>
+<li>Every cue has a visual twin: flashes, badges, floaters, the fright meter, the ticker, and the death/clear animations.</li>
+<li>No cue depends on audio to be understood, and silencing audio never hides a state change.</li>
+<li>Reduced flashing and reduced motion are independent of the mix.</li>
+<li>A terminal without audio hardware still gets the ticker; a desktop without a device still boots; a browser with a blocked context shows the unlock chip instead of pretending to play.</li>
+</ul>
+<h2 id="verification">Verification</h2>
+<ul>
+<li><code>crates/audio</code> tests pin the tempo, swing invariants, track lengths, voice codes, recipe sanity, layer counts, crumb length and variation, and chain pitch.</li>
+<li><code>crates/config</code> tests pin the defaults, persistence round-trip, and corruption handling, including the terminal chime flag.</li>
+<li>Desktop tests measure offline PCM for every tune and SFX: finite samples, peak-normalized to each bus ceiling, and 0.154/0.320 peaks at the documented 80/60/80 default mix. They also pin the summed-output limiter at a 100/100 mix, a nonzero fade constant (the exact 120 ms is pinned by the audio and config suites), the null-sink fallback, and the sting cue mapping. Terminal tests pin the opt-in BEL, mute/chime gating, settings persistence, and the ticker; visual twins are rendered from game state and never depend on the audio gates.</li>
+<li>Web tests pin the ABI exports, first-tone legacy views, tune metadata, and routed cues; <code>wasm-smoke</code>, <code>boot-gate-e2e</code>, and <code>browser-e2e</code> exercise the shipped artifact, including the unlock chip, the persisted 35/45 mix, loop-stop transitions, the 0.32/0.50 offline peaks, the summed-output limiter at 100/100, the live mix-row labels, every warden chain pitch, and the persisted mute/low-volume startup. The web session unit test pins two same-tick warden cues at different chain arms; the browser harnesses cover the chain pitches, not same-tick cue ordering.</li>
+</ul>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span>Maze Chase is an original game. MIT licensed.</span>
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../releases.html">Releases</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs">GitHub</a>
+    <span class="sep"></span>
+    <span>Tracking issue <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">#582</a></span>
+  </div>
+</footer>
+</body>
+</html>

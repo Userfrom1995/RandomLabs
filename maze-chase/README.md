@@ -41,7 +41,7 @@ resize with magnification, title/help/scores/settings/rebind/pause
 surfaces, machine high scores, and opt-in BEL plus ticker sound. Install and
 launch details live in [docs/terminal.md](docs/terminal.md). The desktop
   game is covered in [docs/desktop.md](docs/desktop.md); the browser game
-  plays from [play.html](play.html) and is covered in
+  plays from the game-first [index.html](index.html) and is covered in
   [docs/web.md](docs/web.md). The shared [feature matrix](docs/feature-matrix.md)
   tracks every mechanic, with every row carrying its test proof.
 
@@ -49,7 +49,7 @@ Run the checks: `cargo test` and
 `cargo run --bin maze-chase-verify` inside `maze-chase/`.
 Play the terminal game: `cargo run --release -p maze-chase-terminal`.
 Play the desktop game: `cargo run --release -p maze-chase-desktop`.
-Play the browser game: serve `maze-chase/` over http and open `play.html`
+Play the browser game: serve `maze-chase/` over http and open `index.html`
 (browsers refuse `.wasm` over `file://`).
 Ship a release: follow `docs/release.md` (workspace version and tag
 parity, engine checks, layer builds, per-OS package staging and smoke,
@@ -96,7 +96,7 @@ results land in `docs/scoreboard.md` and the parity gate in
   macOS app/dmg/tarball), a HiDPI-aware bounded render path, and a
   `--probe` frame-run plus screenshot mode for display-free
   verification.
-- **Browser game** (`crates/web` 0.1.0 plus `play.html` plus
+- **Browser game** (`crates/web` 0.1.0 plus the game-first `index.html` plus
   `web/maze-chase.js`, done, [launch docs](docs/web.md)): the same hunt
   as dependency-free WebAssembly behind a plain C ABI (no wasm-bindgen;
   the committed `web/maze-chase.wasm` builds reproducibly with stock
@@ -184,7 +184,7 @@ escalated, never shipped on assumption.
   engine (`session`), keyboard plus swipe mapping (`input`), RGBA
   board composer mirroring the terminal raster (`video`), top-10
   scores (`scores`), cue/SFX/tune routing tables (`audio_map`), and
-  the plain C-ABI boundary (`bridge`); `play.html` plus
+  the plain C-ABI boundary (`bridge`); `index.html` plus
   `web/maze-chase.js` (DOM screens, HUD, WebAudio synth, touch pad,
   localStorage), the committed `web/maze-chase.wasm`, and durable
   node plus headless-chromium E2E (`web/e2e/`).

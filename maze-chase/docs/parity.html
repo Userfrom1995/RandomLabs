@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<!-- generated from docs/parity.md; source-bytes: 7576; source-fnv: aa5968ad62b10a74 -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Maze Chase docs: Parity checklist</title>
+<link rel="icon" href="../web/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="../site.css" />
+</head>
+<body class="site">
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <a class="brand" href="../index.html">Maze Chase <span>starring Rill the pond frog</span></a>
+  <nav class="site-nav" aria-label="Maze Chase site">
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../downloads.html">Downloads</a>
+    <a href="../compatibility.html">Compatibility</a>
+    <a href="../releases.html">Releases</a>
+    <a href="./">Docs</a>
+  </nav>
+</header>
+<main class="wrap" id="main">
+  <div class="docs-shell">
+    <aside class="docs-nav">
+      <p>All documents</p>
+      <ul>
+<li><a href="index.html">Docs home</a></li>
+<li><a href="web.html">Browser guide</a></li>
+<li><a href="desktop.html">Desktop guide</a></li>
+<li><a href="terminal.html">Terminal guide</a></li>
+<li><a href="terminal-compat.html">Terminal compatibility</a></li>
+<li><a href="feature-matrix.html">Feature matrix</a></li>
+<li><a href="parity.html" aria-current="page">Parity checklist</a></li>
+<li><a href="scoreboard.html">Release scoreboard</a></li>
+<li><a href="release.html">Release guide</a></li>
+<li><a href="design.html">Design language</a></li>
+<li><a href="identity.html">Identity and naming</a></li>
+<li><a href="audio.html">Sound identity</a></li>
+<li><a href="research.html">Mechanics research</a></li>
+<li><a href="behavior-spec.html">Behavior reference</a></li>
+<li><a href="legal.html">Clean-room log</a></li>
+      </ul>
+      <p>Project</p>
+      <ul>
+        <li><a href="../index.html">Play the game</a></li>
+        <li><a href="../releases.html">Release notes</a></li>
+        <li><a href="../downloads.html">Downloads</a></li>
+      </ul>
+    </aside>
+    <article class="doc">
+<h1 id="552-parity-checklist">#552 parity checklist</h1>
+<p>What the Rust build had to prove before the #552 Python reference game (<code>pacman/</code>, issue #552) could be retired. Every row below names its evidence: the simulation and layer rows are signed from the in-repo verify and test suites, the per-layer E2E rows record this tree's Linux runs plus the pre-Pondwake macOS and Windows runs (with fresh per-OS reruns tracked in the final sign-off), and the sound row records its remaining real-speaker review boundary explicitly instead of claiming it. Retirement itself was a separate, explicit step that executed after this verified release landed: nothing in <code>pacman/</code> is touched by any build or packaging script here, and the Python game stayed functional through the whole migration.</p>
+<p>Rule values below are feel references re-expressed as original Rust tables (<code>crates/engine/src/tuning.rs</code>) under the clean-room rules in <code>docs/legal.md</code>. The maze itself is intentionally NOT a copy: &quot;Ember Warren&quot; (<code>levels/ember-warren.maze</code>) is original geometry with its own counts (445 crumbs + 4 sunseeds vs the reference 282 + 4) and its own authorship log (<code>docs/identity.md</code>). Parity means the rules and feel match; the map is ours.</p>
+<h2 id="simulation-core">Simulation core</h2>
+<table><thead><tr><th>#552 pinned behavior (<code>docs/behavior-spec.md</code>)</th><th>Rust engine</th><th>Verify row</th><th>Status</th></tr></thead><tbody>
+<tr><td>120 Hz timestep, accumulator, 0.5 s spiral clamp</td><td><code>tuning.rs</code> (<code>SIM_HZ</code>, <code>STEP</code>, <code>MAX_ACCUMULATOR</code>) + <code>game.rs</code></td><td><code>determinism-replay</code>, <code>perf-headless</code></td><td>signed</td></tr>
+<tr><td>Player 8.5 tiles/s over the 1.00-1.20 level curve; warden cruise 0.96x</td><td><code>tuning.rs</code> (<code>PLAYER_BASE_SPEED</code>, <code>PLAYER_SPEED_CURVE</code>, <code>WARDEN_SPEED_FRACTION</code>)</td><td><code>movement-cornering</code>, <code>movement-tunnel-wrap</code></td><td>signed</td></tr>
+<tr><td>Tunnel 0.55x wardens / 0.95x player; wrap on row 14</td><td><code>tuning.rs</code> + <code>maze.rs</code> + <code>actors.rs</code></td><td><code>movement-tunnel-wrap</code>, <code>maze-geometry</code></td><td>signed</td></tr>
+<tr><td>Tile-center movement, buffered turns, 0.35 cornering window; warden 0.09 decide-once gate</td><td><code>actors.rs</code>, <code>steering.rs</code></td><td><code>movement-cornering</code></td><td>signed</td></tr>
+<tr><td>Collision within 0.55 tiles; eat-vs-death priority</td><td><code>tuning.rs</code> (<code>COLLIDE_DISTANCE</code>) + <code>game.rs</code></td><td><code>scoring-lives</code>, <code>lives-death-defeat</code></td><td>signed</td></tr>
+<tr><td>3 lives, 1.4 s death sequence, defeat below 0, extra wick once at 10,000</td><td><code>tuning.rs</code> + <code>game.rs</code></td><td><code>lives-death-defeat</code></td><td>signed</td></tr>
+<tr><td>2.0 s clear sequence, fresh maze next level, endless ramp</td><td><code>tuning.rs</code> (<code>LEVEL_CLEAR_SEQUENCE_S</code>) + <code>game.rs</code></td><td><code>level-clear-flow</code></td><td>signed</td></tr>
+<tr><td>Crumb 10, sunseed 50, chains 200/400/800/1600</td><td><code>tuning.rs</code> + <code>game.rs</code></td><td><code>scoring-lives</code>, <code>fright-chain</code></td><td>signed</td></tr>
+<tr><td>Seeded streams, canonical state string, SHA-256 hash</td><td><code>rng.rs</code>, <code>replay.rs</code>, <code>sha256.rs</code></td><td><code>determinism-replay</code>, golden hashes</td><td>signed</td></tr>
+</tbody></table>
+<h2 id="ghosts-bonus-modes">Ghosts, bonus, modes</h2>
+<table><thead><tr><th>#552 pinned behavior</th><th>Rust engine</th><th>Verify row</th><th>Status</th></tr></thead><tbody>
+<tr><td>Four pure personality targets; corners (1,1), (26,1), (1,29), (26,29)</td><td><code>personalities.rs</code></td><td><code>personalities-targets</code></td><td>signed</td></tr>
+<tr><td>Greedy exits, no reversal, up/left/down/right ties; seeded fright stream</td><td><code>steering.rs</code>, <code>ghosts.rs</code></td><td><code>fright-chain</code>, <code>fright-reversal</code></td><td>signed</td></tr>
+<tr><td>Wave clock (7,20)x2, (5,20)x2, (3,25)x2 then hold; scatter shaved 1 s/level, floor 1.0; reversals on switch</td><td><code>modes.rs</code> + <code>tuning.rs</code> (<code>WAVE_TABLE</code>)</td><td><code>wave-clock</code>, <code>fright-reversal</code></td><td>signed</td></tr>
+<tr><td>Fright curve 6.0 down to 0.0 from level 11; 1.5 s flash; 0.62x wardens, 1.04x player; eyes home at 1.5x, revive at the door</td><td><code>tuning.rs</code> + <code>ghosts.rs</code> + <code>game.rs</code></td><td><code>fright-chain</code>, <code>eyes-return</code></td><td>signed</td></tr>
+<tr><td>House counters (0,7,17,32); 4.0 s idle release; 0.55x walk-out</td><td><code>tuning.rs</code> + <code>ghosts.rs</code></td><td><code>house-exits</code></td><td>signed</td></tr>
+<tr><td>Relish at 70/170, 9.5 s expiry, tiers 100-5000</td><td><code>relish.rs</code> + <code>tuning.rs</code></td><td><code>relish-cycle</code></td><td>signed</td></tr>
+<tr><td>Classic / time-attack (120 s refill) / sprint (par 300 s, 10/s) / fright-frenzy (4x)</td><td><code>modes.rs</code> + <code>game.rs</code></td><td><code>mode-rules</code></td><td>signed</td></tr>
+<tr><td>Pursuer: 20 left +3%, 10 left +6% pinned to chase</td><td><code>tuning.rs</code> + <code>ghosts.rs</code></td><td><code>pursuer-stages</code></td><td>signed</td></tr>
+</tbody></table>
+<h2 id="layer-parity-all-three-play-the-same-hunt">Layer parity (all three play the same hunt)</h2>
+<table><thead><tr><th>Requirement</th><th>Terminal</th><th>Desktop</th><th>Browser</th><th>Status</th></tr></thead><tbody>
+<tr><td>Same engine, no gameplay branches in layer code</td><td>maps input to <code>TickInput</code>, renders <code>Game</code> + <code>GameEvent</code>s</td><td>same</td><td>same</td><td>signed (review-enforced rule, see matrix)</td></tr>
+<tr><td>Full menu/help/scores/settings/pause flows</td><td><code>screens</code> + <code>chrome</code>, top-10 machine scores</td><td><code>screens</code>, shares <code>~/.maze-chase</code> scores with terminal</td><td>DOM screens, localStorage top-10</td><td>signed</td></tr>
+<tr><td>Per-layer E2E green on this release</td><td>headless suite (layout sweep, full session, resize) plus PTY sessions</td><td>headless suite + Xvfb <code>--probe</code> PPM plus a real-GUI drive</td><td>node smoke + tester regression + CDP browser E2E</td><td>Linux current on this tree; macOS and Windows pre-Pondwake, with fresh reruns tracked in the final sign-off (native runs recorded below and in <code>scoreboard.md</code>)</td></tr>
+<tr><td>Board pixels agree across layers</td><td>same composer; bitmap tiers rasterize at the detected cell geometry (bounded)</td><td>same composer at the fixed 8-ppt reference</td><td>mirrors the shared 8-ppt reference (frame-determinism test)</td><td>signed</td></tr>
+<tr><td>Sound uses one shared score, effect bank, and mix contract</td><td>opt-in BEL plus ticker from the same cue stream</td><td>renders the shared score and recipes at 44.1 kHz, peak-normalized to 0.32/0.50</td><td>schedules the same recipes in WebAudio with the same ceilings</td><td>Linux synth and browser verified; macOS/Windows real-speaker review pending the Final Phase (see <code>docs/audio.md</code>)</td></tr>
+</tbody></table>
+<h2 id="native-proof-record">Native proof record</h2>
+<p>The per-layer E2E and packaged-artifact rows above are signed on Linux on this tree; the macOS and Windows runs below are the pre-Pondwake record, with fresh reruns tracked in the final sign-off. The measured numbers sit in the dated sections of <code>scoreboard.md</code>.</p>
+<ul>
+<li><strong>macOS</strong> (tester run 39068848280, macOS 26.6.2 arm64, vehicle PR #631 merged): workspace 398 passed / 0 failed across 41 targets, <code>maze-chase-verify</code> 19/19 with the golden digest intact, terminal PTY E2E 28/28 (probe window, tier precedence, resize recovery, corrupt-config boot), desktop <code>--probe</code> plus an osascript-driven GUI session, the staged <code>.app</code> bundle (probe exit 0, binary hash matching the release build), and a byte-identical wasm rebuild (sha256 <code>5ec2a05af55f...</code>).</li>
+<li><strong>Windows</strong> (tester run 39068849150, Windows Server 2025, Git Bash plus real ConPTY, vehicle PR #632 merged): workspace 374 passed / 0 failed across 41 targets, <code>maze-chase-verify</code> 19/19, the full CLI matrix in Git Bash and pwsh, the packaged zip (binary byte-identical to the release build) with a probe PPM byte-identical to the committed reference, web node smokes, and CDP browser E2E. That pass found three defects (terminal Release-key double fire, desktop <code>--probe</code> option order, CRLF wasm drift); all three fixes merged with regression contracts executed red on the pre-fix head and green on the fixed head by the independent Quality Council round (<code>approve-eval</code> 9.8/10).</li>
+<li><strong>Linux</strong> (pre-Pondwake release pass): 407 tests passed / 0 failed across 45 targets, <code>maze-chase-verify</code> 19/19, terminal and desktop tarballs staged, installed to a scratch prefix, and probed, node smokes, and real-browser CDP E2E all green.</li>
+</ul>
+<h2 id="retirement-step">Retirement step</h2>
+<ul>
+<li>Every row is signed or carries its explicit pending evidence boundary; the Maintainer's explicit retirement step executed after this release merged: #552 was retired against this checklist and the retirement was recorded in the issue.</li>
+<li><code>pacman/</code> is untouched by this migration's scripts and PRs; the Python game kept working until the retirement decision executed.</li>
+</ul>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span>Maze Chase is an original game. MIT licensed.</span>
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../releases.html">Releases</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs">GitHub</a>
+    <span class="sep"></span>
+    <span>Tracking issue <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">#582</a></span>
+  </div>
+</footer>
+</body>
+</html>

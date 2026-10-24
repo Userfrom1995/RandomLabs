@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<!-- generated from docs/legal.md; source-bytes: 3955; source-fnv: ceea6f5225c6f55b -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Maze Chase docs: Clean-room log</title>
+<link rel="icon" href="../web/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="../site.css" />
+</head>
+<body class="site">
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <a class="brand" href="../index.html">Maze Chase <span>starring Rill the pond frog</span></a>
+  <nav class="site-nav" aria-label="Maze Chase site">
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../downloads.html">Downloads</a>
+    <a href="../compatibility.html">Compatibility</a>
+    <a href="../releases.html">Releases</a>
+    <a href="./">Docs</a>
+  </nav>
+</header>
+<main class="wrap" id="main">
+  <div class="docs-shell">
+    <aside class="docs-nav">
+      <p>All documents</p>
+      <ul>
+<li><a href="index.html">Docs home</a></li>
+<li><a href="web.html">Browser guide</a></li>
+<li><a href="desktop.html">Desktop guide</a></li>
+<li><a href="terminal.html">Terminal guide</a></li>
+<li><a href="terminal-compat.html">Terminal compatibility</a></li>
+<li><a href="feature-matrix.html">Feature matrix</a></li>
+<li><a href="parity.html">Parity checklist</a></li>
+<li><a href="scoreboard.html">Release scoreboard</a></li>
+<li><a href="release.html">Release guide</a></li>
+<li><a href="design.html">Design language</a></li>
+<li><a href="identity.html">Identity and naming</a></li>
+<li><a href="audio.html">Sound identity</a></li>
+<li><a href="research.html">Mechanics research</a></li>
+<li><a href="behavior-spec.html">Behavior reference</a></li>
+<li><a href="legal.html" aria-current="page">Clean-room log</a></li>
+      </ul>
+      <p>Project</p>
+      <ul>
+        <li><a href="../index.html">Play the game</a></li>
+        <li><a href="../releases.html">Release notes</a></li>
+        <li><a href="../downloads.html">Downloads</a></li>
+      </ul>
+    </aside>
+    <article class="doc">
+<h1 id="clean-room-log-and-legal-guardrails">Clean-Room Log and Legal Guardrails</h1>
+<p>Binding for the whole Maze-Chase Rust project (issue #582). The rule is simple: original code, original names, original mazes, original art, original audio, original branding only. Mechanics are reimplemented from behavioral descriptions and legitimate public sources, never pasted from proprietary sources, ROMs, ripped sprites, or copied timing tables.</p>
+<h2 id="sources-consulted-complete-log">Sources consulted (complete log)</h2>
+<ol>
+<li>The in-repo #552 Python game (<code>pacman/</code>) as empirical input: ghost timing feel, renderer tier practice, layout engine behavior, and the verify-matrix discipline. It is behavior to reimplement, not code to port: no file from <code>pacman/</code> is copied into <code>maze-chase/</code>; algorithms are rewritten in idiomatic Rust from the behavioral contract in <code>behavior-spec.md</code>.</li>
+<li>Public behavioral descriptions of the maze-chase genre (genre-level mechanics: four ghosts with distinct chase styles, alternating scatter/chase waves, power-pellet fright with escalating chain bonuses, dot-counter house exits, tunnel slowdown, endgame pursuer pressure, fruit bonuses, escalating levels). No proprietary source code, ROM dumps, disassembly, sprite rips, sound rips, or timing tables.</li>
+<li>Public API documentation of the selected Rust crates (macroquad, miniquad, ratatui, crossterm, rodio, wasm-bindgen) for capability assessment only; no example game code is vendored.</li>
+</ol>
+<h2 id="flagged-items-all-resolved-for-the-verified-release">Flagged items (all resolved for the verified release)</h2>
+<ul>
+<li><strong>Maze geometry similarity</strong>: resolved. The shipped maze is &quot;Ember Warren&quot; (<code>levels/ember-warren.maze</code>, first landed at <code>f37855cf</code>), an original 28x31 layout authored for this project with a tile-by-tile difference record and a flood-fill proof in <code>identity.md</code> and the file header; only the functional anchors (dimensions, tunnel row, gatehouse coordinates, start/mouth tiles) coincide with the #552 reference, as the behavior spec requires.</li>
+<li><strong>Lookalike sprites and sounds</strong>: resolved. Every sprite is authored in-repo from the identity sheet and every sound is synthesized in-repo as data (<code>crates/assets</code> plus <code>crates/audio</code>, first landed at <code>e8da9720</code>; authorship log in <code>identity.md</code>); no external image or audio file ships anywhere in the tree. Resemblance stayed a blocking review gate through every round, including the final Quality Council pass.</li>
+<li><strong>Cloned data tables</strong>: resolved. Every value in <code>tuning.rs</code> carries provenance comments and was re-expressed from the behavioral contract (<code>72a52df1</code>, extended by the ghost-intelligence work at <code>1a464d26</code>); the #552 numbers were feel references, never transcribed.</li>
+<li><strong>Trademarked terms</strong>: resolved. The naming allowlist in <code>identity.md</code> governs every identifier, UI string, asset filename, doc, and commit message; a tree-wide sweep at release finds the banned terms only in this bullet, which names them as forbidden. The words &quot;Pac-Man&quot;, &quot;Blinky&quot;, &quot;Pinky&quot;, &quot;Inky&quot;, and &quot;Clyde&quot; appear nowhere in code, assets, UI copy, or shipped documentation (this sentence is the last permitted mention, kept here so future contributors know what to avoid).</li>
+</ul>
+<h2 id="naming-rationale">Naming rationale</h2>
+<p>The project title &quot;Maze Chase&quot; is a generic English description of the genre (chasing through a maze), not a brand. Character names (Rill, Bram, Kessa, Jory, Nib) are invented diminutives with no external referent; see <code>identity.md</code>. Internal module names (<code>engine</code>, <code>ghosts</code>, <code>tuning</code>, <code>verify</code>) are descriptive engineering terms.</p>
+<h2 id="release-obligations">Release obligations</h2>
+<ul>
+<li>Every PR keeps <code>legal.md</code> current: new sources appended to the log above, new flags added with mitigations, resolved flags marked with the resolving commit.</li>
+<li>Asset changes must record the authorship tool and date per sprite sheet and per sound bank.</li>
+<li>Replacing assets alone is never assumed to remove all risk; anything needing real legal review is flagged here and escalated to the Maintainer rather than shipped on assumption.</li>
+</ul>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span>Maze Chase is an original game. MIT licensed.</span>
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../releases.html">Releases</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs">GitHub</a>
+    <span class="sep"></span>
+    <span>Tracking issue <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">#582</a></span>
+  </div>
+</footer>
+</body>
+</html>

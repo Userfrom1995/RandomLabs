@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<!-- generated from docs/web.md; source-bytes: 8682; source-fnv: 76c16dcdbc2dea3b -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Maze Chase docs: Browser guide</title>
+<link rel="icon" href="../web/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="../site.css" />
+</head>
+<body class="site">
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <a class="brand" href="../index.html">Maze Chase <span>starring Rill the pond frog</span></a>
+  <nav class="site-nav" aria-label="Maze Chase site">
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../downloads.html">Downloads</a>
+    <a href="../compatibility.html">Compatibility</a>
+    <a href="../releases.html">Releases</a>
+    <a href="./">Docs</a>
+  </nav>
+</header>
+<main class="wrap" id="main">
+  <div class="docs-shell">
+    <aside class="docs-nav">
+      <p>All documents</p>
+      <ul>
+<li><a href="index.html">Docs home</a></li>
+<li><a href="web.html" aria-current="page">Browser guide</a></li>
+<li><a href="desktop.html">Desktop guide</a></li>
+<li><a href="terminal.html">Terminal guide</a></li>
+<li><a href="terminal-compat.html">Terminal compatibility</a></li>
+<li><a href="feature-matrix.html">Feature matrix</a></li>
+<li><a href="parity.html">Parity checklist</a></li>
+<li><a href="scoreboard.html">Release scoreboard</a></li>
+<li><a href="release.html">Release guide</a></li>
+<li><a href="design.html">Design language</a></li>
+<li><a href="identity.html">Identity and naming</a></li>
+<li><a href="audio.html">Sound identity</a></li>
+<li><a href="research.html">Mechanics research</a></li>
+<li><a href="behavior-spec.html">Behavior reference</a></li>
+<li><a href="legal.html">Clean-room log</a></li>
+      </ul>
+      <p>Project</p>
+      <ul>
+        <li><a href="../index.html">Play the game</a></li>
+        <li><a href="../releases.html">Release notes</a></li>
+        <li><a href="../downloads.html">Downloads</a></li>
+      </ul>
+    </aside>
+    <article class="doc">
+<h1 id="maze-chase-browser-install-and-launch-guide">Maze Chase: browser install and launch guide</h1>
+<p>Play the same engine in a browser tab: <code>maze-chase/index.html</code> drives the <code>maze-chase-web</code> Rust crate compiled to WebAssembly, with keyboard plus touch controls, DPR-aware canvas sizing, and WebAudio sound. No gameplay logic lives in the page or the harness: the <code>.wasm</code> owns the session, the scores table, settings state, and every board pixel; JavaScript maps input, paints DOM, and synthesizes audio from the crate's data tables.</p>
+<p><img src="web-gameplay.png" alt="Live browser gameplay: board mid-hunt with HUD" loading="lazy" /></p>
+<h2 id="launch">Launch</h2>
+<p>The page must be served over http: browsers refuse <code>fetch()</code> of the <code>.wasm</code> over <code>file://</code>, and the harness shows a styled error card (never a blank page) when the engine cannot load.</p>
+<pre><code># Inside maze-chase/ (serves the game at /index.html):
+python3 -m http.server 8000   # Windows: python -m http.server 8000
+# Open http://localhost:8000/index.html</code></pre>
+<p>On GitHub Pages the game opens directly at the project URL: <code>maze-chase/index.html</code> is the playable page, and the site subpages carry installation, downloads, compatibility, releases, and documentation. The shipped artifact is <code>maze-chase/web/maze-chase.wasm</code> (about 207 KiB / 212,472 bytes, zero imports, fully self-contained), built reproducibly (see below); <code>web/maze-chase.js</code> is the harness (plain script, no bundler, no external resources, works offline once served).</p>
+<h2 id="controls">Controls</h2>
+<p>Keyboard (remappable in Settings; arrows move DOM focus in menus, Enter/Space activates the focused button):</p>
+<table><thead><tr><th>Key</th><th>Play</th><th>Menus</th></tr></thead><tbody>
+<tr><td>Arrows / WASD</td><td>Steer Rill</td><td>Move button focus</td></tr>
+<tr><td>P or Esc</td><td>Pause</td><td>Back</td></tr>
+<tr><td>M</td><td>Mute toggle</td><td>Mute toggle</td></tr>
+<tr><td>Enter / Space</td><td>-</td><td>Activate focused button</td></tr>
+</tbody></table>
+<p>Menu shortcuts take precedence over remapped play actions: while a menu is open, P/Esc always Back out and M always toggles mute, whatever those keys are bound to in play. Leaving Settings cancels an armed key capture.</p>
+<p>Touch: swipe on the board to steer (24 px deadzone, dominant axis wins, so taps never turn Rill); an on-screen direction pad appears on coarse pointers (or via &quot;Toggle touch pad&quot;); tapping a panel's primary button activates it. There is no gamepad API on the web layer by design: keyboard plus touch is the full control scheme (see the matrix).</p>
+<h2 id="screens">Screens</h2>
+<p>Title (Start, Help, Scores, Settings), Help, Scores (machine top-10 with rank/name/score/level), Settings (volumes, reduced flash, reduced motion, high contrast, theme, difficulty, mute, key remap), Pause (Resume, Restart, Quit to title), Game over (score/level/best, name entry when the run qualifies, Play again). The canvas behind the panels shows the game board: the fresh board on title, the frozen hunt on pause, the final board on game over.</p>
+<h2 id="audio">Audio</h2>
+<p>Sound starts on the first click, keypress, or touch (browser autoplay policy; the harness unlocks the AudioContext on the first gesture). A visible &quot;Sound is asleep - tap to wake&quot; chip sits at the top of the title card until the context is running and retires after that first gesture, so a blocked context is never silent without an affordance. Every cue the engine emits is synthesized from the audio crate's own data: layered SFX recipes (voice, start/end frequency, length, delay, gain, and crumb variation) with pitch doubling per warden chain, and the five original multi-track tunes (title and fright loops plus death/clear/game-over stings) at the shared 108 BPM tempo with swung eighths. Track lanes schedule the lead, counterline, and accents independently. Music defaults to 60 percent and SFX to 80 percent; gain changes fade over 120 ms. Master/music/SFX sliders and mute persist; if WebAudio is absent the game plays silent with a note in the HUD.</p>
+<h2 id="settings-and-scores">Settings and scores</h2>
+<p>Both persist in <code>localStorage</code> (<code>maze-chase-settings</code> holds the exact config blob the native layers write to disk; <code>maze-chase-scores</code> holds the table rows). Corrupt blobs are ignored with Rust defaults kept, and private browsing simply does not persist. The name entry caps at 12 characters and falls back to &quot;Rill&quot; when blank.</p>
+<p>Key remap policy differs from desktop in one documented way: the shared config rejects duplicate bindings, and every hardware key is bound by default, so the web layer <em>moves</em> a taken key from its previous owner (which keeps its remaining twins) instead of rejecting the bind. The move is refused only when the previous owner would be left keyless. The settings panel always shows the live Rust-side bindings.</p>
+<h2 id="canvas-and-resize">Canvas and resize</h2>
+<p>The board renders at the terminal bitmap density (224 by 248 logical pixels, identical composition: walls, crumbs, sunseed pulse, relish bob, fright masks with flash staging, eye pairs, chomp and death clips), integer-scaled and letterboxed onto the canvas backing store, which tracks CSS size times DPR (capped at 2). Resize and orientation changes re-fit live; below the 280 px CSS minimum the board clips centered rather than reflowing. HUD text (score, best, wicks, level, mode, pickups with a completion bar, tune, fright/relish badges) is DOM, updated at 4 Hz; frame diagnostics stay hidden until enabled in Settings.</p>
+<p>Two honest display notes, both engine-faithful, not harness bugs: a fresh board reads Pickups 448/449 with Score 10 because Rill's spawn crumb is eaten at construction (the engine banks the 10 silently, event-free); and the fresh board behind the title panel is a real engine game, so the HUD previews that state until you press Start.</p>
+<h2 id="verification">Verification</h2>
+<ul>
+<li><code>cargo test -p maze-chase-web</code>: 52 tests (board composition and determinism, canvas fit/blit math, keyboard/touch mapping, rebind steal rules, score table, cue/SFX/tune routing, session flow, hostile bridge probes, engine-clock sampling, reduced-motion floater stripping).</li>
+<li>Node instantiation of the release <code>.wasm</code>: zero imports, scoring through the real ABI, bit-identical frames across instances, audio tables resolving from crate data.</li>
+<li>Headless-chromium E2E over CDP against the served page: boot with zero console errors, title visible with no focus scroll, canvas paints varied pixels, real button click starts play, real ArrowUp keypresses score, P pauses and Resume returns, touch swipe keeps the game alive, mobile viewport (390 by 844) shows the board near the top, and the unlock chip is fully on-screen and hit-testable at 390x844 and 320x480. A boot-gate E2E serves hand-built stale modules through a page-level <code>fetch</code> override and proves an ABI version skew plus a missing export from each first-frame group (fright, HUD flash, reduced-motion/high-contrast settings, theme, difficulty) lands on the error card instead of Ready. Rerun any time from <code>maze-chase/</code>: <code>node web/e2e/wasm-smoke.js</code>, <code>node web/e2e/boot-gate-e2e.js</code>, then (with the http server plus CDP chromium up, see <code>web/e2e/README.md</code>) <code>node web/e2e/browser-e2e.js</code> and <code>node web/e2e/site-e2e.js</code>. The site harness also runs unchanged against the deployed Pages preview base URL, where it crawls every subpage and rendered doc for broken links and verifies the game-first boot at 390 by 844.</li>
+</ul>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<ul>
+<li>Error card &quot;Could not load the game engine&quot;: you opened <code>index.html</code> from disk. Serve the directory over http (above) and reload.</li>
+<li>&quot;Version mismatch&quot;: the page and the <code>.wasm</code> disagree. Rebuild the crate (below) so <code>web/maze-chase.wasm</code> matches <code>web/maze-chase.js</code>.</li>
+<li>Silent audio: the browser blocked the context (tap the &quot;Sound is asleep - tap to wake&quot; chip in the title card), or volumes are at zero in Settings.</li>
+<li>Tiny board on a huge monitor: the canvas follows its container up to DPR 2; widen the window and it re-fits.</li>
+<li>Lost scores after clearing browser data: expected; the table lives in <code>localStorage</code>, cleared with site data.</li>
+</ul>
+<h2 id="reproducible-builds">Reproducible builds</h2>
+<p>Stock stable Rust, no <code>wasm-bindgen</code>, no extra tooling: the <code>.wasm</code> is byte-reproducible from a clean checkout with the recorded toolchain.</p>
+<p>From the repository root:</p>
+<pre><code class="language-sh">cd maze-chase
+rustup target add wasm32-unknown-unknown
+cargo build --release --locked --target wasm32-unknown-unknown -p maze-chase-web
+cp target/wasm32-unknown-unknown/release/maze_chase_web.wasm web/maze-chase.wasm</code></pre>
+<p>The committed <code>web/maze-chase.wasm</code> is that exact artifact: 212,472 bytes, sha256 <code>d6dd16bf8038ae5cbde4a81209e4835391dd4ace8a5e3eb1ef37d6b191c62ac0</code>, built with Rust 1.99.0 (rustc commit <code>b940084d7eb6a299eb4bfeb8e34901bc051e7ac4</code>, embedded in the artifact); a second clean build reproduces the same bytes, while a different stable release may not. The bridge ABI version (<code>mc_version() == 3</code>) gates the harness: mismatched pairs fail loudly on the error card instead of misbehaving.</p>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span>Maze Chase is an original game. MIT licensed.</span>
+    <a href="../index.html">Play</a>
+    <a href="../install.html">Install</a>
+    <a href="../releases.html">Releases</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs">GitHub</a>
+    <span class="sep"></span>
+    <span>Tracking issue <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">#582</a></span>
+  </div>
+</footer>
+</body>
+</html>

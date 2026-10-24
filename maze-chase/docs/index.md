@@ -28,7 +28,7 @@ One cohesive product view; no milestone counters or sprint references.
   gamepad, settings/audio, per-OS packaging, `--probe` verification
   with the committed sample screenshot (`desktop-probe.ppm`), and
   troubleshooting (`maze-chase-desktop`).
-- [Browser install and launch guide](web.md): serving `play.html` over
+- [Browser install and launch guide](web.md): serving `index.html` over
   http, keyboard plus touch controls, DPR-aware canvas, WebAudio unlock,
   localStorage settings/scores, reproducible `.wasm` builds, and
   troubleshooting (browser layer).
