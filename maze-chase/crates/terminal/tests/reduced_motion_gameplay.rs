@@ -101,6 +101,26 @@ fn tail(bytes: &[u8]) -> String {
     text[start..].iter().collect()
 }
 
+/// The first complete synchronized frame (`?2026h` ... `?2026l`) whose
+/// bytes contain `needle`. The title's staged board can paint the same
+/// glyphs, so only a frame carrying the play chrome proves what the
+/// playing surface painted.
+fn first_frame_containing(bytes: &[u8], needle: &str) -> Option<String> {
+    let text = String::from_utf8_lossy(bytes).into_owned();
+    let mut from = 0;
+    while let Some(end) = text[from..].find("\x1b[?2026l") {
+        let end = from + end;
+        if let Some(start) = text[..end].rfind("\x1b[?2026h") {
+            let frame = &text[start + "\x1b[?2026h".len()..end];
+            if frame.contains(needle) {
+                return Some(frame.to_string());
+            }
+        }
+        from = end + "\x1b[?2026l".len();
+    }
+    None
+}
+
 fn reap(child: &mut Child, master: &mut std::fs::File, out: &mut Vec<u8>) {
     let deadline = Instant::now() + Duration::from_secs(5);
     loop {
@@ -184,7 +204,41 @@ impl Session {
             tail(&self.out)
         );
         drain(&mut self.pty.master, &mut self.out);
-        self.out.clear();
+    }
+
+    /// Keep reading for `window` so the child is never blocked on a full
+    /// PTY buffer while the animation frames elapse.
+    fn drain_for(&mut self, window: Duration) {
+        let deadline = Instant::now() + window;
+        loop {
+            drain(&mut self.pty.master, &mut self.out);
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return;
+            }
+            std::thread::sleep(remaining.min(Duration::from_millis(25)));
+        }
+    }
+
+    /// The first complete play frame (a frame carrying the `SCORE `
+    /// chrome). It is a full repaint, so the sunseeds and lives it
+    /// paints are all in this frame.
+    fn play_frame(&mut self, timeout: Duration) -> String {
+        let deadline = Instant::now() + timeout;
+        loop {
+            drain(&mut self.pty.master, &mut self.out);
+            if let Some(frame) = first_frame_containing(&self.out, "SCORE ") {
+                return frame;
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                panic!(
+                    "the first play frame never completed; tail: {}",
+                    tail(&self.out)
+                );
+            }
+            std::thread::sleep(remaining.min(Duration::from_millis(10)));
+        }
     }
 }
 
@@ -200,23 +254,37 @@ impl Drop for Session {
 fn reduced_motion_holds_the_sunseed_halo_during_play() {
     let mut reduced = Session::start("on", true);
     reduced.reach_playing();
-    // Several halo windows (halo toggles every 200 ms) with no `○` allowed.
-    std::thread::sleep(Duration::from_millis(900));
-    drain(&mut reduced.pty.master, &mut reduced.out);
+    // The first play frame is a full repaint: assert both invariants on
+    // it before the title's staged board is discarded, so an unchanged
+    // sunseed cell that is never re-sent cannot hide the glyphs.
+    let frame = reduced.play_frame(Duration::from_secs(8));
+    assert!(
+        !frame.contains('○'),
+        "reduced_motion must hold every sunseed as `●●` during play; frame tail: {}",
+        tail(frame.as_bytes())
+    );
+    assert!(
+        frame.contains('●'),
+        "the first play frame must paint sunseeds/lives; frame tail: {}",
+        tail(frame.as_bytes())
+    );
+
+    // Several halo windows (halo toggles every 200 ms) with no `○`
+    // allowed. Drain while they elapse: a full frame is larger than a
+    // PTY buffer, so a sleeping reader can leave the child blocked
+    // mid-frame and miss the rows that carry the sunseeds.
+    reduced.out.clear();
+    reduced.drain_for(Duration::from_millis(900));
     let text = String::from_utf8_lossy(&reduced.out);
     assert!(
         !text.contains('○'),
         "reduced_motion must hold every sunseed as `●●` during play; tail: {}",
         tail(&reduced.out)
     );
-    assert!(
-        text.contains('●'),
-        "the play frame must still paint sunseeds/lives; tail: {}",
-        tail(&reduced.out)
-    );
 
     let mut moving = Session::start("off", false);
     moving.reach_playing();
+    moving.out.clear();
     assert!(
         wait_for(
             &mut moving.pty.master,
