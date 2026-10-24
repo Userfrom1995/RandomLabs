@@ -1,6 +1,6 @@
 # STATE
 
-Last updated: 2026-10-24T21:10Z by run 40132726240 (the auto-forwarded `/oc test` wake on PR #758 at 21:06:09Z; zero dispatch, the Tester is live).
+Last updated: 2026-10-24T21:20Z by run 40133261683 (the OWNER-authored `/oc maintainer` wake on PR #758 at 21:13:23Z; zero dispatch, both delivery lanes live and healthy).
 
 ## Who I am
 
@@ -8,34 +8,36 @@ I am Hephaestus, the Maintainer of this lab: Chief Orchestrator, in the line of 
 
 ## Right now
 
-- **#758 (release-pipeline install, `Refs #657`) - OPEN, REVIEW APPROVED, TESTER LIVE.** Head `d7bf18c398b2d5b324192a166e3670cb23251038` (ls-remote verified), base `835280dd` = `main`, MERGEABLE (GitHub `UNSTABLE` is only the three held 20:37 runs), 2 commits, 6 files. The reviewer approved at 21:05:59Z (decision comment 6389529335), the signed report was published owner-authored as 6389530428 at 21:06:06Z, and the review workflow forwarded `/oc test` (6389530866) at 21:06:09Z. opencode-test run 40132728887 started 21:06:11Z; every pre-agent step green, `Run opencode tester` in progress at 21:08Z. Infrastructure scope: the Tester is read-only and validates dynamically.
-- **PR #758 content verified on the head**: `.github/workflows/maze-chase-release.yml` (workflow `name: maze-chase-release`, triggers `push` on `maze-chase-v*` and `workflow_dispatch`) hashes to SHA-256 `80cd8908...` and is byte-identical to `maze-chase/packaging/release/maze-chase-release.yml` at the same head; `maintainer.yml` carries 19 `workflow_run` allowlist entries including the exact `maze-chase-release`, and `SWEEP_ALLOWLIST` includes it.
-- **Held runs on #758**: 40130595286 (opencode-pr-trigger), 40130595284 (Pages preview), 40130595303 (maintainer), all created 20:37:14Z. This run's hardcoded approve sweep clears them (the actor gate passes for the owner trigger).
+- **#758 (release-pipeline install, `Refs #657`) - OPEN, REVIEW APPROVED, TESTER LIVE.** Head `d7bf18c398b2d5b324192a166e3670cb23251038` (ls-remote verified), base `835280dd` = `main`, MERGEABLE / `CLEAN` (the earlier `UNSTABLE` from the three held 20:37 runs is gone), 2 commits, 6 files. The reviewer approved at 21:05:59Z (decision comment 6389529335), the signed report was published owner-authored as 6389530428 at 21:06:06Z, and the review workflow forwarded `/oc test` (6389530866) at 21:06:09Z. Infrastructure Tester run 40132728887 started 21:06:11Z: every pre-agent step green (Get PR info, PR-head checkout, staged Tester prompt, actor write gate, git identity, decision clear, vendored-runner restore), `Run opencode tester` in progress since 21:06:13Z (~14 minutes at this run's survey). The Tester is read-only and its evidence is `scope: infra`.
+- **PR #758 content verified earlier on the head**: `.github/workflows/maze-chase-release.yml` (workflow `name: maze-chase-release`, triggers `push` on `maze-chase-v*` and `workflow_dispatch`) hashes to SHA-256 `80cd8908...` and is byte-identical to `maze-chase/packaging/release/maze-chase-release.yml`; `maintainer.yml` carries 19 `workflow_run` allowlist entries including the exact `maze-chase-release`, and `SWEEP_ALLOWLIST` includes it.
+- **Held runs on #758 are cleared.** Repo-wide held (`action_required`) run count is zero at 21:15Z; the prior run's approve sweep did its job.
 - **#657 (release engineering workstream) stays OPEN.** Lab Engineer run 40129765268 completed with the install report on #657 at 20:37:02Z and PR #758. After #758 merges (Tester, Council, PAT sweep), dispatch `{"action": "sweep", "workflow": "maze-chase-release", "ref": "main"}`; until the PR is on `main` the workflow is not live and the main-branch `SWEEP_ALLOWLIST` has no entry, so no sweep is possible yet. #657 closes only with the stable `1.0.0` tag and the Final Phase verification.
-- **#582 Phase 7 is live.** Build run 40129767199 in progress since 20:26:13Z (head `835280dd`); no PR yet. Phase 7 is Game-First Web Experience and Subpages (`Refs #582`, `Closes #660`).
+- **#582 Phase 7 is live.** Build run 40129767199 has its `build` job in progress since 20:26:15Z (head `835280dd`, all other mode jobs skipped by design); no new `opencode/issue582-*` PR and no new branch yet. The remote `opencode/issue582-maze-chase-phase-7` branch is stale (commit `2446cf8e`, 2026-10-16) and is not this build's branch. Phase 7 is Game-First Web Experience and Subpages (`Refs #582`, `Closes #660`).
 - **#676 CLOSED** at 20:22:36Z on the merged bounded-render evidence; **#677 (HiDPI) and #678 (idle CPU) stay OPEN** for the Final Phase measurements.
 - **#745 (owner-PAT hardening, `Refs #742`) - PARKED** at `7a04fa4a`, CONFLICTING against `main` `835280dd` (conflicts in `.github/scripts/silent-stall-audit.sh` and `AGENTS.md`); protected-path work, Lab Engineer only, no churn during delivery.
 - **#743 stays open**: the per-OS lane live proof is still missing. **#754 (FreeUsageLimitError fast-fail)** stays the first post-delivery infrastructure item.
 - **Issues**: 14 open, all mapped (the #582 sub-issue tree through #655/#657/#659/#660/#661/#677/#678/#683, the parked infra #742/#743/#754, and the #70 health board plus #42 brainstorm); zero untriaged; no new issue since #754. **Open PRs**: #758 and #745; no human or fork PR. **Recovery**: none needed; no retired `opencode/schedule-*` / `opencode/dispatch-*` branch and no `recover/*` branch on the remote.
-- **Health (21:06-21:10Z)**: zero failed, timed-out, or startup-failure runs in the newest 200; the only non-success entries are the three held runs above, the in-progress test/build/curator lanes, and the queued curator runs (queue: max, they drain). Trigger allowlist on `main` is exact 18/18 item-for-item against the live non-maintainer workflow names (`auditor`, `Deploy static site to GitHub Pages`, `Lab Engineer`, `opencode-review`, `opencode-pr-trigger`, `opencode-test`, `opencode-peros-test`, `ideate`, `opencode`, `opencode-recover`, `poolduel-m1`, `poolduel-m2`, `poolduel-m9`, `poolduel-m10-soak`, `curator`, `opencode-eval`, `tor-cli`, `pet-release`; `maintainer` self-excluded). `maze-chase-release` is not live yet: it arrives with #758, whose own diff adds the 19th name and the sweep entry in lockstep. Registry: 8 free models; ladder 3/3 live and free (`deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `glm-5.3-flash-free`); pins unchanged (`opencode/deepseek-v4.1-flash-free` for `model`, `small_model`, and all workflow `model:` inputs).
-- **Pages**: root `/RandomLabs/` and `/RandomLabs/maze-chase/` both return 200 at 21:08Z. The curator schedule run 40129656747 has been in progress since 20:24:43Z (a long audit, no failure signal).
-- **Memory**: the previous publish landed on `maintainer/logs` as `ffed95e8` at 20:26:03Z (keep-both per #647).
+- **Health (21:13-21:18Z)**: zero failed, timed-out, or startup-failure runs in the newest 200; zero held `action_required` runs repo-wide. The only non-success entries are the comment-burst skips, the by-design maintainer `workflow_run` cancels (single-slot supersession), the in-progress test/build/curator lanes, and the queued curator/test runs from the 21:13 comment burst (queue: max, they drain). Trigger allowlist on `main` is exact 18/18 item-for-item against the live non-maintainer lab workflow names (`auditor`, `Deploy static site to GitHub Pages`, `Lab Engineer`, `opencode-review`, `opencode-pr-trigger`, `opencode-test`, `opencode-peros-test`, `ideate`, `opencode`, `opencode-recover`, `poolduel-m1`, `poolduel-m2`, `poolduel-m9`, `poolduel-m10-soak`, `curator`, `opencode-eval`, `tor-cli`, `pet-release`; `maintainer` self-excluded; the GitHub-managed `Dependabot Updates`, `Dependency Graph`, and `pages-build-deployment` are not lab `name:` workflows and stay out of scope). `maze-chase-release` is not live yet: it arrives with #758, whose own diff adds the 19th name and the sweep entry in lockstep. Registry: 8 free models; ladder 3/3 live and free (`deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `glm-5.3-flash-free`); pins unchanged (`opencode/deepseek-v4.1-flash-free` for `model`, `small_model`, and all workflow `model:` inputs).
+- **Pages**: root `/RandomLabs/` and `/RandomLabs/maze-chase/` both return 200 at 21:16Z; the #758 preview `/preview/pr-758/` also returns 200. The 21:13:27Z Pages deploy run 40133264132 completed success.
+- **Curator**: schedule run 40129656747 has been in progress since 20:24:43Z (~52 minutes, no failure signal); comment-burst curator runs 40132728888 / 40133261574 are queued and will drain.
+- **Memory**: the previous publish landed on `maintainer/logs` as `12a14ab0` at 21:13:01Z (keep-both per #647).
 - **Workspace (verified)**: the CLI session is on PR branch `opencode/lab-657-release-pipeline-install` at `d7bf18c3`, tree clean, `.maintainer/` gitignored; the staged `RUNNER_TEMP` prompt plus trusted helpers are from the default-branch commit. I ran no branch command and changed nothing outside the output contract files.
+- **The wake**: an OWNER-authored `/oc maintainer` comment (6389606320) at 21:13:23Z, 33 seconds after the previous run's zero-dispatch summary. It carries no new repo state; it is a nudge, and both delivery lanes are already live, so this run stands down.
 - **The owner's directives**: #741 comment 6358553065 at 2026-10-23T06:01:42Z (delivery first; stop unnecessary restructuring; avoid lab infrastructure changes unless genuinely necessary to unblock) and the #582 pace question at 2026-10-24T18:41:45Z. Active lanes: the #758 gate chain on #657 and Phase 7 on #582.
 
 ## Decisions this run
 
-- `.maintainer/decision.json`: `[]` (zero dispatch). `.maintainer/comment.md`: empty (the reviewer's approval report posted at 21:06:06Z and the auto-forwarded test is live; another bot note would be noise). `.maintainer/personality.md`: empty.
+- `.maintainer/decision.json`: `[]` (zero dispatch). `.maintainer/comment.md`: empty (the previous run's summary posted at 21:12:50Z and the Tester is live; another bot note would be noise). `.maintainer/personality.md`: empty.
 - No `test` on #758: run 40132728887 is already the Tester on the reviewed head.
 - No `eval` on #758: the binding order requires the Tester approval first; route it on the `/oc approve-test` handoff.
-- No `review` on #758: approved at 21:05:59Z.
-- No `fix`/`continue`/`lab` on #758: infrastructure PR with no findings; another `lab` round would be a duplicate.
+- No `review`/`fix`/`lab` on #758: approved at 21:05:59Z, no findings, and the install round is complete.
+- No per-OS (`test-linux`/`test-macos`/`test-windows`) on #758: infrastructure PR, read-only Tester scope, no native artifact to exercise before the workflow is on `main`.
 - No `sweep`: `maze-chase-release` is not on `main` yet and the main-branch `SWEEP_ALLOWLIST` has no entry (the hardcoded handler would refuse it); #758 is unmerged.
 - No `build`/`continue` on #582: run 40129767199 is already the Phase 7 build.
 - No `review`/`test`/`fix`/`continue` on #745: protected-path work (Lab Engineer only) and conflicted; parked.
-- No `lab` on #743/#754: nothing blocks delivery; they stay post-delivery under the no-churn directive.
+- No `lab` on #743/#754 or the reviewer's drift-guard note: nothing blocks delivery; they stay post-delivery under the no-churn directive.
 - No merge: #758 awaits the Tester and the Council; #745 is conflicted and unapproved.
-- No create/close/recover/ideate/auditor/curate: zero untriaged, nothing stranded, no ideation request, no new finding.
+- No create/close/recover/ideate/auditor/curate: zero untriaged, nothing stranded, no automation-created content requiring self-triage (no ping, no nudge-issue), no ideation request, no new finding.
 - No emergency: `lab.yml` executes normally and production is not halted by a lab failure.
 
 ## Watch list
@@ -68,8 +70,8 @@ I am Hephaestus, the Maintainer of this lab: Chief Orchestrator, in the line of 
 
 ## Pointers
 
-- This run's log entry: `logs/2026-10-24.md`, run 40132726240.
-- #758: head `d7bf18c3`; review approval 6389529335 (21:05:59Z), signed report 6389530428 (21:06:06Z), `/oc test` 6389530866 (21:06:09Z); Tester run 40132728887 live; installed workflow SHA-256 `80cd8908...` identical to the packaging source; allowlist 19/19 with `maze-chase-release`; sweep allowlist includes it.
+- This run's log entry: `logs/2026-10-24.md`, run 40133261683.
+- #758: head `d7bf18c3`; review approval 6389529335 (21:05:59Z), signed report 6389530428 (21:06:06Z), `/oc test` 6389530866 (21:06:09Z); Tester run 40132728887 live; owner `/oc maintainer` nudge 6389606320 (21:13:23Z); installed workflow SHA-256 `80cd8908...` identical to the packaging source; allowlist 19/19 with `maze-chase-release`; sweep allowlist includes it.
 - #657: Lab Engineer report at 20:37:02Z; PR #758; post-merge sweep directive.
 - #582: Phase 7 build run 40129767199 live; `progress/582-maze-chase-overhaul.md` is the roadmap.
 - #676: closed 2026-10-24 with the merged bounded-render evidence; #677/#678 remain open for measurements.
