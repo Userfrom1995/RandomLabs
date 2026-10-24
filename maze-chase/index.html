@@ -1,71 +1,417 @@
 <!DOCTYPE html>
+<!-- Maze Chase, the game-first page (issue #582, Refs #660).
+  Served from maze-chase/index.html, so the project URL opens directly into
+  the complete game. The legacy play.html redirects here. The engine wasm
+  must sit at maze-chase/web/maze-chase.wasm, built by the maze-chase-web
+  Rust crate. NOTE: browsers refuse fetch() of .wasm over file://, so serve
+  over http (e.g. `python3 -m http.server`, or `python -m http.server` on
+  Windows, inside maze-chase/). No external resources: works offline once
+  served, minus the wasm fetch itself. Distribution and documentation live
+  on the dedicated subpages reachable from the Site menu. -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Maze Chase (Rust)</title>
+<meta name="description" content="Play Maze Chase: an original maze-chase game in Rust. Guide Rill the pond frog, clear every crumb, and turn the hunt with a sunseed. Runs in the browser with keyboard and touch controls." />
+<title>Maze Chase - Play</title>
 <link rel="icon" href="web/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="site.css" />
+<script src="web/maze-chase.js" defer></script>
 <style>
-  :root { color-scheme: dark; --bg: #0c0f16; --panel: #151b2c; --ink: #f2ead8; --muted: #9aa3b2; --accent: #ffc53d; --teal: #4fd1c5; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 system-ui, sans-serif; }
-  main { max-width: 760px; margin: 0 auto; padding: 32px 20px 64px; }
-  a { color: var(--accent); }
-  a.play {
-    display: inline-block; margin-top: 12px; padding: 10px 22px;
-    background: var(--accent); color: #111; font-weight: bold;
-    border-radius: 10px; text-decoration: none;
+  :root {
+    color-scheme: dark;
+    --bg: #0c0f16; --panel: #151b2c; --ink: #f2ead8;
+    --muted: #9aa3b2; --accent: #ffc53d; --teal: #4fd1c5;
   }
-  .status { background: var(--panel); border-left: 4px solid var(--accent); padding: 12px 16px; border-radius: 0 12px 12px 0; }
-  .cast { background: var(--panel); padding: 16px; border-radius: 12px; }
-  .cast td, .cast th { padding: 4px 12px 4px 0; text-align: left; font-size: 0.95rem; }
-  code { background: #000; padding: 2px 6px; border-radius: 6px; overflow-wrap: anywhere; }
-  footer { color: var(--muted); font-size: 0.85rem; margin-top: 48px; }
+  * { box-sizing: border-box; }
+  /* Author display rules would otherwise override the UA [hidden] style
+     (notably .badge's inline-block): hidden always wins. */
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, sans-serif; }
+  a { color: var(--accent); }
+  header {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 12px 16px; background: var(--panel); border-bottom: 2px solid var(--accent);
+    position: sticky; top: 0; z-index: 50;
+  }
+  header h1 { font-size: 1.2rem; margin: 0; }
+  header h1 .sub { color: var(--teal); font-weight: normal; font-size: 0.9rem; }
+  header .spacer { flex: 1; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  .stage { display: flex; gap: 16px; align-items: flex-start; }
+  #canvas-wrap { flex: 1 1 auto; min-width: 0; }
+  canvas {
+    display: block; background: #000; border-radius: 12px;
+    border: 1px solid #2a3350; touch-action: none;
+    min-width: 280px; min-height: 280px;
+  }
+  aside#hud {
+    flex: 0 0 240px; background: var(--panel); border-radius: 12px; padding: 12px 16px;
+  }
+  aside#hud dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
+  aside#hud dt { color: var(--muted); font-size: 0.8rem; }
+  aside#hud dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .badge {
+    display: inline-block; margin-top: 8px; padding: 2px 10px; border-radius: 999px;
+    background: var(--accent); color: #111; font-weight: bold; font-size: 0.85rem;
+  }
+  .badge.teal { background: var(--teal); }
+  section.panel {
+    background: var(--panel); border-radius: 12px; padding: 16px 20px; margin-top: 16px;
+  }
+  section.panel h2 { margin-top: 0; color: var(--accent); }
+  /* Help, scores, settings, game over, and error are viewport overlays like
+     the title and pause cards: the panel and its actions must never open
+     below the fold. The body scrolls inside the card while the action row
+     stays pinned to the card's bottom edge. */
+  section.panel-screen {
+    position: fixed; z-index: 40; left: 50%;
+    top: calc(50% + var(--header-half, 0px));
+    transform: translate(-50%, -50%);
+    width: min(680px, calc(100vw - 24px));
+    max-height: calc(100vh - var(--header-h, 0px) - 24px);
+    max-height: calc(100dvh - var(--header-h, 0px) - 24px);
+    display: flex; flex-direction: column;
+    margin: 0; padding: 0; overflow: hidden;
+    border: 1px solid #2a3350; box-shadow: 0 24px 80px #000c;
+  }
+  section.panel-screen .panel-scroll {
+    overflow: auto; min-height: 0; padding: 16px 22px 8px;
+  }
+  section.panel-screen .panel-actions {
+    display: flex; flex-wrap: wrap; gap: 4px; margin: 0;
+    padding: 10px 22px 14px; border-top: 1px solid #2a3350;
+    background: var(--panel);
+  }
+  /* First-run title and pause are cards centered in the viewport, over the
+     dimmed fresh board, so the primary action is always reachable without
+     scrolling (the Quality Council finding on the old below-fold CTA). */
+  section.overlay-card {
+    position: fixed; z-index: 40; left: 50%;
+    top: calc(50% + var(--header-half, 0px));
+    transform: translate(-50%, -50%);
+    width: min(560px, calc(100vw - 24px));
+    max-height: calc(100vh - var(--header-h, 0px) - 24px);
+    max-height: calc(100dvh - var(--header-h, 0px) - 24px);
+    display: flex; flex-direction: column;
+    overflow: hidden; margin: 0; padding: 0;
+    border: 1px solid #2a3350; box-shadow: 0 24px 80px #000c;
+    background: var(--panel); border-radius: 16px;
+  }
+  section.overlay-card .panel-scroll {
+    flex: 1 1 auto; min-height: 0; overflow: auto; padding: 20px 24px 8px;
+  }
+  section.overlay-card .title-actions,
+  section.overlay-card .pause-actions {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+    flex: 0 0 auto; margin: 0; padding: 10px 24px 14px;
+    border-top: 1px solid #2a3350; background: var(--panel);
+  }
+  section.overlay-card h2 { font-size: 1.9rem; letter-spacing: 0.02em; margin: 0 0 4px; }
+  .title-kicker {
+    margin: 0 0 6px; color: var(--teal); font-size: 0.78rem;
+    letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700;
+  }
+  .title-lede { margin: 0 0 10px; color: var(--ink); }
+  .title-desc { margin: 0 0 8px; color: var(--teal); font-weight: 600; }
+  .title-legend { margin: 0; color: var(--muted); font-size: 0.9rem; }
+  .title-goal { margin: 2px 0 10px; color: var(--accent); font-weight: 600; }
+  .title-actions .primary { margin-right: 6px; }
+  .fright-meter { margin-top: 10px; }
+  .fright-meter .badge { margin-top: 0; }
+  .fright-segs { display: flex; gap: 2px; margin-top: 6px; }
+  .fright-segs[hidden] { display: none; }
+  .fright-segs span {
+    flex: 1 1 auto; height: 5px; align-self: flex-end;
+    border-radius: 2px; background: #2a3350;
+    box-shadow: inset 0 0 0 1px #6d7897;
+  }
+  .fright-segs span.on {
+    height: 9px; background: var(--accent);
+    box-shadow: inset 0 0 0 1px #10203a;
+  }
+  @media (max-width: 760px) {
+    section.overlay-card .panel-scroll { padding: 16px 18px 8px; }
+    section.overlay-card .title-actions,
+    section.overlay-card .pause-actions { padding: 10px 18px 14px; }
+    section.overlay-card h2 { font-size: 1.55rem; }
+    .title-actions button { flex: 1 1 44%; }
+    .title-actions .primary { flex-basis: 100%; }
+  }
+  /* Short landscape phones: the card must keep its heading and every action
+     visible. The footer cannot grow past the card, so the chrome compresses
+     and the action row stops stretching. */
+  @media (max-width: 760px) and (max-height: 420px) {
+    section.overlay-card .panel-scroll { padding: 8px 14px 6px; }
+    section.overlay-card .title-actions,
+    section.overlay-card .pause-actions { padding: 6px 14px 8px; }
+    section.overlay-card .title-kicker { display: none; }
+    section.overlay-card h2 { font-size: 1.2rem; }
+    section.overlay-card .title-actions button { flex: 0 1 auto; }
+    section.overlay-card .title-actions .primary { flex-basis: auto; }
+  }
+  button, input[type="text"] { font: inherit; }
+  button {
+    min-height: 44px; min-width: 44px; padding: 8px 16px; border-radius: 10px;
+    border: 1px solid var(--accent); background: transparent; color: var(--ink);
+    cursor: pointer; margin: 4px 4px 4px 0;
+  }
+  button:hover { background: #232c47; }
+  button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+  section.panel-screen .panel-scroll:focus-visible,
+  section.overlay-card .panel-scroll:focus-visible {
+    outline: 3px solid var(--teal); outline-offset: -3px;
+  }
+  button.primary { background: var(--accent); color: #111; font-weight: bold; }
+  input[type="text"] {
+    min-height: 44px; border-radius: 10px; border: 1px solid #2a3350;
+    background: #0c0f16; color: var(--ink); padding: 8px 12px; max-width: 220px;
+  }
+  input[type="range"] { width: 180px; accent-color: var(--accent); }
+  .mix-rows { display: grid; gap: 8px; margin: 4px 0 10px; }
+  .mix-row {
+    display: grid; grid-template-columns: 4.5rem minmax(0, 1fr) 3.25rem;
+    align-items: center; gap: 10px;
+  }
+  .mix-row label { margin: 0; white-space: nowrap; }
+  .mix-row input[type="range"] { width: 100%; min-width: 0; margin: 0; }
+  .mix-row output {
+    text-align: right; color: var(--muted); font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  @media (max-width: 420px) {
+    .mix-row { grid-template-columns: 3.75rem minmax(0, 1fr) 2.75rem; gap: 8px; }
+  }
+  table.scores { border-collapse: collapse; width: 100%; max-width: 480px; }
+  table.scores td, table.scores th { border-bottom: 1px solid #2a3350; padding: 6px 8px; text-align: left; }
+  #rebind-list { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+  #dpad { display: none; grid-template-columns: repeat(3, 56px); gap: 6px; margin-top: 12px; justify-content: center; }
+  #dpad button { min-height: 56px; font-size: 1.3rem; margin: 0; }
+  #pad-up { grid-column: 2; } #pad-left { grid-column: 1; grid-row: 2; }
+  #pad-right { grid-column: 3; grid-row: 2; } #pad-down { grid-column: 2; grid-row: 3; }
+  @media (pointer: coarse) { #dpad { display: grid; } }
+  body.pad-force #dpad { display: grid; }
+  .note { color: var(--muted); font-size: 0.85rem; }
+  .audio-chip {
+    display: inline-block; margin: 8px 0 0; padding: 6px 10px;
+    border: 1px solid var(--teal); border-radius: 999px;
+    background: transparent; color: var(--teal); font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .audio-chip[hidden] { display: none; }
+  section.panel-screen.error-card { border: 2px solid #ff6b6b; }
+  section.panel-screen.error-card h2 { color: #ff6b6b; }
+  footer { color: var(--muted); font-size: 0.85rem; padding: 16px; max-width: 1100px; margin: 0 auto; }
+  .diag[hidden] { display: none !important; }
+  .dots-bar {
+    display: block; height: 8px; margin-top: 4px; border-radius: 4px;
+    background: #2a3350; box-shadow: inset 0 0 0 1px #6d7897; overflow: hidden;
+  }
+  .dots-bar span { display: block; height: 100%; width: 0; background: var(--accent); }
+  @media (max-width: 760px) {
+    .stage { flex-direction: column; }
+    aside#hud { flex: 1 1 auto; width: 100%; }
+    /* The base rule carries aside#hud dl (1,0,2); this mobile override must
+       match that specificity or the four-column HUD never applies. */
+    aside#hud dl { grid-template-columns: repeat(4, auto); }
+  }
 </style>
 </head>
 <body>
+<header>
+  <h1><a href="index.html">Maze Chase</a> <span class="sub">starring Rill the pond frog</span></h1>
+  <span class="spacer"></span>
+  <details class="site-menu">
+    <summary aria-label="Open the Maze Chase site menu">Site</summary>
+    <nav aria-label="Maze Chase site">
+      <a href="index.html" aria-current="page">Play</a>
+      <a href="install.html">Install</a>
+      <a href="downloads.html">Downloads</a>
+      <a href="compatibility.html">Compatibility</a>
+      <a href="releases.html">Releases</a>
+      <a href="docs/">Docs</a>
+    </nav>
+  </details>
+  <button type="button" id="btn-pause" hidden aria-label="Pause game">Pause</button>
+  <button type="button" id="btn-mute">Mute</button>
+</header>
 <main>
-  <h1>Maze Chase (Rust)</h1>
-  <p>An original maze-chase game in Rust: one deterministic engine with three complete publication layers (terminal, desktop, browser). You are <strong>Rill</strong>, a pond frog; outrun the four wardens, clear every crumb, and turn the tables with a sunseed.</p>
-  <p><a class="play" href="play.html">Play in your browser</a></p>
+  <div class="stage">
+    <div id="canvas-wrap">
+      <canvas id="game-canvas" width="640" height="460" role="img" aria-label="Maze Chase board"></canvas>
+      <div id="dpad" role="group" aria-label="On-screen direction pad">
+        <button type="button" id="pad-up" aria-label="Up">&#8593;</button>
+        <button type="button" id="pad-left" aria-label="Left">&#8592;</button>
+        <button type="button" id="pad-right" aria-label="Right">&#8594;</button>
+        <button type="button" id="pad-down" aria-label="Down">&#8595;</button>
+      </div>
+      <p><button type="button" id="btn-pad">Toggle touch pad</button></p>
+    </div>
+    <aside id="hud" aria-label="Game status">
+      <dl>
+        <dt>Score</dt><dd id="hud-score">0</dd>
+        <dt>Best</dt><dd id="hud-best">0</dd>
+        <dt>Wicks</dt><dd id="hud-wicks">3</dd>
+        <dt>Level</dt><dd id="hud-level">1</dd>
+        <dt>Mode</dt><dd id="hud-mode">Classic</dd>
+        <dt>Pickups</dt><dd id="hud-dots">0</dd>
+        <dt class="diag" id="hud-fps-label" hidden>FPS</dt><dd class="diag" id="hud-fps" hidden>0</dd>
+        <dt>Tune</dt><dd id="hud-tune">OFF</dd>
+      </dl>
+      <div class="dots-bar" id="hud-dots-bar" role="meter" aria-label="Pickups cleared"
+           aria-valuemin="0" aria-valuemax="449" aria-valuenow="0"><span id="hud-dots-fill"></span></div>
+      <div class="fright-meter" id="fright-meter" hidden>
+        <span class="badge" id="hud-fright">FRIGHT!</span>
+        <div class="fright-segs" id="fright-segs" role="meter"
+             aria-label="Fright time left" aria-valuemin="0" aria-valuemax="30"
+             aria-valuenow="0"></div>
+      </div>
+      <span class="badge teal" id="hud-relish" hidden>RELISH</span>
+      <p class="note" id="audio-note" hidden>Audio unavailable in this browser; playing silent.</p>
+    </aside>
+  </div>
 
-  <div class="status"><strong>Status: playable now.</strong> Play in your browser above, or build the terminal or desktop layer from source; the Linux packages (deb, rpm, tarballs) are built and smoke-tested. The per-user Windows installer and zip and the unsigned macOS app, dmg, and tarball ship once the release workflow is installed. Measured build, test, and artifact results live in the <a href="docs/scoreboard.md">release scoreboard</a>, and per-layer capabilities are in the <a href="docs/feature-matrix.md">feature matrix</a>.</div>
+  <section class="panel overlay-card" id="panel-title" aria-label="Title">
+    <div class="panel-scroll" tabindex="0" role="region" aria-label="Title details">
+      <button type="button" id="btn-audio" class="audio-chip" hidden>Sound is asleep - tap to wake</button>
+      <p class="title-kicker">A Pondwake arcade original</p>
+      <h2>Maze Chase</h2>
+      <p class="title-lede">You are Rill, a pond frog. Clear every crumb, dodge
+      the wardens Bram, Kessa, Jory and Nib, and grab a sunseed to turn the
+      hunt around.</p>
+      <p class="title-desc" id="title-desc">Start game: begin a hunt in the pond.</p>
+      <p class="title-legend" id="title-legend">Wardens: Bram the heron, Kessa the
+      pike, Jory the snake, and Nib the dragonfly.</p>
+      <p class="title-goal" id="title-goal">Clear 445 crumbs plus 4 sunseeds; sunseeds turn the hunt.</p>
+      <p class="note" id="boot-status">Loading engine...</p>
+    </div>
+    <p class="title-actions">
+      <button type="button" class="primary" id="btn-start" data-primary
+        data-desc="Start game: begin a hunt in the pond.">Start game</button>
+      <button type="button" id="btn-title-help"
+        data-desc="Help: controls, rules, and the warden legend.">Help</button>
+      <button type="button" id="btn-title-scores"
+        data-desc="Scores: the house best and recent runs.">Scores</button>
+      <button type="button" id="btn-title-settings"
+        data-desc="Settings: theme, access, and bindings.">Settings</button>
+    </p>
+  </section>
 
-  <h2>Cast</h2>
-  <div class="cast"><table>
-    <tr><th>Warden</th><th>Style</th><th>Read</th></tr>
-    <tr><td>Bram</td><td>Leader: hunts your tile, enrages late-level</td><td>slate blue, heron S-neck</td></tr>
-    <tr><td>Kessa</td><td>Ambusher: waits 4 tiles ahead of you</td><td>river green, pike dorsal ridge</td></tr>
-    <tr><td>Jory</td><td>Flanker: mirrors Bram across a pivot ahead</td><td>coral, snake head loop</td></tr>
-    <tr><td>Nib</td><td>Lurker: hunts while far, retreats when close</td><td>brass amber, dragonfly crossbar</td></tr>
-  </table></div>
+  <section class="panel panel-screen" id="panel-help" hidden aria-label="Help">
+    <div class="panel-scroll" tabindex="0" role="region" aria-label="Help details">
+      <h2>How to play</h2>
+      <p>Move with arrows or WASD (remappable in Settings). Eat all crumbs to clear
+      the level. Sunseeds grant fright powers: eat wardens for chain bonuses.
+      Relishes appear for bonus points. P or Esc pauses; M mutes.</p>
+      <p class="note">Modes: Classic, Time Attack, Sprint, Fright Frenzy. Difficulty
+      presets (Cozy, Standard, Harsh) pick the start level and mode.</p>
+    </div>
+    <p class="panel-actions"><button type="button" id="btn-help-back" data-primary>Back</button></p>
+  </section>
 
-  <h2>Layers</h2>
-  <p>The engine they share hunts headless and verified (<code>cargo run --bin maze-chase-verify</code> inside <code>maze-chase/</code>): four personalities on a reversing wave clock, pathing eyes, relishes, pursuer stages, and four mode rulesets. All three layers run from source, and the <a href="docs/release.md">release guide</a> covers packages, checksums, install, upgrade, and uninstall; the binaries are unsigned.</p>
-  <ul>
-    <li><strong>Terminal</strong>: Linux deb/rpm/tarball plus a Windows zip, fullscreen canvas, Kitty/Sixel/Unicode tiers with auto-degrade, dynamic resize. See the <a href="docs/terminal.md">terminal guide</a>.</li>
-    <li><strong>Desktop</strong>: windowed plus fullscreen GUI on the shared renderer core, keyboard plus gamepad with remap, audio sliders, shared machine scores, native packages (Linux deb/rpm/tarball, per-user Windows installer plus zip, macOS app/dmg/tarball), HiDPI-aware bounded rendering. See the <a href="docs/desktop.md">desktop guide</a>.</li>
-    <li><strong>Browser</strong>: <a href="play.html">play in your browser</a>: the same hunt as WebAssembly with keyboard plus touch, DPR-aware canvas, and WebAudio sound. See the <a href="docs/web.md">browser guide</a>.</li>
-  </ul>
+  <section class="panel panel-screen" id="panel-scores" hidden aria-label="High scores">
+    <div class="panel-scroll" tabindex="0" role="region" aria-label="Score table">
+      <h2>High scores</h2>
+      <table class="scores">
+        <thead><tr><th>Rank</th><th>Name</th><th>Score / Level</th></tr></thead>
+        <tbody id="scores-body"></tbody>
+      </table>
+    </div>
+    <p class="panel-actions">
+      <button type="button" id="btn-scores-clear">Clear scores</button>
+      <button type="button" id="btn-scores-back" data-primary>Back</button>
+    </p>
+  </section>
 
-  <h2>Documentation</h2>
-  <ul>
-    <li><a href="docs/research.md">Mechanics and stack research</a></li>
-    <li><a href="docs/legal.md">Clean-room log and legal guardrails</a></li>
-    <li><a href="docs/identity.md">Naming, branding, maze authorship</a></li>
-    <li><a href="docs/behavior-spec.md">#552 behavior reference (pinned)</a></li>
-    <li><a href="docs/design.md">Visual and interaction design</a></li>
-    <li><a href="docs/feature-matrix.md">Feature-completeness matrix</a></li>
-    <li><a href="docs/terminal.md">Terminal install and launch guide</a></li>
-    <li><a href="docs/desktop.md">Desktop install and launch guide</a> (sample title-frame screenshot: <a href="docs/desktop-probe.ppm">desktop-probe.ppm</a>)</li>
-    <li><a href="docs/web.md">Browser install and launch guide</a> (playable at <a href="play.html">play.html</a>)</li>
-    <li><a href="docs/audio.md">Sound identity and mix</a></li>
-    <li><a href="docs/release.md">Reproducible build and release guide</a></li>
-    <li><a href="docs/scoreboard.md">Release scoreboard (measured results)</a></li>
-    <li><a href="docs/parity.md">#552 parity checklist</a></li>
-  </ul>
-  <p>Tracking issue: <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">#582</a> (open; the overhaul tracked by it continues here). The Python reference game (<a href="https://github.com/Userfrom1995/RandomLabs/issues/552">#552</a>) is retired in favor of this game. All code, mazes, art, audio, and tuning here are originals; see the clean-room log.</p>
+  <section class="panel panel-screen" id="panel-settings" hidden aria-label="Settings">
+    <div class="panel-scroll" tabindex="0" role="region" aria-label="Settings options">
+      <h2>Settings</h2>
+      <div class="mix-rows" role="group" aria-label="Audio levels">
+        <div class="mix-row">
+          <label for="rng-master">Master</label>
+          <input type="range" id="rng-master" min="0" max="100" value="80" />
+          <output id="out-master" for="rng-master" aria-live="polite">80%</output>
+        </div>
+        <div class="mix-row">
+          <label for="rng-music">Music</label>
+          <input type="range" id="rng-music" min="0" max="100" value="60" />
+          <output id="out-music" for="rng-music" aria-live="polite">60%</output>
+        </div>
+        <div class="mix-row">
+          <label for="rng-sfx">SFX</label>
+          <input type="range" id="rng-sfx" min="0" max="100" value="80" />
+          <output id="out-sfx" for="rng-sfx" aria-live="polite">80%</output>
+        </div>
+      </div>
+      <p>
+        <label><input type="checkbox" id="chk-flash" /> Reduced flashing</label>
+        <label><input type="checkbox" id="chk-motion" /> Reduced motion</label>
+        <label><input type="checkbox" id="chk-contrast" /> High contrast</label>
+        <label><input type="checkbox" id="chk-fps" /> Frame diagnostics</label>
+      </p>
+      <p>
+        <button type="button" id="btn-theme">Next theme</button> <span id="theme-label">Theme 1/1</span>
+        <button type="button" id="btn-diff">Next difficulty</button> <span id="diff-label">Standard</span>
+        <button type="button" id="btn-mute-2">Mute toggle</button>
+      </p>
+      <h3>Remap keys</h3>
+      <ul id="rebind-list"></ul>
+    </div>
+    <p class="panel-actions"><button type="button" id="btn-settings-back" data-primary>Back</button></p>
+  </section>
 
-  <footer>All three layers run on Linux, macOS, and Windows: terminal fullscreen canvas with Kitty/Sixel/Unicode tiers, desktop windowed/fullscreen GUI with gamepad and per-OS packaging, browser WebAssembly with keyboard plus touch and WebAudio, all on the shared deterministic engine. Layer-by-layer verification status is tracked per layer; the terminal layer's real-emulator results are in <a href="docs/terminal-compat.md">docs/terminal-compat.md</a>.</footer>
+  <section class="panel overlay-card" id="panel-pause" hidden aria-label="Paused"
+           role="dialog">
+    <div class="panel-scroll" tabindex="0" role="region" aria-label="Pause details">
+      <p class="title-kicker">The pond holds its breath</p>
+      <h2>Paused</h2>
+      <p class="note">Rill and the wardens freeze exactly where they were.</p>
+    </div>
+    <p class="pause-actions">
+      <button type="button" class="primary" id="btn-resume" data-primary>Resume</button>
+      <button type="button" id="btn-pause-restart">Restart</button>
+      <button type="button" id="btn-pause-quit">Quit to title</button>
+      <button type="button" id="btn-pause-back">Back</button>
+    </p>
+  </section>
+
+  <section class="panel panel-screen" id="panel-over" hidden aria-label="Game over">
+    <div class="panel-scroll" tabindex="0" role="region" aria-label="Run summary">
+      <h2>Game over</h2>
+      <p>Score <strong id="over-score">0</strong> - Level <strong id="over-level">1</strong> -
+      Best <strong id="over-best">0</strong></p>
+      <p id="save-row" hidden>
+        <label>Name (max 12)
+          <input type="text" id="name-input" maxlength="12" inputmode="text" autocomplete="off" />
+        </label>
+        <button type="button" id="btn-save-score">Save score</button>
+      </p>
+      <table class="scores">
+        <thead><tr><th>Rank</th><th>Name</th><th>Score / Level</th></tr></thead>
+        <tbody id="over-body"></tbody>
+      </table>
+    </div>
+    <p class="panel-actions">
+      <button type="button" class="primary" id="btn-over-restart" data-primary>Play again</button>
+      <button type="button" id="btn-over-start">New run (fresh seed)</button>
+      <button type="button" id="btn-over-quit">Quit to title</button>
+    </p>
+  </section>
+
+  <section class="panel panel-screen error-card" id="panel-error" hidden aria-label="Error">
+    <div class="panel-scroll" tabindex="0" role="region" aria-label="Error details">
+      <h2>Could not start</h2>
+      <p id="error-reason">Unknown error.</p>
+      <p class="note" id="error-hint"></p>
+    </div>
+    <p class="panel-actions"><button type="button" id="btn-retry" data-primary>Retry</button></p>
+  </section>
 </main>
+<footer>
+  Maze Chase is an original game: you are Rill, a pond frog, outrunning the
+  wardens Bram, Kessa, Jory and Nib. <a href="releases.html">Release notes</a>
+  and <a href="docs/">documentation</a> live on the site subpages.
+  Tracking issue: <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">#582</a>.
+</footer>
 </body>
 </html>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Maze Chase release notes, version and tag contract, reproducible build details, artifact integrity, and the path from release candidate to stable." />
+<title>Maze Chase - Releases</title>
+<link rel="icon" href="web/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="site.css" />
+</head>
+<body class="site">
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <a class="brand" href="index.html">Maze Chase <span>starring Rill the pond frog</span></a>
+  <nav class="site-nav" aria-label="Maze Chase site">
+    <a href="index.html">Play</a>
+    <a href="install.html">Install</a>
+    <a href="downloads.html">Downloads</a>
+    <a href="compatibility.html">Compatibility</a>
+    <a href="releases.html" aria-current="page">Releases</a>
+    <a href="docs/">Docs</a>
+  </nav>
+</header>
+
+<main class="wrap" id="main">
+  <div class="hero">
+    <p class="eyebrow">Releases</p>
+    <h1>Versioned, reproducible, checksummed</h1>
+    <p class="lede">One workspace version names the binaries, the packages, the
+    archive names, and the tags. A release is built from a clean checkout, tested
+    on each native host, and published with a single checksum manifest.</p>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>Current version</h3>
+      <p><strong>0.1.0</strong> from <code>maze-chase/Cargo.toml</code>. Every
+      crate inherits it, so the game, packages, and docs cannot drift.</p>
+      <p class="meta">Release tag: <code>maze-chase-v0.1.0</code><br />
+      Candidate tag: <code>maze-chase-v0.1.0-rc.1</code></p>
+    </div>
+    <div class="card">
+      <h3>Current status</h3>
+      <p>The 0.1.0 candidate is tagged and published as a prerelease once the
+      release workflow is installed. No stable tag is cut while a binding check
+      is open.</p>
+      <p class="meta"><span class="status wait">Release candidate pending</span></p>
+    </div>
+    <div class="card">
+      <h3>Where releases appear</h3>
+      <p>GitHub Releases carries the artifacts, the combined
+      <code>SHA256SUMS.txt</code>, and notes with each host's toolchain record.</p>
+      <p class="meta"><a href="https://github.com/Userfrom1995/RandomLabs/releases">Open GitHub Releases</a></p>
+    </div>
+  </div>
+
+  <h2 id="notes">Release notes for the first release</h2>
+  <p>Maze Chase is a complete original maze-chase game: one deterministic Rust
+  engine with terminal, desktop, and browser layers. This release includes:</p>
+  <ul>
+    <li>The full hunt: a fixed 120 Hz simulation with buffered turns and
+    cornering, four authored warden personalities, scatter and chase waves with
+    reversals, sunseed fright chains at 200, 400, 800, and 1600, pathing eyes,
+    relish bonuses, pursuer stages, a spare wick, and endless level ramp.</li>
+    <li>Four rulesets: classic, time attack, sprint, and fright frenzy, with
+    seeded streams, a replay log, and a state hash.</li>
+    <li>Original art and audio: 11x11 and 21x21 Rill sprites, four distinct
+    wardens, fright masks, six relish icons, three contrast-checked Pondwake
+    themes, layered synthesized sound effects, and five original multi-track
+    tunes at a shared 108 BPM.</li>
+    <li>The terminal game with Kitty graphics, Sixel, truecolor cells, and
+    legacy cells, a live resize floor of 62 by 35, title, help, scores,
+    settings, rebind, and pause surfaces, and machine high scores.</li>
+    <li>The desktop game with a windowed or fullscreen presentation, side HUD,
+    gamepad support, HiDPI handling, and shared settings and scores.</li>
+    <li>The browser game at this site, with keyboard and touch controls,
+    DPR-aware canvas sizing, WebAudio sound, and settings and scores in
+    <code>localStorage</code>.</li>
+  </ul>
+  <p>The measured record for this tree lives in the
+  <a href="docs/scoreboard.html">release scoreboard</a>, the
+  <a href="docs/feature-matrix.html">feature matrix</a>, and the
+  <a href="docs/parity.html">parity checklist</a>. The terminal matrix records
+  its executed hosts and evidence separately on
+  <a href="compatibility.html">Compatibility</a>.</p>
+
+  <h2 id="assets">Artifacts</h2>
+  <table>
+    <caption>Names use the workspace version; native jobs build their own host</caption>
+    <thead>
+      <tr><th>Host</th><th>Terminal</th><th>Desktop</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Linux</td>
+        <td><code>maze-chase-terminal_&lt;version&gt;_&lt;arch&gt;.deb</code>,<br />
+        <code>maze-chase-terminal-&lt;version&gt;-1.&lt;arch&gt;.rpm</code>,<br />
+        <code>maze-chase-terminal-&lt;version&gt;-linux-&lt;arch&gt;.tar.gz</code></td>
+        <td><code>maze-chase-desktop_&lt;version&gt;_&lt;arch&gt;.deb</code>,<br />
+        <code>maze-chase-desktop-&lt;version&gt;-1.&lt;arch&gt;.rpm</code>,<br />
+        <code>maze-chase-desktop-&lt;version&gt;-linux-&lt;arch&gt;.tar.gz</code></td>
+      </tr>
+      <tr>
+        <td>Windows</td>
+        <td><code>maze-chase-terminal-&lt;version&gt;-windows-x86_64.zip</code></td>
+        <td><code>maze-chase-desktop-&lt;version&gt;-windows-x86_64.zip</code>,<br />
+        <code>maze-chase-desktop-&lt;version&gt;-windows-x86_64-setup.exe</code></td>
+      </tr>
+      <tr>
+        <td>macOS</td>
+        <td><code>maze-chase-terminal-&lt;version&gt;-macos-&lt;arch&gt;.tar.gz</code></td>
+        <td><code>Maze Chase.app</code>,<br />
+        <code>maze-chase-desktop-&lt;version&gt;-macos-&lt;arch&gt;.dmg</code>,<br />
+        <code>maze-chase-desktop-&lt;version&gt;-macos-&lt;arch&gt;.tar.gz</code></td>
+      </tr>
+    </tbody>
+  </table>
+  <p>The browser layer is not an archive: it is the committed
+  <code>web/maze-chase.wasm</code> served from this site. See
+  <a href="downloads.html">Downloads</a> for the current build status of each
+  row.</p>
+
+  <h2 id="integrity">Integrity and reproducibility</h2>
+  <ul>
+    <li>The browser engine is byte-reproducible from the recorded toolchain:
+    212,472 bytes, SHA-256
+    <code>d6dd16bf8038ae5cbde4a81209e4835391dd4ace8a5e3eb1ef37d6b191c62ac0</code>,
+    Rust 1.99.0, no <code>wasm-bindgen</code>, zero imports. A rebuild in CI
+    fails closed if the committed bytes differ.</li>
+    <li>Tarballs and Windows zips are deterministic: sorted entries, fixed
+    owners and modes, and <code>SOURCE_DATE_EPOCH</code> from the commit
+    timestamp. A second build on the same host and toolchain is byte-identical.</li>
+    <li>The macOS disk image records image metadata from <code>hdiutil</code>,
+    so it is checksummed rather than claimed byte-reproducible.</li>
+    <li>Every release publishes one <code>SHA256SUMS.txt</code> for the whole
+    set. The per-host toolchain records are folded into the release notes.</li>
+    <li>Binaries are unsigned. SmartScreen and Gatekeeper warnings are expected
+    and are not a signature claim.</li>
+  </ul>
+
+  <h2 id="contract">Version and tag contract</h2>
+  <p>A release tag is exactly <code>maze-chase-v&lt;workspace version&gt;</code>.
+  A candidate adds a numeric suffix such as <code>-rc.1</code>. Before any
+  build, the pipeline checks that the tag matches the workspace version and
+  fails closed on a mismatch. A branch dispatch is allowed as a non-release
+  build. Published tags are never moved or reused.</p>
+<pre><code># tag build (release)
+bash maze-chase/packaging/release/check-tag.sh "$GITHUB_REF_NAME"
+
+# branch dispatch (non-release)
+bash maze-chase/packaging/release/check-tag.sh "$GITHUB_REF_NAME" --allow-branch</code></pre>
+
+  <h2 id="process">Release process</h2>
+  <ol>
+    <li>Start from a clean checkout with the toolchain and system libraries
+    from the <a href="docs/release.html">release guide</a>.</li>
+    <li>Run <code>cargo test --workspace --locked</code> and the 19-row
+    deterministic verify harness. Stage and smoke each applicable packaging row
+    on its native host.</li>
+    <li>Check tag parity, rebuild the committed wasm, and confirm every
+    checksum.</li>
+    <li>Publish the artifacts and notes through the release workflow, as a
+    prerelease for a candidate tag.</li>
+    <li>Before a stable tag, re-run every per-OS install, upgrade, and uninstall
+    row and re-sign the compatibility matrix.</li>
+  </ol>
+  <p>The complete checklist, commands, and known constraints are in the
+  <a href="docs/release.html">release guide</a>. Upgrade and uninstall
+  instructions are in the <a href="install.html">installation guide</a>.</p>
+</main>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span>Maze Chase is an original game. MIT licensed.</span>
+    <a href="index.html">Play</a>
+    <a href="install.html">Install</a>
+    <a href="downloads.html">Downloads</a>
+    <a href="compatibility.html">Compatibility</a>
+    <a href="docs/">Documentation</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs">GitHub</a>
+    <span class="sep"></span>
+    <span>Tracking issue <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">#582</a></span>
+  </div>
+</footer>
+</body>
+</html>

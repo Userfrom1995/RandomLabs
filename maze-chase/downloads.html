@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Download Maze Chase for Linux, Windows, and macOS, or play it instantly in the browser. Release artifact names, checksum verification, and system requirements." />
+<title>Maze Chase - Downloads</title>
+<link rel="icon" href="web/favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="site.css" />
+</head>
+<body class="site">
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <a class="brand" href="index.html">Maze Chase <span>starring Rill the pond frog</span></a>
+  <nav class="site-nav" aria-label="Maze Chase site">
+    <a href="index.html">Play</a>
+    <a href="install.html">Install</a>
+    <a href="downloads.html" aria-current="page">Downloads</a>
+    <a href="compatibility.html">Compatibility</a>
+    <a href="releases.html">Releases</a>
+    <a href="docs/">Docs</a>
+  </nav>
+</header>
+
+<main class="wrap" id="main">
+  <div class="hero">
+    <p class="eyebrow">Downloads</p>
+    <h1>Take the hunt to your machine</h1>
+    <p class="lede">The browser build is live on this site. Native packages are
+    produced for the terminal and desktop layers from one versioned source
+    tree, and every download is checksummed.</p>
+  </div>
+
+  <div class="callout" id="release-status">
+    <p><strong>Release status.</strong> Linux packages (deb, rpm, tarballs) are
+    built and smoke-tested. The macOS and Windows native artifacts ship once
+    the release workflow is installed and its native jobs run. No published
+    macOS or Windows download is claimed before that.</p>
+  </div>
+
+  <div class="btn-row">
+    <a class="btn primary" href="index.html">Play in the browser</a>
+    <a class="btn" href="install.html">Installation guide</a>
+    <a class="btn" href="https://github.com/Userfrom1995/RandomLabs/releases">GitHub Releases</a>
+  </div>
+
+  <h2 id="artifacts">Artifact matrix</h2>
+  <p>Every archive name below carries the workspace version. The native
+  release jobs publish these files with one combined <code>SHA256SUMS.txt</code>
+  on the Releases page.</p>
+  <table>
+    <caption>Layers, hosts, and the artifacts each native job publishes</caption>
+    <thead>
+      <tr><th>Layer</th><th>Host</th><th>Artifacts</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Browser</td>
+        <td>Any modern browser</td>
+        <td>None: served from this site</td>
+        <td><span class="status live">Live now</span></td>
+      </tr>
+      <tr>
+        <td>Terminal</td>
+        <td>Linux</td>
+        <td><code>maze-chase-terminal_&lt;version&gt;_&lt;arch&gt;.deb</code>,<br />
+        <code>maze-chase-terminal-&lt;version&gt;-1.&lt;arch&gt;.rpm</code>,<br />
+        <code>maze-chase-terminal-&lt;version&gt;-linux-&lt;arch&gt;.tar.gz</code></td>
+        <td><span class="status ok">Built and smoke-tested</span></td>
+      </tr>
+      <tr>
+        <td>Desktop</td>
+        <td>Linux</td>
+        <td><code>maze-chase-desktop_&lt;version&gt;_&lt;arch&gt;.deb</code>,<br />
+        <code>maze-chase-desktop-&lt;version&gt;-1.&lt;arch&gt;.rpm</code>,<br />
+        <code>maze-chase-desktop-&lt;version&gt;-linux-&lt;arch&gt;.tar.gz</code></td>
+        <td><span class="status ok">Built and smoke-tested</span></td>
+      </tr>
+      <tr>
+        <td>Terminal</td>
+        <td>Windows</td>
+        <td><code>maze-chase-terminal-&lt;version&gt;-windows-x86_64.zip</code></td>
+        <td><span class="status wait">Native release job</span></td>
+      </tr>
+      <tr>
+        <td>Terminal</td>
+        <td>macOS</td>
+        <td><code>maze-chase-terminal-&lt;version&gt;-macos-&lt;arch&gt;.tar.gz</code></td>
+        <td><span class="status wait">Native release job</span></td>
+      </tr>
+      <tr>
+        <td>Desktop</td>
+        <td>Windows</td>
+        <td><code>maze-chase-desktop-&lt;version&gt;-windows-x86_64.zip</code>,<br />
+        <code>maze-chase-desktop-&lt;version&gt;-windows-x86_64-setup.exe</code></td>
+        <td><span class="status wait">Native release job</span></td>
+      </tr>
+      <tr>
+        <td>Desktop</td>
+        <td>macOS</td>
+        <td><code>Maze Chase.app</code>,<br />
+        <code>maze-chase-desktop-&lt;version&gt;-macos-&lt;arch&gt;.dmg</code>,<br />
+        <code>maze-chase-desktop-&lt;version&gt;-macos-&lt;arch&gt;.tar.gz</code></td>
+        <td><span class="status wait">Native release job</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>The measured record behind these rows lives in the
+  <a href="docs/scoreboard.html">release scoreboard</a> and the
+  <a href="docs/parity.html">parity checklist</a>; the full build and
+  publishing process is the <a href="docs/release.html">release guide</a>.</p>
+
+  <h2 id="verify">Verify a download</h2>
+  <p>The release publishes one <code>SHA256SUMS.txt</code> for the complete
+  artifact set. Check the files before you run them:</p>
+<pre><code># Linux
+sha256sum -c SHA256SUMS.txt
+
+# macOS
+shasum -a 256 -c SHA256SUMS.txt
+
+# Windows PowerShell (one file at a time)
+Get-FileHash -Algorithm SHA256 .\maze-chase-terminal-0.1.0-windows-x86_64.zip</code></pre>
+  <p>The binaries are unsigned. Windows SmartScreen and macOS Gatekeeper warn
+  on first launch; those prompts are expected and are not a signature claim.
+  See <a href="releases.html">Releases</a> for the current version and notes.</p>
+
+  <h2 id="requirements">System requirements</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Browser</h3>
+      <p>A modern browser with WebAssembly, Canvas, and WebAudio. Keyboard and
+      touch controls. No install, no account, no network calls after the page
+      and its engine load.</p>
+    </div>
+    <div class="card">
+      <h3>Terminal</h3>
+      <p>A host matching the artifact architecture: Linux x86_64 packages are
+      staged for this tree, Windows artifacts are x86_64, and macOS artifacts
+      name their architecture. Builds for other architectures use the same
+      scripts on a matching host. At least 62 columns by 35 rows; Kitty
+      graphics, Sixel, and truecolor or legacy cell terminals are supported.
+      See <a href="compatibility.html">Compatibility</a>.</p>
+    </div>
+    <div class="card">
+      <h3>Desktop</h3>
+      <p>A windowing session, audio output, and a keyboard. Linux builds need
+      ALSA and udev at build time; Windows and macOS use the system audio and
+      window APIs. Gamepads are optional.</p>
+    </div>
+    <div class="card">
+      <h3>Saved data</h3>
+      <p>Settings and scores live in <code>~/.maze-chase</code>
+      (<code>%USERPROFILE%\.maze-chase</code> on Windows). The browser uses
+      <code>localStorage</code>. Nothing leaves your machine.</p>
+    </div>
+  </div>
+
+  <h2 id="source">Build from source now</h2>
+  <p>Every layer builds from a clean checkout with stable Rust 1.89 or newer.
+  Linux packages can be staged today; the native macOS and Windows packaging
+  scripts run on their own hosts. The full commands, toolchain pins, and
+  reproducibility contract live in the
+  <a href="docs/release.html">release guide</a>.</p>
+<pre><code>cd maze-chase
+cargo test --workspace --locked
+cargo run --release --locked --bin maze-chase-verify
+cargo build --release --locked -p maze-chase-terminal
+cargo build --release --locked -p maze-chase-desktop
+cargo build --release --locked --target wasm32-unknown-unknown -p maze-chase-web
+cp target/wasm32-unknown-unknown/release/maze_chase_web.wasm web/maze-chase.wasm</code></pre>
+</main>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span>Maze Chase is an original game. MIT licensed.</span>
+    <a href="index.html">Play</a>
+    <a href="install.html">Install</a>
+    <a href="compatibility.html">Compatibility</a>
+    <a href="releases.html">Releases</a>
+    <a href="docs/">Documentation</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs">GitHub</a>
+    <span class="sep"></span>
+    <span>Tracking issue <a href="https://github.com/Userfrom1995/RandomLabs/issues/582">#582</a></span>
+  </div>
+</footer>
+</body>
+</html>
