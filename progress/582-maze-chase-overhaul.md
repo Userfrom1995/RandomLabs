@@ -8,8 +8,8 @@
 - **Status:** in-progress
 - **Updated:** 2026-10-24
 - **Active Phase:** Phase 7: Game-First Web Experience and Subpages
-  (game-first page, subpages, rendered docs, link checks, and local site E2E
-  complete on the phase branch; the deployed Pages preview run and review are pending)
+  (complete on PR #759: game-first page, subpages, rendered docs, link
+  checks, local and deployed site E2E green; awaiting review and testing)
 - **Blueprint:** `ideas/2026-10-18-maze-chase-overhaul.md`
 - **Findings ledger:** `progress/582-maze-chase-overhaul-findings.md` (created in
   Phase 1; every reassessment gap lives here until resolved or documented)
@@ -22,7 +22,7 @@
 - Phase 4: Visual Identity Redesign: [x] Design Council direction consumed (dispatched by the Maintainer before this phase), [x] resolution-aware character and environment art, [x] effects and animation system, [x] refreshed themes with accessibility tests green, [x] all three layers integrated with real captures (PR 4 target, Refs #582, Closes #658)
 - Phase 5: Sound Design Overhaul: [x] new musical score with one BPM source (`TEMPO = 108`, five multi-track tunes with swung eighths and per-note track lanes), [x] soft short layered effect bank across seven voice families (40 ms crumb pluck with variation, rising warden ladder, sparkling relish triad, spare-wick bell), [x] mix architecture with 120 ms fades and safe defaults (music 60%, SFX 80%, master 80%, peak-normalized buses), [x] terminal chime policy default-off with a persistent Settings row and visual twins independent of mute, [x] per-layer settings round-trip on Linux (desktop synth PCM plus null sink, terminal BEL plus ticker, browser chip plus persisted sliders) with native macOS/Windows speaker review tracked for the Final Phase (PR 5 target, Refs #582, Refs #659)
 - Phase 6: Release Engineering and Multi-Platform Distribution: [x] version single source plus tag parity gate (`[workspace.package]` 0.1.0, `packaging/release/check-tag.sh` fail-closed on a tag/version mismatch), [x] Linux deb and rpm plus tarballs for both layers (rebuilt twice byte-identically and smoke-tested on this container), [ ] Windows installer plus zip (scripts landed; native build and silent install/uninstall run pending), [ ] macOS app plus dmg plus tarball (scripts landed; native build and dmg mount pending), [x] install/launch/uninstall smoke scripts (`release/smoke-linux.sh` executed; macOS/Windows harnesses authored for their native arms), [ ] `maze-chase-release.yml` pipeline via the Lab Engineer (source staged at `packaging/release/maze-chase-release.yml`), [ ] release candidate artifacts on the official Releases page, [ ] install/upgrade/uninstall docs (`docs/release.md` covers both layers on all three OSes, plus upgrade and settings clearing; corrected this round, final sign-off waits for the release candidate artifacts) (PR 6 target, Refs #582, Refs #657)
-- Phase 7: Game-First Web Experience and Subpages: [x] `maze-chase/index.html` boots directly into the game with no clutter (`play.html` redirects with query/hash intact), [x] downloads, install, docs, compatibility, releases subpages with one shared shell and navigation, [x] rendered docs on Pages with a source-freshness marker plus internal link and fragment checks, [ ] deployed-URL browser E2E including mobile (local run ALL GREEN; preview run pending the PR; PR 7 target, Refs #582, Closes #660)
+- Phase 7: Game-First Web Experience and Subpages: [x] `maze-chase/index.html` boots directly into the game with no clutter (`play.html` redirects with query/hash intact), [x] downloads, install, docs, compatibility, releases subpages with one shared shell and navigation, [x] rendered docs on Pages with a source-freshness marker plus internal link and fragment checks, [x] deployed-URL browser E2E including mobile (`site-e2e.js` ALL GREEN at 156 assertions against the PR #759 Pages preview at 1280x900 and 390x844; PR 7 target, Refs #582, Closes #660)
 - Final Phase: Full-Product Verification and Release Sign-Off: [ ] full terminal matrix re-signed on the released artifacts, [ ] per-OS install/upgrade/uninstall from release artifacts, [ ] deployed Pages E2E for the game and every subpage, [ ] audio and visual craft evaluated on real captures, [ ] reassessment ledger fully resolved or documented, [ ] stable `maze-chase-v1.0.0` release cut, [ ] hub, README, and docs unified (Final PR, Refs #582, Closes #655, Closes #661, Closes #582)
 
 ## Current step
@@ -60,20 +60,19 @@ item, no raw markdown, and no horizontal overflow at 1280x900 and
 390x844, then boots the game, starts a run, pauses, resumes, and checks
 the mobile board minimum and title-card bounds with zero console errors.
 The local run is ALL GREEN at 156 assertions; the existing browser E2E
-is also green at 279 assertions against the new game-first page. The
-remaining Phase 7 gate is the same site harness against the deployed
-Pages preview for this PR, which requires the PR to exist.
+is also green at 279 assertions against the new game-first page. PR #759
+carries the phase, and the same site harness is ALL GREEN at 156
+assertions against
+`https://userfrom1995.github.io/RandomLabs/preview/pr-759/maze-chase/`,
+so both the local and deployed game-first shapes are measured rather than
+assumed.
 
 ## Next steps
 
-- Builder: push the phase branch, open the PR (`Refs #582`, `Closes #660`),
-  and run `web/e2e/site-e2e.js` against the deployed preview URL
-  (`/preview/pr-<N>/maze-chase/`); record the command, assertion count, and
-  screenshots in this file and `docs/web.md` before handing off.
-- Reviewer and Tester: check the game-first page at desktop and 390x844,
-  every subpage, the rendered docs, the redirect, and the honest native-row
-  status. The Tester owns the browser E2E evidence across the local and
-  deployed shapes.
+- Reviewer and Tester: PR #759 is ready. Check the game-first page at
+  desktop and 390x844, every subpage, the rendered docs, the redirect, and
+  the honest native-row status. The deployed preview and local E2E evidence
+  are recorded above and in `docs/web.md`.
 - Maintainer: keep the Phase 6 release-workflow installation and native
   packaging evidence on the Final Phase checklist; keep #582 open until the
   final release ledger is complete.
@@ -2049,9 +2048,12 @@ Pages preview for this PR, which requires the PR to exist.
   and 390x844, boots the game, starts, pauses, and resumes.
   Verification: `render-docs.mjs --check` 15 docs current with 398 links;
   `tester_site` 6/6; `tester_packaging` 27/27; docs-language green; local
-  `site-e2e.js` ALL GREEN (156 assertions); `browser-e2e.js` ALL GREEN
-  (279 assertions); `cargo fmt --check` clean. The workspace suite and the
-  deployed-preview run are recorded after this entry when they land.
+  `site-e2e.js` ALL GREEN (156 assertions); deployed preview
+  `site-e2e.js https://userfrom1995.github.io/RandomLabs/preview/pr-759/maze-chase/`
+  ALL GREEN (156 assertions); `browser-e2e.js` ALL GREEN (279 assertions);
+  `xvfb-run -a cargo test --workspace --no-fail-fast --locked` 627 passed
+  / 0 failed across 64 targets; `cargo fmt --all --check` clean; clippy
+  reports the seven pre-existing engine warnings.
   Delegation ledger: the primary context built the pages, renderer, tests,
   and harness, ran the local browser passes, and owns the final diff; no
   read-only subagent was needed for this focused static-surface change.
