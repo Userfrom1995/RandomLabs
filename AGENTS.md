@@ -120,7 +120,7 @@ Public Surface / Web Track:                                              │
 ## The multi-stage review & testing loop
 
 - A reviewer workflow (different model) reviews every non-draft same-repo PR (bot and human alike). The reviewer operates under an extra-high-thinking rigor mandate: inspecting diffs line-by-line, verifying memory safety, race conditions, edge cases, error propagation, UI/UX aesthetics, and security boundaries. The reviewer is strictly read-only: it never commits, pushes, rebases, or merges, and it leaves the working tree untouched. It writes a signed report, opening with a plain heading and never with a trigger: the workflow's owner-PAT step posts that signed report, and the workflow's hardcoded forward step posts the single `/oc test`, `/oc fix`, `/oc continue`, `/oc lab`, or `/oc maintainer` trigger for the decision (issue #713: the reviewer agent never posts comments itself; issue #743: its token holds `issues: write` and `pull-requests: write` only for CLI session bookkeeping; issue #713 round 17: a report that led with `/oc` would double-dispatch and is refused by the publisher).
-- When the Reviewer approves (`/oc approve`), the review workflow automatically forwards the PR to the Tester via `/oc test`. When the Reviewer requests changes (`/oc fix`), the workflow triggers the Fixer via `/oc fix`.
+- When the Reviewer approves (a clean signed report), the review workflow publishes that report and automatically forwards the PR to the Tester via `/oc test`. When the Reviewer requests changes, the workflow publishes the report and posts `/oc fix` to trigger the Fixer.
 - The review gate has crash-parity with build/fix mode: if the reviewer step dies without writing its decision file (e.g. provider stream error), the workflow counts prior auto-retry comments via the API and re-posts `/oc review (auto-retry N)` as the owner, up to 3 times; it refuses to retry if enumeration fails, a posted retry is a green handoff whose forward steps are retry-gated (`retry=true`), and a terminal marker step exits 1 so a dead gate shows red instead of green-but-empty.
 - `opencode-test.yml` (the Tester workflow) dynamically tests the deliverable under high-thinking rigor, actively determining its evaluation methodology based on the deliverable's category:
   - **For End-User Software & Web Apps**: Tests from both sides: as a **Real Consumer** (interactive clicks on drop targets, drag-and-drop resilience, direct visual manipulation, mobile/desktop viewports, and graceful error alerts on corrupt inputs) AND as a **Code Expert** (memory leaks, async race conditions, event cleanup, and bundle efficiency).
@@ -161,9 +161,9 @@ Public Surface / Web Track:                                              │
   - any other `/oc` → GENERAL mode: a full-capability assistant (questions,
     closing issues, small changes, even PRs if the request calls for it) -
     nothing is forced: no mandatory push, no verification, no retries.
-  - An exact `/oc review` comment (or `/oc approve`, `/oc decline`, `/oc help`)
-    never starts a build: the review workflow handles `/oc review`; the rest
-    fall to GENERAL if they start with `/oc`.
+  - An exact `/oc review` comment (or `/oc help`) never starts a build: the
+    review workflow handles `/oc review`; the rest fall to GENERAL if they
+    start with `/oc`.
 - GitHub requires the owner to approve workflow runs on pull requests created
   by `github-actions[bot]`. After a build/fix/general/maintainer run pushes to
   such a PR, the workflow auto-approves the PR's held workflow runs using the
@@ -193,8 +193,9 @@ Public Surface / Web Track:                                              │
 - When you receive a `/oc` comment on a pull request while implementing, treat
   it as a review finding: apply all requested fixes to the PR's branch and
   push. Never self-merge; the reviewer decides when the PR is done.
-- When the Reviewer approves (`/oc approve`), the review workflow dispatches the
-  Tester via `/oc test`. When the Tester approves (`/oc approve-test`), the test
+- When the Reviewer approves (a clean signed report), the review workflow
+  publishes that report and dispatches the Tester via `/oc test`. When the
+  Tester approves (`/oc approve-test`), the test
   workflow notifies the Maintainer (`/oc maintainer`), which routes the binding
   Evaluator gate (`/oc eval`) and, after the eval workflow hands back
   `approve-eval`, merges the PR and auto-closes every linked `Closes #N` (or

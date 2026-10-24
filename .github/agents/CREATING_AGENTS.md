@@ -89,7 +89,8 @@ When introducing a new agent or modifying roles, you must ensure the entire team
 3. **Synchronize Call Flow Diagrams**:
    - Update the ASCII team call flow diagrams across all documentation sites (`LAB.md`, `AGENTS.md`, `docs/index.md`, and `docs/index.html`) to accurately map the new agent's flow and handoff paths.
 4. **Handoff-Trigger Consistency**:
-   - Any change to a handoff trigger (what an agent or a hardcoded step actually posts, for example `/oc test` or `/oc maintainer`) MUST update `LAB.md`, `AGENTS.md`, `.github/agents/REGISTRY.md`, and every affected agent prompt in the same PR.
+   - Any change to a handoff trigger (what an agent or a hardcoded step actually posts, for example `/oc test` or `/oc maintainer`) MUST update `LAB.md`, `AGENTS.md`, `.github/agents/REGISTRY.md`, `setup.sh` onboarding text, and every affected agent prompt (including the Maintainer output contract and decision-action list) in the same PR.
+   - Retiring a trigger is a change too: delete every normative reference in the same PR instead of leaving a documented trigger that no workflow handles.
    - Document the trigger that a workflow really posts, never a decision action name: a decision action such as `approve-eval` is not a `/oc` trigger unless a hardcoded step posts it as one.
 
 ---

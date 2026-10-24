@@ -11,8 +11,9 @@ passes with its evidence artifact present.
 
 1. **Reviewer (strict gate, read-only)** - every checklist item in
    `.github/agents/reviewer.md` passes, including item 19 (delegation
-   ledger and skills note present and threshold-justified). Verdict is
-   `/oc approve` (clean) recorded as `{"action":"test"}`; any finding
+   ledger and skills note present and threshold-justified). A clean
+   verdict is a signed report recorded as `{"action":"test"}` that the
+   review workflow publishes before posting `/oc test`; any finding
    routes to Fixer (`/oc fix`), Builder (`/oc continue`), or Lab
    Engineer (`/oc lab continue` / `/oc lab fix review findings`) for
    infrastructure diffs. Approval without all items checked is invalid.
@@ -52,11 +53,12 @@ passes with its evidence artifact present.
 
 ## What "done" means
 
-- Product PR: Reviewer `/oc approve` plus Tester `/oc approve-test`
+- Product PR: Reviewer clean report (published by the workflow, then
+   `/oc test`) plus Tester `/oc approve-test`
    plus Evaluator `approve-eval`, each with its evidence file, then
    Maintainer merge. `Closes #N` only when all binding gates pass;
    otherwise `Refs #N` with negative findings logged.
-- Infrastructure PR: Reviewer `/oc approve` (or `/oc lab` round-trip
+- Infrastructure PR: Reviewer clean report (or `/oc lab` round-trip
    for fixes) plus Tester infra-scope evidence plus Evaluator
    `approve-eval` (infra-scope evidence), then Maintainer merge.
    No capability is removed before its replacement is verified green.

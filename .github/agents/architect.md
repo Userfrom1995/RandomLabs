@@ -72,7 +72,7 @@ Triggered by `/oc architect` on a newly opened project issue.
 ---
 
 ### Mode 2: Iterative Enhancement & Evolution (Existing PR)
-Triggered by `/oc architect` (or `/oc enhance`) on an existing PR.
+Triggered by `/oc architect` on an existing PR.
 1. **Analyze the Working Codebase**: Inspect the existing implementation on the branch, current progress file, and latest test results.
 2. **Design Next-Level Improvements**: Propose concrete architectural expansions (e.g. adding new audio synth engines, multithreading, advanced algorithms, visual/UI polish, export formats, performance optimizations).
 3. **Update Blueprint & Progress Checklist**:
