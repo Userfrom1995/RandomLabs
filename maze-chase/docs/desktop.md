@@ -212,7 +212,7 @@ scripted run and asserts pixel-identical output across seeds.
 ## Reproducible builds
 
 Pin the toolchain (`rustc --version` is recorded in release notes),
-`cargo build --release -p maze-chase-desktop` from a clean checkout
+`cargo build --release --locked -p maze-chase-desktop` from a clean checkout
 (inside `maze-chase/`),
 then the per-OS staging script above. The engine, assets, audio, and
 config crates are dependency-light on purpose; the desktop crate adds

@@ -18,7 +18,10 @@ signed parity gate in [parity.md](parity.md).
 
 - Stable Rust 1.89 or newer (`rustc --version`). The workspace uses
   edition 2021 with no pinned nightly features; the locked dependency
-  graph requires 1.89 for the desktop layer.
+  graph requires 1.89 for the desktop layer. The release pipeline pins
+  Rust 1.99.0 for every native job (the toolchain that produced the
+  committed WebAssembly bytes), and the release build, test, and
+  verifier commands use `--locked` so `Cargo.lock` is enforced.
 - For the browser build: `rustup target add wasm32-unknown-unknown`.
 - For the browser E2E: Node 22+ (the CDP harnesses use the built-in
   WebSocket; no npm packages) plus a headless chromium; serving uses
@@ -39,8 +42,8 @@ signed parity gate in [parity.md](parity.md).
 From `maze-chase/`:
 
 ```sh
-cargo test --workspace
-cargo run --release --bin maze-chase-verify
+cargo test --workspace --locked
+cargo run --release --locked --bin maze-chase-verify
 ```
 
 `cargo test` runs every crate suite (engine, assets, audio, config,
@@ -88,18 +91,20 @@ published tag.
 
 ```sh
 cd maze-chase
-cargo build --release -p maze-chase-terminal   # terminal game
-cargo build --release -p maze-chase-desktop     # desktop GUI
-cargo build --release --target wasm32-unknown-unknown -p maze-chase-web
+cargo build --release --locked -p maze-chase-terminal   # terminal game
+cargo build --release --locked -p maze-chase-desktop     # desktop GUI
+cargo build --release --locked --target wasm32-unknown-unknown -p maze-chase-web
 cp target/wasm32-unknown-unknown/release/maze_chase_web.wasm web/maze-chase.wasm
 ```
 
 The committed `web/maze-chase.wasm` is byte-reproducible from that
 exact command with the recorded toolchain (Rust 1.99.0, rustc commit
 `b940084d7eb6a299eb4bfeb8e34901bc051e7ac4`, which the artifact embeds;
-no `wasm-bindgen`, zero imports). It is 212,438 bytes with sha256
-`5bcceec8356d8659d53405c593df744ba3c980c8b31582358313a53f5a2f72db`,
-and a second clean build reproduces the same bytes. A different stable
+no `wasm-bindgen`, zero imports). It is 212,472 bytes with sha256
+`d6dd16bf8038ae5cbde4a81209e4835391dd4ace8a5e3eb1ef37d6b191c62ac0`,
+and a second clean build reproduces the same bytes.
+`packaging/release/check-wasm.sh` rebuilds it in a scratch target
+directory and fails closed if the committed bytes differ. A different stable
 release may produce different bytes. The page gates on the bridge ABI
 version and fails loudly on the error card instead of misbehaving on a
 mismatch. Play it by serving the directory over http
@@ -261,18 +266,25 @@ default so an upgrade or reinstall keeps progress.
 Lab Engineer installs it as `.github/workflows/maze-chase-release.yml`).
 It runs on a `maze-chase-v*` tag or manual dispatch:
 
-1. Each native job checks tag/version parity, installs its packaging
-   tools, runs `cargo test --workspace` plus `maze-chase-verify`, and
-   stages its host's artifacts.
+1. Each native job installs and pins Rust 1.99.0, checks tag/version
+   parity, installs its packaging tools, runs
+   `cargo test --workspace --locked` plus `maze-chase-verify`, and
+   stages its host's artifacts. The Linux job also rebuilds the
+   committed wasm and fails if the bytes differ.
 2. The smoke scripts run on the same host; Windows does a real silent
    install, launch, and uninstall, and macOS drives a real frame with
    `--probe`.
-3. Each job uploads its payloads and `SHA256SUMS.txt`.
-4. The publish job downloads every payload, removes the per-host
-   manifests, re-hashes the complete set into one `SHA256SUMS.txt`, and
-   creates the GitHub Release (prerelease for `-rc.N` tags). A dispatch
-   build refreshes `maze-chase-v<version>-rc.1`; a tag build publishes
-   that exact tag.
+3. Each job records `rustc --version`, `cargo --version`, and its
+   runner image in `dist/toolchain-<os>.txt`, then uploads its payloads
+   and `SHA256SUMS.txt`.
+4. The publish job downloads every payload, folds the per-host
+   toolchain records into the release notes, removes the records and
+   per-host manifests, re-hashes the complete set into one
+   `SHA256SUMS.txt`, and creates the GitHub Release (prerelease for
+   `-rc.N` tags). A dispatch build refreshes
+   `maze-chase-v<version>-rc.1` only when that tag already points at
+   the tested commit; a tag build publishes that exact tag. A dispatch
+   on a newer commit must cut the next `-rc.N` tag.
 
 Verify a download with:
 
@@ -298,7 +310,7 @@ binding check is open.
 ## Clean-checkout release checklist
 
 1. Fresh `git clone`, toolchain plus system libraries above.
-2. `cargo test --workspace` green, `maze-chase-verify` 19/19 green.
+2. `cargo test --workspace --locked` green, `maze-chase-verify` 19/19 green.
 3. The three layer builds above, all four smoke probes green.
 4. Tag parity passes for the intended tag.
 5. Stage every applicable packaging row on its native OS and run its

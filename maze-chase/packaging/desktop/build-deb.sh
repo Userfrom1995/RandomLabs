@@ -20,7 +20,7 @@ ARCH="$(deb_arch)"
 STAGE="$DIST/deb-desktop"
 PKG="maze-chase-desktop_${VERSION}_${ARCH}.deb"
 
-cargo build --release -p maze-chase-desktop --manifest-path "$ROOT/Cargo.toml"
+cargo build --release --locked -p maze-chase-desktop --manifest-path "$ROOT/Cargo.toml"
 
 rm -rf "$STAGE"
 mkdir -p "$STAGE/DEBIAN" \

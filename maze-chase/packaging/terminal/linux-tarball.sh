@@ -20,7 +20,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STAGE="$DIST/stage-terminal"
 TARBALL="$DIST/maze-chase-terminal-$VERSION-$HOST_OS-$HOST_ARCH.tar.gz"
 
-cargo build --release -p maze-chase-terminal --manifest-path "$ROOT/Cargo.toml"
+cargo build --release --locked -p maze-chase-terminal --manifest-path "$ROOT/Cargo.toml"
 
 rm -rf "$STAGE"
 mkdir -p "$STAGE"

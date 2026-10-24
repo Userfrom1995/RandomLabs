@@ -55,6 +55,22 @@ jobs:
             bash maze-chase/packaging/release/check-tag.sh "$GITHUB_REF_NAME" --allow-branch
           fi
 
+      - name: Pin Rust 1.99.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.99.0 --profile minimal --no-self-update
+          rustup default 1.99.0
+          rustup target add wasm32-unknown-unknown
+          rustc --version
+          cargo --version
+          mkdir -p maze-chase/dist
+          {
+            echo "runner image: ${ImageOS:-unknown} ${ImageVersion:-unknown}"
+            rustc --version
+            cargo --version
+          } > maze-chase/dist/toolchain-linux.txt
+
       - name: Install system tools
         shell: bash
         run: |
@@ -67,14 +83,20 @@ jobs:
         working-directory: maze-chase
         run: |
           set -euo pipefail
-          cargo test --workspace --no-fail-fast
-          cargo run --release --bin maze-chase-verify
+          cargo test --workspace --no-fail-fast --locked
+          cargo run --release --locked --bin maze-chase-verify
 
       - name: Stage Linux artifacts
         shell: bash
         run: |
           set -euo pipefail
           bash maze-chase/packaging/release/stage-linux.sh
+
+      - name: Rebuild the committed wasm
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash maze-chase/packaging/release/check-wasm.sh
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
@@ -85,6 +107,7 @@ jobs:
             maze-chase/dist/maze-chase-*_*.deb
             maze-chase/dist/maze-chase-*-1.*.rpm
             maze-chase/dist/SHA256SUMS.txt
+            maze-chase/dist/toolchain-linux.txt
           if-no-files-found: error
 
   build-macos:
@@ -107,13 +130,28 @@ jobs:
             bash maze-chase/packaging/release/check-tag.sh "$GITHUB_REF_NAME" --allow-branch
           fi
 
+      - name: Pin Rust 1.99.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.99.0 --profile minimal --no-self-update
+          rustup default 1.99.0
+          rustc --version
+          cargo --version
+          mkdir -p maze-chase/dist
+          {
+            echo "runner image: ${ImageOS:-unknown} ${ImageVersion:-unknown}"
+            rustc --version
+            cargo --version
+          } > maze-chase/dist/toolchain-macos.txt
+
       - name: Workspace tests and deterministic verifier
         shell: bash
         working-directory: maze-chase
         run: |
           set -euo pipefail
-          cargo test --workspace --no-fail-fast
-          cargo run --release --bin maze-chase-verify
+          cargo test --workspace --no-fail-fast --locked
+          cargo run --release --locked --bin maze-chase-verify
 
       - name: Stage macOS artifacts
         shell: bash
@@ -129,6 +167,7 @@ jobs:
             maze-chase/dist/maze-chase-*-macos-*.tar.gz
             maze-chase/dist/maze-chase-*-macos-*.dmg
             maze-chase/dist/SHA256SUMS.txt
+            maze-chase/dist/toolchain-macos.txt
           if-no-files-found: error
 
   build-windows:
@@ -151,6 +190,21 @@ jobs:
             bash maze-chase/packaging/release/check-tag.sh "$GITHUB_REF_NAME" --allow-branch
           fi
 
+      - name: Pin Rust 1.99.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.99.0 --profile minimal --no-self-update
+          rustup default 1.99.0
+          rustc --version
+          cargo --version
+          mkdir -p maze-chase/dist
+          {
+            echo "runner image: ${ImageOS:-unknown} ${ImageVersion:-unknown}"
+            rustc --version
+            cargo --version
+          } > maze-chase/dist/toolchain-windows.txt
+
       - name: Install Inno Setup
         shell: pwsh
         run: |
@@ -166,8 +220,8 @@ jobs:
         working-directory: maze-chase
         run: |
           set -euo pipefail
-          cargo test --workspace --no-fail-fast
-          cargo run --release --bin maze-chase-verify
+          cargo test --workspace --no-fail-fast --locked
+          cargo run --release --locked --bin maze-chase-verify
 
       - name: Stage Windows artifacts
         shell: pwsh
@@ -183,6 +237,7 @@ jobs:
             maze-chase/dist/maze-chase-*-windows-x86_64.zip
             maze-chase/dist/maze-chase-*-windows-x86_64-setup.exe
             maze-chase/dist/SHA256SUMS.txt
+            maze-chase/dist/toolchain-windows.txt
           if-no-files-found: error
 
   publish:
@@ -218,7 +273,20 @@ jobs:
           fi
           echo "[maze-chase-release] version $VERSION"
           ls -la release-assets/
-          rm -f release-assets/SHA256SUMS.txt
+          TOOLCHAIN_INFO=""
+          for os in linux macos windows; do
+            info="release-assets/toolchain-${os}.txt"
+            if [ ! -f "$info" ]; then
+              echo "error: missing toolchain record $info" >&2
+              exit 1
+            fi
+            while IFS= read -r line; do
+              TOOLCHAIN_INFO="${TOOLCHAIN_INFO}- ${line}"$'\n'
+            done < "$info"
+          done
+          printf '%s' "$TOOLCHAIN_INFO" > "$RUNNER_TEMP/toolchain-info.txt"
+          cat "$RUNNER_TEMP/toolchain-info.txt"
+          rm -f release-assets/toolchain-*.txt release-assets/SHA256SUMS.txt
           (
             cd release-assets
             sha256sum maze-chase-terminal-*.tar.gz \
@@ -253,10 +321,14 @@ jobs:
             PRERELEASE="true"
           fi
           NOTES="$(mktemp)"
+          TOOLCHAIN_INFO="$(cat "$RUNNER_TEMP/toolchain-info.txt")"
           cat > "$NOTES" <<EOF
           Maze Chase $VERSION
 
           One shared deterministic Rust engine with three complete layers.
+
+          Toolchain and native runners:
+          $TOOLCHAIN_INFO
 
           Artifacts:
           - Linux terminal: maze-chase-terminal-${VERSION}-linux-*.tar.gz, maze-chase-terminal_${VERSION}_*.deb, maze-chase-terminal-${VERSION}-1.*.rpm

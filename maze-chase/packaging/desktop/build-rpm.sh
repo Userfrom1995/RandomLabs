@@ -20,7 +20,7 @@ ARCH="$(rpm_arch)"
 TOPDIR="$DIST/rpmbuild-desktop"
 PAYLOAD="$TOPDIR/SOURCES/payload"
 
-cargo build --release -p maze-chase-desktop --manifest-path "$ROOT/Cargo.toml"
+cargo build --release --locked -p maze-chase-desktop --manifest-path "$ROOT/Cargo.toml"
 
 rm -rf "$TOPDIR"
 mkdir -p "$TOPDIR/SPECS" \

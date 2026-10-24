@@ -16,7 +16,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 APP="$DIST/Maze Chase.app"
 
-cargo build --release -p maze-chase-desktop --manifest-path "$ROOT/Cargo.toml"
+cargo build --release --locked -p maze-chase-desktop --manifest-path "$ROOT/Cargo.toml"
 
 BIN="$ROOT/target/release/maze-chase-desktop"
 if [ ! -f "$BIN" ]; then
