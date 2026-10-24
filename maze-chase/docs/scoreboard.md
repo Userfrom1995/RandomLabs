@@ -548,7 +548,7 @@ it stays with the per-OS release sign-off, as recorded in
 
 ## 2026-10-22 (release packaging, Linux x86_64)
 
-Measured from the `maze-chase/` tree at commit `cac1a72b` (workspace
+Measured from the `maze-chase/` tree at commit `829885d01` (workspace
 version 0.1.0) with `SOURCE_DATE_EPOCH=1792748413` on
 `runnervm8k3b6.r5kosxifsywuxjr3drjtxcygpf.phxx.internal.cloudapp.net`
 (Ubuntu 24.04.5 LTS, Linux 6.17.0-1022-azure, x86_64) under stable Rust
