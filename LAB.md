@@ -1047,7 +1047,7 @@ superseding-only workflows (`pages.yml` deploys and `tor-cli.yml` CI) set
 
 Project CI (separate from lab infrastructure): `tor-cli.yml`,
 `poolduel-m1.yml`, `poolduel-m2.yml`, `poolduel-m9.yml`,
-`poolduel-m10-soak.yml`, `pet-release.yml`.
+`poolduel-m10-soak.yml`, `pet-release.yml`, `maze-chase-release.yml`.
 
 `postformer-cpu-train.yml` was retired (issue #665): PostFormer is archived
 (`archive/postformer/`) and every dispatch died on its pre-archive paths
