@@ -27,8 +27,10 @@ signed parity gate in [parity.md](parity.md).
   WebSocket; no npm packages) plus a headless chromium; serving uses
   `python3 -m http.server` (`python -m http.server` on Windows).
 - Debian/Ubuntu packaging: `dpkg-dev`, `rpm`, `rpm2cpio`, `cpio`, plus
-  `libasound2-dev` and `libudev-dev` for the desktop build. Fedora/RHEL
-  hosts only need the `rpm-build` equivalent of the RPM tools.
+  `libasound2-dev` and `libudev-dev` for the desktop build, and
+  `libxkbcommon-x11-0` so the Xvfb-gated windowed probe can load winit's
+  XKB backend. Fedora/RHEL hosts only need the `rpm-build` equivalent of
+  the RPM tools.
 - macOS packaging: `hdiutil` (part of macOS) and the Xcode command line
   tools. Windows packaging: Inno Setup 6.3 or newer (`iscc.exe`; the
   installer uses `x64compatible`), installed by the release job.
