@@ -228,8 +228,12 @@
     if (!canvas) { return; }
     var ref = masterBuffer || buffers.vocals;
     if (!ref) { return; }
+    /* CSS width is the only valid basis for the backing store. A hidden
+       canvas (empty or error state) has clientWidth 0; falling back to the
+       device-pixel width would multiply the bitmap by DPR on every resize. */
+    var w = canvas.clientWidth;
+    if (!w) { return; }
     var dpr = window.devicePixelRatio || 1;
-    var w = canvas.clientWidth || canvas.width;
     var h = 72;
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
@@ -257,7 +261,8 @@
     if (!canvas || !duration) { return; }
     /* Redraw is cheap at 156 s; keep the head honest by repainting. */
     drawOverview();
-    var w = canvas.clientWidth || canvas.width;
+    var w = canvas.clientWidth;
+    if (!w) { return; }
     var h = 72;
     var dpr = window.devicePixelRatio || 1;
     var g = canvas.getContext("2d");
