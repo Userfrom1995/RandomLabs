@@ -146,7 +146,7 @@ def drive_page(page_url):
         shutil.rmtree(profile, ignore_errors=True)
 
 
-def drive_overview(page_url, width, height, dpr, mobile=False):
+def drive_overview(page_url, width, height, dpr, mobile=False, selftest=True):
     port = free_port()
     profile = tempfile.mkdtemp(prefix="thunderline-chrome-")
     proc = subprocess.Popen(
@@ -160,7 +160,8 @@ def drive_overview(page_url, width, height, dpr, mobile=False):
             raise AssertionError("chrome CDP never came up")
         proc2 = subprocess.run(
             ["node", OVERVIEW_DRIVER, page_url, str(port), str(width),
-             str(height), str(dpr), "1" if mobile else "0"],
+             str(height), str(dpr), "1" if mobile else "0",
+             "1" if selftest else "0"],
             capture_output=True, text=True, cwd=REPO,
             timeout=BROWSER_TIMEOUT)
         if proc2.returncode != 0:
@@ -448,6 +449,12 @@ class OverviewRendering(unittest.TestCase):
                            initial["redCssCenter"] + 2,
                            "playhead did not move: %r" % played)
 
+        paused = verdict["afterPause"]
+        self.assertEqual(paused["playText"], "Play",
+                         "pause did not settle: %r" % paused)
+        self.assertGreater(paused["red"], 0,
+                           "playhead missing while paused: %r" % paused)
+
         seek = verdict["afterSeek50"]
         self.assertAlmostEqual(seek["seekValue"], 78.0, delta=1.5)
         self.assert_waveform(seek, 10000, "seek")
@@ -468,6 +475,42 @@ class OverviewRendering(unittest.TestCase):
             resized["redCssCenter"], self.expected_playhead(resized),
             delta=10,
             msg="playhead x after resize: %r" % resized)
+
+    def test_initial_playhead_present_on_normal_load(self):
+        browser_available(self)
+        server, port = serve_tree(REPO)
+        try:
+            verdict = drive_overview(
+                "http://127.0.0.1:%d/thunderline/index.html" % port,
+                1440, 900, 1, selftest=False)
+        finally:
+            stop_server(server)
+        self.assertNotIn("error", verdict, "overview driver: %r" % verdict)
+        self.assertFalse(verdict["ready"]["empty"], "empty card: %r" % verdict)
+        self.assertFalse(verdict["ready"]["error"], "error card: %r" % verdict)
+        self.assertEqual(verdict["ready"]["result"], "",
+                         "selftest must not run on a normal load: %r" %
+                         verdict["ready"])
+        self.assertEqual(verdict["ready"]["playText"], "Play",
+                         "transport not ready: %r" % verdict["ready"])
+        self.assertEqual(verdict["exceptions"], [], "page exceptions")
+        self.assertEqual(verdict["consoleErrors"], [], "console errors")
+
+        initial = verdict["initial"]
+        self.assert_waveform(initial, 10000, "normal-load initial")
+        self.assertGreater(initial["red"], 0,
+                           "playhead missing on normal load: %r" % initial)
+        self.assertAlmostEqual(
+            initial["redCssCenter"], self.expected_playhead(initial),
+            delta=10, msg="initial playhead x: %r" % initial)
+
+        seek = verdict["afterSeek50"]
+        self.assert_waveform(seek, 10000, "normal-load seek")
+        self.assertGreater(seek["red"], 0,
+                           "playhead missing after seek: %r" % seek)
+        self.assertAlmostEqual(
+            seek["redCssCenter"], self.expected_playhead(seek), delta=10,
+            msg="normal-load playhead x after 50%% seek: %r" % seek)
 
     def test_overview_playhead_tracks_high_dpi_seek(self):
         verdict = self.drive(390, 844, 3, mobile=True)
