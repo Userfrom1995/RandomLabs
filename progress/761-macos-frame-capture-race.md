@@ -32,13 +32,19 @@ This is the same pre-existing tail-only race already fixed for
       crate green (all suites), `cargo fmt -p maze-chase-terminal --check`,
       and clippy on the crate (`--no-deps -D warnings`)
 - [x] Commit, push, open the PR with `Closes #761` and `Refs #657`
-- [ ] macOS arm re-runs the suite on the PR; the Maintainer re-dispatches one
-      RC sweep on the merged tip
 
 ## Current step
 
 Complete; the PR hands off to the Reviewer. The definitive macOS check is the
 per-OS macOS tester arm on this PR and the re-dispatched RC sweep after merge.
+
+## Next steps
+
+1. The per-OS macOS tester arm re-runs
+   `cargo test -p maze-chase-terminal --test tester_dynamic_layout_hostile`
+   on this PR.
+2. After merge, the Maintainer re-dispatches exactly one
+   `maze-chase-release` RC sweep on the merged tip.
 
 ## Agent log
 
