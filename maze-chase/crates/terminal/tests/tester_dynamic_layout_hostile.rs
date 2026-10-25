@@ -299,12 +299,35 @@ impl Session {
         );
     }
 
-    fn wait_frame_closed(&mut self) {
-        assert!(
-            self.wait("\x1b[?2026l", Duration::from_secs(10)),
-            "no complete frame arrived; tail: {}",
-            tail(&self.out)
-        );
+    /// Capture the first complete synchronized frame that carries `needle`.
+    ///
+    /// A frame counts only when both its `?2026h` head and `?2026l` tail
+    /// are present: a title-screen close (or an orphan tail left by a
+    /// drain that raced a mid-paint frame) can never satisfy the wait
+    /// while the playing frame that carries the payload is still open
+    /// (issue #761; the same pre-existing tail-only race fixed for
+    /// `tester_render_width_hostile.rs`).
+    fn capture_frame_containing(&mut self, needle: &str, tag: &str) -> String {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            drain(&mut self.pty.master, &mut self.out);
+            if let Some(frame) = frame_containing(&self.out, needle) {
+                return frame;
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            assert!(
+                !remaining.is_zero(),
+                "{tag}: no complete frame carrying {needle:?} after this point; tail: {}",
+                tail(&self.out)
+            );
+            let mut pfd = libc::pollfd {
+                fd: self.pty.master.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            };
+            let ms = remaining.as_millis().min(50) as i32;
+            unsafe { libc::poll(&mut pfd, 1, ms) };
+        }
     }
 }
 
@@ -471,7 +494,7 @@ fn resize_storm_recovers_and_fresh_frame_obeys_kitty_contract() {
         "the storm never settled back onto the 100x40 band plan; tail: {}",
         tail(&s.out)
     );
-    s.wait_frame_closed();
+    let _ = s.capture_frame_containing(HINT_MARKER, "storm settle 100x40");
     assert!(s.alive(), "the session died in the storm");
 
     // Settle on the wide plan and pin the fresh-frame contract.
@@ -482,8 +505,7 @@ fn resize_storm_recovers_and_fresh_frame_obeys_kitty_contract() {
         "the wide 170x64 plan never repainted after the storm; tail: {}",
         tail(&s.out)
     );
-    s.wait_frame_closed();
-    let frame = frame_containing(&s.out, SIDE_MARKER).expect("captured the settled frame");
+    let frame = s.capture_frame_containing(SIDE_MARKER, "storm settle 170x64");
     assert_fresh_order(&frame, "\x1b_Ga=p", "storm settle 170x64");
     assert!(
         frame.contains("c=140,r=62"),
@@ -511,8 +533,7 @@ fn too_small_cards_are_exact_at_the_boundary_and_recover() {
             "the exact card for {cols}x{rows} never appeared; tail: {}",
             tail(&s.out)
         );
-        s.wait_frame_closed();
-        let frame = frame_containing(&s.out, &card).expect("captured the card frame");
+        let frame = s.capture_frame_containing(&card, &format!("card {cols}x{rows}"));
         assert_fresh_order(&frame, &card, &format!("card {cols}x{rows}"));
         assert!(
             !frame.contains("\x1b_Ga=p"),
@@ -528,7 +549,7 @@ fn too_small_cards_are_exact_at_the_boundary_and_recover() {
         "the board never recovered at the 62x35 minimum; tail: {}",
         tail(&s.out)
     );
-    s.wait_frame_closed();
+    let _ = s.capture_frame_containing(HINT_MARKER, "recovered 62x35");
 
     // And a wide plan after the cards must re-display too.
     s.clear_output();
@@ -538,7 +559,7 @@ fn too_small_cards_are_exact_at_the_boundary_and_recover() {
         "the 200x100 band plan never repainted after the cards; tail: {}",
         tail(&s.out)
     );
-    s.wait_frame_closed();
+    let _ = s.capture_frame_containing(HINT_MARKER, "recovered 200x100");
     assert!(s.alive(), "the session died in the boundary walk");
     s.assert_no_panic();
 }
@@ -556,19 +577,18 @@ fn pixel_reports_shape_footprint_and_raster() {
     // a centered 56x31 footprint inside the 84x31 board.
     let mut tall = Session::start("pxtall", 100, 40, 1000, 800, "kitty", None);
     tall.reach_playing(HINT_MARKER);
-    tall.wait_frame_closed();
-    let dims = first_display_png_dims(&tall.out);
+    let frame = tall.capture_frame_containing(&static_needle(), "10x20 pixel report");
+    let dims = first_display_png_dims(frame.as_bytes());
     assert_eq!(
         dims,
         (560, 620),
         "20-ppt raster must be 28x31 tiles at 20 px (560x620)"
     );
     assert_eq!(
-        first_display_placement(&tall.out),
+        first_display_placement(frame.as_bytes()),
         (31, 56),
         "the 560x620 raster occupies 56x31 cells at 10x20"
     );
-    let frame = frame_containing(&tall.out, &static_needle()).expect("first board frame");
     assert_eq!(
         cursor_before(&frame, &static_needle()),
         (6, 23),
@@ -582,19 +602,18 @@ fn pixel_reports_shape_footprint_and_raster() {
     // the 84x31 board.
     let mut square = Session::start("pxsquare", 100, 40, 800, 320, "kitty", None);
     square.reach_playing(HINT_MARKER);
-    square.wait_frame_closed();
-    let dims = first_display_png_dims(&square.out);
+    let frame = square.capture_frame_containing(&static_needle(), "8x8 pixel report");
+    let dims = first_display_png_dims(frame.as_bytes());
     assert_eq!(
         dims,
         (224, 248),
         "8-ppt raster must be 28x31 tiles at 8 px (224x248)"
     );
     assert_eq!(
-        first_display_placement(&square.out),
+        first_display_placement(frame.as_bytes()),
         (31, 28),
         "the 224x248 raster occupies 28x31 cells at 8x8 (1:1, no stretch)"
     );
-    let frame = frame_containing(&square.out, &static_needle()).expect("first board frame");
     assert_eq!(
         cursor_before(&frame, &static_needle()),
         (6, 37),
@@ -606,15 +625,15 @@ fn pixel_reports_shape_footprint_and_raster() {
     // no trustworthy report the image keeps the Phase 1 full-board box.
     let mut insane = Session::start("pxinsane", 100, 40, 100, 100, "kitty", None);
     insane.reach_playing(HINT_MARKER);
-    insane.wait_frame_closed();
-    let dims = first_display_png_dims(&insane.out);
+    let frame = insane.capture_frame_containing(&static_needle(), "1x1 pixel report");
+    let dims = first_display_png_dims(frame.as_bytes());
     assert_eq!(
         dims,
         (224, 248),
         "an insane 1x1 cell report must fall back to the nominal 8-ppt raster"
     );
     assert_eq!(
-        first_display_placement(&insane.out),
+        first_display_placement(frame.as_bytes()),
         (31, 84),
         "without a pixel report the nominal raster keeps the full board box"
     );
@@ -636,7 +655,7 @@ fn sixel_raster_paints_centered_inside_its_cell_box() {
     // Roomy report: xterm-family 100x40 with real 6.04x13.1 px cells.
     let mut roomy = Session::start("sixelroomy", 100, 40, 604, 524, "sixel", None);
     roomy.reach_playing(HINT_MARKER);
-    roomy.wait_frame_closed();
+    let frame = roomy.capture_frame_containing("\x1bPq", "sixel 100x40");
     let l = layout::compute_pixels(
         100,
         40,
@@ -655,7 +674,6 @@ fn sixel_raster_paints_centered_inside_its_cell_box() {
             h: 31
         }
     );
-    let frame = frame_containing(&roomy.out, "\x1bPq").expect("first sixel frame");
     assert_eq!(
         cursor_before(&frame, "\x1bPq"),
         (l.image.y + 1, l.image.x + 1),
@@ -669,7 +687,7 @@ fn sixel_raster_paints_centered_inside_its_cell_box() {
     // only a few pixels of slack; the fit bound must still hold.
     let mut tight = Session::start("sixeltight", 143, 64, 848, 816, "sixel", None);
     tight.reach_playing(HINT_MARKER);
-    tight.wait_frame_closed();
+    let frame = tight.capture_frame_containing("\x1bPq", "sixel 143x64");
     let l = layout::compute_pixels(
         143,
         64,
@@ -679,7 +697,6 @@ fn sixel_raster_paints_centered_inside_its_cell_box() {
         }),
     );
     assert!(28 * l.ppt() <= l.board_px.0 && 31 * l.ppt() <= l.board_px.1);
-    let frame = frame_containing(&tight.out, "\x1bPq").expect("first sixel frame");
     assert_eq!(
         cursor_before(&frame, "\x1bPq"),
         (l.image.y + 1, l.image.x + 1),
@@ -716,7 +733,7 @@ fn trace_storm_is_wellformed_and_tracks_every_settled_plan() {
             "resize to {cols}x{rows} never painted its surface; tail: {}",
             tail(&s.out)
         );
-        s.wait_frame_closed();
+        let _ = s.capture_frame_containing(marker, &format!("trace {cols}x{rows}"));
     }
 
     let raw = std::fs::read_to_string(&trace_path).expect("trace file written");
