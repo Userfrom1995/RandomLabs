@@ -36,6 +36,7 @@ INDEX = os.path.join(ROOT, "index.html")
 PLAYER_JS = os.path.join(ROOT, "player", "player.js")
 PLAYER_CSS = os.path.join(ROOT, "player", "player.css")
 DRIVER = os.path.join(HERE, "cdp_selftest.mjs")
+OVERVIEW_DRIVER = os.path.join(HERE, "cdp_overview.mjs")
 EXPORT_PREVIEW = os.path.join(ROOT, "tools", "export_preview.py")
 SUBPROCESS_TIMEOUT = 120
 BROWSER_TIMEOUT = 180
@@ -134,6 +135,36 @@ def drive_page(page_url):
             timeout=BROWSER_TIMEOUT)
         if proc2.returncode != 0:
             raise AssertionError("cdp driver failed: %s" %
+                                 proc2.stderr[-1000:])
+        return json.loads(proc2.stdout.strip().splitlines()[-1])
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        shutil.rmtree(profile, ignore_errors=True)
+
+
+def drive_overview(page_url, width, height, dpr, mobile=False):
+    port = free_port()
+    profile = tempfile.mkdtemp(prefix="thunderline-chrome-")
+    proc = subprocess.Popen(
+        [chrome_binary(), "--headless=new", "--no-sandbox", "--disable-gpu",
+         "--mute-audio", "--autoplay-policy=no-user-gesture-required",
+         "--remote-debugging-port=%d" % port,
+         "--user-data-dir=%s" % profile, "about:blank"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        if not wait_for_cdp(port):
+            raise AssertionError("chrome CDP never came up")
+        proc2 = subprocess.run(
+            ["node", OVERVIEW_DRIVER, page_url, str(port), str(width),
+             str(height), str(dpr), "1" if mobile else "0"],
+            capture_output=True, text=True, cwd=REPO,
+            timeout=BROWSER_TIMEOUT)
+        if proc2.returncode != 0:
+            raise AssertionError("overview driver failed: %s" %
                                  proc2.stderr[-1000:])
         return json.loads(proc2.stdout.strip().splitlines()[-1])
     finally:
@@ -361,6 +392,102 @@ class PlayerHeadless(unittest.TestCase):
                 stop_server(server)
         self.assertEqual(verdict["verdict"], "ERROR",
                          "corrupt audio should fail closed: %r" % verdict)
+
+
+class OverviewRendering(unittest.TestCase):
+    def drive(self, width, height, dpr, mobile=False):
+        browser_available(self)
+        server, port = serve_tree(REPO)
+        try:
+            verdict = drive_overview(
+                "http://127.0.0.1:%d/thunderline/index.html?selftest=1"
+                % port, width, height, dpr, mobile)
+        finally:
+            stop_server(server)
+        self.assertNotIn("error", verdict, "overview driver: %r" % verdict)
+        self.assertEqual(verdict["ready"]["result"], "PASS",
+                         "selftest: %r" % verdict["ready"])
+        self.assertEqual(verdict["exceptions"], [], "page exceptions")
+        self.assertEqual(verdict["consoleErrors"], [], "console errors")
+        return verdict
+
+    def assert_waveform(self, metrics, min_pixels, label):
+        self.assertGreater(metrics["wave"], min_pixels,
+                           "%s waveform pixels: %r" % (label, metrics))
+        self.assertGreater(metrics["litPct"], 20.0,
+                           "%s painted area: %r" % (label, metrics))
+        self.assertGreaterEqual(metrics["colors"], 20,
+                                "%s colors: %r" % (label, metrics))
+        self.assertEqual(
+            metrics["bitmapWidth"],
+            int(round(metrics["clientWidth"] * metrics["dpr"])),
+            "%s bitmap width: %r" % (label, metrics))
+        self.assertEqual(
+            metrics["bitmapHeight"],
+            int(round(72 * metrics["dpr"])),
+            "%s bitmap height: %r" % (label, metrics))
+
+    def expected_playhead(self, metrics):
+        return (metrics["seekValue"] / metrics["seekMax"] *
+                metrics["clientWidth"])
+
+    def test_overview_paints_waveform_across_play_seek_and_resize(self):
+        verdict = self.drive(1440, 900, 1)
+        initial = verdict["initial"]
+        self.assert_waveform(initial, 10000, "initial")
+        self.assertGreaterEqual(initial["seekValue"], 0.0)
+        self.assertLess(initial["seekValue"], 0.5)
+
+        played = verdict["afterPlay"]
+        self.assertGreater(played["seekValue"],
+                           initial["seekValue"] + 0.5,
+                           "playback did not advance: %r" % played)
+        self.assert_waveform(played, 10000, "playing")
+        self.assertGreater(played["red"], 0, "missing playhead: %r" % played)
+        self.assertGreater(played["redCssCenter"],
+                           initial["redCssCenter"] + 2,
+                           "playhead did not move: %r" % played)
+
+        seek = verdict["afterSeek50"]
+        self.assertAlmostEqual(seek["seekValue"], 78.0, delta=1.5)
+        self.assert_waveform(seek, 10000, "seek")
+        self.assertGreater(seek["red"], 0,
+                           "missing playhead after seek: %r" % seek)
+        self.assertAlmostEqual(
+            seek["redCssCenter"], self.expected_playhead(seek), delta=10,
+            msg="playhead x after 50%% seek: %r" % seek)
+
+        resized = verdict["afterResize"]
+        self.assertLess(resized["clientWidth"], 450)
+        self.assert_waveform(resized, 3000, "resized")
+        self.assertLessEqual(resized["scrollWidth"], resized["innerWidth"],
+                             "horizontal overflow: %r" % resized)
+        self.assertGreater(resized["red"], 0,
+                           "playhead missing after resize: %r" % resized)
+        self.assertAlmostEqual(
+            resized["redCssCenter"], self.expected_playhead(resized),
+            delta=10,
+            msg="playhead x after resize: %r" % resized)
+
+    def test_overview_playhead_tracks_high_dpi_seek(self):
+        verdict = self.drive(390, 844, 3, mobile=True)
+        initial = verdict["initial"]
+        self.assertEqual(initial["dpr"], 3)
+        self.assert_waveform(initial, 3000, "high-dpi initial")
+
+        for key, frac in (("afterSeek25", 0.25), ("afterSeek50", 0.5)):
+            metrics = verdict[key]
+            self.assert_waveform(metrics, 3000, "high-dpi " + key)
+            self.assertAlmostEqual(metrics["seekValue"],
+                                   156.0 * frac, delta=2.0)
+            self.assertGreater(metrics["red"], 0,
+                               "playhead missing after %.0f%% seek: %r" %
+                               (frac * 100, metrics))
+            self.assertAlmostEqual(
+                metrics["redCssCenter"], self.expected_playhead(metrics),
+                delta=max(6.0, metrics["clientWidth"] * 0.04),
+                msg="playhead x after %.0f%% seek at dpr 3: %r" %
+                    (frac * 100, metrics))
 
 
 if __name__ == "__main__":
