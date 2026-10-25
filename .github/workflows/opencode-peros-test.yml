@@ -130,13 +130,9 @@ jobs:
               while [ -n "$queue" ]; do
                 lib=$(printf '%s\n' "$queue" | sed -n '1p')
                 queue=$(printf '%s\n' "$queue" | sed -n '2,$p')
-                case "$lib" in
-                  /usr/lib/*|/System/*|'') continue ;;
-                esac
+                if [[ "$lib" == /usr/lib/* || "$lib" == /System/* || -z "$lib" ]]; then continue; fi
                 lib_base=${lib##*/}
-                case " $seen " in
-                  *" $lib_base "*) continue ;;
-                esac
+                if [[ " $seen " == *" $lib_base "* ]]; then continue; fi
                 if [ ! -f "$lib" ]; then
                   echo "::error::The macOS dependency $lib of $tool is not a regular file (issue #713, fail closed)."
                   exit 1
@@ -164,9 +160,7 @@ jobs:
                   exit 1
                 fi
                 while IFS= read -r ref; do
-                  case "$ref" in
-                    /usr/lib/*|/System/*|"$trusted_root"/*|'') continue ;;
-                  esac
+                  if [[ "$ref" == /usr/lib/* || "$ref" == /System/* || "$ref" == "$trusted_root"/* || -z "$ref" ]]; then continue; fi
                   ref_base=${ref##*/}
                   if [ ! -f "$trusted_root/lib/$ref_base" ]; then
                     echo "::error::The trusted copy $trusted_file references $ref with no trusted copy inside $trusted_root/lib (issue #713, fail closed)."
@@ -585,13 +579,9 @@ jobs:
               while [ -n "$queue" ]; do
                 lib=$(printf '%s\n' "$queue" | sed -n '1p')
                 queue=$(printf '%s\n' "$queue" | sed -n '2,$p')
-                case "$lib" in
-                  /usr/lib/*|/System/*|'') continue ;;
-                esac
+                if [[ "$lib" == /usr/lib/* || "$lib" == /System/* || -z "$lib" ]]; then continue; fi
                 lib_base=${lib##*/}
-                case " $seen " in
-                  *" $lib_base "*) continue ;;
-                esac
+                if [[ " $seen " == *" $lib_base "* ]]; then continue; fi
                 if [ ! -f "$lib" ]; then
                   echo "::error::The macOS dependency $lib of $tool is not a regular file (issue #713, fail closed)."
                   exit 1
@@ -619,9 +609,7 @@ jobs:
                   exit 1
                 fi
                 while IFS= read -r ref; do
-                  case "$ref" in
-                    /usr/lib/*|/System/*|"$trusted_root"/*|'') continue ;;
-                  esac
+                  if [[ "$ref" == /usr/lib/* || "$ref" == /System/* || "$ref" == "$trusted_root"/* || -z "$ref" ]]; then continue; fi
                   ref_base=${ref##*/}
                   if [ ! -f "$trusted_root/lib/$ref_base" ]; then
                     echo "::error::The trusted copy $trusted_file references $ref with no trusted copy inside $trusted_root/lib (issue #713, fail closed)."
@@ -1097,13 +1085,9 @@ jobs:
               while [ -n "$queue" ]; do
                 lib=$(printf '%s\n' "$queue" | sed -n '1p')
                 queue=$(printf '%s\n' "$queue" | sed -n '2,$p')
-                case "$lib" in
-                  /usr/lib/*|/System/*|'') continue ;;
-                esac
+                if [[ "$lib" == /usr/lib/* || "$lib" == /System/* || -z "$lib" ]]; then continue; fi
                 lib_base=${lib##*/}
-                case " $seen " in
-                  *" $lib_base "*) continue ;;
-                esac
+                if [[ " $seen " == *" $lib_base "* ]]; then continue; fi
                 if [ ! -f "$lib" ]; then
                   echo "::error::The macOS dependency $lib of $tool is not a regular file (issue #713, fail closed)."
                   exit 1
@@ -1131,9 +1115,7 @@ jobs:
                   exit 1
                 fi
                 while IFS= read -r ref; do
-                  case "$ref" in
-                    /usr/lib/*|/System/*|"$trusted_root"/*|'') continue ;;
-                  esac
+                  if [[ "$ref" == /usr/lib/* || "$ref" == /System/* || "$ref" == "$trusted_root"/* || -z "$ref" ]]; then continue; fi
                   ref_base=${ref##*/}
                   if [ ! -f "$trusted_root/lib/$ref_base" ]; then
                     echo "::error::The trusted copy $trusted_file references $ref with no trusted copy inside $trusted_root/lib (issue #713, fail closed)."
