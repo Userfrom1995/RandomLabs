@@ -204,13 +204,16 @@ jobs:
           else
             clean=$(printf '%s\n' "$PATH" | tr ':' '\n' | while IFS= read -r dir; do
               [ -n "$dir" ] || continue
-              case "$dir" in "$HOME"|"$HOME"/*) continue ;; esac
+              # Issue #763: macOS /bin/bash is 3.2.57, which cannot parse a
+              # case statement inside a command substitution. Use bash-3.2-safe
+              # if tests for the identical path and mode filters.
+              if [[ "$dir" == "$HOME" || "$dir" == "$HOME"/* ]]; then continue; fi
               [ -d "$dir" ] || continue
               meta=$(stat -L -c '%u %a' "$dir" 2>/dev/null || stat -L -f '%u %Lp' "$dir" 2>/dev/null) || continue
               owner=${meta%% *}
               mode=${meta#* }
               [ "$owner" = "0" ] || continue
-              case "$mode" in ''|*[!0-7]*) continue ;; esac
+              if [[ -z "$mode" || "$mode" == *[!0-7]* ]]; then continue; fi
               if [ $(( 8#$mode & 022 )) -ne 0 ]; then continue; fi
               printf '%s\n' "$dir"
             done | paste -sd: -)
@@ -655,13 +658,16 @@ jobs:
           else
             clean=$(printf '%s\n' "$PATH" | tr ':' '\n' | while IFS= read -r dir; do
               [ -n "$dir" ] || continue
-              case "$dir" in "$HOME"|"$HOME"/*) continue ;; esac
+              # Issue #763: macOS /bin/bash is 3.2.57, which cannot parse a
+              # case statement inside a command substitution. Use bash-3.2-safe
+              # if tests for the identical path and mode filters.
+              if [[ "$dir" == "$HOME" || "$dir" == "$HOME"/* ]]; then continue; fi
               [ -d "$dir" ] || continue
               meta=$(stat -L -c '%u %a' "$dir" 2>/dev/null || stat -L -f '%u %Lp' "$dir" 2>/dev/null) || continue
               owner=${meta%% *}
               mode=${meta#* }
               [ "$owner" = "0" ] || continue
-              case "$mode" in ''|*[!0-7]*) continue ;; esac
+              if [[ -z "$mode" || "$mode" == *[!0-7]* ]]; then continue; fi
               if [ $(( 8#$mode & 022 )) -ne 0 ]; then continue; fi
               printf '%s\n' "$dir"
             done | paste -sd: -)
@@ -1163,13 +1169,16 @@ jobs:
           else
             clean=$(printf '%s\n' "$PATH" | tr ':' '\n' | while IFS= read -r dir; do
               [ -n "$dir" ] || continue
-              case "$dir" in "$HOME"|"$HOME"/*) continue ;; esac
+              # Issue #763: macOS /bin/bash is 3.2.57, which cannot parse a
+              # case statement inside a command substitution. Use bash-3.2-safe
+              # if tests for the identical path and mode filters.
+              if [[ "$dir" == "$HOME" || "$dir" == "$HOME"/* ]]; then continue; fi
               [ -d "$dir" ] || continue
               meta=$(stat -L -c '%u %a' "$dir" 2>/dev/null || stat -L -f '%u %Lp' "$dir" 2>/dev/null) || continue
               owner=${meta%% *}
               mode=${meta#* }
               [ "$owner" = "0" ] || continue
-              case "$mode" in ''|*[!0-7]*) continue ;; esac
+              if [[ -z "$mode" || "$mode" == *[!0-7]* ]]; then continue; fi
               if [ $(( 8#$mode & 022 )) -ne 0 ]; then continue; fi
               printf '%s\n' "$dir"
             done | paste -sd: -)
