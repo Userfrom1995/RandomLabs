@@ -221,9 +221,13 @@
   }
 
   var peaks = [];
+  var peaksRef = null;
+  var peaksCols = 0;
   function drawOverview() {
     var canvas = els.overview;
-    if (!canvas || !peaks.length) { return; }
+    if (!canvas) { return; }
+    var ref = masterBuffer || buffers.vocals;
+    if (!ref) { return; }
     var dpr = window.devicePixelRatio || 1;
     var w = canvas.clientWidth || canvas.width;
     var h = 72;
@@ -232,8 +236,12 @@
     var g = canvas.getContext("2d");
     g.scale(dpr, dpr);
     g.clearRect(0, 0, w, h);
-    var ref = masterBuffer || buffers.vocals;
-    peaks = computePeaks(ref, Math.max(64, Math.floor(w / 2)));
+    var cols = Math.max(64, Math.floor(w / 2));
+    if (ref !== peaksRef || cols !== peaksCols) {
+      peaks = computePeaks(ref, cols);
+      peaksRef = ref;
+      peaksCols = cols;
+    }
     g.fillStyle = "#e8b64c";
     var bw = w / peaks.length;
     for (var i = 0; i < peaks.length; i++) {
@@ -473,7 +481,7 @@
         { vocals: false, guitars: false, bass: false, drums: false },
         { vocals: false, guitars: true, bass: false, drums: false });
       check(g.guitars === 1 && g.vocals === 0 && g.bass === 0, "solo math", failures);
-      check(typeof peaks !== "undefined", "peaks computed", failures);
+      check(peaks.length > 0, "peaks computed (got " + peaks.length + ")", failures);
       check(form.length === 9, "form.length==9 got " + form.length, failures);
       check(sectionAt(form, bpm, 0).section === "intro", "section@0 intro", failures);
       check(sectionAt(form, bpm, 130).section === "finalchorus", "section@130 final", failures);
