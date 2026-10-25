@@ -488,6 +488,27 @@
         { vocals: false, guitars: true, bass: false, drums: false });
       check(g.guitars === 1 && g.vocals === 0 && g.bass === 0, "solo math", failures);
       check(peaks.length > 0, "peaks computed (got " + peaks.length + ")", failures);
+      /* The peaks cache must key on the column count, not on emptiness: a
+         width change has to recompute so the bars stay one per column. A
+         hidden canvas cannot draw, so that path is measured by the empty
+         peaks assertion above instead. */
+      if (els.overview.clientWidth > 0) {
+        var colsWide = peaks.length;
+        var savedWidth = els.overview.style.width;
+        els.overview.style.width =
+          (els.overview.clientWidth > 400 ? 300 : 900) + "px";
+        drawOverview();
+        var narrowW = els.overview.clientWidth;
+        var colsNarrow = peaks.length;
+        els.overview.style.width = savedWidth;
+        drawOverview();
+        var expectedNarrow = Math.max(64, Math.floor(narrowW / 2));
+        check(narrowW > 0 && colsNarrow === expectedNarrow &&
+          colsNarrow !== colsWide && peaks.length === colsWide,
+          "peaks recompute per column count (" + colsWide + " -> " +
+          colsNarrow + " expected " + expectedNarrow + " -> " +
+          peaks.length + ")", failures);
+      }
       check(form.length === 9, "form.length==9 got " + form.length, failures);
       check(sectionAt(form, bpm, 0).section === "intro", "section@0 intro", failures);
       check(sectionAt(form, bpm, 130).section === "finalchorus", "section@130 final", failures);

@@ -1,17 +1,23 @@
 // Thunderline overview pixel probe (node stdlib + global WebSocket, no deps).
 //
-// Usage: node cdp_overview.mjs <page-url> <cdp-port> <width> <height> <dpr> [mobile] [selftest]
+// Usage: node cdp_overview.mjs <page-url> <cdp-port> <width> <height> <dpr> [mobile] [selftest] [scenario]
 //
 // Drives a CDP-enabled headless Chrome through the real player: waits for the
 // page to settle (the selftest verdict when the URL carries ?selftest=1),
 // audits the overview canvas, plays, pauses, seeks by clicking the canvas at
 // 25% and 50%, then resizes and audits again. Prints one JSON line.
+//
+// Optional scenarios:
+//   error-resize    settle on the error card, then fire repeated resizes and
+//                   sample the canvas backing-store width after each one.
+//   hidden-overview hide #overview before the page scripts run, so the
+//                   selftest sees a zero-width overview and must FAIL.
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
-  const [pageUrl, portArg, widthArg, heightArg, dprArg, mobileArg, selftestArg] = process.argv.slice(2);
+  const [pageUrl, portArg, widthArg, heightArg, dprArg, mobileArg, selftestArg, scenarioArg] = process.argv.slice(2);
   if (!pageUrl || !portArg || !widthArg || !heightArg || !dprArg) {
-    console.error("usage: node cdp_overview.mjs <url> <port> <width> <height> <dpr> [mobile] [selftest]");
+    console.error("usage: node cdp_overview.mjs <url> <port> <width> <height> <dpr> [mobile] [selftest] [scenario]");
     process.exit(2);
   }
   const port = Number(portArg);
@@ -20,6 +26,7 @@ async function main() {
   const dpr = Number(dprArg);
   const mobile = mobileArg === "1";
   const expectSelftest = selftestArg !== "0";
+  const scenario = scenarioArg || "";
 
   const list = await (await fetch("http://127.0.0.1:" + port + "/json/list")).json();
   const page = list.find((t) => t.type === "page");
@@ -172,6 +179,13 @@ async function main() {
   try {
     await rpc("Runtime.enable");
     await rpc("Page.enable");
+    if (scenario === "hidden-overview") {
+      await rpc("Page.addScriptToEvaluateOnNewDocument", {
+        source: "document.addEventListener('DOMContentLoaded', function () {" +
+          "var c = document.getElementById('overview');" +
+          "if (c) { c.style.display = 'none'; }});"
+      });
+    }
     await rpc("Emulation.setDeviceMetricsOverride", {
       width: width, height: height, deviceScaleFactor: dpr, mobile: mobile,
       screenWidth: width, screenHeight: height
@@ -182,25 +196,43 @@ async function main() {
     await sleep(300);
     result.initial = await metrics();
 
-    await ev(`document.getElementById('playBtn').click()`);
-    await sleep(1600);
-    result.afterPlay = await metrics();
-    await ev(`document.getElementById('playBtn').click()`);
-    await sleep(250);
-    result.afterPause = await metrics();
+    if (scenario === "error-resize") {
+      const widths = [await ev(`document.getElementById('overview').width`)];
+      for (let i = 0; i < 8; i++) {
+        const w = i % 2 === 0 ? 900 : 1440;
+        await rpc("Emulation.setDeviceMetricsOverride", {
+          width: w, height: 900, deviceScaleFactor: dpr, mobile: false,
+          screenWidth: w, screenHeight: 900
+        });
+        await ev(`window.dispatchEvent(new Event('resize'))`);
+        await sleep(80);
+        widths.push(await ev(`document.getElementById('overview').width`));
+      }
+      result.resizeWidths = widths;
+      result.errorState = await ev(STATE);
+    } else if (scenario === "hidden-overview") {
+      result.afterResize = await metrics();
+    } else {
+      await ev(`document.getElementById('playBtn').click()`);
+      await sleep(1600);
+      result.afterPlay = await metrics();
+      await ev(`document.getElementById('playBtn').click()`);
+      await sleep(250);
+      result.afterPause = await metrics();
 
-    result.afterSeek25 = await clickCanvas(0.25);
-    result.afterSeek50 = await clickCanvas(0.5);
+      result.afterSeek25 = await clickCanvas(0.25);
+      result.afterSeek50 = await clickCanvas(0.5);
 
-    const resizeWidth = width > 500 ? 390 : 1440;
-    const resizeHeight = width > 500 ? 844 : 900;
-    await rpc("Emulation.setDeviceMetricsOverride", {
-      width: resizeWidth, height: resizeHeight, deviceScaleFactor: dpr, mobile: false,
-      screenWidth: resizeWidth, screenHeight: resizeHeight
-    });
-    await ev(`window.dispatchEvent(new Event('resize'))`);
-    await sleep(500);
-    result.afterResize = await metrics();
+      const resizeWidth = width > 500 ? 390 : 1440;
+      const resizeHeight = width > 500 ? 844 : 900;
+      await rpc("Emulation.setDeviceMetricsOverride", {
+        width: resizeWidth, height: resizeHeight, deviceScaleFactor: dpr, mobile: false,
+        screenWidth: resizeWidth, screenHeight: resizeHeight
+      });
+      await ev(`window.dispatchEvent(new Event('resize'))`);
+      await sleep(500);
+      result.afterResize = await metrics();
+    }
   } catch (e) {
     result.error = String(e && e.stack || e);
   } finally {

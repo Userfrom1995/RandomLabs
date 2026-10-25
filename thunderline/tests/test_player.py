@@ -146,7 +146,8 @@ def drive_page(page_url):
         shutil.rmtree(profile, ignore_errors=True)
 
 
-def drive_overview(page_url, width, height, dpr, mobile=False, selftest=True):
+def drive_overview(page_url, width, height, dpr, mobile=False, selftest=True,
+                   scenario=""):
     port = free_port()
     profile = tempfile.mkdtemp(prefix="thunderline-chrome-")
     proc = subprocess.Popen(
@@ -161,7 +162,7 @@ def drive_overview(page_url, width, height, dpr, mobile=False, selftest=True):
         proc2 = subprocess.run(
             ["node", OVERVIEW_DRIVER, page_url, str(port), str(width),
              str(height), str(dpr), "1" if mobile else "0",
-             "1" if selftest else "0"],
+             "1" if selftest else "0", scenario],
             capture_output=True, text=True, cwd=REPO,
             timeout=BROWSER_TIMEOUT)
         if proc2.returncode != 0:
@@ -531,6 +532,54 @@ class OverviewRendering(unittest.TestCase):
                 delta=max(6.0, metrics["clientWidth"] * 0.04),
                 msg="playhead x after %.0f%% seek at dpr 3: %r" %
                     (frac * 100, metrics))
+
+    def test_error_state_resize_keeps_canvas_backing_store_small(self):
+        browser_available(self)
+        with tempfile.TemporaryDirectory() as tmp:
+            tree = os.path.join(tmp, "thunderline")
+            shutil.copytree(ROOT, tree,
+                            ignore=shutil.ignore_patterns("dist"))
+            song_path = os.path.join(tree, "player", "audio", "song.json")
+            with open(song_path, encoding="utf-8") as f:
+                song = json.load(f)
+            song["form"] = [None]
+            with open(song_path, "w", encoding="utf-8") as f:
+                json.dump(song, f)
+            server, port = serve_tree(tmp)
+            try:
+                verdict = drive_overview(
+                    "http://127.0.0.1:%d/thunderline/index.html" % port,
+                    1440, 900, 2, selftest=False, scenario="error-resize")
+            finally:
+                stop_server(server)
+        self.assertNotIn("error", verdict, "overview driver: %r" % verdict)
+        self.assertTrue(verdict["ready"]["error"],
+                        "malformed song.json should show the error card: %r" %
+                        verdict["ready"])
+        self.assertTrue(verdict["ready"]["errorMsg"].strip(),
+                        "error card message: %r" % verdict["ready"])
+        self.assertEqual(verdict["exceptions"], [], "page exceptions")
+        widths = verdict["resizeWidths"]
+        self.assertEqual(len(widths), 9, "resize samples: %r" % widths)
+        self.assertLessEqual(max(widths), 300,
+                             "error-state resizes grew the canvas past its "
+                             "default backing width: %r" % widths)
+
+    def test_selftest_rejects_empty_peaks(self):
+        browser_available(self)
+        server, port = serve_tree(REPO)
+        try:
+            verdict = drive_overview(
+                "http://127.0.0.1:%d/thunderline/index.html?selftest=1"
+                % port, 1440, 900, 1, scenario="hidden-overview")
+        finally:
+            stop_server(server)
+        self.assertNotIn("error", verdict, "overview driver: %r" % verdict)
+        self.assertEqual(verdict["ready"]["result"], "FAIL",
+                         "an empty peaks array must fail the selftest: %r" %
+                         verdict["ready"])
+        self.assertIn("peaks computed", verdict["ready"]["detail"],
+                      "selftest failure reason: %r" % verdict["ready"])
 
 
 if __name__ == "__main__":
