@@ -340,6 +340,7 @@ jobs:
         timeout-minutes: 90
         uses: ./.github/actions/opencode-run
         env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
           # The checked-out PR head is untrusted, so opencode must not
@@ -794,6 +795,7 @@ jobs:
         timeout-minutes: 120
         uses: ./.github/actions/opencode-run
         env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
           # The checked-out PR head is untrusted, so opencode must not
@@ -1301,6 +1303,7 @@ jobs:
         timeout-minutes: 120
         uses: ./.github/actions/opencode-run
         env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
           # The checked-out PR head is untrusted, so opencode must not

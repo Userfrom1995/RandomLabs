@@ -295,6 +295,7 @@ jobs:
         timeout-minutes: 60
         shell: bash
         env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
           # Issue #743 follow-on: the Maintainer prompt is staged outside this
