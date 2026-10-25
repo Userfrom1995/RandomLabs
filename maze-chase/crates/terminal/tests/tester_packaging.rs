@@ -1078,12 +1078,23 @@ fn release_hardening_contracts_are_pinned() {
             .join("smoke-windows.ps1"),
     )
     .unwrap();
+    let smoke_compact: Vec<String> = smoke
+        .to_ascii_lowercase()
+        .lines()
+        .map(|line| line.chars().filter(|c| !c.is_whitespace()).collect())
+        .collect();
+    let version_clobbered = smoke_compact.iter().any(|line| {
+        line.contains("$version=")
+            || line.contains("${version}=")
+            || line.contains("$script:version=")
+            || line.contains("$global:version=")
+    });
     assert!(
         smoke.contains("$leaf = Split-Path -Leaf $zip")
             && smoke.contains("cannot identify layer from")
             && smoke.contains("$reported -ne \"maze-chase-$name $Version\"")
             && smoke.contains("$reported -ne \"maze-chase-desktop $Version\"")
-            && !smoke.contains("$version = ")
+            && !version_clobbered
             && smoke.contains("\"/DIR=`\"$target`\"\""),
         "the Windows smoke must classify by leaf, compare the full version without clobbering $Version, and quote /DIR"
     );
