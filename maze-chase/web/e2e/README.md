@@ -1,6 +1,6 @@
 # Web layer E2E scripts
 
-Seven durable, dependency-free harnesses (Node 22+ for the CDP harnesses, which
+Eight durable, dependency-free harnesses (Node 22+ for the CDP harnesses, which
 use the built-in WebSocket; no npm packages) that
 prove the browser layer against the real artifacts. All exit nonzero
 on failure and print `ALL GREEN` on success.
@@ -50,6 +50,10 @@ on failure and print `ALL GREEN` on success.
   the mobile board minimum and title-card bounds with zero console
   errors. Runs unchanged against a local server or the deployed preview
   URL; record the deployed command and result in `progress/`.
+- `macos-case-audit.js`: walks every local href/src in the shipped HTML
+  and verifies each path component matches the on-disk spelling exactly,
+  so a link that opens on the default case-insensitive APFS volume cannot
+  404 on the case-sensitive Pages host. No server required.
 
 Setup for the browser run (two shells, from `maze-chase/`):
 

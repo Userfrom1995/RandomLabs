@@ -314,11 +314,22 @@ async function collectLinks(ws) {
   for (const [path] of SITE_PAGES) {
     const url = BASE + path;
     await navigate(ws, url);
+    // Chrome preserves a page-scale factor from the desktop run across the
+    // mobile navigation. Reset it after every navigation so the assertions
+    // measure a true 390x844 layout instead of a scaled one (macOS Chrome 155).
+    await send(ws, 'Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
+    for (let settle = 0; settle < 20; settle++) {
+      const size = await evalJs(ws, '[window.innerWidth, window.innerHeight]');
+      if (size[0] === 390 && size[1] === 844) break;
+      await sleep(100);
+    }
     if (path === 'index.html') {
       await waitFor(ws, `document.getElementById('boot-status').textContent === 'Ready.'`, 25000, 'mobile engine boot');
     }
     const mobile = await evalJs(ws, `(() => ({
       overflow: document.documentElement.scrollWidth - window.innerWidth,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
       titleBottom: (() => {
         const card = document.getElementById('panel-title');
         if (!card) return 0;
@@ -339,7 +350,10 @@ async function collectLinks(ws) {
     assert(mobile.navVisible, `${path} keeps the site navigation visible at 390x844`);
     if (path === 'index.html') {
       assert(mobile.canvasWidth >= 280, `the mobile board keeps the 280px minimum (${mobile.canvasWidth.toFixed(1)}px)`);
-      assert(mobile.titleBottom <= 845, `the mobile title card fits the first viewport (bottom ${mobile.titleBottom.toFixed(1)}px)`);
+      assert(mobile.viewportWidth === 390 && mobile.viewportHeight === 844,
+        `the mobile layout viewport is 390x844 (${mobile.viewportWidth}x${mobile.viewportHeight})`);
+      assert(mobile.titleBottom <= mobile.viewportHeight + 1,
+        `the mobile title card fits the first viewport (bottom ${mobile.titleBottom.toFixed(1)} of ${mobile.viewportHeight}px)`);
     }
   }
 
