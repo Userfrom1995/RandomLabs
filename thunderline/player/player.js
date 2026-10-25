@@ -234,6 +234,7 @@
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     var g = canvas.getContext("2d");
+    g.save();
     g.scale(dpr, dpr);
     g.clearRect(0, 0, w, h);
     var cols = Math.max(64, Math.floor(w / 2));
@@ -248,6 +249,7 @@
       var bh = Math.max(1, peaks[i] * (h - 8));
       g.fillRect(i * bw, (h - bh) / 2, Math.max(1, bw - 0.5), bh);
     }
+    g.restore();
   }
 
   function drawPlayhead(t) {
@@ -344,7 +346,7 @@
         });
       }
     });
-    window.addEventListener("resize", function () { drawOverview(); });
+    window.addEventListener("resize", function () { drawPlayhead(now()); });
   }
 
   function failClosed(title, err) {
