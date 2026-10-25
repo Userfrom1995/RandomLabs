@@ -784,3 +784,125 @@ fn trace_storm_is_wellformed_and_tracks_every_settled_plan() {
     s.assert_no_panic();
     let _ = std::fs::remove_file(&trace_path);
 }
+
+/// Issue #761: a title-screen frame close must never satisfy the wait for
+/// the first playing frame. The old tail-only wait returned on that close
+/// while the playing frame was still open, so the follow-up
+/// `frame_containing` found no complete frame. This pins the pairing
+/// contract deterministically on any platform, including an orphan tail
+/// left by a reader that drained mid-paint.
+#[test]
+fn title_frame_close_cannot_satisfy_the_playing_frame_capture() {
+    use maze_chase_terminal::kitty::STATIC_IMAGE_ID;
+    let needle = static_needle();
+    let transmit = format!("\x1b_Ga=t,f=100,i={STATIC_IMAGE_ID},m=0,q=2;AAAA\x1b\\");
+
+    let mut stream = String::from("title paint\n\x1b[?2026h\x1b[2Jtitle frame\x1b[?2026l");
+    stream.push_str("\x1b[?2026h\x1b[2J\x1b_Ga=d\x1b\\");
+    stream.push_str(&transmit);
+    stream.push_str(&needle);
+    assert!(
+        stream.contains("\x1b[?2026l"),
+        "the title close is present, so a tail-only wait would return here"
+    );
+    assert!(
+        frame_containing(stream.as_bytes(), &needle).is_none(),
+        "an open playing frame must never be captured as complete"
+    );
+
+    stream.push_str("\x1b[?2026l");
+    let frame = frame_containing(stream.as_bytes(), &needle)
+        .expect("the playing frame is captured once its tail lands");
+    assert!(
+        frame.contains(&transmit),
+        "the captured frame must carry the static PNG transmit"
+    );
+    assert!(
+        frame.contains("\x1b[2J") && frame.contains("\x1b_Ga=d\x1b\\"),
+        "the captured frame must carry the fresh-frame clear and delete-all"
+    );
+    assert!(
+        !frame.contains("title"),
+        "the title frame must never leak into the playing capture"
+    );
+
+    let mut orphan = String::from("\x1b[?2026l");
+    orphan.push_str("\x1b[?2026h\x1b[2J");
+    orphan.push_str(&needle);
+    assert!(
+        frame_containing(orphan.as_bytes(), &needle).is_none(),
+        "an orphan tail plus an open frame must not be captured"
+    );
+    orphan.push_str("\x1b[?2026l");
+    assert!(
+        frame_containing(orphan.as_bytes(), &needle).is_some(),
+        "the orphan tail is skipped once the real frame closes"
+    );
+}
+
+/// The live counterpart of the #761 regression: keep the whole title stream
+/// (including its frame closes) in the buffer, start play, and require the
+/// first complete frame carrying the static placement to also carry the PNG
+/// transmit, the clear, and the exact 20-ppt geometry. Three fresh sessions
+/// run back to back so a reintroduced tail-only race has to survive all of
+/// them.
+#[test]
+fn first_playing_frame_on_the_wire_is_self_contained() {
+    for tag in ["first-frame-a", "first-frame-b", "first-frame-c"] {
+        let mut s = Session::start(tag, 100, 40, 1000, 800, "kitty", None);
+        assert!(
+            s.wait("video tier:", Duration::from_secs(15)),
+            "{tag}: title screen never appeared; tail: {}",
+            tail(&s.out)
+        );
+        assert!(
+            s.out
+                .windows(b"\x1b[?2026l".len())
+                .any(|w| w == b"\x1b[?2026l"),
+            "{tag}: the title must have closed a synchronized frame"
+        );
+        assert!(
+            frame_containing(&s.out, &static_needle()).is_none(),
+            "{tag}: the title must not carry a static board placement"
+        );
+        (&s.pty.master).write_all(b"\r").unwrap();
+        assert!(
+            s.wait(HINT_MARKER, Duration::from_secs(10)),
+            "{tag}: Enter did not reach the playing surface; tail: {}",
+            tail(&s.out)
+        );
+
+        let captured = s.capture_frame_containing(&static_needle(), tag);
+        let frame = frame_containing(&s.out, &static_needle())
+            .expect("the first playing frame pairs its head and tail");
+        assert_eq!(
+            captured, frame,
+            "{tag}: the capture must be the first complete playing frame"
+        );
+        assert_fresh_order(&frame, "\x1b_Ga=p", tag);
+        assert!(
+            frame.contains("\x1b_Ga=t"),
+            "{tag}: the static PNG transmit must share the placement frame"
+        );
+        assert_eq!(
+            first_display_png_dims(frame.as_bytes()),
+            (560, 620),
+            "{tag}: the 20-ppt raster must be 28x31 tiles"
+        );
+        assert_eq!(
+            first_display_placement(frame.as_bytes()),
+            (31, 56),
+            "{tag}: the raster must occupy 56x31 cells"
+        );
+        assert_eq!(
+            cursor_before(&frame, &static_needle()),
+            (6, 23),
+            "{tag}: the placement must paint at the centered image origin"
+        );
+        assert!(
+            !frame.contains("video tier:"),
+            "{tag}: title glyphs must never leak into the playing frame"
+        );
+        s.assert_no_panic();
+    }
+}
