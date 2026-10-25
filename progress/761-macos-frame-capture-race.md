@@ -63,3 +63,25 @@ per-OS macOS tester arm on this PR and the re-dispatched RC sweep after merge.
   `cargo test -p maze-chase-terminal --test tester_dynamic_layout_hostile`
   all green (5/5 each), the full `cargo test -p maze-chase-terminal` suite
   green, fmt clean, clippy clean on the crate.
+- Delegation ledger (2026-10-25, issue #761, fix-round independent
+  verification):
+  - `explore` (renderer frame-order audit): confirmed the static `a=t`
+    transmit (`main.rs:736-742`) and the static `a=p` placement
+    (`main.rs:761-773`) share the single `?2026h ... ?2026l` frame
+    (`main.rs:926,1129`), the title path emits only image deletes, and the
+    startup Kitty probe uses a distinct image id outside synchronized frames.
+  - `explore` (prior-fix parity audit): compared `capture_frame` /
+    `last_complete_frame`; all 11 former `wait_frame_closed` sites now use a
+    payload-carrying complete frame and no assertion was weakened; only
+    `plan_contract.rs:290,338` keep the tail-only wait (outside #761 scope).
+  - Primary verified itself: 5x
+    `cargo test -p maze-chase-terminal --test tester_dynamic_layout_hostile`
+    (25/25 green), full `cargo test -p maze-chase-terminal` (32 suites, 0
+    failures), `cargo fmt -p maze-chase-terminal -- --check`, and
+    `cargo clippy -p maze-chase-terminal --tests --no-deps -- -D warnings`.
+  - Skills note: no skill fits; `customize-opencode` covers opencode
+    configuration only, not Rust PTY test-harness work.
+- 2026-10-25 (fixer, reviewer findings F1/F2 on #762): recorded the missing
+  delegation ledger and skills note, moved the pending macOS/RC gate out of
+  the checklist into `## Next steps`, and kept `Status: complete` because the
+  remaining gate is a pipeline step the Builder cannot run.
