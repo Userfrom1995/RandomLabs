@@ -28,7 +28,10 @@
 # CRLF-translated re-fetch tripped the exact-body gate after the report had
 # already posted, because Git Bash translates command-substituted line
 # endings, so CR bytes are now normalized on both sides and an LF-normalized
-# copy is posted). R17 is hybrid: static checks assert the
+# copy is posted; issue #763: macOS /bin/bash 3.2.57 cannot parse a case
+# statement inside a command substitution, so the trusted pre-agent PATH
+# filter uses bash-3.2-safe if tests and the block is pinned against a
+# regression to the unparseable shape). R17 is hybrid: static checks assert the
 # three arms wire the shared poster with the exact gate lines, token envs, and
 # a clean post run body, and a functional test executes the real poster against
 # an executable mock `gh` (interception asserted, credentials scrubbed, live
@@ -4961,6 +4964,7 @@ r17_stage_out=$(R17_LINUX_BLOCK_SHA="98243bff9fdf39653211086006a18275cb9d5a3bf50
 import copy
 import hashlib
 import os
+import re
 
 import yaml
 
@@ -5064,9 +5068,55 @@ def stage_name(label):
 # and each consumer so a one-line revert to the ambient PATH fails the audit.
 TRUSTED_PATH_STEP_NAME = "Capture the trusted pre-agent PATH for owner-PAT steps"
 TRUSTED_PATH_EXPR = "${{ steps.trusted_path.outputs.path }}"
+# Issue #763: macOS /bin/bash is 3.2.57, which cannot parse a case statement
+# inside a command substitution, so the capture step died at parse time before
+# the agent ever ran. The path and mode filters now use bash-3.2-safe if tests
+# (functionally identical: $HOME and $HOME/* are dropped, as are empty and
+# non-octal modes). The whole-region SHA pin below is the load-bearing guard;
+# these needles plus the substitution-region ban keep the portability property
+# visible even if the expected literal is regenerated in lockstep with a
+# revert to the unparseable shape.
 EXPECTED_TRUSTED_PATH_BLOCK_SHA256 = (
-    "a25b739f094fc25272d2c93c3efa087b75254237deac79fa0831a3831ecdfcbf"
+    "c3e824e94d9dd415649c091a0853855a295985fcb9407db7bc47c2b186fbe934"
 )
+TRUSTED_PATH_BASH32_SAFE_NEEDLES = (
+    'if [[ "$dir" == "$HOME" || "$dir" == "$HOME"/* ]]; then continue; fi',
+    'if [[ -z "$mode" || "$mode" == *[!0-7]* ]]; then continue; fi',
+)
+
+
+def trusted_path_filter_region(run):
+    """Return the non-Windows PATH-filter command substitution.
+
+    The region starts at the Unix filter's clean= assignment and ends at its
+    paste terminator. An unexpected shape returns the empty string, which
+    fails the portability check instead of silently skipping it.
+    """
+    start_marker = 'clean=$(printf \'%s\\n\' "$PATH"'
+    start = run.find(start_marker)
+    if start < 0:
+        return ""
+    end_marker = "done | paste -sd: -)"
+    end = run.find(end_marker, start)
+    if end < 0:
+        return ""
+    return run[start:end + len(end_marker)]
+
+
+def trusted_path_is_bash32_safe(run):
+    region = trusted_path_filter_region(run)
+    if not region or not all(
+        needle in region for needle in TRUSTED_PATH_BASH32_SAFE_NEEDLES
+    ):
+        return False
+    code = "\n".join(
+        line
+        for line in region.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    )
+    # Bash 3.2.57 aborts when a case statement appears textually inside a
+    # command substitution; no case/esac token may survive in the filter.
+    return not re.search(r"\bcase\b|\besac\b", code)
 # Issue #713 review round 19 (F7): the macOS capture must walk the whole
 # non-system dependency graph, not just the tools' direct dependencies, and
 # it must retarget every trusted copy's dependency references into the
@@ -5128,6 +5178,10 @@ def validate(doc, expected):
             ):
                 out.append(
                     "peros-staging(%s:trusted-path-not-recursive)" % label
+                )
+            elif not trusted_path_is_bash32_safe(path_run):
+                out.append(
+                    "peros-staging(%s:trusted-path-not-bash32-safe)" % label
                 )
         stage_hits = [
             index
@@ -5467,6 +5521,44 @@ if isinstance(doc, dict):
             )
     finally:
         EXPECTED_TRUSTED_PATH_BLOCK_SHA256 = saved_trusted_path_sha
+    # Issue #763: the bash-3.2 portability check must stay load-bearing even
+    # if a future edit regenerates the whole-region SHA in lockstep with a
+    # revert to the in-substitution case shape that macOS /bin/bash 3.2.57
+    # cannot parse. Rebind the expected SHA to the mutated block so only the
+    # portability property can fail this test.
+    mutant = copy.deepcopy(doc)
+    for job_id in ("test-linux", "test-macos", "test-windows"):
+        for step in mutant["jobs"][job_id]["steps"]:
+            if (
+                isinstance(step, dict)
+                and step.get("name") == TRUSTED_PATH_STEP_NAME
+            ):
+                step["run"] = step["run"].replace(
+                    'if [[ "$dir" == "$HOME" || "$dir" == "$HOME"/* ]]; then continue; fi',
+                    'case "$dir" in "$HOME"|"$HOME"/*) continue ;; esac',
+                ).replace(
+                    'if [[ -z "$mode" || "$mode" == *[!0-7]* ]]; then continue; fi',
+                    'case "$mode" in \'\'|*[!0-7]*) continue ;; esac',
+                )
+    saved_trusted_path_sha = EXPECTED_TRUSTED_PATH_BLOCK_SHA256
+    EXPECTED_TRUSTED_PATH_BLOCK_SHA256 = normalized_sha(
+        next(
+            step["run"]
+            for step in mutant["jobs"]["test-macos"]["steps"]
+            if isinstance(step, dict)
+            and step.get("name") == TRUSTED_PATH_STEP_NAME
+        )
+    )
+    try:
+        if not any(
+            "trusted-path-not-bash32-safe" in p
+            for p in validate(mutant, EXPECTED)
+        ):
+            problems.append(
+                "peros-staging(self-test-trusted-path-not-bash32-safe)"
+            )
+    finally:
+        EXPECTED_TRUSTED_PATH_BLOCK_SHA256 = saved_trusted_path_sha
 
 print("\n".join(problems))
 R17STAGEPY
@@ -5490,7 +5582,7 @@ for r17_prompt in tester-linux.md tester-macos.md tester-windows.md; do
   grep -qF 'Findings Report Contract' "$r17_path" || r17_bad="${r17_bad} ${r17_prompt}(no-contract-marker)"
 done
 if [ -z "$r17_bad" ]; then
-  check "R17" "all three per-OS arms stage their system prompt and actor gate from this run's workflow commit into RUNNER_TEMP and unconditionally restore the vendored runner and findings poster from that commit (pinned staging, gate, and restore bodies; staged reference; prompt SHA-256; project-config opt-out; exact gate wiring; the PR-head prompt, gate, runner, and poster are never executed), the macOS trusted-tool copy walks the whole non-system dependency graph and retargets every trusted copy's dependency references into the trusted directory (re-signing the modified Mach-O images, with a mutation self-test proving the recursion check load-bearing), clear, require, post, and verify the signed /tmp/random-lab-findings.md report (owner-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract; the findings poster also refuses a trigger- or eval-marker-leading report in plain, backticked, or trailing-space form (issue #713 round 19; behaviorally proven) (issues #608, #713)" "ok"
+  check "R17" "all three per-OS arms stage their system prompt and actor gate from this run's workflow commit into RUNNER_TEMP and unconditionally restore the vendored runner and findings poster from that commit (pinned staging, gate, and restore bodies; staged reference; prompt SHA-256; project-config opt-out; exact gate wiring; the PR-head prompt, gate, runner, and poster are never executed), the macOS trusted-tool copy walks the whole non-system dependency graph and retargets every trusted copy's dependency references into the trusted directory (re-signing the modified Mach-O images, with a mutation self-test proving the recursion check load-bearing), clear, require, post, and verify the signed /tmp/random-lab-findings.md report (owner-authored, re-fetched by id) before the decision forward, and the tester prompts carry the contract; the findings poster also refuses a trigger- or eval-marker-leading report in plain, backticked, or trailing-space form (issue #713 round 19; behaviorally proven), and the trusted-path filter is pinned bash-3.2-safe (if tests, no case/esac inside the command substitution, with a mutation self-test proving the portability check load-bearing) so macOS /bin/bash 3.2.57 can parse the capture step before the agent runs (issues #608, #713, #763)" "ok"
 else
   check "R17" "per-OS findings-report contract missing:${r17_bad} (issue #608: a PR-creating arm run drops the report and only the run log has it)" "bad"
 fi
