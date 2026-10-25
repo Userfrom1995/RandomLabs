@@ -439,7 +439,6 @@
       applyGains();
       setState("ready");
       updateTransport();
-      drawOverview();
       maybeSelftest();
     }).catch(function (err) {
       if (err && /missing file: .*preview\.json|lyrics\.json|song\.json/.test(err.message)) {
