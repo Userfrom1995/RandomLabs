@@ -1,16 +1,17 @@
 // Thunderline overview pixel probe (node stdlib + global WebSocket, no deps).
 //
-// Usage: node cdp_overview.mjs <page-url> <cdp-port> <width> <height> <dpr> [mobile]
+// Usage: node cdp_overview.mjs <page-url> <cdp-port> <width> <height> <dpr> [mobile] [selftest]
 //
 // Drives a CDP-enabled headless Chrome through the real player: waits for the
-// selftest, audits the overview canvas, plays, pauses, seeks by clicking the
-// canvas at 25% and 50%, then resizes and audits again. Prints one JSON line.
+// page to settle (the selftest verdict when the URL carries ?selftest=1),
+// audits the overview canvas, plays, pauses, seeks by clicking the canvas at
+// 25% and 50%, then resizes and audits again. Prints one JSON line.
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
-  const [pageUrl, portArg, widthArg, heightArg, dprArg, mobileArg] = process.argv.slice(2);
+  const [pageUrl, portArg, widthArg, heightArg, dprArg, mobileArg, selftestArg] = process.argv.slice(2);
   if (!pageUrl || !portArg || !widthArg || !heightArg || !dprArg) {
-    console.error("usage: node cdp_overview.mjs <url> <port> <width> <height> <dpr> [mobile]");
+    console.error("usage: node cdp_overview.mjs <url> <port> <width> <height> <dpr> [mobile] [selftest]");
     process.exit(2);
   }
   const port = Number(portArg);
@@ -18,6 +19,7 @@ async function main() {
   const height = Number(heightArg);
   const dpr = Number(dprArg);
   const mobile = mobileArg === "1";
+  const expectSelftest = selftestArg !== "0";
 
   const list = await (await fetch("http://127.0.0.1:" + port + "/json/list")).json();
   const page = list.find((t) => t.type === "page");
@@ -141,7 +143,7 @@ async function main() {
     let last = null;
     while (Date.now() < deadline) {
       last = await ev(STATE);
-      if (last.ready && last.result) { return last; }
+      if (last.ready && (!expectSelftest || last.result)) { return last; }
       if (last.empty || last.error) { return last; }
       await sleep(250);
     }
@@ -162,7 +164,7 @@ async function main() {
   }
 
   const result = {
-    config: { width: width, height: height, dpr: dpr, mobile: mobile },
+    config: { width: width, height: height, dpr: dpr, mobile: mobile, selftest: expectSelftest },
     exceptions: exceptions,
     consoleErrors: consoleErrors
   };
