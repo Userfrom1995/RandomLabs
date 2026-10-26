@@ -761,7 +761,7 @@ concurrency:
   never overlap; a queued real trigger cannot be displaced by a skip-only
   comment run and duplicate triggers queue FIFO; different PRs build in
   parallel).
-- `timeout-minutes: 60` on the Maintainer job (zombie-proofs the queue).
+- `timeout-minutes: 75` on the Maintainer job with a 60-minute agent step (zombie-proofs the queue while leaving post-agent headroom).
 
 ## 5. Notifications (the "have a look" mechanism)
 
@@ -997,7 +997,7 @@ personality, CHANGELOG) is direct-commit.
 
 | File | Role |
 |---|---|
-| `maintainer.yml` | The brain: triggers, per-PR concurrency, memory-branch handling, decision list → hardcoded PAT step, 60-min timeout |
+| `maintainer.yml` | The brain: triggers, per-PR concurrency (`cancel-in-progress: false`, single pending slot), memory-branch handling, decision list → hardcoded PAT step, 75-min job cap (60-min agent step) |
 | `opencode-pr-trigger.yml` | PR opened/synchronize → posts `/oc maintainer` as owner (PAT) on every non-draft same-repo PR (fork PRs get no secrets, so the section 12 guidance-only path applies), waking the Maintainer, which then decides review/continue/merge (the `/oc review (head <sha>)` comment is posted by `maintainer.yml`) |
 | `opencode.yml` | Build / Fix / Design Council / General modes (prompts from files; `/oc continue`; per-issue concurrency; clean-tree + sanitize; extended approve-CI with stable-head polling; no end-of-run dispatches; the Fix mode agent step runs 120 minutes under a 180-minute job so the rebase/push/decision chain always has headroom, issue #701) |
 | `opencode-review.yml` | Reviewer (prompts from file); human-vs-bot fix behavior; reviewer clean report published by the workflow followed by `/oc test` → Tester `/oc approve-test` → `/oc maintainer` (then the Maintainer routes the Evaluator gate via `/oc eval` and merges after `approve-eval`); a reviewer `maintainer` decision escalates directly via `/oc maintainer`; ownership-gated restore-head; short `/oc fix` trigger |

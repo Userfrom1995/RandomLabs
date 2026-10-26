@@ -208,7 +208,7 @@ Public Surface / Web Track:                                              │
   with failure/timed_out, every workflow except itself), and via manual dispatch (`pr_number`, `issue_number`,
   `reason` - the review workflow dispatches it with the approval message).
 - Bot-created issues/PRs emit no `opened` event (GitHub starts no run for `GITHUB_TOKEN`-created content), so the hardcoded `create_issue` / `create_pr` step self-dispatches a PAT-backed `workflow_dispatch` maintainer run carrying the new number (issue #450); every run also sweeps untriaged issues as backup.
-- Per-PR concurrency (cancel-latest), 60-minute timeout, bot identity.
+- Per-PR concurrency group with `cancel-in-progress: false` and a single pending slot (deliberately superseding by design, issue #601), a 75-minute job cap with a 60-minute agent step, bot identity.
 - Every run: loads its memory from the `maintainer/logs` branch (`STATE.md`
   checkpoint, `logs/YYYY-MM-DD.md` for the last 7 days, `personality.md`,
   `REGISTRY.md`), re-surveys GitHub fresh, writes a decision list

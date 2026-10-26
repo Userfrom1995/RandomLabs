@@ -132,5 +132,6 @@ Before submitting a PR for a new agent, verify:
 - [ ] Main event bus `opencode.yml` updated with exclusion guards if applicable.
 - [ ] Prompts of existing agents updated with squad awareness and calling permissions.
 - [ ] Every documented handoff trigger matches what the workflows actually post (`LAB.md`, `AGENTS.md`, `REGISTRY.md`, affected prompts); decision action names are never written as `/oc` triggers.
+- [ ] Any Maintainer cap or concurrency change updates the shipped shape in `AGENTS.md` and `LAB.md` in the same PR.
 - [ ] Universal documentation updated (`README.md`, `index.html`, `docs/index.html`, `docs/index.md`, `LAB.md`, `AGENTS.md`).
 - [ ] All em dashes purged from documentation and prompt files.
