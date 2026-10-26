@@ -6,10 +6,11 @@
 - **Branch:** opencode/issue582-20261018121223 (this roadmap PR); each phase runs
   on its own `opencode/issue582-overhaul-phase-<n>-<slug>` branch
 - **Status:** in-progress
-- **Updated:** 2026-10-24
+- **Updated:** 2026-10-26
 - **Active Phase:** Phase 7: Game-First Web Experience and Subpages
   (complete on PR #759: game-first page, subpages, rendered docs, link
-  checks, local and deployed site E2E green; awaiting review and testing)
+  checks, local and deployed site E2E green, release copy reconciled to the
+  published `maze-chase-v0.1.0-rc.1`; awaiting review and testing)
 - **Blueprint:** `ideas/2026-10-18-maze-chase-overhaul.md`
 - **Findings ledger:** `progress/582-maze-chase-overhaul-findings.md` (created in
   Phase 1; every reassessment gap lives here until resolved or documented)
@@ -21,8 +22,8 @@
 - Phase 3: Terminal Render Pipeline and Compatibility Proof: [x] bounded live Kitty probe with byte replay plus the Sixel DA1 probe (the probe requires both the transmit and placement replies before it reads a verdict; Ghostty 1.3.1 answers the probe when one is sent, and its rows select the graphics path from `TERM_PROGRAM=ghostty`/`TERM=xterm-ghostty` without probing), [x] atlas plus placement composition with full-frame fallback (static layer and sprite atlas once per change, stable-id placement diffs, single-placement `d=i` deletes, explicit `z` stacking layers, DEFLATE PNG), [x] dirty-change detection and wall-clock pacing with backpressure (visual-change key, per-tier rates, 8 MiB/s byte ceiling, 1 Hz idle keepalive), [x] Sixel path hardening (64-color cap, 2 MiB frame ceiling with smaller-palette retry and an honest `cells-fallback` trace mode), [x] capability-aware probe plus write-path watchdog (`OK`/`ENOENT` replies decide kitty support; `q=2` keeps steady transmits silent, and the watchdog drops a tier after 3 failed frame writes with the reason recorded), [x] `MAZE_CHASE_TRACE` JSONL evidence mode (plan, frame mode/placements/static/atlas/encode time, skips, probe results), [x] kitty and ghostty rows signed on Linux plus conventional terminals (kitty and Ghostty both `kitty-graphics` pass at 21 transmits / 156.1-160.1 KiB per session in the Phase 3 round (pre-Pondwake; the Phase 4 rows are 169.9-175.4 KiB) with sprite visibility proven by capture census; xterm auto and xterm dark both pass on cells, the light row at 6.2% white at worst and 1.7% while playing after the theme-canvas fix; the VT340 sixel rows pass at 140-141 transmits / 3.39-3.41 MiB in the Phase 3 round (Phase 4: 137-138 / 4.25-4.31 MiB), and every row records its generating build commit plus binary SHA-256 in its `build` block), [ ] macOS matrix rows signed by the macOS Tester (PR 3 target, Refs #582, Refs #655)
 - Phase 4: Visual Identity Redesign: [x] Design Council direction consumed (dispatched by the Maintainer before this phase), [x] resolution-aware character and environment art, [x] effects and animation system, [x] refreshed themes with accessibility tests green, [x] all three layers integrated with real captures (PR 4 target, Refs #582, Closes #658)
 - Phase 5: Sound Design Overhaul: [x] new musical score with one BPM source (`TEMPO = 108`, five multi-track tunes with swung eighths and per-note track lanes), [x] soft short layered effect bank across seven voice families (40 ms crumb pluck with variation, rising warden ladder, sparkling relish triad, spare-wick bell), [x] mix architecture with 120 ms fades and safe defaults (music 60%, SFX 80%, master 80%, peak-normalized buses), [x] terminal chime policy default-off with a persistent Settings row and visual twins independent of mute, [x] per-layer settings round-trip on Linux (desktop synth PCM plus null sink, terminal BEL plus ticker, browser chip plus persisted sliders) with native macOS/Windows speaker review tracked for the Final Phase (PR 5 target, Refs #582, Refs #659)
-- Phase 6: Release Engineering and Multi-Platform Distribution: [x] version single source plus tag parity gate (`[workspace.package]` 0.1.0, `packaging/release/check-tag.sh` fail-closed on a tag/version mismatch), [x] Linux deb and rpm plus tarballs for both layers (rebuilt twice byte-identically and smoke-tested on this container), [ ] Windows installer plus zip (scripts landed; native build and silent install/uninstall run pending), [ ] macOS app plus dmg plus tarball (scripts landed; native build and dmg mount pending), [x] install/launch/uninstall smoke scripts (`release/smoke-linux.sh` executed; macOS/Windows harnesses authored for their native arms), [ ] `maze-chase-release.yml` pipeline via the Lab Engineer (source staged at `packaging/release/maze-chase-release.yml`), [ ] release candidate artifacts on the official Releases page, [ ] install/upgrade/uninstall docs (`docs/release.md` covers both layers on all three OSes, plus upgrade and settings clearing; corrected this round, final sign-off waits for the release candidate artifacts) (PR 6 target, Refs #582, Refs #657)
-- Phase 7: Game-First Web Experience and Subpages: [x] `maze-chase/index.html` boots directly into the game with no clutter (`play.html` redirects with query/hash intact), [x] downloads, install, docs, compatibility, releases subpages with one shared shell and navigation, [x] rendered docs on Pages with a source-freshness marker plus internal link and fragment checks, [x] deployed-URL browser E2E including mobile (`site-e2e.js` ALL GREEN at 156 assertions against the PR #759 Pages preview at 1280x900 and 390x844; PR 7 target, Refs #582, Closes #660)
+- Phase 6: Release Engineering and Multi-Platform Distribution: [x] version single source plus tag parity gate (`[workspace.package]` 0.1.0, `packaging/release/check-tag.sh` fail-closed on a tag/version mismatch), [x] Linux deb and rpm plus tarballs for both layers (rebuilt twice byte-identically and smoke-tested on this container), [x] Windows installer plus zip (built and smoke-tested by the native Windows release job in run 40161835683), [x] macOS app plus dmg plus tarball (built and smoke-tested by the native macOS release job in run 40161835683), [x] install/launch/uninstall smoke scripts (`release/smoke-linux.sh` executed; macOS/Windows harnesses authored for their native arms), [x] `maze-chase-release.yml` pipeline installed via the Lab Engineer (source staged at `packaging/release/maze-chase-release.yml`, merged as #758), [x] release candidate artifacts on the official Releases page (`maze-chase-v0.1.0-rc.1` prerelease, published 2026-10-25), [x] install/upgrade/uninstall docs (`docs/release.md` covers both layers on all three OSes, plus upgrade and settings clearing; the release candidate artifacts are now published) (PR 6 target, Refs #582, Refs #657)
+- Phase 7: Game-First Web Experience and Subpages: [x] `maze-chase/index.html` boots directly into the game with no clutter (`play.html` redirects with query/hash intact), [x] downloads, install, docs, compatibility, releases subpages with one shared shell and navigation, [x] rendered docs on Pages with a source-freshness marker plus internal link and fragment checks, [x] deployed-URL browser E2E including mobile (`site-e2e.js` ALL GREEN at 157 assertions against the PR #759 Pages preview at 1280x900 and 390x844; PR 7 target, Refs #582, Closes #660)
 - Final Phase: Full-Product Verification and Release Sign-Off: [ ] full terminal matrix re-signed on the released artifacts, [ ] per-OS install/upgrade/uninstall from release artifacts, [ ] deployed Pages E2E for the game and every subpage, [ ] audio and visual craft evaluated on real captures, [ ] reassessment ledger fully resolved or documented, [ ] stable `maze-chase-v1.0.0` release cut, [ ] hub, README, and docs unified (Final PR, Refs #582, Closes #655, Closes #661, Closes #582)
 
 ## Current step
@@ -36,8 +37,11 @@ the header carries a compact Site menu instead of a distribution block.
 bookmarks. `install.html`, `downloads.html`, `compatibility.html`, and
 `releases.html` carry the secondary detail under one `site.css` shell and
 one six-link navigation, with the same honest split between built Linux
-packages and native rows that ship once the release workflow is
-installed. `compatibility.html` names only executed Linux rows as passes
+packages and the native rows now published unsigned in the
+`maze-chase-v0.1.0-rc.1` prerelease (release run 40161835683). The
+release, downloads, README, and rendered docs copy was reconciled to that
+published candidate in the fix round; the terminal compatibility matrix
+macOS and Windows rows stay awaiting host. `compatibility.html` names only executed Linux rows as passes
 and keeps the macOS, Windows, and unrun Linux terminals under awaiting
 host, with the browser's Chromium-verified shape separated from the
 expected-but-unsigned Firefox and Safari shape.
@@ -2059,3 +2063,30 @@ assumed.
   read-only subagent was needed for this focused static-surface change.
   Skills: no registry skill matched.
   - the Builder
+
+- 2026-10-26 (fixer, release-copy reconciliation on PR #759): reconciled the
+  shipped release copy to the published candidate after the Maintainer's
+  #683 finding. `releases.html` now names `maze-chase-v0.1.0-rc.1`
+  (published 2026-10-25, prerelease), links the release tag and release run
+  40161835683, lists the twelve published artifacts plus the combined
+  `SHA256SUMS.txt`, and keeps the stable `maze-chase-v1.0.0` tag gated on
+  the final checks. `downloads.html` reports the same published candidate in
+  the release-status callout, moves the four Windows and macOS rows from
+  "Native release job" to "Published (unsigned)", and cites the release and
+  run links. The README, release guide, feature matrix, and compatibility
+  page now cite the native release jobs and the published prerelease instead
+  of "once the release workflow is installed", keeping the #582 and #683
+  tracking references and the unsigned and prerelease qualifications. The
+  macOS and Windows terminal compatibility rows stay awaiting host and
+  unclaimed. Updated the tester copy pins in `tester_site.rs` and
+  `tester_packaging.rs` to require the published candidate, run, prerelease,
+  unsigned, and #683 facts while rejecting signing and stable-release
+  claims. Verification: `node tools/site/render-docs.mjs --check` 15 docs
+  current with 398 links; `tester_site` 6/6, `tester_packaging` 27/27,
+  `tester_docs_language` 2/2; `cargo fmt --all --check` clean. No rebase was
+  performed, per the Maintainer's instruction; no production logic or
+  protected path changed. Delegation ledger: the primary context read the
+  release and run evidence from the GitHub API, checked every stale copy
+  site in the tree, and ran the renderer and suites; no subagent was needed
+  for this copy-only change. Skills: no registry skill matched.
+  - the Fixer
