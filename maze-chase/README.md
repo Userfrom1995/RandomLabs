@@ -8,12 +8,15 @@ feel reference, never a code source. Clean-room rules live in
 `docs/legal.md`.
 
 Current status: **playable on Linux, macOS, and Windows. The Linux
-release packages (deb, rpm, tarballs) are built and smoke-tested; the
-packaging scripts cover a per-user Windows installer plus zip and a
-macOS app, dmg, and tarball (unsigned), and those native artifacts ship
-once the release workflow is installed. The open tracking issue #582
-carries native per-OS release verification and the final re-verification
-of every claim.** The terminal layer's
+release packages (deb, rpm, tarballs) are built and smoke-tested, and the
+[`maze-chase-v0.1.0-rc.1` prerelease](https://github.com/Userfrom1995/RandomLabs/releases/tag/maze-chase-v0.1.0-rc.1)
+ships the Linux, Windows, and macOS terminal and desktop artifacts. The
+Windows installer plus zip and the macOS app, dmg, and tarball are built and
+smoked by the native release jobs in
+[run 40161835683](https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683).
+The binaries are unsigned. The open tracking issue #582 carries the final
+re-verification of every claim, with the release-claims sweep and terminal
+matrix sign-off tracked in #683.** The terminal layer's
 real-emulator truth is recorded in
 [docs/terminal-compat.md](docs/terminal-compat.md) with committed
 evidence and outstanding findings in
