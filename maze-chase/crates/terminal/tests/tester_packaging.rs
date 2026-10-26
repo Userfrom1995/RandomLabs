@@ -381,12 +381,12 @@ fn release_docs_crosslink_only_committed_files() {
 }
 
 #[test]
-fn downloads_and_readme_do_not_claim_unbuilt_native_artifacts() {
+fn downloads_and_readme_claim_only_the_published_unsigned_prerelease() {
     // The downloads page is the distribution surface. Its status block
-    // must stay short and user-facing, and it must separate the built
-    // Linux packages from the native macOS/Windows rows that only ship
-    // once the release workflow is installed. The game-first page carries
-    // no status block at all, so the hunt is the first thing a visitor sees.
+    // must stay short and user-facing: it reports the published unsigned
+    // rc.1 candidate, including the native macOS/Windows rows, and never
+    // claims signing or a stable release. The game-first page carries no
+    // status block at all, so the hunt is the first thing a visitor sees.
     let hub = std::fs::read_to_string(maze_root().join("index.html")).unwrap();
     assert!(
         !hub.contains("release-status"),
@@ -419,18 +419,26 @@ fn downloads_and_readme_do_not_claim_unbuilt_native_artifacts() {
         status.contains("Linux packages") && status.contains("built and smoke-tested"),
         "the status must report the Linux packages as built and smoke-tested: {status}"
     );
-    assert!(
-        status.contains("ship once the release workflow is installed"),
-        "the status must mark the native rows as pending the release workflow: {status}"
-    );
+    for published in [
+        "maze-chase-v0.1.0-rc.1",
+        "40161835683",
+        "prerelease",
+        "unsigned",
+    ] {
+        assert!(
+            status.contains(published),
+            "the status must report the published candidate ({published}): {status}"
+        );
+    }
     for overclaim in [
         "built and signed",
-        "built and smoked by the native release job",
-        "Windows zip was built",
+        "notarized",
+        "signed binaries",
+        "stable release is published",
     ] {
         assert!(
             !status.contains(overclaim),
-            "the status must not claim unbuilt native artifacts ({overclaim}): {status}"
+            "the status must not claim signing or a stable release ({overclaim}): {status}"
         );
     }
     for qa_copy in [
@@ -462,17 +470,16 @@ fn downloads_and_readme_do_not_claim_unbuilt_native_artifacts() {
         readme.contains("Linux release packages (deb, rpm, tarballs) are built and smoke-tested"),
         "the README must report the Linux packages as built and smoke-tested"
     );
-    assert!(
-        readme.contains("those native artifacts ship once the release workflow is installed"),
-        "the README must mark the native rows as pending the release workflow"
-    );
-    for overclaim in [
-        "built and signed",
-        "built and smoked by the native release job",
-    ] {
+    for published in ["maze-chase-v0.1.0-rc.1", "40161835683", "unsigned", "#683"] {
+        assert!(
+            readme.contains(published),
+            "the README must report the published candidate ({published})"
+        );
+    }
+    for overclaim in ["built and signed", "notarized", "signed binaries"] {
         assert!(
             !readme.contains(overclaim),
-            "the README must not claim unbuilt native artifacts ({overclaim})"
+            "the README must not claim signing ({overclaim})"
         );
     }
 }
