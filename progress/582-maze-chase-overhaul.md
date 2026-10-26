@@ -2042,7 +2042,8 @@ assumed.
   the query and fragment intact; `install.html`, `downloads.html`,
   `compatibility.html`, and `releases.html` carry the secondary detail
   under one `site.css` shell and one navigation, with built Linux rows
-  separated from native rows that ship with the release workflow.
+  separated from the native rows now published unsigned in the
+  `maze-chase-v0.1.0-rc.1` prerelease.
   `tools/site/render-docs.mjs` renders all 15 docs into committed HTML
   pages with a sidebar and source-freshness markers, rewrites markdown
   links, and verifies every internal link and fragment in `--check` mode.
@@ -2050,17 +2051,18 @@ assumed.
   links from disk; the packaging crosslink and docs-language suites moved
   to the new surfaces. `web/e2e/site-e2e.js` checks every page at desktop
   and 390x844, boots the game, starts, pauses, and resumes.
-  Verification: `render-docs.mjs --check` 15 docs current with 398 links;
-  `tester_site` 6/6; `tester_packaging` 27/27; docs-language green; local
-  `site-e2e.js` ALL GREEN (156 assertions); deployed preview
-  `site-e2e.js https://userfrom1995.github.io/RandomLabs/preview/pr-759/maze-chase/`
-  ALL GREEN (156 assertions); `browser-e2e.js` ALL GREEN (279 assertions);
+  Verification at that head: `render-docs.mjs --check` 15 docs current with
+  398 links; `tester_site` 6/6; `tester_packaging` 27/27; docs-language
+  green; local `site-e2e.js` ALL GREEN (156 assertions, six pages); deployed
+  preview `site-e2e.js https://userfrom1995.github.io/RandomLabs/preview/pr-759/maze-chase/`
+  ALL GREEN (156 assertions, six pages); `browser-e2e.js` ALL GREEN (279
+  assertions);
   `xvfb-run -a cargo test --workspace --no-fail-fast --locked` 627 passed
   / 0 failed across 64 targets; `cargo fmt --all --check` clean; clippy
   reports the seven pre-existing engine warnings.
-  Delegation ledger: the primary context built the pages, renderer, tests,
-  and harness, ran the local browser passes, and owns the final diff; no
-  read-only subagent was needed for this focused static-surface change.
+  Delegation ledger: the builder pass ran no read-only subagents; the fixer
+  round below records the required independent audits and supersedes the
+  six-page assertion line above.
   Skills: no registry skill matched.
   - the Builder
 
@@ -2089,4 +2091,57 @@ assumed.
   release and run evidence from the GitHub API, checked every stale copy
   site in the tree, and ran the renderer and suites; no subagent was needed
   for this copy-only change. Skills: no registry skill matched.
+  - the Fixer
+
+- 2026-10-26 (fixer, review round F1-F10 on `2c363f7e`): applied the
+  reviewer's ten findings. F1/F2/F9: `site.css` now pins `scroll-padding-top`
+  for the sticky header, gives the docs grid and cards `min-width: 0`, lets
+  long inline code wrap, wraps wide tables in `.table-scroll`, and at mobile
+  widths makes the Site menu static and keeps its opened nav inside the
+  390px viewport; the docs sidebar scrolls instead of consuming the first
+  viewport. F3: `site-e2e.js` discovers all 20 shipped pages (15 rendered docs
+  plus five hand-written pages), measures `documentElement.clientWidth`
+  instead of `innerWidth`, tracks `Runtime.exceptionThrown`, checks the opened
+  `details` nav rect, asserts zero console errors on every page, narrows the
+  console allowlist to the exact media-policy notices, and takes the mobile
+  screenshot on the game page. F4: `play.html` no longer claims a seed is
+  read; `tester_site` asserts the exact query-and-fragment redirect script,
+  and `site-e2e` exercises `play.html?seed=abc&view=1#game-main` in the
+  browser. F5: the Rust suites share `tests/common/mod.rs`, crawl every same
+  page fragment, reject `.md?query` links, derive the page list dynamically,
+  and reject the expanded signing and stable-release phrase families while
+  requiring the published rc.1 candidate and prerelease wording. F6: the
+  renderer rejects unknown flags, renders unsafe schemes inert instead of
+  active, escapes inline text exactly once, keeps escaped and in-code pipes
+  in one table cell, rejects column mismatches, orphan outputs, project
+  escaping links, and missing same-page or cross-page anchors, and keeps
+  duplicate heading ids unique. F7: every rendered page carries an
+  `output-fnv` body marker that `tester_site` recomputes. F8: corrected the
+  release-status copy in this progress entry and the ideas file and recorded
+  the delegation below. F10: the PR body was corrected after the push; it no
+  longer claims unrun results.
+  Verification: `node tools/site/render-docs.mjs --check` 15 docs current
+  with 418 internal links; `tester_site` 6/6, `tester_packaging` 27/27,
+  `tester_docs_language` 2/2; local `site-e2e.js` ALL GREEN with 650
+  assertions (all 20 pages at 1280x900 and 390x844, opened Site menu
+  12..378, legacy redirect preserved); `browser-e2e.js` ALL GREEN with 279
+  assertions; `macos-case-audit.js` PASS with 568 targets across 21 HTML
+  files; `cargo test --workspace --exclude maze-chase-desktop` 507 passed and
+  `cargo clippy -p maze-chase-terminal --all-targets` is clean apart from the
+  six pre-existing engine warnings (the desktop crate cannot build in this
+  container because `alsa.pc` is absent); `cargo fmt --all --check` clean. No
+  rebase was performed, per the
+  Maintainer's instruction; no production logic or protected path changed.
+  Delegation ledger: three independent read-only subagents ran. The mobile
+  auditor measured all 20 pages at both viewports (40/40 zero-overflow),
+  clicked the Site summary and measured the opened nav at 12..378, and
+  checked the docs skip target, tabindex, focus, and 124px scroll padding on
+  all 15 docs pages: all PASS. The renderer auditor tested ten cases in a
+  throwaway copy (unknown flag, inert schemes, single escaping, unique ids,
+  table pipes and mismatch, orphan outputs, path escape, same-page anchor,
+  freshness, and stable output-fnv): all PASS, no hole. The Rust auditor ran
+  the three suites (35 passed), the case audit, and the renderer check, and
+  inspected the link, marker, redirect, and release-copy contracts: F4/F5/F7/F9
+  PASS in the working tree. The primary context applied the fixes and ran the
+  final browser and cargo commands. Skills: no registry skill matched.
   - the Fixer
