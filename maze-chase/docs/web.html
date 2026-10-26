@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/web.md; source-bytes: 8682; source-fnv: 76c16dcdbc2dea3b -->
+<!-- generated from docs/web.md; source-bytes: 8682; source-fnv: 76c16dcdbc2dea3b; output-fnv: 9169b1d36f1e9f86 -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="../site.css" />
 </head>
 <body class="site">
-<a class="skip-link" href="#main">Skip to content</a>
+<a class="skip-link" href="#doc-content">Skip to content</a>
 <header class="site-header">
   <a class="brand" href="../index.html">Maze Chase <span>starring Rill the pond frog</span></a>
   <nav class="site-nav" aria-label="Maze Chase site">
@@ -49,7 +49,7 @@
         <li><a href="../downloads.html">Downloads</a></li>
       </ul>
     </aside>
-    <article class="doc">
+    <article class="doc" id="doc-content" tabindex="-1">
 <h1 id="maze-chase-browser-install-and-launch-guide">Maze Chase: browser install and launch guide</h1>
 <p>Play the same engine in a browser tab: <code>maze-chase/index.html</code> drives the <code>maze-chase-web</code> Rust crate compiled to WebAssembly, with keyboard plus touch controls, DPR-aware canvas sizing, and WebAudio sound. No gameplay logic lives in the page or the harness: the <code>.wasm</code> owns the session, the scores table, settings state, and every board pixel; JavaScript maps input, paints DOM, and synthesizes audio from the crate's data tables.</p>
 <p><img src="web-gameplay.png" alt="Live browser gameplay: board mid-hunt with HUD" loading="lazy" /></p>
@@ -61,12 +61,12 @@ python3 -m http.server 8000   # Windows: python -m http.server 8000
 <p>On GitHub Pages the game opens directly at the project URL: <code>maze-chase/index.html</code> is the playable page, and the site subpages carry installation, downloads, compatibility, releases, and documentation. The shipped artifact is <code>maze-chase/web/maze-chase.wasm</code> (about 207 KiB / 212,472 bytes, zero imports, fully self-contained), built reproducibly (see below); <code>web/maze-chase.js</code> is the harness (plain script, no bundler, no external resources, works offline once served).</p>
 <h2 id="controls">Controls</h2>
 <p>Keyboard (remappable in Settings; arrows move DOM focus in menus, Enter/Space activates the focused button):</p>
-<table><thead><tr><th>Key</th><th>Play</th><th>Menus</th></tr></thead><tbody>
+<div class="table-scroll"><table><thead><tr><th>Key</th><th>Play</th><th>Menus</th></tr></thead><tbody>
 <tr><td>Arrows / WASD</td><td>Steer Rill</td><td>Move button focus</td></tr>
 <tr><td>P or Esc</td><td>Pause</td><td>Back</td></tr>
 <tr><td>M</td><td>Mute toggle</td><td>Mute toggle</td></tr>
 <tr><td>Enter / Space</td><td>-</td><td>Activate focused button</td></tr>
-</tbody></table>
+</tbody></table></div>
 <p>Menu shortcuts take precedence over remapped play actions: while a menu is open, P/Esc always Back out and M always toggles mute, whatever those keys are bound to in play. Leaving Settings cancels an armed key capture.</p>
 <p>Touch: swipe on the board to steer (24 px deadzone, dominant axis wins, so taps never turn Rill); an on-screen direction pad appears on coarse pointers (or via &quot;Toggle touch pad&quot;); tapping a panel's primary button activates it. There is no gamepad API on the web layer by design: keyboard plus touch is the full control scheme (see the matrix).</p>
 <h2 id="screens">Screens</h2>

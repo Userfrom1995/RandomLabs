@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/release.md; source-bytes: 15171; source-fnv: 3379e935a7811676 -->
+<!-- generated from docs/release.md; source-bytes: 15171; source-fnv: 3379e935a7811676; output-fnv: 701d7c0448afe9d0 -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="../site.css" />
 </head>
 <body class="site">
-<a class="skip-link" href="#main">Skip to content</a>
+<a class="skip-link" href="#doc-content">Skip to content</a>
 <header class="site-header">
   <a class="brand" href="../index.html">Maze Chase <span>starring Rill the pond frog</span></a>
   <nav class="site-nav" aria-label="Maze Chase site">
@@ -49,7 +49,7 @@
         <li><a href="../downloads.html">Downloads</a></li>
       </ul>
     </aside>
-    <article class="doc">
+    <article class="doc" id="doc-content" tabindex="-1">
 <h1 id="maze-chase-reproducible-build-packaging-and-release-guide">Maze Chase: reproducible build, packaging, and release guide</h1>
 <p>One set of instructions that rebuilds and ships every artifact from a clean checkout: the engine checks, all three layers, the native packages, and the committed WebAssembly blob. The version comes from one place, and a release tag can never publish software built from a different version.</p>
 <p>The Linux packaging and smoke rows were executed on the release container for this tree. The installed <code>.github/workflows/maze-chase-release.yml</code> then built and smoke-tested the Linux, Windows, and macOS rows in release run <a href="https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683">40161835683</a>, which published the unsigned <code>maze-chase-v0.1.0-rc.1</code> prerelease. The measured record lives in <a href="scoreboard.html">scoreboard.md</a> and the signed parity gate in <a href="parity.html">parity.md</a>.</p>
@@ -95,7 +95,7 @@ node web/e2e/wasm-smoke.js
 node web/e2e/tester-regression.js</code></pre>
 <h2 id="artifact-matrix">Artifact matrix</h2>
 <p>Every script runs from <code>maze-chase/</code> and stages into <code>dist/</code> (git-ignored scratch, never committed). The <code>&lt;version&gt;</code> in every name is the workspace version. The version segment in RPM names is <code>1.&lt;arch&gt;</code> because it is <code>&lt;version&gt;-1.&lt;arch&gt;.rpm</code> on disk.</p>
-<table><thead><tr><th>Layer</th><th>OS</th><th>Command (native host)</th><th>Artifact</th></tr></thead><tbody>
+<div class="table-scroll"><table><thead><tr><th>Layer</th><th>OS</th><th>Command (native host)</th><th>Artifact</th></tr></thead><tbody>
 <tr><td>Terminal</td><td>Linux</td><td><code>packaging/terminal/build-deb.sh</code></td><td><code>dist/maze-chase-terminal_&lt;version&gt;_&lt;debarch&gt;.deb</code></td></tr>
 <tr><td>Terminal</td><td>Linux</td><td><code>packaging/terminal/build-rpm.sh</code></td><td><code>dist/maze-chase-terminal-&lt;version&gt;-1.&lt;rpmarch&gt;.rpm</code></td></tr>
 <tr><td>Terminal</td><td>Linux or macOS</td><td><code>packaging/terminal/linux-tarball.sh</code> / <code>macos-tarball.sh</code></td><td><code>dist/maze-chase-terminal-&lt;version&gt;-&lt;os&gt;-&lt;arch&gt;.tar.gz</code></td></tr>
@@ -108,7 +108,7 @@ node web/e2e/tester-regression.js</code></pre>
 <tr><td>Desktop</td><td>macOS</td><td><code>packaging/desktop/macos-app.sh</code></td><td><code>dist/Maze Chase.app</code></td></tr>
 <tr><td>Desktop</td><td>macOS</td><td><code>packaging/desktop/macos-dmg.sh</code></td><td><code>dist/maze-chase-desktop-&lt;version&gt;-macos-&lt;arch&gt;.dmg</code></td></tr>
 <tr><td>Browser</td><td>any (Pages serves <code>main</code>)</td><td>the wasm command above</td><td>live at <code>maze-chase/index.html</code></td></tr>
-</tbody></table>
+</tbody></table></div>
 <p>The tar archives and Windows zips are deterministic. The tarballs are created with <code>SOURCE_DATE_EPOCH</code> (the release job uses the commit timestamp), sorted entry order, fixed owner and modes (the stage directory mode is pinned so the caller's umask cannot leak into the archive), and no gzip timestamp. GNU tar does this directly on Linux; macOS falls back to a Python <code>tarfile</code> writer with the same pins, and a host with neither tool fails loudly instead of publishing an unpinned archive. The Windows zips sort their entries and stamp each one with <code>SOURCE_DATE_EPOCH</code>. The macOS disk image is not byte-reproducible because <code>hdiutil</code> records image metadata, so the release publishes its SHA-256 instead of claiming identical rebuilds. Rebuilding a host's tarballs or zips twice on the same commit in the same toolchain environment produces byte-identical archives; the checksum manifest verifies the published bytes.</p>
 <p><code>packaging/release/stage-linux.sh</code> builds, smokes, and checksums all six Linux artifacts at once and reports <code>SHA256SUMS.txt</code>. <code>stage-macos.sh [--probe]</code> and <code>stage-windows.ps1 [-Install] [-Probe]</code> do the same for their natives. Their smoke harnesses are the contract: <code>smoke-linux.sh</code> unpacks each deb/rpm and runs the binary from the payload, installs and uninstalls the tarballs, and checks <code>--version</code> and <code>--help</code>; <code>smoke-macos.sh</code> checks the bundle's <code>Info.plist</code>, version, dmg mount, and tarball; <code>smoke-windows.ps1</code> extracts the zips, runs the binaries, and, with <code>-Install</code>, silently installs the setup, launches the installed binary, uninstalls, and confirms the files are gone. <code>-Probe</code> / <code>--probe</code> additionally drives one real windowed frame where the runner provides a display.</p>
 <h2 id="install-upgrade-uninstall">Install, upgrade, uninstall</h2>

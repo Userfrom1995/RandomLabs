@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/scoreboard.md; source-bytes: 36891; source-fnv: bae4f2ba5bcf86e5 -->
+<!-- generated from docs/scoreboard.md; source-bytes: 36891; source-fnv: bae4f2ba5bcf86e5; output-fnv: 7d1a2adda7c0163d -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="../site.css" />
 </head>
 <body class="site">
-<a class="skip-link" href="#main">Skip to content</a>
+<a class="skip-link" href="#doc-content">Skip to content</a>
 <header class="site-header">
   <a class="brand" href="../index.html">Maze Chase <span>starring Rill the pond frog</span></a>
   <nav class="site-nav" aria-label="Maze Chase site">
@@ -49,7 +49,7 @@
         <li><a href="../downloads.html">Downloads</a></li>
       </ul>
     </aside>
-    <article class="doc">
+    <article class="doc" id="doc-content" tabindex="-1">
 <h1 id="release-scoreboard">Release scoreboard</h1>
 <p>Measured results for the packaged artifacts, recorded from real runs on the release machine (Linux x86_64, stable Rust 1.99.0) plus the two native per-OS passes (macOS arm64 and Windows Server 2025). No number here is estimated: every figure names the command or run that produced it. Rerun the commands in <code>docs/release.md</code> on another machine and append a new dated section rather than editing these rows.</p>
 <h2 id="2026-10-16-linux-x86-64-release-audit">2026-10-16 (Linux x86_64, release audit)</h2>
@@ -59,7 +59,7 @@
 <li><code>perf-headless</code>: 0.8 us/tick for 12k ticks (100 simulated seconds), against the 8,333 us frame budget of the 120 Hz timestep. That is four orders of magnitude of headroom: the simulation can never be the frame bottleneck on any of the three layers.</li>
 </ul>
 <p>Unit and integration suites (<code>cargo test --workspace</code>, exit 0):</p>
-<table><thead><tr><th>Crate</th><th>Suites</th><th>Passed</th></tr></thead><tbody>
+<div class="table-scroll"><table><thead><tr><th>Crate</th><th>Suites</th><th>Passed</th></tr></thead><tbody>
 <tr><td>engine (lib 45, golden 2, hostile 12 + 12, quiescence 2)</td><td>6</td><td>73</td></tr>
 <tr><td>assets (lib 20, hostile 11, doc 2)</td><td>3</td><td>33</td></tr>
 <tr><td>audio (lib 13, hostile 6)</td><td>2</td><td>19</td></tr>
@@ -69,7 +69,7 @@
 <tr><td>web (lib 43)</td><td>1</td><td>43</td></tr>
 <tr><td>doc-tests, remaining binaries</td><td>8</td><td>0</td></tr>
 <tr><td><strong>Total</strong></td><td><strong>30</strong></td><td><strong>344 passed, 0 failed</strong></td></tr>
-</tbody></table>
+</tbody></table></div>
 <p>Browser artifacts (Node 22+ for the CDP harnesses via the built-in WebSocket, no npm packages; committed <code>web/maze-chase.wasm</code>):</p>
 <ul>
 <li><code>node web/e2e/wasm-smoke.js</code>: <code>NODE SMOKE: ALL GREEN</code> (zero imports, boot/reset/steering/scoring live, bit-identical frames across instances, audio tables, hostile boundary probes).</li>
@@ -200,7 +200,7 @@
 <li>Offline PCM (<code>desktop::sound::tests::offline_pcm_levels_are_bounded_and_the_default_mix_keeps_headroom</code>): music peak 0.320 (RMS 0.076), SFX peak 0.500, all finite and peak-normalized without clipping; at the default 80/60/80 mix the music peaks at 0.154 and SFX at 0.320.</li>
 </ul>
 <p>Unit and integration suites (<code>cargo test --workspace</code>, exit 0):</p>
-<table><thead><tr><th>Crate</th><th>Suites</th><th>Passed</th></tr></thead><tbody>
+<div class="table-scroll"><table><thead><tr><th>Crate</th><th>Suites</th><th>Passed</th></tr></thead><tbody>
 <tr><td>engine</td><td>9</td><td>90</td></tr>
 <tr><td>assets</td><td>4</td><td>42</td></tr>
 <tr><td>audio (lib 17, hostile 6)</td><td>3</td><td>23</td></tr>
@@ -209,7 +209,7 @@
 <tr><td>desktop</td><td>10</td><td>112</td></tr>
 <tr><td>web</td><td>2</td><td>52</td></tr>
 <tr><td><strong>Total</strong></td><td><strong>63</strong></td><td><strong>594 passed, 0 failed</strong></td></tr>
-</tbody></table>
+</tbody></table></div>
 <p>Browser artifacts (committed <code>web/maze-chase.wasm</code>, 212,438 bytes, sha256 <code>5bcceec8356d8659d53405c593df744ba3c980c8b31582358313a53f5a2f72db</code>, reproduced byte-for-byte by a second release build):</p>
 <ul>
 <li><code>node web/e2e/wasm-smoke.js</code>: <code>NODE SMOKE: ALL GREEN</code> (ABI 3, shared 108 BPM, layered tone tables, per-note track metadata, hostile boundary probes).</li>
@@ -232,14 +232,14 @@
 <li><code>packaging/release/check-tag.sh</code> accepts <code>maze-chase-v0.1.0</code> and <code>maze-chase-v0.1.0-rc.1</code>, rejects <code>maze-chase-v0.2.0</code>, and reports a branch ref as a non-release.</li>
 </ul>
 <p>Linux stage (<code>packaging/release/stage-linux.sh</code>, run twice):</p>
-<table><thead><tr><th>Artifact</th><th>SHA-256</th></tr></thead><tbody>
+<div class="table-scroll"><table><thead><tr><th>Artifact</th><th>SHA-256</th></tr></thead><tbody>
 <tr><td><code>maze-chase-terminal_0.1.0_amd64.deb</code></td><td><code>8077e6e20ecd3bf1457a0d8214cdf9b2b650dde3108e889687c2949456da7124</code></td></tr>
 <tr><td><code>maze-chase-desktop_0.1.0_amd64.deb</code></td><td><code>e4f0210070dafdca278d030cec6a038a04b7cc59091bc460486d71ac1e877074</code></td></tr>
 <tr><td><code>maze-chase-terminal-0.1.0-1.x86_64.rpm</code></td><td><code>6283507b5f9152836802252048dba572445c31adb7d11391e07f1234b534abf0</code></td></tr>
 <tr><td><code>maze-chase-desktop-0.1.0-1.x86_64.rpm</code></td><td><code>0e2c28e8de55d5f542b1be8f4b0ede32df0be2b1b927261f9bc6bb5ccc92aa4a</code></td></tr>
 <tr><td><code>maze-chase-terminal-0.1.0-linux-x86_64.tar.gz</code></td><td><code>9b390b7a4c943da29e24ae0af5014d3a5d46c5d40a76725fdeade4fb9cb882e9</code></td></tr>
 <tr><td><code>maze-chase-desktop-0.1.0-linux-x86_64.tar.gz</code></td><td><code>58daf8aaa3d86ed02f398b8f27cbb6fc762cbbc802804b49c6304ad8bc56e1ec</code></td></tr>
-</tbody></table>
+</tbody></table></div>
 <p><code>packaging/release/smoke-linux.sh</code> unpacked both deb and rpm payloads, ran each binary's <code>--version</code> and <code>--help</code>, and installed, ran, and uninstalled both tarballs in a scratch prefix through the installers extracted from the archives. A second full stage on the same host produced the same SHA-256 manifest byte for byte, and the tarball writer's digest test holds under umask 022 and 077. The tarballs carry the binary, the install/uninstall scripts, the launch guide, and the MIT license.</p>
 <p>Desktop loop and frame budget (<code>cargo test -p maze-chase-desktop</code>, 89 lib tests plus the integration suites, all green): an 8K window is bounded to at most 16,777,216 rendered pixels with its aspect ratio kept and is scaled on presentation; static screens schedule no frames but keep a bounded 16 ms gamepad poll that redraws only on input; Playing and <code>--probe</code> schedule continuous 16 ms frames; audio slider and mute commits settle their fades in the input path. The committed probe capture remains byte-identical; the E2E asserts it. The illustrative gameplay capture was recorded from the same window pipeline before this loop change and is not claimed to be byte-identical.</p>
 <h2 id="2026-10-24-browser-artifact-and-full-suite-rerun-linux-x86-64">2026-10-24 (browser artifact and full-suite rerun, Linux x86_64)</h2>
@@ -260,14 +260,14 @@
 <li><code>cargo clippy --workspace --all-targets</code>: seven engine warnings remain (six library style lints plus the test-only <code>unusual_byte_groupings</code> warning at <code>crates/engine/src/rng.rs:125</code>); the audio, desktop, and web crates are clean.</li>
 </ul>
 <p>Linux stage (<code>packaging/release/stage-linux.sh</code>, run twice):</p>
-<table><thead><tr><th>Artifact</th><th>SHA-256</th></tr></thead><tbody>
+<div class="table-scroll"><table><thead><tr><th>Artifact</th><th>SHA-256</th></tr></thead><tbody>
 <tr><td><code>maze-chase-terminal_0.1.0_amd64.deb</code></td><td><code>4c573f6f74c7ab4cd097a3844f7c95cc76cfb91594dcf68b17a95fbdd1b8f6ee</code></td></tr>
 <tr><td><code>maze-chase-desktop_0.1.0_amd64.deb</code></td><td><code>229be715cc78211fa566b5e9c261aa1399ec7d5c65a16c2245c36e59e50d2c5d</code></td></tr>
 <tr><td><code>maze-chase-terminal-0.1.0-1.x86_64.rpm</code></td><td><code>cc591eee9ff5bb74e7457c40b46520601599b0cb8b11735ecb07c7f6a0769e73</code></td></tr>
 <tr><td><code>maze-chase-desktop-0.1.0-1.x86_64.rpm</code></td><td><code>6a6542c731d82e912d75800908675309a6e05fcda9b67c3b6b9086d303028485</code></td></tr>
 <tr><td><code>maze-chase-terminal-0.1.0-linux-x86_64.tar.gz</code></td><td><code>aeb402eb001262881f8e2ebffb75f0419c987d2a483b29020974fb14c9afc0ac</code></td></tr>
 <tr><td><code>maze-chase-desktop-0.1.0-linux-x86_64.tar.gz</code></td><td><code>20136625311bd5e343de980bb494611ad8154f646640fbc9fa20e17ac8710125</code></td></tr>
-</tbody></table>
+</tbody></table></div>
 <p>The second full stage reproduced the same <code>SHA256SUMS.txt</code> byte for byte, <code>sha256sum -c</code> passed all six artifacts, and <code>smoke-linux.sh</code> unpacked both deb and rpm payloads, ran each binary's <code>--version</code> and <code>--help</code>, and installed, ran, and uninstalled both tarballs through the installers extracted from the archives. The tarball digests reproduce twice on this host with the pinned inputs; the deb is tied to the dpkg toolchain above and the RPM header records this build host, so both are host-bound. Cross-host byte identity is not claimed.</p>
     </article>
   </div>

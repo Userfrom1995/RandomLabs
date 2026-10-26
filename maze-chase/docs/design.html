@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/design.md; source-bytes: 37239; source-fnv: cb0af3eeb9aa2d6d -->
+<!-- generated from docs/design.md; source-bytes: 37239; source-fnv: cb0af3eeb9aa2d6d; output-fnv: 0e294e80c02f556a -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="../site.css" />
 </head>
 <body class="site">
-<a class="skip-link" href="#main">Skip to content</a>
+<a class="skip-link" href="#doc-content">Skip to content</a>
 <header class="site-header">
   <a class="brand" href="../index.html">Maze Chase <span>starring Rill the pond frog</span></a>
   <nav class="site-nav" aria-label="Maze Chase site">
@@ -49,7 +49,7 @@
         <li><a href="../downloads.html">Downloads</a></li>
       </ul>
     </aside>
-    <article class="doc">
+    <article class="doc" id="doc-content" tabindex="-1">
 <h1 id="design-maze-chase-overhaul">Design: Maze Chase Overhaul</h1>
 <p>This is the single visual and interaction source of truth for every publication layer (terminal, desktop, web). It was produced by a full Design Council deliberation (four rounds: propose, critique, revise, converge) and supersedes the prior direction in full. Companion machine file: <code>design-tokens.json</code>. The palette hexes that mirror <code>crates/assets/src/themes.rs</code> stay untouched in the <code>themes</code> section until the visual implementation lands them together with the Rust originals (the mirror test reads the tokens file with substring checks).</p>
 <p>Chosen direction: Pondwake (identity), Waylight (interaction), Lantern Drift (motion). Runner-up: Paper Tailor, Ember Cadence, guided Waystation.</p>
@@ -117,7 +117,7 @@
 <li>Effects and accessibility: the shipped reduced-flash and reduced-motion sources are the ones in the registry below; chain pops, tunnel smear/ripple, the level-clear wall pulse, the firefly swarm, idle hunter micro-loops, caustic dither, eyes trails, the web loader pulse, and overlay fades are not shipped (screen changes are cuts).</li>
 </ul>
 <p>Palettes. All 15 slots, uppercase hex. The three launch themes:</p>
-<table><thead><tr><th>Slot</th><th>Dusk Pond (dark default)</th><th>Morning Shallows (light)</th><th>Moonwake (high contrast)</th></tr></thead><tbody>
+<div class="table-scroll"><table><thead><tr><th>Slot</th><th>Dusk Pond (dark default)</th><th>Morning Shallows (light)</th><th>Moonwake (high contrast)</th></tr></thead><tbody>
 <tr><td>bg</td><td>#0E1E1C</td><td>#F4F7F2</td><td>#06080C</td></tr>
 <tr><td>wall</td><td>#38856F</td><td>#2C7A5B</td><td>#26A088</td></tr>
 <tr><td>wall_inner</td><td>#1C4A40</td><td>#A8C9B8</td><td>#0F4A3E</td></tr>
@@ -133,7 +133,7 @@
 <tr><td>text</td><td>#E8F0E6</td><td>#1B2A33</td><td>#F2F7F5</td></tr>
 <tr><td>dim_text</td><td>#9FB3A6</td><td>#5C6F66</td><td>#A9BFB8</td></tr>
 <tr><td>accent</td><td>#F0B45A</td><td>#B35A2B</td><td>#7FE8FF</td></tr>
-</tbody></table>
+</tbody></table></div>
 <p>Measured metrics (WCAG formula, recomputed by the council):</p>
 <ul>
 <li>text/bg: 14.77 / 13.63 / 18.51 (gate 4.5, all pass)</li>
@@ -154,7 +154,7 @@
 <p>Leading language: Lantern Drift, revised into a hybrid. Gameplay positions interpolate continuously at the finest quantum each layer can pay for (identity-preserving; half-tile snapping at 17 Hz was measured by the critic to beat against the 12 fps chomp and read as flicker, so the cell rung keeps tile-locked actors). Ambient motion is quantized and rung-snapped; transitions are cuts on every shipped layer (band wipes remain an image-tier option). Every duration below is stated once in milliseconds and snapped per rung to whole frames (60/120 Hz) or whole transmits (30/24/12 Hz); no fractional quantum ever ships.</p>
 <p>Engine windows the motion design fits (unchanged engine, presentation only): player 8.5 tiles/s, hunters 8.16, fright hunters 5.06, eyes 12.24, house exit 4.49; death 1.4 s; level clear 2.0 s; fright duration 6.0 s falling to 0 by level 11; reversion warning 1.5 s; relish 9.5 s; spare wick at 10,000.</p>
 <p>Per-rung duration table (frame counts exact):</p>
-<table><thead><tr><th>Element</th><th>60 Hz</th><th>120 Hz</th><th>30 Hz</th><th>24 Hz</th><th>12 Hz</th></tr></thead><tbody>
+<div class="table-scroll"><table><thead><tr><th>Element</th><th>60 Hz</th><th>120 Hz</th><th>30 Hz</th><th>24 Hz</th><th>12 Hz</th></tr></thead><tbody>
 <tr><td>Chomp phases</td><td>5f each</td><td>10f each</td><td>2/2/3 quanta (233 ms)</td><td>2 quanta each (250 ms)</td><td>1 quantum (250 ms cycle)</td></tr>
 <tr><td>Fright morph</td><td>15f</td><td>30f</td><td>8 quanta (266.7 ms)</td><td>6 quanta (250 ms)</td><td>3 quanta (250 ms)</td></tr>
 <tr><td>Death window</td><td>6x4 + 60f = 84f (1400 ms)</td><td>12x4 + 120f = 168f (1400 ms)</td><td>3x4 + 30 quanta = 42 quanta (1400 ms)</td><td>34 quanta (1416.7 ms)</td><td>17 quanta (1416.7 ms)</td></tr>
@@ -164,7 +164,7 @@
 <tr><td>Pickup burst</td><td>4f grid (66.7 ms)</td><td>8f</td><td>2 quanta</td><td>static 2-state</td><td>static 2-state</td></tr>
 <tr><td>Score count-up</td><td>instant</td><td>instant</td><td>instant</td><td>instant</td><td>instant</td></tr>
 <tr><td>Overlay fade</td><td>cut</td><td>cut</td><td>cut</td><td>cut</td><td>cut</td></tr>
-</tbody></table>
+</tbody></table></div>
 <p>Easing table (named, no unnamed easings anywhere): drift-in (0.22, 1, 0.36, 1) for entrances on desktop and web; drift-out (0.64, 0, 0.78, 0) for exits; drift-sway (0.45, 0.05, 0.55, 0.95) for ambient loops; drift-settle (0.16, 1, 0.3, 1) for pickups; lantern-q8 (smoothstep quantized to 8 levels) for ambient brightness; linear for gameplay positions, always: interpolation of engine state is exact and never eased.</p>
 <p>Transition inventory per layer: title to play is an instant cut on Enter (Start on web); pause, settings, scores, how-to-play, and game over are instant cuts on every layer; level clear is the single 300 ms sweep; death is the 1400 ms window; relayout is always a cut (same-frame repaint, delete-before-place on kitty, clear plus full frame on sixel). Interruption: input on frame N starts on frame N+1; no transition ever gates input or the simulation; a resize generation counter cancels in-flight transition effects and restarts them at the new size where applicable.</p>
 <p>Effect and feedback inventory (rung-conditional): chomp loops only while moving; sunseed halo on the rung-snapped period; fear entry and exit per the fright warning spec below; hunter readability is carried by a mandatory facing asymmetry of 2 px or more on every rung, plus a committed-turn cue: a 180 ms 7x7 glyph spark at the turn corner on cells, kitty, desktop, and web, recolored to the theme text color under fright (never body color), static facing notch only on sixel. Wisps are cut entirely (they showed history, not intent). Eyes return as the shared overlay (the 3-frame ripple trail and the 6-frame bubble-up revive are deferred targets, not shipped). Gate state is a two-state door shape change (barred and unbarred); the optional accent blend pulse is not shipped, so it registers no flash source. Key press acknowledgment, focus, and press states render within one frame budget on every layer; error text never shakes.</p>

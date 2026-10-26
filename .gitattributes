@@ -15,3 +15,10 @@ maze-chase/Cargo.toml text eol=lf
 # edited by a Windows-native tool, so LF-only costs nothing.
 maze-chase/levels/*.maze text eol=lf
 maze-chase/docs/design-tokens.json text eol=lf
+
+# Renderer freshness markers hash raw source bytes while rendering normalizes
+# CRLF. Pin the generated docs and their sources to LF so a Windows checkout
+# cannot report a false stale page (F6, issue #759 review).
+maze-chase/docs/*.md text eol=lf
+maze-chase/docs/*.html text eol=lf
+maze-chase/tools/site/render-docs.mjs text eol=lf

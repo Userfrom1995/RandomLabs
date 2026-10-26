@@ -20,7 +20,7 @@
 // running Node.
 
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -61,6 +61,10 @@ function fail(message) {
   process.exit(1);
 }
 
+for (const arg of process.argv.slice(2)) {
+  if (arg !== "--check") fail(`unknown argument: ${arg}`);
+}
+
 function escapeHtml(text) {
   return String(text)
     .replaceAll("&", "&amp;")
@@ -87,35 +91,91 @@ function rewriteHref(href) {
   return href;
 }
 
-function inline(text) {
+const SAFE_SCHEMES = new Set(["http", "https", "mailto"]);
+
+function safeHref(href) {
+  const trimmed = String(href).replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, "");
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(trimmed)?.[1]?.toLowerCase();
+  if (scheme && !SAFE_SCHEMES.has(scheme)) return null;
+  return trimmed;
+}
+
+function renderLabel(text, codes) {
+  const parts = [];
+  let out = String(text).replace(/\u0000CODE(\d+)\u0000/g, (_, index) => {
+    parts.push(`<code>${escapeHtml(codes[Number(index)])}</code>`);
+    return `\u0000LABEL${parts.length - 1}\u0000`;
+  });
+  out = escapeHtml(out);
+  out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  out = out.replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?![*\w])/g, "$1<em>$2</em>");
+  return out.replace(/\u0000LABEL(\d+)\u0000/g, (_, index) => parts[Number(index)]);
+}
+
+function inline(text, sourceName) {
   const codes = [];
+  const nodes = [];
+  const stash = (html) => {
+    nodes.push(html);
+    return `\u0000NODE${nodes.length - 1}\u0000`;
+  };
   let out = String(text).replace(/`([^`]+)`/g, (_, code) => {
     codes.push(code);
     return `\u0000CODE${codes.length - 1}\u0000`;
   });
+  out = out.replace(
+    /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g,
+    (_, alt, src) => {
+      const href = safeHref(rewriteHref(src));
+      if (href === null) return stash(escapeHtml(alt));
+      return stash(`<img src="${escapeHtml(href)}" alt="${escapeHtml(alt)}" loading="lazy" />`);
+    },
+  );
+  out = out.replace(
+    /\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g,
+    (_, label, href) => {
+      const target = safeHref(rewriteHref(href));
+      if (target === null) return stash(renderLabel(label, codes));
+      return stash(`<a href="${escapeHtml(target)}">${renderLabel(label, codes)}</a>`);
+    },
+  );
   out = escapeHtml(out);
-  out = out.replace(
-    /!\[([^\]]*)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g,
-    (_, alt, src) => `<img src="${escapeHtml(rewriteHref(src))}" alt="${escapeHtml(alt)}" loading="lazy" />`,
-  );
-  out = out.replace(
-    /\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g,
-    (_, label, href) =>
-      `<a href="${escapeHtml(rewriteHref(href))}">${label}</a>`,
-  );
   out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   out = out.replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?![*\w])/g, "$1<em>$2</em>");
   out = out.replace(/\u0000CODE(\d+)\u0000/g, (_, index) => {
     return `<code>${escapeHtml(codes[Number(index)])}</code>`;
   });
-  return out;
+  return out.replace(/\u0000NODE(\d+)\u0000/g, (_, index) => nodes[Number(index)]);
 }
 
 function splitRow(line) {
   let row = line.trim();
   if (row.startsWith("|")) row = row.slice(1);
   if (row.endsWith("|")) row = row.slice(0, -1);
-  return row.split("|").map((cell) => cell.trim());
+  const cells = [];
+  let current = "";
+  let inCode = false;
+  for (let index = 0; index < row.length; index += 1) {
+    const char = row[index];
+    if (char === "\\" && row[index + 1] === "|") {
+      current += "|";
+      index += 1;
+      continue;
+    }
+    if (char === "`") {
+      inCode = !inCode;
+      current += char;
+      continue;
+    }
+    if (char === "|" && !inCode) {
+      cells.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  cells.push(current.trim());
+  return cells;
 }
 
 function isTableSeparator(line) {
@@ -146,14 +206,15 @@ function isTableStart(lines, index) {
 function renderMarkdown(source, sourceName) {
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
   const html = [];
-  const usedIds = new Map();
+  const usedIds = new Set(["main"]);
   let index = 0;
 
   function headingId(text) {
-    let id = slugify(text);
-    const seen = usedIds.get(id) ?? 0;
-    usedIds.set(id, seen + 1);
-    if (seen > 0) id = `${id}-${seen}`;
+    const base = slugify(text);
+    let id = base;
+    let suffix = 1;
+    while (usedIds.has(id)) id = `${base}-${suffix++}`;
+    usedIds.add(id);
     return id;
   }
 
@@ -185,7 +246,7 @@ function renderMarkdown(source, sourceName) {
       const depth = heading[1].length;
       const text = heading[2].trim();
       const id = headingId(text);
-      html.push(`<h${depth} id="${id}">${inline(text)}</h${depth}>`);
+      html.push(`<h${depth} id="${id}">${inline(text, sourceName)}</h${depth}>`);
       index += 1;
       continue;
     }
@@ -195,17 +256,22 @@ function renderMarkdown(source, sourceName) {
       index += 2;
       const rows = [];
       while (index < lines.length && lines[index].includes("|") && lines[index].trim()) {
-        rows.push(splitRow(lines[index]));
+        const rowLine = index + 1;
+        const row = splitRow(lines[index]);
+        if (row.length !== header.length) {
+          fail(`${sourceName}:${rowLine}: table row has ${row.length} cells, header has ${header.length}`);
+        }
+        rows.push(row);
         index += 1;
       }
-      const head = header.map((cell) => `<th>${inline(cell)}</th>`).join("");
+      const head = header.map((cell) => `<th>${inline(cell, sourceName)}</th>`).join("");
       const body = rows
         .map((row) => {
-          const cells = header.map((_, column) => `<td>${inline(row[column] ?? "")}</td>`);
+          const cells = row.map((cell) => `<td>${inline(cell, sourceName)}</td>`);
           return `<tr>${cells.join("")}</tr>`;
         })
         .join("\n");
-      html.push(`<table><thead><tr>${head}</tr></thead><tbody>\n${body}\n</tbody></table>`);
+      html.push(`<div class="table-scroll"><table><thead><tr>${head}</tr></thead><tbody>\n${body}\n</tbody></table></div>`);
       continue;
     }
 
@@ -229,7 +295,7 @@ function renderMarkdown(source, sourceName) {
           text += " " + lines[index].trim();
           index += 1;
         }
-        items.push(`<li>${inline(text)}</li>`);
+        items.push(`<li>${inline(text, sourceName)}</li>`);
       }
       html.push(`<${tag}>\n${items.join("\n")}\n</${tag}>`);
       continue;
@@ -241,7 +307,7 @@ function renderMarkdown(source, sourceName) {
         quoted.push(lines[index].replace(/^\s*>\s?/, ""));
         index += 1;
       }
-      html.push(`<blockquote>${inline(quoted.join(" "))}</blockquote>`);
+      html.push(`<blockquote>${inline(quoted.join(" "), sourceName)}</blockquote>`);
       continue;
     }
 
@@ -265,7 +331,7 @@ function renderMarkdown(source, sourceName) {
       // Unrecognized block shape: fail loudly rather than dropping text.
       fail(`${sourceName}:${index + 1}: unsupported markdown block: ${line}`);
     }
-    html.push(`<p>${inline(paragraph.join(" "))}</p>`);
+    html.push(`<p>${inline(paragraph.join(" "), sourceName)}</p>`);
   }
 
   return html.join("\n");
@@ -326,7 +392,7 @@ ${body.marker}
 <link rel="stylesheet" href="../site.css" />
 </head>
 <body class="site">
-<a class="skip-link" href="#main">Skip to content</a>
+<a class="skip-link" href="#doc-content">Skip to content</a>
 <header class="site-header">
   <a class="brand" href="../index.html">Maze Chase <span>starring Rill the pond frog</span></a>
   <nav class="site-nav" aria-label="Maze Chase site">
@@ -352,7 +418,7 @@ ${navList(pages, currentName)}
         <li><a href="../downloads.html">Downloads</a></li>
       </ul>
     </aside>
-    <article class="doc">
+    <article class="doc" id="doc-content" tabindex="-1">
 ${body.html}
     </article>
   </div>
@@ -383,19 +449,33 @@ function collectLinks(file) {
 }
 
 function targetFile(fromFile, link) {
-  const clean = link.split("#")[0].split("?")[0];
-  if (!clean) return { file: fromFile, hash: link.includes("#") ? link.split("#").slice(1).join("#") : "" };
+  const hashAt = link.indexOf("#");
+  const hash = hashAt === -1 ? "" : link.slice(hashAt + 1);
+  const pathAndQuery = hashAt === -1 ? link : link.slice(0, hashAt);
+  const clean = pathAndQuery.split("?")[0];
+  if (!clean) return { file: fromFile, hash };
   if (/^[a-z]+:/i.test(clean) || clean.startsWith("//")) return null;
   const base = clean.startsWith("/") ? mazeRoot : dirname(fromFile);
   let path = resolve(base, clean.replace(/^\//, ""));
+  const rel = relative(mazeRoot, path);
+  if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+    return { file: path, hash, raw: link, escape: true };
+  }
   if (clean.endsWith("/") || (existsSync(path) && statSync(path).isDirectory())) {
     path = join(path, "index.html");
   }
-  return {
-    file: path,
-    hash: link.includes("#") ? link.split("#").slice(1).join("#") : "",
-    raw: link,
-  };
+  return { file: path, hash, raw: link };
+}
+
+function idExists(body, fragment) {
+  const needle = `id="${fragment}"`;
+  let at = body.indexOf(needle);
+  while (at !== -1) {
+    const previous = at === 0 ? "" : body[at - 1];
+    if (at === 0 || previous === "<" || /\s/.test(previous)) return true;
+    at = body.indexOf(needle, at + 1);
+  }
+  return false;
 }
 
 function checkSiteLinks(pages) {
@@ -407,20 +487,23 @@ function checkSiteLinks(pages) {
       continue;
     }
     for (const link of collectLinks(page)) {
-      if (!link || link.startsWith("#") || link.startsWith("mailto:")) continue;
+      if (!link || /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(link)) continue;
       const target = targetFile(page, link);
       if (!target) continue;
       const key = `${page} -> ${link}`;
       if (checked.has(key)) continue;
       checked.add(key);
+      if (target.escape) {
+        problems.push(`${relative(mazeRoot, page)}: link escapes the project ${link}`);
+        continue;
+      }
       if (!existsSync(target.file)) {
         problems.push(`${relative(mazeRoot, page)}: broken link ${link}`);
         continue;
       }
       if (target.hash) {
         const body = readFileSync(target.file, "utf8");
-        const wanted = target.hash.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        if (!new RegExp(`id="${wanted}"`).test(body)) {
+        if (!idExists(body, target.hash)) {
           problems.push(`${relative(mazeRoot, page)}: missing anchor #${target.hash} in ${link}`);
         }
       }
@@ -432,13 +515,27 @@ function checkSiteLinks(pages) {
   return checked.size;
 }
 
+function failOnOrphanOutputs() {
+  const expected = new Set([...outputs.keys()].map((name) => name.slice(0, -3) + ".html"));
+  const orphans = readdirSync(docsDir).filter((name) => name.endsWith(".html") && !expected.has(name));
+  if (orphans.length > 0) {
+    fail(`rendered docs have no source:
+  ${orphans.map((name) => relative(mazeRoot, join(docsDir, name))).join("\n  ")}`);
+  }
+}
+
 const pages = docPages();
 const outputs = new Map();
 for (const page of pages) {
-  const marker = sourceMarker(page.name, page.source);
+  const markerBase = sourceMarker(page.name, page.source);
   const html = renderMarkdown(page.source, page.name);
+  const draft = shell({ title: page.title, body: { marker: markerBase, html }, pages, currentName: page.name });
+  const outputFnv = fnv1a(draft.replace(markerBase, ""));
+  const marker = markerBase.replace(" -->", `; output-fnv: ${outputFnv} -->`);
   outputs.set(page.name, shell({ title: page.title, body: { marker, html }, pages, currentName: page.name }));
 }
+
+failOnOrphanOutputs();
 
 if (check) {
   const stale = [];

@@ -14,6 +14,8 @@
 
 #![cfg(unix)]
 
+mod common;
+
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -378,6 +380,18 @@ fn release_docs_crosslink_only_committed_files() {
             "the game-first index.html must not carry distribution clutter ({clutter})"
         );
     }
+    // When this suite runs alone it still walks every rendered docs page, so
+    // the fixed anchors above cannot hide a broken link elsewhere.
+    let (checked, fragments, problems) = common::check_internal_links(&common::site_pages());
+    assert!(
+        problems.is_empty(),
+        "internal site links are broken:\n{}",
+        problems.join("\n")
+    );
+    assert!(
+        checked > 200 && fragments > 0,
+        "the generic crawl must cover the site (checked {checked}, fragments {fragments})"
+    );
 }
 
 #[test]
@@ -476,11 +490,8 @@ fn downloads_and_readme_claim_only_the_published_unsigned_prerelease() {
             "the README must report the published candidate ({published})"
         );
     }
-    for overclaim in ["built and signed", "notarized", "signed binaries"] {
-        assert!(
-            !readme.contains(overclaim),
-            "the README must not claim signing ({overclaim})"
-        );
+    for (surface, text) in common::release_copy_surfaces() {
+        common::assert_no_signing_or_stable_claim(&text, surface);
     }
 }
 

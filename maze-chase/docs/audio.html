@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/audio.md; source-bytes: 7194; source-fnv: 8f94f934f438b839 -->
+<!-- generated from docs/audio.md; source-bytes: 7194; source-fnv: 8f94f934f438b839; output-fnv: 06ad76e16243cbfe -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="../site.css" />
 </head>
 <body class="site">
-<a class="skip-link" href="#main">Skip to content</a>
+<a class="skip-link" href="#doc-content">Skip to content</a>
 <header class="site-header">
   <a class="brand" href="../index.html">Maze Chase <span>starring Rill the pond frog</span></a>
   <nav class="site-nav" aria-label="Maze Chase site">
@@ -49,7 +49,7 @@
         <li><a href="../downloads.html">Downloads</a></li>
       </ul>
     </aside>
-    <article class="doc">
+    <article class="doc" id="doc-content" tabindex="-1">
 <h1 id="sound-identity-and-mix">Sound identity and mix</h1>
 <p>One authored sound world shared by the terminal, desktop, and browser layers. The shared score data, effect recipes, and mix defaults live in <code>crates/audio/src/score.rs</code>; each layer voices them with its own synth (the voice timbre tables and bus ceilings live in <code>crates/desktop/src/sound.rs</code> and <code>web/maze-chase.js</code>), all synthesized at runtime from data: no samples, audio files, or external sound sources ship anywhere.</p>
 <h2 id="musical-identity">Musical identity</h2>
@@ -78,13 +78,13 @@
 <p>Overlap between separate recipes is bounded by a summed-output stage, not by the per-recipe normalization. The browser routes the summed music and SFX buses through a master limiter (a <code>DynamicsCompressorNode</code> followed by a soft-clip <code>WaveShaperNode</code>) before the destination. The desktop scales both buses down by the worst-case active source count (<code>active_music * 0.32 * music_gain + active_sfx * 0.50 * sfx_gain</code>) when that sum would exceed full scale, so four loud effects plus a loop and a sting at a 100/100 mix stay at or below 1.0. The web and desktop offline mix tests pin the bound; the desktop test also pins the pre-limiter sum above full scale.</p>
 <p>Effects are layered recipes rather than single sweeps. A recipe is a list of tones with voice, start and end frequency, length, delay, gain, and an optional per-play variation. Crumbs, for example, use a 40 ms soft pluck with slight pitch variation; the warden chain doubles the whole recipe per link; relish, sunseed, spare wick, respawn, refill, sprint, time-up, eyes, and every menu cue have their own layers.</p>
 <h2 id="default-mix-and-live-changes">Default mix and live changes</h2>
-<table><thead><tr><th>Control</th><th>Default</th><th>Range</th><th>Behavior</th></tr></thead><tbody>
+<div class="table-scroll"><table><thead><tr><th>Control</th><th>Default</th><th>Range</th><th>Behavior</th></tr></thead><tbody>
 <tr><td>Master</td><td>80%</td><td>0-100%</td><td>Scales both buses</td></tr>
 <tr><td>Music</td><td>60%</td><td>0-100%</td><td>Loops and stings</td></tr>
 <tr><td>SFX</td><td>80%</td><td>0-100%</td><td>One-shot recipes</td></tr>
 <tr><td>Mute</td><td>off</td><td>on/off</td><td>Silences both buses, keeps visuals</td></tr>
 <tr><td>Fade</td><td>120 ms</td><td>fixed</td><td>Applied to live gain changes; static-screen commits settle immediately</td></tr>
-</tbody></table>
+</tbody></table></div>
 <p>The previous loud default is gone: master starts at 80 percent, music at 60 percent, and effects at 80 percent. Slider moves on the static settings screen settle immediately (no frame is scheduled); live fades still take 120 ms. Mute is a bus change, not a pause, and the visual twin for every cue still plays.</p>
 <h2 id="per-layer-synthesis">Per-layer synthesis</h2>
 <ul>
