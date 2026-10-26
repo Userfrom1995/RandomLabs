@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/terminal.md; source-bytes: 13028; source-fnv: be02f06fef8bde01 -->
+<!-- generated from docs/terminal.md; source-bytes: 13028; source-fnv: be02f06fef8bde01; output-fnv: d820af3d8960bb7a -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="../site.css" />
 </head>
 <body class="site">
-<a class="skip-link" href="#main">Skip to content</a>
+<a class="skip-link" href="#doc-content">Skip to content</a>
 <header class="site-header">
   <a class="brand" href="../index.html">Maze Chase <span>starring Rill the pond frog</span></a>
   <nav class="site-nav" aria-label="Maze Chase site">
@@ -49,7 +49,7 @@
         <li><a href="../downloads.html">Downloads</a></li>
       </ul>
     </aside>
-    <article class="doc">
+    <article class="doc" id="doc-content" tabindex="-1">
 <h1 id="terminal-game">Terminal Game</h1>
 <p>The fullscreen terminal publication layer for Maze Chase: the <code>maze-chase-terminal</code> game running the shared deterministic engine with a fullscreen canvas, four render tiers, live resize, menus, help, high scores, settings with key rebinding, and launch docs (this file).</p>
 <h2 id="install-and-launch">Install and launch</h2>
@@ -86,14 +86,14 @@ maze-chase-terminal.exe --tier legacy</code></pre>
 <p>Install it on <code>PATH</code> with <code>cargo install --path crates/terminal</code> from <code>maze-chase/</code>, then launch with <code>maze-chase-terminal</code> anywhere (<code>maze-chase-terminal.exe</code> on Windows).</p>
 <p>Packaging scripts build the release binary and stage versioned packages into <code>maze-chase/dist/</code> (never committed): <code>build-deb.sh</code>, <code>build-rpm.sh</code>, <code>linux-tarball.sh</code> / <code>macos-tarball.sh</code>, and <code>windows-zip.ps1</code>. Each name records its real build host; never relabel a cross-OS archive. Full per-OS release steps live in <a href="release.html">release.md</a>.</p>
 <h2 id="controls">Controls</h2>
-<table><thead><tr><th>Keys</th><th>Action</th></tr></thead><tbody>
+<div class="table-scroll"><table><thead><tr><th>Keys</th><th>Action</th></tr></thead><tbody>
 <tr><td>Arrows or WASD</td><td>steer Rill (remappable)</td></tr>
 <tr><td>P or Esc (in game)</td><td>pause menu</td></tr>
 <tr><td>M</td><td>mute toggle (works everywhere)</td></tr>
 <tr><td>Enter</td><td>confirm / select</td></tr>
 <tr><td>Esc</td><td>back (quits from the title)</td></tr>
 <tr><td>Up/Down, Left/Right</td><td>menus: move, change values</td></tr>
-</tbody></table>
+</tbody></table></div>
 <p>Every binding except the fixed arrows/WASD twins is rebindable in Settings, then Key bindings: pick an action, press Enter, press the new key. Conflicts are refused with the reason shown; nothing ever binds two actions to one key.</p>
 <p>Input parsing has one known boundary. The event source is crossterm's global parser, which buffers an unrecognized private CSI sequence (for example <code>ESC [ ? 99999 h</code>) and delivers no key events until a completion byte such as <code>u</code> arrives. The game never sees those keys, so it cannot time the buffer out; if typing suddenly stops after a stray escape sequence, send <code>u</code> to complete the sequence and input resumes. The behavior is pinned by a PTY regression test (<code>tester_kitty_render_pipeline.rs</code>) so this note cannot drift from the shipped binary.</p>
 <h2 id="render-tiers">Render tiers</h2>

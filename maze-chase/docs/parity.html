@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/parity.md; source-bytes: 7576; source-fnv: aa5968ad62b10a74 -->
+<!-- generated from docs/parity.md; source-bytes: 7576; source-fnv: aa5968ad62b10a74; output-fnv: 6481d31da805e4ae -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="../site.css" />
 </head>
 <body class="site">
-<a class="skip-link" href="#main">Skip to content</a>
+<a class="skip-link" href="#doc-content">Skip to content</a>
 <header class="site-header">
   <a class="brand" href="../index.html">Maze Chase <span>starring Rill the pond frog</span></a>
   <nav class="site-nav" aria-label="Maze Chase site">
@@ -49,12 +49,12 @@
         <li><a href="../downloads.html">Downloads</a></li>
       </ul>
     </aside>
-    <article class="doc">
+    <article class="doc" id="doc-content" tabindex="-1">
 <h1 id="552-parity-checklist">#552 parity checklist</h1>
 <p>What the Rust build had to prove before the #552 Python reference game (<code>pacman/</code>, issue #552) could be retired. Every row below names its evidence: the simulation and layer rows are signed from the in-repo verify and test suites, the per-layer E2E rows record this tree's Linux runs plus the pre-Pondwake macOS and Windows runs (with fresh per-OS reruns tracked in the final sign-off), and the sound row records its remaining real-speaker review boundary explicitly instead of claiming it. Retirement itself was a separate, explicit step that executed after this verified release landed: nothing in <code>pacman/</code> is touched by any build or packaging script here, and the Python game stayed functional through the whole migration.</p>
 <p>Rule values below are feel references re-expressed as original Rust tables (<code>crates/engine/src/tuning.rs</code>) under the clean-room rules in <code>docs/legal.md</code>. The maze itself is intentionally NOT a copy: &quot;Ember Warren&quot; (<code>levels/ember-warren.maze</code>) is original geometry with its own counts (445 crumbs + 4 sunseeds vs the reference 282 + 4) and its own authorship log (<code>docs/identity.md</code>). Parity means the rules and feel match; the map is ours.</p>
 <h2 id="simulation-core">Simulation core</h2>
-<table><thead><tr><th>#552 pinned behavior (<code>docs/behavior-spec.md</code>)</th><th>Rust engine</th><th>Verify row</th><th>Status</th></tr></thead><tbody>
+<div class="table-scroll"><table><thead><tr><th>#552 pinned behavior (<code>docs/behavior-spec.md</code>)</th><th>Rust engine</th><th>Verify row</th><th>Status</th></tr></thead><tbody>
 <tr><td>120 Hz timestep, accumulator, 0.5 s spiral clamp</td><td><code>tuning.rs</code> (<code>SIM_HZ</code>, <code>STEP</code>, <code>MAX_ACCUMULATOR</code>) + <code>game.rs</code></td><td><code>determinism-replay</code>, <code>perf-headless</code></td><td>signed</td></tr>
 <tr><td>Player 8.5 tiles/s over the 1.00-1.20 level curve; warden cruise 0.96x</td><td><code>tuning.rs</code> (<code>PLAYER_BASE_SPEED</code>, <code>PLAYER_SPEED_CURVE</code>, <code>WARDEN_SPEED_FRACTION</code>)</td><td><code>movement-cornering</code>, <code>movement-tunnel-wrap</code></td><td>signed</td></tr>
 <tr><td>Tunnel 0.55x wardens / 0.95x player; wrap on row 14</td><td><code>tuning.rs</code> + <code>maze.rs</code> + <code>actors.rs</code></td><td><code>movement-tunnel-wrap</code>, <code>maze-geometry</code></td><td>signed</td></tr>
@@ -64,9 +64,9 @@
 <tr><td>2.0 s clear sequence, fresh maze next level, endless ramp</td><td><code>tuning.rs</code> (<code>LEVEL_CLEAR_SEQUENCE_S</code>) + <code>game.rs</code></td><td><code>level-clear-flow</code></td><td>signed</td></tr>
 <tr><td>Crumb 10, sunseed 50, chains 200/400/800/1600</td><td><code>tuning.rs</code> + <code>game.rs</code></td><td><code>scoring-lives</code>, <code>fright-chain</code></td><td>signed</td></tr>
 <tr><td>Seeded streams, canonical state string, SHA-256 hash</td><td><code>rng.rs</code>, <code>replay.rs</code>, <code>sha256.rs</code></td><td><code>determinism-replay</code>, golden hashes</td><td>signed</td></tr>
-</tbody></table>
+</tbody></table></div>
 <h2 id="ghosts-bonus-modes">Ghosts, bonus, modes</h2>
-<table><thead><tr><th>#552 pinned behavior</th><th>Rust engine</th><th>Verify row</th><th>Status</th></tr></thead><tbody>
+<div class="table-scroll"><table><thead><tr><th>#552 pinned behavior</th><th>Rust engine</th><th>Verify row</th><th>Status</th></tr></thead><tbody>
 <tr><td>Four pure personality targets; corners (1,1), (26,1), (1,29), (26,29)</td><td><code>personalities.rs</code></td><td><code>personalities-targets</code></td><td>signed</td></tr>
 <tr><td>Greedy exits, no reversal, up/left/down/right ties; seeded fright stream</td><td><code>steering.rs</code>, <code>ghosts.rs</code></td><td><code>fright-chain</code>, <code>fright-reversal</code></td><td>signed</td></tr>
 <tr><td>Wave clock (7,20)x2, (5,20)x2, (3,25)x2 then hold; scatter shaved 1 s/level, floor 1.0; reversals on switch</td><td><code>modes.rs</code> + <code>tuning.rs</code> (<code>WAVE_TABLE</code>)</td><td><code>wave-clock</code>, <code>fright-reversal</code></td><td>signed</td></tr>
@@ -75,15 +75,15 @@
 <tr><td>Relish at 70/170, 9.5 s expiry, tiers 100-5000</td><td><code>relish.rs</code> + <code>tuning.rs</code></td><td><code>relish-cycle</code></td><td>signed</td></tr>
 <tr><td>Classic / time-attack (120 s refill) / sprint (par 300 s, 10/s) / fright-frenzy (4x)</td><td><code>modes.rs</code> + <code>game.rs</code></td><td><code>mode-rules</code></td><td>signed</td></tr>
 <tr><td>Pursuer: 20 left +3%, 10 left +6% pinned to chase</td><td><code>tuning.rs</code> + <code>ghosts.rs</code></td><td><code>pursuer-stages</code></td><td>signed</td></tr>
-</tbody></table>
+</tbody></table></div>
 <h2 id="layer-parity-all-three-play-the-same-hunt">Layer parity (all three play the same hunt)</h2>
-<table><thead><tr><th>Requirement</th><th>Terminal</th><th>Desktop</th><th>Browser</th><th>Status</th></tr></thead><tbody>
+<div class="table-scroll"><table><thead><tr><th>Requirement</th><th>Terminal</th><th>Desktop</th><th>Browser</th><th>Status</th></tr></thead><tbody>
 <tr><td>Same engine, no gameplay branches in layer code</td><td>maps input to <code>TickInput</code>, renders <code>Game</code> + <code>GameEvent</code>s</td><td>same</td><td>same</td><td>signed (review-enforced rule, see matrix)</td></tr>
 <tr><td>Full menu/help/scores/settings/pause flows</td><td><code>screens</code> + <code>chrome</code>, top-10 machine scores</td><td><code>screens</code>, shares <code>~/.maze-chase</code> scores with terminal</td><td>DOM screens, localStorage top-10</td><td>signed</td></tr>
 <tr><td>Per-layer E2E green on this release</td><td>headless suite (layout sweep, full session, resize) plus PTY sessions</td><td>headless suite + Xvfb <code>--probe</code> PPM plus a real-GUI drive</td><td>node smoke + tester regression + CDP browser E2E</td><td>Linux current on this tree; macOS and Windows pre-Pondwake, with fresh reruns tracked in the final sign-off (native runs recorded below and in <code>scoreboard.md</code>)</td></tr>
 <tr><td>Board pixels agree across layers</td><td>same composer; bitmap tiers rasterize at the detected cell geometry (bounded)</td><td>same composer at the fixed 8-ppt reference</td><td>mirrors the shared 8-ppt reference (frame-determinism test)</td><td>signed</td></tr>
 <tr><td>Sound uses one shared score, effect bank, and mix contract</td><td>opt-in BEL plus ticker from the same cue stream</td><td>renders the shared score and recipes at 44.1 kHz, peak-normalized to 0.32/0.50</td><td>schedules the same recipes in WebAudio with the same ceilings</td><td>Linux synth and browser verified; macOS/Windows real-speaker review pending the Final Phase (see <code>docs/audio.md</code>)</td></tr>
-</tbody></table>
+</tbody></table></div>
 <h2 id="native-proof-record">Native proof record</h2>
 <p>The per-layer E2E and packaged-artifact rows above are signed on Linux on this tree; the macOS and Windows runs below are the pre-Pondwake record, with fresh reruns tracked in the final sign-off. The measured numbers sit in the dated sections of <code>scoreboard.md</code>.</p>
 <ul>

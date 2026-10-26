@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- generated from docs/identity.md; source-bytes: 5414; source-fnv: 61f868c097a63d15 -->
+<!-- generated from docs/identity.md; source-bytes: 5414; source-fnv: 61f868c097a63d15; output-fnv: 3b53827f70f847e6 -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="../site.css" />
 </head>
 <body class="site">
-<a class="skip-link" href="#main">Skip to content</a>
+<a class="skip-link" href="#doc-content">Skip to content</a>
 <header class="site-header">
   <a class="brand" href="../index.html">Maze Chase <span>starring Rill the pond frog</span></a>
   <nav class="site-nav" aria-label="Maze Chase site">
@@ -49,19 +49,19 @@
         <li><a href="../downloads.html">Downloads</a></li>
       </ul>
     </aside>
-    <article class="doc">
+    <article class="doc" id="doc-content" tabindex="-1">
 <h1 id="identity-naming-branding-and-maze-authorship">Identity: Naming, Branding, and Maze Authorship</h1>
 <p>Original identity for the Maze-Chase Rust game. Every name, maze, sprite, and sound in this project is authored here; nothing is carried over from any proprietary work. The #552 Python game is a feel reference only.</p>
 <h2 id="title">Title</h2>
 <p><strong>Maze Chase</strong> (binary crates: <code>maze-chase-terminal</code> for the terminal game; desktop and WASM binaries named per layer in their build phases). A generic descriptive title: a chase through a maze. Tagline: &quot;Outrun the wardens. Clear the maze.&quot;</p>
 <h2 id="cast">Cast</h2>
 <p>The player is <strong>Rill</strong>, a squat pond frog with two dome eyes breaking the top of the silhouette. Rill crosses the old pond at dusk while four predators patrol the water. Each hunter reads by shape first and color second, so the cast survives the legacy cell rung:</p>
-<table><thead><tr><th>Hunter</th><th>Kind</th><th>Style (target function)</th><th>Hue</th><th>Shape accent</th></tr></thead><tbody>
+<div class="table-scroll"><table><thead><tr><th>Hunter</th><th>Kind</th><th>Style (target function)</th><th>Hue</th><th>Shape accent</th></tr></thead><tbody>
 <tr><td>Bram</td><td>heron</td><td>Leader: targets Rill's tile directly; enrages late-level</td><td>slate blue</td><td>S-neck above long legs</td></tr>
 <tr><td>Kessa</td><td>pike</td><td>Ambusher: targets 4 tiles ahead of Rill's heading</td><td>river green</td><td>dorsal ridge and underbite</td></tr>
 <tr><td>Jory</td><td>snake</td><td>Flanker: mirrors Bram across a pivot 2 tiles ahead of Rill</td><td>coral</td><td>raised head loop</td></tr>
 <tr><td>Nib</td><td>dragonfly</td><td>Lurker: hunts Rill while far, retreats to a corner when close</td><td>brass amber</td><td>doubled crossbar wings</td></tr>
-</tbody></table>
+</tbody></table></div>
 <p>Scatter corners are the four maze corners, one per hunter. Frightened hunters bloat into concentric rings filled flat with the theme fright color (never white, never the eyes slot); the last 1.5 s adds a steady shape change and the HUD countdown, with a hollow warning mask under reduced flash. Eaten hunters become directional eye bubbles drifting home to the gatehouse door.</p>
 <p>Backstory (one paragraph, shown on the title screen): Rill crosses the old pond each dusk while the wardens doze in the gatehouse; gobbling a sunseed dazes them until the glow fades. Clear every crumb, mind the tunnel drafts, and do not get caught.</p>
 <h2 id="terminology-allowlist">Terminology allowlist</h2>
