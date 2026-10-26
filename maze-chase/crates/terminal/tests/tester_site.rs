@@ -4,7 +4,7 @@
 //! - `index.html` is the playable game, with no distribution copy above it;
 //! - `play.html` is a query-preserving redirect to the game;
 //! - the dedicated subpages exist, share one navigation, and carry honest
-//!   release status (Linux built, native rows pending the release workflow);
+//!   release status (published unsigned rc.1, no stable tag claimed);
 //! - every `docs/*.md` has a current generated `docs/*.html` counterpart
 //!   (the source marker is re-derived here without Node);
 //! - every internal href/src in the shipped pages resolves to a committed
@@ -153,7 +153,7 @@ fn dedicated_subpages_share_the_navigation_shell() {
 }
 
 #[test]
-fn downloads_status_separates_built_from_pending_native_rows() {
+fn downloads_status_reports_the_published_candidate_honestly() {
     let html = read("downloads.html");
     let start = html
         .find("<div class=\"callout\" id=\"release-status\">")
@@ -174,18 +174,26 @@ fn downloads_status_separates_built_from_pending_native_rows() {
         status.contains("Linux packages") && status.contains("built and smoke-tested"),
         "the status must report the Linux packages as built and smoke-tested: {status}"
     );
-    assert!(
-        status.contains("ship once the release workflow is installed"),
-        "the status must mark the native rows as pending the release workflow: {status}"
-    );
+    for published in [
+        "maze-chase-v0.1.0-rc.1",
+        "40161835683",
+        "prerelease",
+        "unsigned",
+    ] {
+        assert!(
+            status.contains(published),
+            "the status must report the published candidate ({published}): {status}"
+        );
+    }
     for overclaim in [
         "built and signed",
-        "built and smoked by the native release job",
-        "Windows zip was built",
+        "notarized",
+        "signed binaries",
+        "stable release is published",
     ] {
         assert!(
             !status.contains(overclaim),
-            "the status must not claim unbuilt native artifacts ({overclaim}): {status}"
+            "the status must not claim signing or a stable release ({overclaim}): {status}"
         );
     }
     for qa_copy in [
@@ -207,15 +215,23 @@ fn downloads_status_separates_built_from_pending_native_rows() {
         "the release status must stay compact: {status}"
     );
     assert!(
-        html.contains("Live now") && html.contains("Native release job"),
-        "downloads must label the browser as live and native rows as pending"
+        html.contains("Live now")
+            && html.matches("Published (unsigned)").count() == 4
+            && !html.contains("Native release job"),
+        "downloads must label the browser as live and the four native rows as published and unsigned"
     );
 
     let releases = read("releases.html");
-    assert!(
-        releases.contains("Release candidate pending"),
-        "releases must show the candidate state honestly"
-    );
+    for published in [
+        "Release candidate published",
+        "maze-chase-v0.1.0-rc.1",
+        "40161835683",
+    ] {
+        assert!(
+            releases.contains(published),
+            "releases must report the published candidate ({published})"
+        );
+    }
     let releases_flat = releases.split_whitespace().collect::<Vec<_>>().join(" ");
     assert!(
         releases_flat.contains("No stable tag is cut while a binding check is open."),
@@ -230,6 +246,12 @@ fn downloads_status_separates_built_from_pending_native_rows() {
         readme.contains("Linux release packages (deb, rpm, tarballs) are built and smoke-tested"),
         "the README must report the Linux packages as built and smoke-tested"
     );
+    for fact in ["maze-chase-v0.1.0-rc.1", "40161835683", "unsigned", "#683"] {
+        assert!(
+            readme.contains(fact),
+            "the README must report the published candidate ({fact})"
+        );
+    }
 }
 
 fn fnv1a(bytes: &[u8]) -> String {
