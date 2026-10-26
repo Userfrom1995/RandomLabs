@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <!-- Legacy Maze Chase play URL (issue #582, Refs #660).
   The game now lives at maze-chase/index.html. This page keeps old bookmarks
-  and shared ?seed= links working: it forwards the query string and fragment
-  to the game page. It needs no wasm, no network, and no JavaScript to land
-  on the game, but JavaScript preserves ?seed= and #hash. -->
+  and shared links working: it forwards the query string and fragment to the
+  game page. The game starts a fresh run and does not read a seed from the
+  URL. This page needs no wasm, no network, and no JavaScript to land on the
+  game, but JavaScript preserves the query string and fragment. -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
