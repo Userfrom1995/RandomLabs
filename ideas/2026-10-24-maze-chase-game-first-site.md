@@ -14,12 +14,13 @@ the product behind its packaging.
    keyboard, and touch. A compact Site menu in the header holds the secondary
    pages so distribution copy never competes with the board.
 2. **Old links keep working.** `play.html` forwards to the game and preserves
-   the query string and fragment, so shared `?seed=` links and bookmarks do not
-   break.
+   the query string and fragment, so old shared links and bookmarks still land
+   on the game.
 3. **Dedicated subpages, one shell.** `install.html`, `downloads.html`,
    `compatibility.html`, and `releases.html` carry the detail that used to sit
    on the hub. `site.css` gives them one Pondwake shell. Each page states what
-   is built and verified separately from what is still pending its native host.
+   is built and verified separately from what is published unsigned and what
+   still needs a native-host test.
 4. **Docs are rendered, not dumped.** A dependency-free Node renderer turns
    each `docs/*.md` into a committed `docs/*.html` page with a shared sidebar,
    heading anchors, tables, code blocks, and rewritten links. A freshness
@@ -38,6 +39,6 @@ the product behind its packaging.
   broken.
 - The game starts, pauses, and resumes at desktop and mobile widths with no
   console errors.
-- Release and compatibility status stays honest: Linux packages built and
-  smoke-tested, native rows clearly pending the release workflow, and the
-  compatibility matrix never claims a row that did not run.
+- Release and compatibility status stays honest: the `maze-chase-v0.1.0-rc.1`
+  prerelease publishes the Linux, Windows, and macOS artifacts unsigned, and
+  the compatibility matrix never claims a row that did not run.
