@@ -43,6 +43,7 @@
   </div>
 
   <h2 id="verified">Verified terminal rows</h2>
+  <div class="table-scroll">
   <table>
     <caption>Executed Linux sessions, same build, same choreography</caption>
     <thead>
@@ -59,6 +60,7 @@
       <tr><td>xterm, VT340 mode, auto</td><td>390</td><td>sixel</td><td><span class="status ok">Pass</span></td></tr>
     </tbody>
   </table>
+  </div>
   <p>The forced rows prove the detected tier is not masking a capability gap.
   Sprite pixels are censused in playing captures on the bitmap tiers, and the
   pause hub captures are checked for the frozen board and the PAUSED card. The
@@ -66,6 +68,7 @@
   <a href="docs/terminal-compat.html">terminal compatibility matrix</a>.</p>
 
   <h2 id="awaiting">Rows awaiting their host</h2>
+  <div class="table-scroll">
   <table>
     <caption>Not executed: these rows make no pass claim</caption>
     <thead>
@@ -80,6 +83,7 @@
       <tr><td>WezTerm, foot, contour, mlterm</td><td>Linux</td><td><span class="status wait">Harness profile needed</span></td></tr>
     </tbody>
   </table>
+  </div>
   <p>The shared engine, input, and session layers have native macOS and
   Windows test runs elsewhere in the suite. That is not the same as a signed
   terminal matrix row, so those terminals stay in this table until their

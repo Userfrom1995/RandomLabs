@@ -22,16 +22,27 @@
 
 const fs = require('fs');
 const os = require('os');
+const path = require('path');
 
 const BASE = (process.argv[2] || 'http://localhost:8931/').replace(/\/?$/, '/');
 const DEBUG_PORT = Number(process.argv[3] || 9331);
+const DOCS_DIR = path.join(__dirname, '..', '..', 'docs');
+const DOC_PAGES = fs
+  .readdirSync(DOCS_DIR)
+  .filter((name) => name.endsWith('.html'))
+  .sort()
+  .map((name) => `docs/${name}`);
+if (DOC_PAGES.length < 15) {
+  console.error(`SITE-E2E FAIL: expected 15 rendered docs pages, found ${DOC_PAGES.length}`);
+  process.exit(1);
+}
 const SITE_PAGES = [
   ['index.html', 'Maze Chase - Play'],
   ['install.html', 'Maze Chase - Install'],
   ['downloads.html', 'Maze Chase - Downloads'],
   ['compatibility.html', 'Maze Chase - Compatibility'],
   ['releases.html', 'Maze Chase - Releases'],
-  ['docs/index.html', 'Maze Chase docs: Docs home'],
+  ...DOC_PAGES.map((page) => [page, null]),
 ];
 const NAV = ['index.html', 'install.html', 'downloads.html', 'compatibility.html', 'releases.html', 'docs/'];
 
@@ -45,6 +56,7 @@ let nextId = 1;
 const pending = new Map();
 let onConsole = null;
 let onLog = null;
+let onException = null;
 let consoleErrors = [];
 let failures = 0;
 let assertions = 0;
@@ -74,6 +86,8 @@ function connect(url) {
         onConsole(msg.params);
       } else if (msg.method === 'Log.entryAdded' && onLog) {
         onLog(msg.params);
+      } else if (msg.method === 'Runtime.exceptionThrown' && onException) {
+        onException(msg.params);
       }
     });
   });
@@ -154,12 +168,26 @@ async function collectLinks(ws) {
   onConsole = (params) => {
     if (params.type !== 'error') return;
     const text = params.args.map((arg) => arg.value || arg.description || '?').join(' ');
-    if (!/favicon|Autoplay|audio context/i.test(text)) consoleErrors.push(text.slice(0, 240));
+    // Only the exact media-policy notices Chrome emits before a user gesture
+    // are benign; every other console error is a failure.
+    if (/^Autoplay is only allowed when approved by the user/i.test(text)) return;
+    if (/^The AudioContext was not allowed to start/i.test(text)) return;
+    consoleErrors.push(text.slice(0, 240));
   };
   onLog = (entry) => {
-    if (!entry.entry || entry.entry.level !== 'error') return;
-    const text = entry.entry.text || '';
-    if (!/dbus|DBus|GPU|gpu|Fontconfig|favicon/i.test(text)) consoleErrors.push(text.slice(0, 240));
+    const record = entry.entry;
+    if (!record || record.level !== 'error') return;
+    // `source: other` is browser chrome (GPU/DBus/Fontconfig), not the page.
+    if (record.source === 'other') return;
+    const text = record.text || '';
+    if (/favicon\.(?:ico|svg)/i.test(text)) return;
+    consoleErrors.push(text.slice(0, 240));
+  };
+  onException = (params) => {
+    const details = params.exceptionDetails || {};
+    const exception = details.exception || {};
+    const text = exception.description || exception.value || details.text || 'uncaught exception';
+    consoleErrors.push(String(text).slice(0, 240));
   };
 
   const targets = await fetch(`http://localhost:${DEBUG_PORT}/json/list`).then((r) => r.json());
@@ -190,6 +218,23 @@ async function collectLinks(ws) {
     return NAV.map((href) => (href === 'docs/' ? (prefix ? './' : 'docs/') : prefix + href));
   };
 
+  // F4: exercise the real legacy redirect, not just its source. A shared
+  // play.html?seed=... link must land on the game with query and fragment.
+  const redirectExpected = new URL('index.html?seed=abc&view=1#game-main', BASE);
+  await navigate(ws, BASE + 'play.html?seed=abc&view=1#game-main');
+  const redirected = await evalJs(ws, `({
+    pathname: window.location.pathname,
+    search: window.location.search,
+    hash: window.location.hash,
+  })`);
+  assert(
+    redirected.pathname === redirectExpected.pathname
+      && redirected.search === redirectExpected.search
+      && redirected.hash === redirectExpected.hash,
+    `play.html redirects to the game preserving query and fragment (got ${redirected.pathname}${redirected.search}${redirected.hash})`,
+  );
+  assert(consoleErrors.length === 0, 'the legacy redirect raises no console errors');
+
   for (const [path, expectedTitle] of SITE_PAGES) {
     const url = BASE + path;
     const loaded = await httpStatus(url);
@@ -209,7 +254,7 @@ async function collectLinks(ws) {
         nav,
         active: document.querySelectorAll('[aria-current="page"]').length,
         rawMarkdown: links.filter((href) => href && !/^https?:/i.test(href) && href.split('#')[0].endsWith('.md')),
-        overflow: document.documentElement.scrollWidth - window.innerWidth,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
         footer: !!document.querySelector('footer'),
         doc: document.querySelectorAll('article.doc').length,
         scripts: document.scripts.length,
@@ -217,7 +262,14 @@ async function collectLinks(ws) {
       };
     })()`);
 
-    assert(page.title === expectedTitle, `${path} title is "${expectedTitle}" (got "${page.title}")`);
+    if (path.startsWith('docs/')) {
+      assert(
+        page.title.startsWith('Maze Chase docs: ') && page.title.length > 'Maze Chase docs: '.length,
+        `${path} carries a docs title (got "${page.title}")`,
+      );
+    } else {
+      assert(page.title === expectedTitle, `${path} title is "${expectedTitle}" (got "${page.title}")`);
+    }
     assert(page.h1 === 1 && page.h1Text.length > 0, `${path} carries exactly one non-empty h1`);
     for (const href of expectedNav(path)) {
       assert(page.nav.includes(href), `${path} navigation links ${href}`);
@@ -307,7 +359,7 @@ async function collectLinks(ws) {
   fs.writeFileSync(`${shotDir}/maze-chase-site-desktop.png`, Buffer.from(desktopShot.data, 'base64'));
   console.log(`screenshots: ${shotDir}/maze-chase-site-desktop.png`);
 
-  // Mobile: the game stays usable at 390x844, and every page avoids overflow.
+  // Mobile: every page is measured against a true 390x844 client viewport.
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: 390, height: 844, deviceScaleFactor: 2, mobile: true,
   });
@@ -318,40 +370,66 @@ async function collectLinks(ws) {
     // mobile navigation. Reset it after every navigation so the assertions
     // measure a true 390x844 layout instead of a scaled one (macOS Chrome 155).
     await send(ws, 'Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
-    for (let settle = 0; settle < 20; settle++) {
-      const size = await evalJs(ws, '[window.innerWidth, window.innerHeight]');
+    for (let settle = 0; settle < 30; settle++) {
+      const size = await evalJs(ws, '[document.documentElement.clientWidth, document.documentElement.clientHeight]');
       if (size[0] === 390 && size[1] === 844) break;
       await sleep(100);
     }
     if (path === 'index.html') {
       await waitFor(ws, `document.getElementById('boot-status').textContent === 'Ready.'`, 25000, 'mobile engine boot');
     }
-    const mobile = await evalJs(ws, `(() => ({
-      overflow: document.documentElement.scrollWidth - window.innerWidth,
-      viewportWidth: window.innerWidth,
-      viewportHeight: window.innerHeight,
-      titleBottom: (() => {
-        const card = document.getElementById('panel-title');
-        if (!card) return 0;
-        return card.getBoundingClientRect().bottom;
-      })(),
-      canvasWidth: (() => {
-        const canvas = document.getElementById('game-canvas');
-        return canvas ? canvas.getBoundingClientRect().width : 0;
-      })(),
-      navVisible: (() => {
-        const nav = document.querySelector('.site-menu, .site-nav');
-        if (!nav) return false;
-        const rect = nav.getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0;
-      })(),
-    }))()`);
+    const mobile = await evalJs(ws, `(() => {
+      const nav = [...document.querySelectorAll('.site-nav a, .site-menu nav a')].map((a) => a.getAttribute('href'));
+      const h1 = document.querySelectorAll('h1');
+      return {
+        title: document.title,
+        h1: h1.length,
+        h1Text: h1[0] ? h1[0].textContent.trim() : '',
+        nav,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        viewportWidth: document.documentElement.clientWidth,
+        viewportHeight: document.documentElement.clientHeight,
+        titleBottom: (() => {
+          const card = document.getElementById('panel-title');
+          if (!card) return 0;
+          return card.getBoundingClientRect().bottom;
+        })(),
+        canvasWidth: (() => {
+          const canvas = document.getElementById('game-canvas');
+          return canvas ? canvas.getBoundingClientRect().width : 0;
+        })(),
+        navVisible: (() => {
+          const control = document.querySelector('.site-menu > summary, .site-nav');
+          if (!control) return false;
+          const rect = control.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        })(),
+      };
+    })()`);
+    assert(mobile.viewportWidth === 390 && mobile.viewportHeight === 844,
+      `${path} measures a true 390x844 layout (${mobile.viewportWidth}x${mobile.viewportHeight})`);
     assert(mobile.overflow <= 1, `${path} has no horizontal overflow at 390x844 (${mobile.overflow}px)`);
-    assert(mobile.navVisible, `${path} keeps the site navigation visible at 390x844`);
+    assert(mobile.h1 === 1 && mobile.h1Text.length > 0, `${path} mobile carries exactly one non-empty h1`);
+    for (const href of expectedNav(path)) {
+      assert(mobile.nav.includes(href), `${path} mobile navigation links ${href}`);
+    }
+    assert(mobile.navVisible, `${path} keeps the site navigation control visible at 390x844`);
+    assert(consoleErrors.length === 0, `${path} mobile load has no console errors`);
+    for (const error of consoleErrors) console.error('  console:', error);
     if (path === 'index.html') {
+      const opened = await evalJs(ws, `(() => {
+        const menu = document.querySelector('.site-menu');
+        if (menu) menu.open = true;
+        const nav = document.querySelector('.site-menu > nav');
+        if (!nav) return null;
+        const rect = nav.getBoundingClientRect();
+        return { left: rect.left, right: rect.right, width: rect.width };
+      })()`);
+      assert(
+        opened && opened.left >= 0 && opened.right <= 390 && opened.width > 0,
+        `the opened Site menu stays inside the 390px viewport (${opened ? `${opened.left}..${opened.right}` : 'missing'})`,
+      );
       assert(mobile.canvasWidth >= 280, `the mobile board keeps the 280px minimum (${mobile.canvasWidth.toFixed(1)}px)`);
-      assert(mobile.viewportWidth === 390 && mobile.viewportHeight === 844,
-        `the mobile layout viewport is 390x844 (${mobile.viewportWidth}x${mobile.viewportHeight})`);
       assert(mobile.titleBottom <= mobile.viewportHeight + 1,
         `the mobile title card fits the first viewport (bottom ${mobile.titleBottom.toFixed(1)} of ${mobile.viewportHeight}px)`);
     }
@@ -365,8 +443,15 @@ async function collectLinks(ws) {
     if (!response.ok) continue;
     if (url.hash && /\.(html|htm)?$/.test(url.pathname)) {
       const body = await response.text();
-      const id = url.hash.slice(1);
-      assert(body.includes(`id="${id}"`), `link ${url.pathname}${url.hash} names a real id`);
+      const wanted = `id="${url.hash.slice(1)}"`;
+      let at = body.indexOf(wanted);
+      let found = false;
+      while (at !== -1) {
+        const previous = at === 0 ? '' : body[at - 1];
+        if (at === 0 || previous === '<' || /\s/.test(previous)) { found = true; break; }
+        at = body.indexOf(wanted, at + 1);
+      }
+      assert(found, `link ${url.pathname}${url.hash} names a real id`);
     }
   }
   for (const asset of ['site.css', 'web/maze-chase.js', 'web/maze-chase.wasm', 'web/favicon.svg']) {
@@ -374,6 +459,10 @@ async function collectLinks(ws) {
     assert(response.ok, `asset ${asset} responds ${response.status}`);
   }
 
+  await navigate(ws, gameUrl);
+  await send(ws, 'Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
+  await waitFor(ws, `document.getElementById('boot-status').textContent === 'Ready.'`, 25000, 'mobile screenshot boot');
+  await sleep(300);
   const mobileShot = await send(ws, 'Page.captureScreenshot', { format: 'png' });
   fs.writeFileSync(`${shotDir}/maze-chase-site-mobile.png`, Buffer.from(mobileShot.data, 'base64'));
   console.log(`screenshots: ${shotDir}/maze-chase-site-mobile.png`);
