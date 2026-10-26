@@ -7,12 +7,13 @@ place, and a release tag can never publish software built from a
 different version.
 
 The Linux packaging and smoke rows were executed on the release
-container for this tree. The macOS and Windows rows are built and
-smoke-tested by their native release jobs once
-`.github/workflows/maze-chase-release.yml` is installed. They were not
-run for this change, so no macOS or Windows artifact is claimed here.
-The measured record lives in [scoreboard.md](scoreboard.md) and the
-signed parity gate in [parity.md](parity.md).
+container for this tree. The installed
+`.github/workflows/maze-chase-release.yml` then built and smoke-tested
+the Linux, Windows, and macOS rows in release run
+[40161835683](https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683),
+which published the unsigned `maze-chase-v0.1.0-rc.1` prerelease. The
+measured record lives in [scoreboard.md](scoreboard.md) and the signed
+parity gate in [parity.md](parity.md).
 
 ## Toolchain
 
@@ -304,8 +305,9 @@ macOS Gatekeeper warnings are expected; they are not a signature claim.
 
 ### Candidate and stable releases
 
-The 0.1.0 candidate will be tagged `maze-chase-v0.1.0-rc.1` and
-published as a prerelease once the release workflow is installed.
+The 0.1.0 candidate is tagged `maze-chase-v0.1.0-rc.1` and published as
+an unsigned prerelease from release run
+[40161835683](https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683).
 Before the stable release, re-run every per-OS install, upgrade, and
 uninstall row against those artifacts and re-sign the terminal matrix.
 Then bump the workspace version to `1.0.0` and cut
