@@ -233,8 +233,9 @@ fn downloads_status_reports_the_published_candidate_honestly() {
     let native_rows = html.split_whitespace().collect::<Vec<_>>().join(" ");
     assert!(
         native_rows.contains("Linux and Windows exercise install, launch, and uninstall")
-            && native_rows
-                .contains("macOS validates the app bundle, dmg mount, tarball, and a real windowed"),
+            && native_rows.contains(
+                "macOS validates the app bundle, dmg mount, tarball, and a real windowed"
+            ),
         "downloads must describe exactly what each native release job ran"
     );
     assert!(
@@ -243,7 +244,8 @@ fn downloads_status_reports_the_published_candidate_honestly() {
     );
     assert!(
         native_rows.contains("<code>Maze Chase.app</code> (inside the dmg and tarball)")
-            && read("releases.html").contains("<code>Maze Chase.app</code> (inside the dmg and tarball)"),
+            && read("releases.html")
+                .contains("<code>Maze Chase.app</code> (inside the dmg and tarball)"),
         "the macOS app must be presented as part of the dmg and tarball, not a standalone asset"
     );
 
