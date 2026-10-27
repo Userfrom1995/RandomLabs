@@ -1,61 +1,59 @@
 # STATE
 
-Last updated: 2026-10-27T00:22Z by run 40425253096 (issue_comment wake on #759: the owner-published review report). Review approved `1c4ecd27`; Tester live; decision list `[]`.
+Last updated: 2026-10-27T01:35Z by run 40431961884 (maintainer wake from the tester fix handoff on #759). Tester returned `fix`; the Fixer pushed `9c49fe57`; a fresh head-bound review is live; decision list `[]`.
 
 ## Who I am
 
 I am Hephaestus, the Maintainer of this lab, successor to Mae (inception through 2026-08-27). I keep the pipeline moving: survey the live repo, load memory, decide, post only through the hardcoded steps. Owner messages are binding and always win.
 
-## Right now (post-survey, 2026-10-27T00:15-00:22Z)
+## Right now (post-survey, 2026-10-27T01:20-01:35Z)
 
-- **main** = `7cbd23bd17e3bfe7e4efecf0979d04aec7914ab0` (unchanged since the Owner's 2026-10-26 10:13:22Z commit). The workspace HEAD was moved from `main` to the #759 PR branch by the CLI session bootstrap after the trusted checkout; the staged Maintainer prompt matches `origin/main` byte-for-byte, and every decision below was made from `gh`/`git ls-remote` live state, not the workspace tree.
-- **#759 `opencode/issue582-20261024225156`** head `1c4ecd277e3a69d6c8bfc8ac94c9bac58b295df7`, MERGEABLE/CLEAN, updated 00:15:37Z.
-  - Review run `40420474271` (started 2026-10-26 23:32Z) completed success at 00:15:40Z with decision `test` (approve, no blocking findings). The owner-PAT publish step posted the signed report at 00:15:34Z (comment 6430458571), and the review forward posted `/oc test` at 00:15:37Z (comment 6430459207). F1-F10 are resolved at the pushed head.
-  - Tester run `40425255372` is live (started 00:15:42Z, agent step in progress) on the same head. Its pre-agent chain is green.
-  - The maintainer run queued from the `/oc test` comment (`40425255259`) will skip at the job gate; it is not a live lane.
-  - Review auto-retry markers 1-3 (2026-10-25) and fix markers 1-3 (2026-10-26) are spent. The current windows are working after the daily reset.
+- **main** = `7cbd23bd17e3bfe7e4efecf0979d04aec7914ab0` (unchanged since the Owner's 2026-10-26 10:13:22Z commit).
+- **#759 `opencode/issue582-20261024225156`** head `9c49fe57cec68c21fb48286f35feabca7239ce6d`, MERGEABLE/CLEAN, updated 01:30:41Z.
+  - Tester run `40425255372` completed success at 01:20Z. It pushed one test-only commit `d7c0c52e` ("tester: pin the boot-failure card to the mobile viewport") and returned `fix` with one blocking finding: on a failed wasm boot the fixed error card is off-screen and the page overflows horizontally at 390x844 and 320x568 (root cause: the 640px intrinsic canvas is never sized on the failure path). The Tester documents it reproduces at merge-base `835280dd`, but Phase 7 makes the game page the front door and its own boot-gate suite is the acceptance gate. The workflow posted the fix handoff at 01:20:12Z.
+  - Fix run `40431966272` started 01:20:17Z, completed success 01:30:47Z. It pushed three commits at 01:26:52Z, fast-forward, no rebase: `f028ea68` (canvas `max-width: 100%`; `wire()` sizes before the first frame; `showError()` calls `sizeCanvas()`), `3cff1033` (renderer rewrites query-suffixed `.md` links; heading ids reserve `main` and `doc-content`), `9c49fe57` (progress ledger). Signed summary: boot-gate 39/39 green, `render-docs --check` 15 docs / 418 links, `site-e2e` 650, `browser-e2e` 279, macOS case audit 568, Rust site suites 6/27/2, fmt clean, tree clean.
+  - Fresh review run `40432969235` is live from 01:30:28Z. The push preceded the 01:30:24Z trigger and the review resolves the head at run time, so it binds `9c49fe57`. The two queued review runs from the maintainer comments are skip-only.
+  - The earlier review approval covered `1c4ecd27` and does not bind the moved head. No tester or Council approval exists on `9c49fe57`, so no merge. Review auto-retry markers 1-3 (2026-10-25) and fix markers 1-3 (2026-10-26) are spent; the current windows work after the reset.
 - **#745 `opencode/lab-742-owner-pat-env-sanitization`** head `7a04fa4a`, CONFLICTING/DIRTY, parked post-delivery.
-- **No other open PRs; no human or fork PR.** Thirteen open issues, zero untriaged. #660 closes after Phase 7 merges. #655/#661/#659/#677/#678/#657/#683 are Maze Chase children or the parent graph; #683 tracks the RC release and the Final Phase re-sign/terminal-matrix remainder; #754 is the free-usage quota tracker; #742 the PAT sanitization work; #582 the parent tracker; #70 the lab-health board; #42 the brainstorm board.
-- **Wake**: run 40425253096, `issue_comment` on #759 at 00:15:39Z. It was summoned by the owner-published review report (comment 6430458571) which does not start with `/oc`.
-- **Health** (this run): allowlist on `origin/main` = 19/19 repo-defined workflows (`maintainer` self-excluded); the three GitHub-managed API entries (Dependabot Updates, Dependency Graph, pages-build-deployment) have no repo workflow file. `silent-stall-audit.sh` 31 passed / 0 failed on a worktree of `origin/main` `7cbd23bd`. Zero held (`action_required`) runs repo-wide. Current-window failures only the already-triaged curator dispatch `40417136026` (23:04Z, #754) and review quota death `40353277114` (15:50Z, #754). Pages production `40353300692` SUCCESS for `7cbd23bd`; preview `40353100533` SUCCESS for `1c4ecd27`. Registry 84 models / 8 free; the 3-rung ladder (`deepseek-v4.1-flash-free`, `mimo-v2.6-flash-free`, `glm-5.3-flash-free`) live and free; the three-knob pins are unchanged at `opencode/deepseek-v4.1-flash-free`. Curator last schedule run `40412150811` SUCCESS at 22:24Z; the daily auditor schedule has not landed yet (its 00:00Z cron is historically delivered around 03:24-03:52Z). The 00:15Z burst of cancelled/skipped `maintainer` `workflow_run` runs is the known single-slot maintainer concurrency, not failures.
+- **No other open PRs; no human or fork PR.** Thirteen open issues, zero untriaged: #754 (quota tracker), #742 (PAT sanitization), #683 (release-claims sweep and Windows E2E re-sign), #678/#677/#661/#659/#657/#655/#660/#582 (Maze Chase roadmap and parent graph), #70 (lab health), #42 (brainstorm). #660 closes on the Phase 7 merge; #683 stays open for the Final Phase remainder.
+- **Wake**: run 40431961884, `issue_comment` on #759 at 01:20:12Z, the tester workflow's fix handoff.
+- **Health** (this run): allowlist on `origin/main` = 19/19 item-for-item against live repo-defined workflow names (`maintainer` self-excluded), zero missing and zero extra. Silent-stall audit 31/31 (R1-R31) on a fresh clone of `origin/main` `7cbd23bd`. Zero held runs after the fix workflow's approval sweep (the two held from the tester's 00:40:55Z push, `40427942091` opencode-pr-trigger and `40427941950` Pages, were approved and completed successfully). Zero failures in the newest 200 runs; the older triaged failures are the curator self-heal exhaustion `40417136026` (23:04Z) and the review quota death `40353277114` (15:50Z), both #754. Pages production green for `7cbd23bd`; preview `40432640365` SUCCESS for `9c49fe57`. Free-model registry not re-queried this run; pins and ladder unchanged from the 00:22Z check (84 models / 8 free, three rungs live).
 - **Owner directives active**: delivery-first (message 6358553065); Pages contrast fix (6349584523); terrain/river textures (6349595081); Browser/PWA smoothness guardrail (6350485765); no extra sweep (6358553065). No new directives.
 
 ## Decisions this run
 
 `.maintainer/decision.json` = `[]`. `.maintainer/personality.md` empty. No `emergency.json`.
-- No `review`: the review is complete and approved on the current head.
-- No `test`: the workflow's own handoff already posted `/oc test` and the tester lane is live; a dispatch would duplicate it.
-- No `test-linux` / `test-macos` / `test-windows`: the macOS arm already passed the site content before the fix; the fix surface is CSS/harness/renderer; the reviewer re-verified the fixed head on the deployed preview; the Final Phase owns deployed cross-platform acceptance.
-- No `fix`: no findings on `1c4ecd27`; the two remaining notes are non-blocking docs wording.
-- No `eval`: the Tester has not approved; gate order is review -> Tester -> Council.
-- No merge: no tester or Council approval; #745 conflicts and is parked.
-- No `lab`: the free-usage wall is provider allowance (#754), post-delivery under the delivery-first directive; nothing infra-broken and the current window is working.
-- No `curate`/`auditor`: curator last cycle green; the auditor daily tick is due later on its normal (delayed) schedule; a manual dispatch now would preempt fresh-runner ticks.
+- No `review`: the fix workflow's own handoff already posted the fresh head-bound review and run `40432969235` is live; a dispatch would duplicate a live lane.
+- No `test`: no review approval on the moved head yet; the gate order is review -> Tester -> Council and the review is live.
+- No `test-linux` / `test-macos` / `test-windows`: the fix is browser-agnostic canvas CSS/JS sizing plus renderer hardening, the committed boot-gate and site suites cover it, and the Final Phase owns deployed cross-platform acceptance (#683).
+- No `fix`: the fixer round already landed the tester's finding and both secondary notes, and its workflow forwarded the review.
+- No `eval`: no tester approval on the moved head; the Council is binding only after the Tester.
+- No merge: no tester or Council marker on `9c49fe57`. #745 conflicts and stays parked.
+- No `lab`: nothing infra-broken; allowlist and audit are green and the window is serving runs normally. #754 remains post-delivery under the delivery-first directive.
+- No `curate`/`auditor`: the curator's last cycle is green; the daily auditor tick is not due yet; a manual dispatch would preempt a fresh-runner tick.
 - No `continue`/`architect`/`research`/`design`/`build`: Phase 7 is in final verification; the Final Phase chains only after the merge.
 - No `create_issue`/`create_pr`/`recover`/`ideate`: zero untriaged issues, no stranded work, no ideation request.
-- No emergency: `lab.yml` executes normally, the provider serves this tree, and production is not halted.
+- No emergency: `lab.yml` executes normally and production is not halted.
 
 ## Callbacks
 
-The hardcoded step posts one status comment on #759 (review approved, tester live, next gates, health). The PAT merge sweep evaluates #759 and #745 and merges nothing (no tester/Council markers). The approve-held-runs sweep finds zero held runs. `main` has not advanced, so Pages is at most an idempotent same-tree redeploy. The memory publish appends the new 2026-10-27 day file keep-both per #647.
+The hardcoded step posts one status comment on #759 (tester fix verdict, fixer round, live review, health). The PAT merge sweep evaluates #759 and #745 and merges nothing (no tester/Council markers on the moved head). The approve-held-runs sweep finds zero held runs. `main` has not advanced, so Pages is at most an idempotent same-tree redeploy; the preview for `9c49fe57` is already green. The memory publish appends the new 2026-10-27 entry keep-both per #647.
 
 ## Next run
 
-1. Watch tester run `40425255372` on #759 head `1c4ecd27`. If it approves, the test workflow publishes the owner-authored `/oc approve-test` marker and forwards `/oc maintainer`; then dispatch exactly one `eval` bound to the then-current head (the Tester may push test-only commits; re-read the head first).
-2. On `approve-eval`, verify the eval marker is fresh and head-bound, merge head-bound (`--match-head-commit`, rebase, merge fallback only for non-linear history, never `--delete-branch`), close #660, flip Phase 7 in `progress/582-maze-chase-overhaul.md`, and immediately chain the Final Phase build on #582.
-3. If the Tester returns a failure, the workflow forwards `/oc fix`; do not duplicate it. If the tester lane dies at the provider wall, re-dispatch once on the next fresh bucket/reset and record the spent counters.
-4. After the merge, confirm the new production Pages re-deploy and let the curator cycle (or one scoped `curate` dispatch on #582) confirm the new public surface; the reviewer already confirmed the root README and global `docs/` are untouched.
-5. Keep #683 open for the Final Phase released-artifact re-sign and the Windows terminal matrix proof.
-6. Post-delivery backlog unchanged: #745, #742, #754 (with today's occurrences), the title-agent/subagent `small_model` fallback, the `evaluator/logs` 403, the maintainer-session trust fix (the CLI checked out the PR head again this run; the staged prompt still matched `origin/main` byte-for-byte), queue hygiene, the general-arm catch-all false activation, the packaging/harness follow-ups, the Phase 6 roadmap checkboxes, the deferred model review, and the curator lane items (stale selftest count, optional overview-canvas pixel assertion, macOS mobile docs-nav note).
-7. Never duplicate a live lane; never post a trigger token; do not re-ping a stale quota status.
+1. Watch review run `40432969235` on #759 head `9c49fe57`. On `test` (approve), the workflow posts the tester handoff; on `fix`, the workflow forwards one bounded fix round. Do not duplicate either lane.
+2. On Tester approval of the then-current head, the test workflow publishes the owner-authored approve-test marker and forwards to me; then dispatch exactly one `eval` bound to the head that exists then (the Tester may push test-only commits; re-read the head first).
+3. On `approve-eval`, verify the eval marker is fresh and head-bound, merge head-bound (`--match-head-commit`, rebase, merge fallback only for non-linear history, never `--delete-branch`), close #660, flip Phase 7 in `progress/582-maze-chase-overhaul.md`, and immediately chain the Final Phase build on #582.
+4. Keep #683 open for the Final Phase released-artifact re-sign and the Windows terminal matrix proof.
+5. Post-delivery backlog unchanged: #745, #742, #754, the title-agent/subagent `small_model` fallback, the `evaluator/logs` 403, the maintainer-session trust fix (the CLI checks out the PR head again; the staged prompt still matched `origin/main` byte-for-byte), queue hygiene, the general-arm catch-all wake, the packaging/harness follow-ups, and the curator lane items.
+6. Never duplicate a live lane; never post a trigger token; do not re-ping a stale quota status.
 
 ## Open questions
 
-1. Does the Tester approve `1c4ecd27`, or return failures / push a test-only commit first?
-2. If the tester pushes a test-only commit, does the review approval remain sufficient for the pipeline, and does the Council evaluate the new head?
+1. Does the review approve `9c49fe57` with the tester-authored boot-gate assertions and the fixer's canvas sizing, or return another round?
+2. Does the Tester approve the moved head first try, and does it push a test-only commit that moves the head again before the Council?
 3. After the merge, does the Final Phase build start immediately and carry #655/#661/#582 to the stable `1.0.0` sign-off, including the real per-OS install/upgrade/uninstall round trip from the RC artifacts and the Windows terminal matrix re-sign (#683)?
 4. Do the remaining Maze Chase children (#659, #677, #678) fold into the Final Phase roadmap or need separate dispatches?
-5. Does #745 rebase cleanly post-delivery and carry the maintainer-arm config opt-out?
-6. Should the post-delivery lab pass fix the general-arm wake that keeps spawning redundant maintainer runs?
+5. Does the maintainer workspace keep getting re-checked-out to the PR head by the CLI session bootstrap, and should the post-delivery trust fix pin it back to the trusted commit?
 
 - Hephaestus, the Maintainer
