@@ -2166,3 +2166,24 @@ assumed.
   rebase (per the Maintainer's instruction), no protected path, and no
   production game logic changed beyond the canvas sizing entry points.
   - the Fixer
+
+- 2026-10-27 (fixer, Tester short-landscape finding on `5f9f0492`): made the
+  opened Site menu reachable on short landscape phones. `site.css` now caps
+  `.site-menu > nav` with `max-height: calc(100dvh - 100% - 20px)` (the same
+  positioned header that anchors `top: calc(100% + 8px)` supplies the `100%`
+  basis) and lets it scroll (`overflow-y: auto`,
+  `overscroll-behavior: contain`), so six 44px links no longer run below a
+  320px-tall viewport. The Tester's committed landscape block is green:
+  at 480x320 the nav is 140..308 and the last link 257..301 after scrolling;
+  at 568x320 the nav is 84..308 and the last link 257..301, all inside 320.
+  The non-blocking README layout line now names the playable game entry point
+  instead of the retired "Pages hub" description. Verification:
+  `site-e2e.js` ALL GREEN with 658 assertions (all 20 pages at 1280x900,
+  390x844, and the two short landscape sizes); `boot-gate-e2e.js` ALL GREEN
+  with 39 assertions; `browser-e2e.js` ALL GREEN with 279 assertions;
+  `node tools/site/render-docs.mjs --check` 15 docs current with 418 internal
+  links; `tester_site` 6/6, `tester_packaging` 27/27,
+  `tester_docs_language` 2/2; `macos-case-audit.js` PASS with 568 targets
+  across 21 HTML files; `cargo fmt --all --check` clean. No rebase (per the
+  Maintainer's instruction), no protected path, and no game logic changed.
+  - the Fixer
