@@ -2171,19 +2171,44 @@ assumed.
   opened Site menu reachable on short landscape phones. `site.css` now caps
   `.site-menu > nav` with `max-height: calc(100dvh - 100% - 20px)` (the same
   positioned header that anchors `top: calc(100% + 8px)` supplies the `100%`
-  basis) and lets it scroll (`overflow-y: auto`,
-  `overscroll-behavior: contain`), so six 44px links no longer run below a
-  320px-tall viewport. The Tester's committed landscape block is green:
-  at 480x320 the nav is 140..308 and the last link 257..301 after scrolling;
-  at 568x320 the nav is 84..308 and the last link 257..301, all inside 320.
-  The non-blocking README layout line now names the playable game entry point
-  instead of the retired "Pages hub" description. Verification:
-  `site-e2e.js` ALL GREEN with 658 assertions (all 20 pages at 1280x900,
-  390x844, and the two short landscape sizes); `boot-gate-e2e.js` ALL GREEN
-  with 39 assertions; `browser-e2e.js` ALL GREEN with 279 assertions;
+  basis) and lets it scroll (`overflow-y: auto`), so six 44px links no longer
+  run below a 320px-tall viewport. The Tester's committed landscape block is
+  green: at 480x320 the nav is 140..308 and the last link 257..301 after
+  scrolling; at 568x320 the nav is 84..308 and the last link 257..301, all
+  inside 320. The non-blocking README layout line now names the playable game
+  entry point instead of the retired "Pages hub" description. Verification:
+  `site-e2e.js` ALL GREEN with 658 assertions (all 20 pages at 1280x900 and
+  390x844, plus the game page at 480x320 and 568x320); `boot-gate-e2e.js` ALL
+  GREEN with 39 assertions; `browser-e2e.js` ALL GREEN with 279 assertions;
   `node tools/site/render-docs.mjs --check` 15 docs current with 418 internal
   links; `tester_site` 6/6, `tester_packaging` 27/27,
   `tester_docs_language` 2/2; `macos-case-audit.js` PASS with 568 targets
+  across 21 HTML files; `cargo fmt --all --check` clean. No rebase (per the
+  Maintainer's instruction), no protected path, and no game logic changed.
+  - the Fixer
+
+- 2026-10-27 (fixer, follow-up review round on `d496c82d`): corrected the
+  landscape menu fix and the remaining copy/contract gaps. Removed the
+  `overscroll-behavior: contain` that made the uncapped open menu swallow
+  wheel and touch scrolling; the menu scrolls itself only when the cap
+  applies and otherwise leaves the page scrollable. Added a `min-width:
+  781px` override that subtracts the details element's 16px offset, so the
+  cap no longer overshoots the viewport above the mobile breakpoint, and
+  corrected the CSS comment. `site-e2e.js` now proves a wheel over the
+  uncapped open menu at 390x600 still scrolls the page. The downloads copy
+  now states exactly what the release evidence covers (Linux and Windows
+  install, launch, and uninstall; macOS bundle, dmg mount, tarball, and a
+  real windowed probe) and `Maze Chase.app` is labelled as inside the dmg
+  and tarball rather than a standalone asset. `render-docs.mjs` and the
+  shared Rust crawler derive the root page list from the directory instead
+  of a hardcoded list, so `play.html` and any future page stay covered.
+  Verification: `site-e2e.js` ALL GREEN with 661 assertions (658 plus the
+  three uncapped-menu wheel assertions); `render-docs.mjs --check` 15 docs
+  current with 419 internal links (the dynamic root list now includes
+  `play.html`); `tester_site` 6/6, `tester_packaging` 27/27,
+  `tester_docs_language` 2/2; workspace excluding desktop 507 passed;
+  `boot-gate-e2e.js` ALL GREEN with 39 assertions; `browser-e2e.js` ALL
+  GREEN with 279 assertions; `macos-case-audit.js` PASS with 568 targets
   across 21 HTML files; `cargo fmt --all --check` clean. No rebase (per the
   Maintainer's instruction), no protected path, and no game logic changed.
   - the Fixer
