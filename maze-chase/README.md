@@ -155,7 +155,8 @@ escalated, never shipped on assumption.
 ## Layout
 
 - `docs/` - unified product documentation.
-- `index.html` - Pages hub and documentation entry point.
+- `index.html` - playable game and site entry point (the legacy
+  `play.html` redirects here).
 - `crates/engine` - the deterministic simulation:
   `tuning`, `maze`, `actors`, `steering`, `ghosts`,
   `personalities`, `modes`, `relish`, `game`, `rng`, `sha256`,
