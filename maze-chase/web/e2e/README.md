@@ -21,7 +21,8 @@ on failure and print `ALL GREEN` on success.
   skew, and an ABI-3 module missing one export from each first-frame
   group (fright flash, reduced flash, theme, difficulty) or the layered
   sound table (`mc_sfx_tone_count`), with the boot status never reaching
-  Ready.
+  Ready. It also proves the failure card stays inside the visual viewport
+  with no horizontal page overflow at 390x844 and 320x568.
 - `browser-e2e.js [page-url] [debug-port]`: drives the served
   `index.html` in headless chromium over CDP with node's built-in
   WebSocket (boot with zero console errors, title visible, canvas

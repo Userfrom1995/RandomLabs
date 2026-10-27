@@ -172,6 +172,29 @@ const staleV3NoTone = staleWasmB64(3, { omit: 'mc_sfx_tone_count' });
     })()`);
   }
 
+  // A boot failure must not leave the 640px initial canvas widening the
+  // layout viewport: the error card is position: fixed, so a widened initial
+  // containing block pushes it outside the phone's visible viewport and makes
+  // the whole page horizontally scrollable. The success path calls
+  // sizeCanvas() from the frame loop; the failure path never reaches it.
+  async function errorLayoutState() {
+    return evalJs(ws, `(() => {
+      const card = document.getElementById('panel-error');
+      const rect = card.getBoundingClientRect();
+      const de = document.documentElement;
+      const vv = window.visualViewport;
+      return {
+        visible: !card.hidden && getComputedStyle(card).display !== 'none' &&
+          rect.width > 0 && rect.height > 0,
+        clientWidth: de.clientWidth,
+        scrollWidth: de.scrollWidth,
+        innerWidth: window.innerWidth,
+        visualWidth: vv ? vv.width : null,
+        card: [rect.left, rect.top, rect.right, rect.bottom],
+      };
+    })()`);
+  }
+
   // A version-1 module missing mc_fright_segments must fail on the export
   // check even though it reports the old version and every old export.
   const url1 = new URL(PAGE);
@@ -225,6 +248,35 @@ const staleV3NoTone = staleWasmB64(3, { omit: 'mc_sfx_tone_count' });
       'the error names ' + exportName + ', got: ' + state.reason);
     assert(state.boot === 'Loading engine...', 'boot status never reaches Ready for ' + exportName);
   }
+
+  // The error card must stay usable at the phone widths the game page
+  // supports. A stale wasm is enough to enter the failure path; the layout
+  // assertion then proves the desktop canvas no longer widens the viewport.
+  for (const [width, height] of [[390, 844], [320, 568]]) {
+    await send(ws, 'Emulation.setDeviceMetricsOverride', {
+      width,
+      height,
+      deviceScaleFactor: 2,
+      mobile: true,
+    });
+    const url = new URL(PAGE);
+    url.searchParams.set('stale-wasm', '1');
+    await send(ws, 'Page.navigate', { url: url.toString() });
+    await sleep(2500);
+    const layout = await errorLayoutState();
+    assert(layout.visible, `boot error card is visible at ${width}x${height}`);
+    assert(
+      layout.scrollWidth <= layout.clientWidth + 1,
+      `boot error page has no horizontal overflow at ${width}px, got ` +
+        `scrollWidth ${layout.scrollWidth} vs clientWidth ${layout.clientWidth}`
+    );
+    assert(
+      layout.card[0] >= -1 && layout.card[2] <= layout.clientWidth + 1,
+      `boot error card stays inside the ${width}px viewport, got ` +
+        `${JSON.stringify(layout.card)} with clientWidth ${layout.clientWidth}`
+    );
+  }
+  await send(ws, 'Emulation.clearDeviceMetricsOverride', {});
 
   await send(ws, 'Page.removeScriptToEvaluateOnNewDocument', {
     identifier: injected.identifier,
