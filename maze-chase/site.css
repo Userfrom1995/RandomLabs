@@ -75,13 +75,16 @@ header h1 a { color: inherit; text-decoration: none; }
   border-radius: 12px;
   box-shadow: 0 20px 60px #000c;
   /* The opened menu is the game page's only route to the subpages, so it can
-     never run below a short landscape viewport (480x320, 568x320). 100% is
-     the positioned header's height, the same basis as `top` above, so the
-     cap is the space from the menu's top edge to the viewport bottom. */
+     never run below a short landscape viewport (480x320, 568x320). At the
+     mobile breakpoint below, 100% is the positioned header's height (the same
+     basis as `top` above), so the cap is the space from the menu's top edge
+     to the viewport bottom. Above 780px the containing block is the 44px
+     details element instead, so the desktop override adds its 16px offset.
+     No overscroll-behavior here: when the menu is not capped the page must
+     still scroll under a wheel or touch gesture over it. */
   max-height: calc(100vh - 100% - 20px);
   max-height: calc(100dvh - 100% - 20px);
   overflow-y: auto;
-  overscroll-behavior: contain;
 }
 .site-menu > nav a {
   display: block;
@@ -92,6 +95,12 @@ header h1 a { color: inherit; text-decoration: none; }
 }
 .site-menu > nav a:hover { background: var(--panel-raised); color: var(--ink); }
 .site-menu > nav a[aria-current="page"] { color: var(--accent); font-weight: 600; }
+@media (min-width: 781px) {
+  .site-menu > nav {
+    max-height: calc(100vh - 100% - 36px);
+    max-height: calc(100dvh - 100% - 36px);
+  }
+}
 
 /* ---------- subpage shell ---------- */
 .skip-link {
