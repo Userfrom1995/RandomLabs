@@ -25,6 +25,13 @@ branding:
 # per-rung retry loop in "Run opencode", audit rule R15, plus the bounded
 # FreeTierError same-model retry plus the bounded transient-429/5xx retry and
 # the provider-stall watchdog, all guarded by extended audit rule R15).
+# Per-lane model selection stays an input (the previous flexible setup).
+# opencode.json in the repository root is still staged from the maintained
+# default-branch commit and loaded via OPENCODE_CONFIG so the CLI's paid
+# built-in small model (gpt-5.4-nano) is never used on PR-gated lanes, where
+# OPENCODE_DISABLE_PROJECT_CONFIG would otherwise ignore the root file. The
+# staged config supplies `small_model`; the main model remains the per-lane
+# `model` input below.
 inputs:
   model:
     description: "Model to use"
@@ -130,6 +137,78 @@ runs:
     - name: Add opencode to PATH
       shell: bash
       run: echo "$HOME/.opencode/bin" >> $GITHUB_PATH
+
+    - name: Stage the maintained opencode config (small-model guard)
+      id: opencode_config
+      shell: bash
+      # The PR-gated lanes keep OPENCODE_DISABLE_PROJECT_CONFIG so a PR cannot
+      # inject project config, and without an explicit config file the CLI
+      # falls back to its built-in paid small model (gpt-5.4-nano), which
+      # died with "Insufficient account funds" (HTTP 402) on review run
+      # 40457674498. Stage the maintained default-branch opencode.json (never
+      # the PR head), validate it, and point OPENCODE_CONFIG at the staged
+      # copy so its `small_model` is respected. The main model is still the
+      # per-lane `model` input; passing `MODEL` to the CLI overrides the
+      # config's `model`, so per-lane flexibility is preserved. The
+      # handoff-contract checker is advisory: prefer its default-branch
+      # edition, fall back to the checked-out edition so a PR introducing it
+      # can run its own lanes before merge, and never fail the run just
+      # because it is absent.
+      env:
+        TRUSTED_REF: ${{ github.event.repository.default_branch }}
+      run: |
+        set -euo pipefail
+        config_dir="${RUNNER_TEMP}/lab-config"
+        bin_dir="${RUNNER_TEMP}/lab-bin"
+        mkdir -p "$config_dir" "$bin_dir"
+        # Full fetch (no --depth): planting a shallow boundary here would
+        # break the merge-base checks later in the job (issue #602).
+        git fetch --quiet origin "$TRUSTED_REF"
+        trusted_sha=$(git rev-parse --verify FETCH_HEAD)
+        if ! git show "${trusted_sha}:opencode.json" > "$config_dir/opencode.json" 2>/dev/null; then
+          echo "::error::Could not read opencode.json from the maintained default-branch commit ${trusted_sha}; refusing to start an agent with the CLI's built-in model defaults."
+          exit 1
+        fi
+        # The handoff-contract checker is advisory (the post-agent gates are
+        # authoritative). Prefer the maintained default-branch edition; fall
+        # back to the checked-out edition so a PR that introduces the checker
+        # can run its own review/test lanes before that PR merges, and never
+        # fail the run just because the helper is not on the default branch yet.
+        if git show "${trusted_sha}:.github/scripts/verify-agent-contract.sh" > "$bin_dir/verify-agent-contract.sh" 2>/dev/null; then
+          :
+        elif [ -f .github/scripts/verify-agent-contract.sh ]; then
+          cp .github/scripts/verify-agent-contract.sh "$bin_dir/verify-agent-contract.sh"
+          echo "::warning::The maintained default branch does not carry verify-agent-contract.sh yet; using the checked-out edition for this run's advisory self-check. The post-agent gates remain authoritative."
+        else
+          echo "::warning::verify-agent-contract.sh is unavailable on the default branch and in the checkout; the agent self-check is unavailable, but the post-agent gates remain authoritative."
+        fi
+        test -s "$config_dir/opencode.json"
+        if [ -s "$bin_dir/verify-agent-contract.sh" ]; then
+          chmod +x "$bin_dir/verify-agent-contract.sh" 2>/dev/null || true
+        fi
+        model=$(jq -r '.model // empty' "$config_dir/opencode.json")
+        small_model=$(jq -r '.small_model // empty' "$config_dir/opencode.json")
+        for pair in "model=$model" "small_model=$small_model"; do
+          key=${pair%%=*}
+          value=${pair#*=}
+          if [ -z "$value" ]; then
+            echo "::error::opencode.json on ${trusted_sha} has no '$key'; a missing pin lets the CLI choose its paid built-in default, so refusing to start."
+            exit 1
+          fi
+          if ! printf '%s' "$value" | grep -qE '^opencode/[A-Za-z0-9._-]+$'; then
+            echo "::error::opencode.json '$key' value '$value' is not a well-formed opencode/<name> ref."
+            exit 1
+          fi
+          if ! printf '%s' "$value" | grep -qE -- '-free$'; then
+            echo "::error::opencode.json '$key' value '$value' is not free-tier; the lab never runs paid models (free-tier guard, issue #130)."
+            exit 1
+          fi
+        done
+        {
+          echo "model=$model"
+          echo "small_model=$small_model"
+        } >> "$GITHUB_OUTPUT"
+        echo "::notice::Staged opencode.json from ${trusted_sha}: small_model='$small_model' (main model remains the per-lane model input)."
 
     - name: Resolve model (bounded fallback ladder)
       id: model_ladder
@@ -460,6 +539,10 @@ runs:
       env:
         MODEL_CANDIDATES: ${{ steps.model_ladder.outputs.candidates }}
         MODEL: ${{ steps.model_ladder.outputs.model }}
+        # The staged maintained config supplies `small_model`, so the CLI's
+        # paid built-in default is never used. The main model is the per-lane
+        # `model` input, passed to the CLI as MODEL (it overrides the config).
+        OPENCODE_CONFIG: ${{ runner.temp }}/lab-config/opencode.json
         AGENT: ${{ inputs.agent }}
         SHARE: ${{ inputs.share }}
         PROMPT: ${{ inputs.prompt }}
