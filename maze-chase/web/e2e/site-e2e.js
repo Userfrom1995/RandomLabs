@@ -196,6 +196,10 @@ async function collectLinks(ws) {
   const ws = await connect(target.webSocketDebuggerUrl);
   await send(ws, 'Log.enable', {});
   await send(ws, 'Runtime.enable', {});
+  await send(ws, 'Network.enable', {});
+  // A deployed preview reuses the same asset URLs across heads; a cached
+  // site.css or wasm from an earlier run would test the wrong build.
+  await send(ws, 'Network.setCacheDisabled', { cacheDisabled: true });
   await send(ws, 'Page.enable', {});
 
   const seen = new Set();
