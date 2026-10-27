@@ -2203,9 +2203,11 @@ assumed.
   shared Rust crawler derive the root page list from the directory instead
   of a hardcoded list, so `play.html` and any future page stay covered.
   Verification: `site-e2e.js` ALL GREEN with 661 assertions (658 plus the
-  three uncapped-menu wheel assertions); `render-docs.mjs --check` 15 docs
-  current with 419 internal links (the dynamic root list now includes
-  `play.html`); `tester_site` 6/6, `tester_packaging` 27/27,
+  three uncapped-menu wheel assertions) locally and against the deployed
+  preview, with the browser cache disabled so a reused asset URL always
+  tests the current build; `render-docs.mjs --check` 15 docs current with
+  419 internal links (the dynamic root list now includes `play.html`);
+  `tester_site` 6/6, `tester_packaging` 27/27,
   `tester_docs_language` 2/2; workspace excluding desktop 507 passed;
   `boot-gate-e2e.js` ALL GREEN with 39 assertions; `browser-e2e.js` ALL
   GREEN with 279 assertions; `macos-case-audit.js` PASS with 568 targets
