@@ -152,6 +152,33 @@ jobs:
           mkdir -p "$prompts_dir"
           git show "${trusted_sha}:.github/agents/maintainer.md" > "$prompts_dir/maintainer.md"
           test -s "$prompts_dir/maintainer.md"
+          # Stage the maintained opencode.json from the same trusted commit
+          # so the Maintainer arm never falls back to the CLI's built-in paid
+          # small model (gpt-5.4-nano, HTTP 402). The main model stays the
+          # per-lane pin in the resolver step below.
+          config_dir="${RUNNER_TEMP:-/tmp}/lab-config"
+          mkdir -p "$config_dir"
+          git show "${trusted_sha}:opencode.json" > "$config_dir/opencode.json"
+          test -s "$config_dir/opencode.json"
+          opencode_model=$(jq -r '.model // empty' "$config_dir/opencode.json")
+          opencode_small_model=$(jq -r '.small_model // empty' "$config_dir/opencode.json")
+          for pair in "model=$opencode_model" "small_model=$opencode_small_model"; do
+            key=${pair%%=*}
+            value=${pair#*=}
+            if [ -z "$value" ]; then
+              echo "::error::opencode.json on ${trusted_sha} has no '$key'; refusing to start the Maintainer with the CLI's paid built-in default."
+              exit 1
+            fi
+            if ! printf '%s' "$value" | grep -qE '^opencode/[A-Za-z0-9._-]+$'; then
+              echo "::error::opencode.json '$key' value '$value' is not a well-formed opencode/<name> ref."
+              exit 1
+            fi
+            if ! printf '%s' "$value" | grep -qE -- '-free$'; then
+              echo "::error::opencode.json '$key' value '$value' is not free-tier; the lab never runs paid models (free-tier guard, issue #130)."
+              exit 1
+            fi
+          done
+          echo "::notice::Staged opencode.json from ${trusted_sha}: small_model='$opencode_small_model' (main model remains the per-lane pin)."
 
       - name: Configure git identity
         run: |
@@ -275,11 +302,12 @@ jobs:
       - name: Resolve model (bounded fallback ladder)
         id: model_ladder
         shell: bash
-        # Fail-loud pre-flight (issue #591): the Maintainer is the arm that
-        # would dispatch the model repair, so its own pin dying is the exact
-        # single point of failure of the 2026-10-17 outage. Same resolver and
-        # ladder as the shared composite action; a fully dead ladder exits 1
-        # here and the verify step below goes red instead of hollow green.
+        # Issue #591: the Maintainer is the arm that would dispatch the model
+        # repair, so its own pin dying is the exact single point of failure of
+        # the 2026-10-17 outage. Same resolver and ladder as the shared
+        # composite action; a fully dead ladder exits 1 here and the verify
+        # step below goes red instead of hollow green. The main model is the
+        # per-lane pin below; the staged opencode.json supplies small_model.
         env:
           REQUESTED_MODEL: opencode/deepseek-v4.1-flash-free
         run: bash .github/actions/opencode-run/resolve-model.sh
@@ -304,6 +332,9 @@ jobs:
           # channel. This stays correct when the project-config opt-out lands
           # (issue #745), which would otherwise disable the repo permission.
           OPENCODE_PERMISSION: '{"external_directory":{"*":"allow"}}'
+          # The staged maintained config supplies `small_model`; the main
+          # model is the per-lane pin in the resolver step above.
+          OPENCODE_CONFIG: ${{ runner.temp }}/lab-config/opencode.json
           VARIANT: max
           MODEL_CANDIDATES: ${{ steps.model_ladder.outputs.candidates }}
           USE_GITHUB_TOKEN: "true"
