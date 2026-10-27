@@ -85,9 +85,12 @@ function slugify(text) {
 function rewriteHref(href) {
   if (/^(?:[a-z]+:|\/|#)/i.test(href)) return href;
   const hashAt = href.indexOf("#");
-  const path = hashAt === -1 ? href : href.slice(0, hashAt);
+  const beforeHash = hashAt === -1 ? href : href.slice(0, hashAt);
   const hash = hashAt === -1 ? "" : href.slice(hashAt);
-  if (path.endsWith(".md")) return path.slice(0, -3) + ".html" + hash;
+  const queryAt = beforeHash.indexOf("?");
+  const path = queryAt === -1 ? beforeHash : beforeHash.slice(0, queryAt);
+  const query = queryAt === -1 ? "" : beforeHash.slice(queryAt);
+  if (path.endsWith(".md")) return path.slice(0, -3) + ".html" + query + hash;
   return href;
 }
 
@@ -206,7 +209,9 @@ function isTableStart(lines, index) {
 function renderMarkdown(source, sourceName) {
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
   const html = [];
-  const usedIds = new Set(["main"]);
+  // Reserve the ids the docs shell already ships so a heading can never
+  // duplicate `#main` or the skip link's `#doc-content` target.
+  const usedIds = new Set(["main", "doc-content"]);
   let index = 0;
 
   function headingId(text) {
