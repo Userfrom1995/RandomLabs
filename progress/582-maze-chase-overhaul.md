@@ -2211,6 +2211,28 @@ assumed.
   `tester_docs_language` 2/2; workspace excluding desktop 507 passed;
   `boot-gate-e2e.js` ALL GREEN with 39 assertions; `browser-e2e.js` ALL
   GREEN with 279 assertions; `macos-case-audit.js` PASS with 568 targets
-  across 21 HTML files; `cargo fmt --all --check` clean. No rebase (per the
-  Maintainer's instruction), no protected path, and no game logic changed.
+  across 21 HTML files; `cargo fmt --all --check` was reported clean here
+  but actually failed on two `tester_site.rs` assertions until the F1/F2
+  repair entry below; the repair ran `cargo fmt --all` and re-checked it
+  clean. No rebase (per the Maintainer's instruction), no protected path, and
+  no game logic changed.
+  Delegation ledger (recorded during the 2026-10-27 F1/F2 repair with live
+  read-only audits of this round's output): three read-only general subagents
+  ran. The menu auditor ran site-e2e (661 assertions) and measured the opened
+  nav plus the 390x600 wheel probe at 480x320, 568x320, and desktop widths:
+  PASS. The release-copy auditor verified the rc.1 release, run 40161835683,
+  and every copy surface: PASS, no overclaim. The contract auditor exercised
+  the dynamic page lists and renderer guards and ran the suites: PASS. The
+  primary context re-ran fmt and the final suites. Skills: no registry skill
+  matched.
+  - the Fixer
+
+- 2026-10-27 (fixer, review F1/F2 on `afba8eb9`): repaired the blocking
+  `cargo fmt --all --check` failure (`tester_site.rs` assertion wrapping) by
+  running `cargo fmt --all` and re-checking, corrected the false "fmt clean"
+  claim in the preceding follow-up entry, and recorded the missing delegation
+  ledger there. Verification: `cargo fmt --all --check` exit 0;
+  `render-docs.mjs --check` 15 docs current with 419 internal links;
+  `tester_site` 6/6, `tester_packaging` 27/27, `tester_docs_language` 2/2.
+  No rebase (per the Maintainer's instruction); project test file only.
   - the Fixer
