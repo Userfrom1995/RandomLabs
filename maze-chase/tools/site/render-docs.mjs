@@ -28,13 +28,11 @@ const mazeRoot = resolve(here, "..", "..");
 const docsDir = join(mazeRoot, "docs");
 const check = process.argv.includes("--check");
 
-const SITE_PAGES = [
-  "index.html",
-  "install.html",
-  "downloads.html",
-  "compatibility.html",
-  "releases.html",
-];
+// Every root HTML page is crawled, so a new page can never be invisible to
+// --check just because it was not added to a hand-maintained list here.
+const SITE_PAGES = readdirSync(mazeRoot)
+  .filter((name) => name.endsWith(".html"))
+  .sort();
 
 // Sidebar order and short labels. Any committed doc missing from this list is
 // appended by filename, so a new doc can never silently vanish from the nav.

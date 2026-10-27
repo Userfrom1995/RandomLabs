@@ -101,17 +101,11 @@ pub fn id_exists(body: &str, fragment: &str) -> bool {
 
 pub fn site_pages() -> Vec<PathBuf> {
     let root = maze_root();
-    let mut pages: Vec<PathBuf> = [
-        "index.html",
-        "play.html",
-        "install.html",
-        "downloads.html",
-        "compatibility.html",
-        "releases.html",
-    ]
-    .iter()
-    .map(|name| root.join(name))
-    .collect();
+    let mut pages: Vec<PathBuf> = fs::read_dir(&root)
+        .expect("maze root must be readable")
+        .map(|entry| entry.expect("maze root entry").path())
+        .filter(|path| path.extension().map(|x| x == "html").unwrap_or(false))
+        .collect();
     for entry in fs::read_dir(root.join("docs")).expect("docs must be readable") {
         let path = entry.expect("docs entry").path();
         if path.extension().map(|x| x == "html").unwrap_or(false) {
