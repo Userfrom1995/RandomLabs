@@ -104,7 +104,7 @@
       <tr>
         <td>Desktop</td>
         <td>macOS</td>
-        <td><code>Maze Chase.app</code>,<br />
+        <td><code>Maze Chase.app</code> (inside the dmg and tarball),<br />
         <code>maze-chase-desktop-&lt;version&gt;-macos-&lt;arch&gt;.dmg</code>,<br />
         <code>maze-chase-desktop-&lt;version&gt;-macos-&lt;arch&gt;.tar.gz</code></td>
         <td><span class="status ok">Published (unsigned)</span></td>
@@ -115,10 +115,11 @@
 
   <p>Every native row above is published in the
   <a href="https://github.com/Userfrom1995/RandomLabs/releases/tag/maze-chase-v0.1.0-rc.1"><code>maze-chase-v0.1.0-rc.1</code></a>
-  prerelease; each host's install, launch, and uninstall smoke row is a green
-  job in
-  <a href="https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683">release run 40161835683</a>.
-  The files are unsigned, so SmartScreen and Gatekeeper warnings are expected.</p>
+  prerelease. Linux and Windows exercise install, launch, and uninstall in
+  <a href="https://github.com/Userfrom1995/RandomLabs/actions/runs/40161835683">release run 40161835683</a>;
+  macOS validates the app bundle, dmg mount, tarball, and a real windowed
+  probe. The files are unsigned, so SmartScreen and Gatekeeper warnings are
+  expected.</p>
 
   <p>The measured record behind these rows lives in the
   <a href="docs/scoreboard.html">release scoreboard</a> and the
