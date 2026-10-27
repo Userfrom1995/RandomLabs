@@ -467,6 +467,58 @@ async function collectLinks(ws) {
   fs.writeFileSync(`${shotDir}/maze-chase-site-mobile.png`, Buffer.from(mobileShot.data, 'base64'));
   console.log(`screenshots: ${shotDir}/maze-chase-site-mobile.png`);
 
+  // Short landscape phones (the game itself supports 480x320): the Site menu
+  // is the game page's only route to the subpages, so every link must stay
+  // reachable inside the viewport. A compact menu passes as-is; a tall menu
+  // must scroll inside the viewport instead of extending below it.
+  for (const [width, height] of [[480, 320], [568, 320]]) {
+    await send(ws, 'Emulation.setDeviceMetricsOverride', {
+      width, height, deviceScaleFactor: 2, mobile: true,
+    });
+    await navigate(ws, gameUrl);
+    await send(ws, 'Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
+    await waitFor(ws, `document.getElementById('boot-status').textContent === 'Ready.'`, 25000, `${width}x${height} game boot`);
+    const shortMenu = await evalJs(ws, `(() => {
+      const details = document.querySelector('.site-menu');
+      if (!details) return null;
+      details.open = true;
+      const nav = details.querySelector('nav');
+      if (!nav) return null;
+      const scrollable = /^(auto|scroll)$/.test(getComputedStyle(nav).overflowY);
+      if (scrollable) nav.scrollTop = nav.scrollHeight;
+      const navRect = nav.getBoundingClientRect();
+      const links = [...nav.querySelectorAll('a')];
+      const last = links[links.length - 1].getBoundingClientRect();
+      return {
+        count: links.length,
+        viewport: [document.documentElement.clientWidth, document.documentElement.clientHeight],
+        navLeft: navRect.left,
+        navRight: navRect.right,
+        navTop: navRect.top,
+        navBottom: navRect.bottom,
+        lastTop: last.top,
+        lastBottom: last.bottom,
+        scrollable,
+      };
+    })()`);
+    assert(
+      shortMenu && shortMenu.count === 6 && shortMenu.viewport[0] === width && shortMenu.viewport[1] === height,
+      `${width}x${height} game page exposes all six Site links in a true ${width}x${height} viewport (${shortMenu ? shortMenu.viewport.join('x') : 'missing'}, ${shortMenu ? shortMenu.count : 0} links)`,
+    );
+    assert(
+      shortMenu && shortMenu.navLeft >= 0 && shortMenu.navRight <= width,
+      `${width}x${height} opened Site menu stays inside the viewport horizontally (${shortMenu ? `${shortMenu.navLeft.toFixed(1)}..${shortMenu.navRight.toFixed(1)}` : 'missing'})`,
+    );
+    assert(
+      shortMenu && shortMenu.navTop >= 0 && shortMenu.navBottom <= height,
+      `${width}x${height} opened Site menu stays inside the viewport vertically (${shortMenu ? `${shortMenu.navTop.toFixed(1)}..${shortMenu.navBottom.toFixed(1)} of ${height}` : 'missing'})`,
+    );
+    assert(
+      shortMenu && shortMenu.lastTop >= 0 && shortMenu.lastBottom <= height,
+      `${width}x${height} last Site link is reachable without leaving the viewport (${shortMenu ? `${shortMenu.lastTop.toFixed(1)}..${shortMenu.lastBottom.toFixed(1)} of ${height}` : 'missing'})`,
+    );
+  }
+
   if (failures > 0) {
     console.error(`SITE-E2E FAIL: ${failures} failed, ${assertions} assertions, base ${BASE}`);
     process.exit(1);
