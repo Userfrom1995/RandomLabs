@@ -46,11 +46,14 @@ on failure and print `ALL GREEN` on success.
 - `site-e2e.js [base-url] [debug-port]`: crawls the shipped site over
   HTTP and in chromium (every page's title, one h1, shared navigation,
   active item, no raw markdown links, no horizontal overflow at desktop
-  and 390x844, every internal link and fragment resolving), boots the
-  game-first `index.html`, starts a run, pauses, resumes, and verifies
-  the mobile board minimum and title-card bounds with zero console
-  errors. Runs unchanged against a local server or the deployed preview
-  URL; record the deployed command and result in `progress/`.
+  and 390x844, every internal link and fragment resolving), checks the
+  game page's opened Site menu at 390x844 and the two short landscape
+  sizes (480x320, 568x320), proves a wheel over the uncapped open menu
+  still scrolls the page, boots the game-first `index.html`, starts a
+  run, pauses, resumes, and verifies the mobile board minimum and
+  title-card bounds with zero console errors. Runs unchanged against a
+  local server or the deployed preview URL; record the deployed command
+  and result in `progress/`.
 - `macos-case-audit.js`: walks every local href/src in the shipped HTML
   and verifies each path component matches the on-disk spelling exactly,
   so a link that opens on the default case-insensitive APFS volume cannot
