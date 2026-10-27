@@ -230,6 +230,22 @@ fn downloads_status_reports_the_published_candidate_honestly() {
             && !html.contains("Native release job"),
         "downloads must label the browser as live and the four native rows as published and unsigned"
     );
+    let native_rows = html.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(
+        native_rows.contains("Linux and Windows exercise install, launch, and uninstall")
+            && native_rows
+                .contains("macOS validates the app bundle, dmg mount, tarball, and a real windowed"),
+        "downloads must describe exactly what each native release job ran"
+    );
+    assert!(
+        !native_rows.contains("each host's install, launch, and uninstall"),
+        "downloads must not claim a macOS install/uninstall smoke the release run does not contain"
+    );
+    assert!(
+        native_rows.contains("<code>Maze Chase.app</code> (inside the dmg and tarball)")
+            && read("releases.html").contains("<code>Maze Chase.app</code> (inside the dmg and tarball)"),
+        "the macOS app must be presented as part of the dmg and tarball, not a standalone asset"
+    );
 
     let releases = read("releases.html");
     for published in [
