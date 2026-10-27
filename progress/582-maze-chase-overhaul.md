@@ -2145,3 +2145,24 @@ assumed.
   PASS in the working tree. The primary context applied the fixes and ran the
   final browser and cargo commands. Skills: no registry skill matched.
   - the Fixer
+
+- 2026-10-27 (fixer, Tester boot-gate finding on `d7c0c52e`): fixed the
+  mobile boot-failure layout. `index.html` now caps the board with
+  `max-width: 100%`, `wire()` sizes the canvas before the first frame, and
+  `showError()` calls `sizeCanvas()` so a failed wasm boot can never leave
+  the intrinsic 640px canvas widening the layout viewport. The Tester's
+  boot-gate suite is green at both phone sizes: no horizontal overflow and
+  the fixed error card fully inside the viewport (390x844: 12..378;
+  320x568: 12..308). Two non-blocking renderer notes were also closed:
+  `rewriteHref` rewrites query-suffixed `.md` links (`.md?plain=1` becomes
+  `.html?plain=1`), and heading ids reserve the shell's `main` and
+  `doc-content` ids so a heading can never collide with the skip target.
+  Verification: `node tools/site/render-docs.mjs --check` 15 docs current
+  with 418 internal links; `tester_site` 6/6, `tester_packaging` 27/27,
+  `tester_docs_language` 2/2; `boot-gate-e2e.js` ALL GREEN (39 assertions
+  including both mobile widths); `site-e2e.js` ALL GREEN with 650
+  assertions; `browser-e2e.js` ALL GREEN with 279 assertions;
+  `macos-case-audit.js` PASS with 568 targets across 21 HTML files. No
+  rebase (per the Maintainer's instruction), no protected path, and no
+  production game logic changed beyond the canvas sizing entry points.
+  - the Fixer
