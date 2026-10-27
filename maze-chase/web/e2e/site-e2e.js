@@ -519,6 +519,50 @@ async function collectLinks(ws) {
     );
   }
 
+  // The uncapped menu must never trap page scrolling. At 390x600 the nav is
+  // shorter than its cap and the document scrolls, so a wheel gesture over
+  // the open menu has to move the page itself.
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: 390, height: 600, deviceScaleFactor: 2, mobile: true,
+  });
+  await navigate(ws, gameUrl);
+  await send(ws, 'Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
+  await waitFor(ws, `document.getElementById('boot-status').textContent === 'Ready.'`, 25000, '390x600 game boot');
+  const scrollProbe = await evalJs(ws, `(() => {
+    const details = document.querySelector('.site-menu');
+    if (!details) return null;
+    details.open = true;
+    const nav = details.querySelector('nav');
+    if (!nav) return null;
+    const rect = nav.getBoundingClientRect();
+    return {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+      navHeight: nav.clientHeight,
+      navContentHeight: nav.scrollHeight,
+      pageHeight: document.documentElement.scrollHeight,
+      pageClientHeight: document.documentElement.clientHeight,
+      scrollY: window.scrollY,
+    };
+  })()`);
+  assert(
+    scrollProbe && scrollProbe.pageHeight > scrollProbe.pageClientHeight,
+    `the 390x600 page scrolls for the menu wheel probe (${scrollProbe ? `${scrollProbe.pageHeight} > ${scrollProbe.pageClientHeight}` : 'missing'})`,
+  );
+  assert(
+    scrollProbe && scrollProbe.navContentHeight <= scrollProbe.navHeight,
+    `the 390x600 menu is uncapped so the wheel lands on the page (${scrollProbe ? `${scrollProbe.navContentHeight}/${scrollProbe.navHeight}` : 'missing'})`,
+  );
+  await send(ws, 'Input.dispatchMouseEvent', {
+    type: 'mouseWheel', x: scrollProbe.x, y: scrollProbe.y, deltaX: 0, deltaY: 240,
+  });
+  await sleep(300);
+  const wheelScrollY = await evalJs(ws, 'window.scrollY');
+  assert(
+    wheelScrollY > scrollProbe.scrollY,
+    `a wheel over the uncapped open Site menu still scrolls the page (scrollY ${wheelScrollY})`,
+  );
+
   if (failures > 0) {
     console.error(`SITE-E2E FAIL: ${failures} failed, ${assertions} assertions, base ${BASE}`);
     process.exit(1);
