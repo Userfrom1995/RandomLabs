@@ -58,7 +58,10 @@ Curator Track: [Curator] ──────────────────�
                                                              └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Nothing reaches `main` without the Reviewer's approval. Human PRs are
+No pull request reaches `main` without the Reviewer's approval. The only
+automated direct-to-main path is the Lab Engineer's Maintainer-ordered
+model-pin fast track, which touches only model configuration (workflow pins,
+`opencode.json`, and the fallback ladder), never code. Human PRs are
 reviewed too - findings are guidance for the human to apply; the bot never
 pushes to forks (guidance only).
 

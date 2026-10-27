@@ -200,9 +200,12 @@ Curator Track: [Curator] ──────────────────�
                                                              │                                                                                                                                                            │
                                                              └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 </div>
-  <p>Nothing reaches <code>main</code> without the Reviewer's approval. Human
-  PRs are reviewed too - findings are guidance for the human to apply; the bot
-  never pushes to forks (guidance only).</p>
+  <p>No pull request reaches <code>main</code> without the Reviewer's approval.
+  The only automated direct-to-main path is the Lab Engineer's
+  Maintainer-ordered model-pin fast track, which touches only model
+  configuration (workflow pins, <code>opencode.json</code>, and the fallback
+  ladder), never code. Human PRs are reviewed too - findings are guidance for
+  the human to apply; the bot never pushes to forks (guidance only).</p>
 
   <h2>Running the lab</h2>
   <pre><code># First run - dispatch the Maintainer once (Actions tab: maintainer → Run workflow)
