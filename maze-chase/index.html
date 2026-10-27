@@ -44,6 +44,11 @@
     display: block; background: #000; border-radius: 12px;
     border: 1px solid #2a3350; touch-action: none;
     min-width: 280px; min-height: 280px;
+    /* The intrinsic 640px board must never widen the layout viewport: the
+       boot-failure card is position: fixed, so an overflowing canvas pushes
+       it outside the phone's visual viewport. sizeCanvas() normally caps it,
+       but it is also reachable only after a successful boot. */
+    max-width: 100%;
   }
   aside#hud {
     flex: 0 0 240px; background: var(--panel); border-radius: 12px; padding: 12px 16px;

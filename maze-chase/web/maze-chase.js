@@ -111,6 +111,10 @@
 
   // ---------- error card ----------
   function showError(reason, hint) {
+    // The failure path never reaches the frame loop, so cap the initial
+    // 640px board here too: an unsized canvas widens the layout viewport and
+    // the position: fixed card centers outside a phone's visible viewport.
+    sizeCanvas();
     var panels = ['panel-title', 'panel-help', 'panel-scores', 'panel-settings', 'panel-pause', 'panel-over'];
     panels.forEach(function (id) { $(id).hidden = true; });
     $('error-reason').textContent = reason;
@@ -1374,6 +1378,9 @@
     canvas = $('game-canvas');
     ctx = canvas.getContext('2d');
     canvasWrap = $('canvas-wrap');
+    // Size before the first frame so the intrinsic 640px board never widens
+    // a phone viewport while the wasm is still loading.
+    sizeCanvas();
     var segs = $('fright-segs');
     if (segs && segs.children.length === 0) {
       for (var si = 0; si < FRIGHT_SEGMENTS; si++) {
