@@ -354,8 +354,8 @@ this PR (round 6 reviewed head `88ee1467`, code commit `470a050f`):
   Every row records `disposition: pass`; kitty-graphics rows carry
   169.9-175.4 KiB per session with 153-217 exact sprite-palette pixels in
   the playing capture, and the VT340 rows carry 137-138 transmits /
-  4.25-4.31 MiB. The evidence bundles under `tools/compat/evidence/` and
-  their screenshots are the committed capture set.
+  4.25-4.31 MiB. That run's bundles and screenshots were superseded by
+  the 2026-10-28 rc.1 re-sign recorded below.
 - Terminal sprite census was updated from the retired Ember Warren
   palette to the Dusk Pond theme palette (Rill, sunseed, and the four
   hunters).

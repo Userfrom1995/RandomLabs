@@ -2319,7 +2319,10 @@ are reconciled to the rc.1 evidence.
   non-blocking findings. Blocking: `compatibility.html` now names the
   published `maze-chase-v0.1.0-rc.1` terminal binary from tag commit
   `11a0037b` (SHA-256 `9f6cd45a`) and records that the raw transcript
-  stays a host artifact, matching all eight committed evidence bundles.
+  stays a host artifact, matching all eight committed evidence bundles;
+  the historical scoreboard entry now says its `96dc2be2` bundles were
+  superseded by the rc.1 re-sign instead of calling them the current
+  capture set.
   Non-blocking: the README parity row now says the real-speaker review
   is pending native hosts; the release-copy claim checker matches
   signing phrases only at a word start (so "unsigned binary" and
